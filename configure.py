@@ -579,9 +579,9 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdrsc.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsbt.o",
-                source="movie/mwsfdsbt.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsbt.c",
             ),
             Object(
                 Matching,
@@ -599,9 +599,9 @@ config.libs = [
                 source="movie/sud_lib.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsee.o",
-                source="movie/mwsfdsee.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsee.c",
             ),
             Object(
                 NonMatching,
