@@ -363,7 +363,7 @@ config.libs = [
             Object(NonMatching, "gcpipemanager.o", source="platform/gcpipemanager.c",
                    extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "joy.o", source="platform/joy.c", extra_cflags=["-use_lmw_stmw on"]),
-            Object(NonMatching, "MovieConfig.o", source="movie/MovieConfig.c"),
+            Object(Matching, "MovieConfig.o", source="movie/MovieConfig.c"),
             Object(NonMatching, "MovieManager.o", source="movie/MovieManager.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "MovieManagerGC_Disp.o", source="movie/MovieManagerGC_Disp.cpp", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "MkMovies.o", source="movie/MkMovies.c", extra_cflags=["-use_lmw_stmw on"]),
@@ -672,7 +672,7 @@ config.libs = [
                 source="libmsl/listpool.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslstub.o",
                 source="libmsl/mslstub.c",
             ),
