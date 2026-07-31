@@ -622,7 +622,7 @@ config.libs = [
             Object(
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/muldiv.o",
-                source="movie/muldiv.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/muldiv.c",
             ),
             Object(
                 NonMatching,
