@@ -3,29 +3,31 @@
 
 typedef struct _mwMemHeap _mwMemHeap;
 
+/** Fixed-block heap sizing configuration. Retail layout: 0x34 bytes. */
 typedef struct FixedHeapConfig {
-    unsigned long mkobjSize;
-    unsigned long mksobjSize;
-    unsigned long mkprocSize;
-    unsigned long bigstackSize;
-    unsigned long tinystackSize;
-    char pad14[0x08];
-    unsigned long fixed16Size;
-    unsigned long fixed32Size;
-    unsigned long fixed64Size;
-    unsigned long fixed128Size;
-    unsigned long fixed512Size;
-    unsigned long fixed1024Size;
+    unsigned long mkobjSize;    /**< Retail offset 0x00. */
+    unsigned long mksobjSize;   /**< Retail offset 0x04. */
+    unsigned long mkprocSize;   /**< Retail offset 0x08. */
+    unsigned long bigstackSize; /**< Retail offset 0x0C. */
+    unsigned long tinystackSize; /**< Retail offset 0x10. */
+    char pad14[0x08]; /**< Retail offsets 0x14-0x1B; purpose unknown. */
+    unsigned long fixed16Size;   /**< Retail offset 0x1C. */
+    unsigned long fixed32Size;   /**< Retail offset 0x20. */
+    unsigned long fixed64Size;   /**< Retail offset 0x24. */
+    unsigned long fixed128Size;  /**< Retail offset 0x28. */
+    unsigned long fixed512Size;  /**< Retail offset 0x2C. */
+    unsigned long fixed1024Size; /**< Retail offset 0x30. */
 } FixedHeapConfig;
 
+/** Heap-overflow callback payload. Retail layout: 0x1C bytes. */
 typedef struct MwMemOverflowInfo {
-    _mwMemHeap* originHeap;
-    _mwMemHeap* destHeap;
-    const char* originName;
-    const char* destName;
-    const char* file;
-    unsigned long size;
-    unsigned long line;
+    _mwMemHeap* originHeap; /**< Retail offset 0x00. */
+    _mwMemHeap* destHeap;   /**< Retail offset 0x04. */
+    const char* originName; /**< Retail offset 0x08. */
+    const char* destName;   /**< Retail offset 0x0C. */
+    const char* file;       /**< Retail offset 0x10. */
+    unsigned long size;     /**< Retail offset 0x14. */
+    unsigned long line;     /**< Retail offset 0x18. */
 } MwMemOverflowInfo;
 
 extern _mwMemHeap* overflow_heap;

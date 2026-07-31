@@ -6,9 +6,10 @@ typedef unsigned long u32;
 
 typedef struct _mwMemHeap _mwMemHeap;
 
+/** Partial heap identity view. Known retail extent: 0x2D bytes. */
 typedef struct MwMemHeapIdentity {
-  u8 pad00[0x2C];
-  u8 heapIndex;
+  u8 pad00[0x2C]; /**< Retail offsets 0x00-0x2B; fields unknown. */
+  u8 heapIndex;   /**< Retail offset 0x2C. */
 } MwMemHeapIdentity;
 
 #define MW_MEM_HEAP_MAGIC_VALID 0xBEABBEAB
@@ -19,107 +20,119 @@ typedef struct MwMemHeapIdentity {
 #define MW_MEM_STRATEGY_FIXED 2
 #define MW_MEM_STRATEGY_HDRLESS 5
 
+/** Parameters used to create a Midway memory heap. Retail layout: 0x1C bytes. */
 typedef struct MwMemHeapCreateParams {
-  _mwMemHeap *parentHeap;
-  u32 arenaSize;
-  u32 field_08;
-  u32 strategyType;
-  void *initParams;
-  const char *name;
-  u32 extraSizeShift;
+  _mwMemHeap *parentHeap; /**< Retail offset 0x00. */
+  u32 arenaSize;          /**< Retail offset 0x04. */
+  u32 field_08;           /**< Retail offset 0x08; purpose unknown. */
+  u32 strategyType;       /**< Retail offset 0x0C. */
+  void *initParams;       /**< Retail offset 0x10. */
+  const char *name;       /**< Retail offset 0x14. */
+  u32 extraSizeShift;     /**< Retail offset 0x18. */
 } MwMemHeapCreateParams;
 
+/** Mutable heap parameters. Retail layout: 0x14 bytes. */
 typedef struct MwMemHeapParams {
-  void *strategyCallback;
-  u32 field_04;
-  u8 field_08;
-  u8 field_09;
-  u8 overflowEnable;
-  u32 field_0C;
-  u32 field_10;
+  void *strategyCallback; /**< Retail offset 0x00. */
+  u32 field_04;           /**< Retail offset 0x04; purpose unknown. */
+  u8 field_08;            /**< Retail offset 0x08; purpose unknown. */
+  u8 field_09;            /**< Retail offset 0x09; purpose unknown. */
+  u8 overflowEnable;      /**< Retail offset 0x0A. */
+  u32 field_0C;           /**< Retail offset 0x0C; purpose unknown. */
+  u32 field_10;           /**< Retail offset 0x10; purpose unknown. */
 } MwMemHeapParams;
 
+/** Memory-system configuration words. Retail layout: 0x08 bytes. */
 typedef struct MwMemSystemParams {
-  u32 field_00;
-  u32 field_04;
+  u32 field_00; /**< Retail offset 0x00; purpose unknown. */
+  u32 field_04; /**< Retail offset 0x04; purpose unknown. */
 } MwMemSystemParams;
 
+/** Heap information populated by `mwMemHeapGetInfo`. Retail layout: 0x44 bytes. */
 typedef struct MwMemHeapInfo {
-  u32 field_00;
-  u8 *heapStart;
-  u8 *heapEnd;
-  u32 arenaSize;
-  _mwMemHeap *hierPrev;
-  _mwMemHeap *hierFirstChild;
-  _mwMemHeap *hierNext;
-  u32 strategy;
-  u32 overflowFlag;
-  u8 heapIndex;
-  u32 field_28;
-  u32 field_2C;
-  u32 field_30;
-  u32 field_34;
-  u32 field_38;
-  u32 totalSize;
-  u32 blockSize;
+  u32 field_00;              /**< Retail offset 0x00; purpose unknown. */
+  u8 *heapStart;             /**< Retail offset 0x04. */
+  u8 *heapEnd;               /**< Retail offset 0x08. */
+  u32 arenaSize;             /**< Retail offset 0x0C. */
+  _mwMemHeap *hierPrev;      /**< Retail offset 0x10. */
+  _mwMemHeap *hierFirstChild; /**< Retail offset 0x14. */
+  _mwMemHeap *hierNext;      /**< Retail offset 0x18. */
+  u32 strategy;              /**< Retail offset 0x1C. */
+  u32 overflowFlag;          /**< Retail offset 0x20. */
+  u8 heapIndex;              /**< Retail offset 0x24. */
+  u32 field_28;              /**< Retail offset 0x28; returned by `mslMainRamUsed`. */
+  u32 field_2C;              /**< Retail offset 0x2C; purpose unknown. */
+  u32 field_30;              /**< Retail offset 0x30; purpose unknown. */
+  u32 field_34;              /**< Retail offset 0x34; purpose unknown. */
+  u32 field_38;              /**< Retail offset 0x38; purpose unknown. */
+  u32 totalSize;             /**< Retail offset 0x3C. */
+  u32 blockSize;             /**< Retail offset 0x40. */
 } MwMemHeapInfo;
 
+/** Internal allocation request passed to heap strategies. Retail layout: 0x40 bytes. */
 typedef struct MwMemMallocRequest {
-  u32 field_00;
-  u32 field_04;
-  u32 field_08;
-  u8 field_0C;
-  u8 pad0D[3];
-  _mwMemHeap *originHeap;
-  _mwMemHeap *heap;
-  u32 field_18;
-  u32 size;
-  u32 field_20;
-  u32 field_24;
-  u32 field_28;
-  u32 flags;
-  u32 field_30;
-  void *systemParams;
-  u32 field_38;
-  u32 field_3C;
+  u32 field_00;          /**< Retail offset 0x00; purpose unknown. */
+  u32 field_04;          /**< Retail offset 0x04; purpose unknown. */
+  u32 field_08;          /**< Retail offset 0x08; purpose unknown. */
+  u8 field_0C;           /**< Retail offset 0x0C; purpose unknown. */
+  u8 pad0D[3];           /**< Retail offsets 0x0D-0x0F; alignment padding. */
+  _mwMemHeap *originHeap; /**< Retail offset 0x10. */
+  _mwMemHeap *heap;      /**< Retail offset 0x14. */
+  u32 field_18;          /**< Retail offset 0x18; purpose unknown. */
+  u32 size;              /**< Retail offset 0x1C. */
+  u32 field_20;          /**< Retail offset 0x20; purpose unknown. */
+  u32 field_24;          /**< Retail offset 0x24; purpose unknown. */
+  u32 field_28;          /**< Retail offset 0x28; purpose unknown. */
+  u32 flags;             /**< Retail offset 0x2C. */
+  u32 field_30;          /**< Retail offset 0x30; purpose unknown. */
+  void *systemParams;    /**< Retail offset 0x34. */
+  u32 field_38;          /**< Retail offset 0x38; purpose unknown. */
+  u32 field_3C;          /**< Retail offset 0x3C; purpose unknown. */
 } MwMemMallocRequest;
 
+/**
+ * Core Midway heap object. Retail layout: 0x7C bytes.
+ *
+ * Member names are inferred. The documented offsets describe this recovered
+ * retail layout. System-heap initialization places its arena at `heap + 0x80`.
+ */
 struct _mwMemHeap {
-  _mwMemHeap *listPrev;
-  _mwMemHeap *listNext;
-  void *usedList;
-  u32 field_0C;
-  u32 field_10;
-  u32 strategy;
-  void *strategyCallback;
-  u32 magic;
-  _mwMemHeap *hierPrev;
-  _mwMemHeap *hierFirstChild;
-  _mwMemHeap *hierNext;
-  u8 heapIndex;
-  u8 overflowFlag;
-  u8 pad2E;
-  u8 pad2F;
-  const char *name;
-  u32 arenaSize;
-  u8 *heapStart;
-  u8 *heapEnd;
-  u32 field_48;
-  u32 field_4C;
-  u32 field_50;
-  u32 field_54;
-  u32 field_58;
-  u32 totalSize;
-  u32 field_60;
-  u32 blockSize;
-  u32 field_68;
-  u8 overflowEnable;
-  u8 dirty;
-  u8 pad6E[2];
-  u32 virtAllocCount;
-  u32 flags;
-  u8 field_78;
-  u8 startPad;
+  _mwMemHeap *listPrev;       /**< Retail offset 0x00. */
+  _mwMemHeap *listNext;       /**< Retail offset 0x04. */
+  void *usedList;             /**< Retail offset 0x08. */
+  u32 field_0C;               /**< Retail offset 0x0C; purpose unknown. */
+  u32 field_10;               /**< Retail offset 0x10; purpose unknown. */
+  u32 strategy;               /**< Retail offset 0x14. */
+  void *strategyCallback;     /**< Retail offset 0x18. */
+  u32 magic;                  /**< Retail offset 0x1C. */
+  _mwMemHeap *hierPrev;       /**< Retail offset 0x20. */
+  _mwMemHeap *hierFirstChild; /**< Retail offset 0x24. */
+  _mwMemHeap *hierNext;       /**< Retail offset 0x28. */
+  u8 heapIndex;               /**< Retail offset 0x2C. */
+  u8 overflowFlag;            /**< Retail offset 0x2D. */
+  u8 pad2E;                   /**< Retail offset 0x2E; unknown/padding. */
+  u8 pad2F;                   /**< Retail offset 0x2F; unknown/padding. */
+  const char *name;           /**< Retail offset 0x30. */
+  u32 arenaSize;              /**< Retail offset 0x34. */
+  u8 *heapStart;              /**< Retail offset 0x38. */
+  u8 *heapEnd;                /**< Retail offset 0x3C. */
+  u8 pad40[0x08];             /**< Retail offsets 0x40-0x47; fields unknown. */
+  u32 field_48;               /**< Retail offset 0x48; purpose unknown. */
+  u32 field_4C;               /**< Retail offset 0x4C; purpose unknown. */
+  u32 field_50;               /**< Retail offset 0x50; purpose unknown. */
+  u32 field_54;               /**< Retail offset 0x54; purpose unknown. */
+  u32 field_58;               /**< Retail offset 0x58; purpose unknown. */
+  u32 totalSize;              /**< Retail offset 0x5C. */
+  u32 field_60;               /**< Retail offset 0x60; purpose unknown. */
+  u32 blockSize;              /**< Retail offset 0x64. */
+  u32 field_68;               /**< Retail offset 0x68; purpose unknown. */
+  u8 overflowEnable;          /**< Retail offset 0x6C. */
+  u8 dirty;                   /**< Retail offset 0x6D. */
+  u8 pad6E[2];                /**< Retail offsets 0x6E-0x6F; alignment padding. */
+  u32 virtAllocCount;         /**< Retail offset 0x70. */
+  u32 flags;                  /**< Retail offset 0x74. */
+  u8 field_78;                /**< Retail offset 0x78; purpose unknown. */
+  u8 startPad;                /**< Retail offset 0x79. */
 };
 
 extern _mwMemHeap *HeapList;

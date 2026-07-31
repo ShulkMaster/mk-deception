@@ -682,7 +682,7 @@ config.libs = [
                 source="libmsl/mslsupport.cpp",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslmem.o",
                 source="libmsl/mslmem.c",
             ),
@@ -989,12 +989,12 @@ config.libs = [
                 source="libmkparticle/pfxmath.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/table.o",
                 source="libmkparticle/table.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/shader.o",
                 source="libmkparticle/shader.c",
                 extra_cflags=["-schedule off"],
