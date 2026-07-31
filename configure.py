@@ -1033,7 +1033,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/texture_bridge.o",
                 source="libmkparticle/texture_bridge.c",
-                extra_cflags=["-O4,s", "-inline off", "-schedule off"],
+                extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,
