@@ -979,14 +979,16 @@ config.libs = [
                 extra_cflags=["-schedule off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/supported.o",
                 source="libmkparticle/supported.c",
+                extra_cflags=["-opt nopeephole"],
             ),
             Object(
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfxmath.o",
                 source="libmkparticle/pfxmath.c",
+                extra_cflags=["-O4,s"],
             ),
             Object(
                 Matching,
