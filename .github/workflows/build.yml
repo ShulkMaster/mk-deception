@@ -9,11 +9,9 @@ permissions:
 
 jobs:
   build:
-    container:
-      image: registry.digitalocean.com/decomp-group/mkd-build:v1
-      credentials:
-        username: decomp_read
-        password: ${{ secrets.DECOMP_READ }}
+    # This is a private build container.
+    # See https://github.com/encounter/dtk-template/blob/main/docs/github_actions.md
+    container: ghcr.io/shulkmaster/mkd:main
 
     runs-on: ubuntu-latest
     strategy:
@@ -51,7 +49,7 @@ jobs:
 
     - name: Build
       run: |
-        python3 configure.py --map --version ${{ matrix.version }} \
+        python configure.py --map --version ${{ matrix.version }} \
             --binutils /binutils --compilers /compilers
         ninja all_source progress build/${{ matrix.version }}/report.json
 
