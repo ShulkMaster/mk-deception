@@ -574,9 +574,9 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdrsc.o",
-                source="movie/mwsfdrsc.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdrsc.c",
             ),
             Object(
                 NonMatching,
