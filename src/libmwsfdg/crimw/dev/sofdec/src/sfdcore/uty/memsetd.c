@@ -6,6 +6,7 @@ void UTY_MemsetDword(unsigned int* destination, unsigned int value, unsigned int
         *--end = value;
     }
 
+    /* This unrolled block may have been generated automatically somehow. */
     count = (count >> 4) + 1;
     while (--count != 0) {
         end[-1] = value;

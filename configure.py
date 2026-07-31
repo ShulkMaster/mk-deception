@@ -625,9 +625,10 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/muldiv.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/memsetd.o",
-                source="movie/memsetd.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/memsetd.c",
+                extra_cflags=["-O2,p"],
             ),
         ],
     },
