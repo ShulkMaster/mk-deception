@@ -1,5 +1,12 @@
-Mortal Kombat: Deception
-========================
+# Mortal Kombat: Deception
+
+[![Build Status]][actions] [![Code Progress]][progress] [![Data Progress]][progress]
+
+[Build Status]: https://github.com/ShulkMaster/mk-deception/actions/workflows/build.yml/badge.svg
+[actions]: https://github.com/ShulkMaster/mk-deception/actions/workflows/build.yml
+[Code Progress]: https://decomp.dev/ShulkMaster/mk-deception.svg?mode=shield&measure=code&label=Code
+[Data Progress]: https://decomp.dev/ShulkMaster/mk-deception.svg?mode=shield&measure=data&label=Data
+[progress]: https://decomp.dev/ShulkMaster/mk-deception
 
 A work-in-progress decompilation of the Nintendo GameCube version of *Mortal Kombat: Deception*.
 
