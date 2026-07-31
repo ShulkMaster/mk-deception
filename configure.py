@@ -584,9 +584,9 @@ config.libs = [
                 source="movie/mwsfdsbt.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_inf.o",
-                source="movie/sfx_inf.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_inf.c",
             ),
             Object(
                 NonMatching,
