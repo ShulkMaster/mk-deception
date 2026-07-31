@@ -973,7 +973,7 @@ config.libs = [
         "progress_category": "game",
         "objects": [
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/color.o",
                 source="libmkparticle/color.c",
                 extra_cflags=["-schedule off"],
