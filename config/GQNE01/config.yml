@@ -1,0 +1,12 @@
+name: main
+object: sys/main.dol
+hash: ef001212c6cd4da3194c041d24956a61bc5e9fcd
+object_base: orig/GQNE01
+extract_objects: true
+symbols: config/GQNE01/symbols.txt
+splits: config/GQNE01/splits.txt
+write_asm: true
+detect_objects: true
+detect_strings: true
+mw_comment_version: 11
+symbols_known: true
