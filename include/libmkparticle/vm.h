@@ -1,0 +1,89 @@
+#ifndef LIBMKPARTICLE_VM_H
+#define LIBMKPARTICLE_VM_H
+
+#include "libmkparticle/color.h"
+#include "libmkparticle/pfxmath.h"
+
+typedef struct PfxVec3 {
+    float x;
+    float y;
+    float z;
+} PfxVec3;
+
+typedef struct PfxTransform {
+    PfxMatrix matrix;
+    char pad40[8];
+} PfxTransform;
+
+typedef struct PfxTextureFrame {
+    float u;
+    float v;
+} PfxTextureFrame;
+
+typedef struct PfxVmEmitter {
+    char pad00[0x40];
+    void* field40;
+    char pad44[0x2EC - 0x44];
+} PfxVmEmitter;
+
+typedef struct PfxVm {
+    PfxVec3 basis0;                    /* +0x000 */
+    char pad00C[4];
+    PfxVec3 basis1;                    /* +0x010 */
+    char pad01C[0x3C];
+    int active_transform;              /* +0x058 */
+    char pad05C[4];
+    unsigned int flags60;              /* +0x060 */
+    char pad064[0x0C];
+    PfxTransform transforms[3];        /* +0x070 */
+    char pad148[8];
+    union {
+        unsigned char flags150;
+        struct {
+            unsigned char flag150_80 : 1;
+            unsigned char flag150_40 : 1;
+            unsigned char flag150_20 : 1;
+            unsigned char flag150_10 : 1;
+            unsigned char flag150_08 : 1;
+            unsigned char flag150_04 : 1;
+            unsigned char flag150_02 : 1;
+            unsigned char flag150_01 : 1;
+        };
+    };
+    union {
+        unsigned char flags151;
+        struct {
+            unsigned char flag151_80 : 1;
+            unsigned char flags151_low : 7;
+        };
+    };
+    char pad152[0x2E];
+    short texture_frame_count;         /* +0x180 */
+    char pad182[2];
+    float texture_frame_time;          /* +0x184 */
+    float texture_u_step;              /* +0x188 */
+    float texture_v_step;              /* +0x18C */
+    PfxTextureFrame* texture_frames;   /* +0x190 */
+    PfxVec3 geometry_axis0;            /* +0x194 */
+    PfxVec3 geometry_axis1;            /* +0x1A0 */
+    float geometry_scale0;             /* +0x1AC */
+    float geometry_scale1;             /* +0x1B0 */
+    PfxColor color1B4;                 /* +0x1B4 */
+    float billboard_size;              /* +0x1B8 */
+    char pad1BC[4];
+    int emitter_count;                 /* +0x1C0 */
+    PfxVmEmitter* emitters;            /* +0x1C4 */
+    char pad1C8[0x0C];
+    int flags1D4;                      /* +0x1D4 */
+    char pad1D8[0x0C];
+    float field1E4;
+    float field1E8;
+    float field1EC;
+    char pad1F0[0x3C];
+    int field22C;
+    char pad230[8];
+    float field238;
+    char pad23C[4];
+} PfxVm;
+
+#endif

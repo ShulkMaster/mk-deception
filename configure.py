@@ -1002,7 +1002,7 @@ config.libs = [
                 extra_cflags=["-schedule off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/init.o",
                 source="libmkparticle/init.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off"],
