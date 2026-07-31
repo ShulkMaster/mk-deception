@@ -615,9 +615,9 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/memcpy/mcp_not.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_m2v.o",
-                source="movie/mpv_m2v.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_m2v.c",
             ),
             Object(
                 NonMatching,
