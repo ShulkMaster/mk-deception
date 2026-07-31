@@ -292,7 +292,7 @@ def RenderWareLib(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
         "lib": lib_name,
         "mw_version": "GC/1.3.2",
         "cflags": cflags_renderware,
-        "progress_category": "sdk",
+        "progress_category": "renderware",
         "objects": objects,
     }
 
@@ -327,7 +327,7 @@ config.libs = [
         "cflags": cflags_base,
         "progress_category": "game",
         "objects": [
-            Object(NonMatching, "debug_file.o", source="runtime/debug_file.c"),
+            Object(Matching, "debug_file.o", source="runtime/debug_file.c"),
             Object(NonMatching, "mk_cmdscript.o", source="runtime/mk_cmdscript.c",
                    extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "script_functions.o", source="runtime/script_functions.c"),
@@ -336,7 +336,7 @@ config.libs = [
             # Huge .rodata/.data (file tables + path pool); NonMatching = ASM still linked
             Object(NonMatching, "mk_fileinfo.o", source="runtime/mk_fileinfo.c",
                    extra_cflags=["-use_lmw_stmw on", "-sdata 0", "-O4,s"]),
-            Object(NonMatching, "pakfile.o", source="runtime/pakfile.c"),
+            Object(Matching, "pakfile.o", source="runtime/pakfile.c"),
             Object(NonMatching, "mk_vtbl.o", source="runtime/mk_vtbl.c"),
             Object(
                 NonMatching,
@@ -354,8 +354,8 @@ config.libs = [
             Object(NonMatching, "mk_math.o", source="math/mk_math.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "MovieSubtitle_GC.o", source="movie/MovieSubtitle_GC.c"),
-            Object(NonMatching, "fog.o", source="platform/fog.c"),
-            Object(NonMatching, "fast_rw.o", source="platform/fast_rw.c"),
+            Object(Matching, "fog.o", source="platform/fog.c"),
+            Object(Matching, "fast_rw.o", source="platform/fast_rw.c"),
             Object(NonMatching, "gcspecskin.o", source="game/gcspecskin.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "gcinstance.o", source="platform/gcinstance.c",
@@ -367,8 +367,8 @@ config.libs = [
             Object(NonMatching, "MovieManager.o", source="movie/MovieManager.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "MovieManagerGC_Disp.o", source="movie/MovieManagerGC_Disp.cpp", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "MkMovies.o", source="movie/MkMovies.c", extra_cflags=["-use_lmw_stmw on"]),
-            Object(NonMatching, "gprofile_gcn.o", source="platform/gprofile_gcn.c"),
-            Object(NonMatching, "mwMemNewDelete.o", source="mw/mwMemNewDelete.c"),
+            Object(Matching, "gprofile_gcn.o", source="platform/gprofile_gcn.c"),
+            Object(Matching, "mwMemNewDelete.o", source="mw/mwMemNewDelete.cpp"),
             Object(NonMatching, "mwFileGlue.o", source="mw/mwFileGlue.c"),
             # ProcessFrame register scheduling not matched yet
             Object(
@@ -394,7 +394,7 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "ejb.o", source="game/ejb.c"),
             Object(NonMatching, "moves.o", source="game/moves.c"),
-            Object(NonMatching, "mwMem_MultiThread.o", source="mw/mwMem_MultiThread.c"),
+            Object(Matching, "mwMem_MultiThread.o", source="mw/mwMem_MultiThread.c"),
             Object(NonMatching, "mwMemPlatform.o", source="mw/mwMemPlatform.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mwMemPriv.o", source="mw/mwMemPriv.c",
@@ -408,7 +408,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"]),
             Object(NonMatching, "mwMem.o", source="mw/mwMem.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "sound_assets.o", source="game/sound_assets.c"),
-            Object(NonMatching, "sound_settings.o", source="game/sound_settings.c"),
+            Object(Matching, "sound_settings.o", source="game/sound_settings.c"),
             Object(NonMatching, "sound_groups.o", source="game/sound_groups.c"),
             Object(NonMatching, "anims.o", source="runtime/anims.c"),
             Object(NonMatching, "mk_anim.o", source="runtime/mk_anim.c"),
@@ -559,7 +559,7 @@ config.libs = [
         "lib": "libmwsfdg",
         "mw_version": softdec_mw_version,
         "cflags": cflags_base,
-        "progress_category": "sdk",
+        "progress_category": "sofdec",
         "objects": [
             Object(
                 NonMatching,
@@ -789,13 +789,13 @@ config.libs = [
         "progress_category": "game",
         "objects": [
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenEvent.o",
                 source="mwScreenEngine/ScreenEvent.cpp",
                 extra_cflags=["-O4,s"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimKey.o",
                 source="mwScreenEngine/ScreenAnimKey.cpp",
                 extra_cflags=["-O4,s"],
@@ -828,12 +828,12 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenMatrixStack.o",
                 source="mwScreenEngine/ScreenMatrixStack.cpp",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenClient.o",
                 source="mwScreenEngine/ScreenClient.cpp",
             ),
@@ -844,7 +844,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenResourceLibrary.o",
                 source="mwScreenEngine/ScreenResourceLibrary.cpp",
             ),
@@ -892,7 +892,7 @@ config.libs = [
             ),
             # B19 / mode-select Wave B chrome deps: base node + action.
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenNode.o",
                 source="mwScreenEngine/ScreenNode.cpp",
                 extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,pool,readonly"],
@@ -1023,7 +1023,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/CompileFields.o",
                 source="libmkparticle/CompileFields.c",
-                extra_cflags=["-O4,s", "-schedule off"],
+                extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,
@@ -1113,7 +1113,7 @@ config.libs = [
             # Split name must match config/GQNE01/splits.txt (*.obj under rwcore.a/)
             # Portable Criterion first; skip *Gcn* / _rwDl* until GC driver pass.
             # BFBB: headers + GC/1.3.2 + cflags_renderware. PS2 MKD / MKDHook: API only.
-            Object(NonMatching, "rwcore.a/bacolor.obj", source="rw/bacolor.c"),
+            Object(Matching, "rwcore.a/bacolor.obj", source="rw/bacolor.c"),
             Object(
                 NonMatching,
                 "rwcore.a/baraster.obj",
@@ -1127,9 +1127,9 @@ config.libs = [
                 extra_cflags=["-opt", "off", "-O0"],
             ),
             # -opt off clears inherited -O4,p from cflags_base before per-TU level
-            Object(NonMatching, "rwcore.a/osintf.obj", source="rw/osintf.c",
+            Object(Matching, "rwcore.a/osintf.obj", source="rw/osintf.c",
                    extra_cflags=["-opt", "off", "-O0"]),
-            Object(NonMatching, "rwcore.a/babbox.obj", source="rw/babbox.c",
+            Object(Matching, "rwcore.a/babbox.obj", source="rw/babbox.c",
                    extra_cflags=["-opt", "off", "-O1,p"]),
         ],
     ),
@@ -1179,6 +1179,8 @@ def link_order_callback(module_id: int, objects: List[str]) -> List[str]:
 config.progress_categories = [
     ProgressCategory("game", "Game Code"),
     ProgressCategory("sdk", "SDK Code"),
+    ProgressCategory("renderware", "RenderWare"),
+    ProgressCategory("sofdec", "Sofdec"),
 ]
 config.progress_each_module = args.verbose
 # Optional extra arguments to `objdiff-cli report generate`

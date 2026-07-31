@@ -1,0 +1,33 @@
+#ifndef RW_RWPLCORE_H
+#define RW_RWPLCORE_H
+
+typedef int RwInt32;
+typedef unsigned int RwUInt32;
+typedef int RwBool;
+typedef char RwChar;
+typedef float RwReal;
+#define TRUE 1
+#define FALSE 0
+#define NULL 0
+
+typedef struct RwModuleInfo { RwInt32 globalsOffset; RwInt32 numInstances; } RwModuleInfo;
+typedef struct RwV3d { RwReal x; RwReal y; RwReal z; } RwV3d;
+typedef struct RwBBox { RwV3d sup; RwV3d inf; } RwBBox;
+typedef struct RwPluginRegEntry RwPluginRegEntry;
+typedef struct RwPluginRegistry {
+    RwInt32 sizeOfStruct;
+    RwInt32 origSizeOfStruct;
+    RwInt32 maxSizeOfStruct;
+    RwInt32 staticAlloc;
+    RwPluginRegEntry* firstRegEntry;
+    RwPluginRegEntry* lastRegEntry;
+} RwPluginRegistry;
+typedef void* (*RwPluginObjectConstructor)(void*, RwInt32, RwInt32);
+typedef void* (*RwPluginObjectDestructor)(void*, RwInt32, RwInt32);
+typedef void* (*RwPluginObjectCopy)(void*, const void*, RwInt32, RwInt32);
+RwInt32 _rwPluginRegistryAddPlugin(RwPluginRegistry*, RwInt32, RwUInt32,
+                                   RwPluginObjectConstructor, RwPluginObjectDestructor,
+                                   RwPluginObjectCopy);
+RwBBox* RwBBoxCalculate(RwBBox*, const RwV3d*, RwInt32);
+RwBool _rwpathisabsolute(const RwChar*);
+#endif
