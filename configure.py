@@ -604,9 +604,9 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsee.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/dct/dct_ver.o",
-                source="movie/dct_ver.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/dct/dct_ver.c",
                 extra_cflags=["-sdata 0"],
             ),
             Object(
