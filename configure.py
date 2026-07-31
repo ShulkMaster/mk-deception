@@ -610,9 +610,9 @@ config.libs = [
                 extra_cflags=["-sdata 0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/memcpy/mcp_not.o",
-                source="movie/mcp_not.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/memcpy/mcp_not.c",
             ),
             Object(
                 NonMatching,
