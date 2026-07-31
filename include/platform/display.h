@@ -7,8 +7,9 @@ typedef struct RwRaster RwRaster;
 #ifndef RW_MEMORY_FUNCTIONS_DEFINED
 #define RW_MEMORY_FUNCTIONS_DEFINED
 typedef struct RwMemoryFunctions {
-    void* (*alloc)(unsigned long); void (*free)(void*);
-    void* (*realloc)(void*, unsigned long); void* (*calloc)(unsigned long, unsigned long);
+    void* (*alloc)(unsigned long, unsigned int); void (*free)(void*);
+    void* (*realloc)(void*, unsigned long, unsigned int);
+    void* (*calloc)(unsigned long, unsigned long, unsigned int);
 } RwMemoryFunctions;
 #endif
 typedef struct FadingScreen {

@@ -2,20 +2,20 @@
 
 static RwModuleInfo sectorModule;
 
-static RwPluginRegistry sectorTKList = { 0x88, 0x88, 0, 0, 0, 0 };
+RwPluginRegistry sectorTKList = { 0x88, 0x88, 0, 0, 0, 0 };
 
-RwBool _rpSectorOpen(void* instance, RwInt32 offset, RwInt32 size) {
-    (void)instance;
+void* _rpSectorOpen(void* instance, RwInt32 offset, RwInt32 size) {
     (void)offset;
     (void)size;
     sectorModule.numInstances++;
+    return instance;
 }
 
-RwBool _rpSectorClose(void* instance, RwInt32 offset, RwInt32 size) {
-    (void)instance;
+void* _rpSectorClose(void* instance, RwInt32 offset, RwInt32 size) {
     (void)offset;
     (void)size;
     sectorModule.numInstances--;
+    return instance;
 }
 
 RwInt32 RpWorldSectorRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
@@ -28,8 +28,10 @@ RwInt32 RpWorldSectorRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
     return offset;
 }
 
-RwInt32 RpWorldSectorRegisterPluginStream(RwUInt32 pluginID, void* readCB, void* writeCB,
-                                          void* getSizeCB) {
+RwInt32 RpWorldSectorRegisterPluginStream(RwUInt32 pluginID,
+                                          RwPluginDataChunkReadCallBack readCB,
+                                          RwPluginDataChunkWriteCallBack writeCB,
+                                          RwPluginDataChunkGetSizeCallBack getSizeCB) {
     (void)pluginID;
     (void)readCB;
     (void)writeCB;

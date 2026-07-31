@@ -14,6 +14,7 @@ typedef struct RwModuleInfo { RwInt32 globalsOffset; RwInt32 numInstances; } RwM
 typedef struct RwV3d { RwReal x; RwReal y; RwReal z; } RwV3d;
 typedef struct RwBBox { RwV3d sup; RwV3d inf; } RwBBox;
 typedef struct RwPluginRegEntry RwPluginRegEntry;
+typedef struct RwStream RwStream;
 typedef struct RwPluginRegistry {
     RwInt32 sizeOfStruct;
     RwInt32 origSizeOfStruct;
@@ -25,9 +26,21 @@ typedef struct RwPluginRegistry {
 typedef void* (*RwPluginObjectConstructor)(void*, RwInt32, RwInt32);
 typedef void* (*RwPluginObjectDestructor)(void*, RwInt32, RwInt32);
 typedef void* (*RwPluginObjectCopy)(void*, const void*, RwInt32, RwInt32);
+typedef RwStream* (*RwPluginDataChunkReadCallBack)(RwStream*, RwInt32, void*, RwInt32,
+                                                   RwInt32);
+typedef RwStream* (*RwPluginDataChunkWriteCallBack)(RwStream*, RwInt32, const void*, RwInt32,
+                                                    RwInt32);
+typedef RwInt32 (*RwPluginDataChunkGetSizeCallBack)(const void*, RwInt32, RwInt32);
 RwInt32 _rwPluginRegistryAddPlugin(RwPluginRegistry*, RwInt32, RwUInt32,
                                    RwPluginObjectConstructor, RwPluginObjectDestructor,
                                    RwPluginObjectCopy);
+void* _rpSectorOpen(void*, RwInt32, RwInt32);
+void* _rpSectorClose(void*, RwInt32, RwInt32);
+RwInt32 RpWorldSectorRegisterPlugin(RwInt32, RwUInt32, RwPluginObjectConstructor,
+                                    RwPluginObjectDestructor, RwPluginObjectCopy);
+RwInt32 RpWorldSectorRegisterPluginStream(RwUInt32, RwPluginDataChunkReadCallBack,
+                                          RwPluginDataChunkWriteCallBack,
+                                          RwPluginDataChunkGetSizeCallBack);
 RwBBox* RwBBoxCalculate(RwBBox*, const RwV3d*, RwInt32);
 RwBool _rwpathisabsolute(const RwChar*);
 #endif

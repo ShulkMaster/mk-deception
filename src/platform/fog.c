@@ -10,7 +10,7 @@ int fog_type = 1;
 static unsigned int fog_color = 0xFFFFFFFF;
 
 /* MWCC emits .sbss in reverse declaration order; pad first so fog_on is at +0. */
-int lbl_8051066C;
+int gap_08_8051066C_sbss;
 int fog_on;
 
 void update_fog_render_states(void) {
