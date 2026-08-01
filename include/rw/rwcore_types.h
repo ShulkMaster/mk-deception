@@ -23,11 +23,13 @@ typedef struct RwRaster {
 /** RenderWare texture with Midway ownership extension. Retail layout: 0x58 bytes. */
 typedef struct RwTexture {
     RwRaster* raster;          /**< Retail offset 0x00. */
-    char pad04[0x0C];          /**< Retail offsets 0x04-0x0F; fields unknown. */
+    void* dictionary;          /**< Retail offset 0x04. */
+    struct RwTexture** next_link; /**< Retail offset 0x08. */
+    struct RwTexture** prev_link; /**< Retail offset 0x0C. */
     char name[32];             /**< Retail offset 0x10. */
     char mask[32];             /**< Retail offset 0x30. */
     unsigned int filter_flags; /**< Retail offset 0x50. */
-    unsigned int pin_flag;     /**< Retail offset 0x54; Midway ownership/pin state. */
+    int ref_count;             /**< Retail offset 0x54. */
 } RwTexture;
 
 /** Partial RenderWare frame layout. Known retail extent: 0xA4 bytes. */

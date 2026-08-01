@@ -33,7 +33,7 @@ typedef struct PfxVm {
     char pad01C[0x3C];
     int active_transform;              /* +0x058 */
     char pad05C[4];
-    unsigned int flags60;              /* +0x060 */
+    unsigned int flags_0x60;           /* +0x060 */
     char pad064[0x0C];
     PfxTransform transforms[3];        /* +0x070 */
     char pad148[8];
@@ -74,13 +74,13 @@ typedef struct PfxVm {
     int emitter_count;                 /* +0x1C0 */
     PfxVmEmitter* emitters;            /* +0x1C4 */
     char pad1C8[0x0C];
-    int flags1D4;                      /* +0x1D4 */
+    int flags_0x1D4;                   /* +0x1D4 */
     char pad1D8[0x0C];
     float field1E4;
     float field1E8;
     float field1EC;
     char pad1F0[0x3C];
-    int field22C;
+    int field_0x22C;
     char pad230[8];
     float field238;
     char pad23C[4];
