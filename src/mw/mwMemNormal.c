@@ -272,7 +272,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
         else remainder->next->previous = remainder;
         remainder->allocationSize = candidate_size - (needed_size + sizeof(MwMemUsedHeader));
         remainder->prefixSize = 0;
-        remainder->field_0D = candidate->field_0D;
+    remainder->heapIndex = candidate->heapIndex;
         remainder->flags = candidate->flags;
         remainder->alignmentPadding = candidate->alignmentPadding;
         privClearBitFlag(&remainder->flags);
@@ -294,7 +294,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     used->allocationSize = used_size;
     used->prefixSize = used_size - needed_size;
     privSetAlignInBitFlag(&used->flags, alignment);
-    used->field_0D = request->heap->heapIndex;
+    used->heapIndex = request->heap->heapIndex;
     if (heap->usedList == 0) {
         used->next = 0;
         used->previous = 0;
@@ -333,7 +333,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
             block->next = 0;
             block->allocationSize = heap->heapEnd - (heap->heapStart + sizeof(MwMemUsedHeader));
             block->prefixSize = 0;
-            block->field_0D = 0;
+            block->heapIndex = 0;
             privClearBitFlag(&block->flags);
             privSetAlignInBitFlag(&block->flags, 4);
             privClearBitFromBitFlag(&block->flags, 4);

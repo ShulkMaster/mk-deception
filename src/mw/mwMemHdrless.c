@@ -19,7 +19,7 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     header = (MwMemUsedHeader*)((u8*)block - block_prefix);
     header->allocationSize = block_size + header_size;
     header->prefixSize = 0;
-    header->field_0D = 0;
+    header->heapIndex = 0;
     header->alignmentPadding = 0;
     privClearBitFlag(&header->flags);
     alignment = privGetAlignFromMwMemFlags(heap->flags);
@@ -114,7 +114,7 @@ void hdrlessHeapResetHeap(_mwMemHeap* heap) {
         while (index < block_count) {
             header->allocationSize = header_size;
             header->prefixSize = 0;
-            header->field_0D = 0;
+            header->heapIndex = 0;
             header->alignmentPadding = 0;
             privClearBitFlag(&header->flags);
             privSetAlignInBitFlag(&header->flags, 4);

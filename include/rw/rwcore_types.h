@@ -3,14 +3,21 @@
 
 #include "rw/rwobject.h"
 
-/** Partial RenderWare raster view; known retail extent: 0x24 bytes. */
+/** RenderWare raster prefix used by the retail core. Retail layout: 0x24 bytes. */
 typedef struct RwRaster {
-    char pad00[0x0C];      /**< Retail offsets 0x00-0x0B; fields unknown. */
-    int width;             /**< Retail offset 0x0C. */
-    int height;            /**< Retail offset 0x10. */
-    unsigned int logSize;  /**< Retail offset 0x14. */
-    char pad18[0x0B];      /**< Retail offsets 0x18-0x22; fields unknown. */
-    unsigned char flags;   /**< Retail offset 0x23. */
+    struct RwRaster* parent; /**< Retail offset 0x00. */
+    unsigned char* pixels;   /**< Retail offset 0x04. */
+    unsigned char* palette;  /**< Retail offset 0x08. */
+    int width;               /**< Retail offset 0x0C. */
+    int height;              /**< Retail offset 0x10. */
+    int depth;               /**< Retail offset 0x14. */
+    int stride;              /**< Retail offset 0x18. */
+    short offsetX;           /**< Retail offset 0x1C. */
+    short offsetY;           /**< Retail offset 0x1E. */
+    unsigned char type;      /**< Retail offset 0x20. */
+    unsigned char flags;     /**< Retail offset 0x21. */
+    unsigned char privateFlags; /**< Retail offset 0x22. */
+    unsigned char format;    /**< Retail offset 0x23. */
 } RwRaster;
 
 /** RenderWare texture with Midway ownership extension. Retail layout: 0x58 bytes. */

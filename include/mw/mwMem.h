@@ -12,10 +12,12 @@ typedef struct MwMemUsedHeader {
   struct MwMemUsedHeader *next;     /**< Retail offset 0x04. */
   u32 allocationSize;               /**< Retail offset 0x08. */
   u8 prefixSize;                    /**< Retail offset 0x0C. */
-  u8 field_0D;                      /**< Retail offset 0x0D; purpose unknown. */
+  u8 heapIndex;                     /**< Retail offset 0x0D; owning heap index. */
   u8 flags;                         /**< Retail offset 0x0E. */
   u8 alignmentPadding;              /**< Retail offset 0x0F; byte before user block. */
 } MwMemUsedHeader;
+
+typedef MwMemUsedHeader MwMemUsedHdr;
 
 /** Partial heap identity view. Known retail extent: 0x2D bytes. */
 typedef struct MwMemHeapIdentity {
