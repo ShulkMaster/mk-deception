@@ -14,10 +14,6 @@
 
 double atan2(double y, double x);
 
-RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation, int combineOp);
-RwMatrix* RwMatrixScale(RwMatrix* matrix, const RwV3d* scale, int combineOp);
-RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, float angle, int combineOp);
-
 Vec Xaxis = {1.0f, 0.0f, 0.0f};
 Vec Yaxis = {0.0f, 1.0f, 0.0f};
 Vec Zaxis = {0.0f, 0.0f, 1.0f};

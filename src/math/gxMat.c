@@ -22,9 +22,9 @@ void gxMat33Tx31(Vec* out, Vec* v, Mat33* m) {
 
 void gxMatScaledByV3(Mat33* out, const Mat33* in, const Vec* scale) {
     /* Soft ceiling ~92.6%: retail lfs scale->x after mrs; MWCC before stmw. */
-    PSVECScale((const Vec*)in, scale->x, (Vec*)out);
-    PSVECScale((const Vec*)&in->col1[0], scale->y, (Vec*)&out->col1[0]);
-    PSVECScale((const Vec*)&in->col2[0], scale->z, (Vec*)&out->col2[0]);
+    PSVECScale((const Vec*)in, (Vec*)out, scale->x);
+    PSVECScale((const Vec*)&in->col1[0], (Vec*)&out->col1[0], scale->y);
+    PSVECScale((const Vec*)&in->col2[0], (Vec*)&out->col2[0], scale->z);
     out->flags &= ~1;
 }
 

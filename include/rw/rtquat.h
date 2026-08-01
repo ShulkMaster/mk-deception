@@ -40,4 +40,8 @@ RwReal _rwSqrt(RwReal num);
 
 RwBool RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix);
 
+RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation, int combineOp);
+RwMatrix* RwMatrixScale(RwMatrix* matrix, const RwV3d* scale, int combineOp);
+RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, RwReal angle, int combineOp);
+
 #endif

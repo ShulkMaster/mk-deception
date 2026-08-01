@@ -110,7 +110,7 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
             scale = kInvSqrtScale * guess;
             scale = scale * t3 * (kNewtonIter12 - (t1 * t3 * t3));
         }
-        PSVECScale(&scratch, scale, &scratch);
+        PSVECScale(&scratch, &scratch, scale);
         out->x = scratch.x;
         out->y = scratch.y;
         out->z = scratch.z;
@@ -137,7 +137,7 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
                             ((((pun.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U));
         wScale = kHalf * sqrtGuess * (kNewtonIter3 - (sqrtGuess * sqrtGuess) / halfAngle);
     }
-    PSVECScale(&axis, scale * wScale, &axis);
+    PSVECScale(&axis, &axis, scale * wScale);
     out->x = axis.x;
     out->y = axis.y;
     out->z = axis.z;
@@ -179,7 +179,7 @@ void gxQuatNorm(Quat* q) {
 }
 
 void gxQuatMul(Quat* out, const Quat* a, const Quat* b) {
-    PSQUATMultiply((Quat*)a, (Quat*)b, out);
+    PSQUATMultiply(a, b, out);
 }
 
 void gxQuatCopy(Quat* dst, const Quat* src) {

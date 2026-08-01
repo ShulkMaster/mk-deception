@@ -13,12 +13,12 @@ typedef struct Quat {
 typedef float Mtx[3][4];
 
 void PSMTXQuat(Mtx m, const Quat* q);
-void PSVECScale(const Vec* src, float scale, Vec* dst);
-float PSVECMag(Vec* v);
+void PSVECScale(const Vec* src, Vec* dst, float scale);
+float PSVECMag(const Vec* v);
 float PSVECDotProduct(const Vec* a, const Vec* b);
 void PSVECCrossProduct(const Vec* a, const Vec* b, Vec* dst);
-void PSQUATMultiply(Quat* p, Quat* q, Quat* dst);
-void PSQUATNormalize(Quat* dst, const Quat* src);
+void PSQUATMultiply(const Quat* p, const Quat* q, Quat* dst);
+void PSQUATNormalize(const Quat* src, Quat* dst);
 
 void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t);
 void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2);

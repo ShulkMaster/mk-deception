@@ -9,7 +9,7 @@ static const float _466 = 12.0f;
 /* Soft ceiling: gxVectAngleZX ~77% -- zero-const load vs v load interleave;
  * sdata2 label names. UVV3ToV3 is 100%. */
 
-float gxVectAngleZX(Vec* v) {
+float gxVectAngleZX(const Vec* v) {
     union {
         float f;
         unsigned int u;
