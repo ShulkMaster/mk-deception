@@ -1,17 +1,8 @@
+#include "rw/rwcore_types.h"
+
 typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
 typedef void (*RwStringCopyCall)(char* destination, const char* source, unsigned int size);
 typedef unsigned int (*RwStringLengthCall)(const char* string);
-
-typedef struct RwTexturePrefix {
-    void* raster;
-    void* dictionary;
-    struct RwTexturePrefix** next_link;
-    struct RwTexturePrefix** prev_link;
-    char name[32];
-    char mask[32];
-    unsigned int filter_flags;
-    int ref_count;
-} RwTexturePrefix;
 
 typedef struct RwErrorPair {
     int plugin;
@@ -27,11 +18,11 @@ extern int _rwerror(void* code, ...);
 extern void RwErrorSet(RwErrorPair* error);
 
 void* RwTextureCreate(void* raster) {
-    RwTexturePrefix* volatile texture;
+    RwTexture* volatile texture;
     void* freelist;
 
     freelist = *(void**)((char*)RwEngineInstance + textureModule + 8);
-    texture = (RwTexturePrefix*)
+    texture = (RwTexture*)
         (*(RwFreeListAllocCall*)((char*)RwEngineInstance + 0x144))(freelist, 0x30006);
     if (texture != 0) {
         texture->dictionary = 0;
@@ -47,7 +38,7 @@ void* RwTextureCreate(void* raster) {
     return (void*)texture;
 }
 
-int RwTextureDestroy(RwTexturePrefix* texture) {
+int RwTextureDestroy(RwTexture* texture) {
     int result;
 
     result = 1;
@@ -58,7 +49,7 @@ int RwTextureDestroy(RwTexturePrefix* texture) {
     return result;
 }
 
-void* RwTextureSetName(RwTexturePrefix* texture, const char* name) {
+void* RwTextureSetName(RwTexture* texture, const char* name) {
     RwErrorPair error;
 
     (*(RwStringCopyCall*)((char*)RwEngineInstance + 0xFC))(texture->name, name, 32);
@@ -71,13 +62,13 @@ void* RwTextureSetName(RwTexturePrefix* texture, const char* name) {
     return texture;
 }
 
-void RwTexDictionaryRemoveTexture(RwTexturePrefix* texture) {
-    RwTexturePrefix** previous;
+void RwTexDictionaryRemoveTexture(RwTexture* texture) {
+    RwTexture** previous;
 
     if (texture->dictionary != 0) {
         texture->dictionary = 0;
         previous = texture->prev_link;
-        *previous = (RwTexturePrefix*)texture->next_link;
-        texture->next_link[1] = (RwTexturePrefix*)previous;
+        *previous = (RwTexture*)texture->next_link;
+        texture->next_link[1] = (RwTexture*)previous;
     }
 }

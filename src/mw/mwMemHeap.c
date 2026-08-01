@@ -155,7 +155,7 @@ static _mwMemHeap* createFixedHeap(MwMemHeapCreateParams* create, MwMemHeapParam
                                     u32 block_size, u32 block_count, const char* name,
                                     void* callback) {
     MwMemFixedParams fixed;
-    fixed.field_00 = 2;
+    fixed.field_0x00 = 2;
     fixed.blockCount = block_count;
     fixed.blockSize = block_size;
     fixed.sizeThreshold = 4;
@@ -171,8 +171,8 @@ void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     MwMemHeapParams defaults;
     MwMemHeapCreateParams create;
     mwMemHeapGetDefaultParams(&defaults);
-    defaults.field_08 = 0xAB;
-    defaults.field_09 = 0;
+    defaults.field_0x08 = 0xAB;
+    defaults.field_0x09 = 0;
     defaults.overflowEnable = 1;
     create.parentHeap = wave_heap;
     create.arenaSize = 1;
@@ -207,7 +207,7 @@ static _mwMemHeap* createNormalHeap(_mwMemHeap* parent, u32 size, const char* na
     MwMemHeapCreateParams create;
     create.parentHeap = parent;
     create.arenaSize = size;
-    create.field_08 = 0x10;
+    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_NORMAL;
     create.initParams = 0;
     create.name = name;
@@ -224,8 +224,8 @@ static void mwMemHeapInit(void) {
     u32 free_count;
 
     mwMemHeapGetDefaultParams(&defaults);
-    defaults.field_08 = 0xAB;
-    defaults.field_09 = 0;
+    defaults.field_0x08 = 0xAB;
+    defaults.field_0x09 = 0;
     permanent_heap = createNormalHeap(system_heap, 0x562800, "Permanent heap", &defaults);
     section_heap = createNormalHeap(system_heap, 0x7DA800, "Section heap", &defaults);
     MWSOUND_HEAP = createNormalHeap(system_heap, 0xA7000, "mwSound heap", &defaults);
@@ -236,7 +236,7 @@ static void mwMemHeapInit(void) {
 
     create.parentHeap = system_heap;
     create.arenaSize = mwMemVirtualHeapGetHeapSize(system_heap);
-    create.field_08 = 0x10;
+    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_VIRTUAL;
     create.initParams = 0;
     create.name = "MPEG heap";
@@ -246,13 +246,13 @@ static void mwMemHeapInit(void) {
 
     mwMemHeapGetDefaultParams(&defaults);
     mwMemHeapGetParams(permanent_heap, &defaults);
-    headerless.field_00 = 2;
+    headerless.field_0x00 = 2;
     headerless.blockCount = 0x3C;
     headerless.blockSize = 0xC8;
     headerless.flags = 3;
     create.parentHeap = permanent_heap;
     create.arenaSize = 1;
-    create.field_08 = 3;
+    create.field_0x08 = 3;
     create.strategyType = MW_MEM_STRATEGY_HDRLESS;
     create.initParams = &headerless;
     create.name = "SECTION TABLE fixed block heap";
@@ -266,7 +266,7 @@ static void mwMemHeapInit(void) {
     defaults.overflowEnable = 1;
     create.parentHeap = system_heap;
     create.arenaSize = free_size;
-    create.field_08 = 0x10;
+    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_OVERFLOW;
     create.initParams = 0;
     create.name = "OVERFLOW Heap";

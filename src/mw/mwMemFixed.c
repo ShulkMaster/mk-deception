@@ -97,13 +97,13 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
             header->previous = 0;
             heap->usedList = header;
         }
-        request->field_00 = header->allocationSize;
-        request->field_0C = header->alignmentPadding;
-        request->field_08 = flags;
+        request->field_0x00 = header->allocationSize;
+        request->field_0x0C = header->alignmentPadding;
+        request->field_0x08 = flags;
         request->originHeap = heap;
-        request->field_18 = 0;
-        request->field_04 = aligned_size;
-        block[-1] = request->field_0C;
+        request->field_0x18 = 0;
+        request->field_0x04 = aligned_size;
+        block[-1] = request->field_0x0C;
     }
     return block;
 }
@@ -188,9 +188,9 @@ void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params) {
     heap->flags = flags;
     heap->blockSize = ALIGN_UP_16(block_size);
     if (block_size > threshold) {
-        heap->field_60 = threshold;
+        heap->field_0x60 = threshold;
     } else {
-        heap->field_60 = 0;
+        heap->field_0x60 = 0;
     }
     fixedBlockHeapResetHeap(heap, 0);
 }

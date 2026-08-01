@@ -309,12 +309,12 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     alignment_mask = (1 << alignment) - 1;
     block = (u8*)(((u32)block + alignment_mask) & ~alignment_mask);
     used->alignmentPadding = block - ((u8*)used + sizeof(MwMemUsedHeader));
-    request->field_00 = used->allocationSize;
-    request->field_0C = used->alignmentPadding;
-    request->field_08 = flags;
+    request->field_0x00 = used->allocationSize;
+    request->field_0x0C = used->alignmentPadding;
+    request->field_0x08 = flags;
     request->originHeap = heap;
-    request->field_18 = used->prefixSize;
-    request->field_04 = user_size;
+    request->field_0x18 = used->prefixSize;
+    request->field_0x04 = user_size;
     block[-1] = used->alignmentPadding;
     return block;
 }
@@ -342,7 +342,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
         heap->arenaAlignmentPadding = 0;
         heap->blockPrefixSize = 0;
         heap->flags = 0;
-        heap->field_60 = 0;
+        heap->field_0x60 = 0;
         heap->blockSize = 0;
         heap->currentUsedSize = 0;
         heap->totalManagedSize = heap->heapEnd - heap->heapStart;
@@ -360,7 +360,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
 
 void normHeapInitHeap(_mwMemHeap* heap) {
     heap->flags = 0;
-    heap->field_60 = 0;
+    heap->field_0x60 = 0;
     heap->blockSize = 0;
     normHeapResetHeap(heap, 0);
 }

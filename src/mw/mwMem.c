@@ -10,7 +10,7 @@
 #include "mw/mwMemPriv.h"
 
 typedef struct FixedBlockHeapInitParams {
-    u32 field_00;
+    u32 field_0x00;
     u32 count;
     u32 blockSize;
     u32 maxBlock;
@@ -18,7 +18,7 @@ typedef struct FixedBlockHeapInitParams {
 } FixedBlockHeapInitParams;
 
 typedef struct HdrlessHeapInitParams {
-    u32 field_00;
+    u32 field_0x00;
     u32 count;
     u32 blockSize;
     u32 flags;
@@ -34,15 +34,15 @@ typedef struct MwMemOverflowInfo {
     const char* file;
     u32 size;
     u32 line;
-    u32 field_28;
-    u32 field_2C;
-    u32 field_30;
+    u32 field_0x28;
+    u32 field_0x2C;
+    u32 field_0x30;
     void* systemParams;
-    u32 field_38;
-    u32 field_3C;
-    u32 field_40;
-    u32 field_44;
-    u32 field_48;
+    u32 field_0x38;
+    u32 field_0x3C;
+    u32 field_0x40;
+    u32 field_0x44;
+    u32 field_0x48;
 } MwMemOverflowInfo;
 
 typedef int OSHeapHandle;
@@ -637,11 +637,11 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         return 0;
     }
 
-    request->field_00 = 0;
-    request->field_04 = 0;
-    request->field_0C = 0;
-    request->field_08 = 0;
-    request->field_18 = 0;
+    request->field_0x00 = 0;
+    request->field_0x04 = 0;
+    request->field_0x0C = 0;
+    request->field_0x08 = 0;
+    request->field_0x18 = 0;
 
     if (heap->strategyCallback != 0) {
         StrategyAllocationActive = 1;
@@ -660,13 +660,13 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         overflowInfo.destHeap = overflowHeap;
         overflowInfo.originName = request->originHeap->name;
         overflowInfo.destName = overflowHeap->name;
-        overflowInfo.file = (const char*)request->field_08;
+        overflowInfo.file = (const char*)request->field_0x08;
         overflowInfo.size = request->size;
         overflowInfo.systemParams = &systemParams;
-        overflowInfo.field_38 = request->originHeap->field_68;
-        overflowInfo.field_40 = request->field_24;
-        overflowInfo.field_44 = request->field_28;
-        overflowInfo.field_48 = request->field_20;
+        overflowInfo.field_0x38 = request->originHeap->field_0x68;
+        overflowInfo.field_0x40 = request->field_0x24;
+        overflowInfo.field_0x44 = request->field_0x28;
+        overflowInfo.field_0x48 = request->field_0x20;
         mwMemUserConfigAttemptingOverflowHeapCallback(&overflowInfo);
         heap->overflowFlag = 1;
         if (overflowHeap != 0 && overflowHeap->magic == MW_MEM_HEAP_MAGIC_VALID) {
@@ -780,9 +780,9 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
         request.heap = heap;
         request.originHeap = heap;
         request.flags = flags;
-        request.field_08 = (u32)file;
-        request.field_18 = (u32)func;
-        request.field_20 = (u32)line;
+        request.field_0x08 = (u32)file;
+        request.field_0x18 = (u32)func;
+        request.field_0x20 = (u32)line;
         request.size = size;
         newBlock = _mwMemMallocVirtual(&request);
         if (newBlock == 0) {
@@ -793,9 +793,9 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
             oomInfo.destHeap = heap;
             oomInfo.file = (const char*)file;
             oomInfo.systemParams = &systemParams;
-            oomInfo.field_38 = heap->field_68;
-            oomInfo.field_40 = (u32)func;
-            oomInfo.field_44 = (u32)line;
+            oomInfo.field_0x38 = heap->field_0x68;
+            oomInfo.field_0x40 = (u32)func;
+            oomInfo.field_0x44 = (u32)line;
             mwMemUserConfigOutofMemoryCallback(&oomInfo);
         }
         return newBlock;
@@ -818,9 +818,9 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
     request.heap = heap;
     request.originHeap = heap;
     request.flags = flags;
-    request.field_08 = (u32)file;
-    request.field_18 = (u32)func;
-    request.field_20 = (u32)line;
+    request.field_0x08 = (u32)file;
+    request.field_0x18 = (u32)func;
+    request.field_0x20 = (u32)line;
     request.size = size;
     newBlock = _mwMemMallocVirtual(&request);
     if (newBlock == 0) {
@@ -831,9 +831,9 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
         oomInfo.destHeap = heap;
         oomInfo.file = (const char*)file;
         oomInfo.systemParams = &systemParams;
-        oomInfo.field_38 = heap->field_68;
-        oomInfo.field_40 = (u32)func;
-        oomInfo.field_44 = (u32)line;
+        oomInfo.field_0x38 = heap->field_0x68;
+        oomInfo.field_0x40 = (u32)func;
+        oomInfo.field_0x44 = (u32)line;
         mwMemUserConfigOutofMemoryCallback(&oomInfo);
         return 0;
     }
@@ -867,9 +867,9 @@ void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags, void* file,
     request.heap = heap;
     request.originHeap = heap;
     request.flags = flags;
-    request.field_08 = (u32)file;
-    request.field_18 = (u32)func;
-    request.field_20 = (u32)line;
+    request.field_0x08 = (u32)file;
+    request.field_0x18 = (u32)func;
+    request.field_0x20 = (u32)line;
     request.size = total;
     result = _mwMemMallocVirtual(&request);
     if (result != 0) {
@@ -884,9 +884,9 @@ void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags, void* file,
     oomInfo.destHeap = heap;
     oomInfo.file = (const char*)file;
     oomInfo.systemParams = &systemParams;
-    oomInfo.field_38 = heap->field_68;
-    oomInfo.field_40 = (u32)func;
-    oomInfo.field_44 = (u32)line;
+    oomInfo.field_0x38 = heap->field_0x68;
+    oomInfo.field_0x40 = (u32)func;
+    oomInfo.field_0x44 = (u32)line;
     mwMemUserConfigOutofMemoryCallback(&oomInfo);
     return 0;
 }
@@ -900,9 +900,9 @@ void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, void* file, void* func
     request.heap = heap;
     request.originHeap = heap;
     request.flags = flags;
-    request.field_08 = (u32)file;
-    request.field_18 = (u32)func;
-    request.field_20 = (u32)line;
+    request.field_0x08 = (u32)file;
+    request.field_0x18 = (u32)func;
+    request.field_0x20 = (u32)line;
     request.size = size;
     result = _mwMemMallocVirtual(&request);
     if (result == 0) {
@@ -913,9 +913,9 @@ void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, void* file, void* func
         oomInfo.destHeap = heap;
         oomInfo.file = (const char*)file;
         oomInfo.systemParams = &systemParams;
-        oomInfo.field_38 = heap->field_68;
-        oomInfo.field_40 = (u32)func;
-        oomInfo.field_44 = (u32)line;
+        oomInfo.field_0x38 = heap->field_0x68;
+        oomInfo.field_0x40 = (u32)func;
+        oomInfo.field_0x44 = (u32)line;
         mwMemUserConfigOutofMemoryCallback(&oomInfo);
     }
     return result;
@@ -932,18 +932,18 @@ void mwMemHeapGetInfo(_mwMemHeap* heap, MwMemHeapInfo* info) {
     info->strategy = heap->strategy;
     info->overflowFlag = heap->overflowFlag;
     info->heapIndex = heap->heapIndex;
-    info->field_28 = heap->currentUsedSize;
-    info->field_2C = heap->peakUsedSize;
-    info->field_30 = heap->totalManagedSize;
-    info->field_34 = heap->currentAllocationCount;
-    info->field_38 = heap->peakAllocationCount;
+    info->field_0x28 = heap->currentUsedSize;
+    info->field_0x2C = heap->peakUsedSize;
+    info->field_0x30 = heap->totalManagedSize;
+    info->field_0x34 = heap->currentAllocationCount;
+    info->field_0x38 = heap->peakAllocationCount;
     info->totalSize = heap->currentFreeSize;
     info->blockSize = heap->blockSize;
 }
 
 int mwMemSystemGetDefaultParams(MwMemSystemParams* params) {
-    params->field_00 = 0;
-    params->field_04 = 0;
+    params->field_0x00 = 0;
+    params->field_0x04 = 0;
     return 1;
 }
 
@@ -951,11 +951,11 @@ int mwMemSystemSetParams(MwMemSystemParams* params) {
     MwMemSystemParams defaults;
 
     if (params != 0) {
-        systemParams.field_00 = params->field_00;
-        systemParams.field_04 = params->field_04;
+        systemParams.field_0x00 = params->field_0x00;
+        systemParams.field_0x04 = params->field_0x04;
     } else {
-        systemParams.field_00 = 0;
-        systemParams.field_04 = 0;
+        systemParams.field_0x00 = 0;
+        systemParams.field_0x04 = 0;
         mwMemSystemGetDefaultParams(&defaults);
         mwMemSystemSetParams(&defaults);
     }
@@ -964,23 +964,23 @@ int mwMemSystemSetParams(MwMemSystemParams* params) {
 
 int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
     params->strategyCallback = 0;
-    params->field_04 = 0;
-    params->field_08 = 0xAB;
-    params->field_09 = 0xDC;
+    params->field_0x04 = 0;
+    params->field_0x08 = 0xAB;
+    params->field_0x09 = 0xDC;
     params->overflowEnable = 1;
-    params->field_0C = 0;
-    params->field_10 = 0;
+    params->field_0x0C = 0;
+    params->field_0x10 = 0;
     return 1;
 }
 
 int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     params->strategyCallback = heap->strategyCallback;
-    params->field_04 = heap->field_68;
-    params->field_08 = heap->pad2E;
-    params->field_09 = heap->pad2F;
+    params->field_0x04 = heap->field_0x68;
+    params->field_0x08 = heap->pad2E;
+    params->field_0x09 = heap->pad2F;
     params->overflowEnable = heap->overflowEnable;
-    params->field_0C = heap->currentUsedSize;
-    params->field_10 = heap->peakUsedSize;
+    params->field_0x0C = heap->currentUsedSize;
+    params->field_0x10 = heap->peakUsedSize;
     return 1;
 }
 
@@ -989,16 +989,16 @@ int mwMemHeapSetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
 
     if (params != 0) {
         heap->strategyCallback = params->strategyCallback;
-        heap->field_68 = params->field_04;
-        heap->pad2E = params->field_08;
-        heap->pad2F = params->field_09;
+        heap->field_0x68 = params->field_0x04;
+        heap->pad2E = params->field_0x08;
+        heap->pad2F = params->field_0x09;
         heap->overflowEnable = params->overflowEnable;
-        heap->currentUsedSize = params->field_0C;
-        heap->peakUsedSize = params->field_10;
+        heap->currentUsedSize = params->field_0x0C;
+        heap->peakUsedSize = params->field_0x10;
     } else {
         mwMemHeapGetDefaultParams(&defaults);
         heap->strategyCallback = 0;
-        heap->field_68 = 0;
+        heap->field_0x68 = 0;
         heap->pad2E = 0xAB;
         heap->pad2F = 0xDC;
         heap->overflowEnable = 1;

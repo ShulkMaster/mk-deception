@@ -70,12 +70,12 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     if (header == 0) {
         return 0;
     }
-    request->field_00 = block_size + heap->blockPrefixSize;
-    request->field_0C = heap->blockPrefixSize;
-    request->field_08 = flags;
+    request->field_0x00 = block_size + heap->blockPrefixSize;
+    request->field_0x0C = heap->blockPrefixSize;
+    request->field_0x08 = flags;
     request->originHeap = heap;
-    request->field_18 = 0;
-    request->field_04 = aligned_size;
+    request->field_0x18 = 0;
+    request->field_0x04 = aligned_size;
     return (u8*)header + heap->blockPrefixSize;
 }
 
@@ -143,7 +143,7 @@ void hdrlessHeapResetHeap(_mwMemHeap* heap) {
 void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params) {
     heap->flags = params->flags;
     heap->blockSize = ALIGN_UP_16(params->blockSize);
-    heap->field_60 = 0;
+    heap->field_0x60 = 0;
     hdrlessHeapResetHeap(heap);
 }
 
