@@ -428,6 +428,7 @@ void setup_fixed_block_heaps(void) {
     current_heap_block_counts[13] = 0;
 
     /* Retail loads jump_target_mode (.sdata), not mode_of_play. */
+    /* Soft ceiling under -O4,s: 99.86% -- jump-table relocation symbol only. */
     mode = (unsigned int)jump_target_mode;
     switch (mode) {
     case 4:
@@ -677,18 +678,15 @@ void service_game_timers(void) {
         top = game_state_stack[depth];
     }
 
-    if (top == 7) {
-        g_game_info.field_20C += 1;
-        return;
-    }
-
-    if (depth < 0) {
-        top = 0;
-    } else {
-        top = game_state_stack[depth];
-    }
-    if (top != 0x12) {
-        return;
+    if (top != 7) {
+        if (depth < 0) {
+            top = 0;
+        } else {
+            top = game_state_stack[depth];
+        }
+        if (top != 0x12) {
+            return;
+        }
     }
     g_game_info.field_20C += 1;
 }
@@ -930,7 +928,6 @@ void pfx_2d_obj_set_alpha_by_id(void* obj, int id, int alpha) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* Soft ceiling: pfx_2d_obj_set_alpha ~97.50% -- loop GPR coloring only. */
 void pfx_2d_obj_set_alpha(ScreenObj* obj, int alpha) {
     int i;
 
@@ -1580,11 +1577,15 @@ void* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1, float v1, 
 void* start_sobj_uv_scroll(MkObj* owner, int sobj_id, float u1, float v1, float u2,
                           float v2) {
     MkSobj* subobject;
+    void* result;
+
     subobject = (MkSobj*)obj_create_sobjs_by_id(owner, sobj_id);
-    if (subobject == 0) {
-        return 0;
+    if (subobject != 0) {
+        result = sobj_start_uv_scroll(owner, subobject, u1, v1, u2, v2);
+    } else {
+        result = 0;
     }
-    return sobj_start_uv_scroll(owner, subobject, u1, v1, u2, v2);
+    return result;
 }
 
 void* replace_sobj_texture_with_named_wiff(

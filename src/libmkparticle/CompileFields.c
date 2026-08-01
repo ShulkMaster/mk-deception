@@ -4,8 +4,6 @@ int has_field_description(PfxTableRegistry* registry, unsigned int description);
 int get_field_offset(PfxTableRegistry* registry, unsigned int description);
 int pfx_field_get_type(unsigned int field);
 
-/* Soft ceiling: _pfx_emitter_compile ~95.68% -- equivalent range-branch
- * and call scheduling differences. */
 void _pfx_emitter_compile(PfxEmitterCompileView* emitter,
                           PfxTableRegistry* registry) {
     int offset;
@@ -21,8 +19,9 @@ void _pfx_emitter_compile(PfxEmitterCompileView* emitter,
     while (i < emitter->field_count) {
         unsigned int storage;
 
-        compile_field = (PfxCompileField*)((char*)emitter + offset);
-        if (has_field_description(registry, compile_field->description) == 0) {
+        if (has_field_description(
+                registry,
+                (compile_field = (PfxCompileField*)((char*)emitter + offset))->description) == 0) {
             return;
         }
 
@@ -41,18 +40,21 @@ void _pfx_emitter_compile(PfxEmitterCompileView* emitter,
 
         compile_field->field_offset =
             get_field_offset(registry, compile_field->description);
-        if (compile_field->operation < 8) {
-            if (compile_field->operation >= 5) {
-                PfxFieldTableHeader* table;
+        switch (compile_field->operation) {
+        case 5:
+        case 6:
+        case 7: {
+            PfxFieldTableHeader* table;
 
-                table = (PfxFieldTableHeader*)
-                    registry->tables[compile_field->table_index];
-                if (table->field_type !=
-                    pfx_field_get_type(compile_field->field)) {
-                    return;
-                }
-                compile_field->table_index = (int)table;
+            table = (PfxFieldTableHeader*)
+                registry->tables[compile_field->table_index];
+            if (table->field_type !=
+                pfx_field_get_type(compile_field->field)) {
+                return;
             }
+            compile_field->table_index = (int)table;
+            break;
+        }
         }
         i++;
         offset += 0x54;

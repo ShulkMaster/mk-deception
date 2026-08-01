@@ -29,6 +29,7 @@ typedef struct MwMemHeapIdentity {
 #define MW_MEM_STRATEGY_NORMAL 0
 #define MW_MEM_STRATEGY_VIRTUAL 1
 #define MW_MEM_STRATEGY_FIXED 2
+#define MW_MEM_STRATEGY_OVERFLOW 4
 #define MW_MEM_STRATEGY_HDRLESS 5
 
 /** Parameters used to create a Midway memory heap. Retail layout: 0x1C bytes. */
@@ -61,7 +62,7 @@ typedef struct MwMemSystemParams {
 
 /** Heap information populated by `mwMemHeapGetInfo`. Retail layout: 0x44 bytes. */
 typedef struct MwMemHeapInfo {
-  u32 field_00;              /**< Retail offset 0x00; purpose unknown. */
+  const char *name;          /**< Retail offset 0x00. */
   u8 *heapStart;             /**< Retail offset 0x04. */
   u8 *heapEnd;               /**< Retail offset 0x08. */
   u32 arenaSize;             /**< Retail offset 0x0C. */
@@ -185,7 +186,7 @@ _mwMemHeap *_mwMemHeapCreate(MwMemHeapCreateParams *create,
 void mwMemHeapGetMaxFreeBlock(_mwMemHeap *heap, u32 *outCount, u32 *outSize);
 
 void *mwMemHeapStrategyCallback(MwMemMallocRequest *request, _mwMemHeap *heap,
-                                u32 flags, void *a, void *b, void *c);
+                                u32 flags, void *context);
 
 void mwMemHeapGetInfo(_mwMemHeap *heap, MwMemHeapInfo *info);
 

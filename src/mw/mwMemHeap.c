@@ -35,21 +35,26 @@ static void mwMemHeapInit(void);
 void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info) {
     MwMemHeapInfo origin_info;
     MwMemHeapInfo destination_info;
+    float size_kb;
 
     mwMemHeapGetInfo(info->originHeap, &origin_info);
     mwMemHeapGetInfo(info->destHeap, &destination_info);
+    size_kb = (float)info->size;
+    size_kb *= 1.0f / 1024.0f;
     MEMPRINT(">> OVERFLOW_HEAP: size: %f K origin heap: %s, dest heap: %s, file: %s L: %d\n",
-             (float)info->size * (1.0f / 1024.0f), origin_info.name,
-             destination_info.name, info->file, info->line);
+             size_kb, origin_info.name, destination_info.name, info->file, info->line);
 }
 
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info) {
     MwMemHeapInfo heap_info;
+    float size_kb;
 
     mwMemHeapGetInfo(info->destHeap, &heap_info);
     MEMPRINT(">> Out of RAM \n");
+    size_kb = (float)info->size;
+    size_kb *= 1.0f / 1024.0f;
     MEMPRINT("      FAILURE:  cannot allocate: %f K  from heap: %s\n",
-             (float)info->size * (1.0f / 1024.0f), heap_info.name);
+             size_kb, heap_info.name);
 }
 
 void mwMemUserConfigInitMemSystem(void) {
@@ -65,11 +70,20 @@ void mwMemUserConfigPrintf(const char* format, ...) {}
 
 static void* movie_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32 flags,
                             void* context) {
-    _mwMemHeap* system_overflow = mwMemSystemGetHeap(1);
-    void* block = mwMemHeapStrategyCallback(request, wave_heap, flags, context);
-    if (block == 0) block = mwMemHeapStrategyCallback(request, permanent_heap, flags, context);
-    if (block == 0) block = mwMemHeapStrategyCallback(request, section_heap, flags, context);
-    if (block == 0) block = mwMemHeapStrategyCallback(request, system_overflow, flags, context);
+    void* block;
+    _mwMemHeap* system_overflow;
+
+    system_overflow = mwMemSystemGetHeap(1);
+    block = mwMemHeapStrategyCallback(request, wave_heap, flags, context);
+    if (block == 0) {
+        block = mwMemHeapStrategyCallback(request, permanent_heap, flags, context);
+        if (block == 0) {
+            block = mwMemHeapStrategyCallback(request, section_heap, flags, context);
+            if (block == 0) {
+                block = mwMemHeapStrategyCallback(request, system_overflow, flags, context);
+            }
+        }
+    }
     if (block == 0) {
         memDebugHeap(wave_heap);
         memDebugHeap(permanent_heap);
