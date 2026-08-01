@@ -1,0 +1,154 @@
+#ifndef GAME_PLYRPROFILE_H
+#define GAME_PLYRPROFILE_H
+
+#include "runtime/mk_proc.h"
+
+typedef struct StorageProfileSlot StorageProfileSlot;
+
+/*
+ * plyrprofile.o - player profiles + memcard boot PPWLS ("what's loaded").
+ * Deeper CARD I/O is memcard/gcmcard. Campaign history: docs/campaigns/index.md.
+ *
+ * Retail: Boot chain (after legal in p_attract_mode):
+ *   gamelogic_jump(6, p_player_profile_boot_screen_entry_point)
+ *     -> set_section_memory_scheme(SECTION_MEMORY_SCHEME_PROFILE)
+ *     -> jump_sleep(p_player_profile_whats_loaded_screen)
+ *          -> load_screen("common/memory_card/mc_main") + fade + wait
+ *          -> gamelogic_jump(0, p_atm_loop)
+ * Soft ceiling: g_bMemCardScreensDisabled is only consulted from insert_mu;
+ *   not a boot fast-path in this tree.
+ *
+ * Menu create/view/delete (B22): cases 18-20 in p_main_menu jump to
+ *   p_create_profile / p_view_profile / p_delete_profile; exit via
+ *   gamelogic_jump(6, p_main_menu).
+ */
+
+#define SECTION_MEMORY_SCHEME_PROFILE 4
+
+#define PROFILE_SIZE 0x5C0
+#define PROFILE_SWITCHMAP_COUNT 16
+#define PROFILE_KONQUEST_SIZE 0x36C
+
+/*
+ * Runtime / on-card profile blob (sizeof 0x5C0). Layout shared with
+ * StorageProfileSlot for name/pin/icon; unlock bitfields @ +0x148..+0x188
+ * (is_mark_as_unlocked categories 1..10).
+ *
+ * name @ +0x08, PIN @ +0x13, icon @ +0x19, switch_map @ +0x108,
+ * unlock words @ +0x148.., konquest @ +0x190 (0x36C), idChecksum @ +0x5B8.
+ */
+typedef struct PlayerProfile {
+    unsigned char active; /* +0x00 */
+    unsigned char pad01[7]; /* +0x01 */
+    char name[0xB]; /* +0x08 */
+    unsigned char pin[6]; /* +0x13 */
+    unsigned char icon; /* +0x19 -- PPWLS index into ppwls_icon[] */
+    unsigned char pad1A[0x104 - 0x1A]; /* +0x1A .. +0x103 */
+    int rumble; /* +0x104 */
+    int switch_map[PROFILE_SWITCHMAP_COUNT]; /* +0x108 -- word0 of each default entry */
+    unsigned int unlock_cat1[2]; /* +0x148 */
+    unsigned int unlock_cat2[2]; /* +0x150 */
+    unsigned int unlock_cat3; /* +0x158 */
+    unsigned int pad15C; /* +0x15C */
+    unsigned int unlock_cat6[2]; /* +0x160 */
+    unsigned int unlock_cat4; /* +0x168 */
+    unsigned int unlock_cat5; /* +0x16C -- mark category 5 */
+    unsigned int unlock_cat7[2]; /* +0x170/+0x174 -- mark category 7 (hi/lo) */
+    unsigned int unlock_cat8[2]; /* +0x178 */
+    unsigned int unlock_cat9[2]; /* +0x180 */
+    unsigned int unlock_cat10; /* +0x188 */
+    unsigned int pad18C; /* +0x18C */
+    unsigned char konquest[PROFILE_KONQUEST_SIZE]; /* +0x190 */
+    unsigned char pad4FC[0x5B8 - 0x4FC]; /* +0x4FC */
+    int idChecksum; /* +0x5B8 */
+    unsigned char pad5BC[0x5C0 - 0x5BC];
+} PlayerProfile; /* 0x5C0 */
+
+/*
+ * Multi-profile list mkproc pdata: UI code/PIN at +0x14 (not PlayerProfile.pin @ +0x13).
+ * Used by ppl_get_multi_profile_* walks.
+ */
+typedef struct PplListPdata {
+    unsigned char pad00[0x14]; /* +0x00 */
+    unsigned char code[6]; /* +0x14 */
+} PplListPdata;
+
+#define PPWLS_PROC_PID 0x3008
+#define PPWLS_PROC_PRIO 0x23
+#define PPWLS_TIMEOUT_PROC_PDATA 8
+
+#define PPWLS_SCREEN_SLOT 0x90046
+#define PPWLS_SCREEN_PATH "common/memory_card/mc_main"
+
+#define PPWLS_EVENT_REFRESH 0x1FB7
+#define PPWLS_EVENT_DONE 0x1FBE
+
+#define PPWLS_FADE_FRAMES 10
+
+extern char* ppwls_icon[];
+
+float p_player_profile_boot_screen_entry_point(void);
+float p_player_profile_whats_loaded_screen(void);
+float p_reset_ppwls_timeout(void);
+void reset_ppwls_timeout(void);
+void set_ppwls_input_done(void);
+void init_player_profiles(void);
+void unload_player_profiles(void);
+void unload_p1_player_profile(void);
+void unload_p2_player_profile(void);
+
+void memory_save_profile(int player, PlayerProfile* dest);
+void memory_load_profile(int player, PlayerProfile* src);
+StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
+                                          unsigned char* code, int* device, int* slot);
+int move_profile_p1_to_p2(void);
+int move_profile_p2_to_p1(void);
+int count_all_profiles(void);
+char* ppv_get_current_profile_name(void);
+void mark_profile_as_in_use(int device, int slot);
+
+float p_create_profile(void);
+float p_view_profile(void);
+float p_delete_profile(void);
+void erase_player_profile(int device, int slot);
+void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot, int* outCount,
+                                          int* outPosition);
+void ppc_set_button_answer(int answer);
+void ppc_set_current_icon_selection(unsigned char icon);
+int ppc_get_code_state(void);
+void ppc_transition_pause(int paused);
+int pne_is_name_already_used(void);
+void pp_name_entry_proces_char_entry(const char* key_name);
+char* get_current_create_a_profile_name(void);
+
+void set_profile_to_default(PlayerProfile* profile);
+int get_coffin_bit(const unsigned char* bits, unsigned int index);
+void set_coffin_bit(unsigned char* bits, unsigned int index, int value);
+
+int is_mark_as_unlocked(PlayerProfile* profile, int category, int character);
+void mark_as_unlocked(PlayerProfile* profile, int category, int character);
+void mark_as_locked(PlayerProfile* profile, int category, int character);
+
+int validate_save_location(int player);
+int validate_konq_save_location(int player);
+int validate_konq_load_location(int player);
+void quit_from_konquest(void);
+
+int find_device_display_status(int device);
+int does_name_already_exist(const char* name);
+int ppl_get_multi_profile_count(int player);
+int ppl_get_multi_profile_names_p1(char** out);
+int ppl_get_multi_profile_names_p2(char** out);
+void ppl_get_multi_profile_icon_p1(int* out, int count);
+void ppl_get_multi_profile_icon_p2(int* out, int count);
+
+void ppv_get_current_profile_koins(char* dest, int index);
+void ppv_get_current_profile_arcade_finishes(char* dest);
+struct McIconListArg;
+void ppv_view_profile_icon_list(struct McIconListArg* arg);
+void ppv_update_profile_cursor(int delta);
+void get_profile_stats(char** outs);
+void format_value_to_display(char* dest, unsigned int value);
+char* get_heros_name(int which);
+
+#endif
