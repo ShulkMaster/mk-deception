@@ -1,5 +1,6 @@
 #include "math/gxMat.h"
-#include "math/gxQuat.h"
+
+typedef char Mat33SizeMustBe0x30[(sizeof(Mat33) == 0x30) ? 1 : -1];
 
 /*
  * Soft ceilings (NonMatching -- clean math preferred over FP schedule):
@@ -10,7 +11,7 @@
  *     allocation/scheduling in the alias-safe path.
  */
 
-void gxMat33Tx31(Vec* out, Vec* v, Mat33* m) {
+void gxMat33Tx31(Vec* out, const Vec* v, const Mat33* m) {
     float x = v->x;
     float y = v->y;
     float z = v->z;
@@ -22,19 +23,19 @@ void gxMat33Tx31(Vec* out, Vec* v, Mat33* m) {
 
 void gxMatScaledByV3(Mat33* out, const Mat33* in, const Vec* scale) {
     /* Soft ceiling ~92.6%: retail lfs scale->x after mrs; MWCC before stmw. */
-    PSVECScale((const Vec*)in, (Vec*)out, scale->x);
-    PSVECScale((const Vec*)&in->col1[0], (Vec*)&out->col1[0], scale->y);
-    PSVECScale((const Vec*)&in->col2[0], (Vec*)&out->col2[0], scale->z);
+    PSVECScale(&in->col0_vec, &out->col0_vec, scale->x);
+    PSVECScale(&in->col1_vec, &out->col1_vec, scale->y);
+    PSVECScale(&in->col2_vec, &out->col2_vec, scale->z);
     out->flags &= ~1;
 }
 
 
 
-void gxMat33x33_Check(Mat33* out, Mat33* a, Mat33* b) {
+void gxMat33x33_Check(Mat33* out, const Mat33* a, const Mat33* b) {
     gxMat33x33(out, a, b);
 }
 
-void gxMatV3MatAddV3_Check(Vec* out, Vec* v, Mat33* m, Vec* add) {
+void gxMatV3MatAddV3_Check(Vec* out, const Vec* v, const Mat33* m, const Vec* add) {
     float x = v->x;
     float y = v->y;
     float z = v->z;
@@ -44,7 +45,7 @@ void gxMatV3MatAddV3_Check(Vec* out, Vec* v, Mat33* m, Vec* add) {
     out->z = add->z + (y * m->col1[2] + x * m->col0[2] + z * m->col2[2]);
 }
 
-void gxMatV3MatAddV3(Vec* out, Vec* v, Mat33* m, Vec* add) {
+void gxMatV3MatAddV3(Vec* out, const Vec* v, const Mat33* m, const Vec* add) {
     float x = v->x;
     float y = v->y;
     float z = v->z;
@@ -54,7 +55,7 @@ void gxMatV3MatAddV3(Vec* out, Vec* v, Mat33* m, Vec* add) {
     out->z = add->z + (y * m->col1[2] + x * m->col0[2] + z * m->col2[2]);
 }
 
-void gxMat33x33(Mat33* out, Mat33* a, Mat33* b) {
+void gxMat33x33(Mat33* out, const Mat33* a, const Mat33* b) {
     float c00, c01, c02;
     float c10, c11, c12;
     float c20, c21, c22;

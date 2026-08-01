@@ -1,10 +1,11 @@
 #include "math/gxQuat.h"
+#include "math/gxMat.h"
 #include "math/gxMath.h"
 
 /*
  * Soft ceilings (NonMatching -- do not grind Matching on these):
  *   gxQuatInterpQuat ~78% -- slerp weight / FP schedule leftovers; stop.
- *   gxVectV3V3ToQuat ~73% -- invsqrt + table-sqrt schedule; stop.
+ *   gxVectV3V3ToQuat ~77.7% -- invsqrt + table-sqrt schedule; stop.
  */
 
 static const float kZero = 0.0f;
@@ -104,7 +105,8 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
         if (kZero < invLenSq) {
             pun.f = invLenSq;
             guessBits = 0x5F375A00U - (pun.u >> 1);
-            guess = *(float*)&guessBits;
+            pun.u = guessBits;
+            guess = pun.f;
             t1 = guess * invLenSq;
             t3 = kNewtonIter3 - t1;
             scale = kInvSqrtScale * guess;
@@ -123,7 +125,8 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     if (kZero < crossDot) {
         pun.f = crossDot;
         guessBits = 0x5F375A00U - (pun.u >> 1);
-        guess = *(float*)&guessBits;
+        pun.u = guessBits;
+        guess = pun.f;
         t1 = guess * crossDot;
         t3 = kNewtonIter3 - t1;
         scale = kInvSqrtScale * guess;
@@ -132,9 +135,10 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     halfAngle = kHalf * (kOne - dot);
     wScale = kZero;
     if (kZero < halfAngle) {
-        pun.u = *(unsigned int*)&halfAngle;
-        sqrtGuess = (float)((unsigned int)GXMathSqrtTable[(pun.u >> 10) & 0x3FFE] << 8 |
-                            ((((pun.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U));
+        pun.f = halfAngle;
+        pun.u = (unsigned int)GXMathSqrtTable[(pun.u >> 10) & 0x3FFE] << 8 |
+                ((((pun.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U);
+        sqrtGuess = pun.f;
         wScale = kHalf * sqrtGuess * (kNewtonIter3 - (sqrtGuess * sqrtGuess) / halfAngle);
     }
     PSVECScale(&axis, &axis, scale * wScale);
@@ -144,34 +148,34 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     wSqrtArg = kHalf * (kOne + dot);
     wValue = kZero;
     if (kZero < wSqrtArg) {
-        pun.u = *(unsigned int*)&wSqrtArg;
-        sqrtGuess = (float)((unsigned int)GXMathSqrtTable[(pun.u >> 10) & 0x3FFE] << 8 |
-                            ((((pun.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U));
+        pun.f = wSqrtArg;
+        pun.u = (unsigned int)GXMathSqrtTable[(pun.u >> 10) & 0x3FFE] << 8 |
+                ((((pun.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U);
+        sqrtGuess = pun.f;
         wValue = kHalf * sqrtGuess * (kNewtonIter3 - (sqrtGuess * sqrtGuess) / wSqrtArg);
     }
     out->w = wValue;
 }
 
-void gxQuatQuatToMat(float* out, const Quat* q) {
+void gxQuatQuatToMat(Mat33* out, const Quat* q) {
     Mtx m;
     int three;
 
     PSMTXQuat(m, q);
-    out[0] = m[0][0];
-    out[1] = m[1][0];
-    out[2] = m[2][0];
-    out[3] = kZero;
-    out[4] = m[0][1];
-    out[5] = m[1][1];
-    out[6] = m[2][1];
-    out[7] = kZero;
-    out[8] = m[0][2];
-    out[9] = m[1][2];
-    out[10] = m[2][2];
-    out[11] = kZero;
-    /* Retail stores Mat33.flags = 3 over the first column pad. */
+    out->col0[0] = m[0][0];
+    out->col0[1] = m[1][0];
+    out->col0[2] = m[2][0];
+    out->flags_pad = kZero;
+    out->col1[0] = m[0][1];
+    out->col1[1] = m[1][1];
+    out->col1[2] = m[2][1];
+    out->pad1 = kZero;
+    out->col2[0] = m[0][2];
+    out->col2[1] = m[1][2];
+    out->col2[2] = m[2][2];
+    out->pad2 = kZero;
     three = 3;
-    *(int*)&out[3] = three;
+    out->flags = three;
 }
 
 void gxQuatNorm(Quat* q) {
@@ -184,13 +188,7 @@ void gxQuatMul(Quat* out, const Quat* a, const Quat* b) {
 
 void gxQuatCopy(Quat* dst, const Quat* src) {
     /* Word-wise copy matches retail int loads/stores. */
-    const int* s = (const int*)src;
-    int* d = (int*)dst;
-
-    d[0] = s[0];
-    d[1] = s[1];
-    d[2] = s[2];
-    d[3] = s[3];
+    *dst = *src;
 }
 
 void gxQuatSetZero(Quat* q) {

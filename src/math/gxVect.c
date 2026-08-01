@@ -6,7 +6,7 @@ static const float _464 = 3.0f;
 static const float _465 = 0.0625f;
 static const float _466 = 12.0f;
 
-/* Soft ceiling: gxVectAngleZX ~77% -- zero-const load vs v load interleave;
+/* Soft ceiling: gxVectAngleZX ~84.8% -- zero-const load vs v load interleave;
  * sdata2 label names. UVV3ToV3 is 100%. */
 
 float gxVectAngleZX(const Vec* v) {
@@ -34,7 +34,8 @@ float gxVectAngleZX(const Vec* v) {
         /* Fast inverse sqrt of (x*x + z*z) with one Newton step. */
         pun.f = lenSq;
         guessBits = 0x5F375A00U - (pun.u >> 1);
-        guess = *(float*)&guessBits;
+        pun.u = guessBits;
+        guess = pun.f;
         lenSq = lenSq * guess;
         t1 = guess * lenSq;
         t3 = _464 - t1;

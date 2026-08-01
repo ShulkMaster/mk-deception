@@ -68,6 +68,10 @@ static float mk_inv_sqrt(float x) {
 
 /* GXMathSqrtTable sqrt used by length_* / dist_* (same pattern as cam.c). */
 static float mk_sqrt_table(float x) {
+    union {
+        float f;
+        unsigned int u;
+    } pun;
     unsigned int bits;
     unsigned int mantissa_exp;
     float guess;
@@ -75,10 +79,12 @@ static float mk_sqrt_table(float x) {
     if (!(kZero < x)) {
         return kZero;
     }
-    bits = *(unsigned int*)&x;
+    pun.f = x;
+    bits = pun.u;
     mantissa_exp = (unsigned int)GXMathSqrtTable[(bits >> 10) & 0x3FFE] << 8;
     mantissa_exp |= (((bits & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    guess = *(float*)&mantissa_exp;
+    pun.u = mantissa_exp;
+    guess = pun.f;
     return kHalf * guess * (kThree - (guess * guess) / x);
 }
 

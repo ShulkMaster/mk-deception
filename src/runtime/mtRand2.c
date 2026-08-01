@@ -4,6 +4,8 @@
  *   reload_rnd_tbl: 97.97% -- final-element tail GPR coloring
  *   sgenrand: 95.45% -- adjacent independent li/lis scheduling
  */
+#include "runtime/mtRand2.h"
+
 #define N 624
 #define M 397
 #define MATRIX_A 0x9908b0dfU
