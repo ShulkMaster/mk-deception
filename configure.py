@@ -337,7 +337,7 @@ config.libs = [
             Object(NonMatching, "mk_fileinfo.o", source="runtime/mk_fileinfo.c",
                    extra_cflags=["-use_lmw_stmw on", "-sdata 0", "-O4,s"]),
             Object(Matching, "pakfile.o", source="runtime/pakfile.c"),
-            Object(NonMatching, "mk_vtbl.o", source="runtime/mk_vtbl.c"),
+            Object(Matching, "mk_vtbl.o", source="runtime/mk_vtbl.c"),
             Object(
                 NonMatching,
                 "mk_plugins.o",
@@ -347,7 +347,12 @@ config.libs = [
             # gxVectAngleZX not fully matched yet; keep split until fixed
             Object(NonMatching, "gxVect.o", source="math/gxVect.c"),
             Object(NonMatching, "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on"]),
-            Object(NonMatching, "gxMat.o", source="math/gxMat.c", extra_cflags=["-use_lmw_stmw on"]),
+            Object(
+                NonMatching,
+                "gxMat.o",
+                source="math/gxMat.c",
+                extra_cflags=["-use_lmw_stmw on", "-O4,s"],
+            ),
             # Trig polynomials + GXMathSqrtTable .data; NonMatching = ASM linked
             Object(NonMatching, "gxMath.o", source="math/gxMath.c"),
             # Midway V3/XZ/quat/MKMATRIX core; Wave C scaffold
@@ -466,13 +471,14 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "gcARam.o", source="platform/gcARam.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt", "nocse"]),
-            Object(NonMatching, "mtRand2.o", source="runtime/mtRand2.c"),
+            Object(NonMatching, "mtRand2.o", source="runtime/mtRand2.c", extra_cflags=["-O4,s"]),
             Object(NonMatching, "utils.o", source="runtime/utils.c",
                    extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "mk_mem.o", source="runtime/mk_mem.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mk_struct.o", source="runtime/mk_struct.c",
-                   extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
+                   extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s",
+                                 "-inline off"]),
             Object(NonMatching, "mk_pdata.o", source="runtime/mk_pdata.c",
                    extra_cflags=["-use_lmw_stmw on", "-opt", "off", "-O4,s"]),
             Object(NonMatching, "mk_proc.o", source="runtime/mk_proc.c",
