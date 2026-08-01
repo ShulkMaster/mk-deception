@@ -1,8 +1,6 @@
 #include "runtime/hashtable.h"
 
-void* _mwMemMalloc(_mwMemHeap* heap, unsigned long size, int flags, void* a, void* b,
-                   void* c);
-void _mwMemFree(void* ptr, int a, int b);
+#include "mw/mwMem.h"
 
 extern unsigned char __ctype_map[];
 extern unsigned char __lower_map[];
