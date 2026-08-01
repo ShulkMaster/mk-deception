@@ -6,6 +6,17 @@ typedef unsigned long u32;
 
 typedef struct _mwMemHeap _mwMemHeap;
 
+/** Normal/fixed allocation header. Retail layout: 0x10 bytes. */
+typedef struct MwMemUsedHeader {
+  struct MwMemUsedHeader *previous; /**< Retail offset 0x00. */
+  struct MwMemUsedHeader *next;     /**< Retail offset 0x04. */
+  u32 allocationSize;               /**< Retail offset 0x08. */
+  u8 prefixSize;                    /**< Retail offset 0x0C. */
+  u8 field_0D;                      /**< Retail offset 0x0D; purpose unknown. */
+  u8 flags;                         /**< Retail offset 0x0E. */
+  u8 alignmentPadding;              /**< Retail offset 0x0F; byte before user block. */
+} MwMemUsedHeader;
+
 /** Partial heap identity view. Known retail extent: 0x2D bytes. */
 typedef struct MwMemHeapIdentity {
   u8 pad00[0x2C]; /**< Retail offsets 0x00-0x2B; fields unknown. */
@@ -90,6 +101,23 @@ typedef struct MwMemMallocRequest {
   u32 field_3C;          /**< Retail offset 0x3C; purpose unknown. */
 } MwMemMallocRequest;
 
+/** Headerless fixed-block heap creation parameters. Retail layout: 0x10 bytes. */
+typedef struct MwMemHeaderlessParams {
+  u32 field_00;   /**< Retail offset 0x00; purpose unknown. */
+  u32 blockCount; /**< Retail offset 0x04. */
+  u32 blockSize;  /**< Retail offset 0x08. */
+  u32 flags;      /**< Retail offset 0x0C. */
+} MwMemHeaderlessParams;
+
+/** Fixed-block heap creation parameters. Retail layout: 0x14 bytes. */
+typedef struct MwMemFixedParams {
+  u32 field_00;      /**< Retail offset 0x00; purpose unknown. */
+  u32 blockCount;    /**< Retail offset 0x04. */
+  u32 blockSize;     /**< Retail offset 0x08. */
+  u32 sizeThreshold; /**< Retail offset 0x0C. */
+  u32 flags;         /**< Retail offset 0x10. */
+} MwMemFixedParams;
+
 /**
  * Core Midway heap object. Retail layout: 0x7C bytes.
  *
@@ -99,9 +127,9 @@ typedef struct MwMemMallocRequest {
 struct _mwMemHeap {
   _mwMemHeap *listPrev;       /**< Retail offset 0x00. */
   _mwMemHeap *listNext;       /**< Retail offset 0x04. */
-  void *usedList;             /**< Retail offset 0x08. */
-  u32 field_0C;               /**< Retail offset 0x0C; purpose unknown. */
-  u32 field_10;               /**< Retail offset 0x10; purpose unknown. */
+  MwMemUsedHeader *usedList;  /**< Retail offset 0x08. */
+  MwMemUsedHeader *freeList;  /**< Retail offset 0x0C. */
+  MwMemUsedHeader *freeTail;  /**< Retail offset 0x10. */
   u32 strategy;               /**< Retail offset 0x14. */
   void *strategyCallback;     /**< Retail offset 0x18. */
   u32 magic;                  /**< Retail offset 0x1C. */
@@ -117,12 +145,12 @@ struct _mwMemHeap {
   u8 *heapStart;              /**< Retail offset 0x38. */
   u8 *heapEnd;                /**< Retail offset 0x3C. */
   u8 pad40[0x08];             /**< Retail offsets 0x40-0x47; fields unknown. */
-  u32 field_48;               /**< Retail offset 0x48; purpose unknown. */
-  u32 field_4C;               /**< Retail offset 0x4C; purpose unknown. */
-  u32 field_50;               /**< Retail offset 0x50; purpose unknown. */
-  u32 field_54;               /**< Retail offset 0x54; purpose unknown. */
-  u32 field_58;               /**< Retail offset 0x58; purpose unknown. */
-  u32 totalSize;              /**< Retail offset 0x5C. */
+  u32 currentUsedSize;        /**< Retail offset 0x48. */
+  u32 peakUsedSize;           /**< Retail offset 0x4C. */
+  u32 totalManagedSize;       /**< Retail offset 0x50; heapEnd - heapStart. */
+  u32 currentAllocationCount; /**< Retail offset 0x54. */
+  u32 peakAllocationCount;    /**< Retail offset 0x58. */
+  u32 currentFreeSize;        /**< Retail offset 0x5C. */
   u32 field_60;               /**< Retail offset 0x60; purpose unknown. */
   u32 blockSize;              /**< Retail offset 0x64. */
   u32 field_68;               /**< Retail offset 0x68; purpose unknown. */
@@ -131,8 +159,8 @@ struct _mwMemHeap {
   u8 pad6E[2];                /**< Retail offsets 0x6E-0x6F; alignment padding. */
   u32 virtAllocCount;         /**< Retail offset 0x70. */
   u32 flags;                  /**< Retail offset 0x74. */
-  u8 field_78;                /**< Retail offset 0x78; purpose unknown. */
-  u8 startPad;                /**< Retail offset 0x79. */
+  u8 arenaAlignmentPadding;   /**< Retail offset 0x78. */
+  u8 blockPrefixSize;         /**< Retail offset 0x79. */
 };
 
 extern _mwMemHeap *HeapList;
