@@ -1,7 +1,7 @@
 #ifndef MW_MWMEMHEAP_H
 #define MW_MWMEMHEAP_H
 
-typedef struct _mwMemHeap _mwMemHeap;
+#include "mw/mwMem.h"
 
 /** Fixed-block heap sizing configuration. Retail layout: 0x34 bytes. */
 typedef struct FixedHeapConfig {
@@ -19,15 +19,17 @@ typedef struct FixedHeapConfig {
     unsigned long fixed1024Size; /**< Retail offset 0x30. */
 } FixedHeapConfig;
 
-/** Heap-overflow callback payload. Retail layout: 0x1C bytes. */
+/** Heap-overflow callback payload. Retail layout: 0x40 bytes. */
 typedef struct MwMemOverflowInfo {
-    _mwMemHeap* originHeap; /**< Retail offset 0x00. */
-    _mwMemHeap* destHeap;   /**< Retail offset 0x04. */
-    const char* originName; /**< Retail offset 0x08. */
-    const char* destName;   /**< Retail offset 0x0C. */
-    const char* file;       /**< Retail offset 0x10. */
+    unsigned long field_00; /**< Retail offset 0x00; purpose unknown. */
+    unsigned long field_04; /**< Retail offset 0x04; purpose unknown. */
+    _mwMemHeap* originHeap;  /**< Retail offset 0x08. */
+    _mwMemHeap* destHeap;    /**< Retail offset 0x0C. */
+    unsigned long field_10; /**< Retail offset 0x10; purpose unknown. */
     unsigned long size;     /**< Retail offset 0x14. */
-    unsigned long line;     /**< Retail offset 0x18. */
+    unsigned char pad18[0x20]; /**< Retail offsets 0x18-0x37. */
+    const char* file;       /**< Retail offset 0x38. */
+    unsigned long line;     /**< Retail offset 0x3C. */
 } MwMemOverflowInfo;
 
 extern _mwMemHeap* overflow_heap;
@@ -57,7 +59,7 @@ void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info);
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info);
 void mwMemUserConfigInitMemSystem(void);
 int mwMemUserConfigAssert(void);
-void mwMemUserConfigPrintf(const char* str);
+void mwMemUserConfigPrintf(const char* format, ...);
 void mwMemDestroyFixedBlockHeaps(void);
 void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config);
 

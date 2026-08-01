@@ -1,0 +1,53 @@
+#include "mw/mwMemDebug.h"
+
+#include "mw/mwMemPlatform.h"
+
+/* Retail's disabled-debug message pool. Other debug routines were stripped. */
+static const char stringBase0[] =
+    "\n\0"
+    "*****************************************************************\n\0"
+    "   Heap Name           : %s\n\0"
+    "           Top Address : 0x%08x  \n\0"
+    "        Bottom Address : 0x%08x  \n\0"
+    "         Allocated Mem : %08d bytes 0x%08x  \n\0"
+    "         Peak Mem Size : %08d bytes 0x%08x  \n\0"
+    "      Current Mem Size : %08d bytes 0x%08x  \n\0"
+    "  Allocated Num Blocks : %d  [ used: %d || free: %d || to be freed: %d ]\n\0"
+    "      Peak Num Mallocs : %u\n\0"
+    "   Current Num Mallocs : %u\n\0"
+    "        Overflow Status: %s\n\0"
+    "FALSE\0TRUE\0"
+    " NUM of Free Blocks   : %d\n\0"
+    " Max Size Free Blocks : %d\n\0"
+    "=> DumpHeapFreeList(%s) ...\n\0"
+    "          Size           Start(freeHdr)    End(freeHdr+data)\n\0"
+    " ----------------------+-----------------+-------------------------\n\0"
+    " %8.2fK  0x%08x   0x%08p       0x%08p\n\0"
+    "*********************************************************************************************\n\0"
+    "=> Function DumpHeapUsedFree(%s)  ...............\n\0"
+    "    Type            Size                  Start(Hdr)    End(Hdr+data+struct)\n\0"
+    " ----------+------------------------+-----------------+-------------------------\n\0"
+    " %s        %08d  0x%08x   0x%08x   0x%08x   \n\0"
+    "FREE\0"
+    " %s        %08d  0x%08x   0x%08x   0x%08x  \n\0"
+    "USED\0"
+    "memDebugHeapTagSummary() is unavaible with MEM_DEBUG_BUILD disabled!\n\0"
+    "memDebugVerifyHdrFtr() is unavailable with MEM_DEBUG_BUILD disabled!\n\0"
+    "memDebugVerifyMemSize() is unavailable with MEM_DEBUG_BUILD disabled!\n\0"
+    "*************************************************************\n\0"
+    "   Total Memory\n\0"
+    "   Total Reserved Mem  : %08d bytes 0x%08x  \n\0"
+    "   Peak Used Mem       : %08d bytes 0x%08x  \n\0"
+    "   Current Used Mem    : %08d bytes 0x%08x  \n\0"
+    "   Current Free Mem    : %08d bytes 0x%08x  \n\0"
+    "   Peak Num Mallocs    :  %d\n\0"
+    "   Current Num Mallocs :  %d\n\0"
+    "memDebugGetTagMemSize() is unavailable with MEM_DEBUG_BUILD disabled!\n\0"
+    "memDebugHeapTag() is unavailable with MEM_DEBUG_BUILD disabled!\n\0"
+    "memDebugHeap() is unavailable with MEM_DEBUG_BUILD disabled!\n";
+
+const unsigned int gap_04_80315534_rodata = 0;
+
+void memDebugHeap(void) {
+    MEMPRINT(&stringBase0[0x713]);
+}

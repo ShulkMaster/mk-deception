@@ -1,0 +1,22 @@
+#ifndef MW_MWMEMPRIV_H
+#define MW_MWMEMPRIV_H
+
+#include "mw/mwMem.h"
+
+void privClearBitFromBitFlag(u8* bit_flags, int bit);
+void privSetBitFromBitFlag(u8* bit_flags, int bit);
+int privGetBitFromBitFlag(const u8* bit_flags, int bit);
+void privSetAlignInBitFlag(u8* bit_flags, int alignment);
+void privClearBitFlag(u8* bit_flags);
+int privGetLoadHighFromFlags(u32 flags);
+int privGetAlignFromMwMemFlags(u32 flags);
+void* privGetBlockFromUsedHdr(MwMemUsedHeader* header);
+MwMemUsedHeader* privGetUsedHdrFromBlock(void* block);
+u32 privGetStatSizeFromUsed(const MwMemUsedHeader* header);
+int privGetUserSizeFromUsed(const MwMemUsedHeader* header);
+void privSetBoundaryTags(MwMemUsedHeader* header);
+int privIsAlignValid(int alignment);
+void privUpdateStatsRemoveMemory(_mwMemHeap* heap, u32 size);
+void privUpdateStatsAddMemory(_mwMemHeap* heap, u32 size);
+
+#endif
