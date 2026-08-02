@@ -6,7 +6,7 @@
  * reset_game_state -> push_game_state -> system_stack -> create mkproc ->
  * longjmp(exec_loop_jump_buffer, mode) into main's exec loop.
  *
- * GQNE01 Matching keeps the symbol in main.o (do not split for retail link).
+ * GQNE5D Matching keeps the symbol in main.o (do not split for retail link).
  */
 
 #ifdef __cplusplus

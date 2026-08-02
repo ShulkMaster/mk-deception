@@ -43,7 +43,7 @@ def main() -> int:
     parser.add_argument(
         "asm",
         type=Path,
-        help="dtk assembly file, for example build/GQNE01/asm/debug_file.s",
+        help="dtk assembly file, for example build/GQNE5D/asm/debug_file.s",
     )
     parser.add_argument(
         "--context",
