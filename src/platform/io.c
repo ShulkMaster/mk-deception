@@ -234,7 +234,7 @@ void show_sw_log(void) {
         old_proc = find_mkproc_pid(0x206C);
         if (old_proc != 0) {
             pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
-            if (old_proc->instance != 0) old_proc->vtbl->destroy();
+            if (old_proc->instance != 0) old_proc->vtbl->destroy(old_proc);
         }
         proc_create(p_switch_log_fadeoff, 0x206C);
         for (count = 0; count < 5 && practice_p1_list[index] != -1; count++) {
@@ -248,7 +248,7 @@ void show_sw_log(void) {
         old_proc = find_mkproc_pid(0x206C);
         if (old_proc != 0) {
             pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
-            if (old_proc->instance != 0) old_proc->vtbl->destroy();
+            if (old_proc->instance != 0) old_proc->vtbl->destroy(old_proc);
         }
         proc_create(p_switch_log_fadeoff, 0x206C);
         for (count = 0; count < 5 && practice_p2_list[index] != -1; count++) {

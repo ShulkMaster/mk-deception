@@ -4,6 +4,10 @@
 #ifndef MK_VTABLE5_TYPE
 #define MK_VTABLE5_TYPE
 typedef int (*MkVtblFn)(void);
+struct MkProc;
+typedef void (*MkProcDestroyFn)(struct MkProc* proc);
+typedef void (*MkProcFn)(void);
+typedef void (*MkProcJumpFn)(int return_address);
 
 typedef struct MkVtable5 {
     MkVtblFn fn0;
@@ -19,12 +23,12 @@ typedef struct MkVtableMkproc {
     MkVtblFn fn1;
     MkVtblFn fn2;
     MkVtblFn fn3;
-    MkVtblFn destroy;
-    MkVtblFn dispatch;
-    MkVtblFn sleep;
-    MkVtblFn system_stack;
-    MkVtblFn local_stack;
-    MkVtblFn jump_sleep;
+    MkProcDestroyFn destroy;
+    MkProcFn dispatch;
+    MkProcFn sleep;
+    MkProcFn system_stack;
+    MkProcFn local_stack;
+    MkProcJumpFn jump_sleep;
 } MkVtableMkproc;
 
 typedef struct MkVtableMksobj {

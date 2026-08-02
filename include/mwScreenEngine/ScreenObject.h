@@ -228,6 +228,7 @@ typedef SEObject_t SEObjectExt;
 
 #define ScreenEventPtrSlot(list, i) (&(list)->events[(i)])
 #define ScreenEventAt(list, i) (*ScreenEventPtrSlot((list), (i)))
+#define SEEventPtrSlot(list, i) ((SEEvent_t**)ScreenEventPtrSlot((list), (i)))
 
 inline SEBaseAttribute_t** SEAttributePtrSlot(SEAttributes_t* list, unsigned int i) {
     return &list->attributes[i];
@@ -239,6 +240,14 @@ inline SEBaseAttribute_t* SEAttributeAt(SEAttributes_t* list, unsigned int i) {
 
 inline SEAction_t* SEActionAt(SEEvent_t* event, unsigned int i) {
     return &event->actions[i];
+}
+
+/* Convert a packed on-disc 32-bit offset into its in-memory address. */
+inline void* SeFileReloc(unsigned char* base, void* fileOffset) {
+    if (fileOffset == 0) {
+        return 0;
+    }
+    return base + (unsigned int)fileOffset;
 }
 
 struct ScreenAnimLastEvent {

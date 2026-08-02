@@ -212,7 +212,7 @@ void TakeCameraSnapShot(void) {
             frame = RwFrameCreate();
             if (frame != 0) {
                 camera = RwCameraCreate();
-                RwFrameTransform(frame, Camera->frame->ltm, 0);
+                RwFrameTransform(frame, &Camera->frame->ltm, 0);
                 if (camera != 0) {
                     camera->frameBuffer = raster;
                     camera->zBuffer = z_raster;
@@ -333,7 +333,7 @@ static float _print_screen_to_tga(void) {
                 frame = RwFrameCreate();
                 if (frame != 0) {
                     camera = RwCameraCreate();
-                    RwFrameTransform(frame, Camera->frame->ltm, 0);
+                    RwFrameTransform(frame, &Camera->frame->ltm, 0);
                     if (camera != 0) {
                         camera->frameBuffer = raster;
                         camera->zBuffer = z_raster;

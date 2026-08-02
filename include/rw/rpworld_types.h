@@ -14,6 +14,15 @@ typedef struct RpGeometry RpGeometry;
 typedef struct RpClump RpClump;
 typedef struct RwFrame RwFrame;
 typedef struct RwResEntry RwResEntry;
+typedef struct RpAtomic RpAtomic;
+typedef struct RwCamera RwCamera;
+
+typedef struct RwSphere {
+    float x;
+    float y;
+    float z;
+    float radius;
+} RwSphere;
 
 typedef struct RpMeshHeader {
     unsigned int flags;       /* +0x00 */
@@ -46,7 +55,7 @@ typedef struct RpMaterial {
     RpSurfaceProperties surface; /* +0x0C */
 } RpMaterial;
 
-typedef void (*RpAtomicCallBackRender)(void* atomic);
+typedef RpAtomic* (*RpAtomicCallBackRender)(RpAtomic* atomic);
 
 /* Stock RpMaterialList embedded in RpGeometry at +0x20. */
 typedef struct RpMaterialList {
@@ -61,7 +70,7 @@ typedef struct RpMaterialList {
  * boundingSphere @ +0x1C (shadow init); interpolatorFlags @ +0x4C bit1 = resync.
  * inClumpLink @ +0x40 (ShadowCameraUpdate walk: node = atomic+0x40).
  */
-typedef struct RpAtomic {
+struct RpAtomic {
     RwObject object;                       /* +0x00 */
     union {
         RwLLLink frameLink;                /* +0x08 -- RwObjectHasFrame link */
@@ -77,14 +86,14 @@ typedef struct RpAtomic {
     float boundingSphereY;                 /* +0x20 */
     float boundingSphereZ;                 /* +0x24 */
     float boundingSphereRadius;            /* +0x28 */
-    char pad2C[0x10];
+    RwSphere worldBoundingSphere;          /* +0x2C */
     void* lights;                          /* +0x3C -- Midway: RpClump* (Mkobj plugin host) */
     RwLLLink inClumpLink;                  /* +0x40 */
     RpAtomicCallBackRender renderCallBack; /* +0x48 */
     unsigned int interpolatorFlags;        /* +0x4C -- bit 0x2 = needs sphere resync */
     char pad50[0x1C];
     void* pipeline;                        /* +0x6C */
-} RpAtomic;
+};
 
 #define RP_ATOMIC_FROM_CLUMP_LINK(link)                                  \
     ((RpAtomic*)((unsigned char*)(link) - 0x40))
@@ -112,13 +121,6 @@ typedef struct RpGeometry {
     RwResEntry* repEntry;           /* +0x58 */
     struct RpMorphTarget* morphTarget; /* +0x5C */
 } RpGeometry;
-
-typedef struct RwSphere {
-    float x;
-    float y;
-    float z;
-    float radius;
-} RwSphere;
 
 /* Morph target -- 0x1C stride (inplaceGeometryAddMorphTargets). */
 typedef struct RpMorphTarget {

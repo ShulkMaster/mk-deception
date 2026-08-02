@@ -112,6 +112,17 @@ typedef struct MkxMem {
     void* allocation; /* +0x08 */
 } MkxMem;
 
+typedef struct MkSobjFlags09 {
+    unsigned char bit7 : 1;
+    unsigned char bit6 : 1;
+    unsigned char bit5 : 1;
+    unsigned char bit4 : 1;
+    unsigned char bit3 : 1;
+    unsigned char bit2 : 1;
+    unsigned char has_pebbles : 1;
+    unsigned char bit0 : 1;
+} MkSobjFlags09;
+
 /* mk_obj.o - NonMatching scaffold (krypt Wave 2). */
 
 /*
@@ -122,7 +133,10 @@ typedef struct MkxMem {
 typedef struct MkSobj {
     MkHdr hdr;             /* +0x00 */
     unsigned char flags_08; /* +0x08 - transform update flags */
-    unsigned char flags09; /* +0x09 - bit7 / bit5 render (mab rlwimi) */
+    union {
+        unsigned char flags09; /* +0x09 - bit7 / bit5 render (mab rlwimi) */
+        MkSobjFlags09 flags09_bits;
+    };
     char pad0A[2];
     unsigned int id_flags; /* +0x0C */
     int priority;          /* +0x10 */
@@ -226,8 +240,13 @@ typedef struct MkObj {
     char pad0D[3];
     unsigned int oid;       /* +0x10 - object id / destroy mask */
     int clump_count;        /* +0x14 - populated inline clump slots */
-    RpClump* clump;         /* +0x18 - first clump */
-    RpClump* clump_1;       /* +0x1C - second inline clump slot */
+    union {
+        struct {
+            RpClump* clump;   /* +0x18 - first clump */
+            RpClump* clump_1; /* +0x1C - second inline clump slot */
+        };
+        RpClump* clumps[2];
+    };
     RwFrame* frame;         /* +0x20 */
     struct RwMatrix* field_24; /* +0x24 - matrix / fallback bone LTM */
     MkPtr* child_list;        /* +0x28 - mk_insert list head (sky / children) */

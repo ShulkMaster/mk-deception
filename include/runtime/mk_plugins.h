@@ -35,10 +35,16 @@ typedef struct MkmaterialExtra {
 typedef struct MkmaterialPluginData {
     unsigned int flags;        /* +0x00 - low 12 bits material id */
     float field_04;            /* +0x04 */
-    unsigned char bytes_08[4]; /* +0x08 - default 0xFF... */
+    union {
+        unsigned char bytes_08[4]; /* +0x08 - default 0xFF... */
+        unsigned int word_08;
+    };
     float field_0C;            /* +0x0C - default 5.0 */
     float z_bias;              /* +0x10 */
-    float* vec4;               /* +0x14 - optional 4xfloat heap */
+    union {
+        float* vec4;               /* +0x14 - optional 4xfloat heap */
+        unsigned int* vec4_words;
+    };
     int field_18;              /* +0x18 - zeroed; not streamed */
     MkmaterialExtra* extra;    /* +0x1C */
     unsigned int field_20;     /* +0x20 */
@@ -90,6 +96,9 @@ extern int SpecularMaterialOffset;
     ((MksobjPluginData*)((unsigned char*)(atomic) + MksobjLocalOffset))
 #define MK_CLUMP_PLUGIN(clump)                                           \
     ((MkobjPluginData*)((unsigned char*)(clump) + MkobjLocalOffset))
+#define COLOR_SET_PLUGIN(geometry)                                       \
+    ((ColorSetPluginData*)((unsigned char*)(geometry) +                  \
+                           ColorSetGeometryOffset))
 
 static inline SpecularMaterialPluginData* mk_get_specular_material_plugin(
     RpMaterial* material) {
