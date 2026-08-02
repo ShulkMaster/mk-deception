@@ -10,7 +10,7 @@
 
 #include "platform/main_jump.h"
 
-int main(int argc, char** argv);
+int main(void);
 void reset_game_speed(void);
 float get_inverse_game_speed(void);
 float get_game_speed(void);

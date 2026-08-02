@@ -46,6 +46,11 @@ typedef struct RwTexture RwTexture;
 void annihilate_art_section_data(SecSlotFileEntry* entry);
 void process_anim_section_data(SecSlotFileEntry* entry);
 void process_art_section_data(SecSlotFileEntry* entry);
+void* load_named_model_for_player(char* name, int player, int object_type,
+                                  int transl);
+void* load_named_model_for_bgnd(char* name, int object_type, int transl);
+void* load_named_model_from_slot(int slot, char* name, int object_type,
+                                 int transl);
 
 /* Packed art oid: (section_id << 16) | member_index. Callers often cast the
  * literal through char* (see load_2d_pfxobj_xy(..., (char*)0x017E0000, ...)). */
@@ -69,6 +74,8 @@ void* load_binary_block(int handle, unsigned int art_oid, int* out_size);
 void* get_cdf_data(int handle, unsigned int art_oid);
 void* load_named_cdf_data_from_slot(int handle, char* name);
 void* load_named_bloodpath_data_from_slot(int handle, char* name);
+void* load_named_wiff_from_slot(int handle, char* name);
+void* get_wiff_atc_block(int handle, unsigned int art_oid);
 
 #ifdef __cplusplus
 }

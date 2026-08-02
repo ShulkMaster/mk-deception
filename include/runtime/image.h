@@ -22,6 +22,27 @@ typedef struct ScreenObjFlags {
     unsigned char pad1 : 4;
 } ScreenObjFlags;
 
+typedef struct ScreenObjDrawFlags {
+    unsigned char on : 1;
+    unsigned char bit6 : 1;
+    unsigned char flip_u : 1;
+    unsigned char pad : 5;
+} ScreenObjDrawFlags;
+
+typedef struct AtcFlagBits {
+    unsigned char filter : 1;
+    unsigned char alpha : 1;
+    unsigned char multi : 1;
+    unsigned char count : 2;
+    unsigned char pad : 3;
+} AtcFlagBits;
+
+typedef struct AtcAlphaFlag {
+    unsigned char pad0 : 1;
+    unsigned char alpha_frames : 1;
+    unsigned char pad1 : 6;
+} AtcAlphaFlag;
+
 /* ATC list handle: pointer + cached instance (ck_ani_texture_control_item). */
 struct AniTextureControlItem {
     AniTextureControl* atc; /* +0x00 */
@@ -37,8 +58,22 @@ struct AniTextureControl {
     MkVtable5* vtbl;                 /* +0x00 */
     int instance;                    /* +0x04 */
     int frame;                       /* +0x08 */
-    unsigned short flags;            /* +0x0C */
-    unsigned short flags_hi;         /* +0x0E */
+    union {
+        unsigned int flags_word;
+        struct {
+            union {
+                unsigned char flags_byte;
+                AtcFlagBits flag_bits;
+                AtcAlphaFlag alpha_flag_bits;
+            };
+            unsigned char flags_byte_0D;
+            unsigned short flags_hi;
+        };
+        struct {
+            unsigned short flags;
+            unsigned short flags_hi_word;
+        };
+    };                               /* +0x0C */
     float frame_f;                   /* +0x10 */
     int numframes;                   /* +0x14 */
     float framerate;                 /* +0x18 */
@@ -95,16 +130,22 @@ struct ScreenObj {
     int instance;          /* +0x04 */
     int oid;               /* +0x08 */
     union {
-        unsigned char flags;
-        ScreenObjFlags flag_bits;
+        unsigned int flags_word;
+        struct {
+            union {
+                unsigned char flags;
+                ScreenObjFlags flag_bits;
+                ScreenObjDrawFlags draw_flags;
+            };
+            unsigned char flags_pad[3];
+        };
     };                     /* +0x0C */
-    unsigned char pad0[3]; /* +0x0D */
     RwRaster* texture;     /* +0x10; raster from RwTexture* */
     int x;                 /* +0x14 */
     int y;                 /* +0x18 */
     int priority;          /* +0x1C */
-    int pad20;             /* +0x20 */
-    int pad24;             /* +0x24 */
+    int field_0x20;        /* +0x20 */
+    int field_0x24;        /* +0x24 */
     float scale_x;         /* +0x28 */
     float scale_y;         /* +0x2C */
     unsigned int blend;    /* +0x30 */
@@ -145,7 +186,6 @@ void stop_ani_texture_control(void);
 void start_ani_texture_control(void);
 AniTextureControl* find_atc_for_atomic_material_id(RpAtomic* atomic, unsigned int material_id);
 float p_animate_textures(void);
-void update_atc_block(AniTextureControl* atc);
 AniTextureControl* get_ani_texture_control(void);
 void pull_ani_texture_control(AniTextureControl* atc);
 void insert_ani_texture_control(AniTextureControl* atc);
@@ -161,7 +201,6 @@ ScreenObj* load_2d_pfxobj_xy(int slot, int oid, char* name, int flags, int x, in
 ScreenObj* load_2d_pfxobj_with_texture(int oid, RwTexture* texture, int flags, int priority);
 
 void delete_screen_obj_oid(int oid);
-void _destroy_screen_obj_oid_mask(ScreenObj* obj);
 int vdestroy_screen_obj(ScreenObj* obj);
 int destroy_screen_obj(ScreenObj* obj);
 void pull_screen_obj(ScreenObj* obj);
