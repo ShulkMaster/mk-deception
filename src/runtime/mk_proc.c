@@ -132,15 +132,14 @@ void mkproc_dispatch(void) {
 }
 
 static void dispatch_proc_list(MkPtr** list) {
-    MkPtr* volatile link;
-    int* volatile paused = &_paused;
+    MkPtr* link;
 
     if (list == 0) {
         return;
     }
-    *paused = 0;
+    _paused = 0;
     if (g_game_info.pause_flag_bits.controller_disable_guard || network_pause_procs != 0) {
-        *paused = 1;
+        _paused = 1;
     }
     link = *list;
     while (link != 0) {
@@ -154,7 +153,7 @@ static void dispatch_proc_list(MkPtr** list) {
         }
         aproc_nodestroy = 0;
         aproc = current;
-        if (aproc != 0 && (*paused == 0 || aproc->flags_bits.skip_if_paused)) {
+        if (aproc != 0 && (_paused == 0 || aproc->flags_bits.skip_if_paused)) {
             if (aproc->flags_bits.use_game_speed) {
                 aproc->sleep_ticks -= game_speed;
             } else {

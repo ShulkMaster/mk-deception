@@ -25,8 +25,11 @@ typedef struct MorphScript {
 
 typedef struct MorphFrameHeader {
     unsigned short frame;
-    unsigned char data[6];
+    unsigned char target;
+    unsigned char next_target;
+    float position;
 } MorphFrameHeader;
+typedef char MorphFrameHeaderSize[(sizeof(MorphFrameHeader) == 8) ? 1 : -1];
 
 typedef struct MorphState {
     MkHdr hdr;
@@ -732,7 +735,7 @@ static void update_morph_interpolator(
 int pose_morph(MkHdr* hdr) {
     MorphState* morph;
     MorphInterpolator* interpolator;
-    unsigned short* frame;
+    MorphFrameHeader* frame;
     float position;
     float fraction;
     float span;
@@ -749,30 +752,30 @@ int pose_morph(MkHdr* hdr) {
         morph_find_frame(morph, morph->current_frame);
 
     if (mka_next_fno == mka_sought_fno) {
-        frame = mka_next_fp;
-        target = frame[1] >> 8;
-        next_target = frame[1] & 0xFF;
-        position = *(float*)(frame + 2);
+        frame = (MorphFrameHeader*)mka_next_fp;
+        target = frame->target;
+        next_target = frame->next_target;
+        position = frame->position;
     } else if (mka_prev_fno == mka_sought_fno) {
-        frame = mka_prev_fp;
-        target = frame[1] >> 8;
-        next_target = frame[1] & 0xFF;
-        position = *(float*)(frame + 2);
+        frame = (MorphFrameHeader*)mka_prev_fp;
+        target = frame->target;
+        next_target = frame->next_target;
+        position = frame->position;
     } else {
         span = mka_next_fno - mka_prev_fno;
         fraction = span != 0.0f
             ? (mka_next_fno - mka_sought_fno) / span
             : 0.0f;
-        target = (short)((unsigned char*)mka_next_fp)[2];
-        next_target = (short)((unsigned char*)mka_next_fp)[3];
-        previous_position = *(float*)(mka_prev_fp + 2);
-        if (((unsigned char*)mka_prev_fp)[3] !=
-            ((unsigned char*)mka_next_fp)[3]) {
+        target = ((MorphFrameHeader*)mka_next_fp)->target;
+        next_target = ((MorphFrameHeader*)mka_next_fp)->next_target;
+        previous_position = ((MorphFrameHeader*)mka_prev_fp)->position;
+        if (((MorphFrameHeader*)mka_prev_fp)->next_target !=
+            ((MorphFrameHeader*)mka_next_fp)->next_target) {
             previous_position = 0.0f;
         }
         position =
             previous_position * fraction +
-            *(float*)(mka_next_fp + 2) * (1.0f - fraction);
+            ((MorphFrameHeader*)mka_next_fp)->position * (1.0f - fraction);
     }
 
     interpolator = (MorphInterpolator*)morph->interpolator;

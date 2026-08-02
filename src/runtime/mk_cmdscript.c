@@ -218,7 +218,7 @@ float p_run_one_shot_script(void) {
         return kNegOne;
     }
     cmdscript_setup_execution(pdata->script, pdata->func_index);
-    /* fall through into execute via retail control - stubbed */
+    /* Retail falls through into execution; the structured C calls it directly. */
     cmdscript_execute(pdata->script);
     return kZero;
 }

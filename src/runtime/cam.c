@@ -7,6 +7,12 @@
 #include "rw/rwcore_types.h"
 #include "rw/rpworld_types.h"
 
+/*
+ * NonMatching scaffold: this TU exposes many retail camera symbols while only
+ * the typed krypt/setup and camera-control paths below are reconstructed.
+ * Empty bodies are unresolved placeholders, not claimed retail algorithms.
+ */
+
 /* MSB-first bitfields -> rlwimi (retail). */
 typedef struct CamPdataFlags {
     unsigned char pos_done : 1;

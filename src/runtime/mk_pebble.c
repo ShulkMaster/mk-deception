@@ -1,6 +1,7 @@
 #include "runtime/mk_pebble.h"
 
 #include "runtime/mk_mem.h"
+#include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
 #include "runtime/mk_vtbl.h"
 
@@ -24,6 +25,7 @@ int vdestroy_pebble(PebbleData* pebble_data) {
     }
     pebble_data->hdr.instance = 0;
     mkhdr_memfree(&pebble_data->hdr);
+    /* Retail's int vtable slot deliberately leaves r3 from mkhdr_memfree. */
 }
 
 /* Soft ceiling: create_pebble_userdata ~98.47% -- typed matrix-field indexing colors the loop differently. */
@@ -108,16 +110,14 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     int visible_count;
     int i;
 
-    if (atomic != 0) {
-    } else {
+    if (atomic == 0) {
         return atomic;
     }
     frame = (RwFrame*)atomic->object.parent;
-    if (frame != 0) {
-    } else {
+    if (frame == 0) {
         return atomic;
     }
-    sobj = *(MkSobj**)((unsigned char*)atomic + MksobjLocalOffset + 8);
+    sobj = MK_ATOMIC_PLUGIN(atomic)->sobj;
     if (sobj == 0) {
         return atomic;
     }
@@ -132,17 +132,14 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     if (pebble_data == 0) {
         return atomic;
     }
-    if (pebble_data->pebbles != 0) {
-    } else {
+    if (pebble_data->pebbles == 0) {
         return atomic;
     }
-    if (pebble_data->render_data->callback != 0) {
-    } else {
+    if (pebble_data->render_data->callback == 0) {
         return atomic;
     }
     atomic_ltm = RwFrameGetLTM(frame);
-    if (atomic_ltm != 0) {
-    } else {
+    if (atomic_ltm == 0) {
         return atomic;
     }
     if (!sobj->flags09_bits.bit3) {

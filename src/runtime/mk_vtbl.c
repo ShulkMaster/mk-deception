@@ -56,6 +56,11 @@ int not_mksobj(void) {
     return 0;
 }
 
+/*
+ * Retail type predicates are one-instruction `blr` leaves. Vtable calls pass a
+ * live object in r3, so the `is_*` slots intentionally return that nonzero r3
+ * value without materializing another constant.
+ */
 int is_mksobj(void) {
 }
 

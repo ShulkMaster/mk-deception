@@ -1,5 +1,7 @@
+struct MovieDecoder;
+
 struct _mwMovPlayer {
-    void* decoder;
+    MovieDecoder* decoder;
     unsigned char pad04[0x8C];
     int state;
     unsigned char create_params[0x16];
@@ -38,6 +40,15 @@ struct mwMovieSetup {
 };
 
 typedef void (*DecoderStateCall)(void* decoder, int state);
+
+struct MovieDecoderVtable {
+    void* slots_00[10];
+    DecoderStateCall set_state; /* +0x28 */
+};
+
+struct MovieDecoder {
+    MovieDecoderVtable* vtbl;
+};
 
 extern mwMovieSetup MoviePlayerSetup;
 
@@ -162,10 +173,7 @@ extern "C" void mwMovieDestroyPlayer(_mwMovPlayer* player) {
 }
 
 static void set_decoder_state(_mwMovPlayer* player, int state) {
-    DecoderStateCall call;
-
-    call = *(DecoderStateCall*)((char*)*(void**)player->decoder + 0x28);
-    call(player->decoder, state);
+    player->decoder->vtbl->set_state(player->decoder, state);
 }
 
 extern "C" void mwMovieStartPlayback(_mwMovPlayer* player, const char* path) {

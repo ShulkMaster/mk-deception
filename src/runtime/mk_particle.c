@@ -54,7 +54,7 @@ void particle_render(void* vm);
 void pfx_reset_renderstate(void* vm);
 void pfxmetrics_event(void* handle, int event);
 void pfxmetrics_set_interface(void* iface);
-/* Retail usec timers return elapsed u64 (r3:r4); stub body compiles empty. */
+/* Retail usec timers return elapsed u64 in r3:r4. */
 unsigned long long stop_usec_timer(int id);
 void start_usec_timer(int id);
 

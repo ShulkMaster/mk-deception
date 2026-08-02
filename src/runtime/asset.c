@@ -24,8 +24,8 @@ typedef struct RwMemory {
 /* Native SEC texture payload view; distinct from the stock raster header. */
 typedef struct AssetNativeRasterView {
     char pad00[0x28];
-    unsigned int field_0x28; /* +0x28; first u32 after name in SEC tex blob */
-    unsigned int field_0x2C; /* +0x2C; second u32 */
+    unsigned int source_width;  /* +0x28; first u32 after name in SEC tex blob */
+    unsigned int source_height; /* +0x2C; second u32 */
 } AssetNativeRasterView;
 
 typedef struct WiffTextureSequence {
@@ -788,8 +788,8 @@ void process_art_section_data(SecSlotFileEntry* entry) {
     unsigned char namelen;
     char name_buf[0x100];
     RwTexture* tex;
-    unsigned int pal_a;
-    unsigned int pal_b;
+    unsigned int source_width;
+    unsigned int source_height;
     int levels;
     AssetNativeRasterView* raster;
 
@@ -857,8 +857,8 @@ void process_art_section_data(SecSlotFileEntry* entry) {
                             RwStreamRead(stream, name_buf, namelen);
                         }
                         name_buf[namelen] = 0;
-                        RwStreamRead(stream, &pal_a, 4);
-                        RwStreamRead(stream, &pal_b, 4);
+                        RwStreamRead(stream, &source_width, 4);
+                        RwStreamRead(stream, &source_height, 4);
                         _inplaceNativeTextureRead(stream, &tex);
 
                         if (tex != NULL) {
@@ -870,8 +870,8 @@ void process_art_section_data(SecSlotFileEntry* entry) {
                             }
                             RwTextureSetName((RwTexture*)tex, name_buf);
                             raster = (AssetNativeRasterView*)tex->raster;
-                            raster->field_0x2C = pal_b;
-                            raster->field_0x28 = pal_a;
+                            raster->source_height = source_height;
+                            raster->source_width = source_width;
                         }
 
                         member->data_or_texture = tex;

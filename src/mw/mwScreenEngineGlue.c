@@ -126,6 +126,21 @@
 
 #pragma use_lmw_stmw on
 
+/* C view of ScreenAction fields used by the game-specific action handlers. */
+typedef struct ScreenActionView {
+    void* vtbl;                 /* +0x00 */
+    int state_04;               /* +0x04 */
+    int state_08;               /* +0x08 */
+    unsigned char pad_0C[0x0C]; /* +0x0C */
+    void* event;                /* +0x18 */
+    int arg;                    /* +0x1C */
+    unsigned int event_index;   /* +0x20 */
+    unsigned char pad_24[4];    /* +0x24 */
+    int eventUser;              /* +0x28 */
+    void* owner;                /* +0x2C */
+    void* params;               /* +0x30 */
+} ScreenActionView;
+
 /* MkProc.flags (+0xA8) bit 0x08 (SKIP_IF_PAUSED) -> retail rlwimi. */
 typedef struct MkProcPauseFlag {
     unsigned char pad0 : 4;
@@ -515,74 +530,84 @@ void* CreateAction__20mkScreenEngineClientFi(ScreenEngineClient* self,
 
 int Update__32ScreenActionOnlineIsOpponentIdleFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
+    ScreenActionView* view = (ScreenActionView*)action;
+
     (void)mgr;
     (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    *(int*)((char*)action + 4) = 0;
-    *(int*)((char*)action + 8) = 0;
+    view->state_04 = 0;
+    view->state_08 = 0;
     return 1;
 }
 
 int Update__37ScreenActionOnlineResetChallengeStateFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
+    ScreenActionView* view = (ScreenActionView*)action;
+
     (void)mgr;
     (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    *(int*)((char*)action + 4) = 0;
-    *(int*)((char*)action + 8) = 0;
+    view->state_04 = 0;
+    view->state_08 = 0;
     return 1;
 }
 
 int Update__32ScreenActionOnlinePickChallengerFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
+    ScreenActionView* view = (ScreenActionView*)action;
+
     (void)mgr;
     (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    *(int*)((char*)action + 4) = 0;
-    *(int*)((char*)action + 8) = 0;
+    view->state_04 = 0;
+    view->state_08 = 0;
     return 1;
 }
 
 int Update__33ScreenActionOnlineChallengeCancelFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
+    ScreenActionView* view = (ScreenActionView*)action;
+
     (void)mgr;
     (void)dt;
     StartLocal__17ScreenActionStackFv(stack);
     EndLocal__17ScreenActionStackFv(stack);
-    *(int*)((char*)action + 4) = 0;
-    *(int*)((char*)action + 8) = 0;
+    view->state_04 = 0;
+    view->state_08 = 0;
     return 1;
 }
 
 int Update__27ScreenActionOnlineChallengeFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
+    ScreenActionView* view = (ScreenActionView*)action;
     void* params;
 
     (void)mgr;
     (void)dt;
-    params = *(void**)((char*)action + 0x30);
+    params = view->params;
     StartLocal__17ScreenActionStackFv(stack);
     if (params != 0) {
         GetInt__12ScreenParamsFUi(params, 0);
     }
     EndLocal__17ScreenActionStackFv(stack);
-    *(int*)((char*)action + 4) = 0;
-    *(int*)((char*)action + 8) = 0;
+    view->state_04 = 0;
+    view->state_08 = 0;
     return 1;
 }
 
 int Update__23ScreenActionCheckOnlineFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
+    ScreenActionView* view = (ScreenActionView*)action;
     void* owner;
 
     (void)mgr;
     (void)dt;
-    *(int*)((char*)action + 4) = 0;
-    *(int*)((char*)action + 8) = 0;
-    owner = *(void**)((char*)action + 0x2C);
+    view->state_04 = 0;
+    view->state_08 = 0;
+    owner = view->owner;
     if ((g_game_info.field_04 & 0x80) != 0 && owner != 0) {
         ProcessSubActions__12ScreenObjectFPC12ScreenActioni(owner, action, 0);
     }
@@ -594,6 +619,7 @@ int Update__18ScreenActionRandomFP9ScreenMgrR17ScreenActionStacki(
     void* action, void* mgr, void* stack, int dt) {
     typedef void (*ActionInit)(void*, void*, unsigned int, void*,
                                unsigned int, void*, int);
+    ScreenActionView* view = (ScreenActionView*)action;
     void* event;
     unsigned int eventIndex;
     unsigned int actionType;
@@ -602,11 +628,11 @@ int Update__18ScreenActionRandomFP9ScreenMgrR17ScreenActionStacki(
 
     (void)mgr;
     (void)dt;
-    *(int*)((char*)action + 4) = 0;
-    *(int*)((char*)action + 8) = 0;
-    event = *(void**)((char*)action + 0x18);
+    view->state_04 = 0;
+    view->state_08 = 0;
+    event = view->event;
     if (event != 0) {
-        eventIndex = *(unsigned int*)((char*)action + 0x20);
+        eventIndex = view->event_index;
         if (HasSubActions__11ScreenEventCFUi(event, eventIndex) != 0) {
             eventIndex +=
                 (unsigned short)randu0((unsigned short)
@@ -616,8 +642,7 @@ int Update__18ScreenActionRandomFP9ScreenMgrR17ScreenActionStacki(
             created = CreateAction__17ScreenActionStackFUi(actionType);
             (*(ActionInit**)created)[4](
                 created, event, eventIndex,
-                *(void**)((char*)action + 0x2C), actionType, params,
-                *(int*)((char*)action + 0x28));
+                view->owner, actionType, params, view->eventUser);
             PushAction__17ScreenActionStackFP12ScreenAction(stack, created);
         }
     }
@@ -637,15 +662,14 @@ void DestroyResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
 
 void* CreateResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
     ScreenEngineClient* self, void* parent) {
-    void** library;
+    ScreenResourceLibView* library;
 
     (void)self;
-    library = (void**)__nw__FUl(0x34);
+    library = (ScreenResourceLibView*)__nw__FUl(0x34);
     if (library != 0) {
         __ct__21ScreenResourceLibraryFP21ScreenResourceLibrary(library, parent);
-        library[0] = __vt__29mkScreenEngineResourceLibrary;
-        hashtable_dynamic_init((Hashtable*)((char*)library + 8), 0x101,
-                               wave_heap);
+        library->vtbl = __vt__29mkScreenEngineResourceLibrary;
+        hashtable_dynamic_init(&library->strings, 0x101, wave_heap);
     }
     return library;
 }
@@ -774,11 +798,13 @@ int DoneLoadingSet__12ScreenClientFP9ScreenSet(void* self, void* set) {
 
 char* GetString__29mkScreenEngineResourceLibraryFPc(void* self, char* name) {
     typedef char* (*GetStringByName)(void*, char*);
+    ScreenResourceLibView* library;
     void* parent;
     char* result;
 
-    result = (char*)hashtable_get((Hashtable*)((char*)self + 8), name);
-    parent = *(void**)((char*)self + 4);
+    library = (ScreenResourceLibView*)self;
+    result = (char*)hashtable_get(&library->strings, name);
+    parent = library->parent;
     if (result == 0 && parent != 0) {
         result = (*(GetStringByName**)parent)[4](parent, name);
     }
@@ -5596,17 +5622,6 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, screen_manager, 0x53500001, 0, 0);
     FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, screen_manager, 0x53500002, 0, 0);
 }
-
-/* ScreenAction C view -- m_arg @+0x1C, FireEvent user @+0x28, m_params @+0x30. */
-typedef struct ScreenActionView {
-    void* vtbl;
-    unsigned char pad04[0x18];
-    int arg; /* +0x1C */
-    unsigned char pad20[0x08];
-    int eventUser; /* +0x28 -- FireEvent arg / user */
-    void* owner; /* +0x2C -- ScreenObject which owns sub-actions */
-    void* params; /* +0x30 */
-} ScreenActionView;
 
 typedef struct ScreenGameFlags {
     unsigned char high : 1;
