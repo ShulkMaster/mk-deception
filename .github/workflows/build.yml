@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [GQNE01]
+        version: [GQNE5D]
 
     steps:
     - name: Checkout
