@@ -1,13 +1,14 @@
 #include "rw/rwcore_types.h"
+#include "libmkparticle/rw_engine.h"
 
-typedef int (*RwRasterDeviceCall)(void* result, void* raster, int flags);
-typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
-typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
-
-extern void* RwEngineInstance;
 extern int rasterModule;
 extern char rasterTKList[];
 extern void* _rwPluginRegistryInitObject(void* registry, void* object);
+
+typedef struct RwRasterModuleGlobals {
+    char pad00[0x60];
+    void* freelist; /* module base +0x60 */
+} RwRasterModuleGlobals;
 
 static RwRasterDeviceCall raster_device_call(unsigned long offset) {
     return *(RwRasterDeviceCall*)((char*)RwEngineInstance + offset);
@@ -15,7 +16,7 @@ static RwRasterDeviceCall raster_device_call(unsigned long offset) {
 
 #pragma optimization_level 4
 RwRaster* RwRasterUnlock(RwRaster* raster) {
-    raster_device_call(0x88)(0, raster, 0);
+    RwEngineInstance->fpRasterUnlock(0, raster, 0);
     return raster;
 }
 #pragma optimization_level 0
@@ -36,14 +37,14 @@ RwRaster* RwRasterCreate(int width, int height, int depth, int flags) {
     void* freelist;
     RwRasterDeviceCall create_call;
 
-    freelist = *(void**)((char*)RwEngineInstance + rasterModule + 0x60);
+    freelist = ((RwRasterModuleGlobals*)((char*)RwEngineInstance + rasterModule))->freelist;
     raster = (RwRaster*)
-        (*(RwFreeListAllocCall*)((char*)RwEngineInstance + 0x144))(freelist, 0x30407);
+        RwEngineInstance->fpFreeListAlloc(freelist, 0x30407);
     if (raster == 0) {
         return 0;
     }
 
-    create_call = *(RwRasterDeviceCall*)((char*)RwEngineInstance + 0x58);
+    create_call = RwEngineInstance->fpRasterCreate;
     raster->privateFlags = 0;
     raster->flags = 0;
     raster->width = width;
@@ -56,8 +57,8 @@ RwRaster* RwRasterCreate(int width, int height, int depth, int flags) {
     raster->palette = 0;
 
     if (create_call(0, raster, flags) == 0) {
-        freelist = *(void**)((char*)RwEngineInstance + rasterModule + 0x60);
-        (*(RwFreeListFreeCall*)((char*)RwEngineInstance + 0x148))(freelist, raster);
+        freelist = ((RwRasterModuleGlobals*)((char*)RwEngineInstance + rasterModule))->freelist;
+        RwEngineInstance->fpFreeListFree(freelist, raster);
         return 0;
     }
 

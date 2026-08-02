@@ -1,29 +1,30 @@
 #include "rw/rwcore_types.h"
-
-typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
-typedef void (*RwStringCopyCall)(char* destination, const char* source, unsigned int size);
-typedef unsigned int (*RwStringLengthCall)(const char* string);
+#include "libmkparticle/rw_engine.h"
 
 typedef struct RwErrorPair {
     int plugin;
     int code;
 } RwErrorPair;
 
-extern void* RwEngineInstance;
+typedef struct RwTextureModuleGlobals {
+    char pad00[8];
+    void* freelist; /* module base +0x08 */
+} RwTextureModuleGlobals;
+
 extern int textureModule;
 extern char textureTKList[];
 extern void* _rwPluginRegistryInitObject(void* registry, void* object);
-extern int TextureAnnihilate(void* texture);
-extern int _rwerror(void* code, ...);
+extern int TextureAnnihilate(RwTexture* texture);
+extern int _rwerror(unsigned int code, ...);
 extern void RwErrorSet(RwErrorPair* error);
 
-void* RwTextureCreate(void* raster) {
+RwTexture* RwTextureCreate(RwRaster* raster) {
     RwTexture* volatile texture;
     void* freelist;
 
-    freelist = *(void**)((char*)RwEngineInstance + textureModule + 8);
+    freelist = ((RwTextureModuleGlobals*)((char*)RwEngineInstance + textureModule))->freelist;
     texture = (RwTexture*)
-        (*(RwFreeListAllocCall*)((char*)RwEngineInstance + 0x144))(freelist, 0x30006);
+        RwEngineInstance->fpFreeListAlloc(freelist, 0x30006);
     if (texture != 0) {
         texture->dictionary = 0;
         texture->name[0] = 0;
@@ -33,9 +34,9 @@ void* RwTextureCreate(void* raster) {
         texture->filter_flags = 0;
         texture->filter_flags = (texture->filter_flags & 0xFFFF00FF) | 0x1100;
         texture->filter_flags = (texture->filter_flags & 0xFFFFFF00) | 1;
-        _rwPluginRegistryInitObject(textureTKList, (void*)texture);
+        _rwPluginRegistryInitObject(textureTKList, texture);
     }
-    return (void*)texture;
+    return texture;
 }
 
 int RwTextureDestroy(RwTexture* texture) {
@@ -49,13 +50,13 @@ int RwTextureDestroy(RwTexture* texture) {
     return result;
 }
 
-void* RwTextureSetName(RwTexture* texture, const char* name) {
+RwTexture* RwTextureSetName(RwTexture* texture, const char* name) {
     RwErrorPair error;
 
-    (*(RwStringCopyCall*)((char*)RwEngineInstance + 0xFC))(texture->name, name, 32);
-    if ((*(RwStringLengthCall*)((char*)RwEngineInstance + 0x120))(name) >= 32) {
+    RwEngineInstance->fpStringCopy(texture->name, name, 32);
+    if (RwEngineInstance->fpStringLength(name) >= 32) {
         error.plugin = 1;
-        error.code = _rwerror((void*)0x8000001E, name, 32, 31, name[31]);
+        error.code = _rwerror(0x8000001E, name, 32, 31, name[31]);
         RwErrorSet(&error);
         texture->name[31] = 0;
     }
@@ -63,12 +64,12 @@ void* RwTextureSetName(RwTexture* texture, const char* name) {
 }
 
 void RwTexDictionaryRemoveTexture(RwTexture* texture) {
-    RwTexture** previous;
+    RwLLLink* previous;
 
     if (texture->dictionary != 0) {
         texture->dictionary = 0;
         previous = texture->prev_link;
-        *previous = (RwTexture*)texture->next_link;
-        texture->next_link[1] = (RwTexture*)previous;
+        previous->next = texture->next_link;
+        texture->next_link->prev = previous;
     }
 }
