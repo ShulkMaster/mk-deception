@@ -11,7 +11,8 @@ void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* next;
     int alignment;
 
-    header = (MwMemUsedHeader*)((u8*)block - heap->blockPrefixSize - sizeof(MwMemUsedHeader));
+    header = mwMemHeaderBefore(block,
+                              heap->blockPrefixSize + sizeof(MwMemUsedHeader));
     previous = header->previous;
     next = header->next;
     if (previous == 0 && next == 0) {
@@ -27,7 +28,7 @@ void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block) {
     }
     header->allocationSize = heap->blockSize + heap->blockPrefixSize;
     header->prefixSize = 0;
-    header->field_0D = 0;
+    header->heapIndex = 0;
     header->alignmentPadding = 0;
     privClearBitFlag(&header->flags);
     alignment = privGetAlignFromMwMemFlags(heap->flags);
@@ -81,7 +82,7 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
         header->prefixSize = 0;
         block = (u8*)header + heap->blockPrefixSize + sizeof(MwMemUsedHeader);
         header->allocationSize = block_size + heap->blockPrefixSize;
-        header->field_0D = request->heap->heapIndex;
+        header->heapIndex = request->heap->heapIndex;
         privClearBitFlag(&header->flags);
         privSetAlignInBitFlag(&header->flags, heap_alignment);
         privClearBitFromBitFlag(&header->flags, 5);
@@ -97,13 +98,13 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
             header->previous = 0;
             heap->usedList = header;
         }
-        request->field_00 = header->allocationSize;
-        request->field_0C = header->alignmentPadding;
-        request->field_08 = flags;
+        request->allocationSize = header->allocationSize;
+        request->alignmentPadding = header->alignmentPadding;
+        request->allocationFlags = flags;
         request->originHeap = heap;
-        request->field_18 = 0;
-        request->field_04 = aligned_size;
-        block[-1] = request->field_0C;
+        request->prefixSize = 0;
+        request->userSize = aligned_size;
+        block[-1] = request->alignmentPadding;
     }
     return block;
 }
@@ -144,7 +145,7 @@ void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
             while (index < block_count) {
                 header->allocationSize = heap->blockSize + heap->blockPrefixSize;
                 header->prefixSize = 0;
-                header->field_0D = 0;
+                header->heapIndex = 0;
                 header->alignmentPadding = heap->blockPrefixSize;
                 privClearBitFlag(&header->flags);
                 privSetAlignInBitFlag(&header->flags, alignment);
@@ -159,7 +160,7 @@ void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
                     heap->freeList = header;
                 }
                 index++;
-                header = (MwMemUsedHeader*)((u8*)header + block_stride);
+                header = mwMemHeaderAt(header, block_stride);
             }
         }
         heap->currentUsedSize = 0;
@@ -188,9 +189,9 @@ void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params) {
     heap->flags = flags;
     heap->blockSize = ALIGN_UP_16(block_size);
     if (block_size > threshold) {
-        heap->field_60 = threshold;
+        heap->field_0x60 = threshold;
     } else {
-        heap->field_60 = 0;
+        heap->field_0x60 = 0;
     }
     fixedBlockHeapResetHeap(heap, 0);
 }

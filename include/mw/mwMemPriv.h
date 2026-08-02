@@ -3,6 +3,13 @@
 
 #include "mw/mwMem.h"
 
+/* Centralized byte-layout navigation for the allocator's packed arenas. */
+#define mwMemByteAddress(base, byteOffset) ((u8*)(base) + (byteOffset))
+#define mwMemHeaderAt(base, byteOffset) \
+    ((MwMemUsedHeader*)mwMemByteAddress((base), (byteOffset)))
+#define mwMemHeaderBefore(block, byteOffset) \
+    ((MwMemUsedHeader*)((u8*)(block) - (byteOffset)))
+
 void privClearBitFromBitFlag(u8* bit_flags, int bit);
 void privSetBitFromBitFlag(u8* bit_flags, int bit);
 int privGetBitFromBitFlag(const u8* bit_flags, int bit);

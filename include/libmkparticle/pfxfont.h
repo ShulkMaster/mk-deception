@@ -1,6 +1,8 @@
 #ifndef LIBMKPARTICLE_PFXFONT_H
 #define LIBMKPARTICLE_PFXFONT_H
 
+#include "libmkparticle/color.h"
+
 /*
  * Midway pfxfont (libmkparticle pfxfont.o) - PRESS START / legal string path.
  * Called from fonts.c and disc_error.c.
@@ -11,6 +13,7 @@ typedef void (*PfxFontFreeFn)(void* ptr);
 
 /* Defined in runtime/fonts.h (TGA face object); incomplete here for PfxFontSlot. */
 typedef struct FontFace FontFace;
+typedef struct RwTexture RwTexture;
 
 /* Per-glyph metrics; table at FontMetrics+0x34, stride 0x24, index (ch-0x20). */
 typedef struct GlyphMetrics {
@@ -41,6 +44,14 @@ typedef struct PfxFontSlot {
     FontMetrics* metrics; /* +0x04 glyph metrics binary */
 } PfxFontSlot;
 
+/* 4x4/RwMatrix-style transform consumed by the native font renderer. */
+typedef struct PfxFontTransform {
+    float rx, ry, rz, field_0x0C;
+    float ux, uy, uz, field_0x1C;
+    float ax, ay, az, field_0x2C;
+    float tx, ty, tz, field_0x3C;
+} PfxFontTransform;
+
 /* One drawable run / color span (0x30). Linked from PfxFontString+0x60. */
 typedef struct PfxFontInstance {
     void* dl;                     /* +0x00 aligned native display list */
@@ -52,6 +63,7 @@ typedef struct PfxFontInstance {
     /* +0x18 -- word or per-channel RGBA (pfxfont tags / ScreenText). */
     union {
         unsigned int color;
+        PfxColor native_color;
         unsigned char rgba[4];
     };
     int char_count;               /* +0x1C */
@@ -68,13 +80,13 @@ typedef struct PfxFontInstance {
  * Transform pointer at +0x00 is 16-byte-aligned into pad at +0x10.
  */
 typedef struct PfxFontString {
-    float* transform; /* +0x00 - aligned into pad04 */
+    PfxFontTransform* transform; /* +0x00 - aligned into pad04 */
     char pad04[0x50]; /* +0x04 - holds 4x4 matrix when transform points here */
     int height;                /* +0x54 */
     int width;                 /* +0x58 */
     union {
         FontFace* face;        /* +0x5C pfx font face */
-        void* texture;         /* +0x5C native texture upload view */
+        RwTexture* texture;    /* +0x5C native texture upload view */
     };
     PfxFontInstance instance0; /* +0x60 .. +0x8F */
 } PfxFontString; /* 0x90 */

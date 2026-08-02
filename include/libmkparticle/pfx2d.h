@@ -15,6 +15,12 @@
  * Matched: init, free, alloc, begin_render, render, get_initialized.
  */
 
+typedef struct PfxNativeRasterView {
+    char pad00[0x28];
+    int width; /* +0x28 */
+    int height; /* +0x2C */
+} PfxNativeRasterView;
+
 typedef struct RwTexture RwTexture;
 
 typedef struct Pfx2dVert {

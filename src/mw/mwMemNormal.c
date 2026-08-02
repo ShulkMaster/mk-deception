@@ -272,7 +272,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
         else remainder->next->previous = remainder;
         remainder->allocationSize = candidate_size - (needed_size + sizeof(MwMemUsedHeader));
         remainder->prefixSize = 0;
-        remainder->field_0D = candidate->field_0D;
+    remainder->heapIndex = candidate->heapIndex;
         remainder->flags = candidate->flags;
         remainder->alignmentPadding = candidate->alignmentPadding;
         privClearBitFlag(&remainder->flags);
@@ -294,7 +294,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     used->allocationSize = used_size;
     used->prefixSize = used_size - needed_size;
     privSetAlignInBitFlag(&used->flags, alignment);
-    used->field_0D = request->heap->heapIndex;
+    used->heapIndex = request->heap->heapIndex;
     if (heap->usedList == 0) {
         used->next = 0;
         used->previous = 0;
@@ -309,12 +309,12 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     alignment_mask = (1 << alignment) - 1;
     block = (u8*)(((u32)block + alignment_mask) & ~alignment_mask);
     used->alignmentPadding = block - ((u8*)used + sizeof(MwMemUsedHeader));
-    request->field_00 = used->allocationSize;
-    request->field_0C = used->alignmentPadding;
-    request->field_08 = flags;
+    request->allocationSize = used->allocationSize;
+    request->alignmentPadding = used->alignmentPadding;
+    request->allocationFlags = flags;
     request->originHeap = heap;
-    request->field_18 = used->prefixSize;
-    request->field_04 = user_size;
+    request->prefixSize = used->prefixSize;
+    request->userSize = user_size;
     block[-1] = used->alignmentPadding;
     return block;
 }
@@ -333,7 +333,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
             block->next = 0;
             block->allocationSize = heap->heapEnd - (heap->heapStart + sizeof(MwMemUsedHeader));
             block->prefixSize = 0;
-            block->field_0D = 0;
+            block->heapIndex = 0;
             privClearBitFlag(&block->flags);
             privSetAlignInBitFlag(&block->flags, 4);
             privClearBitFromBitFlag(&block->flags, 4);
@@ -342,7 +342,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
         heap->arenaAlignmentPadding = 0;
         heap->blockPrefixSize = 0;
         heap->flags = 0;
-        heap->field_60 = 0;
+        heap->field_0x60 = 0;
         heap->blockSize = 0;
         heap->currentUsedSize = 0;
         heap->totalManagedSize = heap->heapEnd - heap->heapStart;
@@ -360,7 +360,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
 
 void normHeapInitHeap(_mwMemHeap* heap) {
     heap->flags = 0;
-    heap->field_60 = 0;
+    heap->field_0x60 = 0;
     heap->blockSize = 0;
     normHeapResetHeap(heap, 0);
 }

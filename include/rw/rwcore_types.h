@@ -3,24 +3,41 @@
 
 #include "rw/rwobject.h"
 
-/** Partial RenderWare raster view; known retail extent: 0x24 bytes. */
+/** Stock RenderWare doubly-linked list link. */
+typedef struct RwLLLink {
+    struct RwLLLink* next;
+    struct RwLLLink* prev;
+} RwLLLink;
+
+typedef struct RwTexDictionary RwTexDictionary;
+
+/** RenderWare raster prefix used by the retail core. Retail layout: 0x24 bytes. */
 typedef struct RwRaster {
-    char pad00[0x0C];      /**< Retail offsets 0x00-0x0B; fields unknown. */
-    int width;             /**< Retail offset 0x0C. */
-    int height;            /**< Retail offset 0x10. */
-    unsigned int logSize;  /**< Retail offset 0x14. */
-    char pad18[0x0B];      /**< Retail offsets 0x18-0x22; fields unknown. */
-    unsigned char flags;   /**< Retail offset 0x23. */
+    struct RwRaster* parent; /**< Retail offset 0x00. */
+    unsigned char* pixels;   /**< Retail offset 0x04. */
+    unsigned char* palette;  /**< Retail offset 0x08. */
+    int width;               /**< Retail offset 0x0C. */
+    int height;              /**< Retail offset 0x10. */
+    int depth;               /**< Retail offset 0x14. */
+    int stride;              /**< Retail offset 0x18. */
+    short offsetX;           /**< Retail offset 0x1C. */
+    short offsetY;           /**< Retail offset 0x1E. */
+    unsigned char type;      /**< Retail offset 0x20. */
+    unsigned char flags;     /**< Retail offset 0x21. */
+    unsigned char privateFlags; /**< Retail offset 0x22. */
+    unsigned char format;    /**< Retail offset 0x23. */
 } RwRaster;
 
 /** RenderWare texture with Midway ownership extension. Retail layout: 0x58 bytes. */
 typedef struct RwTexture {
     RwRaster* raster;          /**< Retail offset 0x00. */
-    char pad04[0x0C];          /**< Retail offsets 0x04-0x0F; fields unknown. */
+    RwTexDictionary* dictionary; /**< Retail offset 0x04. */
+    RwLLLink* next_link;          /**< Retail offset 0x08. */
+    RwLLLink* prev_link;          /**< Retail offset 0x0C. */
     char name[32];             /**< Retail offset 0x10. */
     char mask[32];             /**< Retail offset 0x30. */
     unsigned int filter_flags; /**< Retail offset 0x50. */
-    unsigned int pin_flag;     /**< Retail offset 0x54; Midway ownership/pin state. */
+    int ref_count;             /**< Retail offset 0x54. */
 } RwTexture;
 
 /** Partial RenderWare frame layout. Known retail extent: 0xA4 bytes. */
@@ -36,5 +53,15 @@ typedef struct RwFrame {
     struct RwFrame* next;       /**< Retail offset 0x9C. */
     struct RwFrame* root;       /**< Retail offset 0xA0. */
 } RwFrame;
+
+RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
+RwRaster* RwRasterUnlock(RwRaster* raster);
+int RwRasterGetNumLevels(RwRaster* raster);
+void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
+
+RwTexture* RwTextureCreate(RwRaster* raster);
+int RwTextureDestroy(RwTexture* texture);
+RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
+void RwTexDictionaryRemoveTexture(RwTexture* texture);
 
 #endif

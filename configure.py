@@ -374,12 +374,13 @@ config.libs = [
             Object(NonMatching, "MkMovies.o", source="movie/MkMovies.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(Matching, "gprofile_gcn.o", source="platform/gprofile_gcn.c"),
             Object(Matching, "mwMemNewDelete.o", source="mw/mwMemNewDelete.cpp"),
-            Object(NonMatching, "mwFileGlue.o", source="mw/mwFileGlue.c"),
+            Object(Matching, "mwFileGlue.o", source="mw/mwFileGlue.cpp"),
             # ProcessFrame register scheduling not matched yet
             Object(
-                NonMatching,
+                Matching,
                 "MovieManagerGC_RW_Disp.o",
-                source="movie/MovieManagerGC_RW_Disp.c",
+                source="movie/MovieManagerGC_RW_Disp.cpp",
+                extra_cflags=["-use_lmw_stmw", "on", "-O4,s"],
             ),
             Object(NonMatching, "pwrbar.o", source="game/pwrbar.c"),
             Object(NonMatching, "fx.o", source="game/fx.c",
@@ -569,13 +570,13 @@ config.libs = [
         "progress_category": "sofdec",
         "objects": [
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfx_ARGB8888PLN.o",
                 source="movie/mwsfx_ARGB8888PLN.c",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfx_Y84C44.o",
                 source="movie/mwsfx_Y84C44.c",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -604,6 +605,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sud/sud_lib.o",
                 source="movie/sud_lib.c",
+                extra_cflags=["-sdata", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
                 Matching,
@@ -845,7 +847,7 @@ config.libs = [
                 source="mwScreenEngine/ScreenClient.cpp",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenParams.o",
                 source="mwScreenEngine/ScreenParams.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
@@ -914,7 +916,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAction.o",
                 source="mwScreenEngine/ScreenAction.cpp",
                 extra_cflags=[
@@ -951,7 +953,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenControl.o",
                 source="mwScreenEngine/ScreenControl.cpp",
                 # -inline off: keep recursive _RefreshData as bl (else MWCC inlines).
@@ -1051,7 +1053,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_state.o",
                 source="libmkparticle/gc_state.c",
                 # -inline off: retail bl apply_single_texture from alphamap (no inline).
@@ -1156,7 +1158,7 @@ config.libs = [
     RenderWareLib(
         "rtquat",
         [
-            Object(NonMatching, "rtquat.a/rtquat.obj", source="rw/rtquat.c",
+            Object(Matching, "rtquat.a/rtquat.obj", source="rw/rtquat.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
     ),

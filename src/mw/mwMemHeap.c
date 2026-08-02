@@ -4,8 +4,6 @@ extern void MEMPRINT(const char* format, ...);
 extern void OSReport(const char* format, ...);
 extern u32 mwMemSystemGetAvailSize(void);
 extern void memDebugHeap(_mwMemHeap* heap);
-extern u32 mwMemFixedBlockHeapGetHeapSize(u32 block_size, u32 block_count);
-extern u32 mwMemHeaderlessFixedBlockGetHeapSize(u32 block_size, u32 block_count);
 
 _mwMemHeap* overflow_heap;
 _mwMemHeap* permanent_heap;
@@ -42,7 +40,7 @@ void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info) {
     size_kb = (float)info->size;
     size_kb *= 1.0f / 1024.0f;
     MEMPRINT(">> OVERFLOW_HEAP: size: %f K origin heap: %s, dest heap: %s, file: %s L: %d\n",
-             size_kb, origin_info.name, destination_info.name, info->file, info->line);
+             size_kb, origin_info.name, destination_info.name, info->sourceFunction, info->line);
 }
 
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info) {
@@ -69,9 +67,12 @@ int mwMemUserConfigAssert(void) { return 1; }
 void mwMemUserConfigPrintf(const char* format, ...) {}
 
 static void* movie_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32 flags,
-                            void* context) {
+                            void* context, void* file, void* line) {
     void* block;
     _mwMemHeap* system_overflow;
+
+    (void)file;
+    (void)line;
 
     system_overflow = mwMemSystemGetHeap(1);
     block = mwMemHeapStrategyCallback(request, wave_heap, flags, context);
@@ -93,16 +94,24 @@ static void* movie_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32
 }
 
 static void* fixed1024_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32 flags,
-                                void* context) {
-    void* block = mwMemHeapStrategyCallback(request, fixed_block_1024_heap, flags, context);
+                                void* context, void* file, void* line) {
+    void* block;
+
+    (void)file;
+    (void)line;
+    block = mwMemHeapStrategyCallback(request, fixed_block_1024_heap, flags, context);
     if (block == 0) block = mwMemHeapStrategyCallback(request, wave_heap, flags, context);
     return block;
 }
 
 #define DEFINE_FIXED_STRATEGY(name, own_heap, next_heap, message)                              \
     static void* name(MwMemMallocRequest* request, _mwMemHeap* source, u32 flags,              \
-                      void* context) {                                                         \
-        void* block = mwMemHeapStrategyCallback(request, own_heap, flags, context);             \
+                      void* context, void* file, void* line) {                                 \
+        void* block;                                                                           \
+                                                                                               \
+        (void)file;                                                                            \
+        (void)line;                                                                            \
+        block = mwMemHeapStrategyCallback(request, own_heap, flags, context);                   \
         if (block == 0) {                                                                       \
             MEMPRINT(message);                                                                  \
             block = mwMemHeapStrategyCallback(request, next_heap, flags, context);              \
@@ -153,15 +162,15 @@ void mwMemDestroyFixedBlockHeaps(void) {
 
 static _mwMemHeap* createFixedHeap(MwMemHeapCreateParams* create, MwMemHeapParams* defaults,
                                     u32 block_size, u32 block_count, const char* name,
-                                    void* callback) {
+                                    MwMemStrategyCallback callback) {
     MwMemFixedParams fixed;
-    fixed.field_00 = 2;
+    fixed.field_0x00 = 2;
     fixed.blockCount = block_count;
     fixed.blockSize = block_size;
     fixed.sizeThreshold = 4;
     fixed.flags = 8;
     create->strategyType = MW_MEM_STRATEGY_FIXED;
-    create->initParams = &fixed;
+    create->fixedInitParams = &fixed;
     create->name = name;
     defaults->strategyCallback = callback;
     return _mwMemHeapCreate(create, defaults, 0, 0);
@@ -171,8 +180,8 @@ void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     MwMemHeapParams defaults;
     MwMemHeapCreateParams create;
     mwMemHeapGetDefaultParams(&defaults);
-    defaults.field_08 = 0xAB;
-    defaults.field_09 = 0;
+    defaults.field_0x08 = 0xAB;
+    defaults.field_0x09 = 0;
     defaults.overflowEnable = 1;
     create.parentHeap = wave_heap;
     create.arenaSize = 1;
@@ -207,7 +216,7 @@ static _mwMemHeap* createNormalHeap(_mwMemHeap* parent, u32 size, const char* na
     MwMemHeapCreateParams create;
     create.parentHeap = parent;
     create.arenaSize = size;
-    create.field_08 = 0x10;
+    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_NORMAL;
     create.initParams = 0;
     create.name = name;
@@ -224,8 +233,8 @@ static void mwMemHeapInit(void) {
     u32 free_count;
 
     mwMemHeapGetDefaultParams(&defaults);
-    defaults.field_08 = 0xAB;
-    defaults.field_09 = 0;
+    defaults.field_0x08 = 0xAB;
+    defaults.field_0x09 = 0;
     permanent_heap = createNormalHeap(system_heap, 0x562800, "Permanent heap", &defaults);
     section_heap = createNormalHeap(system_heap, 0x7DA800, "Section heap", &defaults);
     MWSOUND_HEAP = createNormalHeap(system_heap, 0xA7000, "mwSound heap", &defaults);
@@ -236,7 +245,7 @@ static void mwMemHeapInit(void) {
 
     create.parentHeap = system_heap;
     create.arenaSize = mwMemVirtualHeapGetHeapSize(system_heap);
-    create.field_08 = 0x10;
+    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_VIRTUAL;
     create.initParams = 0;
     create.name = "MPEG heap";
@@ -246,15 +255,15 @@ static void mwMemHeapInit(void) {
 
     mwMemHeapGetDefaultParams(&defaults);
     mwMemHeapGetParams(permanent_heap, &defaults);
-    headerless.field_00 = 2;
+    headerless.field_0x00 = 2;
     headerless.blockCount = 0x3C;
     headerless.blockSize = 0xC8;
     headerless.flags = 3;
     create.parentHeap = permanent_heap;
     create.arenaSize = 1;
-    create.field_08 = 3;
+    create.field_0x08 = 3;
     create.strategyType = MW_MEM_STRATEGY_HDRLESS;
-    create.initParams = &headerless;
+    create.headerlessInitParams = &headerless;
     create.name = "SECTION TABLE fixed block heap";
     create.extraSizeShift = 0;
     section_table_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
@@ -266,7 +275,7 @@ static void mwMemHeapInit(void) {
     defaults.overflowEnable = 1;
     create.parentHeap = system_heap;
     create.arenaSize = free_size;
-    create.field_08 = 0x10;
+    create.field_0x08 = 0x10;
     create.strategyType = MW_MEM_STRATEGY_OVERFLOW;
     create.initParams = 0;
     create.name = "OVERFLOW Heap";
