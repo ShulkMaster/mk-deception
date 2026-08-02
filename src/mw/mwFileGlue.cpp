@@ -1,11 +1,11 @@
 extern "C" {
 #include "mw/mwFile.h"
 #include "mw/mwMemHeap.h"
+#include "platform/disc_error.h"
 
 void exit(int code);
 
 extern _mwMemHeap* mwfile_heap;
-extern int mwfile_error_callback(void* device, const char* msg);
 }
 
 class mwFileMemTraits {

@@ -923,7 +923,7 @@ int load_profile(int player, int port, unsigned char* code) {
 static void obj_set_alpha_by_id(void* obj, int id, int alpha) {
 }
 
-void pfx_2d_obj_set_alpha_by_id(void* obj, int id, int alpha) {
+void pfx_2d_obj_set_alpha_by_id(int id, int alpha) {
 }
 
 #pragma opt_unroll_loops off

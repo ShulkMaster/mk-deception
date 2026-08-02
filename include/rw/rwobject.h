@@ -13,9 +13,9 @@ typedef struct RwObject {
 /** Partial RenderWare stream view; complete object extent is unknown. */
 typedef struct RwStream {
     char pad00[0x0C];          /**< Retail offsets 0x00-0x0B; fields unknown. */
-    unsigned long bufferBase;  /**< Retail offset 0x0C. */
+    unsigned int bufferPosition; /**< Retail offset 0x0C. */
     char pad10[0x04];          /**< Retail offsets 0x10-0x13; fields unknown. */
-    unsigned long dataOffset;  /**< Retail offset 0x14. */
+    unsigned char* data;       /**< Retail offset 0x14. */
 } RwStream;
 
 #endif
