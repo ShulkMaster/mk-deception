@@ -17,8 +17,13 @@ typedef float (*MkProcEntryFn)(void);
 typedef void (*MkProcCallbackFn)(void);
 
 struct MkProc {
-    MkVtableMkproc* vtbl;
-    int instance;
+    union {
+        MkHdr hdr;
+        struct {
+            MkVtableMkproc* vtbl;
+            unsigned int instance;
+        };
+    };
     int pid;
     float sleep_ticks;
     float saved_f14;
@@ -59,17 +64,34 @@ struct MkProc {
     int saved_r31;
     int saved_cr;
     int return_sp;
-    int flags;
+    union {
+        int flags;
+        struct {
+            unsigned char one_shot : 1;
+            unsigned char defer_run : 1;
+            unsigned char no_destroy : 1;
+            unsigned char use_game_speed : 1;
+            unsigned char skip_if_paused : 1;
+            unsigned char game_info : 1;
+            unsigned char pad_low : 2;
+            unsigned char pad[3];
+        } flags_bits;
+    };
     int priority;
     MkProcCallbackFn pre_destroy;
     MkProcCallbackFn destroy_cb;
-    MkProcEntryFn entry;
+    union {
+        MkProcEntryFn entry;
+        int continuation_pc;
+    };
     int saved_lr;
     MkPtr* pdata_list;
     MkPtr* pdata_list_b;
     unsigned char* stack_top;
     unsigned char* stack_ptr;
 };
+
+#define MKPROC_FROM_HDR(hdr_) ((MkProc*)(hdr_))
 
 #define MKPROC_FLAG_GAME_INFO_BIT  0x00000004
 #define MKPROC_FLAG_SKIP_IF_PAUSED 0x00000008
@@ -94,6 +116,21 @@ extern MkPtr* active_proc_list;
 extern int network_pause_procs;
 
 void mkproc_die(void);
+void dispatch_nostack(void);
+void sleep_nostack(void);
+void system_stack_nostack(void);
+void local_stack_nostack(void);
+void jump_sleep_nostack(int return_address);
+void dispatch_tinystack(void);
+void sleep_tinystack(void);
+void system_stack_tinystack(void);
+void local_stack_tinystack(void);
+void jump_sleep_tinystack(int return_address);
+void dispatch_bigstack(void);
+void sleep_bigstack(void);
+void system_stack_bigstack(void);
+void local_stack_bigstack(void);
+void jump_sleep_bigstack(int return_address);
 void mkproc_dispatch(void);
 MkHdr* pdata_of_proc(MkProc* proc);
 MkHdr* next_apdata(void);
@@ -105,6 +142,10 @@ MkProc* find_mkproc_pid(int pid);
 void destroy_mkprocs_pid_from_list(int pid, MkPtr** list);
 void destroy_mkprocs_pid(int pid);
 void destroy_all_mkprocs(void);
+void vdestroy_mkproc_bigstack(MkProc* proc);
+void vdestroy_mkproc_tinystack(MkProc* proc);
+void vdestroy_mkproc_nostack(MkProc* proc);
+void destroy_mkproc_nostack(MkProc* proc);
 void init_mkproc(void);
 MkProc* create_mkproc(int priority, MkProc* proc, int pid, MkProcEntryFn entry, MkHdr* pdata);
 void mkproc_change_priority(MkProc* proc, int priority);

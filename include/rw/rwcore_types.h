@@ -2,6 +2,7 @@
 #define RW_RWCORE_TYPES_H
 
 #include "rw/rwobject.h"
+#include "rw/rtquat.h"
 
 /** Stock RenderWare doubly-linked list link. */
 typedef struct RwLLLink {
@@ -56,8 +57,8 @@ typedef struct RwFrame {
     RwObject object;            /**< Retail offset 0x00. */
     void* object_link_next;     /**< Retail offset 0x08. */
     void* object_link_prev;     /**< Retail offset 0x0C. */
-    float ltm[16];              /**< Retail offset 0x10: modelling matrix. */
-    char pad50[0x40];           /**< Retail offsets 0x50-0x8F; fields unknown. */
+    RwMatrix modelling;         /**< Retail offset 0x10. */
+    RwMatrix ltm;               /**< Retail offset 0x50. */
     void* object_list_next;     /**< Retail offset 0x90. */
     void* object_list_prev;     /**< Retail offset 0x94. */
     struct RwFrame* child;      /**< Retail offset 0x98. */

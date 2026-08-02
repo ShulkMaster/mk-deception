@@ -7,9 +7,6 @@
  */
 int vdestroy_mkx_mem(void);
 int vdestroy_mkx_rplight(void);
-int vdestroy_mkproc_nostack(void);
-int vdestroy_mkproc_tinystack(void);
-int vdestroy_mkproc_bigstack(void);
 int vdestroy_mksobj(void);
 int vdestroy_mkobj(void);
 int vdestroy_screen_obj(void);
@@ -30,21 +27,24 @@ int vdestroy_screen_engine(void);
 int vdestroy_mkpdata_generic(void);
 int vdestroy_mkhdr_generic(void);
 
-int dispatch_nostack(void);
-int sleep_nostack(void);
-int system_stack_nostack(void);
-int local_stack_nostack(void);
-int jump_sleep_nostack(void);
-int dispatch_tinystack(void);
-int sleep_tinystack(void);
-int system_stack_tinystack(void);
-int local_stack_tinystack(void);
-int jump_sleep_tinystack(void);
-int dispatch_bigstack(void);
-int sleep_bigstack(void);
-int system_stack_bigstack(void);
-int local_stack_bigstack(void);
-int jump_sleep_bigstack(void);
+void vdestroy_mkproc_nostack(struct MkProc* proc);
+void vdestroy_mkproc_tinystack(struct MkProc* proc);
+void vdestroy_mkproc_bigstack(struct MkProc* proc);
+void dispatch_nostack(void);
+void sleep_nostack(void);
+void system_stack_nostack(void);
+void local_stack_nostack(void);
+void jump_sleep_nostack(int return_address);
+void dispatch_tinystack(void);
+void sleep_tinystack(void);
+void system_stack_tinystack(void);
+void local_stack_tinystack(void);
+void jump_sleep_tinystack(int return_address);
+void dispatch_bigstack(void);
+void sleep_bigstack(void);
+void system_stack_bigstack(void);
+void local_stack_bigstack(void);
+void jump_sleep_bigstack(int return_address);
 
 int update_mksobj(void);
 

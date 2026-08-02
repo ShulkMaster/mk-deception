@@ -7,10 +7,11 @@ extern MkVtable5 vtbl_mkhdr_generic;
 
 typedef struct MkHdr MkHdr;
 typedef int (*MkHdrVtblFn)(MkHdr* hdr);
+typedef MkHdr* (*MkHdrCastFn)(MkHdr* hdr);
 
 typedef struct MkHdrVtable {
-    MkHdrVtblFn fn0;
-    MkHdrVtblFn fn1;
+    MkHdrCastFn fn0;
+    MkHdrCastFn fn1;
     MkHdrVtblFn fn2;
     MkHdrVtblFn fn3;
     MkHdrVtblFn destroy;
