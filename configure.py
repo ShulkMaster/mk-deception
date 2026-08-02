@@ -29,7 +29,7 @@ from tools.project import (
 # Game versions
 DEFAULT_VERSION = 0
 VERSIONS = [
-    "GQNE01",  # 0 -- USA (DOL-GQNE-USA)
+    "GQNE5D",  # 0 -- USA (DOL-GQNE-USA)
 ]
 
 parser = argparse.ArgumentParser()
@@ -795,7 +795,7 @@ config.libs = [
         ],
     },
     # Midway mwScreenEngine (NOT Criterion RW). B15: smallest Screen* C++ TUs.
-    # Split names must match config/GQNE01/splits.txt exactly. -lang=c++ auto for .cpp.
+    # Split names must match config/GQNE5D/splits.txt exactly. -lang=c++ auto for .cpp.
     {
         "lib": "mwScreenEngine",
         "mw_version": game_mw_version,
@@ -979,7 +979,7 @@ config.libs = [
         ],
     },
     # Midway libmkparticle (NOT Criterion RW). B12: 2D/font path for boot->PRESS START.
-    # Split names must match config/GQNE01/splits.txt exactly. Defer VM/emitter/gc_render.
+    # Split names must match config/GQNE5D/splits.txt exactly. Defer VM/emitter/gc_render.
     {
         "lib": "libmkparticle",
         "mw_version": game_mw_version,
@@ -1124,7 +1124,7 @@ config.libs = [
     RenderWareLib(
         "rwcore",
         [
-            # Split name must match config/GQNE01/splits.txt (*.obj under rwcore.a/)
+            # Split name must match config/GQNE5D/splits.txt (*.obj under rwcore.a/)
             # Portable Criterion first; skip *Gcn* / _rwDl* until GC driver pass.
             # BFBB: headers + GC/1.3.2 + cflags_renderware. PS2 MKD / MKDHook: API only.
             Object(Matching, "rwcore.a/bacolor.obj", source="rw/bacolor.c"),

@@ -16,4 +16,4 @@ This repository does **not** contain any game assets or assembly. An existing co
 
 Supported versions:
 
-- `GQNE01`: USA
+- `GQNE5D`: USA
