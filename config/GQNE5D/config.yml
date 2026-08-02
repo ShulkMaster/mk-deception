@@ -1,10 +1,10 @@
 name: main
 object: sys/main.dol
 hash: ef001212c6cd4da3194c041d24956a61bc5e9fcd
-object_base: orig/GQNE01
+object_base: orig/GQNE5D
 extract_objects: true
-symbols: config/GQNE01/symbols.txt
-splits: config/GQNE01/splits.txt
+symbols: config/GQNE5D/symbols.txt
+splits: config/GQNE5D/splits.txt
 write_asm: true
 detect_objects: true
 detect_strings: true
