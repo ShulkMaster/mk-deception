@@ -86,4 +86,6 @@ typedef struct PfxVm {
     char pad23C[4];
 } PfxVm;
 
+void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align);
+
 #endif

@@ -1,19 +1,8 @@
 #include "libmkparticle/gc_2d.h"
 #include "libmkparticle/gc_state.h"
+#include "libmkparticle/pfx_rw_types.h"
 
 void* memset(void* dst, int c, unsigned long n);
-
-/* Particle backend view; dimensions are not at stock RwRaster offsets. */
-typedef struct PfxNativeRasterView {
-    char pad00[0x28];
-    /* Retail i2f uses xoris (signed idiom) on these loads. */
-    int width;  /* +0x28 */
-    int height; /* +0x2C */
-} PfxNativeRasterView;
-
-struct RwTexture {
-    PfxNativeRasterView* raster; /* +0x00 */
-};
 
 void GXClearVtxDesc(void);
 void GXSetVtxAttrFmt(int vtxfmt, int attr, int cnt, int type, int frac);
@@ -21,7 +10,7 @@ void GXSetVtxDesc(int attr, int type);
 void GXSetNumChans(int n);
 void GXSetNumTevStages(int n);
 void GXBegin(int primitive, int vtxfmt, int nverts);
-void _rwDlTextureSet(void* texture, int mapid);
+void _rwDlTextureSet(RwTexture* texture, int mapid);
 
 extern int screen_height;
 

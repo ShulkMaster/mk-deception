@@ -1,6 +1,8 @@
 #ifndef LIBMKPARTICLE_PFXFONT_H
 #define LIBMKPARTICLE_PFXFONT_H
 
+#include "libmkparticle/color.h"
+
 /*
  * Midway pfxfont (libmkparticle pfxfont.o) - PRESS START / legal string path.
  * Called from fonts.c and disc_error.c.
@@ -11,6 +13,7 @@ typedef void (*PfxFontFreeFn)(void* ptr);
 
 /* Defined in runtime/fonts.h (TGA face object); incomplete here for PfxFontSlot. */
 typedef struct FontFace FontFace;
+typedef struct RwTexture RwTexture;
 
 /* Per-glyph metrics; table at FontMetrics+0x34, stride 0x24, index (ch-0x20). */
 typedef struct GlyphMetrics {
@@ -60,6 +63,7 @@ typedef struct PfxFontInstance {
     /* +0x18 -- word or per-channel RGBA (pfxfont tags / ScreenText). */
     union {
         unsigned int color;
+        PfxColor native_color;
         unsigned char rgba[4];
     };
     int char_count;               /* +0x1C */
@@ -82,7 +86,7 @@ typedef struct PfxFontString {
     int width;                 /* +0x58 */
     union {
         FontFace* face;        /* +0x5C pfx font face */
-        void* texture;         /* +0x5C native texture upload view */
+        RwTexture* texture;    /* +0x5C native texture upload view */
     };
     PfxFontInstance instance0; /* +0x60 .. +0x8F */
 } PfxFontString; /* 0x90 */

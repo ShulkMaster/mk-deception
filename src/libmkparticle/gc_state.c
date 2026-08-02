@@ -1,12 +1,7 @@
 #include "libmkparticle/gc_state.h"
+#include "math/gxQuat.h"
 
-typedef struct Mtx {
-    float m[3][4];
-} Mtx;
-
-typedef struct Mtx44 {
-    float m[4][4];
-} Mtx44;
+typedef float Mtx44[4][4];
 
 /*
  * Args blob for _rxGCTevAlphaPass{Setup,Cleanup}.
@@ -25,9 +20,9 @@ typedef struct RxGCTevAlphaPass {
 
 void GXSetChanCtrl(int chan, int enable, int ambSrc, int matSrc, int lightMask, int diffFn,
                    int attnFn);
-void C_MTXOrtho(Mtx44* m, float t, float b, float l, float r, float n, float f);
-void GXSetProjection(Mtx44* m, int type);
-void GXLoadPosMtxImm(Mtx* m, int id);
+void C_MTXOrtho(Mtx44 m, float t, float b, float l, float r, float n, float f);
+void GXSetProjection(Mtx44 m, int type);
+void GXLoadPosMtxImm(Mtx m, int id);
 void GXGetProjectionv(float* p);
 void GXSetProjectionv(float* p);
 void GXSetNumTevStages(int n);
@@ -43,11 +38,9 @@ extern int screen_height;
 
 /* Static identity-ish position matrix; Z scale -1 for screen space. */
 static Mtx posMatrix = {
-    {
-        {1.0f, 0.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f, 0.0f},
-        {0.0f, 0.0f, -1.0f, 0.0f},
-    },
+    {1.0f, 0.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, -1.0f, 0.0f},
 };
 
 /* GXGetProjectionv writes 7 floats (0x1C). */
@@ -66,14 +59,14 @@ void set_2d_projection(void) {
     Mtx44 ortho;
 
     /* Signed int->float -> xoris + fsubs; ortho top=0 bottom=h left=0 right=w near=0 far=1. */
-    C_MTXOrtho(&ortho, 0.0f, (float)screen_height, 0.0f, (float)screen_width, 0.0f, 1.0f);
-    GXSetProjection(&ortho, 1); /* GX_ORTHOGRAPHIC */
+    C_MTXOrtho(ortho, 0.0f, (float)screen_height, 0.0f, (float)screen_width, 0.0f, 1.0f);
+    GXSetProjection(ortho, 1); /* GX_ORTHOGRAPHIC */
 }
 
 void set_2d_position(int x, int y) {
-    posMatrix.m[0][3] = (float)x;
-    posMatrix.m[1][3] = (float)y;
-    GXLoadPosMtxImm(&posMatrix, 0);
+    posMatrix[0][3] = (float)x;
+    posMatrix[1][3] = (float)y;
+    GXLoadPosMtxImm(posMatrix, 0);
 }
 
 void save_projection_matrix(void) {

@@ -1,5 +1,7 @@
 #include "libmkparticle/gc_font.h"
 #include "libmkparticle/gc_state.h"
+#include "libmkparticle/texture_bridge.h"
+#include "math/gxQuat.h"
 
 typedef struct GXColor {
     unsigned char r;
@@ -8,11 +10,6 @@ typedef struct GXColor {
     unsigned char a;
 } GXColor;
 
-/* GX 3x4 position matrix (LoadPosMtxImm). */
-typedef struct Mtx {
-    float m[3][4];
-} Mtx;
-
 void GXClearVtxDesc(void);
 void GXSetVtxAttrFmt(int vtxfmt, int attr, int cnt, int type, int frac);
 void GXSetVtxDesc(int attr, int type);
@@ -20,7 +17,7 @@ void GXSetChanMatColor(int chan, GXColor color);
 void GXSetChanCtrl(int chan, int enable, int ambSrc, int matSrc, int lightMask, int diffFn,
                    int attnFn);
 void GXSetNumChans(int n);
-void GXLoadPosMtxImm(Mtx* m, int id);
+void GXLoadPosMtxImm(Mtx m, int id);
 void GXCallDisplayList(void* list, unsigned long nbytes);
 void GXBeginDisplayList(void* list, unsigned long nbytes);
 unsigned long GXEndDisplayList(void);
@@ -28,8 +25,6 @@ void GXBegin(int primitive, int vtxfmt, int nverts);
 void GXResetWriteGatherPipe(void);
 void DCInvalidateRange(void* addr, unsigned long n);
 void DCFlushRange(void* addr, unsigned long n);
-void pfxaux_upload_texture(void* texture);
-
 extern int screen_height;
 
 /* WGPIPE at 0xCC008000 -- s16 POS (1 frac bit) + f32 TEX0. */
@@ -77,21 +72,21 @@ void nativefont_string_render(NativeFontString* ctx, float x, float y) {
 
         src = ctx->transform;
         /* Copy 3x3 (skip pad columns); translation from +0x30/+0x34. */
-        pos.m[0][0] = src->rx;
-        pos.m[0][1] = src->ry;
-        pos.m[0][2] = src->rz;
-        pos.m[1][0] = src->ux;
-        pos.m[1][1] = src->uy;
-        pos.m[1][2] = src->uz;
-        pos.m[2][0] = src->ax;
-        pos.m[2][1] = src->ay;
-        pos.m[2][2] = src->az;
+        pos[0][0] = src->rx;
+        pos[0][1] = src->ry;
+        pos[0][2] = src->rz;
+        pos[1][0] = src->ux;
+        pos[1][1] = src->uy;
+        pos[1][2] = src->uz;
+        pos[2][0] = src->ax;
+        pos[2][1] = src->ay;
+        pos[2][2] = src->az;
         /* Snap to pixel centers; Y flipped into screen space. */
-        pos.m[0][3] = (float)(int)(0.5f + (src->tx + x));
-        pos.m[1][3] = (float)(int)(0.5f + (src->ty + ((float)screen_height - y)));
-        pos.m[2][3] = 0.0f;
+        pos[0][3] = (float)(int)(0.5f + (src->tx + x));
+        pos[1][3] = (float)(int)(0.5f + (src->ty + ((float)screen_height - y)));
+        pos[2][3] = 0.0f;
 
-        GXLoadPosMtxImm(&pos, 0);
+        GXLoadPosMtxImm(pos, 0);
         GXCallDisplayList(inst->dl, inst->dl_size);
         inst = inst->next;
     }
