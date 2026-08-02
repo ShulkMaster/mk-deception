@@ -192,8 +192,8 @@ void ScreenObject::SetColorTranslation(SEVec4_t* color) {
 void ScreenObject::UpdateTransform() {
     SETransform* xform;
     SETransform* xformScales;
-    float* pivot;
-    float negPivot[3];
+    Screen3DVector* pivot;
+    Screen3DVector negPivot;
     /*
      * Retail spill: X @sp+0x28, Y @sp+0x18, Z @sp+0x08.
      * MWCC allocates first-declared local at highest address.
@@ -233,19 +233,19 @@ void ScreenObject::UpdateTransform() {
 
         m_matrixStack->SetIdentity();
         xform = m_ext->transform;
-        pivot = xform->pivot;
-        negPivot[0] = -pivot[0];
-        negPivot[1] = -pivot[1];
-        negPivot[2] = -pivot[2];
-        m_matrixStack->Translate(reinterpret_cast<Screen3DVector*>(negPivot));
-        m_matrixStack->Scale(reinterpret_cast<Screen3DVector*>(xform->rotation));
+        pivot = &xform->pivotVector;
+        negPivot.x = -pivot->x;
+        negPivot.y = -pivot->y;
+        negPivot.z = -pivot->z;
+        m_matrixStack->Translate(&negPivot);
+        m_matrixStack->Scale(&xform->rotationVector);
         xformScales = m_ext->transform;
         m_matrixStack->Rotate(reinterpret_cast<Screen3DVector*>(axisX), xformScales->scale[0]);
         m_matrixStack->Rotate(reinterpret_cast<Screen3DVector*>(axisY), xformScales->scale[1]);
         m_matrixStack->Rotate(reinterpret_cast<Screen3DVector*>(axisZ), xformScales->scale[2]);
-        m_matrixStack->Translate(reinterpret_cast<Screen3DVector*>(pivot));
-        m_matrixStack->Translate(reinterpret_cast<Screen3DVector*>(xform->translation));
-        m_matrixStack->Translate(reinterpret_cast<Screen3DVector*>(m_extraTrans));
+        m_matrixStack->Translate(pivot);
+        m_matrixStack->Translate(&xform->translationVector);
+        m_matrixStack->Translate(&m_extraTranslation);
     }
     m_flags |= 2;
 }
@@ -369,7 +369,14 @@ void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
 }
 
 void ScreenObject::ProcessSubActions(const ScreenAction* action, int match) {
-    ProcessSubActions(m_screen->m_set->m_mgr, action, match);
+    Screen* screen;
+    ScreenSet* set;
+    ScreenMgr* mgr;
+
+    screen = m_screen;
+    set = screen->m_set;
+    mgr = set->m_mgr;
+    ProcessSubActions(mgr, action, match);
 }
 
 void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
@@ -474,7 +481,7 @@ void ScreenObject::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     ProcessEvent(mgr, event, arg);
 }
 
-ScreenNode* ScreenObject::FindNextFocusObject(int eventId) {
+ScreenObject* ScreenObject::FindNextFocusObject(int eventId) {
     unsigned int numEvents;
     unsigned int i;
     ScreenEvent* event;
@@ -491,11 +498,11 @@ ScreenNode* ScreenObject::FindNextFocusObject(int eventId) {
                 actionType = (int)event->GetAction((unsigned int)j);
                 if (actionType == 0x3e8) {
                     params = event->GetParams((unsigned int)j);
-                    return params->GetScreenNode(0);
+                    return params->GetScreenObject(0);
                 }
                 if (actionType == SCREEN_ACTION_SET_FOCUS) {
                     params = event->GetParams((unsigned int)j);
-                    return params->GetScreenNode(1);
+                    return params->GetScreenObject(1);
                 }
             }
         }
@@ -606,7 +613,11 @@ void ScreenObject::SetComponent(ScreenAnimControl* ctrl, float* values, int /*un
     case 0x16:
         SetColorTranslation(reinterpret_cast<SEVec4_t*>(values));
         break;
-    case 0x17:
+    case 0x17: {
+        Screen* screen;
+        ScreenSet* set;
+        ScreenMgr* mgr;
+
         asInt = (int)values[0];
         last = GetLastEvent(ctrl);
         if (ctrl->flag == -1) {
@@ -616,11 +627,15 @@ void ScreenObject::SetComponent(ScreenAnimControl* ctrl, float* values, int /*un
             SetLastEvent(ctrl, asInt);
             ctrl->flag = 1;
         } else if (asInt != last) {
-            FireEvent(m_screen->m_set->m_mgr, asInt, 0, 0);
+            screen = m_screen;
+            set = screen->m_set;
+            mgr = set->m_mgr;
+            FireEvent(mgr, asInt, 0, 0);
             SetLastEvent(ctrl, asInt);
             ctrl->flag = 1;
         }
         break;
+    }
     default:
         break;
     }

@@ -30,7 +30,7 @@ int ScreenOpenScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
         }
 
         stack.StartLocal();
-        name = const_cast<char*>(params->GetScreenName(0));
+        name = params->GetScreenName(0);
         memcpy(m_screenName, name, 0x80);
 
         foundPhase0 = 0;
@@ -99,7 +99,7 @@ int ScreenExitScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
             }
         }
 
-        name = const_cast<char*>(params->GetScreenName(0));
+        name = params->GetScreenName(0);
         memcpy(m_screenName, name, 0x80);
 
         stack.StartLocal();
@@ -186,7 +186,7 @@ int ScreenReplaceScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
     m_blocksEvents = 1;
 
     if (m_phase == 0) {
-        replaceName = const_cast<char*>(params->GetScreenName(0));
+        replaceName = params->GetScreenName(0);
         memcpy(m_screenName, params->GetName(1), 0x80);
 
         mgr->FindScreen(replaceName, &found);
@@ -262,9 +262,9 @@ int ScreenTransitionScreenAction::Update(ScreenMgr* mgr,
     m_blocksEvents = 1;
 
     if (m_phase == 0) {
-        name = const_cast<char*>(params->GetScreenName(0));
+        name = params->GetScreenName(0);
         memcpy(m_screenName, name, 0x80);
-        name2 = const_cast<char*>(params->GetScreenName(1));
+        name2 = params->GetScreenName(1);
         memcpy(m_screenName2, name2, 0x80);
         m_flag = (unsigned int)params->GetBoolean(2);
 
@@ -411,7 +411,7 @@ int ScreenCloseScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
         stack.StartLocal();
 
         if (params != 0) {
-            name = const_cast<char*>(params->GetScreenName(0));
+            name = params->GetScreenName(0);
             mgr->FindScreen(name, &m_screen);
             /* Shared fail path: null screen or not on stack. */
             if (m_screen != 0 && mgr->GetScreenIndex(m_screen) != -1) {

@@ -54,11 +54,11 @@ ScreenObject* ScreenParams::GetScreenObject(unsigned int index) {
     return 0;
 }
 
-const char* ScreenParams::GetScreenName(unsigned int index) {
+char* ScreenParams::GetScreenName(unsigned int index) {
     return m_entries[index]->string_data;
 }
 
-const char* ScreenParams::GetName(unsigned int index) {
+char* ScreenParams::GetName(unsigned int index) {
     return m_entries[index]->string_data;
 }
 

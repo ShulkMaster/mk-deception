@@ -71,7 +71,7 @@ int SetScreenVisibleAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
 
     params = m_params;
     if (params != 0) {
-        name = const_cast<char*>(params->GetScreenName(0));
+        name = params->GetScreenName(0);
         visible = params->GetBoolean(1);
         mgr->FindScreen(name, &screen);
         if (screen != 0) {
@@ -264,8 +264,13 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                 target->m_ext->flags &= ~kObjectFlagEnabled;
             }
         } else {
+            Screen* screen;
+            ScreenSet* set;
+
             /* Non-0x403: write boolean into ScreenMgr::m_eventsEnabled. */
-            eventsMgr = m_object->m_screen->m_set->m_mgr;
+            screen = m_object->m_screen;
+            set = screen->m_set;
+            eventsMgr = set->m_mgr;
             eventsMgr->m_eventsEnabled = params->GetBoolean(0);
         }
         ScreenUtil::HandleAction(mgr, this, 0);
@@ -460,7 +465,7 @@ int ScreenSetFocusAction::Update(ScreenMgr* mgr, ScreenActionStack& /*stack*/,
                 break;
             }
             prev = target;
-            target = static_cast<ScreenObject*>(target->FindNextFocusObject(m_event->m_id));
+            target = target->FindNextFocusObject(m_event->m_id);
         }
 
         if (target != 0 &&

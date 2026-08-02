@@ -13,8 +13,12 @@ enum {
 };
 
 static ScreenAnimScene* _GetAnimAction(ScreenParams* params, ScreenObject* object) {
-    int index = params->GetInt(0);
-    return object->m_screen->GetAnimScene(index);
+    int index;
+    Screen* screen;
+
+    index = params->GetInt(0);
+    screen = object->m_screen;
+    return screen->GetAnimScene(index);
 }
 
 ScreenPlayAnimAction::ScreenPlayAnimAction(AnimDirectionE direction) {
@@ -174,6 +178,7 @@ int ScreenPlayAnimUntilAction::Update(ScreenMgr* /*mgr*/,
     ScreenParams* params;
     int time;
     ScreenAnimScene* scene;
+    SEAnimSceneData_t* sceneData;
     int maxTime;
 
     params = m_params;
@@ -193,7 +198,8 @@ int ScreenPlayAnimUntilAction::Update(ScreenMgr* /*mgr*/,
                 if (time < 0) {
                     time = 0;
                 } else {
-                    maxTime = scene->m_data->maxTime;
+                    sceneData = scene->m_data;
+                    maxTime = sceneData->maxTime;
                     if (time > maxTime) {
                         time = maxTime;
                     }
