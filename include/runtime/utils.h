@@ -58,7 +58,7 @@ int save_profile(int player, int mode);
 void save_both_profiles(int unused);
 float p_load_profile(void);
 int load_profile(int player, int port, unsigned char* code);
-void pfx_2d_obj_set_alpha_by_id(void* obj, int id, int alpha);
+void pfx_2d_obj_set_alpha_by_id(int id, int alpha);
 void pfx_2d_obj_set_alpha(ScreenObj* obj, int alpha);
 void destroy_fade_box(void);
 void create_fade_box(void);

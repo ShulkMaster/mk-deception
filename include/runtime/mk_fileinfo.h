@@ -11,7 +11,7 @@ typedef struct MkHwFileRequest MkHwFileRequest;
 typedef void (*MkFileOpenCallback)(void* user, MkFileEntry* entry, int success);
 
 struct MkFileInfo {
-    char* name;             /* +0x00 */
+    const char* name;       /* +0x00 */
     MkFileEntry* table;     /* +0x04: owning *_file_table */
     int type;               /* +0x08: MK_FILE_TYPE_* */
 };                          /* 0x0C */
@@ -28,7 +28,7 @@ struct MkFileEntry {
 };                          /* 0x0C */
 
 typedef struct SsfContext {
-    MkFileEntry* entries;       /* +0x00 */
+    MkFileEntry* ssf_file;      /* +0x00: root entry followed by directory */
     MkHwFileRequest* hwfile;    /* +0x04 */
 } SsfContext;                   /* 0x08 */
 

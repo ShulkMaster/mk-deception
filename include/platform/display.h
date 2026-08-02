@@ -17,7 +17,7 @@ typedef struct FadingScreen {
     int fade_active; float alpha; ScreenObj* fade_obj;
 } FadingScreen;
 typedef struct RwCamera {
-    char object[4]; RwFrame* frame; char pad08[0x58]; void* frameBuffer; void* zBuffer;
+    char object[4]; RwFrame* frame; char pad08[0x58]; RwRaster* frameBuffer; RwRaster* zBuffer;
     float viewWindow[2]; char pad70[0x10]; float nearPlane; float farPlane; float fogPlane;
 } RwCamera;
 typedef struct RpWorld RpWorld; typedef struct RpClump RpClump;

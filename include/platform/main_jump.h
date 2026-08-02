@@ -13,8 +13,9 @@
 extern "C" {
 #endif
 
-/* Entry functions use both float(void) and void(void) signatures across modes. */
-void gamelogic_jump(int mode, void* entry);
+typedef float (*MainProcEntryFn)(void);
+
+void gamelogic_jump(int mode, MainProcEntryFn entry);
 
 /* Retail default 0xC; set by every gamelogic_jump. */
 extern int jump_target_mode;

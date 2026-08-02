@@ -1,7 +1,6 @@
 #ifndef MK_HWFILE_H
 #define MK_HWFILE_H
-typedef union MwFileAsyncValue { void* pointer; unsigned long bytes; } MwFileAsyncValue;
-typedef struct MwFileAsyncResult { MwFileAsyncValue value; int error; } MwFileAsyncResult;
+#include "mw/mwFile.h"
 typedef struct MkHwFileRequest MkHwFileRequest;
 typedef void (*MkHwFileOpenCallback)(void*, MkHwFileRequest*, int);
 struct MkHwFileRequest {
@@ -24,7 +23,7 @@ int mk_hwfile_write_blocking(MkHwFileRequest*, void*, int);
 MkHwFileRequest* mk_hwfile_open_blocking(const char*, const char*);
 void mk_hwfile_free_request(void*);
 void mk_hwfile_wait_for_completion(void**);
-void mk_hwfile_wait_for_completion_or_null_request(void**);
+void mk_hwfile_wait_for_completion_or_null_request(MkHwFileRequest**);
 void mk_hwfile_close(MkHwFileRequest*);
 int mk_hwfile_tell(MkHwFileRequest*);
 int mk_hwfile_seek(MkHwFileRequest*, int, int);
@@ -33,5 +32,4 @@ void* mk_hwfile_read_async(MkHwFileRequest*, int, void*, int);
 int mk_hwfile_read(MkHwFileRequest*, void*, int);
 MkHwFileRequest* mk_hwfile_open(const char*, const char*);
 void mk_hwfile_init(void);
-void mwFileTick(void);
 #endif

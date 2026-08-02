@@ -11,6 +11,17 @@ typedef struct RwLLLink {
 
 typedef struct RwTexDictionary RwTexDictionary;
 
+/* Stock RenderWare image layout used by RwImageCreate and ImageWriteTGA. */
+typedef struct RwImage {
+    int flags;                 /* +0x00 */
+    int width;                 /* +0x04 */
+    int height;                /* +0x08 */
+    int depth;                 /* +0x0C */
+    int stride;                /* +0x10 */
+    unsigned char* pixels;     /* +0x14 */
+    unsigned char* palette;    /* +0x18 */
+} RwImage;
+
 /** RenderWare raster prefix used by the retail core. Retail layout: 0x24 bytes. */
 typedef struct RwRaster {
     struct RwRaster* parent; /**< Retail offset 0x00. */

@@ -36,9 +36,12 @@ typedef struct PlyrFighterDefinition {
     char pad00[4];
     PlyrMoveBlendData* move_blend_data; /* +0x04 */
     ScriptSlot* cmo; /* +0x08 */
-    char pad0C[0x6C];
+    char pad0C[0x68];
+    AniData* duck_exit_animation; /* +0x74 */
     AniData* forced_step_animation; /* +0x78 */
-    char pad7C[0x48];
+    char pad7C[0x30];
+    AniData* duck_block_animation; /* +0xAC */
+    char padB0[0x14];
     AniData* duck_animation; /* +0xC4 */
     char padC8[0x38];
     AniData* spear_hit; /* +0x100 */
@@ -157,9 +160,10 @@ typedef struct PlyrPdata {
     }; /* +0x1F8 */
     int attack_disable_tick_p1; /* +0x1FC */
     int attack_disable_tick_p2; /* +0x200 */
-    char pad204[8];
+    int dodge_sound_played; /* +0x204 */
+    char pad208[4];
     PlyrDisabledMove disabled_moves[4]; /* +0x20C */
-    char pad22C[4];
+    int special_move_disabled; /* +0x22C */
     int f_constrained; /* +0x230 */
     int field_234;
     int breaker_strength; /* +0x238 - MK Chess fight setup */
@@ -186,14 +190,18 @@ typedef struct PlyrPdata {
     float damage_multiplier; /* +0x298 */
     int his_attack_counter; /* +0x29C */
     int script_exit_value_int; /* +0x2A0 */
-    int script_exit_args[3]; /* +0x2A4 */
+    int script_exit_args[2]; /* +0x2A4 */
+    union {
+        int script_exit_arg_2;
+        int duck_loop_counter;
+    }; /* +0x2AC */
     char pad2B0[4];
     int facial_damage_complete; /* +0x2B4 */
     float summon_position_x; /* +0x2B8 */
     float summon_position_z; /* +0x2BC */
     float summon_position_y; /* +0x2C0 */
     int drone_request; /* +0x2C4 */
-    char pad2C8[4];
+    int drone_handoff_pending; /* +0x2C8 */
     int collision_disabled; /* +0x2CC */
     int duck_wait_ticks; /* +0x2D0 */
     char pad2D4[8];
@@ -269,7 +277,7 @@ typedef struct PlyrPdata {
     unsigned int sidekick_anim_instance; /* +0x738 */
     int sidekick_active;              /* +0x73C */
     int sidekick_available;           /* +0x740 */
-    char pad744[4];
+    int angle_jump_pending; /* +0x744 */
     int taunts_performed;             /* +0x748 */
 } PlyrPdata; /* 0x74C */
 

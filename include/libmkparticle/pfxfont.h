@@ -8,7 +8,7 @@
  * Called from fonts.c and disc_error.c.
  */
 
-typedef void* (*PfxFontAllocFn)(int size);
+typedef void* (*PfxFontAllocFn)(unsigned int size);
 typedef void (*PfxFontFreeFn)(void* ptr);
 
 /* Defined in runtime/fonts.h (TGA face object); incomplete here for PfxFontSlot. */

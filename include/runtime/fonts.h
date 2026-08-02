@@ -4,6 +4,13 @@
 #include "libmkparticle/pfxfont.h"
 #include "runtime/mk_struct.h"
 
+/* MSB-first byte at +0x0C: hidden=0x80, keep_when_suppress=0x40 -> rlwimi/extrwi. */
+typedef struct StringObjVisBits {
+    unsigned char hidden : 1;
+    unsigned char keep_when_suppress : 1;
+    unsigned char pad : 6;
+} StringObjVisBits;
+
 /*
  * StringObj is 0xD0. pfx (PfxFontString, 0x90) sits at +0x3C through +0xCB;
  * priority at +0xCC. text_w/text_h copy from pfx.width/height after string_set.
@@ -12,7 +19,10 @@ typedef struct StringObj {
     MkVtable5* vtbl;       /* +0x00 */
     unsigned int instance; /* +0x04 */
     int oid;               /* +0x08 */
-    int flags;             /* +0x0C; low byte bitfields below */
+    union {
+        int flags;                  /* +0x0C */
+        StringObjVisBits visibility;
+    };
     int x;                 /* +0x10 */
     int y;                 /* +0x14 */
     int wrap_w;            /* +0x18 */
@@ -27,13 +37,6 @@ typedef struct StringObj {
     PfxFontString pfx;     /* +0x3C .. +0xCB */
     int priority;          /* +0xCC */
 } StringObj;
-
-/* MSB-first byte at +0x0C: hidden=0x80, keep_when_suppress=0x40 -> rlwimi/extrwi. */
-typedef struct StringObjVisBits {
-    unsigned char hidden : 1;
-    unsigned char keep_when_suppress : 1;
-    unsigned char pad : 6;
-} StringObjVisBits;
 
 /*
  * fonts.o - UI strings + pfxfont StringObj helpers.
@@ -79,7 +82,7 @@ typedef struct FontStringRow {
 } FontStringRow; /* 0x18 */
 
 extern FontTableEntry font_table[18];
-extern char* string_table[];
+extern FontStringRow string_table[];
 extern int string_tbl_size;
 
 PfxFontSlot* load_font(int slot);

@@ -64,7 +64,7 @@ typedef struct SpecularMaterialPluginData {
 
 /* Mkobj clump plugin - 4 bytes (id 0x895301). */
 typedef struct MkobjPluginData {
-    int field_00; /* +0x00 */
+    MkObj* owner; /* +0x00 - owning Midway object */
 } MkobjPluginData;
 
 /* MksobjPluginData (atomic, 0x10 B, id 0x895302) - defined in mk_obj.h */
@@ -82,6 +82,14 @@ extern int MkmaterialGlobalOffset;
 extern int MkmaterialLocalOffset;
 extern int ColorSetGeometryOffset;
 extern int SpecularMaterialOffset;
+
+#define MK_MATERIAL_PLUGIN(material)                                      \
+    ((MkmaterialPluginData*)((unsigned char*)(material) +                 \
+                             MkmaterialLocalOffset))
+#define MK_ATOMIC_PLUGIN(atomic)                                         \
+    ((MksobjPluginData*)((unsigned char*)(atomic) + MksobjLocalOffset))
+#define MK_CLUMP_PLUGIN(clump)                                           \
+    ((MkobjPluginData*)((unsigned char*)(clump) + MkobjLocalOffset))
 
 static inline SpecularMaterialPluginData* mk_get_specular_material_plugin(
     RpMaterial* material) {

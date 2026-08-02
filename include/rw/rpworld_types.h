@@ -13,6 +13,15 @@
 typedef struct RpGeometry RpGeometry;
 typedef struct RpClump RpClump;
 typedef struct RwFrame RwFrame;
+typedef struct RwResEntry RwResEntry;
+
+typedef struct RpMeshHeader {
+    unsigned int flags;       /* +0x00 */
+    unsigned short numMeshes; /* +0x04 */
+    unsigned short serialNum; /* +0x06 */
+    unsigned int totalIndices; /* +0x08 */
+    unsigned int firstMeshOffset; /* +0x0C */
+} RpMeshHeader;
 
 typedef union RpMaterialColor {
     unsigned int packed;
@@ -77,6 +86,9 @@ typedef struct RpAtomic {
     void* pipeline;                        /* +0x6C */
 } RpAtomic;
 
+#define RP_ATOMIC_FROM_CLUMP_LINK(link)                                  \
+    ((RpAtomic*)((unsigned char*)(link) - 0x40))
+
 /*
  * RpGeometry -- inplaceGeometryCreate / stream (instance.s).
  *
@@ -96,8 +108,8 @@ typedef struct RpGeometry {
     void* triangles;                /* +0x2C */
     void* preLitLum;                /* +0x30 */
     void* texCoords[8];             /* +0x34 */
-    void* meshHeader;               /* +0x54 */
-    void* repEntry;                 /* +0x58 */
+    RpMeshHeader* meshHeader;       /* +0x54 */
+    RwResEntry* repEntry;           /* +0x58 */
     struct RpMorphTarget* morphTarget; /* +0x5C */
 } RpGeometry;
 

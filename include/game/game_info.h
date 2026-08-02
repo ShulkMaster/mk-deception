@@ -25,11 +25,6 @@ typedef struct MkObj MkObj;
 typedef struct MkProc MkProc;
 typedef struct ScriptSlot ScriptSlot;
 
-typedef struct SkyMkobj {
-    char pad00[0x18];
-    void* clump; /* +0x18 */
-} SkyMkobj;
-
 typedef float (*SwitchMapProcFn)(void);
 
 /* Logical controller row used by the input dispatcher (retail stride 0x0C). */
@@ -148,7 +143,7 @@ typedef struct GameInfo {
     ScriptSlot* cmdscript; /* +0x20 - loaded MKO body from cmdscript_loadfile_* */
     char pad24[8];
     MkObj* bgnd_obj; /* +0x2C */
-    SkyMkobj* sky;   /* +0x30 */
+    MkObj* sky;      /* +0x30 */
     float field_34;  /* +0x34 - fade / particle / mab */
     char pad38[0x0C];
     PlyrInfo* active_player; /* +0x44 - current fight player */
@@ -164,8 +159,13 @@ typedef struct GameInfo {
     char pad98[0xC];
     PlyrInfo plyr0; /* +0xA4 */
     PlyrInfo plyr1; /* +0x110 -- ends 0x17C */
-    GcPadSlot pads[3]; /* +0x17C -- ends 0x1D0 */
-    GameInfoPselectTail pselect; /* +0x1D0 -- ends 0x1F8 */
+    union {
+        GcPadSlot pads[4]; /* +0x17C -- four physical GameCube ports */
+        struct {
+            GcPadSlot first_three_pads[3];
+            GameInfoPselectTail pselect; /* +0x1D0 -- gameplay overlay */
+        };
+    }; /* +0x17C..+0x1F8 */
     int field_1F8; /* +0x1F8 - attract page/state latch (attract.s stw) */
     int field_1FC; /* +0x1FC - ladder side latch (pselect.s stw) */
     int field_200; /* +0x200 - fatality / round_init latch (game.s / Ghidra VA 803AE84C) */
