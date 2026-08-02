@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: read
+  pull-requests: write
 
 jobs:
   build:
@@ -40,6 +41,22 @@ jobs:
     - name: Prepare game files
       run: cp -a /orig .
 
+    - name: Build main baseline
+      if: github.event_name == 'pull_request'
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: |
+        baseline_dir="${RUNNER_TEMP}/mkd-main-${{ matrix.version }}"
+        git worktree add --detach "${baseline_dir}" "${BASE_SHA}"
+        cp -a /orig "${baseline_dir}/"
+        cd "${baseline_dir}"
+        python configure.py --map --version ${{ matrix.version }} \
+            --binutils /binutils --compilers /compilers
+        ninja all_source build/${{ matrix.version }}/report.json
+        mkdir -p "${GITHUB_WORKSPACE}/build/${{ matrix.version }}"
+        cp build/${{ matrix.version }}/report.json \
+            "${GITHUB_WORKSPACE}/build/${{ matrix.version }}/baseline.json"
+
     - name: Cache build
       uses: actions/cache@v4
       with:
@@ -67,3 +84,50 @@ jobs:
       with:
         name: ${{ matrix.version }}_report
         path: build/${{ matrix.version }}/report.json
+
+    - name: Compare PR against main
+      if: github.event_name == 'pull_request'
+      run: |
+        build/tools/objdiff-cli report changes \
+            --format json-pretty \
+            build/${{ matrix.version }}/baseline.json \
+            build/${{ matrix.version }}/report.json \
+            --output build/${{ matrix.version }}/report_changes.json
+        python3 tools/github_report.py \
+            build/${{ matrix.version }}/report_changes.json \
+            --output build/${{ matrix.version }}/github_report.md
+        cat build/${{ matrix.version }}/github_report.md >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Publish objdiff report to PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v9
+      env:
+        REPORT_PATH: build/${{ matrix.version }}/github_report.md
+        REPORT_VERSION: ${{ matrix.version }}
+      with:
+        script: |
+          const fs = require('fs');
+          const marker = `<!-- objdiff-function-report:${process.env.REPORT_VERSION} -->`;
+          const report = fs.readFileSync(process.env.REPORT_PATH, 'utf8');
+          const body = `${marker}\n${report}`;
+          const issue_number = context.issue.number;
+          const comments = await github.paginate(
+            github.rest.issues.listComments,
+            { ...context.repo, issue_number, per_page: 100 },
+          );
+          const previous = comments.find(
+            comment => comment.user?.type === 'Bot' && comment.body?.includes(marker),
+          );
+          if (previous) {
+            await github.rest.issues.updateComment({
+              ...context.repo,
+              comment_id: previous.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number,
+              body,
+            });
+          }
