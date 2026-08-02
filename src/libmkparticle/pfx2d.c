@@ -1,23 +1,8 @@
 #include "libmkparticle/pfx2d.h"
 #include "libmkparticle/gc_2d.h"
+#include "libmkparticle/pfx_rw_types.h"
 #include "libmkparticle/rw_engine.h"
-
-/* Particle backend view; dimensions are not at stock RwRaster offsets. */
-typedef struct PfxNativeRasterView {
-    char pad[0x28];
-    int width;  /* +0x28 */
-    int height; /* +0x2C */
-} PfxNativeRasterView;
-
-struct RwTexture {
-    PfxNativeRasterView* raster;
-};
-
-int RwRenderStateSet_SRCBLEND_DESTBLEND(int src, int dst);
-void RwRenderStateSet_rwRENDERSTATEVERTEXALPHAENABLE(int enable);
-void RwRenderStateSet_rwRENDERSTATECULLMODE(int mode);
-void RwRenderStateSet_rwRENDERSTATEZTESTENABLE(int enable);
-void RwRenderStateSet_rwRENDERSTATEZWRITEENABLE(int enable);
+#include "platform/fast_rw.h"
 
 /* Retail keeps these explicitly zero-initialized pools in .data. */
 static unsigned char is_allocated[PFX2D_POOL_SIZE] = {0};

@@ -11,7 +11,8 @@ void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* next;
     int alignment;
 
-    header = (MwMemUsedHeader*)((u8*)block - heap->blockPrefixSize - sizeof(MwMemUsedHeader));
+    header = mwMemHeaderBefore(block,
+                              heap->blockPrefixSize + sizeof(MwMemUsedHeader));
     previous = header->previous;
     next = header->next;
     if (previous == 0 && next == 0) {
@@ -97,13 +98,13 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
             header->previous = 0;
             heap->usedList = header;
         }
-        request->field_0x00 = header->allocationSize;
-        request->field_0x0C = header->alignmentPadding;
-        request->field_0x08 = flags;
+        request->allocationSize = header->allocationSize;
+        request->alignmentPadding = header->alignmentPadding;
+        request->allocationFlags = flags;
         request->originHeap = heap;
-        request->field_0x18 = 0;
-        request->field_0x04 = aligned_size;
-        block[-1] = request->field_0x0C;
+        request->prefixSize = 0;
+        request->userSize = aligned_size;
+        block[-1] = request->alignmentPadding;
     }
     return block;
 }
@@ -159,7 +160,7 @@ void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
                     heap->freeList = header;
                 }
                 index++;
-                header = (MwMemUsedHeader*)((u8*)header + block_stride);
+                header = mwMemHeaderAt(header, block_stride);
             }
         }
         heap->currentUsedSize = 0;

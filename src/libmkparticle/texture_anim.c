@@ -2,8 +2,6 @@
 
 #include "libmkparticle/config.h"
 
-void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align);
-
 /* Soft ceiling: pfx_texture_animate ~90% -- flag-test and NV register emission. */
 void pfx_texture_animate(PfxVm* vm, float frame_time,
                          int texture_width, int frame_width, int frame_height,

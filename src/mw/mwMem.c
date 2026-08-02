@@ -9,41 +9,11 @@
 #include "mw/mwMem.h"
 #include "mw/mwMemPriv.h"
 
-typedef struct FixedBlockHeapInitParams {
-    u32 field_0x00;
-    u32 count;
-    u32 blockSize;
-    u32 maxBlock;
-    u32 flags;
-} FixedBlockHeapInitParams;
-
-typedef struct HdrlessHeapInitParams {
-    u32 field_0x00;
-    u32 count;
-    u32 blockSize;
-    u32 flags;
-} HdrlessHeapInitParams;
-
-typedef struct MwMemOverflowInfo {
-    u32 reason;
-    void* ptr;
-    _mwMemHeap* originHeap;
-    _mwMemHeap* destHeap;
-    const char* originName;
-    const char* destName;
-    const char* file;
-    u32 size;
-    u32 line;
-    u32 field_0x28;
-    u32 field_0x2C;
-    u32 field_0x30;
-    void* systemParams;
-    u32 field_0x38;
-    u32 field_0x3C;
-    u32 field_0x40;
-    u32 field_0x44;
-    u32 field_0x48;
-} MwMemOverflowInfo;
+#if !defined(__LP64__)
+typedef char MwMemMallocRequestSize[(sizeof(MwMemMallocRequest) == 0x40) ? 1 : -1];
+typedef char MwMemOverflowInfoSize[(sizeof(MwMemOverflowInfo) == 0x44) ? 1 : -1];
+typedef char MwMemHeapSize[(sizeof(_mwMemHeap) == 0x80) ? 1 : -1];
+#endif
 
 typedef int OSHeapHandle;
 
@@ -87,16 +57,16 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
 void normHeapFreeMemFromBlock(void* block);
 
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int param);
-void fixedBlockHeapInitHeap(_mwMemHeap* heap, FixedBlockHeapInitParams* params);
+void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params);
 void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request);
 void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block);
-int mwMemFixedBlockHeapGetHeapSize(FixedBlockHeapInitParams* params);
+u32 mwMemFixedBlockHeapGetHeapSize(const MwMemFixedParams* params);
 
 void hdrlessHeapResetHeap(_mwMemHeap* heap);
-void hdrlessHeapInitHeap(_mwMemHeap* heap, HdrlessHeapInitParams* params);
+void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params);
 void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request);
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block);
-int mwMemHeaderlessFixedBlockGetHeapSize(HdrlessHeapInitParams* params);
+u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params);
 
 void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info);
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info);
@@ -105,7 +75,7 @@ int mwMemUserConfigAssert(void);
 void* OSAllocFromHeap(OSHeapHandle heap, u32 size);
 void OSFreeToHeap(OSHeapHandle heap, void* ptr);
 void OSPanic(const char* file, int line, const char* msg, ...);
-void* privGetOSMemory(u32 size);
+u8* privGetOSMemory(u32 size);
 int privConsoleMemSystemInit(void);
 void* memcpy(void* dst, const void* src, u32 size);
 void* memset(void* dst, int val, u32 size);
@@ -142,10 +112,10 @@ static void mwMemResetHeapByStrategy(_mwMemHeap* heap, int wipeMode) {
 static void mwMemInitHeapByStrategy(_mwMemHeap* heap, MwMemHeapCreateParams* create) {
     switch (heap->strategy) {
     case MW_MEM_STRATEGY_HDRLESS:
-        hdrlessHeapInitHeap(heap, (HdrlessHeapInitParams*)create->initParams);
+        hdrlessHeapInitHeap(heap, create->headerlessInitParams);
         break;
     case MW_MEM_STRATEGY_FIXED:
-        fixedBlockHeapInitHeap(heap, (FixedBlockHeapInitParams*)create->initParams);
+        fixedBlockHeapInitHeap(heap, create->fixedInitParams);
         break;
     default:
         if ((int)heap->strategy >= 0) {
@@ -165,7 +135,7 @@ static int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
     case MW_MEM_STRATEGY_FIXED:
         return heap->blockSize + 0x10 + heap->blockPrefixSize;
     default:
-        usedHdr = (MwMemUsedHdr*)privGetUsedHdrFromBlock(block);
+        usedHdr = privGetUsedHdrFromBlock(block);
         size = privGetStatSizeFromUsed(usedHdr);
         return size;
     }
@@ -201,7 +171,7 @@ static void* mwMemAllocByStrategy(MwMemMallocRequest* request, _mwMemHeap* heap,
     }
 }
 
-static _mwMemHeap* mwMemFindHeapForPointer(void* ptr) {
+static _mwMemHeap* mwMemFindHeapForPointer(u8* ptr) {
     _mwMemHeap* heap;
     _mwMemHeap* child;
 
@@ -210,7 +180,7 @@ static _mwMemHeap* mwMemFindHeapForPointer(void* ptr) {
         heap = heap->hierFirstChild;
     }
     while (heap != 0) {
-        if (ptr >= (void*)heap->heapStart && ptr < (void*)heap->heapEnd) {
+        if (ptr >= heap->heapStart && ptr < heap->heapEnd) {
             child = heap->hierFirstChild;
             if (child == 0) {
                 return heap;
@@ -245,7 +215,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
         return;
     }
 
-    usedHdr = (MwMemUsedHdr*)heap->usedList;
+    usedHdr = heap->usedList;
     while (usedHdr != 0) {
         keepBlock = 1;
         if (heap->hierFirstChild != 0) {
@@ -259,9 +229,9 @@ static void privWipeHeap(_mwMemHeap* heap) {
         }
         if (keepBlock) {
             _mwMemFreeVirtual(privGetBlockFromUsedHdr(usedHdr), &stringBase0[0x16], 0x1625);
-            usedHdr = (MwMemUsedHdr*)heap->usedList;
+            usedHdr = heap->usedList;
         } else {
-            nextHdr = (MwMemUsedHdr*)usedHdr->next;
+            nextHdr = usedHdr->next;
             usedHdr = nextHdr;
         }
     }
@@ -283,9 +253,9 @@ static void privWipeVirtual(_mwMemHeap* virtualHeap) {
         if (heap->virtAllocCount == 0) {
             continue;
         }
-        usedHdr = (MwMemUsedHdr*)heap->usedList;
+        usedHdr = heap->usedList;
         while (usedHdr != 0) {
-            nextHdr = (MwMemUsedHdr*)usedHdr->next;
+            nextHdr = usedHdr->next;
             if (usedHdr->heapIndex == virtualHeap->heapIndex) {
                 block = privGetBlockFromUsedHdr(usedHdr);
                 _mwMemFreeVirtual(block, &stringBase0[0x16], 0x15CA);
@@ -637,17 +607,15 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         return 0;
     }
 
-    request->field_0x00 = 0;
-    request->field_0x04 = 0;
-    request->field_0x0C = 0;
-    request->field_0x08 = 0;
-    request->field_0x18 = 0;
+    request->allocationSize = 0;
+    request->userSize = 0;
+    request->alignmentPadding = 0;
+    request->allocationFlags = 0;
+    request->prefixSize = 0;
 
     if (heap->strategyCallback != 0) {
         StrategyAllocationActive = 1;
-        result = ((void* (*)(MwMemMallocRequest*, _mwMemHeap*, u32, void*, void*,
-                              void*))heap->strategyCallback)(request, heap, request->flags, 0, 0,
-                                                            0);
+        result = heap->strategyCallback(request, heap, request->flags, 0, 0, 0);
         StrategyAllocationActive = 0;
     } else {
         result = mwMemAllocByStrategy(request, heap, request->flags);
@@ -658,15 +626,12 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         overflowInfo.originHeap = request->originHeap;
         overflowHeap = mwMemSystemOverflowHeap;
         overflowInfo.destHeap = overflowHeap;
-        overflowInfo.originName = request->originHeap->name;
-        overflowInfo.destName = overflowHeap->name;
-        overflowInfo.file = (const char*)request->field_0x08;
         overflowInfo.size = request->size;
         overflowInfo.systemParams = &systemParams;
-        overflowInfo.field_0x38 = request->originHeap->field_0x68;
-        overflowInfo.field_0x40 = request->field_0x24;
-        overflowInfo.field_0x44 = request->field_0x28;
-        overflowInfo.field_0x48 = request->field_0x20;
+        overflowInfo.heapDiagnostic = request->originHeap->diagnosticValue;
+        overflowInfo.sourceFunction = request->function;
+        overflowInfo.line = request->line;
+        overflowInfo.file = request->file;
         mwMemUserConfigAttemptingOverflowHeapCallback(&overflowInfo);
         heap->overflowFlag = 1;
         if (overflowHeap != 0 && overflowHeap->magic == MW_MEM_HEAP_MAGIC_VALID) {
@@ -684,15 +649,15 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     return result;
 }
 
-void _mwMemFree(void* ptr, int a, int b) {
-    _mwMemFreeVirtual(ptr, (const char*)a, (u32)b);
+void _mwMemFree(void* ptr, const char* file, u32 line) {
+    _mwMemFreeVirtual(ptr, file, line);
 }
 
 _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* defaults, u32 a,
                               u32 b) {
     _mwMemHeap* parent;
     _mwMemHeap* heap;
-    void* savedCallback;
+    MwMemStrategyCallback savedCallback;
     u8 savedOverflow;
     u32 arenaSize;
     u32 allocSize;
@@ -711,17 +676,16 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
 
     switch (create->strategyType) {
     case MW_MEM_STRATEGY_FIXED:
-        if (create->initParams == 0) {
+        if (create->fixedInitParams == 0) {
             return 0;
         }
-        arenaSize = (u32)mwMemFixedBlockHeapGetHeapSize((FixedBlockHeapInitParams*)create->initParams);
+        arenaSize = mwMemFixedBlockHeapGetHeapSize(create->fixedInitParams);
         break;
     case MW_MEM_STRATEGY_HDRLESS:
-        if (create->initParams == 0) {
+        if (create->headerlessInitParams == 0) {
             return 0;
         }
-        arenaSize =
-            (u32)mwMemHeaderlessFixedBlockGetHeapSize((HdrlessHeapInitParams*)create->initParams);
+        arenaSize = mwMemHeaderlessFixedBlockGetHeapSize(create->headerlessInitParams);
         break;
     default:
         if (create->arenaSize == 0) {
@@ -748,7 +712,7 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
         return 0;
     }
 
-    heap->heapStart = (u8*)heap + 0x80;
+    heap->heapStart = (u8*)(heap + 1);
     heap->heapEnd = heap->heapStart + arenaSize;
     heap->magic = MW_MEM_HEAP_MAGIC_VALID;
     heap->heapIndex = mwMemAllocateHeapIndex();
@@ -766,8 +730,8 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     return heap;
 }
 
-void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file, void* func,
-                    void* line) {
+void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
+                    const char* file, const char* function, u32 line) {
     MwMemMallocRequest request;
     MwMemOverflowInfo oomInfo;
     _mwMemHeap* owner;
@@ -780,9 +744,9 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
         request.heap = heap;
         request.originHeap = heap;
         request.flags = flags;
-        request.field_0x08 = (u32)file;
-        request.field_0x18 = (u32)func;
-        request.field_0x20 = (u32)line;
+        request.file = file;
+        request.function = function;
+        request.line = line;
         request.size = size;
         newBlock = _mwMemMallocVirtual(&request);
         if (newBlock == 0) {
@@ -791,11 +755,11 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
             oomInfo.ptr = 0;
             oomInfo.size = size;
             oomInfo.destHeap = heap;
-            oomInfo.file = (const char*)file;
             oomInfo.systemParams = &systemParams;
-            oomInfo.field_0x38 = heap->field_0x68;
-            oomInfo.field_0x40 = (u32)func;
-            oomInfo.field_0x44 = (u32)line;
+            oomInfo.heapDiagnostic = heap->diagnosticValue;
+            oomInfo.sourceFunction = function;
+            oomInfo.line = line;
+            oomInfo.file = file;
             mwMemUserConfigOutofMemoryCallback(&oomInfo);
         }
         return newBlock;
@@ -811,16 +775,16 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
         oldSize = owner->blockSize;
     } else {
         oldSize = (u32)privGetUserSizeFromUsed(
-            (MwMemUsedHdr*)privGetUsedHdrFromBlock(ptr));
+            privGetUsedHdrFromBlock(ptr));
     }
 
     memset(&request, 0, sizeof(request));
     request.heap = heap;
     request.originHeap = heap;
     request.flags = flags;
-    request.field_0x08 = (u32)file;
-    request.field_0x18 = (u32)func;
-    request.field_0x20 = (u32)line;
+    request.file = file;
+    request.function = function;
+    request.line = line;
     request.size = size;
     newBlock = _mwMemMallocVirtual(&request);
     if (newBlock == 0) {
@@ -829,11 +793,11 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
         oomInfo.ptr = ptr;
         oomInfo.size = size;
         oomInfo.destHeap = heap;
-        oomInfo.file = (const char*)file;
         oomInfo.systemParams = &systemParams;
-        oomInfo.field_0x38 = heap->field_0x68;
-        oomInfo.field_0x40 = (u32)func;
-        oomInfo.field_0x44 = (u32)line;
+        oomInfo.heapDiagnostic = heap->diagnosticValue;
+        oomInfo.sourceFunction = function;
+        oomInfo.line = line;
+        oomInfo.file = file;
         mwMemUserConfigOutofMemoryCallback(&oomInfo);
         return 0;
     }
@@ -847,8 +811,8 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags, void* file
     return newBlock;
 }
 
-void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags, void* file, void* func,
-                   void* line) {
+void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags,
+                   const char* file, const char* function, u32 line) {
     MwMemMallocRequest request;
     MwMemOverflowInfo oomInfo;
     u32 total;
@@ -867,9 +831,9 @@ void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags, void* file,
     request.heap = heap;
     request.originHeap = heap;
     request.flags = flags;
-    request.field_0x08 = (u32)file;
-    request.field_0x18 = (u32)func;
-    request.field_0x20 = (u32)line;
+    request.file = file;
+    request.function = function;
+    request.line = line;
     request.size = total;
     result = _mwMemMallocVirtual(&request);
     if (result != 0) {
@@ -882,16 +846,17 @@ void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags, void* file,
     oomInfo.ptr = 0;
     oomInfo.size = total;
     oomInfo.destHeap = heap;
-    oomInfo.file = (const char*)file;
     oomInfo.systemParams = &systemParams;
-    oomInfo.field_0x38 = heap->field_0x68;
-    oomInfo.field_0x40 = (u32)func;
-    oomInfo.field_0x44 = (u32)line;
+    oomInfo.heapDiagnostic = heap->diagnosticValue;
+    oomInfo.sourceFunction = function;
+    oomInfo.line = line;
+    oomInfo.file = file;
     mwMemUserConfigOutofMemoryCallback(&oomInfo);
     return 0;
 }
 
-void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, void* file, void* func, void* line) {
+void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, const char* file,
+                   const char* function, u32 line) {
     MwMemMallocRequest request;
     MwMemOverflowInfo oomInfo;
     void* result;
@@ -900,9 +865,9 @@ void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, void* file, void* func
     request.heap = heap;
     request.originHeap = heap;
     request.flags = flags;
-    request.field_0x08 = (u32)file;
-    request.field_0x18 = (u32)func;
-    request.field_0x20 = (u32)line;
+    request.file = file;
+    request.function = function;
+    request.line = line;
     request.size = size;
     result = _mwMemMallocVirtual(&request);
     if (result == 0) {
@@ -911,11 +876,11 @@ void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, void* file, void* func
         oomInfo.ptr = 0;
         oomInfo.size = size;
         oomInfo.destHeap = heap;
-        oomInfo.file = (const char*)file;
         oomInfo.systemParams = &systemParams;
-        oomInfo.field_0x38 = heap->field_0x68;
-        oomInfo.field_0x40 = (u32)func;
-        oomInfo.field_0x44 = (u32)line;
+        oomInfo.heapDiagnostic = heap->diagnosticValue;
+        oomInfo.sourceFunction = function;
+        oomInfo.line = line;
+        oomInfo.file = file;
         mwMemUserConfigOutofMemoryCallback(&oomInfo);
     }
     return result;
@@ -932,11 +897,11 @@ void mwMemHeapGetInfo(_mwMemHeap* heap, MwMemHeapInfo* info) {
     info->strategy = heap->strategy;
     info->overflowFlag = heap->overflowFlag;
     info->heapIndex = heap->heapIndex;
-    info->field_0x28 = heap->currentUsedSize;
-    info->field_0x2C = heap->peakUsedSize;
-    info->field_0x30 = heap->totalManagedSize;
-    info->field_0x34 = heap->currentAllocationCount;
-    info->field_0x38 = heap->peakAllocationCount;
+    info->currentUsedSize = heap->currentUsedSize;
+    info->peakUsedSize = heap->peakUsedSize;
+    info->totalManagedSize = heap->totalManagedSize;
+    info->currentAllocationCount = heap->currentAllocationCount;
+    info->peakAllocationCount = heap->peakAllocationCount;
     info->totalSize = heap->currentFreeSize;
     info->blockSize = heap->blockSize;
 }
@@ -968,8 +933,8 @@ int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
     params->field_0x08 = 0xAB;
     params->field_0x09 = 0xDC;
     params->overflowEnable = 1;
-    params->field_0x0C = 0;
-    params->field_0x10 = 0;
+    params->currentUsedSize = 0;
+    params->peakUsedSize = 0;
     return 1;
 }
 
@@ -979,8 +944,8 @@ int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     params->field_0x08 = heap->pad2E;
     params->field_0x09 = heap->pad2F;
     params->overflowEnable = heap->overflowEnable;
-    params->field_0x0C = heap->currentUsedSize;
-    params->field_0x10 = heap->peakUsedSize;
+    params->currentUsedSize = heap->currentUsedSize;
+    params->peakUsedSize = heap->peakUsedSize;
     return 1;
 }
 
@@ -993,8 +958,8 @@ int mwMemHeapSetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
         heap->pad2E = params->field_0x08;
         heap->pad2F = params->field_0x09;
         heap->overflowEnable = params->overflowEnable;
-        heap->currentUsedSize = params->field_0x0C;
-        heap->peakUsedSize = params->field_0x10;
+        heap->currentUsedSize = params->currentUsedSize;
+        heap->peakUsedSize = params->peakUsedSize;
     } else {
         mwMemHeapGetDefaultParams(&defaults);
         heap->strategyCallback = 0;
@@ -1112,7 +1077,7 @@ static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char*
     }
     OSFreeToHeap(GameCubeSystemHeap, probe);
     arenaSize = (size - 0x81) & ~0xFU;
-    buffer = (u8*)privGetOSMemory(arenaSize + 0x80);
+    buffer = privGetOSMemory(arenaSize + 0x80);
     return privInitSystemHeap(arenaSize, buffer, 1, outHeap, name);
 }
 #pragma optimize_for_size reset

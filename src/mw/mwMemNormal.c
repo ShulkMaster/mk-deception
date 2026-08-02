@@ -309,12 +309,12 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     alignment_mask = (1 << alignment) - 1;
     block = (u8*)(((u32)block + alignment_mask) & ~alignment_mask);
     used->alignmentPadding = block - ((u8*)used + sizeof(MwMemUsedHeader));
-    request->field_0x00 = used->allocationSize;
-    request->field_0x0C = used->alignmentPadding;
-    request->field_0x08 = flags;
+    request->allocationSize = used->allocationSize;
+    request->alignmentPadding = used->alignmentPadding;
+    request->allocationFlags = flags;
     request->originHeap = heap;
-    request->field_0x18 = used->prefixSize;
-    request->field_0x04 = user_size;
+    request->prefixSize = used->prefixSize;
+    request->userSize = user_size;
     block[-1] = used->alignmentPadding;
     return block;
 }

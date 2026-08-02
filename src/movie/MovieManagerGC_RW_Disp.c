@@ -1,15 +1,12 @@
 #include "rw/rwcore_types.h"
+#include "movie/mwsfx.h"
 
 typedef struct MovieProcessCtx {
     int handle;
-    int unk4;
-    int frame; /* source for mwPlyFxCnvFrmARGB8888 */
+    int field_0x04;
+    MwsFrameInfo frame; /* +0x08 -- source frame descriptor */
 } MovieProcessCtx;
 
-void* RwRasterLock(RwRaster* raster, int lockMode, int lockFlags);
-void RwRasterUnlock(RwRaster* raster);
-void mwPlyFxSetOutBufPitchHeight(int handle, int pitch, int height);
-void mwPlyFxCnvFrmARGB8888(int handle, int* frame, void* buffer);
 void DCFlushRangeNoSync(void* addr, unsigned long length);
 
 /* MWCC emits .sbss in reverse declaration order. */

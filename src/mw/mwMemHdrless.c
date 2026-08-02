@@ -16,7 +16,7 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     block_prefix = heap->blockPrefixSize;
     block_size = heap->blockSize;
     header_size = block_prefix - sizeof(MwMemUsedHeader);
-    header = (MwMemUsedHeader*)((u8*)block - block_prefix);
+    header = mwMemHeaderBefore(block, block_prefix);
     header->allocationSize = block_size + header_size;
     header->prefixSize = 0;
     header->heapIndex = 0;
@@ -70,13 +70,13 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     if (header == 0) {
         return 0;
     }
-    request->field_0x00 = block_size + heap->blockPrefixSize;
-    request->field_0x0C = heap->blockPrefixSize;
-    request->field_0x08 = flags;
+    request->allocationSize = block_size + heap->blockPrefixSize;
+    request->alignmentPadding = heap->blockPrefixSize;
+    request->allocationFlags = flags;
     request->originHeap = heap;
-    request->field_0x18 = 0;
-    request->field_0x04 = aligned_size;
-    return (u8*)header + heap->blockPrefixSize;
+    request->prefixSize = 0;
+    request->userSize = aligned_size;
+    return mwMemByteAddress(header, heap->blockPrefixSize);
 }
 
 /* Soft ceiling: ~87.45% -- loop/local coloring around free-list construction. */
@@ -105,7 +105,7 @@ void hdrlessHeapResetHeap(_mwMemHeap* heap) {
         heap->freeList = 0;
         heap->freeTail = 0;
         arena_start = heap->heapStart;
-        header = (MwMemUsedHeader*)(arena_start + heap->arenaAlignmentPadding);
+        header = mwMemHeaderAt(arena_start, heap->arenaAlignmentPadding);
         block_stride = heap->blockSize + heap->blockPrefixSize;
         header->next = 0;
         block_count = (heap->heapEnd - arena_start - heap->arenaAlignmentPadding) / block_stride;
@@ -128,7 +128,7 @@ void hdrlessHeapResetHeap(_mwMemHeap* heap) {
                 heap->freeList = header;
                 header->previous = (MwMemUsedHeader*)~(u32)header->next;
             }
-            header = (MwMemUsedHeader*)((u8*)header + block_stride);
+            header = mwMemHeaderAt(header, block_stride);
             index++;
         }
         heap->currentUsedSize = 0;

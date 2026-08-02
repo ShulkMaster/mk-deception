@@ -50,7 +50,7 @@ unsigned long mwMemSystemGetAvailSize(void) {
     return (unsigned long)(arena_high - OSGetArenaLo()) - 0x140;
 }
 
-void* privGetOSMemory(unsigned long size) {
+unsigned char* privGetOSMemory(unsigned long size) {
     return OSAllocFromHeap(GameCubeSystemHeap, size);
 }
 

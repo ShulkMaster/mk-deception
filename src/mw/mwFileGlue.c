@@ -7,6 +7,11 @@ void exit(int code);
 extern _mwMemHeap* mwfile_heap;
 extern int mwfile_error_callback(void* device, const char* msg);
 
+typedef union mwFileInitFlagValue {
+    float value;
+    unsigned long flags;
+} mwFileInitFlagValue;
+
 static const char stringBase0[] =
     "game\0"
     "/cdrom\0"
@@ -51,7 +56,7 @@ static const char stringBase0[] =
 const int gap_04_802EA424_rodata = 0;
 
 /* Force .sdata2 via const floats; MWF_INIT_DVD bit pattern is 0x00000020. */
-const float MWF_INIT_DVD = 4.484155085839415e-44f; /* bits 0x00000020 */
+const mwFileInitFlagValue MWF_INIT_DVD = {4.484155085839415e-44f}; /* 0x00000020 */
 const float gap_09_805117EC_sdata2 = 0.0f;
 
 void mwfile_init_for_mk(void* param) {
@@ -62,7 +67,7 @@ void mwfile_init_for_mk(void* param) {
     init.flags = 7;
     init.max_open_files = 5;
     init.allocator_context = param;
-    init.flags = (*(unsigned long*)&MWF_INIT_DVD) | 7;
+    init.flags = MWF_INIT_DVD.flags | 7;
     err = mwFileInit(&init);
     if (err != 0) {
         exit(1);
@@ -89,5 +94,6 @@ void deallocate__15mwFileMemTraitsFPv(void* ptr) {
 void* allocate__15mwFileMemTraitsFUl16mwTargetMemAlignPCc(unsigned long size,
                                                           mwTargetMemAlign align,
                                                           const char* name) {
+    (void)name;
     return _mwMemMalloc(mwfile_heap, size, align, 0, 0, 0);
 }

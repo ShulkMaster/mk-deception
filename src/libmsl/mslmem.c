@@ -5,5 +5,5 @@ u32 mslMainRamUsed(void) {
     MwMemHeapInfo info;
 
     mwMemHeapGetInfo(MWSOUND_HEAP, &info);
-    return info.field_0x28;
+    return info.currentUsedSize;
 }

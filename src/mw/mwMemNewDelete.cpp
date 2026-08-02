@@ -1,16 +1,6 @@
-struct _mwMemHeap;
-
-enum mwMemFlags {
-    MWMEM_DEFAULT = 0
-};
-
 extern "C" {
-void* _mwMemMalloc(_mwMemHeap* heap, unsigned long size, int flags, void* file,
-                   void* function, void* line);
-void _mwMemFree(void* ptr, int a, int b);
-int mwMemSystemIsCreated(void);
-void mwMemUserConfigInitMemSystem(void);
-_mwMemHeap* mwMemSystemGetHeap(int which);
+#include "mw/mwMem.h"
+#include "mw/mwMemHeap.h"
 }
 
 void operator delete(void* ptr) {
@@ -21,8 +11,7 @@ void operator delete(void* ptr) {
 
 void* operator new(unsigned long size, _mwMemHeap* heap, mwMemFlags flags,
                    const char* file, const char* function, unsigned int line) {
-    return _mwMemMalloc(heap, size, flags, (void*)file, (void*)function,
-                        (void*)line);
+    return _mwMemMalloc(heap, size, flags, file, function, line);
 }
 
 void* operator new(unsigned long size) {

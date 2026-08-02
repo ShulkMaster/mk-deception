@@ -4,20 +4,12 @@
 #include "libmkparticle/particle.h"
 #include "libmkparticle/config.h"
 #include "libmkparticle/rw_engine.h"
+#include "platform/fast_rw.h"
 
 void* memset(void* dst, int c, unsigned long n);
 void* memcpy(void* dst, const void* src, unsigned long n);
 unsigned long strlen(const char* s);
 int strncmp(const char* a, const char* b, unsigned long n);
-
-/* EABI: dest in r3, floats in f1-f4. Dest-first helps addi-before-lfs at calls. */
-void pfx_native_set_rgba(void* dest, float r, float g, float b, float a);
-
-void RwRenderStateSet_rwRENDERSTATETEXTUREFILTER(int filter);
-void RwRenderStateSet_rwRENDERSTATEZWRITEENABLE(int enable);
-void RwRenderStateSet_rwRENDERSTATEZTESTENABLE(int enable);
-void RwRenderStateSet_rwRENDERSTATECULLMODE(int mode);
-void RwRenderStateSet_rwRENDERSTATEVERTEXALPHAENABLE(int enable);
 
 #define COLOR_TAG "<COLOR=0x"
 
@@ -158,7 +150,7 @@ void pfxfont_string_init(PfxFontString* ctx) {
      * Dest-first prototype so MWCC emits addi r3,+0x78 before lfs @360.
      * Same EABI regs as float-first (f1-f4 + r3); jdn.c uses this shape too.
      */
-    pfx_native_set_rgba(&ctx->instance0.color, s_255, s_255, s_255, s_255);
+    pfx_native_set_rgba(&ctx->instance0.native_color, s_255, s_255, s_255, s_255);
 
     /* Align transform into pad at +0x10; identity diagonal via reloaded ptr. */
     ctx->transform = (PfxFontTransform*)(((unsigned long)ctx + 0x13) & ~0xFul);
