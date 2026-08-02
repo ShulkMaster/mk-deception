@@ -39,12 +39,6 @@ typedef struct RpMaterial {
 
 typedef void (*RpAtomicCallBackRender)(void* atomic);
 
-/* Stock RW doubly-linked list link (next/prev). */
-typedef struct RwLLLink {
-    struct RwLLLink* next; /* +0x00 */
-    struct RwLLLink* prev; /* +0x04 */
-} RwLLLink;
-
 /* Stock RpMaterialList embedded in RpGeometry at +0x20. */
 typedef struct RpMaterialList {
     RpMaterial** materials; /* +0x00 */

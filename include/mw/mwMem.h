@@ -5,6 +5,14 @@ typedef unsigned char u8;
 typedef unsigned long u32;
 
 typedef struct _mwMemHeap _mwMemHeap;
+typedef struct MwMemFixedParams MwMemFixedParams;
+typedef struct MwMemHeaderlessParams MwMemHeaderlessParams;
+typedef struct MwMemMallocRequest MwMemMallocRequest;
+typedef struct MwMemOverflowInfo MwMemOverflowInfo;
+typedef void *(*MwMemStrategyCallback)(MwMemMallocRequest *request,
+                                      _mwMemHeap *heap, u32 flags,
+                                      void *context, void *file,
+                                      void *line);
 
 /** Normal/fixed allocation header. Retail layout: 0x10 bytes. */
 typedef struct MwMemUsedHeader {
@@ -34,26 +42,34 @@ typedef struct MwMemHeapIdentity {
 #define MW_MEM_STRATEGY_OVERFLOW 4
 #define MW_MEM_STRATEGY_HDRLESS 5
 
+typedef enum mwMemFlags {
+  MWMEM_DEFAULT = 0
+} mwMemFlags;
+
 /** Parameters used to create a Midway memory heap. Retail layout: 0x1C bytes. */
 typedef struct MwMemHeapCreateParams {
   _mwMemHeap *parentHeap; /**< Retail offset 0x00. */
   u32 arenaSize;          /**< Retail offset 0x04. */
   u32 field_0x08;           /**< Retail offset 0x08; purpose unknown. */
   u32 strategyType;       /**< Retail offset 0x0C. */
-  void *initParams;       /**< Retail offset 0x10. */
+  union {
+    void *initParams;
+    MwMemFixedParams *fixedInitParams;
+    MwMemHeaderlessParams *headerlessInitParams;
+  };                       /**< Retail offset 0x10. */
   const char *name;       /**< Retail offset 0x14. */
   u32 extraSizeShift;     /**< Retail offset 0x18. */
 } MwMemHeapCreateParams;
 
 /** Mutable heap parameters. Retail layout: 0x14 bytes. */
 typedef struct MwMemHeapParams {
-  void *strategyCallback; /**< Retail offset 0x00. */
+  MwMemStrategyCallback strategyCallback; /**< Retail offset 0x00. */
   u32 field_0x04;           /**< Retail offset 0x04; purpose unknown. */
   u8 field_0x08;            /**< Retail offset 0x08; purpose unknown. */
   u8 field_0x09;            /**< Retail offset 0x09; purpose unknown. */
   u8 overflowEnable;      /**< Retail offset 0x0A. */
-  u32 field_0x0C;           /**< Retail offset 0x0C; purpose unknown. */
-  u32 field_0x10;           /**< Retail offset 0x10; purpose unknown. */
+  u32 currentUsedSize;      /**< Retail offset 0x0C. */
+  u32 peakUsedSize;         /**< Retail offset 0x10. */
 } MwMemHeapParams;
 
 /** Memory-system configuration words. Retail layout: 0x08 bytes. */
@@ -74,55 +90,82 @@ typedef struct MwMemHeapInfo {
   u32 strategy;              /**< Retail offset 0x1C. */
   u32 overflowFlag;          /**< Retail offset 0x20. */
   u8 heapIndex;              /**< Retail offset 0x24. */
-  u32 field_0x28;              /**< Retail offset 0x28; returned by `mslMainRamUsed`. */
-  u32 field_0x2C;              /**< Retail offset 0x2C; purpose unknown. */
-  u32 field_0x30;              /**< Retail offset 0x30; purpose unknown. */
-  u32 field_0x34;              /**< Retail offset 0x34; purpose unknown. */
-  u32 field_0x38;              /**< Retail offset 0x38; purpose unknown. */
+  u32 currentUsedSize;       /**< Retail offset 0x28; returned by `mslMainRamUsed`. */
+  u32 peakUsedSize;          /**< Retail offset 0x2C. */
+  u32 totalManagedSize;      /**< Retail offset 0x30. */
+  u32 currentAllocationCount; /**< Retail offset 0x34. */
+  u32 peakAllocationCount;   /**< Retail offset 0x38. */
   u32 totalSize;             /**< Retail offset 0x3C. */
   u32 blockSize;             /**< Retail offset 0x40. */
 } MwMemHeapInfo;
 
 /** Internal allocation request passed to heap strategies. Retail layout: 0x40 bytes. */
-typedef struct MwMemMallocRequest {
-  u32 field_0x00;          /**< Retail offset 0x00; purpose unknown. */
-  u32 field_0x04;          /**< Retail offset 0x04; purpose unknown. */
-  u32 field_0x08;          /**< Retail offset 0x08; purpose unknown. */
-  u8 field_0x0C;           /**< Retail offset 0x0C; purpose unknown. */
+struct MwMemMallocRequest {
+  u32 allocationSize;      /**< Retail offset 0x00; allocator result size. */
+  u32 userSize;            /**< Retail offset 0x04; aligned user size. */
+  union {
+    u32 field_0x08;
+    u32 allocationFlags;
+  };                       /**< Retail offset 0x08. */
+  u8 alignmentPadding;     /**< Retail offset 0x0C; bytes before user data. */
   u8 pad0D[3];           /**< Retail offsets 0x0D-0x0F; alignment padding. */
   _mwMemHeap *originHeap; /**< Retail offset 0x10. */
   _mwMemHeap *heap;      /**< Retail offset 0x14. */
-  u32 field_0x18;          /**< Retail offset 0x18; purpose unknown. */
+  union {
+    u32 field_0x18;
+    u32 prefixSize;
+  };                       /**< Retail offset 0x18. */
   u32 size;              /**< Retail offset 0x1C. */
-  u32 field_0x20;          /**< Retail offset 0x20; purpose unknown. */
-  u32 field_0x24;          /**< Retail offset 0x24; purpose unknown. */
-  u32 field_0x28;          /**< Retail offset 0x28; purpose unknown. */
+  const char *file;       /**< Retail offset 0x20; allocation source file. */
+  const char *function;   /**< Retail offset 0x24; allocation source function. */
+  u32 line;               /**< Retail offset 0x28; allocation source line. */
   u32 flags;             /**< Retail offset 0x2C. */
   u32 field_0x30;          /**< Retail offset 0x30; purpose unknown. */
   void *systemParams;    /**< Retail offset 0x34. */
   u32 field_0x38;          /**< Retail offset 0x38; purpose unknown. */
   u32 field_0x3C;          /**< Retail offset 0x3C; purpose unknown. */
-} MwMemMallocRequest;
+};
+
+/** Allocation failure/overflow callback payload. Retail layout: 0x44 bytes. */
+struct MwMemOverflowInfo {
+  u32 reason;                    /**< Retail offset 0x00. */
+  void *ptr;                     /**< Retail offset 0x04. */
+  _mwMemHeap *originHeap;        /**< Retail offset 0x08. */
+  _mwMemHeap *destHeap;          /**< Retail offset 0x0C. */
+  u32 field_0x10;                /**< Retail offset 0x10; purpose unknown. */
+  u32 size;                      /**< Retail offset 0x14. */
+  u32 field_0x18;                /**< Retail offset 0x18; purpose unknown. */
+  u32 field_0x1C;                /**< Retail offset 0x1C; purpose unknown. */
+  u32 field_0x20;                /**< Retail offset 0x20; purpose unknown. */
+  u32 field_0x24;                /**< Retail offset 0x24; purpose unknown. */
+  u32 field_0x28;                /**< Retail offset 0x28; purpose unknown. */
+  void *systemParams;            /**< Retail offset 0x2C. */
+  u32 heapDiagnostic;            /**< Retail offset 0x30; copied from heap +0x40. */
+  u32 field_0x34;                /**< Retail offset 0x34; purpose unknown. */
+  const char *sourceFunction;    /**< Retail offset 0x38; allocation source function. */
+  u32 line;                      /**< Retail offset 0x3C; diagnostic source line. */
+  const char *file;              /**< Retail offset 0x40; allocation source file. */
+};
 
 /** Headerless fixed-block heap creation parameters. Retail layout: 0x10 bytes. */
-typedef struct MwMemHeaderlessParams {
+struct MwMemHeaderlessParams {
   u32 field_0x00;   /**< Retail offset 0x00; purpose unknown. */
   u32 blockCount; /**< Retail offset 0x04. */
   u32 blockSize;  /**< Retail offset 0x08. */
   u32 flags;      /**< Retail offset 0x0C. */
-} MwMemHeaderlessParams;
+};
 
 /** Fixed-block heap creation parameters. Retail layout: 0x14 bytes. */
-typedef struct MwMemFixedParams {
+struct MwMemFixedParams {
   u32 field_0x00;      /**< Retail offset 0x00; purpose unknown. */
   u32 blockCount;    /**< Retail offset 0x04. */
   u32 blockSize;     /**< Retail offset 0x08. */
   u32 sizeThreshold; /**< Retail offset 0x0C. */
   u32 flags;         /**< Retail offset 0x10. */
-} MwMemFixedParams;
+};
 
 /**
- * Core Midway heap object. Retail layout: 0x7C bytes.
+ * Core Midway heap header. Retail layout: 0x80 bytes.
  *
  * Member names are inferred. The documented offsets describe this recovered
  * retail layout. System-heap initialization places its arena at `heap + 0x80`.
@@ -134,7 +177,7 @@ struct _mwMemHeap {
   MwMemUsedHeader *freeList;  /**< Retail offset 0x0C. */
   MwMemUsedHeader *freeTail;  /**< Retail offset 0x10. */
   u32 strategy;               /**< Retail offset 0x14. */
-  void *strategyCallback;     /**< Retail offset 0x18. */
+  MwMemStrategyCallback strategyCallback; /**< Retail offset 0x18. */
   u32 magic;                  /**< Retail offset 0x1C. */
   _mwMemHeap *hierPrev;       /**< Retail offset 0x20. */
   _mwMemHeap *hierFirstChild; /**< Retail offset 0x24. */
@@ -147,7 +190,8 @@ struct _mwMemHeap {
   u32 arenaSize;              /**< Retail offset 0x34. */
   u8 *heapStart;              /**< Retail offset 0x38. */
   u8 *heapEnd;                /**< Retail offset 0x3C. */
-  u8 pad40[0x08];             /**< Retail offsets 0x40-0x47; fields unknown. */
+  u32 diagnosticValue;        /**< Retail offset 0x40; copied into failure diagnostics. */
+  u32 field_0x44;             /**< Retail offset 0x44; purpose unknown. */
   u32 currentUsedSize;        /**< Retail offset 0x48. */
   u32 peakUsedSize;           /**< Retail offset 0x4C. */
   u32 totalManagedSize;       /**< Retail offset 0x50; heapEnd - heapStart. */
@@ -164,6 +208,7 @@ struct _mwMemHeap {
   u32 flags;                  /**< Retail offset 0x74. */
   u8 arenaAlignmentPadding;   /**< Retail offset 0x78. */
   u8 blockPrefixSize;         /**< Retail offset 0x79. */
+  u8 pad7A[6];                /**< Retail offsets 0x7A-0x7F. */
 };
 
 extern _mwMemHeap *HeapList;
@@ -171,16 +216,16 @@ extern _mwMemHeap *SystemHeap;
 extern _mwMemHeap *mwMemSystemOverflowHeap;
 extern u32 heapCount;
 
-void *_mwMemMalloc(_mwMemHeap *heap, u32 size, u32 flags, void *file,
-                   void *func, void *line);
+void *_mwMemMalloc(_mwMemHeap *heap, u32 size, u32 flags,
+                   const char *file, const char *function, u32 line);
 
-void _mwMemFree(void *ptr, int a, int b);
+void _mwMemFree(void *ptr, const char *file, u32 line);
 
 void *_mwMemRealloc(void *ptr, _mwMemHeap *heap, u32 size, u32 flags,
-                    void *file, void *func, void *line);
+                    const char *file, const char *function, u32 line);
 
-void *_mwMemCalloc(_mwMemHeap *heap, u32 nmemb, u32 size, u32 flags, void *file,
-                   void *func, void *line);
+void *_mwMemCalloc(_mwMemHeap *heap, u32 nmemb, u32 size, u32 flags,
+                   const char *file, const char *function, u32 line);
 
 _mwMemHeap *_mwMemHeapCreate(MwMemHeapCreateParams *create,
                              MwMemHeapParams *defaults, u32 a, u32 b);

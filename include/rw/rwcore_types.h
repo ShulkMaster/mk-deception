@@ -3,6 +3,14 @@
 
 #include "rw/rwobject.h"
 
+/** Stock RenderWare doubly-linked list link. */
+typedef struct RwLLLink {
+    struct RwLLLink* next;
+    struct RwLLLink* prev;
+} RwLLLink;
+
+typedef struct RwTexDictionary RwTexDictionary;
+
 /** RenderWare raster prefix used by the retail core. Retail layout: 0x24 bytes. */
 typedef struct RwRaster {
     struct RwRaster* parent; /**< Retail offset 0x00. */
@@ -23,9 +31,9 @@ typedef struct RwRaster {
 /** RenderWare texture with Midway ownership extension. Retail layout: 0x58 bytes. */
 typedef struct RwTexture {
     RwRaster* raster;          /**< Retail offset 0x00. */
-    void* dictionary;          /**< Retail offset 0x04. */
-    struct RwTexture** next_link; /**< Retail offset 0x08. */
-    struct RwTexture** prev_link; /**< Retail offset 0x0C. */
+    RwTexDictionary* dictionary; /**< Retail offset 0x04. */
+    RwLLLink* next_link;          /**< Retail offset 0x08. */
+    RwLLLink* prev_link;          /**< Retail offset 0x0C. */
     char name[32];             /**< Retail offset 0x10. */
     char mask[32];             /**< Retail offset 0x30. */
     unsigned int filter_flags; /**< Retail offset 0x50. */
@@ -45,5 +53,15 @@ typedef struct RwFrame {
     struct RwFrame* next;       /**< Retail offset 0x9C. */
     struct RwFrame* root;       /**< Retail offset 0xA0. */
 } RwFrame;
+
+RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
+RwRaster* RwRasterUnlock(RwRaster* raster);
+int RwRasterGetNumLevels(RwRaster* raster);
+void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
+
+RwTexture* RwTextureCreate(RwRaster* raster);
+int RwTextureDestroy(RwTexture* texture);
+RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
+void RwTexDictionaryRemoveTexture(RwTexture* texture);
 
 #endif

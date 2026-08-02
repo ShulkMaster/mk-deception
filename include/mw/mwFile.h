@@ -18,9 +18,12 @@ typedef struct mwFileInitParam {
     unsigned long field_0x18;
 } mwFileInitParam; /* 0x1C */
 
+typedef int (*mwFileErrorCallback)(void* device, const char* message);
+
 void mwFileGetDefaultInitParam(mwFileInitParam* param);
 int mwFileInit(mwFileInitParam* param);
 int mwFileMountPath(const char* mount, const char* path);
-int mwFileSetErrorCallback(const char* mount, void* callback, void* arg);
+int mwFileSetErrorCallback(const char* mount, mwFileErrorCallback callback,
+                           void* arg);
 
 #endif

@@ -7,7 +7,7 @@ extern OSHeapHandle GameCubeSystemHeap;
 
 int privConsoleMemSystemInit(void);
 unsigned long mwMemSystemGetAvailSize(void);
-void* privGetOSMemory(unsigned long size);
+unsigned char* privGetOSMemory(unsigned long size);
 void MEMPRINT(const char* format, ...);
 
 #endif
