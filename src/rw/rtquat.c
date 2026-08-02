@@ -9,7 +9,7 @@
 #include "rw/rtquat.h"
 
 /* rtquat.a/rtquat.obj -- RtQuatConvertFromMatrix + diag helpers.
- * Algorithm from GQNE01 ASM; types from BFBB rtquat/rwplcore.
+ * Algorithm from GQNE5D ASM; types from BFBB rtquat/rwplcore.
  * PS2 MKD / MKDHook = API only, never EE ASM.
  * Build: -opt off -O0 -inline off (see configure.py). */
 
