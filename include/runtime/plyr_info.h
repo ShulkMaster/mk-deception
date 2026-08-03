@@ -52,13 +52,24 @@ typedef struct FighterStyleObj {
     unsigned int screen_inst;        /* +0x70 */
 } FighterStyleObj;
 
+typedef struct FighterObjectRef {
+    MkObj* object;
+    unsigned int instance;
+} FighterObjectRef;
+
 typedef struct FighterMirror {
     char pad00[0x30];
     MkObj* shadow_obj;              /* +0x30 - validated shadow owner */
     unsigned int shadow_obj_instance; /* +0x34 */
-    char pad38[0x17C];
-    MkObj* severed_half_obj;             /* +0x1B4 */
-    unsigned int severed_half_instance;  /* +0x1B8 */
+    char pad38[0x10C];
+    union {
+        FighterObjectRef severed_limbs[15]; /* +0x144 */
+        struct {
+            char pad144[0x70];
+            MkObj* severed_half_obj;            /* +0x1B4 */
+            unsigned int severed_half_instance; /* +0x1B8 */
+        };
+    };
     char pad1BC[0x140];
     FighterStyleObj* style_objs[3]; /* +0x2FC - movelist style pfx parents */
     int style_idx;                  /* +0x308 - movelist starting style */
