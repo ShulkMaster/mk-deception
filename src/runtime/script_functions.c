@@ -1324,9 +1324,9 @@ void obj_turn_gravity_off(void* object);
 void obj_set_gravity(void* object, float gravity);
 void insert_fgnd_mkobj(void* object);
 int get_player_number(void* object);
-MkObj* load_named_model_for_player(char* name, int player, int object_type,
+MkObj* load_named_model_for_player(const char* name, int player, int object_type,
                                    int flags);
-MkObj* load_named_model_from_slot(int slot, char* name, int flags,
+MkObj* load_named_model_from_slot(int slot, const char* name, int flags,
                                   int user_data);
 float script_fabs(float value);
 void set_obj_light_flags(MkObj* object, int flags);

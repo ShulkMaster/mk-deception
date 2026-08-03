@@ -12,6 +12,7 @@ typedef struct PlayerCollisionData PlayerCollisionData;
 typedef struct ScriptSlot ScriptSlot;
 typedef struct FighterAiTableContainer FighterAiTableContainer;
 typedef struct FighterRuntimeData FighterRuntimeData;
+typedef struct MkProc MkProc;
 
 typedef struct LinkedNode {
     void* data;
@@ -20,7 +21,10 @@ typedef struct LinkedNode {
 
 typedef struct MirrorObj {
     void* field00;
-    void* field04; /* +0x04 */
+    union {
+        void* field04;
+        int owner_index; /* +0x04 - blood decal effect owner */
+    };
 } MirrorObj;
 
 /* Width source for movelist style icon centering (style_obj+4). */
@@ -58,10 +62,18 @@ typedef struct FighterObjectRef {
 } FighterObjectRef;
 
 typedef struct FighterMirror {
-    char pad00[0x30];
+    char pad00[0x18];
+    MirrorObj* blood_owner;            /* +0x18 - owner index source */
+    char pad1C[0x14];
     MkObj* shadow_obj;              /* +0x30 - validated shadow owner */
     unsigned int shadow_obj_instance; /* +0x34 */
-    char pad38[0x10C];
+    char pad38[0x24];
+    MkProc* anim_proc;                  /* +0x5C */
+    unsigned int anim_proc_instance;    /* +0x60 */
+    char pad64[0xB8];
+    MkProc* foot_print_proc;             /* +0x11C */
+    unsigned int foot_print_proc_instance; /* +0x120 */
+    char pad124[0x20];
     union {
         FighterObjectRef severed_limbs[15]; /* +0x144 */
         struct {

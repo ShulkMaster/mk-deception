@@ -120,7 +120,7 @@ typedef struct PlyrPdata {
     PlyrMirrorObjLatch mirror_obj; /* +0x48 */
     struct MkProc* hold_proc; /* +0x50 */
     unsigned int hold_proc_instance; /* +0x54 */
-    char pad58[4];
+    MkPtr* item_links; /* +0x58 - item attachment/link records */
     struct MkProc* anim_proc; /* +0x5C */
     unsigned int anim_proc_instance; /* +0x60 */
     struct MkProc* left_hand_anim_proc; /* +0x64 */
@@ -130,7 +130,12 @@ typedef struct PlyrPdata {
     char pad74[0x40];
     struct MkProc* transient_proc; /* +0xB4 */
     unsigned int transient_proc_instance; /* +0xB8 */
-    char padBC[0x58];
+    char padBC[0x20];
+    PlyrMirrorObjLatch impaled_item_a;           /* +0xDC */
+    PlyrMirrorObjLatch impaled_item_b;           /* +0xE4 */
+    PlyrMirrorObjLatch impaled_item_a_secondary; /* +0xEC */
+    PlyrMirrorObjLatch impaled_item_b_secondary; /* +0xF4 */
+    char padFC[0x18];
     AniTextureControlItem facial_texture; /* +0x114 */
     char pad11C[0xA0];
     int held_by_player; /* +0x1BC */
@@ -148,8 +153,8 @@ typedef struct PlyrPdata {
     int hit_flash_enabled;         /* +0x1E0 */
     int blocking_disabled;       /* +0x1E4 */
     int blocking_disabled_2;     /* +0x1E8 */
-    int blocking_disable_tick_1; /* +0x1EC */
-    int blocking_disable_tick_2; /* +0x1F0 */
+    unsigned int blocking_disable_tick_1; /* +0x1EC */
+    unsigned int blocking_disable_tick_2; /* +0x1F0 */
     union {
         int input_unlock_tick;
         unsigned int action_lock_a;
@@ -238,7 +243,11 @@ typedef struct PlyrPdata {
     MkObj* shadowbox; /* +0x470 */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */
-    char pad47C[0x134];
+    char pad47C[0x10];
+    void* blood_model_data; /* +0x48C - enables per-player blood emitters */
+    char pad490[0x1C];
+    unsigned char left_blood_spawn_state[0x8C];  /* +0x4AC */
+    unsigned char right_blood_spawn_state[0x78]; /* +0x538 */
     int duck_reaction_active; /* +0x5B0 */
     char pad5B4[0x38];
     unsigned int saved_anim_script_word; /* +0x5EC */
