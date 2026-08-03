@@ -1,10 +1,15 @@
 #include "game/collision.h"
 #include "game/game_info.h"
+#include "platform/display.h"
+#include "math/mk_math.h"
+#include "platform/main.h"
 #include "platform/io.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/cam.h"
+#include "runtime/utils.h"
 
-typedef unsigned int MslSoundHandle;
+typedef struct LightDef LightDef;
 
 typedef struct MiscBgndData {
     int collision_object_id;
@@ -16,8 +21,8 @@ typedef struct MiscBgndData {
 
 typedef struct PlayerBodyExplodePdata {
     MkHdr hdr;
-    int model_index;
-    Vec position;
+    PlyrInfo* player;
+    Vec direction;
     float scale;
 } PlayerBodyExplodePdata;
 
@@ -30,6 +35,67 @@ typedef struct FishScreamPdata {
     MkHdr hdr;
     int player_index;
 } FishScreamPdata;
+
+typedef struct FishAttackPdata {
+    MkHdr hdr;
+    int fish_index; /* +0x08 */
+    int lifetime; /* +0x0C */
+    int state_ticks; /* +0x10 */
+    int state; /* +0x14 */
+    int turn_step; /* +0x18 */
+    int turn_limit; /* +0x1C */
+    int turning_left; /* +0x20 */
+    int active; /* +0x24 */
+    struct FishModelPair* models; /* +0x28 */
+    int use_good_fish; /* +0x2C */
+    MkObj* target; /* +0x30 */
+    unsigned int target_instance; /* +0x34 */
+    MkObj* fish; /* +0x38 */
+    unsigned int fish_instance; /* +0x3C */
+} FishAttackPdata;
+
+typedef struct FishModelPair {
+    MkObj* bad_fish;
+    MkObj* good_fish;
+    MkObj* reserved;
+} FishModelPair;
+
+typedef struct FishAttackData {
+    int target_bone;
+    int model_index;
+    int lifetime;
+    float offset_x;
+    float offset_y;
+    float offset_z;
+    float field_18;
+} FishAttackData;
+
+typedef struct MabSkinnedLightDef {
+    int type;
+    MkProcEntryFn proc;
+    int flags;
+    float color[4];
+    float field_1c;
+    float field_20;
+    float field_24;
+} MabSkinnedLightDef;
+
+typedef struct MabGenericPositionPdata {
+    MkHdr hdr;
+    char pad08[0x10];
+    Vec position; /* +0x18 */
+} MabGenericPositionPdata;
+
+typedef struct CameraBouncePdata {
+    MkHdr hdr;
+    MkObj* object;
+    unsigned int object_instance;
+    char pad10[4];
+    float trigger_distance;
+    float velocity_scale;
+} CameraBouncePdata;
+
+double fabs(double value);
 
 typedef struct FenceSection {
     float offset_z;
@@ -59,7 +125,7 @@ typedef struct ObjectMonitorPdata {
     float gravity;
     float settle_speed;
     float settle_height;
-    MkProcEntryFn callback;
+    void (*callback)(MkSobj* object);
     MkHdr* target;
     unsigned int target_instance;
 } ObjectMonitorPdata;
@@ -74,6 +140,8 @@ static CollisionShape fortress_exclusion_zone;
 static MkObjRef debug_p2_axis_item;
 static MkObjRef debug_p1_axis_item;
 
+extern MkObj* plyr_obj;
+
 MslSoundHandle snd_req(int sound_id);
 void snd_stop(MslSoundHandle handle);
 MslSoundHandle plyr_snd_req(int sound_id);
@@ -81,7 +149,8 @@ void init_collision_system(void);
 int sprintf(char* dest, const char* format, ...);
 int is_weapon_style(int style);
 void advance_active_moveset(FighterMirror* fighter);
-float p_player_body_explode(void);
+static float p_player_body_explode(void);
+static float p_xpd_obj_monitor(void);
 int build_bones_tbl(MkObj* object, const int* tags);
 MkObj* load_model_from_slot(int slot, unsigned int model_id, int heap_id);
 MkObj* load_named_model_from_slot(
@@ -92,9 +161,56 @@ MkObj* obj_sever_limb(
     MkObj* object, int limb, Vec* limb_velocities, int include_children);
 void limb_sever_show_z_meat_chunks(
     MkObj* object, int limb, int include_children);
+void limb_sever_show_z_meat_chunks_all(void* object);
+void bgnd_hide_mirror_guys(void);
+float p_anim_idle(void);
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to);
-float p_monitor_objs_sobjs(void);
-float p_statue_xpd_callback(void);
+static float p_monitor_objs_sobjs(void);
+void p_statue_xpd_callback(MkSobj* object);
+float p_fish_attack_sounds(void);
+float p_fish_attack(void);
+static float p_fish_attack_bloodsplat(void);
+static float p_cam_bounce_monitor(void);
+extern CameraObj* camera_obj;
+Vec* sobj_get_world_pos(void* object);
+void bgnd_launch_fx_at_position(
+    const char* effect, float x, float y, float z);
+void obj_change_to_skinned_obj_light_list(MkObj* object, LightDef* light);
+void get_bone_world_pos(MkObj* object, int bone, Vec* position);
+float p_track_cam_ang_y_light(void);
+
+const char* rock_xpd_effects[6] = {
+    "rock_explode_effect", "rock_explode_effect1", "rock_explode_effect2",
+    "rock_explode_effect3", "rock_explode_effect4", "rock_explode_effect5",
+};
+const char* rock_dust_effects[6] = {
+    "dust_gnd_pnd", "dust_gnd_pnd1", "dust_gnd_pnd2",
+    "dust_gnd_pnd3", "dust_gnd_pnd4", "dust_gnd_pnd5",
+};
+
+FishAttackData fish_data_tbl[13] = {
+    {0x19, 1, 0xDC, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x18, 4, 0xE2, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x08, 7, 0xE0, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x07, 0xA, 0xE8, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x15, 3, 0xF6, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x14, 6, 0x100, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x04, 0xB, 0xFB, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x05, 8, 0x10A, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x02, 9, 0x117, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x01, 0xC, 0xF8, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x03, 0xD, 0xEC, 0.0f, 0.0f, 0.0f, 0.0f},
+    {0x10, 0, 0xEE, -0.05f, 0.0f, 0.0f, 0.0f},
+    {0, 0x0E, 0xFF, -0.25f, 1.57f, 0.0f, 0.0f},
+};
+
+static MabSkinnedLightDef skinned_obj_light_def = {
+    3, p_track_cam_ang_y_light, 0,
+    {1.0f, 1.0f, 1.0f, 1.0f},
+    6.010f, 3.190f, 0.0f,
+};
+
+int fish_bones[2] = {1, 0};
 
 int evil_tune_tbl[3] = {0x1BF3, 0x1BF4, 0x1BF5};
 int good_tune_tbl[4] = {0x1BEC, 0x1BED, 0x1BEE, 0x1BEF};
@@ -106,18 +222,313 @@ void ck_put_weapon_away(PlyrInfo* player) {
     }
 }
 
-void player_body_explode(int model_index, const Vec* position, float scale) {
+void player_body_explode(
+    PlyrInfo* player, const Vec* direction, float scale) {
     PlayerBodyExplodePdata* pdata;
 
     if (_create_mkproc_generic_nostack(
             0x2097, 0x1F, (MkProcEntryFn)p_player_body_explode,
             sizeof(PlayerBodyExplodePdata), (MkHdr**)&pdata) != 0) {
-        pdata->model_index = model_index;
-        pdata->position.x = position->x;
-        pdata->position.y = position->y;
-        pdata->position.z = position->z;
+        pdata->player = player;
+        pdata->direction.x = direction->x;
+        pdata->direction.y = direction->y;
+        pdata->direction.z = direction->z;
         pdata->scale = scale;
     }
+}
+
+static float p_player_body_explode(void) {
+    PlayerBodyExplodePdata* pdata;
+    PlyrInfo* player;
+    FighterMirror* fighter;
+    MkObj* player_object;
+    MkProc* anim_proc;
+    int limb;
+
+    pdata = (PlayerBodyExplodePdata*)apdata;
+    player = pdata->player;
+    fighter = player->slot.fighter;
+    player_object = player->slot.mirror_a;
+
+    player_object->flags_09_bits.head_tracking = 0;
+    bgnd_hide_mirror_guys();
+
+    for (limb = 0; limb < 15; limb++) {
+        FighterObjectRef* severed;
+        MkObj* object;
+
+        severed = &fighter->severed_limbs[limb];
+        object = severed->object;
+        if (object != 0 && object->hdr.instance != severed->instance) {
+            object = 0;
+        }
+        if (object == 0) {
+            object = obj_sever_limb(
+                player_object, limb,
+                fighter->runtime_data->half_sever_velocities, 1);
+            if (object != 0) {
+                severed->object = object;
+                severed->instance = object->hdr.instance;
+            }
+        }
+    }
+
+    limb_sever_show_z_meat_chunks_all(player_object);
+    anim_proc = fighter->anim_proc;
+    if (anim_proc != 0 &&
+        anim_proc->instance != fighter->anim_proc_instance) {
+        anim_proc = 0;
+    }
+    xfer_proc(anim_proc, p_anim_idle);
+
+    for (limb = 0; limb < 15; limb++) {
+        FighterObjectRef* severed;
+        MkObj* object;
+
+        severed = &fighter->severed_limbs[limb];
+        object = severed->object;
+        if (object != 0 && object->hdr.instance != severed->instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            object->flags_08_bits.gravity_enabled = 1;
+            object->flags_08_bits.angular_velocity_enabled = 1;
+            object->flags_08_bits.rotation_enabled = 1;
+            object->flags_08_bits.moving = 1;
+            object->gravity = -0.003f;
+            object->pos_vel.x =
+                pdata->direction.x * pdata->scale + sfrand(0.05f);
+            object->pos_vel.y = 0.0f;
+            object->pos_vel.x =
+                pdata->direction.z * pdata->scale + sfrand(0.05f);
+            object->ang_vel.x = sfrand(0.15f);
+            object->ang_vel.y = sfrand(0.15f);
+            object->ang_vel.z = sfrand(0.15f);
+        }
+    }
+    return -1.0f;
+}
+
+static float p_fish_attack_bloodsplat(void) {
+    Vec effect_origin = {0.0f, 1.6f, 0.0f};
+    MabGenericPositionPdata* pdata;
+    MkObj* object;
+    unsigned int object_instance;
+    Vec direction;
+    float scale;
+
+    pdata = (MabGenericPositionPdata*)apdata;
+    object = 0;
+    object_instance = 0;
+    object = load_named_model_from_slot(
+        0x2001E, "BODYSPLAT", 0x2094, 0);
+    if (object != 0) {
+        insert_fgnd_mkobj(object);
+        object->pos.x = pdata->position.x;
+        object->pos.y = pdata->position.y;
+        object->pos.z = pdata->position.z;
+        object->flags_08_bits.scale_active = 1;
+        object->scale.x = 0.5f;
+        object->scale.z = 0.5f;
+        uv_v3_to_v3(&direction, &effect_origin, &object->pos);
+        v3_to_xy_ang(&object->ang, &direction);
+        object_instance = object->hdr.instance;
+    }
+
+    scale = 0.5f;
+    while (scale < 0.75f) {
+        MkObj* live_object;
+
+        live_object = object;
+        if (live_object != 0) {
+            if (live_object->hdr.instance == object_instance) {
+                /* Keep the validated object. */
+            } else {
+                live_object = 0;
+            }
+        } else {
+            live_object = 0;
+        }
+        if (live_object != 0) {
+            live_object->scale.x = scale;
+            live_object->scale.z = scale;
+            scale += 0.05f;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    return -1.0f;
+}
+
+static float p_xpd_obj_monitor(void) {
+    Vec ground_normal = {0.0f, 1.0f, 0.0f};
+    PlayerBodyExplodePdata* pdata;
+    FighterMirror* fighter;
+    int frame;
+    int sound_delay;
+
+    pdata = (PlayerBodyExplodePdata*)apdata;
+    fighter = pdata->player->slot.fighter;
+    frame = 0;
+    sound_delay = 0;
+
+    do {
+        int limb;
+
+        for (limb = 0; limb < 15; limb++) {
+            FighterObjectRef* severed;
+            MkObj* object;
+
+            severed = &fighter->severed_limbs[limb];
+            object = severed->object;
+            if (object != 0 && object->hdr.instance != severed->instance) {
+                object = 0;
+            }
+            if (object != 0) {
+                float ground_y;
+
+                ground_y = g_game_info.field_34 + 0.35f;
+                if (object->pos.y < ground_y) {
+                    float reflection;
+
+                    object->pos.y = ground_y;
+                    reflection = 2.0f *
+                        (object->pos_vel.x * ground_normal.x +
+                         object->pos_vel.y * ground_normal.y +
+                         object->pos_vel.z * ground_normal.z);
+                    object->pos_vel.x -= ground_normal.x * reflection;
+                    object->pos_vel.y -= ground_normal.y * reflection;
+                    object->pos_vel.z -= ground_normal.z * reflection;
+                    scale_v3(
+                        &object->pos_vel, &object->pos_vel, 0.45f);
+
+                    if (fabs(object->pos_vel.x) < 0.004f &&
+                        fabs(object->pos_vel.y) < 0.004f &&
+                        fabs(object->pos_vel.z) < 0.004f) {
+                        zero_v3(&object->pos_vel);
+                        object->gravity = 0.0f;
+                        zero_v3(&object->ang_vel);
+                    } else {
+                        object->ang_vel.x *= 0.6f;
+                        if (object->ang_vel.x < 0.005f) {
+                            object->ang_vel.x = 0.0f;
+                        }
+                        object->ang_vel.y *= 0.6f;
+                        if (object->ang_vel.y < 0.005f) {
+                            object->ang_vel.y = 0.0f;
+                        }
+                        object->ang_vel.z *= 0.6f;
+                        if (object->ang_vel.z < 0.005f) {
+                            object->ang_vel.z = 0.0f;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (frame > 10 && frame < 100) {
+            sound_delay--;
+            if (sound_delay < 0) {
+                unsigned int sound;
+
+                sound_delay = (int)randu0(30);
+                sound = randu0(4);
+                if (sound == 0) {
+                    snd_req(0x12C);
+                } else if (sound == 1) {
+                    snd_req(0x12D);
+                } else if (sound == 2) {
+                    snd_req(0x12E);
+                } else {
+                    snd_req(0x12F);
+                }
+            }
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        frame++;
+        aproc->vtbl->sleep();
+    } while (frame < 120);
+
+    return -1.0f;
+}
+
+static float p_monitor_objs_sobjs(void) {
+    Vec ground_normal = {0.0f, 1.0f, 0.0f};
+    ObjectMonitorPdata* pdata;
+    MkObj* target;
+    MkPtr* iterator;
+    int all_settled;
+
+    pdata = (ObjectMonitorPdata*)apdata;
+    all_settled = 1;
+    target = (MkObj*)pdata->target;
+    if (target != 0 && target->hdr.instance != pdata->target_instance) {
+        target = 0;
+    }
+
+    if (target != 0) {
+        iterator = first_mkptr(&target->sobj_list);
+        while (iterator != 0) {
+            MkSobj* object;
+
+            object = (MkSobj*)iterator->hdr;
+            if ((object->id_flags & 0xFFF) != 0) {
+                float ground_y;
+
+                ground_y = g_game_info.field_34 + pdata->settle_height;
+                if (object->pos.y < ground_y) {
+                    float reflection;
+
+                    pdata->callback(object);
+                    object->pos.y = ground_y + pdata->settle_speed;
+                    reflection = 2.0f *
+                        (object->pos_vel.x * ground_normal.x +
+                         object->pos_vel.y * ground_normal.y +
+                         object->pos_vel.z * ground_normal.z);
+                    object->pos_vel.x -= ground_normal.x * reflection;
+                    object->pos_vel.y -= ground_normal.y * reflection;
+                    object->pos_vel.z -= ground_normal.z * reflection;
+                    scale_v3(
+                        &object->pos_vel, &object->pos_vel,
+                        pdata->gravity);
+
+                    if (fabs(object->pos_vel.x) < pdata->min_pos_x) {
+                        object->pos_vel.x = 0.0f;
+                    }
+                    if (fabs(object->pos_vel.y) < pdata->min_pos_y) {
+                        object->pos_vel.y = 0.0f;
+                    }
+                    if (fabs(object->pos_vel.z) < pdata->min_pos_z) {
+                        object->pos_vel.z = 0.0f;
+                    }
+                    if (fabs(object->ang_vel.x) < pdata->min_vel_x) {
+                        object->ang_vel.x = 0.0f;
+                    }
+                    if (fabs(object->ang_vel.y) < pdata->min_vel_y) {
+                        object->ang_vel.y = 0.0f;
+                    }
+                    if (fabs(object->ang_vel.z) < pdata->min_vel_z) {
+                        object->ang_vel.z = 0.0f;
+                    }
+                }
+
+                if (length_v3(&object->pos_vel) != 0.0f ||
+                    object->pos.y >
+                        ground_y + 2.0f * pdata->settle_speed) {
+                    all_settled = 0;
+                    object->pos_vel.y -= pdata->settle_speed;
+                } else if (length_v3(&object->ang_vel) != 0.0f) {
+                    zero_v3(&object->ang_vel);
+                    all_settled = 0;
+                }
+            }
+            iterator = next_mkptr(iterator);
+        }
+        if (all_settled != 0) {
+            return -1.0f;
+        }
+    }
+    return 1.0f;
 }
 
 void reset_collision_system(void) {
@@ -148,6 +559,10 @@ typedef struct FishObjectLatch {
     char pad00[0x10];
     MkObj* object;
     unsigned int instance;
+    char pad18[0x18];
+    unsigned int flags; /* +0x30 */
+    char pad34[4];
+    float field_38;
 } FishObjectLatch;
 
 typedef struct YinyangFishPair {
@@ -189,6 +604,77 @@ void yinyang_set_good_fish_hide_flag(
             fish[index].active_fish->instance =
                 fish[index].good_fish->hdr.instance;
         }
+    }
+}
+
+void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
+    Vec cylinder_position = {0.0f, 0.0f, 0.0f};
+    Vec cylinder_axis = {0.0f, 1.6f, 0.0f};
+    Vec random_angles = {0.0f, 0.0f, 0.0f};
+    Vec camera_direction;
+    Vec camera_position;
+    Vec jump_position;
+    Vec jump_direction;
+    float intersection_a;
+    float intersection_b;
+    float intersection;
+    int index;
+
+    camera_direction.x = Camera->frame->modelling.pos.x;
+    camera_direction.y = 0.0f;
+    camera_direction.z = Camera->frame->modelling.pos.z;
+    ray_cyl_intersection(
+        (Vec*)&camera_obj->pos_x, &camera_direction,
+        &cylinder_position, &cylinder_axis,
+        29.0f + sfrand(2.0f), &intersection_a, &intersection_b);
+    intersection = intersection_a;
+    if (intersection <= 0.0f) {
+        intersection = intersection_b;
+    }
+
+    camera_position.x = camera_obj->pos_x;
+    camera_position.y = 0.0f;
+    camera_position.z = camera_obj->pos_z;
+    scale_xz(&jump_position, &camera_direction, intersection);
+    v3_add_v3(&jump_position, &jump_position, &camera_position);
+    uv_v3_to_v3(
+        &jump_direction, &jump_position, &cylinder_position);
+
+    for (index = 0; index < count; index++) {
+        MkObj* good_fish;
+        MkObj* bad_fish;
+        unsigned char bad_hidden;
+        float angle;
+        int wrapped_angle;
+
+        if (camera_obj == 0) {
+            break;
+        }
+
+        random_angles.x += sfrand(0.06f);
+        random_angles.y += sfrand(0.02f);
+        random_angles.z += sfrand(0.06f);
+        good_fish = fish[index].good_fish;
+        bad_fish = fish[index].bad_fish;
+
+        good_fish->pos.x = jump_position.x;
+        good_fish->pos.y = -1.25f;
+        good_fish->pos.z = jump_position.z;
+        angle = 0.63f + (1.57f + xz_to_y_ang(&jump_direction));
+        wrapped_angle = (int)(166886.1f * angle) & 0xFFFFF;
+        good_fish->ang.y = 0.000005992112f * (float)wrapped_angle;
+        good_fish->flags_08_bits.angular_velocity_enabled = 1;
+        good_fish->flags_08_bits.airborne = 1;
+
+        fish[index].active_fish->field_38 = 0.0f;
+        fish[index].active_fish->flags |= 3;
+        bad_fish->pos = good_fish->pos;
+        bad_fish->ang = good_fish->ang;
+        bad_hidden = bad_fish->hide_flags & 0x20;
+        bad_fish->flags_word_08 = good_fish->flags_word_08;
+        bad_fish->hide_flags =
+            (unsigned char)((bad_fish->hide_flags & ~0x20) | bad_hidden);
+        fish[index].active_fish->field_38 = 0.0f;
     }
 }
 
@@ -387,6 +873,383 @@ void fortress_setup_exclusion_zone(
     const Vec* center, float width, float height, float depth, float angle) {
     build_col_shape_vertical_box(
         &fortress_exclusion_zone, center, width, height, depth, angle);
+}
+
+void p_statue_xpd_callback(MkSobj* object) {
+    Vec* position;
+    unsigned int statue_index;
+
+    position = sobj_get_world_pos(object);
+    hide_sobj(object);
+    zero_v3(&object->pos_vel);
+    object->flags_08 &= (unsigned char)~0x40;
+    object->flags_08 &= (unsigned char)~0x20;
+    zero_v3(&object->ang_vel);
+    object->flags_08 &= (unsigned char)~0x08;
+    object->flags_08 &= (unsigned char)~0x04;
+
+    statue_index = object->id_flags;
+    if (statue_index < 7 && statue_index != 0) {
+        bgnd_launch_fx_at_position(
+            rock_xpd_effects[statue_index - 1],
+            position->x, position->y, position->z);
+        bgnd_launch_fx_at_position(
+            rock_dust_effects[statue_index - 1],
+            position->x, position->y, position->z);
+    }
+}
+
+float p_fish_attack(void) {
+    const Vec arena_center = {0.0f, 0.0f, 0.0f};
+    FishAttackPdata* pdata;
+    FishAttackData* fish_data;
+    PlyrInfo* player;
+    MkObj* target;
+    MkObj* fish;
+    Vec target_position;
+    Vec direction;
+    float distance;
+
+    pdata = (FishAttackPdata*)apdata;
+    fish_data = &fish_data_tbl[pdata->fish_index];
+
+    if (pdata->active == 1) {
+        if (pdata->use_good_fish != 0) {
+            fish = load_named_model_from_slot(
+                0x2001E, "YY_GOOD_FISH", 0x2097, 0);
+            pdata->models[pdata->fish_index].good_fish = fish;
+        } else {
+            fish = load_named_model_from_slot(
+                0x2001E, "YY_BAD_FISH", 0x2096, 0);
+            pdata->models[pdata->fish_index].bad_fish = fish;
+        }
+        if (fish == 0) {
+            return -1.0f;
+        }
+
+        pdata->fish = fish;
+        pdata->fish_instance = fish->hdr.instance;
+        obj_change_to_skinned_obj_light_list(
+            fish, (LightDef*)&skinned_obj_light_def);
+        if (build_bones_tbl(fish, fish_bones) == 0) {
+            if (fish->hdr.instance != 0) {
+                fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
+            }
+            return -1.0f;
+        }
+        insert_fgnd_mkobj(fish);
+
+        target = pdata->target;
+        if (target != 0 && target->hdr.instance != pdata->target_instance) {
+            target = 0;
+        }
+        plyr_obj = target;
+        if (target == 0) {
+            return -1.0f;
+        }
+
+        get_bone_world_pos(target, fish_data->target_bone, &target_position);
+        fish->pos.x = target_position.x + 0.5f * sfrand(0.75f);
+        fish->pos.y = -0.15f;
+        fish->pos.z = target_position.z + 0.5f * sfrand(0.75f);
+        pdata->active = 0;
+        pdata->lifetime = fish_data->lifetime;
+        pdata->state = 0;
+        pdata->state_ticks = 15;
+        pdata->turn_step = 0;
+        pdata->turn_limit = (int)randu0(10) + 5;
+        pdata->turning_left = 1;
+
+        distance = uv_v3_to_v3_dist(
+            &direction, &fish->pos, &target_position);
+        scale_v3(
+            &direction, &direction, distance / 15.0f);
+        fish->pos_vel = direction;
+        fish->flags_08_bits.gravity_enabled = 1;
+        fish->flags_08_bits.angular_velocity_enabled = 1;
+    }
+
+    while (pdata->lifetime > 0) {
+        FighterObjectRef* severed;
+
+        target = pdata->target;
+        if (target != 0 && target->hdr.instance != pdata->target_instance) {
+            target = 0;
+        }
+        plyr_obj = target;
+        fish = pdata->fish;
+        if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
+            fish = 0;
+        }
+        if (target == 0 || fish == 0) {
+            return -1.0f;
+        }
+
+        pdata->lifetime--;
+        player = target == g_game_info.player_objects[0]
+            ? &g_game_info.plyr0 : &g_game_info.plyr1;
+
+        if (pdata->state_ticks <= 0) {
+            if (pdata->lifetime < 15 && pdata->state < 4) {
+                pdata->state = 4;
+                get_bone_world_pos(
+                    target, fish_data->target_bone, &target_position);
+                distance = uv_v3_to_v3_dist(
+                    &direction, &fish->pos, &target_position);
+                scale_v3(
+                    &direction, &direction, distance / 10.0f);
+                fish->pos_vel = direction;
+                pdata->state_ticks = 10;
+                pdata->lifetime = 12;
+                return 1.0f;
+            }
+
+            switch (pdata->state) {
+            case 0:
+                scale_v3(&fish->pos_vel, &fish->pos_vel, -1.0f);
+                pdata->state_ticks = 10;
+                pdata->state = 2;
+                continue;
+            case 2:
+                get_bone_world_pos(
+                    target, fish_data->target_bone, &target_position);
+                distance = uv_v3_to_v3_dist(
+                    &direction, &fish->pos, &target_position);
+                pdata->state_ticks = 10;
+                scale_v3(&direction, &direction,
+                         distance / (float)pdata->state_ticks);
+                fish->pos_vel = direction;
+                pdata->state = 0;
+                continue;
+            case 4:
+                pdata->state_ticks = 8;
+                pdata->lifetime = pdata->state_ticks + 2;
+                fish->ang.x = 0.0f;
+                direction.x = fish->frame->modelling.at.x;
+                direction.y = fish->frame->modelling.at.y;
+                direction.z = fish->frame->modelling.at.z;
+                normalize_v3(&direction);
+                scale_v3(
+                    &direction, &direction,
+                    -(1.0f / (float)pdata->state_ticks));
+                fish->pos_vel = direction;
+                fish->pos_vel.y = 0.0f;
+                pdata->state = 5;
+                continue;
+            case 5:
+                distance = uv_v3_to_v3_dist(
+                    &direction, &arena_center, &target->pos);
+                pdata->state_ticks = 110;
+                pdata->lifetime = pdata->state_ticks + 2;
+                scale_v3(&direction, &direction,
+                         distance / (float)pdata->state_ticks);
+                fish->pos_vel = direction;
+                pdata->state = 6;
+                continue;
+            case 6:
+                hide_obj(fish);
+                continue;
+            }
+        } else {
+            switch (pdata->state) {
+            case 0:
+            case 2:
+            case 4:
+                get_bone_world_pos(
+                    target, fish_data->target_bone, &target_position);
+                uv_v3_to_v3(&direction, &fish->pos, &target_position);
+                v3_to_xy_ang(&fish->ang, &direction);
+                pdata->state_ticks--;
+                break;
+            case 5:
+                get_bone_world_pos(
+                    target, fish_data->target_bone, &target_position);
+                fish->ang.x = 0.0f;
+                if (fish->pos.y > -0.05f) {
+                    fish->pos.y -= 0.05f;
+                }
+                direction.x = -fish->pos_vel.x;
+                direction.y = -fish->pos_vel.y;
+                direction.z = -fish->pos_vel.z;
+                v3_to_xy_ang(&fish->ang, &direction);
+                pdata->state_ticks--;
+                break;
+            case 6:
+                if (pdata->turning_left != 0) {
+                    rotate_xz(&fish->pos_vel, &fish->pos_vel, 0.07f);
+                    pdata->turn_step++;
+                    if (pdata->turn_step > pdata->turn_limit) {
+                        pdata->turning_left = 0;
+                    }
+                } else {
+                    rotate_xz(&fish->pos_vel, &fish->pos_vel, -0.07f);
+                    pdata->turn_step--;
+                    if (pdata->turn_step < -pdata->turn_limit) {
+                        pdata->turning_left = 1;
+                    }
+                }
+                v3_to_xy_ang(&fish->ang, &fish->pos_vel);
+                severed = &player->slot.fighter->
+                    severed_limbs[pdata->fish_index];
+                if (severed->object != 0 &&
+                    severed->object->hdr.instance != severed->instance) {
+                    severed = 0;
+                }
+                if (severed != 0 && pdata->state_ticks < 20) {
+                    fish->pos.y -= 0.1f;
+                }
+                pdata->state_ticks--;
+                break;
+            }
+            return 1.0f;
+        }
+    }
+
+    fish = pdata->fish;
+    if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
+        fish = 0;
+    }
+    if (fish != 0 && fish->hdr.instance != 0) {
+        fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
+    }
+    return -1.0f;
+}
+
+float p_fish_attack_sounds(void) {
+    FishScreamPdata* scream_pdata;
+    int elapsed_ticks;
+
+    scream_pdata = (FishScreamPdata*)apdata;
+    if (_create_mkproc_generic_tinystack(
+            0x209A, 0x1F, p_fish_attack_scream_sounds, 0x28,
+            (MkHdr**)&scream_pdata) != 0) {
+        scream_pdata->player_index =
+            plyr_obj == g_game_info.plyr0.slot.mirror_a ? 0 : 1;
+    }
+
+    snd_req(0x14E);
+    _mkproc_sleep_ticks = 15.0f;
+    aproc->vtbl->sleep();
+
+    elapsed_ticks = 0;
+    while (elapsed_ticks < 180) {
+        int delay;
+
+        delay = (int)randu0(10) + 15;
+        elapsed_ticks += delay;
+        if (randu0(2) == 0) {
+            snd_req(0x14D);
+        } else {
+            snd_req(0x14E);
+        }
+        _mkproc_sleep_ticks = (float)delay;
+        aproc->vtbl->sleep();
+    }
+    return -1.0f;
+}
+
+void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
+    FishAttackPdata* fish_pdata;
+    FishScreamPdata* scream_pdata;
+    MabGenericPositionPdata* blood_pdata;
+    void* blood_proc;
+    int fish_index;
+
+    for (fish_index = 0; fish_index < 13; fish_index++) {
+        if (_create_mkproc_generic_nostack(
+                0x209A, 0x1F, p_fish_attack, 0x40,
+                (MkHdr**)&fish_pdata) != 0) {
+            fish_pdata->use_good_fish = target_kind;
+            fish_pdata->models = (FishModelPair*)attack_kind;
+            fish_pdata->target = target;
+            fish_pdata->target_instance = target->hdr.instance;
+            fish_pdata->fish_index = fish_index;
+            fish_pdata->active = 1;
+        }
+    }
+
+    blood_proc = proc_create(p_fish_attack_bloodsplat, 0x209C);
+    snd_req(0x154);
+    if (blood_proc != 0) {
+        blood_pdata = (MabGenericPositionPdata*)mab_generic_pdata;
+        blood_pdata->position.x = target->pos.x;
+        blood_pdata->position.y = -0.185f;
+        blood_pdata->position.z = target->pos.z;
+    }
+
+    if (_create_mkproc_generic_tinystack(
+            0x209A, 0x1F, p_fish_attack_sounds, 0x28,
+            (MkHdr**)&scream_pdata) != 0) {
+        scream_pdata->player_index =
+            target == g_game_info.plyr0.slot.mirror_a ? 0 : 1;
+    }
+}
+
+static float p_cam_bounce_monitor(void) {
+    CameraBouncePdata* pdata;
+    MkObj* object;
+    Vec saved_velocity;
+    Vec saved_angular_velocity;
+    Vec* camera_normal;
+    float distance;
+    float reflection;
+
+    pdata = (CameraBouncePdata*)apdata;
+    object = pdata->object;
+    if (object != 0 && object->hdr.instance != pdata->object_instance) {
+        object = 0;
+    }
+    if (camera_obj == 0 || object == 0) {
+        return -1.0f;
+    }
+
+    distance = dist_v3_to_v3(
+        (Vec*)&camera_obj->pos_x, &object->pos);
+    while (fabs(distance) > pdata->trigger_distance) {
+        object = pdata->object;
+        if (object != 0 && object->hdr.instance != pdata->object_instance) {
+            object = 0;
+        }
+        if (object == 0) {
+            return -1.0f;
+        }
+        distance = dist_v3_to_v3(
+            (Vec*)&camera_obj->pos_x, &object->pos);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
+    object = pdata->object;
+    if (object != 0 && object->hdr.instance != pdata->object_instance) {
+        object = 0;
+    }
+    if (object == 0) {
+        return -1.0f;
+    }
+
+    saved_velocity = object->pos_vel;
+    saved_angular_velocity = object->ang_vel;
+    zero_v3(&object->pos_vel);
+    zero_v3(&object->ang_vel);
+    snd_req(0x12F);
+    _mkproc_sleep_ticks = 4.0f;
+    aproc->vtbl->sleep();
+    object->pos_vel = saved_velocity;
+    object->ang_vel = saved_angular_velocity;
+
+    camera_normal = (Vec*)&Camera->frame->modelling.pos;
+    normalize_v3(camera_normal);
+    reflection = 2.0f *
+        (object->pos_vel.x * camera_normal->x +
+         object->pos_vel.y * camera_normal->y +
+         object->pos_vel.z * camera_normal->z);
+    object->pos_vel.x -= camera_normal->x * reflection;
+    object->pos_vel.y -= camera_normal->y * reflection;
+    object->pos_vel.z -= camera_normal->z * reflection;
+    v3_add_v3(&object->pos, &object->pos, &object->pos_vel);
+    scale_v3(
+        &object->pos_vel, &object->pos_vel, pdata->velocity_scale);
+    return -1.0f;
 }
 
 /* Soft ceiling: is_point_in_fortress_exclusion_zone ~83.08% -- bool emit. */
