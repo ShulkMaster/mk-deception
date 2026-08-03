@@ -1,6 +1,9 @@
 #ifndef MW_MWFILE_H
 #define MW_MWFILE_H
 
+typedef struct _mwFile _mwFile;
+typedef struct mwFileCommand mwFileCommand;
+
 typedef enum mwTargetMemAlign {
     MW_TARGET_MEM_ALIGN_DEFAULT = 0
 } mwTargetMemAlign;
@@ -22,16 +25,23 @@ typedef int (*mwFileErrorCallback)(int operation, int error);
 
 typedef union mwFileAsyncValue {
     void* pointer;
+    _mwFile* file;
     unsigned long bytes;
 } mwFileAsyncValue;
 
-typedef struct mwFileAsyncResult {
+typedef struct _mwFileAsyncResult {
     mwFileAsyncValue value;
     int error;
-} mwFileAsyncResult;
+} _mwFileAsyncResult;
 
-typedef void (*mwFileCallback)(void* command, mwFileAsyncResult* result,
+typedef _mwFileAsyncResult mwFileAsyncResult;
+
+typedef void (*mwFileCallback)(mwFileCommand* command, mwFileAsyncResult result,
                                void* arg);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void mwFileGetDefaultInitParam(mwFileInitParam* param);
 int mwFileInit(mwFileInitParam* param);
@@ -39,19 +49,30 @@ int mwFileMountPath(const char* mount, const char* path);
 int mwFileSetErrorCallback(const char* mount, mwFileErrorCallback callback,
                            void* arg);
 void mwFileTick(void);
-void* mwFileOpenAsync(const char* path, int flags, mwFileCallback callback,
-                      void* arg);
-void* mwFileCloseAsync(void* file, int flags, mwFileCallback callback);
-void* mwFileReadAsync(void* file, long long offset, void* buffer,
-                      int length, int count, mwFileCallback callback, void* arg);
-void* mwFileWriteAsync(void* file, long long offset, void* buffer,
-                       int length, int count, mwFileCallback callback, void* arg);
-unsigned char mwFileIsCommandCompleted(void* command,
+int mwFileClose(_mwFile* file);
+_mwFile* mwFileOpen(const char* path, int flags);
+mwFileCommand* mwFileOpenAsync(const char* path, int flags,
+                               mwFileCallback callback, void* arg);
+mwFileCommand* mwFileCloseAsync(_mwFile* file, int flags,
+                                mwFileCallback callback);
+mwFileCommand* mwFileReadAsync(_mwFile* file, long long offset, void* buffer,
+                               unsigned long length, int count,
+                               mwFileCallback callback, void* arg);
+mwFileCommand* mwFileWriteAsync(_mwFile* file, long long offset, void* buffer,
+                                unsigned long length, int count,
+                                mwFileCallback callback, void* arg);
+unsigned char mwFileIsCommandCompleted(mwFileCommand* command,
                                        mwFileAsyncResult* result);
-void mwFileAbortCommand(void* command);
-void mwFileFreeCommand(void* command);
-mwFileAsyncResult mwFileTell(void* file);
-mwFileAsyncResult mwFileSeek(void* file, long long offset, int origin);
+mwFileAsyncResult mwFileWaitForCompletion(mwFileCommand* command);
+void mwFileAbortCommand(mwFileCommand* command);
+void mwFileFreeCommand(mwFileCommand* command);
+mwFileAsyncResult mwFileTell(_mwFile* file);
+mwFileAsyncResult mwFileSeek(_mwFile* file, long long offset, int origin);
+long long mwFileGetSize(_mwFile* file);
 int mwFileOpenModeToFlags(const char* mode);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

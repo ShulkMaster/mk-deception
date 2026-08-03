@@ -1,7 +1,5 @@
-extern "C" {
-#include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
-}
+#include "mw/mwMemNewDelete.h"
 
 void operator delete(void* ptr) {
     if (ptr != 0) {

@@ -211,6 +211,10 @@ struct _mwMemHeap {
   u8 pad7A[6];                /**< Retail offsets 0x7A-0x7F. */
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern _mwMemHeap *HeapList;
 extern _mwMemHeap *SystemHeap;
 extern _mwMemHeap *mwMemSystemOverflowHeap;
@@ -257,5 +261,9 @@ int mwMemSystemCreateSystemHeap(void *buffer, u32 size,
 _mwMemHeap *mwMemExtSystemHeapCreate(_mwMemHeap *parent, void *buffer, u32 size,
                                      const char *name);
 int mwMemSystemIsCreated(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

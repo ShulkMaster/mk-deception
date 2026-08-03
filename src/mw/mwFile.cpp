@@ -1,16 +1,7 @@
-struct mwFileAsyncResult {
-    void* value;
-    int error;
-};
+#include "mw/mwFile.h"
 
-extern "C" void* mwFileCloseAsync(void* file, int flags, void* callback);
-extern "C" void* mwFileOpenAsync(
-    const char* path, int flags, void* callback, void* callback_data);
-extern "C" mwFileAsyncResult mwFileWaitForCompletion(void* command);
-extern "C" void mwFileFreeCommand(void* command);
-
-extern "C" int mwFileClose(void* file) {
-    void* command;
+int mwFileClose(_mwFile* file) {
+    mwFileCommand* command;
     mwFileAsyncResult result;
 
     command = mwFileCloseAsync(file, 0, 0);
@@ -20,11 +11,11 @@ extern "C" int mwFileClose(void* file) {
 
     result = mwFileWaitForCompletion(command);
     mwFileFreeCommand(command);
-    return (int)result.value;
+    return (int)result.value.bytes;
 }
 
-extern "C" void* mwFileOpen(const char* path, int flags) {
-    void* command;
+_mwFile* mwFileOpen(const char* path, int flags) {
+    mwFileCommand* command;
     mwFileAsyncResult result;
 
     command = mwFileOpenAsync(path, flags, 0, 0);
@@ -34,5 +25,5 @@ extern "C" void* mwFileOpen(const char* path, int flags) {
 
     result = mwFileWaitForCompletion(command);
     mwFileFreeCommand(command);
-    return result.value;
+    return result.value.file;
 }

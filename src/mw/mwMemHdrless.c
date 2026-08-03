@@ -4,7 +4,7 @@
 
 #define ALIGN_UP_16(value) (((value) + 0xF) & ~0xFU)
 
-/* Soft ceiling: ~95.22% -- initial leaf-register coloring only. */
+/* Soft ceiling: ~99.13% -- initial leaf-register coloring only. */
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* header;
     u32 block_prefix;
@@ -17,7 +17,8 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     block_size = heap->blockSize;
     header_size = block_prefix - sizeof(MwMemUsedHeader);
     header = mwMemHeaderBefore(block, block_prefix);
-    header->allocationSize = block_size + header_size;
+    header_size += block_size;
+    header->allocationSize = header_size;
     header->prefixSize = 0;
     header->heapIndex = 0;
     header->alignmentPadding = 0;
@@ -37,17 +38,16 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     }
 }
 
-/* Soft ceiling: ~84.75% -- allocation-local coloring and store scheduling. */
+/* Soft ceiling: ~91.27% -- allocation-local coloring and store scheduling. */
 void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
-    u32 requested_size;
     int requested_alignment;
     u32 aligned_size;
     u32 block_size;
+    u32 allocation_size;
     MwMemUsedHeader* header;
 
-    requested_size = size;
-    if (requested_size == 0) {
-        requested_size = 0x10;
+    if (size == 0) {
+        size = 0x10;
     }
     requested_alignment = privGetAlignFromMwMemFlags(flags);
     if (privIsAlignValid(requested_alignment) == 0) {
@@ -56,11 +56,12 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     if (requested_alignment > privGetAlignFromMwMemFlags(heap->flags)) {
         return 0;
     }
-    aligned_size = ALIGN_UP_16(requested_size);
+    aligned_size = ALIGN_UP_16(size);
     block_size = heap->blockSize;
     if (aligned_size > block_size) {
         return 0;
     }
+    allocation_size = block_size + heap->blockPrefixSize;
     header = heap->freeList;
     if (header != 0) {
         heap->freeList = header->next;
@@ -70,7 +71,7 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     if (header == 0) {
         return 0;
     }
-    request->allocationSize = block_size + heap->blockPrefixSize;
+    request->allocationSize = allocation_size;
     request->alignmentPadding = heap->blockPrefixSize;
     request->allocationFlags = flags;
     request->originHeap = heap;
@@ -147,18 +148,17 @@ void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params) 
     hdrlessHeapResetHeap(heap);
 }
 
-/* Soft ceiling: ~97.29% -- equivalent arithmetic GPR assignment. */
+/* Soft ceiling: ~97.71% -- equivalent arithmetic GPR assignment. */
 u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params) {
     u32 alignment;
     u32 alignment_mask;
     u32 block_size;
-    u32 heap_size;
 
     alignment = 1 << privGetAlignFromMwMemFlags(params->flags);
     alignment_mask = alignment - 1;
-    block_size = ALIGN_UP_16(params->blockSize);
-    block_size = (block_size + alignment_mask) & ~alignment_mask;
-    heap_size = params->blockCount * block_size;
-    heap_size += alignment;
-    return heap_size + 0x70;
+    block_size =
+        (ALIGN_UP_16(params->blockSize) + alignment_mask) & ~alignment_mask;
+    block_size *= params->blockCount;
+    block_size += alignment;
+    return block_size + 0x70;
 }
