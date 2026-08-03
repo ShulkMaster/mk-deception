@@ -1,18 +1,11 @@
 #include "libmkparticle/gc_2d.h"
 #include "libmkparticle/gc_state.h"
 #include "libmkparticle/pfx_rw_types.h"
+#include "dolphin/gx.h"
+#include "platform/display_metrics.h"
+#include "runtime/cstring.h"
 
-void* memset(void* dst, int c, unsigned long n);
-
-void GXClearVtxDesc(void);
-void GXSetVtxAttrFmt(int vtxfmt, int attr, int cnt, int type, int frac);
-void GXSetVtxDesc(int attr, int type);
-void GXSetNumChans(int n);
-void GXSetNumTevStages(int n);
-void GXBegin(int primitive, int vtxfmt, int nverts);
 void _rwDlTextureSet(RwTexture* texture, int mapid);
-
-extern int screen_height;
 
 /* WGPIPE at 0xCC008000 -- mixed short/word/float FIFO writes. */
 #define WGPIPE_U16 (*(volatile unsigned short*)0xCC008000)
@@ -56,8 +49,6 @@ void native2d_reset_renderstate(void) {
  * MMIO base regressed to ~92.5%; narrowing y compiled identically. Stop.
  */
 #if !defined(TARGET_PC)
-#pragma optimization_level 2
-#pragma scheduling off
 #endif
 void native2d_draw(Pfx2dObj* obj) {
     Pfx2dObj* o;
@@ -126,8 +117,6 @@ void native2d_draw(Pfx2dObj* obj) {
  * loses mtctr ~89%). Full mismatch remains one allocation phase. Stop.
  */
 #if !defined(TARGET_PC)
-#pragma optimization_level 4
-#pragma scheduling off
 #endif
 void native2d_instance_geometry(Pfx2dObj* obj) {
     float tex_w;
@@ -193,7 +182,6 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
 }
 
 #if !defined(TARGET_PC)
-#pragma scheduling off
 #endif
 void native2d_init_object(Pfx2dObj* obj) {
     /* Retail: addi r3,r3,0x74 ; li r4,0 ; li r5,0x44 ; bl memset.
@@ -202,5 +190,4 @@ void native2d_init_object(Pfx2dObj* obj) {
     memset(obj, 0, 0x44);
 }
 #if !defined(TARGET_PC)
-#pragma scheduling reset
 #endif
