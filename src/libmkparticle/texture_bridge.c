@@ -1,8 +1,7 @@
 #include "libmkparticle/texture_bridge.h"
 
 #include "libmkparticle/rw_engine.h"
-
-void _rwDlTextureRasterFlush(void);
+#include "rw/gamecube.h"
 
 static int pfxaux_set_render_state(int state, int value) {
     return RwEngineInstance->fpRenderStateSet(state, value);
