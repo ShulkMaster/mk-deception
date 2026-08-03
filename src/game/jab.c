@@ -1,4 +1,6 @@
+#include "libmkparticle/texture_anim.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/mk_particle.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
@@ -10,6 +12,7 @@
 #include "runtime/image.h"
 #include "runtime/light.h"
 #include "runtime/utils.h"
+#include "platform/main.h"
 
 #define FLASH_SCREEN_PID 0x2098
 #define DRAGON_KING_SHAKE_PID 0xA029
@@ -27,7 +30,15 @@ extern MkPtr* clone_light_list;
 extern MkPtr* point_light_list;
 extern PlyrPdata* g_plyr_pdata;
 extern unsigned int g_kabal_dash_react_pfx_handles[9];
+extern const unsigned char gSmokeTable[0x58];
+extern const int skeleton_start_bone_id[2][12];
+extern const int skeleton_end_bone_id[2][12];
+extern const float skeleton_radius_table[12];
 extern float game_speed;
+extern const unsigned char jab_pfx_table[0x3E0];
+static MkPfx* p_grinder_crush_blood_pfx;
+static MkPfx* p_grinder_crush_chunks_pfx;
+static float grinder_meat_size = 0.3f;
 
 typedef struct FlashScreenPdata {
     MkHdr hdr;
@@ -60,18 +71,53 @@ typedef struct JabProcSleepVtable {
 
 typedef struct JabBoneMatcherState {
     MkHdr hdr;
-    unsigned char flags_08;
+    union {
+        unsigned char flags_08;
+        struct {
+            unsigned char inactive : 1;
+            unsigned char copy_bone_matrix : 1;
+            unsigned char copy_clone_matrix : 1;
+            unsigned char preserve_bone_matrix : 1;
+            unsigned char copy_parent_angles : 1;
+            unsigned char flip_parent_angle_y : 1;
+            unsigned char release_parent_weight : 1;
+            unsigned char blend_child_transform : 1;
+        } flags_08_bits;
+    };
 } JabBoneMatcherState;
 
 typedef struct JabSplatterState {
     char pad00[0x40];
-    unsigned char flags;
+    union {
+        unsigned char flags;
+        struct {
+            unsigned char pad_high : 3;
+            unsigned char bit4 : 1;
+            unsigned char bit3 : 1;
+            unsigned char pad_low : 3;
+        } flags_bits;
+    };
 } JabSplatterState;
 
 typedef struct JabObjectRef {
     MkHdr* object;
     unsigned int instance;
 } JabObjectRef;
+
+#define RESOLVE_JAB_OBJECT(result, object, expected_instance)              \
+    do {                                                                  \
+        MkObj* candidate_;                                                \
+        candidate_ = (object);                                            \
+        if (candidate_ != 0) {                                            \
+            if (candidate_->hdr.instance == (expected_instance)) {        \
+                (result) = candidate_;                                    \
+            } else {                                                      \
+                (result) = 0;                                             \
+            }                                                             \
+        } else {                                                          \
+            (result) = 0;                                                 \
+        }                                                                 \
+    } while (0)
 
 typedef struct JabPointLightPdata {
     MkHdr hdr;
@@ -106,8 +152,8 @@ typedef union JabFloatBits {
 } JabFloatBits;
 
 JabBoneMatcherState* start_bone_matcher(
-    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
-    float blend);
+    float blend, MkObj* parent, int parent_bone, MkObj* child,
+    int child_bone);
 void bone_matcher_parent_set_offset(
     JabBoneMatcherState* matcher, const float* offset);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
@@ -118,6 +164,26 @@ int am_i_flipped(void);
 void* load_named_model_for_player(
     char* name, int player, int object_type, int flags);
 void fx_reset_emit(unsigned int effect);
+int snd_req(int sound_id);
+int create_pfx(
+    int id, int process_id, float (*entry)(void), MkPfx** effect,
+    const void* definition, const char* name);
+PfxEmitter* pfx_get_emitter(PfxVm* vm, int index);
+void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
+float pfx_sh_grinder_crush_blood(void);
+float pfx_sh_grinder_crush_chunks(void);
+float pfx_sh_grinder_meat_spew(void);
+float pfx_kenshi_lift_smoke(void);
+float pfx_react_falling_attach_smoke_to_bones_proc(void);
+MkObj* get_mkobj_frame(int type, void* frame);
+void pfxhandle_spawn_at_bid(const char* name, MkObj* object, int bone);
+/* Retail call sites use both three- and five-argument local declarations. */
+void spawn_bld_splat();
+unsigned int fx_by_owner(const char* name, int owner);
+int pfx_plyr_bankowner(PlyrInfo* player);
+unsigned int pfxhandle_spawn_at_bid_next(
+    unsigned int effect, MkObj* object, int bone);
+MkProc* find_mkproc_pid(int process_id);
 
 /* Retail TU-local; its process body remains in the split assembly. */
 float p_flash_screen(void);
@@ -148,13 +214,22 @@ void initialize_clone_lights(LightDef** definitions) {
 MkObj* jab_spawn_point_light_at_world_pos(
     LightDef* definition, const Vec* position) {
     MkObj* light;
+    MkHdr* light_hdr;
 
     light = load_light(definition, &point_light_list, 0);
     if (light != 0) {
-        light->pos = *position;
-        update_mkobj(light != 0 ? as_mkhdr(&light->hdr) : 0);
+        light->pos.x = position->x;
+        light->pos.y = position->y;
+        light->pos.z = position->z;
+        if (light != 0) {
+            light_hdr = as_mkhdr(&light->hdr);
+        } else {
+            light_hdr = 0;
+        }
+        update_mkobj(light_hdr);
+        return light;
     }
-    return light;
+    return 0;
 }
 
 MkObj* jab_attach_point_light_to_obj_bone(
@@ -195,21 +270,131 @@ float p_jab_point_light_tracker(void) {
     Vec position;
 
     pdata = (JabPointLightPdata*)pdata_of_proc(aproc);
-    tracked_object = pdata->tracked_object;
-    if (tracked_object == 0 ||
-        tracked_object->hdr.instance != pdata->tracked_object_instance) {
+    RESOLVE_JAB_OBJECT(
+        tracked_object, pdata->tracked_object, pdata->tracked_object_instance);
+    if (tracked_object == 0) {
         return -1.0f;
     }
 
-    light = pdata->light;
-    if (light == 0 ||
-        light->hdr.instance != pdata->light_instance) {
+    RESOLVE_JAB_OBJECT(light, pdata->light, pdata->light_instance);
+    if (light == 0) {
         return -1.0f;
     }
 
     get_bone_world_pos(tracked_object, pdata->bone, &position);
-    light->pos = position;
+    light->pos.x = position.x;
+    light->pos.y = position.y;
+    light->pos.z = position.z;
     update_obj_pos(light);
+    return 1.0f;
+}
+
+float p_flash_screen(void) {
+    FlashScreenPdata* pdata;
+    ScreenObj* flash;
+    float elapsed;
+    int visible;
+    int flash_count;
+
+    elapsed = 0.0f;
+    pdata = (FlashScreenPdata*)pdata_of_proc(aproc);
+    visible = 1;
+    flash_count = 0;
+    flash = load_named_2d_pfxobj(
+        0, 0x2056, "WHITE_FADEBOX", 0, 0xD);
+    if (flash != 0) {
+        flash->x = -50;
+        flash->y = -50;
+        flash->priority = 0x13;
+        flash->draw_flags.on = 1;
+        flash->scale_x = 50.0f;
+        flash->scale_y = 40.0f;
+    }
+    snd_req(0x1CA);
+
+    while (flash_count < pdata->color) {
+        if (visible != 0) {
+            pfx_2d_obj_set_alpha(flash, 0xFF);
+            elapsed += get_game_speed();
+            if (elapsed >= pdata->duration) {
+                elapsed = 0.0f;
+                visible = 0;
+                flash_count++;
+                continue;
+            }
+        } else {
+            pfx_2d_obj_set_alpha(flash, 0);
+            elapsed += get_game_speed();
+            if (elapsed >= pdata->intensity) {
+                elapsed = 0.0f;
+                visible = 1;
+                if (flash_count % 2 != 0) {
+                    snd_req(0x1C9);
+                } else {
+                    snd_req(0x1CA);
+                }
+                continue;
+            }
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
+    if (flash->instance != 0) {
+        ((void (*)(ScreenObj*))flash->vtbl->destroy)(flash);
+    }
+    return -1.0f;
+}
+
+float p_dk_death_shake(void) {
+    static int moving_up = 1;
+    DragonKingShakePdata* pdata;
+    MkObj* object;
+
+    pdata = (DragonKingShakePdata*)pdata_of_proc(aproc);
+    object = pdata->object;
+    if (object != 0 && object->hdr.instance != pdata->object_instance) {
+        object = 0;
+    }
+    if (object == 0) {
+        return -1.0f;
+    }
+
+    if (moving_up != 0) {
+        object->pos.y += pdata->speed;
+        if (object->pos.y - pdata->base_y > pdata->distance) {
+            moving_up = 0;
+        }
+    } else {
+        object->pos.y -= pdata->speed;
+        if (object->pos.y - pdata->base_y < 0.0f) {
+            moving_up = 1;
+        }
+    }
+    update_mkobj(object != 0 ? as_mkhdr(&object->hdr) : 0);
+    return 1.0f;
+}
+
+float p_bind_obj_to_obj_bone(void) {
+    JadeBindPdata* pdata;
+    MkObj* parent;
+    MkObj* child;
+
+    pdata = (JadeBindPdata*)pdata_of_proc(aproc);
+    parent = pdata->parent;
+    if (parent != 0 && parent->hdr.instance != pdata->parent_instance) {
+        parent = 0;
+    }
+    child = pdata->child;
+    if (child != 0 && child->hdr.instance != pdata->child_instance) {
+        child = 0;
+    }
+    if (parent == 0 || child == 0) {
+        return -1.0f;
+    }
+
+    get_bone_world_pos(parent, pdata->parent_bone, &child->pos);
+    update_mkobj(child != 0 ? as_mkhdr(&child->hdr) : 0);
     return 1.0f;
 }
 
@@ -259,6 +444,10 @@ void jab_stop_dragon_king_shake(void) {
     }
 }
 
+/*
+ * Soft ceiling: jab_attach_wiff_to_sobj ~67.64% - all calls and argument
+ * registers agree; only NV move order and stmw/lmw selection differ.
+ */
 void jab_attach_wiff_to_sobj(
     MkObj* object, int sobj_id, const char* wiff_name,
     const char* texture_name, int section, int frame, float rate) {
@@ -280,21 +469,23 @@ void jab_destroy_drink_obj_in_hand(void) {
     }
 }
 
+/*
+ * Soft ceiling: jab_attach_drink_obj_to_hand ~79.53% - the body agrees with
+ * retail; only parameter move order and stmw/lmw versus split saves differ.
+ */
 void jab_attach_drink_obj_to_hand(
     MkObj* drink, const float* offset, const Vec* angles) {
     MkObj* player;
     JabBoneMatcherState* matcher;
-    MkBone* root_bone;
 
     player = get_my_plyr_obj();
     drink->light_flags = player->light_flags;
     specskin_initialize_clump(drink->clump);
-    matcher = start_bone_matcher(player, 0x19, drink, 0, 0.0f);
+    matcher = start_bone_matcher(0.0f, player, 0x19, drink, 0);
     if (matcher != 0) {
-        matcher->flags_08 |= 0x40;
-        root_bone = drink->bones[0];
-        YXZ_angles_to_MKMATRIX(angles, root_bone->parent_matrix);
-        YXZ_angles_to_quat(angles, &root_bone->rotation);
+        matcher->flags_08_bits.copy_bone_matrix = 1;
+        YXZ_angles_to_MKMATRIX(angles, drink->bones[0]->parent_matrix);
+        YXZ_angles_to_quat(angles, &drink->bones[0]->rotation);
         bone_matcher_parent_set_offset(matcher, offset);
     }
 }
@@ -312,9 +503,9 @@ void jab_face_obj(MkObj* object, const Vec* direction) {
     }
 
     matrix = object->field_24;
-    matrix->up.x = 0.0f;
-    matrix->up.y = 0.0f;
     matrix->up.z = 0.0f;
+    matrix->up.y = 0.0f;
+    matrix->up.x = 0.0f;
     matrix->up.y = 1.0f;
     matrix->at.x = direction->x;
     matrix->at.y = direction->y;
@@ -351,20 +542,102 @@ void jab_face_obj(MkObj* object, const Vec* direction) {
         matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
 }
 
-void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
-    float delta_x;
-    float delta_y;
-    float delta_z;
-    float scaled_ticks;
-    float ticks_left;
+void jab_setup_kiss_emitter_obj(MkPfx* effect) {
+    JabFloatBits inverse;
+    RwMatrix* matrix;
+    Vec mouth_position;
+    Vec head_position;
+    float inverse_length;
+    float length_sq;
+    float half_x;
+    float newton;
+    int mouth_bone;
 
-    object->flags_08 |= MKOBJ_FLAG_SCALE_ACTIVE;
+    if (plyr_obj == 0 || effect == 0) {
+        return;
+    }
+
+    matrix = (RwMatrix*)effect->bound_obj;
+    mouth_bone = am_i_flipped() != 0 ? 0x19 : 0x18;
+    get_bone_world_pos(plyr_obj, mouth_bone, &mouth_position);
+    get_bone_world_pos(plyr_obj, 0xD, &head_position);
+
+    matrix->at.x = mouth_position.x - head_position.x;
+    matrix->at.y = mouth_position.y - head_position.y;
+    matrix->at.z = mouth_position.z - head_position.z;
+    length_sq = matrix->at.x * matrix->at.x +
+                matrix->at.y * matrix->at.y +
+                matrix->at.z * matrix->at.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    matrix->at.x *= inverse_length;
+    matrix->at.y *= inverse_length;
+    matrix->at.z *= inverse_length;
+
+    matrix->up.x = 0.0f;
+    matrix->up.y = 1.0f;
+    matrix->up.z = 0.0f;
+    matrix->right.x =
+        matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
+    matrix->right.y =
+        matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
+    matrix->right.z =
+        matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
+
+    length_sq = matrix->right.x * matrix->right.x +
+                matrix->right.y * matrix->right.y +
+                matrix->right.z * matrix->right.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    matrix->right.x *= inverse_length;
+    matrix->right.y *= inverse_length;
+    matrix->right.z *= inverse_length;
+
+    matrix->up.x =
+        matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
+    matrix->up.y =
+        matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
+    matrix->up.z =
+        matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
+    matrix->pos.x = mouth_position.x;
+    matrix->pos.y = mouth_position.y;
+    matrix->pos.z = mouth_position.z;
+}
+
+/*
+ * Soft ceiling: obj_scale_over_time ~81.51% - scalar operations and loop CFG
+ * agree; remaining differences are FPR allocation and save/restore emission.
+ */
+void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
+    float ticks_left;
+    float delta_z;
+    float delta_y;
+    float delta_x;
+    float scaled_ticks;
+
+    ticks_left = ticks;
+    object->flags_08_bits.scale_active = 1;
     scaled_ticks = ticks * game_speed;
     delta_x = (target->x - object->scale.x) / scaled_ticks;
     delta_y = (target->y - object->scale.y) / scaled_ticks;
     delta_z = (target->z - object->scale.z) / scaled_ticks;
 
-    ticks_left = ticks;
     while (ticks_left > 0.0f) {
         object->scale.x += delta_x;
         if (object->scale.x < 0.0f) {
@@ -383,9 +656,15 @@ void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
         ((JabProcSleepVtable*)aproc->vtbl)->sleep();
     }
 
-    object->scale = *target;
+    object->scale.x = target->x;
+    object->scale.y = target->y;
+    object->scale.z = target->z;
 }
 
+/*
+ * Soft ceiling: jab_release_jade_boomerang ~81.10% - the mutation/destruction
+ * body agrees; only expanded latch branches and stmw/lmw emission differ.
+ */
 void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     JadeBindPdata* pdata;
     MkObj* boomerang;
@@ -404,8 +683,8 @@ void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
             boomerang = 0;
         }
         if (boomerang != 0) {
-            boomerang->flags_08 |= MKOBJ_FLAG_JADE_ATTACHED;
-            boomerang->flags_08 |= MKSOBJ_FLAG_UPDATE_ANGULAR;
+            boomerang->flags_08_bits.angular_velocity_enabled = 1;
+            boomerang->flags_08_bits.rotation_enabled = 1;
             boomerang->ang_vel.x = 0.3f;
         }
         if (proc->instance != 0) {
@@ -490,31 +769,30 @@ void jab_start_jade_boomerang_throw(
 float p_kabal_dash_react_pfx(void) {
     int i;
 
-    if (g_plyr_pdata != 0 &&
-        (g_plyr_pdata->state == KABAL_DASH_REACTION_STATE ||
-         g_plyr_pdata->previous_state == KABAL_DASH_REACTION_STATE)) {
-        return 1.0f;
-    }
-
-    for (i = 0; i < 9; i++) {
-        if (g_kabal_dash_react_pfx_handles[i] != 0) {
-            fx_reset_emit(g_kabal_dash_react_pfx_handles[i]);
+    if (g_plyr_pdata == 0 ||
+        (g_plyr_pdata->state != KABAL_DASH_REACTION_STATE &&
+         g_plyr_pdata->previous_state != KABAL_DASH_REACTION_STATE)) {
+        for (i = 0; i < 9; i++) {
+            if (g_kabal_dash_react_pfx_handles[i] != 0) {
+                fx_reset_emit(g_kabal_dash_react_pfx_handles[i]);
+            }
+            g_kabal_dash_react_pfx_handles[i] = 0;
         }
-        g_kabal_dash_react_pfx_handles[i] = 0;
+        g_plyr_pdata = 0;
+        return -1.0f;
     }
-    g_plyr_pdata = 0;
-    return 0.0f;
+    return 1.0f;
 }
 
 void sh_set_grinder_speed(float speed) {
     MkSobj* grinder;
 
     grinder = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
-    grinder->flags_08 |= MKSOBJ_FLAG_UPDATE_ANGULAR;
+    grinder->flags_08_bits.angular_velocity_enabled = 1;
     grinder->ang_vel.y = speed;
 
     grinder = obj_find_sobj_by_id(g_game_info.bgnd_obj, 2);
-    grinder->flags_08 |= MKSOBJ_FLAG_UPDATE_ANGULAR;
+    grinder->flags_08_bits.angular_velocity_enabled = 1;
     grinder->ang_vel.y = -speed;
 }
 
@@ -533,6 +811,1230 @@ void sh_spawn_grinder_crush_pfx(void) {
     }
 }
 
+void sh_start_grinder_crush_blood(const Vec* position) {
+    MkPfx* effect;
+    MkObj* emitter_object;
+
+    create_pfx(
+        0xA008, 0xA00E, pfx_sh_grinder_crush_blood, &effect,
+        &jab_pfx_table[0x1F0], "C - Grinder Crush Blood");
+    if (effect != 0) {
+        set_pfx_texture(
+            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F000E);
+        pfx_texture_animate(
+            (PfxVm*)&effect->matrix, 1.0f, 0x80, 0x2A, 0x40, 6);
+        effect->emitter_enabled = 1;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 15.0f;
+        effect->field_90 = 0x12C;
+        effect->field_28 = -50.0f;
+        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+        emitter_object->pos.x = position->x;
+        emitter_object->pos.y = position->y;
+        emitter_object->pos.z = position->z;
+        p_grinder_crush_blood_pfx = effect;
+    }
+}
+
+void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
+    MkPfx* effect;
+    MkObj* emitter_object;
+
+    create_pfx(
+        0xA009, 0xA010, pfx_sh_grinder_crush_chunks, &effect,
+        &jab_pfx_table[0x26C], "C - Grinder Crush Chunks");
+    if (effect != 0) {
+        set_pfx_texture(
+            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0013);
+        pfx_texture_animate(
+            (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
+        effect->emitter_enabled = 1;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 5.0f;
+        effect->field_90 = 0x12C;
+        effect->field_28 = -50.0f;
+        effect->field_2B8 = chunk_type;
+        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+        emitter_object->pos.x = position->x;
+        emitter_object->pos.y = position->y;
+        emitter_object->pos.z = position->z;
+        p_grinder_crush_chunks_pfx = effect;
+    }
+}
+
+void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
+    MkPfx* effect;
+    MkObj* emitter_object;
+
+    create_pfx(
+        0xA009, 0xA010, pfx_sh_grinder_meat_spew, &effect,
+        &jab_pfx_table[0x364], "C - Grinder Chunk Spew");
+    if (effect != 0) {
+        set_pfx_texture(
+            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0013);
+        pfx_texture_animate(
+            (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
+        effect->emitter_enabled = 1;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
+        effect->field_90 = 0x82;
+        effect->field_28 = -50.0f;
+        effect->field_298 = 120.0f;
+        effect->field_2B8 = chunk_type;
+        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+        emitter_object->pos.x = position->x;
+        emitter_object->pos.y = position->y;
+        emitter_object->pos.z = position->z;
+    }
+}
+
+void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
+    MkPfx* effect;
+    MkObj* emitter_object;
+
+    create_pfx(
+        0xA009, 0xA010, pfx_sh_grinder_meat_spew, &effect,
+        &jab_pfx_table[0x2E8], "C - Grinder Meat Spew");
+    if (effect != 0) {
+        set_pfx_texture(
+            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0010);
+        pfx_texture_animate(
+            (PfxVm*)&effect->matrix, 4.0f, 0x80, 0x20, 0x20, 0x10);
+        effect->emitter_enabled = 1;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
+        effect->field_90 = 0x82;
+        effect->field_28 = -50.0f;
+        effect->field_298 = 120.0f;
+        effect->field_2B8 = chunk_type;
+        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+        emitter_object->pos.x = position->x;
+        emitter_object->pos.y = position->y;
+        emitter_object->pos.z = position->z;
+    }
+}
+
+void sh_spawn_grinder_crush_blood(void) {
+    JabFloatBits inverse;
+    MkPfx* effect;
+    PfxVm* vm;
+    PfxEmitter* emitter;
+    MkObj* emitter_object;
+    Vec* positions;
+    Vec* velocities;
+    float* scales;
+    float* angles;
+    float* zero_fields;
+    unsigned char* colors;
+    int field_stride;
+    int vector_stride;
+    int particle_index;
+    int index;
+    float length_sq;
+    float inverse_length;
+    float half_x;
+    float newton;
+    float speed;
+
+    effect = p_grinder_crush_blood_pfx;
+    emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+    vm = (PfxVm*)&effect->matrix;
+    field_stride = vm->transforms[0].particle_field_stride;
+    vector_stride = vm->particle_vector_stride;
+    emitter = pfx_get_emitter(vm, 0);
+    if (emitter->lifetime <
+        (float)(vm->particle_capacity - vm->particle_cursor + 1)) {
+        velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
+        positions = (Vec*)pfx_get_field(vm, -2, 0x100);
+        zero_fields = (float*)pfx_get_field(vm, -2, 0x301);
+        angles = (float*)pfx_get_field(vm, -2, 0x103);
+        scales = (float*)pfx_get_field(vm, -2, 0x102);
+        colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
+
+        particle_index = vm->particle_cursor;
+        positions = (Vec*)((unsigned char*)positions +
+                           field_stride * particle_index);
+        scales = (float*)((unsigned char*)scales +
+                          field_stride * particle_index);
+        angles = (float*)((unsigned char*)angles +
+                          field_stride * particle_index);
+        colors += field_stride * particle_index;
+        velocities = (Vec*)((unsigned char*)velocities +
+                            vector_stride * particle_index);
+        zero_fields = (float*)((unsigned char*)zero_fields +
+                               vector_stride * particle_index);
+        vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->lifetime;
+
+        index = 0;
+        while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+            positions->x = emitter_object->pos.x + sfrand(0.5f);
+            positions->y = emitter_object->pos.y + sfrand(0.5f);
+            positions->z = emitter_object->pos.z + sfrand(0.3f);
+
+            velocities->x = sfrand(1.0f);
+            velocities->y = 0.7f + sfrand(0.7f);
+            velocities->z = -1.0f - frand(0.5f);
+            length_sq = velocities->x * velocities->x +
+                        velocities->y * velocities->y +
+                        velocities->z * velocities->z;
+            inverse_length = 0.0f;
+            if (length_sq > 0.0f) {
+                inverse.f = length_sq;
+                inverse.u = 0x5F375A00U - (inverse.u >> 1);
+                half_x = inverse.f * (length_sq * inverse.f);
+                newton = 3.0f - half_x;
+                inverse_length =
+                    0.0625f * inverse.f * newton *
+                    -((newton * (half_x * newton)) - 12.0f);
+            }
+            velocities->x *= inverse_length;
+            velocities->y *= inverse_length;
+            velocities->z *= inverse_length;
+            speed = 0.01f + frand(0.1f);
+            velocities->x *= speed;
+            velocities->y *= speed;
+            velocities->z *= speed;
+
+            *zero_fields = 0.0f;
+            *scales = 0.5f + sfrand(0.05f);
+            *angles = frand(6.2831855f);
+            colors[0] = 0x7D;
+            colors[1] = 0x7D;
+            colors[2] = 0x7D;
+            colors[3] = 0xFF;
+
+            positions = (Vec*)((unsigned char*)positions + field_stride);
+            scales = (float*)((unsigned char*)scales + field_stride);
+            angles = (float*)((unsigned char*)angles + field_stride);
+            colors += field_stride;
+            velocities = (Vec*)((unsigned char*)velocities + vector_stride);
+            zero_fields =
+                (float*)((unsigned char*)zero_fields + vector_stride);
+            index++;
+        }
+    }
+}
+
+float pfx_sh_grinder_crush_blood(void) {
+    MkPfx* effect;
+    PfxVm* vm;
+    MkHdr* emitter_object;
+    Vec* source_positions;
+    Vec* destination_positions;
+    Vec* source_velocities;
+    Vec* destination_velocities;
+    Vec* last_position;
+    Vec* last_velocity;
+    float* source_zero_fields;
+    float* destination_zero_fields;
+    float* source_scales;
+    float* destination_scales;
+    float* source_angles;
+    float* destination_angles;
+    float* last_zero_field;
+    float* last_scale;
+    float* last_angle;
+    unsigned char* source_colors;
+    unsigned char* destination_colors;
+    unsigned char* last_color;
+    int field_stride;
+    int vector_stride;
+    int last_index;
+    int index;
+    float delta_x;
+    float delta_y;
+    float delta_z;
+
+    effect = apfx;
+    emitter_object = pfx_get_emitter_obj(effect, 0);
+    if (g_game_info.bgnd_obj == 0) {
+        if (emitter_object->instance != 0) {
+            emitter_object->typed_vtbl->destroy(emitter_object);
+        }
+        return -1.0f;
+    }
+
+    vm = (PfxVm*)&effect->matrix;
+    source_velocities = (Vec*)pfx_get_field(vm, -1, 0x300);
+    destination_velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
+    source_zero_fields = (float*)pfx_get_field(vm, -1, 0x301);
+    destination_zero_fields = (float*)pfx_get_field(vm, -2, 0x301);
+    destination_positions = (Vec*)pfx_get_field(vm, -2, 0x100);
+    destination_angles = (float*)pfx_get_field(vm, -2, 0x103);
+    source_positions = (Vec*)pfx_get_field(vm, -1, 0x100);
+    source_scales = (float*)pfx_get_field(vm, -1, 0x102);
+    destination_scales = (float*)pfx_get_field(vm, -2, 0x102);
+    destination_colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
+    source_colors = (unsigned char*)pfx_get_field(vm, -1, 0x101);
+    source_angles = (float*)pfx_get_field(vm, -1, 0x103);
+
+    field_stride = vm->transforms[0].particle_field_stride;
+    vector_stride = vm->particle_vector_stride;
+    last_index = vm->particle_cursor - 1;
+    last_position = (Vec*)((unsigned char*)source_positions +
+                           field_stride * last_index);
+    last_color = source_colors + field_stride * last_index;
+    last_scale = (float*)((unsigned char*)source_scales +
+                          field_stride * last_index);
+    last_angle = (float*)((unsigned char*)source_angles +
+                          field_stride * last_index);
+    last_velocity = (Vec*)((unsigned char*)source_velocities +
+                           vector_stride * last_index);
+    last_zero_field = (float*)((unsigned char*)source_zero_fields +
+                               vector_stride * last_index);
+
+    index = 0;
+    while (index < vm->particle_cursor) {
+        source_colors[3] =
+            (unsigned char)(source_colors[3] - (int)(15.0f * game_speed));
+        if (source_colors[3] < 0x19) {
+            index--;
+            source_positions->x = last_position->x;
+            source_positions->y = last_position->y;
+            source_positions->z = last_position->z;
+            source_velocities->x = last_velocity->x;
+            source_velocities->y = last_velocity->y;
+            source_velocities->z = last_velocity->z;
+            source_colors[0] = last_color[0];
+            source_colors[1] = last_color[1];
+            source_colors[2] = last_color[2];
+            source_colors[3] = last_color[3];
+            *source_zero_fields = *last_zero_field;
+            *source_scales = *last_scale;
+            *source_angles = *last_angle;
+
+            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_color -= field_stride;
+            last_scale = (float*)((unsigned char*)last_scale - field_stride);
+            last_angle = (float*)((unsigned char*)last_angle - field_stride);
+            last_velocity =
+                (Vec*)((unsigned char*)last_velocity - vector_stride);
+            last_zero_field =
+                (float*)((unsigned char*)last_zero_field - vector_stride);
+            vm->particle_cursor--;
+        } else {
+            delta_x = source_velocities->x * game_speed;
+            delta_y = source_velocities->y * game_speed;
+            delta_z = source_velocities->z * game_speed;
+            destination_positions->x = source_positions->x + delta_x;
+            destination_positions->y = source_positions->y + delta_y;
+            destination_positions->z = source_positions->z + delta_z;
+            destination_velocities->x = source_velocities->x;
+            destination_velocities->y = source_velocities->y;
+            destination_velocities->z = source_velocities->z;
+            destination_velocities->y -= 0.001f;
+            *destination_zero_fields = *source_zero_fields + game_speed;
+            *destination_scales = *source_scales;
+            *destination_angles = *source_angles;
+            destination_colors[0] = source_colors[0];
+            destination_colors[1] = source_colors[1];
+            destination_colors[2] = source_colors[2];
+            destination_colors[3] = source_colors[3];
+
+            source_positions =
+                (Vec*)((unsigned char*)source_positions + field_stride);
+            destination_positions =
+                (Vec*)((unsigned char*)destination_positions + field_stride);
+            source_velocities =
+                (Vec*)((unsigned char*)source_velocities + vector_stride);
+            destination_velocities =
+                (Vec*)((unsigned char*)destination_velocities + vector_stride);
+            source_zero_fields =
+                (float*)((unsigned char*)source_zero_fields + vector_stride);
+            destination_zero_fields = (float*)((unsigned char*)destination_zero_fields +
+                                               vector_stride);
+            source_scales =
+                (float*)((unsigned char*)source_scales + field_stride);
+            destination_scales =
+                (float*)((unsigned char*)destination_scales + field_stride);
+            source_angles =
+                (float*)((unsigned char*)source_angles + field_stride);
+            destination_angles =
+                (float*)((unsigned char*)destination_angles + field_stride);
+            source_colors += field_stride;
+            destination_colors += field_stride;
+        }
+        index++;
+    }
+    return 1.0f;
+}
+
+void jab_kira_projectile_hand_explode(void) {
+    static const Vec ZERO_DIRECTION = {0.0f, 0.0f, 0.0f};
+    JabFloatBits inverse;
+    PlyrPdata* player_data;
+    MkObj* opponent;
+    MkObj* effect_object;
+    RwMatrix* matrix;
+    Vec direction;
+    float length_sq;
+    float inverse_length;
+    float half_x;
+    float newton;
+
+    direction = ZERO_DIRECTION;
+    if (plyr_obj == 0) {
+        return;
+    }
+    opponent = get_his_plyr_obj();
+    if (opponent == 0) {
+        return;
+    }
+    player_data = get_my_plyr_pdata();
+    if (player_data == 0 || player_data->character_id != 0x12) {
+        return;
+    }
+
+    effect_object = get_mkobj_frame(0xA010, 0);
+    if (effect_object == 0) {
+        return;
+    }
+    effect_object->flags_08_bits.airborne = 1;
+    matrix = effect_object->field_24;
+    direction.x = opponent->pos.x - plyr_obj->pos.x;
+    direction.z = opponent->pos.z - plyr_obj->pos.z;
+    length_sq = direction.x * direction.x + direction.z * direction.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    direction.x *= inverse_length;
+    direction.z *= inverse_length;
+
+    matrix->at.x = direction.x;
+    matrix->at.y = direction.y;
+    matrix->at.z = direction.z;
+    matrix->up.z = 0.0f;
+    matrix->up.x = 0.0f;
+    matrix->up.y = 1.0f;
+    matrix->right.x =
+        matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
+    matrix->right.y =
+        matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
+    matrix->right.z =
+        matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
+
+    length_sq = matrix->right.x * matrix->right.x +
+                matrix->right.y * matrix->right.y +
+                matrix->right.z * matrix->right.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    matrix->right.x *= inverse_length;
+    matrix->right.y *= inverse_length;
+    matrix->right.z *= inverse_length;
+    matrix->up.x =
+        matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
+    matrix->up.y =
+        matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
+    matrix->up.z =
+        matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
+
+    if (am_i_flipped() != 0) {
+        get_bone_world_pos(plyr_obj, 0x18, &matrix->pos_vec);
+    } else {
+        get_bone_world_pos(plyr_obj, 0x19, &matrix->pos_vec);
+    }
+    pfxhandle_spawn_at_bid("hand_explode", effect_object, 0x40000000);
+}
+
+float pfx_sh_grinder_crush_chunks(void) {
+    MkPfx* effect;
+    PfxVm* vm;
+    MkHdr* emitter_object;
+    Vec* source_positions;
+    Vec* destination_positions;
+    Vec* source_velocities;
+    Vec* destination_velocities;
+    Vec* last_position;
+    Vec* last_velocity;
+    float* source_timers;
+    float* destination_timers;
+    float* source_scales;
+    float* destination_scales;
+    float* source_angles;
+    float* destination_angles;
+    float* last_timer;
+    float* last_scale;
+    float* last_angle;
+    int* source_states;
+    int* destination_states;
+    int* last_state;
+    unsigned char* source_colors;
+    unsigned char* destination_colors;
+    unsigned char* last_color;
+    int field_stride;
+    int vector_stride;
+    int last_index;
+    int index;
+    float ground_height;
+    float old_velocity_y;
+    float delta_x;
+    float delta_y;
+    float delta_z;
+
+    effect = apfx;
+    emitter_object = pfx_get_emitter_obj(effect, 0);
+    if (g_game_info.bgnd_obj == 0) {
+        if (emitter_object->instance != 0) {
+            emitter_object->typed_vtbl->destroy(emitter_object);
+        }
+        return -1.0f;
+    }
+
+    vm = (PfxVm*)&effect->matrix;
+    source_velocities = (Vec*)pfx_get_field(vm, -1, 0x300);
+    destination_velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
+    source_timers = (float*)pfx_get_field(vm, -1, 0x301);
+    destination_timers = (float*)pfx_get_field(vm, -2, 0x301);
+    source_states = (int*)pfx_get_field(vm, -1, 0x307);
+    destination_states = (int*)pfx_get_field(vm, -2, 0x307);
+    destination_positions = (Vec*)pfx_get_field(vm, -2, 0x100);
+    destination_angles = (float*)pfx_get_field(vm, -2, 0x103);
+    source_positions = (Vec*)pfx_get_field(vm, -1, 0x100);
+    source_scales = (float*)pfx_get_field(vm, -1, 0x102);
+    destination_scales = (float*)pfx_get_field(vm, -2, 0x102);
+    destination_colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
+    source_colors = (unsigned char*)pfx_get_field(vm, -1, 0x101);
+    source_angles = (float*)pfx_get_field(vm, -1, 0x103);
+
+    field_stride = vm->transforms[0].particle_field_stride;
+    vector_stride = vm->particle_vector_stride;
+    last_index = vm->particle_cursor - 1;
+    last_color = source_colors + field_stride * last_index;
+    last_position = (Vec*)((unsigned char*)source_positions +
+                           field_stride * last_index);
+    last_scale = (float*)((unsigned char*)source_scales +
+                          field_stride * last_index);
+    last_angle = (float*)((unsigned char*)source_angles +
+                          field_stride * last_index);
+    last_velocity = (Vec*)((unsigned char*)source_velocities +
+                           vector_stride * last_index);
+    last_timer = (float*)((unsigned char*)source_timers +
+                          vector_stride * last_index);
+    last_state = (int*)((unsigned char*)source_states +
+                        vector_stride * last_index);
+
+    index = 0;
+    while (index < vm->particle_cursor) {
+        if ((float)*source_states >= 500.0f) {
+            index--;
+            source_positions->x = last_position->x;
+            source_positions->y = last_position->y;
+            source_positions->z = last_position->z;
+            source_velocities->x = last_velocity->x;
+            source_velocities->y = last_velocity->y;
+            source_velocities->z = last_velocity->z;
+            source_colors[0] = last_color[0];
+            source_colors[1] = last_color[1];
+            source_colors[2] = last_color[2];
+            source_colors[3] = last_color[3];
+            *source_timers = *last_timer;
+            *source_scales = *last_scale;
+            *source_angles = *last_angle;
+            *source_states = *last_state;
+
+            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_color -= field_stride;
+            last_scale = (float*)((unsigned char*)last_scale - field_stride);
+            last_angle = (float*)((unsigned char*)last_angle - field_stride);
+            last_velocity =
+                (Vec*)((unsigned char*)last_velocity - vector_stride);
+            last_timer =
+                (float*)((unsigned char*)last_timer - vector_stride);
+            last_state = (int*)((unsigned char*)last_state - vector_stride);
+            vm->particle_cursor--;
+        } else {
+            delta_x = source_velocities->x * game_speed;
+            delta_y = source_velocities->y * game_speed;
+            delta_z = source_velocities->z * game_speed;
+            destination_positions->x = source_positions->x + delta_x;
+            destination_positions->y = source_positions->y + delta_y;
+            destination_positions->z = source_positions->z + delta_z;
+            destination_velocities->x = source_velocities->x;
+            destination_velocities->y = source_velocities->y;
+            destination_velocities->z = source_velocities->z;
+            destination_velocities->y -= 0.004f;
+
+            ground_height = 0.1f + g_game_info.field_34;
+            if (source_positions->y <= ground_height) {
+                if (source_positions->z < 12.2f) {
+                    if (*source_states < 2) {
+                        source_positions->y = ground_height;
+                        *destination_states = *source_states + 1;
+                        destination_positions->y = ground_height;
+                        old_velocity_y = destination_velocities->y;
+                        destination_velocities->y *= -0.4f;
+                        destination_velocities->x *= 0.4f;
+                        destination_velocities->z *= 0.4f;
+                        spawn_bld_splat(
+                            "blsplat", effect->decal_owner, source_positions,
+                            0.4f, old_velocity_y);
+                    } else {
+                        destination_velocities->x = 0.0f;
+                        destination_velocities->y = 0.0f;
+                        destination_velocities->z = 0.0f;
+                    }
+                } else {
+                    *destination_states = 0x190;
+                }
+            }
+            if (*source_states < 2) {
+                *destination_timers = *source_timers + game_speed;
+            } else {
+                *destination_states = *source_states + 1;
+            }
+            destination_scales[0] = source_scales[0];
+            destination_angles[0] = source_angles[0];
+            destination_colors[0] = source_colors[0];
+            destination_colors[1] = source_colors[1];
+            destination_colors[2] = source_colors[2];
+            destination_colors[3] = source_colors[3];
+
+            source_velocities =
+                (Vec*)((unsigned char*)source_velocities + vector_stride);
+            destination_velocities =
+                (Vec*)((unsigned char*)destination_velocities + vector_stride);
+            source_positions =
+                (Vec*)((unsigned char*)source_positions + field_stride);
+            destination_positions =
+                (Vec*)((unsigned char*)destination_positions + field_stride);
+            source_timers =
+                (float*)((unsigned char*)source_timers + vector_stride);
+            destination_timers =
+                (float*)((unsigned char*)destination_timers + vector_stride);
+            source_states =
+                (int*)((unsigned char*)source_states + vector_stride);
+            destination_states =
+                (int*)((unsigned char*)destination_states + vector_stride);
+            source_scales =
+                (float*)((unsigned char*)source_scales + field_stride);
+            destination_scales =
+                (float*)((unsigned char*)destination_scales + field_stride);
+            source_angles =
+                (float*)((unsigned char*)source_angles + field_stride);
+            destination_angles =
+                (float*)((unsigned char*)destination_angles + field_stride);
+            source_colors += field_stride;
+            destination_colors += field_stride;
+        }
+        index++;
+    }
+    return 1.0f;
+}
+
+float pfx_sh_grinder_meat_spew(void) {
+    JabFloatBits inverse;
+    PfxVm* vm;
+    PfxEmitter* emitter;
+    MkObj* emitter_object;
+    Vec* source_positions;
+    Vec* destination_positions;
+    Vec* source_velocities;
+    Vec* destination_velocities;
+    Vec* last_position;
+    Vec* last_velocity;
+    float* source_timers;
+    float* destination_timers;
+    float* source_scales;
+    float* destination_scales;
+    float* source_angles;
+    float* destination_angles;
+    float* last_timer;
+    float* last_scale;
+    float* last_angle;
+    unsigned char* source_colors;
+    unsigned char* destination_colors;
+    unsigned char* last_color;
+    int field_stride;
+    int vector_stride;
+    int initial_cursor;
+    int last_index;
+    int index;
+    Vec splat_position;
+    float length_sq;
+    float inverse_length;
+    float half_x;
+    float newton;
+    float speed;
+    float delta_x;
+    float delta_y;
+    float delta_z;
+    float result;
+
+    emitter_object = (MkObj*)pfx_get_emitter_obj(apfx, 0);
+    if (g_game_info.bgnd_obj == 0) {
+        if (emitter_object->hdr.instance != 0) {
+            emitter_object->hdr.typed_vtbl->destroy(&emitter_object->hdr);
+        }
+        return -1.0f;
+    }
+
+    vm = (PfxVm*)&apfx->matrix;
+    initial_cursor = apfx->field_94;
+    source_velocities = (Vec*)pfx_get_field(vm, -1, 0x300);
+    destination_velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
+    source_timers = (float*)pfx_get_field(vm, -1, 0x301);
+    destination_timers = (float*)pfx_get_field(vm, -2, 0x301);
+    destination_positions = (Vec*)pfx_get_field(vm, -2, 0x100);
+    destination_angles = (float*)pfx_get_field(vm, -2, 0x103);
+    source_positions = (Vec*)pfx_get_field(vm, -1, 0x100);
+    source_scales = (float*)pfx_get_field(vm, -1, 0x102);
+    destination_scales = (float*)pfx_get_field(vm, -2, 0x102);
+    destination_colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
+    source_colors = (unsigned char*)pfx_get_field(vm, -1, 0x101);
+    source_angles = (float*)pfx_get_field(vm, -1, 0x103);
+
+    field_stride = vm->transforms[0].particle_field_stride;
+    vector_stride = vm->particle_vector_stride;
+    last_index = vm->particle_cursor - 1;
+    last_scale = (float*)((unsigned char*)source_scales +
+                          field_stride * last_index);
+    last_position = (Vec*)((unsigned char*)source_positions +
+                           field_stride * last_index);
+    last_angle = (float*)((unsigned char*)source_angles +
+                          field_stride * last_index);
+    last_color = source_colors + field_stride * last_index;
+    last_velocity = (Vec*)((unsigned char*)source_velocities +
+                           vector_stride * last_index);
+    last_timer = (float*)((unsigned char*)source_timers +
+                          vector_stride * last_index);
+
+    index = 0;
+    while (index < vm->particle_cursor) {
+        if (source_positions->y < g_game_info.field_34 - 1.0f) {
+            index--;
+            source_positions->x = last_position->x;
+            source_positions->y = last_position->y;
+            source_positions->z = last_position->z;
+            source_velocities->x = last_velocity->x;
+            source_velocities->y = last_velocity->y;
+            source_velocities->z = last_velocity->z;
+            source_colors[0] = last_color[0];
+            source_colors[1] = last_color[1];
+            source_colors[2] = last_color[2];
+            source_colors[3] = last_color[3];
+            *source_timers = *last_timer;
+            *source_scales = *last_scale;
+            *source_angles = *last_angle;
+
+            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_color -= field_stride;
+            last_scale = (float*)((unsigned char*)last_scale - field_stride);
+            last_angle = (float*)((unsigned char*)last_angle - field_stride);
+            last_velocity =
+                (Vec*)((unsigned char*)last_velocity - vector_stride);
+            last_timer = (float*)((unsigned char*)last_timer - vector_stride);
+            vm->particle_cursor--;
+        } else {
+            delta_x = source_velocities->x * game_speed;
+            delta_y = source_velocities->y * game_speed;
+            delta_z = source_velocities->z * game_speed;
+            destination_positions->x = source_positions->x + delta_x;
+            destination_positions->y = source_positions->y + delta_y;
+            destination_positions->z = source_positions->z + delta_z;
+            destination_velocities->x = source_velocities->x;
+            destination_velocities->y = source_velocities->y;
+            destination_velocities->z = source_velocities->z;
+
+            if (destination_positions->z >= 21.65f) {
+                destination_positions->z = 21.65f;
+                destination_velocities->z *= -0.2f;
+                destination_velocities->x *= 0.4f;
+                if (randu0(100) < 15) {
+                    splat_position.x = destination_positions->x;
+                    splat_position.y = destination_positions->y;
+                    splat_position.z = destination_positions->z;
+                    spawn_bld_splat("sh_bloodsplat", 0, &splat_position);
+                }
+            }
+            destination_velocities->y -= 0.006f;
+            *destination_timers = *source_timers + game_speed;
+            *destination_scales = *source_scales;
+            *destination_angles = *source_angles;
+            destination_colors[0] = source_colors[0];
+            destination_colors[1] = source_colors[1];
+            destination_colors[2] = source_colors[2];
+            destination_colors[3] = source_colors[3];
+
+            source_velocities =
+                (Vec*)((unsigned char*)source_velocities + vector_stride);
+            destination_velocities =
+                (Vec*)((unsigned char*)destination_velocities + vector_stride);
+            source_positions =
+                (Vec*)((unsigned char*)source_positions + field_stride);
+            destination_positions =
+                (Vec*)((unsigned char*)destination_positions + field_stride);
+            source_timers =
+                (float*)((unsigned char*)source_timers + vector_stride);
+            destination_timers =
+                (float*)((unsigned char*)destination_timers + vector_stride);
+            source_scales =
+                (float*)((unsigned char*)source_scales + field_stride);
+            destination_scales =
+                (float*)((unsigned char*)destination_scales + field_stride);
+            source_angles =
+                (float*)((unsigned char*)source_angles + field_stride);
+            destination_angles =
+                (float*)((unsigned char*)destination_angles + field_stride);
+            source_colors += field_stride;
+            destination_colors += field_stride;
+        }
+        index++;
+    }
+
+    if (apfx->field_298 > 0.0f) {
+        emitter = pfx_get_emitter(vm, 0);
+        if (emitter->lifetime <
+            (float)(vm->particle_capacity - initial_cursor + 1)) {
+            vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->lifetime;
+            index = 0;
+            while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+                destination_positions->x =
+                    emitter_object->pos.x + sfrand(0.5f);
+                destination_positions->y =
+                    emitter_object->pos.y + sfrand(1.0f);
+                destination_positions->z =
+                    emitter_object->pos.z + sfrand(0.5f);
+
+                destination_velocities->x = 0.0f;
+                destination_velocities->y = 0.0f;
+                destination_velocities->z = 0.0f;
+                destination_velocities->y = 0.6f + sfrand(0.8f);
+                destination_velocities->x = sfrand(0.4f);
+                destination_velocities->z = 1.0f + frand(0.5f);
+                length_sq =
+                    destination_velocities->x * destination_velocities->x +
+                    destination_velocities->y * destination_velocities->y +
+                    destination_velocities->z * destination_velocities->z;
+                inverse_length = 0.0f;
+                if (length_sq > 0.0f) {
+                    inverse.f = length_sq;
+                    inverse.u = 0x5F375A00U - (inverse.u >> 1);
+                    half_x = inverse.f * (length_sq * inverse.f);
+                    newton = 3.0f - half_x;
+                    inverse_length =
+                        0.0625f * inverse.f * newton *
+                        -((newton * (half_x * newton)) - 12.0f);
+                }
+                destination_velocities->x *= inverse_length;
+                destination_velocities->y *= inverse_length;
+                destination_velocities->z *= inverse_length;
+                speed = 0.2f + frand(0.2f);
+                destination_velocities->x *= speed;
+                destination_velocities->y *= speed;
+                destination_velocities->z *= speed;
+
+                *destination_timers = 0.0f;
+                *destination_scales = grinder_meat_size + sfrand(0.2f);
+                *destination_angles = frand(6.2831855f);
+                destination_colors[0] = 0x96;
+                destination_colors[1] = 0x96;
+                destination_colors[2] = 0x96;
+                destination_colors[3] = 0xFF;
+
+                destination_positions =
+                    (Vec*)((unsigned char*)destination_positions + field_stride);
+                destination_velocities =
+                    (Vec*)((unsigned char*)destination_velocities + vector_stride);
+                destination_timers =
+                    (float*)((unsigned char*)destination_timers + vector_stride);
+                destination_scales =
+                    (float*)((unsigned char*)destination_scales + field_stride);
+                destination_angles =
+                    (float*)((unsigned char*)destination_angles + field_stride);
+                destination_colors += field_stride;
+                index++;
+            }
+        }
+    }
+
+    result = 1.0f;
+    apfx->field_298 -= 1.0f;
+    if (vm->particle_cursor == 0) {
+        if (emitter_object->hdr.instance != 0) {
+            emitter_object->hdr.typed_vtbl->destroy(&emitter_object->hdr);
+        }
+        result = -1.0f;
+    }
+    return result;
+}
+
+void bulvan_function(int command) {
+    PlyrPdata* opponent_data;
+    MkPfx* effect;
+    MkProc* process;
+    MkObj* tracked_object;
+    unsigned int effect_handle;
+    int owner;
+    int index;
+
+    switch (command) {
+    case 1:
+        tracked_object = plyr_obj;
+        create_pfx(
+            0xA001, 0xA001,
+            pfx_react_falling_attach_smoke_to_bones_proc, &effect,
+            &jab_pfx_table[0x174], "C - Smoke Reaction");
+        if (effect != 0) {
+            set_pfx_texture(
+                (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x2003C);
+            pfx_bind_emitter_to_obj_bone(effect, tracked_object, 9);
+            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 8.0f;
+            effect->field_90 = 0x1EF;
+            effect->field_28 = -50.0f;
+            effect->field_298 = 100.0f;
+            effect->field_29C = 80.0f;
+            effect->field_2A4 = 1.0f;
+            effect->tracked_object = tracked_object;
+            effect->tracked_object_instance = tracked_object->hdr.instance;
+        }
+        break;
+
+    case 0:
+        create_pfx(
+            0xA00C, 0xA015, pfx_kenshi_lift_smoke, &effect,
+            &jab_pfx_table[0xF8], "C - Kenshi Lift Smoke");
+        if (effect != 0) {
+            set_pfx_texture(
+                (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x20038);
+            pfx_texture_animate(
+                (PfxVm*)&effect->matrix, 4.0f, 0x40, 0x10, 0x10, 0x10);
+            pfx_bind_emitter_to_obj_bone(effect, plyr_obj, 0);
+            effect->emitter_enabled = 0;
+            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 24.0f;
+            effect->field_90 = 0xA8;
+            effect->field_28 = -50.0f;
+            effect->field_298 = 50.0f;
+            effect->field_29C = 7.0f;
+            effect->field_2A0 = 0.0f;
+            effect->effect_state = 0;
+            effect->tracked_object = plyr_obj;
+            effect->tracked_object_instance = plyr_obj->hdr.instance;
+        }
+        break;
+
+    case 2:
+        if (plyr_obj == 0) {
+            break;
+        }
+        opponent_data = get_his_plyr_pdata();
+        if (opponent_data == 0 || opponent_data->character_id != 0x13) {
+            break;
+        }
+        if (_create_mkproc_generic_nostack(
+                0xA026, 0x2E, p_kabal_dash_react_pfx, 0, 0) == 0) {
+            break;
+        }
+        g_plyr_pdata = get_my_plyr_pdata();
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react", owner);
+        g_kabal_dash_react_pfx_handles[0] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 1);
+        g_kabal_dash_react_pfx_handles[1] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 2);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_shin", owner);
+        g_kabal_dash_react_pfx_handles[2] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 4);
+        g_kabal_dash_react_pfx_handles[3] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 5);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_lt", owner);
+        g_kabal_dash_react_pfx_handles[4] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x14);
+        g_kabal_dash_react_pfx_handles[5] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0xF);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_rt", owner);
+        g_kabal_dash_react_pfx_handles[6] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x15);
+        g_kabal_dash_react_pfx_handles[7] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x11);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_head", owner);
+        g_kabal_dash_react_pfx_handles[8] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x10);
+        break;
+
+    case 3:
+        process = find_mkproc_pid(0xA026);
+        if (process != 0 && process->instance != 0) {
+            ((MkHdr*)process)->typed_vtbl->destroy((MkHdr*)process);
+        }
+        for (index = 0; index < 9; index++) {
+            if (g_kabal_dash_react_pfx_handles[index] != 0) {
+                fx_reset_emit(g_kabal_dash_react_pfx_handles[index]);
+            }
+            g_kabal_dash_react_pfx_handles[index] = 0;
+        }
+        g_plyr_pdata = 0;
+        break;
+
+    case 4:
+        jab_kira_projectile_hand_explode();
+        break;
+    }
+}
+
+float pfx_kenshi_lift_smoke(void) {
+    JabFloatBits inverse;
+    MkPfx* effect;
+    PfxVm* vm;
+    PfxEmitter* emitter;
+    MkObj* emitter_object;
+    MkObj* tracked_object;
+    Vec* source_velocities;
+    Vec* destination_velocities;
+    Vec* source_positions;
+    Vec* destination_positions;
+    Vec* last_velocity;
+    Vec* last_position;
+    float* source_timers;
+    float* destination_timers;
+    float* source_scales;
+    float* destination_scales;
+    float* last_timer;
+    float* last_scale;
+    unsigned char* source_colors;
+    unsigned char* destination_colors;
+    unsigned char* last_color;
+    int field_stride;
+    int vector_stride;
+    int last_index;
+    int index;
+    int bone_index;
+    Vec start;
+    Vec end;
+    Vec offset;
+    float along_bone;
+    float length_sq;
+    float inverse_length;
+    float half_x;
+    float newton;
+
+    effect = apfx;
+    vm = (PfxVm*)&effect->matrix;
+    emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+    source_velocities = (Vec*)pfx_get_field(vm, -1, 0x300);
+    destination_velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
+    destination_positions = (Vec*)pfx_get_field(vm, -2, 0x100);
+    source_positions = (Vec*)pfx_get_field(vm, -1, 0x100);
+    destination_colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
+    source_colors = (unsigned char*)pfx_get_field(vm, -1, 0x101);
+    source_timers = (float*)pfx_get_field(vm, -1, 0x301);
+    destination_timers = (float*)pfx_get_field(vm, -2, 0x301);
+    destination_scales = (float*)pfx_get_field(vm, -2, 0x102);
+    source_scales = (float*)pfx_get_field(vm, -1, 0x102);
+
+    field_stride = vm->transforms[0].particle_field_stride;
+    vector_stride = vm->particle_vector_stride;
+    last_index = vm->particle_cursor - 1;
+    last_position = (Vec*)((unsigned char*)source_positions +
+                           field_stride * last_index);
+    last_color = source_colors + field_stride * last_index;
+    last_scale = (float*)((unsigned char*)source_scales +
+                          field_stride * last_index);
+    last_velocity = (Vec*)((unsigned char*)source_velocities +
+                           vector_stride * last_index);
+    last_timer = (float*)((unsigned char*)source_timers +
+                          vector_stride * last_index);
+
+    index = 0;
+    while (index < vm->particle_cursor) {
+        if (effect->field_2A0 <= 0.0f) {
+            destination_colors[3] =
+                (unsigned char)(source_colors[3] - (int)(5.0f * game_speed));
+        } else {
+            destination_colors[3] = source_colors[3];
+        }
+
+        if (effect->field_2A0 <= 0.0f && destination_colors[3] <= 0xF) {
+            index--;
+            source_positions->x = last_position->x;
+            source_positions->y = last_position->y;
+            source_positions->z = last_position->z;
+            source_velocities->x = last_velocity->x;
+            source_velocities->y = last_velocity->y;
+            source_velocities->z = last_velocity->z;
+            source_colors[0] = last_color[0];
+            source_colors[1] = last_color[1];
+            source_colors[2] = last_color[2];
+            source_colors[3] = last_color[3];
+            *source_scales = *last_scale;
+            *source_timers = *last_timer;
+
+            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_color -= field_stride;
+            last_scale = (float*)((unsigned char*)last_scale - field_stride);
+            last_velocity =
+                (Vec*)((unsigned char*)last_velocity - vector_stride);
+            last_timer = (float*)((unsigned char*)last_timer - vector_stride);
+            vm->particle_cursor--;
+        } else {
+            destination_colors[0] = source_colors[0];
+            destination_colors[1] = source_colors[1];
+            destination_colors[2] = source_colors[2];
+            *destination_timers = *source_timers + game_speed;
+            *destination_scales = *source_scales;
+            if (*destination_scales < 0.5f) {
+                *destination_scales += 0.05f * game_speed;
+                if (*destination_scales > 0.5f) {
+                    *destination_scales = 0.5f;
+                }
+            }
+
+            destination_velocities->x = 0.9f * source_velocities->x;
+            destination_velocities->z = 0.9f * source_velocities->z;
+            destination_positions->x =
+                source_positions->x + destination_velocities->x;
+            destination_positions->y =
+                source_positions->y + destination_velocities->y;
+            destination_positions->z =
+                source_positions->z + destination_velocities->z;
+
+            source_colors += field_stride;
+            destination_colors += field_stride;
+            source_timers =
+                (float*)((unsigned char*)source_timers + vector_stride);
+            destination_timers =
+                (float*)((unsigned char*)destination_timers + vector_stride);
+            source_scales =
+                (float*)((unsigned char*)source_scales + field_stride);
+            destination_scales =
+                (float*)((unsigned char*)destination_scales + field_stride);
+            source_velocities =
+                (Vec*)((unsigned char*)source_velocities + vector_stride);
+            destination_velocities =
+                (Vec*)((unsigned char*)destination_velocities + vector_stride);
+            source_positions =
+                (Vec*)((unsigned char*)source_positions + field_stride);
+            destination_positions =
+                (Vec*)((unsigned char*)destination_positions + field_stride);
+        }
+        index++;
+    }
+
+    if (effect->field_29C > 0.0f) {
+        emitter = pfx_get_emitter(vm, 0);
+        if (emitter->lifetime <
+            (float)(vm->particle_capacity - vm->particle_cursor + 1)) {
+            vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->lifetime;
+            RESOLVE_JAB_OBJECT(
+                tracked_object, effect->tracked_object,
+                effect->tracked_object_instance);
+
+            index = 0;
+            while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+                bone_index = index % 12;
+                get_bone_world_pos(
+                    tracked_object,
+                    skeleton_start_bone_id[effect->effect_state][bone_index],
+                    &start);
+                get_bone_world_pos(
+                    tracked_object,
+                    skeleton_end_bone_id[effect->effect_state][bone_index],
+                    &end);
+                v3_sub_v3(&offset, &end, &start);
+                along_bone = frand(1.0f);
+                offset.x *= along_bone;
+                offset.y *= along_bone;
+                offset.z *= along_bone;
+                start.x += offset.x;
+                start.y += offset.y;
+                start.z += offset.z;
+
+                bone_index = index % 10;
+                destination_positions->x =
+                    start.x + sfrand(skeleton_radius_table[bone_index]);
+                destination_positions->y = frand(0.2f);
+                destination_positions->z =
+                    start.z + sfrand(skeleton_radius_table[bone_index]);
+
+                destination_velocities->x =
+                    destination_positions->x - emitter_object->pos.x;
+                destination_velocities->y =
+                    destination_positions->y - emitter_object->pos.y;
+                destination_velocities->z =
+                    destination_positions->z - emitter_object->pos.z;
+                length_sq =
+                    destination_velocities->x * destination_velocities->x +
+                    destination_velocities->y * destination_velocities->y +
+                    destination_velocities->z * destination_velocities->z;
+                inverse_length = 0.0f;
+                if (length_sq > 0.0f) {
+                    inverse.f = length_sq;
+                    inverse.u = 0x5F375A00U - (inverse.u >> 1);
+                    half_x = inverse.f * (length_sq * inverse.f);
+                    newton = 3.0f - half_x;
+                    inverse_length =
+                        0.0625f * inverse.f * newton *
+                        -((newton * (half_x * newton)) - 12.0f);
+                }
+                destination_velocities->x *= inverse_length;
+                destination_velocities->y *= inverse_length;
+                destination_velocities->z *= inverse_length;
+                destination_velocities->x *= 0.05f;
+                destination_velocities->y *= 0.05f;
+                destination_velocities->z *= 0.05f;
+                destination_velocities->y = 0.005f;
+
+                destination_colors[2] = 0x80;
+                destination_colors[1] = 0x80;
+                destination_colors[0] = 0x80;
+                destination_colors[3] = 0xAF;
+                *destination_scales = 0.2f;
+                *destination_timers = 0.0f;
+
+                destination_positions =
+                    (Vec*)((unsigned char*)destination_positions + field_stride);
+                destination_velocities =
+                    (Vec*)((unsigned char*)destination_velocities + vector_stride);
+                destination_colors += field_stride;
+                destination_scales =
+                    (float*)((unsigned char*)destination_scales + field_stride);
+                destination_timers =
+                    (float*)((unsigned char*)destination_timers + vector_stride);
+                index++;
+            }
+            effect->effect_state = effect->effect_state != 1;
+        }
+    }
+
+    if (effect->field_2A0 > 0.0f) {
+        effect->field_2A0 -= game_speed;
+    } else {
+        effect->field_2A0 = 0.0f;
+    }
+    if (effect->field_29C > 0.0f) {
+        effect->field_29C -= game_speed;
+    } else {
+        effect->field_29C = 0.0f;
+    }
+    if (vm->particle_cursor == 0) {
+        return -1.0f;
+    }
+    if (effect->field_298 > 0.0f) {
+        effect->field_298 -= game_speed;
+        return 1.0f;
+    }
+    return -1.0f;
+}
+
 static void splatter_init(JabSplatterState* splatter) {
-    splatter->flags |= 0x18;
+    splatter->flags_bits.bit4 = 1;
+    splatter->flags_bits.bit3 = 1;
 }

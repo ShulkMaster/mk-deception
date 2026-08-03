@@ -105,7 +105,7 @@ int sprintf(char* destination, const char* format, ...);
 void set_string_obj_alpha(StringObj* object, float alpha);
 void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
 
-static const float bar_speed = 0.01f;
+static float bar_speed = 0.01f;
 static ScreenObj* screen_latch_object(ScreenLatch* latch);
 
 static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
@@ -209,7 +209,7 @@ int check_for_green_light(PlyrInfo* player) {
     if (pdata->blocking_disabled_2 != 0) {
         return 1;
     }
-    if ((unsigned int)pdata->blocking_disable_tick_2 > game_tick_ctr) {
+    if (pdata->blocking_disable_tick_2 > game_tick_ctr) {
         return 1;
     }
     return is_plyr_airborn(player->slot.mirror_a) != 0;
@@ -298,18 +298,18 @@ void retract_power_bars(void) {
 }
 
 void pbar_force_pb_setting_with_offset(unsigned int player, float offset) {
-    float* health;
-
     if (player == 0) {
         f_p1_force_adjustment = 1;
-        health = &g_game_info.plyr0.field_0C;
+        g_game_info.plyr0.field_0C += offset;
+        if (g_game_info.plyr0.field_0C > 1.0f) {
+            g_game_info.plyr0.field_0C = 1.0f;
+        }
     } else {
         f_p2_force_adjustment = 1;
-        health = &g_game_info.plyr1.field_0C;
-    }
-    *health += offset;
-    if (*health > 1.0f) {
-        *health = 1.0f;
+        g_game_info.plyr1.field_0C += offset;
+        if (g_game_info.plyr1.field_0C > 1.0f) {
+            g_game_info.plyr1.field_0C = 1.0f;
+        }
     }
 }
 
@@ -400,25 +400,52 @@ void extend_powerbars(void) {
 
 float p_move_pbars_off_screen(void) {
     ScreenLatch** item;
+    ScreenLatch* latch;
     ScreenObj* screen;
+    ScreenObj** medal;
     StringObj* string;
     int frame;
     int i;
 
     for (frame = 0; frame < 20; frame++) {
         for (item = pbar_item_list; *item != 0; item++) {
-            screen = screen_latch_object(*item);
+            latch = *item;
+            screen = latch->object;
+            if (screen != 0) {
+                if ((unsigned int)screen->instance == latch->instance) {
+                    /* Keep the live object. */
+                } else {
+                    screen = 0;
+                }
+            } else {
+                screen = 0;
+            }
             if (screen != 0) {
                 screen->y += 6;
             }
         }
-        for (i = 0; i < 8; i++) {
-            if (medal_objs[i] != 0) {
-                medal_objs[i]->y += 6;
+        medal = medal_objs;
+        i = 8;
+        do {
+            screen = *medal;
+            if (screen != 0) {
+                screen->y += 6;
             }
-        }
+            medal++;
+            i--;
+        } while (i != 0);
         for (item = pbar_string_item_list; *item != 0; item++) {
-            string = string_latch_object(*item);
+            latch = *item;
+            string = (StringObj*)latch->object;
+            if (string != 0) {
+                if ((unsigned int)string->instance == latch->instance) {
+                    /* Keep the live object. */
+                } else {
+                    string = 0;
+                }
+            } else {
+                string = 0;
+            }
             if (string != 0) {
                 string->render_y += 6;
             }
@@ -562,48 +589,134 @@ float p_update_fighting_state_lights(void) {
     return 0.0f;
 }
 
-static int adjust_player_life(PlyrInfo* player, float amount) {
-    float* life;
+int adjust_player_life(int player_index, float amount) {
     int depleted;
 
-    life = &player->field_0C;
-    depleted = 0;
+    switch (player_index) {
+    case 0:
+        depleted = 0;
+        if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
+            (g_game_info.flags & 0x20) == 0) {
+            if (g_game_info.plyr0.field_0C <= 0.0f) {
+                depleted = 1;
+            }
+        } else {
+            if (amount == -1.0f) {
+                g_game_info.plyr0.field_0C = 0.0f;
+            } else if ((g_game_info.field_04 & 0x20) == 0) {
+                g_game_info.plyr0.field_0C += amount;
+            }
+            if (amount > 0.0f) {
+                if (g_game_info.plyr0.field_0C > 1.0f) {
+                    g_game_info.plyr0.field_0C = 1.0f;
+                }
+            } else if (g_game_info.plyr0.field_0C <= 0.0f) {
+                if (mode_of_play == 4) {
+                    g_game_info.plyr0.field_0C = 1.0f;
+                } else {
+                    g_game_info.plyr0.field_0C = 0.0f;
+                    depleted = 1;
+                }
+            }
+            if (mode_of_play == 4) {
+                display_debug_damage(&g_game_info.plyr0);
+            }
+        }
+        return depleted;
+    case 1:
+        depleted = 0;
+        if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
+            (g_game_info.flags & 0x20) == 0) {
+            /* Retail checks player one's life in this invulnerability path. */
+            if (g_game_info.plyr0.field_0C <= 0.0f) {
+                depleted = 1;
+            }
+        } else {
+            if (amount == -1.0f) {
+                g_game_info.plyr1.field_0C = 0.0f;
+            } else if ((g_game_info.field_04 & 0x20) == 0) {
+                g_game_info.plyr1.field_0C += amount;
+            }
+            if (amount > 0.0f) {
+                if (g_game_info.plyr1.field_0C > 1.0f) {
+                    g_game_info.plyr1.field_0C = 1.0f;
+                }
+            } else if (g_game_info.plyr1.field_0C <= 0.0f) {
+                if (mode_of_play == 4) {
+                    g_game_info.plyr1.field_0C = 1.0f;
+                } else {
+                    g_game_info.plyr1.field_0C = 0.0f;
+                    depleted = 1;
+                }
+            }
+            if (mode_of_play == 4) {
+                display_debug_damage(&g_game_info.plyr1);
+            }
+        }
+        return depleted;
+    default:
+        return 0;
+    }
+}
+
+int adjust_p2_life(float amount) {
+    int depleted = 0;
+
     if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
         (g_game_info.flags & 0x20) == 0) {
-        return *life <= 0.0f;
+        return g_game_info.plyr0.field_0C <= 0.0f;
     }
-
     if (amount == -1.0f) {
-        *life = 0.0f;
+        g_game_info.plyr1.field_0C = 0.0f;
     } else if ((g_game_info.field_04 & 0x20) == 0) {
-        *life += amount;
+        g_game_info.plyr1.field_0C += amount;
     }
-
     if (amount > 0.0f) {
-        if (*life > 1.0f) {
-            *life = 1.0f;
+        if (g_game_info.plyr1.field_0C > 1.0f) {
+            g_game_info.plyr1.field_0C = 1.0f;
         }
-    } else if (*life <= 0.0f) {
+    } else if (g_game_info.plyr1.field_0C <= 0.0f) {
         if (mode_of_play == 4) {
-            *life = 1.0f;
+            g_game_info.plyr1.field_0C = 1.0f;
         } else {
-            *life = 0.0f;
+            g_game_info.plyr1.field_0C = 0.0f;
             depleted = 1;
         }
     }
-
     if (mode_of_play == 4) {
-        display_debug_damage(player);
+        display_debug_damage(&g_game_info.plyr1);
     }
     return depleted;
 }
 
-int adjust_p2_life(float amount) {
-    return adjust_player_life(&g_game_info.plyr1, amount);
-}
-
 int adjust_p1_life(float amount) {
-    return adjust_player_life(&g_game_info.plyr0, amount);
+    int depleted = 0;
+
+    if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
+        (g_game_info.flags & 0x20) == 0) {
+        return g_game_info.plyr0.field_0C <= 0.0f;
+    }
+    if (amount == -1.0f) {
+        g_game_info.plyr0.field_0C = 0.0f;
+    } else if ((g_game_info.field_04 & 0x20) == 0) {
+        g_game_info.plyr0.field_0C += amount;
+    }
+    if (amount > 0.0f) {
+        if (g_game_info.plyr0.field_0C > 1.0f) {
+            g_game_info.plyr0.field_0C = 1.0f;
+        }
+    } else if (g_game_info.plyr0.field_0C <= 0.0f) {
+        if (mode_of_play == 4) {
+            g_game_info.plyr0.field_0C = 1.0f;
+        } else {
+            g_game_info.plyr0.field_0C = 0.0f;
+            depleted = 1;
+        }
+    }
+    if (mode_of_play == 4) {
+        display_debug_damage(&g_game_info.plyr0);
+    }
+    return depleted;
 }
 
 static void update_power_bar_verts(void);
@@ -618,30 +731,34 @@ static ScreenObj* screen_latch_object(ScreenLatch* latch) {
     return object;
 }
 
-static void set_bar_vertices(
-    ScreenObj* object, float left, float inner_left, float inner_right,
-    float right) {
-    Pfx2dObj* bar = object->pfx2d;
-
-    bar->verts[0].x = left;
-    bar->verts[0].y = 417.0f;
-    bar->verts[1].x = inner_left;
-    bar->verts[1].y = 431.0f;
-    bar->verts[2].x = inner_right;
-    bar->verts[2].y = 431.0f;
-    bar->verts[3].x = right;
-    bar->verts[3].y = 417.0f;
-    bar->mirror = 1;
-}
-
+#pragma dont_inline on
+/* Soft ceiling: 98.58% -- latch branch direction and pool labels only. */
 static void update_power_bar_verts(void) {
-    const float width = 262.0f;
-    const float edge = 294.0f;
-    ScreenObj* player1 = screen_latch_object(&p1_pbar_item);
-    ScreenObj* player2 = screen_latch_object(&p2_pbar_item);
+    ScreenObj* player1;
+    ScreenObj* player2;
     float life;
     float fill;
 
+    player1 = p1_pbar_item.object;
+    if (player1 != 0) {
+        if ((unsigned int)player1->instance == p1_pbar_item.instance) {
+            /* Keep the live object. */
+        } else {
+            player1 = 0;
+        }
+    } else {
+        player1 = 0;
+    }
+    player2 = p2_pbar_item.object;
+    if (player2 != 0) {
+        if ((unsigned int)player2->instance == p2_pbar_item.instance) {
+            /* Keep the live object. */
+        } else {
+            player2 = 0;
+        }
+    } else {
+        player2 = 0;
+    }
     if (player1 == 0 || player2 == 0) {
         return;
     }
@@ -649,25 +766,58 @@ static void update_power_bar_verts(void) {
     if (life < 0.5f) {
         life += 0.02f;
     }
-    fill = width * life;
-    set_bar_vertices(
-        player1, edge - fill,
-        p1_disp_life > 0.0f ? edge - 7.0f - fill : edge,
-        edge, edge);
+    fill = 262.0f * life;
+    player1->pfx2d->verts[0].x =
+        (262.0f + (24.0f + (float)BAR_BACK_X)) - fill;
+    player1->pfx2d->verts[0].y = 417.0f;
+    if (p1_disp_life > 0.0f) {
+        player1->pfx2d->verts[1].x =
+            ((262.0f + (24.0f + (float)BAR_BACK_X)) - 7.0f) - fill;
+    } else {
+        player1->pfx2d->verts[1].x =
+            262.0f + (24.0f + (float)BAR_BACK_X);
+    }
+    player1->pfx2d->verts[1].y = 431.0f;
+    player1->pfx2d->verts[2].x =
+        262.0f + (24.0f + (float)BAR_BACK_X);
+    player1->pfx2d->verts[2].y = 431.0f;
+    player1->pfx2d->verts[3].x =
+        262.0f + (24.0f + (float)BAR_BACK_X);
+    player1->pfx2d->verts[3].y = 417.0f;
+    player1->pfx2d->mirror = 1;
 
     life = p2_disp_life;
     if (life < 0.5f) {
         life += 0.02f;
     }
-    fill = width * life;
-    set_bar_vertices(
-        player2, (float)screen_width - edge,
-        (float)screen_width - edge,
-        p2_disp_life > 0.0f
-            ? (float)screen_width - (edge - 7.0f - fill)
-            : (float)screen_width - edge,
-        1.0f + (float)screen_width - (edge - fill));
+    player2->pfx2d->verts[0].x =
+        (float)screen_width -
+        (262.0f + (24.0f + (float)BAR_BACK_X));
+    player2->pfx2d->verts[0].y = 417.0f;
+    player2->pfx2d->verts[1].x =
+        (float)screen_width -
+        (262.0f + (24.0f + (float)BAR_BACK_X));
+    player2->pfx2d->verts[1].y = 431.0f;
+    if (p2_disp_life > 0.0f) {
+        player2->pfx2d->verts[2].x =
+            (float)screen_width -
+            (((262.0f + (24.0f + (float)BAR_BACK_X)) - 7.0f) -
+             (262.0f * life));
+    } else {
+        player2->pfx2d->verts[2].x =
+            (float)screen_width -
+            (262.0f + (24.0f + (float)BAR_BACK_X));
+    }
+    player2->pfx2d->verts[2].y = 431.0f;
+    player2->pfx2d->verts[3].x =
+        1.0f +
+        ((float)screen_width -
+         ((262.0f + (24.0f + (float)BAR_BACK_X)) -
+          (262.0f * life)));
+    player2->pfx2d->verts[3].y = 417.0f;
+    player2->pfx2d->mirror = 1;
 }
+#pragma dont_inline reset
 
 static ScreenObj* ensure_combo_bolt(
     ScreenLatch* latch, int x, int combo_count, int threshold) {
@@ -1018,62 +1168,63 @@ void init_pwr_bars(void) {
     retract_power_bars();
 }
 
+/* Soft ceiling: 99.92% -- two identical 0.06f pool-label relocations differ. */
 float p_power_bar_proc(void) {
-    float target;
-    int changed = 0;
+    int changed;
 
+    changed = 0;
     if (f_powerbars_retracted != 0) {
-        return 0.0f;
+        return 1.0f;
     }
-    if (f_p1_force_adjustment != 0) {
+    if (f_p1_force_adjustment == 1) {
         f_p1_force_adjustment = 0;
+        changed = 1;
         p1_disp_life = g_game_info.plyr0.field_0C;
-        changed = 1;
     }
-    if (f_p2_force_adjustment != 0) {
+    if (f_p2_force_adjustment == 1) {
         f_p2_force_adjustment = 0;
-        p2_disp_life = g_game_info.plyr1.field_0C;
         changed = 1;
+        p2_disp_life = g_game_info.plyr1.field_0C;
     }
 
-    target = g_game_info.plyr0.field_0C;
-    if (p1_disp_life > target) {
+    if (p1_disp_life > g_game_info.plyr0.field_0C) {
         p1_disp_life -= bar_speed;
         if (p1_disp_life <= 0.06f && f_p1_warning_given == 0) {
-            if (target > 0.0f && !g_game_info.pause_flag_bits.fatality_window) {
+            if (g_game_info.plyr0.field_0C > 0.0f &&
+                !g_game_info.pause_flag_bits.fatality_window) {
                 snd_req(0xDC2);
             }
             f_p1_warning_given = 1;
         }
-        if (p1_disp_life < target) {
-            p1_disp_life = target;
+        if (p1_disp_life < g_game_info.plyr0.field_0C) {
+            p1_disp_life = g_game_info.plyr0.field_0C;
         }
         changed = 1;
-    } else if (p1_disp_life < target) {
+    } else if (p1_disp_life < g_game_info.plyr0.field_0C) {
         p1_disp_life += bar_speed;
-        if (p1_disp_life > target) {
-            p1_disp_life = target;
+        if (p1_disp_life > g_game_info.plyr0.field_0C) {
+            p1_disp_life = g_game_info.plyr0.field_0C;
         }
         changed = 1;
     }
 
-    target = g_game_info.plyr1.field_0C;
-    if (p2_disp_life > target) {
+    if (p2_disp_life > g_game_info.plyr1.field_0C) {
         p2_disp_life -= bar_speed;
         if (p2_disp_life <= 0.06f && f_p2_warning_given == 0) {
-            if (target > 0.0f && !g_game_info.pause_flag_bits.fatality_window) {
+            if (g_game_info.plyr1.field_0C > 0.0f &&
+                !g_game_info.pause_flag_bits.fatality_window) {
                 snd_req(0xDC2);
             }
             f_p2_warning_given = 1;
         }
-        if (p2_disp_life < target) {
-            p2_disp_life = target;
+        if (p2_disp_life < g_game_info.plyr1.field_0C) {
+            p2_disp_life = g_game_info.plyr1.field_0C;
         }
         changed = 1;
-    } else if (p2_disp_life < target) {
+    } else if (p2_disp_life < g_game_info.plyr1.field_0C) {
         p2_disp_life += bar_speed;
-        if (p2_disp_life > target) {
-            p2_disp_life = target;
+        if (p2_disp_life > g_game_info.plyr1.field_0C) {
+            p2_disp_life = g_game_info.plyr1.field_0C;
         }
         changed = 1;
     }
@@ -1081,5 +1232,5 @@ float p_power_bar_proc(void) {
         update_power_bar_verts();
     }
     update_combo_break_counts();
-    return 0.0f;
+    return 1.0f;
 }

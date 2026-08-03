@@ -1,6 +1,7 @@
 #include "game/game_info.h"
 
 #include "runtime/mk_obj.h"
+#include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
 #include "runtime/plyr_info.h"
@@ -40,7 +41,6 @@ static const float kProcSleepTicks = 20.0f;
 static const float kCameraShakeAmount = 0.02f;
 static const float kFadeSleepTicks = 1.0f;
 static const float kProcReturnNegOne = -1.0f;
-static const double kIntToFloatBias = 4503599627370496.0;
 
 LightningAlphaStep lightning_alpha[] = {
     {0xFF, 6},
@@ -57,9 +57,6 @@ extern float _mkproc_sleep_ticks;
 void* load_named_model_from_slot(int slot, const char* name, int arg2, int arg3);
 void snd_req(int sound_id);
 void shake_camera(float amount, int frames);
-/* Retail leaves success in r3; Matching header is void -- local view for the check. */
-int _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                     int pdata_size, MkHdr** pdata_out);
 void proc_create(void* proc_fn, int proc_id);
 void kill_all_fstyle_signs(void);
 void del_string_obj_by_id(int id);
@@ -76,10 +73,9 @@ static float p_lightning_strike_effect(void) {
     MkSobj* sobj;
     int alpha;
     int art_slot;
+    int step_index;
     PlyrInfo* owner;
     int (*destroy_fn)(MkObj*);
-    double int_bias;
-    LightningAlphaStep* step;
 
     _mkproc_sleep_ticks = kProcSleepTicks;
     pdata = (LightningPdata*)apdata;
@@ -97,30 +93,20 @@ static float p_lightning_strike_effect(void) {
         insert_fgnd_mkobj(bolt);
         obj_set_pos(bolt, (const Vec*)&pdata->pos_x);
         sobj = (MkSobj*)obj_create_sobjs_by_id(bolt, 1);
-        /* flags09 bit7 via rlwimi (retail). */
-        sobj->flags09 = (unsigned char)((sobj->flags09 & 0x7F) | 0x80);
+        sobj->flags09_bits.bit7 = 1;
         sobj_set_priority(sobj, 0x13);
         update_obj_pos(bolt);
 
         if (sobj != 0) {
             shake_camera(kCameraShakeAmount, 2);
-            /* flags09 bit5 via rlwimi (retail). */
-            sobj->flags09 = (unsigned char)((sobj->flags09 & 0xDF) | 0x20);
+            sobj->flags09_bits.bit5 = 1;
 
-            int_bias = kIntToFloatBias;
-            step = lightning_alpha;
-            while (step->alpha > -1) {
-                union {
-                    double d;
-                    unsigned int i[2];
-                } conv;
-
-                obj_set_sobj_alpha(bolt, 1, step->alpha);
-                conv.i[0] = 0x43300000u;
-                conv.i[1] = (unsigned int)step->ticks;
-                _mkproc_sleep_ticks = (float)(conv.d - int_bias);
+            step_index = 0;
+            while (lightning_alpha[step_index].alpha > -1) {
+                obj_set_sobj_alpha(bolt, 1, lightning_alpha[step_index].alpha);
+                _mkproc_sleep_ticks = (float)lightning_alpha[step_index].ticks;
                 mkproc_sleep();
-                step++;
+                step_index++;
             }
         }
 
@@ -142,11 +128,9 @@ static float p_lightning_strike_effect(void) {
 
 void do_lightning_strike(PlyrInfo* owner, const Vec* position) {
     LightningPdata* pdata;
-    int ok;
 
-    ok = _create_mkproc_generic_tinystack(0x2099, 0x1F, p_lightning_strike_effect, 0x18,
-                                          (MkHdr**)&pdata);
-    if (ok == 0) {
+    if (_create_mkproc_generic_tinystack(0x2099, 0x1F, p_lightning_strike_effect, 0x18,
+                                         (MkHdr**)&pdata) == 0) {
         return;
     }
     pdata->pos_x = position->x;
