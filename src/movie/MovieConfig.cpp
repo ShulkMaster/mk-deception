@@ -14,6 +14,6 @@ void* mwMovMalloc(unsigned long size) {
     return _mwMemMalloc(movie_heap, size, 5, 0, 0, 0);
 }
 
-void setMovieHeap__FP10_mwMemHeap(_mwMemHeap* heap) {
+void setMovieHeap(_mwMemHeap* heap) {
     MovieHeap = heap;
 }
