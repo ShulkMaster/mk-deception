@@ -1,6 +1,10 @@
 #ifndef PLATFORM_GCUTILS_H
 #define PLATFORM_GCUTILS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void set_texture_mipmap_KL_manual(void);
 void clear_alpha_channel(void);
 void gc_enable_alpha_writes(unsigned char enable);
@@ -32,5 +36,9 @@ extern int use_feedback_effect;
 extern int old_use_feedback_effect;
 extern int display_offset_x;
 extern int display_offset_y;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -27,6 +27,10 @@ typedef struct MoviePlayer {
     RwRaster* raster;
 } MoviePlayer;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Retail: non-zero = EOF or tapout (MovieUpdate wraps this). */
 int mwMoviePlayTick(_mwMovPlayer* player);
 
@@ -45,5 +49,9 @@ void MoviePlayModeSelect(MoviePlayer* movie, const char* path);
 MoviePlayer* MovieNewModeSelect(RwRaster* raster, int width, int height);
 void MoviePlayFullScreen(MoviePlayer* movie, const char* path);
 MoviePlayer* MovieNewFullScreen(int width, int height);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

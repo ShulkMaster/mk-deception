@@ -15,6 +15,8 @@
 #include "runtime/cstring.h"
 #include "runtime/utils.h"
 
+extern "C" {
+
 /* MWCC emits .sbss in reverse declaration order. */
 int mwMovie_num_players;
 int mwMovie_initialized;
@@ -62,7 +64,7 @@ void Simple_MoviePlayFullScreen(const char* path, int width, int height,
     if (movie == 0) {
         OSPanic(STR_FILE_MOVIEMANAGER, 0x2D8, STR_ASSERT_FAILED);
     } else {
-        mwMovieSetMovieVolume(movie->handle, game_settings.volume[0]);
+        mwMovieSetMovieVolume((_mwMovPlayer*)movie->handle, game_settings.volume[0]);
         if (tapout_cb != 0) {
             mwMovieSetTapoutCallback((void*)tapout_cb);
         }
@@ -146,7 +148,7 @@ int MovieUpdate(MoviePlayer* movie) {
         if (movie->raster != 0) {
             MovieManager_RW_Set_Target_Raster(movie->raster);
         }
-        if (mwMoviePlayTick(movie->handle) != 0) {
+        if (mwMoviePlayTick((_mwMovPlayer*)movie->handle) != 0) {
             movie->state = 0;
             return 1;
         }
@@ -168,11 +170,11 @@ void MovieStop(MoviePlayer* movie) {
 
     state = movie->state;
     if (state == 1) {
-        mwMovieStopPlayback(movie->handle);
+        mwMovieStopPlayback((_mwMovPlayer*)movie->handle);
         movie->state = 0;
     } else if (state == 2) {
-        mwMovieUnPauseMovie(movie->handle);
-        mwMovieStopPlayback(movie->handle);
+        mwMovieUnPauseMovie((_mwMovPlayer*)movie->handle);
+        mwMovieStopPlayback((_mwMovPlayer*)movie->handle);
         movie->state = 0;
     } else if (state != 0) {
         mwMovLog(STR_INVALID_STOP_PLAYBACK);
@@ -192,10 +194,10 @@ void MovieDelete(MoviePlayer* movie) {
         mwMovLog(STR_INVALID_STOP);
     } else {
         if (state == 2) {
-            mwMovieUnPauseMovie(movie->handle);
+            mwMovieUnPauseMovie((_mwMovPlayer*)movie->handle);
         }
         MovieStop(movie);
-        mwMovieDestroyPlayer(movie->handle);
+        mwMovieDestroyPlayer((_mwMovPlayer*)movie->handle);
         movie->handle = 0;
         mwMovFree(movie);
         mwMovie_num_players--;
@@ -219,7 +221,7 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
     MwMovieCreateParams createParams;
 
     if (mwMovie_initialized == 0) {
-        initParams.display_mode = (refresh_rate() == 0x32);
+        initParams.display_mode = (refresh_rate() != 0x32) ? 0 : 1;
         initParams.source = 0;
         initParams.path = get_movie_path();
         if (use_audio != 0) {
@@ -264,7 +266,7 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
         mwMovie_initialized = 1;
     }
 
-    player = mwMovMalloc(0xC);
+    player = (MoviePlayer*)mwMovMalloc(0xC);
     if (player == 0) {
         mwMovLog(STR_OUT_OF_MEMORY);
     } else {
@@ -309,7 +311,7 @@ void MoviePlayModeSelect(MoviePlayer* movie, const char* path) {
         }
         MovieStop(movie);
     }
-    mwMovieStartPlaybackLooping(movie->handle, path);
+    mwMovieStartPlaybackLooping((_mwMovPlayer*)movie->handle, path);
     movie->state = 1;
 }
 
@@ -329,10 +331,12 @@ void MoviePlayFullScreen(MoviePlayer* movie, const char* path) {
         /* Playing or paused: stop before restart (same as MovieStop). */
         MovieStop(movie);
     }
-    mwMovieStartPlayback(movie->handle, path);
+    mwMovieStartPlayback((_mwMovPlayer*)movie->handle, path);
     movie->state = 1;
 }
 
 MoviePlayer* MovieNewFullScreen(int width, int height) {
     return MovieNew(0, 1, 0, width, height, 0, (void*)0x2DC6C0);
+}
+
 }

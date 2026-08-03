@@ -1,19 +1,19 @@
 #ifndef MSL_QUEUE_H
 #define MSL_QUEUE_H
 
-struct mslBankSoundEntry;
+typedef struct mslBankSoundEntry mslBankSoundEntry;
 
-struct mslQueueEntry {
+typedef struct mslQueueEntry {
     mslBankSoundEntry* sound;     /* +0x00 */
     unsigned long reserved;       /* +0x04 */
-}; /* 0x08 */
+} mslQueueEntry; /* 0x08 */
 
-struct mslQueue {
+typedef struct mslQueue {
     mslQueueEntry* entries;       /* +0x00 */
     int capacity;                 /* +0x04 */
     int write_index;              /* +0x08 */
     int read_index;               /* +0x0C */
-}; /* 0x10 */
+} mslQueue; /* 0x10 */
 
 #ifdef __cplusplus
 extern "C" {

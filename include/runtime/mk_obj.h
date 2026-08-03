@@ -218,6 +218,12 @@ typedef struct MkObj {
     union {
         unsigned int flags_word_08;
         struct {
+            unsigned char flags_08;
+            unsigned char flags_09;
+            unsigned char hide_flags;
+            unsigned char flags_0B;
+        } flag_bytes;
+        struct {
             union {
                 unsigned char flags_08;
                 MkObjFlags08 flags_08_bits;

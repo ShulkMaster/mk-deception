@@ -100,6 +100,9 @@
 #include "mw/mwMemHeap.h"
 
 #include "game/game_info.h"
+#include "game/memcard.h"
+#include "game/plyrprofile.h"
+#include "game/settings.h"
 #include "libmkparticle/particle.h"
 #include "libmkparticle/pfx2d.h"
 #include "libmkparticle/pfxfont.h"
@@ -109,6 +112,7 @@
 #include "mwScreenEngine/ScreenText.h"
 #include "mwScreenEngine/TextureCollection.h"
 #include "platform/gcutils.h"
+#include "platform/gcio.h"
 #include "runtime/asset.h"
 #include "runtime/fonts.h"
 #include "runtime/hashtable.h"
@@ -124,6 +128,9 @@
 #include "runtime/utils.h"
 #include "math/gxMat.h"
 
+extern "C" {
+
+/* MWCC 2.7 O4 workaround: removing this duplicate triggers optimizer code 159. */
 #pragma use_lmw_stmw on
 
 /* C view of ScreenAction fields used by the game-specific action handlers. */
@@ -201,6 +208,14 @@ void StartLocal__17ScreenActionStackFv(void* stack);
 void EndLocal__17ScreenActionStackFv(void* stack);
 void ProcessSubActions__12ScreenObjectFPC12ScreenActioni(
     void* self, const void* action, int match);
+int GetResourceID__12ScreenParamsFUi(void* params, unsigned int index);
+int GetInt__12ScreenParamsFUi(void* params, unsigned int index);
+int GetBoolean__12ScreenParamsFUi(void* params, unsigned int index);
+float GetFloat__12ScreenParamsFUi(void* params, unsigned int index);
+ScreenNode* GetScreenNode__12ScreenParamsFUi(void* params, unsigned int index);
+char* GetName__12ScreenParamsFUi(void* params, unsigned int index);
+unsigned int GetColor__12ScreenParamsFUi(void* params, unsigned int index);
+int GetCount__12ScreenParamsCFv(void* params);
 unsigned int HasSubActions__11ScreenEventCFUi(void* event,
                                               unsigned int index);
 unsigned int GetNumOfSubActions__11ScreenEventCFUi(void* event,
@@ -265,6 +280,54 @@ int check_allow_screen_engine_control__Fv(void);
 void set_player_state(PlyrInfo* plyr, int state);
 void destroy_mkprocs_pid(int pid);
 int check_switch(int port, int switch_index);
+void bg_pselect_set_stage(int player, int stage);
+void bg_pselect_set_character(int character);
+void pselect_player_canceled(int player);
+void pselect_player_selected(PlyrInfo* player);
+void bg_pselect_player_canceled(int player);
+void pselect_player_moved(int player);
+void pselect_set_arena(int arena);
+void pselect_bgnd_select_done(void);
+void pselect_handicap_update(int player, int value);
+int bg_pselect_get_stage(int player);
+int pselect_get_selbox_pos(int player);
+int bg_pselect_get_offender_class(int player);
+int pselect_get_arena_index(void);
+void cconfig_set_current_cell(int player, int cell);
+void add_to_wls_left_cursor(int value);
+void set_volume(int channel, int value);
+void set_memcard_cursor_for(int value);
+void ppc_set_button_answer(int value);
+void ppc_set_current_icon_selection(unsigned char value);
+void ppv_update_profile_cursor(int value);
+void controller_setup_save_to_profile(int player, int value);
+void ppc_transition_pause(int value);
+void controller_setup_p1_state(int value);
+void controller_setup_p2_state(int value);
+void adjust_brightness(int value);
+void set_save_progress_flag(int value);
+void set_language(int value);
+int controller_get_texture_index_for_button(int player, int button);
+int get_left_storage_device_status(void);
+int controller_get_player_last_button(int player);
+int get_right_storage_device_display_status(void);
+int ppc_get_code_state(void);
+int ok_to_bring_out_wager_screen(void);
+int pselect_bgnd_has_deathtrap(void);
+int pselect_bgnd_has_level_transition(void);
+int pselect_bgnd_has_weapon(void);
+int get_save_progress_flag(void);
+int konquest_is_save_allowed(void);
+int trial_never_passed_this_mission(void);
+int pselect_get_body_texture_index(int player);
+int get_contrast_value(void);
+int get_brightness_value(void);
+int get_widescreen_state(void);
+int get_progressive_scan_state(void);
+int get_gamma_value(void);
+int get_color_red_value(void);
+int get_color_green_value(void);
+int get_color_blue_value(void);
 
 extern MkFileEntry screen_engine_file_table[];
 extern MkVtable5 vtbl_screen_engine;
@@ -1212,7 +1275,7 @@ void wait_for_screen_close(void) {
     pid_base = 0x10000;
     while (find_mkproc_pid(pid_base - 0x6FEF) != 0) {
         _mkproc_sleep_ticks = sleep;
-        vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+        vtbl = (MkVtableMkprocLocal*)aproc->hdr.vtbl;
         vtbl->sleep();
     }
 }
@@ -3736,14 +3799,14 @@ void Render__11ScreenModelFP16ScreenRenderInfo(ScreenModel* self,
     current_render_state = 0;
 
     if (mkobj != 0) {
-        flags = mkobj->hide_flags;
+        flags = mkobj->flag_bytes.hide_flags;
         flags = (unsigned char)((flags & ~0x20) | 0);
-        mkobj->hide_flags = flags;
+        mkobj->flag_bytes.hide_flags = flags;
         render_mkobj(mkobj);
         render_transl_atomics();
-        flags = mkobj->hide_flags;
+        flags = mkobj->flag_bytes.hide_flags;
         flags = (unsigned char)((flags & ~0x20) | 0x20);
-        mkobj->hide_flags = flags;
+        mkobj->flag_bytes.hide_flags = flags;
     }
 }
 
@@ -4673,7 +4736,7 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
         model->model = mkobj;
         model->modelInstance = mkobj->hdr.instance;
         mkobj->light_flags = 1;
-        ((MkObjHideBits*)&mkobj->hide_flags)->hidden = 1;
+        ((MkObjHideBits*)&mkobj->flag_bytes.hide_flags)->hidden = 1;
         obj_create_sobjs(mkobj);
         if (strcmp(modelName, stringBase0 + 0x331) == 0) {
             sobj_set_priority(obj_find_sobj_by_id(mkobj, 1), 2);
@@ -4975,7 +5038,7 @@ int GetResourceID__12ScreenParamsFUi(void* params, unsigned int index);
 int GetInt__12ScreenParamsFUi(void* params, unsigned int index);
 int GetBoolean__12ScreenParamsFUi(void* params, unsigned int index);
 float GetFloat__12ScreenParamsFUi(void* params, unsigned int index);
-void* GetScreenNode__12ScreenParamsFUi(void* params, unsigned int index);
+ScreenNode* GetScreenNode__12ScreenParamsFUi(void* params, unsigned int index);
 char* GetName__12ScreenParamsFUi(void* params, unsigned int index);
 unsigned int GetColor__12ScreenParamsFUi(void* params, unsigned int index);
 
@@ -5020,7 +5083,7 @@ void ProcessParams__8WifImageFP12ScreenParams(WifImage* self, void* params) {
         return;
     }
     self->unkF8 = GetFloat__12ScreenParamsFUi(params, 1);
-    self->statusNode = GetScreenNode__12ScreenParamsFUi(params, 2);
+    self->statusNode = (ScreenPoly*)GetScreenNode__12ScreenParamsFUi(params, 2);
     for (i = 0; i < self->imageCount; i++) {
         name = GetName__12ScreenParamsFUi(params, (unsigned int)(i + 3));
         strupr(name);
@@ -5647,7 +5710,39 @@ extern int GetCount__12ScreenParamsCFv(void* params);
 extern unsigned int ScreenIntegerCompare__Fiii(int lhs, int op, int rhs);
 extern void vdebug_print_message(const char* fmt, ...);
 extern void snd_req(int sound_id);
+extern void snd_stop_all(void);
+extern void fx_resume_emit(void);
+extern void fx_reset(void);
+extern void movelist_change_style(void);
+extern void start_movelist(void);
+extern void movelist_change_move(int move);
+extern void pselect_update_selbox_pos(int player, int position);
+extern void send_player_status_msg(void* player);
+extern void pselect_start_code_entry(int player, int pad);
+extern int pselect_background_select_available(void);
+extern void format_or_recreate_left_device(void);
+extern void format_or_recreate_right_device(void);
+extern void pselect_handicap_show(int player, int show);
+extern void start_loading_kontent_image(void);
+extern void bg_pselect_save_team(int player);
+extern void bg_pselect_load_team(int player);
+extern void wager_completed(void);
+extern void wager_cancelled(void);
+extern void ck_decrement_bet(void);
+extern void ck_decrement_wager_koin_type(void);
+extern void ck_increment_wager_koin_type(void);
+extern void ck_increment_bet(void);
+extern void pselect_random_select(int player);
+extern void play_current_soundtrack(void);
+extern int pselect_is_random(int player);
+extern void kill_kontent_bio_text(void);
+extern void unhide_kontent_bio_text(void);
+extern void hide_kontent_bio_text(void);
+extern void reset_video_defaults(void);
+extern void adjust_screen_reset(void);
+extern void adjust_screen_position(int direction);
 extern void set_snd_vol(int handle, int sound_id, float volume);
+extern void SetColorScale__12ScreenObjectFP8SEVec4_t(void* self, void* color);
 extern void HandleEvent__22GameVariableDispatcherFP12ScreenObjectii(
     void* self, void* object, int event, int arg);
 extern void unload_p1_player_profile(void);
@@ -5753,7 +5848,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             set_player_state(&g_game_info.plyr1, 1);
             break;
         }
-        if (aproc->vtbl != &vtbl_mkproc_nostack) {
+        if ((void*)aproc->hdr.vtbl != (void*)&vtbl_mkproc_nostack) {
             fade_to_black(8, 1);
         }
         Dispose__9ScreenMgrFUi(screen_manager, 0);
@@ -5977,7 +6072,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         play_current_soundtrack();
         break;
     case 0x1f62:
-        if (g_game_info.pselect.field_1d0 != 0) {
+        if (g_game_info.pad_overlay.pselect.field_1d0 != 0) {
             ProcessActionSubActions(action);
         }
         break;
@@ -8898,7 +8993,7 @@ void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
 
     int i;
     int nodeIndex;
-    void* link;
+    ScreenNode* link;
     ScreenPoly* poly;
     ScreenPolyIndexedVertView* vert;
     void (*setVisible)(void* node, int visible);
@@ -9114,4 +9209,6 @@ void* __dt__29mkScreenEngineResourceLibraryFv(void* self, short del) {
         }
     }
     return self;
+}
+
 }

@@ -5,9 +5,11 @@
 
 #include "mw/mwMemHeap.h"
 
+extern "C" {
+
 void* GetArtSlot__Fv(void);
 #include "runtime/asset.h"
-void* GetScreenPolyTexture__FPv(void* screen_poly);
+RwTexture* GetScreenPolyTexture__FPv(void* screen_poly);
 void SetScreenPolyTexture__FPvP9RwTexture(void* screen_poly, RwTexture* texture);
 int sprintf(char* dest, const char* fmt, ...);
 void memset(void* dest, int val, int size);
@@ -144,7 +146,7 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
                 screenIndex++;
                 screenOffset += 4;
             } while (screenIndex < screenCount);
-            setMovieHeap__FP10_mwMemHeap(movie_heap);
+            setMovieHeap(movie_heap);
             can_play = 1;
             if (use_mfs == 0) {
                 sprintf(player->path, STR_NAME_PATH_FMT, name);
@@ -167,10 +169,10 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
 void mkMovieTexInit(int index, void* screen_poly, int width, int height) {
     MkMovieTexPlayer* player;
     RwTexture* tex;
-    void* movie;
+    MoviePlayer* movie;
     RwTexture* saved;
 
-    setMovieHeap__FP10_mwMemHeap(permanent_heap);
+    setMovieHeap(permanent_heap);
     if (index < 2) {
         player = &_mmp_data[index];
         if (player->movie == 0) {
@@ -186,4 +188,6 @@ void mkMovieTexInit(int index, void* screen_poly, int width, int height) {
             player->saved_texture = saved;
         }
     }
+}
+
 }
