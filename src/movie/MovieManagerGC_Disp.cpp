@@ -1,56 +1,25 @@
 #include "movie/MovieManagerGC_Disp.h"
 
-typedef struct GXTexObj {
-    char data[0x20];
-} GXTexObj;
+#include "dolphin/gx.h"
+#include "dolphin/cache.h"
+#include "dolphin/mtx.h"
+#include "dolphin/os.h"
+#include "dolphin/vi.h"
+#include "math/gxVect.h"
+#include "movie/MovieConfig.h"
+#include "movie/mwsfx.h"
+#include "platform/display_metrics.h"
+#include "runtime/cstring.h"
+
 typedef enum _GXTexMapID {
     GX_TEXMAP0 = 0,
     GX_TEXMAP1 = 1
 } GXTexMapID;
-typedef struct GXColorS10 {
-    short r;
-    short g;
-    short b;
-    short a;
-} GXColorS10;
-typedef struct GXColor {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} GXColor;
-typedef struct Mtx {
-    float m[4][3];
-} Mtx;
-typedef struct Mtx44 {
-    float m[4][4];
-} Mtx44;
-typedef struct Vec {
-    float x;
-    float y;
-    float z;
-} Vec;
 typedef struct CameraVectors {
     Vec up;
     Vec position;
     Vec target;
 } CameraVectors;
-typedef struct GXRenderModeObj {
-    int viTVmode;
-    unsigned short fbWidth;
-    unsigned short efbHeight;
-    unsigned short xfbHeight;
-    unsigned short viXOrigin;
-    unsigned short viYOrigin;
-    unsigned short viWidth;
-    unsigned short viHeight;
-    int field_rendering;
-    int aa;
-    char unk[0x20];
-    unsigned char sample_pattern[12][2];
-    unsigned char vfilter[7];
-} GXRenderModeObj;
-
 typedef struct UsrCamObj {
     char pad[0x70];
 } UsrCamObj;
@@ -72,67 +41,11 @@ typedef struct SceneCtrl {
     UsrTexObj tob1;
 } SceneCtrl;
 
-typedef struct MovieProcessCtx {
+typedef struct NativeMovieProcessCtx {
     int handle;
     int unk4;
-    int frame;
-} MovieProcessCtx;
-
-extern "C" {
-void GXSetNumTexGens(int n);
-void GXSetTexCoordGen2(int dst, int func, int src, int mtx, int normalize, int postMtx);
-void GXSetNumTevStages(int n);
-void GXSetTevOrder(int stage, int coord, int map, int color);
-void GXSetTevColorIn(int stage, int a, int b, int c, int d);
-void GXSetTevColorOp(int stage, int op, int bias, int scale, int clamp, int outReg);
-void GXSetTevAlphaIn(int stage, int a, int b, int c, int d);
-void GXSetTevAlphaOp(int stage, int op, int bias, int scale, int clamp, int outReg);
-void GXSetTevKColorSel(int stage, int sel);
-void GXSetTevKAlphaSel(int stage, int sel);
-void GXSetTevSwapMode(int stage, int rasSel, int texSel);
-void GXSetTevColorS10(int id, GXColorS10* color);
-void GXSetTevKColor(int id, GXColor* color);
-void GXSetTevSwapModeTable(int id, int r, int g, int b, int a);
-void GXSetNumChans(int n);
-void GXSetNumIndStages(int n);
-void C_MTXFrustum(Mtx44* m, float top, float bottom, float left, float right, float near,
-                  float far);
-void GXSetProjection(Mtx44* m, int type);
-void C_MTXLookAt(Mtx* m, Vec* camPos, Vec* up, Vec* target);
-void GXLoadTexObj(GXTexObj* obj, int mapid);
-void GXSetBlendMode(int type, int src, int dst, int op);
-void GXSetCullMode(int mode);
-void GXSetZMode(int compare, int le, int zupd);
-void GXSetAlphaCompare(int comp0, int ref0, int aop, int comp1, int ref1);
-void PSMTXIdentity(Mtx* m);
-void GXLoadTexMtxImm(Mtx* m, int id, int type);
-void GXClearVtxDesc(void);
-void GXSetVtxDesc(int attr, int type);
-void GXSetVtxAttrFmt(int vtxfmt, int attr, int cnt, int type, int frac);
-void PSMTXTrans(Mtx* m, float x, float y, float z);
-void PSMTXConcat(Mtx* a, Mtx* b, Mtx* out);
-void GXLoadPosMtxImm(Mtx* m, int id);
-void GXBegin(int primitive, int vtxfmt, int nverts);
-void GXSetCopyClear(unsigned long color, int z);
-void GXInvalidateTexAll(void);
-void GXInitTexObj(GXTexObj* obj, void* data, int width, int height, int format, int wrapS,
-                  int wrapT, int mipmap);
-void GXInitTexObjLOD(GXTexObj* obj, int minfilt, int magfilt, float minlod, float maxlod,
-                     float lodbias, int biasclamp, int edgelod, int maxaniso);
-int GXGetTexBufferSize(int width, int height, int format, int mipmap, int maxlod);
-void mwPlyFxSetOutBufPitchHeight(int handle, int pitch, int height);
-void mwPlyFxCnvFrmY84C44(int handle, int* frame, void* y, void* c);
-void DCStoreRange(void* addr, unsigned long length);
-void GXPixModeSync(void);
-void VISetBlack(int black);
-void OSReport(const char* fmt, ...);
-void* memset(void* dest, int val, unsigned long size);
-void mwMovFree(void* ptr);
-void* mwMovMalloc(unsigned long size);
-
-extern int screen_width;
-extern int screen_height;
-}
+    MwsFrameInfo frame;
+} NativeMovieProcessCtx;
 
 static SceneCtrl scn_ctrl;
 
@@ -145,7 +58,6 @@ char is_set_black;
 char pad_is_set_black[3];
 
 int gap_07_8050FA3C_sdata;
-extern GXRenderModeObj GXNtsc480IntDf;
 GXRenderModeObj* rmode = &GXNtsc480IntDf;
 
 static const GXColorS10 tev_color_s10 = {0xFF91, 0xFF76, 0x0044, 0x0000};
@@ -167,7 +79,7 @@ static const CameraVectors camera_vectors = {
 
 static const char stringBase0[] = "can't allocate tex buf.\n";
 
-static unsigned long copy_clear_color;
+static GXColor copy_clear_color;
 
 #define WGPIPE_S16 (*(volatile short*)0xCC008000)
 #define WGPIPE_F32 (*(volatile float*)0xCC008000)
@@ -212,15 +124,15 @@ static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
     GXSetTevSwapMode(3, 0, 0);
     GXSetTevKColorSel(3, 0xF);
     local_s10 = tev_color_s10;
-    GXSetTevColorS10(1, &local_s10);
+    GXSetTevColorS10(1, local_s10);
     local_color = tev_kcolor0;
-    GXSetTevKColor(0, &local_color);
+    GXSetTevKColor(0, local_color);
     local_color = tev_kcolor1;
-    GXSetTevKColor(1, &local_color);
+    GXSetTevKColor(1, local_color);
     local_color = tev_kcolor2;
-    GXSetTevKColor(2, &local_color);
+    GXSetTevKColor(2, local_color);
     local_color = tev_kcolor3;
-    GXSetTevKColor(3, &local_color);
+    GXSetTevKColor(3, local_color);
     GXSetTevSwapModeTable(0, 0, 1, 2, 3);
     GXSetTevSwapModeTable(1, 0, 3, 3, 3);
     GXSetTevSwapModeTable(2, 0, 0, 3, 0);
@@ -250,10 +162,10 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     mode = rmode;
     half_height = (float)((unsigned int)mode->xfbHeight >> 1);
     half_width = (float)((unsigned int)mode->fbWidth >> 1);
-    C_MTXFrustum(&proj, half_height, -half_height, -half_width,
+    C_MTXFrustum(proj, half_height, -half_height, -half_width,
                  half_width, flt_532, flt_533);
-    GXSetProjection(&proj, 0);
-    C_MTXLookAt((Mtx*)cam, &vectors.position, &vectors.up, &vectors.target);
+    GXSetProjection(proj, 0);
+    C_MTXLookAt((MtxPtr)cam, &vectors.position, &vectors.up, &vectors.target);
     GXLoadTexObj(&tex->tex0, 0);
     GXLoadTexObj(&tex->tex1, 1);
     setTevPrm(GX_TEXMAP0, GX_TEXMAP1);
@@ -261,8 +173,8 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     GXSetCullMode(0);
     GXSetZMode(0, 7, 0);
     GXSetAlphaCompare(7, 0, 1, 7, 0);
-    PSMTXIdentity(&tex_mtx);
-    GXLoadTexMtxImm(&tex_mtx, 0x1E, 1);
+    PSMTXIdentity(tex_mtx);
+    GXLoadTexMtxImm(tex_mtx, 0x1E, 1);
     GXClearVtxDesc();
     GXSetVtxDesc(9, 1);
     GXSetVtxDesc(0xD, 1);
@@ -272,9 +184,9 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     halfH = (short)(screen_height / 2);
     negW = (short)-halfW;
     negH = (short)-halfH;
-    PSMTXTrans(&model, flt_490, flt_490, flt_490);
-    PSMTXConcat((Mtx*)cam, &model, &tmp);
-    GXLoadPosMtxImm(&tmp, 0);
+    PSMTXTrans(model, flt_490, flt_490, flt_490);
+    PSMTXConcat((MtxPtr)cam, model, tmp);
+    GXLoadPosMtxImm(tmp, 0);
     GXBegin(0x80, 0, 4);
     WGPIPE_S16 = halfW;
     WGPIPE_S16 = halfH;
@@ -300,7 +212,7 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
 }
 
 void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int height) {
-    MovieProcessCtx* proc;
+    NativeMovieProcessCtx* proc;
     UsrTexObj* tex;
     int alignedW;
     int alignedH;
@@ -309,7 +221,7 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     void* yBuf;
     void* cBuf;
 
-    proc = (MovieProcessCtx*)ctx;
+    proc = (NativeMovieProcessCtx*)ctx;
     (void)unused;
     if (init_399 == 0) {
         last_tob = 0;
@@ -398,10 +310,10 @@ void MovieManager_Default_StartVideo(void) {
     GXInvalidateTexAll();
     GXSetTexCoordGen2(0, 1, 4, 0x1E, 0, 0x7D);
     GXSetNumTexGens(1);
-    C_MTXFrustum(&proj, (float)(rmode->efbHeight >> 1), (float)(-(rmode->efbHeight >> 1)),
+    C_MTXFrustum(proj, (float)(rmode->efbHeight >> 1), (float)(-(rmode->efbHeight >> 1)),
                  (float)(rmode->fbWidth >> 1), (float)(-(rmode->fbWidth >> 1)), flt_532,
                  flt_533);
-    GXSetProjection(&proj, 0);
+    GXSetProjection(proj, 0);
     camPos.x = camera_vectors.up.x;
     camPos.y = camera_vectors.up.y;
     camPos.z = camera_vectors.up.z;
@@ -411,7 +323,7 @@ void MovieManager_Default_StartVideo(void) {
     target.x = camera_vectors.target.x;
     target.y = camera_vectors.target.y;
     target.z = camera_vectors.target.z;
-    C_MTXLookAt((Mtx*)&scn_ctrl.cam, &camPos, &up, &target);
+    C_MTXLookAt((MtxPtr)&scn_ctrl.cam, &camPos, &up, &target);
     ctrl->tob0.bufY = 0;
     ctrl->tob0.bufC = 0;
     ctrl->tob1.bufY = 0;

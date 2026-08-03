@@ -1,81 +1,19 @@
 #include "movie/MovieManager.h"
 
+#include "dolphin/os.h"
+#include "game/settings.h"
 #include "movie/MovieConfig.h"
 #include "movie/MovieManagerGC_Disp.h"
+#include "movie/MovieManagerGC_RW_Disp.h"
 #include "movie/MovieSubtitle_GC.h"
-
-typedef struct GameSettings {
-    float volume[6];
-    char pad[0x3440 - 0x18];
-} GameSettings;
-
-typedef struct RwTexture {
-    RwRaster* raster;
-    char name[0x40];
-    int unk50;
-} RwTexture;
-
-/* Layout matches retail stack stores at MovieNew (sp+0x20). ntsc is always 0. */
-typedef struct MwMovieInitParams {
-    int pal;
-    int ntsc;
-    const char* path;
-    int audio_enable;
-    float volume;
-    void* reserved;
-    void (*start)(void);
-    void (*stop)(void);
-    void (*vsync)(void);
-    void (*process)(void* ctx, int unused, int width, int height);
-    void (*disc_err)(void);
-} MwMovieInitParams;
-
-/* Layout matches retail create-params block (sp+0x8, size 0x18). */
-typedef struct MwMovieCreateParams {
-    void* buffer_bytes;
-    int reserved0; /* always 0 */
-    void* create_flag;
-    short width;
-    short height;
-    short width2;
-    short height2;
-    short const_one; /* always 1 */
-    short const_four; /* always 4 */
-} MwMovieCreateParams;
-
-void mslStopAll(void);
-void mslSuspendSpuDma(void);
-void mslResumeSpuDma(void);
-int get_language(void);
-void mwMovieSetMovieVolume(void* handle, float volume);
-void mwMovieSetTapoutCallback(void* cb);
-void mwMovieUnPauseMovie(void* handle);
-void mwMovieStopPlayback(void* handle);
-void mwMovieDestroyPlayer(void* handle);
-void mwMovieShutDown(void);
-void mwMovieInit(MwMovieInitParams* params);
-void* mwMovieCreatePlayer(MwMovieCreateParams* params);
-void mwMovieStartPlayback(void* handle, const char* path);
-void mwMovieStartPlaybackLooping(void* handle, const char* path);
-void gc_native_display_render_movie(void);
-void OSPanic(const char* file, int line, const char* fmt, ...);
-void check_handle_disc_error(void);
-void MovieManager_RW_Set_Target_Raster(RwRaster* raster);
-void MovieManager_RW_ProcessFrame(void* ctx, int unused, int width, int height);
-void MovieManager_RW_VSync(void);
-void MovieManager_RW_StopVideo(void);
-void MovieManager_RW_StartVideo(void);
-int refresh_rate(void);
-const char* get_movie_path(void);
-RwRaster* RwRasterCreate(int width, int height, int depth, int format);
-void* RwRasterLock(RwRaster* raster, int lockMode, int flags);
-void RwRasterUnlock(RwRaster* raster);
-RwTexture* RwTextureCreate(RwRaster* raster);
-void RwTextureDestroy(RwTexture* texture);
-void memset(void* dest, int val, int size);
-char* strcpy(char* dest, const char* src);
-
-extern GameSettings game_settings;
+#include "movie/mwMovie.h"
+#include "msl/mslcore.h"
+#include "platform/disc_error.h"
+#include "platform/gcdisplay.h"
+#include "platform/gcutils.h"
+#include "rw/rwcore_types.h"
+#include "runtime/cstring.h"
+#include "runtime/utils.h"
 
 /* MWCC emits .sbss in reverse declaration order. */
 int mwMovie_num_players;
@@ -112,12 +50,13 @@ static const char stringBase0[] =
  * Soft ceiling: Simple_MoviePlayFullScreen ~0% - retail inlines
  * Update/Stop/Delete; we call the shells for readable structured C. Stop.
  */
-void Simple_MoviePlayFullScreen(const char* path, int width, int height, void* tapout_cb) {
+void Simple_MoviePlayFullScreen(const char* path, int width, int height,
+                                MovieTapoutFn tapout_cb) {
     MoviePlayer* movie;
     int lang;
     int sub_lang;
 
-    mslStopAll();
+    mslStopAll(gMsi);
     mslSuspendSpuDma();
     movie = MovieNewFullScreen(width, height);
     if (movie == 0) {
@@ -125,7 +64,7 @@ void Simple_MoviePlayFullScreen(const char* path, int width, int height, void* t
     } else {
         mwMovieSetMovieVolume(movie->handle, game_settings.volume[0]);
         if (tapout_cb != 0) {
-            mwMovieSetTapoutCallback(tapout_cb);
+            mwMovieSetTapoutCallback((void*)tapout_cb);
         }
 
         lang = get_language();
@@ -152,7 +91,7 @@ void Simple_MoviePlayFullScreen(const char* path, int width, int height, void* t
         MoviePlayFullScreen(movie, path);
         /* MovieUpdate == 0 while playing; non-zero when tick reports EOF/tapout. */
         while (MovieUpdate(movie) == 0) {
-            gc_native_display_render_movie();
+            gc_native_display_render_movie(0);
         }
         MovieStop(movie);
         MovieDelete(movie);
@@ -177,9 +116,9 @@ RwTexture* MovieNewTexture(int width, int height) {
     }
     RwRasterUnlock(raster);
     texture = RwTextureCreate(raster);
-    flags = texture->unk50;
+    flags = texture->filter_flags;
     flags = (flags & 0xFF00FFFF) | 0x3300;
-    texture->unk50 = flags;
+    texture->filter_flags = flags;
     strcpy(texture->name, STR_TEXTURE_NAME);
     return texture;
 }
@@ -280,8 +219,8 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
     MwMovieCreateParams createParams;
 
     if (mwMovie_initialized == 0) {
-        initParams.pal = (refresh_rate() == 0x32);
-        initParams.ntsc = 0;
+        initParams.display_mode = (refresh_rate() == 0x32);
+        initParams.source = 0;
         initParams.path = get_movie_path();
         if (use_audio != 0) {
             initParams.audio_enable = 1;
@@ -300,7 +239,7 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
             cb_vsync = MovieManager_RW_VSync;
             cb_process = MovieManager_RW_ProcessFrame;
             initParams.start = cb_start;
-            initParams.reserved = 0;
+            initParams.tapout = 0;
             initParams.stop = cb_stop;
             initParams.vsync = cb_vsync;
             initParams.process = cb_process;
@@ -315,12 +254,12 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
             cb_vsync = MovieManager_Default_VSync;
             cb_process = MovieManager_Default_ProcessFrame;
             initParams.start = cb_start;
-            initParams.reserved = 0;
+            initParams.tapout = 0;
             initParams.stop = cb_stop;
             initParams.vsync = cb_vsync;
             initParams.process = cb_process;
         }
-        initParams.disc_err = check_handle_disc_error;
+        initParams.disc_error = check_handle_disc_error;
         mwMovieInit(&initParams);
         mwMovie_initialized = 1;
     }

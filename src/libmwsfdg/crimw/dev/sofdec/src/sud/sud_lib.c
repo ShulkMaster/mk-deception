@@ -1,5 +1,4 @@
-int memcmp(const void* left, const void* right, unsigned long size);
-int strncmp(const char* left, const char* right, unsigned long size);
+#include "runtime/cstring.h"
 
 const char sud_ver_str[] =
     "\nCRI SUD/GC Ver.0.05 Build:Sep  3 2004 11:38:58\n";

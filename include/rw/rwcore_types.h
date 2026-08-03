@@ -66,6 +66,10 @@ typedef struct RwFrame {
     struct RwFrame* root;       /**< Retail offset 0xA0. */
 } RwFrame;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
 RwRaster* RwRasterUnlock(RwRaster* raster);
 int RwRasterGetNumLevels(RwRaster* raster);
@@ -75,5 +79,9 @@ RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 void RwTexDictionaryRemoveTexture(RwTexture* texture);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
