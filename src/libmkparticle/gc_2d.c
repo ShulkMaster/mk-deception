@@ -135,7 +135,7 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     Pfx2dGpuVtx* gpu_base;
     PfxNativeRasterView* ras;
 
-    ras = obj->texture->raster;
+    ras = pfx_rw_texture_view(obj->texture)->raster;
     tex_w = (float)ras->width;
     tex_h = (float)ras->height;
 

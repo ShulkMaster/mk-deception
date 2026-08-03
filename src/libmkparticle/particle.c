@@ -3,8 +3,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "libmkparticle/streams.h"
 #include "platform/fast_rw.h"
-
-void* memcpy(void* dst, const void* src, unsigned long n);
+#include "runtime/cstring.h"
 
 static const float s_zero = 0.0f;
 
@@ -28,7 +27,7 @@ int get_field_size(int type) {
     return get_propfield_size(type) + get_renderfield_size(type);
 }
 
-int pfx_field_get_type(void* field) {
+int pfx_field_get_type(unsigned int field) {
     (void)field;
     return 0;
 }
@@ -41,13 +40,17 @@ void pfx_set_texture(PfxRenderView* pfx, RwTexture* texture) {
     pfx->has_texture = 1;
 }
 
-void pfx_frame_begin(void) {
+int pfx_frame_begin(void* pfx) {
+    (void)pfx;
+    return 0;
 }
 
-void pfx_frame_end(void) {
+void pfx_frame_end(void* pfx) {
+    (void)pfx;
 }
 
-void pfx_frame_end_check(void) {
+void pfx_frame_end_check(void* pfx) {
+    (void)pfx;
 }
 
 void update_live_particles(PfxRuntimeView* pfx) {
@@ -93,8 +96,8 @@ void pfx_count_begin(void) {
 void pfx_count_end(void) {
 }
 
-void pfx_count_add(int n) {
-    (void)n;
+void pfx_count_add(void* pfx) {
+    (void)pfx;
 }
 
 static void v3_x_mat_4(float* out, float* v, float* m) {

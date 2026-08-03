@@ -98,11 +98,19 @@ void pfxsystem_widescreen_offset(int x, int y);
 void get_pfxsystem_widescreen_offset(int* out_x, int* out_y);
 void pfxsystem_init(void);
 void pfxsystem_set_global(int id, float value);
+int pfx_frame_begin(void* pfx);
+void pfx_frame_end(void* pfx);
+void pfx_frame_end_check(void* pfx);
+void pfx_count_begin(void);
+void pfx_count_end(void);
+void pfx_count_add(void* pfx);
 void pfx_set_texture(PfxRenderView* pfx, RwTexture* texture);
 void update_live_particles(PfxRuntimeView* pfx);
 void pfx_set_renderstate(PfxRenderView* pfx);
+void pfx_reset_renderstate(void);
 void pfx_render_set_blendmode(PfxRenderView* pfx, int mode);
 PfxEmitterView* pfx_get_emitter(PfxEmitterTableView* pfx, int index);
 int pfx_verify(PfxVerifyView* pfx);
+int pfx_field_get_type(unsigned int field);
 
 #endif

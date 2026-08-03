@@ -1,0 +1,11 @@
+#ifndef GAME_TRIAL_H
+#define GAME_TRIAL_H
+
+int current_player_is_drone(void);
+int get_konquest_drone_switch_state(int player);
+void trial_register_special_move(unsigned int action);
+void trial_register_script_function(unsigned int function_index);
+void trial_clear_provision(void);
+void trial_increment_state_value(int player, int state, int value);
+
+#endif

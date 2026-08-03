@@ -1,8 +1,11 @@
 #include "platform/fast_rw.h"
 
-#include "platform/display.h"
+typedef struct FastRwEngineView {
+    char pad00[0x20];
+    int (*fpRenderStateSet)(int state, int value);
+} FastRwEngineView;
 
-extern RwEngineInstanceType* RwEngineInstance;
+extern FastRwEngineView* RwEngineInstance;
 
 void RwRenderStateSet_SRCBLEND_DESTBLEND(int srcBlend, int destBlend) {
     RwEngineInstance->fpRenderStateSet(0xa, srcBlend);

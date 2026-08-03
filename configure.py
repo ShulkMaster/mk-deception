@@ -1095,7 +1095,8 @@ config.libs = [
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfxfont.o",
                 source="libmkparticle/pfxfont.c",
                 # No -use_lmw_stmw: retail uses _savegpr_19/_restgpr_19 in string_set.
-                extra_cflags=["-O4,s"],
+                # Scheduling and peephole settings are uniform; no-inline remains local.
+                extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole"],
             ),
             # Thin pfxsystem_* frame helpers; VM/emitter stubs (whole-TU NonMatching).
             Object(
