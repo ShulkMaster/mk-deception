@@ -1,6 +1,5 @@
 #include "libmkparticle/streams.h"
-
-void* memset(void* dst, int value, unsigned long size);
+#include "runtime/cstring.h"
 
 #define STREAM_COUNT 2
 #define STREAM_FRAME_SIZE 150000

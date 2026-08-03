@@ -1,6 +1,5 @@
 #include "libmkparticle/pfxmath.h"
-
-void* memset(void* destination, int value, unsigned long size);
+#include "runtime/cstring.h"
 
 void mat_set_identity(PfxMatrix* matrix) {
     int i;
