@@ -1,10 +1,7 @@
 #include "runtime/mk_hwfile.h"
 
 #include "runtime/mk_proc.h"
-
-extern unsigned long strlen(const char* string);
-extern char* strcat(char* destination, const char* source);
-extern void* memset(void* destination, int value, unsigned long length);
+#include "runtime/cstring.h"
 
 static MkHwFileRequest handle_data[10];
 static signed char handle_freelist[10];
@@ -44,7 +41,7 @@ void mk_hwfile_wait_for_completion(void** command) {
         return;
     }
     while (*command != 0 &&
-           !mwFileIsCommandCompleted(*command, &result)) {
+           !mwFileIsCommandCompleted((mwFileCommand*)*command, &result)) {
         if (aproc != 0 && aproc->stack_top != 0) {
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -61,7 +58,7 @@ void mk_hwfile_wait_for_completion_or_null_request(MkHwFileRequest** command) {
         return;
     }
     while (*command != 0 &&
-           !mwFileIsCommandCompleted(*command, &result)) {
+           !mwFileIsCommandCompleted((mwFileCommand*)*command, &result)) {
         if (aproc != 0 && aproc->stack_top != 0) {
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -212,17 +209,17 @@ int mk_hwfile_read(MkHwFileRequest* request, void* buffer, int length) {
     return result.value.bytes;
 }
 
-static void open_callback(void* command, mwFileAsyncResult* result, void* arg) {
+static void open_callback(mwFileCommand* command, mwFileAsyncResult result, void* arg) {
     MkHwFileRequest* request = arg;
     MkHwFileOpenCallback callback;
     void* callback_arg;
     int success;
 
-    if (result->error == 0) {
-        request->mwFile = result->value.pointer;
+    if (result.error == 0) {
+        request->mwFile = result.value.pointer;
         success = 1;
     } else {
-        last_error = result->error;
+        last_error = result.error;
         request->mwFile = 0;
         success = 0;
     }

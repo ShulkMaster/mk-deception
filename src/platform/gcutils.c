@@ -5,14 +5,6 @@
 
 #define OS_BUS_CLOCK (*(unsigned int*)0x800000F8)
 
-typedef struct OSThread {
-    unsigned char data[0x318];
-} OSThread;
-
-typedef struct OSAlarm {
-    unsigned char data[0x28];
-} OSAlarm;
-
 typedef struct GcRenderMode {
     unsigned char field_0x00[0x0A];
     short vi_x_origin;
