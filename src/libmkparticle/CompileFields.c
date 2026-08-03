@@ -1,8 +1,6 @@
 #include "libmkparticle/compile_fields.h"
-
-int has_field_description(PfxTableRegistry* registry, unsigned int description);
-int get_field_offset(PfxTableRegistry* registry, unsigned int description);
-int pfx_field_get_type(unsigned int field);
+#include "libmkparticle/fields.h"
+#include "libmkparticle/particle.h"
 
 void _pfx_emitter_compile(PfxEmitterCompileView* emitter,
                           PfxTableRegistry* registry) {
