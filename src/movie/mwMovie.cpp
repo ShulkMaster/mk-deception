@@ -1,3 +1,9 @@
+#include "dolphin/os.h"
+#include "movie/MovieConfig.h"
+#include "movie/mwMovie.h"
+#include "movie/mwMovie_platform.h"
+#include "runtime/cstring.h"
+
 struct MovieDecoder;
 
 struct _mwMovPlayer {
@@ -8,20 +14,6 @@ struct _mwMovPlayer {
     unsigned short fade_total;
     unsigned short fade_current;
     unsigned char padAE[0x0A];
-};
-
-struct mwMovieInitParams {
-    int display_mode;
-    int source;
-    const char* path;
-    int audio_enable;
-    float volume;
-    void* tapout;
-    void* start;
-    void* stop;
-    void* vsync;
-    void* process;
-    void* disc_error;
 };
 
 struct mwMovieSetup {
@@ -52,20 +44,6 @@ struct MovieDecoder {
 
 extern mwMovieSetup MoviePlayerSetup;
 
-extern "C" void* mwMovMalloc(unsigned long size);
-extern "C" void mwMovFree(void* memory);
-extern "C" void* memset(void* memory, int value, unsigned long size);
-extern "C" void* memcpy(void* destination, const void* source, unsigned long size);
-extern "C" void __mwMovie_initVideo(void);
-extern "C" void __mwMovie_shutdownVideo(void);
-extern "C" void __mwMovie_syncFrame(void);
-extern "C" void ADXM_ExecMain(void);
-extern "C" void initADXwithDVD(const char* path, int audio_enable);
-extern "C" void initADXwithPC(const char* path, int audio_enable);
-extern "C" void initADXwithMEM(int audio_enable);
-extern "C" void shutdownADX(void);
-extern "C" void OSPanic(const char* file, int line, const char* format, ...);
-
 void initSofdec(void);
 void shutdownSofdec(void);
 void createSofdecPlayer(_mwMovPlayer* player);
@@ -91,7 +69,7 @@ extern "C" void mwMovieSetTapoutCallback(void* callback) {
     MoviePlayerSetup.tapout = callback;
 }
 
-extern "C" int mwMovieInit(mwMovieInitParams* params) {
+extern "C" int mwMovieInit(MwMovieInitParams* params) {
     if (MoviePlayerSetup.once == 0) {
         MoviePlayerSetup.once = 1;
     }
@@ -147,7 +125,7 @@ extern "C" float mwMovieGetVolume(void) {
     return MoviePlayerSetup.volume;
 }
 
-extern "C" _mwMovPlayer* mwMovieCreatePlayer(void* params) {
+extern "C" _mwMovPlayer* mwMovieCreatePlayer(MwMovieCreateParams* params) {
     _mwMovPlayer* player;
 
     if (MoviePlayerSetup.initialized == 0) {

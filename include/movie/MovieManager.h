@@ -3,6 +3,8 @@
 
 typedef struct RwRaster RwRaster;
 typedef struct RwTexture RwTexture;
+typedef struct _mwMovPlayer _mwMovPlayer;
+typedef int (*MovieTapoutFn)(void);
 
 /*
  * Sofdec player shell (MovieManager.o).
@@ -26,9 +28,10 @@ typedef struct MoviePlayer {
 } MoviePlayer;
 
 /* Retail: non-zero = EOF or tapout (MovieUpdate wraps this). */
-int mwMoviePlayTick(void* handle);
+int mwMoviePlayTick(_mwMovPlayer* player);
 
-void Simple_MoviePlayFullScreen(const char* path, int width, int height, void* tapout_cb);
+void Simple_MoviePlayFullScreen(const char* path, int width, int height,
+                                MovieTapoutFn tapout_cb);
 void MovieDeleteTexture(RwTexture* texture);
 RwTexture* MovieNewTexture(int width, int height);
 int MovieIsPlaying(MoviePlayer* movie);
@@ -44,4 +47,3 @@ void MoviePlayFullScreen(MoviePlayer* movie, const char* path);
 MoviePlayer* MovieNewFullScreen(int width, int height);
 
 #endif
-

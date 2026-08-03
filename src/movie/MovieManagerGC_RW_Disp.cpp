@@ -1,14 +1,14 @@
-extern "C" {
+#include "movie/MovieManagerGC_RW_Disp.h"
+
+#include "dolphin/cache.h"
 #include "rw/rwcore_types.h"
 #include "movie/mwsfx.h"
 
-typedef struct MovieProcessCtx {
+typedef struct RwMovieProcessCtx {
     int handle;
     int field_0x04;
     MwsFrameInfo frame; /* +0x08 -- source frame descriptor */
-} MovieProcessCtx;
-
-void DCFlushRangeNoSync(void* addr, unsigned long length);
+} RwMovieProcessCtx;
 
 /* MWCC emits .sbss in reverse declaration order. */
 int gap_08_805108C4_sbss;
@@ -20,11 +20,13 @@ void MovieManager_RW_Set_Target_Raster(RwRaster* raster) {
 
 /* Soft ceiling: MovieManager_RW_ProcessFrame ~72% -- retail stmw/lmw scheduling;
  * enabling the required flag crashes MWCC when small-data placement is active. */
-void MovieManager_RW_ProcessFrame(MovieProcessCtx* ctx, int unused, int width, int height) {
+void MovieManager_RW_ProcessFrame(void* context, int unused, int width, int height) {
+    RwMovieProcessCtx* ctx;
     void* pixels;
     RwRaster* raster;
 
     (void)unused;
+    ctx = (RwMovieProcessCtx*)context;
     pixels = RwRasterLock(TargetRaster, 0, 0xd);
     raster = TargetRaster;
     mwPlyFxSetOutBufPitchHeight(ctx->handle, raster->width << 2, raster->height);
@@ -38,5 +40,3 @@ void MovieManager_RW_VSync(void) {}
 void MovieManager_RW_StopVideo(void) {}
 
 void MovieManager_RW_StartVideo(void) {}
-
-}
