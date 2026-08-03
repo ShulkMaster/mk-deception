@@ -1,5 +1,6 @@
 #include "math/mk_math.h"
 #include "math/gxMath.h"
+#include "runtime/cmath.h"
 
 /*
  * Soft ceilings (Wave D polish -- NonMatching; ASM still linked):
@@ -11,8 +12,6 @@
  *   ray_cyl / interp_quat / YXZ_angles_to_quat / mat_x_mat -- algorithmically
  *     reconstructed; remaining differences are source shape and FP scheduling
  */
-
-double atan2(double y, double x);
 
 Vec Xaxis = {1.0f, 0.0f, 0.0f};
 Vec Yaxis = {0.0f, 1.0f, 0.0f};
