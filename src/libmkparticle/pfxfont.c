@@ -188,7 +188,6 @@ static int find_drawable_boundary(const char* text, int* pos, PfxFontInstance* i
 }
 #pragma dont_inline reset
 
-#pragma opt_common_subs off
 void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text, float wrap_w,
                         int halign) {
     float pen_x;
@@ -368,8 +367,6 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
     ctx->width = (int)max_w;
     ctx->height = (int)pen_y;
 }
-#pragma opt_common_subs reset
-
 void pfxfont_set_transform(PfxFontString* ctx, const void* matrix44) {
     memcpy(ctx->transform, matrix44, 0x40);
 }
