@@ -3,14 +3,13 @@
 
 #include "dolphin/sp.h"
 
+#include "mw/mwFile.h"
 #include "msl/mslBankLoadAsyncQueue.h"
 #include "msl/CriticalSection.h"
 #include "msl/listpool.h"
 #include "msl/mslqueue.h"
 #include "msl/msl_types.h"
 
-struct mwFileCommand;
-struct _mwFile;
 struct _mslSound;
 struct mslLoadedBank;
 struct mslBankWaveEntry;
@@ -53,11 +52,6 @@ union mslRelocPtr {
     unsigned long offset;
     long token;
     T* pointer;
-};
-
-struct _mwFileAsyncResult {
-    _mwFile* file;
-    int error;
 };
 
 enum _mslError_e {
@@ -322,6 +316,52 @@ struct mslLoadedBank {
         return (char*)this + offset;
     }
 };
+
+typedef void (*mslAsyncSoundCallback)(
+    bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int mslBankSoundUnUse(mslBankSoundEntry* bank_sound);
+_ListNode* mslBankSoundUse(
+    mslBankSoundEntry* bank_sound, _mslSystem* system);
+void callbackPlay(
+    bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node);
+void asyncLoadSound(
+    _mslSystem* system, mslLoadedBank* bank,
+    mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,
+    _ListNode* node);
+void* mslBankUnLoad(mslLoadedBank* bank);
+void* mslBankUpdatePtrs(mslLoadedBank* bank);
+int mslBankUse(_mslSystem* system, mslLoadedBank* bank);
+mslAssetWave* mslBankFileEntryFind(
+    mslLoadedBank* bank, const char* name);
+mslBankWaveEntry* mslBankWavesFind(
+    mslLoadedBank* bank, const char* name);
+
+_ListNode* mslSoundNew(_mslSystem* system, int priority);
+_mslSound* mslSoundLoad(
+    _mslSystem* system, mslLoadedBank* bank,
+    mslBankSoundDefinition* definition, unsigned long flags);
+int mslSoundAttach(
+    mslRuntimeSound* sound, mslBankSoundEntry* bank_sound);
+int mslSoundPlayNow(_ListNode* node);
+int mslSoundEnd(_mslSound* sound);
+int mslSoundIsReady(_mslSound* sound);
+int mslCmdsLoad(
+    _mslSystem* system, mslLoadedBank* bank,
+    mslBankSoundDefinition* definition, unsigned long flags);
+void mslSoundUnCopy(_ListNode* node);
+void mslSoundUncommit(_mslSound* sound);
+int mslSoundUnLoad(_mslSound* sound);
+void mslUpdateTracks(_mslSystem* system);
+int mslUpdate(_mslSystem* system);
+
+#ifdef __cplusplus
+}
+#endif
 
 void mslBankLoadAsyncInternal(
     _mslSystem* system, unsigned long flags, char* filename,

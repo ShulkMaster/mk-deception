@@ -1,23 +1,20 @@
 #include "msl/mslBank.h"
 #include "msl/ExtHeapMgr.h"
-
-extern "C" void* memset(void* destination, int value, unsigned long size);
-extern "C" unsigned long OSDisableInterrupts(void);
-extern "C" void OSRestoreInterrupts(unsigned long enabled);
-extern "C" void _MSL_GCN_BREAK(void);
-extern "C" void* __nw__FUlP10_mwMemHeap10mwMemFlagsPCcPCcUi(
-    unsigned long size, void* heap, int flags, const char* name,
-    const char* file, unsigned int line);
-extern "C" void __dl__FPv(void* allocation);
+#include "dolphin/os.h"
+#include "runtime/cstring.h"
+#include "msl/mslStreamFile.h"
+#include "msl/mslARam.h"
+#include "msl/mslgcn.h"
+#include "mw/mwMemHeap.h"
+#include "mw/mwMemNewDelete.h"
 extern ExternalHeap* g_MSL_GCN_ARAM_Heap;
-extern void* MWSOUND_HEAP;
-extern "C" void mslStreamFile_ReturnBuffer_FromInterrupt(void* buffer);
 
 mslARQRequest mslARQ_Req_Pool[24];
 mslARQRequest* mslARQ_Req_FreeList;
 
 extern "C" void i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(
-    mslARQRequest* request) {
+    unsigned long request_address) {
+    mslARQRequest* request = (mslARQRequest*)request_address;
     mslStreamFile_ReturnBuffer_FromInterrupt(
         request->stream_buffer);
     memset(request, 0, sizeof(mslARQRequest));
@@ -25,7 +22,8 @@ extern "C" void i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(
     mslARQ_Req_FreeList = request;
 }
 
-extern "C" void i_ARQCALLBACK_ReturnArq(mslARQRequest* request) {
+extern "C" void i_ARQCALLBACK_ReturnArq(unsigned long request_address) {
+    mslARQRequest* request = (mslARQRequest*)request_address;
     memset(request, 0, sizeof(mslARQRequest));
     request->next_free = mslARQ_Req_FreeList;
     mslARQ_Req_FreeList = request;
@@ -57,8 +55,8 @@ extern "C" void mslArqRequest_Init(void) {
 
 static MSLGCN_ARamBlock* allocate_block(void) {
     MSLGCN_ARamBlock* block = (MSLGCN_ARamBlock*)
-        __nw__FUlP10_mwMemHeap10mwMemFlagsPCcPCcUi(
-            sizeof(MSLGCN_ARamBlock), MWSOUND_HEAP, 0x10,
+        operator new(
+            sizeof(MSLGCN_ARamBlock), MWSOUND_HEAP, (mwMemFlags)0x10,
             "MSLGCN_ARamBlock", 0, 0);
 
     if (block != 0) {
@@ -102,7 +100,7 @@ MSLGCN_ARamBlock::~MSLGCN_ARamBlock() {
 void MSLGCN_ARamBlock::FreeObject(MSLGCN_ARamBlock* block) {
     if (block != 0) {
         block->FreeResources();
-        __dl__FPv(block);
+        operator delete(block);
     }
 }
 

@@ -9,10 +9,22 @@ struct _mslAsyncResponse {
     void* result;
 };
 
-extern "C" int mslBankLoadAsyncCancelNamed(char* filename);
+void mslAsyncBegin(_mslAsyncResponse* response, void* user_data);
+void mslAsyncComplete(_mslAsyncResponse* response, bool succeeded,
+                      void* result, void* error);
 
-extern "C" void mslBankLoadAsync(
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int mslBankLoadAsyncCancelNamed(char* filename);
+
+void mslBankLoadAsync(
     _mslSystem* system, unsigned long flags, char* filename,
     _mslAsyncResponse* response);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

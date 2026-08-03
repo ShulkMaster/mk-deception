@@ -1,73 +1,19 @@
 #include "msl/mslBank.h"
+#include "dolphin/arq.h"
+#include "dolphin/cache.h"
+#include "mw/mwMemHeap.h"
+#include "msl/mslsupport.h"
+#include "msl/mslStreamFile.h"
+#include "msl/mslARam.h"
+#include "msl/mslSound_internal.h"
+#include "runtime/cstring.h"
+#include "runtime/cstdio.h"
+#include "msl/mslgcn_break.h"
 
-extern "C" void* memset(void* dst, int value, unsigned long size);
-extern "C" char* strcpy(char* dst, const char* src);
-extern "C" char* strcat(char* dst, const char* src);
-extern "C" char* strchr(const char* string, int character);
-extern "C" unsigned long strlen(const char* string);
-extern "C" int stricmp(const char* lhs, const char* rhs);
-extern "C" int strnicmp(
-    const char* lhs, const char* rhs, unsigned long count);
-extern "C" int sprintf(char* output, const char* format, ...);
 
-extern "C" void mslFileNameNoExt(char* input, char* output);
-extern "C" void mslDebugPrintf(const char* format, ...);
-extern "C" _mwFile* mwFileOpenAsync(
-    const char* filename, int mode,
-    void (*callback)(mwFileCommand*, _mwFileAsyncResult, void*),
-    void* callback_data);
-extern "C" void* mwFileReadAsync(
-    _mwFile* file, long long position, void* buffer, unsigned long size,
-    int flags,
-    void (*callback)(mwFileCommand*, _mwFileAsyncResult, void*),
-    void* callback_data);
-extern "C" void mwFileFreeCommand(mwFileCommand* command);
-extern "C" long long mwFileGetSize(_mwFile* file);
-extern "C" mwFileCommand* mwFileCloseAsync(
-    _mwFile* file, int flags, void* callback);
-extern "C" void* _mwMemMalloc(
-    void* heap, unsigned long size, int alignment, int arg3, int arg4,
-    int arg5);
-extern "C" void* _mwMemCalloc(
-    void* heap, unsigned long count, unsigned long size, int alignment,
-    int arg4, int arg5, int arg6);
-extern "C" void _mwMemFree(void* allocation, int arg1, int arg2);
-extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank);
-extern "C" int mslBankUse(_mslSystem* system, mslLoadedBank* bank);
-extern "C" _ListNode* mslSoundNew(_mslSystem* system, int priority);
-extern "C" _mslSound* mslSoundLoad(
-    _mslSystem* system, mslLoadedBank* bank,
-    mslBankSoundDefinition* definition, unsigned long flags);
-extern "C" int mslSoundAttach(
-    mslRuntimeSound* sound, mslBankSoundEntry* bank_sound);
-extern "C" int mslSoundPlayNow(_ListNode* node);
-extern "C" void mslSoundUnCopy(_ListNode* node);
-void _mslSoundStop(_mslSound* sound);
-extern "C" void mslSoundUncommit(_mslSound* sound);
-extern "C" int mslSoundUnLoad(_mslSound* sound);
-void _MSL_GCN_BREAK(void);
-extern "C" mslARQRequest* mslGetArqRequest(void);
-extern "C" int mslStreamFile_ReturnBuffer(void* buffer);
-extern "C" void i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(
-    unsigned long request);
-extern "C" void DCFlushRange(void* address, unsigned long size);
-extern "C" void ARQPostRequest(
-    mslARQRequest* request, unsigned long owner, unsigned long type,
-    unsigned long priority, unsigned long source, unsigned long destination,
-    unsigned long length, void (*callback)(unsigned long));
-extern "C" void mslTickCallBack_Queue(
-    void (*callback)(void*), void* callback_data);
-extern "C" void mslStreamFile_QueueRequest(
-    _mwFile* file, unsigned long offset, unsigned long size, int priority,
-    void (*callback)(void*, unsigned long, int, int, int, void*),
-    void* callback_data);
 void mslBankLoadResidentWaveChunkDone(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data);
-void mslAsyncComplete(
-    _mslAsyncResponse* response, bool success, void* result, void* error);
-
-extern void* MWSOUND_HEAP;
 extern unsigned long g_MSL_GCN_ARAM_ZeroBase;
 extern unsigned char g_listPoolSound[];
 extern _mslSystem* gMsi;
@@ -79,19 +25,7 @@ void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data);
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data);
-void mslBankLoadAsyncFailed(mslAsyncBank* bank, _mslError_e error);
-extern "C" int mslBankSoundUnUse(mslBankSoundEntry* bank_sound);
-extern "C" _ListNode* mslBankSoundUse(
-    mslBankSoundEntry* bank_sound, _mslSystem* system);
-extern "C" void callbackPlay(
-    bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node);
-typedef void (*mslAsyncSoundCallback)(
-    bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node);
-extern "C" void asyncLoadSound(
-    _mslSystem* system, mslLoadedBank* bank,
-    mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,
-    _ListNode* node);
-
+static void mslBankLoadAsyncFailed(mslAsyncBank* bank, _mslError_e error);
 mslAsyncBank g_BP_Load_Async;
 int g_BP_Load_Async_InUse;
 
@@ -655,7 +589,7 @@ static void mslBankReadWavesComplete(
 void mslBankOpenWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
-    _mwFile* waves_file = result.file;
+    _mwFile* waves_file = result.value.file;
 
     mwFileFreeCommand(command);
     if (waves_file != 0) {
@@ -747,7 +681,7 @@ void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     char filename[0x100];
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
-    _mwFile* sounds_file = result.file;
+    _mwFile* sounds_file = result.value.file;
 
     mwFileFreeCommand(command);
     if (sounds_file != 0) {
@@ -838,7 +772,7 @@ void mslBankLoadAsyncInternal(
 }
 
 /* Soft ceiling: ~98.99% -- diagnostic literal is outside @stringBase0. */
-void mslBankLoadAsyncFailed(
+static void mslBankLoadAsyncFailed(
     mslAsyncBank* async_bank, _mslError_e error) {
     _mslAsyncResponse* response;
     mslLoadedBank* bank;
@@ -1213,7 +1147,7 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
  * Soft ceiling: ~99.61% -- opcodes and registers are exact; only five
  * @stringBase0 offsets remain short because earlier retail APIs are absent.
  */
-extern "C" int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
+int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     int unloaded = 0;
     mslRuntimeSound* sound;
     char* name = mslBankSoundGetNameInline(bank_sound);
@@ -1250,7 +1184,7 @@ extern "C" int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
  * Soft ceiling: ~97.63% -- shared-pool offsets plus one source-equivalent
  * flags/base-sound load-order island remain.
  */
-extern "C" _ListNode* mslBankSoundUse(
+_ListNode* mslBankSoundUse(
     mslBankSoundEntry* bank_sound, _mslSystem* system) {
     _ListNode* node = 0;
     char* name = mslBankSoundGetNameInline(bank_sound);
@@ -1354,7 +1288,7 @@ extern "C" int mslBankUse(
  * reference release are exact; only one zero-argument scheduling swap and
  * incomplete @stringBase0 offsets remain.
  */
-extern "C" void callbackPlay(
+void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
@@ -1393,7 +1327,7 @@ extern "C" void callbackPlay(
 }
 
 /* Soft ceiling: asyncLoadSound ~98.0% -- diagnostic string relocation only. */
-extern "C" void asyncLoadSound(
+void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,
     _ListNode* node) {

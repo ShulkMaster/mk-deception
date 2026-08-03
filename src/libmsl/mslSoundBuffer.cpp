@@ -1,5 +1,18 @@
 #include "msl/mslBank.h"
 #include "dolphin/ax.h"
+#include "dolphin/os.h"
+#include "dolphin/cache.h"
+#include "dolphin/arq.h"
+#include "msl/mslsupport.h"
+#include "msl/mslStreamCache.h"
+#include "msl/mslStreamFile.h"
+#include "msl/mslARam.h"
+#include "msl/mslgcn.h"
+#include "msl/mslWave.h"
+#include "msl/mslgcn_globals.h"
+#include "msl/mslWave_internal.h"
+#include "mw/mwMemNewDelete.h"
+#include "runtime/cmath.h"
 
 typedef unsigned long BOOL;
 
@@ -273,60 +286,6 @@ struct AXVoiceCallbackData {
     SoundBuffer_Playable* owner;   /* +0x14 */
 };
 
-struct AXVoiceSrc {
-    unsigned short ratio_hi;
-    unsigned short ratio_lo;
-    unsigned short current_fraction;
-    short last_samples[4];
-};
-
-typedef void (*AXVoiceCallback)(void*);
-
-extern "C" BOOL OSDisableInterrupts(void);
-extern "C" BOOL OSRestoreInterrupts(BOOL enabled);
-extern "C" void* __nw__FUlP10_mwMemHeap10mwMemFlagsPCcPCcUi(
-    unsigned long size, void* heap, int flags, const char* type_name,
-    const char* file_name, unsigned int line);
-extern "C" _AXVPB* AXAcquireVoice(
-    unsigned long priority, AXVoiceCallback callback, void* callback_data);
-extern "C" void AXFreeVoice(_AXVPB* voice);
-extern "C" void AXSetVoicePriority(
-    _AXVPB* voice, unsigned long priority);
-extern "C" void AXSetVoiceSrc(_AXVPB* voice, AXVoiceSrc* source);
-extern "C" void AXSetVoiceAdpcm(
-    _AXVPB* voice, SPADPCM* adpcm);
-extern "C" void AXSetVoiceState(_AXVPB* voice, unsigned short state);
-extern "C" void MIXInitChannel(
-    _AXVPB* voice, int mode, int aux_a, int aux_b, int aux_c,
-    unsigned char pan, unsigned char surround_pan, unsigned long fader);
-extern "C" void MIXSetPan(_AXVPB* voice, unsigned char pan);
-extern "C" void MIXSetSPan(_AXVPB* voice, unsigned char pan);
-extern "C" void MIXSetFader(_AXVPB* voice, long volume);
-extern "C" void MIXReleaseChannel(_AXVPB* voice);
-extern "C" void i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(
-    unsigned long request_address);
-extern "C" void i_ARQCALLBACK_ReturnArq(
-    unsigned long request_address);
-extern "C" void mslStreamCache_ReleaseBuffer(unsigned long buffer);
-extern "C" long mslStreamCache_GetSizeBuffer(void);
-extern "C" unsigned long mslStreamCache_GetStreamBuffer(void);
-extern "C" void mslStreamFile_CancelRequest(
-    mslStreamFileRequest* request);
-extern "C" mslARQRequest* mslGetArqRequest(void);
-extern "C" int mslStreamFile_ReturnBuffer(void* buffer);
-extern "C" void DCFlushRange(void* address, unsigned long size);
-extern "C" void ARQPostRequest(
-    mslARQRequest* request, unsigned long owner, unsigned long type,
-    unsigned long priority, unsigned long source, unsigned long destination,
-    unsigned long length, void (*callback)(unsigned long));
-extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
-    _mwFile* file, unsigned long offset, unsigned long size, int priority,
-    void (*callback)(void*, unsigned long, int, int, int, void*),
-    void* callback_data);
-extern "C" double floor(double value);
-long mslWaveGetDbMapEntryRelative(float volume);
-void _MSL_GCN_BREAK(void);
-
 static const unsigned char SurroundPanTable[] = {
     0x40, 0x10, 0x10, 0x40, 0x08, 0x78,
     0x20, 0x7C, 0x40, 0x7C, 0x60, 0x7C,
@@ -338,14 +297,11 @@ static const char stringBase0[] =
 
 extern void* MWSOUND_HEAP;
 extern SoundBufferUpdateList ms_UpdateList__20SoundBuffer_Playable;
-extern unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
-extern unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
 extern unsigned char __vt__10IRefCntRes[];
 extern unsigned char __vt__11SoundBuffer[];
 extern unsigned char __vt__16SoundBuffer_Data[];
 extern unsigned char __vt__20SoundBuffer_Playable[];
 extern unsigned char __vt__17SBPlayable_Stream[];
-extern "C" int mslIntLog2(int value);
 
 void SoundBuffer::SB_MslTickCallback(void) {
     BOOL enabled = OSDisableInterrupts();
@@ -382,8 +338,9 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
     BOOL enabled = OSDisableInterrupts();
     stream =
         (SBPlayableStreamLayout*)
-            __nw__FUlP10_mwMemHeap10mwMemFlagsPCcPCcUi(
-                sizeof(SBPlayableStreamLayout), MWSOUND_HEAP, 0x10,
+            operator new(
+                sizeof(SBPlayableStreamLayout), (_mwMemHeap*)MWSOUND_HEAP,
+                (mwMemFlags)0x10,
                 stringBase0, 0, 0);
 
     if (stream != 0) {
@@ -465,8 +422,9 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
     BOOL enabled = OSDisableInterrupts();
     playable =
         (SoundBufferPlayableLayout*)
-            __nw__FUlP10_mwMemHeap10mwMemFlagsPCcPCcUi(
-                sizeof(SoundBufferPlayableLayout), MWSOUND_HEAP, 0x10,
+            operator new(
+                sizeof(SoundBufferPlayableLayout), (_mwMemHeap*)MWSOUND_HEAP,
+                (mwMemFlags)0x10,
                 stringBase0 + 0x12, 0, 0);
 
     if (playable != 0) {
@@ -1003,11 +961,9 @@ void SoundBuffer_Playable::FreeObject(void) {
     }
 }
 
-#pragma opt_common_subs off
 SoundBuffer_Playable::~SoundBuffer_Playable() {
     FreeResources();
 }
-#pragma opt_common_subs reset
 
 void SoundBuffer_Playable::StopIfDonePlaying(void) {
     SoundBufferPlayableLayout* self =
@@ -1977,7 +1933,6 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     }
 }
 
-#pragma optimization_level 3
 /*
  * Soft ceiling: iUpdate_AXUser ~75.87% -- the full retail dual-voice stream
  * ring/AX transition algorithm is recovered; current size is 0x5AC versus
@@ -2255,7 +2210,6 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
         }
     }
 }
-#pragma optimization_level 4
 
 void SBPlayable_Stream::PrepForPlay(void) {
     SBPlayableStreamLayout* stream =
@@ -2386,8 +2340,6 @@ void SBPlayable_Stream::FreeObject(void) {
     }
 }
 
-#pragma opt_common_subs off
 SBPlayable_Stream::~SBPlayable_Stream() {
     FreeResources();
 }
-#pragma opt_common_subs reset

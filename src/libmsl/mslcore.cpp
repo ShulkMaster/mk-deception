@@ -1,22 +1,8 @@
 #include "msl/mslBank.h"
-
-extern "C" float mslGetTime(void);
-void _mslSoundUnPause(_mslSound*);
-void _mslSoundPause(_mslSound*);
-void _mslSoundStop(_mslSound*);
-extern "C" int mslSoundEnd(_mslSound*);
-extern "C" int mslSoundIsReady(_mslSound*);
-extern "C" void mslDebugPrintf(const char*, ...);
-extern "C" int stricmp(const char*, const char*);
-extern "C" void mslWavePlay(
-    _mslSystem*, mslRuntimeSound*, mslRuntimeWave*, int);
-extern "C" void mslWaveStop(_mslSystem*, mslRuntimeWave*);
-extern "C" void mslWaveUpdateStatus(mslRuntimeWave*);
-extern "C" void mslWaveSetVol(
-    mslRuntimeWave*, _mslSystem*, float);
-extern "C" void mslWaveSetPan(mslRuntimeWave*, float);
-extern "C" void mslWaveSetPitch(mslRuntimeWave*, float);
-extern "C" void mslUpdateTracks(_mslSystem*);
+#include "msl/mslsupport.h"
+#include "msl/mslWave.h"
+#include "msl/mslSound_internal.h"
+#include "runtime/cstring.h"
 
 extern unsigned char g_listPoolAdjust[];
 mslRuntimeSound* currentUpdateSound;

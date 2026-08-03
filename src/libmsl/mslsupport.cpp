@@ -1,8 +1,6 @@
 #include "msl/mslBankLoadAsyncQueue.h"
-
-extern "C" char* strcpy(char* destination, const char* source);
-extern "C" char* strncpy(
-    char* destination, const char* source, unsigned long count);
+#include "msl/mslsupport.h"
+#include "runtime/cstring.h"
 extern unsigned int mslGCN_AXCallback_Ticks;
 
 void mslAsyncComplete(
@@ -55,7 +53,7 @@ extern "C" void mslFileNameNoExt(
     }
 }
 
-extern "C" int mslIntLog2(unsigned int value) {
+extern "C" unsigned int mslIntLog2(unsigned int value) {
     int result;
 
     if (value == 0) {

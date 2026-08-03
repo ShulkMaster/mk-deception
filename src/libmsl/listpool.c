@@ -1,6 +1,5 @@
 #include "msl/listpool.h"
-
-void mslDebugPrintf(const char* format, ...);
+#include "msl/mslsupport.h"
 
 static const char stringBase0[] =
     "ListInsert: was in another list, performing REMOVE first\n\0"

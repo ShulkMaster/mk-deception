@@ -8,10 +8,10 @@
  * initialization register allocation, not missing state transitions.
  */
 
-extern "C" unsigned long OSDisableInterrupts(void);
-extern "C" void OSRestoreInterrupts(unsigned long);
-void _MSL_GCN_BREAK(void);
-extern "C" void* memset(void*, int, unsigned long);
+#include "dolphin/os.h"
+#include "msl/mslgcn.h"
+#include "msl/mslStreamCache.h"
+#include "runtime/cstring.h"
 
 typedef unsigned char u8;
 typedef unsigned long u32;

@@ -1,6 +1,18 @@
 #include "msl/mslBank.h"
+#include "msl/mslWave.h"
 #include "msl/CriticalSection.h"
 #include "msl/ExtHeapMgr.h"
+#include "dolphin/os.h"
+#include "dolphin/ax.h"
+#include "dolphin/arq.h"
+#include "dolphin/ai.h"
+#include "msl/mslsupport.h"
+#include "msl/mslStreamCache.h"
+#include "msl/mslStreamFile.h"
+#include "msl/mslARam.h"
+#include "msl/mslgcn.h"
+#include "mw/mwMemHeap.h"
+#include "runtime/cstring.h"
 
 struct mslGCNPlayable;
 struct _mslBank;
@@ -32,18 +44,6 @@ static inline mslGCNPlayable* MslGCNPlayableFromWave(
     return (mslGCNPlayable*)wave->playable;
 }
 
-extern "C" void mslDebugPrintf(const char* format, ...);
-extern "C" void* _mwMemMalloc(
-    void* heap, unsigned long size, int alignment, int arg3, int arg4,
-    int arg5);
-extern "C" void* _mwMemCalloc(
-    void* heap, unsigned long count, unsigned long size, int alignment,
-    int arg4, int arg5, int arg6);
-extern "C" void _mwMemFree(void* allocation, int arg1, int arg2);
-extern "C" mslAssetWave* mslBankFileEntryFind(
-    mslLoadedBank* bank, const char* name);
-
-extern void* MWSOUND_HEAP;
 extern int SoundBufferCount;
 extern int SoundBufferCountStatic;
 extern int SoundBufferCountStream;
@@ -53,40 +53,6 @@ struct mslTickCallback {
     void* data;
 };
 
-extern "C" char* strncpy(
-    char* destination, const char* source, unsigned long count);
-extern "C" void* memset(void*, int, unsigned long);
-extern "C" void mwFileTick(void);
-extern "C" int mslUpdate(_mslSystem* system);
-extern "C" unsigned long OSDisableInterrupts(void);
-extern "C" void OSRestoreInterrupts(unsigned long enabled);
-extern "C" unsigned long mslMainRamUsed(void);
-extern "C" void mslCreateLogTable(void);
-extern "C" void OSPanic(const char* file, int line, const char* format, ...);
-extern "C" void MIXUpdateSettings(void);
-extern "C" int g_bMSL_GCN_BREAK;
-extern "C" int g_MSL_volatile_flag;
-extern "C" unsigned long mslGCN_AXCallback_Ticks;
-extern "C" int debugger_mbo1;
-extern "C" int debugger_at1;
-extern "C" int debugger_snd;
-extern "C" void AIInit(void*);
-extern "C" void ARQInit(void);
-extern "C" void AXInitEx(int);
-extern "C" void MIXInit(void);
-extern "C" void AXSetMode(int);
-extern "C" void AXRegisterCallback(void (*)(void));
-extern "C" int MIXGetSoundMode(void);
-extern "C" void MSL_GCN_AXUserCallback(void);
-extern "C" void MSL_ClearVolatileFlag(void);
-extern "C" void ARQPostRequest(
-    void*, unsigned long, unsigned long, unsigned long, void*,
-    unsigned long, unsigned long, void (*)(void));
-extern "C" void mslStreamCache_Initialize_A(int);
-extern "C" int mslStreamCache_GetSizeBuffer(void);
-extern "C" int mslStreamCache_GetNumBuffers(void);
-extern "C" void mslArqRequest_Init(void);
-extern "C" void mslStreamFile_Initialize(void);
 static void* msl_SystemMalloc(unsigned int);
 static void msl_SystemFree(void*);
 static void msl_SystemEnterMutex(void*);
@@ -112,7 +78,6 @@ ListPool g_listPoolAdjust;
 unsigned char g_listMemSound[0x2BF20];
 unsigned char g_listMemAdjust[0x1100];
 _mslSystem* gMsi;
-extern void* MWSOUND_HEAP;
 
 static mslInitParam s_initDefault = {
     sizeof(mslInitParam), 1, 10
@@ -178,7 +143,7 @@ extern "C" void StopStream(
  * partial-TU string pool.
  */
 extern "C" int PlayStream(
-    _mslSystem* system, void* sound,
+    _mslSystem* system, mslRuntimeSound* sound,
     mslRuntimeWave* wave, int allow_voice) {
     int result = -1;
     int loop;
@@ -583,7 +548,7 @@ extern "C" _mslSystem* mslInit(
             g_MSL_volatile_flag = 1;
             memset(zero_buffer, 0, 0x420);
             ARQPostRequest(
-                request, 0, 0, 1, zero_buffer,
+                request, 0, 0, 1, (unsigned long)zero_buffer,
                 g_MSL_GCN_ARAM_ZeroBase, 0x400,
                 MSL_ClearVolatileFlag);
 
@@ -666,7 +631,8 @@ extern "C" _mslSystem* mslInit(
     return 0;
 }
 
-extern "C" void MSL_ClearVolatileFlag(void) {
+extern "C" void MSL_ClearVolatileFlag(unsigned long request_address) {
+    (void)request_address;
     g_MSL_volatile_flag = 0;
 }
 

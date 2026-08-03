@@ -8,16 +8,12 @@
  * instruction scheduling.
  */
 #include "msl/mslBank.h"
+#include "msl/mslStreamFile.h"
+#include "msl/mslStreamFile_internal.h"
+#include "dolphin/os.h"
+#include "runtime/cstring.h"
+#include "msl/mslsupport.h"
 
-extern "C" void* memset(void*, int, unsigned long);
-extern "C" unsigned long OSDisableInterrupts(void);
-extern "C" void OSRestoreInterrupts(unsigned long);
-extern "C" void mslDebugPrintf(const char*, ...);
-extern "C" void mwFileAbortCommand(mwFileCommand*);
-extern "C" void mwFileFreeCommand(mwFileCommand*);
-extern "C" void* mwFileReadAsync(
-    _mwFile*, long long, void*, unsigned long, int,
-    void (*)(mwFileCommand*, _mwFileAsyncResult, void*), void*);
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -61,9 +57,6 @@ static const char stringBase0[] =
 #define STREAM_STRING(offset) (&stringBase0[(offset)])
 
 struct mslDSB_PendingAsyncRead;
-
-typedef void (*mslStreamFileCallback)(
-    void*, unsigned long, int, int, int, void*);
 
 struct mslDSB_FileRead {
     mslDSB_PendingAsyncRead* owner;
@@ -114,7 +107,6 @@ mslDSB_FileRead* DSB_FILEREAD_FreeList;
 u8 g_DSB_BufferFree[5];
 
 static void mslDSB_CancelRead(mslDSB_PendingAsyncRead*, int);
-void mslDSB_ServiceNextRead(void);
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand*, _mwFileAsyncResult, void*);
 
@@ -271,7 +263,7 @@ static inline mslDSB_PendingAsyncRead* mslDSB_AllocPending(void) {
     return request;
 }
 
-extern "C" void* mslStreamFile_QueueRequest(
+extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     _mwFile* file, unsigned long offset, unsigned long size, int priority,
     mslStreamFileCallback callback, void* callback_data) {
     mslDSB_PendingAsyncRead* request = 0;
@@ -302,7 +294,7 @@ extern "C" void* mslStreamFile_QueueRequest(
         mslDSB_ServiceNextRead();
     }
     if (request != 0) {
-        return mslDSB_HandleToOpaque(request->handle.value);
+        return (mslStreamFileRequest*)mslDSB_HandleToOpaque(request->handle.value);
     }
     return 0;
 }

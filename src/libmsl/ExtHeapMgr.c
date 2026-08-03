@@ -1,4 +1,5 @@
 #include "msl/ExtHeapMgr.h"
+#include "runtime/cstring.h"
 
 /*
  * Retail MSL external-heap owner.
@@ -9,8 +10,6 @@
  * retail compiler's duplicated/inlined initialization cleanup.
  * CompareBlocksBySizeThenAddress is exact.
  */
-
-void* memset(void* destination, int value, unsigned long size);
 
 static void ExternalHeap_MutexNullFunc(void* mutex);
 static int KeyCompareBlocksByAddress(

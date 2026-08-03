@@ -15,8 +15,16 @@ struct mslQueue {
     int read_index;               /* +0x0C */
 }; /* 0x10 */
 
-extern "C" mslBankSoundEntry* mslQueueGet(mslQueue* queue);
-extern "C" void mslQueueDelete(mslQueue* queue);
-extern "C" mslQueue* mslQueueNew(int capacity);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+mslBankSoundEntry* mslQueueGet(mslQueue* queue);
+void mslQueueDelete(mslQueue* queue);
+mslQueue* mslQueueNew(int capacity);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

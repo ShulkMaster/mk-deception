@@ -1,4 +1,6 @@
-#include "msl/mslBank.h"
+#include "msl/mslWave.h"
+#include "mw/mwMem.h"
+#include "runtime/cmath.h"
 
 class mslPlayable {
 public:
@@ -24,46 +26,6 @@ public:
 
     int reference_count;               /* object +0x04 */
 };
-
-extern "C" void mslWaveUpdateVolPanPitch(
-    _mslSystem* system, mslRuntimeSound* sound,
-    mslRuntimeWave* wave, int play_state);
-extern "C" int PlayStatic(
-    _mslSystem* system, mslRuntimeWave* wave, int allow_voice);
-extern "C" int PlayStream(
-    _mslSystem* system, mslRuntimeSound* sound,
-    mslRuntimeWave* wave, int allow_voice);
-extern "C" void ContinueStatic(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void ContinueStream(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void PauseStatic(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void PauseStream(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void StopStatic(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void StopStream(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void UnCopyStaticWave(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void UnCopyStreamWave(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" mslRuntimeWave* CopyStaticWave(
-    _mslSystem* system, mslLoadedBank* bank,
-    mslRuntimeWave* source, int create_playable);
-extern "C" mslRuntimeWave* CopyStreamWave(
-    _mslSystem* system, mslLoadedBank* bank,
-    const char* name, mslRuntimeWave* source);
-extern "C" mslRuntimeWave* LoadStaticWaveFile(
-    _mslSystem* system, mslLoadedBank* bank,
-    const char* name, unsigned long create_playable);
-extern "C" mslRuntimeWave* LoadStreamWaveFile(
-    _mslSystem* system, mslLoadedBank* bank,
-    const char* name, unsigned long flags);
-extern "C" void _mwMemFree(
-    void* allocation, int arg1, int arg2);
-extern "C" double log10(double value);
 
 extern int SoundBufferCount;
 extern int SoundBufferCountStream;
@@ -211,7 +173,7 @@ extern "C" mslRuntimeWave* mslWaveCopy(
         return CopyStaticWave(
             system, bank, source, copy_flags);
     }
-    return CopyStreamWave(system, bank, name, source);
+    return CopyStreamWave(system, bank, name, source, copy_flags);
 }
 
 extern "C" mslRuntimeWave* mslWaveLoad(
@@ -268,7 +230,7 @@ extern "C" int mslWaveSetPan(
 }
 
 extern "C" int mslWaveSetVol(
-    mslRuntimeWave* wave, float volume) {
+    mslRuntimeWave* wave, _mslSystem* system, float volume) {
     mslPlayable* playable;
 
     if (volume < 0.0f) {

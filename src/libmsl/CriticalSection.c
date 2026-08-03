@@ -1,12 +1,6 @@
 #include "msl/CriticalSection.h"
-
-void OSInitMutex(OSMutex* mutex);
-void OSLockMutex(OSMutex* mutex);
-void OSUnlockMutex(OSMutex* mutex);
-int OSTryLockMutex(OSMutex* mutex);
-void OSYieldThread(void);
-void* OSGetCurrentThread(void);
-void mslDebugPrintf(const char* format, ...);
+#include "dolphin/mutex.h"
+#include "msl/mslsupport.h"
 
 MslCriticalSection* g_CriticalSectionDebug_List;
 OSMutex s_CriticalSectionDebug_SystemMutex;

@@ -1,11 +1,5 @@
 #include "msl/mslqueue.h"
-
-extern void* MWSOUND_HEAP;
-
-extern "C" void* _mwMemMalloc(
-    void* heap, unsigned long size, int alignment, int arg3, int arg4,
-    int arg5);
-extern "C" void _mwMemFree(void* allocation, int arg1, int arg2);
+#include "mw/mwMemHeap.h"
 
 extern "C" mslBankSoundEntry* mslQueueGet(mslQueue* queue) {
     mslBankSoundEntry* sound = 0;

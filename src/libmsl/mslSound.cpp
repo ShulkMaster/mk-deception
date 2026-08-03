@@ -1,52 +1,15 @@
 #include "msl/mslBank.h"
 
-extern "C" void mslDebugPrintf(const char* format, ...);
-extern "C" void* _mwMemMalloc(
-    void* heap, unsigned long size, int alignment,
-    int arg3, int arg4, int arg5);
-extern "C" void _mwMemFree(void* allocation, int arg1, int arg2);
-extern "C" mslBankWaveEntry* mslBankWavesFind(
-    mslLoadedBank* bank, const char* name);
-extern "C" mslRuntimeWave* mslWaveLoad(
-    _mslSystem* system, mslLoadedBank* bank, const char* name,
-    unsigned long flags);
-extern "C" mslRuntimeWave* mslWaveCopy(
-    _mslSystem* system, mslRuntimeWave* wave, mslLoadedBank* bank,
-    const char* name, int copy_flags);
-extern "C" void mslWaveUnCopy(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void mslWaveUnLoad(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void mslWavePause(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void mslWaveUnPause(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void mslWaveStop(
-    _mslSystem* system, mslRuntimeWave* wave);
-extern "C" void mslWavePlay(
-    _mslSystem* system, mslRuntimeSound* sound,
-    mslRuntimeWave* wave, unsigned long flags);
-extern "C" float mslGetTime(void);
-extern "C" mslBankSoundEntry* mslQueueGet(mslQueue* queue);
-extern "C" _ListNode* mslBankSoundUse(
-    mslBankSoundEntry* bank_sound, _mslSystem* system);
-extern "C" void callbackPlay(
-    int success, mslBankSoundEntry* bank_sound, _ListNode* node);
-extern "C" void asyncLoadSound(
-    _mslSystem* system, mslLoadedBank* bank,
-    mslBankSoundEntry* bank_sound,
-    void (*callback)(
-        int success, mslBankSoundEntry* bank_sound, _ListNode* node),
-    _ListNode* node);
-extern "C" int mslBankSoundUnUse(mslBankSoundEntry* bank_sound);
-extern "C" int mslUpdate(_mslSystem* system);
-extern "C" void _MSL_GCN_BREAK(void);
-void mslSoundDeactivate(_mslSound* sound, int immediate);
+#include "msl/mslsupport.h"
+#include "msl/mslWave.h"
+#include "msl/mslgcn.h"
+#include "msl/mslSound_internal.h"
+#include "mw/mwMemHeap.h"
+static void mslSoundDeactivate(_mslSound* sound, int immediate);
 
 extern unsigned char g_listPoolSound[];
 extern unsigned char g_listPoolAdjust[];
 extern mslRuntimeSound* currentUpdateSound;
-extern void* MWSOUND_HEAP;
 
 /* Verified +0x00...+0x278 prefix of the retail mslSound.o @stringBase0 pool. */
 static const char stringBase0[] =
@@ -115,10 +78,6 @@ struct mslRuntimeAdjustView {
     float second_time;
 };
 
-extern "C" int mslCmdsLoad(
-    _mslSystem* system, mslLoadedBank* bank,
-    mslBankSoundDefinition* definition, unsigned long flags);
-
 extern "C" int mslSoundEnd(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
 
@@ -134,7 +93,7 @@ void _mslSoundStop(_mslSound* sound) {
  * Soft ceiling: mslSoundDeactivate ~99.27% -- exact retail lifecycle, size,
  * and diagnostic relocation; remaining deltas are pure NV/zero coloring.
  */
-void mslSoundDeactivate(_mslSound* sound, int immediate) {
+static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     _ListNode* sound_node = 0;
     mslRuntimeWave* wave = runtime_sound->waves;
@@ -409,8 +368,7 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
  * rollback; remaining differences are loop NV coloring and tail scheduling.
  */
 extern "C" int mslSoundAttach(
-    _mslSound* target, mslBankSoundEntry* bank_sound) {
-    mslRuntimeSound* sound = (mslRuntimeSound*)target;
+    mslRuntimeSound* sound, mslBankSoundEntry* bank_sound) {
     mslRuntimeSound* base_sound;
     mslBankSoundDefinition* definition;
     mslCmdItem* command;

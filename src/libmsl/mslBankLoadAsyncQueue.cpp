@@ -1,18 +1,7 @@
 #include "msl/mslBankLoadAsyncQueue.h"
-
-extern "C" void* memset(void* dst, int value, unsigned long size);
-extern "C" char* strcpy(char* dst, const char* src);
-extern "C" int strcmp(const char* lhs, const char* rhs);
-extern "C" char* strncpy(char* dst, const char* src, unsigned long size);
-
-void mslAsyncBegin(_mslAsyncResponse* response, void* user_data);
-void mslAsyncComplete(
-    _mslAsyncResponse* response, bool success, void* result, void* error);
-void mslBankLoadAsyncInternal(
-    _mslSystem* system, unsigned long flags, char* filename,
-    _mslAsyncResponse* response);
-void mslBankLoadAsyncInternalCallback(_mslAsyncResponse* response);
-extern "C" void mslBankUnLoad(void* bank);
+#include "msl/mslBankLoadAsyncQueue_internal.h"
+#include "msl/mslBank.h"
+#include "runtime/cstring.h"
 
 struct asyncRequest {
     _mslSystem* system;                   /* +0x000 */
@@ -227,7 +216,7 @@ void mslBankLoadAsyncInternalCallback(_mslAsyncResponse* response) {
         status = request->response->status;
 
         if (completed_state == 3 && result != 0) {
-            mslBankUnLoad(result);
+            mslBankUnLoad((mslLoadedBank*)result);
         }
 
         node = qHead;
