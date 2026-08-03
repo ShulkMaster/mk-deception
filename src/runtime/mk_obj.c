@@ -1802,7 +1802,7 @@ void obj_set_material_fade(void* obj, unsigned int id, int alpha) {
     }
 }
 
-void sobj_use_material_color(void* sobj, int flag) {
+void sobj_use_material_color(void* sobj) {
     if (((MkSobj*)sobj)->atomic->geometry == 0) {
         return;
     }

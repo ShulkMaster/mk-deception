@@ -138,7 +138,7 @@ void process_anim_section_data(SecSlotFileEntry* entry) {
     }
 }
 
-void* load_named_model_for_player(char* name, int player, int object_type,
+void* load_named_model_for_player(const char* name, int player, int object_type,
                                   int flags) {
     unsigned int* slots = player == 0 ? plyr1_ss_tbl : plyr2_ss_tbl;
     unsigned int slot_index;
@@ -156,7 +156,7 @@ void* load_named_model_for_player(char* name, int player, int object_type,
     return NULL;
 }
 
-void* load_named_model_for_bgnd(char* name, int object_type, int transl) {
+void* load_named_model_for_bgnd(const char* name, int object_type, int transl) {
     int file_index = get_slot_file_count(0x2001E);
     while (file_index > 0) {
         SecSlotFileEntry* entry =
@@ -899,7 +899,7 @@ void* load_model_from_slot_transl(int handle, unsigned int art_oid, int player) 
     return object;
 }
 
-void* load_named_model_from_slot(int slot, char* name, int flags,
+void* load_named_model_from_slot(int slot, const char* name, int flags,
                                  int user_data) {
     int file_index;
     if (slot == -1) return NULL;

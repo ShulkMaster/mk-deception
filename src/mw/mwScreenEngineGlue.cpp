@@ -3753,7 +3753,7 @@ extern void load_effect_bank_with_context(char* name, void* ctx);
 extern int fx_by_id(char* name, int flags);
 extern void* find_pfx_by_handle(int handle);
 extern void fx_set_param_v3(int handle, int param, float x, float y, float z);
-extern void* load_named_model_from_slot(int slot, char* name, int flags, int unk);
+extern void* load_named_model_from_slot(int slot, const char* name, int flags, int unk);
 extern void* obj_create_sobjs(void* obj);
 extern void render_mkobj(void* mkobj);
 extern void render_transl_atomics(void);
