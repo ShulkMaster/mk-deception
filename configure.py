@@ -577,13 +577,13 @@ config.libs = [
             Object(
                 Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfx_ARGB8888PLN.o",
-                source="movie/mwsfx_ARGB8888PLN.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfx_ARGB8888PLN.c",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
                 Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfx_Y84C44.o",
-                source="movie/mwsfx_Y84C44.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfx_Y84C44.c",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
@@ -604,12 +604,12 @@ config.libs = [
             Object(
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_set.o",
-                source="movie/sfx_set.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_set.c",
             ),
             Object(
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sud/sud_lib.o",
-                source="movie/sud_lib.c",
+                source="libmwsfdg/crimw/dev/sofdec/src/sud/sud_lib.c",
                 extra_cflags=["-sdata", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
@@ -678,7 +678,7 @@ config.libs = [
         "lib": "libmsl",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "sdk",
+        "progress_category": "msl",
         "objects": [
             Object(
                 NonMatching,
@@ -707,7 +707,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslqueue.o",
                 source="libmsl/mslqueue.cpp",
             ),
@@ -1195,6 +1195,7 @@ config.progress_categories = [
     ProgressCategory("sdk", "SDK Code"),
     ProgressCategory("renderware", "RenderWare"),
     ProgressCategory("sofdec", "Sofdec"),
+    ProgressCategory("msl", "Midway Sound Library"),
 ]
 config.progress_each_module = args.verbose
 # Optional extra arguments to `objdiff-cli report generate`
