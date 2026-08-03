@@ -1252,9 +1252,8 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-/* Soft ceiling: is_point_in_fortress_exclusion_zone ~83.08% -- bool emit. */
 int is_point_in_fortress_exclusion_zone(const Vec* point) {
-    return is_point_inside_shape(&fortress_exclusion_zone, point) > 0;
+    return is_point_inside_shape(&fortress_exclusion_zone, point) != 0;
 }
 
 void mab_test(void) {

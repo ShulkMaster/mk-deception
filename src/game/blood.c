@@ -1,4 +1,5 @@
 #include "runtime/mk_obj.h"
+#include "runtime/mk_mem.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
@@ -145,17 +146,30 @@ typedef struct BleedPdata {
 } BleedPdata; /* 0x28 */
 
 typedef struct BloodSurfaceRecord {
-    char pad00[0x10];
+    Vec normal;
+    float plane_distance;
     int bone;
-    char pad14[0x0C];
+    int vertex_indices[3];
     Vec points[3];
-    char pad44[0x3C];
+    int neighbors[3];
+    struct {
+        Vec normal;
+        float plane_distance;
+    } edges[3];
 } BloodSurfaceRecord; /* 0x80 */
 
+typedef struct BloodSurfaceVertex {
+    int tag;
+    Vec position;
+} BloodSurfaceVertex; /* 0x10 */
+
 typedef struct BloodSurface {
-    char pad00[0x10];
+    void* field_00;
+    BloodSurfaceVertex* vertices;
+    int record_count;
+    int (*triangles)[3];
     BloodSurfaceRecord* records;
-} BloodSurface;
+} BloodSurface; /* 0x14 */
 
 typedef struct BloodPath {
     BloodSurface* surface;
@@ -235,6 +249,7 @@ MkPfx* pfx_from_emitter(unsigned int emitter);
 int emitter_id_from_handle(unsigned int emitter);
 float gxMathArcTanYX(float y, float x);
 int strcmp(const char* left, const char* right);
+int obj_get_bid_for_tid(MkObj* object, int tag);
 PfxEmitter* pfx_get_emitter(void* pfx_vm, int emitter_index);
 int obj_spawn_bld(
     MkObj* object, MkBone* bone, int blood_type, const int* script,
@@ -250,6 +265,22 @@ static float p_pfx_bleed(void);
 static void do_pfx_bleed(MkHdr* hdr);
 static int obj_set_bld_vel(
     MkObj* object, const Vec* position, BloodVelocityState* state);
+static void obj_bld_surface_build_polys(
+    MkObj* object, BloodSurface* output, const BloodSurface* source);
+
+static inline void blood_interpolate_direction(
+    Vec* direction, const Vec* current, const Vec* next,
+    float current_weight, float next_weight, const Vec* position) {
+    direction->x =
+        current->x * current_weight + next->x * next_weight;
+    direction->y =
+        current->y * current_weight + next->y * next_weight;
+    direction->z =
+        current->z * current_weight + next->z * next_weight;
+    direction->x -= position->x;
+    direction->y -= position->y;
+    direction->z -= position->z;
+}
 
 int is_blood_disabled(void) {
     return get_blood_level() < 2;
@@ -568,7 +599,15 @@ void spawn_decal_emitter(
     watcher->matrix_count++;
 }
 
+static inline MkHdr* blood_as_generic_pdata(MkHdr* hdr) {
+    if ((void*)hdr->vtbl == (void*)&vtbl_mkpdata_generic) {
+        return hdr;
+    }
+    return 0;
+}
+
 void gusher_destroy_list(void) {
+    MkPtr* next;
     MkPtr* ptr;
 
     if (&gusher_list != 0) {
@@ -578,8 +617,6 @@ void gusher_destroy_list(void) {
 
             hdr = ptr->hdr;
             if (ptr->instance != hdr->instance) {
-                MkPtr* next;
-
                 next = ptr->next;
                 ptr->hdr = 0;
                 destroy_mkptr(ptr);
@@ -587,8 +624,8 @@ void gusher_destroy_list(void) {
                 continue;
             }
 
-            if ((void*)hdr->vtbl == (void*)&vtbl_mkpdata_generic &&
-                hdr->instance != 0U) {
+            hdr = blood_as_generic_pdata(hdr);
+            if (hdr != 0 && hdr->instance != 0U) {
                 BloodProcVtableRef vtbl;
 
                 vtbl.base = (MkVtableMkproc*)hdr->vtbl;
@@ -914,7 +951,7 @@ static float p_bleed(void) {
                 object = pdata->object;
                 if (object != 0) {
                     if (object->hdr.instance == pdata->object_instance) {
-                        /* Keep the live object. */
+                        /* The object instance latch is still valid. */
                     } else {
                         object = 0;
                     }
@@ -976,6 +1013,7 @@ static int obj_set_bld_vel(
     const Vec* current;
     const Vec* next;
     RwMatrix* matrix;
+    int result;
     BloodPath* path;
     Vec direction;
     float current_weight;
@@ -985,16 +1023,15 @@ static int obj_set_bld_vel(
     float projection;
     float duration;
     int corner;
-    int result;
 
     path = state->path;
     result = 1;
     if (state->point_index >= path->point_count) {
         result = 0;
-        state->velocity.x = 0.0f;
-        state->velocity.y = 0.0f;
-        state->velocity.z = 0.0f;
         state->travel_ticks = 0.0f;
+        state->velocity.z = 0.0f;
+        state->velocity.y = 0.0f;
+        state->velocity.x = 0.0f;
     } else {
         record = &path->surface->records[
             path->record_indices[state->point_index]];
@@ -1011,12 +1048,9 @@ static int obj_set_bld_vel(
         inverse_distance = 1.0f / (current_weight + next_weight);
         current_weight *= inverse_distance;
         next_weight *= inverse_distance;
-        direction.x = current->x * current_weight + next->x * next_weight;
-        direction.y = current->y * current_weight + next->y * next_weight;
-        direction.z = current->z * current_weight + next->z * next_weight;
-        direction.x -= position->x;
-        direction.y -= position->y;
-        direction.z -= position->z;
+        blood_interpolate_direction(
+            &direction, current, next, current_weight, next_weight,
+            position);
 
         duration = length_v3(&direction);
         inverse_distance = 1.0f / duration;
@@ -1024,8 +1058,8 @@ static int obj_set_bld_vel(
 
         calc_bone_world_mat(object, record->bone);
         matrix = &object->bones[record->bone]->matrix;
-        projection = direction.x * matrix->right.y +
-            direction.y * matrix->up.y +
+        projection = direction.y * matrix->up.y +
+            direction.x * matrix->right.y +
             direction.z * matrix->at.y;
         speed *= 1.0f - projection * inverse_distance;
         if (speed < 0.001f) {
@@ -1037,19 +1071,19 @@ static int obj_set_bld_vel(
                 result = 0;
             }
         }
-        if (matrix->pos.y + position->x * matrix->right.y +
-                position->y * matrix->up.y +
-                position->z * matrix->at.y <
+        if (position->y * matrix->up.y +
+                position->x * matrix->right.y +
+                position->z * matrix->at.y + matrix->pos.y <
             object->ground_colls_y + 0.2f) {
             result = 0;
             state->travel_ticks = 0.0f;
         }
 
-        speed *= inverse_distance;
-        state->velocity.x = direction.x * speed;
-        state->velocity.y = direction.y * speed;
-        state->velocity.z = direction.z * speed;
-        state->travel_ticks = duration / (speed / inverse_distance);
+        inverse_distance = speed * inverse_distance;
+        state->travel_ticks = duration / speed;
+        state->velocity.x = direction.x * inverse_distance;
+        state->velocity.y = direction.y * inverse_distance;
+        state->velocity.z = direction.z * inverse_distance;
         if (state->travel_ticks > 30.0f) {
             state->travel_ticks = 30.0f;
         }
@@ -1068,6 +1102,127 @@ static int obj_set_bld_vel(
         }
     }
     return result;
+}
+
+static inline int blood_surface_find_neighbor(
+    const BloodSurface* surface, int triangle_index, int corner) {
+    const int (*triangles)[3] = surface->triangles;
+    const int* triangle = triangles[triangle_index];
+    int next_corner = corner + 1;
+    int candidate_triangle;
+    int candidate_corner;
+    int matching_corner;
+
+    if (next_corner == 3) {
+        next_corner = 0;
+    }
+    for (candidate_triangle = 0;
+         candidate_triangle < surface->record_count;
+         candidate_triangle++) {
+        const int* candidate;
+
+        if (candidate_triangle == triangle_index) {
+            continue;
+        }
+        candidate = triangles[candidate_triangle];
+        for (candidate_corner = 0; candidate_corner < 3; candidate_corner++) {
+            if (triangle[corner] == candidate[candidate_corner]) {
+                for (matching_corner = 0;
+                     matching_corner < 3;
+                     matching_corner++) {
+                    if (triangle[next_corner] == candidate[matching_corner]) {
+                        return candidate_triangle;
+                    }
+                }
+            }
+        }
+    }
+    return -1;
+}
+
+static void obj_bld_surface_build_polys(
+    MkObj* object, BloodSurface* output, const BloodSurface* source) {
+    BloodSurfaceRecord* record;
+    BloodSurfaceVertex* vertices;
+    int (*triangles)[3];
+    const int* triangle;
+    MkBone* ancestor;
+    Vec edge_vectors[3];
+    int selected_bone;
+    int triangle_bones[3];
+    int triangle_index;
+    int corner;
+
+    memcpy(output, source, sizeof(*source));
+    output->records = get_mem(source->record_count * sizeof(*output->records));
+    if (output->records == 0) {
+        return;
+    }
+
+    vertices = output->vertices;
+    record = output->records;
+    triangles = output->triangles;
+    for (triangle_index = 0;
+         triangle_index < output->record_count;
+         triangle_index++, record++) {
+        triangle = triangles[triangle_index];
+        triangle_bones[0] = obj_get_bid_for_tid(
+            object, vertices[triangle[0]].tag);
+        triangle_bones[1] = obj_get_bid_for_tid(
+            object, vertices[triangle[1]].tag);
+        if (triangle_bones[0] != triangle_bones[1]) {
+            triangle_bones[2] = obj_get_bid_for_tid(
+                object, vertices[triangle[2]].tag);
+            if (triangle_bones[0] != triangle_bones[2]) {
+                if (triangle_bones[1] == triangle_bones[2]) {
+                    triangle_bones[0] = triangle_bones[1];
+                } else {
+                    for (corner = 1; corner < 3; corner++) {
+                        ancestor = object->bones[
+                            triangle_bones[corner]]->transform_parent;
+                        while (ancestor != 0) {
+                            if (ancestor == object->bones[triangle_bones[0]]) {
+                                triangle_bones[0] = triangle_bones[corner];
+                                break;
+                            }
+                            ancestor = ancestor->transform_parent;
+                        }
+                    }
+                }
+            }
+        }
+
+        selected_bone = triangle_bones[0];
+        record->bone = selected_bone;
+        object->bones[selected_bone]->flags_54_bits.calculation_locked = 1;
+        object->bones[selected_bone]->flags_54_bits.field_bit3 = 1;
+        for (corner = 0; corner < 3; corner++) {
+            record->vertex_indices[corner] = triangle[corner];
+            v3_sub_v3(
+                &record->points[corner],
+                &vertices[triangle[corner]].position,
+                &object->bones[selected_bone]->bind_offset);
+        }
+
+        for (corner = 0; corner < 3; corner++) {
+            record->neighbors[corner] = blood_surface_find_neighbor(
+                output, triangle_index, corner);
+        }
+
+        uv_v3_to_v3(&edge_vectors[0], &record->points[0], &record->points[1]);
+        uv_v3_to_v3(&edge_vectors[1], &record->points[1], &record->points[2]);
+        uv_v3_to_v3(&edge_vectors[2], &record->points[2], &record->points[0]);
+        v3_cross_v3(&record->normal, &edge_vectors[0], &edge_vectors[1]);
+        record->plane_distance =
+            v3_dot_v3(&record->normal, &record->points[0]);
+        for (corner = 0; corner < 3; corner++) {
+            v3_cross_v3(
+                &record->edges[corner].normal,
+                &edge_vectors[corner], &record->normal);
+            record->edges[corner].plane_distance = v3_dot_v3(
+                &record->edges[corner].normal, &record->points[corner]);
+        }
+    }
 }
 
 static void bloodfx_init(BloodFxUserdata* userdata) {
