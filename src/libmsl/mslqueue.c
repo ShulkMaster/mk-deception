@@ -1,7 +1,7 @@
 #include "msl/mslqueue.h"
 #include "mw/mwMemHeap.h"
 
-extern "C" mslBankSoundEntry* mslQueueGet(mslQueue* queue) {
+mslBankSoundEntry* mslQueueGet(mslQueue* queue) {
     mslBankSoundEntry* sound = 0;
 
     if (queue->write_index != queue->read_index) {
@@ -18,14 +18,14 @@ extern "C" mslBankSoundEntry* mslQueueGet(mslQueue* queue) {
     return sound;
 }
 
-extern "C" void mslQueueDelete(mslQueue* queue) {
+void mslQueueDelete(mslQueue* queue) {
     if (queue->entries != 0) {
         _mwMemFree(queue->entries, 0, 0);
     }
     _mwMemFree(queue, 0, 0);
 }
 
-extern "C" mslQueue* mslQueueNew(int capacity) {
+mslQueue* mslQueueNew(int capacity) {
     mslQueue* queue =
         (mslQueue*)_mwMemMalloc(MWSOUND_HEAP, sizeof(mslQueue), 3, 0, 0, 0);
 
