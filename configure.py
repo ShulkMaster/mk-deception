@@ -358,7 +358,8 @@ config.libs = [
             # Midway V3/XZ/quat/MKMATRIX core; Wave C scaffold
             Object(NonMatching, "mk_math.o", source="math/mk_math.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(Matching, "MovieSubtitle_GC.o", source="movie/MovieSubtitle_GC.c"),
+            Object(Matching, "MovieSubtitle_GC.o", source="movie/MovieSubtitle_GC.cpp",
+                   extra_cflags=["-lang=c"]),
             Object(Matching, "fog.o", source="platform/fog.c"),
             Object(Matching, "fast_rw.o", source="platform/fast_rw.c"),
             Object(NonMatching, "gcspecskin.o", source="game/gcspecskin.c",
@@ -368,10 +369,12 @@ config.libs = [
             Object(NonMatching, "gcpipemanager.o", source="platform/gcpipemanager.c",
                    extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "joy.o", source="platform/joy.c", extra_cflags=["-use_lmw_stmw on"]),
-            Object(Matching, "MovieConfig.o", source="movie/MovieConfig.c"),
-            Object(NonMatching, "MovieManager.o", source="movie/MovieManager.c", extra_cflags=["-use_lmw_stmw on"]),
+            Object(Matching, "MovieConfig.o", source="movie/MovieConfig.cpp"),
+            Object(NonMatching, "MovieManager.o", source="movie/MovieManager.cpp",
+                   extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "MovieManagerGC_Disp.o", source="movie/MovieManagerGC_Disp.cpp", extra_cflags=["-use_lmw_stmw on"]),
-            Object(NonMatching, "MkMovies.o", source="movie/MkMovies.c", extra_cflags=["-use_lmw_stmw on"]),
+            Object(NonMatching, "MkMovies.o", source="movie/MkMovies.cpp",
+                   extra_cflags=["-use_lmw_stmw on"]),
             Object(Matching, "gprofile_gcn.o", source="platform/gprofile_gcn.c"),
             Object(Matching, "mwMemNewDelete.o", source="mw/mwMemNewDelete.cpp"),
             Object(Matching, "mwFileGlue.o", source="mw/mwFileGlue.cpp"),
@@ -552,8 +555,8 @@ config.libs = [
                    extra_cflags=["-O4,s"]),
             Object(NonMatching, "ending.o", source="game/ending.c"),
             # B15 P0: MAIN_MENU C APIs; rest of ~61KB Glue stays ASM (NonMatching)
-            Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+            Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-lang=c"]),
             Object(NonMatching, "plyrprofile.o", source="game/plyrprofile.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "konquest_items.o", source="game/konquest_items.c", extra_cflags=["-use_lmw_stmw on"]),
@@ -698,7 +701,7 @@ config.libs = [
             Object(
                 Matching,
                 "libmsl.a/mslmem.o",
-                source="libmsl/mslmem.c",
+                source="libmsl/mslmem.cpp",
             ),
             Object(
                 NonMatching,
@@ -709,7 +712,7 @@ config.libs = [
             Object(
                 Matching,
                 "libmsl.a/mslqueue.o",
-                source="libmsl/mslqueue.cpp",
+                source="libmsl/mslqueue.c",
             ),
             Object(
                 NonMatching,
