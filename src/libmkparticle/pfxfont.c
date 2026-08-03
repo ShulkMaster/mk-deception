@@ -5,11 +5,7 @@
 #include "libmkparticle/config.h"
 #include "libmkparticle/rw_engine.h"
 #include "platform/fast_rw.h"
-
-void* memset(void* dst, int c, unsigned long n);
-void* memcpy(void* dst, const void* src, unsigned long n);
-unsigned long strlen(const char* s);
-int strncmp(const char* a, const char* b, unsigned long n);
+#include "runtime/cstring.h"
 
 #define COLOR_TAG "<COLOR=0x"
 

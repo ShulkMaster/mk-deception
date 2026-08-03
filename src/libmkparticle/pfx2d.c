@@ -108,8 +108,8 @@ void pfx2d_build_default_geometry(Pfx2dObj* obj) {
     float t;
 
     /* Retail requires texture+raster (null TGA loaders return NULL upstream). */
-    obj->tex_w = obj->texture->raster->width;
-    obj->tex_h = obj->texture->raster->height;
+    obj->tex_w = pfx_rw_texture_view(obj->texture)->raster->width;
+    obj->tex_h = pfx_rw_texture_view(obj->texture)->raster->height;
     width_f = (float)obj->tex_w;
     height_f = (float)obj->tex_h;
 
