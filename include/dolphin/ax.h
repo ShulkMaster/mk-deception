@@ -1,6 +1,8 @@
 #ifndef DOLPHIN_AX_H
 #define DOLPHIN_AX_H
 
+#include "dolphin/sp.h"
+
 /*
  * Game-used AX voice parameter block fields. The opaque regions are owned by
  * the Dolphin AX library; only fields accessed by the MSL playback layer are
@@ -32,5 +34,44 @@ struct _AXVPB {
 
 typedef char AXVPBLayoutSize[
     sizeof(_AXVPB) == 0x1F4 ? 1 : -1];
+
+typedef struct AXVoiceSrc {
+    unsigned short ratio_hi;
+    unsigned short ratio_lo;
+    unsigned short current_fraction;
+    short last_samples[4];
+} AXVoiceSrc;
+
+typedef void (*AXVoiceCallback)(void* callback_data);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+_AXVPB* AXAcquireVoice(unsigned long priority, AXVoiceCallback callback,
+                       void* callback_data);
+void AXFreeVoice(_AXVPB* voice);
+void AXSetVoicePriority(_AXVPB* voice, unsigned long priority);
+void AXSetVoiceSrc(_AXVPB* voice, AXVoiceSrc* source);
+void AXSetVoiceAdpcm(_AXVPB* voice, SPADPCM* adpcm);
+void AXSetVoiceState(_AXVPB* voice, unsigned short state);
+void AXInitEx(int mode);
+void AXSetMode(int mode);
+void AXRegisterCallback(void (*callback)(void));
+
+void MIXInit(void);
+int MIXGetSoundMode(void);
+void MIXUpdateSettings(void);
+void MIXInitChannel(_AXVPB* voice, int mode, int aux_a, int aux_b, int aux_c,
+                    unsigned char pan, unsigned char surround_pan,
+                    unsigned long fader);
+void MIXSetPan(_AXVPB* voice, unsigned char pan);
+void MIXSetSPan(_AXVPB* voice, unsigned char pan);
+void MIXSetFader(_AXVPB* voice, long volume);
+void MIXReleaseChannel(_AXVPB* voice);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
