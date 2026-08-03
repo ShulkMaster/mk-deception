@@ -81,8 +81,6 @@ static void set_vertex_format(void) {
     GXSetVtxDesc(0xD, 1);
 }
 
-#if !defined(TARGET_PC)
-#endif
 void nativefont_instance_lock(NativeFontInstance* inst) {
     if (inst == 0) {
         return;
@@ -105,11 +103,7 @@ void nativefont_instance_lock(NativeFontInstance* inst) {
     GXBeginDisplayList(inst->dl, inst->size);
     GXResetWriteGatherPipe();
 }
-#if !defined(TARGET_PC)
-#endif
 
-#if !defined(TARGET_PC)
-#endif
 void nativefont_instance_unlock(NativeFontInstance* inst) {
     if (inst == 0) {
         return;
@@ -119,8 +113,6 @@ void nativefont_instance_unlock(NativeFontInstance* inst) {
     inst->dl_size = (unsigned int)GXEndDisplayList();
     DCFlushRange(inst->dl, inst->size);
 }
-#if !defined(TARGET_PC)
-#endif
 
 /*
  * Soft ceiling: nativefont_instance_addglyph ~96.88% -- null/locked branch

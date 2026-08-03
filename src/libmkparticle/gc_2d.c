@@ -48,8 +48,9 @@ void native2d_reset_renderstate(void) {
  * y/WGPIPE r4<->r3 coloring only (same ops: lha/lis/sth/extsh). A named
  * MMIO base regressed to ~92.5%; narrowing y compiled identically. Stop.
  */
-#if !defined(TARGET_PC)
-#endif
+/* Retail native2d_draw requires O2 locally; applying O2 to the full object
+ * regresses native2d_instance_geometry by 12.81 percentage points. */
+#pragma optimization_level 2
 void native2d_draw(Pfx2dObj* obj) {
     Pfx2dObj* o;
     int y;
@@ -116,8 +117,7 @@ void native2d_draw(Pfx2dObj* obj) {
  * FPR/lis 4330 coloring; ptr++ walk vs li offs+add (byte-off/do-while
  * loses mtctr ~89%). Full mismatch remains one allocation phase. Stop.
  */
-#if !defined(TARGET_PC)
-#endif
+#pragma optimization_level 4
 void native2d_instance_geometry(Pfx2dObj* obj) {
     float tex_w;
     float tex_h;
@@ -181,13 +181,9 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     }
 }
 
-#if !defined(TARGET_PC)
-#endif
 void native2d_init_object(Pfx2dObj* obj) {
     /* Retail: addi r3,r3,0x74 ; li r4,0 ; li r5,0x44 ; bl memset.
      * Rebase obj first so addi lands before the li args. */
     obj = (Pfx2dObj*)&obj->gpu[0];
     memset(obj, 0, 0x44);
 }
-#if !defined(TARGET_PC)
-#endif
