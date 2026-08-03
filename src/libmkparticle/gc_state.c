@@ -1,40 +1,9 @@
 #include "libmkparticle/gc_state.h"
+#include "dolphin/gx.h"
+#include "dolphin/mtx.h"
 #include "math/gxQuat.h"
-
-typedef float Mtx44[4][4];
-
-/*
- * Args blob for _rxGCTevAlphaPass{Setup,Cleanup}.
- * Retail frame 0x40 with object at +0x8 -> size 0x38.
- * Live stores: +0x24, +0x1C, +0x08 (mode=4), +0x20.
- */
-typedef struct RxGCTevAlphaPass {
-    char pad00[0x08];
-    int mode; /* +0x08 */
-    char pad0C[0x10];
-    int field_0x1C; /* +0x1C */
-    int field_0x20; /* +0x20 */
-    int field_0x24; /* +0x24 */
-    char pad28[0x10]; /* pad to 0x38 */
-} RxGCTevAlphaPass;
-
-void GXSetChanCtrl(int chan, int enable, int ambSrc, int matSrc, int lightMask, int diffFn,
-                   int attnFn);
-void C_MTXOrtho(Mtx44 m, float t, float b, float l, float r, float n, float f);
-void GXSetProjection(Mtx44 m, int type);
-void GXLoadPosMtxImm(Mtx m, int id);
-void GXGetProjectionv(float* p);
-void GXSetProjectionv(float* p);
-void GXSetNumTevStages(int n);
-void GXSetNumTexGens(int n);
-void GXSetTexCoordGen2(int dst, int func, int src, int mtx, int normalize, int postMtx);
-void GXSetTevOrder(int stage, int coord, int map, int color);
-void GXSetTevOp(int stage, int mode);
-void _rxGCTevAlphaPassSetup(RxGCTevAlphaPass* pass);
-void _rxGCTevAlphaPassCleanup(RxGCTevAlphaPass* pass);
-
-extern int screen_width;
-extern int screen_height;
+#include "platform/display_metrics.h"
+#include "rw/alphapass.h"
 
 /* Static identity-ish position matrix; Z scale -1 for screen space. */
 static Mtx posMatrix = {
@@ -46,7 +15,7 @@ static Mtx posMatrix = {
 /* GXGetProjectionv writes 7 floats (0x1C). */
 static float old_projection_matrix[7];
 
-/* Retail: stw lr before arg loads / lis; needed for Matching thin wrappers + i2f. */
+/* Retail: stw lr before arg loads / lis; required retail scheduler region. */
 #pragma scheduling off
 
 void disable_vertex_lights(void) {

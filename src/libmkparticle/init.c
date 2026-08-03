@@ -1,6 +1,5 @@
 #include "libmkparticle/init.h"
-
-void* memset(void* destination, int value, unsigned long size);
+#include "runtime/cstring.h"
 
 #pragma scheduling on
 static void init_transform_matrix(PfxVm* vm) {

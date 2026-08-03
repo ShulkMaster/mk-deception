@@ -1,10 +1,5 @@
 #include "libmkparticle/metrics.h"
-
-void* memcpy(void* dst, const void* src, unsigned long size);
-void* memset(void* dst, int value, unsigned long size);
-char* strcpy(char* dst, const char* src);
-char* strcat(char* dst, const char* src);
-unsigned long strlen(const char* str);
+#include "runtime/cstring.h"
 
 static PfxMetricsInterface metrics_interface = {0};
 static int counter_offset[6] = {0, 4, 12, 8, 20, 16};
@@ -20,7 +15,6 @@ void pfxmetrics_set_interface(PfxMetricsInterface* interface) {
     memcpy(&metrics_interface, interface, sizeof(PfxMetricsInterface));
 }
 
-#pragma peephole off
 void pfxmetrics_event(PfxMetrics* metrics, int event) {
     PfxMetricsCounters* counters;
     int offset;
@@ -69,7 +63,6 @@ void pfxmetrics_event(PfxMetrics* metrics, int event) {
         pfxmetrics_flush(metrics);
     }
 }
-#pragma peephole reset
 
 void pfxmetrics_flush(PfxMetrics* metrics) {
     void* handle;
@@ -85,14 +78,12 @@ void pfxmetrics_flush(PfxMetrics* metrics) {
     }
 }
 
-#pragma peephole off
 int pfxmetrics_estimate_size(int frame_count) {
     if (frame_count != 0) {
         return frame_count * sizeof(PfxMetricsCounters) + 0x110;
     }
     return 0;
 }
-#pragma peephole reset
 
 PfxMetrics* pfxmetrics_set_mem(PfxMetrics* metrics, int frame_count) {
     if (frame_count == 0) {

@@ -1031,7 +1031,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/geometry.o",
                 source="libmkparticle/geometry.c",
-                extra_cflags=["-O4,s", "-schedule off", "-fp_contract off"],
+                extra_cflags=["-O4,s", "-schedule off", "-fp_contract off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,
@@ -1055,7 +1055,8 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/metrics.o",
                 source="libmkparticle/metrics.c",
-                extra_cflags=["-O4,s", "-inline off", "-schedule off"],
+                # Retail pfxmetrics_estimate_size requires peephole optimization off.
+                extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
                 Matching,
@@ -1079,7 +1080,8 @@ config.libs = [
                 source="libmkparticle/gc_font.c",
                 # No -use_lmw_stmw: retail uses _savegpr_29 in nativefont_string_render.
                 # -schedule off: Y-then-X fctiwz / UV load order closer to retail.
-                extra_cflags=["-O4,s", "-inline off", "-schedule off"],
+                # Retail nativefont_instance_unlock requires peephole optimization off.
+                extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,

@@ -4,7 +4,6 @@
 static const float kHalf = 0.5f;
 static const float kZero = 0.0f;
 
-#pragma peephole off
 /* Soft ceiling: pfx_get_billboard_vector ~98.84% -- constant-pool relocations
  * and one equivalent fneg scheduling difference. */
 void pfx_get_billboard_vector(PfxVm* vm, PfxVec3* axis0,
@@ -90,4 +89,3 @@ void pfx_get_billboard_vector(PfxVm* vm, PfxVec3* axis0,
     axis0->y *= scale1;
     axis0->z *= scale1;
 }
-#pragma peephole reset

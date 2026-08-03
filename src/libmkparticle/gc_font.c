@@ -1,30 +1,10 @@
 #include "libmkparticle/gc_font.h"
 #include "libmkparticle/gc_state.h"
 #include "libmkparticle/texture_bridge.h"
+#include "dolphin/gx.h"
+#include "dolphin/cache.h"
 #include "math/gxQuat.h"
 
-typedef struct GXColor {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} GXColor;
-
-void GXClearVtxDesc(void);
-void GXSetVtxAttrFmt(int vtxfmt, int attr, int cnt, int type, int frac);
-void GXSetVtxDesc(int attr, int type);
-void GXSetChanMatColor(int chan, GXColor color);
-void GXSetChanCtrl(int chan, int enable, int ambSrc, int matSrc, int lightMask, int diffFn,
-                   int attnFn);
-void GXSetNumChans(int n);
-void GXLoadPosMtxImm(Mtx m, int id);
-void GXCallDisplayList(void* list, unsigned long nbytes);
-void GXBeginDisplayList(void* list, unsigned long nbytes);
-unsigned long GXEndDisplayList(void);
-void GXBegin(int primitive, int vtxfmt, int nverts);
-void GXResetWriteGatherPipe(void);
-void DCInvalidateRange(void* addr, unsigned long n);
-void DCFlushRange(void* addr, unsigned long n);
 extern int screen_height;
 
 /* WGPIPE at 0xCC008000 -- s16 POS (1 frac bit) + f32 TEX0. */
@@ -101,9 +81,6 @@ static void set_vertex_format(void) {
     GXSetVtxDesc(0xD, 1);
 }
 
-#if !defined(TARGET_PC)
-#pragma peephole off
-#endif
 void nativefont_instance_lock(NativeFontInstance* inst) {
     if (inst == 0) {
         return;
@@ -126,13 +103,7 @@ void nativefont_instance_lock(NativeFontInstance* inst) {
     GXBeginDisplayList(inst->dl, inst->size);
     GXResetWriteGatherPipe();
 }
-#if !defined(TARGET_PC)
-#pragma peephole reset
-#endif
 
-#if !defined(TARGET_PC)
-#pragma peephole off
-#endif
 void nativefont_instance_unlock(NativeFontInstance* inst) {
     if (inst == 0) {
         return;
@@ -142,17 +113,12 @@ void nativefont_instance_unlock(NativeFontInstance* inst) {
     inst->dl_size = (unsigned int)GXEndDisplayList();
     DCFlushRange(inst->dl, inst->size);
 }
-#if !defined(TARGET_PC)
-#pragma peephole reset
-#endif
 
 /*
  * Soft ceiling: nativefont_instance_addglyph ~96.88% -- null/locked branch
  * shape and one final redundant extsh only. POS s16 frac=1 (*2); retail loads
  * Y then X, writes X then Y, and loads V then U before writing U then V.
  */
-#pragma optimization_level 2
-#pragma scheduling off
 void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* inst,
                                   NativeFontQuad* quad) {
     int t;
@@ -235,8 +201,6 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     *pipef = u;
     *pipef = v;
 }
-#pragma optimization_level 4
-#pragma scheduling off
 
 void nativefont_end_render(void) {
     restore_projection_matrix();
