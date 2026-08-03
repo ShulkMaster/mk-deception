@@ -1,8 +1,5 @@
 #include "platform/os_types.h"
-
-void OSInitMutex(OSMutex* mutex);
-void OSLockMutex(OSMutex* mutex);
-void OSUnlockMutex(OSMutex* mutex);
+#include "dolphin/mutex.h"
 
 OSMutex MemGC_SysMutex;
 /* MWCC emits .sbss in reverse declaration order; pad first so MemSysMutex is at +0. */

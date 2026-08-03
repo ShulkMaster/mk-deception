@@ -1,9 +1,7 @@
 #include "mw/mwMemHeap.h"
-
-extern void MEMPRINT(const char* format, ...);
-extern void OSReport(const char* format, ...);
-extern u32 mwMemSystemGetAvailSize(void);
-extern void memDebugHeap(_mwMemHeap* heap);
+#include "dolphin/os.h"
+#include "mw/mwMemDebug.h"
+#include "mw/mwMemPlatform.h"
 
 _mwMemHeap* overflow_heap;
 _mwMemHeap* permanent_heap;
@@ -86,9 +84,9 @@ static void* movie_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32
         }
     }
     if (block == 0) {
-        memDebugHeap(wave_heap);
-        memDebugHeap(permanent_heap);
-        memDebugHeap(system_overflow);
+        memDebugHeap();
+        memDebugHeap();
+        memDebugHeap();
     }
     return block;
 }

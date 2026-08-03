@@ -8,6 +8,9 @@
  */
 #include "mw/mwMem.h"
 #include "mw/mwMemPriv.h"
+#include "runtime/cstring.h"
+#include "dolphin/os.h"
+#include "dolphin/os_alloc.h"
 
 #if !defined(__LP64__)
 typedef char MwMemMallocRequestSize[(sizeof(MwMemMallocRequest) == 0x40) ? 1 : -1];
@@ -72,13 +75,8 @@ void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info);
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info);
 int mwMemUserConfigAssert(void);
 
-void* OSAllocFromHeap(OSHeapHandle heap, u32 size);
-void OSFreeToHeap(OSHeapHandle heap, void* ptr);
-void OSPanic(const char* file, int line, const char* msg, ...);
 u8* privGetOSMemory(u32 size);
 int privConsoleMemSystemInit(void);
-void* memcpy(void* dst, const void* src, u32 size);
-void* memset(void* dst, int val, u32 size);
 
 static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line);
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request);
@@ -565,7 +563,6 @@ void* mwMemHeapStrategyCallback(MwMemMallocRequest* request, _mwMemHeap* heap, u
     return result;
 }
 
-#pragma dont_inline on
 static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     _mwMemHeap* heap;
     int statSize;
@@ -590,7 +587,6 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     mwMemFreeBlockByStrategy(heap, ptr);
     priv_mwMem_CritSecExit();
 }
-#pragma dont_inline reset
 
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     _mwMemHeap* heap;
@@ -1064,7 +1060,6 @@ static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap
     return privInitSystemHeap(arenaSize, buffer, MW_MEM_STRATEGY_NORMAL, outHeap, name);
 }
 
-#pragma optimize_for_size on
 static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char* name) {
     u8* buffer;
     u32 arenaSize;
@@ -1080,9 +1075,7 @@ static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char*
     buffer = privGetOSMemory(arenaSize + 0x80);
     return privInitSystemHeap(arenaSize, buffer, 1, outHeap, name);
 }
-#pragma optimize_for_size reset
 
-#pragma optimize_for_size on
 int mwMemSystemCreateSystemHeap(void* buffer, u32 size, MwMemSystemParams* params) {
     /* Soft ceiling: ~99.79% -- heapName string-pool relocation labels only. */
     _mwMemHeap* heap;
@@ -1105,7 +1098,6 @@ int mwMemSystemCreateSystemHeap(void* buffer, u32 size, MwMemSystemParams* param
     }
     return result;
 }
-#pragma optimize_for_size reset
 
 _mwMemHeap* mwMemExtSystemHeapCreate(_mwMemHeap* parent, void* buffer, u32 size,
                                      const char* name) {

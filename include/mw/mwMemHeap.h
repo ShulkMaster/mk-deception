@@ -19,6 +19,10 @@ typedef struct FixedHeapConfig {
     unsigned long fixed1024Size; /**< Retail offset 0x30. */
 } FixedHeapConfig;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern _mwMemHeap* overflow_heap;
 extern _mwMemHeap* permanent_heap;
 extern _mwMemHeap* mwfile_heap;
@@ -49,5 +53,9 @@ int mwMemUserConfigAssert(void);
 void mwMemUserConfigPrintf(const char* format, ...);
 void mwMemDestroyFixedBlockHeaps(void);
 void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

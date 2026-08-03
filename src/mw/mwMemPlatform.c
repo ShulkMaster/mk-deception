@@ -1,27 +1,10 @@
 #include "mw/mwMemPlatform.h"
 
 #include "mw/mwMemHeap.h"
-
-typedef struct {
-    unsigned char gpr;
-    unsigned char fpr;
-    unsigned char reserved[2];
-    char* input_arg_area;
-    char* reg_save_area;
-} __va_list[1];
-
-#define va_start(list, last_arg) __va_start(list, last_arg)
-
-void OSInit(void);
-char* OSGetArenaHi(void);
-char* OSGetArenaLo(void);
-void* OSInitAlloc(void* arena_start, void* arena_end, int max_heaps);
-void OSSetArenaLo(void* arena_low);
-OSHeapHandle OSCreateHeap(void* heap_start, void* heap_end);
-OSHeapHandle OSSetCurrentHeap(OSHeapHandle heap);
-int OSCheckHeap(OSHeapHandle heap);
-void* OSAllocFromHeap(OSHeapHandle heap, unsigned long size);
-int vsprintf(char* buffer, const char* format, __va_list args);
+#include "dolphin/os.h"
+#include "dolphin/os_alloc.h"
+#include "runtime/cstdarg.h"
+#include "runtime/cstdio.h"
 
 static char printBuff[0x200];
 

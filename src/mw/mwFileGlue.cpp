@@ -1,12 +1,8 @@
-extern "C" {
 #include "mw/mwFile.h"
+#include "mw/mwFileGlue.h"
 #include "mw/mwMemHeap.h"
 #include "platform/disc_error.h"
-
-void exit(int code);
-
-extern _mwMemHeap* mwfile_heap;
-}
+#include "runtime/cstdlib.h"
 
 class mwFileMemTraits {
 public:
@@ -66,14 +62,14 @@ const int gap_04_802EA424_rodata = 0;
 const mwFileInitFlagValue MWF_INIT_DVD = {4.484155085839415e-44f}; /* 0x00000020 */
 const float gap_09_805117EC_sdata2 = 0.0f;
 
-extern "C" void mwfile_init_for_mk(void* param) {
+void mwfile_init_for_mk(void* allocator_context) {
     mwFileInitParam init;
     int err;
 
     mwFileGetDefaultInitParam(&init);
     init.flags = 7;
     init.max_open_files = 5;
-    init.allocator_context = param;
+    init.allocator_context = allocator_context;
     init.flags = MWF_INIT_DVD.flags | 7;
     err = mwFileInit(&init);
     if (err != 0) {
