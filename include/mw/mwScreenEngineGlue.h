@@ -263,6 +263,10 @@ typedef struct ScreenCtrlPdata {
     int field10; /* +0x10 */
 } ScreenCtrlPdata;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void init_screen_engine(void);
 void pause_screen_engine(int paused);
 void wait_for_screen_close(void);
@@ -292,5 +296,8 @@ void set_target_game_mode(int menu_player_arg, int mode);
 void* get_screen_pdata(void);
 void screen_share_pdata(MkHdr* share);
 
+#ifdef __cplusplus
+}
 #endif
 
+#endif

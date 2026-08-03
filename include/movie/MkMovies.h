@@ -14,6 +14,10 @@ typedef struct MkMovieTexPlayer {
     RwTexture* saved_texture;
 } MkMovieTexPlayer;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void mkMovieTexPlayerIdleUpdate(void);
 void movie_player_reset(void);
 void mkMovieTexStop(int index);
@@ -21,5 +25,8 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
                     int use_mfs);
 void mkMovieTexInit(int index, void* screen_poly, int width, int height);
 
+#ifdef __cplusplus
+}
 #endif
 
+#endif

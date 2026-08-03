@@ -163,6 +163,10 @@ typedef struct GameInfo {
         GcPadSlot pads[4]; /* +0x17C -- four physical GameCube ports */
         struct {
             GcPadSlot first_three_pads[3];
+            GameInfoPselectTail pselect;
+        } pad_overlay;
+        struct {
+            GcPadSlot first_three_pads[3];
             GameInfoPselectTail pselect; /* +0x1D0 -- gameplay overlay */
         };
     }; /* +0x17C..+0x1F8 */

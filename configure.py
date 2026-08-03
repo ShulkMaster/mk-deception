@@ -556,7 +556,7 @@ config.libs = [
             Object(NonMatching, "ending.o", source="game/ending.c"),
             # B15 P0: MAIN_MENU C APIs; rest of ~61KB Glue stays ASM (NonMatching)
             Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-lang=c"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off"]),
             Object(NonMatching, "plyrprofile.o", source="game/plyrprofile.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "konquest_items.o", source="game/konquest_items.c", extra_cflags=["-use_lmw_stmw on"]),
