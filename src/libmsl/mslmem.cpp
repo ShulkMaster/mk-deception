@@ -1,7 +1,8 @@
+#include "msl/mslgcn.h"
 #include "mw/mwMemHeap.h"
 #include "mw/mwMem.h"
 
-u32 mslMainRamUsed(void) {
+extern "C" unsigned long mslMainRamUsed(void) {
     MwMemHeapInfo info;
 
     mwMemHeapGetInfo(MWSOUND_HEAP, &info);
