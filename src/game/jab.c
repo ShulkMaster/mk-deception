@@ -381,14 +381,10 @@ float p_bind_obj_to_obj_bone(void) {
     MkObj* child;
 
     pdata = (JadeBindPdata*)pdata_of_proc(aproc);
-    parent = pdata->parent;
-    if (parent != 0 && parent->hdr.instance != pdata->parent_instance) {
-        parent = 0;
-    }
-    child = pdata->child;
-    if (child != 0 && child->hdr.instance != pdata->child_instance) {
-        child = 0;
-    }
+    RESOLVE_JAB_OBJECT(
+        parent, pdata->parent, pdata->parent_instance);
+    RESOLVE_JAB_OBJECT(
+        child, pdata->child, pdata->child_instance);
     if (parent == 0 || child == 0) {
         return -1.0f;
     }
@@ -428,8 +424,9 @@ void jab_shake_dragon_king(float distance, float speed) {
         pdata->base_y = object->pos_y;
         pdata->distance = distance;
         pdata->speed = speed;
-        object->flags_08 |= MKOBJ_FLAG_JADE_VISIBLE;
-        object->flags_09 &= ~0xC0;
+        object->flags_08_bits.airborne = 1;
+        object->flags_09_bits.launched = 0;
+        object->flags_09_bits.bit6 = 0;
     }
 }
 
@@ -444,10 +441,6 @@ void jab_stop_dragon_king_shake(void) {
     }
 }
 
-/*
- * Soft ceiling: jab_attach_wiff_to_sobj ~67.64% - all calls and argument
- * registers agree; only NV move order and stmw/lmw selection differ.
- */
 void jab_attach_wiff_to_sobj(
     MkObj* object, int sobj_id, const char* wiff_name,
     const char* texture_name, int section, int frame, float rate) {
@@ -469,10 +462,6 @@ void jab_destroy_drink_obj_in_hand(void) {
     }
 }
 
-/*
- * Soft ceiling: jab_attach_drink_obj_to_hand ~79.53% - the body agrees with
- * retail; only parameter move order and stmw/lmw versus split saves differ.
- */
 void jab_attach_drink_obj_to_hand(
     MkObj* drink, const float* offset, const Vec* angles) {
     MkObj* player;
@@ -620,10 +609,7 @@ void jab_setup_kiss_emitter_obj(MkPfx* effect) {
     matrix->pos.z = mouth_position.z;
 }
 
-/*
- * Soft ceiling: obj_scale_over_time ~81.51% - scalar operations and loop CFG
- * agree; remaining differences are FPR allocation and save/restore emission.
- */
+/* Exact size and algorithm; the remaining delta is FPR allocation. */
 void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
     float ticks_left;
     float delta_z;
@@ -661,10 +647,7 @@ void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
     object->scale.z = target->z;
 }
 
-/*
- * Soft ceiling: jab_release_jade_boomerang ~81.10% - the mutation/destruction
- * body agrees; only expanded latch branches and stmw/lmw emission differ.
- */
+/* Exact size; the remaining delta is register allocation in the two latches. */
 void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     JadeBindPdata* pdata;
     MkObj* boomerang;
@@ -672,16 +655,19 @@ void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     JabProcVtableRef vtbl;
 
     proc = (MkProc*)proc_ref->object;
-    if (proc != 0 && (unsigned int)proc->instance != proc_ref->instance) {
+    if (proc != 0) {
+        if ((unsigned int)proc->instance == proc_ref->instance) {
+            /* The process reference is still live. */
+        } else {
+            proc = 0;
+        }
+    } else {
         proc = 0;
     }
     if (proc != 0) {
         pdata = (JadeBindPdata*)pdata_of_proc(proc);
-        boomerang = pdata->child;
-        if (boomerang != 0 &&
-            boomerang->hdr.instance != pdata->child_instance) {
-            boomerang = 0;
-        }
+        RESOLVE_JAB_OBJECT(
+            boomerang, pdata->child, pdata->child_instance);
         if (boomerang != 0) {
             boomerang->flags_08_bits.angular_velocity_enabled = 1;
             boomerang->flags_08_bits.rotation_enabled = 1;
@@ -696,73 +682,85 @@ void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     proc_ref->instance = 0;
 }
 
+/* Soft ceiling: the remaining delta is NV-register coloring, one equivalent
+ * character guard branch, and the pooled-string relocation label. */
 void jab_start_jade_boomerang_throw(
-    JabObjectRef* proc_ref, JabObjectRef* boomerang_ref) {
+    JabObjectRef* proc_ref, JabObjectRef* boomerang_ref,
+    float unused_parameter) {
     JadeBindPdata* pdata;
-    MkObj* boomerang;
     MkObj* player;
-    MkProc* bind_proc;
+    MkObj* boomerang;
     MkProc* live_proc;
+    MkProc* proc_candidate;
+    MkProc* bind_proc;
+    PlyrPdata* jade_data;
     PlyrPdata* player_data;
 
     player_data = get_my_plyr_pdata();
-    if (player_data == 0 || player_data->character_id != JADE_CHARACTER_ID) {
-        return;
-    }
+    if (player_data != 0) {
+        if (player_data->character_id == JADE_CHARACTER_ID) {
+            jade_data = player_data;
+            RESOLVE_JAB_OBJECT(
+                player, jade_data->tracked_obj,
+                jade_data->tracked_obj_instance);
+            if (player != 0) {
+                RESOLVE_JAB_OBJECT(
+                    boomerang, (MkObj*)boomerang_ref->object,
+                    boomerang_ref->instance);
+                if (boomerang == 0) {
+                    boomerang = load_named_model_for_player(
+                        "WHITE_FADEBOX\0BRANG" + sizeof("WHITE_FADEBOX"),
+                        jade_data->plyr_num, 0xD000, 0);
+                    if (boomerang != 0) {
+                        insert_fgnd_mkobj(boomerang);
+                        boomerang_ref->object = &boomerang->hdr;
+                        boomerang_ref->instance = boomerang->hdr.instance;
+                    }
+                }
+                if (boomerang != 0) {
+                    /* These transform bits drive the Jade boomerang's visible,
+                     * attached, and angular-update states respectively. */
+                    boomerang->flags_08_bits.airborne = 1;
+                    boomerang->flags_08_bits.angular_velocity_enabled = 1;
+                    boomerang->flags_08_bits.rotation_enabled = 0;
 
-    player = player_data->tracked_obj;
-    if (player != 0 &&
-        player->hdr.instance != player_data->tracked_obj_instance) {
-        player = 0;
-    }
-    if (player == 0) {
-        return;
-    }
+                    proc_candidate = (MkProc*)proc_ref->object;
+                    if (proc_candidate != 0) {
+                        if ((unsigned int)proc_candidate->instance ==
+                            proc_ref->instance) {
+                            live_proc = proc_candidate;
+                        } else {
+                            live_proc = 0;
+                        }
+                    } else {
+                        live_proc = 0;
+                    }
+                    bind_proc = live_proc;
+                    if (live_proc == 0) {
+                        bind_proc = _create_mkproc_generic_nostack(
+                            JADE_BIND_PID, 0x1F, p_bind_obj_to_obj_bone,
+                            sizeof(JadeBindPdata), (MkHdr**)&pdata);
+                    }
+                    if (live_proc != 0) {
+                        pdata = (JadeBindPdata*)pdata_of_proc(live_proc);
+                    }
 
-    boomerang = (MkObj*)boomerang_ref->object;
-    if (boomerang != 0 &&
-        boomerang->hdr.instance != boomerang_ref->instance) {
-        boomerang = 0;
-    }
-    if (boomerang == 0) {
-        boomerang = load_named_model_for_player(
-            "BRANG", player_data->plyr_num, 0xD000, 0);
-        if (boomerang != 0) {
-            insert_fgnd_mkobj(boomerang);
-            boomerang_ref->object = &boomerang->hdr;
-            boomerang_ref->instance = boomerang->hdr.instance;
+                    if (bind_proc != 0) {
+                        proc_ref->object = (MkHdr*)bind_proc;
+                        proc_ref->instance = bind_proc->instance;
+                        pdata->child = boomerang;
+                        pdata->child_instance = boomerang->hdr.instance;
+                        pdata->parent = player;
+                        pdata->parent_instance = player->hdr.instance;
+                        if (am_i_flipped() != 0) {
+                            pdata->parent_bone = 0x1A;
+                        } else {
+                            pdata->parent_bone = 0x1B;
+                        }
+                    }
+                }
+            }
         }
-    }
-    if (boomerang == 0) {
-        return;
-    }
-
-    boomerang->flags_08 |= MKOBJ_FLAG_JADE_VISIBLE;
-    boomerang->flags_08 |= MKOBJ_FLAG_JADE_ATTACHED;
-    boomerang->flags_08 &= ~MKSOBJ_FLAG_UPDATE_ANGULAR;
-
-    live_proc = (MkProc*)proc_ref->object;
-    if (live_proc != 0 &&
-        (unsigned int)live_proc->instance != proc_ref->instance) {
-        live_proc = 0;
-    }
-    bind_proc = live_proc;
-    if (bind_proc == 0) {
-        bind_proc = _create_mkproc_generic_nostack(
-            JADE_BIND_PID, 0x1F, p_bind_obj_to_obj_bone,
-            sizeof(JadeBindPdata), (MkHdr**)&pdata);
-    } else {
-        pdata = (JadeBindPdata*)pdata_of_proc(bind_proc);
-    }
-
-    if (bind_proc != 0) {
-        proc_ref->object = (MkHdr*)bind_proc;
-        proc_ref->instance = bind_proc->instance;
-        pdata->child = boomerang;
-        pdata->child_instance = boomerang->hdr.instance;
-        pdata->parent = player;
-        pdata->parent_instance = player->hdr.instance;
-        pdata->parent_bone = am_i_flipped() ? 0x1A : 0x1B;
     }
 }
 
@@ -1667,6 +1665,250 @@ float pfx_sh_grinder_meat_spew(void) {
         result = -1.0f;
     }
     return result;
+}
+
+/*
+ * Near match: exact size and call/control-flow sequence; remaining differences
+ * are particle-pointer register allocation and equivalent float scheduling.
+ */
+float pfx_react_falling_attach_smoke_to_bones_proc(void) {
+    PfxVm* vm;
+    PfxEmitter* emitter;
+    MkObj* object;
+    Vec* source_velocities;
+    Vec* destination_velocities;
+    Vec* source_positions;
+    Vec* destination_positions;
+    float* source_timers;
+    float* destination_timers;
+    float* source_scales;
+    float* destination_scales;
+    unsigned char* source_colors;
+    unsigned char* destination_colors;
+    Vec* last_velocity;
+    Vec* last_position;
+    float* last_timer;
+    float* last_scale;
+    unsigned char* last_color;
+    int field_stride;
+    int vector_stride;
+    int initial_cursor;
+    int last_index;
+    int index;
+
+    vm = (PfxVm*)&apfx->matrix;
+    initial_cursor = apfx->field_94;
+    source_velocities = (Vec*)pfx_get_field(vm, -1, 0x300);
+    destination_velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
+    source_positions = (Vec*)pfx_get_field(vm, -1, 0x100);
+    destination_positions = (Vec*)pfx_get_field(vm, -2, 0x100);
+    source_colors = (unsigned char*)pfx_get_field(vm, -1, 0x101);
+    destination_colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
+    source_timers = (float*)pfx_get_field(vm, -1, 0x301);
+    destination_timers = (float*)pfx_get_field(vm, -2, 0x301);
+    source_scales = (float*)pfx_get_field(vm, -1, 0x102);
+    destination_scales = (float*)pfx_get_field(vm, -2, 0x102);
+
+    field_stride = vm->transforms[0].particle_field_stride;
+    vector_stride = vm->particle_vector_stride;
+    last_index = vm->particle_cursor - 1;
+    last_position = (Vec*)((unsigned char*)source_positions +
+                           field_stride * last_index);
+    last_color = source_colors + field_stride * last_index;
+    last_scale = (float*)((unsigned char*)source_scales +
+                          field_stride * last_index);
+    last_velocity = (Vec*)((unsigned char*)source_velocities +
+                           vector_stride * last_index);
+    last_timer = (float*)((unsigned char*)source_timers +
+                          vector_stride * last_index);
+
+    index = 0;
+    while (index < vm->particle_cursor) {
+        source_colors[3] -= (int)(apfx->field_2A4 * game_speed);
+        if ((float)source_colors[3] <= 10.0f + apfx->field_2A4) {
+            index--;
+            source_positions->x = last_position->x;
+            source_positions->y = last_position->y;
+            source_positions->z = last_position->z;
+            source_velocities->x = last_velocity->x;
+            source_velocities->y = last_velocity->y;
+            source_velocities->z = last_velocity->z;
+            source_colors[0] = last_color[0];
+            source_colors[1] = last_color[1];
+            source_colors[2] = last_color[2];
+            source_colors[3] = last_color[3];
+            *source_scales = *last_scale;
+            *source_timers = *last_timer;
+
+            last_position = (Vec*)((unsigned char*)last_position -
+                                   field_stride);
+            last_color -= field_stride;
+            last_scale = (float*)((unsigned char*)last_scale -
+                                  field_stride);
+            last_velocity = (Vec*)((unsigned char*)last_velocity -
+                                   vector_stride);
+            last_timer = (float*)((unsigned char*)last_timer -
+                                  vector_stride);
+            vm->particle_cursor--;
+        } else {
+            destination_colors[0] = source_colors[0];
+            destination_colors[1] = source_colors[1];
+            destination_colors[2] = source_colors[2];
+            destination_colors[3] = source_colors[3];
+            *destination_timers = *source_timers + game_speed;
+            if (*source_scales < 0.5f) {
+                *source_scales += 0.05f * game_speed;
+                if (*source_scales > 0.5f) {
+                    *source_scales = 0.5f;
+                }
+            }
+            *destination_scales = *source_scales;
+
+            destination_positions->x =
+                source_positions->x + source_velocities->x * game_speed;
+            destination_positions->y =
+                source_positions->y + source_velocities->y * game_speed;
+            destination_positions->z =
+                source_positions->z + source_velocities->z * game_speed;
+            destination_velocities->x = source_velocities->x;
+            destination_velocities->y = source_velocities->y;
+            destination_velocities->z = source_velocities->z;
+
+            source_colors += field_stride;
+            destination_colors += field_stride;
+            source_scales = (float*)((unsigned char*)source_scales +
+                                     field_stride);
+            destination_scales =
+                (float*)((unsigned char*)destination_scales + field_stride);
+            source_positions = (Vec*)((unsigned char*)source_positions +
+                                      field_stride);
+            destination_positions =
+                (Vec*)((unsigned char*)destination_positions + field_stride);
+            source_velocities = (Vec*)((unsigned char*)source_velocities +
+                                       vector_stride);
+            destination_velocities =
+                (Vec*)((unsigned char*)destination_velocities + vector_stride);
+            source_timers = (float*)((unsigned char*)source_timers +
+                                     vector_stride);
+            destination_timers =
+                (float*)((unsigned char*)destination_timers + vector_stride);
+        }
+        index++;
+    }
+
+    if (apfx->field_29C > 0.0f) {
+        emitter = pfx_get_emitter(vm, 0);
+        if (emitter->lifetime <
+            (float)(vm->particle_capacity - initial_cursor)) {
+            int spawn_count;
+
+            spawn_count = (int)pfx_get_emitter(vm, 0)->lifetime;
+            vm->particle_cursor += spawn_count;
+            RESOLVE_JAB_OBJECT(
+                object, apfx->tracked_object,
+                apfx->tracked_object_instance);
+
+            index = 0;
+            while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+                Vec start;
+                Vec end;
+                Vec offset;
+                float interpolation;
+                int bone_index;
+
+                bone_index = index % 12;
+                get_bone_world_pos(
+                    object,
+                    skeleton_start_bone_id[apfx->effect_state][bone_index],
+                    &start);
+                get_bone_world_pos(
+                    object,
+                    skeleton_end_bone_id[apfx->effect_state][bone_index],
+                    &end);
+                v3_sub_v3(&offset, &end, &start);
+                interpolation = frand(1.0f);
+                offset.x *= interpolation;
+                offset.y *= interpolation;
+                offset.z *= interpolation;
+                start.x += offset.x;
+                start.y += offset.y;
+                start.z += offset.z;
+
+                destination_positions->x =
+                    start.x + sfrand(skeleton_radius_table[bone_index]);
+                destination_positions->y =
+                    start.y + sfrand(skeleton_radius_table[bone_index]);
+                destination_positions->z =
+                    start.z + sfrand(skeleton_radius_table[bone_index]);
+                destination_velocities->x = 0.0f;
+                destination_velocities->y = 0.005f;
+                destination_velocities->z = 0.0f;
+                destination_colors[3] = 0xB4;
+                if (apfx->field_29C < 40.0f) {
+                    destination_colors[3] =
+                        (destination_colors[3] * 2) / 3;
+                }
+                destination_colors[0] = 0x8E;
+                destination_colors[1] = 0x87;
+                destination_colors[2] = 0x82;
+                *destination_scales = 0.7f;
+                *destination_timers = 0.0f;
+
+                destination_positions =
+                    (Vec*)((unsigned char*)destination_positions + field_stride);
+                destination_velocities =
+                    (Vec*)((unsigned char*)destination_velocities + vector_stride);
+                destination_colors += field_stride;
+                destination_scales =
+                    (float*)((unsigned char*)destination_scales + field_stride);
+                destination_timers =
+                    (float*)((unsigned char*)destination_timers + vector_stride);
+                index++;
+            }
+            apfx->effect_state = apfx->effect_state != 1;
+        } else {
+            apfx->field_29C += 1.0f;
+        }
+    }
+
+    if (apfx->field_29C == 53.333332f) {
+        float lifetime;
+
+        lifetime = pfx_get_emitter(vm, 0)->lifetime;
+        pfx_get_emitter(vm, 0)->lifetime =
+            (2.0f * lifetime) / 3.0f;
+        apfx->field_2A4 *= 2.0f;
+    }
+    if (apfx->field_29C == 40.0f) {
+        float lifetime;
+
+        lifetime = pfx_get_emitter(vm, 0)->lifetime;
+        pfx_get_emitter(vm, 0)->lifetime =
+            (2.0f * lifetime) / 3.0f;
+        apfx->field_2A4 *= 2.0f;
+    }
+    if (apfx->field_29C == 20.0f) {
+        float lifetime;
+
+        lifetime = pfx_get_emitter(vm, 0)->lifetime;
+        pfx_get_emitter(vm, 0)->lifetime =
+            (2.0f * lifetime) / 3.0f;
+        apfx->field_2A4 *= 1.5f;
+    }
+
+    if (apfx->field_29C > 0.0f) {
+        apfx->field_29C -= game_speed;
+    } else {
+        apfx->field_29C = 0.0f;
+    }
+    if (vm->particle_cursor == 0) {
+        return -1.0f;
+    }
+    if (apfx->field_298 > 0.0f) {
+        apfx->field_298 -= game_speed;
+        return 1.0f;
+    }
+    return -1.0f;
 }
 
 void bulvan_function(int command) {

@@ -732,7 +732,9 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     uv_v3_to_v3(
         &jump_direction, &jump_position, &cylinder_position);
 
-    for (index = 0; index < count; index++) {
+    index = 0;
+    while (index < count) {
+        YinyangFishPair* current;
         MkObj* good_fish;
         MkObj* bad_fish;
         unsigned char bad_hidden;
@@ -740,33 +742,35 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
         int wrapped_angle;
 
         if (camera_obj == 0) {
-            break;
+            continue;
         }
 
         random_angles.x += sfrand(0.06f);
         random_angles.y += sfrand(0.02f);
         random_angles.z += sfrand(0.06f);
-        good_fish = fish[index].good_fish;
-        bad_fish = fish[index].bad_fish;
+        current = &fish[index];
+        good_fish = current->good_fish;
+        bad_fish = current->bad_fish;
 
         good_fish->pos.x = jump_position.x;
         good_fish->pos.y = -1.25f;
         good_fish->pos.z = jump_position.z;
+        index++;
         angle = 0.63f + (1.57f + xz_to_y_ang(&jump_direction));
         wrapped_angle = (int)(166886.1f * angle) & 0xFFFFF;
         good_fish->ang.y = 0.000005992112f * (float)wrapped_angle;
         good_fish->flags_08_bits.angular_velocity_enabled = 1;
         good_fish->flags_08_bits.airborne = 1;
 
-        fish[index].active_fish->field_38 = 0.0f;
-        fish[index].active_fish->flags |= 3;
+        current->active_fish->field_38 = 0.0f;
+        current->active_fish->flags |= 3;
         bad_fish->pos = good_fish->pos;
         bad_fish->ang = good_fish->ang;
         bad_hidden = bad_fish->hide_flags & 0x20;
         bad_fish->flags_word_08 = good_fish->flags_word_08;
         bad_fish->hide_flags =
             (unsigned char)((bad_fish->hide_flags & ~0x20) | bad_hidden);
-        fish[index].active_fish->field_38 = 0.0f;
+        current->active_fish->field_38 = 0.0f;
     }
 }
 
@@ -1064,6 +1068,21 @@ float p_fish_attack(void) {
         pdata->turn_limit = (int)randu0(10) + 5;
         pdata->turning_left = 1;
 
+        target = pdata->target;
+        if (target != 0 &&
+            target->hdr.instance != pdata->target_instance) {
+            target = 0;
+        }
+        plyr_obj = target;
+        fish = pdata->fish;
+        if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
+            fish = 0;
+        }
+        if (target == 0 || fish == 0) {
+            return -1.0f;
+        }
+        get_bone_world_pos(
+            target, fish_data->target_bone, &target_position);
         distance = uv_v3_to_v3_dist(
             &direction, &fish->pos, &target_position);
         scale_v3(

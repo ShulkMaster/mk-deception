@@ -168,6 +168,11 @@ static inline int player_ignores_obstacles(const PlyrPdata* player) {
     return (player->state_flags.raw & 0x08) != 0;
 }
 
+#define CONSTRAIN_P1_OBJECT (g_game_info.plyr0.slot.mirror_a)
+#define CONSTRAIN_P2_OBJECT (g_game_info.plyr1.slot.mirror_a)
+#define CONSTRAIN_P1_PDATA (g_game_info.plyr0.slot.pdata)
+#define CONSTRAIN_P2_PDATA (g_game_info.plyr1.slot.pdata)
+
 void set_background_obstacle_disable_flag(
     int obstacle_id, int disabled) {
     MkPtr* link;
@@ -555,24 +560,27 @@ void start_constrain_proc(void) {
     }
 }
 
+static inline void copy_constrain_position(Vec* destination,
+                                           const Vec* source) {
+    destination->x = source->x;
+    destination->y = source->y;
+    destination->z = source->z;
+}
+
 void set_constrain_last_pos(int player, const Vec* position) {
     if (find_mkproc_pid(0x1003) != 0) {
         tightrope_set = 0;
         if (player == 0) {
-            constrain_state.player[0].position.x = position->x;
-            constrain_state.player[0].position.y = position->y;
-            constrain_state.player[0].position.z = position->z;
+            copy_constrain_position(
+                &constrain_state.player[0].position, position);
         } else {
-            constrain_state.player[1].position.x = position->x;
-            constrain_state.player[1].position.y = position->y;
-            constrain_state.player[1].position.z = position->z;
+            copy_constrain_position(
+                &constrain_state.player[1].position, position);
         }
     }
 }
 
 static float p_constrain_players(void) {
-    MkObj* object_1;
-    MkObj* object_2;
     MkObj* sidekick;
     PlyrPdata* pdata;
     Vec player_1_bone;
@@ -582,16 +590,16 @@ static float p_constrain_players(void) {
 
     tightrope_set_this_tick = 0;
 
-    object_1 = constrain_player_object(&g_game_info.plyr0);
-    if (object_1 != 0 && object_1->flags_09_bits.launched) {
-        ground_me(object_1);
+    if (CONSTRAIN_P1_OBJECT != 0 &&
+        CONSTRAIN_P1_OBJECT->flags_09_bits.launched) {
+        ground_me(CONSTRAIN_P1_OBJECT);
     }
-    object_2 = constrain_player_object(&g_game_info.plyr1);
-    if (object_2 != 0 && object_2->flags_09_bits.launched) {
-        ground_me(object_2);
+    if (CONSTRAIN_P2_OBJECT != 0 &&
+        CONSTRAIN_P2_OBJECT->flags_09_bits.launched) {
+        ground_me(CONSTRAIN_P2_OBJECT);
     }
 
-    if (object_1 != 0) {
+    if (CONSTRAIN_P1_OBJECT != 0) {
         pdata = g_game_info.plyr0.slot.pdata;
         if (pdata->sidekick_available != 0) {
             sidekick = pdata->sidekick_obj;
@@ -605,7 +613,7 @@ static float p_constrain_players(void) {
         }
     }
 
-    if (object_2 != 0) {
+    if (CONSTRAIN_P2_OBJECT != 0) {
         pdata = g_game_info.plyr1.slot.pdata;
         if (pdata->sidekick_available != 0) {
             sidekick = pdata->sidekick_obj;
@@ -619,67 +627,65 @@ static float p_constrain_players(void) {
         }
     }
 
-    if (object_1 != 0 && object_2 != 0) {
-        delta_x = object_2->pos.x - object_1->pos.x;
-        delta_z = object_2->pos.z - object_1->pos.z;
-        if (object_1->flags_09_bits.face_opponent) {
-            object_1->ang.y = gxMathArcTanYX(delta_x, delta_z);
+    if (CONSTRAIN_P1_OBJECT != 0 && CONSTRAIN_P2_OBJECT != 0) {
+        delta_x =
+            CONSTRAIN_P2_OBJECT->pos.x - CONSTRAIN_P1_OBJECT->pos.x;
+        delta_z =
+            CONSTRAIN_P2_OBJECT->pos.z - CONSTRAIN_P1_OBJECT->pos.z;
+        if (CONSTRAIN_P1_OBJECT->flags_09_bits.face_opponent) {
+            CONSTRAIN_P1_OBJECT->ang.y =
+                gxMathArcTanYX(delta_x, delta_z);
         }
-        if (object_2->flags_09_bits.face_opponent) {
-            object_2->ang.y = gxMathArcTanYX(-delta_x, -delta_z);
+        if (CONSTRAIN_P2_OBJECT->flags_09_bits.face_opponent) {
+            CONSTRAIN_P2_OBJECT->ang.y =
+                gxMathArcTanYX(-delta_x, -delta_z);
         }
     }
 
     keep_players_on_tightrope();
 
-    object_1 = constrain_player_object(&g_game_info.plyr0);
-    object_2 = constrain_player_object(&g_game_info.plyr1);
-    if (object_1 != 0 && object_2 != 0) {
-        if (object_1 != 0 && g_game_info.plyr0.field_0C == 0.0f) {
-            get_bone_world_pos(object_1, 0x10, &player_1_bone);
+    if (CONSTRAIN_P1_OBJECT != 0 && CONSTRAIN_P2_OBJECT != 0) {
+        if (CONSTRAIN_P1_OBJECT != 0 &&
+            g_game_info.plyr0.field_0C == 0.0f) {
+            get_bone_world_pos(
+                CONSTRAIN_P1_OBJECT, 0x10, &player_1_bone);
         }
-        if (object_2 != 0 && g_game_info.plyr1.field_0C == 0.0f) {
-            get_bone_world_pos(object_2, 0x10, &player_2_bone);
+        if (CONSTRAIN_P2_OBJECT != 0 &&
+            g_game_info.plyr1.field_0C == 0.0f) {
+            get_bone_world_pos(
+                CONSTRAIN_P2_OBJECT, 0x10, &player_2_bone);
         }
     }
 
     repel_players();
 
-    object_1 = constrain_player_object(&g_game_info.plyr0);
-    if (object_1 != 0) {
-        constrain_state.player[0].position.x = object_1->pos.x;
-        constrain_state.player[0].position.y = object_1->pos.y;
-        constrain_state.player[0].position.z = object_1->pos.z;
+    if (CONSTRAIN_P1_OBJECT != 0) {
+        constrain_state.player[0].position.x = CONSTRAIN_P1_OBJECT->pos.x;
+        constrain_state.player[0].position.y = CONSTRAIN_P1_OBJECT->pos.y;
+        constrain_state.player[0].position.z = CONSTRAIN_P1_OBJECT->pos.z;
         constrain_state.player[0].projection =
-            object_1->pos.x * tightrope_uv.x +
-            object_1->pos.z * tightrope_uv.z;
+            CONSTRAIN_P1_OBJECT->pos.x * tightrope_uv.x +
+            CONSTRAIN_P1_OBJECT->pos.z * tightrope_uv.z;
     }
 
-    object_2 = constrain_player_object(&g_game_info.plyr1);
-    if (object_2 != 0) {
-        constrain_state.player[1].position.x = object_2->pos.x;
-        constrain_state.player[1].position.y = object_2->pos.y;
-        constrain_state.player[1].position.z = object_2->pos.z;
+    if (CONSTRAIN_P2_OBJECT != 0) {
+        constrain_state.player[1].position.x = CONSTRAIN_P2_OBJECT->pos.x;
+        constrain_state.player[1].position.y = CONSTRAIN_P2_OBJECT->pos.y;
+        constrain_state.player[1].position.z = CONSTRAIN_P2_OBJECT->pos.z;
         constrain_state.player[1].projection =
-            object_2->pos.x * tightrope_uv.x +
-            object_2->pos.z * tightrope_uv.z;
+            CONSTRAIN_P2_OBJECT->pos.x * tightrope_uv.x +
+            CONSTRAIN_P2_OBJECT->pos.z * tightrope_uv.z;
     }
 
     return 1.0f;
 }
 
 /*
- * Soft ceiling: repel_players ~75.53% - the typed wall, stationarity, and
- * obstacle flow is complete; large FPR/NV scheduling differences
- * remain. Retail intentionally remembers only negative wall penetration.
+ * Soft ceiling: repel_players ~94.38% - the remaining differences are FPR
+ * allocation, one equivalent absolute-value branch, and two instructions.
+ * Retail intentionally remembers only negative wall penetration.
  */
 static void repel_players(void) {
-    PlyrInfo* player_1;
-    PlyrInfo* player_2;
-    PlyrPdata* pdata_1;
-    PlyrPdata* pdata_2;
-    MkObj* object_1;
-    MkObj* object_2;
     Vec movement_1;
     Vec movement_2;
     float repel_distance;
@@ -694,48 +700,47 @@ static void repel_players(void) {
     int stationary_1;
     int stationary_2;
 
-    player_1 = &g_game_info.plyr0;
-    player_2 = &g_game_info.plyr1;
-    pdata_1 = player_1->slot.pdata;
-    pdata_2 = player_2->slot.pdata;
-    object_1 = constrain_player_object(player_1);
-    object_2 = constrain_player_object(player_2);
-    if (object_1 == 0 || object_2 == 0) {
+    if (CONSTRAIN_P1_OBJECT == 0 || CONSTRAIN_P2_OBJECT == 0) {
         return;
     }
 
     repel_distance = repel_check_plyrs();
     if (repel_distance != 0.0f) {
-        projection_1 = tightrope_projection(&object_1->pos);
-        projection_2 = tightrope_projection(&object_2->pos);
-        repel_distance = 0.75f * repel_distance * repel_distance;
+        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos);
+        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos);
         if (projection_1 > projection_2) {
-            if (object_can_be_repelled(object_1)) {
+            if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
-                    &object_1->pos, &tightrope_uv, repel_distance);
+                    &CONSTRAIN_P1_OBJECT->pos, &tightrope_uv,
+                    0.75f * (repel_distance * repel_distance));
             }
-            if (object_can_be_repelled(object_2)) {
+            if (object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
                 xz_x_v_add_xz(
-                    &object_2->pos, &tightrope_uv, -repel_distance);
+                    &CONSTRAIN_P2_OBJECT->pos, &tightrope_uv,
+                    -0.75f * (repel_distance * repel_distance));
             }
         } else {
-            if (object_can_be_repelled(object_1)) {
+            if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
-                    &object_1->pos, &tightrope_uv, -repel_distance);
+                    &CONSTRAIN_P1_OBJECT->pos, &tightrope_uv,
+                    -0.75f * (repel_distance * repel_distance));
             }
-            if (object_can_be_repelled(object_2)) {
+            if (object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
                 xz_x_v_add_xz(
-                    &object_2->pos, &tightrope_uv, repel_distance);
+                    &CONSTRAIN_P2_OBJECT->pos, &tightrope_uv,
+                    0.75f * (repel_distance * repel_distance));
             }
         }
     }
 
-    if (!object_ignores_wall_limits(object_1) &&
-        !object_ignores_wall_limits(object_2)) {
-        projection_1 = tightrope_projection(&object_1->pos);
-        projection_2 = tightrope_projection(&object_2->pos);
+    if (!object_ignores_wall_limits(CONSTRAIN_P1_OBJECT) &&
+        !object_ignores_wall_limits(CONSTRAIN_P2_OBJECT)) {
+        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos);
+        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos);
         distance = projection_1 - projection_2;
-        if (distance < 0.0f) {
+        if (distance >= 0.0f) {
+            /* Keep the positive distance. */
+        } else {
             distance = -distance;
         }
 
@@ -752,29 +757,35 @@ static void repel_players(void) {
                 midpoint = (projection_1 + projection_2) * 0.5f;
                 left_wall = midpoint - 3.25f;
                 right_wall = midpoint + 3.25f;
-            } else if (tightrope_set_this_tick &&
-                       pdata_1 != 0 && pdata_2 != 0) {
-                stationary_1 = player_is_stationary(pdata_1);
-                stationary_2 = player_is_stationary(pdata_2);
-                if (stationary_1 != stationary_2) {
-                    if (stationary_1) {
-                        if (projection_1 > projection_2) {
+            } else if (distance <= 6.5f) {
+                constrain_state.separated = 0;
+                if (tightrope_set_this_tick &&
+                    CONSTRAIN_P1_PDATA != 0 &&
+                    CONSTRAIN_P2_PDATA != 0) {
+                    stationary_1 =
+                        player_is_stationary(CONSTRAIN_P1_PDATA);
+                    stationary_2 =
+                        player_is_stationary(CONSTRAIN_P2_PDATA);
+                    if (stationary_1 != stationary_2) {
+                        if (stationary_1) {
+                            if (projection_1 > projection_2) {
+                                right_wall =
+                                    projection_1 + right_wall_player_dist;
+                                left_wall = right_wall - 6.5f;
+                            } else {
+                                left_wall =
+                                    projection_1 - left_wall_player_dist;
+                                right_wall = left_wall + 6.5f;
+                            }
+                        } else if (projection_2 > projection_1) {
                             right_wall =
-                                projection_1 + right_wall_player_dist;
+                                projection_2 + right_wall_player_dist;
                             left_wall = right_wall - 6.5f;
                         } else {
                             left_wall =
-                                projection_1 - left_wall_player_dist;
+                                projection_2 - left_wall_player_dist;
                             right_wall = left_wall + 6.5f;
                         }
-                    } else if (projection_2 > projection_1) {
-                        right_wall =
-                            projection_2 + right_wall_player_dist;
-                        left_wall = right_wall - 6.5f;
-                    } else {
-                        left_wall =
-                            projection_2 - left_wall_player_dist;
-                        right_wall = left_wall + 6.5f;
                     }
                 }
             }
@@ -801,47 +812,53 @@ static void repel_players(void) {
             right_wall_player_dist = -push_2;
         }
 
-        if (object_can_be_repelled(object_1) ||
-            object_can_be_repelled(object_2)) {
+        if (object_can_be_repelled(CONSTRAIN_P1_OBJECT) ||
+            object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
             if (push_1 > 0.0f) {
                 xz_x_v_add_xz(
-                    &object_1->pos, &tightrope_uv,
+                    &CONSTRAIN_P1_OBJECT->pos, &tightrope_uv,
                     direction_1 * push_1);
             }
             if (push_2 > 0.0f) {
                 xz_x_v_add_xz(
-                    &object_2->pos, &tightrope_uv,
+                    &CONSTRAIN_P2_OBJECT->pos, &tightrope_uv,
                     direction_2 * push_2);
             }
         }
     }
 
-    if (!player_ignores_obstacles(pdata_1) &&
-        player_1->collision_data != 0) {
-        bgnd_clear_danger_zone_callback(pdata_1);
+    if (!player_ignores_obstacles(CONSTRAIN_P1_PDATA) &&
+        g_game_info.plyr0.collision_data != 0) {
+        bgnd_clear_danger_zone_callback(CONSTRAIN_P1_PDATA);
         movement_1.x =
-            object_1->pos.x - constrain_state.player[0].position.x;
+            CONSTRAIN_P1_OBJECT->pos.x -
+            constrain_state.player[0].position.x;
         movement_1.y =
-            object_1->pos.y - constrain_state.player[0].position.y;
+            CONSTRAIN_P1_OBJECT->pos.y -
+            constrain_state.player[0].position.y;
         movement_1.z =
-            object_1->pos.z - constrain_state.player[0].position.z;
+            CONSTRAIN_P1_OBJECT->pos.z -
+            constrain_state.player[0].position.z;
         repel_against_obstacle_list(
-            player_1, &constrain_state.player[0].position,
-            &movement_1, &object_1->pos, &constrain_info);
+            &g_game_info.plyr0, &constrain_state.player[0].position,
+            &movement_1, &CONSTRAIN_P1_OBJECT->pos, &constrain_info);
     }
 
-    if (!player_ignores_obstacles(pdata_2) &&
-        player_2->collision_data != 0) {
-        bgnd_clear_danger_zone_callback(pdata_2);
+    if (!player_ignores_obstacles(CONSTRAIN_P2_PDATA) &&
+        g_game_info.plyr1.collision_data != 0) {
+        bgnd_clear_danger_zone_callback(CONSTRAIN_P2_PDATA);
         movement_2.x =
-            object_2->pos.x - constrain_state.player[1].position.x;
+            CONSTRAIN_P2_OBJECT->pos.x -
+            constrain_state.player[1].position.x;
         movement_2.y =
-            object_2->pos.y - constrain_state.player[1].position.y;
+            CONSTRAIN_P2_OBJECT->pos.y -
+            constrain_state.player[1].position.y;
         movement_2.z =
-            object_2->pos.z - constrain_state.player[1].position.z;
+            CONSTRAIN_P2_OBJECT->pos.z -
+            constrain_state.player[1].position.z;
         repel_against_obstacle_list(
-            player_2, &constrain_state.player[1].position,
-            &movement_2, &object_2->pos, &constrain_info);
+            &g_game_info.plyr1, &constrain_state.player[1].position,
+            &movement_2, &CONSTRAIN_P2_OBJECT->pos, &constrain_info);
     }
 }
 

@@ -128,6 +128,9 @@ typedef struct WeaponCollisionInfo {
     } while (0)
 
 extern MkPtr* weapon_trail_mkobj_list;
+extern MkObj* plyr_obj;
+extern WeaponDefinition goro_gauntlets_weapon_desc_lr;
+extern WeaponDefinition goro_gauntlets_weapon_desc_ll;
 
 int plyr_obj_item_grab(PlyrPdata* player, PlyrMirrorObjLatch* item_latch,
                        PlyrMirrorObjLatch* secondary_latch, MkObj* item,
@@ -167,8 +170,164 @@ WeaponBoneMatcherState* start_bone_matcher(
     float blend_ticks, MkObj* parent, int parent_bone, MkObj* child,
     int child_bone);
 void mkobj_bones_dest_mat_no_update(MkObj* object);
+MkObj* load_weapon(
+    WeaponDefinition* definition, MkObj* player_object);
+MkObj* load_weapon_reflection(
+    WeaponDefinition* definition, MkObj* player_object);
 
 static Vec trail_p_to_c_uv = {1.0f, 0.0f, 0.0f};
+
+static inline MkObj* load_goro_weapon_inline(
+    WeaponDefinition* definition, MkObj* player_object) {
+    PlyrPdata* player;
+    MkObj* weapon;
+    MkObj* trail_model;
+    RpMaterial* material;
+    unsigned int bone_index;
+    int player_number;
+
+    trail_model = 0;
+    player_number = get_player_number(player_object);
+    weapon = (MkObj*)load_named_model_for_player(
+        definition->model_name, player_number, 0x1008, 1);
+    if (weapon == 0) {
+        return 0;
+    }
+    if (definition->secondary_model_name != 0) {
+        trail_model = (MkObj*)load_named_model_for_player(
+            definition->secondary_model_name, player_number, 0x5004, 1);
+        if (trail_model == 0) {
+            return 0;
+        }
+    }
+
+    player = 0;
+    if (player_object->oid == 0x1001) {
+        player = (PlyrPdata*)g_game_info.plyr0.slot.fighter;
+    } else if (player_object->oid == 0x1002) {
+        player = (PlyrPdata*)g_game_info.plyr1.slot.fighter;
+    }
+    if (player != 0 && player->character_id == 0xA &&
+        player->plyr_info->flags_14_bits.alternate_costume) {
+        obj_create_sobjs(weapon);
+        material = obj_find_material_by_id(weapon, 1);
+        if (material != 0) {
+            material_set_zbias(material, -0.07f);
+        }
+    }
+
+    if (definition->bone_tags != 0) {
+        build_bones_tbl(weapon, definition->bone_tags);
+        for (bone_index = 0; bone_index < weapon->bone_count; bone_index++) {
+            MkBone* bone = weapon->bones[bone_index];
+
+            if (bone != 0 && (bone->flags_54 & 0x20) == 0) {
+                bone->flags_54 |= 0x10;
+            }
+        }
+        specskin_initialize_clump(weapon->clump);
+        specskin_force_clipping_clump(weapon->clump, 1);
+    }
+    obj_force_culling_off(weapon);
+    start_cloth_bones(weapon);
+    weapon->light_flags = 0x100C;
+    weapon->hide_flag_bits.hidden = 1;
+    weapon->hide_flag_bits.weapon_effect = 1;
+    weapon->field_5C = definition;
+    insert_fgnd_mkobj(weapon);
+    start_weapon_trail(weapon, trail_model);
+    return weapon;
+}
+
+static inline MkObj* load_goro_reflection_inline(
+    WeaponDefinition* definition, MkObj* player_object) {
+    MkObj* reflection;
+
+    if (definition->reflection_model_name == 0) {
+        return 0;
+    }
+    reflection = (MkObj*)load_named_model_for_player(
+        definition->reflection_model_name,
+        get_player_number(player_object), 0x5013, 0);
+    if (reflection == 0) {
+        return 0;
+    }
+    if (definition->bone_tags == 0) {
+        if (reflection->hdr.instance != 0) {
+            reflection->hdr.typed_vtbl->destroy((MkHdr*)reflection);
+        }
+        return 0;
+    }
+
+    SetupShadowPlayerPipeline(reflection->clump);
+    if (build_bones_tbl(reflection, definition->bone_tags) == 0) {
+        if (reflection->hdr.instance != 0) {
+            reflection->hdr.typed_vtbl->destroy((MkHdr*)reflection);
+        }
+        return 0;
+    }
+    pull_bone_hierarchy_mkobj(reflection);
+    reflection->light_flags = 4;
+    reflection->hide_flag_bits.hidden = 1;
+    insert_fgnd_mkobj(reflection);
+    obj_create_sobjs(reflection);
+    sobj_set_priority(obj_first_sobj(reflection), 6);
+    if (g_game_info.field_08 != 0 &&
+        (g_game_info.section->flags70 & 8) == 0) {
+        hide_obj(reflection);
+    }
+    return reflection;
+}
+
+/*
+ * Soft ceiling: 93.27% -- both repeated inline load paths and exact size agree;
+ * remaining differences are NV allocation and equivalent branch placement.
+ */
+void mks_start_goro_xtra_weapons(void) {
+    PlyrWeaponStyle* style;
+    MkObj* weapon;
+    MkObj* reflection;
+
+    style = plyr_pdata->weapon_styles[2];
+
+    weapon = load_goro_weapon_inline(
+        &goro_gauntlets_weapon_desc_lr, plyr_obj);
+    if (weapon != 0) {
+        style->mirror_slots.weapon[2].primary.obj = weapon;
+        style->mirror_slots.weapon[2].primary.instance = weapon->hdr.instance;
+        mk_insert(&weapon->hdr, &style->object_list);
+
+        reflection = load_goro_reflection_inline(
+            &goro_gauntlets_weapon_desc_lr, plyr_obj);
+        if (reflection != 0) {
+            style->mirror_slots.weapon[2].mirror.obj = reflection;
+            style->mirror_slots.weapon[2].mirror.instance =
+                reflection->hdr.instance;
+            mk_insert(&reflection->hdr, &style->object_list);
+            obj_create_sobjs(reflection);
+            sobj_set_priority(obj_first_sobj(reflection), 6);
+        }
+    }
+
+    weapon = load_goro_weapon_inline(
+        &goro_gauntlets_weapon_desc_ll, plyr_obj);
+    if (weapon != 0) {
+        style->mirror_slots.weapon[3].primary.obj = weapon;
+        style->mirror_slots.weapon[3].primary.instance = weapon->hdr.instance;
+        mk_insert(&weapon->hdr, &style->object_list);
+
+        reflection = load_goro_reflection_inline(
+            &goro_gauntlets_weapon_desc_ll, plyr_obj);
+        if (reflection != 0) {
+            style->mirror_slots.weapon[3].mirror.obj = reflection;
+            style->mirror_slots.weapon[3].mirror.instance =
+                reflection->hdr.instance;
+            mk_insert(&reflection->hdr, &style->object_list);
+            obj_create_sobjs(reflection);
+            sobj_set_priority(obj_first_sobj(reflection), 6);
+        }
+    }
+}
 
 void reload_fan(void) {
 }
@@ -542,7 +701,6 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkBone* trail_bone;
     MkBone* parent_bone;
     MkBone* child_bone;
-    RwMatrix* bone_matrix;
     Vec displacement;
     Vec parent_to_child;
     Vec child_direction;
@@ -555,40 +713,43 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     if (weapon != 0 && weapon->hdr.instance != trail_model->parent_inst) {
         weapon = 0;
     }
-    if (weapon != 0 && weapon->field_5C != 0 && trail_model->field_5C != 0) {
+    do {
+        if (weapon == 0 || weapon->field_5C == 0 ||
+            trail_model->field_5C == 0) {
+            break;
+        }
         weapon_matrix = &weapon->frame->modelling;
         trail_matrix = &trail_model->frame->modelling;
         v3_sub_v3(&displacement, &weapon_matrix->pos_vec,
                   &trail_matrix->pos_vec);
         trail_matrix->pos_vec = weapon_matrix->pos_vec;
 
-        for (map_index = 0;; map_index++) {
-            definition = (WeaponDefinition*)trail_model->field_5C;
-            if (map_index >= definition->trail_map_count) {
+        definition = (WeaponDefinition*)trail_model->field_5C;
+        for (map_index = 0;
+            map_index < definition->trail_map_count;
+             map_index++) {
+            map = &definition->trail_maps[map_index];
+            if (map->enabled == 0) {
                 break;
             }
-            map = &definition->trail_maps[map_index];
-            if (map->enabled != 0) {
-                trail_bone = trail_model->bones[map->trail_bone_index];
-                if (trail_bone == 0) {
-                    break;
-                }
-                parent_bone = trail_bone->transform_parent;
-                bone_matrix = trail_bone->parent_matrix;
-                v3_x_mat_add_v3(&bone_matrix->pos_vec,
-                                &trail_bone->translation,
-                                &parent_bone->matrix,
-                                &parent_bone->matrix.pos_vec);
-                v3_sub_v3(&bone_matrix->pos_vec, &bone_matrix->pos_vec,
-                          &trail_matrix->pos_vec);
-                memcpy(bone_matrix, &parent_bone->matrix, 0x30);
+            trail_bone = trail_model->bones[map->trail_bone_index];
+            if (trail_bone == 0) {
+                definition = 0;
+                break;
             }
+            parent_bone = trail_bone->transform_parent;
+            v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
+                            &trail_bone->translation,
+                            &parent_bone->matrix,
+                            &parent_bone->matrix.pos_vec);
+            v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
+                      &trail_bone->parent_matrix->pos_vec,
+                      &trail_matrix->pos_vec);
+            memcpy(trail_bone->parent_matrix, &parent_bone->matrix, 0x30);
+            definition = (WeaponDefinition*)trail_model->field_5C;
         }
-        if (map_index != definition->trail_map_count) {
-            if (trail_model->hdr.instance != 0) {
-                trail_model->hdr.typed_vtbl->destroy((MkHdr*)trail_model);
-            }
-            return;
+        if (definition == 0) {
+            break;
         }
 
         chain_root = definition->trail_chain_roots;
@@ -596,22 +757,20 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
             while (*chain_root != 0) {
                 trail_bone = trail_model->bones[*chain_root];
                 if (trail_bone == 0) {
-                    if (trail_model->hdr.instance != 0) {
-                        trail_model->hdr.typed_vtbl->destroy((MkHdr*)trail_model);
-                    }
-                    return;
+                    definition = 0;
+                    break;
                 }
                 chain_root++;
 
                 do {
                     child_bone = trail_bone;
                     trail_bone = trail_bone->transform_parent;
-                    bone_matrix = child_bone->parent_matrix;
-                    memcpy(bone_matrix, &trail_bone->trail_matrix,
-                           sizeof(*bone_matrix));
-                    bone_matrix->pos.x -= displacement.x;
-                    bone_matrix->pos.y -= displacement.y;
-                    bone_matrix->pos.z -= displacement.z;
+                    memcpy(child_bone->parent_matrix,
+                           &trail_bone->trail_matrix,
+                           sizeof(*child_bone->parent_matrix));
+                    child_bone->parent_matrix->pos.x -= displacement.x;
+                    child_bone->parent_matrix->pos.y -= displacement.y;
+                    child_bone->parent_matrix->pos.z -= displacement.z;
                     memcpy(&trail_bone->trail_matrix,
                            trail_bone->parent_matrix,
                            sizeof(trail_bone->trail_matrix));
@@ -621,26 +780,31 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
                 } while (!trail_bone->flags_54_bits.transform_parented);
 
                 parent_bone = trail_bone->transform_parent;
-                bone_matrix = trail_bone->parent_matrix;
-                v3_x_mat_add_v3(&bone_matrix->pos_vec,
+                v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
                                 &trail_bone->translation,
                                 &parent_bone->matrix,
                                 &parent_bone->matrix.pos_vec);
-                v3_sub_v3(&bone_matrix->pos_vec, &bone_matrix->pos_vec,
+                v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
+                          &trail_bone->parent_matrix->pos_vec,
                           &trail_matrix->pos_vec);
                 v3_x_mat(&parent_to_child, &trail_p_to_c_uv,
                          &parent_bone->matrix);
-                uv_v3_to_v3(&child_direction, &bone_matrix->pos_vec,
+                uv_v3_to_v3(
+                            &child_direction,
+                            &trail_bone->parent_matrix->pos_vec,
                             &child_bone->parent_matrix->pos_vec);
                 v3_v3_to_quat(&rotation, &parent_to_child, &child_direction);
                 quat_to_mat(&rotation_matrix, &rotation);
-                mat_x_mat(bone_matrix, &parent_bone->matrix,
+                mat_x_mat(trail_bone->parent_matrix, &parent_bone->matrix,
                           &rotation_matrix);
+            }
+            if (definition == 0) {
+                break;
             }
             RwFrameUpdateObjects(trail_model->frame);
             return;
         }
-    }
+    } while (0);
 
     if (trail_model->hdr.instance != 0) {
         trail_model->hdr.typed_vtbl->destroy((MkHdr*)trail_model);
@@ -1084,31 +1248,13 @@ MkObj* plyr_obj_item_release(PlyrPdata* player,
     MkPtr* link_ptr;
     MkPtr* next;
 
-    player_object = player->tracked_obj_latch.obj;
-    if (player_object != 0) {
-        if (player_object->hdr.instance ==
-            player->tracked_obj_latch.instance) {
-            /* Keep the validated player object. */
-        } else {
-            player_object = 0;
-        }
-    } else {
-        player_object = 0;
-    }
+    RESOLVE_WEAPON_LATCH(
+        player_object, &player->tracked_obj_latch);
     if (player_object == 0) {
         return 0;
     }
 
-    item = item_latch->obj;
-    if (item != 0) {
-        if (item->hdr.instance == item_latch->instance) {
-            /* Keep the validated item. */
-        } else {
-            item = 0;
-        }
-    } else {
-        item = 0;
-    }
+    RESOLVE_WEAPON_LATCH(item, item_latch);
     if (item != 0) {
         MkHdr* object_to_destroy;
 
@@ -1118,17 +1264,7 @@ MkObj* plyr_obj_item_release(PlyrPdata* player,
         if (secondary_latch != 0) {
             MkObj* secondary_object;
 
-            secondary_object = secondary_latch->obj;
-            if (secondary_object != 0) {
-                if (secondary_object->hdr.instance ==
-                    secondary_latch->instance) {
-                    /* Keep the validated secondary object. */
-                } else {
-                    secondary_object = 0;
-                }
-            } else {
-                secondary_object = 0;
-            }
+            RESOLVE_WEAPON_LATCH(secondary_object, secondary_latch);
             object_to_destroy = (MkHdr*)secondary_object;
         } else {
             object_to_destroy = 0;

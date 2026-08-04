@@ -1099,7 +1099,6 @@ static void update_combo_break_counts(void) {
 }
 
 static inline void update_plyr_medals_impl(void) {
-    ScreenObj* medal;
     int object_index;
     int medal_index;
     int x;
@@ -1119,13 +1118,16 @@ static inline void update_plyr_medals_impl(void) {
     object_index = 0;
     for (medal_index = 0;
          medal_index < g_game_info.plyr0.field_40; medal_index++) {
-        medal = load_2d_pfxobj(
+        medal_objs[object_index] = load_2d_pfxobj(
             0x10005, 0x2022, (char*)0x20018, 0, 0x16);
-        medal_objs[object_index] = medal;
-        if (medal != 0) {
-            medal->x = x;
-            medal->y = 0x177;
-            x += g_game_info.plyr0.controller_slot == 0 ? -0x18 : 0x18;
+        if (medal_objs[object_index] != 0) {
+            medal_objs[object_index]->x = x;
+            medal_objs[object_index]->y = 0x177;
+            if (g_game_info.plyr0.controller_slot == 0) {
+                x -= 0x18;
+            } else {
+                x += 0x18;
+            }
             object_index++;
         }
     }
@@ -1134,19 +1136,22 @@ static inline void update_plyr_medals_impl(void) {
     object_index = 3;
     for (medal_index = 0;
          medal_index < g_game_info.plyr1.field_40; medal_index++) {
-        medal = load_2d_pfxobj(
+        medal_objs[object_index] = load_2d_pfxobj(
             0x10005, 0x2022, (char*)0x20018, 0, 0x16);
-        medal_objs[object_index] = medal;
-        if (medal != 0) {
-            medal->x = x;
-            medal->y = 0x177;
-            x += g_game_info.plyr1.controller_slot == 0 ? -0x18 : 0x18;
+        if (medal_objs[object_index] != 0) {
+            medal_objs[object_index]->x = x;
+            medal_objs[object_index]->y = 0x177;
+            if (g_game_info.plyr1.controller_slot == 0) {
+                x -= 0x18;
+            } else {
+                x += 0x18;
+            }
             object_index++;
         }
     }
 }
 
-/* Soft ceiling: 88.30% -- loop-local register allocation only. */
+/* Soft ceiling: 98.16% -- loop-local register allocation only. */
 void update_plyr_medals(void) {
     update_plyr_medals_impl();
 }
