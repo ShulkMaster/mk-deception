@@ -77,7 +77,10 @@ typedef struct CollisionObj {
 struct PlayerCollisionData {
     char pad00[0x18];
     void* nodes; /* +0x18 */
-    char pad1C[0x93DC];
+    char pad1C[0x3C];
+    struct PlyrPdata* player; /* +0x58 */
+    struct MkObj* object;     /* +0x5C */
+    char pad60[0x9398];
     int attack_region_index; /* +0x93F8 */
     char pad93FC[0x10];
     float attack_radius; /* +0x940C */

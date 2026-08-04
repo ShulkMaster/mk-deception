@@ -113,22 +113,52 @@ typedef struct SkyTempleBodysplatPdata {
     Vec position;
 } SkyTempleBodysplatPdata;
 
+typedef union ObjectMonitorScalar {
+    float value;
+    unsigned int bits;
+} ObjectMonitorScalar;
+
+typedef struct ObjectMonitorThresholdTriplet {
+    ObjectMonitorScalar x;
+    ObjectMonitorScalar y;
+    ObjectMonitorScalar z;
+} ObjectMonitorThresholdTriplet;
+
+typedef struct ObjectMonitorThresholds {
+    ObjectMonitorThresholdTriplet min_pos;
+    ObjectMonitorThresholdTriplet min_vel;
+} ObjectMonitorThresholds;
+
 typedef struct ObjectMonitorPdata {
     MkHdr hdr;
     int state;
-    float min_pos_x;
-    float min_pos_y;
-    float min_pos_z;
-    float min_vel_x;
-    float min_vel_y;
-    float min_vel_z;
-    float gravity;
-    float settle_speed;
+    ObjectMonitorThresholds thresholds;
+    float velocity_scale;
+    float vertical_step;
     float settle_height;
     void (*callback)(MkSobj* object);
     MkHdr* target;
     unsigned int target_instance;
 } ObjectMonitorPdata;
+
+typedef struct ObjectMonitorConfig {
+    MkHdr* target;
+    ObjectMonitorThresholds thresholds;
+    float velocity_scale;
+    float vertical_step;
+    float settle_height;
+    void (*callback)(MkSobj* object);
+} ObjectMonitorConfig;
+
+typedef MkProc* (*CreateObjectMonitorProcFn)(
+    int proc_id, int priority, MkProcEntryFn proc_fn, int pdata_size,
+    void* pdata_out, float vertical_step, float min_pos_y, float min_pos_x,
+    float velocity_scale);
+
+typedef struct ObjectMonitorSpawnLocals {
+    ObjectMonitorPdata* pdata;
+    ObjectMonitorConfig config;
+} ObjectMonitorSpawnLocals;
 
 int yy_evil_time_active;
 int yinyang_ok_to_switch;
@@ -452,6 +482,10 @@ static float p_xpd_obj_monitor(void) {
     return -1.0f;
 }
 
+/*
+ * Soft ceiling: standard fabs emits six calls in this MWCC configuration;
+ * keep the portable library operation rather than a compiler intrinsic.
+ */
 static float p_monitor_objs_sobjs(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
     ObjectMonitorPdata* pdata;
@@ -462,7 +496,13 @@ static float p_monitor_objs_sobjs(void) {
     pdata = (ObjectMonitorPdata*)apdata;
     all_settled = 1;
     target = (MkObj*)pdata->target;
-    if (target != 0 && target->hdr.instance != pdata->target_instance) {
+    if (target != 0) {
+        if (target->hdr.instance == pdata->target_instance) {
+            /* Keep the validated target. */
+        } else {
+            target = 0;
+        }
+    } else {
         target = 0;
     }
 
@@ -473,50 +513,56 @@ static float p_monitor_objs_sobjs(void) {
 
             object = (MkSobj*)iterator->hdr;
             if ((object->id_flags & 0xFFF) != 0) {
-                float ground_y;
-
-                ground_y = g_game_info.field_34 + pdata->settle_height;
-                if (object->pos.y < ground_y) {
+                if (object->pos.y <
+                    g_game_info.field_34 + pdata->settle_height) {
                     float reflection;
+                    float reflected_x;
+                    float reflected_y;
+                    float reflected_z;
 
                     pdata->callback(object);
-                    object->pos.y = ground_y + pdata->settle_speed;
+                    object->pos.y = g_game_info.field_34 +
+                        pdata->settle_height + pdata->vertical_step;
                     reflection = 2.0f *
                         (object->pos_vel.x * ground_normal.x +
                          object->pos_vel.y * ground_normal.y +
                          object->pos_vel.z * ground_normal.z);
-                    object->pos_vel.x -= ground_normal.x * reflection;
-                    object->pos_vel.y -= ground_normal.y * reflection;
-                    object->pos_vel.z -= ground_normal.z * reflection;
+                    reflected_x = ground_normal.x * reflection;
+                    reflected_y = ground_normal.y * reflection;
+                    reflected_z = ground_normal.z * reflection;
+                    object->pos_vel.x -= reflected_x;
+                    object->pos_vel.y -= reflected_y;
+                    object->pos_vel.z -= reflected_z;
                     scale_v3(
                         &object->pos_vel, &object->pos_vel,
-                        pdata->gravity);
+                        pdata->velocity_scale);
 
-                    if (fabs(object->pos_vel.x) < pdata->min_pos_x) {
+                    if (fabs(object->pos_vel.x) < pdata->thresholds.min_pos.x.value) {
                         object->pos_vel.x = 0.0f;
                     }
-                    if (fabs(object->pos_vel.y) < pdata->min_pos_y) {
+                    if (fabs(object->pos_vel.y) < pdata->thresholds.min_pos.y.value) {
                         object->pos_vel.y = 0.0f;
                     }
-                    if (fabs(object->pos_vel.z) < pdata->min_pos_z) {
+                    if (fabs(object->pos_vel.z) < pdata->thresholds.min_pos.z.value) {
                         object->pos_vel.z = 0.0f;
                     }
-                    if (fabs(object->ang_vel.x) < pdata->min_vel_x) {
+                    if (fabs(object->ang_vel.x) < pdata->thresholds.min_vel.x.value) {
                         object->ang_vel.x = 0.0f;
                     }
-                    if (fabs(object->ang_vel.y) < pdata->min_vel_y) {
+                    if (fabs(object->ang_vel.y) < pdata->thresholds.min_vel.y.value) {
                         object->ang_vel.y = 0.0f;
                     }
-                    if (fabs(object->ang_vel.z) < pdata->min_vel_z) {
+                    if (fabs(object->ang_vel.z) < pdata->thresholds.min_vel.z.value) {
                         object->ang_vel.z = 0.0f;
                     }
                 }
 
                 if (length_v3(&object->pos_vel) != 0.0f ||
                     object->pos.y >
-                        ground_y + 2.0f * pdata->settle_speed) {
+                        g_game_info.field_34 + pdata->settle_height +
+                            2.0f * pdata->vertical_step) {
                     all_settled = 0;
-                    object->pos_vel.y -= pdata->settle_speed;
+                    object->pos_vel.y -= pdata->vertical_step;
                 } else if (length_v3(&object->ang_vel) != 0.0f) {
                     zero_v3(&object->ang_vel);
                     all_settled = 0;
@@ -530,11 +576,11 @@ static float p_monitor_objs_sobjs(void) {
     }
     return 1.0f;
 }
-
 void reset_collision_system(void) {
     init_collision_system();
 }
 
+/* Soft ceiling: 93.50% -- register allocation and one latch branch direction. */
 void init_plyr_severed_limb_list(PlyrInfo* player) {
     FighterMirror* fighter = player->slot.fighter;
     int limb;
@@ -543,13 +589,23 @@ void init_plyr_severed_limb_list(PlyrInfo* player) {
         FighterObjectRef* severed = &fighter->severed_limbs[limb];
         MkObj* object = severed->object;
 
-        if (object == 0 || object->hdr.instance != severed->instance) {
+        if (object != 0) {
+            if (object->hdr.instance == severed->instance) {
+                /* Keep the live object. */
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
+        if (object == 0) {
             object = obj_sever_limb(
                 player->slot.mirror_a, limb,
                 fighter->runtime_data->half_sever_velocities, 1);
             if (object != 0) {
-                severed->object = object;
-                severed->instance = object->hdr.instance;
+                player->slot.fighter->severed_limbs[limb].object = object;
+                player->slot.fighter->severed_limbs[limb].instance =
+                    object->hdr.instance;
             }
         }
     }
@@ -845,27 +901,39 @@ int get_offset_of_closest_fence_section(
 }
 
 void do_yinyang_statue_explosion(MkHdr* statue) {
-    ObjectMonitorPdata* pdata;
+    ObjectMonitorSpawnLocals locals;
 
     if (statue == 0) {
         return;
     }
 
-    if (_create_mkproc_generic_nostack(
+    locals.config.target = statue;
+    locals.config.velocity_scale = 0.45f;
+    locals.config.thresholds.min_pos.x.value = 0.01f;
+    locals.config.thresholds.min_pos.y.value = 0.03f;
+    locals.config.thresholds.min_pos.z.value = 0.01f;
+    locals.config.thresholds.min_vel.x.value = 0.01f;
+    locals.config.thresholds.min_vel.y.value = 0.01f;
+    locals.config.thresholds.min_vel.z.value = 0.01f;
+    locals.config.vertical_step = 0.003f;
+    locals.config.settle_height = 0.15f;
+    locals.config.callback = p_statue_xpd_callback;
+
+    if (((CreateObjectMonitorProcFn)_create_mkproc_generic_nostack)(
             0x2095, 0x1F, p_monitor_objs_sobjs,
-            sizeof(ObjectMonitorPdata), (MkHdr**)&pdata) != 0) {
-        pdata->settle_height = 0.45f;
-        pdata->target = statue;
-        pdata->target_instance = statue->instance;
-        pdata->min_pos_x = 0.01f;
-        pdata->min_pos_y = 0.03f;
-        pdata->min_pos_z = 0.01f;
-        pdata->min_vel_x = 0.01f;
-        pdata->min_vel_y = 0.01f;
-        pdata->min_vel_z = 0.01f;
-        pdata->gravity = 0.003f;
-        pdata->settle_speed = 0.15f;
-        pdata->callback = p_statue_xpd_callback;
+            sizeof(ObjectMonitorPdata), &locals.pdata,
+            locals.config.vertical_step,
+            locals.config.thresholds.min_pos.y.value,
+            locals.config.thresholds.min_pos.x.value,
+            locals.config.velocity_scale) != 0) {
+        locals.pdata->velocity_scale = locals.config.velocity_scale;
+        locals.pdata->target = locals.config.target;
+        locals.pdata->target_instance = locals.config.target->instance;
+        locals.pdata->thresholds.min_pos = locals.config.thresholds.min_pos;
+        locals.pdata->thresholds.min_vel = locals.config.thresholds.min_vel;
+        locals.pdata->vertical_step = locals.config.vertical_step;
+        locals.pdata->settle_height = locals.config.settle_height;
+        locals.pdata->callback = locals.config.callback;
     }
 }
 

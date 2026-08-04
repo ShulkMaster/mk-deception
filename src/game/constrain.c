@@ -20,6 +20,12 @@ typedef struct ConstrainState {
     int separated;
 } ConstrainState;
 
+typedef struct ConstrainBssLayout {
+    ConstrainState state; /* +0x00 */
+    Vec perpendicular;    /* +0x24 */
+    Vec axis;             /* +0x30 */
+} ConstrainBssLayout;
+
 typedef struct ObstacleInfo {
     int type;
     unsigned int first_id;
@@ -61,9 +67,9 @@ static ObstacleInfo obstacle_info_table[8] = {
 
 static unsigned short next_internal_id;
 ConstrainInfo constrain_info;
-static ConstrainState constrain_state;
-static Vec tightrope_perp_uv;
-static Vec tightrope_uv;
+extern ConstrainState constrain_state;
+extern Vec tightrope_perp_uv;
+extern Vec tightrope_uv;
 static int tightrope_set;
 static int p1_hit_side_of_arena;
 static int p2_hit_side_of_arena;
@@ -107,20 +113,19 @@ static float constrain_sqrt(float value) {
         float f;
         unsigned int u;
     } input, guess;
-    unsigned int mantissa_exp;
+    float refined;
 
     if (!(value > 0.0f)) {
         return 0.0f;
     }
 
     input.f = value;
-    mantissa_exp =
+    guess.u =
         (unsigned int)GXMathSqrtTable[(input.u >> 10) & 0x3FFE] << 8;
-    mantissa_exp |=
+    guess.u |=
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
-    guess.u = mantissa_exp;
-    return 0.5f * guess.f *
-           (3.0f - (guess.f * guess.f) / value);
+    refined = guess.f * (3.0f - (guess.f * guess.f) / value);
+    return 0.5f * refined;
 }
 
 static float constrain_inv_sqrt(float value) {
@@ -456,7 +461,12 @@ float xz_ray_circle_intersection_dist(
     radicand =
         radius * radius -
         (length * length - along_ray * along_ray);
-    distance = constrain_sqrt(radicand) - along_ray;
+    if (radicand > 0.0f) {
+        distance = constrain_sqrt(radicand);
+    } else {
+        distance = 0.0f;
+    }
+    distance -= along_ray;
     if (distance > 0.0f) {
         return distance;
     }
@@ -497,9 +507,14 @@ void uv_to_opponent(Vec* direction) {
 }
 
 void start_constrain_proc(void) {
+    ConstrainBssLayout* bss;
+    ConstrainState* state;
+    Vec* perpendicular;
+    Vec* axis;
     int flags;
     int proc_flags;
 
+    bss = (ConstrainBssLayout*)&constrain_state;
     flags = 0;
     if (find_mkproc_pid(0x1003) == 0) {
         proc_flags = flags;
@@ -507,25 +522,35 @@ void start_constrain_proc(void) {
             0x1A, get_mkproc_nostack(&proc_flags), 0x1003,
             p_constrain_players, 0);
 
-        tightrope_perp_uv.x = 0.0f;
-        tightrope_perp_uv.y = 0.0f;
-        tightrope_perp_uv.z = 0.0f;
+        state = &bss->state;
+        perpendicular = &bss->perpendicular;
+        axis = &bss->axis;
+
+        perpendicular->z = 0.0f;
+        perpendicular->y = 0.0f;
+        perpendicular->x = 0.0f;
         tightrope_dist = 0.0f;
-        constrain_state.player[0].projection = 0.0f;
-        constrain_state.player[1].projection = 0.0f;
-        constrain_state.separated = 0;
+        state->player[0].projection = 0.0f;
+        state->player[1].projection = 0.0f;
+        state->separated = 0;
         p1_hit_side_of_arena = 0;
         p2_hit_side_of_arena = 0;
         update_tr_due_to_arena_edge = 0;
-        tightrope_uv.x = 0.0f;
-        tightrope_uv.y = 0.0f;
-        tightrope_uv.z = 0.0f;
-        constrain_state.player[0].position.x = 0.0f;
-        constrain_state.player[0].position.y = 0.0f;
-        constrain_state.player[0].position.z = 0.0f;
-        constrain_state.player[1].position.x = 0.0f;
-        constrain_state.player[1].position.y = 0.0f;
-        constrain_state.player[1].position.z = 0.0f;
+        axis->z = 0.0f;
+        axis->y = 0.0f;
+        axis->x = 0.0f;
+
+        /* Retail repeats this clear after initializing the tightrope axis. */
+        perpendicular->z = 0.0f;
+        perpendicular->y = 0.0f;
+        perpendicular->x = 0.0f;
+
+        state->player[0].position.z = 0.0f;
+        state->player[0].position.y = 0.0f;
+        state->player[0].position.x = 0.0f;
+        state->player[1].position.z = 0.0f;
+        state->player[1].position.y = 0.0f;
+        state->player[1].position.x = 0.0f;
         tightrope_set = 0;
     }
 }
@@ -900,3 +925,8 @@ float get_constrain_player_distance(void) {
     }
     return -distance;
 }
+
+/* Retail global .bss order: state, perpendicular axis, tightrope axis. */
+Vec tightrope_uv;
+Vec tightrope_perp_uv;
+ConstrainState constrain_state;

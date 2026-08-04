@@ -25,7 +25,7 @@ typedef union CollisionObjRef {
 
 typedef struct CdfCollisionGroup {
     int primitive_count;
-    unsigned int obstacle_id;
+    unsigned int field_04;
 } CdfCollisionGroup;
 
 typedef struct CdfCollisionPrimitive {
@@ -36,7 +36,15 @@ typedef struct CdfCollisionPrimitive {
 typedef struct CollisionIm3DVertex {
     Vec position;
     char pad0C[0x0C];
-    unsigned int color;
+    union {
+        unsigned int color;
+        struct {
+            unsigned char red;
+            unsigned char green;
+            unsigned char blue;
+            unsigned char alpha;
+        } color_channels;
+    };
     char pad1C[8];
 } CollisionIm3DVertex; /* 0x24 */
 
@@ -65,13 +73,55 @@ typedef struct PlayerCollisionRegion {
     char padAC[0x84];
 } PlayerCollisionRegion; /* 0x130 */
 
+typedef union PlayerCollisionRuntimeView {
+    struct {
+        char pad_regions[0x140];
+        PlayerCollisionRegion regions[1];
+    } region_view;
+    struct {
+        char pad_recorded_shapes[0x7760];
+        CollisionShape recorded_shapes[1];
+    } recorded_view;
+    struct {
+        char pad_state[0x93F0];
+        unsigned int region_count;
+        char pad93F4[8];
+        int recorded_index;
+        char pad9400[4];
+        int reset_recorded;
+    } state_view;
+} PlayerCollisionRuntimeView;
+
 typedef struct CollisionNodeDef {
     int node_id;
     unsigned int side;
-    float field_08;
-    float radius_scale;
-    float field_10;
+    float active_radius;
+    float pad0C;
+    float joint_radius;
 } CollisionNodeDef; /* 0x14 */
+
+typedef struct PlayerCollisionNodeStorage {
+    MkObj* object; /* +0x0000 */
+    char pad0004[0x0C];
+    CollisionShape body_shape; /* +0x0010 */
+    char pad00A0[0x9350];
+    unsigned int joint_count;   /* +0x93F0 */
+    unsigned int field_93F4;
+    unsigned int field_93F8;
+    unsigned int recorded_count; /* +0x93FC */
+    unsigned int active_count;    /* +0x9400 */
+    unsigned int render_recorded; /* +0x9404 */
+    float active_scale;           /* +0x9408 */
+    float attack_radius;          /* +0x940C */
+} PlayerCollisionNodeStorage;
+
+typedef struct PlayerCollisionRegionBuild {
+    char pad00[0xA0];
+    MkBone* bone;
+    char padA4[0x0C];
+    CollisionShape current_shape;
+    CollisionShape previous_shape;
+} PlayerCollisionRegionBuild;
 
 typedef struct ObstacleCallbackData {
     unsigned int obstacle_id;
@@ -94,7 +144,7 @@ typedef struct RwEngineInstanceView {
 
 static const Vec UNITVECT_Y = {0.0f, 1.0f, 0.0f};
 static const Vec UNITVECT_Z = {0.0f, 0.0f, 1.0f};
-static const CollisionNodeDef collision_node_defs[28] = {
+static const CollisionNodeDef col_def_list[28] = {
     {0x1001, 1, .35f, .225f, .225f},
     {0x1002, 2, .35f, .225f, .225f},
     {0x1004, 1, 0.0f, .188f, .16f},
@@ -162,7 +212,7 @@ static const int* const attack_region_lists[16] = {
         if (denominator != 0.0f) { \
             distance = -(v3_dot_v3((axis), origin) - (plane)) / denominator; \
         } else { \
-            distance = -__float_max; \
+            distance = -__float_max[0]; \
         } \
         if (distance > 0.0f && \
             (nearest < 0.0f || distance < nearest)) { \
@@ -270,7 +320,7 @@ int repel_cylinder_against_global_collision_list(
     CollisionShape* cylinder, Vec* movement);
 extern ConstrainInfo constrain_info;
 extern int local_obstacle_callback(ArenaObstacle* obstacle);
-static void reset_player_collision(PlayerCollisionData* collision);
+void reset_player_collision(PlayerCollisionData* collision);
 static void render_player_joints(PlayerCollisionData* collision);
 void render_col_shape(
     const CollisionShape* shape, const unsigned int* color);
@@ -299,7 +349,8 @@ extern void RwIm3DRenderPrimitive(int primitive);
 extern void RwIm3DRenderIndexedPrimitive(
     int primitive, const unsigned short* indices, int count);
 extern void RwIm3DEnd(void);
-extern float __float_max;
+/* Runtime-owned scalar; array form preserves its ordinary-data addressing. */
+extern float __float_max[];
 
 float repel_check_plyrs(void) {
     PlayerCollisionData* first_data;
@@ -363,34 +414,32 @@ float repel_check_plyrs(void) {
 int collide_shape_vs_plyr(
     PlyrInfo* player, const CollisionShape* shape) {
     PlayerCollisionData* collision;
-    PlayerCollisionRegion* regions;
-    CollisionShape* recorded_shapes;
-    unsigned int region_count;
+    PlayerCollisionRuntimeView* view;
     unsigned int region_index;
-    int* recorded_index;
-    int* reset_recorded;
 
     collision = player->collision_data;
-    recorded_index = (int*)((char*)collision + 0x93FC);
-    reset_recorded = (int*)((char*)collision + 0x9404);
+    view = (PlayerCollisionRuntimeView*)collision;
     if ((g_game_info.pause_flags & 1) != 0 &&
-        (((unsigned char*)&g_game_info)[2] & 0x20) == 0) {
-        if (*reset_recorded != 0) {
-            *recorded_index = 0;
-            *reset_recorded = 0;
+        g_game_info.switch_input_flags.field_bit5 == 0) {
+        if (view->state_view.reset_recorded != 0) {
+            view->state_view.recorded_index = 0;
+            view->state_view.reset_recorded = 0;
         }
-        recorded_shapes =
-            (CollisionShape*)((char*)collision + 0x7760);
-        recorded_shapes[*recorded_index] = *shape;
-        (*recorded_index)++;
-        *reset_recorded = 0;
+        view->recorded_view.recorded_shapes[
+            view->state_view.recorded_index] = *shape;
+        view->state_view.recorded_index++;
+        view->state_view.reset_recorded = 0;
     }
 
-    region_count = *(unsigned int*)((char*)collision + 0x93F0);
-    regions = (PlayerCollisionRegion*)((char*)collision + 0x140);
-    for (region_index = 0; region_index < region_count; region_index++) {
-        if (test_collision(shape, &regions[region_index].shape) == 1) {
-            return 1;
+    if (view->state_view.region_count != 0U) {
+        for (region_index = 0;
+             region_index < view->state_view.region_count;
+             region_index++) {
+            if (test_collision(
+                    shape,
+                    &view->region_view.regions[region_index].shape) == 1) {
+                return 1;
+            }
         }
     }
     return 0;
@@ -589,9 +638,87 @@ void insert_on_collision_obj_list(
     mk_insert(object, &list->objects);
 }
 
-void set_collision_render_state(unsigned char enabled) {
-    g_game_info.pause_flags =
-        (g_game_info.pause_flags & ~1) | (enabled & 1);
+void set_collision_render_state(int enabled) {
+    g_game_info.pause_flag_bits.paused = (unsigned char)enabled;
+}
+
+void reset_player_collision(PlayerCollisionData* collision) {
+    int definition_count;
+    PlayerCollisionNodeStorage* storage;
+    PlayerCollisionRegionBuild* region;
+    CollisionShape sphere __attribute__((aligned(16)));
+    Vec center;
+    float joint_scale;
+    int bone_index;
+    int index;
+
+    storage = (PlayerCollisionNodeStorage*)collision->nodes;
+    if (storage == 0) {
+        return;
+    }
+
+    definition_count = 0;
+    storage->object = 0;
+    storage->joint_count = 0;
+    storage->field_93F4 = 0;
+    storage->field_93F8 = 0;
+    storage->recorded_count = 0;
+    storage->render_recorded = 0;
+    storage->active_count = 0;
+    storage->active_scale = 1.0f;
+    storage->attack_radius = 0.0f;
+    storage->body_shape.type = 2;
+    storage->body_shape.cylinder_radius = 0.3f;
+    storage->body_shape.cylinder_axis = UNITVECT_Y;
+    storage->body_shape.cylinder_height = 2.5f;
+    storage->body_shape.cylinder_center.x = 0.0f;
+    storage->body_shape.cylinder_center.y = 0.0f;
+    storage->body_shape.cylinder_center.z = 0.0f;
+    center.x = 0.0f;
+    center.y = 0.0f;
+    center.z = 0.0f;
+    storage->object = collision->object;
+    if (collision->object == 0) {
+        return;
+    }
+
+    if (collision->player != 0) {
+        if (collision->player->character_id == 0x1E) {
+            definition_count = 28;
+        } else {
+            definition_count = 22;
+        }
+    }
+    joint_scale = is_big_boss(collision->player) ? 1.3f : 1.0f;
+    for (index = 0; index < definition_count; index++) {
+        const CollisionNodeDef* definition = &col_def_list[index];
+        bone_index = definition->node_id & 0xFFF;
+        collision->object->bones[
+            bone_index]->flags_54_bits.calculation_locked = 1;
+
+        if (definition->joint_radius != 0.0f) {
+            sphere.type = 1;
+            sphere.sphere_center = center;
+            sphere.sphere_radius = joint_scale * definition->joint_radius;
+            region = (PlayerCollisionRegionBuild*)((char*)storage +
+                storage->joint_count * 0x130);
+            region->bone = collision->object->bones[bone_index];
+            region->current_shape = sphere;
+            region->previous_shape = sphere;
+            storage->joint_count++;
+        }
+        if (definition->active_radius != 0.0f) {
+            sphere.type = 1;
+            sphere.sphere_center = center;
+            sphere.sphere_radius = definition->active_radius;
+            region = (PlayerCollisionRegionBuild*)((char*)storage + 0x8B00 +
+                storage->active_count * 0x130);
+            region->bone = collision->object->bones[bone_index];
+            region->current_shape = sphere;
+            region->previous_shape = sphere;
+            storage->active_count++;
+        }
+    }
 }
 
 void init_player_collision(PlayerCollisionData* collision) {
@@ -1490,17 +1617,19 @@ static void update_all_collision_flags(
     }
     item = *list;
     while (item != 0) {
-        next = item->next;
         object.hdr = item->hdr;
-        if (object.hdr == 0 || item->instance != object.hdr->instance) {
+        if (item->instance != object.hdr->instance) {
+            next = item->next;
             item->hdr = 0;
             destroy_mkptr(item);
+            item = next;
         } else if (toggle != 0) {
             object.object->flags ^= flags;
+            item = item->next;
         } else {
             object.object->flags |= flags;
+            item = item->next;
         }
-        item = next;
     }
 }
 
@@ -1536,11 +1665,15 @@ void build_col_shape_vertical_cylinder(
     float height) {
     shape->type = 2;
     shape->cylinder_radius = radius;
-    shape->cylinder_axis = UNITVECT_Y;
+    shape->cylinder_axis.x = UNITVECT_Y.x;
+    shape->cylinder_axis.y = UNITVECT_Y.y;
+    shape->cylinder_axis.z = UNITVECT_Y.z;
     shape->cylinder_height = height;
 
     if (center != 0) {
-        shape->cylinder_center = *center;
+        shape->cylinder_center.x = center->x;
+        shape->cylinder_center.y = center->y;
+        shape->cylinder_center.z = center->z;
     } else {
         shape->cylinder_center.x = 0.0f;
         shape->cylinder_center.y = 0.0f;
@@ -1648,86 +1781,98 @@ void build_col_shape_vertical_box(
         shape->box_axis_1.z * shape->box_axis_1_max;
 }
 
-int is_point_inside_shape(
+static inline int collision_point_inside_shape(
     const CollisionShape* shape, const Vec* point) {
     float projection;
+    /* Retail uses the center point for both wrappers; no sphere expansion. */
+    float radius = 0.0f;
 
-    if ((shape->type & 7) == 2) {
+    switch (shape->type & 7) {
+    case 2: {
+        float collision_radius;
+        float distance;
         float dx;
         float dz;
 
         dx = point->x - shape->cylinder_center.x;
         dz = point->z - shape->cylinder_center.z;
-        return dx * dx + dz * dz <
-               shape->cylinder_radius * shape->cylinder_radius;
-    }
-    if ((shape->type & 7) != 3) {
+        collision_radius = shape->cylinder_radius + radius;
+        distance = dx * dx + dz * dz;
+        if (distance < collision_radius * collision_radius) {
+            return 1;
+        }
         return 0;
     }
+    case 3: {
+        float point_x = point->x;
+        float point_y = point->y;
+        float point_z = point->z;
 
-    projection = v3_dot_v3(&shape->box_axis_2, point);
-    if (projection > shape->box_axis_2_min ||
-        projection < shape->box_axis_2_max) {
+        projection = shape->box_axis_2.y * point_y;
+        projection += shape->box_axis_2.x * point_x;
+        projection += shape->box_axis_2.z * point_z;
+        if (projection >= shape->box_axis_2_min + radius) {
+            return 0;
+        }
+        if (projection <= shape->box_axis_2_max - radius) {
+            return 0;
+        }
+        projection = shape->box_axis_1.y * point_y;
+        projection += shape->box_axis_1.x * point_x;
+        projection += shape->box_axis_1.z * point_z;
+        if (projection >= shape->box_axis_1_max + radius) {
+            return 0;
+        }
+        if (projection <= shape->box_axis_1_min - radius) {
+            return 0;
+        }
+        projection = shape->box_axis_0.y * point_y;
+        projection += shape->box_axis_0.x * point_x;
+        projection += shape->box_axis_0.z * point_z;
+        if (projection >= shape->box_axis_0_min + radius) {
+            return 0;
+        }
+        if (projection <= shape->box_axis_0_max - radius) {
+            return 0;
+        }
+        return 1;
+    }
+    default:
         return 0;
     }
-    projection = v3_dot_v3(&shape->box_axis_1, point);
-    if (projection > shape->box_axis_1_max ||
-        projection < shape->box_axis_1_min) {
-        return 0;
-    }
-    projection = v3_dot_v3(&shape->box_axis_0, point);
-    return projection <= shape->box_axis_0_min &&
-           projection >= shape->box_axis_0_max;
 }
 
 int collide_sphere_and_box(
     const CollisionShape* sphere, const CollisionShape* box) {
-    float projection;
-    float radius;
+    return collision_point_inside_shape(box, &sphere->sphere_center);
+}
 
-    if ((box->type & 7) == 2) {
-        float dx;
-        float dz;
+int is_point_inside_shape(
+    const CollisionShape* shape, const Vec* point) {
+    return collision_point_inside_shape(shape, point);
+}
 
-        dx = sphere->sphere_center.x - box->cylinder_center.x;
-        dz = sphere->sphere_center.z - box->cylinder_center.z;
-        return dx * dx + dz * dz <
-               box->cylinder_radius * box->cylinder_radius;
-    }
-    if ((box->type & 7) != 3) {
-        return 0;
-    }
-
-    radius = sphere->sphere_radius;
-    projection = v3_dot_v3(&box->box_axis_2, &sphere->sphere_center);
-    if (projection > box->box_axis_2_min + radius ||
-        projection < box->box_axis_2_max - radius) {
-        return 0;
-    }
-    projection = v3_dot_v3(&box->box_axis_1, &sphere->sphere_center);
-    if (projection > box->box_axis_1_max + radius ||
-        projection < box->box_axis_1_min - radius) {
-        return 0;
-    }
-    projection = v3_dot_v3(&box->box_axis_0, &sphere->sphere_center);
-    return projection <= box->box_axis_0_min + radius &&
-           projection >= box->box_axis_0_max - radius;
+static inline void collision_copy_vec(Vec* destination, const Vec* source) {
+    destination->x = source->x;
+    destination->y = source->y;
+    destination->z = source->z;
 }
 
 int collide_sphere_vs_plyr(
     PlyrInfo* player,
     const Vec* center,
     float radius) {
-    CollisionShape shape;
+    /* Retail keeps temporary collision descriptors 16-byte aligned. */
+    CollisionShape shape __attribute__((aligned(16)));
 
     shape.type = 1;
     shape.sphere_radius = radius;
     if (center != 0) {
-        shape.sphere_center = *center;
+        collision_copy_vec(&shape.sphere_center, center);
     } else {
-        shape.sphere_center.x = 0.0f;
-        shape.sphere_center.y = 0.0f;
         shape.sphere_center.z = 0.0f;
+        shape.sphere_center.y = 0.0f;
+        shape.sphere_center.x = 0.0f;
     }
     return collide_shape_vs_plyr(player, &shape);
 }
@@ -1735,13 +1880,14 @@ int collide_sphere_vs_plyr(
 int collide_cylinder_vs_plyr(
     PlyrInfo* player, const Vec* center, const Vec* angles,
     float radius, float height) {
-    CollisionShape shape;
+    /* Retail keeps temporary collision descriptors 16-byte aligned. */
+    CollisionShape shape __attribute__((aligned(16)));
 
     shape.type = 2;
     shape.cylinder_radius = radius;
     shape.cylinder_height = height;
     if (center != 0) {
-        shape.cylinder_center = *center;
+        collision_copy_vec(&shape.cylinder_center, center);
     } else {
         shape.cylinder_center.x = 0.0f;
         shape.cylinder_center.y = 0.0f;
@@ -1751,7 +1897,7 @@ int collide_cylinder_vs_plyr(
         uv_from_angles_xy(
             &shape.cylinder_axis, angles->x, angles->y);
     } else {
-        shape.cylinder_axis = UNITVECT_Z;
+        collision_copy_vec(&shape.cylinder_axis, &UNITVECT_Z);
     }
     return collide_shape_vs_plyr(player, &shape);
 }
@@ -1782,7 +1928,7 @@ CollisionObj* get_collision_obj(void) {
 
 CollisionObj* add_shape_to_global_collision_list(
     const CollisionShape* shape,
-    unsigned int obstacle_id) {
+    unsigned int flags) {
     CollisionObjRef result;
 
     result.hdr = get_mkhdr_generic(sizeof(CollisionObj));
@@ -1792,7 +1938,7 @@ CollisionObj* add_shape_to_global_collision_list(
 
     if (result.hdr != 0) {
         result.object->shape = *shape;
-        result.object->obstacle_id = obstacle_id;
+        result.object->flags = flags;
         mk_insert(result.hdr, &global_collision_list);
         return result.object;
     }
@@ -1811,29 +1957,35 @@ void generate_shadow_collision_objects(int handle, unsigned int art_oid) {
 
     for (group_index = 0; group_index < group_count; group_index++) {
         CdfCollisionGroup* group;
+        unsigned int group_flags;
+        int primitive_count;
         int primitive_index;
 
         group = (CdfCollisionGroup*)cursor;
+        primitive_count = group->primitive_count;
+        group_flags = group->field_04;
         cursor += sizeof(*group);
         for (primitive_index = 0;
-             primitive_index < group->primitive_count;
+             primitive_index < primitive_count;
              primitive_index++) {
             CdfCollisionPrimitive* primitive;
             CollisionObj* object;
+            Vec* vertices;
+            int vertex_count;
 
             primitive = (CdfCollisionPrimitive*)cursor;
-            cursor = (unsigned char*)primitive->vertices;
+            vertex_count = primitive->vertex_count;
+            vertices = primitive->vertices;
             object = 0;
-            if (primitive->vertex_count == 4) {
+            if (vertex_count == 4) {
                 object = convert_cdf_quad_to_collision_box(
-                    primitive->vertices, 0, 0);
+                    vertices, 0, 0);
             }
             if (object != 0) {
-                object->obstacle_id = group->obstacle_id;
+                object->flags = group_flags;
                 insert_collision_on_proper_tile_list(object);
             }
-            cursor = (unsigned char*)&primitive->vertices[
-                primitive->vertex_count];
+            cursor = (unsigned char*)&vertices[vertex_count];
         }
     }
 }
@@ -1850,7 +2002,7 @@ int segment_against_obstacle_list(
     float closest;
     float distance;
 
-    closest = -__float_max;
+    closest = -__float_max[0];
     if (start == 0 || end == 0 || hit_point == 0) {
         return 0;
     }
@@ -1925,7 +2077,7 @@ void generate_obstacles(int handle, char* name, MkPtr** obstacle_list) {
         group = (CdfCollisionGroup*)cursor;
         cursor += sizeof(*group);
         obstacle = get_obstacle();
-        obstacle->obstacle_id = group->obstacle_id;
+        obstacle->obstacle_id = group->field_04;
         mk_insert((MkHdr*)obstacle, obstacle_list);
         obstacle->type = get_obstacle_type_from_id(obstacle->obstacle_id);
 
@@ -2365,51 +2517,53 @@ CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     return collision;
 }
 
+/* Soft ceiling: repel_a_from_b ~94% -- three redundant zero loads remain. */
 int repel_a_from_b(
     CollisionShape* shape, const CollisionShape* obstacle, Vec* movement) {
     CollisionRepelInfo info;
     int shape_type;
     int obstacle_type;
 
-    obstacle_type = obstacle->type & 7;
     shape_type = shape->type & 7;
-    if (obstacle_type == 1) {
-        return 0;
-    }
-
-    switch (shape_type) {
-    case 2:
-        info.moving_shape = 2;
-        info.first_movement = movement;
-        info.second_movement = 0;
-        switch (obstacle_type) {
-        case 2:
-            return repel_cylinders(
-                shape, (CollisionShape*)obstacle, &info, 0);
-        case 4:
-            return repel_cylinder_and_quad(shape, obstacle, &info, 0);
-        case 3:
-            return repel_cylinder_and_box(shape, obstacle, &info, 0);
+    obstacle_type = obstacle->type & 7;
+    if (obstacle_type != 1) {
+        if (shape_type == 2) {
+            if (obstacle_type == 2) {
+                info.second_movement = 0;
+                info.moving_shape = 2;
+                info.first_movement = movement;
+                return repel_cylinders(
+                    shape, (CollisionShape*)obstacle, &info, 0);
+            }
+            if (obstacle_type == 4) {
+                info.first_movement = movement;
+                info.second_movement = 0;
+                info.moving_shape = 2;
+                return repel_cylinder_and_quad(shape, obstacle, &info, 0);
+            }
+            if (obstacle_type == 3) {
+                info.second_movement = 0;
+                info.moving_shape = 2;
+                info.first_movement = movement;
+                return repel_cylinder_and_box(shape, obstacle, &info, 0);
+            }
+        } else if (shape_type == 3) {
+            if (obstacle_type == 2) {
+                info.first_movement = 0;
+                info.second_movement = movement;
+                info.moving_shape = 1;
+                return repel_cylinder_and_box(
+                    shape, obstacle, &info, 0);
+            }
+        } else if (shape_type == 4) {
+            if (obstacle_type == 2) {
+                info.first_movement = 0;
+                info.second_movement = movement;
+                info.moving_shape = 1;
+                return repel_cylinder_and_quad(
+                    (CollisionShape*)obstacle, shape, &info, 0);
+            }
         }
-        break;
-    case 3:
-        if (obstacle_type == 2) {
-            info.moving_shape = 1;
-            info.first_movement = 0;
-            info.second_movement = movement;
-            return repel_cylinder_and_box(
-                (CollisionShape*)obstacle, shape, &info, 0);
-        }
-        break;
-    case 4:
-        if (obstacle_type == 2) {
-            info.moving_shape = 1;
-            info.first_movement = 0;
-            info.second_movement = movement;
-            return repel_cylinder_and_quad(
-                (CollisionShape*)obstacle, shape, &info, 0);
-        }
-        break;
     }
     return 0;
 }
@@ -2434,7 +2588,7 @@ float ray_intersection_with_shape(
 
     switch (shape->type & 7) {
     case 3:
-        nearest = -__float_max;
+        nearest = -__float_max[0];
         TEST_RAY_BOX_FACE(
             &shape->box_axis_2, shape->box_axis_2_min,
             &shape->box_axis_1, shape->box_axis_1_max,
@@ -2480,13 +2634,13 @@ float ray_intersection_with_shape(
             projection = side_distance;
         }
         if (projection >= shape->cylinder_radius) {
-            return -__float_max;
+            return -__float_max[0];
         }
         along_distance = -(
             perpendicular.x * (origin->z - shape->cylinder_center.z) +
             perpendicular.z * -(origin->x - shape->cylinder_center.x));
         if (along_distance <= 0.0f) {
-            return -__float_max;
+            return -__float_max[0];
         }
         root_input.value =
             shape->cylinder_radius * shape->cylinder_radius -
@@ -2504,13 +2658,13 @@ float ray_intersection_with_shape(
         }
         distance = along_distance - root;
         if (distance <= 0.0f) {
-            return -__float_max;
+            return -__float_max[0];
         }
         return distance;
     case 4:
         return ray_intersection_with_quad(origin, direction, shape);
     default:
-        return -__float_max;
+        return -__float_max[0];
     }
 }
 
@@ -2524,7 +2678,7 @@ int collide_segment_against_global_collision_list_quads(
     float closest;
     float distance;
 
-    closest = -__float_max;
+    closest = -__float_max[0];
     if (start == 0 || end == 0 || hit_point == 0) {
         return 0;
     }
@@ -2573,7 +2727,7 @@ int repel_point_against_global_collision_list_toward_target(
     float dz;
     int inside;
 
-    closest = -__float_max;
+    closest = -__float_max[0];
     if (target == 0 || start == 0 || result_point == 0) {
         return 0;
     }
@@ -2662,7 +2816,7 @@ int collide_segment_against_global_collision_list(
     float closest;
     float distance;
 
-    closest = -__float_max;
+    closest = -__float_max[0];
     if (start == 0 || end == 0 || hit_point == 0) {
         return 0;
     }
@@ -2701,9 +2855,10 @@ int npc_repel_against_global_collision_list(
     const Vec* position, Vec* movement, Vec* result_position,
     unsigned int ignored_flags) {
     CollisionObjRef collision;
-    CollisionShape shape;
+    CollisionShape shape __attribute__((aligned(16)));
     MkPtr* item;
     MkPtr* next;
+    Vec target_position;
     Vec reverse_direction;
     int collided;
     int result;
@@ -2713,12 +2868,15 @@ int npc_repel_against_global_collision_list(
     shape.cylinder_radius = 0.35f;
     shape.cylinder_axis = UNITVECT_Y;
     shape.cylinder_height = 2.4f;
-    shape.cylinder_center.x = position->x + movement->x;
-    shape.cylinder_center.y = position->y + movement->y - 1.2f;
-    shape.cylinder_center.z = position->z + movement->z;
-    result_position->x = position->x + movement->x;
-    result_position->y = position->y + movement->y;
-    result_position->z = position->z + movement->z;
+    target_position.x = position->x + movement->x;
+    target_position.y = position->y + movement->y;
+    target_position.z = position->z + movement->z;
+    shape.cylinder_center.x = target_position.x;
+    shape.cylinder_center.y = target_position.y - 1.2f;
+    shape.cylinder_center.z = target_position.z;
+    result_position->x = target_position.x;
+    result_position->y = target_position.y;
+    result_position->z = target_position.z;
     reverse_direction.x = -movement->x;
     reverse_direction.y = -movement->y;
     reverse_direction.z = -movement->z;
@@ -2985,8 +3143,20 @@ static void update_players_collision_nodes(void) {
 }
 
 void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
-    if ((object->shape.type & 7) == 1) {
-        object->shape.sphere_center = *position;
+    switch (object->shape.type & 7) {
+    case 1:
+        return;
+    case 2:
+        object->shape.cylinder_center.x = position->x;
+        object->shape.cylinder_center.y = position->y;
+        object->shape.cylinder_center.z = position->z;
+        return;
+    case 3:
+        return;
+    case 4:
+        return;
+    default:
+        return;
     }
 }
 
@@ -3099,16 +3269,18 @@ static int is_point_inside_quad(
     return 1;
 }
 
-#pragma dont_inline on
+/* Soft ceiling: 97.44% -- plane-dot FPR scheduling only. */
 static float ray_intersection_with_quad(
     const Vec* origin,
     const Vec* direction,
     const CollisionShape* quad) {
-    Vec edge_0;
-    Vec edge_1;
-    Vec normal;
-    Vec point;
+    Vec normal __attribute__((aligned(16)));
+    Vec point __attribute__((aligned(16)));
+    Vec edge_1 __attribute__((aligned(16)));
+    Vec edge_0 __attribute__((aligned(16)));
     float denominator;
+    float origin_dot;
+    float quad_dot;
     float distance;
 
     PSVECSubtract(&quad->quad_vertex_1, &quad->quad_vertex_0, &edge_0);
@@ -3119,28 +3291,26 @@ static float ray_intersection_with_quad(
     denominator = normal.x * direction->x +
                   normal.y * direction->y +
                   normal.z * direction->z;
-    if (denominator == 0.0f) {
-        return -3.402823466e38F;
+    quad_dot = normal.x * quad->quad_vertex_0.x +
+               normal.y * quad->quad_vertex_0.y +
+               normal.z * quad->quad_vertex_0.z;
+    origin_dot = normal.x * origin->x +
+                 normal.y * origin->y +
+                 normal.z * origin->z;
+    if (denominator != 0.0f) {
+        distance = -(origin_dot - quad_dot) / denominator;
+    } else {
+        distance = -__float_max[0];
     }
 
-    distance =
-        -((normal.x * origin->x + normal.y * origin->y +
-           normal.z * origin->z) -
-          (normal.x * quad->quad_vertex_0.x +
-           normal.y * quad->quad_vertex_0.y +
-           normal.z * quad->quad_vertex_0.z)) /
-        denominator;
-    if (distance <= 0.0f) {
-        return -3.402823466e38F;
+    if (distance > 0.0f) {
+        parametric_ray_to_point(&point, origin, direction, distance);
+        if (is_point_inside_quad(quad, &point)) {
+            return distance;
+        }
     }
-
-    parametric_ray_to_point(&point, origin, direction, distance);
-    if (!is_point_inside_quad(quad, &point)) {
-        return -3.402823466e38F;
-    }
-    return distance;
+    return -__float_max[0];
 }
-#pragma dont_inline reset
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
@@ -3176,7 +3346,7 @@ void generate_collision_objects(
                 collision = convert_cdf_triangle_to_collision_cylinder(
                     primitive->vertices, (void*)angles, (void*)position);
             } else if (primitive->vertex_count == 4) {
-                if (group->obstacle_id == 1) {
+                if (group->field_04 == 1) {
                     vertices[0] = primitive->vertices[0];
                     vertices[1] = primitive->vertices[1];
                     vertices[2] = primitive->vertices[2];
@@ -3214,7 +3384,7 @@ void generate_collision_objects(
                 }
             }
             if (collision != 0) {
-                collision->obstacle_id = group->obstacle_id;
+                collision->obstacle_id = group->field_04;
                 mk_insert((MkHdr*)collision, &global_collision_list);
                 if (secondary_list != 0) {
                     mk_insert((MkHdr*)collision, secondary_list);
@@ -3290,18 +3460,45 @@ static void set_collision_vertex(
 
 void render_col_shape_as_quad(
     const CollisionShape* shape, const unsigned int* color) {
-    CollisionIm3DVertex vertices[4];
+    const unsigned char* color_channels;
+    Vec positions[8];
+    const Vec* position;
+    CollisionIm3DVertex vertices[8];
+    CollisionIm3DVertex* vertex;
+    int index;
 
-    set_collision_vertex(&vertices[0], &shape->quad_vertex_0, *color);
-    set_collision_vertex(&vertices[1], &shape->quad_vertex_1, *color);
-    set_collision_vertex(&vertices[2], &shape->quad_vertex_2, *color);
-    set_collision_vertex(&vertices[3], &shape->quad_vertex_3, *color);
+    positions[0].x = shape->quad_vertex_0.x;
+    positions[0].y = shape->quad_vertex_0.y;
+    positions[0].z = shape->quad_vertex_0.z;
+    positions[1].x = shape->quad_vertex_1.x;
+    positions[1].y = shape->quad_vertex_1.y;
+    positions[1].z = shape->quad_vertex_1.z;
+    positions[2].x = shape->quad_vertex_2.x;
+    positions[2].y = shape->quad_vertex_2.y;
+    positions[2].z = shape->quad_vertex_2.z;
+    positions[3].x = shape->quad_vertex_3.x;
+    positions[3].y = shape->quad_vertex_3.y;
+    positions[3].z = shape->quad_vertex_3.z;
+
+    color_channels = (const unsigned char*)color;
+    position = positions;
+    vertex = vertices;
+    for (index = 0; index < 4; index++) {
+        vertex->position.x = position->x;
+        vertex->position.y = position->y;
+        vertex->position.z = position->z;
+        vertex->color_channels.red = color_channels[0];
+        vertex->color_channels.green = color_channels[1];
+        vertex->color_channels.blue = color_channels[2];
+        vertex->color_channels.alpha = color_channels[3];
+        position++;
+        vertex++;
+    }
     if (RwIm3DTransform(vertices, 4, 0, 0) != 0) {
         RwIm3DRenderIndexedPrimitive(1, QuadVertexIndices, 8);
         RwIm3DEnd();
     }
 }
-
 void render_col_shape_as_box(
     const CollisionShape* shape, const unsigned int* color) {
     CollisionIm3DVertex vertices[8];
@@ -3416,14 +3613,28 @@ void render_col_shape_as_cylinder(
 void render_col_shape(
     const CollisionShape* shape, const unsigned int* color) {
     CollisionIm3DVertex vertices[16];
+    CollisionIm3DVertex* vertex;
+    const unsigned char* color_channels;
     Vec radial;
     Vec transformed;
     int index;
+    int vertex_offset;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
     float angle;
 
     switch (shape->type & 7) {
     case 1:
-        for (index = 0; index < 16; index++) {
+        index = 0;
+        vertex_offset = 0;
+        color_channels = (const unsigned char*)color;
+        green = color_channels[1];
+        blue = color_channels[2];
+        alpha = color_channels[3];
+        red = color_channels[0];
+        do {
             angle = 3.1415927f * ((float)index / 7.5f);
             radial.x = shape->sphere_radius * (float)gxMathCos(angle);
             radial.y = shape->sphere_radius * gxMathSin(angle);
@@ -3431,8 +3642,18 @@ void render_col_shape(
             v3_x_mat_add_v3(
                 &transformed, &radial, &inv_cam_rot_mat,
                 &shape->sphere_center);
-            set_collision_vertex(&vertices[index], &transformed, *color);
-        }
+            index++;
+            vertex = (CollisionIm3DVertex*)((unsigned char*)vertices +
+                                            vertex_offset);
+            vertex->color_channels.red = red;
+            vertex_offset += sizeof(CollisionIm3DVertex);
+            vertex->color_channels.green = green;
+            vertex->color_channels.blue = blue;
+            vertex->color_channels.alpha = alpha;
+            vertex->position.x = transformed.x;
+            vertex->position.y = transformed.y;
+            vertex->position.z = transformed.z;
+        } while (index <= 15);
         if (RwIm3DTransform(vertices, 16, 0, 2) != 0) {
             RwIm3DRenderPrimitive(2);
             RwIm3DEnd();
@@ -3544,41 +3765,43 @@ static void xz_unit_vector_to_shape(
     Vec edge_0;
     Vec edge_1;
     float half_height;
+    float center_x;
+    float center_z;
+    int type;
 
-    switch (shape->type & 7) {
-    case 2:
+    type = shape->type & 7;
+    if (type == 2) {
         result->x = shape->cylinder_center.x - point->x;
         result->z = shape->cylinder_center.z - point->z;
-        break;
-    case 3:
+    } else if (type == 3) {
+        center_x = 0.5f *
+            (shape->box_corner_0.x + shape->box_corner_1.x);
+        center_x += 0.5f *
+            (shape->box_corner_2.x - shape->box_corner_1.x);
         half_height =
             0.5f * (shape->box_axis_0_max - shape->box_axis_0_min);
         result->x =
-            shape->box_axis_0.x * half_height +
-            0.5f * (shape->box_corner_2.x - shape->box_corner_1.x) +
-            0.5f * (shape->box_corner_0.x + shape->box_corner_1.x) -
-            point->x;
+            shape->box_axis_0.x * half_height + center_x - point->x;
+        center_z = 0.5f *
+            (shape->box_corner_0.z + shape->box_corner_1.z);
+        center_z += 0.5f *
+            (shape->box_corner_2.z - shape->box_corner_1.z);
         result->z =
-            shape->box_axis_0.z * half_height +
-            0.5f * (shape->box_corner_2.z - shape->box_corner_1.z) +
-            0.5f * (shape->box_corner_0.z + shape->box_corner_1.z) -
-            point->z;
-        break;
-    case 4:
-        v3_sub_v3(
-            &edge_0, &shape->quad_vertex_1, &shape->quad_vertex_0);
-        v3_sub_v3(
-            &edge_1, &shape->quad_vertex_3, &shape->quad_vertex_0);
-        v3_cross_v3(result, &edge_0, &edge_1);
-        normalize_v3(result);
+            shape->box_axis_0.z * half_height + center_z - point->z;
+    } else if (type == 4) {
+        PSVECSubtract(
+            &shape->quad_vertex_1, &shape->quad_vertex_0, &edge_0);
+        PSVECSubtract(
+            &shape->quad_vertex_3, &shape->quad_vertex_0, &edge_1);
+        PSVECCrossProduct(&edge_0, &edge_1, result);
+        PSVECNormalize(result, result);
         if (result->x * (shape->quad_vertex_0.x - point->x) +
                 result->z * (shape->quad_vertex_0.z - point->z) <
             0.0f) {
             result->x = -result->x;
             result->z = -result->z;
         }
-        break;
-    default:
+    } else {
         return;
     }
 

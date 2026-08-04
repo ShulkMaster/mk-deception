@@ -74,14 +74,18 @@ typedef struct GamePauseFlags {
 } GamePauseFlags;
 
 typedef struct GameSwitchInputFlags {
-    unsigned char pad_7_4 : 4;
+    unsigned char pad_7_6 : 2;
+    unsigned char field_bit5 : 1;
+    unsigned char pad_4 : 1;
     unsigned char eat_switches : 1; /* bit3 - pause/online input suppression */
     unsigned char pad_2_0 : 3;
 } GameSwitchInputFlags;
 
 typedef struct GameFeatureFlagBits {
     unsigned char high_bit : 1; /* bit7 */
-    unsigned char pad : 7;
+    unsigned char pad_6 : 1;
+    unsigned char powerbars_locked : 1; /* bit5 */
+    unsigned char pad_4_0 : 5;
 } GameFeatureFlagBits;
 
 typedef union GameFeatureFlags {

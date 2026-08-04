@@ -42,7 +42,7 @@ extern GlobalPlayerEntry global_player_data[];
 extern int pause_player;
 extern int screen_width;
 extern int screen_height;
-extern void* p1_profile_switch_map;
+extern unsigned char p1_profile_switch_map[];
 
 void* get_screen_pdata(void);
 void destroy_mkprocs_pid(int proc_id);
@@ -60,19 +60,51 @@ char* get_current_screen_name(void);
 int strcmp(const char* a, const char* b);
 int sprintf(char* buf, const char* fmt, ...);
 
-static void movelist_show_valid_style(MovelistPdata* screen_pdata);
 static void init_movelist(MovelistPdata* movelist_pdata);
 static float p_loop_movelist(void);
-
-static int movelist_bool_from_compare(unsigned int value) {
-    return value != 0;
-}
 
 static void movelist_set_pfx_byte_flags(MovelistPfxObj* pfx_obj, int set_bit4, int set_bit1) {
     pfx_obj->flags_0C_bits.bit4 = set_bit4;
     if (set_bit1 != 0) {
         pfx_obj->flags_0C_bits.bit1 = 1;
     }
+}
+
+static inline void movelist_show_valid_style(MovelistPdata* screen_pdata) {
+    int zero;
+    int style_index;
+    MovelistStyleSlot* style;
+    int move_count;
+    MovelistPfxObj* pfx_obj;
+
+    zero = 0;
+    do {
+        style_index = screen_pdata->style_idx;
+        if (style_index >= screen_pdata->style_count) {
+            screen_pdata->style_idx = zero;
+        }
+        if (screen_pdata->style_idx < zero) {
+            screen_pdata->style_idx = screen_pdata->style_count - 1;
+        }
+        style_index = screen_pdata->style_idx;
+        style = movelist_style_slot(screen_pdata, style_index);
+        move_count = style->max_move;
+    } while (move_count == 0);
+    hide_or_show_2d_obj_by_id(0x9012, 1);
+    style_index = screen_pdata->style_idx;
+    style = movelist_style_slot(screen_pdata, style_index);
+    pfx_obj = style->pfx_obj;
+    if (pfx_obj != 0) {
+        if (pfx_obj->instance != style->pfx_inst) {
+            pfx_obj = 0;
+        }
+    } else {
+        pfx_obj = 0;
+    }
+    if (pfx_obj == 0) {
+        return;
+    }
+    movelist_set_pfx_byte_flags(pfx_obj, 0, 0);
 }
 
 void* movelist_get_character_name(void) {
@@ -179,9 +211,8 @@ void start_movelist(void) {
     int char_index;
     MkProc* proc;
 
-    destroy_mkprocs_pid(0x3008);
-    movelist_pdata = 0;
-    proc = _create_mkproc_generic_bigstack(0x3008, 0x1F, p_loop_movelist, 0x898,
+    destroy_mkprocs_pid(0x9008);
+    proc = _create_mkproc_generic_bigstack(0x9008, 0x1F, p_loop_movelist, 0x898,
                                            (MkHdr**)&movelist_pdata);
     if (proc != 0) {
         movelist_pdata->vtbl = &vtbl_movelist;
@@ -190,22 +221,23 @@ void start_movelist(void) {
         if (pause_player == 1) {
             pad_ptr = &g_game_info.plyr1;
             movelist_pdata->plyr = pad_ptr;
-            side_flag = movelist_bool_from_compare(is_a_to_the_right_of_b(
-                g_game_info.plyr1.slot.mirror_a, g_game_info.plyr0.slot.mirror_a));
+            side_flag =
+                is_a_to_the_right_of_b(g_game_info.plyr1.slot.mirror_a,
+                                       g_game_info.plyr0.slot.mirror_a) != 0;
             movelist_pdata->switch_side = side_flag;
         } else {
             pad_ptr = &g_game_info.plyr0;
             movelist_pdata->plyr = pad_ptr;
-            side_flag = movelist_bool_from_compare(is_a_to_the_right_of_b(
-                g_game_info.plyr0.slot.mirror_a, g_game_info.plyr1.slot.mirror_a));
+            side_flag =
+                is_a_to_the_right_of_b(g_game_info.plyr0.slot.mirror_a,
+                                       g_game_info.plyr1.slot.mirror_a) != 0;
             movelist_pdata->switch_side = side_flag;
             movelist_pdata->switch_map = p1_profile_switch_map;
         }
-        pad_ptr = movelist_pdata->plyr;
-        set_game_switch_map(pad_ptr);
-        char_index = pad_ptr->pad_index;
+        set_game_switch_map(movelist_pdata->plyr);
+        char_index = movelist_pdata->plyr->pad_index;
         movelist_pdata->switch_map = g_game_info.pads[char_index].switch_map;
-        set_default_switch_map(pad_ptr);
+        set_default_switch_map(movelist_pdata->plyr);
         screen_share_pdata(movelist_pdata);
         init_movelist(movelist_pdata);
     }
@@ -237,6 +269,8 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
     MovelistPfxObj* pfx_obj;
     MovelistPfxObj* named_pfx;
     int style_index;
+    int max_move;
+    int display_move;
     int half_obj_w;
     int half_screen_w;
     MoveTableContainer* table_container;
@@ -298,11 +332,13 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
         Pfx2dObj* pfx2d;
 
         style_obj = char_data->style_objs[style_slot];
-        screen = 0;
-        if (style_obj->screen != 0) {
-            if (style_obj->screen->instance == style_obj->screen_inst) {
-                screen = style_obj->screen;
+        screen = style_obj->screen;
+        if (screen != 0) {
+            if (screen->instance != style_obj->screen_inst) {
+                screen = 0;
             }
+        } else {
+            screen = 0;
         }
         if (screen != 0) {
             pfx2d = (Pfx2dObj*)screen->pfx2d;
@@ -313,34 +349,24 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
                 style->pfx_obj = pfx_obj;
                 style->pfx_inst = pfx_obj->instance;
                 mk_insert((MkHdr*)pfx_obj, &movelist_pdata->obj_list);
-                half_obj_w = style_obj->layout->width;
-                half_obj_w >>= 1;
-                if (half_obj_w < 0) {
-                    half_obj_w++;
-                }
-                half_screen_w = screen_width >> 1;
-                if (screen_width < 0) {
-                    half_screen_w++;
-                }
+                half_obj_w = style_obj->layout->width / 2;
+                half_screen_w = screen_width / 2;
                 pfx_obj->x = half_screen_w - half_obj_w;
                 pfx_obj->y = screen_height - 0x188;
             }
         }
     }
     if (movelist_pdata->style_count > 3) {
-        named_pfx = (MovelistPfxObj*)load_named_2d_pfxobj(5, 0x9012, STR_STYLE_SPECIAL, 0, 5);
+        named_pfx = (MovelistPfxObj*)load_named_2d_pfxobj(
+            0x10005, 0x9012, STR_STYLE_SPECIAL, 0, 5);
         if (named_pfx != 0) {
-            MovelistStyleSlot* active_style;
-
             movelist_set_pfx_byte_flags(named_pfx, 1, 1);
-            active_style = movelist_style_slot(movelist_pdata, movelist_pdata->style_count);
-            active_style->special_pfx = named_pfx;
-            active_style->special_pfx_inst = named_pfx->instance;
+            movelist_style_slot(movelist_pdata, movelist_pdata->style_count)
+                ->special_pfx = named_pfx;
+            movelist_style_slot(movelist_pdata, movelist_pdata->style_count)
+                ->special_pfx_inst = named_pfx->instance;
             mk_insert((MkHdr*)named_pfx, &movelist_pdata->obj_list);
-            half_screen_w = screen_width >> 1;
-            if (screen_width < 0) {
-                half_screen_w++;
-            }
+            half_screen_w = screen_width / 2;
             named_pfx->x = half_screen_w - 0x6F;
             named_pfx->y = screen_height - 0x188;
         }
@@ -353,44 +379,14 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
     if (screen_pdata != 0) {
         style_index = screen_pdata->style_idx;
         style = movelist_style_slot(screen_pdata, style_index);
-        sprintf(screen_pdata->counter_buf, STR_MOVELIST_COUNTER_FMT, 1, style->max_move);
-    }
-}
-
-static void movelist_show_valid_style(MovelistPdata* screen_pdata) {
-    int zero;
-    int style_index;
-    MovelistStyleSlot* style;
-    int move_count;
-    MovelistPfxObj* pfx_obj;
-
-    zero = 0;
-    do {
-        style_index = screen_pdata->style_idx;
-        if (style_index >= screen_pdata->style_count) {
-            screen_pdata->style_idx = zero;
+        max_move = style->max_move;
+        display_move = 1;
+        if (max_move <= 0) {
+            display_move = max_move;
         }
-        if (screen_pdata->style_idx < zero) {
-            screen_pdata->style_idx =
-                screen_pdata->style_count - 1;
-        }
-        style_index = screen_pdata->style_idx;
-        style = movelist_style_slot(screen_pdata, style_index);
-        move_count = style->max_move;
-    } while (move_count == 0);
-    hide_or_show_2d_obj_by_id(0x9012, 1);
-    pfx_obj = style->pfx_obj;
-    if (pfx_obj != 0) {
-        if (pfx_obj->instance != style->pfx_inst) {
-            pfx_obj = 0;
-        }
-    } else {
-        pfx_obj = 0;
+        sprintf(screen_pdata->counter_buf, STR_MOVELIST_COUNTER_FMT,
+                display_move, max_move);
     }
-    if (pfx_obj == 0) {
-        return;
-    }
-    movelist_set_pfx_byte_flags(pfx_obj, 0, 0);
 }
 
 static float p_loop_movelist(void) {

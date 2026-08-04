@@ -309,15 +309,24 @@ int check_damage_valid_fc(void) {
     BgndDamageState* damage;
     MkProc* proc;
 
-    if (g_game_info.bgnd_id != 6) {
-        return 0;
-    }
-
-    proc = find_mkproc_pid(0xB010);
-    pdata.hdr = proc != 0 ? pdata_of_proc(proc) : 0;
-    damage = pdata.hdr != 0 ? &pdata.damage->state : 0;
-    if (damage != 0 && damage->valid != 0) {
-        return 1;
+    if (g_game_info.bgnd_id == 6) {
+        proc = find_mkproc_pid(0xB010);
+        if (proc == 0) {
+            pdata.hdr = 0;
+        } else {
+            pdata.hdr = pdata_of_proc(proc);
+            if (pdata.hdr == 0) {
+                pdata.hdr = 0;
+            }
+        }
+        if (pdata.hdr == 0) {
+            damage = 0;
+        } else {
+            damage = &pdata.damage->state;
+        }
+        if (damage != 0 && damage->valid != 0) {
+            return 1;
+        }
     }
     return 0;
 }
@@ -1078,10 +1087,13 @@ static float p_obj_ctrl(void) {
 void update_func_shadow_scale(BgndUpdateData* update, int index) {
     BgndUpdateCommandBlock* command;
     MkSobj* object;
+    float shadow_scale;
 
     object = update->object;
-    command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-    if (object == 0 || command->slot.blend_divisor <= 0) {
+    if (object == 0 ||
+        (command = (BgndUpdateCommandBlock*)((unsigned char*)update +
+                                              index * 0x50),
+         command->slot.blend_divisor <= 0)) {
         if (object != 0) {
             hide_sobj(object);
         }
@@ -1091,10 +1103,11 @@ void update_func_shadow_scale(BgndUpdateData* update, int index) {
         return;
     }
 
+    shadow_scale = command->slot.shadow_scale;
     object->flags_08_bits.scale_dirty = 1;
     object->scale.x = 1.0f;
     object->scale.y = 1.0f;
-    object->scale.z = command->slot.shadow_scale;
+    object->scale.z = shadow_scale;
 }
 
 void update_func_blend_start(BgndUpdateData* update, int index) {
@@ -1139,20 +1152,24 @@ void update_func_awayxz(BgndUpdateData* update, int index) {
 }
 
 void update_func_fall(BgndUpdateData* update, int index) {
-    BgndUpdateSlot* slot;
+    BgndUpdateCommandBlock* command;
     MkSobj* object;
+    Vec movement;
 
     object = update->object;
     if (object == 0) {
         return;
     }
 
-    slot = &update->slots[index];
-    object->pos.x += update_seconds_per_frame * slot->direction.x;
-    object->pos.y += update_seconds_per_frame * slot->direction.y;
-    object->pos.z += update_seconds_per_frame * slot->direction.z;
-    slot->direction.y +=
-        update_seconds_per_frame * slot->fall_acceleration;
+    command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
+    movement.x = update_seconds_per_frame * command->slot.direction.x;
+    movement.y = update_seconds_per_frame * command->slot.direction.y;
+    movement.z = update_seconds_per_frame * command->slot.direction.z;
+    object->pos.x += movement.x;
+    object->pos.y += movement.y;
+    object->pos.z += movement.z;
+    command->slot.direction.y +=
+        update_seconds_per_frame * command->slot.fall_acceleration;
 }
 
 void update_func_sin(BgndUpdateData* update, int index) {
