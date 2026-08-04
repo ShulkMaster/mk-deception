@@ -94,7 +94,10 @@ typedef union GameFeatureFlags {
 } GameFeatureFlags;
 
 typedef struct GameInfoFlags {
-    unsigned char pad_high : 5;
+    unsigned char high_res_path : 1; /* bit7 */
+    unsigned char pad_bit6 : 1;
+    unsigned char lens_flare_enabled : 1; /* bit5 */
+    unsigned char pad_bits4_3 : 2;
     unsigned char level_fatality_done : 1; /* bit2 */
     unsigned char pad_low : 2;
 } GameInfoFlags;

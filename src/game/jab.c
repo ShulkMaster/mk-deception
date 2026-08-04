@@ -165,8 +165,8 @@ void* load_named_model_for_player(
     char* name, int player, int object_type, int flags);
 void fx_reset_emit(unsigned int effect);
 int snd_req(int sound_id);
-int create_pfx(
-    int id, int process_id, float (*entry)(void), MkPfx** effect,
+MkPfx* create_pfx(
+    int bind_source, int process_id, float (*entry)(void), MkPfx** effect,
     const void* definition, const char* name);
 PfxEmitter* pfx_get_emitter(PfxVm* vm, int index);
 void* pfx_get_field(PfxVm* vm, int emitter_index, int field);

@@ -277,7 +277,7 @@ static float p_mkpfx_fadingrun(void) {
     return 1.0f;
 }
 
-void start_scorpion_spear(int field_34) {
+MkProc* start_scorpion_spear(int field_34) {
     NcsSpearAimObject* player;
     NcsSpearAimObject* opponent;
     Vec velocity;
@@ -295,7 +295,7 @@ void start_scorpion_spear(int field_34) {
         velocity.z = facing_z;
     }
     scale_v3(&velocity, &velocity, 0.15f);
-    fire_sc_spear(plyr_pdata, &velocity, field_34, 0, 0, 0);
+    return fire_sc_spear(plyr_pdata, &velocity, field_34, 0, 0, 0);
 }
 
 MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
@@ -720,7 +720,13 @@ MkHdr* proc_of_anim_pdata(MkObjLatch* data) {
     MkHdr* proc;
 
     proc = data->obj;
-    if (proc != 0 && proc->instance != data->obj_instance) {
+    if (proc != 0) {
+        if (proc->instance == data->obj_instance) {
+            /* The instance latch still identifies this process. */
+        } else {
+            proc = 0;
+        }
+    } else {
         proc = 0;
     }
     return proc;

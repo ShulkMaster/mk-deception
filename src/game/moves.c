@@ -943,8 +943,12 @@ void back_rollup_right(void) {
     moves_jump((MovesEntryFn)rollup_finish);
 }
 
-void noobsmoke_fire_projectile_request(void) {
-    plyr_pdata->state_flags.raw &= (unsigned char)~1U;
+int noobsmoke_fire_projectile_request(void) {
+    unsigned char flags = plyr_pdata->state_flags.raw;
+    int requested = flags & 1;
+
+    plyr_pdata->state_flags.bits.projectile_request = 0;
+    return requested;
 }
 
 void do_my_suicide_remote(void) {

@@ -6,7 +6,7 @@ typedef struct ScreenObj ScreenObj;
 typedef struct MovesetDefinition {
     char pad00[0x0C];
     const char* style_sign_name;    /* +0x0C */
-    char pad10[4];
+    int style_sign_width;           /* +0x10 */
     const char* style_section_name; /* +0x14 */
 } MovesetDefinition;
 

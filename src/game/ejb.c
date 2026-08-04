@@ -79,9 +79,9 @@ typedef struct EjbFighterDefinitionExtended {
     MkObj* impale_target; /* +0x24 */
     unsigned int impale_target_instance;
     char pad2C[0x48];
-    int standing_animation; /* +0x74 */
+    AniData* standing_animation; /* +0x74 */
     char pad78[0x4C];
-    int crouching_animation; /* +0xC4 */
+    AniData* crouching_animation; /* +0xC4 */
 } EjbFighterDefinitionExtended;
 
 typedef struct EjbPlyrScaleView {
@@ -112,30 +112,30 @@ typedef struct EjbScalePdata {
 
 typedef struct EjbSharedAnimationsView {
     char pad000[0x30];
-    int step_throw_into;
-    int step_throw_out;
+    AniData* step_throw_into;
+    AniData* step_throw_out;
     char pad038[0x1D8];
-    int back_getup_3; /* +0x210 */
-    int back_getup_3_flipped; /* +0x214 */
-    int back_getup_6; /* +0x218 */
-    int back_getup_6_flipped; /* +0x21C */
-    int back_getup_9; /* +0x220 */
-    int back_getup_9_flipped; /* +0x224 */
-    int back_getup_12; /* +0x228 */
-    int back_getup_12_flipped; /* +0x22C */
-    int front_getup_4; /* +0x230 */
-    int front_getup_4_alt; /* +0x234 */
-    int front_getup_6; /* +0x238 */
-    int front_getup_6_alt; /* +0x23C */
-    int front_getup_10; /* +0x240 */
-    int front_getup_10_alt; /* +0x244 */
-    int front_getup_12; /* +0x248 */
-    int sit_getup_6; /* +0x24C */
-    int sit_getup_12; /* +0x250 */
-    int chamber_to_stance;
-    int chamber_to_stance_2;
+    AniData* back_getup_3; /* +0x210 */
+    AniData* back_getup_3_flipped; /* +0x214 */
+    AniData* back_getup_6; /* +0x218 */
+    AniData* back_getup_6_flipped; /* +0x21C */
+    AniData* back_getup_9; /* +0x220 */
+    AniData* back_getup_9_flipped; /* +0x224 */
+    AniData* back_getup_12; /* +0x228 */
+    AniData* back_getup_12_flipped; /* +0x22C */
+    AniData* front_getup_4; /* +0x230 */
+    AniData* front_getup_4_alt; /* +0x234 */
+    AniData* front_getup_6; /* +0x238 */
+    AniData* front_getup_6_alt; /* +0x23C */
+    AniData* front_getup_10; /* +0x240 */
+    AniData* front_getup_10_alt; /* +0x244 */
+    AniData* front_getup_12; /* +0x248 */
+    AniData* sit_getup_6; /* +0x24C */
+    AniData* sit_getup_12; /* +0x250 */
+    AniData* chamber_to_stance;
+    AniData* chamber_to_stance_2;
     char pad25C[0x14];
-    int reverse_to_stance; /* +0x270 */
+    AniData* reverse_to_stance; /* +0x270 */
 } EjbSharedAnimationsView;
 
 extern PlyrPdata* his_pdata;
@@ -159,11 +159,11 @@ void random_voice(int group);
 int advance_anim(AnimPdata* anim);
 void pose_anim(AnimPdata* anim, int update);
 void transition_to_anim_script(
-    AnimPdata* anim, int animation, int transition, float blend_rate);
-void set_anim_script_frame(AnimPdata* anim, int animation, int frame);
+    AnimPdata* anim, AniData* animation, int transition, float blend_rate);
+void set_anim_script_frame(AnimPdata* anim, AniData* animation, int frame);
 void transition_to_anim_script_frame(
-    AnimPdata* anim, int animation, int frame);
-void set_anim_script(AnimPdata* anim, int animation, int transition);
+    AnimPdata* anim, AniData* animation, int frame);
+void set_anim_script(AnimPdata* anim, AniData* animation, int transition);
 void set_plyr_attack_region(int region);
 int collide_plyr_vs_plyr(void);
 void trial_state_collision_check(int collision_result, int player);
@@ -1004,31 +1004,31 @@ int should_weapon_block(PlyrPdata* player) {
 }
 
 void blend_to_ani_nosleep(
-    int animation, int transition, float blend_rate) {
+    AniData* animation, int transition, float blend_rate) {
     transition_to_anim_script(
         plyr_anim_pdata, animation, transition, blend_rate);
 }
 
-void glitch_to_ani_frame(int animation, int frame) {
+void glitch_to_ani_frame(AniData* animation, int frame) {
     set_anim_script_frame(plyr_anim_pdata, animation, frame);
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
 }
 
-void blend_to_ani_frame(int animation, int frame) {
+void blend_to_ani_frame(AniData* animation, int frame) {
     transition_to_anim_script_frame(plyr_anim_pdata, animation, frame);
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
 }
 
-void blend_to_ani(int animation, int transition, float blend_rate) {
+void blend_to_ani(AniData* animation, int transition, float blend_rate) {
     transition_to_anim_script(
         plyr_anim_pdata, animation, transition, blend_rate);
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
 }
 
-void glitch_to_ani(int animation, int transition) {
+void glitch_to_ani(AniData* animation, int transition) {
     set_anim_script(plyr_anim_pdata, animation, transition);
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
@@ -1680,7 +1680,7 @@ void init_3d_move(void) {
 }
 
 void blend_to_ani_INOUT(
-    int in_animation, int out_animation, float blend_rate,
+    AniData* in_animation, AniData* out_animation, float blend_rate,
     float in_speed, float out_speed) {
     float animation_speed;
 
@@ -2835,7 +2835,7 @@ static int getup_should_stay_down(void) {
 }
 
 static void getup_common(
-    int animation, int flipped_animation, int death_type,
+    AniData* animation, AniData* flipped_animation, int death_type,
     int liukang_sound, int blend_frame) {
     if (getup_should_stay_down()) {
         plyr_pdata->death_type = death_type;
@@ -2985,7 +2985,7 @@ static int visual_flip_state(void) {
 }
 
 void newani_to_frame_x(
-    int animation, int flip_mode, float frame, float step,
+    AniData* animation, int flip_mode, float frame, float step,
     float weight, float blend) {
     int flags = flip_mode == 2 ? 8 : 0;
     float target;
@@ -3139,7 +3139,7 @@ float back_rollup_check_reverse(void) {
 }
 
 void launch_n_land_ani(
-    int animation, int landing_animation, float launch_frame,
+    AniData* animation, int landing_animation, float launch_frame,
     float launch_step, float landing_frame, float velocity_y,
     float gravity, float blend) {
     float discriminant;

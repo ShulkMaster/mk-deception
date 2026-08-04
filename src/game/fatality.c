@@ -272,9 +272,9 @@ extern FatalityEffectHandle fx_next_emitter();
 extern void fx_resume_emit();
 extern MkPfx* pfx_from_emitter(FatalityEffectHandle handle);
 extern int emitter_id_from_handle(FatalityEffectHandle handle);
-extern MkPfx* find_pfx_by_name();
-extern void reset_effect();
-extern void resume_effect();
+extern MkPfx* find_pfx_by_name(const char* name);
+extern void reset_effect(const char* name);
+extern void resume_effect(const char* name);
 
 #define FATALITY_SLEEP(ticks)                                                \
     do {                                                                     \
@@ -397,8 +397,13 @@ void sindel_sonic_sounds(FatalityObjectLatch* sound, int finished) {
     MkHdr* object;
 
     object = sound->object;
-    if (object != 0 &&
-        object->instance != sound->object_instance) {
+    if (object != 0) {
+        if (object->instance == sound->object_instance) {
+            /* The instance latch still identifies this object. */
+        } else {
+            object = 0;
+        }
+    } else {
         object = 0;
     }
     if (object != 0 && finished == 0) {
@@ -407,25 +412,34 @@ void sindel_sonic_sounds(FatalityObjectLatch* sound, int finished) {
 }
 
 void mks_start_fatality_iceball(int mode) {
-    if (mode == 0) {
+    switch (mode) {
+    case 0:
         start_3d_projectile_iceball(sz_kill_myself);
-    } else if (mode == 1) {
+        break;
+    case 1:
         start_3d_projectile_iceball(subzero_freeze_victim);
+        break;
     }
 }
 
 MkHdr* get_fake_bone_matcher_proc(MkObjLatch* matcher) {
     MkHdr* proc;
+    MkHdr* result = 0;
 
-    if (matcher == 0) {
-        return 0;
+    if (matcher != 0) {
+        proc = matcher->obj;
+        if (proc != 0) {
+            if (proc->instance == matcher->obj_instance) {
+                /* The instance latch still identifies this process. */
+            } else {
+                proc = 0;
+            }
+        } else {
+            proc = 0;
+        }
+        result = proc;
     }
-    proc = matcher->obj;
-    if (proc != 0 &&
-        proc->instance != matcher->obj_instance) {
-        proc = 0;
-    }
-    return proc;
+    return result;
 }
 
 float subzero_his_tinkle_snd(void) {
@@ -631,14 +645,14 @@ void fade_fatality_screen(void) {
 }
 
 void pfx_spawn_at_bid(
-    int effect_handle, MkObj* object, int bone_id) {
+    const char* name, MkObj* object, int bone_id) {
     MkPfx* effect;
 
-    effect = find_pfx_by_name();
+    effect = find_pfx_by_name(name);
     if (effect != 0) {
         pfx_bind_emitter_to_obj_bone(effect, object, bone_id);
-        reset_effect(effect_handle);
-        resume_effect(effect_handle);
+        reset_effect(name);
+        resume_effect(name);
     }
 }
 
