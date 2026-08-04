@@ -6,6 +6,7 @@
 #include "platform/io.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/image.h"
 #include "runtime/cam.h"
 #include "runtime/utils.h"
 
@@ -90,10 +91,37 @@ typedef struct CameraBouncePdata {
     MkHdr hdr;
     MkObj* object;
     unsigned int object_instance;
-    char pad10[4];
+    float saved_gravity;
     float trigger_distance;
     float velocity_scale;
+    float direction_scale;
 } CameraBouncePdata;
+
+typedef struct SkyTempleExplodeMonitorPdata {
+    MkHdr hdr;
+    PlyrInfo* player;
+} SkyTempleExplodeMonitorPdata;
+
+typedef struct GusherStep {
+    const char* blood_type;
+    float velocity_scale;
+    float interval;
+} GusherStep;
+
+#define RESOLVE_MAB_OBJECT(result, object, expected_instance)              \
+    do {                                                                  \
+        MkObj* candidate_;                                                \
+        candidate_ = (object);                                           \
+        if (candidate_ != 0) {                                           \
+            if (candidate_->hdr.instance == (expected_instance)) {       \
+                (result) = candidate_;                                   \
+            } else {                                                     \
+                (result) = 0;                                            \
+            }                                                            \
+        } else {                                                         \
+            (result) = 0;                                                \
+        }                                                                \
+    } while (0)
 
 double fabs(double value);
 
@@ -194,6 +222,14 @@ void limb_sever_show_z_meat_chunks(
 void limb_sever_show_z_meat_chunks_all(void* object);
 void bgnd_hide_mirror_guys(void);
 float p_anim_idle(void);
+void mkobj_zero_bone_rots(MkObj* object);
+void add_facial_damage(FighterMirror* fighter, float amount);
+void shake_camera(int strength, MkHdr* pdata, float duration);
+void* start_gusher(
+    GusherStep* steps, FighterMirror* owner, MkObj* object, int bone,
+    const Vec* position, const Vec* direction);
+extern GusherStep heart_beat[];
+extern MkPtr* gusher_list;
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to);
 static float p_monitor_objs_sobjs(void);
 void p_statue_xpd_callback(MkSobj* object);
@@ -1318,6 +1354,233 @@ static float p_cam_bounce_monitor(void) {
     scale_v3(
         &object->pos_vel, &object->pos_vel, pdata->velocity_scale);
     return -1.0f;
+}
+
+/*
+ * Soft ceiling: 91.40% -- validation-branch polarity, temporary allocation,
+ * and packed-byte update forms only; the recovered sequence is complete.
+ */
+void skytemple_player_explode(
+    unsigned int player_index, float x, float y, float z) {
+    PlyrInfo* player = &g_game_info.plyr1;
+    MkProc* anim_proc;
+    MkProc* bounce_proc;
+    MkObj* limb;
+    float saved_facial_damage;
+    int limb_index;
+
+    if (player_index == 0) {
+        player = &g_game_info.plyr0;
+    }
+
+    if (player->slot.mirror_a == 0) {
+        return;
+    }
+
+    player->slot.mirror_a->flags_09_bits.head_tracking = 0;
+    player->slot.mirror_a->pos.x = x;
+    player->slot.mirror_a->pos.y = y;
+    player->slot.mirror_a->pos.z = z;
+    bgnd_launch_fx_at_position("meat_chunk_explode", x, y, z);
+    bgnd_hide_mirror_guys();
+
+    for (limb_index = 0; limb_index < 15; limb_index++) {
+        RESOLVE_MAB_OBJECT(
+            limb,
+            player->slot.fighter->severed_limbs[limb_index].object,
+            player->slot.fighter->severed_limbs[limb_index].instance);
+        if (limb == 0) {
+            limb = obj_sever_limb(
+                player->slot.mirror_a, limb_index,
+                player->slot.fighter->runtime_data->half_sever_velocities,
+                1);
+            if (limb != 0) {
+                player->slot.fighter->severed_limbs[limb_index].object =
+                    limb;
+                player->slot.fighter->severed_limbs[limb_index].instance =
+                    limb->hdr.instance;
+            }
+        }
+    }
+
+    limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
+    anim_proc = player->slot.fighter->anim_proc;
+    if (anim_proc != 0) {
+        if (anim_proc->hdr.instance ==
+            player->slot.fighter->anim_proc_instance) {
+            /* Keep the validated animation process. */
+        } else {
+            anim_proc = 0;
+        }
+    } else {
+        anim_proc = 0;
+    }
+    xfer_proc(anim_proc, p_anim_idle);
+
+    saved_facial_damage = player->slot.fighter->facial_damage;
+    add_facial_damage(player->slot.fighter, 1.0f);
+
+    for (limb_index = 0; limb_index < 15; limb_index++) {
+        RESOLVE_MAB_OBJECT(
+            limb,
+            player->slot.fighter->severed_limbs[limb_index].object,
+            player->slot.fighter->severed_limbs[limb_index].instance);
+        if (limb == 0) {
+            continue;
+        }
+
+        limb->pos.x = x;
+        limb->pos.y = y + 0.35f;
+        limb->pos.z = z;
+        limb->flags_08_bits.gravity_enabled = 1;
+        limb->flags_08_bits.angular_velocity_enabled = 1;
+        limb->flags_08_bits.rotation_enabled = 1;
+        limb->flags_08_bits.moving = 1;
+        limb->gravity = -0.003f;
+
+        if (limb_index == 0) {
+            CameraBouncePdata* bounce_pdata;
+            CameraObj* camera;
+            MkObj* bounce_object;
+            Vec gusher_position;
+            Vec gusher_direction;
+            float camera_delta_y;
+            float camera_delta_z;
+            float saved_gravity;
+
+            mkobj_zero_bone_rots(limb);
+            limb->ang_vel.x = 0.09f;
+            limb->ang_vel.y = 0.08f;
+            limb->ang.x = 3.1415927f;
+            limb->ang.y = 3.1415927f;
+            limb->ang.z = 0.0f;
+            saved_gravity = limb->gravity;
+
+            RESOLVE_MAB_OBJECT(
+                bounce_object, limb, limb->hdr.instance);
+
+            camera = camera_obj;
+            if (camera != 0 && bounce_object != 0) {
+                camera_delta_y = camera->pos_y - bounce_object->pos.y;
+                camera_delta_z = camera->pos_z - bounce_object->pos.z;
+                bounce_object->pos_vel.x =
+                    (camera->pos_x - bounce_object->pos.x) * 0.025f;
+                bounce_object->pos_vel.y = camera_delta_y * 0.025f;
+                bounce_object->pos_vel.z = camera_delta_z * 0.025f;
+                if (_create_mkproc_generic_tinystack(
+                        0x2092, 0x1F, p_cam_bounce_monitor,
+                        sizeof(CameraBouncePdata),
+                        (MkHdr**)&bounce_pdata) != 0) {
+                    bounce_pdata->object = bounce_object;
+                    bounce_pdata->object_instance =
+                        bounce_object->hdr.instance;
+                    bounce_pdata->trigger_distance = 0.59f;
+                    bounce_pdata->saved_gravity = saved_gravity;
+                    bounce_pdata->direction_scale = 0.025f;
+                    bounce_pdata->velocity_scale = 0.95f;
+                    bounce_pdata->saved_gravity = bounce_object->gravity;
+                    bounce_object->gravity = 0.0f;
+                }
+            }
+
+            gusher_position.x = 0.0f;
+            gusher_position.y = 0.0f;
+            gusher_position.z = 0.0f;
+            gusher_direction.x = 0.8f;
+            gusher_direction.y = -1.0f;
+            gusher_direction.z = 0.0f;
+            {
+                MkHdr* gusher = (MkHdr*)start_gusher(
+                    heart_beat, player->slot.fighter, limb, 0x10,
+                    &gusher_position, &gusher_direction);
+                if (gusher != 0) {
+                    mk_insert(gusher, &gusher_list);
+                }
+            }
+        } else {
+            float velocity;
+
+            limb->pos_vel.y = 0.03f + frand(0.03f);
+            velocity = sfrand(0.02f);
+            limb->pos_vel.x = velocity > 0.0f
+                ? velocity + 0.03f : velocity - 0.03f;
+            velocity = sfrand(0.02f);
+            limb->pos_vel.z = velocity > 0.0f
+                ? velocity + 0.03f : velocity - 0.03f;
+            limb->ang_vel.x = sfrand(0.1f);
+            limb->ang_vel.y = sfrand(0.1f);
+            limb->ang_vel.z = sfrand(0.1f);
+        }
+    }
+
+    {
+        SkyTempleExplodeMonitorPdata* monitor_pdata;
+
+        if (_create_mkproc_generic_tinystack(
+                0x208E, 0x1F, p_xpd_obj_monitor,
+                sizeof(SkyTempleExplodeMonitorPdata),
+                (MkHdr**)&monitor_pdata) == 0) {
+            return;
+        }
+        monitor_pdata->player = player;
+    }
+
+    {
+        ScreenObj* effect = load_named_2d_pfxobj(
+            0x2001E, 0x2094, "ST_BLOODSPLAT", 0, 0x29);
+        if (effect != 0) {
+            effect->x = 0;
+            effect->y = 0x48;
+            effect->flags |= 8;
+            effect->scale_x = 2.0f;
+            effect->scale_y = 2.0f;
+        }
+    }
+
+    if (proc_create(p_skytemple_bodysplat, 0x208F) != 0) {
+        ((MabGenericPositionPdata*)mab_generic_pdata)->position.x = x;
+        ((MabGenericPositionPdata*)mab_generic_pdata)->position.y = y;
+        ((MabGenericPositionPdata*)mab_generic_pdata)->position.z = z;
+    }
+
+    _mkproc_sleep_ticks = 8.0f;
+    aproc->vtbl->sleep();
+    bgnd_launch_fx_at_position("meat_chunk_explode2", x, y, z);
+    _mkproc_sleep_ticks = 8.0f;
+    aproc->vtbl->sleep();
+    bgnd_launch_fx_at_position("meat_chunk_explode3", x, y, z);
+
+    bounce_proc = find_mkproc_pid(0x2092);
+    while (bounce_proc != 0) {
+        bounce_proc = find_mkproc_pid(0x2092);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
+    RESOLVE_MAB_OBJECT(
+        limb, player->slot.fighter->severed_limbs[0].object,
+        player->slot.fighter->severed_limbs[0].instance);
+    if (limb != 0) {
+        ScreenObj* effect;
+
+        limb->gravity = -0.003f;
+        limb->flags_08_bits.moving = 1;
+        shake_camera(3, (MkHdr*)1, 0.01f);
+        effect = load_named_2d_pfxobj(
+            0x2001E, 0x2094, "ST_BLOODSPLAT", 0, 0x29);
+        if (effect != 0) {
+            effect->x = 0xA0;
+            effect->y = 0x5A;
+            effect->flags |= 8;
+            effect->scale_x = 2.0f;
+            effect->scale_y = 2.0f;
+            effect->flags |= 0x20;
+        }
+    }
+
+    _mkproc_sleep_ticks = 120.0f;
+    aproc->vtbl->sleep();
+    player->slot.fighter->facial_damage = saved_facial_damage;
 }
 
 int is_point_in_fortress_exclusion_zone(const Vec* point) {

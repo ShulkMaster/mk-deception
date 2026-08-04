@@ -90,7 +90,9 @@ typedef struct FighterMirror {
     MkObj* flag_obj; /* +0x470 - hide_flags @ +0x0A */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */
-    char pad47C[0x27C];
+    char pad47C[0x248];
+    float facial_damage; /* +0x6C4 */
+    char pad6C8[0x30];
     union {
         FighterAiTableContainer* ai_tables;
         FighterRuntimeData* runtime_data;

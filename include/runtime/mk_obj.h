@@ -18,7 +18,7 @@ typedef struct MkBoneFlags54 {
     unsigned char transform_parented : 1; /* bit7 */
     unsigned char pad_6_5 : 2;
     unsigned char calculation_locked : 1; /* bit4 */
-    unsigned char pad_3 : 1;
+    unsigned char field_bit3 : 1;
     unsigned char hierarchy_driven : 1; /* bit2 */
     unsigned char pad_1_0 : 2;
 } MkBoneFlags54;

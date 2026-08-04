@@ -187,6 +187,8 @@ extern int exec_tick_ctr;
 extern int g_delay_rnd;
 extern int g_ticks_delay;
 
+extern RwMatrix* RwMatrixInvert(RwMatrix* dst, const RwMatrix* src);
+
 void build_bones_tbl(MkObj* object, const int* tags);
 void update_bone_hierarchy(void* object);
 void* get_bone_with_tag(void* object, int tag);
@@ -1547,5 +1549,296 @@ void rope_controller_init(MkHdr* pdata, MkObj* model) {
         segment->field_3C = info->field_14;
         segment->inverse_length_scale = info->inverse_length_scale;
         segment->field_48 = info->field_08;
+    }
+}
+
+static inline void rope_update_bone_matrix(
+    MkBone* bone, const RwMatrix* model_matrix) {
+    RwMatrix* parent_matrix;
+
+    parent_matrix = bone->parent_matrix;
+    gxMat33x33(
+        (Mat33*)&bone->matrix, (const Mat33*)parent_matrix,
+        (const Mat33*)model_matrix);
+    gxMatV3MatAddV3(
+        &bone->matrix.pos_vec, &parent_matrix->pos_vec,
+        (const Mat33*)model_matrix, &model_matrix->pos_vec);
+}
+
+static inline void rope_set_identity(RwMatrix* matrix) {
+    matrix->right.x = 1.0f;
+    matrix->right.y = 0.0f;
+    matrix->right.z = 0.0f;
+    matrix->up.x = 0.0f;
+    matrix->up.y = 1.0f;
+    matrix->up.z = 0.0f;
+    matrix->at.x = 0.0f;
+    matrix->at.y = 0.0f;
+    matrix->at.z = 1.0f;
+    matrix->pos.x = 0.0f;
+    matrix->pos.y = 0.0f;
+    matrix->pos.z = 0.0f;
+    matrix->flags |= 0x20003;
+}
+
+static inline void rope_point_bone_at(
+    MkBone* bone, Vec* direction, RwMatrixPosition* axis,
+    Quat* quaternion,
+    RwMatrix* source, RwMatrix* rotation) {
+    PSVECNormalize(direction, direction);
+    *axis = *(RwMatrixPosition*)&bone->parent_matrix->up;
+    PSVECNormalize(&axis->value, &axis->value);
+    gxVectV3V3ToQuat(quaternion, &axis->value, direction);
+    gxQuatQuatToMat((Mat33*)rotation, quaternion);
+    *source = *bone->parent_matrix;
+    gxMat33x33(
+        (Mat33*)bone->parent_matrix, (const Mat33*)source,
+        (const Mat33*)rotation);
+}
+
+static inline RopeSegment* rope_next_segment(
+    RopeControllerData* rope, int index) {
+    index++;
+    if (index >= rope->segment_count) {
+        return 0;
+    }
+    return &rope->segments[index];
+}
+
+static inline RopeSegment* rope_previous_segment(
+    RopeControllerData* rope, int index) {
+    index--;
+    if (index < 0) {
+        return 0;
+    }
+    return &rope->segments[index];
+}
+
+/* Soft ceiling: rope_controller_update ~93.56% -- register allocation and
+ * matrix/vector load scheduling; retail algorithm, calls, and stack layout
+ * agree. */
+void rope_controller_update(MkHdr* pdata) {
+    MkObj* model;
+    RopeControllerData* rope;
+    RwMatrix inverse_model_matrix __attribute__((aligned(16)));
+    RwMatrix attached_matrix __attribute__((aligned(16)));
+    RwMatrix rotation __attribute__((aligned(16)));
+    RwMatrix source __attribute__((aligned(16)));
+    Vec acceleration __attribute__((aligned(16)));
+    Vec velocity_delta __attribute__((aligned(16)));
+    RwMatrixPosition constraint_axis __attribute__((aligned(16)));
+    Vec correction __attribute__((aligned(16)));
+    Vec local_position __attribute__((aligned(16)));
+    Vec attached_position __attribute__((aligned(16)));
+    Quat quaternion __attribute__((aligned(16)));
+    RwMatrixPosition axis __attribute__((aligned(16)));
+    Vec direction __attribute__((aligned(16)));
+    Vec midpoint __attribute__((aligned(16)));
+    int i;
+
+    rope = (RopeControllerData*)pdata;
+    model = rope->model;
+    if (model == 0) {
+        return;
+    }
+
+    RwMatrixInvert(&inverse_model_matrix, &model->frame->modelling);
+
+    for (i = 0; i < rope->segment_count; i++) {
+        RopeSegment* segment;
+        RopeSegment* next;
+        MkBone* bone;
+
+        segment = &rope->segments[i];
+        bone = segment->bone;
+        if (bone == 0) {
+            continue;
+        }
+
+        if (segment->mode == 1) {
+            if (bone->flags_54_bits.calculation_locked) {
+                rope_update_bone_matrix(bone, &model->frame->modelling);
+            }
+            continue;
+        }
+
+        if (bone->transform_parent == 0) {
+            continue;
+        }
+
+        if (segment->mode == 2) {
+            acceleration.x = 0.0f;
+            acceleration.y = -segment->field_38 * segment->damping;
+            acceleration.z = 0.0f;
+            PSVECAdd(&acceleration, &segment->offset, &acceleration);
+
+            next = rope_next_segment(rope, i);
+            if (next != 0) {
+                PSVECSubtract(&acceleration, &next->offset, &acceleration);
+            }
+
+            PSVECScale(
+                &acceleration, &velocity_delta,
+                update_seconds_per_frame * game_speed / segment->field_38);
+            PSVECAdd(&segment->span, &segment->velocity, &segment->span);
+            PSVECAdd(
+                &segment->velocity, &velocity_delta, &segment->velocity);
+
+            if (segment->field_48 <= 0.0f) {
+                float span_length;
+                float maximum_length;
+
+                span_length = PSVECMag(&segment->span);
+                maximum_length =
+                    segment->length_scale + segment->field_48;
+                if (span_length > maximum_length) {
+                    PSVECScale(
+                        &segment->span, &segment->span,
+                        (rope->damping *
+                             (span_length - maximum_length) +
+                         maximum_length) /
+                            span_length);
+                    constraint_axis =
+                        *(RwMatrixPosition*)&segment->span;
+                    PSVECNormalize(
+                        &constraint_axis.value, &constraint_axis.value);
+                    PSVECScale(
+                        &constraint_axis.value, &correction,
+                        -PSVECDotProduct(
+                            &constraint_axis.value, &segment->velocity));
+                    PSVECAdd(
+                        &segment->velocity, &correction,
+                        &segment->velocity);
+                }
+            }
+
+            segment->velocity.x *= segment->field_3C;
+            segment->velocity.y *= segment->field_3C;
+            segment->velocity.z *= segment->field_3C;
+        }
+
+        bone->parent_matrix->pos.x =
+            bone->transform_parent->parent_matrix->pos.x + segment->span.x;
+        bone->parent_matrix->pos.y =
+            bone->transform_parent->parent_matrix->pos.y + segment->span.y;
+        bone->parent_matrix->pos.z =
+            bone->transform_parent->parent_matrix->pos.z + segment->span.z;
+    }
+
+    for (i = 0; i < rope->segment_count; i++) {
+        RopeSegment* segment;
+        MkBone* bone;
+
+        segment = &rope->segments[i];
+        bone = segment->bone;
+        if (bone == 0) {
+            continue;
+        }
+
+        if (segment->mode == 3 && rope->attached_model != 0) {
+            MkBone* attached_bone;
+            RwMatrix* attached_model_matrix;
+
+            segment->velocity.x = 0.0f;
+            segment->velocity.y = 0.0f;
+            segment->velocity.z = 0.0f;
+            attached_bone =
+                rope->attached_model->bones[rope->attached_object_id];
+            if (attached_bone->flags_54_bits.calculation_locked) {
+                attached_matrix = attached_bone->matrix;
+            } else {
+                attached_model_matrix =
+                    &rope->attached_model->frame->modelling;
+                gxMat33x33(
+                    (Mat33*)&attached_matrix,
+                    (const Mat33*)attached_bone->parent_matrix,
+                    (const Mat33*)attached_model_matrix);
+                gxMatV3MatAddV3(
+                    &attached_matrix.pos_vec,
+                    &attached_bone->parent_matrix->pos_vec,
+                    (const Mat33*)attached_model_matrix,
+                    &attached_model_matrix->pos_vec);
+            }
+            attached_position.x = attached_matrix.pos.x;
+            attached_position.y = attached_matrix.pos.y;
+            attached_position.z = attached_matrix.pos.z;
+            gxMat33Tx31(
+                &local_position, &attached_position,
+                (const Mat33*)&inverse_model_matrix);
+            local_position.x += model->pos.x;
+            local_position.y += model->pos.y;
+            local_position.z += model->pos.z;
+            bone->parent_matrix->pos.x = local_position.x;
+            bone->parent_matrix->pos.y = local_position.y;
+            bone->parent_matrix->pos.z = local_position.z;
+
+            if (bone->transform_parent != 0) {
+                segment->span.x =
+                    bone->parent_matrix->pos.x -
+                    bone->transform_parent->parent_matrix->pos.x;
+                segment->span.y =
+                    bone->parent_matrix->pos.y -
+                    bone->transform_parent->parent_matrix->pos.y;
+                segment->span.z =
+                    bone->parent_matrix->pos.z -
+                    bone->transform_parent->parent_matrix->pos.z;
+            }
+        }
+
+        if (bone->flags_54_bits.calculation_locked) {
+            rope_update_bone_matrix(bone, &model->frame->modelling);
+        }
+    }
+
+    for (i = 0; i < rope->segment_count; i++) {
+        RopeSegment* segment;
+        RopeSegment* previous;
+        RopeSegment* next;
+        MkBone* bone;
+
+        segment = &rope->segments[i];
+        bone = segment->bone;
+        if (bone == 0) {
+            continue;
+        }
+
+        if (bone->transform_parent != 0) {
+            float span_length;
+
+            span_length = PSVECMag(&segment->span);
+            if (span_length != 0.0f) {
+                PSVECScale(
+                    &segment->span, &segment->offset,
+                    -((span_length - segment->length_scale) *
+                      segment->inverse_length_scale) /
+                        span_length);
+            }
+        }
+
+        previous = rope_previous_segment(rope, i);
+        if (previous != 0) {
+            rope_set_identity(&source);
+            rope_set_identity(&rotation);
+            PSVECScale(&segment->span, &direction, -1.0f);
+            rope_point_bone_at(
+                bone, &direction, &axis, &quaternion, &source,
+                &rotation);
+        } else if (segment->mode == 1) {
+            next = rope_next_segment(rope, i);
+            if (next != 0) {
+                PSVECAdd(&segment->span, &next->span, &midpoint);
+                PSVECScale(&midpoint, &midpoint, 0.5f);
+                rope_set_identity(&source);
+                rope_set_identity(&rotation);
+                PSVECSubtract(&segment->span, &midpoint, &direction);
+                rope_point_bone_at(
+                    bone, &direction, &axis, &quaternion, &source,
+                    &rotation);
+            }
+        }
+
+        if (bone->flags_54_bits.calculation_locked) {
+            rope_update_bone_matrix(bone, &model->frame->modelling);
+        }
     }
 }

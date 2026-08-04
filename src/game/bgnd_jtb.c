@@ -432,11 +432,14 @@ static void nb_npc_slave_hit_by_plyr(int npc_id);
 int nb_npc_hurt_player(
     NbNpcHitState* hit, unsigned int player_index, float impact);
 
+/*
+ * Soft ceiling: 88.52% -- all calls/branches and the XZ basis algorithm agree;
+ * remaining differences are aggregate stack layout and FPR/store scheduling.
+ */
 void nb_npc_slave_plyr_process_collision(int npc_id) {
-    NbNpcState* npc = bgnd_fetch_npc(npc_id);
-    MkObj* object = npc->object;
+    NbNpcState* npc;
     Vec facing;
-    Vec side;
+    Vec side = {0.0f, 0.0f, 0.0f};
     float player_index;
     float speed;
     float separation;
@@ -444,14 +447,18 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     float alignment;
     float old_x;
     float old_z;
+    float momentum_x;
+    float momentum_y;
+    float momentum_z;
     int attack_flags;
     int play_impact_sound;
 
+    npc = bgnd_fetch_npc(npc_id);
     spad_set_vector(0, 0x1A);
     player_index = spad_get_pos(0, 0);
     spad_set_vector(0, 0x15);
     spad_set_vector_setting(
-        1, object->pos.x, object->pos.y, object->pos.z);
+        1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
     spad_sub_vectors(0, 1, 0);
     if (spad_get_pos(0, 1) > 1.8f) {
         return;
@@ -465,25 +472,27 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
         return;
     }
 
+    momentum_y = npc->momentum.y;
+    momentum_x = npc->momentum.x;
+    momentum_z = npc->momentum.z;
     speed = nb_sqrt(
-        npc->momentum.x * npc->momentum.x +
-        npc->momentum.y * npc->momentum.y +
-        npc->momentum.z * npc->momentum.z);
+        momentum_z * momentum_z +
+        (momentum_x * momentum_x + momentum_y * momentum_y));
     spad_set_vector(0, 0x1C);
     attack_flags = (int)spad_get_pos(0, 0);
 
     if (speed < 0.03f) {
         spad_set_vector(0, 0x15);
         spad_set_vector_setting(
-            1, object->pos.x, object->pos.y, object->pos.z);
+            1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
         spad_sub_vectors(2, 1, 0);
         separation = spad_xz_length_vector(2);
         spad_norm_vector(2);
         if (separation < 0.35f) {
             spad_scale_vector(3, 2, -(0.45f - separation));
             spad_sub_vectors(1, 1, 3);
-            object->pos.x = spad_get_pos(1, 0);
-            object->pos.z = spad_get_pos(1, 2);
+            npc->object->pos.x = spad_get_pos(1, 0);
+            npc->object->pos.z = spad_get_pos(1, 2);
         }
         if (npc->swing_angle != 0.0f || randu0(100) < 80) {
             npc->swing_angle = 0.035f + frand(0.03f);
@@ -497,14 +506,16 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
         facing.y = 0.0f;
         facing.z = spad_get_pos(0, 2);
         rotate_xz(&facing, &facing, 0.5235988f);
-        npc->momentum = facing;
+        npc->momentum.x = facing.x;
+        npc->momentum.y = facing.y;
+        npc->momentum.z = facing.z;
         bgnd_collision_if_enable_col(5, npc_id + 0x12C);
         return;
     }
 
     spad_set_vector(0, 0x15);
     spad_set_vector_setting(
-        1, object->pos.x, object->pos.y, object->pos.z);
+        1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
     spad_sub_vectors(0, 0, 1);
     spad_set_vector_y(0, 0.0f);
     spad_norm_vector(0);
@@ -514,7 +525,7 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     if (spad_xz_dot_xz(0, 1) < -0.1f) {
         spad_set_vector(0, 0x15);
         spad_set_vector_setting(
-            1, object->pos.x, object->pos.y, object->pos.z);
+            1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
         spad_sub_vectors(2, 1, 0);
         if (spad_xz_length_vector(2) < 0.35f) {
             npc->momentum.x *= 1.1f;
@@ -544,7 +555,7 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
             }
         }
     }
-    if (play_impact_sound != 0 &&
+    if (play_impact_sound == 1 &&
         last_slave_hit_sound_time < exec_tick_ctr && speed > 0.06f) {
         last_slave_hit_sound_time = exec_tick_ctr + 30;
         random_hit(1);
@@ -553,23 +564,31 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     spad_set_vector(0, 0x1E);
     uv_from_angle_y(&facing, spad_get_pos(0, 1));
     side.x = facing.z;
-    side.y = 0.0f;
     side.z = -facing.x;
     spad_set_vector(0, 0x15);
     spad_set_vector_setting(
-        1, object->pos.x, object->pos.y, object->pos.z);
+        1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
     spad_sub_vectors(0, 0, 1);
     spad_set_vector_setting(1, facing.x, facing.y, facing.z);
     alignment = spad_xz_dot_xz(0, 1);
     if (alignment > -0.4f && alignment < 0.4f) {
-        if (side.x * object->pos.x + side.z * object->pos.z < 0.0f) {
+        if (side.x * npc->object->pos.x +
+                side.z * npc->object->pos.z <
+            0.0f) {
             side.x = -side.x;
             side.z = -side.z;
         }
         {
-            Vec swap = facing;
-            facing = side;
-            side = swap;
+            float swap_x = facing.x;
+            float swap_y = facing.y;
+            float swap_z = facing.z;
+
+            facing.x = side.x;
+            facing.y = side.y;
+            facing.z = side.z;
+            side.x = swap_x;
+            side.y = swap_y;
+            side.z = swap_z;
         }
     } else if (alignment < 0.0f) {
         facing.x = -facing.x;
@@ -583,30 +602,45 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     npc->momentum.z = old_x * side.x + old_z * side.z;
     old_x = npc->momentum.x;
     old_z = npc->momentum.z;
-    npc->momentum.x =
-        old_x * facing.x + old_z * side.x;
-    npc->momentum.z =
-        old_x * facing.z + old_z * side.z;
+    {
+        static const Vec x_axis = {1.0f, 0.0f, 0.0f};
+        static const Vec z_axis = {0.0f, 0.0f, 1.0f};
+        Vec local_x = x_axis;
+        Vec local_z = z_axis;
+        float facing_x =
+            local_x.x * facing.x + local_x.z * facing.z;
+        float facing_z =
+            local_z.x * facing.x + local_z.z * facing.z;
+        float side_x = local_x.x * side.x + local_x.z * side.z;
+        float side_z = local_z.x * side.x + local_z.z * side.z;
+
+        npc->momentum.x = old_x * facing_x + old_z * side_x;
+        npc->momentum.z = old_x * facing_z + old_z * side_z;
+    }
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
+/* Soft ceiling: 93.70% -- weighted-vector FPR scheduling and NV coloring. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     NbNpcState* npc;
+    Vec target = {0.0f, 0.0f, 0.0f};
     Vec delta;
     float player_side;
     float previous_hit;
     float force;
     float inverse_length;
     float inverse_mass;
-    float target_x;
-    float target_y;
-    float target_z;
     float old_x;
     float old_y;
     float old_z;
     float new_x;
     float new_y;
     float new_z;
+    float target_weight;
+    float correction_weight;
+    float weighted_old;
+    float weighted_target;
+    float correction;
     int collision_id;
     int hit_id;
     int player_index;
@@ -656,22 +690,23 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
 
         inverse_length = nb_fast_inverse_sqrt(
             delta.x * delta.x + delta.z * delta.z);
-        target_x = delta.x * inverse_length * force;
-        target_y = 0.0f;
-        target_z = delta.z * inverse_length * force;
+        target.x = delta.x * inverse_length * force;
+        target.z = delta.z * inverse_length * force;
         inverse_mass = 1.0f / (npc->acceleration_divisor + 1.0f);
-        new_x =
-            (old_x * npc->acceleration_divisor + target_x +
-             (target_x - old_x) * 0.9f) *
-            inverse_mass;
-        new_y =
-            (old_y * npc->acceleration_divisor + target_y +
-             (target_y - old_y) * 0.9f) *
-            inverse_mass;
-        new_z =
-            (old_z * npc->acceleration_divisor + target_z +
-             (target_z - old_z) * 0.9f) *
-            inverse_mass;
+        target_weight = 1.0f;
+        correction_weight = 0.9f;
+        weighted_old = old_x * npc->acceleration_divisor;
+        weighted_target = target.x * target_weight;
+        correction = (target.x - old_x) * correction_weight;
+        new_x = (weighted_old + weighted_target + correction) * inverse_mass;
+        weighted_old = old_y * npc->acceleration_divisor;
+        weighted_target = target.y * target_weight;
+        correction = (target.y - old_y) * correction_weight;
+        new_y = (weighted_old + weighted_target + correction) * inverse_mass;
+        weighted_old = old_z * npc->acceleration_divisor;
+        weighted_target = target.z * target_weight;
+        correction = (target.z - old_z) * correction_weight;
+        new_z = (weighted_old + weighted_target + correction) * inverse_mass;
 
         if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
             new_x *= 0.205f;
@@ -791,10 +826,15 @@ int nb_npc_hurt_player(
     return 0;
 }
 
+/*
+ * Soft ceiling: 76.49% -- the full rope simulation and call sequence agree;
+ * remaining differences are inlined Vec scratch lifetimes and FPR scheduling.
+ */
 float p_npc_on_pendulum_rope(void) {
-    static const Vec world_up = {0.0f, 1.0f, 0.0f};
+    static const Vec world_up_init = {0.0f, 1.0f, 0.0f};
+    MkObj* object;
     NbNpcState* npc = ((NbNpcProcPdata*)apdata)->npc;
-    MkObj* object = npc->object;
+    Vec world_up;
     Vec displacement;
     Vec normal;
     Vec acceleration;
@@ -807,6 +847,8 @@ float p_npc_on_pendulum_rope(void) {
     float angle;
     float response;
 
+    object = npc->object;
+    world_up = world_up_init;
     npc->momentum.x = 0.0f;
     npc->momentum.y = 0.0f;
     npc->momentum.z = 0.0f;
@@ -841,7 +883,13 @@ float p_npc_on_pendulum_rope(void) {
                     npc->active &= ~1;
                 }
             }
-            npc->momentum.y -= npc->acceleration_scale;
+            acceleration.x = 0.0f;
+            acceleration.y = 0.0f;
+            acceleration.z = 0.0f;
+            acceleration.y = -npc->acceleration_scale;
+            npc->momentum.x += acceleration.x;
+            npc->momentum.y += acceleration.y;
+            npc->momentum.z += acceleration.z;
         } else {
             if (distance > npc->rope_length + 0.002f ||
                 distance < npc->rope_length - 0.002f) {
@@ -857,6 +905,9 @@ float p_npc_on_pendulum_rope(void) {
                 object->pos.z = npc->anchor.z + displacement.z;
             }
 
+            acceleration.x = 0.0f;
+            acceleration.y = 0.0f;
+            acceleration.z = 0.0f;
             inverse_length = nb_fast_inverse_sqrt(
                 displacement.x * displacement.x +
                 displacement.y * displacement.y +

@@ -96,6 +96,8 @@ typedef struct PlyrMirrorSlots {
 typedef struct PlyrWeaponStyle {
     char pad00[0x0C];
     PlyrMirrorSlots mirror_slots; /* +0x0C */
+    char pad6C[0x30];
+    MkPtr* object_list; /* +0x9C - owns style weapon/reflection objects */
 } PlyrWeaponStyle;
 
 typedef struct PlyrPdata {
@@ -243,11 +245,13 @@ typedef struct PlyrPdata {
     MkObj* shadowbox; /* +0x470 */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */
-    char pad47C[0x10];
+    unsigned char large_blood_spawn_state[0x10]; /* +0x47C */
     void* blood_model_data; /* +0x48C - enables per-player blood emitters */
     char pad490[0x1C];
     unsigned char left_blood_spawn_state[0x8C];  /* +0x4AC */
-    unsigned char right_blood_spawn_state[0x78]; /* +0x538 */
+    unsigned char right_blood_spawn_state[0x70]; /* +0x538 */
+    unsigned int next_large_bleed_tick; /* +0x5A8 */
+    char pad5AC[4];
     int duck_reaction_active; /* +0x5B0 */
     char pad5B4[0x38];
     unsigned int saved_anim_script_word; /* +0x5EC */
