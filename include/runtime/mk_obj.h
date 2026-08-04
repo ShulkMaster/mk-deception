@@ -223,6 +223,12 @@ typedef struct MkObjFlags08 {
     unsigned char moving : 1;          /* bit0 */
 } MkObjFlags08;
 
+typedef struct MkObjFlags0B {
+    unsigned char pad_high : 6;
+    unsigned char special_texture : 1; /* bit1 */
+    unsigned char pad_low : 1;
+} MkObjFlags0B;
+
 typedef struct MkObjHideFlags {
     unsigned char still_move : 1; /* bit7 */
     unsigned char bit6 : 1;
@@ -268,7 +274,10 @@ typedef struct MkObj {
                 unsigned char hide_flags;
                 MkObjHideFlags hide_flag_bits;
             }; /* +0x0A */
-            unsigned char flags_0B; /* +0x0B */
+            union {
+                unsigned char flags_0B;
+                MkObjFlags0B flags_0B_bits;
+            }; /* +0x0B */
         };
     };
     union {

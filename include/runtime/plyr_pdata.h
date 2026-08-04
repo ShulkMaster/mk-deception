@@ -46,9 +46,12 @@ typedef struct PlyrFighterDefinition {
     char pad80[8];
     AniData* walk_forward_loop; /* +0x88 */
     AniData* walk_backward_loop; /* +0x8C */
-    char pad90[0x1C];
+    char pad90[8];
+    AniData* weapon_block_animation; /* +0x98 */
+    char pad9C[0x10];
     AniData* duck_block_animation; /* +0xAC */
-    char padB0[0x14];
+    AniData* weapon_block_reaction; /* +0xB0 */
+    char padB4[0x10];
     AniData* duck_animation; /* +0xC4 */
     char padC8[0x2C];
     AniData* spear_throw_start; /* +0xF4 */
@@ -262,7 +265,9 @@ typedef struct PlyrPdata {
     AniData* screen_taunt_animation; /* +0x37C */
     char pad380[4];
     AniData* goro_fold_animation; /* +0x384 - fatality arm-fold script */
-    char pad388[0xE8];
+    char pad388[4];
+    AniData* ice_reaction_animation; /* +0x38C */
+    char pad390[0xE0];
     MkObj* shadowbox; /* +0x470 */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */

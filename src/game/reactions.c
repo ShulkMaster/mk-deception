@@ -14,6 +14,8 @@
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
+#include "math/gxMath.h"
+#include "platform/main.h"
 
 extern MkObj* his_obj;
 extern MkObj* plyr_obj;
@@ -50,9 +52,11 @@ typedef struct ReactionCurrentPdata {
     unsigned int reaction_index;
 } ReactionCurrentPdata;
 
+typedef float (*ReactionEntry)(void);
+
 typedef struct ReactionXferAddress {
-    int reaction;
-    int script;
+    int call_type;
+    ReactionEntry entry;
     int power_level;
     int state;
     int flags;
@@ -83,11 +87,15 @@ typedef struct ReactionSharedAnimations {
     int swept_reverse;           /* +0x140 */
     int swept_out;               /* +0x144 */
     char pad148[0x0C];
-    void* falling_back;          /* +0x154 */
+    union {
+        void* falling_back;
+        int falling_back_id;
+    };                           /* +0x154 */
     void* side_head_spin;        /* +0x158 */
     char pad15C[0x0C];
     void* side_head_dive;        /* +0x168 */
-    char pad16C[0x0C];
+    void* airborn_small_lift;    /* +0x16C */
+    char pad170[8];
     void* top_of_head_slam;      /* +0x178 */
     void* head_slam_fall;        /* +0x17C */
     char pad180[0x24];
@@ -95,13 +103,31 @@ typedef struct ReactionSharedAnimations {
     char pad1A8[0x0C];
     void* jump_chin;             /* +0x1B4 */
     void* jump_slambounce;       /* +0x1B8 */
-    char pad1BC[0x5C];
+    char pad1BC[8];
+    void* ermac_slam;            /* +0x1C4 */
+    char pad1C8[8];
+    void* cyrax_blade;           /* +0x1D0 */
+    void* combo_broken_launch;   /* +0x1D4 */
+    char pad1D8[0x10];
+    void* combo_broken_recover;  /* +0x1E8 */
+    char pad1EC[0x2C];
     int post_surf_getup;         /* +0x218 */
     char pad21C[0x0C];
     int throw_getup;             /* +0x228 */
     char pad22C[0x60];
     void* throw_fall;            /* +0x28C */
-    char pad290[0x60];
+    char pad290[0x1C];
+    void* standing_block_a;      /* +0x2AC */
+    char pad2B0[8];
+    void* standing_block_b;      /* +0x2B8 */
+    char pad2BC[0x0C];
+    void* standing_block_c;      /* +0x2C8 */
+    char pad2CC[8];
+    void* standing_block_d;      /* +0x2D4 */
+    char pad2D8[0x0C];
+    void* duck_block;            /* +0x2E4 */
+    void* standing_weapon_block; /* +0x2E8 */
+    char pad2EC[4];
     void* counter_caught;        /* +0x2F0 */
     char pad2F4[0x1C];
     void* counter_caught_6;      /* +0x310 */
@@ -153,6 +179,29 @@ typedef struct ReactionImageSource {
     MkObj* object;
 } ReactionImageSource;
 
+typedef struct ReactionTransferPdata {
+    MkHdr hdr;
+    MkProc* opponent_proc;
+    unsigned int opponent_proc_instance;
+    PlyrPdata* opponent_pdata;
+    MkObj* opponent_obj;
+} ReactionTransferPdata;
+
+typedef struct ReactionFighterDefinitionDispatchView {
+    char pad000[0x1A8];
+    void* weapon_rest_animation;
+} ReactionFighterDefinitionDispatchView;
+
+typedef struct ReactionPdataRepelView {
+    char pad000[0x71C];
+    int bgnd_repel_id;
+} ReactionPdataRepelView;
+
+typedef struct ReactionPlyrInfoCombatView {
+    char pad00[0x1C];
+    unsigned char combat_flags;
+} ReactionPlyrInfoCombatView;
+
 typedef struct ReactionBladeTransform {
     char pad000[0x60];
     Vec position;
@@ -178,8 +227,6 @@ static LoadableReactionScript g_loadable_reaction_scripts[8] = {
     {5, 0, 0, 0, 0}, {5, 0, 0, 0, 0},
 };
 
-extern const ReactionXferAddress tbl_xfer_addresses[];
-
 unsigned int fx_by_owner(const char* name, int owner);
 unsigned int fx_next_emitter(unsigned int effect);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
@@ -192,7 +239,7 @@ void random_voice(int group);
 void blend_to_ani(void* animation, int transition, float blend);
 void ani_to_end(void);
 float j_blend_to_stance_in_x(void);
-void reaction_xfer_him(int reaction, float rate, int strength);
+int reaction_xfer_him(int reaction, float rate, int strength);
 void stop_me(void);
 void init_ground_move(void);
 void blocked_fx(int type, int bone, int third, int fourth, int fifth);
@@ -204,6 +251,9 @@ void got_hit_fx(
     float value);
 void random_hit(int group);
 float j_block_common_reaction(void);
+float j_block_loop(void);
+float j_duck_block_loop(void);
+float x_block(void);
 float chest_stumble_both(void);
 float j_exit(void);
 float j_blend_to_fstance_in_x(void);
@@ -232,7 +282,50 @@ void head_tracking_on(void);
 void init_air_move(void);
 void p_blend_to_stance_in_10(void);
 float p_animate(void);
-float r_complete_ermac_slam(void);
+float p_anim_idle(void);
+float p_sh_throw_plyr_in_grinder(void);
+float r_beetle_lair_transition(void);
+int is_big_boss();
+int big_boss_reaction_remap();
+float drone_ai_get_big_boss_damage_scale();
+int is_plyr_airborn();
+void swap_active_plyr_proc();
+void become_plyr1_proc();
+void become_plyr2_proc();
+void snd_stop();
+void scale_me_normal();
+void release_other_player();
+void xfer_player_proc();
+void xfer_player_proc_to_script();
+void init_ground_move_no_aniproc();
+void init_3d_move_no_aniproc();
+int check_damage_valid_fc();
+float trial_damage_callback();
+int drone_ai_check_block_at_reactions();
+void drone_ai_hit();
+void drone_ai_reset_ai_cmd();
+int drone_ai_check_combo_breaker();
+void bgnd_clear_danger_zone_callback();
+void bgnd_rx_notify();
+void enable_bgnd_obj_repel();
+void exit_plyr_proc();
+int my_joypad_state_5(void);
+int check_switch();
+void stop_prison_grab_proc(void);
+void p_glitch_to_stance(void);
+void p_animate_weapon_rest(void);
+CmdScript* get_cmdscript_for_proc(MkProc* proc);
+float r_call_script_function(void);
+float r_call_player_char_script_function(void);
+float r_call_other_player_char_script_function(void);
+void run_reaction_cleanup_function(PlyrPdata* player);
+void plyr_spawn_anim(void* animation);
+
+extern int f_fatality_was_done;
+extern int g_drone_blocking_in_reaction;
+extern int g_drone_faked_out;
+extern unsigned long mode_of_play;
+static float r_complete_ermac_slam(void);
 float r_face3_onback(void);
 void set_ani_speed(float speed);
 void set_anim_hiframe(float frame);
@@ -242,6 +335,7 @@ void special_move_cam_setup(
 void update_bone_hierarchy(MkHdr* object);
 void ground_me(MkHdr* object);
 void wall_eligible_on(void);
+void wall_eligible_off(void);
 void blend_to_ani_frame(
     int animation, int transition, float blend, float frame);
 float j_getup_back_6(void);
@@ -284,10 +378,20 @@ void blend_to_ani_INOUT(
     int in_animation, int out_animation, float blend_rate,
     float in_speed, float out_speed);
 void disable_blocking(void);
+void enable_all_my_blocking(void);
+int am_i_blocking(void);
+int am_i_duck_blocking(void);
+int should_i_weapon_block(void);
+int get_his_attack_counter(void);
+int am_i_airborn_check_in_reaction(void);
+int local_collision_allowed(PlyrPdata* player);
+void destroy_subzero_decoy(void);
 void ejb_call(int command);
 float fpick_a_float(float normal, float flipped_value);
 int is_he_airborn(void);
 void launch_me_up(float vertical_velocity, float gravity);
+void myvel_my_angle_y(float angle, float x_velocity, float z_velocity);
+void bulvan_function(int enabled);
 void myvel_his_angle_y_inout(float y, float x, float z);
 int my_joypad_state_5(void);
 void* start_blood_particles_scripts(int script, int bone);
@@ -307,6 +411,59 @@ void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* position);
 void camera_get_screen_pos_from_world_pos(
     const Vec* world, Vec* screen);
+
+#include "src/game/reactions_table_prototypes.inc"
+#include "src/game/reactions_table.inc"
+
+void run_reaction_cleanup_function(PlyrPdata* player) {
+    ReactionStatusFlagsView* status;
+    CmdScript* saved_script;
+    PlyrPdata* saved_player;
+    PlyrPdata* saved_opponent;
+    MkObj* saved_object;
+    MkObj* saved_opponent_object;
+    MkObj* object;
+    MkObj* opponent_object;
+
+    if (player == 0) {
+        return;
+    }
+    status = (ReactionStatusFlagsView*)player->status_flags;
+    if (status->cleanup_function == 0) {
+        return;
+    }
+    saved_player = plyr_pdata;
+    saved_opponent = his_pdata;
+    plyr_pdata = player;
+    saved_object = plyr_obj;
+    saved_opponent_object = his_obj;
+    his_pdata = player->his_plyr_pdata;
+    object = player->tracked_obj;
+    if (object != 0 &&
+        object->hdr.instance != player->tracked_obj_instance) {
+        object = 0;
+    }
+    plyr_obj = object;
+    opponent_object = his_pdata->tracked_obj;
+    if (opponent_object != 0 &&
+        opponent_object->hdr.instance != his_pdata->tracked_obj_instance) {
+        opponent_object = 0;
+    }
+    his_obj = opponent_object;
+    if (object == 0 || opponent_object == 0) {
+        return;
+    }
+    saved_script = active_cmdscript;
+    active_cmdscript = &global_script_interpreter;
+    cmdscript_set_parameters(&global_script_interpreter, 1, player);
+    cmdscript_setup_execution(player->cmo, status->cleanup_function);
+    cmdscript_execute(player->cmo);
+    active_cmdscript = saved_script;
+    plyr_pdata = saved_player;
+    his_pdata = saved_opponent;
+    plyr_obj = saved_object;
+    his_obj = saved_opponent_object;
+}
 
 ScreenObj* display_image_by_plyr(
     int slot, const char* image_name,
@@ -522,6 +679,521 @@ void load_script_as_reaction(unsigned int slot, int script) {
     if (slot <= 7U) {
         g_loadable_reaction_scripts[slot].script = script;
     }
+}
+
+int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
+    ReactionTransferPdata* transfer;
+    ReactionDamagePdata* boost_source;
+    ReactionFighterDefinitionDispatchView* fighter;
+    ReactionXferAddress dispatch;
+    LoadableReactionScript* loadable;
+    ReactionStatusFlagsView* cleanup_status;
+    CmdScript* cmdscript;
+    CmdScript* saved_cmdscript;
+    MkProc* opponent_proc;
+    MkProc* hold_proc;
+    PlyrPdata* victim;
+    PlyrPdata* saved_player;
+    PlyrPdata* saved_opponent;
+    MkObj* victim_obj;
+    MkObj* saved_object;
+    MkObj* saved_opponent_object;
+    MkObj* cleanup_object;
+    MkObj* cleanup_opponent_object;
+    int original_state;
+    int original_previous_state;
+    int state_for_bgnd;
+    int reaction_state;
+    int original_reaction;
+    int dispatch_reaction;
+    int reaction_flags;
+    int blocked;
+    int face_after;
+    int face_reaction;
+    int force_air;
+    int big_boss;
+    int both_special;
+    int input_state;
+    float applied_damage;
+    float damage;
+
+    original_reaction = reaction;
+    reaction_state = tbl_xfer_addresses[reaction].state;
+    dispatch_reaction = reaction;
+    face_after = 1;
+    face_reaction = 0;
+    force_air = 0;
+    if ((g_game_info.flags & 0x18) != 0 || f_fatality_was_done != 0) {
+        return 0;
+    }
+
+    transfer = (ReactionTransferPdata*)apdata;
+    opponent_proc = transfer->opponent_proc;
+    if (opponent_proc != 0 &&
+        opponent_proc->hdr.instance != transfer->opponent_proc_instance) {
+        opponent_proc = 0;
+    }
+    victim_obj = transfer->opponent_obj;
+    victim = transfer->opponent_pdata;
+    cmdscript = get_cmdscript_for_proc(opponent_proc);
+
+    big_boss = is_big_boss(victim);
+    if (big_boss != 0) {
+        dispatch_reaction = big_boss_reaction_remap(dispatch_reaction);
+        if (victim_obj == g_game_info.player_objects[0] &&
+            g_game_info.plyr1.slot.pdata->secondary_state & 0x100) {
+            if (damage_scale > 0.06f) {
+                damage_scale *= 0.15f;
+            }
+        } else if (victim_obj == g_game_info.player_objects[1] &&
+                   g_game_info.plyr0.slot.pdata->secondary_state & 0x100) {
+            if (damage_scale > 0.06f) {
+                damage_scale *= 0.15f;
+            }
+        } else if (victim->drone_request != 0) {
+            damage_scale *= drone_ai_get_big_boss_damage_scale(victim);
+        } else {
+            damage_scale *= 0.9f;
+        }
+    }
+
+    victim->hit_flash_enabled = 0;
+    victim->throw_restriction = 0;
+    victim_obj->flags_09_bits.tightrope_restricted = 1;
+    victim_obj->flags_09_bits.face_opponent = 0;
+    victim->block_requirement = block_type;
+    reaction_flags = tbl_xfer_addresses[dispatch_reaction].flags;
+    if (is_plyr_airborn(victim_obj, victim, 1, 0) == 1) {
+        if (victim_obj == g_game_info.player_objects[0]) {
+            if (victim->state & 0x400) {
+                g_game_info.plyr0.slot.pdata->reaction_hit_count++;
+            }
+            input_state = g_game_info.plyr0.slot.pdata->reaction_hit_count;
+        } else {
+            if (victim->state & 0x400) {
+                g_game_info.plyr1.slot.pdata->reaction_hit_count++;
+            }
+            input_state = g_game_info.plyr1.slot.pdata->reaction_hit_count;
+        }
+        if (input_state >= 4 && !(reaction_flags & 0x10)) {
+            force_air = 1;
+            dispatch_reaction = 0xF1;
+        } else if (!(reaction_flags & 0x10)) {
+            force_air = 1;
+            dispatch_reaction = 0xF1;
+        }
+    }
+
+    switch (aproc->pid) {
+    case 0x501D:
+    case 0x2026:
+    case 0x5019:
+        if (victim_obj == g_game_info.player_objects[1]) {
+            become_plyr2_proc();
+        } else {
+            become_plyr1_proc();
+        }
+        break;
+    case 0xB010:
+        break;
+    default:
+        swap_active_plyr_proc();
+        break;
+    }
+
+    if (plyr_pdata->scream_sound_handle != 0) {
+        snd_stop(plyr_pdata->scream_sound_handle);
+        plyr_pdata->scream_sound_handle = 0;
+    }
+    if (plyr_pdata != 0 &&
+        ((ReactionStatusFlagsView*)plyr_pdata->status_flags)
+            ->cleanup_function != 0) {
+        cleanup_status = (ReactionStatusFlagsView*)plyr_pdata->status_flags;
+        saved_player = plyr_pdata;
+        saved_opponent = his_pdata;
+        saved_object = plyr_obj;
+        saved_opponent_object = his_obj;
+        his_pdata = saved_player->his_plyr_pdata;
+        cleanup_object = saved_player->tracked_obj;
+        if (cleanup_object != 0 &&
+            cleanup_object->hdr.instance !=
+                saved_player->tracked_obj_instance) {
+            cleanup_object = 0;
+        }
+        plyr_obj = cleanup_object;
+        cleanup_opponent_object = his_pdata->tracked_obj;
+        if (cleanup_opponent_object != 0 &&
+            cleanup_opponent_object->hdr.instance !=
+                his_pdata->tracked_obj_instance) {
+            cleanup_opponent_object = 0;
+        }
+        his_obj = cleanup_opponent_object;
+        if (cleanup_object != 0 && cleanup_opponent_object != 0) {
+            saved_cmdscript = active_cmdscript;
+            active_cmdscript = &global_script_interpreter;
+            cmdscript_set_parameters(
+                &global_script_interpreter, 1, saved_player);
+            cmdscript_setup_execution(
+                saved_player->cmo, cleanup_status->cleanup_function);
+            cmdscript_execute(saved_player->cmo);
+            active_cmdscript = saved_cmdscript;
+            plyr_pdata = saved_player;
+            his_pdata = saved_opponent;
+            plyr_obj = saved_object;
+            his_obj = saved_opponent_object;
+        }
+    }
+    plyr_pdata->duck_reaction_active = 0;
+    plyr_pdata->his_plyr_pdata->duck_reaction_active = 0;
+    scale_me_normal(plyr_pdata->his_plyr_pdata);
+    fighter = (ReactionFighterDefinitionDispatchView*)
+        plyr_pdata->fighter_definition;
+    if (fighter->weapon_rest_animation != 0) {
+        plyr_spawn_anim(p_animate_weapon_rest);
+    }
+
+    original_previous_state = plyr_pdata->previous_state;
+    original_state = plyr_pdata->state;
+    plyr_obj->flags_09_bits.wall_restricted = 0;
+    hold_proc = plyr_pdata->hold_proc;
+    if (hold_proc != 0) {
+        if (hold_proc->hdr.instance != plyr_pdata->hold_proc_instance) {
+            hold_proc = 0;
+        }
+    } else {
+        hold_proc = 0;
+    }
+    if (hold_proc != 0) {
+        release_other_player();
+        if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
+            xfer_player_proc(g_game_info.plyr1.idle_proc, p_glitch_to_stance);
+        } else {
+            xfer_player_proc(g_game_info.plyr0.idle_proc, p_glitch_to_stance);
+        }
+    }
+    plyr_anim_pdata->flags |= 0x40;
+    plyr_anim_pdata->step = 1.0f;
+    if (plyr_obj == g_game_info.player_objects[0]) {
+        destroy_mkprocs_pid(0x1005);
+    }
+    if (plyr_obj == g_game_info.player_objects[1]) {
+        destroy_mkprocs_pid(0x1006);
+    }
+
+    blocked = 0;
+    state_for_bgnd = plyr_pdata->state;
+    if ((block_type == 0 || block_type == 7) &&
+        am_i_duck_blocking() == 0) {
+        blocked = am_i_blocking();
+    }
+    if (block_type == 1 || block_type == 8) {
+        blocked = am_i_duck_blocking();
+    }
+    if (block_type == 4) {
+        if (am_i_blocking() != 0) {
+            blocked = 1;
+        }
+        if (am_i_duck_blocking() != 0) {
+            blocked = 0;
+        }
+    }
+    if (block_type == 5) {
+        if (am_i_blocking() != 0) {
+            blocked = 1;
+        }
+        if (am_i_duck_blocking() != 0) {
+            blocked = 1;
+        }
+    }
+    if (block_type == 9 && am_i_blocking() != 0) {
+        blocked = 1;
+    }
+    if (plyr_pdata->drone_request != 0 && blocked == 0) {
+        g_drone_blocking_in_reaction = 0;
+        blocked = drone_ai_check_block_at_reactions();
+        if (blocked != 0 && block_type == 6) {
+            blocked = 0;
+        }
+        if (plyr_obj->pos_vel.y != 0.0f && plyr_obj->gravity != 0.0f) {
+            blocked = 0;
+        }
+        if (plyr_pdata->blocking_disabled != 0) {
+            blocked = 0;
+        }
+        if (plyr_pdata->blocking_disabled_2 != 0) {
+            blocked = 0;
+        }
+        if (plyr_pdata->blocking_disable_tick_1 >
+            (unsigned int)game_tick_ctr) {
+            blocked = 0;
+        }
+        if (plyr_pdata->blocking_disable_tick_2 >
+            (unsigned int)game_tick_ctr) {
+            blocked = 0;
+        }
+        if (plyr_pdata->state == 0x4203) {
+            blocked = 0;
+        }
+        if (plyr_pdata->state == 0x4200) {
+            blocked = 0;
+        }
+        if (am_i_airborn() != 0) {
+            blocked = 0;
+        }
+        if (g_drone_faked_out == 1) {
+            blocked = 0;
+        }
+        if (blocked == 1) {
+            face_after = 0;
+            face_opponent_now();
+            g_drone_blocking_in_reaction = 1;
+        }
+    }
+    if (block_type == 2) {
+        blocked = 0;
+    }
+    if (reaction_flags & 8) {
+        blocked = 0;
+    }
+    if (big_boss != 0) {
+        if (block_type == 6) {
+            blocked = 1;
+        }
+        if (plyr_pdata->state == 0x60D) {
+            blocked = 0;
+        }
+    }
+
+    if (blocked != 0) {
+        applied_damage = damage_scale * 0.1f;
+    } else {
+        applied_damage = damage_scale * plyr_pdata->damage_multiplier;
+    }
+    if (opponent_proc->pid == 0x1001) {
+        if (check_damage_valid_fc(0, applied_damage) != 0) {
+            applied_damage = 0.0f;
+        }
+        if (mode_of_play == 8) {
+            applied_damage =
+                trial_damage_callback(0, block_type, applied_damage);
+        }
+        boost_source =
+            (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
+        damage = applied_damage * 0.8f;
+        if (boost_source->damage_boost_until >
+            (unsigned int)game_tick_ctr) {
+            damage *= boost_source->damage_boost;
+        }
+        if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
+            damage *= 1.15f;
+        }
+        adjust_p1_life(-damage);
+        ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
+            ->accumulated_damage += damage;
+        if (g_game_info.plyr0.field_0C == 0.0f) {
+            blocked = 0;
+        }
+    } else {
+        if (check_damage_valid_fc(1, applied_damage) != 0) {
+            applied_damage = 0.0f;
+        }
+        if (mode_of_play == 8) {
+            applied_damage =
+                trial_damage_callback(1, block_type, applied_damage);
+        }
+        boost_source =
+            (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
+        damage = applied_damage * 0.8f;
+        if (boost_source->damage_boost_until >
+            (unsigned int)game_tick_ctr) {
+            damage *= boost_source->damage_boost;
+        }
+        if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
+            damage *= 1.15f;
+        }
+        adjust_p2_life(-damage);
+        ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
+            ->accumulated_damage += damage;
+        if (g_game_info.plyr1.field_0C == 0.0f) {
+            blocked = 0;
+        }
+    }
+    g_drone_faked_out = 0;
+    if (blocked == 0 && face_after == 0) {
+        face_after = 1;
+    }
+
+    if (blocked != 0) {
+        dispatch_reaction = 0xF1;
+        plyr_pdata->his_plyr_pdata->collision_result = 2;
+        if (tbl_xfer_addresses[original_reaction].power_level == 0) {
+            dispatch_reaction = 0xF2;
+        }
+        if (tbl_xfer_addresses[original_reaction].power_level == 3) {
+            dispatch_reaction = 0xF4;
+        }
+        if (tbl_xfer_addresses[original_reaction].power_level == 4 ||
+            tbl_xfer_addresses[original_reaction].power_level == 5) {
+            dispatch_reaction = 0xF5;
+        }
+        if (tbl_xfer_addresses[original_reaction].power_level == 0x64) {
+            dispatch_reaction = 0xF6;
+        }
+    } else {
+        plyr_pdata->hit_flash_enabled = plyr_pdata->blocking_disabled;
+        if (plyr_pdata->blocking_disable_tick_1 >
+            (unsigned int)game_tick_ctr) {
+            plyr_pdata->hit_flash_enabled = 1;
+        }
+        plyr_pdata->his_plyr_pdata->collision_result = 1;
+        if (reaction_state == 1) {
+            face_reaction = 1;
+            plyr_pdata->blocking_disabled_2 = 1;
+            plyr_pdata->blocking_disabled = 0;
+            victim_obj->flags_09_bits.face_opponent = 1;
+        }
+        if (reaction_state == 0) {
+            plyr_pdata->blocking_disabled = 0;
+            plyr_pdata->blocking_disabled_2 = 0;
+        }
+        if (reaction_state == 2) {
+            plyr_pdata->blocking_disabled = 0;
+            plyr_pdata->blocking_disabled_2 = 0;
+            plyr_pdata->blocking_disable_tick_1 = 0;
+            plyr_pdata->blocking_disable_tick_2 = 0;
+        }
+        plyr_pdata->hit_count++;
+        if ((((ReactionPlyrInfoCombatView*)plyr_pdata->plyr_info)
+                 ->combat_flags & 0x20) != 0 ||
+            plyr_pdata->combo_hit_count == 0) {
+            plyr_pdata->combo_hit_count++;
+        } else {
+            check_for_combo_message();
+            plyr_pdata->combo_hit_count++;
+        }
+        drone_ai_hit();
+        plyr_pdata->hit_streak++;
+        plyr_pdata->his_plyr_pdata->hit_streak = 0;
+    }
+
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    reaction_flags = tbl_xfer_addresses[original_reaction].flags;
+    if (force_air != 0 || (reaction_flags & 2)) {
+        init_air_move_no_aniproc();
+    } else {
+        if (reaction_flags & 1) {
+            init_ground_move_no_aniproc();
+        }
+        if (reaction_flags & 4) {
+            init_3d_move_no_aniproc();
+        }
+    }
+    both_special =
+        g_game_info.plyr0.slot.pdata->state == 0x4203 ||
+        g_game_info.plyr1.slot.pdata->state == 0x4203;
+    plyr_pdata->state = original_state;
+    plyr_pdata->previous_state = original_previous_state;
+    set_my_state(0x600);
+    if (aproc->pid == 0x5019 && force_air != 0) {
+        plyr_pdata->state |= 0x606;
+    }
+    if (plyr_pdata->state_flags.bits.frozen) {
+        unfreeze_player();
+    }
+    stop_prison_grab_proc();
+    if (plyr_pdata->drone_request != 0) {
+        drone_ai_reset_ai_cmd();
+    }
+    input_state = my_joypad_state_5();
+    if (((check_switch(plyr_pdata->controller_port, 1, plyr_pdata) != 0 &&
+          input_state == 3) ||
+         (plyr_pdata->drone_request != 0 &&
+          drone_ai_check_combo_breaker() != 0)) &&
+        g_game_info.flag_bits.lens_flare_enabled &&
+        (reaction_flags & 0x200)) {
+        if (victim->breaker_strength > 0) {
+            dispatch_reaction = 0x78;
+            victim->breaker_strength--;
+        }
+    }
+
+    if (aproc->pid == 0x1001 || aproc->pid == 0x1002) {
+        swap_active_plyr_proc();
+    } else {
+        exit_plyr_proc();
+    }
+
+    dispatch = tbl_xfer_addresses[dispatch_reaction];
+    if (opponent_proc != 0) {
+        if (face_reaction != 0 && plyr_obj != 0) {
+            face_opponent_now();
+        }
+        if ((unsigned int)state_for_bgnd == 0x4210U) {
+            enable_bgnd_obj_repel(
+                ((ReactionPdataRepelView*)victim)->bgnd_repel_id);
+        }
+        if (blocked != 0) {
+            bgnd_clear_danger_zone_callback(victim);
+        }
+        if (mode_of_play != 6) {
+            bgnd_rx_notify(
+                victim->plyr_info, dispatch_reaction,
+                tbl_xfer_addresses[dispatch_reaction].power_level,
+                tbl_xfer_addresses[dispatch_reaction].flags);
+        }
+        if (!(tbl_xfer_addresses[dispatch_reaction].flags & 0x100) ||
+            big_boss != 0) {
+            bgnd_clear_danger_zone_callback(victim);
+        }
+        if (block_type == 1) {
+            bgnd_clear_danger_zone_callback(victim);
+        }
+        if ((g_game_info.plyr0.field_0C == 0.0f ||
+             g_game_info.plyr1.field_0C == 0.0f) &&
+            !both_special) {
+            bgnd_clear_danger_zone_callback(victim);
+        }
+        if (victim->online_sync_index != -1) {
+            dispatch_reaction = victim->online_sync_index;
+            dispatch = tbl_xfer_addresses[dispatch_reaction];
+        }
+        if (dispatch_reaction >= 0xE6 && dispatch_reaction <= 0xED) {
+            loadable =
+                &g_loadable_reaction_scripts[dispatch_reaction - 0xE6];
+            dispatch.call_type = loadable->slot_count;
+            dispatch.entry = (ReactionEntry)loadable->script;
+        }
+        switch (dispatch.call_type) {
+        case 4:
+            cmdscript->unk28 = (unsigned int)dispatch.entry;
+            xfer_player_proc(opponent_proc, r_call_script_function);
+            break;
+        case 3:
+            if ((unsigned int)dispatch.entry == 0x39 &&
+                victim->character_id == 0x1B) {
+                cmdscript->unk28 = (unsigned int)dispatch.entry;
+                xfer_player_proc(
+                    opponent_proc, r_call_player_char_script_function);
+            } else {
+                cmdscript->unk28 = (unsigned int)dispatch.entry;
+                xfer_player_proc(
+                    opponent_proc, r_call_other_player_char_script_function);
+            }
+            break;
+        case 5:
+            xfer_player_proc_to_script(victim_obj, dispatch.entry);
+            break;
+        case 1:
+            xfer_player_proc(opponent_proc, dispatch.entry);
+            break;
+        case 2:
+            cmdscript->unk28 = (unsigned int)dispatch.entry;
+            xfer_player_proc(
+                opponent_proc, r_call_player_char_script_function);
+            break;
+        }
+    }
+    return face_after;
 }
 
 /* Soft ceiling: reaction_xfer_him_nohit ~99.71% -- pool-label noise only. */
@@ -816,9 +1488,34 @@ void r_top_of_head_slam(void) {
     plyr_anim_pdata->step = 2.5f;
     ani_to_blend_frame(4.0f);
 }
-#pragma dont_inline reset
+#pragma dont_inline on
 
 #pragma dont_inline on
+
+static float r_fan_lift(void) {
+    ReactionProcVtable* vtable;
+
+    adjust_my_damage_multiplier(0.6f);
+    face_opponent_now();
+    set_my_state(0x4206);
+    xfer_proc(plyr_anim_proc, p_animate);
+    plyr_pdata->blocking_disabled_2 = 1;
+    plyr_pdata->blocking_disabled = 1;
+    random_voice(5);
+    blend_to_ani(his_pdata->reaction_animation_a, 0, 0.1f);
+    plyr_anim_pdata->step = 1.0f;
+    force_away(8, 8, 0.1f, 0.85f);
+    _mkproc_sleep_ticks = 30.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    force_away(0x64, 0xA, -0.03f, 0.95f);
+    _mkproc_sleep_ticks = 120.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
+    return 0.0f;
+}
 
 float j_counter_caught(void) {
     ReactionProcVtable* vtable;
@@ -1322,61 +2019,6 @@ float r_hit_wall(void) {
 
 #pragma dont_inline reset
 
-void run_reaction_cleanup_function(PlyrPdata* player) {
-    ReactionStatusFlagsView* status;
-    CmdScript* saved_script;
-    PlyrPdata* saved_player;
-    PlyrPdata* saved_opponent;
-    MkObj* saved_object;
-    MkObj* saved_opponent_object;
-    MkObj* object;
-    MkObj* opponent_object;
-
-    if (player == 0) {
-        return;
-    }
-    status = (ReactionStatusFlagsView*)player->status_flags;
-    if (status->cleanup_function == 0) {
-        return;
-    }
-
-    saved_player = plyr_pdata;
-    saved_opponent = his_pdata;
-    plyr_pdata = player;
-    saved_object = plyr_obj;
-    saved_opponent_object = his_obj;
-    his_pdata = player->his_plyr_pdata;
-
-    object = player->tracked_obj;
-    if (object != 0 &&
-        object->hdr.instance != player->tracked_obj_instance) {
-        object = 0;
-    }
-    plyr_obj = object;
-
-    opponent_object = his_pdata->tracked_obj;
-    if (opponent_object != 0 &&
-        opponent_object->hdr.instance != his_pdata->tracked_obj_instance) {
-        opponent_object = 0;
-    }
-    his_obj = opponent_object;
-
-    if (object == 0 || opponent_object == 0) {
-        return;
-    }
-
-    saved_script = active_cmdscript;
-    active_cmdscript = &global_script_interpreter;
-    cmdscript_set_parameters(&global_script_interpreter, 1, player);
-    cmdscript_setup_execution(player->cmo, status->cleanup_function);
-    cmdscript_execute(player->cmo);
-    active_cmdscript = saved_script;
-    plyr_pdata = saved_player;
-    his_pdata = saved_opponent;
-    plyr_obj = saved_object;
-    his_obj = saved_opponent_object;
-}
-
 float p_image_fader(void) {
     ReactionImageFaderPdata* pdata;
     ScreenObj* object;
@@ -1670,6 +2312,56 @@ float r_face3_onback(void) {
     return 0.0f;
 }
 
+static float r_cyrax_blade(void) {
+    ReactionProcVtable* vtable;
+    float angle;
+    float sine;
+    float cosine;
+
+    angle = 0.000005992112f *
+        (float)(((int)(166886.1f * his_obj->ang.y)) & 0xFFFFF);
+    sine = gxMathSin(angle);
+    cosine = gxMathCos(angle);
+    plyr_obj->pos_x = his_obj->pos_x + 2.0f * sine;
+    plyr_obj->pos_z = his_obj->pos_z + 2.0f * cosine;
+    plyr_obj->pos_vel.x = 0.0f;
+    plyr_obj->pos_vel.z = 0.0f;
+    plyr_obj->gravity = -0.0075f;
+    face_opponent_now();
+    wall_eligible_off();
+    shake_camera(6, 0.02f);
+    start_blood_particles(0x18, 0x10, plyr_pdata, plyr_obj);
+    random_voice(3);
+    blend_to_ani(his_pdata->reaction_animation, 3, 0.1f);
+    plyr_anim_pdata->weight = 0.0f;
+    plyr_anim_pdata->step = 0.75f;
+    xfer_proc(plyr_anim_proc, p_animate);
+    while (plyr_anim_pdata->frame < plyr_anim_pdata->high_frame - 20.0f &&
+           his_pdata->state != 0x420F) {
+        start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
+        _mkproc_sleep_ticks = 9.0f;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->sleep(vtable);
+        snd_req(0xD81);
+        _mkproc_sleep_ticks = 9.0f;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->sleep(vtable);
+        snd_req(0xD81);
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    init_ground_move();
+    face_bleed_me(1);
+    face_opponent_now();
+    snd_req(0xD81);
+    force_away(3, 8, 0.2f, 0.8f);
+    blend_to_ani(shared_ani.cyrax_blade, 3, 0.5f);
+    set_ani_speed(0.5f);
+    ani_to_frame_x(20.0f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
+    return 0.0f;
+}
+
 float r_head3_onback(void) {
     ReactionProcVtable* vtable;
 
@@ -1712,6 +2404,65 @@ float r_enough_air_already(void) {
     ani_to_end();
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->jump_sleep(j_getup_front_12, 0.0f);
+    return 0.0f;
+}
+
+static float r_airborn_small_lift(void) {
+    ReactionProcVtable* vtable;
+
+    medium_flash_check();
+    face_opponent_now();
+    plyr_obj->flags_09_bits.launched = 0;
+    shake_hit_voice(0, 0, 4, 0.0f);
+    if (plyr_pdata->reaction_hit_count == 2) {
+        plyr_pdata->f_constrained = 0;
+    }
+    if ((plyr_pdata->f_constrained == 1) &
+        (plyr_pdata->reaction_hit_count >= 3)) {
+        reaction_xfer_him(0xFC, 0.0f, 2);
+    }
+    myvel_his_angle_y(0.0f, 0.06f, 0.06f);
+    launch_n_land_ani(
+        shared_ani.airborn_small_lift, 0xCA1, 0.0f, 0.0f, 31.0f,
+        0.0325f, -0.006f, 0.33f);
+    shake_hit_voice(2, 9, 8, 0.02f);
+    back_rollup_check();
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_frame_x(36.0f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
+static float r_hit_airborn1(void) {
+    ReactionProcVtable* vtable;
+
+    medium_flash_check();
+    face_opponent_now();
+    plyr_obj->flags_09_bits.launched = 0;
+    shake_hit_voice(0, 1, 3, 0.0f);
+    if (plyr_pdata->reaction_hit_count == 2) {
+        plyr_pdata->f_constrained = 0;
+    }
+    if ((plyr_pdata->f_constrained == 1) &
+        (plyr_pdata->reaction_hit_count >= 3)) {
+        reaction_xfer_him(0xFC, 0.0f, 2);
+    }
+    if (plyr_pdata->reaction_hit_count >= 3) {
+        myvel_his_angle_y(0.0f, 0.06f, 0.06f);
+    } else {
+        myvel_his_angle_y(0.0f, 0.04f, 0.04f);
+    }
+    launch_n_land_ani(
+        shared_ani.airborn_small_lift, 0xCA1, 0.0f, 0.0f, 31.0f,
+        0.08f, -0.006f, 0.33f);
+    enable_all_my_blocking();
+    shake_hit_voice(2, 9, 8, 0.02f);
+    back_rollup_check();
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_frame_x(36.0f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_6, 0.0f);
     return 0.0f;
 }
 
@@ -1980,6 +2731,84 @@ float r_summon_flames(void) {
     return 0.0f;
 }
 
+static float r_subzero_iceball(void) {
+    ReactionProcVtable* vtable;
+    int his_character;
+    int my_character;
+
+    medium_flash_check();
+    destroy_subzero_decoy();
+    init_air_move_no_aniproc();
+    if (local_collision_allowed(plyr_pdata) != 0 &&
+        ((unsigned int)plyr_pdata->previous_state == 0xC600U ||
+         (unsigned int)plyr_pdata->previous_state == 0xC602U)) {
+        reaction_xfer_him(0xA1, 0.0f, 2);
+        blend_to_stance(0.05f);
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(j_exit, 0.0f);
+        return 0.0f;
+    }
+    plyr_pdata->blocking_disabled = 1;
+    plyr_pdata->blocking_disabled_2 = 1;
+    freeze_player();
+    if (am_i_airborn_check_in_reaction() != 0) {
+        init_air_move_no_aniproc();
+        set_my_state(0xC602);
+        plyr_obj->flags_09_bits.face_opponent = 0;
+        stop_me();
+        _mkproc_sleep_ticks = 120.0f;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->sleep(vtable);
+        plyr_obj->gravity = -0.01f;
+        wait_to_land();
+        unfreeze_player();
+        plyr_pdata->blocking_disabled = 0;
+        plyr_pdata->blocking_disabled_2 = 0;
+        set_my_state(0);
+        got_hit_fx(4, 8, 1, 0, 0, 0, 0.0f);
+        face_opponent_now();
+        plyr_pdata->summon_position_x = plyr_obj->pos_x;
+        plyr_pdata->summon_position_z = plyr_obj->pos_z;
+        glitch_to_ani(shared_ani.falling_back_id, 3);
+        plyr_anim_pdata->frame = 23.0f;
+        ani_1_frame();
+        plyr_obj->pos_x = plyr_pdata->summon_position_x;
+        plyr_obj->pos_z = plyr_pdata->summon_position_z;
+        back_rollup_check();
+        ani_to_end();
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(j_getup_back_6, 0.0f);
+        return 0.0f;
+    }
+    set_my_state(0xC600);
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    stop_me();
+    init_ground_move();
+    his_character = his_pdata->character_id;
+    if (his_character == 3) {
+        blend_to_ani(his_pdata->reaction_animation, 3, 0.2f);
+    } else {
+        my_character = plyr_pdata->character_id;
+        if (my_character == 3) {
+            blend_to_ani(plyr_pdata->reaction_animation, 3, 0.2f);
+        } else if (his_character == 0x19 || his_character == 0x1A) {
+            blend_to_ani(his_pdata->ice_reaction_animation, 3, 0.2f);
+        } else if (my_character == 0x19 || my_character == 0x1A) {
+            blend_to_ani(plyr_pdata->ice_reaction_animation, 3, 0.2f);
+        }
+    }
+    ani_to_end();
+    _mkproc_sleep_ticks = 40.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    unfreeze_player();
+    set_my_state(0);
+    plyr_pdata->summon_position_x = 25.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_blend_to_fstance_in_x, 0.0f);
+    return 0.0f;
+}
+
 #pragma dont_inline on
 
 float r_chest2_separate(void) {
@@ -2024,6 +2853,78 @@ float r_cyrus_stomp(void) {
     return 0.0f;
 }
 
+static float r_complete_ermac_slam(void) {
+    ReactionProcVtable* vtable;
+    ReactionDamagePdata* boost_source;
+    float damage;
+
+    _mkproc_sleep_ticks = 50.0f * inverse_game_speed;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    plyr_obj->gravity = -0.1f;
+    if (his_pdata->character_id == 0x19 ||
+        his_pdata->character_id == 0x1A) {
+        snd_req(0x307);
+    } else {
+        snd_req(0x254);
+    }
+    blend_to_ani(shared_ani.ermac_slam, 3, 0.2f);
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_frame_x(6.0f);
+    wait_to_land();
+    snd_req(0x255);
+    snd_req(0x1D7);
+    if (plyr_pdata != 0) {
+        if (aproc->pid == 0x1001) {
+            boost_source =
+                (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
+            damage = 0.07f * 0.8f;
+            if (boost_source->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= boost_source->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p1_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
+                ->accumulated_damage += damage;
+        } else {
+            boost_source =
+                (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
+            damage = 0.07f * 0.8f;
+            if (boost_source->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= boost_source->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p2_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
+                ->accumulated_damage += damage;
+        }
+    }
+    adjust_my_damage_multiplier(0.6f);
+    set_my_state(0x3203);
+    init_air_move();
+    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    plyr_anim_pdata->step = 0.6f;
+    launch_me_up(0.08f, -0.003f);
+    myvel_my_angle_y(3.1428f, -0.04f, -0.04f);
+    ani_to_frame_x(34.0f);
+    set_my_state(0x600);
+    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    random_hit(9);
+    bulvan_function(0);
+    init_ground_move();
+    stop_me();
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
 float r_shujinko_slam(void) {
     ReactionProcVtable* vtable;
 
@@ -2053,6 +2954,170 @@ float r_ermac_slam(void) {
     blend_to_ani(opponent->reaction_animation, 0, 0.1f);
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->jump_sleep(r_complete_ermac_slam, 0.0f);
+    return 0.0f;
+}
+
+static float r_combo_broken_part2(void) {
+    ReactionProcVtable* vtable;
+    ReactionImageFaderPdata* fader;
+    ReactionImageSource* source;
+    ScreenObj* image;
+    unsigned int effect;
+    Vec hit_position;
+    Vec bone_offset = {0.0f, 0.0f, 0.0f};
+    Vec world_position;
+    Vec screen_position;
+    int index;
+
+    if (plyr_pdata->plyr_num == 0) {
+        effect = fx_by_owner("breaker_hit_fx", 1);
+    } else {
+        effect = fx_by_owner("breaker_hit_fx", 2);
+    }
+    effect = fx_next_emitter(effect);
+    get_bone_world_pos(plyr_obj, 0, &hit_position);
+    hit_position.y = 1.7f + g_game_info.field_34;
+    mk_chess_launch_fx_at_pos_with_obj_emit_based(
+        effect, hit_position.x, hit_position.y, hit_position.z);
+
+    source = (ReactionImageSource*)plyr_pdata->plyr_info;
+    image = load_named_2d_pfxobj(
+        0x10005, 0xC021, "BREAKER", 0, 0x2F);
+    get_bone_offset_world_pos(
+        source->object, 9, &bone_offset, &world_position);
+    world_position.y = 1.7f + g_game_info.field_34;
+    camera_get_screen_pos_from_world_pos(&world_position, &screen_position);
+    image->x = (int)screen_position.x - image->pfx2d->tex_w / 2;
+    image->y = (int)screen_position.y;
+
+    fader = 0;
+    if (_create_mkproc_generic_nostack(
+            0xC02A, 0x1F, p_image_fader,
+            sizeof(ReactionImageFaderPdata),
+            (MkHdr**)&fader) != 0) {
+        fader->object = image;
+        fader->object_instance = image->instance;
+        fader->delay = 60;
+        fader->alpha = 0xFF;
+        fader->direction = source->hdr.instance;
+    }
+    if (image != 0 && his_pdata->breaker_strength == 0) {
+        for (index = 0; index < 4; index++) {
+            image->pfx2d->verts[index].r = 0x80;
+            image->pfx2d->verts[index].g = 0;
+            image->pfx2d->verts[index].b = 0;
+            image->pfx2d->verts[index].a = 0xFF;
+        }
+    }
+    snd_req(0xDC4);
+    face_opponent_now();
+    wall_eligible_on();
+    start_blood_particles_scripts(0x39, 0x10);
+    got_hit_fx(0, 2, 4, 1, 0, 0, 0.0f);
+    force_away(0x14, 8, 0.025f, 0.9f);
+    blend_to_ani(shared_ani.combo_broken_launch, 3, 0.5f);
+    set_ani_speed(0.6f);
+    ani_to_frame_x(13.0f);
+    got_hit_fx(4, 8, 0, 0, 0, 0, 0.0f);
+    back_rollup_check();
+    ani_x_more_frames(5.0f);
+    blend_to_ani(shared_ani.combo_broken_recover, 3, 0.1f);
+    plyr_anim_pdata->step = 0.75f;
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+float j_block_common_reaction(void) {
+    ReactionProcVtable* vtable;
+
+    if (!(plyr_pdata->previous_state & 0x800) &&
+        plyr_pdata->drone_request == 1) {
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(x_block, 0.0f);
+        return 0.0f;
+    }
+    if (plyr_pdata->previous_state & 0x100) {
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x12, 0);
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x13, 0);
+        init_ground_move();
+        set_my_state(0xF00);
+        force_away(2, 8, 0.15f, 0.85f);
+        if (should_i_weapon_block() != 0) {
+            xfer_proc(plyr_anim_proc, p_anim_idle);
+            blend_to_ani(
+                plyr_pdata->fighter_definition->weapon_block_reaction,
+                3, 0.2f);
+            plyr_anim_pdata->step = 1.0f;
+            ani_to_end();
+            xfer_proc(plyr_anim_proc, p_animate);
+        } else {
+            xfer_proc(plyr_anim_proc, p_anim_idle);
+            blend_to_ani(shared_ani.standing_weapon_block, 3, 0.2f);
+            plyr_anim_pdata->step = 1.0f;
+            ani_to_end();
+            xfer_proc(plyr_anim_proc, p_animate);
+        }
+    } else {
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x12, 0);
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x14, 0);
+        if (should_i_weapon_block() == 0) {
+            if (plyr_pdata->previous_state == 0xA00 ||
+                !(plyr_pdata->previous_state & 0x800)) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA00);
+                blend_to_ani(shared_ani.standing_block_a, 0, 0.5f);
+            }
+            if (plyr_pdata->previous_state == 0xA01) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA01);
+                blend_to_ani(shared_ani.standing_block_b, 0, 0.5f);
+            }
+            if (plyr_pdata->previous_state == 0xA02) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA02);
+                blend_to_ani(shared_ani.standing_block_c, 0, 0.5f);
+            }
+            if (plyr_pdata->previous_state == 0xA03) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA03);
+                blend_to_ani(shared_ani.standing_block_d, 0, 0.5f);
+            }
+        } else {
+            set_my_state(0xA00);
+            blend_to_ani(
+                plyr_pdata->fighter_definition->weapon_block_animation,
+                3, 0.1f);
+            plyr_anim_pdata->step = 1.0f;
+        }
+    }
+    if (am_i_duck_blocking() != 0) {
+        if (should_i_weapon_block() != 0) {
+            blend_to_ani(
+                plyr_pdata->fighter_definition->duck_block_animation,
+                0, 0.2f);
+        } else {
+            blend_to_ani(shared_ani.duck_block, 0, 0.2f);
+        }
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(j_duck_block_loop, 0.0f);
+        return 0.0f;
+    }
+    if (am_i_blocking() != 0) {
+        if (plyr_pdata->state & 0x100) {
+            plyr_pdata->his_attack_counter = get_his_attack_counter();
+            set_my_state(0xA00);
+            blend_to_ani(shared_ani.standing_block_a, 0, 0.1f);
+        }
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(j_block_loop, 0.0f);
+        return 0.0f;
+    }
+    blend_to_stance(0.1f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 

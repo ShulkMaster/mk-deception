@@ -64,7 +64,9 @@ typedef struct PfxVm {
 typedef struct PfxEmitter {
     char pad00[0x0C];
     float lifetime; /* +0x0C */
-    char pad10[0x2D8];
+    char pad10[0x30];
+    int field_40;
+    char pad44[0x2A4];
     void* transform; /* +0x2E8 -- bone mat / LTM */
 } PfxEmitter;
 

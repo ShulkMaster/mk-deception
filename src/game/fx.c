@@ -70,6 +70,19 @@ typedef struct FxProcTransferVtable {
     void (*transfer_sleep)(MkProcEntryFn entry, MkProc* proc, float ticks);
 } FxProcTransferVtable;
 
+typedef union FxScreenLoadFlags {
+    int value;
+    struct {
+        unsigned char bit7 : 1;
+        unsigned char bit6 : 1;
+        unsigned char reverse : 1; /* bit5 */
+        unsigned char bit4 : 1;
+        unsigned char alternate : 1; /* bit3 */
+        unsigned char low_bits : 3;
+        unsigned char padding[3];
+    } bits;
+} FxScreenLoadFlags;
+
 typedef struct FxScreenObjLatch {
     ScreenObj* object;
     unsigned int instance;
@@ -103,7 +116,6 @@ const LensFlareDefinition courtyard_lens_data[] = {
     { 0.75f, &fx_string_base[134] }, { 1.0f, &fx_string_base[145] },
     { 0.0f, 0 },
 };
-static const Vec lensflare_zero_vec = { 0.0f, 0.0f, 0.0f };
 static const char fx_string_base[228] =
     "YY_FLARES3\0YY_FLARES2\0YY_FLARES1\0YY_FLAREDOT\0"
     "YY_FLARES5\0YY_FLARES6\0YY_FLARES7\0"
@@ -154,10 +166,17 @@ typedef struct FxPfxDefinition {
 } FxPfxDefinition;
 
 typedef struct FxPfxVmView {
-    char pad00[0x10];
+    char pad00[0x50];
     int field_50;
-    char pad14[0x13C];
-    unsigned char flags_150;
+    char pad54[0xFC];
+    union {
+        unsigned char flags_150;
+        struct {
+            unsigned char enabled : 1; /* bit7 */
+            unsigned char sized : 1; /* bit6 */
+            unsigned char pad_flags_150 : 6;
+        } flag_bits;
+    };
     char pad151[0x31];
     short texture_enabled;
     char pad184[0x30];
@@ -223,7 +242,7 @@ int SKEWER_RIGHT_OVERHANG = 0xA;
 typedef struct FxFreezeLightDefinition {
     int type;
     MkProcEntryFn proc;
-    int flags;
+    FxScreenLoadFlags flags;
     float color[4];
     float field_1C;
     float field_20;
@@ -254,43 +273,54 @@ FxRayPlane courtyard_flare_obstructions[1] = {
 #pragma dont_inline on
 static int rayintersection(
     const Vec* origin, const Vec* direction, const FxRayPlane* plane) {
-    Vec intersection = lensflare_zero_vec;
+    Vec intersection = { 0.0f, 0.0f, 0.0f };
     float distance;
 
     switch (plane->axis) {
     case 0:
-        if (direction->x < 0.00001 && direction->x > -0.00001) {
+        if (direction->x < 0.0001 && direction->x > -0.0001) {
             return 0;
         }
         distance = (plane->coordinate - origin->x) / direction->x;
         intersection.y = distance * direction->y + origin->y;
         intersection.z = distance * direction->z + origin->z;
-        return intersection.y > plane->minimum.y &&
-               intersection.y < plane->maximum.y &&
-               intersection.z > plane->minimum.z &&
-               intersection.z < plane->maximum.z;
+        if (intersection.y > plane->minimum.y &&
+            intersection.y < plane->maximum.y &&
+            intersection.z > plane->minimum.z &&
+            intersection.z < plane->maximum.z) {
+            return 1;
+        }
+        return 0;
     case 1:
-        if (direction->y < 0.00001 && direction->y > -0.00001) {
+        if (direction->y < 0.0001 && direction->y > -0.0001) {
             return 0;
         }
         distance = (plane->coordinate - origin->y) / direction->y;
         intersection.x = distance * direction->x + origin->x;
         intersection.z = distance * direction->z + origin->z;
-        return intersection.x > plane->minimum.x &&
-               intersection.x < plane->maximum.x &&
-               intersection.z > plane->minimum.z &&
-               intersection.z < plane->maximum.z;
+        if (intersection.x > plane->minimum.x &&
+            intersection.x < plane->maximum.x &&
+            intersection.z > plane->minimum.z &&
+            intersection.z < plane->maximum.z) {
+            return 1;
+        }
+        return 0;
+    case 2:
     default:
-        if (direction->z < 0.00001 && direction->z > -0.00001) {
+        if (!(direction->z < 0.0001) ||
+            !(direction->z > -0.0001)) {
+            distance = (plane->coordinate - origin->z) / direction->z;
+            intersection.x = distance * direction->x + origin->x;
+            intersection.y = distance * direction->y + origin->y;
+            if (intersection.x > plane->minimum.x &&
+                intersection.x < plane->maximum.x &&
+                intersection.y > plane->minimum.y &&
+                intersection.y < plane->maximum.y) {
+                return 1;
+            }
             return 0;
         }
-        distance = (plane->coordinate - origin->z) / direction->z;
-        intersection.x = distance * direction->x + origin->x;
-        intersection.y = distance * direction->y + origin->y;
-        return intersection.x > plane->minimum.x &&
-               intersection.x < plane->maximum.x &&
-               intersection.y > plane->minimum.y &&
-               intersection.y < plane->maximum.y;
+        return 0;
     }
 }
 #pragma dont_inline reset
@@ -299,9 +329,9 @@ static float lensflare_proc2(void) {
     LensflarePdata* pdata;
     CameraObj* camera;
     LensFlareEntry* flare;
+    Vec angles;
     Vec direction;
     Vec obstruction_direction;
-    Vec angles;
     float horizontal;
     float vertical;
     float horizontal_abs;
@@ -490,16 +520,6 @@ static float lensflare_proc(void) {
     return 1.0f;
 }
 
-static inline ScreenObj* fx_live_screen_obj(FxScreenObjLatch* latch) {
-    ScreenObj* object;
-
-    object = latch->object;
-    if (object != 0 && (unsigned int)object->instance != latch->instance) {
-        object = 0;
-    }
-    return object;
-}
-
 #define FSTYLE_SIGN_SLOT 0x2001E
 #define FSTYLE_SIGN_OID 0x3002
 #define FSTYLE_SIGN_PRIORITY 0x2A
@@ -540,7 +560,10 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
     int winner;
     int allow_restart;
 
-    if (moveset == 0 || mode_of_play == 6) {
+    if (moveset == 0) {
+        return;
+    }
+    if ((int)mode_of_play == 6) {
         return;
     }
     if (g_game_info.flag_bits.high_res_path == 1) {
@@ -559,8 +582,9 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
     }
     sign = moveset->style_sign;
     if (sign != 0) {
-        if ((unsigned int)sign->instance !=
+        if ((unsigned int)sign->instance ==
             moveset->style_sign_instance) {
+        } else {
             sign = 0;
         }
     } else {
@@ -575,8 +599,9 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
             allow_restart = 0;
         } else if (g_game_info.pause_flag_bits.fatality_window) {
             winner = check_for_winner();
-            if ((player == 0 && winner == 1) ||
-                (player == 1 && winner == 2)) {
+            if (player == 0 && winner == 1) {
+                allow_restart = 1;
+            } else if (player == 1 && winner == 2) {
                 allow_restart = 1;
             } else {
                 allow_restart = 0;
@@ -607,40 +632,51 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
     }
 }
 
-/* Soft ceiling: update_skewer_positions ~70.66% -- typed latches/layout; stop. */
+/* The screen-object latches retain both pointer and instance for validation. */
 static void update_skewer_positions(int player) {
-    FxScreenObjLatch* body_latch;
-    FxScreenObjLatch* tip_latch;
     ScreenObj* body;
     ScreenObj* tip;
     ScreenObj* sign;
     PlyrPdata* player_data;
-    int flags;
+    FxScreenLoadFlags flags;
 
     body = 0;
     tip = 0;
-    flags = 0;
+    flags.value = 0;
     if (player == 0) {
-        body_latch = &p1_skewer_item;
-        tip_latch = &p1_skewer_tip_item;
-        body = fx_live_screen_obj(body_latch);
+        body = p1_skewer_item.object;
+        if (body != 0) {
+            if ((unsigned int)body->instance != p1_skewer_item.instance) {
+                body = 0;
+            }
+        } else {
+            body = 0;
+        }
         if (body == 0) {
-            ((unsigned char*)&flags)[0] &= ~0x20;
-            ((unsigned char*)&flags)[0] |= 8;
+            flags.bits.reverse = 0;
+            flags.bits.alternate = 1;
             body = load_2d_pfxobj(
-                0x10005, 0x2052, (char*)0x2001A, flags, 0x2B);
+                0x10005, 0x2052, (char*)0x2001A, flags.value, 0x2B);
             if (body != 0) {
-                body_latch->object = body;
-                body_latch->instance = body->instance;
+                p1_skewer_item.object = body;
+                p1_skewer_item.instance = body->instance;
                 tip = load_2d_pfxobj(
                     0x10005, 0x2052, (char*)0x2001B, 0, 0x2B);
                 if (tip != 0) {
-                    tip_latch->object = tip;
-                    tip_latch->instance = tip->instance;
+                    p1_skewer_tip_item.object = tip;
+                    p1_skewer_tip_item.instance = tip->instance;
                 }
             }
         } else {
-            tip = fx_live_screen_obj(tip_latch);
+            tip = p1_skewer_tip_item.object;
+            if (tip != 0) {
+                if ((unsigned int)tip->instance !=
+                    p1_skewer_tip_item.instance) {
+                    tip = 0;
+                }
+            } else {
+                tip = 0;
+            }
         }
 
         sign = player_fstyle_sign[0];
@@ -667,28 +703,42 @@ static void update_skewer_positions(int player) {
     }
 
     if (player == 1) {
-        body_latch = &p2_skewer_item;
-        tip_latch = &p2_skewer_tip_item;
-        body = fx_live_screen_obj(body_latch);
+        body = p2_skewer_item.object;
+        if (body != 0) {
+            if ((unsigned int)body->instance != p2_skewer_item.instance) {
+                body = 0;
+            }
+        } else {
+            body = 0;
+        }
         if (body == 0) {
-            ((unsigned char*)&flags)[0] &= ~0x20;
-            ((unsigned char*)&flags)[0] |= 8;
+            flags.bits.reverse = 0;
+            flags.bits.alternate = 1;
             body = load_2d_pfxobj(
-                0x10005, 0x2053, (char*)0x2001A, flags, 0x2B);
+                0x10005, 0x2053, (char*)0x2001A, flags.value, 0x2B);
             if (body != 0) {
-                body_latch->object = body;
-                body_latch->instance = body->instance;
-                ((unsigned char*)&flags)[0] |= 0x20;
-                ((unsigned char*)&flags)[0] &= ~8;
+                p2_skewer_item.object = body;
+                p2_skewer_item.instance = body->instance;
+                flags.bits.reverse = 1;
+                flags.bits.alternate = 0;
                 tip = load_2d_pfxobj(
-                    0x10005, 0x2053, (char*)0x2001B, flags, 0x2B);
+                    0x10005, 0x2053, (char*)0x2001B,
+                    flags.value, 0x2B);
                 if (tip != 0) {
-                    tip_latch->object = tip;
-                    tip_latch->instance = tip->instance;
+                    p2_skewer_tip_item.object = tip;
+                    p2_skewer_tip_item.instance = tip->instance;
                 }
             }
         } else {
-            tip = fx_live_screen_obj(tip_latch);
+            tip = p2_skewer_tip_item.object;
+            if (tip != 0) {
+                if ((unsigned int)tip->instance !=
+                    p2_skewer_tip_item.instance) {
+                    tip = 0;
+                }
+            } else {
+                tip = 0;
+            }
         }
 
         sign = player_fstyle_sign[1];
@@ -959,6 +1009,7 @@ void load_player_fstyle_signs(PlyrPdata* player) {
     int player_index;
     int slot_group;
     int style_index;
+    unsigned int style_offset;
     int slot;
 
     if (player == g_game_info.plyr0.slot.pdata) {
@@ -981,8 +1032,11 @@ void load_player_fstyle_signs(PlyrPdata* player) {
         slot_group = 4;
     }
 
-    for (style_index = 0; style_index < 3; style_index++) {
-        moveset = (GlobalMoveset*)player->weapon_styles[style_index];
+    style_offset = 0;
+    for (style_index = 0; style_index < 3;
+         style_index++, style_offset += sizeof(player->weapon_styles[0])) {
+        moveset = (GlobalMoveset*)player->weapon_styles[
+            style_offset / sizeof(player->weapon_styles[0])];
         slot = (slot_group << 16) |
                (unsigned short)(style_index + 13);
         if (moveset->definition != 0) {
@@ -1221,7 +1275,7 @@ void unfreeze_player(void) {
         return;
     }
 
-    player_object->flags_0B &= (unsigned char)~2;
+    player_object->flags_0B_bits.special_texture = 0;
     RpClumpForAllAtomics(
         player_object->clump,
         restore_specular_texture_atomic_callback, 0);
@@ -1237,7 +1291,7 @@ void unfreeze_player(void) {
         object = 0;
     }
     if (object != 0) {
-        object->flags_0B &= (unsigned char)~2;
+        object->flags_0B_bits.special_texture = 0;
         RpClumpForAllAtomics(
             object->clump, restore_specular_texture_atomic_callback, 0);
     }
@@ -1252,7 +1306,7 @@ void unfreeze_player(void) {
         object = 0;
     }
     if (object != 0) {
-        object->flags_0B &= (unsigned char)~2;
+        object->flags_0B_bits.special_texture = 0;
         RpClumpForAllAtomics(
             object->clump, restore_specular_texture_atomic_callback, 0);
     }
@@ -1267,7 +1321,7 @@ void unfreeze_player(void) {
         object = 0;
     }
     if (object != 0) {
-        object->flags_0B &= (unsigned char)~2;
+        object->flags_0B_bits.special_texture = 0;
         RpClumpForAllAtomics(
             object->clump, restore_specular_texture_atomic_callback, 0);
     }
@@ -1350,7 +1404,7 @@ static void apply_special_fx_to_player(void* texture) {
         return;
     }
 
-    player_object->flags_0B |= 2;
+    player_object->flags_0B_bits.special_texture = 1;
     RpClumpForAllAtomics(
         player_object->clump,
         swap_specular_texture_atomic_callback, texture);
@@ -1366,7 +1420,7 @@ static void apply_special_fx_to_player(void* texture) {
         object = 0;
     }
     if (object != 0) {
-        object->flags_0B |= 2;
+        object->flags_0B_bits.special_texture = 1;
         RpClumpForAllAtomics(
             object->clump, swap_specular_texture_atomic_callback, texture);
     }
@@ -1381,7 +1435,7 @@ static void apply_special_fx_to_player(void* texture) {
         object = 0;
     }
     if (object != 0) {
-        object->flags_0B |= 2;
+        object->flags_0B_bits.special_texture = 1;
         RpClumpForAllAtomics(
             object->clump, swap_specular_texture_atomic_callback, texture);
     }
@@ -1396,36 +1450,33 @@ static void apply_special_fx_to_player(void* texture) {
         object = 0;
     }
     if (object != 0) {
-        object->flags_0B |= 2;
+        object->flags_0B_bits.special_texture = 1;
         RpClumpForAllAtomics(
             object->clump, swap_specular_texture_atomic_callback, texture);
     }
 
     light = load_light(
         (LightDef*)&plyr_freeze_light, &freeze_light_list, 0);
-    if (light == 0) {
-        return;
-    }
-    light_latch->obj = light;
-    light_latch->instance = light->hdr.instance;
-    proc = _create_mkproc_generic_tinystack(
-        proc_id, 0x1F, p_freeze_light, sizeof(*proc_data),
-        (MkHdr**)&proc_data);
-    if (proc == 0) {
-        return;
-    }
-
-    proc_latch->object = &proc->hdr;
-    proc_latch->instance = proc->instance;
-    proc_data->light = light_latch;
-    proc_data->player_object = player_object;
-    proc_data->player = player;
-    player_object->light_flags = 0x20;
-    if (his_pdata->character_id == 0x19 ||
-        his_pdata->character_id == 0x1A) {
-        snd_req(0x314);
-    } else {
-        snd_req(0x348);
+    if (light != 0) {
+        light_latch->obj = light;
+        light_latch->instance = light->hdr.instance;
+        proc = _create_mkproc_generic_tinystack(
+            proc_id, 0x1F, p_freeze_light, sizeof(*proc_data),
+            (MkHdr**)&proc_data);
+        if (proc != 0) {
+            proc_latch->object = &proc->hdr;
+            proc_latch->instance = proc->instance;
+            proc_data->light = light_latch;
+            proc_data->player_object = player_object;
+            proc_data->player = player;
+            player_object->light_flags = 0x20;
+            if (his_pdata->character_id == 0x19 ||
+                his_pdata->character_id == 0x1A) {
+                snd_req(0x314);
+            } else {
+                snd_req(0x348);
+            }
+        }
     }
 }
 
@@ -1494,14 +1545,16 @@ MkPfx* create_pfx(
 
     vm = (FxPfxVmView*)&(*effect_out)->matrix;
     origin = (Vec*)pfx_get_field((PfxVm*)vm, 0, 0x200);
-    *origin = definition->origin;
+    origin->x = definition->origin.x;
+    origin->y = definition->origin.y;
+    origin->z = definition->origin.z;
     if ((definition->field_04 & 0x20) == 0) {
-        vm->flags_150 |= 0x40;
+        vm->flag_bits.sized = 1;
         vm->color[1] = definition->particle_size;
     } else {
-        vm->flags_150 &= (unsigned char)~0x40;
+        vm->flag_bits.sized = 0;
     }
-    vm->flags_150 |= 0x80;
+    vm->flag_bits.enabled = 1;
     pfx_native_set_rgba(
         vm->color, definition->red, definition->green,
         definition->blue, definition->alpha);
@@ -1509,6 +1562,7 @@ MkPfx* create_pfx(
     emitter = pfx_get_emitter((PfxVm*)vm, 0);
     emitter->lifetime = (float)definition->emitter_lifetime;
     vm->field_50 = definition->field_90;
+    emitter = pfx_get_emitter((PfxVm*)vm, 0);
     emitter->field_40 = definition->emitter_field_40;
 
     if ((definition->flags & 4) == 0) {
