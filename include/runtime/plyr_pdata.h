@@ -38,14 +38,30 @@ typedef struct PlyrFighterDefinition {
     ScriptSlot* cmo; /* +0x08 */
     char pad0C[0x68];
     AniData* duck_exit_animation; /* +0x74 */
-    AniData* forced_step_animation; /* +0x78 */
-    char pad7C[0x30];
+    union {
+        AniData* forced_step_animation; /* +0x78 */
+        AniData* walk_forward_start;
+    };
+    AniData* walk_backward_start; /* +0x7C */
+    char pad80[8];
+    AniData* walk_forward_loop; /* +0x88 */
+    AniData* walk_backward_loop; /* +0x8C */
+    char pad90[0x1C];
     AniData* duck_block_animation; /* +0xAC */
     char padB0[0x14];
     AniData* duck_animation; /* +0xC4 */
-    char padC8[0x38];
-    AniData* spear_hit; /* +0x100 */
-    AniData* spear_tug_start; /* +0x104 */
+    char padC8[0x2C];
+    AniData* spear_throw_start; /* +0xF4 */
+    AniData* spear_throw_loop; /* +0xF8 */
+    AniData* spear_throw_end; /* +0xFC */
+    union {
+        AniData* spear_hit;
+        AniData* projectile_return_loop;
+    }; /* +0x100 */
+    union {
+        AniData* spear_tug_start;
+        AniData* projectile_return_end;
+    }; /* +0x104 */
     AniData* spear_tug_loop; /* +0x108 */
     AniData* spear_tug_end; /* +0x10C */
 } PlyrFighterDefinition;
@@ -68,9 +84,11 @@ typedef struct PlyrMirrorObjLatch {
 typedef struct PlyrStateFlagBits {
     unsigned char pad_bit7 : 1;
     unsigned char frozen : 1; /* bit6 - freeze-light lifetime */
-    unsigned char pad_bits5_2 : 4;
+    unsigned char pad_bit5 : 1;
+    unsigned char dizzy : 1; /* bit4 - held in the puzzle dizzy state */
+    unsigned char pad_bits3_2 : 2;
     unsigned char projectile_invulnerable : 1; /* bit1 */
-    unsigned char pad_bit0 : 1;
+    unsigned char projectile_request : 1; /* bit0 - sidekick projectile request */
 } PlyrStateFlagBits;
 
 typedef union PlyrStateFlags {
@@ -137,7 +155,10 @@ typedef struct PlyrPdata {
     PlyrMirrorObjLatch impaled_item_b;           /* +0xE4 */
     PlyrMirrorObjLatch impaled_item_a_secondary; /* +0xEC */
     PlyrMirrorObjLatch impaled_item_b_secondary; /* +0xF4 */
-    char padFC[0x18];
+    char padFC[4];
+    struct MkProc* spear_proc; /* +0x100 */
+    unsigned int spear_proc_instance; /* +0x104 */
+    char pad108[0x0C];
     AniTextureControlItem facial_texture; /* +0x114 */
     char pad11C[0xA0];
     int held_by_player; /* +0x1BC */
@@ -233,7 +254,7 @@ typedef struct PlyrPdata {
     char pad344[4];
     AniData* turn_to_screen_animation; /* +0x348 */
     char pad34C[0x1C];
-    int reaction_animation; /* +0x368 */
+    AniData* reaction_animation; /* +0x368 */
     void* reaction_animation_a; /* +0x36C */
     void* reaction_animation_b; /* +0x370 */
     void* reaction_animation_c; /* +0x374 */
@@ -253,7 +274,10 @@ typedef struct PlyrPdata {
     unsigned int next_large_bleed_tick; /* +0x5A8 */
     char pad5AC[4];
     int duck_reaction_active; /* +0x5B0 */
-    char pad5B4[0x38];
+    float saved_position_x; /* +0x5B4 */
+    char pad5B8[4];
+    float saved_position_z; /* +0x5BC */
+    char pad5C0[0x2C];
     unsigned int saved_anim_script_word; /* +0x5EC */
     unsigned int saved_anim_flags;       /* +0x5F0 */
     char pad5F4[8];

@@ -219,8 +219,8 @@ PuzzleCmdScriptView* get_cmdscript_for_proc(PuzzleProcess* proc);
 float pz_fighter_move_into_fighting_position_now(void);
 int pz_fighter_walk_until_fight_distance(void);
 int pz_fighter_walk_until_danger_or_in_wrong_direction(void);
-int pz_fighter_walk_FB_true(
-    int (*test)(void), int distance, int forward);
+void pz_fighter_walk_FB_true(
+    int (*test)(void), unsigned int duration, int forward);
 float xz_distance_between_players(void);
 void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared);

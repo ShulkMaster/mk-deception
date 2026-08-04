@@ -53,8 +53,30 @@ typedef struct ProjectilePdata {
     int flight_sound;                   /* +0xA4 */
     int impact_sound;                   /* +0xA8 */
     int down_sound;      /* +0xAC */
-    unsigned char setup_flags;          /* +0xB0 */
-    unsigned char behavior_flags;       /* +0xB1 */
+    union {
+        unsigned char setup_flags;      /* +0xB0 */
+        struct {
+            unsigned char impale_info_set : 1;
+            unsigned char random_position_set : 1;
+            unsigned char random_rotation_set : 1;
+            unsigned char collision_info_set : 1;
+            unsigned char hit_script_set : 1;
+            unsigned char end_script_set : 1;
+            unsigned char block_script_set : 1;
+            unsigned char ground_script_set : 1;
+        } setup_bits;
+    };
+    union {
+        unsigned char behavior_flags;   /* +0xB1 */
+        struct {
+            unsigned char velocity_damping_set : 1;
+            unsigned char not_duckable : 1;
+            unsigned char track_2d : 1;
+            unsigned char track_3d : 1;
+            unsigned char continue_through_hit : 1;
+            unsigned char behavior_unknown_2_0 : 3;
+        } behavior_bits;
+    };
 } ProjectilePdata;
 
 typedef struct ProjectileScriptPdata {
@@ -265,27 +287,34 @@ void set_active_projectile_velocity(const Vec* velocity) {
     MkObj* object;
     float inverse_length;
 
-    if (proj_pdata == 0) {
-        return;
+    if (proj_pdata != 0) {
+        object = proj_pdata->object;
+        if (object != 0) {
+            if ((unsigned int)object->hdr.instance ==
+                proj_pdata->object_instance) {
+                /* The instance latch still identifies this object. */
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
+        if (object != 0) {
+            object->flags_08 |= 0x20;
+            object->pos_vel = *velocity;
+            if (object->pos_vel.x == 0.0f &&
+                object->pos_vel.y == 0.0f) {
+                object->ang.y = plyr_obj->ang.y;
+                return;
+            }
+            inverse_length = projectile_fast_inverse_sqrt(
+                object->pos_vel.x * object->pos_vel.x +
+                object->pos_vel.z * object->pos_vel.z);
+            object->ang.y = gxMathArcTanYX(
+                object->pos_vel.x * inverse_length,
+                object->pos_vel.z * inverse_length);
+        }
     }
-    object = proj_pdata->object;
-    if (object == 0 ||
-        object->hdr.instance != proj_pdata->object_instance) {
-        return;
-    }
-
-    object->flags_08 |= 0x20;
-    object->pos_vel = *velocity;
-    if (object->pos_vel.x == 0.0f && object->pos_vel.y == 0.0f) {
-        object->ang.y = plyr_obj->ang.y;
-        return;
-    }
-    inverse_length = projectile_fast_inverse_sqrt(
-        object->pos_vel.x * object->pos_vel.x +
-        object->pos_vel.z * object->pos_vel.z);
-    object->ang.y = gxMathArcTanYX(
-        object->pos_vel.x * inverse_length,
-        object->pos_vel.z * inverse_length);
 }
 
 void set_active_projectile_max_ticks(int ticks) {
@@ -328,26 +357,28 @@ PlyrPdata* get_projectile_script_plyr_pdata(void) {
 
 int get_projectile_his_plyr_num(void) {
     ProjectileScriptPdata* pdata = (ProjectileScriptPdata*)apdata;
+    PlyrPdata* opponent;
 
-    if (pdata != 0) {
-        PlyrPdata* opponent = pdata->opponent;
-
-        if (opponent != 0) {
-            return opponent->plyr_num;
-        }
+    if (pdata == 0) {
+        return 3;
+    }
+    opponent = pdata->opponent;
+    if (opponent != 0) {
+        return opponent->plyr_num;
     }
     return 3;
 }
 
 int get_projectile_script_plyr_num(void) {
     ProjectileScriptPdata* pdata = (ProjectileScriptPdata*)apdata;
+    PlyrPdata* owner;
 
-    if (pdata != 0) {
-        PlyrPdata* owner = pdata->owner;
-
-        if (owner != 0) {
-            return owner->plyr_num;
-        }
+    if (pdata == 0) {
+        return 3;
+    }
+    owner = pdata->owner;
+    if (owner != 0) {
+        return owner->plyr_num;
     }
     return 3;
 }
@@ -376,8 +407,17 @@ int check_for_throw(ProjectilePdata* pdata) {
     PlyrPdata* target = pdata->impaled_target;
     MkProc* hold_proc = target->hold_proc;
 
-    if (hold_proc != 0 &&
-        hold_proc->instance == target->hold_proc_instance) {
+    if (hold_proc != 0) {
+        if ((unsigned int)hold_proc->instance ==
+            target->hold_proc_instance) {
+            /* The instance latch still identifies this process. */
+        } else {
+            hold_proc = 0;
+        }
+    } else {
+        hold_proc = 0;
+    }
+    if (hold_proc != 0) {
         return 1;
     }
     return 0;
@@ -398,7 +438,7 @@ float p_proj_end_run_script(void) {
 
 void set_active_projectile_velocity_damp(const Vec* damping) {
     if (proj_pdata != 0) {
-        proj_pdata->behavior_flags |= 0x80;
+        proj_pdata->behavior_bits.velocity_damping_set = 1;
         proj_pdata->velocity_damping.x = damping->x;
         proj_pdata->velocity_damping.y = damping->y;
         proj_pdata->velocity_damping.z = damping->z;
@@ -423,28 +463,28 @@ void set_active_projectile_sound(
 void set_active_projectile_hit_gnd_script(unsigned int script_index) {
     if (proj_pdata != 0) {
         proj_pdata->ground_script_index = script_index;
-        proj_pdata->setup_flags |= 1;
+        proj_pdata->setup_bits.ground_script_set = 1;
     }
 }
 
 void set_active_projectile_end_script(unsigned int script_index) {
     if (proj_pdata != 0) {
         proj_pdata->end_callback_index = script_index;
-        proj_pdata->setup_flags |= 4;
+        proj_pdata->setup_bits.end_script_set = 1;
     }
 }
 
 void set_active_projectile_block_script(unsigned int script_index) {
     if (proj_pdata != 0) {
         proj_pdata->block_script_index = script_index;
-        proj_pdata->setup_flags |= 2;
+        proj_pdata->setup_bits.block_script_set = 1;
     }
 }
 
 void set_active_projectile_hit_script(unsigned int script_index) {
     if (proj_pdata != 0) {
         proj_pdata->hit_script_index = script_index;
-        proj_pdata->setup_flags |= 8;
+        proj_pdata->setup_bits.hit_script_set = 1;
     }
 }
 
@@ -452,9 +492,9 @@ void set_active_projectile_collision_info(
     int enabled, float radius, float height, float depth) {
     if (proj_pdata != 0) {
         if (enabled != 0) {
-            proj_pdata->setup_flags |= 0x10;
+            proj_pdata->setup_bits.collision_info_set = 1;
         } else {
-            proj_pdata->setup_flags &= (unsigned char)~0x10;
+            proj_pdata->setup_bits.collision_info_set = 0;
         }
         proj_pdata->collision_height = height;
         proj_pdata->collision_depth = depth;
@@ -467,7 +507,7 @@ void set_active_projectile_random_rot(float x, float y, float z) {
         proj_pdata->random_rotation.x = x;
         proj_pdata->random_rotation.y = y;
         proj_pdata->random_rotation.z = z;
-        proj_pdata->setup_flags |= 0x20;
+        proj_pdata->setup_bits.random_rotation_set = 1;
     }
 }
 
@@ -476,96 +516,92 @@ void set_active_projectile_random_pos(float x, float y, float z) {
         proj_pdata->random_position.x = x;
         proj_pdata->random_position.y = y;
         proj_pdata->random_position.z = z;
-        proj_pdata->setup_flags |= 0x40;
+        proj_pdata->setup_bits.random_position_set = 1;
     }
 }
 
 void set_active_projectile_continue_thru_hit(void) {
     if (proj_pdata != 0) {
-        proj_pdata->behavior_flags |= 8;
+        proj_pdata->behavior_bits.continue_through_hit = 1;
     }
 }
 
 void set_active_projectile_3d_track(void) {
     if (proj_pdata != 0) {
-        proj_pdata->behavior_flags |= 0x10;
+        proj_pdata->behavior_bits.track_3d = 1;
     }
 }
 
 void set_active_projectile_2d_track(void) {
     if (proj_pdata != 0) {
-        proj_pdata->behavior_flags |= 0x20;
+        proj_pdata->behavior_bits.track_2d = 1;
     }
 }
 
 void set_active_projectile_not_duckable(void) {
     if (proj_pdata != 0) {
-        proj_pdata->behavior_flags |= 0x40;
+        proj_pdata->behavior_bits.not_duckable = 1;
     }
 }
 
 void set_active_projectile_p_handler(MkProcEntryFn handler) {
     MkProc* process;
 
-    if (proj_pdata == 0) {
-        return;
-    }
-    process = proj_pdata->process;
-    if (process != 0 &&
-        process->instance == proj_pdata->process_instance) {
-        xfer_proc(process, handler);
+    if (proj_pdata != 0) {
+        process = proj_pdata->process;
+        if (process != 0) {
+            if ((unsigned int)process->instance ==
+                proj_pdata->process_instance) {
+                /* The instance latch still identifies this process. */
+            } else {
+                process = 0;
+            }
+        } else {
+            process = 0;
+        }
+        if (process != 0) {
+            xfer_proc(process, handler);
+        }
     }
 }
 
 void set_active_projectile_target_ground(
     float ticks, float target_height, float collision_radius) {
-    MkProc* process;
-
-    if (proj_pdata == 0) {
-        return;
+    if (proj_pdata != 0) {
+        proj_pdata->target_ground_height = target_height;
+        proj_pdata->collision_radius = collision_radius;
+        set_active_projectile_p_handler(p_ground_target);
+        set_active_projectile_velocity_to_hit_gnd(ticks);
     }
-    proj_pdata->target_ground_height = target_height;
-    proj_pdata->collision_radius = collision_radius;
-    process = proj_pdata->process;
-    if (process != 0 &&
-        process->instance == proj_pdata->process_instance) {
-        xfer_proc(process, p_ground_target);
-    }
-    set_active_projectile_velocity_to_hit_gnd(ticks);
 }
 
 void set_active_projectile_upward_attack(const Vec* target) {
-    MkProc* process;
-
-    if (proj_pdata != 0) {
-        process = proj_pdata->process;
-        if (process != 0 &&
-            process->instance == proj_pdata->process_instance) {
-            xfer_proc(process, p_projectile_launch_upward);
-        }
-    }
-    if (proj_pdata != 0) {
-        proj_pdata->target_position.x = target->x;
-        proj_pdata->target_position.y = target->y;
-        proj_pdata->target_position.z = target->z;
-    }
+    set_active_projectile_p_handler(p_projectile_launch_upward);
+    set_active_projectile_target_pos(target);
 }
 
 void set_active_add_ang_y(float angle) {
     MkObj* object;
     int fixed;
 
-    if (proj_pdata == 0) {
-        return;
+    if (proj_pdata != 0) {
+        object = proj_pdata->object;
+        if (object != 0) {
+            if ((unsigned int)object->hdr.instance ==
+                proj_pdata->object_instance) {
+                /* The instance latch still identifies this object. */
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
+        if (object != 0) {
+            object->ang.y += angle;
+            fixed = (int)(166886.1f * object->ang.y) & 0xFFFFF;
+            object->ang.y = 0.000005992112f * (float)fixed;
+        }
     }
-    object = proj_pdata->object;
-    if (object == 0 ||
-        object->hdr.instance != proj_pdata->object_instance) {
-        return;
-    }
-    object->ang.y += angle;
-    fixed = (int)(166886.1f * object->ang.y) & 0xFFFFF;
-    object->ang.y = 0.000005992112f * (float)fixed;
 }
 
 float p_projectile_launch_upward(void) {
@@ -612,17 +648,24 @@ float p_projectile_impaled(void) {
 void set_active_projectile_impale_info(int bone) {
     MkObj* object;
 
-    if (proj_pdata == 0) {
-        return;
+    if (proj_pdata != 0) {
+        object = proj_pdata->object;
+        if (object != 0) {
+            if ((unsigned int)object->hdr.instance ==
+                proj_pdata->object_instance) {
+                /* The instance latch still identifies this object. */
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
+        if (object != 0) {
+            build_bones_tbl(object, 0);
+            proj_pdata->impale_bone = bone;
+            proj_pdata->setup_bits.impale_info_set = 1;
+        }
     }
-    object = proj_pdata->object;
-    if (object == 0 ||
-        object->hdr.instance != proj_pdata->object_instance) {
-        return;
-    }
-    build_bones_tbl(object, 0);
-    proj_pdata->impale_bone = bone;
-    proj_pdata->setup_flags |= 0x80;
 }
 
 float p_point_light_follower(void) {
@@ -632,57 +675,81 @@ float p_point_light_follower(void) {
     MkObj* object;
     MkObj* light;
 
-    if (projectile == 0 ||
-        projectile->hdr.instance != follower->projectile_instance) {
-        return -1.0f;
+    if (projectile != 0) {
+        if (projectile->hdr.instance == follower->projectile_instance) {
+            /* The instance latch still identifies this projectile. */
+        } else {
+            projectile = 0;
+        }
+    } else {
+        projectile = 0;
     }
-    object = projectile->object;
-    if (object == 0 ||
-        object->hdr.instance != projectile->object_instance) {
-        return -1.0f;
+    if (projectile != 0) {
+        object = projectile->object;
+        if (object != 0) {
+            if ((unsigned int)object->hdr.instance ==
+                projectile->object_instance) {
+                /* The instance latch still identifies this object. */
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
+        if (object != 0) {
+            light = projectile->tracking_light;
+            if (light != 0) {
+                if ((unsigned int)light->hdr.instance ==
+                    projectile->tracking_light_instance) {
+                    /* The instance latch still identifies this light. */
+                } else {
+                    light = 0;
+                }
+            } else {
+                light = 0;
+            }
+            if (light != 0) {
+                light->pos.x = object->pos.x;
+                light->pos.y = object->pos.y;
+                light->pos.z = object->pos.z;
+                update_obj_pos(light);
+                return 1.0f;
+            }
+        }
     }
-    light = projectile->tracking_light;
-    if (light == 0 ||
-        light->hdr.instance != projectile->tracking_light_instance) {
-        return -1.0f;
-    }
-    light->pos.x = object->pos.x;
-    light->pos.y = object->pos.y;
-    light->pos.z = object->pos.z;
-    update_obj_pos(light);
-    return 1.0f;
+    return -1.0f;
 }
 
 MkObj* set_active_projectile_tracking_light(LightDef* definition) {
     ProjectileFollowerPdata* follower;
-    MkHdr* raw_pdata = 0;
+    MkHdr* raw_pdata;
     MkObj* light;
     MkProc* process;
 
-    if (proj_pdata == 0) {
-        return 0;
-    }
-    light = load_light(definition, &point_light_list, 0);
-    if (light == 0) {
-        return 0;
-    }
-    process = _create_mkproc_generic_tinystack(
-        0x2026, 0x1F, p_point_light_follower,
-        sizeof(ProjectileFollowerPdata), &raw_pdata);
-    if (process == 0) {
-        if (light->hdr.instance != 0) {
-            ((void (*)(MkHdr*))light->hdr.vtbl->destroy)(&light->hdr);
-        }
-        return 0;
-    }
+    if (proj_pdata != 0) {
+        light = load_light(definition, &point_light_list, 0);
+        if (light != 0) {
+            process = _create_mkproc_generic_tinystack(
+                0x2026, 0x1F, p_point_light_follower,
+                sizeof(ProjectileFollowerPdata), &raw_pdata);
+            if (process == 0) {
+                if (light->hdr.instance != 0) {
+                    ((void (*)(MkHdr*))light->hdr.vtbl->destroy)(
+                        &light->hdr);
+                }
+                return 0;
+            }
 
-    proj_pdata->tracking_light = light;
-    proj_pdata->tracking_light_instance = light->hdr.instance;
-    follower = (ProjectileFollowerPdata*)raw_pdata;
-    follower->projectile = proj_pdata;
-    follower->projectile_instance = proj_pdata->hdr.instance;
-    mk_insert(&light->hdr, &process->pdata_list);
-    return light;
+            proj_pdata->tracking_light = light;
+            proj_pdata->tracking_light_instance = light->hdr.instance;
+            follower = (ProjectileFollowerPdata*)raw_pdata;
+            follower->projectile = proj_pdata;
+            follower->projectile_instance = proj_pdata->hdr.instance;
+            mk_insert(&light->hdr, &process->pdata_list);
+            return light;
+        }
+    }
+    return 0;
 }
 
 MkObj* start_projectile_from_plyr_bone(

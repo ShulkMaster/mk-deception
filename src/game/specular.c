@@ -1,23 +1,28 @@
-/*
- * Port readiness:
- *   Structs: MISSING
- *   Matching: 60.42% (.text)
- *   Linked: NO
- *   Status: SCAFFOLD
- *   Gaps: material, atomic-list, geometry-plugin, light, and callback payload casts remain
- */
-#include "game/specular.h"
+typedef struct RwV3d {
+    float x;
+    float y;
+    float z;
+} RwV3d;
 
 typedef struct RwMatrix {
-    float right[4];
-    float up[4];
-    float at[4];
-    float pos[4];
+    RwV3d right;
+    unsigned int flags;
+    RwV3d up;
+    unsigned int pad1;
+    RwV3d at;
+    unsigned int pad2;
+    RwV3d pos;
+    unsigned int pad3;
 } RwMatrix;
+
+typedef union FloatBits {
+    float value;
+    unsigned int bits;
+} FloatBits;
 
 typedef struct RwEngineInstanceType {
     char pad[0x134];
-    void* (*fpMalloc)(unsigned long hint, unsigned long size);
+    void* (*fpMalloc)(unsigned long size, unsigned long hint);
 } RwEngineInstanceType;
 
 typedef struct SpecularLight {
@@ -25,47 +30,89 @@ typedef struct SpecularLight {
     void* frame;
 } SpecularLight;
 
+typedef struct RwSurfacePropertiesBits {
+    int ambient;
+    int specular;
+    int diffuse;
+} RwSurfacePropertiesBits;
+
+typedef union SpecularFlags {
+    unsigned char value;
+    struct {
+        unsigned char unused_7 : 1;
+        signed char reflective : 1;
+        signed char flag_5 : 1;
+        signed char flag_4 : 1;
+        signed char flag_3 : 1;
+        unsigned char unused_2_0 : 3;
+    } bits;
+} SpecularFlags;
+
+typedef union SpecularTint {
+    unsigned int value;
+    unsigned char component[4];
+} SpecularTint;
+
 typedef struct SpecularMaterialExt {
     SpecularLight* light;
     void* frame;
     void* phong_texture;
-    int saved_tex_c;
-    int saved_mat_c;
-    int saved_mat_10;
-    int saved_mat_14;
+    unsigned int saved_tex_c;
+    RwSurfacePropertiesBits saved_surface;
     int clip_value;
     float shininess;
-    void* mk_texture;
+    SpecularTint tint;
     float gloss;
-    unsigned char flags;
+    SpecularFlags flags;
     char pad_2D[3];
 } SpecularMaterialExt;
+
+typedef struct RwSurfaceProperties {
+    float ambient;
+    float specular;
+    float diffuse;
+} RwSurfaceProperties;
+
+typedef union RwSurfacePropertiesValue {
+    RwSurfaceProperties value;
+    RwSurfacePropertiesBits bits;
+} RwSurfacePropertiesValue;
 
 typedef struct RpMaterial {
     char pad[0x8];
     void* pipeline;
-    float tex_coeff_c;
-    float tex_coeff_10;
-    float tex_coeff_14;
+    RwSurfacePropertiesValue surface;
 } RpMaterial;
+
+typedef struct RpMaterialList {
+    RpMaterial** materials;
+    int count;
+} RpMaterialList;
 
 typedef struct RpGeometry {
     char pad[0x20];
-    void** material_list;
-    int material_count;
+    RpMaterialList material_list;
 } RpGeometry;
 
 typedef struct RpAtomic {
     char pad[0x18];
     RpGeometry* geometry;
-    char pad2[0xC];
-    void* in_clump_link;
-    void* next_atomic;
+    char pad2[0x50];
+    void* pipeline;
 } RpAtomic;
+
+typedef struct RwLLLink {
+    struct RwLLLink* next;
+    struct RwLLLink* prev;
+} RwLLLink;
+
+typedef struct RwLinkList {
+    RwLLLink link;
+} RwLinkList;
 
 typedef struct RpClump {
     char pad[0x8];
-    void* atomic_list_end;
+    RwLinkList atomic_list;
 } RpClump;
 
 typedef struct CameraType {
@@ -76,7 +123,8 @@ typedef struct CameraType {
 typedef struct MkMaterialExt {
     unsigned int flags;
     float shininess;
-    void* texture;
+    unsigned int tint;
+    int field_0xC;
     float gloss;
 } MkMaterialExt;
 
@@ -88,13 +136,27 @@ typedef struct GxLightSlot {
     float field10;
     float field14;
     float field18;
+    float field1C;
     float field20;
     float field24;
     float field28;
+    float field2C;
     float field30;
     float field34;
     float field38;
+    float field3C;
 } GxLightSlot;
+
+typedef struct GxLightBlock {
+    GxLightSlot primary[15];
+    GxLightSlot secondary[15];
+    int field_0x780;
+} GxLightBlock;
+
+typedef struct MkSObj {
+    char pad[0x80];
+    GxLightBlock* light_block;
+} MkSObj;
 
 void material_restore_reflection_texture(void);
 void material_cache_reflection_texture(void);
@@ -110,7 +172,7 @@ void* create_default_bgnd_specular_light(void);
 void* RwFrameGetLTM(void* frame);
 void RwMatrixUpdate(RwMatrix* matrix);
 void* RpSkinGeometryGetSkin(void* geometry);
-void* _rpMaterialListGetMaterial(void* material_list, int index);
+void* _rpMaterialListGetMaterial(RpMaterialList* material_list, int index);
 void SpecularCreatePipelines(void);
 int RwEngineRegisterPlugin(int size, unsigned long plugin_id, void* open, void* close);
 
@@ -124,7 +186,7 @@ extern CameraType* Camera;
 extern RwEngineInstanceType* RwEngineInstance;
 extern void* PhongTextures[3];
 extern float PhongCoefficients[3];
-extern float Yaxis[3];
+extern RwV3d Yaxis;
 extern char loading_image[];
 
 static const float kOne = 1.0f;
@@ -140,454 +202,443 @@ void* ImagePixels = loading_image;
 int lbl_80510AC4;
 int MKSpecularInstances;
 
-static void* restore_specular_texture_material_callback(void* material, void* data);
-static void* swap_specular_texture_material_callback(void* material, void* texture);
+static RpMaterial* restore_specular_texture_material_callback(RpMaterial* material, void* data);
+static RpMaterial* swap_specular_texture_material_callback(RpMaterial* material, void* texture);
 static void* specskin_atomic_setup(void* atomic);
 static void* MKSpecularOpen(void* instance, int offset, int size);
 static void MKSpecularClose(void* instance, int offset, int size);
+void* specskin_material_setup(void* material, unsigned int is_player);
 
-static void* restore_specular_texture_material_callback(void* material, void* data) {
-    char* mat;
-    char* spec;
-    int val;
+static inline SpecularMaterialExt* specular_material_ext(RpMaterial* material) {
+    return (SpecularMaterialExt*)((char*)material + SpecularMaterialOffset);
+}
 
-    mat = material;
-    spec = mat + SpecularMaterialOffset;
-    if (*(int*)spec == 0) {
-        return material;
+static inline MkMaterialExt* mk_material_ext(RpMaterial* material) {
+    return (MkMaterialExt*)((char*)material + MkmaterialLocalOffset);
+}
+
+static inline RpMaterial* material_at_byte_offset(
+    const RpMaterialList* list, int byte_offset) {
+    return *(RpMaterial**)((char*)list->materials + byte_offset);
+}
+
+static inline float fast_inverse_sqrt(float length_squared) {
+    FloatBits inverse;
+    float product;
+    float correction;
+    float result;
+
+    if (length_squared <= kZero) {
+        result = kZero;
+    } else {
+        inverse.value = length_squared;
+        inverse.bits = 0x5F375A00U - (inverse.bits >> 1);
+        product = inverse.value * (length_squared * inverse.value);
+        correction = kThree - product;
+        result = kInvSqrtCoeffA * inverse.value * correction *
+                 -(correction * (product * correction) - kInvSqrtCoeffB);
     }
-    if (*(int*)(spec + 0xC) == 0) {
-        return material;
+    return result;
+}
+
+static RpMaterial* restore_specular_texture_material_callback(RpMaterial* material, void* data) {
+    SpecularMaterialExt* spec;
+
+    spec = specular_material_ext(material);
+    if (spec->light != 0 && spec->saved_tex_c != 0) {
+        material_restore_reflection_texture();
+        material->surface.bits = spec->saved_surface;
     }
-    material_restore_reflection_texture();
-    val = *(int*)(spec + 0x10);
-    *(int*)(mat + 0xC) = val;
-    val = *(int*)(spec + 0x14);
-    *(int*)(mat + 0x10) = val;
-    val = *(int*)(spec + 0x18);
-    *(int*)(mat + 0x14) = val;
     return material;
 }
 
-static void* swap_specular_texture_material_callback(void* material, void* texture) {
-    char* mat;
-    char* spec;
-    char* tex;
-    int mat_c;
-    int mat_10;
-    int mat_14;
-    int stack_c;
+static RpMaterial* swap_specular_texture_material_callback(RpMaterial* material, void* texture) {
+    SpecularMaterialExt* spec;
+    void* reflection_texture;
+    RwSurfacePropertiesValue surface;
 
-    mat = material;
-    tex = texture;
-    spec = mat + SpecularMaterialOffset;
-    if (*(int*)spec == 0) {
-        return material;
+    reflection_texture = texture;
+    spec = specular_material_ext(material);
+    if (spec->light != 0) {
+        material_cache_reflection_texture();
+        material_set_reflection_texture(material, reflection_texture);
+        surface = material->surface;
+        spec->saved_surface = surface.bits;
+        surface.value.specular = kOne;
+        material->surface = surface;
     }
-    material_cache_reflection_texture();
-    material_set_reflection_texture(mat, tex);
-    mat_c = *(int*)(mat + 0xC);
-    mat_10 = *(int*)(mat + 0x10);
-    mat_14 = *(int*)(mat + 0x14);
-    stack_c = mat_10;
-    *(int*)(spec + 0x10) = mat_c;
-    *(int*)(spec + 0x14) = mat_10;
-    *(int*)(spec + 0x18) = mat_14;
-    *(float*)&stack_c = kOne;
-    *(int*)(mat + 0xC) = mat_c;
-    *(int*)(mat + 0x10) = stack_c;
-    *(int*)(mat + 0x14) = mat_14;
     return material;
 }
 
-void force_specular_texture_atomic_callback(void* atomic, void* texture) {
-    char* atom;
-    char* geometry;
-    void** materials;
-    int material_count;
+/* Soft ceiling: 97.76% -- loop values differ only in nonvolatile register homes. */
+void* force_specular_texture_atomic_callback(void* atomic, void* texture) {
+    RpAtomic* atom;
+    void* reflection_texture;
+    RpGeometry* geometry;
     int index;
+    int material_count;
     int offset;
-    char* spec;
 
     atom = atomic;
-    geometry = *(char**)(atom + 0x18);
-    materials = *(void***)(geometry + 0x20);
-    material_count = *(int*)(geometry + 0x24);
+    reflection_texture = texture;
+    geometry = atom->geometry;
+    material_count = geometry->material_list.count;
     index = 0;
     offset = 0;
     while (index < material_count) {
-        spec = materials[offset / 4];
-        spec = spec + SpecularMaterialOffset;
-        if (*(int*)spec != 0) {
-            material_set_reflection_texture(materials[offset / 4], texture);
+        if (specular_material_ext(material_at_byte_offset(
+                &geometry->material_list, offset))->light != 0) {
+            material_set_reflection_texture(
+                material_at_byte_offset(&geometry->material_list, offset),
+                reflection_texture);
         }
         index++;
         offset += 4;
     }
+    return atomic;
 }
 
-void restore_specular_texture_atomic_callback(void* atomic, void* data) {
-    char* saved;
+void* restore_specular_texture_atomic_callback(void* atomic, void* data) {
+    RpAtomic* atom;
 
-    saved = atomic;
-    RpGeometryForAllMaterials(*(void**)(saved + 0x18), restore_specular_texture_material_callback,
-                              data);
-    atomic = saved;
+    atom = atomic;
+    RpGeometryForAllMaterials(atom->geometry, restore_specular_texture_material_callback, data);
+    return atomic;
 }
 
-void swap_specular_texture_atomic_callback(void* atomic, void* texture) {
-    char* saved;
+void* swap_specular_texture_atomic_callback(void* atomic, void* texture) {
+    RpAtomic* atom;
 
-    saved = atomic;
-    RpGeometryForAllMaterials(*(void**)(saved + 0x18), swap_specular_texture_material_callback,
-                              texture);
-    atomic = saved;
+    atom = atomic;
+    RpGeometryForAllMaterials(atom->geometry, swap_specular_texture_material_callback, texture);
+    return atomic;
 }
 
-/* Soft ceiling: SpecularMaterialCalcMatrix + texture/clump helpers --
- * beyond AttachPlugins; defer full specular / gcspecskin Matching. */
+/* Soft ceiling: 90.03% -- FPR scheduling and matrix-copy addressing remain. */
 void SpecularMaterialCalcMatrix(void* material) {
     SpecularMaterialExt* spec;
-    RwMatrix* ltm_camera;
-    RwMatrix* ltm_frame;
-    float vec_x;
-    float vec_y;
-    float vec_z;
-    float at_dot;
-    float len_sq;
-    float inv_len;
-    float axis_x;
-    float axis_y;
-    float axis_z;
-    float cross_len_sq;
-    float inv_cross_len;
+    RwMatrix* light_matrix;
+    RwMatrix* frame_matrix;
+    RwV3d reflected;
     RwMatrix matrix;
-    int len_bits;
-    int cross_bits;
+    float dot;
+    float reflection_scale;
+    float length_squared;
+    float inverse_length;
+    float cross_length_squared;
+    float inverse_cross_length;
+    float scaled_x;
+    float scaled_y;
+    float scaled_z;
+    unsigned int* source;
+    unsigned int* destination;
     int copy_count;
-    int* src;
-    int* dst;
 
-    spec = (SpecularMaterialExt*)((char*)material + SpecularMaterialOffset);
-    if (spec->light == 0) {
-        return;
+    spec = specular_material_ext(material);
+    if (spec->light != 0 && spec->light->frame != 0) {
+        light_matrix = RwFrameGetLTM(spec->light->frame);
+        frame_matrix = RwFrameGetLTM(spec->frame);
+        reflected = frame_matrix->at;
+
+        dot = reflected.z * light_matrix->at.z +
+              (reflected.x * light_matrix->at.x + reflected.y * light_matrix->at.y);
+        if (dot < kZero) {
+            reflection_scale = kNegTwo * dot;
+            scaled_x = light_matrix->at.x * reflection_scale;
+            scaled_y = light_matrix->at.y * reflection_scale;
+            scaled_z = light_matrix->at.z * reflection_scale;
+            reflected.x += scaled_x;
+            reflected.y += scaled_y;
+            reflected.z += scaled_z;
+        }
+
+        matrix.at.x = reflected.x + light_matrix->at.x;
+        matrix.at.y = reflected.y + light_matrix->at.y;
+        matrix.at.z = reflected.z + light_matrix->at.z;
+        length_squared = matrix.at.z * matrix.at.z +
+                         (matrix.at.x * matrix.at.x +
+                          matrix.at.y * matrix.at.y);
+        inverse_length = fast_inverse_sqrt(length_squared);
+        scaled_x = matrix.at.x * inverse_length;
+        scaled_y = matrix.at.y * inverse_length;
+        scaled_z = matrix.at.z * inverse_length;
+        matrix.at.x = scaled_x;
+        matrix.at.y = scaled_y;
+        matrix.at.z = scaled_z;
+
+        matrix.right.x = Yaxis.y * scaled_z - Yaxis.z * scaled_y;
+        matrix.right.y = Yaxis.z * scaled_x - Yaxis.x * scaled_z;
+        matrix.right.z = Yaxis.x * scaled_y - Yaxis.y * scaled_x;
+        cross_length_squared = matrix.right.z * matrix.right.z +
+                               (matrix.right.x * matrix.right.x +
+                                matrix.right.y * matrix.right.y);
+        inverse_cross_length = fast_inverse_sqrt(cross_length_squared);
+        matrix.right.x *= inverse_cross_length;
+        matrix.right.y *= inverse_cross_length;
+        matrix.right.z *= inverse_cross_length;
+
+        matrix.up.x = matrix.at.y * matrix.right.z - matrix.at.z * matrix.right.y;
+        matrix.up.y = matrix.at.z * matrix.right.x - matrix.at.x * matrix.right.z;
+        matrix.up.z = matrix.at.x * matrix.right.y - matrix.at.y * matrix.right.x;
+        RwMatrixUpdate(&matrix);
+        source = (unsigned int*)&matrix;
+        destination = (unsigned int*)&SpecularMatrix;
+        for (copy_count = 0; copy_count < 8; copy_count++) {
+            destination[0] = source[0];
+            destination[1] = source[1];
+            source += 2;
+            destination += 2;
+        }
     }
-    if (spec->light->frame == 0) {
-        return;
-    }
-    ltm_camera = RwFrameGetLTM(spec->light->frame);
-    ltm_frame = RwFrameGetLTM(spec->frame);
-    vec_x = ltm_frame->at[0];
-    vec_y = ltm_frame->at[1];
-    vec_z = ltm_frame->at[2];
-    at_dot = vec_x * ltm_camera->at[0] + vec_y * ltm_camera->at[1] + vec_z * ltm_camera->at[2];
-    if (at_dot < kZero) {
-        inv_len = kNegTwo * at_dot;
-        vec_x = ltm_camera->at[0] + vec_x * inv_len;
-        vec_y = ltm_camera->at[1] + vec_y * inv_len;
-        vec_z = ltm_camera->at[2] + vec_z * inv_len;
-    }
-    vec_x = vec_x + ltm_camera->at[0];
-    vec_y = vec_y + ltm_camera->at[1];
-    vec_z = vec_z + ltm_camera->at[2];
-    len_sq = vec_x * vec_x + vec_y * vec_y + vec_z * vec_z;
-    if (len_sq < kZero) {
-        inv_len = kOne;
-    } else {
-        len_bits = 0x5F375A00 - ((*(int*)&len_sq) >> 1);
-        inv_len = *(float*)&len_bits;
-        inv_len = len_sq * inv_len;
-        inv_len = kInvSqrtCoeffA * inv_len;
-        inv_len = inv_len * inv_len;
-        inv_len = kThree - len_sq * inv_len;
-        inv_len = kInvSqrtCoeffA * inv_len;
-        inv_len = inv_len * (*(float*)&len_bits);
-        inv_len = inv_len * kInvSqrtCoeffB;
-    }
-    axis_x = vec_x * inv_len;
-    axis_y = vec_y * inv_len;
-    axis_z = vec_z * inv_len;
-    matrix.at[0] = Yaxis[2] * (vec_y * inv_len) - Yaxis[1] * (vec_z * inv_len);
-    matrix.at[1] = Yaxis[0] * (vec_z * inv_len) - Yaxis[2] * axis_x;
-    matrix.at[2] = Yaxis[1] * axis_x - Yaxis[0] * (vec_y * inv_len);
-    cross_len_sq = matrix.at[0] * matrix.at[0] + matrix.at[1] * matrix.at[1] +
-                   matrix.at[2] * matrix.at[2];
-    if (cross_len_sq < kZero) {
-        inv_cross_len = kOne;
-    } else {
-        cross_bits = 0x5F375A00 - ((*(int*)&cross_len_sq) >> 1);
-        inv_cross_len = *(float*)&cross_bits;
-        inv_cross_len = cross_len_sq * inv_cross_len;
-        inv_cross_len = kInvSqrtCoeffA * inv_cross_len;
-        inv_cross_len = inv_cross_len * inv_cross_len;
-        inv_cross_len = kThree - cross_len_sq * inv_cross_len;
-        inv_cross_len = kInvSqrtCoeffA * inv_cross_len;
-        inv_cross_len = inv_cross_len * (*(float*)&cross_bits);
-        inv_cross_len = inv_cross_len * kInvSqrtCoeffB;
-    }
-    matrix.right[0] = matrix.at[0] * inv_cross_len;
-    matrix.right[1] = matrix.at[1] * inv_cross_len;
-    matrix.right[2] = matrix.at[2] * inv_cross_len;
-    matrix.up[0] = axis_x;
-    matrix.up[1] = axis_y;
-    matrix.up[2] = axis_z;
-    matrix.at[0] = axis_x;
-    matrix.at[1] = axis_y;
-    matrix.at[2] = axis_z;
-    matrix.right[0] = matrix.up[1] * matrix.at[2] - matrix.up[2] * matrix.at[1];
-    matrix.right[1] = matrix.up[2] * matrix.at[0] - matrix.up[0] * matrix.at[2];
-    matrix.right[2] = matrix.up[0] * matrix.at[1] - matrix.up[1] * matrix.at[0];
-    matrix.up[0] = matrix.at[1] * matrix.right[2] - matrix.at[2] * matrix.right[1];
-    matrix.up[1] = matrix.at[2] * matrix.right[0] - matrix.at[0] * matrix.right[2];
-    matrix.up[2] = matrix.at[0] * matrix.right[1] - matrix.at[1] * matrix.right[0];
-    RwMatrixUpdate(&matrix);
-    src = (int*)&matrix.right[1];
-    dst = (int*)&SpecularMatrix.right[1];
-    copy_count = 8;
-    do {
-        dst[1] = src[1];
-        src += 2;
-        dst[0] = src[-2];
-        dst += 2;
-        copy_count--;
-    } while (copy_count != 0);
 }
 
 void specskin_initialize_clump(void* clump) {
     RpClumpForAllAtomics(clump, specskin_atomic_setup, 0);
 }
 
+/* Soft ceiling: 99.19% -- the list cursor occupies r4 instead of retail r5. */
 void specskin_force_clipping_clump(void* clump, int value) {
+    int clip_value;
     RpClump* clump_ptr;
-    void* link;
-    void* end;
-    RpAtomic* atomic;
+    RwLLLink* link;
+    RwLLLink* end;
+    RwLLLink* next;
     RpGeometry* geometry;
-    int material_count;
-    int index;
+    RpMaterialList* material_list;
+    unsigned int material_count;
+    unsigned int index;
 
+    clip_value = value;
     clump_ptr = clump;
-    end = clump_ptr->atomic_list_end;
-    link = *(void**)((char*)clump_ptr + 8);
+    end = &clump_ptr->atomic_list.link;
+    link = end->next;
     while (link != end) {
-        atomic = (RpAtomic*)((char*)link - 0x28);
-        geometry = atomic->geometry;
-        material_count = geometry->material_count;
+        geometry = *(RpGeometry**)((char*)link - 0x28);
+        next = link->next;
+        material_list = &geometry->material_list;
+        material_count = material_list->count;
         index = 0;
         while (index < material_count) {
-            *(int*)((char*)_rpMaterialListGetMaterial(geometry->material_list, index) +
-                    SpecularMaterialOffset + 0x1C) = value;
+            *(int*)((char*)_rpMaterialListGetMaterial(material_list, index) +
+                    SpecularMaterialOffset + 0x1C) = clip_value;
             index++;
         }
-        link = *(void**)link;
+        link = next;
     }
 }
 
+/* Soft ceiling: 96.58% -- nonvolatile coloring and one zero materialization remain. */
 static void* specskin_atomic_setup(void* atomic) {
-    RpAtomic* atom;
-    void* mksobj;
+    MkSObj* mksobj;
     RpGeometry* geometry;
-    void* light_block;
-    char* base;
+    RpAtomic* atom;
+    GxLightBlock* light_block;
     int offset;
+    char* base;
     int count;
     GxLightSlot* slot0;
     GxLightSlot* slot1;
     unsigned int flags;
 
+    mksobj = *(MkSObj**)((char*)atomic + MksobjLocalOffset + 8);
+    geometry = ((RpAtomic*)atomic)->geometry;
+    RpMatFXAtomicEnableEffects(atomic);
     atom = atomic;
-    mksobj = *(void**)((char*)atom + MksobjLocalOffset + 8);
-    geometry = atom->geometry;
-    RpMatFXAtomicEnableEffects(atom);
-    *(void**)((char*)atom + 0x6C) = (void*)SpecSkinAtomicPipeline;
+    atom->pipeline = (void*)SpecSkinAtomicPipeline;
     RpGeometryForAllMaterials(geometry, specskin_material_setup, 0);
-    if (mksobj == 0) {
-        return atomic;
+    if (mksobj != 0 && mksobj->light_block == 0) {
+        light_block = RwEngineInstance->fpMalloc(0x790, 0x30000);
+        mksobj->light_block = light_block;
+        base = (char*)light_block;
+        offset = 0;
+        light_block->field_0x780 = offset;
+        for (count = 0; count < 0xF; count++) {
+            slot0 = (GxLightSlot*)(base + offset);
+            slot1 = (GxLightSlot*)(base + offset + 0x3C0);
+            slot0->field28 = kOne;
+            slot0->field14 = kOne;
+            slot0->field00 = kOne;
+            slot0->field10 = kZero;
+            slot0->field08 = kZero;
+            slot0->field04 = kZero;
+            slot0->field24 = kZero;
+            slot0->field20 = kZero;
+            slot0->field18 = kZero;
+            slot0->field38 = kZero;
+            slot0->field34 = kZero;
+            slot0->field30 = kZero;
+            flags = slot0->field0C;
+            flags = (flags | 0x20000) | 3;
+            slot0->field0C = flags;
+            slot1->field28 = kOne;
+            slot1->field14 = kOne;
+            slot1->field00 = kOne;
+            slot1->field10 = kZero;
+            slot1->field08 = kZero;
+            slot1->field04 = kZero;
+            slot1->field24 = kZero;
+            slot1->field20 = kZero;
+            slot1->field18 = kZero;
+            slot1->field38 = kZero;
+            slot1->field34 = kZero;
+            slot1->field30 = kZero;
+            flags = slot1->field0C;
+            flags = (flags | 0x20000) | 3;
+            slot1->field0C = flags;
+            offset += 0x40;
+        }
     }
-    if (*(void**)((char*)mksobj + 0x80) != 0) {
-        return atomic;
-    }
-    light_block = RwEngineInstance->fpMalloc(0x790, 0x30000000);
-    *(void**)((char*)mksobj + 0x80) = light_block;
-    base = light_block;
-    offset = 0;
-    count = 0xF;
-    do {
-        slot0 = (GxLightSlot*)(base + offset);
-        slot1 = (GxLightSlot*)(base + offset + 0x3C0);
-        slot0->field00 = kOne;
-        slot0->field14 = kOne;
-        slot0->field28 = kOne;
-        slot0->field04 = kZero;
-        slot0->field08 = kZero;
-        slot0->field10 = kZero;
-        slot0->field18 = kZero;
-        slot0->field20 = kZero;
-        slot0->field24 = kZero;
-        slot0->field30 = kZero;
-        slot0->field34 = kZero;
-        slot0->field38 = kZero;
-        flags = slot0->field0C;
-        flags = (flags | 0x20000) | 3;
-        slot0->field0C = flags;
-        slot1->field00 = kOne;
-        slot1->field14 = kOne;
-        slot1->field28 = kOne;
-        slot1->field04 = kZero;
-        slot1->field08 = kZero;
-        slot1->field10 = kZero;
-        slot1->field18 = kZero;
-        slot1->field20 = kZero;
-        slot1->field24 = kZero;
-        slot1->field30 = kZero;
-        slot1->field34 = kZero;
-        slot1->field38 = kZero;
-        flags = slot1->field0C;
-        flags = (flags | 0x20000) | 3;
-        slot1->field0C = flags;
-        offset += 0x40;
-        count--;
-    } while (count != 0);
-    return atomic;
+    return atom;
 }
 
-void* specskin_material_setup(void* material, int is_player) {
-    char* mat;
-    char* spec;
-    void* light;
+/* Soft ceiling: 98.75% -- material/index and coefficient-loop GPR homes differ. */
+void* specskin_material_setup(void* material, unsigned int is_player) {
     int phong_index;
+    RpMaterial* mat;
+    SpecularMaterialExt* spec;
+    void* light;
     int coeff_byte;
     int coeff_count;
     float threshold;
     float shininess;
-    int stack_slot;
     int use_player;
     float* coeff_pair;
+    void* camera_frame;
+    void* selected_texture;
+    RwSurfacePropertiesValue surface;
 
-    mat = material;
     phong_index = 0;
+    mat = material;
     use_player = 1;
-    if (is_player == 0) {
-        use_player = 1;
-    } else {
+    if (is_player != 0) {
         use_player = 0;
     }
-    if (use_player == 0) {
-        light = get_bgnd_specular_light();
-        if (light == 0) {
-            light = create_default_bgnd_specular_light();
-        }
-    } else {
+    if (use_player != 0) {
         RpMatFXMaterialSetEffects(material, 5);
         light = get_specular_light();
         if (light == 0) {
             light = create_default_specular_light();
         }
+    } else {
+        light = get_bgnd_specular_light();
+        if (light == 0) {
+            light = create_default_bgnd_specular_light();
+        }
     }
     if (light == 0) {
         return 0;
     }
-    spec = mat + SpecularMaterialOffset;
-    shininess = *(float*)(spec + 0x20);
+    shininess = specular_material_ext(mat)->shininess;
     if (shininess != kZero) {
         coeff_byte = 0;
-        coeff_count = 2;
-        do {
+        for (coeff_count = 0; coeff_count < 2; coeff_count++) {
             coeff_pair = (float*)((char*)PhongCoefficients + coeff_byte);
             threshold = kHalf * (coeff_pair[0] + coeff_pair[1]);
-            if (shininess > threshold) {
+            if (!(shininess >= threshold)) {
                 break;
             }
             phong_index++;
             coeff_byte += 4;
-            coeff_count--;
-        } while (coeff_count != 0);
+        }
     } else {
-        stack_slot = *(int*)(mat + 0x10);
-        *(float*)&stack_slot = kZero;
-        *(int*)(mat + 0x10) = stack_slot;
+        surface = mat->surface;
+        surface.value.specular = kZero;
+        mat->surface = surface;
     }
-    if (*(float*)(mat + 0x10) > kOne) {
-        *(float*)(mat + 0x10) = kOne;
+    selected_texture = PhongTextures[phong_index];
+    camera_frame = Camera->frame;
+    spec = specular_material_ext(mat);
+    if (mat->surface.value.specular > kOne) {
+        mat->surface.value.specular = kOne;
     }
-    if (*(float*)(mat + 0xC) > kOne) {
-        *(float*)(mat + 0xC) = kOne;
+    if (mat->surface.value.ambient > kOne) {
+        mat->surface.value.ambient = kOne;
     }
-    if (*(float*)(mat + 0x14) > kOne) {
-        *(float*)(mat + 0x14) = kOne;
+    if (mat->surface.value.diffuse > kOne) {
+        mat->surface.value.diffuse = kOne;
     }
-    *(void**)spec = light;
-    *(void**)(spec + 4) = Camera->frame;
-    *(void**)(spec + 8) = PhongTextures[phong_index];
-    if (*(unsigned char*)(spec + 0x24) < 0x40) {
-        *(unsigned char*)(spec + 0x24) = 0x40;
+    spec->light = light;
+    spec->frame = camera_frame;
+    spec->phong_texture = selected_texture;
+    if (spec->tint.component[0] < 0x40) {
+        spec->tint.component[0] = 0x40;
     }
-    if (*(unsigned char*)(spec + 0x25) < 0x40) {
-        *(unsigned char*)(spec + 0x25) = 0x40;
+    if (spec->tint.component[1] < 0x40) {
+        spec->tint.component[1] = 0x40;
     }
-    if (*(unsigned char*)(spec + 0x26) < 0x40) {
-        *(unsigned char*)(spec + 0x26) = 0x40;
+    if (spec->tint.component[2] < 0x40) {
+        spec->tint.component[2] = 0x40;
     }
-    *(void**)(mat + 8) = (void*)SpecSkinMaterialPipeline;
+    mat->pipeline = (void*)SpecSkinMaterialPipeline;
     return material;
 }
 
+/* Soft ceiling: 91.71% -- flag extraction and adjacent store scheduling differ. */
 void specular_condition_clump(void* clump) {
     RpClump* clump_ptr;
-    void* link;
-    void* end;
-    RpAtomic* atomic;
+    RwLLLink* link;
     RpGeometry* geometry;
+    RwLLLink* end;
+    RwLLLink* next;
     void* skin;
-    void** materials;
-    int material_count;
-    int material_index;
+    unsigned int material_count;
+    unsigned int material_index;
+    int material_offset;
     MkMaterialExt* mkmat;
     SpecularMaterialExt* spec;
     void* material;
+    signed char reflective;
+    signed char flag_5;
+    signed char flag_4;
+    signed char flag_3;
     unsigned int flags;
-    unsigned char packed;
+    float material_shininess;
+    unsigned int material_tint;
+    float material_gloss;
 
     clump_ptr = clump;
-    end = clump_ptr->atomic_list_end;
-    link = *(void**)((char*)clump_ptr + 8);
+    link = clump_ptr->atomic_list.link.next;
+    end = &clump_ptr->atomic_list.link;
     while (link != end) {
-        atomic = (RpAtomic*)((char*)link - 0x28);
-        geometry = atomic->geometry;
+        geometry = *(RpGeometry**)((char*)link - 0x28);
+        next = link->next;
         skin = RpSkinGeometryGetSkin(geometry);
-        materials = geometry->material_list;
-        material_count = geometry->material_count;
+        material_count = geometry->material_list.count;
         material_index = 0;
+        material_offset = 0;
         while (material_index < material_count) {
-            material = materials[material_index];
-            mkmat = (MkMaterialExt*)((char*)material + MkmaterialLocalOffset);
-            spec = (SpecularMaterialExt*)((char*)material + SpecularMaterialOffset);
+            material = material_at_byte_offset(
+                &geometry->material_list, material_offset);
+            mkmat = mk_material_ext(material);
             flags = mkmat->flags;
-            spec->shininess = mkmat->shininess;
-            spec->mk_texture = mkmat->texture;
-            spec->gloss = mkmat->gloss;
-            packed = spec->flags;
-            packed = (unsigned char)((packed & 0xBF) | ((flags >> 31) & 1) << 6);
-            packed = (unsigned char)((packed & 0xDF) | ((flags >> 4) & 1) << 5);
-            packed = (unsigned char)((packed & 0xEF) | ((flags >> 2) & 1) << 4);
-            packed = (unsigned char)((packed & 0xF7) | ((flags >> 1) & 1) << 3);
-            spec->flags = packed;
-            if (mkmat->shininess > kZero) {
+            material_shininess = mkmat->shininess;
+            material_tint = mkmat->tint;
+            material_gloss = mkmat->gloss;
+            spec = specular_material_ext(material);
+            reflective = (signed char)(flags >> 31);
+            flag_5 = (signed char)((flags >> 27) & 1);
+            flag_4 = (signed char)((flags >> 29) & 1);
+            flag_3 = (signed char)((flags >> 30) & 1);
+            spec->shininess = material_shininess;
+            spec->tint.value = material_tint;
+            spec->gloss = material_gloss;
+            spec->flags.bits.reflective = reflective;
+            spec->flags.bits.flag_5 = flag_5;
+            spec->flags.bits.flag_4 = flag_4;
+            spec->flags.bits.flag_3 = flag_3;
+            if (material_shininess > kZero) {
                 *(int*)((char*)geometry + SpecularGeometryOffset + 4) = material_index;
                 if (skin == 0) {
                     specskin_material_setup(material, 1);
                 }
             }
             material_index++;
+            material_offset += 4;
         }
-        link = *(void**)link;
+        link = next;
     }
 }
 
-/*
- * AttachPlugins Midway gate only (B12). Readable body; do not Matching-grind
- * SpecularMaterialCalcMatrix / texture-swap callbacks / gcspecskin pipelines.
- */
 int specskin_plugin_attach(void) {
     unsigned int result;
 
