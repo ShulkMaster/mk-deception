@@ -454,7 +454,7 @@ void insert_PFXlist_in_transl_tree(void) {
     apply_to_mklist(InsertPFXCloneInTranslTree, &pfx_clone_render_list);
 }
 
-void set_pfx_texture(MkPfx* pfx, void* path, void* name) {
+void set_pfx_texture(PfxVm* pfx, void* path, void* name) {
     void* tex;
 
     tex = load_tga(path, name);

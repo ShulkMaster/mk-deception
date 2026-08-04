@@ -7,6 +7,7 @@
 
 typedef void (*PfxInitCb)(void* vm);
 typedef void (*PfxTransformCb)(void);
+typedef struct FighterMirror FighterMirror;
 
 /* Build-info blob passed to new_pfx_create_raw_userdata (retail static empty_build_info$522). */
 typedef struct PfxBuildInfo {
@@ -61,7 +62,9 @@ typedef struct PfxVm {
 
 /* Emitter VM blob (stack/scratch size 0x2EC); transform @ +0x2E8. */
 typedef struct PfxEmitter {
-    char pad00[0x2E8];
+    char pad00[0x0C];
+    float lifetime; /* +0x0C */
+    char pad10[0x2D8];
     void* transform; /* +0x2E8 -- bone mat / LTM */
 } PfxEmitter;
 
@@ -113,7 +116,9 @@ struct MkPfx {
     int field_A0;                 /* +0xA0 */
     char padA4[0x0C];
     PfxSlotMat mats[1];           /* +0xB0 -- indexed; stride 0x48 */
-    char pad_mats[0x150 - 0x48];  /* remainder through +0x1FF */
+    char padF8[0xCA];
+    unsigned short emitter_enabled; /* +0x1C2 */
+    char pad1C4[0x3C];
     int slot_count;               /* +0x200 */
     void* emitter_scratch;        /* +0x204 */
     char pad208[4];
@@ -128,9 +133,18 @@ struct MkPfx {
     void* metrics_handle;         /* +0x264 */
     float scale;                  /* +0x268 */
     char pad26C[0x14];
-    int field_280;                /* +0x280 */
-    int field_284;
-    int field_288;
+    union {
+        int field_280;
+        MkObj* tracked_object;
+    };                            /* +0x280 */
+    union {
+        int field_284;
+        unsigned int tracked_object_instance;
+    };
+    union {
+        int field_288;
+        int effect_state;
+    };
     int field_28C;
     int field_290;
     int field_294;
@@ -140,7 +154,10 @@ struct MkPfx {
     float field_2A4;
     float field_2A8;
     char pad2AC[0x0C];
-    int field_2B8;                /* +0x2B8 */
+    union {
+        int field_2B8;
+        FighterMirror* decal_owner;
+    };                            /* +0x2B8 */
     int field_2BC;                /* +0x2BC -- end of 0x2C0 base */
 };
 
@@ -163,7 +180,7 @@ void hide_pfx(MkPfx* pfx, int hide);
 void pfx_end_batch(void);
 void pfx_start_batch(void);
 void insert_PFXlist_in_transl_tree(void);
-void set_pfx_texture(MkPfx* pfx, void* path, void* name);
+void set_pfx_texture(PfxVm* vm, void* path, void* name);
 MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, void* frame_src);
 void pfx_bind_emitter_num_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone, int emitter);
 void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone);

@@ -19,6 +19,7 @@
  */
 
 #include "game/bgnd_types.h"
+#include "math/gxVect.h"
 #include "runtime/plyr_info.h"
 
 typedef struct MkObj MkObj;
@@ -73,14 +74,18 @@ typedef struct GamePauseFlags {
 } GamePauseFlags;
 
 typedef struct GameSwitchInputFlags {
-    unsigned char pad_7_4 : 4;
+    unsigned char pad_7_6 : 2;
+    unsigned char field_bit5 : 1;
+    unsigned char pad_4 : 1;
     unsigned char eat_switches : 1; /* bit3 - pause/online input suppression */
     unsigned char pad_2_0 : 3;
 } GameSwitchInputFlags;
 
 typedef struct GameFeatureFlagBits {
     unsigned char high_bit : 1; /* bit7 */
-    unsigned char pad : 7;
+    unsigned char pad_6 : 1;
+    unsigned char powerbars_locked : 1; /* bit5 */
+    unsigned char pad_4_0 : 5;
 } GameFeatureFlagBits;
 
 typedef union GameFeatureFlags {
@@ -145,9 +150,11 @@ typedef struct GameInfo {
     MkObj* bgnd_obj; /* +0x2C */
     MkObj* sky;      /* +0x30 */
     float field_34;  /* +0x34 - fade / particle / mab */
-    char pad38[0x0C];
+    Vec impact_vector; /* +0x38 - normalized/scaled death-trap impact */
     PlyrInfo* active_player; /* +0x44 - current fight player */
-    char pad48[0x18];
+    char pad48[4];
+    MkObj* player_objects[2]; /* +0x4C */
+    char pad54[0x0C];
     int field_60; /* +0x60 */
     int field_64; /* +0x64 */
     int field_68; /* +0x68 */

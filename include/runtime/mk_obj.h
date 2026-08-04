@@ -14,6 +14,15 @@ typedef struct MkBoneFlags55 {
     unsigned char pad_low : 5;
 } MkBoneFlags55;
 
+typedef struct MkBoneFlags54 {
+    unsigned char transform_parented : 1; /* bit7 */
+    unsigned char pad_6_5 : 2;
+    unsigned char calculation_locked : 1; /* bit4 */
+    unsigned char field_bit3 : 1;
+    unsigned char hierarchy_driven : 1; /* bit2 */
+    unsigned char pad_1_0 : 2;
+} MkBoneFlags54;
+
 typedef struct MkBone {
     struct RwMatrix matrix; /* +0x00 - calculated bone matrix */
     struct RwMatrix* parent_matrix; /* +0x40 */
@@ -23,7 +32,10 @@ typedef struct MkBone {
     int bone_index; /* +0x50 - index used by limb transfer */
     union {
         struct {
-            unsigned char flags_54; /* +0x54 - bit1 dest-matrix lock, bit4 calc lock */
+            union {
+                unsigned char flags_54; /* +0x54 */
+                MkBoneFlags54 flags_54_bits;
+            };
             union {
                 unsigned char flags_55; /* +0x55 - bit7 collapsed */
                 MkBoneFlags55 flags_55_bits;
@@ -66,13 +78,14 @@ typedef struct MkBone {
                 RtQuat rt_rotation;
             }; /* +0xD0 */
             Quat rotation_e0; /* +0xE0 */
+            Vec velocity; /* +0xF0 */
+            char padFC[4];
+            Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
+            char pad10C[4];
         };
         Quat rotations[2];
+        RwMatrix trail_matrix; /* +0xD0 - weapon-trail chain scratch transform */
     };
-    Vec velocity; /* +0xF0 */
-    char padFC[4];
-    Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
-    char pad10C[4];
 } MkBone;
 
 typedef struct ClothBoneFlags30 {
@@ -123,6 +136,17 @@ typedef struct MkSobjFlags09 {
     unsigned char bit0 : 1;
 } MkSobjFlags09;
 
+typedef struct MkSobjFlags08 {
+    unsigned char bit7 : 1;
+    unsigned char bit6 : 1;
+    unsigned char bit5 : 1;
+    unsigned char bit4 : 1;
+    unsigned char bit3 : 1;
+    unsigned char angular_velocity_enabled : 1; /* bit2 */
+    unsigned char scale_dirty : 1; /* bit1 */
+    unsigned char bit0 : 1;
+} MkSobjFlags08;
+
 /* mk_obj.o - NonMatching scaffold (krypt Wave 2). */
 
 /*
@@ -132,7 +156,10 @@ typedef struct MkSobjFlags09 {
  */
 typedef struct MkSobj {
     MkHdr hdr;             /* +0x00 */
-    unsigned char flags_08; /* +0x08 - transform update flags */
+    union {
+        unsigned char flags_08; /* +0x08 - transform update flags */
+        MkSobjFlags08 flags_08_bits;
+    };
     union {
         unsigned char flags09; /* +0x09 - bit7 / bit5 render (mab rlwimi) */
         MkSobjFlags09 flags09_bits;
@@ -186,9 +213,13 @@ typedef struct MkObjFlags09 {
 } MkObjFlags09;
 
 typedef struct MkObjFlags08 {
-    unsigned char pad_high : 3;
+    unsigned char bit7 : 1;
+    unsigned char airborne : 1; /* bit6 */
+    unsigned char gravity_enabled : 1; /* bit5 */
     unsigned char transform_dirty : 1; /* bit4 */
-    unsigned char pad_low : 3;
+    unsigned char angular_velocity_enabled : 1; /* bit3 */
+    unsigned char rotation_enabled : 1; /* bit2 */
+    unsigned char scale_active : 1; /* bit1 */
     unsigned char moving : 1;          /* bit0 */
 } MkObjFlags08;
 
@@ -196,7 +227,8 @@ typedef struct MkObjHideFlags {
     unsigned char still_move : 1; /* bit7 */
     unsigned char bit6 : 1;
     unsigned char hidden : 1;     /* bit5 */
-    unsigned char pad_4_2 : 3;
+    unsigned char pad_4_3 : 2;
+    unsigned char weapon_effect : 1; /* bit2 - weapon/cloth auxiliary */
     unsigned char pin_animation : 1; /* bit1 */
     unsigned char bit0 : 1;
 } MkObjHideFlags;

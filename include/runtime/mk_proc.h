@@ -67,6 +67,10 @@ struct MkProc {
     union {
         int flags;
         struct {
+            unsigned char scheduling_flags;
+            unsigned char flags_pad_bytes[3];
+        };
+        struct {
             unsigned char one_shot : 1;
             unsigned char defer_run : 1;
             unsigned char no_destroy : 1;

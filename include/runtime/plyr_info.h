@@ -12,6 +12,7 @@ typedef struct PlayerCollisionData PlayerCollisionData;
 typedef struct ScriptSlot ScriptSlot;
 typedef struct FighterAiTableContainer FighterAiTableContainer;
 typedef struct FighterRuntimeData FighterRuntimeData;
+typedef struct MkProc MkProc;
 
 typedef struct LinkedNode {
     void* data;
@@ -20,7 +21,10 @@ typedef struct LinkedNode {
 
 typedef struct MirrorObj {
     void* field00;
-    void* field04; /* +0x04 */
+    union {
+        void* field04;
+        int owner_index; /* +0x04 - blood decal effect owner */
+    };
 } MirrorObj;
 
 /* Width source for movelist style icon centering (style_obj+4). */
@@ -52,13 +56,32 @@ typedef struct FighterStyleObj {
     unsigned int screen_inst;        /* +0x70 */
 } FighterStyleObj;
 
+typedef struct FighterObjectRef {
+    MkObj* object;
+    unsigned int instance;
+} FighterObjectRef;
+
 typedef struct FighterMirror {
-    char pad00[0x30];
+    char pad00[0x18];
+    MirrorObj* blood_owner;            /* +0x18 - owner index source */
+    char pad1C[0x14];
     MkObj* shadow_obj;              /* +0x30 - validated shadow owner */
     unsigned int shadow_obj_instance; /* +0x34 */
-    char pad38[0x17C];
-    MkObj* severed_half_obj;             /* +0x1B4 */
-    unsigned int severed_half_instance;  /* +0x1B8 */
+    char pad38[0x24];
+    MkProc* anim_proc;                  /* +0x5C */
+    unsigned int anim_proc_instance;    /* +0x60 */
+    char pad64[0xB8];
+    MkProc* foot_print_proc;             /* +0x11C */
+    unsigned int foot_print_proc_instance; /* +0x120 */
+    char pad124[0x20];
+    union {
+        FighterObjectRef severed_limbs[15]; /* +0x144 */
+        struct {
+            char pad144[0x70];
+            MkObj* severed_half_obj;            /* +0x1B4 */
+            unsigned int severed_half_instance; /* +0x1B8 */
+        };
+    };
     char pad1BC[0x140];
     FighterStyleObj* style_objs[3]; /* +0x2FC - movelist style pfx parents */
     int style_idx;                  /* +0x308 - movelist starting style */
@@ -67,7 +90,9 @@ typedef struct FighterMirror {
     MkObj* flag_obj; /* +0x470 - hide_flags @ +0x0A */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */
-    char pad47C[0x27C];
+    char pad47C[0x248];
+    float facial_damage; /* +0x6C4 */
+    char pad6C8[0x30];
     union {
         FighterAiTableContainer* ai_tables;
         FighterRuntimeData* runtime_data;

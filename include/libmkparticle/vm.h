@@ -12,7 +12,8 @@ typedef struct PfxVec3 {
 
 typedef struct PfxTransform {
     PfxMatrix matrix;
-    char pad40[8];
+    char pad40[4];
+    int particle_field_stride; /* +0x44 */
 } PfxTransform;
 
 typedef struct PfxTextureFrame {
@@ -30,11 +31,14 @@ typedef struct PfxVm {
     PfxVec3 basis0;                    /* +0x000 */
     char pad00C[4];
     PfxVec3 basis1;                    /* +0x010 */
-    char pad01C[0x3C];
+    char pad01C[0x34];
+    int particle_capacity;             /* +0x050 */
+    int particle_cursor;               /* +0x054 */
     int active_transform;              /* +0x058 */
     char pad05C[4];
     unsigned int flags_0x60;           /* +0x060 */
-    char pad064[0x0C];
+    char pad064[8];
+    int particle_vector_stride;        /* +0x06C */
     PfxTransform transforms[3];        /* +0x070 */
     char pad148[8];
     union {

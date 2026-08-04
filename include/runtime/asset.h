@@ -46,10 +46,10 @@ typedef struct RwTexture RwTexture;
 void annihilate_art_section_data(SecSlotFileEntry* entry);
 void process_anim_section_data(SecSlotFileEntry* entry);
 void process_art_section_data(SecSlotFileEntry* entry);
-void* load_named_model_for_player(char* name, int player, int object_type,
+void* load_named_model_for_player(const char* name, int player, int object_type,
                                   int transl);
-void* load_named_model_for_bgnd(char* name, int object_type, int transl);
-void* load_named_model_from_slot(int slot, char* name, int object_type,
+void* load_named_model_for_bgnd(const char* name, int object_type, int transl);
+void* load_named_model_from_slot(int slot, const char* name, int object_type,
                                  int transl);
 
 /* Packed art oid: (section_id << 16) | member_index. Callers often cast the
