@@ -741,6 +741,7 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
         float angle;
         int wrapped_angle;
 
+        /* Retail only advances the pair while the camera latch is live. */
         if (camera_obj == 0) {
             continue;
         }
@@ -1145,6 +1146,20 @@ float p_fish_attack(void) {
                 pdata->state = 0;
                 continue;
             case 4:
+                target = pdata->target;
+                if (target != 0 &&
+                    target->hdr.instance != pdata->target_instance) {
+                    target = 0;
+                }
+                plyr_obj = target;
+                fish = pdata->fish;
+                if (fish != 0 &&
+                    fish->hdr.instance != pdata->fish_instance) {
+                    fish = 0;
+                }
+                if (target == 0 || fish == 0) {
+                    return -1.0f;
+                }
                 pdata->state_ticks = 8;
                 pdata->lifetime = pdata->state_ticks + 2;
                 fish->ang.x = 0.0f;
@@ -1174,6 +1189,19 @@ float p_fish_attack(void) {
                 continue;
             }
         } else {
+            target = pdata->target;
+            if (target != 0 &&
+                target->hdr.instance != pdata->target_instance) {
+                target = 0;
+            }
+            plyr_obj = target;
+            fish = pdata->fish;
+            if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
+                fish = 0;
+            }
+            if (target == 0 || fish == 0) {
+                return -1.0f;
+            }
             switch (pdata->state) {
             case 0:
             case 2:

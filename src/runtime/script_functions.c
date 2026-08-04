@@ -1343,7 +1343,8 @@ void pos_cam_for_current_level(void);
 void reset_severed_limbs(int player);
 void move_plyrs_to_round_start(void);
 void set_far_clip_plane(float distance);
-void skytemple_player_explode(int player, float x, float y, float z);
+void skytemple_player_explode(
+    unsigned int player, float x, float y, float z);
 void skytemple_make_scream_sound(int player);
 void turn_controllers_on(void);
 void turn_controllers_off(void);

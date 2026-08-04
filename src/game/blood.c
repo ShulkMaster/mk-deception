@@ -1707,6 +1707,8 @@ static float p_bleed(void) {
 static void do_pfx_bleed(MkHdr* hdr) {
     BloodParticlePosition* destination;
     BloodParticlePosition* source;
+    BloodParticlePosition* destination_base;
+    BloodParticlePosition* source_base;
     BloodVelocityState* states;
     BloodVelocityState* state;
     BloodPfxVmView* vm;
@@ -1741,8 +1743,10 @@ static void do_pfx_bleed(MkHdr* hdr) {
     vm = (BloodPfxVmView*)pfx->matrix;
     if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_count != 0) {
         position_stride = vm->position_stride;
-        destination = (BloodParticlePosition*)pfx_get_field(vm, -2, 0x100);
-        source = (BloodParticlePosition*)pfx_get_field(vm, -1, 0x100);
+        destination_base =
+            (BloodParticlePosition*)pfx_get_field(vm, -2, 0x100);
+        source_base =
+            (BloodParticlePosition*)pfx_get_field(vm, -1, 0x100);
         state_stride = pfx_get_struct_size(vm, 0x600);
         states = (BloodVelocityState*)pfx_get_field(vm, -2, 0x600);
         removed_count = 0;
@@ -1751,10 +1755,10 @@ static void do_pfx_bleed(MkHdr* hdr) {
         while (index < vm->particle_count - removed_count) {
             state = (BloodVelocityState*)((char*)states +
                 state_stride * index);
-            destination = (BloodParticlePosition*)((char*)
-                pfx_get_field(vm, -2, 0x100) + position_stride * index);
-            source = (BloodParticlePosition*)((char*)
-                pfx_get_field(vm, -1, 0x100) + position_stride * index);
+            destination = (BloodParticlePosition*)((char*)destination_base +
+                position_stride * index);
+            source = (BloodParticlePosition*)((char*)source_base +
+                position_stride * index);
             remove_particle = 0;
 
             if (state->spawn_delay > 0.0f) {
@@ -1937,12 +1941,13 @@ static void do_pfx_bleed(MkHdr* hdr) {
                         pfx_get_field(vm, -2, 0x100) +
                         position_stride * vm->particle_count);
                     removed_count--;
+                    memcpy(destination, last_position, position_stride);
                 } else {
                     last_position = (BloodParticlePosition*)((char*)
                         pfx_get_field(vm, -1, 0x100) +
                         position_stride * vm->particle_count);
+                    memcpy(destination, last_position, position_stride);
                 }
-                memcpy(destination, last_position, position_stride);
             }
         }
         pfx_post_sleep();
@@ -2073,10 +2078,10 @@ int obj_spawn_bld(
 
     vm = (BloodPfxVmView*)pfx->matrix;
     position_stride = vm->position_stride;
-    state_stride = pfx_get_struct_size(vm, 0x600);
     particle_position = (BloodParticlePosition*)(
         (char*)pfx_get_field(vm, -2, 0x100) +
         position_stride * vm->particle_count);
+    state_stride = pfx_get_struct_size(vm, 0x600);
     state = (BloodVelocityState*)((char*)pfx_get_field(vm, -2, 0x600) +
         state_stride * vm->particle_count);
     prior_state = 0;
