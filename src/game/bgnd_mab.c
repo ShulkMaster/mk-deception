@@ -1048,10 +1048,8 @@ float p_fish_attack(void) {
         }
         insert_fgnd_mkobj(fish);
 
-        target = pdata->target;
-        if (target != 0 && target->hdr.instance != pdata->target_instance) {
-            target = 0;
-        }
+        RESOLVE_MAB_OBJECT(
+            target, pdata->target, pdata->target_instance);
         plyr_obj = target;
         if (target == 0) {
             return -1.0f;
@@ -1069,16 +1067,11 @@ float p_fish_attack(void) {
         pdata->turn_limit = (int)randu0(10) + 5;
         pdata->turning_left = 1;
 
-        target = pdata->target;
-        if (target != 0 &&
-            target->hdr.instance != pdata->target_instance) {
-            target = 0;
-        }
+        RESOLVE_MAB_OBJECT(
+            target, pdata->target, pdata->target_instance);
         plyr_obj = target;
-        fish = pdata->fish;
-        if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
-            fish = 0;
-        }
+        RESOLVE_MAB_OBJECT(
+            fish, pdata->fish, pdata->fish_instance);
         if (target == 0 || fish == 0) {
             return -1.0f;
         }
@@ -1095,16 +1088,13 @@ float p_fish_attack(void) {
 
     while (pdata->lifetime > 0) {
         FighterObjectRef* severed;
+        MkObj* severed_object;
 
-        target = pdata->target;
-        if (target != 0 && target->hdr.instance != pdata->target_instance) {
-            target = 0;
-        }
+        RESOLVE_MAB_OBJECT(
+            target, pdata->target, pdata->target_instance);
         plyr_obj = target;
-        fish = pdata->fish;
-        if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
-            fish = 0;
-        }
+        RESOLVE_MAB_OBJECT(
+            fish, pdata->fish, pdata->fish_instance);
         if (target == 0 || fish == 0) {
             return -1.0f;
         }
@@ -1146,17 +1136,11 @@ float p_fish_attack(void) {
                 pdata->state = 0;
                 continue;
             case 4:
-                target = pdata->target;
-                if (target != 0 &&
-                    target->hdr.instance != pdata->target_instance) {
-                    target = 0;
-                }
+                RESOLVE_MAB_OBJECT(
+                    target, pdata->target, pdata->target_instance);
                 plyr_obj = target;
-                fish = pdata->fish;
-                if (fish != 0 &&
-                    fish->hdr.instance != pdata->fish_instance) {
-                    fish = 0;
-                }
+                RESOLVE_MAB_OBJECT(
+                    fish, pdata->fish, pdata->fish_instance);
                 if (target == 0 || fish == 0) {
                     return -1.0f;
                 }
@@ -1189,16 +1173,11 @@ float p_fish_attack(void) {
                 continue;
             }
         } else {
-            target = pdata->target;
-            if (target != 0 &&
-                target->hdr.instance != pdata->target_instance) {
-                target = 0;
-            }
+            RESOLVE_MAB_OBJECT(
+                target, pdata->target, pdata->target_instance);
             plyr_obj = target;
-            fish = pdata->fish;
-            if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
-                fish = 0;
-            }
+            RESOLVE_MAB_OBJECT(
+                fish, pdata->fish, pdata->fish_instance);
             if (target == 0 || fish == 0) {
                 return -1.0f;
             }
@@ -1242,11 +1221,9 @@ float p_fish_attack(void) {
                 v3_to_xy_ang(&fish->ang, &fish->pos_vel);
                 severed = &player->slot.fighter->
                     severed_limbs[pdata->fish_index];
-                if (severed->object != 0 &&
-                    severed->object->hdr.instance != severed->instance) {
-                    severed = 0;
-                }
-                if (severed != 0 && pdata->state_ticks < 20) {
+                RESOLVE_MAB_OBJECT(
+                    severed_object, severed->object, severed->instance);
+                if (severed_object != 0 && pdata->state_ticks < 20) {
                     fish->pos.y -= 0.1f;
                 }
                 pdata->state_ticks--;
@@ -1256,10 +1233,8 @@ float p_fish_attack(void) {
         }
     }
 
-    fish = pdata->fish;
-    if (fish != 0 && fish->hdr.instance != pdata->fish_instance) {
-        fish = 0;
-    }
+    RESOLVE_MAB_OBJECT(
+        fish, pdata->fish, pdata->fish_instance);
     if (fish != 0 && fish->hdr.instance != 0) {
         fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
     }

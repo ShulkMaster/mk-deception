@@ -4,6 +4,11 @@
 #include "math/gxVect.h"
 #include "runtime/mk_struct.h"
 
+typedef struct CollisionPaddedVec {
+    Vec value;
+    float pad;
+} CollisionPaddedVec; /* 0x10 */
+
 typedef struct CollisionShape {
     union {
         char data00[0x80];
@@ -51,6 +56,7 @@ typedef struct CollisionShape {
             Vec quad_vertex_3;     /* +0x30 */
             float quad_pad_3C[16];
         };
+        CollisionPaddedVec quad_vertices[8];
     };
     unsigned int type; /* +0x80, low three bits select the shape kind */
     char data84[0x0C];

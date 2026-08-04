@@ -1453,7 +1453,7 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
 
 /*
  * Soft ceiling: plyr_match_weapon_flip_to_obj_flip ~93.77% -
- * volatile NV coloring and mirror-slot base reloads; stop.
+ * NV-register coloring and mirror-slot base reloads; stop.
  */
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     MkObj* player_object;
