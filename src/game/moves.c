@@ -9,6 +9,7 @@
 #include "game/game_info.h"
 #include "game/moveset.h"
 #include "math/gxMath.h"
+#include "math/mk_math.h"
 #include "platform/io.h"
 #include "platform/main.h"
 
@@ -601,7 +602,7 @@ void tag_team_activate_player(MkObj* sidekick, int active);
 void select_fighter_voice_in_bank(int player, int alternate_voice);
 void show_fighting_style(GlobalMoveset* moveset, int player);
 void set_root_and_obj_movement_weights(
-    AnimPdata* animation, float root_weight, float object_weight);
+    float root_weight, float object_weight, AnimPdata* animation);
 void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
 float r_call_script_function(void);
 int am_i_on_the_left2(MkObj* player, MkObj* opponent);
@@ -1022,6 +1023,12 @@ static inline int moves_is_weapon_style(MovesStyle* style) {
             weapon_data->secondary_weapon != 0);
 }
 
+/*
+ * Soft ceiling: retail m2c confirms the complete style scan, monitor setup,
+ * four weapon grabs, show/callback/trail restoration, and pdata initialization.
+ * Retail repeats explicit latch normalization before each grab; MWCC folds the
+ * clean typed helper calls. Residue is that expansion, GPR layout, and labels.
+ */
 void start_special_weapon_monitor(void) {
     MovesWeaponWatchPdata* pdata;
     PlyrMirrorSlots* default_slots;
@@ -1130,6 +1137,13 @@ static float p_watch_weapon(void) {
     return 1.0f;
 }
 
+/*
+ * Soft ceiling: retail m2c confirms the complete player/process latch,
+ * weapon-style restoration, four weapon grabs, show, and duplicated callback
+ * policy. Clean typed latch resolution is folded across each check/call pair;
+ * retail repeats explicit null/instance normalization. The remaining delta is
+ * that compiler control-flow expansion, saved-GPR allocation, and float labels.
+ */
 static float p_hide_and_die(void) {
     MovesWeaponWatchPdata* pdata;
     PlyrMirrorSlots* slots;
@@ -1329,23 +1343,16 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
     }
 }
 
-static void x_pickup(void) {
-    MovesGameInfoView* game;
+static inline int moves_find_nearby_pickup(
+    MkObj* object, MkPtr** pickup_list, MovesPickup** result, Vec* offset) {
     MovesPickupTransform* transform;
     MovesPickup* pickup;
-    MovesPickup* nearby_pickup;
     MkPtr* link;
     MkPtr* next;
-    Vec offset;
     float vertical_distance;
-    int found;
 
-    nearby_pickup = 0;
-    found = 0;
-    if ((plyr_pdata->state & 0x200) == 0 &&
-        is_plyr_airborn(plyr_obj, plyr_pdata) != 1) {
-        game = (MovesGameInfoView*)&g_game_info;
-        link = game->pickup_list;
+    if (pickup_list != 0) {
+        link = *pickup_list;
         while (link != 0) {
             pickup = (MovesPickup*)link->hdr;
             if (link->instance != pickup->hdr.instance) {
@@ -1360,31 +1367,62 @@ static void x_pickup(void) {
             if (transform == 0) {
                 transform = pickup->transform_b;
             }
-            offset.x = plyr_obj->pos.x - transform->position.x;
-            offset.y = plyr_obj->pos.y - transform->position.y;
-            offset.z = plyr_obj->pos.z - transform->position.z;
-            if (offset.x * offset.x + offset.z * offset.z < 2.9f) {
-                vertical_distance = offset.y;
-                if (vertical_distance < 0.0f) {
-                    vertical_distance = -vertical_distance;
-                }
+            offset->x = object->pos.x - transform->position.x;
+            offset->y = object->pos.y - transform->position.y;
+            offset->z = object->pos.z - transform->position.z;
+            if (offset->x * offset->x + offset->z * offset->z < 2.9f) {
+                vertical_distance = offset->y;
+                vertical_distance = vertical_distance >= 0.0f
+                                        ? vertical_distance
+                                        : -vertical_distance;
                 if (vertical_distance < 1.5f) {
-                    offset.y = 0.0f;
-                    nearby_pickup = pickup;
-                    found = 1;
-                    break;
+                    offset->y = 0.0f;
+                    *result = pickup;
+                    return 1;
                 }
             }
             link = link->next;
         }
+    }
+    return 0;
+}
+
+/*
+ * Soft ceiling: 92.58064%. Retail's nullable pickup-list-handle traversal,
+ * ordered absolute-value comparison, typed callback ABI, and exact behavior
+ * are restored. The 16-byte source excess is separate GPR saves/restores in
+ * place of retail stmw/lmw; all other records are float-pool relocations.
+ */
+static float x_pickup(void) {
+    MkObj* object;
+    MovesPickup* nearby_pickup;
+    Vec offset;
+    int found;
+
+    nearby_pickup = 0;
+    object = plyr_obj;
+    if ((plyr_pdata->state & 0x200) != 0 ||
+        is_plyr_airborn(object, plyr_pdata) == 1) {
+        found = 0;
+    } else {
+        found = moves_find_nearby_pickup(
+            object, &((MovesGameInfoView*)&g_game_info)->pickup_list,
+            &nearby_pickup, &offset);
     }
 
     if (found == 1) {
         do_pickup(nearby_pickup, &offset, 1);
     }
     moves_jump(j_exit);
+    return 0.0f;
 }
 
+/*
+ * Soft ceiling: both retail nine-way grab-animation switches and all preview,
+ * pickup, moveset, transform, and script paths are recovered. The remaining
+ * 56-byte deficit is GPR/base rematerialization and call scheduling around the
+ * switches and typed pickup-list lookup, plus local relocation labels.
+ */
 static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
     MovesGameInfoView* game;
     unsigned int grab_type;
@@ -1423,14 +1461,70 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
     if (flipped == 1) {
         grab_type =
             (unsigned int)weapon_grab_table[sector].flipped_grab_type;
+        switch (grab_type) {
+        case 1:
+            animation = shared_ani.grab_animations[1];
+            break;
+        case 2:
+            animation = shared_ani.grab_animations[2];
+            break;
+        case 3:
+            animation = shared_ani.grab_animations[3];
+            break;
+        case 4:
+            animation = shared_ani.grab_animations[4];
+            break;
+        case 5:
+            animation = shared_ani.grab_animations[5];
+            break;
+        case 6:
+            animation = shared_ani.grab_animations[6];
+            break;
+        case 7:
+            animation = shared_ani.grab_animations[7];
+            break;
+        case 8:
+            animation = shared_ani.grab_animations[8];
+            break;
+        case 0:
+        default:
+            animation = shared_ani.grab_animations[0];
+            break;
+        }
     } else {
         grab_type =
             (unsigned int)weapon_grab_table[sector].normal_grab_type;
+        switch (grab_type) {
+        case 1:
+            animation = shared_ani.grab_animations[1];
+            break;
+        case 2:
+            animation = shared_ani.grab_animations[2];
+            break;
+        case 3:
+            animation = shared_ani.grab_animations[3];
+            break;
+        case 4:
+            animation = shared_ani.grab_animations[4];
+            break;
+        case 5:
+            animation = shared_ani.grab_animations[5];
+            break;
+        case 6:
+            animation = shared_ani.grab_animations[6];
+            break;
+        case 7:
+            animation = shared_ani.grab_animations[7];
+            break;
+        case 8:
+            animation = shared_ani.grab_animations[8];
+            break;
+        case 0:
+        default:
+            animation = shared_ani.grab_animations[0];
+            break;
+        }
     }
-    if (grab_type > 8) {
-        grab_type = 0;
-    }
-    animation = shared_ani.grab_animations[grab_type];
 
     xfer_proc(plyr_anim_proc, p_idle);
     init_ground_move();
@@ -2017,6 +2111,11 @@ static inline void moves_dispatch_attack(MovesActionRef* action) {
     }
 }
 
+/*
+ * Soft ceiling: retail's two branch-local tagged dispatches are restored.
+ * Remaining differences are a 12-byte save/control-flow residue, GPR
+ * allocation in the inlined helpers, switch scheduling, and float labels.
+ */
 float x_attack_5(void) {
     MovesSwitchLogEntry* entry;
     unsigned int throw_script;
@@ -2050,11 +2149,12 @@ float x_attack_5(void) {
     if (throw_script == 0) {
         temp_throw_switch.source = 4;
         temp_throw_switch.action = 0x8F;
+        moves_dispatch_attack(&temp_throw_switch);
     } else {
         temp_throw_switch.source = 2;
         temp_throw_switch.action = throw_script;
+        moves_dispatch_attack(&temp_throw_switch);
     }
-    moves_dispatch_attack(&temp_throw_switch);
     set_my_state(0);
     blend_to_stance(0.1f);
     moves_jump(j_exit);
@@ -2081,13 +2181,19 @@ static float x_attack_5_remote(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: retail character-switch order and direct sequence scans are
+ * restored with one typed jump-table base. The remaining 28-byte deficit is
+ * save/GPR allocation, inlined helper scheduling, and relocation labels.
+ */
 float x_attack_4(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
+    unsigned int* sequences;
     int joy_state;
-    int offset;
 
+    sequences = jump_table;
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
         entry = &p1_switch_log[p1_log_index];
@@ -2119,84 +2225,88 @@ float x_attack_4(void) {
         set_my_state(0x1300);
     }
 
-    offset = -1;
     switch (plyr_pdata->character_id) {
-    case 3:
-        offset = 0xAC8;
-        break;
-    case 4:
-        offset = 0x7F0;
-        break;
-    case 5:
-        offset = 0x6E4;
-        break;
     case 6:
         if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
-            offset = 0x760;
+            scan_switch_sequences(&sequences[0x760 / 4]);
         }
-        break;
-    case 7:
-        offset = 0x89C;
-        break;
-    case 9:
-        offset = 0x5C8;
-        break;
-    case 10:
-        offset = 0x54C;
-        break;
-    case 11:
-        offset = 0x650;
-        break;
-    case 12:
-        offset = 0xA44;
-        break;
-    case 14:
-        offset = 0x1218;
-        break;
-    case 15:
-        offset = 0xFD8;
-        break;
-    case 16:
-        offset = 0x1070;
-        break;
-    case 18:
-        offset = 0x116C;
-        break;
-    case 19:
-        if (his_pdata->hit_count < 2 && his_pdata->state != 0x421A) {
-            offset = 0xCEC;
-        }
-        break;
-    case 20:
-        offset = 0xF10;
-        break;
-    case 21:
-        offset = 0xB60;
-        break;
-    case 23:
-        offset = 0x1108;
-        break;
-    case 24:
-        offset = 0x12CC;
-        break;
-    case 25:
-    case 26:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
-            offset = 0x13A0;
-        }
-        break;
-    case 27:
-        offset = plyr_pdata->sidekick_active == 1 ? 0xDC8 : 0xDFC;
         break;
     case 28:
         scan_switch_sequences(scan_freak_4);
         break;
     case 36:
-        offset = 0xC68;
+        scan_switch_sequences(&sequences[0xC68 / 4]);
         break;
-    }
-    if (offset >= 0) {
-        scan_switch_sequences(&jump_table[offset / 4]);
+    case 5:
+        scan_switch_sequences(&sequences[0x6E4 / 4]);
+        break;
+    case 14:
+        scan_switch_sequences(&sequences[0x1218 / 4]);
+        break;
+    case 4:
+        scan_switch_sequences(&sequences[0x7F0 / 4]);
+        break;
+    case 7:
+        scan_switch_sequences(&sequences[0x89C / 4]);
+        break;
+    case 11:
+        scan_switch_sequences(&sequences[0x650 / 4]);
+        break;
+    case 24:
+        scan_switch_sequences(&sequences[0x12CC / 4]);
+        break;
+    case 9:
+        scan_switch_sequences(&sequences[0x5C8 / 4]);
+        break;
+    case 12:
+        scan_switch_sequences(&sequences[0xA44 / 4]);
+        break;
+    case 3:
+        scan_switch_sequences(&sequences[0xAC8 / 4]);
+        break;
+    case 10:
+        scan_switch_sequences(&sequences[0x54C / 4]);
+        break;
+    case 19:
+        if (his_pdata->hit_count < 2 && his_pdata->state != 0x421A) {
+            scan_switch_sequences(&sequences[0xCEC / 4]);
+        }
+        break;
+    case 20:
+        scan_switch_sequences(&sequences[0xF10 / 4]);
+        break;
+    case 23:
+        scan_switch_sequences(&sequences[0x1108 / 4]);
+        break;
+    case 18:
+        scan_switch_sequences(&sequences[0x116C / 4]);
+        break;
+    case 27:
+        if (plyr_pdata->sidekick_active == 1) {
+            scan_switch_sequences(&sequences[0xDC8 / 4]);
+        } else {
+            scan_switch_sequences(&sequences[0xDFC / 4]);
+        }
+        break;
+    case 21:
+        scan_switch_sequences(&sequences[0xB60 / 4]);
+        break;
+    case 15:
+        scan_switch_sequences(&sequences[0xFD8 / 4]);
+        break;
+    case 16:
+        scan_switch_sequences(&sequences[0x1070 / 4]);
+        break;
+    case 25:
+        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+            scan_switch_sequences(&sequences[0x13A0 / 4]);
+        }
+        break;
+    case 26:
+        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+            scan_switch_sequences(&sequences[0x13A0 / 4]);
+        }
+        break;
     }
 
     pre_attack_chores();
@@ -2208,12 +2318,21 @@ float x_attack_4(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: x_attack_3, x_attack_2, and x_attack_1 retain the retail
+ * jump-table base and spell out the retail physical case order, guards, and
+ * direct sequence scans. Their remaining objdiff records are saved-register
+ * selection, GPR allocation, instruction scheduling around the shared log and
+ * inlined attack-dispatch paths, branch labeling, and local relocations. The
+ * bodies differ from retail by 4, 8, and 0 bytes respectively; duplicating
+ * semantically redundant loads or forcing registers is intentionally avoided.
+ */
 float x_attack_3(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
+    unsigned int* sequences = jump_table;
     int joy_state;
-    int offset;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
@@ -2247,51 +2366,91 @@ float x_attack_3(void) {
         set_my_state(0x1300);
     }
 
-    offset = -1;
     switch (plyr_pdata->character_id) {
-    case 0: offset = 0xBE0; break;
-    case 1: offset = 0x980; break;
+    case 6:
+        scan_switch_sequences(&sequences[0x72C / 4]);
+        break;
+    case 8:
+        scan_switch_sequences(&sequences[0x8FC / 4]);
+        break;
+    case 1:
+        scan_switch_sequences(&sequences[0x980 / 4]);
+        break;
+    case 27:
+        scan_switch_sequences(&sequences[0xD9C / 4]);
+        break;
     case 3:
         if (his_pdata->hit_count < 2) {
-            offset = 0xAB0;
+            scan_switch_sequences(&sequences[0xAB0 / 4]);
         }
         break;
-    case 4: offset = 0x7D0; break;
-    case 6: offset = 0x72C; break;
-    case 7: offset = 0x884; break;
-    case 8: offset = 0x8FC; break;
-    case 9: offset = 0x5B0; break;
-    case 10: offset = 0x51C; break;
-    case 12: offset = 0xA18; break;
-    case 14: offset = 0x1200; break;
+    case 0:
+        scan_switch_sequences(&sequences[0xBE0 / 4]);
+        break;
+    case 28:
+        scan_switch_sequences(&sequences[0xC3C / 4]);
+        break;
+    case 19:
+        scan_switch_sequences(&sequences[0xCCC / 4]);
+        break;
+    case 14:
+        scan_switch_sequences(&sequences[0x1200 / 4]);
+        break;
+    case 24:
+        scan_switch_sequences(&sequences[0x1298 / 4]);
+        break;
+    case 9:
+        scan_switch_sequences(&sequences[0x5B0 / 4]);
+        break;
+    case 12:
+        scan_switch_sequences(&sequences[0xA18 / 4]);
+        break;
+    case 10:
+        scan_switch_sequences(&sequences[0x51C / 4]);
+        break;
+    case 7:
+        scan_switch_sequences(&sequences[0x884 / 4]);
+        break;
+    case 22:
+        scan_switch_sequences(&sequences[0xE6C / 4]);
+        break;
+    case 23:
+        scan_switch_sequences(&sequences[0x10F0 / 4]);
+        break;
+    case 18:
+        scan_switch_sequences(&sequences[0x1138 / 4]);
+        break;
+    case 4:
+        scan_switch_sequences(&sequences[0x7D0 / 4]);
+        break;
     case 15:
         if (his_pdata->hit_count < 5) {
-            offset = 0xFC0;
+            scan_switch_sequences(&sequences[0xFC0 / 4]);
         }
         break;
-    case 16: offset = 0x103C; break;
-    case 18: offset = 0x1138; break;
-    case 19: offset = 0xCCC; break;
-    case 21: offset = 0xB48; break;
-    case 22: offset = 0xE6C; break;
-    case 23: offset = 0x10F0; break;
-    case 24: offset = 0x1298; break;
-    case 25:
-    case 26:
-        offset = 0x1358;
+    case 21:
+        scan_switch_sequences(&sequences[0xB48 / 4]);
         break;
-    case 27: offset = 0xD9C; break;
-    case 28: offset = 0xC3C; break;
-    case 29: offset = 0x1428; break;
+    case 16:
+        scan_switch_sequences(&sequences[0x103C / 4]);
+        break;
+    case 29:
+        scan_switch_sequences(&sequences[0x1428 / 4]);
+        break;
+    case 25:
+        scan_switch_sequences(&sequences[0x1358 / 4]);
+        break;
+    case 26:
+        scan_switch_sequences(&sequences[0x1358 / 4]);
+        break;
+    case 31:
+        scan_switch_sequences(&sequences[0x14D4 / 4]);
+        break;
     case 30:
         if ((his_pdata->state & 0x400) == 0) {
-            offset = 0x1538;
+            scan_switch_sequences(&sequences[0x1538 / 4]);
         }
         break;
-    case 31: offset = 0x14D4; break;
-    }
-    if (offset >= 0) {
-        scan_switch_sequences(&jump_table[offset / 4]);
     }
 
     pre_attack_chores();
@@ -2307,8 +2466,8 @@ float x_attack_2(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
+    unsigned int* sequences = jump_table;
     int joy_state;
-    int offset;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
@@ -2337,46 +2496,94 @@ float x_attack_2(void) {
         set_my_state(0x1200);
     }
 
-    offset = -1;
     switch (plyr_pdata->character_id) {
-    case 0: offset = 0xBC8; break;
-    case 1: offset = 0x948; break;
-    case 3: offset = 0xA90; break;
-    case 4: offset = 0x7B8; break;
-    case 5: offset = 0x6B0; break;
-    case 6: offset = 0x714; break;
-    case 7: offset = 0x848; break;
-    case 9: offset = 0x598; break;
-    case 10:
-        if ((his_pdata->state & 0x400) == 0) {
-            offset = 0x4E8;
-        }
+    case 11:
+        scan_switch_sequences(&sequences[0x630 / 4]);
         break;
-    case 11: offset = 0x630; break;
-    case 12: offset = 0x9C8; break;
-    case 14: offset = 0x11CC; break;
-    case 15: offset = 0xF78; break;
-    case 16: offset = 0x1008; break;
-    case 19: offset = 0xC98; break;
-    case 20: offset = 0xEC8; break;
-    case 21: offset = 0xB14; break;
-    case 22: offset = 0xE54; break;
-    case 23: offset = 0x10D8; break;
-    case 24: offset = 0x1280; break;
+    case 6:
+        scan_switch_sequences(&sequences[0x714 / 4]);
+        break;
+    case 16:
+        scan_switch_sequences(&sequences[0x1008 / 4]);
+        break;
+    case 5:
+        scan_switch_sequences(&sequences[0x6B0 / 4]);
+        break;
+    case 0:
+        scan_switch_sequences(&sequences[0xBC8 / 4]);
+        break;
+    case 31:
+        scan_switch_sequences(&sequences[0x1484 / 4]);
+        break;
+    case 7:
+        scan_switch_sequences(&sequences[0x848 / 4]);
+        break;
+    case 28:
+        scan_switch_sequences(&sequences[0xC24 / 4]);
+        break;
+    case 14:
+        scan_switch_sequences(&sequences[0x11CC / 4]);
+        break;
+    case 24:
+        scan_switch_sequences(&sequences[0x1280 / 4]);
+        break;
+    case 1:
+        scan_switch_sequences(&sequences[0x948 / 4]);
+        break;
+    case 9:
+        scan_switch_sequences(&sequences[0x598 / 4]);
+        break;
+    case 3:
+        scan_switch_sequences(&sequences[0xA90 / 4]);
+        break;
+    case 12:
+        scan_switch_sequences(&sequences[0x9C8 / 4]);
+        break;
     case 25:
+        scan_switch_sequences(&sequences[0x132C / 4]);
+        break;
     case 26:
-        offset = 0x132C;
+        scan_switch_sequences(&sequences[0x132C / 4]);
         break;
     case 27:
-        offset = plyr_pdata->sidekick_active == 1 ? 0xD68 : 0xD34;
+        if (plyr_pdata->sidekick_active == 1) {
+            scan_switch_sequences(&sequences[0xD68 / 4]);
+        } else {
+            scan_switch_sequences(&sequences[0xD34 / 4]);
+        }
         break;
-    case 28: offset = 0xC24; break;
-    case 29: offset = 0x1410; break;
-    case 30: offset = 0x1520; break;
-    case 31: offset = 0x1484; break;
-    }
-    if (offset >= 0) {
-        scan_switch_sequences(&jump_table[offset / 4]);
+    case 10:
+        if ((his_pdata->state & 0x400) == 0) {
+            scan_switch_sequences(&sequences[0x4E8 / 4]);
+        }
+        break;
+    case 4:
+        scan_switch_sequences(&sequences[0x7B8 / 4]);
+        break;
+    case 19:
+        scan_switch_sequences(&sequences[0xC98 / 4]);
+        break;
+    case 22:
+        scan_switch_sequences(&sequences[0xE54 / 4]);
+        break;
+    case 20:
+        scan_switch_sequences(&sequences[0xEC8 / 4]);
+        break;
+    case 23:
+        scan_switch_sequences(&sequences[0x10D8 / 4]);
+        break;
+    case 15:
+        scan_switch_sequences(&sequences[0xF78 / 4]);
+        break;
+    case 21:
+        scan_switch_sequences(&sequences[0xB14 / 4]);
+        break;
+    case 29:
+        scan_switch_sequences(&sequences[0x1410 / 4]);
+        break;
+    case 30:
+        scan_switch_sequences(&sequences[0x1520 / 4]);
+        break;
     }
 
     pre_attack_chores();
@@ -2392,8 +2599,8 @@ float x_attack_1(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
+    unsigned int* sequences = jump_table;
     int joy_state;
-    int offset;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
@@ -2422,67 +2629,123 @@ float x_attack_1(void) {
         set_my_state(0x1300);
     }
 
-    offset = -1;
     switch (plyr_pdata->character_id) {
     case 0:
-        if (his_pdata->hit_count < 2) offset = 0xB78;
-        break;
-    case 1: offset = 0x930; break;
-    case 3:
-        if (his_pdata->hit_count < 2) offset = 0xA5C;
-        break;
-    case 4: offset = 0x798; break;
-    case 5: offset = 0x668; break;
-    case 6: offset = 0x6FC; break;
-    case 7: offset = 0x81C; break;
-    case 8:
-        if (his_pdata->hit_count < 2) offset = 0x8B4;
-        break;
-    case 9: offset = 0x564; break;
-    case 10: offset = 0x4D0; break;
-    case 11:
-        if (his_pdata->hit_count < 5) offset = 0x5FC;
-        break;
-    case 12:
-        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
-            offset = 0x9AC;
-        }
-        break;
-    case 14: offset = 0x11A0; break;
-    case 15: offset = 0xF44; break;
-    case 16: offset = 0xFF0; break;
-    case 18:
-        if (his_pdata->hit_count < 2) offset = 0x1120;
-        break;
-    case 19: offset = 0xC80; break;
-    case 20: offset = 0xE9C; break;
-    case 21: offset = 0xAE0; break;
-    case 22:
-        if ((his_pdata->state & 0x400) == 0) offset = 0xE1C;
-        break;
-    case 23: offset = 0x1088; break;
-    case 24: offset = 0x124C; break;
-    case 25:
-    case 26:
-        if (his_pdata->hit_count < 2) offset = 0x12E4;
-        break;
-    case 27:
-        if (his_pdata->hit_count < 1) {
-            offset = plyr_pdata->sidekick_active == 1 ? 0xD1C : 0xD04;
+        if (his_pdata->hit_count < 2) {
+            scan_switch_sequences(&sequences[0xB78 / 4]);
         }
         break;
     case 28:
-        if (his_pdata->hit_count < 2) offset = 0xC0C;
+        if (his_pdata->hit_count < 2) {
+            scan_switch_sequences(&sequences[0xC0C / 4]);
+        }
         break;
-    case 29: offset = 0x13D0; break;
-    case 30: offset = 0x14EC; break;
+    case 5:
+        scan_switch_sequences(&sequences[0x668 / 4]);
+        break;
+    case 21:
+        scan_switch_sequences(&sequences[0xAE0 / 4]);
+        break;
+    case 27:
+        if (his_pdata->hit_count < 1) {
+            if (plyr_pdata->sidekick_active == 1) {
+                scan_switch_sequences(&sequences[0xD1C / 4]);
+            } else {
+                scan_switch_sequences(&sequences[0xD04 / 4]);
+            }
+        }
+        break;
+    case 14:
+        scan_switch_sequences(&sequences[0x11A0 / 4]);
+        break;
+    case 24:
+        scan_switch_sequences(&sequences[0x124C / 4]);
+        break;
+    case 6:
+        scan_switch_sequences(&sequences[0x6FC / 4]);
+        break;
+    case 7:
+        scan_switch_sequences(&sequences[0x81C / 4]);
+        break;
+    case 8:
+        if (his_pdata->hit_count < 2) {
+            scan_switch_sequences(&sequences[0x8B4 / 4]);
+        }
+        break;
+    case 1:
+        scan_switch_sequences(&sequences[0x930 / 4]);
+        break;
+    case 12:
+        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+            scan_switch_sequences(&sequences[0x9AC / 4]);
+        }
+        break;
+    case 3:
+        if (his_pdata->hit_count < 2) {
+            scan_switch_sequences(&sequences[0xA5C / 4]);
+        }
+        break;
+    case 11:
+        if (his_pdata->hit_count < 5) {
+            scan_switch_sequences(&sequences[0x5FC / 4]);
+        }
+        break;
+    case 9:
+        scan_switch_sequences(&sequences[0x564 / 4]);
+        break;
+    case 4:
+        scan_switch_sequences(&sequences[0x798 / 4]);
+        break;
+    case 10:
+        scan_switch_sequences(&sequences[0x4D0 / 4]);
+        break;
+    case 19:
+        scan_switch_sequences(&sequences[0xC80 / 4]);
+        break;
+    case 22:
+        if ((his_pdata->state & 0x400) == 0) {
+            scan_switch_sequences(&sequences[0xE1C / 4]);
+        }
+        break;
+    case 20:
+        scan_switch_sequences(&sequences[0xE9C / 4]);
+        break;
+    case 23:
+        scan_switch_sequences(&sequences[0x1088 / 4]);
+        break;
+    case 16:
+        scan_switch_sequences(&sequences[0xFF0 / 4]);
+        break;
+    case 18:
+        if (his_pdata->hit_count < 2) {
+            scan_switch_sequences(&sequences[0x1120 / 4]);
+        }
+        break;
+    case 15:
+        scan_switch_sequences(&sequences[0xF44 / 4]);
+        break;
+    case 25:
+        if (his_pdata->hit_count < 2) {
+            scan_switch_sequences(&sequences[0x12E4 / 4]);
+        }
+        break;
+    case 26:
+        if (his_pdata->hit_count < 2) {
+            scan_switch_sequences(&sequences[0x12E4 / 4]);
+        }
+        break;
+    case 29:
+        scan_switch_sequences(&sequences[0x13D0 / 4]);
+        break;
     case 31:
-        scan_switch_sequences(&jump_table[0x1440 / 4]);
-        if (plyr_pdata->taunts_performed < 3) offset = 0x146C;
+        scan_switch_sequences(&sequences[0x1440 / 4]);
+        if (plyr_pdata->taunts_performed < 3) {
+            scan_switch_sequences(&sequences[0x146C / 4]);
+        }
         break;
-    }
-    if (offset >= 0) {
-        scan_switch_sequences(&jump_table[offset / 4]);
+    case 30:
+        scan_switch_sequences(&sequences[0x14EC / 4]);
+        break;
     }
 
     pre_attack_chores();
@@ -2819,7 +3082,7 @@ float p_plyr_sidekick_intro(void) {
     offset.z += lateral.z * lateral_scale;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
+    set_root_and_obj_movement_weights(0.0f, 0.5f, anim);
     sidekick->pos.x = main_object->pos.x + offset.x;
     sidekick->pos.y = g_game_info.field_34;
     sidekick->pos.z = main_object->pos.z + offset.z;
@@ -2923,11 +3186,14 @@ float p_plyr_smoke_entrance(void) {
     Vec lateral;
     Vec offset;
     Vec main_angle;
+    Vec velocity = {0.0f, 0.0f, 0.0f};
     float length_sq;
     float inverse_length;
     float estimate_product;
     float correction;
-    float lateral_scale;
+    float position_x;
+    float position_y;
+    float position_z;
     int transition;
 
     pdata = (MovesSidekickPdata*)apdata;
@@ -2985,27 +3251,27 @@ float p_plyr_smoke_entrance(void) {
     if (am_i_on_the_left2(
             main_object,
             player->opponent->plyr_info->slot.mirror_a) != 0) {
-        lateral_scale = -0.7f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, -0.7f);
         transition = 0;
     } else {
-        lateral_scale = 0.7f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, 0.7f);
         transition = 8;
     }
-    offset.x += lateral.x * lateral_scale;
-    offset.z += lateral.z * lateral_scale;
+    position_x = main_object->pos.x + offset.x;
+    position_z = main_object->pos.z + offset.z;
+    position_y = g_game_info.field_34 - 2.5f;
 
     sidekick->flags_09_bits.bit6 = 0;
     sidekick->flags_09_bits.launched = 0;
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    sidekick->pos_vel.x = 0.0f;
-    sidekick->pos_vel.y = 0.06f;
-    sidekick->pos_vel.z = 0.0f;
-    set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
-    sidekick->pos.x = main_object->pos.x + offset.x;
-    sidekick->pos.y = g_game_info.field_34 - 2.5f;
-    sidekick->pos.z = main_object->pos.z + offset.z;
+    velocity.y = 0.06f;
+    sidekick->pos_vel = velocity;
+    set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
+    sidekick->pos.x = position_x;
+    sidekick->pos.y = position_y;
+    sidekick->pos.z = position_z;
     sidekick->ang = main_angle;
-    update_mkobj(sidekick);
+    update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     destroy_mkprocs_pid(
         pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
@@ -3020,8 +3286,9 @@ float p_plyr_smoke_entrance(void) {
     }
     obj_set_gravity(sidekick, -0.006f);
     sidekick->flags_09_bits.launched = 1;
-    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
-    ground_me(as_mkhdr(&sidekick->hdr));
+    update_bone_hierarchy(
+        sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
+    ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     transition_to_anim_script(
         anim, actions->smoke_land_animation, transition, 0.05f);
     moves_sleep(24.0f);
@@ -3106,6 +3373,13 @@ float p_sidekick_watchdog_launcher(void) {
     return -1.0f;
 }
 
+/*
+ * Soft ceiling: 72.51667% at exact retail size. Retail m2c confirms both
+ * object/process latch checks, animation transition, exit speed, visibility,
+ * sleep, vanish, and the corrected -1.0f return. Remaining differences are
+ * explicit null-normalization folded from typed latch checks, GPR allocation,
+ * separate saves versus stmw/lmw, scheduling, and float relocations.
+ */
 float p_sidekick_exit_now(void) {
     MovesSidekickPdata* pdata;
     MovesSidekickStateView* player;
@@ -3129,14 +3403,18 @@ float p_sidekick_exit_now(void) {
     }
 
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
+    transition_to_anim_script(
+        anim,
+        ((MovesSidekickFighterDefinition*)pdata->player->fighter_definition)
+            ->exit_animation,
+        0, 0.2f);
     fighter =
         (MovesSidekickFighterDefinition*)pdata->player->fighter_definition;
-    transition_to_anim_script(anim, fighter->exit_animation, 0, 0.2f);
     anim->step = 1.2f * fighter->blend_data->exit_step;
     sidekick->flags_09_bits.bit6 = 1;
     moves_sleep(45.0f);
     sidekick_cool_vanish(pdata->player);
-    return 0.0f;
+    return -1.0f;
 }
 
 int advance_my_sidekick_from_behind_with_moveset(void) {
@@ -3190,7 +3468,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
         exit_data->player = plyr_pdata;
     }
 
-    set_root_and_obj_movement_weights(plyr_anim_pdata, 0.0f, 1.0f);
+    set_root_and_obj_movement_weights(0.0f, 1.0f, plyr_anim_pdata);
     plyr_obj->pos.x = position_x;
     plyr_obj->pos.y = position_y;
     plyr_obj->pos.z = position_z;
@@ -3284,7 +3562,7 @@ float p_plyr_sidekick_switch(void) {
     }
 
     set_root_and_obj_movement_weights(
-        sidekick_anim, 0.0f, object_weight);
+        0.0f, object_weight, sidekick_anim);
     sidekick->pos.x =
         main_object->pos.x + direction.x * inverse_length * 2.5f;
     sidekick->pos.y = main_object->pos.y;
@@ -3432,7 +3710,7 @@ float p_plyr_sidekick_projectile(void) {
     placement_scale = distance < 3.2f ? 1.2f : 1.5f;
     main_angle = main_object->ang;
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(anim, 0.0f, object_weight);
+    set_root_and_obj_movement_weights(0.0f, object_weight, anim);
     sidekick->pos.x =
         main_object->pos.x + direction.x * placement_scale;
     sidekick->pos.y = g_game_info.field_34;
@@ -3470,7 +3748,7 @@ float p_plyr_sidekick_projectile(void) {
     pdata->player->state_flags.raw |= 1;
     moves_sleep(12.0f);
 
-    set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
+    set_root_and_obj_movement_weights(0.0f, 0.5f, anim);
     transition_to_anim_script(
         anim, actions->common_exit_animation, transition | 3, 0.1f);
     anim->step = 2.0f;
@@ -3515,7 +3793,9 @@ float p_plyr_noob_entrance(void) {
     float inverse_length;
     float estimate_product;
     float correction;
-    float lateral_scale;
+    float position_x;
+    float position_y;
+    float position_z;
     int transition;
 
     pdata = (MovesSidekickPdata*)apdata;
@@ -3574,24 +3854,25 @@ float p_plyr_noob_entrance(void) {
     if (am_i_on_the_left2(
             main_object,
             player->opponent->plyr_info->slot.mirror_a) != 0) {
-        lateral_scale = -0.7f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, -0.7f);
         transition = 0;
     } else {
-        lateral_scale = 0.7f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, 0.7f);
         transition = 8;
     }
-    offset.x += lateral.x * lateral_scale;
-    offset.z += lateral.z * lateral_scale;
+    position_x = main_object->pos.x + offset.x;
+    position_z = main_object->pos.z + offset.z;
+    position_y = g_game_info.field_34 + 6.535f;
 
     sidekick->flags_09_bits.bit6 = 0;
     sidekick->flags_09_bits.launched = 0;
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
-    sidekick->pos.x = main_object->pos.x + offset.x;
-    sidekick->pos.y = g_game_info.field_34 + 6.535f;
-    sidekick->pos.z = main_object->pos.z + offset.z;
+    set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
+    sidekick->pos.x = position_x;
+    sidekick->pos.y = position_y;
+    sidekick->pos.z = position_z;
     sidekick->ang = main_angle;
-    update_mkobj(sidekick);
+    update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     destroy_mkprocs_pid(
         pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
@@ -3608,8 +3889,9 @@ float p_plyr_noob_entrance(void) {
 
     sidekick->flags_09_bits.bit6 = 1;
     sidekick->flags_09_bits.launched = 1;
-    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
-    ground_me(as_mkhdr(&sidekick->hdr));
+    update_bone_hierarchy(
+        sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
+    ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     random_hit(1);
     shake_camera(2, 0.02f);
     sidekick->flags_09_bits.head_tracking = 0;
@@ -3716,7 +3998,7 @@ float p_plyr_sidekick_charge(void) {
     offset.z += lateral.z * lateral_scale;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
-    set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
+    set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
     sidekick->pos.x = main_object->pos.x + offset.x;
     sidekick->pos.y = g_game_info.field_34;
     sidekick->pos.z = main_object->pos.z + offset.z;
@@ -4698,7 +4980,7 @@ float switch_proc_pickup(void) {
                 if (player->field_0C == 0.0f) {
                     mkproc_die();
                 }
-                xfer_proc((MkProc*)player->idle_proc, (MkProcEntryFn)x_pickup);
+                xfer_proc((MkProc*)player->idle_proc, x_pickup);
             }
         }
     }
@@ -5650,6 +5932,12 @@ static float j_flying_punch(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: retail m2c and both call-site/callee ABIs confirm the complete
+ * spear lifecycle and the one-argument start_scorpion_spear call. Remaining
+ * differences are repeated process-latch normalization, counter/argument
+ * scheduling, saved-GPR layout, irregular-switch lowering, and float labels.
+ */
 float throw_spear(void) {
     MovesSpearAttackView* attacks;
     MkProc* spear_proc;
@@ -5741,23 +6029,25 @@ float throw_spear(void) {
     return 0.0f;
 }
 
+/* Soft ceiling: 99.48529%; all seven records are float-pool relocations. */
 static float tug_in_spear(void) {
-    MovesMoveDataView* move_data;
-    int character;
-
-    move_data = (MovesMoveDataView*)plyr_pdata;
-    character = plyr_pdata->character_id;
-    if (character == 0x19 || character == 0x1A) {
+    if (plyr_pdata->character_id == 0x19 ||
+        plyr_pdata->character_id == 0x1A) {
         snd_req(0x30D);
-        blend_to_ani(move_data->boss_spear_tug, 3, 0.1f);
     } else {
         snd_req(0x2CF);
-        blend_to_ani(move_data->spear_tug, 3, 0.1f);
+    }
+    if (plyr_pdata->character_id != 0x19 &&
+        plyr_pdata->character_id != 0x1A) {
+        blend_to_ani(((MovesMoveDataView*)plyr_pdata)->spear_tug, 3, 0.1f);
+    } else {
+        blend_to_ani(
+            ((MovesMoveDataView*)plyr_pdata)->boss_spear_tug, 3, 0.1f);
     }
     plyr_anim_pdata->step = 0.5f;
-    if (character == 0x19) {
+    if (plyr_pdata->character_id == 0x19) {
         play_sound_1(0x30E);
-    } else if (character == 0x1A) {
+    } else if (plyr_pdata->character_id == 0x1A) {
         play_sound_1(0x310);
     } else {
         play_sound_1(0x2D4);
@@ -5801,16 +6091,21 @@ void kill_spear(void) {
     }
 }
 
-void weapon_block(void) {
-    MovesFighterDefinitionView* fighter;
-
-    fighter = (MovesFighterDefinitionView*)plyr_pdata->fighter_definition;
+/* Soft ceiling: 99.393936%; all four records are float-pool relocations. */
+static float weapon_block(void) {
     set_my_state(0xA00);
-    blend_to_ani(fighter->weapon_block_intro, 3, 0.1f);
+    blend_to_ani(
+        ((MovesFighterDefinitionView*)plyr_pdata->fighter_definition)
+            ->weapon_block_intro,
+        3, 0.1f);
     plyr_anim_pdata->step = 1.0f;
     ani_to_end();
-    glitch_to_ani(fighter->weapon_block_loop, 0);
+    glitch_to_ani(
+        ((MovesFighterDefinitionView*)plyr_pdata->fighter_definition)
+            ->weapon_block_loop,
+        0);
     moves_jump(j_block_loop);
+    return 0.0f;
 }
 
 static inline void moves_transition_block(
@@ -6018,7 +6313,7 @@ float x_block(void) {
 
     set_my_state(0xA00);
     if (should_i_weapon_block() != 0) {
-        moves_jump((MovesEntryFn)weapon_block);
+        moves_jump(weapon_block);
     } else {
         moves_jump(block_a_intro);
     }
@@ -6099,7 +6394,7 @@ void j_duck_block_loop(void) {
             random_voice(9);
             init_ground_move();
             if (should_i_weapon_block() != 0) {
-                moves_jump((MovesEntryFn)weapon_block);
+                moves_jump(weapon_block);
             } else {
                 moves_jump((MovesEntryFn)block_a_intro_glitch);
             }
@@ -6265,6 +6560,12 @@ void idle_his_anim_proc(void) {
     }
 }
 
+/*
+ * Soft ceiling: retail m2c and the sole script call site confirm the complete
+ * three-argument ABI, field order, trial-counter split, attack/collision calls,
+ * and phase transitions. Retail is 12 bytes larger; remaining records are
+ * saved-register selection, GPR allocation/scheduling, and relocations.
+ */
 void attack_opponent_with(
     int attack, MovesAttackInfo* info, int reaction) {
     MovesAttackStateView* attack_state;
