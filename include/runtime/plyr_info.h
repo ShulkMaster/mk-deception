@@ -13,6 +13,7 @@ typedef struct ScriptSlot ScriptSlot;
 typedef struct FighterAiTableContainer FighterAiTableContainer;
 typedef struct FighterRuntimeData FighterRuntimeData;
 typedef struct MkProc MkProc;
+typedef struct MkPtr MkPtr;
 
 typedef struct LinkedNode {
     void* data;
@@ -73,7 +74,10 @@ typedef struct FighterMirror {
     char pad64[0xB8];
     MkProc* foot_print_proc;             /* +0x11C */
     unsigned int foot_print_proc_instance; /* +0x120 */
-    char pad124[0x20];
+    char pad124[0x14];
+    MkProc* limb_update_proc;             /* +0x138 */
+    unsigned int limb_update_proc_instance; /* +0x13C */
+    MkPtr* attach_proc_list;              /* +0x140 - limb attachment processes */
     union {
         FighterObjectRef severed_limbs[15]; /* +0x144 */
         struct {

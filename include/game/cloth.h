@@ -3,6 +3,12 @@
 
 #include "runtime/mk_obj.h"
 
+typedef struct ClothInitEntry ClothInitEntry;
+
+void start_cloth_bones(MkObj* object);
+void cloth_bones_init_by_tbl(
+    MkObj* object, ClothInitEntry* table, int count);
+
 typedef struct ClothCollisionPlane {
     MkHdr hdr;
     unsigned int bone_count; /* +0x08 */

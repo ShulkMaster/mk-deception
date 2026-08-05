@@ -329,7 +329,7 @@ void mks_start_goro_xtra_weapons(void) {
     }
 }
 
-void reload_fan(void) {
+void reload_fan(PlyrPdata* player) {
 }
 
 void get_weapon_collision_def(MkObj* object, WeaponCollisionDef* collision) {
@@ -692,6 +692,10 @@ MkObj* load_weapon(
     return weapon;
 }
 
+/*
+ * Soft ceiling: the retail stack matrix is 16-byte aligned. Keep the matrix
+ * portable instead of forcing the frame with a function-local attribute.
+ */
 void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkObj* weapon;
     WeaponDefinition* definition;
@@ -705,7 +709,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     Vec parent_to_child;
     Vec child_direction;
     Quat rotation;
-    MKMATRIX rotation_matrix __attribute__((aligned(16)));
+    MKMATRIX rotation_matrix;
     int* chain_root;
     int map_index;
 

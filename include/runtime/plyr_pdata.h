@@ -104,6 +104,44 @@ typedef struct PlyrDisabledMove {
     unsigned int move;
 } PlyrDisabledMove;
 
+typedef struct FatalityDefinition {
+    const char* primary_section; /* +0x00 */
+    unsigned int primary_script; /* +0x04 */
+    unsigned int primary_victim_script; /* +0x08 */
+    float primary_min;
+    float primary_max;
+    char pad14[4];
+    const char* secondary_section; /* +0x18 */
+    unsigned int secondary_script; /* +0x1C */
+    unsigned int secondary_victim_script; /* +0x20 */
+    float secondary_min;
+    float secondary_max;
+    char pad2C[8];
+    unsigned int suicide_script; /* +0x34 */
+    unsigned int suicide_sidekick_script; /* +0x38 */
+} FatalityDefinition;
+
+typedef struct FatalityRadiusCheck {
+    int select_farthest;
+    float center_x;
+    char pad08[4];
+    float center_z;
+    float radius;
+} FatalityRadiusCheck;
+
+typedef FatalityDefinition FatalityDistanceLimits;
+
+typedef struct PlyrStatusData {
+    unsigned int flags;
+    char pad04[0x80];
+    union {
+        FatalityDefinition* fatality_definition;
+        FatalityDistanceLimits* fatality_limits;
+    }; /* +0x84 */
+    char pad88[0xAC];
+    void* reaction_cleanup; /* +0x134 */
+} PlyrStatusData;
+
 typedef struct PlyrWeaponMirrorSlot {
     PlyrMirrorObjLatch primary;
     PlyrMirrorObjLatch mirror; /* +0x08 */
@@ -115,7 +153,9 @@ typedef struct PlyrMirrorSlots {
 } PlyrMirrorSlots; /* 0x60 */
 
 typedef struct PlyrWeaponStyle {
-    char pad00[0x0C];
+    void* vtbl;
+    unsigned int instance;
+    char pad08[4];
     PlyrMirrorSlots mirror_slots; /* +0x0C */
     char pad6C[0x30];
     MkPtr* object_list; /* +0x9C - owns style weapon/reflection objects */
@@ -251,7 +291,10 @@ typedef struct PlyrPdata {
     int player_slot; /* +0x308 */
     PlyrFighterDefinition* fighter_definition; /* +0x30C */
     PlyrMirrorSlots* mirror_slots; /* +0x310 */
-    PlyrMoveDisplayData* active_move_display; /* +0x314 */
+    union {
+        PlyrMoveDisplayData* active_move_display;
+        unsigned int fighter_definition_instance;
+    }; /* +0x314 */
     char pad318[0x28];
     AniData* big_boss_taunt_animation; /* +0x340 */
     char pad344[4];
@@ -267,7 +310,28 @@ typedef struct PlyrPdata {
     AniData* goro_fold_animation; /* +0x384 - fatality arm-fold script */
     char pad388[4];
     AniData* ice_reaction_animation; /* +0x38C */
-    char pad390[0xE0];
+    char pad390[0x14];
+    union {
+        AniData* fatality_animation;
+        int fatality_palette;
+    }; /* +0x3A4 */
+    union {
+        struct {
+            union {
+                AniData* mileena_veil_animation;
+                unsigned int suicide_camera_main_ntsc;
+            }; /* +0x3A8 */
+            char pad3AC[4];
+            unsigned int suicide_camera_sidekick_ntsc; /* +0x3B0 */
+            unsigned int suicide_camera_main_pal; /* +0x3B4 */
+            unsigned int suicide_camera_sidekick_pal; /* +0x3B8 */
+            char pad3BC[0x18];
+            unsigned int fatality_camera_ntsc; /* +0x3D4 */
+            unsigned int fatality_camera_pal;  /* +0x3D8 */
+        };
+        unsigned int fatality_camera_scripts[13];
+    };
+    char pad3DC[0x94];
     MkObj* shadowbox; /* +0x470 */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */
@@ -277,10 +341,10 @@ typedef struct PlyrPdata {
     unsigned char left_blood_spawn_state[0x8C];  /* +0x4AC */
     unsigned char right_blood_spawn_state[0x70]; /* +0x538 */
     unsigned int next_large_bleed_tick; /* +0x5A8 */
-    char pad5AC[4];
+    unsigned int next_blood_glop_tick;  /* +0x5AC */
     int duck_reaction_active; /* +0x5B0 */
     float saved_position_x; /* +0x5B4 */
-    char pad5B8[4];
+    float saved_position_y; /* +0x5B8 */
     float saved_position_z; /* +0x5BC */
     char pad5C0[0x2C];
     unsigned int saved_anim_script_word; /* +0x5EC */
@@ -301,7 +365,10 @@ typedef struct PlyrPdata {
     int repeated_action_count; /* +0x6EC */
     unsigned int previous_action; /* +0x6F0 */
     int death_type; /* +0x6F4 */
-    unsigned int* status_flags; /* +0x6F8 - is_blind / is_big_boss / etc. */
+    union {
+        unsigned int* status_flags;
+        PlyrStatusData* status_data;
+    }; /* +0x6F8 */
     int fatality_shove_active; /* +0x6FC */
     struct MkProc* jaw_monitor;           /* +0x700 */
     unsigned int jaw_monitor_instance;    /* +0x704 */

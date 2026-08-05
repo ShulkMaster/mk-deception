@@ -51,7 +51,8 @@ void hide_material(RpMaterial* material);
 void material_set_color(RpMaterial* material, const RpMaterialColor* color);
 void set_atomic_material_color_by_id(void* atomic, int id, int* color);
 void set_atomic_material_color(void* atomic, int* color);
-void obj_set_color_for_material_by_id(void* obj, int id, int* color);
+void obj_set_color_for_material_by_id(
+    MkObj* obj, int id, const RpMaterialColor* color);
 void obj_set_color_for_all_materials(void* obj, int* color);
 void sobj_set_color_for_all_materials(void* sobj, int* color);
 int save_profile(int player, int mode);
@@ -97,7 +98,10 @@ void init_global_vars(void);
 unsigned long long stop_usec_timer(int id);
 void start_usec_timer(int id);
 void get_clean_system(void);
-int simple_3d_projectile_collision(void* a, void* b);
+int simple_3d_projectile_collision(
+    const Vec* previous_position, const Vec* current_position,
+    const Vec* target_position, int mode, float collision_radius_squared,
+    float maximum_distance_squared, float close_distance_squared);
 int is_blind(PlyrPdata* fighter);
 int is_big_boss(PlyrPdata* fighter);
 int has_sidekick(PlyrPdata* fighter);

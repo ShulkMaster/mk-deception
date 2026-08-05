@@ -44,7 +44,8 @@ typedef struct PfxSlot {
 /* Per-slot transform matrix block -- stride 0x48 from MkPfx.mats. */
 typedef struct PfxSlotMat {
     float m[16];      /* +0x00 */
-    char pad40[0x08]; /* +0x40 */
+    char pad40[4];
+    int particle_stride; /* +0x44 */
 } PfxSlotMat;
 
 /* View of MkPfx.matrix / VM base used by pfx_* callees.
@@ -62,7 +63,7 @@ typedef struct PfxVm {
 
 /* Emitter VM blob (stack/scratch size 0x2EC); transform @ +0x2E8. */
 typedef struct PfxEmitter {
-    char pad00[0x0C];
+    Vec position; /* +0x00 */
     float lifetime; /* +0x0C */
     char pad10[0x30];
     int field_40;
@@ -122,7 +123,7 @@ struct MkPfx {
     unsigned short emitter_enabled; /* +0x1C2 */
     char pad1C4[0x3C];
     int slot_count;               /* +0x200 */
-    void* emitter_scratch;        /* +0x204 */
+    PfxEmitter* emitter_scratch;  /* +0x204 */
     char pad208[4];
     int behaviors_active;         /* +0x20C */
     char pad210[4];
@@ -201,13 +202,13 @@ PfxClone* pfx_create_clone(MkPfx* pfx);
  * Thin wrapper: stamps empty_build_info (flag=1, userdata) then calls
  * new_pfx_create_raw_userdata. Used by krypt tombstone letter/number/koin pfx.
  */
-int pfx_create_raw_userdata(int extra_size, void* userdata, int field_90,
-                            int field_214, int field_a0, PfxInitCb init_cb,
-                            int pid, MkProcEntryFn entry, void** out_pfx);
+void* pfx_create_raw_userdata(int extra_size, void* userdata, int field_90,
+                              int field_214, int field_a0, PfxInitCb init_cb,
+                              int pid, MkProcEntryFn entry, void** out_pfx);
 
-int new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
-                                int field_214, int field_a0, PfxInitCb init_cb,
-                                int pid, MkProcEntryFn entry, void** out_pfx);
+void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
+                                  int field_214, int field_a0, PfxInitCb init_cb,
+                                  int pid, MkProcEntryFn entry, void** out_pfx);
 
 void pfx_post_sleep(void);
 void pfx_pre_wake(void);

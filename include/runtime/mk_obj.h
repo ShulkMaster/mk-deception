@@ -9,14 +9,16 @@
 #include "runtime/mk_struct.h"
 
 typedef struct MkBoneFlags55 {
-    unsigned char pad_high : 2;
+    unsigned char collision_disabled : 1; /* bit7 */
+    unsigned char collision_deferred : 1; /* bit6 */
     unsigned char scale_controlled : 1; /* bit5 - blade/controller scale */
     unsigned char pad_low : 5;
 } MkBoneFlags55;
 
 typedef struct MkBoneFlags54 {
     unsigned char transform_parented : 1; /* bit7 */
-    unsigned char pad_6_5 : 2;
+    unsigned char pad_bit6 : 1;
+    unsigned char cloth_candidate : 1; /* bit5 */
     unsigned char calculation_locked : 1; /* bit4 */
     unsigned char field_bit3 : 1;
     unsigned char hierarchy_driven : 1; /* bit2 */
@@ -44,7 +46,7 @@ typedef struct MkBone {
         };
         unsigned int flags_word_54;
     };
-    int field_58;
+    struct ClothBone* cloth_link; /* +0x58 - optional cloth state */
     float field_5C;
     float field_60;
     float field_64;
@@ -100,9 +102,17 @@ typedef struct ClothCollisionPoint {
 
 typedef struct ClothBone {
     unsigned int collision_point_count; /* +0x00 */
-    char pad_04[0x24];
+    float table_scale; /* +0x04 */
+    float stiffness_squared; /* +0x08 */
+    float segment_length; /* +0x0C */
+    float damping_factor; /* +0x10 */
+    float initial_x; /* +0x14 */
+    float initial_z; /* +0x18 */
+    float table_weight; /* +0x1C */
+    float force_step; /* +0x20 */
+    float stretch_weight; /* +0x24 */
     float ground_y; /* +0x28 */
-    char pad_2C[4];
+    int active; /* +0x2C */
     union {
         unsigned char flags_30;
         ClothBoneFlags30 flags_30_bits;
@@ -110,14 +120,35 @@ typedef struct ClothBone {
     char pad_31[3];
     struct ClothBone* target_bone; /* +0x34 */
     MkBone* bone; /* +0x38 */
-    char pad_3C[0x14];
+    float rest_length; /* +0x3C */
+    float collision_amount; /* +0x40 */
+    float current_length; /* +0x44 */
+    char pad_48[8];
     Vec wind_normal; /* +0x50 */
     char pad_5C[4];
     Vec collision_offset; /* +0x60 */
     char pad_6C[4];
-    ClothCollisionPoint collision_points[3]; /* +0x70, stride 0x10 */
+    union {
+        ClothCollisionPoint collision_points[3]; /* +0x70, stride 0x10 */
+        struct {
+            char pad_local_70[0x20];
+            Vec local_cloth_position; /* +0x90 */
+            char pad_local_9C[4];
+        };
+    };
     Vec target_vector; /* +0xA0 */
-    char pad_AC[0x84];
+    char pad_AC[4];
+    Vec world_target; /* +0xB0 */
+    char pad_BC[4];
+    Vec force_position; /* +0xC0 */
+    char pad_CC[4];
+    Vec velocity; /* +0xD0 */
+    char pad_DC[4];
+    Quat collision_rotation; /* +0xE0 */
+    Vec collision_local_position; /* +0xF0 */
+    char pad_FC[4];
+    Vec previous_collision_local_position; /* +0x100 */
+    char pad_10C[0x24];
 } ClothBone; /* 0x130 */
 
 typedef struct MkxMem {
@@ -157,14 +188,19 @@ typedef struct MkSobjFlags08 {
 typedef struct MkSobj {
     MkHdr hdr;             /* +0x00 */
     union {
-        unsigned char flags_08; /* +0x08 - transform update flags */
-        MkSobjFlags08 flags_08_bits;
+        unsigned int flags_word_08;
+        struct {
+            union {
+                unsigned char flags_08; /* +0x08 - transform update flags */
+                MkSobjFlags08 flags_08_bits;
+            };
+            union {
+                unsigned char flags09; /* +0x09 - render flags */
+                MkSobjFlags09 flags09_bits;
+            };
+            char pad0A[2];
+        };
     };
-    union {
-        unsigned char flags09; /* +0x09 - bit7 / bit5 render (mab rlwimi) */
-        MkSobjFlags09 flags09_bits;
-    };
-    char pad0A[2];
     unsigned int id_flags; /* +0x0C */
     int priority;          /* +0x10 */
     RpAtomic* atomic;      /* +0x14 */
