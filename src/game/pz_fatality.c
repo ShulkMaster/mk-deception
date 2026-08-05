@@ -396,12 +396,28 @@ struct PuzzleParticleEffect {
 
 typedef struct PuzzleFatalityDefinition {
     int flags;
-    PuzzleFatalityFn load_and_place;
+    float (*load_and_place)(void);
     int threshold;
 } PuzzleFatalityDefinition;
 
+typedef struct PuzzleAmbientLightDefinition {
+    int type;
+    float (*proc)(void);
+    int flags;
+    float color[4];
+} PuzzleAmbientLightDefinition; /* 0x1C */
+
+typedef struct PuzzleDirectLightDefinition {
+    int type;
+    float (*proc)(void);
+    int flags;
+    float color[4];
+    float angle_y;
+    float angle_x;
+    float angle_z;
+} PuzzleDirectLightDefinition; /* 0x28 */
+
 extern PuzzleFightersEngine g_pz_fighters_engine;
-extern PuzzleFatalityDefinition g_fatalityTable[];
 extern PuzzleSharedAnimations pz_shared_ani;
 extern PuzzleBaseAnimations shared_ani;
 extern PuzzleProcess* aproc;
@@ -417,16 +433,14 @@ extern MkFileInfo sec_pz_danger_burn;
 extern MkFileInfo sec_pz_danger_crusher;
 extern MkFileInfo sec_pz_danger_chomper;
 extern MkFileInfo sec_pz_danger_snake;
-extern unsigned char skinned_obj_light_def[];
-extern unsigned char skinned_obj_ambient_light_def[];
 extern void* apdata;
 
 PuzzleFatalityEngine g_pz_fighter_fatality_engine;
-PuzzleFleshchunkPdata* pdata_fleshchunk;
-PuzzleFighterRenderObject* fleshchunk_obj;
-PuzzlePlayerData* plyr_pdata;
+static PuzzleFleshchunkPdata* pdata_fleshchunk;
+static PuzzleFighterRenderObject* fleshchunk_obj;
+extern PuzzlePlayerData* plyr_pdata;
 extern PuzzlePlayerData* his_pdata;
-PuzzleFighterRenderObject* plyr_obj;
+extern PuzzleFighterRenderObject* plyr_obj;
 
 void* memset(void* destination, int value, unsigned long size);
 void* memcpy(void* destination, const void* source, unsigned long size);
@@ -706,6 +720,37 @@ float pz_fighters_objects_falling_preround(void);
 float pz_fighters_lightning_preround(void);
 float pz_fighters_snake_fatality_preround(void);
 float pz_fighters_burn_fatality_preround(void);
+
+float p_track_cam_ang_y_light(void);
+float pz_fighter_load_and_place_initial_grinders(void);
+float pz_fighter_load_and_place_initial_chompers(void);
+float pz_fighter_load_and_place_initial_chompers2(void);
+float pz_fighter_load_and_place_initial_objects_falling(void);
+float pz_fighter_load_and_place_initial_lightning(void);
+float pz_fighter_load_and_place_initial_snake(void);
+float pz_fighter_load_and_place_initial_burn(void);
+
+PuzzleDirectLightDefinition skinned_obj_light_def = {
+    3, p_track_cam_ang_y_light, 1,
+    {1.0f, 1.0f, 1.0f, 1.0f},
+    6.010f, 3.190f, 0.0f,
+};
+
+PuzzleAmbientLightDefinition skinned_obj_ambient_light_def = {
+    1, 0, 3, {0.2f, 0.2f, 0.2f, 1.0f},
+};
+
+int pz_snake_bones[9] = {1, 2, 3, 4, 5, 6, 7, 8, 0};
+
+PuzzleFatalityDefinition g_fatalityTable[15] = {
+    {3, pz_fighter_load_and_place_initial_grinders, 20},
+    {0, pz_fighter_load_and_place_initial_chompers, 40},
+    {0, pz_fighter_load_and_place_initial_chompers2, 60},
+    {0, pz_fighter_load_and_place_initial_objects_falling, 80},
+    {0, pz_fighter_load_and_place_initial_lightning, 90},
+    {0, pz_fighter_load_and_place_initial_snake, 95},
+    {0, pz_fighter_load_and_place_initial_burn, 100},
+};
 
 /*
  * Soft ceiling: retail keeps a redundant positive branch plus a shared-return
@@ -4017,7 +4062,7 @@ float pz_fighters_chomper2_fatality_prep(void) {
  * equivalent emitter flag-update scheduling.
  */
 float pz_fighter_load_and_place_initial_snake(void) {
-    unsigned char* light_def = skinned_obj_light_def;
+    PuzzleDirectLightDefinition* light_def = &skinned_obj_light_def;
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* snakes[2];
     PuzzleAnimPdata* snake_pdata[2];

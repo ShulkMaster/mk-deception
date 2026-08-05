@@ -116,13 +116,6 @@ const LensFlareDefinition courtyard_lens_data[] = {
     { 0.75f, &fx_string_base[134] }, { 1.0f, &fx_string_base[145] },
     { 0.0f, 0 },
 };
-static const char fx_string_base[228] =
-    "YY_FLARES3\0YY_FLARES2\0YY_FLARES1\0YY_FLAREDOT\0"
-    "YY_FLARES5\0YY_FLARES6\0YY_FLARES7\0"
-    "CY_FLARES3\0CY_FLARES2\0CY_FLARES1\0CY_FLAREDOT\0"
-    "CY_FLARES5\0CY_FLARES6\0CY_FLARES7\0"
-    "Tried to unfreeze a player who is NOT frozen!!\0"
-    "TELE_ENERGY\0FX.C-created";
 static float lensflare_proc2(void);
 static float lensflare_proc(void);
 static float fighting_style_sign_proc(void);
@@ -324,6 +317,14 @@ static int rayintersection(
     }
 }
 #pragma dont_inline reset
+
+static const char fx_string_base[228] =
+    "YY_FLARES3\0YY_FLARES2\0YY_FLARES1\0YY_FLAREDOT\0"
+    "YY_FLARES5\0YY_FLARES6\0YY_FLARES7\0"
+    "CY_FLARES3\0CY_FLARES2\0CY_FLARES1\0CY_FLAREDOT\0"
+    "CY_FLARES5\0CY_FLARES6\0CY_FLARES7\0"
+    "Tried to unfreeze a player who is NOT frozen!!\0"
+    "TELE_ENERGY\0FX.C-created";
 
 static float lensflare_proc2(void) {
     LensflarePdata* pdata;

@@ -28,16 +28,128 @@
 extern MkObj* plyr_obj;
 extern MkPtr* clone_light_list;
 extern MkPtr* point_light_list;
-extern PlyrPdata* g_plyr_pdata;
-extern unsigned int g_kabal_dash_react_pfx_handles[9];
-extern const unsigned char gSmokeTable[0x58];
-extern const int skeleton_start_bone_id[2][12];
-extern const int skeleton_end_bone_id[2][12];
-extern const float skeleton_radius_table[12];
 extern float game_speed;
-extern const unsigned char jab_pfx_table[0x3E0];
+
+typedef struct JabPfxDefinition {
+    unsigned int flags;
+    int field_04;
+    int field_08;
+    Vec origin;
+    float particle_size;
+    float red;
+    float green;
+    float blue;
+    float alpha;
+    int emitter_lifetime;
+    int field_30;
+    int emitter_field_40;
+    unsigned int texture_handle;
+    int animate_texture;
+    int texture_width;
+    int texture_height;
+    int texture_frame_width;
+    float texture_speed;
+    int texture_enabled;
+    int kill_plane_x;
+    int kill_plane_y;
+    int kill_plane_z;
+    float plane_x;
+    float plane_y;
+    float plane_z;
+    int lifetime_mode;
+    int lifetime_minimum;
+    int lifetime_maximum;
+    PfxInitCb initialize;
+} JabPfxDefinition; /* 0x7C */
+
+const JabPfxDefinition jab_pfx_table[8] = {
+    {
+        4, 0x232, 3, {0.0f, 0.0f, 0.0f}, 0.5f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        1, 100, 0, 0x00020038, 0, 0, 0, 0, 0.0f, 0,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+    {
+        5, 0x232, 3, {0.0f, 0.0f, 0.0f}, 0.5f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        20, 100, 0, 0x08160005, 0x40, 0x10, 0x10, 0x10, 2.0f, 0,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+    {
+        4, 0x232, 3, {0.0f, 0.0f, 0.0f}, 0.1f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        12, 0x168, 0, 0x00020038, 0x10, 8, 8, 4, 3.0f, 1,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+    {
+        4, 0x32, 3, {0.0f, 0.0f, 0.0f}, 0.1f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        8, 0x1EF, 0, 0x00020038, 0x10, 8, 8, 4, 3.0f, 1,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+    {
+        5, 0x272, 3, {0.0f, 0.0f, 0.0f}, 0.0f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        15, 0x12C, 0, 0x013F000E, 0x40, 0x10, 0x10, 0x10, 4.0f, 1,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+    {
+        5, 0x272, 0x43, {0.0f, 0.0f, 0.0f}, 0.0f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        5, 0x12C, 0, 0x00020034, 0x80, 0x20, 0x20, 0x10, 4.0f, 1,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+    {
+        5, 0x272, 3, {0.0f, 0.0f, 0.0f}, 0.0f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        2, 0x82, 0, 0x013F0010, 0x80, 0x20, 0x20, 0x10, 4.0f, 1,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+    {
+        5, 0x272, 3, {0.0f, 0.0f, 0.0f}, 0.0f,
+        255.0f, 255.0f, 255.0f, 255.0f,
+        2, 0x82, 0, 0x013F0013, 0x100, 0x40, 0x55, 0x0C, 4.0f, 1,
+        0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0,
+    },
+};
+
+/* Serialized smoke-emitter preset consumed by the effect-table runtime. */
+unsigned char gSmokeTable[0x58] = {
+    0x00, 0x00, 0x00, 0x00, 0xC8, 0xC8, 0xC8, 0xFF,
+    0xC8, 0xC8, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x08,
+    0x3E, 0x19, 0x99, 0x9A, 0x3D, 0xA3, 0xD7, 0x0A,
+    0x3B, 0x44, 0x9B, 0xA6, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x24, 0x43, 0xAF, 0x00, 0x00,
+    0x42, 0xC8, 0x00, 0x00, 0x3B, 0x44, 0x9B, 0xA6,
+    0x00, 0x02, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x40,
+    0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10,
+    0x00, 0x00, 0x00, 0x10, 0x40, 0x80, 0x00, 0x00,
+};
+
+int skeleton_start_bone_id[2][12] = {
+    {24, 7, 7, 4, 10, 15, 17, 8, 8, 5, 11, 17},
+    {15, 4, 4, 1, 10, 15, 21, 8, 8, 5, 11, 17},
+};
+
+int skeleton_end_bone_id[2][12] = {
+    {20, 4, 4, 1, 7, 1, 21, 5, 5, 2, 8, 2},
+    {20, 7, 7, 4, 7, 1, 25, 5, 5, 2, 8, 2},
+};
+
+float skeleton_radius_table[12] = {
+    0.12f, 0.12f, 0.14f, 0.14f, 0.14f, 0.14f,
+    0.12f, 0.14f, 0.14f, 0.14f, 0.14f, 0.14f,
+};
+
+unsigned int g_kabal_dash_react_pfx_handles[9] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+
 static MkPfx* p_grinder_crush_blood_pfx;
 static MkPfx* p_grinder_crush_chunks_pfx;
+PlyrPdata* g_plyr_pdata;
 static float grinder_meat_size = 0.3f;
 
 typedef struct FlashScreenPdata {
@@ -159,7 +271,7 @@ void bone_matcher_parent_set_offset(
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 void pfxhandle_bgnd_spawn_at_position(
     const char* effect_name, float x, float y, float z);
-void sh_spawn_grinder_crush_blood(void);
+static void sh_spawn_grinder_crush_blood(void);
 int am_i_flipped(void);
 void* load_named_model_for_player(
     char* name, int player, int object_type, int flags);
@@ -170,11 +282,11 @@ MkPfx* create_pfx(
     const void* definition, const char* name);
 PfxEmitter* pfx_get_emitter(PfxVm* vm, int index);
 void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
-float pfx_sh_grinder_crush_blood(void);
-float pfx_sh_grinder_crush_chunks(void);
-float pfx_sh_grinder_meat_spew(void);
-float pfx_kenshi_lift_smoke(void);
-float pfx_react_falling_attach_smoke_to_bones_proc(void);
+static float pfx_sh_grinder_crush_blood(void);
+static float pfx_sh_grinder_crush_chunks(void);
+static float pfx_sh_grinder_meat_spew(void);
+static float pfx_kenshi_lift_smoke(void);
+static float pfx_react_falling_attach_smoke_to_bones_proc(void);
 MkObj* get_mkobj_frame(int type, void* frame);
 void pfxhandle_spawn_at_bid(const char* name, MkObj* object, int bone);
 /* Retail call sites use both three- and five-argument local declarations. */
@@ -185,11 +297,12 @@ unsigned int pfxhandle_spawn_at_bid_next(
     unsigned int effect, MkObj* object, int bone);
 MkProc* find_mkproc_pid(int process_id);
 
-/* Retail TU-local; its process body remains in the split assembly. */
-float p_flash_screen(void);
-float p_jab_point_light_tracker(void);
-float p_dk_death_shake(void);
-float p_bind_obj_to_obj_bone(void);
+static float p_flash_screen(void);
+static float p_jab_point_light_tracker(void);
+static float p_dk_death_shake(void);
+static float p_bind_obj_to_obj_bone(void);
+static void jab_kira_projectile_hand_explode(void);
+static float p_kabal_dash_react_pfx(void);
 
 void initialize_clone_lights(LightDef** definitions) {
     MkObj* light;
@@ -289,6 +402,20 @@ float p_jab_point_light_tracker(void) {
     return 1.0f;
 }
 
+void jab_flash_screen(int color, float intensity, float duration) {
+    FlashScreenPdataRef pdata;
+
+    if (_create_mkproc_generic_tinystack(
+            FLASH_SCREEN_PID, 0x1F, p_flash_screen, sizeof(FlashScreenPdata),
+            &pdata.hdr) != 0 &&
+        pdata.hdr != 0) {
+        zero_pdata_payload(sizeof(FlashScreenPdata), pdata.hdr);
+        pdata.flash->color = color;
+        pdata.flash->intensity = intensity;
+        pdata.flash->duration = duration;
+    }
+}
+
 float p_flash_screen(void) {
     FlashScreenPdata* pdata;
     ScreenObj* flash;
@@ -346,68 +473,6 @@ float p_flash_screen(void) {
     return -1.0f;
 }
 
-float p_dk_death_shake(void) {
-    static int moving_up = 1;
-    DragonKingShakePdata* pdata;
-    MkObj* object;
-
-    pdata = (DragonKingShakePdata*)pdata_of_proc(aproc);
-    object = pdata->object;
-    if (object != 0 && object->hdr.instance != pdata->object_instance) {
-        object = 0;
-    }
-    if (object == 0) {
-        return -1.0f;
-    }
-
-    if (moving_up != 0) {
-        object->pos.y += pdata->speed;
-        if (object->pos.y - pdata->base_y > pdata->distance) {
-            moving_up = 0;
-        }
-    } else {
-        object->pos.y -= pdata->speed;
-        if (object->pos.y - pdata->base_y < 0.0f) {
-            moving_up = 1;
-        }
-    }
-    update_mkobj(object != 0 ? as_mkhdr(&object->hdr) : 0);
-    return 1.0f;
-}
-
-float p_bind_obj_to_obj_bone(void) {
-    JadeBindPdata* pdata;
-    MkObj* parent;
-    MkObj* child;
-
-    pdata = (JadeBindPdata*)pdata_of_proc(aproc);
-    RESOLVE_JAB_OBJECT(
-        parent, pdata->parent, pdata->parent_instance);
-    RESOLVE_JAB_OBJECT(
-        child, pdata->child, pdata->child_instance);
-    if (parent == 0 || child == 0) {
-        return -1.0f;
-    }
-
-    get_bone_world_pos(parent, pdata->parent_bone, &child->pos);
-    update_mkobj(child != 0 ? as_mkhdr(&child->hdr) : 0);
-    return 1.0f;
-}
-
-void jab_flash_screen(int color, float intensity, float duration) {
-    FlashScreenPdataRef pdata;
-
-    if (_create_mkproc_generic_tinystack(
-            FLASH_SCREEN_PID, 0x1F, p_flash_screen, sizeof(FlashScreenPdata),
-            &pdata.hdr) != 0 &&
-        pdata.hdr != 0) {
-        zero_pdata_payload(sizeof(FlashScreenPdata), pdata.hdr);
-        pdata.flash->color = color;
-        pdata.flash->intensity = intensity;
-        pdata.flash->duration = duration;
-    }
-}
-
 void jab_shake_dragon_king(float distance, float speed) {
     DragonKingShakePdata* pdata;
     MkObj* object;
@@ -439,6 +504,35 @@ void jab_stop_dragon_king_shake(void) {
         vtbl.base = proc->vtbl;
         vtbl.jab->destroy(proc);
     }
+}
+
+float p_dk_death_shake(void) {
+    static int moving_up = 1;
+    DragonKingShakePdata* pdata;
+    MkObj* object;
+
+    pdata = (DragonKingShakePdata*)pdata_of_proc(aproc);
+    object = pdata->object;
+    if (object != 0 && object->hdr.instance != pdata->object_instance) {
+        object = 0;
+    }
+    if (object == 0) {
+        return -1.0f;
+    }
+
+    if (moving_up != 0) {
+        object->pos.y += pdata->speed;
+        if (object->pos.y - pdata->base_y > pdata->distance) {
+            moving_up = 0;
+        }
+    } else {
+        object->pos.y -= pdata->speed;
+        if (object->pos.y - pdata->base_y < 0.0f) {
+            moving_up = 1;
+        }
+    }
+    update_mkobj(object != 0 ? as_mkhdr(&object->hdr) : 0);
+    return 1.0f;
 }
 
 void jab_attach_wiff_to_sobj(
@@ -529,84 +623,6 @@ void jab_face_obj(MkObj* object, const Vec* direction) {
         matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
     matrix->up.z =
         matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
-}
-
-void jab_setup_kiss_emitter_obj(MkPfx* effect) {
-    JabFloatBits inverse;
-    RwMatrix* matrix;
-    Vec mouth_position;
-    Vec head_position;
-    float inverse_length;
-    float length_sq;
-    float half_x;
-    float newton;
-    int mouth_bone;
-
-    if (plyr_obj == 0 || effect == 0) {
-        return;
-    }
-
-    matrix = (RwMatrix*)effect->bound_obj;
-    mouth_bone = am_i_flipped() != 0 ? 0x19 : 0x18;
-    get_bone_world_pos(plyr_obj, mouth_bone, &mouth_position);
-    get_bone_world_pos(plyr_obj, 0xD, &head_position);
-
-    matrix->at.x = mouth_position.x - head_position.x;
-    matrix->at.y = mouth_position.y - head_position.y;
-    matrix->at.z = mouth_position.z - head_position.z;
-    length_sq = matrix->at.x * matrix->at.x +
-                matrix->at.y * matrix->at.y +
-                matrix->at.z * matrix->at.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
-    matrix->at.x *= inverse_length;
-    matrix->at.y *= inverse_length;
-    matrix->at.z *= inverse_length;
-
-    matrix->up.x = 0.0f;
-    matrix->up.y = 1.0f;
-    matrix->up.z = 0.0f;
-    matrix->right.x =
-        matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
-    matrix->right.y =
-        matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
-    matrix->right.z =
-        matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
-
-    length_sq = matrix->right.x * matrix->right.x +
-                matrix->right.y * matrix->right.y +
-                matrix->right.z * matrix->right.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
-    matrix->right.x *= inverse_length;
-    matrix->right.y *= inverse_length;
-    matrix->right.z *= inverse_length;
-
-    matrix->up.x =
-        matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
-    matrix->up.y =
-        matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
-    matrix->up.z =
-        matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
-    matrix->pos.x = mouth_position.x;
-    matrix->pos.y = mouth_position.y;
-    matrix->pos.z = mouth_position.z;
 }
 
 /* Exact size and algorithm; the remaining delta is FPR allocation. */
@@ -709,7 +725,7 @@ void jab_start_jade_boomerang_throw(
                     boomerang_ref->instance);
                 if (boomerang == 0) {
                     boomerang = load_named_model_for_player(
-                        "WHITE_FADEBOX\0BRANG" + sizeof("WHITE_FADEBOX"),
+                        "BRANG",
                         jade_data->plyr_num, 0xD000, 0);
                     if (boomerang != 0) {
                         insert_fgnd_mkobj(boomerang);
@@ -764,6 +780,316 @@ void jab_start_jade_boomerang_throw(
     }
 }
 
+float p_bind_obj_to_obj_bone(void) {
+    JadeBindPdata* pdata;
+    MkObj* parent;
+    MkObj* child;
+
+    pdata = (JadeBindPdata*)pdata_of_proc(aproc);
+    RESOLVE_JAB_OBJECT(
+        parent, pdata->parent, pdata->parent_instance);
+    RESOLVE_JAB_OBJECT(
+        child, pdata->child, pdata->child_instance);
+    if (parent == 0 || child == 0) {
+        return -1.0f;
+    }
+
+    get_bone_world_pos(parent, pdata->parent_bone, &child->pos);
+    update_mkobj(child != 0 ? as_mkhdr(&child->hdr) : 0);
+    return 1.0f;
+}
+
+void jab_setup_kiss_emitter_obj(MkPfx* effect) {
+    JabFloatBits inverse;
+    RwMatrix* matrix;
+    Vec mouth_position;
+    Vec head_position;
+    float inverse_length;
+    float length_sq;
+    float half_x;
+    float newton;
+    int mouth_bone;
+
+    if (plyr_obj == 0 || effect == 0) {
+        return;
+    }
+
+    matrix = (RwMatrix*)effect->bound_obj;
+    mouth_bone = am_i_flipped() != 0 ? 0x19 : 0x18;
+    get_bone_world_pos(plyr_obj, mouth_bone, &mouth_position);
+    get_bone_world_pos(plyr_obj, 0xD, &head_position);
+
+    matrix->at.x = mouth_position.x - head_position.x;
+    matrix->at.y = mouth_position.y - head_position.y;
+    matrix->at.z = mouth_position.z - head_position.z;
+    length_sq = matrix->at.x * matrix->at.x +
+                matrix->at.y * matrix->at.y +
+                matrix->at.z * matrix->at.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    matrix->at.x *= inverse_length;
+    matrix->at.y *= inverse_length;
+    matrix->at.z *= inverse_length;
+
+    matrix->up.x = 0.0f;
+    matrix->up.y = 1.0f;
+    matrix->up.z = 0.0f;
+    matrix->right.x =
+        matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
+    matrix->right.y =
+        matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
+    matrix->right.z =
+        matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
+
+    length_sq = matrix->right.x * matrix->right.x +
+                matrix->right.y * matrix->right.y +
+                matrix->right.z * matrix->right.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    matrix->right.x *= inverse_length;
+    matrix->right.y *= inverse_length;
+    matrix->right.z *= inverse_length;
+
+    matrix->up.x =
+        matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
+    matrix->up.y =
+        matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
+    matrix->up.z =
+        matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
+    matrix->pos.x = mouth_position.x;
+    matrix->pos.y = mouth_position.y;
+    matrix->pos.z = mouth_position.z;
+}
+
+void bulvan_function(int command) {
+    PlyrPdata* opponent_data;
+    MkPfx* effect;
+    MkProc* process;
+    MkObj* tracked_object;
+    unsigned int effect_handle;
+    int owner;
+    int index;
+
+    switch (command) {
+    case 1:
+        tracked_object = plyr_obj;
+        create_pfx(
+            0xA001, 0xA001,
+            pfx_react_falling_attach_smoke_to_bones_proc, &effect,
+            &jab_pfx_table[3], "C - Smoke Reaction");
+        if (effect != 0) {
+            set_pfx_texture(
+                (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x2003C);
+            pfx_bind_emitter_to_obj_bone(effect, tracked_object, 9);
+            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 8.0f;
+            effect->field_90 = 0x1EF;
+            effect->field_28 = -50.0f;
+            effect->field_298 = 100.0f;
+            effect->field_29C = 80.0f;
+            effect->field_2A4 = 1.0f;
+            effect->tracked_object = tracked_object;
+            effect->tracked_object_instance = tracked_object->hdr.instance;
+        }
+        break;
+
+    case 0:
+        create_pfx(
+            0xA00C, 0xA015, pfx_kenshi_lift_smoke, &effect,
+            &jab_pfx_table[2], "C - Kenshi Lift Smoke");
+        if (effect != 0) {
+            set_pfx_texture(
+                (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x20038);
+            pfx_texture_animate(
+                (PfxVm*)&effect->matrix, 4.0f, 0x40, 0x10, 0x10, 0x10);
+            pfx_bind_emitter_to_obj_bone(effect, plyr_obj, 0);
+            effect->emitter_enabled = 0;
+            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 24.0f;
+            effect->field_90 = 0xA8;
+            effect->field_28 = -50.0f;
+            effect->field_298 = 50.0f;
+            effect->field_29C = 7.0f;
+            effect->field_2A0 = 0.0f;
+            effect->effect_state = 0;
+            effect->tracked_object = plyr_obj;
+            effect->tracked_object_instance = plyr_obj->hdr.instance;
+        }
+        break;
+
+    case 2:
+        if (plyr_obj == 0) {
+            break;
+        }
+        opponent_data = get_his_plyr_pdata();
+        if (opponent_data == 0 || opponent_data->character_id != 0x13) {
+            break;
+        }
+        if (_create_mkproc_generic_nostack(
+                0xA026, 0x2E, p_kabal_dash_react_pfx, 0, 0) == 0) {
+            break;
+        }
+        g_plyr_pdata = get_my_plyr_pdata();
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react", owner);
+        g_kabal_dash_react_pfx_handles[0] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 1);
+        g_kabal_dash_react_pfx_handles[1] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 2);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_shin", owner);
+        g_kabal_dash_react_pfx_handles[2] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 4);
+        g_kabal_dash_react_pfx_handles[3] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 5);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_lt", owner);
+        g_kabal_dash_react_pfx_handles[4] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x14);
+        g_kabal_dash_react_pfx_handles[5] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0xF);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_rt", owner);
+        g_kabal_dash_react_pfx_handles[6] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x15);
+        g_kabal_dash_react_pfx_handles[7] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x11);
+
+        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
+        effect_handle = fx_by_owner("kabal_dash_react_head", owner);
+        g_kabal_dash_react_pfx_handles[8] =
+            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x10);
+        break;
+
+    case 3:
+        process = find_mkproc_pid(0xA026);
+        if (process != 0 && process->instance != 0) {
+            ((MkHdr*)process)->typed_vtbl->destroy((MkHdr*)process);
+        }
+        for (index = 0; index < 9; index++) {
+            if (g_kabal_dash_react_pfx_handles[index] != 0) {
+                fx_reset_emit(g_kabal_dash_react_pfx_handles[index]);
+            }
+            g_kabal_dash_react_pfx_handles[index] = 0;
+        }
+        g_plyr_pdata = 0;
+        break;
+
+    case 4:
+        jab_kira_projectile_hand_explode();
+        break;
+    }
+}
+
+void jab_kira_projectile_hand_explode(void) {
+    static const Vec ZERO_DIRECTION = {0.0f, 0.0f, 0.0f};
+    JabFloatBits inverse;
+    PlyrPdata* player_data;
+    MkObj* opponent;
+    MkObj* effect_object;
+    RwMatrix* matrix;
+    Vec direction;
+    float length_sq;
+    float inverse_length;
+    float half_x;
+    float newton;
+
+    direction = ZERO_DIRECTION;
+    if (plyr_obj == 0) {
+        return;
+    }
+    opponent = get_his_plyr_obj();
+    if (opponent == 0) {
+        return;
+    }
+    player_data = get_my_plyr_pdata();
+    if (player_data == 0 || player_data->character_id != 0x12) {
+        return;
+    }
+
+    effect_object = get_mkobj_frame(0xA010, 0);
+    if (effect_object == 0) {
+        return;
+    }
+    effect_object->flags_08_bits.airborne = 1;
+    matrix = effect_object->field_24;
+    direction.x = opponent->pos.x - plyr_obj->pos.x;
+    direction.z = opponent->pos.z - plyr_obj->pos.z;
+    length_sq = direction.x * direction.x + direction.z * direction.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    direction.x *= inverse_length;
+    direction.z *= inverse_length;
+
+    matrix->at.x = direction.x;
+    matrix->at.y = direction.y;
+    matrix->at.z = direction.z;
+    matrix->up.z = 0.0f;
+    matrix->up.x = 0.0f;
+    matrix->up.y = 1.0f;
+    matrix->right.x =
+        matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
+    matrix->right.y =
+        matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
+    matrix->right.z =
+        matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
+
+    length_sq = matrix->right.x * matrix->right.x +
+                matrix->right.y * matrix->right.y +
+                matrix->right.z * matrix->right.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse.f = length_sq;
+        inverse.u = 0x5F375A00U - (inverse.u >> 1);
+        half_x = inverse.f * (length_sq * inverse.f);
+        newton = 3.0f - half_x;
+        inverse_length =
+            0.0625f * inverse.f * newton *
+            -((newton * (half_x * newton)) - 12.0f);
+    }
+    matrix->right.x *= inverse_length;
+    matrix->right.y *= inverse_length;
+    matrix->right.z *= inverse_length;
+    matrix->up.x =
+        matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
+    matrix->up.y =
+        matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
+    matrix->up.z =
+        matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
+
+    if (am_i_flipped() != 0) {
+        get_bone_world_pos(plyr_obj, 0x18, &matrix->pos_vec);
+    } else {
+        get_bone_world_pos(plyr_obj, 0x19, &matrix->pos_vec);
+    }
+    pfxhandle_spawn_at_bid("hand_explode", effect_object, 0x40000000);
+}
+
 float p_kabal_dash_react_pfx(void) {
     int i;
 
@@ -809,28 +1135,189 @@ void sh_spawn_grinder_crush_pfx(void) {
     }
 }
 
-void sh_start_grinder_crush_blood(const Vec* position) {
+float pfx_sh_grinder_crush_chunks(void) {
     MkPfx* effect;
-    MkObj* emitter_object;
+    PfxVm* vm;
+    MkHdr* emitter_object;
+    Vec* source_positions;
+    Vec* destination_positions;
+    Vec* source_velocities;
+    Vec* destination_velocities;
+    Vec* last_position;
+    Vec* last_velocity;
+    float* source_timers;
+    float* destination_timers;
+    float* source_scales;
+    float* destination_scales;
+    float* source_angles;
+    float* destination_angles;
+    float* last_timer;
+    float* last_scale;
+    float* last_angle;
+    int* source_states;
+    int* destination_states;
+    int* last_state;
+    unsigned char* source_colors;
+    unsigned char* destination_colors;
+    unsigned char* last_color;
+    int field_stride;
+    int vector_stride;
+    int last_index;
+    int index;
+    float ground_height;
+    float old_velocity_y;
+    float delta_x;
+    float delta_y;
+    float delta_z;
 
-    create_pfx(
-        0xA008, 0xA00E, pfx_sh_grinder_crush_blood, &effect,
-        &jab_pfx_table[0x1F0], "C - Grinder Crush Blood");
-    if (effect != 0) {
-        set_pfx_texture(
-            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F000E);
-        pfx_texture_animate(
-            (PfxVm*)&effect->matrix, 1.0f, 0x80, 0x2A, 0x40, 6);
-        effect->emitter_enabled = 1;
-        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 15.0f;
-        effect->field_90 = 0x12C;
-        effect->field_28 = -50.0f;
-        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
-        emitter_object->pos.x = position->x;
-        emitter_object->pos.y = position->y;
-        emitter_object->pos.z = position->z;
-        p_grinder_crush_blood_pfx = effect;
+    effect = apfx;
+    emitter_object = pfx_get_emitter_obj(effect, 0);
+    if (g_game_info.bgnd_obj == 0) {
+        if (emitter_object->instance != 0) {
+            emitter_object->typed_vtbl->destroy(emitter_object);
+        }
+        return -1.0f;
     }
+
+    vm = (PfxVm*)&effect->matrix;
+    source_velocities = (Vec*)pfx_get_field(vm, -1, 0x300);
+    destination_velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
+    source_timers = (float*)pfx_get_field(vm, -1, 0x301);
+    destination_timers = (float*)pfx_get_field(vm, -2, 0x301);
+    source_states = (int*)pfx_get_field(vm, -1, 0x307);
+    destination_states = (int*)pfx_get_field(vm, -2, 0x307);
+    destination_positions = (Vec*)pfx_get_field(vm, -2, 0x100);
+    destination_angles = (float*)pfx_get_field(vm, -2, 0x103);
+    source_positions = (Vec*)pfx_get_field(vm, -1, 0x100);
+    source_scales = (float*)pfx_get_field(vm, -1, 0x102);
+    destination_scales = (float*)pfx_get_field(vm, -2, 0x102);
+    destination_colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
+    source_colors = (unsigned char*)pfx_get_field(vm, -1, 0x101);
+    source_angles = (float*)pfx_get_field(vm, -1, 0x103);
+
+    field_stride = vm->transforms[0].particle_field_stride;
+    vector_stride = vm->particle_vector_stride;
+    last_index = vm->particle_cursor - 1;
+    last_color = source_colors + field_stride * last_index;
+    last_position = (Vec*)((unsigned char*)source_positions +
+                           field_stride * last_index);
+    last_scale = (float*)((unsigned char*)source_scales +
+                          field_stride * last_index);
+    last_angle = (float*)((unsigned char*)source_angles +
+                          field_stride * last_index);
+    last_velocity = (Vec*)((unsigned char*)source_velocities +
+                           vector_stride * last_index);
+    last_timer = (float*)((unsigned char*)source_timers +
+                          vector_stride * last_index);
+    last_state = (int*)((unsigned char*)source_states +
+                        vector_stride * last_index);
+
+    index = 0;
+    while (index < vm->particle_cursor) {
+        if ((float)*source_states >= 500.0f) {
+            index--;
+            source_positions->x = last_position->x;
+            source_positions->y = last_position->y;
+            source_positions->z = last_position->z;
+            source_velocities->x = last_velocity->x;
+            source_velocities->y = last_velocity->y;
+            source_velocities->z = last_velocity->z;
+            source_colors[0] = last_color[0];
+            source_colors[1] = last_color[1];
+            source_colors[2] = last_color[2];
+            source_colors[3] = last_color[3];
+            *source_timers = *last_timer;
+            *source_scales = *last_scale;
+            *source_angles = *last_angle;
+            *source_states = *last_state;
+
+            last_position = (Vec*)((unsigned char*)last_position - field_stride);
+            last_color -= field_stride;
+            last_scale = (float*)((unsigned char*)last_scale - field_stride);
+            last_angle = (float*)((unsigned char*)last_angle - field_stride);
+            last_velocity =
+                (Vec*)((unsigned char*)last_velocity - vector_stride);
+            last_timer =
+                (float*)((unsigned char*)last_timer - vector_stride);
+            last_state = (int*)((unsigned char*)last_state - vector_stride);
+            vm->particle_cursor--;
+        } else {
+            delta_x = source_velocities->x * game_speed;
+            delta_y = source_velocities->y * game_speed;
+            delta_z = source_velocities->z * game_speed;
+            destination_positions->x = source_positions->x + delta_x;
+            destination_positions->y = source_positions->y + delta_y;
+            destination_positions->z = source_positions->z + delta_z;
+            destination_velocities->x = source_velocities->x;
+            destination_velocities->y = source_velocities->y;
+            destination_velocities->z = source_velocities->z;
+            destination_velocities->y -= 0.004f;
+
+            ground_height = 0.1f + g_game_info.field_34;
+            if (source_positions->y <= ground_height) {
+                if (source_positions->z < 12.2f) {
+                    if (*source_states < 2) {
+                        source_positions->y = ground_height;
+                        *destination_states = *source_states + 1;
+                        destination_positions->y = ground_height;
+                        old_velocity_y = destination_velocities->y;
+                        destination_velocities->y *= -0.4f;
+                        destination_velocities->x *= 0.4f;
+                        destination_velocities->z *= 0.4f;
+                        spawn_bld_splat(
+                            "blsplat", effect->decal_owner, source_positions,
+                            0.4f, old_velocity_y);
+                    } else {
+                        destination_velocities->x = 0.0f;
+                        destination_velocities->y = 0.0f;
+                        destination_velocities->z = 0.0f;
+                    }
+                } else {
+                    *destination_states = 0x190;
+                }
+            }
+            if (*source_states < 2) {
+                *destination_timers = *source_timers + game_speed;
+            } else {
+                *destination_states = *source_states + 1;
+            }
+            destination_scales[0] = source_scales[0];
+            destination_angles[0] = source_angles[0];
+            destination_colors[0] = source_colors[0];
+            destination_colors[1] = source_colors[1];
+            destination_colors[2] = source_colors[2];
+            destination_colors[3] = source_colors[3];
+
+            source_velocities =
+                (Vec*)((unsigned char*)source_velocities + vector_stride);
+            destination_velocities =
+                (Vec*)((unsigned char*)destination_velocities + vector_stride);
+            source_positions =
+                (Vec*)((unsigned char*)source_positions + field_stride);
+            destination_positions =
+                (Vec*)((unsigned char*)destination_positions + field_stride);
+            source_timers =
+                (float*)((unsigned char*)source_timers + vector_stride);
+            destination_timers =
+                (float*)((unsigned char*)destination_timers + vector_stride);
+            source_states =
+                (int*)((unsigned char*)source_states + vector_stride);
+            destination_states =
+                (int*)((unsigned char*)destination_states + vector_stride);
+            source_scales =
+                (float*)((unsigned char*)source_scales + field_stride);
+            destination_scales =
+                (float*)((unsigned char*)destination_scales + field_stride);
+            source_angles =
+                (float*)((unsigned char*)source_angles + field_stride);
+            destination_angles =
+                (float*)((unsigned char*)destination_angles + field_stride);
+            source_colors += field_stride;
+            destination_colors += field_stride;
+        }
+        index++;
+    }
+    return 1.0f;
 }
 
 void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
@@ -839,7 +1326,7 @@ void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
 
     create_pfx(
         0xA009, 0xA010, pfx_sh_grinder_crush_chunks, &effect,
-        &jab_pfx_table[0x26C], "C - Grinder Crush Chunks");
+        &jab_pfx_table[5], "C - Grinder Crush Chunks");
     if (effect != 0) {
         set_pfx_texture(
             (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0013);
@@ -855,56 +1342,6 @@ void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
         emitter_object->pos.y = position->y;
         emitter_object->pos.z = position->z;
         p_grinder_crush_chunks_pfx = effect;
-    }
-}
-
-void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
-    MkPfx* effect;
-    MkObj* emitter_object;
-
-    create_pfx(
-        0xA009, 0xA010, pfx_sh_grinder_meat_spew, &effect,
-        &jab_pfx_table[0x364], "C - Grinder Chunk Spew");
-    if (effect != 0) {
-        set_pfx_texture(
-            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0013);
-        pfx_texture_animate(
-            (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
-        effect->emitter_enabled = 1;
-        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
-        effect->field_90 = 0x82;
-        effect->field_28 = -50.0f;
-        effect->field_298 = 120.0f;
-        effect->field_2B8 = chunk_type;
-        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
-        emitter_object->pos.x = position->x;
-        emitter_object->pos.y = position->y;
-        emitter_object->pos.z = position->z;
-    }
-}
-
-void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
-    MkPfx* effect;
-    MkObj* emitter_object;
-
-    create_pfx(
-        0xA009, 0xA010, pfx_sh_grinder_meat_spew, &effect,
-        &jab_pfx_table[0x2E8], "C - Grinder Meat Spew");
-    if (effect != 0) {
-        set_pfx_texture(
-            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0010);
-        pfx_texture_animate(
-            (PfxVm*)&effect->matrix, 4.0f, 0x80, 0x20, 0x20, 0x10);
-        effect->emitter_enabled = 1;
-        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
-        effect->field_90 = 0x82;
-        effect->field_28 = -50.0f;
-        effect->field_298 = 120.0f;
-        effect->field_2B8 = chunk_type;
-        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
-        emitter_object->pos.x = position->x;
-        emitter_object->pos.y = position->y;
-        emitter_object->pos.z = position->z;
     }
 }
 
@@ -1153,281 +1590,53 @@ float pfx_sh_grinder_crush_blood(void) {
     return 1.0f;
 }
 
-void jab_kira_projectile_hand_explode(void) {
-    static const Vec ZERO_DIRECTION = {0.0f, 0.0f, 0.0f};
-    JabFloatBits inverse;
-    PlyrPdata* player_data;
-    MkObj* opponent;
-    MkObj* effect_object;
-    RwMatrix* matrix;
-    Vec direction;
-    float length_sq;
-    float inverse_length;
-    float half_x;
-    float newton;
+void sh_start_grinder_crush_blood(const Vec* position) {
+    MkPfx* effect;
+    MkObj* emitter_object;
 
-    direction = ZERO_DIRECTION;
-    if (plyr_obj == 0) {
-        return;
+    create_pfx(
+        0xA008, 0xA00E, pfx_sh_grinder_crush_blood, &effect,
+        &jab_pfx_table[4], "C - Grinder Crush Blood");
+    if (effect != 0) {
+        set_pfx_texture(
+            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F000E);
+        pfx_texture_animate(
+            (PfxVm*)&effect->matrix, 1.0f, 0x80, 0x2A, 0x40, 6);
+        effect->emitter_enabled = 1;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 15.0f;
+        effect->field_90 = 0x12C;
+        effect->field_28 = -50.0f;
+        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+        emitter_object->pos.x = position->x;
+        emitter_object->pos.y = position->y;
+        emitter_object->pos.z = position->z;
+        p_grinder_crush_blood_pfx = effect;
     }
-    opponent = get_his_plyr_obj();
-    if (opponent == 0) {
-        return;
-    }
-    player_data = get_my_plyr_pdata();
-    if (player_data == 0 || player_data->character_id != 0x12) {
-        return;
-    }
-
-    effect_object = get_mkobj_frame(0xA010, 0);
-    if (effect_object == 0) {
-        return;
-    }
-    effect_object->flags_08_bits.airborne = 1;
-    matrix = effect_object->field_24;
-    direction.x = opponent->pos.x - plyr_obj->pos.x;
-    direction.z = opponent->pos.z - plyr_obj->pos.z;
-    length_sq = direction.x * direction.x + direction.z * direction.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
-    direction.x *= inverse_length;
-    direction.z *= inverse_length;
-
-    matrix->at.x = direction.x;
-    matrix->at.y = direction.y;
-    matrix->at.z = direction.z;
-    matrix->up.z = 0.0f;
-    matrix->up.x = 0.0f;
-    matrix->up.y = 1.0f;
-    matrix->right.x =
-        matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
-    matrix->right.y =
-        matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
-    matrix->right.z =
-        matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
-
-    length_sq = matrix->right.x * matrix->right.x +
-                matrix->right.y * matrix->right.y +
-                matrix->right.z * matrix->right.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
-    matrix->right.x *= inverse_length;
-    matrix->right.y *= inverse_length;
-    matrix->right.z *= inverse_length;
-    matrix->up.x =
-        matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
-    matrix->up.y =
-        matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
-    matrix->up.z =
-        matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
-
-    if (am_i_flipped() != 0) {
-        get_bone_world_pos(plyr_obj, 0x18, &matrix->pos_vec);
-    } else {
-        get_bone_world_pos(plyr_obj, 0x19, &matrix->pos_vec);
-    }
-    pfxhandle_spawn_at_bid("hand_explode", effect_object, 0x40000000);
 }
 
-float pfx_sh_grinder_crush_chunks(void) {
+void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
     MkPfx* effect;
-    PfxVm* vm;
-    MkHdr* emitter_object;
-    Vec* source_positions;
-    Vec* destination_positions;
-    Vec* source_velocities;
-    Vec* destination_velocities;
-    Vec* last_position;
-    Vec* last_velocity;
-    float* source_timers;
-    float* destination_timers;
-    float* source_scales;
-    float* destination_scales;
-    float* source_angles;
-    float* destination_angles;
-    float* last_timer;
-    float* last_scale;
-    float* last_angle;
-    int* source_states;
-    int* destination_states;
-    int* last_state;
-    unsigned char* source_colors;
-    unsigned char* destination_colors;
-    unsigned char* last_color;
-    int field_stride;
-    int vector_stride;
-    int last_index;
-    int index;
-    float ground_height;
-    float old_velocity_y;
-    float delta_x;
-    float delta_y;
-    float delta_z;
+    MkObj* emitter_object;
 
-    effect = apfx;
-    emitter_object = pfx_get_emitter_obj(effect, 0);
-    if (g_game_info.bgnd_obj == 0) {
-        if (emitter_object->instance != 0) {
-            emitter_object->typed_vtbl->destroy(emitter_object);
-        }
-        return -1.0f;
+    create_pfx(
+        0xA009, 0xA010, pfx_sh_grinder_meat_spew, &effect,
+        &jab_pfx_table[7], "C - Grinder Chunk Spew");
+    if (effect != 0) {
+        set_pfx_texture(
+            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0013);
+        pfx_texture_animate(
+            (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
+        effect->emitter_enabled = 1;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
+        effect->field_90 = 0x82;
+        effect->field_28 = -50.0f;
+        effect->field_298 = 120.0f;
+        effect->field_2B8 = chunk_type;
+        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+        emitter_object->pos.x = position->x;
+        emitter_object->pos.y = position->y;
+        emitter_object->pos.z = position->z;
     }
-
-    vm = (PfxVm*)&effect->matrix;
-    source_velocities = (Vec*)pfx_get_field(vm, -1, 0x300);
-    destination_velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
-    source_timers = (float*)pfx_get_field(vm, -1, 0x301);
-    destination_timers = (float*)pfx_get_field(vm, -2, 0x301);
-    source_states = (int*)pfx_get_field(vm, -1, 0x307);
-    destination_states = (int*)pfx_get_field(vm, -2, 0x307);
-    destination_positions = (Vec*)pfx_get_field(vm, -2, 0x100);
-    destination_angles = (float*)pfx_get_field(vm, -2, 0x103);
-    source_positions = (Vec*)pfx_get_field(vm, -1, 0x100);
-    source_scales = (float*)pfx_get_field(vm, -1, 0x102);
-    destination_scales = (float*)pfx_get_field(vm, -2, 0x102);
-    destination_colors = (unsigned char*)pfx_get_field(vm, -2, 0x101);
-    source_colors = (unsigned char*)pfx_get_field(vm, -1, 0x101);
-    source_angles = (float*)pfx_get_field(vm, -1, 0x103);
-
-    field_stride = vm->transforms[0].particle_field_stride;
-    vector_stride = vm->particle_vector_stride;
-    last_index = vm->particle_cursor - 1;
-    last_color = source_colors + field_stride * last_index;
-    last_position = (Vec*)((unsigned char*)source_positions +
-                           field_stride * last_index);
-    last_scale = (float*)((unsigned char*)source_scales +
-                          field_stride * last_index);
-    last_angle = (float*)((unsigned char*)source_angles +
-                          field_stride * last_index);
-    last_velocity = (Vec*)((unsigned char*)source_velocities +
-                           vector_stride * last_index);
-    last_timer = (float*)((unsigned char*)source_timers +
-                          vector_stride * last_index);
-    last_state = (int*)((unsigned char*)source_states +
-                        vector_stride * last_index);
-
-    index = 0;
-    while (index < vm->particle_cursor) {
-        if ((float)*source_states >= 500.0f) {
-            index--;
-            source_positions->x = last_position->x;
-            source_positions->y = last_position->y;
-            source_positions->z = last_position->z;
-            source_velocities->x = last_velocity->x;
-            source_velocities->y = last_velocity->y;
-            source_velocities->z = last_velocity->z;
-            source_colors[0] = last_color[0];
-            source_colors[1] = last_color[1];
-            source_colors[2] = last_color[2];
-            source_colors[3] = last_color[3];
-            *source_timers = *last_timer;
-            *source_scales = *last_scale;
-            *source_angles = *last_angle;
-            *source_states = *last_state;
-
-            last_position = (Vec*)((unsigned char*)last_position - field_stride);
-            last_color -= field_stride;
-            last_scale = (float*)((unsigned char*)last_scale - field_stride);
-            last_angle = (float*)((unsigned char*)last_angle - field_stride);
-            last_velocity =
-                (Vec*)((unsigned char*)last_velocity - vector_stride);
-            last_timer =
-                (float*)((unsigned char*)last_timer - vector_stride);
-            last_state = (int*)((unsigned char*)last_state - vector_stride);
-            vm->particle_cursor--;
-        } else {
-            delta_x = source_velocities->x * game_speed;
-            delta_y = source_velocities->y * game_speed;
-            delta_z = source_velocities->z * game_speed;
-            destination_positions->x = source_positions->x + delta_x;
-            destination_positions->y = source_positions->y + delta_y;
-            destination_positions->z = source_positions->z + delta_z;
-            destination_velocities->x = source_velocities->x;
-            destination_velocities->y = source_velocities->y;
-            destination_velocities->z = source_velocities->z;
-            destination_velocities->y -= 0.004f;
-
-            ground_height = 0.1f + g_game_info.field_34;
-            if (source_positions->y <= ground_height) {
-                if (source_positions->z < 12.2f) {
-                    if (*source_states < 2) {
-                        source_positions->y = ground_height;
-                        *destination_states = *source_states + 1;
-                        destination_positions->y = ground_height;
-                        old_velocity_y = destination_velocities->y;
-                        destination_velocities->y *= -0.4f;
-                        destination_velocities->x *= 0.4f;
-                        destination_velocities->z *= 0.4f;
-                        spawn_bld_splat(
-                            "blsplat", effect->decal_owner, source_positions,
-                            0.4f, old_velocity_y);
-                    } else {
-                        destination_velocities->x = 0.0f;
-                        destination_velocities->y = 0.0f;
-                        destination_velocities->z = 0.0f;
-                    }
-                } else {
-                    *destination_states = 0x190;
-                }
-            }
-            if (*source_states < 2) {
-                *destination_timers = *source_timers + game_speed;
-            } else {
-                *destination_states = *source_states + 1;
-            }
-            destination_scales[0] = source_scales[0];
-            destination_angles[0] = source_angles[0];
-            destination_colors[0] = source_colors[0];
-            destination_colors[1] = source_colors[1];
-            destination_colors[2] = source_colors[2];
-            destination_colors[3] = source_colors[3];
-
-            source_velocities =
-                (Vec*)((unsigned char*)source_velocities + vector_stride);
-            destination_velocities =
-                (Vec*)((unsigned char*)destination_velocities + vector_stride);
-            source_positions =
-                (Vec*)((unsigned char*)source_positions + field_stride);
-            destination_positions =
-                (Vec*)((unsigned char*)destination_positions + field_stride);
-            source_timers =
-                (float*)((unsigned char*)source_timers + vector_stride);
-            destination_timers =
-                (float*)((unsigned char*)destination_timers + vector_stride);
-            source_states =
-                (int*)((unsigned char*)source_states + vector_stride);
-            destination_states =
-                (int*)((unsigned char*)destination_states + vector_stride);
-            source_scales =
-                (float*)((unsigned char*)source_scales + field_stride);
-            destination_scales =
-                (float*)((unsigned char*)destination_scales + field_stride);
-            source_angles =
-                (float*)((unsigned char*)source_angles + field_stride);
-            destination_angles =
-                (float*)((unsigned char*)destination_angles + field_stride);
-            source_colors += field_stride;
-            destination_colors += field_stride;
-        }
-        index++;
-    }
-    return 1.0f;
 }
 
 float pfx_sh_grinder_meat_spew(void) {
@@ -1665,6 +1874,31 @@ float pfx_sh_grinder_meat_spew(void) {
         result = -1.0f;
     }
     return result;
+}
+
+void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
+    MkPfx* effect;
+    MkObj* emitter_object;
+
+    create_pfx(
+        0xA009, 0xA010, pfx_sh_grinder_meat_spew, &effect,
+        &jab_pfx_table[6], "C - Grinder Meat Spew");
+    if (effect != 0) {
+        set_pfx_texture(
+            (PfxVm*)&effect->matrix, (void*)0x2001E, (void*)0x013F0010);
+        pfx_texture_animate(
+            (PfxVm*)&effect->matrix, 4.0f, 0x80, 0x20, 0x20, 0x10);
+        effect->emitter_enabled = 1;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
+        effect->field_90 = 0x82;
+        effect->field_28 = -50.0f;
+        effect->field_298 = 120.0f;
+        effect->field_2B8 = chunk_type;
+        emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+        emitter_object->pos.x = position->x;
+        emitter_object->pos.y = position->y;
+        emitter_object->pos.z = position->z;
+    }
 }
 
 /*
@@ -1909,127 +2143,6 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
         return 1.0f;
     }
     return -1.0f;
-}
-
-void bulvan_function(int command) {
-    PlyrPdata* opponent_data;
-    MkPfx* effect;
-    MkProc* process;
-    MkObj* tracked_object;
-    unsigned int effect_handle;
-    int owner;
-    int index;
-
-    switch (command) {
-    case 1:
-        tracked_object = plyr_obj;
-        create_pfx(
-            0xA001, 0xA001,
-            pfx_react_falling_attach_smoke_to_bones_proc, &effect,
-            &jab_pfx_table[0x174], "C - Smoke Reaction");
-        if (effect != 0) {
-            set_pfx_texture(
-                (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x2003C);
-            pfx_bind_emitter_to_obj_bone(effect, tracked_object, 9);
-            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 8.0f;
-            effect->field_90 = 0x1EF;
-            effect->field_28 = -50.0f;
-            effect->field_298 = 100.0f;
-            effect->field_29C = 80.0f;
-            effect->field_2A4 = 1.0f;
-            effect->tracked_object = tracked_object;
-            effect->tracked_object_instance = tracked_object->hdr.instance;
-        }
-        break;
-
-    case 0:
-        create_pfx(
-            0xA00C, 0xA015, pfx_kenshi_lift_smoke, &effect,
-            &jab_pfx_table[0xF8], "C - Kenshi Lift Smoke");
-        if (effect != 0) {
-            set_pfx_texture(
-                (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x20038);
-            pfx_texture_animate(
-                (PfxVm*)&effect->matrix, 4.0f, 0x40, 0x10, 0x10, 0x10);
-            pfx_bind_emitter_to_obj_bone(effect, plyr_obj, 0);
-            effect->emitter_enabled = 0;
-            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 24.0f;
-            effect->field_90 = 0xA8;
-            effect->field_28 = -50.0f;
-            effect->field_298 = 50.0f;
-            effect->field_29C = 7.0f;
-            effect->field_2A0 = 0.0f;
-            effect->effect_state = 0;
-            effect->tracked_object = plyr_obj;
-            effect->tracked_object_instance = plyr_obj->hdr.instance;
-        }
-        break;
-
-    case 2:
-        if (plyr_obj == 0) {
-            break;
-        }
-        opponent_data = get_his_plyr_pdata();
-        if (opponent_data == 0 || opponent_data->character_id != 0x13) {
-            break;
-        }
-        if (_create_mkproc_generic_nostack(
-                0xA026, 0x2E, p_kabal_dash_react_pfx, 0, 0) == 0) {
-            break;
-        }
-        g_plyr_pdata = get_my_plyr_pdata();
-        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
-        effect_handle = fx_by_owner("kabal_dash_react", owner);
-        g_kabal_dash_react_pfx_handles[0] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 1);
-        g_kabal_dash_react_pfx_handles[1] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 2);
-
-        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
-        effect_handle = fx_by_owner("kabal_dash_react_shin", owner);
-        g_kabal_dash_react_pfx_handles[2] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 4);
-        g_kabal_dash_react_pfx_handles[3] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 5);
-
-        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
-        effect_handle = fx_by_owner("kabal_dash_react_lt", owner);
-        g_kabal_dash_react_pfx_handles[4] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x14);
-        g_kabal_dash_react_pfx_handles[5] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0xF);
-
-        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
-        effect_handle = fx_by_owner("kabal_dash_react_rt", owner);
-        g_kabal_dash_react_pfx_handles[6] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x15);
-        g_kabal_dash_react_pfx_handles[7] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x11);
-
-        owner = pfx_plyr_bankowner(opponent_data->plyr_info);
-        effect_handle = fx_by_owner("kabal_dash_react_head", owner);
-        g_kabal_dash_react_pfx_handles[8] =
-            pfxhandle_spawn_at_bid_next(effect_handle, plyr_obj, 0x10);
-        break;
-
-    case 3:
-        process = find_mkproc_pid(0xA026);
-        if (process != 0 && process->instance != 0) {
-            ((MkHdr*)process)->typed_vtbl->destroy((MkHdr*)process);
-        }
-        for (index = 0; index < 9; index++) {
-            if (g_kabal_dash_react_pfx_handles[index] != 0) {
-                fx_reset_emit(g_kabal_dash_react_pfx_handles[index]);
-            }
-            g_kabal_dash_react_pfx_handles[index] = 0;
-        }
-        g_plyr_pdata = 0;
-        break;
-
-    case 4:
-        jab_kira_projectile_hand_explode();
-        break;
-    }
 }
 
 float pfx_kenshi_lift_smoke(void) {

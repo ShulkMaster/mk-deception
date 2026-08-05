@@ -26,12 +26,7 @@ typedef int (*NcsDestroyFn)(NcsDestroyable* object);
 
 extern LightDef* pbl_gore2_lights[3];
 extern MkPtr* gore2_light_list;
-extern int mkpfx_type_to_blood_level_map[15];
 extern int blood_type_list[12];
-extern int* limbbid_bid_map[15];
-extern const char* mkpfx_ncs_blood_type_map_array[15];
-extern const char* mkpfx_ncs_decal_array[7];
-static const char* mkpfx_ncs_sweat_type_map_array[4];
 
 static void trigger_blood_glops(
     PlyrPdata* player, int bone, MkObj* source, int blood_type);
@@ -45,13 +40,9 @@ typedef struct NcsProcVtable {
     int (*jump_sleep)(MkProcEntryFn entry, float ticks);
 } NcsProcVtable;
 
-extern MkObj* sc_spear_obj;
-extern SpearProcPdata* pdata_sc_spear;
 extern int f_fatality_was_done;
 extern PlyrPdata* his_pdata;
 extern MkObj* his_obj;
-extern int cur_zone_check;
-extern int cur_grab_check;
 
 typedef struct NcsDestroyVtable {
     void* reserved[4];
@@ -271,7 +262,138 @@ typedef struct Gore2ObjectType {
     float scale;
 } Gore2ObjectType; /* 0x0C */
 
-static Gore2ObjectType pbl_gore2_obj_list[10];
+typedef struct NcsGroundCollisionMap {
+    int bone_id;
+    int field_04;
+    int field_08;
+    int field_0C;
+    float radius;
+    int terminator;
+    int field_18;
+    int field_1C;
+    int field_20;
+    int field_24;
+} NcsGroundCollisionMap; /* 0x28 */
+
+#define NCS_GROUND_COLLISION_MAP(bone_, radius_) \
+    { (bone_), 0, 0, 0, (radius_), -1, 0, 0, 0, 0 }
+
+NcsGroundCollisionMap LID_HEAD_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x10, 0.07f);
+NcsGroundCollisionMap LID_HAND_RIGHT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x25, 0.04f);
+NcsGroundCollisionMap LID_FOREARM_RIGHT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x17, 0.07f);
+NcsGroundCollisionMap LID_ARM_RIGHT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x13, 0.07f);
+NcsGroundCollisionMap LID_HAND_LEFT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x24, 0.04f);
+NcsGroundCollisionMap LID_FOREARM_LEFT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x16, 0.07f);
+NcsGroundCollisionMap LID_ARM_LEFT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x12, 0.07f);
+NcsGroundCollisionMap LID_FOOT_RIGHT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x0B, 0.05f);
+NcsGroundCollisionMap LID_CALF_RIGHT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x08, 0.07f);
+NcsGroundCollisionMap LID_THIGH_RIGHT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x05, 0.07f);
+NcsGroundCollisionMap LID_FOOT_LEFT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x0A, 0.05f);
+NcsGroundCollisionMap LID_CALF_LEFT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x07, 0.07f);
+NcsGroundCollisionMap LID_THIGH_LEFT_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x04, 0.07f);
+NcsGroundCollisionMap LID_PELVIS_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x00, 0.14f);
+NcsGroundCollisionMap LID_TORSO_ground_collision_map =
+    NCS_GROUND_COLLISION_MAP(0x03, 0.12f);
+
+NcsGroundCollisionMap* limbbid_bid_map[15] = {
+    &LID_HEAD_ground_collision_map,
+    &LID_HAND_RIGHT_ground_collision_map,
+    &LID_FOREARM_RIGHT_ground_collision_map,
+    &LID_ARM_RIGHT_ground_collision_map,
+    &LID_HAND_LEFT_ground_collision_map,
+    &LID_FOREARM_LEFT_ground_collision_map,
+    &LID_ARM_LEFT_ground_collision_map,
+    &LID_FOOT_RIGHT_ground_collision_map,
+    &LID_CALF_RIGHT_ground_collision_map,
+    &LID_THIGH_RIGHT_ground_collision_map,
+    &LID_FOOT_LEFT_ground_collision_map,
+    &LID_CALF_LEFT_ground_collision_map,
+    &LID_THIGH_LEFT_ground_collision_map,
+    &LID_PELVIS_ground_collision_map,
+    &LID_TORSO_ground_collision_map,
+};
+
+const char* mkpfx_ncs_blood_type_map_array[15] = {
+    "bltrsh", "bltrlg", "bltrin", "bdexsw", "bdexfs",
+    "bdgp", "bdgp", "bdgp", "bdgp", "bdgpdn",
+    "bdgpup", "bdgpzz", "bdsp_4x4", "bdsp_4x4lg", 0,
+};
+
+static const char* mkpfx_ncs_sweat_type_map_array[4] = {
+    "swtrsh", "swexsw", "swexfs", 0,
+};
+
+const char* mkpfx_ncs_decal_array[7] = {
+    "blsplat", "blsplat2", "blpuddle", "blpuddle2",
+    "blsmash", "blfoot", 0,
+};
+
+int mkpfx_type_to_blood_level_map[15] = {
+    6, 6, 6, 9, 9, 7, 7, 7, 7, 7, 7, 7, 8, 8, 0,
+};
+
+static Gore2ObjectType pbl_gore2_obj_list[10] = {
+    {0x00020007, 15, 0.1f},
+    {0x00020008, 2, 0.1f},
+    {0x00020009, 3, 0.1f},
+    {0x0002000A, 2, 0.1f},
+    {0x0002000B, 5, 0.1f},
+    {0x0002000C, 10, 0.1f},
+    {0x0002000D, 15, 0.1f},
+    {0x0002000E, 2, 0.1f},
+    {0x0002000F, 3, 0.1f},
+    {0x00020010, 15, 0.1f},
+};
+
+/* Retail stores variable-size light records with this common prefix. */
+typedef struct NcsAmbientLightDef {
+    int type;
+    MkProcEntryFn proc;
+    int flags;
+    float color[4];
+} NcsAmbientLightDef; /* 0x1C */
+
+typedef struct NcsDirectLightDef {
+    int type;
+    MkProcEntryFn proc;
+    int flags;
+    float color[4];
+    float field_1C;
+    float field_20;
+    float field_24;
+} NcsDirectLightDef; /* 0x28 */
+
+float p_track_cam_ang_y_light(void);
+
+NcsAmbientLightDef pbl_gore2_ambient_light = {
+    1, 0, 3, {0.1f, 0.1f, 0.1f, 0.0f},
+};
+
+NcsDirectLightDef pbl_gore2_direct_light = {
+    3, p_track_cam_ang_y_light, 1,
+    {0.75f, 0.75f, 0.75f, 1.0f},
+    0.6f, 2.89f, 0.0f,
+};
+
+LightDef* pbl_gore2_lights[3] = {
+    (LightDef*)&pbl_gore2_ambient_light,
+    (LightDef*)&pbl_gore2_direct_light,
+    0,
+};
 
 typedef union Gore2Flags {
     unsigned int word;
@@ -315,7 +437,12 @@ typedef struct Gore2UpdatePdata {
     int next_particle[10]; /* +0x30 */
 } Gore2UpdatePdata;
 
-extern Gore2UpdatePdata* mkpdata_pbl_gore2_update;
+static MkObj* sc_spear_obj;
+static SpearProcPdata* pdata_sc_spear;
+Gore2UpdatePdata* mkpdata_pbl_gore2_update;
+int cur_grab_check;
+int cur_zone_check;
+int gap_08_80510A84_sbss;
 
 typedef struct NcsGroundCollisionWatchPdata {
     MkHdr hdr;
@@ -784,7 +911,7 @@ float p_sc_spear1(void) {
 }
 
 static float p_sc_spear2(void) {
-    Vec zero_angles = {0.0f, 0.0f, 0.0f};
+    Vec spear_rotation = {0.0f, 3.1415927f, 0.0f};
     PlyrPdata* owner;
     MkObj* target;
     int collision;
@@ -856,7 +983,7 @@ static float p_sc_spear2(void) {
         owner->duck_reaction_active = 0;
         if ((pdata_sc_spear->flags & 0x40) != 0) {
             YXZ_angles_to_quat(
-                &zero_angles, &sc_spear_obj->bones[0]->rotation_90);
+                &spear_rotation, &sc_spear_obj->bones[0]->rotation_90);
         }
         pdata_sc_spear->bonematcher = start_bone_matcher(
             2.0f, owner->his_obj, pdata_sc_spear->field_34,
@@ -2211,9 +2338,8 @@ void start_gore2_update(void) {
 }
 
 /*
- * Soft ceiling: control flow, calls, access widths, and the 0x358-byte retail
- * size match. The remaining delta is cascading register allocation across the
- * nested pool/particle loops and instruction scheduling around matrix updates.
+ * Retail dynamically aligns the matrix workspace to 16 bytes. Portable C
+ * keeps a fixed frame; the remaining size/emission gap is still under audit.
  */
 static float p_gore2_update(void) {
     Gore2UpdatePdata* pdata;
@@ -2262,18 +2388,13 @@ static float p_gore2_update(void) {
                                 particle->translation.y *=
                                     -particle->bounce_scale;
                             } else {
-                                Vec position;
-
                                 particle->flags.bits.settled = 1;
                                 particle->flags.bits.has_rotation = 0;
                                 particle->flags.bits.has_scale = 0;
                                 particle->flags.bits.has_translation = 0;
-                                position.x = matrix->pos.x;
-                                position.y = matrix->pos.y;
-                                position.z = matrix->pos.z;
                                 spawn_decal_emitter(
                                     "blsplat", particle->decal_owner,
-                                    &position, 0, 0.0f);
+                                    (const Vec*)&matrix->pos, 0, 0.0f);
                             }
                         }
                     }
@@ -2309,18 +2430,9 @@ static float p_gore2_update(void) {
                             memcpy(matrix, owner_matrix, 0x30);
                         }
                         if (particle->flags.bits.has_translation) {
-                            Vec owner_position;
-                            Vec position;
-
-                            owner_position.x = owner_matrix->pos.x;
-                            owner_position.y = owner_matrix->pos.y;
-                            owner_position.z = owner_matrix->pos.z;
                             v3_x_mat_add_v3(
-                                &position, &particle->translation, owner_matrix,
-                                &owner_position);
-                            matrix->pos.x = position.x;
-                            matrix->pos.y = position.y;
-                            matrix->pos.z = position.z;
+                                (Vec*)&matrix->pos, &particle->translation,
+                                owner_matrix, (const Vec*)&owner_matrix->pos);
                         } else {
                             matrix->pos = owner_matrix->pos;
                         }
@@ -2494,12 +2606,7 @@ unsigned int start_blood_particles_scripts(
 }
 
 extern int blood_type_list[12];
-extern int mkpfx_type_to_blood_level_map[15];
-extern int* limbbid_bid_map[15];
-extern LightDef* pbl_gore2_lights[3];
 extern MkPtr* gore2_light_list;
-extern const char* mkpfx_ncs_blood_type_map_array[15];
-extern const char* mkpfx_ncs_decal_array[7];
 static float p_watch_obj_for_gnd_coll(void);
 static float p_camera_wall_show_hide_alpha(void);
 static float p_limb_sever_attach(void);
@@ -3006,7 +3113,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     MKMATRIX* limb_matrix;
     Vec local_velocity;
     Vec world_velocity;
-    Vec angular_velocity;
+    Vec angular_velocity = {0.1f, 0.0f, 0.0f};
     MkObj* severed;
 
     owner = player->slot.mirror_a;
@@ -3016,10 +3123,6 @@ void limb_sever_explode_apart(PlyrInfo* player) {
         return;
     }
     init_plyr_severed_limb_list(player);
-    angular_velocity.x = 0.1f;
-    angular_velocity.y = 0.0f;
-    angular_velocity.z = 0.0f;
-
     local_velocity.x = 0.05f;
     local_velocity.y = 0.07f;
     local_velocity.z = 0.02f;
@@ -3419,7 +3522,7 @@ static float p_limb_sever_attach(void) {
     }
 
     source_matrix = (MKMATRIX*)severed
-        ->bones[limbbid_bid_map[pdata->target_bone][0]]->parent_matrix;
+        ->bones[limbbid_bid_map[pdata->target_bone]->bone_id]->parent_matrix;
     source_position.x = source_matrix->pos.x;
     source_position.y = source_matrix->pos.y;
     source_position.z = source_matrix->pos.z;
@@ -3706,7 +3809,9 @@ float mkobj_pos_pos_dot_normal_xz(
     dz = to->pos.z - from->pos.z;
     squared = dx * dx + dz * dz;
     inverse_length = 0.0f;
-    if (squared > 0.0f) {
+    if (squared <= 0.0f) {
+        /* A zero-length XZ direction has no normalized component. */
+    } else {
         bits.f = squared;
         bits.u = 0x5F375A00 - (bits.u >> 1);
         estimate = bits.f;
@@ -3728,23 +3833,3 @@ void ncs_script_debug_quickie(int command, float value) {
         return;
     }
 }
-
-static Gore2ObjectType pbl_gore2_obj_list[10] = {
-    {0x00020007, 15, 0.1f},
-    {0x00020008, 2, 0.1f},
-    {0x00020009, 3, 0.1f},
-    {0x0002000A, 2, 0.1f},
-    {0x0002000B, 5, 0.1f},
-    {0x0002000C, 10, 0.1f},
-    {0x0002000D, 15, 0.1f},
-    {0x0002000E, 2, 0.1f},
-    {0x0002000F, 3, 0.1f},
-    {0x00020010, 15, 0.1f},
-};
-
-static const char* mkpfx_ncs_sweat_type_map_array[4] = {
-    "swtrsh",
-    "swexsw",
-    "swexfs",
-    0,
-};
