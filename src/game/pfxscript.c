@@ -582,7 +582,7 @@ PfxBehaviorView* pfx_behavior(PfxResetRuntimeView* effect, int index);
 
 static inline PfxScriptEffect* resolve_effect_handle(unsigned int handle) {
     PfxResolvedHandle resolved;
-    unsigned int kind = (handle >> 14) & 3;
+    int kind = (handle >> 14) & 3;
 
     if (kind != 1 && kind != 2) {
         return 0;
@@ -908,44 +908,45 @@ void fx_get_v3(unsigned int handle, int field, Vec* value) {
     }
 }
 
+/*
+ * Soft ceiling: retail m2c confirms both handle resolutions, the direct
+ * emitter-0x202 path, generic field path, and ordered Vec stores. The
+ * 308-byte bodies are equal; residue is saved GPR/FPR allocation, equivalent
+ * branch polarity, and relocation labels.
+ */
 void fx_set_param_v3(
     unsigned int handle, int parameter, float x, float y, float z) {
     PfxScriptEffect* effect;
     Vec* target;
 
     target = 0;
-    if ((parameter & 0xF00) != 0x200) {
-        return;
-    }
-
-    effect = resolve_effect_handle(handle);
-    if (effect == 0) {
-        return;
-    }
-
-    if (parameter == 0x202) {
-        PfxEmitterEffectView* emitter_effect;
-        unsigned int emitter_index;
-
+    if ((parameter & 0xF00) == 0x200) {
         effect = resolve_effect_handle(handle);
         if (effect != 0) {
-            emitter_effect = (PfxEmitterEffectView*)effect;
-            emitter_index = (handle >> 16) & 0xF;
-            if (emitter_index <
-                (unsigned int)emitter_effect->emitter_count) {
-                target = (Vec*)&emitter_effect
-                    ->emitters[emitter_index];
+            if (parameter == 0x202) {
+                PfxEmitterEffectView* emitter_effect;
+                int emitter_index;
+
+                effect = resolve_effect_handle(handle);
+                if (effect != 0) {
+                    emitter_effect = (PfxEmitterEffectView*)effect;
+                    emitter_index = (handle >> 16) & 0xF;
+                    if (emitter_index < emitter_effect->emitter_count) {
+                        target = (Vec*)&emitter_effect
+                            ->emitters[emitter_index];
+                    }
+                }
+            } else {
+                target = (Vec*)pfx_get_field(
+                    effect->emitters, -2, parameter);
+            }
+
+            if (target != 0) {
+                target->x = x;
+                target->y = y;
+                target->z = z;
             }
         }
-    } else {
-        target = (Vec*)pfx_get_field(
-            effect->emitters, -2, parameter);
-    }
-
-    if (target != 0) {
-        target->x = x;
-        target->y = y;
-        target->z = z;
     }
 }
 
@@ -2573,7 +2574,32 @@ int load_effect_bank(char* name) {
     return 0xDEADBABE;
 }
 
+typedef struct PfxLoadScriptLatch {
+    CmdScript* command;
+    ScriptSlot* script;
+} PfxLoadScriptLatch;
+
+static inline void pfx_cleanup_load_script(PfxLoadScriptLatch* latch) {
+    if (latch->command == 0) {
+        memset(latch, 0, sizeof(*latch));
+    } else {
+        if (latch->command->instance != 0) {
+            ((MkHdr*)latch->command)->typed_vtbl->destroy(
+                (MkHdr*)latch->command);
+        }
+        latch->command = 0;
+        cmdscript_unload(latch->script);
+        latch->script = 0;
+    }
+}
+
+/*
+ * Soft ceiling: retail expands the typed command/script cleanup latch at each
+ * exit. The residual is register allocation and branch sharing after inlining;
+ * bank-handle validation and retail failure-path ownership are recovered.
+ */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
+    PfxLoadScriptLatch load;
     CmdScript* command;
     CmdScript* saved_command;
     ScriptSlot* script;
@@ -2592,12 +2618,17 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     int language;
     unsigned int owner;
     unsigned int allocation_size;
+    PfxResolvedHandle resolved;
 
+    memset(&load, 0, sizeof(load));
     command = alloc_cmdscript();
-    script = 0;
+    load.command = command;
     if (command == 0) {
+        pfx_cleanup_load_script(&load);
         return;
     }
+    script = 0;
+    load.script = 0;
 
     switch (context->art_id) {
     case 0x3000B:
@@ -2644,28 +2675,22 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
         parent = g_game_info.plyr0.slot.mirror_a;
         break;
     default:
-        if (command->instance != 0) {
-            ((MkHdr*)command)->typed_vtbl->destroy((MkHdr*)command);
-        }
+        pfx_cleanup_load_script(&load);
         return;
     }
 
     if (parent == 0 && owner != 8) {
-        if (command->instance != 0) {
-            ((MkHdr*)command)->typed_vtbl->destroy((MkHdr*)command);
-        }
+        pfx_cleanup_load_script(&load);
         return;
     }
 
     script = cmdscript_loadfile_by_name(language, name);
+    load.script = script;
     command->mko = script;
     script->load_ctx = context;
     rows = (PfxBankLoadRow*)get_data_table(script, script->table_count);
     if (rows == 0) {
-        if (command->instance != 0) {
-            ((MkHdr*)command)->typed_vtbl->destroy((MkHdr*)command);
-        }
-        cmdscript_unload(script);
+        pfx_cleanup_load_script(&load);
         return;
     }
 
@@ -2721,17 +2746,13 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
         }
     }
 
-    if (bank_handle == 0) {
-        current_effect_bank = 0;
-        free_mem(behavior_buffer);
-        if (command->instance != 0) {
-            ((MkHdr*)command)->typed_vtbl->destroy((MkHdr*)command);
-        }
-        cmdscript_unload(script);
+    resolve_pfx_handle(bank_handle, &resolved);
+    current_effect_bank = resolved.bank;
+    if (current_effect_bank == 0) {
+        pfx_cleanup_load_script(&load);
         return;
     }
 
-    current_effect_bank = bank;
     if (parent != 0) {
         mk_insert(&bank->hdr, &parent->child_list);
     } else {
@@ -2770,12 +2791,15 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
 
     current_effect_bank = 0;
     free_mem(behavior_buffer);
-    if (command->instance != 0) {
-        ((MkHdr*)command)->typed_vtbl->destroy((MkHdr*)command);
-    }
-    cmdscript_unload(script);
+    pfx_cleanup_load_script(&load);
 }
 
+/*
+ * Soft ceiling: retail m2c confirms the complete parametric build pipeline.
+ * Source is 12 bytes smaller because retail preserves redundant stack-slot
+ * initialization that clean typed C folds; remaining records are large-frame
+ * register allocation, scheduling, bitfield emission, and relocations.
+ */
 static void build_parametric_effect_from_table(
     ScriptSlot* script, unsigned int effect_table, int update) {
     const PfxParametricEffectDescription* description;

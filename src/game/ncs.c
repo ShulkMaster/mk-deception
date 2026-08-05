@@ -2907,6 +2907,86 @@ void limb_sever_bone_attach(
     pdata->expire_tick = 600;
 }
 
+static inline MkObj* limb_sever_set_motion_inline(
+    MkObj* owner, int limb, const Vec* velocity,
+    NcsLimbMotion* motion, int enable_ground,
+    int ground_value, int field_18, int include_children,
+    float gravity, float ground_offset, float field_11C) {
+    FighterMirror* fighter;
+    FighterObjectRef* ref;
+    MkObj* severed;
+
+    if (motion == 0) {
+        return 0;
+    }
+    if (owner == g_game_info.plyr0.slot.mirror_a) {
+        fighter = g_game_info.plyr0.slot.fighter;
+    } else {
+        fighter = g_game_info.plyr1.slot.fighter;
+    }
+    ref = &fighter->severed_limbs[limb];
+    severed = ref->object;
+    if (severed != 0 && severed->hdr.instance != ref->instance) {
+        severed = 0;
+    }
+    if (severed == 0) {
+        severed = obj_sever_limb(owner, limb, 0, include_children);
+        if (severed == 0) {
+            return 0;
+        }
+        ref->object = severed;
+        ref->instance = severed->hdr.instance;
+    }
+
+    motion->severed_mask |= 1 << limb;
+    severed->pos_vel.x = velocity->x;
+    severed->pos_vel.y = velocity->y;
+    severed->pos_vel.z = velocity->z;
+    severed->flags_08_bits.gravity_enabled = 1;
+    severed->gravity = gravity;
+    if (gravity != 0.0f) {
+        severed->flags_08_bits.moving = 1;
+    }
+    severed->light_flags = owner->light_flags;
+    if (enable_ground != 0) {
+        motion->ground_mask |= 1 << limb;
+        motion->ground_height[limb] = g_game_info.field_34 + ground_offset;
+        motion->ground_value[limb] = ground_value;
+        motion->field_138 = 1.0f;
+    }
+    motion->field_11C = field_11C;
+    motion->field_18 = field_18;
+    update_mkobj(severed);
+    return severed;
+}
+
+static inline MkObj* mks_limb_sever_inline(
+    MkObj* object, int limb, int include_children) {
+    FighterMirror* fighter;
+    FighterObjectRef* severed_ref;
+    MkObj* severed;
+
+    if (object == g_game_info.plyr0.slot.mirror_a) {
+        fighter = g_game_info.plyr0.slot.fighter;
+    } else {
+        fighter = g_game_info.plyr1.slot.fighter;
+    }
+    severed_ref = &fighter->severed_limbs[limb];
+    severed = severed_ref->object;
+    if (severed != 0 && severed->hdr.instance != severed_ref->instance) {
+        severed = 0;
+    }
+    if (severed == 0) {
+        severed = obj_sever_limb(object, limb, 0, include_children);
+        if (severed != 0) {
+            severed_ref->object = severed;
+            severed_ref->instance = severed->hdr.instance;
+            severed->light_flags = object->light_flags;
+        }
+    }
+    return severed;
+}
+
 void limb_sever_explode_apart_plyr_num(int player) {
     if (player == 0) {
         limb_sever_explode_apart(&g_game_info.plyr0);
@@ -2915,6 +2995,11 @@ void limb_sever_explode_apart_plyr_num(int player) {
     }
 }
 
+/*
+ * Soft ceiling: retail expands both typed limb helpers at every call site.
+ * The remaining size delta is late inline/DCE behavior plus register and
+ * instruction scheduling; the complete limb order and motion are recovered.
+ */
 void limb_sever_explode_apart(PlyrInfo* player) {
     MkObj* owner;
     NcsLimbUpdatePdata* update;
@@ -2923,8 +3008,6 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     Vec world_velocity;
     Vec angular_velocity;
     MkObj* severed;
-    FighterMirror* fighter;
-    FighterObjectRef* ref;
 
     owner = player->slot.mirror_a;
     limb_matrix = force_calc_bone_world_mat(owner, 9);
@@ -2941,75 +3024,63 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.07f;
     local_velocity.z = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 4, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
-    if (severed != 0) {
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 4, 0);
-    }
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 4, 0);
 
     local_velocity.x = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 5, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
-    if (severed != 0) {
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 5, 0);
-    }
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 5, 0);
 
     local_velocity.x = 0.0f;
     local_velocity.y = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 6, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
-    if (severed != 0) {
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 6, 0);
-    }
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 6, 0);
 
     local_velocity.x = -0.01f;
     local_velocity.y = 0.1f;
     local_velocity.z = 0.01f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 1, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
-    if (severed != 0) {
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 1, 0);
-    }
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 1, 0);
 
     local_velocity.x = -0.095f;
     local_velocity.y = 0.012f;
     local_velocity.z = -0.03f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 2, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
-    if (severed != 0) {
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 2, 0);
-    }
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 2, 0);
 
     local_velocity.x = 0.0f;
     local_velocity.y = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 3, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
-    if (severed != 0) {
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 2, 0);
-    }
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 2, 0);
 
     local_velocity.x = 0.05f;
     local_velocity.y = -0.02f;
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    limb_sever_set_motion(
+    limb_sever_set_motion_inline(
         owner, 10, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 10, 0);
@@ -3017,7 +3088,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.x = 0.035f;
     local_velocity.y = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    limb_sever_set_motion(
+    limb_sever_set_motion_inline(
         owner, 11, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 11, 0);
@@ -3026,7 +3097,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = -0.02f;
     local_velocity.z = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    limb_sever_set_motion(
+    limb_sever_set_motion_inline(
         owner, 12, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 12, 0);
@@ -3035,7 +3106,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.08f;
     local_velocity.z = -0.04f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    limb_sever_set_motion(
+    limb_sever_set_motion_inline(
         owner, 7, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 7, 0);
@@ -3044,7 +3115,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.1f;
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    limb_sever_set_motion(
+    limb_sever_set_motion_inline(
         owner, 8, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 8, 0);
@@ -3053,7 +3124,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.03f;
     local_velocity.z = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
-    limb_sever_set_motion(
+    limb_sever_set_motion_inline(
         owner, 9, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 9, 0);
@@ -3062,40 +3133,25 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.1f;
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, mkobj_get_matrix(owner));
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 0, &world_velocity, (NcsLimbMotion*)update,
         1, 2, 0xD2, 1, -0.006f, 0.1f, 0.0001f);
-    if (severed != 0) {
-        angular_velocity.x = 0.0f;
-        angular_velocity.y = 0.0f;
-        angular_velocity.z = 0.085f;
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 0, 0);
-    }
+    zero_v3(&angular_velocity);
+    angular_velocity.z = 0.085f;
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 0, 0);
 
-    fighter = player->slot.fighter;
-    ref = &fighter->severed_limbs[14];
-    severed = ref->object;
-    if (severed != 0 && severed->hdr.instance != ref->instance) {
-        severed = 0;
-    }
-    if (severed == 0) {
-        severed = obj_sever_limb(owner, 14, 0, 1);
-        if (severed != 0) {
-            ref->object = severed;
-            ref->instance = severed->hdr.instance;
-            severed->light_flags = owner->light_flags;
-        }
-    }
-    if (severed != 0) {
+    severed = mks_limb_sever_inline(owner, 14, 1);
+    {
         Vec hidden_position;
 
-        hidden_position.x = 0.0f;
+        zero_v3(&hidden_position);
         hidden_position.y = -1000.0f;
-        hidden_position.z = 0.0f;
         obj_set_pos(severed, &hidden_position);
         limb_sever_show_z_meat_chunks(owner, 14, 0);
     }
+
+    mks_limb_sever_inline(owner, 13, 1);
 
     local_velocity.x = 0.0f;
     local_velocity.y = 0.06f;
@@ -3103,16 +3159,13 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     obj_set_pos_vel(owner, &world_velocity);
 
-    severed = limb_sever_set_motion(
+    severed = limb_sever_set_motion_inline(
         owner, 13, &world_velocity, (NcsLimbMotion*)update,
         1, 3, 1000, 1, -0.006f, 0.01f, 0.3f);
-    if (severed != 0) {
-        angular_velocity.x = 0.0f;
-        angular_velocity.y = 0.0f;
-        angular_velocity.z = 0.1f;
-        obj_set_ang_vel(severed, &angular_velocity);
-        limb_sever_show_z_meat_chunks(owner, 13, 0);
-    }
+    zero_v3(&angular_velocity);
+    angular_velocity.z = 0.1f;
+    obj_set_ang_vel(severed, &angular_velocity);
+    limb_sever_show_z_meat_chunks(owner, 13, 0);
 }
 
 /* Soft ceiling: retail keeps the limb index and cache base in separate registers. */
@@ -3137,8 +3190,7 @@ MkObj* mks_limb_sever(
         severed = 0;
     }
     if (severed == 0) {
-        severed = obj_sever_limb(
-            object, limb, 0, include_children);
+        severed = obj_sever_limb(object, limb, 0, include_children);
         if (severed != 0) {
             severed_ref->object = severed;
             severed_ref->instance = severed->hdr.instance;
@@ -3294,55 +3346,9 @@ MkObj* limb_sever_set_motion(
     NcsLimbMotion* motion, int enable_ground,
     int ground_value, int field_18, int include_children,
     float gravity, float ground_offset, float field_11C) {
-    FighterMirror* fighter;
-    FighterObjectRef* ref;
-    MkObj* severed;
-
-    severed = 0;
-    if (motion == 0) {
-        return severed;
-    }
-    if (owner == g_game_info.plyr0.slot.mirror_a) {
-        fighter = g_game_info.plyr0.slot.fighter;
-    } else {
-        fighter = g_game_info.plyr1.slot.fighter;
-    }
-    ref = &fighter->severed_limbs[limb];
-    severed = ref->object;
-    if (severed != 0 && severed->hdr.instance != ref->instance) {
-        severed = 0;
-    }
-    if (severed == 0) {
-        severed = obj_sever_limb(
-            owner, limb, 0, include_children);
-        if (severed == 0) {
-            return 0;
-        }
-        ref->object = severed;
-        ref->instance = severed->hdr.instance;
-    }
-
-    motion->severed_mask |= 1 << limb;
-    severed->pos_vel.x = velocity->x;
-    severed->pos_vel.y = velocity->y;
-    severed->pos_vel.z = velocity->z;
-    severed->flags_08_bits.gravity_enabled = 1;
-    severed->gravity = gravity;
-    if (gravity != 0.0f) {
-        severed->flags_08_bits.moving = 1;
-    }
-    severed->light_flags = owner->light_flags;
-    if (enable_ground != 0) {
-        motion->ground_mask |= 1 << limb;
-        motion->ground_height[limb] =
-            g_game_info.field_34 + ground_offset;
-        motion->ground_value[limb] = ground_value;
-        motion->field_138 = 1.0f;
-    }
-    motion->field_11C = field_11C;
-    motion->field_18 = field_18;
-    update_mkobj(severed);
-    return severed;
+    return limb_sever_set_motion_inline(
+        owner, limb, velocity, motion, enable_ground, ground_value,
+        field_18, include_children, gravity, ground_offset, field_11C);
 }
 
 static float p_limb_sever_attach(void) {
