@@ -62,6 +62,29 @@ typedef struct FighterObjectRef {
     unsigned int instance;
 } FighterObjectRef;
 
+typedef struct PlyrScreenLatch {
+    void* object;
+    unsigned int instance;
+} PlyrScreenLatch;
+
+typedef struct PlyrFightingLightState {
+    union {
+        unsigned int flags_word;
+        struct {
+            unsigned char red_active : 1;
+            unsigned char green_active : 1;
+            unsigned char airborne_active : 1;
+            unsigned char green_trigger : 1;
+            unsigned char pad_flags : 4;
+            unsigned char flags_pad[3];
+        };
+    };
+    PlyrScreenLatch base;
+    PlyrScreenLatch red;
+    PlyrScreenLatch green;
+    PlyrScreenLatch airborne;
+} PlyrFightingLightState; /* 0x24 */
+
 typedef struct FighterMirror {
     char pad00[0x18];
     MirrorObj* blood_owner;            /* +0x18 - owner index source */
@@ -168,11 +191,11 @@ typedef struct PlyrInfo {
         PlyrInfoFlags14 flags_14_bits;
     }; /* +0x14 */
     PlayerCollisionData* collision_data; /* +0x18 */
-    char pad1C[0x24];
+    PlyrFightingLightState fighting_lights; /* +0x1C */
     int field_40; /* +0x40 */
     int field_44; /* +0x44 */
     int field_48; /* +0x48 */
-    char pad4C[8];
+    PlyrScreenLatch name_latch; /* +0x4C */
     int player_index; /* +0x54 - character / roster id latch */
     FighterSlot slot; /* +0x58 */
     void* idle_proc;  /* +0x64 */

@@ -56,11 +56,37 @@ typedef struct PlyrMoveDisplayData {
     int display_width; /* +0x10 */
 } PlyrMoveDisplayData;
 
+typedef struct PlyrMirrorBoneMapEntry {
+    int field_00;
+    int bone_index;
+} PlyrMirrorBoneMapEntry;
+
+typedef struct PlyrMirrorBoneMap {
+    int count;
+    PlyrMirrorBoneMapEntry* entries;
+} PlyrMirrorBoneMap;
+
+typedef struct PlyrMirrorObjLatch {
+    MkObj* obj;
+    unsigned int instance;
+} PlyrMirrorObjLatch;
+
+typedef struct PlyrWeaponMirrorSlot {
+    PlyrMirrorObjLatch primary;
+    PlyrMirrorObjLatch mirror; /* +0x08 */
+    PlyrMirrorObjLatch secondary; /* +0x10 */
+} PlyrWeaponMirrorSlot; /* 0x18 */
+
+typedef struct PlyrMirrorSlots {
+    PlyrWeaponMirrorSlot weapon[4];
+} PlyrMirrorSlots; /* 0x60 */
+
 typedef struct PlyrFighterDefinition {
     char pad00[4];
     PlyrMoveBlendData* move_blend_data; /* +0x04 */
     ScriptSlot* cmo; /* +0x08 */
-    char pad0C[0x68];
+    PlyrMirrorSlots mirror_slots; /* +0x0C - default weapon-trail slots */
+    char pad6C[8];
     AniData* duck_exit_animation; /* +0x74 */
     union {
         AniData* forced_step_animation; /* +0x78 */
@@ -94,21 +120,6 @@ typedef struct PlyrFighterDefinition {
     AniData* spear_tug_loop; /* +0x108 */
     AniData* spear_tug_end; /* +0x10C */
 } PlyrFighterDefinition;
-
-typedef struct PlyrMirrorBoneMapEntry {
-    int field_00;
-    int bone_index;
-} PlyrMirrorBoneMapEntry;
-
-typedef struct PlyrMirrorBoneMap {
-    int count;
-    PlyrMirrorBoneMapEntry* entries;
-} PlyrMirrorBoneMap;
-
-typedef struct PlyrMirrorObjLatch {
-    MkObj* obj;
-    unsigned int instance;
-} PlyrMirrorObjLatch;
 
 typedef struct PlyrStateFlagBits {
     unsigned char pad_bit7 : 1;
@@ -169,16 +180,6 @@ typedef struct PlyrStatusData {
     char pad138[4];
     unsigned int throw_script; /* +0x13C */
 } PlyrStatusData;
-
-typedef struct PlyrWeaponMirrorSlot {
-    PlyrMirrorObjLatch primary;
-    PlyrMirrorObjLatch mirror; /* +0x08 */
-    PlyrMirrorObjLatch secondary; /* +0x10 */
-} PlyrWeaponMirrorSlot; /* 0x18 */
-
-typedef struct PlyrMirrorSlots {
-    PlyrWeaponMirrorSlot weapon[4];
-} PlyrMirrorSlots; /* 0x60 */
 
 typedef struct PlyrWeaponStyle {
     void* vtbl;
