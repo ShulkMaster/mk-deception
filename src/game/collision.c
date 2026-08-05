@@ -184,37 +184,37 @@ static const CollisionNodeDef col_def_list[28] = {
     {0x4053, 1, 0.0f, .188f, .16f},
     {0x4055, 1, 0.0f, .125f, 0.0f}
 };
-static const int attack_forearm_l[] = {0x14, 0x16, 0x18, 0};
-static const int attack_forearm_r[] = {0x15, 0x17, 0x19, 0};
-static const int attack_lowleg_l[] = {4, 7, 0};
-static const int attack_lowleg_r[] = {5, 8, 0};
-static const int attack_lowlegs[] = {5, 8, -1, 4, 7, 0};
-static const int attack_arm_l[] = {0xF, 0x12, 0x14, 0x16, 0x18, 0};
-static const int attack_arm_r[] = {0x11, 0x13, 0x15, 0x17, 0x19, 0};
-static const int attack_leg_l[] = {1, 4, 7, 0xA, 0};
-static const int attack_leg_r[] = {2, 5, 8, 0xB, 0};
-static const int attack_arm_both[] = {
+static const int forearm_l[] = {0x14, 0x16, 0x18, 0};
+static const int forearm_r[] = {0x15, 0x17, 0x19, 0};
+static const int lowleg_l[] = {4, 7, 0};
+static const int lowleg_r[] = {5, 8, 0};
+static const int lowlegs[] = {5, 8, -1, 4, 7, 0};
+static const int arm_left[] = {0xF, 0x12, 0x14, 0x16, 0x18, 0};
+static const int arm_right[] = {0x11, 0x13, 0x15, 0x17, 0x19, 0};
+static const int leg_left[] = {1, 4, 7, 0xA, 0};
+static const int leg_right[] = {2, 5, 8, 0xB, 0};
+static const int arm_both[] = {
     0x11, 0x13, 0x15, 0x17, 0x19, -1,
     0xF, 0x12, 0x14, 0x16, 0x18, 0
 };
-static const int attack_armleg_r[] = {
+static const int armleg_right[] = {
     0x11, 0x13, 0x15, 0x17, 0x19, -1, 2, 5, 8, 0xB, 0
 };
-static const int attack_armleg_l[] = {
+static const int armleg_left[] = {
     0xF, 0x12, 0x14, 0x16, 0x18, -1, 1, 4, 7, 0xA, 0
 };
-static const int attack_leg_both[] = {
+static const int leg_both[] = {
     1, 4, 7, 0xA, -1, 2, 5, 8, 0xB, 0
 };
-static const int attack_back[] = {1, 2, 0};
-static const int attack_goro_arms[] = {
+static const int back[] = {1, 2, 0};
+static const int goro_lower_arm_both[] = {
     0x44, 0x46, 0x48, -1, 0x51, 0x53, 0x55, 0
 };
-static const int* const attack_region_lists[16] = {
-    0, attack_forearm_l, attack_forearm_r, attack_lowleg_l,
-    attack_lowleg_r, attack_lowlegs, attack_arm_l, attack_arm_r,
-    attack_leg_l, attack_leg_r, attack_arm_both, attack_armleg_r,
-    attack_armleg_l, attack_leg_both, attack_back, attack_goro_arms
+static const int* attack_region_list[16] = {
+    0, forearm_l, forearm_r, lowleg_l,
+    lowleg_r, lowlegs, arm_left, arm_right,
+    leg_left, leg_right, arm_both, armleg_right,
+    armleg_left, leg_both, back, goro_lower_arm_both
 };
 static const Vec UNITVECT_Z = {0.0f, 0.0f, 1.0f};
 static const Vec UNITVECT_NEGX = {-1.0f, 0.0f, 0.0f};
@@ -289,6 +289,14 @@ int collide_shape_vs_plyr(
     PlyrInfo* player, const CollisionShape* shape);
 CollisionObj* convert_cdf_quad_to_collision_box(
     const Vec* vertices, const Vec* angles, const Vec* position);
+/*
+ * Soft ceiling: retail m2c and both callers confirm the vertex selection,
+ * XZ radius, optional transform/translation, allocation, and cylinder layout.
+ * Retail dynamically aligns this function's local MKMATRIX to 16 bytes;
+ * portable C under the authentic TU flags emits a fixed frame. The 664-byte
+ * bodies are equal in size, and the residual records cascade from stack
+ * offsets, GPR/FPR allocation, fused arithmetic scheduling, and relocations.
+ */
 CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     const Vec* vertices, const Vec* angles, const Vec* position);
 ArenaObstacle* get_obstacle(void);
@@ -1384,7 +1392,7 @@ static void add_plyr_body_attack_nodes(
     int inserted_count;
     int node_id;
 
-    entries = attack_region_lists[region_id];
+    entries = attack_region_list[region_id];
     player = plyr_pdata->plyr_info;
     storage = (PlayerCollisionNodeStorage*)player->collision_data;
     object = storage->object;
