@@ -4,28 +4,13 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/image.h"
 
-/* Retail TU-local; remaining pwrbar code owns the writes. */
-extern int f_powerbars_retracted;
 extern int game_tick_ctr;
 
-extern int f_p1_force_adjustment;
-extern int f_p2_force_adjustment;
 extern int mode_of_play;
-extern int f_p1_warning_given;
-extern int f_p2_warning_given;
-extern float p1_disp_life;
-extern float p2_disp_life;
 extern int screen_width;
-extern int p1_last_combo_break_count;
-extern int p2_last_combo_break_count;
-extern int BAR_BACK_X;
-extern int PB_CNTR_RING_X;
 extern GlobalPlayerEntry global_player_data[];
 
-typedef struct ScreenLatch {
-    ScreenObj* object;
-    unsigned int instance;
-} ScreenLatch;
+typedef PlyrScreenLatch ScreenLatch;
 
 typedef struct ProcLatch {
     MkProc* object;
@@ -58,53 +43,85 @@ typedef struct PwrbarProcVtable {
     MkVtblFn sleep;
 } PwrbarProcVtable;
 
-typedef struct FightingLightState {
-    union {
-        unsigned int flags_word;
-        struct {
-            unsigned char red_active : 1;
-            unsigned char green_active : 1;
-            unsigned char airborne_active : 1;
-            unsigned char green_trigger : 1;
-            unsigned char pad_flags : 4;
-            unsigned char flags_pad[3];
-        };
-    };
-    ScreenLatch base;
-    ScreenLatch red;
-    ScreenLatch green;
-    ScreenLatch airborne;
-} FightingLightState;
+typedef PlyrFightingLightState FightingLightState;
 
-extern ScreenLatch p1_pbar_item;
-extern ProcLatch pwr_bar_proc_item;
-extern ScreenLatch p2_pbar_item;
-extern ScreenLatch p1_bolt_1_item;
-extern ScreenLatch p1_bolt_2_item;
-extern ScreenLatch p1_bolt_3_item;
-extern ScreenLatch p2_bolt_1_item;
-extern ScreenLatch p2_bolt_2_item;
-extern ScreenLatch p2_bolt_3_item;
-extern ScreenLatch p1_pbar_back_item;
-extern ScreenLatch p1_pbar_red_item;
-extern ScreenLatch p2_pbar_back_item;
-extern ScreenLatch p2_pbar_red_item;
-extern ScreenLatch p1_pbar_backb_item;
-extern ScreenLatch p2_pbar_backb_item;
-extern ScreenLatch p1_name_item;
-extern ScreenLatch p2_name_item;
-extern ScreenLatch p1_bar_icon_item;
-extern ScreenLatch p2_bar_icon_item;
-extern ScreenLatch pbar_cntr_item;
-extern ScreenLatch pbar_cntr_dragon_item;
-extern ScreenLatch* pbar_hide_screen_items[];
-extern ScreenLatch* pbar_item_list[];
-extern ScreenLatch* pbar_string_item_list[];
-extern PbarHideStringItem pbar_hide_string_items[];
-extern float p1_bar_back_start;
-extern float p1_bar_red_start;
-extern float p2_bar_back_start;
-extern float p2_bar_red_start;
+int BAR_BACK_X = 8;
+int PB_CNTR_RING_X = 0x100;
+
+float p1_disp_life;
+float p2_disp_life;
+int f_p1_force_adjustment;
+int f_p2_force_adjustment;
+ProcLatch pwr_bar_proc_item;
+ScreenLatch pbar_cntr_dragon_item;
+ScreenLatch pbar_cntr_item;
+ScreenLatch p2_bar_icon_item;
+ScreenLatch p1_bar_icon_item;
+ScreenLatch p2_bolt_3_item;
+ScreenLatch p2_bolt_2_item;
+ScreenLatch p2_bolt_1_item;
+ScreenLatch p1_bolt_3_item;
+ScreenLatch p1_bolt_2_item;
+ScreenLatch p1_bolt_1_item;
+ScreenLatch p2_pbar_backb_item;
+ScreenLatch p1_pbar_backb_item;
+ScreenLatch p2_pbar_back_item;
+ScreenLatch p1_pbar_back_item;
+ScreenLatch p2_pbar_red_item;
+ScreenLatch p1_pbar_red_item;
+ScreenLatch p2_pbar_item;
+ScreenLatch p1_pbar_item;
+ScreenLatch p2_name_item;
+ScreenLatch p1_name_item;
+float p2_bar_red_start;
+float p2_bar_back_start;
+float p1_bar_red_start;
+float p1_bar_back_start;
+int p2_last_combo_break_count;
+int p1_last_combo_break_count;
+int f_powerbars_retracted;
+int f_p2_warning_given;
+int f_p1_warning_given;
+
+extern ScreenLatch game_timer_item;
+
+ScreenLatch* pbar_hide_screen_items[] = {
+    &p1_bar_icon_item, &p2_bar_icon_item,
+    &g_game_info.plyr0.fighting_lights.base,
+    &g_game_info.plyr1.fighting_lights.base,
+    &p1_pbar_backb_item, &p2_pbar_backb_item,
+    &p1_bolt_1_item, &p1_bolt_2_item, &p1_bolt_3_item,
+    &p2_bolt_1_item, &p2_bolt_2_item, &p2_bolt_3_item, 0
+};
+ScreenLatch* pbar_item_list[] = {
+    &p1_pbar_item, &p2_pbar_item,
+    &p1_pbar_back_item, &p2_pbar_back_item,
+    &p1_pbar_backb_item, &p2_pbar_backb_item,
+    &p1_bar_icon_item, &p2_bar_icon_item,
+    &p1_pbar_red_item, &p2_pbar_red_item,
+    &pbar_cntr_item, &pbar_cntr_dragon_item,
+    &p1_bolt_1_item, &p1_bolt_2_item, &p1_bolt_3_item,
+    &p2_bolt_1_item, &p2_bolt_2_item, &p2_bolt_3_item,
+    &g_game_info.plyr0.fighting_lights.base,
+    &g_game_info.plyr1.fighting_lights.base,
+    &g_game_info.plyr0.fighting_lights.red,
+    &g_game_info.plyr1.fighting_lights.red,
+    &g_game_info.plyr0.fighting_lights.green,
+    &g_game_info.plyr1.fighting_lights.green,
+    &g_game_info.plyr0.fighting_lights.airborne,
+    &g_game_info.plyr1.fighting_lights.airborne, 0
+};
+ScreenLatch* pbar_string_item_list[] = {
+    &p1_name_item, &p2_name_item, &game_timer_item,
+    &g_game_info.plyr0.name_latch, &g_game_info.plyr1.name_latch, 0
+};
+PbarHideStringItem pbar_hide_string_items[] = {
+    {&p1_name_item, 0xFF, {0, 0, 0}},
+    {&p2_name_item, 0xFF, {0, 0, 0}},
+    {&g_game_info.plyr0.name_latch, 0xB4, {0, 0, 0}},
+    {&g_game_info.plyr1.name_latch, 0xB4, {0, 0, 0}},
+    {0, 0, {0, 0, 0}}
+};
 
 static ScreenObj* medal_objs[8];
 
@@ -125,7 +142,7 @@ static float bar_speed = 0.01f;
 static ScreenObj* screen_latch_object(ScreenLatch* latch);
 
 static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
-    return (FightingLightState*)player->pad1C;
+    return &player->fighting_lights;
 }
 
 static inline StringObj* string_latch_object(ScreenLatch* latch) {
@@ -214,7 +231,7 @@ void show_wins_in_a_row(void) {
             sprintf(text, get_string(5), wins);
             string = string_left_xy(0x201E, 0, text, 0x14, 0x3D, 0x1D);
             if (string != 0) {
-                latch = (ScreenLatch*)g_game_info.plyr0.pad4C;
+                latch = &g_game_info.plyr0.name_latch;
                 latch->object = (ScreenObj*)string;
                 latch->instance = string->instance;
             }
@@ -223,7 +240,7 @@ void show_wins_in_a_row(void) {
             string = string_right_xy(
                 0x201E, 0, text, screen_width - 0x14, 0x3D, 0x1D);
             if (string != 0) {
-                latch = (ScreenLatch*)g_game_info.plyr1.pad4C;
+                latch = &g_game_info.plyr1.name_latch;
                 latch->object = (ScreenObj*)string;
                 latch->instance = string->instance;
             }

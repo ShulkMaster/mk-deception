@@ -26,14 +26,23 @@ typedef struct WeaponImpaleData {
 typedef struct WeaponDefinition {
     const char* model_name;       /* +0x00 */
     const int* bone_tags;         /* +0x04 */
-    char pad08[0x28];
+    int attachment_bone;
+    Vec attachment_position;
+    Vec attachment_rotation;
+    float attachment_angle;
+    int field_28;
+    int field_2c;
     const char* secondary_model_name; /* +0x30 */
     const int* trail_bone_tags; /* +0x34 */
     int trail_map_count; /* +0x38 */
     WeaponTrailMap* trail_maps; /* +0x3C */
     int* trail_chain_roots; /* +0x40 */
     const char* reflection_model_name; /* +0x44 */
-    char pad48[0x24];
+    int field_48;
+    Vec field_4c;
+    float field_58;
+    int field_5c;
+    Vec field_60;
     WeaponImpaleData* impale_data; /* +0x6C */
 } WeaponDefinition;
 
@@ -176,6 +185,35 @@ MkObj* load_weapon_reflection(
     WeaponDefinition* definition, MkObj* player_object);
 
 static Vec trail_p_to_c_uv = {1.0f, 0.0f, 0.0f};
+
+WeaponTrailMap goro_gauntlets_trail_anchors[3] = {
+    {0, 0, 1, {-0.25f, 0.0f, 0.25f}},
+    {7, 0, 0, {-0.05f, 0.0f, 0.0f}},
+    {1, 0, 0, {-0.05f, 0.0f, 0.5f}},
+};
+int goro_gauntlets_trail_tails[3] = {6, 12, 0};
+int goro_gauntlets_weapon_bones[2] = {1, 0};
+int goro_gauntlets_trail_bones[2] = {0x2001, 0};
+/*
+ * Soft ceiling: these descriptors have retail-exact bytes, symbol order,
+ * addresses, and relocation targets/addends. This MWCC invocation records the
+ * initializer relocations in reverse field groups while retail records them in
+ * ascending offset order; no source-level padding or relocation sink is used.
+ */
+WeaponDefinition goro_gauntlets_weapon_desc_lr = {
+    "WEAPON", goro_gauntlets_weapon_bones,
+    0x54, {-0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, -1.5707964f, 0, 0,
+    "WEAPON_TR", goro_gauntlets_trail_bones, 3,
+    goro_gauntlets_trail_anchors, goro_gauntlets_trail_tails, 0,
+    0, {0.15f, 0.0f, 0.0f}, 0.4f, 0x4d, {0.0f, -0.2f, 0.5f}, 0,
+};
+WeaponDefinition goro_gauntlets_weapon_desc_ll = {
+    "WEAPON", goro_gauntlets_weapon_bones,
+    0x47, {0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, 1.5707964f, 0, 0,
+    "WEAPON_TR", goro_gauntlets_trail_bones, 3,
+    goro_gauntlets_trail_anchors, goro_gauntlets_trail_tails, 0,
+    0, {0.15f, 0.0f, 0.0f}, 0.4f, 0x4d, {0.0f, -0.2f, 0.5f}, 0,
+};
 
 static inline MkObj* load_goro_weapon_inline(
     WeaponDefinition* definition, MkObj* player_object) {

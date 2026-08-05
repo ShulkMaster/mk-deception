@@ -242,7 +242,30 @@ typedef struct PuzzleFighterEvent {
     float chain_count;
 } PuzzleFighterEvent;
 
-extern PuzzleFightersEngine g_pz_fighters_engine;
+typedef struct PuzzleSharedAnimations {
+    AniScript* entries[149];
+} PuzzleSharedAnimations; /* 0x254 */
+
+typedef struct PuzzleRegisteredMove {
+    int script_move;
+    unsigned int chance;
+    unsigned int conditions;
+} PuzzleRegisteredMove;
+
+typedef struct PuzzleCharacterMoveTable {
+    unsigned int count;
+    PuzzleRegisteredMove moves[15];
+} PuzzleCharacterMoveTable; /* 0xB8 */
+
+typedef struct PuzzleFighterMoveTables {
+    unsigned int common_count;
+    int common_moves[15];
+    PuzzleCharacterMoveTable characters[14];
+} PuzzleFighterMoveTables; /* 0xA50 */
+
+PuzzleSharedAnimations pz_shared_ani;
+PuzzleFightersEngine g_pz_fighters_engine;
+PuzzleFighterMoveTables g_pz_fighter_tables;
 extern PuzzleProcess* aproc;
 extern MkHdr* apdata;
 extern MkObj* plyr_obj;
