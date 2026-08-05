@@ -749,11 +749,17 @@ void set_collision_render_state(int enabled) {
     g_game_info.pause_flag_bits.paused = (unsigned char)enabled;
 }
 
+/*
+ * Retail over-aligns several automatic collision temporaries to 16 bytes.
+ * Portable C cannot request that stack alignment, and the project policy
+ * excludes compiler alignment attributes. Objdiff therefore retains honest
+ * stack-frame/addressing residue in the affected functions.
+ */
 void reset_player_collision(PlayerCollisionData* collision) {
     int definition_count;
     PlayerCollisionNodeStorage* storage;
     PlayerCollisionRegionBuild* region;
-    CollisionShape sphere __attribute__((aligned(16)));
+    CollisionShape sphere;
     Vec center;
     float joint_scale;
     int bone_index;
@@ -2297,8 +2303,7 @@ static inline void collision_copy_vec(Vec* destination, const Vec* source) {
 int collide_cylinder_vs_plyr(
     PlyrInfo* player, const Vec* center, const Vec* angles,
     float radius, float height) {
-    /* Retail keeps temporary collision descriptors 16-byte aligned. */
-    CollisionShape shape __attribute__((aligned(16)));
+    CollisionShape shape;
 
     shape.type = 2;
     shape.cylinder_radius = radius;
@@ -2323,8 +2328,7 @@ int collide_sphere_vs_plyr(
     PlyrInfo* player,
     const Vec* center,
     float radius) {
-    /* Retail keeps temporary collision descriptors 16-byte aligned. */
-    CollisionShape shape __attribute__((aligned(16)));
+    CollisionShape shape;
 
     shape.type = 1;
     shape.sphere_radius = radius;
@@ -3311,7 +3315,7 @@ int npc_repel_against_global_collision_list(
     const Vec* position, Vec* movement, Vec* result_position,
     unsigned int ignored_flags) {
     CollisionObjRef collision;
-    CollisionShape shape __attribute__((aligned(16)));
+    CollisionShape shape;
     MkPtr* item;
     MkPtr* next;
     Vec target_position;
@@ -3831,15 +3835,18 @@ static int is_point_inside_quad(
     return 1;
 }
 
-/* Soft ceiling: 97.44% -- plane-dot FPR scheduling only. */
+/*
+ * In addition to FPR scheduling, this function retains the documented
+ * portable-C stack-alignment gap for its four Vec temporaries.
+ */
 static float ray_intersection_with_quad(
     const Vec* origin,
     const Vec* direction,
     const CollisionShape* quad) {
-    Vec normal __attribute__((aligned(16)));
-    Vec point __attribute__((aligned(16)));
-    Vec edge_1 __attribute__((aligned(16)));
-    Vec edge_0 __attribute__((aligned(16)));
+    Vec normal;
+    Vec point;
+    Vec edge_1;
+    Vec edge_0;
     float denominator;
     float origin_dot;
     float quad_dot;

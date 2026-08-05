@@ -166,6 +166,8 @@ typedef struct PlyrStatusData {
     }; /* +0x84 */
     char pad88[0xAC];
     void* reaction_cleanup; /* +0x134 */
+    char pad138[4];
+    unsigned int throw_script; /* +0x13C */
 } PlyrStatusData;
 
 typedef struct PlyrWeaponMirrorSlot {
@@ -410,7 +412,7 @@ typedef struct PlyrPdata {
     unsigned int baraka_blades_monitor_instance; /* +0x70C */
     char pad710[8];
     int (*baraka_moveset_callback)(void*, void*); /* +0x718 */
-    char pad71C[4];
+    void* active_pickup; /* +0x71C */
     int online_sync_index;            /* +0x720 - -1 when unavailable */
     int impaled_projectile_state;       /* +0x724 */
     int field_728;

@@ -181,7 +181,8 @@ int set_anim_script_frame(
 void transition_to_anim_script_frame(
     AnimPdata* anim, AniData* animation, int flags, float frame);
 void set_anim_script(AnimPdata* anim, AniData* animation, int transition);
-void set_plyr_attack_region(int region, float scale);
+void set_plyr_attack_region(
+    int use_body, float radius, float extension);
 void start_plyr_attack(float scale);
 void online_combo_adjust(float* horizontal, float* vertical);
 void online_combo_record(void);
@@ -2014,19 +2015,17 @@ void j_exit_6(void) {
     exit_reaction_common();
 }
 
-void j_blend_to_fstance_in_x(void) {
-    float blend_ticks;
+float j_blend_to_fstance_in_x(void) {
     float remaining_frames;
 
-    blend_ticks = plyr_pdata->summon_position_x;
-    if (blend_ticks > 30.0f || blend_ticks < 3.0f) {
-        blend_ticks = 3.0f;
-        plyr_pdata->summon_position_x = blend_ticks;
+    if (plyr_pdata->summon_position_x > 30.0f ||
+        plyr_pdata->summon_position_x < 3.0f) {
+        plyr_pdata->summon_position_x = 3.0f;
     }
     remaining_frames =
         plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
-    if (remaining_frames > blend_ticks) {
-        ani_to_blend_frame(blend_ticks);
+    if (remaining_frames > plyr_pdata->summon_position_x) {
+        ani_to_blend_frame(plyr_pdata->summon_position_x);
     }
     remaining_frames =
         plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
@@ -2034,25 +2033,27 @@ void j_blend_to_fstance_in_x(void) {
         plyr_anim_pdata->frame = plyr_anim_pdata->high_frame;
         pose_anim(plyr_anim_pdata, 1);
     } else {
-        plyr_anim_pdata->step = remaining_frames / blend_ticks;
+        plyr_anim_pdata->step =
+            remaining_frames / plyr_pdata->summon_position_x;
     }
-    blend_to_fstance(1.0f / blend_ticks);
+    blend_to_fstance(1.0f / plyr_pdata->summon_position_x);
     ((EjbProcSleepVtable*)aproc->vtbl)->transfer(j_exit, 0.0f);
+    return 0.0f;
 }
 
-void j_blend_to_stance_in_x(void) {
-    float blend_ticks;
+float j_blend_to_stance_in_x(void) {
+    MkHdr* object_hdr;
     float remaining_frames;
+    float blend_rate;
 
-    blend_ticks = plyr_pdata->summon_position_x;
-    if (blend_ticks > 30.0f || blend_ticks < 3.0f) {
-        blend_ticks = 3.0f;
-        plyr_pdata->summon_position_x = blend_ticks;
+    if (plyr_pdata->summon_position_x > 30.0f ||
+        plyr_pdata->summon_position_x < 3.0f) {
+        plyr_pdata->summon_position_x = 3.0f;
     }
     remaining_frames =
         plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
-    if (remaining_frames > blend_ticks) {
-        ani_to_blend_frame(blend_ticks);
+    if (remaining_frames > plyr_pdata->summon_position_x) {
+        ani_to_blend_frame(plyr_pdata->summon_position_x);
     }
     remaining_frames =
         plyr_anim_pdata->high_frame - plyr_anim_pdata->frame;
@@ -2060,10 +2061,37 @@ void j_blend_to_stance_in_x(void) {
         plyr_anim_pdata->frame = plyr_anim_pdata->high_frame;
         pose_anim(plyr_anim_pdata, 1);
     } else {
-        plyr_anim_pdata->step = remaining_frames / blend_ticks;
+        plyr_anim_pdata->step =
+            remaining_frames / plyr_pdata->summon_position_x;
     }
-    blend_to_stance(1.0f / blend_ticks);
+    blend_rate = 1.0f / plyr_pdata->summon_position_x;
+    if (plyr_anim_pdata->last_exec_tick ==
+        (unsigned int)exec_tick_ctr) {
+        ejb_sleep_ticks(1.0f);
+    }
+    if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
+        (plyr_pdata->state & 0x100) != 0) {
+        transition_to_anim_script(
+            plyr_anim_pdata,
+            ((EjbFighterDefinitionExtended*)
+                plyr_pdata->fighter_definition)->crouching_animation,
+            0x20, blend_rate);
+    } else {
+        transition_to_anim_script(
+            plyr_anim_pdata,
+            ((EjbFighterDefinitionExtended*)
+                plyr_pdata->fighter_definition)->standing_animation,
+            0x20, blend_rate);
+    }
+    xfer_proc(plyr_anim_proc, p_animate);
+    plyr_obj->flags_09_bits.launched = 1;
+    object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
+    update_bone_hierarchy(object_hdr);
+    object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
+    ground_me(object_hdr);
+    plyr_anim_pdata->step = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->transfer(j_exit, 0.0f);
+    return 0.0f;
 }
 
 void p_glitch_to_stance(void) {
@@ -2288,9 +2316,9 @@ void two_player_animation(
 }
 
 void idle_victim(void) {
+    MkObj* tracked_object;
     PlyrPdata* opponent;
     MkProc* process;
-    MkObj* tracked_object;
 
     process = plyr_pdata->player_proc;
     if (process != 0 &&
@@ -2355,7 +2383,8 @@ int ani_col_abort(
         if (his_pdata->collision_disabled != 0) {
             collision_result = 0;
         } else {
-            set_plyr_attack_region(attack_region, region_scale);
+            set_plyr_attack_region(
+                attack_region, region_scale, 0.0f);
             collision_result = collide_plyr_vs_plyr();
             if (collision_result == 1) {
                 trial_state_collision_check(
@@ -2363,8 +2392,11 @@ int ani_col_abort(
             }
         }
         if (collision_result != 0) {
-            plyr_pdata->collision_result =
-                is_plyr_blocking(his_pdata) != 0 ? 2 : 1;
+            if (is_plyr_blocking(his_pdata) != 0) {
+                plyr_pdata->collision_result = 2;
+            } else {
+                plyr_pdata->collision_result = 1;
+            }
             if (reaction_xfer_him(
                     reaction, reaction_rate, strength) == 0) {
                 plyr_pdata->collision_result = 2;
@@ -2387,9 +2419,10 @@ int ani_col_abort(
         }
 
         collision_blocked = 0;
-        if (strength == 5 &&
-            (his_pdata->state == 0x101 ||
-             his_pdata->state == 0x302)) {
+        if (strength == 5 && his_pdata->state == 0x101) {
+            collision_blocked = 1;
+        }
+        if (strength == 5 && his_pdata->state == 0x302) {
             collision_blocked = 1;
         }
         if (is_big_boss(plyr_pdata) != 0) {
@@ -2403,7 +2436,8 @@ int ani_col_abort(
         if (his_pdata->collision_disabled != 0) {
             collision_result = 0;
         } else {
-            set_plyr_attack_region(attack_region, region_scale);
+            set_plyr_attack_region(
+                attack_region, region_scale, 0.0f);
             collision_result = collide_plyr_vs_plyr();
             if (collision_result == 1) {
                 trial_state_collision_check(
@@ -2414,21 +2448,36 @@ int ani_col_abort(
             continue;
         }
 
-        plyr_pdata->collision_result =
-            is_plyr_blocking(his_pdata) != 0 ? 2 : 1;
-        counter_allowed = 0;
-        if (his_pdata->state == 0x6205 &&
-            plyr_pdata->state != 0x120B &&
-            plyr_pdata->state != 0x120C &&
-            is_weapon_style(plyr_pdata->fighter_definition) == 0) {
+        if (is_plyr_blocking(his_pdata) != 0) {
+            plyr_pdata->collision_result = 2;
+        } else {
+            plyr_pdata->collision_result = 1;
+        }
+        if (his_pdata->state != 0x6205) {
+            counter_allowed = 0;
+        } else if (plyr_pdata->state == 0x120B) {
+            counter_allowed = 0;
+        } else if (plyr_pdata->state == 0x120C) {
+            counter_allowed = 0;
+        } else if (is_weapon_style(
+                       plyr_pdata->fighter_definition) != 0) {
+            counter_allowed = 0;
+        } else {
             state = plyr_pdata->state;
-            if (state != 0x1210 && state != 0x1211 &&
-                state != 0x120B && state != 0x3204 &&
-                state != 0x3205) {
+            switch (state) {
+            case 0x1210:
+            case 0x1211:
+            case 0x120B:
+            case 0x3204:
+            case 0x3205:
+                counter_allowed = 0;
+                break;
+            default:
                 if (ejb_function_pointers[42] != 0) {
                     ejb_function_pointers[42]();
                 }
                 counter_allowed = 1;
+                break;
             }
         }
         if (counter_allowed != 0) {
@@ -2453,7 +2502,10 @@ int ani_col_abort(
         trial_state_collision_check(
             0, plyr_pdata == g_game_info.plyr0.slot.pdata);
     }
-    return plyr_pdata->collision_result != 0;
+    if (plyr_pdata->collision_result != 0) {
+        return 1;
+    }
+    return 0;
 }
 
 void check_to_register_miss(void) {
@@ -2521,7 +2573,7 @@ int collision_2(int attack_region) {
         return 0;
     }
 
-    set_plyr_attack_region(attack_region, 0.0f);
+    set_plyr_attack_region(attack_region, 0.0f, 0.0f);
     collision_result = collide_plyr_vs_plyr();
     if (collision_result == 1) {
         trial_state_collision_check(
@@ -2584,7 +2636,8 @@ float ani_to_frame_x_col(
         if (his_pdata->collision_disabled != 0) {
             collision_result = 0;
         } else {
-            set_plyr_attack_region(attack_region, 0.0f);
+            set_plyr_attack_region(
+                attack_region, 0.0f, adjusted_horizontal);
             collision_result = collide_plyr_vs_plyr();
             if (collision_result == 1) {
                 trial_state_collision_check(
@@ -2592,8 +2645,11 @@ float ani_to_frame_x_col(
             }
         }
         if (collision_result != 0) {
-            plyr_pdata->collision_result =
-                is_plyr_blocking(his_pdata) != 0 ? 2 : 1;
+            if (is_plyr_blocking(his_pdata) != 0) {
+                plyr_pdata->collision_result = 2;
+            } else {
+                plyr_pdata->collision_result = 1;
+            }
             if (reaction_xfer_him(
                     reaction, reaction_rate, strength) == 0) {
                 plyr_pdata->collision_result = 2;
@@ -2617,49 +2673,88 @@ float ani_to_frame_x_col(
         if (plyr_pdata->collision_result == -1 ||
             plyr_pdata->collision_result == 3) {
             collision_blocked = 0;
-            state = his_pdata->state;
             switch (strength) {
-            case 0:
-                if ((state >= 0x100 && state < 0x102) ||
-                    state == 0x302 || state == 0x900 ||
-                    state == 0x901 || state == 0x1300) {
+            case 0: {
+                int opponent_state = his_pdata->state;
+
+                switch (opponent_state) {
+                case 0x100:
+                case 0x101:
+                case 0x302:
+                case 0x900:
+                case 0x901:
+                case 0x1300:
                     collision_blocked = 1;
+                    break;
+                default:
+                    break;
                 }
                 break;
-            case 5:
-                if (state == 0x101 || state == 0x302 ||
-                    state == 0x900) {
+            }
+            case 5: {
+                int opponent_state = his_pdata->state;
+
+                switch (opponent_state) {
+                case 0x101:
+                case 0x302:
+                case 0x900:
                     collision_blocked = 1;
+                    break;
+                default:
+                    break;
                 }
                 break;
-            case 6:
-                if ((state & 0x1000) != 0) {
+            }
+            case 6: {
+                MkObj* opponent_object = plyr_pdata->his_obj;
+                int opponent_state = his_pdata->state;
+
+                if ((opponent_state & 0x1000) != 0) {
                     if (his_pdata->throw_restriction != 3 &&
                         (unsigned int)(game_tick_ctr -
                             his_pdata->last_collision_tick) >= 10) {
                         collision_blocked = 1;
                     }
                 }
-                if (state == 0x120C) {
+                if (opponent_state == 0x120C) {
                     collision_blocked = 0;
                 }
-                if (is_big_boss(his_pdata) == 0) {
-                    if (state == 0x605 || state == 0x3202 ||
-                        state == -0x39FE || state == 0x6001) {
+                if (is_big_boss(
+                        plyr_pdata->his_plyr_pdata) == 0) {
+                    if (opponent_state == 0x605) {
                         collision_blocked = 1;
-                    } else if (state == 0x60C) {
+                    } else if (opponent_state == 0x3202) {
+                        collision_blocked = 1;
+                    } else if (opponent_state == -0x39FE) {
+                        collision_blocked = 1;
+                    } else if (opponent_state == 0x6001) {
+                        collision_blocked = 1;
+                    } else if (opponent_state == 0x60C) {
                         collision_blocked = 0;
-                    } else if (his_obj->pos_vel.y != 0.0f &&
-                               his_obj->gravity != 0.0f) {
+                    } else if (opponent_object->pos_vel.y != 0.0f &&
+                               opponent_object->gravity != 0.0f) {
                         collision_blocked = 1;
                     }
                 }
-                if (is_big_boss(his_pdata) != 0 ||
-                    state == 0x101 || state == 0x302 ||
-                    state == 0x900 || state == 0x901 ||
-                    (((state & 0x400) != 0) &&
-                     state != -0x3A00 && state != -0x39FF &&
-                     state != 0x4207)) {
+                if (is_big_boss(his_pdata) != 0) {
+                    collision_blocked = 1;
+                }
+                if (opponent_state == 0x101) {
+                    collision_blocked = 1;
+                }
+                if (opponent_state == 0x302) {
+                    collision_blocked = 1;
+                }
+                if (opponent_state == 0x900) {
+                    collision_blocked = 1;
+                }
+                if (opponent_state == 0x901) {
+                    collision_blocked = 1;
+                }
+                if ((opponent_state & 0x400) != 0 &&
+                    opponent_state != -0x3A00 &&
+                    opponent_state != -0x39FF &&
+                    opponent_state != 0x4207) {
                     collision_blocked = 1;
                 }
                 if (collision_blocked != 0 &&
@@ -2672,8 +2767,9 @@ float ani_to_frame_x_col(
                         0, plyr_pdata == g_game_info.plyr0.slot.pdata);
                 }
                 break;
+            }
             case 7:
-                if (state == 0x901) {
+                if (his_pdata->state == 0x901) {
                     collision_blocked = 1;
                 }
                 break;
@@ -2687,7 +2783,8 @@ float ani_to_frame_x_col(
                 if (his_pdata->collision_disabled != 0) {
                     collision_result = 0;
                 } else {
-                    set_plyr_attack_region(attack_region, 0.0f);
+                    set_plyr_attack_region(
+                        attack_region, 0.0f, adjusted_horizontal);
                     collision_result = collide_plyr_vs_plyr();
                     if (collision_result == 1) {
                         trial_state_collision_check(
@@ -2695,25 +2792,39 @@ float ani_to_frame_x_col(
                     }
                 }
                 if (collision_result != 0) {
-                    plyr_pdata->collision_result =
-                        is_plyr_blocking(his_pdata) != 0 ? 2 : 1;
+                    if (is_plyr_blocking(his_pdata) != 0) {
+                        plyr_pdata->collision_result = 2;
+                    } else {
+                        plyr_pdata->collision_result = 1;
+                    }
                     if ((plyr_pdata->secondary_state & 0x400) != 0) {
                         passed_target = 1;
                     }
-                    counter_allowed = 0;
-                    if (his_pdata->state == 0x6205 &&
-                        plyr_pdata->state != 0x120B &&
-                        plyr_pdata->state != 0x120C &&
-                        is_weapon_style(
-                            plyr_pdata->fighter_definition) == 0) {
+                    if (his_pdata->state != 0x6205) {
+                        counter_allowed = 0;
+                    } else if (plyr_pdata->state == 0x120B) {
+                        counter_allowed = 0;
+                    } else if (plyr_pdata->state == 0x120C) {
+                        counter_allowed = 0;
+                    } else if (is_weapon_style(
+                                   plyr_pdata->fighter_definition) != 0) {
+                        counter_allowed = 0;
+                    } else {
                         state = plyr_pdata->state;
-                        if (state != 0x1210 && state != 0x1211 &&
-                            state != 0x120B && state != 0x3204 &&
-                            state != 0x3205) {
+                        switch (state) {
+                        case 0x1210:
+                        case 0x1211:
+                        case 0x120B:
+                        case 0x3204:
+                        case 0x3205:
+                            counter_allowed = 0;
+                            break;
+                        default:
                             if (ejb_function_pointers[42] != 0) {
                                 ejb_function_pointers[42]();
                             }
                             counter_allowed = 1;
+                            break;
                         }
                     }
                     if (counter_allowed != 0) {
@@ -3672,7 +3783,7 @@ static void subzero_propell_collision(void) {
             if (his_pdata->collision_disabled != 0) {
                 collision_result = 0;
             } else {
-                set_plyr_attack_region(7, 1.0f);
+                set_plyr_attack_region(7, 1.0f, 0.0f);
                 collision_result = collide_plyr_vs_plyr();
                 if (collision_result == 1) {
                     trial_state_collision_check(
@@ -3703,12 +3814,13 @@ static void subzero_propell_collision(void) {
 }
 
 static void wait_for_backland(void) {
+    MkObj* object;
     MkProc* process;
 
     plyr_obj->flags_08_bits.moving = 1;
     plyr_obj->gravity = -0.01f;
     plyr_obj->pos_vel.y = -0.1f;
-    while (plyr_obj->flags_08_bits.moving) {
+    while ((object = plyr_obj)->flags_08_bits.moving) {
         _mkproc_sleep_ticks = 1.0f;
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     }
@@ -3722,10 +3834,10 @@ static void wait_for_backland(void) {
     if (process != 0 && process != aproc && process->instance != 0) {
         ((EjbProcSleepVtable*)process->vtbl)->destroy();
     }
-    plyr_obj->pos_vel.x = 0.0f;
-    plyr_obj->pos_vel.y = 0.0f;
-    plyr_obj->pos_vel.z = 0.0f;
-    plyr_obj->gravity = 0.0f;
+    object->pos_vel.x = 0.0f;
+    object->pos_vel.y = 0.0f;
+    object->pos_vel.z = 0.0f;
+    object->gravity = 0.0f;
     init_ground_move();
 }
 
@@ -3858,18 +3970,18 @@ int player_area_collision_check(
     }
     if (collide_cylinder_vs_plyr(
             plyr_pdata->his_plyr_pdata->plyr_info,
-            &plyr_obj->pos, &plyr_obj->ang, radius, height) == 0) {
-        return 0;
+            &plyr_obj->pos, &plyr_obj->ang, radius, height) != 0) {
+        player = plyr_pdata == g_game_info.plyr0.slot.pdata;
+        trial_state_collision_check(1, player);
+        if (is_plyr_blocking(his_pdata) != 0) {
+            plyr_pdata->collision_result = 2;
+        } else {
+            plyr_pdata->collision_result = 1;
+        }
+        reaction_xfer_him(reaction, reaction_scale, reaction_flags);
+        return 1;
     }
-    player = plyr_pdata == g_game_info.plyr0.slot.pdata;
-    trial_state_collision_check(1, player);
-    if (is_plyr_blocking(his_pdata) != 0) {
-        plyr_pdata->collision_result = 2;
-    } else {
-        plyr_pdata->collision_result = 1;
-    }
-    reaction_xfer_him(reaction, reaction_scale, reaction_flags);
-    return 1;
+    return 0;
 }
 
 void scorpion_summon_collide(void) {
@@ -4129,8 +4241,9 @@ float back_rollup_check(void) {
     return back_rollup_common(0);
 }
 
-void back_to_crouch(void) {
-    EjbFighterDefinitionExtended* fighter;
+float back_to_crouch(void) {
+    AnimPdata* animation;
+    float target_frame;
 
     force_away(10, 6, 0.05f, 0.8f);
     transition_to_anim_script(
@@ -4139,11 +4252,16 @@ void back_to_crouch(void) {
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     plyr_anim_pdata->step = 1.5f;
-    animpdata_ani_to_frame_x(plyr_anim_pdata, 12.0f);
-    fighter =
-        (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
+    target_frame = 12.0f;
+    animation = plyr_anim_pdata;
+    if (target_frame > animation->high_frame) {
+        target_frame = animation->high_frame;
+    }
+    EJB_ADVANCE_TO_FRAME(animation, target_frame);
     transition_to_anim_script(
-        plyr_anim_pdata, fighter->crouching_animation,
+        plyr_anim_pdata,
+        ((EjbFighterDefinitionExtended*)
+            plyr_pdata->fighter_definition)->crouching_animation,
         0, 0.1f);
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
@@ -4153,6 +4271,7 @@ void back_to_crouch(void) {
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     ((EjbProcSleepVtable*)aproc->vtbl)
         ->transfer(joy_duck_loop, 0.0f);
+    return 0.0f;
 }
 
 float end_of_round_check(void) {
@@ -4446,7 +4565,10 @@ float step_throw_outof_retract(void) {
     return 0.0f;
 }
 
-void step_throw_into_check(void) {
+float step_throw_into_check(void) {
+    AnimPdata* animation;
+    float target_frame;
+
     init_ground_move();
     plyr_pdata->blocking_disabled = 1;
     random_voice(9);
@@ -4461,17 +4583,27 @@ void step_throw_into_check(void) {
     _mkproc_sleep_ticks = 1.0f;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     plyr_anim_pdata->step = 1.6f;
-    animpdata_ani_to_frame_x(plyr_anim_pdata, 8.0f);
+    target_frame = 8.0f;
+    animation = plyr_anim_pdata;
+    if (target_frame > animation->high_frame) {
+        target_frame = animation->high_frame;
+    }
+    EJB_ADVANCE_TO_FRAME(animation, target_frame);
     ani_to_frame_x_col(9, 0xAD, 6, 10.0f, 1.0f, 0.0f, 0.0f);
-    if (plyr_pdata->collision_result == 0 ||
-        (plyr_pdata->collision_result == 2 &&
-         is_he_blocking_throw() != 0)) {
+    if (plyr_pdata->collision_result == 0) {
         ((EjbProcSleepVtable*)aproc->vtbl)
             ->transfer((MkProcEntryFn)step_throw_outof_retract, 0.0f);
-        return;
+        return 0.0f;
+    }
+    if (plyr_pdata->collision_result == 2 &&
+        is_he_blocking_throw() != 0) {
+        ((EjbProcSleepVtable*)aproc->vtbl)
+            ->transfer((MkProcEntryFn)step_throw_outof_retract, 0.0f);
+        return 0.0f;
     }
     plyr_obj->flags_09_bits.face_opponent = 1;
     his_obj->flags_09_bits.face_opponent = 1;
+    return 0.0f;
 }
 
 int get_his_secondary_state(void) {
