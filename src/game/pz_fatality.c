@@ -281,8 +281,13 @@ typedef struct PuzzleFatalityHazardGroup {
 } PuzzleFatalityHazardGroup; /* 0x18 */
 
 typedef struct PuzzleFatalityEngine {
-    PuzzleFighterRenderObject* primary_object;
-    PuzzleFighterRenderObject* secondary_object;
+    union {
+        struct {
+            PuzzleFighterRenderObject* primary_object;
+            PuzzleFighterRenderObject* secondary_object;
+        };
+        PuzzleFighterRenderObject* scene_objects[2];
+    };
     PuzzleFatalityHazardGroup hazard_groups[2]; /* +0x08 */
     struct PuzzleFatalityController* controller; /* +0x38 */
     int active_effect; /* +0x3C */
@@ -310,7 +315,7 @@ typedef struct PuzzleFatalityController {
     float grinder_target[2]; /* +0x44 */
     float chomper_position[2][2]; /* +0x4C */
     float hazard_motion[2][2]; /* +0x5C */
-    int hazard_initialized[3]; /* +0x6C */
+    unsigned int hazard_initialized[3]; /* +0x6C */
     PuzzleAnimPdata* fighter_pdata[2]; /* +0x78 */
 } PuzzleFatalityController;
 
@@ -1966,18 +1971,19 @@ float r_pz_fighter_burn(void) {
     }
 }
 
-/* Broad pass: preround flame pair and randomized ambient flame controller. */
+/*
+ * Soft ceiling: exact-size controller; remaining differences are pooled-string
+ * address scheduling and local string/float relocation labels.
+ */
 float p_burn_controller(void) {
-    PuzzleFatalityController* controller =
-        g_pz_fighter_fatality_engine.controller;
-    unsigned int event;
+    unsigned short event;
     float x;
 
-    if (controller->unload_requested == 1) {
+    if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
         return -1.0f;
     }
 
-    if (controller->preround_active == 1) {
+    if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         _mkproc_sleep_ticks = 60.0f;
         aproc->vtbl->sleep(aproc->vtbl);
         pan_snd_req(0x1AB6, -0.7f);
@@ -1986,38 +1992,49 @@ float p_burn_controller(void) {
         pan_snd_req(0x1AB6, 0.7f);
         x = 0.2f + (screen_width > 650 ? 2.3f : 1.8f);
         bgnd_launch_fx_at_position("roar_flames2", x, 0.0f, 0.0f);
-        controller->hazard_initialized[0] = 120;
-        controller->hazard_initialized[1] = 120;
+        g_pz_fighter_fatality_engine.controller
+            ->hazard_initialized[0] = 120;
+        g_pz_fighter_fatality_engine.controller
+            ->hazard_initialized[1] = 120;
         _mkproc_sleep_ticks = 10.0f;
         aproc->vtbl->sleep(aproc->vtbl);
-        controller->preround_active = 0;
-    } else if (controller->phase == 1) {
-        event = randu0(1000) & 0xFFFF;
-        if (event < 1 && controller->hazard_initialized[0] == 0) {
+        g_pz_fighter_fatality_engine.controller->preround_active = 0;
+    } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
+        event = randu0(1000);
+        if (event < 1 &&
+            g_pz_fighter_fatality_engine.controller
+                    ->hazard_initialized[0] == 0) {
             pan_snd_req(0x1AB6, -0.7f);
             x = (screen_width > 650 ? -2.3f : -1.8f) - 0.15f;
             bgnd_launch_fx_at_position("roar_flames1", x, 0.0f, 0.0f);
-            controller->hazard_initialized[0] = 200;
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_initialized[0] = 200;
         } else if (event < 2 &&
-                   controller->hazard_initialized[1] == 0) {
+                   g_pz_fighter_fatality_engine.controller
+                           ->hazard_initialized[1] == 0) {
             pan_snd_req(0x1AB6, 0.7f);
             x = 0.2f + (screen_width > 650 ? 2.3f : 1.8f);
             bgnd_launch_fx_at_position("roar_flames2", x, 0.0f, 0.0f);
-            controller->hazard_initialized[1] = 200;
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_initialized[1] = 200;
         } else if (event < 2 &&
-                   controller->hazard_initialized[0] == 0) {
+                   g_pz_fighter_fatality_engine.controller
+                           ->hazard_initialized[0] == 0) {
             pan_snd_req(0x1AB6, -0.7f);
             x = (screen_width > 650 ? -2.3f : -1.8f) - 0.15f;
             bgnd_launch_fx_at_position("roar_flames1", x, 0.0f, 0.0f);
-            controller->hazard_initialized[0] = 200;
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_initialized[0] = 200;
         }
     }
 
-    if (controller->hazard_initialized[0] != 0) {
-        controller->hazard_initialized[0]--;
+    if (g_pz_fighter_fatality_engine.controller
+            ->hazard_initialized[0] != 0) {
+        g_pz_fighter_fatality_engine.controller->hazard_initialized[0]--;
     }
-    if (controller->hazard_initialized[1] != 0) {
-        controller->hazard_initialized[1]--;
+    if (g_pz_fighter_fatality_engine.controller
+            ->hazard_initialized[1] != 0) {
+        g_pz_fighter_fatality_engine.controller->hazard_initialized[1]--;
     }
     return 1.0f;
 }
@@ -2043,27 +2060,29 @@ float pz_fighter_objects_falling_victim_crushed(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: exact-size eye launch; residue is aggregate/float relocation
+ * labeling, global-base allocation, and one equivalent bit-test opcode.
+ */
 void pz_fighter_fatality_launch_eyes(void) {
-    static const Vec launch_offset = {0.0f, 0.1f, 0.02f};
-    static const Vec left_offset = {-0.05f, 0.0f, 0.05f};
-    static const Vec right_offset = {0.05f, 0.0f, 0.05f};
+    Vec launch_offset = {0.0f, 0.1f, 0.02f};
+    Vec left_offset = {-0.05f, 0.0f, 0.05f};
+    Vec right_offset = {0.05f, 0.0f, 0.05f};
     PuzzleFighterRenderObject* left_eye;
     PuzzleFighterRenderObject* right_eye;
     PuzzleFighterPhysics* fighter;
     PuzzleBoneData* bone_data;
     MKMATRIX* bone_matrix;
-    Vec rotated_offset;
     Vec bone_position;
     Vec eye_position;
     Vec camera_position;
     Vec camera_direction;
     float angle_offset;
-    float launch_angle;
 
     left_eye = g_pz_fighters_engine.left_eye;
     right_eye = g_pz_fighters_engine.right_eye;
     fighter = (PuzzleFighterPhysics*)g_game_info.player1_physics;
-    if (g_pz_fighters_engine.fatality_attacker == 1) {
+    if ((unsigned int)g_pz_fighters_engine.fatality_attacker == 1) {
         fighter = (PuzzleFighterPhysics*)g_game_info.player2_physics;
     }
 
@@ -2072,10 +2091,11 @@ void pz_fighter_fatality_launch_eyes(void) {
     } else {
         angle_offset = -1.5707964f;
     }
-    launch_angle = fighter->facing_angle + angle_offset;
-    left_eye->facing_angle = launch_angle;
-    right_eye->facing_angle = launch_angle;
-    rotate_xz(&rotated_offset, &launch_offset, launch_angle);
+    left_eye->facing_angle = fighter->facing_angle + angle_offset;
+    right_eye->facing_angle = fighter->facing_angle + angle_offset;
+    rotate_xz(
+        &launch_offset, &launch_offset,
+        fighter->facing_angle + angle_offset);
 
     get_bone_world_pos(
         (PuzzleFighterRenderObject*)fighter, 0x10, &bone_position);
@@ -2097,7 +2117,7 @@ void pz_fighter_fatality_launch_eyes(void) {
     right_eye->y = eye_position.y;
     right_eye->z = eye_position.z;
 
-    left_eye->flags |= 0x20;
+    left_eye->flags_bits.gravity_enabled = 1;
     get_camera_position(&camera_position);
     v3_sub_v3(
         &camera_direction, &camera_position, (Vec*)&left_eye->x);
@@ -2105,7 +2125,7 @@ void pz_fighter_fatality_launch_eyes(void) {
         (Vec*)&left_eye->external_force_x, &camera_direction, 0.02f);
     left_eye->external_force_y -= 0.0008f;
 
-    right_eye->flags |= 0x20;
+    right_eye->flags_bits.gravity_enabled = 1;
     scale_v3(
         (Vec*)&right_eye->external_force_x, &camera_direction, 0.02f);
     right_eye->external_force_y += 0.0013f;
@@ -2131,115 +2151,177 @@ float pz_fighter_objects_falling_actively_fighting(int active) {
     return 0.0f;
 }
 
-/* Broad pass: reveal both three-piece hazards, then orbit their inner debris. */
+/* Matching recovery: repeated address formation remains 96 source bytes short. */
 float p_objects_falling_controller2(void) {
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
-    PuzzleFatalityController* controller = fatality->controller;
     PuzzleFatalityHazardGroup* group;
-    PuzzleFatalityHazardObject* object;
     float x;
-    int i;
-    int j;
+    unsigned int i;
 
-    if (controller->unload_requested == 1) {
+    if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
         return -1.0f;
     }
 
-    if (controller->preround_active == 1) {
+    if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         for (i = 0; i < 2; i++) {
-            group = &fatality->hazard_groups[i];
-            if (controller->hazard_initialized[i] == 1) {
+            group = &g_pz_fighter_fatality_engine.hazard_groups[i];
+            if (g_pz_fighter_fatality_engine.controller
+                    ->hazard_initialized[i] == 1) {
                 x = screen_width > 650 ? 2.1f : 1.7f;
                 if (i == 1) {
                     x = -x;
                 }
-                for (j = 0; j < 3; j++) {
-                    group->objects[j]->x = x;
-                }
+                group->objects[0]->x = x;
+                group->objects[1]->x = x;
+                group->objects[2]->x = x;
                 _mkproc_sleep_ticks = 1.0f;
                 aproc->vtbl->sleep(aproc->vtbl);
-                for (j = 0; j < 3; j++) {
-                    unhide_sobj(group->objects[j]);
-                }
-                controller->hazard_initialized[i] = 0;
+                unhide_sobj(group->objects[0]);
+                unhide_sobj(group->objects[1]);
+                unhide_sobj(group->objects[2]);
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_initialized[i] = 0;
                 group->objects[0]->motion = 0.02f;
                 group->objects[1]->motion = 0.02f;
             }
-            if (controller->hazard_initialized[i] == 0 &&
+            if (g_pz_fighter_fatality_engine.controller
+                        ->hazard_initialized[i] == 0 &&
                 group->objects[0]->y > 4.0f) {
                 group->objects[0]->motion = 0.0f;
                 group->objects[1]->motion = 0.0f;
-                controller->hazard_initialized[i] = 2;
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_initialized[i] = 2;
             }
         }
-    } else if (controller->phase == 1) {
-        if (controller->hazard_initialized[2] == 1) {
-            controller->hazard_motion[0][0] = -0.004f;
-            controller->hazard_motion[1][0] = 0.004f;
-            controller->hazard_initialized[2] = 0;
-        }
-
-        object = fatality->hazard_groups[0].objects[2];
-        if (object->x > 1.7f) {
-            controller->hazard_motion[0][0] = -0.004f;
-        }
-        if (object->x < 0.5f) {
-            controller->hazard_motion[0][0] = 0.004f;
-        }
-        object->x += controller->hazard_motion[0][0];
-        if (controller->hazard_motion[0][0] < 0.0f) {
-            if (object->x < 1.2f) {
-                controller->hazard_motion[0][0] *= 0.98f;
-            } else if (object->x > 1.7f) {
-                controller->hazard_motion[0][0] *= 1.02f;
-            }
-            if (controller->hazard_motion[0][0] < -0.03f) {
-                controller->hazard_motion[0][0] = -0.03f;
-            } else if (controller->hazard_motion[0][0] > -0.004f) {
-                controller->hazard_motion[0][0] = -0.004f;
-            }
-        } else if (controller->hazard_motion[0][0] > 0.0f) {
-            if (object->x > 1.7f) {
-                controller->hazard_motion[0][0] *= 0.98f;
-            } else if (object->x < 1.2f) {
-                controller->hazard_motion[0][0] *= 1.02f;
-            }
-            if (controller->hazard_motion[0][0] > 0.03f) {
-                controller->hazard_motion[0][0] = 0.03f;
-            } else if (controller->hazard_motion[0][0] < 0.004f) {
-                controller->hazard_motion[0][0] = 0.004f;
-            }
+    } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
+        if (g_pz_fighter_fatality_engine.controller
+                ->hazard_initialized[2] == 1) {
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[0][0] = -0.004f;
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[1][0] = 0.004f;
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_initialized[2] = 0;
         }
 
-        object = fatality->hazard_groups[1].objects[2];
-        if (object->x < -1.7f) {
-            controller->hazard_motion[1][0] = 0.004f;
+        if (g_pz_fighter_fatality_engine.hazard_groups[0]
+                .objects[2]
+                ->x > 2.2f) {
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[0][0] = -0.004f;
         }
-        if (object->x > -0.5f) {
-            controller->hazard_motion[1][0] = -0.004f;
+        if (g_pz_fighter_fatality_engine.hazard_groups[0]
+                .objects[2]
+                ->x < 0.5f) {
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[0][0] = 0.004f;
         }
-        object->x += controller->hazard_motion[1][0];
-        if (controller->hazard_motion[1][0] < 0.0f) {
-            if (object->x < -1.7f) {
-                controller->hazard_motion[1][0] *= 0.98f;
-            } else if (object->x > -1.2f) {
-                controller->hazard_motion[1][0] *= 1.02f;
+        g_pz_fighter_fatality_engine.hazard_groups[0].objects[2]->x +=
+            g_pz_fighter_fatality_engine.controller->hazard_motion[0][0];
+        if (g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[0][0] < 0.0f) {
+            if (g_pz_fighter_fatality_engine.hazard_groups[0]
+                    .objects[2]
+                    ->x < 1.2f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] *= 0.98f;
+            } else if (g_pz_fighter_fatality_engine.hazard_groups[0]
+                           .objects[2]
+                           ->x > 1.4f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] *= 1.02f;
             }
-            if (controller->hazard_motion[1][0] < -0.03f) {
-                controller->hazard_motion[1][0] = -0.03f;
-            } else if (controller->hazard_motion[1][0] > -0.004f) {
-                controller->hazard_motion[1][0] = -0.004f;
+            if (g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] < -0.03f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] = -0.03f;
+            } else if (g_pz_fighter_fatality_engine.controller
+                           ->hazard_motion[0][0] > -0.004f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] = -0.004f;
             }
-        } else if (controller->hazard_motion[1][0] > 0.0f) {
-            if (object->x > -1.2f) {
-                controller->hazard_motion[1][0] *= 0.98f;
-            } else if (object->x < -1.7f) {
-                controller->hazard_motion[1][0] *= 1.02f;
+        }
+        if (g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[0][0] > 0.0f) {
+            if (g_pz_fighter_fatality_engine.hazard_groups[0]
+                    .objects[2]
+                    ->x > 1.4f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] *= 0.98f;
+            } else if (g_pz_fighter_fatality_engine.hazard_groups[0]
+                           .objects[2]
+                           ->x < 1.2f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] *= 1.02f;
             }
-            if (controller->hazard_motion[1][0] > 0.03f) {
-                controller->hazard_motion[1][0] = 0.03f;
-            } else if (controller->hazard_motion[1][0] < 0.004f) {
-                controller->hazard_motion[1][0] = 0.004f;
+            if (g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] > 0.03f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] = 0.03f;
+            } else if (g_pz_fighter_fatality_engine.controller
+                           ->hazard_motion[0][0] < 0.004f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[0][0] = 0.004f;
+            }
+        }
+
+        if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                .objects[2]
+                ->x < -2.2f) {
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[1][0] = 0.004f;
+        }
+        if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                .objects[2]
+                ->x > -0.5f) {
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[1][0] = -0.004f;
+        }
+        g_pz_fighter_fatality_engine.hazard_groups[1].objects[2]->x +=
+            g_pz_fighter_fatality_engine.controller->hazard_motion[1][0];
+        if (g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[1][0] < 0.0f) {
+            if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                    .objects[2]
+                    ->x < -1.4f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] *= 0.98f;
+            } else if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                           .objects[2]
+                           ->x > -1.2f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] *= 1.02f;
+            }
+            if (g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] < -0.03f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] = -0.03f;
+            } else if (g_pz_fighter_fatality_engine.controller
+                           ->hazard_motion[1][0] > -0.004f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] = -0.004f;
+            }
+        }
+        if (g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[1][0] > 0.0f) {
+            if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                    .objects[2]
+                    ->x > -1.2f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] *= 0.98f;
+            } else if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                           .objects[2]
+                           ->x < -1.4f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] *= 1.02f;
+            }
+            if (g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] > 0.03f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] = 0.03f;
+            } else if (g_pz_fighter_fatality_engine.controller
+                           ->hazard_motion[1][0] < 0.004f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[1][0] = 0.004f;
             }
         }
     }
@@ -2330,12 +2412,8 @@ float p_grinder_noise(void) {
 float p_grinder_controller(void) {
     PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
     PuzzleFatalityController* controller = fatality->controller;
-    PuzzleFighterRenderObject* grinders[2];
     int changed = 0;
     int i;
-
-    grinders[0] = fatality->primary_object;
-    grinders[1] = fatality->secondary_object;
 
     if (controller->unload_requested == 1) {
         return -1.0f;
@@ -2394,15 +2472,15 @@ float p_grinder_controller(void) {
     if (controller->preround_active == 1 ||
         (controller->phase == 1 && controller->loop_sound != 0)) {
         controller->grinder_target[0] = 0.25f;
-        controller->grinder_target[1] = 0.25f;
         controller->hazard_motion[0][0] = 0.002f;
+        controller->grinder_target[1] = 0.25f;
         controller->hazard_motion[1][0] = 0.002f;
         changed = 1;
 
         if (controller->preround_timer == 0) {
             controller->grinder_target[0] = 0.1f;
-            controller->grinder_target[1] = 0.1f;
             controller->hazard_motion[0][0] = 0.0012f;
+            controller->grinder_target[1] = 0.1f;
             controller->hazard_motion[1][0] = 0.0012f;
             changed = 1;
         } else {
@@ -2442,8 +2520,10 @@ float p_grinder_controller(void) {
             (controller->grinder_position[i] <
                  controller->grinder_target[i] - 0.001f &&
              controller->hazard_motion[i][0] > 0.0f)) {
-            grinders[i]->motion_rate += controller->hazard_motion[i][0];
-            controller->grinder_position[i] = grinders[i]->motion_rate;
+            fatality->scene_objects[i]->motion_rate +=
+                controller->hazard_motion[i][0];
+            controller->grinder_position[i] =
+                fatality->scene_objects[i]->motion_rate;
         }
     }
     return 1.0f;
@@ -3115,14 +3195,16 @@ float r_pz_fighter_grinding(void) {
     return 0.0f;
 }
 
-/* Broad pass: throw reusable flesh chunks across either grinder mouth. */
+/*
+ * Soft ceiling: exact-size controller; remaining differences are automatic-Vec
+ * relocation labels, FPR/GPR allocation, and equivalent object-load scheduling.
+ */
 float p_grinder_meat_throw_controller(void) {
     PuzzleGrinderMeatController* meat =
         (PuzzleGrinderMeatController*)apdata;
     PuzzleFighterRenderObject* object;
     Vec throw_velocity;
     Vec drift_velocity;
-    Vec path_velocity;
     unsigned int choice;
 
     if (meat->delay != 0) {
@@ -3145,26 +3227,27 @@ float p_grinder_meat_throw_controller(void) {
             drift_velocity.x *= -1.0f;
         }
 
-        path_velocity.x = 0.04f;
-        path_velocity.y = 0.08f;
-        path_velocity.z = 0.03f;
-        object = g_pz_fighters_engine.grinder_meat_default;
-        choice = randu0(100);
-        if (choice < 20) {
-            object = g_pz_fighters_engine.grinder_meat_alt0;
-        } else if (choice < 40) {
-            object = g_pz_fighters_engine.grinder_meat_alt1;
-        } else if (choice < 60) {
-            object = g_pz_fighters_engine.grinder_meat_alt2;
-        }
+        {
+            Vec path_velocity = {0.04f, 0.08f, 0.03f};
 
-        unhide_obj(object);
-        ft_create_flesh_path(
-            object, &throw_velocity, 0, 0, &drift_velocity, 0,
-            &path_velocity, 0, -0.004f, 0.5f, 0.1f);
-        meat->object = object;
-        if (meat->object == 0) {
-            return -1.0f;
+            object = g_pz_fighters_engine.grinder_meat_default;
+            choice = randu0(100);
+            if (choice < 20) {
+                object = g_pz_fighters_engine.grinder_meat_alt0;
+            } else if (choice < 40) {
+                object = g_pz_fighters_engine.grinder_meat_alt1;
+            } else if (choice < 60) {
+                object = g_pz_fighters_engine.grinder_meat_alt2;
+            }
+
+            unhide_obj(object);
+            ft_create_flesh_path(
+                object, &throw_velocity, 0, 0, &drift_velocity, 0,
+                &path_velocity, 0, -0.004f, 0.5f, 0.1f);
+            meat->object = object;
+            if (meat->object == 0) {
+                return -1.0f;
+            }
         }
         meat->phase = 1;
         return 1.0f;
