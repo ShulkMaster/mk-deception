@@ -23,31 +23,26 @@ typedef struct PuzzleFatalityProcessTable {
         PuzzleFatalityProcessPair pairs[5];
     };
 } PuzzleFatalityProcessTable;
-typedef struct PuzzleAttackWordPair {
-    unsigned int first;
-    unsigned int second;
-} PuzzleAttackWordPair;
-typedef union PuzzleAttackCopy {
-    PuzzleAttackParameters attack;
-    struct {
-        PuzzleAttackWordPair pairs[7];
-        unsigned int tail;
-    } words;
-} PuzzleAttackCopy;
 
+/*
+ * The seven dispatch wrappers inline these fixed five-pair copies. Retail
+ * selects update-form pair loads/stores; this compiler emits equivalent
+ * explicit pointer increments, leaving each wrapper four bytes larger.
+ * Indexed and explicit-field variants were tested and removed after regressing
+ * or compiling identically.
+ */
 static inline void copy_fatality_fn_table(
     PuzzleFatalityFnTable* destination,
     const PuzzleFatalityFnTable* source) {
     PuzzleFatalityFnPair* output = destination->pairs;
     const PuzzleFatalityFnPair* input = source->pairs;
-    int count = 5;
+    int count;
 
-    do {
+    for (count = 0; count < 5; count++) {
         *output = *input;
         output++;
         input++;
-        count--;
-    } while (count != 0);
+    }
 }
 
 static inline void copy_fatality_process_table(
@@ -55,31 +50,15 @@ static inline void copy_fatality_process_table(
     const PuzzleFatalityProcessTable* source) {
     PuzzleFatalityProcessPair* output = destination->pairs;
     const PuzzleFatalityProcessPair* input = source->pairs;
-    int count = 5;
+    int count;
 
-    do {
+    for (count = 0; count < 5; count++) {
         *output = *input;
         output++;
         input++;
-        count--;
-    } while (count != 0);
+    }
 }
 
-static inline void copy_attack_parameters(
-    PuzzleAttackCopy* destination,
-    const PuzzleAttackCopy* source) {
-    PuzzleAttackWordPair* output = destination->words.pairs;
-    const PuzzleAttackWordPair* input = source->words.pairs;
-    int count = 7;
-
-    do {
-        *output = *input;
-        output++;
-        input++;
-        count--;
-    } while (count != 0);
-    destination->words.tail = source->words.tail;
-}
 typedef struct AniScript AniScript;
 typedef struct PuzzleAnimPdata PuzzleAnimPdata;
 typedef struct MkFileInfo MkFileInfo;
@@ -87,6 +66,27 @@ typedef struct PuzzleParticleEffect PuzzleParticleEffect;
 typedef struct PuzzleFighterRenderObject PuzzleFighterRenderObject;
 typedef struct RpMaterial RpMaterial;
 typedef struct RwTexture RwTexture;
+typedef struct PuzzleScreenPoint {
+    float x;
+    float y;
+    float unused_z; /* Screen-space motion only consumes x/y. */
+} PuzzleScreenPoint;
+
+typedef struct PuzzleObjectFlags {
+    unsigned char bit7 : 1;
+    unsigned char airborne : 1;
+    unsigned char gravity_enabled : 1;
+    unsigned char transform_dirty : 1;
+    unsigned char angular_velocity_enabled : 1;
+    unsigned char rotation_enabled : 1;
+    unsigned char scale_active : 1;
+    unsigned char moving : 1;
+} PuzzleObjectFlags;
+
+typedef struct PuzzleObjectSecondaryFlags {
+    unsigned char stopped : 1;
+    unsigned char pad_low : 7;
+} PuzzleObjectSecondaryFlags;
 
 typedef struct PuzzleProcessVtable {
     char pad00[0x18];
@@ -167,7 +167,7 @@ typedef struct PuzzleFightersEngine {
     unsigned int random_event_cooldown; /* +0x160 */
     int fighter_reaction_cooldown; /* +0x164 */
     char pad168[0x10];
-    int fatality_timer; /* +0x178 */
+    unsigned int fatality_timer; /* +0x178 */
     float fatality_motion; /* +0x17C */
     char pad180[0x64];
     int snake_active; /* +0x1E4 */
@@ -176,26 +176,44 @@ typedef struct PuzzleFightersEngine {
 struct PuzzleFighterRenderObject {
     char pad00[4];
     unsigned int instance; /* +0x04 */
-    unsigned char flags; /* +0x08 */
-    unsigned char secondary_flags; /* +0x09 */
+    union {
+        unsigned char flags; /* +0x08 */
+        PuzzleObjectFlags flags_bits;
+    };
+    union {
+        unsigned char secondary_flags; /* +0x09 */
+        PuzzleObjectSecondaryFlags secondary_flags_bits;
+    };
     char pad0A[0x22];
     int model_flags; /* +0x2C */
     float hazard_x; /* +0x30 */
     float hazard_y; /* +0x34 */
     float hazard_z; /* +0x38 */
     char pad3C[0x64];
-    float x; /* +0xA0 */
-    float y; /* +0xA4 */
-    float z; /* +0xA8 */
+    union {
+        Vec position; /* +0xA0 */
+        struct {
+            float x;
+            float y;
+            float z;
+        };
+    };
     char padAC[4];
     float external_force_x; /* +0xB0 */
     float external_force_y; /* +0xB4 */
     float external_force_z; /* +0xB8 */
     char padBC[0x18];
     float facing_angle; /* +0xD4 */
-    char padD8[0x0C];
-    float motion_rate; /* +0xE4 */
-    char padE8[8];
+    char padD8[8];
+    union {
+        Vec angular_velocity; /* +0xE0 */
+        struct {
+            float angular_velocity_x;
+            float motion_rate; /* +0xE4 */
+            float angular_velocity_z;
+        };
+    };
+    char padEC[4];
     Vec scale; /* +0xF0 */
 };
 
@@ -241,8 +259,12 @@ typedef struct PuzzleBoneObjectView {
 
 typedef struct PuzzleFatalityHazardObject {
     char pad00[8];
-    unsigned char flags; /* +0x08 */
-    char pad09[0x23];
+    union {
+        unsigned char flags; /* +0x08 */
+        PuzzleObjectFlags flags_bits;
+    };
+    char pad09[0x1F];
+    float field_28; /* +0x28 - priority/depth control */
     int model_flags; /* +0x2C */
     float x; /* +0x30 */
     float y; /* +0x34 */
@@ -254,8 +276,8 @@ typedef struct PuzzleFatalityHazardObject {
 } PuzzleFatalityHazardObject;
 
 typedef struct PuzzleFatalityHazardGroup {
-    PuzzleFatalityHazardObject* objects[3]; /* +0x00 */
-    char pad0C[0x0C];
+    PuzzleFatalityHazardObject* objects[4]; /* +0x00 */
+    char pad10[8];
 } PuzzleFatalityHazardGroup; /* 0x18 */
 
 typedef struct PuzzleFatalityEngine {
@@ -283,7 +305,7 @@ typedef struct PuzzleFatalityController {
     int preround_timer; /* +0x2C */
     int loop_sound; /* +0x30 */
     float phase_time; /* +0x34 */
-    int preround_sound_started; /* +0x38 */
+    unsigned int preround_sound_started; /* +0x38 */
     float grinder_position[2]; /* +0x3C */
     float grinder_target[2]; /* +0x44 */
     float chomper_position[2][2]; /* +0x4C */
@@ -294,8 +316,8 @@ typedef struct PuzzleFatalityController {
 
 typedef struct PuzzleGrinderMeatController {
     char pad00[8];
-    int direction; /* +0x08 */
-    int delay; /* +0x0C */
+    unsigned int direction; /* +0x08 */
+    unsigned int delay; /* +0x0C */
     int phase; /* +0x10 */
     PuzzleFighterRenderObject* object; /* +0x14 */
 } PuzzleGrinderMeatController;
@@ -319,6 +341,14 @@ typedef struct PuzzleFleshchunkPdata {
     char pad00[8];
     PuzzleFighterRenderObject* object; /* +0x08 */
     unsigned int object_instance; /* +0x0C */
+    int bounce_count; /* +0x10 */
+    Vec initial_velocity; /* +0x14 */
+    float gravity; /* +0x20 */
+    int (*completion_callback)(void); /* +0x24 */
+    char pad28[8];
+    int field_30; /* +0x30 */
+    float bounce_decay; /* +0x34 */
+    float floor_height; /* +0x38 */
 } PuzzleFleshchunkPdata;
 
 typedef struct PuzzleFaceBleedProcess {
@@ -451,6 +481,7 @@ void resume_effect_at_obj_bid(
 void pz_fighter_walk_FB_true(
     int (*continue_test)(void), unsigned int duration, int forward);
 void unhide_obj(PuzzleFighterRenderObject* object);
+void hide_sobj(PuzzleFatalityHazardObject* object);
 RpMaterial* sobj_find_material_with_texture(
     PuzzleFatalityHazardObject* object, const char* texture);
 void RpMaterialSetTexture(RpMaterial* material, RwTexture* texture);
@@ -460,11 +491,17 @@ float frand(float range);
 void spawn_bld_fall(
     const char* effect, int flags, float* position, Vec* velocity,
     PuzzlePlayerData* player_data);
-void ft_create_flesh_path(
-    PuzzleFighterRenderObject* object, float* position, int active, int flags,
+PuzzleFleshchunkPdata* ft_create_flesh_path(
+    PuzzleFighterRenderObject* object, Vec* position, int active,
+    int flags,
     const Vec* initial_velocity, int mode, const Vec* terminal_velocity,
     int (*completion_callback)(void), float gravity, float bounce,
     float scale);
+PuzzleFaceBleedProcess* _create_mkproc_generic_nostack(
+    int pid, int priority, PuzzleFatalityProcessFn entry, int pdata_size,
+    PuzzleFleshchunkPdata** process_data);
+void zero_pdata_payload(int size, void* process_data);
+float sfrand_ab(float minimum, float maximum);
 PuzzleFaceBleedProcess* _create_mkproc_generic_bigstack(
     int pid, int priority, PuzzleFatalityProcessFn entry, int pdata_size,
     PuzzleFaceBleedPdata** process_data);
@@ -506,6 +543,12 @@ float pz_fighter_wipe_blood_off(void);
 float pz_fighter_won2(void);
 void pz_fighter_fatality_launch_eyes(void);
 void pz_fighter_shake_camera(int duration, float strength);
+void pz_fighters_fatality_bird_in_place(int elapsed);
+void pz_fighter_anim_object_to(
+    unsigned int player, int mirror, int frame, const PuzzleScreenPoint* start,
+    const PuzzleScreenPoint* target, const Vec* velocity, int minimum_velocity_y,
+    unsigned int target_ticks, float frame_rate, float gravity_step,
+    int bounce, void (*arrival)(int));
 void unhide_sobj(PuzzleFatalityHazardObject* object);
 void transition_to_anim_script_frame(
     PuzzleAnimPdata* pdata, AniScript* animation, float frame, float blend);
@@ -628,7 +671,7 @@ float pz_fighters_lightning_fatality_prep(void);
 float pz_fighters_snake_fatality_prep(void);
 float pz_fighters_burn_fatality_prep(void);
 
-void pz_fighters_grinder_fatality_preround(void);
+float pz_fighters_grinder_fatality_preround(void);
 float pz_fighters_chomper_preround(void);
 float pz_fighters_chomper2_preround(void);
 float pz_fighters_objects_falling_preround(void);
@@ -636,6 +679,10 @@ float pz_fighters_lightning_preround(void);
 float pz_fighters_snake_fatality_preround(void);
 float pz_fighters_burn_fatality_preround(void);
 
+/*
+ * Soft ceiling: retail keeps a redundant positive branch plus a shared-return
+ * branch; clean C emits one inverse branch to the same zero result.
+ */
 int pz_fighter_check_fatality_random_event(void) {
     PuzzleFightersEngine* engine = &g_pz_fighters_engine;
     PuzzleFatalityRandomEvent* event = &engine->random_event;
@@ -651,30 +698,26 @@ int pz_fighter_check_fatality_random_event(void) {
     }
 
     event->state = 3;
-    if (engine->fatality_index != 0) {
-        return 0;
-    }
-    if (engine->random_event_cooldown != 0) {
-        return 0;
-    }
-
-    if (engine->balance < -0.65f) {
-        event->active = 1;
-        event->side = 0;
-        pz_fighter_process_random_fatality_event(
-            event, pz_fighter_attempt_push_into_grinder);
-        engine->random_event_cooldown =
-            (randu0(120) & 0xFFFF) + 180;
-        return 1;
-    }
-    if (engine->balance > 0.65f) {
-        event->active = 1;
-        event->side = 1;
-        pz_fighter_process_random_fatality_event(
-            event, pz_fighter_attempt_push_into_grinder);
-        engine->random_event_cooldown =
-            (randu0(120) & 0xFFFF) + 180;
-        return 1;
+    if (g_pz_fighters_engine.fatality_index == 0 &&
+        engine->random_event_cooldown == 0) {
+        if (g_pz_fighters_engine.balance < -0.65f) {
+            event->active = 1;
+            event->side = 0;
+            pz_fighter_process_random_fatality_event(
+                event, pz_fighter_attempt_push_into_grinder);
+            engine->random_event_cooldown =
+                (randu0(120) & 0xFFFF) + 180;
+            return 1;
+        }
+        if (g_pz_fighters_engine.balance > 0.65f) {
+            event->active = 1;
+            event->side = 1;
+            pz_fighter_process_random_fatality_event(
+                event, pz_fighter_attempt_push_into_grinder);
+            engine->random_event_cooldown =
+                (randu0(120) & 0xFFFF) + 180;
+            return 1;
+        }
     }
     return 0;
 }
@@ -685,7 +728,7 @@ int pz_fighter_fatality_during_round_stuff_over(void) {
 
 void pz_fighters_fatality_preround_event(void) {
     static const PuzzleFatalityFnTable source = {
-        pz_fighters_grinder_fatality_preround,
+        (PuzzleFatalityFn)pz_fighters_grinder_fatality_preround,
         (PuzzleFatalityFn)pz_fighters_chomper_preround,
         (PuzzleFatalityFn)pz_fighters_chomper2_preround,
         (PuzzleFatalityFn)pz_fighters_objects_falling_preround,
@@ -771,8 +814,9 @@ float pz_fighters_grinder_fatality_in_progress(void) {
 }
 
 /* Broad pass: lightning victim transfer and victory gate, ~83.66%. */
+/* Exact in the canonical report; focused residue is the zero relocation. */
 float pz_fighters_lightning_fatality_in_progress(void) {
-    PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
+    PuzzleFightersEngine* fighters;
     PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
     PuzzlePlayerData* victim_data;
 
@@ -780,10 +824,12 @@ float pz_fighters_lightning_fatality_in_progress(void) {
     case 2:
         fatality->active_effect = 3;
         xfer_proc(
-            pz_fighter_get_player_proc(fighters->fatality_attacker),
+            pz_fighter_get_player_proc(
+                g_pz_fighters_engine.fatality_attacker),
             pz_fighter_lightning_strike_victim_1);
         break;
     case 3:
+        fighters = &g_pz_fighters_engine;
         victim_data = pz_get_pdata_by_id(fighters->fatality_victim);
         if (victim_data->transition_locked == 0) {
             xfer_proc(
@@ -796,49 +842,60 @@ float pz_fighters_lightning_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/* Broad pass: falling-object impact and victory flow, ~66.19%. */
+/*
+ * Soft ceiling: exact-size retail state machine. Residue is stack-slot and
+ * FPR/GPR allocation, branch-local Vec scheduling, and constant relocations.
+ */
 float pz_fighters_objects_falling_fatality_in_progress(void) {
-    static const Vec bone_offset = {0.0f, 0.6f, 0.0f};
-    PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
-    PuzzleFatalityHazardObject* falling_object =
-        fatality->hazard_groups[0].objects[0];
+    PuzzleFatalityHazardObject* falling_object;
     PuzzlePlayerData* victim_data;
     Vec impact_position;
 
-    switch (fatality->active_effect) {
-    case 2:
+    switch (g_pz_fighter_fatality_engine.active_effect) {
+    case 2: {
+        Vec bone_offset = {0.0f, 0.6f, 0.0f};
+
         get_bone_world_pos(
-            pz_fighter_get_player_obj(fighters->fatality_attacker), 0x10,
+            pz_fighter_get_player_obj(
+                g_pz_fighters_engine.fatality_attacker),
+            0x10,
             &impact_position);
+        falling_object =
+            g_pz_fighter_fatality_engine.hazard_groups[0].objects[0];
         impact_position.x += bone_offset.x;
         impact_position.y += bone_offset.y;
         impact_position.z += bone_offset.z;
 
         if (falling_object->y <= impact_position.y) {
-            fatality->active_effect = 3;
+            g_pz_fighter_fatality_engine.active_effect = 3;
             pz_fighter_fatality_launch_eyes();
             snd_req_vol(0x1AC9, 1.0f);
             snd_req(0x1ACA);
             snd_req_delay(0x1ADC, 10);
             snd_req_delay(0x1ADC, 22);
             xfer_proc(
-                pz_fighter_get_player_proc(fighters->fatality_attacker),
+                pz_fighter_get_player_proc(
+                    g_pz_fighters_engine.fatality_attacker),
                 pz_fighter_objects_falling_victim_crushed);
             pz_fighter_shake_camera(3, 0.03f);
         } else {
             falling_object->motion -= 0.017f;
         }
         break;
+    }
     case 3:
-        victim_data = pz_get_pdata_by_id(fighters->fatality_victim);
+        falling_object =
+            g_pz_fighter_fatality_engine.hazard_groups[0].objects[0];
+        victim_data = pz_get_pdata_by_id(
+            g_pz_fighters_engine.fatality_victim);
         if (falling_object->y < 0.25f) {
             falling_object->motion = 0.0f;
-            falling_object->flags &= (unsigned char)~0x20;
+            falling_object->flags_bits.gravity_enabled = 0;
         }
         if (victim_data->transition_locked == 0) {
             xfer_proc(
-                pz_fighter_get_player_proc(fighters->fatality_victim),
+                pz_fighter_get_player_proc(
+                    g_pz_fighters_engine.fatality_victim),
                 pz_fighter_won2);
         }
         break;
@@ -1122,7 +1179,7 @@ float pz_fighters_chomper_fatality_in_progress(void) {
             if (fighters->fatality_motion == 1.0f &&
                 flesh_path_timer <= 0.0f) {
                 ft_create_flesh_path(
-                    flesh_object, &flesh_object->x, 1, 0,
+                    flesh_object, &flesh_object->position, 1, 0,
                     &flesh_velocity, 0, &flesh_terminal_velocity,
                     dropped_heart_snd_cb, -0.0015f, 0.7f, 0.1f);
                 fatality->active_effect = 6;
@@ -1152,6 +1209,489 @@ float pz_fighters_chomper_fatality_in_progress(void) {
     }
 
     return 0.0f;
+}
+
+/*
+ * Soft ceiling: 96.15151% in the full-TU report. The automatic Vec restores
+ * retail's 0x40 stack frame and complete instruction shape, while the TU's
+ * pooled-string mode restores @stringBase0 addressing for both effects.
+ * Residue is FPR/GPR allocation, one subtract scheduling choice, and local
+ * constant/string relocation labels.
+ */
+float pz_fighter_chomper2_victim_crushed(void) {
+    Vec blood_offset = {0.05f, 0.0f, 0.0f};
+    float blood_x;
+    float blood_z;
+
+    if (plyr_pdata->side == 0) {
+        blood_x = g_pz_fighters_engine.fighter_posts[1].x + blood_offset.x;
+        blood_z = g_pz_fighters_engine.fighter_posts[1].z + blood_offset.z;
+    } else {
+        blood_x = g_pz_fighters_engine.fighter_posts[0].x - blood_offset.x;
+        blood_z = g_pz_fighters_engine.fighter_posts[0].z - blood_offset.z;
+    }
+    blood_z -= 0.2f;
+    bgnd_launch_fx_at_position(
+        "blood_crush_fx", blood_x, 0.1f, blood_z);
+    if (plyr_pdata->side == 1) {
+        bgnd_set_fx_ang_y(3.1415927f);
+    }
+    init_ground_move();
+    blend_to_ani(pz_shared_ani.objects_falling_crushed, 3, 0.1f);
+    set_ani_speed(0.2f);
+    obj_set_bone_collapse_flag(plyr_obj, 0x10);
+    obj_set_bone_collapse_flag(plyr_obj, 9);
+    ani_loop_more_frames(2.0f);
+    bgnd_launch_fx_at_position(
+        "blood_splat_fx", blood_x, 0.1f, blood_z);
+    ani_to_end();
+    obj_set_bone_collapse_flag(plyr_obj, 0x14);
+    obj_set_bone_collapse_flag(plyr_obj, 0x15);
+    aproc->vtbl->transfer(pz_fighter_completely_prone, 0.0f);
+    return 0.0f;
+}
+
+static inline void pz_chomper_start_motion(
+    int side, float target, float motion) {
+    PuzzleFatalityController* controller =
+        g_pz_fighter_fatality_engine.controller;
+
+    controller->chomper_position[side][0] = target;
+    controller->hazard_motion[side][0] = motion;
+}
+
+static inline int pz_chomper_update_state(
+    PuzzleFatalityController* controller, int side, int fighting) {
+    float pan;
+    int changed;
+
+    pan = side == 0 ? -0.5f : 0.5f;
+    changed = 0;
+    switch (controller->hazard_initialized[side]) {
+    case 1:
+        if (fighting != 0) {
+            controller->hazard_initialized[side] = 2;
+            controller->hazard_motion[side][0] = 0.0f;
+        } else {
+            pan_vol_snd_req(0x1AAD, pan, 1.0f);
+            controller->hazard_initialized[side] = 2;
+            pz_chomper_start_motion(side, 2.5f, 0.06f);
+            changed = 1;
+        }
+        break;
+    case 2:
+        if (controller->hazard_motion[side][0] == 0.0f) {
+            pan_vol_snd_req(0x1AAC, pan, 1.0f);
+            controller->hazard_initialized[side] = 3;
+            pz_chomper_start_motion(side, 0.0f, 0.2f);
+            changed = 1;
+        }
+        break;
+    case 3:
+        if (controller->hazard_motion[side][0] == 0.0f) {
+            pan_vol_snd_req(0x1AAE, pan, 1.0f);
+            pz_fighter_shake_camera(1, 0.02f);
+            controller->hazard_initialized[side] = 4;
+            pz_chomper_start_motion(side, 2.5f, 0.06f);
+            changed = 1;
+        }
+        break;
+    case 4:
+        if (controller->hazard_motion[side][0] == 0.0f) {
+            if (fighting != 0) {
+                controller->hazard_initialized[side] = 5;
+                controller->preround_timer =
+                    (int)(randu0(250) & 0xFFFF) + 250;
+            } else {
+                controller->hazard_initialized[side] = 0;
+            }
+        }
+        break;
+    }
+    return changed;
+}
+
+static inline void pz_chomper_reverse_motion(
+    PuzzleFatalityController* controller, int side, int object_count) {
+    PuzzleFatalityHazardObject* object;
+    int object_index;
+
+    for (object_index = 0; object_index < object_count; object_index++) {
+        object = g_pz_fighter_fatality_engine
+                     .hazard_groups[side].objects[object_index];
+        if (object->y > controller->chomper_position[side][object_index] &&
+            controller->hazard_motion[side][object_index] > 0.0f) {
+            controller->hazard_motion[side][object_index] *= -1.0f;
+        }
+    }
+}
+
+static inline void pz_chomper_apply_motion(
+    PuzzleFatalityController* controller, int side, int object_count,
+    int fighting) {
+    PuzzleFatalityHazardObject* object;
+    float target;
+    float motion;
+    int object_index;
+
+    for (object_index = 0; object_index < object_count; object_index++) {
+        object = g_pz_fighter_fatality_engine
+                     .hazard_groups[side].objects[object_index];
+        target = controller->chomper_position[side][object_index];
+        motion = controller->hazard_motion[side][object_index];
+        if ((object->y > target + 0.13f && motion < 0.0f) ||
+            (object->y < target - 0.13f && motion > 0.0f)) {
+            object->motion = motion;
+        } else if (fighting == 0 || controller->phase == 1) {
+            object->motion = 0.0f;
+            controller->hazard_motion[side][object_index] = 0.0f;
+        }
+    }
+}
+
+float p_chomper2_controller(void) {
+    PuzzleFatalityController* controller;
+    const int object_count = 1;
+    const unsigned int bird_chance = 20;
+    PuzzleScreenPoint bird_start_right;
+    PuzzleScreenPoint bird_target_right;
+    PuzzleScreenPoint bird_start_left;
+    PuzzleScreenPoint bird_target_left;
+    int motion_changed;
+    int side;
+
+    controller = g_pz_fighter_fatality_engine.controller;
+    motion_changed = 0;
+    if (controller->unload_requested == 1) {
+        return -1.0f;
+    }
+    if (controller->phase == 1) {
+        if (controller->hazard_initialized[0] == 0 &&
+            controller->hazard_initialized[1] == 0 &&
+            (randu0(1000) & 0xFFFF) < 10) {
+            if ((randu0(100) & 0xFFFF) < 50) {
+                if ((randu0(100) & 0xFFFF) < bird_chance) {
+                    bird_start_right.x = 640.0f;
+                    bird_start_right.y = 230.0f;
+                    bird_target_right.x = 50.0f;
+                    bird_target_right.y = 60.0f;
+                    pz_fighter_anim_object_to(
+                        0, 1, 0, &bird_start_right, &bird_target_right,
+                        0, 0, 120,
+                        1.0f, 0.0f, 1,
+                        pz_fighters_fatality_bird_in_place);
+                    controller->hazard_initialized[1] = 6;
+                } else {
+                    controller->hazard_initialized[1] = 1;
+                    pz_chomper_start_motion(1, 2.5f, 0.28f);
+                    motion_changed = 1;
+                }
+            } else if ((randu0(100) & 0xFFFF) < bird_chance) {
+                bird_start_left.x = 0.0f;
+                bird_start_left.y = 230.0f;
+                bird_target_left.x = 580.0f;
+                bird_target_left.y = 60.0f;
+                pz_fighter_anim_object_to(
+                    0, 0, 0, &bird_start_left, &bird_target_left,
+                    0, 0, 120,
+                    1.0f, 0.0f, 1,
+                    pz_fighters_fatality_bird_in_place);
+                controller->hazard_initialized[0] = 6;
+            } else {
+                controller->hazard_initialized[0] = 1;
+                pz_chomper_start_motion(0, 2.5f, 0.28f);
+                motion_changed = 1;
+            }
+        }
+        if (controller->hazard_initialized[1] == 8) {
+            controller->hazard_initialized[1] = 1;
+            pz_chomper_start_motion(1, 2.5f, 0.55f);
+            motion_changed = 1;
+        }
+        if (controller->hazard_initialized[0] == 7) {
+            controller->hazard_initialized[0] = 1;
+            pz_chomper_start_motion(0, 2.5f, 0.55f);
+            motion_changed = 1;
+        }
+        for (side = 0; side < 2; side++) {
+            if (pz_chomper_update_state(controller, side, 1) != 0) {
+                motion_changed = 1;
+            }
+        }
+        if (controller->preround_timer != 0) {
+            controller->preround_timer--;
+            if (controller->preround_timer == 0) {
+                controller->hazard_initialized[0] = 0;
+                controller->hazard_initialized[1] = 0;
+            }
+        }
+        if (motion_changed != 0) {
+            for (side = 0; side < 2; side++) {
+                pz_chomper_reverse_motion(controller, side, object_count);
+            }
+        }
+        for (side = 0; side < 2; side++) {
+            pz_chomper_apply_motion(controller, side, object_count, 1);
+        }
+        return 1.0f;
+    } else if (controller->preround_active == 1) {
+        switch (controller->preround_sound_started) {
+        case 0:
+            controller->hazard_initialized[0] = 1;
+            controller->preround_sound_started++;
+            break;
+        case 1:
+            if (controller->hazard_initialized[0] == 0) {
+                controller->hazard_initialized[1] = 1;
+                controller->preround_sound_started++;
+            }
+            break;
+        case 2:
+            if (controller->hazard_initialized[1] == 0) {
+                controller->preround_sound_started++;
+                return 1.0f;
+            }
+            break;
+        case 3:
+            if (g_pz_fighter_fatality_engine.primary_object->hazard_x <=
+                    -0.5f &&
+                g_pz_fighter_fatality_engine.secondary_object->hazard_x >=
+                    0.5f) {
+                controller->preround_active = 0;
+                controller->preround_sound_started += 2;
+                return 1.0f;
+            }
+            _mkproc_sleep_ticks = 20.0f;
+            aproc->vtbl->sleep(aproc->vtbl);
+            controller->preround_sound_started++;
+            return 1.0f;
+        case 4:
+            g_pz_fighter_fatality_engine.primary_object->hazard_x -= 0.02f;
+            g_pz_fighter_fatality_engine.secondary_object->hazard_x += 0.02f;
+            if (g_pz_fighter_fatality_engine.primary_object->hazard_x <=
+                    -0.6f &&
+                g_pz_fighter_fatality_engine.secondary_object->hazard_x >=
+                    0.6f) {
+                controller->preround_active = 0;
+                controller->preround_sound_started++;
+            }
+            return 1.0f;
+        }
+        for (side = 0; side < 2; side++) {
+            if (pz_chomper_update_state(controller, side, 0) != 0) {
+                motion_changed = 1;
+            }
+        }
+        if (motion_changed != 0) {
+            for (side = 0; side < 2; side++) {
+                pz_chomper_reverse_motion(controller, side, object_count);
+            }
+        }
+        for (side = 0; side < 2; side++) {
+            pz_chomper_apply_motion(controller, side, object_count, 0);
+        }
+        return 1.0f;
+    } else {
+        controller->hazard_initialized[0] = 0;
+        controller->hazard_initialized[1] = 0;
+        return 1.0f;
+    }
+    return 1.0f;
+}
+
+float p_chomper_controller(void) {
+    PuzzleFatalityController* controller;
+    PuzzleScreenPoint bird_start_right;
+    PuzzleScreenPoint bird_target_right;
+    PuzzleScreenPoint bird_start_left;
+    PuzzleScreenPoint bird_target_left;
+    int motion_changed;
+    int side;
+
+    controller = g_pz_fighter_fatality_engine.controller;
+    motion_changed = 0;
+    if (controller->unload_requested == 1) {
+        return -1.0f;
+    }
+    if (controller->phase == 1) {
+        if (controller->hazard_initialized[0] == 0 &&
+            controller->hazard_initialized[1] == 0 &&
+            (randu0(1000) & 0xFFFF) < 10) {
+            if ((randu0(100) & 0xFFFF) < 50) {
+                if ((randu0(100) & 0xFFFF) < 5) {
+                    bird_start_right.x = 640.0f;
+                    bird_start_right.y = 230.0f;
+                    bird_target_right.x = 50.0f;
+                    bird_target_right.y = 60.0f;
+                    pz_fighter_anim_object_to(
+                        0, 1, 0, &bird_start_right, &bird_target_right,
+                        0, 0, 120,
+                        1.0f, 0.0f, 1,
+                        pz_fighters_fatality_bird_in_place);
+                    controller->hazard_initialized[1] = 6;
+                } else {
+                    controller->hazard_initialized[1] = 1;
+                    pz_chomper_start_motion(1, 2.5f, 0.28f);
+                    motion_changed = 1;
+                }
+            } else if ((randu0(100) & 0xFFFF) < 5) {
+                bird_start_left.x = 0.0f;
+                bird_start_left.y = 230.0f;
+                bird_target_left.x = 580.0f;
+                bird_target_left.y = 60.0f;
+                pz_fighter_anim_object_to(
+                    0, 0, 0, &bird_start_left, &bird_target_left,
+                    0, 0, 120,
+                    1.0f, 0.0f, 1,
+                    pz_fighters_fatality_bird_in_place);
+                controller->hazard_initialized[0] = 6;
+            } else {
+                controller->hazard_initialized[0] = 1;
+                pz_chomper_start_motion(0, 2.5f, 0.28f);
+                motion_changed = 1;
+            }
+        }
+        if (controller->hazard_initialized[1] == 8) {
+            controller->hazard_initialized[1] = 1;
+            pz_chomper_start_motion(1, 2.5f, 0.55f);
+            motion_changed = 1;
+        }
+        if (controller->hazard_initialized[0] == 7) {
+            controller->hazard_initialized[0] = 1;
+            pz_chomper_start_motion(0, 2.5f, 0.55f);
+            motion_changed = 1;
+        }
+        for (side = 0; side < 2; side++) {
+            if (pz_chomper_update_state(controller, side, 1) != 0) {
+                motion_changed = 1;
+            }
+        }
+        if (controller->preround_timer != 0) {
+            controller->preround_timer--;
+            if (controller->preround_timer == 0) {
+                controller->hazard_initialized[0] = 0;
+                controller->hazard_initialized[1] = 0;
+            }
+        }
+        if (motion_changed != 0) {
+            for (side = 0; side < 2; side++) {
+                pz_chomper_reverse_motion(controller, side, 2);
+            }
+        }
+        for (side = 0; side < 2; side++) {
+            pz_chomper_apply_motion(controller, side, 2, 1);
+        }
+        return 1.0f;
+    } else if (controller->preround_active == 1) {
+        switch (controller->preround_sound_started) {
+        case 0:
+            controller->hazard_initialized[0] = 1;
+            controller->preround_sound_started++;
+            break;
+        case 1:
+            if (controller->hazard_initialized[0] == 0) {
+                controller->hazard_initialized[1] = 1;
+                controller->preround_sound_started++;
+            }
+            break;
+        case 2:
+            if (controller->hazard_initialized[1] == 0) {
+                controller->preround_active = 0;
+                controller->preround_sound_started++;
+            }
+            break;
+        }
+        for (side = 0; side < 2; side++) {
+            if (pz_chomper_update_state(controller, side, 0) != 0) {
+                motion_changed = 1;
+            }
+        }
+        if (motion_changed != 0) {
+            for (side = 0; side < 2; side++) {
+                pz_chomper_reverse_motion(controller, side, 2);
+            }
+        }
+        for (side = 0; side < 2; side++) {
+            pz_chomper_apply_motion(controller, side, 2, 0);
+        }
+        return 1.0f;
+    } else {
+        controller->hazard_initialized[0] = 0;
+        controller->hazard_initialized[1] = 0;
+        return 1.0f;
+    }
+    return 1.0f;
+}
+
+void pz_fighter_set_objects_falling_obj(
+    PuzzleFighterRenderObject* object1,
+    PuzzleFighterRenderObject* object2) {
+    int side;
+    unsigned int index;
+
+    g_pz_fighter_fatality_engine.primary_object = object1;
+    g_pz_fighter_fatality_engine.secondary_object = object2;
+    obj_create_sobjs(object1);
+    obj_create_sobjs(object2);
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[0] =
+        obj_find_sobj_by_id(object1, 1);
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[1] =
+        obj_find_sobj_by_id(object1, 3);
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[2] =
+        obj_find_sobj_by_id(object1, 4);
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[3] =
+        obj_find_sobj_by_id(object1, 5);
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[0] =
+        obj_find_sobj_by_id(object2, 1);
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[1] =
+        obj_find_sobj_by_id(object2, 3);
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[2] =
+        obj_find_sobj_by_id(object2, 4);
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[3] =
+        obj_find_sobj_by_id(object2, 5);
+    unhide_obj(object1);
+    unhide_obj(object2);
+
+    for (index = 0; index < 4; index++) {
+        hide_sobj(
+            g_pz_fighter_fatality_engine.hazard_groups[0].objects[index]);
+        hide_sobj(
+            g_pz_fighter_fatality_engine.hazard_groups[1].objects[index]);
+    }
+    for (side = 0; side < 2; side++) {
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[0]->flags_bits.gravity_enabled = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[1]->flags_bits.gravity_enabled = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[2]->flags_bits.gravity_enabled = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[0]->flags_bits.airborne = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[1]->flags_bits.airborne = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[2]->flags_bits.airborne = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[0]->flags_bits.scale_active = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[0]->scale.x = 0.5f;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[0]->scale.y = 0.5f;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[0]->scale.z = 0.5f;
+        g_pz_fighter_fatality_engine.hazard_groups[side].objects[1]->y -=
+            0.65f;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[2]->flags_bits.scale_active = 1;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[2]->scale.x = 0.7f;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[2]->scale.y = 0.7f;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[2]->scale.z = 0.7f;
+        g_pz_fighter_fatality_engine.hazard_groups[side]
+            .objects[2]->field_28 = 50.0f;
+    }
 }
 
 float pz_fighter_chomper_victim_crushed(void) {
@@ -1258,16 +1798,13 @@ float r_pz_fighter_rx_get_to_point(void) {
 }
 
 float pz_fighter_fatality_victim_to_exact_spot(void) {
-    static const PuzzleAttackCopy source = {{
+    PuzzleAttackParameters attack = {
         45.0f, 0.1f, 1.3f, 0x00010001, 0x00070007, 3,
         0.4f, 0.8f, 3.1f, 55.0f, 47.0f, 1, 0, 0, 0,
-    }};
-    PuzzleAttackCopy attack;
-
-    copy_attack_parameters(&attack, &source);
+    };
 
     set_my_state(0x120B);
-    pz_fighter_attack(pz_shared_ani.push_into_grinder, &attack.attack, 0x38);
+    pz_fighter_attack(pz_shared_ani.push_into_grinder, &attack, 0x38);
     g_pz_fighters_engine.fatality_ready = 1;
     ani_to_end();
     aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
@@ -1275,17 +1812,14 @@ float pz_fighter_fatality_victim_to_exact_spot(void) {
 }
 
 float pz_fighter_fatality_good_solid_kick(void) {
-    static const PuzzleAttackCopy source = {{
+    PuzzleAttackParameters attack = {
         11.0f, 0.1f, 0.9f, 0x00010001, 0x00070008, 3,
         0.2f, 0.75f, 1.35f, 14.0f, 12.0f, 1, 1, 1, 0,
-    }};
-    PuzzleAttackCopy attack;
-
-    copy_attack_parameters(&attack, &source);
+    };
 
     set_my_state(0x1200);
     head_tracking_off();
-    pz_fighter_attack(pz_shared_ani.solid_kick, &attack.attack, 0x18);
+    pz_fighter_attack(pz_shared_ani.solid_kick, &attack, 0x18);
     force_forward(0.02f, 9, 0.5f, 3);
     g_pz_fighters_engine.fatality_ready = 1;
     slow_ani_x(0.44f, 19.0f);
@@ -1295,16 +1829,13 @@ float pz_fighter_fatality_good_solid_kick(void) {
 }
 
 float pz_fighter_fatality_huge_shove(void) {
-    static const PuzzleAttackCopy source = {{
+    PuzzleAttackParameters attack = {
         45.0f, 0.1f, 1.3f, 0x00010001, 0x00070007, 3,
         0.4f, 0.8f, 1.1f, 55.0f, 47.0f, 1, 0, 0, 0,
-    }};
-    PuzzleAttackCopy attack;
-
-    copy_attack_parameters(&attack, &source);
+    };
 
     set_my_state(0x120B);
-    pz_fighter_attack(pz_shared_ani.push_into_grinder, &attack.attack, 0x17);
+    pz_fighter_attack(pz_shared_ani.push_into_grinder, &attack, 0x17);
     g_pz_fighters_engine.fatality_ready = 1;
     ani_to_end();
     aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
@@ -1312,16 +1843,13 @@ float pz_fighter_fatality_huge_shove(void) {
 }
 
 float pz_fighter_fatality_medium_shove(void) {
-    static const PuzzleAttackCopy source = {{
+    PuzzleAttackParameters attack = {
         45.0f, 0.1f, 1.3f, 0x00010001, 0x00070007, 3,
         0.4f, 0.8f, 1.1f, 55.0f, 47.0f, 1, 0, 0, 0,
-    }};
-    PuzzleAttackCopy attack;
-
-    copy_attack_parameters(&attack, &source);
+    };
 
     set_my_state(0x120B);
-    pz_fighter_attack(pz_shared_ani.push_into_grinder, &attack.attack, 0x16);
+    pz_fighter_attack(pz_shared_ani.push_into_grinder, &attack, 0x16);
     g_pz_fighters_engine.fatality_ready = 1;
     ani_to_end();
     aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
@@ -1340,12 +1868,13 @@ static void pw_face_bleeding(void) {
     plyr_obj = bleed_data->object;
 }
 
-/* Soft ceiling: p_face_bleeding ~91.22% - local load/color scheduling. */
 static float p_face_bleeding(void) {
     PuzzleFaceBleedPdata* bleed_data = (PuzzleFaceBleedPdata*)apdata;
+    unsigned int state;
 
-    bleed_data->state++;
-    if (bleed_data->state >= bleed_data->duration) {
+    state = bleed_data->state + 1;
+    bleed_data->state = state;
+    if (state >= bleed_data->duration) {
         return -1.0f;
     }
     if (bleed_data->state % bleed_data->interval == 0) {
@@ -1401,7 +1930,6 @@ float r_pz_fighter_summon_burn(void) {
 /* Broad pass: victim ignition, looping burn, and bound limb effects. */
 float r_pz_fighter_burn(void) {
     int animation_flags = 0;
-    void* effect;
 
     if (plyr_pdata->side != 0) {
         animation_flags = 8;
@@ -1425,11 +1953,11 @@ float r_pz_fighter_burn(void) {
     blend_to_ani_frame(pz_shared_ani.burn_recover, 3, 0.05f, 37.0f);
     ani_to_blend_frame(100.0f);
 
-    effect = fx_by_owner("limbburn_5", 4);
-    resume_effect_at_obj_bid(plyr_obj, 0x10, effect, 1, 0);
+    resume_effect_at_obj_bid(
+        plyr_obj, 0x10, fx_by_owner("limbburn_5", 4), 1, 0);
     ani_to_blend_frame(50.0f);
-    effect = fx_by_owner("limbburn_6", 4);
-    resume_effect_at_obj_bid(plyr_obj, 0x10, effect, 1, 0);
+    resume_effect_at_obj_bid(
+        plyr_obj, 0x10, fx_by_owner("limbburn_6", 4), 1, 0);
     ani_to_end();
 
     for (;;) {
@@ -1734,9 +2262,12 @@ float pz_fighter_burn_actively_fighting(int active) {
     return 0.0f;
 }
 
-/* Soft ceiling: 35.50% - clean fixed 2x2 loop is unrolled by this compiler pass. */
+/*
+ * Soft ceiling: 99.666664%. The instruction stream and control flow match;
+ * objdiff only reports the TU-local 0.0f relocation label (@91 vs @2542).
+ */
 float pz_fighter_chomper_actively_fighting(int active) {
-    int group;
+    unsigned int group;
     int object;
 
     g_pz_fighter_fatality_engine.controller->phase = active;
@@ -1754,32 +2285,36 @@ float pz_fighter_chomper_actively_fighting(int active) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: the 88-byte source and retail bodies contain the same phase
+ * store, two-iteration loop, hazard-object motion store, and controller-row
+ * store. MWCC schedules the two induction increments earlier and forms the
+ * indexed controller address in the opposite order; the zero constant also
+ * carries a different TU-local relocation label.
+ */
 float pz_fighter_chomper2_actively_fighting(int active) {
     int group;
-    int count;
 
     g_pz_fighter_fatality_engine.controller->phase = active;
     if (active == 0) {
-        group = 0;
-        count = 2;
-        do {
+        for (group = 0; group < 2; group++) {
             g_pz_fighter_fatality_engine.hazard_groups[group]
                 .objects[0]
                 ->motion = 0.0f;
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[group][0] = 0.0f;
-            group++;
-            count--;
-        } while (count != 0);
+        }
     }
     return 0.0f;
 }
 
 float p_grinder_noise(void) {
     PuzzleGrinderNoisePdata* noise = (PuzzleGrinderNoisePdata*)apdata;
+    unsigned int timer;
 
-    noise->timer++;
-    if (noise->timer >= noise->duration) {
+    timer = noise->timer + 1;
+    noise->timer = timer;
+    if (timer >= noise->duration) {
         return -1.0f;
     }
     if ((noise->timer % 20) == 0) {
@@ -2530,7 +3065,7 @@ float r_pz_fighter_grinding(void) {
 
         unhide_obj(pieces[i]);
         ft_create_flesh_path(
-            pieces[i], &positions[i].x, 0, 0, &velocity, 0, &terminal, 0,
+            pieces[i], &positions[i], 0, 0, &velocity, 0, &terminal, 0,
             -0.004f, 0.5f, 0.1f);
 
         if (i == 0) {
@@ -2584,11 +3119,10 @@ float r_pz_fighter_grinding(void) {
 float p_grinder_meat_throw_controller(void) {
     PuzzleGrinderMeatController* meat =
         (PuzzleGrinderMeatController*)apdata;
-    PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
     PuzzleFighterRenderObject* object;
-    Vec throw_velocity = {1.1f, 1.8f, 0.0f};
-    Vec drift_velocity = {-0.073f, 0.095f, 0.0f};
-    Vec path_velocity = {0.04f, 0.08f, 0.03f};
+    Vec throw_velocity;
+    Vec drift_velocity;
+    Vec path_velocity;
     unsigned int choice;
 
     if (meat->delay != 0) {
@@ -2597,6 +3131,12 @@ float p_grinder_meat_throw_controller(void) {
     }
 
     if (meat->phase == 0) {
+        throw_velocity.x = 2.2f;
+        throw_velocity.y = 1.8f;
+        throw_velocity.z = 0.0f;
+        drift_velocity.x = -0.073f;
+        drift_velocity.y = 0.095f;
+        drift_velocity.z = 0.0f;
         if (screen_width > 650) {
             drift_velocity.x *= 1.1f;
         }
@@ -2605,19 +3145,22 @@ float p_grinder_meat_throw_controller(void) {
             drift_velocity.x *= -1.0f;
         }
 
-        object = fighters->grinder_meat_default;
-        choice = randu0(100) & 0xFFFF;
+        path_velocity.x = 0.04f;
+        path_velocity.y = 0.08f;
+        path_velocity.z = 0.03f;
+        object = g_pz_fighters_engine.grinder_meat_default;
+        choice = randu0(100);
         if (choice < 20) {
-            object = fighters->grinder_meat_alt0;
+            object = g_pz_fighters_engine.grinder_meat_alt0;
         } else if (choice < 40) {
-            object = fighters->grinder_meat_alt1;
+            object = g_pz_fighters_engine.grinder_meat_alt1;
         } else if (choice < 60) {
-            object = fighters->grinder_meat_alt2;
+            object = g_pz_fighters_engine.grinder_meat_alt2;
         }
 
         unhide_obj(object);
         ft_create_flesh_path(
-            object, &throw_velocity.x, 0, 0, &drift_velocity, 0,
+            object, &throw_velocity, 0, 0, &drift_velocity, 0,
             &path_velocity, 0, -0.004f, 0.5f, 0.1f);
         meat->object = object;
         if (meat->object == 0) {
@@ -2726,28 +3269,12 @@ void pz_fighters_fatality_start(void) {
     functions.entries[g_pz_fighters_engine.fatality_index]();
 }
 
-/* Broad pass: pz_fighter_attempt_push_into_grinder ~67.58%. */
 float pz_fighter_attempt_push_into_grinder(void) {
-    static const PuzzleAttackParameters source = {
-        45.0f,
-        0.1f,
-        1.3f,
-        0x00010001,
-        0x00070007,
-        3,
-        0.4f,
-        0.8f,
-        1.1f,
-        55.0f,
-        47.0f,
-        1,
-        0,
-        0,
-        0,
+    PuzzleAttackParameters attack = {
+        45.0f, 0.1f, 1.3f, 0x00010001, 0x00070007, 3, 0.4f, 0.8f,
+        1.1f, 55.0f, 47.0f, 1, 0, 0, 0,
     };
-    PuzzleAttackParameters attack;
 
-    memcpy(&attack, &source, sizeof(attack));
     pz_fighter_attack(pz_shared_ani.push_into_grinder, &attack, 0x21);
     ani_to_end();
     aproc->vtbl->transfer(pz_fighter_long_exit, 0.0f);
@@ -2767,15 +3294,17 @@ void pz_fighter_get_grinder_post(int player, Vec* post) {
     post->z = g_pz_fighters_engine.fighter_posts[0].z;
 }
 
-/* Broad pass: load both Chomper columns, spikes, gushers, and controller. */
+/*
+ * Soft ceiling: the complete retail loader/state setup is present; residue is
+ * loop induction/register scheduling plus pooled constant relocation labels.
+ */
 float pz_fighter_load_and_place_initial_chompers(void) {
-    PuzzleEffectBankContext effect_context = {0x70036, 0, 0};
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
+    PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
-    PuzzleFatalityController* controller = 0;
+    PuzzleFatalityController* controller;
     PuzzleFatalityHazardObject* chomper;
-    int i;
-    int j;
+    unsigned int i;
+    unsigned int j;
 
     load_art_section(0x70036, &sec_pz_danger_chomper);
     g_pz_fighters_engine.fatality_index = 1;
@@ -2784,41 +3313,43 @@ float pz_fighter_load_and_place_initial_chompers(void) {
         columns[i] =
             load_model_from_slot(0x70036, 0x081F0000, 0x6021);
         columns[i]->model_flags = 1;
-        columns[i]->flags |= 0x22;
+        columns[i]->flags_bits.scale_active = 1;
         if (screen_width > 650) {
-            columns[i]->x = i == 0 ? -4.1f : 4.1f;
+            columns[i]->x = i != 0 ? 4.1f : -4.1f;
             columns[i]->y = 0.0f;
             columns[i]->z = -0.24f;
             columns[i]->scale.x = 1.1f;
             columns[i]->scale.y = 0.7f;
             columns[i]->scale.z = 1.14f;
         } else {
-            columns[i]->x = i == 0 ? -3.6f : 3.6f;
+            columns[i]->x = i != 0 ? 3.6f : -3.6f;
             columns[i]->y = 0.0f;
             columns[i]->z = -0.24f;
             columns[i]->scale.x = 1.0f;
             columns[i]->scale.y = 0.7f;
             columns[i]->scale.z = 1.04f;
         }
+        columns[i]->flags_bits.gravity_enabled = 1;
         columns[i]->external_force_x = 0.0f;
         columns[i]->external_force_y = 0.0f;
         columns[i]->external_force_z = 0.0f;
         insert_fgnd_mkobj(columns[i]);
     }
 
-    fatality->primary_object = columns[0];
-    fatality->secondary_object = columns[1];
+    g_pz_fighter_fatality_engine.primary_object = columns[0];
+    g_pz_fighter_fatality_engine.secondary_object = columns[1];
     obj_create_sobjs(columns[0]);
     obj_create_sobjs(columns[1]);
-    fatality->hazard_groups[0].objects[0] =
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[0] =
         obj_find_sobj_by_id(columns[0], 2);
-    fatality->hazard_groups[1].objects[0] =
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[0] =
         obj_find_sobj_by_id(columns[1], 2);
-    fatality->hazard_groups[0].objects[1] =
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[1] =
         obj_find_sobj_by_id(columns[0], 1);
-    fatality->hazard_groups[1].objects[1] =
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[1] =
         obj_find_sobj_by_id(columns[1], 1);
-    fatality->grinder_texture = load_tga(0x70036, 0x081F0002);
+    g_pz_fighter_fatality_engine.grinder_texture =
+        load_tga(0x70036, 0x081F0002);
 
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_chomper_controller, 0x80,
@@ -2832,21 +3363,29 @@ float pz_fighter_load_and_place_initial_chompers(void) {
         controller->preround_active = 0;
         controller->controller_step = 0;
         controller->loop_sound = 0;
-        fatality->controller = controller;
+        g_pz_fighter_fatality_engine.controller = controller;
     }
 
     for (i = 0; i < 2; i++) {
         for (j = 0; j < 2; j++) {
-            chomper = fatality->hazard_groups[i].objects[j];
-            chomper->flags |= 0x60;
+            chomper =
+                g_pz_fighter_fatality_engine.hazard_groups[i].objects[j];
+            chomper->flags_bits.airborne = 1;
+            chomper->flags_bits.gravity_enabled = 1;
             chomper->motion = 0.0f;
-            fatality->controller->chomper_position[i][j] = 0.0f;
-            fatality->controller->hazard_motion[i][j] = 0.0f;
+            g_pz_fighter_fatality_engine.controller
+                ->chomper_position[i][j] = 0.0f;
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[i][j] = 0.0f;
         }
-        fatality->controller->hazard_initialized[i] = 0;
+        g_pz_fighter_fatality_engine.controller
+            ->hazard_initialized[i] = 0;
     }
 
     load_pz_fighter_fatality_bank(0x81);
+    effect_context.art_handle = 0x70036;
+    effect_context.owner = 0;
+    effect_context.context = 0;
     load_effect_bank_with_context("pz_chomper_fx.mko", &effect_context);
     return 0.0f;
 }
@@ -3019,14 +3558,16 @@ float pz_fighters_chomper_fatality_prep(void) {
     return 0.0f;
 }
 
-/* Broad pass: load and initialize both Chomper2 columns and subobjects. */
+/*
+ * Soft ceiling: the complete retail loader/state setup is present; residue is
+ * nested address induction/register scheduling and relocation labels.
+ */
 float pz_fighter_load_and_place_initial_chompers2(void) {
-    PuzzleEffectBankContext effect_context = {0x70036, 0, 0};
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
+    PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* columns[2];
-    PuzzleFatalityController* controller = 0;
+    PuzzleFatalityController* controller;
     PuzzleFatalityHazardObject* chomper;
-    int i;
+    unsigned int i;
 
     load_art_section(0x70036, &sec_pz_danger_crusher);
     g_pz_fighters_engine.fatality_index = 2;
@@ -3035,35 +3576,36 @@ float pz_fighter_load_and_place_initial_chompers2(void) {
         columns[i] =
             load_model_from_slot(0x70036, 0x08200000, 0x6021);
         columns[i]->model_flags = 1;
-        columns[i]->flags |= 0x22;
+        columns[i]->flags_bits.scale_active = 1;
         if (screen_width > 650) {
-            columns[i]->x = i == 0 ? -2.15f : 2.15f;
+            columns[i]->x = i != 0 ? 2.15f : -2.15f;
             columns[i]->y = 0.0f;
             columns[i]->z = -0.1f;
             columns[i]->scale.x = 1.2f;
             columns[i]->scale.y = 0.8f;
             columns[i]->scale.z = 1.3f;
         } else {
-            columns[i]->x = i == 0 ? -1.75f : 1.75f;
+            columns[i]->x = i != 0 ? 1.75f : -1.75f;
             columns[i]->y = 0.0f;
             columns[i]->z = -0.1f;
             columns[i]->scale.x = 1.0f;
             columns[i]->scale.y = 0.8f;
             columns[i]->scale.z = 1.1f;
         }
+        columns[i]->flags_bits.gravity_enabled = 1;
         columns[i]->external_force_x = 0.0f;
         columns[i]->external_force_y = 0.0f;
         columns[i]->external_force_z = 0.0f;
         insert_fgnd_mkobj(columns[i]);
     }
 
-    fatality->primary_object = columns[0];
-    fatality->secondary_object = columns[1];
+    g_pz_fighter_fatality_engine.primary_object = columns[0];
+    g_pz_fighter_fatality_engine.secondary_object = columns[1];
     obj_create_sobjs(columns[0]);
     obj_create_sobjs(columns[1]);
-    fatality->hazard_groups[0].objects[0] =
+    g_pz_fighter_fatality_engine.hazard_groups[0].objects[0] =
         obj_find_sobj_by_id(columns[0], 1);
-    fatality->hazard_groups[1].objects[0] =
+    g_pz_fighter_fatality_engine.hazard_groups[1].objects[0] =
         obj_find_sobj_by_id(columns[1], 1);
 
     if (_create_mkproc_generic_tinystack(
@@ -3078,19 +3620,27 @@ float pz_fighter_load_and_place_initial_chompers2(void) {
         controller->preround_active = 0;
         controller->controller_step = 0;
         controller->loop_sound = 0;
-        fatality->controller = controller;
+        g_pz_fighter_fatality_engine.controller = controller;
     }
 
     for (i = 0; i < 2; i++) {
-        chomper = fatality->hazard_groups[i].objects[0];
-        chomper->flags |= 0x60;
+        chomper =
+            g_pz_fighter_fatality_engine.hazard_groups[i].objects[0];
+        chomper->flags_bits.airborne = 1;
+        chomper->flags_bits.gravity_enabled = 1;
         chomper->motion = 0.0f;
-        fatality->controller->chomper_position[i][0] = 0.0f;
-        fatality->controller->hazard_motion[i][0] = 0.0f;
-        fatality->controller->hazard_initialized[i] = 0;
+        g_pz_fighter_fatality_engine.controller
+            ->chomper_position[i][0] = 0.0f;
+        g_pz_fighter_fatality_engine.controller
+            ->hazard_motion[i][0] = 0.0f;
+        g_pz_fighter_fatality_engine.controller
+            ->hazard_initialized[i] = 0;
     }
 
     load_pz_fighter_fatality_bank(0x81);
+    effect_context.art_handle = 0x70036;
+    effect_context.owner = 0;
+    effect_context.context = 0;
     load_effect_bank_with_context("pz_crusher_fx.mko", &effect_context);
     return 0.0f;
 }
@@ -3273,19 +3823,21 @@ float pz_fighters_chomper2_fatality_prep(void) {
         }                                                                   \
     } while (0)
 
-/* Broad pass: load Snake models, animation state, controller, and emitters. */
+/* Matching recovery: emitter register/string lifetimes still need refinement. */
 float pz_fighter_load_and_place_initial_snake(void) {
-    PuzzleEffectBankContext effect_context = {0x70036, 0, 0};
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
+    PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* snakes[2];
     PuzzleAnimPdata* snake_pdata[2];
-    PuzzleFatalityController* controller = 0;
+    PuzzleFatalityController* controller;
     PuzzleParticleEffect* particle_effect;
     PuzzleParticleEmitter* emitter;
     void* effect;
-    int i;
+    unsigned int i;
 
     load_art_section(0x70036, &sec_pz_danger_snake);
+    effect_context.art_handle = 0x70036;
+    effect_context.owner = 0;
+    effect_context.context = 0;
     load_effect_bank_with_context("pz_snake_fx.mko", &effect_context);
     g_pz_fighters_engine.fatality_index = 5;
 
@@ -3295,15 +3847,16 @@ float pz_fighter_load_and_place_initial_snake(void) {
         obj_change_to_skinned_obj_light_list(
             snakes[i], skinned_obj_light_def);
         snakes[i]->model_flags = 0x400;
-        snakes[i]->x = i == 0 ? -2.18f : 2.18f;
+        snakes[i]->x = i != 0 ? 2.18f : -2.18f;
         if (screen_width > 650) {
-            snakes[i]->x = i == 0 ? -2.65f : 2.65f;
+            snakes[i]->x = i != 0 ? 2.65f : -2.65f;
         }
         snakes[i]->y = 0.3f;
         snakes[i]->z = -0.28f;
-        snakes[i]->flags |= 0x0A;
+        snakes[i]->flags_bits.angular_velocity_enabled = 1;
         snakes[i]->facing_angle =
-            i == 0 ? 1.0207963f : -1.0207963f;
+            i != 0 ? -1.0207963f : 1.0207963f;
+        snakes[i]->flags_bits.scale_active = 1;
         snakes[i]->scale.x = 0.48f;
         snakes[i]->scale.y = 0.48f;
         snakes[i]->scale.z = 0.48f;
@@ -3315,13 +3868,14 @@ float pz_fighter_load_and_place_initial_snake(void) {
 
     obj_add_to_skinned_obj_light_list_with_ambient(
         snakes[0], skinned_obj_ambient_light_def);
-    fatality->secondary_object = snakes[1];
-    fatality->primary_object = snakes[0];
+    g_pz_fighter_fatality_engine.secondary_object = snakes[1];
+    g_pz_fighter_fatality_engine.primary_object = snakes[0];
     obj_create_sobjs(snakes[0]);
     obj_create_sobjs(snakes[1]);
     sobj_set_priority(obj_first_sobj(snakes[0]), 0x12);
     sobj_set_priority(obj_first_sobj(snakes[1]), 0x12);
 
+    controller = 0;
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_snake_controller, 0x80, &controller) != 0 &&
         controller != 0) {
@@ -3333,16 +3887,20 @@ float pz_fighter_load_and_place_initial_snake(void) {
         controller->preround_active = 0;
         controller->controller_step = 0;
         controller->loop_sound = 0;
-        fatality->controller = controller;
+        g_pz_fighter_fatality_engine.controller = controller;
         controller->grinder_position[0] =
-            fatality->primary_object->motion_rate;
+            g_pz_fighter_fatality_engine.primary_object->motion_rate;
         controller->grinder_position[1] =
-            fatality->secondary_object->motion_rate;
-        controller->grinder_target[0] = controller->grinder_position[0];
-        controller->grinder_target[1] = controller->grinder_position[1];
+            g_pz_fighter_fatality_engine.secondary_object->motion_rate;
+        g_pz_fighter_fatality_engine.controller->grinder_target[0] =
+            g_pz_fighter_fatality_engine.controller->grinder_position[0];
+        g_pz_fighter_fatality_engine.controller->grinder_target[1] =
+            g_pz_fighter_fatality_engine.controller->grinder_position[1];
     }
-    fatality->controller->fighter_pdata[0] = snake_pdata[0];
-    fatality->controller->fighter_pdata[1] = snake_pdata[1];
+    g_pz_fighter_fatality_engine.controller->fighter_pdata[0] =
+        snake_pdata[0];
+    g_pz_fighter_fatality_engine.controller->fighter_pdata[1] =
+        snake_pdata[1];
     load_pz_fighter_fatality_bank(0x86);
 
     SETUP_SNAKE_EFFECT("saliva1", snakes[0], 0);
@@ -3498,14 +4056,17 @@ float pz_fighters_snake_fatality_prep(void) {
     return 0.0f;
 }
 
-/* Broad pass: load the one-ton hazards and their shared controller. */
+/* Soft ceiling: exact code; objdiff only relabels pooled string/float data. */
 float pz_fighter_load_and_place_initial_objects_falling(void) {
-    PuzzleEffectBankContext effect_context = {0x70036, 0, 0};
+    PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* objects[2];
-    PuzzleFatalityController* controller = 0;
-    int i;
+    PuzzleFatalityController* controller;
+    unsigned int i;
 
     load_art_section(0x70036, &sec_pz_danger_1ton);
+    effect_context.art_handle = 0x70036;
+    effect_context.owner = 0;
+    effect_context.context = 0;
     load_effect_bank_with_context("pz_1ton_fx.mko", &effect_context);
     g_pz_fighters_engine.fatality_index = 3;
 
@@ -3669,11 +4230,15 @@ float pz_fighters_objects_falling_fatality_prep(void) {
 }
 
 /* Broad pass: load the lightning effects and initialize their controller. */
+/* Soft ceiling: exact code; objdiff only relabels the pooled string/float data. */
 float pz_fighter_load_and_place_initial_lightning(void) {
-    PuzzleEffectBankContext effect_context = {0x70036, 0, 0};
-    PuzzleFatalityController* controller = 0;
+    PuzzleEffectBankContext effect_context;
+    PuzzleFatalityController* controller;
 
     load_art_section(0x70036, &sec_pz_danger_lightning);
+    effect_context.art_handle = 0x70036;
+    effect_context.owner = 0;
+    effect_context.context = 0;
     load_effect_bank_with_context("pz_lightning_fx.mko", &effect_context);
     g_pz_fighters_engine.fatality_index = 4;
 
@@ -3817,16 +4382,22 @@ float pz_fighters_lightning_fatality_prep(void) {
     return 0.0f;
 }
 
-/* Broad pass: load both burn hazards, controller, and idle flame emitters. */
+/*
+ * Soft ceiling: retail selects a different pooled-string base, saving one
+ * address adjustment; the remaining body differences are register allocation,
+ * float scheduling, and relocation labels.
+ */
 float pz_fighter_load_and_place_initial_burn(void) {
-    PuzzleEffectBankContext effect_context = {0x70036, 0, 0};
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
+    PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* burners[2];
-    PuzzleFatalityController* controller = 0;
+    PuzzleFatalityController* controller;
     float effect_x;
-    int i;
+    unsigned int i;
 
     load_art_section(0x70036, &sec_pz_danger_burn);
+    effect_context.art_handle = 0x70036;
+    effect_context.owner = 0;
+    effect_context.context = 0;
     load_effect_bank_with_context("pz_burn_fx.mko", &effect_context);
     g_pz_fighters_engine.fatality_index = 6;
 
@@ -3834,24 +4405,25 @@ float pz_fighter_load_and_place_initial_burn(void) {
         burners[i] =
             load_model_from_slot(0x70036, 0x08240000, 0x6021);
         burners[i]->model_flags = 1;
-        burners[i]->x = i == 0 ? -2.25f : 2.25f;
+        burners[i]->x = i != 0 ? 2.25f : -2.25f;
         if (screen_width > 650) {
-            burners[i]->x = i == 0 ? -2.65f : 2.65f;
+            burners[i]->x = i != 0 ? 2.65f : -2.65f;
         }
         burners[i]->y = 0.0f;
         burners[i]->z = 0.0f;
-        burners[i]->flags |= 0x02;
+        burners[i]->flags_bits.scale_active = 1;
         burners[i]->scale.x = 0.3f;
         burners[i]->scale.y = 0.3f;
         burners[i]->scale.z = 0.3f;
         insert_fgnd_mkobj(burners[i]);
     }
 
-    fatality->primary_object = burners[0];
-    fatality->secondary_object = burners[1];
+    g_pz_fighter_fatality_engine.primary_object = burners[0];
+    g_pz_fighter_fatality_engine.secondary_object = burners[1];
     obj_create_sobjs(burners[0]);
     obj_create_sobjs(burners[1]);
 
+    controller = 0;
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_burn_controller, 0x80, &controller) != 0 &&
         controller != 0) {
@@ -3865,7 +4437,7 @@ float pz_fighter_load_and_place_initial_burn(void) {
         controller->loop_sound = 0;
         controller->hazard_initialized[0] = 0;
         controller->hazard_initialized[1] = 0;
-        fatality->controller = controller;
+        g_pz_fighter_fatality_engine.controller = controller;
     }
 
     load_pz_fighter_fatality_bank(0x84);
@@ -3985,15 +4557,20 @@ float pz_fighters_burn_fatality_prep(void) {
     return 0.0f;
 }
 
-/* Broad pass: load, place, and initialize both grinder scene objects. */
+/*
+ * Soft ceiling: exact-size retail algorithm; only register allocation and
+ * pooled string/float relocation labels remain.
+ */
 float pz_fighter_load_and_place_initial_grinders(void) {
-    PuzzleEffectBankContext effect_context = {0x70036, 0, 0};
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
+    PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* grinders[2];
-    PuzzleFatalityController* controller = 0;
-    int i;
+    PuzzleFatalityController* controller;
+    unsigned int i;
 
     load_art_section(0x70036, &sec_pz_danger_grinder);
+    effect_context.art_handle = 0x70036;
+    effect_context.owner = 0;
+    effect_context.context = 0;
     load_effect_bank_with_context("pz_grinder_fx.mko", &effect_context);
     g_pz_fighters_engine.fatality_index = 0;
 
@@ -4001,25 +4578,28 @@ float pz_fighter_load_and_place_initial_grinders(void) {
         grinders[i] =
             load_model_from_slot(0x70036, 0x081E0000, 0x6021);
         grinders[i]->model_flags = 1;
-        grinders[i]->x = i == 0 ? -2.2f : 2.2f;
+        grinders[i]->x = i != 0 ? 2.2f : -2.2f;
         if (screen_width > 650) {
-            grinders[i]->x = i == 0 ? -2.65f : 2.65f;
+            grinders[i]->x = i != 0 ? 2.65f : -2.65f;
         }
         grinders[i]->y = 0.0f;
         grinders[i]->z = 0.0f;
-        grinders[i]->flags |= 0x06;
+        grinders[i]->flags_bits.rotation_enabled = 1;
         grinders[i]->motion_rate = 0.05f;
+        grinders[i]->flags_bits.scale_active = 1;
         grinders[i]->scale.x = 0.6f;
         grinders[i]->scale.y = 0.6f;
         grinders[i]->scale.z = 0.6f;
         insert_fgnd_mkobj(grinders[i]);
     }
 
-    fatality->primary_object = grinders[0];
-    fatality->secondary_object = grinders[1];
+    g_pz_fighter_fatality_engine.primary_object = grinders[0];
+    g_pz_fighter_fatality_engine.secondary_object = grinders[1];
     obj_create_sobjs(grinders[0]);
     obj_create_sobjs(grinders[1]);
-    fatality->grinder_texture = load_tga(0x70036, 0x081E0002);
+    g_pz_fighter_fatality_engine.grinder_texture =
+        load_tga(0x70036, 0x081E0002);
+    controller = 0;
 
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_grinder_controller, 0x80, &controller) != 0 &&
@@ -4032,41 +4612,48 @@ float pz_fighter_load_and_place_initial_grinders(void) {
         controller->preround_active = 0;
         controller->controller_step = 0;
         controller->loop_sound = 0;
-        fatality->controller = controller;
+        g_pz_fighter_fatality_engine.controller = controller;
         controller->grinder_position[0] =
-            fatality->primary_object->motion_rate;
+            g_pz_fighter_fatality_engine.primary_object->motion_rate;
         controller->grinder_position[1] =
-            fatality->secondary_object->motion_rate;
-        controller->grinder_target[0] = controller->grinder_position[0];
-        controller->grinder_target[1] = controller->grinder_position[1];
+            g_pz_fighter_fatality_engine.secondary_object->motion_rate;
+        g_pz_fighter_fatality_engine.controller->grinder_target[0] =
+            g_pz_fighter_fatality_engine.controller->grinder_position[0];
+        g_pz_fighter_fatality_engine.controller->grinder_target[1] =
+            g_pz_fighter_fatality_engine.controller->grinder_position[1];
     }
 
     load_pz_fighter_fatality_bank(0x82);
     return 0.0f;
 }
 
-void pz_fighters_grinder_fatality_preround(void) {
-    PuzzleFatalityController* controller =
-        g_pz_fighter_fatality_engine.controller;
-    PuzzleGrinderMeatController* meat_controller = 0;
-    int delay;
-    int direction;
+/*
+ * Soft ceiling: retail retains one extra zero/register-lifetime instruction;
+ * equivalent typed direction-cast placements compile identically.
+ */
+float pz_fighters_grinder_fatality_preround(void) {
+    PuzzleGrinderMeatController* meat_controller;
+    unsigned short delay_random;
+    unsigned int direction;
 
-    controller->preround_active = 1;
-    controller->loop_sound = snd_req_vol(0x1AB7, 0.3f);
-    controller->phase_time = 0.3f;
-    controller->preround_timer = 120;
+    g_pz_fighter_fatality_engine.controller->preround_active = 1;
+    g_pz_fighter_fatality_engine.controller->loop_sound =
+        snd_req_vol(0x1AB7, 0.3f);
+    g_pz_fighter_fatality_engine.controller->phase_time = 0.3f;
+    g_pz_fighter_fatality_engine.controller->preround_timer = 120;
 
-    delay = (randu0(10) & 0xFFFF) + 10;
-    direction = ((int)(randu0(100) & 0xFFFF) - 50) < 0;
+    delay_random = randu0(10);
+    direction = (unsigned int)(randu0(100) - 50) >> 31;
+    meat_controller = 0;
     if (_create_mkproc_generic_tinystack(
             0xC001, 0x1F, p_grinder_meat_throw_controller, 0x18,
             &meat_controller) != 0 &&
         meat_controller != 0) {
         meat_controller->direction = direction;
-        meat_controller->delay = delay;
+        meat_controller->delay = delay_random + 10;
         meat_controller->phase = 0;
     }
+    return 0.0f;
 }
 
 /* Broad pass: shared fatality-prep attack-selection skeleton. */
@@ -4202,11 +4789,15 @@ void pz_fighter_lightning_entering_fatality(
     g_pz_fighter_fatality_engine.controller->phase = 0;
 }
 
-/* Broad pass: pz_fighter_chomper2_entering_fatality ~66.72%. */
+/*
+ * Soft ceiling: the fixed-bound loop and all controller/hazard stores match;
+ * residue is phase-zero register reuse and strength-reduced index scheduling.
+ */
 void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     int i;
 
+    i = 0;
     g_pz_fighter_fatality_engine.active_effect = 0;
     g_pz_fighter_fatality_engine.controller->active = 1;
     g_pz_fighter_fatality_engine.controller->substate = 0;
@@ -4215,19 +4806,23 @@ void pz_fighter_chomper2_entering_fatality(
     g_pz_fighter_fatality_engine.controller->victim_player = victim;
     g_pz_fighter_fatality_engine.controller->phase = 0;
 
-    for (i = 0; i < 2; i++) {
+    for (; i < 2; i++) {
         g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
             0.0f;
         g_pz_fighter_fatality_engine.controller->hazard_motion[i][0] = 0.0f;
     }
 }
 
-/* Broad pass: pz_fighter_chomper_entering_fatality ~56.33%. */
+/*
+ * Soft ceiling: the exact-size nested loop and controller initialization
+ * match retail; only zero-register allocation/rematerialization differs.
+ */
 void pz_fighter_chomper_entering_fatality(
     int attacker, int victim) {
-    int group;
+    unsigned int group;
     int object;
 
+    group = 0;
     g_pz_fighter_fatality_engine.active_effect = 0;
     g_pz_fighter_fatality_engine.controller->active = 1;
     g_pz_fighter_fatality_engine.controller->substate = 0;
@@ -4236,7 +4831,7 @@ void pz_fighter_chomper_entering_fatality(
     g_pz_fighter_fatality_engine.controller->victim_player = victim;
     g_pz_fighter_fatality_engine.controller->phase = 0;
 
-    for (group = 0; group < 2; group++) {
+    for (; group < 2; group++) {
         for (object = 0; object < 2; object++) {
             g_pz_fighter_fatality_engine.hazard_groups[group]
                 .objects[object]
@@ -4285,42 +4880,49 @@ float pz_fighter_objects_falling_round_over(void) {
     return 0.0f;
 }
 
-/* Broad pass: pz_fighter_chomper2_round_over ~58.71%. */
+/*
+ * Soft ceiling: retail and source perform the same state/phase stores and
+ * two hazard/motion-row clears. The fixed-bound loop restores mtctr/bdnz;
+ * MWCC still reuses the phase-zero register and schedules the two strength-
+ * reduced index updates differently. Two typed index variants did not improve
+ * emission and were removed.
+ */
 float pz_fighter_chomper2_round_over(void) {
     int i;
 
+    i = 0;
     g_pz_fighter_fatality_engine.controller->state = 1;
     g_pz_fighter_fatality_engine.controller->phase = 0;
-    i = 0;
-    do {
+    for (; i < 2; i++) {
         g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
             0.0f;
         g_pz_fighter_fatality_engine.controller->hazard_motion[i][0] = 0.0f;
-        i++;
-    } while (i < 2);
+    }
     return 0.0f;
 }
 
-/* Broad pass: pz_fighter_chomper_round_over ~59.34%. */
+/*
+ * Soft ceiling: retail and source have the same 128-byte nested loop and
+ * state transitions. Residue is zero-register allocation and MWCC choosing
+ * an inner-loop `li 0` instead of copying a retained zero value. A named
+ * first-object bound compiled identically and was removed.
+ */
 float pz_fighter_chomper_round_over(void) {
-    int group;
+    unsigned int group;
     int object;
 
+    group = 0;
     g_pz_fighter_fatality_engine.controller->state = 1;
     g_pz_fighter_fatality_engine.controller->phase = 0;
-    group = 0;
-    do {
-        object = 0;
-        do {
+    for (; group < 2; group++) {
+        for (object = 0; object < 2; object++) {
             g_pz_fighter_fatality_engine.hazard_groups[group]
                 .objects[object]
                 ->motion = 0.0f;
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[group][object] = 0.0f;
-            object++;
-        } while (object < 2);
-        group++;
-    } while (group < 2);
+        }
+    }
     return 0.0f;
 }
 
@@ -4385,6 +4987,119 @@ static float pz_fighter_grinder_unload(void) {
     }
     unload_pz_fighter_fatality_banks();
     return 0.0f;
+}
+
+static void ft_fleshchunk_postsleep(void);
+static void ft_fleshchunk_prewake(void);
+static float p_ft_bounce_path(void);
+
+/*
+ * Soft ceiling: 97.07042% in the full-TU report. The recovered body has the
+ * retail instruction count and access widths. With the authentic TU-level
+ * stmw/lmw setting restored, residue is limited to adjacent Vec-component
+ * load/store scheduling and local float relocation labels. No force-match
+ * workaround is retained.
+ */
+PuzzleFleshchunkPdata* ft_create_flesh_path(
+    PuzzleFighterRenderObject* object, Vec* position, int active,
+    int flags,
+    const Vec* initial_velocity, int mode, const Vec* terminal_velocity,
+    int (*completion_callback)(void), float gravity, float bounce,
+    float scale) {
+    PuzzleFaceBleedProcess* process;
+    PuzzleFleshchunkPdata* pdata;
+
+    process = _create_mkproc_generic_nostack(
+        0xC00F, 0x1F, p_ft_bounce_path, sizeof(PuzzleFleshchunkPdata),
+        &pdata);
+    if (process == 0) {
+        return 0;
+    }
+    zero_pdata_payload(sizeof(PuzzleFleshchunkPdata), pdata);
+    pdata->bounce_count = 0;
+    pdata->bounce_decay = bounce;
+    pdata->floor_height = scale;
+    pdata->gravity = gravity;
+    pdata->completion_callback = completion_callback;
+    pdata->field_30 = 0;
+    if (flags != 0) {
+        pdata->initial_velocity.x = sfrand(0.03f);
+        pdata->initial_velocity.y = sfrand_ab(0.06f, 0.08f);
+        pdata->initial_velocity.z = sfrand(0.03f);
+    } else {
+        pdata->initial_velocity.x = initial_velocity->x;
+        pdata->initial_velocity.y = initial_velocity->y;
+        pdata->initial_velocity.z = initial_velocity->z;
+    }
+    pdata->object = object;
+    pdata->object_instance = object->instance;
+    object->x = position->x;
+    object->y = position->y;
+    object->z = position->z;
+    if (mode != 0) {
+        object->angular_velocity_x = sfrand(0.04f);
+        object->motion_rate = sfrand(0.02f);
+    } else {
+        object->angular_velocity_x = terminal_velocity->x;
+        object->motion_rate = terminal_velocity->y;
+    }
+    object->angular_velocity_z = 0.0f;
+    object->external_force_x = pdata->initial_velocity.x;
+    if (active != 0) {
+        object->external_force_y = -pdata->initial_velocity.y;
+    } else {
+        object->external_force_y = pdata->initial_velocity.y;
+    }
+    object->external_force_z = pdata->initial_velocity.z;
+    object->flags_bits.gravity_enabled = 1;
+    object->flags_bits.rotation_enabled = 1;
+    process->wait_routine = ft_fleshchunk_prewake;
+    process->script_routine = ft_fleshchunk_postsleep;
+    return pdata;
+}
+
+double pow(double base, double exponent);
+
+static float p_ft_bounce_path(void) {
+    int complete;
+
+    complete = 0;
+    if (fleshchunk_obj->y > pdata_fleshchunk->floor_height ||
+        fleshchunk_obj->external_force_y > 0.0f) {
+        fleshchunk_obj->external_force_y += pdata_fleshchunk->gravity;
+    } else {
+        pdata_fleshchunk->bounce_count++;
+        fleshchunk_obj->external_force_x =
+            pdata_fleshchunk->initial_velocity.x *
+            (float)pow(
+                (double)pdata_fleshchunk->bounce_decay,
+                (double)pdata_fleshchunk->bounce_count);
+        fleshchunk_obj->external_force_y =
+            pdata_fleshchunk->initial_velocity.y *
+            (float)pow(
+                (double)pdata_fleshchunk->bounce_decay,
+                (double)pdata_fleshchunk->bounce_count);
+        fleshchunk_obj->external_force_z =
+            pdata_fleshchunk->initial_velocity.z *
+            (float)pow(
+                (double)pdata_fleshchunk->bounce_decay,
+                (double)pdata_fleshchunk->bounce_count);
+        if (pdata_fleshchunk->completion_callback != 0) {
+            complete = pdata_fleshchunk->completion_callback();
+        }
+        if (complete != 0 || fleshchunk_obj->external_force_y < 0.01f) {
+            fleshchunk_obj->flags_bits.gravity_enabled = 0;
+            fleshchunk_obj->flags_bits.rotation_enabled = 0;
+            fleshchunk_obj->external_force_y = 0.01f;
+            fleshchunk_obj->secondary_flags_bits.stopped = 1;
+            fleshchunk_obj->y = pdata_fleshchunk->floor_height;
+            fleshchunk_obj->flags_bits.bit7 = 1;
+            return -1.0f;
+        }
+        fleshchunk_obj->flags_bits.gravity_enabled = 1;
+        fleshchunk_obj->flags_bits.rotation_enabled = 1;
+    }
+    return 1.0f;
 }
 
 static void ft_fleshchunk_postsleep(void) {

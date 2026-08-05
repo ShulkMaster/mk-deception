@@ -7,6 +7,7 @@
 #include "runtime/asset.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
+#include "game/moveset.h"
 #include "math/gxMath.h"
 #include "platform/io.h"
 #include "platform/main.h"
@@ -136,6 +137,12 @@ typedef struct MovesBlastPdata {
     float end_alpha;
 } MovesBlastPdata;
 
+typedef struct MovesPlayerIdentityView {
+    char pad00[0x1D0];
+    int character_id;
+    int player_number;
+} MovesPlayerIdentityView;
+
 typedef struct MovesSidekickBlendData {
     char pad00[0x50];
     float exit_step;
@@ -181,7 +188,9 @@ typedef struct MovesSidekickActionView {
     AniData* projectile_animation;
     char pad338[0x0C];
     AniData* common_exit_animation;
-    char pad348[0x14];
+    AniData* smoke_entrance_animation;
+    AniData* smoke_land_animation;
+    char pad350[0x0C];
     AniData* noob_entrance_animation;
     char pad360[0x118];
     ScriptSlot* cmo;
@@ -308,14 +317,55 @@ typedef struct MovesPickup {
     MkObj* secondary_object;
     MovesPickupTransform* transform_a;
     MovesPickupTransform* transform_b;
-    char pad1C[8];
+    int background_moveset;
+    char pad20[4];
     int background_sobj_id;
     char pad28[0x0C];
     Vec primary_position;
     Vec primary_angle;
     Vec secondary_position;
     Vec secondary_angle;
+    char pad64[0x18];
+    unsigned int pickup_script;
 } MovesPickup;
+
+typedef struct MovesWeaponGrabEntry {
+    float animation_frame;
+    float angle;
+    float normal_grab_type;
+    float flipped_grab_type;
+    float weighting;
+} MovesWeaponGrabEntry;
+
+typedef struct MovesActionRef {
+    int source;
+    unsigned int action;
+} MovesActionRef;
+
+typedef struct MovesAttackActionTable {
+    char pad00[0xF0];
+    MovesActionRef attack_1[3];
+    char pad108[0x10];
+    MovesActionRef attack_2[3];
+    char pad130[0x10];
+    MovesActionRef attack_3[3];
+    char pad158[0x10];
+    MovesActionRef attack_4[3];
+} MovesAttackActionTable;
+
+MovesWeaponGrabEntry weapon_grab_table[9] = {
+    {15.0f, 0.0f, 3.0f, 3.0f, 1.5f},
+    {15.0f, -5.22f, 2.0f, 5.0f, 1.5f},
+    {14.0f, -4.2f, 1.0f, 6.0f, 1.5f},
+    {14.0f, -3.3f, 0.0f, 7.0f, 1.5f},
+    {15.0f, -2.9f, 8.0f, 8.0f, 1.5f},
+    {14.0f, -2.2f, 7.0f, 0.0f, 1.5f},
+    {14.0f, -1.4f, 6.0f, 1.0f, 1.5f},
+    {14.0f, -0.8f, 5.0f, 2.0f, 1.5f},
+    {0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+};
+
+MovesActionRef temp_throw_switch = {4, 0x8F};
 
 extern PlyrPdata* plyr_pdata;
 extern PlyrPdata* his_pdata;
@@ -355,6 +405,8 @@ extern int p2_last_switch_time;
 extern MovesSwitchLogEntry p1_switch_log[30];
 extern MovesSwitchLogEntry p2_switch_log[30];
 extern unsigned int jump_table[];
+extern unsigned int scan_freak_4[];
+extern ScriptSlot* reactions_cmo;
 extern float aniproc_land(void);
 
 typedef float (*MovesEntryFn)(void);
@@ -390,6 +442,7 @@ void blend_to_ani(AniData* animation, int transition, float rate);
 void blend_to_stance(float rate);
 void blend_to_fstance(float rate);
 void rotate_towards_him(float rate);
+float get_my_angle_y_error(void);
 int is_my_chest_to_screen();
 void back_rollup_left(void);
 void back_rollup_right(void);
@@ -421,6 +474,7 @@ void set_my_secondary_state(int state);
 void ani_x_more_frames(float frames);
 void random_voice(int group);
 void ani_to_blend_frame(float frames);
+void advance_anim(AnimPdata* animation);
 void set_anim_script(AnimPdata* anim, AniData* animation, int transition);
 int do_i_have_life_left(void);
 void stop_me(void);
@@ -493,7 +547,7 @@ void sidekick_cool_vanish(PlyrPdata* player);
 void init_air_move_no_aniproc(void);
 void set_jump_towards_velocities(void);
 void jump_towards_opponent(void);
-void do_pickup(MovesPickup* pickup, Vec* offset, int take);
+static void do_pickup(MovesPickup* pickup, Vec* offset, int take);
 static float j_flying_kick1_early(void);
 static float j_flying_kick2_early(void);
 static float j_flying_punch_early(void);
@@ -511,6 +565,9 @@ unsigned int randu0(unsigned int maximum);
 void camera_idle(void);
 void xfer_camera(MkProcEntryFn entry, int transition);
 void set_ani_speed(float speed);
+int am_i_flipped(void);
+int am_i_airborn(void);
+void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type);
 void clear_both_face_opponent_flags(void);
 int is_big_boss(PlyrPdata* player);
 void plyr_weapon_hide(
@@ -527,10 +584,22 @@ MkObj* plyr_weapon_release(PlyrPdata* player);
 MkObj* plyr_weapon2_release(PlyrPdata* player);
 void enable_bgnd_obj_repel(MkHdr* object);
 void update_mksobj(void* subobject);
+void disable_bgnd_obj_repel(MkHdr* object);
+void special_move_cam_setup(
+    int mode, int ticks, int flags, float x, float y, float z,
+    float distance, float speed);
+void switch_to_bgnd_moveset(PlyrPdata* player, int moveset);
+float bgnd_call_script_function(void);
+int my_joypad_state_5(void);
+void weapon_trail_on(void);
+void plyr_going_to_attack_with(const MovesActionRef* action);
+float call_player_script_function(ScriptSlot* script);
 int is_weapon_style(MovesStyle* style);
 float r_call_player_char_script_function(void);
 CmdScript* get_cmdscript_for_proc(MkProc* proc);
 void tag_team_activate_player(MkObj* sidekick, int active);
+void select_fighter_voice_in_bank(int player, int alternate_voice);
+void show_fighting_style(GlobalMoveset* moveset, int player);
 void set_root_and_obj_movement_weights(
     AnimPdata* animation, float root_weight, float object_weight);
 void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
@@ -547,7 +616,7 @@ void move_player(MkObj* fighter, const Vec* position, const Vec* angle);
 void plyr_turn_on_mirrorguy(PlyrInfo* player);
 void plyr_turn_off_mirrorguy(PlyrInfo* player);
 void weapon_trail_on(void);
-void plyr_spawn_anim(MkProcEntryFn entry);
+void plyr_spawn_anim(AniData* animation, MkProcEntryFn entry);
 void random_foot(int type);
 void uv_to_opponent(Vec* direction);
 void wait_to_land(void);
@@ -590,17 +659,23 @@ static inline float moves_inverse_sqrt(float value) {
            (12.0f - product * correction * correction);
 }
 
+/*
+ * Soft ceiling: 96.28866%. Retail emits an explicit null-normalization block
+ * after the equivalent object/instance validity test; clean C folds it away.
+ * All other objdiff records are TU-local constant relocation labels.
+ */
 static float p_blast(void) {
+    static RpMaterialColor initial_color = {0x64FF64FF};
     MovesBlastPdata* data;
     MkObj* object;
     RpMaterialColor color;
     float interval;
     float fraction;
 
-    color.packed = 0x64FF64FF;
+    color = initial_color;
     data = (MovesBlastPdata*)pdata_of_proc(aproc);
     object = data->object;
-    if (object != 0 && object->hdr.instance != data->object_instance) {
+    if (object == 0 || object->hdr.instance != data->object_instance) {
         object = 0;
     }
     if (object == 0) {
@@ -637,13 +712,18 @@ static float p_blast(void) {
     return 1.0f;
 }
 
+/*
+ * Soft ceiling: 99.797295%. The instruction stream and ownership match;
+ * objdiff only reports three TU-local float relocation labels.
+ */
 void blast_effect_at_plyr(void) {
     MovesBlastPdata* data;
     MkObj* blast;
     MkProc* proc;
 
     blast = (MkObj*)load_named_model_for_player(
-        "BLAST", plyr_pdata->character_id, 0x600A, 0);
+        "BLAST", ((MovesPlayerIdentityView*)plyr_pdata)->character_id,
+        0x600A, 0);
     if (blast == 0) {
         return;
     }
@@ -666,7 +746,7 @@ void blast_effect_at_plyr(void) {
     }
     data->object = blast;
     data->object_instance = blast->hdr.instance;
-    mk_insert(&blast->hdr, &proc->pdata_list);
+    mk_insert(&blast->hdr, &proc->pdata_list_b);
     data->end_tick = 0x24;
     data->current_tick = 0x24;
     data->start_alpha = 128.0f;
@@ -697,8 +777,8 @@ void kobra_teleport_position(void) {
 }
 
 void mileena_sky_set_position(void) {
-    float delta_z;
     float delta_x;
+    float delta_z;
     float distance_squared;
     float inverse_distance;
 
@@ -717,33 +797,43 @@ void mileena_sky_set_position(void) {
 
 void switch_plyr_positions(void) {
     Vec player0_position;
-    Vec player0_angle;
-    Vec player1_angle;
+    Vec player_angle;
     float player0_y;
     float player1_y;
 
-    player0_position = g_game_info.plyr0.slot.mirror_a->pos;
+    player0_position.x = g_game_info.plyr0.slot.mirror_a->pos.x;
+    player0_position.y = g_game_info.plyr0.slot.mirror_a->pos.y;
+    player0_position.z = g_game_info.plyr0.slot.mirror_a->pos.z;
     player0_y = g_game_info.plyr0.slot.mirror_a->pos.y;
-    player0_angle = g_game_info.plyr0.slot.mirror_a->ang;
+    player_angle.x = g_game_info.plyr0.slot.mirror_a->ang.x;
+    player_angle.y = g_game_info.plyr0.slot.mirror_a->ang.y;
+    player_angle.z = g_game_info.plyr0.slot.mirror_a->ang.z;
 
     move_player(g_game_info.plyr0.slot.mirror_a,
-                &g_game_info.plyr1.slot.mirror_a->pos, &player0_angle);
+                &g_game_info.plyr1.slot.mirror_a->pos, &player_angle);
     g_game_info.plyr0.slot.mirror_a->pos.y = player0_y;
 
-    player1_angle = g_game_info.plyr1.slot.mirror_a->ang;
+    player_angle.x = g_game_info.plyr1.slot.mirror_a->ang.x;
+    player_angle.y = g_game_info.plyr1.slot.mirror_a->ang.y;
+    player_angle.z = g_game_info.plyr1.slot.mirror_a->ang.z;
     player1_y = g_game_info.plyr1.slot.mirror_a->pos.y;
     move_player(g_game_info.plyr1.slot.mirror_a, &player0_position,
-                &player1_angle);
+                &player_angle);
     g_game_info.plyr1.slot.mirror_a->pos.y = player1_y;
 }
 
+/*
+ * Soft ceiling: 96.51961%. Retail emits an explicit null-normalization block
+ * after the equivalent object/instance validity test; clean C folds that
+ * block away. All other objdiff records are TU-local float relocation labels.
+ */
 static float p_scorpion_scale(void) {
     MovesScalePdata* data;
     MkObj* object;
 
     data = (MovesScalePdata*)pdata_of_proc(aproc);
     object = data->object;
-    if (object != 0 && object->hdr.instance != data->object_instance) {
+    if (object == 0 || object->hdr.instance != data->object_instance) {
         object = 0;
     }
     if (object == 0) {
@@ -1149,7 +1239,97 @@ float do_my_fatality(void) {
     return 0.0f;
 }
 
-void x_pickup(void) {
+void drop_active_weapon_to_original_position(PlyrPdata* player) {
+    MovesGameInfoView* game;
+    MovesPickup* pickup;
+    MkPtr* link;
+    MkPtr* next;
+
+    pickup = 0;
+    link = player->active_weapon_links;
+    while (link != 0) {
+        if (link->hdr->instance != link->instance) {
+            next = link->next;
+            link->hdr = 0;
+            destroy_mkptr(link);
+            link = next;
+            continue;
+        }
+        if (((MovesPickup*)link->hdr)->type == 0 ||
+            ((MovesPickup*)link->hdr)->type == 1) {
+            pickup = (MovesPickup*)link->hdr;
+            break;
+        }
+        link = link->next;
+    }
+    if (pickup == 0) {
+        return;
+    }
+
+    game = (MovesGameInfoView*)&g_game_info;
+    mk_pull_discard(&pickup->hdr, &player->active_weapon_links);
+    mk_insert(&pickup->hdr, &game->pickup_list);
+    enable_bgnd_obj_repel(&pickup->hdr);
+    plyr_weapon_release(player);
+    plyr_weapon2_release(player);
+
+    if (pickup->primary_object != 0) {
+        pickup->primary_object->flags_08_bits.angular_velocity_enabled = 1;
+        pickup->primary_object->flags_08_bits.airborne = 1;
+        pickup->primary_object->pos.x = pickup->primary_position.x;
+        pickup->primary_object->pos.y = pickup->primary_position.y;
+        pickup->primary_object->pos.z = pickup->primary_position.z;
+        pickup->primary_object->ang.x = pickup->primary_angle.x;
+        pickup->primary_object->ang.y = pickup->primary_angle.y;
+        pickup->primary_object->ang.z = pickup->primary_angle.z;
+        update_mkobj(pickup->primary_object);
+        hide_obj(pickup->primary_object);
+
+        pickup->transform_a->position.x = pickup->primary_position.x;
+        pickup->transform_a->position.y = pickup->primary_position.y;
+        pickup->transform_a->position.z = pickup->primary_position.z;
+        ((MkSobj*)pickup->transform_a)->ang.x = pickup->primary_angle.x;
+        ((MkSobj*)pickup->transform_a)->ang.y = pickup->primary_angle.y;
+        ((MkSobj*)pickup->transform_a)->ang.z = pickup->primary_angle.z;
+        update_mkobj(pickup->primary_object);
+        if (pickup->transform_a != 0) {
+            unhide_sobj(pickup->transform_a);
+        }
+        update_mksobj(pickup->transform_a);
+    }
+
+    if (pickup->secondary_object != 0) {
+        pickup->secondary_object->flags_08_bits.angular_velocity_enabled = 1;
+        pickup->secondary_object->flags_08_bits.airborne = 1;
+        pickup->secondary_object->pos.x = pickup->secondary_position.x;
+        pickup->secondary_object->pos.y = pickup->secondary_position.y;
+        pickup->secondary_object->pos.z = pickup->secondary_position.z;
+        pickup->secondary_object->ang.x = pickup->secondary_angle.x;
+        pickup->secondary_object->ang.y = pickup->secondary_angle.y;
+        pickup->secondary_object->ang.z = pickup->secondary_angle.z;
+        update_mkobj(pickup->secondary_object);
+        hide_obj(pickup->secondary_object);
+
+        pickup->transform_b->position.x = pickup->primary_position.x;
+        pickup->transform_b->position.y = pickup->primary_position.y;
+        pickup->transform_b->position.z = pickup->primary_position.z;
+        ((MkSobj*)pickup->transform_b)->ang.x = pickup->primary_angle.x;
+        ((MkSobj*)pickup->transform_b)->ang.y = pickup->primary_angle.y;
+        ((MkSobj*)pickup->transform_b)->ang.z = pickup->primary_angle.z;
+        update_mkobj(pickup->secondary_object);
+        if (pickup->transform_b != 0) {
+            unhide_sobj(pickup->transform_b);
+        }
+        update_mksobj(pickup->transform_b);
+    }
+
+    if (pickup->background_sobj_id != 0) {
+        unhide_sobj(obj_create_sobjs_by_id(
+            g_game_info.bgnd_obj, pickup->background_sobj_id));
+    }
+}
+
+static void x_pickup(void) {
     MovesGameInfoView* game;
     MovesPickupTransform* transform;
     MovesPickup* pickup;
@@ -1203,6 +1383,121 @@ void x_pickup(void) {
         do_pickup(nearby_pickup, &offset, 1);
     }
     moves_jump(j_exit);
+}
+
+static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
+    MovesGameInfoView* game;
+    unsigned int grab_type;
+    AniData* animation;
+    float angle;
+    int flipped;
+    int sector;
+    int i;
+
+    sector = 0;
+    flipped = am_i_flipped();
+    set_my_state(0x4210);
+    plyr_pdata->active_pickup = pickup;
+    disable_bgnd_obj_repel(&pickup->hdr);
+    special_move_cam_setup(
+        0x19, 0x46, 0, 2.5f, 3.5f, 2.0f, -0.4f, 0.15f);
+
+    angle = gxMathArcTanYX(offset->x, offset->z) - plyr_obj->ang.y;
+    if (angle > 0.0f) {
+        angle *= -1.0f;
+        flipped = !flipped;
+    }
+    if (angle < -6.2831855f) {
+        angle += 6.2831855f;
+    }
+    if (angle > -5.7f && angle < weapon_grab_table[7].angle) {
+        sector = 1;
+        for (i = 1; i < 7; i++) {
+            if (angle < weapon_grab_table[i].angle) {
+                break;
+            }
+            sector++;
+        }
+    }
+
+    if (flipped == 1) {
+        grab_type =
+            (unsigned int)weapon_grab_table[sector].flipped_grab_type;
+    } else {
+        grab_type =
+            (unsigned int)weapon_grab_table[sector].normal_grab_type;
+    }
+    if (grab_type > 8) {
+        grab_type = 0;
+    }
+    animation = shared_ani.grab_animations[grab_type];
+
+    xfer_proc(plyr_anim_proc, p_idle);
+    init_ground_move();
+    tightrope_restrictions_off();
+    blend_to_ani(animation, 3, 0.1f);
+    set_grab_anim_weighting(offset, grab_type);
+    set_ani_speed(0.35f);
+    ani_to_frame_x(weapon_grab_table[sector].animation_frame);
+
+    if (take == 0) {
+        moves_sleep(10.0f);
+        if ((flipped == 1 && (unsigned int)(sector - 1) <= 1U) ||
+            (flipped == 0 &&
+             ((unsigned int)sector == 6U || (unsigned int)sector == 7U))) {
+            blend_to_fstance(0.2f);
+        } else {
+            blend_to_stance(0.2f);
+        }
+        return;
+    }
+
+    game = (MovesGameInfoView*)&g_game_info;
+    if (find_in_mklist(&pickup->hdr, &game->pickup_list) == 0) {
+        if ((flipped == 1 && (unsigned int)(sector - 1) <= 1U) ||
+            (flipped == 0 &&
+             ((unsigned int)sector == 6U || (unsigned int)sector == 7U))) {
+            blend_to_fstance(0.2f);
+        } else {
+            blend_to_stance(0.2f);
+        }
+        return;
+    }
+
+    if (pickup->type != 2) {
+        set_my_state(0x4211);
+        set_ani_speed(0.35f);
+        tightrope_restrictions_on();
+        mk_pull_discard(&pickup->hdr, &game->pickup_list);
+        mk_insert(&pickup->hdr, &plyr_pdata->active_weapon_links);
+        switch_to_bgnd_moveset(plyr_pdata, pickup->background_moveset);
+        if (pickup->background_sobj_id != 0) {
+            hide_sobj(obj_create_sobjs_by_id(
+                g_game_info.bgnd_obj, pickup->background_sobj_id));
+        }
+        if (pickup->transform_a != 0) {
+            hide_sobj(pickup->transform_a);
+        }
+        if (pickup->transform_b != 0) {
+            hide_sobj(pickup->transform_b);
+        }
+        set_ani_weight(1.0f);
+        blend_to_stance(0.2f);
+        return;
+    }
+
+    set_ani_speed(0.35f);
+    tightrope_restrictions_on();
+    mk_pull_discard(&pickup->hdr, &game->pickup_list);
+    mk_insert(&pickup->hdr, &plyr_pdata->active_weapon_links);
+    hide_sobj(pickup->transform_a);
+    set_ani_weight(1.0f);
+    if (pickup->pickup_script != 0) {
+        active_cmdscript->unk28 = pickup->pickup_script;
+        moves_jump(bgnd_call_script_function);
+    } else {
+        blend_to_stance(0.2f);
+    }
 }
 
 /*
@@ -1290,6 +1585,10 @@ float switch_proc_attack_5(void) {
     return -1.0f;
 }
 
+/*
+ * Soft ceiling: switch_proc_attack_4/3 are 99.82456%. Their instruction
+ * streams match; objdiff only distinguishes two TU-local float-pool labels.
+ */
 float switch_proc_attack_4(void) {
     PlyrInfo* player;
     int state;
@@ -1297,7 +1596,7 @@ float switch_proc_attack_4(void) {
     player = switch_pdata->player;
     if (player != 0) {
         if (player->slot.pdata->state == 0x6000) {
-            player->slot.pdata->state = 0x6002;
+            g_game_info.plyr0.slot.pdata->state = 0x6002;
             mkproc_die();
         }
         if (player->player_state != 2 && player->player_state != 3) {
@@ -1329,7 +1628,7 @@ float switch_proc_attack_3(void) {
     player = switch_pdata->player;
     if (player != 0) {
         if (player->slot.pdata->state == 0x6000) {
-            player->slot.pdata->state = 0x6002;
+            g_game_info.plyr0.slot.pdata->state = 0x6002;
             mkproc_die();
         }
         if (player->player_state != 2 && player->player_state != 3) {
@@ -1423,9 +1722,10 @@ void pre_attack_chores(void) {
     int state;
 
     plyr_pdata->blocking_disabled = 1;
-    angle_error = get_my_angle_y_error();
-    if (angle_error < 0.0f) {
-        angle_error = -angle_error;
+    if (get_my_angle_y_error() >= 0.0f) {
+        angle_error = get_my_angle_y_error();
+    } else {
+        angle_error = -get_my_angle_y_error();
     }
     if (angle_error < 1.0f) {
         if (his_pdata->state == 0x2003) {
@@ -1466,28 +1766,28 @@ void advance_my_current_switch(void) {
                 if (previous_index - p1_current_log_index > 1) {
                     destination = p1_current_log_index + 1;
                     p1_log_index = destination;
+                    p1_switch_log[destination].pad_state =
+                        p1_switch_log[previous_index].pad_state;
+                    p1_switch_log[destination].label =
+                        p1_switch_log[previous_index].label;
                     p1_switch_log[destination].switch_id =
                         p1_switch_log[previous_index].switch_id;
                     p1_switch_log[destination].switch_value =
                         p1_switch_log[previous_index].switch_value;
-                    p1_switch_log[destination].label =
-                        p1_switch_log[previous_index].label;
-                    p1_switch_log[destination].pad_state =
-                        p1_switch_log[previous_index].pad_state;
                 }
             } else if (30 - p1_current_log_index + previous_index > 1) {
                 p1_log_index = p1_current_log_index + 1;
                 if (p1_current_log_index >= 30) {
                     destination = p1_current_log_index - 30;
                     p1_log_index = destination;
+                    p1_switch_log[destination].pad_state =
+                        p1_switch_log[previous_index].pad_state;
+                    p1_switch_log[destination].label =
+                        p1_switch_log[previous_index].label;
                     p1_switch_log[destination].switch_id =
                         p1_switch_log[previous_index].switch_id;
                     p1_switch_log[destination].switch_value =
                         p1_switch_log[previous_index].switch_value;
-                    p1_switch_log[destination].label =
-                        p1_switch_log[previous_index].label;
-                    p1_switch_log[destination].pad_state =
-                        p1_switch_log[previous_index].pad_state;
                 }
             }
         }
@@ -1508,28 +1808,28 @@ void advance_my_current_switch(void) {
             if (previous_index - p2_current_log_index > 1) {
                 destination = p2_current_log_index + 1;
                 p2_log_index = destination;
+                p2_switch_log[destination].pad_state =
+                    p2_switch_log[previous_index].pad_state;
+                p2_switch_log[destination].label =
+                    p2_switch_log[previous_index].label;
                 p2_switch_log[destination].switch_id =
                     p2_switch_log[previous_index].switch_id;
                 p2_switch_log[destination].switch_value =
                     p2_switch_log[previous_index].switch_value;
-                p2_switch_log[destination].label =
-                    p2_switch_log[previous_index].label;
-                p2_switch_log[destination].pad_state =
-                    p2_switch_log[previous_index].pad_state;
             }
         } else if (30 - p2_current_log_index + previous_index > 1) {
             p2_log_index = p2_current_log_index + 1;
             if (p2_current_log_index >= 30) {
                 destination = p2_current_log_index - 30;
                 p2_log_index = destination;
+                p2_switch_log[destination].pad_state =
+                    p2_switch_log[previous_index].pad_state;
+                p2_switch_log[destination].label =
+                    p2_switch_log[previous_index].label;
                 p2_switch_log[destination].switch_id =
                     p2_switch_log[previous_index].switch_id;
                 p2_switch_log[destination].switch_value =
                     p2_switch_log[previous_index].switch_value;
-                p2_switch_log[destination].label =
-                    p2_switch_log[previous_index].label;
-                p2_switch_log[destination].pad_state =
-                    p2_switch_log[previous_index].pad_state;
             }
         }
     }
@@ -1677,6 +1977,524 @@ static AniData* fetch_grab_anim_ptr(unsigned int grab_type) {
     }
 }
 
+static inline void moves_dispatch_attack(MovesActionRef* action) {
+    union {
+        unsigned int value;
+        MkProcEntryFn entry;
+    } target;
+    ScriptSlot* script;
+
+    plyr_going_to_attack_with(action);
+    switch (action->source) {
+    case 0:
+        script = plyr_pdata->fighter_definition->cmo;
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(script, action->action);
+        call_player_script_function(script);
+        break;
+    case 1:
+        target.value = action->action;
+        moves_jump(target.entry);
+        break;
+    case 2:
+        script = plyr_pdata->cmo;
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(script, action->action);
+        call_player_script_function(script);
+        break;
+    case 3:
+        script = his_pdata->cmo;
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(script, action->action);
+        call_player_script_function(script);
+        break;
+    case 4:
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(
+            reactions_cmo, action->action);
+        call_player_script_function(reactions_cmo);
+        break;
+    }
+}
+
+float x_attack_5(void) {
+    MovesSwitchLogEntry* entry;
+    unsigned int throw_script;
+
+    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+        p1_current_log_index = p1_log_index;
+        entry = &p1_switch_log[p1_log_index];
+        p1_current_switch_bit = entry->switch_id;
+        p1_current_switch_time = entry->switch_value;
+    } else {
+        p2_current_log_index = p2_log_index;
+        entry = &p2_switch_log[p2_log_index];
+        p2_current_switch_bit = entry->switch_id;
+        p2_current_switch_time = entry->switch_value;
+    }
+    trial_increment_state_value(
+        plyr_pdata->plyr_num, plyr_pdata->player_slot + 8, 0);
+    plyr_pdata->blocking_disabled = 1;
+    if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
+        if (am_i_a_big_character() != 0) {
+            moves_jump(j_flying_kick);
+        } else {
+            moves_jump(j_flying_kick2);
+        }
+        return 0.0f;
+    }
+
+    my_joypad_state_5();
+    pre_attack_chores();
+    throw_script = plyr_pdata->status_data->throw_script;
+    if (throw_script == 0) {
+        temp_throw_switch.source = 4;
+        temp_throw_switch.action = 0x8F;
+    } else {
+        temp_throw_switch.source = 2;
+        temp_throw_switch.action = throw_script;
+    }
+    moves_dispatch_attack(&temp_throw_switch);
+    set_my_state(0);
+    blend_to_stance(0.1f);
+    moves_jump(j_exit);
+    return 0.0f;
+}
+
+static float x_attack_5_remote(void) {
+    unsigned int throw_script;
+
+    pre_attack_chores();
+    throw_script = plyr_pdata->status_data->throw_script;
+    if (throw_script == 0) {
+        temp_throw_switch.source = 4;
+        temp_throw_switch.action = 0x8F;
+        moves_dispatch_attack(&temp_throw_switch);
+    } else if (is_big_boss(plyr_pdata) == 0) {
+        temp_throw_switch.source = 2;
+        temp_throw_switch.action = throw_script;
+        moves_dispatch_attack(&temp_throw_switch);
+    }
+    set_my_state(0);
+    blend_to_stance(0.1f);
+    moves_jump(j_exit);
+    return 0.0f;
+}
+
+float x_attack_4(void) {
+    MovesAttackActionTable* actions;
+    MovesSwitchLogEntry* entry;
+    MovesActionRef* action;
+    int joy_state;
+    int offset;
+
+    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+        p1_current_log_index = p1_log_index;
+        entry = &p1_switch_log[p1_log_index];
+        p1_current_switch_bit = entry->switch_id;
+        p1_current_switch_time = entry->switch_value;
+    } else {
+        p2_current_log_index = p2_log_index;
+        entry = &p2_switch_log[p2_log_index];
+        p2_current_switch_bit = entry->switch_id;
+        p2_current_switch_time = entry->switch_value;
+    }
+    trial_increment_state_value(plyr_pdata->plyr_num, 4, 0);
+    trial_increment_state_value(
+        plyr_pdata->plyr_num, plyr_pdata->player_slot + 8, 0);
+    if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
+        if (am_i_a_big_character() != 0) {
+            moves_jump(j_flying_kick);
+        } else {
+            moves_jump(j_flying_kick2);
+        }
+        return 0.0f;
+    }
+
+    actions =
+        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    joy_state = my_joypad_state_5();
+    if (joy_state == 2) {
+        init_ground_move();
+        set_my_state(0x1300);
+    }
+
+    offset = -1;
+    switch (plyr_pdata->character_id) {
+    case 3:
+        offset = 0xAC8;
+        break;
+    case 4:
+        offset = 0x7F0;
+        break;
+    case 5:
+        offset = 0x6E4;
+        break;
+    case 6:
+        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+            offset = 0x760;
+        }
+        break;
+    case 7:
+        offset = 0x89C;
+        break;
+    case 9:
+        offset = 0x5C8;
+        break;
+    case 10:
+        offset = 0x54C;
+        break;
+    case 11:
+        offset = 0x650;
+        break;
+    case 12:
+        offset = 0xA44;
+        break;
+    case 14:
+        offset = 0x1218;
+        break;
+    case 15:
+        offset = 0xFD8;
+        break;
+    case 16:
+        offset = 0x1070;
+        break;
+    case 18:
+        offset = 0x116C;
+        break;
+    case 19:
+        if (his_pdata->hit_count < 2 && his_pdata->state != 0x421A) {
+            offset = 0xCEC;
+        }
+        break;
+    case 20:
+        offset = 0xF10;
+        break;
+    case 21:
+        offset = 0xB60;
+        break;
+    case 23:
+        offset = 0x1108;
+        break;
+    case 24:
+        offset = 0x12CC;
+        break;
+    case 25:
+    case 26:
+        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+            offset = 0x13A0;
+        }
+        break;
+    case 27:
+        offset = plyr_pdata->sidekick_active == 1 ? 0xDC8 : 0xDFC;
+        break;
+    case 28:
+        scan_switch_sequences(scan_freak_4);
+        break;
+    case 36:
+        offset = 0xC68;
+        break;
+    }
+    if (offset >= 0) {
+        scan_switch_sequences(&jump_table[offset / 4]);
+    }
+
+    pre_attack_chores();
+    action = &actions->attack_4[joy_state];
+    if (joy_state == 2) {
+        set_my_state(0x1300);
+    }
+    moves_dispatch_attack(action);
+    return 0.0f;
+}
+
+float x_attack_3(void) {
+    MovesAttackActionTable* actions;
+    MovesSwitchLogEntry* entry;
+    MovesActionRef* action;
+    int joy_state;
+    int offset;
+
+    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+        p1_current_log_index = p1_log_index;
+        entry = &p1_switch_log[p1_log_index];
+        p1_current_switch_bit = entry->switch_id;
+        p1_current_switch_time = entry->switch_value;
+    } else {
+        p2_current_log_index = p2_log_index;
+        entry = &p2_switch_log[p2_log_index];
+        p2_current_switch_bit = entry->switch_id;
+        p2_current_switch_time = entry->switch_value;
+    }
+    trial_increment_state_value(plyr_pdata->plyr_num, 3, 0);
+    trial_increment_state_value(
+        plyr_pdata->plyr_num, plyr_pdata->player_slot + 8, 0);
+    plyr_pdata->blocking_disabled = 1;
+    if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
+        if (am_i_a_big_character() != 0) {
+            moves_jump(j_flying_kick);
+        } else {
+            moves_jump(j_flying_kick2);
+        }
+        return 0.0f;
+    }
+
+    actions =
+        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    joy_state = my_joypad_state_5();
+    if (joy_state == 2) {
+        init_ground_move();
+        set_my_state(0x1300);
+    }
+
+    offset = -1;
+    switch (plyr_pdata->character_id) {
+    case 0: offset = 0xBE0; break;
+    case 1: offset = 0x980; break;
+    case 3:
+        if (his_pdata->hit_count < 2) {
+            offset = 0xAB0;
+        }
+        break;
+    case 4: offset = 0x7D0; break;
+    case 6: offset = 0x72C; break;
+    case 7: offset = 0x884; break;
+    case 8: offset = 0x8FC; break;
+    case 9: offset = 0x5B0; break;
+    case 10: offset = 0x51C; break;
+    case 12: offset = 0xA18; break;
+    case 14: offset = 0x1200; break;
+    case 15:
+        if (his_pdata->hit_count < 5) {
+            offset = 0xFC0;
+        }
+        break;
+    case 16: offset = 0x103C; break;
+    case 18: offset = 0x1138; break;
+    case 19: offset = 0xCCC; break;
+    case 21: offset = 0xB48; break;
+    case 22: offset = 0xE6C; break;
+    case 23: offset = 0x10F0; break;
+    case 24: offset = 0x1298; break;
+    case 25:
+    case 26:
+        offset = 0x1358;
+        break;
+    case 27: offset = 0xD9C; break;
+    case 28: offset = 0xC3C; break;
+    case 29: offset = 0x1428; break;
+    case 30:
+        if ((his_pdata->state & 0x400) == 0) {
+            offset = 0x1538;
+        }
+        break;
+    case 31: offset = 0x14D4; break;
+    }
+    if (offset >= 0) {
+        scan_switch_sequences(&jump_table[offset / 4]);
+    }
+
+    pre_attack_chores();
+    action = &actions->attack_3[joy_state];
+    if (joy_state == 2) {
+        set_my_state(0x1300);
+    }
+    moves_dispatch_attack(action);
+    return 0.0f;
+}
+
+float x_attack_2(void) {
+    MovesAttackActionTable* actions;
+    MovesSwitchLogEntry* entry;
+    MovesActionRef* action;
+    int joy_state;
+    int offset;
+
+    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+        p1_current_log_index = p1_log_index;
+        entry = &p1_switch_log[p1_log_index];
+        p1_current_switch_bit = entry->switch_id;
+        p1_current_switch_time = entry->switch_value;
+    } else {
+        p2_current_log_index = p2_log_index;
+        entry = &p2_switch_log[p2_log_index];
+        p2_current_switch_bit = entry->switch_id;
+        p2_current_switch_time = entry->switch_value;
+    }
+    trial_increment_state_value(plyr_pdata->plyr_num, 2, 0);
+    trial_increment_state_value(
+        plyr_pdata->plyr_num, plyr_pdata->player_slot + 8, 0);
+    if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
+        moves_jump(j_flying_punch);
+        return 0.0f;
+    }
+
+    actions =
+        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    joy_state = my_joypad_state_5();
+    if (joy_state == 2) {
+        init_ground_move();
+        set_my_state(0x1200);
+    }
+
+    offset = -1;
+    switch (plyr_pdata->character_id) {
+    case 0: offset = 0xBC8; break;
+    case 1: offset = 0x948; break;
+    case 3: offset = 0xA90; break;
+    case 4: offset = 0x7B8; break;
+    case 5: offset = 0x6B0; break;
+    case 6: offset = 0x714; break;
+    case 7: offset = 0x848; break;
+    case 9: offset = 0x598; break;
+    case 10:
+        if ((his_pdata->state & 0x400) == 0) {
+            offset = 0x4E8;
+        }
+        break;
+    case 11: offset = 0x630; break;
+    case 12: offset = 0x9C8; break;
+    case 14: offset = 0x11CC; break;
+    case 15: offset = 0xF78; break;
+    case 16: offset = 0x1008; break;
+    case 19: offset = 0xC98; break;
+    case 20: offset = 0xEC8; break;
+    case 21: offset = 0xB14; break;
+    case 22: offset = 0xE54; break;
+    case 23: offset = 0x10D8; break;
+    case 24: offset = 0x1280; break;
+    case 25:
+    case 26:
+        offset = 0x132C;
+        break;
+    case 27:
+        offset = plyr_pdata->sidekick_active == 1 ? 0xD68 : 0xD34;
+        break;
+    case 28: offset = 0xC24; break;
+    case 29: offset = 0x1410; break;
+    case 30: offset = 0x1520; break;
+    case 31: offset = 0x1484; break;
+    }
+    if (offset >= 0) {
+        scan_switch_sequences(&jump_table[offset / 4]);
+    }
+
+    pre_attack_chores();
+    action = &actions->attack_2[joy_state];
+    if (joy_state == 2) {
+        set_my_state(0x1200);
+    }
+    moves_dispatch_attack(action);
+    return 0.0f;
+}
+
+float x_attack_1(void) {
+    MovesAttackActionTable* actions;
+    MovesSwitchLogEntry* entry;
+    MovesActionRef* action;
+    int joy_state;
+    int offset;
+
+    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+        p1_current_log_index = p1_log_index;
+        entry = &p1_switch_log[p1_log_index];
+        p1_current_switch_bit = entry->switch_id;
+        p1_current_switch_time = entry->switch_value;
+    } else {
+        p2_current_log_index = p2_log_index;
+        entry = &p2_switch_log[p2_log_index];
+        p2_current_switch_bit = entry->switch_id;
+        p2_current_switch_time = entry->switch_value;
+    }
+    trial_increment_state_value(plyr_pdata->plyr_num, 1, 0);
+    trial_increment_state_value(
+        plyr_pdata->plyr_num, plyr_pdata->player_slot + 8, 0);
+    if (am_i_airborn() != 0 && plyr_pdata->state == 0x6001) {
+        moves_jump(j_flying_punch);
+        return 0.0f;
+    }
+
+    actions =
+        (MovesAttackActionTable*)plyr_pdata->fighter_definition->move_blend_data;
+    joy_state = my_joypad_state_5();
+    if (joy_state == 2) {
+        init_ground_move();
+        set_my_state(0x1300);
+    }
+
+    offset = -1;
+    switch (plyr_pdata->character_id) {
+    case 0:
+        if (his_pdata->hit_count < 2) offset = 0xB78;
+        break;
+    case 1: offset = 0x930; break;
+    case 3:
+        if (his_pdata->hit_count < 2) offset = 0xA5C;
+        break;
+    case 4: offset = 0x798; break;
+    case 5: offset = 0x668; break;
+    case 6: offset = 0x6FC; break;
+    case 7: offset = 0x81C; break;
+    case 8:
+        if (his_pdata->hit_count < 2) offset = 0x8B4;
+        break;
+    case 9: offset = 0x564; break;
+    case 10: offset = 0x4D0; break;
+    case 11:
+        if (his_pdata->hit_count < 5) offset = 0x5FC;
+        break;
+    case 12:
+        if (his_pdata->hit_count < 5 && his_pdata->state == 0x3203) {
+            offset = 0x9AC;
+        }
+        break;
+    case 14: offset = 0x11A0; break;
+    case 15: offset = 0xF44; break;
+    case 16: offset = 0xFF0; break;
+    case 18:
+        if (his_pdata->hit_count < 2) offset = 0x1120;
+        break;
+    case 19: offset = 0xC80; break;
+    case 20: offset = 0xE9C; break;
+    case 21: offset = 0xAE0; break;
+    case 22:
+        if ((his_pdata->state & 0x400) == 0) offset = 0xE1C;
+        break;
+    case 23: offset = 0x1088; break;
+    case 24: offset = 0x124C; break;
+    case 25:
+    case 26:
+        if (his_pdata->hit_count < 2) offset = 0x12E4;
+        break;
+    case 27:
+        if (his_pdata->hit_count < 1) {
+            offset = plyr_pdata->sidekick_active == 1 ? 0xD1C : 0xD04;
+        }
+        break;
+    case 28:
+        if (his_pdata->hit_count < 2) offset = 0xC0C;
+        break;
+    case 29: offset = 0x13D0; break;
+    case 30: offset = 0x14EC; break;
+    case 31:
+        scan_switch_sequences(&jump_table[0x1440 / 4]);
+        if (plyr_pdata->taunts_performed < 3) offset = 0x146C;
+        break;
+    }
+    if (offset >= 0) {
+        scan_switch_sequences(&jump_table[offset / 4]);
+    }
+
+    pre_attack_chores();
+    action = &actions->attack_1[joy_state];
+    if (joy_state == 2) {
+        set_my_state(0x1300);
+    }
+    moves_dispatch_attack(action);
+    plyr_anim_pdata->step = 1.0f;
+    return 0.0f;
+}
+
 void sidekick_switch_style_swap(unsigned int count) {
     while (count != 0) {
         ani_loop_more_frames(1.0f);
@@ -1788,6 +2606,102 @@ float jump_towards_opponent_j_exit(void) {
     return 0.0f;
 }
 
+void advance_active_moveset(PlyrPdata* player) {
+    PlyrMirrorSlots* slots;
+    MkObj* sidekick;
+
+    trial_increment_state_value(player->plyr_num, 0x10, 0);
+    trial_register_attack(
+        player->plyr_num, (unsigned char)player->player_slot, 0x63);
+    drop_active_weapon_to_original_position(player);
+    if (player->player_slot >= 0 &&
+        moves_is_weapon_style((MovesStyle*)player->fighter_definition) != 0) {
+        plyr_weapon_hide(player, 0, player->mirror_slots);
+    }
+
+    player->player_slot++;
+    if (player->player_slot >= 3) {
+        if (player->character_id == 0x1B) {
+            if (g_game_info.feature_flags.bits.high_bit != 0) {
+                player->player_slot = 0;
+                sidekick = moves_resolve_weapon_latch(
+                    &player->tracked_obj_latch);
+                if (sidekick != 0) {
+                    player->sidekick_active = 0;
+                    tag_team_activate_player(
+                        sidekick, player->sidekick_active == 0);
+                    select_fighter_voice_in_bank(
+                        player->plyr_num, player->sidekick_active);
+                }
+            } else if (player->sidekick_active == 1) {
+                player->player_slot = 1;
+            } else {
+                player->player_slot = 0;
+            }
+        } else {
+            player->player_slot = 0;
+        }
+    }
+    if (player->character_id == 0x1B && player->player_slot >= 2) {
+        player->player_slot = 0;
+    }
+
+    player->fighter_definition = (PlyrFighterDefinition*)
+        player->weapon_styles[player->player_slot];
+    if (player->fighter_definition->move_blend_data == 0) {
+        player->player_slot++;
+        if (player->player_slot >= 3) {
+            player->player_slot = 0;
+        }
+        player->fighter_definition = (PlyrFighterDefinition*)
+            player->weapon_styles[player->player_slot];
+        if (player->fighter_definition->move_blend_data == 0) {
+            player->player_slot = 0;
+            player->fighter_definition =
+                (PlyrFighterDefinition*)player->weapon_styles[0];
+        }
+    }
+
+    player->active_move_display =
+        (PlyrMoveDisplayData*)player->fighter_definition->move_blend_data;
+    player->mirror_slots =
+        &((PlyrWeaponStyle*)player->fighter_definition)->mirror_slots;
+    slots = player->mirror_slots;
+    if (slots != 0) {
+        if (moves_is_weapon_style((MovesStyle*)player->fighter_definition) != 0) {
+            if (moves_resolve_weapon_latch(&slots->weapon[0].primary) != 0) {
+                plyr_weapon_grab(
+                    player, moves_resolve_weapon_latch(
+                                &slots->weapon[0].primary));
+            }
+            if (moves_resolve_weapon_latch(&slots->weapon[1].primary) != 0) {
+                plyr_weapon2_grab(
+                    player, moves_resolve_weapon_latch(
+                                &slots->weapon[1].primary));
+            }
+            if (moves_resolve_weapon_latch(&slots->weapon[2].primary) != 0) {
+                plyr_weapon3_grab(
+                    player, moves_resolve_weapon_latch(
+                                &slots->weapon[2].primary));
+            }
+            if (moves_resolve_weapon_latch(&slots->weapon[3].primary) != 0) {
+                plyr_weapon4_grab(
+                    player, moves_resolve_weapon_latch(
+                                &slots->weapon[3].primary));
+            }
+            plyr_weapon_show(player, 1, slots);
+            if (player->baraka_moveset_callback != 0) {
+                player->baraka_moveset_callback(player, slots);
+            }
+        }
+        if (player->baraka_moveset_callback != 0) {
+            player->baraka_moveset_callback(player, slots);
+        }
+    }
+    show_fighting_style(
+        (GlobalMoveset*)player->fighter_definition, player->plyr_num);
+}
+
 void sidekick_intro_check(void) {
     MkProc* proc;
     MovesSidekickPdataRef pdata;
@@ -1812,6 +2726,147 @@ void sidekick_intro_check(void) {
             pdata.sidekick->player = player;
         }
     }
+}
+
+float p_plyr_sidekick_intro(void) {
+    union {
+        float f;
+        unsigned int u;
+    } inverse_bits;
+    MovesSidekickPdata* pdata;
+    MovesSidekickSwitchState* player;
+    MovesSidekickActionView* actions;
+    PlyrFighterDefinition* alternate_style;
+    MkProc* anim_proc;
+    MkProc* player_proc;
+    MkObj* sidekick;
+    MkObj* main_object;
+    MkObj* opponent_object;
+    AnimPdata* anim;
+    Vec direction;
+    Vec lateral;
+    Vec offset;
+    Vec main_angle;
+    float length_sq;
+    float inverse_length;
+    float estimate_product;
+    float correction;
+    float lateral_scale;
+    float wrapped_angle;
+    int transition;
+    int function;
+
+    pdata = (MovesSidekickPdata*)apdata;
+    player = (MovesSidekickSwitchState*)pdata->player;
+    actions = (MovesSidekickActionView*)pdata->player;
+    sidekick = player->sidekick_obj;
+    if (sidekick != 0 &&
+        sidekick->hdr.instance != player->sidekick_instance) {
+        sidekick = 0;
+    }
+    anim_proc = player->sidekick_anim_proc;
+    if (anim_proc != 0 &&
+        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc = 0;
+    }
+    anim = (AnimPdata*)pdata_of_proc(anim_proc);
+    sidekick->flags_09_bits.head_tracking = 1;
+
+    player_proc = player->player_proc;
+    if (player_proc != 0 &&
+        player_proc->instance != player->player_proc_instance) {
+        player_proc = 0;
+    }
+    get_cmdscript_for_proc(player_proc);
+    tag_team_activate_player(
+        sidekick, player->player_info->slot.pdata->sidekick_active);
+    main_object = player->player_info->slot.mirror_a;
+    opponent_object = player->opponent_obj;
+    direction.x = main_object->pos.x - opponent_object->pos.x;
+    direction.y = 0.0f;
+    direction.z = main_object->pos.z - opponent_object->pos.z;
+    main_angle = main_object->ang;
+
+    length_sq = direction.x * direction.x + direction.z * direction.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse_bits.f = length_sq;
+        inverse_bits.u = 0x5F375A00U - (inverse_bits.u >> 1);
+        estimate_product = inverse_bits.f * (length_sq * inverse_bits.f);
+        correction = 3.0f - estimate_product;
+        inverse_length =
+            0.0625f * inverse_bits.f * correction *
+            -((correction * (estimate_product * correction)) - 12.0f);
+    }
+    direction.x *= inverse_length;
+    direction.z *= inverse_length;
+    offset.x = 0.35f * direction.x;
+    offset.y = 0.0f;
+    offset.z = 0.35f * direction.z;
+    lateral.x = direction.z;
+    lateral.y = 0.0f;
+    lateral.z = -direction.x;
+    if (am_i_on_the_left2(
+            main_object,
+            player->opponent->plyr_info->slot.mirror_a) != 0) {
+        lateral_scale = 0.55f;
+        transition = 0;
+    } else {
+        lateral_scale = -0.55f;
+        transition = 8;
+    }
+    offset.x += lateral.x * lateral_scale;
+    offset.z += lateral.z * lateral_scale;
+
+    sidekick->ground_colls_y = main_object->ground_colls_y;
+    set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
+    sidekick->pos.x = main_object->pos.x + offset.x;
+    sidekick->pos.y = g_game_info.field_34;
+    sidekick->pos.z = main_object->pos.z + offset.z;
+    sidekick->ang = main_angle;
+    update_mkobj(sidekick);
+    sidekick->flags_09_bits.bit6 = 1;
+    sidekick->flags_09_bits.launched = 1;
+    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
+    ground_me(as_mkhdr(&sidekick->hdr));
+
+    destroy_mkprocs_pid(
+        pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
+    alternate_style =
+        (PlyrFighterDefinition*)pdata->player->weapon_styles[1];
+    transition_to_anim_script(
+        anim, alternate_style->duck_exit_animation, transition, 0.1f);
+    anim->step = 1.0f;
+    moves_sleep(1.0f);
+    unhide_obj(sidekick);
+    wrapped_angle =
+        0.000005992112f *
+        (float)(((int)(166886.1f * main_object->ang.y)) & 0xFFFFF);
+    gxMathSin(wrapped_angle);
+    gxMathCos(wrapped_angle);
+    moves_sleep(120.0f + (float)randu0(30));
+    sidekick->flags_09_bits.head_tracking = 0;
+    transition_to_anim_script(
+        anim, actions->charge_exit_animation, transition | 3, 0.25f);
+    anim->step = 1.2f;
+    sidekick->flags_09_bits.bit6 = 1;
+    while (anim->frame < 5.0f) {
+        moves_sleep(1.0f);
+    }
+    sidekick->flags_09_bits.bit6 = 0;
+    sidekick->flags_09_bits.launched = 0;
+    while (anim->frame < 26.0f) {
+        moves_sleep(1.0f);
+    }
+    snd_req(0x32C);
+    obj_set_gravity(sidekick, -0.01f);
+    function = get_script_function_by_name(actions->cmo, "sidekick_intro_exit");
+    plyr_start_script_in_plyr_pdata_proc(pdata->player, 0xC025, function);
+    moves_sleep(30.0f);
+    obj_set_gravity(sidekick, 0.0f);
+    sidekick->flags_08_bits.moving = 0;
+    hide_obj(sidekick);
+    return -1.0f;
 }
 
 void noobsmoke_sidekick_projectile(void) {
@@ -1848,6 +2903,134 @@ void smoke_victory_entrance(void) {
     if (proc != 0 && pdata.hdr != 0) {
         pdata.sidekick->player = plyr_pdata;
     }
+}
+
+float p_plyr_smoke_entrance(void) {
+    union {
+        float f;
+        unsigned int u;
+    } inverse_bits;
+    MovesSidekickPdata* pdata;
+    MovesSidekickSwitchState* player;
+    MovesSidekickActionView* actions;
+    MkProc* anim_proc;
+    MkProc* player_proc;
+    MkObj* sidekick;
+    MkObj* main_object;
+    MkObj* opponent_object;
+    AnimPdata* anim;
+    Vec direction;
+    Vec lateral;
+    Vec offset;
+    Vec main_angle;
+    float length_sq;
+    float inverse_length;
+    float estimate_product;
+    float correction;
+    float lateral_scale;
+    int transition;
+
+    pdata = (MovesSidekickPdata*)apdata;
+    player = (MovesSidekickSwitchState*)pdata->player;
+    actions = (MovesSidekickActionView*)pdata->player;
+    sidekick = player->sidekick_obj;
+    if (sidekick != 0 &&
+        sidekick->hdr.instance != player->sidekick_instance) {
+        sidekick = 0;
+    }
+    anim_proc = player->sidekick_anim_proc;
+    if (anim_proc != 0 &&
+        anim_proc->instance != player->sidekick_anim_proc_instance) {
+        anim_proc = 0;
+    }
+    anim = (AnimPdata*)pdata_of_proc(anim_proc);
+    anim->flags &= ~8U;
+    sidekick->hide_flag_bits.bit6 = 0;
+    sidekick->flags_09_bits.head_tracking = 0;
+
+    player_proc = player->player_proc;
+    if (player_proc != 0 &&
+        player_proc->instance != player->player_proc_instance) {
+        player_proc = 0;
+    }
+    get_cmdscript_for_proc(player_proc);
+    tag_team_activate_player(
+        sidekick, player->player_info->slot.pdata->sidekick_active);
+    main_object = player->player_info->slot.mirror_a;
+    opponent_object = player->opponent_obj;
+    direction.x = main_object->pos.x - opponent_object->pos.x;
+    direction.y = 0.0f;
+    direction.z = main_object->pos.z - opponent_object->pos.z;
+    main_angle = main_object->ang;
+
+    length_sq = direction.x * direction.x + direction.z * direction.z;
+    inverse_length = 0.0f;
+    if (length_sq > 0.0f) {
+        inverse_bits.f = length_sq;
+        inverse_bits.u = 0x5F375A00U - (inverse_bits.u >> 1);
+        estimate_product = inverse_bits.f * (length_sq * inverse_bits.f);
+        correction = 3.0f - estimate_product;
+        inverse_length =
+            0.0625f * inverse_bits.f * correction *
+            -((correction * (estimate_product * correction)) - 12.0f);
+    }
+    direction.x *= inverse_length;
+    direction.z *= inverse_length;
+    offset.x = -0.2f * direction.x;
+    offset.y = 0.0f;
+    offset.z = -0.2f * direction.z;
+    lateral.x = direction.z;
+    lateral.y = 0.0f;
+    lateral.z = -direction.x;
+    if (am_i_on_the_left2(
+            main_object,
+            player->opponent->plyr_info->slot.mirror_a) != 0) {
+        lateral_scale = -0.7f;
+        transition = 0;
+    } else {
+        lateral_scale = 0.7f;
+        transition = 8;
+    }
+    offset.x += lateral.x * lateral_scale;
+    offset.z += lateral.z * lateral_scale;
+
+    sidekick->flags_09_bits.bit6 = 0;
+    sidekick->flags_09_bits.launched = 0;
+    sidekick->ground_colls_y = main_object->ground_colls_y;
+    sidekick->pos_vel.x = 0.0f;
+    sidekick->pos_vel.y = 0.06f;
+    sidekick->pos_vel.z = 0.0f;
+    set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
+    sidekick->pos.x = main_object->pos.x + offset.x;
+    sidekick->pos.y = g_game_info.field_34 - 2.5f;
+    sidekick->pos.z = main_object->pos.z + offset.z;
+    sidekick->ang = main_angle;
+    update_mkobj(sidekick);
+
+    destroy_mkprocs_pid(
+        pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
+    snd_req(0x333);
+    set_anim_script(
+        anim, actions->smoke_entrance_animation, transition | 0x40);
+    moves_sleep(1.0f);
+    unhide_obj(sidekick);
+    anim->step = 1.0f;
+    while (sidekick->pos.y < g_game_info.field_34 + 1.3f) {
+        moves_sleep(1.0f);
+    }
+    obj_set_gravity(sidekick, -0.006f);
+    sidekick->flags_09_bits.launched = 1;
+    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
+    ground_me(as_mkhdr(&sidekick->hdr));
+    transition_to_anim_script(
+        anim, actions->smoke_land_animation, transition, 0.05f);
+    moves_sleep(24.0f);
+    sidekick->flags_09_bits.bit6 = 1;
+    random_foot(2);
+    shake_camera(2, 0.02f);
+    anim->step = 0.6f;
+    moves_sleep(10000.0f);
+    return -1.0f;
 }
 
 void noob_victory_entrance(void) {
@@ -2837,12 +4020,14 @@ void glitch_to_stance_j_exit(void) {
     moves_jump(j_exit);
 }
 
+/*
+ * Soft ceiling: drahmin_dash_back is 98.870964% and joy_dash_back is
+ * 99.333336%. Their instruction streams match; only TU-local float-pool
+ * relocation labels differ.
+ */
 static float drahmin_dash_back(void) {
-    MovesDashAnimationView* moves;
-
-    moves = (MovesDashAnimationView*)plyr_pdata;
     snd_req(0xD71);
-    blend_to_ani(moves->dash_back, 0xB, 0.1f);
+    blend_to_ani(((MovesDashAnimationView*)plyr_pdata)->dash_back, 0xB, 0.1f);
     plyr_anim_pdata->step = 1.4f;
     plyr_anim_pdata->weight_velocity = 0.0f;
     plyr_anim_pdata->weight = 1.5f;
@@ -2850,7 +4035,7 @@ static float drahmin_dash_back(void) {
     init_air_move();
     ani_to_frame_x(16.0f);
     snd_req(0xD71);
-    blend_to_ani(moves->dash_back, 3, 0.1f);
+    blend_to_ani(((MovesDashAnimationView*)plyr_pdata)->dash_back, 3, 0.1f);
     init_ground_move();
     plyr_anim_pdata->step = 1.4f;
     plyr_anim_pdata->weight = 1.5f;
@@ -2865,14 +4050,14 @@ static float drahmin_dash_back(void) {
 }
 
 static float joy_dash_back(void) {
-    MovesDashFighterDefinitionView* fighter;
-
-    fighter =
-        (MovesDashFighterDefinitionView*)plyr_pdata->fighter_definition;
     avoid_double_ani();
     init_ground_move_no_aniproc();
-    if (fighter->weapon_rest_animation != 0) {
-        plyr_spawn_anim(p_animate_weapon_rest);
+    if (((MovesDashFighterDefinitionView*)plyr_pdata->fighter_definition)
+            ->weapon_rest_animation != 0) {
+        plyr_spawn_anim(
+            ((MovesDashFighterDefinitionView*)plyr_pdata->fighter_definition)
+                ->weapon_rest_animation,
+            p_animate_weapon_rest);
     }
     trial_increment_state_value(plyr_pdata->plyr_num, 0x17, 0);
     random_voice(9);
@@ -2900,6 +4085,11 @@ static float joy_dash_back(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: jump_away_opponent and this j_exit variant are 99.25742% and
+ * 99.26605%. Remaining differences are float-pool relocation labels and r5
+ * versus r3 allocation for the final animation-pdata load/store group.
+ */
 static float jump_away_opponent_j_exit(void) {
     MovesAnimPdataView* anim;
     MkHdr* object;
@@ -2911,8 +4101,8 @@ static float jump_away_opponent_j_exit(void) {
     init_air_move();
     set_my_state(0x6200);
     uv_to_opponent(&direction);
-    plyr_obj->pos_vel.x = -0.008f * direction.x;
-    plyr_obj->pos_vel.z = -0.008f * direction.z;
+    plyr_obj->pos_vel.x = 0.008f * -direction.x;
+    plyr_obj->pos_vel.z = 0.008f * -direction.z;
     xfer_proc(plyr_anim_proc, p_animate);
     dead_liukang_snd_chain_check(plyr_pdata, 0, 0x1E, 0x50);
     random_voice(9);
@@ -2935,7 +4125,7 @@ static float jump_away_opponent_j_exit(void) {
     anim = (MovesAnimPdataView*)plyr_anim_pdata;
     high_frame = anim->base.high_frame;
     anim->landing_start = high_frame - 10.0f;
-    anim->landing_end = anim->base.high_frame;
+    anim->landing_end = plyr_anim_pdata->high_frame;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)aniproc_land);
     moves_jump(j_exit_blend_stance);
     return 0.0f;
@@ -2956,6 +4146,12 @@ static inline int moves_dead_movement(void) {
     return 0;
 }
 
+/*
+ * Soft ceiling: walk_right/left are 94.814156%, walk_forward is 93.32478%,
+ * and walk_backward is 94.29703%. Remaining differences are float-pool
+ * relocation labels, saved-register selection, and the branch/join emitted
+ * when MWCC inlines the clean moves_dead_movement helper.
+ */
 static float walk_right(void) {
     int pad_position;
 
@@ -2967,7 +4163,7 @@ static float walk_right(void) {
         if (moves_dead_movement() != 0) {
             break;
         }
-        advance_anim();
+        advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         moves_sleep(1.0f);
     }
@@ -2995,7 +4191,7 @@ static float walk_left(void) {
         if (moves_dead_movement() != 0) {
             break;
         }
-        advance_anim();
+        advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         moves_sleep(1.0f);
     }
@@ -3013,15 +4209,14 @@ static float walk_left(void) {
 }
 
 static float walk_forward(void) {
-    PlyrMoveBlendData* blend;
     int pad_position;
     int tracking_disabled;
 
-    blend = plyr_pdata->fighter_definition->move_blend_data;
     tracking_disabled = 0;
     pad_position = my_pad_position();
     blend_to_ani(plyr_pdata->fighter_definition->walk_forward_loop, 0, 0.2f);
-    plyr_anim_pdata->step = blend->walk_forward_step;
+    plyr_anim_pdata->step = plyr_pdata->fighter_definition->move_blend_data
+                                ->walk_forward_step;
     while (pad_position == my_pad_position()) {
         if (moves_dead_movement() != 0) {
             break;
@@ -3034,7 +4229,7 @@ static float walk_forward(void) {
             tracking_disabled = 1;
             head_tracking_off();
         }
-        advance_anim();
+        advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         moves_sleep(1.0f);
     }
@@ -3045,19 +4240,18 @@ static float walk_forward(void) {
 }
 
 static float walk_backward(void) {
-    PlyrMoveBlendData* blend;
     int pad_position;
 
-    blend = plyr_pdata->fighter_definition->move_blend_data;
     pad_position = my_pad_position();
     blend_to_ani(plyr_pdata->fighter_definition->walk_backward_loop, 0, 0.2f);
-    plyr_anim_pdata->step = blend->walk_backward_step;
+    plyr_anim_pdata->step = plyr_pdata->fighter_definition->move_blend_data
+                                ->walk_backward_step;
     while (pad_position == my_pad_position()) {
         if (moves_dead_movement() != 0) {
             break;
         }
         face_opponent_now();
-        advance_anim();
+        advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         moves_sleep(1.0f);
     }
@@ -3067,8 +4261,12 @@ static float walk_backward(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: step_backward/forward are 99.48718% and step_right/left are
+ * 99.541985%. Their instruction streams match; only TU-local float-pool
+ * relocation labels differ.
+ */
 static float step_backward(void) {
-    PlyrMoveBlendData* blend;
     int pad_position;
 
     avoid_double_ani();
@@ -3081,10 +4279,14 @@ static float step_backward(void) {
     plyr_anim_pdata->flags |= 0x40;
     blend_to_ani(
         plyr_pdata->fighter_definition->walk_backward_start, 3, 0.33f);
-    blend = plyr_pdata->fighter_definition->move_blend_data;
-    plyr_anim_pdata->step = blend->walk_backward_start_step;
-    plyr_anim_pdata->weight = blend->walk_backward_start_weight;
-    ani_to_frame_x_call(face_opponent_now, blend->walk_backward_start_frame);
+    plyr_anim_pdata->step = plyr_pdata->fighter_definition->move_blend_data
+                                ->walk_backward_start_step;
+    plyr_anim_pdata->weight = plyr_pdata->fighter_definition->move_blend_data
+                                  ->walk_backward_start_weight;
+    ani_to_frame_x_call(
+        face_opponent_now,
+        plyr_pdata->fighter_definition->move_blend_data
+            ->walk_backward_start_frame);
     ani_to_frame_x_call(
         face_opponent_now, plyr_anim_pdata->high_frame - 14.0f);
     random_foot(1);
@@ -3095,7 +4297,8 @@ static float step_backward(void) {
     ani_to_frame_x_call(
         face_opponent_now, plyr_anim_pdata->high_frame - 10.0f);
     plyr_anim_pdata->weight = 1.0f;
-    if (blend->use_fighting_stance != 0) {
+    if (plyr_pdata->fighter_definition->move_blend_data
+            ->use_fighting_stance != 0) {
         blend_to_fstance(0.1f);
     } else {
         blend_to_stance(0.1f);
@@ -3106,7 +4309,6 @@ static float step_backward(void) {
 }
 
 static float step_forward(void) {
-    PlyrMoveBlendData* blend;
     int pad_position;
 
     avoid_double_ani();
@@ -3119,10 +4321,14 @@ static float step_forward(void) {
     plyr_anim_pdata->flags |= 0x40;
     blend_to_ani(
         plyr_pdata->fighter_definition->walk_forward_start, 3, 0.33f);
-    blend = plyr_pdata->fighter_definition->move_blend_data;
-    plyr_anim_pdata->step = blend->walk_forward_start_step;
-    plyr_anim_pdata->weight = blend->walk_forward_start_weight;
-    ani_to_frame_x_call(face_opponent_now, blend->walk_forward_start_frame);
+    plyr_anim_pdata->step = plyr_pdata->fighter_definition->move_blend_data
+                                ->walk_forward_start_step;
+    plyr_anim_pdata->weight = plyr_pdata->fighter_definition->move_blend_data
+                                  ->walk_forward_start_weight;
+    ani_to_frame_x_call(
+        face_opponent_now,
+        plyr_pdata->fighter_definition->move_blend_data
+            ->walk_forward_start_frame);
     ani_to_frame_x_call(
         face_opponent_now, plyr_anim_pdata->high_frame - 13.0f);
     random_foot(0);
@@ -3133,7 +4339,8 @@ static float step_forward(void) {
     ani_to_frame_x_call(
         face_opponent_now, plyr_anim_pdata->high_frame - 10.0f);
     plyr_anim_pdata->weight = 1.0f;
-    if (blend->use_fighting_stance != 0) {
+    if (plyr_pdata->fighter_definition->move_blend_data
+            ->use_fighting_stance != 0) {
         blend_to_fstance(0.1f);
     } else {
         blend_to_stance(0.1f);
@@ -3144,7 +4351,6 @@ static float step_forward(void) {
 }
 
 static float step_right(void) {
-    PlyrMoveBlendData* blend;
     int pad_position;
 
     init_3d_move_no_aniproc();
@@ -3155,13 +4361,16 @@ static float step_right(void) {
     plyr_anim_pdata->flags |= 0x40;
     blend_to_ani(plyr_pdata->fighter_definition->strafe_right_start, 3, 0.2f);
     dead_liukang_snd_chain_check(plyr_pdata, 0, 0xA, 0x19);
-    blend = plyr_pdata->fighter_definition->move_blend_data;
-    plyr_anim_pdata->step = blend->strafe_start_step;
-    plyr_anim_pdata->weight = blend->strafe_start_weight;
+    plyr_anim_pdata->step = plyr_pdata->fighter_definition->move_blend_data
+                                ->strafe_start_step;
+    plyr_anim_pdata->weight = plyr_pdata->fighter_definition->move_blend_data
+                                  ->strafe_start_weight;
     plyr_pdata->dodge_sound_played = 0;
-    while (plyr_anim_pdata->frame < blend->strafe_start_frame) {
+    while (plyr_anim_pdata->frame <
+           plyr_pdata->fighter_definition->move_blend_data
+               ->strafe_start_frame) {
         dodge_3d_scan();
-        advance_anim();
+        advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         moves_sleep(1.0f);
     }
@@ -3173,7 +4382,8 @@ static float step_right(void) {
     }
     ani_to_blend_frame(10.0f);
     plyr_anim_pdata->weight = 1.0f;
-    if (blend->use_fighting_stance != 0) {
+    if (plyr_pdata->fighter_definition->move_blend_data
+            ->use_fighting_stance != 0) {
         blend_to_fstance(0.1f);
     } else {
         blend_to_stance(0.1f);
@@ -3186,7 +4396,6 @@ static float step_right(void) {
 }
 
 static float step_left(void) {
-    PlyrMoveBlendData* blend;
     int pad_position;
 
     init_3d_move_no_aniproc();
@@ -3197,13 +4406,16 @@ static float step_left(void) {
     plyr_anim_pdata->flags |= 0x40;
     blend_to_ani(plyr_pdata->fighter_definition->strafe_left_start, 3, 0.2f);
     dead_liukang_snd_chain_check(plyr_pdata, 0, 0xA, 0x19);
-    blend = plyr_pdata->fighter_definition->move_blend_data;
-    plyr_anim_pdata->step = blend->strafe_start_step;
-    plyr_anim_pdata->weight = blend->strafe_start_weight;
+    plyr_anim_pdata->step = plyr_pdata->fighter_definition->move_blend_data
+                                ->strafe_start_step;
+    plyr_anim_pdata->weight = plyr_pdata->fighter_definition->move_blend_data
+                                  ->strafe_start_weight;
     plyr_pdata->dodge_sound_played = 0;
-    while (plyr_anim_pdata->frame < blend->strafe_start_frame) {
+    while (plyr_anim_pdata->frame <
+           plyr_pdata->fighter_definition->move_blend_data
+               ->strafe_start_frame) {
         dodge_3d_scan();
-        advance_anim();
+        advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         moves_sleep(1.0f);
     }
@@ -3215,7 +4427,8 @@ static float step_left(void) {
     }
     ani_to_blend_frame(10.0f);
     plyr_anim_pdata->weight = 1.0f;
-    if (blend->use_fighting_stance != 0) {
+    if (plyr_pdata->fighter_definition->move_blend_data
+            ->use_fighting_stance != 0) {
         blend_to_fstance(0.1f);
     } else {
         blend_to_stance(0.1f);
@@ -3232,7 +4445,8 @@ static float dizzy(void) {
 
     if (plyr_pdata->character_id == 1) {
         if (is_local_plyr() != 0) {
-            while (plyr_pdata->fighter_definition->move_blend_data != 0 &&
+            while (plyr_pdata->fighter_definition != 0 &&
+                   plyr_pdata->fighter_definition->move_blend_data != 0 &&
                    (plyr_pdata->fighter_definition->move_blend_data
                             ->primary_weapon != 0 ||
                     plyr_pdata->fighter_definition->move_blend_data
@@ -3398,43 +4612,41 @@ static void check_for_suicide(void) {
     scan_switch_sequences(&jump_table[offset / sizeof(unsigned int)]);
 }
 
-static inline int moves_has_nearby_pickup(MkObj* object) {
-    MovesGameInfoView* game;
+static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
     MovesPickupTransform* transform;
     MovesPickup* pickup;
     MkPtr* link;
     MkPtr* next;
+    float delta_z;
     float delta_x;
     float delta_y;
-    float delta_z;
 
-    game = (MovesGameInfoView*)&g_game_info;
-    link = game->pickup_list;
-    while (link != 0) {
-        pickup = (MovesPickup*)link->hdr;
-        if (link->instance != pickup->hdr.instance) {
-            next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
-            link = next;
-            continue;
-        }
-        transform = pickup->transform_a;
-        if (transform == 0) {
-            transform = pickup->transform_b;
-        }
-        delta_z = object->pos.z - transform->position.z;
-        delta_x = object->pos.x - transform->position.x;
-        delta_y = object->pos.y - transform->position.y;
-        if (delta_x * delta_x + delta_z * delta_z < 2.9f) {
-            if (delta_y < 0.0f) {
-                delta_y = -delta_y;
+    if (pickup_list != 0) {
+        link = *pickup_list;
+        while (link != 0) {
+            pickup = (MovesPickup*)link->hdr;
+            if (link->instance != pickup->hdr.instance) {
+                next = link->next;
+                link->hdr = 0;
+                destroy_mkptr(link);
+                link = next;
+                continue;
             }
-            if (delta_y < 1.5f) {
-                return 1;
+            transform = pickup->transform_a;
+            if (transform == 0) {
+                transform = pickup->transform_b;
             }
+            delta_z = object->pos.z - transform->position.z;
+            delta_x = object->pos.x - transform->position.x;
+            delta_y = object->pos.y - transform->position.y;
+            if (delta_x * delta_x + delta_z * delta_z < 2.9f) {
+                delta_y = delta_y >= 0.0f ? delta_y : -delta_y;
+                if (delta_y < 1.5f) {
+                    return 1;
+                }
+            }
+            link = link->next;
         }
-        link = link->next;
     }
     return 0;
 }
@@ -3443,6 +4655,8 @@ float switch_proc_pickup(void) {
     PlyrInfo* player;
     PlyrPdata* player_data;
     MkObj* object;
+    int pad_index;
+    int can_pick_up;
     int state;
 
     player = switch_pdata->player;
@@ -3450,41 +4664,43 @@ float switch_proc_pickup(void) {
         return -1.0f;
     }
     player_data = player->slot.pdata;
-    if ((player_data->state & 0x200) != 0 ||
-        is_pX_airborn(player->pad_index) != 0) {
-        return -1.0f;
-    }
-    object = player_data->plyr_info->slot.mirror_a;
-    if ((player_data->state & 0x200) != 0 ||
-        is_plyr_airborn(object, player_data) == 1 ||
-        moves_has_nearby_pickup(object) == 0) {
-        return -1.0f;
-    }
-
-    player = switch_pdata->player;
-    if (player != 0) {
-        if (player->slot.pdata->state == 0x6000) {
-            g_game_info.plyr0.slot.pdata->state = 0x6002;
-            mkproc_die();
+    pad_index = player->pad_index;
+    if ((player_data->state & 0x200) == 0 && is_pX_airborn(pad_index) == 0) {
+        object = player_data->plyr_info->slot.mirror_a;
+        if ((player_data->state & 0x200) != 0 ||
+            is_plyr_airborn(object, player_data) == 1) {
+            can_pick_up = 0;
+        } else {
+            can_pick_up = moves_has_nearby_pickup(
+                object, &((MovesGameInfoView*)&g_game_info)->pickup_list);
         }
-        if (player->player_state != 2 && player->player_state != 3) {
-            mkproc_die();
+        if (can_pick_up != 0) {
+            player = switch_pdata->player;
+            if (player != 0) {
+                if (player->slot.pdata->state == 0x6000) {
+                    g_game_info.plyr0.slot.pdata->state = 0x6002;
+                    mkproc_die();
+                }
+                if (player->player_state != 2 && player->player_state != 3) {
+                    mkproc_die();
+                }
+                state = player->slot.pdata->state;
+                if ((state & 0x200) != 0 && state != 0x420D) {
+                    mkproc_die();
+                }
+                if ((player->slot.pdata->state & 0x800) != 0) {
+                    mkproc_die();
+                }
+                if ((unsigned int)player->slot.pdata->attacks_disabled_until >
+                    (unsigned int)game_tick_ctr) {
+                    mkproc_die();
+                }
+                if (player->field_0C == 0.0f) {
+                    mkproc_die();
+                }
+                xfer_proc((MkProc*)player->idle_proc, (MkProcEntryFn)x_pickup);
+            }
         }
-        state = player->slot.pdata->state;
-        if ((state & 0x200) != 0 && state != 0x420D) {
-            mkproc_die();
-        }
-        if ((player->slot.pdata->state & 0x800) != 0) {
-            mkproc_die();
-        }
-        if ((unsigned int)player->slot.pdata->attacks_disabled_until >
-            (unsigned int)game_tick_ctr) {
-            mkproc_die();
-        }
-        if (player->field_0C == 0.0f) {
-            mkproc_die();
-        }
-        xfer_proc((MkProc*)player->idle_proc, (MkProcEntryFn)x_pickup);
     }
     return -1.0f;
 }
@@ -3500,8 +4716,8 @@ float jump_away_opponent(void) {
     init_air_move();
     set_my_state(0x6200);
     uv_to_opponent(&direction);
-    plyr_obj->pos_vel.x = -0.008f * direction.x;
-    plyr_obj->pos_vel.z = -0.008f * direction.z;
+    plyr_obj->pos_vel.x = 0.008f * -direction.x;
+    plyr_obj->pos_vel.z = 0.008f * -direction.z;
     xfer_proc(plyr_anim_proc, p_animate);
     dead_liukang_snd_chain_check(plyr_pdata, 0, 0x1E, 0x50);
     random_voice(9);
@@ -3524,7 +4740,7 @@ float jump_away_opponent(void) {
     anim = (MovesAnimPdataView*)plyr_anim_pdata;
     high_frame = anim->base.high_frame;
     anim->landing_start = high_frame - 10.0f;
-    anim->landing_end = anim->base.high_frame;
+    anim->landing_end = plyr_anim_pdata->high_frame;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)aniproc_land);
     return 0.0f;
 }
@@ -3998,7 +5214,7 @@ static float j_flying_kick2_early(void) {
     plyr_anim_pdata->step = 0.5f;
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
-           plyr_obj->flags_08_bits.moving && plyr_obj->gravity != 0.0f) {
+           (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame(1);
         moves_sleep(1.0f);
     }
@@ -4086,7 +5302,7 @@ float j_flying_kick2(void) {
     }
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
-           plyr_obj->flags_08_bits.moving && plyr_obj->gravity != 0.0f) {
+           (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame(1);
         moves_sleep(1.0f);
     }
@@ -4161,7 +5377,7 @@ static float j_flying_kick1_early(void) {
     plyr_anim_pdata->step = 0.5f;
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
-           plyr_obj->flags_08_bits.moving && plyr_obj->gravity != 0.0f) {
+           (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame(1);
         moves_sleep(1.0f);
     }
@@ -4247,7 +5463,7 @@ float j_flying_kick(void) {
     plyr_anim_pdata->high_frame = 20.0f;
     plyr_anim_pdata->step = 1.0f;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
-           plyr_obj->flags_08_bits.moving && plyr_obj->gravity != 0.0f) {
+           (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame(1);
         moves_sleep(1.0f);
     }
@@ -4321,7 +5537,7 @@ static float j_flying_punch_early(void) {
     plyr_anim_pdata->step = 0.5f;
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
-           plyr_obj->flags_08_bits.moving && plyr_obj->gravity != 0.0f) {
+           (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame(1);
         moves_sleep(1.0f);
     }
@@ -4414,7 +5630,7 @@ static float j_flying_punch(void) {
     plyr_obj->flags_08_bits.moving = 1;
     plyr_anim_pdata->step = 1.0f;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
-           plyr_obj->flags_08_bits.moving && plyr_obj->gravity != 0.0f) {
+           (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame(1);
         moves_sleep(1.0f);
     }

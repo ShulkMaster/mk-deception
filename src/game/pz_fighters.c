@@ -117,7 +117,7 @@ typedef struct PuzzleFightersEngine {
     int breakout; /* +0x164 */
     int y_constraint_enabled[2]; /* +0x168 */
     float y_constraint[2]; /* +0x170 */
-    int fatality_timer; /* +0x178 */
+    unsigned int fatality_timer; /* +0x178 */
     char pad17C[4];
     ScreenObj* screen_objects[2]; /* +0x180 */
     AniTextureControl* texture_controls[2]; /* +0x188 */
