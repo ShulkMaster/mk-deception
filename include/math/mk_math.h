@@ -43,7 +43,7 @@ void uv_from_angles_xy(Vec* out, float angle_x, float angle_y);
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to);
 void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to);
 void v3_blend3(Vec* out, const Vec* weights, const Vec* a, const Vec* b, const Vec* c);
-void normalize_v3_length(Vec* v);
+float normalize_v3_length(Vec* v);
 void normalize_v3(Vec* v);
 void zero_v3(Vec* v);
 float length_v3(const Vec* v);

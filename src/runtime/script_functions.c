@@ -511,7 +511,7 @@ typedef struct FakeBoneMatcherArgs {
 
 typedef struct PopHeadArgs {
     unsigned int header;
-    int player;
+    PlyrInfo* player;
     float x_velocity;
     float y_velocity;
     float z_velocity;
@@ -529,6 +529,33 @@ typedef struct ScriptEightIntArgs {
     int arg7;
     int arg8;
 } ScriptEightIntArgs;
+
+typedef struct LimbBoneAttachArgs {
+    unsigned int header;
+    PlyrInfo* target_player;
+    int owner_bone;
+    const Vec* offset;
+    const Vec* rotation;
+    PlyrInfo* owner_player;
+    int limb;
+    int target_bone;
+    int include_children;
+} LimbBoneAttachArgs;
+
+typedef struct Gore2PebbleArgs {
+    unsigned int header;
+    unsigned int object_id;
+    int bone;
+    MkObj* source;
+    FighterMirror* decal_owner;
+    const Vec* velocity;
+    const Vec* rotation;
+    const Vec* scale;
+    const Vec* position_offset;
+    float vertical_acceleration;
+    int bounce_count;
+    float bounce_scale;
+} Gore2PebbleArgs;
 
 typedef struct ScriptIntResult {
     char pad00[0x2C];
@@ -766,6 +793,8 @@ typedef union ScriptArgsRef {
     FakeBoneMatcherResetArgs* fake_bone_reset;
     FakeBoneMatcherArgs* fake_bone_match;
     PopHeadArgs* pop_head;
+    LimbBoneAttachArgs* limb_bone_attach;
+    Gore2PebbleArgs* gore2_pebble;
     ScriptEightIntArgs* eight_int;
     ScriptFlagArgs* flag;
     ScriptExitArgs* exit_args;
@@ -1191,9 +1220,12 @@ void fatality_release_other_player(void);
 int get_level_fatality_done_flag_state(void);
 void set_level_fatality_done_flag_state(int value);
 void limb_sever_destroy_existing_attach_proc(int a, int b);
-void limb_sever_bone_attach(int arg1, int arg2, int arg3, int arg4, int arg5,
-                            int arg6, int arg7, int arg8);
-MkHdr* limb_sever_pop_head_up(int player, float x_velocity, float y_velocity,
+void limb_sever_bone_attach(
+    PlyrInfo* target_player, int owner_bone,
+    const Vec* offset, const Vec* rotation,
+    PlyrInfo* owner_player, int limb, int target_bone,
+    int include_children);
+MkHdr* limb_sever_pop_head_up(PlyrInfo* player, float x_velocity, float y_velocity,
                               float z_velocity, float angular_velocity);
 void* mks_limb_sever(int a, int b, int c);
 void* limb_sever_find_existing_update_proc(int a, int b, int c);
@@ -1216,7 +1248,7 @@ void animpdata_ani_1_frame(void* anim);
 void check_to_register_miss(void);
 void auto_ani_off(void);
 void ncs_dkp_camera_konqchar_show_hide_alpha(int a, int b);
-void ncs_camera_wall_show_hide_alpha(int a);
+void ncs_camera_wall_show_hide_alpha(void* regions);
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
 void ncs_bgnd_nuke_collision_to_script_interface(void);
 void* retrieve_bgnd_obj(void);
@@ -2520,7 +2552,12 @@ int single_frame_collision_check(int, int, int, void *, float, float, float);
 int special_move_cam_him(int, int, int, float, float, float, float, float);
 int special_move_cam_setup(int, int, int, float, float, float, float, float);
 int special_move_cam_setup2(int, int, int, int, int, float, float, float, float, float);
-int start_gore2_pebbles(int, int, int, int, int, int, int, int, float, float);
+void start_gore2_pebbles(
+    unsigned int object_id, int bone, MkObj* source,
+    FighterMirror* decal_owner, const Vec* velocity,
+    const Vec* rotation, const Vec* scale,
+    const Vec* position_offset, float vertical_acceleration,
+    float bounce_scale, int bounce_count);
 int start_gusher(int *, int, int, int, int, int);
 int transition_to_anim_script_frame(int, void*, int, void*, float, float);
 int trial_do_dialog(int, int, int, int, float, float, float);
@@ -4712,11 +4749,20 @@ void _attach_gore2_obj(void) {
 
 void _start_gore2_pebbles(void) {
     ScriptArgsRef args;
-    int sp8;
 
     args.bytes = current_args;
-    sp8 = args.raw->slots[9].i;
-    start_gore2_pebbles(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[8].f, args.raw->slots[10].f);
+    start_gore2_pebbles(
+        args.gore2_pebble->object_id,
+        args.gore2_pebble->bone,
+        args.gore2_pebble->source,
+        args.gore2_pebble->decal_owner,
+        args.gore2_pebble->velocity,
+        args.gore2_pebble->rotation,
+        args.gore2_pebble->scale,
+        args.gore2_pebble->position_offset,
+        args.gore2_pebble->vertical_acceleration,
+        args.gore2_pebble->bounce_scale,
+        args.gore2_pebble->bounce_count);
 }
 
 void _start_bodyslam_bodysplat(void) {
@@ -4928,14 +4974,14 @@ void _limb_sever_bone_attach(void) {
 
     args.bytes = current_args;
     limb_sever_bone_attach(
-        args.eight_int->arg1,
-        args.eight_int->arg2,
-        args.eight_int->arg3,
-        args.eight_int->arg4,
-        args.eight_int->arg5,
-        args.eight_int->arg6,
-        args.eight_int->arg7,
-        args.eight_int->arg8);
+        args.limb_bone_attach->target_player,
+        args.limb_bone_attach->owner_bone,
+        args.limb_bone_attach->offset,
+        args.limb_bone_attach->rotation,
+        args.limb_bone_attach->owner_player,
+        args.limb_bone_attach->limb,
+        args.limb_bone_attach->target_bone,
+        args.limb_bone_attach->include_children);
 }
 
 void _limb_sever_pop_head_up(void) {
@@ -5038,7 +5084,10 @@ void _ncs_dkp_camera_konqchar_show_hide_alpha(void) {
                                             ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _ncs_camera_wall_show_hide_alpha(void) { ncs_camera_wall_show_hide_alpha(((ScriptRawArgs*)current_args)->slots[0].i); }
+void _ncs_camera_wall_show_hide_alpha(void) {
+    ncs_camera_wall_show_hide_alpha(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
 
 void _ncs_bgnd_nuke_collision_to_script_interface(void) { ncs_bgnd_nuke_collision_to_script_interface(); }
 

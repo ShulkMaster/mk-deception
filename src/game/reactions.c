@@ -54,13 +54,22 @@ typedef struct ReactionCurrentPdata {
 
 typedef float (*ReactionEntry)(void);
 
-typedef struct ReactionXferAddress {
+typedef struct ReactionDispatchPair {
     int call_type;
     ReactionEntry entry;
+} ReactionDispatchPair;
+
+typedef struct ReactionXferAddress {
+    ReactionDispatchPair dispatch;
     int power_level;
     int state;
     int flags;
 } ReactionXferAddress;
+
+typedef struct ReactionDispatchContext {
+    ReactionDispatchPair transfer;
+    int saved_state;
+} ReactionDispatchContext;
 
 typedef struct ReactionFighterDefinitionView {
     char pad00[0x158];
@@ -416,7 +425,6 @@ void camera_get_screen_pos_from_world_pos(
 #include "src/game/reactions_table.inc"
 
 void run_reaction_cleanup_function(PlyrPdata* player) {
-    ReactionStatusFlagsView* status;
     CmdScript* saved_script;
     PlyrPdata* saved_player;
     PlyrPdata* saved_opponent;
@@ -425,44 +433,59 @@ void run_reaction_cleanup_function(PlyrPdata* player) {
     MkObj* object;
     MkObj* opponent_object;
 
-    if (player == 0) {
-        return;
+    if (player != 0 &&
+        ((ReactionStatusFlagsView*)player->status_flags)
+            ->cleanup_function != 0) {
+        saved_player = plyr_pdata;
+        saved_opponent = his_pdata;
+        plyr_pdata = player;
+        saved_object = plyr_obj;
+        saved_opponent_object = his_obj;
+        his_pdata = player->his_plyr_pdata;
+        object = player->tracked_obj;
+        if (object != 0) {
+            if (object->hdr.instance == player->tracked_obj_instance) {
+                /* The tracked handle is still live. */
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
+        plyr_obj = object;
+        opponent_object = his_pdata->tracked_obj;
+        if (opponent_object != 0) {
+            if (opponent_object->hdr.instance ==
+                his_pdata->tracked_obj_instance) {
+                /* The opponent's tracked handle is still live. */
+            } else {
+                opponent_object = 0;
+            }
+        } else {
+            opponent_object = 0;
+        }
+        his_obj = opponent_object;
+        if (object != 0) {
+            if (opponent_object != 0) {
+                saved_script = active_cmdscript;
+                active_cmdscript = &global_script_interpreter;
+                cmdscript_set_parameters(
+                    &global_script_interpreter, 1, player);
+                cmdscript_setup_execution(
+                    player->cmo,
+                    ((ReactionStatusFlagsView*)player->status_flags)
+                        ->cleanup_function);
+                cmdscript_execute(player->cmo);
+                active_cmdscript = saved_script;
+                plyr_pdata = saved_player;
+                his_pdata = saved_opponent;
+                plyr_obj = saved_object;
+                his_obj = saved_opponent_object;
+            } else {
+                return;
+            }
+        }
     }
-    status = (ReactionStatusFlagsView*)player->status_flags;
-    if (status->cleanup_function == 0) {
-        return;
-    }
-    saved_player = plyr_pdata;
-    saved_opponent = his_pdata;
-    plyr_pdata = player;
-    saved_object = plyr_obj;
-    saved_opponent_object = his_obj;
-    his_pdata = player->his_plyr_pdata;
-    object = player->tracked_obj;
-    if (object != 0 &&
-        object->hdr.instance != player->tracked_obj_instance) {
-        object = 0;
-    }
-    plyr_obj = object;
-    opponent_object = his_pdata->tracked_obj;
-    if (opponent_object != 0 &&
-        opponent_object->hdr.instance != his_pdata->tracked_obj_instance) {
-        opponent_object = 0;
-    }
-    his_obj = opponent_object;
-    if (object == 0 || opponent_object == 0) {
-        return;
-    }
-    saved_script = active_cmdscript;
-    active_cmdscript = &global_script_interpreter;
-    cmdscript_set_parameters(&global_script_interpreter, 1, player);
-    cmdscript_setup_execution(player->cmo, status->cleanup_function);
-    cmdscript_execute(player->cmo);
-    active_cmdscript = saved_script;
-    plyr_pdata = saved_player;
-    his_pdata = saved_opponent;
-    plyr_obj = saved_object;
-    his_obj = saved_opponent_object;
 }
 
 ScreenObj* display_image_by_plyr(
@@ -470,6 +493,7 @@ ScreenObj* display_image_by_plyr(
     ReactionImageSource* source, float y_offset) {
     ReactionImageFaderPdata* fader;
     ScreenObj* image;
+    int half_width;
     Vec bone_offset = {0.0f, 0.0f, 0.0f};
     Vec world_position;
     Vec screen_position;
@@ -481,35 +505,36 @@ ScreenObj* display_image_by_plyr(
     world_position.y = y_offset + g_game_info.field_34;
     camera_get_screen_pos_from_world_pos(
         &world_position, &screen_position);
-    image->x =
-        (int)screen_position.x - image->pfx2d->tex_w / 2;
+    half_width = image->pfx2d->tex_w / 2;
+    image->x = (int)screen_position.x - half_width;
     image->y = (int)screen_position.y;
 
-    fader = 0;
     if (_create_mkproc_generic_nostack(
             0xC02A, 0x1F, p_image_fader,
             sizeof(ReactionImageFaderPdata),
             (MkHdr**)&fader) != 0) {
         fader->object = image;
         fader->object_instance = image->instance;
-        fader->direction = source->hdr.instance;
-        fader->alpha = 0xFF;
         fader->delay = 60;
+        fader->alpha = 0xFF;
+        fader->direction = source->hdr.instance;
     }
     return image;
 }
 
 void flash_hit_at_bid_with_y(float y_offset) {
     unsigned int effect;
+    MkObj* object;
     Vec position;
 
+    object = plyr_obj;
     if (plyr_pdata->plyr_num == 0) {
         effect = fx_by_owner("hit_fx", 1);
     } else {
         effect = fx_by_owner("hit_fx", 2);
     }
     effect = fx_next_emitter(effect);
-    get_bone_world_pos(plyr_obj, 0, &position);
+    get_bone_world_pos(object, 0, &position);
     position.y = y_offset + g_game_info.field_34;
     mk_chess_launch_fx_at_pos_with_obj_emit_based(
         effect, position.x, position.y, position.z);
@@ -685,7 +710,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     ReactionTransferPdata* transfer;
     ReactionDamagePdata* boost_source;
     ReactionFighterDefinitionDispatchView* fighter;
-    ReactionXferAddress dispatch;
+    ReactionPlyrInfoCombatView* combat_info;
+    ReactionDispatchContext dispatch;
     LoadableReactionScript* loadable;
     ReactionStatusFlagsView* cleanup_status;
     CmdScript* cmdscript;
@@ -700,13 +726,11 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     MkObj* saved_opponent_object;
     MkObj* cleanup_object;
     MkObj* cleanup_opponent_object;
-    int original_state;
     int original_previous_state;
     int state_for_bgnd;
     int reaction_state;
     int original_reaction;
     int dispatch_reaction;
-    int reaction_flags;
     int blocked;
     int face_after;
     int face_reaction;
@@ -723,14 +747,19 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     face_after = 1;
     face_reaction = 0;
     force_air = 0;
-    if ((g_game_info.flags & 0x18) != 0 || f_fatality_was_done != 0) {
+    if ((g_game_info.flags & 8) != 0 ||
+        (g_game_info.flags & 0x10) != 0 ||
+        f_fatality_was_done != 0) {
         return 0;
     }
 
     transfer = (ReactionTransferPdata*)apdata;
     opponent_proc = transfer->opponent_proc;
-    if (opponent_proc != 0 &&
-        opponent_proc->hdr.instance != transfer->opponent_proc_instance) {
+    if (opponent_proc != 0) {
+        if (opponent_proc->hdr.instance != transfer->opponent_proc_instance) {
+            opponent_proc = 0;
+        }
+    } else {
         opponent_proc = 0;
     }
     victim_obj = transfer->opponent_obj;
@@ -756,13 +785,13 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             damage_scale *= 0.9f;
         }
     }
+    original_reaction = dispatch_reaction;
 
     victim->hit_flash_enabled = 0;
     victim->throw_restriction = 0;
     victim_obj->flags_09_bits.tightrope_restricted = 1;
     victim_obj->flags_09_bits.face_opponent = 0;
     victim->block_requirement = block_type;
-    reaction_flags = tbl_xfer_addresses[dispatch_reaction].flags;
     if (is_plyr_airborn(victim_obj, victim, 1, 0) == 1) {
         if (victim_obj == g_game_info.player_objects[0]) {
             if (victim->state & 0x400) {
@@ -775,10 +804,11 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             }
             input_state = g_game_info.plyr1.slot.pdata->reaction_hit_count;
         }
-        if (input_state >= 4 && !(reaction_flags & 0x10)) {
+        if (input_state >= 4 &&
+            !(tbl_xfer_addresses[original_reaction].flags & 0x10)) {
             force_air = 1;
             dispatch_reaction = 0xF1;
-        } else if (!(reaction_flags & 0x10)) {
+        } else if (!(tbl_xfer_addresses[original_reaction].flags & 0x10)) {
             force_air = 1;
             dispatch_reaction = 0xF1;
         }
@@ -853,7 +883,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     original_previous_state = plyr_pdata->previous_state;
-    original_state = plyr_pdata->state;
+    dispatch.saved_state = plyr_pdata->state;
     plyr_obj->flags_09_bits.wall_restricted = 0;
     hold_proc = plyr_pdata->hold_proc;
     if (hold_proc != 0) {
@@ -952,7 +982,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     if (block_type == 2) {
         blocked = 0;
     }
-    if (reaction_flags & 8) {
+    if (tbl_xfer_addresses[original_reaction].flags & 8) {
         blocked = 0;
     }
     if (big_boss != 0) {
@@ -1063,8 +1093,11 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             plyr_pdata->blocking_disable_tick_2 = 0;
         }
         plyr_pdata->hit_count++;
-        if ((((ReactionPlyrInfoCombatView*)plyr_pdata->plyr_info)
-                 ->combat_flags & 0x20) != 0 ||
+        combat_info = (ReactionPlyrInfoCombatView*)&g_game_info.plyr1;
+        if (plyr_pdata->plyr_num == 0) {
+            combat_info = (ReactionPlyrInfoCombatView*)&g_game_info.plyr0;
+        }
+        if ((combat_info->combat_flags & 0x20) != 0 ||
             plyr_pdata->combo_hit_count == 0) {
             plyr_pdata->combo_hit_count++;
         } else {
@@ -1077,21 +1110,24 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    reaction_flags = tbl_xfer_addresses[original_reaction].flags;
-    if (force_air != 0 || (reaction_flags & 2)) {
+    if (force_air != 0 ||
+        (tbl_xfer_addresses[original_reaction].flags & 2)) {
         init_air_move_no_aniproc();
     } else {
-        if (reaction_flags & 1) {
+        if (tbl_xfer_addresses[original_reaction].flags & 1) {
             init_ground_move_no_aniproc();
         }
-        if (reaction_flags & 4) {
+        if (tbl_xfer_addresses[original_reaction].flags & 4) {
             init_3d_move_no_aniproc();
         }
     }
-    both_special =
-        g_game_info.plyr0.slot.pdata->state == 0x4203 ||
-        g_game_info.plyr1.slot.pdata->state == 0x4203;
-    plyr_pdata->state = original_state;
+    if (g_game_info.plyr0.slot.pdata->state != 0x4203 &&
+        g_game_info.plyr1.slot.pdata->state != 0x4203) {
+        both_special = 0;
+    } else {
+        both_special = 1;
+    }
+    plyr_pdata->state = dispatch.saved_state;
     plyr_pdata->previous_state = original_previous_state;
     set_my_state(0x600);
     if (aproc->pid == 0x5019 && force_air != 0) {
@@ -1107,10 +1143,10 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     input_state = my_joypad_state_5();
     if (((check_switch(plyr_pdata->controller_port, 1, plyr_pdata) != 0 &&
           input_state == 3) ||
-         (plyr_pdata->drone_request != 0 &&
+        (plyr_pdata->drone_request != 0 &&
           drone_ai_check_combo_breaker() != 0)) &&
         g_game_info.flag_bits.lens_flare_enabled &&
-        (reaction_flags & 0x200)) {
+        (tbl_xfer_addresses[original_reaction].flags & 0x200)) {
         if (victim->breaker_strength > 0) {
             dispatch_reaction = 0x78;
             victim->breaker_strength--;
@@ -1123,7 +1159,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         exit_plyr_proc();
     }
 
-    dispatch = tbl_xfer_addresses[dispatch_reaction];
+    dispatch.transfer = tbl_xfer_addresses[dispatch_reaction].dispatch;
     if (opponent_proc != 0) {
         if (face_reaction != 0 && plyr_obj != 0) {
             face_opponent_now();
@@ -1155,39 +1191,40 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         }
         if (victim->online_sync_index != -1) {
             dispatch_reaction = victim->online_sync_index;
-            dispatch = tbl_xfer_addresses[dispatch_reaction];
+            dispatch.transfer =
+                tbl_xfer_addresses[dispatch_reaction].dispatch;
         }
         if (dispatch_reaction >= 0xE6 && dispatch_reaction <= 0xED) {
             loadable =
                 &g_loadable_reaction_scripts[dispatch_reaction - 0xE6];
-            dispatch.call_type = loadable->slot_count;
-            dispatch.entry = (ReactionEntry)loadable->script;
+            dispatch.transfer.call_type = loadable->slot_count;
+            dispatch.transfer.entry = (ReactionEntry)loadable->script;
         }
-        switch (dispatch.call_type) {
+        switch (dispatch.transfer.call_type) {
         case 4:
-            cmdscript->unk28 = (unsigned int)dispatch.entry;
+            cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
             xfer_player_proc(opponent_proc, r_call_script_function);
             break;
         case 3:
-            if ((unsigned int)dispatch.entry == 0x39 &&
+            if ((unsigned int)dispatch.transfer.entry == 0x39 &&
                 victim->character_id == 0x1B) {
-                cmdscript->unk28 = (unsigned int)dispatch.entry;
+                cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
                 xfer_player_proc(
                     opponent_proc, r_call_player_char_script_function);
             } else {
-                cmdscript->unk28 = (unsigned int)dispatch.entry;
+                cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
                 xfer_player_proc(
                     opponent_proc, r_call_other_player_char_script_function);
             }
             break;
         case 5:
-            xfer_player_proc_to_script(victim_obj, dispatch.entry);
+            xfer_player_proc_to_script(victim_obj, dispatch.transfer.entry);
             break;
         case 1:
-            xfer_player_proc(opponent_proc, dispatch.entry);
+            xfer_player_proc(opponent_proc, dispatch.transfer.entry);
             break;
         case 2:
-            cmdscript->unk28 = (unsigned int)dispatch.entry;
+            cmdscript->unk28 = (unsigned int)dispatch.transfer.entry;
             xfer_player_proc(
                 opponent_proc, r_call_player_char_script_function);
             break;
@@ -1527,16 +1564,19 @@ float j_counter_caught(void) {
     shake_hit_voice(2, 6, 5, 0.02f);
     disable_blocking();
     reaction = plyr_pdata->script_exit_value_int;
-    if (reaction == 8) {
-        blend_to_ani(shared_ani.counter_caught_8, 0, 0.1f);
-    } else if (reaction < 8) {
-        if (reaction == 6) {
-            blend_to_ani(shared_ani.counter_caught_6, 0, 0.1f);
-        } else if (reaction >= 6) {
-            blend_to_ani(shared_ani.counter_caught_7, 0, 0.1f);
-        }
-    } else if (reaction < 0xA) {
+    switch (reaction) {
+    case 9:
         blend_to_ani(shared_ani.counter_caught_9, 0, 0.1f);
+        break;
+    case 8:
+        blend_to_ani(shared_ani.counter_caught_8, 0, 0.1f);
+        break;
+    case 7:
+        blend_to_ani(shared_ani.counter_caught_7, 0, 0.1f);
+        break;
+    case 6:
+        blend_to_ani(shared_ani.counter_caught_6, 0, 0.1f);
+        break;
     }
     plyr_anim_pdata->step = 1.0f;
     xfer_proc(plyr_anim_proc, p_animate);
@@ -1816,11 +1856,10 @@ float r_feet3_sweptin_rev(void) {
 
 float r_esp1_B(void) {
     ReactionProcVtable* vtable;
-    ReactionExtendedPdata* opponent;
-    ReactionDamagePdata* boost_source;
     float damage;
     int ticks;
 
+    ticks = 0x1E;
     face_opponent_now();
     plyr_obj->gravity = 0.0f;
     plyr_obj->pos_vel.y = 0.0f;
@@ -1828,30 +1867,34 @@ float r_esp1_B(void) {
     random_voice(0xD);
     wall_eligible_on();
     myvel_his_angle_y(0.0f, -0.16f, -0.16f);
-    opponent = (ReactionExtendedPdata*)his_pdata;
-    blend_to_ani(opponent->reaction_animation_a, 3, 0.1f);
+    blend_to_ani(
+        ((ReactionExtendedPdata*)his_pdata)->reaction_animation_a,
+        3, 0.1f);
     ani_to_end();
-    blend_to_ani(opponent->reaction_animation_b, 0, 0.1f);
-    ticks = 0x1E;
+    blend_to_ani(
+        ((ReactionExtendedPdata*)his_pdata)->reaction_animation_b,
+        0, 0.1f);
     while (xz_distance_between_players() > 2.25f && ticks > 0) {
+        ticks--;
         ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
         vtable = (ReactionProcVtable*)aproc->vtbl;
         vtable->sleep(vtable);
-        ticks--;
     }
     ani_loop_more_frames(7.0f);
-    blend_to_ani(opponent->reaction_animation_c, 3, 0.1f);
+    blend_to_ani(
+        ((ReactionExtendedPdata*)his_pdata)->reaction_animation_c,
+        3, 0.1f);
     ani_to_frame_x(19.0f);
     got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
     if (plyr_pdata != 0) {
         if (aproc->pid == 0x1001) {
-            boost_source =
-                (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
             damage = 0.14f * 0.8f;
-            if (boost_source->damage_boost_until >
+            if (((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
+                    ->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
-                damage *= boost_source->damage_boost;
+                damage *= ((ReactionDamagePdata*)
+                    g_game_info.plyr1.slot.pdata)->damage_boost;
             }
             if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
                 damage *= 1.15f;
@@ -1860,12 +1903,12 @@ float r_esp1_B(void) {
             ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
                 ->accumulated_damage += damage;
         } else {
-            boost_source =
-                (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
             damage = 0.14f * 0.8f;
-            if (boost_source->damage_boost_until >
+            if (((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
+                    ->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
-                damage *= boost_source->damage_boost;
+                damage *= ((ReactionDamagePdata*)
+                    g_game_info.plyr0.slot.pdata)->damage_boost;
             }
             if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
                 damage *= 1.15f;
@@ -2085,12 +2128,19 @@ void fight_fx_blades_clash(PlyrPdata* player) {
     MkPfx* particle;
     unsigned int effect;
     int bone;
+    int player_num;
 
     fighter =
         (ReactionBladeFighterDefinition*)player->fighter_definition;
+    player_num = player->plyr_num;
     blade = fighter->blade_object;
-    if (blade != 0 &&
-        blade->hdr.instance != fighter->blade_object_instance) {
+    if (blade != 0) {
+        if (blade->hdr.instance == fighter->blade_object_instance) {
+            /* The equipped blade handle is still live. */
+        } else {
+            blade = 0;
+        }
+    } else {
         blade = 0;
     }
     bone = 0;
@@ -2098,13 +2148,14 @@ void fight_fx_blades_clash(PlyrPdata* player) {
         bone = 0x1C;
         blade = player->plyr_info->slot.mirror_a;
     }
-    if (player->plyr_num == 0) {
+    if (player_num == 0) {
         effect = fx_by_owner("blade_flash", 1);
     } else {
         effect = fx_by_owner("blade_flash", 2);
     }
     effect = fx_next_emitter(effect);
-    transform = fighter->blade_root->transform;
+    transform = ((ReactionBladeFighterDefinition*)
+        player->fighter_definition)->blade_root->transform;
     if (effect != 0) {
         particle = pfx_from_emitter(effect);
         pfx_bind_emitter_num_to_obj_bone(
@@ -2115,13 +2166,14 @@ void fight_fx_blades_clash(PlyrPdata* player) {
         fx_resume_emit(effect);
     }
 
-    if (player->plyr_num == 0) {
+    if (player_num == 0) {
         effect = fx_by_owner("blade_sparks", 1);
     } else {
         effect = fx_by_owner("blade_sparks", 2);
     }
     effect = fx_next_emitter(effect);
-    transform = fighter->blade_root->transform;
+    transform = ((ReactionBladeFighterDefinition*)
+        player->fighter_definition)->blade_root->transform;
     if (effect != 0) {
         particle = pfx_from_emitter(effect);
         pfx_bind_emitter_num_to_obj_bone(
@@ -2132,13 +2184,14 @@ void fight_fx_blades_clash(PlyrPdata* player) {
         fx_resume_emit(effect);
     }
 
-    if (player->plyr_num == 0) {
+    if (player_num == 0) {
         effect = fx_by_owner("blade_bouncy_sparks", 1);
     } else {
         effect = fx_by_owner("blade_bouncy_sparks", 2);
     }
     effect = fx_next_emitter(effect);
-    transform = fighter->blade_root->transform;
+    transform = ((ReactionBladeFighterDefinition*)
+        player->fighter_definition)->blade_root->transform;
     if (effect != 0) {
         particle = pfx_from_emitter(effect);
         pfx_bind_emitter_num_to_obj_bone(
@@ -2962,20 +3015,23 @@ static float r_combo_broken_part2(void) {
     ReactionImageFaderPdata* fader;
     ReactionImageSource* source;
     ScreenObj* image;
+    MkObj* object;
     unsigned int effect;
     Vec hit_position;
     Vec bone_offset = {0.0f, 0.0f, 0.0f};
     Vec world_position;
     Vec screen_position;
     int index;
+    int half_width;
 
+    object = plyr_obj;
     if (plyr_pdata->plyr_num == 0) {
         effect = fx_by_owner("breaker_hit_fx", 1);
     } else {
         effect = fx_by_owner("breaker_hit_fx", 2);
     }
     effect = fx_next_emitter(effect);
-    get_bone_world_pos(plyr_obj, 0, &hit_position);
+    get_bone_world_pos(object, 0, &hit_position);
     hit_position.y = 1.7f + g_game_info.field_34;
     mk_chess_launch_fx_at_pos_with_obj_emit_based(
         effect, hit_position.x, hit_position.y, hit_position.z);
@@ -2987,10 +3043,10 @@ static float r_combo_broken_part2(void) {
         source->object, 9, &bone_offset, &world_position);
     world_position.y = 1.7f + g_game_info.field_34;
     camera_get_screen_pos_from_world_pos(&world_position, &screen_position);
-    image->x = (int)screen_position.x - image->pfx2d->tex_w / 2;
+    half_width = image->pfx2d->tex_w / 2;
+    image->x = (int)screen_position.x - half_width;
     image->y = (int)screen_position.y;
 
-    fader = 0;
     if (_create_mkproc_generic_nostack(
             0xC02A, 0x1F, p_image_fader,
             sizeof(ReactionImageFaderPdata),
