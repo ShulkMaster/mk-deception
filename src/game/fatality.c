@@ -191,7 +191,16 @@ typedef struct FatalityBodySplatPdata {
 
 typedef struct FatalityObjectScalarPdata {
     MkHdr hdr;
-    unsigned char flags;
+    union {
+        unsigned char flags;
+        struct {
+            signed char stop_when_complete : 1; /* bit7 */
+            signed char multiply : 1;           /* bit6 */
+            signed char ping_pong : 1;          /* bit5 */
+            signed char swap_limits : 1;        /* bit4 */
+            signed char pad_low : 4;
+        } flag_bits;
+    };
     char pad09[3];
     MkObj* object;
     unsigned int object_instance;
@@ -745,31 +754,6 @@ static inline FatalityEffectHandle fatality_bind_next_emitter(
     return emitter;
 }
 
-static inline int fatality_scalar_axis(
-    float* value, float* start, float* target,
-    float* step, unsigned char flags) {
-    float next;
-    float swap;
-
-    if (*value == *target) {
-        return 0;
-    }
-    next = (flags & 0x40) != 0
-               ? *value * *step : *value + *step;
-    if ((*step > 0.0f && next > *target) ||
-        (*step < 0.0f && next < *target)) {
-        next = *target;
-        if ((flags & 0x30) == 0x30) {
-            *step = -*step;
-            swap = *target;
-            *target = *start;
-            *start = swap;
-        }
-    }
-    *value = next;
-    return 1;
-}
-
 static inline void fatality_finish_sidekick(PlyrInfo* player_info) {
     PlyrPdata* player;
     MkProc* animation_proc;
@@ -791,6 +775,18 @@ static inline void fatality_finish_sidekick(PlyrInfo* player_info) {
     } else {
         destroy_mkprocs_pid(0xC029);
     }
+}
+
+static inline MkObj* fatality_resolve_object_latch(
+    MkObj* object, unsigned int instance) {
+    if (object != 0) {
+        if (object->hdr.instance != instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    return object;
 }
 
 void subzero_start_ice_chunks(PlyrPdata* player) {
@@ -1761,8 +1757,11 @@ float p_raiden_lightning_flash(void) {
         return -1.0f;
     }
     object = data->object;
-    if (object == 0 ||
+    if (object != 0 &&
         object->hdr.instance != data->object_instance) {
+        object = 0;
+    }
+    if (object == 0) {
         return -1.0f;
     }
     data->frame++;
@@ -2298,8 +2297,11 @@ float p_bodyslam_bodysplat(void) {
         return -1.0f;
     }
     object = data->object;
-    if (object == 0 ||
+    if (object != 0 &&
         object->hdr.instance != data->object_instance) {
+        object = 0;
+    }
+    if (object == 0) {
         return -1.0f;
     }
     data->current_scale += data->step;
@@ -2926,37 +2928,61 @@ void obj_grnd_bounce(
     }
 }
 
+/*
+ * Soft ceiling: retail m2c confirms the retained four-way sound switch,
+ * bounce response, completion flags, ground snap, and process return values.
+ * Source is eight bytes smaller; residue is latch/save-register allocation,
+ * branch scheduling, and float relocation labels.
+ */
 float p_obj_grnd_bounce(void) {
     FatalityGroundBouncePdata* data;
     MkObj* object;
-    float ground;
 
     data = (FatalityGroundBouncePdata*)apdata;
     if (data == 0) {
-        return 0.0f;
+        return -1.0f;
     }
     object = data->object;
     if (object == 0 ||
         object->hdr.instance != data->object_instance) {
-        return 0.0f;
+        return -1.0f;
     }
-    ground = g_game_info.field_34 + data->ground_offset;
     if (object->pos_vel.y != 0.0f &&
-        object->pos.y <= ground) {
+        object->pos.y <= g_game_info.field_34 + data->ground_offset) {
         if (data->bounce_count != 0) {
-            if (data->bounce_count > 2) {
-                snd_req(randu0(2) ? 0xD9A : 0xD95);
-            } else {
+            switch (data->bounce_count) {
+            case 0:
+                if (randu0(2) != 0) {
+                    snd_req(0xD96);
+                } else {
+                    snd_req(0xD97);
+                }
+                break;
+            case 1:
+            case 2:
                 snd_req(0xD94);
+                break;
+            default:
+                if (randu0(2) != 0) {
+                    snd_req(0xD9A);
+                } else {
+                    snd_req(0xD95);
+                }
+                break;
             }
             object->pos_vel.y =
                 (float)data->bounce_count *
                 (-object->pos_vel.y * data->restitution);
             data->bounce_count--;
         } else {
-            object->flags_08 &= ~(0x20 | 0x04 | 0x01);
-            object->flags_09 |= 0xC0;
-            object->pos.y = ground;
+            object->flags_08_bits.rotation_enabled = 0;
+            object->flags_08_bits.gravity_enabled = 0;
+            object->flags_08_bits.moving = 0;
+            object->flags_09_bits.launched = 1;
+            object->flags_09_bits.bit6 = 1;
+            object->pos.y =
+                g_game_info.field_34 + data->ground_offset;
+            return -1.0f;
         }
     }
     return 1.0f;
@@ -2997,41 +3023,107 @@ void start_obj_scalar_proc(
     }
 }
 
+/*
+ * Soft ceiling: all three retail open-coded scalar axes and signed flag-bit
+ * extractions are recovered. Source is 12 bytes smaller; residue is the
+ * compiler's inline latch join, register allocation, branches, and relocs.
+ */
 float p_obj_scalar_proc(void) {
     FatalityObjectScalarPdata* data;
     MkObj* object;
     int active;
-    Vec swap;
+    float step;
+    float swap;
 
     data = (FatalityObjectScalarPdata*)apdata;
     if (data == 0) {
-        return 0.0f;
+        return -1.0f;
     }
-    object = data->object;
-    if (object == 0 ||
-        object->hdr.instance != data->object_instance) {
-        return 0.0f;
+    object = fatality_resolve_object_latch(
+        data->object, data->object_instance);
+    if (object == 0) {
+        return -1.0f;
     }
     active = 0;
-    active += fatality_scalar_axis(
-        &object->scale.x, &data->start.x,
-        &data->target.x, &data->step.x, data->flags);
-    active += fatality_scalar_axis(
-        &object->scale.y, &data->start.y,
-        &data->target.y, &data->step.y, data->flags);
-    active += fatality_scalar_axis(
-        &object->scale.z, &data->start.z,
-        &data->target.z, &data->step.z, data->flags);
-    if (active != 0 || (data->flags & 0x80) != 0 ||
-        (data->flags & 0x20) == 0) {
+    if (object->scale.x != data->target.x) {
+        active = 1;
+        if (data->flag_bits.multiply != 0) {
+            object->scale.x *= data->step.x;
+        } else {
+            object->scale.x += data->step.x;
+        }
+        step = data->step.x;
+        if ((step > 0.0f && object->scale.x > data->target.x) ||
+            (step < 0.0f && object->scale.x < data->target.x)) {
+            object->scale.x = data->target.x;
+            if (data->flag_bits.ping_pong != 0 &&
+                data->flag_bits.swap_limits != 0) {
+                data->step.x = -data->step.x;
+                swap = data->target.x;
+                data->target.x = data->start.x;
+                data->start.x = swap;
+            }
+        }
+    }
+    if (object->scale.y != data->target.y) {
+        active++;
+        if (data->flag_bits.multiply != 0) {
+            object->scale.y *= data->step.y;
+        } else {
+            object->scale.y += data->step.y;
+        }
+        step = data->step.y;
+        if ((step > 0.0f && object->scale.y > data->target.y) ||
+            (step < 0.0f && object->scale.y < data->target.y)) {
+            object->scale.y = data->target.y;
+            if (data->flag_bits.ping_pong != 0 &&
+                data->flag_bits.swap_limits != 0) {
+                data->step.y = -data->step.y;
+                swap = data->target.y;
+                data->target.y = data->start.y;
+                data->start.y = swap;
+            }
+        }
+    }
+    if (object->scale.z != data->target.z) {
+        active++;
+        if (data->flag_bits.multiply != 0) {
+            object->scale.z *= data->step.z;
+        } else {
+            object->scale.z += data->step.z;
+        }
+        step = data->step.z;
+        if ((step > 0.0f && object->scale.z > data->target.z) ||
+            (step < 0.0f && object->scale.z < data->target.z)) {
+            object->scale.z = data->target.z;
+            if (data->flag_bits.ping_pong != 0 &&
+                data->flag_bits.swap_limits != 0) {
+                data->step.z = -data->step.z;
+                swap = data->target.z;
+                data->target.z = data->start.z;
+                data->start.z = swap;
+            }
+        }
+    }
+    if (active != 0) {
         return 1.0f;
     }
+    if (data->flag_bits.stop_when_complete != 0 ||
+        data->flag_bits.ping_pong == 0) {
+        return -1.0f;
+    }
     data->step.x = -data->step.x;
+    swap = data->target.x;
+    data->target.x = data->start.x;
+    data->start.x = swap;
     data->step.y = -data->step.y;
+    swap = data->target.y;
+    data->target.y = data->start.y;
+    data->start.y = swap;
     data->step.z = -data->step.z;
-    swap = data->target;
-    data->target = data->start;
-    data->start = swap;
+    swap = data->target.z;
+    data->target.z = data->start.z;
+    data->start.z = swap;
     return 1.0f;
 }
 
