@@ -7,11 +7,24 @@ typedef struct ClothCollisionPlane {
     MkHdr hdr;
     unsigned int bone_count; /* +0x08 */
     ClothBone* bones[12];    /* +0x0C */
-} ClothCollisionPlane;
+    char pad3C[0x30];
+    unsigned char flags_6C;
+    char pad6D[3];
+    float weights[4];       /* +0x70 */
+    union {
+        MkBone* reference_bone; /* +0x80 */
+        MkBone* reference_bones[4]; /* +0x80..+0x8C */
+    };
+    Vec normal;             /* +0x90 */
+    char pad9C[4];
+    float distance;         /* +0xA0 */
+    char padA4[0x0C];
+} ClothCollisionPlane; /* 0xB0 */
 
 typedef struct ClothCollisionVolume {
     MkHdr hdr;
-    char pad08[8];
+    MkBone* reference_bone; /* +0x08 */
+    float radius; /* +0x0C */
     float cylinder_bottom; /* +0x10 */
     float cylinder_top;    /* +0x14 */
     void (*collision_fn)(void); /* +0x18 */
