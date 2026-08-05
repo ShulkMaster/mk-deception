@@ -329,7 +329,10 @@ static void nb_get_desired_acceleration(
 void bgnd_jtb_debug_info(void) {
 }
 
-/* Soft ceiling: 90.37% -- string-pool placement and NV register lifetimes. */
+/*
+ * Soft ceiling: retail aligns the local matrix to 16 bytes. Portable C leaves
+ * that frame-offset residue plus string-pool placement and NV lifetimes.
+ */
 void nb_place_slave_in_bgnd(
     int npc_id, int rope_model_index, int model_slot, int model_id,
     float anchor_x, float anchor_y, float anchor_z, float rope_length,
@@ -342,7 +345,7 @@ void nb_place_slave_in_bgnd(
     Vec* object_position;
     Vec local_angles;
     Vec rope_offset;
-    MKMATRIX rotation __attribute__((aligned(16)));
+    MKMATRIX rotation;
     float collision_offset_z;
 
     rope_offset = zero_vector;

@@ -181,11 +181,11 @@ static float bgnd_sqrt(float value) {
 }
 
 extern MkObj* g_bgnd_preloaded_models[];
-extern RopeProcLatch rope_proc_item;
-extern RopeProcLatch sobj_ctrl_proc_item;
 extern int exec_tick_ctr;
-extern int g_delay_rnd;
-extern int g_ticks_delay;
+int g_delay_rnd;
+int g_ticks_delay;
+RopeProcLatch sobj_ctrl_proc_item;
+RopeProcLatch rope_proc_item;
 
 extern RwMatrix* RwMatrixInvert(RwMatrix* dst, const RwMatrix* src);
 
@@ -1614,26 +1614,28 @@ static inline RopeSegment* rope_previous_segment(
     return &rope->segments[index];
 }
 
-/* Soft ceiling: rope_controller_update ~93.56% -- register allocation and
- * matrix/vector load scheduling; retail algorithm, calls, and stack layout
- * agree. */
+/*
+ * Soft ceiling: retail aligns the matrix/vector workspace to 16 bytes. Clean
+ * portable C uses the TU's natural stack layout, leaving stack offsets,
+ * register allocation, and matrix/vector load scheduling as residue.
+ */
 void rope_controller_update(MkHdr* pdata) {
     MkObj* model;
     RopeControllerData* rope;
-    RwMatrix inverse_model_matrix __attribute__((aligned(16)));
-    RwMatrix attached_matrix __attribute__((aligned(16)));
-    RwMatrix rotation __attribute__((aligned(16)));
-    RwMatrix source __attribute__((aligned(16)));
-    Vec acceleration __attribute__((aligned(16)));
-    Vec velocity_delta __attribute__((aligned(16)));
-    RwMatrixPosition constraint_axis __attribute__((aligned(16)));
-    Vec correction __attribute__((aligned(16)));
-    Vec local_position __attribute__((aligned(16)));
-    Vec attached_position __attribute__((aligned(16)));
-    Quat quaternion __attribute__((aligned(16)));
-    RwMatrixPosition axis __attribute__((aligned(16)));
-    Vec direction __attribute__((aligned(16)));
-    Vec midpoint __attribute__((aligned(16)));
+    RwMatrix inverse_model_matrix;
+    RwMatrix attached_matrix;
+    RwMatrix rotation;
+    RwMatrix source;
+    Vec acceleration;
+    Vec velocity_delta;
+    RwMatrixPosition constraint_axis;
+    Vec correction;
+    Vec local_position;
+    Vec attached_position;
+    Quat quaternion;
+    RwMatrixPosition axis;
+    Vec direction;
+    Vec midpoint;
     int i;
 
     rope = (RopeControllerData*)pdata;
