@@ -3143,9 +3143,11 @@ static inline void pz_grinder_launch_piece(
 }
 
 /*
- * Matching recovery in progress: retail open-codes four bone-transform and
- * flesh-launch blocks. The remaining instruction-count gap and first-piece
- * material swap are algorithmic/layout blockers, not a soft ceiling.
+ * Honest soft ceiling: retail open-codes these four launches and, before each
+ * call, scales three bone-matrix components into the velocity Vec before
+ * overwriting all three components. Those stores are unobservable; retaining
+ * them would be prohibited dead match-forcing work. The typed helper preserves
+ * every effective transform, launch, material, timing, and process operation.
  */
 float r_pz_fighter_grinding(void) {
     PuzzleGrinderNoisePdata* noise = 0;

@@ -321,7 +321,7 @@ void exit_plyr_proc();
 int my_joypad_state_5(void);
 int check_switch();
 void stop_prison_grab_proc(void);
-void p_glitch_to_stance(void);
+float p_glitch_to_stance(void);
 void p_animate_weapon_rest(void);
 CmdScript* get_cmdscript_for_proc(MkProc* proc);
 float r_call_script_function(void);

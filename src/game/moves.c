@@ -1931,66 +1931,76 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].switch_value;
 }
 
-void switch_proc_advance_moveset(void) {
+/*
+ * Soft ceiling: retail and source have the same 476-byte instruction stream.
+ * Objdiff residue is limited to saved-GPR allocation and local float labels.
+ */
+float switch_proc_advance_moveset(void) {
     PlyrInfo* player;
     PlyrPdata* player_data;
     MkProc* idle_proc;
     MkProc* proc;
     MovesSidekickPdataRef pdata;
-    int state;
+    int player_num;
+    int player_state;
+    int fighter_state;
+    float life;
 
     player = switch_pdata->player;
     if (player == 0) {
-        return;
+        return -1.0f;
     }
+
     player_data = player->slot.pdata;
     idle_proc = (MkProc*)player->idle_proc;
+    player_num = player->controller_slot;
+    player_state = player->player_state;
+    life = player->field_0C;
     if ((int)mode_of_play == 8 &&
-        trial_change_style_callback(player->controller_slot) == 0) {
-        return;
-    }
-    if ((player->player_state != 2 && player->player_state != 3) ||
-        player->field_0C <= 0.0f) {
-        return;
+        trial_change_style_callback(player_num) == 0) {
+        return -1.0f;
     }
 
-    state = player_data->state;
-    if ((state & 0x1800) != 0 || player_data->state_flags.bits.frozen) {
-        return;
-    }
-    if (f_fatality_available != 0 && state != 0x420D) {
-        if ((state & 0x200) == 0 && is_pX_airborn(player->controller_slot) == 0) {
-            xfer_proc(idle_proc, x_advance_fatality);
-            snd_req(0xDC5);
+    if ((player_state == 2 || player_state == 3) && life > 0.0f) {
+        fighter_state = player_data->state;
+        if ((fighter_state & 0x1800) == 0 &&
+            !player_data->state_flags.bits.frozen) {
+            if (f_fatality_available != 0 && fighter_state != 0x420D) {
+                if ((fighter_state & 0x200) == 0 &&
+                    is_pX_airborn(player_num) == 0) {
+                    xfer_proc(idle_proc, x_advance_fatality);
+                    snd_req(0xDC5);
+                }
+                ((MovesMoveDataView*)player_data)->move_advance_latch = 0x1E0;
+            } else {
+                if ((fighter_state & 0x200) == 0 &&
+                    is_pX_airborn(player_num) == 0) {
+                    xfer_proc(idle_proc, (MkProcEntryFn)x_advance_moveset);
+                }
+                if (player_data->state == 0x420D) {
+                    xfer_proc(idle_proc, (MkProcEntryFn)x_advance_moveset);
+                }
+                if (player->slot.pdata->sidekick_available == 0) {
+                    advance_active_moveset(player_data);
+                    snd_req(0xDC1);
+                } else {
+                    if (player_data->plyr_num == 0) {
+                        proc = _create_mkproc_generic_bigstack(
+                            0xC028, 8, p_plyr_sidekick_switch,
+                            sizeof(MovesSidekickPdata), &pdata.hdr);
+                    } else {
+                        proc = _create_mkproc_generic_bigstack(
+                            0xC029, 8, p_plyr_sidekick_switch,
+                            sizeof(MovesSidekickPdata), &pdata.hdr);
+                    }
+                    if (proc != 0 && pdata.hdr != 0) {
+                        pdata.sidekick->player = player_data;
+                    }
+                }
+            }
         }
-        ((MovesMoveDataView*)player_data)->move_advance_latch = 0x1E0;
-        return;
     }
-
-    if ((state & 0x200) == 0 && is_pX_airborn(player->controller_slot) == 0) {
-        xfer_proc(idle_proc, (MkProcEntryFn)x_advance_moveset);
-    }
-    if (player_data->state == 0x420D) {
-        xfer_proc(idle_proc, (MkProcEntryFn)x_advance_moveset);
-    }
-    if (player_data->sidekick_available == 0) {
-        advance_active_moveset(player_data);
-        snd_req(0xDC1);
-        return;
-    }
-
-    if (player_data->plyr_num == 0) {
-        proc = _create_mkproc_generic_bigstack(
-            0xC028, 8, p_plyr_sidekick_switch,
-            sizeof(MovesSidekickPdata), &pdata.hdr);
-    } else {
-        proc = _create_mkproc_generic_bigstack(
-            0xC029, 8, p_plyr_sidekick_switch,
-            sizeof(MovesSidekickPdata), &pdata.hdr);
-    }
-    if (proc != 0 && pdata.hdr != 0) {
-        pdata.sidekick->player = player_data;
-    }
+    return -1.0f;
 }
 
 void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
@@ -3009,12 +3019,16 @@ float p_plyr_sidekick_intro(void) {
     Vec direction;
     Vec lateral;
     Vec offset;
-    Vec main_angle;
     float length_sq;
     float inverse_length;
     float estimate_product;
     float correction;
-    float lateral_scale;
+    float position_x;
+    float position_y;
+    float position_z;
+    float angle_x;
+    float angle_y;
+    float angle_z;
     float wrapped_angle;
     int transition;
     int function;
@@ -3048,7 +3062,9 @@ float p_plyr_sidekick_intro(void) {
     direction.x = main_object->pos.x - opponent_object->pos.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.z - opponent_object->pos.z;
-    main_angle = main_object->ang;
+    angle_x = main_object->ang.x;
+    angle_y = main_object->ang.y;
+    angle_z = main_object->ang.z;
 
     length_sq = direction.x * direction.x + direction.z * direction.z;
     inverse_length = 0.0f;
@@ -3072,26 +3088,30 @@ float p_plyr_sidekick_intro(void) {
     if (am_i_on_the_left2(
             main_object,
             player->opponent->plyr_info->slot.mirror_a) != 0) {
-        lateral_scale = 0.55f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, 0.55f);
         transition = 0;
     } else {
-        lateral_scale = -0.55f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, -0.55f);
         transition = 8;
     }
-    offset.x += lateral.x * lateral_scale;
-    offset.z += lateral.z * lateral_scale;
+    position_x = main_object->pos.x + offset.x;
+    position_y = g_game_info.field_34;
+    position_z = main_object->pos.z + offset.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(0.0f, 0.5f, anim);
-    sidekick->pos.x = main_object->pos.x + offset.x;
-    sidekick->pos.y = g_game_info.field_34;
-    sidekick->pos.z = main_object->pos.z + offset.z;
-    sidekick->ang = main_angle;
-    update_mkobj(sidekick);
+    sidekick->pos.x = position_x;
+    sidekick->pos.y = position_y;
+    sidekick->pos.z = position_z;
+    sidekick->ang.x = angle_x;
+    sidekick->ang.y = angle_y;
+    sidekick->ang.z = angle_z;
+    update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     sidekick->flags_09_bits.bit6 = 1;
     sidekick->flags_09_bits.launched = 1;
-    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
-    ground_me(as_mkhdr(&sidekick->hdr));
+    update_bone_hierarchy(
+        sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
+    ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     destroy_mkprocs_pid(
         pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
@@ -3185,7 +3205,6 @@ float p_plyr_smoke_entrance(void) {
     Vec direction;
     Vec lateral;
     Vec offset;
-    Vec main_angle;
     Vec velocity = {0.0f, 0.0f, 0.0f};
     float length_sq;
     float inverse_length;
@@ -3194,6 +3213,9 @@ float p_plyr_smoke_entrance(void) {
     float position_x;
     float position_y;
     float position_z;
+    float angle_x;
+    float angle_y;
+    float angle_z;
     int transition;
 
     pdata = (MovesSidekickPdata*)apdata;
@@ -3227,7 +3249,9 @@ float p_plyr_smoke_entrance(void) {
     direction.x = main_object->pos.x - opponent_object->pos.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.z - opponent_object->pos.z;
-    main_angle = main_object->ang;
+    angle_x = main_object->ang.x;
+    angle_y = main_object->ang.y;
+    angle_z = main_object->ang.z;
 
     length_sq = direction.x * direction.x + direction.z * direction.z;
     inverse_length = 0.0f;
@@ -3270,7 +3294,9 @@ float p_plyr_smoke_entrance(void) {
     sidekick->pos.x = position_x;
     sidekick->pos.y = position_y;
     sidekick->pos.z = position_z;
-    sidekick->ang = main_angle;
+    sidekick->ang.x = angle_x;
+    sidekick->ang.y = angle_y;
+    sidekick->ang.z = angle_z;
     update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     destroy_mkprocs_pid(
@@ -3417,15 +3443,25 @@ float p_sidekick_exit_now(void) {
     return -1.0f;
 }
 
+/*
+ * Soft ceiling: 95.32609%. Retail m2c confirms the typed latch, null-safe
+ * object updates, normalized placement arithmetic, separate PID branches,
+ * exit-process ownership, animation handoff, and return value. The 16-byte
+ * residue is explicit latch null-normalization, inverse-sqrt branch polarity,
+ * register/scheduling choices, and float relocations.
+ */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     MovesSidekickStateView* state;
     MovesSidekickPdata* exit_data;
+    PlyrPdata* player;
     MkObj* sidekick;
     MkProc* proc;
     MkHdr* object;
     float delta_x;
     float delta_z;
     float inverse_distance;
+    float normalized_x;
+    float normalized_z;
     float position_x;
     float position_y;
     float position_z;
@@ -3450,22 +3486,36 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     position_y = plyr_obj->pos.y;
     inverse_distance =
         moves_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
-    position_x = his_obj->pos.x + delta_x * inverse_distance * -2.0f;
-    position_z = his_obj->pos.z + delta_z * inverse_distance * -2.0f;
+    normalized_x = delta_x * inverse_distance;
+    normalized_z = delta_z * inverse_distance;
+    position_x = -2.0f * normalized_x;
+    position_z = -2.0f * normalized_z;
+    position_x += his_obj->pos.x;
+    position_z += his_obj->pos.z;
     sidekick->pos.x = position_x;
     sidekick->pos.y = position_y;
     sidekick->pos.z = position_z;
-    update_mkobj(sidekick);
+    update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     unhide_obj(sidekick);
     active_sidekick_swap(plyr_pdata, 0);
 
-    destroy_mkprocs_pid(plyr_pdata->plyr_num == 0 ? 0xC028 : 0xC029);
-    proc = _create_mkproc_generic_bigstack(
-        plyr_pdata->plyr_num == 0 ? 0xC028 : 0xC029, 8,
-        p_sidekick_exit_now, sizeof(MovesSidekickPdata),
-        (MkHdr**)&exit_data);
+    if (plyr_pdata->plyr_num == 0) {
+        destroy_mkprocs_pid(0xC028);
+    } else {
+        destroy_mkprocs_pid(0xC029);
+    }
+    player = plyr_pdata;
+    if (player->plyr_num == 0) {
+        proc = _create_mkproc_generic_bigstack(
+            0xC028, 8, p_sidekick_exit_now, sizeof(MovesSidekickPdata),
+            (MkHdr**)&exit_data);
+    } else {
+        proc = _create_mkproc_generic_bigstack(
+            0xC029, 8, p_sidekick_exit_now, sizeof(MovesSidekickPdata),
+            (MkHdr**)&exit_data);
+    }
     if (proc != 0 && exit_data != 0) {
-        exit_data->player = plyr_pdata;
+        exit_data->player = player;
     }
 
     set_root_and_obj_movement_weights(0.0f, 1.0f, plyr_anim_pdata);
@@ -3473,7 +3523,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     plyr_obj->pos.y = position_y;
     plyr_obj->pos.z = position_z;
     face_opponent_now();
-    update_mkobj(plyr_obj);
+    update_mkobj(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     glitch_to_ani(plyr_pdata->fighter_definition->walk_forward_loop, 0);
     plyr_anim_pdata->step =
         plyr_pdata->fighter_definition->move_blend_data->walk_forward_step;
@@ -3497,12 +3547,15 @@ float p_plyr_sidekick_switch(void) {
     AnimPdata* sidekick_anim;
     CmdScript* script;
     Vec direction;
-    Vec main_angle;
     float length_sq;
     float inverse_length;
     float estimate_product;
     float correction;
     float object_weight;
+    float position_y;
+    float angle_x;
+    float angle_y;
+    float angle_z;
     int state;
     MkProc* proc;
 
@@ -3523,10 +3576,10 @@ float p_plyr_sidekick_switch(void) {
 
     state = pdata->player->state;
     if (state != 0 && state != 0x2000 && state != 0x2001) {
-        return 0.0f;
+        return -1.0f;
     }
     if ((g_game_info.flags & 0x18) != 0) {
-        return 0.0f;
+        return -1.0f;
     }
 
     player_proc = player->player_proc;
@@ -3542,7 +3595,10 @@ float p_plyr_sidekick_switch(void) {
     direction.x = main_object->pos.x - player->opponent_obj->pos.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.z - player->opponent_obj->pos.z;
-    main_angle = main_object->ang;
+    position_y = main_object->pos.y;
+    angle_x = main_object->ang.x;
+    angle_y = main_object->ang.y;
+    angle_z = main_object->ang.z;
     if (is_plyr_airborn(player->opponent_obj, player->opponent) != 0) {
         object_weight = 3.0f;
     }
@@ -3565,15 +3621,18 @@ float p_plyr_sidekick_switch(void) {
         0.0f, object_weight, sidekick_anim);
     sidekick->pos.x =
         main_object->pos.x + direction.x * inverse_length * 2.5f;
-    sidekick->pos.y = main_object->pos.y;
+    sidekick->pos.y = position_y;
     sidekick->pos.z =
         main_object->pos.z + direction.z * inverse_length * 2.5f;
-    sidekick->ang = main_angle;
-    update_mkobj(sidekick);
+    sidekick->ang.x = angle_x;
+    sidekick->ang.y = angle_y;
+    sidekick->ang.z = angle_z;
+    update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     sidekick->flags_09_bits.bit6 = 1;
     sidekick->flags_09_bits.launched = 1;
-    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
-    ground_me(as_mkhdr(&sidekick->hdr));
+    update_bone_hierarchy(
+        sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
+    ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     if (pdata->player->plyr_num == 0) {
         destroy_mkprocs_pid(0xC028);
@@ -3604,7 +3663,7 @@ float p_plyr_sidekick_switch(void) {
         script->unk28 = 0x7B;
         xfer_player_proc(player_proc, r_call_script_function);
     }
-    return 0.0f;
+    return -1.0f;
 }
 
 float p_plyr_sidekick_projectile(void) {
@@ -3626,7 +3685,6 @@ float p_plyr_sidekick_projectile(void) {
     MkObj* opponent_object;
     AnimPdata* anim;
     Vec direction;
-    Vec main_angle;
     float length_sq;
     float distance;
     float inverse_length;
@@ -3635,6 +3693,12 @@ float p_plyr_sidekick_projectile(void) {
     float placement_scale;
     float object_weight;
     float wrapped_angle;
+    float position_x;
+    float position_y;
+    float position_z;
+    float angle_x;
+    float angle_y;
+    float angle_z;
     int transition;
     int function;
 
@@ -3708,20 +3772,26 @@ float p_plyr_sidekick_projectile(void) {
     direction.x *= inverse_length;
     direction.z *= inverse_length;
     placement_scale = distance < 3.2f ? 1.2f : 1.5f;
-    main_angle = main_object->ang;
+    position_x = main_object->pos.x + direction.x * placement_scale;
+    position_y = g_game_info.field_34;
+    position_z = main_object->pos.z + direction.z * placement_scale;
+    angle_x = main_object->ang.x;
+    angle_y = main_object->ang.y;
+    angle_z = main_object->ang.z;
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(0.0f, object_weight, anim);
-    sidekick->pos.x =
-        main_object->pos.x + direction.x * placement_scale;
-    sidekick->pos.y = g_game_info.field_34;
-    sidekick->pos.z =
-        main_object->pos.z + direction.z * placement_scale;
-    sidekick->ang = main_angle;
-    update_mkobj(sidekick);
+    sidekick->pos.x = position_x;
+    sidekick->pos.y = position_y;
+    sidekick->pos.z = position_z;
+    sidekick->ang.x = angle_x;
+    sidekick->ang.y = angle_y;
+    sidekick->ang.z = angle_z;
+    update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     sidekick->flags_09_bits.bit6 = 1;
     sidekick->flags_09_bits.launched = 1;
-    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
-    ground_me(as_mkhdr(&sidekick->hdr));
+    update_bone_hierarchy(
+        sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
+    ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     destroy_mkprocs_pid(
         pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
@@ -3788,7 +3858,6 @@ float p_plyr_noob_entrance(void) {
     Vec direction;
     Vec lateral;
     Vec offset;
-    Vec main_angle;
     float length_sq;
     float inverse_length;
     float estimate_product;
@@ -3796,6 +3865,9 @@ float p_plyr_noob_entrance(void) {
     float position_x;
     float position_y;
     float position_z;
+    float angle_x;
+    float angle_y;
+    float angle_z;
     int transition;
 
     pdata = (MovesSidekickPdata*)apdata;
@@ -3828,7 +3900,9 @@ float p_plyr_noob_entrance(void) {
     direction.x = main_object->pos.x - opponent_object->pos.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.z - opponent_object->pos.z;
-    main_angle = main_object->ang;
+    angle_x = main_object->ang.x;
+    angle_y = main_object->ang.y;
+    angle_z = main_object->ang.z;
 
     length_sq =
         direction.x * direction.x + direction.z * direction.z;
@@ -3871,7 +3945,9 @@ float p_plyr_noob_entrance(void) {
     sidekick->pos.x = position_x;
     sidekick->pos.y = position_y;
     sidekick->pos.z = position_z;
-    sidekick->ang = main_angle;
+    sidekick->ang.x = angle_x;
+    sidekick->ang.y = angle_y;
+    sidekick->ang.z = angle_z;
     update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     destroy_mkprocs_pid(
@@ -3919,15 +3995,19 @@ float p_plyr_sidekick_charge(void) {
     Vec direction;
     Vec lateral;
     Vec offset;
-    Vec main_angle;
     float length_sq;
     float inverse_length;
     float estimate_product;
     float correction;
-    float lateral_scale;
     float wrapped_angle;
     float sine;
     float cosine;
+    float position_x;
+    float position_y;
+    float position_z;
+    float angle_x;
+    float angle_y;
+    float angle_z;
     int transition;
     int function;
 
@@ -3962,7 +4042,9 @@ float p_plyr_sidekick_charge(void) {
     direction.x = main_object->pos.x - opponent_object->pos.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.z - opponent_object->pos.z;
-    main_angle = main_object->ang;
+    angle_x = main_object->ang.x;
+    angle_y = main_object->ang.y;
+    angle_z = main_object->ang.z;
 
     length_sq =
         direction.x * direction.x + direction.z * direction.z;
@@ -3988,26 +4070,30 @@ float p_plyr_sidekick_charge(void) {
     if (am_i_on_the_left2(
             main_object,
             player->opponent->plyr_info->slot.mirror_a) != 0) {
-        lateral_scale = 0.45f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, 0.45f);
         transition = 0;
     } else {
-        lateral_scale = -0.45f;
+        v3_add_v3_scaled(&offset, &offset, &lateral, -0.45f);
         transition = 8;
     }
-    offset.x += lateral.x * lateral_scale;
-    offset.z += lateral.z * lateral_scale;
+    position_x = main_object->pos.x + offset.x;
+    position_y = g_game_info.field_34;
+    position_z = main_object->pos.z + offset.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
-    sidekick->pos.x = main_object->pos.x + offset.x;
-    sidekick->pos.y = g_game_info.field_34;
-    sidekick->pos.z = main_object->pos.z + offset.z;
-    sidekick->ang = main_angle;
-    update_mkobj(sidekick);
+    sidekick->pos.x = position_x;
+    sidekick->pos.y = position_y;
+    sidekick->pos.z = position_z;
+    sidekick->ang.x = angle_x;
+    sidekick->ang.y = angle_y;
+    sidekick->ang.z = angle_z;
+    update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     sidekick->flags_09_bits.bit6 = 1;
     sidekick->flags_09_bits.launched = 1;
-    update_bone_hierarchy(as_mkhdr(&sidekick->hdr));
-    ground_me(as_mkhdr(&sidekick->hdr));
+    update_bone_hierarchy(
+        sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
+    ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
     destroy_mkprocs_pid(
         pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
@@ -4785,113 +4871,105 @@ static float dizzy(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: 98.85621% at exact retail size. All opcodes match after
+ * restoring the four physical switch orders and direct case-local scans; the
+ * remaining 35 records are jump-table/base relocation labels only.
+ */
 static void check_for_suicide(void) {
-    unsigned int offset;
-    int character;
+    unsigned int* sequences = jump_table;
 
-    character = plyr_pdata->character_id;
     if (was_button_pressed(7) != 0) {
-        switch (character) {
+        switch (plyr_pdata->character_id) {
         case 0:
-            offset = 0x1D8;
+            scan_switch_sequences(&sequences[0x1D8 / 4]);
             break;
         case 4:
-            offset = 0x238;
+            scan_switch_sequences(&sequences[0x238 / 4]);
             break;
         case 0x16:
-            offset = 0x3F4;
+            scan_switch_sequences(&sequences[0x3F4 / 4]);
             break;
         case 0x17:
-            offset = 0x414;
+            scan_switch_sequences(&sequences[0x414 / 4]);
             break;
         case 0x1F:
-            offset = 0x4B0;
+            scan_switch_sequences(&sequences[0x4B0 / 4]);
             break;
-        default:
-            return;
         }
     } else if (was_button_pressed(4) != 0) {
-        switch (character) {
-        case 3:
-            offset = 0x218;
-            break;
-        case 7:
-            offset = 0x278;
-            break;
-        case 10:
-            offset = 0x1B8;
-            break;
+        switch (plyr_pdata->character_id) {
         case 11:
-            offset = 0x2D8;
-            break;
-        case 14:
-            offset = 0x318;
-            break;
-        case 19:
-            offset = 0x398;
+            scan_switch_sequences(&sequences[0x2D8 / 4]);
             break;
         case 20:
-            offset = 0x3B8;
+            scan_switch_sequences(&sequences[0x3B8 / 4]);
             break;
-        case 21:
-            offset = 0x3D4;
+        case 3:
+            scan_switch_sequences(&sequences[0x218 / 4]);
+            break;
+        case 10:
+            scan_switch_sequences(&sequences[0x1B8 / 4]);
+            break;
+        case 14:
+            scan_switch_sequences(&sequences[0x318 / 4]);
+            break;
+        case 19:
+            scan_switch_sequences(&sequences[0x398 / 4]);
             break;
         case 24:
-            offset = 0x434;
+            scan_switch_sequences(&sequences[0x434 / 4]);
             break;
-        default:
-            return;
+        case 21:
+            scan_switch_sequences(&sequences[0x3D4 / 4]);
+            break;
+        case 7:
+            scan_switch_sequences(&sequences[0x278 / 4]);
+            break;
         }
     } else if (was_button_pressed(6) != 0) {
-        switch (character) {
-        case 5:
-            offset = 0x198;
-            break;
-        case 6:
-            offset = 0x258;
-            break;
-        case 9:
-            offset = 0x2B8;
-            break;
-        case 15:
-            offset = 0x338;
-            break;
-        case 16:
-            offset = 0x358;
-            break;
+        switch (plyr_pdata->character_id) {
         case 18:
-            offset = 0x378;
+            scan_switch_sequences(&sequences[0x378 / 4]);
+            break;
+        case 5:
+            scan_switch_sequences(&sequences[0x198 / 4]);
             break;
         case 25:
-            offset = 0x450;
+            scan_switch_sequences(&sequences[0x450 / 4]);
             break;
-        default:
-            return;
+        case 16:
+            scan_switch_sequences(&sequences[0x358 / 4]);
+            break;
+        case 6:
+            scan_switch_sequences(&sequences[0x258 / 4]);
+            break;
+        case 9:
+            scan_switch_sequences(&sequences[0x2B8 / 4]);
+            break;
+        case 15:
+            scan_switch_sequences(&sequences[0x338 / 4]);
+            break;
         }
     } else if (was_button_pressed(5) != 0) {
-        switch (character) {
-        case 1:
-            offset = 0x1F8;
-            break;
-        case 8:
-            offset = 0x298;
-            break;
+        switch (plyr_pdata->character_id) {
         case 12:
-            offset = 0x2F8;
+            scan_switch_sequences(&sequences[0x2F8 / 4]);
+            break;
+        case 1:
+            scan_switch_sequences(&sequences[0x1F8 / 4]);
             break;
         case 27:
-            offset = 0x470;
+            scan_switch_sequences(&sequences[0x470 / 4]);
+            break;
+        case 8:
+            scan_switch_sequences(&sequences[0x298 / 4]);
             break;
         case 30:
-            offset = 0x490;
+            scan_switch_sequences(&sequences[0x490 / 4]);
             break;
-        default:
-            return;
         }
-    } else {
-        return;
     }
-    scan_switch_sequences(&jump_table[offset / sizeof(unsigned int)]);
 }
 
 static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
@@ -5063,14 +5141,19 @@ void fall_dead(void) {
     moves_jump(j_stay_down_dead);
 }
 
-void victory(void) {
+/*
+ * Soft ceiling: 90.37392%, four bytes short of retail. Retail m2c confirms
+ * both terminal sleep paths, corrected pre-victory state wait, opponent wait,
+ * boss/normal script dispatch, and float return ABI. Remaining records are
+ * latch null-normalization, save form, register allocation, decrement/branch
+ * scheduling, bitfield-store scheduling, and float relocations.
+ */
+float victory(void) {
     MovesFighterDefinitionView* fighter;
-    MovesVictoryData* victory_data;
     MovesProcessLatchView* opponent_latch;
     AnimPdata* opponent_anim;
     MkProc* opponent_anim_proc;
     int ticks;
-    int opponent_state;
 
     if ((int)mode_of_play == 8) {
         blend_to_stance(0.1f);
@@ -5078,7 +5161,8 @@ void victory(void) {
             moves_sleep(60.0f);
         }
     }
-    if ((g_game_info.flags & 0x0C) != 0) {
+    if ((g_game_info.flags & 0x08) != 0 ||
+        (g_game_info.flags & 0x04) != 0) {
         for (;;) {
             moves_sleep(60.0f);
         }
@@ -5096,15 +5180,14 @@ void victory(void) {
     if (plyr_anim_pdata->script_word !=
         (unsigned int)fighter->stance) {
         while (plyr_anim_pdata->frame < plyr_anim_pdata->high_frame &&
-               plyr_pdata->state == 0x4200 && ticks != 0) {
+               plyr_pdata->state != 0x4200 && ticks != 0) {
             moves_sleep(1.0f);
             ticks--;
         }
     }
 
     plyr_weapon_hide(plyr_pdata, 0, plyr_pdata->mirror_slots);
-    victory_data = (MovesVictoryData*)plyr_pdata->status_flags;
-    if (victory_data->victory_script == 0) {
+    if (((MovesVictoryData*)plyr_pdata->status_flags)->victory_script == 0) {
         clear_both_face_opponent_flags();
         xfer_proc(plyr_anim_proc, p_animate);
         blend_to_stance(0.1f);
@@ -5132,22 +5215,21 @@ void victory(void) {
     }
     opponent_anim = (AnimPdata*)pdata_of_proc(opponent_anim_proc);
     ticks = 240;
-    while (opponent_anim->frame < opponent_anim->high_frame) {
-        opponent_state = plyr_pdata->his_plyr_pdata->state;
-        if (opponent_state == 0x4200 || opponent_state == 0 ||
-            opponent_state == 0x4203 || ticks == 0) {
-            break;
-        }
+    while (opponent_anim->frame < opponent_anim->high_frame &&
+           plyr_pdata->his_plyr_pdata->state != 0x4200 &&
+           plyr_pdata->his_plyr_pdata->state != 0 &&
+           plyr_pdata->his_plyr_pdata->state != 0x4203 && ticks != 0) {
         moves_sleep(1.0f);
         ticks--;
     }
 
     clear_both_face_opponent_flags();
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    active_cmdscript->unk28 = victory_data->victory_script;
     if (is_big_boss(plyr_pdata) != 0) {
+        active_cmdscript->unk28 =
+            ((MovesVictoryData*)plyr_pdata->status_flags)->victory_script;
         moves_jump(r_call_player_char_script_function);
-        return;
+        return 0.0f;
     }
     if (is_my_chest_to_screen() == 0) {
         if ((plyr_anim_pdata->flags & 8) == 0) {
@@ -5157,8 +5239,10 @@ void victory(void) {
             shared_ani.victory_turn, victory_proper_flip_flags | 3, 0.1f);
         ani_to_blend_frame(10.0f);
     }
-    active_cmdscript->unk28 = victory_data->victory_script;
+    active_cmdscript->unk28 =
+        ((MovesVictoryData*)plyr_pdata->status_flags)->victory_script;
     moves_jump(r_call_player_char_script_function);
+    return 0.0f;
 }
 
 void big_boss_end_of_round(void) {
