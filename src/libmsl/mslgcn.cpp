@@ -78,11 +78,25 @@ ListPool g_listPoolAdjust;
 unsigned char g_listMemSound[0x2BF20];
 unsigned char g_listMemAdjust[0x1100];
 _mslSystem* gMsi;
+int SoundBufferCount;
+int SoundBufferCountStream;
+int SoundBufferCountStatic;
+unsigned long mslGCN_AXCallback_Ticks;
+ExternalHeap* g_MSL_GCN_ARAM_Heap;
+unsigned long g_MSL_GCN_ARAM_ZeroBase;
+int g_MSL_volatile_flag;
+unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
+unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
+int debugger_mbo1;
+int debugger_at1;
+int debugger_snd;
 
 static mslInitParam s_initDefault = {
     sizeof(mslInitParam), 1, 10
 };
 
+int g_bMSL_GCN_BREAK = 1;
+MslCriticalSection g_MSL_GCN_ARAM_CriticalSection;
 mslTickCallback g_mslTickCB_Queue[20];
 int g_mslTickCB_Head;
 int g_mslTickCB_Tail;
@@ -188,8 +202,9 @@ extern "C" void UnCopyStreamWave(
 /*
  * Clone the complete retail runtime-wave overlay, optionally attach a new
  * streamed playable, then replace the copied playable owner.
- * Soft ceiling: ~92.74% -- aggregate-copy scheduling remains; the factory
- * call now uses the retail class and parameter names in its MWCC symbol.
+ * Soft ceiling: ~92.74% -- all field accesses and control flow are recovered;
+ * the residue is alternating-load scheduling and GPR coloring around the
+ * factory call and counters.
  */
 extern "C" mslRuntimeWave* CopyStreamWave(
     _mslSystem* system, mslLoadedBank* bank, const char* name,
@@ -203,7 +218,20 @@ extern "C" mslRuntimeWave* CopyStreamWave(
         return 0;
     }
 
-    *copy = *source;
+    copy->flags = source->flags;
+    copy->playable = source->playable;
+    copy->file_entry = source->file_entry;
+    copy->use_count = source->use_count;
+    copy->unknown10 = source->unknown10;
+    copy->volume = source->volume;
+    copy->pan = source->pan;
+    copy->pitch = source->pitch;
+    copy->sound = source->sound;
+    copy->previous_link = source->previous_link;
+    copy->next = source->next;
+    copy->command_value = source->command_value;
+    copy->play_state = source->play_state;
+    copy->unknown34 = source->unknown34;
 
     if (create_playable != 0) {
         playable = SoundBuffer::CreatePlayableStreamBuffer(
@@ -244,6 +272,33 @@ extern "C" mslRuntimeWave* LoadStreamWaveFile(
     return wave;
 }
 
+extern "C" int ContinueStatic(
+    _mslSystem* system, mslRuntimeWave* wave) {
+    mslGCNPlayable* playable = MslGCNPlayableFromWave(wave);
+    int result;
+
+    if (playable == 0) {
+        return -1;
+    }
+    result = playable->vtable->UnPause(playable);
+    if (result < 0) {
+        mslDebugPrintf(
+            "ContinueStatic failed DS->UnPause.  HR=%08x\n", result);
+        return result;
+    }
+    return 0;
+}
+
+extern "C" int PauseStatic(
+    _mslSystem* system, mslRuntimeWave* wave) {
+    mslGCNPlayable* playable = MslGCNPlayableFromWave(wave);
+
+    if (playable != 0) {
+        playable->vtable->Pause(playable);
+    }
+    return 0;
+}
+
 /* Soft ceiling: ~99.33% -- virtual-table scratch GPR only. */
 extern "C" int StopStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
@@ -260,8 +315,8 @@ extern "C" int StopStatic(
  * Dispatch a prepared resident wave to the GameCube static playable. A
  * caller may suppress platform playback while still allowing the higher
  * MSL state machine to complete; loop polarity comes directly from bit 0.
- * Soft ceiling: ~93.96% -- exact retail size/control flow; remaining
- * differences are virtual-table scratch allocation and partial-TU strings.
+ * Soft ceiling: ~99.6% -- exact retail size/control flow and string order;
+ * only the virtual-table scratch register differs.
  */
 extern "C" int PlayStatic(
     _mslSystem* system, mslRuntimeWave* wave, int allow_voice) {
@@ -273,14 +328,7 @@ extern "C" int PlayStatic(
         return -1;
     }
     if (allow_voice == 1) {
-        if ((wave->flags & 1) == 0) {
-            result = playable->vtable->Play(playable, 0);
-            if (result < 0) {
-                mslDebugPrintf(
-                    "PlayStatic failed DS->Play.  HR=%08x\n", result);
-                return result;
-            }
-        } else {
+        if ((wave->flags & 1) != 0) {
             result = playable->vtable->Play(playable, 1);
             if (result < 0) {
                 mslDebugPrintf(
@@ -288,18 +336,44 @@ extern "C" int PlayStatic(
                     result);
                 return result;
             }
+        } else {
+            result = playable->vtable->Play(playable, 0);
+            if (result < 0) {
+                mslDebugPrintf(
+                    "PlayStatic failed DS->Play.  HR=%08x\n", result);
+                return result;
+            }
         }
     }
     return 0;
 }
 
+extern "C" void UnCopyStaticWave(
+    _mslSystem* system, mslRuntimeWave* wave) {
+    if (wave->playable != 0) {
+        mslGCNPlayable* playable;
+
+        SoundBufferCountStatic--;
+        SoundBufferCount--;
+        playable = MslGCNPlayableFromWave(wave);
+        if (--playable->reference_count == 0) {
+            playable->vtable->FreeObject(playable);
+        }
+        wave->playable = 0;
+    }
+    _mwMemFree(wave, 0, 0);
+}
+
 extern "C" mslRuntimeWave* CopyStaticWave(
     _mslSystem* system, mslLoadedBank* bank,
     mslRuntimeWave* source, int create_playable) {
+    mslPlayable* playable = 0;
     mslRuntimeWave* copy =
         (mslRuntimeWave*)_mwMemMalloc(
             MWSOUND_HEAP, sizeof(mslRuntimeWave), 3, 0, 0, 0);
-    mslPlayable* playable = 0;
+
+    /* Soft ceiling: ~92.93% -- retail-exact size, fields, frame, calls, and
+     * branches; remaining differences are copy scheduling and GPR coloring. */
 
     if (copy == 0) {
         return 0;
@@ -412,7 +486,7 @@ extern "C" int mslSetWavePath(
     return 0;
 }
 
-static void mslInitCleanup(_mslSystem* system) {
+static inline void mslInitCleanup(_mslSystem* system) {
     unsigned long i;
     _ListNode* adjustment;
     mslCallback* callback;
