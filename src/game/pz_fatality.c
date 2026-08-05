@@ -64,6 +64,7 @@ typedef struct PuzzleAnimPdata PuzzleAnimPdata;
 typedef struct MkFileInfo MkFileInfo;
 typedef struct PuzzleParticleEffect PuzzleParticleEffect;
 typedef struct PuzzleFighterRenderObject PuzzleFighterRenderObject;
+typedef struct PuzzleObjectVtable PuzzleObjectVtable;
 typedef struct RpMaterial RpMaterial;
 typedef struct RwTexture RwTexture;
 typedef struct PuzzleScreenPoint {
@@ -87,6 +88,11 @@ typedef struct PuzzleObjectSecondaryFlags {
     unsigned char stopped : 1;
     unsigned char pad_low : 7;
 } PuzzleObjectSecondaryFlags;
+
+typedef struct PuzzleSobjMaterialData {
+    char pad00[0x18];
+    void* geometry; /* +0x18 */
+} PuzzleSobjMaterialData;
 
 typedef struct PuzzleProcessVtable {
     char pad00[0x18];
@@ -173,8 +179,14 @@ typedef struct PuzzleFightersEngine {
     int snake_active; /* +0x1E4 */
 } PuzzleFightersEngine;
 
+struct PuzzleObjectVtable {
+    char pad00[0x10];
+    void (*destroy)(
+        PuzzleFighterRenderObject* object, PuzzleObjectVtable* vtable);
+};
+
 struct PuzzleFighterRenderObject {
-    char pad00[4];
+    PuzzleObjectVtable* vtbl; /* +0x00 */
     unsigned int instance; /* +0x04 */
     union {
         unsigned char flags; /* +0x08 */
@@ -184,7 +196,9 @@ struct PuzzleFighterRenderObject {
         unsigned char secondary_flags; /* +0x09 */
         PuzzleObjectSecondaryFlags secondary_flags_bits;
     };
-    char pad0A[0x22];
+    char pad0A[0x16];
+    void* frame; /* +0x20 */
+    char pad24[8];
     int model_flags; /* +0x2C */
     float hazard_x; /* +0x30 */
     float hazard_y; /* +0x34 */
@@ -263,7 +277,9 @@ typedef struct PuzzleFatalityHazardObject {
         unsigned char flags; /* +0x08 */
         PuzzleObjectFlags flags_bits;
     };
-    char pad09[0x1F];
+    char pad09[0x0B];
+    PuzzleSobjMaterialData* material_data; /* +0x14 */
+    char pad18[0x10];
     float field_28; /* +0x28 - priority/depth control */
     int model_flags; /* +0x2C */
     float x; /* +0x30 */
@@ -307,8 +323,8 @@ typedef struct PuzzleFatalityController {
     int controller_step; /* +0x20 */
     int attacker_player; /* +0x24 */
     int victim_player; /* +0x28 */
-    int preround_timer; /* +0x2C */
-    int loop_sound; /* +0x30 */
+    unsigned int preround_timer; /* +0x2C */
+    unsigned int loop_sound; /* +0x30 */
     float phase_time; /* +0x34 */
     unsigned int preround_sound_started; /* +0x38 */
     float grinder_position[2]; /* +0x3C */
@@ -578,6 +594,13 @@ void set_ani_texture_framerate(void* texture, float rate);
 void set_ani_texture_frame(void* texture, int frame);
 void fx_set_param_v3(
     void* effect, int parameter, float x, float y, float z);
+void fx_set_render_priority(void* effect, int priority);
+MKMATRIX* force_calc_bone_world_mat(
+    PuzzleFighterRenderObject* object, int bone);
+void* RwFrameTransform(void* frame, const MKMATRIX* matrix, int combine);
+void* RpGeometryForAllMaterials(
+    void* geometry, RpMaterial* (*callback)(RpMaterial*, RwTexture*),
+    RwTexture* texture);
 void freeze_player(void);
 void unfreeze_player(void);
 void got_hit_fx(
@@ -686,9 +709,11 @@ float pz_fighters_burn_fatality_preround(void);
 
 /*
  * Soft ceiling: retail keeps a redundant positive branch plus a shared-return
- * branch; clean C emits one inverse branch to the same zero result.
+ * branch; clean C emits one inverse branch to the same zero result. Callers
+ * pass the engine and mode even though retail reads the canonical global.
  */
-int pz_fighter_check_fatality_random_event(void) {
+int pz_fighter_check_fatality_random_event(
+    PuzzleFightersEngine* caller_engine, int force) {
     PuzzleFightersEngine* engine = &g_pz_fighters_engine;
     PuzzleFatalityRandomEvent* event = &engine->random_event;
 
@@ -1423,9 +1448,9 @@ float p_chomper2_controller(void) {
                 motion_changed = 1;
             }
         }
-        if (controller->preround_timer != 0) {
+        if ((int)controller->preround_timer != 0) {
             controller->preround_timer--;
-            if (controller->preround_timer == 0) {
+            if ((int)controller->preround_timer == 0) {
                 controller->hazard_initialized[0] = 0;
                 controller->hazard_initialized[1] = 0;
             }
@@ -1571,9 +1596,9 @@ float p_chomper_controller(void) {
                 motion_changed = 1;
             }
         }
-        if (controller->preround_timer != 0) {
+        if ((int)controller->preround_timer != 0) {
             controller->preround_timer--;
-            if (controller->preround_timer == 0) {
+            if ((int)controller->preround_timer == 0) {
                 controller->hazard_initialized[0] = 0;
                 controller->hazard_initialized[1] = 0;
             }
@@ -2151,10 +2176,13 @@ float pz_fighter_objects_falling_actively_fighting(int active) {
     return 0.0f;
 }
 
-/* Matching recovery: repeated address formation remains 96 source bytes short. */
+/*
+ * Soft ceiling: exact-size retail algorithm and state ordering. Remaining
+ * differences are branch inversion, group-pointer/register allocation, stack
+ * frame allocation, and local float relocation labels.
+ */
 float p_objects_falling_controller2(void) {
     PuzzleFatalityHazardGroup* group;
-    float x;
     unsigned int i;
 
     if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
@@ -2163,16 +2191,22 @@ float p_objects_falling_controller2(void) {
 
     if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         for (i = 0; i < 2; i++) {
-            group = &g_pz_fighter_fatality_engine.hazard_groups[i];
-            if (g_pz_fighter_fatality_engine.controller
+            if ((int)g_pz_fighter_fatality_engine.controller
                     ->hazard_initialized[i] == 1) {
-                x = screen_width > 650 ? 2.1f : 1.7f;
-                if (i == 1) {
-                    x = -x;
+                group = &g_pz_fighter_fatality_engine.hazard_groups[i];
+                group->objects[0]->x = 1.7f;
+                group->objects[1]->x = 1.7f;
+                group->objects[2]->x = 1.7f;
+                if (screen_width > 650) {
+                    group->objects[0]->x = 2.1f;
+                    group->objects[1]->x = 2.1f;
+                    group->objects[2]->x = 2.1f;
                 }
-                group->objects[0]->x = x;
-                group->objects[1]->x = x;
-                group->objects[2]->x = x;
+                if (i == 1) {
+                    group->objects[0]->x *= -1.0f;
+                    group->objects[1]->x *= -1.0f;
+                    group->objects[2]->x *= -1.0f;
+                }
                 _mkproc_sleep_ticks = 1.0f;
                 aproc->vtbl->sleep(aproc->vtbl);
                 unhide_sobj(group->objects[0]);
@@ -2184,16 +2218,18 @@ float p_objects_falling_controller2(void) {
                 group->objects[1]->motion = 0.02f;
             }
             if (g_pz_fighter_fatality_engine.controller
-                        ->hazard_initialized[i] == 0 &&
-                group->objects[0]->y > 4.0f) {
-                group->objects[0]->motion = 0.0f;
-                group->objects[1]->motion = 0.0f;
-                g_pz_fighter_fatality_engine.controller
-                    ->hazard_initialized[i] = 2;
+                    ->hazard_initialized[i] == 0) {
+                group = &g_pz_fighter_fatality_engine.hazard_groups[i];
+                if (group->objects[0]->y > 4.0f) {
+                    group->objects[0]->motion = 0.0f;
+                    group->objects[1]->motion = 0.0f;
+                    g_pz_fighter_fatality_engine.controller
+                        ->hazard_initialized[i] = 2;
+                }
             }
         }
     } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
-        if (g_pz_fighter_fatality_engine.controller
+        if ((int)g_pz_fighter_fatality_engine.controller
                 ->hazard_initialized[2] == 1) {
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[0][0] = -0.004f;
@@ -2214,6 +2250,18 @@ float p_objects_falling_controller2(void) {
                 ->x < 0.5f) {
             g_pz_fighter_fatality_engine.controller
                 ->hazard_motion[0][0] = 0.004f;
+        }
+        if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                .objects[2]
+                ->x < -2.2f) {
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[1][0] = 0.004f;
+        }
+        if (g_pz_fighter_fatality_engine.hazard_groups[1]
+                .objects[2]
+                ->x > -0.5f) {
+            g_pz_fighter_fatality_engine.controller
+                ->hazard_motion[1][0] = -0.004f;
         }
         g_pz_fighter_fatality_engine.hazard_groups[0].objects[2]->x +=
             g_pz_fighter_fatality_engine.controller->hazard_motion[0][0];
@@ -2264,18 +2312,6 @@ float p_objects_falling_controller2(void) {
             }
         }
 
-        if (g_pz_fighter_fatality_engine.hazard_groups[1]
-                .objects[2]
-                ->x < -2.2f) {
-            g_pz_fighter_fatality_engine.controller
-                ->hazard_motion[1][0] = 0.004f;
-        }
-        if (g_pz_fighter_fatality_engine.hazard_groups[1]
-                .objects[2]
-                ->x > -0.5f) {
-            g_pz_fighter_fatality_engine.controller
-                ->hazard_motion[1][0] = -0.004f;
-        }
         g_pz_fighter_fatality_engine.hazard_groups[1].objects[2]->x +=
             g_pz_fighter_fatality_engine.controller->hazard_motion[1][0];
         if (g_pz_fighter_fatality_engine.controller
@@ -2410,120 +2446,165 @@ float p_grinder_noise(void) {
  * including the loop-sound fade used during fighting and preround.
  */
 float p_grinder_controller(void) {
-    PuzzleFatalityEngine* fatality = &g_pz_fighter_fatality_engine;
-    PuzzleFatalityController* controller = fatality->controller;
     int changed = 0;
     int i;
 
-    if (controller->unload_requested == 1) {
+    if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
         return -1.0f;
     }
 
-    if (controller->active == 1) {
-        controller->active = 0;
+    if (g_pz_fighter_fatality_engine.controller->active == 1) {
+        g_pz_fighter_fatality_engine.controller->active = 0;
         changed = 1;
-        controller->grinder_target[controller->victim_player] = 0.3f;
-        controller->hazard_motion[controller->victim_player][0] = 0.002f;
-        controller->grinder_target[controller->attacker_player] = 0.2f;
-        controller->hazard_motion[controller->attacker_player][0] = 0.001f;
-    } else if (controller->substate == 1) {
-        controller->substate = 0;
-        controller->controller_step = 1;
+        g_pz_fighter_fatality_engine.controller->grinder_target[
+            g_pz_fighter_fatality_engine.controller->victim_player] = 0.3f;
+        g_pz_fighter_fatality_engine.controller->hazard_motion[
+            g_pz_fighter_fatality_engine.controller->victim_player][0] =
+            0.002f;
+        g_pz_fighter_fatality_engine.controller->grinder_target[
+            g_pz_fighter_fatality_engine.controller->attacker_player] = 0.2f;
+        g_pz_fighter_fatality_engine.controller->hazard_motion[
+            g_pz_fighter_fatality_engine.controller->attacker_player][0] =
+            0.001f;
+    } else if (g_pz_fighter_fatality_engine.controller->substate == 1) {
+        g_pz_fighter_fatality_engine.controller->substate = 0;
+        g_pz_fighter_fatality_engine.controller->controller_step = 1;
         changed = 1;
-        controller->grinder_target[controller->victim_player] = 0.05f;
-        controller->hazard_motion[controller->victim_player][0] = 0.002f;
-        controller->grinder_target[controller->attacker_player] = 0.05f;
-        controller->hazard_motion[controller->attacker_player][0] = 0.001f;
+        g_pz_fighter_fatality_engine.controller->grinder_target[
+            g_pz_fighter_fatality_engine.controller->victim_player] = 0.05f;
+        g_pz_fighter_fatality_engine.controller->hazard_motion[
+            g_pz_fighter_fatality_engine.controller->victim_player][0] =
+            0.002f;
+        g_pz_fighter_fatality_engine.controller->grinder_target[
+            g_pz_fighter_fatality_engine.controller->attacker_player] = 0.05f;
+        g_pz_fighter_fatality_engine.controller->hazard_motion[
+            g_pz_fighter_fatality_engine.controller->attacker_player][0] =
+            0.001f;
     }
 
-    if (controller->controller_step == 1) {
-        if (controller->phase_time > 0.05f) {
-            controller->phase_time -= 0.005f;
+    if (g_pz_fighter_fatality_engine.controller->controller_step == 1) {
+        if (g_pz_fighter_fatality_engine.controller->phase_time > 0.05f) {
+            g_pz_fighter_fatality_engine.controller->phase_time -= 0.005f;
             set_snd_vol(
-                controller->loop_sound, 0x1AB7, controller->phase_time);
-        } else if (controller->loop_sound != 0) {
-            snd_stop(controller->loop_sound);
-            controller->loop_sound = 0;
+                g_pz_fighter_fatality_engine.controller->loop_sound,
+                0x1AB7,
+                g_pz_fighter_fatality_engine.controller->phase_time);
+        } else if (g_pz_fighter_fatality_engine.controller->loop_sound != 0) {
+            snd_stop(g_pz_fighter_fatality_engine.controller->loop_sound);
+            g_pz_fighter_fatality_engine.controller->loop_sound = 0;
         }
     }
 
-    if (controller->phase == 1) {
+    if (g_pz_fighter_fatality_engine.controller->phase == 1) {
         if (g_pz_fighters_engine.balance < -0.5f) {
-            controller->grinder_target[1] = 0.25f;
-            controller->hazard_motion[1][0] = 0.001f;
             changed = 1;
+            g_pz_fighter_fatality_engine.controller->grinder_target[1] =
+                0.25f;
+            g_pz_fighter_fatality_engine.controller->hazard_motion[1][0] =
+                0.001f;
         } else if (g_pz_fighters_engine.balance > -0.1f) {
-            controller->grinder_target[1] = 0.18f;
-            controller->hazard_motion[1][0] = 0.001f;
             changed = 1;
+            g_pz_fighter_fatality_engine.controller->grinder_target[1] =
+                0.18f;
+            g_pz_fighter_fatality_engine.controller->hazard_motion[1][0] =
+                0.001f;
         }
 
         if (g_pz_fighters_engine.balance > 0.5f) {
-            controller->grinder_target[0] = 0.25f;
-            controller->hazard_motion[0][0] = 0.001f;
             changed = 1;
+            g_pz_fighter_fatality_engine.controller->grinder_target[0] =
+                0.25f;
+            g_pz_fighter_fatality_engine.controller->hazard_motion[0][0] =
+                0.001f;
         } else if (g_pz_fighters_engine.balance < 0.1f) {
-            controller->grinder_target[0] = 0.18f;
-            controller->hazard_motion[0][0] = 0.001f;
             changed = 1;
+            g_pz_fighter_fatality_engine.controller->grinder_target[0] =
+                0.18f;
+            g_pz_fighter_fatality_engine.controller->hazard_motion[0][0] =
+                0.001f;
         }
     }
 
-    if (controller->preround_active == 1 ||
-        (controller->phase == 1 && controller->loop_sound != 0)) {
-        controller->grinder_target[0] = 0.25f;
-        controller->hazard_motion[0][0] = 0.002f;
-        controller->grinder_target[1] = 0.25f;
-        controller->hazard_motion[1][0] = 0.002f;
+    if (g_pz_fighter_fatality_engine.controller->preround_active == 1 ||
+        (g_pz_fighter_fatality_engine.controller->phase == 1 &&
+         g_pz_fighter_fatality_engine.controller->loop_sound != 0)) {
         changed = 1;
+        g_pz_fighter_fatality_engine.controller->grinder_target[0] = 0.25f;
+        g_pz_fighter_fatality_engine.controller->hazard_motion[0][0] =
+            0.002f;
+        g_pz_fighter_fatality_engine.controller->grinder_target[1] = 0.25f;
+        g_pz_fighter_fatality_engine.controller->hazard_motion[1][0] =
+            0.002f;
 
-        if (controller->preround_timer == 0) {
-            controller->grinder_target[0] = 0.1f;
-            controller->hazard_motion[0][0] = 0.0012f;
-            controller->grinder_target[1] = 0.1f;
-            controller->hazard_motion[1][0] = 0.0012f;
+        if (g_pz_fighter_fatality_engine.controller->preround_timer == 0) {
             changed = 1;
+            g_pz_fighter_fatality_engine.controller->grinder_target[0] =
+                0.1f;
+            g_pz_fighter_fatality_engine.controller->hazard_motion[0][0] =
+                0.0012f;
+            g_pz_fighter_fatality_engine.controller->grinder_target[1] =
+                0.1f;
+            g_pz_fighter_fatality_engine.controller->hazard_motion[1][0] =
+                0.0012f;
         } else {
-            controller->preround_timer--;
+            g_pz_fighter_fatality_engine.controller->preround_timer--;
         }
 
-        if (controller->preround_timer != 0) {
-            if (controller->phase_time < 0.7f) {
-                controller->phase_time += 0.01f;
+        if (g_pz_fighter_fatality_engine.controller->preround_timer != 0) {
+            if (g_pz_fighter_fatality_engine.controller->phase_time < 0.7f) {
+                g_pz_fighter_fatality_engine.controller->phase_time += 0.01f;
                 set_snd_vol(
-                    controller->loop_sound, 0x1AB7, controller->phase_time);
+                    g_pz_fighter_fatality_engine.controller->loop_sound,
+                    0x1AB7,
+                    g_pz_fighter_fatality_engine.controller->phase_time);
             }
-        } else if (controller->phase_time > 0.05f) {
-            controller->phase_time -= 0.005f;
+        } else if (g_pz_fighter_fatality_engine.controller->phase_time >
+                   0.05f) {
+            g_pz_fighter_fatality_engine.controller->phase_time -= 0.005f;
             set_snd_vol(
-                controller->loop_sound, 0x1AB7, controller->phase_time);
-        } else if (controller->loop_sound != 0) {
-            snd_stop(controller->loop_sound);
-            controller->loop_sound = 0;
+                g_pz_fighter_fatality_engine.controller->loop_sound,
+                0x1AB7,
+                g_pz_fighter_fatality_engine.controller->phase_time);
+        } else if (g_pz_fighter_fatality_engine.controller->loop_sound != 0) {
+            snd_stop(g_pz_fighter_fatality_engine.controller->loop_sound);
+            g_pz_fighter_fatality_engine.controller->loop_sound = 0;
         }
     }
 
     if (changed == 1) {
         for (i = 0; i < 2; i++) {
-            if (controller->grinder_position[i] >
-                    controller->grinder_target[i] &&
-                controller->hazard_motion[i][0] > 0.0f) {
-                controller->hazard_motion[i][0] *= -1.0f;
+            if (g_pz_fighter_fatality_engine.controller
+                        ->grinder_position[i] >
+                    g_pz_fighter_fatality_engine.controller
+                        ->grinder_target[i] &&
+                g_pz_fighter_fatality_engine.controller
+                        ->hazard_motion[i][0] > 0.0f) {
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[i][0] *= -1.0f;
             }
         }
     }
 
     for (i = 0; i < 2; i++) {
-        if ((controller->grinder_position[i] >
-                 controller->grinder_target[i] + 0.001f &&
-             controller->hazard_motion[i][0] < 0.0f) ||
-            (controller->grinder_position[i] <
-                 controller->grinder_target[i] - 0.001f &&
-             controller->hazard_motion[i][0] > 0.0f)) {
-            fatality->scene_objects[i]->motion_rate +=
-                controller->hazard_motion[i][0];
-            controller->grinder_position[i] =
-                fatality->scene_objects[i]->motion_rate;
+        if ((g_pz_fighter_fatality_engine.controller
+                     ->grinder_position[i] >
+                 g_pz_fighter_fatality_engine.controller
+                         ->grinder_target[i] +
+                     0.001f &&
+             g_pz_fighter_fatality_engine.controller
+                     ->hazard_motion[i][0] < 0.0f) ||
+            (g_pz_fighter_fatality_engine.controller
+                     ->grinder_position[i] <
+                 g_pz_fighter_fatality_engine.controller
+                         ->grinder_target[i] -
+                     0.001f &&
+             g_pz_fighter_fatality_engine.controller
+                     ->hazard_motion[i][0] > 0.0f)) {
+            g_pz_fighter_fatality_engine.scene_objects[i]->motion_rate +=
+                g_pz_fighter_fatality_engine.controller
+                    ->hazard_motion[i][0];
+            g_pz_fighter_fatality_engine.controller->grinder_position[i] =
+                g_pz_fighter_fatality_engine.scene_objects[i]->motion_rate;
         }
     }
     return 1.0f;
@@ -2537,130 +2618,120 @@ float pz_fighter_snake_actively_fighting(int active) {
     return 0.0f;
 }
 
-/*
- * Broad pass: paired Snake idle/lunge/bite animation control and the
- * saliva/burst emitter timing shared by preround and active fighting.
- * Soft ceiling: p_snake_controller 41.12% -- broad state flow retained.
- */
-float p_snake_controller(void) {
-    PuzzleFatalityController* controller =
-        g_pz_fighter_fatality_engine.controller;
+static inline void pz_snake_lunge(unsigned int snake) {
     PuzzleParticleEffect* saliva;
-    PuzzleParticleEffect* burst;
-    PuzzleAnimPdata* pdata;
-    const char* saliva_name;
-    const char* burst_name;
-    unsigned int event;
-    int snake;
 
-    if (controller->unload_requested == 1) {
-        return -1.0f;
-    }
-
-    if (controller->preround_active == 1) {
-        for (snake = 0; snake < 2; snake++) {
-            saliva_name = snake == 0 ? "saliva1" : "saliva2";
-            saliva = (PuzzleParticleEffect*)fx_by_owner(saliva_name, 4);
-            pan_snd_req(0x1AC3, snake == 0 ? -0.7f : 0.7f);
-            fx_pause_emit(saliva);
-
-            pdata = controller->fighter_pdata[snake];
-            transition_to_anim_script_frame(
-                pdata, pz_shared_ani.snake_lunge, 0.05f, 35.0f);
-            set_pdata_anim_step(pdata, 1.0f);
-            _mkproc_sleep_ticks = 15.0f;
+    saliva = (PuzzleParticleEffect*)fx_by_owner(
+        snake == 0 ? "saliva1" : "saliva2", 4);
+    pan_snd_req(0x1AC3, snake == 0 ? -0.7f : 0.7f);
+    fx_pause_emit(saliva);
+    transition_to_anim_script_frame(
+        g_pz_fighter_fatality_engine.controller->fighter_pdata[snake],
+        pz_shared_ani.snake_lunge, 0.05f, 35.0f);
+    set_pdata_anim_step(
+        g_pz_fighter_fatality_engine.controller->fighter_pdata[snake], 1.0f);
+    _mkproc_sleep_ticks = 15.0f;
+    aproc->vtbl->sleep(aproc->vtbl);
+    fx_resume_emit(saliva);
+    if (g_pz_fighters_engine.fatality_abort == 1) {
+        fx_pause_emit(saliva);
+    } else {
+        _mkproc_sleep_ticks = 15.0f;
+        aproc->vtbl->sleep(aproc->vtbl);
+        fx_pause_emit(saliva);
+        if (g_pz_fighters_engine.fatality_abort == 0) {
+            _mkproc_sleep_ticks = 20.0f;
             aproc->vtbl->sleep(aproc->vtbl);
             fx_resume_emit(saliva);
-
             if (g_pz_fighters_engine.fatality_abort == 1) {
                 fx_pause_emit(saliva);
             } else {
-                _mkproc_sleep_ticks = 15.0f;
-                aproc->vtbl->sleep(aproc->vtbl);
-                fx_pause_emit(saliva);
-                if (g_pz_fighters_engine.fatality_abort == 0) {
-                    _mkproc_sleep_ticks = 20.0f;
-                    aproc->vtbl->sleep(aproc->vtbl);
-                    fx_resume_emit(saliva);
-                    if (g_pz_fighters_engine.fatality_abort == 0) {
-                        transition_to_anim_script_frame(
-                            pdata, pz_shared_ani.snake_idle, 0.1f, 0.0f);
-                        set_pdata_anim_step(pdata, 1.0f);
-                    } else {
-                        fx_pause_emit(saliva);
-                    }
-                }
-            }
-            if (snake == 0) {
-                _mkproc_sleep_ticks = 20.0f;
-                aproc->vtbl->sleep(aproc->vtbl);
+                transition_to_anim_script_frame(
+                    g_pz_fighter_fatality_engine.controller
+                        ->fighter_pdata[snake],
+                    pz_shared_ani.snake_idle, 0.1f, 0.0f);
+                set_pdata_anim_step(
+                    g_pz_fighter_fatality_engine.controller
+                        ->fighter_pdata[snake],
+                    1.0f);
             }
         }
-        _mkproc_sleep_ticks = 175.0f;
+    }
+}
+
+static inline void pz_snake_bite(unsigned int snake) {
+    PuzzleParticleEffect* saliva;
+    PuzzleParticleEffect* burst;
+
+    pan_snd_req(0x1AC2, snake == 0 ? -0.7f : 0.7f);
+    saliva = (PuzzleParticleEffect*)fx_by_owner(
+        snake == 0 ? "saliva1" : "saliva2", 4);
+    burst = (PuzzleParticleEffect*)fx_by_owner(
+        snake == 0 ? "saliva_burst1" : "saliva_burst2", 4);
+    fx_pause_emit(saliva);
+    transition_to_anim_script_frame(
+        g_pz_fighter_fatality_engine.controller->fighter_pdata[snake],
+        pz_shared_ani.snake_bite, 0.1f, 35.0f);
+    set_pdata_anim_step(
+        g_pz_fighter_fatality_engine.controller->fighter_pdata[snake], 1.0f);
+    _mkproc_sleep_ticks = 3.0f;
+    aproc->vtbl->sleep(aproc->vtbl);
+    if (g_pz_fighters_engine.fatality_abort == 0) {
+        fx_reset(burst);
+        fx_resume_emit(burst);
+        _mkproc_sleep_ticks = 45.0f;
         aproc->vtbl->sleep(aproc->vtbl);
-        controller->preround_active = 0;
+        if (g_pz_fighters_engine.fatality_abort == 0) {
+            fx_resume_emit(saliva);
+            transition_to_anim_script_frame(
+                g_pz_fighter_fatality_engine.controller
+                    ->fighter_pdata[snake],
+                pz_shared_ani.snake_idle, 0.15f, 0.0f);
+            set_pdata_anim_step(
+                g_pz_fighter_fatality_engine.controller
+                    ->fighter_pdata[snake],
+                1.0f);
+        }
+    }
+}
+
+/*
+ * Soft ceiling: exact-size retail preround and active-event controller.
+ * Remaining differences are saved-register allocation, equivalent branch/
+ * load scheduling across the typed inline helpers, and local relocation
+ * labels.
+ */
+float p_snake_controller(void) {
+    unsigned int event;
+
+    if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
+        return -1.0f;
+    }
+
+    if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
+        pz_snake_lunge(0);
+        _mkproc_sleep_ticks = 20.0f;
+        aproc->vtbl->sleep(aproc->vtbl);
+        pz_snake_lunge(1);
+        _mkproc_sleep_ticks = 10.0f;
+        aproc->vtbl->sleep(aproc->vtbl);
+        g_pz_fighter_fatality_engine.controller->preround_active = 0;
         return 1.0f;
     }
 
-    if (controller->phase != 1) {
+    if (g_pz_fighter_fatality_engine.controller->phase != 1) {
         return 1.0f;
     }
 
     event = randu0(1000) & 0xFFFF;
-    if (event < 2) {
-        snake = event;
-        saliva_name = snake == 0 ? "saliva1" : "saliva2";
-        saliva = (PuzzleParticleEffect*)fx_by_owner(saliva_name, 4);
-        pan_snd_req(0x1AC3, snake == 0 ? -0.7f : 0.7f);
-        fx_pause_emit(saliva);
-        pdata = controller->fighter_pdata[snake];
-        transition_to_anim_script_frame(
-            pdata, pz_shared_ani.snake_lunge, 0.05f, 35.0f);
-        set_pdata_anim_step(pdata, 1.0f);
-        _mkproc_sleep_ticks = 15.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
-        fx_resume_emit(saliva);
-        if (g_pz_fighters_engine.fatality_abort == 0) {
-            _mkproc_sleep_ticks = 15.0f;
-            aproc->vtbl->sleep(aproc->vtbl);
-            fx_pause_emit(saliva);
-            if (g_pz_fighters_engine.fatality_abort == 0) {
-                _mkproc_sleep_ticks = 20.0f;
-                aproc->vtbl->sleep(aproc->vtbl);
-                fx_resume_emit(saliva);
-                transition_to_anim_script_frame(
-                    pdata, pz_shared_ani.snake_idle, 0.1f, 0.0f);
-                set_pdata_anim_step(pdata, 1.0f);
-            }
-        } else {
-            fx_pause_emit(saliva);
-        }
+    if (event < 1) {
+        pz_snake_lunge(0);
+    } else if (event < 2) {
+        pz_snake_lunge(1);
+    } else if (event < 4) {
+        pz_snake_bite(0);
     } else if (event < 6) {
-        snake = event < 4 ? 0 : 1;
-        saliva_name = snake == 0 ? "saliva1" : "saliva2";
-        burst_name = snake == 0 ? "saliva_burst1" : "saliva_burst2";
-        pan_snd_req(0x1AC2, snake == 0 ? -0.7f : 0.7f);
-        saliva = (PuzzleParticleEffect*)fx_by_owner(saliva_name, 4);
-        burst = (PuzzleParticleEffect*)fx_by_owner(burst_name, 4);
-        fx_pause_emit(saliva);
-        pdata = controller->fighter_pdata[snake];
-        transition_to_anim_script_frame(
-            pdata, pz_shared_ani.snake_bite, 0.1f, 35.0f);
-        set_pdata_anim_step(pdata, 1.0f);
-        _mkproc_sleep_ticks = 3.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
-        if (g_pz_fighters_engine.fatality_abort == 0) {
-            fx_reset(burst);
-            fx_resume_emit(burst);
-            _mkproc_sleep_ticks = 45.0f;
-            aproc->vtbl->sleep(aproc->vtbl);
-            if (g_pz_fighters_engine.fatality_abort == 0) {
-                fx_resume_emit(saliva);
-                transition_to_anim_script_frame(
-                    pdata, pz_shared_ani.snake_idle, 0.15f, 0.0f);
-                set_pdata_anim_step(pdata, 1.0f);
-            }
-        }
+        pz_snake_bite(1);
     }
     return 1.0f;
 }
@@ -2947,147 +3018,156 @@ float pz_fighter_lightning_actively_fighting(int active) {
     return 0.0f;
 }
 
+static inline void pz_lightning_bolt(Vec* position, float pan) {
+    PuzzleFighterRenderObject* bolt;
+    PuzzleParticleEffect* lightning_smoke;
+    PuzzleParticleEffect* spark;
+    PuzzleParticleEffect* burning_smoke;
+    void* texture;
+    unsigned int bolt_instance;
+
+    bolt = load_named_model_from_slot(
+        0x70036, "BOLT_OBJECT", 0x2099, 0);
+    insert_fgnd_mkobj(bolt);
+    obj_set_pos(bolt, position);
+    update_mkobj(bolt);
+    obj_create_sobjs(bolt);
+    texture = replace_sobj_texture_with_named_wiff(
+        obj_first_sobj(bolt), 0x70036, "PZ_LIGHTNING_PF_LIGHTNING",
+        "Nightwolf_Bolt");
+    set_ani_texture_framerate(texture, 1.0f);
+    set_ani_texture_frame(texture, 0);
+    bolt_instance = bolt->instance;
+    pan_snd_req(0x1ABA, pan);
+
+    lightning_smoke = fx_by_owner("pz_lightningsmoke", 4);
+    spark = fx_by_owner("pz_spark", 4);
+    burning_smoke = fx_by_owner("pz_burningsmoke", 4);
+    _mkproc_sleep_ticks = 3.0f;
+    aproc->vtbl->sleep(aproc->vtbl);
+    if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
+        g_pz_fighter_fatality_engine.controller->phase != 0) {
+        fx_reset(spark);
+        fx_set_param_v3(
+            spark, 0x202, position->x, position->y, position->z);
+        fx_resume_emit(spark);
+        fx_reset(burning_smoke);
+        fx_set_param_v3(
+            burning_smoke, 0x202, position->x, position->y + 0.3f,
+            position->z);
+        fx_resume_emit(burning_smoke);
+        fx_reset(lightning_smoke);
+        fx_set_param_v3(
+            lightning_smoke, 0x202, position->x, position->y, position->z);
+        fx_resume_emit(lightning_smoke);
+        _mkproc_sleep_ticks = 20.0f;
+        aproc->vtbl->sleep(aproc->vtbl);
+        if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
+            g_pz_fighter_fatality_engine.controller->phase != 0) {
+            fx_pause_emit(burning_smoke);
+            fx_pause_emit(lightning_smoke);
+        }
+    }
+
+    if (bolt != 0 && bolt->instance != bolt_instance) {
+        bolt = 0;
+    }
+    if (bolt != 0 && bolt->instance != 0) {
+        bolt->vtbl->destroy(bolt, bolt->vtbl);
+    }
+}
+
 /*
- * Broad pass: Lightning preround pair and sparse during-fight bolt events.
- * Soft ceiling: p_lightning_controller -- duplicated retail bolt lifecycle
- * is represented without register-order refinement.
+ * Soft ceiling: exact-size retail preround and active bolt lifecycles.
+ * Remaining differences are helper-inlining register/string-base allocation,
+ * stack Vec scheduling, equivalent guard branches, and relocation labels.
  */
 float p_lightning_controller(void) {
-    PuzzleFatalityController* controller =
-        g_pz_fighter_fatality_engine.controller;
-    PuzzleFighterRenderObject* bolt;
-    PuzzleFatalityHazardObject* bolt_sobj;
-    void* spark;
-    void* smoke;
-    void* burning;
     Vec position = {0.0f, 0.0f, 0.0f};
-    int side;
-    int pass;
 
-    if (controller->unload_requested == 1) {
+    if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
         return -1.0f;
     }
 
-    if (controller->preround_active == 1) {
+    if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         _mkproc_sleep_ticks = 60.0f;
         aproc->vtbl->sleep(aproc->vtbl);
-        for (pass = 0; pass < 2; pass++) {
-            side = pass;
-            position.x = side == 0
-                ? (screen_width > 650 ? -2.2f : -1.9f)
-                : (screen_width > 650 ? 2.2f : 1.9f);
-            bolt = load_named_model_from_slot(
-                0x70036, "BOLT_OBJECT", 0x2099, 0);
-            insert_fgnd_mkobj(bolt);
-            obj_set_pos(bolt, &position);
-            update_mkobj(bolt);
-            obj_create_sobjs(bolt);
-            bolt_sobj = obj_first_sobj(bolt);
-            set_ani_texture_framerate(
-                replace_sobj_texture_with_named_wiff(
-                    bolt_sobj, 0x70036, "PZ_LIGHTNING_PF_LIGHTNING",
-                    "Nightwolf_Bolt"),
-                1.0f);
-            pan_snd_req(0x1ABA, side == 0 ? -1.0f : 1.0f);
-
-            smoke = fx_by_owner("pz_lightningsmoke", 4);
-            spark = fx_by_owner("pz_spark", 4);
-            burning = fx_by_owner("pz_burningsmoke", 4);
-            _mkproc_sleep_ticks = 10.0f;
-            aproc->vtbl->sleep(aproc->vtbl);
-            if (controller->preround_active != 0 ||
-                controller->phase != 0) {
-                fx_reset(spark);
-                fx_set_param_v3(
-                    spark, 0x202, position.x, position.y, position.z);
-                fx_resume_emit(spark);
-                fx_reset(burning);
-                fx_set_param_v3(
-                    burning, 0x202, position.x, position.y + 0.5f,
-                    position.z);
-                fx_resume_emit(burning);
-                fx_reset(smoke);
-                fx_set_param_v3(
-                    smoke, 0x202, position.x, position.y, position.z);
-                fx_resume_emit(smoke);
-                _mkproc_sleep_ticks = 20.0f;
-                aproc->vtbl->sleep(aproc->vtbl);
-                if (controller->preround_active != 0 ||
-                    controller->phase != 0) {
-                    fx_pause_emit(burning);
-                    fx_pause_emit(smoke);
-                }
-            }
-            _mkproc_sleep_ticks = 60.0f;
-            aproc->vtbl->sleep(aproc->vtbl);
-        }
-        controller->preround_active = 0;
+        position.x = screen_width > 650 ? -2.2f : -1.9f;
+        pz_lightning_bolt(&position, -0.7f);
+        _mkproc_sleep_ticks = 60.0f;
+        aproc->vtbl->sleep(aproc->vtbl);
+        position.x = screen_width > 650 ? 2.2f : 1.9f;
+        pz_lightning_bolt(&position, 0.7f);
+        g_pz_fighter_fatality_engine.controller->preround_active = 0;
         return 1.0f;
     }
 
-    if (controller->phase == 1 &&
+    if (g_pz_fighter_fatality_engine.controller->phase == 1 &&
         (randu0(10000) & 0xFFFF) < 15) {
-        side = controller->hazard_initialized[0];
-        position.x = side == 0
-            ? (screen_width > 650 ? -2.2f : -1.9f)
-            : (screen_width > 650 ? 2.2f : 1.9f);
+        position.x = screen_width > 650 ? -2.2f : -1.9f;
         if ((randu0(100) & 0xFFFF) < 50) {
             position.x = -position.x;
         }
-        pan_snd_req(0x1ABA, position.x < 0.0f ? -1.0f : 1.0f);
-        spark = fx_by_owner("pz_spark", 4);
-        smoke = fx_by_owner("pz_lightningsmoke", 4);
-        burning = fx_by_owner("pz_burningsmoke", 4);
-        fx_reset(spark);
-        fx_set_param_v3(
-            spark, 0x202, position.x, position.y, position.z);
-        fx_resume_emit(spark);
-        fx_reset(burning);
-        fx_set_param_v3(
-            burning, 0x202, position.x, position.y + 0.5f, position.z);
-        fx_resume_emit(burning);
-        fx_reset(smoke);
-        fx_set_param_v3(
-            smoke, 0x202, position.x, position.y, position.z);
-        fx_resume_emit(smoke);
-        _mkproc_sleep_ticks = 20.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
-        fx_pause_emit(burning);
-        fx_pause_emit(smoke);
+        pz_lightning_bolt(
+            &position, position.x < 0.0f ? -0.7f : 0.7f);
         _mkproc_sleep_ticks = 5.0f;
         aproc->vtbl->sleep(aproc->vtbl);
     }
     return 1.0f;
 }
 
+static inline void pz_grinder_launch_piece(
+    PuzzleFighterRenderObject* object, int bone, float height,
+    float velocity_x, float velocity_y, float velocity_z,
+    const Vec* terminal) {
+    MKMATRIX* bone_matrix;
+    Vec position;
+    Vec velocity;
+    float direction = 1.0f;
+
+    if (plyr_pdata->side == 1) {
+        direction = -1.0f;
+    }
+
+    bone_matrix = force_calc_bone_world_mat(plyr_obj, bone);
+    RwFrameTransform(object->frame, bone_matrix, 0);
+    get_bone_world_pos(plyr_obj, bone, &position);
+    position.y = height;
+    unhide_obj(object);
+    velocity.x = velocity_x * direction;
+    velocity.y = velocity_y;
+    velocity.z = velocity_z * direction;
+    ft_create_flesh_path(
+        object, &position, 0, 0, &velocity, 0, terminal, 0,
+        -0.004f, 0.5f, 0.1f);
+}
+
 /*
- * Broad pass: staged Grinder victim dismemberment, reusable flesh objects,
- * blood effects, and the final background meat throw.
+ * Matching recovery in progress: retail open-codes four bone-transform and
+ * flesh-launch blocks. The remaining instruction-count gap and first-piece
+ * material swap are algorithmic/layout blockers, not a soft ceiling.
  */
 float r_pz_fighter_grinding(void) {
-    PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
     PuzzleGrinderNoisePdata* noise = 0;
     PuzzleGrinderMeatController* meat = 0;
-    PuzzleFighterRenderObject* pieces[4];
-    Vec positions[4];
-    Vec velocity;
-    Vec terminal;
-    Vec path;
+    Vec final_position;
+    Vec final_velocity;
     float effect_x;
     float effect_z;
-    float direction;
-    int bones[4] = {9, 20, 9, 9};
-    int i;
+    PuzzleFatalityHazardObject* body_sobj;
 
     pz_fighter_clear_out_external_forces();
     if (plyr_pdata->side == 0) {
-        effect_x = fighters->fighter_posts[1].x - 0.4f;
-        effect_z = fighters->fighter_posts[1].z;
-        direction = 1.0f;
+        effect_x = g_pz_fighters_engine.fighter_posts[1].x;
+        effect_z = g_pz_fighters_engine.fighter_posts[1].z;
     } else {
-        effect_x = fighters->fighter_posts[0].x + 0.4f;
-        effect_z = fighters->fighter_posts[0].z;
-        direction = -1.0f;
+        effect_x = g_pz_fighters_engine.fighter_posts[0].x;
+        effect_z = g_pz_fighters_engine.fighter_posts[0].z;
+    }
+    if (plyr_pdata->side == 0) {
+        effect_x -= 0.4f;
+    } else {
+        effect_x += 0.4f;
     }
 
     bgnd_launch_fx_at_position(
@@ -3097,6 +3177,10 @@ float r_pz_fighter_grinding(void) {
     }
     bgnd_launch_fx_at_position(
         "blood_up_spray_fx", plyr_obj->x, 0.0f, plyr_obj->z);
+    fx_set_render_priority(fx_by_owner("blood_up_spray_fx", 4), 11);
+    if (plyr_pdata->side == 1) {
+        bgnd_set_fx_ang_y(3.1415927f);
+    }
     snd_req_vol(0x1AB8, 1.0f);
 
     if (_create_mkproc_generic_bigstack(
@@ -3108,7 +3192,7 @@ float r_pz_fighter_grinding(void) {
     }
 
     blend_to_ani(pz_shared_ani.head_poked, 3, 0.1f);
-    set_ani_speed(0.44f);
+    set_ani_speed(0.75f);
     ani_to_frame_x(12.0f);
     bgnd_launch_fx_at_position(
         "chunk_1", effect_x, plyr_obj->y, effect_z);
@@ -3118,59 +3202,78 @@ float r_pz_fighter_grinding(void) {
     snd_death_voice();
     ani_to_frame_x(22.0f);
 
-    pieces[0] = fighters->grinder_meat_alt0;
-    pieces[1] = fighters->grinder_meat_alt2;
-    pieces[2] = fighters->grinder_meat_alt1;
-    pieces[3] = fighters->grinder_meat_default;
+    {
+        Vec terminal = {0.04f, 0.08f, 0.03f};
+        pz_grinder_launch_piece(
+            g_pz_fighters_engine.grinder_meat_alt0, 9, 0.8f,
+            0.02f, 0.05f, 0.003f, &terminal);
+    }
+    snd_req_delay(0x1ADD, 40);
+    body_sobj = obj_first_sobj(
+        g_pz_fighter_fatality_engine.scene_objects[plyr_pdata->side]);
+    if (body_sobj != 0 && body_sobj->material_data->geometry != 0) {
+        RpGeometryForAllMaterials(
+            body_sobj->material_data->geometry, material_set_texture,
+            g_pz_fighter_fatality_engine.grinder_texture);
+    }
+    ani_to_frame_x(36.0f);
 
-    for (i = 0; i < 4; i++) {
-        get_bone_world_pos(plyr_obj, bones[i], &positions[i]);
-        if (i < 2) {
-            positions[i].y = 0.8f;
-        } else if (i == 2) {
-            positions[i].y = 0.75f;
-        } else {
-            positions[i].y = 0.55f;
-        }
+    {
+        Vec terminal = {0.02f, 0.02f, 0.07f};
+        pz_grinder_launch_piece(
+            g_pz_fighters_engine.grinder_meat_alt2, 20, 0.8f,
+            0.02f, 0.03f, 0.003f, &terminal);
+    }
+    obj_set_bone_collapse_flag(plyr_obj, 20);
+    snd_req(0x1ADC);
+    snd_req_delay(0x1ADD, 35);
+    snd_req(0x1AEF);
+    bgnd_launch_fx_at_position(
+        "chunk_2", effect_x, plyr_obj->y, effect_z);
+    if (plyr_pdata->side == 1) {
+        bgnd_set_fx_ang_y(3.1415927f);
+    }
+    ani_to_end();
+    blend_to_ani(pz_shared_ani.head_poked, 3, 0.1f);
+    set_ani_speed(0.75f);
+    ani_to_frame_x(26.0f);
 
-        velocity.x = (i == 2 ? 0.105f : 0.02f) * direction;
-        velocity.y = i == 0 ? 0.05f : (i == 1 ? 0.03f : 0.105f);
-        velocity.z = (i == 3 ? 0.063f : -0.073f) * direction;
-        terminal.x = 0.1f;
-        terminal.y = i == 1 ? 0.03f : 0.05f;
-        terminal.z = 0.1f * direction;
-        path.x = 0.04f;
-        path.y = 0.08f;
-        path.z = 0.03f;
+    {
+        Vec terminal = {0.04f, 0.08f, 0.03f};
+        pz_grinder_launch_piece(
+            g_pz_fighters_engine.grinder_meat_alt1, 9, 0.45f,
+            0.04f, 0.04f, 0.003f, &terminal);
+    }
+    {
+        Vec terminal = {0.04f, 0.08f, 0.03f};
+        pz_grinder_launch_piece(
+            g_pz_fighters_engine.grinder_meat_default, 9, 0.6f,
+            0.04f, 0.08f, -0.005f, &terminal);
+    }
+    snd_req(0x1AD7);
+    snd_req_delay(0x1ADD, 35);
+    snd_req_delay(0x1ADD, 50);
+    ani_to_frame_x(34.0f);
 
-        unhide_obj(pieces[i]);
+    final_position.x = 2.05f;
+    final_position.y = 1.8f;
+    final_position.z = 0.0f;
+    final_velocity.x = -0.0625f;
+    final_velocity.y = 0.105f;
+    final_velocity.z = 0.0f;
+    if (screen_width > 650) {
+        final_velocity.x *= 1.1f;
+    }
+    if (plyr_pdata->side == 0) {
+        final_position.x *= -1.0f;
+        final_velocity.x *= -1.0f;
+    }
+    {
+        Vec final_terminal = {0.04f, 0.08f, 0.03f};
+        unhide_obj(g_pz_fighters_engine.grinder_meat_final);
         ft_create_flesh_path(
-            pieces[i], &positions[i], 0, 0, &velocity, 0, &terminal, 0,
-            -0.004f, 0.5f, 0.1f);
-
-        if (i == 0) {
-            snd_req_delay(0x1ADD, 40);
-            ani_to_frame_x(36.0f);
-        } else if (i == 1) {
-            obj_set_bone_collapse_flag(plyr_obj, 20);
-            snd_req(0x1ADC);
-            snd_req_delay(0x1ADD, 35);
-            snd_req(0x1AEF);
-            bgnd_launch_fx_at_position(
-                "chunk_2", effect_x, plyr_obj->y, effect_z);
-            if (plyr_pdata->side == 1) {
-                bgnd_set_fx_ang_y(3.1415927f);
-            }
-            ani_to_end();
-            blend_to_ani(pz_shared_ani.head_poked, 3, 0.1f);
-            set_ani_speed(0.44f);
-            ani_to_frame_x(51.0f);
-        } else if (i == 2) {
-            snd_req(0x1AD7);
-            snd_req_delay(0x1ADD, 35);
-            snd_req_delay(0x1ADD, 50);
-            ani_to_frame_x(55.0f);
-        }
+            g_pz_fighters_engine.grinder_meat_final, &final_position, 0, 0,
+            &final_velocity, 0, &final_terminal, 0, -0.004f, 0.5f, 0.1f);
     }
 
     obj_set_bone_collapse_flag(plyr_obj, 21);
@@ -3179,7 +3282,7 @@ float r_pz_fighter_grinding(void) {
             &meat) != 0 &&
         meat != 0) {
         meat->direction = his_pdata->side;
-        meat->object = fighters->grinder_meat_final;
+        meat->object = g_pz_fighters_engine.grinder_meat_final;
         meat->delay = 0;
         meat->phase = 1;
     }
@@ -3189,7 +3292,7 @@ float r_pz_fighter_grinding(void) {
     if (plyr_pdata->side == 1) {
         bgnd_set_fx_ang_y(3.1415927f);
     }
-    ani_to_blend_frame(175.0f);
+    ani_to_blend_frame(10.0f);
     hide_obj(plyr_obj);
     aproc->vtbl->transfer(pz_fighter_long_exit, 0.0f);
     return 0.0f;
@@ -3906,8 +4009,13 @@ float pz_fighters_chomper2_fatality_prep(void) {
         }                                                                   \
     } while (0)
 
-/* Matching recovery: emitter register/string lifetimes still need refinement. */
+/*
+ * Soft ceiling: exact-size retail loader and effect setup. Remaining
+ * differences are light-definition/string-base register allocation and
+ * equivalent emitter flag-update scheduling.
+ */
 float pz_fighter_load_and_place_initial_snake(void) {
+    unsigned char* light_def = skinned_obj_light_def;
     PuzzleEffectBankContext effect_context;
     PuzzleFighterRenderObject* snakes[2];
     PuzzleAnimPdata* snake_pdata[2];
@@ -3928,7 +4036,7 @@ float pz_fighter_load_and_place_initial_snake(void) {
         snakes[i] =
             load_model_from_slot(0x70036, 0x08230000, 0x6021);
         obj_change_to_skinned_obj_light_list(
-            snakes[i], skinned_obj_light_def);
+            snakes[i], light_def);
         snakes[i]->model_flags = 0x400;
         snakes[i]->x = i != 0 ? 2.18f : -2.18f;
         if (screen_width > 650) {
@@ -3946,11 +4054,11 @@ float pz_fighter_load_and_place_initial_snake(void) {
         insert_fgnd_mkobj(snakes[i]);
         snake_pdata[i] = animate_obj(
             snakes[i], pz_shared_ani.snake_idle, 1.0f,
-            skinned_obj_light_def + 0x44, 0, 0, 1);
+            light_def + 0x44, 0, 0, 1);
     }
 
     obj_add_to_skinned_obj_light_list_with_ambient(
-        snakes[0], skinned_obj_ambient_light_def);
+        snakes[0], light_def + 0x28);
     g_pz_fighter_fatality_engine.secondary_object = snakes[1];
     g_pz_fighter_fatality_engine.primary_object = snakes[0];
     obj_create_sobjs(snakes[0]);

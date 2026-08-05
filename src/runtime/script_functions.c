@@ -1798,7 +1798,7 @@ int pz_fighter_exit(void);
 int pz_fighter_force_repel_during_attack(void);
 int pz_fighter_function(int);
 int pz_fighter_long_exit(void);
-int pz_fighter_move_into_fighting_position(void);
+void pz_fighter_move_into_fighting_position(void);
 int pz_fighter_reaction_xfer_him(int);
 int pz_fighter_release_other_player(int);
 int pz_fighter_reset_continuation(void);
@@ -2588,7 +2588,9 @@ int attack_to_frame_x(void*, int, int, int, float, float, float, float);
 int launch_n_land_ani(void*, int, void*, float, float, float, float, float, float);
 int lower_mines_ani_to_point(void*, int, int, int, float, float, float, float, float, float);
 int newani_to_frame_x(void*, int, float, float, float, float);
-int pz_fighter_startup_attack(void*, int, int, int, int, void*, float, float, float, float, float);
+void pz_fighter_startup_attack(
+    void*, int, int, int, unsigned int,
+    float, float, float, float, float);
 int two_player_animation(void*, void*, float);
 int two_player_animation_flip(void*, void*, float);
 int two_player_animation_match_attacker(void*, void*, float);
@@ -2983,7 +2985,13 @@ void _pz_fighter_startup_attack(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    pz_fighter_startup_attack(((ScriptCommandView*)active_cmdscript)->animation, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[8].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[9].f);
+    pz_fighter_startup_attack(
+        ((ScriptCommandView*)active_cmdscript)->animation,
+        args.raw->slots[5].i, args.raw->slots[6].i,
+        args.raw->slots[7].i, args.raw->slots[8].i,
+        args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f,
+        args.raw->slots[9].f);
 }
 
 void _pz_fighter_distance_check_wo_super_check(void) {

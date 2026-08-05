@@ -10,8 +10,8 @@ typedef struct PuzzleAttackParameters {
     unsigned int field_0C;
     unsigned int field_10;
     unsigned int field_14;
-    float desired_distance; /* +0x18 */
-    float field_1C;
+    float field_18;
+    float desired_distance; /* +0x1C */
     float hit_distance; /* +0x20 */
     float end_frame; /* +0x24 */
     float reaction_frame; /* +0x28 */

@@ -498,8 +498,8 @@ void random_voice(int sound);
 void snd_req(int sound);
 void glitch_to_ani(PuzzleAnimation* animation, int frame);
 void p_animate(void);
-void pz_fighter_ani_attack(
-    int attack, int reaction, float active_frame, float hit_frame,
+float pz_fighter_ani_attack(
+    int attack, unsigned int reaction, float active_frame, float hit_frame,
     float damage);
 void set_both_face_opponent_flags(void);
 void got_hit_fx(
@@ -529,8 +529,8 @@ void ani_to_end(void);
 void pz_fighter_check_breakout(void);
 float xz_distance_between_players(void);
 int pz_fighter_close_enough_to_super_move(int player);
-int pz_fighter_is_winning_big(int player);
-int pz_fighter_is_losing_big(int player);
+int pz_fighter_is_winning_big(unsigned int player);
+int pz_fighter_is_losing_big(unsigned int player);
 PuzzleProcess* get_player_proc(PuzzleFighterObject* fighter);
 float pz_fighter_fetch_plyr_to_home_post_distance(int player);
 void pz_fighters_calc_distance_to_desired_idle_pos_abs(
