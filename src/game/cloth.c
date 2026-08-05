@@ -10,13 +10,21 @@
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
 
+/*
+ * Soft ceiling: retail gives several automatic Vec/Quat temporaries 16-byte
+ * stack alignment for paired-single scheduling. Portable C has no automatic
+ * object-alignment syntax, so compiler-specific alignment attributes are
+ * intentionally avoided; the remaining residue is stack layout, register
+ * allocation, and scheduling rather than cloth behavior or data layout.
+ */
+
 static float p_cloth(void);
 static float p_wind(void);
 static float p_wind_lp(void);
 typedef struct ClothInitEntry ClothInitEntry;
-static void cloth_bones_init_by_tbl(
+void cloth_bones_init_by_tbl(
     MkObj* obj, ClothInitEntry* table, int count);
-static void start_cloth_bones(MkObj* obj);
+void start_cloth_bones(MkObj* obj);
 static float p_axis_track_bone_world_mat(void);
 struct ClothForcePdata;
 static void do_cloth_force(struct ClothForcePdata* force);
@@ -921,7 +929,7 @@ static void do_cloth_force(ClothForcePdata* force) {
     ClothBone* second;
     Vec* first_position;
     Vec* second_position;
-    Vec difference __attribute__((aligned(16)));
+    Vec difference;
     Vec direction;
     Vec second_compression;
     Vec first_compression;
@@ -981,15 +989,15 @@ static void do_cloth_colls(MkHdr* collision) {
     ClothCollisionVolume* volume;
     ClothCollisionPlane* plane;
     MkBone* reference;
-    Vec world_normal __attribute__((aligned(16)));
-    Vec plane_offset __attribute__((aligned(16)));
-    Vec plane_point __attribute__((aligned(16)));
-    Vec point_0 __attribute__((aligned(16)));
-    Vec point_1 __attribute__((aligned(16)));
-    Vec center __attribute__((aligned(16)));
-    Vec edge_0 __attribute__((aligned(16)));
-    Vec edge_1 __attribute__((aligned(16)));
-    Vec adjustment __attribute__((aligned(16)));
+    Vec world_normal;
+    Vec plane_offset;
+    Vec plane_point;
+    Vec point_0;
+    Vec point_1;
+    Vec center;
+    Vec edge_0;
+    Vec edge_1;
+    Vec adjustment;
     float plane_distance;
     float point_distance;
     unsigned int index;
@@ -1126,13 +1134,13 @@ static void do_cloth_colls(MkHdr* collision) {
 static void cloth_coll_point_cyl_inside(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
-    Vec axis_offset_0 __attribute__((aligned(16)));
-    Vec axis_point_0 __attribute__((aligned(16)));
-    Vec radial_direction_0 __attribute__((aligned(16)));
-    Vec axis_offset_1 __attribute__((aligned(16)));
-    Vec axis_point_1 __attribute__((aligned(16)));
-    Vec radial_direction_1 __attribute__((aligned(16)));
-    Vec world_point __attribute__((aligned(16)));
+    Vec axis_offset_0;
+    Vec axis_point_0;
+    Vec radial_direction_0;
+    Vec axis_offset_1;
+    Vec axis_point_1;
+    Vec radial_direction_1;
+    Vec world_point;
     unsigned int index;
     int collided;
     float position_weight;
@@ -1228,12 +1236,12 @@ static void cloth_coll_point_cyl_inside(void) {
 }
 
 static inline int cloth_vector_cylinder_displacement(const Vec* point) {
-    Vec midpoint __attribute__((aligned(16)));
-    Vec radial_direction __attribute__((aligned(16)));
-    Vec target_position __attribute__((aligned(16)));
-    Vec local_displacement __attribute__((aligned(16)));
-    Vec world_displacement __attribute__((aligned(16)));
-    Vec world_position __attribute__((aligned(16)));
+    Vec midpoint;
+    Vec radial_direction;
+    Vec target_position;
+    Vec local_displacement;
+    Vec world_displacement;
+    Vec world_position;
     float along_axis;
     float previous_y;
 
@@ -1276,8 +1284,8 @@ static inline int cloth_vector_cylinder_displacement(const Vec* point) {
 }
 
 static void cloth_coll_vector_cyl(void) {
-    Vec object_offset __attribute__((aligned(16)));
-    Vec world_point __attribute__((aligned(16)));
+    Vec object_offset;
+    Vec world_point;
     unsigned int index;
     float position_weight;
 
@@ -1326,7 +1334,7 @@ static void cloth_coll_vector_cyl(void) {
 static void cloth_coll_point_cyl_abs(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
-    Vec axis_offset_0 __attribute__((aligned(16)));
+    Vec axis_offset_0;
     Vec axis_point_0;
     Vec offset_point_0;
     Vec radial_direction_0;
@@ -1445,7 +1453,7 @@ static void cloth_coll_point_cyl_abs(void) {
 static void cloth_coll_point_cyl_rel(void) {
     ClothCollisionScratch* scratch;
     Vec* force_position;
-    Vec axis_point_0 __attribute__((aligned(16)));
+    Vec axis_point_0;
     Vec offset_point_0;
     Vec radial_direction_0;
     Vec axis_point_1;
@@ -1559,11 +1567,11 @@ static void cloth_coll_point_cyl_rel(void) {
 static void set_cloth_pos(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
-    Vec object_position __attribute__((aligned(16)));
-    Vec direction __attribute__((aligned(16)));
-    Vec normalized_direction __attribute__((aligned(16)));
-    Quat rotation __attribute__((aligned(16)));
-    RwMatrix inverse_parent __attribute__((aligned(16)));
+    Vec object_position;
+    Vec direction;
+    Vec normalized_direction;
+    Quat rotation;
+    RwMatrix inverse_parent;
     float interpolation;
 
     render_bone = bone->bone;
@@ -1680,9 +1688,9 @@ static void calc_cloth_stretch(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
     ClothBone* parent_cloth;
-    Vec difference __attribute__((aligned(16)));
-    Vec direction __attribute__((aligned(16)));
-    Vec adjustment __attribute__((aligned(16)));
+    Vec difference;
+    Vec direction;
+    Vec adjustment;
     float distance_squared;
     float distance;
     float inverse_distance;
@@ -1776,7 +1784,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
     ClothBone* parent_cloth;
     const RwMatrix* target_matrix;
     const Vec* target_origin;
-    Vec velocity __attribute__((aligned(16)));
+    Vec velocity;
     Vec adjustment;
     Vec spring_velocity;
     Vec transformed_normal;
@@ -1890,7 +1898,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
     }
 }
 
-static void start_cloth_bones(MkObj* obj) {
+void start_cloth_bones(MkObj* obj) {
     MkBone* render_bone;
     MkBone* parent_bone;
     ClothBone* bone;
@@ -2002,7 +2010,7 @@ static void start_cloth_bones(MkObj* obj) {
     }
 }
 
-static void cloth_bones_init_by_tbl(
+void cloth_bones_init_by_tbl(
     MkObj* object, ClothInitEntry* table, int count) {
     ClothBone* cloth_bone;
     MkBone* bone;
