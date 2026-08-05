@@ -17,9 +17,33 @@ typedef struct SwitchData SwitchData;
 typedef struct AniData AniData;
 
 typedef struct PlyrMoveBlendData {
-    char pad00[0x28];
-    float step;   /* +0x28 */
-    float weight; /* +0x2C */
+    char pad00[4];
+    void* primary_weapon;   /* +0x04 */
+    void* secondary_weapon; /* +0x08 */
+    char pad0C[0x10];
+    int use_fighting_stance; /* +0x1C */
+    char pad20[8];
+    union {
+        float walk_forward_start_step;
+        float step;
+    }; /* +0x28 */
+    union {
+        float walk_forward_start_weight;
+        float weight;
+    }; /* +0x2C */
+    float walk_forward_start_frame;  /* +0x30 */
+    char pad34[4];
+    float walk_backward_start_step;   /* +0x38 */
+    float walk_backward_start_weight; /* +0x3C */
+    float walk_backward_start_frame;  /* +0x40 */
+    char pad44[4];
+    float walk_forward_step; /* +0x48 */
+    char pad4C[4];
+    float walk_backward_step; /* +0x50 */
+    char pad54[4];
+    float strafe_start_frame;  /* +0x58 */
+    float strafe_start_step;   /* +0x5C */
+    float strafe_start_weight; /* +0x60 */
 } PlyrMoveBlendData;
 
 typedef struct PlyrWeaponImpactData {
@@ -43,10 +67,12 @@ typedef struct PlyrFighterDefinition {
         AniData* walk_forward_start;
     };
     AniData* walk_backward_start; /* +0x7C */
-    char pad80[8];
+    AniData* strafe_left_start; /* +0x80 */
+    AniData* strafe_right_start; /* +0x84 */
     AniData* walk_forward_loop; /* +0x88 */
     AniData* walk_backward_loop; /* +0x8C */
-    char pad90[8];
+    AniData* strafe_left_loop; /* +0x90 */
+    AniData* strafe_right_loop; /* +0x94 */
     AniData* weapon_block_animation; /* +0x98 */
     char pad9C[0x10];
     AniData* duck_block_animation; /* +0xAC */
@@ -203,9 +229,10 @@ typedef struct PlyrPdata {
     unsigned int spear_proc_instance; /* +0x104 */
     char pad108[0x0C];
     AniTextureControlItem facial_texture; /* +0x114 */
-    char pad11C[0xA0];
-    int held_by_player; /* +0x1BC */
-    int hold_state; /* +0x1C0 */
+    char pad11C[0x18];
+    MkPtr* active_weapon_links; /* +0x134 */
+    char pad138[0x84];
+    PlyrMirrorObjLatch held_by_object_latch; /* +0x1BC */
     int (*aux_update_callback)(void); /* +0x1C4 */
     PlyrWeaponImpactData* weapon_impact; /* +0x1C8 */
     union {
@@ -253,7 +280,8 @@ typedef struct PlyrPdata {
     int combo_flags; /* +0x260 */
     int attack_counter; /* +0x264 */
     int shared_attack_until; /* +0x268 */
-    char pad26C[0x0C];
+    char pad26C[8];
+    unsigned int last_collision_tick; /* +0x274 */
     int last_back_dash_tick; /* +0x278 - switch double-tap timing */
     char pad27C[0x14];
     float postround_value; /* +0x290 */
@@ -285,8 +313,11 @@ typedef struct PlyrPdata {
         int reaction_counter;
         int opponent_attack_counter_copy;
     }; /* +0x2F0 */
-    int block_requirement; /* +0x2F4 */
-    char pad2F8[4];
+    union {
+        int block_requirement;
+        int pending_hit_strength;
+    }; /* +0x2F4 */
+    int pending_reaction; /* +0x2F8 */
     PlyrWeaponStyle* weapon_styles[3]; /* +0x2FC */
     int player_slot; /* +0x308 */
     PlyrFighterDefinition* fighter_definition; /* +0x30C */
@@ -295,7 +326,9 @@ typedef struct PlyrPdata {
         PlyrMoveDisplayData* active_move_display;
         unsigned int fighter_definition_instance;
     }; /* +0x314 */
-    char pad318[0x28];
+    char pad318[0x20];
+    AniData* dizzy_animation; /* +0x338 */
+    char pad33C[4];
     AniData* big_boss_taunt_animation; /* +0x340 */
     char pad344[4];
     AniData* turn_to_screen_animation; /* +0x348 */
@@ -359,7 +392,8 @@ typedef struct PlyrPdata {
     unsigned int round_attack_count; /* +0x6D0 - AI round pressure */
     int round_attack_stage; /* +0x6D4 */
     int combo_depth; /* +0x6D8 */
-    char pad6DC[8];
+    char pad6DC[4];
+    int strafe_direction; /* +0x6E0 */
     int block_hit_count; /* +0x6E4 */
     MslSoundHandle scream_sound_handle; /* +0x6E8 */
     int repeated_action_count; /* +0x6EC */

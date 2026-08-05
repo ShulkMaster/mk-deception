@@ -821,7 +821,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
 
     memset(emitter_buf, 0, 0x2EC);
     if (init_cb != 0) {
-        pfx->emitter_scratch = emitter_buf;
+        pfx->emitter_scratch = (PfxEmitter*)emitter_buf;
         pfx->slot_count = 1;
         init_cb(vm);
     }
