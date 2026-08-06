@@ -60,7 +60,8 @@ int sprintf(char* buf, const char* fmt, ...);
 static void init_movelist(MovelistPdata* movelist_pdata);
 static float p_loop_movelist(void);
 
-static void movelist_set_pfx_byte_flags(MovelistPfxObj* pfx_obj, int set_bit4, int set_bit1) {
+static inline void movelist_set_pfx_byte_flags(
+    MovelistPfxObj* pfx_obj, int set_bit4, int set_bit1) {
     pfx_obj->flags_0C_bits.bit4 = set_bit4;
     if (set_bit1 != 0) {
         pfx_obj->flags_0C_bits.bit1 = 1;

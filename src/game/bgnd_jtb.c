@@ -18,6 +18,152 @@ typedef union NbFloatBits {
     unsigned int u;
 } NbFloatBits;
 
+
+extern AnimPdata* plyr_anim_pdata;
+extern MkObj* plyr_obj;
+extern MkProc* aproc;
+extern float _mkproc_sleep_ticks;
+
+void transition_to_anim_script(
+    AnimPdata* pdata, void* script, int flags, float transition);
+void ani_to_frame_x(float frame);
+void launch_me_up(float velocity, float gravity);
+void land_chores(int sound, int flags, float velocity, float gravity);
+void update_bone_hierarchy(MkHdr* object);
+void ground_me(MkHdr* object);
+
+
+typedef struct NbPendulumState {
+    char pad00[0x88];
+    float acceleration_divisor; /* +0x88 */
+    char pad8C[4];
+    float acceleration_scale;   /* +0x90 */
+    char pad94[4];
+    float swing_angle;          /* +0x98 */
+    char pad9C[0xC];
+    int swing_ticks;            /* +0xA8 */
+} NbPendulumState;
+
+typedef struct NbNpcState {
+    MkHdr hdr;
+    int npc_id; /* +0x08 */
+    MkObj* object; /* +0x0C */
+    char pad10[0x14];
+    Vec anchor; /* +0x24 */
+    Vec momentum; /* +0x30 */
+    float last_hit_id[2]; /* +0x3C */
+    float field_44;
+    char pad48[0x3C];
+    float rope_length; /* +0x84 */
+    float acceleration_divisor; /* +0x88 */
+    float field_8C;
+    float acceleration_scale; /* +0x90 */
+    float swing_angle; /* +0x94 */
+    float phase; /* +0x98 */
+    char pad9C[8];
+    int active; /* +0xA4 */
+    int swing_ticks; /* +0xA8 */
+} NbNpcState;
+
+typedef struct NbNpcHitState {
+    MkHdr hdr;
+    char pad08[4];
+    MkObj* object; /* +0x0C */
+    char pad10[0x20];
+    float direction_x; /* +0x30 */
+    char pad34[4];
+    float direction_z; /* +0x38 */
+} NbNpcHitState;
+
+typedef struct NbNpcProcPdata {
+    MkHdr hdr;
+    NbNpcState* npc;
+} NbNpcProcPdata;
+
+typedef struct NbFighterObjectSlot {
+    char pad00[0x5C];
+    MkObj* object;
+} NbFighterObjectSlot;
+
+typedef struct NbFighterHurtView {
+    char pad00[0x14];
+    MkObj* opponent_object;
+    NbFighterObjectSlot* object_slot;
+    char pad1C[0x5A4];
+    AnimPdata anim_pdata; /* +0x5C0 */
+} NbFighterHurtView;
+
+static float p_npc_on_pendulum_rope(void);
+static void nb_get_desired_acceleration(
+    NbPendulumState* state, Vec* acceleration, const Vec* surface_normal);
+int bgnd_preload_named_model(
+    const char* model_name, const char* instance_name, int flags,
+    float scale, const Vec* rotation);
+void bgnd_set_active_sobj_in_obj(int model_index, int object_id);
+void bgnd_unhide_preload_obj(int model_index);
+void bgnd_unhide_active_sobj(void);
+void bgnd_set_active_sobj_pos(float x, float y, float z);
+void bgnd_preload_obj_attach_rope(int model_index);
+void bgnd_create_named_npc_in_slot(
+    int npc_id, int model_slot, int model_id, int flags);
+void bgnd_add_brains_to_npc(int npc_id, MkProcEntryFn brains);
+MkObj* bgnd_fetch_obj(int object_id);
+NbNpcState* bgnd_fetch_npc(int npc_id);
+void bgnd_attach_rope_to_bgnd_obj(
+    int rope_model_index, int target_model_index, int object_id);
+void bgnd_rope_adjust_length(
+    int model_index, int preserve_shape, float length);
+void bgnd_npc_add_collision_shape(
+    int npc_id, int shape_id, int shape_type, float radius, float height,
+    float offset_y, float offset_z);
+unsigned long random_hit(int group);
+void uv_from_angle_y(Vec* out, float angle);
+void xfer_player_proc_to_script_manual_messaging(
+    FighterMirror* fighter, MkObj* object, int message);
+void get_player_proc(MkObj* object);
+void xfer_player_proc(void* script);
+int is_my_chest_to_screen(void);
+int bgnd_collision_if_disable_col(int list_id, int collision_id);
+int bgnd_collision_if_enable_col(int list_id, int collision_id);
+int spad_set_vector(int index, int source);
+float spad_get_pos(int index, int component);
+int spad_sub_vectors(int lhs, int rhs, int out);
+int spad_norm_vector(int index);
+int spad_scale_vector(int destination, int source, float scale);
+int spad_set_vector_y(int index, float value);
+int spad_set_vector_setting(
+    int index, float x, float y, float z);
+float spad_xz_dot_xz(int lhs, int rhs);
+float spad_xz_length_vector(int index);
+int reaction_fetch_current_power_level(int player_index);
+int reaction_fetch_current_flags(int player_index);
+int is_pX_airborn(int player_index);
+float frand(float range);
+unsigned short randu0(unsigned int maximum);
+unsigned long snd_req(int sound_id);
+void* bgnd_launch_fx_at_bid_of_mkobj(
+    const char* effect_name, MkObj* object, int bone);
+int bgnd_pebble_set_current_pebble(int pebble, int index);
+int bgnd_pebble_set_current_info(int info, void* object, float value);
+
+extern MkObj* his_obj;
+extern unsigned char r_chest2_stumble[];
+extern unsigned int exec_tick_ctr;
+
+
+
+
+
+
+
+static void nb_npc_slave_hit_by_plyr(int npc_id);
+/* Soft ceiling: 91.44% -- inverse-sqrt FPR allocation and branch coloring. */
+static int nb_npc_hurt_player(
+    NbNpcHitState* hit, unsigned int player_index, float impact);
+
+
+
+
 static inline float nb_sqrt(float value) {
     NbFloatBits input;
     NbFloatBits estimate;
@@ -38,18 +184,24 @@ static inline float nb_sqrt(float value) {
     return 0.5f * refined;
 }
 
-extern AnimPdata* plyr_anim_pdata;
-extern MkObj* plyr_obj;
-extern MkProc* aproc;
-extern float _mkproc_sleep_ticks;
+static inline float nb_fast_inverse_sqrt(float squared) {
+    NbFloatBits bits;
+    float estimate;
+    float product;
+    float correction;
 
-void transition_to_anim_script(
-    AnimPdata* pdata, void* script, int flags, float transition);
-void ani_to_frame_x(float frame);
-void launch_me_up(float velocity, float gravity);
-void land_chores(int sound, int flags, float velocity, float gravity);
-void update_bone_hierarchy(MkHdr* object);
-void ground_me(MkHdr* object);
+    if (squared <= 0.0f) {
+        return 0.0f;
+    }
+
+    bits.f = squared;
+    bits.u = 0x5F375A00U - (bits.u >> 1);
+    estimate = bits.f;
+    product = estimate * (squared * estimate);
+    correction = 3.0f - product;
+    return 0.0625f * estimate * correction *
+           -(correction * (product * correction) - 12.0f);
+}
 
 /* Soft ceiling: 91.70% -- equivalent FPR scheduling and fused arithmetic. */
 void lower_mines_ani_to_point(
@@ -126,320 +278,12 @@ void lower_mines_ani_to_point(
     land_chores(landing_sound, 0, 0.0f, 0.0f);
 }
 
-typedef struct NbPendulumState {
-    char pad00[0x88];
-    float acceleration_divisor; /* +0x88 */
-    char pad8C[4];
-    float acceleration_scale;   /* +0x90 */
-    char pad94[4];
-    float swing_angle;          /* +0x98 */
-    char pad9C[0xC];
-    int swing_ticks;            /* +0xA8 */
-} NbPendulumState;
-
-typedef struct NbNpcState {
-    MkHdr hdr;
-    int npc_id; /* +0x08 */
-    MkObj* object; /* +0x0C */
-    char pad10[0x14];
-    Vec anchor; /* +0x24 */
-    Vec momentum; /* +0x30 */
-    float last_hit_id[2]; /* +0x3C */
-    float field_44;
-    char pad48[0x3C];
-    float rope_length; /* +0x84 */
-    float acceleration_divisor; /* +0x88 */
-    float field_8C;
-    float acceleration_scale; /* +0x90 */
-    float swing_angle; /* +0x94 */
-    float phase; /* +0x98 */
-    char pad9C[8];
-    int active; /* +0xA4 */
-    int swing_ticks; /* +0xA8 */
-} NbNpcState;
-
-typedef struct NbNpcHitState {
-    MkHdr hdr;
-    char pad08[4];
-    MkObj* object; /* +0x0C */
-    char pad10[0x20];
-    float direction_x; /* +0x30 */
-    char pad34[4];
-    float direction_z; /* +0x38 */
-} NbNpcHitState;
-
-typedef struct NbNpcProcPdata {
-    MkHdr hdr;
-    NbNpcState* npc;
-} NbNpcProcPdata;
-
-typedef struct NbFighterObjectSlot {
-    char pad00[0x5C];
-    MkObj* object;
-} NbFighterObjectSlot;
-
-typedef struct NbFighterHurtView {
-    char pad00[0x14];
-    MkObj* opponent_object;
-    NbFighterObjectSlot* object_slot;
-    char pad1C[0x5A4];
-    AnimPdata anim_pdata; /* +0x5C0 */
-} NbFighterHurtView;
-
-float p_npc_on_pendulum_rope(void);
-int bgnd_preload_named_model(
-    const char* model_name, const char* instance_name, int flags,
-    float scale, const Vec* rotation);
-void bgnd_set_active_sobj_in_obj(int model_index, int object_id);
-void bgnd_unhide_preload_obj(int model_index);
-void bgnd_unhide_active_sobj(void);
-void bgnd_set_active_sobj_pos(float x, float y, float z);
-void bgnd_preload_obj_attach_rope(int model_index);
-void bgnd_create_named_npc_in_slot(
-    int npc_id, int model_slot, int model_id, int flags);
-void bgnd_add_brains_to_npc(int npc_id, MkProcEntryFn brains);
-MkObj* bgnd_fetch_obj(int object_id);
-NbNpcState* bgnd_fetch_npc(int npc_id);
-void bgnd_attach_rope_to_bgnd_obj(
-    int rope_model_index, int target_model_index, int object_id);
-void bgnd_rope_adjust_length(
-    int model_index, int preserve_shape, float length);
-void bgnd_npc_add_collision_shape(
-    int npc_id, int shape_id, int shape_type, float radius, float height,
-    float offset_y, float offset_z);
-unsigned long random_hit(int group);
-void uv_from_angle_y(Vec* out, float angle);
-void xfer_player_proc_to_script_manual_messaging(
-    FighterMirror* fighter, MkObj* object, int message);
-void get_player_proc(MkObj* object);
-void xfer_player_proc(void* script);
-int is_my_chest_to_screen(void);
-int bgnd_collision_if_disable_col(int list_id, int collision_id);
-int bgnd_collision_if_enable_col(int list_id, int collision_id);
-int spad_set_vector(int index, int source);
-float spad_get_pos(int index, int component);
-int spad_sub_vectors(int lhs, int rhs, int out);
-int spad_norm_vector(int index);
-int spad_scale_vector(int destination, int source, float scale);
-int spad_set_vector_y(int index, float value);
-int spad_set_vector_setting(
-    int index, float x, float y, float z);
-float spad_xz_dot_xz(int lhs, int rhs);
-float spad_xz_length_vector(int index);
-int reaction_fetch_current_power_level(int player_index);
-int reaction_fetch_current_flags(int player_index);
-int is_pX_airborn(int player_index);
-float frand(float range);
-unsigned short randu0(unsigned int maximum);
-unsigned long snd_req(int sound_id);
-void* bgnd_launch_fx_at_bid_of_mkobj(
-    const char* effect_name, MkObj* object, int bone);
-int bgnd_pebble_set_current_pebble(int pebble, int index);
-int bgnd_pebble_set_current_info(int info, void* object, float value);
-
-extern MkObj* his_obj;
-extern unsigned char r_chest2_stumble[];
-extern unsigned int exec_tick_ctr;
-
-static unsigned int last_slave_hit_sound_time;
-
-static inline float nb_fast_inverse_sqrt(float squared) {
-    NbFloatBits bits;
-    float estimate;
-    float product;
-    float correction;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-
-    bits.f = squared;
-    bits.u = 0x5F375A00U - (bits.u >> 1);
-    estimate = bits.f;
-    product = estimate * (squared * estimate);
-    correction = 3.0f - product;
-    return 0.0625f * estimate * correction *
-           -(correction * (product * correction) - 12.0f);
-}
-
-/*
- * Soft ceiling: nb_get_desired_acceleration ~91.14% -- remaining differences
- * are FPR load/operand scheduling and fused tangent-plane projection math.
- */
-static void nb_get_desired_acceleration(
-    NbPendulumState* state, Vec* acceleration, const Vec* surface_normal) {
-    float force_z;
-    float force_y;
-    float force_x;
-    float swing_angle;
-    float scale;
-    float inv_length;
-    float squared_length;
-    float normal_component;
-
-    force_z = 0.0f;
-    acceleration->z = 0.0f;
-    force_y = 0.0f;
-    force_x = 0.0f;
-    acceleration->y = 0.0f;
-    acceleration->x = 0.0f;
-    swing_angle = state->swing_angle;
-
-    if (state->swing_ticks < 0) {
-        force_y = -1.0f;
-    } else {
-        scale = 24.0f * (float)refresh_rate();
-        if (scale != 0.0f) {
-            scale = (float)state->swing_ticks / scale;
-            if (scale > 1.0f) {
-                scale = 1.0f;
-            }
-            force_x = scale * gxMathSin(swing_angle);
-            force_z = scale * gxMathCos(swing_angle);
-            force_y = -6.0f;
-        }
-    }
-
-    squared_length =
-        force_z * force_z + (force_x * force_x + force_y * force_y);
-    inv_length = nb_fast_inverse_sqrt(squared_length);
-
-    force_y *= inv_length;
-    force_x *= inv_length;
-    force_z *= inv_length;
-    force_y *= state->acceleration_scale;
-    force_x *= state->acceleration_scale;
-    force_z *= state->acceleration_scale;
-
-    normal_component =
-        -(force_z * surface_normal->z +
-          (force_x * surface_normal->x + force_y * surface_normal->y));
-
-    acceleration->x =
-        (surface_normal->x * normal_component + force_x) /
-        state->acceleration_divisor;
-    acceleration->y =
-        (surface_normal->y * normal_component + force_y) /
-        state->acceleration_divisor;
-    acceleration->z =
-        (surface_normal->z * normal_component + force_z) /
-        state->acceleration_divisor;
-}
-
-void bgnd_jtb_debug_info(void) {
-}
-
-/*
- * Soft ceiling: retail aligns the local matrix to 16 bytes. Portable C leaves
- * that frame-offset residue plus string-pool placement and NV lifetimes.
- */
-void nb_place_slave_in_bgnd(
-    int npc_id, int rope_model_index, int model_slot, int model_id,
-    float anchor_x, float anchor_y, float anchor_z, float rope_length,
-    float local_angle_x, float local_angle_y, float local_angle_z,
-    float object_angle_x, float object_angle_y, float object_angle_z,
-    float acceleration_divisor, float acceleration_scale, float field_8C) {
-    static const Vec zero_vector = {0.0f, 0.0f, 0.0f};
-    NbNpcState* npc;
-    MkObj* preload_object;
-    Vec* object_position;
-    Vec local_angles;
-    Vec rope_offset;
-    MKMATRIX rotation;
-    float collision_offset_z;
-
-    rope_offset = zero_vector;
-    bgnd_preload_named_model(
-        "ROPE", "slave_blood_burst", 0, 0.0f, &zero_vector);
-    bgnd_set_active_sobj_in_obj(rope_model_index, 0);
-    bgnd_unhide_preload_obj(rope_model_index);
-    bgnd_unhide_active_sobj();
-    bgnd_set_active_sobj_pos(anchor_x, anchor_y, anchor_z);
-    bgnd_preload_obj_attach_rope(rope_model_index);
-
-    bgnd_create_named_npc_in_slot(npc_id, model_slot, model_id, 0);
-    bgnd_add_brains_to_npc(npc_id, p_npc_on_pendulum_rope);
-    preload_object = bgnd_fetch_obj(npc_id);
-    preload_object->light_flags = 4;
-    bgnd_attach_rope_to_bgnd_obj(rope_model_index, npc_id, 8);
-    bgnd_rope_adjust_length(rope_model_index, 1, rope_length);
-
-    npc = bgnd_fetch_npc(npc_id);
-    npc->anchor.x = anchor_x;
-    npc->anchor.y = anchor_y;
-    npc->anchor.z = anchor_z;
-    npc->rope_length = rope_length;
-    npc->acceleration_divisor = acceleration_divisor;
-    npc->field_8C = field_8C;
-    npc->acceleration_scale = acceleration_scale;
-    npc->active = 0;
-    npc->swing_angle = 0.0f;
-    npc->field_44 = 0.0f;
-    npc->last_hit_id[1] = 0.0f;
-    npc->last_hit_id[0] = 0.0f;
-    npc->phase = 0.17444445f * (float)npc_id;
-    npc->swing_ticks = 3000;
-
-    npc->object->ang_vel.z = 0.0f;
-    npc->object->ang_vel.y = 0.0f;
-    npc->object->ang_vel.x = 0.0f;
-    npc->object->ang.x = object_angle_x;
-    npc->object->ang.y = object_angle_y;
-    npc->object->ang.z = object_angle_z;
-
-    object_position = &npc->object->pos;
-    local_angles.x = local_angle_x;
-    local_angles.y = local_angle_y;
-    local_angles.z = local_angle_z;
-    rope_offset.x = rope_length;
-    XYZ_angles_to_MKMATRIX(&local_angles, &rotation);
-    v3_x_mat(object_position, &rope_offset, &rotation);
-    object_position->x += npc->anchor.x;
-    object_position->y += npc->anchor.y;
-    collision_offset_z = object_position->z;
-    object_position->z += npc->anchor.z;
-
-    bgnd_npc_add_collision_shape(
-        npc_id, npc_id + 0x12C, 1, 0.3f, 2.0f, -1.2f,
-        collision_offset_z);
-}
-
-/* Soft ceiling: 92.90% -- normalized-vector FPR scheduling only. */
-void rd_set_impact_vector(float scale) {
-    Vec impact = {0.0f, 0.0f, 0.0f};
-    float squared_length;
-    float inverse_length;
-
-    impact.x =
-        g_game_info.player_objects[1]->pos.x -
-        g_game_info.player_objects[0]->pos.x;
-    impact.z =
-        g_game_info.player_objects[1]->pos.z -
-        g_game_info.player_objects[0]->pos.z;
-
-    squared_length = impact.x * impact.x + impact.z * impact.z;
-    inverse_length = nb_fast_inverse_sqrt(squared_length);
-    impact.x *= inverse_length;
-    impact.z *= inverse_length;
-
-    g_game_info.impact_vector.y = impact.y;
-    g_game_info.impact_vector.x = impact.x;
-    g_game_info.impact_vector.z = impact.z;
-    g_game_info.impact_vector.x = impact.x * scale;
-    g_game_info.impact_vector.y = impact.y * scale;
-    g_game_info.impact_vector.z = impact.z * scale;
-}
-
-static void nb_npc_slave_hit_by_plyr(int npc_id);
-/* Soft ceiling: 91.44% -- inverse-sqrt FPR allocation and branch coloring. */
-int nb_npc_hurt_player(
-    NbNpcHitState* hit, unsigned int player_index, float impact);
-
 /*
  * Soft ceiling: 88.52% -- all calls/branches and the XZ basis algorithm agree;
  * remaining differences are aggregate stack layout and FPR/store scheduling.
  */
 void nb_npc_slave_plyr_process_collision(int npc_id) {
+    static unsigned int last_sound_time;
     NbNpcState* npc;
     Vec facing;
     Vec side = {0.0f, 0.0f, 0.0f};
@@ -559,8 +403,8 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
         }
     }
     if (play_impact_sound == 1 &&
-        last_slave_hit_sound_time < exec_tick_ctr && speed > 0.06f) {
-        last_slave_hit_sound_time = exec_tick_ctr + 30;
+        last_sound_time < exec_tick_ctr && speed > 0.06f) {
+        last_sound_time = exec_tick_ctr + 30;
         random_hit(1);
     }
 
@@ -734,7 +578,7 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     bgnd_collision_if_enable_col(5, collision_id);
 }
 
-int nb_npc_hurt_player(
+static int nb_npc_hurt_player(
     NbNpcHitState* hit, unsigned int player_index, float impact) {
     MkObj* player_object;
     FighterMirror* fighter;
@@ -833,7 +677,7 @@ int nb_npc_hurt_player(
  * Soft ceiling: 76.49% -- the full rope simulation and call sequence agree;
  * remaining differences are inlined Vec scratch lifetimes and FPR scheduling.
  */
-float p_npc_on_pendulum_rope(void) {
+static float p_npc_on_pendulum_rope(void) {
     static const Vec world_up_init = {0.0f, 1.0f, 0.0f};
     MkObj* object;
     NbNpcState* npc = ((NbNpcProcPdata*)apdata)->npc;
@@ -1058,4 +902,172 @@ float p_npc_on_pendulum_rope(void) {
         _mkproc_sleep_ticks = 1.0f;
         ((BgndJtbProcVtable*)aproc->vtbl)->sleep();
     }
+}
+
+/*
+ * Soft ceiling: nb_get_desired_acceleration ~91.14% -- remaining differences
+ * are FPR load/operand scheduling and fused tangent-plane projection math.
+ */
+static void nb_get_desired_acceleration(
+    NbPendulumState* state, Vec* acceleration, const Vec* surface_normal) {
+    float force_z;
+    float force_y;
+    float force_x;
+    float swing_angle;
+    float scale;
+    float inv_length;
+    float squared_length;
+    float normal_component;
+
+    force_z = 0.0f;
+    acceleration->z = 0.0f;
+    force_y = 0.0f;
+    force_x = 0.0f;
+    acceleration->y = 0.0f;
+    acceleration->x = 0.0f;
+    swing_angle = state->swing_angle;
+
+    if (state->swing_ticks < 0) {
+        force_y = -1.0f;
+    } else {
+        scale = 24.0f * (float)refresh_rate();
+        if (scale != 0.0f) {
+            scale = (float)state->swing_ticks / scale;
+            if (scale > 1.0f) {
+                scale = 1.0f;
+            }
+            force_x = scale * gxMathSin(swing_angle);
+            force_z = scale * gxMathCos(swing_angle);
+            force_y = -6.0f;
+        }
+    }
+
+    squared_length =
+        force_z * force_z + (force_x * force_x + force_y * force_y);
+    inv_length = nb_fast_inverse_sqrt(squared_length);
+
+    force_y *= inv_length;
+    force_x *= inv_length;
+    force_z *= inv_length;
+    force_y *= state->acceleration_scale;
+    force_x *= state->acceleration_scale;
+    force_z *= state->acceleration_scale;
+
+    normal_component =
+        -(force_z * surface_normal->z +
+          (force_x * surface_normal->x + force_y * surface_normal->y));
+
+    acceleration->x =
+        (surface_normal->x * normal_component + force_x) /
+        state->acceleration_divisor;
+    acceleration->y =
+        (surface_normal->y * normal_component + force_y) /
+        state->acceleration_divisor;
+    acceleration->z =
+        (surface_normal->z * normal_component + force_z) /
+        state->acceleration_divisor;
+}
+
+/*
+ * Soft ceiling: retail aligns the local matrix to 16 bytes. Portable C leaves
+ * that frame-offset residue plus string-pool placement and NV lifetimes.
+ */
+void nb_place_slave_in_bgnd(
+    int npc_id, int rope_model_index, int model_slot, int model_id,
+    float anchor_x, float anchor_y, float anchor_z, float rope_length,
+    float local_angle_x, float local_angle_y, float local_angle_z,
+    float object_angle_x, float object_angle_y, float object_angle_z,
+    float acceleration_divisor, float acceleration_scale, float field_8C) {
+    static const Vec zero_vector = {0.0f, 0.0f, 0.0f};
+    NbNpcState* npc;
+    MkObj* preload_object;
+    Vec* object_position;
+    Vec local_angles;
+    Vec rope_offset;
+    MKMATRIX rotation;
+    float collision_offset_z;
+
+    rope_offset = zero_vector;
+    bgnd_preload_named_model(
+        "ROPE", "slave_blood_burst", 0, 0.0f, &zero_vector);
+    bgnd_set_active_sobj_in_obj(rope_model_index, 0);
+    bgnd_unhide_preload_obj(rope_model_index);
+    bgnd_unhide_active_sobj();
+    bgnd_set_active_sobj_pos(anchor_x, anchor_y, anchor_z);
+    bgnd_preload_obj_attach_rope(rope_model_index);
+
+    bgnd_create_named_npc_in_slot(npc_id, model_slot, model_id, 0);
+    bgnd_add_brains_to_npc(npc_id, p_npc_on_pendulum_rope);
+    preload_object = bgnd_fetch_obj(npc_id);
+    preload_object->light_flags = 4;
+    bgnd_attach_rope_to_bgnd_obj(rope_model_index, npc_id, 8);
+    bgnd_rope_adjust_length(rope_model_index, 1, rope_length);
+
+    npc = bgnd_fetch_npc(npc_id);
+    npc->anchor.x = anchor_x;
+    npc->anchor.y = anchor_y;
+    npc->anchor.z = anchor_z;
+    npc->rope_length = rope_length;
+    npc->acceleration_divisor = acceleration_divisor;
+    npc->field_8C = field_8C;
+    npc->acceleration_scale = acceleration_scale;
+    npc->active = 0;
+    npc->swing_angle = 0.0f;
+    npc->field_44 = 0.0f;
+    npc->last_hit_id[1] = 0.0f;
+    npc->last_hit_id[0] = 0.0f;
+    npc->phase = 0.17444445f * (float)npc_id;
+    npc->swing_ticks = 3000;
+
+    npc->object->ang_vel.z = 0.0f;
+    npc->object->ang_vel.y = 0.0f;
+    npc->object->ang_vel.x = 0.0f;
+    npc->object->ang.x = object_angle_x;
+    npc->object->ang.y = object_angle_y;
+    npc->object->ang.z = object_angle_z;
+
+    object_position = &npc->object->pos;
+    local_angles.x = local_angle_x;
+    local_angles.y = local_angle_y;
+    local_angles.z = local_angle_z;
+    rope_offset.x = rope_length;
+    XYZ_angles_to_MKMATRIX(&local_angles, &rotation);
+    v3_x_mat(object_position, &rope_offset, &rotation);
+    object_position->x += npc->anchor.x;
+    object_position->y += npc->anchor.y;
+    collision_offset_z = object_position->z;
+    object_position->z += npc->anchor.z;
+
+    bgnd_npc_add_collision_shape(
+        npc_id, npc_id + 0x12C, 1, 0.3f, 2.0f, -1.2f,
+        collision_offset_z);
+}
+
+/* Soft ceiling: 92.90% -- normalized-vector FPR scheduling only. */
+void rd_set_impact_vector(float scale) {
+    Vec impact = {0.0f, 0.0f, 0.0f};
+    float squared_length;
+    float inverse_length;
+
+    impact.x =
+        g_game_info.player_objects[1]->pos.x -
+        g_game_info.player_objects[0]->pos.x;
+    impact.z =
+        g_game_info.player_objects[1]->pos.z -
+        g_game_info.player_objects[0]->pos.z;
+
+    squared_length = impact.x * impact.x + impact.z * impact.z;
+    inverse_length = nb_fast_inverse_sqrt(squared_length);
+    impact.x *= inverse_length;
+    impact.z *= inverse_length;
+
+    g_game_info.impact_vector.y = impact.y;
+    g_game_info.impact_vector.x = impact.x;
+    g_game_info.impact_vector.z = impact.z;
+    g_game_info.impact_vector.x = impact.x * scale;
+    g_game_info.impact_vector.y = impact.y * scale;
+    g_game_info.impact_vector.z = impact.z * scale;
+}
+
+void bgnd_jtb_debug_info(void) {
 }

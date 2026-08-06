@@ -48,40 +48,40 @@ typedef PlyrFightingLightState FightingLightState;
 int BAR_BACK_X = 8;
 int PB_CNTR_RING_X = 0x100;
 
-float p1_disp_life;
-float p2_disp_life;
-int f_p1_force_adjustment;
-int f_p2_force_adjustment;
-ProcLatch pwr_bar_proc_item;
-ScreenLatch pbar_cntr_dragon_item;
-ScreenLatch pbar_cntr_item;
-ScreenLatch p2_bar_icon_item;
-ScreenLatch p1_bar_icon_item;
-ScreenLatch p2_bolt_3_item;
-ScreenLatch p2_bolt_2_item;
-ScreenLatch p2_bolt_1_item;
-ScreenLatch p1_bolt_3_item;
-ScreenLatch p1_bolt_2_item;
-ScreenLatch p1_bolt_1_item;
-ScreenLatch p2_pbar_backb_item;
-ScreenLatch p1_pbar_backb_item;
-ScreenLatch p2_pbar_back_item;
-ScreenLatch p1_pbar_back_item;
-ScreenLatch p2_pbar_red_item;
-ScreenLatch p1_pbar_red_item;
-ScreenLatch p2_pbar_item;
-ScreenLatch p1_pbar_item;
-ScreenLatch p2_name_item;
-ScreenLatch p1_name_item;
-float p2_bar_red_start;
-float p2_bar_back_start;
-float p1_bar_red_start;
-float p1_bar_back_start;
-int p2_last_combo_break_count;
-int p1_last_combo_break_count;
-int f_powerbars_retracted;
-int f_p2_warning_given;
 int f_p1_warning_given;
+int f_p2_warning_given;
+int f_powerbars_retracted;
+int p1_last_combo_break_count;
+int p2_last_combo_break_count;
+float p1_bar_back_start;
+float p1_bar_red_start;
+float p2_bar_back_start;
+float p2_bar_red_start;
+ScreenLatch p1_name_item;
+ScreenLatch p2_name_item;
+ScreenLatch p1_pbar_item;
+ScreenLatch p2_pbar_item;
+ScreenLatch p1_pbar_red_item;
+ScreenLatch p2_pbar_red_item;
+ScreenLatch p1_pbar_back_item;
+ScreenLatch p2_pbar_back_item;
+ScreenLatch p1_pbar_backb_item;
+ScreenLatch p2_pbar_backb_item;
+ScreenLatch p1_bolt_1_item;
+ScreenLatch p1_bolt_2_item;
+ScreenLatch p1_bolt_3_item;
+ScreenLatch p2_bolt_1_item;
+ScreenLatch p2_bolt_2_item;
+ScreenLatch p2_bolt_3_item;
+ScreenLatch p1_bar_icon_item;
+ScreenLatch p2_bar_icon_item;
+ScreenLatch pbar_cntr_item;
+ScreenLatch pbar_cntr_dragon_item;
+ProcLatch pwr_bar_proc_item;
+int f_p2_force_adjustment;
+int f_p1_force_adjustment;
+float p2_disp_life;
+float p1_disp_life;
 
 extern ScreenLatch game_timer_item;
 
@@ -128,18 +128,27 @@ static ScreenObj* medal_objs[8];
 int is_plyr_airborn(MkObj* object);
 int is_timer_off(void);
 int trial_show_standard_fight_messages(void);
-float p_power_bar_proc(void);
+static float p_power_bar_proc(void);
 void display_debug_damage(PlyrInfo* player);
 void snd_req(int sound_id);
 void shake_camera(int strength, MkHdr* pdata, float duration);
-float p_unhide_pbar_items(void);
-float p_update_fighting_state_lights(void);
+static float p_unhide_pbar_items(void);
+static float p_update_fighting_state_lights(void);
 int sprintf(char* destination, const char* format, ...);
 void set_string_obj_alpha(StringObj* object, float alpha);
 void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
+static void update_power_bar_verts(void);
+static void update_combo_break_counts(void);
 
 static float bar_speed = 0.01f;
-static ScreenObj* screen_latch_object(ScreenLatch* latch);
+static inline ScreenObj* screen_latch_object(ScreenLatch* latch) {
+    ScreenObj* object = latch->object;
+
+    if (object == 0 || (unsigned int)object->instance != latch->instance) {
+        return 0;
+    }
+    return object;
+}
 
 static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
     return &player->fighting_lights;
@@ -207,7 +216,7 @@ static inline void set_latched_quad_alpha(ScreenLatch* latch) {
     }
 }
 
-static void set_quad_alpha(ScreenObj* object, unsigned char alpha) {
+static inline void set_quad_alpha(ScreenObj* object, unsigned char alpha) {
     int i;
 
     if (object == 0 || object->pfx2d == 0) {
@@ -216,6 +225,162 @@ static void set_quad_alpha(ScreenObj* object, unsigned char alpha) {
     for (i = 0; i < 4; i++) {
         object->pfx2d->verts[i].a = alpha;
     }
+}
+
+static inline int red_light_active(PlyrInfo* player) {
+    PlyrPdata* pdata = player->slot.pdata;
+
+    if (pdata->blocking_disabled != 0) {
+        return 1;
+    }
+    return pdata->blocking_disable_tick_1 > game_tick_ctr;
+}
+
+static inline int airborne_light_active(PlyrInfo* player) {
+    PlyrPdata* pdata = player->slot.pdata;
+
+    if (pdata->blocking_disabled_2 != 0) {
+        return 1;
+    }
+    if (pdata->blocking_disable_tick_2 > game_tick_ctr) {
+        return 1;
+    }
+    return is_plyr_airborn(player->slot.mirror_a) != 0;
+}
+
+static inline void start_powerbar_monitor_impl(void) {
+    MkHdr* pdata;
+    MkProc* proc;
+
+    if (find_mkproc_pid(0x2003) == 0) {
+        pwr_bar_proc_item.object = 0;
+        pwr_bar_proc_item.instance = 0;
+        proc = create_mkproc_fx(0x2003, p_power_bar_proc, &pdata);
+        if (proc != 0) {
+            pwr_bar_proc_item.object = proc;
+            pwr_bar_proc_item.instance = proc->instance;
+        }
+    }
+}
+
+static inline void latch_screen(ScreenLatch* latch, ScreenObj* object) {
+    latch->object = object;
+    latch->instance = object != 0 ? object->instance : 0;
+}
+
+static inline void brighten_screen(ScreenObj* object, int enabled) {
+    if (enabled) {
+        if (object->pfx2d->verts[0].a < 0xD7) {
+            object->pfx2d->verts[0].a += 0x28;
+            object->pfx2d->verts[1].a += 0x28;
+            object->pfx2d->verts[2].a += 0x28;
+            object->pfx2d->verts[3].a += 0x28;
+        } else {
+            object->pfx2d->verts[0].a = 0xFF;
+            object->pfx2d->verts[1].a = 0xFF;
+            object->pfx2d->verts[2].a = 0xFF;
+            object->pfx2d->verts[3].a = 0xFF;
+        }
+    } else {
+        if (object->pfx2d->verts[0].a > 0x28) {
+            object->pfx2d->verts[0].a -= 0x28;
+            object->pfx2d->verts[1].a -= 0x28;
+            object->pfx2d->verts[2].a -= 0x28;
+            object->pfx2d->verts[3].a -= 0x28;
+        } else {
+            object->pfx2d->verts[0].a = 0;
+            object->pfx2d->verts[1].a = 0;
+            object->pfx2d->verts[2].a = 0;
+            object->pfx2d->verts[3].a = 0;
+        }
+    }
+}
+
+static inline ScreenObj* ensure_combo_bolt(
+    ScreenLatch* latch, int player_index, int x_offset,
+    PlyrInfo* player, int threshold) {
+    ScreenObj* object = screen_latch_object(latch);
+
+    if (object == 0) {
+        object = load_2d_pfxobj(
+            0x10005, 0x2017, (char*)0x20019, 0, 0x1B);
+        if (object != 0) {
+            if (player_index == 0) {
+                object->x = BAR_BACK_X + x_offset;
+            } else {
+                object->x = screen_width - (BAR_BACK_X + x_offset);
+            }
+            object->y = 0x18C;
+            latch->object = object;
+            latch->instance = object->instance;
+        }
+    }
+    if (object != 0) {
+        if (player->slot.pdata->breaker_strength > threshold) {
+            object->flag_bits.hidden = 0;
+        } else {
+            object->flag_bits.hidden = 1;
+        }
+    }
+    return object;
+}
+
+static inline void update_plyr_medals_impl(void) {
+    int object_index;
+    int medal_index;
+    int x;
+    int i;
+
+    if (mode_of_play == 8 && trial_show_standard_fight_messages() == 0) {
+        return;
+    }
+    for (i = 0; i < 8; i++) {
+        if (medal_objs[i] != 0) {
+            destroy_screen_obj(medal_objs[i]);
+            medal_objs[i] = 0;
+        }
+    }
+
+    x = BAR_BACK_X + 0x100;
+    object_index = 0;
+    for (medal_index = 0;
+         medal_index < g_game_info.plyr0.field_40; medal_index++) {
+        medal_objs[object_index] = load_2d_pfxobj(
+            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
+        if (medal_objs[object_index] != 0) {
+            medal_objs[object_index]->x = x;
+            medal_objs[object_index]->y = 0x177;
+            if (g_game_info.plyr0.controller_slot == 0) {
+                x -= 0x18;
+            } else {
+                x += 0x18;
+            }
+            object_index++;
+        }
+    }
+
+    x = screen_width - (BAR_BACK_X + 0x120);
+    object_index = 3;
+    for (medal_index = 0;
+         medal_index < g_game_info.plyr1.field_40; medal_index++) {
+        medal_objs[object_index] = load_2d_pfxobj(
+            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
+        if (medal_objs[object_index] != 0) {
+            medal_objs[object_index]->x = x;
+            medal_objs[object_index]->y = 0x177;
+            if (g_game_info.plyr1.controller_slot == 0) {
+                x -= 0x18;
+            } else {
+                x += 0x18;
+            }
+            object_index++;
+        }
+    }
+}
+
+static inline void clear_screen_latch(ScreenLatch* latch) {
+    latch->object = 0;
+    latch->instance = 0;
 }
 
 void show_wins_in_a_row(void) {
@@ -253,31 +418,6 @@ void show_wins_in_a_row(void) {
     }
 }
 
-int are_powerbars_retracted(void) {
-    return f_powerbars_retracted;
-}
-
-static inline int red_light_active(PlyrInfo* player) {
-    PlyrPdata* pdata = player->slot.pdata;
-
-    if (pdata->blocking_disabled != 0) {
-        return 1;
-    }
-    return pdata->blocking_disable_tick_1 > game_tick_ctr;
-}
-
-static inline int airborne_light_active(PlyrInfo* player) {
-    PlyrPdata* pdata = player->slot.pdata;
-
-    if (pdata->blocking_disabled_2 != 0) {
-        return 1;
-    }
-    if (pdata->blocking_disable_tick_2 > game_tick_ctr) {
-        return 1;
-    }
-    return is_plyr_airborn(player->slot.mirror_a) != 0;
-}
-
 int check_for_red_light(PlyrInfo* player) {
     return red_light_active(player);
 }
@@ -286,8 +426,205 @@ int check_for_green_light(PlyrInfo* player) {
     return airborne_light_active(player);
 }
 
+/* Soft ceiling: 90.92% -- register allocation and latch branch placement. */
+static float p_update_fighting_state_lights(void) {
+    PlyrInfo* player_1 = &g_game_info.plyr0;
+    PlyrInfo* player_2 = &g_game_info.plyr1;
+    FightingLightState* player_1_state = fighting_light_state(player_1);
+    FightingLightState* player_2_state = fighting_light_state(player_2);
+    FightingLightState* state;
+    ScreenObj* light;
+    PlyrInfo* player;
+    PlyrPdata* pdata;
+    int active;
+    int player_index;
+
+    for (player_index = 0; player_index < 2; player_index++) {
+        player = player_index == 0 ? player_1 : player_2;
+        state = fighting_light_state(player);
+
+        if (player->slot.mirror_a == 0) {
+            break;
+        }
+        pdata = player->slot.pdata;
+        if (pdata->blocking_disabled != 0) {
+            active = 1;
+        } else if (pdata->blocking_disable_tick_1 > game_tick_ctr) {
+            active = 1;
+        } else {
+            active = 0;
+        }
+        if (active != 0) {
+            state->red_active = 1;
+        } else {
+            state->red_active = 0;
+        }
+        if (player->controller_slot == 0) {
+            if (player_1_state->green_trigger) {
+                active = 1;
+            } else {
+                active = 0;
+            }
+        } else if (player->controller_slot == 1) {
+            if (player_2_state->green_trigger) {
+                active = 1;
+            } else {
+                active = 0;
+            }
+        } else {
+            active = 0;
+        }
+        if (active != 0) {
+            state->green_active = 1;
+        } else {
+            state->green_active = 0;
+        }
+        if (pdata->blocking_disabled_2 != 0) {
+            active = 1;
+        } else if (pdata->blocking_disable_tick_2 > game_tick_ctr) {
+            active = 1;
+        } else if (is_plyr_airborn(player->slot.mirror_a) != 0) {
+            active = 1;
+        } else {
+            active = 0;
+        }
+        if (active != 0) {
+            state->airborne_active = 1;
+        } else {
+            state->airborne_active = 0;
+        }
+    }
+
+    for (player_index = 0; player_index < 2; player_index++) {
+        state = player_index == 0 ? player_1_state : player_2_state;
+
+        light = owned_screen_latch_object(&state->red);
+        if (light == 0) {
+            return -1.0f;
+        }
+        brighten_screen(light, state->red_active);
+
+        light = owned_screen_latch_object(&state->green);
+        if (light == 0) {
+            return -1.0f;
+        }
+        brighten_screen(light, state->green_active);
+
+        light = owned_screen_latch_object(&state->airborne);
+        if (light == 0) {
+            return -1.0f;
+        }
+        brighten_screen(light, state->airborne_active);
+    }
+    return 1.0f;
+}
+
+/* Soft ceiling: 95.22% -- local/register layout and one redundant state store. */
+void init_fighting_state_lights(void) {
+    FightingLightState* player_1_state =
+        fighting_light_state(&g_game_info.plyr0);
+    FightingLightState* player_2_state =
+        fighting_light_state(&g_game_info.plyr1);
+    int player_index;
+
+    for (player_index = 0; player_index < 2; player_index++) {
+        FightingLightState* state =
+            player_index == 0 ? player_1_state : player_2_state;
+        ScreenObj* base;
+        ScreenObj* light;
+        int flags = 0;
+
+        state->flags_word = 0;
+        if (player_index == 0) {
+            base = load_2d_pfxobj(
+                0x10005, 0x2027, (char*)0x2002B, flags, 0x28);
+            if (base != 0) {
+                base->x = (screen_width - 0x280) / 2 + 0xAB;
+                base->y = 0x18D;
+            }
+            state->base.object = base;
+            state->base.instance = base->instance;
+        } else {
+            flags = (unsigned char)flags | 0x20;
+            base = load_2d_pfxobj(
+                0x10005, 0x2027, (char*)0x2002B, flags, 0x28);
+            if (base != 0) {
+                base->x = screen_width - base->pfx2d->tex_w - 0xAC -
+                          (screen_width - 0x280) / 2;
+                base->y = 0x18D;
+            }
+            state->base.object = base;
+            state->base.instance = base->instance;
+        }
+
+        light = load_2d_pfxobj(
+            0x10005, 0x2028, (char*)0x20028,
+            base->flags, 0x25);
+        if (light != 0) {
+            if (player_index == 0) {
+                light->x = (screen_width - 0x280) / 2 + 0xAB;
+                light->y = 0x18D;
+            } else {
+                light->x = screen_width - light->pfx2d->tex_w - 0xAB -
+                           (screen_width - 0x280) / 2;
+                light->y = 0x18D;
+            }
+            light->pfx2d->verts[0].a += 0x28;
+            light->pfx2d->verts[1].a += 0x28;
+            light->pfx2d->verts[2].a += 0x28;
+            light->pfx2d->verts[3].a += 0x28;
+            state->red.object = light;
+            state->red.instance = light->instance;
+        }
+
+        light = load_2d_pfxobj(
+            0x10005, 0x2029, (char*)0x20029,
+            light->flags, 0x26);
+        if (light != 0) {
+            if (player_index == 0) {
+                light->x = (screen_width - 0x280) / 2 + 0xAB;
+                light->y = 0x18D;
+            } else {
+                light->x = screen_width - light->pfx2d->tex_w - 0xAB -
+                           (screen_width - 0x280) / 2;
+                light->y = 0x18D;
+            }
+            light->pfx2d->verts[0].a += 0x28;
+            light->pfx2d->verts[1].a += 0x28;
+            light->pfx2d->verts[2].a += 0x28;
+            light->pfx2d->verts[3].a += 0x28;
+            state->green.object = light;
+            state->green.instance = light->instance;
+        }
+
+        light = load_2d_pfxobj(
+            0x10005, 0x202A, (char*)0x2002A,
+            light->flags, 0x26);
+        if (light != 0) {
+            if (player_index == 0) {
+                light->x = (screen_width - 0x280) / 2 + 0xAB;
+                light->y = 0x18D;
+            } else {
+                light->x = screen_width - light->pfx2d->tex_w - 0xAB -
+                           (screen_width - 0x280) / 2;
+                light->y = 0x18D;
+            }
+            light->pfx2d->verts[0].a += 0x28;
+            light->pfx2d->verts[1].a += 0x28;
+            light->pfx2d->verts[2].a += 0x28;
+            light->pfx2d->verts[3].a += 0x28;
+            state->airborne.object = light;
+            state->airborne.instance = light->instance;
+        }
+    }
+    if (find_mkproc_pid(0x2093) == 0) {
+        _create_mkproc_generic_nostack(
+            0x2093, 0x1F, p_update_fighting_state_lights, 0, 0);
+    }
+}
+
 /* Soft ceiling: 95.16% -- latch register allocation and branch placement. */
-float p_unhide_pbar_items(void) {
+static float p_unhide_pbar_items(void) {
     PbarFadePdata* pdata = (PbarFadePdata*)apdata;
     PbarHideStringItem* string_item;
     ScreenLatch* latch;
@@ -411,43 +748,8 @@ void retract_power_bars(void) {
     f_powerbars_retracted = 1;
 }
 
-void pbar_force_pb_setting_with_offset(unsigned int player, float offset) {
-    if (player == 0) {
-        f_p1_force_adjustment = 1;
-        g_game_info.plyr0.field_0C += offset;
-        if (g_game_info.plyr0.field_0C > 1.0f) {
-            g_game_info.plyr0.field_0C = 1.0f;
-        }
-    } else {
-        f_p2_force_adjustment = 1;
-        g_game_info.plyr1.field_0C += offset;
-        if (g_game_info.plyr1.field_0C > 1.0f) {
-            g_game_info.plyr1.field_0C = 1.0f;
-        }
-    }
-}
-
-static inline void start_powerbar_monitor_impl(void) {
-    MkHdr* pdata;
-    MkProc* proc;
-
-    if (find_mkproc_pid(0x2003) == 0) {
-        pwr_bar_proc_item.object = 0;
-        pwr_bar_proc_item.instance = 0;
-        proc = create_mkproc_fx(0x2003, p_power_bar_proc, &pdata);
-        if (proc != 0) {
-            pwr_bar_proc_item.object = proc;
-            pwr_bar_proc_item.instance = proc->instance;
-        }
-    }
-}
-
-void start_powerbar_monitor(void) {
-    start_powerbar_monitor_impl();
-}
-
 /* Soft ceiling: 96.06% -- four latch branches and one pdata reload only. */
-float p_extend_powerbars(void) {
+static float p_extend_powerbars(void) {
     ScreenObj* p1_back = owned_screen_latch_object(&p1_pbar_back_item);
     ScreenObj* p1_red = owned_screen_latch_object(&p1_pbar_red_item);
     ScreenObj* p2_back = owned_screen_latch_object(&p2_pbar_back_item);
@@ -596,376 +898,103 @@ float p_move_pbars_off_screen(void) {
     return -1.0f;
 }
 
-static void latch_screen(ScreenLatch* latch, ScreenObj* object) {
-    latch->object = object;
-    latch->instance = object != 0 ? object->instance : 0;
-}
-
-static void brighten_screen(ScreenObj* object, int enabled) {
-    if (enabled) {
-        if (object->pfx2d->verts[0].a < 0xD7) {
-            object->pfx2d->verts[0].a += 0x28;
-            object->pfx2d->verts[1].a += 0x28;
-            object->pfx2d->verts[2].a += 0x28;
-            object->pfx2d->verts[3].a += 0x28;
-        } else {
-            object->pfx2d->verts[0].a = 0xFF;
-            object->pfx2d->verts[1].a = 0xFF;
-            object->pfx2d->verts[2].a = 0xFF;
-            object->pfx2d->verts[3].a = 0xFF;
-        }
-    } else {
-        if (object->pfx2d->verts[0].a > 0x28) {
-            object->pfx2d->verts[0].a -= 0x28;
-            object->pfx2d->verts[1].a -= 0x28;
-            object->pfx2d->verts[2].a -= 0x28;
-            object->pfx2d->verts[3].a -= 0x28;
-        } else {
-            object->pfx2d->verts[0].a = 0;
-            object->pfx2d->verts[1].a = 0;
-            object->pfx2d->verts[2].a = 0;
-            object->pfx2d->verts[3].a = 0;
-        }
+/* Soft ceiling: 93.41% -- six shortened inlined latch diamonds only. */
+static void update_combo_break_counts(void) {
+    if (g_game_info.plyr0.slot.pdata->breaker_strength !=
+        p1_last_combo_break_count) {
+        ensure_combo_bolt(
+            &p1_bolt_1_item, 0, 0x45,
+            &g_game_info.plyr0, 0);
+        ensure_combo_bolt(
+            &p1_bolt_2_item, 0, 0x57,
+            &g_game_info.plyr0, 1);
+        ensure_combo_bolt(
+            &p1_bolt_3_item, 0, 0x69,
+            &g_game_info.plyr0, 2);
+        p1_last_combo_break_count =
+            g_game_info.plyr0.slot.pdata->breaker_strength;
+    }
+    if (g_game_info.plyr1.slot.pdata->breaker_strength !=
+        p2_last_combo_break_count) {
+        ensure_combo_bolt(
+            &p2_bolt_1_item, 1, 0x55,
+            &g_game_info.plyr1, 0);
+        ensure_combo_bolt(
+            &p2_bolt_2_item, 1, 0x67,
+            &g_game_info.plyr1, 1);
+        ensure_combo_bolt(
+            &p2_bolt_3_item, 1, 0x79,
+            &g_game_info.plyr1, 2);
+        p2_last_combo_break_count =
+            g_game_info.plyr1.slot.pdata->breaker_strength;
     }
 }
 
-/* Soft ceiling: 95.22% -- local/register layout and one redundant state store. */
-void init_fighting_state_lights(void) {
-    FightingLightState* player_1_state =
-        fighting_light_state(&g_game_info.plyr0);
-    FightingLightState* player_2_state =
-        fighting_light_state(&g_game_info.plyr1);
-    int player_index;
+/* Soft ceiling: 99.92% -- two identical 0.06f pool-label relocations differ. */
+static float p_power_bar_proc(void) {
+    int changed;
 
-    for (player_index = 0; player_index < 2; player_index++) {
-        FightingLightState* state =
-            player_index == 0 ? player_1_state : player_2_state;
-        ScreenObj* base;
-        ScreenObj* light;
-        int flags = 0;
-
-        state->flags_word = 0;
-        if (player_index == 0) {
-            base = load_2d_pfxobj(
-                0x10005, 0x2027, (char*)0x2002B, flags, 0x28);
-            if (base != 0) {
-                base->x = (screen_width - 0x280) / 2 + 0xAB;
-                base->y = 0x18D;
-            }
-            state->base.object = base;
-            state->base.instance = base->instance;
-        } else {
-            flags = (unsigned char)flags | 0x20;
-            base = load_2d_pfxobj(
-                0x10005, 0x2027, (char*)0x2002B, flags, 0x28);
-            if (base != 0) {
-                base->x = screen_width - base->pfx2d->tex_w - 0xAC -
-                          (screen_width - 0x280) / 2;
-                base->y = 0x18D;
-            }
-            state->base.object = base;
-            state->base.instance = base->instance;
-        }
-
-        light = load_2d_pfxobj(
-            0x10005, 0x2028, (char*)0x20028,
-            base->flags, 0x25);
-        if (light != 0) {
-            if (player_index == 0) {
-                light->x = (screen_width - 0x280) / 2 + 0xAB;
-                light->y = 0x18D;
-            } else {
-                light->x = screen_width - light->pfx2d->tex_w - 0xAB -
-                           (screen_width - 0x280) / 2;
-                light->y = 0x18D;
-            }
-            light->pfx2d->verts[0].a += 0x28;
-            light->pfx2d->verts[1].a += 0x28;
-            light->pfx2d->verts[2].a += 0x28;
-            light->pfx2d->verts[3].a += 0x28;
-            state->red.object = light;
-            state->red.instance = light->instance;
-        }
-
-        light = load_2d_pfxobj(
-            0x10005, 0x2029, (char*)0x20029,
-            light->flags, 0x26);
-        if (light != 0) {
-            if (player_index == 0) {
-                light->x = (screen_width - 0x280) / 2 + 0xAB;
-                light->y = 0x18D;
-            } else {
-                light->x = screen_width - light->pfx2d->tex_w - 0xAB -
-                           (screen_width - 0x280) / 2;
-                light->y = 0x18D;
-            }
-            light->pfx2d->verts[0].a += 0x28;
-            light->pfx2d->verts[1].a += 0x28;
-            light->pfx2d->verts[2].a += 0x28;
-            light->pfx2d->verts[3].a += 0x28;
-            state->green.object = light;
-            state->green.instance = light->instance;
-        }
-
-        light = load_2d_pfxobj(
-            0x10005, 0x202A, (char*)0x2002A,
-            light->flags, 0x26);
-        if (light != 0) {
-            if (player_index == 0) {
-                light->x = (screen_width - 0x280) / 2 + 0xAB;
-                light->y = 0x18D;
-            } else {
-                light->x = screen_width - light->pfx2d->tex_w - 0xAB -
-                           (screen_width - 0x280) / 2;
-                light->y = 0x18D;
-            }
-            light->pfx2d->verts[0].a += 0x28;
-            light->pfx2d->verts[1].a += 0x28;
-            light->pfx2d->verts[2].a += 0x28;
-            light->pfx2d->verts[3].a += 0x28;
-            state->airborne.object = light;
-            state->airborne.instance = light->instance;
-        }
+    changed = 0;
+    if (f_powerbars_retracted != 0) {
+        return 1.0f;
     }
-    if (find_mkproc_pid(0x2093) == 0) {
-        _create_mkproc_generic_nostack(
-            0x2093, 0x1F, p_update_fighting_state_lights, 0, 0);
+    if (f_p1_force_adjustment == 1) {
+        f_p1_force_adjustment = 0;
+        changed = 1;
+        p1_disp_life = g_game_info.plyr0.field_0C;
     }
-}
-
-/* Soft ceiling: 90.92% -- register allocation and latch branch placement. */
-float p_update_fighting_state_lights(void) {
-    PlyrInfo* player_1 = &g_game_info.plyr0;
-    PlyrInfo* player_2 = &g_game_info.plyr1;
-    FightingLightState* player_1_state = fighting_light_state(player_1);
-    FightingLightState* player_2_state = fighting_light_state(player_2);
-    FightingLightState* state;
-    ScreenObj* light;
-    PlyrInfo* player;
-    PlyrPdata* pdata;
-    int active;
-    int player_index;
-
-    for (player_index = 0; player_index < 2; player_index++) {
-        player = player_index == 0 ? player_1 : player_2;
-        state = fighting_light_state(player);
-
-        if (player->slot.mirror_a == 0) {
-            break;
-        }
-        pdata = player->slot.pdata;
-        if (pdata->blocking_disabled != 0) {
-            active = 1;
-        } else if (pdata->blocking_disable_tick_1 > game_tick_ctr) {
-            active = 1;
-        } else {
-            active = 0;
-        }
-        if (active != 0) {
-            state->red_active = 1;
-        } else {
-            state->red_active = 0;
-        }
-        if (player->controller_slot == 0) {
-            if (player_1_state->green_trigger) {
-                active = 1;
-            } else {
-                active = 0;
-            }
-        } else if (player->controller_slot == 1) {
-            if (player_2_state->green_trigger) {
-                active = 1;
-            } else {
-                active = 0;
-            }
-        } else {
-            active = 0;
-        }
-        if (active != 0) {
-            state->green_active = 1;
-        } else {
-            state->green_active = 0;
-        }
-        if (pdata->blocking_disabled_2 != 0) {
-            active = 1;
-        } else if (pdata->blocking_disable_tick_2 > game_tick_ctr) {
-            active = 1;
-        } else if (is_plyr_airborn(player->slot.mirror_a) != 0) {
-            active = 1;
-        } else {
-            active = 0;
-        }
-        if (active != 0) {
-            state->airborne_active = 1;
-        } else {
-            state->airborne_active = 0;
-        }
+    if (f_p2_force_adjustment == 1) {
+        f_p2_force_adjustment = 0;
+        changed = 1;
+        p2_disp_life = g_game_info.plyr1.field_0C;
     }
 
-    for (player_index = 0; player_index < 2; player_index++) {
-        state = player_index == 0 ? player_1_state : player_2_state;
-
-        light = owned_screen_latch_object(&state->red);
-        if (light == 0) {
-            return -1.0f;
+    if (p1_disp_life > g_game_info.plyr0.field_0C) {
+        p1_disp_life -= bar_speed;
+        if (p1_disp_life <= 0.06f && f_p1_warning_given == 0) {
+            if (g_game_info.plyr0.field_0C > 0.0f &&
+                !g_game_info.pause_flag_bits.fatality_window) {
+                snd_req(0xDC2);
+            }
+            f_p1_warning_given = 1;
         }
-        brighten_screen(light, state->red_active);
-
-        light = owned_screen_latch_object(&state->green);
-        if (light == 0) {
-            return -1.0f;
+        if (p1_disp_life < g_game_info.plyr0.field_0C) {
+            p1_disp_life = g_game_info.plyr0.field_0C;
         }
-        brighten_screen(light, state->green_active);
-
-        light = owned_screen_latch_object(&state->airborne);
-        if (light == 0) {
-            return -1.0f;
+        changed = 1;
+    } else if (p1_disp_life < g_game_info.plyr0.field_0C) {
+        p1_disp_life += bar_speed;
+        if (p1_disp_life > g_game_info.plyr0.field_0C) {
+            p1_disp_life = g_game_info.plyr0.field_0C;
         }
-        brighten_screen(light, state->airborne_active);
+        changed = 1;
     }
+
+    if (p2_disp_life > g_game_info.plyr1.field_0C) {
+        p2_disp_life -= bar_speed;
+        if (p2_disp_life <= 0.06f && f_p2_warning_given == 0) {
+            if (g_game_info.plyr1.field_0C > 0.0f &&
+                !g_game_info.pause_flag_bits.fatality_window) {
+                snd_req(0xDC2);
+            }
+            f_p2_warning_given = 1;
+        }
+        if (p2_disp_life < g_game_info.plyr1.field_0C) {
+            p2_disp_life = g_game_info.plyr1.field_0C;
+        }
+        changed = 1;
+    } else if (p2_disp_life < g_game_info.plyr1.field_0C) {
+        p2_disp_life += bar_speed;
+        if (p2_disp_life > g_game_info.plyr1.field_0C) {
+            p2_disp_life = g_game_info.plyr1.field_0C;
+        }
+        changed = 1;
+    }
+    if (changed != 0) {
+        update_power_bar_verts();
+    }
+    update_combo_break_counts();
     return 1.0f;
-}
-
-int adjust_player_life(int player_index, float amount) {
-    int depleted;
-
-    switch (player_index) {
-    case 0:
-        depleted = 0;
-        if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-            (g_game_info.flags & 0x20) == 0) {
-            if (g_game_info.plyr0.field_0C <= 0.0f) {
-                depleted = 1;
-            }
-        } else {
-            if (amount == -1.0f) {
-                g_game_info.plyr0.field_0C = 0.0f;
-            } else if ((g_game_info.field_04 & 0x20) == 0) {
-                g_game_info.plyr0.field_0C += amount;
-            }
-            if (amount > 0.0f) {
-                if (g_game_info.plyr0.field_0C > 1.0f) {
-                    g_game_info.plyr0.field_0C = 1.0f;
-                }
-            } else if (g_game_info.plyr0.field_0C <= 0.0f) {
-                if (mode_of_play == 4) {
-                    g_game_info.plyr0.field_0C = 1.0f;
-                } else {
-                    g_game_info.plyr0.field_0C = 0.0f;
-                    depleted = 1;
-                }
-            }
-            if (mode_of_play == 4) {
-                display_debug_damage(&g_game_info.plyr0);
-            }
-        }
-        return depleted;
-    case 1:
-        depleted = 0;
-        if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-            (g_game_info.flags & 0x20) == 0) {
-            /* Retail checks player one's life in this invulnerability path. */
-            if (g_game_info.plyr0.field_0C <= 0.0f) {
-                depleted = 1;
-            }
-        } else {
-            if (amount == -1.0f) {
-                g_game_info.plyr1.field_0C = 0.0f;
-            } else if ((g_game_info.field_04 & 0x20) == 0) {
-                g_game_info.plyr1.field_0C += amount;
-            }
-            if (amount > 0.0f) {
-                if (g_game_info.plyr1.field_0C > 1.0f) {
-                    g_game_info.plyr1.field_0C = 1.0f;
-                }
-            } else if (g_game_info.plyr1.field_0C <= 0.0f) {
-                if (mode_of_play == 4) {
-                    g_game_info.plyr1.field_0C = 1.0f;
-                } else {
-                    g_game_info.plyr1.field_0C = 0.0f;
-                    depleted = 1;
-                }
-            }
-            if (mode_of_play == 4) {
-                display_debug_damage(&g_game_info.plyr1);
-            }
-        }
-        return depleted;
-    default:
-        return 0;
-    }
-}
-
-int adjust_p2_life(float amount) {
-    int depleted = 0;
-
-    if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-        (g_game_info.flags & 0x20) == 0) {
-        return g_game_info.plyr0.field_0C <= 0.0f;
-    }
-    if (amount == -1.0f) {
-        g_game_info.plyr1.field_0C = 0.0f;
-    } else if ((g_game_info.field_04 & 0x20) == 0) {
-        g_game_info.plyr1.field_0C += amount;
-    }
-    if (amount > 0.0f) {
-        if (g_game_info.plyr1.field_0C > 1.0f) {
-            g_game_info.plyr1.field_0C = 1.0f;
-        }
-    } else if (g_game_info.plyr1.field_0C <= 0.0f) {
-        if (mode_of_play == 4) {
-            g_game_info.plyr1.field_0C = 1.0f;
-        } else {
-            g_game_info.plyr1.field_0C = 0.0f;
-            depleted = 1;
-        }
-    }
-    if (mode_of_play == 4) {
-        display_debug_damage(&g_game_info.plyr1);
-    }
-    return depleted;
-}
-
-int adjust_p1_life(float amount) {
-    int depleted = 0;
-
-    if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-        (g_game_info.flags & 0x20) == 0) {
-        return g_game_info.plyr0.field_0C <= 0.0f;
-    }
-    if (amount == -1.0f) {
-        g_game_info.plyr0.field_0C = 0.0f;
-    } else if ((g_game_info.field_04 & 0x20) == 0) {
-        g_game_info.plyr0.field_0C += amount;
-    }
-    if (amount > 0.0f) {
-        if (g_game_info.plyr0.field_0C > 1.0f) {
-            g_game_info.plyr0.field_0C = 1.0f;
-        }
-    } else if (g_game_info.plyr0.field_0C <= 0.0f) {
-        if (mode_of_play == 4) {
-            g_game_info.plyr0.field_0C = 1.0f;
-        } else {
-            g_game_info.plyr0.field_0C = 0.0f;
-            depleted = 1;
-        }
-    }
-    if (mode_of_play == 4) {
-        display_debug_damage(&g_game_info.plyr0);
-    }
-    return depleted;
-}
-
-static void update_power_bar_verts(void);
-static void update_combo_break_counts(void);
-
-static ScreenObj* screen_latch_object(ScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-
-    if (object == 0 || (unsigned int)object->instance != latch->instance) {
-        return 0;
-    }
-    return object;
 }
 
 /* Soft ceiling: 98.58% -- latch branch direction and pool labels only. */
@@ -1054,117 +1083,133 @@ static void update_power_bar_verts(void) {
     player2->pfx2d->mirror = 1;
 }
 
-static ScreenObj* ensure_combo_bolt(
-    ScreenLatch* latch, int player_index, int x_offset,
-    PlyrInfo* player, int threshold) {
-    ScreenObj* object = screen_latch_object(latch);
+int adjust_p2_life(float amount) {
+    int depleted = 0;
 
-    if (object == 0) {
-        object = load_2d_pfxobj(
-            0x10005, 0x2017, (char*)0x20019, 0, 0x1B);
-        if (object != 0) {
-            if (player_index == 0) {
-                object->x = BAR_BACK_X + x_offset;
-            } else {
-                object->x = screen_width - (BAR_BACK_X + x_offset);
-            }
-            object->y = 0x18C;
-            latch->object = object;
-            latch->instance = object->instance;
-        }
+    if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
+        (g_game_info.flags & 0x20) == 0) {
+        return g_game_info.plyr0.field_0C <= 0.0f;
     }
-    if (object != 0) {
-        if (player->slot.pdata->breaker_strength > threshold) {
-            object->flag_bits.hidden = 0;
+    if (amount == -1.0f) {
+        g_game_info.plyr1.field_0C = 0.0f;
+    } else if ((g_game_info.field_04 & 0x20) == 0) {
+        g_game_info.plyr1.field_0C += amount;
+    }
+    if (amount > 0.0f) {
+        if (g_game_info.plyr1.field_0C > 1.0f) {
+            g_game_info.plyr1.field_0C = 1.0f;
+        }
+    } else if (g_game_info.plyr1.field_0C <= 0.0f) {
+        if (mode_of_play == 4) {
+            g_game_info.plyr1.field_0C = 1.0f;
         } else {
-            object->flag_bits.hidden = 1;
+            g_game_info.plyr1.field_0C = 0.0f;
+            depleted = 1;
         }
     }
-    return object;
+    if (mode_of_play == 4) {
+        display_debug_damage(&g_game_info.plyr1);
+    }
+    return depleted;
 }
 
-/* Soft ceiling: 93.41% -- six shortened inlined latch diamonds only. */
-static void update_combo_break_counts(void) {
-    if (g_game_info.plyr0.slot.pdata->breaker_strength !=
-        p1_last_combo_break_count) {
-        ensure_combo_bolt(
-            &p1_bolt_1_item, 0, 0x45,
-            &g_game_info.plyr0, 0);
-        ensure_combo_bolt(
-            &p1_bolt_2_item, 0, 0x57,
-            &g_game_info.plyr0, 1);
-        ensure_combo_bolt(
-            &p1_bolt_3_item, 0, 0x69,
-            &g_game_info.plyr0, 2);
-        p1_last_combo_break_count =
-            g_game_info.plyr0.slot.pdata->breaker_strength;
+int adjust_p1_life(float amount) {
+    int depleted = 0;
+
+    if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
+        (g_game_info.flags & 0x20) == 0) {
+        return g_game_info.plyr0.field_0C <= 0.0f;
     }
-    if (g_game_info.plyr1.slot.pdata->breaker_strength !=
-        p2_last_combo_break_count) {
-        ensure_combo_bolt(
-            &p2_bolt_1_item, 1, 0x55,
-            &g_game_info.plyr1, 0);
-        ensure_combo_bolt(
-            &p2_bolt_2_item, 1, 0x67,
-            &g_game_info.plyr1, 1);
-        ensure_combo_bolt(
-            &p2_bolt_3_item, 1, 0x79,
-            &g_game_info.plyr1, 2);
-        p2_last_combo_break_count =
-            g_game_info.plyr1.slot.pdata->breaker_strength;
+    if (amount == -1.0f) {
+        g_game_info.plyr0.field_0C = 0.0f;
+    } else if ((g_game_info.field_04 & 0x20) == 0) {
+        g_game_info.plyr0.field_0C += amount;
     }
+    if (amount > 0.0f) {
+        if (g_game_info.plyr0.field_0C > 1.0f) {
+            g_game_info.plyr0.field_0C = 1.0f;
+        }
+    } else if (g_game_info.plyr0.field_0C <= 0.0f) {
+        if (mode_of_play == 4) {
+            g_game_info.plyr0.field_0C = 1.0f;
+        } else {
+            g_game_info.plyr0.field_0C = 0.0f;
+            depleted = 1;
+        }
+    }
+    if (mode_of_play == 4) {
+        display_debug_damage(&g_game_info.plyr0);
+    }
+    return depleted;
 }
 
-static inline void update_plyr_medals_impl(void) {
-    int object_index;
-    int medal_index;
-    int x;
-    int i;
+int adjust_player_life(int player_index, float amount) {
+    int depleted;
 
-    if (mode_of_play == 8 && trial_show_standard_fight_messages() == 0) {
-        return;
-    }
-    for (i = 0; i < 8; i++) {
-        if (medal_objs[i] != 0) {
-            destroy_screen_obj(medal_objs[i]);
-            medal_objs[i] = 0;
-        }
-    }
-
-    x = BAR_BACK_X + 0x100;
-    object_index = 0;
-    for (medal_index = 0;
-         medal_index < g_game_info.plyr0.field_40; medal_index++) {
-        medal_objs[object_index] = load_2d_pfxobj(
-            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
-        if (medal_objs[object_index] != 0) {
-            medal_objs[object_index]->x = x;
-            medal_objs[object_index]->y = 0x177;
-            if (g_game_info.plyr0.controller_slot == 0) {
-                x -= 0x18;
-            } else {
-                x += 0x18;
+    switch (player_index) {
+    case 0:
+        depleted = 0;
+        if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
+            (g_game_info.flags & 0x20) == 0) {
+            if (g_game_info.plyr0.field_0C <= 0.0f) {
+                depleted = 1;
             }
-            object_index++;
-        }
-    }
-
-    x = screen_width - (BAR_BACK_X + 0x120);
-    object_index = 3;
-    for (medal_index = 0;
-         medal_index < g_game_info.plyr1.field_40; medal_index++) {
-        medal_objs[object_index] = load_2d_pfxobj(
-            0x10005, 0x2022, (char*)0x20018, 0, 0x16);
-        if (medal_objs[object_index] != 0) {
-            medal_objs[object_index]->x = x;
-            medal_objs[object_index]->y = 0x177;
-            if (g_game_info.plyr1.controller_slot == 0) {
-                x -= 0x18;
-            } else {
-                x += 0x18;
+        } else {
+            if (amount == -1.0f) {
+                g_game_info.plyr0.field_0C = 0.0f;
+            } else if ((g_game_info.field_04 & 0x20) == 0) {
+                g_game_info.plyr0.field_0C += amount;
             }
-            object_index++;
+            if (amount > 0.0f) {
+                if (g_game_info.plyr0.field_0C > 1.0f) {
+                    g_game_info.plyr0.field_0C = 1.0f;
+                }
+            } else if (g_game_info.plyr0.field_0C <= 0.0f) {
+                if (mode_of_play == 4) {
+                    g_game_info.plyr0.field_0C = 1.0f;
+                } else {
+                    g_game_info.plyr0.field_0C = 0.0f;
+                    depleted = 1;
+                }
+            }
+            if (mode_of_play == 4) {
+                display_debug_damage(&g_game_info.plyr0);
+            }
         }
+        return depleted;
+    case 1:
+        depleted = 0;
+        if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
+            (g_game_info.flags & 0x20) == 0) {
+            /* Retail checks player one's life in this invulnerability path. */
+            if (g_game_info.plyr0.field_0C <= 0.0f) {
+                depleted = 1;
+            }
+        } else {
+            if (amount == -1.0f) {
+                g_game_info.plyr1.field_0C = 0.0f;
+            } else if ((g_game_info.field_04 & 0x20) == 0) {
+                g_game_info.plyr1.field_0C += amount;
+            }
+            if (amount > 0.0f) {
+                if (g_game_info.plyr1.field_0C > 1.0f) {
+                    g_game_info.plyr1.field_0C = 1.0f;
+                }
+            } else if (g_game_info.plyr1.field_0C <= 0.0f) {
+                if (mode_of_play == 4) {
+                    g_game_info.plyr1.field_0C = 1.0f;
+                } else {
+                    g_game_info.plyr1.field_0C = 0.0f;
+                    depleted = 1;
+                }
+            }
+            if (mode_of_play == 4) {
+                display_debug_damage(&g_game_info.plyr1);
+            }
+        }
+        return depleted;
+    default:
+        return 0;
     }
 }
 
@@ -1251,9 +1296,28 @@ void destroy_pwr_bars(void) {
     }
 }
 
-static void clear_screen_latch(ScreenLatch* latch) {
-    latch->object = 0;
-    latch->instance = 0;
+void pbar_force_pb_setting_with_offset(unsigned int player, float offset) {
+    if (player == 0) {
+        f_p1_force_adjustment = 1;
+        g_game_info.plyr0.field_0C += offset;
+        if (g_game_info.plyr0.field_0C > 1.0f) {
+            g_game_info.plyr0.field_0C = 1.0f;
+        }
+    } else {
+        f_p2_force_adjustment = 1;
+        g_game_info.plyr1.field_0C += offset;
+        if (g_game_info.plyr1.field_0C > 1.0f) {
+            g_game_info.plyr1.field_0C = 1.0f;
+        }
+    }
+}
+
+void start_powerbar_monitor(void) {
+    start_powerbar_monitor_impl();
+}
+
+int are_powerbars_retracted(void) {
+    return f_powerbars_retracted;
 }
 
 void init_pwr_bars(void) {
@@ -1464,71 +1528,4 @@ void init_pwr_bars(void) {
     init_fighting_state_lights();
     update_combo_break_counts();
     retract_power_bars();
-}
-
-/* Soft ceiling: 99.92% -- two identical 0.06f pool-label relocations differ. */
-float p_power_bar_proc(void) {
-    int changed;
-
-    changed = 0;
-    if (f_powerbars_retracted != 0) {
-        return 1.0f;
-    }
-    if (f_p1_force_adjustment == 1) {
-        f_p1_force_adjustment = 0;
-        changed = 1;
-        p1_disp_life = g_game_info.plyr0.field_0C;
-    }
-    if (f_p2_force_adjustment == 1) {
-        f_p2_force_adjustment = 0;
-        changed = 1;
-        p2_disp_life = g_game_info.plyr1.field_0C;
-    }
-
-    if (p1_disp_life > g_game_info.plyr0.field_0C) {
-        p1_disp_life -= bar_speed;
-        if (p1_disp_life <= 0.06f && f_p1_warning_given == 0) {
-            if (g_game_info.plyr0.field_0C > 0.0f &&
-                !g_game_info.pause_flag_bits.fatality_window) {
-                snd_req(0xDC2);
-            }
-            f_p1_warning_given = 1;
-        }
-        if (p1_disp_life < g_game_info.plyr0.field_0C) {
-            p1_disp_life = g_game_info.plyr0.field_0C;
-        }
-        changed = 1;
-    } else if (p1_disp_life < g_game_info.plyr0.field_0C) {
-        p1_disp_life += bar_speed;
-        if (p1_disp_life > g_game_info.plyr0.field_0C) {
-            p1_disp_life = g_game_info.plyr0.field_0C;
-        }
-        changed = 1;
-    }
-
-    if (p2_disp_life > g_game_info.plyr1.field_0C) {
-        p2_disp_life -= bar_speed;
-        if (p2_disp_life <= 0.06f && f_p2_warning_given == 0) {
-            if (g_game_info.plyr1.field_0C > 0.0f &&
-                !g_game_info.pause_flag_bits.fatality_window) {
-                snd_req(0xDC2);
-            }
-            f_p2_warning_given = 1;
-        }
-        if (p2_disp_life < g_game_info.plyr1.field_0C) {
-            p2_disp_life = g_game_info.plyr1.field_0C;
-        }
-        changed = 1;
-    } else if (p2_disp_life < g_game_info.plyr1.field_0C) {
-        p2_disp_life += bar_speed;
-        if (p2_disp_life > g_game_info.plyr1.field_0C) {
-            p2_disp_life = g_game_info.plyr1.field_0C;
-        }
-        changed = 1;
-    }
-    if (changed != 0) {
-        update_power_bar_verts();
-    }
-    update_combo_break_counts();
-    return 1.0f;
 }

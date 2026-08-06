@@ -436,8 +436,8 @@ extern MkFileInfo sec_pz_danger_snake;
 extern void* apdata;
 
 PuzzleFatalityEngine g_pz_fighter_fatality_engine;
-static PuzzleFleshchunkPdata* pdata_fleshchunk;
 static PuzzleFighterRenderObject* fleshchunk_obj;
+static PuzzleFleshchunkPdata* pdata_fleshchunk;
 extern PuzzlePlayerData* plyr_pdata;
 extern PuzzlePlayerData* his_pdata;
 extern PuzzleFighterRenderObject* plyr_obj;

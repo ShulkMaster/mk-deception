@@ -366,6 +366,7 @@ MovesWeaponGrabEntry weapon_grab_table[9] = {
     {0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
 };
 
+unsigned int scan_freak_4[1] = {(unsigned int)-1};
 MovesActionRef temp_throw_switch = {4, 0x8F};
 
 extern PlyrPdata* plyr_pdata;
@@ -378,13 +379,13 @@ extern int exec_tick_ctr;
 extern int game_tick_ctr;
 extern float debug_x;
 extern int round_winner;
-extern int victory_proper_flip_flags;
 extern int f_fatality_available;
 extern int f_fatality_was_done;
 extern int f_fatality_finished;
-extern int g_min_time_in_block_for_drone;
-extern int g_drone_blocking_in_reaction;
-extern int g_drone_faked_out;
+int g_min_time_in_block_for_drone;
+static int victory_proper_flip_flags;
+int g_drone_faked_out;
+int g_drone_blocking_in_reaction;
 extern float drone_blocking_done(void);
 extern float drone_start(void);
 extern int force_midpoint_calculation_update;
@@ -406,7 +407,6 @@ extern int p2_last_switch_time;
 extern MovesSwitchLogEntry p1_switch_log[30];
 extern MovesSwitchLogEntry p2_switch_log[30];
 extern unsigned int jump_table[];
-extern unsigned int scan_freak_4[];
 extern ScriptSlot* reactions_cmo;
 extern float aniproc_land(void);
 

@@ -2706,93 +2706,6 @@ void check_to_register_miss(void) {
     }
 }
 
-void air_collision_pause(
-    int pause_ticks, float target_frame, float gravity) {
-    MkProc* process;
-    float saved_step;
-
-    if (plyr_pdata->collision_result != -1) {
-        plyr_obj->flags_09_bits.launched = 0;
-        process = plyr_pdata->transient_proc;
-        if (process != 0 &&
-            process->instance !=
-                (int)plyr_pdata->transient_proc_instance) {
-            process = 0;
-        }
-        if (process != 0 && process != aproc &&
-            process->instance != 0) {
-            ((EjbProcSleepVtable*)process->vtbl)->destroy();
-        }
-        plyr_obj->pos_vel.x = 0.0f;
-        plyr_obj->pos_vel.y = 0.0f;
-        plyr_obj->pos_vel.z = 0.0f;
-        plyr_obj->gravity = 0.0f;
-        if (pause_ticks != 0 &&
-            target_frame > plyr_anim_pdata->frame) {
-            AnimPdata* animation;
-
-            saved_step = plyr_anim_pdata->step;
-            plyr_anim_pdata->step =
-                (target_frame - plyr_anim_pdata->frame) /
-                (float)pause_ticks;
-            animation = plyr_anim_pdata;
-            if (target_frame > animation->high_frame) {
-                target_frame = animation->high_frame;
-            }
-            EJB_ADVANCE_TO_FRAME(animation, target_frame);
-            plyr_anim_pdata->step = saved_step;
-        } else {
-            _mkproc_sleep_ticks = (float)pause_ticks;
-            ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
-        }
-    }
-    plyr_obj->flags_08_bits.moving = 1;
-    plyr_obj->gravity = gravity;
-}
-
-int collision_2(int attack_region) {
-    int collision_result;
-
-    plyr_pdata->attack_region = attack_region;
-    if (his_pdata->collision_disabled != 0) {
-        return 0;
-    }
-
-    set_plyr_attack_region(attack_region, 0.0f, 0.0f);
-    collision_result = collide_plyr_vs_plyr();
-    if (collision_result == 1) {
-        trial_state_collision_check(
-            collision_result, aproc->pid == 0x1001);
-    }
-    return collision_result;
-}
-
-void wait_to_land(void) {
-    MkProc* process;
-
-    plyr_obj->flags_09_bits.launched = 1;
-    while (plyr_obj->flags_08_bits.moving &&
-           plyr_obj->gravity != 0.0f) {
-        _mkproc_sleep_ticks = 1.0f;
-        ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
-    }
-
-    process = plyr_pdata->transient_proc;
-    if (process != 0 &&
-        process->instance !=
-            (int)plyr_pdata->transient_proc_instance) {
-        process = 0;
-    }
-    if (process != 0 && process != aproc && process->instance != 0) {
-        ((EjbProcSleepVtable*)process->vtbl)->destroy();
-    }
-    plyr_obj->pos_vel.x = 0.0f;
-    plyr_obj->pos_vel.y = 0.0f;
-    plyr_obj->pos_vel.z = 0.0f;
-    plyr_obj->gravity = 0.0f;
-    plyr_obj->flags_09_bits.bit6 = 1;
-}
-
 float ani_to_frame_x_col(
     int attack_region, int reaction, int strength,
     float target_frame, float horizontal_scale,
@@ -3042,6 +2955,93 @@ float ani_to_frame_x_col(
     }
     online_combo_record();
     return 0.0f;
+}
+
+void air_collision_pause(
+    int pause_ticks, float target_frame, float gravity) {
+    MkProc* process;
+    float saved_step;
+
+    if (plyr_pdata->collision_result != -1) {
+        plyr_obj->flags_09_bits.launched = 0;
+        process = plyr_pdata->transient_proc;
+        if (process != 0 &&
+            process->instance !=
+                (int)plyr_pdata->transient_proc_instance) {
+            process = 0;
+        }
+        if (process != 0 && process != aproc &&
+            process->instance != 0) {
+            ((EjbProcSleepVtable*)process->vtbl)->destroy();
+        }
+        plyr_obj->pos_vel.x = 0.0f;
+        plyr_obj->pos_vel.y = 0.0f;
+        plyr_obj->pos_vel.z = 0.0f;
+        plyr_obj->gravity = 0.0f;
+        if (pause_ticks != 0 &&
+            target_frame > plyr_anim_pdata->frame) {
+            AnimPdata* animation;
+
+            saved_step = plyr_anim_pdata->step;
+            plyr_anim_pdata->step =
+                (target_frame - plyr_anim_pdata->frame) /
+                (float)pause_ticks;
+            animation = plyr_anim_pdata;
+            if (target_frame > animation->high_frame) {
+                target_frame = animation->high_frame;
+            }
+            EJB_ADVANCE_TO_FRAME(animation, target_frame);
+            plyr_anim_pdata->step = saved_step;
+        } else {
+            _mkproc_sleep_ticks = (float)pause_ticks;
+            ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
+        }
+    }
+    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->gravity = gravity;
+}
+
+int collision_2(int attack_region) {
+    int collision_result;
+
+    plyr_pdata->attack_region = attack_region;
+    if (his_pdata->collision_disabled != 0) {
+        return 0;
+    }
+
+    set_plyr_attack_region(attack_region, 0.0f, 0.0f);
+    collision_result = collide_plyr_vs_plyr();
+    if (collision_result == 1) {
+        trial_state_collision_check(
+            collision_result, aproc->pid == 0x1001);
+    }
+    return collision_result;
+}
+
+void wait_to_land(void) {
+    MkProc* process;
+
+    plyr_obj->flags_09_bits.launched = 1;
+    while (plyr_obj->flags_08_bits.moving &&
+           plyr_obj->gravity != 0.0f) {
+        _mkproc_sleep_ticks = 1.0f;
+        ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
+    }
+
+    process = plyr_pdata->transient_proc;
+    if (process != 0 &&
+        process->instance !=
+            (int)plyr_pdata->transient_proc_instance) {
+        process = 0;
+    }
+    if (process != 0 && process != aproc && process->instance != 0) {
+        ((EjbProcSleepVtable*)process->vtbl)->destroy();
+    }
+    plyr_obj->pos_vel.x = 0.0f;
+    plyr_obj->pos_vel.y = 0.0f;
+    plyr_obj->pos_vel.z = 0.0f;
+    plyr_obj->gravity = 0.0f;
+    plyr_obj->flags_09_bits.bit6 = 1;
 }
 
 void set_collision_made_flag(void) {

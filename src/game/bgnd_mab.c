@@ -618,11 +618,11 @@ float p_fish_attack(void) {
     if (pdata->active == 1) {
         if (pdata->use_good_fish != 0) {
             fish = load_named_model_from_slot(
-                0x2001E, "YY_GOOD_FISH", 0x2097, 0);
+                0x2001E, "YY_BAD_FISH", 0x2097, 0);
             pdata->models[pdata->fish_index].good_fish = fish;
         } else {
             fish = load_named_model_from_slot(
-                0x2001E, "YY_BAD_FISH", 0x2096, 0);
+                0x2001E, "YY_GOOD_FISH", 0x2096, 0);
             pdata->models[pdata->fish_index].bad_fish = fish;
         }
         if (fish == 0) {
@@ -1089,9 +1089,14 @@ void obj_setup_for_animation(
     object->ground_colls = ground_colls;
 }
 
+/*
+ * Soft ceiling: retail retains an otherwise dead `2.0f` stack temporary after
+ * copying the fish transforms. The effective algorithm and all observable
+ * accesses match; portable C intentionally does not recreate the dead store.
+ */
 void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     Vec cylinder_position = {0.0f, 0.0f, 0.0f};
-    Vec cylinder_axis = {0.0f, 1.6f, 0.0f};
+    Vec cylinder_axis = {0.0f, 0.0f, 1.0f};
     Vec camera_direction;
     Vec jump_direction;
     Vec camera_position;
@@ -1411,18 +1416,28 @@ static float p_xpd_obj_monitor(void) {
     return -1.0f;
 }
 
+/*
+ * Soft ceiling: retail emits a three-instruction explicit null-normalization
+ * tail for the object-instance latch. Clean typed C folds that equivalent
+ * join; the remaining differences are allocation, scheduling, and pool
+ * relocations, so no redundant branch is added to force the retail shape.
+ */
 float p_skytemple_bodysplat(void) {
     MkObj* object = 0;
     SkyTempleBodysplatPdata* pdata = (SkyTempleBodysplatPdata*)apdata;
     unsigned int object_instance = 0;
+    MkObj* loaded_object;
     float scale;
 
-    object =
+    loaded_object =
         load_named_model_from_slot(0x2001E, "ST_BLOODSPLAT", 0x2094, 0);
-    if (object != 0) {
-        insert_fgnd_mkobj(object);
-        object->pos = pdata->position;
-        object->flags_08 |= 2;
+    if (loaded_object != 0) {
+        insert_fgnd_mkobj(loaded_object);
+        object = loaded_object;
+        object->pos.x = pdata->position.x;
+        object->pos.y = pdata->position.y;
+        object->pos.z = pdata->position.z;
+        object->flags_08_bits.scale_active = 1;
         object->scale.x = 1.0f;
         object->scale.y = 1.0f;
         object->scale.z = 1.0f;
@@ -1431,11 +1446,10 @@ float p_skytemple_bodysplat(void) {
 
     scale = 1.0f;
     while (scale < 2.5f) {
-        MkObj* live_object = object;
+        MkObj* live_object = 0;
 
-        if (live_object == 0 ||
-            live_object->hdr.instance != object_instance) {
-            live_object = 0;
+        if (object != 0 && object->hdr.instance == object_instance) {
+            live_object = object;
         }
         if (live_object != 0) {
             live_object->scale.x = scale;

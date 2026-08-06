@@ -399,11 +399,11 @@ typedef union Gore2Flags {
     unsigned int word;
     struct {
         signed char settled : 1;
-        unsigned char has_rotation : 1;
-        unsigned char has_scale : 1;
-        unsigned char has_translation : 1;
-        unsigned char attached : 1;
-        unsigned char pad_high : 3;
+        signed char has_rotation : 1;
+        signed char has_scale : 1;
+        signed char has_translation : 1;
+        signed char attached : 1;
+        signed char pad_high : 3;
         unsigned char pad[3];
     } bits;
 } Gore2Flags;
@@ -2338,8 +2338,11 @@ void start_gore2_update(void) {
 }
 
 /*
- * Retail dynamically aligns the matrix workspace to 16 bytes. Portable C
- * keeps a fixed frame; the remaining size/emission gap is still under audit.
+ * Soft ceiling: retail dynamically aligns the matrix workspace to 16 bytes,
+ * retains explicit null-normalization branches, and chooses different loop
+ * induction registers. Portable C keeps the same typed algorithm in a fixed
+ * frame; reproducing the residue would require alignment or dead-control-flow
+ * forcing.
  */
 static float p_gore2_update(void) {
     Gore2UpdatePdata* pdata;
@@ -2357,30 +2360,34 @@ static float p_gore2_update(void) {
             if (state->bits.visible) {
                 Gore2Particle* particle =
                     &pool->particles[particle_index];
-                MKMATRIX* matrix =
-                    &pool->pebbles[particle_index].matrix;
 
                 if (!particle->flags.bits.attached) {
                     if (!particle->flags.bits.settled) {
                         if (particle->flags.bits.has_rotation) {
                             YXZ_angles_to_MKMATRIX(
-                                &particle->rotation, matrix);
+                                &particle->rotation,
+                                &pool->pebbles[particle_index].matrix);
                         }
                         if (particle->flags.bits.has_scale) {
                             mat_scaled_by_v3(
-                                matrix, matrix, &particle->scale);
+                                &pool->pebbles[particle_index].matrix,
+                                &pool->pebbles[particle_index].matrix,
+                                &particle->scale);
                         }
                         if (particle->flags.bits.has_translation) {
                             particle->translation.y +=
                                 particle->vertical_acceleration;
-                            matrix->pos.x += particle->translation.x;
-                            matrix->pos.y += particle->translation.y;
-                            matrix->pos.z += particle->translation.z;
+                            pool->pebbles[particle_index].matrix.pos.x +=
+                                particle->translation.x;
+                            pool->pebbles[particle_index].matrix.pos.y +=
+                                particle->translation.y;
+                            pool->pebbles[particle_index].matrix.pos.z +=
+                                particle->translation.z;
                         }
-                        if (matrix->pos.y <=
+                        if (pool->pebbles[particle_index].matrix.pos.y <=
                             g_game_info.field_34 +
                                 pbl_gore2_obj_list[type].scale) {
-                            matrix->pos.y =
+                            pool->pebbles[particle_index].matrix.pos.y =
                                 g_game_info.field_34 +
                                 pbl_gore2_obj_list[type].scale;
                             if (particle->bounce_count != 0) {
@@ -2394,7 +2401,9 @@ static float p_gore2_update(void) {
                                 particle->flags.bits.has_translation = 0;
                                 spawn_decal_emitter(
                                     "blsplat", particle->decal_owner,
-                                    (const Vec*)&matrix->pos, 0, 0.0f);
+                                    (const Vec*)&pool->pebbles[particle_index]
+                                        .matrix.pos,
+                                    0, 0.0f);
                             }
                         }
                     }
@@ -2408,15 +2417,16 @@ static float p_gore2_update(void) {
                     if (owner == 0) {
                         state->bits.visible = 0;
                     } else {
+                        MKMATRIX* matrix =
+                            &pool->pebbles[particle_index].matrix;
                         MKMATRIX* owner_matrix =
                             (MKMATRIX*)owner->field_24;
 
                         if ((unsigned int)particle->bone != 0x40000000) {
                             MkBone* bone = owner->bones[particle->bone];
 
-                            if (bone != 0 && bone->parent_matrix != 0) {
-                                owner_matrix =
-                                    (MKMATRIX*)bone->parent_matrix;
+                            if (bone != 0) {
+                                owner_matrix = &bone->matrix;
                             }
                         }
                         if (particle->flags.bits.has_rotation) {
@@ -2434,7 +2444,9 @@ static float p_gore2_update(void) {
                                 (Vec*)&matrix->pos, &particle->translation,
                                 owner_matrix, (const Vec*)&owner_matrix->pos);
                         } else {
-                            matrix->pos = owner_matrix->pos;
+                            matrix->pos.x = owner_matrix->pos.x;
+                            matrix->pos.y = owner_matrix->pos.y;
+                            matrix->pos.z = owner_matrix->pos.z;
                         }
                     }
                 }
@@ -3808,6 +3820,12 @@ float mkobj_pos_pos_dot_normal_xz(
     dx = to->pos.x - from->pos.x;
     dz = to->pos.z - from->pos.z;
     squared = dx * dx + dz * dz;
+    /*
+     * Soft ceiling: retail retains an empty zero-length branch as a separate
+     * jump and schedules the argument loads after the stack-frame setup.
+     * Clean MWCC folds the empty branch and hoists those loads. The arithmetic,
+     * including the unordered/NaN path, is otherwise instruction-equivalent.
+     */
     inverse_length = 0.0f;
     if (squared <= 0.0f) {
         /* A zero-length XZ direction has no normalized component. */
