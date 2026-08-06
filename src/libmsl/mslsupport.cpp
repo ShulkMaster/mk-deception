@@ -74,7 +74,7 @@ extern "C" float mslGetTime(void) {
 
 /*
  * Honest blocker: retail formats through PPC EABI variadic state into a
- * 256-byte buffer and then calls printf. This MWCC C++ setup exposes neither
- * a portable stdarg header nor va_start; reproducing it would require a
- * compiler intrinsic or hand-authored ABI state, both intentionally avoided.
+ * 256-byte buffer and then calls printf. The project cstdarg header implements
+ * va_start solely through MWCC's __va_start compiler intrinsic; the only
+ * alternative is hand-authored PPC EABI state. Both are intentionally avoided.
  */

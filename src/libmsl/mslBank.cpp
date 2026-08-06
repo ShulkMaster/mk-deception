@@ -21,7 +21,7 @@ extern _mslSystem* gMsi;
 static void mslBankLoadResidentARamUploadComplete(void* callback_data);
 void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data);
-void mslBankReadSoundsComplete(
+static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data);
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data);
@@ -583,33 +583,6 @@ static void mslBankReadWavesComplete(
     }
 }
 
-/* Soft ceiling: mslBankOpenWavesComplete ~94.27% -- diagnostic literals use
- * standalone symbols until the preceding callbacks restore @stringBase0.
- */
-void mslBankOpenWavesComplete(
-    mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
-    mslAsyncBank* bank = (mslAsyncBank*)callback_data;
-    _mwFile* waves_file = result.value.file;
-
-    mwFileFreeCommand(command);
-    if (waves_file != 0) {
-        bank->waves_file = waves_file;
-        if (mwFileReadAsync(
-                bank->sounds_file, 0, bank->bank_data, bank->sounds_size, 0,
-                mslBankReadSoundsComplete, bank) == 0) {
-            mslDebugPrintf(
-                "mslBankOpenWavesComplete: couldn't kick off bank read: %s\n",
-                bank->filename);
-            mslBankLoadAsyncFailed(bank, MSL_ERROR_MEMORY);
-        }
-    } else {
-        mslDebugPrintf(
-            "mslBankOpenWavesComplete: Couldn't open WAVES file: %s\n",
-            bank->filename);
-        mslBankLoadAsyncFailed(bank, MSL_ERROR_WAVES_OPEN);
-    }
-}
-
 /*
  * Sound-bank read completion: close the .msg handle, launch the 0x1c-byte
  * asset-header read from .mbg, publish the waves handle into the loaded bank,
@@ -617,7 +590,7 @@ void mslBankOpenWavesComplete(
  * Soft ceiling: ~79.66% -- complete callback contract; partial-TU string
  * layout and joined error scheduling leave a smaller source body.
  */
-void mslBankReadSoundsComplete(
+static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
     mwFileCommand* close_command;
@@ -670,6 +643,33 @@ void mslBankReadSoundsComplete(
                 mslBankUpdatePtrs(loaded_bank);
             }
         }
+    }
+}
+
+/* Soft ceiling: mslBankOpenWavesComplete ~94.27% -- diagnostic literals use
+ * standalone symbols until the preceding callbacks restore @stringBase0.
+ */
+void mslBankOpenWavesComplete(
+    mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
+    mslAsyncBank* bank = (mslAsyncBank*)callback_data;
+    _mwFile* waves_file = result.value.file;
+
+    mwFileFreeCommand(command);
+    if (waves_file != 0) {
+        bank->waves_file = waves_file;
+        if (mwFileReadAsync(
+                bank->sounds_file, 0, bank->bank_data, bank->sounds_size, 0,
+                mslBankReadSoundsComplete, bank) == 0) {
+            mslDebugPrintf(
+                "mslBankOpenWavesComplete: couldn't kick off bank read: %s\n",
+                bank->filename);
+            mslBankLoadAsyncFailed(bank, MSL_ERROR_MEMORY);
+        }
+    } else {
+        mslDebugPrintf(
+            "mslBankOpenWavesComplete: Couldn't open WAVES file: %s\n",
+            bank->filename);
+        mslBankLoadAsyncFailed(bank, MSL_ERROR_WAVES_OPEN);
     }
 }
 

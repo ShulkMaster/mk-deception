@@ -83,7 +83,7 @@ struct _mslCmdItem;
 int mslDoAdjust(
     _mslSound* sound, _mslCmdItem* command, float now);
 
-static void updateWaveValues(
+static inline void updateWaveValues(
     _mslSystem* system, mslRuntimeSound* sound, mslRuntimeWave* wave) {
     float volume;
     float pan;

@@ -27,7 +27,7 @@ static unsigned char okToEnter = 1;
 static qNode* qHead;
 static qNode* qTail;
 
-static asyncRequest* requestAlloc(void) {
+static inline asyncRequest* requestAlloc(void) {
     asyncRequest* request = 0;
     int i;
 
@@ -55,7 +55,7 @@ static inline void requestFree(asyncRequest* request) {
     }
 }
 
-static qNode* qNodeAlloc(void) {
+static inline qNode* qNodeAlloc(void) {
     qNode* node = 0;
     int i;
 
@@ -128,7 +128,7 @@ static inline void closeKnownRequest(qNode* node, asyncRequest* request) {
     qRemove(node);
 }
 
-static bool qAppendToTail(void* data) {
+static inline bool qAppendToTail(void* data) {
     bool success;
     bool empty;
     qNode* node;
@@ -156,7 +156,7 @@ static bool qAppendToTail(void* data) {
     return success;
 }
 
-static bool isRespUsed(const _mslAsyncResponse* response) {
+static inline bool isRespUsed(const _mslAsyncResponse* response) {
     bool used = false;
     qNode* node = qHead;
     asyncRequest* request;
