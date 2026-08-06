@@ -182,7 +182,10 @@ typedef struct PlyrInfoFlags14 {
  */
 typedef struct PlyrInfo {
     int pad_index; /* +0x00 - controller port; -1 unassigned */
-    int controller_slot; /* +0x04 - physical pad slot; init = 3 (unassigned) */
+    union {
+        int field_04;     /* +0x04 - init = 3 */
+        int controller_slot; /* +0x04 - physical pad slot; init = 3 (unassigned) */
+    };
     int player_state; /* +0x08 - set_player_state; gcio disconnect tests 1/2 */
     float field_0C;   /* +0x0C - init = 1.0 */
     float field_10;   /* +0x10 - sleep/handicap scale (pselect stfs @ +0xB4) */

@@ -26,6 +26,11 @@ typedef struct MkObj MkObj;
 typedef struct MkProc MkProc;
 typedef struct ScriptSlot ScriptSlot;
 
+typedef struct SkyMkobj {
+    char pad00[0x18];
+    void* clump; /* +0x18 */
+} SkyMkobj;
+
 typedef float (*SwitchMapProcFn)(void);
 
 /* Logical controller row used by the input dispatcher (retail stride 0x0C). */

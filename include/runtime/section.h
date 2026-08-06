@@ -4,6 +4,9 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/section_types.h"
 
+#define SECTION_MEMORY_SCHEME_ATTRACT 9
+#define SEC_SLOT_HANDLE_ATTRACT_LEGAL 0x90046
+
 int load_systemart_phase_2(void);
 int load_systemart_phase_1(void);
 void load_art_section_by_name(int handle, const char* name);
