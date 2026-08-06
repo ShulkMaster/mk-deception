@@ -188,6 +188,22 @@ typedef struct ObjectMonitorSpawnLocals {
     ObjectMonitorConfig config;
 } ObjectMonitorSpawnLocals;
 
+typedef struct FishObjectLatch {
+    char pad00[0x10];
+    MkObj* object;
+    unsigned int instance;
+    char pad18[0x18];
+    unsigned int flags; /* +0x30 */
+    char pad34[4];
+    float field_38;
+} FishObjectLatch;
+
+typedef struct YinyangFishPair {
+    MkObj* good_fish;
+    MkObj* bad_fish;
+    FishObjectLatch* active_fish;
+} YinyangFishPair;
+
 int yy_evil_time_active;
 int yinyang_ok_to_switch;
 int yinyang_good_music_index;
@@ -288,594 +304,129 @@ void ck_put_weapon_away(PlyrInfo* player) {
     }
 }
 
-void player_body_explode(
-    PlyrInfo* player, const Vec* direction, float scale) {
-    PlayerBodyExplodePdata* pdata;
-
-    if (_create_mkproc_generic_nostack(
-            0x2097, 0x1F, (MkProcEntryFn)p_player_body_explode,
-            sizeof(PlayerBodyExplodePdata), (MkHdr**)&pdata) != 0) {
-        pdata->player = player;
-        pdata->direction.x = direction->x;
-        pdata->direction.y = direction->y;
-        pdata->direction.z = direction->z;
-        pdata->scale = scale;
-    }
+void fortress_setup_exclusion_zone(
+    const Vec* center, float width, float height, float depth, float angle) {
+    build_col_shape_vertical_box(
+        &fortress_exclusion_zone, center, width, height, depth, angle);
 }
 
-static float p_player_body_explode(void) {
-    PlayerBodyExplodePdata* pdata;
-    PlyrInfo* player;
-    FighterMirror* fighter;
-    MkObj* player_object;
-    MkProc* anim_proc;
-    int limb;
-
-    pdata = (PlayerBodyExplodePdata*)apdata;
-    player = pdata->player;
-    fighter = player->slot.fighter;
-    player_object = player->slot.mirror_a;
-
-    player_object->flags_09_bits.head_tracking = 0;
-    bgnd_hide_mirror_guys();
-
-    for (limb = 0; limb < 15; limb++) {
-        FighterObjectRef* severed;
-        MkObj* object;
-
-        severed = &fighter->severed_limbs[limb];
-        object = severed->object;
-        if (object != 0 && object->hdr.instance != severed->instance) {
-            object = 0;
-        }
-        if (object == 0) {
-            object = obj_sever_limb(
-                player_object, limb,
-                fighter->runtime_data->half_sever_velocities, 1);
-            if (object != 0) {
-                severed->object = object;
-                severed->instance = object->hdr.instance;
-            }
-        }
-    }
-
-    limb_sever_show_z_meat_chunks_all(player_object);
-    anim_proc = fighter->anim_proc;
-    if (anim_proc != 0 &&
-        anim_proc->instance != fighter->anim_proc_instance) {
-        anim_proc = 0;
-    }
-    xfer_proc(anim_proc, p_anim_idle);
-
-    for (limb = 0; limb < 15; limb++) {
-        FighterObjectRef* severed;
-        MkObj* object;
-
-        severed = &fighter->severed_limbs[limb];
-        object = severed->object;
-        if (object != 0 && object->hdr.instance != severed->instance) {
-            object = 0;
-        }
-        if (object != 0) {
-            object->flags_08_bits.gravity_enabled = 1;
-            object->flags_08_bits.angular_velocity_enabled = 1;
-            object->flags_08_bits.rotation_enabled = 1;
-            object->flags_08_bits.moving = 1;
-            object->gravity = -0.003f;
-            object->pos_vel.x =
-                pdata->direction.x * pdata->scale + sfrand(0.05f);
-            object->pos_vel.y = 0.0f;
-            object->pos_vel.x =
-                pdata->direction.z * pdata->scale + sfrand(0.05f);
-            object->ang_vel.x = sfrand(0.15f);
-            object->ang_vel.y = sfrand(0.15f);
-            object->ang_vel.z = sfrand(0.15f);
-        }
-    }
-    return -1.0f;
+int is_point_in_fortress_exclusion_zone(const Vec* point) {
+    return is_point_inside_shape(&fortress_exclusion_zone, point) != 0;
 }
 
-static float p_fish_attack_bloodsplat(void) {
-    Vec effect_origin = {0.0f, 1.6f, 0.0f};
-    MabGenericPositionPdata* pdata;
-    MkObj* object;
-    unsigned int object_instance;
-    Vec direction;
-    float scale;
-
-    pdata = (MabGenericPositionPdata*)apdata;
-    object = 0;
-    object_instance = 0;
-    object = load_named_model_from_slot(
-        0x2001E, "BODYSPLAT", 0x2094, 0);
-    if (object != 0) {
-        insert_fgnd_mkobj(object);
-        object->pos.x = pdata->position.x;
-        object->pos.y = pdata->position.y;
-        object->pos.z = pdata->position.z;
-        object->flags_08_bits.scale_active = 1;
-        object->scale.x = 0.5f;
-        object->scale.z = 0.5f;
-        uv_v3_to_v3(&direction, &effect_origin, &object->pos);
-        v3_to_xy_ang(&object->ang, &direction);
-        object_instance = object->hdr.instance;
-    }
-
-    scale = 0.5f;
-    while (scale < 0.75f) {
-        MkObj* live_object;
-
-        live_object = object;
-        if (live_object != 0) {
-            if (live_object->hdr.instance == object_instance) {
-                /* Keep the validated object. */
-            } else {
-                live_object = 0;
-            }
-        } else {
-            live_object = 0;
-        }
-        if (live_object != 0) {
-            live_object->scale.x = scale;
-            live_object->scale.z = scale;
-            scale += 0.05f;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    return -1.0f;
+void mab_test(void) {
 }
 
-static float p_xpd_obj_monitor(void) {
-    Vec ground_normal = {0.0f, 1.0f, 0.0f};
-    PlayerBodyExplodePdata* pdata;
-    FighterMirror* fighter;
-    int frame;
-    int sound_delay;
-
-    pdata = (PlayerBodyExplodePdata*)apdata;
-    fighter = pdata->player->slot.fighter;
-    frame = 0;
-    sound_delay = 0;
-
-    do {
-        int limb;
-
-        for (limb = 0; limb < 15; limb++) {
-            FighterObjectRef* severed;
-            MkObj* object;
-
-            severed = &fighter->severed_limbs[limb];
-            object = severed->object;
-            if (object != 0 && object->hdr.instance != severed->instance) {
-                object = 0;
-            }
-            if (object != 0) {
-                float ground_y;
-
-                ground_y = g_game_info.field_34 + 0.35f;
-                if (object->pos.y < ground_y) {
-                    float reflection;
-
-                    object->pos.y = ground_y;
-                    reflection = 2.0f *
-                        (object->pos_vel.x * ground_normal.x +
-                         object->pos_vel.y * ground_normal.y +
-                         object->pos_vel.z * ground_normal.z);
-                    object->pos_vel.x -= ground_normal.x * reflection;
-                    object->pos_vel.y -= ground_normal.y * reflection;
-                    object->pos_vel.z -= ground_normal.z * reflection;
-                    scale_v3(
-                        &object->pos_vel, &object->pos_vel, 0.45f);
-
-                    if (fabs(object->pos_vel.x) < 0.004f &&
-                        fabs(object->pos_vel.y) < 0.004f &&
-                        fabs(object->pos_vel.z) < 0.004f) {
-                        zero_v3(&object->pos_vel);
-                        object->gravity = 0.0f;
-                        zero_v3(&object->ang_vel);
-                    } else {
-                        object->ang_vel.x *= 0.6f;
-                        if (object->ang_vel.x < 0.005f) {
-                            object->ang_vel.x = 0.0f;
-                        }
-                        object->ang_vel.y *= 0.6f;
-                        if (object->ang_vel.y < 0.005f) {
-                            object->ang_vel.y = 0.0f;
-                        }
-                        object->ang_vel.z *= 0.6f;
-                        if (object->ang_vel.z < 0.005f) {
-                            object->ang_vel.z = 0.0f;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (frame > 10 && frame < 100) {
-            sound_delay--;
-            if (sound_delay < 0) {
-                unsigned int sound;
-
-                sound_delay = (int)randu0(30);
-                sound = randu0(4);
-                if (sound == 0) {
-                    snd_req(0x12C);
-                } else if (sound == 1) {
-                    snd_req(0x12D);
-                } else if (sound == 2) {
-                    snd_req(0x12E);
-                } else {
-                    snd_req(0x12F);
-                }
-            }
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        frame++;
-        aproc->vtbl->sleep();
-    } while (frame < 120);
-
-    return -1.0f;
-}
-
-/*
- * Soft ceiling: standard fabs emits six calls in this MWCC configuration;
- * keep the portable library operation rather than a compiler intrinsic.
- */
-static float p_monitor_objs_sobjs(void) {
-    Vec ground_normal = {0.0f, 1.0f, 0.0f};
-    ObjectMonitorPdata* pdata;
-    MkObj* target;
-    MkPtr* iterator;
-    int all_settled;
-
-    pdata = (ObjectMonitorPdata*)apdata;
-    all_settled = 1;
-    target = (MkObj*)pdata->target;
-    if (target != 0) {
-        if (target->hdr.instance == pdata->target_instance) {
-            /* Keep the validated target. */
-        } else {
-            target = 0;
-        }
+void yinyang_play_evil_tune(void) {
+    yinyang_evil_music_index++;
+    if ((unsigned int)yinyang_evil_music_index >= 3) {
+        yinyang_evil_music_index = 0;
+    }
+    if ((unsigned int)yinyang_evil_music_index >= 3) {
+        yinyang_evil_music_index = 0;
+    }
+    if ((unsigned int)yinyang_good_music_index >= 4) {
+        yinyang_good_music_index = 0;
+    }
+    if (yy_evil_time_active != 0) {
+        yinyang_current_music =
+            snd_req(evil_tune_tbl[yinyang_evil_music_index]);
     } else {
-        target = 0;
-    }
-
-    if (target != 0) {
-        iterator = first_mkptr(&target->sobj_list);
-        while (iterator != 0) {
-            MkSobj* object;
-
-            object = (MkSobj*)iterator->hdr;
-            if ((object->id_flags & 0xFFF) != 0) {
-                if (object->pos.y <
-                    g_game_info.field_34 + pdata->settle_height) {
-                    float reflection;
-                    float reflected_x;
-                    float reflected_y;
-                    float reflected_z;
-
-                    pdata->callback(object);
-                    object->pos.y = g_game_info.field_34 +
-                        pdata->settle_height + pdata->vertical_step;
-                    reflection = 2.0f *
-                        (object->pos_vel.x * ground_normal.x +
-                         object->pos_vel.y * ground_normal.y +
-                         object->pos_vel.z * ground_normal.z);
-                    reflected_x = ground_normal.x * reflection;
-                    reflected_y = ground_normal.y * reflection;
-                    reflected_z = ground_normal.z * reflection;
-                    object->pos_vel.x -= reflected_x;
-                    object->pos_vel.y -= reflected_y;
-                    object->pos_vel.z -= reflected_z;
-                    scale_v3(
-                        &object->pos_vel, &object->pos_vel,
-                        pdata->velocity_scale);
-
-                    if (fabs(object->pos_vel.x) < pdata->thresholds.min_pos.x.value) {
-                        object->pos_vel.x = 0.0f;
-                    }
-                    if (fabs(object->pos_vel.y) < pdata->thresholds.min_pos.y.value) {
-                        object->pos_vel.y = 0.0f;
-                    }
-                    if (fabs(object->pos_vel.z) < pdata->thresholds.min_pos.z.value) {
-                        object->pos_vel.z = 0.0f;
-                    }
-                    if (fabs(object->ang_vel.x) < pdata->thresholds.min_vel.x.value) {
-                        object->ang_vel.x = 0.0f;
-                    }
-                    if (fabs(object->ang_vel.y) < pdata->thresholds.min_vel.y.value) {
-                        object->ang_vel.y = 0.0f;
-                    }
-                    if (fabs(object->ang_vel.z) < pdata->thresholds.min_vel.z.value) {
-                        object->ang_vel.z = 0.0f;
-                    }
-                }
-
-                if (length_v3(&object->pos_vel) != 0.0f ||
-                    object->pos.y >
-                        g_game_info.field_34 + pdata->settle_height +
-                            2.0f * pdata->vertical_step) {
-                    all_settled = 0;
-                    object->pos_vel.y -= pdata->vertical_step;
-                } else if (length_v3(&object->ang_vel) != 0.0f) {
-                    zero_v3(&object->ang_vel);
-                    all_settled = 0;
-                }
-            }
-            iterator = next_mkptr(iterator);
-        }
-        if (all_settled != 0) {
-            return -1.0f;
-        }
-    }
-    return 1.0f;
-}
-void reset_collision_system(void) {
-    init_collision_system();
-}
-
-/* Soft ceiling: 93.50% -- register allocation and one latch branch direction. */
-void init_plyr_severed_limb_list(PlyrInfo* player) {
-    FighterMirror* fighter = player->slot.fighter;
-    int limb;
-
-    for (limb = 0; limb < 15; limb++) {
-        FighterObjectRef* severed = &fighter->severed_limbs[limb];
-        MkObj* object = severed->object;
-
-        if (object != 0) {
-            if (object->hdr.instance == severed->instance) {
-                /* Keep the live object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        if (object == 0) {
-            object = obj_sever_limb(
-                player->slot.mirror_a, limb,
-                fighter->runtime_data->half_sever_velocities, 1);
-            if (object != 0) {
-                player->slot.fighter->severed_limbs[limb].object = object;
-                player->slot.fighter->severed_limbs[limb].instance =
-                    object->hdr.instance;
-            }
-        }
+        yinyang_current_music =
+            snd_req(good_tune_tbl[yinyang_good_music_index]);
     }
 }
 
-typedef struct FishObjectLatch {
-    char pad00[0x10];
-    MkObj* object;
-    unsigned int instance;
-    char pad18[0x18];
-    unsigned int flags; /* +0x30 */
-    char pad34[4];
-    float field_38;
-} FishObjectLatch;
-
-typedef struct YinyangFishPair {
-    MkObj* good_fish;
-    MkObj* bad_fish;
-    FishObjectLatch* active_fish;
-} YinyangFishPair;
-
-void yinyang_set_bad_fish_hide_flag(
-    YinyangFishPair* fish, unsigned char hide, int count) {
-    int index;
-
-    for (index = 0; index < count; index++) {
-        MkObj* object = fish[index].bad_fish;
-
-        if (object != 0) {
-            object->hide_flag_bits.hidden = hide;
-        }
-        if (hide == 0) {
-            fish[index].active_fish->object = fish[index].bad_fish;
-            fish[index].active_fish->instance =
-                fish[index].bad_fish->hdr.instance;
-        }
+void yinyang_play_good_tune(void) {
+    yinyang_good_music_index++;
+    if ((unsigned int)yinyang_good_music_index >= 4) {
+        yinyang_good_music_index = 1;
     }
-}
-
-void yinyang_set_good_fish_hide_flag(
-    YinyangFishPair* fish, unsigned char hide, int count) {
-    int index;
-
-    for (index = 0; index < count; index++) {
-        MkObj* object = fish[index].good_fish;
-
-        if (object != 0) {
-            object->hide_flag_bits.hidden = hide;
-        }
-        if (hide == 0) {
-            fish[index].active_fish->object = fish[index].good_fish;
-            fish[index].active_fish->instance =
-                fish[index].good_fish->hdr.instance;
-        }
+    if ((unsigned int)yinyang_evil_music_index >= 3) {
+        yinyang_evil_music_index = 0;
     }
-}
-
-void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
-    Vec cylinder_position = {0.0f, 0.0f, 0.0f};
-    Vec cylinder_axis = {0.0f, 1.6f, 0.0f};
-    Vec random_angles = {0.0f, 0.0f, 0.0f};
-    Vec camera_direction;
-    Vec camera_position;
-    Vec jump_position;
-    Vec jump_direction;
-    float intersection_a;
-    float intersection_b;
-    float intersection;
-    int index;
-
-    camera_direction.x = Camera->frame->modelling.pos.x;
-    camera_direction.y = 0.0f;
-    camera_direction.z = Camera->frame->modelling.pos.z;
-    ray_cyl_intersection(
-        (Vec*)&camera_obj->pos_x, &camera_direction,
-        &cylinder_position, &cylinder_axis,
-        29.0f + sfrand(2.0f), &intersection_a, &intersection_b);
-    intersection = intersection_a;
-    if (intersection <= 0.0f) {
-        intersection = intersection_b;
+    if ((unsigned int)yinyang_good_music_index >= 4) {
+        yinyang_good_music_index = 0;
     }
-
-    camera_position.x = camera_obj->pos_x;
-    camera_position.y = 0.0f;
-    camera_position.z = camera_obj->pos_z;
-    scale_xz(&jump_position, &camera_direction, intersection);
-    v3_add_v3(&jump_position, &jump_position, &camera_position);
-    uv_v3_to_v3(
-        &jump_direction, &jump_position, &cylinder_position);
-
-    index = 0;
-    while (index < count) {
-        YinyangFishPair* current;
-        MkObj* good_fish;
-        MkObj* bad_fish;
-        unsigned char bad_hidden;
-        float angle;
-        int wrapped_angle;
-
-        /* Retail only advances the pair while the camera latch is live. */
-        if (camera_obj == 0) {
-            continue;
-        }
-
-        random_angles.x += sfrand(0.06f);
-        random_angles.y += sfrand(0.02f);
-        random_angles.z += sfrand(0.06f);
-        current = &fish[index];
-        good_fish = current->good_fish;
-        bad_fish = current->bad_fish;
-
-        good_fish->pos.x = jump_position.x;
-        good_fish->pos.y = -1.25f;
-        good_fish->pos.z = jump_position.z;
-        index++;
-        angle = 0.63f + (1.57f + xz_to_y_ang(&jump_direction));
-        wrapped_angle = (int)(166886.1f * angle) & 0xFFFFF;
-        good_fish->ang.y = 0.000005992112f * (float)wrapped_angle;
-        good_fish->flags_08_bits.angular_velocity_enabled = 1;
-        good_fish->flags_08_bits.airborne = 1;
-
-        current->active_fish->field_38 = 0.0f;
-        current->active_fish->flags |= 3;
-        bad_fish->pos = good_fish->pos;
-        bad_fish->ang = good_fish->ang;
-        bad_hidden = bad_fish->hide_flags & 0x20;
-        bad_fish->flags_word_08 = good_fish->flags_word_08;
-        bad_fish->hide_flags =
-            (unsigned char)((bad_fish->hide_flags & ~0x20) | bad_hidden);
-        current->active_fish->field_38 = 0.0f;
-    }
-}
-
-void obj_setup_for_animation(
-    MkObj* object, const int* tags, int flipped_bones, void* ground_colls) {
-    if (tags != 0) {
-        build_bones_tbl(object, tags);
-    }
-    object->flipped_bones = flipped_bones;
-    object->ground_colls = ground_colls;
-}
-
-void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
-    MkObj* object;
-
-    if (player->controller_slot == 0) {
-        object = debug_p1_axis_item.object;
-        if (object == 0 ||
-            object->hdr.instance != debug_p1_axis_item.instance) {
-            object = 0;
-        }
+    if (yy_evil_time_active != 0) {
+        yinyang_current_music =
+            snd_req(evil_tune_tbl[yinyang_evil_music_index]);
     } else {
-        object = debug_p2_axis_item.object;
-        if (object == 0 ||
-            object->hdr.instance != debug_p2_axis_item.instance) {
-            object = 0;
-        }
-    }
-
-    if (object == 0) {
-        object = load_model_from_slot(0, 0x1000C, 0x5001);
-        if (object != 0) {
-            if (player->controller_slot == 0) {
-                debug_p1_axis_item.object = object;
-                debug_p1_axis_item.instance = object->hdr.instance;
-            } else {
-                debug_p2_axis_item.object = object;
-                debug_p2_axis_item.instance = object->hdr.instance;
-            }
-            insert_fgnd_mkobj(object);
-        }
-    }
-
-    if (object != 0) {
-        object->pos.x = position->x;
-        object->pos.z = position->z;
-        object->pos.y = position->y;
-        object->flags_08 |= 0x80;
+        yinyang_current_music =
+            snd_req(good_tune_tbl[yinyang_good_music_index]);
     }
 }
 
-float p_fish_attack_scream_sounds(void) {
-    PlyrInfo* player = &g_game_info.plyr1;
-    FishScreamPdata* pdata = (FishScreamPdata*)apdata;
-
-    if (pdata->player_index == 0) {
-        player = &g_game_info.plyr0;
+/* Soft ceiling: yinyang_finish_music ~99.53% -- SDA relocation only. */
+void yinyang_finish_music(void) {
+    if (yinyang_current_music != 0) {
+        snd_stop(yinyang_current_music);
+        yinyang_current_music = 0;
     }
 
-    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x23);
-    _mkproc_sleep_ticks = 25.0f;
-    aproc->vtbl->sleep();
-    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x22);
-    _mkproc_sleep_ticks = 45.0f;
-    aproc->vtbl->sleep();
-    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x47);
-    return -1.0f;
+    if (yy_evil_time_active == 0) {
+        snd_req(0x1BF1);
+    } else {
+        snd_req(0x1BF7);
+    }
+    if (yy_evil_time_active == 0) {
+        yinyang_current_music = snd_req(0x1BF0);
+    } else {
+        yinyang_current_music = snd_req(0x1BF6);
+    }
 }
 
-float p_skytemple_bodysplat(void) {
-    MkObj* object = 0;
-    SkyTempleBodysplatPdata* pdata = (SkyTempleBodysplatPdata*)apdata;
-    unsigned int object_instance = 0;
-    float scale;
-
-    object =
-        load_named_model_from_slot(0x2001E, "ST_BLOODSPLAT", 0x2094, 0);
-    if (object != 0) {
-        insert_fgnd_mkobj(object);
-        object->pos = pdata->position;
-        object->flags_08 |= 2;
-        object->scale.x = 1.0f;
-        object->scale.y = 1.0f;
-        object->scale.z = 1.0f;
-        object_instance = object->hdr.instance;
+/* Soft ceiling: yinyang_stop_music ~99.67% -- SDA relocation only. */
+void yinyang_stop_music(void) {
+    if (yinyang_current_music != 0) {
+        snd_stop(yinyang_current_music);
+        yinyang_current_music = 0;
     }
 
-    scale = 1.0f;
-    while (scale < 2.5f) {
-        MkObj* live_object = object;
-
-        if (live_object == 0 ||
-            live_object->hdr.instance != object_instance) {
-            live_object = 0;
-        }
-        if (live_object != 0) {
-            live_object->scale.x = scale;
-            live_object->scale.z = scale;
-            scale += 0.2f;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
+    if (yy_evil_time_active == 0) {
+        snd_req(0x1BF1);
+    } else {
+        snd_req(0x1BF7);
     }
-    return -1.0f;
+}
+
+/* Soft ceiling: yinyang_start_music ~98.68% -- SDA relocation only. */
+void yinyang_start_music(void) {
+    if ((unsigned int)yinyang_evil_music_index >= 3) {
+        yinyang_evil_music_index = 0;
+    }
+    if ((unsigned int)yinyang_good_music_index >= 4) {
+        yinyang_good_music_index = 0;
+    }
+
+    if (yy_evil_time_active == 0) {
+        yinyang_current_music =
+            snd_req(good_tune_tbl[yinyang_good_music_index]);
+    } else {
+        yinyang_current_music =
+            snd_req(evil_tune_tbl[yinyang_evil_music_index]);
+    }
+}
+
+void yinyang_reset_music_index(void) {
+    yinyang_good_music_index = 0;
+    yinyang_evil_music_index = 0;
+}
+
+void set_evil_swap_status(int status) {
+    yinyang_ok_to_switch = status;
+}
+
+int ok_to_do_evil_swap(void) {
+    return yinyang_ok_to_switch;
+}
+
+int yy_is_evil_time_active(void) {
+    return yy_evil_time_active;
+}
+
+void set_evil_condition(int active) {
+    yy_evil_time_active = active;
 }
 
 MkObj* cut_player_in_half(MkObj* player_object) {
@@ -941,71 +492,113 @@ int get_offset_of_closest_fence_section(
     return closest;
 }
 
-void do_yinyang_statue_explosion(MkHdr* statue) {
-    ObjectMonitorSpawnLocals locals;
+/*
+ * Soft ceiling: 91.37%, exact retail size and operations. Remaining
+ * differences are latch-candidate/final-object GPR coloring and equivalent
+ * validation branch direction; retain the typed bitfield and clean C.
+ */
+void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
+    MkObj* object;
 
-    if (statue == 0) {
-        return;
+    if (player->controller_slot == 0) {
+        MkObj* latched_object = debug_p1_axis_item.object;
+
+        if (latched_object != 0) {
+            if (latched_object->hdr.instance == debug_p1_axis_item.instance) {
+                /* Keep the validated object. */
+            } else {
+                latched_object = 0;
+            }
+        } else {
+            latched_object = 0;
+        }
+        object = latched_object;
+    } else {
+        MkObj* latched_object = debug_p2_axis_item.object;
+
+        if (latched_object != 0) {
+            if (latched_object->hdr.instance == debug_p2_axis_item.instance) {
+                /* Keep the validated object. */
+            } else {
+                latched_object = 0;
+            }
+        } else {
+            latched_object = 0;
+        }
+        object = latched_object;
     }
 
-    locals.config.target = statue;
-    locals.config.velocity_scale = 0.45f;
-    locals.config.thresholds.min_pos.x.value = 0.01f;
-    locals.config.thresholds.min_pos.y.value = 0.03f;
-    locals.config.thresholds.min_pos.z.value = 0.01f;
-    locals.config.thresholds.min_vel.x.value = 0.01f;
-    locals.config.thresholds.min_vel.y.value = 0.01f;
-    locals.config.thresholds.min_vel.z.value = 0.01f;
-    locals.config.vertical_step = 0.003f;
-    locals.config.settle_height = 0.15f;
-    locals.config.callback = p_statue_xpd_callback;
+    if (object == 0) {
+        object = load_model_from_slot(0, 0x1000C, 0x5001);
+        if (object != 0) {
+            if (player->controller_slot == 0) {
+                debug_p1_axis_item.object = object;
+                debug_p1_axis_item.instance = object->hdr.instance;
+            } else {
+                debug_p2_axis_item.object = object;
+                debug_p2_axis_item.instance = object->hdr.instance;
+            }
+            insert_fgnd_mkobj(object);
+        }
+    }
 
-    if (((CreateObjectMonitorProcFn)_create_mkproc_generic_nostack)(
-            0x2095, 0x1F, p_monitor_objs_sobjs,
-            sizeof(ObjectMonitorPdata), &locals.pdata,
-            locals.config.vertical_step,
-            locals.config.thresholds.min_pos.y.value,
-            locals.config.thresholds.min_pos.x.value,
-            locals.config.velocity_scale) != 0) {
-        locals.pdata->velocity_scale = locals.config.velocity_scale;
-        locals.pdata->target = locals.config.target;
-        locals.pdata->target_instance = locals.config.target->instance;
-        locals.pdata->thresholds.min_pos = locals.config.thresholds.min_pos;
-        locals.pdata->thresholds.min_vel = locals.config.thresholds.min_vel;
-        locals.pdata->vertical_step = locals.config.vertical_step;
-        locals.pdata->settle_height = locals.config.settle_height;
-        locals.pdata->callback = locals.config.callback;
+    if (object != 0) {
+        object->pos.x = position->x;
+        object->pos.z = position->z;
+        object->pos.y = position->y;
+        object->flags_08_bits.bit7 = 1;
     }
 }
 
-void fortress_setup_exclusion_zone(
-    const Vec* center, float width, float height, float depth, float angle) {
-    build_col_shape_vertical_box(
-        &fortress_exclusion_zone, center, width, height, depth, angle);
-}
+static float p_fish_attack_bloodsplat(void) {
+    Vec effect_origin = {0.0f, 1.6f, 0.0f};
+    MabGenericPositionPdata* pdata;
+    MkObj* object;
+    unsigned int object_instance;
+    Vec direction;
+    float scale;
 
-void p_statue_xpd_callback(MkSobj* object) {
-    Vec* position;
-    unsigned int statue_index;
-
-    position = sobj_get_world_pos(object);
-    hide_sobj(object);
-    zero_v3(&object->pos_vel);
-    object->flags_08 &= (unsigned char)~0x40;
-    object->flags_08 &= (unsigned char)~0x20;
-    zero_v3(&object->ang_vel);
-    object->flags_08 &= (unsigned char)~0x08;
-    object->flags_08 &= (unsigned char)~0x04;
-
-    statue_index = object->id_flags;
-    if (statue_index < 7 && statue_index != 0) {
-        bgnd_launch_fx_at_position(
-            rock_xpd_effects[statue_index - 1],
-            position->x, position->y, position->z);
-        bgnd_launch_fx_at_position(
-            rock_dust_effects[statue_index - 1],
-            position->x, position->y, position->z);
+    pdata = (MabGenericPositionPdata*)apdata;
+    object = 0;
+    object_instance = 0;
+    object = load_named_model_from_slot(
+        0x2001E, "BODYSPLAT", 0x2094, 0);
+    if (object != 0) {
+        insert_fgnd_mkobj(object);
+        object->pos.x = pdata->position.x;
+        object->pos.y = pdata->position.y;
+        object->pos.z = pdata->position.z;
+        object->flags_08_bits.scale_active = 1;
+        object->scale.x = 0.5f;
+        object->scale.z = 0.5f;
+        uv_v3_to_v3(&direction, &effect_origin, &object->pos);
+        v3_to_xy_ang(&object->ang, &direction);
+        object_instance = object->hdr.instance;
     }
+
+    scale = 0.5f;
+    while (scale < 0.75f) {
+        MkObj* live_object;
+
+        live_object = object;
+        if (live_object != 0) {
+            if (live_object->hdr.instance == object_instance) {
+                /* Keep the validated object. */
+            } else {
+                live_object = 0;
+            }
+        } else {
+            live_object = 0;
+        }
+        if (live_object != 0) {
+            live_object->scale.x = scale;
+            live_object->scale.z = scale;
+            scale += 0.05f;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    return -1.0f;
 }
 
 float p_fish_attack(void) {
@@ -1025,11 +618,11 @@ float p_fish_attack(void) {
     if (pdata->active == 1) {
         if (pdata->use_good_fish != 0) {
             fish = load_named_model_from_slot(
-                0x2001E, "YY_GOOD_FISH", 0x2097, 0);
+                0x2001E, "YY_BAD_FISH", 0x2097, 0);
             pdata->models[pdata->fish_index].good_fish = fish;
         } else {
             fish = load_named_model_from_slot(
-                0x2001E, "YY_BAD_FISH", 0x2096, 0);
+                0x2001E, "YY_GOOD_FISH", 0x2096, 0);
             pdata->models[pdata->fish_index].bad_fish = fish;
         }
         if (fish == 0) {
@@ -1241,6 +834,24 @@ float p_fish_attack(void) {
     return -1.0f;
 }
 
+float p_fish_attack_scream_sounds(void) {
+    PlyrInfo* player = &g_game_info.plyr1;
+    FishScreamPdata* pdata = (FishScreamPdata*)apdata;
+
+    if (pdata->player_index == 0) {
+        player = &g_game_info.plyr0;
+    }
+
+    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x23);
+    _mkproc_sleep_ticks = 25.0f;
+    aproc->vtbl->sleep();
+    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x22);
+    _mkproc_sleep_ticks = 45.0f;
+    aproc->vtbl->sleep();
+    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x47);
+    return -1.0f;
+}
+
 float p_fish_attack_sounds(void) {
     FishScreamPdata* scream_pdata;
     int elapsed_ticks;
@@ -1309,6 +920,546 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
         scream_pdata->player_index =
             target == g_game_info.plyr0.slot.mirror_a ? 0 : 1;
     }
+}
+
+static float p_player_body_explode(void) {
+    PlayerBodyExplodePdata* pdata;
+    PlyrInfo* player;
+    FighterMirror* fighter;
+    MkObj* player_object;
+    MkProc* anim_proc;
+    int limb;
+
+    pdata = (PlayerBodyExplodePdata*)apdata;
+    player = pdata->player;
+    fighter = player->slot.fighter;
+    player_object = player->slot.mirror_a;
+
+    player_object->flags_09_bits.head_tracking = 0;
+    bgnd_hide_mirror_guys();
+
+    for (limb = 0; limb < 15; limb++) {
+        FighterObjectRef* severed;
+        MkObj* object;
+
+        severed = &fighter->severed_limbs[limb];
+        object = severed->object;
+        if (object != 0 && object->hdr.instance != severed->instance) {
+            object = 0;
+        }
+        if (object == 0) {
+            object = obj_sever_limb(
+                player_object, limb,
+                fighter->runtime_data->half_sever_velocities, 1);
+            if (object != 0) {
+                severed->object = object;
+                severed->instance = object->hdr.instance;
+            }
+        }
+    }
+
+    limb_sever_show_z_meat_chunks_all(player_object);
+    anim_proc = fighter->anim_proc;
+    if (anim_proc != 0 &&
+        anim_proc->instance != fighter->anim_proc_instance) {
+        anim_proc = 0;
+    }
+    xfer_proc(anim_proc, p_anim_idle);
+
+    for (limb = 0; limb < 15; limb++) {
+        FighterObjectRef* severed;
+        MkObj* object;
+
+        severed = &fighter->severed_limbs[limb];
+        object = severed->object;
+        if (object != 0 && object->hdr.instance != severed->instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            object->flags_08_bits.gravity_enabled = 1;
+            object->flags_08_bits.angular_velocity_enabled = 1;
+            object->flags_08_bits.rotation_enabled = 1;
+            object->flags_08_bits.moving = 1;
+            object->gravity = -0.003f;
+            object->pos_vel.x =
+                pdata->direction.x * pdata->scale + sfrand(0.05f);
+            object->pos_vel.y = 0.0f;
+            object->pos_vel.x =
+                pdata->direction.z * pdata->scale + sfrand(0.05f);
+            object->ang_vel.x = sfrand(0.15f);
+            object->ang_vel.y = sfrand(0.15f);
+            object->ang_vel.z = sfrand(0.15f);
+        }
+    }
+    return -1.0f;
+}
+
+void player_body_explode(
+    PlyrInfo* player, const Vec* direction, float scale) {
+    PlayerBodyExplodePdata* pdata;
+
+    if (_create_mkproc_generic_nostack(
+            0x2097, 0x1F, (MkProcEntryFn)p_player_body_explode,
+            sizeof(PlayerBodyExplodePdata), (MkHdr**)&pdata) != 0) {
+        pdata->player = player;
+        pdata->direction.x = direction->x;
+        pdata->direction.y = direction->y;
+        pdata->direction.z = direction->z;
+        pdata->scale = scale;
+    }
+}
+
+void reset_collision_system(void) {
+    init_collision_system();
+}
+
+/* Soft ceiling: 93.50% -- register allocation and one latch branch direction. */
+void init_plyr_severed_limb_list(PlyrInfo* player) {
+    FighterMirror* fighter = player->slot.fighter;
+    int limb;
+
+    for (limb = 0; limb < 15; limb++) {
+        FighterObjectRef* severed = &fighter->severed_limbs[limb];
+        MkObj* object = severed->object;
+
+        if (object != 0) {
+            if (object->hdr.instance == severed->instance) {
+                /* Keep the live object. */
+            } else {
+                object = 0;
+            }
+        } else {
+            object = 0;
+        }
+        if (object == 0) {
+            object = obj_sever_limb(
+                player->slot.mirror_a, limb,
+                fighter->runtime_data->half_sever_velocities, 1);
+            if (object != 0) {
+                player->slot.fighter->severed_limbs[limb].object = object;
+                player->slot.fighter->severed_limbs[limb].instance =
+                    object->hdr.instance;
+            }
+        }
+    }
+}
+
+void yinyang_set_bad_fish_hide_flag(
+    YinyangFishPair* fish, unsigned char hide, int count) {
+    int index;
+
+    for (index = 0; index < count; index++) {
+        MkObj* object = fish[index].bad_fish;
+
+        if (object != 0) {
+            object->hide_flag_bits.hidden = hide;
+        }
+        if (hide == 0) {
+            fish[index].active_fish->object = fish[index].bad_fish;
+            fish[index].active_fish->instance =
+                fish[index].bad_fish->hdr.instance;
+        }
+    }
+}
+
+void yinyang_set_good_fish_hide_flag(
+    YinyangFishPair* fish, unsigned char hide, int count) {
+    int index;
+
+    for (index = 0; index < count; index++) {
+        MkObj* object = fish[index].good_fish;
+
+        if (object != 0) {
+            object->hide_flag_bits.hidden = hide;
+        }
+        if (hide == 0) {
+            fish[index].active_fish->object = fish[index].good_fish;
+            fish[index].active_fish->instance =
+                fish[index].good_fish->hdr.instance;
+        }
+    }
+}
+
+void obj_setup_for_animation(
+    MkObj* object, const int* tags, int flipped_bones, void* ground_colls) {
+    if (tags != 0) {
+        build_bones_tbl(object, tags);
+    }
+    object->flipped_bones = flipped_bones;
+    object->ground_colls = ground_colls;
+}
+
+/*
+ * Soft ceiling: retail retains an otherwise dead `2.0f` stack temporary after
+ * copying the fish transforms. The effective algorithm and all observable
+ * accesses match; portable C intentionally does not recreate the dead store.
+ */
+void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
+    Vec cylinder_position = {0.0f, 0.0f, 0.0f};
+    Vec cylinder_axis = {0.0f, 0.0f, 1.0f};
+    Vec camera_direction;
+    Vec jump_direction;
+    Vec camera_position;
+    Vec jump_position;
+    Vec random_angles = {0.0f, 0.0f, 0.0f};
+    float intersection_a;
+    float intersection_b;
+    float intersection;
+    YinyangFishPair* current;
+    int index;
+
+    camera_direction.x = Camera->frame->modelling.at.x;
+    camera_direction.y = 0.0f;
+    camera_direction.z = Camera->frame->modelling.at.z;
+    ray_cyl_intersection(
+        (Vec*)&camera_obj->pos_x, &camera_direction,
+        &cylinder_position, &cylinder_axis,
+        29.0f + sfrand(2.0f), &intersection_a, &intersection_b);
+    intersection = intersection_a;
+    if (intersection <= 0.0f) {
+        intersection = intersection_b;
+    }
+
+    camera_position.x = camera_obj->pos_x;
+    camera_position.y = 0.0f;
+    camera_position.z = camera_obj->pos_z;
+    scale_xz(&jump_position, &camera_direction, intersection);
+    v3_add_v3(&jump_position, &jump_position, &camera_position);
+    uv_v3_to_v3(
+        &jump_direction, &jump_position, &cylinder_position);
+
+    index = 0;
+    while (index < count) {
+        unsigned char bad_hidden;
+        float angle;
+        int wrapped_angle;
+
+        /* Retail only advances the pair while the camera latch is live. */
+        if (camera_obj == 0) {
+            continue;
+        }
+
+        random_angles.x += sfrand(0.06f);
+        random_angles.y += sfrand(0.02f);
+        random_angles.z += sfrand(0.06f);
+        current = &fish[index];
+
+        current->good_fish->pos.x = jump_position.x;
+        current->good_fish->pos.y = -1.25f;
+        current->good_fish->pos.z = jump_position.z;
+        angle = 0.63f + (1.57f + xz_to_y_ang(&jump_direction));
+        index++;
+        wrapped_angle = (int)(166886.1f * angle) & 0xFFFFF;
+        current->good_fish->ang.y =
+            0.000005992112f * (float)wrapped_angle;
+        current->good_fish->flags_08_bits.angular_velocity_enabled = 1;
+        current->good_fish->flags_08_bits.airborne = 1;
+
+        current->active_fish->field_38 = 0.0f;
+        current->active_fish->flags |= 3;
+        current->bad_fish->pos = current->good_fish->pos;
+        current->bad_fish->ang = current->good_fish->ang;
+        bad_hidden = current->bad_fish->hide_flags & 0x20;
+        current->bad_fish->flags_word_08 =
+            current->good_fish->flags_word_08;
+        current->bad_fish->hide_flags = (unsigned char)(
+            (current->bad_fish->hide_flags & ~0x20) | bad_hidden);
+        current->active_fish->field_38 = 0.0f;
+    }
+}
+
+/*
+ * Soft ceiling: standard fabs emits six calls in this MWCC configuration;
+ * keep the portable library operation rather than a compiler intrinsic.
+ */
+static float p_monitor_objs_sobjs(void) {
+    Vec ground_normal = {0.0f, 1.0f, 0.0f};
+    ObjectMonitorPdata* pdata;
+    MkObj* target;
+    MkPtr* iterator;
+    int all_settled;
+
+    pdata = (ObjectMonitorPdata*)apdata;
+    all_settled = 1;
+    target = (MkObj*)pdata->target;
+    if (target != 0) {
+        if (target->hdr.instance == pdata->target_instance) {
+            /* Keep the validated target. */
+        } else {
+            target = 0;
+        }
+    } else {
+        target = 0;
+    }
+
+    if (target != 0) {
+        iterator = first_mkptr(&target->sobj_list);
+        while (iterator != 0) {
+            MkSobj* object;
+
+            object = (MkSobj*)iterator->hdr;
+            if ((object->id_flags & 0xFFF) != 0) {
+                if (object->pos.y <
+                    g_game_info.field_34 + pdata->settle_height) {
+                    float reflection;
+                    float reflected_x;
+                    float reflected_y;
+                    float reflected_z;
+
+                    pdata->callback(object);
+                    object->pos.y = g_game_info.field_34 +
+                        pdata->settle_height + pdata->vertical_step;
+                    reflection = 2.0f *
+                        (object->pos_vel.x * ground_normal.x +
+                         object->pos_vel.y * ground_normal.y +
+                         object->pos_vel.z * ground_normal.z);
+                    reflected_x = ground_normal.x * reflection;
+                    reflected_y = ground_normal.y * reflection;
+                    reflected_z = ground_normal.z * reflection;
+                    object->pos_vel.x -= reflected_x;
+                    object->pos_vel.y -= reflected_y;
+                    object->pos_vel.z -= reflected_z;
+                    scale_v3(
+                        &object->pos_vel, &object->pos_vel,
+                        pdata->velocity_scale);
+
+                    if (fabs(object->pos_vel.x) < pdata->thresholds.min_pos.x.value) {
+                        object->pos_vel.x = 0.0f;
+                    }
+                    if (fabs(object->pos_vel.y) < pdata->thresholds.min_pos.y.value) {
+                        object->pos_vel.y = 0.0f;
+                    }
+                    if (fabs(object->pos_vel.z) < pdata->thresholds.min_pos.z.value) {
+                        object->pos_vel.z = 0.0f;
+                    }
+                    if (fabs(object->ang_vel.x) < pdata->thresholds.min_vel.x.value) {
+                        object->ang_vel.x = 0.0f;
+                    }
+                    if (fabs(object->ang_vel.y) < pdata->thresholds.min_vel.y.value) {
+                        object->ang_vel.y = 0.0f;
+                    }
+                    if (fabs(object->ang_vel.z) < pdata->thresholds.min_vel.z.value) {
+                        object->ang_vel.z = 0.0f;
+                    }
+                }
+
+                if (length_v3(&object->pos_vel) != 0.0f ||
+                    object->pos.y >
+                        g_game_info.field_34 + pdata->settle_height +
+                            2.0f * pdata->vertical_step) {
+                    all_settled = 0;
+                    object->pos_vel.y -= pdata->vertical_step;
+                } else if (length_v3(&object->ang_vel) != 0.0f) {
+                    zero_v3(&object->ang_vel);
+                    all_settled = 0;
+                }
+            }
+            iterator = next_mkptr(iterator);
+        }
+        if (all_settled != 0) {
+            return -1.0f;
+        }
+    }
+    return 1.0f;
+}
+
+void do_yinyang_statue_explosion(MkHdr* statue) {
+    ObjectMonitorSpawnLocals locals;
+
+    if (statue == 0) {
+        return;
+    }
+
+    locals.config.target = statue;
+    locals.config.velocity_scale = 0.45f;
+    locals.config.thresholds.min_pos.x.value = 0.01f;
+    locals.config.thresholds.min_pos.y.value = 0.03f;
+    locals.config.thresholds.min_pos.z.value = 0.01f;
+    locals.config.thresholds.min_vel.x.value = 0.01f;
+    locals.config.thresholds.min_vel.y.value = 0.01f;
+    locals.config.thresholds.min_vel.z.value = 0.01f;
+    locals.config.vertical_step = 0.003f;
+    locals.config.settle_height = 0.15f;
+    locals.config.callback = p_statue_xpd_callback;
+
+    if (((CreateObjectMonitorProcFn)_create_mkproc_generic_nostack)(
+            0x2095, 0x1F, p_monitor_objs_sobjs,
+            sizeof(ObjectMonitorPdata), &locals.pdata,
+            locals.config.vertical_step,
+            locals.config.thresholds.min_pos.y.value,
+            locals.config.thresholds.min_pos.x.value,
+            locals.config.velocity_scale) != 0) {
+        locals.pdata->velocity_scale = locals.config.velocity_scale;
+        locals.pdata->target = locals.config.target;
+        locals.pdata->target_instance = locals.config.target->instance;
+        locals.pdata->thresholds.min_pos = locals.config.thresholds.min_pos;
+        locals.pdata->thresholds.min_vel = locals.config.thresholds.min_vel;
+        locals.pdata->vertical_step = locals.config.vertical_step;
+        locals.pdata->settle_height = locals.config.settle_height;
+        locals.pdata->callback = locals.config.callback;
+    }
+}
+
+void p_statue_xpd_callback(MkSobj* object) {
+    Vec* position;
+    unsigned int statue_index;
+
+    position = sobj_get_world_pos(object);
+    hide_sobj(object);
+    zero_v3(&object->pos_vel);
+    object->flags_08 &= (unsigned char)~0x40;
+    object->flags_08 &= (unsigned char)~0x20;
+    zero_v3(&object->ang_vel);
+    object->flags_08 &= (unsigned char)~0x08;
+    object->flags_08 &= (unsigned char)~0x04;
+
+    statue_index = object->id_flags;
+    if (statue_index < 7 && statue_index != 0) {
+        bgnd_launch_fx_at_position(
+            rock_xpd_effects[statue_index - 1],
+            position->x, position->y, position->z);
+        bgnd_launch_fx_at_position(
+            rock_dust_effects[statue_index - 1],
+            position->x, position->y, position->z);
+    }
+}
+
+static float p_xpd_obj_monitor(void) {
+    Vec ground_normal = {0.0f, 1.0f, 0.0f};
+    PlayerBodyExplodePdata* pdata;
+    FighterMirror* fighter;
+    int frame;
+    int sound_delay;
+
+    pdata = (PlayerBodyExplodePdata*)apdata;
+    fighter = pdata->player->slot.fighter;
+    frame = 0;
+    sound_delay = 0;
+
+    do {
+        int limb;
+
+        for (limb = 0; limb < 15; limb++) {
+            FighterObjectRef* severed;
+            MkObj* object;
+
+            severed = &fighter->severed_limbs[limb];
+            object = severed->object;
+            if (object != 0 && object->hdr.instance != severed->instance) {
+                object = 0;
+            }
+            if (object != 0) {
+                float ground_y;
+
+                ground_y = g_game_info.field_34 + 0.35f;
+                if (object->pos.y < ground_y) {
+                    float reflection;
+
+                    object->pos.y = ground_y;
+                    reflection = 2.0f *
+                        (object->pos_vel.x * ground_normal.x +
+                         object->pos_vel.y * ground_normal.y +
+                         object->pos_vel.z * ground_normal.z);
+                    object->pos_vel.x -= ground_normal.x * reflection;
+                    object->pos_vel.y -= ground_normal.y * reflection;
+                    object->pos_vel.z -= ground_normal.z * reflection;
+                    scale_v3(
+                        &object->pos_vel, &object->pos_vel, 0.45f);
+
+                    if (fabs(object->pos_vel.x) < 0.004f &&
+                        fabs(object->pos_vel.y) < 0.004f &&
+                        fabs(object->pos_vel.z) < 0.004f) {
+                        zero_v3(&object->pos_vel);
+                        object->gravity = 0.0f;
+                        zero_v3(&object->ang_vel);
+                    } else {
+                        object->ang_vel.x *= 0.6f;
+                        if (object->ang_vel.x < 0.005f) {
+                            object->ang_vel.x = 0.0f;
+                        }
+                        object->ang_vel.y *= 0.6f;
+                        if (object->ang_vel.y < 0.005f) {
+                            object->ang_vel.y = 0.0f;
+                        }
+                        object->ang_vel.z *= 0.6f;
+                        if (object->ang_vel.z < 0.005f) {
+                            object->ang_vel.z = 0.0f;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (frame > 10 && frame < 100) {
+            sound_delay--;
+            if (sound_delay < 0) {
+                unsigned int sound;
+
+                sound_delay = (int)randu0(30);
+                sound = randu0(4);
+                if (sound == 0) {
+                    snd_req(0x12C);
+                } else if (sound == 1) {
+                    snd_req(0x12D);
+                } else if (sound == 2) {
+                    snd_req(0x12E);
+                } else {
+                    snd_req(0x12F);
+                }
+            }
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        frame++;
+        aproc->vtbl->sleep();
+    } while (frame < 120);
+
+    return -1.0f;
+}
+
+/*
+ * Soft ceiling: retail emits a three-instruction explicit null-normalization
+ * tail for the object-instance latch. Clean typed C folds that equivalent
+ * join; the remaining differences are allocation, scheduling, and pool
+ * relocations, so no redundant branch is added to force the retail shape.
+ */
+float p_skytemple_bodysplat(void) {
+    MkObj* object = 0;
+    SkyTempleBodysplatPdata* pdata = (SkyTempleBodysplatPdata*)apdata;
+    unsigned int object_instance = 0;
+    MkObj* loaded_object;
+    float scale;
+
+    loaded_object =
+        load_named_model_from_slot(0x2001E, "ST_BLOODSPLAT", 0x2094, 0);
+    if (loaded_object != 0) {
+        insert_fgnd_mkobj(loaded_object);
+        object = loaded_object;
+        object->pos.x = pdata->position.x;
+        object->pos.y = pdata->position.y;
+        object->pos.z = pdata->position.z;
+        object->flags_08_bits.scale_active = 1;
+        object->scale.x = 1.0f;
+        object->scale.y = 1.0f;
+        object->scale.z = 1.0f;
+        object_instance = object->hdr.instance;
+    }
+
+    scale = 1.0f;
+    while (scale < 2.5f) {
+        MkObj* live_object = 0;
+
+        if (object != 0 && object->hdr.instance == object_instance) {
+            live_object = object;
+        }
+        if (live_object != 0) {
+            live_object->scale.x = scale;
+            live_object->scale.z = scale;
+            scale += 0.2f;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    return -1.0f;
 }
 
 static float p_cam_bounce_monitor(void) {
@@ -1603,125 +1754,6 @@ void skytemple_player_explode(
     _mkproc_sleep_ticks = 120.0f;
     aproc->vtbl->sleep();
     player->slot.fighter->facial_damage = saved_facial_damage;
-}
-
-int is_point_in_fortress_exclusion_zone(const Vec* point) {
-    return is_point_inside_shape(&fortress_exclusion_zone, point) != 0;
-}
-
-void mab_test(void) {
-}
-
-void yinyang_play_evil_tune(void) {
-    yinyang_evil_music_index++;
-    if ((unsigned int)yinyang_evil_music_index >= 3) {
-        yinyang_evil_music_index = 0;
-    }
-    if ((unsigned int)yinyang_evil_music_index >= 3) {
-        yinyang_evil_music_index = 0;
-    }
-    if ((unsigned int)yinyang_good_music_index >= 4) {
-        yinyang_good_music_index = 0;
-    }
-    if (yy_evil_time_active != 0) {
-        yinyang_current_music =
-            snd_req(evil_tune_tbl[yinyang_evil_music_index]);
-    } else {
-        yinyang_current_music =
-            snd_req(good_tune_tbl[yinyang_good_music_index]);
-    }
-}
-
-void yinyang_play_good_tune(void) {
-    yinyang_good_music_index++;
-    if ((unsigned int)yinyang_good_music_index >= 4) {
-        yinyang_good_music_index = 1;
-    }
-    if ((unsigned int)yinyang_evil_music_index >= 3) {
-        yinyang_evil_music_index = 0;
-    }
-    if ((unsigned int)yinyang_good_music_index >= 4) {
-        yinyang_good_music_index = 0;
-    }
-    if (yy_evil_time_active != 0) {
-        yinyang_current_music =
-            snd_req(evil_tune_tbl[yinyang_evil_music_index]);
-    } else {
-        yinyang_current_music =
-            snd_req(good_tune_tbl[yinyang_good_music_index]);
-    }
-}
-
-/* Soft ceiling: yinyang_finish_music ~99.53% -- SDA relocation only. */
-void yinyang_finish_music(void) {
-    if (yinyang_current_music != 0) {
-        snd_stop(yinyang_current_music);
-        yinyang_current_music = 0;
-    }
-
-    if (yy_evil_time_active == 0) {
-        snd_req(0x1BF1);
-    } else {
-        snd_req(0x1BF7);
-    }
-    if (yy_evil_time_active == 0) {
-        yinyang_current_music = snd_req(0x1BF0);
-    } else {
-        yinyang_current_music = snd_req(0x1BF6);
-    }
-}
-
-/* Soft ceiling: yinyang_stop_music ~99.67% -- SDA relocation only. */
-void yinyang_stop_music(void) {
-    if (yinyang_current_music != 0) {
-        snd_stop(yinyang_current_music);
-        yinyang_current_music = 0;
-    }
-
-    if (yy_evil_time_active == 0) {
-        snd_req(0x1BF1);
-    } else {
-        snd_req(0x1BF7);
-    }
-}
-
-/* Soft ceiling: yinyang_start_music ~98.68% -- SDA relocation only. */
-void yinyang_start_music(void) {
-    if ((unsigned int)yinyang_evil_music_index >= 3) {
-        yinyang_evil_music_index = 0;
-    }
-    if ((unsigned int)yinyang_good_music_index >= 4) {
-        yinyang_good_music_index = 0;
-    }
-
-    if (yy_evil_time_active == 0) {
-        yinyang_current_music =
-            snd_req(good_tune_tbl[yinyang_good_music_index]);
-    } else {
-        yinyang_current_music =
-            snd_req(evil_tune_tbl[yinyang_evil_music_index]);
-    }
-}
-
-void yinyang_reset_music_index(void) {
-    yinyang_good_music_index = 0;
-    yinyang_evil_music_index = 0;
-}
-
-void set_evil_swap_status(int status) {
-    yinyang_ok_to_switch = status;
-}
-
-int ok_to_do_evil_swap(void) {
-    return yinyang_ok_to_switch;
-}
-
-int yy_is_evil_time_active(void) {
-    return yy_evil_time_active;
-}
-
-void set_evil_condition(int active) {
-    yy_evil_time_active = active;
 }
 
 void skytemple_make_scream_sound(void) {

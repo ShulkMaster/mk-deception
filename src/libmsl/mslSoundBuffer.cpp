@@ -296,7 +296,7 @@ static const char stringBase0[] =
     "SBPlayable_Stream\0SoundBuffer_Playable";
 
 extern void* MWSOUND_HEAP;
-extern SoundBufferUpdateList ms_UpdateList__20SoundBuffer_Playable;
+SoundBufferUpdateList ms_UpdateList__20SoundBuffer_Playable = {0, 0};
 extern unsigned char __vt__10IRefCntRes[];
 extern unsigned char __vt__11SoundBuffer[];
 extern unsigned char __vt__16SoundBuffer_Data[];

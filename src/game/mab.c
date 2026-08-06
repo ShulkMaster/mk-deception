@@ -36,7 +36,6 @@ typedef struct LightningPdata {
 
 static const char STR_BOLT_OBJECT[] = "BOLT_OBJECT";
 
-const int gap_04_8031469C_rodata = 0;
 static const float kProcSleepTicks = 20.0f;
 static const float kCameraShakeAmount = 0.02f;
 static const float kFadeSleepTicks = 1.0f;
@@ -62,7 +61,7 @@ void kill_all_fstyle_signs(void);
 void del_string_obj_by_id(int id);
 extern void p_move_pbars_off_screen(void);
 
-static void mkproc_sleep(void) {
+static inline void mkproc_sleep(void) {
     ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
 }
 

@@ -17,9 +17,33 @@ typedef struct SwitchData SwitchData;
 typedef struct AniData AniData;
 
 typedef struct PlyrMoveBlendData {
-    char pad00[0x28];
-    float step;   /* +0x28 */
-    float weight; /* +0x2C */
+    char pad00[4];
+    void* primary_weapon;   /* +0x04 */
+    void* secondary_weapon; /* +0x08 */
+    char pad0C[0x10];
+    int use_fighting_stance; /* +0x1C */
+    char pad20[8];
+    union {
+        float walk_forward_start_step;
+        float step;
+    }; /* +0x28 */
+    union {
+        float walk_forward_start_weight;
+        float weight;
+    }; /* +0x2C */
+    float walk_forward_start_frame;  /* +0x30 */
+    char pad34[4];
+    float walk_backward_start_step;   /* +0x38 */
+    float walk_backward_start_weight; /* +0x3C */
+    float walk_backward_start_frame;  /* +0x40 */
+    char pad44[4];
+    float walk_forward_step; /* +0x48 */
+    char pad4C[4];
+    float walk_backward_step; /* +0x50 */
+    char pad54[4];
+    float strafe_start_frame;  /* +0x58 */
+    float strafe_start_step;   /* +0x5C */
+    float strafe_start_weight; /* +0x60 */
 } PlyrMoveBlendData;
 
 typedef struct PlyrWeaponImpactData {
@@ -31,24 +55,6 @@ typedef struct PlyrMoveDisplayData {
     char pad00[0x10];
     int display_width; /* +0x10 */
 } PlyrMoveDisplayData;
-
-typedef struct PlyrFighterDefinition {
-    char pad00[4];
-    PlyrMoveBlendData* move_blend_data; /* +0x04 */
-    ScriptSlot* cmo; /* +0x08 */
-    char pad0C[0x68];
-    AniData* duck_exit_animation; /* +0x74 */
-    AniData* forced_step_animation; /* +0x78 */
-    char pad7C[0x30];
-    AniData* duck_block_animation; /* +0xAC */
-    char padB0[0x14];
-    AniData* duck_animation; /* +0xC4 */
-    char padC8[0x38];
-    AniData* spear_hit; /* +0x100 */
-    AniData* spear_tug_start; /* +0x104 */
-    AniData* spear_tug_loop; /* +0x108 */
-    AniData* spear_tug_end; /* +0x10C */
-} PlyrFighterDefinition;
 
 typedef struct PlyrMirrorBoneMapEntry {
     int field_00;
@@ -65,12 +71,64 @@ typedef struct PlyrMirrorObjLatch {
     unsigned int instance;
 } PlyrMirrorObjLatch;
 
+typedef struct PlyrWeaponMirrorSlot {
+    PlyrMirrorObjLatch primary;
+    PlyrMirrorObjLatch mirror; /* +0x08 */
+    PlyrMirrorObjLatch secondary; /* +0x10 */
+} PlyrWeaponMirrorSlot; /* 0x18 */
+
+typedef struct PlyrMirrorSlots {
+    PlyrWeaponMirrorSlot weapon[4];
+} PlyrMirrorSlots; /* 0x60 */
+
+typedef struct PlyrFighterDefinition {
+    char pad00[4];
+    PlyrMoveBlendData* move_blend_data; /* +0x04 */
+    ScriptSlot* cmo; /* +0x08 */
+    PlyrMirrorSlots mirror_slots; /* +0x0C - default weapon-trail slots */
+    char pad6C[8];
+    AniData* duck_exit_animation; /* +0x74 */
+    union {
+        AniData* forced_step_animation; /* +0x78 */
+        AniData* walk_forward_start;
+    };
+    AniData* walk_backward_start; /* +0x7C */
+    AniData* strafe_left_start; /* +0x80 */
+    AniData* strafe_right_start; /* +0x84 */
+    AniData* walk_forward_loop; /* +0x88 */
+    AniData* walk_backward_loop; /* +0x8C */
+    AniData* strafe_left_loop; /* +0x90 */
+    AniData* strafe_right_loop; /* +0x94 */
+    AniData* weapon_block_animation; /* +0x98 */
+    char pad9C[0x10];
+    AniData* duck_block_animation; /* +0xAC */
+    AniData* weapon_block_reaction; /* +0xB0 */
+    char padB4[0x10];
+    AniData* duck_animation; /* +0xC4 */
+    char padC8[0x2C];
+    AniData* spear_throw_start; /* +0xF4 */
+    AniData* spear_throw_loop; /* +0xF8 */
+    AniData* spear_throw_end; /* +0xFC */
+    union {
+        AniData* spear_hit;
+        AniData* projectile_return_loop;
+    }; /* +0x100 */
+    union {
+        AniData* spear_tug_start;
+        AniData* projectile_return_end;
+    }; /* +0x104 */
+    AniData* spear_tug_loop; /* +0x108 */
+    AniData* spear_tug_end; /* +0x10C */
+} PlyrFighterDefinition;
+
 typedef struct PlyrStateFlagBits {
     unsigned char pad_bit7 : 1;
     unsigned char frozen : 1; /* bit6 - freeze-light lifetime */
-    unsigned char pad_bits5_2 : 4;
+    unsigned char pad_bit5 : 1;
+    unsigned char dizzy : 1; /* bit4 - held in the puzzle dizzy state */
+    unsigned char pad_bits3_2 : 2;
     unsigned char projectile_invulnerable : 1; /* bit1 */
-    unsigned char pad_bit0 : 1;
+    unsigned char projectile_request : 1; /* bit0 - sidekick projectile request */
 } PlyrStateFlagBits;
 
 typedef union PlyrStateFlags {
@@ -83,18 +141,50 @@ typedef struct PlyrDisabledMove {
     unsigned int move;
 } PlyrDisabledMove;
 
-typedef struct PlyrWeaponMirrorSlot {
-    PlyrMirrorObjLatch primary;
-    PlyrMirrorObjLatch mirror; /* +0x08 */
-    PlyrMirrorObjLatch secondary; /* +0x10 */
-} PlyrWeaponMirrorSlot; /* 0x18 */
+typedef struct FatalityDefinition {
+    const char* primary_section; /* +0x00 */
+    unsigned int primary_script; /* +0x04 */
+    unsigned int primary_victim_script; /* +0x08 */
+    float primary_min;
+    float primary_max;
+    char pad14[4];
+    const char* secondary_section; /* +0x18 */
+    unsigned int secondary_script; /* +0x1C */
+    unsigned int secondary_victim_script; /* +0x20 */
+    float secondary_min;
+    float secondary_max;
+    char pad2C[8];
+    unsigned int suicide_script; /* +0x34 */
+    unsigned int suicide_sidekick_script; /* +0x38 */
+} FatalityDefinition;
 
-typedef struct PlyrMirrorSlots {
-    PlyrWeaponMirrorSlot weapon[4];
-} PlyrMirrorSlots; /* 0x60 */
+typedef struct FatalityRadiusCheck {
+    int select_farthest;
+    float center_x;
+    char pad08[4];
+    float center_z;
+    float radius;
+} FatalityRadiusCheck;
+
+typedef FatalityDefinition FatalityDistanceLimits;
+
+typedef struct PlyrStatusData {
+    unsigned int flags;
+    char pad04[0x80];
+    union {
+        FatalityDefinition* fatality_definition;
+        FatalityDistanceLimits* fatality_limits;
+    }; /* +0x84 */
+    char pad88[0xAC];
+    void* reaction_cleanup; /* +0x134 */
+    char pad138[4];
+    unsigned int throw_script; /* +0x13C */
+} PlyrStatusData;
 
 typedef struct PlyrWeaponStyle {
-    char pad00[0x0C];
+    void* vtbl;
+    unsigned int instance;
+    char pad08[4];
     PlyrMirrorSlots mirror_slots; /* +0x0C */
     char pad6C[0x30];
     MkPtr* object_list; /* +0x9C - owns style weapon/reflection objects */
@@ -137,11 +227,15 @@ typedef struct PlyrPdata {
     PlyrMirrorObjLatch impaled_item_b;           /* +0xE4 */
     PlyrMirrorObjLatch impaled_item_a_secondary; /* +0xEC */
     PlyrMirrorObjLatch impaled_item_b_secondary; /* +0xF4 */
-    char padFC[0x18];
+    char padFC[4];
+    struct MkProc* spear_proc; /* +0x100 */
+    unsigned int spear_proc_instance; /* +0x104 */
+    char pad108[0x0C];
     AniTextureControlItem facial_texture; /* +0x114 */
-    char pad11C[0xA0];
-    int held_by_player; /* +0x1BC */
-    int hold_state; /* +0x1C0 */
+    char pad11C[0x18];
+    MkPtr* active_weapon_links; /* +0x134 */
+    char pad138[0x84];
+    PlyrMirrorObjLatch held_by_object_latch; /* +0x1BC */
     int (*aux_update_callback)(void); /* +0x1C4 */
     PlyrWeaponImpactData* weapon_impact; /* +0x1C8 */
     union {
@@ -189,7 +283,8 @@ typedef struct PlyrPdata {
     int combo_flags; /* +0x260 */
     int attack_counter; /* +0x264 */
     int shared_attack_until; /* +0x268 */
-    char pad26C[0x0C];
+    char pad26C[8];
+    unsigned int last_collision_tick; /* +0x274 */
     int last_back_dash_tick; /* +0x278 - switch double-tap timing */
     char pad27C[0x14];
     float postround_value; /* +0x290 */
@@ -221,19 +316,27 @@ typedef struct PlyrPdata {
         int reaction_counter;
         int opponent_attack_counter_copy;
     }; /* +0x2F0 */
-    int block_requirement; /* +0x2F4 */
-    char pad2F8[4];
+    union {
+        int block_requirement;
+        int pending_hit_strength;
+    }; /* +0x2F4 */
+    int pending_reaction; /* +0x2F8 */
     PlyrWeaponStyle* weapon_styles[3]; /* +0x2FC */
     int player_slot; /* +0x308 */
     PlyrFighterDefinition* fighter_definition; /* +0x30C */
     PlyrMirrorSlots* mirror_slots; /* +0x310 */
-    PlyrMoveDisplayData* active_move_display; /* +0x314 */
-    char pad318[0x28];
+    union {
+        PlyrMoveDisplayData* active_move_display;
+        unsigned int fighter_definition_instance;
+    }; /* +0x314 */
+    char pad318[0x20];
+    AniData* dizzy_animation; /* +0x338 */
+    char pad33C[4];
     AniData* big_boss_taunt_animation; /* +0x340 */
     char pad344[4];
     AniData* turn_to_screen_animation; /* +0x348 */
     char pad34C[0x1C];
-    int reaction_animation; /* +0x368 */
+    AniData* reaction_animation; /* +0x368 */
     void* reaction_animation_a; /* +0x36C */
     void* reaction_animation_b; /* +0x370 */
     void* reaction_animation_c; /* +0x374 */
@@ -241,7 +344,30 @@ typedef struct PlyrPdata {
     AniData* screen_taunt_animation; /* +0x37C */
     char pad380[4];
     AniData* goro_fold_animation; /* +0x384 - fatality arm-fold script */
-    char pad388[0xE8];
+    char pad388[4];
+    AniData* ice_reaction_animation; /* +0x38C */
+    char pad390[0x14];
+    union {
+        AniData* fatality_animation;
+        int fatality_palette;
+    }; /* +0x3A4 */
+    union {
+        struct {
+            union {
+                AniData* mileena_veil_animation;
+                unsigned int suicide_camera_main_ntsc;
+            }; /* +0x3A8 */
+            char pad3AC[4];
+            unsigned int suicide_camera_sidekick_ntsc; /* +0x3B0 */
+            unsigned int suicide_camera_main_pal; /* +0x3B4 */
+            unsigned int suicide_camera_sidekick_pal; /* +0x3B8 */
+            char pad3BC[0x18];
+            unsigned int fatality_camera_ntsc; /* +0x3D4 */
+            unsigned int fatality_camera_pal;  /* +0x3D8 */
+        };
+        unsigned int fatality_camera_scripts[13];
+    };
+    char pad3DC[0x94];
     MkObj* shadowbox; /* +0x470 */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */
@@ -251,9 +377,12 @@ typedef struct PlyrPdata {
     unsigned char left_blood_spawn_state[0x8C];  /* +0x4AC */
     unsigned char right_blood_spawn_state[0x70]; /* +0x538 */
     unsigned int next_large_bleed_tick; /* +0x5A8 */
-    char pad5AC[4];
+    unsigned int next_blood_glop_tick;  /* +0x5AC */
     int duck_reaction_active; /* +0x5B0 */
-    char pad5B4[0x38];
+    float saved_position_x; /* +0x5B4 */
+    float saved_position_y; /* +0x5B8 */
+    float saved_position_z; /* +0x5BC */
+    char pad5C0[0x2C];
     unsigned int saved_anim_script_word; /* +0x5EC */
     unsigned int saved_anim_flags;       /* +0x5F0 */
     char pad5F4[8];
@@ -266,13 +395,17 @@ typedef struct PlyrPdata {
     unsigned int round_attack_count; /* +0x6D0 - AI round pressure */
     int round_attack_stage; /* +0x6D4 */
     int combo_depth; /* +0x6D8 */
-    char pad6DC[8];
+    char pad6DC[4];
+    int strafe_direction; /* +0x6E0 */
     int block_hit_count; /* +0x6E4 */
     MslSoundHandle scream_sound_handle; /* +0x6E8 */
     int repeated_action_count; /* +0x6EC */
     unsigned int previous_action; /* +0x6F0 */
     int death_type; /* +0x6F4 */
-    unsigned int* status_flags; /* +0x6F8 - is_blind / is_big_boss / etc. */
+    union {
+        unsigned int* status_flags;
+        PlyrStatusData* status_data;
+    }; /* +0x6F8 */
     int fatality_shove_active; /* +0x6FC */
     struct MkProc* jaw_monitor;           /* +0x700 */
     unsigned int jaw_monitor_instance;    /* +0x704 */
@@ -280,7 +413,7 @@ typedef struct PlyrPdata {
     unsigned int baraka_blades_monitor_instance; /* +0x70C */
     char pad710[8];
     int (*baraka_moveset_callback)(void*, void*); /* +0x718 */
-    char pad71C[4];
+    void* active_pickup; /* +0x71C */
     int online_sync_index;            /* +0x720 - -1 when unavailable */
     int impaled_projectile_state;       /* +0x724 */
     int field_728;

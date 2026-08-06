@@ -53,7 +53,7 @@ extern "C" void mslArqRequest_Init(void) {
     mslARQ_Req_Pool[23].next_free = 0;
 }
 
-static MSLGCN_ARamBlock* allocate_block(void) {
+static inline MSLGCN_ARamBlock* allocate_block(void) {
     MSLGCN_ARamBlock* block = (MSLGCN_ARamBlock*)
         operator new(
             sizeof(MSLGCN_ARamBlock), MWSOUND_HEAP, (mwMemFlags)0x10,

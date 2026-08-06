@@ -21,10 +21,6 @@
 
 extern MkVtable5 vtbl_mkpdata_string_obj;
 
-#if !defined(TARGET_PC)
-#pragma use_lmw_stmw on
-#endif
-
 void* memset(void* dst, int c, unsigned long n);
 unsigned int genlrand(void);
 int get_platform_language_setting(void);
@@ -722,7 +718,8 @@ void set_atomic_material_color_by_id(void* atomic, int id, int* color) {
 void set_atomic_material_color(void* atomic, int* color) {
 }
 
-void obj_set_color_for_material_by_id(void* obj, int id, int* color) {
+void obj_set_color_for_material_by_id(
+    MkObj* obj, int id, const RpMaterialColor* color) {
 }
 
 void obj_set_color_for_all_materials(void* obj, int* color) {
@@ -1773,8 +1770,43 @@ void get_clean_system(void) {
     /* stub */
 }
 
-int simple_3d_projectile_collision(void* a, void* b) {
-    return 0;
+/*
+ * Soft ceiling under the retail TU's -O4,s/-use_lmw_stmw configuration:
+ * the portable implementation has retail control flow and exact code size;
+ * the remaining difference is register selection and instruction scheduling.
+ */
+int simple_3d_projectile_collision(
+    const Vec* previous_position, const Vec* current_position,
+    const Vec* target_position, int mode, float collision_radius_squared,
+    float maximum_distance_squared, float close_distance_squared) {
+    Vec difference;
+    float target_distance_squared;
+
+    v3_sub_v3(&difference, target_position, current_position);
+    if (game_speed > 1.0f) {
+        collision_radius_squared *= game_speed * game_speed;
+    }
+    if (difference.x * difference.x + difference.z * difference.z <
+        collision_radius_squared) {
+        return 0;
+    }
+
+    v3_sub_v3(&difference, target_position, previous_position);
+    target_distance_squared =
+        difference.x * difference.x + difference.z * difference.z;
+    v3_sub_v3(&difference, previous_position, current_position);
+    if (difference.x * difference.x + difference.z * difference.z >
+        target_distance_squared) {
+        if (mode == 1 &&
+            target_distance_squared < close_distance_squared) {
+            return 3;
+        }
+        return 4;
+    }
+    if (target_distance_squared > maximum_distance_squared) {
+        return 2;
+    }
+    return 1;
 }
 
 int is_blind(PlyrPdata* fighter) {

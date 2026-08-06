@@ -109,6 +109,7 @@ u8 g_DSB_BufferFree[5];
 static void mslDSB_CancelRead(mslDSB_PendingAsyncRead*, int);
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand*, _mwFileAsyncResult, void*);
+static void mslStreamFile_ReturnBuffer_CB(void*);
 
 static inline int mslDSB_ReturnBuffer(void* buffer) {
     int difference = (u8*)buffer - &g_DSB_Buffers[0][0];
@@ -186,6 +187,10 @@ extern "C" void mslStreamFile_Initialize(void) {
     DSB_FILEREAD_Pool[4].next = 0;
 }
 
+extern "C" void mslStreamFile_ReturnBuffer_FromInterrupt(void* buffer) {
+    mslTickCallBack_Queue(mslStreamFile_ReturnBuffer_CB, buffer);
+}
+
 static void mslStreamFile_ReturnBuffer_CB(void* buffer) {
     int service;
 
@@ -208,10 +213,6 @@ static void mslStreamFile_ReturnBuffer_CB(void* buffer) {
             mslDSB_ServiceNextRead();
         }
     }
-}
-
-extern "C" void mslStreamFile_ReturnBuffer_FromInterrupt(void* buffer) {
-    mslTickCallBack_Queue(mslStreamFile_ReturnBuffer_CB, buffer);
 }
 
 extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {

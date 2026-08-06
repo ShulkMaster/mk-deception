@@ -73,6 +73,8 @@ extern "C" float mslGetTime(void) {
 }
 
 /*
- * Retail mslDebugPrintf requires PPC EABI variadic state. This project has no
- * portable stdarg header, so the function remains supplied by retail assembly.
+ * Honest blocker: retail formats through PPC EABI variadic state into a
+ * 256-byte buffer and then calls printf. The project cstdarg header implements
+ * va_start solely through MWCC's __va_start compiler intrinsic; the only
+ * alternative is hand-authored PPC EABI state. Both are intentionally avoided.
  */

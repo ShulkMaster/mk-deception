@@ -6,6 +6,7 @@
  */
 
 #include "game/pfxscript.h"
+#include "game/projectile.h"
 #include "math/gxVect.h"
 #include "runtime/limb.h"
 #define PLYR_PDATA_TYPES_ONLY
@@ -382,12 +383,12 @@ typedef struct ScriptReactionArgs {
 
 typedef struct ScriptStartProjectileArgs {
     unsigned int header;
-    int model_id;
     int bone_id;
+    MkObj* existing_object;
     unsigned int string_id;
-    float x_offset;
-    float y_offset;
-    ScriptEntryFn process;
+    float speed;
+    float tolerance;
+    Vec* bone_offset;
 } ScriptStartProjectileArgs;
 
 typedef struct ScriptPlyrPdataArgs {
@@ -511,7 +512,7 @@ typedef struct FakeBoneMatcherArgs {
 
 typedef struct PopHeadArgs {
     unsigned int header;
-    int player;
+    PlyrInfo* player;
     float x_velocity;
     float y_velocity;
     float z_velocity;
@@ -529,6 +530,33 @@ typedef struct ScriptEightIntArgs {
     int arg7;
     int arg8;
 } ScriptEightIntArgs;
+
+typedef struct LimbBoneAttachArgs {
+    unsigned int header;
+    PlyrInfo* target_player;
+    int owner_bone;
+    const Vec* offset;
+    const Vec* rotation;
+    PlyrInfo* owner_player;
+    int limb;
+    int target_bone;
+    int include_children;
+} LimbBoneAttachArgs;
+
+typedef struct Gore2PebbleArgs {
+    unsigned int header;
+    unsigned int object_id;
+    int bone;
+    MkObj* source;
+    FighterMirror* decal_owner;
+    const Vec* velocity;
+    const Vec* rotation;
+    const Vec* scale;
+    const Vec* position_offset;
+    float vertical_acceleration;
+    int bounce_count;
+    float bounce_scale;
+} Gore2PebbleArgs;
 
 typedef struct ScriptIntResult {
     char pad00[0x2C];
@@ -766,6 +794,8 @@ typedef union ScriptArgsRef {
     FakeBoneMatcherResetArgs* fake_bone_reset;
     FakeBoneMatcherArgs* fake_bone_match;
     PopHeadArgs* pop_head;
+    LimbBoneAttachArgs* limb_bone_attach;
+    Gore2PebbleArgs* gore2_pebble;
     ScriptEightIntArgs* eight_int;
     ScriptFlagArgs* flag;
     ScriptExitArgs* exit_args;
@@ -873,9 +903,9 @@ void bgnd_replace_tex_with_wiff_and_ani(
 void jab_attach_wiff_to_sobj(
     int object, int sobj, const char* wiff, const char* animation,
     int flags, int mode, float scale);
-int start_projectile_from_sidekick_bone(
-    int player, int bone, const char* projectile, int flags,
-    float speed, float height);
+MkObj* start_projectile_from_sidekick_bone(
+    int bone, MkObj* existing_object, const char* projectile,
+    float speed, float tolerance, const Vec* bone_offset);
 void bgnd_chunk_explosion_match_velocity_with_params(
     int arg4, int arg5, int arg6, int arg7, float x, float y, float z);
 int ncs_bgnd_preload_named_model(
@@ -1132,11 +1162,16 @@ void* fatality_boraicho_light_fart_torch(int a);
 void* fatality_boraicho_get_torch(int a, int b);
 void show_baraka_one_blade_only(int a, int b);
 void* fatality_ashrah_get_doll(int a, int b, int c);
-void fire_multi_emitter_pfx_via_tbl(char* name, int a, int b, int c);
-void* pfxhandle_spawn_at_bid_next_bind_render(int a, int b, int c);
-void* pfxhandle_bgnd_spawn_at_sobj_id(char* name, int id);
-void* pfxhandle_spawn_at_bid(char* name, int a, int b);
-void* pfxhandle_spawn_at_bid_next(int a, int b, int c);
+void fire_multi_emitter_pfx_via_tbl(
+    const char* name, const void* table, MkObj* object, int* handles);
+unsigned int pfxhandle_spawn_at_bid_next_bind_render(
+    unsigned int effect, MkObj* object, int bone_id);
+unsigned int pfxhandle_bgnd_spawn_at_sobj_id(
+    const char* name, unsigned int sobj_id);
+unsigned int pfxhandle_spawn_at_bid(
+    const char* name, MkObj* object, int bone_id);
+unsigned int pfxhandle_spawn_at_bid_next(
+    unsigned int effect, MkObj* object, int bone_id);
 void pfx_spawn_at_bid(char* name, int a, int b);
 void* limb_sever_throw_away(int a, int b, int c);
 void auto_calc_limbobj_bone_world_pos(void* a, void* b);
@@ -1177,7 +1212,7 @@ int play_his_random_voice(int a);
 void obj_unhide_material_by_id(void* object, int id);
 void obj_hide_material_by_id(void* object, int id);
 void bm_force_fake_child_bid(int a, int b);
-int fat_bgnd_char_setup_radius_check(int a);
+int fat_bgnd_char_setup_radius_check(const FatalityRadiusCheck* check);
 void set_victim_v3_units_away(float a, float b);
 void reset_fake_bone_matcher(FakeBoneMatcher* matcher,
                              const Vec* parent_offset,
@@ -1191,9 +1226,12 @@ void fatality_release_other_player(void);
 int get_level_fatality_done_flag_state(void);
 void set_level_fatality_done_flag_state(int value);
 void limb_sever_destroy_existing_attach_proc(int a, int b);
-void limb_sever_bone_attach(int arg1, int arg2, int arg3, int arg4, int arg5,
-                            int arg6, int arg7, int arg8);
-MkHdr* limb_sever_pop_head_up(int player, float x_velocity, float y_velocity,
+void limb_sever_bone_attach(
+    PlyrInfo* target_player, int owner_bone,
+    const Vec* offset, const Vec* rotation,
+    PlyrInfo* owner_player, int limb, int target_bone,
+    int include_children);
+MkHdr* limb_sever_pop_head_up(PlyrInfo* player, float x_velocity, float y_velocity,
                               float z_velocity, float angular_velocity);
 void* mks_limb_sever(int a, int b, int c);
 void* limb_sever_find_existing_update_proc(int a, int b, int c);
@@ -1216,7 +1254,7 @@ void animpdata_ani_1_frame(void* anim);
 void check_to_register_miss(void);
 void auto_ani_off(void);
 void ncs_dkp_camera_konqchar_show_hide_alpha(int a, int b);
-void ncs_camera_wall_show_hide_alpha(int a);
+void ncs_camera_wall_show_hide_alpha(void* regions);
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
 void ncs_bgnd_nuke_collision_to_script_interface(void);
 void* retrieve_bgnd_obj(void);
@@ -1398,13 +1436,12 @@ void active_projectile_setup_done(void);
 void set_active_projectile_hit_gnd_script(ScriptEntryFn entry);
 void set_active_projectile_end_script(ScriptEntryFn entry);
 void set_active_projectile_hit_script(ScriptEntryFn entry);
-void set_active_projectile_impale_info(int bone_id, int flags);
 void set_active_projectile_not_duckable(void);
 void set_active_projectile_rx_info(int reaction, float rate, int strength);
-MkObj* start_projectile_from_plyr_bone(int model_id, int bone_id,
-                                       char* model_name, float x_offset,
-                                       float y_offset,
-                                       ScriptEntryFn process);
+MkObj* start_projectile_from_plyr_bone(int bone_id, MkObj* existing_object,
+                                       const char* model_name, float speed,
+                                       float tolerance,
+                                       const Vec* bone_offset);
 void run_reaction_cleanup_function(PlyrPdata* player);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void mks_set_cb1_wind_normal(float x, float y, float z);
@@ -1761,7 +1798,7 @@ int pz_fighter_exit(void);
 int pz_fighter_force_repel_during_attack(void);
 int pz_fighter_function(int);
 int pz_fighter_long_exit(void);
-int pz_fighter_move_into_fighting_position(void);
+void pz_fighter_move_into_fighting_position(void);
 int pz_fighter_reaction_xfer_him(int);
 int pz_fighter_release_other_player(int);
 int pz_fighter_reset_continuation(void);
@@ -2520,7 +2557,12 @@ int single_frame_collision_check(int, int, int, void *, float, float, float);
 int special_move_cam_him(int, int, int, float, float, float, float, float);
 int special_move_cam_setup(int, int, int, float, float, float, float, float);
 int special_move_cam_setup2(int, int, int, int, int, float, float, float, float, float);
-int start_gore2_pebbles(int, int, int, int, int, int, int, int, float, float);
+void start_gore2_pebbles(
+    unsigned int object_id, int bone, MkObj* source,
+    FighterMirror* decal_owner, const Vec* velocity,
+    const Vec* rotation, const Vec* scale,
+    const Vec* position_offset, float vertical_acceleration,
+    float bounce_scale, int bounce_count);
 int start_gusher(int *, int, int, int, int, int);
 int transition_to_anim_script_frame(int, void*, int, void*, float, float);
 int trial_do_dialog(int, int, int, int, float, float, float);
@@ -2546,7 +2588,9 @@ int attack_to_frame_x(void*, int, int, int, float, float, float, float);
 int launch_n_land_ani(void*, int, void*, float, float, float, float, float, float);
 int lower_mines_ani_to_point(void*, int, int, int, float, float, float, float, float, float);
 int newani_to_frame_x(void*, int, float, float, float, float);
-int pz_fighter_startup_attack(void*, int, int, int, int, void*, float, float, float, float, float);
+void pz_fighter_startup_attack(
+    void*, int, int, int, unsigned int,
+    float, float, float, float, float);
 int two_player_animation(void*, void*, float);
 int two_player_animation_flip(void*, void*, float);
 int two_player_animation_match_attacker(void*, void*, float);
@@ -2598,7 +2642,6 @@ void _start_gusher(void) {
     ((ScriptRawResult*)active_cmdscript)->value.i = start_gusher(&heart_beat, args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i);
 }
 
-#pragma opt_common_subs off
 /* Soft ceiling: _plyr_spawn_his_anim_limb ~82.12% -- typed call ABI scheduling. */
 void _plyr_spawn_his_anim_limb(void) {
     ((ScriptRawResult*)active_cmdscript)->value.i =
@@ -2612,8 +2655,6 @@ void _plyr_spawn_his_anim_limb(void) {
                 ((ScriptRawArgs*)current_args)->slots[5].i - 1],
             current_args, ((ScriptRawArgs*)current_args)->slots[6].f);
 }
-#pragma opt_common_subs reset
-
 void _xfer_proc(void) {
     xfer_proc(((ScriptRawArgs*)current_args)->slots[0].pointer,
               *(void**)(exit_table_340 +
@@ -2944,7 +2985,13 @@ void _pz_fighter_startup_attack(void) {
 
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
-    pz_fighter_startup_attack(((ScriptCommandView*)active_cmdscript)->animation, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[8].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[9].f);
+    pz_fighter_startup_attack(
+        ((ScriptCommandView*)active_cmdscript)->animation,
+        args.raw->slots[5].i, args.raw->slots[6].i,
+        args.raw->slots[7].i, args.raw->slots[8].i,
+        args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f,
+        args.raw->slots[9].f);
 }
 
 void _pz_fighter_distance_check_wo_super_check(void) {
@@ -4639,35 +4686,36 @@ void _fatality_ashrah_get_doll(void) {
 
 void _fire_multi_emitter_pfx_via_tbl(void) {
     char* name = get_script_string_arg(1);
-    fire_multi_emitter_pfx_via_tbl(name, ((ScriptRawArgs*)current_args)->slots[1].i,
-                                   ((ScriptRawArgs*)current_args)->slots[2].i,
-                                   ((ScriptRawArgs*)current_args)->slots[3].i);
+    fire_multi_emitter_pfx_via_tbl(
+        name, ((ScriptRawArgs*)current_args)->slots[1].pointer,
+        ((ScriptRawArgs*)current_args)->slots[2].pointer,
+        ((ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
 void _pfxhandle_spawn_at_bid_next_bind_render(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+    ((ScriptRawResult*)active_cmdscript)->value.i =
         pfxhandle_spawn_at_bid_next_bind_render(((ScriptRawArgs*)current_args)->slots[0].i,
-                                                ((ScriptRawArgs*)current_args)->slots[1].i,
+                                                ((ScriptRawArgs*)current_args)->slots[1].pointer,
                                                 ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 void _pfxhandle_bgnd_spawn_at_sobj_id(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+    ((ScriptRawResult*)active_cmdscript)->value.i =
         pfxhandle_bgnd_spawn_at_sobj_id(get_script_string_arg(1),
                                         ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
 void _pfxhandle_spawn_at_bid(void) {
     char* name = get_script_string_arg(1);
-    ((ScriptRawResult*)active_cmdscript)->value.pointer =
-        pfxhandle_spawn_at_bid(name, ((ScriptRawArgs*)current_args)->slots[1].i,
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        pfxhandle_spawn_at_bid(name, ((ScriptRawArgs*)current_args)->slots[1].pointer,
                                ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 void _pfxhandle_spawn_at_bid_next(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+    ((ScriptRawResult*)active_cmdscript)->value.i =
         pfxhandle_spawn_at_bid_next(((ScriptRawArgs*)current_args)->slots[0].i,
-                                    ((ScriptRawArgs*)current_args)->slots[1].i,
+                                    ((ScriptRawArgs*)current_args)->slots[1].pointer,
                                     ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
@@ -4712,11 +4760,20 @@ void _attach_gore2_obj(void) {
 
 void _start_gore2_pebbles(void) {
     ScriptArgsRef args;
-    int sp8;
 
     args.bytes = current_args;
-    sp8 = args.raw->slots[9].i;
-    start_gore2_pebbles(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[8].f, args.raw->slots[10].f);
+    start_gore2_pebbles(
+        args.gore2_pebble->object_id,
+        args.gore2_pebble->bone,
+        args.gore2_pebble->source,
+        args.gore2_pebble->decal_owner,
+        args.gore2_pebble->velocity,
+        args.gore2_pebble->rotation,
+        args.gore2_pebble->scale,
+        args.gore2_pebble->position_offset,
+        args.gore2_pebble->vertical_acceleration,
+        args.gore2_pebble->bounce_scale,
+        args.gore2_pebble->bounce_count);
 }
 
 void _start_bodyslam_bodysplat(void) {
@@ -4873,7 +4930,8 @@ void _bm_force_fake_child_bid(void) {
 
 void _fat_bgnd_char_setup_radius_check(void) {
     ((ScriptRawResult*)active_cmdscript)->value.i =
-        fat_bgnd_char_setup_radius_check(((ScriptRawArgs*)current_args)->slots[0].i);
+        fat_bgnd_char_setup_radius_check(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 void _set_victim_v3_units_away(void) {
@@ -4928,14 +4986,14 @@ void _limb_sever_bone_attach(void) {
 
     args.bytes = current_args;
     limb_sever_bone_attach(
-        args.eight_int->arg1,
-        args.eight_int->arg2,
-        args.eight_int->arg3,
-        args.eight_int->arg4,
-        args.eight_int->arg5,
-        args.eight_int->arg6,
-        args.eight_int->arg7,
-        args.eight_int->arg8);
+        args.limb_bone_attach->target_player,
+        args.limb_bone_attach->owner_bone,
+        args.limb_bone_attach->offset,
+        args.limb_bone_attach->rotation,
+        args.limb_bone_attach->owner_player,
+        args.limb_bone_attach->limb,
+        args.limb_bone_attach->target_bone,
+        args.limb_bone_attach->include_children);
 }
 
 void _limb_sever_pop_head_up(void) {
@@ -5038,7 +5096,10 @@ void _ncs_dkp_camera_konqchar_show_hide_alpha(void) {
                                             ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _ncs_camera_wall_show_hide_alpha(void) { ncs_camera_wall_show_hide_alpha(((ScriptRawArgs*)current_args)->slots[0].i); }
+void _ncs_camera_wall_show_hide_alpha(void) {
+    ncs_camera_wall_show_hide_alpha(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
 
 void _ncs_bgnd_nuke_collision_to_script_interface(void) { ncs_bgnd_nuke_collision_to_script_interface(); }
 
@@ -6140,8 +6201,9 @@ void _set_active_projectile_impale_info(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_active_projectile_impale_info(args.two_int->first,
-                                      args.two_int->second);
+    set_active_projectile_impale_info(
+        (ProjectileImpaleInfo*)args.two_pointer->first,
+        (const int*)args.two_pointer->second);
 }
 
 void _set_active_projectile_not_duckable(void) {
@@ -6164,9 +6226,11 @@ void _start_projectile_from_plyr_bone(void) {
 
     args.bytes = current_args;
     projectile = start_projectile_from_plyr_bone(
-        args.start_projectile->model_id, args.start_projectile->bone_id,
-        get_script_string_arg(3), args.start_projectile->x_offset,
-        args.start_projectile->y_offset, args.start_projectile->process);
+        args.start_projectile->bone_id,
+        args.start_projectile->existing_object,
+        get_script_string_arg(3), args.start_projectile->speed,
+        args.start_projectile->tolerance,
+        args.start_projectile->bone_offset);
     result.bytes = active_cmdscript;
     result.mkobj->value = projectile;
 }
@@ -9570,10 +9634,12 @@ void _start_projectile_from_sidekick_bone(void) {
 
     args.bytes = current_args;
     result.bytes = active_cmdscript;
-    result.integer->value = start_projectile_from_sidekick_bone(
-        args.raw->slots[0].i, args.raw->slots[1].i,
-        get_script_string_arg(3), args.raw->slots[5].i,
-        args.raw->slots[3].f, args.raw->slots[4].f);
+    result.mkobj->value = start_projectile_from_sidekick_bone(
+        args.raw->slots[0].i,
+        (MkObj*)args.raw->slots[1].pointer,
+        get_script_string_arg(3), args.raw->slots[3].f,
+        args.raw->slots[4].f,
+        (const Vec*)args.raw->slots[5].pointer);
 }
 
 void _noobsmoke_fire_projectile_request(void) {

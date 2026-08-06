@@ -1182,7 +1182,7 @@ MkBone* alloc_bone(void) {
         bone->transform_parent = 0;
         bone->root_next = 0;
         bone->clone_source = 0;
-        bone->field_58 = 0;
+        bone->cloth_link = 0;
         bone->flags_word_54 = 0;
         bone->matrix.at.z = 1.0f;
         bone->matrix.up.y = 1.0f;

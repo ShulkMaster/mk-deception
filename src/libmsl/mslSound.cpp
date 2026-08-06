@@ -635,7 +635,7 @@ extern "C" int mslSoundUnLoad(_mslSound* sound) {
     return 0;
 }
 
-static void mslCmdsRollback(
+static inline void mslCmdsRollback(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundDefinition* definition) {
     int i;
@@ -680,7 +680,7 @@ static void mslCmdsRollback(
     }
 }
 
-static void mslSoundInit(_ListNode* node, _mslSystem* system) {
+static inline void mslSoundInit(_ListNode* node, _mslSystem* system) {
     if (node != 0) {
         mslRuntimeSound* sound =
             (mslRuntimeSound*)ListNodeData(0, node);

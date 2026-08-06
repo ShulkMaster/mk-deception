@@ -351,8 +351,8 @@ void v3_blend3(Vec* out, const Vec* weights, const Vec* a, const Vec* b, const V
     out->z = weights->z * c->z + weights->x * a->z + weights->y * b->z;
 }
 
-/* Soft ceiling: normalize_v3_length ~83% -- sqrt-table + 1/len schedule leftover. */
-void normalize_v3_length(Vec* v) {
+/* Returns the pre-normalization length, as required by retail callers. */
+float normalize_v3_length(Vec* v) {
     float len = mk_sqrt_table(v->x * v->x + v->y * v->y + v->z * v->z);
     float inv = kZero;
     if (kZero < len) {
@@ -361,6 +361,7 @@ void normalize_v3_length(Vec* v) {
     v->x *= inv;
     v->y *= inv;
     v->z *= inv;
+    return len;
 }
 
 /* Soft ceiling: normalize_v3 ~94% -- invsqrt inline near-miss (f6 x-keep / cror). */

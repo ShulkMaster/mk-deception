@@ -13,6 +13,7 @@ typedef struct ScriptSlot ScriptSlot;
 typedef struct FighterAiTableContainer FighterAiTableContainer;
 typedef struct FighterRuntimeData FighterRuntimeData;
 typedef struct MkProc MkProc;
+typedef struct MkPtr MkPtr;
 
 typedef struct LinkedNode {
     void* data;
@@ -61,6 +62,29 @@ typedef struct FighterObjectRef {
     unsigned int instance;
 } FighterObjectRef;
 
+typedef struct PlyrScreenLatch {
+    void* object;
+    unsigned int instance;
+} PlyrScreenLatch;
+
+typedef struct PlyrFightingLightState {
+    union {
+        unsigned int flags_word;
+        struct {
+            unsigned char red_active : 1;
+            unsigned char green_active : 1;
+            unsigned char airborne_active : 1;
+            unsigned char green_trigger : 1;
+            unsigned char pad_flags : 4;
+            unsigned char flags_pad[3];
+        };
+    };
+    PlyrScreenLatch base;
+    PlyrScreenLatch red;
+    PlyrScreenLatch green;
+    PlyrScreenLatch airborne;
+} PlyrFightingLightState; /* 0x24 */
+
 typedef struct FighterMirror {
     char pad00[0x18];
     MirrorObj* blood_owner;            /* +0x18 - owner index source */
@@ -73,7 +97,10 @@ typedef struct FighterMirror {
     char pad64[0xB8];
     MkProc* foot_print_proc;             /* +0x11C */
     unsigned int foot_print_proc_instance; /* +0x120 */
-    char pad124[0x20];
+    char pad124[0x14];
+    MkProc* limb_update_proc;             /* +0x138 */
+    unsigned int limb_update_proc_instance; /* +0x13C */
+    MkPtr* attach_proc_list;              /* +0x140 - limb attachment processes */
     union {
         FighterObjectRef severed_limbs[15]; /* +0x144 */
         struct {
@@ -164,11 +191,11 @@ typedef struct PlyrInfo {
         PlyrInfoFlags14 flags_14_bits;
     }; /* +0x14 */
     PlayerCollisionData* collision_data; /* +0x18 */
-    char pad1C[0x24];
+    PlyrFightingLightState fighting_lights; /* +0x1C */
     int field_40; /* +0x40 */
     int field_44; /* +0x44 */
     int field_48; /* +0x48 */
-    char pad4C[8];
+    PlyrScreenLatch name_latch; /* +0x4C */
     int player_index; /* +0x54 - character / roster id latch */
     FighterSlot slot; /* +0x58 */
     void* idle_proc;  /* +0x64 */

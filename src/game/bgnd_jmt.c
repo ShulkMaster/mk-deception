@@ -142,7 +142,7 @@ RopeInfo g_rope_info[] = {
 };
 static int n_rope_info = 3;
 
-static float bgnd_inv_sqrt(float value) {
+static inline float bgnd_inv_sqrt(float value) {
     union {
         float f;
         unsigned int u;
@@ -161,7 +161,7 @@ static float bgnd_inv_sqrt(float value) {
            -(correction * (product * correction) - 12.0f);
 }
 
-static float bgnd_sqrt(float value) {
+static inline float bgnd_sqrt(float value) {
     union {
         float f;
         unsigned int u;
@@ -181,11 +181,11 @@ static float bgnd_sqrt(float value) {
 }
 
 extern MkObj* g_bgnd_preloaded_models[];
-extern RopeProcLatch rope_proc_item;
-extern RopeProcLatch sobj_ctrl_proc_item;
 extern int exec_tick_ctr;
-extern int g_delay_rnd;
-extern int g_ticks_delay;
+RopeProcLatch rope_proc_item;
+RopeProcLatch sobj_ctrl_proc_item;
+int g_ticks_delay;
+int g_delay_rnd;
 
 extern RwMatrix* RwMatrixInvert(RwMatrix* dst, const RwMatrix* src);
 
@@ -193,17 +193,17 @@ void build_bones_tbl(MkObj* object, const int* tags);
 void update_bone_hierarchy(void* object);
 void* get_bone_with_tag(void* object, int tag);
 
-void rope_controller_init(MkHdr* pdata, MkObj* model);
-void rope_controller_update(MkHdr* pdata);
-float p_watch_shadow(void);
-float p_watch_cliffs(void);
+static void rope_controller_init(MkHdr* pdata, MkObj* model);
+static void rope_controller_update(MkHdr* pdata);
+static float p_watch_shadow(void);
+static float p_watch_cliffs(void);
 static float p_obj_ctrl(void);
-float p_rope(void);
-void update_func_shadow_scale(BgndUpdateData* update, int index);
-void update_func_blend_start(BgndUpdateData* update, int index);
-void update_func_fall(BgndUpdateData* update, int index);
-void update_func_awayxz(BgndUpdateData* update, int index);
-void update_func_sin(BgndUpdateData* update, int index);
+static float p_rope(void);
+static void update_func_shadow_scale(BgndUpdateData* update, int index);
+static void update_func_blend_start(BgndUpdateData* update, int index);
+static void update_func_fall(BgndUpdateData* update, int index);
+static void update_func_awayxz(BgndUpdateData* update, int index);
+static void update_func_sin(BgndUpdateData* update, int index);
 MkSobj* bgnd_fetch_sobj(int model_index, int object_id);
 static void insert_obj_ctrl_section(MkSobj* object, int section);
 void bgnd_start_script_in_proc(int proc_id, int function_index);
@@ -306,6 +306,75 @@ BgndDamageState* get_cliff_data(void) {
     return &pdata->state;
 }
 
+/*
+ * Soft ceiling: p_watch_cliffs ~90.33% -- flag-load coloring and script
+ * destructor call scheduling.
+ */
+static float p_watch_cliffs(void) {
+    BgndDamagePdata* pdata;
+    CmdScript* script;
+    CmdScript* previous_script;
+    int can_fall;
+
+    pdata = (BgndDamagePdata*)pdata_of_proc(aproc);
+    if (pdata == 0) {
+        return -1.0f;
+    }
+    if ((g_game_info.flags & 0x08) != 0) {
+        return 1.0f;
+    }
+    if (pdata->state.cliff_index >= 5) {
+        return 1.0f;
+    }
+
+    if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
+        can_fall = 0;
+    } else if ((g_game_info.flags & 0x20) == 0) {
+        can_fall = 0;
+    } else if ((g_game_info.flags & 1) == 1) {
+        can_fall = 0;
+    } else if (g_game_info.pause_flag_bits.fatality_window == 1) {
+        can_fall = 0;
+    } else if (g_game_info.plyr0.field_0C == 0.0f ||
+               g_game_info.plyr1.field_0C == 0.0f) {
+        can_fall = 0;
+    } else if (are_death_traps_on() == 0) {
+        can_fall = 0;
+    } else {
+        can_fall = 1;
+    }
+    if (can_fall == 0) {
+        pdata->state.wait_ticks = 300.0f;
+        return 1.0f;
+    }
+
+    pdata->state.wait_ticks -= game_speed;
+    if (pdata->state.wait_ticks > 0.0f) {
+        return 1.0f;
+    }
+    pdata->state.wait_ticks = 300.0f;
+    pdata->state.attempt_count++;
+    if (pdata->state.attempt_count > 2 ||
+        pdata->state.cliff_index == 1) {
+        pdata->state.valid = pdata->state.cliff_index;
+        pdata->state.trigger_tick = exec_tick_ctr;
+        bgnd_start_script_in_proc(0xB008, 0x29);
+        pdata->state.attempt_count = 0;
+    } else {
+        script = alloc_cmdscript();
+        previous_script = active_cmdscript;
+        active_cmdscript = script;
+        cmdscript_setup_execution(g_game_info.cmdscript, 0x25);
+        cmdscript_execute(g_game_info.cmdscript);
+        active_cmdscript = previous_script;
+        if (script->instance != 0) {
+            ((int (*)(CmdScript*, void*))script->vtbl->destroy)(
+                script, script->vtbl);
+        }
+    }
+    return 1.0f;
+}
+
 int check_damage_valid_fc(void) {
     BgndDamagePdataRef pdata;
     BgndDamageState* damage;
@@ -371,7 +440,7 @@ void start_shadow_watcher(void) {
 }
 
 /* Soft ceiling: p_watch_shadow ~98.96% -- float-pool labels only. */
-float p_watch_shadow(void) {
+static float p_watch_shadow(void) {
     Vec angles;
     float height;
     float blend;
@@ -400,74 +469,6 @@ float p_watch_shadow(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: p_watch_cliffs ~90.33% -- flag-load coloring and script
- * destructor call scheduling.
- */
-float p_watch_cliffs(void) {
-    BgndDamagePdata* pdata;
-    CmdScript* script;
-    CmdScript* previous_script;
-    int can_fall;
-
-    pdata = (BgndDamagePdata*)pdata_of_proc(aproc);
-    if (pdata == 0) {
-        return -1.0f;
-    }
-    if ((g_game_info.flags & 0x08) != 0) {
-        return 1.0f;
-    }
-    if (pdata->state.cliff_index >= 5) {
-        return 1.0f;
-    }
-
-    if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
-        can_fall = 0;
-    } else if ((g_game_info.flags & 0x20) == 0) {
-        can_fall = 0;
-    } else if ((g_game_info.flags & 1) == 1) {
-        can_fall = 0;
-    } else if (g_game_info.pause_flag_bits.fatality_window == 1) {
-        can_fall = 0;
-    } else if (g_game_info.plyr0.field_0C == 0.0f ||
-               g_game_info.plyr1.field_0C == 0.0f) {
-        can_fall = 0;
-    } else if (are_death_traps_on() == 0) {
-        can_fall = 0;
-    } else {
-        can_fall = 1;
-    }
-    if (can_fall == 0) {
-        pdata->state.wait_ticks = 300.0f;
-        return 1.0f;
-    }
-
-    pdata->state.wait_ticks -= game_speed;
-    if (pdata->state.wait_ticks > 0.0f) {
-        return 1.0f;
-    }
-    pdata->state.wait_ticks = 300.0f;
-    pdata->state.attempt_count++;
-    if (pdata->state.attempt_count > 2 ||
-        pdata->state.cliff_index == 1) {
-        pdata->state.valid = pdata->state.cliff_index;
-        pdata->state.trigger_tick = exec_tick_ctr;
-        bgnd_start_script_in_proc(0xB008, 0x29);
-        pdata->state.attempt_count = 0;
-    } else {
-        script = alloc_cmdscript();
-        previous_script = active_cmdscript;
-        active_cmdscript = script;
-        cmdscript_setup_execution(g_game_info.cmdscript, 0x25);
-        cmdscript_execute(g_game_info.cmdscript);
-        active_cmdscript = previous_script;
-        if (script->instance != 0) {
-            ((int (*)(CmdScript*, void*))script->vtbl->destroy)(
-                script, script->vtbl);
-        }
-    }
-    return 1.0f;
-}
 
 void mks_set_update_delay(int ticks, int random_ticks) {
     g_delay_rnd = random_ticks;
@@ -1086,7 +1087,7 @@ static float p_obj_ctrl(void) {
     return 1.0f;
 }
 
-void update_func_shadow_scale(BgndUpdateData* update, int index) {
+static void update_func_shadow_scale(BgndUpdateData* update, int index) {
     BgndUpdateCommandBlock* command;
     MkSobj* object;
     float shadow_scale;
@@ -1112,7 +1113,7 @@ void update_func_shadow_scale(BgndUpdateData* update, int index) {
     object->scale.z = shadow_scale;
 }
 
-void update_func_blend_start(BgndUpdateData* update, int index) {
+static void update_func_blend_start(BgndUpdateData* update, int index) {
     BgndUpdateSlot* slot;
     MkSobj* object;
     float blend;
@@ -1134,7 +1135,7 @@ void update_func_blend_start(BgndUpdateData* update, int index) {
         object->pos.y * blend + update->origin.y * (1.0f - blend);
 }
 
-void update_func_awayxz(BgndUpdateData* update, int index) {
+static void update_func_awayxz(BgndUpdateData* update, int index) {
     MkSobj* object;
     float distance;
     Vec delta;
@@ -1153,7 +1154,7 @@ void update_func_awayxz(BgndUpdateData* update, int index) {
     object->pos.z += delta.z;
 }
 
-void update_func_fall(BgndUpdateData* update, int index) {
+static void update_func_fall(BgndUpdateData* update, int index) {
     BgndUpdateCommandBlock* command;
     MkSobj* object;
     Vec movement;
@@ -1174,7 +1175,7 @@ void update_func_fall(BgndUpdateData* update, int index) {
         update_seconds_per_frame * command->slot.fall_acceleration;
 }
 
-void update_func_sin(BgndUpdateData* update, int index) {
+static void update_func_sin(BgndUpdateData* update, int index) {
     BgndUpdateCommandBlock* command;
     BgndUpdateSlot* slot;
     MkSobj* object;
@@ -1444,7 +1445,7 @@ void start_rope_proc(void) {
 }
 
 /* Soft ceiling: p_rope ~99.64% -- float-pool label only. */
-float p_rope(void) {
+static float p_rope(void) {
     while (apdata != 0) {
         rope_controller_update(apdata);
         next_apdata();
@@ -1452,7 +1453,7 @@ float p_rope(void) {
     return 1.0f;
 }
 
-void rope_controller_init(MkHdr* pdata, MkObj* model) {
+static void rope_controller_init(MkHdr* pdata, MkObj* model) {
     RopeControllerData* rope;
     int i;
 
@@ -1614,26 +1615,28 @@ static inline RopeSegment* rope_previous_segment(
     return &rope->segments[index];
 }
 
-/* Soft ceiling: rope_controller_update ~93.56% -- register allocation and
- * matrix/vector load scheduling; retail algorithm, calls, and stack layout
- * agree. */
-void rope_controller_update(MkHdr* pdata) {
+/*
+ * Soft ceiling: retail aligns the matrix/vector workspace to 16 bytes. Clean
+ * portable C uses the TU's natural stack layout, leaving stack offsets,
+ * register allocation, and matrix/vector load scheduling as residue.
+ */
+static void rope_controller_update(MkHdr* pdata) {
     MkObj* model;
     RopeControllerData* rope;
-    RwMatrix inverse_model_matrix __attribute__((aligned(16)));
-    RwMatrix attached_matrix __attribute__((aligned(16)));
-    RwMatrix rotation __attribute__((aligned(16)));
-    RwMatrix source __attribute__((aligned(16)));
-    Vec acceleration __attribute__((aligned(16)));
-    Vec velocity_delta __attribute__((aligned(16)));
-    RwMatrixPosition constraint_axis __attribute__((aligned(16)));
-    Vec correction __attribute__((aligned(16)));
-    Vec local_position __attribute__((aligned(16)));
-    Vec attached_position __attribute__((aligned(16)));
-    Quat quaternion __attribute__((aligned(16)));
-    RwMatrixPosition axis __attribute__((aligned(16)));
-    Vec direction __attribute__((aligned(16)));
-    Vec midpoint __attribute__((aligned(16)));
+    RwMatrix inverse_model_matrix;
+    RwMatrix attached_matrix;
+    RwMatrix rotation;
+    RwMatrix source;
+    Vec acceleration;
+    Vec velocity_delta;
+    RwMatrixPosition constraint_axis;
+    Vec correction;
+    Vec local_position;
+    Vec attached_position;
+    Quat quaternion;
+    RwMatrixPosition axis;
+    Vec direction;
+    Vec midpoint;
     int i;
 
     rope = (RopeControllerData*)pdata;

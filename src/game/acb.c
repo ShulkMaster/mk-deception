@@ -23,8 +23,6 @@ static const char stringBase0[] =
 static const float movelist_loop_neg_one = -1.0f;
 static const float movelist_loop_pos_one = 1.0f;
 
-const int gap_05_8033FEBC_data = 0;
-
 static int vdestroy_movelist(void* self);
 
 MkVtable5 vtbl_movelist = {
@@ -35,8 +33,7 @@ MkVtable5 vtbl_movelist = {
     (MkVtblFn)vdestroy_movelist,
 };
 
-const char space[] = " ";
-int gap_07_8050FA2C_sdata;
+static char space[] = " ";
 
 extern GlobalPlayerEntry global_player_data[];
 extern int pause_player;
@@ -63,7 +60,8 @@ int sprintf(char* buf, const char* fmt, ...);
 static void init_movelist(MovelistPdata* movelist_pdata);
 static float p_loop_movelist(void);
 
-static void movelist_set_pfx_byte_flags(MovelistPfxObj* pfx_obj, int set_bit4, int set_bit1) {
+static inline void movelist_set_pfx_byte_flags(
+    MovelistPfxObj* pfx_obj, int set_bit4, int set_bit1) {
     pfx_obj->flags_0C_bits.bit4 = set_bit4;
     if (set_bit1 != 0) {
         pfx_obj->flags_0C_bits.bit1 = 1;

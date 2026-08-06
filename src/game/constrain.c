@@ -65,27 +65,27 @@ static ObstacleInfo obstacle_info_table[8] = {
     {7, 0x100, 0x1FF},
 };
 
-static unsigned short next_internal_id;
-ConstrainInfo constrain_info;
 extern ConstrainState constrain_state;
 extern Vec tightrope_perp_uv;
 extern Vec tightrope_uv;
-static int tightrope_set;
-static int p1_hit_side_of_arena;
-static int p2_hit_side_of_arena;
-static int update_tr_due_to_arena_edge;
-static float right_wall_player_dist;
-static float right_wall;
-static float left_wall_player_dist;
-static float left_wall;
-static float tightrope_dist;
 static int tightrope_set_this_tick;
+static float tightrope_dist;
+ConstrainInfo constrain_info;
+static unsigned short next_internal_id;
+static float left_wall;
+static float left_wall_player_dist;
+static float right_wall;
+static float right_wall_player_dist;
+static int update_tr_due_to_arena_edge;
+static int p2_hit_side_of_arena;
+static int p1_hit_side_of_arena;
+static int tightrope_set;
 
 void generate_obstacles(
     unsigned int flags,
     BgndObstacleData* obstacle_data,
     ConstrainInfo* info);
-float dist_from_plyr_pos_to_arena_edge(
+static float dist_from_plyr_pos_to_arena_edge(
     const Vec* position, const Vec* direction);
 float xz_ray_circle_intersection_dist(
     const Vec* ray_origin, const Vec* ray_direction, float radius);
@@ -108,7 +108,7 @@ static float p_constrain_players(void);
 static void repel_players(void);
 static void keep_players_on_tightrope(void);
 
-static float constrain_sqrt(float value) {
+static inline float constrain_sqrt(float value) {
     union {
         float f;
         unsigned int u;
@@ -128,7 +128,7 @@ static float constrain_sqrt(float value) {
     return 0.5f * refined;
 }
 
-static float constrain_inv_sqrt(float value) {
+static inline float constrain_inv_sqrt(float value) {
     union {
         float f;
         unsigned int u;
@@ -413,7 +413,7 @@ float dist_behind_me(void) {
     return distance;
 }
 
-float dist_from_plyr_pos_to_arena_edge(
+static float dist_from_plyr_pos_to_arena_edge(
     const Vec* position, const Vec* direction) {
     float length;
     float along_ray;

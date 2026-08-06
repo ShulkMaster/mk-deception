@@ -36,7 +36,8 @@ typedef struct AnimPdata {
     char pad6C[0x48];
     float transition_weight; /* +0xB4 */
     float transition_step; /* +0xB8 */
-    char padBC[0x14];
+    float transition_target; /* +0xBC */
+    char padC0[0x10];
     MkProcEntryFn hand_script; /* +0xD0 */
     char padD4[0x20];
     int rest_ticks;   /* +0xF4 - weapon rest-loop countdown */

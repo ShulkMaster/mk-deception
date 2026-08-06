@@ -737,9 +737,9 @@ PfxClone* pfx_create_clone(MkPfx* pfx) {
     return clone;
 }
 
-int pfx_create_raw_userdata(int extra_size, void* userdata, int field_90,
-                            int field_214, int field_a0, PfxInitCb init_cb,
-                            int pid, MkProcEntryFn entry, void** out_pfx) {
+void* pfx_create_raw_userdata(int extra_size, void* userdata, int field_90,
+                              int field_214, int field_a0, PfxInitCb init_cb,
+                              int pid, MkProcEntryFn entry, void** out_pfx) {
     /* Retail: .data static empty_build_info$522 (zero-init -> .data, not .bss). */
     static PfxBuildInfo empty_build_info = {0};
 
@@ -750,10 +750,10 @@ int pfx_create_raw_userdata(int extra_size, void* userdata, int field_90,
                                        out_pfx);
 }
 
-int new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
-                                int field_214, int field_a0, PfxInitCb init_cb,
-                                int pid, MkProcEntryFn entry, void** out_pfx) {
-    int proc_id;
+void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
+                                  int field_214, int field_a0, PfxInitCb init_cb,
+                                  int pid, MkProcEntryFn entry, void** out_pfx) {
+    MkProc* created_proc;
     MkPfx* pfx;
     void* vm;
     int proc_nostack_arg;
@@ -776,7 +776,7 @@ int new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_9
     PfxNostackFlagBits* nostack_bits;
     float zero;
 
-    proc_id = 0;
+    created_proc = 0;
     pfx = (MkPfx*)get_mkhdr(&vtbl_pfx, extra_size + 0x2C0);
     if (pfx == 0) {
         return 0;
@@ -821,7 +821,7 @@ int new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_9
 
     memset(emitter_buf, 0, 0x2EC);
     if (init_cb != 0) {
-        pfx->emitter_scratch = emitter_buf;
+        pfx->emitter_scratch = (PfxEmitter*)emitter_buf;
         pfx->slot_count = 1;
         init_cb(vm);
     }
@@ -900,7 +900,7 @@ int new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_9
         if (proc == 0) {
             pfx = 0;
         } else {
-            proc_id = (int)proc;
+            created_proc = proc;
             proc->pre_destroy = pfx_pre_wake;
             proc->destroy_cb = pfx_post_sleep;
             pfx->proc = (MkHdr*)proc;
@@ -912,7 +912,7 @@ int new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_9
     }
 
     *out_pfx = (void*)pfx;
-    return proc_id;
+    return created_proc;
 }
 
 static void apfx_set_transform_matrix(void) {
