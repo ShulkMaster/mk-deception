@@ -12,8 +12,7 @@ typedef struct BgndMisc {
     void* lights_spec;     /* +0x4C */
     void* lights_plyr;     /* +0x50 */
     float shadow_strength; /* +0x54 */
-    char shadow_cam_light; /* +0x58 - address taken for UpdateShadowCameraLightSource */
-    char pad59[0xB];
+    float shadow_cam_light[3]; /* +0x58 */
     void* script; /* +0x64 */
     float mirror_plane_offset; /* +0x68 */
 } BgndMisc;
