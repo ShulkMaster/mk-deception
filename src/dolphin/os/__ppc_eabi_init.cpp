@@ -16,3 +16,11 @@ static void __init_cpp(void) {
         (*ctor)();
     }
 }
+
+#if 0
+void *_ExitProcess(void)
+{
+    /* TODO: Missing canonical function implementation. */
+    return 0;
+}
+#endif

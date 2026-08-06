@@ -1138,7 +1138,8 @@ config.libs = [
             Object(
                 NonMatching,
                 "os.a/__ppc_eabi_init.o",
-                source="dolphin/__ppc_eabi_init.c",
+                source="dolphin/os/__ppc_eabi_init.cpp",
+                extra_cflags=["-lang=c"],
             ),
         ],
     ),
