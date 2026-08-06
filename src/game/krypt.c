@@ -157,15 +157,15 @@ static void set_koin_positions_and_colors(void* pfx);
 static void position_fire_pots(void);
 float p_fog_follow_camera(void);
 
-static void mkproc_jump_sleep(MkProcEntryFn entry) {
+static inline void mkproc_jump_sleep(MkProcEntryFn entry) {
     ((MkVtableMkprocLocal*)aproc->vtbl)->jump_sleep(entry);
 }
 
-static void mkproc_sleep(void) {
+static inline void mkproc_sleep(void) {
     ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
 }
 
-static void reset_coffin_pebble_counts(void) {
+static inline void reset_coffin_pebble_counts(void) {
     if (krypt_pdata->coffin_pebble_type0 != 0) {
         krypt_pdata->coffin_pebble_type0->count = 0;
     }
@@ -186,7 +186,7 @@ static void reset_coffin_pebble_counts(void) {
     }
 }
 
-static void place_visible_coffin_rows(void) {
+static inline void place_visible_coffin_rows(void) {
     float origin[3];
     int row;
     int col;
@@ -220,7 +220,7 @@ static void place_visible_coffin_rows(void) {
 /* Cluster A - Kontent gallery                                               */
 /* ========================================================================= */
 
-static StringObj* kontent_bio_text_live(void) {
+static inline StringObj* kontent_bio_text_live(void) {
     StringObj* raw;
     StringObj* live;
 
@@ -584,7 +584,7 @@ static float p_play_random_noise(void) { return 0.0f; }
  * While krypt_pdata->tombstone_hud_ticks > 0, rebuild layouts via set_*;
  * otherwise copy live UV/color fields from the -1 slot into the -2 slot.
  */
-static float update_tombstone_common(void (*rebuild)(void* pfx)) {
+static inline float update_tombstone_common(void (*rebuild)(void* pfx)) {
     TombstonePfx* pfx;
     float* dst_f;
     float* src_f;
@@ -635,7 +635,7 @@ float update_tombstone_koins(void) {
     return update_tombstone_common(set_koin_positions_and_colors);
 }
 
-static void init_tombstone_common(void* pfx_arg, int particle_count, float scale,
+static inline void init_tombstone_common(void* pfx_arg, int particle_count, float scale,
                                   void* tex_name, int anim_a, int anim_b, int anim_c,
                                   int anim_d) {
     TombstonePfx* pfx;
@@ -693,7 +693,7 @@ void init_tombstone_koins(void* pfx) {
     init_tombstone_common(pfx, 0x24, 0.4f, (void*)0x012a0004, 0x80, 0x2a, 0x2a, 0x8);
 }
 
-static void tombstone_viewport_origin(int* out_row, int* out_col) {
+static inline void tombstone_viewport_origin(int* out_row, int* out_col) {
     int row;
     int col;
 
@@ -714,29 +714,29 @@ static void tombstone_viewport_origin(int* out_row, int* out_col) {
     *out_col = col;
 }
 
-static float tombstone_row_z(int row) {
+static inline float tombstone_row_z(int row) {
     return -(s_tomb_row_spacing * (float)row - s_tomb_row_origin);
 }
 
-static float tombstone_col_x(int col) {
+static inline float tombstone_col_x(int col) {
     return s_tomb_col_spacing * (float)col + s_tomb_col_origin;
 }
 
-static float tombstone_coffin_z(int coffin_type, float z_near, float z_far) {
+static inline float tombstone_coffin_z(int coffin_type, float z_near, float z_far) {
     if (coffin_type == 4) {
         return z_near;
     }
     return z_far;
 }
 
-static float tombstone_digit_y(int prize_kind) {
+static inline float tombstone_digit_y(int prize_kind) {
     if (prize_kind == 6) {
         return s_tomb_digit_y_open;
     }
     return s_tomb_digit_y_closed;
 }
 
-static void tombstone_write_particle(float** pos, float** uv, int pos_stride, int uv_stride,
+static inline void tombstone_write_particle(float** pos, float** uv, int pos_stride, int uv_stride,
                                      float x, float y, float z, float value) {
     (*pos)[0] = x;
     (*pos)[1] = y;
@@ -1066,18 +1066,18 @@ void set_pebble_positions_for_row(int row, int start_col, int count, float* orig
     }
 }
 
-static void* krypt_bgnd_obj(void) {
+static inline void* krypt_bgnd_obj(void) {
     return g_game_info.bgnd_obj;
 }
 
-static void sobj_enable_pebble_bit(void* sobj) {
+static inline void sobj_enable_pebble_bit(void* sobj) {
     MkSobj* s;
 
     s = (MkSobj*)sobj;
     s->flags09 = (unsigned char)((s->flags09 & ~0x10) | 0x10);
 }
 
-static void fill_wall_pebble_z(PebbleData* pebble, float spacing, float base) {
+static inline void fill_wall_pebble_z(PebbleData* pebble, float spacing, float base) {
     int i;
     RwMatrix* mat;
 

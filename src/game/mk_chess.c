@@ -1327,7 +1327,7 @@ static void mk_chess_spell_hud_target_1_text_faded_goto_next_target_cb(void) {
     hud->target_1->state = 0x12;
 }
 
-static void mk_chess_start_active_piece_script(void) {
+static inline void mk_chess_start_active_piece_script(void) {
     g_active_piece->flags.snap_into_stance = 1;
     cmdscript_setup_execution(
         g_board_game_controller.command_script,
@@ -1485,7 +1485,7 @@ static float p_mk_chess_piece_proc_entry(void) {
     return 0.0f;
 }
 
-static float mk_chess_direction_input(
+static inline float mk_chess_direction_input(
     unsigned int direction,
     int action,
     int spell_input,
@@ -2798,11 +2798,11 @@ float x_chess_2(void) {
     return 0.0f;
 }
 
-static unsigned int mk_chess_save_u16(const unsigned char* bytes) {
+static inline unsigned int mk_chess_save_u16(const unsigned char* bytes) {
     return ((unsigned int)bytes[0] << 8) | bytes[1];
 }
 
-static unsigned int mk_chess_save_u32(const unsigned char* bytes) {
+static inline unsigned int mk_chess_save_u32(const unsigned char* bytes) {
     return ((unsigned int)bytes[0] << 24) |
            ((unsigned int)bytes[1] << 16) |
            ((unsigned int)bytes[2] << 8) | bytes[3];
@@ -3174,7 +3174,7 @@ static void mk_chess_spell_hud_handle_names_slide_out(
     unhide_screen_obj(cursor);
 }
 
-static void mk_chess_start_player_fatality(
+static inline void mk_chess_start_player_fatality(
     PlyrInfo* winner_info, PlyrInfo* loser_info) {
     MkProcEntryFn fatality;
 

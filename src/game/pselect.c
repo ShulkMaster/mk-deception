@@ -317,7 +317,7 @@ static int rnd_sleep_tbl[19] = {
 static void pselect_init(void);
 void resolve_alternate_palettes(PlyrInfo* plyr);
 
-static void mkproc_sleep_one(void) {
+static inline void mkproc_sleep_one(void) {
     MkVtableMkprocLocal* vtbl;
 
     _mkproc_sleep_ticks = sleep_ticks_one;
@@ -325,33 +325,33 @@ static void mkproc_sleep_one(void) {
     vtbl->sleep();
 }
 
-static PselectCharEntry* pselect_char_at(int slot) {
+static inline PselectCharEntry* pselect_char_at(int slot) {
     if (pselect_mode == 2) {
         return &pselect_pz_char_tbl[slot];
     }
     return &pselect_char_tbl[slot];
 }
 
-static int pselect_grid_cols(void) {
+static inline int pselect_grid_cols(void) {
     if ((int)mode_of_play == 6) {
         return 6;
     }
     return 9;
 }
 
-static int pselect_grid_cells(void) {
+static inline int pselect_grid_cells(void) {
     if ((int)mode_of_play == 6) {
         return 0xC;
     }
     return 0x1B;
 }
 
-static BgPselectTeamView* bg_team_view(BgPselectPdata* pdata, int team) {
+static inline BgPselectTeamView* bg_team_view(BgPselectPdata* pdata, int team) {
     return (BgPselectTeamView*)((char*)pdata + team * 0x24);
 }
 
 /* Focus index of char_id in team chars[0..count-2]; -1 if absent. */
-static int bg_team_focus_of(BgPselectPdata* pdata, int team, int char_id) {
+static inline int bg_team_focus_of(BgPselectPdata* pdata, int team, int char_id) {
     BgPselectTeamView* teamv;
     int i;
 

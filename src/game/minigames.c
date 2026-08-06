@@ -623,7 +623,7 @@ static const PuzzleStringTable puzzle_string_table = {
     "PZ_CHAMPION_B",
 };
 
-static float puzzle_switch_set_command(int command) {
+static inline float puzzle_switch_set_command(int command) {
     PuzzleSwitchState* switch_state;
     PuzzlePlayerState* player;
 
