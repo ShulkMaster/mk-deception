@@ -1145,7 +1145,7 @@ config.libs = [
     DolphinLib(
         "sp",
         [
-            Object(NonMatching, "sp.a/sp.o", source="dolphin/sp.c"),
+            Object(Matching, "sp.a/sp.o", source="dolphin/sp.c"),
         ],
     ),
     RenderWareLib(
