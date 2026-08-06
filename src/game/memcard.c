@@ -8,9 +8,7 @@
  * See docs/campaigns/index.md (B20-B22; card.a out).
  */
 
-#if !defined(TARGET_PC)
 #pragma use_lmw_stmw on
-#endif
 
 void* memset(void* d, int c, unsigned long n);
 char* strcpy(char* d, const char* s);

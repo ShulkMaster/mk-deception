@@ -28,18 +28,10 @@ typedef struct MkProcMessageFlags {
     unsigned char pad1 : 3;
 } MkProcMessageFlags;
 
-#if !defined(TARGET_PC)
-__declspec(section ".rodata") const int gap_04_8031382C_rodata = 0;
-#else
 const int gap_04_8031382C_rodata = 0;
-#endif
 
 int memcard_online_save_port = -1;
-#if !defined(TARGET_PC)
-__declspec(section ".sdata") unsigned char gap_07_8050FC3C_sdata[4] = {0, 0, 0, 0};
-#else
 unsigned char gap_07_8050FC3C_sdata[4] = {0, 0, 0, 0};
-#endif
 
 /* MWCC emits .sbss in reverse declaration order. */
 int gap_08_80510DFC_sbss;
@@ -143,11 +135,7 @@ void fire_up_memcard_mesage_screen(void) {
     }
 }
 
-#if !defined(TARGET_PC)
-__declspec(section ".data") const int gap_05_8034F0EC_data = 0;
-#else
 const int gap_05_8034F0EC_data = 0;
-#endif
 
 void mcmsg_nothing(void) {}
 

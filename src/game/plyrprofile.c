@@ -20,9 +20,7 @@
  * See docs/campaigns/index.md (B20-B22).
  */
 
-#if !defined(TARGET_PC)
 #pragma use_lmw_stmw on
-#endif
 
 void* memset(void* d, int c, unsigned long n);
 void* memcpy(void* d, const void* s, unsigned long n);

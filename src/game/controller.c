@@ -718,10 +718,8 @@ void unassign_player(PlyrInfo* player) {
     }
 }
 
-#if !defined(TARGET_PC)
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-#endif
 void init_temp_switch_map(int player, int use_profile) {
     PlayerProfile* profile;
     int* profile_status;
@@ -756,15 +754,11 @@ void init_temp_switch_map(int player, int use_profile) {
         defaults++;
     }
 }
-#if !defined(TARGET_PC)
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
-#endif
 
-#if !defined(TARGET_PC)
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-#endif
 void init_player_switch_maps(void) {
     SwitchMapEntry* src;
     SwitchMapEntry* dest;
@@ -794,10 +788,8 @@ void init_player_switch_maps(void) {
     p1_rumble_on = 0;
     p2_rumble_on = 0;
 }
-#if !defined(TARGET_PC)
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
-#endif
 
 /* Soft ceiling: get_player_for_port ~98.82% - one unreachable retail branch. */
 PlyrInfo* get_player_for_port(int port) {
@@ -848,10 +840,8 @@ PlyrInfo* get_player_for_port(int port) {
     return &g_game_info.plyr1;
 }
 
-#if !defined(TARGET_PC)
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-#endif
 int check_for_non_game_locked_controller_state(void) {
     int game_state;
 
@@ -937,7 +927,5 @@ void init_port_info_struct(void) {
         slots[i].stick_pack = 0;
     }
 }
-#if !defined(TARGET_PC)
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
-#endif
