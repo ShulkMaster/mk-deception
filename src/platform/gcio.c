@@ -185,7 +185,7 @@ void turn_rumble_off(int channel) {
     PADControlMotor(channel, 0);
 }
 
-void turn_rumble_on(int channel) {
+void turn_rumble_on(int channel, int strength) {
     PADControlMotor(channel, 1);
 }
 
