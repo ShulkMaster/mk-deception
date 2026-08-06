@@ -235,7 +235,13 @@ typedef struct PlyrPdata {
     char pad11C[0x18];
     MkPtr* active_weapon_links; /* +0x134 */
     char pad138[0x84];
-    PlyrMirrorObjLatch held_by_object_latch; /* +0x1BC */
+    union {
+        PlyrMirrorObjLatch held_by_object_latch;
+        struct {
+            int held_by_player;
+            int hold_state;
+        };
+    }; /* +0x1BC */
     int (*aux_update_callback)(void); /* +0x1C4 */
     PlyrWeaponImpactData* weapon_impact; /* +0x1C8 */
     union {
