@@ -1056,22 +1056,17 @@ void insert_mu(int device) {
 
 #pragma opt_common_subs off
 void remove_mu(int device) {
-    /* Soft ceiling: ~99.22% -- final zero/base scratch coloring only; stop. */
-    int offset;
-    StorageDevice* before;
-    StorageDevice* after;
+    StorageDevice* storage;
 
     if (device < 0 || device >= STORAGE_MAX_DEVICES) {
         return;
     }
     reset_storage_device_status_structure(device);
-    offset = device * STORAGE_DEVICE_STRIDE;
-    before = (StorageDevice*)((unsigned char*)storage_status + offset);
-    before->status = 1;
-    strcpy(before->name, STR_EMPTY_NAME);
-    after = (StorageDevice*)((unsigned char*)storage_status + offset);
-    after->freeBlocks = 0;
-    after->freeBytes = 0;
+    storage = DEVICE_AT(device);
+    storage->status = 1;
+    strcpy(storage->name, STR_EMPTY_NAME);
+    storage->freeBlocks = 0;
+    storage->freeBytes = 0;
 }
 #pragma opt_common_subs reset
 
