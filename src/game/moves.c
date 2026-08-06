@@ -354,18 +354,6 @@ typedef struct MovesAttackActionTable {
     MovesActionRef attack_4[3];
 } MovesAttackActionTable;
 
-MovesWeaponGrabEntry weapon_grab_table[9] = {
-    {15.0f, 0.0f, 3.0f, 3.0f, 1.5f},
-    {15.0f, -5.22f, 2.0f, 5.0f, 1.5f},
-    {14.0f, -4.2f, 1.0f, 6.0f, 1.5f},
-    {14.0f, -3.3f, 0.0f, 7.0f, 1.5f},
-    {15.0f, -2.9f, 8.0f, 8.0f, 1.5f},
-    {14.0f, -2.2f, 7.0f, 0.0f, 1.5f},
-    {14.0f, -1.4f, 6.0f, 1.0f, 1.5f},
-    {14.0f, -0.8f, 5.0f, 2.0f, 1.5f},
-    {0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
-};
-
 unsigned int scan_freak_4[1] = {(unsigned int)-1};
 MovesActionRef temp_throw_switch = {4, 0x8F};
 
@@ -406,7 +394,6 @@ extern int p2_last_switch_bit;
 extern int p2_last_switch_time;
 extern MovesSwitchLogEntry p1_switch_log[30];
 extern MovesSwitchLogEntry p2_switch_log[30];
-extern unsigned int jump_table[];
 extern ScriptSlot* reactions_cmo;
 extern float aniproc_land(void);
 
@@ -636,6 +623,60 @@ int drone_ai_check_next_block_state(unsigned int tick);
 void active_sidekick_swap(PlyrPdata* player, int moveset);
 void tightrope_restrictions_off(void);
 float sqrtf(float value);
+
+float rotate_toward_j_exit(void);
+float step_backward(void);
+float step_forward(void);
+static float walk_backward(void);
+static float walk_forward(void);
+float blend_to_stance_j_exit(void);
+static float blend_to_fstance_j_exit(void);
+float joy_dash_back(void);
+static float weapon_block(void);
+static void block_a_intro_glitch(void);
+static float block_a(void);
+static float block_b(void);
+static float block_c(void);
+static float block_d(void);
+float step_left(void);
+static float walk_left(void);
+float step_right(void);
+static float walk_right(void);
+float joy_duck_remote_start(void);
+float joy_duck_remote_end(void);
+static float jump_away_opponent_j_exit(void);
+static float jump_towards_opponent_j_exit(void);
+float r_hit_wall(void);
+float throw_spear(void);
+float go_into_twitch_death(void);
+float go_into_major_pain(void);
+void j_ass_rollup(void);
+void front_rollup(void);
+static void jump_landing_j_exit(void);
+float dizzy(void);
+float r_chest2_stumble(void);
+static void do_my_fatality_remote(void);
+static float x_attack_5_remote(void);
+static void do_my_suicide_remote(void);
+static void do_my_2nd_fatality_remote(void);
+float back_to_crouch(void);
+float do_my_suicide(void);
+float do_my_fatality(void);
+float do_my_2nd_fatality(void);
+
+#include "src/game/moves_scan_tables.inc"
+
+MovesWeaponGrabEntry weapon_grab_table[9] = {
+    {15.0f, 0.0f, 3.0f, 3.0f, 1.5f},
+    {15.0f, -5.22f, 2.0f, 5.0f, 1.5f},
+    {14.0f, -4.2f, 1.0f, 6.0f, 1.5f},
+    {14.0f, -3.3f, 0.0f, 7.0f, 1.5f},
+    {15.0f, -2.9f, 8.0f, 8.0f, 1.5f},
+    {14.0f, -2.2f, 7.0f, 0.0f, 1.5f},
+    {14.0f, -1.4f, 6.0f, 1.0f, 1.5f},
+    {14.0f, -0.8f, 5.0f, 2.0f, 1.5f},
+    {0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+};
 
 static void check_for_suicide(void);
 
@@ -2203,7 +2244,7 @@ float x_attack_4(void) {
     unsigned int* sequences;
     int joy_state;
 
-    sequences = jump_table;
+    sequences = &jump_table[0].value;
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         p1_current_log_index = p1_log_index;
         entry = &p1_switch_log[p1_log_index];
@@ -2341,7 +2382,7 @@ float x_attack_3(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
-    unsigned int* sequences = jump_table;
+    unsigned int* sequences = &jump_table[0].value;
     int joy_state;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
@@ -2476,7 +2517,7 @@ float x_attack_2(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
-    unsigned int* sequences = jump_table;
+    unsigned int* sequences = &jump_table[0].value;
     int joy_state;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
@@ -2609,7 +2650,7 @@ float x_attack_1(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
     MovesActionRef* action;
-    unsigned int* sequences = jump_table;
+    unsigned int* sequences = &jump_table[0].value;
     int joy_state;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
@@ -3030,7 +3071,6 @@ static float p_plyr_sidekick_intro(void) {
     float angle_y;
     float angle_z;
     float wrapped_angle;
-    int transition;
     int function;
 
     pdata = (MovesSidekickPdata*)apdata;
@@ -3089,10 +3129,8 @@ static float p_plyr_sidekick_intro(void) {
             main_object,
             player->opponent->plyr_info->slot.mirror_a) != 0) {
         v3_add_v3_scaled(&offset, &offset, &lateral, 0.55f);
-        transition = 0;
     } else {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.55f);
-        transition = 8;
     }
     position_x = main_object->pos.x + offset.x;
     position_y = g_game_info.field_34;
@@ -3113,12 +3151,22 @@ static float p_plyr_sidekick_intro(void) {
         sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
-    destroy_mkprocs_pid(
-        pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
+    if (pdata->player->plyr_num == 0) {
+        destroy_mkprocs_pid(0xC028);
+    } else {
+        destroy_mkprocs_pid(0xC029);
+    }
     alternate_style =
         (PlyrFighterDefinition*)pdata->player->weapon_styles[1];
-    transition_to_anim_script(
-        anim, alternate_style->duck_exit_animation, transition, 0.1f);
+    if (am_i_on_the_left2(
+            main_object,
+            player->opponent->plyr_info->slot.mirror_a) != 0) {
+        transition_to_anim_script(
+            anim, alternate_style->duck_exit_animation, 0, 0.1f);
+    } else {
+        transition_to_anim_script(
+            anim, alternate_style->duck_exit_animation, 8, 0.1f);
+    }
     anim->step = 1.0f;
     moves_sleep(1.0f);
     unhide_obj(sidekick);
@@ -3129,8 +3177,15 @@ static float p_plyr_sidekick_intro(void) {
     gxMathCos(wrapped_angle);
     moves_sleep(120.0f + (float)randu0(30));
     sidekick->flags_09_bits.head_tracking = 0;
-    transition_to_anim_script(
-        anim, actions->charge_exit_animation, transition | 3, 0.25f);
+    if (am_i_on_the_left2(
+            main_object,
+            player->opponent->plyr_info->slot.mirror_a) != 0) {
+        transition_to_anim_script(
+            anim, actions->charge_exit_animation, 3, 0.25f);
+    } else {
+        transition_to_anim_script(
+            anim, actions->charge_exit_animation, 0xB, 0.25f);
+    }
     anim->step = 1.2f;
     sidekick->flags_09_bits.bit6 = 1;
     while (anim->frame < 5.0f) {
@@ -3188,6 +3243,12 @@ void smoke_victory_entrance(void) {
     }
 }
 
+static inline void moves_prepare_sidekick_entrance(
+    AnimPdata* animation, MkObj* sidekick) {
+    animation->flags &= ~8U;
+    sidekick->hide_flag_bits.bit6 = 0;
+}
+
 static float p_plyr_smoke_entrance(void) {
     union {
         float f;
@@ -3232,8 +3293,7 @@ static float p_plyr_smoke_entrance(void) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
-    anim->flags &= ~8U;
-    sidekick->hide_flag_bits.bit6 = 0;
+    moves_prepare_sidekick_entrance(anim, sidekick);
     sidekick->flags_09_bits.head_tracking = 0;
 
     player_proc = player->player_proc;
@@ -3299,8 +3359,11 @@ static float p_plyr_smoke_entrance(void) {
     sidekick->ang.z = angle_z;
     update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
-    destroy_mkprocs_pid(
-        pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
+    if (pdata->player->plyr_num == 0) {
+        destroy_mkprocs_pid(0xC028);
+    } else {
+        destroy_mkprocs_pid(0xC029);
+    }
     snd_req(0x333);
     set_anim_script(
         anim, actions->smoke_entrance_animation, transition | 0x40);
@@ -3741,8 +3804,7 @@ static float p_plyr_sidekick_projectile(void) {
     if (distance < 3.2f) {
         object_weight = 0.75f;
     }
-    anim->flags &= ~8U;
-    sidekick->hide_flag_bits.bit6 = 0;
+    moves_prepare_sidekick_entrance(anim, sidekick);
     if (am_i_on_the_left2(
             main_object,
             player->opponent->plyr_info->slot.mirror_a) == 0) {
@@ -3793,8 +3855,11 @@ static float p_plyr_sidekick_projectile(void) {
         sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
-    destroy_mkprocs_pid(
-        pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
+    if (pdata->player->plyr_num == 0) {
+        destroy_mkprocs_pid(0xC028);
+    } else {
+        destroy_mkprocs_pid(0xC029);
+    }
     set_anim_script(anim, actions->projectile_animation, transition);
     anim->step = 1.25f;
     moves_sleep(1.0f);
@@ -3884,8 +3949,8 @@ static float p_plyr_noob_entrance(void) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
-    anim->flags &= ~8U;
-    sidekick->hide_flag_bits.bit6 = 0;
+    moves_prepare_sidekick_entrance(anim, sidekick);
+    moves_prepare_sidekick_entrance(anim, sidekick);
 
     player_proc = player->player_proc;
     if (player_proc != 0 &&
@@ -3950,8 +4015,11 @@ static float p_plyr_noob_entrance(void) {
     sidekick->ang.z = angle_z;
     update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
-    destroy_mkprocs_pid(
-        pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
+    if (pdata->player->plyr_num == 0) {
+        destroy_mkprocs_pid(0xC028);
+    } else {
+        destroy_mkprocs_pid(0xC029);
+    }
     transition |= 3;
     set_anim_script(anim, actions->noob_entrance_animation, transition);
     moves_sleep(1.0f);
@@ -4025,8 +4093,7 @@ static float p_plyr_sidekick_charge(void) {
         anim_proc = 0;
     }
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
-    anim->flags &= ~8U;
-    sidekick->hide_flag_bits.bit6 = 0;
+    moves_prepare_sidekick_entrance(anim, sidekick);
     sidekick->flags_09_bits.head_tracking = 0;
 
     player_proc = player->player_proc;
@@ -4095,8 +4162,11 @@ static float p_plyr_sidekick_charge(void) {
         sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
-    destroy_mkprocs_pid(
-        pdata->player->plyr_num == 0 ? 0xC028 : 0xC029);
+    if (pdata->player->plyr_num == 0) {
+        destroy_mkprocs_pid(0xC028);
+    } else {
+        destroy_mkprocs_pid(0xC029);
+    }
     set_anim_script(anim, shared_ani.sidekick_charge, transition);
     moves_sleep(1.0f);
     unhide_obj(sidekick);
@@ -4877,7 +4947,7 @@ float dizzy(void) {
  * remaining 35 records are jump-table/base relocation labels only.
  */
 static void check_for_suicide(void) {
-    unsigned int* sequences = jump_table;
+    unsigned int* sequences = &jump_table[0].value;
 
     if (was_button_pressed(7) != 0) {
         switch (plyr_pdata->character_id) {

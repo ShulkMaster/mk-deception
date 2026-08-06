@@ -278,6 +278,9 @@ void lower_mines_ani_to_point(
     land_chores(landing_sound, 0, 0.0f, 0.0f);
 }
 
+static const Vec nb_collision_x_axis = {1.0f, 0.0f, 0.0f};
+static const Vec nb_collision_z_axis = {0.0f, 0.0f, 1.0f};
+
 /*
  * Soft ceiling: 88.52% -- all calls/branches and the XZ basis algorithm agree;
  * remaining differences are aggregate stack layout and FPR/store scheduling.
@@ -450,10 +453,8 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     old_x = npc->momentum.x;
     old_z = npc->momentum.z;
     {
-        static const Vec x_axis = {1.0f, 0.0f, 0.0f};
-        static const Vec z_axis = {0.0f, 0.0f, 1.0f};
-        Vec local_x = x_axis;
-        Vec local_z = z_axis;
+        Vec local_x = nb_collision_x_axis;
+        Vec local_z = nb_collision_z_axis;
         float facing_x =
             local_x.x * facing.x + local_x.z * facing.z;
         float facing_z =

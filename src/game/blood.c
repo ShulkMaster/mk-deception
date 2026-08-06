@@ -1224,7 +1224,6 @@ BloodPath scorpion_blood_bloodpath_armbackR_path = {
     scorpion_blood_bloodpath_armbackR_targets, scorpion_blood_bloodpath_armbackR_edges,
     1.0f, 0.00300000003f, 0.00300000003f,
 };
-static unsigned int decal_tick_counter;
 int blood_type_list[12] = {1, 2, 2, 3, 3, 3, 3, 2, 3, 1, 2, 3};
 char* blood_map[11] = {
     "BLOOD1", "BLOOD2", "BLOOD3", "BLOOD4", "BLOOD5", "BLOOD6",
@@ -1334,11 +1333,10 @@ int scorpion_blood_bloodpath_frontR_edges[36];
 int scorpion_blood_bloodpath_sideR_edges[35];
 int scorpion_blood_bloodpath_backR_edges[30];
 int scorpion_blood_bloodpath_armbackR_edges[12];
-BloodProcLatch ncs_pfx_decal_emitter_proc;
-BloodProcLatch bleed_pfx_proc_item;
-BloodProcLatch bleed_proc_item;
+extern BloodProcLatch bleed_proc_item;
+extern BloodProcLatch bleed_pfx_proc_item;
+extern BloodProcLatch ncs_pfx_decal_emitter_proc;
 extern MkPtr* gusher_list;
-static int bleed_startup__fire_off_splat_watcher_func;
 extern MkVtable5 vtbl_mkpdata_generic;
 extern MkVtable5 vtbl_pfx;
 extern float game_speed;
@@ -1542,6 +1540,13 @@ void gusher_destroy_list(void) {
     }
     gusher_list = 0;
 }
+
+BloodProcLatch bleed_proc_item;
+BloodProcLatch bleed_pfx_proc_item;
+MkPtr* gusher_list;
+BloodProcLatch ncs_pfx_decal_emitter_proc;
+static unsigned int decal_tick_counter;
+static int bleed_startup__fire_off_splat_watcher_func;
 
 void kill_gusher(MkProc* proc) {
     BloodProcVtableRef vtbl;
