@@ -426,13 +426,13 @@ typedef struct MovesYieldVtable {
 void bgnd_swap_level(int level);
 void bgnd_move_plyrs_to_initial_pos(void);
 
-float p_plyr_sidekick_projectile(void);
-float p_plyr_sidekick_intro(void);
-float p_plyr_smoke_entrance(void);
-float p_plyr_noob_entrance(void);
-float p_plyr_sidekick_charge(void);
-float p_plyr_sidekick_switch(void);
-float p_sidekick_exit_now(void);
+static float p_plyr_sidekick_projectile(void);
+static float p_plyr_sidekick_intro(void);
+static float p_plyr_smoke_entrance(void);
+static float p_plyr_noob_entrance(void);
+static float p_plyr_sidekick_charge(void);
+static float p_plyr_sidekick_switch(void);
+static float p_sidekick_exit_now(void);
 void trial_increment_state_value(int player, int state, int amount);
 void avoid_double_ani(void);
 void init_ground_move_no_aniproc(void);
@@ -445,12 +445,12 @@ void blend_to_fstance(float rate);
 void rotate_towards_him(float rate);
 float get_my_angle_y_error(void);
 int is_my_chest_to_screen();
-void back_rollup_left(void);
-void back_rollup_right(void);
-void front_rollup_left(void);
-void front_rollup_right(void);
+static void back_rollup_left(void);
+static void back_rollup_right(void);
+static void front_rollup_left(void);
+static void front_rollup_right(void);
 void init_3d_move(void);
-void rollup_finish(void);
+static void rollup_finish(void);
 float j_exit(void);
 float j_exit_blend_stance(void);
 float start_suicide(void);
@@ -524,7 +524,7 @@ float x_advance_fatality(void);
 void x_advance_moveset(void);
 static float blend_to_duck_block(void);
 static float block_a_intro(void);
-void block_a_intro_glitch(void);
+static void block_a_intro_glitch(void);
 void set_ani_weight(float weight);
 void blend_to_ani_nosleep(AniData* animation, int transition, float blend_rate);
 int am_i_blocking(void);
@@ -568,7 +568,7 @@ void xfer_camera(MkProcEntryFn entry, int transition);
 void set_ani_speed(float speed);
 int am_i_flipped(void);
 int am_i_airborn(void);
-void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type);
+static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type);
 void clear_both_face_opponent_flags(void);
 int is_big_boss(PlyrPdata* player);
 void plyr_weapon_hide(
@@ -985,14 +985,14 @@ void configure_iceball(MkObj* iceball) {
     }
 }
 
-static void moves_jump(MovesEntryFn entry) {
+static inline void moves_jump(MovesEntryFn entry) {
     MovesProcVtable* vtable;
 
     vtable = (MovesProcVtable*)aproc->vtbl;
     vtable->sleep(entry, vtable, 0.0f);
 }
 
-static void moves_sleep(float ticks) {
+static inline void moves_sleep(float ticks) {
     MovesYieldVtable* vtable;
 
     _mkproc_sleep_ticks = ticks;
@@ -2003,7 +2003,7 @@ float switch_proc_advance_moveset(void) {
     return -1.0f;
 }
 
-void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
+static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
     union {
         float f;
         unsigned int u;
@@ -2808,25 +2808,25 @@ void j_front_roll_right(void) {
     moves_jump((MovesEntryFn)front_rollup_left);
 }
 
-void front_rollup_left(void) {
+static void front_rollup_left(void) {
     init_3d_move();
     blend_to_ani(shared_ani.front_roll_left, 3, 0.2f);
     moves_jump((MovesEntryFn)rollup_finish);
 }
 
-void front_rollup_right(void) {
+static void front_rollup_right(void) {
     init_3d_move();
     blend_to_ani(shared_ani.front_roll_right, 3, 0.2f);
     moves_jump((MovesEntryFn)rollup_finish);
 }
 
-void back_rollup_left(void) {
+static void back_rollup_left(void) {
     init_3d_move();
     blend_to_ani(shared_ani.back_roll_left, 3, 0.2f);
     moves_jump((MovesEntryFn)rollup_finish);
 }
 
-void back_rollup_right(void) {
+static void back_rollup_right(void) {
     init_3d_move();
     blend_to_ani(shared_ani.back_roll_right, 3, 0.2f);
     moves_jump((MovesEntryFn)rollup_finish);
@@ -2840,17 +2840,17 @@ int noobsmoke_fire_projectile_request(void) {
     return requested;
 }
 
-void do_my_suicide_remote(void) {
+static void do_my_suicide_remote(void) {
     f_fatality_was_done = 1;
     moves_jump(start_suicide);
 }
 
-void do_my_fatality_remote(void) {
+static void do_my_fatality_remote(void) {
     f_fatality_was_done = 1;
     moves_jump(start_fatality);
 }
 
-void do_my_2nd_fatality_remote(void) {
+static void do_my_2nd_fatality_remote(void) {
     f_fatality_was_done = 1;
     moves_jump(start_2nd_fatality);
 }
@@ -2861,7 +2861,7 @@ float blend_to_stance_j_exit(void) {
     return 0.0f;
 }
 
-float blend_to_fstance_j_exit(void) {
+static float blend_to_fstance_j_exit(void) {
     blend_to_fstance(0.1f);
     moves_jump(j_exit);
     return 0.0f;
@@ -2873,7 +2873,7 @@ float rotate_toward_j_exit(void) {
     return 0.0f;
 }
 
-float jump_towards_opponent_j_exit(void) {
+static float jump_towards_opponent_j_exit(void) {
     jump_towards_opponent();
     moves_jump(j_exit_blend_stance);
     return 0.0f;
@@ -3001,7 +3001,7 @@ void sidekick_intro_check(void) {
     }
 }
 
-float p_plyr_sidekick_intro(void) {
+static float p_plyr_sidekick_intro(void) {
     union {
         float f;
         unsigned int u;
@@ -3188,7 +3188,7 @@ void smoke_victory_entrance(void) {
     }
 }
 
-float p_plyr_smoke_entrance(void) {
+static float p_plyr_smoke_entrance(void) {
     union {
         float f;
         unsigned int u;
@@ -3380,7 +3380,7 @@ void advance_sidekick_with_moveset(PlyrPdata* player) {
     }
 }
 
-float p_sidekick_watchdog_launcher(void) {
+static float p_sidekick_watchdog_launcher(void) {
     MovesSidekickPdata* pdata;
     PlyrPdata* player;
     MkObj* sidekick;
@@ -3406,7 +3406,7 @@ float p_sidekick_watchdog_launcher(void) {
  * explicit null-normalization folded from typed latch checks, GPR allocation,
  * separate saves versus stmw/lmw, scheduling, and float relocations.
  */
-float p_sidekick_exit_now(void) {
+static float p_sidekick_exit_now(void) {
     MovesSidekickPdata* pdata;
     MovesSidekickStateView* player;
     MovesSidekickFighterDefinition* fighter;
@@ -3531,7 +3531,7 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     return 1;
 }
 
-float p_plyr_sidekick_switch(void) {
+static float p_plyr_sidekick_switch(void) {
     union {
         float f;
         unsigned int u;
@@ -3666,7 +3666,7 @@ float p_plyr_sidekick_switch(void) {
     return -1.0f;
 }
 
-float p_plyr_sidekick_projectile(void) {
+static float p_plyr_sidekick_projectile(void) {
     union {
         float f;
         unsigned int u;
@@ -3841,7 +3841,7 @@ float p_plyr_sidekick_projectile(void) {
     return -1.0f;
 }
 
-float p_plyr_noob_entrance(void) {
+static float p_plyr_noob_entrance(void) {
     union {
         float f;
         unsigned int u;
@@ -3978,7 +3978,7 @@ float p_plyr_noob_entrance(void) {
     return -1.0f;
 }
 
-float p_plyr_sidekick_charge(void) {
+static float p_plyr_sidekick_charge(void) {
     union {
         float f;
         unsigned int u;
@@ -4368,7 +4368,7 @@ void j_ass_rollup(void) {
     moves_jump(j_exit);
 }
 
-void rollup_finish(void) {
+static void rollup_finish(void) {
     plyr_anim_pdata->step = 1.0f;
     ani_x_more_frames(15.0f);
     random_voice(9);
@@ -4417,7 +4417,7 @@ static float drahmin_dash_back(void) {
     return 0.0f;
 }
 
-static float joy_dash_back(void) {
+float joy_dash_back(void) {
     avoid_double_ani();
     init_ground_move_no_aniproc();
     if (((MovesDashFighterDefinitionView*)plyr_pdata->fighter_definition)
@@ -4634,7 +4634,7 @@ static float walk_backward(void) {
  * 99.541985%. Their instruction streams match; only TU-local float-pool
  * relocation labels differ.
  */
-static float step_backward(void) {
+float step_backward(void) {
     int pad_position;
 
     avoid_double_ani();
@@ -4676,7 +4676,7 @@ static float step_backward(void) {
     return 0.0f;
 }
 
-static float step_forward(void) {
+float step_forward(void) {
     int pad_position;
 
     avoid_double_ani();
@@ -4718,7 +4718,7 @@ static float step_forward(void) {
     return 0.0f;
 }
 
-static float step_right(void) {
+float step_right(void) {
     int pad_position;
 
     init_3d_move_no_aniproc();
@@ -4763,7 +4763,7 @@ static float step_right(void) {
     return 0.0f;
 }
 
-static float step_left(void) {
+float step_left(void) {
     int pad_position;
 
     init_3d_move_no_aniproc();
@@ -4808,7 +4808,7 @@ static float step_left(void) {
     return 0.0f;
 }
 
-static float dizzy(void) {
+float dizzy(void) {
     MovesSwitchLogEntry* entry;
 
     if (plyr_pdata->character_id == 1) {
@@ -5452,7 +5452,7 @@ float jump_towards_opponent_bgnd_transition(void) {
     return 0.0f;
 }
 
-void jump_landing_j_exit(void) {
+static void jump_landing_j_exit(void) {
     MovesAnimPdataView* anim;
     MkHdr* object;
     float high_frame;
@@ -6520,29 +6520,29 @@ void j_duck_block_loop(void) {
         moves_jump(j_block_loop);                                           \
     } while (0)
 
-float block_d(void) {
+static float block_d(void) {
     MOVES_BLOCK_BODY(0xA03, shared_ani.block_d_intro, shared_ani.block_d_loop);
     return 0.0f;
 }
 
-float block_c(void) {
+static float block_c(void) {
     MOVES_BLOCK_BODY(0xA02, shared_ani.block_c_intro, shared_ani.block_c_loop);
     return 0.0f;
 }
 
-float block_b(void) {
+static float block_b(void) {
     MOVES_BLOCK_BODY(0xA01, shared_ani.block_b_intro, shared_ani.block_b_loop);
     return 0.0f;
 }
 
-float block_a(void) {
+static float block_a(void) {
     MOVES_BLOCK_BODY(0xA00, shared_ani.block_a_intro, shared_ani.block_loop);
     return 0.0f;
 }
 
 #undef MOVES_BLOCK_BODY
 
-void block_a_intro_glitch(void) {
+static void block_a_intro_glitch(void) {
     set_my_state(0xA00);
     blend_to_ani(shared_ani.block_intro, 3, 0.1f);
     plyr_anim_pdata->step = 1.0f;

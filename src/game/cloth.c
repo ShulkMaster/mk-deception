@@ -25,7 +25,7 @@ typedef struct ClothInitEntry ClothInitEntry;
 void cloth_bones_init_by_tbl(
     MkObj* obj, ClothInitEntry* table, int count);
 void start_cloth_bones(MkObj* obj);
-static float p_axis_track_bone_world_mat(void);
+float p_axis_track_bone_world_mat(void);
 struct ClothForcePdata;
 static void do_cloth_force(struct ClothForcePdata* force);
 static void do_cloth_colls(MkHdr* collision);
@@ -34,7 +34,7 @@ static void calc_cloth_stretch(ClothBone* bone);
 static void set_cloth_pos(ClothBone* bone);
 static void pw_axis(void);
 static void ps_axis(void);
-void mkobj_update_cloth(MkHdr* hdr);
+static void mkobj_update_cloth(MkHdr* hdr);
 void mkobj_update_weapon_trail(MkHdr* hdr);
 RpMaterial* obj_find_material_by_id(MkObj* obj, int material_id);
 void material_set_zbias(RpMaterial* material, float zbias);
@@ -876,7 +876,7 @@ static float p_cloth(void) {
     return 1.0f;
 }
 
-void mkobj_update_cloth(MkHdr* header) {
+static void mkobj_update_cloth(MkHdr* header) {
     MkObj* object;
     ClothBone* bone;
     unsigned int index;
@@ -2069,7 +2069,7 @@ void obj_translate_cloth(MkObj* object, const Vec* translation) {
     }
 }
 
-static float p_axis_track_bone_world_mat(void) {
+float p_axis_track_bone_world_mat(void) {
     MkBone* target_bone;
     RwFrame* frame;
     RwMatrix* matrix;

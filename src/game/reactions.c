@@ -259,11 +259,11 @@ void got_hit_fx(
     int first, int second, int third, int fourth, int fifth, int sixth,
     float value);
 void random_hit(int group);
-float j_block_common_reaction(void);
+static float j_block_common_reaction(void);
 float j_block_loop(void);
 float j_duck_block_loop(void);
 float x_block(void);
-float chest_stumble_both(void);
+static float chest_stumble_both(void);
 float j_exit(void);
 float j_blend_to_fstance_in_x(void);
 float j_getup_back_12(void);
@@ -326,7 +326,7 @@ void p_animate_weapon_rest(void);
 CmdScript* get_cmdscript_for_proc(MkProc* proc);
 float r_call_script_function(void);
 float r_call_player_char_script_function(void);
-float r_call_other_player_char_script_function(void);
+static float r_call_other_player_char_script_function(void);
 void run_reaction_cleanup_function(PlyrPdata* player);
 void plyr_spawn_anim(void* animation);
 
@@ -335,7 +335,7 @@ extern int g_drone_blocking_in_reaction;
 extern int g_drone_faked_out;
 extern unsigned long mode_of_play;
 static float r_complete_ermac_slam(void);
-float r_face3_onback(void);
+static float r_face3_onback(void);
 void set_ani_speed(float speed);
 void set_anim_hiframe(float frame);
 void special_move_cam_setup(
@@ -408,14 +408,14 @@ void wait_to_land(void);
 float xz_distance_between_players(void);
 float p_joy_loop(void);
 float wall_dodge(void);
-float r_counter_caught_abort(void);
+static float r_counter_caught_abort(void);
 MslSoundHandle snd_req(int sound_id);
 int emitter_id_from_handle(unsigned int handle);
 MkPfx* pfx_from_emitter(unsigned int handle);
 void fx_set_param_v3(
     unsigned int effect, int parameter, float x, float y, float z);
 void fx_resume_emit(unsigned int effect);
-float p_image_fader(void);
+static float p_image_fader(void);
 void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* position);
 void camera_get_screen_pos_from_world_pos(
@@ -1430,7 +1430,7 @@ void damage_p1(float amount) {
  * Soft ceiling: these three script-call wrappers are opcode-identical to
  * retail; objdiff only distinguishes their TU-local zero-float labels.
  */
-float r_call_other_player_char_script_function(void) {
+static float r_call_other_player_char_script_function(void) {
     PlyrPdata* other;
 
     cmdscript_reset_stack();
@@ -1458,7 +1458,7 @@ float r_call_script_function(void) {
  * Soft ceiling: these terminal reaction leaves are opcode-identical to retail;
  * objdiff only distinguishes their TU-local float-pool labels.
  */
-float r_iceball_reversal(void) {
+static float r_iceball_reversal(void) {
     ReactionProcVtable* vtable;
 
     face_opponent_now();
@@ -1478,7 +1478,7 @@ float r_iceball_reversal(void) {
     return 0.0f;
 }
 
-float r_null(void) {
+static float r_null(void) {
     ReactionProcVtable* vtable;
 
     _mkproc_sleep_ticks = 8.0f;
@@ -1490,7 +1490,7 @@ float r_null(void) {
     return 0.0f;
 }
 
-float r_judo_throw1(void) {
+static float r_judo_throw1(void) {
     ReactionProcVtable* vtable;
     ReactionFighterDefinitionView* fighter;
 
@@ -1502,7 +1502,7 @@ float r_judo_throw1(void) {
     return 0.0f;
 }
 
-float r_counter_caught_abort(void) {
+static float r_counter_caught_abort(void) {
     ReactionProcVtable* vtable;
 
     plyr_pdata->blocking_disabled = 0;
@@ -1514,7 +1514,7 @@ float r_counter_caught_abort(void) {
 }
 
 #pragma dont_inline on
-void r_top_of_head_slam(void) {
+static void r_top_of_head_slam(void) {
     high_flash_check();
     face_opponent_now();
     got_hit_fx(2, 5, 1, 0, 0, 0, 0.05f);
@@ -1596,7 +1596,7 @@ float j_counter_caught(void) {
     return 0.0f;
 }
 
-float r_combo_breaker(void) {
+static float r_combo_breaker(void) {
     ReactionProcVtable* vtable;
 
     trial_increment_state_value(plyr_pdata->plyr_num, 0x20, 0);
@@ -1628,7 +1628,7 @@ float r_combo_breaker(void) {
     return 0.0f;
 }
 
-float r_mileena_hit(void) {
+static float r_mileena_hit(void) {
     ReactionProcVtable* vtable;
     ReactionDamagePdata* boost_source;
     float damage;
@@ -1669,7 +1669,7 @@ float r_mileena_hit(void) {
     return 0.0f;
 }
 
-float r_popup_final_hitter(void) {
+static float r_popup_final_hitter(void) {
     ReactionProcVtable* vtable;
     int ticks;
 
@@ -1738,7 +1738,7 @@ float r_jump_chin3_final_hit(void) {
     return 0.0f;
 }
 
-float r_sidehead3_spin(void) {
+static float r_sidehead3_spin(void) {
     ReactionProcVtable* vtable;
     float flight_ticks;
 
@@ -1767,7 +1767,7 @@ float r_sidehead3_spin(void) {
     return 0.0f;
 }
 
-float r_feet3_sweptout_rev(void) {
+static float r_feet3_sweptout_rev(void) {
     ReactionProcVtable* vtable;
 
     low_flash_check();
@@ -1788,7 +1788,7 @@ float r_feet3_sweptout_rev(void) {
     return 0.0f;
 }
 
-float r_feet3_swept_in(void) {
+static float r_feet3_swept_in(void) {
     ReactionProcVtable* vtable;
 
     low_flash_check();
@@ -1811,7 +1811,7 @@ float r_feet3_swept_in(void) {
     return 0.0f;
 }
 
-float r_feet3_swept_out(void) {
+static float r_feet3_swept_out(void) {
     ReactionProcVtable* vtable;
 
     low_flash_check();
@@ -1835,7 +1835,7 @@ float r_feet3_swept_out(void) {
     return 0.0f;
 }
 
-float r_feet3_sweptin_rev(void) {
+static float r_feet3_sweptin_rev(void) {
     ReactionProcVtable* vtable;
 
     low_flash_check();
@@ -1854,7 +1854,7 @@ float r_feet3_sweptin_rev(void) {
     return 0.0f;
 }
 
-float r_esp1_B(void) {
+static float r_esp1_B(void) {
     ReactionProcVtable* vtable;
     float damage;
     int ticks;
@@ -1924,7 +1924,7 @@ float r_esp1_B(void) {
     return 0.0f;
 }
 
-float r_scorpion_spear_1(void) {
+static float r_scorpion_spear_1(void) {
     ReactionProcVtable* vtable;
     ReactionExtendedPdata* opponent;
 
@@ -1946,7 +1946,7 @@ float r_scorpion_spear_1(void) {
     return 0.0f;
 }
 
-float r_scorpion_spear_2(void) {
+static float r_scorpion_spear_2(void) {
     ReactionProcVtable* vtable;
     ReactionExtendedPdata* opponent;
     int ticks;
@@ -2062,7 +2062,7 @@ float r_hit_wall(void) {
 
 #pragma dont_inline reset
 
-float p_image_fader(void) {
+static float p_image_fader(void) {
     ReactionImageFaderPdata* pdata;
     ScreenObj* object;
 
@@ -2231,7 +2231,7 @@ float r_obstacle_falldown(void) {
     return 0.0f;
 }
 
-float r_counter_catch_med(void) {
+static float r_counter_catch_med(void) {
     ReactionProcVtable* vtable;
 
     blend_to_ani(shared_ani.counter_caught, 0, 0.1f);
@@ -2252,7 +2252,7 @@ float r_counter_catch_med(void) {
     return 0.0f;
 }
 
-float r_post_surf_throw(void) {
+static float r_post_surf_throw(void) {
     ReactionProcVtable* vtable;
     ReactionPostSurfPdata* player;
 
@@ -2275,7 +2275,7 @@ float r_post_surf_throw(void) {
     return 0.0f;
 }
 
-float r_nightwolf_lightning(void) {
+static float r_nightwolf_lightning(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -2300,7 +2300,7 @@ float r_nightwolf_lightning(void) {
     return 0.0f;
 }
 
-float r_nightwolf_charge(void) {
+static float r_nightwolf_charge(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -2332,7 +2332,7 @@ float r_nightwolf_charge(void) {
     return 0.0f;
 }
 
-float r_face3_onback(void) {
+static float r_face3_onback(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -2415,7 +2415,7 @@ static float r_cyrax_blade(void) {
     return 0.0f;
 }
 
-float r_head3_onback(void) {
+static float r_head3_onback(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -2519,7 +2519,7 @@ static float r_hit_airborn1(void) {
     return 0.0f;
 }
 
-float r_sidehead3_dive_opposite(void) {
+static float r_sidehead3_dive_opposite(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -2542,7 +2542,7 @@ float r_sidehead3_dive_opposite(void) {
     return 0.0f;
 }
 
-float r_sidehead3_dive(void) {
+static float r_sidehead3_dive(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -2565,7 +2565,7 @@ float r_sidehead3_dive(void) {
     return 0.0f;
 }
 
-float r_gut3_onfeet_hard(void) {
+static float r_gut3_onfeet_hard(void) {
     ReactionProcVtable* vtable;
 
     medium_flash_check();
@@ -2587,7 +2587,7 @@ float r_gut3_onfeet_hard(void) {
     return 0.0f;
 }
 
-float r_gut3_onfeet(void) {
+static float r_gut3_onfeet(void) {
     ReactionProcVtable* vtable;
 
     medium_flash_check();
@@ -2604,7 +2604,7 @@ float r_gut3_onfeet(void) {
     return 0.0f;
 }
 
-float r_gut3_onbutt(void) {
+static float r_gut3_onbutt(void) {
     ReactionProcVtable* vtable;
 
     medium_flash_check();
@@ -2626,7 +2626,7 @@ float r_gut3_onbutt(void) {
     return 0.0f;
 }
 
-float r_throw(void) {
+static float r_throw(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -2643,7 +2643,7 @@ float r_throw(void) {
     return 0.0f;
 }
 
-float r_raiden_shocker_fall(void) {
+static float r_raiden_shocker_fall(void) {
     ReactionProcVtable* vtable;
     ReactionExtendedPdata* opponent;
 
@@ -2663,18 +2663,18 @@ float r_raiden_shocker_fall(void) {
 #pragma dont_inline reset
 
 /* Soft ceiling: r_ZZZZZZZ ~97.50% -- pool-label noise only. */
-float r_ZZZZZZZ(void) {
+static float r_ZZZZZZZ(void) {
     return 1.0f;
 }
 
 /* Retail TU-local; referenced by remaining split reaction code. */
-void same_xz(void) {
+static void same_xz(void) {
     plyr_obj->pos_x = his_obj->pos_x;
     plyr_obj->pos_z = his_obj->pos_z;
 }
 
 /* Soft ceiling: r_block_hit_projectile ~99.31% -- pool-label noise only. */
-float r_block_hit_projectile(void) {
+static float r_block_hit_projectile(void) {
     ReactionProcVtable* vtable;
 
     stop_me();
@@ -2687,7 +2687,7 @@ float r_block_hit_projectile(void) {
 }
 
 /* Soft ceiling: r_block_hit_p5 ~99.31% -- pool-label noise only. */
-float r_block_hit_p5(void) {
+static float r_block_hit_p5(void) {
     ReactionProcVtable* vtable;
 
     stop_me();
@@ -2700,7 +2700,7 @@ float r_block_hit_p5(void) {
 }
 
 /* Soft ceiling: r_block_hit_p3 ~99.31% -- pool-label noise only. */
-float r_block_hit_p3(void) {
+static float r_block_hit_p3(void) {
     ReactionProcVtable* vtable;
 
     stop_me();
@@ -2713,7 +2713,7 @@ float r_block_hit_p3(void) {
 }
 
 /* Soft ceiling: r_block_hit_p1 ~99.35% -- pool-label noise only. */
-float r_block_hit_p1(void) {
+static float r_block_hit_p1(void) {
     ReactionProcVtable* vtable;
 
     stop_me();
@@ -2727,7 +2727,7 @@ float r_block_hit_p1(void) {
 }
 
 /* Soft ceiling: r_block_hit_p0 ~99.35% -- pool-label noise only. */
-float r_block_hit_p0(void) {
+static float r_block_hit_p0(void) {
     ReactionProcVtable* vtable;
 
     stop_me();
@@ -2742,7 +2742,7 @@ float r_block_hit_p0(void) {
 
 #pragma dont_inline on
 /* Soft ceiling: r_chest2_stumble_shake ~99.31% -- pool-label noise only. */
-float r_chest2_stumble_shake(void) {
+static float r_chest2_stumble_shake(void) {
     ReactionProcVtable* vtable;
 
     adjust_my_damage_multiplier(0.75f);
@@ -2767,7 +2767,7 @@ float r_chest2_stumble(void) {
 }
 #pragma dont_inline reset
 
-float r_summon_flames(void) {
+static float r_summon_flames(void) {
     low_flash_check();
     face_opponent_now();
     random_voice(0x14);
@@ -2864,7 +2864,7 @@ static float r_subzero_iceball(void) {
 
 #pragma dont_inline on
 
-float r_chest2_separate(void) {
+static float r_chest2_separate(void) {
     ReactionProcVtable* vtable;
 
     medium_flash_check();
@@ -2887,7 +2887,7 @@ float r_chest2_separate(void) {
     return 0.0f;
 }
 
-float r_cyrus_stomp(void) {
+static float r_cyrus_stomp(void) {
     ReactionProcVtable* vtable;
 
     face_opponent_now();
@@ -2978,7 +2978,7 @@ static float r_complete_ermac_slam(void) {
     return 0.0f;
 }
 
-float r_shujinko_slam(void) {
+static float r_shujinko_slam(void) {
     ReactionProcVtable* vtable;
 
     got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
@@ -2993,7 +2993,7 @@ float r_shujinko_slam(void) {
     return 0.0f;
 }
 
-float r_ermac_slam(void) {
+static float r_ermac_slam(void) {
     ReactionProcVtable* vtable;
     ReactionExtendedPdata* opponent;
 
@@ -3086,7 +3086,7 @@ static float r_combo_broken_part2(void) {
     return 0.0f;
 }
 
-float j_block_common_reaction(void) {
+static float j_block_common_reaction(void) {
     ReactionProcVtable* vtable;
 
     if (!(plyr_pdata->previous_state & 0x800) &&
@@ -3177,7 +3177,7 @@ float j_block_common_reaction(void) {
     return 0.0f;
 }
 
-float r_combo_broken_part1(void) {
+static float r_combo_broken_part1(void) {
     ReactionProcVtable* vtable;
 
     plyr_obj->flags_09_bits.launched = 1;
@@ -3217,7 +3217,7 @@ float r_jump_slambounce_final_hit(void) {
     return 0.0f;
 }
 
-float r_slamdown_final_hitter(void) {
+static float r_slamdown_final_hitter(void) {
     ReactionProcVtable* vtable;
 
     head_tracking_on();
@@ -3238,7 +3238,7 @@ float r_slamdown_final_hitter(void) {
     return 0.0f;
 }
 
-float r_corner_repell_ani(void) {
+static float r_corner_repell_ani(void) {
     ReactionProcVtable* vtable;
 
     face_opponent_now();
@@ -3254,7 +3254,7 @@ float r_corner_repell_ani(void) {
     return 0.0f;
 }
 
-float r_corner_repell(void) {
+static float r_corner_repell(void) {
     ReactionProcVtable* vtable;
 
     face_opponent_now();
@@ -3272,7 +3272,7 @@ float r_corner_repell(void) {
     return 0.0f;
 }
 
-float r_feet1a(void) {
+static float r_feet1a(void) {
     ReactionProcVtable* vtable;
 
     low_flash_check();
@@ -3286,7 +3286,7 @@ float r_feet1a(void) {
     return 0.0f;
 }
 
-float r_feet1_stay_close(void) {
+static float r_feet1_stay_close(void) {
     ReactionProcVtable* vtable;
 
     low_flash_check();
@@ -3300,7 +3300,7 @@ float r_feet1_stay_close(void) {
     return 0.0f;
 }
 
-float r_jax_piston_hi(void) {
+static float r_jax_piston_hi(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
@@ -3314,7 +3314,7 @@ float r_jax_piston_hi(void) {
     return 0.0f;
 }
 
-float r_jax_piston_lo(void) {
+static float r_jax_piston_lo(void) {
     ReactionProcVtable* vtable;
 
     low_flash_check();
@@ -3330,7 +3330,7 @@ float r_jax_piston_lo(void) {
     return 0.0f;
 }
 
-float chest_stumble_both(void) {
+static float chest_stumble_both(void) {
     ReactionProcVtable* vtable;
 
     medium_flash_check();
@@ -3353,7 +3353,7 @@ float chest_stumble_both(void) {
     return 0.0f;
 }
 
-float r_esp1_A(void) {
+static float r_esp1_A(void) {
     ReactionProcVtable* vtable;
     ReactionExtendedPdata* opponent;
 

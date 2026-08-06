@@ -288,17 +288,17 @@ float puzzle_fighter_get_super_bar_level(int player);
 int pz_fighter_fatality_during_round_stuff_over(void);
 float pz_fighters_fatality_prep_chores(void);
 float pz_fighters_fatality_in_progress(void);
-void check_fighter_constraints(void);
-void pz_fighter_process_immediate_request(void);
-int pz_fighter_check_for_player_to_center_position_control(void);
-int pz_fighter_individual_plyr_do_something(
+static void check_fighter_constraints(void);
+static void pz_fighter_process_immediate_request(void);
+static int pz_fighter_check_for_player_to_center_position_control(void);
+static int pz_fighter_individual_plyr_do_something(
     unsigned int player, unsigned int state);
-int pz_fighters_inside_super_move_scenerio(void);
-float pz_fighters_handle_next_pending_move(void);
-int pz_fighters_idle_process(void);
-float pz_fighters_handle_next_pending_move_simplified(void);
-void pz_fighter_calculate_start_pos(void);
-float p_puzzle_fighter_master(void);
+static int pz_fighters_inside_super_move_scenerio(void);
+static float pz_fighters_handle_next_pending_move(void);
+static int pz_fighters_idle_process(void);
+static float pz_fighters_handle_next_pending_move_simplified(void);
+static void pz_fighter_calculate_start_pos(void);
+static float p_puzzle_fighter_master(void);
 void load_reduced_shared_and_hand_anims(void);
 void load_pz_shared_anims(void);
 void set_process_as_scriptable(PuzzleProcess* proc);
@@ -313,7 +313,7 @@ float pz_fighter_exit(void);
 float p_plyr_pz_fighter_entry(void);
 float pz_fighter_dizzy(void);
 static float p_plyr_pz_fighter_loop(void);
-float pz_fighter_move_into_desired_position(void);
+static float pz_fighter_move_into_desired_position(void);
 float pz_fighter_laugh_small(void);
 float pz_fighter_random_taunt(void);
 float pz_fighter_round_victory(void);
@@ -329,13 +329,13 @@ float pz_fighter_bow_warmup(void);
 float r_pz_call_script_function(void);
 void xfer_player_proc(PuzzleProcess* proc, PuzzleFighterEntry entry);
 PuzzleCmdScriptView* get_cmdscript_for_proc(PuzzleProcess* proc);
-float pz_fighter_move_into_fighting_position_now(void);
+static float pz_fighter_move_into_fighting_position_now(void);
 int pz_fighter_walk_until_fight_distance(void);
 int pz_fighter_walk_until_danger_or_in_wrong_direction(void);
 void pz_fighter_walk_FB_true(
     int (*test)(void), unsigned int duration, int forward);
 float xz_distance_between_players(void);
-void pz_fighter_snap_to_distance(
+static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared);
 void pz_fighter_reaction_xfer_him(int reaction);
 PuzzleProcess* pz_fighter_get_player_proc(unsigned int player);
@@ -365,23 +365,23 @@ void back_to_normal(void);
 void rotate_towards_him(float rate);
 void glitch_to_stance(float blend);
 void xfer_proc(PuzzleProcess* proc, PuzzleFighterEntry entry);
-float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move);
-float pz_fighter_handle_center_pos_minor_adjustment(PuzzleFighterMove* move);
-float pz_fighter_handle_center_pos_single_close_move(PuzzleFighterMove* move);
-float pz_fighter_handle_center_pos_single_range_move(PuzzleFighterMove* move);
-float pz_fighter_handle_center_pos_range_attack(PuzzleFighterMove* move);
+static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move);
+static float pz_fighter_handle_center_pos_minor_adjustment(PuzzleFighterMove* move);
+static float pz_fighter_handle_center_pos_single_close_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_center_pos_single_range_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_center_pos_range_attack(PuzzleFighterMove* move);
 float pz_fighter_handle_distance_attack(PuzzleFighterMove* move);
-float pz_fighter_handle_off_wall_attack(PuzzleFighterMove* move);
-float pz_fighter_handle_winning_big_based_on_score_move(
+static float pz_fighter_handle_off_wall_attack(PuzzleFighterMove* move);
+static float pz_fighter_handle_winning_big_based_on_score_move(
     PuzzleFighterMove* move);
-float pz_fighter_handle_super_move_available(PuzzleFighterMove* move);
-float pz_fighter_handle_ohyeah_move(PuzzleFighterMove* move);
-float pz_fighter_handle_in_super_move(PuzzleFighterMove* move);
-float pz_fighter_handle_ohno_move(PuzzleFighterMove* move);
-float pz_fighter_handle_peak_move(PuzzleFighterMove* move);
-float pz_fighter_handle_relief_move(PuzzleFighterMove* move);
-float pz_fighter_handle_special_move(PuzzleFighterMove* move);
-float pz_fighter_handle_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_super_move_available(PuzzleFighterMove* move);
+static float pz_fighter_handle_ohyeah_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_in_super_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_ohno_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_peak_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_relief_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_special_move(PuzzleFighterMove* move);
+static float pz_fighter_handle_move(PuzzleFighterMove* move);
 float pz_fighter_light_propell(void);
 float pz_fighter_dummy_propell(void);
 float pz_fighter_smart_flippy(void);
@@ -412,9 +412,9 @@ float pz_fighters_react_to_bomb_explosion(void);
 float pz_fighter_big_time_happy(void);
 float pz_fighter_whatever2(void);
 void pz_fighter_shake_camera(int duration, float strength);
-void pz_fighter_perform_end_of_round_anims(
+static void pz_fighter_perform_end_of_round_anims(
     unsigned int player, unsigned int other_player);
-float p_objects_moving(double conversion_bias);
+static float p_objects_moving(double conversion_bias);
 /*
  * Soft ceiling: complete object-motion construction; remaining differences
  * are pointer-slot CSE, float scheduling, conversion slots, and labels.
@@ -442,13 +442,13 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
 void pz_fighter_classify_move_8012260C(
     unsigned int block_count, int chain_count, unsigned int* move,
     unsigned int* priority, unsigned int event_type);
-void pz_fighter_buffer_new_move(
+static void pz_fighter_buffer_new_move(
     unsigned int event_type, unsigned int player, unsigned int move,
     unsigned int priority);
-void pz_fighter_fight_request(
+static void pz_fighter_fight_request(
     unsigned int player, unsigned int block_count, int chain_count,
     unsigned int event_type);
-void pz_fighter_first_block_has_been_placed(unsigned int player);
+static void pz_fighter_first_block_has_been_placed(unsigned int player);
 float pz_fighter_back_and_forth_showoff(void);
 float pz_fighter_punch_dizzyfall(void);
 float pz_fighter_footstomp(void);
@@ -463,21 +463,21 @@ static FirstMoveMadeTable fistMoveMadeTable = {
     0,
 };
 
-static PlyrPdata* puzzle_player_pdata(unsigned int player) {
+static inline PlyrPdata* puzzle_player_pdata(unsigned int player) {
     if (player == 0) {
         return (PlyrPdata*)g_game_info.plyr0.slot.fighter;
     }
     return (PlyrPdata*)g_game_info.plyr1.slot.fighter;
 }
 
-static MkObj* puzzle_fighter_object(int player) {
+static inline MkObj* puzzle_fighter_object(int player) {
     if (player == 0) {
         return (MkObj*)g_game_info.plyr0.slot.mirror_a;
     }
     return (MkObj*)g_game_info.plyr1.slot.mirror_a;
 }
 
-float p_objects_moving(double conversion_bias) {
+static float p_objects_moving(double conversion_bias) {
     PuzzleObjectMotion* motion;
     ScreenObj* object;
 
@@ -661,7 +661,7 @@ static inline float pz_fighter_signed_idle_distance(unsigned int player) {
  * Soft ceiling: retail behavior and ABI are complete. Remaining differences
  * are FPR allocation, equivalent bound/return scheduling, and float labels.
  */
-int pz_fighter_individual_plyr_do_something(
+static int pz_fighter_individual_plyr_do_something(
     unsigned int player, unsigned int other_state) {
     int result;
     float player_distance;
@@ -750,7 +750,7 @@ static inline void pz_start_round_animation(
  * Soft ceiling: complete four-way round-end animation policy; remaining
  * differences are saved-GPR selection, middle-branch lifetimes, and labels.
  */
-void pz_fighter_perform_end_of_round_anims(
+static void pz_fighter_perform_end_of_round_anims(
     unsigned int winner_player, unsigned int loser_player) {
     unsigned int selection;
 
@@ -1300,7 +1300,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
  * Queue a board event in descending priority order. Retail keeps at most two
  * pending moves; a newly inserted third entry drops the lowest-priority tail.
  */
-void pz_fighter_buffer_new_move(
+static void pz_fighter_buffer_new_move(
     unsigned int event_type, unsigned int player, unsigned int move,
     unsigned int priority) {
     PuzzleFighterMove pending;
@@ -1357,7 +1357,7 @@ void pz_fighter_buffer_new_move(
     }
 }
 
-void check_fighter_constraints(void) {
+static void check_fighter_constraints(void) {
     unsigned int player;
 
     for (player = 0; player < 2; player++) {
@@ -1550,7 +1550,7 @@ void pz_fighter_classify_move_8012260C(
  * clean validity/queue expressions versus retail compare/address emission,
  * stack/FPR scheduling, common-return shaping, and local labels.
  */
-float p_puzzle_fighter_master(void) {
+static float p_puzzle_fighter_master(void) {
     int state1;
     int state2;
     int pending_active;
@@ -1702,7 +1702,7 @@ float p_puzzle_fighter_master(void) {
  * Soft ceiling: complete center-control policy. Remaining differences are
  * equivalent short-circuit/return emission, GPR/FPR allocation, and labels.
  */
-int pz_fighter_check_for_player_to_center_position_control(void) {
+static int pz_fighter_check_for_player_to_center_position_control(void) {
     float player1_distance;
     float player2_distance;
     float player1_absolute;
@@ -1896,7 +1896,7 @@ int pz_fighter_check_for_player_to_center_position_control(void) {
  * Soft ceiling: complete positioning/random-event state machine; remaining
  * differences are GPR/FPR allocation, final-call scheduling, and float labels.
  */
-int pz_fighters_idle_process(void) {
+static int pz_fighters_idle_process(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
     MkObj* player2;
@@ -1955,7 +1955,7 @@ int pz_fighters_idle_process(void) {
  * Soft ceiling: complete positioning and super-owner state machine; remaining
  * differences are saved-GPR selection, boolean scheduling, and float labels.
  */
-int pz_fighters_inside_super_move_scenerio(void) {
+static int pz_fighters_inside_super_move_scenerio(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
     MkObj* player2;
@@ -2139,7 +2139,7 @@ int pz_fighters_inside_super_move_scenerio(void) {
  * Soft ceiling: complete dequeue and retail-ordered dispatch. Remaining
  * differences are queue-loop GPR/address scheduling, saves, and labels.
  */
-float pz_fighters_handle_next_pending_move(void) {
+static float pz_fighters_handle_next_pending_move(void) {
     PuzzleFighterMove* move;
     PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
 
@@ -2207,7 +2207,7 @@ float pz_fighters_handle_next_pending_move(void) {
  * Soft ceiling: complete simplified dequeue and normalized dispatch.
  * Remaining differences are queue-loop GPR/address scheduling and labels.
  */
-float pz_fighters_handle_next_pending_move_simplified(void) {
+static float pz_fighters_handle_next_pending_move_simplified(void) {
     PuzzleFighterMove* move;
     PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
 
@@ -2292,7 +2292,7 @@ float pz_fighters_handle_next_pending_move_simplified(void) {
  * differences are handled-flag/GPR allocation, equivalent return and
  * bitfield-store scheduling, and float relocation labels.
  */
-void pz_fighter_process_immediate_request(void) {
+static void pz_fighter_process_immediate_request(void) {
     unsigned int happy_player;
     PlyrPdata* happy_pdata;
     PlyrPdata* unhappy_pdata;
@@ -2512,7 +2512,7 @@ void pz_fighter_process_immediate_request(void) {
  * Soft ceiling: complete dual-transfer policy; remaining differences are
  * GPR/FPR allocation, multi-register saves, and local float labels.
  */
-float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
     MkObj* fighter;
     PlyrPdata* pdata;
     float target_x;
@@ -2588,7 +2588,7 @@ float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_center_pos_minor_adjustment(
+static float pz_fighter_handle_center_pos_minor_adjustment(
     PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
@@ -2597,7 +2597,7 @@ float pz_fighter_handle_center_pos_minor_adjustment(
     return 0.0f;
 }
 
-float pz_fighter_handle_center_pos_single_close_move(
+static float pz_fighter_handle_center_pos_single_close_move(
     PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
@@ -2606,7 +2606,7 @@ float pz_fighter_handle_center_pos_single_close_move(
     return 0.0f;
 }
 
-float pz_fighter_handle_center_pos_single_range_move(
+static float pz_fighter_handle_center_pos_single_range_move(
     PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
@@ -2615,7 +2615,7 @@ float pz_fighter_handle_center_pos_single_range_move(
     return 0.0f;
 }
 
-float pz_fighter_handle_center_pos_range_attack(PuzzleFighterMove* move) {
+static float pz_fighter_handle_center_pos_range_attack(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2631,7 +2631,7 @@ float pz_fighter_handle_distance_attack(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_off_wall_attack(PuzzleFighterMove* move) {
+static float pz_fighter_handle_off_wall_attack(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2639,7 +2639,7 @@ float pz_fighter_handle_off_wall_attack(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_winning_big_based_on_score_move(
+static float pz_fighter_handle_winning_big_based_on_score_move(
     PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     g_pz_fighters_engine.attack_has_followup = 0;
@@ -2649,7 +2649,7 @@ float pz_fighter_handle_winning_big_based_on_score_move(
     return 0.0f;
 }
 
-float pz_fighter_handle_super_move_available(PuzzleFighterMove* move) {
+static float pz_fighter_handle_super_move_available(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2666,7 +2666,7 @@ float pz_fighter_handle_super_move_available(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_ohyeah_move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_ohyeah_move(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2683,7 +2683,7 @@ float pz_fighter_handle_ohyeah_move(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_in_super_move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_in_super_move(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2700,7 +2700,7 @@ float pz_fighter_handle_in_super_move(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_ohno_move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_ohno_move(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2717,7 +2717,7 @@ float pz_fighter_handle_ohno_move(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_peak_move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_peak_move(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2725,7 +2725,7 @@ float pz_fighter_handle_peak_move(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_relief_move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_relief_move(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2733,7 +2733,7 @@ float pz_fighter_handle_relief_move(PuzzleFighterMove* move) {
     return 0.0f;
 }
 
-float pz_fighter_handle_special_move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_special_move(PuzzleFighterMove* move) {
     PZ_PREPARE_FIGHTER_EVENT(move);
     xfer_proc(
         pz_fighter_player_proc(move->player),
@@ -2745,7 +2745,7 @@ float pz_fighter_handle_special_move(PuzzleFighterMove* move) {
  * Soft ceiling: complete scripted-move dispatch; remaining differences are
  * GPR/FPR allocation, multi-register saves, and local float labels.
  */
-float pz_fighter_handle_move(PuzzleFighterMove* move) {
+static float pz_fighter_handle_move(PuzzleFighterMove* move) {
     unsigned int script_move;
     MkObj* fighter;
     PlyrPdata* pdata;
@@ -3016,7 +3016,7 @@ void pz_fighter_startup_attack(
         frame1, frame2, frame3, frame4);
 }
 
-float pz_fighter_move_into_desired_position(void) {
+static float pz_fighter_move_into_desired_position(void) {
     MkObj* player1 = puzzle_fighter_object(0);
     float dx;
     float dz;
@@ -3071,7 +3071,7 @@ void pz_fighter_move_into_fighting_position(void) {
 }
 
 /* Soft ceiling: pz_fighter_move_into_fighting_position_now 99.52% - pool. */
-float pz_fighter_move_into_fighting_position_now(void) {
+static float pz_fighter_move_into_fighting_position_now(void) {
     pz_fighter_walk_FB_true(
         pz_fighter_walk_until_fight_distance, 120, 1);
     aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
@@ -3133,7 +3133,7 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
  * Soft ceiling: complete spacing and wrapped-facing math; remaining
  * differences are fast-sqrt stack slots, FPR scheduling, and float labels.
  */
-void pz_fighter_snap_to_distance(
+static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared) {
     Vec my_position;
     Vec my_angle;
@@ -3197,7 +3197,7 @@ void pz_fighter_snap_to_distance(
  * Exact retail algorithm and 276-byte size. The remaining mismatch is MWCC
  * FPR scheduling/contraction across the calculate-then-store scalar batch.
  */
-void pz_fighter_calculate_start_pos(void) {
+static void pz_fighter_calculate_start_pos(void) {
     PuzzleFightersEngine* fighters = &g_pz_fighters_engine;
     float screen_scale = 1.0f;
     float post1_scale;
@@ -3457,7 +3457,7 @@ float pz_fighter_process_random_fatality_event(
  * retail table-offset cursor reloads its base after selection; this typed
  * row walk leaves only cursor scheduling and nonvolatile allocation drift.
  */
-void pz_fighter_first_block_has_been_placed(unsigned int player) {
+static void pz_fighter_first_block_has_been_placed(unsigned int player) {
     FirstMoveMadeRow* row;
     PlyrPdata* fighter;
     PuzzleFighterEntry reaction;
@@ -3512,7 +3512,7 @@ void pz_fighter_first_block_has_been_placed(unsigned int player) {
  * differences are structured join emission, queue pointer induction, GPR
  * allocation, and local labels.
  */
-void pz_fighter_fight_request(
+static void pz_fighter_fight_request(
     unsigned int player, unsigned int block_count, int chain_count,
     unsigned int event_type) {
     unsigned int move;

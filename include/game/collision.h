@@ -100,9 +100,6 @@ void build_col_shape_vertical_box(
     CollisionShape* shape, const Vec* center, float width, float height,
     float depth, float angle);
 int is_point_inside_shape(const CollisionShape* shape, const Vec* point);
-int collide_sphere_and_box(
-    const CollisionShape* sphere, const CollisionShape* box);
-void get_center_for_shape(const CollisionShape* shape, Vec* center);
 void update_collision_obj_pos(CollisionObj* object, const Vec* position);
 
 #endif
