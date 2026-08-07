@@ -1,11 +1,10 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rwtypehf.h"
+#include "rw/rwvector.h"
 
 RwMatrix* RwMatrixUpdate(RwMatrix* matrix);
 RwMatrix* RwMatrixMultiply(RwMatrix* matrixOut, const RwMatrix* matrixIn1,
                            const RwMatrix* matrixIn2);
-RwV3d* RwV3dTransformPoints(RwV3d* pointsOut, const RwV3d* pointsIn,
-                            RwInt32 numPoints, const RwMatrix* matrix);
 
 enum {
     rwFRAMEHIERARCHYSYNCHRONIZED = 0x01,
