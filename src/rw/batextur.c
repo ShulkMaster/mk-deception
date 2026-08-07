@@ -8,6 +8,18 @@ typedef struct RwErrorPair {
     int code;
 } RwErrorPair;
 
+typedef struct RwRGBA {
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+} RwRGBA;
+
+/* The quantizer is an opaque stock RenderWare work context. */
+typedef struct RwPalQuant {
+    unsigned char storage[0x4008];
+} RwPalQuant;
+
 typedef struct RwTextureModuleGlobals {
     RwLLLink dictionaries;
     void* textureFreeList;
@@ -36,6 +48,17 @@ extern void* _rwPluginRegistryInitObject(void* registry, void* object);
 extern void* _rwPluginRegistryDeInitObject(void* registry, void* object);
 extern int _rwerror(unsigned int code, ...);
 extern void RwErrorSet(RwErrorPair* error);
+extern int RwPalQuantInit(RwPalQuant* quantizer);
+extern void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image, float weight);
+extern void RwPalQuantResolvePalette(RwRGBA* palette, int colorCount,
+                                     RwPalQuant* quantizer);
+extern void RwPalQuantMatchImage(unsigned char* pixels, int stride, int depth,
+                                 int flags, RwPalQuant* quantizer, RwImage* image);
+extern void RwPalQuantTerm(RwPalQuant* quantizer);
+extern RwImage* RwImageCreate(int width, int height, int depth);
+extern RwImage* RwImageAllocatePixels(RwImage* image);
+extern int RwImageDestroy(RwImage* image);
+extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
                                             const char* name);
@@ -68,6 +91,88 @@ static int TextureDefaultMipmapName(char* name, char* maskName, unsigned char le
             RwEngineInstance->fpStringConcat(maskName, suffix);
         }
     }
+    return 1;
+}
+
+static int PalettizeImage(RwImage** image, int depth) {
+    RwRGBA palette[256];
+    RwPalQuant quantizer;
+    RwImage* palettized;
+
+    if (RwPalQuantInit(&quantizer) == 0) {
+        return 0;
+    }
+    RwPalQuantAddImage(&quantizer, *image, 1.0f);
+    RwPalQuantResolvePalette(palette, 1 << depth, &quantizer);
+    palettized = RwImageCreate((*image)->width, (*image)->height, depth);
+    if (palettized == 0) {
+        return 0;
+    }
+    RwImageAllocatePixels(palettized);
+    RwPalQuantMatchImage(palettized->pixels, palettized->stride,
+                         palettized->depth, 0, &quantizer, *image);
+    memcpy(palettized->palette, palette, (1 << depth) * sizeof(RwRGBA));
+    RwImageDestroy(*image);
+    *image = palettized;
+    RwPalQuantTerm(&quantizer);
+    return 1;
+}
+
+static int PalettizeMipmaps(RwRGBA* palette, RwImage* baseOriginal,
+                            RwImage** mipmaps, int mipmapCount, int depth) {
+    RwPalQuant quantizer;
+    RwImage* palettized;
+    int level;
+
+    if (mipmaps[0]->palette != 0) {
+        for (level = 1; level < mipmapCount; level++) {
+            RwRGBA* firstPalette = (RwRGBA*)mipmaps[0]->palette;
+            RwRGBA* levelPalette = (RwRGBA*)mipmaps[level]->palette;
+            int color;
+
+            if (firstPalette == 0 || levelPalette == 0) {
+                level = 64;
+                break;
+            }
+            for (color = 0; color < (1 << depth); color++) {
+                if (((unsigned int*)firstPalette)[color] !=
+                    ((unsigned int*)levelPalette)[color]) {
+                    level = 64;
+                    break;
+                }
+            }
+        }
+        if (level == mipmapCount) {
+            memcpy(palette, mipmaps[0]->palette,
+                   (1 << mipmaps[0]->depth) * sizeof(RwRGBA));
+            return 1;
+        }
+    }
+
+    if (RwPalQuantInit(&quantizer) == 0) {
+        return 0;
+    }
+    for (level = 0; level < mipmapCount; level++) {
+        RwPalQuantAddImage(&quantizer, mipmaps[level], 1.0f);
+    }
+    RwPalQuantResolvePalette(palette, 1 << depth, &quantizer);
+    for (level = 0; level < mipmapCount; level++) {
+        RwImage* original = mipmaps[level];
+        palettized = RwImageCreate(original->width, original->height, depth);
+
+        if (palettized == 0) {
+            return 0;
+        }
+        RwImageAllocatePixels(palettized);
+        RwPalQuantMatchImage(palettized->pixels, palettized->stride,
+                             palettized->depth, 0, &quantizer, original);
+        palettized->palette = (unsigned char*)palette;
+        mipmaps[level] = palettized;
+        if (original != baseOriginal) {
+            RwImageDestroy(original);
+        }
+    }
+    RwPalQuantTerm(&quantizer);
     return 1;
 }
 
