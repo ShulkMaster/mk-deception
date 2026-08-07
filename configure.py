@@ -1214,6 +1214,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/rwstring.obj", source="rw/rwstring.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+            Object(NonMatching, "rwcore.a/babinary.obj", source="rw/babinary.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
     ),
     RenderWareLib(
