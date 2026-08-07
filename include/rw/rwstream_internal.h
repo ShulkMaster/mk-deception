@@ -23,4 +23,7 @@ void GeometryListDeinitialize(RpGeometryList* geometry_list);
 RwStream* _rpMaterialListStreamRead(RwStream* stream,
                                     RpMaterialList* material_list);
 unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
+RwInt32 _rwStringStreamGetSize(const RwChar* string);
+const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream);
+RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream);
 #endif

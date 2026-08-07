@@ -1212,6 +1212,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/batkreg.obj", source="rw/batkreg.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rwcore.a/rwstring.obj", source="rw/rwstring.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
     ),
     RenderWareLib(

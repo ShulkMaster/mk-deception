@@ -100,9 +100,9 @@ static int TextureDefaultMipmapName(char* name, char* maskName, unsigned char le
     suffix[1] = CalculateIndexCharacter(level);
     suffix[2] = 0;
     if (suffix[1] != 0) {
-        RwEngineInstance->fpStringConcat(name, suffix);
+        RwEngineInstance->stringFuncs.vecStrcat(name, suffix);
         if (maskName != 0 && maskName[0] != 0) {
-            RwEngineInstance->fpStringConcat(maskName, suffix);
+            RwEngineInstance->stringFuncs.vecStrcat(maskName, suffix);
         }
     }
     return 1;
@@ -198,8 +198,8 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
     const char* extension;
     RwImage* image;
 
-    RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
-    if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+    RwEngineInstance->stringFuncs.vecStrncpy(imageName, name, sizeof(imageName));
+    if (RwEngineInstance->stringFuncs.vecStrlen(name) >= sizeof(imageName)) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x8000001E, name, 256, 255, name[255]);
@@ -208,14 +208,14 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
     }
     extension = RwImageFindFileType(name);
     if (extension != 0) {
-        RwEngineInstance->fpStringConcat(imageName, extension);
+        RwEngineInstance->stringFuncs.vecStrcat(imageName, extension);
     }
 
     imageMaskName[0] = 0;
     if (maskName != 0 && maskName[0] != 0) {
-        RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+        RwEngineInstance->stringFuncs.vecStrncpy(imageMaskName, maskName,
                                        sizeof(imageMaskName));
-        if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
+        if (RwEngineInstance->stringFuncs.vecStrlen(maskName) >= sizeof(imageMaskName)) {
             RwError error;
             error.pluginID = 1;
             error.errorCode = _rwerror(0x8000001E, maskName, 256, 255,
@@ -225,7 +225,7 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
         }
         extension = RwImageFindFileType(maskName);
         if (extension != 0) {
-            RwEngineInstance->fpStringConcat(imageMaskName, extension);
+            RwEngineInstance->stringFuncs.vecStrcat(imageMaskName, extension);
         }
     }
 
@@ -296,8 +296,8 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
     int depth;
     int format;
 
-    RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
-    if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+    RwEngineInstance->stringFuncs.vecStrncpy(imageName, name, sizeof(imageName));
+    if (RwEngineInstance->stringFuncs.vecStrlen(name) >= sizeof(imageName)) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x8000001E, name, 256, 255, name[255]);
@@ -306,9 +306,9 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
     }
     imageMaskName[0] = 0;
     if (maskName != 0 && maskName[0] != 0) {
-        RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+        RwEngineInstance->stringFuncs.vecStrncpy(imageMaskName, maskName,
                                        sizeof(imageMaskName));
-        if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
+        if (RwEngineInstance->stringFuncs.vecStrlen(maskName) >= sizeof(imageMaskName)) {
             RwError error;
             error.pluginID = 1;
             error.errorCode = _rwerror(0x8000001E, maskName, 256, 255,
@@ -375,8 +375,8 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
     int level;
     int levelCount;
 
-    RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
-    if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+    RwEngineInstance->stringFuncs.vecStrncpy(imageName, name, sizeof(imageName));
+    if (RwEngineInstance->stringFuncs.vecStrlen(name) >= sizeof(imageName)) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x8000001E, name, 256, 255, name[255]);
@@ -385,9 +385,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
     }
     imageMaskName[0] = 0;
     if (maskName != 0 && maskName[0] != 0) {
-        RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+        RwEngineInstance->stringFuncs.vecStrncpy(imageMaskName, maskName,
                                        sizeof(imageMaskName));
-        if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
+        if (RwEngineInstance->stringFuncs.vecStrlen(maskName) >= sizeof(imageMaskName)) {
             RwError error;
             error.pluginID = 1;
             error.errorCode = _rwerror(0x8000001E, maskName, 256, 255,
@@ -426,9 +426,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
         } else {
             levelCount = RwRasterGetNumLevels(raster);
             for (level = 1; level < levelCount; level++) {
-                RwEngineInstance->fpStringCopy(imageName, name,
+                RwEngineInstance->stringFuncs.vecStrncpy(imageName, name,
                                                sizeof(imageName));
-                if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+                if (RwEngineInstance->stringFuncs.vecStrlen(name) >= sizeof(imageName)) {
                     RwError error;
                     error.pluginID = 1;
                     error.errorCode = _rwerror(0x8000001E, name, 256, 255,
@@ -438,9 +438,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
                 }
                 imageMaskName[0] = 0;
                 if (maskName != 0 && maskName[0] != 0) {
-                    RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+                    RwEngineInstance->stringFuncs.vecStrncpy(imageMaskName, maskName,
                                                    sizeof(imageMaskName));
-                    if (RwEngineInstance->fpStringLength(maskName) >=
+                    if (RwEngineInstance->stringFuncs.vecStrlen(maskName) >=
                         sizeof(imageMaskName)) {
                         RwError error;
                         error.pluginID = 1;
@@ -831,8 +831,8 @@ int RwTextureDestroy(RwTexture* texture) {
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name) {
     RwError error;
 
-    RwEngineInstance->fpStringCopy(texture->name, name, 32);
-    if (RwEngineInstance->fpStringLength(name) >= 32) {
+    RwEngineInstance->stringFuncs.vecStrncpy(texture->name, name, 32);
+    if (RwEngineInstance->stringFuncs.vecStrlen(name) >= 32) {
         error.pluginID = 1;
         error.errorCode = _rwerror(0x8000001E, name, 32, 31, name[31]);
         RwErrorSet(&error);
@@ -844,8 +844,8 @@ RwTexture* RwTextureSetName(RwTexture* texture, const char* name) {
 RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* maskName) {
     RwError error;
 
-    RwEngineInstance->fpStringCopy(texture->mask, maskName, 32);
-    if (RwEngineInstance->fpStringLength(maskName) >= 32) {
+    RwEngineInstance->stringFuncs.vecStrncpy(texture->mask, maskName, 32);
+    if (RwEngineInstance->stringFuncs.vecStrlen(maskName) >= 32) {
         error.pluginID = 1;
         error.errorCode = _rwerror(0x8000001E, maskName, 32, 31, maskName[31]);
         RwErrorSet(&error);

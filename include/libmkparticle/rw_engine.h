@@ -2,6 +2,7 @@
 #define LIBMKPARTICLE_RW_ENGINE_H
 
 #include "runtime/cstddef.h"
+#include "runtime/cstdarg.h"
 #include "rw/rwcore_types.h"
 
 typedef int RwBool;
@@ -46,10 +47,25 @@ typedef int (*RwTextureRasterCall)(void* texture, void* raster, int flags);
 typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
 typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
 typedef void* (*RwMemoryAllocCall)(unsigned int size, unsigned int hint);
-typedef void (*RwStringCopyCall)(char* destination, const char* source,
-                                 unsigned int size);
-typedef char* (*RwStringConcatCall)(char* destination, const char* source);
-typedef unsigned int (*RwStringLengthCall)(const char* string);
+typedef struct RwStringFunctions {
+    int (*vecSprintf)(RwChar*, const RwChar*, ...);
+    int (*vecVsprintf)(RwChar*, const RwChar*, __va_list);
+    RwChar* (*vecStrcpy)(RwChar*, const RwChar*);
+    RwChar* (*vecStrncpy)(RwChar*, const RwChar*, size_t);
+    RwChar* (*vecStrcat)(RwChar*, const RwChar*);
+    RwChar* (*vecStrncat)(RwChar*, const RwChar*, size_t);
+    RwChar* (*vecStrrchr)(const RwChar*, int);
+    RwChar* (*vecStrchr)(const RwChar*, int);
+    RwChar* (*vecStrstr)(const RwChar*, const RwChar*);
+    int (*vecStrcmp)(const RwChar*, const RwChar*);
+    int (*vecStrncmp)(const RwChar*, const RwChar*, size_t);
+    int (*vecStricmp)(const RwChar*, const RwChar*);
+    size_t (*vecStrlen)(const RwChar*);
+    RwChar* (*vecStrupr)(RwChar*);
+    RwChar* (*vecStrlwr)(RwChar*);
+    RwChar* (*vecStrtok)(RwChar*, const RwChar*);
+    int (*vecSscanf)(const RwChar*, const RwChar*, ...);
+} RwStringFunctions;
 
 /** Confirmed portion of the retail RenderWare engine dispatch table. */
 typedef struct RwGlobals {
@@ -77,12 +93,7 @@ typedef struct RwGlobals {
     RwRasterDeviceCall fpRasterGetNumLevels; /* +0xB8 */
     RwLinkList dirtyFrameList; /* +0xBC */
     RwFileFunctions fileFuncs; /* +0xC4 */
-    char padF0[0xC];
-    RwStringCopyCall fpStringCopy; /* +0xFC */
-    RwStringConcatCall fpStringConcat; /* +0x100 */
-    char pad104[0x1C];
-    RwStringLengthCall fpStringLength; /* +0x120 */
-    char pad124[0x10];
+    RwStringFunctions stringFuncs; /* +0xF0 */
     RwMemoryAllocCall fpMalloc; /* +0x134 */
     void (*fpFree)(void* memory); /* +0x138 */
     char pad13C[0x8];
