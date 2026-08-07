@@ -1170,6 +1170,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/rwgrp.obj", source="rw/rwgrp.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rwcore.a/resmem.obj", source="rw/resmem.c",
+                   extra_cflags=["-opt", "off", "-inline", "off"]),
             Object(
                 NonMatching,
                 "rwcore.a/baraster.obj",
