@@ -1160,6 +1160,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/p2altmdl.obj", source="rw/p2altmdl.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(Matching, "rwcore.a/rwgrp.obj", source="rw/rwgrp.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
             Object(
                 NonMatching,
                 "rwcore.a/baraster.obj",
