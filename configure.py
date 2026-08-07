@@ -1189,6 +1189,14 @@ config.libs = [
         ],
     ),
     RenderWareLib(
+        "rpskin",
+        [
+            Object(Matching, "rpskin.a/skinplatform.obj",
+                   source="rw/skinplatform.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
+        ],
+    ),
+    RenderWareLib(
         "rtquat",
         [
             Object(Matching, "rtquat.a/rtquat.obj", source="rw/rtquat.c",
