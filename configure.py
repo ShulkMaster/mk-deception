@@ -1176,6 +1176,14 @@ config.libs = [
         ],
     ),
     RenderWareLib(
+        "rpmatfx",
+        [
+            Object(Matching, "rpmatfx.a/multiTexGcn.obj",
+                   source="rw/multiTexGcn.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
+        ],
+    ),
+    RenderWareLib(
         "rpworld",
         [
             Object(Matching, "rpworld.a/basector.obj", source="rw/basector.c",
