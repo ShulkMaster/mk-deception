@@ -131,5 +131,9 @@ void _rxPacketDestroy(RxPacket* packet);
 void RxHeapFree(RxHeap* heap, void* block);
 RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(
     RxRenderStateVector* renderState);
+void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,
+                             RwUInt32 entrySize, RwUInt32 keyOffset,
+                             RwUInt32 keyLowerBound,
+                             RwUInt32 keyUpperBound);
 
 #endif
