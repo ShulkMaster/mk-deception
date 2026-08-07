@@ -27,6 +27,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       with:
+        ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.sha }}
         fetch-depth: 0
         submodules: recursive
 
@@ -41,13 +42,18 @@ jobs:
     - name: Prepare game files
       run: cp -a /orig .
 
-    - name: Build main baseline
+    - name: Build PR branch baseline
       if: github.event_name == 'pull_request'
       env:
-        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
       run: |
-        baseline_dir="${RUNNER_TEMP}/mkd-main-${{ matrix.version }}"
-        git worktree add --detach "${baseline_dir}" "${BASE_SHA}"
+        # Compare with the main commit the PR branch was based on. Using the
+        # event's base SHA would move the baseline whenever main advances and
+        # can report unrelated changes as regressions.
+        base_sha="$(git merge-base HEAD "origin/${BASE_REF}")"
+        echo "Comparing PR progress against ${base_sha} (${BASE_REF} merge base)"
+        baseline_dir="${RUNNER_TEMP}/mkd-base-${{ matrix.version }}"
+        git worktree add --detach "${baseline_dir}" "${base_sha}"
         cp -a /orig "${baseline_dir}/"
         cd "${baseline_dir}"
         python configure.py --map --version ${{ matrix.version }} \
@@ -85,7 +91,7 @@ jobs:
         name: ${{ matrix.version }}_report
         path: build/${{ matrix.version }}/report.json
 
-    - name: Compare PR against main
+    - name: Compare PR against branch baseline
       if: github.event_name == 'pull_request'
       run: |
         build/tools/objdiff-cli report changes \
@@ -99,7 +105,9 @@ jobs:
         cat build/${{ matrix.version }}/github_report.md >> "${GITHUB_STEP_SUMMARY}"
 
     - name: Publish objdiff report to PR
-      if: github.event_name == 'pull_request'
+      # Tokens for pull requests from forks are read-only. Those builds still
+      # publish the report as an artifact and in the workflow summary.
+      if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/github-script@v9
       env:
         REPORT_PATH: build/${{ matrix.version }}/github_report.md
