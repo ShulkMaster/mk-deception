@@ -1158,6 +1158,8 @@ config.libs = [
             Object(Matching, "rwcore.a/bacolor.obj", source="rw/bacolor.c"),
             Object(NonMatching, "rwcore.a/dltoken.obj", source="rw/dltoken.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rwcore.a/p2altmdl.obj", source="rw/p2altmdl.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
             Object(
                 NonMatching,
                 "rwcore.a/baraster.obj",
