@@ -23,8 +23,7 @@ void _rxPacketDestroy(RxPacket* packet) {
             if (cluster->data != 0 && (cluster->flags & 2) == 0) {
                 RxHeapFree(_rxHeapGlobal, cluster->data);
             }
-            cluster->flags = 0;
-            cluster->stride = 0;
+            cluster->flagsAndStride = 0;
             cluster->data = 0;
             cluster->numAlloced = 0;
             cluster->numUsed = 0;

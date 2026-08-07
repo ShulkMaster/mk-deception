@@ -62,8 +62,13 @@ typedef enum RxEmbeddedPacketState {
 } RxEmbeddedPacketState;
 
 typedef struct RxCluster {
-    RwUInt16 flags;
-    RwUInt16 stride;
+    union {
+        struct {
+            RwUInt16 flags;
+            RwUInt16 stride;
+        };
+        RwUInt32 flagsAndStride;
+    };
     void* data;
     void* currentData;
     RwUInt32 numAlloced;

@@ -1159,7 +1159,7 @@ config.libs = [
             Object(Matching, "rwcore.a/dltoken.obj", source="rw/dltoken.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/p2altmdl.obj", source="rw/p2altmdl.c",
-                   extra_cflags=["-opt", "off", "-O0"]),
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rwcore.a/p2renderstate.obj",
                    source="rw/p2renderstate.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
