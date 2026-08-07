@@ -2,6 +2,7 @@
 .idea/
 .vs/
 .scratches
+.agents
 
 # Caches
 __pycache__

@@ -124,6 +124,7 @@ def main() -> None:
 
     url = TOOLS[args.tool](args.tag)
     output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Downloading {url} to {output}")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})

@@ -27,11 +27,16 @@ def find_m2c(explicit: Optional[str]) -> List[str]:
 
     local = ROOT / "build" / "m2c" / "m2c.py"
     if local.is_file():
-        return [sys.executable, str(local)]
+        if os.name == "nt":
+            local_python = ROOT / "build" / "venv" / "Scripts" / "python.exe"
+        else:
+            local_python = ROOT / "build" / "venv" / "bin" / "python"
+        python = local_python if local_python.is_file() else Path(sys.executable)
+        return [str(python), str(local)]
 
     raise SystemExit(
         "m2c not found: pass --m2c, set M2C_PATH, install the `m2c` command, "
-        "or clone it at tools/m2c"
+        "or run `python3 tools/init.py` to install it at build/m2c"
     )
 
 
