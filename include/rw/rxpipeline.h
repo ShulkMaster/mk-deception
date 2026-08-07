@@ -56,7 +56,13 @@ struct RxPacket {
 };
 
 typedef struct RxPipelinePlatformGlobals {
-    unsigned char core[0x54];
+    unsigned char core[0x3C];
+    RxPipeline* defaultAtomicPipeline;
+    RxPipeline* defaultWorldSectorPipeline;
+    RxPipeline* defaultMaterialPipeline;
+    RxPipeline* pipeline48;
+    RxPipeline* pipeline4C;
+    RxPipeline* pipeline50;
     RxPipeline* platformAtomicPipeline;
     RxPipeline* platformWorldSectorPipeline;
     RxPipeline* platformMaterialPipeline;
