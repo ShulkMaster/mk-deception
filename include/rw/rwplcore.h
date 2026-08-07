@@ -37,12 +37,46 @@ typedef RwStream* (*RwPluginDataChunkReadCallBack)(RwStream*, RwInt32, void*, Rw
 typedef RwStream* (*RwPluginDataChunkWriteCallBack)(RwStream*, RwInt32, const void*, RwInt32,
                                                     RwInt32);
 typedef RwInt32 (*RwPluginDataChunkGetSizeCallBack)(const void*, RwInt32, RwInt32);
+typedef RwBool (*RwPluginDataChunkAlwaysCallBack)(void*, RwInt32, RwInt32);
+typedef RwBool (*RwPluginDataChunkRightsCallBack)(void*, RwInt32, RwInt32,
+                                                  RwUInt32);
+typedef void* (*RwPluginErrorStrCallBack)(void*);
+struct RwPluginRegEntry {
+    RwInt32 offset;
+    RwInt32 size;
+    RwUInt32 pluginID;
+    RwPluginDataChunkReadCallBack readCB;
+    RwPluginDataChunkWriteCallBack writeCB;
+    RwPluginDataChunkGetSizeCallBack getSizeCB;
+    RwPluginDataChunkAlwaysCallBack alwaysCB;
+    RwPluginDataChunkRightsCallBack rightsCB;
+    RwPluginObjectConstructor constructCB;
+    RwPluginObjectDestructor destructCB;
+    RwPluginObjectCopy copyCB;
+    RwPluginErrorStrCallBack errStrCB;
+    RwPluginRegEntry* nextRegEntry;
+    RwPluginRegEntry* prevRegEntry;
+    RwPluginRegistry* parentRegistry;
+};
 RwInt32 _rwPluginRegistryAddPlugin(RwPluginRegistry*, RwInt32, RwUInt32,
                                    RwPluginObjectConstructor, RwPluginObjectDestructor,
                                    RwPluginObjectCopy);
 RwInt32 _rwPluginRegistryAddPluginStream(
     RwPluginRegistry*, RwUInt32, RwPluginDataChunkReadCallBack,
     RwPluginDataChunkWriteCallBack, RwPluginDataChunkGetSizeCallBack);
+RwInt32 _rwPluginRegistryAddPlgnStrmlwysCB(
+    RwPluginRegistry*, RwUInt32, RwPluginDataChunkAlwaysCallBack);
+RwInt32 _rwPluginRegistryAddPlgnStrmRightsCB(
+    RwPluginRegistry*, RwUInt32, RwPluginDataChunkRightsCallBack);
+const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
+    const RwPluginRegistry*, RwStream*, void*);
+const RwPluginRegistry* _rwPluginRegistryInvokeRights(
+    const RwPluginRegistry*, RwUInt32, void*, RwUInt32);
+RwInt32 _rwPluginRegistryGetSize(const RwPluginRegistry*, const void*);
+const RwPluginRegistry* _rwPluginRegistryWriteDataChunks(
+    const RwPluginRegistry*, RwStream*, const void*);
+const RwPluginRegistry* _rwPluginRegistrySkipDataChunks(
+    const RwPluginRegistry*, RwStream*);
 RwInt32 RwEngineRegisterPlugin(RwInt32, RwUInt32,
                                RwPluginObjectConstructor,
                                RwPluginObjectDestructor);

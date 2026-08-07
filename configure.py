@@ -1208,6 +1208,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/babintex.obj", source="rw/babintex.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rwcore.a/batkbin.obj", source="rw/batkbin.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
     ),
     RenderWareLib(

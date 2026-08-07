@@ -23,10 +23,4 @@ void GeometryListDeinitialize(RpGeometryList* geometry_list);
 RwStream* _rpMaterialListStreamRead(RwStream* stream,
                                     RpMaterialList* material_list);
 unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
-RwStream* _rwPluginRegistryReadDataChunks(RwPluginRegistry* registry,
-                                          RwStream* stream, void* object);
-void* _rwPluginRegistryInvokeRights(RwPluginRegistry* registry,
-                                    unsigned int plugin_id, void* object,
-                                    int extra_data);
-
 #endif

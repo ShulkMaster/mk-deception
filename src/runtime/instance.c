@@ -69,12 +69,6 @@ extern RwStream* _rpMaterialListStreamRead(RwStream* stream,
 extern unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
 extern void* _rwPluginRegistryInitObject(RwPluginRegistry* registry,
                                          void* object);
-extern RwStream* _rwPluginRegistryReadDataChunks(RwPluginRegistry* registry,
-                                                 RwStream* stream,
-                                                 void* object);
-extern void* _rwPluginRegistryInvokeRights(RwPluginRegistry* registry,
-                                           unsigned int plugin_id,
-                                           void* object, int extra_data);
 extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
 
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
@@ -380,7 +374,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
     int morph_index;
     RpMorphTargetChunkInfo morph_info;
     RpMorphTarget* morph_target;
-    RwStream* plugin_result;
+    const RwPluginRegistry* plugin_result;
     unsigned char* inplace_pointer;
 
     if (!RwStreamFindChunk(stream, 1, 0, &version)) {

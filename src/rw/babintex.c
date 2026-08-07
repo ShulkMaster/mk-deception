@@ -7,9 +7,6 @@ extern RwPluginRegistry textureTKList;
 extern RwInt32 _rwStringStreamGetSize(const RwChar *string);
 extern const RwChar *_rwStringStreamWrite(const RwChar *string, RwStream *stream);
 extern RwChar *_rwStringStreamFindAndRead(RwChar *string, RwStream *stream);
-extern RwInt32 _rwPluginRegistryGetSize(const RwPluginRegistry *, const void *);
-extern const void *_rwPluginRegistryWriteDataChunks(RwPluginRegistry *, RwStream *, const void *);
-extern RwStream *_rwPluginRegistrySkipDataChunks(RwPluginRegistry *, RwStream *);
 extern RwStream *_rwStreamWriteVersionedChunkHeader(RwStream *, RwUInt32, RwUInt32, RwUInt32,
                                                     RwUInt32);
 extern RwStream *RwStreamWrite(RwStream *, const void *, RwUInt32);
