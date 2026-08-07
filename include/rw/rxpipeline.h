@@ -5,6 +5,9 @@
 #include "rw/rwplcore.h"
 
 typedef struct RxHeap RxHeap;
+typedef struct RxHeapBlock RxHeapBlock;
+typedef struct RxHeapFreeBlock RxHeapFreeBlock;
+typedef struct RxHeapSuperBlock RxHeapSuperBlock;
 typedef struct RxPipelineNode RxPipelineNode;
 typedef struct RxClusterDefinition RxClusterDefinition;
 typedef struct RxPipelineCluster RxPipelineCluster;
@@ -108,6 +111,35 @@ typedef struct RxPipelinePlatformGlobals {
     RxPipeline* platformMaterialPipeline;
 } RxPipelinePlatformGlobals;
 
+struct RxHeapFreeBlock {
+    RwUInt32 size;
+    RxHeapBlock* block;
+};
+
+struct RxHeapBlock {
+    RxHeapBlock* prev;
+    RxHeapBlock* next;
+    RwUInt32 size;
+    RxHeapFreeBlock* freeEntry;
+    RwUInt32 bookkeeping[4];
+};
+
+struct RxHeapSuperBlock {
+    RxHeapBlock* start;
+    RwUInt32 size;
+    RxHeapSuperBlock* next;
+};
+
+struct RxHeap {
+    RwUInt32 superBlockSize;
+    RxHeapSuperBlock* firstSuperBlock;
+    RxHeapBlock* firstBlock;
+    RxHeapFreeBlock* freeBlocks;
+    RwUInt32 freeBlocksAllocated;
+    RwUInt32 freeBlocksUsed;
+    RwBool dirty;
+};
+
 extern RwGlobals* RwEngineInstance;
 extern RwInt32 _rxPipelineGlobalsOffset;
 
@@ -121,6 +153,9 @@ extern RwInt32 _rxPipelineGlobalsOffset;
 
 void _rxPacketDestroy(RxPacket* packet);
 void RxHeapFree(RxHeap* heap, void* block);
+RwBool _rxHeapReset(RxHeap* heap);
+void RxHeapDestroy(RxHeap* heap);
+RxHeap* RxHeapCreate(RwUInt32 size);
 RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(
     RxRenderStateVector* renderState);
 void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,

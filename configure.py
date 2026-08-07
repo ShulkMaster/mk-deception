@@ -1222,6 +1222,8 @@ config.libs = [
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/bastream.obj", source="rw/bastream.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rwcore.a/p2heap.obj", source="rw/p2heap.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
         ],
     ),
     RenderWareLib(
