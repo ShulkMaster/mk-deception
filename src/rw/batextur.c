@@ -357,6 +357,181 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
     return texture;
 }
 
+static RwTexture* TextureDefaultMipmapRead(const char* name,
+                                           const char* maskName) {
+    char imageName[256];
+    char imageMaskName[256];
+    RwRGBA palette[256];
+    RwImage* mipmaps[64];
+    RwRaster* raster;
+    RwTexture* texture;
+    int width = 0;
+    int height = 0;
+    int depth;
+    int format;
+    int rasterFlags = 4;
+    int level;
+    int levelCount;
+
+    RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
+    if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+        RwErrorPair error;
+        error.plugin = 1;
+        error.code = _rwerror(0x8000001E, name, 256, 255, name[255]);
+        RwErrorSet(&error);
+        imageName[255] = 0;
+    }
+    imageMaskName[0] = 0;
+    if (maskName != 0 && maskName[0] != 0) {
+        RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+                                       sizeof(imageMaskName));
+        if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
+            RwErrorPair error;
+            error.plugin = 1;
+            error.code = _rwerror(0x8000001E, maskName, 256, 255,
+                                  maskName[255]);
+            RwErrorSet(&error);
+            imageMaskName[255] = 0;
+        }
+    }
+
+    if (TEXTURE_GLOBALS->mipmapping != 0) {
+        rasterFlags |= 0x8000;
+        if (TEXTURE_GLOBALS->autoMipmapping != 0) {
+            rasterFlags |= 0x1000;
+        }
+    }
+    RwTextureGenerateMipmapName(imageName, imageMaskName, 0, rasterFlags);
+    mipmaps[0] = TextureImageReadAndSize(imageName, imageMaskName, rasterFlags,
+                                         &width, &height, &depth, &format);
+    if (mipmaps[0] == 0) {
+        return 0;
+    }
+    raster = RwRasterCreate(width, height, depth, format);
+    if (raster == 0) {
+        RwImageDestroy(mipmaps[0]);
+        return 0;
+    }
+
+    if ((format & 0x8000) != 0) {
+        if ((format & 0x1000) != 0) {
+            if (RwRasterSetFromImage(raster, mipmaps[0]) == 0) {
+                RwRasterDestroy(raster);
+                RwImageDestroy(mipmaps[0]);
+                return 0;
+            }
+            RwImageDestroy(mipmaps[0]);
+        } else {
+            levelCount = RwRasterGetNumLevels(raster);
+            for (level = 1; level < levelCount; level++) {
+                RwEngineInstance->fpStringCopy(imageName, name,
+                                               sizeof(imageName));
+                if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+                    RwErrorPair error;
+                    error.plugin = 1;
+                    error.code = _rwerror(0x8000001E, name, 256, 255,
+                                          name[255]);
+                    RwErrorSet(&error);
+                    imageName[255] = 0;
+                }
+                imageMaskName[0] = 0;
+                if (maskName != 0 && maskName[0] != 0) {
+                    RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+                                                   sizeof(imageMaskName));
+                    if (RwEngineInstance->fpStringLength(maskName) >=
+                        sizeof(imageMaskName)) {
+                        RwErrorPair error;
+                        error.plugin = 1;
+                        error.code = _rwerror(0x8000001E, maskName, 256, 255,
+                                              maskName[255]);
+                        RwErrorSet(&error);
+                        imageMaskName[255] = 0;
+                    }
+                }
+                RwTextureGenerateMipmapName(imageName, imageMaskName,
+                                            (unsigned char)level, rasterFlags);
+                RwRasterLock(raster, (unsigned char)level, 5);
+                width = raster->width;
+                height = raster->height;
+                depth = raster->depth;
+                format = ((unsigned int)raster->format << 8) | raster->type;
+                RwRasterUnlock(raster);
+                mipmaps[level] = TextureImageReadAndSize(
+                    imageName, imageMaskName, rasterFlags, &width, &height,
+                    &depth, &format);
+                if (mipmaps[level] == 0) {
+                    do {
+                        level--;
+                        RwImageDestroy(mipmaps[level]);
+                    } while (level > 0);
+                    RwRasterDestroy(raster);
+                    return 0;
+                }
+            }
+
+            if ((((unsigned int)raster->format << 8) & 0x6000) != 0) {
+                if ((((unsigned int)raster->format << 8) & 0x4000) != 0) {
+                    PalettizeMipmaps(palette, 0, mipmaps, levelCount, 4);
+                } else {
+                    PalettizeMipmaps(palette, 0, mipmaps, levelCount, 8);
+                }
+                RwImageGammaCorrect(mipmaps[0]);
+            } else {
+                for (level = 0; level < levelCount; level++) {
+                    RwImageGammaCorrect(mipmaps[level]);
+                }
+            }
+
+            for (level = 0; level < levelCount; level++) {
+                if (RwRasterLock(raster, (unsigned char)level, 5) != 0) {
+                    if (RwRasterSetFromImage(raster, mipmaps[level]) == 0) {
+                        while (level < levelCount) {
+                            RwImageDestroy(mipmaps[level]);
+                            level++;
+                        }
+                        RwRasterDestroy(raster);
+                        return 0;
+                    }
+                    RwRasterUnlock(raster);
+                }
+                RwImageDestroy(mipmaps[level]);
+            }
+        }
+    } else {
+        RwImageGammaCorrect(mipmaps[0]);
+        if (RwRasterSetFromImage(raster, mipmaps[0]) == 0) {
+            RwRasterDestroy(raster);
+            RwImageDestroy(mipmaps[0]);
+            return 0;
+        }
+        RwImageDestroy(mipmaps[0]);
+    }
+
+    texture = RwTextureCreate(raster);
+    if (texture == 0) {
+        RwRasterDestroy(raster);
+        return 0;
+    }
+    RwTextureSetName(texture, name);
+    if (maskName != 0) {
+        RwTextureSetMaskName(texture, maskName);
+    } else {
+        RwTextureSetMaskName(texture, emptyTextureName);
+    }
+    return texture;
+}
+
+static RwTexture* TextureDefaultRead(const char* name, const char* maskName) {
+    RwTexture* texture;
+
+    if (TEXTURE_GLOBALS->mipmapping != 0) {
+        texture = TextureDefaultMipmapRead(name, maskName);
+    } else {
+        texture = TextureDefaultNormalRead(name, maskName);
+    }
+    return texture;
+}
+
 static int TextureAnnihilate(RwTexture* texture) {
     RwLLLink* previous;
 
