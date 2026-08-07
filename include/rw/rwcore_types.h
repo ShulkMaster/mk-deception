@@ -86,6 +86,7 @@ RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster);
+RwTexture* RwTextureRead(const char* name, const char* maskName);
 RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture);
 
 #ifdef __cplusplus

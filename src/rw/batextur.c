@@ -78,6 +78,7 @@ int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
 
 static const char character_25[] = "0123456789abcdef";
 static char emptyTextureName[] = "";
+static char nullMaskName[] = "(null)";
 
 #define TEXTURE_GLOBALS \
     ((RwTextureModuleGlobals*)((char*)RwEngineInstance + textureModule.globalsOffset))
@@ -914,6 +915,34 @@ int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
         return TEXTURE_GLOBALS->mipmapNameCallback(name, maskName, level, format);
     }
     return 0;
+}
+
+RwTexture* RwTextureRead(const char* name, const char* maskName) {
+    RwTexture* texture = TEXTURE_GLOBALS->findCallback(name);
+
+    if (texture != 0) {
+        texture->ref_count++;
+        return texture;
+    }
+    texture = TEXTURE_GLOBALS->readCallback(name, maskName);
+    if (texture == 0) {
+        if (maskName != 0) {
+            RwErrorPair error;
+            error.plugin = 1;
+            error.code = _rwerror(0x16, name, maskName);
+            RwErrorSet(&error);
+        } else {
+            RwErrorPair error;
+            error.plugin = 1;
+            error.code = _rwerror(0x16, name, nullMaskName);
+            RwErrorSet(&error);
+        }
+        return 0;
+    }
+    if (TEXTURE_GLOBALS->currentDictionary != 0) {
+        RwTexDictionaryAddTexture(TEXTURE_GLOBALS->currentDictionary, texture);
+    }
+    return texture;
 }
 
 int RwTextureRegisterPlugin(int size, unsigned int pluginID,
