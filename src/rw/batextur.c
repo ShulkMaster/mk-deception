@@ -36,7 +36,7 @@ typedef struct RwTextureModuleGlobals {
     int (*mipmapNameCallback)(char*, char*, unsigned char, int);
 } RwTextureModuleGlobals;
 
-static RwPluginRegistry textureTKList = { 0x58, 0x58, 0, 0, 0, 0 };
+RwPluginRegistry textureTKList = { 0x58, 0x58, 0, 0, 0, 0 };
 static RwPluginRegistry texDictTKList = { 0x18, 0x18, 0, 0, 0, 0 };
 static RwFreeListStorage _rwTextureFreeList;
 static RwFreeListStorage _rwTexDictionaryFreeList;

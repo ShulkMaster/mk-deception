@@ -23,6 +23,20 @@ typedef struct RwLinkList {
 
 typedef struct RwTexDictionary RwTexDictionary;
 
+typedef enum RwTextureAddressMode {
+    rwTEXTUREADDRESSWRAP = 1
+} RwTextureAddressMode;
+
+typedef enum RwTextureFilterMode {
+    rwFILTERNAFILTERMODE = 0,
+    rwFILTERNEAREST = 1,
+    rwFILTERLINEAR = 2,
+    rwFILTERMIPNEAREST = 3,
+    rwFILTERMIPLINEAR = 4,
+    rwFILTERLINEARMIPNEAREST = 5,
+    rwFILTERLINEARMIPLINEAR = 6
+} RwTextureFilterMode;
+
 /* Stock RenderWare image layout used by RwImageCreate and ImageWriteTGA. */
 typedef struct RwImage {
     int flags;                 /* +0x00 */
@@ -106,6 +120,14 @@ RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster);
 RwTexture* RwTextureRead(const char* name, const char* maskName);
 RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture);
+RwBool RwTextureSetMipmapping(RwBool enable);
+RwBool RwTextureGetMipmapping(void);
+RwBool RwTextureSetAutoMipmapping(RwBool enable);
+RwBool RwTextureGetAutoMipmapping(void);
+RwUInt32 RwTextureStreamGetSize(const RwTexture* texture);
+const RwTexture* RwTextureStreamWrite(const RwTexture* texture,
+                                      RwStream* stream);
+RwTexture* RwTextureStreamRead(RwStream* stream);
 
 #ifdef __cplusplus
 }

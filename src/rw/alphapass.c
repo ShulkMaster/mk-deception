@@ -22,9 +22,6 @@ extern void* RwStreamWrite(RwStream* stream, const void* buffer, unsigned int le
 extern void* RwStreamRead(RwStream* stream, void* buffer, unsigned int length);
 extern int RwStreamFindChunk(RwStream* stream, int type, unsigned int* length,
                              unsigned int* version);
-extern int RwTextureStreamGetSize(RwTexture* texture);
-extern RwTexture* RwTextureStreamWrite(RwTexture* texture, RwStream* stream);
-extern RwTexture* RwTextureStreamRead(RwStream* stream);
 extern void _rwDlRenderStateSetZCompLoc(int beforeTexture);
 extern int _RwGameCubeRasterExtOffset;
 
@@ -95,7 +92,7 @@ static int AlphaPassStreamWriteTexture(RwStream* stream, RwTexture* texture) {
     size += wordSize;
     if (present != 0) {
         int textureSize = RwTextureStreamGetSize(texture) + 12;
-        RwTexture* written = RwTextureStreamWrite(texture, stream);
+        const RwTexture* written = RwTextureStreamWrite(texture, stream);
         size += textureSize;
     }
     return size;

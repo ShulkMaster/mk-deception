@@ -28,14 +28,6 @@ typedef enum RwBlendFunction {
     rwBLENDINVSRCALPHA = 6
 } RwBlendFunction;
 
-typedef enum RwTextureAddressMode {
-    rwTEXTUREADDRESSWRAP = 1
-} RwTextureAddressMode;
-
-typedef enum RwTextureFilterMode {
-    rwFILTERLINEAR = 2
-} RwTextureFilterMode;
-
 typedef enum RwFogType {
     rwFOGTYPENAFOGTYPE = 0
 } RwFogType;

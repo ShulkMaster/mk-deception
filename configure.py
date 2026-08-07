@@ -1206,6 +1206,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O1,p"]),
             Object(Matching, "rwcore.a/babinfrm.obj", source="rw/babinfrm.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rwcore.a/babintex.obj", source="rw/babintex.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
         ],
     ),
     RenderWareLib(
