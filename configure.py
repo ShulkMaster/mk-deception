@@ -1244,6 +1244,13 @@ config.libs = [
         ],
     ),
     RenderWareLib(
+        "rtanim",
+        [
+            Object(Matching, "rtanim.a/rtanim.obj", source="rw/rtanim.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+        ],
+    ),
+    RenderWareLib(
         "rtquat",
         [
             Object(Matching, "rtquat.a/rtquat.obj", source="rw/rtquat.c",
