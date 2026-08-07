@@ -1163,6 +1163,8 @@ config.libs = [
             Object(Matching, "rwcore.a/p2renderstate.obj",
                    source="rw/p2renderstate.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rwcore.a/im3dpipe.obj", source="rw/im3dpipe.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/batypehf.obj", source="rw/batypehf.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/bapipe.obj", source="rw/bapipe.c",
