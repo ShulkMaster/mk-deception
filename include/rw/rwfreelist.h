@@ -15,11 +15,13 @@ typedef struct RwFreeList {
     RwUInt32 flags;
     RwLLLink link;
 } RwFreeList;
+typedef void (*RwFreeListCallBack)(void*, void*);
 
 RwFreeList* RwFreeListCreateAndPreallocateSpace(
     RwInt32 entrySize, RwInt32 entriesPerBlock, RwInt32 alignment,
     RwInt32 preallocBlocks, RwFreeList* freeList, RwUInt32 hint);
 RwBool RwFreeListDestroy(RwFreeList* freeList);
+RwFreeList* RwFreeListForAllUsed(RwFreeList*, RwFreeListCallBack, void*);
 
 #define RWPLUGINOFFSET(type, object, offset) \
     (*(type*)((unsigned char*)(object) + (offset)))

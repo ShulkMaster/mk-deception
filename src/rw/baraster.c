@@ -27,8 +27,6 @@ typedef struct RwRect {
     int h;
 } RwRect;
 
-extern void* _rwPluginRegistryInitObject(RwPluginRegistry* registry, void* object);
-extern void* _rwPluginRegistryDeInitObject(RwPluginRegistry* registry, void* object);
 extern void _rwResourcesPurge(void);
 extern void* memset(void* destination, int value, unsigned int size);
 

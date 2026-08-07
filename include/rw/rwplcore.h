@@ -61,6 +61,11 @@ struct RwPluginRegEntry {
 RwInt32 _rwPluginRegistryAddPlugin(RwPluginRegistry*, RwInt32, RwUInt32,
                                    RwPluginObjectConstructor, RwPluginObjectDestructor,
                                    RwPluginObjectCopy);
+RwInt32 _rwPluginRegistryGetPluginOffset(const RwPluginRegistry*, RwUInt32);
+const RwPluginRegistry* _rwPluginRegistryInitObject(const RwPluginRegistry*,
+                                                    void*);
+const RwPluginRegistry* _rwPluginRegistryDeInitObject(const RwPluginRegistry*,
+                                                      void*);
 RwInt32 _rwPluginRegistryAddPluginStream(
     RwPluginRegistry*, RwUInt32, RwPluginDataChunkReadCallBack,
     RwPluginDataChunkWriteCallBack, RwPluginDataChunkGetSizeCallBack);

@@ -43,8 +43,6 @@ static RwFreeListStorage _rwTexDictionaryFreeList;
 
 static RwModuleInfo textureModule;
 static RwTexDictionary* dummyTexDict;
-extern void* _rwPluginRegistryInitObject(void* registry, void* object);
-extern void* _rwPluginRegistryDeInitObject(void* registry, void* object);
 extern int RwPalQuantInit(RwPalQuant* quantizer);
 extern void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image, float weight);
 extern void RwPalQuantResolvePalette(RwRGBA* palette, int colorCount,
