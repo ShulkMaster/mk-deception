@@ -48,6 +48,17 @@ typedef struct RwImage {
     unsigned char* palette;    /* +0x18 */
 } RwImage;
 
+/** Floating-point RGBA color used by the stock image resampler. */
+typedef struct RwRGBAReal {
+    float red;
+    float green;
+    float blue;
+    float alpha;
+} RwRGBAReal;
+
+RwImage* RwImageResample(RwImage* destination, const RwImage* source);
+RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
+
 /** Stock RenderWare raster layout. Retail size: 0x34 bytes. */
 typedef struct RwRaster {
     struct RwRaster* parent; /**< Retail offset 0x00. */

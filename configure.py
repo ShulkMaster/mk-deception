@@ -1193,6 +1193,8 @@ config.libs = [
                 source="rw/baraster.c",
                 extra_cflags=["-O4,s", "-opt", "off"],
             ),
+            Object(NonMatching, "rwcore.a/baresamp.obj", source="rw/baresamp.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(
                 NonMatching,
                 "rwcore.a/batextur.obj",
