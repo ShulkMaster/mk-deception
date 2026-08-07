@@ -57,19 +57,14 @@ extern RwImage* RwImageAllocatePixels(RwImage* image);
 extern int RwImageDestroy(RwImage* image);
 extern RwImage* RwImageCopy(RwImage* destination, const RwImage* source);
 extern const char* RwImageFindFileType(const char* name);
-extern int RwImageFindRasterFormat(RwImage* image, int rasterFlags,
-                                   int* width, int* height, int* depth,
-                                   int* format);
 extern RwImage* RwImageReadMaskedImage(const char* name, const char* maskName);
 extern RwImage* RwImageResample(RwImage* destination, const RwImage* source);
 extern RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
 extern RwImage* RwImageGammaCorrect(RwImage* image);
-extern RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
 extern void* RwFreeListCreateAndPreallocateSpace(
     int entrySize, int entriesPerBlock, int alignment, int preallocBlocks,
     RwFreeListStorage* freeList, int hint);
 extern int RwFreeListDestroy(void* freeList);
-extern int RwRasterSetFromImage(RwRaster* raster, RwImage* image);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,

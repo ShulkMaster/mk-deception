@@ -35,6 +35,13 @@ typedef struct RwFileFunctions {
 } RwFileFunctions;
 
 typedef int (*RwRasterDeviceCall)(void* result, void* raster, int flags);
+typedef RwBool (*RwImageSetFromRasterCall)(RwImage* image, RwRaster* raster,
+                                           RwInt32 flags);
+typedef RwBool (*RwRasterSetFromImageCall)(RwRaster* raster, RwImage* image,
+                                           RwInt32 flags);
+typedef RwBool (*RwImageFindRasterFormatCall)(RwRaster* raster,
+                                              RwImage* image,
+                                              RwInt32 rasterType);
 typedef int (*RwTextureRasterCall)(void* texture, void* raster, int flags);
 typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
 typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
@@ -52,9 +59,11 @@ typedef struct PfxRwEngineInstance {
     char pad28[0x30];
     RwRasterDeviceCall fpRasterCreate; /* +0x58 */
     RwRasterDeviceCall fpRasterDestroy; /* +0x5C */
-    char pad60[0x8];
+    RwImageSetFromRasterCall fpImageSetFromRaster; /* +0x60 */
+    RwRasterSetFromImageCall fpRasterSetFromImage; /* +0x64 */
     RwTextureRasterCall fpTextureSetRaster; /* +0x68 */
-    char pad6C[0xC];
+    RwImageFindRasterFormatCall fpImageFindRasterFormat; /* +0x6C */
+    char pad70[0x8];
     RwRasterDeviceCall fpRasterSubRaster; /* +0x78 */
     char pad7C[0x8];
     RwRasterDeviceCall fpRasterLock; /* +0x84 */
@@ -68,6 +77,7 @@ typedef struct PfxRwEngineInstance {
     RwRasterDeviceCall fpRasterGetNumLevels; /* +0xB8 */
     RwLinkList dirtyFrameList; /* +0xBC */
     RwFileFunctions fileFuncs; /* +0xC4 */
+    char padF0[0xC];
     RwStringCopyCall fpStringCopy; /* +0xFC */
     RwStringConcatCall fpStringConcat; /* +0x100 */
     char pad104[0x1C];

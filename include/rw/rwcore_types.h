@@ -27,7 +27,7 @@ typedef struct RwImage {
     unsigned char* palette;    /* +0x18 */
 } RwImage;
 
-/** RenderWare raster prefix used by the retail core. Retail layout: 0x24 bytes. */
+/** Stock RenderWare raster layout. Retail size: 0x34 bytes. */
 typedef struct RwRaster {
     struct RwRaster* parent; /**< Retail offset 0x00. */
     unsigned char* pixels;   /**< Retail offset 0x04. */
@@ -42,6 +42,10 @@ typedef struct RwRaster {
     unsigned char flags;     /**< Retail offset 0x21. */
     unsigned char privateFlags; /**< Retail offset 0x22. */
     unsigned char format;    /**< Retail offset 0x23. */
+    unsigned char* originalPixels; /**< Retail offset 0x24. */
+    int originalWidth;       /**< Retail offset 0x28. */
+    int originalHeight;      /**< Retail offset 0x2C. */
+    int originalStride;      /**< Retail offset 0x30. */
 } RwRaster;
 
 /** Stock RenderWare texture layout. Retail size: 0x58 bytes. */
@@ -83,6 +87,11 @@ int RwRasterDestroy(RwRaster* raster);
 RwRaster* RwRasterUnlock(RwRaster* raster);
 int RwRasterGetNumLevels(RwRaster* raster);
 void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
+RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
+RwRaster* RwRasterSetFromImage(RwRaster* raster, RwImage* image);
+RwImage* RwImageFindRasterFormat(RwImage* image, int rasterType,
+                                 int* width, int* height, int* depth,
+                                 int* format);
 
 RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
