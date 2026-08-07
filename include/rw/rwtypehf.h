@@ -3,10 +3,15 @@
 
 #include "rw/rwcore_types.h"
 
-typedef struct RwObjectHasFrame {
+typedef struct RwObjectHasFrame RwObjectHasFrame;
+typedef RwObjectHasFrame* (*RwObjectHasFrameSyncFunction)(
+    RwObjectHasFrame* object);
+
+struct RwObjectHasFrame {
     RwObject object;
     RwLLLink lFrame;
-} RwObjectHasFrame;
+    RwObjectHasFrameSyncFunction sync;
+};
 
 void _rwObjectHasFrameSetFrame(RwObjectHasFrame* object, RwFrame* frame);
 void _rwObjectHasFrameReleaseFrame(RwObjectHasFrame* object);

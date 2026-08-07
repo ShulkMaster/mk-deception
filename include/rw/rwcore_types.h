@@ -10,6 +10,10 @@ typedef struct RwLLLink {
     struct RwLLLink* prev;
 } RwLLLink;
 
+typedef struct RwLinkList {
+    RwLLLink link;
+} RwLinkList;
+
 typedef struct RwTexDictionary RwTexDictionary;
 
 /* Stock RenderWare image layout used by RwImageCreate and ImageWriteTGA. */
@@ -61,12 +65,10 @@ struct RwTexDictionary {
 /** Partial RenderWare frame layout. Known retail extent: 0xA4 bytes. */
 typedef struct RwFrame {
     RwObject object;            /**< Retail offset 0x00. */
-    void* object_link_next;     /**< Retail offset 0x08. */
-    void* object_link_prev;     /**< Retail offset 0x0C. */
+    RwLLLink inDirtyListLink;    /**< Retail offset 0x08. */
     RwMatrix modelling;         /**< Retail offset 0x10. */
     RwMatrix ltm;               /**< Retail offset 0x50. */
-    void* object_list_next;     /**< Retail offset 0x90. */
-    void* object_list_prev;     /**< Retail offset 0x94. */
+    RwLinkList objectList;       /**< Retail offset 0x90. */
     struct RwFrame* child;      /**< Retail offset 0x98. */
     struct RwFrame* next;       /**< Retail offset 0x9C. */
     struct RwFrame* root;       /**< Retail offset 0xA0. */

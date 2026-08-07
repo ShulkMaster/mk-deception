@@ -6,10 +6,6 @@
 
 typedef struct RwGlobals RwGlobals;
 
-typedef struct RwLinkList {
-    RwLLLink link;
-} RwLinkList;
-
 typedef struct RwFreeList {
     RwInt32 entrySize;
     RwInt32 entriesPerBlock;

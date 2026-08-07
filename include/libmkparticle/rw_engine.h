@@ -2,6 +2,7 @@
 #define LIBMKPARTICLE_RW_ENGINE_H
 
 #include "runtime/cstddef.h"
+#include "rw/rwcore_types.h"
 
 typedef int RwBool;
 typedef char RwChar;
@@ -65,7 +66,7 @@ typedef struct PfxRwEngineInstance {
     RwRasterDeviceCall fpRasterUnlockPalette; /* +0xA8 */
     char padAC[0xC];
     RwRasterDeviceCall fpRasterGetNumLevels; /* +0xB8 */
-    char padBC[0x8];
+    RwLinkList dirtyFrameList; /* +0xBC */
     RwFileFunctions fileFuncs; /* +0xC4 */
     RwStringCopyCall fpStringCopy; /* +0xFC */
     RwStringConcatCall fpStringConcat; /* +0x100 */

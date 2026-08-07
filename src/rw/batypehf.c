@@ -25,7 +25,7 @@ void _rwObjectHasFrameSetFrame(RwObjectHasFrame* object, RwFrame* frame) {
 
     object->object.parent = frame;
     if (frame != 0) {
-        frameObjects = (RwLLLink*)&frame->object_list_next;
+        frameObjects = &frame->objectList.link;
         rwLinkListAddLLLink(frameObjects, &object->lFrame);
         RwFrameUpdateObjects(frame);
     }
