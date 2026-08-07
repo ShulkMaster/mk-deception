@@ -950,8 +950,10 @@ int RwTextureRegisterPlugin(int size, unsigned int pluginID,
                             RwPluginObjectConstructor constructCB,
                             RwPluginObjectDestructor destructCB,
                             RwPluginObjectCopy copyCB) {
-    return _rwPluginRegistryAddPlugin(&textureTKList, size, pluginID, constructCB,
-                                      destructCB, copyCB);
+    int offset;
+    offset = _rwPluginRegistryAddPlugin(&textureTKList, size, pluginID,
+                                        constructCB, destructCB, copyCB);
+    return offset;
 }
 
 int RwTextureSetMipmapGenerationCallBack(
@@ -967,7 +969,10 @@ int RwTextureSetMipmapNameCallBack(
 }
 
 int RwTextureRasterGenerateMipmaps(RwRaster* raster, RwImage* image) {
-    return TEXTURE_GLOBALS->mipmapGenerationCallback(raster, image) != 0;
+    if (TEXTURE_GLOBALS->mipmapGenerationCallback(raster, image) != 0) {
+        return 1;
+    }
+    return 0;
 }
 
 void* _rwTextureClose(void* instance, int offset, int size) {
