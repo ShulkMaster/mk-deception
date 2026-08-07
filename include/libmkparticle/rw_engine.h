@@ -15,10 +15,18 @@ typedef struct PfxRwEngineInstance {
     void (*fpRenderStateGet)(int state, void* out); /* +0x24 */
     char pad28[0x30];
     RwRasterDeviceCall fpRasterCreate; /* +0x58 */
-    char pad5C[0x28];
+    RwRasterDeviceCall fpRasterDestroy; /* +0x5C */
+    char pad60[0x18];
+    RwRasterDeviceCall fpRasterSubRaster; /* +0x78 */
+    char pad7C[0x8];
     RwRasterDeviceCall fpRasterLock; /* +0x84 */
     RwRasterDeviceCall fpRasterUnlock; /* +0x88 */
-    char pad8C[0x2C];
+    char pad8C[0xC];
+    RwRasterDeviceCall fpRasterShowRaster; /* +0x98 */
+    char pad9C[0x8];
+    RwRasterDeviceCall fpRasterLockPalette; /* +0xA4 */
+    RwRasterDeviceCall fpRasterUnlockPalette; /* +0xA8 */
+    char padAC[0xC];
     RwRasterDeviceCall fpRasterGetNumLevels; /* +0xB8 */
     char padBC[0x40];
     RwStringCopyCall fpStringCopy; /* +0xFC */

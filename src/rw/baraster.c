@@ -1,18 +1,48 @@
 #include "rw/rwcore_types.h"
+#include "rw/rwplcore.h"
 #include "libmkparticle/rw_engine.h"
 
-extern int rasterModule;
-extern char rasterTKList[];
-extern void* _rwPluginRegistryInitObject(void* registry, void* object);
-
 typedef struct RwRasterModuleGlobals {
-    char pad00[0x60];
-    void* freelist; /* module base +0x60 */
+    RwRaster* currentRaster; /* +0x00 */
+    char pad04[0x24];
+    int field_0x28;
+    void* field_0x2c;
+    void* field_0x30;
+    void* field_0x34;
+    void* field_0x38;
+    void* field_0x3c;
+    void* field_0x40;
+    char pad44[8];
+    unsigned char field_0x4c;
+    unsigned char field_0x4d;
+    char pad4e[0x12];
+    void* freelist; /* +0x60 */
 } RwRasterModuleGlobals;
 
-static RwRasterDeviceCall raster_device_call(unsigned long offset) {
-    return *(RwRasterDeviceCall*)((char*)RwEngineInstance + offset);
-}
+typedef struct RwRect {
+    int x;
+    int y;
+    int w;
+    int h;
+} RwRect;
+
+extern void* _rwPluginRegistryInitObject(RwPluginRegistry* registry, void* object);
+extern void* _rwPluginRegistryDeInitObject(RwPluginRegistry* registry, void* object);
+extern void* _rwResourcesPurge(void);
+extern void* memset(void* destination, int value, unsigned int size);
+extern void* RwFreeListCreateAndPreallocateSpace(int entrySize, int entriesPerBlock,
+                                                 int alignment, int preallocBlocks,
+                                                 void* prealloc, int hint);
+extern void RwFreeListDestroy(void* freelist);
+
+static RwPluginRegistry rasterTKList = { 0x34, 0x34, 0, 0, 0, 0 };
+static char _rwRasterFreeList[0x24];
+static int _rwRasterFreeListBlockSize = 0x80;
+static int _rwRasterFreeListPreallocBlocks = 1;
+static RwModuleInfo rasterModule;
+
+#define RASTERGLOBALS \
+    ((RwRasterModuleGlobals*)((char*)RwEngineInstance + rasterModule.globalsOffset))
 
 #pragma optimization_level 4
 RwRaster* RwRasterUnlock(RwRaster* raster) {
@@ -21,56 +51,141 @@ RwRaster* RwRasterUnlock(RwRaster* raster) {
 }
 #pragma optimization_level 0
 
+RwRaster* RwRasterUnlockPalette(RwRaster* raster) {
+    RwRasterDeviceCall unlockPalette = RwEngineInstance->fpRasterUnlockPalette;
+    unlockPalette(0, raster, 0);
+    raster->privateFlags &= ~0x18;
+    return raster;
+}
+
+RwBool RwRasterDestroy(RwRaster* raster) {
+    _rwPluginRegistryDeInitObject(&rasterTKList, raster);
+    RwEngineInstance->fpRasterDestroy(0, raster, 0);
+    RwEngineInstance->fpFreeListFree(RASTERGLOBALS->freelist, raster);
+    return TRUE;
+}
+
+RwInt32 RwRasterRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+                               RwPluginObjectConstructor constructCB,
+                               RwPluginObjectDestructor destructCB,
+                               RwPluginObjectCopy copyCB) {
+    RwInt32 offset;
+    offset = _rwPluginRegistryAddPlugin(&rasterTKList, size, pluginID, constructCB, destructCB,
+                                        copyCB);
+    return offset;
+}
+
+void* RwRasterLockPalette(RwRaster* raster, int flags) {
+    void* palette;
+    if (RwEngineInstance->fpRasterLockPalette(&palette, raster, flags) != 0) {
+        return palette;
+    }
+    return 0;
+}
+
 int RwRasterGetNumLevels(RwRaster* raster) {
     int levels;
-
-    if ((raster->format & 0x80) == 0) {
-        levels = 1;
-    } else if (raster_device_call(0xB8)(&levels, raster, 0) == 0) {
-        levels = -1;
+    RwRasterDeviceCall getNumLevels;
+    if ((int)(((unsigned int)(unsigned char)raster->format << 8) & 0x8000) == 0) {
+        return 1;
     }
-    return levels;
+    getNumLevels = RwEngineInstance->fpRasterGetNumLevels;
+    if (getNumLevels(&levels, raster, 0) != 0) {
+        return levels;
+    }
+    return -1;
+}
+
+RwRaster* RwRasterShowRaster(RwRaster* raster, void* device, int flags) {
+    RwRasterDeviceCall showRaster = RwEngineInstance->fpRasterShowRaster;
+    _rwResourcesPurge();
+    if (showRaster(raster, device, flags) != 0) {
+        return raster;
+    }
+    return 0;
+}
+
+/* Soft ceiling: retail uses _savegpr_29/_restgpr_29; this compiler emits equivalent
+ * individual saves/restores for the same three nonvolatile registers. */
+RwRaster* RwRasterSubRaster(RwRaster* raster, RwRaster* parent, RwRect* rect) {
+    if ((raster->flags & 0x80) == 0) {
+        return 0;
+    }
+    raster->width = rect->w;
+    raster->height = rect->h;
+    raster->offsetX = parent->offsetX + (short)rect->x;
+    raster->offsetY = parent->offsetY + (short)rect->y;
+    if (RwEngineInstance->fpRasterSubRaster(raster, parent, 0) != 0) {
+        raster->parent = parent->parent;
+        return raster;
+    }
+    return 0;
 }
 
 RwRaster* RwRasterCreate(int width, int height, int depth, int flags) {
     RwRaster* raster;
-    void* freelist;
-    RwRasterDeviceCall create_call;
+    RwRasterDeviceCall createRaster;
 
-    freelist = ((RwRasterModuleGlobals*)((char*)RwEngineInstance + rasterModule))->freelist;
-    raster = (RwRaster*)
-        RwEngineInstance->fpFreeListAlloc(freelist, 0x30407);
-    if (raster == 0) {
-        return 0;
+    raster = (RwRaster*)RwEngineInstance->fpFreeListAlloc(RASTERGLOBALS->freelist, 0x30407);
+    if (raster != 0) {
+        createRaster = RwEngineInstance->fpRasterCreate;
+        raster->privateFlags = 0;
+        raster->flags = 0;
+        raster->width = width;
+        raster->height = height;
+        raster->offsetX = 0;
+        raster->offsetY = 0;
+        raster->depth = depth;
+        raster->parent = raster;
+        raster->pixels = 0;
+        raster->palette = 0;
+
+        if (createRaster(0, raster, flags) == 0) {
+            RwEngineInstance->fpFreeListFree(RASTERGLOBALS->freelist, raster);
+            return 0;
+        }
+
+        _rwPluginRegistryInitObject(&rasterTKList, raster);
+        return raster;
     }
-
-    create_call = RwEngineInstance->fpRasterCreate;
-    raster->privateFlags = 0;
-    raster->flags = 0;
-    raster->width = width;
-    raster->height = height;
-    raster->offsetX = 0;
-    raster->offsetY = 0;
-    raster->depth = depth;
-    raster->parent = raster;
-    raster->pixels = 0;
-    raster->palette = 0;
-
-    if (create_call(0, raster, flags) == 0) {
-        freelist = ((RwRasterModuleGlobals*)((char*)RwEngineInstance + rasterModule))->freelist;
-        RwEngineInstance->fpFreeListFree(freelist, raster);
-        return 0;
-    }
-
-    _rwPluginRegistryInitObject(rasterTKList, raster);
-    return raster;
+    return 0;
 }
 
 void* RwRasterLock(RwRaster* raster, unsigned char level, int flags) {
     void* pixels;
-
-    if (raster_device_call(0x84)(&pixels, raster, flags + ((unsigned int)level << 8)) == 0) {
-        pixels = 0;
+    if (RwEngineInstance->fpRasterLock(&pixels, raster, flags + ((unsigned int)level << 8)) != 0) {
+        return pixels;
     }
-    return pixels;
+    return 0;
+}
+
+void* _rwRasterClose(void* instance, int offset, int size) {
+    if (RASTERGLOBALS->freelist != 0) {
+        RwFreeListDestroy(RASTERGLOBALS->freelist);
+        RASTERGLOBALS->freelist = 0;
+    }
+    rasterModule.numInstances--;
+    return instance;
+}
+
+void* _rwRasterOpen(void* instance, int offset, int size) {
+    rasterModule.globalsOffset = offset;
+    memset(&RASTERGLOBALS->field_0x2c, 0, 0x34);
+    RASTERGLOBALS->field_0x38 = 0;
+    RASTERGLOBALS->field_0x3c = 0;
+    RASTERGLOBALS->field_0x40 = 0;
+    RASTERGLOBALS->field_0x4d = 0x80;
+    RASTERGLOBALS->field_0x30 = 0;
+    RASTERGLOBALS->field_0x34 = 0;
+    RASTERGLOBALS->field_0x4c = 0;
+    RASTERGLOBALS->field_0x28 = 0;
+    RASTERGLOBALS->currentRaster = (RwRaster*)&RASTERGLOBALS->field_0x2c;
+    RASTERGLOBALS->freelist = RwFreeListCreateAndPreallocateSpace(
+        rasterTKList.sizeOfStruct, _rwRasterFreeListBlockSize, 4,
+        _rwRasterFreeListPreallocBlocks, _rwRasterFreeList, 0x40407);
+    if (RASTERGLOBALS->freelist == 0) {
+        return 0;
+    }
+    rasterModule.numInstances++;
+    return instance;
 }

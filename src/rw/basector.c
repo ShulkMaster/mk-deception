@@ -4,6 +4,7 @@ static RwModuleInfo sectorModule;
 
 RwPluginRegistry sectorTKList = { 0x88, 0x88, 0, 0, 0, 0 };
 
+#pragma optimization_level 4
 void* _rpSectorOpen(void* instance, RwInt32 offset, RwInt32 size) {
     (void)offset;
     (void)size;
@@ -18,6 +19,7 @@ void* _rpSectorClose(void* instance, RwInt32 offset, RwInt32 size) {
     return instance;
 }
 
+#pragma optimization_level 0
 RwInt32 RpWorldSectorRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
                                     RwPluginObjectConstructor constructCB,
                                     RwPluginObjectDestructor destructCB,

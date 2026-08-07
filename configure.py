@@ -1178,8 +1178,8 @@ config.libs = [
     RenderWareLib(
         "rpworld",
         [
-            # Open/Close want -O4 regs; RegisterPlugin wants -O0 spill -- WIP
-            Object(NonMatching, "rpworld.a/basector.obj", source="rw/basector.c"),
+            Object(Matching, "rpworld.a/basector.obj", source="rw/basector.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
             Object(
                 NonMatching,
                 "rpworld.a/alphapass.obj",
