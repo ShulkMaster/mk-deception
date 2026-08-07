@@ -35,6 +35,9 @@ extern int TextureAnnihilate(RwTexture* texture);
 extern int _rwerror(unsigned int code, ...);
 extern void RwErrorSet(RwErrorPair* error);
 
+RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
+                                            const char* name);
+
 static const char character_25[] = "0123456789abcdef";
 
 #define TEXTURE_GLOBALS \
@@ -85,6 +88,29 @@ static int StringCompare(const char* left, const char* right) {
     }
     if (*left == *right) {
         return 1;
+    }
+    return 0;
+}
+
+static RwTexture* TextureDefaultFind(const char* name) {
+    RwTexDictionary* dictionary = TEXTURE_GLOBALS->currentDictionary;
+    RwLLLink* link;
+    RwLLLink* end;
+
+    if (dictionary != 0) {
+        return RwTexDictionaryFindNamedTexture(dictionary, name);
+    }
+
+    link = TEXTURE_GLOBALS->dictionaries.next;
+    end = &TEXTURE_GLOBALS->dictionaries;
+    while (link != end) {
+        RwTexture* texture;
+        dictionary = (RwTexDictionary*)((char*)link - 0x10);
+        texture = RwTexDictionaryFindNamedTexture(dictionary, name);
+        if (texture != 0) {
+            return texture;
+        }
+        link = link->next;
     }
     return 0;
 }
@@ -162,15 +188,63 @@ RwTexture* RwTextureSetName(RwTexture* texture, const char* name) {
     return texture;
 }
 
-void RwTexDictionaryRemoveTexture(RwTexture* texture) {
+RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* maskName) {
+    RwErrorPair error;
+
+    RwEngineInstance->fpStringCopy(texture->mask, maskName, 32);
+    if (RwEngineInstance->fpStringLength(maskName) >= 32) {
+        error.plugin = 1;
+        error.code = _rwerror(0x8000001E, maskName, 32, 31, maskName[31]);
+        RwErrorSet(&error);
+        texture->mask[31] = 0;
+    }
+    return texture;
+}
+
+RwTexture* RwTexDictionaryAddTexture(RwTexDictionary* dictionary,
+                                     RwTexture* texture) {
+    RwLLLink* previous;
+    RwLLLink* link;
+
+    if (texture->dictionary != 0) {
+        previous = texture->lInDictionary.prev;
+        previous->next = texture->lInDictionary.next;
+        texture->lInDictionary.next->prev = previous;
+    }
+    texture->dictionary = dictionary;
+    texture->lInDictionary.next = dictionary->textures.next;
+    texture->lInDictionary.prev = &dictionary->textures;
+    dictionary->textures.next->prev = &texture->lInDictionary;
+    link = &texture->lInDictionary;
+    dictionary->textures.next = link;
+    return texture;
+}
+
+RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture) {
     RwLLLink* previous;
 
     if (texture->dictionary != 0) {
         texture->dictionary = 0;
-        previous = texture->prev_link;
-        previous->next = texture->next_link;
-        texture->next_link->prev = previous;
+        previous = texture->lInDictionary.prev;
+        previous->next = texture->lInDictionary.next;
+        texture->lInDictionary.next->prev = previous;
     }
+    return texture;
+}
+
+RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
+                                            const char* name) {
+    RwLLLink* link = dictionary->textures.next;
+    RwLLLink* end = &dictionary->textures;
+
+    while (link != end) {
+        RwTexture* texture = (RwTexture*)((char*)link - 8);
+        if (texture->name != 0 && StringCompare(texture->name, name)) {
+            return texture;
+        }
+        link = link->next;
+    }
+    return 0;
 }
 
 void RwTexDictionarySetCurrent(RwTexDictionary* dictionary) {

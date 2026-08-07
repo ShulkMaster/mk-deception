@@ -40,17 +40,23 @@ typedef struct RwRaster {
     unsigned char format;    /**< Retail offset 0x23. */
 } RwRaster;
 
-/** RenderWare texture with Midway ownership extension. Retail layout: 0x58 bytes. */
+/** Stock RenderWare texture layout. Retail size: 0x58 bytes. */
 typedef struct RwTexture {
     RwRaster* raster;          /**< Retail offset 0x00. */
     RwTexDictionary* dictionary; /**< Retail offset 0x04. */
-    RwLLLink* next_link;          /**< Retail offset 0x08. */
-    RwLLLink* prev_link;          /**< Retail offset 0x0C. */
+    RwLLLink lInDictionary;       /**< Retail offset 0x08. */
     char name[32];             /**< Retail offset 0x10. */
     char mask[32];             /**< Retail offset 0x30. */
     unsigned int filter_flags; /**< Retail offset 0x50. */
     int ref_count;             /**< Retail offset 0x54. */
 } RwTexture;
+
+/** Stock RenderWare texture dictionary layout. Retail size: 0x18 bytes. */
+struct RwTexDictionary {
+    RwObject object;            /**< Retail offset 0x00. */
+    RwLLLink textures;          /**< Retail offset 0x08. */
+    RwLLLink lInInstance;       /**< Retail offset 0x10. */
+};
 
 /** Partial RenderWare frame layout. Known retail extent: 0xA4 bytes. */
 typedef struct RwFrame {
@@ -78,7 +84,7 @@ void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
 RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
-void RwTexDictionaryRemoveTexture(RwTexture* texture);
+RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture);
 
 #ifdef __cplusplus
 }
