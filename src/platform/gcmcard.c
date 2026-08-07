@@ -91,7 +91,12 @@ int force_insertions;
 /* Retail .data: per-slot serial cache (2 devices x 2 words). */
 static unsigned int last_card_serial_no[2][2];
 
-/* .sdata2: per-slot bit masks (Slot A = 1, Slot B = 2); const keeps it there. */
+/*
+ * .sdata2: per-slot bit masks (Slot A = 1, Slot B = 2); const keeps it there.
+ * TODO(enum): slot masks (and the device indices used into mcmasks and the
+ * per-device tables) likely become an enum once semantics are settled; keep
+ * const so placement stays .sdata2.
+ */
 const int mcmasks[2] = {1, 2};
 
 const char* get_device_reference_name(int device) {
