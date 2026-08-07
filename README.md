@@ -14,6 +14,78 @@ Released by Midway in February 2005, *Mortal Kombat: Deception* is the sixth ent
 
 This repository does **not** contain any game assets or assembly. An existing copy of the game is required.
 
+Coding agents should read [AGENTS.md](AGENTS.md) before modifying the project. It
+covers repository rules, initialization, the ranked decomp books, m2c recovery,
+objdiff inspection, DTK and compiler tools, and the required self-validation
+checks.
+
 Supported versions:
 
 - `GQNE5D`: USA
+
+## Local setup
+
+Python is the only hard prerequisite for the bootstrap script. The retail disc
+must first be extracted under `orig/GQNE5D`.
+
+On Linux or macOS, download the pinned DTK release and extract the ISO before
+running the initializer:
+
+```sh
+python3 tools/download_tool.py dtk build/tools/dtk --tag v1.8.3
+build/tools/dtk disc extract "/path/to/Mortal Kombat - Deception.iso" orig/GQNE5D
+python3 tools/init.py --iso "/path/to/Mortal Kombat - Deception.iso"
+```
+
+On Windows PowerShell:
+
+```powershell
+py -3 tools\download_tool.py dtk build\tools\dtk.exe --tag v1.8.3
+build\tools\dtk.exe disc extract "C:\path\to\Mortal Kombat - Deception.iso" orig\GQNE5D
+py -3 tools\init.py --iso "C:\path\to\Mortal Kombat - Deception.iso"
+```
+
+The script performs the complete setup in one pass. It validates the retail
+input, initializes Git submodules when present, installs or updates m2c under
+`build/m2c`, downloads the configured CodeWarrior compilers and matching tools
+under `build/`, generates the build files, and runs the full Ninja build.
+Missing host programs such as Git or Ninja are reported in the final checklist.
+There are no dry-run, offline, or skip-build modes.
+
+The expected raw `GQNE5D` ISO/GCM SHA-1 is
+`489c6b57b70390933dff7d8d9d12424f58a8f821`; extracted trees are checked by
+the configured retail `main.dol` SHA-1 as well. If the tree is already present,
+the initializer can be run without an explicit ISO:
+
+```sh
+python3 tools/init.py
+```
+
+The final output provides an explicit readiness checklist:
+
+```text
+[x] Python
+[x] Ninja
+[x] Git
+[x] ISO SHA-1
+[x] ISO size
+[x] ISO game ID
+[x] Retail main.dol SHA-1
+[x] DTK retail input
+[x] m2c update
+[x] m2c smoke test
+[x] Tool: compilers
+[x] Tool: dtk
+[x] Tool: objdiff-cli
+[x] Tool: sjiswrap
+[x] Tool: binutils
+[x] Tool: wibo
+[x] Generate build files
+[x] Initial matching build
+
+READY: retail input, matching tools, configuration, and build checks passed.
+```
+
+A successful build also prints `build/GQNE5D/main.dol: OK`. Any required
+validation, download, configuration, or build failure produces `NOT READY` and
+a nonzero exit status.
