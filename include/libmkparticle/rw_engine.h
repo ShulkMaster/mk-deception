@@ -6,6 +6,7 @@ typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
 typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
 typedef void (*RwStringCopyCall)(char* destination, const char* source,
                                  unsigned int size);
+typedef char* (*RwStringConcatCall)(char* destination, const char* source);
 typedef unsigned int (*RwStringLengthCall)(const char* string);
 
 /** Confirmed portion of the retail RenderWare engine dispatch table. */
@@ -30,7 +31,8 @@ typedef struct PfxRwEngineInstance {
     RwRasterDeviceCall fpRasterGetNumLevels; /* +0xB8 */
     char padBC[0x40];
     RwStringCopyCall fpStringCopy; /* +0xFC */
-    char pad100[0x20];
+    RwStringConcatCall fpStringConcat; /* +0x100 */
+    char pad104[0x1C];
     RwStringLengthCall fpStringLength; /* +0x120 */
     char pad124[0x20];
     RwFreeListAllocCall fpFreeListAlloc; /* +0x144 */

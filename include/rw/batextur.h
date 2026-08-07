@@ -3,12 +3,9 @@
 
 #include "rw/rwcore_types.h"
 
-extern int textureModule;
-extern char textureTKList[];
-
 int TextureAnnihilate(RwTexture* texture);
 RwTexDictionary* RwTexDictionaryGetCurrent(void);
-RwTexDictionary* RwTexDictionarySetCurrent(RwTexDictionary* dictionary);
+void RwTexDictionarySetCurrent(RwTexDictionary* dictionary);
 RwTexDictionary* RwTexDictionaryCreate(void);
 int RwTexDictionaryDestroy(RwTexDictionary* dictionary);
 RwTexture* RwTexDictionaryAddTexture(RwTexDictionary* dictionary,

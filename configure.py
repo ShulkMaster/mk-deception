@@ -1166,7 +1166,7 @@ config.libs = [
                 NonMatching,
                 "rwcore.a/batextur.obj",
                 source="rw/batextur.c",
-                extra_cflags=["-opt", "off", "-O0"],
+                extra_cflags=["-opt", "off", "-O0", "-inline", "off"],
             ),
             # -opt off clears inherited -O4,p from cflags_base before per-TU level
             Object(Matching, "rwcore.a/osintf.obj", source="rw/osintf.c",
