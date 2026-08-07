@@ -1,74 +1,178 @@
 # Naming conventions
 
-These conventions distinguish canonical names recovered from the original game
-from names introduced during decompilation. Above all else, preserve the
-original developers' names when evidence for them exists.
+Naming follows canonical source families, not a blanket C-versus-C++ rule. The
+retail symbol table contains several conventions because the executable combines
+Midway game code, platform code, RenderWare, Dolphin SDK, Sofdec, and other
+middleware.
 
-## Sources of truth
+## Canonical names always win
 
-Names recovered from ELF symbols, DWARF data, surviving debug information,
-debug strings, or references in code strings are canonical. Preserve their
-exact spelling and capitalization, even when they do not follow the conventions
-below.
+Preserve exact spelling and capitalization recovered from:
 
-For Dolphin SDK, Sofdec, RenderWare, and other external library code, research
-the original upstream name when it is absent from the available debug
-information. Existing names supported by debug information remain the absolute
-source of truth.
+1. retail ELF symbols and verified address ranges;
+2. DWARF or surviving debug information;
+3. relocations, linker maps, debug strings, and source-path evidence;
+4. authenticated upstream SDK or library source for the same version.
 
-Do not rename a canonical symbol merely to make it more descriptive or
-consistent, for that add a documentation comment instead.
+Do not rename a canonical symbol to make it conform to this guide. Add a comment
+when its purpose needs clarification. A nearby naming pattern is evidence for a
+new placeholder, but it cannot override a recovered name.
 
-## General style
+For a proposed rename, confirm the function address and range in
+`config/GQNE5D/symbols.txt` or the retail ELF. Repository spelling by itself is
+not proof: some current names were introduced during reconstruction.
 
-Use `snake_case` for C functions and variables and `PascalCase` for types when
-introducing a name that is not canonical. Function arguments and local
-variables should use concise, descriptive names based on confirmed behavior.
-When a descriptive name cannot be assigned because the code is not yet
-understood, name arguments with the `arg$` prefix and local variables with the
-`var$` prefix. Replace these fallback names once evidence supports a descriptive
-name.
+## C naming by source family
 
-Prefer established **K** spellings in game-related code when they fit the
-original programmers' Mortal Kombat style. Examples include `combat` ->
-`kombat`, `constant` -> `konstant`, and `container` -> `kontainer` where the compiler
-and context allow it. This is a small personality touch left to contributor
-discretion, not a requirement. Avoid it in Dolphin SDK, RenderWare, Sofdec, and
-other external library code unless the original library uses that spelling.
+### Midway game and runtime C
 
-## Introduced symbols
+Gameplay, process, menu, Konquest, object, and runtime functions are
+predominantly `snake_case` in the canonical symbol table:
 
-Symbols introduced during decompilation must follow the convention for their
-category so that reviewers can distinguish them from canonical names. These
-prefixes apply only when no canonical name can be recovered.
+```c
+reset_game_speed();
+get_inverse_game_speed();
+gc_setup_feedback_buffer_for_konquest();
+get_num_controllers();
+scan_switches();
+turn_rumble_off();
+```
 
-| Symbol category | Convention | Example |
-| --- | --- | --- |
-| Inline helper function | `fn_snake_case` | `fn_decode_flags` |
-| Macro | `MK_SCREAMING_SNAKE_CASE` | `MK_ALIGN_SIZE` |
-| Enum constant | `EK_SCREAMING_SNAKE_CASE` | `EK_STATE_ACTIVE` |
-| Global constant | `GK_SCREAMING_SNAKE_CASE` | `GK_MAX_PLAYERS` |
-| File-static constant | `SK_SCREAMING_SNAKE_CASE` | `SK_BUFFER_SIZE` |
-| Global variable | `g_snake_case` | `g_active_player` |
-| File-static variable | `s_snake_case` | `s_current_state` |
-| Unknown function argument | `argN` | `arg1` |
-| Unknown local variable | `varN` | `var1` |
-| Midway game struct | `MKPascalCase` | `MKPlayerState` |
-| Unknown struct member | `field_OFFSET` | `field_1C` |
-| Padding member | `pad_OFFSET` | `pad_20` |
+Preserve established semantic prefixes such as `p_`, `r_`, `x_`, `get_`,
+`set_`, `init_`, `gc_`, `mk_`, and `plyr_`. These prefixes often encode process
+roles or subsystem ownership and should not be converted to cosmetic CamelCase.
 
-New macros must use the `MK_` prefix. If a macro name can be derived from debug
-information or a surviving source reference, use that canonical name instead.
+For a genuinely introduced game-C helper with no recoverable name, use a short
+descriptive `snake_case` name consistent with adjacent canonical functions.
+File-static helpers follow the same style; storage duration does not require a
+special name prefix.
 
-All Midway game structs introduced without a canonical name use the `MK`
-prefix. Do not apply it to Dolphin SDK, RenderWare, Sofdec, or other external
-library types; recover those names from their original libraries where
-possible.
+### Midway platform and rendering C
 
-Keep unknown struct members named by offset, such as `field_1C`, until evidence
-supports a semantic name. Use the same offset style for padding, such as
-`pad_20`. Do not guess member meaning merely to make a struct look complete.
+Platform and rendering units are mixed. Some use game-style snake case, while
+others use CamelCase or lowerCamelCase:
 
-For another symbol that does not survive compilation and has no debug-derived
-name, follow the closest category above and choose a name that clearly reads as
-introduced rather than canonical. Explain unusual cases in the pull request.
+```c
+gc_native_display_render();
+CheckFor480PMode();
+displayContinueMessage();
+ProcessSpecularity();
+GCNSetupNonRenderwarePipeline();
+inplaceSkinGeometryNativeRead();
+```
+
+Use the convention of the canonical functions in that translation unit and
+subsystem. Do not normalize a mixed retail unit globally.
+
+### Dolphin SDK C
+
+Public Dolphin APIs conventionally use an uppercase subsystem prefix followed
+by CamelCase:
+
+```c
+OSInitAlarm();
+OSSetAlarm();
+GXSetTevColor();
+CARDRead();
+SPGetSoundEntry();
+```
+
+Private SDK symbols may use leading underscores, all-caps subsystem prefixes,
+or lowercase internal names. Recover them from the matching SDK version; do not
+apply the game-code snake-case default to SDK functions.
+
+### RenderWare C
+
+RenderWare names encode type and subsystem ownership in their prefixes:
+
+```c
+RwStreamRead();
+RpGeometryStreamRead();
+_rwDolphinHeapAlloc();
+_rpNativeRead();
+```
+
+Keep `Rw`, `Rp`, `Rt`, `_rw`, and `_rp` capitalization exactly. Use the matching
+RenderWare source or retail symbols for missing names. Do not translate these
+APIs into either generic snake_case or unprefixed CamelCase.
+
+### Midway middleware and bundled C libraries
+
+The `mwMem`, `mwFile`, screen-engine, and related Midway libraries commonly use
+lowerCamelCase with a lowercase library prefix:
+
+```c
+mwMemHeapGetInfo();
+mwMemSystemSetParams();
+fixedBlockHeapAlloc();
+privGetUsedHdrFromBlock();
+mwFileOpen();
+```
+
+Private helpers often begin with `priv`, while some platform glue remains
+snake_case. Sofdec and other third-party libraries must follow their own
+authenticated upstream convention. Do not infer a shared style merely because
+both libraries are written in C.
+
+## C++ naming
+
+C++ does not imply that every free function becomes CamelCase. Preserve the
+source family's free-function convention. For example, game glue can remain
+snake_case while an `mw*` class uses middleware-style names.
+
+- Classes, structs, and enums normally preserve canonical type names such as
+  `MwMemHeapInfo`, `RwStream`, or `CARDFileInfo`.
+- Member functions preserve the class/library convention. Do not rename a
+  recovered lowerCamelCase member to PascalCase.
+- Constructors, destructors, conversion operators, `operator new`, and
+  `operator delete` use their required C++ spelling.
+- Namespaces, templates, overloads, and mangled symbols must agree with retail
+  ABI evidence; style preference cannot justify an ABI change.
+
+For an introduced local class or helper type, mirror the surrounding canonical
+C++ unit. Use PascalCase only when that unit's types consistently do so.
+
+## Variables, members, and constants
+
+Local-variable names rarely survive in this retail binary. Choose concise names
+that state confirmed behavior and match the containing source family:
+
+- use `snake_case` by default in Midway game C;
+- follow authenticated upstream style in SDK and library reconstructions;
+- retain conventional short names such as `i`, `count`, `obj`, or `player` when
+  they accurately describe the value;
+- use `arg1`, `arg2`, and `var1`, `var2` only while meaning is unknown.
+
+Never encode guessed semantics in a name. Rename a placeholder once callers,
+accesses, or layout evidence establishes its role.
+
+Keep unknown structure members and padding named by verified offset:
+
+```c
+field_1C
+pad_20
+```
+
+Replace an offset name only after the member meaning and type are supported.
+Preserve canonical global prefixes and capitalization when known. For introduced
+internal names, prefer the local unit's established pattern over universal
+`g_`/`s_` prefixes.
+
+Macros and enum constants should follow the owning API. New project-local macros
+may use `MK_SCREAMING_SNAKE_CASE`; Dolphin, RenderWare, and middleware constants
+retain their canonical prefixes. Do not add playful `K` substitutions unless
+the spelling is present in canonical evidence.
+
+## Introduced-name checklist
+
+Before adding a name that will appear in source:
+
+1. Search `config/GQNE5D/symbols.txt` and the retail ELF by address/range.
+2. Check callers, callees, relocations, strings, headers, and neighboring
+   functions in the same retail translation unit.
+3. For SDK or library code, check the authenticated matching upstream version.
+4. Select the source family: game/runtime, platform/rendering, Dolphin,
+   RenderWare, Midway middleware, Sofdec, or another bundled library.
+5. Follow that family's local convention and keep uncertain names neutral.
+6. Document why a non-canonical public name was introduced so it can be replaced
+   when stronger evidence appears.
