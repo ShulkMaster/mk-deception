@@ -65,12 +65,17 @@ extern int RwImageFindRasterFormat(RwImage* image, int rasterFlags,
                                    int* format);
 extern RwImage* RwImageReadMaskedImage(const char* name, const char* maskName);
 extern RwImage* RwImageResample(RwImage* destination, const RwImage* source);
+extern RwImage* RwImageGammaCorrect(RwImage* image);
+extern int RwRasterSetFromImage(RwRaster* raster, RwImage* image);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
                                             const char* name);
+int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
+                                int format);
 
 static const char character_25[] = "0123456789abcdef";
+static char emptyTextureName[] = "";
 
 #define TEXTURE_GLOBALS \
     ((RwTextureModuleGlobals*)((char*)RwEngineInstance + textureModule.globalsOffset))
@@ -274,6 +279,82 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
         }
     }
     return image;
+}
+
+static RwTexture* TextureDefaultNormalRead(const char* name,
+                                           const char* maskName) {
+    char imageName[256];
+    char imageMaskName[256];
+    RwRGBA palette[256];
+    RwImage* image;
+    RwRaster* raster;
+    RwTexture* texture;
+    int width = 0;
+    int height = 0;
+    int depth;
+    int format;
+
+    RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
+    if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+        RwErrorPair error;
+        error.plugin = 1;
+        error.code = _rwerror(0x8000001E, name, 256, 255, name[255]);
+        RwErrorSet(&error);
+        imageName[255] = 0;
+    }
+    imageMaskName[0] = 0;
+    if (maskName != 0 && maskName[0] != 0) {
+        RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+                                       sizeof(imageMaskName));
+        if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
+            RwErrorPair error;
+            error.plugin = 1;
+            error.code = _rwerror(0x8000001E, maskName, 256, 255,
+                                  maskName[255]);
+            RwErrorSet(&error);
+            imageMaskName[255] = 0;
+        }
+    }
+
+    RwTextureGenerateMipmapName(imageName, imageMaskName, 0, 4);
+    image = TextureImageReadAndSize(imageName, imageMaskName, 4, &width, &height,
+                                    &depth, &format);
+    if (image == 0) {
+        return 0;
+    }
+    raster = RwRasterCreate(width, height, depth, format);
+    if (raster == 0) {
+        RwImageDestroy(image);
+        return 0;
+    }
+
+    if ((((unsigned int)raster->format << 8) & 0x6000) != 0) {
+        if ((((unsigned int)raster->format << 8) & 0x4000) != 0) {
+            PalettizeMipmaps(palette, 0, &image, 1, 4);
+        } else {
+            PalettizeMipmaps(palette, 0, &image, 1, 8);
+        }
+        image->palette = (unsigned char*)palette;
+    }
+    RwImageGammaCorrect(image);
+    if (RwRasterSetFromImage(raster, image) == 0) {
+        RwRasterDestroy(raster);
+        RwImageDestroy(image);
+        return 0;
+    }
+    RwImageDestroy(image);
+    texture = RwTextureCreate(raster);
+    if (texture == 0) {
+        RwRasterDestroy(raster);
+        return 0;
+    }
+    RwTextureSetName(texture, name);
+    if (maskName != 0) {
+        RwTextureSetMaskName(texture, maskName);
+    } else {
+        RwTextureSetMaskName(texture, emptyTextureName);
+    }
+    return texture;
 }
 
 static int TextureAnnihilate(RwTexture* texture) {
