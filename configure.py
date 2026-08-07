@@ -1181,10 +1181,10 @@ config.libs = [
             Object(NonMatching, "rwcore.a/baresour.obj", source="rw/baresour.c",
                    extra_cflags=["-opt", "off", "-inline", "off"]),
             Object(
-                NonMatching,
+                Matching,
                 "rwcore.a/baraster.obj",
                 source="rw/baraster.c",
-                extra_cflags=["-opt", "off", "-O0"],
+                extra_cflags=["-O4,s", "-opt", "off"],
             ),
             Object(
                 NonMatching,
