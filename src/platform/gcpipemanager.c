@@ -3,6 +3,7 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/utils.h"
+#include "rw/rpskin.h"
 
 typedef struct RpGameCubeVtxFmt {
     unsigned char data[0x18];
@@ -43,13 +44,10 @@ void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
                                  int count, int type);
 void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
                                  RpGameCubeVtxFmt* format);
-void* RpSkinGeometryGetSkin(RpGeometry* geometry);
 int RpMatFXMaterialGetEffects(RpMaterial* material);
 RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material, int effects);
 void* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
 int RpMatFXAtomicQueryEffects(RpAtomic* atomic);
-void* RpSkinGetGameCubePipeline(int type);
-
 extern void* SpecSkinAtomicPipeline;
 extern void* RwEngineInstance;
 extern int _rxPipelineGlobalsOffset;
@@ -463,11 +461,11 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     case 0x301:
     case 0x302:
         RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_skinned);
-        atomic->pipeline = RpSkinGetGameCubePipeline(1);
+        atomic->pipeline = RpSkinGetGameCubePipeline(rpSKINTYPEGENERIC);
         break;
     case 0x303:
         RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_skinned2);
-        atomic->pipeline = RpSkinGetGameCubePipeline(1);
+        atomic->pipeline = RpSkinGetGameCubePipeline(rpSKINTYPEGENERIC);
         break;
     case 0x304:
     case 0x305:

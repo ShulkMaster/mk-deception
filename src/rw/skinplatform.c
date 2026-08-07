@@ -1,4 +1,4 @@
-typedef struct RxPipeline RxPipeline;
+#include "rw/rpskin.h"
 
 typedef struct RpSkinGlobals {
     unsigned char platformIndependent[0x24];
@@ -7,7 +7,7 @@ typedef struct RpSkinGlobals {
 
 extern RpSkinGlobals _rpSkinGlobals;
 
-RxPipeline* RpSkinGetGameCubePipeline(int skinType) {
+RxPipeline* RpSkinGetGameCubePipeline(RpSkinType skinType) {
     RxPipeline* pipeline = _rpSkinGlobals.pipelines[skinType];
     return pipeline;
 }
