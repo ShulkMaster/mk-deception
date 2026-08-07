@@ -1,6 +1,36 @@
 #ifndef LIBMKPARTICLE_RW_ENGINE_H
 #define LIBMKPARTICLE_RW_ENGINE_H
 
+#include "rw/rwplcore.h"
+#include "runtime/cstddef.h"
+
+typedef RwBool (*rwFnFexist)(const RwChar* name);
+typedef void* (*rwFnFopen)(const RwChar* name, const RwChar* mode);
+typedef int (*rwFnFclose)(void* file);
+typedef size_t (*rwFnFread)(void* address, size_t size, size_t count, void* file);
+typedef size_t (*rwFnFwrite)(const void* address, size_t size, size_t count,
+                             void* file);
+typedef RwChar* (*rwFnFgets)(RwChar* buffer, int maxLength, void* file);
+typedef int (*rwFnFputs)(const RwChar* buffer, void* file);
+typedef int (*rwFnFeof)(void* file);
+typedef int (*rwFnFseek)(void* file, long offset, int origin);
+typedef int (*rwFnFflush)(void* file);
+typedef int (*rwFnFtell)(void* file);
+
+typedef struct RwFileFunctions {
+    rwFnFexist rwfexist;
+    rwFnFopen rwfopen;
+    rwFnFclose rwfclose;
+    rwFnFread rwfread;
+    rwFnFwrite rwfwrite;
+    rwFnFgets rwfgets;
+    rwFnFputs rwfputs;
+    rwFnFeof rwfeof;
+    rwFnFseek rwfseek;
+    rwFnFflush rwfflush;
+    rwFnFtell rwftell;
+} RwFileFunctions;
+
 typedef int (*RwRasterDeviceCall)(void* result, void* raster, int flags);
 typedef int (*RwTextureRasterCall)(void* texture, void* raster, int flags);
 typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
@@ -32,7 +62,8 @@ typedef struct PfxRwEngineInstance {
     RwRasterDeviceCall fpRasterUnlockPalette; /* +0xA8 */
     char padAC[0xC];
     RwRasterDeviceCall fpRasterGetNumLevels; /* +0xB8 */
-    char padBC[0x40];
+    char padBC[0x8];
+    RwFileFunctions fileFuncs; /* +0xC4 */
     RwStringCopyCall fpStringCopy; /* +0xFC */
     RwStringConcatCall fpStringConcat; /* +0x100 */
     char pad104[0x1C];

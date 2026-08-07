@@ -1164,6 +1164,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/bapipe.obj", source="rw/bapipe.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rwcore.a/bafsys.obj", source="rw/bafsys.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/rwgrp.obj", source="rw/rwgrp.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(
