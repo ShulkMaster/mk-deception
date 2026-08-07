@@ -3,7 +3,6 @@
 
 #include "rw/rwcore_types.h"
 
-int TextureAnnihilate(RwTexture* texture);
 RwTexDictionary* RwTexDictionaryGetCurrent(void);
 void RwTexDictionarySetCurrent(RwTexDictionary* dictionary);
 RwTexDictionary* RwTexDictionaryCreate(void);

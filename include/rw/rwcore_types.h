@@ -77,6 +77,7 @@ extern "C" {
 #endif
 
 RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
+int RwRasterDestroy(RwRaster* raster);
 RwRaster* RwRasterUnlock(RwRaster* raster);
 int RwRasterGetNumLevels(RwRaster* raster);
 void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
@@ -84,6 +85,7 @@ void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
 RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
+RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster);
 RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture);
 
 #ifdef __cplusplus

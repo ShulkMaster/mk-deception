@@ -1,4 +1,5 @@
 #include "rw/rwcore_types.h"
+#include "rw/batextur.h"
 #include "rw/rwplcore.h"
 #include "libmkparticle/rw_engine.h"
 
@@ -30,8 +31,9 @@ typedef struct RwModuleInfoLocal {
 
 extern RwModuleInfoLocal textureModule;
 extern RwPluginRegistry textureTKList;
+extern RwPluginRegistry texDictTKList;
 extern void* _rwPluginRegistryInitObject(void* registry, void* object);
-extern int TextureAnnihilate(RwTexture* texture);
+extern void* _rwPluginRegistryDeInitObject(void* registry, void* object);
 extern int _rwerror(unsigned int code, ...);
 extern void RwErrorSet(RwErrorPair* error);
 
@@ -66,6 +68,25 @@ static int TextureDefaultMipmapName(char* name, char* maskName, unsigned char le
             RwEngineInstance->fpStringConcat(maskName, suffix);
         }
     }
+    return 1;
+}
+
+static int TextureAnnihilate(RwTexture* texture) {
+    RwLLLink* previous;
+
+    texture->ref_count++;
+    _rwPluginRegistryDeInitObject(&textureTKList, texture);
+    if (texture->dictionary != 0) {
+        previous = texture->lInDictionary.prev;
+        previous->next = texture->lInDictionary.next;
+        texture->lInDictionary.next->prev = previous;
+    }
+    if (texture->raster != 0) {
+        RwRasterDestroy(texture->raster);
+        texture->raster = 0;
+    }
+    texture->ref_count--;
+    RwEngineInstance->fpFreeListFree(TEXTURE_GLOBALS->textureFreeList, texture);
     return 1;
 }
 
@@ -141,6 +162,81 @@ int RwTextureSetAutoMipmapping(int enable) {
 
 int RwTextureGetAutoMipmapping(void) {
     return TEXTURE_GLOBALS->autoMipmapping;
+}
+
+RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster) {
+    if (raster != 0) {
+        if (RwEngineInstance->fpTextureSetRaster(texture, raster, 0) != 0) {
+            return texture;
+        }
+        return 0;
+    }
+    texture->raster = 0;
+    return texture;
+}
+
+RwTexDictionary* RwTexDictionaryForAllTextures(
+    RwTexDictionary* dictionary,
+    RwTexture* (*callback)(RwTexture*, void*), void* data);
+
+RwTexDictionary* RwTexDictionaryCreate(void) {
+    RwTexDictionary* dictionary;
+    RwLLLink* link;
+
+    dictionary = (RwTexDictionary*)RwEngineInstance->fpFreeListAlloc(
+        TEXTURE_GLOBALS->dictionaryFreeList, 0x30016);
+    if (dictionary == 0) {
+        return 0;
+    }
+    dictionary->object.type = 6;
+    dictionary->object.subType = 0;
+    dictionary->object.flags = 0;
+    dictionary->object.privateFlags = 0;
+    dictionary->object.parent = 0;
+
+    link = &dictionary->lInInstance;
+    link->next = TEXTURE_GLOBALS->dictionaries.next;
+    link->prev = &TEXTURE_GLOBALS->dictionaries;
+    TEXTURE_GLOBALS->dictionaries.next->prev = link;
+    TEXTURE_GLOBALS->dictionaries.next = link;
+
+    dictionary->textures.next = &dictionary->textures;
+    dictionary->textures.prev = &dictionary->textures;
+    _rwPluginRegistryInitObject(&texDictTKList, dictionary);
+    return dictionary;
+}
+
+int RwTexDictionaryDestroy(RwTexDictionary* dictionary) {
+    RwLLLink* previous;
+
+    if (TEXTURE_GLOBALS->currentDictionary == dictionary) {
+        TEXTURE_GLOBALS->currentDictionary = 0;
+    }
+    RwTexDictionaryForAllTextures(
+        dictionary, (RwTexture* (*)(RwTexture*, void*))RwTextureDestroy, 0);
+    _rwPluginRegistryDeInitObject(&texDictTKList, dictionary);
+    previous = dictionary->lInInstance.prev;
+    previous->next = dictionary->lInInstance.next;
+    dictionary->lInInstance.next->prev = previous;
+    RwEngineInstance->fpFreeListFree(TEXTURE_GLOBALS->dictionaryFreeList, dictionary);
+    return 1;
+}
+
+RwTexDictionary* RwTexDictionaryForAllTextures(
+    RwTexDictionary* dictionary,
+    RwTexture* (*callback)(RwTexture*, void*), void* data) {
+    RwLLLink* end = &dictionary->textures;
+    RwLLLink* link = dictionary->textures.next;
+
+    while (link != end) {
+        RwLLLink* next = link->next;
+        RwTexture* texture = (RwTexture*)((char*)link - 8);
+        if (callback(texture, data) == 0) {
+            break;
+        }
+        link = next;
+    }
+    return dictionary;
 }
 
 RwTexture* RwTextureCreate(RwRaster* raster) {
@@ -253,6 +349,14 @@ void RwTexDictionarySetCurrent(RwTexDictionary* dictionary) {
 
 RwTexDictionary* RwTexDictionaryGetCurrent(void) {
     return TEXTURE_GLOBALS->currentDictionary;
+}
+
+int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
+                                int format) {
+    if (TEXTURE_GLOBALS->mipmapNameCallback != 0) {
+        return TEXTURE_GLOBALS->mipmapNameCallback(name, maskName, level, format);
+    }
+    return 0;
 }
 
 int RwTextureRegisterPlugin(int size, unsigned int pluginID,

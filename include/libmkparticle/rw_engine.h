@@ -2,6 +2,7 @@
 #define LIBMKPARTICLE_RW_ENGINE_H
 
 typedef int (*RwRasterDeviceCall)(void* result, void* raster, int flags);
+typedef int (*RwTextureRasterCall)(void* texture, void* raster, int flags);
 typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
 typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
 typedef void (*RwStringCopyCall)(char* destination, const char* source,
@@ -17,7 +18,9 @@ typedef struct PfxRwEngineInstance {
     char pad28[0x30];
     RwRasterDeviceCall fpRasterCreate; /* +0x58 */
     RwRasterDeviceCall fpRasterDestroy; /* +0x5C */
-    char pad60[0x18];
+    char pad60[0x8];
+    RwTextureRasterCall fpTextureSetRaster; /* +0x68 */
+    char pad6C[0xC];
     RwRasterDeviceCall fpRasterSubRaster; /* +0x78 */
     char pad7C[0x8];
     RwRasterDeviceCall fpRasterLock; /* +0x84 */

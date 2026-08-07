@@ -105,7 +105,7 @@ extern void GXInvalidateTexAll(void);
 extern void GXInitTlutObj(GcRasterExt* extension, void* palette,
                           int palette_format, unsigned short entries);
 extern RwTexture* RwTextureCreate(RwRaster* raster);
-extern RwRaster* RwRasterDestroy(RwRaster* raster);
+extern int RwRasterDestroy(RwRaster* raster);
 extern RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
 extern void RwGameCubeTextureSetLOD(RwTexture* texture, int field_0x0C,
