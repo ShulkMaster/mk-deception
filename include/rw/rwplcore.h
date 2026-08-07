@@ -34,6 +34,9 @@ typedef RwInt32 (*RwPluginDataChunkGetSizeCallBack)(const void*, RwInt32, RwInt3
 RwInt32 _rwPluginRegistryAddPlugin(RwPluginRegistry*, RwInt32, RwUInt32,
                                    RwPluginObjectConstructor, RwPluginObjectDestructor,
                                    RwPluginObjectCopy);
+RwInt32 RwEngineRegisterPlugin(RwInt32, RwUInt32,
+                               RwPluginObjectConstructor,
+                               RwPluginObjectDestructor);
 void* _rpSectorOpen(void*, RwInt32, RwInt32);
 void* _rpSectorClose(void*, RwInt32, RwInt32);
 RwInt32 RpWorldSectorRegisterPlugin(RwInt32, RwUInt32, RwPluginObjectConstructor,

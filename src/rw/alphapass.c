@@ -14,7 +14,6 @@ typedef struct RwGameCubeRasterExt {
     unsigned int flags;
 } RwGameCubeRasterExt;
 
-extern int RwEngineRegisterPlugin(int size, int pluginID, void* openCB, void* closeCB);
 extern int RpMaterialRegisterPlugin(int size, int pluginID, void* constructCB,
                                     void* destructCB, void* copyCB);
 extern int RpMaterialRegisterPluginStream(int pluginID, void* readCB, void* writeCB,
