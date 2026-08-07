@@ -9,6 +9,7 @@ typedef struct RxClusterDefinition RxClusterDefinition;
 typedef struct RxPipelineCluster RxPipelineCluster;
 typedef struct RxPipelineRequiresCluster RxPipelineRequiresCluster;
 typedef struct RxPacket RxPacket;
+typedef struct RwGlobals RwGlobals;
 
 typedef enum RxEmbeddedPacketState {
     rxPKST_PACKETLESS = 0,
@@ -53,6 +54,20 @@ struct RxPacket {
     RxPipelineCluster** slotClusterRefs;
     RxCluster clusters[1];
 };
+
+typedef struct RxPipelinePlatformGlobals {
+    unsigned char core[0x54];
+    RxPipeline* platformAtomicPipeline;
+    RxPipeline* platformWorldSectorPipeline;
+    RxPipeline* platformMaterialPipeline;
+} RxPipelinePlatformGlobals;
+
+extern RwGlobals* RwEngineInstance;
+extern RwInt32 _rxPipelineGlobalsOffset;
+
+#define RXPIPELINEGLOBAL(field) \
+    (((RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance + \
+                                   _rxPipelineGlobalsOffset))->field)
 
 void _rxPacketDestroy(RxPacket* packet);
 void RxHeapFree(RxHeap* heap, void* block);
