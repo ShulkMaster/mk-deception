@@ -9,7 +9,6 @@ static RwPluginRegistry** toolkitNonFLRegList;
 static RwUInt32 numRegToolkits;
 static RwFreeList* toolkitRegEntries;
 
-extern void* _rwFreeListAllocReal(void*, RwInt32);
 extern RwUInt32 _rwGetNumEngineInstances(void);
 
 RwBool _rwPluginRegistryOpen(void) {

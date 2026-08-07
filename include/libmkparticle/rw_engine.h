@@ -47,6 +47,19 @@ typedef int (*RwTextureRasterCall)(void* texture, void* raster, int flags);
 typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
 typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
 typedef void* (*RwMemoryAllocCall)(unsigned int size, unsigned int hint);
+typedef void* (*RwMemoryReallocCall)(void* memory, unsigned int size,
+                                     unsigned int hint);
+typedef void* (*RwMemoryCallocCall)(unsigned int count, unsigned int size,
+                                    unsigned int hint);
+#ifndef RW_MEMORY_FUNCTIONS_DEFINED
+#define RW_MEMORY_FUNCTIONS_DEFINED
+typedef struct RwMemoryFunctions {
+    RwMemoryAllocCall alloc;
+    void (*free)(void* memory);
+    RwMemoryReallocCall realloc;
+    RwMemoryCallocCall calloc;
+} RwMemoryFunctions;
+#endif
 typedef struct RwStringFunctions {
     int (*vecSprintf)(RwChar*, const RwChar*, ...);
     int (*vecVsprintf)(RwChar*, const RwChar*, __va_list);
@@ -96,7 +109,8 @@ typedef struct RwGlobals {
     RwStringFunctions stringFuncs; /* +0xF0 */
     RwMemoryAllocCall fpMalloc; /* +0x134 */
     void (*fpFree)(void* memory); /* +0x138 */
-    char pad13C[0x8];
+    RwMemoryReallocCall fpRealloc; /* +0x13C */
+    RwMemoryCallocCall fpCalloc; /* +0x140 */
     RwFreeListAllocCall fpFreeListAlloc; /* +0x144 */
     RwFreeListFreeCall fpFreeListFree; /* +0x148 */
     void* metrics; /* +0x14C */
