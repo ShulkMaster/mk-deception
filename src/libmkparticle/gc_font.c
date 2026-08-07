@@ -115,9 +115,10 @@ void nativefont_instance_unlock(NativeFontInstance* inst) {
 }
 
 /*
- * Soft ceiling: nativefont_instance_addglyph ~96.88% -- null/locked branch
- * shape and one final redundant extsh only. POS s16 frac=1 (*2); retail loads
- * Y then X, writes X then Y, and loads V then U before writing U then V.
+ * Soft ceiling: nativefont_instance_addglyph ~97.48% -- null/locked branch
+ * shape, register coloring, and one final redundant extsh only. POS s16 frac=1
+ * (*2); retail loads Y then X, writes X then Y, and loads V then U before
+ * writing U then V.
  */
 void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* inst,
                                   NativeFontQuad* quad) {
@@ -126,8 +127,6 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     short x;
     float u;
     float v;
-    volatile short* pipe;
-    volatile float* pipef;
 
     (void)ctx;
 
@@ -147,14 +146,12 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     t = (short)(int)quad->x0;
     t = t << 1;
     x = (short)t;
-    pipe = (volatile short*)0xCC008000;
-    pipef = (volatile float*)0xCC008000;
-    *pipe = x;
-    *pipe = y;
+    WGPIPE_S16 = x;
+    WGPIPE_S16 = y;
     v = quad->v1;
     u = quad->u0;
-    *pipef = u;
-    *pipef = v;
+    WGPIPE_F32 = u;
+    WGPIPE_F32 = v;
 
     /* (x0, y0) (u0, v0) */
     t = (short)(int)quad->y0;
@@ -163,13 +160,12 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     t = (short)(int)quad->x0;
     t = t << 1;
     x = (short)t;
-    pipe = (volatile short*)0xCC008000;
-    *pipe = x;
-    *pipe = y;
+    WGPIPE_S16 = x;
+    WGPIPE_S16 = y;
     v = quad->v0;
     u = quad->u0;
-    *pipef = u;
-    *pipef = v;
+    WGPIPE_F32 = u;
+    WGPIPE_F32 = v;
 
     /* (x1, y0) (u1, v0) */
     t = (short)(int)quad->y0;
@@ -178,13 +174,12 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     t = (short)(int)quad->x1;
     t = t << 1;
     x = (short)t;
-    pipe = (volatile short*)0xCC008000;
-    *pipe = x;
-    *pipe = y;
+    WGPIPE_S16 = x;
+    WGPIPE_S16 = y;
     v = quad->v0;
     u = quad->u1;
-    *pipef = u;
-    *pipef = v;
+    WGPIPE_F32 = u;
+    WGPIPE_F32 = v;
 
     /* (x1, y1) (u1, v1) */
     t = (short)(int)quad->y1;
@@ -193,13 +188,12 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     t = (short)(int)quad->x1;
     t = t << 1;
     x = (short)t;
-    pipe = (volatile short*)0xCC008000;
-    *pipe = x;
-    *pipe = y;
+    WGPIPE_S16 = x;
+    WGPIPE_S16 = y;
     v = quad->v1;
     u = quad->u1;
-    *pipef = u;
-    *pipef = v;
+    WGPIPE_F32 = u;
+    WGPIPE_F32 = v;
 }
 
 void nativefont_end_render(void) {

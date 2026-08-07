@@ -17,6 +17,8 @@ void _pfx_emitter_compile(PfxEmitterCompileView* emitter,
     while (i < emitter->field_count) {
         unsigned int storage;
 
+        /* Retail records advance by 0x54 even though later operations access
+         * table metadata beyond that stride; keep the packed byte walk. */
         if (has_field_description(
                 registry,
                 (compile_field = (PfxCompileField*)((char*)emitter + offset))->description) == 0) {

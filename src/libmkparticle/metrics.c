@@ -5,12 +5,11 @@ static PfxMetricsInterface metrics_interface = {0};
 static int counter_offset[6] = {0, 4, 12, 8, 20, 16};
 static char string_base[] = ".ppd\0PFX Metrics File\x1a";
 
-static PfxMetricsCounters default_buffer;
 static PfxMetricsCounters last_frame_data;
 static PfxMetricsCounters current_frame_data;
 
-/* Soft ceiling: metrics.o ~93.66% -- equivalent callback-base register
- * allocation and event scheduling differences. */
+/* Soft ceiling: metrics.o ~99.96% -- pfxmetrics_get_current is instruction-exact;
+ * only its compiler-generated default_buffer relocation suffix differs. */
 void pfxmetrics_set_interface(PfxMetricsInterface* interface) {
     memcpy(&metrics_interface, interface, sizeof(PfxMetricsInterface));
 }
@@ -20,6 +19,7 @@ void pfxmetrics_event(PfxMetrics* metrics, int event) {
     int offset;
     int counter;
     int type;
+    int nonzero_counter;
 
     if (event != 0x4005 && metrics != 0 && metrics->frame_active != 0) {
         metrics->frame_count++;
@@ -32,15 +32,16 @@ void pfxmetrics_event(PfxMetrics* metrics, int event) {
     counters = pfxmetrics_get_current(metrics);
     counter = event & 0xF;
     offset = counter_offset[counter];
+    nonzero_counter = counter == 0 ? 0 : 1;
     type = event & 0xFF00;
     switch (type) {
     case 0x1000:
-        metrics_interface.begin_counter();
+        metrics_interface.begin_counter(nonzero_counter);
         break;
     case 0x2000:
         /* Retail's table contains byte offsets, so preserve its indexed store. */
         *(int*)((char*)counters + offset) =
-            metrics_interface.end_counter(counter != 0);
+            metrics_interface.end_counter(nonzero_counter);
         break;
     }
 
@@ -67,7 +68,7 @@ void pfxmetrics_event(PfxMetrics* metrics, int event) {
 void pfxmetrics_flush(PfxMetrics* metrics) {
     void* handle;
 
-    handle = metrics_interface.begin_write();
+    handle = metrics_interface.begin_write(metrics->filename);
     if (handle == 0) {
         metrics->frame_count = 0;
     } else {
@@ -113,15 +114,16 @@ void pfxmetrics_init(PfxMetrics* metrics, const char* filename) {
     metrics->frame_active = 0;
 }
 
+#pragma scheduling on
 PfxMetricsCounters* pfxmetrics_get_current(PfxMetrics* metrics) {
-    int frame_count;
+    static PfxMetricsCounters default_buffer;
 
     if (metrics == 0) {
         return &default_buffer;
     }
-    frame_count = metrics->frame_count;
-    return metrics->frames + frame_count;
+    return &metrics->frames[metrics->frame_count];
 }
+#pragma scheduling reset
 
 void pfxmetrics_begin_frame(void) {
     memcpy(&last_frame_data, &current_frame_data,

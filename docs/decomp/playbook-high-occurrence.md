@@ -10,7 +10,7 @@ Score key: `H/H/H` = occurrence / likelihood that the smell identifies the cause
 
 | Rank | If A (observed code or ASM) → then B (mechanical source edit) | Preconditions | Solves | O/L/I |
 |---:|---|---|---|---|
-| 1 | If call-site values reach the wrong argument GPRs, `f(a, b)` → correct the declaration and call order, e.g. `f(b, a)` | Check every retail caller and loads immediately before `bl` | ABI/prototype error; r3/r4 swaps | H/H/H |
+| 1 | If call-site values reach the wrong argument GPRs—or an indirect call preserves an argument in `r3` while materializing its function-table base in `r4`—correct the declaration and call, e.g. `f(b, a)` or `cb(value)` instead of `cb()` | Check every retail caller and loads immediately before `bl`/`bctrl`; the callback implementation or semantics must prove the argument | ABI/prototype error; r3/r4 swaps; false zero-arg callbacks | H/H/H |
 | 2 | If field displacements or access widths disagree, `*(T*)((u8*)p + N)` → `p->field` with a proven offset/type | Confirm offset, width, signedness, and layout from multiple accesses | Bad struct layout; wrong `lwz/stw/lbz/stb` immediates | H/H/H |
 | 3 | If a known pointee is `void*`/`void**`, `void **out` → `Thing **out` and update declarations/callers together | Calls prove pointee and indirection; preserve ABI qualifiers | False casts, wrong aliasing, argument coloring | H/H/H |
 | 4 | If retail compares unsigned but ours emits signed compare, `int n` → `u32 n`; `n != 0` → `n > 0` only when `cmplwi` is proven | Load width and callers prove unsigned semantics | `cmpwi`/`cmplwi`, branch polarity | H/H/M |
@@ -38,4 +38,3 @@ Score key: `H/H/H` = occurrence / likelihood that the smell identifies the cause
   `register`, fake `volatile`, dead reads, sinks, or wrong prototypes.
 - If an edit changes semantics, store order, access width, or ABI without retail
   evidence, reject it even when fuzzy improves.
-

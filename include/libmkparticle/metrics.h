@@ -15,10 +15,10 @@ typedef struct PfxMetrics {
 
 typedef struct PfxMetricsInterface {
     void* (*open)(const char* path);
-    void* (*begin_write)(void);
+    void* (*begin_write)(const char* path);
     void (*write)(void* handle, const void* data, int size);
     void (*close)(void* handle);
-    void (*begin_counter)(void);
+    void (*begin_counter)(int counter);
     int (*end_counter)(int valid);
 } PfxMetricsInterface;
 
