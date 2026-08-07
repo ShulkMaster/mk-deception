@@ -16,6 +16,15 @@ typedef struct RwFrame RwFrame;
 typedef struct RwResEntry RwResEntry;
 typedef struct RpAtomic RpAtomic;
 typedef struct RwCamera RwCamera;
+typedef struct RpWorld RpWorld;
+typedef struct RpWorldSector RpWorldSector;
+typedef struct RxPipeline RxPipeline;
+typedef struct RwRGBA RwRGBA;
+
+typedef struct RwTexCoords {
+    RwReal u;
+    RwReal v;
+} RwTexCoords;
 
 typedef struct RwSphere {
     float x;
@@ -142,5 +151,59 @@ typedef struct RpClump {
     float worldAnchorY; /* +0xA4 */
     float worldAnchorZ; /* +0xA8 */
 } RpClump;
+
+typedef struct RpPolygon {
+    RwUInt16 matIndex;
+    RwUInt16 vertIndex[3];
+} RpPolygon;
+
+struct RpWorldSector {
+    RwInt32 type;
+    RpPolygon* polygons;
+    RwV3d* vertices;
+    void* normals;
+    /* This SDK build embeds six world-sector texture-coordinate sets. */
+    RwTexCoords* texCoords[6];
+    RwRGBA* preLitLum;
+    RwResEntry* repEntry;
+    RwLinkList collAtomicsInWorldSector;
+    RwLinkList noCollAtomicsInWorldSector;
+    RwLinkList lightsInWorldSector;
+    RwBBox boundingBox;
+    RwBBox tightBoundingBox;
+    RpMeshHeader* mesh;
+    RxPipeline* pipeline;
+    RwUInt16 matListWindowBase;
+    RwUInt16 numVertices;
+    RwUInt16 numPolygons;
+    RwUInt16 pad;
+};
+
+typedef enum RpWorldRenderOrder {
+    rpWORLDRENDERNARENDERORDER = 0,
+    rpWORLDRENDERFRONT2BACK,
+    rpWORLDRENDERBACK2FRONT
+} RpWorldRenderOrder;
+
+typedef struct RpSector RpSector;
+typedef RpWorldSector* (*RpWorldSectorCallBackRender)(RpWorldSector* worldSector);
+
+struct RpWorld {
+    RwObject object;
+    RwUInt32 flags;
+    RpWorldRenderOrder renderOrder;
+    RpMaterialList matList;
+    RpSector* rootSector;
+    RwInt32 numTexCoordSets;
+    RwInt32 numClumpsInWorld;
+    RwLLLink* currentClumpLink;
+    RwLinkList clumpList;
+    RwLinkList lightList;
+    RwLinkList directionalLightList;
+    RwV3d worldOrigin;
+    RwBBox boundingBox;
+    RpWorldSectorCallBackRender renderCallBack;
+    RxPipeline* pipeline;
+};
 
 #endif

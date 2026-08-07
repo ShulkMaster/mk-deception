@@ -1218,6 +1218,8 @@ config.libs = [
     RenderWareLib(
         "rpworld",
         [
+            Object(Matching, "rpworld.a/babinwor.obj", source="rw/babinwor.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rpworld.a/basector.obj", source="rw/basector.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rpworld.a/bapipew.obj", source="rw/bapipew.c",
