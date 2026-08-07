@@ -43,8 +43,8 @@ void storage_status_change_calculations(int device);
 int create_new_mk5_profile_file(int device);
 void summarize_unlocked_items(void);
 void check_new_mu_for_in_use_profiles(int device);
-void insert_mu(int device);
-void remove_mu(int device);
+void insert_mu(int device, int arg1, int arg2);
+void remove_mu(int device, int arg1, int arg2);
 void reset_ppwls_timeout(void);
 void region_data_corruption_message_handler(void);
 
@@ -52,7 +52,7 @@ extern PlayerProfile p1_profile;
 
 extern void* mc_data_buffer;
 extern int mc_data_buffer_size;
-extern int mc_icon_file_size;
+extern unsigned int mc_icon_file_size; /* defined unsigned in gcmcicon.c */
 extern int f_writing_to_memcard;
 extern int mcard_msg_incompatible_card_answer;
 extern int msg_another_market_answer;
@@ -91,28 +91,26 @@ int force_insertions;
 /* Retail .data: per-slot serial cache (2 devices x 2 words). */
 static unsigned int last_card_serial_no[2][2];
 
-/* .sdata2: per-slot bit masks (Slot A = 1, Slot B = 2). */
-int mcmasks[2] = {1, 2};
+/* .sdata2: per-slot bit masks (Slot A = 1, Slot B = 2); const keeps it there. */
+const int mcmasks[2] = {1, 2};
 
 const char* get_device_reference_name(int device) {
-    /* Soft ceiling: ~68% -- empty-string path / nbc_find_text emit; algo OK. */
+    const char* name = "";
+
     if (device < 0 || device >= 2) {
-        return "";
+        return name;
     }
     return nbc_find_text(gc_mc_default_name[device], 0);
 }
 
 int bad_load_region_data_result_resolution(int* result, int device) {
-    int cont;
-
-    (void)device;
-    if (*result == 0) {
-        cont = 1;
-    } else {
+    switch (*result) {
+    case 0:
+        return 1;
+    default:
         quit_from_konquest();
-        cont = 1;
+        return 1;
     }
-    return cont;
 }
 
 int check_load_region_data_result(int* result, int device, int scratch, int flag) {
@@ -159,16 +157,13 @@ int check_load_region_data_result(int* result, int device, int scratch, int flag
 }
 
 int bad_save_region_data_result_resolution(int* result, int device) {
-    int cont;
-
-    (void)device;
-    if (*result == 0) {
-        cont = 1;
-    } else {
+    switch (*result) {
+    case 0:
+        return 1;
+    default:
         quit_from_konquest();
-        cont = 1;
+        return 1;
     }
-    return cont;
 }
 
 int check_save_region_data_result(int* result, int device, int mode) {
@@ -1578,81 +1573,70 @@ void gc_mem_card_status_changes_for_one_device(int device) {
     }
 }
 
+/*
+ * Soft ceiling: ~94% -- retail homes device in r29 / changed in r28, MWCC
+ * colors them the other way; ops and scheduling otherwise exact. Stop.
+ */
 int update_storage_status_for_one_device(int device) {
-    int changed;
+    int changed = 0;
 
-    changed = 0;
-    if (device < 0 || device > 1) {
-        return 0;
+    if (device < 0 || device >= 2) {
+        return changed;
     }
-
     gc_mem_card_status_changes_for_one_device(device);
-
-    if ((removals & mcmasks[device]) != 0 ||
-        (force_removals & mcmasks[device]) != 0) {
+    if ((removals & mcmasks[device]) || (force_removals & mcmasks[device])) {
         reset_ppwls_timeout();
         removals &= ~mcmasks[device];
-        remove_mu(device);
+        remove_mu(device, 0, device);
         changed = 1;
         force_removals &= ~mcmasks[device];
     }
-    if ((insertions & mcmasks[device]) != 0 ||
-        (force_insertions & mcmasks[device]) != 0) {
+    if ((insertions & mcmasks[device]) || (force_insertions & mcmasks[device])) {
         reset_ppwls_timeout();
-        changed = 1;
         insertions &= ~mcmasks[device];
-        insert_mu(device);
+        changed = 1;
+        insert_mu(device, 0, device);
         force_insertions &= ~mcmasks[device];
     }
     return changed;
 }
 
 /*
- * Soft ceiling: update_storage_status -- flag unused in retail; dual-slot
- * insert/remove dispatch. Critical Midway dep for all memcard screens.
+ * Retail inlines the helper above (-inline auto, same TU): the emitted loop
+ * body carries the helper's redundant 0..1 range check and its exact changed=1
+ * scheduling, so the source is this call, not a hand-expanded copy.
+ * Soft ceiling: ~94% -- same r28/r29 coloring swap propagated by the inline.
  */
 int update_storage_status(int flag) {
+    int any = 0;
     int device;
-    int changed;
-    int any;
 
-    (void)flag;
-    any = 0;
     for (device = 0; device < 2; device++) {
-        changed = 0;
-        gc_mem_card_status_changes_for_one_device(device);
-        if ((removals & mcmasks[device]) != 0 || (force_removals & mcmasks[device]) != 0) {
-            reset_ppwls_timeout();
-            removals &= ~mcmasks[device];
-            remove_mu(device);
-            changed = 1;
-            force_removals &= ~mcmasks[device];
-        }
-        if ((insertions & mcmasks[device]) != 0 || (force_insertions & mcmasks[device]) != 0) {
-            reset_ppwls_timeout();
-            changed = 1;
-            insertions &= ~mcmasks[device];
-            insert_mu(device);
-            force_insertions &= ~mcmasks[device];
-        }
-        if (changed != 0) {
+        if (update_storage_status_for_one_device(device)) {
             any = 1;
         }
     }
     return any;
 }
 
+/*
+ * Soft ceiling: ~94% -- MWCC roots the CARD-result compare tree at case -4
+ * where retail roots at the -9 boundary; same case set, unknown root-selection
+ * heuristic. Header checks, rounding, reads, and copies are exact. Stop.
+ */
 int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
     CARDStat stat;
-    long rc;
-    int readSize;
-    unsigned char* source;
+    int readLen;
+    int result;
 
     do {
-        rc = CARDGetStatus(fileInfo->chan, fileInfo->fileNo, &stat);
-    } while (rc == -1);
+        result = CARDGetStatus(fileInfo->chan, fileInfo->fileNo, &stat);
+    } while (result == -1);
 
-    if (stat.iconAddr != 0x40 || stat.commentAddr != 0) {
+    if (stat.iconAddr != 0x40) {
+        return -0x35;
+    }
+    if (stat.commentAddr != 0) {
         return -0x35;
     }
 
@@ -1660,33 +1644,42 @@ int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
         if (mc_icon_file_size == 0) {
             return 0;
         }
-        readSize = (size + mc_icon_file_size + 0x1FF) / 0x200;
+        /* Signed rounding through the int intermediate: retail emits
+         * srawi/addze, which an unsigned one-expression form strength-reduces
+         * to clrrwi instead. */
+        readLen = mc_icon_file_size + 0x1FF;
+        readLen = size + readLen;
+        readLen = (readLen / 0x200) * 0x200;
     } else {
-        readSize = (size + 0x1FF) / 0x200;
+        readLen = size + 0x1FF;
+        readLen = (readLen / 0x200) * 0x200;
     }
-    readSize *= 0x200;
-
     do {
-        rc = CARDRead(fileInfo, gc_memcard_io_buffer, readSize,
-                      gc_seek_position << 13);
-    } while (rc == -1);
+        result = CARDRead(fileInfo, gc_memcard_io_buffer, readLen,
+                          gc_seek_position << 13);
+    } while (result == -1);
 
-    if (rc == -3) {
-        return -10;
+    switch (result) {
+    case 0:
+        if (gc_seek_position == 0) {
+            memcpy(buffer, gc_memcard_io_buffer + stat.offsetData, size);
+        } else {
+            memcpy(buffer, gc_memcard_io_buffer, size);
+        }
+        return 0;
+    case -3:
+        return -0xA;
+    case -4:
+        return -0x4;
+    case -14:
+    case -128:
+    case -13:
+    case -12:
+    case -11:
+    case -10:
+    default:
+        return -0x63;
     }
-    if (rc == -4) {
-        return -4;
-    }
-    if (rc != 0) {
-        return -99;
-    }
-
-    source = gc_memcard_io_buffer;
-    if (gc_seek_position == 0) {
-        source += stat.offsetData;
-    }
-    memcpy(buffer, source, (unsigned long)size);
-    return 0;
 }
 
 static void detached_slot_b(void) {

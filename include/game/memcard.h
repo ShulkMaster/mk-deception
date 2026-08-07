@@ -144,8 +144,13 @@ int is_device_full(int device);
 int is_device_present(int device);
 int is_storage_device_full(int device);
 
-void insert_mu(int device);
-void remove_mu(int device);
+/*
+ * Three parameters per retail caller evidence: gcmcard.o's update_storage_status
+ * paths load r4=0 and r5=device before the bl, which MWCC only emits when the
+ * call-site prototype has >= 3 args. Retail bodies ignore arg1/arg2.
+ */
+void insert_mu(int device, int arg1, int arg2);
+void remove_mu(int device, int arg1, int arg2);
 
 extern StorageDevice storage_status[STORAGE_MAX_DEVICES];
 extern void* p1_profile_common;

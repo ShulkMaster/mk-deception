@@ -1028,11 +1028,13 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
 }
 #pragma dont_inline reset
 
-void insert_mu(int device) {
+void insert_mu(int device, int arg1, int arg2) {
     /* Soft ceiling: insert_mu ~98.13% - loop base/index coloring; stop. */
     StorageDevice* base;
     int i;
 
+    (void)arg1;
+    (void)arg2;
     if (g_bMemCardScreensDisabled == 1) {
         return;
     }
@@ -1053,9 +1055,11 @@ void insert_mu(int device) {
 }
 
 #pragma opt_common_subs off
-void remove_mu(int device) {
+void remove_mu(int device, int arg1, int arg2) {
     StorageDevice* storage;
 
+    (void)arg1;
+    (void)arg2;
     if (device < 0 || device >= STORAGE_MAX_DEVICES) {
         return;
     }
