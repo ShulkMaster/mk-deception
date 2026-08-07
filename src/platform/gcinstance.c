@@ -279,9 +279,9 @@ static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,
         return 0;
     }
 
-    padding = PadSize32(stream->bufferPosition);
+    padding = PadSize32(stream->data.memory.position);
     RwStreamSkip(stream, padding);
-    stream_data = stream->data + stream->bufferPosition;
+    stream_data = stream->data.memory.start + stream->data.memory.position;
     RwStreamSkip(stream, display_list_size - padding);
 
     extra_meshes =
@@ -361,16 +361,16 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
         sizeof(image_size)) {
         return 0;
     }
-    padding = PadSize32(stream->bufferPosition);
+    padding = PadSize32(stream->data.memory.position);
     RwStreamSkip(stream, padding);
     image_size -= padding;
-    stream_data = stream->data + stream->bufferPosition;
+    stream_data = stream->data.memory.start + stream->data.memory.position;
     RwStreamSkip(stream, image_size);
     extension->image_data = stream_data;
     DCFlushRange(extension->image_data, image_size);
 
     if ((raster->format << 8) & 0x6000) {
-        stream_data = stream->data + stream->bufferPosition;
+        stream_data = stream->data.memory.start + stream->data.memory.position;
         RwStreamSkip(stream, (1 << raster->depth) * 2);
         extension->palette_data = stream_data;
         DCFlushRange(extension->palette_data, (1 << raster->depth) * 2);

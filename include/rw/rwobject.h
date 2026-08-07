@@ -10,12 +10,49 @@ typedef struct RwObject {
     void* parent;               /**< Retail offset 0x04; commonly an `RwFrame*`. */
 } RwObject;
 
-/** Partial RenderWare stream view; complete object extent is unknown. */
+typedef enum RwStreamType {
+    rwSTREAMFILE = 1,
+    rwSTREAMFILENAME = 2,
+    rwSTREAMMEMORY = 3,
+    rwSTREAMCUSTOM = 4
+} RwStreamType;
+
+typedef enum RwStreamAccessType {
+    rwSTREAMREAD = 1,
+    rwSTREAMWRITE = 2,
+    rwSTREAMAPPEND = 3
+} RwStreamAccessType;
+
+typedef void (*RwStreamCloseCallBack)(void* data);
+typedef unsigned int (*RwStreamReadCallBack)(void* data, void* buffer,
+                                             unsigned int length);
+typedef int (*RwStreamWriteCallBack)(void* data, const void* buffer,
+                                     unsigned int length);
+typedef int (*RwStreamSkipCallBack)(void* data, unsigned int offset);
+
+typedef struct RwStreamCustom {
+    RwStreamCloseCallBack close;
+    RwStreamReadCallBack read;
+    RwStreamWriteCallBack write;
+    RwStreamSkipCallBack skip;
+    void* data;
+} RwStreamCustom;
+
+/** Stock RenderWare stream object. Retail size: 0x24 bytes. */
 typedef struct RwStream {
-    char pad00[0x0C];          /**< Retail offsets 0x00-0x0B; fields unknown. */
-    unsigned int bufferPosition; /**< Retail offset 0x0C. */
-    char pad10[0x04];          /**< Retail offsets 0x10-0x13; fields unknown. */
-    unsigned char* data;       /**< Retail offset 0x14. */
+    RwStreamType type;              /**< Retail offset 0x00. */
+    RwStreamAccessType accessType;  /**< Retail offset 0x04. */
+    unsigned int reserved;          /**< Retail offset 0x08. */
+    union {
+        struct { void* file; } file;
+        struct {
+            unsigned int position;
+            unsigned int length;
+            unsigned char* start;
+        } memory;
+        RwStreamCustom custom;
+    } data;                         /**< Retail offset 0x0C. */
+    int owned;                      /**< Retail offset 0x20. */
 } RwStream;
 
 #endif

@@ -1220,6 +1220,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/bamemory.obj", source="rw/bamemory.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rwcore.a/bastream.obj", source="rw/bastream.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
         ],
     ),
     RenderWareLib(

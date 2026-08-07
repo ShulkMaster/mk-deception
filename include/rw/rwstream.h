@@ -1,15 +1,21 @@
 #ifndef RW_RWSTREAM_H
 #define RW_RWSTREAM_H
 
-typedef struct RwStream RwStream;
+#include "rw/rwobject.h"
 
 typedef struct RwMemory {
     void* start;
     unsigned int length;
 } RwMemory;
 
-RwStream* RwStreamOpen(int type, int access_type, void* data);
+RwStream* RwStreamOpen(RwStreamType type, RwStreamAccessType accessType,
+                       void* data);
 int RwStreamClose(RwStream* stream, void* data);
+unsigned int RwStreamRead(RwStream* stream, void* buffer,
+                          unsigned int length);
+RwStream* RwStreamWrite(RwStream* stream, const void* buffer,
+                        unsigned int length);
+RwStream* RwStreamSkip(RwStream* stream, unsigned int offset);
 RwStream* RwStreamWriteInt32(RwStream* stream, const int* values,
                              unsigned int numBytes);
 RwStream* RwStreamReadInt32(RwStream* stream, int* values,
