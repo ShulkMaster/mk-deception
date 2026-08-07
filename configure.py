@@ -1184,7 +1184,7 @@ config.libs = [
                 NonMatching,
                 "rpworld.a/alphapass.obj",
                 source="rw/alphapass.c",
-                extra_cflags=["-opt", "off", "-O0"],
+                extra_cflags=["-opt", "off", "-O0", "-inline", "off"],
             ),
         ],
     ),

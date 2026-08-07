@@ -17,7 +17,12 @@ typedef struct RxGCTevAlphaPass {
 RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial* material);
 RwTexture* RpMaterialSetAlphaPassTexture(RpMaterial* material,
                                          RwTexture* texture);
+RwTexture* RpMaterialGetDualAlphaPassTexture(RpMaterial* material);
+RwTexture* RpMaterialSetDualAlphaPassTexture(RpMaterial* material,
+                                             RwTexture* texture);
 void _rxGCTevAlphaPassSetup(RxGCTevAlphaPass* pass);
 void _rxGCTevAlphaPassCleanup(RxGCTevAlphaPass* pass);
+void _rxGCTevAlphaMultiPassSetup(RxGCTevAlphaPass* pass);
+void _rxGCTevAlphaMultiPassCleanup(RxGCTevAlphaPass* pass);
 
 #endif
