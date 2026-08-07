@@ -3,6 +3,7 @@
 
 typedef int RwInt32;
 typedef unsigned int RwUInt32;
+typedef unsigned short RwUInt16;
 typedef int RwBool;
 typedef char RwChar;
 typedef float RwReal;

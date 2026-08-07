@@ -46,6 +46,7 @@ extern "C" {
 #endif
 
 void GXSetNumTexGens(unsigned char count);
+unsigned short GXReadDrawSync(void);
 void GXSetTexCoordGen2(int destination, int function, int source, int matrix,
                        int normalize, int post_matrix);
 void GXSetNumTevStages(unsigned char count);
