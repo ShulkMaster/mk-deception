@@ -1,6 +1,7 @@
 #ifndef RW_RXPIPELINE_H
 #define RW_RXPIPELINE_H
 
+#include "rw/rwcore_types.h"
 #include "rw/rwplcore.h"
 
 typedef struct RxHeap RxHeap;
@@ -10,6 +11,48 @@ typedef struct RxPipelineCluster RxPipelineCluster;
 typedef struct RxPipelineRequiresCluster RxPipelineRequiresCluster;
 typedef struct RxPacket RxPacket;
 typedef struct RwGlobals RwGlobals;
+
+typedef struct RwRGBA {
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+} RwRGBA;
+
+typedef enum RwShadeMode {
+    rwSHADEMODEGOURAUD = 2
+} RwShadeMode;
+
+typedef enum RwBlendFunction {
+    rwBLENDSRCALPHA = 5,
+    rwBLENDINVSRCALPHA = 6
+} RwBlendFunction;
+
+typedef enum RwTextureAddressMode {
+    rwTEXTUREADDRESSWRAP = 1
+} RwTextureAddressMode;
+
+typedef enum RwTextureFilterMode {
+    rwFILTERLINEAR = 2
+} RwTextureFilterMode;
+
+typedef enum RwFogType {
+    rwFOGTYPENAFOGTYPE = 0
+} RwFogType;
+
+typedef struct RxRenderStateVector {
+    RwUInt32 Flags;
+    RwShadeMode ShadeMode;
+    RwBlendFunction SrcBlend;
+    RwBlendFunction DestBlend;
+    RwRaster* TextureRaster;
+    RwTextureAddressMode AddressModeU;
+    RwTextureAddressMode AddressModeV;
+    RwTextureFilterMode FilterMode;
+    RwRGBA BorderColor;
+    RwFogType FogType;
+    RwRGBA FogColor;
+} RxRenderStateVector;
 
 typedef enum RxEmbeddedPacketState {
     rxPKST_PACKETLESS = 0,
@@ -75,7 +118,13 @@ extern RwInt32 _rxPipelineGlobalsOffset;
     (((RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance + \
                                    _rxPipelineGlobalsOffset))->field)
 
+#define RXPIPELINEDEFAULTRENDERSTATE \
+    (*(RxRenderStateVector*)((unsigned char*)RwEngineInstance + \
+                             _rxPipelineGlobalsOffset + 4))
+
 void _rxPacketDestroy(RxPacket* packet);
 void RxHeapFree(RxHeap* heap, void* block);
+RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(
+    RxRenderStateVector* renderState);
 
 #endif

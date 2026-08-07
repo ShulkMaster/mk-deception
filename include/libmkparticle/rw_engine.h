@@ -52,7 +52,7 @@ typedef char* (*RwStringConcatCall)(char* destination, const char* source);
 typedef unsigned int (*RwStringLengthCall)(const char* string);
 
 /** Confirmed portion of the retail RenderWare engine dispatch table. */
-typedef struct PfxRwEngineInstance {
+typedef struct RwGlobals {
     char pad00[0x20];
     int (*fpRenderStateSet)(int state, int value); /* +0x20 */
     void (*fpRenderStateGet)(int state, void* out); /* +0x24 */
@@ -91,8 +91,10 @@ typedef struct PfxRwEngineInstance {
     void* metrics; /* +0x14C */
     int engineStatus; /* +0x150 */
     unsigned int resArenaInitSize; /* +0x154 */
-} PfxRwEngineInstance;
+} RwGlobals;
 
-extern PfxRwEngineInstance* RwEngineInstance;
+typedef RwGlobals PfxRwEngineInstance;
+
+extern RwGlobals* RwEngineInstance;
 
 #endif
