@@ -20,6 +20,10 @@ typedef struct RwPalQuant {
     unsigned char storage[0x4008];
 } RwPalQuant;
 
+typedef struct RwFreeListStorage {
+    unsigned char storage[0x24];
+} RwFreeListStorage;
+
 typedef struct RwTextureModuleGlobals {
     RwLLLink dictionaries;
     void* textureFreeList;
@@ -32,18 +36,17 @@ typedef struct RwTextureModuleGlobals {
     void* workImage;
     unsigned short state;
     unsigned short pad2A;
-    int (*mipmapGenerationCallback)(RwRaster*, void*);
+    RwRaster* (*mipmapGenerationCallback)(RwRaster*, RwImage*);
     int (*mipmapNameCallback)(char*, char*, unsigned char, int);
 } RwTextureModuleGlobals;
 
-typedef struct RwModuleInfoLocal {
-    int globalsOffset;
-    int numInstances;
-} RwModuleInfoLocal;
+static RwPluginRegistry textureTKList = { 0x58, 0x58, 0, 0, 0, 0 };
+static RwPluginRegistry texDictTKList = { 0x18, 0x18, 0, 0, 0, 0 };
+static RwFreeListStorage _rwTextureFreeList;
+static RwFreeListStorage _rwTexDictionaryFreeList;
 
-extern RwModuleInfoLocal textureModule;
-extern RwPluginRegistry textureTKList;
-extern RwPluginRegistry texDictTKList;
+static RwModuleInfo textureModule;
+static RwTexDictionary* dummyTexDict;
 extern void* _rwPluginRegistryInitObject(void* registry, void* object);
 extern void* _rwPluginRegistryDeInitObject(void* registry, void* object);
 extern int _rwerror(unsigned int code, ...);
@@ -68,6 +71,10 @@ extern RwImage* RwImageResample(RwImage* destination, const RwImage* source);
 extern RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
 extern RwImage* RwImageGammaCorrect(RwImage* image);
 extern RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
+extern void* RwFreeListCreateAndPreallocateSpace(
+    int entrySize, int entriesPerBlock, int alignment, int preallocBlocks,
+    RwFreeListStorage* freeList, int hint);
+extern int RwFreeListDestroy(void* freeList);
 extern int RwRasterSetFromImage(RwRaster* raster, RwImage* image);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
@@ -79,6 +86,10 @@ int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
 static const char character_25[] = "0123456789abcdef";
 static char emptyTextureName[] = "";
 static char nullMaskName[] = "(null)";
+static int _rwTextureFreeListBlockSize = 0x80;
+static int _rwTextureFreeListPreallocBlocks = 1;
+static int _rwTexDictionaryFreeListBlockSize = 5;
+static int _rwTexDictionaryFreeListPreallocBlocks = 1;
 
 #define TEXTURE_GLOBALS \
     ((RwTextureModuleGlobals*)((char*)RwEngineInstance + textureModule.globalsOffset))
@@ -94,7 +105,8 @@ static char CalculateIndexCharacter(unsigned char level) {
     return result;
 }
 
-static int TextureDefaultMipmapName(char* name, char* maskName, unsigned char level) {
+static int TextureDefaultMipmapName(char* name, char* maskName, unsigned char level,
+                                    int format) {
     char suffix[3];
 
     suffix[0] = 'm';
@@ -953,7 +965,8 @@ int RwTextureRegisterPlugin(int size, unsigned int pluginID,
                                       destructCB, copyCB);
 }
 
-int RwTextureSetMipmapGenerationCallBack(int (*callback)(RwRaster*, void*)) {
+int RwTextureSetMipmapGenerationCallBack(
+    RwRaster* (*callback)(RwRaster*, RwImage*)) {
     TEXTURE_GLOBALS->mipmapGenerationCallback = callback;
     return 1;
 }
@@ -964,6 +977,85 @@ int RwTextureSetMipmapNameCallBack(
     return 1;
 }
 
-int RwTextureRasterGenerateMipmaps(RwRaster* raster, void* image) {
+int RwTextureRasterGenerateMipmaps(RwRaster* raster, RwImage* image) {
     return TEXTURE_GLOBALS->mipmapGenerationCallback(raster, image) != 0;
+}
+
+void* _rwTextureClose(void* instance, int offset, int size) {
+    RwLLLink* link;
+    RwLLLink* end;
+
+    if (TEXTURE_GLOBALS->workImage != 0) {
+        RwEngineInstance->fpFree(TEXTURE_GLOBALS->workImage);
+        TEXTURE_GLOBALS->workImage = 0;
+        TEXTURE_GLOBALS->state = 0;
+    }
+    if (TEXTURE_GLOBALS->textureFreeList != 0 &&
+        TEXTURE_GLOBALS->dictionaryFreeList != 0) {
+        link = TEXTURE_GLOBALS->dictionaries.next;
+        end = &TEXTURE_GLOBALS->dictionaries;
+        while (link != end) {
+            RwTexDictionary* dictionary =
+                (RwTexDictionary*)((char*)link - 0x10);
+            RwLLLink* next = link->next;
+            if (dictionary == dummyTexDict) {
+                RwTexDictionaryDestroy(dummyTexDict);
+                dummyTexDict = 0;
+                break;
+            }
+            link = next;
+        }
+    }
+    if (TEXTURE_GLOBALS->textureFreeList != 0) {
+        RwFreeListDestroy(TEXTURE_GLOBALS->textureFreeList);
+        TEXTURE_GLOBALS->textureFreeList = 0;
+    }
+    if (TEXTURE_GLOBALS->dictionaryFreeList != 0) {
+        RwFreeListDestroy(TEXTURE_GLOBALS->dictionaryFreeList);
+        TEXTURE_GLOBALS->dictionaryFreeList = 0;
+    }
+    textureModule.numInstances--;
+    return instance;
+}
+
+void* _rwTextureOpen(void* instance, int offset, int size) {
+    textureModule.globalsOffset = offset;
+    TEXTURE_GLOBALS->textureFreeList = RwFreeListCreateAndPreallocateSpace(
+        textureTKList.sizeOfStruct, _rwTextureFreeListBlockSize, 4,
+        _rwTextureFreeListPreallocBlocks, &_rwTextureFreeList, 0x40006);
+    if (TEXTURE_GLOBALS->textureFreeList == 0) {
+        return 0;
+    }
+    TEXTURE_GLOBALS->dictionaryFreeList = RwFreeListCreateAndPreallocateSpace(
+        texDictTKList.sizeOfStruct, _rwTexDictionaryFreeListBlockSize, 4,
+        _rwTexDictionaryFreeListPreallocBlocks, &_rwTexDictionaryFreeList,
+        0x40408);
+    if (TEXTURE_GLOBALS->dictionaryFreeList == 0) {
+        RwFreeListDestroy(TEXTURE_GLOBALS->textureFreeList);
+        TEXTURE_GLOBALS->textureFreeList = 0;
+        return 0;
+    }
+
+    TEXTURE_GLOBALS->dictionaries.next = &TEXTURE_GLOBALS->dictionaries;
+    TEXTURE_GLOBALS->dictionaries.prev = &TEXTURE_GLOBALS->dictionaries;
+    textureModule.numInstances++;
+    dummyTexDict = RwTexDictionaryCreate();
+    TEXTURE_GLOBALS->currentDictionary = dummyTexDict;
+    if (TEXTURE_GLOBALS->currentDictionary == 0) {
+        RwFreeListDestroy(TEXTURE_GLOBALS->dictionaryFreeList);
+        TEXTURE_GLOBALS->dictionaryFreeList = 0;
+        RwFreeListDestroy(TEXTURE_GLOBALS->textureFreeList);
+        TEXTURE_GLOBALS->textureFreeList = 0;
+        return 0;
+    }
+
+    TEXTURE_GLOBALS->mipmapping = 0;
+    TEXTURE_GLOBALS->autoMipmapping = 0;
+    RwTextureSetFindCallBack(TextureDefaultFind);
+    RwTextureSetReadCallBack(TextureDefaultRead);
+    RwTextureSetMipmapGenerationCallBack(TextureRasterDefaultBuildMipmaps);
+    RwTextureSetMipmapNameCallBack(TextureDefaultMipmapName);
+    TEXTURE_GLOBALS->workImage = 0;
+    TEXTURE_GLOBALS->state = 0;
+    return instance;
 }

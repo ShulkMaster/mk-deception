@@ -37,7 +37,9 @@ typedef struct PfxRwEngineInstance {
     RwStringConcatCall fpStringConcat; /* +0x100 */
     char pad104[0x1C];
     RwStringLengthCall fpStringLength; /* +0x120 */
-    char pad124[0x20];
+    char pad124[0x14];
+    void (*fpFree)(void* memory); /* +0x138 */
+    char pad13C[0x8];
     RwFreeListAllocCall fpFreeListAlloc; /* +0x144 */
     RwFreeListFreeCall fpFreeListFree; /* +0x148 */
 } PfxRwEngineInstance;
