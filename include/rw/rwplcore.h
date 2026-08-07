@@ -14,6 +14,10 @@ typedef float RwReal;
 typedef struct RwModuleInfo { RwInt32 globalsOffset; RwInt32 numInstances; } RwModuleInfo;
 typedef struct RwV3d { RwReal x; RwReal y; RwReal z; } RwV3d;
 typedef struct RwBBox { RwV3d sup; RwV3d inf; } RwBBox;
+typedef struct RwError {
+    RwInt32 pluginID;
+    RwInt32 errorCode;
+} RwError;
 typedef struct RwPluginRegEntry RwPluginRegEntry;
 typedef struct RwStream RwStream;
 typedef struct RwPluginRegistry {

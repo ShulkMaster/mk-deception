@@ -7,9 +7,9 @@ RwFileFunctions* RwOsGetFileInterface(void) {
 
 static RwBool rwfexist(const RwChar* name) {
     FILE* file = RwEngineInstance->fileFuncs.rwfopen(name, "rb");
-    RwBool exists = file != NULL;
+    RwBool exists = file != 0;
 
-    if (file != NULL) {
+    if (file != 0) {
         RwEngineInstance->fileFuncs.rwfclose(file);
     }
     return exists;
@@ -27,7 +27,7 @@ RwBool _rwFileSystemOpen(void) {
     RwEngineInstance->fileFuncs.rwfseek = (rwFnFseek)fseek;
     RwEngineInstance->fileFuncs.rwfflush = (rwFnFflush)fflush;
     RwEngineInstance->fileFuncs.rwftell = (rwFnFtell)ftell;
-    return TRUE;
+    return 1;
 }
 
 void _rwFileSystemClose(void) {}

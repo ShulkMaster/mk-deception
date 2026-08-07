@@ -1,8 +1,10 @@
 #ifndef LIBMKPARTICLE_RW_ENGINE_H
 #define LIBMKPARTICLE_RW_ENGINE_H
 
-#include "rw/rwplcore.h"
 #include "runtime/cstddef.h"
+
+typedef int RwBool;
+typedef char RwChar;
 
 typedef RwBool (*rwFnFexist)(const RwChar* name);
 typedef void* (*rwFnFopen)(const RwChar* name, const RwChar* mode);

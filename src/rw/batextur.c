@@ -1,12 +1,8 @@
 #include "rw/rwcore_types.h"
 #include "rw/batextur.h"
+#include "rw/rwerror.h"
 #include "rw/rwplcore.h"
 #include "libmkparticle/rw_engine.h"
-
-typedef struct RwErrorPair {
-    int plugin;
-    int code;
-} RwErrorPair;
 
 typedef struct RwRGBA {
     unsigned char red;
@@ -49,8 +45,6 @@ static RwModuleInfo textureModule;
 static RwTexDictionary* dummyTexDict;
 extern void* _rwPluginRegistryInitObject(void* registry, void* object);
 extern void* _rwPluginRegistryDeInitObject(void* registry, void* object);
-extern int _rwerror(unsigned int code, ...);
-extern void RwErrorSet(RwErrorPair* error);
 extern int RwPalQuantInit(RwPalQuant* quantizer);
 extern void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image, float weight);
 extern void RwPalQuantResolvePalette(RwRGBA* palette, int colorCount,
@@ -213,9 +207,9 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
 
     RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
     if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
-        RwErrorPair error;
-        error.plugin = 1;
-        error.code = _rwerror(0x8000001E, name, 256, 255, name[255]);
+        RwError error;
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x8000001E, name, 256, 255, name[255]);
         RwErrorSet(&error);
         imageName[255] = 0;
     }
@@ -229,9 +223,9 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
         RwEngineInstance->fpStringCopy(imageMaskName, maskName,
                                        sizeof(imageMaskName));
         if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
-            RwErrorPair error;
-            error.plugin = 1;
-            error.code = _rwerror(0x8000001E, maskName, 256, 255,
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x8000001E, maskName, 256, 255,
                                   maskName[255]);
             RwErrorSet(&error);
             imageMaskName[255] = 0;
@@ -248,10 +242,10 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
     }
     if ((*width == 0 || *height == 0) &&
         RwImageFindRasterFormat(image, rasterFlags, width, height, depth, format) == 0) {
-        RwErrorPair error;
+        RwError error;
         RwImageDestroy(image);
-        error.plugin = 1;
-        error.code = _rwerror(0x80000009);
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x80000009);
         RwErrorSet(&error);
         return 0;
     }
@@ -311,9 +305,9 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
 
     RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
     if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
-        RwErrorPair error;
-        error.plugin = 1;
-        error.code = _rwerror(0x8000001E, name, 256, 255, name[255]);
+        RwError error;
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x8000001E, name, 256, 255, name[255]);
         RwErrorSet(&error);
         imageName[255] = 0;
     }
@@ -322,9 +316,9 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
         RwEngineInstance->fpStringCopy(imageMaskName, maskName,
                                        sizeof(imageMaskName));
         if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
-            RwErrorPair error;
-            error.plugin = 1;
-            error.code = _rwerror(0x8000001E, maskName, 256, 255,
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x8000001E, maskName, 256, 255,
                                   maskName[255]);
             RwErrorSet(&error);
             imageMaskName[255] = 0;
@@ -390,9 +384,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
 
     RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
     if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
-        RwErrorPair error;
-        error.plugin = 1;
-        error.code = _rwerror(0x8000001E, name, 256, 255, name[255]);
+        RwError error;
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x8000001E, name, 256, 255, name[255]);
         RwErrorSet(&error);
         imageName[255] = 0;
     }
@@ -401,9 +395,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
         RwEngineInstance->fpStringCopy(imageMaskName, maskName,
                                        sizeof(imageMaskName));
         if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
-            RwErrorPair error;
-            error.plugin = 1;
-            error.code = _rwerror(0x8000001E, maskName, 256, 255,
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x8000001E, maskName, 256, 255,
                                   maskName[255]);
             RwErrorSet(&error);
             imageMaskName[255] = 0;
@@ -442,9 +436,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
                 RwEngineInstance->fpStringCopy(imageName, name,
                                                sizeof(imageName));
                 if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
-                    RwErrorPair error;
-                    error.plugin = 1;
-                    error.code = _rwerror(0x8000001E, name, 256, 255,
+                    RwError error;
+                    error.pluginID = 1;
+                    error.errorCode = _rwerror(0x8000001E, name, 256, 255,
                                           name[255]);
                     RwErrorSet(&error);
                     imageName[255] = 0;
@@ -455,9 +449,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
                                                    sizeof(imageMaskName));
                     if (RwEngineInstance->fpStringLength(maskName) >=
                         sizeof(imageMaskName)) {
-                        RwErrorPair error;
-                        error.plugin = 1;
-                        error.code = _rwerror(0x8000001E, maskName, 256, 255,
+                        RwError error;
+                        error.pluginID = 1;
+                        error.errorCode = _rwerror(0x8000001E, maskName, 256, 255,
                                               maskName[255]);
                         RwErrorSet(&error);
                         imageMaskName[255] = 0;
@@ -842,12 +836,12 @@ int RwTextureDestroy(RwTexture* texture) {
 }
 
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name) {
-    RwErrorPair error;
+    RwError error;
 
     RwEngineInstance->fpStringCopy(texture->name, name, 32);
     if (RwEngineInstance->fpStringLength(name) >= 32) {
-        error.plugin = 1;
-        error.code = _rwerror(0x8000001E, name, 32, 31, name[31]);
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x8000001E, name, 32, 31, name[31]);
         RwErrorSet(&error);
         texture->name[31] = 0;
     }
@@ -855,12 +849,12 @@ RwTexture* RwTextureSetName(RwTexture* texture, const char* name) {
 }
 
 RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* maskName) {
-    RwErrorPair error;
+    RwError error;
 
     RwEngineInstance->fpStringCopy(texture->mask, maskName, 32);
     if (RwEngineInstance->fpStringLength(maskName) >= 32) {
-        error.plugin = 1;
-        error.code = _rwerror(0x8000001E, maskName, 32, 31, maskName[31]);
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x8000001E, maskName, 32, 31, maskName[31]);
         RwErrorSet(&error);
         texture->mask[31] = 0;
     }
@@ -939,14 +933,14 @@ RwTexture* RwTextureRead(const char* name, const char* maskName) {
     texture = TEXTURE_GLOBALS->readCallback(name, maskName);
     if (texture == 0) {
         if (maskName != 0) {
-            RwErrorPair error;
-            error.plugin = 1;
-            error.code = _rwerror(0x16, name, maskName);
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x16, name, maskName);
             RwErrorSet(&error);
         } else {
-            RwErrorPair error;
-            error.plugin = 1;
-            error.code = _rwerror(0x16, name, nullMaskName);
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x16, name, nullMaskName);
             RwErrorSet(&error);
         }
         return 0;

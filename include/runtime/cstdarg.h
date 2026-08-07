@@ -9,7 +9,7 @@ typedef struct MkVaListState {
     char* reg_save_area;
 } __va_list[1];
 
-#define va_start(list, last_arg) __va_start(list, last_arg)
+#define va_start(list, last_arg) __builtin_va_info(list)
 #define va_end(list) ((void)0)
 
 void* __va_arg(__va_list args, int type);
