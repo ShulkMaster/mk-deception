@@ -58,6 +58,13 @@ extern void RwPalQuantTerm(RwPalQuant* quantizer);
 extern RwImage* RwImageCreate(int width, int height, int depth);
 extern RwImage* RwImageAllocatePixels(RwImage* image);
 extern int RwImageDestroy(RwImage* image);
+extern RwImage* RwImageCopy(RwImage* destination, const RwImage* source);
+extern const char* RwImageFindFileType(const char* name);
+extern int RwImageFindRasterFormat(RwImage* image, int rasterFlags,
+                                   int* width, int* height, int* depth,
+                                   int* format);
+extern RwImage* RwImageReadMaskedImage(const char* name, const char* maskName);
+extern RwImage* RwImageResample(RwImage* destination, const RwImage* source);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
@@ -174,6 +181,99 @@ static int PalettizeMipmaps(RwRGBA* palette, RwImage* baseOriginal,
     }
     RwPalQuantTerm(&quantizer);
     return 1;
+}
+
+static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
+                                        int rasterFlags, int* width, int* height,
+                                        int* depth, int* format) {
+    char imageName[256];
+    char imageMaskName[256];
+    const char* extension;
+    RwImage* image;
+
+    RwEngineInstance->fpStringCopy(imageName, name, sizeof(imageName));
+    if (RwEngineInstance->fpStringLength(name) >= sizeof(imageName)) {
+        RwErrorPair error;
+        error.plugin = 1;
+        error.code = _rwerror(0x8000001E, name, 256, 255, name[255]);
+        RwErrorSet(&error);
+        imageName[255] = 0;
+    }
+    extension = RwImageFindFileType(name);
+    if (extension != 0) {
+        RwEngineInstance->fpStringConcat(imageName, extension);
+    }
+
+    imageMaskName[0] = 0;
+    if (maskName != 0 && maskName[0] != 0) {
+        RwEngineInstance->fpStringCopy(imageMaskName, maskName,
+                                       sizeof(imageMaskName));
+        if (RwEngineInstance->fpStringLength(maskName) >= sizeof(imageMaskName)) {
+            RwErrorPair error;
+            error.plugin = 1;
+            error.code = _rwerror(0x8000001E, maskName, 256, 255,
+                                  maskName[255]);
+            RwErrorSet(&error);
+            imageMaskName[255] = 0;
+        }
+        extension = RwImageFindFileType(maskName);
+        if (extension != 0) {
+            RwEngineInstance->fpStringConcat(imageMaskName, extension);
+        }
+    }
+
+    image = RwImageReadMaskedImage(imageName, imageMaskName);
+    if (image == 0) {
+        return 0;
+    }
+    if ((*width == 0 || *height == 0) &&
+        RwImageFindRasterFormat(image, rasterFlags, width, height, depth, format) == 0) {
+        RwErrorPair error;
+        RwImageDestroy(image);
+        error.plugin = 1;
+        error.code = _rwerror(0x80000009);
+        RwErrorSet(&error);
+        return 0;
+    }
+
+    if (image->width != *width || image->height != *height) {
+        int originalDepth = image->depth;
+        RwImage* source = image;
+        RwImage* resampled;
+
+        if (originalDepth != 32) {
+            image = RwImageCreate(source->width, source->height, 32);
+            if (image == 0) {
+                RwImageDestroy(source);
+                return 0;
+            }
+            if (RwImageAllocatePixels(image) == 0) {
+                RwImageDestroy(image);
+                RwImageDestroy(source);
+                return 0;
+            }
+            RwImageCopy(image, source);
+            RwImageDestroy(source);
+        }
+
+        resampled = RwImageCreate(*width, *height, 32);
+        if (resampled == 0) {
+            RwImageDestroy(image);
+            return 0;
+        }
+        if (RwImageAllocatePixels(resampled) == 0) {
+            RwImageDestroy(resampled);
+            RwImageDestroy(image);
+            return 0;
+        }
+        RwImageResample(resampled, image);
+        RwImageDestroy(image);
+        image = resampled;
+        if (originalDepth == 4 || originalDepth == 8) {
+            PalettizeImage(&image, originalDepth);
+        }
+    }
+    return image;
 }
 
 static int TextureAnnihilate(RwTexture* texture) {
