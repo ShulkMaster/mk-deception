@@ -1,9 +1,15 @@
 #ifndef RW_RWSTREAM_INTERNAL_H
 #define RW_RWSTREAM_INTERNAL_H
 
+#include "rw/rwcore_types.h"
+#include "rw/rwplcore.h"
+
+typedef struct RpGeometry RpGeometry;
+typedef struct RpMaterialList RpMaterialList;
+
 typedef struct RwFrameList {
     RwFrame** frames;
-    int num_frames;
+    RwInt32 numFrames;
 } RwFrameList;
 
 typedef struct RpGeometryList {
@@ -11,8 +17,8 @@ typedef struct RpGeometryList {
     int num_geometries;
 } RpGeometryList;
 
-int _rwFrameListStreamRead(RwStream* stream, RwFrameList* frame_list);
-void _rwFrameListDeinitialize(RwFrameList* frame_list);
+RwFrameList* _rwFrameListStreamRead(RwStream* stream, RwFrameList* frameList);
+RwFrameList* _rwFrameListDeinitialize(RwFrameList* frameList);
 void GeometryListDeinitialize(RpGeometryList* geometry_list);
 RwStream* _rpMaterialListStreamRead(RwStream* stream,
                                     RpMaterialList* material_list);

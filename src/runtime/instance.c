@@ -1,21 +1,12 @@
 #include "runtime/instance.h"
 #include "platform/gcinstance.h"
 #include "rw/rwplcore.h"
+#include "rw/rwstream_internal.h"
 
 typedef struct RwEngineInstanceType {
     unsigned char pad_0x00[0x134];
     void* (*fpMalloc)(unsigned int size, unsigned int hint);
 } RwEngineInstanceType;
-
-typedef struct RwFrameList {
-    RwFrame** frames;
-    int num_frames;
-} RwFrameList;
-
-typedef struct RpGeometryList {
-    RpGeometry** geometries;
-    int num_geometries;
-} RpGeometryList;
 
 typedef struct RpClumpChunkInfo {
     int num_atomics;
@@ -72,8 +63,6 @@ extern RpGeometry* RpGeometryStreamRead(RwStream* stream);
 extern int RpGeometryDestroy(RpGeometry* geometry);
 extern RpGeometry* RpGeometryUnlock(RpGeometry* geometry);
 
-extern int _rwFrameListStreamRead(RwStream* stream, RwFrameList* frame_list);
-extern void _rwFrameListDeinitialize(RwFrameList* frame_list);
 extern void GeometryListDeinitialize(RpGeometryList* geometry_list);
 extern RwStream* _rpMaterialListStreamRead(RwStream* stream,
                                            RpMaterialList* material_list);
@@ -252,7 +241,7 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
             return 0;
         }
         atomic->object.flags = (unsigned char)chunk_info.flags;
-        if (frame_list->num_frames != 0) {
+        if (frame_list->numFrames != 0) {
             RpAtomicSetFrame(atomic,
                              frame_list->frames[chunk_info.frame_index]);
         }

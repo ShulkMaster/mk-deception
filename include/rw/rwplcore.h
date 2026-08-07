@@ -40,6 +40,9 @@ typedef RwInt32 (*RwPluginDataChunkGetSizeCallBack)(const void*, RwInt32, RwInt3
 RwInt32 _rwPluginRegistryAddPlugin(RwPluginRegistry*, RwInt32, RwUInt32,
                                    RwPluginObjectConstructor, RwPluginObjectDestructor,
                                    RwPluginObjectCopy);
+RwInt32 _rwPluginRegistryAddPluginStream(
+    RwPluginRegistry*, RwUInt32, RwPluginDataChunkReadCallBack,
+    RwPluginDataChunkWriteCallBack, RwPluginDataChunkGetSizeCallBack);
 RwInt32 RwEngineRegisterPlugin(RwInt32, RwUInt32,
                                RwPluginObjectConstructor,
                                RwPluginObjectDestructor);
