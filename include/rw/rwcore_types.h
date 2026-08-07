@@ -14,6 +14,13 @@ typedef struct RwLinkList {
     RwLLLink link;
 } RwLinkList;
 
+#define rwLinkListAddLLLink(list, newLink)                                \
+    ((newLink)->next = (list)->link.next, (newLink)->prev = &(list)->link, \
+     ((list)->link.next)->prev = (newLink), (list)->link.next = (newLink))
+
+#define rwLinkListRemoveLLLink(link) \
+    (((link)->prev)->next = (link)->next, ((link)->next)->prev = (link)->prev)
+
 typedef struct RwTexDictionary RwTexDictionary;
 
 /* Stock RenderWare image layout used by RwImageCreate and ImageWriteTGA. */

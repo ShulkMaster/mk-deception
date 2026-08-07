@@ -13,7 +13,7 @@ struct RwObjectHasFrame {
     RwObjectHasFrameSyncFunction sync;
 };
 
-void _rwObjectHasFrameSetFrame(RwObjectHasFrame* object, RwFrame* frame);
-void _rwObjectHasFrameReleaseFrame(RwObjectHasFrame* object);
+void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame);
+void _rwObjectHasFrameReleaseFrame(void* object);
 
 #endif

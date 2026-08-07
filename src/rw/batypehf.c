@@ -2,37 +2,24 @@
 
 extern RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 
-static inline void rwLLLinkRemove(RwLLLink* link) {
-    RwLLLink* next = link->next;
-    RwLLLink* prev = link->prev;
-    prev->next = next;
-    next->prev = prev;
-}
+void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame) {
+    RwObjectHasFrame* objectHasFrame = object;
 
-static inline void rwLinkListAddLLLink(RwLLLink* list, RwLLLink* link) {
-    link->next = list->next;
-    link->prev = list;
-    list->next->prev = link;
-    list->next = link;
-}
-
-void _rwObjectHasFrameSetFrame(RwObjectHasFrame* object, RwFrame* frame) {
-    RwLLLink* frameObjects;
-
-    if (object->object.parent != 0) {
-        rwLLLinkRemove(&object->lFrame);
+    if (objectHasFrame->object.parent != 0) {
+        rwLinkListRemoveLLLink(&objectHasFrame->lFrame);
     }
 
-    object->object.parent = frame;
+    ((RwObject*)object)->parent = frame;
     if (frame != 0) {
-        frameObjects = &frame->objectList.link;
-        rwLinkListAddLLLink(frameObjects, &object->lFrame);
+        rwLinkListAddLLLink(&frame->objectList, &objectHasFrame->lFrame);
         RwFrameUpdateObjects(frame);
     }
 }
 
-void _rwObjectHasFrameReleaseFrame(RwObjectHasFrame* object) {
-    if (object->object.parent != 0) {
-        rwLLLinkRemove(&object->lFrame);
+void _rwObjectHasFrameReleaseFrame(void* object) {
+    RwObjectHasFrame* objectHasFrame = object;
+
+    if (objectHasFrame->object.parent != 0) {
+        rwLinkListRemoveLLLink(&objectHasFrame->lFrame);
     }
 }
