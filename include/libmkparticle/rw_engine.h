@@ -37,6 +37,7 @@ typedef int (*RwRasterDeviceCall)(void* result, void* raster, int flags);
 typedef int (*RwTextureRasterCall)(void* texture, void* raster, int flags);
 typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
 typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
+typedef void* (*RwMemoryAllocCall)(unsigned int size, unsigned int hint);
 typedef void (*RwStringCopyCall)(char* destination, const char* source,
                                  unsigned int size);
 typedef char* (*RwStringConcatCall)(char* destination, const char* source);
@@ -70,11 +71,15 @@ typedef struct PfxRwEngineInstance {
     RwStringConcatCall fpStringConcat; /* +0x100 */
     char pad104[0x1C];
     RwStringLengthCall fpStringLength; /* +0x120 */
-    char pad124[0x14];
+    char pad124[0x10];
+    RwMemoryAllocCall fpMalloc; /* +0x134 */
     void (*fpFree)(void* memory); /* +0x138 */
     char pad13C[0x8];
     RwFreeListAllocCall fpFreeListAlloc; /* +0x144 */
     RwFreeListFreeCall fpFreeListFree; /* +0x148 */
+    void* metrics; /* +0x14C */
+    int engineStatus; /* +0x150 */
+    unsigned int resArenaInitSize; /* +0x154 */
 } PfxRwEngineInstance;
 
 extern PfxRwEngineInstance* RwEngineInstance;
