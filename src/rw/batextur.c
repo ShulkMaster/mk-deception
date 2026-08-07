@@ -65,7 +65,9 @@ extern int RwImageFindRasterFormat(RwImage* image, int rasterFlags,
                                    int* format);
 extern RwImage* RwImageReadMaskedImage(const char* name, const char* maskName);
 extern RwImage* RwImageResample(RwImage* destination, const RwImage* source);
+extern RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
 extern RwImage* RwImageGammaCorrect(RwImage* image);
+extern RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
 extern int RwRasterSetFromImage(RwRaster* raster, RwImage* image);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
@@ -530,6 +532,100 @@ static RwTexture* TextureDefaultRead(const char* name, const char* maskName) {
         texture = TextureDefaultNormalRead(name, maskName);
     }
     return texture;
+}
+
+static RwRaster* TextureRasterDefaultBuildMipmaps(RwRaster* raster,
+                                                   RwImage* baseImage) {
+    RwRGBA palette[256];
+    RwImage* mipmaps[16];
+    int width = raster->width;
+    int height = raster->height;
+    int depth = raster->depth;
+    int formatBit;
+    int levelCount;
+    int level;
+
+    if (baseImage == 0) {
+        mipmaps[0] = RwImageCreate(width, height, 32);
+        if (mipmaps[0] != 0) {
+            if (RwImageAllocatePixels(mipmaps[0]) == 0) {
+                return 0;
+            }
+            RwImageSetFromRaster(mipmaps[0], raster);
+        }
+    } else if (baseImage->depth != 32) {
+        mipmaps[0] = RwImageCreate(width, height, 32);
+        if (mipmaps[0] != 0) {
+            if (RwImageAllocatePixels(mipmaps[0]) == 0) {
+                return 0;
+            }
+            RwImageCopy(mipmaps[0], baseImage);
+        }
+    } else {
+        mipmaps[0] = baseImage;
+    }
+    if (mipmaps[0] == 0) {
+        return 0;
+    }
+
+    formatBit = raster->format & 0x10;
+    raster->format = (unsigned char)(raster->format & ~formatBit);
+    levelCount = RwRasterGetNumLevels(raster);
+    for (level = 1; level < levelCount; level++) {
+        mipmaps[level] = 0;
+        if (RwRasterLock(raster, (unsigned char)level, 2) != 0) {
+            mipmaps[level] = RwImageCreateResample(
+                mipmaps[level - 1], raster->width, raster->height);
+            RwRasterUnlock(raster);
+        }
+        if (mipmaps[level] == 0) {
+            do {
+                level--;
+                if (mipmaps[level] != baseImage) {
+                    RwImageDestroy(mipmaps[level]);
+                }
+            } while (level > 0);
+            raster->format = (unsigned char)(raster->format | formatBit);
+            return 0;
+        }
+    }
+
+    if ((((unsigned int)raster->format << 8) & 0x6000) != 0) {
+        if ((((unsigned int)raster->format << 8) & 0x4000) != 0) {
+            if (PalettizeMipmaps(palette, baseImage, mipmaps, levelCount, 4) == 0) {
+                if (levelCount > 0 && mipmaps[0] != baseImage) {
+                    RwImageDestroy(mipmaps[0]);
+                }
+                raster->format = (unsigned char)(raster->format | formatBit);
+                return 0;
+            }
+        } else {
+            if (PalettizeMipmaps(palette, baseImage, mipmaps, levelCount, 8) == 0) {
+                if (levelCount > 0 && mipmaps[0] != baseImage) {
+                    RwImageDestroy(mipmaps[0]);
+                }
+                raster->format = (unsigned char)(raster->format | formatBit);
+                return 0;
+            }
+        }
+        RwImageGammaCorrect(mipmaps[0]);
+    } else {
+        for (level = 0; level < levelCount; level++) {
+            RwImageGammaCorrect(mipmaps[level]);
+        }
+    }
+
+    for (level = 0; level < levelCount; level++) {
+        if (RwRasterLock(raster, (unsigned char)level, 5) != 0) {
+            RwRasterSetFromImage(raster, mipmaps[level]);
+            RwRasterUnlock(raster);
+        }
+        if (mipmaps[level] != baseImage) {
+            RwImageDestroy(mipmaps[level]);
+        }
+    }
+    raster->format = (unsigned char)(raster->format | formatBit);
+    return raster;
 }
 
 static int TextureAnnihilate(RwTexture* texture) {
