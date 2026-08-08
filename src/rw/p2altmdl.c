@@ -1,9 +1,5 @@
 #include "rw/rxpipeline.h"
 
-typedef struct RxExecutionContext {
-    unsigned char fields[0x18];
-} RxExecutionContext;
-
 extern RxHeap* _rxHeapGlobal;
 
 RxExecutionContext _rxExecCtxGlobal;
