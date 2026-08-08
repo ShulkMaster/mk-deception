@@ -151,12 +151,14 @@ RwInt32 RpGeometryAddMorphTarget(RpGeometry* geometry)
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry,
                                       RpMaterialCallBack callback, void* data)
 {
+    RpMaterialCallBack callBack = callback;
+    void* pData = data;
     RwInt32 numMaterials = geometry->matList.numMaterials;
     RwInt32 index;
 
     for (index = 0; index < numMaterials; index++) {
         RpMaterial* material = geometry->matList.materials[index];
-        if (callback(material, data) == NULL) {
+        if (callBack(material, pData) == NULL) {
             return geometry;
         }
     }
