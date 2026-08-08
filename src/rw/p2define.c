@@ -668,12 +668,25 @@ RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
     return pipeline;
 }
 
+/* Retail carries one additional copy of the staged validity predicate into a
+ * third nonvolatile register. The clean two-stage validation below recovers
+ * every search/callback/index operation without retaining that redundant
+ * boolean lifetime. */
 RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
                                          const RwChar* name,
                                          RxPipelineNode* start,
                                          RwInt32* nodeIndex)
 {
-    if (pipeline != NULL && name != NULL && pipeline->numNodes != 0) {
+    RwBool hasNodes = FALSE;
+    RwBool validArguments = FALSE;
+
+    if (pipeline != NULL && name != NULL) {
+        validArguments = TRUE;
+    }
+    if (validArguments && pipeline->numNodes != 0) {
+        hasNodes = TRUE;
+    }
+    if (hasNodes) {
         RxPipelineNode* node = pipeline->nodes;
         RwInt32 remaining = pipeline->numNodes;
 
