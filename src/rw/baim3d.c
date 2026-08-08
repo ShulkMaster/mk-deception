@@ -6,11 +6,10 @@
 #include "runtime/cstring.h"
 
 typedef struct RwIm3DTransformData {
-    RwUInt32 numVertices;
+    RwUInt16 numVertices;
+    RwUInt16 reserved_0x3A;
     RwIm3DVertex* vertices;
     RwUInt32 stride;
-    RwUInt32 flags;
-    const RwMatrix* localToWorld;
 } RwIm3DTransformData;
 
 typedef struct RwIm3DRenderData {
@@ -20,14 +19,20 @@ typedef struct RwIm3DRenderData {
     RwUInt32 numIndices;
 } RwIm3DRenderData;
 
+typedef struct RwIm3DStash {
+    RwUInt32 flags;
+    const RwMatrix* localToWorld;
+    RwUInt8 reserved_0x4C[0x18];
+    RwIm3DRenderData renderData;
+} RwIm3DStash;
+
 typedef struct RwIm3DGlobals {
     RxPipeline* transformPipeline;
     RwIm3DRenderPipelines renderPipelines;
     RxPipeline* defaultTransformPipeline;
     RwIm3DRenderPipelines defaultRenderPipelines;
     RwIm3DTransformData transformData;
-    RwUInt8 reserved_0x4C[0x18];
-    RwIm3DRenderData renderData;
+    RwIm3DStash stash;
 } RwIm3DGlobals;
 
 RwIm3DGlobals* _rwIm3DGlobals;
@@ -53,8 +58,8 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
     IM3DGLOBALS->transformData.numVertices = numVertices;
     IM3DGLOBALS->transformData.vertices = vertices;
     IM3DGLOBALS->transformData.stride = 0x24;
-    IM3DGLOBALS->transformData.localToWorld = localToWorld;
-    IM3DGLOBALS->transformData.flags = flags | 8 | 0x10;
+    IM3DGLOBALS->stash.localToWorld = localToWorld;
+    IM3DGLOBALS->stash.flags = flags | 8 | 0x10;
     if (RxPipelineExecute(IM3DGLOBALS->transformPipeline,
                           &IM3DGLOBALS->transformData, TRUE) != NULL) {
         return vertices;
@@ -76,7 +81,7 @@ RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
                                     RwUInt32 numIndices)
 {
     if (IM3DGLOBALS->transformData.vertices != NULL) {
-        RwIm3DRenderData* data = &IM3DGLOBALS->renderData;
+        RwIm3DRenderData* data = &IM3DGLOBALS->stash.renderData;
         data->pipeline = NULL;
         data->primitiveType = primitiveType;
         data->indices = indices;
@@ -122,10 +127,11 @@ RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
 RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 {
     void* vertices = IM3DGLOBALS->transformData.vertices;
+    RwBool transformed = vertices != NULL;
 
     RxHeapGetGlobalHeap();
-    if (vertices != NULL) {
-        RwIm3DRenderData* data = &IM3DGLOBALS->renderData;
+    if (transformed) {
+        RwIm3DRenderData* data = &IM3DGLOBALS->stash.renderData;
         data->pipeline = NULL;
         data->primitiveType = primitiveType;
         data->indices = NULL;
