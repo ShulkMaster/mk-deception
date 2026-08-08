@@ -11,31 +11,29 @@ extern int sscanf(const RwChar*, const RwChar*, ...);
 
 static const RwChar nullString[] = "";
 
-/* Near miss: retail-equivalent ASCII flow; only branch scheduling differs. */
 static int StrICmp(const RwChar* string1, const RwChar* string2) {
     RwChar character1;
     RwChar character2;
 
-    if (string1 == NULL || string2 == NULL) {
-        return 0;
-    }
-    do {
-        character1 = *string1;
-        character2 = *string2;
-        if (character1 >= 'A' && character1 <= 'Z') {
-            character1 += 'a' - 'A';
-        }
-        if (character2 >= 'A' && character2 <= 'Z') {
-            character2 += 'a' - 'A';
-        }
+    if (string1 != NULL && string2 != NULL) {
+        do {
+            character1 = *string1;
+            character2 = *string2;
+            if (character1 >= 'A' && character1 <= 'Z') {
+                character1 += 'a' - 'A';
+            }
+            if (character2 >= 'A' && character2 <= 'Z') {
+                character2 += 'a' - 'A';
+            }
+            if (character1 != character2) {
+                return character1 - character2;
+            }
+            string1++;
+            string2++;
+        } while (character1 != '\0' && character2 != '\0');
         if (character1 != character2) {
             return character1 - character2;
         }
-        string1++;
-        string2++;
-    } while (character1 != '\0' && character2 != '\0');
-    if (character1 != character2) {
-        return character1 - character2;
     }
     return 0;
 }
