@@ -238,7 +238,9 @@ RwStream* RwStreamReadReal(RwStream* stream, RwReal* reals,
     return stream;
 }
 
-/* Near miss: exact read/error/convert CFG; argument stack homing differs. */
+/* Near match: the complete body and register coloring are exact. Retail uses
+ * _savegpr_29/_restgpr_29 while this emission saves/restores the same three
+ * nonvolatile registers individually. */
 RwStream* RwStreamReadInt32(RwStream* stream, RwInt32* integers,
                             RwUInt32 numBytes) {
     if (RwStreamRead(stream, integers, numBytes) == 0) {
