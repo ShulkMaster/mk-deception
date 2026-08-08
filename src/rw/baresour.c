@@ -235,6 +235,8 @@ RwBool RwResourcesSetArenaSize(RwUInt32 size) {
     return TRUE;
 }
 
+/* Near miss: remaining differences are the scheduling of equivalent address
+ * additions used to materialize the two reset-list sentinels. */
 RwBool RwResourcesEmptyArena(void) {
     RwLLLink* link;
     RwLLLink* end;
@@ -250,9 +252,15 @@ RwBool RwResourcesEmptyArena(void) {
         RwResourcesFreeResEntry(entry);
     }
     RESOURCESGLOBAL.entriesA.link.next = &RESOURCESGLOBAL.entriesA.link;
-    RESOURCESGLOBAL.entriesA.link.prev = &RESOURCESGLOBAL.entriesA.link;
+    {
+        RwLLLink* sentinelA = &RESOURCESGLOBAL.entriesA.link;
+        RESOURCESGLOBAL.entriesA.link.prev = sentinelA;
+    }
     RESOURCESGLOBAL.entriesB.link.next = &RESOURCESGLOBAL.entriesB.link;
-    RESOURCESGLOBAL.entriesB.link.prev = &RESOURCESGLOBAL.entriesB.link;
+    {
+        RwLLLink* sentinelB = &RESOURCESGLOBAL.entriesB.link;
+        RESOURCESGLOBAL.entriesB.link.prev = sentinelB;
+    }
     RESOURCESGLOBAL.arenaReusage = 0;
     return TRUE;
 }
