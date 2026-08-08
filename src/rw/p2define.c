@@ -751,74 +751,87 @@ RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
     return NULL;
 }
 
+/*
+ * Retail colors firstIndex/nodeDef0 as r23/r24; clean source uses r24/r23.
+ * The complete function is otherwise instruction- and size-identical.
+ */
 RxLockedPipe* RxLockedPipeAddFragment(RxLockedPipe* pipeline,
                                       RwUInt32* firstIndex,
                                       RxNodeDefinition* nodeDef0, ...)
 {
     __va_list arguments;
     RxNodeDefinition* nodeDef;
-    RwUInt32 count = 0;
-    RwUInt32 created = 0;
+    RwUInt32 count;
+    RwUInt32 created;
     RwUInt32 firstNode;
-    RxPipelineNode* previous = NULL;
+    RxPipelineNode* previous;
 
-    if (pipeline == NULL || !pipeline->locked) {
-        RwError error;
-        error.pluginID = 1;
-        error.errorCode = pipeline == NULL ? _rwerror(0x80000016)
-                                           : _rwerror(0x34);
-        RwErrorSet(&error);
-        return NULL;
-    }
-
-    va_start(arguments, nodeDef0);
-    nodeDef = nodeDef0;
-    while (nodeDef != NULL) {
-        count++;
-        nodeDef = *(RxNodeDefinition**)__va_arg(arguments, 1);
-    }
-    va_end(arguments);
-    if (count == 0) {
-        return NULL;
-    }
-    if (pipeline->numNodes + count > RXPIPELINEGLOBAL(maxNodes)) {
-        RwError error;
-        error.pluginID = 1;
-        error.errorCode = _rwerror(0x2A);
-        RwErrorSet(&error);
-        return NULL;
-    }
-
-    firstNode = pipeline->numNodes;
-    va_start(arguments, nodeDef0);
-    nodeDef = nodeDef0;
-    while (nodeDef != NULL) {
-        RxPipelineNode* node = &pipeline->nodes[firstNode + created];
-        if (!_NodeCreate(pipeline, node, nodeDef)) {
-            break;
+    if (pipeline != NULL && pipeline->locked) {
+        count = 0;
+        va_start(arguments, nodeDef0);
+        nodeDef = nodeDef0;
+        while (nodeDef != NULL) {
+            count++;
+            nodeDef = *(RxNodeDefinition**)__va_arg(arguments, 1);
         }
-        if (previous != NULL &&
-            RxLockedPipeAddPath(
-                pipeline, RxPipelineNodeFindOutputByIndex(previous, 0),
-                RxPipelineNodeFindInput(node)) == NULL) {
-            PipelineNodeDestroy(node, pipeline);
-            break;
-        }
-        previous = node;
-        created++;
-        nodeDef = *(RxNodeDefinition**)__va_arg(arguments, 1);
-    }
-    va_end(arguments);
+        va_end(arguments);
+        if (count != 0) {
+            previous = NULL;
+            if (pipeline->numNodes + count > RXPIPELINEGLOBAL(maxNodes)) {
+                RwError error;
+                error.pluginID = 1;
+                error.errorCode = _rwerror(0x2A);
+                RwErrorSet(&error);
+                return NULL;
+            }
 
-    if (created == count) {
-        if (firstIndex != NULL) {
-            *firstIndex = firstNode;
+            firstNode = pipeline->numNodes;
+            created = 0;
+            va_start(arguments, nodeDef0);
+            nodeDef = nodeDef0;
+            while (nodeDef != NULL) {
+                RxPipelineNode* node =
+                    &pipeline->nodes[firstNode + created];
+                if (!_NodeCreate(pipeline, node, nodeDef)) {
+                    break;
+                }
+                if (previous != NULL &&
+                    RxLockedPipeAddPath(
+                        pipeline,
+                        RxPipelineNodeFindOutputByIndex(previous, 0),
+                        RxPipelineNodeFindInput(node)) == NULL) {
+                    PipelineNodeDestroy(node, pipeline);
+                    break;
+                }
+                previous = node;
+                created++;
+                nodeDef = *(RxNodeDefinition**)__va_arg(arguments, 1);
+            }
+            va_end(arguments);
+
+            if (created == count) {
+                if (firstIndex != NULL) {
+                    *firstIndex = firstNode;
+                }
+                return pipeline;
+            }
+            while (created-- != 0) {
+                PipelineNodeDestroy(
+                    &pipeline->nodes[created + firstNode], pipeline);
+            }
         }
-        return pipeline;
-    }
-    while (created != 0) {
-        created--;
-        PipelineNodeDestroy(&pipeline->nodes[firstNode + created], pipeline);
+    } else {
+        if (pipeline == NULL) {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x80000016);
+            RwErrorSet(&error);
+        } else {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x34);
+            RwErrorSet(&error);
+        }
     }
     return NULL;
 }
