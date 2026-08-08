@@ -101,8 +101,6 @@ static void FrameSyncHierarchy(RwFrame* root) {
     root->object.privateFlags = flags & ~0x0FU;
 }
 
-/* Near miss: retail keeps the dirty-list sentinel in r28; clean C recomputes
- * the same +0xBC address in a different register. */
 RwBool _rwFrameSyncDirty(void) {
     RwLLLink* link = RwEngineInstance->dirtyFrameList.link.next;
     RwLLLink* sentinel = &RwEngineInstance->dirtyFrameList.link;
@@ -112,10 +110,8 @@ RwBool _rwFrameSyncDirty(void) {
         FrameSyncHierarchy(frame);
         link = link->next;
     }
-    {
-        RwLLLink* nextSentinel = &RwEngineInstance->dirtyFrameList.link;
-        RwEngineInstance->dirtyFrameList.link.next = nextSentinel;
-    }
+    RwEngineInstance->dirtyFrameList.link.next =
+        &RwEngineInstance->dirtyFrameList.link;
     {
         RwLLLink* previousSentinel = &RwEngineInstance->dirtyFrameList.link;
         RwEngineInstance->dirtyFrameList.link.prev = previousSentinel;
