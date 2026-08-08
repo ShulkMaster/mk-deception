@@ -222,7 +222,9 @@ RwStream* RwStreamWriteInt32(RwStream* stream, const RwInt32* integers,
     return stream;
 }
 
-/* Near miss: exact read/error/convert CFG; argument stack homing differs. */
+/* Near match: the read/error/conversion body is exact. Retail colors reals in
+ * r31 and numBytes in r30 and uses GPR save helpers; this emission reverses
+ * those two registers and saves them individually. */
 RwStream* RwStreamReadReal(RwStream* stream, RwReal* reals,
                            RwUInt32 numBytes) {
     if (RwStreamRead(stream, reals, numBytes) == 0) {
