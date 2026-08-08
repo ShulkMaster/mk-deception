@@ -377,14 +377,14 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
     char imageName[256];
     char imageMaskName[256];
     RwRGBA palette[256];
-    RwImage* mipmaps[64];
+    RwImage* mipmaps[16];
     RwRaster* raster;
     RwTexture* texture;
-    int width = 0;
-    int height = 0;
+    int width;
+    int height;
     int depth;
     int format;
-    int rasterFlags = 4;
+    int rasterFlags;
     int level;
     int levelCount;
 
@@ -410,6 +410,7 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
         }
     }
 
+    rasterFlags = 4;
     if (TEXTURE_GLOBALS->mipmapping != 0) {
         rasterFlags |= 0x8000;
         if (TEXTURE_GLOBALS->autoMipmapping != 0) {
@@ -417,6 +418,8 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
         }
     }
     RwTextureGenerateMipmapName(imageName, imageMaskName, 0, rasterFlags);
+    width = 0;
+    height = 0;
     mipmaps[0] = TextureImageReadAndSize(imageName, imageMaskName, rasterFlags,
                                          &width, &height, &depth, &format);
     if (mipmaps[0] == 0) {
@@ -469,23 +472,22 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
                 width = raster->width;
                 height = raster->height;
                 depth = raster->depth;
-                format = ((unsigned int)raster->format << 8) | raster->type;
+                format = ((raster->format & 0xFF) << 8) | raster->type;
                 RwRasterUnlock(raster);
                 mipmaps[level] = TextureImageReadAndSize(
                     imageName, imageMaskName, rasterFlags, &width, &height,
                     &depth, &format);
                 if (mipmaps[level] == 0) {
-                    do {
-                        level--;
+                    while (--level >= 0) {
                         RwImageDestroy(mipmaps[level]);
-                    } while (level > 0);
+                    }
                     RwRasterDestroy(raster);
                     return 0;
                 }
             }
 
-            if ((((unsigned int)raster->format << 8) & 0x6000) != 0) {
-                if ((((unsigned int)raster->format << 8) & 0x4000) != 0) {
+            if ((((raster->format & 0xFF) << 8) & 0x6000) != 0) {
+                if ((((raster->format & 0xFF) << 8) & 0x4000) != 0) {
                     PalettizeMipmaps(palette, 0, mipmaps, levelCount, 4);
                 } else {
                     PalettizeMipmaps(palette, 0, mipmaps, levelCount, 8);
