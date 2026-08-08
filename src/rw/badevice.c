@@ -80,7 +80,10 @@ static RwBool CorePluginAttach(void)
     result |= RwEngineRegisterPlugin(0x74, 0x40A, _rwIm3DOpen, _rwIm3DClose);
     result |= RwEngineRegisterPlugin(0x28, 0x40B, _rwResourcesOpen,
                                      _rwResourcesClose);
-    return result >= 0;
+    if (result >= 0) {
+        return TRUE;
+    }
+    return FALSE;
 }
 
 static void* MallocWrapper(RwFreeList* freeList, RwUInt32 hint)
@@ -135,15 +138,13 @@ static RwBool _rwDeviceSystemRequest(RwDevice* device, RwInt32 request,
 
 static RwBool EngineOpen(RwDevice* device, RwEngineOpenParams* params)
 {
-    RwGlobals* globals;
-
-    globals = RwEngineInstance->fpMalloc(engineTKList.sizeOfStruct, 0x40000);
-    RwEngineInstance = globals;
-    if (globals != NULL) {
-        RwGlobals* oldGlobals = globals;
-        memcpy(globals, &staticGlobals, sizeof(RwGlobals));
-        _rwDeviceSystemRequest(device, 4, &globals->gammaCorrection,
-                               &globals->fpMalloc, 0);
+    RwEngineInstance =
+        RwEngineInstance->fpMalloc(engineTKList.sizeOfStruct, 0x40000);
+    if (RwEngineInstance != NULL) {
+        RwGlobals* oldGlobals = RwEngineInstance;
+        memcpy(RwEngineInstance, &staticGlobals, sizeof(RwGlobals));
+        _rwDeviceSystemRequest(device, 4, &RwEngineInstance->gammaCorrection,
+                               &RwEngineInstance->fpMalloc, 0);
         if (_rwDeviceSystemRequest(device, 0, NULL, params, 0)) {
             _rwDeviceSystemRequest(device, 11, &device->standard[0], NULL, 29);
             engineInstancesOpened++;
