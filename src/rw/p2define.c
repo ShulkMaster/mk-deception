@@ -147,55 +147,55 @@ static RwBool ReallocAndFixupSuperBlock(RxPipeline* pipeline,
 static RwBool LockPipelineExpandData(RxPipeline* destination,
                                      const RxPipeline* source)
 {
-    RwUInt32 maxNodes = RXPIPELINEGLOBAL(maxNodes);
     RwInt32 index;
     RwUInt32* outputsBase;
     RxPipelineNodeTopSortData* topSortBase;
 
     if (destination != source) {
         for (index = (RwInt32)source->numNodes - 1; index >= 0; index--) {
-            RxPipelineNode* destinationNode = &destination->nodes[index];
-            const RxPipelineNode* sourceNode = &source->nodes[index];
-            *destinationNode = *sourceNode;
-            destinationNode->slotClusterRefs = NULL;
-            destinationNode->slotsContinue = NULL;
-            destinationNode->privateData = NULL;
-            destinationNode->inputToClusterSlot = NULL;
-            if (destinationNode->initializationDataSize != 0) {
-                destinationNode->initializationData =
+            memcpy(&destination->nodes[index], &source->nodes[index],
+                   sizeof(RxPipelineNode));
+            destination->nodes[index].slotClusterRefs = NULL;
+            destination->nodes[index].slotsContinue = NULL;
+            destination->nodes[index].privateData = NULL;
+            destination->nodes[index].inputToClusterSlot = NULL;
+            if (destination->nodes[index].initializationDataSize != 0) {
+                destination->nodes[index].initializationData =
                     RwEngineInstance->fpMalloc(
-                        destinationNode->initializationDataSize, 0x30409);
-                if (destinationNode->initializationData == NULL) {
+                        destination->nodes[index].initializationDataSize,
+                        0x30409);
+                if (destination->nodes[index].initializationData == NULL) {
                     RwError error;
                     error.pluginID = 1;
                     error.errorCode = _rwerror(
                         0x80000013,
-                        destinationNode->initializationDataSize);
+                        destination->nodes[index].initializationDataSize);
                     RwErrorSet(&error);
                     return FALSE;
                 }
-                memcpy(destinationNode->initializationData,
-                       sourceNode->initializationData,
-                       destinationNode->initializationDataSize);
+                memcpy(destination->nodes[index].initializationData,
+                       source->nodes[index].initializationData,
+                       destination->nodes[index].initializationDataSize);
             }
         }
         destination->numNodes = source->numNodes;
     }
 
     outputsBase = (RwUInt32*)((RwUInt8*)destination->nodes +
-                              maxNodes * sizeof(RxPipelineNode));
+                              RXPIPELINEGLOBAL(maxNodes) *
+                                  sizeof(RxPipelineNode));
     for (index = (RwInt32)source->numNodes - 1; index >= 0; index--) {
-        RxPipelineNode* destinationNode = &destination->nodes[index];
-        const RxPipelineNode* sourceNode = &source->nodes[index];
-        destinationNode->outputs = outputsBase + index * 0x20;
-        if (sourceNode->outputs != NULL) {
-            memcpy(destinationNode->outputs, sourceNode->outputs,
+        destination->nodes[index].outputs = outputsBase + index * 0x20;
+        if (source->nodes[index].outputs != NULL) {
+            memcpy(destination->nodes[index].outputs,
+                   source->nodes[index].outputs,
                    0x20 * sizeof(RwUInt32));
         }
     }
 
-    topSortBase = (RxPipelineNodeTopSortData*)(outputsBase + maxNodes * 0x20);
-    for (index = 0; index < (RwInt32)source->numNodes; index++) {
+    topSortBase = (RxPipelineNodeTopSortData*)(
+        outputsBase + RXPIPELINEGLOBAL(maxNodes) * 0x20);
+    for (index = 0; (RwUInt32)index < source->numNodes; index++) {
         topSortBase[index].numIns = 0;
         topSortBase[index].numInsVisited = 0;
         topSortBase[index].req = NULL;
