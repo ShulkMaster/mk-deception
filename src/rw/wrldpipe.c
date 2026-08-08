@@ -62,6 +62,8 @@ RwBool _rpCreatePlatformWorldSectorPipelines(void) {
     return FALSE;
 }
 
+/* Near miss: retail's RxPipelineDestroy macro retains its TRUE result in r31;
+ * the result is unused and clean C emits the same destruction and clear. */
 void _rpDestroyPlatformWorldSectorPipelines(void) {
     RpWorldSetDefaultSectorPipeline(0);
     if (RXPIPELINEGLOBAL(platformWorldSectorPipeline) != 0) {
@@ -83,6 +85,8 @@ RwBool _rpCreatePlatformAtomicPipelines(void) {
     return FALSE;
 }
 
+/* Near miss: as above, only the unused macro result and its saved register
+ * remain absent from the clean source. */
 void _rpDestroyPlatformAtomicPipelines(void) {
     RpAtomicSetDefaultPipeline(0);
     if (RXPIPELINEGLOBAL(platformAtomicPipeline) != 0) {
