@@ -9,18 +9,14 @@ typedef struct RxSortPartition {
 static RwInt32 _msbitpos(RwUInt32 value) {
     RwInt32 position;
 
-    if (value == 0) {
-        return -1;
-    }
-    position = 0;
-    for (;;) {
-        value >>= 1;
-        if (value == 0) {
-            break;
+    if (value != 0) {
+        position = 0;
+        while ((value >>= 1) != 0) {
+            position += 1;
         }
-        position += 1;
+        return position;
     }
-    return position;
+    return -1;
 }
 
 static void _repartition(RwUInt8* first, RwUInt8* last,
@@ -100,23 +96,25 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
     }
 }
 
-/* Retail deliberately reloads the current-slot key after each adjacent swap;
- * do not cache it as a conventional insertion-sort key. */
 static void _insertionsort(RwUInt8* base, RwUInt32 numEntries,
                            RwUInt32 entrySize, RwUInt32 keyOffset) {
     RwUInt8* current = base;
 
-    while (--numEntries != 0) {
+    for (;;) {
         current += entrySize;
+        numEntries -= 1;
+        if (numEntries == 0) {
+            break;
+        }
         {
+            RwUInt32 currentKey = *(RwUInt32*)(current + keyOffset);
             RwUInt8* previous = current;
 
             for (;;) {
                 RwBool moveRecord;
                 previous -= entrySize;
                 moveRecord =
-                    *(RwUInt32*)(current + keyOffset) <
-                    *(RwUInt32*)(previous + keyOffset);
+                    *(RwUInt32*)(previous + keyOffset) > currentKey;
                 if (moveRecord == FALSE) {
                     break;
                 }
