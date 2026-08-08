@@ -101,10 +101,40 @@ typedef enum RxClusterValidityReq {
     rxCLREQ_OPTIONAL = 2
 } RxClusterValidityReq;
 
+typedef enum RxClusterValid {
+    rxCLVALID_NOCHANGE = 0,
+    rxCLVALID_VALID = 1,
+    rxCLVALID_INVALID = 2
+} RxClusterValid;
+
+struct RxClusterDefinition {
+    RwChar* name;
+    RwUInt32 defaultStride;
+    RwUInt32 defaultAttributes;
+    const RwChar* attributeSet;
+};
+
+struct RxOutputSpec {
+    RwChar* name;
+    RxClusterValid* outputClusters;
+    RxClusterValid allOtherClusters;
+};
+
 struct RxClusterRef {
     RxClusterDefinition* clusterDef;
     RwUInt32 forcePresent;
     RwUInt32 reserved;
+};
+
+struct RxPipelineCluster {
+    RxClusterDefinition* clusterRef;
+    RwUInt32 creationAttributes;
+};
+
+struct RxPipelineRequiresCluster {
+    RxClusterDefinition* clusterDef;
+    RxClusterValidityReq rqdOrOpt;
+    RwUInt32 slotIndex;
 };
 
 typedef struct RxIoSpec {
