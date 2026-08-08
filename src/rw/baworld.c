@@ -350,14 +350,19 @@ RwBool RpWorldDestroy(RpWorld *world) {
     _rpWorldUnregisterWorld(world);
     RpWorldLock(world);
     _rpMaterialListDeinitialize(&world->matList);
-    if (world->rootSector) {
-        if (world->object.privateFlags & 1)
+    if (world->object.privateFlags & 1) {
+        if (world->rootSector) {
             _rpWorldSectorDeinstanceAll(world->rootSector);
-        else
+        }
+        _rwPluginRegistryDeInitObject(&worldTKList, world);
+        RwEngineInstance->fpFree(world);
+    } else {
+        if (world->rootSector) {
             _rpWorldSectorDestroyRecurse(world->rootSector);
+        }
+        _rwPluginRegistryDeInitObject(&worldTKList, world);
+        RwEngineInstance->fpFree(world);
     }
-    _rwPluginRegistryDeInitObject(&worldTKList, world);
-    RwEngineInstance->fpFree(world);
     return TRUE;
 }
 
