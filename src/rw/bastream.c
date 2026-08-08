@@ -190,14 +190,22 @@ RwStream* RwStreamSkip(RwStream* stream, RwUInt32 offset)
     }
 }
 
-/* Near miss: exact ownership/close semantics; result lifetime scheduling differs. */
+/* Near match: close behavior is exact; retail copies the output pointer into a
+ * second nonvolatile register, changing only the save set and frame size. */
 RwBool RwStreamClose(RwStream* stream, void* data)
 {
     RwBool result;
+    RwBool closeResult;
     switch (stream->type) {
     case rwSTREAMFILE: result = TRUE; break;
     case rwSTREAMFILENAME:
-        result = RwEngineInstance->fileFuncs.rwfclose(stream->data.file.file) == 0; break;
+        if (RwEngineInstance->fileFuncs.rwfclose(stream->data.file.file) == 0) {
+            closeResult = TRUE;
+        } else {
+            closeResult = FALSE;
+        }
+        result = closeResult;
+        break;
     case rwSTREAMMEMORY:
         if (stream->accessType != rwSTREAMREAD && data != NULL) {
             ((RwMemory*)data)->start = stream->data.memory.start;
