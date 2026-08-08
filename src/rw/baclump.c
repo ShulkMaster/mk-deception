@@ -3,6 +3,7 @@
 #include "rw/rplight.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwplcore.h"
+#include "rw/rwstream.h"
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 #include "rw/rxpipeline.h"
@@ -38,8 +39,6 @@ static RwModuleInfo clumpModule;
 
 #define CLUMPGLOBALS ((RpClumpGlobals*)((RwUInt8*)RwEngineInstance + clumpModule.globalsOffset))
 
-extern RwInt32 RwStreamReadInt32(RwStream*, RwInt32*, RwUInt32);
-extern RwInt32 RwStreamWriteInt32(RwStream*, const RwInt32*, RwUInt32);
 extern void RwResourcesFreeResEntry(RwResEntry*);
 extern RwBool RwCameraDestroy(RwCamera*);
 extern RwInt32 RwCameraRegisterPlugin(RwInt32, RwUInt32,
@@ -108,7 +107,9 @@ RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic)
     RxPipeline* pipeline = atomic->pipeline;
     if (pipeline == NULL)
         pipeline = RXPIPELINEGLOBAL(defaultAtomicPipeline);
-    return RxPipelineExecute(pipeline, atomic, TRUE) != NULL ? atomic : NULL;
+    if (RxPipelineExecute(pipeline, atomic, TRUE) != NULL)
+        return atomic;
+    return NULL;
 }
 
 static RpGeometryList* GeometryListDeinitialize(RpGeometryList* geometryList)
@@ -125,7 +126,9 @@ static RpGeometryList* GeometryListDeinitialize(RpGeometryList* geometryList)
 
 static void* ClumpInitCameraExt(void* object, RwInt32 offset, RwInt32 size)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)object + offset);
+    RpClumpObjectExtension* ext =
+        (RpClumpObjectExtension*)((RwUInt8*)object +
+                                  _rpClumpCameraExtOffset);
     ext->inClumpLink.prev = NULL;
     ext->inClumpLink.next = NULL;
     ext->clump = NULL;
@@ -139,7 +142,9 @@ static void* ClumpDeInitCameraExt(void* object, RwInt32 offset, RwInt32 size)
 
 static void* ClumpInitLightExt(void* object, RwInt32 offset, RwInt32 size)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)object + offset);
+    RpClumpObjectExtension* ext =
+        (RpClumpObjectExtension*)((RwUInt8*)object +
+                                  _rpClumpLightExtOffset);
     ext->inClumpLink.prev = NULL;
     ext->inClumpLink.next = NULL;
     ext->clump = NULL;
@@ -270,7 +275,9 @@ RwBool _rpClumpRegisterExtensions(void)
     if (_rpClumpCameraExtOffset < 0)
         return FALSE;
     _rpClumpLightExtOffset = RpLightRegisterPlugin(12, 0x10, ClumpInitLightExt, ClumpDeInitLightExt, NULL);
-    return _rpClumpLightExtOffset >= 0;
+    if (_rpClumpLightExtOffset < 0)
+        return FALSE;
+    return TRUE;
 }
 
 RpClump* RpClumpRender(RpClump* clump)
@@ -330,7 +337,8 @@ RpClump* RpClumpForAllLights(RpClump* clump, RpLightCallBack callback, void* dat
 
 RpAtomic* RpAtomicCreate(void)
 {
-    RpAtomic* atomic = _rwFreeListAllocReal(CLUMPGLOBALS->atomicFreeList, 0x30014);
+    RpAtomic* atomic = RwEngineInstance->fpFreeListAlloc(
+        CLUMPGLOBALS->atomicFreeList, 0x30014);
     if (atomic == NULL)
         return NULL;
     rwObjectInitialize(atomic, 1, 0);
@@ -380,18 +388,23 @@ RwBool RpAtomicDestroy(RpAtomic* atomic)
         RwResourcesFreeResEntry(atomic->repEntry);
     RpAtomicSetGeometry(atomic, NULL, 0);
     _rwObjectHasFrameReleaseFrame(atomic);
-    _rwFreeListFreeReal(CLUMPGLOBALS->atomicFreeList, atomic);
+    RwEngineInstance->fpFreeListFree(CLUMPGLOBALS->atomicFreeList, atomic);
     return TRUE;
 }
 
 void RpClumpSetCallBack(RpClump* clump, RpClumpCallBack callback)
 {
-    clump->callback = callback != NULL ? callback : ClumpCallBack;
+    if (callback != NULL) {
+        clump->callback = callback;
+        return;
+    }
+    clump->callback = ClumpCallBack;
 }
 
 RpClump* RpClumpCreate(void)
 {
-    RpClump* clump = _rwFreeListAllocReal(CLUMPGLOBALS->clumpFreeList, 0x30010);
+    RpClump* clump = RwEngineInstance->fpFreeListAlloc(
+        CLUMPGLOBALS->clumpFreeList, 0x30010);
     if (clump == NULL)
         return NULL;
     rwObjectInitialize(clump, 2, 0);
@@ -406,13 +419,15 @@ RpClump* RpClumpCreate(void)
 
 RwBool RpClumpDestroy(RpClump* clump)
 {
+    RwFrame* frame;
     _rwPluginRegistryDeInitObject(&clumpTKList, clump);
     RpClumpForAllAtomics(clump, DestroyClumpAtomic, NULL);
     RpClumpForAllLights(clump, DestroyClumpLight, NULL);
     RpClumpForAllCameras(clump, DestroyClumpCamera, NULL);
-    if (clump->object.parent != NULL)
-        RwFrameDestroyHierarchy(clump->object.parent);
-    _rwFreeListFreeReal(CLUMPGLOBALS->clumpFreeList, clump);
+    frame = clump->object.parent;
+    if (frame != NULL)
+        RwFrameDestroyHierarchy(frame);
+    RwEngineInstance->fpFreeListFree(CLUMPGLOBALS->clumpFreeList, clump);
     return TRUE;
 }
 
@@ -426,7 +441,7 @@ RpClump* RpClumpAddAtomic(RpClump* clump, RpAtomic* atomic)
 void RpClumpRemoveLight(RpClump* clump, RpLight* light)
 {
     RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)light + _rpClumpLightExtOffset);
-    rwLLLinkRemove(&ext->inClumpLink);
+    rwLinkListRemoveLLLink(&ext->inClumpLink);
     ext->inClumpLink.prev = NULL;
     ext->inClumpLink.next = NULL;
     ext->clump = NULL;
@@ -435,7 +450,7 @@ void RpClumpRemoveLight(RpClump* clump, RpLight* light)
 void RpClumpRemoveCamera(RpClump* clump, RwCamera* camera)
 {
     RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)camera + _rpClumpCameraExtOffset);
-    rwLLLinkRemove(&ext->inClumpLink);
+    rwLinkListRemoveLLLink(&ext->inClumpLink);
     ext->inClumpLink.prev = NULL;
     ext->inClumpLink.next = NULL;
     ext->clump = NULL;
@@ -454,7 +469,10 @@ RwInt32 RpAtomicSetStreamRightsCallBack(RwUInt32 id, RwPluginDataChunkRightsCall
 RwInt32 RpClumpRegisterPluginStream(RwUInt32 id, RwPluginDataChunkReadCallBack read, RwPluginDataChunkWriteCallBack write, RwPluginDataChunkGetSizeCallBack size)
 { return _rwPluginRegistryAddPluginStream(&clumpTKList, id, read, write, size); }
 RwInt32 RpAtomicGetPluginOffset(RwUInt32 id)
-{ return _rwPluginRegistryGetPluginOffset(&atomicTKList, id); }
+{
+    RwUInt32 pluginID = id;
+    return _rwPluginRegistryGetPluginOffset(&atomicTKList, pluginID);
+}
 
 RpAtomic* RpAtomicSetFrame(RpAtomic* atomic, RwFrame* frame)
 {
