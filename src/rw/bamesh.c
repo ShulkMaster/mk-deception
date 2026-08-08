@@ -180,7 +180,8 @@ RpBuildMesh* _rpBuildMeshAddTriangle(
 RpMeshHeader* _rpMeshHeaderForAllMeshes(RpMeshHeader* meshHeader,
                                         RpMeshCallBack callback, void* data)
 {
-    RwUInt16 numMeshes = meshHeader->numMeshes;
+    /* Retail body is exact; only its r29-r31 save/restore helpers differ. */
+    RwInt32 numMeshes = meshHeader->numMeshes;
     RpMesh* mesh = (RpMesh*)((RwUInt8*)(meshHeader + 1) +
                             meshHeader->firstMeshOffset);
     while (numMeshes--) {
