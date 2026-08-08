@@ -9,8 +9,8 @@ typedef struct RpMTEffectDict RpMTEffectDict;
 
 typedef RpMTEffect* (*RpMTEffectStreamReadCallBack)(RwStream* stream,
                                                     RwInt32 type,
-                                                    RwInt32 length,
-                                                    RwUInt32 version);
+                                                    RwUInt32 version,
+                                                    RwInt32 length);
 typedef RwStream* (*RpMTEffectStreamWriteCallBack)(const RpMTEffect* effect,
                                                    RwStream* stream);
 typedef RwInt32 (*RpMTEffectStreamGetSizeCallBack)(const RpMTEffect* effect);

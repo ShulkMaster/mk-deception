@@ -226,7 +226,7 @@ RpMTEffect* RpMTEffectStreamRead(RwStream* stream)
         return NULL;
     if (!RwStreamFindChunk(stream, 3, &length, &version))
         return NULL;
-    effect = entry->streamRead(stream, type, length, version);
+    effect = entry->streamRead(stream, type, version, length);
     if (!effect)
         return NULL;
     RpMTEffectSetName(effect, name);
