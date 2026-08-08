@@ -772,8 +772,8 @@ int RwTexDictionaryDestroy(RwTexDictionary* dictionary) {
     RwTexDictionaryForAllTextures(
         dictionary, (RwTexture* (*)(RwTexture*, void*))RwTextureDestroy, 0);
     _rwPluginRegistryDeInitObject(&texDictTKList, dictionary);
+    dictionary->lInInstance.prev->next = dictionary->lInInstance.next;
     previous = dictionary->lInInstance.prev;
-    previous->next = dictionary->lInInstance.next;
     dictionary->lInInstance.next->prev = previous;
     RwEngineInstance->fpFreeListFree(TEXTURE_GLOBALS->dictionaryFreeList, dictionary);
     return 1;
