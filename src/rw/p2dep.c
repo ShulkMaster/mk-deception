@@ -51,15 +51,19 @@ static rxReq *_ReqCreate(RxPipelineNode *node, RwUInt32 maxEntries) {
 
 static rxReqEntry *_ReqSearch4Cluster(rxReq *req,
                                       RxClusterDefinition *clusterDef) {
+  /* Retail loads numEntries into the index register immediately before
+   * replacing it with zero; clean source omits that dead initialization. */
   rxReqEntry *entry;
   RwUInt32 index;
 
   if (req->numEntries != 0) {
     entry = req->entries;
-    for (index = 0; index < req->numEntries; index++, entry++) {
+    for (index = 0; index < req->numEntries;) {
       if (entry->clusterDef == clusterDef) {
         return entry;
       }
+      entry++;
+      index++;
     }
   }
   return NULL;
