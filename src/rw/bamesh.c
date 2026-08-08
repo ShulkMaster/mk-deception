@@ -208,8 +208,7 @@ RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
 {
     RwInt32 header[3];
     const RpMesh* mesh;
-    const RpMeshObjectHeader* objectHeader = object;
-    RwUInt16 numMeshes;
+    RwUInt32 numMeshes;
 
     header[0] = meshHeader->flags;
     header[1] = meshHeader->numMeshes;
@@ -223,7 +222,7 @@ RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
         info[1] = _rpMaterialListFindMaterialIndex(materialList, mesh->material);
         if (info[1] < 0) info[1] = 0;
         if (RwStreamWriteInt32(stream, info, sizeof(info)) == NULL) return NULL;
-        if (MESHOBJECTHASINDICES(objectHeader)) {
+        if (MESHOBJECTHASINDICES(object)) {
             RwUInt32 remaining = mesh->numIndices;
             const RxVertexIndex* index = mesh->indices;
             while (remaining != 0) {
@@ -249,7 +248,7 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
     RpMeshHeader* meshHeader;
     RpMesh* mesh;
     RxVertexIndex* indices;
-    RwUInt16 numMeshes;
+    RwUInt32 numMeshes;
 
     if (RwStreamReadInt32(stream, header, sizeof(header)) == NULL) return NULL;
     size = header[1] * 16 + sizeof(RpMeshHeader);
