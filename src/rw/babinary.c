@@ -95,13 +95,16 @@ RwStream* _rwStreamWriteVersionedChunkHeader(RwStream* stream, RwInt32 type,
                                               RwInt32 size, RwUInt32 version,
                                               RwUInt32 buildNum) {
     RwChunkHeader header;
+    RwStream* result;
     header.type = type;
     header.length = size;
-    header.libraryIDPack = (RwUInt16)buildNum |
-        (((version - 0x30000) & 0x3FF00) << 14) |
-        ((version & 0x3F) << 16);
+    header.libraryIDPack =
+        ((((version - 0x30000) & 0x3FF00) << 14) |
+         ((version & 0x3F) << 16)) |
+        (RwUInt16)buildNum;
     RwMemLittleEndian32(&header, sizeof(header));
-    return RwStreamWrite(stream, &header, sizeof(header));
+    result = RwStreamWrite(stream, &header, sizeof(header));
+    return result;
 }
 
 /* Near miss: clean CFG omits retail's unused compatibility-version boolean. */
