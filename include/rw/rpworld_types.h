@@ -20,6 +20,10 @@ typedef struct RpWorld RpWorld;
 typedef struct RpWorldSector RpWorldSector;
 typedef struct RxPipeline RxPipeline;
 typedef struct RwRGBA RwRGBA;
+typedef struct RpMaterial RpMaterial;
+typedef RwUInt16 RxVertexIndex;
+typedef struct RpBuildMesh RpBuildMesh;
+typedef struct RpMesh RpMesh;
 
 typedef struct RwTexCoords {
     RwReal u;
@@ -40,6 +44,29 @@ typedef struct RpMeshHeader {
     unsigned int totalIndices; /* +0x08 */
     unsigned int firstMeshOffset; /* +0x0C */
 } RpMeshHeader;
+
+typedef struct RpBuildMeshTriangle {
+    RxVertexIndex vertIndex[3];
+    RpMaterial* material;
+    RwUInt16 matIndex;
+    RwUInt16 textureIndex;
+    RwUInt16 rasterIndex;
+    RwUInt16 pipelineIndex;
+} RpBuildMeshTriangle;
+
+struct RpBuildMesh {
+    RwUInt32 triangleBufferSize;
+    RwUInt32 numTriangles;
+    RpBuildMeshTriangle* meshTriangles;
+};
+
+struct RpMesh {
+    RxVertexIndex* indices;
+    RwUInt32 numIndices;
+    RpMaterial* material;
+};
+
+typedef RpMesh* (*RpMeshCallBack)(RpMesh*, RpMeshHeader*, void*);
 
 typedef union RpMaterialColor {
     unsigned int packed;
@@ -89,6 +116,23 @@ RwBool RpMaterialDestroy(RpMaterial* material);
 RpMaterial* RpMaterialCreate(void);
 RpMaterial* RpMaterialSetTexture(RpMaterial* material, RwTexture* texture);
 RpMaterial* RpMaterialStreamRead(RwStream* stream);
+RpMeshHeader* _rpMeshHeaderCreate(RwUInt32 size);
+void* _rpMeshClose(void* instance, RwInt32 offset, RwInt32 size);
+void* _rpMeshOpen(void* instance, RwInt32 offset, RwInt32 size);
+RpBuildMesh* _rpBuildMeshCreate(RwUInt32 bufferSize);
+RwBool _rpBuildMeshDestroy(RpBuildMesh* mesh);
+RwBool _rpMeshDestroy(RpMeshHeader* meshHeader);
+RpBuildMesh* _rpBuildMeshAddTriangle(
+    RpBuildMesh* mesh, RpMaterial* material, RwInt32 vert1, RwInt32 vert2,
+    RwInt32 vert3, RwUInt16 matIndex, RwUInt16 textureIndex,
+    RwUInt16 rasterIndex, RwUInt16 pipelineIndex);
+RpMeshHeader* _rpMeshHeaderForAllMeshes(RpMeshHeader* meshHeader,
+                                        RpMeshCallBack callback, void* data);
+RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
+                       RwStream* stream, const RpMaterialList* materialList);
+RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
+                          const RpMaterialList* materialList);
+RwInt32 _rpMeshSize(const RpMeshHeader* meshHeader, const void* object);
 
 /*
  * RpAtomic -- Midway/game-used fields.
