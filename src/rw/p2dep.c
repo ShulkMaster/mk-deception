@@ -168,31 +168,33 @@ static void _ScopeTraceAddEntry(rxScopeTrace *trace, rxReqEntry *entry) {
 
 static void _ScopeTraceMerge(rxScopeTrace **traces, rxScopeTrace *first,
                              rxScopeTrace *second) {
-  rxScopeTrace **link;
+  /* The functional body matches retail exactly. Retail nevertheless saves LR
+   * through _savegpr_29 in this call-free leaf; clean MWCC omits that traffic. */
+  rxScopeTrace *firstRoot = first;
+  rxScopeTrace *secondRoot = second;
   rxScopeTrace *leaf;
 
-  while (first->parent != NULL) {
-    first = first->parent;
+  while (firstRoot->parent != NULL) {
+    firstRoot = firstRoot->parent;
   }
-  while (second->parent != NULL) {
-    second = second->parent;
+  while (secondRoot->parent != NULL) {
+    secondRoot = secondRoot->parent;
   }
-  if (first == second) {
+  if (firstRoot == secondRoot) {
     return;
   }
 
-  leaf = first;
+  leaf = firstRoot;
   while (leaf->child != NULL) {
     leaf = leaf->child;
   }
-  leaf->child = second;
-  second->parent = first;
+  leaf->child = secondRoot;
+  secondRoot->parent = firstRoot;
 
-  link = traces;
-  while (*link != second) {
-    link = &(*link)->next;
+  while (*traces != secondRoot) {
+    traces = &(*traces)->next;
   }
-  *link = (*link)->next;
+  *traces = (*traces)->next;
 }
 
 static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
