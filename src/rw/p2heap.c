@@ -111,19 +111,13 @@ static RwBool HeapSuperBlockReset(RxHeapSuperBlock* superBlock,
     return FALSE;
 }
 
-/* Near miss: retail copies both neighbor predicates into separate registers. */
 void RxHeapFree(RxHeap* heap, void* memory)
 {
     RxHeapBlock* block = (RxHeapBlock*)memory - 1;
-    RwBool previousIsFree = FALSE;
-    RwBool nextIsFree = FALSE;
-
-    if (block->prev != NULL && block->prev->freeEntry != NULL) {
-        previousIsFree = TRUE;
-    }
-    if (block->next != NULL && block->next->freeEntry != NULL) {
-        nextIsFree = TRUE;
-    }
+    RwBool previousIsFree =
+        block->prev != NULL && block->prev->freeEntry != NULL;
+    RwBool nextIsFree =
+        block->next != NULL && block->next->freeEntry != NULL;
 
     if (previousIsFree) {
         if (nextIsFree) {
