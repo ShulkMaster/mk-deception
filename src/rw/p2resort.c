@@ -19,6 +19,10 @@ static RwInt32 _msbitpos(RwUInt32 value) {
     return -1;
 }
 
+/* Algorithm recovered: the 32-entry work stack, partition scans, swaps, and
+ * five-entry cutoff match retail. Retail also spills unused copies of the
+ * stack base, bit, byte count, and pushed-entry address, expanding its frame
+ * and save range; clean source does not reproduce that macro scaffolding. */
 static void _repartition(RwUInt8* first, RwUInt8* last,
                          RwUInt32 entrySize, RwUInt32 keyOffset,
                          RwUInt32 bit) {
