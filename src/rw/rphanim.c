@@ -94,6 +94,8 @@ static void* HAnimDestructor(void* object, RwInt32 offset, RwInt32 size)
         RpHAnimHierarchy* hierarchy = frameExtension->hierarchy;
         RwInt32 i;
 
+        /* Retail repeats this indexed address calculation before the store;
+         * clean C intentionally omits the unused first calculation. */
         for (i = 0; i < hierarchy->numNodes; i++) {
             hierarchy->pNodeInfo[i].pFrame = NULL;
         }
