@@ -167,8 +167,8 @@ static RwStream* HAnimRead(RwStream* stream, RwInt32 binaryLength,
                            void* object, RwInt32 offset, RwInt32 size)
 {
     RpHAnimFrameExtension* frameExtension = HANIMFRAMEEXTENSION(object);
-    RwInt32 version;
     RwInt32 numNodes;
+    RwInt32 version;
     RwInt32 flags;
     RwInt32 maxInterpKeyFrameSize;
 
@@ -207,11 +207,14 @@ static RwStream* HAnimRead(RwStream* stream, RwInt32 binaryLength,
             hierarchy->pNodeInfo = RwEngineInstance->fpMalloc(
                 numNodes * sizeof(RpHAnimNodeInfo), 0x3011E);
             node = hierarchy->pNodeInfo;
-            for (i = 0; i < hierarchy->numNodes; i++, node++) {
+            i = 0;
+            while (i < hierarchy->numNodes) {
                 if (!RwStreamReadInt32(stream, &node->nodeID, 4)) return NULL;
                 if (!RwStreamReadInt32(stream, &node->nodeIndex, 4)) return NULL;
                 if (!RwStreamReadInt32(stream, &node->flags, 4)) return NULL;
                 node->pFrame = NULL;
+                node++;
+                i++;
             }
         }
         frameExtension->hierarchy = hierarchy;
@@ -244,6 +247,7 @@ static RwInt32 HAnimSize(const void* object, RwInt32 offset, RwInt32 size)
 RwBool RpHAnimPluginAttach(void)
 {
     RwInt32 streamOffset;
+    /* Retail carries an overwritten pre-registration result initialization. */
     RwBool result = FALSE;
     if (RwEngineRegisterPlugin(0, 0x11E, HAnimOpen, HAnimClose) < 0) {
         return FALSE;
