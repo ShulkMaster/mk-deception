@@ -263,8 +263,9 @@ void _rpWorldRegisterWorld(RpWorld *world, RwInt32 size) {
 
 void _rpWorldUnregisterWorld(RpWorld *world) {
     RwLLLink *link;
-    for (link = WORLDGLOBALS->worldList.link.next;
-         link != &WORLDGLOBALS->worldList.link; link = link->next) {
+    RwLLLink *sentinel = &WORLDGLOBALS->worldList.link;
+
+    for (link = sentinel->next; link != sentinel; link = link->next) {
         RpWorldListEntry *entry = (RpWorldListEntry *)((RwUInt8 *)link - 8);
         if (entry->world == world) {
             rwLinkListRemoveLLLink(link);
@@ -309,11 +310,16 @@ RpWorld *RpWorldUnlock(RpWorld *world) {
             RpWorldSector *atomic = (RpWorldSector *)sector;
             if (!atomic->mesh) {
                 RpBuildMesh *mesh = _rpBuildMeshCreate(atomic->numPolygons);
-                if (!mesh ||
-                    !WorldBuildMeshAtomicSector(world, mesh, atomic,
-                                                world->matList.materials +
-                                                    atomic->matListWindowBase))
+                if (mesh != NULL) {
+                    world = WorldBuildMeshAtomicSector(
+                        world, mesh, atomic,
+                        world->matList.materials + atomic->matListWindowBase);
+                    if (world == NULL) {
+                        return NULL;
+                    }
+                } else {
                     return NULL;
+                }
             }
             sector = stack[top--];
         } else {
