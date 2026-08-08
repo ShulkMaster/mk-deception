@@ -2,6 +2,8 @@
 #define RW_RPMATFX_H
 
 #include "rw/rwcore_types.h"
+#include "rw/rpmatfx_types.h"
+#include "rw/rxpipeline.h"
 #include "rw/rwstream.h"
 
 typedef struct RpMTEffect RpMTEffect;
@@ -88,5 +90,37 @@ RwUInt32 RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
                                  RwUInt32 index);
 RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
                                           RwInt32 platform);
+
+RwBool RpMatFXPluginAttach(void);
+RpAtomic* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
+RwBool RpMatFXAtomicQueryEffects(const RpAtomic* atomic);
+RpWorldSector* RpMatFXWorldSectorEnableEffects(RpWorldSector* worldSector);
+RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material,
+                                      RpMatFXMaterialFlags effects);
+RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial*, RwTexture*);
+RpMaterial* RpMatFXMaterialSetBumpMapFrame(RpMaterial*, RwFrame*);
+RpMaterial* RpMatFXMaterialSetBumpMapCoefficient(RpMaterial*, RwReal);
+RwFrame* RpMatFXMaterialGetBumpMapFrame(const RpMaterial*);
+RwReal RpMatFXMaterialGetBumpMapCoefficient(const RpMaterial*);
+RpMaterial* RpMatFXMaterialSetEnvMapTexture(RpMaterial*, RwTexture*);
+RpMaterial* RpMatFXMaterialSetEnvMapFrame(RpMaterial*, RwFrame*);
+RpMaterial* RpMatFXMaterialSetEnvMapFrameBufferAlpha(RpMaterial*, RwBool);
+RpMaterial* RpMatFXMaterialSetEnvMapCoefficient(RpMaterial*, RwReal);
+RwTexture* RpMatFXMaterialGetEnvMapTexture(const RpMaterial*);
+RwFrame* RpMatFXMaterialGetEnvMapFrame(const RpMaterial*);
+RwBool RpMatFXMaterialGetEnvMapFrameBufferAlpha(const RpMaterial*);
+RwReal RpMatFXMaterialGetEnvMapCoefficient(const RpMaterial*);
+RpMaterial* RpMatFXMaterialSetDualTexture(RpMaterial*, RwTexture*);
+RpMaterial* RpMatFXMaterialSetDualBlendModes(RpMaterial*, RwBlendFunction,
+                                             RwBlendFunction);
+RwTexture* RpMatFXMaterialGetDualTexture(const RpMaterial*);
+const RpMaterial* RpMatFXMaterialGetDualBlendModes(const RpMaterial*,
+                                                   RwBlendFunction*,
+                                                   RwBlendFunction*);
+RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial*, RwMatrix*,
+                                                  RwMatrix*);
+const RpMaterial* RpMatFXMaterialGetUVTransformMatrices(const RpMaterial*,
+                                                        RwMatrix**,
+                                                        RwMatrix**);
 
 #endif
