@@ -40,9 +40,9 @@ static void splitBlock(RwResHeapBlock* block, RwUInt32 size) {
 }
 
 RwBool _rwResHeapInit(RwResHeap* heap, RwUInt32 size) {
-    unsigned long heapAddress = (unsigned long)heap;
-    unsigned long startAddress = (heapAddress + 0x27) & ~0x1FUL;
-    unsigned long endAddress = (heapAddress + size) & ~0x1FUL;
+    RwResHeap* owner = heap;
+    unsigned long startAddress = ((unsigned long)heap + 0x27) & ~0x1FUL;
+    unsigned long endAddress = ((unsigned long)heap + size) & ~0x1FUL;
     RwInt32 payloadSize = (RwInt32)(endAddress - startAddress - 0x20);
     RwResHeapBlock* block;
 
@@ -50,13 +50,13 @@ RwBool _rwResHeapInit(RwResHeap* heap, RwUInt32 size) {
         return FALSE;
     }
     block = (RwResHeapBlock*)startAddress;
-    block->heap = heap;
+    block->heap = owner;
     block->next = 0;
     block->prev = 0;
     block->flags = 0;
     block->size = payloadSize;
-    heap->firstBlock = block;
-    heap->firstFreeBlock = block;
+    owner->firstBlock = block;
+    owner->firstFreeBlock = block;
     return TRUE;
 }
 
