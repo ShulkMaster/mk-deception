@@ -100,6 +100,8 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
     }
 }
 
+/* Retail deliberately reloads the current-slot key after each adjacent swap;
+ * do not cache it as a conventional insertion-sort key. */
 static void _insertionsort(RwUInt8* base, RwUInt32 numEntries,
                            RwUInt32 entrySize, RwUInt32 keyOffset) {
     RwUInt8* current = base;
@@ -107,14 +109,14 @@ static void _insertionsort(RwUInt8* base, RwUInt32 numEntries,
     while (--numEntries != 0) {
         current += entrySize;
         {
-            RwUInt32 currentKey = *(RwUInt32*)(current + keyOffset);
             RwUInt8* previous = current;
 
             for (;;) {
                 RwBool moveRecord;
                 previous -= entrySize;
                 moveRecord =
-                    currentKey < *(RwUInt32*)(previous + keyOffset);
+                    *(RwUInt32*)(current + keyOffset) <
+                    *(RwUInt32*)(previous + keyOffset);
                 if (moveRecord == FALSE) {
                     break;
                 }
