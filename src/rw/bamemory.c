@@ -355,16 +355,13 @@ static void* HCalloc(RwUInt32 count, RwUInt32 size, RwUInt32 hint)
     return calloc(count, size);
 }
 
-/* Near miss: exact callback installation; aggregate access scheduling differs. */
+/* The engine's four contiguous memory callbacks share RwMemoryFunctions layout. */
 RwBool _rwMemoryOpen(const RwMemoryFunctions* functions)
 {
     if (!_rwFreeListModuleOpen())
         return FALSE;
     if (functions != NULL) {
-        RwEngineInstance->fpMalloc = functions->alloc;
-        RwEngineInstance->fpFree = functions->free;
-        RwEngineInstance->fpRealloc = functions->realloc;
-        RwEngineInstance->fpCalloc = functions->calloc;
+        *(RwMemoryFunctions*)&RwEngineInstance->fpMalloc = *functions;
     } else {
         RwEngineInstance->fpMalloc = HMalloc;
         RwEngineInstance->fpFree = free;
