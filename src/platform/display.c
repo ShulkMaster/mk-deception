@@ -55,7 +55,7 @@ extern int RwCameraEndUpdate(RwCamera* camera);
 extern RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, float distance);
 extern void render_mkobj(MkObj* object);
 extern void render_transl_atomics(void);
-extern void RpClumpRender(RpClump* clump);
+extern RpClump* RpClumpRender(RpClump* clump);
 extern void update_fog_render_states(void);
 extern void init_debug_message_handler(void);
 extern int RwEngineInit(RwMemoryFunctions* functions, unsigned int init_flags,

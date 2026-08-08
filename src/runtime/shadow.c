@@ -157,8 +157,6 @@ typedef struct ShadowSobj {
 } ShadowSobj;
 
 void set_render_state(int state, int value);
-void* RpClumpForAllAtomics(void* clump, void* callback, void* data);
-void _rpAtomicResyncInterpolatedSphere(void* atomic);
 void RwV3dTransformPoints(void* dst, void* src, int count, ShadowMatrix* matrix);
 int RwRasterDestroy(RwRaster* raster);
 void RwMatrixUpdate(ShadowMatrix* matrix);
@@ -223,7 +221,7 @@ unsigned int save_res_for_shadowbox;
 
 float ShadowStrength;
 
-static int shadow_getFirstAtomic(void* atomic, void* out);
+static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out);
 static void Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3, float p4, float depth, float p6,
                            float p7);
 static FighterState* shadow_validate_fighter(FighterState* fighter, unsigned int expected_id);
@@ -279,18 +277,25 @@ static void shadow_destroy_shadowbox(ShadowboxObject** box_ptr) {
 }
 
 int init_shadow(void* shadow_ptr, void* clump_ptr) {
+    typedef struct ShadowClumpSource {
+        unsigned char reserved00[0x18];
+        RpClump* clump;
+        ShadowFrame* modellingFrame;
+        unsigned char reserved24[0x7C];
+        RwV3d worldAnchor;
+    } ShadowClumpSource;
     ShadowObject* shadow;
-    RpClump* clump;
+    ShadowClumpSource* source;
     RpAtomic* atomic;
     int result;
 
     shadow = shadow_ptr;
-    clump = clump_ptr;
-    if (clump != NULL) {
+    source = clump_ptr;
+    if (source != NULL) {
         atomic = NULL;
-        RpClumpForAllAtomics(clump->atomics, shadow_getFirstAtomic, &atomic);
+        RpClumpForAllAtomics(source->clump, shadow_getFirstAtomic, &atomic);
         if (atomic != NULL) {
-            if (atomic->interpolatorFlags & 2) {
+            if (atomic->interpolator.flags & 2) {
                 _rpAtomicResyncInterpolatedSphere(atomic);
             }
             shadow->sphere_x = atomic->boundingSphereX;
@@ -298,8 +303,8 @@ int init_shadow(void* shadow_ptr, void* clump_ptr) {
             shadow->sphere_z = atomic->boundingSphereZ;
             shadow->sphere_w = atomic->boundingSphereRadius;
             shadow->ground_w = shadow->sphere_w;
-            RwV3dTransformPoints(&shadow->ground_point, &clump->worldAnchorX, 1,
-                                 &((ShadowFrame*)clump->modellingFrame)->modelling);
+            RwV3dTransformPoints(&shadow->ground_point, &source->worldAnchor, 1,
+                                 &source->modellingFrame->modelling);
         }
     }
     result = SetupShadow(shadow);
@@ -758,9 +763,9 @@ int init_shadow_system(void) {
     return 1;
 }
 
-static int shadow_getFirstAtomic(void* atomic, void* out) {
+static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out) {
     *(void**)out = atomic;
-    return 0;
+    return NULL;
 }
 
 void ShadowRasterBlur(void* src_raster, void* dst_raster, void* ip_camera_ptr) {
@@ -846,8 +851,8 @@ void ShadowCameraUpdate(void* camera_ptr, void* clump_ptr, int clear) {
     set_render_state(0x6, 1);
     set_render_state(0x8, 1);
     set_render_state(0xC, 1);
-    node = clump->atomicList.next;
-    end = &clump->atomicList;
+    node = clump->atomicList.link.next;
+    end = &clump->atomicList.link;
     while (node != end) {
         atomic = RP_ATOMIC_FROM_CLUMP_LINK(node);
         if (atomic->object.flags & 4) {

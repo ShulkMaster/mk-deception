@@ -25,7 +25,6 @@ int RwRasterGetNumLevels(RwRaster* raster);
 RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial* mat);
 void RpMaterialSetAlphaPassTexture(RpMaterial* mat, RwTexture* tex);
 /* Stock RW callbacks take void* data; ATC is passed through. */
-RpClump* RpClumpForAllAtomics(RpClump* clump, void* cb, void* data);
 
 void set_render_state(int state, int value);
 Pfx2dObj* pfx2d_alloc_obj(void);
@@ -424,7 +423,8 @@ fbits = &atc->flag_bits;
     return material;
 }
 
-RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, AniTextureControl* atc) {
+RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data) {
+    AniTextureControl* atc = data;
     AtcFlagBits* fbits;
     RpGeometry* geom;
 
@@ -1024,7 +1024,7 @@ AniTextureControl* append_texture_by_name_to_atomic_material_id(int slot, char* 
     int pot;
     AtcFlagBits* fbits;
 
-    clump = (RpClump*)atomic->lights;
+    clump = atomic->clump;
     if (clump == 0) {
         return 0;
     }
@@ -1140,7 +1140,7 @@ AniTextureControl* attach_wiff_to_atomic_material(int slot, char* name, RpAtomic
     RwTexture* alpha;
     RpClump* clump;
 
-    clump = (RpClump*)atomic->lights;
+    clump = atomic->clump;
     if (clump == 0) {
         return 0;
     }

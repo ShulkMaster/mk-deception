@@ -104,6 +104,17 @@ typedef struct RpMaterial {
 } RpMaterial;
 
 typedef RpAtomic* (*RpAtomicCallBackRender)(RpAtomic* atomic);
+typedef RpAtomic* (*RpAtomicCallBack)(RpAtomic* atomic, void* data);
+typedef RpClump* (*RpClumpCallBack)(RpClump* clump, void* data);
+
+typedef struct RpInterpolator {
+    RwInt32 flags;
+    RwInt16 startMorphTarget;
+    RwInt16 endMorphTarget;
+    RwReal time;
+    RwReal recipTime;
+    RwReal position;
+} RpInterpolator;
 
 /* Stock RpMaterialList embedded in RpGeometry at +0x20. */
 typedef struct RpMaterialList {
@@ -162,17 +173,24 @@ struct RpAtomic {
     void* sync;                            /* +0x10 */
     void* repEntry;                        /* +0x14 */
     RpGeometry* geometry;                  /* +0x18 */
-    float boundingSphereX;                 /* +0x1C */
-    float boundingSphereY;                 /* +0x20 */
-    float boundingSphereZ;                 /* +0x24 */
-    float boundingSphereRadius;            /* +0x28 */
+    union {
+        RwSphere boundingSphere;           /* +0x1C */
+        struct {
+            float boundingSphereX;
+            float boundingSphereY;
+            float boundingSphereZ;
+            float boundingSphereRadius;
+        };
+    };
     RwSphere worldBoundingSphere;          /* +0x2C */
-    void* lights;                          /* +0x3C -- Midway: RpClump* (Mkobj plugin host) */
+    RpClump* clump;                        /* +0x3C */
     RwLLLink inClumpLink;                  /* +0x40 */
     RpAtomicCallBackRender renderCallBack; /* +0x48 */
-    unsigned int interpolatorFlags;        /* +0x4C -- bit 0x2 = needs sphere resync */
-    char pad50[0x1C];
-    void* pipeline;                        /* +0x6C */
+    RpInterpolator interpolator;           /* +0x4C */
+    RwUInt16 renderFrame;                  /* +0x60 */
+    RwUInt16 reserved62;
+    RwLinkList worldSectorsInAtomic;       /* +0x64 */
+    RxPipeline* pipeline;                  /* +0x6C */
 };
 
 #define RP_ATOMIC_FROM_CLUMP_LINK(link)                                  \
@@ -231,17 +249,24 @@ typedef struct RpMorphTarget {
 } RpMorphTarget;
 
 typedef struct RpClump {
-    RwObject object; /* +0x00 */
-    RwLLLink atomicList; /* +0x08 -- ShadowCameraUpdate sentinel/walk */
-    char pad10[0x08];
-    void* atomics;   /* +0x18 -- init_shadow ForAllAtomics arg */
-    char pad1C[0x04];
-    void* modellingFrame; /* +0x20 -- LTM parent (shadow init) */
-    char pad24[0x7C];
-    float worldAnchorX; /* +0xA0 -- shadow ground-plane transform src */
-    float worldAnchorY; /* +0xA4 */
-    float worldAnchorZ; /* +0xA8 */
+    RwObject object;                 /* +0x00 */
+    RwLinkList atomicList;           /* +0x08 */
+    RwLinkList lightList;            /* +0x10 */
+    RwLinkList cameraList;           /* +0x18 */
+    RwLLLink inWorldLink;            /* +0x20 */
+    RpClumpCallBack callback;        /* +0x28 */
 } RpClump;
+
+RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
+void _rpAtomicResyncInterpolatedSphere(RpAtomic* atomic);
+RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
+RpClump* RpClumpRender(RpClump* clump);
+RpAtomic* RpAtomicCreate(void);
+RpAtomic* RpAtomicSetGeometry(RpAtomic*, RpGeometry*, RwUInt32);
+RwBool RpAtomicDestroy(RpAtomic*);
+RpClump* RpClumpCreate(void);
+RwBool RpClumpDestroy(RpClump*);
+RpClump* RpClumpAddAtomic(RpClump*, RpAtomic*);
 
 typedef struct RpPolygon {
     RwUInt16 matIndex;

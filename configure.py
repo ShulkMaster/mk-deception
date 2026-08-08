@@ -1253,6 +1253,8 @@ config.libs = [
         [
             Object(Matching, "rpworld.a/babinwor.obj", source="rw/babinwor.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rpworld.a/baclump.obj", source="rw/baclump.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/bageomet.obj", source="rw/bageomet.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/bamesh.obj", source="rw/bamesh.c",

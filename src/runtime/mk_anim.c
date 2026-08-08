@@ -990,7 +990,7 @@ MorphState* obj_start_morph(
         return morph;
     }
 
-    morph->interpolator = &morph->atomic->interpolatorFlags;
+    morph->interpolator = &morph->atomic->interpolator.flags;
     morph->morph_target_count =
         morph->atomic->geometry->numMorphTargets;
     morph->frame_step = 1.0f;
@@ -1661,7 +1661,7 @@ static float p_bone_matcher(void) {
     return 1.0f;
 }
 
-static void* atomic_set_HAnimHierarchy(void* atomic, void* hierarchy) {
+static RpAtomic* atomic_set_HAnimHierarchy(RpAtomic* atomic, void* hierarchy) {
     RpSkinAtomicSetHAnimHierarchy(atomic, hierarchy);
     return atomic;
 }
@@ -2815,7 +2815,7 @@ int pose_anim(AnimState* anim, int update_object) {
 }
 
 static RpAtomic* ScanForBone_callback(
-    RpAtomic* atomic, BoneScanContext* context);
+    RpAtomic* atomic, void* data);
 
 /*
  * Soft ceiling: process_obj_bones ~68.59% - retail keeps an extra hierarchy
@@ -3032,7 +3032,8 @@ void build_bones_tbl(MkObj* obj, const int* tags) {
 }
 
 static RpAtomic* ScanForBone_callback(
-    RpAtomic* atomic, BoneScanContext* context) {
+    RpAtomic* atomic, void* data) {
+    BoneScanContext* context = data;
     void* skin;
 
     context->matrix = 0;

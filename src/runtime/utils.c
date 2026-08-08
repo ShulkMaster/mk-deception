@@ -1148,7 +1148,6 @@ extern double fmod(double x, double y);
 extern void MKMatrixSetIdentity(void* m);
 extern RpMaterial* RpMatFXMaterialGetUVTransformMatrices(RpMaterial* material, void** m1, void** m2);
 extern RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial* material, void* m1, void* m2);
-extern void* RpClumpForAllAtomics(void* clump, void* cb, void* data);
 extern int RpMatFXMaterialGetEffects(RpMaterial* material);
 extern RwTexture* RpMatFXMaterialGetDualTexture(RpMaterial* material);
 extern void RpMatFXMaterialGetDualBlendModes(RpMaterial* material, int* src, int* dst);
@@ -1350,7 +1349,7 @@ static void* material_scroll_uvs_callback(void* mat, void* data) {
     return mat;
 }
 
-static void* atomic_scroll_uvs_callback(void* atomic, void* data) {
+static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
     UvScrollControl* ctrl;
     unsigned int flags;
     unsigned int bit0;

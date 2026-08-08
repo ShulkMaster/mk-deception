@@ -369,8 +369,8 @@ static void MatFunc1(RwRGBAReal* color, GXColor* material, float intensity) {
 }
 
 void GCNSetupNonRenderwarePipeline(RpClump* clump, void* owner) {
-    RwLLLink* link = clump->atomicList.next;
-    RwLLLink* sentinel = &clump->atomicList;
+    RwLLLink* link = clump->atomicList.link.next;
+    RwLLLink* sentinel = &clump->atomicList.link;
 
     while (link != sentinel) {
         RpAtomic* atomic = RP_ATOMIC_FROM_CLUMP_LINK(link);
