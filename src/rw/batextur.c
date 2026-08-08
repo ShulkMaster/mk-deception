@@ -863,8 +863,8 @@ RwTexture* RwTexDictionaryAddTexture(RwTexDictionary* dictionary,
     RwLLLink* link;
 
     if (texture->dictionary != 0) {
+        texture->lInDictionary.prev->next = texture->lInDictionary.next;
         previous = texture->lInDictionary.prev;
-        previous->next = texture->lInDictionary.next;
         texture->lInDictionary.next->prev = previous;
     }
     texture->dictionary = dictionary;
