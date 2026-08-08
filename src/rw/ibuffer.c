@@ -11,6 +11,8 @@ extern RwUInt32 rwGCNTexGetSize(const RwGameCubeVtxFmt* format,
 /* Retail's release assertion still evaluates its condition at -opt off. */
 #define RWASSERT(condition) ((void)(condition))
 
+/* Near miss: retail keeps each extracted two-bit VCD field in r30 while this
+ * clean switch assigns the identical mask/shift result to r31. */
 RwUInt32 _rwGCNDisplayListGetStride(const RwGameCubeVtxFmt* format)
 {
     RwUInt32 stride = 0;
