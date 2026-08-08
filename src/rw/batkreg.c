@@ -120,11 +120,11 @@ RwInt32 _rwPluginRegistryAddPlugin(
         (RwFreeListAllocCall)_rwFreeListAllocReal) {
         RwUInt32 index;
         for (index = 0; index < numRegToolkits; index++) {
-            if (toolkitNonFLRegList[index] == registry) {
+            if (registry == toolkitNonFLRegList[index]) {
                 break;
             }
         }
-        if (index == numRegToolkits) {
+        if (numRegToolkits == index) {
             RwPluginRegistry** newList = RwEngineInstance->fpMalloc(
                 (numRegToolkits + 1) * sizeof(*newList), 0x40000);
             RwUInt32 copyIndex = 0;
@@ -158,36 +158,36 @@ RwInt32 _rwPluginRegistryAddPlugin(
         return -1;
     }
     entry = RwEngineInstance->fpFreeListAlloc(toolkitRegEntries, 0x40000);
-    if (entry == NULL) {
-        return -1;
+    if (entry != NULL) {
+        entry->offset = registry->sizeOfStruct;
+        registry->sizeOfStruct = newSize;
+        entry->size = size;
+        entry->pluginID = pluginID;
+        entry->readCB = NULL;
+        entry->writeCB = NULL;
+        entry->getSizeCB = NULL;
+        entry->alwaysCB = NULL;
+        entry->rightsCB = NULL;
+        entry->constructCB = constructCB != NULL ? constructCB
+                                                 : PluginDefaultConstructor;
+        entry->destructCB = destructCB != NULL ? destructCB
+                                               : PluginDefaultDestructor;
+        entry->copyCB = copyCB != NULL ? copyCB : PluginDefaultCopy;
+        entry->errStrCB = NULL;
+        entry->nextRegEntry = NULL;
+        entry->prevRegEntry = NULL;
+        entry->parentRegistry = registry;
+        if (registry->firstRegEntry == NULL) {
+            registry->firstRegEntry = entry;
+            registry->lastRegEntry = entry;
+        } else {
+            registry->lastRegEntry->nextRegEntry = entry;
+            entry->prevRegEntry = registry->lastRegEntry;
+            registry->lastRegEntry = entry;
+        }
+        return entry->offset;
     }
-    entry->offset = registry->sizeOfStruct;
-    registry->sizeOfStruct = newSize;
-    entry->size = size;
-    entry->pluginID = pluginID;
-    entry->readCB = NULL;
-    entry->writeCB = NULL;
-    entry->getSizeCB = NULL;
-    entry->alwaysCB = NULL;
-    entry->rightsCB = NULL;
-    entry->constructCB = constructCB != NULL ? constructCB
-                                             : PluginDefaultConstructor;
-    entry->destructCB = destructCB != NULL ? destructCB
-                                           : PluginDefaultDestructor;
-    entry->copyCB = copyCB != NULL ? copyCB : PluginDefaultCopy;
-    entry->errStrCB = NULL;
-    entry->nextRegEntry = NULL;
-    entry->prevRegEntry = NULL;
-    entry->parentRegistry = registry;
-    if (registry->firstRegEntry == NULL) {
-        registry->firstRegEntry = entry;
-        registry->lastRegEntry = entry;
-    } else {
-        registry->lastRegEntry->nextRegEntry = entry;
-        entry->prevRegEntry = registry->lastRegEntry;
-        registry->lastRegEntry = entry;
-    }
-    return entry->offset;
+    return -1;
 }
 
 /* Soft ceiling: only callback operand loading and register allocation differ. */
