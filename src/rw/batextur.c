@@ -992,6 +992,8 @@ int RwTextureRasterGenerateMipmaps(RwRaster* raster, RwImage* image) {
     return 0;
 }
 
+/* Near match: retail computes an unused dictionary-sentinel predicate before
+ * and after dummy destruction; clean traversal omits that dead lifetime. */
 void* _rwTextureClose(void* instance, int offset, int size) {
     RwLLLink* link;
     RwLLLink* end;
