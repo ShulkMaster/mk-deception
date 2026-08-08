@@ -168,17 +168,24 @@ RwStream* RwStreamWrite(RwStream* stream, const void* buffer, RwUInt32 length)
     }
 }
 
-/* Near miss: exact unsigned clamp and callback CFG; register coloring differs. */
+/* Near match: behavior and size match; retail caches the anonymous memory-data
+ * member address in a different nonvolatile register. */
 RwStream* RwStreamSkip(RwStream* stream, RwUInt32 offset)
 {
+    RwStream* result;
+    void* file;
+
     if (offset == 0) return stream;
     switch (stream->type) {
     case rwSTREAMFILE: case rwSTREAMFILENAME:
-        if (RwEngineInstance->fileFuncs.rwfseek(stream->data.file.file, offset, 1)) {
-            if (RwEngineInstance->fileFuncs.rwfeof(stream->data.file.file)) STREAM_ERROR(5);
-            return NULL;
+        file = stream->data.file.file;
+        if (RwEngineInstance->fileFuncs.rwfseek(file, offset, 1)) {
+            if (RwEngineInstance->fileFuncs.rwfeof(file)) STREAM_ERROR(5);
+            result = NULL;
+        } else {
+            result = stream;
         }
-        return stream;
+        return result;
     case rwSTREAMMEMORY:
         if (stream->data.memory.position + offset > stream->data.memory.length) {
             stream->data.memory.position = stream->data.memory.length; STREAM_ERROR(5); return NULL;
