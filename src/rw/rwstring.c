@@ -136,7 +136,9 @@ RwInt32 _rwStringStreamGetSize(const RwChar* string) {
     return (RwEngineInstance->stringFuncs.vecStrlen(string) + 4) & ~3;
 }
 
-/* Near miss: body matches; only save/restore helper selection differs. */
+/* Near match: the complete body and register coloring are exact. Retail uses
+ * _savegpr_29/_restgpr_29 while this emission saves/restores the same three
+ * nonvolatile registers individually. */
 const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream) {
     RwUInt32 length;
     if (string == NULL) {
