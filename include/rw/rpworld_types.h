@@ -25,6 +25,7 @@ typedef RwUInt16 RxVertexIndex;
 typedef struct RpBuildMesh RpBuildMesh;
 typedef struct RpMesh RpMesh;
 typedef struct RpTriangle RpTriangle;
+typedef struct RpSector RpSector;
 
 typedef struct RwTexCoords {
     RwReal u;
@@ -245,17 +246,33 @@ typedef struct RpPolygon {
     RwUInt16 vertIndex[3];
 } RpPolygon;
 
+typedef struct RpVertexNormal {
+    signed char x, y, z;
+    RwUInt8 pad;
+} RpVertexNormal;
+
+struct RpSector {
+    RwInt32 type;
+};
+
+typedef struct RpPlaneSector {
+    RwInt32 type;
+    RwReal value;
+    RpSector* leftSubTree;
+    RpSector* rightSubTree;
+    RwReal leftValue;
+    RwReal rightValue;
+} RpPlaneSector;
+
 struct RpWorldSector {
     RwInt32 type;
     RpPolygon* polygons;
     RwV3d* vertices;
-    void* normals;
-    /* This SDK build embeds six world-sector texture-coordinate sets. */
-    RwTexCoords* texCoords[6];
+    RpVertexNormal* normals;
+    RwTexCoords* texCoords[8];
     RwRGBA* preLitLum;
     RwResEntry* repEntry;
     RwLinkList collAtomicsInWorldSector;
-    RwLinkList noCollAtomicsInWorldSector;
     RwLinkList lightsInWorldSector;
     RwBBox boundingBox;
     RwBBox tightBoundingBox;
@@ -273,8 +290,8 @@ typedef enum RpWorldRenderOrder {
     rpWORLDRENDERBACK2FRONT
 } RpWorldRenderOrder;
 
-typedef struct RpSector RpSector;
 typedef RpWorldSector* (*RpWorldSectorCallBackRender)(RpWorldSector* worldSector);
+typedef RpWorldSector* (*RpWorldSectorCallBack)(RpWorldSector*, void*);
 
 struct RpWorld {
     RwObject object;
@@ -293,5 +310,16 @@ struct RpWorld {
     RpWorldSectorCallBackRender renderCallBack;
     RxPipeline* pipeline;
 };
+
+RpWorld* RpWorldLock(RpWorld* world);
+RpWorld* RpWorldUnlock(RpWorld* world);
+RpWorld* RpWorldSectorGetWorld(const RpWorldSector* sector);
+RwBool RpWorldDestroy(RpWorld* world);
+void RpWorldSetSectorRenderCallBack(RpWorld*, RpWorldSectorCallBackRender);
+RpWorld* RpWorldCreate(RwBBox* boundingBox);
+RpWorld* RpWorldForAllWorldSectors(RpWorld*, RpWorldSectorCallBack, void*);
+RwInt32 RpWorldRegisterPlugin(RwInt32, RwUInt32, RwPluginObjectConstructor,
+                              RwPluginObjectDestructor, RwPluginObjectCopy);
+RwBool RpWorldPluginAttach(void);
 
 #endif

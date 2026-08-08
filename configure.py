@@ -1259,6 +1259,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(Matching, "rpworld.a/basector.obj", source="rw/basector.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rpworld.a/baworld.obj", source="rw/baworld.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(Matching, "rpworld.a/bapipew.obj", source="rw/bapipew.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(
