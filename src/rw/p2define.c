@@ -648,12 +648,17 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
 
 RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
 {
-    RwUInt32 maxNodes = RXPIPELINEGLOBAL(maxNodes);
-    RwUInt32 requiredSize = maxNodes * sizeof(RxPipelineNode) +
-                            maxNodes * 0x80 +
-                            maxNodes * sizeof(RxPipelineNodeTopSortData);
-
+    /*
+     * Retail keeps the decremented input-pipe count in r0; this clean named
+     * result uses r27. All live operations and the function size otherwise
+     * match exactly.
+     */
     if (!pipeline->locked) {
+        RwUInt32 requiredSize =
+            RXPIPELINEGLOBAL(maxNodes) *
+                sizeof(RxPipelineNodeTopSortData) +
+            (RXPIPELINEGLOBAL(maxNodes) * sizeof(RxPipelineNode) +
+             RXPIPELINEGLOBAL(maxNodes) * 0x80);
         RwUInt32 index;
         if (pipeline->nodes != NULL) {
             if (requiredSize > pipeline->superBlockSize &&
@@ -677,18 +682,21 @@ RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
             pipeline->nodes = pipeline->superBlock;
         }
         pipeline->locked = TRUE;
-        for (index = 0; index < pipeline->numNodes; index++) {
-            RxPipelineNode* node = &pipeline->nodes[index];
-            RxNodeDefinition* nodeDef = node->nodeDef;
-            if (nodeDef->nodeMethods.pipelineNodeTerm != NULL) {
-                nodeDef->nodeMethods.pipelineNodeTerm(node);
+        if (pipeline->nodes != NULL) {
+            for (index = 0; index < pipeline->numNodes; index++) {
+                RxNodeMethods* nodeMethods =
+                    &pipeline->nodes[index].nodeDef->nodeMethods;
+                RwInt32 inputPipesCount;
+                if (nodeMethods->pipelineNodeTerm != NULL) {
+                    nodeMethods->pipelineNodeTerm(&pipeline->nodes[index]);
+                }
+                inputPipesCount =
+                    --pipeline->nodes[index].nodeDef->InputPipesCnt;
+                if (inputPipesCount == 0 && nodeMethods->nodeTerm != NULL) {
+                    nodeMethods->nodeTerm(pipeline->nodes[index].nodeDef);
+                }
+                pipeline->nodes[index].slotClusterRefs = NULL;
             }
-            nodeDef->InputPipesCnt--;
-            if (nodeDef->InputPipesCnt == 0 &&
-                nodeDef->nodeMethods.nodeTerm != NULL) {
-                nodeDef->nodeMethods.nodeTerm(nodeDef);
-            }
-            node->slotClusterRefs = NULL;
         }
     }
     return pipeline;
