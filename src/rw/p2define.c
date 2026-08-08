@@ -392,9 +392,10 @@ static void PipelineTopSort(PipelineTopSortState* state, RwUInt32 nodeIndex)
 static RwInt32 PipelineNode2Index(const RxPipeline* pipeline,
                                  const RxPipelineNode* node)
 {
+    /* Retail uses signed divw; MWCC strength-reduces this clean constant form. */
     RwInt32 index =
         (RwInt32)((RwUInt32)node - (RwUInt32)pipeline->nodes) /
-        sizeof(RxPipelineNode);
+        (RwInt32)sizeof(RxPipelineNode);
     if (&pipeline->nodes[index] == node &&
         (RwUInt32)index < pipeline->numNodes) {
         return index;
