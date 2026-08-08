@@ -74,8 +74,8 @@ typedef struct RwStringFunctions {
     int (*vecStrncmp)(const RwChar*, const RwChar*, size_t);
     int (*vecStricmp)(const RwChar*, const RwChar*);
     size_t (*vecStrlen)(const RwChar*);
-    RwChar* (*vecStrupr)(RwChar*);
-    RwChar* (*vecStrlwr)(RwChar*);
+    void (*vecStrupr)(RwChar*);
+    void (*vecStrlwr)(RwChar*);
     RwChar* (*vecStrtok)(RwChar*, const RwChar*);
     int (*vecSscanf)(const RwChar*, const RwChar*, ...);
 } RwStringFunctions;

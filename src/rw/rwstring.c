@@ -40,34 +40,36 @@ static int StrICmp(const RwChar* string1, const RwChar* string2) {
     return 0;
 }
 
-/* Near miss: identical byte accesses and ASCII conversion; register coloring differs. */
-static RwChar* StrUpr(RwChar* string) {
-    RwChar* character = string;
+static void StrUpr(RwChar* string) {
+    RwChar* character;
     RwChar value;
-    if (character != NULL) {
-        while ((value = *character) != '\0') {
+    if (string != NULL) {
+        character = string;
+        while (*character != '\0') {
+            value = *character;
             if (value >= 'a' && value <= 'z') {
-                *character = value - ('a' - 'A');
+                value -= 'a' - 'A';
+                *character = value;
             }
             character++;
         }
     }
-    return string;
 }
 
-/* Near miss: identical byte accesses and ASCII conversion; register coloring differs. */
-static RwChar* StrLwr(RwChar* string) {
-    RwChar* character = string;
+static void StrLwr(RwChar* string) {
+    RwChar* character;
     RwChar value;
-    if (character != NULL) {
-        while ((value = *character) != '\0') {
+    if (string != NULL) {
+        character = string;
+        while (*character != '\0') {
+            value = *character;
             if (value >= 'A' && value <= 'Z') {
-                *character = value + ('a' - 'A');
+                value += 'a' - 'A';
+                *character = value;
             }
             character++;
         }
     }
-    return string;
 }
 
 /* Near miss: identical do-loop and byte comparison; parameter coloring differs. */
