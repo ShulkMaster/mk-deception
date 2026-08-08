@@ -133,10 +133,12 @@ static int PalettizeImage(RwImage** image, int depth) {
     return 1;
 }
 
+/* Near match: retail keeps palettized in an addressable stack slot and
+ * rematerializes its address; no canonical source construct was found that
+ * justifies retaining that redundant lifetime in clean C. */
 static int PalettizeMipmaps(RwRGBA* palette, RwImage* baseOriginal,
                             RwImage** mipmaps, int mipmapCount, int depth) {
     RwPalQuant quantizer;
-    RwImage* palettized;
     int level;
 
     if (mipmaps[0]->palette != 0) {
@@ -173,18 +175,20 @@ static int PalettizeMipmaps(RwRGBA* palette, RwImage* baseOriginal,
     RwPalQuantResolvePalette(palette, 1 << depth, &quantizer);
     for (level = 0; level < mipmapCount; level++) {
         RwImage* original = mipmaps[level];
-        palettized = RwImageCreate(original->width, original->height, depth);
+        RwImage* palettized =
+            RwImageCreate(original->width, original->height, depth);
 
-        if (palettized == 0) {
+        if (palettized != 0) {
+            RwImageAllocatePixels(palettized);
+            RwPalQuantMatchImage(palettized->pixels, palettized->stride,
+                                 palettized->depth, 0, &quantizer, original);
+            palettized->palette = (unsigned char*)palette;
+            mipmaps[level] = palettized;
+            if (original != baseOriginal) {
+                RwImageDestroy(original);
+            }
+        } else {
             return 0;
-        }
-        RwImageAllocatePixels(palettized);
-        RwPalQuantMatchImage(palettized->pixels, palettized->stride,
-                             palettized->depth, 0, &quantizer, original);
-        palettized->palette = (unsigned char*)palette;
-        mipmaps[level] = palettized;
-        if (original != baseOriginal) {
-            RwImageDestroy(original);
         }
     }
     RwPalQuantTerm(&quantizer);
