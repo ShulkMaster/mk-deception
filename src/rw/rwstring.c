@@ -155,16 +155,17 @@ const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream) {
     return string;
 }
 
-/* Near miss: aligned-buffer algorithm matches; retail also stores an unused flag. */
+/* Near match: allocation, chunked copy, failure, and leak behavior are exact.
+ * Retail additionally stores an unused "allocated" flag; clean C omits that
+ * dead value, accounting for the eight-byte size residue. */
 static RwChar* StringStreamRead(RwChar* string, RwStream* stream,
                                 RwUInt32 length) {
     RwUInt8 buffer[64] __attribute__((aligned(64)));
-    RwChar* result = string;
     RwChar* destination;
 
-    if (result == NULL) {
-        result = RwEngineInstance->fpMalloc(length, 0x30002);
-        if (result == NULL) {
+    if (string == NULL) {
+        string = RwEngineInstance->fpMalloc(length, 0x30002);
+        if (string == NULL) {
             RwError error;
             error.pluginID = 1;
             error.errorCode = _rwerror(0x80000013, length);
@@ -172,7 +173,7 @@ static RwChar* StringStreamRead(RwChar* string, RwStream* stream,
             return NULL;
         }
     }
-    destination = result;
+    destination = string;
     while (length != 0) {
         RwUInt32 chunkSize = length < sizeof(buffer) ? length : sizeof(buffer);
         RwUInt32 i;
@@ -185,7 +186,7 @@ static RwChar* StringStreamRead(RwChar* string, RwStream* stream,
         }
         destination += chunkSize;
     }
-    return result;
+    return string;
 }
 
 /* Near miss: identical aligned conversion loop; local register allocation differs. */
