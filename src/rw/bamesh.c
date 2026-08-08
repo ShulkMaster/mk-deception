@@ -38,18 +38,25 @@ static void MeshFreeListsDestroy(void)
 
 static RwBool MeshFreeListsCreate(void)
 {
+    /* Retail lowers this same pointer test branchlessly. */
+    RwBool result;
     MeshStatic = RwFreeListCreate(sizeof(RpBuildMesh), 50, 4, 0x40502);
-    return MeshStatic != NULL;
+    result = FALSE;
+    if (MeshStatic != NULL)
+        result = TRUE;
+    return result;
 }
 
 void _rpMeshHeaderDestroy(RpMeshHeader* meshHeader)
 {
+    /* Retail clears this local after freeing it; the clear is unobservable. */
     RwEngineInstance->fpFree(meshHeader);
 }
 
 RpMeshHeader* _rpMeshHeaderCreate(RwUInt32 size)
 {
-    return RwEngineInstance->fpMalloc(size, 0x30502);
+    RpMeshHeader* meshHeader = RwEngineInstance->fpMalloc(size, 0x30502);
+    return meshHeader;
 }
 
 void* _rpMeshClose(void* instance, RwInt32 offset, RwInt32 size)
@@ -66,7 +73,8 @@ void* _rpMeshOpen(void* instance, RwInt32 offset, RwInt32 size)
     meshModule.globalsOffset = offset;
     if (meshModule.numInstances == 0 && !MeshFreeListsCreate()) {
         MeshFreeListsDestroy();
-        return NULL;
+        instance = NULL;
+        return instance;
     }
     MESHGLOBALS->nextSerialNum = 1;
     meshModule.numInstances++;
@@ -87,6 +95,7 @@ void* _rpMeshOpen(void* instance, RwInt32 offset, RwInt32 size)
 
 RpBuildMesh* _rpBuildMeshCreate(RwUInt32 bufferSize)
 {
+    /* Retail body is exact; only its r29-r31 save/restore helpers differ. */
     RpBuildMesh* mesh = RwEngineInstance->fpFreeListAlloc(MeshStatic, 0x30502);
 
     if (mesh != NULL) {
@@ -120,6 +129,7 @@ RpBuildMesh* _rpBuildMeshCreate(RwUInt32 bufferSize)
 
 RwBool _rpBuildMeshDestroy(RpBuildMesh* mesh)
 {
+    /* Retail clears the local mesh argument after the final free. */
     if (mesh->meshTriangles != NULL) {
         RwEngineInstance->fpFree(mesh->meshTriangles);
         mesh->meshTriangles = NULL;
