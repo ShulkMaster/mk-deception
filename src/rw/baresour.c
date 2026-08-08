@@ -133,6 +133,9 @@ void _rwResourcesPurge(void) {
     RESOURCESGLOBAL.arenaReusage = 0;
 }
 
+/* Near miss: retail retains an unused copy of the allocated entry in r25 but
+ * returns the original pointer; reproducing its larger frame requires dead
+ * liveness. The allocation, eviction, ownership, and failure paths match. */
 RwResEntry* RwResourcesAllocateResEntry(
     void* owner, RwResEntry** ownerRef, RwInt32 size,
     RwResEntryDestroyNotify destroyNotify) {
