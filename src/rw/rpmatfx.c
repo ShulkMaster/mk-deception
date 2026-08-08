@@ -240,7 +240,7 @@ static void* MatFXMaterialCopy(void* destination, const void* source,
 
 RwStream* _rpMatFXStreamWriteTexture(RwStream* stream, RwTexture* texture)
 {
-    RwInt32 present = texture != NULL;
+    RwInt32 present = NULL != texture;
     if (!RwStreamWriteInt32(stream, &present, sizeof(present)))
         return NULL;
     if (present && !RwTextureStreamWrite(texture, stream))
@@ -261,7 +261,8 @@ RwStream* _rpMatFXStreamReadTexture(RwStream* stream, RwTexture** texture)
         *texture = RwTextureStreamRead(stream);
         if (!*texture) {
             RwErrorGet(&error);
-            if (error.errorCode != 0 && error.errorCode != 0x16) {
+            if (error.errorCode != (RwInt32)0x80000000 &&
+                error.errorCode != 0x16) {
                 RwErrorSet(&error);
                 return NULL;
             }
@@ -579,32 +580,35 @@ RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
 
 RwBool RpMatFXPluginAttach(void)
 {
+    RwInt32 result;
+
     if (RwEngineRegisterPlugin(0, 0x120, MatFXOpen, MatFXClose) < 0) return FALSE;
     MatFXMaterialDataOffset = RpMaterialRegisterPlugin(4, 0x120,
         MatFXMaterialConstructor, MatFXMaterialDestructor, MatFXMaterialCopy);
     if (MatFXMaterialDataOffset < 0) return FALSE;
-    if (RpMaterialRegisterPluginStream(0x120, MatFXMaterialStreamRead,
-        MatFXMaterialStreamWrite, MatFXMaterialStreamGetSize) < 0) return FALSE;
+    result = RpMaterialRegisterPluginStream(0x120, MatFXMaterialStreamRead,
+        MatFXMaterialStreamWrite, MatFXMaterialStreamGetSize);
+    if (result < 0) return FALSE;
     MatFXAtomicDataOffset = RpAtomicRegisterPlugin(4, 0x120,
         (RwPluginObjectConstructor)MatFXAtomicConstructor,
         (RwPluginObjectDestructor)MatFXAtomicDestructor,
         (RwPluginObjectCopy)MatFXAtomicCopy);
     if (MatFXAtomicDataOffset < 0) return FALSE;
-    if (RpAtomicRegisterPluginStream(0x120,
+    result = RpAtomicRegisterPluginStream(0x120,
         (RwPluginDataChunkReadCallBack)MatFXAtomicStreamRead,
         (RwPluginDataChunkWriteCallBack)MatFXAtomicStreamWrite,
-        (RwPluginDataChunkGetSizeCallBack)MatFXAtomicStreamGetSize) < 0)
-        return FALSE;
+        (RwPluginDataChunkGetSizeCallBack)MatFXAtomicStreamGetSize);
+    if (result < 0) return FALSE;
     MatFXWorldSectorDataOffset = RpWorldSectorRegisterPlugin(4, 0x120,
         (RwPluginObjectConstructor)MatFXWorldSectorConstructor,
         (RwPluginObjectDestructor)MatFXWorldSectorDestructor,
         (RwPluginObjectCopy)MatFXWorldSectorCopy);
     if (MatFXWorldSectorDataOffset < 0) return FALSE;
-    if (RpWorldSectorRegisterPluginStream(0x120,
+    result = RpWorldSectorRegisterPluginStream(0x120,
         (RwPluginDataChunkReadCallBack)MatFXWorldSectorStreamRead,
         (RwPluginDataChunkWriteCallBack)MatFXWorldSectorStreamWrite,
-        (RwPluginDataChunkGetSizeCallBack)MatFXWorldSectorStreamGetSize) < 0)
-        return FALSE;
+        (RwPluginDataChunkGetSizeCallBack)MatFXWorldSectorStreamGetSize);
+    if (result < 0) return FALSE;
     if (!_rpMultiTexturePlatformPluginsAttach()) return FALSE;
     return TRUE;
 }
