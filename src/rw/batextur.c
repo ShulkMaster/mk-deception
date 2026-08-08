@@ -549,6 +549,8 @@ static RwTexture* TextureDefaultRead(const char* name, const char* maskName) {
     return texture;
 }
 
+/* Near match: control flow, calls, accesses, and size match; retail assigns
+ * raster and the mip level to r30/r31 while clean C assigns r31/r30. */
 static RwRaster* TextureRasterDefaultBuildMipmaps(RwRaster* raster,
                                                    RwImage* baseImage) {
     RwRGBA palette[256];
@@ -557,8 +559,8 @@ static RwRaster* TextureRasterDefaultBuildMipmaps(RwRaster* raster,
     int height = raster->height;
     int depth = raster->depth;
     int formatBit;
-    int levelCount;
     int level;
+    int levelCount;
 
     if (baseImage == 0) {
         mipmaps[0] = RwImageCreate(width, height, 32);
@@ -594,33 +596,36 @@ static RwRaster* TextureRasterDefaultBuildMipmaps(RwRaster* raster,
             RwRasterUnlock(raster);
         }
         if (mipmaps[level] == 0) {
-            do {
-                level--;
+            while (--level >= 0) {
                 if (mipmaps[level] != baseImage) {
                     RwImageDestroy(mipmaps[level]);
                 }
-            } while (level > 0);
+            }
             raster->format = (unsigned char)(raster->format | formatBit);
             return 0;
         }
     }
 
-    if ((((unsigned int)raster->format << 8) & 0x6000) != 0) {
-        if ((((unsigned int)raster->format << 8) & 0x4000) != 0) {
+    if ((((raster->format & 0xFF) << 8) & 0x6000) != 0) {
+        if ((((raster->format & 0xFF) << 8) & 0x4000) != 0) {
             if (PalettizeMipmaps(palette, baseImage, mipmaps, levelCount, 4) == 0) {
-                if (levelCount > 0 && mipmaps[0] != baseImage) {
-                    RwImageDestroy(mipmaps[0]);
+                for (level = 0; level < levelCount; level++) {
+                    if (mipmaps[level] != baseImage) {
+                        RwImageDestroy(mipmaps[level]);
+                    }
+                    raster->format = (unsigned char)(raster->format | formatBit);
+                    return 0;
                 }
-                raster->format = (unsigned char)(raster->format | formatBit);
-                return 0;
             }
         } else {
             if (PalettizeMipmaps(palette, baseImage, mipmaps, levelCount, 8) == 0) {
-                if (levelCount > 0 && mipmaps[0] != baseImage) {
-                    RwImageDestroy(mipmaps[0]);
+                for (level = 0; level < levelCount; level++) {
+                    if (mipmaps[level] != baseImage) {
+                        RwImageDestroy(mipmaps[level]);
+                    }
+                    raster->format = (unsigned char)(raster->format | formatBit);
+                    return 0;
                 }
-                raster->format = (unsigned char)(raster->format | formatBit);
-                return 0;
             }
         }
         RwImageGammaCorrect(mipmaps[0]);
