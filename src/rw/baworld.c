@@ -53,7 +53,7 @@ static RwModuleInfo worldModule;
 
 static RpWorldSector *WorldFindSector(RpWorldSector *sector, void *data) {
     RpWorldSector **find = data;
-    if (sector == find[0]) {
+    if (find[0] == sector) {
         find[1] = (RpWorldSector *)TRUE;
         return NULL;
     }
@@ -473,8 +473,17 @@ RwBool RpWorldPluginAttach(void) {
     result |= RwEngineRegisterPlugin(0xC, 0x507, WorldOpen, WorldClose);
     result |= RwEngineRegisterPlugin(0, 0x50B, _rpBinaryWorldOpen,
                                      _rpBinaryWorldClose);
-    if (result < 0 || !_rpWorldObjRegisterExtensions() ||
-        !_rpClumpRegisterExtensions() || !_rxWorldDevicePluginAttach())
+    if (result < 0) {
         return FALSE;
+    }
+    if (!_rpWorldObjRegisterExtensions()) {
+        return FALSE;
+    }
+    if (!_rpClumpRegisterExtensions()) {
+        return FALSE;
+    }
+    if (!_rxWorldDevicePluginAttach()) {
+        return FALSE;
+    }
     return TRUE;
 }
