@@ -327,8 +327,9 @@ RpWorld *RpWorldUnlock(RpWorld *world) {
 
 RpWorld *RpWorldSectorGetWorld(const RpWorldSector *target) {
     RwLLLink *link;
-    for (link = WORLDGLOBALS->worldList.link.next;
-         link != &WORLDGLOBALS->worldList.link; link = link->next) {
+    RwLLLink *sentinel = &WORLDGLOBALS->worldList.link;
+
+    for (link = sentinel->next; link != sentinel; link = link->next) {
         RpWorldListEntry *e = (RpWorldListEntry *)((RwUInt8 *)link - 8);
         if (e->world->object.privateFlags & 1) {
             if ((const void *)target >= (const void *)e->world &&
