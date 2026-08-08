@@ -211,44 +211,72 @@ RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
         case rwPRIMTYPEPOINTLIST:
             IM3DGLOBALS->renderPipelines.pointList = pipeline;
             return pipeline;
-        default:
+        default: {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x25, primitiveType);
+            RwErrorSet(&error);
             break;
+        }
         }
     } else {
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            IM3DGLOBALS->renderPipelines.triList =
-                IM3DGLOBALS->defaultRenderPipelines.triList;
+            if (IM3DGLOBALS->defaultRenderPipelines.triList != NULL) {
+                IM3DGLOBALS->renderPipelines.triList =
+                    IM3DGLOBALS->defaultRenderPipelines.triList;
+            } else {
+                IM3DGLOBALS->renderPipelines.triList = NULL;
+            }
             return IM3DGLOBALS->renderPipelines.triList;
         case rwPRIMTYPETRIFAN:
-            IM3DGLOBALS->renderPipelines.triFan =
-                IM3DGLOBALS->defaultRenderPipelines.triFan;
+            if (IM3DGLOBALS->defaultRenderPipelines.triFan != NULL) {
+                IM3DGLOBALS->renderPipelines.triFan =
+                    IM3DGLOBALS->defaultRenderPipelines.triFan;
+            } else {
+                IM3DGLOBALS->renderPipelines.triFan = NULL;
+            }
             return IM3DGLOBALS->renderPipelines.triFan;
         case rwPRIMTYPETRISTRIP:
-            IM3DGLOBALS->renderPipelines.triStrip =
-                IM3DGLOBALS->defaultRenderPipelines.triStrip;
+            if (IM3DGLOBALS->defaultRenderPipelines.triStrip != NULL) {
+                IM3DGLOBALS->renderPipelines.triStrip =
+                    IM3DGLOBALS->defaultRenderPipelines.triStrip;
+            } else {
+                IM3DGLOBALS->renderPipelines.triStrip = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.triStrip;
         case rwPRIMTYPELINELIST:
-            IM3DGLOBALS->renderPipelines.lineList =
-                IM3DGLOBALS->defaultRenderPipelines.lineList;
+            if (IM3DGLOBALS->defaultRenderPipelines.lineList != NULL) {
+                IM3DGLOBALS->renderPipelines.lineList =
+                    IM3DGLOBALS->defaultRenderPipelines.lineList;
+            } else {
+                IM3DGLOBALS->renderPipelines.lineList = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.lineList;
         case rwPRIMTYPEPOLYLINE:
-            IM3DGLOBALS->renderPipelines.polyLine =
-                IM3DGLOBALS->defaultRenderPipelines.polyLine;
+            if (IM3DGLOBALS->defaultRenderPipelines.polyLine != NULL) {
+                IM3DGLOBALS->renderPipelines.polyLine =
+                    IM3DGLOBALS->defaultRenderPipelines.polyLine;
+            } else {
+                IM3DGLOBALS->renderPipelines.polyLine = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.polyLine;
         case rwPRIMTYPEPOINTLIST:
-            IM3DGLOBALS->renderPipelines.pointList =
-                IM3DGLOBALS->defaultRenderPipelines.pointList;
+            if (IM3DGLOBALS->defaultRenderPipelines.pointList != NULL) {
+                IM3DGLOBALS->renderPipelines.pointList =
+                    IM3DGLOBALS->defaultRenderPipelines.pointList;
+            } else {
+                IM3DGLOBALS->renderPipelines.pointList = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.pointList;
-        default:
+        default: {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x25, primitiveType);
+            RwErrorSet(&error);
             break;
         }
-    }
-    {
-        RwError error;
-        error.pluginID = 1;
-        error.errorCode = _rwerror(0x25, primitiveType);
-        RwErrorSet(&error);
+        }
     }
     return NULL;
 }
