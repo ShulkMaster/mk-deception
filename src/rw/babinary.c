@@ -146,40 +146,39 @@ RwBool RwStreamFindChunk(RwStream* stream, RwUInt32 type,
     }
 }
 
-/* Near miss: exact access widths and shifts; only register scheduling differs. */
 void* RwMemLittleEndian32(void* memory, RwUInt32 size) {
     RwUInt32* words = memory;
-    RwUInt32 count = size >> 2;
-    while (count != 0) {
-        *words = (*words << 24) | ((*words << 8) & 0x00FF0000) |
-                 (*words >> 24) | ((*words >> 8) & 0x0000FF00);
+    size >>= 2;
+    while (size != 0) {
+        *words = (*words << 24) |
+                 (((*words << 8) & 0x00FF0000) |
+                  ((*words >> 24) | ((*words >> 8) & 0x0000FF00)));
         words++;
-        count--;
+        size--;
     }
     return memory;
 }
 
-/* Near miss: exact access widths and shifts; only loop coloring differs. */
 void* RwMemLittleEndian16(void* memory, RwUInt32 size) {
     RwUInt16* halves = memory;
-    RwUInt32 count = size >> 1;
-    while (count != 0) {
+    size >>= 1;
+    while (size != 0) {
         *halves = (*halves >> 8) | (*halves << 8);
         halves++;
-        count--;
+        size--;
     }
     return memory;
 }
 
-/* Near miss: exact access widths and shifts; only register scheduling differs. */
 void* RwMemNative32(void* memory, RwUInt32 size) {
     RwUInt32* words = memory;
-    RwUInt32 count = size >> 2;
-    while (count != 0) {
-        *words = (*words << 24) | ((*words << 8) & 0x00FF0000) |
-                 (*words >> 24) | ((*words >> 8) & 0x0000FF00);
+    size >>= 2;
+    while (size != 0) {
+        *words = (*words << 24) |
+                 (((*words << 8) & 0x00FF0000) |
+                  ((*words >> 24) | ((*words >> 8) & 0x0000FF00)));
         words++;
-        count--;
+        size--;
     }
     return memory;
 }
