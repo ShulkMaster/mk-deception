@@ -193,17 +193,15 @@ static void* SpecularMaterialConstructor(void* object, RwInt32 offset,
                                          RwInt32 size)
 {
     static const SpecularColor whiteColor = { 255, 255, 255, 255 };
-    SpecularMaterialPluginData* data = SPECULAR_MATERIAL_DATA(object);
-
-    data->texture = NULL;
-    data->savedTexture = NULL;
-    data->light = NULL;
-    data->frame = NULL;
-    data->clipValue = 0;
-    data->shininess = 0.0f;
-    data->tint = whiteColor;
-    data->gloss = 0.0f;
-    data->flags = 0;
+    SPECULAR_MATERIAL_DATA(object)->texture = NULL;
+    SPECULAR_MATERIAL_DATA(object)->savedTexture = NULL;
+    SPECULAR_MATERIAL_DATA(object)->light = NULL;
+    SPECULAR_MATERIAL_DATA(object)->frame = NULL;
+    SPECULAR_MATERIAL_DATA(object)->clipValue = 0;
+    SPECULAR_MATERIAL_DATA(object)->shininess = 0.0f;
+    SPECULAR_MATERIAL_DATA(object)->tint = whiteColor;
+    SPECULAR_MATERIAL_DATA(object)->gloss = 0.0f;
+    SPECULAR_MATERIAL_DATA(object)->flags = 0;
     return object;
 }
 
