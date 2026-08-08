@@ -4,6 +4,8 @@ extern RxHeap* _rxHeapGlobal;
 
 RxExecutionContext _rxExecCtxGlobal;
 
+/* Near miss: retail assigns different nonvolatile registers to pipeline and
+ * cluster count and materializes zero for the clusterRef comparison. */
 void _rxPacketDestroy(RxPacket* packet) {
     RwUInt32 numClusters;
     RxPipeline* pipeline;
