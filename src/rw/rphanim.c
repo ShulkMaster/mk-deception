@@ -326,7 +326,9 @@ RpHAnimHierarchy* RpHAnimHierarchyDestroy(RpHAnimHierarchy* hierarchy)
         RpHAnimAtomicGlobals.hierarchyFreeList, hierarchy);
     hierarchy = NULL;
     if (parentFrame != NULL) {
-        HANIMFRAMEEXTENSION(parentFrame)->hierarchy = NULL;
+        /* Retail materializes this extension; only save-helper selection differs. */
+        RpHAnimFrameExtension* frameExtension = HANIMFRAMEEXTENSION(parentFrame);
+        frameExtension->hierarchy = NULL;
     }
     return hierarchy;
 }
