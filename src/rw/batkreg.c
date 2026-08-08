@@ -190,7 +190,9 @@ RwInt32 _rwPluginRegistryAddPlugin(
     return -1;
 }
 
-/* Soft ceiling: only callback operand loading and register allocation differ. */
+/* Near match: the complete callback/rollback body is exact. Retail uses the
+ * _savegpr_29/_restgpr_29 helpers while this compiler emission saves the same
+ * three nonvolatile registers individually. */
 const RwPluginRegistry* _rwPluginRegistryInitObject(
     const RwPluginRegistry* registry, void* object) {
     RwPluginRegEntry* entry = registry->firstRegEntry;
