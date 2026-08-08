@@ -19,7 +19,7 @@ static RwFreeList* _masterFreeListPtr;
 static RwBool freeListModuleOpen;
 
 static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
-                                  RwInt32 alignment, RwInt32 preallocBlocks,
+                                  RwUInt32 alignment, RwUInt32 preallocBlocks,
                                   RwFreeList* freeList, RwUInt32 hint);
 static void _RwFreeListFree(RwFreeList* freeList);
 static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwUInt32 heapSize);
@@ -65,11 +65,11 @@ static void _rwFreeListModuleClose(void)
 
 /* Near miss: exact ownership, hint, alignment, and allocation CFG; scheduling differs. */
 static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
-                                  RwInt32 alignment, RwInt32 preallocBlocks,
+                                  RwUInt32 alignment, RwUInt32 preallocBlocks,
                                   RwFreeList* freeList, RwUInt32 hint)
 {
     RwInt32 alignedEntrySize;
-    RwInt32 heapSize;
+    RwUInt32 heapSize;
 
     if (!FreeListsEnabled)
         preallocBlocks = 0;
@@ -99,8 +99,13 @@ static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
     freeList->blockList.link.prev = &freeList->blockList.link;
 
     while (preallocBlocks != 0) {
-        RwFreeBlock* block = RwEngineInstance->fpMalloc(
-            heapSize + entriesPerBlock * alignedEntrySize + alignment + 7, hint);
+        RwUInt32 allocationSize =
+            heapSize + entriesPerBlock * alignedEntrySize;
+        RwFreeBlock* block;
+
+        allocationSize += alignment;
+        allocationSize += 7;
+        block = RwEngineInstance->fpMalloc(allocationSize, hint);
         if (block == NULL) {
             _RwFreeListFree(freeList);
             return NULL;
