@@ -245,8 +245,6 @@ RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
 
 void* _rwIm3DClose(void* instance, RwInt32 offset, RwInt32 size)
 {
-    (void)offset;
-    (void)size;
     _rwIm3DDestroyPlatformRenderPipelines(
         &IM3DGLOBALS->defaultRenderPipelines);
     _rwIm3DDestroyPlatformTransformPipeline(
