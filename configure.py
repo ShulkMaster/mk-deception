@@ -1257,6 +1257,8 @@ config.libs = [
             Object(NonMatching, "rpworld.a/wrldpipe.obj",
                    source="rw/wrldpipe.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rpworld.a/ibuffer.obj", source="rw/ibuffer.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
         ],
     ),
     RenderWareLib(
