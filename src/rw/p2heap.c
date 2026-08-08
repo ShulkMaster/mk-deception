@@ -2,16 +2,17 @@
 #include "rw/rwerror.h"
 #include "rw/rxpipeline.h"
 
-/* Near miss: retail retains one additional loop-count temporary/register. */
+/* Near miss: resize setup differs only in register allocation and scheduling. */
 static RxHeapFreeBlock* HeapFreeBlocksNewEntry(RxHeap* heap)
 {
     RxHeapFreeBlock* freeBlocks = heap->freeBlocks;
     RwUInt32 used = heap->freeBlocksUsed;
 
     if (heap->freeBlocksAllocated <= used) {
-        heap->freeBlocksAllocated += 32;
+        RwUInt32 newAllocated = heap->freeBlocksAllocated + 32;
+        heap->freeBlocksAllocated = newAllocated;
         freeBlocks = RwEngineInstance->fpRealloc(
-            freeBlocks, heap->freeBlocksAllocated * sizeof(*freeBlocks),
+            heap->freeBlocks, newAllocated * sizeof(*freeBlocks),
             0x1030409);
         if (freeBlocks == NULL) {
             RwError error;
@@ -25,12 +26,14 @@ static RxHeapFreeBlock* HeapFreeBlocksNewEntry(RxHeap* heap)
         } else {
             if (freeBlocks != heap->freeBlocks && used != 0) {
                 RxHeapFreeBlock* entry = freeBlocks;
+                RwUInt32 remaining;
 
                 do {
                     entry->block->freeEntry = entry;
                     ++entry;
+                    remaining = --used;
                 }
-                while (--used != 0);
+                while (remaining != 0);
             }
             heap->freeBlocks = freeBlocks;
         }
