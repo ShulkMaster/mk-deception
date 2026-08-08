@@ -119,15 +119,16 @@ static int PalettizeImage(RwImage** image, int depth) {
     RwPalQuantAddImage(&quantizer, *image, 1.0f);
     RwPalQuantResolvePalette(palette, 1 << depth, &quantizer);
     palettized = RwImageCreate((*image)->width, (*image)->height, depth);
-    if (palettized == 0) {
+    if (palettized != 0) {
+        RwImageAllocatePixels(palettized);
+        RwPalQuantMatchImage(palettized->pixels, palettized->stride,
+                             palettized->depth, 0, &quantizer, *image);
+        memcpy(palettized->palette, palette, (1 << depth) * sizeof(RwRGBA));
+        RwImageDestroy(*image);
+        *image = palettized;
+    } else {
         return 0;
     }
-    RwImageAllocatePixels(palettized);
-    RwPalQuantMatchImage(palettized->pixels, palettized->stride,
-                         palettized->depth, 0, &quantizer, *image);
-    memcpy(palettized->palette, palette, (1 << depth) * sizeof(RwRGBA));
-    RwImageDestroy(*image);
-    *image = palettized;
     RwPalQuantTerm(&quantizer);
     return 1;
 }
