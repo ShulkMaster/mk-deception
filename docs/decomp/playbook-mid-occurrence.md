@@ -30,6 +30,7 @@ source-shape change per rebuild.
 | 22 | If retail destructor open-codes base teardown but ours calls it, out-of-line empty base dtor → inline class definition while preserving retail standalone ownership | Class hierarchy and vtables are verified | Destructor inlining and vtable rematerialization | M/M/H |
 | 23 | If repeated functions show source-ordered independent ops, default schedule → test object-scoped `-schedule off` once | Whole TU shares the smell; all exact functions are rechecked | Instruction scheduling across independent loads/stores | M/M/H |
 | 24 | If a helper's local lifetime begins after an inline region, eager initializer → declare early but assign after that region | Retail first-use point is clear | Saved-register count and inline-body coloring | M/H/M |
+| 25 | If a circular-list loop repeatedly compares against the same sentinel across calls, repeated `&list.link` → one typed `head`/sentinel local kept beside the iterator | Retail keeps distinct iterator and sentinel registers; callback/callee may clobber temporaries; list ownership is proven | Sentinel rematerialization, saved-register set, loop comparison coloring | M/H/M |
 
 ## Mid-tier stop rule
 

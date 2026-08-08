@@ -299,12 +299,12 @@ RwFreeList* RwFreeListForAllUsed(RwFreeList* freeList,
     return freeList;
 }
 
-/* Near miss: exact accumulation loop; nonvolatile-register allocation differs. */
 RwInt32 RwFreeListPurgeAllFreeLists(void)
 {
     RwInt32 total = 0;
     RwLLLink* link = _freeListList.link.next;
-    while (link != &_freeListList.link) {
+    RwLLLink* head = &_freeListList.link;
+    while (link != head) {
         RwFreeList* freeList = (RwFreeList*)((RwUInt8*)link - 0x1C);
         RwInt32 purged = RwFreeListPurge(freeList);
         if (purged > 0)
