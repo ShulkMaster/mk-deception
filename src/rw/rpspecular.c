@@ -89,11 +89,13 @@ static RwBool CreatePhongImage(RwInt32 imageIndex, RwReal coefficient)
         for (x = 0; x < 128; x++) {
             RwReal nx = 2.0f * ((RwReal)x / 127.0f) - 1.0f;
             RwReal ny = 2.0f * ((RwReal)y / 127.0f) - 1.0f;
-            RwReal height = 1.0f - nx * nx - ny * ny;
+            RwReal height;
             RwInt32 intensity;
             RwUInt8 color;
 
-            if (height <= 0.0f) {
+            if (1.0f - nx * nx - ny * ny > 0.0f) {
+                height = 1.0f - nx * nx - ny * ny;
+            } else {
                 height = 0.0f;
             }
 
