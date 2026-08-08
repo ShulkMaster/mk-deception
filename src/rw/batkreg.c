@@ -60,10 +60,10 @@ RwBool _rwPluginRegistryClose(void) {
                     parent->lastRegEntry = NULL;
                 }
             }
-        }
-        if (toolkitNonFLRegList != NULL) {
-            RwEngineInstance->fpFree(toolkitNonFLRegList);
-            toolkitNonFLRegList = NULL;
+            if (toolkitNonFLRegList != NULL) {
+                RwEngineInstance->fpFree(toolkitNonFLRegList);
+                toolkitNonFLRegList = NULL;
+            }
         }
         RwFreeListDestroy(toolkitRegEntries);
         toolkitRegEntries = NULL;
