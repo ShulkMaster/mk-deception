@@ -1,21 +1,16 @@
 #include "runtime/cstring.h"
 #include "rw/rwcore_types.h"
 #include "rw/rwerror.h"
+#include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
 extern RwPluginRegistry textureTKList;
-extern RwInt32 _rwStringStreamGetSize(const RwChar *string);
-extern const RwChar *_rwStringStreamWrite(const RwChar *string, RwStream *stream);
-extern RwChar *_rwStringStreamFindAndRead(RwChar *string, RwStream *stream);
-extern RwStream *_rwStreamWriteVersionedChunkHeader(RwStream *, RwUInt32, RwUInt32, RwUInt32,
-                                                    RwUInt32);
-extern RwStream *RwStreamWrite(RwStream *, const void *, RwUInt32);
-extern RwBool RwStreamFindChunk(RwStream *, RwUInt32, RwUInt32 *, RwUInt32 *);
-extern RwUInt32 RwStreamRead(RwStream *, void *, RwUInt32);
-extern void RwMemLittleEndian32(void *, RwUInt32);
-extern void RwMemNative32(void *, RwUInt32);
 
-/* Soft ceiling: only the commutative add operand order differs from retail. */
+/*
+ * Soft ceiling: the complete body and size arithmetic match retail. The only
+ * residue is the operand order of the three commutative adds that accumulate
+ * the two string chunks and the texture payload.
+ */
 RwUInt32 RwTextureStreamGetSize(const RwTexture *texture) {
     RwInt32 size = 0x10;
 

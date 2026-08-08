@@ -1,12 +1,7 @@
 #include "rw/rwerror.h"
 #include "rw/rwplcore.h"
-
-extern RwBool RwStreamFindChunk(RwStream*, RwUInt32, RwUInt32*, RwUInt32*);
-extern RwStream* RwStreamSkip(RwStream*, RwUInt32);
-extern RwStream* _rwStreamReadChunkHeader(RwStream*, RwUInt32*, RwInt32*,
-                                          RwUInt32*, RwUInt32*);
-extern RwStream* _rwStreamWriteVersionedChunkHeader(
-    RwStream*, RwUInt32, RwUInt32, RwUInt32, RwUInt32);
+#include "rw/rwstream.h"
+#include "rw/rwstream_internal.h"
 
 RwInt32 _rwPluginRegistryAddPluginStream(
     RwPluginRegistry* registry, RwUInt32 pluginID,
@@ -75,7 +70,7 @@ const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
     if (version >= 0x34000 && version <= 0x36003) {
         while (length != 0) {
             RwUInt32 pluginID;
-            RwInt32 pluginDataLength;
+            RwUInt32 pluginDataLength;
             RwPluginRegEntry* entry;
 
             if (_rwStreamReadChunkHeader(stream, &pluginID, &pluginDataLength,
@@ -196,7 +191,7 @@ const RwPluginRegistry* _rwPluginRegistrySkipDataChunks(
         return NULL;
     }
     while (length != 0) {
-        RwInt32 pluginDataLength;
+        RwUInt32 pluginDataLength;
         if (_rwStreamReadChunkHeader(stream, NULL, &pluginDataLength, NULL,
                                      NULL) == NULL) {
             return NULL;

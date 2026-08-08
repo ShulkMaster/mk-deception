@@ -2,18 +2,12 @@
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
 #include "rw/rwerror.h"
+#include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
 extern RwChar* strncat(RwChar*, const RwChar*, size_t);
 extern RwChar* strlwr(RwChar*);
 extern int sscanf(const RwChar*, const RwChar*, ...);
-extern RwStream* _rwStreamReadChunkHeader(RwStream*, RwUInt32*, RwInt32*,
-                                          RwUInt32*, RwUInt32*);
-extern RwStream* _rwStreamWriteVersionedChunkHeader(
-    RwStream*, RwUInt32, RwUInt32, RwUInt32, RwUInt32);
-extern RwStream* RwStreamWrite(RwStream*, const void*, RwUInt32);
-extern RwUInt32 RwStreamRead(RwStream*, void*, RwUInt32);
-extern RwStream* RwStreamSkip(RwStream*, RwUInt32);
 
 static const RwChar nullString[] = "";
 
@@ -140,7 +134,7 @@ RwInt32 _rwStringStreamGetSize(const RwChar* string) {
 
 /* Near miss: body matches; only save/restore helper selection differs. */
 const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream) {
-    RwInt32 length;
+    RwUInt32 length;
     if (string == NULL) {
         string = nullString;
     }
@@ -231,7 +225,7 @@ static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
 /* Near miss: exact dispatch/error CFG; stack slots and register coloring differ. */
 RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream) {
     RwUInt32 type;
-    RwInt32 length;
+    RwUInt32 length;
     RwUInt32 version;
     RwBool validVersion;
 

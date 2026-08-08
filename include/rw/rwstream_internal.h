@@ -26,4 +26,10 @@ RpMaterialList* _rpMaterialListInitialize(RpMaterialList* materialList);
 RwInt32 _rwStringStreamGetSize(const RwChar* string);
 const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream);
 RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream);
+RwStream* _rwStreamWriteVersionedChunkHeader(
+    RwStream* stream, RwInt32 type, RwInt32 size, RwUInt32 version,
+    RwUInt32 buildNum);
+RwBool _rwStreamReadChunkHeader(RwStream* stream, RwUInt32* type,
+                                RwUInt32* length, RwUInt32* version,
+                                RwUInt32* buildNum);
 #endif

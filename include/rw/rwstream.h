@@ -19,6 +19,7 @@ RwStream* RwStreamSkip(RwStream* stream, unsigned int offset);
 RwBool RwStreamFindChunk(RwStream* stream, RwUInt32 type,
                          RwUInt32* length, RwUInt32* version);
 void* RwMemNative32(void* memory, RwUInt32 size);
+void* RwMemLittleEndian32(void* memory, RwUInt32 size);
 RwStream* RwStreamWriteInt32(RwStream* stream, const int* values,
                              unsigned int numBytes);
 RwStream* RwStreamReadInt32(RwStream* stream, int* values,
