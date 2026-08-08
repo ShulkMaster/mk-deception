@@ -22,7 +22,7 @@ static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
                                   RwInt32 alignment, RwInt32 preallocBlocks,
                                   RwFreeList* freeList, RwUInt32 hint);
 static void _RwFreeListFree(RwFreeList* freeList);
-static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwInt32 heapSize);
+static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwUInt32 heapSize);
 
 void _rwFreeListEnable(RwBool enable)
 {
@@ -206,8 +206,7 @@ void* _rwFreeListAllocReal(RwFreeList* freeList, RwUInt32 hint)
     return result;
 }
 
-/* Near miss: only boolean-result lowering differs. */
-static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwInt32 heapSize)
+static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwUInt32 heapSize)
 {
     RwInt32 sum = 0;
     RwInt32 i;
