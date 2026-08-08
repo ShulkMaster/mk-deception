@@ -19,7 +19,7 @@ extern RwFrame* RwFrameCreate(void);
 extern RwBool RwFrameDestroyHierarchy(RwFrame*);
 extern RwFrame* RwFrameAddChild(RwFrame*, RwFrame*);
 extern RwFrame* RwFrameAddChildNoUpdate(RwFrame*, RwFrame*);
-extern RwFrame* RwFrameGetRoot(RwFrame*);
+extern RwFrame* RwFrameGetRoot(const RwFrame*);
 extern RwFrame* RwFrameUpdateObjects(RwFrame*);
 extern RwReal _rwMatrixNormalError(const RwMatrix*);
 extern RwReal _rwMatrixOrthogonalError(const RwMatrix*);

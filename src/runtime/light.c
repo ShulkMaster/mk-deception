@@ -41,7 +41,7 @@ RpWorld* RpLightGetWorld(RpLight* light);
 void RpWorldAddLight(RpWorld* world, RpLight* light);
 void RpWorldRemoveLight(RpWorld* world, RpLight* light);
 RwFrame* RwFrameCreate(void);
-void RwFrameDestroy(RwFrame* frame);
+RwBool RwFrameDestroy(RwFrame* frame);
 void _rwObjectHasFrameSetFrame(RpLight* light, RwFrame* frame);
 
 /* Retail leaves create_mkproc's return (mkproc*) in r3. */

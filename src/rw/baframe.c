@@ -1,163 +1,325 @@
-/* TODO: Missing implementation for retail unit baframe.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/rwfreelist.h"
+#include "rw/rwplcore.h"
+#include "rw/rwtypehf.h"
 
-void *_rwFrameOpen(void)
+enum {
+    rwFRAMEHIERARCHYSYNCHRONIZED = 0x01,
+    rwFRAMEPRIVATEHIERARCHYSYNCHRONIZED = 0x02,
+    rwFRAMELTMDIRTY = 0x04,
+    rwFRAMEOBJECTSYNCDIRTY = 0x08
+};
+
+extern void _rwFrameSyncHierarchyLTM(RwFrame*);
+
+RwPluginRegistry frameTKList = { sizeof(RwFrame), sizeof(RwFrame), 0, 0, 0, 0 };
+static RwFreeList frameFreeList;
+static RwInt32 _rwFrameFreeListBlockSize = 0x32;
+static RwInt32 _rwFrameFreeListPreallocBlocks = 1;
+static RwModuleInfo frameModule;
+
+static void rwSetHierarchyRoot(RwFrame* frame, RwFrame* root);
+static void FrameDestroyRecurseDeInitLeaf(RwFrame* frame);
+static void rwFrameDestroyRecurseDestroyLeaf(RwFrame* frame);
+static void rwFrameDestroyRecurse(RwFrame* frame);
+
+void* _rwFrameOpen(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    frameModule.globalsOffset = offset;
+    RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, frameModule.globalsOffset) =
+        RwFreeListCreateAndPreallocateSpace(
+            frameTKList.sizeOfStruct, _rwFrameFreeListBlockSize, 4,
+            _rwFrameFreeListPreallocBlocks, &frameFreeList, 0x4000E);
+    if (RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, frameModule.globalsOffset) == NULL)
+        return NULL;
+    rwLinkListInitialize(&RwEngineInstance->dirtyFrameList);
+    frameModule.numInstances++;
+    return instance;
 }
 
-void *_rwFrameClose(void)
+void* _rwFrameClose(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (RWPLUGINOFFSET(RwFreeList*, RwEngineInstance,
+                       frameModule.globalsOffset) != NULL) {
+        RwFreeListDestroy(RWPLUGINOFFSET(
+            RwFreeList*, RwEngineInstance, frameModule.globalsOffset));
+        RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, frameModule.globalsOffset) = NULL;
+    }
+    frameModule.numInstances--;
+    return instance;
 }
 
-void *rwSetHierarchyRoot(void)
+static void rwSetHierarchyRoot(RwFrame* frame, RwFrame* root)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    frame->root = root;
+    frame = frame->child;
+    while (frame != NULL) {
+        rwSetHierarchyRoot(frame, root);
+        frame = frame->next;
+    }
 }
 
-void *RwFrameDirty(void)
+RwBool RwFrameDirty(const RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwBool dirty;
+    frame = frame->root;
+    dirty = frame->object.privateFlags & 3;
+    return dirty;
 }
 
-void *_rwFrameInit(void)
+void _rwFrameInit(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    rwObjectInitialize(frame, 0, 0);
+    rwLinkListInitialize(&frame->objectList);
+    frame->modelling.flags = 3;
+    frame->modelling.right.x = frame->modelling.up.y =
+        frame->modelling.at.z = 1.0f;
+    frame->modelling.right.y = frame->modelling.right.z =
+        frame->modelling.up.x = 0.0f;
+    frame->modelling.up.z = frame->modelling.at.x =
+        frame->modelling.at.y = 0.0f;
+    frame->modelling.pos.x = frame->modelling.pos.y =
+        frame->modelling.pos.z = 0.0f;
+    frame->modelling.flags |= 0x20003;
+    frame->ltm.flags = 3;
+    frame->ltm.right.x = frame->ltm.up.y = frame->ltm.at.z = 1.0f;
+    frame->ltm.right.y = frame->ltm.right.z = frame->ltm.up.x = 0.0f;
+    frame->ltm.up.z = frame->ltm.at.x = frame->ltm.at.y = 0.0f;
+    frame->ltm.pos.x = frame->ltm.pos.y = frame->ltm.pos.z = 0.0f;
+    frame->ltm.flags |= 0x20003;
+    frame->child = NULL;
+    frame->next = NULL;
+    frame->root = frame;
+    _rwPluginRegistryInitObject(&frameTKList, frame);
 }
 
-void *RwFrameCreate(void)
+RwFrame* RwFrameCreate(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwFrame* frame = RwEngineInstance->fpFreeListAlloc(
+        RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, frameModule.globalsOffset),
+        0x3000E);
+    if (frame == NULL)
+        return NULL;
+    _rwFrameInit(frame);
+    return frame;
 }
 
-void *_rwFrameDeInit(void)
+RwFrame* RwFrameRemoveChild(RwFrame* child);
+
+void _rwFrameDeInit(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    /* Retail snapshots parent and uses a wider save range; operations match. */
+    RwFrame* child;
+    _rwPluginRegistryDeInitObject(&frameTKList, frame);
+    if (frame->object.parent != NULL)
+        RwFrameRemoveChild(frame);
+    if (frame->object.privateFlags & 3)
+        rwLinkListRemoveLLLink(&frame->inDirtyListLink);
+    child = frame->child;
+    while (child != NULL) {
+        child->object.parent = NULL;
+        child = child->next;
+    }
 }
 
-void *RwFrameDestroy(void)
+RwBool RwFrameDestroy(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    _rwFrameDeInit(frame);
+    RwEngineInstance->fpFreeListFree(
+        RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, frameModule.globalsOffset), frame);
+    return TRUE;
 }
 
-void *FrameDestroyRecurseDeInitLeaf(void)
+static void FrameDestroyRecurseDeInitLeaf(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    _rwPluginRegistryDeInitObject(&frameTKList, frame);
+    if (frame->object.privateFlags & 3)
+        rwLinkListRemoveLLLink(&frame->inDirtyListLink);
 }
 
-void *rwFrameDestroyRecurseDestroyLeaf(void)
+static void rwFrameDestroyRecurseDestroyLeaf(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    FrameDestroyRecurseDeInitLeaf(frame);
+    RwEngineInstance->fpFreeListFree(
+        RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, frameModule.globalsOffset), frame);
 }
 
-void *rwFrameDestroyRecurse(void)
+static void rwFrameDestroyRecurse(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    /* Retail selects save/restore helpers for this otherwise identical recursion. */
+    if (frame != NULL) {
+        RwFrame* child = frame->child;
+        while (child != NULL) {
+            RwFrame* next = child->next;
+            rwFrameDestroyRecurse(child);
+            child = next;
+        }
+        rwFrameDestroyRecurseDestroyLeaf(frame);
+    }
 }
 
-void *RwFrameDestroyHierarchy(void)
+RwBool RwFrameDestroyHierarchy(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    rwFrameDestroyRecurse(frame);
+    return TRUE;
 }
 
-void *RwFrameUpdateObjects(void)
+RwFrame* RwFrameUpdateObjects(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    /* Remaining difference is dirty-list temporary coloring and scheduling. */
+    RwUInt8 privateFlags = frame->root->object.privateFlags;
+    if (!(privateFlags & 3))
+        rwLinkListAddLLLink(&RwEngineInstance->dirtyFrameList,
+                            &frame->root->inDirtyListLink);
+    frame->root->object.privateFlags = privateFlags | 3;
+    frame->object.privateFlags |= rwFRAMELTMDIRTY | rwFRAMEOBJECTSYNCDIRTY;
+    return frame;
 }
 
-void *RwFrameGetLTM(void)
+RwMatrix* RwFrameGetLTM(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (frame->root->object.privateFlags & rwFRAMEHIERARCHYSYNCHRONIZED)
+        _rwFrameSyncHierarchyLTM(frame->root);
+    return &frame->ltm;
 }
 
-void *RwFrameGetRoot(void)
+RwFrame* RwFrameGetRoot(const RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return frame->root;
 }
 
-void *RwFrameAddChildNoUpdate(void)
+RwFrame* RwFrameAddChildNoUpdate(RwFrame* parent, RwFrame* child)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    /* Remaining difference is nonvolatile register scheduling. */
+    if (child->object.parent != NULL)
+        RwFrameRemoveChild(child);
+    child->next = parent->child;
+    parent->child = child;
+    child->object.parent = parent;
+    rwSetHierarchyRoot(child, parent->root);
+    return parent;
 }
 
-void *RwFrameAddChild(void)
+RwFrame* RwFrameAddChild(RwFrame* parent, RwFrame* child)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    /* Retail uses save/restore helpers; the body is instruction-identical. */
+    if (child->object.parent != NULL)
+        RwFrameRemoveChild(child);
+    child->next = parent->child;
+    parent->child = child;
+    child->object.parent = parent;
+    rwSetHierarchyRoot(child, parent->root);
+    if (child->object.privateFlags & 3) {
+        rwLinkListRemoveLLLink(&child->inDirtyListLink);
+        child->object.privateFlags &= ~3;
+    }
+    RwFrameUpdateObjects(child);
+    return parent;
 }
 
-void *RwFrameRemoveChild(void)
+RwFrame* RwFrameRemoveChild(RwFrame* child)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwFrame* previous = ((RwFrame*)child->object.parent)->child;
+    if (previous == child) {
+        ((RwFrame*)child->object.parent)->child = child->next;
+    } else {
+        while (previous->next != child)
+            previous = previous->next;
+        previous->next = child->next;
+    }
+    child->object.parent = NULL;
+    child->next = NULL;
+    rwSetHierarchyRoot(child, child);
+    RwFrameUpdateObjects(child);
+    return child;
 }
 
-void *RwFrameForAllChildren(void)
+RwFrame* RwFrameForAllChildren(RwFrame* frame, RwFrameCallBack callback, void* data)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    /* Retail uses save/restore helpers; callback-safe traversal is identical. */
+    RwFrame* child = frame->child;
+    while (child != NULL) {
+        RwFrame* next = child->next;
+        if (callback(child, data) == NULL)
+            return frame;
+        child = next;
+    }
+    return frame;
 }
 
-void *RwFrameTranslate(void)
+RwFrame* RwFrameTranslate(RwFrame* frame, const RwV3d* translation, RwInt32 combineOp)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwMatrixTranslate(&frame->modelling, translation, combineOp);
+    RwFrameUpdateObjects(frame);
+    return frame;
 }
 
-void *RwFrameScale(void)
+RwFrame* RwFrameScale(RwFrame* frame, const RwV3d* scale, RwInt32 combineOp)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwMatrixScale(&frame->modelling, scale, combineOp);
+    RwFrameUpdateObjects(frame);
+    return frame;
 }
 
-void *RwFrameTransform(void)
+RwFrame* RwFrameTransform(RwFrame* frame, const RwMatrix* matrix, RwInt32 combineOp)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwMatrixTransform(&frame->modelling, matrix, combineOp);
+    RwFrameUpdateObjects(frame);
+    return frame;
 }
 
-void *RwFrameRotate(void)
+RwFrame* RwFrameRotate(RwFrame* frame, const RwV3d* axis, RwReal angle,
+                       RwInt32 combineOp)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwMatrixRotate(&frame->modelling, axis, angle, combineOp);
+    RwFrameUpdateObjects(frame);
+    return frame;
 }
 
-void *RwFrameSetIdentity(void)
+RwFrame* RwFrameSetIdentity(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    frame->modelling.right.x = frame->modelling.up.y =
+        frame->modelling.at.z = 1.0f;
+    frame->modelling.right.y = frame->modelling.right.z =
+        frame->modelling.up.x = 0.0f;
+    frame->modelling.up.z = frame->modelling.at.x =
+        frame->modelling.at.y = 0.0f;
+    frame->modelling.pos.x = frame->modelling.pos.y =
+        frame->modelling.pos.z = 0.0f;
+    frame->modelling.flags |= 0x20003;
+    RwFrameUpdateObjects(frame);
+    return frame;
 }
 
-void *RwFrameOrthoNormalize(void)
+RwFrame* RwFrameOrthoNormalize(RwFrame* frame)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwMatrixOrthoNormalize(&frame->modelling, &frame->modelling);
+    RwFrameUpdateObjects(frame);
+    return frame;
 }
 
-void *RwFrameForAllObjects(void)
+RwFrame* RwFrameForAllObjects(RwFrame* frame, RwObjectCallBack callback, void* data)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    /* Remaining difference is callback/object temporary scheduling. */
+    RwLLLink* link = frame->objectList.link.next;
+    RwLLLink* sentinel = &frame->objectList.link;
+    while (link != sentinel) {
+        RwLLLink* next = link->next;
+        /* lFrame is the proven +0x08 embedded link. */
+        RwObjectHasFrame* object = (RwObjectHasFrame*)((RwUInt8*)link - 8);
+        if (callback((RwObject*)object, data) == NULL)
+            return frame;
+        link = next;
+    }
+    return frame;
 }
 
-void *RwFrameRegisterPlugin(void)
+RwInt32 RwFrameRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+                              RwPluginObjectConstructor constructCB,
+                              RwPluginObjectDestructor destructCB,
+                              RwPluginObjectCopy copyCB)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 offset = _rwPluginRegistryAddPlugin(
+        &frameTKList, size, pluginID, constructCB, destructCB, copyCB);
+    return offset;
 }

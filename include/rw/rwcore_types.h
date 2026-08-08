@@ -144,6 +144,36 @@ const RwTexture* RwTextureStreamWrite(const RwTexture* texture,
                                       RwStream* stream);
 RwTexture* RwTextureStreamRead(RwStream* stream);
 
+typedef RwFrame* (*RwFrameCallBack)(RwFrame* frame, void* data);
+typedef RwObject* (*RwObjectCallBack)(RwObject* object, void* data);
+RwBool RwFrameDirty(const RwFrame* frame);
+RwFrame* RwFrameCreate(void);
+RwBool RwFrameDestroy(RwFrame* frame);
+RwBool RwFrameDestroyHierarchy(RwFrame* frame);
+RwFrame* RwFrameUpdateObjects(RwFrame* frame);
+RwMatrix* RwFrameGetLTM(RwFrame* frame);
+RwFrame* RwFrameGetRoot(const RwFrame* frame);
+RwFrame* RwFrameAddChildNoUpdate(RwFrame* parent, RwFrame* child);
+RwFrame* RwFrameAddChild(RwFrame* parent, RwFrame* child);
+RwFrame* RwFrameRemoveChild(RwFrame* child);
+RwFrame* RwFrameForAllChildren(RwFrame* frame, RwFrameCallBack callback,
+                               void* data);
+RwFrame* RwFrameTranslate(RwFrame* frame, const RwV3d* translation,
+                          RwInt32 combineOp);
+RwFrame* RwFrameScale(RwFrame* frame, const RwV3d* scale, RwInt32 combineOp);
+RwFrame* RwFrameTransform(RwFrame* frame, const RwMatrix* matrix,
+                          RwInt32 combineOp);
+RwFrame* RwFrameRotate(RwFrame* frame, const RwV3d* axis, RwReal angle,
+                       RwInt32 combineOp);
+RwFrame* RwFrameSetIdentity(RwFrame* frame);
+RwFrame* RwFrameOrthoNormalize(RwFrame* frame);
+RwFrame* RwFrameForAllObjects(RwFrame* frame, RwObjectCallBack callback,
+                              void* data);
+RwInt32 RwFrameRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+                              RwPluginObjectConstructor constructCB,
+                              RwPluginObjectDestructor destructCB,
+                              RwPluginObjectCopy copyCB);
+
 #ifdef __cplusplus
 }
 #endif

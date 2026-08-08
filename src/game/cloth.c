@@ -130,7 +130,7 @@ int obj_get_bid_for_tid(MkObj* obj, int tag);
 MkObj* load_model_from_slot(int slot, int model_id, int heap_id);
 void* memcpy(void* destination, const void* source, unsigned int size);
 void RwMatrixUpdate(RwMatrix* matrix);
-void RwFrameUpdateObjects(RwFrame* frame);
+RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 RwMatrix* RwMatrixInvert(RwMatrix* output, const RwMatrix* input);
 void PSVECAdd(const Vec* first, const Vec* second, Vec* output);
 

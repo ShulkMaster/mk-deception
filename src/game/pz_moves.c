@@ -458,7 +458,7 @@ void bgnd_launch_fx_at_position(
 void bgnd_set_fx_ang_y(float angle);
 void get_bone_world_pos(
     PuzzleFighterObject* object, int bone, Vec* position);
-void RwFrameUpdateObjects(PuzzleRwFrame* frame);
+RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 void fx_reset(unsigned int effect);
 void set_my_secondary_state(int state);
 void set_block_requirement(int requirement);
@@ -1652,24 +1652,24 @@ static float p_pz_fighter_projectile_launcher(void) {
             if (projectile->launch_immediately == 1) {
                 projectile->timer = 1;
             }
-            RwFrameUpdateObjects(projectile->object->frame);
+            RwFrameUpdateObjects((RwFrame*)projectile->object->frame);
             frame->position.x = projectile->object->x;
             frame->position.y = projectile->object->y;
             frame->position.z = projectile->object->z;
-            RwFrameUpdateObjects(projectile->object->frame);
+            RwFrameUpdateObjects((RwFrame*)projectile->object->frame);
             break;
         }
         case 1: {
             PuzzleRwFrame* frame = projectile->object->frame;
 
-            RwFrameUpdateObjects(frame);
+            RwFrameUpdateObjects((RwFrame*)frame);
             projectile->object->x += projectile->object->external_force_x;
             projectile->object->y += projectile->object->vertical_velocity;
             projectile->object->z += projectile->object->external_force_z;
             frame->position.x = projectile->object->x;
             frame->position.y = projectile->object->y;
             frame->position.z = projectile->object->z;
-            RwFrameUpdateObjects(projectile->object->frame);
+            RwFrameUpdateObjects((RwFrame*)projectile->object->frame);
             get_bone_world_pos(projectile->target, 9, &position);
             if (projectile->object->external_force_x > 0.0f) {
                 if (projectile->object->x > position.x) {

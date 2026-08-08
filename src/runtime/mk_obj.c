@@ -175,11 +175,11 @@ RwFrame* RwFrameForAllChildren(RwFrame* frame, RwFrameCallBack callback, void* d
 RwFrame* RwFrameForAllObjects(RwFrame* frame, RwObjectCallBack callback, void* data);
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry, RpMaterialCallBack callback, void* data);
 RpClump* RpClumpForAllAtomics(RpClump* clump, RpAtomicCallBack callback, void* data);
-void* RwFrameGetLTM(void* frame);
+RwMatrix* RwFrameGetLTM(RwFrame* frame);
 void* memcpy(void* dst, const void* src, unsigned int size);
 int RwFrameDestroy(RwFrame* frame);
 RwFrame* RwFrameCreate(void);
-void RwFrameUpdateObjects(RwFrame* frame);
+RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 int RpClumpDestroy(RpClump* clump);
 void set_atomic_material_alpha(RpAtomic* atomic, int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);

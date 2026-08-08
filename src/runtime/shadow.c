@@ -162,7 +162,7 @@ void _rpAtomicResyncInterpolatedSphere(void* atomic);
 void RwV3dTransformPoints(void* dst, void* src, int count, ShadowMatrix* matrix);
 int RwRasterDestroy(RwRaster* raster);
 void RwMatrixUpdate(ShadowMatrix* matrix);
-void RwFrameUpdateObjects(void* frame);
+RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 void RwCameraSetFarClipPlane(void* camera, float distance);
 void RwCameraSetNearClipPlane(void* camera, float distance);
 void RwCameraSetViewWindow(void* camera, float* width, float* height);
@@ -171,13 +171,13 @@ int RwCameraBeginUpdate(void* camera);
 void RwCameraEndUpdate(void* camera);
 void RwGameCubeCameraTextureFlush(void* camera, int flags);
 void* RwCameraCreate(void);
-void* RwFrameCreate(void);
+RwFrame* RwFrameCreate(void);
 void _rwObjectHasFrameSetFrame(void* object, void* frame);
 void RwCameraSetProjection(void* camera, int projection);
-void RwFrameDestroy(void* frame);
+RwBool RwFrameDestroy(RwFrame* frame);
 void RwCameraDestroy(void* camera);
-void RwFrameOrthoNormalize(void* frame);
-void* RwFrameGetLTM(void* frame);
+RwFrame* RwFrameOrthoNormalize(RwFrame* frame);
+RwMatrix* RwFrameGetLTM(RwFrame* frame);
 void YXZ_angles_to_MKMATRIX(const float* angles, ShadowMatrix* matrix);
 void* load_model_from_slot_transl(int slot_hi, int slot_lo, int flags);
 void insert_fgnd_mkobj(void* model);
@@ -383,7 +383,7 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     frame_matrix->at[1] = dir_matrix->at[1];
     frame_matrix->at[2] = dir_matrix->at[2];
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(camera->frame);
+    RwFrameUpdateObjects((RwFrame*)camera->frame);
     RwCameraSetFarClipPlane(camera, kFarClipMul * shadow_scale);
     RwCameraSetNearClipPlane(camera, kNearClipMul * shadow_scale);
     view_window = shadow_scale;
@@ -396,7 +396,7 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     frame_matrix->pos[1] = frame_matrix->pos[1] + frame_matrix->up[1] * (kViewWindowBias * camera->view_window_scale);
     frame_matrix->pos[2] = frame_matrix->pos[2] + frame_matrix->at[2] * (kViewWindowBias * camera->view_window_scale);
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(camera->frame);
+    RwFrameUpdateObjects((RwFrame*)camera->frame);
     ShadowCameraUpdate_flag = 1;
     ShadowCameraUpdate(camera, ctx->clump, 1);
     lights = shadow->light_pair;
@@ -535,7 +535,7 @@ static void shadow_destroy_camera(RwCamera** camera_ptr) {
     frame = camera->frame;
     if (frame != NULL) {
         _rwObjectHasFrameSetFrame(camera, NULL);
-        RwFrameDestroy(frame);
+        RwFrameDestroy((RwFrame*)frame);
     }
     if (camera->z_raster != NULL) {
         camera->z_raster = NULL;
@@ -555,7 +555,7 @@ static RwCamera* shadow_create_camera(int resolution) {
 
     camera = RwCameraCreate();
     if (camera != NULL) {
-        frame = RwFrameCreate();
+        frame = (void*)RwFrameCreate();
         _rwObjectHasFrameSetFrame(camera, frame);
         if (camera->frame != NULL) {
             raster = RwRasterCreate(resolution, resolution, 0, 1);
@@ -568,7 +568,7 @@ static RwCamera* shadow_create_camera(int resolution) {
         frame = camera->frame;
         if (frame != NULL) {
             _rwObjectHasFrameSetFrame(camera, NULL);
-            RwFrameDestroy(frame);
+            RwFrameDestroy((RwFrame*)frame);
         }
         raster = camera->z_raster;
         if (raster != NULL) {
@@ -735,7 +735,7 @@ int init_shadow_system(void) {
     frame_matrix->at[1] = dir_matrix->at[1];
     frame_matrix->at[2] = dir_matrix->at[2];
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(camera->frame);
+    RwFrameUpdateObjects((RwFrame*)camera->frame);
     camera = shadow_create_camera(aa_resolution);
     ShadowIPCamera = camera;
     if (camera == NULL) {
@@ -832,7 +832,7 @@ void ShadowCameraUpdate(void* camera_ptr, void* clump_ptr, int clear) {
     if (clear != 0) {
         RwCameraClear(camera, &clear_color_black, 3);
     }
-    RwFrameOrthoNormalize(camera->frame);
+    RwFrameOrthoNormalize((RwFrame*)camera->frame);
     if (RwCameraBeginUpdate(camera) == 0) {
         return;
     }
@@ -854,7 +854,7 @@ void ShadowCameraUpdate(void* camera_ptr, void* clump_ptr, int clear) {
             geometry = atomic->geometry;
             saved_flags = geometry->flags;
             geometry->flags = saved_flags & ~0x20;
-            RwFrameGetLTM(atomic->object.parent);
+            RwFrameGetLTM((RwFrame*)atomic->object.parent);
             atomic->renderCallBack(atomic);
             geometry->flags = saved_flags;
         }
