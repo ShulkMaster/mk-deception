@@ -160,54 +160,65 @@ RwBool RwFreeListDestroy(RwFreeList* freeList)
     return TRUE;
 }
 
-/* Near miss: exact MSB-first bitmap algorithm; loop scheduling and lifetimes differ. */
+/* Near miss: exact bitmap/allocation behavior; clean-C local register coloring differs. */
 void* _rwFreeListAllocReal(RwFreeList* freeList, RwUInt32 hint)
 {
-    void* result = NULL;
-    RwInt32 heapSize = freeList->heapSize;
+    RwUInt8* result = NULL;
+    RwUInt32 heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
-    while (link != &freeList->blockList.link && result == NULL) {
-        RwFreeBlock* block = (RwFreeBlock*)link;
-        RwInt32 remaining = freeList->entriesPerBlock;
-        RwInt32 byteIndex;
-        for (byteIndex = 0; byteIndex < heapSize && result == NULL; ++byteIndex) {
-            RwUInt8 byte = block->heap[byteIndex];
+    RwLLLink* head = &freeList->blockList.link;
+    while (link != head && result == NULL) {
+        RwUInt8* heap = ((RwFreeBlock*)link)->heap;
+        RwUInt32 remaining = freeList->entriesPerBlock;
+        RwUInt32 byteIndex = 0;
+        while (byteIndex < heapSize) {
+            RwUInt8 byte = heap[byteIndex];
             if (byte != 0xFF) {
-                RwInt32 bitIndex;
-                for (bitIndex = 0; bitIndex < 8 && remaining != 0; ++bitIndex) {
+                RwUInt32 bitIndex = 0;
+                while (bitIndex < 8 && remaining != 0) {
                     RwUInt8 mask = (RwUInt8)(0x80 >> bitIndex);
                     if (!(byte & mask)) {
                         RwUInt8* base;
-                        block->heap[byteIndex] |= mask;
-                        base = (RwUInt8*)(((unsigned long)block + freeList->heapSize +
-                                          freeList->alignment + 7) &
+                        heap[byteIndex] =
+                            (RwUInt8)(heap[byteIndex] | mask);
+                        base = (RwUInt8*)link + heapSize +
+                               freeList->alignment + 7;
+                        base = (RwUInt8*)((unsigned long)base &
                                          ~(freeList->alignment - 1));
                         result = base + freeList->entrySize *
                                         (byteIndex * 8 + bitIndex);
                         break;
                     }
+                    ++bitIndex;
                     --remaining;
                 }
             } else {
                 remaining -= 8;
             }
+            if (result == NULL)
+                ++byteIndex;
+            else
+                break;
         }
         link = link->next;
     }
 
     if (result == NULL) {
-        RwFreeBlock* block = RwEngineInstance->fpMalloc(
-            heapSize + freeList->entriesPerBlock * freeList->entrySize +
-                freeList->alignment + 7,
-            hint);
+        RwLLLink* newLink;
+        RwFreeBlock* block;
         RwUInt8* base;
+        block = RwEngineInstance->fpMalloc(
+            freeList->alignment +
+                (heapSize + freeList->entriesPerBlock * freeList->entrySize) + 7,
+            hint);
         if (block == NULL)
             return NULL;
         memset(block->heap, 0, heapSize);
-        rwLinkListAddLLLink(&freeList->blockList, &block->link);
+        newLink = &block->link;
+        rwLinkListAddLLLink(&freeList->blockList, newLink);
         block->heap[0] = 0x80;
-        base = (RwUInt8*)(((unsigned long)block + heapSize +
-                          freeList->alignment + 7) &
+        base = (RwUInt8*)block + heapSize + freeList->alignment + 7;
+        base = (RwUInt8*)((unsigned long)base &
                          ~(freeList->alignment - 1));
         result = base;
     }
