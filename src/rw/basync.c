@@ -66,19 +66,16 @@ static void FrameSyncHierarchyRecurseNoLTM(RwFrame* frame) {
     }
 }
 
-/* Near miss: remaining differences are register coloring and when the two
- * object-list sentinel addresses are materialized. */
 static void FrameSyncHierarchy(RwFrame* root) {
     RwUInt32 flags = root->object.privateFlags;
-    RwLLLink* link;
 
     if ((RwInt32)(flags & rwFRAMEHIERARCHYSYNCHRONIZED) != 0) {
         if ((RwInt32)(flags & rwFRAMELTMDIRTY) != 0) {
             root->ltm = root->modelling;
         }
         if (root->objectList.link.next != &root->objectList.link) {
+            RwLLLink* link = root->objectList.link.next;
             RwLLLink* sentinel = &root->objectList.link;
-            link = root->objectList.link.next;
             while (link != sentinel) {
                 RwObjectHasFrame* object = (RwObjectHasFrame*)
                     ((unsigned char*)link - 8);
@@ -90,8 +87,8 @@ static void FrameSyncHierarchy(RwFrame* root) {
                                   flags & rwFRAMELTMDIRTY);
     } else {
         if (root->objectList.link.next != &root->objectList.link) {
+            RwLLLink* link = root->objectList.link.next;
             RwLLLink* sentinel = &root->objectList.link;
-            link = root->objectList.link.next;
             while (link != sentinel) {
                 RwObjectHasFrame* object = (RwObjectHasFrame*)
                     ((unsigned char*)link - 8);
