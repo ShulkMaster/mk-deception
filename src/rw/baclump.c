@@ -283,25 +283,28 @@ RwBool _rpClumpRegisterExtensions(void)
 RpClump* RpClumpRender(RpClump* clump)
 {
     RpClump* result = clump;
-    RwLLLink* link;
-    for (link = clump->atomicList.link.next; link != &clump->atomicList.link; link = link->next) {
+    RwLLLink* link = clump->atomicList.link.next;
+    while (link != &clump->atomicList.link) {
         RpAtomic* atomic = RP_ATOMIC_FROM_CLUMP_LINK(link);
         if (atomic->object.flags & 4) {
             RwFrameGetLTM(atomic->object.parent);
             if (atomic->renderCallBack(atomic) == NULL)
                 result = NULL;
         }
+        link = link->next;
     }
     return result;
 }
 
 RpClump* RpClumpForAllAtomics(RpClump* clump, RpAtomicCallBack callback, void* data)
 {
+    RpAtomicCallBack callBack = callback;
+    void* callBackData = data;
     RwLLLink* link = clump->atomicList.link.next;
     while (link != &clump->atomicList.link) {
         RwLLLink* next = link->next;
-        if (callback(RP_ATOMIC_FROM_CLUMP_LINK(link), data) == NULL)
-            break;
+        if (callBack(RP_ATOMIC_FROM_CLUMP_LINK(link), callBackData) == NULL)
+            return clump;
         link = next;
     }
     return clump;
@@ -311,12 +314,14 @@ RpClump* RpClumpForAllCameras(RpClump* clump,
                               RwCamera* (*callback)(RwCamera*, void*),
                               void* data)
 {
+    RwCamera* (*callBack)(RwCamera*, void*) = callback;
+    void* callBackData = data;
     RwLLLink* link = clump->cameraList.link.next;
     while (link != &clump->cameraList.link) {
         RwLLLink* next = link->next;
         RwCamera* camera = (RwCamera*)((RwUInt8*)link - 4 - _rpClumpCameraExtOffset);
-        if (callback(camera, data) == NULL)
-            break;
+        if (callBack(camera, callBackData) == NULL)
+            return clump;
         link = next;
     }
     return clump;
@@ -324,12 +329,14 @@ RpClump* RpClumpForAllCameras(RpClump* clump,
 
 RpClump* RpClumpForAllLights(RpClump* clump, RpLightCallBack callback, void* data)
 {
+    RpLightCallBack callBack = callback;
+    void* callBackData = data;
     RwLLLink* link = clump->lightList.link.next;
     while (link != &clump->lightList.link) {
         RwLLLink* next = link->next;
         RpLight* light = (RpLight*)((RwUInt8*)link - 4 - _rpClumpLightExtOffset);
-        if (callback(light, data) == NULL)
-            break;
+        if (callBack(light, callBackData) == NULL)
+            return clump;
         link = next;
     }
     return clump;
@@ -457,21 +464,45 @@ void RpClumpRemoveCamera(RpClump* clump, RwCamera* camera)
 }
 
 RwInt32 RpAtomicRegisterPlugin(RwInt32 size, RwUInt32 id, RwPluginObjectConstructor ctor, RwPluginObjectDestructor dtor, RwPluginObjectCopy copy)
-{ return _rwPluginRegistryAddPlugin(&atomicTKList, size, id, ctor, dtor, copy); }
+{
+    RwInt32 offset = _rwPluginRegistryAddPlugin(
+        &atomicTKList, size, id, ctor, dtor, copy);
+    return offset;
+}
 RwInt32 RpClumpRegisterPlugin(RwInt32 size, RwUInt32 id, RwPluginObjectConstructor ctor, RwPluginObjectDestructor dtor, RwPluginObjectCopy copy)
-{ return _rwPluginRegistryAddPlugin(&clumpTKList, size, id, ctor, dtor, copy); }
+{
+    RwInt32 offset = _rwPluginRegistryAddPlugin(
+        &clumpTKList, size, id, ctor, dtor, copy);
+    return offset;
+}
 RwInt32 RpAtomicRegisterPluginStream(RwUInt32 id, RwPluginDataChunkReadCallBack read, RwPluginDataChunkWriteCallBack write, RwPluginDataChunkGetSizeCallBack size)
-{ return _rwPluginRegistryAddPluginStream(&atomicTKList, id, read, write, size); }
+{
+    RwInt32 offset = _rwPluginRegistryAddPluginStream(
+        &atomicTKList, id, read, write, size);
+    return offset;
+}
 RwInt32 RpAtomicSetStreamAlwaysCallBack(RwUInt32 id, RwPluginDataChunkAlwaysCallBack callback)
-{ return _rwPluginRegistryAddPlgnStrmlwysCB(&atomicTKList, id, callback); }
+{
+    RwInt32 offset = _rwPluginRegistryAddPlgnStrmlwysCB(
+        &atomicTKList, id, callback);
+    return offset;
+}
 RwInt32 RpAtomicSetStreamRightsCallBack(RwUInt32 id, RwPluginDataChunkRightsCallBack callback)
-{ return _rwPluginRegistryAddPlgnStrmRightsCB(&atomicTKList, id, callback); }
+{
+    RwInt32 offset = _rwPluginRegistryAddPlgnStrmRightsCB(
+        &atomicTKList, id, callback);
+    return offset;
+}
 RwInt32 RpClumpRegisterPluginStream(RwUInt32 id, RwPluginDataChunkReadCallBack read, RwPluginDataChunkWriteCallBack write, RwPluginDataChunkGetSizeCallBack size)
-{ return _rwPluginRegistryAddPluginStream(&clumpTKList, id, read, write, size); }
+{
+    RwInt32 offset = _rwPluginRegistryAddPluginStream(
+        &clumpTKList, id, read, write, size);
+    return offset;
+}
 RwInt32 RpAtomicGetPluginOffset(RwUInt32 id)
 {
-    RwUInt32 pluginID = id;
-    return _rwPluginRegistryGetPluginOffset(&atomicTKList, pluginID);
+    RwInt32 offset = _rwPluginRegistryGetPluginOffset(&atomicTKList, id);
+    return offset;
 }
 
 RpAtomic* RpAtomicSetFrame(RpAtomic* atomic, RwFrame* frame)
