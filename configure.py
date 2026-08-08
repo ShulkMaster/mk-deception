@@ -1304,6 +1304,14 @@ config.libs = [
         ],
     ),
     RenderWareLib(
+        "rpspecular",
+        [
+            Object(NonMatching, "rpspecular.a/rpspecular.obj",
+                   source="rw/rpspecular.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+        ],
+    ),
+    RenderWareLib(
         "rtanim",
         [
             Object(Matching, "rtanim.a/rtanim.obj", source="rw/rtanim.c",
