@@ -2,17 +2,15 @@
 #include "rw/rwerror.h"
 #include "rw/rxpipeline.h"
 
-/* Near miss: resize setup differs only in register allocation and scheduling. */
 static RxHeapFreeBlock* HeapFreeBlocksNewEntry(RxHeap* heap)
 {
     RxHeapFreeBlock* freeBlocks = heap->freeBlocks;
     RwUInt32 used = heap->freeBlocksUsed;
 
     if (heap->freeBlocksAllocated <= used) {
-        RwUInt32 newAllocated = heap->freeBlocksAllocated + 32;
-        heap->freeBlocksAllocated = newAllocated;
         freeBlocks = RwEngineInstance->fpRealloc(
-            heap->freeBlocks, newAllocated * sizeof(*freeBlocks),
+            heap->freeBlocks,
+            (heap->freeBlocksAllocated += 32) * sizeof(*freeBlocks),
             0x1030409);
         if (freeBlocks == NULL) {
             RwError error;
