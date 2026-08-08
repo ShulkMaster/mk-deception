@@ -814,6 +814,9 @@ RwTexDictionary* RwTexDictionaryForAllTextures(
     return dictionary;
 }
 
+/* Near match: retail twice evaluates the unused address of its stack-local
+ * texture around the filter-mode macros, expanding the frame and save set.
+ * Allocation and every initialized field match without that debug residue. */
 RwTexture* RwTextureCreate(RwRaster* raster) {
     RwTexture* texture;
     void* freelist;
