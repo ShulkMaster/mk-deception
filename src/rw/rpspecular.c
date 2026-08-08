@@ -45,7 +45,7 @@ RwReal PhongCoefficients[3] = { 10.0f, 25.0f, 40.0f };
 
 RwInt32 SpecularMaterialOffset = -1;
 
-static RwInt32 SpecularInstances;
+static RwUInt32 SpecularInstances;
 static RwImage* Image;
 RwInt32 SpecularGeometryOffset;
 
