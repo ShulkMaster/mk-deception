@@ -752,7 +752,6 @@ RwTexDictionary* RwTexDictionaryForAllTextures(
 
 RwTexDictionary* RwTexDictionaryCreate(void) {
     RwTexDictionary* dictionary;
-    RwLLLink* link;
 
     dictionary = (RwTexDictionary*)RwEngineInstance->fpFreeListAlloc(
         TEXTURE_GLOBALS->dictionaryFreeList, 0x30016);
@@ -765,14 +764,9 @@ RwTexDictionary* RwTexDictionaryCreate(void) {
     dictionary->object.privateFlags = 0;
     dictionary->object.parent = 0;
 
-    link = &dictionary->lInInstance;
-    link->next = TEXTURE_GLOBALS->dictionaries.next;
-    link->prev = &TEXTURE_GLOBALS->dictionaries;
-    TEXTURE_GLOBALS->dictionaries.next->prev = link;
-    TEXTURE_GLOBALS->dictionaries.next = link;
-
-    dictionary->textures.next = &dictionary->textures;
-    dictionary->textures.prev = &dictionary->textures;
+    rwLinkListAddLLLink((RwLinkList*)&TEXTURE_GLOBALS->dictionaries,
+                        &dictionary->lInInstance);
+    rwLinkListInitialize((RwLinkList*)&dictionary->textures);
     _rwPluginRegistryInitObject(&texDictTKList, dictionary);
     return dictionary;
 }
