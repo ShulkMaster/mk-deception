@@ -55,7 +55,7 @@ RwImage *RwImageCreate(RwInt32, RwInt32, RwInt32);
 void *_rwImageOpen(void *instance, RwInt32 offset, RwInt32 size) {
   imageModule.globalsOffset = offset;
   IMAGEGLOBALS->imageFreeList = RwFreeListCreateAndPreallocateSpace(
-      sizeof(RwImage), _rwImageFreeListBlockSize, 4,
+      imageTKList.sizeOfStruct, _rwImageFreeListBlockSize, 4,
       _rwImageFreeListPreallocBlocks, &_rwImageFreeList, 0x40018);
   if (!IMAGEGLOBALS->imageFreeList)
     return NULL;
@@ -68,7 +68,8 @@ void *_rwImageOpen(void *instance, RwInt32 offset, RwInt32 size) {
     return NULL;
   }
   IMAGEGLOBALS->imagePathSize = 0x100;
-  IMAGEGLOBALS->imagePath = RwEngineInstance->fpMalloc(0x100, 0x01040406);
+  IMAGEGLOBALS->imagePath = RwEngineInstance->fpMalloc(
+      IMAGEGLOBALS->imagePathSize, 0x01040406);
   if (!IMAGEGLOBALS->imagePath) {
     RwFreeListDestroy(IMAGEGLOBALS->formatFreeList);
     IMAGEGLOBALS->formatFreeList = NULL;
@@ -81,7 +82,8 @@ void *_rwImageOpen(void *instance, RwInt32 offset, RwInt32 size) {
   RwImageSetGamma(1.0f);
   IMAGEGLOBALS->formats = NULL;
   IMAGEGLOBALS->scratchSize = 0x100;
-  IMAGEGLOBALS->scratchMemory = RwEngineInstance->fpMalloc(0x100, 0x01040018);
+  IMAGEGLOBALS->scratchMemory = RwEngineInstance->fpMalloc(
+      IMAGEGLOBALS->scratchSize, 0x01040018);
   if (!IMAGEGLOBALS->scratchMemory) {
     RwEngineInstance->fpFree(IMAGEGLOBALS->imagePath);
     IMAGEGLOBALS->imagePath = NULL;
@@ -124,11 +126,14 @@ void *_rwImageClose(void *instance, RwInt32 offset, RwInt32 size) {
 }
 
 static void *ImageGetScratchMem(RwInt32 size) {
+  void *memory;
+
   if (size > IMAGEGLOBALS->scratchSize) {
-    void *memory = IMAGEGLOBALS->scratchMemory
-                       ? RwEngineInstance->fpRealloc(
-                             IMAGEGLOBALS->scratchMemory, size, 0x01040018)
-                       : RwEngineInstance->fpMalloc(size, 0x01040018);
+    if (IMAGEGLOBALS->scratchMemory)
+      memory = RwEngineInstance->fpRealloc(IMAGEGLOBALS->scratchMemory, size,
+                                           0x01040018);
+    else
+      memory = RwEngineInstance->fpMalloc(size, 0x01040018);
     if (!memory) {
       RwError error;
       error.pluginID = 1;
@@ -179,10 +184,20 @@ RwBool RwImageDestroy(RwImage *image) {
 }
 
 RwImage *RwImageAllocatePixels(RwImage *image) {
-  RwBool paletted = image->depth == 4 || image->depth == 8;
-  RwInt32 paletteSize = paletted ? (1 << image->depth) * 4 : 0;
+  RwUInt32 depth = image->depth;
+  RwBool paletted = TRUE;
+  RwInt32 paletteSize;
   RwInt32 pixelSize, totalSize;
-  image->stride = (((image->depth + 7) >> 3) * image->width + 3) & ~3;
+
+  if (depth != 4 && depth != 8)
+    paletted = FALSE;
+  if (paletted)
+    paletteSize = (1 << depth) * 4;
+  else
+    paletteSize = 0;
+  image->stride = (image->depth + 7) >> 3;
+  image->stride *= image->width;
+  image->stride = (image->stride + 3) & ~3;
   pixelSize = image->stride * image->height;
   totalSize = pixelSize + paletteSize;
   image->pixels = RwEngineInstance->fpMalloc(totalSize, 0x30018);
@@ -467,15 +482,14 @@ static RwBool ImageConvertDepth(RwImage *destination, const RwImage *source) {
 }
 
 RwImage *RwImageCopy(RwImage *destination, const RwImage *source) {
-  RwImage *result = destination;
   if (destination->depth == source->depth) {
     if (!ImageStraightCopy(destination, source))
-      result = NULL;
+      destination = NULL;
   } else if (!ImageConvertDepth(destination, source))
-    result = NULL;
-  result->flags &= ~2;
-  result->flags |= source->flags & 2;
-  return result;
+    destination = NULL;
+  destination->flags &= ~2;
+  destination->flags |= source->flags & 2;
+  return destination;
 }
 
 RwImage *RwImageGammaCorrect(RwImage *image) {
