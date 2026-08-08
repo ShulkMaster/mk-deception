@@ -31,10 +31,9 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
     stackTop++;
 
     while (stackTop != stack) {
-        RwUInt8* left;
-        RwUInt8* right;
         RwUInt8* originalFirst;
         RwUInt8* originalLast;
+        RwUInt8* rightFirst;
 
         stackTop--;
         first = stackTop->first;
@@ -44,21 +43,19 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
         for (;;) {
             originalFirst = first;
             originalLast = last;
-            left = first;
-            right = last;
 
-            while (left <= right) {
-                while (left <= right &&
-                       (bit & *(RwUInt32*)(left + keyOffset)) == 0) {
-                    left += entrySize;
+            while (first <= last) {
+                while (first <= last &&
+                       (bit & *(RwUInt32*)(first + keyOffset)) == 0) {
+                    first += entrySize;
                 }
-                while (left <= right &&
-                       (bit & *(RwUInt32*)(right + keyOffset)) != 0) {
-                    right -= entrySize;
+                while (first <= last &&
+                       (bit & *(RwUInt32*)(last + keyOffset)) != 0) {
+                    last -= entrySize;
                 }
-                if (left <= right) {
-                    RwUInt8* firstWord = left;
-                    RwUInt8* secondWord = right;
+                if (first <= last) {
+                    RwUInt8* firstWord = first;
+                    RwUInt8* secondWord = last;
                     RwUInt32 remaining = entrySize;
                     while (remaining >= 4) {
                         RwUInt32 firstValue = *(RwUInt32*)firstWord;
@@ -69,8 +66,8 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
                         secondWord += 4;
                         remaining -= 4;
                     }
-                    left += entrySize;
-                    right -= entrySize;
+                    first += entrySize;
+                    last -= entrySize;
                 }
             }
 
@@ -79,15 +76,15 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
                 break;
             }
 
-            first = right + entrySize;
-            if (originalLast >= first + entrySize * 5) {
-                stackTop->first = first;
+            rightFirst = last + entrySize;
+            if (originalLast >= rightFirst + entrySize * 5) {
+                stackTop->first = rightFirst;
                 stackTop->last = originalLast;
                 stackTop->bit = bit;
                 stackTop++;
             }
 
-            last = left - entrySize;
+            last = first - entrySize;
             first = originalFirst;
             if (last < first + entrySize * 5) {
                 break;
