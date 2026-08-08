@@ -121,7 +121,6 @@ int bad_load_region_data_result_resolution(int* result, int device) {
 int check_load_region_data_result(int* result, int device, int scratch, int flag) {
     int cont = 1;
 
-    (void)scratch;
     DEVICE_AT(device)->status = *result;
     switch (*result) {
     case 0:
@@ -372,7 +371,6 @@ int check_save_profile_result(int* result, int device, int flag) {
     const char* name;
     int status;
 
-    (void)flag;
     dev = DEVICE_AT(device);
     status = *result;
     dev->status = status;
@@ -738,9 +736,6 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, char* unus
     int n;
     int doUnmount;
 
-    (void)unusedStr;
-    (void)unusedCardName;
-    (void)unusedNameLen;
 
     sectorSize = 0;
     *freeBlocks = 0;
@@ -1022,10 +1017,6 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     int doUnload;
     int doUnmount;
 
-    (void)unusedStr;
-    (void)unused0;
-    (void)unusedMode;
-    (void)unused1;
 
     sectorSize = 0;
     *freeBytes = 0;
@@ -1678,10 +1669,6 @@ int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size) {
         return -0x4;
     case -14:
     case -128:
-    case -13:
-    case -12:
-    case -11:
-    case -10:
     default:
         return -0x63;
     }
