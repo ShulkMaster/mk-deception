@@ -9,6 +9,11 @@ typedef unsigned char RwUInt8;
 typedef int RwBool;
 typedef char RwChar;
 typedef float RwReal;
+typedef union RwSplitBits {
+    RwReal nReal;
+    volatile RwInt32 nInt;
+    volatile RwUInt32 nUInt;
+} RwSplitBits;
 #define TRUE 1
 #define FALSE 0
 #define NULL 0

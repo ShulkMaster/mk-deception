@@ -1262,6 +1262,8 @@ config.libs = [
             Object(NonMatching, "rpworld.a/bamatlst.obj",
                    source="rw/bamatlst.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rpworld.a/balight.obj", source="rw/balight.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
         ],
     ),
     RenderWareLib(

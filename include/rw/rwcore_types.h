@@ -14,6 +14,10 @@ typedef struct RwLinkList {
     RwLLLink link;
 } RwLinkList;
 
+#define rwLinkListInitialize(list)                                    \
+    ((list)->link.next = (RwLLLink*)(list),                            \
+     (list)->link.prev = (RwLLLink*)(list))
+
 #define rwLinkListAddLLLink(list, newLink)                                \
     ((newLink)->next = (list)->link.next, (newLink)->prev = &(list)->link, \
      ((list)->link.next)->prev = (newLink), (list)->link.next = (newLink))

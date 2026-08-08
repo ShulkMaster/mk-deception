@@ -10,6 +10,15 @@ typedef struct RwObject {
     void* parent;               /**< Retail offset 0x04; commonly an `RwFrame*`. */
 } RwObject;
 
+#define rwObjectInitialize(object, objectType, objectSubType)          \
+    do {                                                               \
+        ((RwObject*)(object))->type = (unsigned char)(objectType);     \
+        ((RwObject*)(object))->subType = (unsigned char)(objectSubType); \
+        ((RwObject*)(object))->flags = 0;                              \
+        ((RwObject*)(object))->privateFlags = 0;                       \
+        ((RwObject*)(object))->parent = (void*)0;                      \
+    } while (0)
+
 typedef enum RwStreamType {
     rwSTREAMFILE = 1,
     rwSTREAMFILENAME = 2,
