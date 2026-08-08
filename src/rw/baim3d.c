@@ -52,17 +52,18 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
         error.pluginID = 1;
         error.errorCode = _rwerror(0x32);
         RwErrorSet(&error);
-        return NULL;
-    }
-
-    IM3DGLOBALS->transformData.numVertices = numVertices;
-    IM3DGLOBALS->transformData.vertices = vertices;
-    IM3DGLOBALS->transformData.stride = 0x24;
-    IM3DGLOBALS->stash.localToWorld = localToWorld;
-    IM3DGLOBALS->stash.flags = flags | 8 | 0x10;
-    if (RxPipelineExecute(IM3DGLOBALS->transformPipeline,
-                          &IM3DGLOBALS->transformData, TRUE) != NULL) {
-        return vertices;
+    } else {
+        void* result;
+        IM3DGLOBALS->transformData.numVertices = numVertices;
+        IM3DGLOBALS->transformData.vertices = vertices;
+        IM3DGLOBALS->transformData.stride = 0x24;
+        IM3DGLOBALS->stash.localToWorld = localToWorld;
+        IM3DGLOBALS->stash.flags = flags | 8 | 0x10;
+        result = RxPipelineExecute(IM3DGLOBALS->transformPipeline,
+                                   &IM3DGLOBALS->transformData, TRUE);
+        if (result != NULL) {
+            return vertices;
+        }
     }
     return NULL;
 }
@@ -133,6 +134,7 @@ RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
     void* vertices = IM3DGLOBALS->transformData.vertices;
     RwBool transformed = vertices != NULL;
 
+    /* Retail retains the result as a debug-only heap local. */
     RxHeapGetGlobalHeap();
     if (transformed) {
         RwIm3DStash* data = &IM3DGLOBALS->stash;
