@@ -1,85 +1,210 @@
-/* TODO: Missing implementation for retail unit vtxfmt.c. */
+#include "dolphin/gx.h"
+#include "libmkparticle/rw_engine.h"
+#include "rw/gamecube.h"
+#include "rw/rwplcore.h"
 
-void *_rwDlVtxFmtSetup(void)
+typedef struct RpGameCubeVertexArray {
+    void* data;
+    RwUInt8 field_0x04;
+    RwUInt8 stride;
+    RwUInt8 descriptor;
+    RwUInt8 field_0x07;
+} RpGameCubeVertexArray;
+
+typedef struct RpGameCubeResourceArrays {
+    RwUInt8 reserved_0x00[8];
+    RwUInt32 numArrays;
+    RpGameCubeVertexArray arrays[1];
+} RpGameCubeResourceArrays;
+
+typedef struct RpGameCubeVtxFmtSetupData {
+    void* resourceEntry;
+    RwUInt32 field_0x04;
+    RwInt32 flags;
+} RpGameCubeVtxFmtSetupData;
+
+extern RwInt32 RpGeometryRegisterPlugin(
+    RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
+extern RwInt32 RpWorldRegisterPlugin(
+    RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
+
+static RpGameCubeVtxFmt _RpDlVtxFmtDefault;
+static RwModuleInfo _RpVtxFmtModule;
+RwInt32 _rpDlWorldVtxFmtOffset;
+RwInt32 _rpDlGeomVtxFmtOffset;
+
+void _rwDlVtxFmtSetup(RpGameCubeVtxFmt* format,
+                      RpGameCubeVtxFmtSetupData* setupData)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpGameCubeResourceArrays* resource;
+    RwUInt32 arrayIndex = 0;
+    RwUInt32 attribute;
+    RwInt32 colorCount;
+
+    if (format == NULL) format = &_RpDlVtxFmtDefault;
+    resource = (RpGameCubeResourceArrays*)((RwUInt8*)setupData->resourceEntry + 0x18);
+
+    GXClearVtxDesc();
+    GXSetVtxDesc(9, resource->arrays[arrayIndex].descriptor);
+    GXSetVtxAttrFmt(0, 9, 1, format->positionType,
+                    format->positionFraction);
+    GXSetArray(9, resource->arrays[arrayIndex].data,
+               resource->arrays[arrayIndex].stride);
+    arrayIndex++;
+
+    if (setupData->flags & 0x10) {
+        if (format->normalMode != 0) {
+            GXSetVtxDesc(0x19, resource->arrays[arrayIndex].descriptor);
+            GXSetVtxAttrFmt(0, 0x19, 1, format->normalType, 0);
+            GXSetArray(0x19, resource->arrays[arrayIndex].data,
+                       resource->arrays[arrayIndex].stride);
+            arrayIndex++;
+        } else {
+            GXSetVtxDesc(0xA, resource->arrays[arrayIndex].descriptor);
+            GXSetVtxAttrFmt(0, 0xA, 0, format->normalType, 0);
+            GXSetArray(0xA, resource->arrays[arrayIndex].data,
+                       resource->arrays[arrayIndex].stride);
+            arrayIndex++;
+        }
+    }
+
+    if (setupData->flags & 8) {
+        GXSetVtxDesc(0xB, resource->arrays[arrayIndex].descriptor);
+        if (format->colorType > 2)
+            colorCount = 1;
+        else
+            colorCount = 0;
+        GXSetVtxAttrFmt(0, 0xB, colorCount,
+                        format->colorType, 0);
+        GXSetArray(0xB, resource->arrays[arrayIndex].data,
+                   resource->arrays[arrayIndex].stride);
+        arrayIndex++;
+    }
+
+    if (setupData->flags & 0x84) {
+        attribute = 0xD;
+        while (arrayIndex < resource->numArrays) {
+            GXSetVtxDesc(attribute, resource->arrays[arrayIndex].descriptor);
+            GXSetVtxAttrFmt(0, attribute, 1,
+                            format->texCoordType[attribute - 0xD],
+                            format->texCoordFraction[attribute - 0xD]);
+            GXSetArray(attribute, resource->arrays[arrayIndex].data,
+                       resource->arrays[arrayIndex].stride);
+            arrayIndex++;
+            attribute++;
+        }
+    }
 }
 
-void *_rpGameCubeVtxFmtGetDefault(void)
+RpGameCubeVtxFmt* _rpGameCubeVtxFmtGetDefault(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return &_RpDlVtxFmtDefault;
 }
 
-void *_rxDlVertexFmtConst(void)
+static void* _rxDlVertexFmtConst(void* object, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    *(RpGameCubeVtxFmt**)((RwUInt8*)object + offset) = NULL;
+    return object;
 }
 
-void *_rxDlVertexFmtDest(void)
+static void* _rxDlVertexFmtDest(void* object, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpGameCubeVtxFmt** format =
+        (RpGameCubeVtxFmt**)((RwUInt8*)object + offset);
+    if (*format != NULL) RpGameCubeVtxFmtDestroy(*format);
+    return object;
 }
 
-void *_rpDlVtxFmtOpen(void)
+static void* _rpDlVtxFmtOpen(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    _RpVtxFmtModule.numInstances++;
+    if (_RpVtxFmtModule.numInstances == 1)
+        RpGameCubeVtxFmtInit(&_RpDlVtxFmtDefault);
+    return instance;
 }
 
-void *_rpDlVtxFmtClose(void)
+static void* _rpDlVtxFmtClose(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    _RpVtxFmtModule.numInstances--;
+    return instance;
 }
 
-void *_rpDlVtxFmtPluginAttach(void)
+RwBool _rpDlVtxFmtPluginAttach(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 result = RwEngineRegisterPlugin(
+        0, 0x511, _rpDlVtxFmtOpen, _rpDlVtxFmtClose);
+    if (result < 0) return FALSE;
+
+    _rpDlGeomVtxFmtOffset = RpGeometryRegisterPlugin(
+        4, 0x511, _rxDlVertexFmtConst, _rxDlVertexFmtDest, NULL);
+    if (_rpDlGeomVtxFmtOffset < 0) return FALSE;
+
+    _rpDlWorldVtxFmtOffset = RpWorldRegisterPlugin(
+        4, 0x511, _rxDlVertexFmtConst, _rxDlVertexFmtDest, NULL);
+    if (_rpDlWorldVtxFmtOffset < 0) return FALSE;
+    return TRUE;
 }
 
-void *RpGameCubeVtxFmtSetPosition(void)
+void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, RwUInt32 type,
+                                 RwUInt8 fraction)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    format->positionType = (RwUInt8)type;
+    format->positionFraction = fraction;
 }
 
-void *RpGameCubeVtxFmtSetNormal(void)
+void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, RwUInt32 type,
+                               RwUInt32 mode)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    format->normalType = (RwUInt8)type;
+    format->normalMode = (RwUInt8)mode;
 }
 
-void *RpGameCubeVtxFmtSetTexCoord(void)
+void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, RwInt32 index,
+                                 RwUInt32 type, RwUInt8 fraction)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    format->fields[index + 1] = (RwUInt8)type;
+    format->fields[index + 0xD] = fraction;
 }
 
-void *RpGameCubeVtxFmtInit(void)
+void RpGameCubeVtxFmtInit(RpGameCubeVtxFmt* format)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 i;
+
+    format->positionType = 4;
+    format->normalType = 4;
+    for (i = 0; i < 8; i++) format->texCoordType[i] = 4;
+    format->colorType = 5;
+    format->field_0x0B = 1;
+    format->positionFraction = 0;
+    for (i = 0; i < 8; i++) format->texCoordFraction[i] = 0;
+    format->normalMode = 0;
+    format->refCount = 1;
 }
 
-void *RpGameCubeVtxFmtCreate(void)
+RpGameCubeVtxFmt* RpGameCubeVtxFmtCreate(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpGameCubeVtxFmt* format =
+        RwEngineInstance->fpMalloc(sizeof(*format), 0x3050D);
+    RpGameCubeVtxFmtInit(format);
+    return format;
 }
 
-void *RpGameCubeVtxFmtDestroy(void)
+void RpGameCubeVtxFmtDestroy(RpGameCubeVtxFmt* format)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (format->refCount == 1)
+        RwEngineInstance->fpFree(format);
+    else
+        format->refCount--;
 }
 
-void *RpGameCubeGeometrySetVtxFmt(void)
+void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
+                                 RpGameCubeVtxFmt* format)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpGameCubeVtxFmt** current = (RpGameCubeVtxFmt**)(
+        (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
+    if (*current != NULL) RpGameCubeVtxFmtDestroy(*current);
+    *current = format;
+    (*current)->refCount++;
 }

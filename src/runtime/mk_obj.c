@@ -337,8 +337,8 @@ static void* rwframe_find_child_sobj_by_id(void* frame_arg, unsigned int id,
     RwFrame* next;
 
     frame = (RwFrame*)frame_arg;
-    link = frame->object_list_next;
-    while (link != &frame->object_list_next) {
+    link = frame->objectList.link.next;
+    while (link != &frame->objectList.link) {
         object = (RwObject*)((char*)link - 8);
         link = *(void**)link;
         if (object->type == 1) {
@@ -401,8 +401,8 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
     RwFrame* descendant;
     RwFrame* next_descendant;
 
-    end = (RwLLLink*)&frame->object_list_next;
-    link = frame->object_list_next;
+    end = &frame->objectList.link;
+    link = frame->objectList.link.next;
     while (link != end) {
         object = RW_OBJECT_FROM_FRAME_LINK(link);
         if (object->type == 1) {
@@ -418,8 +418,8 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
     child = frame->child;
     while (child != 0) {
         next_child = child->next;
-        end = (RwLLLink*)&child->object_list_next;
-        link = child->object_list_next;
+        end = &child->objectList.link;
+        link = child->objectList.link.next;
         while (link != end) {
             next_link = link->next;
             object = RW_OBJECT_FROM_FRAME_LINK(link);
@@ -436,8 +436,8 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
         grandchild = child->child;
         while (grandchild != 0) {
             next_grandchild = grandchild->next;
-            end = (RwLLLink*)&grandchild->object_list_next;
-            link = grandchild->object_list_next;
+            end = &grandchild->objectList.link;
+            link = grandchild->objectList.link.next;
             while (link != end) {
                 next_link = link->next;
                 rwobject_set_true_clip_flag(RW_OBJECT_FROM_FRAME_LINK(link),

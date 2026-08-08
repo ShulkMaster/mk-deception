@@ -1,21 +1,12 @@
 #include "runtime/instance.h"
 #include "platform/gcinstance.h"
 #include "rw/rwplcore.h"
+#include "rw/rwstream_internal.h"
 
 typedef struct RwEngineInstanceType {
     unsigned char pad_0x00[0x134];
     void* (*fpMalloc)(unsigned int size, unsigned int hint);
 } RwEngineInstanceType;
-
-typedef struct RwFrameList {
-    RwFrame** frames;
-    int num_frames;
-} RwFrameList;
-
-typedef struct RpGeometryList {
-    RpGeometry** geometries;
-    int num_geometries;
-} RpGeometryList;
 
 typedef struct RpClumpChunkInfo {
     int num_atomics;
@@ -72,20 +63,10 @@ extern RpGeometry* RpGeometryStreamRead(RwStream* stream);
 extern int RpGeometryDestroy(RpGeometry* geometry);
 extern RpGeometry* RpGeometryUnlock(RpGeometry* geometry);
 
-extern int _rwFrameListStreamRead(RwStream* stream, RwFrameList* frame_list);
-extern void _rwFrameListDeinitialize(RwFrameList* frame_list);
 extern void GeometryListDeinitialize(RpGeometryList* geometry_list);
-extern RwStream* _rpMaterialListStreamRead(RwStream* stream,
-                                           RpMaterialList* material_list);
-extern unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
-extern void* _rwPluginRegistryInitObject(RwPluginRegistry* registry,
-                                         void* object);
-extern RwStream* _rwPluginRegistryReadDataChunks(RwPluginRegistry* registry,
-                                                 RwStream* stream,
-                                                 void* object);
-extern void* _rwPluginRegistryInvokeRights(RwPluginRegistry* registry,
-                                           unsigned int plugin_id,
-                                           void* object, int extra_data);
+extern RpMaterialList* _rpMaterialListStreamRead(RwStream* stream,
+                                                 RpMaterialList* material_list);
+extern RpMaterialList* _rpMaterialListInitialize(RpMaterialList* material_list);
 extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
 
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
@@ -252,7 +233,7 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
             return 0;
         }
         atomic->object.flags = (unsigned char)chunk_info.flags;
-        if (frame_list->num_frames != 0) {
+        if (frame_list->numFrames != 0) {
             RpAtomicSetFrame(atomic,
                              frame_list->frames[chunk_info.frame_index]);
         }
@@ -391,7 +372,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
     int morph_index;
     RpMorphTargetChunkInfo morph_info;
     RpMorphTarget* morph_target;
-    RwStream* plugin_result;
+    const RwPluginRegistry* plugin_result;
     unsigned char* inplace_pointer;
 
     if (!RwStreamFindChunk(stream, 1, 0, &version)) {
@@ -426,7 +407,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
 
         if (vertex_count != 0) {
             if (chunk_info.format & 8) {
-                inplace_pointer = stream->data + stream->bufferPosition;
+                inplace_pointer = stream->data.memory.start + stream->data.memory.position;
                 geometry->preLitLum = inplace_pointer;
                 RwStreamSkip(stream, vertex_count << 2);
             }
@@ -435,7 +416,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
 
                 morph_index = 0;
                 while (morph_index < geometry->numTexCoordSets) {
-                    inplace_pointer = stream->data + stream->bufferPosition;
+                    inplace_pointer = stream->data.memory.start + stream->data.memory.position;
                     geometry->texCoords[morph_index] = inplace_pointer;
                     RwStreamSkip(stream, tex_coord_size);
                     morph_index++;
@@ -444,7 +425,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
             if (geometry->numTriangles != 0) {
                 int triangle_count = geometry->numTriangles;
 
-                inplace_pointer = stream->data + stream->bufferPosition;
+                    inplace_pointer = stream->data.memory.start + stream->data.memory.position;
                 geometry->triangles = inplace_pointer;
                 RwStreamSkip(stream, triangle_count << 3);
             }
@@ -462,12 +443,12 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
         RwMemNative32(&morph_info, sizeof(morph_info));
         morph_target->sphere = morph_info.sphere;
         if (morph_info.has_vertices != 0) {
-            inplace_pointer = stream->data + stream->bufferPosition;
+            inplace_pointer = stream->data.memory.start + stream->data.memory.position;
             morph_target->verts = inplace_pointer;
             RwStreamSkip(stream, geometry->numVertices * 12);
         }
         if (morph_info.has_normals != 0) {
-            inplace_pointer = stream->data + stream->bufferPosition;
+            inplace_pointer = stream->data.memory.start + stream->data.memory.position;
             morph_target->normals = inplace_pointer;
             RwStreamSkip(stream, geometry->numVertices * 12);
         }

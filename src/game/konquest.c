@@ -3809,8 +3809,8 @@ void setup_children_sobjs_of_tile_object(
         RwFrame* next_frame;
 
         next_frame = frame->next;
-        sentinel = (RwLLLink*)&frame->object_list_next;
-        link = (RwLLLink*)frame->object_list_next;
+        sentinel = &frame->objectList.link;
+        link = frame->objectList.link.next;
         while (link != sentinel) {
             RpAtomic* atomic;
             RwLLLink* next;
@@ -3842,8 +3842,8 @@ void setup_children_pebbles_of_tile_object(
         RwFrame* next_frame;
 
         next_frame = frame->next;
-        sentinel = (RwLLLink*)&frame->object_list_next;
-        link = (RwLLLink*)frame->object_list_next;
+        sentinel = &frame->objectList.link;
+        link = frame->objectList.link.next;
         while (link != sentinel) {
             RpAtomic* atomic;
             RwLLLink* next;

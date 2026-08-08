@@ -160,7 +160,7 @@ void set_render_state(int state, int value);
 void* RpClumpForAllAtomics(void* clump, void* callback, void* data);
 void _rpAtomicResyncInterpolatedSphere(void* atomic);
 void RwV3dTransformPoints(void* dst, void* src, int count, ShadowMatrix* matrix);
-void RwRasterDestroy(void* raster);
+int RwRasterDestroy(RwRaster* raster);
 void RwMatrixUpdate(ShadowMatrix* matrix);
 void RwFrameUpdateObjects(void* frame);
 void RwCameraSetFarClipPlane(void* camera, float distance);

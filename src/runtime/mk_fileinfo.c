@@ -1,29 +1,11 @@
 #include "runtime/mk_fileinfo.h"
 
 #include "platform/gcutils.h"
+#include "rw/rwfile.h"
 #include "runtime/mk_hwfile.h"
 #include "runtime/section_slot_file.h"
 #include "runtime/utils.h"
 
-/* The disabled interface may still be called through RenderWare's varied
- * file-operation signatures, so retain an old-style generic function type. */
-typedef int (*RwFileFunction)();
-
-typedef struct RwFileInterface {
-    RwFileFunction open;
-    RwFileFunction close;
-    RwFileFunction read;
-    RwFileFunction write;
-    RwFileFunction gets;
-    RwFileFunction puts;
-    RwFileFunction eof;
-    RwFileFunction seek;
-    RwFileFunction flush;
-    RwFileFunction tell;
-    RwFileFunction exists;
-} RwFileInterface;
-
-extern RwFileInterface* RwOsGetFileInterface(void);
 extern int strcmp(const char* left, const char* right);
 extern void* memcpy(void* destination, const void* source, unsigned long size);
 extern void* memset(void* destination, int value, unsigned long size);
@@ -44,19 +26,19 @@ int num_files_loaded;
 int gap_08_80510394_sbss;
 
 void disable_default_filesystem(void) {
-    RwFileInterface* file_interface = RwOsGetFileInterface();
+    RwFileFunctions* file_interface = RwOsGetFileInterface();
 
-    file_interface->open = renderware_fs_not_implemented;
-    file_interface->close = renderware_fs_not_implemented;
-    file_interface->read = renderware_fs_not_implemented;
-    file_interface->write = renderware_fs_not_implemented;
-    file_interface->gets = renderware_fs_not_implemented;
-    file_interface->puts = renderware_fs_not_implemented;
-    file_interface->eof = renderware_fs_not_implemented;
-    file_interface->seek = renderware_fs_not_implemented;
-    file_interface->flush = renderware_fs_not_implemented;
-    file_interface->tell = renderware_fs_not_implemented;
-    file_interface->exists = renderware_fs_not_implemented;
+    file_interface->rwfexist = (rwFnFexist)renderware_fs_not_implemented;
+    file_interface->rwfopen = (rwFnFopen)renderware_fs_not_implemented;
+    file_interface->rwfclose = (rwFnFclose)renderware_fs_not_implemented;
+    file_interface->rwfread = (rwFnFread)renderware_fs_not_implemented;
+    file_interface->rwfwrite = (rwFnFwrite)renderware_fs_not_implemented;
+    file_interface->rwfgets = (rwFnFgets)renderware_fs_not_implemented;
+    file_interface->rwfputs = (rwFnFputs)renderware_fs_not_implemented;
+    file_interface->rwfeof = (rwFnFeof)renderware_fs_not_implemented;
+    file_interface->rwfseek = (rwFnFseek)renderware_fs_not_implemented;
+    file_interface->rwfflush = (rwFnFflush)renderware_fs_not_implemented;
+    file_interface->rwftell = (rwFnFtell)renderware_fs_not_implemented;
 }
 
 static int renderware_fs_not_implemented(void) {

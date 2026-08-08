@@ -10,7 +10,36 @@ typedef struct RwLLLink {
     struct RwLLLink* prev;
 } RwLLLink;
 
+typedef struct RwLinkList {
+    RwLLLink link;
+} RwLinkList;
+
+#define rwLinkListInitialize(list)                                    \
+    ((list)->link.next = (RwLLLink*)(list),                            \
+     (list)->link.prev = (RwLLLink*)(list))
+
+#define rwLinkListAddLLLink(list, newLink)                                \
+    ((newLink)->next = (list)->link.next, (newLink)->prev = &(list)->link, \
+     ((list)->link.next)->prev = (newLink), (list)->link.next = (newLink))
+
+#define rwLinkListRemoveLLLink(link) \
+    (((link)->prev)->next = (link)->next, ((link)->next)->prev = (link)->prev)
+
 typedef struct RwTexDictionary RwTexDictionary;
+
+typedef enum RwTextureAddressMode {
+    rwTEXTUREADDRESSWRAP = 1
+} RwTextureAddressMode;
+
+typedef enum RwTextureFilterMode {
+    rwFILTERNAFILTERMODE = 0,
+    rwFILTERNEAREST = 1,
+    rwFILTERLINEAR = 2,
+    rwFILTERMIPNEAREST = 3,
+    rwFILTERMIPLINEAR = 4,
+    rwFILTERLINEARMIPNEAREST = 5,
+    rwFILTERLINEARMIPLINEAR = 6
+} RwTextureFilterMode;
 
 /* Stock RenderWare image layout used by RwImageCreate and ImageWriteTGA. */
 typedef struct RwImage {
@@ -23,7 +52,18 @@ typedef struct RwImage {
     unsigned char* palette;    /* +0x18 */
 } RwImage;
 
-/** RenderWare raster prefix used by the retail core. Retail layout: 0x24 bytes. */
+/** Floating-point RGBA color used by the stock image resampler. */
+typedef struct RwRGBAReal {
+    float red;
+    float green;
+    float blue;
+    float alpha;
+} RwRGBAReal;
+
+RwImage* RwImageResample(RwImage* destination, const RwImage* source);
+RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
+
+/** Stock RenderWare raster layout. Retail size: 0x34 bytes. */
 typedef struct RwRaster {
     struct RwRaster* parent; /**< Retail offset 0x00. */
     unsigned char* pixels;   /**< Retail offset 0x04. */
@@ -38,29 +78,37 @@ typedef struct RwRaster {
     unsigned char flags;     /**< Retail offset 0x21. */
     unsigned char privateFlags; /**< Retail offset 0x22. */
     unsigned char format;    /**< Retail offset 0x23. */
+    unsigned char* originalPixels; /**< Retail offset 0x24. */
+    int originalWidth;       /**< Retail offset 0x28. */
+    int originalHeight;      /**< Retail offset 0x2C. */
+    int originalStride;      /**< Retail offset 0x30. */
 } RwRaster;
 
-/** RenderWare texture with Midway ownership extension. Retail layout: 0x58 bytes. */
+/** Stock RenderWare texture layout. Retail size: 0x58 bytes. */
 typedef struct RwTexture {
     RwRaster* raster;          /**< Retail offset 0x00. */
     RwTexDictionary* dictionary; /**< Retail offset 0x04. */
-    RwLLLink* next_link;          /**< Retail offset 0x08. */
-    RwLLLink* prev_link;          /**< Retail offset 0x0C. */
+    RwLLLink lInDictionary;       /**< Retail offset 0x08. */
     char name[32];             /**< Retail offset 0x10. */
     char mask[32];             /**< Retail offset 0x30. */
     unsigned int filter_flags; /**< Retail offset 0x50. */
     int ref_count;             /**< Retail offset 0x54. */
 } RwTexture;
 
+/** Stock RenderWare texture dictionary layout. Retail size: 0x18 bytes. */
+struct RwTexDictionary {
+    RwObject object;            /**< Retail offset 0x00. */
+    RwLLLink textures;          /**< Retail offset 0x08. */
+    RwLLLink lInInstance;       /**< Retail offset 0x10. */
+};
+
 /** Partial RenderWare frame layout. Known retail extent: 0xA4 bytes. */
 typedef struct RwFrame {
     RwObject object;            /**< Retail offset 0x00. */
-    void* object_link_next;     /**< Retail offset 0x08. */
-    void* object_link_prev;     /**< Retail offset 0x0C. */
+    RwLLLink inDirtyListLink;    /**< Retail offset 0x08. */
     RwMatrix modelling;         /**< Retail offset 0x10. */
     RwMatrix ltm;               /**< Retail offset 0x50. */
-    void* object_list_next;     /**< Retail offset 0x90. */
-    void* object_list_prev;     /**< Retail offset 0x94. */
+    RwLinkList objectList;       /**< Retail offset 0x90. */
     struct RwFrame* child;      /**< Retail offset 0x98. */
     struct RwFrame* next;       /**< Retail offset 0x9C. */
     struct RwFrame* root;       /**< Retail offset 0xA0. */
@@ -71,14 +119,30 @@ extern "C" {
 #endif
 
 RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
+int RwRasterDestroy(RwRaster* raster);
 RwRaster* RwRasterUnlock(RwRaster* raster);
 int RwRasterGetNumLevels(RwRaster* raster);
 void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
+RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
+RwRaster* RwRasterSetFromImage(RwRaster* raster, RwImage* image);
+RwImage* RwImageFindRasterFormat(RwImage* image, int rasterType,
+                                 int* width, int* height, int* depth,
+                                 int* format);
 
 RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
-void RwTexDictionaryRemoveTexture(RwTexture* texture);
+RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster);
+RwTexture* RwTextureRead(const char* name, const char* maskName);
+RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture);
+RwBool RwTextureSetMipmapping(RwBool enable);
+RwBool RwTextureGetMipmapping(void);
+RwBool RwTextureSetAutoMipmapping(RwBool enable);
+RwBool RwTextureGetAutoMipmapping(void);
+RwUInt32 RwTextureStreamGetSize(const RwTexture* texture);
+const RwTexture* RwTextureStreamWrite(const RwTexture* texture,
+                                      RwStream* stream);
+RwTexture* RwTextureStreamRead(RwStream* stream);
 
 #ifdef __cplusplus
 }

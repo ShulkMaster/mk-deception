@@ -1,25 +1,28 @@
-/* TODO: Missing implementation for retail unit bapipe.c. */
+#include "rw/rwplcore.h"
 
-void *_rwRenderPipelineOpen(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+typedef struct RwCamera RwCamera;
+
+extern RwBool _rxPipelineOpen(void);
+extern void _rxPipelineClose(void);
+
+RwInt32 _rxPipelineGlobalsOffset;
+
+void* _rwRenderPipelineOpen(void* instance, RwInt32 offset, RwInt32 size) {
+    _rxPipelineGlobalsOffset = offset;
+    if (_rxPipelineOpen() == FALSE) {
+        return 0;
+    }
+    return instance;
 }
 
-void *_rwRenderPipelineClose(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void* _rwRenderPipelineClose(void* instance, RwInt32 offset, RwInt32 size) {
+    _rxPipelineClose();
+    return instance;
 }
 
-void *_rwPipeAttach(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RwBool _rwPipeAttach(void) {
+    return TRUE;
 }
 
-void *_rwPipeInitForCamera(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void _rwPipeInitForCamera(RwCamera* camera) {
 }

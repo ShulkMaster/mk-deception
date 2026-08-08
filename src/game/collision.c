@@ -12,6 +12,7 @@
 #include "math/mk_math.h"
 #include "math/gxMath.h"
 #include "math/gxQuat.h"
+#include "rw/rwim3d.h"
 
 typedef union CollisionObjListRef {
     MkHdr* hdr;
@@ -33,7 +34,7 @@ typedef struct CdfCollisionPrimitive {
     Vec vertices[1];
 } CdfCollisionPrimitive;
 
-typedef struct CollisionIm3DVertex {
+struct RwIm3DVertex {
     Vec position;
     char pad0C[0x0C];
     union {
@@ -46,7 +47,8 @@ typedef struct CollisionIm3DVertex {
         } color_channels;
     };
     char pad1C[8];
-} CollisionIm3DVertex; /* 0x24 */
+};
+typedef struct RwIm3DVertex CollisionIm3DVertex; /* 0x24 */
 
 typedef struct PlayerCollisionAnimView {
     char pad00[0x1BC];
@@ -506,13 +508,6 @@ extern unsigned int rgba_blue;
 extern unsigned int rgba_red;
 extern unsigned int rgba_green;
 extern unsigned int rgba_cyan;
-extern void* RwIm3DTransform(
-    CollisionIm3DVertex* vertices, unsigned int count, void* matrix,
-    unsigned int flags);
-extern void RwIm3DRenderPrimitive(int primitive);
-extern void RwIm3DRenderIndexedPrimitive(
-    int primitive, const unsigned short* indices, int count);
-extern void RwIm3DEnd(void);
 /* Runtime-owned scalar; array form preserves its ordinary-data addressing. */
 
 static inline void insert_player_attack_node_unshifted(

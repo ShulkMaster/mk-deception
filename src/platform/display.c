@@ -19,6 +19,7 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 #include "rw/rwcore_types.h"
+#include "rw/rtanim.h"
 
 extern void destroy_fade_box(void);
 extern void GProfile_GCN_GxDrawDone(void);
@@ -37,7 +38,7 @@ extern RwCamera* RwCameraGetWorld(RwCamera* camera);
 extern RwCamera* RpWorldAddCamera(RpWorld* world, RwCamera* camera);
 extern RwCamera* RpWorldRemoveCamera(RpWorld* world, RwCamera* camera);
 extern RwFrame* RwFrameTransform(RwFrame* frame, const void* matrix, int combine);
-extern void* _rwObjectHasFrameSetFrame(void* object, RwFrame* frame);
+extern void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame);
 extern RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, float distance);
 extern RwCamera* RwCameraSetViewWindow(RwCamera* camera, const float* window);
 extern void RwGameCubeCameraTextureFlush(RwRaster* raster, int generate_mipmaps);
@@ -70,7 +71,6 @@ extern void init_mk_render(void);
 extern int fog_on;
 extern int RpWorldPluginAttach(void);
 extern int RpSkinPluginAttach(void);
-extern void RtAnimInitialize(void);
 extern int RpHAnimPluginAttach(void);
 extern int RpSpecularPluginAttach(void);
 extern int specskin_plugin_attach(void);

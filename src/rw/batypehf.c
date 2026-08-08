@@ -1,13 +1,25 @@
-/* TODO: Missing implementation for retail unit batypehf.c. */
+#include "rw/rwtypehf.h"
 
-void *_rwObjectHasFrameSetFrame(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+extern RwFrame* RwFrameUpdateObjects(RwFrame* frame);
+
+void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame) {
+    RwObjectHasFrame* objectHasFrame = object;
+
+    if (objectHasFrame->object.parent != 0) {
+        rwLinkListRemoveLLLink(&objectHasFrame->lFrame);
+    }
+
+    ((RwObject*)object)->parent = frame;
+    if (frame != 0) {
+        rwLinkListAddLLLink(&frame->objectList, &objectHasFrame->lFrame);
+        RwFrameUpdateObjects(frame);
+    }
 }
 
-void *_rwObjectHasFrameReleaseFrame(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void _rwObjectHasFrameReleaseFrame(void* object) {
+    RwObjectHasFrame* objectHasFrame = object;
+
+    if (objectHasFrame->object.parent != 0) {
+        rwLinkListRemoveLLLink(&objectHasFrame->lFrame);
+    }
 }
