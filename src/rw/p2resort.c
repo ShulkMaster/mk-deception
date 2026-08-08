@@ -93,19 +93,20 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
     }
 }
 
+/* Algorithm recovered: retail mutates the base argument, caches one key per
+ * outer iteration, and swaps only complete words. Boolean lowering, the
+ * save-register range, and a dead byte-counter copy remain unresolved. */
 static void _insertionsort(RwUInt8* base, RwUInt32 numEntries,
                            RwUInt32 entrySize, RwUInt32 keyOffset) {
-    RwUInt8* current = base;
-
     for (;;) {
-        current += entrySize;
+        base += entrySize;
         numEntries -= 1;
         if (numEntries == 0) {
             break;
         }
         {
-            RwUInt32 currentKey = *(RwUInt32*)(current + keyOffset);
-            RwUInt8* previous = current;
+            RwUInt32 currentKey = *(RwUInt32*)(base + keyOffset);
+            RwUInt8* previous = base;
 
             for (;;) {
                 RwBool moveRecord;
