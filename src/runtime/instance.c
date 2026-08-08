@@ -64,9 +64,9 @@ extern int RpGeometryDestroy(RpGeometry* geometry);
 extern RpGeometry* RpGeometryUnlock(RpGeometry* geometry);
 
 extern void GeometryListDeinitialize(RpGeometryList* geometry_list);
-extern RwStream* _rpMaterialListStreamRead(RwStream* stream,
-                                           RpMaterialList* material_list);
-extern unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
+extern RpMaterialList* _rpMaterialListStreamRead(RwStream* stream,
+                                                 RpMaterialList* material_list);
+extern RpMaterialList* _rpMaterialListInitialize(RpMaterialList* material_list);
 extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
 
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,

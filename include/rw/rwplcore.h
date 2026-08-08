@@ -4,6 +4,7 @@
 typedef int RwInt32;
 typedef unsigned int RwUInt32;
 typedef unsigned short RwUInt16;
+typedef signed short RwInt16;
 typedef unsigned char RwUInt8;
 typedef int RwBool;
 typedef char RwChar;

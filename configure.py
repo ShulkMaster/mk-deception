@@ -1259,6 +1259,9 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rpworld.a/ibuffer.obj", source="rw/ibuffer.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rpworld.a/bamatlst.obj",
+                   source="rw/bamatlst.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
         ],
     ),
     RenderWareLib(

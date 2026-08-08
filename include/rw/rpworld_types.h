@@ -62,6 +62,8 @@ typedef struct RpMaterial {
     RpMaterialColor color; /* +0x04 -- packed RGBA */
     void* pipeline;     /* +0x08 */
     RpSurfaceProperties surface; /* +0x0C */
+    RwInt16 refCount;       /* +0x18 */
+    RwUInt16 reserved_0x1A;
 } RpMaterial;
 
 typedef RpAtomic* (*RpAtomicCallBackRender)(RpAtomic* atomic);
@@ -72,6 +74,19 @@ typedef struct RpMaterialList {
     int numMaterials;       /* +0x04 */
     int space;              /* +0x08 */
 } RpMaterialList;
+
+RpMaterialList* _rpMaterialListDeinitialize(RpMaterialList* materialList);
+RpMaterialList* _rpMaterialListInitialize(RpMaterialList* materialList);
+RpMaterial* _rpMaterialListGetMaterial(const RpMaterialList* materialList,
+                                       RwInt32 index);
+RpMaterialList* _rpMaterialListSetSize(RpMaterialList* materialList,
+                                       RwInt32 size);
+RwInt32 _rpMaterialListAppendMaterial(RpMaterialList* materialList,
+                                      RpMaterial* material);
+RwInt32 _rpMaterialListFindMaterialIndex(const RpMaterialList* materialList,
+                                         const RpMaterial* material);
+RwBool RpMaterialDestroy(RpMaterial* material);
+RpMaterial* RpMaterialStreamRead(RwStream* stream);
 
 /*
  * RpAtomic -- Midway/game-used fields.

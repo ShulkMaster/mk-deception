@@ -20,9 +20,9 @@ typedef struct RpGeometryList {
 RwFrameList* _rwFrameListStreamRead(RwStream* stream, RwFrameList* frameList);
 RwFrameList* _rwFrameListDeinitialize(RwFrameList* frameList);
 void GeometryListDeinitialize(RpGeometryList* geometry_list);
-RwStream* _rpMaterialListStreamRead(RwStream* stream,
-                                    RpMaterialList* material_list);
-unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
+RpMaterialList* _rpMaterialListStreamRead(RwStream* stream,
+                                          RpMaterialList* materialList);
+RpMaterialList* _rpMaterialListInitialize(RpMaterialList* materialList);
 RwInt32 _rwStringStreamGetSize(const RwChar* string);
 const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream);
 RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream);

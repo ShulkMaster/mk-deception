@@ -16,6 +16,8 @@ unsigned int RwStreamRead(RwStream* stream, void* buffer,
 RwStream* RwStreamWrite(RwStream* stream, const void* buffer,
                         unsigned int length);
 RwStream* RwStreamSkip(RwStream* stream, unsigned int offset);
+RwBool RwStreamFindChunk(RwStream* stream, RwUInt32 type,
+                         RwUInt32* length, RwUInt32* version);
 RwStream* RwStreamWriteInt32(RwStream* stream, const int* values,
                              unsigned int numBytes);
 RwStream* RwStreamReadInt32(RwStream* stream, int* values,
