@@ -273,31 +273,37 @@ RwInt32 RwFreeListPurge(RwFreeList* freeList)
     return freed * freeList->entrySize;
 }
 
-/* Near miss: exact snapshot/mutation-safe traversal; loop register coloring differs. */
+/* Near miss: exact mutation-safe snapshot traversal; one commutative add is scheduled differently. */
 RwFreeList* RwFreeListForAllUsed(RwFreeList* freeList,
                                  RwFreeListCallBack callback, void* data)
 {
+    RwUInt32 heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
-    while (link != &freeList->blockList.link) {
-        RwFreeBlock* block = (RwFreeBlock*)link;
-        RwUInt8* heap = RwEngineInstance->fpMalloc(freeList->heapSize, 0x10000);
+    RwLLLink* head = &freeList->blockList.link;
+    while (link != head) {
         RwLLLink* next;
-        RwInt32 byteIndex;
+        RwUInt8* blockHeap = ((RwFreeBlock*)link)->heap;
+        RwUInt8* heap = RwEngineInstance->fpMalloc(heapSize, 0x10000);
+        RwUInt32 byteIndex;
         if (heap == NULL)
             return NULL;
-        memcpy(heap, block->heap, freeList->heapSize);
+        memcpy(heap, blockHeap, heapSize);
         next = link->next;
-        for (byteIndex = 0; byteIndex < freeList->heapSize; ++byteIndex) {
-            if (heap[byteIndex] != 0) {
-                RwInt32 bitIndex;
+        for (byteIndex = 0; byteIndex < heapSize; ++byteIndex) {
+            RwUInt32 byte = heap[byteIndex];
+            if (byte != 0) {
+                RwUInt32 bitIndex;
                 for (bitIndex = 0; bitIndex < 8; ++bitIndex) {
                     RwUInt8 mask = (RwUInt8)(0x80 >> bitIndex);
-                    if (heap[byteIndex] & mask) {
-                        RwUInt8* base = (RwUInt8*)(((unsigned long)block +
-                            freeList->heapSize + freeList->alignment + 7) &
-                            ~(freeList->alignment - 1));
-                        callback(base + freeList->entrySize *
-                                 (byteIndex * 8 + bitIndex), data);
+                    if (byte & mask) {
+                        RwUInt8* base = (RwUInt8*)link + heapSize +
+                                        freeList->alignment + 7;
+                        void* entry;
+                        base = (RwUInt8*)((unsigned long)base &
+                                         ~(freeList->alignment - 1));
+                        entry = base + freeList->entrySize *
+                                       (byteIndex * 8 + bitIndex);
+                        callback(entry, data);
                     }
                 }
             }
