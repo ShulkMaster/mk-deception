@@ -235,19 +235,17 @@ static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
     return string;
 }
 
-/* Near miss: exact dispatch/error CFG; stack slots and register coloring differ. */
+/* Near match: the chunk loop, version/type dispatch, errors, and skip behavior
+ * are exact. Retail keeps a second copy of the version-valid result, selecting
+ * one additional nonvolatile register and the save/restore helpers. */
 RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream) {
     RwUInt32 type;
     RwUInt32 length;
     RwUInt32 version;
-    RwBool validVersion;
 
-    for (;;) {
-        if (_rwStreamReadChunkHeader(stream, &type, &length, &version, NULL) ==
-            NULL) {
-            return NULL;
-        }
-        validVersion = FALSE;
+    while (_rwStreamReadChunkHeader(stream, &type, &length, &version, NULL) !=
+           NULL) {
+        RwBool validVersion = FALSE;
         if (version >= 0x34000 && version <= 0x36003) {
             validVersion = TRUE;
         }
@@ -268,4 +266,5 @@ RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream) {
             return NULL;
         }
     }
+    return NULL;
 }
