@@ -226,20 +226,23 @@ static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwUInt32 heapSize)
 /* Near miss: exact inclusive range and bitmap clearing; register allocation differs. */
 RwFreeList* _rwFreeListFreeReal(RwFreeList* freeList, void* entry)
 {
+    RwUInt32 heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
-    while (link != &freeList->blockList.link) {
-        RwFreeBlock* block = (RwFreeBlock*)link;
-        RwUInt8* rawBase = block->heap + freeList->heapSize;
+    RwLLLink* head = &freeList->blockList.link;
+    while (link != head) {
+        RwUInt8* rawBase = ((RwFreeBlock*)link)->heap + heapSize;
         if ((RwUInt8*)entry >= rawBase &&
             (RwUInt8*)entry <= rawBase + freeList->entriesPerBlock * freeList->entrySize) {
-            RwUInt32 index = ((RwUInt8*)entry - rawBase) / freeList->entrySize;
+            RwUInt32 index = ((RwUInt8*)entry - rawBase) /
+                             (RwUInt32)freeList->entrySize;
             RwUInt32 byteIndex = index >> 3;
             RwUInt8 mask = (RwUInt8)(0x80 >> (index - byteIndex * 8));
-            block->heap[byteIndex] &= (RwUInt8)~mask;
+            RwUInt8* heap = ((RwFreeBlock*)link)->heap;
+            heap[byteIndex] &= (RwUInt8)~mask;
             if ((freeList->flags & 2) &&
-                FreeListBlockIsEmpty(block->heap, freeList->heapSize)) {
-                rwLinkListRemoveLLLink(&block->link);
-                RwEngineInstance->fpFree(block);
+                FreeListBlockIsEmpty(heap, heapSize)) {
+                rwLinkListRemoveLLLink(link);
+                RwEngineInstance->fpFree(link);
             }
             return freeList;
         }
