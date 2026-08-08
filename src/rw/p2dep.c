@@ -31,9 +31,6 @@ struct rxScopeTrace {
   rxScopeTrace *parent;
 };
 
-extern void *StalacTiteAlloc(RwUInt32 size);
-extern void *StalacMiteAlloc(RwUInt32 size);
-extern RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline *pipeline);
 extern void *memset(void *destination, RwInt32 value, unsigned long size);
 
 static rxReq *_ReqCreate(RxPipelineNode *node, RwUInt32 maxEntries) {

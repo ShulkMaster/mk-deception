@@ -298,6 +298,9 @@ RxPipeline* RxLockedPipeAddPath(RxLockedPipe* pipeline, RxNodeOutput output,
 RxNodeOutput RxPipelineNodeFindOutputByIndex(RxPipelineNode* node,
                                              RwUInt32 outputIndex);
 RxNodeInput RxPipelineNodeFindInput(RxPipelineNode* node);
+void* StalacTiteAlloc(RwInt32 size);
+void* StalacMiteAlloc(RwInt32 size);
+RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline);
 void RxHeapFree(RxHeap* heap, void* block);
 RwBool _rxHeapReset(RxHeap* heap);
 void RxHeapDestroy(RxHeap* heap);

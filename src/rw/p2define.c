@@ -50,31 +50,38 @@ void* StalacMiteAlloc(RwInt32 size)
 RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
 {
     RwUInt32 count = 0;
-    RwUInt32 previous = 0;
+    RwUInt32 next = 0;
 
     for (;;) {
-        RwUInt32 next = (RwUInt32)-1;
+        RwUInt32 previous = next;
         RwUInt32 nodeIndex;
 
+        next = (RwUInt32)-1;
         for (nodeIndex = 0; nodeIndex < pipeline->numNodes; nodeIndex++) {
-            RxIoSpec* io = &pipeline->nodes[nodeIndex].nodeDef->io;
             RwUInt32 clusterIndex;
+            RxNodeDefinition* nodeDef = pipeline->nodes[nodeIndex].nodeDef;
 
             for (clusterIndex = 0;
-                 clusterIndex < io->numClustersOfInterest; clusterIndex++) {
+                 clusterIndex < nodeDef->io.numClustersOfInterest;
+                 clusterIndex++) {
                 RwUInt32 cluster =
-                    (RwUInt32)io->clustersOfInterest[clusterIndex].clusterDef;
+                    (RwUInt32)nodeDef->io.clustersOfInterest[clusterIndex]
+                        .clusterDef;
                 if (cluster > previous && cluster < next) {
                     next = cluster;
                 }
             }
         }
-        if (next == (RwUInt32)-1) {
-            return count;
+        {
+            RwUInt32 invalid = (RwUInt32)-1;
+            if (next != invalid) {
+                count++;
+            } else {
+                break;
+            }
         }
-        count++;
-        previous = next;
     }
+    return count;
 }
 
 static RwBool ReallocAndFixupSuperBlock(RxPipeline* pipeline,
