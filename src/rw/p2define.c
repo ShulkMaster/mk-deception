@@ -362,18 +362,20 @@ typedef struct PipelineTopSortState {
 
 static void PipelineTopSort(PipelineTopSortState* state, RwUInt32 nodeIndex)
 {
-    RxPipeline* pipeline = state->pipeline;
+    /* Retail rematerializes state->pipeline and emits the three node transfers
+     * as fixed-size CTR copies. These direct typed assignments preserve the swap
+     * but MWCC unrolls them, leaving the source shape below the near-match band. */
     RwUInt32 destinationIndex = state->numSorted;
     RxPipelineNode* destination;
     RwUInt32 outputIndex;
 
     if (destinationIndex != nodeIndex) {
-        RxPipelineNode* source = &pipeline->nodes[nodeIndex];
+        RxPipelineNode* source = &state->pipeline->nodes[nodeIndex];
         RwUInt32* destinationOutputs =
-            pipeline->nodes[destinationIndex].outputs;
+            state->pipeline->nodes[destinationIndex].outputs;
         RwUInt32* sourceOutputs = source->outputs;
         RxPipelineNodeTopSortData* destinationSort =
-            pipeline->nodes[destinationIndex].topSortData;
+            state->pipeline->nodes[destinationIndex].topSortData;
         RxPipelineNodeTopSortData* sourceSort = source->topSortData;
         RxPipelineNode temporaryNode;
         RxPipelineNodeTopSortData temporarySort;
@@ -383,20 +385,20 @@ static void PipelineTopSort(PipelineTopSortState* state, RwUInt32 nodeIndex)
             destinationOutputs[outputIndex] = sourceOutputs[outputIndex];
             sourceOutputs[outputIndex] = temporary;
         }
-        pipeline->nodes[destinationIndex].outputs = sourceOutputs;
+        state->pipeline->nodes[destinationIndex].outputs = sourceOutputs;
         source->outputs = destinationOutputs;
         temporarySort = *destinationSort;
         *destinationSort = *sourceSort;
         *sourceSort = temporarySort;
-        pipeline->nodes[destinationIndex].topSortData = sourceSort;
+        state->pipeline->nodes[destinationIndex].topSortData = sourceSort;
         source->topSortData = destinationSort;
-        temporaryNode = pipeline->nodes[destinationIndex];
-        pipeline->nodes[destinationIndex] = *source;
+        temporaryNode = state->pipeline->nodes[destinationIndex];
+        state->pipeline->nodes[destinationIndex] = *source;
         *source = temporaryNode;
 
-        for (outputIndex = 0; outputIndex < pipeline->numNodes;
+        for (outputIndex = 0; outputIndex < state->pipeline->numNodes;
              outputIndex++) {
-            RxPipelineNode* node = &pipeline->nodes[outputIndex];
+            RxPipelineNode* node = &state->pipeline->nodes[outputIndex];
             RwUInt32 output;
             for (output = 0; output < node->numOutputs; output++) {
                 if (node->outputs[output] == destinationIndex) {
@@ -408,12 +410,12 @@ static void PipelineTopSort(PipelineTopSortState* state, RwUInt32 nodeIndex)
         }
     }
 
-    destination = &pipeline->nodes[state->numSorted++];
+    destination = &state->pipeline->nodes[state->numSorted++];
     for (outputIndex = 0; outputIndex < destination->numOutputs;
          outputIndex++) {
         RwUInt32 output = destination->outputs[outputIndex];
         if (output + 0x10000U != (RwUInt32)-1) {
-            RxPipelineNode* next = &pipeline->nodes[output];
+            RxPipelineNode* next = &state->pipeline->nodes[output];
             next->topSortData->numInsVisited++;
             if (next->topSortData->numIns ==
                 next->topSortData->numInsVisited) {
