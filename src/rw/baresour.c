@@ -28,6 +28,9 @@ extern RwBool _rwResHeapClose(RwResHeap* heap);
 extern void _rwResHeapFree(void* memory);
 extern void* _rwResHeapAlloc(RwResHeap* heap, RwUInt32 size);
 
+/* Near miss: allocation, failures, globals, and list topology match. Retail
+ * materializes the two list sentinels in r29/r28 and uses savegpr helpers;
+ * equivalent typed locals make this compiler select individual saves. */
 static RwResourcesGlobals* ResourcesInit(RwResourcesGlobals* globals,
                                          RwUInt32 size) {
     if (size != 0) {
