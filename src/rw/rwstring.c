@@ -70,7 +70,9 @@ static void StrLwr(RwChar* string) {
     }
 }
 
-/* Near miss: identical do-loop and byte comparison; parameter coloring differs. */
+/* Near match: search/NUL/signed-byte behavior is exact. Retail stack-homes the
+ * result and keeps a normalized search byte in r30; clean C keeps the result
+ * in r31 and sign-extends findThis at each comparison. */
 static RwChar* StrChr(const RwChar* string, int findThis) {
     RwChar* result = NULL;
     RwChar character;
@@ -86,7 +88,9 @@ static RwChar* StrChr(const RwChar* string, int findThis) {
     return result;
 }
 
-/* Near miss: identical do-loop and byte comparison; parameter coloring differs. */
+/* Near match: search/NUL/signed-byte behavior is exact. Retail stack-homes the
+ * result and keeps a normalized search byte in r30; clean C keeps the result
+ * in r31 and sign-extends findThis at each comparison. */
 static RwChar* StrRChr(const RwChar* string, int findThis) {
     RwChar* result = NULL;
     RwChar character;
