@@ -1,6 +1,7 @@
 #include "rw/rphanim.h"
 #include "rw/rwstream.h"
 
+/* Criterion SDK fdlibm expansions from rwplcore.h. */
 #define RW_ACOS_POLY(v, result)                                                \
     do {                                                                       \
         p = (v) *                                                              \
@@ -98,23 +99,37 @@
 void RpHAnimKeyFrameApply(void *matrix, void *voidFrame) {
     RwMatrix *m = matrix;
     RpHAnimKeyFrame *frame = voidFrame;
-    RwReal x = frame->q.imag.x, y = frame->q.imag.y;
-    RwReal z = frame->q.imag.z, w = frame->q.real;
-    RwReal xx = x * x, yy = y * y, zz = z * z, xy = x * y, xz = x * z,
-           yz = y * z;
-    RwReal wx = w * x, wy = w * y, wz = w * z;
-    m->right.x = 1.0f - 2.0f * (yy + zz);
-    m->right.y = 2.0f * (xy + wz);
-    m->right.z = 2.0f * (xz - wy);
-    m->up.x = 2.0f * (xy - wz);
-    m->up.y = 1.0f - 2.0f * (xx + zz);
-    m->up.z = 2.0f * (yz + wx);
-    m->at.x = 2.0f * (xz + wy);
-    m->at.y = 2.0f * (yz - wx);
-    m->at.z = 1.0f - 2.0f * (xx + yy);
-    m->pos = frame->t;
+    const RwReal x = frame->q.imag.x;
+    const RwReal y = frame->q.imag.y;
+    const RwReal z = frame->q.imag.z;
+    const RwReal w = frame->q.real;
+    RwV3d square;
+    RwV3d cross;
+    RwV3d wimag;
+
+    square.x = x * x;
+    square.y = y * y;
+    square.z = z * z;
+    cross.x = y * z;
+    cross.y = z * x;
+    cross.z = x * y;
+    wimag.x = w * x;
+    wimag.y = w * y;
+    wimag.z = w * z;
+    m->right.x = 1 - 2 * (square.y + square.z);
+    m->right.y = 2 * (cross.z + wimag.z);
+    m->right.z = 2 * (cross.y - wimag.y);
+    m->up.x = 2 * (cross.z - wimag.z);
+    m->up.y = 1 - 2 * (square.x + square.z);
+    m->up.z = 2 * (cross.x + wimag.x);
+    m->at.x = 2 * (cross.y + wimag.y);
+    m->at.y = 2 * (cross.x - wimag.x);
+    m->at.z = 1 - 2 * (square.x + square.y);
+    m->pos.x = 0.0f;
+    m->pos.y = 0.0f;
+    m->pos.z = 0.0f;
     m->flags = 3;
-    m->pad1 = m->pad2 = m->pad3 = 0;
+    m->pos = frame->t;
 }
 
 void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, RwReal time,
@@ -142,6 +157,7 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
 RtAnimAnimation *RpHAnimKeyFrameStreamRead(RwStream *stream,
                                            RtAnimAnimation *animation) {
     RpHAnimKeyFrame *frames = animation->pFrames;
+    RwUInt32 frameSize = sizeof(RpHAnimKeyFrame);
     RwInt32 i;
     for (i = 0; i < animation->numFrames; i++) {
         RwUInt32 offset;
@@ -149,7 +165,9 @@ RtAnimAnimation *RpHAnimKeyFrameStreamRead(RwStream *stream,
             return NULL;
         if (!RwStreamReadInt32(stream, (RwInt32 *)&offset, 4))
             return NULL;
-        frames[i].prevFrame = frames + offset / sizeof(*frames);
+        frames[i].prevFrame =
+            (RpHAnimKeyFrame *)((RwUInt8 *)frames +
+                                (offset / frameSize) * frameSize);
     }
     return animation;
 }
@@ -159,7 +177,7 @@ RwBool RpHAnimKeyFrameStreamWrite(RtAnimAnimation *animation,
     RwInt32 i;
     for (i = 0; i < animation->numFrames; i++) {
         RwInt32 offset;
-        if (!RwStreamWriteReal(stream, &frames[i].time, 0x20))
+        if (RwStreamWriteReal(stream, &frames[i].time, 0x20) == NULL)
             return FALSE;
         offset = (RwUInt8 *)frames[i].prevFrame - (RwUInt8 *)frames;
         if (!RwStreamWriteInt32(stream, &offset, 4))
@@ -177,12 +195,15 @@ RwInt32 RpHAnimKeyFrameStreamGetSize(RtAnimAnimation *animation) {
     do {                                                                       \
         (out)->real = (a)->real * (b)->real - (a)->imag.x * (b)->imag.x -      \
                       (a)->imag.y * (b)->imag.y - (a)->imag.z * (b)->imag.z;   \
-        (out)->imag.x = (a)->real * (b)->imag.x + (a)->imag.x * (b)->real +    \
-                        (a)->imag.y * (b)->imag.z - (a)->imag.z * (b)->imag.y; \
-        (out)->imag.y = (a)->real * (b)->imag.y + (a)->imag.y * (b)->real +    \
-                        (a)->imag.z * (b)->imag.x - (a)->imag.x * (b)->imag.z; \
-        (out)->imag.z = (a)->real * (b)->imag.z + (a)->imag.z * (b)->real +    \
-                        (a)->imag.x * (b)->imag.y - (a)->imag.y * (b)->imag.x; \
+        (out)->imag.x = (a)->imag.y * (b)->imag.z - (a)->imag.z * (b)->imag.y; \
+        (out)->imag.y = (a)->imag.z * (b)->imag.x - (a)->imag.x * (b)->imag.z; \
+        (out)->imag.z = (a)->imag.x * (b)->imag.y - (a)->imag.y * (b)->imag.x; \
+        (out)->imag.x += (b)->imag.x * (a)->real;                              \
+        (out)->imag.y += (b)->imag.y * (a)->real;                              \
+        (out)->imag.z += (b)->imag.z * (a)->real;                              \
+        (out)->imag.x += (a)->imag.x * (b)->real;                              \
+        (out)->imag.y += (a)->imag.y * (b)->real;                              \
+        (out)->imag.z += (a)->imag.z * (b)->real;                              \
     } while (0)
 void RpHAnimKeyFrameMulRecip(void *vf, void *vs) {
     RpHAnimKeyFrame *f = vf;
