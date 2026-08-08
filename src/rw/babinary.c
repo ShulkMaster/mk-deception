@@ -90,7 +90,6 @@ RwBool _rwStreamReadChunkHeader(RwStream* stream, RwUInt32* typeOut,
     return TRUE;
 }
 
-/* Near miss: exact packing/write algorithm; parameter stack homing differs. */
 RwStream* _rwStreamWriteVersionedChunkHeader(RwStream* stream, RwInt32 type,
                                               RwInt32 size, RwUInt32 version,
                                               RwUInt32 buildNum) {
@@ -107,46 +106,45 @@ RwStream* _rwStreamWriteVersionedChunkHeader(RwStream* stream, RwInt32 type,
     return result;
 }
 
-/* Near miss: clean CFG omits retail's unused compatibility-version boolean. */
+/* Near match: the search/skip/version/error CFG is exact. Retail additionally
+ * computes an unused (version >= 0x35000) compatibility boolean and uses GPR
+ * save helpers; clean C intentionally omits the dead value. */
 RwBool RwStreamFindChunk(RwStream* stream, RwUInt32 type,
                          RwUInt32* lengthOut, RwUInt32* versionOut) {
     RwUInt32 currentType;
     RwUInt32 length;
     RwUInt32 version;
 
-    for (;;) {
-        if (!_rwStreamReadChunkHeader(stream, &currentType, &length, &version,
-                                      NULL)) {
-            return FALSE;
-        }
-        if (currentType != type) {
-            if (RwStreamSkip(stream, length) == NULL) {
+    while (_rwStreamReadChunkHeader(stream, &currentType, &length, &version,
+                                    NULL)) {
+        if (currentType == type) {
+            if (version < 0x34000) {
+                RwError error;
+                error.pluginID = 1;
+                error.errorCode = _rwerror(0x80000004);
+                RwErrorSet(&error);
                 return FALSE;
             }
-            continue;
+            if (version > 0x36003) {
+                RwError error;
+                error.pluginID = 1;
+                error.errorCode = _rwerror(0x80000004);
+                RwErrorSet(&error);
+                return FALSE;
+            }
+            if (lengthOut != NULL) {
+                *lengthOut = length;
+            }
+            if (versionOut != NULL) {
+                *versionOut = version;
+            }
+            return TRUE;
         }
-        if (version < 0x34000) {
-            RwError error;
-            error.pluginID = 1;
-            error.errorCode = _rwerror(0x80000004);
-            RwErrorSet(&error);
+        if (RwStreamSkip(stream, length) == NULL) {
             return FALSE;
         }
-        if (version > 0x36003) {
-            RwError error;
-            error.pluginID = 1;
-            error.errorCode = _rwerror(0x80000004);
-            RwErrorSet(&error);
-            return FALSE;
-        }
-        if (lengthOut != NULL) {
-            *lengthOut = length;
-        }
-        if (versionOut != NULL) {
-            *versionOut = version;
-        }
-        return TRUE;
     }
+    return FALSE;
 }
 
 void* RwMemLittleEndian32(void* memory, RwUInt32 size) {
@@ -154,8 +152,8 @@ void* RwMemLittleEndian32(void* memory, RwUInt32 size) {
     size >>= 2;
     while (size != 0) {
         *words = (*words << 24) |
-                 (((*words << 8) & 0x00FF0000) |
-                  ((*words >> 24) | ((*words >> 8) & 0x0000FF00)));
+                 (((*words * 0x100) & 0x00FF0000) |
+                 ((*words >> 24) | ((*words / 0x100) & 0x0000FF00)));
         words++;
         size--;
     }
@@ -178,15 +176,17 @@ void* RwMemNative32(void* memory, RwUInt32 size) {
     size >>= 2;
     while (size != 0) {
         *words = (*words << 24) |
-                 (((*words << 8) & 0x00FF0000) |
-                  ((*words >> 24) | ((*words >> 8) & 0x0000FF00)));
+                 (((*words * 0x100) & 0x00FF0000) |
+                  ((*words >> 24) | ((*words / 0x100) & 0x0000FF00)));
         words++;
         size--;
     }
     return memory;
 }
 
-/* Near miss: exact chunked write loop; stack slot and register allocation differ. */
+/* Near match: the chunk/copy/endian/write loop is exact. Retail keeps source
+ * directly in r28 with a 0x120 frame; this typed byte-view local is stack-homed
+ * and shifts the buffer to produce a 0x130 frame. */
 RwStream* RwStreamWriteReal(RwStream* stream, const RwReal* reals,
                             RwUInt32 numBytes) {
     RwUInt8 buffer[256];
@@ -204,7 +204,9 @@ RwStream* RwStreamWriteReal(RwStream* stream, const RwReal* reals,
     return stream;
 }
 
-/* Near miss: exact chunked write loop; stack slot and register allocation differ. */
+/* Near match: the chunk/copy/endian/write loop is exact. Retail keeps source
+ * directly in r28 with a 0x120 frame; this typed byte-view local is stack-homed
+ * and shifts the buffer to produce a 0x130 frame. */
 RwStream* RwStreamWriteInt32(RwStream* stream, const RwInt32* integers,
                              RwUInt32 numBytes) {
     RwUInt8 buffer[256];
