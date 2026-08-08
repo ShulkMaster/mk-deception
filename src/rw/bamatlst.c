@@ -55,14 +55,12 @@ RpMaterial *_rpMaterialListGetMaterial(const RpMaterialList *materialList,
     return materialList->materials[index];
 }
 
-/* Near miss: allocation size and returned pointer use different nonvolatile
- * registers; calls, error handling, and stores are otherwise identical. */
 RpMaterialList *_rpMaterialListSetSize(RpMaterialList *materialList,
                                        RwInt32 size)
 {
     if (materialList->space < size) {
-        RwUInt32 bytes = size * sizeof(RpMaterial *);
         RpMaterial **materials;
+        RwUInt32 bytes = size * sizeof(RpMaterial *);
 
         if (materialList->materials != NULL) {
             materials = RwEngineInstance->fpRealloc(materialList->materials,
