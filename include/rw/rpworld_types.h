@@ -24,6 +24,7 @@ typedef struct RpMaterial RpMaterial;
 typedef RwUInt16 RxVertexIndex;
 typedef struct RpBuildMesh RpBuildMesh;
 typedef struct RpMesh RpMesh;
+typedef struct RpTriangle RpTriangle;
 
 typedef struct RwTexCoords {
     RwReal u;
@@ -67,6 +68,12 @@ struct RpMesh {
 };
 
 typedef RpMesh* (*RpMeshCallBack)(RpMesh*, RpMeshHeader*, void*);
+typedef RpMaterial* (*RpMaterialCallBack)(RpMaterial*, void*);
+
+struct RpTriangle {
+    RwUInt16 vertIndex[3];
+    RwInt16 matIndex;
+};
 
 typedef union RpMaterialColor {
     unsigned int packed;
@@ -176,21 +183,41 @@ struct RpAtomic {
  */
 typedef struct RpGeometry {
     RwObject object;                /* +0x00 type=8 */
-    int flags;                      /* +0x08 */
+    RwUInt32 flags;                 /* +0x08 */
     unsigned short lockedSinceLastInst; /* +0x0C */
-    unsigned short refCount;        /* +0x0E */
+    RwInt16 refCount;               /* +0x0E */
     int numTriangles;               /* +0x10 */
     int numVertices;                /* +0x14 */
     int numMorphTargets;            /* +0x18 */
     int numTexCoordSets;            /* +0x1C */
     RpMaterialList matList;         /* +0x20 */
-    void* triangles;                /* +0x2C */
+    RpTriangle* triangles;          /* +0x2C */
     void* preLitLum;                /* +0x30 */
     void* texCoords[8];             /* +0x34 */
     RpMeshHeader* meshHeader;       /* +0x54 */
     RwResEntry* repEntry;           /* +0x58 */
     struct RpMorphTarget* morphTarget; /* +0x5C */
 } RpGeometry;
+
+RwInt32 RpGeometryAddMorphTargets(RpGeometry* geometry, RwInt32 count);
+RwInt32 RpGeometryAddMorphTarget(RpGeometry* geometry);
+RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry,
+                                      RpMaterialCallBack callback, void* data);
+RpGeometry* RpGeometryLock(RpGeometry* geometry, RwInt32 lockMode);
+RpGeometry* RpGeometryUnlock(RpGeometry* geometry);
+RpGeometry* RpGeometryCreate(RwInt32 numVertices, RwInt32 numTriangles,
+                             RwUInt32 format);
+RpGeometry* _rpGeometryAddRef(RpGeometry* geometry);
+RwBool RpGeometryDestroy(RpGeometry* geometry);
+RwInt32 RpGeometryRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+                                 RwPluginObjectConstructor constructCB,
+                                 RwPluginObjectDestructor destructCB,
+                                 RwPluginObjectCopy copyCB);
+RwInt32 RpGeometryRegisterPluginStream(
+    RwUInt32 pluginID, RwPluginDataChunkReadCallBack readCB,
+    RwPluginDataChunkWriteCallBack writeCB,
+    RwPluginDataChunkGetSizeCallBack getSizeCB);
+RpGeometry* RpGeometryStreamRead(RwStream* stream);
 
 /* Morph target -- 0x1C stride (inplaceGeometryAddMorphTargets). */
 typedef struct RpMorphTarget {

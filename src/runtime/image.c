@@ -25,7 +25,6 @@ int RwRasterGetNumLevels(RwRaster* raster);
 RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial* mat);
 void RpMaterialSetAlphaPassTexture(RpMaterial* mat, RwTexture* tex);
 /* Stock RW callbacks take void* data; ATC is passed through. */
-RpGeometry* RpGeometryForAllMaterials(RpGeometry* geom, void* cb, void* data);
 RpClump* RpClumpForAllAtomics(RpClump* clump, void* cb, void* data);
 
 void set_render_state(int state, int value);
@@ -390,7 +389,8 @@ ScreenObj* load_2d_pfxobj_xy(int slot, int oid, char* name, int flags, int x, in
 /* ---- remaining bodies: loaders / ATC / insert / render / wiff ---- */
 
 /* Material callback for WIFF/ATC scans (RpGeometryForAllMaterials). */
-RpMaterial* MaterialFindAniTexture(RpMaterial* material, AniTextureControl* atc) {
+RpMaterial* MaterialFindAniTexture(RpMaterial* material, void* data) {
+    AniTextureControl* atc = data;
     AtcFlagBits* fbits;
     unsigned short mid;
     unsigned int mat_id;

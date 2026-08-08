@@ -426,7 +426,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
                 int triangle_count = geometry->numTriangles;
 
                     inplace_pointer = stream->data.memory.start + stream->data.memory.position;
-                geometry->triangles = inplace_pointer;
+                geometry->triangles = (RpTriangle*)inplace_pointer;
                 RwStreamSkip(stream, triangle_count << 3);
             }
         }
