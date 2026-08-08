@@ -196,6 +196,7 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
     char imageName[256];
     char imageMaskName[256];
     const char* extension;
+    const char* maskExtension;
     RwImage* image;
 
     RwEngineInstance->stringFuncs.vecStrncpy(imageName, name, sizeof(imageName));
@@ -223,9 +224,9 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
             RwErrorSet(&error);
             imageMaskName[255] = 0;
         }
-        extension = RwImageFindFileType(maskName);
-        if (extension != 0) {
-            RwEngineInstance->stringFuncs.vecStrcat(imageMaskName, extension);
+        maskExtension = RwImageFindFileType(maskName);
+        if (maskExtension != 0) {
+            RwEngineInstance->stringFuncs.vecStrcat(imageMaskName, maskExtension);
         }
     }
 
@@ -244,11 +245,12 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
     }
 
     if (image->width != *width || image->height != *height) {
-        int originalDepth = image->depth;
-        RwImage* source = image;
         RwImage* resampled;
+        int originalDepth = image->depth;
+        RwImage* source;
 
         if (originalDepth != 32) {
+            source = image;
             image = RwImageCreate(source->width, source->height, 32);
             if (image == 0) {
                 RwImageDestroy(source);
@@ -276,7 +278,9 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
         RwImageResample(resampled, image);
         RwImageDestroy(image);
         image = resampled;
-        if (originalDepth == 4 || originalDepth == 8) {
+        if (originalDepth == 4) {
+            PalettizeImage(&image, originalDepth);
+        } else if (originalDepth == 8) {
             PalettizeImage(&image, originalDepth);
         }
     }
