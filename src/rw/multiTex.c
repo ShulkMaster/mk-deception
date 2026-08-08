@@ -267,11 +267,11 @@ RwTexture* RpMultiTextureGetTexture(const RpMultiTexture* multiTexture,
 { return multiTexture->textures[index]; }
 
 void RpMultiTextureSetCoords(RpMultiTexture* multiTexture, RwUInt32 index,
-                             RwUInt8 coords)
+                             RwUInt32 coords)
 { multiTexture->texCoords[index] = coords; }
 
-RwUInt8 RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
-                                RwUInt32 index)
+RwUInt32 RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
+                                 RwUInt32 index)
 { return multiTexture->texCoords[index]; }
 
 RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
