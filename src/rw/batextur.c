@@ -288,6 +288,8 @@ static RwImage* TextureImageReadAndSize(const char* name, const char* maskName,
     return image;
 }
 
+/* Near match: retail retains an otherwise unused &image register after the
+ * palette path; clean C omits that address lifetime and its larger frame. */
 static RwTexture* TextureDefaultNormalRead(const char* name,
                                            const char* maskName) {
     char imageName[256];
@@ -296,8 +298,8 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
     RwImage* image;
     RwRaster* raster;
     RwTexture* texture;
-    int width = 0;
-    int height = 0;
+    int width;
+    int height;
     int depth;
     int format;
 
@@ -324,6 +326,8 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
     }
 
     RwTextureGenerateMipmapName(imageName, imageMaskName, 0, 4);
+    width = 0;
+    height = 0;
     image = TextureImageReadAndSize(imageName, imageMaskName, 4, &width, &height,
                                     &depth, &format);
     if (image == 0) {
@@ -335,8 +339,8 @@ static RwTexture* TextureDefaultNormalRead(const char* name,
         return 0;
     }
 
-    if ((((unsigned int)raster->format << 8) & 0x6000) != 0) {
-        if ((((unsigned int)raster->format << 8) & 0x4000) != 0) {
+    if ((((raster->format & 0xFF) << 8) & 0x6000) != 0) {
+        if ((((raster->format & 0xFF) << 8) & 0x4000) != 0) {
             PalettizeMipmaps(palette, 0, &image, 1, 4);
         } else {
             PalettizeMipmaps(palette, 0, &image, 1, 8);
