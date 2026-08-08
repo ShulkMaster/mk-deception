@@ -280,11 +280,12 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
 
 RwInt32 _rpMeshSize(const RpMeshHeader* meshHeader, const void* object)
 {
-    const RpMeshObjectHeader* header = object;
     RwInt32 size;
 
-    if ((header->type == 8 && (header->flags & 0x01000000)) ||
-        (header->type == 7 && (header->flags & 0x01000000))) {
+    if ((((const RpMeshObjectHeader*)object)->type == 8 &&
+         (((const RpMeshObjectHeader*)object)->flags & 0x01000000)) ||
+        (((const RpMeshObjectHeader*)object)->type == 7 &&
+         (((const RpMeshObjectHeader*)object)->flags & 0x01000000))) {
         size = 12 + meshHeader->numMeshes * 8;
     } else {
         size = 12 + meshHeader->numMeshes * 8 +
