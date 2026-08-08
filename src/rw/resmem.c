@@ -78,19 +78,25 @@ void _rwResHeapFree(void* memory) {
         block->heap->firstFreeBlock = block;
     }
     if (previous != 0 && (RwInt32)(~previous->flags & 1) != 0) {
+        RwUInt32 mergedSize;
+
         previous->next = next;
         if (next != 0) {
             next->prev = previous;
         }
-        previous->size = previous->size + block->size + 0x20;
+        mergedSize = previous->size + block->size;
+        previous->size = mergedSize + 0x20;
         block = previous;
     }
     if (next != 0 && (RwInt32)(~next->flags & 1) != 0) {
+        RwUInt32 mergedSize;
+
         block->next = next->next;
         if (next->next != 0) {
             next->next->prev = block;
         }
-        block->size = block->size + next->size + 0x20;
+        mergedSize = block->size + next->size;
+        block->size = mergedSize + 0x20;
     }
 }
 
