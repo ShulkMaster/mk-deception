@@ -1032,7 +1032,10 @@ void* _rwTextureOpen(void* instance, int offset, int size) {
     }
 
     TEXTURE_GLOBALS->dictionaries.next = &TEXTURE_GLOBALS->dictionaries;
-    TEXTURE_GLOBALS->dictionaries.prev = &TEXTURE_GLOBALS->dictionaries;
+    {
+        RwLLLink* sentinel = &TEXTURE_GLOBALS->dictionaries;
+        TEXTURE_GLOBALS->dictionaries.prev = sentinel;
+    }
     textureModule.numInstances++;
     dummyTexDict = RwTexDictionaryCreate();
     TEXTURE_GLOBALS->currentDictionary = dummyTexDict;
