@@ -188,15 +188,14 @@ RwStream* RwStreamWriteReal(RwStream* stream, const RwReal* reals,
                             RwUInt32 numBytes) {
     RwUInt8 buffer[256];
     const RwUInt8* source = (const RwUInt8*)reals;
-    RwUInt32 remaining = numBytes;
-    while (remaining != 0) {
-        RwUInt32 chunkSize = remaining >= sizeof(buffer) ? sizeof(buffer) : remaining;
+    while (numBytes != 0) {
+        RwUInt32 chunkSize = numBytes >= sizeof(buffer) ? sizeof(buffer) : numBytes;
         memcpy(buffer, source, chunkSize);
         RwMemLittleEndian32(buffer, chunkSize);
         if (RwStreamWrite(stream, buffer, chunkSize) == NULL) {
             return NULL;
         }
-        remaining -= chunkSize;
+        numBytes -= chunkSize;
         source += chunkSize;
     }
     return stream;
@@ -207,15 +206,14 @@ RwStream* RwStreamWriteInt32(RwStream* stream, const RwInt32* integers,
                              RwUInt32 numBytes) {
     RwUInt8 buffer[256];
     const RwUInt8* source = (const RwUInt8*)integers;
-    RwUInt32 remaining = numBytes;
-    while (remaining != 0) {
-        RwUInt32 chunkSize = remaining >= sizeof(buffer) ? sizeof(buffer) : remaining;
+    while (numBytes != 0) {
+        RwUInt32 chunkSize = numBytes >= sizeof(buffer) ? sizeof(buffer) : numBytes;
         memcpy(buffer, source, chunkSize);
         RwMemLittleEndian32(buffer, chunkSize);
         if (RwStreamWrite(stream, buffer, chunkSize) == NULL) {
             return NULL;
         }
-        remaining -= chunkSize;
+        numBytes -= chunkSize;
         source += chunkSize;
     }
     return stream;
