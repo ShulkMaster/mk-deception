@@ -538,6 +538,8 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
     return texture;
 }
 
+/* Near match: retail initializes texture to NULL before two exhaustive
+ * branches overwrite it; clean C omits the dead initialization. */
 static RwTexture* TextureDefaultRead(const char* name, const char* maskName) {
     RwTexture* texture;
 
