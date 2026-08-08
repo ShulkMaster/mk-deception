@@ -26,6 +26,8 @@ typedef struct RpBuildMesh RpBuildMesh;
 typedef struct RpMesh RpMesh;
 typedef struct RpTriangle RpTriangle;
 typedef struct RpSector RpSector;
+typedef struct RpLight RpLight;
+typedef RpLight* (*RpLightCallBack)(RpLight*, void*);
 
 typedef struct RwTexCoords {
     RwReal u;
@@ -318,6 +320,7 @@ RwBool RpWorldDestroy(RpWorld* world);
 void RpWorldSetSectorRenderCallBack(RpWorld*, RpWorldSectorCallBackRender);
 RpWorld* RpWorldCreate(RwBBox* boundingBox);
 RpWorld* RpWorldForAllWorldSectors(RpWorld*, RpWorldSectorCallBack, void*);
+RpWorld* RpWorldForAllLights(RpWorld*, RpLightCallBack, void*);
 RwInt32 RpWorldRegisterPlugin(RwInt32, RwUInt32, RwPluginObjectConstructor,
                               RwPluginObjectDestructor, RwPluginObjectCopy);
 RwBool RpWorldPluginAttach(void);

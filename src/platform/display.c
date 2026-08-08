@@ -50,10 +50,6 @@ extern int RwImageDestroy(RwImage* image);
 extern void create_fade_box(void);
 extern void CameraDestroy(RwCamera* camera);
 extern void destroy_shadow_system(void* item);
-extern RpLight* RpWorldForAllLights(RpWorld* world,
-                                   RpLight* (*callback)(RpLight*, RpWorld*),
-                                   RpWorld* data);
-extern int RpWorldDestroy(RpWorld* world);
 extern int RwCameraBeginUpdate(RwCamera* camera);
 extern int RwCameraEndUpdate(RwCamera* camera);
 extern RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, float distance);
@@ -273,7 +269,9 @@ void TakeCameraSnapShot(void) {
     fading_screen.snapshotTex = texture;
 }
 
-RpLight* destroy_light(RpLight* light, RpWorld* world) {
+RpLight* destroy_light(RpLight* light, void* data) {
+    RpWorld* world = data;
+
     RpWorldRemoveLight(world, light);
     if (light->frame != 0) {
         RwFrameDestroy(light->frame);

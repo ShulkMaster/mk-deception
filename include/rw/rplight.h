@@ -8,10 +8,9 @@ typedef struct RpLight {
     RwReal radius;           /* +0x14 */
     RwRGBAReal color;        /* +0x18 */
     RwReal minusCosAngle;    /* +0x28 */
-    RwLLLink inWorld;        /* +0x2C */
-    struct RpWorld* world;   /* +0x34 */
-    RwUInt32 frameIndex;     /* +0x38 */
-    RwUInt16 renderFrame;    /* +0x3C */
+    RwLinkList worldSectorsInLight; /* +0x2C */
+    RwLLLink inWorld;               /* +0x34 */
+    RwUInt16 lightFrame;            /* +0x3C */
     RwUInt16 reserved3E;
 } RpLight;
 

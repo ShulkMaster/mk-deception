@@ -1,5 +1,6 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rpworld_types.h"
+#include "rw/rplight.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwplcore.h"
 #include "rw/rxpipeline.h"
@@ -432,20 +433,26 @@ RpWorld *RpWorldCreate(RwBBox *box) {
     return world;
 }
 
-RpWorld *RpWorldForAllLights(RpWorld *world, void *(*cb)(void *, void *),
-                             void *data) {
-    RwLinkList *lists[2];
-    RwInt32 i;
-    lists[0] = &world->directionalLightList;
-    lists[1] = &world->lightList;
-    for (i = 0; i < 2; i++) {
-        RwLLLink *l = lists[i]->link.next, *n;
-        while (l != &lists[i]->link) {
-            n = l->next;
-            if (!cb((RwUInt8 *)l - 0x34, data))
-                return world;
-            l = n;
+RpWorld *RpWorldForAllLights(RpWorld *world, RpLightCallBack cb, void *data) {
+    RwLLLink *link;
+    RwLLLink *next;
+
+    link = world->directionalLightList.link.next;
+    while (link != &world->directionalLightList.link) {
+        next = link->next;
+        if (cb((RpLight *)((RwUInt8 *)link - 0x34), data) == NULL) {
+            return world;
         }
+        link = next;
+    }
+
+    link = world->lightList.link.next;
+    while (link != &world->lightList.link) {
+        next = link->next;
+        if (cb((RpLight *)((RwUInt8 *)link - 0x34), data) == NULL) {
+            return world;
+        }
+        link = next;
     }
     return world;
 }
