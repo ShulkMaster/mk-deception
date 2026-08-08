@@ -83,7 +83,8 @@ static rxReqEntry *_ReqAddEntry(rxReq *req, RxClusterDefinition *clusterDef,
     return entry;
   }
 
-  entry = &req->entries[req->numEntries++];
+  entry = &req->entries[req->numEntries];
+  req->numEntries++;
   entry->clusterDef = clusterDef;
   entry->requirement = requirement;
   entry->dependencyCount = dependencyCount;
