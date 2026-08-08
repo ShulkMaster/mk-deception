@@ -13,6 +13,8 @@ enum {
     rwFRAMEMODELLINGIDENTITY = 0x20
 };
 
+/* Near miss: retail colors inherited flags and object-list temporaries in
+ * different nonvolatile registers; operations and traversal are identical. */
 static void FrameSyncHierarchyRecurse(RwFrame* frame, RwUInt32 inheritedFlags) {
     while (frame != 0) {
         RwUInt32 flags = inheritedFlags | frame->object.privateFlags;
@@ -64,6 +66,8 @@ static void FrameSyncHierarchyRecurseNoLTM(RwFrame* frame) {
     }
 }
 
+/* Near miss: remaining differences are register coloring and when the two
+ * object-list sentinel addresses are materialized. */
 static void FrameSyncHierarchy(RwFrame* root) {
     RwUInt32 flags = root->object.privateFlags;
     RwLLLink* link;
@@ -97,9 +101,11 @@ static void FrameSyncHierarchy(RwFrame* root) {
         }
         FrameSyncHierarchyRecurseNoLTM(root->child);
     }
-    root->object.privateFlags = flags & 0xF0;
+    root->object.privateFlags = flags & ~0x0FU;
 }
 
+/* Near miss: retail keeps the dirty-list sentinel in r28; clean C recomputes
+ * the same +0xBC address in a different register. */
 RwBool _rwFrameSyncDirty(void) {
     RwLLLink* link = RwEngineInstance->dirtyFrameList.link.next;
     RwLLLink* sentinel = &RwEngineInstance->dirtyFrameList.link;
