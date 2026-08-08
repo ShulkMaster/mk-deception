@@ -16,7 +16,7 @@ typedef struct RwIm3DRenderData {
     RxPipeline* pipeline;
     RwPrimitiveType primitiveType;
     const RwImVertexIndex* indices;
-    RwUInt32 numIndices;
+    RwInt32 numIndices;
 } RwIm3DRenderData;
 
 typedef struct RwIm3DStash {
@@ -69,7 +69,9 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
 
 RwBool RwIm3DEnd(void)
 {
-    if (IM3DGLOBALS->transformData.vertices == NULL) {
+    RwBool transformed = IM3DGLOBALS->transformData.vertices != NULL;
+
+    if (!transformed) {
         return FALSE;
     }
     memset(&IM3DGLOBALS->transformData, 0, 0x3C);
@@ -78,31 +80,33 @@ RwBool RwIm3DEnd(void)
 
 RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
                                     const RwImVertexIndex* indices,
-                                    RwUInt32 numIndices)
+                                    RwInt32 numIndices)
 {
-    if (IM3DGLOBALS->transformData.vertices != NULL) {
-        RwIm3DRenderData* data = &IM3DGLOBALS->stash.renderData;
-        data->pipeline = NULL;
-        data->primitiveType = primitiveType;
-        data->indices = indices;
-        data->numIndices = numIndices;
+    RwBool transformed = IM3DGLOBALS->transformData.vertices != NULL;
+
+    if (transformed) {
+        RwIm3DStash* data = &IM3DGLOBALS->stash;
+        data->renderData.pipeline = NULL;
+        data->renderData.primitiveType = primitiveType;
+        data->renderData.indices = indices;
+        data->renderData.numIndices = numIndices;
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triList;
-            data->numIndices -= data->numIndices % 3;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triList;
+            data->renderData.numIndices = numIndices - (numIndices % 3);
             break;
         case rwPRIMTYPETRIFAN:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triFan;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triFan;
             break;
         case rwPRIMTYPETRISTRIP:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triStrip;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triStrip;
             break;
         case rwPRIMTYPELINELIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.lineList;
-            data->numIndices -= data->numIndices % 2;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.lineList;
+            data->renderData.numIndices = numIndices - (numIndices % 2);
             break;
         case rwPRIMTYPEPOLYLINE:
-            data->pipeline = IM3DGLOBALS->renderPipelines.polyLine;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.polyLine;
             break;
         default: {
             RwError error;
@@ -112,7 +116,7 @@ RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
             break;
         }
         }
-        if (RxPipelineExecute(data->pipeline, data, FALSE) != NULL) {
+        if (RxPipelineExecute(data->renderData.pipeline, data, FALSE) != NULL) {
             return TRUE;
         }
     } else {
@@ -131,26 +135,26 @@ RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 
     RxHeapGetGlobalHeap();
     if (transformed) {
-        RwIm3DRenderData* data = &IM3DGLOBALS->stash.renderData;
-        data->pipeline = NULL;
-        data->primitiveType = primitiveType;
-        data->indices = NULL;
-        data->numIndices = IM3DGLOBALS->transformData.numVertices;
+        RwIm3DStash* data = &IM3DGLOBALS->stash;
+        data->renderData.pipeline = NULL;
+        data->renderData.primitiveType = primitiveType;
+        data->renderData.indices = NULL;
+        data->renderData.numIndices = IM3DGLOBALS->transformData.numVertices;
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triList;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triList;
             break;
         case rwPRIMTYPETRIFAN:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triFan;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triFan;
             break;
         case rwPRIMTYPETRISTRIP:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triStrip;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triStrip;
             break;
         case rwPRIMTYPELINELIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.lineList;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.lineList;
             break;
         case rwPRIMTYPEPOLYLINE:
-            data->pipeline = IM3DGLOBALS->renderPipelines.polyLine;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.polyLine;
             break;
         default: {
             RwError error;
@@ -160,7 +164,7 @@ RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
             break;
         }
         }
-        if (RxPipelineExecute(data->pipeline, data, FALSE) != NULL) {
+        if (RxPipelineExecute(data->renderData.pipeline, data, FALSE) != NULL) {
             return TRUE;
         }
     } else {

@@ -31,7 +31,7 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
 RwBool RwIm3DEnd(void);
 RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
                                     const RwImVertexIndex* indices,
-                                    RwUInt32 numIndices);
+                                    RwInt32 numIndices);
 RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType);
 RxPipeline* RwIm3DSetTransformPipeline(RxPipeline* pipeline);
 RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
