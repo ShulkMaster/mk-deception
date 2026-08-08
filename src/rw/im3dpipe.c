@@ -1,23 +1,8 @@
+#include "rw/rwim3d.h"
 #include "rw/rxpipeline.h"
 
 typedef struct RxLockedPipe RxLockedPipe;
 typedef struct RxNodeDefinition RxNodeDefinition;
-
-typedef enum RwPrimitiveType {
-    rwPRIMTYPELINELIST = 1,
-    rwPRIMTYPEPOLYLINE = 2,
-    rwPRIMTYPETRILIST = 3,
-    rwPRIMTYPETRISTRIP = 4,
-    rwPRIMTYPETRIFAN = 5
-} RwPrimitiveType;
-
-typedef struct RwIm3DRenderPipelines {
-    RxPipeline* triList;
-    RxPipeline* triFan;
-    RxPipeline* triStrip;
-    RxPipeline* lineList;
-    RxPipeline* polyLine;
-} RwIm3DRenderPipelines;
 
 extern RxPipeline* RxPipelineCreate(void);
 extern RxLockedPipe* RxPipelineLock(RxPipeline* pipeline);
@@ -27,9 +12,6 @@ extern RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline);
 extern void _rxPipelineDestroy(RxPipeline* pipeline);
 extern RxNodeDefinition* RxNodeDefinitionGetGameCubeImmInstance(void);
 extern RxNodeDefinition* RxNodeDefinitionGetGameCubeSubmitNoLight(void);
-extern RxPipeline* RwIm3DSetTransformPipeline(RxPipeline* pipeline);
-extern RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
-                                           RwPrimitiveType primitiveType);
 
 RwBool _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
     RxPipeline* pipeline;

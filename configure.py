@@ -1158,6 +1158,8 @@ config.libs = [
             Object(Matching, "rwcore.a/bacolor.obj", source="rw/bacolor.c"),
             Object(Matching, "rwcore.a/dltoken.obj", source="rw/dltoken.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rwcore.a/baim3d.obj", source="rw/baim3d.c",
+                   extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/p2altmdl.obj", source="rw/p2altmdl.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rwcore.a/p2renderstate.obj",
