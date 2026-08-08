@@ -109,6 +109,9 @@ RwBool RwResourcesFreeResEntry(RwResEntry* entry) {
     return TRUE;
 }
 
+/* Near miss: both splice cases, list-role swap, and reuse reset match. Retail
+ * keeps an unused sentinel result from each branch-local list reset, which
+ * changes the saved-register set and surrounding load schedule. */
 void _rwResourcesPurge(void) {
     RwLLLink* active = RESOURCESGLOBAL.activeList;
     RwLLLink* alloc = RESOURCESGLOBAL.allocList;
