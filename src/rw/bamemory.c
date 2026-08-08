@@ -48,15 +48,16 @@ static RwBool _rwFreeListModuleOpen(void)
     return TRUE;
 }
 
-/* Near miss: exact head-destruction loop; only list-expression coloring differs. */
 static void _rwFreeListModuleClose(void)
 {
     RwLLLink* link = _freeListList.link.next;
+    RwLLLink* head = &_freeListList.link;
 
-    while (link != &_freeListList.link) {
+    while (link != head) {
         RwFreeList* freeList = (RwFreeList*)((RwUInt8*)link - 0x1C);
         RwFreeListDestroy(freeList);
         link = _freeListList.link.next;
+        head = &_freeListList.link;
     }
     RwFreeListDestroy(_masterFreeListPtr);
     _masterFreeListPtr = NULL;
