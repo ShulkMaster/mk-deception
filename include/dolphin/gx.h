@@ -83,6 +83,7 @@ void GXClearVtxDesc(void);
 void GXSetVtxDesc(int attribute, int type);
 void GXSetVtxAttrFmt(int format, int attribute, int component_count,
                      int component_type, int fraction);
+void GXSetArray(int attribute, const void* base, int stride);
 void GXLoadPosMtxImm(Mtx matrix, int id);
 void GXBegin(int primitive, int format, int vertex_count);
 void* GXInit(void* fifo_base, unsigned long fifo_size);

@@ -14,6 +14,23 @@ typedef struct RwGameCubeVtxFmt {
     RwUInt32 vcdHi;            /* +0x14 */
 } RwGameCubeVtxFmt;
 
+typedef struct RpGameCubeVtxFmt {
+    union {
+        struct {
+            RwUInt8 positionType;       /* +0x00 */
+            RwUInt8 normalType;         /* +0x01 */
+            RwUInt8 texCoordType[8];    /* +0x02 */
+            RwUInt8 colorType;          /* +0x0A */
+            RwUInt8 field_0x0B;
+            RwUInt8 positionFraction;   /* +0x0C */
+            RwUInt8 normalMode;         /* +0x0D */
+            RwUInt8 texCoordFraction[8]; /* +0x0E */
+        };
+        RwUInt8 fields[0x16];
+    };
+    RwUInt16 refCount;          /* +0x16 */
+} RpGameCubeVtxFmt;
+
 typedef struct RwGameCubeDisplayList {
     void* data;
     RwUInt32 size;
@@ -21,6 +38,8 @@ typedef struct RwGameCubeDisplayList {
 
 typedef char RwGameCubeVtxFmtSizeCheck[
     sizeof(RwGameCubeVtxFmt) == 0x18 ? 1 : -1];
+typedef char RpGameCubeVtxFmtSizeCheck[
+    sizeof(RpGameCubeVtxFmt) == 0x18 ? 1 : -1];
 
 void _rxGCResEntryWaitDone(RwResEntry* entry);
 void RwGameCubeTextureSetLOD(RwTexture* texture, int field_0x0C,
@@ -28,6 +47,19 @@ void RwGameCubeTextureSetLOD(RwTexture* texture, int field_0x0C,
 RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
 void _rwDlTextureSet(RwTexture* texture, int mapid);
 void _rwDlTextureRasterFlush(void);
+RpGameCubeVtxFmt* _rpGameCubeVtxFmtGetDefault(void);
+RwBool _rpDlVtxFmtPluginAttach(void);
+void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, RwUInt32 type,
+                                 RwUInt8 fraction);
+void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, RwUInt32 type,
+                               RwUInt32 mode);
+void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, RwInt32 index,
+                                 RwUInt32 type, RwUInt8 fraction);
+void RpGameCubeVtxFmtInit(RpGameCubeVtxFmt* format);
+RpGameCubeVtxFmt* RpGameCubeVtxFmtCreate(void);
+void RpGameCubeVtxFmtDestroy(RpGameCubeVtxFmt* format);
+void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
+                                 RpGameCubeVtxFmt* format);
 RwUInt32 _rwGCNDisplayListGetStride(const RwGameCubeVtxFmt* format);
 RwUInt32 _rwGCNDisplayListGetSize(const RwGameCubeVtxFmt* format,
                                   RwUInt32 numIndices,
