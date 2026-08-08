@@ -15,36 +15,36 @@ extern RwUInt32 _rxChaseDependencies(RxPipeline* pipeline);
 extern RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
                                            RxPipeline* pipeline);
 
-void* StalacTiteAlloc(RwUInt32 size)
+void* StalacTiteAlloc(RwInt32 size)
 {
-    RwInt32 allocationSize = (size + 3) & ~3U;
+    size = (size + 3) & ~3U;
 
-    gMemoryLimits.stalactite -= allocationSize;
+    gMemoryLimits.stalactite -= size;
     if (gMemoryLimits.stalactite < gMemoryLimits.stalagmite) {
         RwError error;
-        gMemoryLimits.stalactite += allocationSize;
+        gMemoryLimits.stalactite += size;
         error.pluginID = 1;
-        error.errorCode = _rwerror(0x80000013, allocationSize);
+        error.errorCode = _rwerror(0x80000013, size);
         RwErrorSet(&error);
         return NULL;
     }
     return gMemoryLimits.stalactite;
 }
 
-void* StalacMiteAlloc(RwUInt32 size)
+void* StalacMiteAlloc(RwInt32 size)
 {
-    RwInt32 allocationSize = (size + 3) & ~3U;
+    size = (size + 3) & ~3U;
 
-    gMemoryLimits.stalagmite += allocationSize;
+    gMemoryLimits.stalagmite += size;
     if (gMemoryLimits.stalagmite > gMemoryLimits.stalactite) {
         RwError error;
-        gMemoryLimits.stalagmite -= allocationSize;
+        gMemoryLimits.stalagmite -= size;
         error.pluginID = 1;
-        error.errorCode = _rwerror(0x80000013, allocationSize);
+        error.errorCode = _rwerror(0x80000013, size);
         RwErrorSet(&error);
         return NULL;
     }
-    return gMemoryLimits.stalagmite - allocationSize;
+    return gMemoryLimits.stalagmite - size;
 }
 
 RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
