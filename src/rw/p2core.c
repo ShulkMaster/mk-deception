@@ -209,13 +209,18 @@ RxPipeline* RxPipelineCreate(void)
     }
 }
 
-/* Near miss: node cursor and loop index use opposite registers in retail. */
+/* Near match: destruction order and register allocation are exact. Retail
+ * clears its local pipeline pointer after the final free, a dead assignment
+ * omitted from clean source. */
 void _rxPipelineDestroy(RxPipeline* pipeline)
 {
     if (pipeline != NULL) {
-        RxPipelineNode* node = pipeline->nodes;
-        RwUInt32 numNodes = pipeline->numNodes;
         RwUInt32 i;
+        RwUInt32 numNodes;
+        RxPipelineNode* node;
+
+        node = pipeline->nodes;
+        numNodes = pipeline->numNodes;
 
         for (i = 0; i < numNodes; ++i) {
             PipelineNodeDestroy(node, pipeline);
