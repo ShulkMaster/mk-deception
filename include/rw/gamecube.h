@@ -1,11 +1,14 @@
 #ifndef RW_GAMECUBE_H
 #define RW_GAMECUBE_H
 
+#include "dolphin/gx.h"
 #include "rw/rpworld_types.h"
 
 typedef struct RpSkin RpSkin;
 typedef struct RwResEntry RwResEntry;
-typedef void (*RwDlObjectRenderCallBack)(void);
+typedef void (*RwDlObjectRenderCallBack)(const RwRGBAReal* surface,
+                                         const GXColor* material,
+                                         RwReal intensity);
 
 typedef struct RwGameCubeVtxFmt {
     RwUInt32 reserved_0x00;
@@ -50,7 +53,7 @@ void _rwDlTextureSet(RwTexture* texture, int mapid);
 void _rwDlTextureRasterFlush(void);
 RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                                                  RwUInt32 lightMask,
-                                                 RwUInt32 textureMode,
+                                                 RwInt32 textureMode,
                                                  RwBool useAmbient);
 RpGameCubeVtxFmt* _rpGameCubeVtxFmtGetDefault(void);
 RwBool _rpDlVtxFmtPluginAttach(void);

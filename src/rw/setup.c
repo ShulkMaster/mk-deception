@@ -8,38 +8,38 @@ static const GXColor OpaqueBlack = {0, 0, 0, 255};
 static void MatFunc1(const RwRGBAReal* surface, const GXColor* color,
                      RwReal scale)
 {
-    GXColor tevColor;
     GXColor ambient;
 
-    ambient.r = (RwUInt8)(RwInt32)(color->r * (surface->red * scale));
-    ambient.g = (RwUInt8)(RwInt32)(color->g * (surface->green * scale));
-    ambient.b = (RwUInt8)(RwInt32)(color->b * (surface->blue * scale));
+    ambient.r = color->r * (surface->red * scale);
+    ambient.g = color->g * (surface->green * scale);
+    ambient.b = color->b * (surface->blue * scale);
     ambient.a = 0;
-    tevColor = *color;
-    GXSetTevColor(1, tevColor);
+    GXSetTevColor(1, *color);
     GXSetTevColor(2, ambient);
 }
 
-static void MatFunc2(const RwRGBAReal* surface, RwReal scale)
+static void MatFunc2(const RwRGBAReal* surface, const GXColor* material,
+                     RwReal scale)
 {
     GXColor color;
     RwReal intensity = 255.0f * scale;
 
-    color.r = (RwUInt8)(RwInt32)(surface->red * intensity);
-    color.g = (RwUInt8)(RwInt32)(surface->green * intensity);
-    color.b = (RwUInt8)(RwInt32)(surface->blue * intensity);
+    color.r = surface->red * intensity;
+    color.g = surface->green * intensity;
+    color.b = surface->blue * intensity;
     color.a = 0;
     GXSetTevColor(2, color);
 }
 
-static void MatFunc3(const RwRGBAReal* surface, RwReal scale)
+static void MatFunc3(const RwRGBAReal* surface, const GXColor* material,
+                     RwReal scale)
 {
     GXColor color;
     RwReal intensity = 255.0f * scale;
 
-    color.r = (RwUInt8)(RwInt32)(surface->red * intensity);
-    color.g = (RwUInt8)(RwInt32)(surface->green * intensity);
-    color.b = (RwUInt8)(RwInt32)(surface->blue * intensity);
+    color.r = surface->red * intensity;
+    color.g = surface->green * intensity;
+    color.b = surface->blue * intensity;
     color.a = 0;
     GXSetChanAmbColor(0, color);
 }
@@ -47,59 +47,64 @@ static void MatFunc3(const RwRGBAReal* surface, RwReal scale)
 static void MatFunc4(const RwRGBAReal* surface, const GXColor* material,
                      RwReal scale)
 {
+    /* Soft ceiling: retail stack-homes material; clean C keeps it nonvolatile. */
     GXColor color;
     RwReal intensity = 255.0f * scale;
 
-    color.r = (RwUInt8)(RwInt32)(surface->red * intensity);
-    color.g = (RwUInt8)(RwInt32)(surface->green * intensity);
-    color.b = (RwUInt8)(RwInt32)(surface->blue * intensity);
+    color.r = surface->red * intensity;
+    color.g = surface->green * intensity;
+    color.b = surface->blue * intensity;
     color.a = 0;
     GXSetChanMatColor(4, *material);
     GXSetChanAmbColor(0, color);
 }
 
-static void MatFunc5(const GXColor* material)
+static void MatFunc5(const RwRGBAReal* surface, const GXColor* material,
+                     RwReal scale)
 {
+    /* Soft ceiling: the same material-argument homing residue as MatFunc4. */
     GXSetChanMatColor(4, *material);
 }
 
-static void MatFunc6(const RwRGBAReal* surface, RwReal scale)
+static void MatFunc6(const RwRGBAReal* surface, const GXColor* material,
+                     RwReal scale)
 {
     GXColor color;
     RwReal intensity = 255.0f * scale;
 
-    color.r = (RwUInt8)(RwInt32)(surface->red * intensity);
-    color.g = (RwUInt8)(RwInt32)(surface->green * intensity);
-    color.b = (RwUInt8)(RwInt32)(surface->blue * intensity);
+    color.r = surface->red * intensity;
+    color.g = surface->green * intensity;
+    color.b = surface->blue * intensity;
     color.a = 0;
     GXSetChanMatColor(0, color);
 }
 
 RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                                                  RwUInt32 lightMask,
-                                                 RwUInt32 textureMode,
+                                                 RwInt32 textureMode,
                                                  RwBool useAmbient)
 {
     RwDlObjectRenderCallBack callback = NULL;
     RwUInt32 materialSource;
     RwUInt32 ambientSource;
     RwUInt32 enableColor;
+    RwUInt32 alphaAmbientSource;
     RwUInt32 enableAlpha;
     RwUInt32 colorMaterialSource;
-    RwUInt32 alphaAmbientSource;
     RwUInt8 numStages;
 
     if (flags & 0x84) {
         if ((flags & 8) && textureMode == 1) {
             if (lightMask != 0) {
                 if (flags & 0x40) {
-                    callback = (RwDlObjectRenderCallBack)MatFunc1;
+                    callback = MatFunc1;
                 } else {
                     GXSetTevColor(1, OpaqueWhite);
-                    callback = (RwDlObjectRenderCallBack)MatFunc2;
+                    callback = MatFunc2;
                 }
                 materialSource = 0;
                 colorMaterialSource = 0;
+                GXSetChanMatColor(4, OpaqueWhite);
                 enableColor = 1;
                 ambientSource = 1;
                 if (useAmbient == 1) {
@@ -112,10 +117,10 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                 }
             } else {
                 if (flags & 0x40) {
-                    callback = (RwDlObjectRenderCallBack)MatFunc1;
+                    callback = MatFunc1;
                 } else {
                     GXSetTevColor(1, OpaqueWhite);
-                    callback = (RwDlObjectRenderCallBack)MatFunc2;
+                    callback = MatFunc2;
                 }
                 ambientSource = 0;
                 enableAlpha = 0;
@@ -148,13 +153,13 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                             GXSetChanAmbColor(2, OpaqueBlack);
                             alphaAmbientSource = 0;
                         }
-                        callback = (RwDlObjectRenderCallBack)MatFunc5;
+                        callback = MatFunc5;
                     } else {
                         ambientSource = 0;
                         enableAlpha = 0;
                         alphaAmbientSource = 0;
                         GXSetChanAmbColor(2, OpaqueBlack);
-                        callback = (RwDlObjectRenderCallBack)MatFunc4;
+                        callback = MatFunc4;
                     }
                 } else {
                     materialSource = 0;
@@ -174,7 +179,7 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                         ambientSource = 0;
                         enableAlpha = 0;
                         alphaAmbientSource = 0;
-                        callback = (RwDlObjectRenderCallBack)MatFunc3;
+                        callback = MatFunc3;
                     }
                 }
             } else if (flags & 0x40) {
@@ -191,13 +196,13 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                         GXSetChanAmbColor(2, OpaqueBlack);
                         alphaAmbientSource = 0;
                     }
-                    callback = (RwDlObjectRenderCallBack)MatFunc5;
+                    callback = MatFunc5;
                 } else {
                     ambientSource = 0;
                     enableAlpha = 0;
                     alphaAmbientSource = 0;
                     GXSetChanAmbColor(2, OpaqueBlack);
-                    callback = (RwDlObjectRenderCallBack)MatFunc4;
+                    callback = MatFunc4;
                 }
             } else {
                 if (flags & 8) {
@@ -212,7 +217,7 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                     materialSource = 0;
                     colorMaterialSource = 0;
                     GXSetChanMatColor(2, OpaqueBlack);
-                    callback = (RwDlObjectRenderCallBack)MatFunc6;
+                    callback = MatFunc6;
                 }
                 enableColor = 0;
                 alphaAmbientSource = 0;
@@ -265,10 +270,10 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
         }
         numStages = 1;
         if (flags & 0x40) {
-            callback = (RwDlObjectRenderCallBack)MatFunc1;
+            callback = MatFunc1;
         } else {
             GXSetTevColor(1, OpaqueWhite);
-            callback = (RwDlObjectRenderCallBack)MatFunc2;
+            callback = MatFunc2;
         }
         GXSetTevColorIn(0, 0xF, 0xA, 2, 4);
         GXSetTevAlphaIn(0, 7, 5, 1, 2);

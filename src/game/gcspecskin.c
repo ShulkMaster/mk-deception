@@ -13,13 +13,6 @@
 
 typedef struct RxPipeline RxPipeline;
 
-typedef struct GXColor {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} GXColor;
-
 typedef struct GXLightObj {
     unsigned char data[0x40];
 } GXLightObj;
@@ -219,26 +212,7 @@ void _rwDlTextureSet(RwTexture*, int);
 void _rwDlRenderStateSetZCompLoc(int);
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
 
-void GXSetTevColor(int, GXColor);
-void GXSetNumTexGens();
-void GXSetTexCoordGen2();
-void GXSetTevOrder();
-void GXSetTevSwapMode();
-void GXSetTevSwapModeTable();
-void GXSetNumTevStages();
-void GXSetTevColorIn();
-void GXSetTevColorOp();
-void GXSetTevAlphaIn();
-void GXSetTevAlphaOp();
-void GXSetCullMode();
-void GXSetVtxDesc();
-void GXCallDisplayList();
-void GXSetBlendMode();
-void GXSetChanAmbColor(int, GXColor);
-void GXSetChanMatColor(int, GXColor);
-void GXLoadTexMtxImm();
 void GXGetViewportv();
-void GXSetViewport();
 void GXInitLightAttn(
     GXLightObj*, float, float, float, float, float, float);
 void GXInitLightPos(GXLightObj*, float, float, float);
