@@ -5,6 +5,8 @@ RwFileFunctions* RwOsGetFileInterface(void) {
     return &RwEngineInstance->fileFuncs;
 }
 
+/* Near miss: retail lowers the pointer-to-boolean conversion with
+ * subic/subfe; this compiler expression emits the equivalent neg/or pair. */
 static RwBool rwfexist(const RwChar* name) {
     void* file;
     RwBool exists;
