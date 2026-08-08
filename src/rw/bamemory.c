@@ -90,7 +90,7 @@ static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
     }
 
     alignedEntrySize = (entrySize + alignment - 1) & ~(alignment - 1);
-    heapSize = ((entriesPerBlock + 7) & ~7) >> 3;
+    heapSize = ((RwUInt32)(entriesPerBlock + 7) & ~7U) >> 3;
     freeList->entrySize = alignedEntrySize;
     freeList->entriesPerBlock = entriesPerBlock;
     freeList->alignment = alignment;
@@ -99,20 +99,20 @@ static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
     freeList->blockList.link.prev = &freeList->blockList.link;
 
     while (preallocBlocks != 0) {
-        RwUInt32 allocationSize =
-            heapSize + entriesPerBlock * alignedEntrySize;
+        RwLLLink* newLink;
         RwFreeBlock* block;
 
-        allocationSize += alignment;
-        allocationSize += 7;
-        block = RwEngineInstance->fpMalloc(allocationSize, hint);
+        block = RwEngineInstance->fpMalloc(
+            heapSize + entriesPerBlock * alignedEntrySize + alignment + 7,
+            hint);
         if (block == NULL) {
             _RwFreeListFree(freeList);
             return NULL;
         }
-        block->link.next = NULL;
-        block->link.prev = NULL;
-        rwLinkListAddLLLink(&freeList->blockList, &block->link);
+        newLink = &block->link;
+        newLink->prev = NULL;
+        newLink->next = NULL;
+        rwLinkListAddLLLink(&freeList->blockList, newLink);
         memset(block->heap, 0, heapSize);
         --preallocBlocks;
     }
