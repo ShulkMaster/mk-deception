@@ -96,7 +96,7 @@ RwStream* _rwStreamInitialize(RwStream* stream, RwBool owned, RwStreamType type,
     RwStreamAccessType access, void* data)
 {
     RwStream* result = NULL;
-    if (stream == NULL) return NULL;
+    if (stream == NULL) return result;
     stream->type = type; stream->accessType = access; stream->owned = owned;
     switch (type) {
     case rwSTREAMFILE: result = StreamFileInitialize(stream, data); break;
