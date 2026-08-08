@@ -189,17 +189,18 @@ static RwChar* StringStreamRead(RwChar* string, RwStream* stream,
     return string;
 }
 
-/* Near miss: identical aligned conversion loop; local register allocation differs. */
+/* Near match: allocation ownership, 128-byte staging, truncation, and cleanup
+ * are exact. Remaining differences are nonvolatile coloring/save-helper choice
+ * and retail's extra copy of the selected chunk size. */
 static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
                                        RwUInt32 length) {
     RwUInt16 buffer[64] __attribute__((aligned(64)));
-    RwChar* result = string;
     RwChar* destination;
     RwBool allocated = FALSE;
 
-    if (result == NULL) {
-        result = RwEngineInstance->fpMalloc(length, 0x30002);
-        if (result == NULL) {
+    if (string == NULL) {
+        string = RwEngineInstance->fpMalloc(length, 0x30002);
+        if (string == NULL) {
             RwError error;
             error.pluginID = 1;
             error.errorCode = _rwerror(0x80000013, length);
@@ -208,14 +209,19 @@ static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
         }
         allocated = TRUE;
     }
-    destination = result;
+    destination = string;
     while (length != 0) {
-        RwUInt32 chunkSize = length < sizeof(buffer) ? length : sizeof(buffer);
+        RwUInt32 chunkSize;
         RwUInt32 characterCount;
         RwUInt32 i;
+        if (length > sizeof(buffer)) {
+            chunkSize = sizeof(buffer);
+        } else {
+            chunkSize = length;
+        }
         if (RwStreamRead(stream, buffer, chunkSize) != chunkSize) {
             if (allocated) {
-                RwEngineInstance->fpFree(result);
+                RwEngineInstance->fpFree(string);
             }
             return NULL;
         }
@@ -226,7 +232,7 @@ static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
         }
         destination += characterCount;
     }
-    return result;
+    return string;
 }
 
 /* Near miss: exact dispatch/error CFG; stack slots and register coloring differ. */
