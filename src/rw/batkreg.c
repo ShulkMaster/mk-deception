@@ -210,12 +210,14 @@ const RwPluginRegistry* _rwPluginRegistryInitObject(
     return registry;
 }
 
-/* Soft ceiling: only object stack homing and callback operand scheduling differ. */
 const RwPluginRegistry* _rwPluginRegistryDeInitObject(
     const RwPluginRegistry* registry, void* object) {
     RwPluginRegEntry* entry = registry->lastRegEntry;
     while (entry != NULL) {
-        entry->destructCB(object, entry->offset, entry->size);
+        RwPluginObjectDestructor destructCB = entry->destructCB;
+        RwInt32 offset = entry->offset;
+        RwInt32 size = entry->size;
+        destructCB(object, offset, size);
         entry = entry->prevRegEntry;
     }
     return registry;
