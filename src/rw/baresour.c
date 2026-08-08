@@ -93,10 +93,11 @@ RwBool RwResourcesFreeResEntry(RwResEntry* entry) {
         *entry->ownerRef = 0;
     }
     if (entry->link.next != 0) {
-        RwLLLink* previous = entry->link.prev;
-
-        previous->next = entry->link.next;
-        entry->link.next->prev = previous;
+        entry->link.prev->next = entry->link.next;
+        {
+            RwLLLink* previous = entry->link.prev;
+            entry->link.next->prev = previous;
+        }
         RESOURCESGLOBAL.arenaUsage -= entry->size;
         _rwResHeapFree(entry);
     } else {
