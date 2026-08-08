@@ -87,61 +87,74 @@ RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
 static RwBool ReallocAndFixupSuperBlock(RxPipeline* pipeline,
                                         RwUInt32 newSize)
 {
+    /* Retail retains each conditional-assignment result on the null path;
+     * clean C omits those eight unused zero values. */
     RwUInt8* oldBlock = pipeline->superBlock;
     RwUInt8* newBlock = RwEngineInstance->fpRealloc(
         oldBlock, newSize, 0x01040409);
 
     if (newBlock != NULL) {
+        RwUInt32 numNodes = pipeline->numNodes;
         RwInt32 displacement = newBlock - oldBlock;
         RwUInt32 index;
 
         pipeline->superBlock = newBlock;
         pipeline->superBlockSize = newSize;
-        pipeline->nodes = (RxPipelineNode*)newBlock;
-        if (pipeline->inputRequirements != NULL) {
-            pipeline->inputRequirements = (RxPipelineRequiresCluster*)(
-                (RwUInt8*)pipeline->inputRequirements + displacement);
+        pipeline->nodes = (RxPipelineNode*)pipeline->superBlock;
+        pipeline->inputRequirements =
+            pipeline->inputRequirements == NULL
+                ? NULL
+                : (RxPipelineRequiresCluster*)(
+                      (RwUInt8*)pipeline->inputRequirements + displacement);
+        pipeline->embeddedPacket =
+            pipeline->embeddedPacket == NULL
+                ? NULL
+                : (RxPacket*)((RwUInt8*)pipeline->embeddedPacket +
+                              displacement);
+        for (index = 0; index < numNodes; index++) {
+            pipeline->nodes[index].outputs =
+                pipeline->nodes[index].outputs == NULL
+                    ? NULL
+                    : (RwUInt32*)((RwUInt8*)pipeline->nodes[index].outputs +
+                                 displacement);
+            pipeline->nodes[index].slotClusterRefs =
+                pipeline->nodes[index].slotClusterRefs == NULL
+                    ? NULL
+                    : (RxPipelineCluster**)(
+                        (RwUInt8*)pipeline->nodes[index].slotClusterRefs +
+                        displacement);
+            pipeline->nodes[index].slotsContinue =
+                pipeline->nodes[index].slotsContinue == NULL
+                    ? NULL
+                    : (RwUInt32*)(
+                          (RwUInt8*)pipeline->nodes[index].slotsContinue +
+                          displacement);
+            pipeline->nodes[index].privateData =
+                pipeline->nodes[index].privateData == NULL
+                    ? NULL
+                    : (RwUInt8*)pipeline->nodes[index].privateData +
+                          displacement;
+            pipeline->nodes[index].inputToClusterSlot =
+                pipeline->nodes[index].inputToClusterSlot == NULL
+                    ? NULL
+                    : (RwUInt32*)(
+                          (RwUInt8*)pipeline->nodes[index].inputToClusterSlot +
+                          displacement);
+            pipeline->nodes[index].topSortData =
+                pipeline->nodes[index].topSortData == NULL
+                    ? NULL
+                    : (RxPipelineNodeTopSortData*)(
+                        (RwUInt8*)pipeline->nodes[index].topSortData +
+                        displacement);
         }
-        if (pipeline->embeddedPacket != NULL) {
-            pipeline->embeddedPacket = (RxPacket*)(
-                (RwUInt8*)pipeline->embeddedPacket + displacement);
-        }
-        for (index = 0; index < pipeline->numNodes; index++) {
-            RxPipelineNode* node = &pipeline->nodes[index];
-            if (node->outputs != NULL) {
-                node->outputs = (RwUInt32*)((RwUInt8*)node->outputs +
-                                            displacement);
-            }
-            if (node->slotClusterRefs != NULL) {
-                node->slotClusterRefs = (RxPipelineCluster**)(
-                    (RwUInt8*)node->slotClusterRefs + displacement);
-            }
-            if (node->slotsContinue != NULL) {
-                node->slotsContinue = (RwUInt32*)(
-                    (RwUInt8*)node->slotsContinue + displacement);
-            }
-            if (node->privateData != NULL) {
-                node->privateData =
-                    (RwUInt8*)node->privateData + displacement;
-            }
-            if (node->inputToClusterSlot != NULL) {
-                node->inputToClusterSlot = (RwUInt32*)(
-                    (RwUInt8*)node->inputToClusterSlot + displacement);
-            }
-            if (node->topSortData != NULL) {
-                node->topSortData = (RxPipelineNodeTopSortData*)(
-                    (RwUInt8*)node->topSortData + displacement);
-            }
-        }
-        return TRUE;
-    }
-    {
+    } else {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x80000013, newSize);
         RwErrorSet(&error);
+        return FALSE;
     }
-    return FALSE;
+    return TRUE;
 }
 
 static RwBool LockPipelineExpandData(RxPipeline* destination,
