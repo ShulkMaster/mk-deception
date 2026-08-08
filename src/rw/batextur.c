@@ -674,15 +674,16 @@ static RwTexture* TextureDefaultFind(const char* name) {
     RwTexDictionary* dictionary = TEXTURE_GLOBALS->currentDictionary;
     RwLLLink* link;
     RwLLLink* end;
+    RwTexture* texture;
 
     if (dictionary != 0) {
-        return RwTexDictionaryFindNamedTexture(dictionary, name);
+        texture = RwTexDictionaryFindNamedTexture(dictionary, name);
+        return texture;
     }
 
     link = TEXTURE_GLOBALS->dictionaries.next;
     end = &TEXTURE_GLOBALS->dictionaries;
     while (link != end) {
-        RwTexture* texture;
         dictionary = (RwTexDictionary*)((char*)link - 0x10);
         texture = RwTexDictionaryFindNamedTexture(dictionary, name);
         if (texture != 0) {
