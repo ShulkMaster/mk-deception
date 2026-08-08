@@ -1242,6 +1242,9 @@ config.libs = [
     RenderWareLib(
         "rpmatfx",
         [
+            Object(NonMatching, "rpmatfx.a/multiTexEffect.obj",
+                   source="rw/multiTexEffect.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(Matching, "rpmatfx.a/multiTexGcnPipe.obj",
                    source="rw/multiTexGcnPipe.c",
                    extra_cflags=["-opt", "off", "-O0"]),

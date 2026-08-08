@@ -1,97 +1,281 @@
-/* TODO: Missing implementation for retail unit multiTexEffect.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/rpmatfx.h"
+#include "rw/rwerror.h"
+#include "rw/rwstream_internal.h"
 
-void *_rpMTEffectSystemInit(void)
+typedef struct RpMTEffectRegEntry {
+    RwInt32 type;
+    RpMTEffectDestroyCallBack destroy;
+    RpMTEffectStreamReadCallBack streamRead;
+    RpMTEffectStreamWriteCallBack streamWrite;
+    RpMTEffectStreamGetSizeCallBack streamGetSize;
+} RpMTEffectRegEntry;
+
+typedef struct RpMTEffectGlobals {
+    RwLinkList dictionaries;
+    RpMTEffectDict* currentDictionary;
+    RwInt32 scratchSize;
+    RwChar* scratch;
+    RwChar* scratchName;
+} RpMTEffectGlobals;
+
+extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
+extern RwModuleInfo _rpMultiTextureModule;
+
+#define MTEFFECTGLOBALS                                                   \
+    ((RpMTEffectGlobals*)((RwUInt8*)RwEngineInstance +                    \
+                          _rpMultiTextureModule.globalsOffset))
+#define EFFECT_FROM_LINK(link) ((RpMTEffect*)((RwUInt8*)(link) - 0x28))
+#define DICT_FROM_LINK(link) ((RpMTEffectDict*)((RwUInt8*)(link) - 8))
+
+static RpMTEffectRegEntry EffectRegEntries[10];
+static RpMTEffectDict* DummyDict;
+
+RwBool _rpMTEffectSystemInit(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    memset(EffectRegEntries, 0, sizeof(EffectRegEntries));
+    return TRUE;
 }
 
-void *_rpMTEffectRegisterPlatform(void)
+RwBool _rpMTEffectRegisterPlatform(
+    RwInt32 type, RpMTEffectStreamReadCallBack read,
+    RpMTEffectStreamWriteCallBack write,
+    RpMTEffectStreamGetSizeCallBack getSize,
+    RpMTEffectDestroyCallBack destroy)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMTEffectRegEntry* entry = &EffectRegEntries[type];
+    entry->type = type;
+    entry->streamRead = read;
+    entry->streamWrite = write;
+    entry->streamGetSize = getSize;
+    entry->destroy = destroy;
+    return TRUE;
 }
 
-void *_rpMTEffectOpen(void)
+RwBool _rpMTEffectOpen(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMTEffectGlobals* globals = MTEFFECTGLOBALS;
+    rwLinkListInitialize(&globals->dictionaries);
+    DummyDict = RpMTEffectDictCreate();
+    if (!DummyDict)
+        return FALSE;
+    globals->currentDictionary = DummyDict;
+    globals->scratch = RwEngineInstance->fpMalloc(0x220, 0x4012C);
+    if (!globals->scratch) {
+        RwError error;
+        RpMTEffectDictDestroy(globals->currentDictionary);
+        error.pluginID = 0x120;
+        error.errorCode = _rwerror(0x80000013, 0x220);
+        RwErrorSet(&error);
+        return FALSE;
+    }
+    memset(globals->scratch, 0, 0x220);
+    globals->scratchName = globals->scratch + 0x100;
+    globals->scratchSize = 0x100;
+    return TRUE;
 }
 
-void *_rpMTEffectClose(void)
+RwBool _rpMTEffectClose(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMTEffectGlobals* globals = MTEFFECTGLOBALS;
+    RwLLLink* link;
+    RwLLLink* end;
+    if (globals->scratch) {
+        RwEngineInstance->fpFree(globals->scratch);
+        globals->scratch = NULL;
+        globals->scratchName = NULL;
+        globals->scratchSize = 0;
+    }
+    end = &globals->dictionaries.link;
+    link = globals->dictionaries.link.next;
+    while (link != end) {
+        if (DICT_FROM_LINK(link) == DummyDict) {
+            RpMTEffectDictDestroy(DummyDict);
+            DummyDict = NULL;
+            break;
+        } else {
+            link = link->next;
+        }
+    }
+    return globals->dictionaries.link.next == end;
 }
 
-void *_rpMTEffectInit(void)
+RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, RwInt32 type)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    memset(effect, 0, sizeof(*effect));
+    effect->type = type;
+    effect->refCount = 1;
+    effect->dictLink.next = NULL;
+    effect->dictLink.prev = NULL;
+    if (type && MTEFFECTGLOBALS->currentDictionary)
+        RpMTEffectDictAddEffect(MTEFFECTGLOBALS->currentDictionary, effect);
+    return effect;
 }
 
-void *RpMTEffectDictCreate(void)
+RpMTEffectDict* RpMTEffectDictCreate(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMTEffectDict* dictionary =
+        RwEngineInstance->fpMalloc(sizeof(*dictionary), 0x3012C);
+    if (!dictionary) {
+        RwError error;
+        error.pluginID = 0x120;
+        error.errorCode = _rwerror(0x80000013, sizeof(*dictionary));
+        RwErrorSet(&error);
+        return NULL;
+    }
+    rwLinkListInitialize(&dictionary->effects);
+    rwLinkListAddLLLink(&MTEFFECTGLOBALS->dictionaries,
+                        &dictionary->globalLink);
+    return dictionary;
 }
 
-void *RpMTEffectDictDestroy(void)
+void RpMTEffectDictDestroy(RpMTEffectDict* dictionary)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwLLLink* link;
+    RwLLLink* next;
+    if (dictionary == MTEFFECTGLOBALS->currentDictionary)
+        MTEFFECTGLOBALS->currentDictionary = NULL;
+    link = dictionary->effects.link.next;
+    while (link != &dictionary->effects.link) {
+        next = link->next;
+        RpMTEffectDictRemoveEffect(EFFECT_FROM_LINK(link));
+        link = next;
+    }
+    rwLinkListRemoveLLLink(&dictionary->globalLink);
+    RwEngineInstance->fpFree(dictionary);
 }
 
-void *RpMTEffectDictAddEffect(void)
+RpMTEffectDict* RpMTEffectDictAddEffect(RpMTEffectDict* dictionary,
+                                        RpMTEffect* effect)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (effect->dictLink.next)
+        RpMTEffectDictRemoveEffect(effect);
+    rwLinkListAddLLLink(&dictionary->effects, &effect->dictLink);
+    RpMTEffectAddRef(effect);
+    return dictionary;
 }
 
-void *RpMTEffectDictRemoveEffect(void)
+RpMTEffect* RpMTEffectDictRemoveEffect(RpMTEffect* effect)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (effect->dictLink.next) {
+        rwLinkListRemoveLLLink(&effect->dictLink);
+        RpMTEffectDestroy(effect);
+    }
+    return effect;
 }
 
-void *RpMTEffectDictFindNamedEffect(void)
+RpMTEffect* RpMTEffectDictFindNamedEffect(RpMTEffectDict* dictionary,
+                                          const RwChar* name)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwLLLink* link = dictionary->effects.link.next;
+    while (link != &dictionary->effects.link) {
+        RpMTEffect* effect = EFFECT_FROM_LINK(link);
+        if (!RwEngineInstance->stringFuncs.vecStrcmp(effect->name, name))
+            return effect;
+        link = link->next;
+    }
+    return NULL;
 }
 
-void *RpMTEffectCreateDummy(void)
+RpMTEffect* RpMTEffectCreateDummy(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMTEffect* effect = RwEngineInstance->fpMalloc(sizeof(*effect), 0x3012C);
+    if (!effect) {
+        RwError error;
+        error.pluginID = 0x120;
+        error.errorCode = _rwerror(0x80000013, sizeof(*effect));
+        RwErrorSet(&error);
+        return NULL;
+    }
+    return _rpMTEffectInit(effect, 0);
 }
 
-void *RpMTEffectDestroy(void)
+void RpMTEffectDestroy(RpMTEffect* effect)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    effect->refCount--;
+    if (!effect->refCount) {
+        RpMTEffectDictRemoveEffect(effect);
+        if (effect->type) {
+            RpMTEffectDestroyCallBack destroy =
+                EffectRegEntries[effect->type].destroy;
+            if (destroy) {
+                destroy(effect);
+                return;
+            }
+        }
+        RwEngineInstance->fpFree(effect);
+    }
 }
 
-void *RpMTEffectStreamRead(void)
+RpMTEffect* RpMTEffectStreamRead(RwStream* stream)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 type;
+    RwUInt32 length;
+    RwUInt32 version;
+    RwChar name[32];
+    RpMTEffect* effect;
+    RpMTEffectRegEntry* entry;
+    if (!RwStreamFindChunk(stream, 1, NULL, NULL) ||
+        !RwStreamRead(stream, &type, sizeof(type)))
+        return NULL;
+    RwMemNative32(&type, sizeof(type));
+    entry = &EffectRegEntries[type];
+    if (!entry->streamRead)
+        return NULL;
+    if (!_rwStringStreamFindAndRead(name, stream))
+        return NULL;
+    if (!RwStreamFindChunk(stream, 3, &length, &version))
+        return NULL;
+    effect = entry->streamRead(stream, type, length, version);
+    if (!effect)
+        return NULL;
+    RpMTEffectSetName(effect, name);
+    return effect;
 }
 
-void *RpMTEffectFind(void)
+RpMTEffect* RpMTEffectFind(const RwChar* name)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMTEffectGlobals* globals = MTEFFECTGLOBALS;
+    RpMTEffect* effect = NULL;
+    RwStream* stream;
+    if (globals->currentDictionary) {
+        effect = RpMTEffectDictFindNamedEffect(globals->currentDictionary, name);
+    } else {
+        RwLLLink* link = globals->dictionaries.link.next;
+        while (link != &globals->dictionaries.link) {
+            effect = RpMTEffectDictFindNamedEffect(DICT_FROM_LINK(link), name);
+            if (effect)
+                break;
+            link = link->next;
+        }
+    }
+    if (effect) {
+        RpMTEffectAddRef(effect);
+        return effect;
+    }
+    RwEngineInstance->stringFuncs.vecStrcpy(globals->scratchName,
+                                            globals->scratch);
+    RwEngineInstance->stringFuncs.vecStrcat(globals->scratchName, name);
+    stream = RwStreamOpen(rwSTREAMFILENAME, rwSTREAMREAD,
+                          globals->scratchName);
+    if (!stream)
+        return NULL;
+    if (!RwStreamFindChunk(stream, 0x20, NULL, NULL)) {
+        RwStreamClose(stream, NULL);
+        return NULL;
+    }
+    effect = RpMTEffectStreamRead(stream);
+    RwStreamClose(stream, NULL);
+    return effect;
 }
 
-void *RpMTEffectSetName(void)
+RpMTEffect* RpMTEffectSetName(RpMTEffect* effect, const RwChar* name)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwEngineInstance->stringFuncs.vecStrncpy(effect->name, name, 0x1F);
+    return effect;
 }
 
-void *RpMTEffectAddRef(void)
+void RpMTEffectAddRef(RpMTEffect* effect)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    effect->refCount++;
 }
