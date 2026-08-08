@@ -29,13 +29,13 @@ void _rwFreeListEnable(RwBool enable)
     FreeListsEnabled = enable;
 }
 
-/* Near miss: exact lifecycle/order; only local stack and register allocation differ. */
 static RwBool _rwFreeListModuleOpen(void)
 {
-    RwLLLink* link;
+    RwLLLink* head;
 
     _freeListList.link.next = &_freeListList.link;
-    _freeListList.link.prev = &_freeListList.link;
+    head = &_freeListList.link;
+    _freeListList.link.prev = head;
     freeListModuleOpen = TRUE;
     _masterFreeListPtr = FreeListCreate(0x24, 0x10, 0x20, 0,
                                         &_masterFreeList, 0x40000);
@@ -43,8 +43,7 @@ static RwBool _rwFreeListModuleOpen(void)
         freeListModuleOpen = FALSE;
         return FALSE;
     }
-    link = &_masterFreeListPtr->link;
-    rwLinkListRemoveLLLink(link);
+    rwLinkListRemoveLLLink(&_masterFreeListPtr->link);
     return TRUE;
 }
 
