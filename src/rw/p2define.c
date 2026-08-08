@@ -219,19 +219,27 @@ static RwUInt32 CalcNodesOutputsCompactedMemSize(const RxPipeline* pipeline)
 static RwUInt32 CalcUnlockPersistentMemSize(const RxPipeline* pipeline,
                                             RwUInt32 numClusters)
 {
-    RwUInt32 size = numClusters * 8 + numClusters * 12;
+    /*
+     * Retail's live body is identical except for the commutative final add,
+     * but it saves LR through _savegpr_29 despite this function being a leaf.
+     */
+    RwUInt32 size = 0;
     RwUInt32 index;
 
+    size += numClusters * 8;
+    size += numClusters * 12;
     size += pipeline->numNodes * numClusters * sizeof(RwUInt32);
     size += pipeline->numNodes * (numClusters + 1) * sizeof(RwUInt32);
     for (index = 0; index < pipeline->numNodes; index++) {
-        const RxNodeDefinition* nodeDef = pipeline->nodes[index].nodeDef;
-        if (nodeDef->pipelineNodePrivateDataSize != 0) {
-            size += nodeDef->pipelineNodePrivateDataSize;
+        const RxPipelineNode* node = &pipeline->nodes[index];
+        if (node->nodeDef->pipelineNodePrivateDataSize != 0) {
+            size += node->nodeDef->pipelineNodePrivateDataSize;
         }
-        size += nodeDef->io.numClustersOfInterest * sizeof(RwUInt32);
+        size += node->nodeDef->io.numClustersOfInterest * sizeof(RwUInt32);
     }
-    return size + (numClusters - 1) * 0x1C + 0x30;
+    size += (numClusters - 1) * 0x1C;
+    size += 0x30;
+    return size;
 }
 
 static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
