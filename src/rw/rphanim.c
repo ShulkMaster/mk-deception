@@ -137,7 +137,7 @@ static RwStream* HAnimWrite(RwStream* stream, RwInt32 binaryLength,
                             const void* object, RwInt32 offset, RwInt32 size)
 {
     RwInt32 version = 0x100;
-    RwInt32 zero = 0;
+    RwInt32 zero;
     const RpHAnimFrameExtension* frameExtension;
     RpHAnimHierarchy* hierarchy;
 
@@ -152,13 +152,17 @@ static RwStream* HAnimWrite(RwStream* stream, RwInt32 binaryLength,
         if (!RwStreamWriteInt32(stream, &hierarchy->flags, 4)) return NULL;
         if (!RwStreamWriteInt32(stream, &hierarchy->currentAnim->maxInterpKeyFrameSize, 4)) return NULL;
         node = hierarchy->pNodeInfo;
-        for (i = 0; i < hierarchy->numNodes; i++, node++) {
+        i = 0;
+        while (i < hierarchy->numNodes) {
             if (!RwStreamWriteInt32(stream, &node->nodeID, 4)) return NULL;
             if (!RwStreamWriteInt32(stream, &node->nodeIndex, 4)) return NULL;
             if (!RwStreamWriteInt32(stream, &node->flags, 4)) return NULL;
+            node++;
+            i++;
         }
-    } else if (!RwStreamWriteInt32(stream, &zero, 4)) {
-        return NULL;
+    } else {
+        zero = 0;
+        if (!RwStreamWriteInt32(stream, &zero, 4)) return NULL;
     }
     return stream;
 }
