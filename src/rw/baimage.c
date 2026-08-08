@@ -318,7 +318,6 @@ static RwChar *ImagePathForAllFullNames(const RwChar *name, RwInt32 extra,
     const RwChar *end;
     RwInt32 pathLength;
     RwChar *full;
-    RwEngineInstance->stringFuncs.vecStrchr(path, ';');
     end = RwEngineInstance->stringFuncs.vecStrchr(path, ';');
     if (end) {
       pathLength = end - path;
@@ -364,10 +363,10 @@ RwImage *RwImageRead(const RwChar *name) {
   if (!extension)
     return NULL;
   for (format = IMAGEGLOBALS->formats; format; format = format->next) {
-    if (!RwEngineInstance->stringFuncs.vecStricmp(format->extension,
-                                                  extension) ||
-        !RwEngineInstance->stringFuncs.vecStricmp(format->alternateExtension,
-                                                  extension)) {
+    if (!RwEngineInstance->stringFuncs.vecStrcmp(format->extension,
+                                                 extension) ||
+        !RwEngineInstance->stringFuncs.vecStrcmp(format->alternateExtension,
+                                                 extension)) {
       if (format->read) {
         ImageReadState state;
         state.read = format->read;
