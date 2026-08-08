@@ -98,6 +98,8 @@ static rxReqEntry *_ReqAddEntry(rxReq *req, RxClusterDefinition *clusterDef,
 static void _ReqDeleteEntry(rxReq *req, rxReqEntry *entry) {
   rxReqEntry *last = &req->entries[req->numEntries - 1];
 
+  /* Soft ceiling: retail's fixed-size copy macro lowers as a paired-word
+   * loop. */
   if (entry != last) {
     *entry = *last;
   }
@@ -191,7 +193,6 @@ static void _ScopeTraceMerge(rxScopeTrace **traces, rxScopeTrace *first,
   *link = (*link)->next;
 }
 
-/* Remaining dependency passes are recovered below as one atomic TU. */
 static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
   RwUInt32 nodesRemaining = pipeline->numNodes;
   RxPipelineNode *node = &pipeline->nodes[pipeline->numNodes - 1];
@@ -245,11 +246,15 @@ static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
       if (outputNodeIndex + 0x10000U != (RwUInt32)-1) {
         RxPipelineNode *outputNode = &pipeline->nodes[outputNodeIndex];
         RxOutputSpec *outputSpec = &io->outputs[outputIndex];
-        rxReq *outputReq = outputNode->topSortData->req;
         RwUInt32 entryIndex;
 
-        for (entryIndex = 0; entryIndex < outputReq->numEntries; entryIndex++) {
-          rxReqEntry *outputEntry = &outputReq->entries[entryIndex];
+        for (entryIndex = 0;
+             entryIndex < outputNode->topSortData->req->numEntries;
+             entryIndex++) {
+          rxReqEntry *outputEntry =
+              entryIndex < outputNode->topSortData->req->numEntries
+                  ? &outputNode->topSortData->req->entries[entryIndex]
+                  : NULL;
           RwInt32 ioIndex = _IoSpecSearch4Cluster(io, outputEntry->clusterDef);
           RxClusterValid validity = ioIndex == -1
                                         ? outputSpec->allOtherClusters
@@ -335,11 +340,15 @@ static RwUInt32 _ForAllNodeReqsAddOutputClustersAndBuildContinuityBitfields(
       if (outputNodeIndex + 0x10000U != (RwUInt32)-1) {
         RxPipelineNode *outputNode = &pipeline->nodes[outputNodeIndex];
         RxOutputSpec *outputSpec = &io->outputs[index];
-        rxReq *outputReq = outputNode->topSortData->req;
         RwUInt32 entryIndex;
 
-        for (entryIndex = 0; entryIndex < outputReq->numEntries; entryIndex++) {
-          rxReqEntry *outputEntry = &outputReq->entries[entryIndex];
+        for (entryIndex = 0;
+             entryIndex < outputNode->topSortData->req->numEntries;
+             entryIndex++) {
+          rxReqEntry *outputEntry =
+              entryIndex < outputNode->topSortData->req->numEntries
+                  ? &outputNode->topSortData->req->entries[entryIndex]
+                  : NULL;
           RwInt32 ioIndex = _IoSpecSearch4Cluster(io, outputEntry->clusterDef);
           RxClusterValid validity = ioIndex == -1
                                         ? outputSpec->allOtherClusters
@@ -382,11 +391,13 @@ static RwUInt32 _TraceClusterScopes(RxPipeline *pipeline,
   RwUInt32 nodesRemaining = pipeline->numNodes;
 
   while (nodesRemaining != 0) {
-    rxReq *req = node->topSortData->req;
     RwUInt32 entryIndex;
 
-    for (entryIndex = 0; entryIndex < req->numEntries; entryIndex++) {
-      rxReqEntry *entry = &req->entries[entryIndex];
+    for (entryIndex = 0; entryIndex < node->topSortData->req->numEntries;
+         entryIndex++) {
+      rxReqEntry *entry = entryIndex < node->topSortData->req->numEntries
+                              ? &node->topSortData->req->entries[entryIndex]
+                              : NULL;
 
       if (entry->scope == NULL) {
         entry->scope = _ScopeTraceCreate(traces);
@@ -406,16 +417,19 @@ static RwUInt32 _TraceClusterScopes(RxPipeline *pipeline,
 
       if (outputNodeIndex + 0x10000U != (RwUInt32)-1) {
         RxPipelineNode *outputNode = &pipeline->nodes[outputNodeIndex];
-        rxReq *outputReq = outputNode->topSortData->req;
         RwUInt32 outputEntryIndex;
 
-        for (outputEntryIndex = 0; outputEntryIndex < outputReq->numEntries;
+        for (outputEntryIndex = 0;
+             outputEntryIndex < outputNode->topSortData->req->numEntries;
              outputEntryIndex++) {
-          rxReqEntry *outputEntry = &outputReq->entries[outputEntryIndex];
+          rxReqEntry *outputEntry =
+              outputEntryIndex < outputNode->topSortData->req->numEntries
+                  ? &outputNode->topSortData->req->entries[outputEntryIndex]
+                  : NULL;
 
           if (outputEntry->requirement != rxCLREQ_DONTWANT) {
-            rxReqEntry *entry =
-                _ReqSearch4Cluster(req, outputEntry->clusterDef);
+            rxReqEntry *entry = _ReqSearch4Cluster(node->topSortData->req,
+                                                   outputEntry->clusterDef);
 
             if (entry != NULL &&
                 (entry->continuityMask & (1U << entryIndex)) != 0) {
@@ -510,14 +524,16 @@ static RwUInt32 _EnumPipelineClusters(rxScopeTrace *traces,
 
 static RwUInt32 _CountHeadNodeRqdsAndOpts(RxPipeline *pipeline) {
   RxPipelineNode *node = pipeline->nodes;
-  rxReq *req = node->topSortData->req;
   RwUInt32 count = 0;
   RwUInt32 index;
 
-  for (index = 0; index < req->numEntries; index++) {
-    RxClusterValidityReq requirement = req->entries[index].requirement;
+  for (index = 0; index < node->topSortData->req->numEntries; index++) {
+    rxReqEntry *entry = index < node->topSortData->req->numEntries
+                            ? &node->topSortData->req->entries[index]
+                            : NULL;
 
-    if (requirement == rxCLREQ_REQUIRED || requirement == rxCLREQ_OPTIONAL) {
+    if (entry->requirement == rxCLREQ_REQUIRED ||
+        entry->requirement == rxCLREQ_OPTIONAL) {
       count++;
     }
   }
@@ -527,12 +543,13 @@ static RwUInt32 _CountHeadNodeRqdsAndOpts(RxPipeline *pipeline) {
 static void
 _WriteHeadNodeRqdsAndOpts2PipelineRequirements(RxPipeline *pipeline) {
   RxPipelineNode *node = pipeline->nodes;
-  rxReq *req = node->topSortData->req;
   RwUInt32 outputIndex = 0;
   RwUInt32 index;
 
-  for (index = 0; index < req->numEntries; index++) {
-    rxReqEntry *entry = &req->entries[index];
+  for (index = 0; index < node->topSortData->req->numEntries; index++) {
+    rxReqEntry *entry = index < node->topSortData->req->numEntries
+                            ? &node->topSortData->req->entries[index]
+                            : NULL;
 
     if (entry->requirement == rxCLREQ_REQUIRED ||
         entry->requirement == rxCLREQ_OPTIONAL) {
@@ -552,6 +569,7 @@ _WriteHeadNodeRqdsAndOpts2PipelineRequirements(RxPipeline *pipeline) {
 
 static void _MyEnumPipelineClustersCallBack(RxClusterDefinition *clusterDef,
                                             RwUInt32 index, void *data) {
+  /* Soft ceiling: the body is exact; only save-helper selection differs. */
   RxPipelineCluster **clusters = data;
   RxPipelineCluster *cluster = StalacMiteAlloc(sizeof(*cluster));
 
@@ -584,7 +602,6 @@ static RwUInt32 _ForAllNodesWriteClusterAllocations(RxPipeline *pipeline,
 
   for (nodeIndex = 0; nodeIndex < pipeline->numNodes; nodeIndex++) {
     RxPipelineNode *node = &pipeline->nodes[nodeIndex];
-    rxReq *req = node->topSortData->req;
     RwUInt32 continuity = (RwUInt32)-1;
     RwUInt32 entryIndex;
 
@@ -604,8 +621,11 @@ static RwUInt32 _ForAllNodesWriteClusterAllocations(RxPipeline *pipeline,
           (node->nodeDef->pipelineNodePrivateDataSize + 3) & ~3U);
     }
 
-    for (entryIndex = 0; entryIndex < req->numEntries; entryIndex++) {
-      rxReqEntry *entry = &req->entries[entryIndex];
+    for (entryIndex = 0; entryIndex < node->topSortData->req->numEntries;
+         entryIndex++) {
+      rxReqEntry *entry = entryIndex < node->topSortData->req->numEntries
+                              ? &node->topSortData->req->entries[entryIndex]
+                              : NULL;
       RxPipelineCluster *pipelineCluster = NULL;
       RwUInt32 clusterIndex;
 
@@ -662,5 +682,6 @@ RwUInt32 _rxChaseDependencies(RxPipeline *pipeline) {
       }
     }
   }
+  /* Soft ceiling: retail materializes an unused final success predicate. */
   return result;
 }
