@@ -114,7 +114,6 @@ const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
     }
 }
 
-/* Soft ceiling: only argument stack-homing and register allocation differs. */
 const RwPluginRegistry* _rwPluginRegistryInvokeRights(
     const RwPluginRegistry* registry, RwUInt32 pluginID, void* object,
     RwUInt32 extraData) {
@@ -125,16 +124,18 @@ const RwPluginRegistry* _rwPluginRegistryInvokeRights(
         }
         entry = entry->nextRegEntry;
     }
-    if (entry != NULL && entry->rightsCB != NULL &&
-        entry->rightsCB(object, entry->offset, entry->size, extraData)) {
+    if (entry != NULL && entry->rightsCB != NULL) {
+        if (!entry->rightsCB(object, entry->offset, entry->size, extraData)) {
+            return NULL;
+        }
         return registry;
     }
     return NULL;
 }
 
-/* Soft ceiling: only stack homing, register allocation, and add scheduling differ. */
 RwInt32 _rwPluginRegistryGetSize(const RwPluginRegistry* registry,
                                  const void* object) {
+    /* Soft ceiling: only stack homing, register coloring, and add operand order differ. */
     const void* pluginObject = object;
     RwInt32 size = 0;
     RwPluginRegEntry* entry = registry->firstRegEntry;
@@ -143,7 +144,8 @@ RwInt32 _rwPluginRegistryGetSize(const RwPluginRegistry* registry,
             RwInt32 pluginSize = entry->getSizeCB(pluginObject, entry->offset,
                                                    entry->size);
             if (pluginSize > 0) {
-                size = pluginSize + size + 12;
+                size += pluginSize;
+                size += 12;
             }
         }
         entry = entry->nextRegEntry;
