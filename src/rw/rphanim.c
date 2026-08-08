@@ -25,14 +25,6 @@ RpHAnimGlobals RpHAnimAtomicGlobals;
     ((RpHAnimFrameExtension*)((RwUInt8*)(frame) + \
                               RpHAnimAtomicGlobals.frameExtensionOffset))
 
-extern void RpHAnimKeyFrameApply(void*, void*);
-extern void RpHAnimKeyFrameBlend(void*, void*, void*, RwReal);
-extern void RpHAnimKeyFrameInterpolate(void*, void*, void*, RwReal, void*);
-extern void RpHAnimKeyFrameAdd(void*, void*, void*);
-extern void RpHAnimKeyFrameMulRecip(void*, void*);
-extern RtAnimAnimation* RpHAnimKeyFrameStreamRead(RwStream*, RtAnimAnimation*);
-extern RwBool RpHAnimKeyFrameStreamWrite(RtAnimAnimation*, RwStream*);
-extern RwInt32 RpHAnimKeyFrameStreamGetSize(RtAnimAnimation*);
 extern RwInt32 RwFrameRegisterPlugin(RwInt32, RwUInt32,
                                      RwPluginObjectConstructor,
                                      RwPluginObjectDestructor,

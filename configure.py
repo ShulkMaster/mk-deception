@@ -1295,6 +1295,8 @@ config.libs = [
     RenderWareLib(
         "rphanim",
         [
+            Object(NonMatching, "rphanim.a/stdkey.obj", source="rw/stdkey.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rphanim.a/rphanim.obj", source="rw/rphanim.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
