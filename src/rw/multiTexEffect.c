@@ -97,7 +97,7 @@ RwBool _rpMTEffectClose(void)
             link = link->next;
         }
     }
-    return globals->dictionaries.link.next == end;
+    return TRUE;
 }
 
 RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, RwInt32 type)
@@ -105,8 +105,8 @@ RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, RwInt32 type)
     memset(effect, 0, sizeof(*effect));
     effect->type = type;
     effect->refCount = 1;
-    effect->dictLink.next = NULL;
     effect->dictLink.prev = NULL;
+    effect->dictLink.next = NULL;
     if (type && MTEFFECTGLOBALS->currentDictionary)
         RpMTEffectDictAddEffect(MTEFFECTGLOBALS->currentDictionary, effect);
     return effect;
