@@ -348,25 +348,26 @@ static RwChar *ImageAttempRead(RwChar *name, void *data) {
 }
 
 RwImage *RwImageRead(const RwChar *name) {
-  const RwChar *extension = name;
-  RwChar *found;
+  const RwChar *colonPath;
+  const RwChar *slashPath;
+  const RwChar *backslashPath;
+  RwChar *separator;
+  RwChar *extension;
   RwImageFormat *format;
-  found = RwEngineInstance->stringFuncs.vecStrrchr(extension, ':');
-  if (found)
-    extension = found;
-  found = RwEngineInstance->stringFuncs.vecStrrchr(extension, '/');
-  if (found)
-    extension = found;
-  found = RwEngineInstance->stringFuncs.vecStrrchr(extension, '\\');
-  if (found)
-    extension = found;
-  found = RwEngineInstance->stringFuncs.vecStrrchr(extension, '.');
-  if (!found)
+  separator = RwEngineInstance->stringFuncs.vecStrrchr(name, ':');
+  colonPath = separator ? separator : name;
+  separator = RwEngineInstance->stringFuncs.vecStrrchr(colonPath, '/');
+  slashPath = separator ? separator : colonPath;
+  separator = RwEngineInstance->stringFuncs.vecStrrchr(slashPath, '\\');
+  backslashPath = separator ? separator : slashPath;
+  extension = RwEngineInstance->stringFuncs.vecStrrchr(backslashPath, '.');
+  if (!extension)
     return NULL;
   for (format = IMAGEGLOBALS->formats; format; format = format->next) {
-    if (!RwEngineInstance->stringFuncs.vecStricmp(format->extension, found) ||
+    if (!RwEngineInstance->stringFuncs.vecStricmp(format->extension,
+                                                  extension) ||
         !RwEngineInstance->stringFuncs.vecStricmp(format->alternateExtension,
-                                                  found)) {
+                                                  extension)) {
       if (format->read) {
         ImageReadState state;
         state.read = format->read;
@@ -381,17 +382,18 @@ RwImage *RwImageRead(const RwChar *name) {
 }
 
 static RwChar *ImageDetermineExtender(RwChar *name, void *data) {
+  RwChar **result = data;
   RwImageFormat *format;
   RwChar *end = name + RwEngineInstance->stringFuncs.vecStrlen(name);
   for (format = IMAGEGLOBALS->formats; format; format = format->next) {
     RwEngineInstance->stringFuncs.vecStrcpy(end, format->extension);
     if (RwEngineInstance->fileFuncs.rwfexist(name)) {
-      *(RwChar **)data = format->extension;
+      *result = format->extension;
       return NULL;
     }
     RwEngineInstance->stringFuncs.vecStrcpy(end, format->alternateExtension);
     if (RwEngineInstance->fileFuncs.rwfexist(name)) {
-      *(RwChar **)data = format->alternateExtension;
+      *result = format->alternateExtension;
       return NULL;
     }
   }
@@ -413,7 +415,12 @@ RwImage *RwImageReadMaskedImage(const RwChar *imageName,
       RwImageDestroy(image);
       return NULL;
     }
-    if (!RwImageMakeMask(mask) || !RwImageApplyMask(image, mask)) {
+    if (!RwImageMakeMask(mask)) {
+      RwImageDestroy(image);
+      RwImageDestroy(mask);
+      return NULL;
+    }
+    if (!RwImageApplyMask(image, mask)) {
       RwImageDestroy(image);
       RwImageDestroy(mask);
       return NULL;
@@ -431,12 +438,15 @@ RwRGBA *RwRGBASetFromPixel(RwRGBA *color, RwUInt32 pixel, RwInt32 format) {
 }
 
 static RwBool ImageStraightCopy(RwImage *destination, const RwImage *source) {
-  RwInt32 rowSize = ((destination->depth + 7) >> 3) * destination->width;
-  RwUInt8 *src = source->pixels;
-  RwUInt8 *dst = destination->pixels;
+  RwInt32 rowSize;
+  RwUInt8 *src;
+  RwUInt8 *dst;
   RwInt32 y;
   if (destination->palette && source->palette && source->depth <= 8)
     memcpy(destination->palette, source->palette, (1 << source->depth) * 4);
+  rowSize = ((destination->depth + 7) >> 3) * destination->width;
+  src = source->pixels;
+  dst = destination->pixels;
   for (y = 0; y < destination->height; y++) {
     memcpy(dst, src, rowSize);
     dst += destination->stride;
@@ -446,39 +456,46 @@ static RwBool ImageStraightCopy(RwImage *destination, const RwImage *source) {
 }
 
 static RwBool ImageConvertDepth(RwImage *destination, const RwImage *source) {
-  RwInt32 conversion = (source->depth << 8) | destination->depth;
+  RwBool result = FALSE;
+  RwInt32 width = destination->width;
+  RwInt32 height = destination->height;
   RwInt32 x, y;
   RwUInt8 *src = source->pixels;
   RwUInt8 *dst = destination->pixels;
+  RwInt32 conversion = (source->depth << 8) | destination->depth;
   switch (conversion) {
   case 0x404:
   case 0x808:
   case 0x2020:
-    return TRUE;
-  case 0x804:
-    for (y = 0; y < destination->height; y++) {
-      memcpy(dst, src, destination->width);
+    result = TRUE;
+    break;
+  case 0x408:
+    for (y = 0; y < height; y++) {
+      memcpy(dst, src, width);
       src += source->stride;
       dst += destination->stride;
     }
-    return TRUE;
-  case 0x2004:
-  case 0x2008:
-    for (y = 0; y < destination->height; y++) {
-      for (x = 0; x < destination->width; x++)
+    result = TRUE;
+    break;
+  case 0x420:
+  case 0x820:
+    for (y = 0; y < height; y++) {
+      for (x = 0; x < width; x++)
         ((RwRGBA *)dst)[x] = ((RwRGBA *)source->palette)[src[x]];
       src += source->stride;
       dst += destination->stride;
     }
-    return TRUE;
+    result = TRUE;
+    break;
   default: {
     RwError error;
     error.pluginID = 1;
     error.errorCode = _rwerror(0x80000009);
     RwErrorSet(&error);
-    return FALSE;
+    break;
   }
   }
+  return result;
 }
 
 RwImage *RwImageCopy(RwImage *destination, const RwImage *source) {
@@ -494,17 +511,19 @@ RwImage *RwImageCopy(RwImage *destination, const RwImage *source) {
 
 RwImage *RwImageGammaCorrect(RwImage *image) {
   if (image->depth == 4 || image->depth == 8) {
-    if (!image->palette) {
+    RwRGBA *palette = (RwRGBA *)image->palette;
+    if (!palette) {
       RwError e;
       e.pluginID = 1;
       e.errorCode = _rwerror(0x80000016);
       RwErrorSet(&e);
       return NULL;
     }
-    _rwImageGammaCorrectArrayOfRGBA(
-        (RwRGBA *)image->palette, (RwRGBA *)image->palette, 1 << image->depth);
+    _rwImageGammaCorrectArrayOfRGBA(palette, palette, 1 << image->depth);
   } else if (image->depth == 32) {
     RwUInt8 *row = image->pixels;
+    RwInt32 width = image->width;
+    RwInt32 height = image->height;
     RwInt32 y;
     if (!row) {
       RwError e;
@@ -513,9 +532,8 @@ RwImage *RwImageGammaCorrect(RwImage *image) {
       RwErrorSet(&e);
       return NULL;
     }
-    for (y = 0; y < image->height; y++, row += image->stride)
-      _rwImageGammaCorrectArrayOfRGBA((RwRGBA *)row, (RwRGBA *)row,
-                                      image->width);
+    for (y = 0; y < height; y++, row += image->stride)
+      _rwImageGammaCorrectArrayOfRGBA((RwRGBA *)row, (RwRGBA *)row, width);
   } else {
     RwError e;
     e.pluginID = 1;
