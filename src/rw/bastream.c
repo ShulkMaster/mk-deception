@@ -137,13 +137,18 @@ RwUInt32 RwStreamRead(RwStream* stream, void* buffer, RwUInt32 length)
     }
 }
 
-/* Near miss: exact growth/hint/callback CFG; local register scheduling differs. */
+/* Near match: behavior and size match; remaining differences are register
+ * coloring around the cached anonymous memory-data member address. */
 RwStream* RwStreamWrite(RwStream* stream, const void* buffer, RwUInt32 length)
 {
+    void* file;
+    RwUInt32 count;
+
     switch (stream->type) {
     case rwSTREAMFILE: case rwSTREAMFILENAME:
-        if (RwEngineInstance->fileFuncs.rwfwrite(buffer, 1, length,
-            stream->data.file.file) != length) { STREAM_ERROR(0x8000001C); return NULL; }
+        file = stream->data.file.file;
+        count = RwEngineInstance->fileFuncs.rwfwrite(buffer, 1, length, file);
+        if (count != length) { STREAM_ERROR(0x8000001C); return NULL; }
         return stream;
     case rwSTREAMMEMORY:
         if (stream->data.memory.start == NULL) {
@@ -154,12 +159,18 @@ RwStream* RwStreamWrite(RwStream* stream, const void* buffer, RwUInt32 length)
             stream->data.memory.length = 0x200;
         }
         if (stream->data.memory.length - stream->data.memory.position < length) {
-            RwUInt32 oldLength = stream->data.memory.length;
-            RwUInt32 newLength = oldLength + (length < 0x200 ? 0x200 : length);
-            RwUInt8* start = RwEngineInstance->fpRealloc(stream->data.memory.start,
+            RwUInt32 newLength;
+            RwUInt8* start;
+            if (length < 0x200) {
+                newLength = stream->data.memory.length + 0x200;
+            } else {
+                newLength = length + stream->data.memory.length;
+            }
+            start = RwEngineInstance->fpRealloc(stream->data.memory.start,
                 newLength, 0x01030404);
             if (start == NULL) {
-                STREAM_ERROR_ARG(0x80000013, newLength - oldLength); return NULL;
+                STREAM_ERROR_ARG(0x80000013,
+                    newLength - stream->data.memory.length); return NULL;
             }
             stream->data.memory.start = start; stream->data.memory.length = newLength;
         }
