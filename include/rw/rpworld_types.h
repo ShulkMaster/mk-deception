@@ -60,7 +60,7 @@ typedef struct RpSurfaceProperties {
 typedef struct RpMaterial {
     RwTexture* texture; /* +0x00 */
     RpMaterialColor color; /* +0x04 -- packed RGBA */
-    void* pipeline;     /* +0x08 */
+    struct RxPipeline* pipeline; /* +0x08 */
     RpSurfaceProperties surface; /* +0x0C */
     RwInt16 refCount;       /* +0x18 */
     RwUInt16 reserved_0x1A;
@@ -86,6 +86,8 @@ RwInt32 _rpMaterialListAppendMaterial(RpMaterialList* materialList,
 RwInt32 _rpMaterialListFindMaterialIndex(const RpMaterialList* materialList,
                                          const RpMaterial* material);
 RwBool RpMaterialDestroy(RpMaterial* material);
+RpMaterial* RpMaterialCreate(void);
+RpMaterial* RpMaterialSetTexture(RpMaterial* material, RwTexture* texture);
 RpMaterial* RpMaterialStreamRead(RwStream* stream);
 
 /*
