@@ -291,27 +291,33 @@ static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
 
 static void PipelineTallyInputs(RxPipeline* pipeline)
 {
+    RxPipelineNode* node = pipeline->nodes;
     RwUInt32 index;
 
-    for (index = 0; index < pipeline->numNodes; index++) {
-        RxPipelineNode* node = &pipeline->nodes[index];
+    for (index = 0; index < pipeline->numNodes;) {
         if (node->nodeDef != NULL) {
-            node->topSortData->numIns = 0;
             node->topSortData->numInsVisited = 0;
+            node->topSortData->numIns = 0;
         }
+        node++;
+        index++;
     }
-    for (index = 0; index < pipeline->numNodes; index++) {
-        RxPipelineNode* node = &pipeline->nodes[index];
-        RwUInt32 output;
-        if (node->nodeDef == NULL || node->numOutputs == 0) {
-            continue;
+    node = pipeline->nodes;
+    for (index = 0; index < pipeline->numNodes;) {
+        if (node->nodeDef != NULL && node->numOutputs != 0) {
+            RwInt32 remaining;
+            RwUInt32 outputsRemaining = node->numOutputs;
+            RwUInt32* output = node->outputs;
+            do {
+                if ((RwInt32)*output != -1) {
+                    pipeline->nodes[*output].topSortData->numIns++;
+                }
+                output++;
+                remaining = --outputsRemaining;
+            } while (remaining != 0);
         }
-        for (output = 0; output < node->numOutputs; output++) {
-            RwUInt32 outputIndex = node->outputs[output];
-            if (outputIndex != (RwUInt32)-1) {
-                pipeline->nodes[outputIndex].topSortData->numIns++;
-            }
-        }
+        node++;
+        index++;
     }
 }
 
