@@ -264,6 +264,7 @@ RpHAnimHierarchy* RpHAnimHierarchyCreate(
     RpHAnimHierarchyFlag flags, RwInt32 maxInterpKeyFrameSize)
 {
     void* memory;
+    /* Remaining retail difference is numNodes/matrix-memory register coloring. */
     RpHAnimHierarchy* hierarchy = RwEngineInstance->fpFreeListAlloc(
         RpHAnimAtomicGlobals.hierarchyFreeList, 0x3011E);
     RwInt32 i;
