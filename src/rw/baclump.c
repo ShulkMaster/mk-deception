@@ -255,18 +255,18 @@ void* _rpClumpOpen(void* instance, RwInt32 offset, RwInt32 size)
     CLUMPGLOBALS->atomicFreeList = RwFreeListCreateAndPreallocateSpace(
         atomicTKList.sizeOfStruct, _rpAtomicFreeListBlockSize, 4,
         _rpAtomicFreeListPreallocBlocks, &_rpAtomicFreeList, 0x40010);
-    if (CLUMPGLOBALS->atomicFreeList == NULL)
-        return NULL;
-    CLUMPGLOBALS->clumpFreeList = RwFreeListCreateAndPreallocateSpace(
-        clumpTKList.sizeOfStruct, _rpClumpFreeListBlockSize, 4,
-        _rpClumpFreeListPreallocBlocks, &_rpClumpFreeList, 0x40014);
-    if (CLUMPGLOBALS->clumpFreeList == NULL) {
+    if (CLUMPGLOBALS->atomicFreeList != NULL) {
+        CLUMPGLOBALS->clumpFreeList = RwFreeListCreateAndPreallocateSpace(
+            clumpTKList.sizeOfStruct, _rpClumpFreeListBlockSize, 4,
+            _rpClumpFreeListPreallocBlocks, &_rpClumpFreeList, 0x40014);
+        if (CLUMPGLOBALS->clumpFreeList != NULL) {
+            clumpModule.numInstances++;
+            return instance;
+        }
         RwFreeListDestroy(CLUMPGLOBALS->atomicFreeList);
         CLUMPGLOBALS->atomicFreeList = NULL;
-        return NULL;
     }
-    clumpModule.numInstances++;
-    return instance;
+    return NULL;
 }
 
 RwBool _rpClumpRegisterExtensions(void)
@@ -349,23 +349,34 @@ RpAtomic* RpAtomicCreate(void)
     if (atomic == NULL)
         return NULL;
     rwObjectInitialize(atomic, 1, 0);
+    atomic->sync = AtomicSync;
+    atomic->repEntry = NULL;
     atomic->object.flags = 5;
     atomic->object.privateFlags = 1;
-    atomic->sync = AtomicSync;
     _rwObjectHasFrameSetFrame(atomic, NULL);
-    atomic->repEntry = NULL;
     atomic->geometry = NULL;
-    atomic->boundingSphere.x = atomic->boundingSphere.y = atomic->boundingSphere.z = atomic->boundingSphere.radius = 0.0f;
-    atomic->worldBoundingSphere = atomic->boundingSphere;
-    atomic->clump = NULL;
-    atomic->inClumpLink.next = atomic->inClumpLink.prev = NULL;
+    atomic->boundingSphere.radius = 0.0f;
+    atomic->boundingSphere.x = 0.0f;
+    atomic->boundingSphere.y = 0.0f;
+    atomic->boundingSphere.z = 0.0f;
+    atomic->worldBoundingSphere.radius = 0.0f;
+    atomic->worldBoundingSphere.x = 0.0f;
+    atomic->worldBoundingSphere.y = 0.0f;
+    atomic->worldBoundingSphere.z = 0.0f;
     atomic->renderCallBack = AtomicDefaultRenderCallBack;
-    atomic->interpolator.flags = 3;
-    atomic->interpolator.startMorphTarget = atomic->interpolator.endMorphTarget = 0;
-    atomic->interpolator.time = atomic->interpolator.recipTime = 1.0f;
+    if (atomic->renderCallBack == NULL)
+        atomic->renderCallBack = AtomicDefaultRenderCallBack;
+    atomic->interpolator.startMorphTarget = 0;
+    atomic->interpolator.endMorphTarget = 0;
+    atomic->interpolator.time = 1.0f;
+    atomic->interpolator.recipTime = 1.0f;
     atomic->interpolator.position = 0.0f;
-    rwLinkListInitialize(&atomic->worldSectorsInAtomic);
+    atomic->interpolator.flags = 3;
+    atomic->inClumpLink.prev = NULL;
+    atomic->inClumpLink.next = NULL;
+    atomic->clump = NULL;
     atomic->pipeline = NULL;
+    rwLinkListInitialize(&atomic->worldSectorsInAtomic);
     _rwPluginRegistryInitObject(&atomicTKList, atomic);
     return atomic;
 }
@@ -415,10 +426,12 @@ RpClump* RpClumpCreate(void)
     if (clump == NULL)
         return NULL;
     rwObjectInitialize(clump, 2, 0);
+    clump->object.parent = NULL;
     rwLinkListInitialize(&clump->atomicList);
     rwLinkListInitialize(&clump->lightList);
     rwLinkListInitialize(&clump->cameraList);
-    clump->inWorldLink.next = clump->inWorldLink.prev = NULL;
+    clump->inWorldLink.prev = NULL;
+    clump->inWorldLink.next = NULL;
     RpClumpSetCallBack(clump, NULL);
     _rwPluginRegistryInitObject(&clumpTKList, clump);
     return clump;
