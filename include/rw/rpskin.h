@@ -30,9 +30,17 @@ typedef struct RpSkinSplitData {
 
 struct RpSkin {
     RwUInt32 numBones;
-    RwUInt8 field04[0x2C];
+    RwUInt8 field04[0x28];
+    RwUInt32 field_0x2C;
     RpSkinSplitData splitData;
 };
+
+typedef struct RpSkinGlobals {
+    RwUInt8 platformIndependent[0x24];
+    RxPipeline* pipelines[6];
+} RpSkinGlobals;
+
+extern RpSkinGlobals _rpSkinGlobals;
 
 typedef enum RpSkinType {
     rpSKINTYPEGENERIC = 1,
@@ -52,5 +60,8 @@ RwBool _rpSkinSplitDataDestroy(RpSkin* skin);
 RwStream* _rpSkinSplitDataStreamWrite(RwStream* stream, const RpSkin* skin);
 RwStream* _rpSkinSplitDataStreamRead(RwStream* stream, RpSkin* skin);
 RwUInt32 _rpSkinSplitDataStreamGetSize(const RpSkin* skin);
+RwBool _rpSkinPipelinesCreate(RwUInt32 pipeType);
+RwBool _rpSkinPipelinesDestroy(void);
+RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType skinType);
 
 #endif
