@@ -134,19 +134,26 @@ static void _insertionsort(RwUInt8* base, RwUInt32 numEntries,
     }
 }
 
+/* Near match: guards, radix partition, sentinel scan/swap, and insertion pass
+ * are exact. Retail retains a dead copy of the swap byte counter, shifting the
+ * nonvolatile save range and keyUpperBound register. */
 void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,
                              RwUInt32 entrySize, RwUInt32 keyOffset,
                              RwUInt32 keyLowerBound,
                              RwUInt32 keyUpperBound) {
-    if (base == 0 || keyOffset + 4 > entrySize ||
-        keyLowerBound >= keyUpperBound) {
+    if (base == 0) {
+        return;
+    }
+    if (keyOffset + 4 > entrySize) {
+        return;
+    }
+    if (keyLowerBound >= keyUpperBound) {
         return;
     }
 
     if (numEntries > 5) {
-        RwUInt32 bit = 1U << _msbitpos(keyUpperBound);
         _repartition(base, base + (numEntries - 1) * entrySize, entrySize,
-                     keyOffset, bit);
+                     keyOffset, 1U << _msbitpos(keyUpperBound));
     }
 
     if (numEntries > 1) {
