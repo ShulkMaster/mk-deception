@@ -933,6 +933,8 @@ int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
     return 0;
 }
 
+/* Near match: retail spills texture and materializes its unused stack address;
+ * direct typed result flow avoids recreating that redundant lifetime. */
 RwTexture* RwTextureRead(const char* name, const char* maskName) {
     RwTexture* texture = TEXTURE_GLOBALS->findCallback(name);
 
