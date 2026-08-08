@@ -107,8 +107,9 @@ static void* MatFXOpen(void* instance, RwInt32 offset, RwInt32 size)
 
 static void* MatFXMaterialConstructor(void* object, RwInt32 offset, RwInt32 size)
 {
+    (void)offset;
     (void)size;
-    RWPLUGINOFFSET(RpMatFXMaterialData*, object, offset) = NULL;
+    RWPLUGINOFFSET(RpMatFXMaterialData*, object, MatFXMaterialDataOffset) = NULL;
     return object;
 }
 
@@ -146,12 +147,15 @@ static RpMatFXMaterialData* MatFXMaterialDataClean(RpMatFXMaterialData* data)
 static void* MatFXMaterialDestructor(void* object, RwInt32 offset, RwInt32 size)
 {
     RpMatFXMaterialData* data;
+    (void)offset;
     (void)size;
-    data = RWPLUGINOFFSET(RpMatFXMaterialData*, object, offset);
+    data = RWPLUGINOFFSET(RpMatFXMaterialData*, object,
+                          MatFXMaterialDataOffset);
     if (data) {
         MatFXMaterialDataClean(data);
         RwEngineInstance->fpFreeListFree(MatFXInfo.materialDataFreeList, data);
-        RWPLUGINOFFSET(RpMatFXMaterialData*, object, offset) = NULL;
+        RWPLUGINOFFSET(RpMatFXMaterialData*, object,
+                       MatFXMaterialDataOffset) = NULL;
     }
     return object;
 }
@@ -178,9 +182,10 @@ static void* MatFXMaterialCopy(void* destination, const void* source,
     const RpMaterial* src = source;
     RpMaterial* dst = destination;
     const RpMatFXMaterialData* srcData =
-        RWPLUGINOFFSET(RpMatFXMaterialData*, src, offset);
+        RWPLUGINOFFSET(RpMatFXMaterialData*, src, MatFXMaterialDataOffset);
     RpMatFXMaterialData* dstData;
     RwUInt8 i;
+    (void)offset;
     (void)size;
     if (!srcData)
         return NULL;
@@ -669,7 +674,9 @@ RpMatFXMaterialFlags RpMatFXMaterialGetEffects(const RpMaterial* material)
 {
     const RpMatFXMaterialData* data =
         RWPLUGINOFFSET(RpMatFXMaterialData*, material, MatFXMaterialDataOffset);
-    return data ? data->effects : rpMATFXEFFECTNULL;
+    if (data == NULL)
+        return rpMATFXEFFECTNULL;
+    return data->effects;
 }
 
 RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
