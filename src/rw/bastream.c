@@ -18,16 +18,13 @@ static RwModuleInfo streamModule;
 #define STREAM_FREE_LIST \
     RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, streamModule.globalsOffset)
 
-/* Near miss: exact module lifecycle; callback parameter/local coloring differs. */
 void* _rwStreamModuleOpen(void* instance, RwInt32 offset, RwInt32 size)
 {
-    RwFreeList* list;
     streamModule.globalsOffset = offset;
-    list = RwFreeListCreateAndPreallocateSpace(sizeof(RwStream),
+    STREAM_FREE_LIST = RwFreeListCreateAndPreallocateSpace(sizeof(RwStream),
         _rwStreamFreeListBlockSize, 4, _rwStreamFreeListPreallocBlocks,
         &_rwStreamFreeList, 0x40404);
-    RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, offset) = list;
-    if (list == NULL) return NULL;
+    if (STREAM_FREE_LIST == NULL) return NULL;
     ++streamModule.numInstances;
     return instance;
 }
@@ -39,7 +36,8 @@ void* _rwStreamModuleClose(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-/* Near miss: exact ftell validation; only callback-result coloring differs. */
+/* Near match: retail keeps the ftell result in a different volatile register;
+ * the validation, file store, and return paths are otherwise identical. */
 static RwStream* StreamFileInitialize(RwStream* stream, void* file)
 {
     if (RwEngineInstance->fileFuncs.rwftell(file) == -1) return NULL;
@@ -47,7 +45,8 @@ static RwStream* StreamFileInitialize(RwStream* stream, void* file)
     return stream;
 }
 
-/* Near miss: exact access dispatch/errors; only local lifetime scheduling differs. */
+/* Near match: retail stack-homes the filename argument; clean typed C keeps it
+ * in a nonvolatile register. Mode dispatch and both error paths are identical. */
 static RwStream* StreamFileNameInitialize(RwStream* stream,
     RwStreamAccessType access, const RwChar* name)
 {
@@ -64,7 +63,8 @@ static RwStream* StreamFileNameInitialize(RwStream* stream,
     return result;
 }
 
-/* Near miss: exact memory-state initialization; switch register coloring differs. */
+/* Near match: retail stack-homes the RwMemory argument; clean typed C keeps it
+ * in a nonvolatile register. All access-mode stores and errors are identical. */
 static RwStream* StreamMemoryInitialize(RwStream* stream,
     RwStreamAccessType access, RwMemory* memory)
 {
@@ -91,7 +91,6 @@ static RwStream* StreamCustomInitialize(RwStream* stream,
     return stream;
 }
 
-/* Near miss: exact typed dispatcher; one local-result scheduling difference remains. */
 RwStream* _rwStreamInitialize(RwStream* stream, RwBool owned, RwStreamType type,
     RwStreamAccessType access, void* data)
 {
