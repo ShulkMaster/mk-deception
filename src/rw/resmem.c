@@ -100,13 +100,19 @@ void _rwResHeapFree(void* memory) {
     }
 }
 
+/*
+ * Near miss: the allocation body matches retail; only argument homing,
+ * save/restore helper selection, and the aligned-size register differ.
+ */
 void* _rwResHeapAlloc(RwResHeap* heap, RwUInt32 size) {
+    RwResHeap* owner;
     RwResHeapBlock* cursor;
     RwResHeapBlock* block;
 
+    owner = heap;
     size = (size + 0x1F) & ~0x1F;
     block = 0;
-    cursor = heap->firstFreeBlock;
+    cursor = owner->firstFreeBlock;
     while (cursor != 0 && block == 0) {
         if ((RwInt32)(~cursor->flags & 1) != 0 && cursor->size >= size) {
             block = cursor;
@@ -119,11 +125,11 @@ void* _rwResHeapAlloc(RwResHeap* heap, RwUInt32 size) {
     if (block->size > size + 0x40) {
         splitBlock(block, size);
     }
-    if (block == heap->firstFreeBlock) {
+    if (block == owner->firstFreeBlock) {
         do {
-            heap->firstFreeBlock = heap->firstFreeBlock->next;
-        } while (heap->firstFreeBlock != 0 &&
-                 (RwInt32)(heap->firstFreeBlock->flags & 1) != 0);
+            owner->firstFreeBlock = owner->firstFreeBlock->next;
+        } while (owner->firstFreeBlock != 0 &&
+                 (RwInt32)(owner->firstFreeBlock->flags & 1) != 0);
     }
     block->flags = 1;
     return (unsigned char*)block + 0x20;
