@@ -14,6 +14,16 @@ typedef struct RwLinkList {
     RwLLLink link;
 } RwLinkList;
 
+typedef struct RwObjectHasFrame RwObjectHasFrame;
+typedef RwObjectHasFrame* (*RwObjectHasFrameSyncFunction)(
+    RwObjectHasFrame* object);
+
+struct RwObjectHasFrame {
+    RwObject object;
+    RwLLLink lFrame;
+    RwObjectHasFrameSyncFunction sync;
+};
+
 #define rwLinkListInitialize(list)                                    \
     ((list)->link.next = (RwLLLink*)(list),                            \
      (list)->link.prev = (RwLLLink*)(list))
@@ -114,6 +124,52 @@ typedef struct RwFrame {
     struct RwFrame* root;       /**< Retail offset 0xA0. */
 } RwFrame;
 
+typedef enum RwCameraProjection {
+    rwNACAMERAPROJECTION = 0,
+    rwPERSPECTIVE = 1,
+    rwPARALLEL = 2
+} RwCameraProjection;
+
+typedef enum RwFrustumTestResult {
+    rwSPHEREOUTSIDE = 0,
+    rwSPHEREBOUNDARY = 1,
+    rwSPHEREINSIDE = 2
+} RwFrustumTestResult;
+
+typedef struct RwFrustumPlane {
+    RwPlane plane;
+    RwUInt8 closestX;
+    RwUInt8 closestY;
+    RwUInt8 closestZ;
+    RwUInt8 pad;
+} RwFrustumPlane;
+
+typedef struct RwCamera RwCamera;
+typedef struct RwRGBA RwRGBA;
+typedef RwCamera* (*RwCameraBeginUpdateFunc)(RwCamera* camera);
+typedef RwCamera* (*RwCameraEndUpdateFunc)(RwCamera* camera);
+
+struct RwCamera {
+    RwObjectHasFrame object;
+    RwCameraProjection projectionType;
+    RwCameraBeginUpdateFunc beginUpdate;
+    RwCameraEndUpdateFunc endUpdate;
+    RwMatrix viewMatrix;
+    RwRaster* frameBuffer;
+    RwRaster* zBuffer;
+    RwV2d viewWindow;
+    RwV2d recipViewWindow;
+    RwV2d viewOffset;
+    RwReal nearPlane;
+    RwReal farPlane;
+    RwReal fogPlane;
+    RwReal zScale;
+    RwReal zShift;
+    RwFrustumPlane frustumPlanes[6];
+    RwBBox frustumBoundBox;
+    RwV3d frustumCorners[8];
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -122,6 +178,8 @@ RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
 int RwRasterDestroy(RwRaster* raster);
 RwRaster* RwRasterUnlock(RwRaster* raster);
 int RwRasterGetNumLevels(RwRaster* raster);
+RwRaster* RwRasterShowRaster(RwRaster* raster, void* device,
+                             RwUInt32 flags);
 void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
 RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
 RwRaster* RwRasterSetFromImage(RwRaster* raster, RwImage* image);
@@ -173,6 +231,26 @@ RwInt32 RwFrameRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
                               RwPluginObjectConstructor constructCB,
                               RwPluginObjectDestructor destructCB,
                               RwPluginObjectCopy copyCB);
+
+RwCamera* RwCameraEndUpdate(RwCamera* camera);
+RwCamera* RwCameraBeginUpdate(RwCamera* camera);
+RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, RwReal nearClip);
+RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, RwReal farClip);
+RwFrustumTestResult RwCameraFrustumTestSphere(const RwCamera* camera,
+                                              const RwSphere* sphere);
+RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, RwInt32 clearMode);
+RwCamera* RwCameraShowRaster(RwCamera* camera, void* device,
+                             RwUInt32 flags);
+RwCamera* RwCameraSetProjection(RwCamera* camera,
+                                RwCameraProjection projection);
+RwCamera* RwCameraSetViewWindow(RwCamera* camera,
+                                const RwV2d* viewWindow);
+RwInt32 RwCameraRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+                              RwPluginObjectConstructor constructCB,
+                              RwPluginObjectDestructor destructCB,
+                              RwPluginObjectCopy copyCB);
+RwBool RwCameraDestroy(RwCamera* camera);
+RwCamera* RwCameraCreate(void);
 
 #ifdef __cplusplus
 }

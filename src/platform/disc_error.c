@@ -15,10 +15,6 @@ extern void OSYieldThread(void);
 extern int DVDGetDriveStatus(void);
 extern void VISetBlack(int black);
 extern void VIFlush(void);
-extern void RwCameraClear(RwCamera* camera, const unsigned int* color, int clear_mode);
-extern void RwCameraBeginUpdate(RwCamera* camera);
-extern void RwCameraEndUpdate(RwCamera* camera);
-extern void RwCameraShowRaster(RwCamera* camera, void* device, int flags);
 
 extern void pause_all_game_sounds(void);
 extern void unpause_all_game_sounds(void);
@@ -117,7 +113,7 @@ static inline void render_disc_message(PfxFontString* string, const char* text) 
     for (frame = 0; frame < 3; frame++) {
         unsigned int clear_color = disc_clear_color;
 
-        RwCameraClear(Camera, &clear_color, 7);
+        RwCameraClear(Camera, (RwRGBA*)&clear_color, 7);
         RwCameraBeginUpdate(Camera);
         pfxfont_begin_render();
         pfxfont_string_render(string, (float)left, (float)screen_height - (float)(top + height));

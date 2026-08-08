@@ -34,13 +34,6 @@ typedef struct RwTexCoords {
     RwReal v;
 } RwTexCoords;
 
-typedef struct RwSphere {
-    float x;
-    float y;
-    float z;
-    float radius;
-} RwSphere;
-
 typedef struct RpMeshHeader {
     unsigned int flags;       /* +0x00 */
     unsigned short numMeshes; /* +0x04 */

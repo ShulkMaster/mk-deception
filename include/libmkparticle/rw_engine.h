@@ -55,6 +55,9 @@ typedef void* (*RwMemoryCallocCall)(unsigned int count, unsigned int size,
 typedef RwBool (*RwSystemFunc)(RwInt32 option, void* out, void* inOut,
                                RwInt32 in);
 typedef RwBool (*RwStandardFunc)(void* out, void* inOut, RwInt32 in);
+typedef RwBool (*RwCameraDeviceCall)(void* out, RwCamera* camera, RwInt32 in);
+typedef RwBool (*RwCameraClearCall)(RwCamera* camera, RwRGBA* color,
+                                    RwInt32 clearMode);
 typedef struct RwDevice {
     RwReal gammaCorrection;
     RwSystemFunc fpSystem;
@@ -104,21 +107,25 @@ typedef struct RwGlobals {
     RwReal zBufferFar; /* +0x1C */
     int (*fpRenderStateSet)(int state, int value); /* +0x20 */
     void (*fpRenderStateGet)(int state, void* out); /* +0x24 */
-    char pad28[0x30];
+    char pad28[0x24];
+    RwCameraDeviceCall fpCameraBeginUpdate; /* +0x4C */
+    char pad50[0x8];
     RwRasterDeviceCall fpRasterCreate; /* +0x58 */
     RwRasterDeviceCall fpRasterDestroy; /* +0x5C */
     RwImageSetFromRasterCall fpImageSetFromRaster; /* +0x60 */
     RwRasterSetFromImageCall fpRasterSetFromImage; /* +0x64 */
     RwTextureRasterCall fpTextureSetRaster; /* +0x68 */
     RwImageFindRasterFormatCall fpImageFindRasterFormat; /* +0x6C */
-    char pad70[0x8];
+    RwCameraDeviceCall fpCameraEndUpdate; /* +0x70 */
+    char pad74[0x4];
     RwRasterDeviceCall fpRasterSubRaster; /* +0x78 */
     char pad7C[0x8];
     RwRasterDeviceCall fpRasterLock; /* +0x84 */
     RwRasterDeviceCall fpRasterUnlock; /* +0x88 */
     char pad8C[0xC];
     RwRasterDeviceCall fpRasterShowRaster; /* +0x98 */
-    char pad9C[0x8];
+    RwCameraClearCall fpCameraClear; /* +0x9C */
+    char padA0[0x4];
     RwRasterDeviceCall fpRasterLockPalette; /* +0xA4 */
     RwRasterDeviceCall fpRasterUnlockPalette; /* +0xA8 */
     char padAC[0xC];

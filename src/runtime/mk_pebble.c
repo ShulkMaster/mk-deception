@@ -12,9 +12,12 @@ extern RwCamera* Camera;
 
 RwMatrix* RwFrameGetLTM(RwFrame* frame);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
-int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere, PebbleFlags* flags, int factor);
 RwMatrix* RwMatrixMultiply(RwMatrix* dst, const RwMatrix* left, const RwMatrix* right);
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
+
+typedef RwFrustumTestResult (*PebbleFrustumTestCall)(
+    const RwCamera* camera, const RwSphere* sphere, PebbleFlags* flags,
+    int factor);
 
 static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic);
 static RpAtomic* pebble_render_callback(RpAtomic* atomic);
@@ -156,8 +159,10 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
             test_sphere.y = pebble_data->pebbles[i].matrix.pos.y;
             test_sphere.z = pebble_data->pebbles[i].matrix.pos.z;
             pebble_data->flags[i].bits.visible = 1;
-            switch (RwCameraFrustumTestSphere(camera, &test_sphere,
-                                               &pebble_data->flags[i], 1)) {
+            /* Retail's game-side declaration passes two unused arguments to
+             * the stock two-argument RenderWare entry point. */
+            switch (((PebbleFrustumTestCall)RwCameraFrustumTestSphere)(
+                camera, &test_sphere, &pebble_data->flags[i], 1)) {
             case 0:
                 pebble_data->flags[i].bits.visible = 0;
                 break;

@@ -33,15 +33,11 @@ extern int RpLightDestroy(RpLight* light);
 extern int RwTextureDestroy(RwTexture* texture);
 extern int RwRasterDestroy(RwRaster* raster);
 extern RwFrame* RwFrameCreate(void);
-extern RwCamera* RwCameraCreate(void);
-extern int RwCameraDestroy(RwCamera* camera);
 extern RwCamera* RwCameraGetWorld(RwCamera* camera);
 extern RwCamera* RpWorldAddCamera(RpWorld* world, RwCamera* camera);
 extern RwCamera* RpWorldRemoveCamera(RpWorld* world, RwCamera* camera);
 extern RwFrame* RwFrameTransform(RwFrame* frame, const RwMatrix* matrix, int combine);
 extern void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame);
-extern RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, float distance);
-extern RwCamera* RwCameraSetViewWindow(RwCamera* camera, const float* window);
 extern void RwGameCubeCameraTextureFlush(RwRaster* raster, int generate_mipmaps);
 extern RwImage* RwImageCreate(int width, int height, int depth);
 extern RwImage* RwImageAllocatePixels(RwImage* image);
@@ -50,9 +46,6 @@ extern int RwImageDestroy(RwImage* image);
 extern void create_fade_box(void);
 extern void CameraDestroy(RwCamera* camera);
 extern void destroy_shadow_system(void* item);
-extern int RwCameraBeginUpdate(RwCamera* camera);
-extern int RwCameraEndUpdate(RwCamera* camera);
-extern RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, float distance);
 extern void render_mkobj(MkObj* object);
 extern void render_transl_atomics(void);
 extern RpClump* RpClumpRender(RpClump* clump);
@@ -94,10 +87,6 @@ extern void mirror_guy(MkObj* mirror_object, MirrorObj* mirror_data,
                        FighterMirror* fighter);
 extern void plyr_turn_off_mirrorguy(PlyrInfo* player);
 extern void del_string_obj_by_id(int id);
-extern void RwCameraClear(RwCamera* camera, const unsigned char* color,
-                          int clear_mode);
-extern void RwCameraShowRaster(RwCamera* camera, void* device, int flags);
-
 static const char display_text[] =                                             \
     "/hostwrite/%03d.tga\0"                                                   \
     "Tick = %02d\0"                                                           \
@@ -209,14 +198,16 @@ void TakeCameraSnapShot(void) {
             frame = RwFrameCreate();
             if (frame != 0) {
                 camera = RwCameraCreate();
-                RwFrameTransform(frame, &Camera->frame->ltm, 0);
+                RwFrameTransform(
+                    frame,
+                    &((RwFrame*)Camera->object.object.parent)->ltm, 0);
                 if (camera != 0) {
                     camera->frameBuffer = raster;
                     camera->zBuffer = z_raster;
                     _rwObjectHasFrameSetFrame(camera, frame);
                     RwCameraSetNearClipPlane(camera, Camera->nearPlane);
                     RwCameraSetFarClipPlane(camera, Camera->farPlane);
-                    RwCameraSetViewWindow(camera, Camera->viewWindow);
+                    RwCameraSetViewWindow(camera, &Camera->viewWindow);
                     RpWorldAddCamera(World, camera);
                 } else {
                     RwFrameDestroy(frame);
@@ -246,7 +237,7 @@ void TakeCameraSnapShot(void) {
             GProfile_GCN_GxDrawDone();
             Camera = saved_camera;
         }
-        frame = camera->frame;
+        frame = (RwFrame*)camera->object.object.parent;
         if (frame != 0) {
             _rwObjectHasFrameSetFrame(camera, 0);
             RwFrameDestroy(frame);
@@ -332,14 +323,16 @@ static float _print_screen_to_tga(void) {
                 frame = RwFrameCreate();
                 if (frame != 0) {
                     camera = RwCameraCreate();
-                    RwFrameTransform(frame, &Camera->frame->ltm, 0);
+                    RwFrameTransform(
+                        frame,
+                        &((RwFrame*)Camera->object.object.parent)->ltm, 0);
                     if (camera != 0) {
                         camera->frameBuffer = raster;
                         camera->zBuffer = z_raster;
                         _rwObjectHasFrameSetFrame(camera, frame);
                         RwCameraSetNearClipPlane(camera, Camera->nearPlane);
                         RwCameraSetFarClipPlane(camera, Camera->farPlane);
-                        RwCameraSetViewWindow(camera, Camera->viewWindow);
+                        RwCameraSetViewWindow(camera, &Camera->viewWindow);
                         RpWorldAddCamera(World, camera);
                     } else {
                         RwFrameDestroy(frame);
@@ -369,7 +362,7 @@ static float _print_screen_to_tga(void) {
                 GProfile_GCN_GxDrawDone();
                 Camera = saved_camera;
             }
-            frame = camera->frame;
+            frame = (RwFrame*)camera->object.object.parent;
             if (frame != 0) {
                 _rwObjectHasFrameSetFrame(camera, 0);
                 RwFrameDestroy(frame);
@@ -495,13 +488,13 @@ void Render(void) {
     } else if (display_off != 0) {
         pfxsystem_frame_begin();
         if (Camera != 0) {
-            RwCameraClear(Camera, load_meter_bgnd_color, 7);
+            RwCameraClear(Camera, (RwRGBA*)load_meter_bgnd_color, 7);
             RwCameraBeginUpdate(Camera);
             RwCameraEndUpdate(Camera);
             RwCameraShowRaster(Camera, 0, 1);
         }
     } else {
-        RwFrameOrthoNormalize(Camera->frame);
+        RwFrameOrthoNormalize((RwFrame*)Camera->object.object.parent);
         force_rw_lights();
         if (reseed_rnd_tbl != 0) {
             reload_rnd_tbl();
@@ -556,9 +549,9 @@ void Render(void) {
         }
         GXSetAlphaUpdate(1);
         if (g_game_info.flags & 0x80) {
-            RwCameraClear(Camera, load_meter_bgnd_color, 7);
+            RwCameraClear(Camera, (RwRGBA*)load_meter_bgnd_color, 7);
         } else {
-            RwCameraClear(Camera, background_color, 7);
+            RwCameraClear(Camera, (RwRGBA*)background_color, 7);
         }
         GXSetAlphaUpdate(0);
         if (!(g_game_info.flags & 0x80) && g_game_info.sky != 0) {

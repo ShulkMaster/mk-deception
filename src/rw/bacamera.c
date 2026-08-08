@@ -1,133 +1,580 @@
-/* TODO: Missing implementation for retail unit bacamera.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/rwerror.h"
+#include "rw/rwfreelist.h"
+#include "rw/rwtypehf.h"
+#include "rw/rwvector.h"
 
-void *CameraUpdateZShiftScale(void)
+extern void _rwFrameSyncDirty(void);
+extern void _rwPipeInitForCamera(RwCamera* camera);
+extern RwMatrix* RwMatrixOptimize(RwMatrix* matrix, const void* tolerance);
+
+RwPluginRegistry cameraTKList = { sizeof(RwCamera), sizeof(RwCamera), 0, 0,
+                                  NULL, NULL };
+static RwFreeList _rwCameraFreeList;
+static RwInt32 _rwCameraFreeListBlockSize = 4;
+static RwInt32 _rwCameraFreeListPreallocBlocks = 1;
+static RwModuleInfo cameraModule;
+
+#define CAMERA_SET_CLOSEST(frustumPlane)                                  \
+    do {                                                                  \
+        /* Retail treats the float components as sign-bit words here. */  \
+        (frustumPlane)->closestX =                                        \
+            (RwUInt8)(((*(RwUInt32*)&(frustumPlane)->plane.normal.x) >>    \
+                       31) +                                              \
+                      1);                                                 \
+        (frustumPlane)->closestY =                                        \
+            (RwUInt8)(((*(RwUInt32*)&(frustumPlane)->plane.normal.y) >>    \
+                       31) +                                              \
+                      1);                                                 \
+        (frustumPlane)->closestZ =                                        \
+            (RwUInt8)(((*(RwUInt32*)&(frustumPlane)->plane.normal.z) >>    \
+                       31) +                                              \
+                      1);                                                 \
+    } while (0)
+
+#define CAMERA_BUILD_SIDE_PLANE(frustumPlane, point, first, origin, second) \
+    do {                                                                  \
+        RwV3d edgeA;                                                      \
+        RwV3d edgeB;                                                      \
+        RwReal invLength;                                                 \
+        edgeA.x = (first).x - (origin).x;                                 \
+        edgeA.y = (first).y - (origin).y;                                 \
+        edgeA.z = (first).z - (origin).z;                                 \
+        edgeB.x = (second).x - (origin).x;                                \
+        edgeB.y = (second).y - (origin).y;                                \
+        edgeB.z = (second).z - (origin).z;                                \
+        (frustumPlane)->plane.normal.x =                                  \
+            edgeA.y * edgeB.z - edgeA.z * edgeB.y;                        \
+        (frustumPlane)->plane.normal.y =                                  \
+            edgeA.z * edgeB.x - edgeA.x * edgeB.z;                        \
+        (frustumPlane)->plane.normal.z =                                  \
+            edgeA.x * edgeB.y - edgeA.y * edgeB.x;                        \
+        invLength = _rwInvSqrt(                                           \
+            (frustumPlane)->plane.normal.x *                              \
+                (frustumPlane)->plane.normal.x +                          \
+            (frustumPlane)->plane.normal.y *                              \
+                (frustumPlane)->plane.normal.y +                          \
+            (frustumPlane)->plane.normal.z *                              \
+                (frustumPlane)->plane.normal.z);                          \
+        (frustumPlane)->plane.normal.x *= invLength;                      \
+        (frustumPlane)->plane.normal.y *= invLength;                      \
+        (frustumPlane)->plane.normal.z *= invLength;                      \
+        (frustumPlane)->plane.distance =                                  \
+            (point).x * (frustumPlane)->plane.normal.x +                  \
+            (point).y * (frustumPlane)->plane.normal.y +                  \
+            (point).z * (frustumPlane)->plane.normal.z;                   \
+        CAMERA_SET_CLOSEST(frustumPlane);                                 \
+    } while (0)
+
+static void CameraUpdateZShiftScale(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwReal nearScreenZ = RwEngineInstance->zBufferNear;
+    RwReal farScreenZ = RwEngineInstance->zBufferFar;
+    RwReal nearPlane;
+    RwReal farPlane;
+    RwReal adjustment;
+    RwReal planeDifference;
+    RwReal zScale;
+    RwReal zShift;
+
+    if (camera->projectionType == rwPARALLEL) {
+        farPlane = camera->farPlane;
+        nearPlane = camera->nearPlane;
+    } else {
+        farPlane = 1.0f / camera->farPlane;
+        nearPlane = 1.0f / camera->nearPlane;
+    }
+
+    adjustment = 0.0001f * (farScreenZ - nearScreenZ);
+    farScreenZ -= adjustment;
+    nearScreenZ += adjustment;
+    planeDifference = farPlane - nearPlane;
+    zScale = (farScreenZ - nearScreenZ) / planeDifference;
+    camera->zScale = zScale;
+    zShift = 0.5f * -((zScale * (farPlane + nearPlane)) -
+                      (farScreenZ + nearScreenZ));
+    camera->zShift = zShift;
 }
 
-void *CameraBuildPerspClipPlanes(void)
+static void CameraBuildPerspClipPlanes(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
+    RwV3d* corners = camera->frustumCorners;
+    RwFrustumPlane* planes = camera->frustumPlanes;
+    RwV3d center;
+    RwV3d right;
+    RwV3d up;
+    RwUInt32 index;
+
+    center.x = ltm->right.x * -camera->viewOffset.x +
+               ltm->up.x * camera->viewOffset.y;
+    center.y = ltm->right.y * -camera->viewOffset.x +
+               ltm->up.y * camera->viewOffset.y;
+    center.z = ltm->right.z * -camera->viewOffset.x +
+               ltm->up.z * camera->viewOffset.y;
+
+    right.x = ltm->right.x * camera->viewWindow.x;
+    right.y = ltm->right.y * camera->viewWindow.x;
+    right.z = ltm->right.z * camera->viewWindow.x;
+    up.x = ltm->up.x * camera->viewWindow.y;
+    up.y = ltm->up.y * camera->viewWindow.y;
+    up.z = ltm->up.z * camera->viewWindow.y;
+
+    corners[0].x = ltm->at.x + right.x + up.x;
+    corners[0].y = ltm->at.y + right.y + up.y;
+    corners[0].z = ltm->at.z + right.z + up.z;
+    right.x *= 2.0f;
+    right.y *= 2.0f;
+    right.z *= 2.0f;
+    up.x *= 2.0f;
+    up.y *= 2.0f;
+    up.z *= 2.0f;
+    corners[1].x = corners[0].x - right.x;
+    corners[1].y = corners[0].y - right.y;
+    corners[1].z = corners[0].z - right.z;
+    corners[2].x = corners[1].x - up.x;
+    corners[2].y = corners[1].y - up.y;
+    corners[2].z = corners[1].z - up.z;
+    corners[3].x = corners[2].x + right.x;
+    corners[3].y = corners[2].y + right.y;
+    corners[3].z = corners[2].z + right.z;
+
+    for (index = 0; index < 4; index++) {
+        RwV3d direction;
+        RwV3d origin;
+
+        direction.x = corners[index].x - center.x;
+        direction.y = corners[index].y - center.y;
+        direction.z = corners[index].z - center.z;
+        origin.x = center.x + ltm->pos.x;
+        origin.y = center.y + ltm->pos.y;
+        origin.z = center.z + ltm->pos.z;
+        corners[index].x = origin.x + direction.x * camera->nearPlane;
+        corners[index].y = origin.y + direction.y * camera->nearPlane;
+        corners[index].z = origin.z + direction.z * camera->nearPlane;
+        corners[index + 4].x = origin.x + direction.x * camera->farPlane;
+        corners[index + 4].y = origin.y + direction.y * camera->farPlane;
+        corners[index + 4].z = origin.z + direction.z * camera->farPlane;
+    }
+
+    planes[0].plane.normal = ltm->at;
+    planes[0].plane.distance =
+        corners[4].x * planes[0].plane.normal.x +
+        corners[4].y * planes[0].plane.normal.y +
+        corners[4].z * planes[0].plane.normal.z;
+    CAMERA_SET_CLOSEST(&planes[0]);
+    planes[1].plane.normal.x = -planes[0].plane.normal.x;
+    planes[1].plane.normal.y = -planes[0].plane.normal.y;
+    planes[1].plane.normal.z = -planes[0].plane.normal.z;
+    planes[1].plane.distance =
+        corners[0].x * planes[1].plane.normal.x +
+        corners[0].y * planes[1].plane.normal.y +
+        corners[0].z * planes[1].plane.normal.z;
+    CAMERA_SET_CLOSEST(&planes[1]);
+
+    CAMERA_BUILD_SIDE_PLANE(&planes[2], corners[1], corners[1], corners[5],
+                            corners[6]);
+    CAMERA_BUILD_SIDE_PLANE(&planes[3], corners[1], corners[4], corners[5],
+                            corners[1]);
+    CAMERA_BUILD_SIDE_PLANE(&planes[4], corners[3], corners[3], corners[7],
+                            corners[4]);
+    CAMERA_BUILD_SIDE_PLANE(&planes[5], corners[3], corners[6], corners[7],
+                            corners[3]);
 }
 
-void *CameraBuildPerspViewMatrix(void)
+static RwCamera* CameraBuildPerspViewMatrix(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
+    RwMatrix* view = &camera->viewMatrix;
+    RwV3d vector;
+    RwReal scale;
+    RwReal offset;
+
+    scale = -0.5f * camera->recipViewWindow.x;
+    vector.x = ltm->right.x * scale;
+    vector.y = ltm->right.y * scale;
+    vector.z = ltm->right.z * scale;
+    offset = -(scale * camera->viewOffset.x - 0.5f);
+    vector.x += ltm->at.x * offset;
+    vector.y += ltm->at.y * offset;
+    vector.z += ltm->at.z * offset;
+    view->right.x = vector.x;
+    view->up.x = vector.y;
+    view->at.x = vector.z;
+    view->pos.x =
+        0.5f - (offset + ltm->pos.x * vector.x + ltm->pos.y * vector.y +
+                ltm->pos.z * vector.z);
+
+    scale = -0.5f * camera->recipViewWindow.y;
+    vector.x = ltm->up.x * scale;
+    vector.y = ltm->up.y * scale;
+    vector.z = ltm->up.z * scale;
+    offset = scale * camera->viewOffset.y + 0.5f;
+    vector.x += ltm->at.x * offset;
+    vector.y += ltm->at.y * offset;
+    vector.z += ltm->at.z * offset;
+    view->right.y = vector.x;
+    view->up.y = vector.y;
+    view->at.y = vector.z;
+    view->pos.y =
+        0.5f - (offset + ltm->pos.x * vector.x + ltm->pos.y * vector.y +
+                ltm->pos.z * vector.z);
+
+    view->right.z = ltm->at.x;
+    view->up.z = ltm->at.y;
+    view->at.z = ltm->at.z;
+    view->pos.z = -(ltm->pos.x * ltm->at.x + ltm->pos.y * ltm->at.y +
+                    ltm->pos.z * ltm->at.z);
+    RwMatrixOptimize(view, NULL);
+    return camera;
 }
 
-void *CameraBuildParallelClipPlanes(void)
+static void CameraBuildParallelClipPlanes(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
+    RwV3d* corners = camera->frustumCorners;
+    RwFrustumPlane* planes = camera->frustumPlanes;
+    RwReal nearX = (1.0f - camera->nearPlane) * -camera->viewOffset.x;
+    RwReal farX = (1.0f - camera->farPlane) * -camera->viewOffset.x;
+    RwReal nearY = (1.0f - camera->nearPlane) * camera->viewOffset.y;
+    RwReal farY = (1.0f - camera->farPlane) * camera->viewOffset.y;
+
+    corners[0].x = corners[2].x = camera->viewWindow.x + nearX;
+    corners[1].x = corners[3].x = -camera->viewWindow.x + nearX;
+    corners[4].x = corners[6].x = camera->viewWindow.x + farX;
+    corners[5].x = corners[7].x = -camera->viewWindow.x + farX;
+    corners[0].y = corners[1].y = camera->viewWindow.y + nearY;
+    corners[2].y = corners[3].y = -camera->viewWindow.y + nearY;
+    corners[4].y = corners[5].y = camera->viewWindow.y + farY;
+    corners[6].y = corners[7].y = -camera->viewWindow.y + farY;
+    corners[0].z = corners[1].z = corners[2].z = corners[3].z =
+        camera->nearPlane;
+    corners[4].z = corners[5].z = corners[6].z = corners[7].z =
+        camera->farPlane;
+    RwV3dTransformPoints(corners, corners, 8, ltm);
+
+    planes[0].plane.normal = ltm->at;
+    planes[0].plane.distance =
+        corners[4].x * planes[0].plane.normal.x +
+        corners[4].y * planes[0].plane.normal.y +
+        corners[4].z * planes[0].plane.normal.z;
+    CAMERA_SET_CLOSEST(&planes[0]);
+    planes[1].plane.normal.x = -planes[0].plane.normal.x;
+    planes[1].plane.normal.y = -planes[0].plane.normal.y;
+    planes[1].plane.normal.z = -planes[0].plane.normal.z;
+    planes[1].plane.distance =
+        corners[0].x * planes[1].plane.normal.x +
+        corners[0].y * planes[1].plane.normal.y +
+        corners[0].z * planes[1].plane.normal.z;
+    CAMERA_SET_CLOSEST(&planes[1]);
+
+    CAMERA_BUILD_SIDE_PLANE(&planes[2], corners[1], corners[1], corners[5],
+                            corners[6]);
+    CAMERA_BUILD_SIDE_PLANE(&planes[3], corners[1], corners[4], corners[5],
+                            corners[1]);
+    planes[4].plane.normal.x = -planes[2].plane.normal.x;
+    planes[4].plane.normal.y = -planes[2].plane.normal.y;
+    planes[4].plane.normal.z = -planes[2].plane.normal.z;
+    planes[4].plane.distance =
+        corners[3].x * planes[4].plane.normal.x +
+        corners[3].y * planes[4].plane.normal.y +
+        corners[3].z * planes[4].plane.normal.z;
+    CAMERA_SET_CLOSEST(&planes[4]);
+    planes[5].plane.normal.x = -planes[3].plane.normal.x;
+    planes[5].plane.normal.y = -planes[3].plane.normal.y;
+    planes[5].plane.normal.z = -planes[3].plane.normal.z;
+    planes[5].plane.distance =
+        corners[3].x * planes[5].plane.normal.x +
+        corners[3].y * planes[5].plane.normal.y +
+        corners[3].z * planes[5].plane.normal.z;
+    CAMERA_SET_CLOSEST(&planes[5]);
 }
 
-void *CameraBuildParallelViewMatrix(void)
+static RwCamera* CameraBuildParallelViewMatrix(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
+    RwMatrix* view = &camera->viewMatrix;
+    RwV3d vector;
+    RwReal scale;
+    RwReal offset;
+
+    scale = -0.5f * camera->recipViewWindow.x;
+    vector.x = ltm->right.x * scale;
+    vector.y = ltm->right.y * scale;
+    vector.z = ltm->right.z * scale;
+    offset = -(scale * camera->viewOffset.x);
+    vector.x += ltm->at.x * offset;
+    vector.y += ltm->at.y * offset;
+    vector.z += ltm->at.z * offset;
+    view->right.x = vector.x;
+    view->up.x = vector.y;
+    view->at.x = vector.z;
+    view->pos.x =
+        0.5f - (offset + ltm->pos.x * vector.x + ltm->pos.y * vector.y +
+                ltm->pos.z * vector.z);
+
+    scale = -0.5f * camera->recipViewWindow.y;
+    vector.x = ltm->up.x * scale;
+    vector.y = ltm->up.y * scale;
+    vector.z = ltm->up.z * scale;
+    offset = scale * camera->viewOffset.y;
+    vector.x += ltm->at.x * offset;
+    vector.y += ltm->at.y * offset;
+    vector.z += ltm->at.z * offset;
+    view->right.y = vector.x;
+    view->up.y = vector.y;
+    view->at.y = vector.z;
+    view->pos.y =
+        0.5f - (offset + ltm->pos.x * vector.x + ltm->pos.y * vector.y +
+                ltm->pos.z * vector.z);
+
+    view->right.z = ltm->at.x;
+    view->up.z = ltm->at.y;
+    view->at.z = ltm->at.z;
+    view->pos.z = -(ltm->pos.x * ltm->at.x + ltm->pos.y * ltm->at.y +
+                    ltm->pos.z * ltm->at.z);
+    RwMatrixOptimize(view, NULL);
+    return camera;
 }
 
-void *CameraSync(void)
+static RwObjectHasFrame* CameraSync(RwObjectHasFrame* object)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwCamera* camera = (RwCamera*)object;
+
+    if (camera->projectionType == rwPERSPECTIVE) {
+        CameraBuildPerspViewMatrix(camera);
+        CameraBuildPerspClipPlanes(camera);
+    } else {
+        CameraBuildParallelViewMatrix(camera);
+        CameraBuildParallelClipPlanes(camera);
+    }
+    RwBBoxCalculate(&camera->frustumBoundBox, camera->frustumCorners, 8);
+    return object;
 }
 
-void *CameraEndUpdate(void)
+static RwCamera* CameraEndUpdate(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwCameraDeviceCall endUpdate = RwEngineInstance->fpCameraEndUpdate;
+
+    if (endUpdate(NULL, camera, 0)) {
+        RwEngineInstance->curCamera = NULL;
+        return camera;
+    }
+    return NULL;
 }
 
-void *CameraBeginUpdate(void)
+static RwCamera* CameraBeginUpdate(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwCameraDeviceCall beginUpdate;
+
+    RwEngineInstance->curCamera = camera;
+    _rwFrameSyncDirty();
+    beginUpdate = RwEngineInstance->fpCameraBeginUpdate;
+    if (beginUpdate(NULL, camera, 0)) {
+        _rwPipeInitForCamera(camera);
+        return camera;
+    }
+    return NULL;
 }
 
-void *_rwCameraClose(void)
+void* _rwCameraClose(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (RWPLUGINOFFSET(RwFreeList*, RwEngineInstance,
+                       cameraModule.globalsOffset) != NULL) {
+        RwFreeListDestroy(RWPLUGINOFFSET(
+            RwFreeList*, RwEngineInstance, cameraModule.globalsOffset));
+        RWPLUGINOFFSET(RwFreeList*, RwEngineInstance,
+                       cameraModule.globalsOffset) = NULL;
+    }
+    cameraModule.numInstances--;
+    return instance;
 }
 
-void *_rwCameraOpen(void)
+void* _rwCameraOpen(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    cameraModule.globalsOffset = offset;
+    RWPLUGINOFFSET(RwFreeList*, RwEngineInstance, cameraModule.globalsOffset) =
+        RwFreeListCreateAndPreallocateSpace(
+            cameraTKList.sizeOfStruct, _rwCameraFreeListBlockSize, 4,
+            _rwCameraFreeListPreallocBlocks, &_rwCameraFreeList, 0x40005);
+    if (RWPLUGINOFFSET(RwFreeList*, RwEngineInstance,
+                       cameraModule.globalsOffset) == NULL) {
+        return NULL;
+    }
+    cameraModule.numInstances++;
+    return instance;
 }
 
-void *RwCameraEndUpdate(void)
+RwCamera* RwCameraEndUpdate(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwCamera* result = camera->endUpdate(camera);
+    return result;
 }
 
-void *RwCameraBeginUpdate(void)
+RwCamera* RwCameraBeginUpdate(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwCamera* result = camera->beginUpdate(camera);
+    return result;
 }
 
-void *RwCameraSetNearClipPlane(void)
+RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, RwReal nearClip)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwFrame* frame;
+
+    camera->nearPlane = nearClip;
+    CameraUpdateZShiftScale(camera);
+    frame = (RwFrame*)camera->object.object.parent;
+    if (frame != NULL) {
+        RwFrameUpdateObjects(frame);
+    }
+    return camera;
 }
 
-void *RwCameraSetFarClipPlane(void)
+RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, RwReal farClip)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwFrame* frame;
+
+    camera->farPlane = farClip;
+    CameraUpdateZShiftScale(camera);
+    frame = (RwFrame*)camera->object.object.parent;
+    if (frame != NULL) {
+        RwFrameUpdateObjects(frame);
+    }
+    return camera;
 }
 
-void *RwCameraFrustumTestSphere(void)
+/* The retail and clean loop bodies have the same operations, branches, and
+ * widths. Its reported 0% is a save-helper/alignment artifact: retail selects
+ * _savegpr_29 while this O0 source emits individual saves with a permutation
+ * of result/count registers. Declaration-order probes are emission-neutral. */
+RwFrustumTestResult RwCameraFrustumTestSphere(const RwCamera* camera,
+                                              const RwSphere* sphere)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwFrustumTestResult result = rwSPHEREINSIDE;
+    const RwFrustumPlane* plane = camera->frustumPlanes;
+    RwInt32 count = 6;
+
+    do {
+        RwReal distance;
+        if (count-- == 0) {
+            return result;
+        }
+        distance = sphere->center.x * plane->plane.normal.x +
+                   sphere->center.y * plane->plane.normal.y +
+                   sphere->center.z * plane->plane.normal.z -
+                   plane->plane.distance;
+        if (distance > sphere->radius) {
+            return rwSPHEREOUTSIDE;
+        }
+        if (distance > -sphere->radius) {
+            result = rwSPHEREBOUNDARY;
+        }
+        plane++;
+    } while (TRUE);
 }
 
-void *RwCameraClear(void)
+RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, RwInt32 clearMode)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwCameraClearCall clear = RwEngineInstance->fpCameraClear;
+
+    if (clear(camera, color, clearMode)) {
+        return camera;
+    }
+    return NULL;
 }
 
-void *RwCameraShowRaster(void)
+RwCamera* RwCameraShowRaster(RwCamera* camera, void* device, RwUInt32 flags)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (RwRasterShowRaster(camera->frameBuffer, device, flags) != NULL) {
+        return camera;
+    }
+    return NULL;
 }
 
-void *RwCameraSetProjection(void)
+RwCamera* RwCameraSetProjection(RwCamera* camera,
+                                RwCameraProjection projection)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (projection < 3) {
+        if (projection >= 1) {
+            RwFrame* frame;
+
+            camera->projectionType = projection;
+            frame = (RwFrame*)camera->object.object.parent;
+            if (frame != NULL) {
+                RwFrameUpdateObjects(frame);
+            }
+            CameraUpdateZShiftScale(camera);
+            return camera;
+        }
+    }
+    {
+        RwError error;
+        error.pluginID = 1;
+        error.errorCode =
+            _rwerror(0x80000003, "Invalid projection type specified");
+        RwErrorSet(&error);
+    }
+    return NULL;
 }
 
-void *RwCameraSetViewWindow(void)
+RwCamera* RwCameraSetViewWindow(RwCamera* camera,
+                                const RwV2d* viewWindow)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    camera->viewWindow = *viewWindow;
+    camera->recipViewWindow.x = 1.0f / camera->viewWindow.x;
+    camera->recipViewWindow.y = 1.0f / camera->viewWindow.y;
+    if (camera->object.object.parent != NULL) {
+        RwFrameUpdateObjects((RwFrame*)camera->object.object.parent);
+    }
+    return camera;
 }
 
-void *RwCameraRegisterPlugin(void)
+RwInt32 RwCameraRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+                              RwPluginObjectConstructor constructCB,
+                              RwPluginObjectDestructor destructCB,
+                              RwPluginObjectCopy copyCB)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 offset = _rwPluginRegistryAddPlugin(
+        &cameraTKList, size, pluginID, constructCB, destructCB, copyCB);
+    return offset;
 }
 
-void *RwCameraDestroy(void)
+RwBool RwCameraDestroy(RwCamera* camera)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    _rwPluginRegistryDeInitObject(&cameraTKList, camera);
+    _rwObjectHasFrameReleaseFrame(camera);
+    RwEngineInstance->fpFreeListFree(
+        RWPLUGINOFFSET(RwFreeList*, RwEngineInstance,
+                       cameraModule.globalsOffset),
+        camera);
+    return TRUE;
 }
 
-void *RwCameraCreate(void)
+RwCamera* RwCameraCreate(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwCamera* camera = RwEngineInstance->fpFreeListAlloc(
+        RWPLUGINOFFSET(RwFreeList*, RwEngineInstance,
+                       cameraModule.globalsOffset),
+        0x30005);
+
+    if (camera == NULL) {
+        return NULL;
+    }
+    rwObjectInitialize(camera, 4, 0);
+    camera->object.sync = CameraSync;
+    camera->beginUpdate = CameraBeginUpdate;
+    camera->endUpdate = CameraEndUpdate;
+    camera->viewWindow.y = camera->viewWindow.x = 1.0f;
+    camera->recipViewWindow.y = camera->recipViewWindow.x = 1.0f;
+    camera->viewOffset.y = camera->viewOffset.x = 0.0f;
+    camera->nearPlane = 0.05f;
+    camera->farPlane = 10.0f;
+    camera->fogPlane = 5.0f;
+    camera->frameBuffer = NULL;
+    camera->zBuffer = NULL;
+    camera->projectionType = rwPERSPECTIVE;
+    CameraUpdateZShiftScale(camera);
+    camera->viewMatrix.flags = 0;
+    _rwPluginRegistryInitObject(&cameraTKList, camera);
+    return camera;
 }

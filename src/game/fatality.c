@@ -608,7 +608,6 @@ void mkobj_get_matrix_right(MkObj* object, Vec* out);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
-void* RwCameraSetFarClipPlane(RwCamera* camera, float distance);
 float sqrtf(float value);
 static float p_subzero_ice_chunk(void);
 static float p_subzero_iceblock_alpha(void);

@@ -91,7 +91,6 @@ void render_pfx_clone(void* clone);
 void mkpfx_get_origin(PfxSortView* pfx, RwV3d* origin);
 RwMatrix* RwFrameGetLTM(RwFrame* frame);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
-int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere);
 
 static TranslSortNode transl_sort_nodes[250];
 static int in_batch;
