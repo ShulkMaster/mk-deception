@@ -782,12 +782,15 @@ int RwTexDictionaryDestroy(RwTexDictionary* dictionary) {
 RwTexDictionary* RwTexDictionaryForAllTextures(
     RwTexDictionary* dictionary,
     RwTexture* (*callback)(RwTexture*, void*), void* data) {
+    RwLLLink* next;
     RwLLLink* end = &dictionary->textures;
     RwLLLink* link = dictionary->textures.next;
 
     while (link != end) {
-        RwLLLink* next = link->next;
-        RwTexture* texture = (RwTexture*)((char*)link - 8);
+        RwTexture* texture;
+
+        next = link->next;
+        texture = (RwTexture*)((char*)link - 8);
         if (callback(texture, data) == 0) {
             break;
         }
