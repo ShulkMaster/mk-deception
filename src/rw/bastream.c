@@ -108,19 +108,22 @@ RwStream* _rwStreamInitialize(RwStream* stream, RwBool owned, RwStreamType type,
     return result;
 }
 
-/* Near miss: exact callback/memory/error CFG; stack and register allocation differ. */
+/* Near match: file/error behavior is exact; retail caches the anonymous
+ * memory-data member address, leaving a four-byte frame/code residue. */
 RwUInt32 RwStreamRead(RwStream* stream, void* buffer, RwUInt32 length)
 {
+    void* file;
+    RwUInt32 count;
+
     switch (stream->type) {
-    case rwSTREAMFILE: case rwSTREAMFILENAME: {
-        RwUInt32 count = RwEngineInstance->fileFuncs.rwfread(buffer, 1, length,
-            stream->data.file.file);
+    case rwSTREAMFILE: case rwSTREAMFILENAME:
+        file = stream->data.file.file;
+        count = RwEngineInstance->fileFuncs.rwfread(buffer, 1, length, file);
         if (count != length) {
-            if (RwEngineInstance->fileFuncs.rwfeof(stream->data.file.file)) STREAM_ERROR(5);
+            if (RwEngineInstance->fileFuncs.rwfeof(file)) STREAM_ERROR(5);
             else STREAM_ERROR(0x8000001A);
         }
         return count;
-    }
     case rwSTREAMMEMORY:
         if (length > stream->data.memory.length - stream->data.memory.position) {
             length = stream->data.memory.length - stream->data.memory.position;
