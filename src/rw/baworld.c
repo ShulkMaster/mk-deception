@@ -111,7 +111,8 @@ static RpWorld *WorldBuildMeshAtomicSector(RpWorld *world, RpBuildMesh *build,
 }
 
 void _rpWorldSectorDeinstanceAll(RpSector *sector) {
-    if (sector->type == -1) {
+    switch (sector->type) {
+    case -1: {
         RpWorldSector *atomic = (RpWorldSector *)sector;
         RwLLLink *link, *next;
         if (atomic->repEntry)
@@ -131,17 +132,24 @@ void _rpWorldSectorDeinstanceAll(RpSector *sector) {
             _rpMeshDestroy(atomic->mesh);
             atomic->mesh = NULL;
         }
-    } else if (sector->type != -2) {
+        return;
+    }
+    case -2:
+        return;
+    default: {
         RpPlaneSector *plane = (RpPlaneSector *)sector;
         if (plane->leftSubTree)
             _rpWorldSectorDeinstanceAll(plane->leftSubTree);
         if (plane->rightSubTree)
             _rpWorldSectorDeinstanceAll(plane->rightSubTree);
+        return;
+    }
     }
 }
 
 void _rpWorldSectorDestroyRecurse(RpSector *sector) {
-    if (sector->type == -1) {
+    switch (sector->type) {
+    case -1: {
         RpWorldSector *atomic = (RpWorldSector *)sector;
         RwInt32 i;
         RwLLLink *link, *next;
@@ -184,9 +192,12 @@ void _rpWorldSectorDestroyRecurse(RpSector *sector) {
             atomic->mesh = NULL;
         }
         RwEngineInstance->fpFree(atomic);
-    } else if (sector->type == -2) {
+        return;
+    }
+    case -2:
         RwEngineInstance->fpFree(sector);
-    } else {
+        return;
+    default: {
         RpPlaneSector *plane = (RpPlaneSector *)sector;
         if (plane->leftSubTree)
             _rpWorldSectorDestroyRecurse(plane->leftSubTree);
@@ -195,6 +206,8 @@ void _rpWorldSectorDestroyRecurse(RpSector *sector) {
             _rpWorldSectorDestroyRecurse(plane->rightSubTree);
         plane->rightSubTree = NULL;
         RwEngineInstance->fpFree(plane);
+        return;
+    }
     }
 }
 
@@ -231,7 +244,10 @@ RpWorldSector *_rpSectorDefaultRenderCallBack(RpWorldSector *sector) {
     if (!pipeline)
         pipeline = *(RxPipeline **)((RwUInt8 *)RwEngineInstance +
                                     _rxPipelineGlobalsOffset + 0x40);
-    return RxPipelineExecute(pipeline, sector, 1) ? sector : NULL;
+    if (RxPipelineExecute(pipeline, sector, 1) != NULL) {
+        return sector;
+    }
+    return NULL;
 }
 
 void _rpWorldRegisterWorld(RpWorld *world, RwInt32 size) {
