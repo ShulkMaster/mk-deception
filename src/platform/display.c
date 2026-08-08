@@ -62,7 +62,8 @@ extern void render_transl_atomics(void);
 extern void RpClumpRender(RpClump* clump);
 extern void update_fog_render_states(void);
 extern void init_debug_message_handler(void);
-extern int RwEngineInit(RwMemoryFunctions* functions, int arena_size);
+extern int RwEngineInit(RwMemoryFunctions* functions, unsigned int init_flags,
+                        unsigned int arena_size);
 extern int RwEngineOpen(void* parameters);
 extern void RwEngineTerm(void);
 extern int select_display_device(void);
@@ -737,8 +738,7 @@ void update_camera_facing_matrix(void) {
 
 int init_display(void) {
     int parameters;
-    setup_memory_functions();
-    if (!RwEngineInit(0, 0x48000)) {
+    if (!RwEngineInit(setup_memory_functions(), 0, 0x48000)) {
         return 0;
     }
     init_debug_message_handler();

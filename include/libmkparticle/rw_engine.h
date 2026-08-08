@@ -44,13 +44,24 @@ typedef RwBool (*RwImageFindRasterFormatCall)(RwRaster* raster,
                                               RwImage* image,
                                               RwInt32 rasterType);
 typedef int (*RwTextureRasterCall)(void* texture, void* raster, int flags);
-typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
-typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
+typedef struct RwFreeList RwFreeList;
+typedef void* (*RwFreeListAllocCall)(RwFreeList* freelist, unsigned int hint);
+typedef RwFreeList* (*RwFreeListFreeCall)(RwFreeList* freelist, void* entry);
 typedef void* (*RwMemoryAllocCall)(unsigned int size, unsigned int hint);
 typedef void* (*RwMemoryReallocCall)(void* memory, unsigned int size,
                                      unsigned int hint);
 typedef void* (*RwMemoryCallocCall)(unsigned int count, unsigned int size,
                                     unsigned int hint);
+typedef RwBool (*RwSystemFunc)(RwInt32 option, void* out, void* inOut,
+                               RwInt32 in);
+typedef RwBool (*RwStandardFunc)(void* out, void* inOut, RwInt32 in);
+typedef struct RwDevice {
+    RwReal gammaCorrection;
+    RwSystemFunc fpSystem;
+    RwReal zBufferNear;
+    RwReal zBufferFar;
+    RwStandardFunc standard[29];
+} RwDevice;
 #ifndef RW_MEMORY_FUNCTIONS_DEFINED
 #define RW_MEMORY_FUNCTIONS_DEFINED
 typedef struct RwMemoryFunctions {
@@ -82,7 +93,15 @@ typedef struct RwStringFunctions {
 
 /** Confirmed portion of the retail RenderWare engine dispatch table. */
 typedef struct RwGlobals {
-    char pad00[0x20];
+    void* curCamera; /* +0x00 */
+    void* curWorld; /* +0x04 */
+    RwUInt16 renderFrame; /* +0x08 */
+    RwUInt16 lightFrame; /* +0x0A */
+    RwUInt16 pad0C[2];
+    RwReal gammaCorrection; /* +0x10, first field of the open device */
+    RwSystemFunc fpSystem; /* +0x14 */
+    RwReal zBufferNear; /* +0x18 */
+    RwReal zBufferFar; /* +0x1C */
     int (*fpRenderStateSet)(int state, int value); /* +0x20 */
     void (*fpRenderStateGet)(int state, void* out); /* +0x24 */
     char pad28[0x30];
