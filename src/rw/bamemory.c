@@ -248,18 +248,19 @@ RwFreeList* _rwFreeListFreeReal(RwFreeList* freeList, void* entry)
     return NULL;
 }
 
-/* Near miss: exact unlink/reinsert and return units; scheduling differs. */
 RwInt32 RwFreeListPurge(RwFreeList* freeList)
 {
     RwInt32 freed = 0;
+    RwUInt32 heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
-    while (link != &freeList->blockList.link) {
-        RwFreeBlock* block = (RwFreeBlock*)link;
-        RwLLLink* next;
+    RwLLLink* next;
+    RwLLLink* head = &freeList->blockList.link;
+    while (link != head) {
+        RwUInt8* heap = ((RwFreeBlock*)link)->heap;
         rwLinkListRemoveLLLink(link);
         next = link->next;
-        if (FreeListBlockIsEmpty(block->heap, freeList->heapSize)) {
-            RwEngineInstance->fpFree(block);
+        if (FreeListBlockIsEmpty(heap, heapSize)) {
+            RwEngineInstance->fpFree(link);
             ++freed;
         } else {
             rwLinkListAddLLLink(&freeList->blockList, link);
