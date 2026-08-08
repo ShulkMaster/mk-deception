@@ -129,16 +129,19 @@ RwFreeList* RwFreeListCreateAndPreallocateSpace(
                           freeList, hint);
 }
 
-/* Near miss: exact teardown and ownership branches; register coloring differs. */
 static void _RwFreeListFree(RwFreeList* freeList)
 {
-    while (freeList->blockList.link.next != &freeList->blockList.link) {
-        RwLLLink* link = freeList->blockList.link.next;
+    RwLLLink* link = freeList->blockList.link.next;
+    RwLLLink* head = &freeList->blockList.link;
+
+    while (link != head) {
         rwLinkListRemoveLLLink(link);
         RwEngineInstance->fpFree(link);
+        link = freeList->blockList.link.next;
+        head = &freeList->blockList.link;
     }
     if (!(freeList->flags & 1)) {
-        if (freeList == _masterFreeListPtr || _masterFreeListPtr == NULL)
+        if (_masterFreeListPtr == freeList || _masterFreeListPtr == NULL)
             RwEngineInstance->fpFree(freeList);
         else
             RwEngineInstance->fpFreeListFree(_masterFreeListPtr, freeList);
