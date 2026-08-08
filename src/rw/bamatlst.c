@@ -8,6 +8,8 @@
 
 static RpMaterial **_rpMaterialListAlloc(RwInt32 size);
 
+/* Near miss: retail reuses r30 for the NULL value stored after destruction;
+ * clean C selects another zero-valued register. */
 RpMaterialList *_rpMaterialListDeinitialize(RpMaterialList *materialList)
 {
     RpMaterial **materials = materialList->materials;
@@ -53,6 +55,8 @@ RpMaterial *_rpMaterialListGetMaterial(const RpMaterialList *materialList,
     return materialList->materials[index];
 }
 
+/* Near miss: allocation size and returned pointer use different nonvolatile
+ * registers; calls, error handling, and stores are otherwise identical. */
 RpMaterialList *_rpMaterialListSetSize(RpMaterialList *materialList,
                                        RwInt32 size)
 {
@@ -132,6 +136,8 @@ RwInt32 _rpMaterialListFindMaterialIndex(const RpMaterialList *materialList,
     return index;
 }
 
+/* Near miss: retail normalizes two stream callback results through explicit
+ * zero/subtract pairs; clean typed comparisons emit equivalent tests. */
 RpMaterialList *_rpMaterialListStreamRead(RwStream *stream,
                                           RpMaterialList *materialList)
 {
