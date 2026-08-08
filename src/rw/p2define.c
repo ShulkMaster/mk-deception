@@ -401,6 +401,8 @@ static RxPipeline* PipelineUnlockTopSort(RxPipeline* pipeline)
     PipelineTopSortState state;
     RwUInt32 index;
 
+    state.pipeline = pipeline;
+    state.numSorted = 0;
     PipelineTallyInputs(pipeline);
     if (pipeline->nodes[pipeline->entryPoint].topSortData->numIns != 0) {
         RwError error;
@@ -419,12 +421,10 @@ static RxPipeline* PipelineUnlockTopSort(RxPipeline* pipeline)
             return NULL;
         }
     }
-    state.pipeline = pipeline;
-    state.numSorted = 0;
     PipelineTopSort(&state, pipeline->entryPoint);
     for (index = 0; index < pipeline->numNodes; index++) {
-        RxPipelineNodeTopSortData* data = pipeline->nodes[index].topSortData;
-        if (data->numIns != data->numInsVisited) {
+        if (pipeline->nodes[index].topSortData->numIns !=
+            pipeline->nodes[index].topSortData->numInsVisited) {
             RwError error;
             error.pluginID = 1;
             error.errorCode = _rwerror(0x1C);
