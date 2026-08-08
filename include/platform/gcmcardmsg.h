@@ -53,8 +53,13 @@ void mcard_msg_deleting_data(int device);
 void mcard_msg_create(int device);
 void mcard_msg_save(int device);
 
-/* NBC text ids for Slot A / Slot B (also used by gcmcard). */
-extern int gc_mc_default_name[2];
+/*
+ * NBC text ids for Slot A / Slot B (also used by gcmcard). Unsized on purpose:
+ * retail gcmcard.o reaches this .sdata array via far lis/addi/lwzx, which MWCC
+ * only emits for an incomplete extern array; a sized [2] decl lowers to @sda21.
+ * The defining TU (gcmcardmsg.c) completes the type and keeps its own @sda21.
+ */
+extern int gc_mc_default_name[];
 extern int msg_format_confirmation_answer;
 extern int msg_format_failed_answer;
 extern int mcard_msg_card_changed_at_format_answer;

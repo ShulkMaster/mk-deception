@@ -551,8 +551,11 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
             # B20 Wave C: Midway GC memcard facade (CARD*); card.a out
+            # -str pool,readonly: retail pools "" / "MKD" into @stringBase0 in
+            # .rodata (far lis/addi); plain -str reuse emits @sda21 loads.
             Object(NonMatching, "gcmcard.o", source="platform/gcmcard.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on",
+                                 "-str reuse,pool,readonly"]),
             Object(NonMatching, "gcmcardmsg.o", source="platform/gcmcardmsg.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "gcio.o", source="platform/gcio.c",

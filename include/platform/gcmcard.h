@@ -47,6 +47,8 @@ int bad_save_region_data_result_resolution(int* result, int device);
 extern int gc_seek_position;
 extern int force_insertions;
 extern int force_removals;
-extern int mcmasks[2];
+/* const: retail places mcmasks in .sdata2 (r2-relative); non-const lands in
+ * .sdata and flips the base register on every access. */
+extern const int mcmasks[2];
 
 #endif

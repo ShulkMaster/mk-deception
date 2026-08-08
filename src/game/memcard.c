@@ -584,15 +584,6 @@ void storage_status_change_calculations(int device) {
 int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* cardName,
     int nameLen, unsigned int* freeBlocks, int* freeBytes) {
-    (void)device;
-    (void)slot;
-    (void)arg;
-    (void)region;
-    (void)buffer;
-    (void)cardName;
-    (void)nameLen;
-    (void)freeBlocks;
-    (void)freeBytes;
     return 0;
 }
 
@@ -733,7 +724,6 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
     int resolved;
     int tries;
 
-    (void)title;
     if (region < 1 || region > 8) {
         return 0;
     }
@@ -803,7 +793,6 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
     int resolved;
     int tries;
 
-    (void)title;
     result = 4;
     resolved = 0;
     if (flag != 0) {
@@ -881,7 +870,6 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
     char* strs;
     MkVtableMkprocLocal* vtbl;
 
-    (void)title;
     dev = DEVICE_AT(device);
     deviceFreeBytes = &dev->freeBytes;
     deviceFreeBlocks = &dev->freeBlocks;
@@ -1028,7 +1016,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
 }
 #pragma dont_inline reset
 
-void insert_mu(int device) {
+void insert_mu(int device, int arg1, int arg2) {
     /* Soft ceiling: insert_mu ~98.13% - loop base/index coloring; stop. */
     StorageDevice* base;
     int i;
@@ -1053,7 +1041,7 @@ void insert_mu(int device) {
 }
 
 #pragma opt_common_subs off
-void remove_mu(int device) {
+void remove_mu(int device, int arg1, int arg2) {
     StorageDevice* storage;
 
     if (device < 0 || device >= STORAGE_MAX_DEVICES) {
