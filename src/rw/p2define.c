@@ -73,6 +73,8 @@ RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
             }
         }
         {
+            /* Retail materializes the invalid sentinel in r0; clean O0 C
+             * keeps this scoped value in one additional saved register. */
             RwUInt32 invalid = (RwUInt32)-1;
             if (next != invalid) {
                 count++;
