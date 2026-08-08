@@ -17,6 +17,7 @@ typedef struct RpMeshObjectHeader {
     RwUInt32 flags;
 } RpMeshObjectHeader;
 
+/* Retail carries this explicit zero in .sdata; clean MWCC declarations use .sbss. */
 static RwFreeList* MeshStatic = NULL;
 RwModuleInfo meshModule;
 
