@@ -233,6 +233,11 @@ static RwInt32 HAnimSize(const void* object, RwInt32 offset, RwInt32 size)
     if (frameExtension->nodeID == -1 && frameExtension->hierarchy == NULL) {
         streamData = FALSE;
     }
+    /*
+     * Retail copies streamData through a second nonvolatile register and uses
+     * the save/restore helpers; retaining that redundant alias would only
+     * force register lifetime and does not change the stream-size algorithm.
+     */
     if (streamData) {
         RwInt32 streamSize = 4;
         streamSize += 4;
