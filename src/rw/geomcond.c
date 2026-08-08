@@ -22,8 +22,8 @@ static RwUInt32 TypeGetSize(RwUInt32 type)
     case 3:
         return 3;
     case 4:
+        return 4;
     case 6:
-    case 10:
         return 4;
     case 7:
         return 8;
@@ -31,6 +31,8 @@ static RwUInt32 TypeGetSize(RwUInt32 type)
         return 12;
     case 9:
         return 16;
+    case 10:
+        return 4;
     default:
         return 0;
     }
@@ -49,8 +51,8 @@ static RwBool TypeCheckEqual(RwUInt32 type, const void* first,
                ((const RwUInt8*)first)[1] == ((const RwUInt8*)second)[1] &&
                ((const RwUInt8*)first)[2] == ((const RwUInt8*)second)[2];
     case 4:
+        return *(const RwUInt32*)first == *(const RwUInt32*)second;
     case 6:
-    case 10:
         return *(const RwUInt32*)first == *(const RwUInt32*)second;
     case 7:
         return ((const RwUInt32*)first)[0] == ((const RwUInt32*)second)[0] &&
@@ -64,6 +66,8 @@ static RwBool TypeCheckEqual(RwUInt32 type, const void* first,
                ((const RwUInt32*)first)[1] == ((const RwUInt32*)second)[1] &&
                ((const RwUInt32*)first)[2] == ((const RwUInt32*)second)[2] &&
                ((const RwUInt32*)first)[3] == ((const RwUInt32*)second)[3];
+    case 10:
+        return *(const RwUInt32*)first == *(const RwUInt32*)second;
     default:
         return FALSE;
     }
@@ -98,13 +102,12 @@ RwUInt16** IndexDataCreateRemapped(const GeomCondMap* maps,
                                    RwUInt32 numArrays, RwUInt32 numIndices)
 {
     RwUInt16** output;
+    RwUInt32 size = numArrays * sizeof(*output) +
+                    numArrays * (numIndices * sizeof(**output));
     RwUInt32 offset;
     RwUInt32 index;
 
-    output = RwEngineInstance->fpMalloc(
-        numArrays * sizeof(*output) +
-            numArrays * numIndices * sizeof(**output),
-        0x3050D);
+    output = RwEngineInstance->fpMalloc(size, 0x3050D);
     if (output == NULL)
         return NULL;
 
