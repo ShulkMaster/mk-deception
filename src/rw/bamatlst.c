@@ -8,8 +8,6 @@
 
 static RpMaterial **_rpMaterialListAlloc(RwInt32 size);
 
-/* Near miss: retail reuses r30 for the NULL value stored after destruction;
- * clean C selects another zero-valued register. */
 RpMaterialList *_rpMaterialListDeinitialize(RpMaterialList *materialList)
 {
     RpMaterial **materials = materialList->materials;
@@ -23,7 +21,8 @@ RpMaterialList *_rpMaterialListDeinitialize(RpMaterialList *materialList)
             materials[index] = NULL;
         }
         RwEngineInstance->fpFree(materials);
-        materialList->materials = NULL;
+        materials = NULL;
+        materialList->materials = materials;
     }
     materialList->numMaterials = 0;
     materialList->space = 0;
