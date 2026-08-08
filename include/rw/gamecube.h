@@ -5,6 +5,7 @@
 
 typedef struct RpSkin RpSkin;
 typedef struct RwResEntry RwResEntry;
+typedef void (*RwDlObjectRenderCallBack)(void);
 
 typedef struct RwGameCubeVtxFmt {
     RwUInt32 reserved_0x00;
@@ -47,6 +48,10 @@ void RwGameCubeTextureSetLOD(RwTexture* texture, int field_0x0C,
 RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
 void _rwDlTextureSet(RwTexture* texture, int mapid);
 void _rwDlTextureRasterFlush(void);
+RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
+                                                 RwUInt32 lightMask,
+                                                 RwUInt32 textureMode,
+                                                 RwBool useAmbient);
 RpGameCubeVtxFmt* _rpGameCubeVtxFmtGetDefault(void);
 RwBool _rpDlVtxFmtPluginAttach(void);
 void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, RwUInt32 type,

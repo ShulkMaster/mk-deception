@@ -6,6 +6,7 @@
  * extension is represented by a typed retail-layout view.
  */
 #include "rw/rpworld_types.h"
+#include "rw/gamecube.h"
 #include "rw/rtquat.h"
 #include "math/gxMath.h"
 #include "runtime/mk_plugins.h"
@@ -214,7 +215,6 @@ void RpMatFXMaterialGetUVTransformMatrices(
 
 void _rwDlVtxFmtSetup(void*, SpecResourceEntry*);
 void _rwDlTransformSetup(const RwMatrix*, int);
-void _rwDlObjectRenderSetup(unsigned int, unsigned int, unsigned int, int);
 void _rwDlTextureSet(RwTexture*, int);
 void _rwDlRenderStateSetZCompLoc(int);
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
