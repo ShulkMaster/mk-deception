@@ -22,10 +22,8 @@ RwBool _rwPluginRegistryOpen(void) {
     return TRUE;
 }
 
-/* Soft ceiling: only callback-argument stack homing and register allocation differ. */
 static void rwDestroyEntry(void* memory, void* data) {
     RwPluginRegEntry* entry = memory;
-    RwFreeList* freeList = data;
 
     if (entry->parentRegistry->firstRegEntry != NULL) {
         entry->parentRegistry->sizeOfStruct =
@@ -33,10 +31,12 @@ static void rwDestroyEntry(void* memory, void* data) {
         entry->parentRegistry->firstRegEntry = NULL;
         entry->parentRegistry->lastRegEntry = NULL;
     }
-    RwEngineInstance->fpFreeListFree(freeList, entry);
+    RwEngineInstance->fpFreeListFree(data, entry);
 }
 
-/* Soft ceiling: only local lifetimes and nonvolatile-register allocation differ. */
+/* Near match: ownership and teardown order are exact. Retail colors the
+ * entry/parent/next traversal across r30/r31/r28, while this emission uses
+ * r30/r28/r27 and therefore a different save set and eight extra bytes. */
 RwBool _rwPluginRegistryClose(void) {
     if (toolkitRegEntries != NULL) {
         RwFreeListForAllUsed(toolkitRegEntries, rwDestroyEntry,
@@ -98,7 +98,6 @@ RwInt32 _rwPluginRegistryGetPluginOffset(const RwPluginRegistry* registry,
     return -1;
 }
 
-/* Soft ceiling: only register allocation and instruction scheduling differ. */
 RwInt32 _rwPluginRegistryAddPlugin(
     RwPluginRegistry* registry, RwInt32 size, RwUInt32 pluginID,
     RwPluginObjectConstructor constructCB,
