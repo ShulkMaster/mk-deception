@@ -408,8 +408,8 @@ static void PipelineTopSort(PipelineTopSortState* state, RwUInt32 nodeIndex)
     }
 }
 
-static RwInt32 PipelineNode2Index(const RxPipeline* pipeline,
-                                 const RxPipelineNode* node)
+static RwUInt32 PipelineNode2Index(const RxPipeline* pipeline,
+                                  const RxPipelineNode* node)
 {
     /* Retail uses signed divw; MWCC strength-reduces this clean constant form. */
     RwInt32 index =
@@ -820,11 +820,15 @@ RxPipeline* RxLockedPipeAddPath(RxLockedPipe* pipeline, RxNodeOutput output,
 {
     if (pipeline != NULL && pipeline->locked && output != NULL &&
         *output == (RwUInt32)-1 && input != NULL && input->nodeDef != NULL) {
-        RwInt32 inputIndex = PipelineNode2Index(pipeline, input);
-        if (inputIndex != -1) {
+        RwUInt32 inputIndex = PipelineNode2Index(pipeline, input);
+        if (inputIndex != (RwUInt32)-1) {
             *output = inputIndex;
             return pipeline;
         }
     }
+    /*
+     * Retail recomputes and discards the input-node and disconnected-output
+     * predicates on this failure path, consistent with stripped assertions.
+     */
     return NULL;
 }
