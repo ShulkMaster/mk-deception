@@ -6,6 +6,9 @@
 
 typedef struct RpMTEffect RpMTEffect;
 typedef struct RpMTEffectDict RpMTEffectDict;
+typedef struct RpMaterial RpMaterial;
+typedef struct RpMultiTexture RpMultiTexture;
+typedef struct RpMultiTextureRegEntry RpMultiTextureRegEntry;
 
 typedef RpMTEffect* (*RpMTEffectStreamReadCallBack)(RwStream* stream,
                                                     RwInt32 type,
@@ -26,6 +29,22 @@ struct RpMTEffect {
 struct RpMTEffectDict {
     RwLinkList effects;
     RwLLLink globalLink;
+};
+
+struct RpMultiTextureRegEntry {
+    RwInt32 platform;
+    RwUInt32 pluginID;
+    RwInt32 materialOffset;
+    RwInt32 platformDataSize;
+};
+
+struct RpMultiTexture {
+    RpMultiTextureRegEntry* registration;
+    RwUInt32 numTextures;
+    RwTexture* textures[8];
+    RwUInt8 texCoords[8];
+    RpMTEffect* effect;
+    void* platformData;
 };
 
 RwBool _rpMTEffectSystemInit(void);
@@ -50,5 +69,24 @@ RpMTEffect* RpMTEffectStreamRead(RwStream* stream);
 RpMTEffect* RpMTEffectFind(const RwChar* name);
 RpMTEffect* RpMTEffectSetName(RpMTEffect* effect, const RwChar* name);
 void RpMTEffectAddRef(RpMTEffect* effect);
+
+RwBool _rpMultiTexturePluginAttach(void);
+RwBool _rpMaterialRegisterMultiTexturePlugin(RwInt32 platform,
+                                             RwUInt32 pluginID,
+                                             RwInt32 platformDataSize);
+RpMultiTexture* RpMultiTextureSetEffect(RpMultiTexture* multiTexture,
+                                        RpMTEffect* effect);
+RpMTEffect* RpMultiTextureGetEffect(const RpMultiTexture* multiTexture);
+RpMultiTexture* RpMultiTextureSetTexture(RpMultiTexture* multiTexture,
+                                         RwUInt32 index,
+                                         RwTexture* texture);
+RwTexture* RpMultiTextureGetTexture(const RpMultiTexture* multiTexture,
+                                    RwUInt32 index);
+void RpMultiTextureSetCoords(RpMultiTexture* multiTexture, RwUInt32 index,
+                             RwUInt8 coords);
+RwUInt8 RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
+                                RwUInt32 index);
+RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
+                                          RwInt32 platform);
 
 #endif
