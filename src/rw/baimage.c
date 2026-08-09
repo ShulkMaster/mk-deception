@@ -147,6 +147,11 @@ static void *ImageGetScratchMem(RwInt32 size) {
   return IMAGEGLOBALS->scratchMemory;
 }
 
+/*
+ * The 30-instruction retail/current bodies are operationally identical. MWCC
+ * inserts byte-normalizing clrlwi instructions after the clean typed loads;
+ * no narrower honest source type removes them.
+ */
 void _rwImageGammaCorrectArrayOfRGBA(RwRGBA *out, const RwRGBA *in,
                                      RwInt32 count) {
   const RwUInt8 *table = IMAGEGLOBALS->gammaTable;
@@ -183,6 +188,10 @@ RwBool RwImageDestroy(RwImage *image) {
   return TRUE;
 }
 
+/*
+ * Allocation, ownership, sizes, hints, and failure CFG match retail. The
+ * remaining diff is nonvolatile coloring and its frame/save-range selection.
+ */
 RwImage *RwImageAllocatePixels(RwImage *image) {
   RwUInt32 depth = image->depth;
   RwBool paletted = TRUE;
@@ -348,38 +357,56 @@ RwImage *RwImageApplyMask(RwImage *image, const RwImage *mask) {
   return image;
 }
 
+/*
+ * Retail calls vecStrchr(pathElement, ';') twice and discards the first result.
+ * The clean source keeps the single meaningful call; the remaining diff is
+ * that dead seven-instruction call sequence and its register-coloring cascade.
+ */
 static RwChar *ImagePathForAllFullNames(const RwChar *name, RwInt32 extra,
                                         ImagePathCallBack callback,
                                         void *data) {
-  const RwChar *path = IMAGEGLOBALS->imagePath;
-  RwInt32 nameLength = RwEngineInstance->stringFuncs.vecStrlen(name);
-  if (_rwpathisabsolute(name) || !path || !*path) {
-    RwChar *full = ImageGetScratchMem(extra + nameLength);
-    if (!full)
+  RwInt32 pathSize;
+  RwChar *fullName;
+  const RwChar *pathElement;
+
+  pathElement = IMAGEGLOBALS->imagePath;
+  if (_rwpathisabsolute(name) || pathElement == NULL || pathElement[0] == '\0') {
+    pathSize = RwEngineInstance->stringFuncs.vecStrlen(name) + extra;
+    fullName = ImageGetScratchMem(pathSize);
+    if (fullName == NULL)
       return NULL;
-    RwEngineInstance->stringFuncs.vecStrcpy(full, name);
-    callback(full, data);
-    return (RwChar *)name;
+    RwEngineInstance->stringFuncs.vecStrcpy(fullName, name);
+    callback(fullName, data);
+  } else {
+    while (pathElement != NULL && pathElement[0] != '\0') {
+      const RwChar *nextPathElement =
+          RwEngineInstance->stringFuncs.vecStrchr(pathElement, ';');
+      RwInt32 pathElementLength;
+
+      if (nextPathElement != NULL) {
+        pathElementLength = nextPathElement - pathElement;
+        nextPathElement++;
+      } else {
+        pathElementLength =
+            RwEngineInstance->stringFuncs.vecStrlen(pathElement);
+      }
+
+      pathSize = pathElementLength +
+                 RwEngineInstance->stringFuncs.vecStrlen(name) + extra;
+      fullName = ImageGetScratchMem(pathSize);
+      if (fullName == NULL)
+        return NULL;
+
+      memcpy(fullName, pathElement, pathElementLength);
+      RwEngineInstance->stringFuncs.vecStrcpy(fullName + pathElementLength,
+                                              name);
+      if (callback(fullName, data) == NULL)
+        return (RwChar *)name;
+
+      pathElement = nextPathElement;
+    }
   }
-  while (path && *path) {
-    const RwChar *end;
-    RwInt32 pathLength;
-    RwChar *full;
-    end = RwEngineInstance->stringFuncs.vecStrchr(path, ';');
-    if (end) {
-      pathLength = end - path;
-      end++;
-    } else
-      pathLength = RwEngineInstance->stringFuncs.vecStrlen(path);
-    full = ImageGetScratchMem(pathLength + nameLength + extra);
-    if (!full)
-      return NULL;
-    memcpy(full, path, pathLength);
-    RwEngineInstance->stringFuncs.vecStrcpy(full + pathLength, name);
-    if (!callback(full, data))
-      return (RwChar *)name;
-    path = end;
-  }
+
   return (RwChar *)name;
 }
 
@@ -511,6 +538,10 @@ RwRGBA *RwRGBASetFromPixel(RwRGBA *color, RwUInt32 pixel, RwInt32 format) {
   return color;
 }
 
+/*
+ * Retail and current have identical copy/palette CFG and accesses; only the
+ * source/destination nonvolatile coloring and corresponding frame differ.
+ */
 static RwBool ImageStraightCopy(RwImage *destination, const RwImage *source) {
   RwInt32 rowSize;
   RwUInt8 *src;
@@ -534,6 +565,7 @@ static RwBool ImageConvertDepth(RwImage *destination, const RwImage *source) {
   RwInt32 width = destination->width;
   RwInt32 height = destination->height;
   RwInt32 x, y;
+  const RwRGBA *palette = (const RwRGBA *)source->palette;
   RwUInt8 *src = source->pixels;
   RwUInt8 *dst = destination->pixels;
   RwInt32 conversion = (source->depth << 8) | destination->depth;
@@ -554,13 +586,18 @@ static RwBool ImageConvertDepth(RwImage *destination, const RwImage *source) {
   case 0x420:
   case 0x820:
     for (y = 0; y < height; y++) {
+      RwRGBA *dstPixel = (RwRGBA *)dst;
+
       for (x = 0; x < width; x++)
-        ((RwRGBA *)dst)[x] = ((RwRGBA *)source->palette)[src[x]];
+        dstPixel[x] = palette[src[x]];
       src += source->stride;
       dst += destination->stride;
     }
     result = TRUE;
     break;
+  case 0x804:
+  case 0x2004:
+  case 0x2008:
   default: {
     RwError error;
     error.pluginID = 1;
