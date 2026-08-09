@@ -315,20 +315,23 @@ static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
   return 0;
 }
 
+/* Retail lowers the signed -1 I/O lookup sentinel through an unsigned two-step
+ * compare. Clean typed C emits cmpwi; the remaining differences are that one
+ * instruction and equivalent pipeline/output-entry register coloring. */
 static RwUInt32 _ForAllNodeReqsAddOutputClustersAndBuildContinuityBitfields(
     RxPipeline *pipeline) {
-  RxPipelineNode *node = pipeline->nodes;
   RwUInt32 nodesRemaining = pipeline->numNodes;
+  RxPipelineNode *node = pipeline->nodes;
+  RwUInt32 remaining;
 
-  while (nodesRemaining != 0) {
+  do {
     RxIoSpec *io = &node->nodeDef->io;
     RwUInt32 index;
 
     for (index = 0; index < io->numClustersOfInterest; index++) {
-      RxClusterRef *cluster = &io->clustersOfInterest[index];
-
-      if (cluster->forcePresent != 0 &&
-          _ReqAddEntry(node->topSortData->req, cluster->clusterDef,
+      if (io->clustersOfInterest[index].forcePresent != 0 &&
+          _ReqAddEntry(node->topSortData->req,
+                       io->clustersOfInterest[index].clusterDef,
                        rxCLREQ_DONTWANT, 1, node) == NULL) {
         RwError error;
         error.pluginID = 1;
@@ -339,11 +342,10 @@ static RwUInt32 _ForAllNodeReqsAddOutputClustersAndBuildContinuityBitfields(
     }
 
     for (index = 0; index < node->numOutputs; index++) {
-      RwUInt32 outputNodeIndex = node->outputs[index];
-
-      if (outputNodeIndex + 0x10000U != (RwUInt32)-1) {
-        RxPipelineNode *outputNode = &pipeline->nodes[outputNodeIndex];
-        RxOutputSpec *outputSpec = &io->outputs[index];
+      if (node->outputs[index] != (RwUInt32)-1) {
+        RxPipelineNode *outputNode =
+            &pipeline->nodes[node->outputs[index]];
+        RxOutputSpec *outputSpec = &node->nodeDef->io.outputs[index];
         RwUInt32 entryIndex;
 
         for (entryIndex = 0;
@@ -384,8 +386,8 @@ static RwUInt32 _ForAllNodeReqsAddOutputClustersAndBuildContinuityBitfields(
       }
     }
     node++;
-    nodesRemaining--;
-  }
+    remaining = --nodesRemaining;
+  } while (remaining != 0);
   return 0;
 }
 

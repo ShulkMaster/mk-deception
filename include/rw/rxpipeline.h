@@ -126,7 +126,7 @@ struct RxOutputSpec {
 
 struct RxClusterRef {
     RxClusterDefinition* clusterDef;
-    RwUInt32 forcePresent;
+    RwBool forcePresent;
     RwUInt32 reserved;
 };
 
