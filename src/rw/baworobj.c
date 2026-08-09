@@ -48,10 +48,24 @@
 #define RWRETURN(value) return (value)
 #define RWRETURNVOID() return
 #define RWSTRING(value) value
-#define RWERROR(args) _rwerror args
+#define RWERROR(args)                  \
+    do {                               \
+        RwError error;                 \
+        error.pluginID = 2;            \
+        error.errorCode = _rwerror args; \
+        RwErrorSet(&error);            \
+    } while (0)
 #define __RWUNUSED__
 #define __RWUNUSEDRELEASE__
 #define RWSRCGLOBAL(var) (RwEngineInstance->var)
+#define RwMalloc(size, hint) (RwEngineInstance->fpMalloc((size), (hint)))
+#define RwRealloc(memory, size, hint) \
+    (RwEngineInstance->fpRealloc((memory), (size), (hint)))
+#define RwFree(memory) (RwEngineInstance->fpFree((memory)))
+#define RwFreeListAlloc(list, hint) \
+    (RwEngineInstance->fpFreeListAlloc((list), (hint)))
+#define RwFreeListFree(list, entry) \
+    (RwEngineInstance->fpFreeListFree((list), (entry)))
 #define rwLinkListGetFirstLLLink(list) ((list)->link.next)
 #define rwLinkListGetTerminator(list) (&(list)->link)
 #define rwLLLinkGetNext(link) ((link)->next)
@@ -60,6 +74,8 @@
 #define RwCameraGetFrame(camera) ((RwFrame*)(camera)->object.object.parent)
 #define RpAtomicGetFrame(atomic) ((RwFrame*)(atomic)->object.parent)
 #define RpClumpGetFrame(clump) ((RwFrame*)(clump)->object.parent)
+#define GETCOORD(vector, axis) \
+    (*(RwReal*)(((RwUInt8*)&((vector).x)) + (RwInt32)(axis)))
 
 enum {
     rwMEMHINTDUR_EVENT = 0x00030000,
