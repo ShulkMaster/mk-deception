@@ -116,24 +116,34 @@ static RpMatFXMaterialData* MatFXMaterialDataClean(RpMatFXMaterialData* data)
     RwUInt8 i;
     for (i = 0; i < 2; i++) {
         switch (data->slot[i].type) {
-        case rpMATFXEFFECTBUMPMAP:
-            if (data->slot[i].data.bump.texture)
-                RwTextureDestroy(data->slot[i].data.bump.texture);
-            if (data->slot[i].data.bump.bumped_texture)
-                RwTextureDestroy(data->slot[i].data.bump.bumped_texture);
+        case rpMATFXEFFECTBUMPMAP: {
+            RpMatFXBumpMapData* bump = &data->slot[i].data.bump;
+            if (bump->texture)
+                RwTextureDestroy(bump->texture);
+            if (bump->bumped_texture)
+                RwTextureDestroy(bump->bumped_texture);
             break;
-        case rpMATFXEFFECTENVMAP:
-            if (data->slot[i].data.env.texture)
-                RwTextureDestroy(data->slot[i].data.env.texture);
+        }
+        case rpMATFXEFFECTENVMAP: {
+            RpMatFXEnvMapData* env = &data->slot[i].data.env;
+            if (env->texture)
+                RwTextureDestroy(env->texture);
             break;
-        case rpMATFXEFFECTDUAL:
-            if (data->slot[i].data.dual.texture)
-                RwTextureDestroy(data->slot[i].data.dual.texture);
+        }
+        case rpMATFXEFFECTDUAL: {
+            RpMatFXDualData* dual = &data->slot[i].data.dual;
+            if (dual->texture)
+                RwTextureDestroy(dual->texture);
             break;
-        case rpMATFXEFFECTUVTRANSFORM:
-            data->slot[i].data.uv.baseTransform = NULL;
-            data->slot[i].data.uv.dualTransform = NULL;
+        }
+        case rpMATFXEFFECTUVTRANSFORM: {
+            RpMatFXUVTransformData* uv = &data->slot[i].data.uv;
+            uv->baseTransform = NULL;
+            uv->dualTransform = NULL;
             break;
+        }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
