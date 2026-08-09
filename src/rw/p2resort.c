@@ -6,6 +6,27 @@ typedef struct RxSortPartition {
     RwUInt32 bit;
 } RxSortPartition;
 
+#define SWAPVIATYPE(type)                                                     \
+    {                                                                         \
+        while (remaining >= sizeof(type)) {                                   \
+            type firstValue = *(type *)firstWord,                             \
+                 secondValue = *(type *)secondWord;                           \
+            *(type *)secondWord = firstValue;                                 \
+            *(type *)firstWord = secondValue;                                 \
+            firstWord += sizeof(type);                                        \
+            secondWord += sizeof(type);                                       \
+            remaining -= sizeof(type);                                        \
+        }                                                                     \
+    }
+
+#define SWAP(left, right, size)                                                \
+    {                                                                         \
+        RwUInt8 *firstWord = (RwUInt8 *)(left);                               \
+        RwUInt8 *secondWord = (RwUInt8 *)(right);                             \
+        RwUInt32 remaining = (size);                                           \
+        SWAPVIATYPE(RwUInt32);                                                 \
+    }
+
 static RwInt32 _msbitpos(RwUInt32 value) {
     RwInt32 position;
 
@@ -48,7 +69,7 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
             originalFirst = first;
             originalLast = last;
 
-            while (first <= last) {
+                while (first <= last) {
                 while (first <= last &&
                        (bit & *(RwUInt32*)(first + keyOffset)) == 0) {
                     first += entrySize;
@@ -58,18 +79,7 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
                     last -= entrySize;
                 }
                 if (first <= last) {
-                    RwUInt8* firstWord = first;
-                    RwUInt8* secondWord = last;
-                    RwUInt32 remaining = entrySize;
-                    while (remaining >= 4) {
-                        RwUInt32 firstValue = *(RwUInt32*)firstWord;
-                        RwUInt32 secondValue = *(RwUInt32*)secondWord;
-                        *(RwUInt32*)secondWord = firstValue;
-                        *(RwUInt32*)firstWord = secondValue;
-                        firstWord += 4;
-                        secondWord += 4;
-                        remaining -= 4;
-                    }
+                    SWAP(first, last, entrySize);
                     first += entrySize;
                     last -= entrySize;
                 }
@@ -97,44 +107,21 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
     }
 }
 
-/* Algorithm recovered: retail mutates the base argument, caches one key per
- * outer iteration, and swaps only complete words. Boolean lowering, the
- * save-register range, and a dead byte-counter copy remain unresolved. */
+/*
+ * The canonical RenderWare swap macro and loop structure recover the complete
+ * body. The remaining residue is MWCC's unsigned-comparison materialization
+ * (subfc/subfe/neg in retail versus an equivalent clean-C sequence), one dead
+ * macro cursor copy, and the resulting nonvolatile coloring.
+ */
 static void _insertionsort(RwUInt8* base, RwUInt32 numEntries,
                            RwUInt32 entrySize, RwUInt32 keyOffset) {
-    for (;;) {
-        base += entrySize;
-        numEntries -= 1;
-        if (numEntries == 0) {
-            break;
-        }
-        {
-            RwUInt32 currentKey = *(RwUInt32*)(base + keyOffset);
-            RwUInt8* previous = base;
+    while (base += entrySize, --numEntries) {
+        RwUInt32 currentKey = *(RwUInt32*)(base + keyOffset);
+        RwUInt8* previous = base;
 
-            for (;;) {
-                RwBool moveRecord;
-                previous -= entrySize;
-                moveRecord =
-                    *(RwUInt32*)(previous + keyOffset) > currentKey;
-                if (moveRecord == FALSE) {
-                    break;
-                }
-                {
-                    RwUInt8* firstWord = previous;
-                    RwUInt8* secondWord = previous + entrySize;
-                    RwUInt32 remaining = entrySize;
-                    while (remaining >= 4) {
-                        RwUInt32 firstValue = *(RwUInt32*)firstWord;
-                        RwUInt32 secondValue = *(RwUInt32*)secondWord;
-                        *(RwUInt32*)secondWord = firstValue;
-                        *(RwUInt32*)firstWord = secondValue;
-                        firstWord += 4;
-                        secondWord += 4;
-                        remaining -= 4;
-                    }
-                }
-            }
+        while (previous -= entrySize,
+               *(RwUInt32*)(previous + keyOffset) > currentKey) {
+            SWAP(previous, previous + entrySize, entrySize);
         }
     }
 }
@@ -181,18 +168,7 @@ void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,
         } while (index-- != 0);
 
         if (minimumIndex != 0) {
-            RwUInt8* firstWord = base;
-            RwUInt8* secondWord = base + minimumIndex * entrySize;
-            RwUInt32 remaining = entrySize;
-            while (remaining >= 4) {
-                RwUInt32 firstValue = *(RwUInt32*)firstWord;
-                RwUInt32 secondValue = *(RwUInt32*)secondWord;
-                *(RwUInt32*)secondWord = firstValue;
-                *(RwUInt32*)firstWord = secondValue;
-                firstWord += 4;
-                secondWord += 4;
-                remaining -= 4;
-            }
+            SWAP(base, base + minimumIndex * entrySize, entrySize);
         }
         _insertionsort(base, numEntries, entrySize, keyOffset);
     }
