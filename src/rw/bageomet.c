@@ -20,6 +20,11 @@ typedef struct RpMorphTargetChunkInfo {
     RwInt32 hasNormals;
 } RpMorphTargetChunkInfo;
 
+typedef struct RpPackedTriangle {
+    RwUInt32 vertex01;
+    RwUInt32 vertex2Mat;
+} RpPackedTriangle;
+
 RwPluginRegistry geometryTKList = {0x60, 0x60, 0, 0, NULL, NULL};
 static RwModuleInfo geometryModule;
 
@@ -29,6 +34,9 @@ extern RwStream* RwStreamReadReal(RwStream* stream, RwReal* reals,
                                   RwUInt32 numBytes);
 extern void _rpMaterialSetDefaultSurfaceProperties(
     const RpSurfaceProperties* surface);
+
+#define RpMaterialGetPipeline(_material, _pipeline) \
+    ((*(_pipeline) = (_material)->pipeline), (_material))
 
 static RwBool GeometryAnnihilate(RpGeometry* geometry)
 {
@@ -151,6 +159,8 @@ RwInt32 RpGeometryAddMorphTarget(RpGeometry* geometry)
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry,
                                       RpMaterialCallBack callback, void* data)
 {
+    /* Retail keeps the homed callback/data in nonvolatile registers. Clean O0
+     * C reloads those same typed parameters from their stack homes instead. */
     RpMaterialCallBack callBack = callback;
     void* pData = data;
     RwInt32 numMaterials = geometry->matList.numMaterials;
@@ -177,95 +187,124 @@ RpGeometry* RpGeometryLock(RpGeometry* geometry, RwInt32 lockMode)
 
 RpGeometry* RpGeometryUnlock(RpGeometry* geometry)
 {
+    RwTexture** textures;
+    RwRaster** rasters;
+    RxPipeline** pipelines;
     RwUInt16 numTextures = 0;
     RwUInt16 numRasters = 0;
     RwUInt16 numPipelines = 0;
-    RpBuildMesh* buildMesh;
-    RpMeshHeader* meshHeader;
 
-    if (geometry->meshHeader != NULL) {
-        return geometry;
-    }
+    if (geometry->meshHeader == NULL) {
+        RpBuildMesh* buildMesh = _rpBuildMeshCreate(geometry->numTriangles);
 
-    buildMesh = _rpBuildMeshCreate(geometry->numTriangles);
-    if (buildMesh == NULL) {
+        if (buildMesh != NULL) {
+            RpMeshHeader* meshHeader;
+            RwInt32 triangleIndex;
+            RwInt32 numMaterials = geometry->matList.numMaterials;
+
+            if (numMaterials > 0) {
+                textures = RwEngineInstance->fpMalloc(
+                    sizeof(RwTexture*) * numMaterials, 0x10006);
+                rasters = RwEngineInstance->fpMalloc(
+                    sizeof(RwRaster*) * numMaterials, 0x10503);
+                pipelines = RwEngineInstance->fpMalloc(
+                    sizeof(RxPipeline*) * numMaterials, 0x10503);
+
+                for (triangleIndex = 0;
+                     triangleIndex < geometry->numTriangles;
+                     triangleIndex++) {
+                    RpTriangle* triangle =
+                        &geometry->triangles[triangleIndex];
+                    RpMaterial* material;
+                    RwUInt16 textureIndex;
+                    RwUInt16 rasterIndex;
+                    RwUInt16 pipelineIndex;
+                    RxPipeline* pipeline = NULL;
+                    RwTexture* texture = NULL;
+                    RwRaster* raster = NULL;
+
+                    material = _rpMaterialListGetMaterial(
+                        &geometry->matList, triangle->matIndex);
+                    texture = material->texture;
+                    for (textureIndex = 0; textureIndex < numTextures;
+                         textureIndex++) {
+                        if (textures[textureIndex] == texture) {
+                            break;
+                        }
+                    }
+                    if (textureIndex == numTextures) {
+                        textures[textureIndex] = texture;
+                        numTextures++;
+                    }
+                    if (texture != NULL) {
+                        raster = texture->raster;
+                    }
+
+                    for (rasterIndex = 0; rasterIndex < numRasters;
+                         rasterIndex++) {
+                        if (rasters[rasterIndex] == raster) {
+                            break;
+                        }
+                    }
+                    if (rasterIndex == numRasters) {
+                        rasters[rasterIndex] = raster;
+                        numRasters++;
+                    }
+
+                    (void)RpMaterialGetPipeline(material, &pipeline);
+                    for (pipelineIndex = 0; pipelineIndex < numPipelines;
+                         pipelineIndex++) {
+                        if (pipelines[pipelineIndex] == pipeline) {
+                            break;
+                        }
+                    }
+                    if (pipelineIndex == numPipelines) {
+                        pipelines[pipelineIndex] = pipeline;
+                        numPipelines++;
+                    }
+
+                    _rpBuildMeshAddTriangle(
+                        buildMesh, material, triangle->vertIndex[0],
+                        triangle->vertIndex[1], triangle->vertIndex[2],
+                        triangle->matIndex, textureIndex, rasterIndex,
+                        pipelineIndex);
+                }
+
+                RwEngineInstance->fpFree(textures);
+                RwEngineInstance->fpFree(rasters);
+                RwEngineInstance->fpFree(pipelines);
+            }
+
+            if ((geometry->flags & 1) != 0) {
+                meshHeader = _rpMeshOptimise(buildMesh, TRUE);
+            } else {
+                meshHeader = _rpMeshOptimise(buildMesh, FALSE);
+            }
+
+            if (meshHeader != NULL) {
+                geometry->meshHeader = meshHeader;
+                return geometry;
+            }
+
+            _rpBuildMeshDestroy(buildMesh);
+            return NULL;
+        }
+
         return NULL;
     }
 
-    if (geometry->matList.numMaterials > 0) {
-        RwInt32 tableSize = geometry->matList.numMaterials * sizeof(void*);
-        RwTexture** textures = RwEngineInstance->fpMalloc(tableSize, 0x10006);
-        RwRaster** rasters = RwEngineInstance->fpMalloc(tableSize, 0x10503);
-        RxPipeline** pipelines = RwEngineInstance->fpMalloc(tableSize, 0x10503);
-        RwInt32 triangleIndex;
-
-        for (triangleIndex = 0; triangleIndex < geometry->numTriangles;
-             triangleIndex++) {
-            RpTriangle* triangle = &geometry->triangles[triangleIndex];
-            RpMaterial* material =
-                _rpMaterialListGetMaterial(&geometry->matList,
-                                           triangle->matIndex);
-            RwTexture* texture = material->texture;
-            RwRaster* raster = texture != NULL ? texture->raster : NULL;
-            RxPipeline* pipeline = material->pipeline;
-            RwUInt16 textureIndex;
-            RwUInt16 rasterIndex;
-            RwUInt16 pipelineIndex;
-
-            for (textureIndex = 0; textureIndex < numTextures; textureIndex++) {
-                if (textures[textureIndex] == texture) break;
-            }
-            if (textureIndex == numTextures) {
-                textures[textureIndex] = texture;
-                numTextures++;
-            }
-
-            for (rasterIndex = 0; rasterIndex < numRasters; rasterIndex++) {
-                if (rasters[rasterIndex] == raster) break;
-            }
-            if (rasterIndex == numRasters) {
-                rasters[rasterIndex] = raster;
-                numRasters++;
-            }
-
-            for (pipelineIndex = 0; pipelineIndex < numPipelines;
-                 pipelineIndex++) {
-                if (pipelines[pipelineIndex] == pipeline) break;
-            }
-            if (pipelineIndex == numPipelines) {
-                pipelines[pipelineIndex] = pipeline;
-                numPipelines++;
-            }
-
-            _rpBuildMeshAddTriangle(
-                buildMesh, material, triangle->vertIndex[0],
-                triangle->vertIndex[1], triangle->vertIndex[2],
-                (RwUInt16)triangle->matIndex, textureIndex, rasterIndex,
-                pipelineIndex);
-        }
-
-        RwEngineInstance->fpFree(textures);
-        RwEngineInstance->fpFree(rasters);
-        RwEngineInstance->fpFree(pipelines);
-    }
-
-    meshHeader = _rpMeshOptimise(buildMesh, (geometry->flags & 1) != 0);
-    if (meshHeader != NULL) {
-        geometry->meshHeader = meshHeader;
-        return geometry;
-    }
-
-    _rpBuildMeshDestroy(buildMesh);
-    return NULL;
+    return geometry;
 }
 
 RpGeometry* RpGeometryCreate(RwInt32 numVertices, RwInt32 numTriangles,
                              RwUInt32 format)
 {
+    /* Retail checked macros retain the geometry result's stack address and
+     * several overwritten range/format intermediates. The operational create,
+     * contiguous layout, rollback, and plugin publication remain unchanged. */
     RwUInt32 allocationSize;
-    RwUInt32 formatFlags;
+    RwInt32 formatFlags;
     RwUInt32 numTexCoordSets;
-    RwUInt32 texCoordFlags;
     RpGeometry* geometry;
 
     if (numVertices < 0 || numVertices >= 0x10000 || numTriangles < 0) {
@@ -279,19 +318,17 @@ RpGeometry* RpGeometryCreate(RwInt32 numVertices, RwInt32 numTriangles,
     }
 
     formatFlags = format & 0xFF;
-    if (format & 0x00FF0000) {
-        numTexCoordSets = (format & 0x00FF0000) >> 16;
-    } else if (format & 0x80) {
-        numTexCoordSets = 2;
-    } else {
-        numTexCoordSets = (format >> 2) & 1;
-    }
-
-    texCoordFlags = numTexCoordSets == 1 ? 4 :
-                    (numTexCoordSets > 1 ? 0x80 : 0);
-    formatFlags = (formatFlags & ~0x84) | texCoordFlags;
-
     allocationSize = geometryTKList.sizeOfStruct;
+
+    numTexCoordSets =
+        (format & 0x00FF0000)
+            ? ((format & 0x00FF0000) >> 16)
+            : ((format & 0x80) ? 2 : ((format & 4) ? 1 : 0));
+
+    formatFlags =
+        (formatFlags & ~0x84) |
+        (numTexCoordSets == 1 ? 4 : (numTexCoordSets > 1 ? 0x80 : 0));
+
     if (!(format & 0x01000000)) {
         if (formatFlags & 8) {
             allocationSize += numVertices * 4;
@@ -408,11 +445,13 @@ RwInt32 RpGeometryRegisterPluginStream(
 
 RpGeometry* RpGeometryStreamRead(RwStream* stream)
 {
+    /* Retail's checked morph-target access materializes the address of a local
+     * target pointer that is otherwise unused. The clean typed traversal omits
+     * that debug lifetime; the stream format and cleanup graph are identical. */
     RwUInt32 version;
     RpGeometryChunkInfo chunk;
     RpSurfaceProperties oldSurface;
     RpGeometry* geometry;
-    RpMorphTarget* morphTarget;
     RwInt32 index;
 
     if (!RwStreamFindChunk(stream, 1, NULL, &version)) {
@@ -453,7 +492,7 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
     }
 
     if (!(geometry->flags & 0x01000000) && geometry->numVertices != 0) {
-        if (chunk.format & 8) {
+        if ((RwInt32)(chunk.format & 8) != 0) {
             RwUInt32 preLitSize = geometry->numVertices * 4;
             if (RwStreamRead(stream, geometry->preLitLum, preLitSize) !=
                 preLitSize) {
@@ -475,9 +514,13 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
         }
 
         if (geometry->numTriangles != 0) {
-            RpTriangle* triangle = geometry->triangles;
-            RwInt32 count = geometry->numTriangles;
-            RwUInt32 size = count * sizeof(RpTriangle);
+            RpTriangle* triangle;
+            RwInt32 count;
+            RwUInt32 size;
+
+            count = geometry->numTriangles;
+            triangle = geometry->triangles;
+            size = count * sizeof(RpPackedTriangle);
 
             if (RwStreamRead(stream, triangle, size) != size) {
                 RpGeometryDestroy(geometry);
@@ -485,12 +528,19 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
             }
             RwMemNative32(triangle, size);
             while (count-- != 0) {
-                RwUInt32 first = *(RwUInt32*)&triangle->vertIndex[0];
-                RwUInt32 second = *(RwUInt32*)&triangle->vertIndex[2];
-                triangle->vertIndex[0] = (RwUInt16)(first >> 16);
-                triangle->vertIndex[1] = (RwUInt16)first;
-                triangle->vertIndex[2] = (RwUInt16)(second >> 16);
-                triangle->matIndex = (RwInt16)second;
+                RwUInt16 high;
+                RwUInt16 low;
+                RpPackedTriangle* source = (RpPackedTriangle*)triangle;
+
+                high = (RwUInt16)(source->vertex01 >> 16) & 0xFFFF;
+                low = (RwUInt16)source->vertex01 & 0xFFFF;
+                triangle->vertIndex[0] = high;
+                triangle->vertIndex[1] = low;
+
+                high = (RwUInt16)(source->vertex2Mat >> 16) & 0xFFFF;
+                low = (RwUInt16)source->vertex2Mat & 0xFFFF;
+                triangle->vertIndex[2] = high;
+                triangle->matIndex = low;
                 triangle++;
             }
         }
@@ -498,7 +548,7 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
 
     for (index = 0; index < geometry->numMorphTargets; index++) {
         RpMorphTargetChunkInfo morphInfo;
-        morphTarget = &geometry->morphTarget[index];
+        RpMorphTarget* morphTarget = &geometry->morphTarget[index];
 
         if (RwStreamRead(stream, &morphInfo, sizeof(morphInfo)) !=
             sizeof(morphInfo)) {
