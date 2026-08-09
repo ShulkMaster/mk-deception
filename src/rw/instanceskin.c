@@ -354,11 +354,13 @@ static void IndexDataSetupOptimized(RwGameCubeIndexData* indexData,
 
 static RwUInt16* CreateMatrixIndexListOptimized(
     const RpSkin* skin, const RwUInt16* primitiveIndices,
-    const RwUInt8* boneIndices, RwInt32 numIndices, RwUInt32 meshIndex)
+    const RwUInt32* boneIndices, RwInt32 numIndices, RwUInt32 meshIndex)
 {
+    /* The searches use the retail 32-bit conditioned bone stream. Remaining
+     * differences are the SDK RLE macro lifetimes and save/register policy. */
     RwUInt8 meshBones[10];
     RwUInt16* matrixIndices;
-    RwUInt32 index;
+    RwInt32 index;
 
     if (skin->splitData.numMeshes != 0) {
         const RpSkinRLECount* count = &skin->splitData.rleCount[meshIndex];
@@ -373,11 +375,11 @@ static RwUInt16* CreateMatrixIndexListOptimized(
         }
         matrixIndices = RwEngineInstance->fpMalloc(
             numIndices * sizeof(*matrixIndices), 0x30116);
-        for (index = 0; index < (RwUInt32)numIndices; index++) {
+        for (index = 0; index < numIndices; index++) {
             RwUInt32 matrixIndex;
             for (matrixIndex = 0; matrixIndex < 10; matrixIndex++) {
                 if (meshBones[matrixIndex] ==
-                    boneIndices[primitiveIndices[index] * 4]) {
+                    (RwUInt8)boneIndices[primitiveIndices[index]]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
@@ -386,12 +388,12 @@ static RwUInt16* CreateMatrixIndexListOptimized(
     } else {
         matrixIndices = RwEngineInstance->fpMalloc(
             numIndices * sizeof(*matrixIndices), 0x30116);
-        for (index = 0; index < (RwUInt32)numIndices; index++) {
+        for (index = 0; index < numIndices; index++) {
             RwUInt32 matrixIndex;
             for (matrixIndex = 0; matrixIndex < skin->numUsedBones;
                  matrixIndex++) {
                 if (skin->usedBoneList[matrixIndex] ==
-                    boneIndices[primitiveIndices[index] * 4]) {
+                    (RwUInt8)boneIndices[primitiveIndices[index]]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
