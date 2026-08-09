@@ -1316,6 +1316,8 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/vtools.obj", source="rw/vtools.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rpworld.a/native.obj", source="rw/native.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/bamatlst.obj",
                    source="rw/bamatlst.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
