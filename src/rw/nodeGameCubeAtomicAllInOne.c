@@ -92,14 +92,6 @@ extern RxPipelineNode* _rxGameCubeAllInOneSetLightingCallBack(
 extern RxPipelineNode* RxGameCubeAllInOneSetRenderCallBack(
     RxPipelineNode*, RxGCAtomicRenderCallBack);
 
-extern void* _rwGCNVtxFmtInstPos3D(void*, const void*, RwUInt32,
-                                   RwUInt32, RwUInt8, void*, RwReal);
-extern void* _rwGCNVtxFmtInstNrm(void*, const void*, RwUInt32,
-                                 RwUInt32, RwUInt8);
-extern void* _rwGCNVtxFmtInstClr(void*, const void*, RwUInt32,
-                                 RwUInt32, RwUInt8);
-extern void* _rwGCNVtxFmtInstTex(void*, const void*, RwUInt32,
-                                 RwUInt32, RwUInt8, RwReal);
 
 #define GEOMETRY_VTX_FORMAT(geometry)                                      \
     (*(RpGameCubeVtxFmt**)((RwUInt8*)(geometry) + _rpDlGeomVtxFmtOffset))
@@ -247,30 +239,30 @@ static void _rxGCDefaultReinstance(
     if ((geometryFlags & 2) != 0) {
         if ((locked & 2) != 0) {
             void* destination = vertexBuffer->arrays[streamIndex].data;
-            void* end = _rwGCNVtxFmtInstPos3D(
+            RwUInt32 size = _rwGCNVtxFmtInstPos3D(
                 destination, geometry->morphTarget->verts,
                 format->positionType, numVertices,
                 vertexBuffer->arrays[streamIndex].stride, NULL,
                 (RwReal)(1 << format->positionFraction));
-            DCFlushRange(destination, (RwUInt32)end);
+            DCFlushRange(destination, size);
         }
         streamIndex++;
     }
     if ((geometryFlags & 0x10) != 0) {
         if ((locked & 4) != 0) {
             void* destination = vertexBuffer->arrays[streamIndex].data;
-            void* end = _rwGCNVtxFmtInstNrm(
+            RwUInt32 size = _rwGCNVtxFmtInstNrm(
                 destination, geometry->morphTarget->normals,
                 format->normalType, numVertices,
                 vertexBuffer->arrays[streamIndex].stride);
-            DCFlushRange(destination, (RwUInt32)end);
+            DCFlushRange(destination, size);
         }
         streamIndex++;
     }
     if ((geometryFlags & 8) != 0) {
         if ((locked & 8) != 0) {
             void* destination = vertexBuffer->arrays[streamIndex].data;
-            void* end;
+            RwUInt32 size;
 
             if (GEOMETRY_VTX_FORMAT(geometry) == NULL) {
                 RwUInt32 i;
@@ -287,10 +279,10 @@ static void _rxGCDefaultReinstance(
             } else {
                 vertexBuffer->reserved_0x00[1] &= ~1U;
             }
-            end = _rwGCNVtxFmtInstClr(
+            size = _rwGCNVtxFmtInstClr(
                 destination, geometry->preLitLum, format->colorType,
                 numVertices, vertexBuffer->arrays[streamIndex].stride);
-            DCFlushRange(destination, (RwUInt32)end);
+            DCFlushRange(destination, size);
         }
         streamIndex++;
     }
@@ -300,12 +292,12 @@ static void _rxGCDefaultReinstance(
         for (i = 0; i < geometry->numTexCoordSets; i++) {
             if ((locked & (0x10 << i)) != 0) {
                 void* destination = vertexBuffer->arrays[streamIndex].data;
-                void* end = _rwGCNVtxFmtInstTex(
+                RwUInt32 size = _rwGCNVtxFmtInstTex(
                     destination, geometry->texCoords[i],
                     format->texCoordType[i], numVertices,
                     vertexBuffer->arrays[streamIndex].stride,
                     (RwReal)(1 << format->texCoordFraction[i]));
-                DCFlushRange(destination, (RwUInt32)end);
+                DCFlushRange(destination, size);
             }
             streamIndex++;
         }

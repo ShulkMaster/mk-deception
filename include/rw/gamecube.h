@@ -128,6 +128,25 @@ void _rwGCNVertexDescSetNumIndexedAttr(
     RwGameCubeVertexDescriptor* descriptor, RwUInt8 count);
 RwUInt32 _rwGCNVertexBufferHeaderGetSize(
     const RwGameCubeVertexDescriptor* descriptor);
+RwUInt32 _rwGCNVtxFmtInstPos3D(void* destination, const RwV3d* source,
+                               RwUInt32 type, RwUInt32 count,
+                               RwUInt32 stride, const RwV3d* origin,
+                               RwReal scale);
+RwUInt32 _rwGCNVtxFmtInstNrm(void* destination, const RwV3d* source,
+                             RwUInt32 type, RwUInt32 count, RwUInt32 stride);
+RwUInt32 _rwGCNVtxFmtInstNrmCmp(void* destination, const void* source,
+                                RwUInt32 type, RwUInt32 count,
+                                RwUInt32 stride);
+RwUInt32 _rwGCNVtxFmtInstNBT(void* destination, const RwV3d* source,
+                             RwUInt32 type, RwUInt32 count, RwUInt32 stride);
+RwUInt32 _rwGCNVtxFmtInstNBTCmp(void* destination, const void* source,
+                                RwUInt32 type, RwUInt32 count,
+                                RwUInt32 stride);
+RwUInt32 _rwGCNVtxFmtInstClr(void* destination, const RwRGBA* source,
+                             RwUInt32 type, RwUInt32 count, RwUInt32 stride);
+RwUInt32 _rwGCNVtxFmtInstTex(void* destination, const RwTexCoords* source,
+                             RwUInt32 type, RwUInt32 count, RwUInt32 stride,
+                             RwReal scale);
 RwUInt32 _rwGCNVertexBufferGetSize(
     const RwGameCubeVertexDescriptor* descriptor,
     const RwUInt32* vertexCounts);

@@ -24,32 +24,9 @@ typedef struct RwGameCubeVertexStreams {
 } RwGameCubeVertexStreams;
 
 typedef struct RwGameCubeVertexData {
+    RwUInt32 counts[26];
     const void* source[26];
-    void* destination[26];
 } RwGameCubeVertexData;
-
-extern void _rwGCNVtxFmtInstPos3D(const void* source, void* destination,
-                                  RwUInt32 type, RwReal scale,
-                                  const void* indices, RwUInt32 stride,
-                                  void* remap);
-extern void _rwGCNVtxFmtInstNrm(const void* source, void* destination,
-                                RwUInt32 type, const void* indices,
-                                RwUInt32 stride);
-extern void _rwGCNVtxFmtInstNrmCmp(const void* source, void* destination,
-                                   RwUInt32 type, const void* indices,
-                                   RwUInt32 stride);
-extern void _rwGCNVtxFmtInstNBT(const void* source, void* destination,
-                                RwUInt32 type, const void* indices,
-                                RwUInt32 stride);
-extern void _rwGCNVtxFmtInstNBTCmp(const void* source, void* destination,
-                                   RwUInt32 type, const void* indices,
-                                   RwUInt32 stride);
-extern void _rwGCNVtxFmtInstClr(const void* source, void* destination,
-                                RwUInt32 type, const void* indices,
-                                RwUInt32 stride);
-extern void _rwGCNVtxFmtInstTex(const void* source, void* destination,
-                                RwUInt32 type, RwReal scale,
-                                const void* indices, RwUInt32 stride);
 
 /* Retail retains one unused boolean normalization when position data is absent.
  * The clean source omits that three-instruction debug/macro residue. */
@@ -77,9 +54,9 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
                     scale = (RwReal)(1 << ((format->vatA >> 4) & 0x1F));
                     _rwGCNVtxFmtInstPos3D(
                         streams->streams[streamIndex].data,
-                        data->destination[attribute], type, scale,
-                        data->source[attribute],
-                        streams->streams[streamIndex].stride, remap);
+                        (const RwV3d *)data->source[attribute], type,
+                        data->counts[attribute],
+                        streams->streams[streamIndex].stride, remap, scale);
                     streamIndex++;
                 }
             }
@@ -94,27 +71,27 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
                     if (compressedNormals == FALSE)
                         _rwGCNVtxFmtInstNBT(
                             streams->streams[streamIndex].data,
-                            data->destination[attribute], type,
-                            data->source[attribute],
+                            (const RwV3d *)data->source[attribute], type,
+                            data->counts[attribute],
                             streams->streams[streamIndex].stride);
                     else
                         _rwGCNVtxFmtInstNBTCmp(
                             streams->streams[streamIndex].data,
-                            data->destination[attribute], type,
-                            data->source[attribute],
+                            data->source[attribute], type,
+                            data->counts[attribute],
                             streams->streams[streamIndex].stride);
                 } else {
                     if (compressedNormals == FALSE)
                         _rwGCNVtxFmtInstNrm(
                             streams->streams[streamIndex].data,
-                            data->destination[attribute], type,
-                            data->source[attribute],
+                            (const RwV3d *)data->source[attribute], type,
+                            data->counts[attribute],
                             streams->streams[streamIndex].stride);
                     else
                         _rwGCNVtxFmtInstNrmCmp(
                             streams->streams[streamIndex].data,
-                            data->destination[attribute], type,
-                            data->source[attribute],
+                            data->source[attribute], type,
+                            data->counts[attribute],
                             streams->streams[streamIndex].stride);
                 }
                 streamIndex++;
@@ -132,8 +109,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
                      (14 + (attribute - rwGCNVA_CLR0) * 4)) & 7;
                 _rwGCNVtxFmtInstClr(
                     streams->streams[streamIndex].data,
-                    data->destination[attribute], type,
-                    data->source[attribute],
+                    (const RwRGBA *)data->source[attribute], type,
+                    data->counts[attribute],
                     streams->streams[streamIndex].stride);
                 streamIndex++;
             }
@@ -148,9 +125,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->vatA >> 22) & 7;
                 scale = (RwReal)(1 << ((format->vatA >> 25) & 0x1F));
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
@@ -159,9 +138,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->reserved_0x08[0] >> 1) & 7;
                 scale = (RwReal)((1 << (format->reserved_0x08[0] >> 4)) & 0x1F);
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
@@ -170,9 +151,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->reserved_0x08[0] >> 10) & 7;
                 scale = (RwReal)((1 << (format->reserved_0x08[0] >> 13)) & 0x1F);
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
@@ -181,9 +164,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->reserved_0x08[0] >> 19) & 7;
                 scale = (RwReal)((1 << (format->reserved_0x08[0] >> 22)) & 0x1F);
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
@@ -192,9 +177,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->reserved_0x08[0] >> 28) & 7;
                 scale = (RwReal)(1 << (format->reserved_0x08[1] & 0x1F));
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
@@ -203,9 +190,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->reserved_0x08[1] >> 6) & 7;
                 scale = (RwReal)(1 << ((format->reserved_0x08[1] >> 9) & 0x1F));
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
@@ -214,9 +203,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->reserved_0x08[1] >> 15) & 7;
                 scale = (RwReal)(1 << ((format->reserved_0x08[1] >> 18) & 0x1F));
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
@@ -225,9 +216,11 @@ void _rwGCNVertexBufferFill(const RwGameCubeVtxFmt* format,
             if (descriptor == rwGCNINDEX8 || descriptor == rwGCNINDEX16) {
                 type = (format->reserved_0x08[1] >> 24) & 7;
                 scale = (RwReal)(1 << ((format->reserved_0x08[1] >> 27) & 0x1F));
-                _rwGCNVtxFmtInstTex(streams->streams[streamIndex].data,
-                    data->destination[attribute], type, scale,
-                    data->source[attribute], streams->streams[streamIndex].stride);
+                _rwGCNVtxFmtInstTex(
+                    streams->streams[streamIndex].data,
+                    (const RwTexCoords *)data->source[attribute], type,
+                    data->counts[attribute],
+                    streams->streams[streamIndex].stride, scale);
                 streamIndex++;
             }
             break;
