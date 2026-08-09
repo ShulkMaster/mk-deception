@@ -389,12 +389,15 @@ static RwUInt32 _ForAllNodeReqsAddOutputClustersAndBuildContinuityBitfields(
   return 0;
 }
 
+/* Retail differs only in the nonvolatile registers assigned to the output
+ * indices and output-node pointer; the instruction stream and size agree. */
 static RwUInt32 _TraceClusterScopes(RxPipeline *pipeline,
                                     rxScopeTrace **traces) {
-  RxPipelineNode *node = pipeline->nodes;
   RwUInt32 nodesRemaining = pipeline->numNodes;
+  RxPipelineNode *node = pipeline->nodes;
+  RwUInt32 remaining;
 
-  while (nodesRemaining != 0) {
+  do {
     RwUInt32 entryIndex;
 
     for (entryIndex = 0; entryIndex < node->topSortData->req->numEntries;
@@ -404,8 +407,7 @@ static RwUInt32 _TraceClusterScopes(RxPipeline *pipeline,
                               : NULL;
 
       if (entry->scope == NULL) {
-        entry->scope = _ScopeTraceCreate(traces);
-        if (entry->scope == NULL) {
+        if ((entry->scope = _ScopeTraceCreate(traces)) == NULL) {
           RwError error;
           error.pluginID = 1;
           error.errorCode = _rwerror(0x20);
@@ -417,10 +419,9 @@ static RwUInt32 _TraceClusterScopes(RxPipeline *pipeline,
     }
 
     for (entryIndex = 0; entryIndex < node->numOutputs; entryIndex++) {
-      RwUInt32 outputNodeIndex = node->outputs[entryIndex];
-
-      if (outputNodeIndex + 0x10000U != (RwUInt32)-1) {
-        RxPipelineNode *outputNode = &pipeline->nodes[outputNodeIndex];
+      if (node->outputs[entryIndex] != (RwUInt32)-1) {
+        RxPipelineNode *outputNode =
+            &pipeline->nodes[node->outputs[entryIndex]];
         RwUInt32 outputEntryIndex;
 
         for (outputEntryIndex = 0;
@@ -449,8 +450,8 @@ static RwUInt32 _TraceClusterScopes(RxPipeline *pipeline,
       }
     }
     node++;
-    nodesRemaining--;
-  }
+    remaining = --nodesRemaining;
+  } while (remaining != 0);
   return 0;
 }
 
