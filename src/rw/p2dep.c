@@ -587,16 +587,20 @@ static void _MyEnumPipelineClustersCallBack(RxClusterDefinition *clusterDef,
   cluster->creationAttributes = clusterDef->defaultAttributes;
 }
 
+/* Retail retains the rounded private-data size in a nonvolatile register before
+ * allocation. The clean direct argument leaves only that move plus equivalent
+ * register coloring and argument homing; all allocation and mapping CFG agrees. */
 static RwUInt32 _ForAllNodesWriteClusterAllocations(RxPipeline *pipeline,
                                                     rxScopeTrace *traces) {
   RwUInt32 numHeadRequirements = _CountHeadNodeRqdsAndOpts(pipeline);
   RwUInt32 numPipelineClusters = _EnumPipelineClusters(traces, NULL, NULL);
   RwUInt8 *titeEnd = StalacTiteAlloc(0);
   RwUInt8 *miteStart = StalacMiteAlloc(0);
-  RxPipelineCluster *pipelineClusters = NULL;
+  RwUInt32 arenaSize = titeEnd - miteStart;
+  RxPipelineCluster *pipelineClusters;
   RwUInt32 nodeIndex;
 
-  memset(miteStart, 0, titeEnd - miteStart);
+  memset(miteStart, 0, arenaSize);
   pipeline->embeddedPacket =
       StalacMiteAlloc(sizeof(RxPacket) + (pipeline->packetNumClusterSlots - 1) *
                                              sizeof(RxCluster));
@@ -604,12 +608,13 @@ static RwUInt32 _ForAllNodesWriteClusterAllocations(RxPipeline *pipeline,
   pipeline->embeddedPacket->pipeline = pipeline;
   pipeline->embeddedPacketState = rxPKST_PACKETLESS;
 
+  pipelineClusters = NULL;
   _EnumPipelineClusters(traces, _MyEnumPipelineClustersCallBack,
                         &pipelineClusters);
 
   for (nodeIndex = 0; nodeIndex < pipeline->numNodes; nodeIndex++) {
     RxPipelineNode *node = &pipeline->nodes[nodeIndex];
-    RwUInt32 continuity = (RwUInt32)-1;
+    RwUInt32 continuity;
     RwUInt32 entryIndex;
 
     if (pipeline->packetNumClusterSlots != 0) {
@@ -628,12 +633,13 @@ static RwUInt32 _ForAllNodesWriteClusterAllocations(RxPipeline *pipeline,
           (node->nodeDef->pipelineNodePrivateDataSize + 3) & ~3U);
     }
 
+    continuity = (RwUInt32)-1;
     for (entryIndex = 0; entryIndex < node->topSortData->req->numEntries;
          entryIndex++) {
+      RxPipelineCluster *pipelineCluster = NULL;
       rxReqEntry *entry = entryIndex < node->topSortData->req->numEntries
                               ? &node->topSortData->req->entries[entryIndex]
                               : NULL;
-      RxPipelineCluster *pipelineCluster = NULL;
       RwUInt32 clusterIndex;
 
       for (clusterIndex = 0; clusterIndex < numPipelineClusters;
@@ -659,6 +665,7 @@ static RwUInt32 _ForAllNodesWriteClusterAllocations(RxPipeline *pipeline,
             node->slotClusterRefs[slot]->clusterRef ==
                 node->nodeDef->io.clustersOfInterest[entryIndex].clusterDef) {
           node->inputToClusterSlot[entryIndex] = slot;
+          break;
         }
       }
     }
