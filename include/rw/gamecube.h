@@ -104,6 +104,9 @@ typedef char RwGameCubeVertexArraySizeCheck[
     sizeof(RwGameCubeVertexArray) == 8 ? 1 : -1];
 
 void _rxGCResEntryWaitDone(RwResEntry* entry);
+void _rxGCInstanceMorphUpdate(RpGeometry* geometry,
+                              RwGameCubeVertexBuffer* vertexBuffer,
+                              const RpInterpolator* interpolator);
 void RwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
                              RwInt32 biasClamp, RwInt32 edgeLod,
                              RwInt32 maxAnisotropy);

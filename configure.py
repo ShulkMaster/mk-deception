@@ -1326,6 +1326,8 @@ config.libs = [
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/gcpipe.obj", source="rw/gcpipe.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
+            Object(NonMatching, "rpworld.a/gcmorph.obj", source="rw/gcmorph.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/wrldpipe.obj",
                    source="rw/wrldpipe.c",
                    extra_cflags=["-opt", "off", "-O0"]),
