@@ -640,15 +640,24 @@ static void GenBumpedTextureName(RwChar* name, const RwTexture* base,
 RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
                                      const RwTexture* bump)
 {
+    /*
+     * Retail retains unused addresses of the texture and name stack slots;
+     * clean C leaves only their save-range/register-coloring residue.
+     */
     static const RwChar emptyName[32] = {0};
-    RwRaster *baseRaster = NULL, *bumpRaster = bump->raster, *raster;
+    RwRaster* baseRaster = NULL;
+    RwRaster* bumpRaster = bump->raster;
+    RwRaster* raster;
     RwImage *baseImage, *bumpImage, *resampled;
     RwTexture* texture;
-    RwInt32 baseWidth, baseHeight, width, height, depth, format;
+    RwInt32 bumpWidth, bumpHeight, baseWidth, baseHeight;
+    RwInt32 width, height, depth, format, rasterFormat;
     RwInt32 x, y;
-    RwUInt32 addressMode;
+    RwUInt32 addressMode, filterMode;
     RwChar name[32];
-    bumpImage = RwImageCreate(bumpRaster->width, bumpRaster->height, 32);
+    bumpWidth = bumpRaster->width;
+    bumpHeight = bumpRaster->height;
+    bumpImage = RwImageCreate(bumpWidth, bumpHeight, 32);
     RwImageAllocatePixels(bumpImage);
     RwImageSetFromRaster(bumpImage, bumpRaster);
     if (base) {
@@ -667,7 +676,7 @@ RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
             for (x = 0; x < baseWidth; x++)
                 *(RwUInt32*)(baseImage->pixels + baseImage->stride * y + x * 4) = 0xffffffff;
     }
-    if (baseWidth != bumpRaster->width || baseHeight != bumpRaster->height) {
+    if (baseWidth != bumpWidth || baseHeight != bumpHeight) {
         resampled = RwImageCreate(baseWidth, baseHeight, 32);
         RwImageAllocatePixels(resampled);
         RwImageResample(resampled, bumpImage);
@@ -677,26 +686,29 @@ RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
     RwImageMakeMask(bumpImage);
     RwImageApplyMask(baseImage, bumpImage);
     RwImageFindRasterFormat(baseImage, 4, &width, &height, &depth, &format);
-    if ((((base ? baseRaster : bumpRaster)->format << 8) & 0x8000) != 0)
+    if (base)
+        rasterFormat = (RwUInt8)baseRaster->format << 8;
+    else
+        rasterFormat = (RwUInt8)bumpRaster->format << 8;
+    if ((rasterFormat & 0x8000) != 0)
         format |= 0x9000;
     raster = RwRasterCreate(width, height, depth, format);
     RwRasterSetFromImage(raster, baseImage);
     texture = RwTextureCreate(raster);
     if (base) {
-        texture->filter_flags = (texture->filter_flags & ~0xff) |
-                                (base->filter_flags & 0xff);
+        filterMode = base->filter_flags & 0xff;
         addressMode = ((base->filter_flags & 0xf00) >> 8) ==
                       ((base->filter_flags & 0xf000) >> 12)
                           ? (base->filter_flags & 0xf000) >> 12 : 0;
     } else {
-        texture->filter_flags = (texture->filter_flags & ~0xff) |
-                                (bump->filter_flags & 0xff);
+        filterMode = bump->filter_flags & 0xff;
         addressMode = ((bump->filter_flags & 0xf00) >> 8) ==
                       ((bump->filter_flags & 0xf000) >> 12)
                           ? (bump->filter_flags & 0xf000) >> 12 : 0;
     }
     texture->filter_flags = (texture->filter_flags & 0xffff00ff) |
                             (addressMode << 8) | (addressMode << 12);
+    texture->filter_flags = (texture->filter_flags & ~0xff) | filterMode;
     RwImageDestroy(baseImage);
     RwImageDestroy(bumpImage);
     memcpy(name, emptyName, sizeof(name));
