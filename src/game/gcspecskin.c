@@ -6,22 +6,12 @@
  * extension is represented by a typed retail-layout view.
  */
 #include "rw/rpworld_types.h"
+#include "rw/gamecube.h"
 #include "rw/rtquat.h"
 #include "math/gxMath.h"
 #include "runtime/mk_plugins.h"
 
 typedef struct RxPipeline RxPipeline;
-
-typedef struct GXColor {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} GXColor;
-
-typedef struct GXLightObj {
-    unsigned char data[0x40];
-} GXLightObj;
 
 typedef union SpecularMaterialFlags {
     unsigned char value;
@@ -212,39 +202,12 @@ RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial*);
 void RpMatFXMaterialGetUVTransformMatrices(
     RpMaterial*, RwMatrix**, RwMatrix**);
 
-void _rwDlVtxFmtSetup(void*, SpecResourceEntry*);
 void _rwDlTransformSetup(const RwMatrix*, int);
-void _rwDlObjectRenderSetup(unsigned int, unsigned int, unsigned int, int);
 void _rwDlTextureSet(RwTexture*, int);
 void _rwDlRenderStateSetZCompLoc(int);
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
 
-void GXSetTevColor(int, GXColor);
-void GXSetNumTexGens();
-void GXSetTexCoordGen2();
-void GXSetTevOrder();
-void GXSetTevSwapMode();
-void GXSetTevSwapModeTable();
-void GXSetNumTevStages();
-void GXSetTevColorIn();
-void GXSetTevColorOp();
-void GXSetTevAlphaIn();
-void GXSetTevAlphaOp();
-void GXSetCullMode();
-void GXSetVtxDesc();
-void GXCallDisplayList();
-void GXSetBlendMode();
-void GXSetChanAmbColor(int, GXColor);
-void GXSetChanMatColor(int, GXColor);
-void GXLoadTexMtxImm();
 void GXGetViewportv();
-void GXSetViewport();
-void GXInitLightAttn(
-    GXLightObj*, float, float, float, float, float, float);
-void GXInitLightPos(GXLightObj*, float, float, float);
-void GXInitLightColor(GXLightObj*, GXColor);
-void GXLoadLightObjImm(GXLightObj*, unsigned int);
-
 RxPipeline* SpecSkinAtomicPipeline;
 RxPipeline* SpecSkinMaterialPipeline;
 RxPipeline* ReflectionAtomicPipeline;
@@ -456,7 +419,8 @@ static inline SpecSkinData* prepare_skin_render(
     resource->display_resource->header.token = _RwDlTokenCurrent;
     vertex_format = geometry_vertex_format(atomic->geometry);
     atomic_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
-    _rwDlVtxFmtSetup(vertex_format, resource);
+    _rwDlVtxFmtSetup((RpGameCubeVtxFmt*)vertex_format,
+                     (RpGameCubeVtxFmtSetupData*)resource);
 
     skin = RpSkinGeometryGetSkin(atomic->geometry);
     if (skin->num_used_bones > 1) {

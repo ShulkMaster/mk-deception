@@ -58,9 +58,7 @@ RwTexDictionary* RwTexDictionaryForAllTextures(
 RpClump* inplaceClumpStreamRead(RwStream* stream);
 void destroy_clump(RpClump* clump);
 void specular_condition_clump(RpClump* clump);
-void* set_transl_callback(void* atomic, void* data);
-RpClump* RpClumpForAllAtomics(
-    RpClump* clump, void* (*callback)(void*, void*), void* data);
+RpAtomic* set_transl_callback(RpAtomic* atomic, void* data);
 int strcmp(const char* a, const char* b);
 char* strncpy(char* dst, const char* src, unsigned long n);
 
@@ -891,9 +889,6 @@ void process_art_section_data(SecSlotFileEntry* entry) {
 void* load_model_from_slot_transl(int handle, unsigned int art_oid, int player) {
     MkObj* object = load_model_from_slot(handle, art_oid, player);
     if (object != NULL) {
-        extern void* set_transl_callback(void* atomic, void* data);
-        extern RpClump* RpClumpForAllAtomics(
-            RpClump* clump, void* (*callback)(void*, void*), void* data);
         RpClumpForAllAtomics(object->clump, set_transl_callback, NULL);
     }
     return object;

@@ -36,12 +36,25 @@ typedef struct RtQuat {
     RwReal real;
 } RtQuat;
 
+typedef enum RwOpCombineType {
+    rwCOMBINEREPLACE = 0,
+    rwCOMBINEPRECONCAT = 1,
+    rwCOMBINEPOSTCONCAT = 2
+} RwOpCombineType;
+
 RwReal _rwSqrt(RwReal num);
 
 RwBool RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix);
 
-RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation, int combineOp);
-RwMatrix* RwMatrixScale(RwMatrix* matrix, const RwV3d* scale, int combineOp);
-RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, RwReal angle, int combineOp);
+RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation,
+                            RwOpCombineType combineOp);
+RwMatrix* RwMatrixScale(RwMatrix* matrix, const RwV3d* scale,
+                        RwOpCombineType combineOp);
+RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, RwReal angle,
+                         RwOpCombineType combineOp);
+RwMatrix* RwMatrixTransform(RwMatrix* matrix, const RwMatrix* transform,
+                            RwOpCombineType combineOp);
+RwMatrix* RwMatrixOrthoNormalize(RwMatrix* matrixOut,
+                                 const RwMatrix* matrixIn);
 
 #endif

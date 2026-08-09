@@ -5,27 +5,6 @@
 #include "rw/rxpipeline.h"
 #include "runtime/cstring.h"
 
-typedef struct RwIm3DTransformData {
-    RwUInt16 numVertices;
-    RwUInt16 reserved_0x3A;
-    RwIm3DVertex* vertices;
-    RwUInt32 stride;
-} RwIm3DTransformData;
-
-typedef struct RwIm3DRenderData {
-    RxPipeline* pipeline;
-    RwPrimitiveType primitiveType;
-    const RwImVertexIndex* indices;
-    RwUInt32 numIndices;
-} RwIm3DRenderData;
-
-typedef struct RwIm3DStash {
-    RwUInt32 flags;
-    const RwMatrix* localToWorld;
-    RwUInt8 reserved_0x4C[0x18];
-    RwIm3DRenderData renderData;
-} RwIm3DStash;
-
 typedef struct RwIm3DGlobals {
     RxPipeline* transformPipeline;
     RwIm3DRenderPipelines renderPipelines;
@@ -52,24 +31,27 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
         error.pluginID = 1;
         error.errorCode = _rwerror(0x32);
         RwErrorSet(&error);
-        return NULL;
-    }
-
-    IM3DGLOBALS->transformData.numVertices = numVertices;
-    IM3DGLOBALS->transformData.vertices = vertices;
-    IM3DGLOBALS->transformData.stride = 0x24;
-    IM3DGLOBALS->stash.localToWorld = localToWorld;
-    IM3DGLOBALS->stash.flags = flags | 8 | 0x10;
-    if (RxPipelineExecute(IM3DGLOBALS->transformPipeline,
-                          &IM3DGLOBALS->transformData, TRUE) != NULL) {
-        return vertices;
+    } else {
+        void* result;
+        IM3DGLOBALS->transformData.numVertices = numVertices;
+        IM3DGLOBALS->transformData.vertices = vertices;
+        IM3DGLOBALS->transformData.stride = 0x24;
+        IM3DGLOBALS->stash.localToWorld = localToWorld;
+        IM3DGLOBALS->stash.flags = flags | 8 | 0x10;
+        result = RxPipelineExecute(IM3DGLOBALS->transformPipeline,
+                                   &IM3DGLOBALS->transformData, TRUE);
+        if (result != NULL) {
+            return vertices;
+        }
     }
     return NULL;
 }
 
 RwBool RwIm3DEnd(void)
 {
-    if (IM3DGLOBALS->transformData.vertices == NULL) {
+    RwBool transformed = IM3DGLOBALS->transformData.vertices != NULL;
+
+    if (!transformed) {
         return FALSE;
     }
     memset(&IM3DGLOBALS->transformData, 0, 0x3C);
@@ -78,31 +60,33 @@ RwBool RwIm3DEnd(void)
 
 RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
                                     const RwImVertexIndex* indices,
-                                    RwUInt32 numIndices)
+                                    RwInt32 numIndices)
 {
-    if (IM3DGLOBALS->transformData.vertices != NULL) {
-        RwIm3DRenderData* data = &IM3DGLOBALS->stash.renderData;
-        data->pipeline = NULL;
-        data->primitiveType = primitiveType;
-        data->indices = indices;
-        data->numIndices = numIndices;
+    RwBool transformed = IM3DGLOBALS->transformData.vertices != NULL;
+
+    if (transformed) {
+        RwIm3DStash* data = &IM3DGLOBALS->stash;
+        data->renderData.pipeline = NULL;
+        data->renderData.primitiveType = primitiveType;
+        data->renderData.indices = indices;
+        data->renderData.numIndices = numIndices;
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triList;
-            data->numIndices -= data->numIndices % 3;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triList;
+            data->renderData.numIndices = numIndices - (numIndices % 3);
             break;
         case rwPRIMTYPETRIFAN:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triFan;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triFan;
             break;
         case rwPRIMTYPETRISTRIP:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triStrip;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triStrip;
             break;
         case rwPRIMTYPELINELIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.lineList;
-            data->numIndices -= data->numIndices % 2;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.lineList;
+            data->renderData.numIndices = numIndices - (numIndices % 2);
             break;
         case rwPRIMTYPEPOLYLINE:
-            data->pipeline = IM3DGLOBALS->renderPipelines.polyLine;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.polyLine;
             break;
         default: {
             RwError error;
@@ -112,7 +96,7 @@ RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
             break;
         }
         }
-        if (RxPipelineExecute(data->pipeline, data, FALSE) != NULL) {
+        if (RxPipelineExecute(data->renderData.pipeline, data, FALSE) != NULL) {
             return TRUE;
         }
     } else {
@@ -129,28 +113,29 @@ RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
     void* vertices = IM3DGLOBALS->transformData.vertices;
     RwBool transformed = vertices != NULL;
 
+    /* Retail retains the result as a debug-only heap local. */
     RxHeapGetGlobalHeap();
     if (transformed) {
-        RwIm3DRenderData* data = &IM3DGLOBALS->stash.renderData;
-        data->pipeline = NULL;
-        data->primitiveType = primitiveType;
-        data->indices = NULL;
-        data->numIndices = IM3DGLOBALS->transformData.numVertices;
+        RwIm3DStash* data = &IM3DGLOBALS->stash;
+        data->renderData.pipeline = NULL;
+        data->renderData.primitiveType = primitiveType;
+        data->renderData.indices = NULL;
+        data->renderData.numIndices = IM3DGLOBALS->transformData.numVertices;
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triList;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triList;
             break;
         case rwPRIMTYPETRIFAN:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triFan;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triFan;
             break;
         case rwPRIMTYPETRISTRIP:
-            data->pipeline = IM3DGLOBALS->renderPipelines.triStrip;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.triStrip;
             break;
         case rwPRIMTYPELINELIST:
-            data->pipeline = IM3DGLOBALS->renderPipelines.lineList;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.lineList;
             break;
         case rwPRIMTYPEPOLYLINE:
-            data->pipeline = IM3DGLOBALS->renderPipelines.polyLine;
+            data->renderData.pipeline = IM3DGLOBALS->renderPipelines.polyLine;
             break;
         default: {
             RwError error;
@@ -160,7 +145,7 @@ RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
             break;
         }
         }
-        if (RxPipelineExecute(data->pipeline, data, FALSE) != NULL) {
+        if (RxPipelineExecute(data->renderData.pipeline, data, FALSE) != NULL) {
             return TRUE;
         }
     } else {
@@ -207,44 +192,72 @@ RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
         case rwPRIMTYPEPOINTLIST:
             IM3DGLOBALS->renderPipelines.pointList = pipeline;
             return pipeline;
-        default:
+        default: {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x25, primitiveType);
+            RwErrorSet(&error);
             break;
+        }
         }
     } else {
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            IM3DGLOBALS->renderPipelines.triList =
-                IM3DGLOBALS->defaultRenderPipelines.triList;
+            if (IM3DGLOBALS->defaultRenderPipelines.triList != NULL) {
+                IM3DGLOBALS->renderPipelines.triList =
+                    IM3DGLOBALS->defaultRenderPipelines.triList;
+            } else {
+                IM3DGLOBALS->renderPipelines.triList = NULL;
+            }
             return IM3DGLOBALS->renderPipelines.triList;
         case rwPRIMTYPETRIFAN:
-            IM3DGLOBALS->renderPipelines.triFan =
-                IM3DGLOBALS->defaultRenderPipelines.triFan;
+            if (IM3DGLOBALS->defaultRenderPipelines.triFan != NULL) {
+                IM3DGLOBALS->renderPipelines.triFan =
+                    IM3DGLOBALS->defaultRenderPipelines.triFan;
+            } else {
+                IM3DGLOBALS->renderPipelines.triFan = NULL;
+            }
             return IM3DGLOBALS->renderPipelines.triFan;
         case rwPRIMTYPETRISTRIP:
-            IM3DGLOBALS->renderPipelines.triStrip =
-                IM3DGLOBALS->defaultRenderPipelines.triStrip;
+            if (IM3DGLOBALS->defaultRenderPipelines.triStrip != NULL) {
+                IM3DGLOBALS->renderPipelines.triStrip =
+                    IM3DGLOBALS->defaultRenderPipelines.triStrip;
+            } else {
+                IM3DGLOBALS->renderPipelines.triStrip = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.triStrip;
         case rwPRIMTYPELINELIST:
-            IM3DGLOBALS->renderPipelines.lineList =
-                IM3DGLOBALS->defaultRenderPipelines.lineList;
+            if (IM3DGLOBALS->defaultRenderPipelines.lineList != NULL) {
+                IM3DGLOBALS->renderPipelines.lineList =
+                    IM3DGLOBALS->defaultRenderPipelines.lineList;
+            } else {
+                IM3DGLOBALS->renderPipelines.lineList = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.lineList;
         case rwPRIMTYPEPOLYLINE:
-            IM3DGLOBALS->renderPipelines.polyLine =
-                IM3DGLOBALS->defaultRenderPipelines.polyLine;
+            if (IM3DGLOBALS->defaultRenderPipelines.polyLine != NULL) {
+                IM3DGLOBALS->renderPipelines.polyLine =
+                    IM3DGLOBALS->defaultRenderPipelines.polyLine;
+            } else {
+                IM3DGLOBALS->renderPipelines.polyLine = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.polyLine;
         case rwPRIMTYPEPOINTLIST:
-            IM3DGLOBALS->renderPipelines.pointList =
-                IM3DGLOBALS->defaultRenderPipelines.pointList;
+            if (IM3DGLOBALS->defaultRenderPipelines.pointList != NULL) {
+                IM3DGLOBALS->renderPipelines.pointList =
+                    IM3DGLOBALS->defaultRenderPipelines.pointList;
+            } else {
+                IM3DGLOBALS->renderPipelines.pointList = NULL;
+            }
             return IM3DGLOBALS->defaultRenderPipelines.pointList;
-        default:
+        default: {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x25, primitiveType);
+            RwErrorSet(&error);
             break;
         }
-    }
-    {
-        RwError error;
-        error.pluginID = 1;
-        error.errorCode = _rwerror(0x25, primitiveType);
-        RwErrorSet(&error);
+        }
     }
     return NULL;
 }

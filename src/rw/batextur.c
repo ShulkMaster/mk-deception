@@ -1,20 +1,16 @@
 #include "rw/rwcore_types.h"
 #include "rw/batextur.h"
 #include "rw/rwerror.h"
+#include "rw/palquant.h"
 #include "rw/rwplcore.h"
 #include "libmkparticle/rw_engine.h"
 
-typedef struct RwRGBA {
+struct RwRGBA {
     unsigned char red;
     unsigned char green;
     unsigned char blue;
     unsigned char alpha;
-} RwRGBA;
-
-/* The quantizer is an opaque stock RenderWare work context. */
-typedef struct RwPalQuant {
-    unsigned char storage[0x4008];
-} RwPalQuant;
+};
 
 typedef struct RwFreeListStorage {
     unsigned char storage[0x24];
@@ -43,13 +39,6 @@ static RwFreeListStorage _rwTexDictionaryFreeList;
 
 static RwModuleInfo textureModule;
 static RwTexDictionary* dummyTexDict;
-extern int RwPalQuantInit(RwPalQuant* quantizer);
-extern void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image, float weight);
-extern void RwPalQuantResolvePalette(RwRGBA* palette, int colorCount,
-                                     RwPalQuant* quantizer);
-extern void RwPalQuantMatchImage(unsigned char* pixels, int stride, int depth,
-                                 int flags, RwPalQuant* quantizer, RwImage* image);
-extern void RwPalQuantTerm(RwPalQuant* quantizer);
 extern RwImage* RwImageCreate(int width, int height, int depth);
 extern RwImage* RwImageAllocatePixels(RwImage* image);
 extern int RwImageDestroy(RwImage* image);

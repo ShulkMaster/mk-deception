@@ -23,12 +23,12 @@ typedef struct ShadowFrame {
     ShadowMatrix modelling; /* +0x10 */
 } ShadowFrame;
 
-typedef struct RwRGBA {
+struct RwRGBA {
     unsigned char r;
     unsigned char g;
     unsigned char b;
     unsigned char a;
-} RwRGBA;
+};
 
 typedef struct RwEngineInstanceType {
     char pad[0x1C];
@@ -36,16 +36,6 @@ typedef struct RwEngineInstanceType {
     char pad2[0x10];
     void (*fpIm2DRenderIndexedPrimitive)(int primType, void* vertices, int numVertices);
 } RwEngineInstanceType;
-
-typedef struct RwCamera {
-    char object[0x4];
-    ShadowFrame* frame; /* +0x04 */
-    char pad[0x58];
-    void* raster_target; /* +0x60 */
-    void* z_raster;      /* +0x64 */
-    char pad68[0x1C];
-    float view_window_scale; /* +0x84 */
-} RwCamera;
 
 /* Raster height @ +0x0C (used for Im2D aspect). */
 typedef struct ShadowRaster {
@@ -157,33 +147,26 @@ typedef struct ShadowSobj {
 } ShadowSobj;
 
 void set_render_state(int state, int value);
-void* RpClumpForAllAtomics(void* clump, void* callback, void* data);
-void _rpAtomicResyncInterpolatedSphere(void* atomic);
 void RwV3dTransformPoints(void* dst, void* src, int count, ShadowMatrix* matrix);
 int RwRasterDestroy(RwRaster* raster);
 void RwMatrixUpdate(ShadowMatrix* matrix);
-void RwFrameUpdateObjects(void* frame);
-void RwCameraSetFarClipPlane(void* camera, float distance);
-void RwCameraSetNearClipPlane(void* camera, float distance);
-void RwCameraSetViewWindow(void* camera, float* width, float* height);
-int RwCameraClear(void* camera, RwRGBA* color, int flags);
-int RwCameraBeginUpdate(void* camera);
-void RwCameraEndUpdate(void* camera);
-void RwGameCubeCameraTextureFlush(void* camera, int flags);
-void* RwCameraCreate(void);
-void* RwFrameCreate(void);
+RwFrame* RwFrameUpdateObjects(RwFrame* frame);
+void RwGameCubeCameraTextureFlush(RwRaster* raster, int flags);
+RwFrame* RwFrameCreate(void);
 void _rwObjectHasFrameSetFrame(void* object, void* frame);
-void RwCameraSetProjection(void* camera, int projection);
-void RwFrameDestroy(void* frame);
-void RwCameraDestroy(void* camera);
-void RwFrameOrthoNormalize(void* frame);
-void* RwFrameGetLTM(void* frame);
+RwBool RwFrameDestroy(RwFrame* frame);
+RwFrame* RwFrameOrthoNormalize(RwFrame* frame);
+RwMatrix* RwFrameGetLTM(RwFrame* frame);
 void YXZ_angles_to_MKMATRIX(const float* angles, ShadowMatrix* matrix);
 void* load_model_from_slot_transl(int slot_hi, int slot_lo, int flags);
 void insert_fgnd_mkobj(void* model);
 RpMaterial* obj_find_material_with_texture(void* model, const char* name);
 void obj_create_sobjs(void* model);
 void* obj_first_sobj(void* model);
+
+typedef RwCamera* (*ShadowSetViewWindowCall)(RwCamera* camera,
+                                             const RwV2d* viewWindow,
+                                             const RwV2d* unused);
 void sobj_set_priority(void* sobj, int priority);
 void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
 
@@ -223,7 +206,7 @@ unsigned int save_res_for_shadowbox;
 
 float ShadowStrength;
 
-static int shadow_getFirstAtomic(void* atomic, void* out);
+static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out);
 static void Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3, float p4, float depth, float p6,
                            float p7);
 static FighterState* shadow_validate_fighter(FighterState* fighter, unsigned int expected_id);
@@ -279,18 +262,25 @@ static void shadow_destroy_shadowbox(ShadowboxObject** box_ptr) {
 }
 
 int init_shadow(void* shadow_ptr, void* clump_ptr) {
+    typedef struct ShadowClumpSource {
+        unsigned char reserved00[0x18];
+        RpClump* clump;
+        ShadowFrame* modellingFrame;
+        unsigned char reserved24[0x7C];
+        RwV3d worldAnchor;
+    } ShadowClumpSource;
     ShadowObject* shadow;
-    RpClump* clump;
+    ShadowClumpSource* source;
     RpAtomic* atomic;
     int result;
 
     shadow = shadow_ptr;
-    clump = clump_ptr;
-    if (clump != NULL) {
+    source = clump_ptr;
+    if (source != NULL) {
         atomic = NULL;
-        RpClumpForAllAtomics(clump->atomics, shadow_getFirstAtomic, &atomic);
+        RpClumpForAllAtomics(source->clump, shadow_getFirstAtomic, &atomic);
         if (atomic != NULL) {
-            if (atomic->interpolatorFlags & 2) {
+            if (atomic->interpolator.flags & 2) {
                 _rpAtomicResyncInterpolatedSphere(atomic);
             }
             shadow->sphere_x = atomic->boundingSphereX;
@@ -298,8 +288,8 @@ int init_shadow(void* shadow_ptr, void* clump_ptr) {
             shadow->sphere_z = atomic->boundingSphereZ;
             shadow->sphere_w = atomic->boundingSphereRadius;
             shadow->ground_w = shadow->sphere_w;
-            RwV3dTransformPoints(&shadow->ground_point, &clump->worldAnchorX, 1,
-                                 &((ShadowFrame*)clump->modellingFrame)->modelling);
+            RwV3dTransformPoints(&shadow->ground_point, &source->worldAnchor, 1,
+                                 &source->modellingFrame->modelling);
         }
     }
     result = SetupShadow(shadow);
@@ -372,7 +362,8 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
                          &((ShadowFrame*)ctx->matrix_holder)->modelling);
     camera = ShadowCamera;
     dir_matrix = &ShadowDirectionMatrix;
-    frame_matrix = &camera->frame->modelling;
+    frame_matrix =
+        (ShadowMatrix*)&((RwFrame*)camera->object.object.parent)->modelling;
     frame_matrix->right[0] = dir_matrix->right[0];
     frame_matrix->right[1] = dir_matrix->right[1];
     frame_matrix->right[2] = dir_matrix->right[2];
@@ -383,20 +374,23 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     frame_matrix->at[1] = dir_matrix->at[1];
     frame_matrix->at[2] = dir_matrix->at[2];
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(camera->frame);
+    RwFrameUpdateObjects((RwFrame*)camera->object.object.parent);
     RwCameraSetFarClipPlane(camera, kFarClipMul * shadow_scale);
     RwCameraSetNearClipPlane(camera, kNearClipMul * shadow_scale);
     view_window = shadow_scale;
-    RwCameraSetViewWindow(camera, &view_window, &view_window);
-    frame_matrix = &camera->frame->modelling;
+    /* This game TU passes the same window as an unused third argument. */
+    ((ShadowSetViewWindowCall)RwCameraSetViewWindow)(
+        camera, (const RwV2d*)&view_window, (const RwV2d*)&view_window);
+    frame_matrix =
+        (ShadowMatrix*)&((RwFrame*)camera->object.object.parent)->modelling;
     frame_matrix->pos[0] = fighter->position.x;
     frame_matrix->pos[1] = fighter->position.y;
     frame_matrix->pos[2] = fighter->position.z;
-    frame_matrix->pos[0] = frame_matrix->pos[0] + frame_matrix->at[0] * (kViewWindowBias * camera->view_window_scale);
-    frame_matrix->pos[1] = frame_matrix->pos[1] + frame_matrix->up[1] * (kViewWindowBias * camera->view_window_scale);
-    frame_matrix->pos[2] = frame_matrix->pos[2] + frame_matrix->at[2] * (kViewWindowBias * camera->view_window_scale);
+    frame_matrix->pos[0] = frame_matrix->pos[0] + frame_matrix->at[0] * (kViewWindowBias * camera->farPlane);
+    frame_matrix->pos[1] = frame_matrix->pos[1] + frame_matrix->up[1] * (kViewWindowBias * camera->farPlane);
+    frame_matrix->pos[2] = frame_matrix->pos[2] + frame_matrix->at[2] * (kViewWindowBias * camera->farPlane);
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(camera->frame);
+    RwFrameUpdateObjects((RwFrame*)camera->object.object.parent);
     ShadowCameraUpdate_flag = 1;
     ShadowCameraUpdate(camera, ctx->clump, 1);
     lights = shadow->light_pair;
@@ -431,8 +425,8 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
         conv.i[0] = 0x43300000;
         conv.i[1] = src_raster->height ^ 0x80000000;
         inv_height = (float)(conv.d - kFloatConvBias);
-        aspect = kOne / ip_camera->view_window_scale;
-        ip_camera->raster_target = src_raster;
+        aspect = kOne / ip_camera->farPlane;
+        ip_camera->frameBuffer = (RwRaster*)src_raster;
         RwCameraClear(ip_camera, &clear_color_black, 3);
         if (RwCameraBeginUpdate(ip_camera) != 0) {
             set_render_state(0xA, 2);
@@ -447,9 +441,9 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
             set_render_state(0xA, 5);
             set_render_state(0xB, 6);
             RwCameraEndUpdate(ip_camera);
-            RwGameCubeCameraTextureFlush(ip_camera->raster_target, 0);
+            RwGameCubeCameraTextureFlush(ip_camera->frameBuffer, 0);
         }
-        ip_camera->raster_target = NULL;
+        ip_camera->frameBuffer = NULL;
         shadow->blur_raster = ShadowRasterAA;
     } else {
         shadow->blur_raster = ShadowCameraRaster;
@@ -532,17 +526,17 @@ static void shadow_destroy_camera(RwCamera** camera_ptr) {
     if (camera == NULL) {
         return;
     }
-    frame = camera->frame;
+    frame = (RwFrame*)camera->object.object.parent;
     if (frame != NULL) {
         _rwObjectHasFrameSetFrame(camera, NULL);
-        RwFrameDestroy(frame);
+        RwFrameDestroy((RwFrame*)frame);
     }
-    if (camera->z_raster != NULL) {
-        camera->z_raster = NULL;
-        RwRasterDestroy(camera->z_raster);
+    if (camera->zBuffer != NULL) {
+        camera->zBuffer = NULL;
+        RwRasterDestroy(camera->zBuffer);
     }
-    if (camera->raster_target != NULL) {
-        camera->raster_target = NULL;
+    if (camera->frameBuffer != NULL) {
+        camera->frameBuffer = NULL;
     }
     RwCameraDestroy(camera);
     *camera_ptr = NULL;
@@ -555,28 +549,28 @@ static RwCamera* shadow_create_camera(int resolution) {
 
     camera = RwCameraCreate();
     if (camera != NULL) {
-        frame = RwFrameCreate();
+        frame = (void*)RwFrameCreate();
         _rwObjectHasFrameSetFrame(camera, frame);
-        if (camera->frame != NULL) {
+        if (camera->object.object.parent != NULL) {
             raster = RwRasterCreate(resolution, resolution, 0, 1);
             if (raster != NULL) {
-                camera->z_raster = raster;
+                camera->zBuffer = raster;
                 RwCameraSetProjection(camera, 2);
                 return camera;
             }
         }
-        frame = camera->frame;
+        frame = (RwFrame*)camera->object.object.parent;
         if (frame != NULL) {
             _rwObjectHasFrameSetFrame(camera, NULL);
-            RwFrameDestroy(frame);
+            RwFrameDestroy((RwFrame*)frame);
         }
-        raster = camera->z_raster;
+        raster = camera->zBuffer;
         if (raster != NULL) {
-            camera->z_raster = NULL;
+            camera->zBuffer = NULL;
             RwRasterDestroy(raster);
         }
-        if (camera->raster_target != NULL) {
-            camera->raster_target = NULL;
+        if (camera->frameBuffer != NULL) {
+            camera->frameBuffer = NULL;
         }
         RwCameraDestroy(camera);
     }
@@ -724,7 +718,8 @@ int init_shadow_system(void) {
         return 0;
     }
     dir_matrix = &ShadowDirectionMatrix;
-    frame_matrix = &camera->frame->modelling;
+    frame_matrix =
+        (ShadowMatrix*)&((RwFrame*)camera->object.object.parent)->modelling;
     frame_matrix->right[0] = dir_matrix->right[0];
     frame_matrix->right[1] = dir_matrix->right[1];
     frame_matrix->right[2] = dir_matrix->right[2];
@@ -735,7 +730,7 @@ int init_shadow_system(void) {
     frame_matrix->at[1] = dir_matrix->at[1];
     frame_matrix->at[2] = dir_matrix->at[2];
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(camera->frame);
+    RwFrameUpdateObjects((RwFrame*)camera->object.object.parent);
     camera = shadow_create_camera(aa_resolution);
     ShadowIPCamera = camera;
     if (camera == NULL) {
@@ -746,7 +741,7 @@ int init_shadow_system(void) {
     if (raster == NULL) {
         return 0;
     }
-    ShadowCamera->raster_target = raster;
+    ShadowCamera->frameBuffer = (RwRaster*)raster;
     if (ShadowAA != 0 && ShadowRasterAA == NULL) {
         raster = RwRasterCreate(aa_resolution, 0x20, 0, 0x505);
         ShadowRasterAA = raster;
@@ -758,9 +753,9 @@ int init_shadow_system(void) {
     return 1;
 }
 
-static int shadow_getFirstAtomic(void* atomic, void* out) {
+static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out) {
     *(void**)out = atomic;
-    return 0;
+    return NULL;
 }
 
 void ShadowRasterBlur(void* src_raster, void* dst_raster, void* ip_camera_ptr) {
@@ -784,7 +779,7 @@ void ShadowRasterBlur(void* src_raster, void* dst_raster, void* ip_camera_ptr) {
     aspect = kOne / inv_height;
     last_pass = ShadowBlur - 1;
     for (pass = 0; pass < ShadowBlur; pass++) {
-        ip_camera->raster_target = dst_raster;
+        ip_camera->frameBuffer = (RwRaster*)dst_raster;
         RwCameraClear(ip_camera, &clear_color_white, 3);
         if (RwCameraBeginUpdate(ip_camera) != 0) {
             set_render_state(0xA, 2);
@@ -795,9 +790,9 @@ void ShadowRasterBlur(void* src_raster, void* dst_raster, void* ip_camera_ptr) {
             set_render_state(1, (int)src_raster);
             Im2DRenderQuad(0xFF, kZero, kZero, aspect, aspect, RwEngineInstance->field_1C, kOne, kOne);
             RwCameraEndUpdate(ip_camera);
-            RwGameCubeCameraTextureFlush(ip_camera, 0);
+            RwGameCubeCameraTextureFlush(ip_camera->frameBuffer, 0);
         }
-        ip_camera->raster_target = src_raster;
+        ip_camera->frameBuffer = (RwRaster*)src_raster;
         RwCameraClear(ip_camera, &clear_color_white, 3);
         if (RwCameraBeginUpdate(ip_camera) != 0) {
             set_render_state(1, (int)dst_raster);
@@ -812,10 +807,10 @@ void ShadowRasterBlur(void* src_raster, void* dst_raster, void* ip_camera_ptr) {
             set_render_state(0xA, 5);
             set_render_state(0xB, 6);
             RwCameraEndUpdate(ip_camera);
-            RwGameCubeCameraTextureFlush(ip_camera, 0);
+            RwGameCubeCameraTextureFlush(ip_camera->frameBuffer, 0);
         }
     }
-    ip_camera->raster_target = NULL;
+    ip_camera->frameBuffer = NULL;
 }
 
 void ShadowCameraUpdate(void* camera_ptr, void* clump_ptr, int clear) {
@@ -832,7 +827,7 @@ void ShadowCameraUpdate(void* camera_ptr, void* clump_ptr, int clear) {
     if (clear != 0) {
         RwCameraClear(camera, &clear_color_black, 3);
     }
-    RwFrameOrthoNormalize(camera->frame);
+    RwFrameOrthoNormalize((RwFrame*)camera->object.object.parent);
     if (RwCameraBeginUpdate(camera) == 0) {
         return;
     }
@@ -846,22 +841,22 @@ void ShadowCameraUpdate(void* camera_ptr, void* clump_ptr, int clear) {
     set_render_state(0x6, 1);
     set_render_state(0x8, 1);
     set_render_state(0xC, 1);
-    node = clump->atomicList.next;
-    end = &clump->atomicList;
+    node = clump->atomicList.link.next;
+    end = &clump->atomicList.link;
     while (node != end) {
         atomic = RP_ATOMIC_FROM_CLUMP_LINK(node);
         if (atomic->object.flags & 4) {
             geometry = atomic->geometry;
             saved_flags = geometry->flags;
             geometry->flags = saved_flags & ~0x20;
-            RwFrameGetLTM(atomic->object.parent);
+            RwFrameGetLTM((RwFrame*)atomic->object.parent);
             atomic->renderCallBack(atomic);
             geometry->flags = saved_flags;
         }
         node = node->next;
     }
     RwCameraEndUpdate(camera);
-    RwGameCubeCameraTextureFlush(camera, 0);
+    RwGameCubeCameraTextureFlush(camera->frameBuffer, 0);
 }
 
 static void Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3, float p4, float depth, float p6,

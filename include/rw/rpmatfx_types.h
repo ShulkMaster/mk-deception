@@ -3,31 +3,63 @@
 
 #include "rw/rpworld_types.h"
 
-/*
- * Partial MatFX material payloads used by Midway texture ownership helpers.
- * MatFXGetData selects one of these payloads by effect type.
- */
 typedef enum RpMatFXMaterialFlags {
     rpMATFXEFFECTNULL = 0,
     rpMATFXEFFECTBUMPMAP = 1,
-    rpMATFXEFFECTENVMAP = 4,
-    rpMATFXEFFECTDUAL = 5,
-    rpMATFXEFFECTBUMPENVMAP = 6
+    rpMATFXEFFECTENVMAP = 2,
+    rpMATFXEFFECTBUMPENVMAP = 3,
+    rpMATFXEFFECTDUAL = 4,
+    rpMATFXEFFECTUVTRANSFORM = 5,
+    rpMATFXEFFECTDUALUVTRANSFORM = 6,
+    rpMATFXEFFECTMAX = 7,
+    rpMATFXNUMEFFECTS = 6
 } RpMatFXMaterialFlags;
 
 typedef struct RpMatFXEnvMapData {
-    RwTexture* texture; /* +0x00 */
+    RwFrame* frame;
+    RwTexture* texture;
+    RwReal coefficient;
+    RwBool useFrameBufferAlpha;
 } RpMatFXEnvMapData;
 
 typedef struct RpMatFXBumpMapData {
-    char pad00[4];
-    RwTexture* texture;       /* +0x04 */
-    RwTexture* bumped_texture; /* +0x08 */
-    char pad0C[4];
-    float coefficient;        /* +0x10 */
+    RwFrame* frame;
+    RwTexture* texture;
+    RwTexture* bumped_texture;
+    RwReal storedCoefficient;
+    RwReal coefficient;
 } RpMatFXBumpMapData;
 
-int RpMatFXMaterialGetEffects(RpMaterial* material);
-void* MatFXGetData(RpMaterial* material, int effect);
+typedef struct RpMatFXDualData {
+    RwTexture* texture;
+    RwInt32 srcBlendMode;
+    RwInt32 dstBlendMode;
+} RpMatFXDualData;
+
+typedef struct RpMatFXUVTransformData {
+    RwMatrix* baseTransform;
+    RwMatrix* dualTransform;
+} RpMatFXUVTransformData;
+
+typedef union RpMatFXDataUnion {
+    RpMatFXBumpMapData bump;
+    RpMatFXEnvMapData env;
+    RpMatFXDualData dual;
+    RpMatFXUVTransformData uv;
+    RwUInt8 raw[0x14];
+} RpMatFXDataUnion;
+
+typedef struct RpMatFXMaterialSlot {
+    RpMatFXDataUnion data;
+    RpMatFXMaterialFlags type;
+} RpMatFXMaterialSlot;
+
+typedef struct RpMatFXMaterialData {
+    RpMatFXMaterialSlot slot[2];
+    RpMatFXMaterialFlags effects;
+} RpMatFXMaterialData;
+
+RpMatFXMaterialFlags RpMatFXMaterialGetEffects(const RpMaterial* material);
+void* MatFXGetData(RpMaterial* material, RpMatFXMaterialFlags effect);
 
 #endif

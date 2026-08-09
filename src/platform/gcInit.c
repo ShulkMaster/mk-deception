@@ -30,11 +30,12 @@ static void _rwDolphinHeapFree(void* memory) {
     _mwMemFree(memory, 0, 0);
 }
 
-void setup_memory_functions(void) {
+RwMemoryFunctions* setup_memory_functions(void) {
     mem_funcs.alloc = _rwDolphinHeapAlloc;
     mem_funcs.calloc = _rwDolphinHeapCalloc;
     mem_funcs.realloc = _rwDolphinHeapRealloc;
     mem_funcs.free = _rwDolphinHeapFree;
+    return &mem_funcs;
 }
 
 int select_display_device(void) {

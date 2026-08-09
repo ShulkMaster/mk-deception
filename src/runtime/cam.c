@@ -39,11 +39,6 @@ typedef struct RwRect {
     int h;
 } RwRect;
 
-typedef struct RwV2d {
-    float x;
-    float y;
-} RwV2d;
-
 typedef struct RwVideoMode {
     int width;
     int height;
@@ -96,13 +91,11 @@ Vec cam_forward_uv;
 Vec cam_right_uv;
 
 float gxMathTan(float x);
-RwCamera* RwCameraSetProjection(RwCamera* camera, int projection);
 RwCamera* RwCameraGetWorld(RwCamera* camera);
 RpWorld* RpWorldAddCamera(RpWorld* world, RwCamera* camera);
 int RwEngineGetCurrentVideoMode(void);
 RwVideoMode* RwEngineGetVideoModeInfo(RwVideoMode* mode_info, int mode);
 RwRaster* RwRasterSubRaster(RwRaster* sub_raster, RwRaster* raster, RwRect* rect);
-RwCamera* RwCameraSetViewWindow(RwCamera* camera, RwV2d* view_window);
 /* Must stay external so xfer_camera emits bl (local stub was inlined away). */
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);
 void xz_unit_vector(Vec* out, const Vec* from, const Vec* to);

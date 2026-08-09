@@ -21,7 +21,7 @@ extern int exec_tick_ctr;
 extern MkHdr* apdata;
 extern MkProc* aproc;
 
-void* RwFrameGetLTM(void* frame);
+RwMatrix* RwFrameGetLTM(RwFrame* frame);
 void memcpy(void* dst, const void* src, int size);
 void memset(void* dst, int c, int size);
 char* strcpy(char* dst, const char* src);

@@ -91,7 +91,7 @@ int RwRasterGetNumLevels(RwRaster* raster) {
     return -1;
 }
 
-RwRaster* RwRasterShowRaster(RwRaster* raster, void* device, int flags) {
+RwRaster* RwRasterShowRaster(RwRaster* raster, void* device, RwUInt32 flags) {
     RwRasterDeviceCall showRaster = RwEngineInstance->fpRasterShowRaster;
     _rwResourcesPurge();
     if (showRaster(raster, device, flags) != 0) {

@@ -18,6 +18,7 @@
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
 #include "runtime/plyr_pdata.h"
+#include "rw/rpmatfx.h"
 
 extern MkVtable5 vtbl_mkpdata_string_obj;
 
@@ -1146,17 +1147,6 @@ void set_screen_obj_alpha(void* obj, float alpha) {
 
 extern double fmod(double x, double y);
 extern void MKMatrixSetIdentity(void* m);
-extern RpMaterial* RpMatFXMaterialGetUVTransformMatrices(RpMaterial* material, void** m1, void** m2);
-extern RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial* material, void* m1, void* m2);
-extern void* RpGeometryForAllMaterials(void* geom, void* cb, void* data);
-extern void* RpClumpForAllAtomics(void* clump, void* cb, void* data);
-extern int RpMatFXMaterialGetEffects(RpMaterial* material);
-extern RwTexture* RpMatFXMaterialGetDualTexture(RpMaterial* material);
-extern void RpMatFXMaterialGetDualBlendModes(RpMaterial* material, int* src, int* dst);
-extern RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material, int effects);
-extern RpMaterial* RpMatFXMaterialSetDualBlendModes(RpMaterial* material, int src, int dst);
-extern RpMaterial* RpMatFXMaterialSetDualTexture(RpMaterial* material, RwTexture* texture);
-extern void* RpMatFXAtomicEnableEffects(void* atomic);
 extern void* RpSkinGeometryGetSkin(void* geom);
 extern void* RpSkinAtomicSetType(void* atomic, int type);
 
@@ -1219,8 +1209,8 @@ enum {
         *_flags = *_flags & ~kUvMtxDirty;                                      \
     } while (0)
 
-static void* material_set_uv_scroll_matrix(RpMaterial* material, void* matrix);
-static void* material_set_uv_scroll_matrix_2(RpMaterial* material, void* matrix);
+static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material, void* matrix);
+static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material, void* matrix);
 
 #if !defined(TARGET_PC)
 #pragma dont_inline on
@@ -1263,17 +1253,17 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
 #pragma dont_inline off
 #endif
 
-static void* material_set_uv_scroll_matrix_2(RpMaterial* material, void* matrix) {
-    void* base;
-    void* dual;
+static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material, void* matrix) {
+    RwMatrix* base;
+    RwMatrix* dual;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, dual, matrix);
     return material;
 }
 
-static void* material_set_uv_scroll_matrix(RpMaterial* material, void* matrix) {
-    void* base;
-    void* dual;
+static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material, void* matrix) {
+    RwMatrix* base;
+    RwMatrix* dual;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, matrix, base);
     return material;
@@ -1313,8 +1303,8 @@ static void uv_init_transform_pair(UvScrollControl* ctrl) {
 static void material_apply_scroll_effects(RpMaterial* material) {
     int effects;
     RwTexture* dual_texture;
-    int src;
-    int dst;
+    RwBlendFunction src;
+    RwBlendFunction dst;
     effects = RpMatFXMaterialGetEffects(material);
     if (effects == kMatFxDual) {
         dual_texture = RpMatFXMaterialGetDualTexture(material);
@@ -1351,7 +1341,7 @@ static void* material_scroll_uvs_callback(void* mat, void* data) {
     return mat;
 }
 
-static void* atomic_scroll_uvs_callback(void* atomic, void* data) {
+static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
     UvScrollControl* ctrl;
     unsigned int flags;
     unsigned int bit0;
@@ -1503,8 +1493,8 @@ void* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1, float v1, 
     RpMaterial* material;
     int effects;
     RwTexture* dual_texture;
-    int src;
-    int dst;
+    RwBlendFunction src;
+    RwBlendFunction dst;
     if (owner == 0) {
         return 0;
     }

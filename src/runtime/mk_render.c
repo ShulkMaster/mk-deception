@@ -91,7 +91,6 @@ void render_pfx_clone(void* clone);
 void mkpfx_get_origin(PfxSortView* pfx, RwV3d* origin);
 RwMatrix* RwFrameGetLTM(RwFrame* frame);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
-int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere);
 
 static TranslSortNode transl_sort_nodes[250];
 static int in_batch;
@@ -179,7 +178,7 @@ static void btree_render(TranslSortNode* node) {
                 last_pipeline_used = curr_pipeline_used;
                 curr_pipeline_used = 0;
             }
-            obj_set_rw_lights(MK_CLUMP_PLUGIN((RpClump*)((RpAtomic*)node->payload)->lights)->owner);
+            obj_set_rw_lights(MK_CLUMP_PLUGIN(((RpAtomic*)node->payload)->clump)->owner);
             render_mkatomic((RpAtomic*)node->payload);
         }
         node = node->left;
@@ -425,8 +424,8 @@ void render_mkobj(MkObj* object) {
             RpClump* clump = object->clumps[clump_index];
             RwLLLink* link;
             if (clump != 0) {
-                link = clump->atomicList.next;
-                while (link != &clump->atomicList) {
+                link = clump->atomicList.link.next;
+                while (link != &clump->atomicList.link) {
                     RpAtomic* atomic = RP_ATOMIC_FROM_CLUMP_LINK(link);
                     if ((atomic->object.flags & 4) != 0) {
                         MksobjPluginData* plugin = MK_ATOMIC_PLUGIN(atomic);

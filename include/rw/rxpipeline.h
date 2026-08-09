@@ -8,6 +8,7 @@ typedef struct RxHeap RxHeap;
 typedef struct RxHeapBlock RxHeapBlock;
 typedef struct RxHeapFreeBlock RxHeapFreeBlock;
 typedef struct RxHeapSuperBlock RxHeapSuperBlock;
+typedef struct RxPipeline RxPipeline;
 typedef struct RxPipelineNode RxPipelineNode;
 typedef struct RxNodeDefinition RxNodeDefinition;
 typedef struct RxPipelineNodeTopSortData RxPipelineNodeTopSortData;
@@ -19,6 +20,9 @@ typedef struct rxReq rxReq;
 typedef struct RwFreeList RwFreeList;
 typedef struct RxPipelineCluster RxPipelineCluster;
 typedef struct RxPipelineRequiresCluster RxPipelineRequiresCluster;
+typedef RxPipeline RxLockedPipe;
+typedef RwUInt32* RxNodeOutput;
+typedef RxPipelineNode* RxNodeInput;
 typedef struct RxPacket RxPacket;
 typedef struct RwGlobals RwGlobals;
 
@@ -101,10 +105,40 @@ typedef enum RxClusterValidityReq {
     rxCLREQ_OPTIONAL = 2
 } RxClusterValidityReq;
 
+typedef enum RxClusterValid {
+    rxCLVALID_NOCHANGE = 0,
+    rxCLVALID_VALID = 1,
+    rxCLVALID_INVALID = 2
+} RxClusterValid;
+
+struct RxClusterDefinition {
+    RwChar* name;
+    RwUInt32 defaultStride;
+    RwUInt32 defaultAttributes;
+    const RwChar* attributeSet;
+};
+
+struct RxOutputSpec {
+    RwChar* name;
+    RxClusterValid* outputClusters;
+    RxClusterValid allOtherClusters;
+};
+
 struct RxClusterRef {
     RxClusterDefinition* clusterDef;
-    RwUInt32 forcePresent;
+    RwBool forcePresent;
     RwUInt32 reserved;
+};
+
+struct RxPipelineCluster {
+    RxClusterDefinition* clusterRef;
+    RwUInt32 creationAttributes;
+};
+
+struct RxPipelineRequiresCluster {
+    RxClusterDefinition* clusterDef;
+    RxClusterValidityReq rqdOrOpt;
+    RwUInt32 slotIndex;
 };
 
 typedef struct RxIoSpec {
@@ -250,6 +284,23 @@ RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
 RxHeap* RxHeapGetGlobalHeap(void);
 RxPipeline* RxPipelineCreate(void);
 void _rxPipelineDestroy(RxPipeline* pipeline);
+RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline);
+RxLockedPipe* RxPipelineLock(RxPipeline* pipeline);
+RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
+                                         const RwChar* name,
+                                         RxPipelineNode* start,
+                                         RwInt32* nodeIndex);
+RxLockedPipe* RxLockedPipeAddFragment(RxLockedPipe* pipeline,
+                                      RwUInt32* firstIndex,
+                                      RxNodeDefinition* nodeDef0, ...);
+RxPipeline* RxLockedPipeAddPath(RxLockedPipe* pipeline, RxNodeOutput output,
+                                RxNodeInput input);
+RxNodeOutput RxPipelineNodeFindOutputByIndex(RxPipelineNode* node,
+                                             RwUInt32 outputIndex);
+RxNodeInput RxPipelineNodeFindInput(RxPipelineNode* node);
+void* StalacTiteAlloc(RwInt32 size);
+void* StalacMiteAlloc(RwInt32 size);
+RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline);
 void RxHeapFree(RxHeap* heap, void* block);
 RwBool _rxHeapReset(RxHeap* heap);
 void RxHeapDestroy(RxHeap* heap);

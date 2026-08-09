@@ -185,13 +185,13 @@ void free_mem(void* mem);
 void __ct__17ScreenMatrixStackFv(void* self);
 void __dt__17ScreenMatrixStackFv(void* self, short del);
 void __dl__FPv(void* p);
-void* RwFrameCreate(void);
-void RwFrameDestroy(void* frame);
-void RwFrameTranslate(void* frame, void* delta, int combine);
-void RwFrameScale(void* frame, void* scale, int combine);
-void RwFrameRotate(void* frame, void* axis, float angle, int combine);
-void RwFrameSetIdentity(void* frame);
-void RwFrameAddChild(void* parent, void* child);
+RwFrame* RwFrameCreate(void);
+RwBool RwFrameDestroy(RwFrame* frame);
+RwFrame* RwFrameTranslate(RwFrame* frame, const RwV3d* delta, int combine);
+RwFrame* RwFrameScale(RwFrame* frame, const RwV3d* scale, int combine);
+RwFrame* RwFrameRotate(RwFrame* frame, const RwV3d* axis, float angle, int combine);
+RwFrame* RwFrameSetIdentity(RwFrame* frame);
+RwFrame* RwFrameAddChild(RwFrame* parent, RwFrame* child);
 void MKMatrixTranslate(void* matrix, float* delta, int combine);
 int is_controller_removed(void);
 
@@ -3360,7 +3360,7 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     return poly;
 }
 
-extern void* RwFrameGetLTM(void* frame);
+extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 enum { kScreenPolyPfxOid = 0x900B };
 
@@ -3398,7 +3398,7 @@ void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
     Pfx2dVert* dst;
 
     stack = (ScreenMatrixStackC*)info->matrixStack;
-    ltm = (float*)RwFrameGetLTM(stack->frame);
+    ltm = (float*)RwFrameGetLTM((RwFrame*)stack->frame);
 
     /* filterFlags bit7 hide (signed >=0) + require colorTex -- retail wrap. */
     if ((signed char)poly->filterFlags >= 0 && poly->colorTex != 0) {
@@ -3856,7 +3856,7 @@ void Render__14ScreenParticleFP16ScreenRenderInfo(ScreenParticle* self,
     float* ltm;
 
     stack = (ScreenMatrixStackC*)info->matrixStack;
-    ltm = (float*)RwFrameGetLTM(stack->frame);
+    ltm = (float*)RwFrameGetLTM((RwFrame*)stack->frame);
     fx_set_param_v3(self->fxHandle, 0x202, ltm[12], ltm[13], ltm[14]);
 
     if (self->pfx != 0 && self->hide == 0) {
@@ -4522,7 +4522,7 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     float delta[3];
 
     stack = (ScreenMatrixStackC*)info->matrixStack;
-    ltm = (float*)RwFrameGetLTM(stack->frame);
+    ltm = (float*)RwFrameGetLTM((RwFrame*)stack->frame);
 
     obj = text->stringObj;
     live = obj;
@@ -4776,32 +4776,32 @@ struct mkScreenEngineMatrixStack {
 
 void Translate__25mkScreenEngineMatrixStackFP14Screen3DVector(mkScreenEngineMatrixStack* self,
                                                              void* delta) {
-    RwFrameTranslate(self->frame, delta, 2);
+    RwFrameTranslate((RwFrame*)self->frame, (const RwV3d*)delta, 2);
 }
 
 void Scale__25mkScreenEngineMatrixStackFP14Screen3DVector(mkScreenEngineMatrixStack* self,
                                                          void* scale) {
-    RwFrameScale(self->frame, scale, 2);
+    RwFrameScale((RwFrame*)self->frame, (const RwV3d*)scale, 2);
 }
 
 void Rotate__25mkScreenEngineMatrixStackFP14Screen3DVectorf(mkScreenEngineMatrixStack* self,
                                                            void* axis, float angle) {
-    RwFrameRotate(self->frame, axis, angle, 2);
+    RwFrameRotate((RwFrame*)self->frame, (const RwV3d*)axis, angle, 2);
 }
 
 void AddChild__25mkScreenEngineMatrixStackFP17ScreenMatrixStack(mkScreenEngineMatrixStack* self,
                                                                mkScreenEngineMatrixStack* child) {
     if (child != 0) {
-        RwFrameAddChild(self->frame, child->frame);
+        RwFrameAddChild((RwFrame*)self->frame, (RwFrame*)child->frame);
     }
 }
 
 void SetIdentity__25mkScreenEngineMatrixStackFv(mkScreenEngineMatrixStack* self) {
-    RwFrameSetIdentity(self->frame);
+    RwFrameSetIdentity((RwFrame*)self->frame);
 }
 
 void Dispose__25mkScreenEngineMatrixStackFv(mkScreenEngineMatrixStack* self) {
-    RwFrameDestroy(self->frame);
+    RwFrameDestroy((RwFrame*)self->frame);
 }
 
 mkScreenEngineMatrixStack* __dt__25mkScreenEngineMatrixStackFv(mkScreenEngineMatrixStack* self,

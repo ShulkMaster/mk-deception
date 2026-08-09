@@ -361,7 +361,6 @@ RpGeometry* RpGeometryForAllMaterials(
     RpGeometry* geometry, KonquestMaterialCallback callback, void* data);
 int get_konquest_game_mode(void);
 void npc_ani_1_frame(void);
-int RwCameraFrustumTestSphere(void* camera, const RwSphere* sphere);
 void add_npc(int npc_id);
 void* memcpy(void* dst, const void* src, unsigned long size);
 int check_skip_conversation_flag(void);

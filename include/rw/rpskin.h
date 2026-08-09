@@ -5,9 +5,17 @@
 
 typedef struct RpAtomic RpAtomic;
 typedef struct RpGeometry RpGeometry;
+typedef struct RpHAnimHierarchy RpHAnimHierarchy;
 typedef struct RpSkin RpSkin;
 typedef struct RwMatrix RwMatrix;
 typedef struct RxPipeline RxPipeline;
+
+typedef struct RwMatrixWeights {
+    RwReal w0;
+    RwReal w1;
+    RwReal w2;
+    RwReal w3;
+} RwMatrixWeights;
 
 typedef struct RpSkinRLECount {
     RwUInt8 start;
@@ -30,13 +38,28 @@ typedef struct RpSkinSplitData {
 
 struct RpSkin {
     RwUInt32 numBones;
-    RwUInt8 field04[0x28];
-    RwUInt32 field_0x2C;
+    RwUInt32 numUsedBones;
+    RwUInt8* usedBoneList;
+    RwMatrix* skinToBoneMatrices;
+    RwUInt32 maxNumWeights;
+    RwUInt32* vertexBoneIndices;
+    RwMatrixWeights* vertexBoneWeights;
+    RwUInt8 reserved_0x1C[0x10];
+    RwUInt32 platformData;
     RpSkinSplitData splitData;
+    void* skinData;
 };
 
 typedef struct RpSkinGlobals {
-    RwUInt8 platformIndependent[0x24];
+    RwInt32 engineOffset;
+    RwInt32 atomicOffset;
+    RwInt32 geometryOffset;
+    void* alignedScratchMemory;
+    void* scratchMemory;
+    RwUInt32 reserved_0x14;
+    void* skinFreeList;
+    RwUInt32 reserved_0x1C;
+    RwInt32 numInstances;
     RxPipeline* pipelines[6];
 } RpSkinGlobals;
 
@@ -48,10 +71,14 @@ typedef enum RpSkinType {
     rpSKINTYPETOON = 3
 } RpSkinType;
 
-RpAtomic* RpSkinAtomicSetHAnimHierarchy(RpAtomic* atomic, void* hierarchy);
+RwBool RpSkinPluginAttach(void);
+RpAtomic* RpSkinAtomicSetHAnimHierarchy(RpAtomic* atomic,
+                                        RpHAnimHierarchy* hierarchy);
 RpSkin* RpSkinGeometryGetSkin(RpGeometry* geometry);
+RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
+RpSkin* RpSkinDestroy(RpSkin* skin);
 RwMatrix* RpSkinGetSkinToBoneMatrices(RpSkin* skin);
-RpAtomic* RpSkinAtomicSetType(RpAtomic* atomic, int type);
+RpAtomic* RpSkinAtomicSetType(RpAtomic* atomic, RpSkinType type);
 RxPipeline* RpSkinGetGameCubePipeline(RpSkinType type);
 RpSkin* _rpSkinSplitDataCreate(RpSkin* skin, RwUInt32 boneLimit,
                                RwUInt32 numBones, RwUInt32 numMeshes,

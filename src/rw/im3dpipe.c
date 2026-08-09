@@ -1,17 +1,8 @@
 #include "rw/rwim3d.h"
 #include "rw/rxpipeline.h"
 
-typedef struct RxLockedPipe RxLockedPipe;
-typedef struct RxNodeDefinition RxNodeDefinition;
-
 extern RxPipeline* RxPipelineCreate(void);
-extern RxLockedPipe* RxPipelineLock(RxPipeline* pipeline);
-extern RxLockedPipe* RxLockedPipeAddFragment(RxLockedPipe* pipeline,
-                                              void* firstEntry, ...);
-extern RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline);
 extern void _rxPipelineDestroy(RxPipeline* pipeline);
-extern RxNodeDefinition* RxNodeDefinitionGetGameCubeImmInstance(void);
-extern RxNodeDefinition* RxNodeDefinitionGetGameCubeSubmitNoLight(void);
 
 RwBool _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
     RxPipeline* pipeline;

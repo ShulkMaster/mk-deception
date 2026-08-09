@@ -51,8 +51,6 @@ void load_lights(void* lights, void* list);
 void insert_fgnd_mkobj(void* bgnd_obj);
 void set_background_color(int r, int g, int b, int a);
 void UpdateShadowCameraLightSource(void* light);
-void* RwCameraSetNearClipPlane(void* camera, float near);
-void* RwCameraSetFarClipPlane(void* camera, float far);
 void turn_fog_on(void);
 void turn_fog_off(void);
 void initialize_bgnd_collisions(void* data);

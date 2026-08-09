@@ -20,7 +20,20 @@ typedef union RwSplitBits {
 
 typedef struct RwModuleInfo { RwInt32 globalsOffset; RwInt32 numInstances; } RwModuleInfo;
 typedef struct RwV3d { RwReal x; RwReal y; RwReal z; } RwV3d;
+typedef struct RwV2d { RwReal x; RwReal y; } RwV2d;
 typedef struct RwBBox { RwV3d sup; RwV3d inf; } RwBBox;
+typedef struct RwPlane { RwV3d normal; RwReal distance; } RwPlane;
+typedef struct RwSphere {
+    union {
+        RwV3d center;
+        struct {
+            RwReal x;
+            RwReal y;
+            RwReal z;
+        };
+    };
+    RwReal radius;
+} RwSphere;
 typedef struct RwError {
     RwInt32 pluginID;
     RwInt32 errorCode;

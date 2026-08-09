@@ -200,10 +200,6 @@ static int f_p2_show_fatality_off;
 extern int check_for_winner(void);
 extern int get_fatality_available_flag(void);
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
-extern RpGeometry* RpGeometryForAllMaterials(
-    RpGeometry* geometry, FxMaterialCallback callback, unsigned int data);
-extern RpClump* RpClumpForAllAtomics(
-    RpClump* clump, void* callback, void* data);
 extern MkPtr* freeze_light_list;
 extern PlyrPdata* his_pdata;
 extern int snd_req(int sound_id);
@@ -1176,7 +1172,8 @@ RpAtomic* set_atomic_material_specular(RpAtomic* atomic,
                                        unsigned int specular) {
     if (atomic->geometry != 0) {
         RpGeometryForAllMaterials(
-            atomic->geometry, material_set_specular, specular);
+            atomic->geometry, (RpMaterialCallBack)material_set_specular,
+            (void*)specular);
     }
     return atomic;
 }
@@ -1211,7 +1208,7 @@ RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha) {
     if (geometry != 0) {
         geometry->flags |= 0x40;
         RpGeometryForAllMaterials(
-            geometry, material_set_alpha, alpha);
+            geometry, (RpMaterialCallBack)material_set_alpha, (void*)alpha);
     }
     return atomic;
 }

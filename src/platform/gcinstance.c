@@ -1,4 +1,6 @@
 #include "platform/gcinstance.h"
+#include "rw/gamecube.h"
+#include "rw/gamecube_texture.h"
 
 typedef void (*RwResEntryDestroyNotify)(RwResEntry* entry);
 
@@ -73,20 +75,9 @@ typedef struct GcNativeRasterHeader {
     unsigned int has_alpha;
 } GcNativeRasterHeader;
 
-typedef struct GcRasterExt {
-    unsigned char pad_0x00[0x0C];
-    int tile_mode;
-    int palette_format;
-    int has_alpha;
-    unsigned char pad_0x18[4];
-    unsigned char* image_data;
-    unsigned char* palette_data;
-} GcRasterExt;
-
 extern GcInstanceEngine* RwEngineInstance;
 extern GcSkinGlobals _rpSkinGlobals;
 extern unsigned short _RwDlTokenCurrent;
-extern int _RwGameCubeRasterExtOffset;
 extern void _rxGCResEntryWaitDone(RwResEntry* entry);
 
 extern int RwStreamFindChunk(RwStream* stream, unsigned int type,
@@ -102,21 +93,15 @@ extern void RwErrorSet(int* error);
 extern void DCFlushRange(void* address, unsigned int length);
 extern void GXInvalidateVtxCache(void);
 extern void GXInvalidateTexAll(void);
-extern void GXInitTlutObj(GcRasterExt* extension, void* palette,
-                          int palette_format, unsigned short entries);
 extern RwTexture* RwTextureCreate(RwRaster* raster);
 extern int RwRasterDestroy(RwRaster* raster);
 extern RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
-extern void RwGameCubeTextureSetLOD(RwTexture* texture, int field_0x0C,
-                                    int field_0x10, int field_0x08,
-                                    float lod_bias);
 extern void* memset(void* destination, int value, unsigned int size);
 extern RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
 
 /* RenderWare publishes this plugin at a runtime-selected offset. */
-#define GC_RASTER_EXTENSION(raster) \
-    ((GcRasterExt*)((unsigned char*)(raster) + _RwGameCubeRasterExtOffset))
+#define GC_RASTER_EXTENSION(raster) RW_GAMECUBE_RASTER_EXTENSION(raster)
 #define ALIGN_POINTER_4(pointer) \
     ((unsigned char*)(((unsigned int)(pointer) + 3) & ~3U))
 
@@ -324,7 +309,7 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     unsigned int raster_format_bit;
     unsigned char* stream_data;
     RwRaster* raster;
-    GcRasterExt* extension;
+    RwGameCubeRasterExt* extension;
     RwTexture* result;
 
     if (!RwStreamFindChunk(stream, 1, &chunk_length, &version)) {
@@ -351,9 +336,9 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
         return 0;
     }
     extension = GC_RASTER_EXTENSION(raster);
-    extension->tile_mode = raster_header.tile_mode;
-    extension->palette_format = raster_header.palette_format;
-    extension->has_alpha = raster_header.has_alpha != 0;
+    extension->format = raster_header.tile_mode;
+    extension->paletteFormat = raster_header.palette_format;
+    extension->hasAlpha = raster_header.has_alpha != 0;
 
     raster_format_bit = raster->format & 0x10;
     raster->format &= ~raster_format_bit;
@@ -366,16 +351,16 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     image_size -= padding;
     stream_data = stream->data.memory.start + stream->data.memory.position;
     RwStreamSkip(stream, image_size);
-    extension->image_data = stream_data;
-    DCFlushRange(extension->image_data, image_size);
+    extension->imageData = stream_data;
+    DCFlushRange(extension->imageData, image_size);
 
     if ((raster->format << 8) & 0x6000) {
         stream_data = stream->data.memory.start + stream->data.memory.position;
         RwStreamSkip(stream, (1 << raster->depth) * 2);
-        extension->palette_data = stream_data;
-        DCFlushRange(extension->palette_data, (1 << raster->depth) * 2);
-        GXInitTlutObj(extension, extension->palette_data,
-                      extension->palette_format,
+        extension->paletteData = stream_data;
+        DCFlushRange(extension->paletteData, (1 << raster->depth) * 2);
+        GXInitTlutObj(&extension->tlut, extension->paletteData,
+                      extension->paletteFormat,
                       (unsigned short)(1 << raster->depth));
     }
     GXInvalidateTexAll();
@@ -395,10 +380,10 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
                            (texture_header.filter_addressing & 0xf000);
     RwTextureSetName(result, texture_header.name);
     RwTextureSetMaskName(result, texture_header.mask);
-    RwGameCubeTextureSetLOD(result, texture_header.lod_field_0x0C,
+    RwGameCubeTextureSetLOD(result, texture_header.lod_bias,
+                            texture_header.lod_field_0x0C,
                             texture_header.lod_field_0x10,
-                            texture_header.lod_field_0x08,
-                            texture_header.lod_bias);
+                            texture_header.lod_field_0x08);
     *texture = result;
     return 1;
 }

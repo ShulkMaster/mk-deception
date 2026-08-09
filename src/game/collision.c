@@ -34,20 +34,6 @@ typedef struct CdfCollisionPrimitive {
     Vec vertices[1];
 } CdfCollisionPrimitive;
 
-struct RwIm3DVertex {
-    Vec position;
-    char pad0C[0x0C];
-    union {
-        unsigned int color;
-        struct {
-            unsigned char red;
-            unsigned char green;
-            unsigned char blue;
-            unsigned char alpha;
-        } color_channels;
-    };
-    char pad1C[8];
-};
 typedef struct RwIm3DVertex CollisionIm3DVertex; /* 0x24 */
 
 typedef struct PlayerCollisionAnimView {
@@ -369,7 +355,9 @@ static inline void set_collision_vertex(
     const unsigned int* color) {
     const unsigned char* channels = (const unsigned char*)color;
 
-    vertex->position = *position;
+    vertex->position.x = position->x;
+    vertex->position.y = position->y;
+    vertex->position.z = position->z;
     vertex->color_channels.red = channels[0];
     vertex->color_channels.green = channels[1];
     vertex->color_channels.blue = channels[2];

@@ -22,6 +22,9 @@ RwTexture* RpMaterialSetDualAlphaPassTexture(RpMaterial* material,
                                              RwTexture* texture);
 void _rxGCTevAlphaPassSetup(RxGCTevAlphaPass* pass);
 void _rxGCTevAlphaPassCleanup(RxGCTevAlphaPass* pass);
+void SetSingleTextureAlphaPassWithAlphaComp(RwTexture* texture,
+                                            RwTexture* alphaTexture,
+                                            RxGCTevAlphaPass* pass);
 void _rxGCTevAlphaMultiPassSetup(RxGCTevAlphaPass* pass);
 void _rxGCTevAlphaMultiPassCleanup(RxGCTevAlphaPass* pass);
 

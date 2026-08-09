@@ -1,91 +1,319 @@
-/* TODO: Missing implementation for retail unit rpspecular.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/rpworld_types.h"
+#include "rw/rwplcore.h"
+#include "rw/rwstream.h"
 
-void *specskin_close_images(void)
+typedef struct SpecularGeometryPluginData {
+    void* allocation;
+    RwInt32 materialIndex;
+} SpecularGeometryPluginData;
+
+typedef struct SpecularColor {
+    RwUInt8 red;
+    RwUInt8 green;
+    RwUInt8 blue;
+    RwUInt8 alpha;
+} SpecularColor;
+
+typedef struct SpecularMaterialPluginData {
+    void* light;
+    RwFrame* frame;
+    RwTexture* texture;
+    RwTexture* savedTexture;
+    RwUInt8 savedSurface[0xC];
+    RwInt32 clipValue;
+    RwReal shininess;
+    SpecularColor tint;
+    RwReal gloss;
+    RwUInt32 flags;
+} SpecularMaterialPluginData;
+
+extern void* ImagePixels;
+extern RwImage* RwImageCreate(RwInt32 width, RwInt32 height, RwInt32 depth);
+extern RwBool RwImageDestroy(RwImage* image);
+extern RwReal powf(RwReal value, RwReal power);
+extern RwInt32 RpMaterialRegisterPlugin(
+    RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
+extern RwInt32 RpMaterialRegisterPluginStream(
+    RwUInt32 pluginID, RwPluginDataChunkReadCallBack readCB,
+    RwPluginDataChunkWriteCallBack writeCB,
+    RwPluginDataChunkGetSizeCallBack getSizeCB);
+
+RwTexture* PhongTextures[3] = { NULL, NULL, NULL };
+RwReal PhongCoefficients[3] = { 10.0f, 25.0f, 40.0f };
+
+RwInt32 SpecularMaterialOffset = -1;
+
+static RwUInt32 SpecularInstances;
+static RwImage* Image;
+RwInt32 SpecularGeometryOffset;
+
+#define SPECULAR_GEOMETRY_DATA(object)                                  \
+    ((SpecularGeometryPluginData*)((RwUInt8*)(object) +                 \
+                                   SpecularGeometryOffset))
+#define SPECULAR_MATERIAL_DATA(object)                                  \
+    ((SpecularMaterialPluginData*)((RwUInt8*)(object) +                 \
+                                   SpecularMaterialOffset))
+
+static void specskin_close_images(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 index;
+
+    if (Image != NULL) {
+        RwImageDestroy(Image);
+    }
+
+    for (index = 0; index < 3; index++) {
+        if (PhongTextures[index] != NULL) {
+            RwTextureDestroy(PhongTextures[index]);
+        }
+    }
 }
 
-void *SpecularClose(void)
+static void* SpecularClose(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (--SpecularInstances == 0) {
+        specskin_close_images();
+    }
+    return instance;
 }
 
-void *CreatePhongImage(void)
+static RwBool CreatePhongImage(RwInt32 imageIndex, RwReal coefficient)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwUInt8* pixel = (RwUInt8*)ImagePixels;
+    RwUInt32 y;
+    RwUInt32 x;
+
+    for (y = 0; y < 128; y++) {
+        for (x = 0; x < 128; x++) {
+            RwReal nx = 2.0f * ((RwReal)x / 127.0f) - 1.0f;
+            RwReal ny = 2.0f * ((RwReal)y / 127.0f) - 1.0f;
+            RwReal height;
+            RwInt32 intensity;
+            RwUInt8 color;
+
+            if (1.0f - nx * nx - ny * ny > 0.0f) {
+                height = 1.0f - nx * nx - ny * ny;
+            } else {
+                height = 0.0f;
+            }
+
+            intensity = (RwInt32)(254.99f * powf(height, 0.5f * coefficient)) + 1;
+            color = intensity > 255 ? 255 : (RwUInt8)intensity;
+            pixel[0] = color;
+            pixel[1] = color;
+            pixel[2] = color;
+            pixel[3] = 255;
+            pixel += 4;
+        }
+    }
+
+    return RwRasterSetFromImage(PhongTextures[imageIndex]->raster, Image) != NULL;
 }
 
-void *specskin_open_images(void)
+static RwBool specskin_open_images(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwUInt32 index;
+
+    Image = RwImageCreate(128, 128, 32);
+    if (Image == NULL) {
+        return FALSE;
+    }
+
+    Image->stride = 512;
+    Image->pixels = (RwUInt8*)ImagePixels;
+
+    for (index = 0; index < 3; index++) {
+        RwRaster* raster = RwRasterCreate(128, 128, 32, 0x604);
+        if (raster == NULL) {
+            return FALSE;
+        }
+
+        PhongTextures[index] = RwTextureCreate(raster);
+        if (PhongTextures[index] == NULL) {
+            return FALSE;
+        }
+
+        PhongTextures[index]->filter_flags =
+            (PhongTextures[index]->filter_flags & ~0xFFU) | rwFILTERLINEAR;
+        PhongTextures[index]->filter_flags =
+            (PhongTextures[index]->filter_flags & ~0xFF00U) | 0x1100;
+    }
+
+    for (index = 0; index < 3; index++) {
+        CreatePhongImage(index, PhongCoefficients[index]);
+    }
+
+    return TRUE;
 }
 
-void *SpecularOpen(void)
+static void* SpecularOpen(void* instance, RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (SpecularInstances++ == 0) {
+        specskin_open_images();
+    }
+    return instance;
 }
 
-void *SpecularGeometryConstructor(void)
+static void* SpecularGeometryConstructor(void* object, RwInt32 offset,
+                                         RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SPECULAR_GEOMETRY_DATA(object)->allocation = NULL;
+    SPECULAR_GEOMETRY_DATA(object)->materialIndex = -1;
+    return object;
 }
 
-void *SpecularGeometryDestructor(void)
+static void* SpecularGeometryDestructor(void* object, RwInt32 offset,
+                                        RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SpecularGeometryPluginData* data = SPECULAR_GEOMETRY_DATA(object);
+
+    if (data->allocation != NULL) {
+        RwEngineInstance->fpFree(data->allocation);
+    }
+    return object;
 }
 
-void *SpecularGeometryCopy(void)
+static void* SpecularGeometryCopy(void* destination, const void* source,
+                                  RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SpecularGeometryPluginData* destinationData =
+        SPECULAR_GEOMETRY_DATA(destination);
+    const SpecularGeometryPluginData* sourceData =
+        SPECULAR_GEOMETRY_DATA(source);
+
+    if (destinationData->allocation != NULL) {
+        RwEngineInstance->fpFree(destinationData->allocation);
+    }
+    destinationData->allocation = sourceData->allocation;
+    destinationData->materialIndex = sourceData->materialIndex;
+    return destination;
 }
 
-void *SpecularMaterialConstructor(void)
+static void* SpecularMaterialConstructor(void* object, RwInt32 offset,
+                                         RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    static const SpecularColor whiteColor = { 255, 255, 255, 255 };
+    SPECULAR_MATERIAL_DATA(object)->texture = NULL;
+    SPECULAR_MATERIAL_DATA(object)->savedTexture = NULL;
+    SPECULAR_MATERIAL_DATA(object)->light = NULL;
+    SPECULAR_MATERIAL_DATA(object)->frame = NULL;
+    SPECULAR_MATERIAL_DATA(object)->clipValue = 0;
+    SPECULAR_MATERIAL_DATA(object)->shininess = 0.0f;
+    SPECULAR_MATERIAL_DATA(object)->tint = whiteColor;
+    SPECULAR_MATERIAL_DATA(object)->gloss = 0.0f;
+    SPECULAR_MATERIAL_DATA(object)->flags = 0;
+    return object;
 }
 
-void *SpecularMaterialDestructor(void)
+static void* SpecularMaterialDestructor(void* object, RwInt32 offset,
+                                        RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return object;
 }
 
-void *SpecularMaterialCopy(void)
+static void* SpecularMaterialCopy(void* destination, const void* source,
+                                  RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SpecularMaterialPluginData* destinationData =
+        SPECULAR_MATERIAL_DATA(destination);
+    const SpecularMaterialPluginData* sourceData =
+        SPECULAR_MATERIAL_DATA(source);
+
+    destinationData->frame = sourceData->frame;
+    destinationData->light = sourceData->light;
+    destinationData->texture = sourceData->texture;
+    destinationData->shininess = sourceData->shininess;
+    destinationData->tint = sourceData->tint;
+    destinationData->flags = sourceData->flags;
+    return destination;
 }
 
-void *SpecularMaterialStreamWrite(void)
+static RwStream* SpecularMaterialStreamWrite(RwStream* stream,
+                                             RwInt32 binaryLength,
+                                             const void* object,
+                                             RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    const SpecularMaterialPluginData* data =
+        SPECULAR_MATERIAL_DATA(object);
+    RwInt32 texturePresent = data->texture != NULL;
+
+    if (RwStreamWrite(stream, &texturePresent, sizeof(texturePresent)) == NULL) {
+        return NULL;
+    }
+    if (texturePresent && RwTextureStreamWrite(data->texture, stream) == NULL) {
+        return NULL;
+    }
+    return stream;
 }
 
-void *SpecularMaterialStreamRead(void)
+static RwStream* SpecularMaterialStreamRead(RwStream* stream,
+                                            RwInt32 binaryLength, void* object,
+                                            RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SpecularMaterialPluginData* data = SPECULAR_MATERIAL_DATA(object);
+    RwInt32 texturePresent;
+    RwUInt32 chunkLength;
+
+    if (RwStreamRead(stream, &texturePresent, sizeof(texturePresent)) !=
+        sizeof(texturePresent)) {
+        return NULL;
+    }
+    if (texturePresent) {
+        if (!RwStreamFindChunk(stream, 6, &chunkLength, NULL)) {
+            return NULL;
+        }
+        data->texture = RwTextureStreamRead(stream);
+        if (data->texture == NULL) {
+            return NULL;
+        }
+    }
+    return stream;
 }
 
-void *SpecularMaterialStreamGetSize(void)
+static RwInt32 SpecularMaterialStreamGetSize(const void* object,
+                                             RwInt32 offset, RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    const SpecularMaterialPluginData* data =
+        SPECULAR_MATERIAL_DATA(object);
+    RwInt32 streamSize = sizeof(RwInt32);
+
+    if (data->texture != NULL) {
+        streamSize += RwTextureStreamGetSize(data->texture) + 12;
+    }
+    return streamSize;
 }
 
-void *RpSpecularPluginAttach(void)
+RwBool RpSpecularPluginAttach(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 result;
+
+    if (RwEngineRegisterPlugin(0, 0xFF, SpecularOpen, SpecularClose) < 0) {
+        return FALSE;
+    }
+
+    SpecularGeometryOffset = RpGeometryRegisterPlugin(
+        sizeof(SpecularGeometryPluginData), 0x1FF,
+        SpecularGeometryConstructor, SpecularGeometryDestructor,
+        SpecularGeometryCopy);
+    if (SpecularGeometryOffset < 0) {
+        return FALSE;
+    }
+
+    SpecularMaterialOffset = RpMaterialRegisterPlugin(
+        sizeof(SpecularMaterialPluginData), 0x1FF,
+        SpecularMaterialConstructor, SpecularMaterialDestructor,
+        SpecularMaterialCopy);
+    if (SpecularMaterialOffset < 0) {
+        return FALSE;
+    }
+
+    result = RpMaterialRegisterPluginStream(
+        0x1FF, SpecularMaterialStreamRead, SpecularMaterialStreamWrite,
+        SpecularMaterialStreamGetSize);
+    if (result < 0) {
+        return FALSE;
+    }
+    return TRUE;
 }

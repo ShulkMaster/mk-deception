@@ -3,6 +3,7 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/utils.h"
+#include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
 
 typedef struct RpGameCubeVtxFmt {
@@ -44,12 +45,7 @@ void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
                                  int count, int type);
 void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
                                  RpGameCubeVtxFmt* format);
-int RpMatFXMaterialGetEffects(RpMaterial* material);
-RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material, int effects);
-void* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
-int RpMatFXAtomicQueryEffects(RpAtomic* atomic);
 extern void* SpecSkinAtomicPipeline;
-extern void* RwEngineInstance;
 extern int _rxPipelineGlobalsOffset;
 
 static const GXColor OpaqueWhite = {255, 255, 255, 255};
@@ -369,8 +365,8 @@ static void MatFunc1(RwRGBAReal* color, GXColor* material, float intensity) {
 }
 
 void GCNSetupNonRenderwarePipeline(RpClump* clump, void* owner) {
-    RwLLLink* link = clump->atomicList.next;
-    RwLLLink* sentinel = &clump->atomicList;
+    RwLLLink* link = clump->atomicList.link.next;
+    RwLLLink* sentinel = &clump->atomicList.link;
 
     while (link != sentinel) {
         RpAtomic* atomic = RP_ATOMIC_FROM_CLUMP_LINK(link);
