@@ -13,10 +13,6 @@
 
 typedef struct RxPipeline RxPipeline;
 
-typedef struct GXLightObj {
-    unsigned char data[0x40];
-} GXLightObj;
-
 typedef union SpecularMaterialFlags {
     unsigned char value;
     struct {
@@ -213,12 +209,6 @@ void _rwDlRenderStateSetZCompLoc(int);
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
 
 void GXGetViewportv();
-void GXInitLightAttn(
-    GXLightObj*, float, float, float, float, float, float);
-void GXInitLightPos(GXLightObj*, float, float, float);
-void GXInitLightColor(GXLightObj*, GXColor);
-void GXLoadLightObjImm(GXLightObj*, unsigned int);
-
 RxPipeline* SpecSkinAtomicPipeline;
 RxPipeline* SpecSkinMaterialPipeline;
 RxPipeline* ReflectionAtomicPipeline;

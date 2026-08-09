@@ -21,6 +21,10 @@ typedef struct GXTexObj {
     unsigned char data[0x20];
 } GXTexObj;
 
+typedef struct GXLightObj {
+    unsigned char data[0x40];
+} GXLightObj;
+
 typedef struct GXTlutObj {
     unsigned char data[0xC];
 } GXTlutObj;
@@ -149,6 +153,16 @@ unsigned char GXGetTexObjBiasClamp(GXTexObj* object);
 unsigned char GXGetTexObjEdgeLOD(GXTexObj* object);
 int GXGetTexObjMaxAniso(GXTexObj* object);
 unsigned long GXGetTexObjTlut(GXTexObj* object);
+void GXInitLightAttn(GXLightObj* object, float a0, float a1, float a2,
+                     float k0, float k1, float k2);
+void GXInitLightAttnA(GXLightObj* object, float a0, float a1, float a2);
+void GXInitLightColor(GXLightObj* object, GXColor color);
+void GXInitLightDir(GXLightObj* object, float nx, float ny, float nz);
+void GXInitLightDistAttn(GXLightObj* object, float reference_distance,
+                         float reference_brightness, int function);
+void GXInitLightPos(GXLightObj* object, float x, float y, float z);
+void GXInitLightSpot(GXLightObj* object, float cutoff, int function);
+void GXLoadLightObjImm(GXLightObj* object, unsigned int id);
 int GXGetTexBufferSize(unsigned short width, unsigned short height, int format,
                        int mipmap, unsigned char max_lod);
 void GXPixModeSync(void);
