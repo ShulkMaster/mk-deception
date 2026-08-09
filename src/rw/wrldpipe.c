@@ -1,4 +1,4 @@
-#include "rw/rxpipeline.h"
+#include "rw/nodegamecube.h"
 
 extern RwBool _rpDlVtxFmtPluginAttach(void);
 extern RwBool _rpDlLightPluginAttach(void);
@@ -7,11 +7,6 @@ typedef void (*RxGCInstanceCallback)(void);
 typedef void (*RxGCReinstanceCallback)(void);
 typedef void (*RxGCLightingCallback)(void);
 typedef void (*RxGCRenderCallback)(void);
-extern RxPipeline* _rpDlSectorPipelineCreate(
-    RwUInt32 pluginId, RwUInt32 pluginData,
-    RxGCInstanceCallback instanceCallback,
-    RxGCReinstanceCallback reinstanceCallback,
-    RxGCLightingCallback lightingCallback, RxGCRenderCallback renderCallback);
 extern RxPipeline* _rpDlAtomicPipelineCreate(
     RwUInt32 pluginId, RwUInt32 pluginData,
     RxGCInstanceCallback instanceCallback,
@@ -20,8 +15,6 @@ extern RxPipeline* _rpDlAtomicPipelineCreate(
 extern void _rxPipelineDestroy(RxPipeline* pipeline);
 extern RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline);
 extern RxPipeline* RpAtomicSetDefaultPipeline(RxPipeline* pipeline);
-extern void _rxGCSectorDefaultInstanceCallback(void);
-extern void _rxGCSectorDefaultLightingCallback(void);
 extern void _rxGCAtomicDefaultInstanceCallback(void);
 extern void _rxGCAtomicDefaultReinstanceCallback(void);
 extern void _rxGCAtomicDefaultLightingCallback(void);
@@ -53,7 +46,8 @@ void _rpDestroyPlatformMaterialPipelines(void) {
 RwBool _rpCreatePlatformWorldSectorPipelines(void) {
     RxPipeline* pipeline = _rpDlSectorPipelineCreate(
         2, 0, _rxGCSectorDefaultInstanceCallback, 0,
-        _rxGCSectorDefaultLightingCallback, _rxGCDefaultRenderCallback);
+        _rxGCSectorDefaultLightingCallback,
+        (RxGCSectorRenderCallBack)_rxGCDefaultRenderCallback);
     if (pipeline != 0) {
         RXPIPELINEGLOBAL(platformWorldSectorPipeline) = pipeline;
         RpWorldSetDefaultSectorPipeline(pipeline);
