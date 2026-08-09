@@ -95,6 +95,12 @@ RwStream* _rpSkinGeometryNativeWrite(RwStream* stream,
                                      const RpGeometry* geometry);
 RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry);
 RwUInt32 _rpSkinAtomicNativeSize(const RpAtomic* atomic);
+void _rpSkinMatrixBlendUpdateASM(RwMatrix* destination,
+                                 const RwMatrix* skinToBone,
+                                 const RwMatrix* hierarchyMatrices,
+                                 const RwMatrix* transform,
+                                 const RwUInt8* usedBoneList,
+                                 RwUInt32 numUsedBones);
 RwBool _rpSkinPipelinesCreate(RwUInt32 pipeType);
 RwBool _rpSkinPipelinesDestroy(void);
 RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType skinType);
