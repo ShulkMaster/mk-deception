@@ -3,6 +3,19 @@
 
 #include "rw/rwtypehf.h"
 
+typedef enum RpLightType {
+    rpNALIGHTTYPE = 0,
+    rpLIGHTDIRECTIONAL = 1,
+    rpLIGHTAMBIENT = 2,
+    rpLIGHTPOINT = 0x80,
+    rpLIGHTSPOT = 0x81,
+    rpLIGHTSPOTSOFT = 0x82
+} RpLightType;
+
+#define rpLIGHTPOSITIONINGSTART 0x80
+#define RpLightGetType(light) ((light)->object.object.subType)
+#define RpLightGetFrame(light) ((RwFrame*)(light)->object.object.parent)
+
 typedef struct RpLight {
     RwObjectHasFrame object; /* +0x00 */
     RwReal radius;           /* +0x14 */
@@ -24,7 +37,7 @@ RwInt32 RpLightRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
                               RwPluginObjectConstructor constructCB,
                               RwPluginObjectDestructor destructCB,
                               RwPluginObjectCopy copyCB);
-struct RpWorld* RpLightGetWorld(RpLight* light);
-void RpWorldAddLight(struct RpWorld* world, RpLight* light);
+struct RpWorld* RpLightGetWorld(const RpLight* light);
+struct RpWorld* RpWorldAddLight(struct RpWorld* world, RpLight* light);
 
 #endif

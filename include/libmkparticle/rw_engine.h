@@ -125,7 +125,7 @@ typedef struct RwGlobals {
     char pad8C[0xC];
     RwRasterDeviceCall fpRasterShowRaster; /* +0x98 */
     RwCameraClearCall fpCameraClear; /* +0x9C */
-    char padA0[0x4];
+    RwStandardFunc fpHintRenderFrontToBack; /* +0xA0 */
     RwRasterDeviceCall fpRasterLockPalette; /* +0xA4 */
     RwRasterDeviceCall fpRasterUnlockPalette; /* +0xA8 */
     char padAC[0xC];
