@@ -353,83 +353,86 @@ static void PipelineTallyInputs(RxPipeline* pipeline)
 
 typedef struct PipelineTopSortState {
     RxPipeline* pipeline;
-    RwUInt32 numSorted;
+    RwUInt32 nodesArraySlot;
 } PipelineTopSortState;
 
-static void PipelineTopSort(PipelineTopSortState* state, RwUInt32 nodeIndex)
+static void PipelineTopSort(PipelineTopSortState* data, RwUInt32 nodeIndex)
 {
-    /* Retail rematerializes state->pipeline and emits the three node transfers
-     * as fixed-size CTR copies. These direct typed assignments preserve the swap
-     * but MWCC unrolls them, leaving the source shape below the near-match band. */
-    RwUInt32 destinationIndex = state->numSorted;
-    RxPipelineNode* destination;
-    RwUInt32 outputIndex;
+    /* Canonical RenderWare source retained. Retail lowers the fixed 0x0c and
+     * 0x28 aggregate swaps as CTR copies; this compiler unrolls them. */
+    RxPipelineNode* currentNode;
+    RwUInt32 i = data->nodesArraySlot;
+    RwUInt32 j = nodeIndex;
 
-    if (destinationIndex != nodeIndex) {
-        RxPipelineNode* source = &state->pipeline->nodes[nodeIndex];
-        RwUInt32* destinationOutputs =
-            state->pipeline->nodes[destinationIndex].outputs;
-        RwUInt32* sourceOutputs = source->outputs;
-        RxPipelineNodeTopSortData* destinationSort =
-            state->pipeline->nodes[destinationIndex].topSortData;
-        RxPipelineNodeTopSortData* sourceSort = source->topSortData;
+    if (i != j) {
+        RwUInt32 temporaryOutput;
+        RwUInt32* outputsI;
+        RwUInt32* outputsJ;
+        RxPipelineNodeTopSortData temporaryTopSortData;
+        RxPipelineNodeTopSortData* topSortDataI;
+        RxPipelineNodeTopSortData* topSortDataJ;
         RxPipelineNode temporaryNode;
-        RxPipelineNodeTopSortData temporarySort;
+        RwUInt32 k;
+        RwUInt32 l;
 
-        for (outputIndex = 0; outputIndex < 0x20; outputIndex++) {
-            RwUInt32 temporary = destinationOutputs[outputIndex];
-            destinationOutputs[outputIndex] = sourceOutputs[outputIndex];
-            sourceOutputs[outputIndex] = temporary;
+        outputsI = data->pipeline->nodes[i].outputs;
+        outputsJ = data->pipeline->nodes[j].outputs;
+        for (k = 0; k < 0x20; k++) {
+            temporaryOutput = outputsI[k];
+            outputsI[k] = outputsJ[k];
+            outputsJ[k] = temporaryOutput;
         }
-        state->pipeline->nodes[destinationIndex].outputs = sourceOutputs;
-        source->outputs = destinationOutputs;
-        temporarySort = *destinationSort;
-        *destinationSort = *sourceSort;
-        *sourceSort = temporarySort;
-        state->pipeline->nodes[destinationIndex].topSortData = sourceSort;
-        source->topSortData = destinationSort;
-        temporaryNode = state->pipeline->nodes[destinationIndex];
-        state->pipeline->nodes[destinationIndex] = *source;
-        *source = temporaryNode;
+        data->pipeline->nodes[i].outputs = outputsJ;
+        data->pipeline->nodes[j].outputs = outputsI;
 
-        for (outputIndex = 0; outputIndex < state->pipeline->numNodes;
-             outputIndex++) {
-            RxPipelineNode* node = &state->pipeline->nodes[outputIndex];
-            RwUInt32 output;
-            for (output = 0; output < node->numOutputs; output++) {
-                if (node->outputs[output] == destinationIndex) {
-                    node->outputs[output] = nodeIndex;
-                } else if (node->outputs[output] == nodeIndex) {
-                    node->outputs[output] = destinationIndex;
+        topSortDataI = data->pipeline->nodes[i].topSortData;
+        topSortDataJ = data->pipeline->nodes[j].topSortData;
+        temporaryTopSortData = *topSortDataI;
+        *topSortDataI = *topSortDataJ;
+        *topSortDataJ = temporaryTopSortData;
+        data->pipeline->nodes[i].topSortData = topSortDataJ;
+        data->pipeline->nodes[j].topSortData = topSortDataI;
+
+        temporaryNode = data->pipeline->nodes[i];
+        data->pipeline->nodes[i] = data->pipeline->nodes[j];
+        data->pipeline->nodes[j] = temporaryNode;
+
+        for (k = 0; k < data->pipeline->numNodes; k++) {
+            RxPipelineNode* node = &data->pipeline->nodes[k];
+            for (l = 0; l < node->numOutputs; l++) {
+                if (node->outputs[l] == i) {
+                    node->outputs[l] = j;
+                } else if (node->outputs[l] == j) {
+                    node->outputs[l] = i;
                 }
             }
         }
     }
 
-    destination = &state->pipeline->nodes[state->numSorted++];
-    for (outputIndex = 0; outputIndex < destination->numOutputs;
-        outputIndex++) {
-        RwUInt32 output = destination->outputs[outputIndex];
-        if (output != (RwUInt32)-1) {
-            RxPipelineNode* next = &state->pipeline->nodes[output];
-            next->topSortData->numInsVisited++;
-            if (next->topSortData->numIns ==
-                next->topSortData->numInsVisited) {
-                PipelineTopSort(state, output);
+    currentNode = &data->pipeline->nodes[data->nodesArraySlot];
+    data->nodesArraySlot++;
+    if (currentNode->numOutputs != 0) {
+        for (i = 0; i < currentNode->numOutputs; i++) {
+            RwUInt32 outputIndex = currentNode->outputs[i];
+
+            if (outputIndex != (RwUInt32)-1) {
+                RxPipelineNode* outputNode = &data->pipeline->nodes[outputIndex];
+                outputNode->topSortData->numInsVisited++;
+                if (outputNode->topSortData->numIns ==
+                    outputNode->topSortData->numInsVisited) {
+                    PipelineTopSort(data, outputIndex);
+                }
             }
         }
     }
 }
 
-static RwUInt32 PipelineNode2Index(const RxPipeline* pipeline,
-                                  const RxPipelineNode* node)
+static RwUInt32 PipelineNode2Index(RxPipeline* pipeline, RxPipelineNode* node)
 {
-    /* Retail uses signed divw; MWCC strength-reduces this clean constant form. */
-    RwInt32 index =
-        (RwInt32)((RwUInt32)node - (RwUInt32)pipeline->nodes) /
-        (RwInt32)sizeof(RxPipelineNode);
+    RwUInt32 index = node - pipeline->nodes;
+
     if (&pipeline->nodes[index] == node &&
-        (RwUInt32)index < pipeline->numNodes) {
+        index < pipeline->numNodes) {
         return index;
     }
     return -1;
@@ -441,7 +444,7 @@ static RxPipeline* PipelineUnlockTopSort(RxPipeline* pipeline)
     RwUInt32 index;
 
     state.pipeline = pipeline;
-    state.numSorted = 0;
+    state.nodesArraySlot = 0;
     PipelineTallyInputs(pipeline);
     if (pipeline->nodes[pipeline->entryPoint].topSortData->numIns != 0) {
         RwError error;
