@@ -72,6 +72,8 @@ static void MWY_GCN_RW_GxBreakPtCallback_ForRW(void* data)
 
 static RwInt32 i_SkipInactiveGxBreakPts(void)
 {
+    /* Retail's call-free body is identical, but it still selects the
+     * _savegpr_28/_restgpr_28 helpers instead of individual GPR saves. */
     RwInt32 count = RwGxBreakPt_Q.count;
     RwInt32 head = RwGxBreakPt_Q.head;
     RwInt32 capacity = RwGxBreakPt_Q.capacity;
@@ -92,6 +94,8 @@ static RwInt32 i_SkipInactiveGxBreakPts(void)
 
 static void i_AdvanceToNextGxBreakPt(void)
 {
+    /* The queue transition body and r29-r31 lifetimes match retail.  Only
+     * CodeWarrior's helper-versus-individual save policy remains. */
     RwInt32 count = i_SkipInactiveGxBreakPts();
 
     if (count != 0) {
@@ -153,6 +157,9 @@ static void MWY_GCN_RW_GxBreakPtCallback_General(void)
     RwBool interrupts = OSDisableInterrupts();
     void* previousAddress;
     RwBool advanced;
+    RwInt32 count;
+    RwInt32 index;
+    RwGxBreakPtEntry* entry;
 
     RwGxBreakPt_Q.inCallback = 1;
     if (RwGxBreakPt_Q.breakEnabled != 0) {
@@ -165,9 +172,10 @@ static void MWY_GCN_RW_GxBreakPtCallback_General(void)
         advanced = FALSE;
         RwGxBreakPt_Q.waiting = 0;
         RwGxBreakPt_Q.restartRequested = 0;
-        if (i_SkipInactiveGxBreakPts() != 0) {
-            RwGxBreakPtEntry* entry =
-                &RwGxBreakPt_Q.entries[RwGxBreakPt_Q.head];
+        count = i_SkipInactiveGxBreakPts();
+        if (count != 0) {
+            index = RwGxBreakPt_Q.head;
+            entry = &RwGxBreakPt_Q.entries[index];
 
             if (entry->drawDone != 0) {
                 if (RwGxBreakPt_Q.pendingDrawDone < 0) {
@@ -205,11 +213,14 @@ static RwGxBreakPtEntry* i_MWY_GCN_RW_AppendGxBreakPtQueue(
     RwGxBreakPtEntry* entry = NULL;
 
     if (RwGxBreakPt_Q.capacity > RwGxBreakPt_Q.count) {
-        RwInt32 index = RwGxBreakPt_Q.head + RwGxBreakPt_Q.count;
+        RwInt32 count = RwGxBreakPt_Q.count;
+        RwInt32 head = RwGxBreakPt_Q.head;
+        RwInt32 capacity = RwGxBreakPt_Q.capacity;
+        RwInt32 index = head + count;
 
-        RwGxBreakPt_Q.count++;
-        if (index >= RwGxBreakPt_Q.capacity) {
-            index -= RwGxBreakPt_Q.capacity;
+        RwGxBreakPt_Q.count = count + 1;
+        if (index >= capacity) {
+            index -= capacity;
         }
         entry = &RwGxBreakPt_Q.entries[index];
         entry->address = address;
@@ -239,7 +250,11 @@ static void MWY_GCN_RW_AppendGxBreakPtQueue(void* address, RwBool active,
 
 void MWY_GCN_RW_ActivateGxBreakPtQueue(void)
 {
+    /* Named previous-callback results reproduce retail's r31/r30 lifetimes;
+     * the remaining eight bytes are save-helper selection. */
     RwBool interrupts = OSDisableInterrupts();
+    GXBreakPtCallback previousBreak;
+    GXDrawDoneCallback previousDrawDone;
 
     if (RwGxBreakPt_bQInitialized == FALSE) {
         memset(&RwGxBreakPt_Q, 0, sizeof(RwGxBreakPt_Q));
@@ -252,10 +267,12 @@ void MWY_GCN_RW_ActivateGxBreakPtQueue(void)
             RwGxBreakPt_Q.capacity * sizeof(RwGxBreakPtEntry), 0x40411);
         memset(RwGxBreakPt_Q.entries, 0,
                RwGxBreakPt_Q.capacity * sizeof(RwGxBreakPtEntry));
-        RwGxBreakPt_PreviousCallback =
+        previousBreak =
             GXSetBreakPtCallback(MWY_GCN_RW_GxBreakPtCallback_General);
-        RwGxDrawDone_PreviousCallback =
+        RwGxBreakPt_PreviousCallback = previousBreak;
+        previousDrawDone =
             GXSetDrawDoneCallback(MWY_GCN_RW_GxDrawDoneCallback_General);
+        RwGxDrawDone_PreviousCallback = previousDrawDone;
     }
     OSRestoreInterrupts(interrupts);
 }
@@ -283,11 +300,15 @@ void MWY_GCN_RW_InsertGxDrawDoneCallback(RwGxDrawDoneUserCallback callback,
 
 void MWY_GCN_RW_ActivateGxBreakPt(void* address)
 {
+    /* Retail and current bodies use the same index/entry/interrupt lifetimes;
+     * only the r29-r31 save/restore form differs. */
     RwBool interrupts = OSDisableInterrupts();
+    RwGxBreakPtEntry* entry;
     RwInt32 index = i_FindGxBreakPt(address);
 
     if (index >= 0) {
-        RwGxBreakPt_Q.entries[index].active = 1;
+        entry = &RwGxBreakPt_Q.entries[index];
+        entry->active = 1;
         if (RwGxBreakPt_Q.inCallback == 0 &&
             RwGxBreakPt_Q.breakEnabled != 0 &&
             RwGxBreakPt_Q.waiting == 0) {
@@ -299,15 +320,20 @@ void MWY_GCN_RW_ActivateGxBreakPt(void* address)
 
 void MWY_GCN_RW_RestartFromGxBreakPtCurrent(void)
 {
+    /* Queue ownership, restart order, and r29-r31 values match retail; the
+     * remaining residue is the compiler's save-helper choice. */
+    void* previousAddress;
     RwBool interrupts = OSDisableInterrupts();
 
     if (RwGxBreakPt_Q.inCallback != 0) {
         RwGxBreakPt_Q.restartRequested = 1;
     } else if (RwGxBreakPt_Q.waiting != 0 &&
                RwGxBreakPt_Q.breakEnabled != 0) {
-        void* previousAddress = RwGxBreakPt_Q.currentAddress;
+        RwGxBreakPtEntry* entry;
 
-        RwGxBreakPt_Q.entries[RwGxBreakPt_Q.head].active = 0;
+        previousAddress = RwGxBreakPt_Q.currentAddress;
+        entry = &RwGxBreakPt_Q.entries[RwGxBreakPt_Q.head];
+        entry->active = 0;
         RwGxBreakPt_Q.waiting = 0;
         i_AdvanceToNextGxBreakPt();
         if (previousAddress == RwGxBreakPt_Q.currentAddress &&
