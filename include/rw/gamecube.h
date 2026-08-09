@@ -40,6 +40,20 @@ typedef struct RwGameCubeDisplayList {
     RwUInt32 size;
 } RwGameCubeDisplayList;
 
+typedef struct RwGameCubeVertexArray {
+    void* data;
+    RwUInt8 attribute;
+    RwUInt8 stride;
+    RwUInt8 descriptor;
+    RwUInt8 reserved_0x07;
+} RwGameCubeVertexArray;
+
+typedef struct RwGameCubeVertexBuffer {
+    RwUInt32 reserved_0x00[2];
+    RwUInt32 numArrays;
+    RwGameCubeVertexArray arrays[1];
+} RwGameCubeVertexBuffer;
+
 typedef struct RwGameCubeVertexDescriptor {
     RwUInt32 vat;
     RwUInt32 vatA;
@@ -58,6 +72,8 @@ typedef char RpGameCubeVtxFmtSizeCheck[
     sizeof(RpGameCubeVtxFmt) == 0x18 ? 1 : -1];
 typedef char RwGameCubeVertexDescriptorSizeCheck[
     sizeof(RwGameCubeVertexDescriptor) == 0x20 ? 1 : -1];
+typedef char RwGameCubeVertexArraySizeCheck[
+    sizeof(RwGameCubeVertexArray) == 8 ? 1 : -1];
 
 void _rxGCResEntryWaitDone(RwResEntry* entry);
 void RwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
@@ -99,5 +115,14 @@ void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
                                     RwUInt32 attr, RwInt32 type);
 void _rwGCNVertexDescSetNumIndexedAttr(
     RwGameCubeVertexDescriptor* descriptor, RwUInt8 count);
+RwUInt32 _rwGCNVertexBufferHeaderGetSize(
+    const RwGameCubeVertexDescriptor* descriptor);
+RwUInt32 _rwGCNVertexBufferGetSize(
+    const RwGameCubeVertexDescriptor* descriptor,
+    const RwUInt32* vertexCounts);
+void _rwGCNVertexBufferInitialize(
+    const RwGameCubeVertexDescriptor* descriptor,
+    RwGameCubeVertexBuffer* vertexBuffer, const RwUInt32* vertexCounts,
+    void* data);
 
 #endif

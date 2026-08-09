@@ -3,20 +3,6 @@
 #include "rw/gamecube.h"
 #include "rw/rwplcore.h"
 
-typedef struct RpGameCubeVertexArray {
-    void* data;
-    RwUInt8 field_0x04;
-    RwUInt8 stride;
-    RwUInt8 descriptor;
-    RwUInt8 field_0x07;
-} RpGameCubeVertexArray;
-
-typedef struct RpGameCubeResourceArrays {
-    RwUInt8 reserved_0x00[8];
-    RwUInt32 numArrays;
-    RpGameCubeVertexArray arrays[1];
-} RpGameCubeResourceArrays;
-
 typedef struct RpGameCubeVtxFmtSetupData {
     void* resourceEntry;
     RwUInt32 field_0x04;
@@ -38,13 +24,13 @@ RwInt32 _rpDlGeomVtxFmtOffset;
 void _rwDlVtxFmtSetup(RpGameCubeVtxFmt* format,
                       RpGameCubeVtxFmtSetupData* setupData)
 {
-    RpGameCubeResourceArrays* resource;
+    RwGameCubeVertexBuffer* resource;
     RwUInt32 arrayIndex = 0;
     RwUInt32 attribute;
     RwInt32 colorCount;
 
     if (format == NULL) format = &_RpDlVtxFmtDefault;
-    resource = (RpGameCubeResourceArrays*)((RwUInt8*)setupData->resourceEntry + 0x18);
+    resource = (RwGameCubeVertexBuffer*)((RwUInt8*)setupData->resourceEntry + 0x18);
 
     GXClearVtxDesc();
     GXSetVtxDesc(9, resource->arrays[arrayIndex].descriptor);
