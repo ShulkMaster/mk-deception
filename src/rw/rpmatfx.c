@@ -304,39 +304,49 @@ static RwStream* MatFXMaterialStreamWrite(RwStream* stream, RwInt32 length,
                                           const void* object, RwInt32 offset,
                                           RwInt32 size)
 {
+    const RpMaterial* material = object;
     const RpMatFXMaterialData* data =
-        RWPLUGINOFFSET(RpMatFXMaterialData*, object, offset);
+        RWPLUGINOFFSET(RpMatFXMaterialData*, material,
+                       MatFXMaterialDataOffset);
     RwUInt8 i;
-    RwInt32 value;
+    RwInt32 value, type;
     RwReal real;
-    (void)length;
-    (void)size;
     value = data->effects;
     if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
     for (i = 0; i < 2; i++) {
-        value = data->slot[i].type;
-        if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
-        switch (data->slot[i].type) {
-        case rpMATFXEFFECTBUMPMAP:
-            real = -data->slot[i].data.bump.storedCoefficient;
-            if (!RwStreamWriteReal(stream, &real, 4) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.bump.texture) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.bump.bumped_texture))
+        type = data->slot[i].type;
+        if (!RwStreamWriteInt32(stream, &type, 4)) return NULL;
+        switch (type) {
+        case rpMATFXEFFECTBUMPMAP: {
+            const RpMatFXBumpMapData* bump = &data->slot[i].data.bump;
+            real = -bump->storedCoefficient;
+            if (!RwStreamWriteReal(stream, &real, 4)) return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, bump->texture))
+                return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, bump->bumped_texture))
                 return NULL;
             break;
-        case rpMATFXEFFECTENVMAP:
-            if (!RwStreamWriteReal(stream, &data->slot[i].data.env.coefficient, 4)) return NULL;
-            value = data->slot[i].data.env.useFrameBufferAlpha;
-            if (!RwStreamWriteInt32(stream, &value, 4) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.env.texture)) return NULL;
-            break;
-        case rpMATFXEFFECTDUAL:
-            value = data->slot[i].data.dual.srcBlendMode;
+        }
+        case rpMATFXEFFECTENVMAP: {
+            const RpMatFXEnvMapData* env = &data->slot[i].data.env;
+            if (!RwStreamWriteReal(stream, &env->coefficient, 4)) return NULL;
+            value = env->useFrameBufferAlpha;
             if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
-            value = data->slot[i].data.dual.dstBlendMode;
-            if (!RwStreamWriteInt32(stream, &value, 4) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.dual.texture)) return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, env->texture)) return NULL;
             break;
+        }
+        case rpMATFXEFFECTDUAL: {
+            const RpMatFXDualData* dual = &data->slot[i].data.dual;
+            value = dual->srcBlendMode;
+            if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
+            value = dual->dstBlendMode;
+            if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, dual->texture)) return NULL;
+            break;
+        }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTUVTRANSFORM:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
