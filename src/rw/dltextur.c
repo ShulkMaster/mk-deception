@@ -1,33 +1,13 @@
 #include "dolphin/gx.h"
+#include "rw/gamecube_texture.h"
 #include "rw/rwcore_types.h"
 #include "rw/rwplcore.h"
-
-typedef struct RwGameCubeTextureExt {
-    GXTexObj object;
-    RwUInt32 flags;
-} RwGameCubeTextureExt;
-
-typedef struct RwGameCubeRasterExt {
-    GXTlutObj tlut;
-    RwInt32 format;
-    RwInt32 paletteFormat;
-    RwInt32 hasAlpha;
-    RwUInt32 reserved_0x18;
-    void* imageData;
-    void* paletteData;
-    RwUInt32 reserved_0x24[2];
-    GXTexRegion* textureRegion;
-    RwUInt16 token;
-    RwUInt8 maxLod;
-    RwUInt8 reserved_0x33;
-} RwGameCubeRasterExt;
 
 typedef struct RwDlFilterMode {
     RwInt32 minFilter;
     RwInt32 magFilter;
 } RwDlFilterMode;
 
-extern RwInt32 _RwGameCubeRasterExtOffset;
 RwInt32 _RwGameCubeTextureExtOffset;
 extern RwUInt16 _RwDlTokenCurrent;
 extern RwRaster* _RwDlRasterWhite;
@@ -46,16 +26,10 @@ static RwInt32 _RwDlAddressConvTable[5] = {0, 1, 2, 0, 0};
 static RwTexture* _RwDlTextureCache[8] = {NULL, NULL, NULL, NULL,
                                           NULL, NULL, NULL, NULL};
 
-#define TEXTURE_EXTENSION(texture)                                         \
-    ((RwGameCubeTextureExt*)((RwUInt8*)(texture) +                         \
-                             _RwGameCubeTextureExtOffset))
-#define RASTER_EXTENSION(raster)                                           \
-    ((RwGameCubeRasterExt*)((RwUInt8*)(raster) +                           \
-                            _RwGameCubeRasterExtOffset))
-
 static void _rwDlTextureConst(RwTexture* texture)
 {
-    RwGameCubeTextureExt* textureExt = TEXTURE_EXTENSION(texture);
+    RwGameCubeTextureExt* textureExt =
+        RW_GAMECUBE_TEXTURE_EXTENSION(texture);
 
     textureExt->flags = 0x01000000;
 }
@@ -93,9 +67,11 @@ static void _rwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
                                      RwInt32 maxAnisotropy,
                                      RwUInt32 textureMap)
 {
-    RwGameCubeTextureExt* textureExt = TEXTURE_EXTENSION(texture);
+    RwGameCubeTextureExt* textureExt =
+        RW_GAMECUBE_TEXTURE_EXTENSION(texture);
     RwRaster* raster = texture->raster;
-    RwGameCubeRasterExt* rasterExt = RASTER_EXTENSION(raster->parent);
+    RwGameCubeRasterExt* rasterExt =
+        RW_GAMECUBE_RASTER_EXTENSION(raster->parent);
     RwInt32 rasterFormat = (RwUInt8)raster->format << 8;
     RwInt32 minFilter;
     RwInt32 magFilter;
@@ -162,8 +138,8 @@ void _rwDlTextureSet(RwTexture* texture, RwUInt32 textureMap)
     }
 
     raster = texture->raster;
-    rasterExt = RASTER_EXTENSION(raster->parent);
-    textureExt = TEXTURE_EXTENSION(texture);
+    rasterExt = RW_GAMECUBE_RASTER_EXTENSION(raster->parent);
+    textureExt = RW_GAMECUBE_TEXTURE_EXTENSION(texture);
     rasterExt->token = _RwDlTokenCurrent;
 
     if (((RwUInt32)raster->format << 8 & 0x6000) != 0) {
