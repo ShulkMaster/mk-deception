@@ -11,6 +11,7 @@ typedef struct RpMTEffectDict RpMTEffectDict;
 typedef struct RpMaterial RpMaterial;
 typedef struct RpMultiTexture RpMultiTexture;
 typedef struct RpMultiTextureRegEntry RpMultiTextureRegEntry;
+typedef struct RpGameCubeMTEffectConfig RpGameCubeMTEffectConfig;
 
 typedef RpMTEffect* (*RpMTEffectStreamReadCallBack)(RwStream* stream,
                                                     RwInt32 type,
@@ -71,6 +72,11 @@ RpMTEffect* RpMTEffectStreamRead(RwStream* stream);
 RpMTEffect* RpMTEffectFind(const RwChar* name);
 RpMTEffect* RpMTEffectSetName(RpMTEffect* effect, const RwChar* name);
 void RpMTEffectAddRef(RpMTEffect* effect);
+RpMTEffect* RpGameCubeMTEffectCreate(
+    RwUInt32 count64, RwUInt32 count24, RwUInt32 count60,
+    RwUInt32 count20, RwUInt32 count40);
+RpGameCubeMTEffectConfig* RpGameCubeMTEffectGetConfig(RpMTEffect* effect);
+RwBool _rpGameCubeMTDataPluginAttach(void);
 
 RwBool _rpMultiTexturePluginAttach(void);
 RwBool _rpMaterialRegisterMultiTexturePlugin(RwInt32 platform,
