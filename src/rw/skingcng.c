@@ -65,6 +65,6 @@ RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType skinType)
     pipeline = _rpSkinGlobals.pipelines[rpSKINTYPEGENERIC];
     atomic = RpAtomicSetPipeline(atomic, pipeline);
     skin = RpSkinGeometryGetSkin(RpAtomicGetGeometry(atomic));
-    skin->field_0x2C = 1;
+    skin->platformData = 1;
     return atomic;
 }

@@ -1310,6 +1310,8 @@ config.libs = [
     RenderWareLib(
         "rpskin",
         [
+            Object(NonMatching, "rpskin.a/rpskin.obj", source="rw/rpskin.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/bsplit.obj", source="rw/bsplit.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rpskin.a/skinplatform.obj",
