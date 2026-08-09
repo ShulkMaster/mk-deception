@@ -222,37 +222,51 @@ RwImage *RwImageFreePixels(RwImage *image) {
 }
 
 RwImage *RwImageMakeMask(RwImage *image) {
-  RwInt32 x, y;
-  if (image->depth == 4 || image->depth == 8) {
-    for (x = 0; x < (1 << image->depth); x++) {
-      RwRGBA *c = (RwRGBA *)image->palette + x;
-      RwUInt8 a = c->red;
-      if (c->green > a)
-        a = c->green;
-      if (c->blue > a)
-        a = c->blue;
-      c->alpha = a;
+  RwInt32 i;
+
+  switch (image->depth) {
+  case 4:
+  case 8: {
+    RwInt32 paletteSize = 1 << image->depth;
+    RwRGBA *palette = (RwRGBA *)image->palette;
+
+    for (i = 0; i < paletteSize; i++) {
+      RwInt32 opacity = palette[i].red;
+
+      if (palette[i].green > opacity)
+        opacity = palette[i].green;
+      if (palette[i].blue > opacity)
+        opacity = palette[i].blue;
+      palette[i].alpha = (RwUInt8)opacity;
     }
-  } else if (image->depth == 32) {
-    RwUInt8 *row = image->pixels;
-    for (y = 0; y < image->height; y++, row += image->stride) {
-      RwRGBA *c = (RwRGBA *)row;
-      for (x = 0; x < image->width; x++, c++) {
-        RwUInt8 a = c->red;
-        if (c->green > a)
-          a = c->green;
-        if (c->blue > a)
-          a = c->blue;
-        c->alpha = a;
-      }
-    }
+    break;
   }
+  case 32: {
+    RwUInt8 *row = image->pixels;
+    RwInt32 j;
+
+    for (i = 0; i < image->height; i++) {
+      RwRGBA *pixel = (RwRGBA *)row;
+
+      for (j = 0; j < image->width; j++) {
+        RwInt32 opacity = pixel[j].red;
+
+        if (pixel[j].green > opacity)
+          opacity = pixel[j].green;
+        if (pixel[j].blue > opacity)
+          opacity = pixel[j].blue;
+        pixel[j].alpha = (RwUInt8)opacity;
+      }
+      row += image->stride;
+    }
+    break;
+  }
+  }
+
   return image;
 }
 
 RwImage *RwImageApplyMask(RwImage *image, const RwImage *mask) {
-  RwInt32 x, y;
-  RwUInt8 *maskRow, *imageRow;
   if (image->width != mask->width || image->height != mask->height) {
     RwError e;
     e.pluginID = 1;
@@ -260,44 +274,77 @@ RwImage *RwImageApplyMask(RwImage *image, const RwImage *mask) {
     RwErrorSet(&e);
     return NULL;
   }
-  if (image->depth == 4 || image->depth == 8) {
-    RwImage *copy = RwImageCreate(image->width, image->height, image->depth);
-    if (!copy)
+
+  switch (image->depth) {
+  case 4:
+  case 8: {
+    RwImage *tempImage =
+        RwImageCreate(image->width, image->height, image->depth);
+
+    if (tempImage == NULL)
       return NULL;
-    if (!RwImageAllocatePixels(copy)) {
-      RwImageDestroy(copy);
+    if (RwImageAllocatePixels(tempImage) == NULL) {
+      RwImageDestroy(tempImage);
       return NULL;
     }
-    RwImageCopy(copy, image);
+
+    RwImageCopy(tempImage, image);
     if (image->flags & 1)
       RwImageFreePixels(image);
+
     image->depth = 32;
     RwImageAllocatePixels(image);
-    RwImageCopy(image, copy);
-    RwImageFreePixels(copy);
-    RwImageDestroy(copy);
-  } else if (image->depth != 32) {
+    RwImageCopy(image, tempImage);
+    RwImageFreePixels(tempImage);
+    RwImageDestroy(tempImage);
+  }
+  case 32: {
+    RwInt32 i, j;
+    const RwUInt8 *src = mask->pixels;
+    const RwRGBA *palette = (const RwRGBA *)mask->palette;
+    RwUInt8 *dst = image->pixels;
+
+    for (i = 0; i < image->height; i++) {
+      RwRGBA *dstPixel = (RwRGBA *)dst;
+
+      switch (mask->depth) {
+      case 4:
+      case 8: {
+        const RwUInt8 *srcIndex = src;
+
+        for (j = 0; j < image->width; j++) {
+          dstPixel->alpha = palette[*srcIndex].alpha;
+          srcIndex++;
+          dstPixel++;
+        }
+        break;
+      }
+      case 32: {
+        const RwRGBA *srcPixel = (const RwRGBA *)src;
+
+        for (j = 0; j < image->width; j++) {
+          dstPixel->alpha = srcPixel->alpha;
+          srcPixel++;
+          dstPixel++;
+        }
+        break;
+      }
+      }
+
+      dst += image->stride;
+      src += mask->stride;
+    }
+    break;
+  }
+  default: {
     RwError e;
     e.pluginID = 1;
     e.errorCode = _rwerror(0x80000009);
     RwErrorSet(&e);
     return NULL;
   }
-  maskRow = mask->pixels;
-  imageRow = image->pixels;
-  for (y = 0; y < image->height; y++) {
-    RwRGBA *dst = (RwRGBA *)imageRow;
-    if (mask->depth == 4 || mask->depth == 8) {
-      for (x = 0; x < image->width; x++)
-        dst[x].alpha = ((RwRGBA *)mask->palette)[maskRow[x]].alpha;
-    } else if (mask->depth == 32) {
-      RwRGBA *src = (RwRGBA *)maskRow;
-      for (x = 0; x < image->width; x++)
-        dst[x].alpha = src[x].alpha;
-    }
-    imageRow += image->stride;
-    maskRow += mask->stride;
   }
+
   return image;
 }
 
@@ -509,51 +556,77 @@ RwImage *RwImageCopy(RwImage *destination, const RwImage *source) {
 }
 
 RwImage *RwImageGammaCorrect(RwImage *image) {
-  if (image->depth == 4 || image->depth == 8) {
+  switch (image->depth) {
+  case 4:
+  case 8: {
     RwRGBA *palette = (RwRGBA *)image->palette;
-    if (!palette) {
+    RwUInt32 paletteSize = 1 << image->depth;
+
+    if (palette == NULL) {
       RwError e;
       e.pluginID = 1;
       e.errorCode = _rwerror(0x80000016);
       RwErrorSet(&e);
       return NULL;
     }
-    _rwImageGammaCorrectArrayOfRGBA(palette, palette, 1 << image->depth);
-  } else if (image->depth == 32) {
+    _rwImageGammaCorrectArrayOfRGBA(palette, palette, paletteSize);
+    break;
+  }
+  case 32: {
     RwUInt8 *row = image->pixels;
     RwInt32 width = image->width;
     RwInt32 height = image->height;
     RwInt32 y;
-    if (!row) {
+
+    if (row == NULL) {
       RwError e;
       e.pluginID = 1;
       e.errorCode = _rwerror(0x80000016);
       RwErrorSet(&e);
       return NULL;
     }
-    for (y = 0; y < height; y++, row += image->stride)
+
+    for (y = 0; y < height; y++) {
       _rwImageGammaCorrectArrayOfRGBA((RwRGBA *)row, (RwRGBA *)row, width);
-  } else {
+      row += image->stride;
+    }
+    break;
+  }
+  default: {
     RwError e;
     e.pluginID = 1;
     e.errorCode = _rwerror(0x80000008);
     RwErrorSet(&e);
     return NULL;
   }
+  }
+
   image->flags |= 2;
   return image;
 }
 
 RwBool RwImageSetGamma(RwReal gammaValue) {
+  RwReal gammaExponent, inverseGammaExponent;
   RwInt32 i;
+
   IMAGEGLOBALS->gamma = gammaValue;
-  IMAGEGLOBALS->gammaTable[0] = IMAGEGLOBALS->inverseGammaTable[0] = 0;
+  gammaExponent = gammaValue;
+  inverseGammaExponent = 1.0f / gammaExponent;
+
+  IMAGEGLOBALS->gammaTable[0] = 0;
+  IMAGEGLOBALS->inverseGammaTable[0] = 0;
   for (i = 1; i < 256; i++) {
     RwReal value = (RwReal)i / 255.0f;
-    IMAGEGLOBALS->gammaTable[i] =
-        (RwUInt8)(RwInt32)(0.5f + 255.0f * powf(value, 1.0f / gammaValue));
-    IMAGEGLOBALS->inverseGammaTable[i] =
-        (RwUInt8)(RwInt32)(0.5f + 255.0f * powf(value, gammaValue));
+    RwReal scaled;
+    RwInt32 quantized;
+
+    scaled = powf(value, inverseGammaExponent) * 255.0f;
+    quantized = (RwInt32)(scaled + 0.5f);
+    IMAGEGLOBALS->gammaTable[i] = (RwUInt8)quantized;
+
+    scaled = powf(value, gammaExponent) * 255.0f;
+    quantized = (RwInt32)(scaled + 0.5f);
+    IMAGEGLOBALS->inverseGammaTable[i] = (RwUInt8)quantized;
   }
   return TRUE;
 }
