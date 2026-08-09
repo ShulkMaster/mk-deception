@@ -1,29 +1,10 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
+#include "rw/geomcond.h"
 #include "rw/rpskin.h"
 #include "rw/rwresources.h"
 #include "rw/rxpipeline.h"
 
-typedef struct GeomCondVertexData {
-    void* data;
-    RwUInt32 type;
-    signed char dependencies[16];
-} GeomCondVertexData;
-
-typedef struct GeomCondMap {
-    void* data;
-    RwUInt32 count;
-} GeomCondMap;
-
-extern GeomCondMap* VertexDataCreateMaps(const GeomCondVertexData* streams,
-                                         RwUInt32 numStreams,
-                                         RwUInt32 numVertices);
-extern GeomCondMap* VertexDataCreateRemapped(
-    const GeomCondMap* maps, const GeomCondVertexData* streams,
-    RwUInt32 numStreams, RwUInt32 numVertices);
-extern RwUInt16** IndexDataCreateRemapped(
-    const GeomCondMap* maps, const RwUInt16* const* input,
-    RwUInt32 numArrays, RwUInt32 numIndices);
 extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
 extern void* memcpy(void* destination, const void* source, RwUInt32 size);
 extern void DCFlushRange(void* start, RwUInt32 length);

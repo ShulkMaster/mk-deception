@@ -74,10 +74,6 @@ extern void _rwGCLightsGlobalEnable(RwInt32,
                                     RwGameCubeLightingData*);
 extern void _rwGCLightsLocalEnable(RpLight*, RwGameCubeLightingData*);
 extern RwInt32 _rwDlTokenQueryDone(RwUInt16);
-extern RwResEntry* _rwDlGeometryInstanceOptimized(
-    RpGeometry*, void*, RwResEntry**);
-extern RwResEntry* _rwDlGeometryInstanceFast(
-    RpGeometry*, void*, RwResEntry**);
 extern void _rxGCInstanceMorphUpdate(
     RpGeometry*, RwGameCubeVertexBuffer*, RpInterpolator*);
 extern RpAtomic* _rxGCDefaultRenderCallback(

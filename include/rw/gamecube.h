@@ -195,5 +195,9 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
                                                RwResEntry** ownerRef);
 RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry, void* owner,
                                           RwResEntry** ownerRef);
+RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry, void* owner,
+                                           RwResEntry** ownerRef);
+RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
+                                      RwResEntry** ownerRef);
 
 #endif
