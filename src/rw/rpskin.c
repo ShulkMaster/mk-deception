@@ -169,12 +169,21 @@ static RwBool SkinCreateSkinData(
         memcpy(skin->usedBoneList, usedBoneList, usedBoneDataSize);
     }
     if (skinToBoneMatrices != NULL) {
-        /* Retail lowers this stock matrix copy as a counted paired-word loop. */
         RwUInt32 bone = numBones;
-        do {
-            bone--;
-            skin->skinToBoneMatrices[bone] = skinToBoneMatrices[bone];
-        } while (bone != 0);
+        while (bone-- != 0) {
+            RwUInt32* destination =
+                (RwUInt32*)&skin->skinToBoneMatrices[bone];
+            const RwUInt32* source =
+                (const RwUInt32*)&skinToBoneMatrices[bone];
+            RwUInt32 pair = sizeof(RwMatrix) / (2 * sizeof(RwUInt32));
+
+            /* Retail selects mtctr/bdnz for this fixed eight-pair copy; the
+             * clean O0 loop retains an explicit counter comparison. */
+            do {
+                *destination++ = *source++;
+                *destination++ = *source++;
+            } while (--pair != 0);
+        }
     }
     if (vertexIndices != NULL) {
         RwUInt32 vertexIndicesSize = numVertices * sizeof(RwUInt32);
