@@ -361,59 +361,80 @@ static RwStream* MatFXMaterialStreamRead(RwStream* stream, RwInt32 length,
     RpMaterial* material = object;
     RpMatFXMaterialData* data = MatFXMaterialGetData(material);
     RwUInt8 i;
-    RwInt32 effects, type, value[2];
-    RwReal coefficient;
-    RwTexture *texture, *bumpTexture;
-    (void)length; (void)offset; (void)size;
-    if (!data || !RwStreamReadInt32(stream, &effects, 4)) return NULL;
+    RwInt32 effects, type;
+    if (!data) return NULL;
+    if (!RwStreamReadInt32(stream, &effects, 4)) return NULL;
     RpMatFXMaterialSetEffects(material, effects);
     for (i = 0; i < 2; i++) {
         if (!RwStreamReadInt32(stream, &type, 4)) return NULL;
         switch (type) {
-        case rpMATFXEFFECTBUMPMAP:
-            texture = bumpTexture = NULL;
-            if (!RwStreamReadReal(stream, &coefficient, 4) ||
-                !_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
+        case rpMATFXEFFECTBUMPMAP: {
+            RwReal coefficient;
+            RwTexture* texture = NULL;
+            RwTexture* bumpTexture = NULL;
+            RpMatFXBumpMapData* bump = &data->slot[i].data.bump;
+
+            if (!RwStreamReadReal(stream, &coefficient, 4)) return NULL;
+            if (!_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
             if (!_rpMatFXStreamReadTexture(stream, &bumpTexture)) {
                 if (texture) RwTextureDestroy(texture);
                 return NULL;
             }
             if (texture) {
-                data->slot[i].data.bump.texture = texture;
-                data->slot[i].data.bump.bumped_texture = bumpTexture;
-                data->slot[i].data.bump.coefficient =
-                    1.0f / texture->raster->width;
+                RwRaster* raster;
+                RwInt32 rasterWidth;
+                RwReal width;
+
+                bump->texture = texture;
+                bump->bumped_texture = bumpTexture;
+                raster = bump->texture->raster;
+                rasterWidth = raster->width;
+                width = rasterWidth;
+                bump->coefficient = 1.0f / width;
             } else if (bumpTexture) {
                 RpMatFXMaterialSetBumpMapTexture(material, bumpTexture);
                 RwTextureDestroy(bumpTexture);
             } else {
-                data->slot[i].data.bump.texture = NULL;
-                data->slot[i].data.bump.bumped_texture = NULL;
+                bump->texture = NULL;
+                bump->bumped_texture = NULL;
             }
             RpMatFXMaterialSetBumpMapCoefficient(material, coefficient);
             break;
-        case rpMATFXEFFECTENVMAP:
-            texture = NULL;
-            if (!RwStreamReadReal(stream, &coefficient, 4) ||
-                !RwStreamReadInt32(stream, value, 4) ||
-                !_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
+        }
+        case rpMATFXEFFECTENVMAP: {
+            RwReal coefficient;
+            RwInt32 frameBufferAlpha;
+            RwTexture* texture = NULL;
+
+            if (!RwStreamReadReal(stream, &coefficient, 4)) return NULL;
+            if (!RwStreamReadInt32(stream, &frameBufferAlpha, 4)) return NULL;
+            if (!_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
             if (texture) {
                 RpMatFXMaterialSetEnvMapTexture(material, texture);
                 RwTextureDestroy(texture);
             }
             RpMatFXMaterialSetEnvMapCoefficient(material, coefficient);
-            RpMatFXMaterialSetEnvMapFrameBufferAlpha(material, value[0]);
+            RpMatFXMaterialSetEnvMapFrameBufferAlpha(material,
+                                                     frameBufferAlpha);
             break;
-        case rpMATFXEFFECTDUAL:
-            texture = NULL;
-            if (!RwStreamReadInt32(stream, value, 8) ||
-                !_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
+        }
+        case rpMATFXEFFECTDUAL: {
+            RwTexture* texture = NULL;
+            RwInt32 blendModes[2];
+
+            if (!RwStreamReadInt32(stream, blendModes, 8)) return NULL;
+            if (!_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
             if (texture) {
                 RpMatFXMaterialSetDualTexture(material, texture);
                 RwTextureDestroy(texture);
             }
-            RpMatFXMaterialSetDualBlendModes(material, value[0], value[1]);
+            RpMatFXMaterialSetDualBlendModes(material, blendModes[0],
+                                             blendModes[1]);
             break;
+        }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTUVTRANSFORM:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
