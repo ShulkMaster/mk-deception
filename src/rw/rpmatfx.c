@@ -604,25 +604,27 @@ static RwInt32 MatFXWorldSectorStreamGetSize(const RpWorldSector* sector)
 static void GenBumpedTextureName(RwChar* name, const RwTexture* base,
                                  const RwTexture* bump)
 {
+    /* Retail retains LR and helper saves around this otherwise call-free body. */
     const RwChar* strings[2];
     RwInt32 count = 0;
+    RwChar* output = name;
     RwInt32 i;
     if (base) {
         strings[0] = base->name;
         strings[1] = bump->name;
     } else {
-        strings[0] = bump->name;
         strings[1] = bump->name;
+        strings[0] = strings[1];
     }
     while (count < 30 && (*strings[0] || *strings[1])) {
         for (i = 0; i < 2; i++) {
             if (*strings[i]) {
-                *name++ = *strings[i]++;
+                *output++ = *strings[i]++;
                 count++;
             }
         }
     }
-    *name = '\0';
+    *output = '\0';
 }
 
 RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
