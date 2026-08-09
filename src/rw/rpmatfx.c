@@ -399,25 +399,33 @@ static RwStream* MatFXMaterialStreamRead(RwStream* stream, RwInt32 length,
 static RwInt32 MatFXMaterialStreamGetSize(const void* object, RwInt32 offset,
                                           RwInt32 size)
 {
+    /* Retail ignores the callback offset and uses the module-owned slot. */
     const RpMatFXMaterialData* data =
-        RWPLUGINOFFSET(RpMatFXMaterialData*, object, offset);
+        RWPLUGINOFFSET(RpMatFXMaterialData*, object, MatFXMaterialDataOffset);
     RwInt32 streamSize = 4;
     RwUInt8 i;
+    (void)offset;
     (void)size;
     if (!data || data->effects == rpMATFXEFFECTNULL) return 0;
     for (i = 0; i < 2; i++) {
         streamSize += 4;
         switch (data->slot[i].type) {
         case rpMATFXEFFECTBUMPMAP:
-            streamSize += 4 + _rpMatFXStreamSizeTexture(data->slot[i].data.bump.texture)
-                + _rpMatFXStreamSizeTexture(data->slot[i].data.bump.bumped_texture);
+            streamSize = streamSize + 4 +
+                _rpMatFXStreamSizeTexture(data->slot[i].data.bump.texture);
+            streamSize = streamSize + _rpMatFXStreamSizeTexture(
+                data->slot[i].data.bump.bumped_texture);
             break;
         case rpMATFXEFFECTENVMAP:
-            streamSize += 8 + _rpMatFXStreamSizeTexture(data->slot[i].data.env.texture);
+            streamSize = streamSize + 4 + 4 +
+                _rpMatFXStreamSizeTexture(data->slot[i].data.env.texture);
             break;
         case rpMATFXEFFECTDUAL:
-            streamSize += 8 + _rpMatFXStreamSizeTexture(data->slot[i].data.dual.texture);
+            streamSize = streamSize + 8 +
+                _rpMatFXStreamSizeTexture(data->slot[i].data.dual.texture);
             break;
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTUVTRANSFORM:
         default:
             break;
         }
