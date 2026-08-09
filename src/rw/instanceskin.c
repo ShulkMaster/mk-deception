@@ -466,13 +466,16 @@ static const RwGameCubeVertexDescriptor* VtxDescInitFast(
 static void VertexDataFastSetup(RwGameCubeVertexData* vertexData,
                                 const RpGeometry* geometry)
 {
-    const RpMorphTarget* morphTarget = geometry->morphTarget;
+    /* Retail retains the resolved format and an indexed-attribute count even
+     * though neither value is consumed; the functional stores are recovered. */
+    const RpMorphTarget* morphTarget;
     RwInt32 texCoord;
 
     if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
         NULL) {
         _rpGameCubeVtxFmtGetDefault();
     }
+    morphTarget = geometry->morphTarget;
     vertexData->counts[9] = geometry->numVertices;
     vertexData->source[9] = morphTarget->verts;
     if ((geometry->flags & 0x10) != 0) {
@@ -496,6 +499,8 @@ static void IndexDataSetupFast(RwGameCubeIndexData* indexData,
                                RwUInt16* matrixIndices,
                                const RpGeometry* geometry)
 {
+    /* Retail retains the resolved format solely across this helper, widening
+     * its save range; the index stream construction itself is identical. */
     RwInt32 texCoord;
 
     if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
@@ -518,6 +523,8 @@ static RwUInt16* CreateMatrixIndexList(const RpSkin* skin,
                                        const RpMesh* mesh,
                                        RwUInt32 meshIndex)
 {
+    /* The palette construction and searches match retail. Remaining output
+     * differences are the SDK RLE macro lifetimes and save/register policy. */
     RwUInt8 meshBones[10];
     RwUInt16* matrixIndices;
     RwUInt32 index;
@@ -539,8 +546,7 @@ static RwUInt16* CreateMatrixIndexList(const RpSkin* skin,
             RwUInt32 matrixIndex;
             for (matrixIndex = 0; matrixIndex < 10; matrixIndex++) {
                 if (meshBones[matrixIndex] ==
-                    ((const RwUInt8*)skin->vertexBoneIndices)
-                        [mesh->indices[index] * 4]) {
+                    (RwUInt8)skin->vertexBoneIndices[mesh->indices[index]]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
@@ -554,8 +560,7 @@ static RwUInt16* CreateMatrixIndexList(const RpSkin* skin,
             for (matrixIndex = 0; matrixIndex < skin->numUsedBones;
                  matrixIndex++) {
                 if (skin->usedBoneList[matrixIndex] ==
-                    ((const RwUInt8*)skin->vertexBoneIndices)
-                        [mesh->indices[index] * 4]) {
+                    (RwUInt8)skin->vertexBoneIndices[mesh->indices[index]]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
@@ -741,6 +746,8 @@ RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry,
                                            void* owner,
                                            RwResEntry** ownerRef)
 {
+    /* The allocation, display-list, vertex-buffer, and ownership CFG is
+     * recovered; remaining differences are stack slots and register coloring. */
     RwGameCubeVertexData vertexData;
     RwGameCubeIndexData indexData;
     const RwGameCubeVertexDescriptor* descriptor;
@@ -754,7 +761,7 @@ RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry,
     RwUInt32 totalSize;
     RwUInt32 dataOffset;
     RwUInt32 meshIndex;
-    RwUInt8 primitive;
+    RwUInt32 primitive;
 
     totalSize = 0;
     skin = RpSkinGeometryGetSkin(geometry);
@@ -769,8 +776,8 @@ RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry,
     primitive = (geometry->flags & 1) != 0 ? 0x98 : 0x90;
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
-        RwUInt32 numIndices = mesh->numIndices;
+        RwUInt32 numIndices =
+            ((RpMesh*)(geometry->meshHeader + 1) + meshIndex)->numIndices;
         totalSize += _rwGCNDisplayListGetSize(
             descriptor, 1, numIndices);
     }
@@ -815,8 +822,10 @@ RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry,
     }
     displayLists = (RwGameCubeDisplayList*)((RwUInt8*)vertexBuffer +
                                            headerSize);
-    dataOffset = (RwUInt32)((RwUInt8*)displayLists + displayArraySize + 0x1F) &
-                 ~0x1FU;
+    dataOffset = (RwUInt32)displayLists;
+    dataOffset += displayArraySize;
+    dataOffset += 0x1F;
+    dataOffset &= ~0x1FU;
 
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
