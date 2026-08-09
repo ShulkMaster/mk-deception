@@ -199,5 +199,10 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry, void* owner,
                                            RwResEntry** ownerRef);
 RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
                                       RwResEntry** ownerRef);
+RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
+                                              RpWorldSector* sector);
+RwResEntry* _rwDlWorldSectorInstanceFast(RpWorld* world,
+                                         RpWorldSector* sector, void* owner,
+                                         RwResEntry** ownerRef);
 
 #endif
