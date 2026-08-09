@@ -70,6 +70,8 @@ typedef struct RwRGBAReal {
     float alpha;
 } RwRGBAReal;
 
+typedef struct RwRGBA RwRGBA;
+
 RwImage* RwImageResample(RwImage* destination, const RwImage* source);
 RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
 
@@ -145,7 +147,6 @@ typedef struct RwFrustumPlane {
 } RwFrustumPlane;
 
 typedef struct RwCamera RwCamera;
-typedef struct RwRGBA RwRGBA;
 typedef RwCamera* (*RwCameraBeginUpdateFunc)(RwCamera* camera);
 typedef RwCamera* (*RwCameraEndUpdateFunc)(RwCamera* camera);
 
