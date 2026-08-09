@@ -710,7 +710,9 @@ RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material,
         (data->effects != rpMATFXEFFECTNULL && data->effects != effects))
         MatFXMaterialDataClean(data);
     data->effects = effects;
-    switch (effects) {
+    /* The stock explicit NULL case keeps this a dense 0..6 jump table. */
+    switch ((RwUInt32)data->effects) {
+    case rpMATFXEFFECTNULL: break;
     case rpMATFXEFFECTBUMPMAP: data->slot[0].type = rpMATFXEFFECTBUMPMAP; break;
     case rpMATFXEFFECTENVMAP: data->slot[0].type = rpMATFXEFFECTENVMAP; break;
     case rpMATFXEFFECTBUMPENVMAP:
