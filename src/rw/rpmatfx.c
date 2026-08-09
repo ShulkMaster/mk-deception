@@ -182,8 +182,7 @@ static RpMatFXMaterialData* MatFXMaterialGetData(RpMaterial* material)
     return data;
 }
 
-static void* MatFXMaterialCopy(void* destination, const void* source,
-                               RwInt32 offset, RwInt32 size)
+static void* MatFXMaterialCopy(void* destination, const void* source)
 {
     const RpMaterial* src = source;
     RpMaterial* dst = destination;
@@ -191,40 +190,44 @@ static void* MatFXMaterialCopy(void* destination, const void* source,
         RWPLUGINOFFSET(RpMatFXMaterialData*, src, MatFXMaterialDataOffset);
     RpMatFXMaterialData* dstData;
     RwUInt8 i;
-    (void)offset;
-    (void)size;
     if (!srcData)
         return NULL;
     dstData = MatFXMaterialGetData(dst);
     if (!dstData)
         return NULL;
+    /* Retail retains this setter's unused result; clean source discards it. */
     RpMatFXMaterialSetEffects(dst, srcData->effects);
     for (i = 0; i < 2; i++) {
         switch (srcData->slot[i].type) {
-        case rpMATFXEFFECTBUMPMAP:
-            RpMatFXMaterialSetBumpMapFrame(dst,
-                RpMatFXMaterialGetBumpMapFrame(src));
-            RpMatFXMaterialSetBumpMapCoefficient(dst,
-                RpMatFXMaterialGetBumpMapCoefficient(src));
-            dstData->slot[i].data.bump.texture =
-                srcData->slot[i].data.bump.texture;
-            dstData->slot[i].data.bump.bumped_texture =
-                srcData->slot[i].data.bump.bumped_texture;
-            if (dstData->slot[i].data.bump.texture)
-                dstData->slot[i].data.bump.texture->ref_count++;
-            if (dstData->slot[i].data.bump.bumped_texture)
-                dstData->slot[i].data.bump.bumped_texture->ref_count++;
+        case rpMATFXEFFECTBUMPMAP: {
+            const RpMatFXBumpMapData* srcBump =
+                &srcData->slot[i].data.bump;
+            RpMatFXBumpMapData* dstBump = &dstData->slot[i].data.bump;
+            RwFrame* frame = RpMatFXMaterialGetBumpMapFrame(src);
+            RwReal coefficient = RpMatFXMaterialGetBumpMapCoefficient(src);
+
+            RpMatFXMaterialSetBumpMapFrame(dst, frame);
+            RpMatFXMaterialSetBumpMapCoefficient(dst, coefficient);
+            dstBump->texture = srcBump->texture;
+            dstBump->bumped_texture = srcBump->bumped_texture;
+            if (dstBump->texture)
+                dstBump->texture->ref_count++;
+            if (dstBump->bumped_texture)
+                dstBump->bumped_texture->ref_count++;
             break;
+        }
         case rpMATFXEFFECTENVMAP: {
             RwTexture* texture = RpMatFXMaterialGetEnvMapTexture(src);
+            RwFrame* frame = RpMatFXMaterialGetEnvMapFrame(src);
+            RwReal coefficient = RpMatFXMaterialGetEnvMapCoefficient(src);
+            RwBool frameBufferAlpha =
+                RpMatFXMaterialGetEnvMapFrameBufferAlpha(src);
+
             if (texture)
                 RpMatFXMaterialSetEnvMapTexture(dst, texture);
-            RpMatFXMaterialSetEnvMapFrame(dst,
-                RpMatFXMaterialGetEnvMapFrame(src));
-            RpMatFXMaterialSetEnvMapFrameBufferAlpha(dst,
-                RpMatFXMaterialGetEnvMapFrameBufferAlpha(src));
-            RpMatFXMaterialSetEnvMapCoefficient(dst,
-                RpMatFXMaterialGetEnvMapCoefficient(src));
+            RpMatFXMaterialSetEnvMapFrame(dst, frame);
+            RpMatFXMaterialSetEnvMapFrameBufferAlpha(dst, frameBufferAlpha);
+            RpMatFXMaterialSetEnvMapCoefficient(dst, coefficient);
             break;
         }
         case rpMATFXEFFECTDUAL: {
@@ -242,6 +245,8 @@ static void* MatFXMaterialCopy(void* destination, const void* source,
             dst = RpMatFXMaterialSetUVTransformMatrices(dst, base, dual);
             break;
         }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
@@ -663,7 +668,8 @@ RwBool RpMatFXPluginAttach(void)
 
     if (RwEngineRegisterPlugin(0, 0x120, MatFXOpen, MatFXClose) < 0) return FALSE;
     MatFXMaterialDataOffset = RpMaterialRegisterPlugin(4, 0x120,
-        MatFXMaterialConstructor, MatFXMaterialDestructor, MatFXMaterialCopy);
+        MatFXMaterialConstructor, MatFXMaterialDestructor,
+        (RwPluginObjectCopy)MatFXMaterialCopy);
     if (MatFXMaterialDataOffset < 0) return FALSE;
     result = RpMaterialRegisterPluginStream(0x120, MatFXMaterialStreamRead,
         MatFXMaterialStreamWrite, MatFXMaterialStreamGetSize);
