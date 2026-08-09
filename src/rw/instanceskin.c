@@ -174,9 +174,7 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
                sizeof(*sourceIndices));
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RpMesh* mesh = (RpMesh*)((RwUInt8*)geometry->meshHeader +
-                                geometry->meshHeader->firstMeshOffset) +
-                       meshIndex;
+        RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
         for (streamIndex = 0; streamIndex < numIndexStreams; streamIndex++)
             sourceIndices[meshIndex * numIndexStreams + streamIndex] =
                 mesh->indices;
@@ -193,9 +191,7 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
 
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RpMesh* mesh = (RpMesh*)((RwUInt8*)geometry->meshHeader +
-                                geometry->meshHeader->firstMeshOffset) +
-                       meshIndex;
+        RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
         (*remappedIndices)[meshIndex] = IndexDataCreateRemapped(
             maps, (const RwUInt16* const*)&sourceIndices[meshIndex *
                                                         numIndexStreams],
@@ -603,9 +599,7 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
 
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RpMesh* mesh = (RpMesh*)((RwUInt8*)geometry->meshHeader +
-                                geometry->meshHeader->firstMeshOffset) +
-                       meshIndex;
+        RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
         if ((geometry->flags & 1) != 0) {
             RwUInt32 numStrips;
             RwUInt32 stripIndices;
@@ -661,9 +655,7 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
 
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RpMesh* mesh = (RpMesh*)((RwUInt8*)geometry->meshHeader +
-                                geometry->meshHeader->firstMeshOffset) +
-                       meshIndex;
+        RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
         RwUInt32 numStrips;
         RwUInt32 stripIndices;
         RwUInt32 listSize;
@@ -775,11 +767,10 @@ RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry,
     primitive = (geometry->flags & 1) != 0 ? 0x98 : 0x90;
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RpMesh* mesh = (RpMesh*)((RwUInt8*)geometry->meshHeader +
-                                geometry->meshHeader->firstMeshOffset) +
-                       meshIndex;
+        RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
+        RwUInt32 numIndices = mesh->numIndices;
         totalSize += _rwGCNDisplayListGetSize(
-            descriptor, 1, mesh->numIndices);
+            descriptor, 1, numIndices);
     }
     vertexSize = _rwGCNVertexBufferGetSize(descriptor, vertexData.counts);
     totalSize += vertexSize;
@@ -827,9 +818,7 @@ RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry,
 
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RpMesh* mesh = (RpMesh*)((RwUInt8*)geometry->meshHeader +
-                                geometry->meshHeader->firstMeshOffset) +
-                       meshIndex;
+        RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
         RwUInt32 listSize = _rwGCNDisplayListGetSize(
             descriptor, 1, mesh->numIndices);
         RwUInt16* matrixIndices;
