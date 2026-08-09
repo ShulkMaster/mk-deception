@@ -377,9 +377,9 @@ static RwUInt16* CreateMatrixIndexListOptimized(
             numIndices * sizeof(*matrixIndices), 0x30116);
         for (index = 0; index < (RwUInt32)numIndices; index++) {
             RwUInt32 matrixIndex;
-            RwUInt8 vertexBone = boneIndices[primitiveIndices[index] * 4];
             for (matrixIndex = 0; matrixIndex < 10; matrixIndex++) {
-                if (meshBones[matrixIndex] == vertexBone) {
+                if (meshBones[matrixIndex] ==
+                    boneIndices[primitiveIndices[index] * 4]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
@@ -390,10 +390,10 @@ static RwUInt16* CreateMatrixIndexListOptimized(
             numIndices * sizeof(*matrixIndices), 0x30116);
         for (index = 0; index < (RwUInt32)numIndices; index++) {
             RwUInt32 matrixIndex;
-            RwUInt8 vertexBone = boneIndices[primitiveIndices[index] * 4];
             for (matrixIndex = 0; matrixIndex < skin->numUsedBones;
                  matrixIndex++) {
-                if (skin->usedBoneList[matrixIndex] == vertexBone) {
+                if (skin->usedBoneList[matrixIndex] ==
+                    boneIndices[primitiveIndices[index] * 4]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
@@ -539,10 +539,10 @@ static RwUInt16* CreateMatrixIndexList(const RpSkin* skin,
             mesh->numIndices * sizeof(*matrixIndices), 0x30116);
         for (index = 0; index < mesh->numIndices; index++) {
             RwUInt32 matrixIndex;
-            RwUInt8 vertexBone = ((const RwUInt8*)skin->vertexBoneIndices)
-                [mesh->indices[index] * 4];
             for (matrixIndex = 0; matrixIndex < 10; matrixIndex++) {
-                if (meshBones[matrixIndex] == vertexBone) {
+                if (meshBones[matrixIndex] ==
+                    ((const RwUInt8*)skin->vertexBoneIndices)
+                        [mesh->indices[index] * 4]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
@@ -553,11 +553,11 @@ static RwUInt16* CreateMatrixIndexList(const RpSkin* skin,
             mesh->numIndices * sizeof(*matrixIndices), 0x30116);
         for (index = 0; index < mesh->numIndices; index++) {
             RwUInt32 matrixIndex;
-            RwUInt8 vertexBone = ((const RwUInt8*)skin->vertexBoneIndices)
-                [mesh->indices[index] * 4];
             for (matrixIndex = 0; matrixIndex < skin->numUsedBones;
                  matrixIndex++) {
-                if (skin->usedBoneList[matrixIndex] == vertexBone) {
+                if (skin->usedBoneList[matrixIndex] ==
+                    ((const RwUInt8*)skin->vertexBoneIndices)
+                        [mesh->indices[index] * 4]) {
                     matrixIndices[index] = (RwUInt16)(matrixIndex * 3);
                     break;
                 }
