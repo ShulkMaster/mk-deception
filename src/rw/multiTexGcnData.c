@@ -35,7 +35,7 @@ typedef struct RpGameCubeMTEntry64 {
     RwInt32 field_0x50;
     RwInt32 field_0x54;
     RwInt32 field_0x58;
-    RwInt32 field_0x5C;
+    RwUInt32 field_0x5C;
     RwInt32 field_0x60;
 } RpGameCubeMTEntry64;
 
@@ -56,8 +56,8 @@ typedef struct RpGameCubeMTEntry40 {
 
 struct RpGameCubeMTEffectConfig {
     RwInt32 field_0x00;
-    RwUInt8 allocationCount64;
     RwUInt8 allocationCount24;
+    RwUInt8 allocationCount64;
     RwUInt8 allocationCount60;
     RwUInt8 allocationCount20;
     RwUInt8 allocationCount40;
@@ -142,7 +142,7 @@ static RwInt32 GameCubeMTEffectStreamGetSize(const RpMTEffect* effect)
     return size;
 }
 
-/* Near match: only packed-nibble evaluation order and one byte clamp differ. */
+/* Near match: only equivalent packed-nibble masking/evaluation differs. */
 static RwStream* GameCubeMTEffectStreamWrite(
     const RpMTEffect* effect, RwStream* stream)
 {
@@ -164,8 +164,8 @@ static RwStream* GameCubeMTEffectStreamWrite(
     header.count40 = config->count40;
     header.count20 = config->count20;
     header.packedFields =
-        ((RwUInt8)config->field_0x58 & 0xF) |
-        (((RwUInt8)config->field_0x54 & 0xF) * 0x10);
+        (((RwUInt8)config->field_0x54 & 0xF) * 0x10) |
+        ((RwUInt8)config->field_0x58 & 0xF);
     memcpy(header.bytes, config->bytes, sizeof(header.bytes));
     memcpy(header.values, config->values, sizeof(header.values));
     RwMemLittleEndian16(header.values, sizeof(header.values));
@@ -431,7 +431,7 @@ RpMTEffect* RpGameCubeMTEffectCreate(
     RwUInt32 count64, RwUInt32 count24, RwUInt32 count60,
     RwUInt32 count20, RwUInt32 count40)
 {
-    /* The remaining objdiff residue is allocation/count register coloring. */
+    /* The remaining objdiff residue is allocation-size register coloring. */
     RwUInt32 size = 0x8C;
     RpMTEffect* effect;
     RpGameCubeMTEffectConfig* config;
