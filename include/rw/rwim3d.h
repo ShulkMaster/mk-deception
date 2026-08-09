@@ -4,9 +4,24 @@
 #include "rw/rwplcore.h"
 
 typedef struct RxPipeline RxPipeline;
-typedef struct RwIm3DVertex RwIm3DVertex;
+typedef struct RxNodeDefinition RxNodeDefinition;
 typedef struct RwMatrix RwMatrix;
 typedef RwUInt16 RwImVertexIndex;
+
+typedef struct RwIm3DVertex {
+    RwV3d position;
+    RwV3d normal;
+    union {
+        RwUInt32 color;
+        struct {
+            RwUInt8 red;
+            RwUInt8 green;
+            RwUInt8 blue;
+            RwUInt8 alpha;
+        } color_channels;
+    };
+    RwV2d texCoords;
+} RwIm3DVertex;
 
 typedef enum RwPrimitiveType {
     rwPRIMTYPELINELIST = 1,
@@ -26,6 +41,27 @@ typedef struct RwIm3DRenderPipelines {
     RxPipeline* pointList;
 } RwIm3DRenderPipelines;
 
+typedef struct RwIm3DTransformData {
+    RwUInt16 numVertices;
+    RwUInt16 reserved_02;
+    RwIm3DVertex* vertices;
+    RwUInt32 stride;
+} RwIm3DTransformData;
+
+typedef struct RwIm3DRenderData {
+    RxPipeline* pipeline;
+    RwPrimitiveType primitiveType;
+    const RwImVertexIndex* indices;
+    RwInt32 numIndices;
+} RwIm3DRenderData;
+
+typedef struct RwIm3DStash {
+    RwUInt32 flags;
+    const RwMatrix* localToWorld;
+    RwUInt8 reserved_08[0x18];
+    RwIm3DRenderData renderData;
+} RwIm3DStash;
+
 RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
                               const RwMatrix* localToWorld, RwUInt32 flags);
 RwBool RwIm3DEnd(void);
@@ -43,5 +79,7 @@ RwBool _rwIm3DCreatePlatformRenderPipelines(
 void _rwIm3DDestroyPlatformTransformPipeline(RxPipeline** pipeline);
 void _rwIm3DDestroyPlatformRenderPipelines(
     RwIm3DRenderPipelines* pipelines);
+RxNodeDefinition* RxNodeDefinitionGetGameCubeImmInstance(void);
+RxNodeDefinition* RxNodeDefinitionGetGameCubeSubmitNoLight(void);
 
 #endif

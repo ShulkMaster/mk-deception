@@ -5,27 +5,6 @@
 #include "rw/rxpipeline.h"
 #include "runtime/cstring.h"
 
-typedef struct RwIm3DTransformData {
-    RwUInt16 numVertices;
-    RwUInt16 reserved_0x3A;
-    RwIm3DVertex* vertices;
-    RwUInt32 stride;
-} RwIm3DTransformData;
-
-typedef struct RwIm3DRenderData {
-    RxPipeline* pipeline;
-    RwPrimitiveType primitiveType;
-    const RwImVertexIndex* indices;
-    RwInt32 numIndices;
-} RwIm3DRenderData;
-
-typedef struct RwIm3DStash {
-    RwUInt32 flags;
-    const RwMatrix* localToWorld;
-    RwUInt8 reserved_0x4C[0x18];
-    RwIm3DRenderData renderData;
-} RwIm3DStash;
-
 typedef struct RwIm3DGlobals {
     RxPipeline* transformPipeline;
     RwIm3DRenderPipelines renderPipelines;
