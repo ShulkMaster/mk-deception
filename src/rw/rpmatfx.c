@@ -801,6 +801,10 @@ RpMatFXMaterialFlags RpMatFXMaterialGetEffects(const RpMaterial* material)
 RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
                                              RwTexture* bumpTexture)
 {
+    /*
+     * Retail retains three unused field/buffer addresses, widening its save
+     * range; the ownership, lookup, creation, and coefficient CFG is exact.
+     */
     static const RwChar emptyName[32] = {0};
     RpMatFXBumpMapData* data = MatFXGetData(material, rpMATFXEFFECTBUMPMAP);
     RwTexture* baseTexture;
@@ -810,11 +814,18 @@ RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
     if (data->bumped_texture) { RwTextureDestroy(data->bumped_texture); data->bumped_texture = NULL; }
     if (data->texture) { RwTextureDestroy(data->texture); data->texture = NULL; data->coefficient = 0.0f; }
     if (bumpTexture) {
+        RwRaster* bumpRaster;
+
         data->bumped_texture = bumpTexture;
         bumpTexture->ref_count++;
-        invalid = bumpTexture->raster->width == 0;
+        bumpRaster = bumpTexture->raster;
+        invalid = bumpRaster->width == 0;
         baseTexture = material->texture;
-        if (!invalid && baseTexture) invalid = baseTexture->raster->width == 0;
+        if (!invalid && baseTexture) {
+            RwRaster* baseRaster = baseTexture->raster;
+
+            invalid = baseRaster->width == 0;
+        }
         if (!invalid) {
             memcpy(name, emptyName, sizeof(name));
             GenBumpedTextureName(name, baseTexture, bumpTexture);
@@ -828,10 +839,17 @@ RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
             } else {
                 data->texture->ref_count++;
             }
-            data->coefficient = 1.0f / data->texture->raster->width;
+            {
+                RwRaster* raster = data->texture->raster;
+
+                data->coefficient = 1.0f / raster->width;
+            }
         }
     } else {
-        data->coefficient = 1.0f / material->texture->raster->width;
+        RwTexture* texture = material->texture;
+        RwRaster* raster = texture->raster;
+
+        data->coefficient = 1.0f / raster->width;
     }
     return material;
 }
