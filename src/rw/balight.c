@@ -109,6 +109,12 @@ RpLight* RpLightSetColor(RpLight* light, const RwRGBAReal* color)
         }                                                                   \
     } while (0)
 
+/*
+ * This is the target's older inlined fdlibm acos macro, reconstructed branch
+ * for branch with its exact constants and _rwSqrt calls. The 3.7 stock
+ * RwIEEEACosfMacro was measured and regressed the target. Remaining differences
+ * are macro temporary scope, floating-register allocation, and scheduling.
+ */
 RwReal RpLightGetConeAngle(const RpLight* light)
 {
     RwReal result;
@@ -143,6 +149,12 @@ RwBool RpLightDestroy(RpLight* light)
     return TRUE;
 }
 
+/*
+ * Initialization order, widths, list topology, plugin callback, and ownership
+ * match retail. Retail homes the allocated pointer at sp+0xC and reloads it for
+ * every stock object/list macro store, plus materializes its address for a
+ * stripped checked macro; clean typed C keeps the pointer live in a register.
+ */
 RpLight* RpLightCreate(RwInt32 type)
 {
     RpLight* light;
