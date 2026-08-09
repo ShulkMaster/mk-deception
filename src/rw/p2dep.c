@@ -197,19 +197,24 @@ static void _ScopeTraceMerge(rxScopeTrace **traces, rxScopeTrace *first,
   *traces = (*traces)->next;
 }
 
+/* Retail computes and discards an output-request-list empty predicate before
+ * walking each output. Omitting that macro residue leaves equivalent register
+ * coloring and spill scheduling; the complete propagation CFG and size agree. */
 static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
   RwUInt32 nodesRemaining = pipeline->numNodes;
   RxPipelineNode *node = &pipeline->nodes[pipeline->numNodes - 1];
+  RwUInt32 remaining;
 
-  while (nodesRemaining != 0) {
+  do {
     RxIoSpec *io = &node->nodeDef->io;
     RwUInt32 clusterIndex;
     RwUInt32 outputIndex;
 
-    for (clusterIndex = 0; clusterIndex < io->numClustersOfInterest;
+    for (clusterIndex = 0;
+         clusterIndex < node->nodeDef->io.numClustersOfInterest;
          clusterIndex++) {
       RxClusterDefinition *cluster =
-          io->clustersOfInterest[clusterIndex].clusterDef;
+          node->nodeDef->io.clustersOfInterest[clusterIndex].clusterDef;
       RwUInt32 comparison;
 
       if (cluster == NULL) {
@@ -220,9 +225,10 @@ static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
         return 0x1F;
       }
       for (comparison = clusterIndex + 1;
-           comparison < io->numClustersOfInterest; comparison++) {
+           comparison < node->nodeDef->io.numClustersOfInterest;
+           comparison++) {
         RxClusterDefinition *other =
-            io->clustersOfInterest[comparison].clusterDef;
+            node->nodeDef->io.clustersOfInterest[comparison].clusterDef;
 
         if (cluster == other) {
           RwError error;
@@ -234,22 +240,23 @@ static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
       }
     }
 
-    node->topSortData->req =
-        _ReqCreate(node, PipelineCalcNumUniqueClusters(pipeline));
-    if (node->topSortData->req == NULL) {
-      RwError error;
-      error.pluginID = 1;
-      error.errorCode = _rwerror(0x20);
-      RwErrorSet(&error);
-      return 0x20;
+    {
+      RwUInt32 maxClusters = PipelineCalcNumUniqueClusters(pipeline);
+
+      if ((node->topSortData->req = _ReqCreate(node, maxClusters)) == NULL) {
+        RwError error;
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x20);
+        RwErrorSet(&error);
+        return 0x20;
+      }
     }
 
     for (outputIndex = 0; outputIndex < node->numOutputs; outputIndex++) {
-      RwUInt32 outputNodeIndex = node->outputs[outputIndex];
-
-      if (outputNodeIndex + 0x10000U != (RwUInt32)-1) {
-        RxPipelineNode *outputNode = &pipeline->nodes[outputNodeIndex];
-        RxOutputSpec *outputSpec = &io->outputs[outputIndex];
+      if (node->outputs[outputIndex] != (RwUInt32)-1) {
+        RxPipelineNode *outputNode =
+            &pipeline->nodes[node->outputs[outputIndex]];
+        RxOutputSpec *outputSpec = &node->nodeDef->io.outputs[outputIndex];
         RwUInt32 entryIndex;
 
         for (entryIndex = 0;
@@ -259,10 +266,11 @@ static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
               entryIndex < outputNode->topSortData->req->numEntries
                   ? &outputNode->topSortData->req->entries[entryIndex]
                   : NULL;
-          RwInt32 ioIndex = _IoSpecSearch4Cluster(io, outputEntry->clusterDef);
-          RxClusterValid validity = ioIndex == -1
-                                        ? outputSpec->allOtherClusters
-                                        : outputSpec->outputClusters[ioIndex];
+          RwUInt32 ioIndex =
+              _IoSpecSearch4Cluster(io, outputEntry->clusterDef);
+          RxClusterValid validity =
+              ioIndex == (RwUInt32)-1 ? outputSpec->allOtherClusters
+                                      : outputSpec->outputClusters[ioIndex];
 
           if (validity == rxCLVALID_NOCHANGE) {
             if (_ReqAddEntry(node->topSortData->req, outputEntry->clusterDef,
@@ -295,12 +303,11 @@ static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
 
     for (clusterIndex = 0; clusterIndex < io->numClustersOfInterest;
          clusterIndex++) {
-      RxClusterValidityReq requirement = io->inputRequirements[clusterIndex];
-
-      if (requirement != rxCLREQ_DONTWANT &&
+      if (io->inputRequirements[clusterIndex] != rxCLREQ_DONTWANT &&
           _ReqAddEntry(node->topSortData->req,
                        io->clustersOfInterest[clusterIndex].clusterDef,
-                       requirement, node->topSortData->numIns, node) == NULL) {
+                       io->inputRequirements[clusterIndex],
+                       node->topSortData->numIns, node) == NULL) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x20);
@@ -310,8 +317,8 @@ static RwUInt32 _PropagateDependenciesAndKillDeadPaths(RxPipeline *pipeline) {
     }
 
     node--;
-    nodesRemaining--;
-  }
+    remaining = --nodesRemaining;
+  } while (remaining != 0);
   return 0;
 }
 
