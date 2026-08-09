@@ -130,17 +130,17 @@ static void _PropDownElimPath(RxPipeline *pipeline, RxPipelineNode *node,
 
     _ReqDeleteEntry(node->topSortData->req, entry);
     for (output = 0; output < node->numOutputs; output++) {
-      RwUInt32 nextIndex = node->outputs[output];
-
-      if (nextIndex + 0x10000U != (RwUInt32)-1) {
-        RxOutputSpec *outputSpec = &io->outputs[output];
+      if (node->outputs[output] != (RwUInt32)-1) {
+        RxOutputSpec *outputSpec = &node->nodeDef->io.outputs[output];
         RwInt32 clusterIndex = _IoSpecSearch4Cluster(io, clusterDef);
         RxClusterValid validity =
-            clusterIndex == -1 ? outputSpec->allOtherClusters
-                               : outputSpec->outputClusters[clusterIndex];
+            (RwUInt32)clusterIndex == (RwUInt32)-1
+                ? outputSpec->allOtherClusters
+                : outputSpec->outputClusters[clusterIndex];
 
         if (validity == rxCLVALID_NOCHANGE) {
-          _PropDownElimPath(pipeline, &pipeline->nodes[nextIndex], clusterDef);
+          _PropDownElimPath(
+              pipeline, &pipeline->nodes[node->outputs[output]], clusterDef);
         }
       }
     }
