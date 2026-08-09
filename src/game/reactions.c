@@ -349,6 +349,7 @@ void blend_to_ani_frame(
     int animation, int transition, float blend, float frame);
 float j_getup_back_6(void);
 float j_getup_front_12(void);
+float blend_to_stance_j_exit(void);
 float j_getup_back_3(void);
 float j_getup_back_9(void);
 float j_getup_back_12(void);
@@ -383,6 +384,7 @@ void tightrope_restrictions_on(void);
 extern void (*large_ground_fx)(void);
 void ani_1_frame(void);
 void ani_loop_more_frames(float frames);
+void ani_x_more_frames(float frames);
 void blend_to_ani_INOUT(
     int in_animation, int out_animation, float blend_rate,
     float in_speed, float out_speed);
@@ -416,16 +418,27 @@ void fx_set_param_v3(
     unsigned int effect, int parameter, float x, float y, float z);
 void fx_resume_emit(unsigned int effect);
 static float p_image_fader(void);
+MkProc* _create_mkproc_generic_nostack(
+    int proc_id, int priority, MkProcEntryFn proc_fn,
+    int pdata_size, MkHdr** pdata_out);
 void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* position);
+typedef struct ReactionScreenPos {
+    float x;
+    float y;
+} ReactionScreenPos;
+
 void camera_get_screen_pos_from_world_pos(
-    const Vec* world, Vec* screen);
+    const Vec* world, ReactionScreenPos* screen);
 
 #include "src/game/reactions_table_prototypes.inc"
 #include "src/game/reactions_table.inc"
 
+/*
+ * Soft ceiling: run_reaction_cleanup_function ~93.52% -- nonvolatile
+ * assignment order and two uncoalesced ternary copies.
+ */
 void run_reaction_cleanup_function(PlyrPdata* player) {
-    CmdScript* saved_script;
     PlyrPdata* saved_player;
     PlyrPdata* saved_opponent;
     MkObj* saved_object;
@@ -444,46 +457,41 @@ void run_reaction_cleanup_function(PlyrPdata* player) {
         his_pdata = player->his_plyr_pdata;
         object = player->tracked_obj;
         if (object != 0) {
-            if (object->hdr.instance == player->tracked_obj_instance) {
-                /* The tracked handle is still live. */
-            } else {
-                object = 0;
-            }
+            object = (object->hdr.instance == player->tracked_obj_instance)
+                ? object : 0;
         } else {
             object = 0;
         }
         plyr_obj = object;
-        opponent_object = his_pdata->tracked_obj;
+        opponent_object = player->his_plyr_pdata->tracked_obj;
         if (opponent_object != 0) {
-            if (opponent_object->hdr.instance ==
-                his_pdata->tracked_obj_instance) {
-                /* The opponent's tracked handle is still live. */
-            } else {
-                opponent_object = 0;
-            }
+            opponent_object = (opponent_object->hdr.instance ==
+                player->his_plyr_pdata->tracked_obj_instance)
+                ? opponent_object : 0;
         } else {
             opponent_object = 0;
         }
         his_obj = opponent_object;
         if (object != 0) {
-            if (opponent_object != 0) {
-                saved_script = active_cmdscript;
-                active_cmdscript = &global_script_interpreter;
-                cmdscript_set_parameters(
-                    &global_script_interpreter, 1, player);
-                cmdscript_setup_execution(
-                    player->cmo,
-                    ((ReactionStatusFlagsView*)player->status_flags)
-                        ->cleanup_function);
-                cmdscript_execute(player->cmo);
-                active_cmdscript = saved_script;
-                plyr_pdata = saved_player;
-                his_pdata = saved_opponent;
-                plyr_obj = saved_object;
-                his_obj = saved_opponent_object;
-            } else {
+            CmdScript* saved_script;
+
+            if (opponent_object == 0) {
                 return;
             }
+            saved_script = active_cmdscript;
+            active_cmdscript = &global_script_interpreter;
+            cmdscript_set_parameters(
+                &global_script_interpreter, 1, player);
+            cmdscript_setup_execution(
+                player->cmo,
+                ((ReactionStatusFlagsView*)player->status_flags)
+                    ->cleanup_function);
+            cmdscript_execute(player->cmo);
+            active_cmdscript = saved_script;
+            plyr_pdata = saved_player;
+            his_pdata = saved_opponent;
+            plyr_obj = saved_object;
+            his_obj = saved_opponent_object;
         }
     }
 }
@@ -496,7 +504,7 @@ ScreenObj* display_image_by_plyr(
     int half_width;
     Vec bone_offset = {0.0f, 0.0f, 0.0f};
     Vec world_position;
-    Vec screen_position;
+    ReactionScreenPos screen_position;
 
     image = load_named_2d_pfxobj(
         slot, 0xC021, image_name, 0, 0x2F);
@@ -522,6 +530,10 @@ ScreenObj* display_image_by_plyr(
     return image;
 }
 
+/*
+ * Soft ceiling: the five hit-flash helpers are opcode-identical apart from
+ * the object/effect nonvolatile pair coloring (r30/r31 swapped).
+ */
 void flash_hit_at_bid_with_y(float y_offset) {
     unsigned int effect;
     MkObj* object;
@@ -706,6 +718,10 @@ void load_script_as_reaction(unsigned int slot, int script) {
     }
 }
 
+/*
+ * Soft ceiling: reaction_xfer_him ~91.53% -- whole-function nonvolatile
+ * register permutation (r14-r31 numbering); memory operations match.
+ */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     ReactionTransferPdata* transfer;
     ReactionDamagePdata* boost_source;
@@ -741,14 +757,13 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     float applied_damage;
     float damage;
 
-    original_reaction = reaction;
     reaction_state = tbl_xfer_addresses[reaction].state;
     dispatch_reaction = reaction;
     face_after = 1;
     face_reaction = 0;
     force_air = 0;
-    if ((g_game_info.flags & 8) != 0 ||
-        (g_game_info.flags & 0x10) != 0 ||
+    if (((g_game_info.flags >> 3) & 1) != 0 ||
+        ((g_game_info.flags >> 4) & 1) != 0 ||
         f_fatality_was_done != 0) {
         return 0;
     }
@@ -756,9 +771,9 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     transfer = (ReactionTransferPdata*)apdata;
     opponent_proc = transfer->opponent_proc;
     if (opponent_proc != 0) {
-        if (opponent_proc->hdr.instance != transfer->opponent_proc_instance) {
-            opponent_proc = 0;
-        }
+        opponent_proc = (opponent_proc->hdr.instance ==
+            transfer->opponent_proc_instance)
+            ? opponent_proc : 0;
     } else {
         opponent_proc = 0;
     }
@@ -769,12 +784,12 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     big_boss = is_big_boss(victim);
     if (big_boss != 0) {
         dispatch_reaction = big_boss_reaction_remap(dispatch_reaction);
-        if (victim_obj == g_game_info.player_objects[0] &&
+        if (victim_obj == g_game_info.plyr0.slot.mirror_a &&
             g_game_info.plyr1.slot.pdata->secondary_state & 0x100) {
             if (damage_scale > 0.06f) {
                 damage_scale *= 0.15f;
             }
-        } else if (victim_obj == g_game_info.player_objects[1] &&
+        } else if (victim_obj == g_game_info.plyr1.slot.mirror_a &&
                    g_game_info.plyr0.slot.pdata->secondary_state & 0x100) {
             if (damage_scale > 0.06f) {
                 damage_scale *= 0.15f;
@@ -782,7 +797,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         } else if (victim->drone_request != 0) {
             damage_scale *= drone_ai_get_big_boss_damage_scale(victim);
         } else {
-            damage_scale *= 0.9f;
+            damage_scale = 0.9f * damage_scale;
         }
     }
     original_reaction = dispatch_reaction;
@@ -793,7 +808,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     victim_obj->flags_09_bits.face_opponent = 0;
     victim->block_requirement = block_type;
     if (is_plyr_airborn(victim_obj, victim, 1, 0) == 1) {
-        if (victim_obj == g_game_info.player_objects[0]) {
+        if (victim_obj == g_game_info.plyr0.slot.mirror_a) {
             if (victim->state & 0x400) {
                 g_game_info.plyr0.slot.pdata->reaction_hit_count++;
             }
@@ -818,7 +833,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     case 0x501D:
     case 0x2026:
     case 0x5019:
-        if (victim_obj == g_game_info.player_objects[1]) {
+        if (victim_obj == g_game_info.plyr1.slot.mirror_a) {
             become_plyr2_proc();
         } else {
             become_plyr1_proc();
@@ -903,10 +918,10 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
     plyr_anim_pdata->flags |= 0x40;
     plyr_anim_pdata->step = 1.0f;
-    if (plyr_obj == g_game_info.player_objects[0]) {
+    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         destroy_mkprocs_pid(0x1005);
     }
-    if (plyr_obj == g_game_info.player_objects[1]) {
+    if (plyr_obj == g_game_info.plyr1.slot.mirror_a) {
         destroy_mkprocs_pid(0x1006);
     }
 
@@ -1244,13 +1259,8 @@ void reaction_xfer_him_nohit(int reaction) {
     }
 }
 
-/*
- * Near miss: the two current-reaction accessors are semantically complete.
- * MWCC keeps the table index in r0 here instead of retail's r3 and omits a
- * redundant addis-by-zero before the 0xFFFF sentinel test.
- */
 int reaction_fetch_current_flags(int player) {
-    unsigned int reaction_index;
+    int reaction_index;
 
     reaction_index =
         ((ReactionCurrentPdata*)g_game_info.plyr0.slot.pdata)->reaction_index;
@@ -1259,14 +1269,14 @@ int reaction_fetch_current_flags(int player) {
             ((ReactionCurrentPdata*)g_game_info.plyr1.slot.pdata)
                 ->reaction_index;
     }
-    if (reaction_index == 0xFFFFU) {
+    if (reaction_index == 0xFFFF) {
         return 0;
     }
     return tbl_xfer_addresses[reaction_index].flags;
 }
 
 int reaction_fetch_current_power_level(int player) {
-    unsigned int reaction_index;
+    int reaction_index;
 
     reaction_index =
         ((ReactionCurrentPdata*)g_game_info.plyr0.slot.pdata)->reaction_index;
@@ -1275,7 +1285,7 @@ int reaction_fetch_current_power_level(int player) {
             ((ReactionCurrentPdata*)g_game_info.plyr1.slot.pdata)
                 ->reaction_index;
     }
-    if (reaction_index == 0xFFFFU) {
+    if (reaction_index == 0xFFFF) {
         return 2;
     }
     return tbl_xfer_addresses[reaction_index].power_level;
@@ -1283,7 +1293,7 @@ int reaction_fetch_current_power_level(int player) {
 
 /*
  * Soft ceiling: the five damage leaves are opcode-identical apart from
- * TU-local float-pool labels and the commutative fmuls operand order.
+ * TU-local float-pool labels.
  */
 void damage_player(PlyrPdata* source, float amount) {
     ReactionDamagePdata* boost_source;
@@ -1292,7 +1302,8 @@ void damage_player(PlyrPdata* source, float amount) {
     if (source->plyr_num == 0) {
         boost_source =
             (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-        damage = amount * 0.8f;
+        damage = amount;
+        damage *= 0.8f;
         if (boost_source->damage_boost_until > (unsigned int)game_tick_ctr) {
             damage *= boost_source->damage_boost;
         }
@@ -1306,7 +1317,8 @@ void damage_player(PlyrPdata* source, float amount) {
     }
 
     boost_source = (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-    damage = amount * 0.8f;
+    damage = amount;
+    damage *= 0.8f;
     if (boost_source->damage_boost_until > (unsigned int)game_tick_ctr) {
         damage *= boost_source->damage_boost;
     }
@@ -1326,7 +1338,8 @@ void damage_him(float amount) {
         if (aproc->pid == 0x1001) {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-            damage = amount * 0.8f;
+            damage = amount;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -1342,7 +1355,8 @@ void damage_him(float amount) {
 
         boost_source =
             (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-        damage = amount * 0.8f;
+        damage = amount;
+        damage *= 0.8f;
         if (boost_source->damage_boost_until > (unsigned int)game_tick_ctr) {
             damage *= boost_source->damage_boost;
         }
@@ -1363,7 +1377,8 @@ void damage_me(float amount) {
         if (aproc->pid == 0x1001) {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-            damage = amount * 0.8f;
+            damage = amount;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -1379,7 +1394,8 @@ void damage_me(float amount) {
 
         boost_source =
             (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-        damage = amount * 0.8f;
+        damage = amount;
+        damage *= 0.8f;
         if (boost_source->damage_boost_until > (unsigned int)game_tick_ctr) {
             damage *= boost_source->damage_boost;
         }
@@ -1397,7 +1413,8 @@ void damage_p2(float amount) {
     float damage;
 
     boost_source = (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-    damage = amount * 0.8f;
+    damage = amount;
+    damage *= 0.8f;
     if (boost_source->damage_boost_until > (unsigned int)game_tick_ctr) {
         damage *= boost_source->damage_boost;
     }
@@ -1414,7 +1431,8 @@ void damage_p1(float amount) {
     float damage;
 
     boost_source = (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-    damage = amount * 0.8f;
+    damage = amount;
+    damage *= 0.8f;
     if (boost_source->damage_boost_until > (unsigned int)game_tick_ctr) {
         damage *= boost_source->damage_boost;
     }
@@ -1539,7 +1557,7 @@ static float r_fan_lift(void) {
     plyr_pdata->blocking_disabled_2 = 1;
     plyr_pdata->blocking_disabled = 1;
     random_voice(5);
-    blend_to_ani(his_pdata->reaction_animation_a, 0, 0.1f);
+    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
     plyr_anim_pdata->step = 1.0f;
     force_away(8, 8, 0.1f, 0.85f);
     _mkproc_sleep_ticks = 30.0f;
@@ -1637,7 +1655,8 @@ static float r_mileena_hit(void) {
         if (aproc->pid == 0x1001) {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-            damage = 0.12f * 0.8f;
+            damage = 0.12f;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -1651,7 +1670,8 @@ static float r_mileena_hit(void) {
         } else {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-            damage = 0.12f * 0.8f;
+            damage = 0.12f;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -1738,6 +1758,7 @@ float r_jump_chin3_final_hit(void) {
     return 0.0f;
 }
 
+/* Soft ceiling: r_sidehead3_spin ~98.49% -- float-guard branch layout (bne+b vs inverted beq). */
 static float r_sidehead3_spin(void) {
     ReactionProcVtable* vtable;
     float flight_ticks;
@@ -1752,7 +1773,9 @@ static float r_sidehead3_spin(void) {
     blend_to_ani(shared_ani.side_head_spin, 3, 0.33f);
     launch_me_up(0.06f, -0.003f);
     flight_ticks = 2.0f * (plyr_obj->pos_vel.y / plyr_obj->gravity);
-    if (flight_ticks < 0.0f) {
+    if (flight_ticks >= 0.0f) {
+        /* Flight time is already positive. */
+    } else {
         flight_ticks = -flight_ticks;
     }
     plyr_anim_pdata->step = 27.0f / flight_ticks;
@@ -1874,7 +1897,7 @@ static float r_esp1_B(void) {
     blend_to_ani(
         ((ReactionExtendedPdata*)his_pdata)->reaction_animation_b,
         0, 0.1f);
-    while (xz_distance_between_players() > 2.25f && ticks > 0) {
+    while (xz_distance_between_players() > 2.25 && ticks > 0) {
         ticks--;
         ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
@@ -1889,7 +1912,8 @@ static float r_esp1_B(void) {
     got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
     if (plyr_pdata != 0) {
         if (aproc->pid == 0x1001) {
-            damage = 0.14f * 0.8f;
+            damage = 0.14f;
+            damage *= 0.8f;
             if (((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
                     ->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
@@ -1903,7 +1927,8 @@ static float r_esp1_B(void) {
             ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
                 ->accumulated_damage += damage;
         } else {
-            damage = 0.14f * 0.8f;
+            damage = 0.14f;
+            damage *= 0.8f;
             if (((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
                     ->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
@@ -1948,31 +1973,34 @@ static float r_scorpion_spear_1(void) {
 
 static float r_scorpion_spear_2(void) {
     ReactionProcVtable* vtable;
-    ReactionExtendedPdata* opponent;
     int ticks;
 
-    opponent = (ReactionExtendedPdata*)his_pdata;
-    blend_to_ani(opponent->scorpion_spear_pull, 3, 0.1f);
+    blend_to_ani(
+        ((ReactionExtendedPdata*)his_pdata)->scorpion_spear_pull, 3, 0.1f);
     ani_to_end();
     snd_req(0xD70);
     myvel_his_angle_y(0.0f, -0.13f, -0.13f);
-    blend_to_ani(opponent->scorpion_spear_recover, 0, 0.1f);
+    blend_to_ani(
+        ((ReactionExtendedPdata*)his_pdata)->scorpion_spear_recover,
+        0, 0.1f);
     plyr_anim_pdata->step = 0.75f;
     ticks = 0;
     while (xz_distance_between_players() > 1.0f && ticks < 0x50) {
         _mkproc_sleep_ticks = 1.0f;
         vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->sleep(vtable);
         ticks++;
+        vtable->sleep(vtable);
     }
     init_ground_move();
     stop_me();
     set_my_state(0x4204);
-    if (his_pdata->character_id == 0x19 ||
-        his_pdata->character_id == 0x1A) {
-        blend_to_ani(opponent->reaction_animation_c, 3, 0.2f);
+    if (his_pdata->character_id != 0x19 &&
+        his_pdata->character_id != 0x1A) {
+        blend_to_ani(his_pdata->reaction_animation, 3, 0.2f);
     } else {
-        blend_to_ani(opponent->reaction_animation, 3, 0.2f);
+        blend_to_ani(
+            ((ReactionExtendedPdata*)his_pdata)->reaction_animation_c,
+            3, 0.2f);
     }
     plyr_anim_pdata->step = 1.2f;
     plyr_pdata->summon_position_x = 20.0f;
@@ -1984,8 +2012,6 @@ static float r_scorpion_spear_2(void) {
 float r_hit_wall(void) {
     ReactionProcVtable* vtable;
     ReactionDamagePdata* boost_source;
-    ReactionWallPdata* player;
-    ReactionWallPdata* opponent;
     float damage;
 
     trial_increment_state_value(plyr_pdata->plyr_num, 0x1C, 1);
@@ -1996,7 +2022,8 @@ float r_hit_wall(void) {
         if (aproc->pid == 0x1001) {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-            damage = 0.06f * 0.8f;
+            damage = 0.06f;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -2010,7 +2037,8 @@ float r_hit_wall(void) {
         } else {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-            damage = 0.06f * 0.8f;
+            damage = 0.06f;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -2023,11 +2051,9 @@ float r_hit_wall(void) {
                 ->accumulated_damage += damage;
         }
     }
-    player = (ReactionWallPdata*)plyr_pdata;
-    opponent = (ReactionWallPdata*)plyr_pdata->his_plyr_pdata;
     plyr_pdata->hit_count++;
-    player->wall_hit_count++;
-    opponent->wall_hit_count = 0;
+    ((ReactionWallPdata*)plyr_pdata)->wall_hit_count++;
+    ((ReactionWallPdata*)plyr_pdata->his_plyr_pdata)->wall_hit_count = 0;
     shake_hit_voice(2, 9, 8, 0.02f);
     blend_to_ani(shared_ani.wall_hit, 3, 0.5f);
     plyr_anim_pdata->step = 0.8f;
@@ -2062,6 +2088,7 @@ float r_hit_wall(void) {
 
 #pragma dont_inline reset
 
+/* Soft ceiling: p_image_fader ~99.49% -- r3/r4 scratch roles in the destroy tail. */
 static float p_image_fader(void) {
     ReactionImageFaderPdata* pdata;
     ScreenObj* object;
@@ -2073,7 +2100,10 @@ static float p_image_fader(void) {
 
     if (pdata->delay > 0) {
         object = pdata->object;
-        if (object != 0 && object->instance != pdata->object_instance) {
+        if (object != 0) {
+            object = (object->instance == pdata->object_instance)
+                ? object : 0;
+        } else {
             object = 0;
         }
         if (object != 0) {
@@ -2092,7 +2122,10 @@ static float p_image_fader(void) {
     if (pdata->alpha > 0) {
         pdata->alpha -= 8;
         object = pdata->object;
-        if (object != 0 && object->instance != pdata->object_instance) {
+        if (object != 0) {
+            object = (object->instance == pdata->object_instance)
+                ? object : 0;
+        } else {
             object = 0;
         }
         if (object != 0) {
@@ -2112,19 +2145,24 @@ static float p_image_fader(void) {
     }
 
     object = pdata->object;
-    if (object != 0 && object->instance != pdata->object_instance) {
+    if (object != 0) {
+        object = (object->instance == pdata->object_instance)
+            ? object : 0;
+    } else {
         object = 0;
     }
-    if (object != 0 && object->instance != 0) {
+    if (object != 0 && (unsigned int)object->instance != 0) {
         object->vtbl->destroy();
     }
     return -1.0f;
 }
 
+/* Soft ceiling: fight_fx_blades_clash ~96.80% -- nonvolatile assignment order only. */
 void fight_fx_blades_clash(PlyrPdata* player) {
     ReactionBladeFighterDefinition* fighter;
     ReactionBladeTransform* transform;
     MkObj* blade;
+    MkObj* object;
     MkPfx* particle;
     unsigned int effect;
     int bone;
@@ -2133,17 +2171,15 @@ void fight_fx_blades_clash(PlyrPdata* player) {
     fighter =
         (ReactionBladeFighterDefinition*)player->fighter_definition;
     player_num = player->plyr_num;
-    blade = fighter->blade_object;
-    if (blade != 0) {
-        if (blade->hdr.instance == fighter->blade_object_instance) {
-            /* The equipped blade handle is still live. */
-        } else {
-            blade = 0;
-        }
-    } else {
-        blade = 0;
-    }
     bone = 0;
+    object = fighter->blade_object;
+    if (object != 0) {
+        object = (object->hdr.instance == fighter->blade_object_instance)
+            ? object : 0;
+    } else {
+        object = 0;
+    }
+    blade = object;
     if (blade == 0 || blade->hide_flag_bits.hidden == 1) {
         bone = 0x1C;
         blade = player->plyr_info->slot.mirror_a;
@@ -2365,6 +2401,7 @@ static float r_face3_onback(void) {
     return 0.0f;
 }
 
+/* Soft ceiling: r_cyrax_blade ~99.87% -- fmuls scratch-FPR selection only. */
 static float r_cyrax_blade(void) {
     ReactionProcVtable* vtable;
     float angle;
@@ -2784,21 +2821,29 @@ static float r_summon_flames(void) {
     return 0.0f;
 }
 
+/* Soft ceiling: r_subzero_iceball ~98.85% -- scratch register naming in the demo-flag select. */
 static float r_subzero_iceball(void) {
     ReactionProcVtable* vtable;
     int his_character;
     int my_character;
+    int collision;
 
     medium_flash_check();
     destroy_subzero_decoy();
     init_air_move_no_aniproc();
-    if (local_collision_allowed(plyr_pdata) != 0 &&
-        ((unsigned int)plyr_pdata->previous_state == 0xC600U ||
-         (unsigned int)plyr_pdata->previous_state == 0xC602U)) {
+    collision = local_collision_allowed(plyr_pdata);
+    if (collision != 0 &&
+        (plyr_pdata->previous_state == 0xC600 ||
+         plyr_pdata->previous_state == 0xC602)) {
         reaction_xfer_him(0xA1, 0.0f, 2);
         blend_to_stance(0.05f);
         vtable = (ReactionProcVtable*)aproc->vtbl;
         vtable->jump_sleep(j_exit, 0.0f);
+        return 0.0f;
+    }
+    if (g_game_info.feature_flags.bits.high_bit == 0 ? 0 : collision) {
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(blend_to_stance_j_exit, 0.0f);
         return 0.0f;
     }
     plyr_pdata->blocking_disabled = 1;
@@ -2931,7 +2976,8 @@ static float r_complete_ermac_slam(void) {
         if (aproc->pid == 0x1001) {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-            damage = 0.07f * 0.8f;
+            damage = 0.07f;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -2945,7 +2991,8 @@ static float r_complete_ermac_slam(void) {
         } else {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-            damage = 0.07f * 0.8f;
+            damage = 0.07f;
+            damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
                 damage *= boost_source->damage_boost;
@@ -3010,6 +3057,10 @@ static float r_ermac_slam(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: r_combo_broken_part2 ~96.53% -- stack-slot assignment order
+ * for the Vec locals and template-copy scheduling.
+ */
 static float r_combo_broken_part2(void) {
     ReactionProcVtable* vtable;
     ReactionImageFaderPdata* fader;
@@ -3017,35 +3068,42 @@ static float r_combo_broken_part2(void) {
     ScreenObj* image;
     MkObj* object;
     unsigned int effect;
-    Vec hit_position;
-    Vec bone_offset = {0.0f, 0.0f, 0.0f};
-    Vec world_position;
-    Vec screen_position;
     int index;
     int half_width;
 
-    object = plyr_obj;
-    if (plyr_pdata->plyr_num == 0) {
-        effect = fx_by_owner("breaker_hit_fx", 1);
-    } else {
-        effect = fx_by_owner("breaker_hit_fx", 2);
-    }
-    effect = fx_next_emitter(effect);
-    get_bone_world_pos(object, 0, &hit_position);
-    hit_position.y = 1.7f + g_game_info.field_34;
-    mk_chess_launch_fx_at_pos_with_obj_emit_based(
-        effect, hit_position.x, hit_position.y, hit_position.z);
+    {
+        Vec hit_position;
 
-    source = (ReactionImageSource*)plyr_pdata->plyr_info;
-    image = load_named_2d_pfxobj(
-        0x10005, 0xC021, "BREAKER", 0, 0x2F);
-    get_bone_offset_world_pos(
-        source->object, 9, &bone_offset, &world_position);
-    world_position.y = 1.7f + g_game_info.field_34;
-    camera_get_screen_pos_from_world_pos(&world_position, &screen_position);
-    half_width = image->pfx2d->tex_w / 2;
-    image->x = (int)screen_position.x - half_width;
-    image->y = (int)screen_position.y;
+        object = plyr_obj;
+        if (plyr_pdata->plyr_num == 0) {
+            effect = fx_by_owner("breaker_hit_fx", 1);
+        } else {
+            effect = fx_by_owner("breaker_hit_fx", 2);
+        }
+        effect = fx_next_emitter(effect);
+        get_bone_world_pos(object, 0, &hit_position);
+        hit_position.y = 1.7f + g_game_info.field_34;
+        mk_chess_launch_fx_at_pos_with_obj_emit_based(
+            effect, hit_position.x, hit_position.y, hit_position.z);
+    }
+
+    {
+        Vec world_position;
+        Vec bone_offset = {0.0f, 0.0f, 0.0f};
+        ReactionScreenPos screen_position;
+
+        source = (ReactionImageSource*)plyr_pdata->plyr_info;
+        image = load_named_2d_pfxobj(
+            0x10005, 0xC021, "BREAKER", 0, 0x2F);
+        get_bone_offset_world_pos(
+            source->object, 9, &bone_offset, &world_position);
+        world_position.y = 1.7f + g_game_info.field_34;
+        camera_get_screen_pos_from_world_pos(
+            &world_position, &screen_position);
+        half_width = image->pfx2d->tex_w / 2;
+        image->x = (int)screen_position.x - half_width;
+        image->y = (int)screen_position.y;
+    }
 
     if (_create_mkproc_generic_nostack(
             0xC02A, 0x1F, p_image_fader,
