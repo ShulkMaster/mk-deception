@@ -394,44 +394,57 @@ static RwChar *ImageAttempRead(RwChar *name, void *data) {
 }
 
 RwImage *RwImageRead(const RwChar *name) {
-  const RwChar *colonPath;
-  const RwChar *slashPath;
-  const RwChar *backslashPath;
-  RwChar *separator;
-  RwChar *extension;
-  RwImageFormat *format;
-  separator = RwEngineInstance->stringFuncs.vecStrrchr(name, ':');
-  colonPath = separator ? separator : name;
-  separator = RwEngineInstance->stringFuncs.vecStrrchr(colonPath, '/');
-  slashPath = separator ? separator : colonPath;
-  separator = RwEngineInstance->stringFuncs.vecStrrchr(slashPath, '\\');
-  backslashPath = separator ? separator : slashPath;
-  extension = RwEngineInstance->stringFuncs.vecStrrchr(backslashPath, '.');
-  if (!extension)
-    return NULL;
-  for (format = IMAGEGLOBALS->formats; format; format = format->next) {
-    if (!RwEngineInstance->stringFuncs.vecStrcmp(format->extension,
-                                                 extension) ||
-        !RwEngineInstance->stringFuncs.vecStrcmp(format->alternateExtension,
-                                                 extension)) {
-      if (format->read) {
-        ImageReadState state;
-        state.read = format->read;
-        state.image = NULL;
-        ImagePathForAllFullNames(name, 5, ImageAttempRead, &state);
-        return state.image;
+  const RwChar *lastSeparator, *testSeparator, *extension;
+
+  lastSeparator = name;
+  testSeparator = RwEngineInstance->stringFuncs.vecStrrchr(lastSeparator, ':');
+  lastSeparator = testSeparator ? testSeparator : lastSeparator;
+  testSeparator = RwEngineInstance->stringFuncs.vecStrrchr(lastSeparator, '/');
+  lastSeparator = testSeparator ? testSeparator : lastSeparator;
+  testSeparator =
+      RwEngineInstance->stringFuncs.vecStrrchr(lastSeparator, '\\');
+  lastSeparator = testSeparator ? testSeparator : lastSeparator;
+  extension = RwEngineInstance->stringFuncs.vecStrrchr(lastSeparator, '.');
+
+  if (extension != NULL) {
+    RwImageFormat *format = IMAGEGLOBALS->formats;
+
+    while (format != NULL) {
+      if (!RwEngineInstance->stringFuncs.vecStrcmp(format->extension,
+                                                   extension) ||
+          !RwEngineInstance->stringFuncs.vecStrcmp(format->alternateExtension,
+                                                   extension)) {
+        if (format->read != NULL) {
+          ImageReadState state;
+
+          state.read = format->read;
+          state.image = NULL;
+          ImagePathForAllFullNames(name, 5, ImageAttempRead, &state);
+          return state.image;
+        }
+        return NULL;
       }
-      return NULL;
+
+      format = format->next;
     }
+
+    return NULL;
   }
+
   return NULL;
 }
 
+/*
+ * Retail and the clean typed body are instruction-identical. The remaining
+ * difference is MWCC selecting _savegpr_28/_restgpr_28 instead of individual
+ * saves for the same nonvolatile set.
+ */
 static RwChar *ImageDetermineExtender(RwChar *name, void *data) {
   RwChar **result = data;
-  RwImageFormat *format;
   RwChar *end = name + RwEngineInstance->stringFuncs.vecStrlen(name);
-  for (format = IMAGEGLOBALS->formats; format; format = format->next) {
+  RwImageFormat *format = IMAGEGLOBALS->formats;
+
+  while (format != NULL) {
     RwEngineInstance->stringFuncs.vecStrcpy(end, format->extension);
     if (RwEngineInstance->fileFuncs.rwfexist(name)) {
       *result = format->extension;
@@ -442,7 +455,10 @@ static RwChar *ImageDetermineExtender(RwChar *name, void *data) {
       *result = format->alternateExtension;
       return NULL;
     }
+
+    format = format->next;
   }
+
   return name;
 }
 
@@ -452,28 +468,40 @@ const RwChar *RwImageFindFileType(const RwChar *name) {
   return result;
 }
 
+/*
+ * Retail and the functional body are instruction-identical. Only the compiler
+ * save policy differs: helper calls for r29-r31 versus individual saves.
+ */
 RwImage *RwImageReadMaskedImage(const RwChar *imageName,
                                 const RwChar *maskName) {
   RwImage *image = RwImageRead(imageName);
-  if (image && maskName && *maskName) {
-    RwImage *mask = RwImageRead(maskName);
-    if (!mask) {
-      RwImageDestroy(image);
-      return NULL;
-    }
-    if (!RwImageMakeMask(mask)) {
-      RwImageDestroy(image);
+
+  if (image != NULL) {
+    if (maskName != NULL && maskName[0] != '\0') {
+      RwImage *mask = RwImageRead(maskName);
+
+      if (mask == NULL) {
+        RwImageDestroy(image);
+        return NULL;
+      }
+      if (RwImageMakeMask(mask) == NULL) {
+        RwImageDestroy(image);
+        RwImageDestroy(mask);
+        return NULL;
+      }
+      if (RwImageApplyMask(image, mask) == NULL) {
+        RwImageDestroy(image);
+        RwImageDestroy(mask);
+        return NULL;
+      }
+
       RwImageDestroy(mask);
-      return NULL;
     }
-    if (!RwImageApplyMask(image, mask)) {
-      RwImageDestroy(image);
-      RwImageDestroy(mask);
-      return NULL;
-    }
-    RwImageDestroy(mask);
+
+    return image;
   }
-  return image;
+
+  return NULL;
 }
 
 RwRGBA *RwRGBASetFromPixel(RwRGBA *color, RwUInt32 pixel, RwInt32 format) {
