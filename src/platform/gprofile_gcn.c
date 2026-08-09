@@ -1,9 +1,6 @@
 #include "platform/gprofile_gcn.h"
+#include "rw/dlbrkpt.h"
 
-typedef void (*MwyGxDrawDoneCallback)(void* userData);
-
-void MWY_GCN_RW_InsertGxDrawDoneCallback(MwyGxDrawDoneCallback callback,
-                                        void* userData);
 void GXFlush(void);
 
 static void s_GProfile_GCN_GxDrawDone_Handler(void* userData);
