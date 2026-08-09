@@ -8,6 +8,7 @@ typedef struct RpSkin RpSkin;
 typedef struct RwResEntry RwResEntry;
 typedef void (*RwDlObjectRenderCallBack)(const RwRGBAReal* surface,
                                          const GXColor* material,
+                                         RpMaterial* owner,
                                          RwReal intensity);
 
 typedef struct RwGameCubeVtxFmt {
@@ -34,6 +35,12 @@ typedef struct RpGameCubeVtxFmt {
     };
     RwUInt16 refCount;          /* +0x16 */
 } RpGameCubeVtxFmt;
+
+typedef struct RpGameCubeVtxFmtSetupData {
+    void* resourceEntry;
+    RwUInt32 field_0x04;
+    RwInt32 flags;
+} RpGameCubeVtxFmtSetupData;
 
 typedef struct RwGameCubeDisplayList {
     void* data;
@@ -82,6 +89,10 @@ void RwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
 RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
 void _rwDlTextureSet(RwTexture* texture, int mapid);
 void _rwDlTextureRasterFlush(void);
+void _rwDlVtxFmtSetup(RpGameCubeVtxFmt* format,
+                      RpGameCubeVtxFmtSetupData* setupData);
+void _rwDlTransformSetup(const RwMatrix* matrix, RwBool normalize);
+void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture);
 RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
                                                  RwUInt32 lightMask,
                                                  RwInt32 textureMode,

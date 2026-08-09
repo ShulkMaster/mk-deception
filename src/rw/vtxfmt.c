@@ -3,12 +3,6 @@
 #include "rw/gamecube.h"
 #include "rw/rwplcore.h"
 
-typedef struct RpGameCubeVtxFmtSetupData {
-    void* resourceEntry;
-    RwUInt32 field_0x04;
-    RwInt32 flags;
-} RpGameCubeVtxFmtSetupData;
-
 extern RwInt32 RpGeometryRegisterPlugin(
     RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
     RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);

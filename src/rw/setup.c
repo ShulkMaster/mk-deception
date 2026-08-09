@@ -6,6 +6,7 @@ static const GXColor OpaqueWhite = {255, 255, 255, 255};
 static const GXColor OpaqueBlack = {0, 0, 0, 255};
 
 static void MatFunc1(const RwRGBAReal* surface, const GXColor* color,
+                     RpMaterial* owner,
                      RwReal scale)
 {
     GXColor ambient;
@@ -19,6 +20,7 @@ static void MatFunc1(const RwRGBAReal* surface, const GXColor* color,
 }
 
 static void MatFunc2(const RwRGBAReal* surface, const GXColor* material,
+                     RpMaterial* owner,
                      RwReal scale)
 {
     GXColor color;
@@ -32,6 +34,7 @@ static void MatFunc2(const RwRGBAReal* surface, const GXColor* material,
 }
 
 static void MatFunc3(const RwRGBAReal* surface, const GXColor* material,
+                     RpMaterial* owner,
                      RwReal scale)
 {
     GXColor color;
@@ -45,6 +48,7 @@ static void MatFunc3(const RwRGBAReal* surface, const GXColor* material,
 }
 
 static void MatFunc4(const RwRGBAReal* surface, const GXColor* material,
+                     RpMaterial* owner,
                      RwReal scale)
 {
     /* Soft ceiling: retail stack-homes material; clean C keeps it nonvolatile. */
@@ -60,6 +64,7 @@ static void MatFunc4(const RwRGBAReal* surface, const GXColor* material,
 }
 
 static void MatFunc5(const RwRGBAReal* surface, const GXColor* material,
+                     RpMaterial* owner,
                      RwReal scale)
 {
     /* Soft ceiling: the same material-argument homing residue as MatFunc4. */
@@ -67,6 +72,7 @@ static void MatFunc5(const RwRGBAReal* surface, const GXColor* material,
 }
 
 static void MatFunc6(const RwRGBAReal* surface, const GXColor* material,
+                     RpMaterial* owner,
                      RwReal scale)
 {
     GXColor color;

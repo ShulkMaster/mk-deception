@@ -202,7 +202,6 @@ RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial*);
 void RpMatFXMaterialGetUVTransformMatrices(
     RpMaterial*, RwMatrix**, RwMatrix**);
 
-void _rwDlVtxFmtSetup(void*, SpecResourceEntry*);
 void _rwDlTransformSetup(const RwMatrix*, int);
 void _rwDlTextureSet(RwTexture*, int);
 void _rwDlRenderStateSetZCompLoc(int);
@@ -420,7 +419,8 @@ static inline SpecSkinData* prepare_skin_render(
     resource->display_resource->header.token = _RwDlTokenCurrent;
     vertex_format = geometry_vertex_format(atomic->geometry);
     atomic_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
-    _rwDlVtxFmtSetup(vertex_format, resource);
+    _rwDlVtxFmtSetup((RpGameCubeVtxFmt*)vertex_format,
+                     (RpGameCubeVtxFmtSetupData*)resource);
 
     skin = RpSkinGeometryGetSkin(atomic->geometry);
     if (skin->num_used_bones > 1) {
