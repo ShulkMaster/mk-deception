@@ -160,8 +160,8 @@ RpLight* RpLightCreate(RwInt32 type)
     light->color.alpha = 1.0f;
     light->object.object.privateFlags = 1;
     rwLinkListInitialize(&light->worldSectorsInLight);
-    light->inWorld.next = NULL;
     light->inWorld.prev = NULL;
+    light->inWorld.next = NULL;
     light->lightFrame = RWPLUGINOFFSET(RwUInt16, RwEngineInstance, 0xA) - 1;
     light->object.object.flags = 3;
     _rwPluginRegistryInitObject(&lightTKList, light);
