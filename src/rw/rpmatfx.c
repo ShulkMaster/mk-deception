@@ -256,6 +256,7 @@ static void* MatFXMaterialCopy(void* destination, const void* source)
 
 RwStream* _rpMatFXStreamWriteTexture(RwStream* stream, RwTexture* texture)
 {
+    /* The sole residue is equivalent pointer-to-boolean normalization. */
     RwInt32 present = NULL != texture;
     if (!RwStreamWriteInt32(stream, &present, sizeof(present)))
         return NULL;
@@ -783,6 +784,10 @@ RpWorldSector* RpMatFXWorldSectorEnableEffects(RpWorldSector* sector)
 RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material,
                                       RpMatFXMaterialFlags effects)
 {
+    /*
+     * The switch body matches; retail helper saves shift its generated jump-
+     * table targets, accounting for the remaining code and .data residue.
+     */
     RpMatFXMaterialData* data = MatFXMaterialGetData(material);
     if (!data) return NULL;
     if (effects == rpMATFXEFFECTNULL ||
@@ -905,6 +910,7 @@ RwReal RpMatFXMaterialGetBumpMapCoefficient(const RpMaterial* material)
 
 RpMaterial* RpMatFXMaterialSetEnvMapTexture(RpMaterial* material, RwTexture* texture)
 {
+    /* Retail stack-homes texture and material and retains an unused slot address. */
     RpMatFXEnvMapData* data = MatFXGetData(material, rpMATFXEFFECTENVMAP);
     texture->ref_count++;
     if (data->texture) { RwTextureDestroy(data->texture); data->texture = NULL; }
@@ -959,6 +965,7 @@ RwReal RpMatFXMaterialGetEnvMapCoefficient(const RpMaterial* material)
 
 RpMaterial* RpMatFXMaterialSetDualTexture(RpMaterial* material, RwTexture* texture)
 {
+    /* The env setter above has the same stack-home/address-lifetime residue. */
     RpMatFXDualData* data = MatFXGetData(material, rpMATFXEFFECTDUAL);
     texture->ref_count++;
     if (data->texture) { RwTextureDestroy(data->texture); data->texture = NULL; }
@@ -985,6 +992,7 @@ RwTexture* RpMatFXMaterialGetDualTexture(const RpMaterial* material)
 const RpMaterial* RpMatFXMaterialGetDualBlendModes(const RpMaterial* material,
     RwBlendFunction* srcBlend, RwBlendFunction* dstBlend)
 {
+    /* The body/registers match; only helper versus individual saves differ. */
     const RpMatFXDualData* data = MatFXGetConstData(material, rpMATFXEFFECTDUAL);
     *srcBlend = data->srcBlendMode;
     *dstBlend = data->dstBlendMode;
@@ -999,6 +1007,7 @@ RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial* material,
 const RpMaterial* RpMatFXMaterialGetUVTransformMatrices(const RpMaterial* material,
     RwMatrix** base, RwMatrix** dual)
 {
+    /* The dual getter above has the same save-helper-only residue. */
     const RpMatFXUVTransformData* data = MatFXGetConstData(material, rpMATFXEFFECTUVTRANSFORM);
     if (base) *base = data->baseTransform;
     if (dual) *dual = data->dualTransform;
