@@ -46,8 +46,9 @@ typedef char RpGameCubeVtxFmtSizeCheck[
     sizeof(RpGameCubeVtxFmt) == 0x18 ? 1 : -1];
 
 void _rxGCResEntryWaitDone(RwResEntry* entry);
-void RwGameCubeTextureSetLOD(RwTexture* texture, int field_0x0C,
-                             int field_0x10, int field_0x08, float lod_bias);
+void RwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
+                             RwInt32 biasClamp, RwInt32 edgeLod,
+                             RwInt32 maxAnisotropy);
 RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
 void _rwDlTextureSet(RwTexture* texture, int mapid);
 void _rwDlTextureRasterFlush(void);

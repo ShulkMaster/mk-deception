@@ -25,6 +25,8 @@ typedef struct GXTlutObj {
     unsigned char data[0xC];
 } GXTlutObj;
 
+typedef struct GXTexRegion GXTexRegion;
+
 typedef struct GXRenderModeObj {
     int viTVmode;
     unsigned short fbWidth;
@@ -73,6 +75,7 @@ void GXSetProjection(Mtx44 matrix, int type);
 void GXGetProjectionv(float* projection);
 void GXSetProjectionv(float* projection);
 void GXLoadTexObj(GXTexObj* object, int map_id);
+void GXLoadTexObjPreLoaded(GXTexObj* object, GXTexRegion* region, int map_id);
 void GXSetBlendMode(int type, int source, int destination, int operation);
 void GXSetCullMode(int mode);
 void GXSetZMode(int compare, int enable, int update);
@@ -141,6 +144,11 @@ void GXInitTexObj(GXTexObj* object, void* image, unsigned short width,
 void GXInitTexObjLOD(GXTexObj* object, int min_filter, int mag_filter,
                      float min_lod, float max_lod, float lod_bias,
                      int bias_clamp, int edge_lod, int max_anisotropy);
+float GXGetTexObjLODBias(GXTexObj* object);
+unsigned char GXGetTexObjBiasClamp(GXTexObj* object);
+unsigned char GXGetTexObjEdgeLOD(GXTexObj* object);
+int GXGetTexObjMaxAniso(GXTexObj* object);
+unsigned long GXGetTexObjTlut(GXTexObj* object);
 int GXGetTexBufferSize(unsigned short width, unsigned short height, int format,
                        int mipmap, unsigned char max_lod);
 void GXPixModeSync(void);
