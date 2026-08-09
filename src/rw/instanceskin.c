@@ -576,6 +576,8 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
                                                 void* owner,
                                                 RwResEntry** ownerRef)
 {
+    /* The conditioned-stream, display-list, allocation, and cleanup CFG is
+     * recovered. Remaining output is dominated by SDK local/save lifetimes. */
     GeomCondMap* remappedVertices;
     RwUInt16*** remappedIndices;
     RwGameCubeVertexData vertexData;
@@ -584,6 +586,7 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
     RwResEntry* entry;
     RwGameCubeVertexBuffer* vertexBuffer;
     RwGameCubeDisplayList* displayLists;
+    RpGameCubeVtxFmt* format;
     RpSkin* skin;
     RwUInt32 headerSize;
     RwUInt32 displayArraySize;
@@ -604,7 +607,10 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
                        sizeof(RwGameCubeDisplayList);
     totalSize += displayArraySize;
     totalSize += 0x1F;
-    primitive = (geometry->flags & 1) != 0 ? 0x98 : 0x90;
+    if ((geometry->flags & 1) != 0)
+        primitive = 0x98;
+    else
+        primitive = 0x90;
 
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
@@ -618,8 +624,9 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
             totalSize += _rwGCNDisplayListGetSize(
                 descriptor, numStrips, stripIndices);
         } else {
+            RwUInt32 numIndices = mesh->numIndices;
             totalSize += _rwGCNDisplayListGetSize(
-                descriptor, 1, mesh->numIndices);
+                descriptor, 1, numIndices);
         }
     }
     vertexSize = _rwGCNVertexBufferGetSize(descriptor, vertexData.counts);
@@ -633,13 +640,14 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
     entry->ownerRef = ownerRef;
     entry->destroyNotify = _rxGCResEntryWaitDone;
     *ownerRef = entry;
-    vertexBuffer = (RwGameCubeVertexBuffer*)(entry + 1);
-    memset(vertexBuffer, 0, totalSize);
+    dataOffset = (RwUInt32)(entry + 1);
+    memset((void*)dataOffset, 0, totalSize);
+    vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
     ((RwUInt16*)vertexBuffer)[0] = _RwDlTokenLastSeen;
     ((RwUInt16*)vertexBuffer)[1] = geometry->meshHeader->serialNum;
     vertexBuffer->reserved_0x00[1] = 0;
     if ((geometry->flags & 8) != 0) {
-        RpGameCubeVtxFmt* format = *(RpGameCubeVtxFmt**)(
+        format = *(RpGameCubeVtxFmt**)(
             (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
         if (format == NULL) {
             RwInt32 vertex;
@@ -656,10 +664,11 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
             vertexBuffer->reserved_0x00[1] &= ~1U;
         }
     }
-    displayLists = (RwGameCubeDisplayList*)((RwUInt8*)vertexBuffer +
-                                           headerSize);
-    dataOffset = (RwUInt32)((RwUInt8*)displayLists + displayArraySize + 0x1F) &
-                 ~0x1FU;
+    dataOffset += headerSize;
+    displayLists = (RwGameCubeDisplayList*)dataOffset;
+    dataOffset += displayArraySize;
+    dataOffset += 0x1F;
+    dataOffset &= ~0x1FU;
     skin = RpSkinGeometryGetSkin(geometry);
 
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
@@ -671,6 +680,7 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
         RwUInt16* matrixIndices = NULL;
         RwUInt32 stride;
         RwUInt32 attributeStreams;
+        RwBool isStrip;
 
         if ((geometry->flags & 1) != 0) {
             _rwGCNTriStripGetStats(remappedIndices[meshIndex][0],
@@ -690,13 +700,18 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
                                     remappedIndices[meshIndex], geometry,
                                     NULL);
         } else {
-            attributeStreams = 1;
+            attributeStreams = 0;
+            attributeStreams++;
             if ((geometry->flags & 0x10) != 0)
                 attributeStreams = 2;
             if ((geometry->flags & 8) != 0)
                 attributeStreams++;
-            if ((geometry->flags & 0x84) != 0)
-                attributeStreams += geometry->numTexCoordSets;
+            if ((geometry->flags & 0x84) != 0) {
+                RwInt32 texCoord;
+                for (texCoord = 0; texCoord < geometry->numTexCoordSets;
+                     texCoord++)
+                    attributeStreams++;
+            }
             matrixIndices = CreateMatrixIndexListOptimized(
                 skin, remappedIndices[meshIndex][0],
                 remappedVertices[attributeStreams].data,
@@ -706,10 +721,13 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
                                     matrixIndices);
         }
         stride = _rwGCNDisplayListGetStride(descriptor);
+        if ((geometry->flags & 1) != 0)
+            isStrip = TRUE;
+        else
+            isStrip = FALSE;
         _rwGCNDisplayListFill(
             descriptor, &displayLists[meshIndex], &indexData,
-            mesh->numIndices, (geometry->flags & 1) != 0, stride,
-            TRUE, primitive, NULL);
+            mesh->numIndices, isStrip, stride, TRUE, primitive, NULL);
         if (matrixIndices != NULL)
             RwEngineInstance->fpFree(matrixIndices);
         dataOffset += listSize;
@@ -721,13 +739,18 @@ RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
         descriptor, (const RwGameCubeVertexStreams*)vertexBuffer,
         &vertexData, FALSE, NULL);
     if (skin->maxNumWeights > 1) {
-        RwUInt32 stream = 1;
+        RwUInt32 stream = 0;
+        stream++;
         if ((geometry->flags & 0x10) != 0)
             stream = 2;
         if ((geometry->flags & 8) != 0)
             stream++;
-        if ((geometry->flags & 0x84) != 0)
-            stream += geometry->numTexCoordSets;
+        if ((geometry->flags & 0x84) != 0) {
+            RwInt32 texCoord;
+            for (texCoord = 0; texCoord < geometry->numTexCoordSets;
+                 texCoord++)
+                stream++;
+        }
         memcpy(skin->platformIndices, remappedVertices[stream].data,
                skin->maxNumWeights * remappedVertices[stream].count);
         memcpy(skin->platformWeights, remappedVertices[stream + 1].data,
