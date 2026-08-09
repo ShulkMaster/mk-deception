@@ -512,8 +512,10 @@ static RwUInt32 _EnumPipelineClusters(rxScopeTrace *traces,
   while (trace != NULL) {
     rxScopeTrace *previous = traces;
 
-    while (previous != trace &&
-           previous->entries->clusterDef != trace->entries->clusterDef) {
+    while (previous != trace) {
+      if (previous->entries->clusterDef == trace->entries->clusterDef) {
+        break;
+      }
       previous = previous->next;
     }
     if (previous == trace) {
