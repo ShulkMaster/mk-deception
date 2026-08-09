@@ -49,39 +49,35 @@ void* StalacMiteAlloc(RwInt32 size)
 
 RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
 {
-    RwUInt32 count = 0;
-    RwUInt32 next = 0;
+    RxClusterDefinition* previous;
+    RxClusterDefinition* next;
+    RwUInt32 count;
+    RwUInt32 nodeIndex;
+    RwUInt32 clusterIndex;
+
+    count = 0;
+    next = NULL;
 
     for (;;) {
-        RwUInt32 previous = next;
-        RwUInt32 nodeIndex;
-
-        next = (RwUInt32)-1;
+        previous = next;
+        next = (RxClusterDefinition*)-1;
         for (nodeIndex = 0; nodeIndex < pipeline->numNodes; nodeIndex++) {
-            RwUInt32 clusterIndex;
             RxNodeDefinition* nodeDef = pipeline->nodes[nodeIndex].nodeDef;
 
             for (clusterIndex = 0;
                  clusterIndex < nodeDef->io.numClustersOfInterest;
                  clusterIndex++) {
-                RwUInt32 cluster =
-                    (RwUInt32)nodeDef->io.clustersOfInterest[clusterIndex]
-                        .clusterDef;
+                RxClusterDefinition* cluster =
+                    nodeDef->io.clustersOfInterest[clusterIndex].clusterDef;
                 if (cluster > previous && cluster < next) {
                     next = cluster;
                 }
             }
         }
-        {
-            /* Retail materializes the invalid sentinel in r0; clean O0 C
-             * keeps this scoped value in one additional saved register. */
-            RwUInt32 invalid = (RwUInt32)-1;
-            if (next != invalid) {
-                count++;
-            } else {
-                break;
-            }
+        if (next == (RxClusterDefinition*)-1) {
+            break;
         }
+        count++;
     }
     return count;
 }
