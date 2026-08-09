@@ -55,13 +55,12 @@ static void MeshFreeListsDestroy(void)
 
 static RwBool MeshFreeListsCreate(void)
 {
-    /* Retail lowers this same pointer test branchlessly. */
+    /* Retail uses subf/addic/subfe for this pointer boolean; clean MWCC emits
+     * the equivalent neg/or/srwi normalization. */
     RwBool result;
     BUILDMESHFREELIST =
         RwFreeListCreate(sizeof(RpBuildMesh), 50, 4, 0x40502);
-    result = FALSE;
-    if (BUILDMESHFREELIST != NULL)
-        result = TRUE;
+    result = BUILDMESHFREELIST != NULL;
     return result;
 }
 
