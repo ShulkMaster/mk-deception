@@ -6,7 +6,8 @@
 
 typedef struct RpMeshGlobals {
     RwInt16 nextSerialNum;
-    RwUInt8 reserved02[6];
+    RwUInt16 reserved02;
+    RwFreeList* triStripListEntryFreeList;
     RwUInt8 meshFlags[0x20];
     RwUInt8 primitiveType[6];
 } RpMeshGlobals;
