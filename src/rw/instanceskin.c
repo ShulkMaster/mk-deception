@@ -38,32 +38,36 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
                                          GeomCondMap** remappedVertices,
                                          RwUInt16**** remappedIndices)
 {
+    /* Retail retains the resolved vertex-format result after its NULL check.
+     * The remaining diff is that dead result plus register coloring and
+     * equivalent allocation-size/index arithmetic scheduling. */
     GeomCondVertexData streams[13];
-    RpMorphTarget* morphTarget = geometry->morphTarget;
+    RpMorphTarget* morphTarget;
     RpSkin* skin;
     GeomCondMap* maps;
     RwUInt16** sourceIndices;
     RwUInt32 numStreams;
-    RwUInt32 skinStream;
-    RwUInt32 numIndexStreams;
-    RwUInt32 meshIndex;
+    RwInt32 meshIndex;
     RwUInt32 streamIndex;
+    RwUInt16 numMeshes;
 
     if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
         NULL) {
         _rpGameCubeVtxFmtGetDefault();
     }
 
-    streams[0].data = morphTarget->verts;
-    streams[0].type = 8;
-    streams[0].dependencies[0] = -1;
-    numStreams = 1;
+    morphTarget = geometry->morphTarget;
+    numStreams = 0;
+    streams[numStreams].data = morphTarget->verts;
+    streams[numStreams].type = 8;
+    streams[numStreams].dependencies[0] = -1;
+    numStreams++;
 
     if ((geometry->flags & 0x10) != 0) {
-        streams[1].data = morphTarget->normals;
-        streams[1].type = 8;
-        streams[1].dependencies[0] = -1;
-        numStreams = 2;
+        streams[numStreams].data = morphTarget->normals;
+        streams[numStreams].type = 8;
+        streams[numStreams].dependencies[0] = -1;
+        numStreams++;
     }
     if ((geometry->flags & 8) != 0) {
         streams[numStreams].data = geometry->preLitLum;
@@ -103,19 +107,19 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
         streams[numStreams].type = 4;
     }
     streams[numStreams].dependencies[0] = -1;
-    skinStream = numStreams++;
+    numStreams++;
 
     if (skin->maxNumWeights > 1) {
         streams[numStreams].data = skin->platformWeights;
-        streams[numStreams].type = streams[skinStream].type;
+        streams[numStreams].type = streams[numStreams - 1].type;
+        streams[numStreams].dependencies[0] = -1;
+        numStreams++;
     } else {
         streams[numStreams].data = skin->vertexBoneWeights;
         streams[numStreams].type = 9;
+        streams[numStreams].dependencies[0] = -1;
+        numStreams++;
     }
-    streams[numStreams].dependencies[0] = -1;
-    numStreams++;
-    numIndexStreams = numStreams - 2;
-
     if ((geometry->flags & 0x10) != 0) {
         streams[0].dependencies[0] = 1;
         streams[0].dependencies[1] = (signed char)(numStreams - 2);
@@ -160,9 +164,10 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
         return FALSE;
     }
 
+    numStreams -= 2;
+    numMeshes = geometry->meshHeader->numMeshes;
     sourceIndices = RwEngineInstance->fpMalloc(
-        numIndexStreams * geometry->meshHeader->numMeshes *
-            sizeof(*sourceIndices),
+        numStreams * numMeshes * sizeof(*sourceIndices),
         0x10116);
     if (sourceIndices == NULL) {
         RwEngineInstance->fpFree(*remappedVertices);
@@ -170,18 +175,16 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
         return FALSE;
     }
     memset(sourceIndices, 0,
-           numIndexStreams * geometry->meshHeader->numMeshes *
-               sizeof(*sourceIndices));
-    for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
-         meshIndex++) {
+           numStreams * numMeshes * sizeof(*sourceIndices));
+    for (meshIndex = 0; meshIndex < numMeshes; meshIndex++) {
         RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
-        for (streamIndex = 0; streamIndex < numIndexStreams; streamIndex++)
-            sourceIndices[meshIndex * numIndexStreams + streamIndex] =
+        for (streamIndex = 0; streamIndex < numStreams; streamIndex++)
+            sourceIndices[meshIndex * numStreams + streamIndex] =
                 mesh->indices;
     }
 
     *remappedIndices = RwEngineInstance->fpMalloc(
-        geometry->meshHeader->numMeshes * sizeof(**remappedIndices), 0x30116);
+        numMeshes * sizeof(**remappedIndices), 0x30116);
     if (*remappedIndices == NULL) {
         RwEngineInstance->fpFree(sourceIndices);
         RwEngineInstance->fpFree(*remappedVertices);
@@ -189,13 +192,12 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
         return FALSE;
     }
 
-    for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
-         meshIndex++) {
+    for (meshIndex = 0; meshIndex < numMeshes; meshIndex++) {
         RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
         (*remappedIndices)[meshIndex] = IndexDataCreateRemapped(
             maps, (const RwUInt16* const*)&sourceIndices[meshIndex *
-                                                        numIndexStreams],
-            numIndexStreams, mesh->numIndices);
+                                                        numStreams],
+            numStreams, mesh->numIndices);
         if ((*remappedIndices)[meshIndex] == NULL) {
             while (--meshIndex > 0)
                 RwEngineInstance->fpFree((*remappedIndices)[meshIndex]);
