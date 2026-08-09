@@ -1386,6 +1386,9 @@ config.libs = [
             Object(NonMatching, "rpskin.a/instanceskin.obj",
                    source="rw/instanceskin.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+            Object(NonMatching, "rpskin.a/skinstream.obj",
+                   source="rw/skinstream.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
     ),
     RenderWareLib(

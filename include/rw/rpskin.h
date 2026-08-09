@@ -44,7 +44,8 @@ struct RpSkin {
     RwUInt32 maxNumWeights;
     RwUInt32* vertexBoneIndices;
     RwMatrixWeights* vertexBoneWeights;
-    RwUInt8 reserved_0x1C[8];
+    void* nativeData;
+    void* nativeData2;
     void* platformWeights;
     void* platformIndices;
     RwUInt32 platformData;
@@ -89,6 +90,11 @@ RwBool _rpSkinSplitDataDestroy(RpSkin* skin);
 RwStream* _rpSkinSplitDataStreamWrite(RwStream* stream, const RpSkin* skin);
 RwStream* _rpSkinSplitDataStreamRead(RwStream* stream, RpSkin* skin);
 RwUInt32 _rpSkinSplitDataStreamGetSize(const RpSkin* skin);
+RwUInt32 _rpSkinGeometryNativeSize(const RpGeometry* geometry);
+RwStream* _rpSkinGeometryNativeWrite(RwStream* stream,
+                                     const RpGeometry* geometry);
+RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry);
+RwUInt32 _rpSkinAtomicNativeSize(const RpAtomic* atomic);
 RwBool _rpSkinPipelinesCreate(RwUInt32 pipeType);
 RwBool _rpSkinPipelinesDestroy(void);
 RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType skinType);

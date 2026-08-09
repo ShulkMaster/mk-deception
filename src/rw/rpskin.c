@@ -34,13 +34,6 @@ extern RwStream* RwStreamReadReal(RwStream* stream, RwReal* values,
                                   RwUInt32 numBytes);
 extern RpGeometry* _rpSkinInitialize(RpGeometry* geometry);
 extern void _rpSkinDeinitialize(RpGeometry* geometry);
-extern RwUInt32 _rpSkinGeometryNativeSize(const RpGeometry* geometry);
-extern RwStream* _rpSkinGeometryNativeWrite(RwStream* stream,
-                                            const RpGeometry* geometry);
-extern RwStream* _rpSkinGeometryNativeRead(RwStream* stream,
-                                           RpGeometry* geometry);
-extern RwUInt32 _rpSkinAtomicNativeSize(const RpAtomic* atomic);
-
 #define SKIN_ATOMIC_DATA(atomic)                                          \
     ((RpSkinAtomicData*)((RwUInt8*)(atomic) + _rpSkinGlobals.atomicOffset))
 #define SKIN_GEOMETRY_DATA(geometry)                                      \
