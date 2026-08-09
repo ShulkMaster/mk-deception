@@ -408,9 +408,9 @@ static void PipelineTopSort(PipelineTopSortState* state, RwUInt32 nodeIndex)
 
     destination = &state->pipeline->nodes[state->numSorted++];
     for (outputIndex = 0; outputIndex < destination->numOutputs;
-         outputIndex++) {
+        outputIndex++) {
         RwUInt32 output = destination->outputs[outputIndex];
-        if (output + 0x10000U != (RwUInt32)-1) {
+        if (output != (RwUInt32)-1) {
             RxPipelineNode* next = &state->pipeline->nodes[output];
             next->topSortData->numInsVisited++;
             if (next->topSortData->numIns ==
