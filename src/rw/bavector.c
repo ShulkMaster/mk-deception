@@ -127,6 +127,13 @@ RwReal _rwInvSqrt(RwReal value) {
     return result.value;
 }
 
+/*
+ * Retail expands the GameCube driver override of these three public APIs into
+ * paired-single loads, multiply-adds, and stores (psq_l/ps_maddsX/psq_st).
+ * The typed scalar C below expresses the same matrix operations and ABI, but
+ * this compiler configuration cannot recreate that platform macro without
+ * nonportable intrinsics or embedded assembly, which the quality gate forbids.
+ */
 RwV3d* RwV3dTransformPoint(RwV3d* pointOut, const RwV3d* pointIn,
                            const RwMatrix* matrix) {
     RwReal x = pointIn->x;
