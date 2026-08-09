@@ -44,7 +44,9 @@ struct RpSkin {
     RwUInt32 maxNumWeights;
     RwUInt32* vertexBoneIndices;
     RwMatrixWeights* vertexBoneWeights;
-    RwUInt8 reserved_0x1C[0x10];
+    RwUInt8 reserved_0x1C[8];
+    void* platformWeights;
+    void* platformIndices;
     RwUInt32 platformData;
     RpSkinSplitData splitData;
     void* skinData;

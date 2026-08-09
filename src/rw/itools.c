@@ -1,9 +1,5 @@
 #include "rw/gamecube.h"
 
-typedef struct RwGameCubeIndexData {
-  RwUInt16 *attributes[21];
-} RwGameCubeIndexData;
-
 extern RwUInt32 rwGCNPosGetSize(const RwGameCubeVertexDescriptor *descriptor);
 extern RwUInt32 rwGCNNrmGetSize(const RwGameCubeVertexDescriptor *descriptor);
 extern RwUInt32 rwGCNClrGetSize(const RwGameCubeVertexDescriptor *descriptor,

@@ -55,6 +55,27 @@ typedef struct RwGameCubeVertexArray {
     RwUInt8 reserved_0x07;
 } RwGameCubeVertexArray;
 
+typedef struct RwGameCubeVertexStream {
+    void* data;
+    RwUInt8 reserved_0x04;
+    RwUInt8 stride;
+    RwUInt8 reserved_0x06[2];
+} RwGameCubeVertexStream;
+
+typedef struct RwGameCubeVertexStreams {
+    RwUInt8 reserved_0x00[0x0C];
+    RwGameCubeVertexStream streams[12];
+} RwGameCubeVertexStreams;
+
+typedef struct RwGameCubeVertexData {
+    RwUInt32 counts[26];
+    const void* source[26];
+} RwGameCubeVertexData;
+
+typedef struct RwGameCubeIndexData {
+    RwUInt16* attributes[21];
+} RwGameCubeIndexData;
+
 typedef struct RwGameCubeVertexBuffer {
     RwUInt32 reserved_0x00[2];
     RwUInt32 numArrays;
@@ -110,9 +131,10 @@ RpGameCubeVtxFmt* RpGameCubeVtxFmtCreate(void);
 void RpGameCubeVtxFmtDestroy(RpGameCubeVtxFmt* format);
 void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
                                  RpGameCubeVtxFmt* format);
-RwUInt32 _rwGCNDisplayListGetStride(const RwGameCubeVtxFmt* format);
-RwUInt32 _rwGCNDisplayListGetSize(const RwGameCubeVtxFmt* format,
-                                  RwUInt32 numIndices,
+RwUInt32 _rwGCNDisplayListGetStride(
+    const RwGameCubeVertexDescriptor* format);
+RwUInt32 _rwGCNDisplayListGetSize(
+    const RwGameCubeVertexDescriptor* format, RwUInt32 numIndices,
                                   RwUInt32 numVertices);
 void _rwGCNDisplayListInitialize(RwGameCubeDisplayList* displayList,
                                  RwUInt32 index, RwUInt32 size, void* data);
@@ -154,5 +176,24 @@ void _rwGCNVertexBufferInitialize(
     const RwGameCubeVertexDescriptor* descriptor,
     RwGameCubeVertexBuffer* vertexBuffer, const RwUInt32* vertexCounts,
     void* data);
+void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* descriptor,
+                            const RwGameCubeVertexStreams* streams,
+                            const RwGameCubeVertexData* vertexData,
+                            RwBool compressedNormals, void* remap);
+void _rwGCNTriStripGetStats(RwUInt16* indices, RwUInt32 numIndices,
+                            RwUInt32* numStrips, RwUInt32* stripIndices,
+                            RwBool optimize);
+void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor* descriptor,
+                           RwGameCubeDisplayList* displayList,
+                           const RwGameCubeIndexData* indexData,
+                           RwUInt32 numIndices,
+                           RwBool triangleStrip, RwUInt32 stride,
+                           RwBool optimize, RwUInt8 primitive,
+                           const RwV3d* remap);
+RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
+                                               void* owner,
+                                               RwResEntry** ownerRef);
+RwResEntry* _rwDlGeometrySkinInstanceFast(RpGeometry* geometry, void* owner,
+                                          RwResEntry** ownerRef);
 
 #endif
