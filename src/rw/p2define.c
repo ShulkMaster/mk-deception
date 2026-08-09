@@ -256,12 +256,15 @@ static RwUInt32 CalcUnlockPersistentMemSize(const RxPipeline* pipeline,
 static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
                           RxNodeDefinition* nodeDef)
 {
+    RxPipelineNodeTopSortData* topSortData;
+    RwUInt32* outputs;
     RwBool result = TRUE;
-    RwUInt32 numOutputs = nodeDef->io.numOutputs;
-    RwUInt32 index;
+    RwUInt32 n;
+
+    n = nodeDef->io.numOutputs;
 
     memset(node, 0, sizeof(*node));
-    if (numOutputs > 0x20) {
+    if (n > 0x20) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x29);
@@ -280,7 +283,7 @@ static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
      * configured and runtime maximum node counts, consistent with a stripped
      * SDK assertion. The live bound check below is otherwise exact.
      */
-    if (numOutputs >= RXPIPELINEGLOBAL(maxNodes)) {
+    if (n >= RXPIPELINEGLOBAL(maxNodes)) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x2A);
@@ -288,24 +291,17 @@ static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
         result = FALSE;
     }
     if (result) {
-        RwUInt32* outputs = (RwUInt32*)((RwUInt8*)pipeline->nodes +
-                                        RXPIPELINEGLOBAL(maxNodes) *
-                                            sizeof(RxPipelineNode));
-        RxPipelineNodeTopSortData* topSortData;
-        outputs = (RwUInt32*)((RwUInt8*)outputs +
-                              pipeline->numNodes * 0x20 * sizeof(RwUInt32));
+        outputs = (RwUInt32*)&pipeline->nodes[RXPIPELINEGLOBAL(maxNodes)];
+        outputs += pipeline->numNodes * 0x20;
         node->outputs = outputs;
-        node->numOutputs = numOutputs;
-        for (index = 0; index < node->numOutputs; index++) {
+        node->numOutputs = n;
+        for (n = 0; n < node->numOutputs; n++) {
             *outputs = (RwUInt32)-1;
             outputs++;
         }
-        topSortData = (RxPipelineNodeTopSortData*)((RwUInt8*)pipeline->nodes +
-                                                   RXPIPELINEGLOBAL(maxNodes) *
-                                                       sizeof(RxPipelineNode));
-        topSortData = (RxPipelineNodeTopSortData*)((RwUInt8*)topSortData +
-                                                   RXPIPELINEGLOBAL(maxNodes) *
-                                                       0x20 * sizeof(RwUInt32));
+        outputs = (RwUInt32*)&pipeline->nodes[RXPIPELINEGLOBAL(maxNodes)];
+        topSortData = (RxPipelineNodeTopSortData*)&outputs[
+            RXPIPELINEGLOBAL(maxNodes) * 0x20];
         topSortData += pipeline->numNodes;
         topSortData->numIns = 0;
         topSortData->numInsVisited = 0;
