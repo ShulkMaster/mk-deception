@@ -425,6 +425,8 @@ static void PipelineTopSort(PipelineTopSortState* data, RwUInt32 nodeIndex)
 
 static RwUInt32 PipelineNode2Index(RxPipeline* pipeline, RxPipelineNode* node)
 {
+    /* Canonical pointer subtraction retained. Retail emits divw by 0x28;
+     * this compiler strength-reduces the same signed ptrdiff calculation. */
     RwUInt32 index = node - pipeline->nodes;
 
     if (&pipeline->nodes[index] == node &&
