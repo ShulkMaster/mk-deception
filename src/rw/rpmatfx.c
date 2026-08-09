@@ -75,8 +75,6 @@ static const void* MatFXGetConstData(const RpMaterial* material,
 
 static void* MatFXClose(void* instance, RwInt32 offset, RwInt32 size)
 {
-    (void)offset;
-    (void)size;
     MatFXInfo.numInstances--;
     if (MatFXInfo.numInstances == 0)
         _rpMatFXPipelinesDestroy();
@@ -89,17 +87,19 @@ static void* MatFXClose(void* instance, RwInt32 offset, RwInt32 size)
 
 static void* MatFXOpen(void* instance, RwInt32 offset, RwInt32 size)
 {
-    (void)offset;
-    (void)size;
     if (MatFXInfo.numInstances == 0) {
         MatFXInfo.materialDataFreeList = RwFreeListCreateAndPreallocateSpace(
             sizeof(RpMatFXMaterialData), _rpMatFXMaterialDataFreeListBlockSize,
             4, _rpMatFXMaterialDataFreeListPreallocBlocks,
             &_rpMatFXMaterialDataFreeList, 0x40120);
-        if (!MatFXInfo.materialDataFreeList)
-            return NULL;
-        if (!_rpMatFXPipelinesCreate())
-            return NULL;
+        if (!MatFXInfo.materialDataFreeList) {
+            instance = NULL;
+            return instance;
+        }
+        if (!_rpMatFXPipelinesCreate()) {
+            instance = NULL;
+            return instance;
+        }
     }
     MatFXInfo.numInstances++;
     return instance;
@@ -107,8 +107,6 @@ static void* MatFXOpen(void* instance, RwInt32 offset, RwInt32 size)
 
 static void* MatFXMaterialConstructor(void* object, RwInt32 offset, RwInt32 size)
 {
-    (void)offset;
-    (void)size;
     RWPLUGINOFFSET(RpMatFXMaterialData*, object, MatFXMaterialDataOffset) = NULL;
     return object;
 }
@@ -147,8 +145,6 @@ static RpMatFXMaterialData* MatFXMaterialDataClean(RpMatFXMaterialData* data)
 static void* MatFXMaterialDestructor(void* object, RwInt32 offset, RwInt32 size)
 {
     RpMatFXMaterialData* data;
-    (void)offset;
-    (void)size;
     data = RWPLUGINOFFSET(RpMatFXMaterialData*, object,
                           MatFXMaterialDataOffset);
     if (data) {
@@ -280,7 +276,13 @@ RwStream* _rpMatFXStreamReadTexture(RwStream* stream, RwTexture** texture)
 
 RwInt32 _rpMatFXStreamSizeTexture(RwTexture* texture)
 {
-    return texture ? RwTextureStreamGetSize(texture) + 0x10 : 4;
+    /* Retail differs only in the operand order of the commutative size add. */
+    RwInt32 size = 4;
+    if (texture != NULL) {
+        size += RwTextureStreamGetSize(texture);
+        size += 0xC;
+    }
+    return size;
 }
 
 static RwStream* MatFXMaterialStreamWrite(RwStream* stream, RwInt32 length,
@@ -424,72 +426,126 @@ static RwInt32 MatFXMaterialStreamGetSize(const void* object, RwInt32 offset,
 }
 
 static void MatFXAtomicConstructor(RpAtomic* atomic)
-{ RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)atomic + MatFXAtomicDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXAtomicDestructor(RpAtomic* atomic)
-{ RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)atomic + MatFXAtomicDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXAtomicCopy(RpAtomic* destination, const RpAtomic* source)
 {
-    if (RWPLUGINOFFSET(RwInt32, source, MatFXAtomicDataOffset))
-        RWPLUGINOFFSET(RwInt32, destination, MatFXAtomicDataOffset) = 1;
+    /*
+     * Retail and this body perform the same extension loads, test, and store.
+     * Its plugin callback parameter homes select a wider nonvolatile save set;
+     * clean typed extension pointers leave only that compiler-emission residue.
+     */
+    const RwBool* sourceEnabled =
+        (const RwBool*)((const RwUInt8*)source + MatFXAtomicDataOffset);
+    RwBool* destinationEnabled =
+        (RwBool*)((RwUInt8*)destination + MatFXAtomicDataOffset);
+
+    if (*sourceEnabled != FALSE) {
+        *destinationEnabled = TRUE;
+    }
 }
 
 static RwStream* MatFXAtomicStreamWrite(RwStream* stream, RwInt32 length,
                                         const RpAtomic* atomic)
 {
-    RwInt32 value = RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset);
-    (void)length;
-    return RwStreamWriteInt32(stream, &value, 4);
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)atomic + MatFXAtomicDataOffset);
+    RwInt32 value = *enabled;
+    RwStream* result = RwStreamWriteInt32(stream, &value, 4);
+    return result;
 }
 
 static RwStream* MatFXAtomicStreamRead(RwStream* stream, RwInt32 length,
                                        RpAtomic* atomic)
 {
+    RpAtomic* target = atomic;
     RwInt32 value;
-    (void)length;
     if (!RwStreamReadInt32(stream, &value, 4)) return NULL;
-    if (value) RpMatFXAtomicEnableEffects(atomic);
+    if (value) RpMatFXAtomicEnableEffects(target);
     return stream;
 }
 
 static RwInt32 MatFXAtomicStreamGetSize(const RpAtomic* atomic)
-{ return RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset) ? 4 : 0; }
+{
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)atomic + MatFXAtomicDataOffset);
+    if (*enabled == FALSE) {
+        return 0;
+    }
+    return 4;
+}
 
 static void MatFXWorldSectorConstructor(RpWorldSector* sector)
-{ RWPLUGINOFFSET(RwInt32, sector, MatFXWorldSectorDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)sector + MatFXWorldSectorDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXWorldSectorDestructor(RpWorldSector* sector)
-{ RWPLUGINOFFSET(RwInt32, sector, MatFXWorldSectorDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)sector + MatFXWorldSectorDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXWorldSectorCopy(RpWorldSector* destination,
                                  const RpWorldSector* source)
 {
-    if (RWPLUGINOFFSET(RwInt32, source, MatFXWorldSectorDataOffset))
-        RWPLUGINOFFSET(RwInt32, destination, MatFXWorldSectorDataOffset) = 1;
+    /* The atomic-copy callback above has the same retail save-set residue. */
+    const RwBool* sourceEnabled =
+        (const RwBool*)((const RwUInt8*)source +
+                       MatFXWorldSectorDataOffset);
+    RwBool* destinationEnabled =
+        (RwBool*)((RwUInt8*)destination + MatFXWorldSectorDataOffset);
+
+    if (*sourceEnabled != FALSE) {
+        *destinationEnabled = TRUE;
+    }
 }
 
 static RwStream* MatFXWorldSectorStreamWrite(RwStream* stream, RwInt32 length,
                                              const RpWorldSector* sector)
 {
-    RwInt32 value = RWPLUGINOFFSET(RwInt32, sector,
-                                   MatFXWorldSectorDataOffset);
-    (void)length;
-    return RwStreamWriteInt32(stream, &value, 4);
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)sector +
+                       MatFXWorldSectorDataOffset);
+    RwInt32 value = *enabled;
+    RwStream* result = RwStreamWriteInt32(stream, &value, 4);
+    return result;
 }
 
 static RwStream* MatFXWorldSectorStreamRead(RwStream* stream, RwInt32 length,
                                             RpWorldSector* sector)
 {
+    RpWorldSector* target = sector;
     RwInt32 value;
-    (void)length;
     if (!RwStreamReadInt32(stream, &value, 4)) return NULL;
-    if (value) RpMatFXWorldSectorEnableEffects(sector);
+    if (value) RpMatFXWorldSectorEnableEffects(target);
     return stream;
 }
 
 static RwInt32 MatFXWorldSectorStreamGetSize(const RpWorldSector* sector)
-{ return RWPLUGINOFFSET(RwInt32, sector, MatFXWorldSectorDataOffset) ? 4 : 0; }
+{
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)sector +
+                       MatFXWorldSectorDataOffset);
+    if (*enabled == FALSE) {
+        return 0;
+    }
+    return 4;
+}
 
 static void GenBumpedTextureName(RwChar* name, const RwTexture* base,
                                  const RwTexture* bump)
@@ -629,7 +685,11 @@ RpAtomic* RpMatFXAtomicEnableEffects(RpAtomic* atomic)
 }
 
 RwBool RpMatFXAtomicQueryEffects(const RpAtomic* atomic)
-{ return RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset); }
+{
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)atomic + MatFXAtomicDataOffset);
+    return *enabled;
+}
 
 RpWorldSector* RpMatFXWorldSectorEnableEffects(RpWorldSector* sector)
 {
@@ -718,13 +778,31 @@ RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
 }
 
 RpMaterial* RpMatFXMaterialSetBumpMapFrame(RpMaterial* material, RwFrame* frame)
-{ ((RpMatFXBumpMapData*)MatFXGetData(material, rpMATFXEFFECTBUMPMAP))->frame = frame; return material; }
+{
+    RpMatFXBumpMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTBUMPMAP);
+    data->frame = frame;
+    return material;
+}
 RpMaterial* RpMatFXMaterialSetBumpMapCoefficient(RpMaterial* material, RwReal coefficient)
-{ ((RpMatFXBumpMapData*)MatFXGetData(material, rpMATFXEFFECTBUMPMAP))->storedCoefficient = -coefficient; return material; }
+{
+    RpMatFXBumpMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTBUMPMAP);
+    data->storedCoefficient = -coefficient;
+    return material;
+}
 RwFrame* RpMatFXMaterialGetBumpMapFrame(const RpMaterial* material)
-{ return ((const RpMatFXBumpMapData*)MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP))->frame; }
+{
+    const RpMatFXBumpMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP);
+    return data->frame;
+}
 RwReal RpMatFXMaterialGetBumpMapCoefficient(const RpMaterial* material)
-{ return -((const RpMatFXBumpMapData*)MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP))->storedCoefficient; }
+{
+    const RpMatFXBumpMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP);
+    return -data->storedCoefficient;
+}
 
 RpMaterial* RpMatFXMaterialSetEnvMapTexture(RpMaterial* material, RwTexture* texture)
 {
@@ -735,19 +813,50 @@ RpMaterial* RpMatFXMaterialSetEnvMapTexture(RpMaterial* material, RwTexture* tex
     return material;
 }
 RpMaterial* RpMatFXMaterialSetEnvMapFrame(RpMaterial* material, RwFrame* frame)
-{ ((RpMatFXEnvMapData*)MatFXGetData(material, rpMATFXEFFECTENVMAP))->frame = frame; return material; }
+{
+    RpMatFXEnvMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTENVMAP);
+    data->frame = frame;
+    return material;
+}
 RpMaterial* RpMatFXMaterialSetEnvMapFrameBufferAlpha(RpMaterial* material, RwBool alpha)
-{ ((RpMatFXEnvMapData*)MatFXGetData(material, rpMATFXEFFECTENVMAP))->useFrameBufferAlpha = alpha; return material; }
+{
+    RpMatFXEnvMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTENVMAP);
+    data->useFrameBufferAlpha = alpha;
+    return material;
+}
 RpMaterial* RpMatFXMaterialSetEnvMapCoefficient(RpMaterial* material, RwReal coefficient)
-{ ((RpMatFXEnvMapData*)MatFXGetData(material, rpMATFXEFFECTENVMAP))->coefficient = coefficient; return material; }
+{
+    RpMatFXEnvMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTENVMAP);
+    data->coefficient = coefficient;
+    return material;
+}
 RwTexture* RpMatFXMaterialGetEnvMapTexture(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->texture; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->texture;
+}
 RwFrame* RpMatFXMaterialGetEnvMapFrame(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->frame; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->frame;
+}
 RwBool RpMatFXMaterialGetEnvMapFrameBufferAlpha(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->useFrameBufferAlpha; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->useFrameBufferAlpha;
+}
 RwReal RpMatFXMaterialGetEnvMapCoefficient(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->coefficient; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->coefficient;
+}
 
 RpMaterial* RpMatFXMaterialSetDualTexture(RpMaterial* material, RwTexture* texture)
 {
@@ -769,13 +878,17 @@ RpMaterial* RpMatFXMaterialSetDualBlendModes(RpMaterial* material,
     return material;
 }
 RwTexture* RpMatFXMaterialGetDualTexture(const RpMaterial* material)
-{ return ((const RpMatFXDualData*)MatFXGetConstData(material, rpMATFXEFFECTDUAL))->texture; }
+{
+    const RpMatFXDualData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTDUAL);
+    return data->texture;
+}
 const RpMaterial* RpMatFXMaterialGetDualBlendModes(const RpMaterial* material,
     RwBlendFunction* srcBlend, RwBlendFunction* dstBlend)
 {
     const RpMatFXDualData* data = MatFXGetConstData(material, rpMATFXEFFECTDUAL);
-    if (srcBlend) *srcBlend = data->srcBlendMode;
-    if (dstBlend) *dstBlend = data->dstBlendMode;
+    *srcBlend = data->srcBlendMode;
+    *dstBlend = data->dstBlendMode;
     return material;
 }
 RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial* material,
