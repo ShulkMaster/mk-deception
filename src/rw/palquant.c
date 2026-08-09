@@ -84,7 +84,7 @@ static RwPalQuantLeafNode* InitLeaf(RwPalQuantLeafNode* leaf)
     return leaf;
 }
 
-static void LeafAddPixel(RwPalQuantLeafNode* leaf, const RwRGBA* color,
+static void LeafAddPixel(RwPalQuantLeafNode* leaf, RwRGBA* color,
                          RwReal weight)
 {
     /* Stock color macros match retail; remaining delta is save-helper form. */
@@ -104,7 +104,7 @@ static void LeafAddPixel(RwPalQuantLeafNode* leaf, const RwRGBA* color,
     ColorAdd(&leaf->ac, &leaf->ac, &realColor);
 }
 
-static void LeafCalcStats(RwPalQuantLeafNode* leaf, const RwRGBA* origin)
+static void LeafCalcStats(RwPalQuantLeafNode* leaf, RwRGBA* origin)
 {
     RwRGBAReal realColor;
 
@@ -116,9 +116,8 @@ static void LeafCalcStats(RwPalQuantLeafNode* leaf, const RwRGBA* origin)
     ColorAdd(&leaf->ac, &leaf->ac, &realColor);
 }
 
-static void StatsAdd(RwPalQuantLeafNode* combined,
-                     const RwPalQuantLeafNode* first,
-                     const RwPalQuantLeafNode* second)
+static void StatsAdd(RwPalQuantLeafNode* combined, RwPalQuantLeafNode* first,
+                     RwPalQuantLeafNode* second)
 {
     combined->variance = first->variance + second->variance;
     if (first->weight > 0.0f && second->weight > 0.0f) {
@@ -137,8 +136,8 @@ static void StatsAdd(RwPalQuantLeafNode* combined,
 }
 
 static void StatsSub(RwPalQuantLeafNode* remainder,
-                     const RwPalQuantLeafNode* whole,
-                     const RwPalQuantLeafNode* subset)
+                     RwPalQuantLeafNode* whole,
+                     RwPalQuantLeafNode* subset)
 {
     remainder->weight = whole->weight - subset->weight;
     ColorSub(&remainder->ac, &whole->ac, &subset->ac);
@@ -156,8 +155,7 @@ static void StatsSub(RwPalQuantLeafNode* remainder,
     }
 }
 
-static void RepresentativeColor(RwRGBA* color,
-                                const RwPalQuantLeafNode* node)
+static void RepresentativeColor(RwRGBA* color, RwPalQuantLeafNode* node)
 {
     RwRGBAReal realColor;
     RwInt32 rgba[4];
@@ -256,8 +254,8 @@ void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
     }
 }
 
-static void assignindex(RwPalQuantOctNode* root, const RwInt32* origin,
-                        RwInt32 depth, const RwPalQuantRGBABox* region,
+static void assignindex(RwPalQuantOctNode* root, RwInt32* origin,
+                        RwInt32 depth, RwPalQuantRGBABox* region,
                         RwInt32 paletteIndex)
 {
     RwPalQuantRGBABox testBox;
@@ -303,7 +301,7 @@ static void assignindex(RwPalQuantOctNode* root, const RwInt32* origin,
 }
 
 static void AssignPalIndex(RwPalQuantOctNode* root,
-                           const RwPalQuantRGBABox* cube,
+                           RwPalQuantRGBABox* cube,
                            RwInt32 paletteIndex)
 {
     RwInt32 origin[4];
@@ -314,8 +312,8 @@ static void AssignPalIndex(RwPalQuantOctNode* root,
     assignindex(root, origin, QuantDepth, cube, paletteIndex);
 }
 
-static void addvolume(RwPalQuantOctNode* root, const RwInt32* origin,
-                      RwInt32 depth, const RwPalQuantRGBABox* region,
+static void addvolume(RwPalQuantOctNode* root, RwInt32* origin,
+                      RwInt32 depth, RwPalQuantRGBABox* region,
                       RwPalQuantLeafNode* volume)
 {
     RwPalQuantRGBABox testBox;
@@ -373,7 +371,7 @@ static void addvolume(RwPalQuantOctNode* root, const RwInt32* origin,
 
 static RwPalQuantLeafNode* BoxStats(RwPalQuantLeafNode* volume,
                                     RwPalQuantOctNode* root,
-                                    const RwPalQuantRGBABox* cube)
+                                    RwPalQuantRGBABox* cube)
 {
     RwInt32 origin[4];
     origin[RED] = 0;
@@ -385,9 +383,9 @@ static RwPalQuantLeafNode* BoxStats(RwPalQuantLeafNode* volume,
     return volume;
 }
 
-static RwReal FindBestCut(RwPalQuantOctNode* root,
-                          const RwPalQuantRGBABox* cube, RwInt32 channel,
-                          RwInt32* cuts, const RwPalQuantLeafNode* whole)
+static RwReal FindBestCut(RwPalQuantOctNode* root, RwPalQuantRGBABox* cube,
+                          RwInt32 channel, RwInt32* cuts,
+                          RwPalQuantLeafNode* whole)
 {
     /* The canonical SDK body is recovered; retail homes extra debug locals. */
     RwPalQuantRGBABox leftCube;
@@ -456,7 +454,7 @@ static RwBool nCut(RwPalQuantOctNode* root, RwPalQuantLeafNode* whole,
 }
 
 static RwPalQuantLeafNode* CalcNodeWeights(RwPalQuantOctNode* root,
-                                           const RwRGBA* origin,
+                                           RwRGBA* origin,
                                            RwInt32 depth)
 {
     RwPalQuantLeafNode* leaf = NULL;
