@@ -34,7 +34,7 @@ static RwInt32 _RwDlFogConvTable[4] = {0, 2, 4, 5};
 static RwInt32 _RwDlBlendConvTable[12] = {
     0, 0, 1, 2, 3, 4, 5, 6, 7, 2, 3, 0
 };
-static RwDlStateCache _RwDlStateCache;
+RwDlStateCache _RwDlStateCache;
 
 RwTexture* _RwDlTexture;
 RwRaster* _RwDlRasterWhite;
@@ -45,7 +45,7 @@ extern void _rwDlTextureCacheInit(void);
 extern void _rwDlTextureSetRaster(RwTexture* texture, RwRaster* raster,
                                   RwBool releaseRaster);
 
-static RwBool _rwDlRenderStateFogEnable(RwUInt32 enable);
+RwBool _rwDlRenderStateFogEnable(RwUInt32 enable);
 static RwBool _rwDlRenderStateFogColor(RwUInt32 color);
 static RwBool _rwDlRenderStateFogType(RwInt32 type);
 static RwBool _rwDlRenderStateFogDensity(RwReal density);
@@ -54,7 +54,7 @@ static RwBool _rwDlRenderStateTextureAddressU(RwInt32 address);
 static RwBool _rwDlRenderStateTextureAddressV(RwInt32 address);
 static RwBool _rwDlRenderStateTextureFilter(RwUInt32 filter);
 static RwBool _rwDlRenderStateTextureRaster(RwRaster* raster);
-static void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture);
+void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture);
 static RwBool _rwDlRenderStateZWriteEnable(RwUInt32 enable);
 static RwBool _rwDlRenderStateZTestEnable(RwUInt32 enable);
 static RwBool _rwDlRenderStateSrcBlend(RwInt32 blend);
@@ -215,7 +215,7 @@ RwBool _rwDlGetRenderState(RwInt32 state, void* value)
     }
 }
 
-static RwBool _rwDlRenderStateFogEnable(RwUInt32 enable)
+RwBool _rwDlRenderStateFogEnable(RwUInt32 enable)
 {
     if (enable != 0) {
         if (_RwDlStateCache.fogEnable == FALSE) {
@@ -325,7 +325,7 @@ static RwBool _rwDlRenderStateTextureRaster(RwRaster* raster)
     return TRUE;
 }
 
-static void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture)
+void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture)
 {
     if (_RwDlStateCache.zCompLoc != beforeTexture) {
         if (beforeTexture == TRUE) {
