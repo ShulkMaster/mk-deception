@@ -1,43 +1,217 @@
-/* TODO: Missing implementation for retail unit gclights.c. */
+#include "dolphin/gx.h"
+#include "libmkparticle/rw_engine.h"
+#include "rw/rplight.h"
+#include "rw/rpworld_types.h"
+#include "rw/rtquat.h"
+#include "rw/rwvector.h"
 
-void *_rpGCHWLightingApplyDirectionalLight(void)
+typedef struct RwGameCubeLightExt {
+    RwUInt32 useAttenuation;
+    RwReal a0;
+    RwReal a1;
+    RwReal a2;
+    RwReal k0;
+    RwReal k1;
+    RwReal k2;
+} RwGameCubeLightExt;
+
+typedef struct RwGameCubeLightingData {
+    RwUInt8 reserved_0x00[0x0C];
+    RwRGBAReal ambient;
+    RwBool hasAmbient;
+    RwUInt32 lightMask;
+    RwInt32 lightIndex;
+} RwGameCubeLightingData;
+
+RwInt32 _RwDlLightExtOffset;
+GXLightObj _RwGCLightObjs[8];
+extern RwMatrix _RwDlInvCamLTM;
+extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
+
+
+
+static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
+                                                  RwInt32 index)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwV3d direction;
+    RwGameCubeLightExt* extension;
+    RwRGBAReal* lightColor;
+    GXColor color;
+
+    RwV3dTransformVector(&direction, &RwFrameGetLTM(RpLightGetFrame(light))->at,
+                         &_RwDlInvCamLTM);
+    extension =
+        (RwGameCubeLightExt*)((RwUInt8*)light + _RwDlLightExtOffset);
+    if (extension->useAttenuation == 0) {
+        GXInitLightAttn(&_RwGCLightObjs[index], 1.0f, 0.0f, 0.0f, 1.0f,
+                        0.0f, 0.0f);
+    } else {
+        GXInitLightAttn(&_RwGCLightObjs[index], extension->a0, extension->a1,
+                        extension->a2, extension->k0, extension->k1,
+                        extension->k2);
+    }
+    GXInitLightPos(&_RwGCLightObjs[index], -1048576.0f * -direction.x,
+                   -1048576.0f * direction.y,
+                   -1048576.0f * -direction.z);
+    lightColor = &light->color;
+    color.r = (signed char)(255.0f * lightColor->red);
+    color.g = (signed char)(255.0f * lightColor->green);
+    color.b = (signed char)(255.0f * lightColor->blue);
+    color.a = 0;
+    GXInitLightColor(&_RwGCLightObjs[index], color);
+    GXLoadLightObjImm(&_RwGCLightObjs[index], 1U << index);
 }
 
-void *_rwGCLightsGlobalEnable(void)
+
+
+void _rwGCLightsGlobalEnable(RwInt32 flags, RwGameCubeLightingData* lighting)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpWorld* world = (RpWorld*)RwEngineInstance->field_0x04;
+    RwLLLink* link = world->directionalLightList.link.next;
+    RwLLLink* end = &world->directionalLightList.link;
+
+    while (link != end) {
+
+        RpLight* light = (RpLight*)((RwUInt8*)link - 0x34);
+
+        if (light != 0 &&
+            (light->object.object.flags & (RwUInt8)flags) != 0) {
+            if ((RwInt32)RpLightGetType(light) == rpLIGHTDIRECTIONAL) {
+                _rpGCHWLightingApplyDirectionalLight(light,
+                                                      lighting->lightIndex);
+                lighting->lightMask |= 1U << lighting->lightIndex;
+                lighting->lightIndex++;
+            } else {
+                RwRGBAReal* lightColor = &light->color;
+
+                lighting->ambient.red += lightColor->red;
+                lighting->ambient.green += lightColor->green;
+                lighting->ambient.blue += lightColor->blue;
+                lighting->hasAmbient = 1;
+            }
+        }
+        link = link->next;
+    }
 }
 
-void *_rwGCLightsLocalEnable(void)
+
+
+
+void _rwGCLightsLocalEnable(RpLight* light,
+                            RwGameCubeLightingData* lighting)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (lighting->lightIndex < 8) {
+        RwMatrix* lightLTM;
+        RwV3d position;
+        RwGameCubeLightExt* extension;
+        RwRGBAReal* lightColor;
+        GXColor color;
+
+        lightColor = &light->color;
+        color.r = (signed char)(255.0f * lightColor->red);
+        color.g = (signed char)(255.0f * lightColor->green);
+        color.b = (signed char)(255.0f * lightColor->blue);
+        color.a = 0;
+        GXInitLightColor(&_RwGCLightObjs[lighting->lightIndex], color);
+        lightLTM = RwFrameGetLTM(RpLightGetFrame(light));
+        RwV3dTransformPoint(&position, &lightLTM->pos, &_RwDlInvCamLTM);
+        GXInitLightPos(&_RwGCLightObjs[lighting->lightIndex], -position.x,
+                       position.y, -position.z);
+        extension =
+            (RwGameCubeLightExt*)((RwUInt8*)light + _RwDlLightExtOffset);
+
+        switch (RpLightGetType(light)) {
+        case rpLIGHTPOINT:
+            if (extension->useAttenuation == 0) {
+                GXInitLightAttnA(&_RwGCLightObjs[lighting->lightIndex], 1.0f,
+                                 0.0f, 0.0f);
+                GXInitLightDistAttn(&_RwGCLightObjs[lighting->lightIndex],
+                                    0.5f * light->radius, 0.5f, 2);
+            } else {
+                GXInitLightAttn(
+                    &_RwGCLightObjs[lighting->lightIndex], extension->a0,
+                    extension->a1, extension->a2, extension->k0,
+                    extension->k1, extension->k2);
+            }
+            break;
+
+        case rpLIGHTSPOT: {
+            RwV3d direction;
+
+            RwV3dTransformVector(&direction, &lightLTM->at,
+                                 &_RwDlInvCamLTM);
+            GXInitLightDir(&_RwGCLightObjs[lighting->lightIndex], -direction.x,
+                           direction.y, -direction.z);
+            if (extension->useAttenuation == 0) {
+                GXInitLightSpot(&_RwGCLightObjs[lighting->lightIndex],
+                                57.29578f * RpLightGetConeAngle(light),
+                                1);
+                GXInitLightDistAttn(&_RwGCLightObjs[lighting->lightIndex],
+                                    0.5f * light->radius, 0.5f, 2);
+            } else {
+                GXInitLightAttn(
+                    &_RwGCLightObjs[lighting->lightIndex], extension->a0,
+                    extension->a1, extension->a2, extension->k0,
+                    extension->k1, extension->k2);
+            }
+            break;
+        }
+
+        case rpLIGHTSPOTSOFT: {
+            RwV3d direction;
+
+            RwV3dTransformVector(&direction, &lightLTM->at,
+                                 &_RwDlInvCamLTM);
+            GXInitLightDir(&_RwGCLightObjs[lighting->lightIndex], -direction.x,
+                           direction.y, -direction.z);
+            if (extension->useAttenuation == 0) {
+                GXInitLightSpot(&_RwGCLightObjs[lighting->lightIndex],
+                                57.29578f * RpLightGetConeAngle(light),
+                                2);
+                GXInitLightDistAttn(&_RwGCLightObjs[lighting->lightIndex],
+                                    0.5f * light->radius, 0.5f, 2);
+            } else {
+                GXInitLightAttn(
+                    &_RwGCLightObjs[lighting->lightIndex], extension->a0,
+                    extension->a1, extension->a2, extension->k0,
+                    extension->k1, extension->k2);
+            }
+            break;
+        }
+        }
+
+        GXLoadLightObjImm(&_RwGCLightObjs[lighting->lightIndex],
+                          1U << lighting->lightIndex);
+        lighting->lightMask |= 1U << lighting->lightIndex;
+        lighting->lightIndex++;
+    }
 }
 
-void *rwDlLightExtCnst(void)
+static void rwDlLightExtCnst(RpLight* light)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwGameCubeLightExt* extension =
+        (RwGameCubeLightExt*)((RwUInt8*)light + _RwDlLightExtOffset);
+
+    extension->useAttenuation = 0;
 }
 
-void *rwDlLightExtDest(void)
+static void rwDlLightExtDest(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *rwDlLightExtCopy(void)
+static void rwDlLightExtCopy(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *_rpDlLightPluginAttach(void)
+RwBool _rpDlLightPluginAttach(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    _RwDlLightExtOffset = RpLightRegisterPlugin(
+        sizeof(RwGameCubeLightExt), 0x505,
+        (RwPluginObjectConstructor)rwDlLightExtCnst,
+        (RwPluginObjectDestructor)rwDlLightExtDest,
+        (RwPluginObjectCopy)rwDlLightExtCopy);
+    if (_RwDlLightExtOffset < 0) {
+        return 0;
+    }
+    return 1;
 }
