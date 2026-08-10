@@ -104,6 +104,13 @@ jobs:
             --output build/${{ matrix.version }}/github_report.md
         cat build/${{ matrix.version }}/github_report.md >> "${GITHUB_STEP_SUMMARY}"
 
+    - name: Upload PR diff report
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.version }}_github_report
+        path: build/${{ matrix.version }}/github_report.md
+
     - name: Publish objdiff report to PR
       # Tokens for pull requests from forks are read-only. Those builds still
       # publish the report as an artifact and in the workflow summary.
