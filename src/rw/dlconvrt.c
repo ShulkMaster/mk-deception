@@ -27,7 +27,7 @@ extern RwImage* RwImageCreate(RwInt32 width, RwInt32 height, RwInt32 depth);
 extern RwBool RwImageDestroy(RwImage* image);
 extern RwImage* RwImageAllocatePixels(RwImage* image);
 
-static RwInt32 _rwDlFindMSB(RwInt32 value)
+RwInt32 _rwDlFindMSB(RwInt32 value)
 {
     RwInt32 position = -1;
 
