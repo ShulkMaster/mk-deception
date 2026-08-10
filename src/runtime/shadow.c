@@ -151,7 +151,6 @@ typedef struct ShadowSobj {
 
 void set_render_state(int state, int value);
 void* RpClumpForAllAtomics(void* clump, void* callback, void* data);
-void _rpAtomicResyncInterpolatedSphere(void* atomic);
 void RwV3dTransformPoints(void* dst, void* src, int count, ShadowMatrix* matrix);
 void RwRasterDestroy(void* raster);
 void RwMatrixUpdate(ShadowMatrix* matrix);
@@ -842,7 +841,7 @@ void ShadowCameraUpdate(void* camera_ptr, void* clump_ptr, int clear) {
     node = clump->atomicList.next;
     end = &clump->atomicList;
     while (node != end) {
-        atomic = RP_ATOMIC_FROM_CLUMP_LINK(node);
+        atomic = RpAtomicFromClumpLink(node);
         if (atomic->object.flags & 4) {
             geometry = atomic->geometry;
             saved_flags = geometry->flags;

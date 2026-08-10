@@ -77,7 +77,6 @@ extern void _rwFrameListDeinitialize(RwFrameList* frame_list);
 extern void GeometryListDeinitialize(RpGeometryList* geometry_list);
 extern RwStream* _rpMaterialListStreamRead(RwStream* stream,
                                            RpMaterialList* material_list);
-extern unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
 extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
 
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
@@ -440,7 +439,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
 
                 inplace_pointer = stream->data.memory.start +
                                   stream->data.memory.position;
-                geometry->triangles = inplace_pointer;
+        geometry->triangles = (RpTriangle*)inplace_pointer;
                 RwStreamSkip(stream, triangle_count << 3);
             }
         }
