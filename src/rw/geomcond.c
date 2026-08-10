@@ -1,16 +1,6 @@
 #include "libmkparticle/rw_engine.h"
 #include "runtime/cstring.h"
-
-typedef struct GeomCondVertexData {
-    void* data;
-    RwUInt32 type;
-    signed char dependencies[16];
-} GeomCondVertexData;
-
-typedef struct GeomCondMap {
-    void* data;
-    RwUInt32 count;
-} GeomCondMap;
+#include "rw/geomcond.h"
 
 static RwUInt32 TypeGetSize(RwUInt32 type)
 {

@@ -1,11 +1,11 @@
 #include "rw/gamecube.h"
 #include "runtime/cstring.h"
 
-extern RwUInt32 rwGCNPosGetSize(const RwGameCubeVtxFmt* format);
-extern RwUInt32 rwGCNNrmGetSize(const RwGameCubeVtxFmt* format);
-extern RwUInt32 rwGCNClrGetSize(const RwGameCubeVtxFmt* format,
+extern RwUInt32 rwGCNPosGetSize(const RwGameCubeVertexDescriptor* format);
+extern RwUInt32 rwGCNNrmGetSize(const RwGameCubeVertexDescriptor* format);
+extern RwUInt32 rwGCNClrGetSize(const RwGameCubeVertexDescriptor* format,
                                 RwUInt8 colorIndex);
-extern RwUInt32 rwGCNTexGetSize(const RwGameCubeVtxFmt* format,
+extern RwUInt32 rwGCNTexGetSize(const RwGameCubeVertexDescriptor* format,
                                 RwUInt32 texCoordIndex);
 
 /* Retail's release assertion still evaluates its condition at -opt off. */
@@ -13,7 +13,8 @@ extern RwUInt32 rwGCNTexGetSize(const RwGameCubeVtxFmt* format,
 
 /* Near miss: retail keeps each extracted two-bit VCD field in r30 while this
  * clean switch assigns the identical mask/shift result to r31. */
-RwUInt32 _rwGCNDisplayListGetStride(const RwGameCubeVtxFmt* format)
+RwUInt32 _rwGCNDisplayListGetStride(
+    const RwGameCubeVertexDescriptor* format)
 {
     RwUInt32 stride = 0;
     RwInt32 attribute;
@@ -179,7 +180,7 @@ RwUInt32 _rwGCNDisplayListGetStride(const RwGameCubeVtxFmt* format)
     return stride;
 }
 
-RwUInt32 _rwGCNDisplayListGetSize(const RwGameCubeVtxFmt* format,
+RwUInt32 _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
                                   RwUInt32 numIndices,
                                   RwUInt32 numVertices)
 {

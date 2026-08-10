@@ -13,7 +13,7 @@ typedef struct RwGameCubeRasterExt {
     GXTlutObj tlut;
     RwInt32 format;
     RwInt32 paletteFormat;
-    RwInt32 hasAlpha;
+    RwUInt32 hasAlpha;
     RwUInt32 reserved_0x18;
     void* imageData;
     void* paletteData;

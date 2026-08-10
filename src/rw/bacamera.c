@@ -564,9 +564,9 @@ RwCamera* RwCameraCreate(void)
     camera->object.sync = CameraSync;
     camera->beginUpdate = CameraBeginUpdate;
     camera->endUpdate = CameraEndUpdate;
-    camera->viewWindow.y = camera->viewWindow.x = 1.0f;
-    camera->recipViewWindow.y = camera->recipViewWindow.x = 1.0f;
-    camera->viewOffset.y = camera->viewOffset.x = 0.0f;
+    camera->viewWindow.x = camera->viewWindow.y = 1.0f;
+    camera->recipViewWindow.x = camera->recipViewWindow.y = 1.0f;
+    camera->viewOffset.x = camera->viewOffset.y = 0.0f;
     camera->nearPlane = 0.05f;
     camera->farPlane = 10.0f;
     camera->fogPlane = 5.0f;

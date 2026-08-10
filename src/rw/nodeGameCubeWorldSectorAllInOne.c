@@ -1,4 +1,5 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/gamecube.h"
 #include "rw/nodegamecube.h"
 #include "rw/rplight.h"
 
@@ -54,10 +55,6 @@ extern RwInt32 _RwDlPreInstanceOptimize;
 extern void _rwGCLightsGlobalEnable(RwInt32,
                                     RwGameCubeLightingData*);
 extern void _rwGCLightsLocalEnable(RpLight*, RwGameCubeLightingData*);
-extern RwResEntry* _rwDlWorldSectorInstanceOptimized(
-    RpWorld*, RpWorldSector*, RpWorldSector*, RwResEntry**);
-extern RwResEntry* _rwDlWorldSectorInstanceFast(
-    RpWorld*, RpWorldSector*, RpWorldSector*, RwResEntry**);
 extern RpWorldSector* _rxGCDefaultRenderCallback(
     RpWorldSector*, RxGameCubeAllInOneInstanceData*);
 
@@ -182,8 +179,8 @@ RpWorldSector* _rxGCSectorDefaultInstanceCallback(
 
     if ((world->flags & 0x02000000) != 0) {
         if (_RwDlPreInstanceOptimize == TRUE) {
-            *resourceEntry = _rwDlWorldSectorInstanceOptimized(
-                world, sector, sector, &sector->repEntry);
+            *resourceEntry =
+                _rwDlWorldSectorInstanceOptimized(world, sector);
         } else {
             *resourceEntry = _rwDlWorldSectorInstanceFast(
                 world, sector, sector, &sector->repEntry);

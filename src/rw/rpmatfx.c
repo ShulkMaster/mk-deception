@@ -75,8 +75,6 @@ static const void* MatFXGetConstData(const RpMaterial* material,
 
 static void* MatFXClose(void* instance, RwInt32 offset, RwInt32 size)
 {
-    (void)offset;
-    (void)size;
     MatFXInfo.numInstances--;
     if (MatFXInfo.numInstances == 0)
         _rpMatFXPipelinesDestroy();
@@ -89,17 +87,19 @@ static void* MatFXClose(void* instance, RwInt32 offset, RwInt32 size)
 
 static void* MatFXOpen(void* instance, RwInt32 offset, RwInt32 size)
 {
-    (void)offset;
-    (void)size;
     if (MatFXInfo.numInstances == 0) {
         MatFXInfo.materialDataFreeList = RwFreeListCreateAndPreallocateSpace(
             sizeof(RpMatFXMaterialData), _rpMatFXMaterialDataFreeListBlockSize,
             4, _rpMatFXMaterialDataFreeListPreallocBlocks,
             &_rpMatFXMaterialDataFreeList, 0x40120);
-        if (!MatFXInfo.materialDataFreeList)
-            return NULL;
-        if (!_rpMatFXPipelinesCreate())
-            return NULL;
+        if (!MatFXInfo.materialDataFreeList) {
+            instance = NULL;
+            return instance;
+        }
+        if (!_rpMatFXPipelinesCreate()) {
+            instance = NULL;
+            return instance;
+        }
     }
     MatFXInfo.numInstances++;
     return instance;
@@ -107,8 +107,6 @@ static void* MatFXOpen(void* instance, RwInt32 offset, RwInt32 size)
 
 static void* MatFXMaterialConstructor(void* object, RwInt32 offset, RwInt32 size)
 {
-    (void)offset;
-    (void)size;
     RWPLUGINOFFSET(RpMatFXMaterialData*, object, MatFXMaterialDataOffset) = NULL;
     return object;
 }
@@ -118,24 +116,34 @@ static RpMatFXMaterialData* MatFXMaterialDataClean(RpMatFXMaterialData* data)
     RwUInt8 i;
     for (i = 0; i < 2; i++) {
         switch (data->slot[i].type) {
-        case rpMATFXEFFECTBUMPMAP:
-            if (data->slot[i].data.bump.texture)
-                RwTextureDestroy(data->slot[i].data.bump.texture);
-            if (data->slot[i].data.bump.bumped_texture)
-                RwTextureDestroy(data->slot[i].data.bump.bumped_texture);
+        case rpMATFXEFFECTBUMPMAP: {
+            RpMatFXBumpMapData* bump = &data->slot[i].data.bump;
+            if (bump->texture)
+                RwTextureDestroy(bump->texture);
+            if (bump->bumped_texture)
+                RwTextureDestroy(bump->bumped_texture);
             break;
-        case rpMATFXEFFECTENVMAP:
-            if (data->slot[i].data.env.texture)
-                RwTextureDestroy(data->slot[i].data.env.texture);
+        }
+        case rpMATFXEFFECTENVMAP: {
+            RpMatFXEnvMapData* env = &data->slot[i].data.env;
+            if (env->texture)
+                RwTextureDestroy(env->texture);
             break;
-        case rpMATFXEFFECTDUAL:
-            if (data->slot[i].data.dual.texture)
-                RwTextureDestroy(data->slot[i].data.dual.texture);
+        }
+        case rpMATFXEFFECTDUAL: {
+            RpMatFXDualData* dual = &data->slot[i].data.dual;
+            if (dual->texture)
+                RwTextureDestroy(dual->texture);
             break;
-        case rpMATFXEFFECTUVTRANSFORM:
-            data->slot[i].data.uv.baseTransform = NULL;
-            data->slot[i].data.uv.dualTransform = NULL;
+        }
+        case rpMATFXEFFECTUVTRANSFORM: {
+            RpMatFXUVTransformData* uv = &data->slot[i].data.uv;
+            uv->baseTransform = NULL;
+            uv->dualTransform = NULL;
             break;
+        }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
@@ -147,8 +155,6 @@ static RpMatFXMaterialData* MatFXMaterialDataClean(RpMatFXMaterialData* data)
 static void* MatFXMaterialDestructor(void* object, RwInt32 offset, RwInt32 size)
 {
     RpMatFXMaterialData* data;
-    (void)offset;
-    (void)size;
     data = RWPLUGINOFFSET(RpMatFXMaterialData*, object,
                           MatFXMaterialDataOffset);
     if (data) {
@@ -176,8 +182,7 @@ static RpMatFXMaterialData* MatFXMaterialGetData(RpMaterial* material)
     return data;
 }
 
-static void* MatFXMaterialCopy(void* destination, const void* source,
-                               RwInt32 offset, RwInt32 size)
+static void* MatFXMaterialCopy(void* destination, const void* source)
 {
     const RpMaterial* src = source;
     RpMaterial* dst = destination;
@@ -185,40 +190,44 @@ static void* MatFXMaterialCopy(void* destination, const void* source,
         RWPLUGINOFFSET(RpMatFXMaterialData*, src, MatFXMaterialDataOffset);
     RpMatFXMaterialData* dstData;
     RwUInt8 i;
-    (void)offset;
-    (void)size;
     if (!srcData)
         return NULL;
     dstData = MatFXMaterialGetData(dst);
     if (!dstData)
         return NULL;
+    /* Retail retains this setter's unused result; clean source discards it. */
     RpMatFXMaterialSetEffects(dst, srcData->effects);
     for (i = 0; i < 2; i++) {
         switch (srcData->slot[i].type) {
-        case rpMATFXEFFECTBUMPMAP:
-            RpMatFXMaterialSetBumpMapFrame(dst,
-                RpMatFXMaterialGetBumpMapFrame(src));
-            RpMatFXMaterialSetBumpMapCoefficient(dst,
-                RpMatFXMaterialGetBumpMapCoefficient(src));
-            dstData->slot[i].data.bump.texture =
-                srcData->slot[i].data.bump.texture;
-            dstData->slot[i].data.bump.bumped_texture =
-                srcData->slot[i].data.bump.bumped_texture;
-            if (dstData->slot[i].data.bump.texture)
-                dstData->slot[i].data.bump.texture->ref_count++;
-            if (dstData->slot[i].data.bump.bumped_texture)
-                dstData->slot[i].data.bump.bumped_texture->ref_count++;
+        case rpMATFXEFFECTBUMPMAP: {
+            const RpMatFXBumpMapData* srcBump =
+                &srcData->slot[i].data.bump;
+            RpMatFXBumpMapData* dstBump = &dstData->slot[i].data.bump;
+            RwFrame* frame = RpMatFXMaterialGetBumpMapFrame(src);
+            RwReal coefficient = RpMatFXMaterialGetBumpMapCoefficient(src);
+
+            RpMatFXMaterialSetBumpMapFrame(dst, frame);
+            RpMatFXMaterialSetBumpMapCoefficient(dst, coefficient);
+            dstBump->texture = srcBump->texture;
+            dstBump->bumped_texture = srcBump->bumped_texture;
+            if (dstBump->texture)
+                dstBump->texture->ref_count++;
+            if (dstBump->bumped_texture)
+                dstBump->bumped_texture->ref_count++;
             break;
+        }
         case rpMATFXEFFECTENVMAP: {
             RwTexture* texture = RpMatFXMaterialGetEnvMapTexture(src);
+            RwFrame* frame = RpMatFXMaterialGetEnvMapFrame(src);
+            RwReal coefficient = RpMatFXMaterialGetEnvMapCoefficient(src);
+            RwBool frameBufferAlpha =
+                RpMatFXMaterialGetEnvMapFrameBufferAlpha(src);
+
             if (texture)
                 RpMatFXMaterialSetEnvMapTexture(dst, texture);
-            RpMatFXMaterialSetEnvMapFrame(dst,
-                RpMatFXMaterialGetEnvMapFrame(src));
-            RpMatFXMaterialSetEnvMapFrameBufferAlpha(dst,
-                RpMatFXMaterialGetEnvMapFrameBufferAlpha(src));
-            RpMatFXMaterialSetEnvMapCoefficient(dst,
-                RpMatFXMaterialGetEnvMapCoefficient(src));
+            RpMatFXMaterialSetEnvMapFrame(dst, frame);
+            RpMatFXMaterialSetEnvMapFrameBufferAlpha(dst, frameBufferAlpha);
+            RpMatFXMaterialSetEnvMapCoefficient(dst, coefficient);
             break;
         }
         case rpMATFXEFFECTDUAL: {
@@ -236,6 +245,8 @@ static void* MatFXMaterialCopy(void* destination, const void* source,
             dst = RpMatFXMaterialSetUVTransformMatrices(dst, base, dual);
             break;
         }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
@@ -245,6 +256,7 @@ static void* MatFXMaterialCopy(void* destination, const void* source,
 
 RwStream* _rpMatFXStreamWriteTexture(RwStream* stream, RwTexture* texture)
 {
+    /* The sole residue is equivalent pointer-to-boolean normalization. */
     RwInt32 present = NULL != texture;
     if (!RwStreamWriteInt32(stream, &present, sizeof(present)))
         return NULL;
@@ -280,46 +292,62 @@ RwStream* _rpMatFXStreamReadTexture(RwStream* stream, RwTexture** texture)
 
 RwInt32 _rpMatFXStreamSizeTexture(RwTexture* texture)
 {
-    return texture ? RwTextureStreamGetSize(texture) + 0x10 : 4;
+    /* Retail differs only in the operand order of the commutative size add. */
+    RwInt32 size = 4;
+    if (texture != NULL) {
+        size += RwTextureStreamGetSize(texture);
+        size += 0xC;
+    }
+    return size;
 }
 
 static RwStream* MatFXMaterialStreamWrite(RwStream* stream, RwInt32 length,
                                           const void* object, RwInt32 offset,
                                           RwInt32 size)
 {
+    const RpMaterial* material = object;
     const RpMatFXMaterialData* data =
-        RWPLUGINOFFSET(RpMatFXMaterialData*, object, offset);
+        RWPLUGINOFFSET(RpMatFXMaterialData*, material,
+                       MatFXMaterialDataOffset);
     RwUInt8 i;
-    RwInt32 value;
+    RwInt32 value, type;
     RwReal real;
-    (void)length;
-    (void)size;
     value = data->effects;
     if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
     for (i = 0; i < 2; i++) {
-        value = data->slot[i].type;
-        if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
-        switch (data->slot[i].type) {
-        case rpMATFXEFFECTBUMPMAP:
-            real = -data->slot[i].data.bump.storedCoefficient;
-            if (!RwStreamWriteReal(stream, &real, 4) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.bump.texture) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.bump.bumped_texture))
+        type = data->slot[i].type;
+        if (!RwStreamWriteInt32(stream, &type, 4)) return NULL;
+        switch (type) {
+        case rpMATFXEFFECTBUMPMAP: {
+            const RpMatFXBumpMapData* bump = &data->slot[i].data.bump;
+            real = -bump->storedCoefficient;
+            if (!RwStreamWriteReal(stream, &real, 4)) return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, bump->texture))
+                return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, bump->bumped_texture))
                 return NULL;
             break;
-        case rpMATFXEFFECTENVMAP:
-            if (!RwStreamWriteReal(stream, &data->slot[i].data.env.coefficient, 4)) return NULL;
-            value = data->slot[i].data.env.useFrameBufferAlpha;
-            if (!RwStreamWriteInt32(stream, &value, 4) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.env.texture)) return NULL;
-            break;
-        case rpMATFXEFFECTDUAL:
-            value = data->slot[i].data.dual.srcBlendMode;
+        }
+        case rpMATFXEFFECTENVMAP: {
+            const RpMatFXEnvMapData* env = &data->slot[i].data.env;
+            if (!RwStreamWriteReal(stream, &env->coefficient, 4)) return NULL;
+            value = env->useFrameBufferAlpha;
             if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
-            value = data->slot[i].data.dual.dstBlendMode;
-            if (!RwStreamWriteInt32(stream, &value, 4) ||
-                !_rpMatFXStreamWriteTexture(stream, data->slot[i].data.dual.texture)) return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, env->texture)) return NULL;
             break;
+        }
+        case rpMATFXEFFECTDUAL: {
+            const RpMatFXDualData* dual = &data->slot[i].data.dual;
+            value = dual->srcBlendMode;
+            if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
+            value = dual->dstBlendMode;
+            if (!RwStreamWriteInt32(stream, &value, 4)) return NULL;
+            if (!_rpMatFXStreamWriteTexture(stream, dual->texture)) return NULL;
+            break;
+        }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTUVTRANSFORM:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
@@ -334,59 +362,80 @@ static RwStream* MatFXMaterialStreamRead(RwStream* stream, RwInt32 length,
     RpMaterial* material = object;
     RpMatFXMaterialData* data = MatFXMaterialGetData(material);
     RwUInt8 i;
-    RwInt32 effects, type, value[2];
-    RwReal coefficient;
-    RwTexture *texture, *bumpTexture;
-    (void)length; (void)offset; (void)size;
-    if (!data || !RwStreamReadInt32(stream, &effects, 4)) return NULL;
+    RwInt32 effects, type;
+    if (!data) return NULL;
+    if (!RwStreamReadInt32(stream, &effects, 4)) return NULL;
     RpMatFXMaterialSetEffects(material, effects);
     for (i = 0; i < 2; i++) {
         if (!RwStreamReadInt32(stream, &type, 4)) return NULL;
         switch (type) {
-        case rpMATFXEFFECTBUMPMAP:
-            texture = bumpTexture = NULL;
-            if (!RwStreamReadReal(stream, &coefficient, 4) ||
-                !_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
+        case rpMATFXEFFECTBUMPMAP: {
+            RwReal coefficient;
+            RwTexture* texture = NULL;
+            RwTexture* bumpTexture = NULL;
+            RpMatFXBumpMapData* bump = &data->slot[i].data.bump;
+
+            if (!RwStreamReadReal(stream, &coefficient, 4)) return NULL;
+            if (!_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
             if (!_rpMatFXStreamReadTexture(stream, &bumpTexture)) {
                 if (texture) RwTextureDestroy(texture);
                 return NULL;
             }
             if (texture) {
-                data->slot[i].data.bump.texture = texture;
-                data->slot[i].data.bump.bumped_texture = bumpTexture;
-                data->slot[i].data.bump.coefficient =
-                    1.0f / texture->raster->width;
+                RwRaster* raster;
+                RwInt32 rasterWidth;
+                RwReal width;
+
+                bump->texture = texture;
+                bump->bumped_texture = bumpTexture;
+                raster = bump->texture->raster;
+                rasterWidth = raster->width;
+                width = rasterWidth;
+                bump->coefficient = 1.0f / width;
             } else if (bumpTexture) {
                 RpMatFXMaterialSetBumpMapTexture(material, bumpTexture);
                 RwTextureDestroy(bumpTexture);
             } else {
-                data->slot[i].data.bump.texture = NULL;
-                data->slot[i].data.bump.bumped_texture = NULL;
+                bump->texture = NULL;
+                bump->bumped_texture = NULL;
             }
             RpMatFXMaterialSetBumpMapCoefficient(material, coefficient);
             break;
-        case rpMATFXEFFECTENVMAP:
-            texture = NULL;
-            if (!RwStreamReadReal(stream, &coefficient, 4) ||
-                !RwStreamReadInt32(stream, value, 4) ||
-                !_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
+        }
+        case rpMATFXEFFECTENVMAP: {
+            RwReal coefficient;
+            RwInt32 frameBufferAlpha;
+            RwTexture* texture = NULL;
+
+            if (!RwStreamReadReal(stream, &coefficient, 4)) return NULL;
+            if (!RwStreamReadInt32(stream, &frameBufferAlpha, 4)) return NULL;
+            if (!_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
             if (texture) {
                 RpMatFXMaterialSetEnvMapTexture(material, texture);
                 RwTextureDestroy(texture);
             }
             RpMatFXMaterialSetEnvMapCoefficient(material, coefficient);
-            RpMatFXMaterialSetEnvMapFrameBufferAlpha(material, value[0]);
+            RpMatFXMaterialSetEnvMapFrameBufferAlpha(material,
+                                                     frameBufferAlpha);
             break;
-        case rpMATFXEFFECTDUAL:
-            texture = NULL;
-            if (!RwStreamReadInt32(stream, value, 8) ||
-                !_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
+        }
+        case rpMATFXEFFECTDUAL: {
+            RwTexture* texture = NULL;
+            RwInt32 blendModes[2];
+
+            if (!RwStreamReadInt32(stream, blendModes, 8)) return NULL;
+            if (!_rpMatFXStreamReadTexture(stream, &texture)) return NULL;
             if (texture) {
                 RpMatFXMaterialSetDualTexture(material, texture);
                 RwTextureDestroy(texture);
             }
-            RpMatFXMaterialSetDualBlendModes(material, value[0], value[1]);
+            RpMatFXMaterialSetDualBlendModes(material, blendModes[0],
+                                             blendModes[1]);
             break;
+        }
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTUVTRANSFORM:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
@@ -397,136 +446,219 @@ static RwStream* MatFXMaterialStreamRead(RwStream* stream, RwInt32 length,
 static RwInt32 MatFXMaterialStreamGetSize(const void* object, RwInt32 offset,
                                           RwInt32 size)
 {
+    /* Retail ignores the callback offset and uses the module-owned slot. */
+    const RpMaterial* material = object;
     const RpMatFXMaterialData* data =
-        RWPLUGINOFFSET(RpMatFXMaterialData*, object, offset);
-    RwInt32 streamSize = 4;
+        RWPLUGINOFFSET(RpMatFXMaterialData*, material,
+                       MatFXMaterialDataOffset);
+    RwInt32 streamSize;
     RwUInt8 i;
-    (void)size;
     if (!data || data->effects == rpMATFXEFFECTNULL) return 0;
-    for (i = 0; i < 2; i++) {
+    streamSize = 4;
+    i = 0;
+    while (i < 2) {
+        RpMatFXMaterialFlags type = data->slot[i].type;
+
         streamSize += 4;
-        switch (data->slot[i].type) {
+        switch (type) {
         case rpMATFXEFFECTBUMPMAP:
-            streamSize += 4 + _rpMatFXStreamSizeTexture(data->slot[i].data.bump.texture)
-                + _rpMatFXStreamSizeTexture(data->slot[i].data.bump.bumped_texture);
+            streamSize += 4;
+            streamSize +=
+                _rpMatFXStreamSizeTexture(data->slot[i].data.bump.texture);
+            streamSize += _rpMatFXStreamSizeTexture(
+                data->slot[i].data.bump.bumped_texture);
             break;
         case rpMATFXEFFECTENVMAP:
-            streamSize += 8 + _rpMatFXStreamSizeTexture(data->slot[i].data.env.texture);
+            streamSize += 4;
+            streamSize += 4;
+            streamSize +=
+                _rpMatFXStreamSizeTexture(data->slot[i].data.env.texture);
             break;
         case rpMATFXEFFECTDUAL:
-            streamSize += 8 + _rpMatFXStreamSizeTexture(data->slot[i].data.dual.texture);
+            streamSize += 8;
+            streamSize +=
+                _rpMatFXStreamSizeTexture(data->slot[i].data.dual.texture);
             break;
+        case rpMATFXEFFECTBUMPENVMAP:
+        case rpMATFXEFFECTUVTRANSFORM:
+        case rpMATFXEFFECTNULL:
         default:
             break;
         }
+        i++;
     }
     return streamSize;
 }
 
 static void MatFXAtomicConstructor(RpAtomic* atomic)
-{ RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)atomic + MatFXAtomicDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXAtomicDestructor(RpAtomic* atomic)
-{ RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)atomic + MatFXAtomicDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXAtomicCopy(RpAtomic* destination, const RpAtomic* source)
 {
-    if (RWPLUGINOFFSET(RwInt32, source, MatFXAtomicDataOffset))
-        RWPLUGINOFFSET(RwInt32, destination, MatFXAtomicDataOffset) = 1;
+    /*
+     * Retail and this body perform the same extension loads, test, and store.
+     * Its plugin callback parameter homes select a wider nonvolatile save set;
+     * clean typed extension pointers leave only that compiler-emission residue.
+     */
+    const RwBool* sourceEnabled =
+        (const RwBool*)((const RwUInt8*)source + MatFXAtomicDataOffset);
+    RwBool* destinationEnabled =
+        (RwBool*)((RwUInt8*)destination + MatFXAtomicDataOffset);
+
+    if (*sourceEnabled != FALSE) {
+        *destinationEnabled = TRUE;
+    }
 }
 
 static RwStream* MatFXAtomicStreamWrite(RwStream* stream, RwInt32 length,
                                         const RpAtomic* atomic)
 {
-    RwInt32 value = RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset);
-    (void)length;
-    return RwStreamWriteInt32(stream, &value, 4);
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)atomic + MatFXAtomicDataOffset);
+    RwInt32 value = *enabled;
+    RwStream* result = RwStreamWriteInt32(stream, &value, 4);
+    return result;
 }
 
 static RwStream* MatFXAtomicStreamRead(RwStream* stream, RwInt32 length,
                                        RpAtomic* atomic)
 {
+    RpAtomic* target = atomic;
     RwInt32 value;
-    (void)length;
     if (!RwStreamReadInt32(stream, &value, 4)) return NULL;
-    if (value) RpMatFXAtomicEnableEffects(atomic);
+    if (value) RpMatFXAtomicEnableEffects(target);
     return stream;
 }
 
 static RwInt32 MatFXAtomicStreamGetSize(const RpAtomic* atomic)
-{ return RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset) ? 4 : 0; }
+{
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)atomic + MatFXAtomicDataOffset);
+    if (*enabled == FALSE) {
+        return 0;
+    }
+    return 4;
+}
 
 static void MatFXWorldSectorConstructor(RpWorldSector* sector)
-{ RWPLUGINOFFSET(RwInt32, sector, MatFXWorldSectorDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)sector + MatFXWorldSectorDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXWorldSectorDestructor(RpWorldSector* sector)
-{ RWPLUGINOFFSET(RwInt32, sector, MatFXWorldSectorDataOffset) = 0; }
+{
+    RwBool* enabled =
+        (RwBool*)((RwUInt8*)sector + MatFXWorldSectorDataOffset);
+    *enabled = FALSE;
+}
 
 static void MatFXWorldSectorCopy(RpWorldSector* destination,
                                  const RpWorldSector* source)
 {
-    if (RWPLUGINOFFSET(RwInt32, source, MatFXWorldSectorDataOffset))
-        RWPLUGINOFFSET(RwInt32, destination, MatFXWorldSectorDataOffset) = 1;
+    /* The atomic-copy callback above has the same retail save-set residue. */
+    const RwBool* sourceEnabled =
+        (const RwBool*)((const RwUInt8*)source +
+                       MatFXWorldSectorDataOffset);
+    RwBool* destinationEnabled =
+        (RwBool*)((RwUInt8*)destination + MatFXWorldSectorDataOffset);
+
+    if (*sourceEnabled != FALSE) {
+        *destinationEnabled = TRUE;
+    }
 }
 
 static RwStream* MatFXWorldSectorStreamWrite(RwStream* stream, RwInt32 length,
                                              const RpWorldSector* sector)
 {
-    RwInt32 value = RWPLUGINOFFSET(RwInt32, sector,
-                                   MatFXWorldSectorDataOffset);
-    (void)length;
-    return RwStreamWriteInt32(stream, &value, 4);
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)sector +
+                       MatFXWorldSectorDataOffset);
+    RwInt32 value = *enabled;
+    RwStream* result = RwStreamWriteInt32(stream, &value, 4);
+    return result;
 }
 
 static RwStream* MatFXWorldSectorStreamRead(RwStream* stream, RwInt32 length,
                                             RpWorldSector* sector)
 {
+    RpWorldSector* target = sector;
     RwInt32 value;
-    (void)length;
     if (!RwStreamReadInt32(stream, &value, 4)) return NULL;
-    if (value) RpMatFXWorldSectorEnableEffects(sector);
+    if (value) RpMatFXWorldSectorEnableEffects(target);
     return stream;
 }
 
 static RwInt32 MatFXWorldSectorStreamGetSize(const RpWorldSector* sector)
-{ return RWPLUGINOFFSET(RwInt32, sector, MatFXWorldSectorDataOffset) ? 4 : 0; }
+{
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)sector +
+                       MatFXWorldSectorDataOffset);
+    if (*enabled == FALSE) {
+        return 0;
+    }
+    return 4;
+}
 
 static void GenBumpedTextureName(RwChar* name, const RwTexture* base,
                                  const RwTexture* bump)
 {
+    /* Retail retains LR and helper saves around this otherwise call-free body. */
     const RwChar* strings[2];
     RwInt32 count = 0;
+    RwChar* output = name;
     RwInt32 i;
     if (base) {
         strings[0] = base->name;
         strings[1] = bump->name;
     } else {
-        strings[0] = bump->name;
         strings[1] = bump->name;
+        strings[0] = strings[1];
     }
     while (count < 30 && (*strings[0] || *strings[1])) {
         for (i = 0; i < 2; i++) {
             if (*strings[i]) {
-                *name++ = *strings[i]++;
+                *output++ = *strings[i]++;
                 count++;
             }
         }
     }
-    *name = '\0';
+    *output = '\0';
 }
 
 RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
                                      const RwTexture* bump)
 {
+    /*
+     * Retail retains unused addresses of the texture and name stack slots;
+     * clean C leaves only their save-range/register-coloring residue.
+     */
     static const RwChar emptyName[32] = {0};
-    RwRaster *baseRaster = NULL, *bumpRaster = bump->raster, *raster;
+    RwRaster* baseRaster = NULL;
+    RwRaster* bumpRaster = bump->raster;
+    RwRaster* raster;
     RwImage *baseImage, *bumpImage, *resampled;
     RwTexture* texture;
-    RwInt32 baseWidth, baseHeight, width, height, depth, format;
+    RwInt32 bumpWidth, bumpHeight, baseWidth, baseHeight;
+    RwInt32 width, height, depth, format, rasterFormat;
     RwInt32 x, y;
-    RwUInt32 addressMode;
+    RwUInt32 addressMode, filterMode;
     RwChar name[32];
-    bumpImage = RwImageCreate(bumpRaster->width, bumpRaster->height, 32);
+    bumpWidth = bumpRaster->width;
+    bumpHeight = bumpRaster->height;
+    bumpImage = RwImageCreate(bumpWidth, bumpHeight, 32);
     RwImageAllocatePixels(bumpImage);
     RwImageSetFromRaster(bumpImage, bumpRaster);
     if (base) {
@@ -545,7 +677,7 @@ RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
             for (x = 0; x < baseWidth; x++)
                 *(RwUInt32*)(baseImage->pixels + baseImage->stride * y + x * 4) = 0xffffffff;
     }
-    if (baseWidth != bumpRaster->width || baseHeight != bumpRaster->height) {
+    if (baseWidth != bumpWidth || baseHeight != bumpHeight) {
         resampled = RwImageCreate(baseWidth, baseHeight, 32);
         RwImageAllocatePixels(resampled);
         RwImageResample(resampled, bumpImage);
@@ -555,26 +687,29 @@ RwTexture* _rpMatFXTextureMaskCreate(const RwTexture* base,
     RwImageMakeMask(bumpImage);
     RwImageApplyMask(baseImage, bumpImage);
     RwImageFindRasterFormat(baseImage, 4, &width, &height, &depth, &format);
-    if ((((base ? baseRaster : bumpRaster)->format << 8) & 0x8000) != 0)
+    if (base)
+        rasterFormat = (RwUInt8)baseRaster->format << 8;
+    else
+        rasterFormat = (RwUInt8)bumpRaster->format << 8;
+    if ((rasterFormat & 0x8000) != 0)
         format |= 0x9000;
     raster = RwRasterCreate(width, height, depth, format);
     RwRasterSetFromImage(raster, baseImage);
     texture = RwTextureCreate(raster);
     if (base) {
-        texture->filter_flags = (texture->filter_flags & ~0xff) |
-                                (base->filter_flags & 0xff);
+        filterMode = base->filter_flags & 0xff;
         addressMode = ((base->filter_flags & 0xf00) >> 8) ==
                       ((base->filter_flags & 0xf000) >> 12)
                           ? (base->filter_flags & 0xf000) >> 12 : 0;
     } else {
-        texture->filter_flags = (texture->filter_flags & ~0xff) |
-                                (bump->filter_flags & 0xff);
+        filterMode = bump->filter_flags & 0xff;
         addressMode = ((bump->filter_flags & 0xf00) >> 8) ==
                       ((bump->filter_flags & 0xf000) >> 12)
                           ? (bump->filter_flags & 0xf000) >> 12 : 0;
     }
     texture->filter_flags = (texture->filter_flags & 0xffff00ff) |
                             (addressMode << 8) | (addressMode << 12);
+    texture->filter_flags = (texture->filter_flags & ~0xff) | filterMode;
     RwImageDestroy(baseImage);
     RwImageDestroy(bumpImage);
     memcpy(name, emptyName, sizeof(name));
@@ -589,7 +724,8 @@ RwBool RpMatFXPluginAttach(void)
 
     if (RwEngineRegisterPlugin(0, 0x120, MatFXOpen, MatFXClose) < 0) return FALSE;
     MatFXMaterialDataOffset = RpMaterialRegisterPlugin(4, 0x120,
-        MatFXMaterialConstructor, MatFXMaterialDestructor, MatFXMaterialCopy);
+        MatFXMaterialConstructor, MatFXMaterialDestructor,
+        (RwPluginObjectCopy)MatFXMaterialCopy);
     if (MatFXMaterialDataOffset < 0) return FALSE;
     result = RpMaterialRegisterPluginStream(0x120, MatFXMaterialStreamRead,
         MatFXMaterialStreamWrite, MatFXMaterialStreamGetSize);
@@ -629,7 +765,11 @@ RpAtomic* RpMatFXAtomicEnableEffects(RpAtomic* atomic)
 }
 
 RwBool RpMatFXAtomicQueryEffects(const RpAtomic* atomic)
-{ return RWPLUGINOFFSET(RwInt32, atomic, MatFXAtomicDataOffset); }
+{
+    const RwBool* enabled =
+        (const RwBool*)((const RwUInt8*)atomic + MatFXAtomicDataOffset);
+    return *enabled;
+}
 
 RpWorldSector* RpMatFXWorldSectorEnableEffects(RpWorldSector* sector)
 {
@@ -644,13 +784,19 @@ RpWorldSector* RpMatFXWorldSectorEnableEffects(RpWorldSector* sector)
 RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material,
                                       RpMatFXMaterialFlags effects)
 {
+    /*
+     * The switch body matches; retail helper saves shift its generated jump-
+     * table targets, accounting for the remaining code and .data residue.
+     */
     RpMatFXMaterialData* data = MatFXMaterialGetData(material);
     if (!data) return NULL;
     if (effects == rpMATFXEFFECTNULL ||
         (data->effects != rpMATFXEFFECTNULL && data->effects != effects))
         MatFXMaterialDataClean(data);
     data->effects = effects;
-    switch (effects) {
+    /* The stock explicit NULL case keeps this a dense 0..6 jump table. */
+    switch ((RwUInt32)data->effects) {
+    case rpMATFXEFFECTNULL: break;
     case rpMATFXEFFECTBUMPMAP: data->slot[0].type = rpMATFXEFFECTBUMPMAP; break;
     case rpMATFXEFFECTENVMAP: data->slot[0].type = rpMATFXEFFECTENVMAP; break;
     case rpMATFXEFFECTBUMPENVMAP:
@@ -682,6 +828,10 @@ RpMatFXMaterialFlags RpMatFXMaterialGetEffects(const RpMaterial* material)
 RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
                                              RwTexture* bumpTexture)
 {
+    /*
+     * Retail retains three unused field/buffer addresses, widening its save
+     * range; the ownership, lookup, creation, and coefficient CFG is exact.
+     */
     static const RwChar emptyName[32] = {0};
     RpMatFXBumpMapData* data = MatFXGetData(material, rpMATFXEFFECTBUMPMAP);
     RwTexture* baseTexture;
@@ -691,11 +841,18 @@ RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
     if (data->bumped_texture) { RwTextureDestroy(data->bumped_texture); data->bumped_texture = NULL; }
     if (data->texture) { RwTextureDestroy(data->texture); data->texture = NULL; data->coefficient = 0.0f; }
     if (bumpTexture) {
+        RwRaster* bumpRaster;
+
         data->bumped_texture = bumpTexture;
         bumpTexture->ref_count++;
-        invalid = bumpTexture->raster->width == 0;
+        bumpRaster = bumpTexture->raster;
+        invalid = bumpRaster->width == 0;
         baseTexture = material->texture;
-        if (!invalid && baseTexture) invalid = baseTexture->raster->width == 0;
+        if (!invalid && baseTexture) {
+            RwRaster* baseRaster = baseTexture->raster;
+
+            invalid = baseRaster->width == 0;
+        }
         if (!invalid) {
             memcpy(name, emptyName, sizeof(name));
             GenBumpedTextureName(name, baseTexture, bumpTexture);
@@ -709,25 +866,51 @@ RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial* material,
             } else {
                 data->texture->ref_count++;
             }
-            data->coefficient = 1.0f / data->texture->raster->width;
+            {
+                RwRaster* raster = data->texture->raster;
+
+                data->coefficient = 1.0f / raster->width;
+            }
         }
     } else {
-        data->coefficient = 1.0f / material->texture->raster->width;
+        RwTexture* texture = material->texture;
+        RwRaster* raster = texture->raster;
+
+        data->coefficient = 1.0f / raster->width;
     }
     return material;
 }
 
 RpMaterial* RpMatFXMaterialSetBumpMapFrame(RpMaterial* material, RwFrame* frame)
-{ ((RpMatFXBumpMapData*)MatFXGetData(material, rpMATFXEFFECTBUMPMAP))->frame = frame; return material; }
+{
+    RpMatFXBumpMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTBUMPMAP);
+    data->frame = frame;
+    return material;
+}
 RpMaterial* RpMatFXMaterialSetBumpMapCoefficient(RpMaterial* material, RwReal coefficient)
-{ ((RpMatFXBumpMapData*)MatFXGetData(material, rpMATFXEFFECTBUMPMAP))->storedCoefficient = -coefficient; return material; }
+{
+    RpMatFXBumpMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTBUMPMAP);
+    data->storedCoefficient = -coefficient;
+    return material;
+}
 RwFrame* RpMatFXMaterialGetBumpMapFrame(const RpMaterial* material)
-{ return ((const RpMatFXBumpMapData*)MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP))->frame; }
+{
+    const RpMatFXBumpMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP);
+    return data->frame;
+}
 RwReal RpMatFXMaterialGetBumpMapCoefficient(const RpMaterial* material)
-{ return -((const RpMatFXBumpMapData*)MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP))->storedCoefficient; }
+{
+    const RpMatFXBumpMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTBUMPMAP);
+    return -data->storedCoefficient;
+}
 
 RpMaterial* RpMatFXMaterialSetEnvMapTexture(RpMaterial* material, RwTexture* texture)
 {
+    /* Retail stack-homes texture and material and retains an unused slot address. */
     RpMatFXEnvMapData* data = MatFXGetData(material, rpMATFXEFFECTENVMAP);
     texture->ref_count++;
     if (data->texture) { RwTextureDestroy(data->texture); data->texture = NULL; }
@@ -735,22 +918,54 @@ RpMaterial* RpMatFXMaterialSetEnvMapTexture(RpMaterial* material, RwTexture* tex
     return material;
 }
 RpMaterial* RpMatFXMaterialSetEnvMapFrame(RpMaterial* material, RwFrame* frame)
-{ ((RpMatFXEnvMapData*)MatFXGetData(material, rpMATFXEFFECTENVMAP))->frame = frame; return material; }
+{
+    RpMatFXEnvMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTENVMAP);
+    data->frame = frame;
+    return material;
+}
 RpMaterial* RpMatFXMaterialSetEnvMapFrameBufferAlpha(RpMaterial* material, RwBool alpha)
-{ ((RpMatFXEnvMapData*)MatFXGetData(material, rpMATFXEFFECTENVMAP))->useFrameBufferAlpha = alpha; return material; }
+{
+    RpMatFXEnvMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTENVMAP);
+    data->useFrameBufferAlpha = alpha;
+    return material;
+}
 RpMaterial* RpMatFXMaterialSetEnvMapCoefficient(RpMaterial* material, RwReal coefficient)
-{ ((RpMatFXEnvMapData*)MatFXGetData(material, rpMATFXEFFECTENVMAP))->coefficient = coefficient; return material; }
+{
+    RpMatFXEnvMapData* data =
+        MatFXGetData(material, rpMATFXEFFECTENVMAP);
+    data->coefficient = coefficient;
+    return material;
+}
 RwTexture* RpMatFXMaterialGetEnvMapTexture(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->texture; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->texture;
+}
 RwFrame* RpMatFXMaterialGetEnvMapFrame(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->frame; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->frame;
+}
 RwBool RpMatFXMaterialGetEnvMapFrameBufferAlpha(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->useFrameBufferAlpha; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->useFrameBufferAlpha;
+}
 RwReal RpMatFXMaterialGetEnvMapCoefficient(const RpMaterial* material)
-{ return ((const RpMatFXEnvMapData*)MatFXGetConstData(material, rpMATFXEFFECTENVMAP))->coefficient; }
+{
+    const RpMatFXEnvMapData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTENVMAP);
+    return data->coefficient;
+}
 
 RpMaterial* RpMatFXMaterialSetDualTexture(RpMaterial* material, RwTexture* texture)
 {
+    /* The env setter above has the same stack-home/address-lifetime residue. */
     RpMatFXDualData* data = MatFXGetData(material, rpMATFXEFFECTDUAL);
     texture->ref_count++;
     if (data->texture) { RwTextureDestroy(data->texture); data->texture = NULL; }
@@ -769,13 +984,18 @@ RpMaterial* RpMatFXMaterialSetDualBlendModes(RpMaterial* material,
     return material;
 }
 RwTexture* RpMatFXMaterialGetDualTexture(const RpMaterial* material)
-{ return ((const RpMatFXDualData*)MatFXGetConstData(material, rpMATFXEFFECTDUAL))->texture; }
+{
+    const RpMatFXDualData* data =
+        MatFXGetConstData(material, rpMATFXEFFECTDUAL);
+    return data->texture;
+}
 const RpMaterial* RpMatFXMaterialGetDualBlendModes(const RpMaterial* material,
     RwBlendFunction* srcBlend, RwBlendFunction* dstBlend)
 {
+    /* The body/registers match; only helper versus individual saves differ. */
     const RpMatFXDualData* data = MatFXGetConstData(material, rpMATFXEFFECTDUAL);
-    if (srcBlend) *srcBlend = data->srcBlendMode;
-    if (dstBlend) *dstBlend = data->dstBlendMode;
+    *srcBlend = data->srcBlendMode;
+    *dstBlend = data->dstBlendMode;
     return material;
 }
 RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial* material,
@@ -787,6 +1007,7 @@ RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial* material,
 const RpMaterial* RpMatFXMaterialGetUVTransformMatrices(const RpMaterial* material,
     RwMatrix** base, RwMatrix** dual)
 {
+    /* The dual getter above has the same save-helper-only residue. */
     const RpMatFXUVTransformData* data = MatFXGetConstData(material, rpMATFXEFFECTUVTRANSFORM);
     if (base) *base = data->baseTransform;
     if (dual) *dual = data->dualTransform;

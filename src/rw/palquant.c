@@ -106,6 +106,7 @@ static void LeafAddPixel(RwPalQuantLeafNode* leaf, RwRGBA* color,
 
 static void LeafCalcStats(RwPalQuantLeafNode* leaf, RwRGBA* origin)
 {
+    /* Stock color-macro operations are exact; only local/FPR scheduling differs. */
     RwRGBAReal realColor;
 
     leaf->variance -= ColorLengthSquared(&leaf->ac) / leaf->weight;
@@ -119,6 +120,7 @@ static void LeafCalcStats(RwPalQuantLeafNode* leaf, RwRGBA* origin)
 static void StatsAdd(RwPalQuantLeafNode* combined, RwPalQuantLeafNode* first,
                      RwPalQuantLeafNode* second)
 {
+    /* Retail expands the same color macros with different temporary lifetimes. */
     combined->variance = first->variance + second->variance;
     if (first->weight > 0.0f && second->weight > 0.0f) {
         RwRGBAReal color1;
@@ -139,6 +141,7 @@ static void StatsSub(RwPalQuantLeafNode* remainder,
                      RwPalQuantLeafNode* whole,
                      RwPalQuantLeafNode* subset)
 {
+    /* Retail expands the same color macros with different temporary lifetimes. */
     remainder->weight = whole->weight - subset->weight;
     ColorSub(&remainder->ac, &whole->ac, &subset->ac);
     remainder->variance = whole->variance - subset->variance;
@@ -211,6 +214,7 @@ static RwPalQuantOctNode* AllocateToLeaf(RwPalQuant* quantizer,
 void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
                         RwReal weight)
 {
+    /* Retail retains an unused checked-depth local, widening its save range. */
     RwInt32 width;
     RwInt32 height;
     RwInt32 stride;
@@ -430,6 +434,7 @@ static RwReal FindBestCut(RwPalQuantOctNode* root, RwPalQuantRGBABox* cube,
 static RwBool nCut(RwPalQuantOctNode* root, RwPalQuantLeafNode* whole,
                    RwPalQuantRGBABox* first, RwPalQuantRGBABox* second)
 {
+    /* Cut selection is exact; aggregate-copy and stack scheduling account for the residue. */
     RwReal minimum[4];
     RwInt32 cuts[4];
     RwInt32 i;
@@ -523,6 +528,7 @@ static RwInt32 ExtractNodes(RwPalQuantOctNode* root, RwRGBA* palette,
 static RwUInt8 GetIndex(RwPalQuantOctNode* root, OctantMap octants,
                         RwInt32 depth)
 {
+    /* Retail selects helper saves for this otherwise identical recursion. */
     RwUInt8 result;
     if (depth == 0)
         result = root->leaf.palIndex;

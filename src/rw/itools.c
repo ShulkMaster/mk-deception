@@ -1,23 +1,11 @@
 #include "rw/gamecube.h"
 
-typedef struct RwGameCubeIndexData {
-  RwUInt16 *attributes[21];
-} RwGameCubeIndexData;
-
 extern RwUInt32 rwGCNPosGetSize(const RwGameCubeVertexDescriptor *descriptor);
 extern RwUInt32 rwGCNNrmGetSize(const RwGameCubeVertexDescriptor *descriptor);
 extern RwUInt32 rwGCNClrGetSize(const RwGameCubeVertexDescriptor *descriptor,
                                 RwUInt8 colorIndex);
 extern RwUInt32 rwGCNTexGetSize(const RwGameCubeVertexDescriptor *descriptor,
                                 RwUInt8 texCoordIndex);
-extern void *_rwGCNVtxFmtInstPos3D(void *, const void *, RwUInt32, RwReal,
-                                   RwUInt32, RwUInt32, const RwV3d *);
-extern void *_rwGCNVtxFmtInstNrm(void *, const void *, RwUInt32, RwUInt32,
-                                 RwUInt32);
-extern void *_rwGCNVtxFmtInstClr(void *, const void *, RwUInt32, RwUInt32,
-                                 RwUInt32);
-extern void *_rwGCNVtxFmtInstTex(void *, const void *, RwUInt32, RwReal,
-                                 RwUInt32, RwUInt32);
 
 #define TRIANGLE_VALID(indices, index)                                         \
   ((indices)[index] != (indices)[(index) + 1] &&                               \
@@ -240,8 +228,9 @@ static void WriteHeaders(RwUInt16 *indices, RwUInt32 numIndices,
       textureType = ((vatWord) >> (typeShift)) & 7;                            \
       textureScale =                                                          \
           (RwReal)((1 << ((vatWord) >> (fractionShift))) & 0x1F);             \
-      _rwGCNVtxFmtInstTex(output, indexData->attributes[attribute],            \
-                          textureType, textureScale, numIndices, stride);      \
+      _rwGCNVtxFmtInstTex(                                                     \
+          output, (const RwTexCoords *)indexData->attributes[attribute],       \
+          textureType, numIndices, stride, textureScale);                      \
       offset += rwGCNTexGetSize(descriptor, (textureIndex));                   \
     } else if (format != 0) {                                                  \
       INSTANCE_INDEXED(format);                                                \
@@ -295,9 +284,9 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
           RwUInt32 positionType = (descriptor->vatA >> 1) & 7;
           RwReal positionScale =
               (RwReal)(1 << ((descriptor->vatA >> 4) & 0x1F));
-          _rwGCNVtxFmtInstPos3D(output, indexData->attributes[attribute],
-                                positionType, positionScale, numIndices, stride,
-                                remap);
+          _rwGCNVtxFmtInstPos3D(
+              output, (const RwV3d *)indexData->attributes[attribute],
+              positionType, numIndices, stride, remap, positionScale);
           offset += rwGCNPosGetSize(descriptor);
         }
       } else if (format != 0) {
@@ -328,7 +317,8 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
         }
       } else if (format == 1) {
         RwUInt32 normalType = (descriptor->vatA >> 10) & 7;
-        _rwGCNVtxFmtInstNrm(output, indexData->attributes[attribute],
+        _rwGCNVtxFmtInstNrm(output,
+                            (const RwV3d *)indexData->attributes[attribute],
                             normalType, numIndices, stride);
         offset += rwGCNNrmGetSize(descriptor);
       } else if (format != 0) {
@@ -347,7 +337,8 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
         if (format == 1) {
           RwUInt32 colorType =
               (descriptor->vatA >> (14 + colorIndex * 4)) & 7;
-          _rwGCNVtxFmtInstClr(output, indexData->attributes[attribute],
+          _rwGCNVtxFmtInstClr(output,
+                              (const RwRGBA *)indexData->attributes[attribute],
                               colorType, numIndices, stride);
           offset += rwGCNClrGetSize(descriptor, (RwUInt8)colorIndex);
         } else if (format != 0) {
@@ -361,8 +352,9 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
         textureType = (descriptor->vatA >> 22) & 7;
         textureScale =
             (RwReal)(1 << ((descriptor->vatA >> 25) & 0x1F));
-        _rwGCNVtxFmtInstTex(output, indexData->attributes[attribute],
-                            textureType, textureScale, numIndices, stride);
+        _rwGCNVtxFmtInstTex(
+            output, (const RwTexCoords *)indexData->attributes[attribute],
+            textureType, numIndices, stride, textureScale);
         offset += rwGCNTexGetSize(descriptor, 0);
       } else if (format != 0) {
         INSTANCE_INDEXED(format);
@@ -382,8 +374,9 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
       if (format == 1) {
         textureType = (descriptor->vatB >> 28) & 7;
         textureScale = (RwReal)((1 << descriptor->vatC) & 0x1F);
-        _rwGCNVtxFmtInstTex(output, indexData->attributes[attribute],
-                            textureType, textureScale, numIndices, stride);
+        _rwGCNVtxFmtInstTex(
+            output, (const RwTexCoords *)indexData->attributes[attribute],
+            textureType, numIndices, stride, textureScale);
         offset += rwGCNTexGetSize(descriptor, 4);
       } else if (format != 0) {
         INSTANCE_INDEXED(format);

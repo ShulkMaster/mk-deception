@@ -68,7 +68,7 @@ typedef RpMaterial* (*RpMaterialCallBack)(RpMaterial*, void*);
 
 struct RpTriangle {
     RwUInt16 vertIndex[3];
-    RwInt16 matIndex;
+    RwUInt16 matIndex;
 };
 
 typedef union RpMaterialColor {
