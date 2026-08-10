@@ -68,10 +68,8 @@ static RwUInt32 DlRasterGetMipLevelSize(RwRaster *raster, RwUInt8 level) {
   } else {
     width = parent->width >> level;
     height = parent->height >> level;
-    if (width == 0)
-      width = 1;
-    if (height == 0)
-      height = 1;
+    width = width == 0 ? 1 : width;
+    height = height == 0 ? 1 : height;
   }
   switch (raster->depth) {
   case 4:
@@ -153,7 +151,7 @@ RwUInt32 _rwDlRasterGetStride(RwRaster *raster, RwUInt8 level) {
 }
 
 static RwUInt8 DlRasterFindNumMipLevels(RwRaster *raster) {
-  if ((raster->format << 8 & rwRASTERFORMATMIPMAP) != 0) {
+  if ((((raster->format & 0xFF) << 8) & rwRASTERFORMATMIPMAP) != 0) {
     if (raster->width > raster->height)
       return (RwUInt8)_rwDlFindMSB(raster->width) + 1;
     return (RwUInt8)_rwDlFindMSB(raster->height) + 1;
@@ -396,42 +394,48 @@ RwBool _rwDlRasterUnlock(void *unused, void *rasterIn, RwInt32 in) {
   RwRaster *parent = raster->parent;
   RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(parent);
 
-  if ((raster->type & 7) == 3 || (raster->type & 7) >= 6) {
+  switch (raster->type & 7) {
+  case 0:
+  case 4:
+  case 5:
+    if ((raster->privateFlags & 4) != 0) {
+      if ((raster->privateFlags & 0x20) == 0)
+        DlRasterTile((void *)extension->reserved_0x24[0],
+                     (void *)extension->reserved_0x24[1], parent->width,
+                     parent->height, raster->depth, raster->stride);
+      DCFlushRange((void *)extension->reserved_0x24[0],
+                   DlRasterGetMipLevelSize(raster, extension->reserved_0x33));
+      GXInvalidateTexAll();
+    }
+    if (parent == raster) {
+      raster->width = raster->originalWidth;
+      raster->height = raster->originalHeight;
+    }
+    if ((raster->privateFlags & 0x20) == 0) {
+      RwEngineInstance->fpFree((void *)extension->reserved_0x24[1]);
+      extension->reserved_0x24[1] = 0;
+    }
+    raster->stride = 0;
+    raster->pixels = NULL;
+    if ((raster->privateFlags & 4) != 0 && (raster->format & 0x10) != 0 &&
+        extension->reserved_0x33 == 0) {
+      extension->reserved_0x33 = 0xFF;
+      raster->privateFlags &= ~0x26;
+      parent->privateFlags &= ~0x26;
+      RwTextureRasterGenerateMipmaps(raster, NULL);
+    } else {
+      extension->reserved_0x33 = 0xFF;
+      raster->privateFlags &= ~0x26;
+      parent->privateFlags &= ~0x26;
+    }
+    break;
+  default: {
     RwError error;
     error.pluginID = 1;
     error.errorCode = _rwerror(0x80000011);
     RwErrorSet(&error);
     return FALSE;
   }
-  if ((raster->privateFlags & 4) != 0) {
-    if ((raster->privateFlags & 0x20) == 0)
-      DlRasterTile((void *)extension->reserved_0x24[0],
-                   (void *)extension->reserved_0x24[1], raster->width,
-                   raster->height, raster->depth, raster->stride);
-    DCFlushRange((void *)extension->reserved_0x24[0],
-                 DlRasterGetMipLevelSize(raster, extension->reserved_0x33));
-    GXInvalidateTexAll();
-  }
-  if (parent == raster) {
-    raster->width = raster->originalWidth;
-    raster->height = raster->originalHeight;
-  }
-  if ((raster->privateFlags & 0x20) == 0) {
-    RwEngineInstance->fpFree((void *)extension->reserved_0x24[1]);
-    extension->reserved_0x24[1] = 0;
-  }
-  raster->stride = 0;
-  raster->pixels = NULL;
-  if ((raster->privateFlags & 4) != 0 && (raster->format & 0x10) != 0 &&
-      extension->reserved_0x33 == 0) {
-    extension->reserved_0x33 = 0xFF;
-    raster->privateFlags &= ~0x26;
-    parent->privateFlags &= ~0x26;
-    RwTextureRasterGenerateMipmaps(raster, NULL);
-  } else {
-    extension->reserved_0x33 = 0xFF;
-    raster->privateFlags &= ~0x26;
-    parent->privateFlags &= ~0x26;
   }
   return TRUE;
 }
@@ -442,8 +446,18 @@ RwBool _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, RwInt32 flags) {
 
   switch (raster->type & 7) {
   case 0:
-  case 4:
-    break;
+  case 4: {
+    if (raster == raster->parent && raster->palette == NULL) {
+      RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
+      if ((flags & 2) != 0)
+        raster->privateFlags |= 8;
+      if ((flags & 1) != 0)
+        raster->privateFlags |= 0x10;
+      raster->palette = extension->paletteData;
+      *palette = raster->palette;
+    }
+    return TRUE;
+  }
   default: {
     RwError error;
     error.pluginID = 1;
@@ -452,16 +466,6 @@ RwBool _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, RwInt32 flags) {
     return FALSE;
   }
   }
-  if (raster == raster->parent && raster->palette == NULL) {
-    RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
-    if ((flags & 2) != 0)
-      raster->privateFlags |= 8;
-    if ((flags & 1) != 0)
-      raster->privateFlags |= 0x10;
-    raster->palette = extension->paletteData;
-    *palette = raster->palette;
-  }
-  return TRUE;
 }
 
 RwBool _rwDlRasterUnlockPalette(void *unused, void *rasterIn, RwInt32 in) {
@@ -469,8 +473,16 @@ RwBool _rwDlRasterUnlockPalette(void *unused, void *rasterIn, RwInt32 in) {
 
   switch (raster->type & 7) {
   case 0:
-  case 4:
-    break;
+  case 4: {
+    if (raster == raster->parent) {
+      RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
+      if ((raster->privateFlags & 0x10) != 0)
+        DCFlushRange(extension->paletteData, (1U << raster->depth) * 2);
+      raster->privateFlags &= ~0x18;
+      raster->palette = NULL;
+    }
+    return TRUE;
+  }
   default: {
     RwError error;
     error.pluginID = 1;
@@ -479,14 +491,6 @@ RwBool _rwDlRasterUnlockPalette(void *unused, void *rasterIn, RwInt32 in) {
     return FALSE;
   }
   }
-  if (raster == raster->parent) {
-    RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
-    if ((raster->privateFlags & 0x10) != 0)
-      DCFlushRange(extension->paletteData, (1U << raster->depth) * 2);
-    raster->privateFlags &= ~0x18;
-    raster->palette = NULL;
-  }
-  return TRUE;
 }
 
 static RwBool DlGetRasterFormat(RwRaster *raster, RwInt32 flags) {
@@ -656,8 +660,8 @@ RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
 
   extension->maxLod = levels - 1;
   size = _rwDlRasterGetSize(raster);
-  if (((raster->format << 8) & (rwRASTERFORMATPAL4 | rwRASTERFORMATPAL8)) !=
-      0) {
+  if ((((raster->format & 0xFF) << 8) &
+       (rwRASTERFORMATPAL4 | rwRASTERFORMATPAL8)) != 0) {
     paletteSize = (1U << raster->depth) * 2;
     extension->reserved_0x18 =
         (RwUInt32)RwEngineInstance->fpMalloc(size + paletteSize + 31, 0x30411);
@@ -683,7 +687,7 @@ RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
       return FALSE;
     }
     extension->imageData = (void *)((extension->reserved_0x18 + 31) & ~31U);
-    if ((raster->type & 7) == 5)
+    if (raster->type == 5)
       DCInvalidateRange(extension->imageData, size);
   }
   return TRUE;
@@ -692,11 +696,10 @@ RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
 RwBool _rwDlRasterCreate(void *unused, void *rasterIn, RwInt32 flags) {
   RwRaster *raster = rasterIn;
   RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
-  RwUInt32 type;
 
   raster->stride = 0;
-  extension->format = -1;
-  extension->paletteFormat = -1;
+  extension->format = 0xFF;
+  extension->paletteFormat = 0xFF;
   extension->hasAlpha = FALSE;
   extension->reserved_0x18 = 0;
   extension->imageData = NULL;
@@ -704,35 +707,35 @@ RwBool _rwDlRasterCreate(void *unused, void *rasterIn, RwInt32 flags) {
   extension->reserved_0x24[0] = 0;
   extension->reserved_0x24[1] = 0;
   extension->textureRegion = NULL;
-  extension->token = _RwDlTokenLastSeen;
+  extension->token = (RwUInt16)_RwDlTokenLastSeen;
   extension->maxLod = 0xFF;
   extension->reserved_0x33 = 0xFF;
   if (!DlGetRasterFormat(raster, flags))
     return FALSE;
-  if (raster->width == 0 || raster->height == 0) {
+  if (raster->width != 0 && raster->height != 0) {
+    switch (raster->type) {
+    case 0:
+    case 4:
+    case 5:
+      if ((raster->flags & 0x80) == 0 &&
+          !_rwDlTextureRasterCreate(raster, DlRasterFindNumMipLevels(raster))) {
+        RwError error;
+        error.pluginID = 1;
+        error.errorCode = _rwerror(2, "Raster creation failed");
+        RwErrorSet(&error);
+        return FALSE;
+      }
+      break;
+    case 1:
+    case 2:
+      raster->flags = 0x80;
+      break;
+    default:
+      DL_RASTER_ERROR(0x8000000D);
+    }
+  } else {
     raster->flags = 0x80;
     return TRUE;
-  }
-  type = raster->type & 7;
-  switch (type) {
-  case 0:
-  case 4:
-  case 5:
-    if ((raster->flags & 0x80) == 0 &&
-        !_rwDlTextureRasterCreate(raster, DlRasterFindNumMipLevels(raster))) {
-      RwError error;
-      error.pluginID = 1;
-      error.errorCode = _rwerror(2, "Raster creation failed");
-      RwErrorSet(&error);
-      return FALSE;
-    }
-    break;
-  case 1:
-  case 2:
-    raster->flags = 0x80;
-    break;
-  default:
-    DL_RASTER_ERROR(0x8000000D);
   }
   return TRUE;
 }
@@ -741,19 +744,18 @@ RwBool _rwDlRasterDestroy(void *unused, void *rasterIn, RwInt32 in) {
   RwRaster *raster = rasterIn;
 
   if (raster->parent == raster && (raster->flags & 0x80) == 0) {
-    RwUInt32 type = raster->type & 7;
-    switch (type) {
+    switch (raster->type) {
     case 0:
     case 4:
     case 5: {
       RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
       if (extension->token == _RwDlTokenCurrent) {
-        GXSetDrawSync(_RwDlTokenCurrent);
+        GXSetDrawSync((RwUInt32)_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
       }
       while (!_rwDlTokenQueryDone(extension->token)) {
       }
-      if (_RwDlTexture != NULL && _RwDlTexture->raster == raster)
+      if (_RwDlTexture != NULL && raster == _RwDlTexture->raster)
         _rwDlTextureSetRaster(_RwDlTexture, NULL, 0);
       RwEngineInstance->fpFree((void *)extension->reserved_0x18);
       break;
