@@ -12,8 +12,7 @@ typedef struct RwTextureModuleGlobals {
 } RwTextureModuleGlobals;
 
 extern int textureModule;
-extern char textureTKList[];
-extern void* _rwPluginRegistryInitObject(void* registry, void* object);
+extern RwPluginRegistry textureTKList;
 extern int TextureAnnihilate(RwTexture* texture);
 extern int _rwerror(unsigned int code, ...);
 extern void RwErrorSet(RwErrorPair* error);
@@ -34,7 +33,7 @@ RwTexture* RwTextureCreate(RwRaster* raster) {
         texture->filter_flags = 0;
         texture->filter_flags = (texture->filter_flags & 0xFFFF00FF) | 0x1100;
         texture->filter_flags = (texture->filter_flags & 0xFFFFFF00) | 1;
-        _rwPluginRegistryInitObject(textureTKList, texture);
+        _rwPluginRegistryInitObject(&textureTKList, texture);
     }
     return texture;
 }
@@ -53,8 +52,8 @@ int RwTextureDestroy(RwTexture* texture) {
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name) {
     RwErrorPair error;
 
-    RwEngineInstance->fpStringCopy(texture->name, name, 32);
-    if (RwEngineInstance->fpStringLength(name) >= 32) {
+    RwEngineInstance->stringFuncs.strncpy(texture->name, name, 32);
+    if (RwEngineInstance->stringFuncs.strlen(name) >= 32) {
         error.plugin = 1;
         error.code = _rwerror(0x8000001E, name, 32, 31, name[31]);
         RwErrorSet(&error);

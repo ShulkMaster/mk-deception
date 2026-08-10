@@ -1,61 +1,223 @@
-/* TODO: Missing implementation for retail unit batkreg.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/rwerror.h"
+#include "rw/rwfreelist.h"
 
-void *_rwPluginRegistryOpen(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static RwFreeList toolkitRegEntriesSpace;
+static RwInt32 _rwPluginRegFreeListBlockSize = 0x40;
+static RwInt32 _rwPluginRegListPreallocBlocks = 1;
+static RwPluginRegistry** toolkitNonFLRegList;
+static RwUInt32 numRegToolkits;
+static RwFreeList* toolkitRegEntries;
+
+extern RwUInt32 _rwGetNumEngineInstances(void);
+
+RwBool _rwPluginRegistryOpen(void) {
+    toolkitRegEntries = RwFreeListCreateAndPreallocateSpace(
+        sizeof(RwPluginRegEntry), _rwPluginRegFreeListBlockSize, 4,
+        _rwPluginRegListPreallocBlocks, &toolkitRegEntriesSpace, 0x40000);
+    if (toolkitRegEntries == 0) {
+        return 0;
+    }
+    numRegToolkits = 0;
+    return 1;
 }
 
-void *rwDestroyEntry(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static void rwDestroyEntry(void* memory, void* data) {
+    RwPluginRegEntry* entry = memory;
+
+    if (entry->parentRegistry->firstRegEntry != 0) {
+        entry->parentRegistry->sizeOfStruct =
+            entry->parentRegistry->origSizeOfStruct;
+        entry->parentRegistry->firstRegEntry = 0;
+        entry->parentRegistry->lastRegEntry = 0;
+    }
+    RwEngineInstance->fpFreeListFree(data, entry);
 }
 
-void *_rwPluginRegistryClose(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+
+
+RwBool _rwPluginRegistryClose(void) {
+    if (toolkitRegEntries != 0) {
+        RwFreeListForAllUsed(toolkitRegEntries, rwDestroyEntry,
+                             toolkitRegEntries);
+        if (RwEngineInstance->fpFreeListAlloc !=
+            (RwFreeListAllocCall)_rwFreeListAllocReal) {
+            RwUInt32 i;
+            for (i = 0; i < numRegToolkits; i++) {
+                RwPluginRegEntry* entry =
+                    toolkitNonFLRegList[i]->firstRegEntry;
+                RwPluginRegistry* parent =
+                    entry != 0 ? entry->parentRegistry : 0;
+                while (entry != 0) {
+                    RwPluginRegEntry* next = entry->nextRegEntry;
+                    RwEngineInstance->fpFreeListFree(0, entry);
+                    entry = next;
+                }
+                if (parent != 0 && parent->firstRegEntry != 0) {
+                    parent->sizeOfStruct = parent->origSizeOfStruct;
+                    parent->firstRegEntry = 0;
+                    parent->lastRegEntry = 0;
+                }
+            }
+            if (toolkitNonFLRegList != 0) {
+                RwEngineInstance->fpFree(toolkitNonFLRegList);
+                toolkitNonFLRegList = 0;
+            }
+        }
+        RwFreeListDestroy(toolkitRegEntries);
+        toolkitRegEntries = 0;
+    }
+    return 1;
 }
 
-void *PluginDefaultConstructor(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static void* PluginDefaultConstructor(void* object, RwInt32 offset,
+                                      RwInt32 size) {
+    return object;
 }
 
-void *PluginDefaultDestructor(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static void* PluginDefaultDestructor(void* object, RwInt32 offset,
+                                     RwInt32 size) {
+    return object;
 }
 
-void *PluginDefaultCopy(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static void* PluginDefaultCopy(void* destination, const void* source,
+                               RwInt32 offset, RwInt32 size) {
+    return destination;
 }
 
-void *_rwPluginRegistryGetPluginOffset(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RwInt32 _rwPluginRegistryGetPluginOffset(const RwPluginRegistry* registry,
+                                         RwUInt32 pluginID) {
+    RwPluginRegEntry* entry = registry->firstRegEntry;
+    while (entry != 0) {
+        if (entry->pluginID == pluginID) {
+            return entry->offset;
+        }
+        entry = entry->nextRegEntry;
+    }
+    return -1;
 }
 
-void *_rwPluginRegistryAddPlugin(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RwInt32 _rwPluginRegistryAddPlugin(
+    RwPluginRegistry* registry, RwInt32 size, RwUInt32 pluginID,
+    RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB) {
+    RwPluginRegEntry* entry;
+    RwInt32 newSize;
+
+    if (toolkitRegEntries == 0) {
+        return -1;
+    }
+    if (_rwGetNumEngineInstances() != 0) {
+        RwError error;
+        error.pluginID = 1;
+        error.errorCode = _rwerror(0x80000017);
+        RwErrorSet(&error);
+        return -1;
+    }
+    if (RwEngineInstance->fpFreeListAlloc !=
+        (RwFreeListAllocCall)_rwFreeListAllocReal) {
+        RwUInt32 index;
+        for (index = 0; index < numRegToolkits; index++) {
+            if (registry == toolkitNonFLRegList[index]) {
+                break;
+            }
+        }
+        if (numRegToolkits == index) {
+            RwPluginRegistry** newList = RwEngineInstance->fpMalloc(
+                (numRegToolkits + 1) * sizeof(*newList), 0x40000);
+            RwUInt32 copyIndex = 0;
+            if (toolkitNonFLRegList != 0) {
+                while (copyIndex < numRegToolkits) {
+                    newList[copyIndex] = toolkitNonFLRegList[copyIndex];
+                    copyIndex++;
+                }
+                RwEngineInstance->fpFree(toolkitNonFLRegList);
+                toolkitNonFLRegList = 0;
+            }
+            newList[copyIndex] = registry;
+            numRegToolkits++;
+            toolkitNonFLRegList = newList;
+        }
+    }
+    entry = registry->firstRegEntry;
+    while (entry != 0) {
+        if (entry->pluginID == pluginID) {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x80000017);
+            RwErrorSet(&error);
+            return entry->offset;
+        }
+        entry = entry->nextRegEntry;
+    }
+    newSize = registry->sizeOfStruct + ((size + 3) & ~3);
+    if (registry->maxSizeOfStruct != 0 &&
+        newSize > registry->maxSizeOfStruct) {
+        return -1;
+    }
+    entry = RwEngineInstance->fpFreeListAlloc(toolkitRegEntries, 0x40000);
+    if (entry != 0) {
+        entry->offset = registry->sizeOfStruct;
+        registry->sizeOfStruct = newSize;
+        entry->size = size;
+        entry->pluginID = pluginID;
+        entry->readCB = 0;
+        entry->writeCB = 0;
+        entry->getSizeCB = 0;
+        entry->alwaysCB = 0;
+        entry->rightsCB = 0;
+        entry->constructCB = constructCB != 0 ? constructCB
+                                                 : PluginDefaultConstructor;
+        entry->destructCB = destructCB != 0 ? destructCB
+                                               : PluginDefaultDestructor;
+        entry->copyCB = copyCB != 0 ? copyCB : PluginDefaultCopy;
+        entry->errStrCB = 0;
+        entry->nextRegEntry = 0;
+        entry->prevRegEntry = 0;
+        entry->parentRegistry = registry;
+        if (registry->firstRegEntry == 0) {
+            registry->firstRegEntry = entry;
+            registry->lastRegEntry = entry;
+        } else {
+            registry->lastRegEntry->nextRegEntry = entry;
+            entry->prevRegEntry = registry->lastRegEntry;
+            registry->lastRegEntry = entry;
+        }
+        return entry->offset;
+    }
+    return -1;
 }
 
-void *_rwPluginRegistryInitObject(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+
+
+const RwPluginRegistry* _rwPluginRegistryInitObject(
+    const RwPluginRegistry* registry, void* object) {
+    RwPluginRegEntry* entry = registry->firstRegEntry;
+    while (entry != 0) {
+        if (entry->constructCB(object, entry->offset, entry->size) == 0) {
+            entry = entry->prevRegEntry;
+            while (entry != 0) {
+                entry->destructCB(object, entry->offset, entry->size);
+                entry = entry->prevRegEntry;
+            }
+            return 0;
+        }
+        entry = entry->nextRegEntry;
+    }
+    return registry;
 }
 
-void *_rwPluginRegistryDeInitObject(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+const RwPluginRegistry* _rwPluginRegistryDeInitObject(
+    const RwPluginRegistry* registry, void* object) {
+    RwPluginRegEntry* entry = registry->lastRegEntry;
+    while (entry != 0) {
+        RwPluginObjectDestructor destructCB = entry->destructCB;
+        RwInt32 offset = entry->offset;
+        RwInt32 size = entry->size;
+        destructCB(object, offset, size);
+        entry = entry->prevRegEntry;
+    }
+    return registry;
 }
