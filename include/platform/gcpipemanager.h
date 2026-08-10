@@ -10,13 +10,6 @@ typedef struct GXColor {
     unsigned char a;
 } GXColor;
 
-typedef struct RwRGBAReal {
-    float red;
-    float green;
-    float blue;
-    float alpha;
-} RwRGBAReal;
-
 typedef void (*DpMaterialCallback)(RwRGBAReal* color, GXColor* material,
                                    float intensity);
 

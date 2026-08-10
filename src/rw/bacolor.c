@@ -1,6 +1,6 @@
 #include "rw/rwplcore.h"
 
-/* rwcore.a/bacolor.obj -- portable Criterion color module open/close. */
+
 
 static RwModuleInfo colorModule;
 
