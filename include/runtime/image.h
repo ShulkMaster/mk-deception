@@ -171,7 +171,7 @@ RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, AniTextureControl* atc);
 int is_raster_power_of_two(RwRaster* raster);
 ScreenObj* load_wiff_screen_pfxobj(int a, int b, int oid, AniTextureControl** out_atc, int flags, int priority);
 void set_ani_texture_screen_obj(AniTextureControl* atc, ScreenObj* obj);
-RpMaterial* MaterialFindAniTexture(RpMaterial* material, AniTextureControl* atc);
+RpMaterial* MaterialFindAniTexture(RpMaterial* material, void* data);
 
 void ani_texture_has_alpha_frames(AniTextureControl* atc);
 void set_ani_texture_framerate(AniTextureControl* atc, float rate);

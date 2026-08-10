@@ -194,9 +194,9 @@ typedef struct RxPipelinePlatformGlobals {
     RxPipeline* defaultAtomicPipeline;
     RxPipeline* defaultWorldSectorPipeline;
     RxPipeline* defaultMaterialPipeline;
-    RxPipeline* pipeline48;
-    RxPipeline* pipeline4C;
-    RxPipeline* pipeline50;
+    RxPipeline* field_0x48;
+    RxPipeline* field_0x4C;
+    RxPipeline* field_0x50;
     RxPipeline* platformAtomicPipeline;
     RxPipeline* platformWorldSectorPipeline;
     RxPipeline* platformMaterialPipeline;

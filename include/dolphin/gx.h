@@ -25,6 +25,12 @@ typedef struct GXTlutObj {
     unsigned char data[0xC];
 } GXTlutObj;
 
+typedef struct GXTexRegion GXTexRegion;
+
+typedef struct GXLightObj {
+    unsigned char data[0x40];
+} GXLightObj;
+
 typedef struct GXRenderModeObj {
     int viTVmode;
     unsigned short fbWidth;
@@ -62,6 +68,16 @@ void GXSetTevColor(int id, GXColor color);
 void GXSetTevKColor(int id, GXColor color);
 void GXSetTevSwapModeTable(int id, int r, int g, int b, int a);
 void GXSetNumChans(unsigned char count);
+void GXInitLightAttn(GXLightObj* object, float a0, float a1, float a2,
+                     float k0, float k1, float k2);
+void GXInitLightAttnA(GXLightObj* object, float a0, float a1, float a2);
+void GXInitLightDistAttn(GXLightObj* object, float reference_distance,
+                         float reference_brightness, int function);
+void GXInitLightPos(GXLightObj* object, float x, float y, float z);
+void GXInitLightDir(GXLightObj* object, float x, float y, float z);
+void GXInitLightSpot(GXLightObj* object, float cutoff, int function);
+void GXInitLightColor(GXLightObj* object, GXColor color);
+void GXLoadLightObjImm(GXLightObj* object, unsigned int id);
 void GXSetChanCtrl(int channel, int enable, int ambient_source,
                    int material_source, unsigned int light_mask,
                    int diffuse_function, int attenuation_function);
