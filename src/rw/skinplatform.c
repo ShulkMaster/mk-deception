@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit skinplatform.c. */
+#include "rw/rpskin.h"
 
-void *RpSkinGetGameCubePipeline(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RxPipeline* RpSkinGetGameCubePipeline(RpSkinType skinType) {
+    RxPipeline* pipeline = _rpSkinGlobals.pipelines[skinType];
+    return pipeline;
 }
