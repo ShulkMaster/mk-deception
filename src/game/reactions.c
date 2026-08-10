@@ -146,18 +146,6 @@ typedef struct ReactionSharedAnimations {
     int combo_breaker;           /* +0x320 */
 } ReactionSharedAnimations;
 
-typedef struct ReactionExtendedPdata {
-    char pad000[0x368];
-    void* reaction_animation;
-    void* reaction_animation_a;
-    void* reaction_animation_b;
-    void* reaction_animation_c;
-    void* esp1_reaction_animation;
-    void* scorpion_spear_hit;
-    void* scorpion_spear_pull;
-    void* scorpion_spear_recover;
-} ReactionExtendedPdata;
-
 typedef struct ReactionPostSurfPdata {
     char pad000[0x6F4];
     int stay_down;
@@ -1890,13 +1878,9 @@ static float r_esp1_B(void) {
     random_voice(0xD);
     wall_eligible_on();
     myvel_his_angle_y(0.0f, -0.16f, -0.16f);
-    blend_to_ani(
-        ((ReactionExtendedPdata*)his_pdata)->reaction_animation_a,
-        3, 0.1f);
+    blend_to_ani(his_pdata->reaction_animation_a, 3, 0.1f);
     ani_to_end();
-    blend_to_ani(
-        ((ReactionExtendedPdata*)his_pdata)->reaction_animation_b,
-        0, 0.1f);
+    blend_to_ani(his_pdata->reaction_animation_b, 0, 0.1f);
     while (xz_distance_between_players() > 2.25 && ticks > 0) {
         ticks--;
         ani_1_frame();
@@ -1905,9 +1889,7 @@ static float r_esp1_B(void) {
         vtable->sleep(vtable);
     }
     ani_loop_more_frames(7.0f);
-    blend_to_ani(
-        ((ReactionExtendedPdata*)his_pdata)->reaction_animation_c,
-        3, 0.1f);
+    blend_to_ani(his_pdata->reaction_animation_c, 3, 0.1f);
     ani_to_frame_x(19.0f);
     got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
     if (plyr_pdata != 0) {
@@ -1951,7 +1933,6 @@ static float r_esp1_B(void) {
 
 static float r_scorpion_spear_1(void) {
     ReactionProcVtable* vtable;
-    ReactionExtendedPdata* opponent;
 
     high_flash_check();
     face_opponent_now();
@@ -1961,8 +1942,7 @@ static float r_scorpion_spear_1(void) {
     set_my_state(0x603);
     got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
     start_blood_particles(0x20, 9, plyr_pdata, plyr_obj);
-    opponent = (ReactionExtendedPdata*)his_pdata;
-    blend_to_ani(opponent->scorpion_spear_hit, 3, 0.1f);
+    blend_to_ani(his_pdata->scorpion_spear_hit, 3, 0.1f);
     ani_to_frame_x(83.0f);
     set_my_state(0x604);
     ani_to_end();
@@ -1975,14 +1955,11 @@ static float r_scorpion_spear_2(void) {
     ReactionProcVtable* vtable;
     int ticks;
 
-    blend_to_ani(
-        ((ReactionExtendedPdata*)his_pdata)->scorpion_spear_pull, 3, 0.1f);
+    blend_to_ani(his_pdata->scorpion_spear_pull, 3, 0.1f);
     ani_to_end();
     snd_req(0xD70);
     myvel_his_angle_y(0.0f, -0.13f, -0.13f);
-    blend_to_ani(
-        ((ReactionExtendedPdata*)his_pdata)->scorpion_spear_recover,
-        0, 0.1f);
+    blend_to_ani(his_pdata->scorpion_spear_recover, 0, 0.1f);
     plyr_anim_pdata->step = 0.75f;
     ticks = 0;
     while (xz_distance_between_players() > 1.0f && ticks < 0x50) {
@@ -1998,9 +1975,7 @@ static float r_scorpion_spear_2(void) {
         his_pdata->character_id != 0x1A) {
         blend_to_ani(his_pdata->reaction_animation, 3, 0.2f);
     } else {
-        blend_to_ani(
-            ((ReactionExtendedPdata*)his_pdata)->reaction_animation_c,
-            3, 0.2f);
+        blend_to_ani(his_pdata->reaction_animation_c, 3, 0.2f);
     }
     plyr_anim_pdata->step = 1.2f;
     plyr_pdata->summon_position_x = 20.0f;
@@ -2682,10 +2657,8 @@ static float r_throw(void) {
 
 static float r_raiden_shocker_fall(void) {
     ReactionProcVtable* vtable;
-    ReactionExtendedPdata* opponent;
 
-    opponent = (ReactionExtendedPdata*)his_pdata;
-    blend_to_ani(opponent->reaction_animation, 0, 0.1f);
+    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
     plyr_anim_pdata->step = 1.0f;
     xfer_proc(plyr_anim_proc, p_animate);
     _mkproc_sleep_ticks = 60.0f;
@@ -3042,7 +3015,6 @@ static float r_shujinko_slam(void) {
 
 static float r_ermac_slam(void) {
     ReactionProcVtable* vtable;
-    ReactionExtendedPdata* opponent;
 
     got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
     init_air_move();
@@ -3050,8 +3022,7 @@ static float r_ermac_slam(void) {
     stop_me();
     plyr_obj->gravity = 0.0018f;
     xfer_proc(plyr_anim_proc, p_animate);
-    opponent = (ReactionExtendedPdata*)his_pdata;
-    blend_to_ani(opponent->reaction_animation, 0, 0.1f);
+    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->jump_sleep(r_complete_ermac_slam, 0.0f);
     return 0.0f;
@@ -3413,13 +3384,11 @@ static float chest_stumble_both(void) {
 
 static float r_esp1_A(void) {
     ReactionProcVtable* vtable;
-    ReactionExtendedPdata* opponent;
 
     high_flash_check();
     face_opponent_now();
     got_hit_fx(2, 4, 0, 0, 0, 2, 0.0f);
-    opponent = (ReactionExtendedPdata*)his_pdata;
-    blend_to_ani(opponent->esp1_reaction_animation, 3, 0.1f);
+    blend_to_ani(his_pdata->esp1_reaction_animation, 3, 0.1f);
     plyr_obj->gravity = -0.0075f;
     plyr_anim_pdata->step = 0.8f;
     ani_to_blend_frame(10.0f);

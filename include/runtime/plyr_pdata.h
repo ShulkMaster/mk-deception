@@ -346,10 +346,16 @@ typedef struct PlyrPdata {
     void* reaction_animation_a; /* +0x36C */
     void* reaction_animation_b; /* +0x370 */
     void* reaction_animation_c; /* +0x374 */
-    char pad378[4];
-    AniData* screen_taunt_animation; /* +0x37C */
-    char pad380[4];
-    AniData* goro_fold_animation; /* +0x384 - fatality arm-fold script */
+    void* esp1_reaction_animation; /* +0x378 */
+    union {
+        AniData* screen_taunt_animation;
+        void* scorpion_spear_hit;
+    }; /* +0x37C - per-character reaction slot */
+    void* scorpion_spear_pull; /* +0x380 */
+    union {
+        AniData* goro_fold_animation; /* fatality arm-fold script */
+        void* scorpion_spear_recover;
+    }; /* +0x384 - per-character reaction slot */
     char pad388[4];
     AniData* ice_reaction_animation; /* +0x38C */
     char pad390[0x14];
