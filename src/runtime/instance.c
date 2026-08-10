@@ -78,14 +78,6 @@ extern void GeometryListDeinitialize(RpGeometryList* geometry_list);
 extern RwStream* _rpMaterialListStreamRead(RwStream* stream,
                                            RpMaterialList* material_list);
 extern unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
-extern void* _rwPluginRegistryInitObject(RwPluginRegistry* registry,
-                                         void* object);
-extern RwStream* _rwPluginRegistryReadDataChunks(RwPluginRegistry* registry,
-                                                 RwStream* stream,
-                                                 void* object);
-extern void* _rwPluginRegistryInvokeRights(RwPluginRegistry* registry,
-                                           unsigned int plugin_id,
-                                           void* object, int extra_data);
 extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
 
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
@@ -391,7 +383,7 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
     int morph_index;
     RpMorphTargetChunkInfo morph_info;
     RpMorphTarget* morph_target;
-    RwStream* plugin_result;
+    const RwPluginRegistry* plugin_result;
     unsigned char* inplace_pointer;
 
     if (!RwStreamFindChunk(stream, 1, 0, &version)) {
@@ -426,7 +418,8 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
 
         if (vertex_count != 0) {
             if (chunk_info.format & 8) {
-                inplace_pointer = stream->data + stream->bufferPosition;
+                inplace_pointer = stream->data.memory.start +
+                                  stream->data.memory.position;
                 geometry->preLitLum = inplace_pointer;
                 RwStreamSkip(stream, vertex_count << 2);
             }
@@ -435,7 +428,8 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
 
                 morph_index = 0;
                 while (morph_index < geometry->numTexCoordSets) {
-                    inplace_pointer = stream->data + stream->bufferPosition;
+                    inplace_pointer = stream->data.memory.start +
+                                      stream->data.memory.position;
                     geometry->texCoords[morph_index] = inplace_pointer;
                     RwStreamSkip(stream, tex_coord_size);
                     morph_index++;
@@ -444,7 +438,8 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
             if (geometry->numTriangles != 0) {
                 int triangle_count = geometry->numTriangles;
 
-                inplace_pointer = stream->data + stream->bufferPosition;
+                inplace_pointer = stream->data.memory.start +
+                                  stream->data.memory.position;
                 geometry->triangles = inplace_pointer;
                 RwStreamSkip(stream, triangle_count << 3);
             }
@@ -462,12 +457,14 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
         RwMemNative32(&morph_info, sizeof(morph_info));
         morph_target->sphere = morph_info.sphere;
         if (morph_info.has_vertices != 0) {
-            inplace_pointer = stream->data + stream->bufferPosition;
+            inplace_pointer = stream->data.memory.start +
+                              stream->data.memory.position;
             morph_target->verts = inplace_pointer;
             RwStreamSkip(stream, geometry->numVertices * 12);
         }
         if (morph_info.has_normals != 0) {
-            inplace_pointer = stream->data + stream->bufferPosition;
+            inplace_pointer = stream->data.memory.start +
+                              stream->data.memory.position;
             morph_target->normals = inplace_pointer;
             RwStreamSkip(stream, geometry->numVertices * 12);
         }

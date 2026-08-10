@@ -23,13 +23,6 @@ typedef struct ShadowFrame {
     ShadowMatrix modelling; /* +0x10 */
 } ShadowFrame;
 
-typedef struct RwRGBA {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} RwRGBA;
-
 typedef struct RwEngineInstanceType {
     char pad[0x1C];
     float field_1C;
