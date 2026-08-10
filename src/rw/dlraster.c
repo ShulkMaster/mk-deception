@@ -124,12 +124,11 @@ RwUInt32 _rwDlRasterGetSize(RwRaster *raster) {
 }
 
 RwUInt32 _rwDlRasterGetStride(RwRaster *raster, RwUInt8 level) {
-  RwUInt32 width = raster->parent->width >> level;
   RwUInt32 stride = 0;
+  RwUInt32 shiftedWidth = raster->parent->width >> level;
+  RwUInt32 width = shiftedWidth == 0 ? 1 : shiftedWidth;
 
-  if (width == 0)
-    width = 1;
-  switch (raster->depth) {
+  switch ((RwUInt32)raster->depth) {
   case 4:
     stride = ((width + 7) & ~7U) / 2;
     break;
@@ -156,17 +155,18 @@ RwUInt32 _rwDlRasterGetStride(RwRaster *raster, RwUInt8 level) {
 static RwUInt8 DlRasterFindNumMipLevels(RwRaster *raster) {
   if ((raster->format << 8 & rwRASTERFORMATMIPMAP) != 0) {
     if (raster->width > raster->height)
-      return _rwDlFindMSB(raster->width) + 1;
-    return _rwDlFindMSB(raster->height) + 1;
+      return (RwUInt8)_rwDlFindMSB(raster->width) + 1;
+    return (RwUInt8)_rwDlFindMSB(raster->height) + 1;
   }
   return 1;
 }
 
 RwBool _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
                                   RwInt32 unused) {
-  RwInt32 *levels = levelsOut;
+  RwGameCubeRasterExt *extension;
   RwRaster *raster = rasterIn;
-  RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster->parent);
+  RwInt32 *levels = levelsOut;
+  extension = RW_GAMECUBE_RASTER_EXTENSION(raster->parent);
 
   if (extension->maxLod != 0xFF)
     *levels = extension->maxLod + 1;
@@ -216,6 +216,7 @@ static void DlRasterTile(void *tiledData, const void *linearData,
     }
   } else if (depth == 32) {
     RwUInt32 tilesAcross = (width + 3) / 4;
+    RwUInt16 *tiled = (RwUInt16 *)destination;
     for (y = 0; y < height; y++) {
       const RwUInt16 *row = (const RwUInt16 *)(source + stride * y);
       RwUInt32 tileOffset = 0;
@@ -223,14 +224,8 @@ static void DlRasterTile(void *tiledData, const void *linearData,
       for (x = 0; x < width; x++) {
         if ((x & 3) == 0)
           tileOffset = ((y / 4) * tilesAcross + x / 4) * 16;
-        destination[tileOffset * 4 + ((y & 3) * 4 + (x & 3)) * 2] =
-            (RwUInt8)(row[x * 2] >> 8);
-        destination[tileOffset * 4 + ((y & 3) * 4 + (x & 3)) * 2 + 1] =
-            (RwUInt8)row[x * 2];
-        destination[tileOffset * 4 + 32 + ((y & 3) * 4 + (x & 3)) * 2] =
-            (RwUInt8)(row[x * 2 + 1] >> 8);
-        destination[tileOffset * 4 + 32 + ((y & 3) * 4 + (x & 3)) * 2 + 1] =
-            (RwUInt8)row[x * 2 + 1];
+        tiled[tileOffset * 2 + (y & 3) * 4 + (x & 3)] = row[x * 2];
+        tiled[tileOffset * 2 + 16 + (y & 3) * 4 + (x & 3)] = row[x * 2 + 1];
       }
     }
   } else {
@@ -282,6 +277,7 @@ static void DlRasterUntile(void *linearData, const void *tiledData,
     }
   } else if (depth == 32) {
     RwUInt32 tilesAcross = (width + 3) / 4;
+    const RwUInt16 *tiled = (const RwUInt16 *)source;
     for (y = 0; y < height; y++) {
       RwUInt16 *row = (RwUInt16 *)(destination + stride * y);
       RwUInt32 tileOffset = 0;
@@ -290,11 +286,9 @@ static void DlRasterUntile(void *linearData, const void *tiledData,
         RwUInt32 pixelOffset;
         if ((x & 3) == 0)
           tileOffset = ((y / 4) * tilesAcross + x / 4) * 16;
-        pixelOffset = tileOffset * 4 + ((y & 3) * 4 + (x & 3)) * 2;
-        row[x * 2] =
-            (RwUInt16)((source[pixelOffset] << 8) | source[pixelOffset + 1]);
-        row[x * 2 + 1] = (RwUInt16)((source[pixelOffset + 32] << 8) |
-                                    source[pixelOffset + 33]);
+        pixelOffset = tileOffset * 2 + (y & 3) * 4 + (x & 3);
+        row[x * 2] = tiled[pixelOffset];
+        row[x * 2 + 1] = tiled[pixelOffset + 16];
       }
     }
   } else {
@@ -370,6 +364,9 @@ RwBool _rwDlRasterLock(void *pixelsOut, void *rasterIn, RwInt32 flags) {
   raster->stride = stride;
   extension->reserved_0x33 = level;
   if ((flags & 2) != 0) {
+    if ((raster->type & 7) == 5)
+      DCFlushRange((void *)extension->reserved_0x24[0],
+                   DlRasterGetMipLevelSize(raster, level));
     raster->privateFlags |= 2;
     parent->privateFlags |= 2;
     if ((flags & 8) == 0)
@@ -442,16 +439,21 @@ RwBool _rwDlRasterUnlock(void *unused, void *rasterIn, RwInt32 in) {
 RwBool _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, RwInt32 flags) {
   void **palette = paletteOut;
   RwRaster *raster = rasterIn;
-  RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
 
-  if ((raster->type & 7) != 0 && (raster->type & 7) != 4) {
+  switch (raster->type & 7) {
+  case 0:
+  case 4:
+    break;
+  default: {
     RwError error;
     error.pluginID = 1;
     error.errorCode = _rwerror(0x8000000E);
     RwErrorSet(&error);
     return FALSE;
   }
+  }
   if (raster == raster->parent && raster->palette == NULL) {
+    RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
     if ((flags & 2) != 0)
       raster->privateFlags |= 8;
     if ((flags & 1) != 0)
@@ -464,16 +466,21 @@ RwBool _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, RwInt32 flags) {
 
 RwBool _rwDlRasterUnlockPalette(void *unused, void *rasterIn, RwInt32 in) {
   RwRaster *raster = rasterIn;
-  RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
 
-  if ((raster->type & 7) != 0 && (raster->type & 7) != 4) {
+  switch (raster->type & 7) {
+  case 0:
+  case 4:
+    break;
+  default: {
     RwError error;
     error.pluginID = 1;
     error.errorCode = _rwerror(0x80000011);
     RwErrorSet(&error);
     return FALSE;
   }
+  }
   if (raster == raster->parent) {
+    RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
     if ((raster->privateFlags & 0x10) != 0)
       DCFlushRange(extension->paletteData, (1U << raster->depth) * 2);
     raster->privateFlags &= ~0x18;
@@ -491,10 +498,16 @@ static RwBool DlGetRasterFormat(RwRaster *raster, RwInt32 flags) {
 
   raster->type = type;
   raster->flags = flags & ~7;
-  if (type == 3 || type >= 6)
-    DL_RASTER_ERROR(0x8000000D);
-
-  if (type == 1 || type == 2) {
+  switch (type) {
+  case 0:
+  case 4:
+    break;
+  case 5:
+    if (pal4 != 0 || pal8 != 0)
+      DL_RASTER_ERROR(0x8000000C);
+    break;
+  case 1:
+  case 2:
     if ((format & rwRASTERFORMATPIXELFORMATMASK) == 0) {
       if (_RwDlRenderMode->aa != 0) {
         format |= rwRASTERFORMAT565;
@@ -512,10 +525,9 @@ static RwBool DlGetRasterFormat(RwRaster *raster, RwInt32 flags) {
     }
     raster->format = (RwUInt8)(format >> 8);
     return TRUE;
+  default:
+    DL_RASTER_ERROR(0x8000000D);
   }
-
-  if (type == 5 && (pal4 != 0 || pal8 != 0))
-    DL_RASTER_ERROR(0x8000000C);
 
   if ((format & rwRASTERFORMATPIXELFORMATMASK) == 0) {
     switch (raster->depth) {
@@ -649,8 +661,13 @@ RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
     paletteSize = (1U << raster->depth) * 2;
     extension->reserved_0x18 =
         (RwUInt32)RwEngineInstance->fpMalloc(size + paletteSize + 31, 0x30411);
-    if (extension->reserved_0x18 == 0)
-      DL_RASTER_ERROR(0x80000013);
+    if (extension->reserved_0x18 == 0) {
+      RwError error;
+      error.pluginID = 1;
+      error.errorCode = _rwerror(0x80000013, size + paletteSize + 31);
+      RwErrorSet(&error);
+      return FALSE;
+    }
     extension->imageData = (void *)((extension->reserved_0x18 + 31) & ~31U);
     extension->paletteData = (RwUInt8 *)extension->imageData + size;
     GXInitTlutObj(&extension->tlut, extension->paletteData,
@@ -658,8 +675,13 @@ RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
   } else {
     extension->reserved_0x18 =
         (RwUInt32)RwEngineInstance->fpMalloc(size + 31, 0x30411);
-    if (extension->reserved_0x18 == 0)
-      DL_RASTER_ERROR(0x80000013);
+    if (extension->reserved_0x18 == 0) {
+      RwError error;
+      error.pluginID = 1;
+      error.errorCode = _rwerror(0x80000013, size + 31);
+      RwErrorSet(&error);
+      return FALSE;
+    }
     extension->imageData = (void *)((extension->reserved_0x18 + 31) & ~31U);
     if ((raster->type & 7) == 5)
       DCInvalidateRange(extension->imageData, size);
@@ -692,7 +714,10 @@ RwBool _rwDlRasterCreate(void *unused, void *rasterIn, RwInt32 flags) {
     return TRUE;
   }
   type = raster->type & 7;
-  if (type == 0 || type == 4 || type == 5) {
+  switch (type) {
+  case 0:
+  case 4:
+  case 5:
     if ((raster->flags & 0x80) == 0 &&
         !_rwDlTextureRasterCreate(raster, DlRasterFindNumMipLevels(raster))) {
       RwError error;
@@ -701,9 +726,12 @@ RwBool _rwDlRasterCreate(void *unused, void *rasterIn, RwInt32 flags) {
       RwErrorSet(&error);
       return FALSE;
     }
-  } else if (type == 1 || type == 2) {
+    break;
+  case 1:
+  case 2:
     raster->flags = 0x80;
-  } else {
+    break;
+  default:
     DL_RASTER_ERROR(0x8000000D);
   }
   return TRUE;
@@ -714,7 +742,10 @@ RwBool _rwDlRasterDestroy(void *unused, void *rasterIn, RwInt32 in) {
 
   if (raster->parent == raster && (raster->flags & 0x80) == 0) {
     RwUInt32 type = raster->type & 7;
-    if (type == 0 || type == 4 || type == 5) {
+    switch (type) {
+    case 0:
+    case 4:
+    case 5: {
       RwGameCubeRasterExt *extension = RW_GAMECUBE_RASTER_EXTENSION(raster);
       if (extension->token == _RwDlTokenCurrent) {
         GXSetDrawSync(_RwDlTokenCurrent);
@@ -725,7 +756,12 @@ RwBool _rwDlRasterDestroy(void *unused, void *rasterIn, RwInt32 in) {
       if (_RwDlTexture != NULL && _RwDlTexture->raster == raster)
         _rwDlTextureSetRaster(_RwDlTexture, NULL, 0);
       RwEngineInstance->fpFree((void *)extension->reserved_0x18);
-    } else if (type != 1 && type != 2) {
+      break;
+    }
+    case 1:
+    case 2:
+      break;
+    default:
       DL_RASTER_ERROR(0x8000000D);
     }
   }
@@ -733,9 +769,10 @@ RwBool _rwDlRasterDestroy(void *unused, void *rasterIn, RwInt32 in) {
 }
 
 RwBool _rwDlTextureSetRaster(void *textureIn, void *rasterIn, RwInt32 unused) {
-  RwTexture *texture = textureIn;
-  texture->raster = rasterIn;
-  RW_GAMECUBE_TEXTURE_EXTENSION(texture)->flags = 0x01000000;
+  RwGameCubeTextureExt *extension;
+  ((RwTexture *)textureIn)->raster = rasterIn;
+  extension = RW_GAMECUBE_TEXTURE_EXTENSION((RwTexture *)textureIn);
+  extension->flags = 0x01000000;
   return TRUE;
 }
 
