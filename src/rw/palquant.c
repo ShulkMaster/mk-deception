@@ -1,163 +1,754 @@
-/* TODO: Missing implementation for retail unit palquant.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/palquant.h"
+#include "rw/rwfreelist.h"
 
-void *ToMatchSpace(void)
+typedef RwUInt32 OctantMap;
+
+static OctantMap splice[256];
+static RwUInt32 QuantDepth = 6;
+
+static void ToMatchSpace(RwRGBAReal* color)
 {
-    /* TODO: Missing canonical function implementation. */
+    color->red *= 0.5093697f;
+    color->blue *= 0.19420783f;
+}
+
+static void FromMatchSpace(RwRGBAReal* color)
+{
+    color->red /= 0.5093697f;
+    color->blue /= 0.19420783f;
+}
+
+static RwPalQuantLeafNode* InitLeaf(RwPalQuantLeafNode* leaf)
+{
+    leaf->palIndex = 0;
+    leaf->weight = 0.0f;
+    leaf->ac.red = 0.0f;
+    leaf->ac.green = 0.0f;
+    leaf->ac.blue = 0.0f;
+    leaf->ac.alpha = 0.0f;
+    leaf->variance = 0.0f;
+    return leaf;
+}
+
+static void LeafAddPixel(RwPalQuantLeafNode* leaf, RwRGBA* color,
+                         RwReal weight)
+{
+    RwRGBAReal realColor;
+    RwRGBA offset;
+    RwUInt8 mask = (1 << (8 - QuantDepth)) - 1;
+
+    offset.red = color->red & mask;
+    offset.green = color->green & mask;
+    offset.blue = color->blue & mask;
+    offset.alpha = color->alpha & mask;
+    realColor.red = (RwReal)offset.red * (1.0f / 255.0f);
+    realColor.green = (RwReal)offset.green * (1.0f / 255.0f);
+    realColor.blue = (RwReal)offset.blue * (1.0f / 255.0f);
+    realColor.alpha = (RwReal)offset.alpha * (1.0f / 255.0f);
+    ToMatchSpace(&realColor);
+    leaf->weight += weight;
+    leaf->variance += weight *
+        (realColor.red * realColor.red + realColor.green * realColor.green +
+         realColor.blue * realColor.blue + realColor.alpha * realColor.alpha);
+    realColor.red *= weight;
+    realColor.green *= weight;
+    realColor.blue *= weight;
+    realColor.alpha *= weight;
+    leaf->ac.red += realColor.red;
+    leaf->ac.green += realColor.green;
+    leaf->ac.blue += realColor.blue;
+    leaf->ac.alpha += realColor.alpha;
+}
+
+static void LeafCalcStats(RwPalQuantLeafNode* leaf, RwRGBA* origin)
+{
+    RwRGBAReal realColor;
+
+    leaf->variance -=
+        (leaf->ac.red * leaf->ac.red + leaf->ac.green * leaf->ac.green +
+         leaf->ac.blue * leaf->ac.blue + leaf->ac.alpha * leaf->ac.alpha) /
+        leaf->weight;
+    if (leaf->variance < 0.0f) leaf->variance = 0.0f;
+    realColor.red = (RwReal)origin->red * (1.0f / 255.0f);
+    realColor.green = (RwReal)origin->green * (1.0f / 255.0f);
+    realColor.blue = (RwReal)origin->blue * (1.0f / 255.0f);
+    realColor.alpha = (RwReal)origin->alpha * (1.0f / 255.0f);
+    ToMatchSpace(&realColor);
+    leaf->ac.red += realColor.red * leaf->weight;
+    leaf->ac.green += realColor.green * leaf->weight;
+    leaf->ac.blue += realColor.blue * leaf->weight;
+    leaf->ac.alpha += realColor.alpha * leaf->weight;
+}
+
+static void StatsAdd(RwPalQuantLeafNode* combined, RwPalQuantLeafNode* first,
+                     RwPalQuantLeafNode* second)
+{
+    combined->variance = first->variance + second->variance;
+    if (first->weight > 0.0f && second->weight > 0.0f) {
+        RwRGBAReal color1;
+        RwRGBAReal color2;
+        RwReal reciprocal1 = 1.0f / first->weight;
+        RwReal reciprocal2 = 1.0f / second->weight;
+        color1.red = first->ac.red * reciprocal1;
+        color1.green = first->ac.green * reciprocal1;
+        color1.blue = first->ac.blue * reciprocal1;
+        color1.alpha = first->ac.alpha * reciprocal1;
+        color2.red = second->ac.red * reciprocal2;
+        color2.green = second->ac.green * reciprocal2;
+        color2.blue = second->ac.blue * reciprocal2;
+        color2.alpha = second->ac.alpha * reciprocal2;
+        color1.red -= color2.red;
+        color1.green -= color2.green;
+        color1.blue -= color2.blue;
+        color1.alpha -= color2.alpha;
+        combined->variance +=
+            (color1.red * color1.red + color1.green * color1.green +
+             color1.blue * color1.blue + color1.alpha * color1.alpha) /
+            (reciprocal1 + reciprocal2);
+    }
+    combined->ac.red = first->ac.red + second->ac.red;
+    combined->ac.green = first->ac.green + second->ac.green;
+    combined->ac.blue = first->ac.blue + second->ac.blue;
+    combined->ac.alpha = first->ac.alpha + second->ac.alpha;
+    combined->weight = first->weight + second->weight;
+}
+
+static void StatsSub(RwPalQuantLeafNode* remainder,
+                     RwPalQuantLeafNode* whole,
+                     RwPalQuantLeafNode* subset)
+{
+    remainder->weight = whole->weight - subset->weight;
+    remainder->ac.red = whole->ac.red - subset->ac.red;
+    remainder->ac.green = whole->ac.green - subset->ac.green;
+    remainder->ac.blue = whole->ac.blue - subset->ac.blue;
+    remainder->ac.alpha = whole->ac.alpha - subset->ac.alpha;
+    remainder->variance = whole->variance - subset->variance;
+    if (remainder->weight > 0.0f && subset->weight > 0.0f) {
+        RwRGBAReal color1;
+        RwRGBAReal color2;
+        RwReal reciprocal1 = 1.0f / subset->weight;
+        RwReal reciprocal2 = 1.0f / remainder->weight;
+        color1.red = subset->ac.red * reciprocal1;
+        color1.green = subset->ac.green * reciprocal1;
+        color1.blue = subset->ac.blue * reciprocal1;
+        color1.alpha = subset->ac.alpha * reciprocal1;
+        color2.red = remainder->ac.red * reciprocal2;
+        color2.green = remainder->ac.green * reciprocal2;
+        color2.blue = remainder->ac.blue * reciprocal2;
+        color2.alpha = remainder->ac.alpha * reciprocal2;
+        color1.red -= color2.red;
+        color1.green -= color2.green;
+        color1.blue -= color2.blue;
+        color1.alpha -= color2.alpha;
+        remainder->variance -=
+            (color1.red * color1.red + color1.green * color1.green +
+             color1.blue * color1.blue + color1.alpha * color1.alpha) /
+            (reciprocal1 + reciprocal2);
+    }
+}
+
+static void RepresentativeColor(RwRGBA* color, RwPalQuantLeafNode* node)
+{
+    RwRGBAReal realColor;
+    RwInt32 rgba[4];
+
+    realColor.red = node->ac.red / node->weight;
+    realColor.green = node->ac.green / node->weight;
+    realColor.blue = node->ac.blue / node->weight;
+    realColor.alpha = node->ac.alpha / node->weight;
+    FromMatchSpace(&realColor);
+    rgba[0] = (RwInt32)(realColor.red * 255.99f);
+    rgba[1] = (RwInt32)(realColor.green * 255.99f);
+    rgba[2] = (RwInt32)(realColor.blue * 255.99f);
+    rgba[3] = (RwInt32)(realColor.alpha * 255.99f);
+    color->red = 255;
+    if (rgba[0] < 255) color->red = rgba[0];
+    color->green = 255;
+    if (rgba[1] < 255) color->green = rgba[1];
+    color->blue = 255;
+    if (rgba[2] < 255) color->blue = rgba[2];
+    color->alpha = 255;
+    if (rgba[3] < 255) color->alpha = rgba[3];
+}
+
+static RwPalQuantBranchNode* InitBranch(RwPalQuantBranchNode* branch)
+{
+    RwInt32 i;
+    for (i = 0; i < 16; i++) branch->dir[i] = 0;
+    return branch;
+}
+
+static OctantMap GetOctAdr(const RwRGBA* color)
+{
+    RwInt32 shift = 8 - QuantDepth;
+    return (splice[color->red >> shift] << 3) |
+           (splice[color->green >> shift] << 2) |
+           (splice[color->blue >> shift] << 1) |
+           splice[color->alpha >> shift];
+}
+
+static RwPalQuantOctNode* AllocateToLeaf(RwPalQuant* quantizer,
+                                         RwPalQuantOctNode* root,
+                                         OctantMap octants, RwInt32 depth)
+{
+    if (depth == 0) return root;
+    if (root->branch.dir[octants & 15] == 0) {
+        RwPalQuantOctNode* node = RwEngineInstance->fpFreeListAlloc(
+            quantizer->cubeFreeList, 0x30411);
+        root->branch.dir[octants & 15] = node;
+        InitBranch(&node->branch);
+        if (depth == 1) InitLeaf(&node->leaf);
+    }
+    return AllocateToLeaf(quantizer, root->branch.dir[octants & 15],
+                          octants >> 4, depth - 1);
+}
+
+void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
+                        RwReal weight)
+{
+
+    RwInt32 width;
+    RwInt32 height;
+    RwInt32 stride;
+    RwUInt8* pixels;
+    RwRGBA* palette;
+
+    stride = image->stride;
+    pixels = image->pixels;
+    palette = (RwRGBA*)image->palette;
+    height = image->height;
+
+    switch (image->depth) {
+    case 4:
+    case 8:
+        while (height--) {
+            RwUInt8* linePixels = pixels;
+            width = image->width;
+            while (width--) {
+                RwRGBA* color = &palette[*linePixels];
+                RwPalQuantOctNode* leaf = AllocateToLeaf(
+                    quantizer, quantizer->root, GetOctAdr(color), QuantDepth);
+                LeafAddPixel(&leaf->leaf, color, weight);
+                linePixels++;
+            }
+            pixels += stride;
+        }
+        break;
+    case 32:
+        while (height--) {
+            RwRGBA* color = (RwRGBA*)pixels;
+            width = image->width;
+            while (width--) {
+                RwPalQuantOctNode* leaf = AllocateToLeaf(
+                    quantizer, quantizer->root, GetOctAdr(color), QuantDepth);
+                LeafAddPixel(&leaf->leaf, color, weight);
+                color++;
+            }
+            pixels += stride;
+        }
+        break;
+    }
+}
+
+static void assignindex(RwPalQuantOctNode* root, RwInt32* origin,
+                        RwInt32 depth, RwPalQuantRGBABox* region,
+                        RwInt32 paletteIndex)
+{
+    RwPalQuantRGBABox testBox;
+    RwInt32 i;
+    RwInt32 dR;
+    RwInt32 dG;
+    RwInt32 dB;
+    RwInt32 dA;
+
+    if (root == 0) return;
+    testBox.col0[0] = origin[0];
+    testBox.col0[1] = origin[1];
+    testBox.col0[2] = origin[2];
+    testBox.col0[3] = origin[3];
+    testBox.col1[0] = origin[0] + (1 << depth);
+    testBox.col1[1] = origin[1] + (1 << depth);
+    testBox.col1[2] = origin[2] + (1 << depth);
+    testBox.col1[3] = origin[3] + (1 << depth);
+    dR = testBox.col1[0] - region->col0[0];
+    dG = testBox.col1[1] - region->col0[1];
+    dB = testBox.col1[2] - region->col0[2];
+    dA = testBox.col1[3] - region->col0[3];
+    if (dR <= 0 || dG <= 0 || dB <= 0 || dA <= 0) return;
+    dR = testBox.col0[0] - region->col1[0];
+    dG = testBox.col0[1] - region->col1[1];
+    dB = testBox.col0[2] - region->col1[2];
+    dA = testBox.col0[3] - region->col1[3];
+    if (dR >= 0 || dG >= 0 || dB >= 0 || dA >= 0) return;
+    if (depth == 0) {
+        root->leaf.palIndex = (RwUInt8)paletteIndex;
+    } else {
+        depth--;
+        for (i = 0; i < 16; i++) {
+            RwInt32 suborigin[4];
+            suborigin[0] = origin[0] + (((i >> 3) & 1) << depth);
+            suborigin[1] = origin[1] + (((i >> 2) & 1) << depth);
+            suborigin[2] = origin[2] + (((i >> 1) & 1) << depth);
+            suborigin[3] = origin[3] + ((i & 1) << depth);
+            assignindex(root->branch.dir[i], suborigin, depth, region,
+                        paletteIndex);
+        }
+    }
+}
+
+static void AssignPalIndex(RwPalQuantOctNode* root,
+                           RwPalQuantRGBABox* cube,
+                           RwInt32 paletteIndex)
+{
+    RwInt32 origin[4];
+    origin[0] = 0;
+    origin[1] = 0;
+    origin[2] = 0;
+    origin[3] = 0;
+    assignindex(root, origin, QuantDepth, cube, paletteIndex);
+}
+
+static void addvolume(RwPalQuantOctNode* root, RwInt32* origin,
+                      RwInt32 depth, RwPalQuantRGBABox* region,
+                      RwPalQuantLeafNode* volume)
+{
+    RwPalQuantRGBABox testBox;
+    RwInt32 i;
+    RwInt32 dR;
+    RwInt32 dG;
+    RwInt32 dB;
+    RwInt32 dA;
+
+    if (root == 0) return;
+    testBox.col0[0] = origin[0];
+    testBox.col0[1] = origin[1];
+    testBox.col0[2] = origin[2];
+    testBox.col0[3] = origin[3];
+    testBox.col1[0] = origin[0] + (1 << depth);
+    testBox.col1[1] = origin[1] + (1 << depth);
+    testBox.col1[2] = origin[2] + (1 << depth);
+    testBox.col1[3] = origin[3] + (1 << depth);
+    dR = testBox.col1[0] - region->col0[0];
+    dG = testBox.col1[1] - region->col0[1];
+    dB = testBox.col1[2] - region->col0[2];
+    dA = testBox.col1[3] - region->col0[3];
+    if (dR <= 0 || dG <= 0 || dB <= 0 || dA <= 0) return;
+    dR = testBox.col0[0] - region->col1[0];
+    dG = testBox.col0[1] - region->col1[1];
+    dB = testBox.col0[2] - region->col1[2];
+    dA = testBox.col0[3] - region->col1[3];
+    if (dR >= 0 || dG >= 0 || dB >= 0 || dA >= 0) return;
+    dR = testBox.col0[0] - region->col0[0];
+    dG = testBox.col0[1] - region->col0[1];
+    dB = testBox.col0[2] - region->col0[2];
+    dA = testBox.col0[3] - region->col0[3];
+    if (dR >= 0 && dG >= 0 && dB >= 0 && dA >= 0) {
+        dR = region->col1[0] - testBox.col1[0];
+        dG = region->col1[1] - testBox.col1[1];
+        dB = region->col1[2] - testBox.col1[2];
+        dA = region->col1[3] - testBox.col1[3];
+        if (dR >= 0 && dG >= 0 && dB >= 0 && dA >= 0) {
+            StatsAdd(volume, volume, &root->leaf);
+            return;
+        }
+    }
+    if (depth > 0) {
+        depth--;
+        for (i = 0; i < 16; i++) {
+            RwInt32 suborigin[4];
+            suborigin[0] = origin[0] + (((i >> 3) & 1) << depth);
+            suborigin[1] = origin[1] + (((i >> 2) & 1) << depth);
+            suborigin[2] = origin[2] + (((i >> 1) & 1) << depth);
+            suborigin[3] = origin[3] + ((i & 1) << depth);
+            addvolume(root->branch.dir[i], suborigin, depth, region, volume);
+        }
+    }
+}
+
+static RwPalQuantLeafNode* BoxStats(RwPalQuantLeafNode* volume,
+                                    RwPalQuantOctNode* root,
+                                    RwPalQuantRGBABox* cube)
+{
+    RwInt32 origin[4];
+    origin[0] = 0;
+    origin[1] = 0;
+    origin[2] = 0;
+    origin[3] = 0;
+    InitLeaf(volume);
+    addvolume(root, origin, QuantDepth, cube, volume);
+    return volume;
+}
+
+static RwReal FindBestCut(RwPalQuantOctNode* root, RwPalQuantRGBABox* cube,
+                          RwInt32 channel, RwInt32* cuts,
+                          RwPalQuantLeafNode* whole)
+{
+
+    RwPalQuantRGBABox leftCube;
+    RwPalQuantLeafNode left;
+    RwPalQuantLeafNode right;
+    RwReal minimum;
+    RwReal sum;
+    RwInt32 i;
+
+    minimum = whole->variance;
+    leftCube = *cube;
+    {
+        RwInt32 min;
+        RwInt32 max;
+        min = cube->col0[channel];
+        max = cube->col1[channel];
+        while (max - min > 1) {
+            i = min + ((max - min) >> 1);
+            leftCube.col1[channel] = i;
+            BoxStats(&left, root, &leftCube);
+            StatsSub(&right, whole, &left);
+            if (left.weight == 0.0f) {
+                min = i;
+            } else if (right.weight == 0.0f) {
+                max = i;
+            } else {
+                sum = left.variance + right.variance;
+                if (sum < minimum) {
+                    minimum = sum;
+                    cuts[channel] = leftCube.col1[channel];
+                }
+                if (left.variance < right.variance)
+                    min = i;
+                else
+                    max = i;
+            }
+        }
+    }
+    return minimum;
+}
+
+static RwBool nCut(RwPalQuantOctNode* root, RwPalQuantLeafNode* whole,
+                   RwPalQuantRGBABox* first, RwPalQuantRGBABox* second)
+{
+
+    RwReal minimum[4];
+    RwInt32 cuts[4];
+    RwInt32 i;
+    RwInt32 best;
+
+    minimum[0] = FindBestCut(root, first, 0, cuts, whole);
+    minimum[1] = FindBestCut(root, first, 1, cuts, whole);
+    minimum[2] = FindBestCut(root, first, 2, cuts, whole);
+    minimum[3] = FindBestCut(root, first, 3, cuts, whole);
+    best = 0;
+    for (i = 0; i < 4; i++) {
+        if (minimum[i] < minimum[best]) {
+            best = i;
+        }
+    }
+    if (minimum[best] < whole->variance) {
+        *second = *first;
+        first->col1[best] = second->col0[best] = (RwUInt8)cuts[best];
+        return 1;
+    }
     return 0;
 }
 
-void *FromMatchSpace(void)
+static RwPalQuantLeafNode* CalcNodeWeights(RwPalQuantOctNode* root,
+                                           RwRGBA* origin,
+                                           RwInt32 depth)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwPalQuantLeafNode* leaf = 0;
+    if (root != 0) {
+        leaf = &root->leaf;
+        if (depth > 0) {
+            RwInt32 i;
+            InitLeaf(leaf);
+            for (i = 0; i < 16; i++) {
+                RwRGBA suborigin;
+                RwPalQuantLeafNode* subnode;
+                RwUInt32 shift = depth - 1 +
+                                 (8 - QuantDepth);
+                RwUInt32 step = 1 << shift;
+                suborigin.red = origin->red + ((i & 8) != 0 ? step : 0);
+                suborigin.green = origin->green + ((i & 4) != 0 ? step : 0);
+                suborigin.blue = origin->blue + ((i & 2) != 0 ? step : 0);
+                suborigin.alpha = origin->alpha + ((i & 1) != 0 ? step : 0);
+                subnode = CalcNodeWeights(root->branch.dir[i], &suborigin,
+                                          depth - 1);
+                if (subnode != 0) StatsAdd(leaf, leaf, subnode);
+            }
+        } else {
+            LeafCalcStats(leaf, origin);
+        }
+    }
+    return leaf;
 }
 
-void *InitLeaf(void)
+static RwInt32 CountLeafs(RwPalQuantOctNode* root, RwInt32 depth)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+    RwInt32 i;
+    RwInt32 count;
+
+    count = 0;
+    if (root != 0) {
+        if (depth > 0) {
+            for (i = 0; i < 16; i++) {
+                count += CountLeafs(root->branch.dir[i], depth - 1);
+            }
+        } else {
+            count = 1;
+        }
+    }
+    return count;
 }
 
-void *LeafAddPixel(void)
+static RwInt32 ExtractNodes(RwPalQuantOctNode* root, RwRGBA* palette,
+                            RwInt32 nodeIndex, RwInt32 depth)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (root != 0) {
+        if (depth > 0) {
+            RwInt32 i;
+            for (i = 0; i < 16; i++)
+                nodeIndex = ExtractNodes(root->branch.dir[i], palette,
+                                         nodeIndex, depth - 1);
+        } else {
+            RepresentativeColor(&palette[nodeIndex], &root->leaf);
+            root->leaf.palIndex = (RwUInt8)nodeIndex;
+            nodeIndex++;
+        }
+    }
+    return nodeIndex;
 }
 
-void *LeafCalcStats(void)
+static RwUInt8 GetIndex(RwPalQuantOctNode* root, OctantMap octants,
+                        RwInt32 depth)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+    RwUInt8 result;
+    if (depth == 0)
+        result = root->leaf.palIndex;
+    else
+        result = GetIndex(root->branch.dir[octants & 15], octants >> 4,
+                          depth - 1);
+    return result;
 }
 
-void *StatsAdd(void)
+RwInt32 RwPalQuantResolvePalette(RwRGBA* palette, RwInt32 maxColors,
+                                 RwPalQuant* quantizer)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 numColors;
+    RwInt32 uniqueColors;
+    RwInt32 i;
+    RwRGBA origin = { 0, 0, 0, 0 };
+
+    CalcNodeWeights(quantizer->root, &origin, QuantDepth);
+    for (i = 0; i < maxColors; i++) {
+        palette[i].red = 0;
+        palette[i].green = 0;
+        palette[i].blue = 0;
+        palette[i].alpha = 0;
+    }
+    numColors = maxColors;
+    uniqueColors = CountLeafs(quantizer->root, QuantDepth);
+    if (uniqueColors <= numColors) {
+        numColors = uniqueColors;
+        ExtractNodes(quantizer->root, palette, 0, QuantDepth);
+    } else {
+        quantizer->cubes[0].col0[0] = 0;
+        quantizer->cubes[0].col0[1] = 0;
+        quantizer->cubes[0].col0[2] = 0;
+        quantizer->cubes[0].col0[3] = 0;
+        quantizer->cubes[0].col1[0] = 1 << QuantDepth;
+        quantizer->cubes[0].col1[1] = 1 << QuantDepth;
+        quantizer->cubes[0].col1[2] = 1 << QuantDepth;
+        quantizer->cubes[0].col1[3] = 1 << QuantDepth;
+        BoxStats(&quantizer->volumes[0], quantizer->root,
+                 &quantizer->cubes[0]);
+        quantizer->variances[0] = quantizer->volumes[0].variance;
+        for (i = 1; i < numColors; i++) {
+            RwInt32 nextSplit = -1;
+            RwInt32 k;
+            RwReal maximum = 0.0f;
+            for (k = 0; k < i; k++) {
+                if (quantizer->variances[k] > maximum) {
+                    maximum = quantizer->variances[k];
+                    nextSplit = k;
+                }
+            }
+            if (nextSplit == -1) break;
+            if (nCut(quantizer->root, &quantizer->volumes[nextSplit],
+                     &quantizer->cubes[nextSplit], &quantizer->cubes[i])) {
+                BoxStats(&quantizer->volumes[nextSplit], quantizer->root,
+                         &quantizer->cubes[nextSplit]);
+                BoxStats(&quantizer->volumes[i], quantizer->root,
+                         &quantizer->cubes[i]);
+                quantizer->variances[nextSplit] =
+                    quantizer->volumes[nextSplit].variance;
+                quantizer->variances[i] = quantizer->volumes[i].variance;
+            } else {
+                quantizer->variances[nextSplit] = 0.0f;
+                i--;
+            }
+        }
+        for (i = 0; i < numColors; i++) {
+            AssignPalIndex(quantizer->root, &quantizer->cubes[i], i);
+            RepresentativeColor(&palette[i], &quantizer->volumes[i]);
+        }
+    }
+    return numColors;
 }
 
-void *StatsSub(void)
+void RwPalQuantMatchImage(RwUInt8* destinationPixels,
+                          RwInt32 destinationStride,
+                          RwInt32 destinationDepth, RwBool packed,
+                          RwPalQuant* quantizer, RwImage* image)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+    RwUInt32 width;
+    RwUInt32 x;
+    RwUInt32 height;
+    RwUInt32 stride = image->stride;
+    RwUInt8* pixels = image->pixels;
+    RwUInt8* destination;
+    RwUInt8 nodeIndex;
+    OctantMap octants;
+
+    if (destinationDepth == 4 && packed == 1) {
+        switch (image->depth) {
+        case 4:
+        case 8: {
+            RwRGBA* palette = (RwRGBA*)image->palette;
+            height = image->height;
+            while (height--) {
+                RwUInt8* source = pixels;
+                destination = destinationPixels;
+                width = image->width;
+                for (x = 0; x < width; x++) {
+                    RwRGBA* color = &palette[*source++];
+                    octants = GetOctAdr(color);
+                    nodeIndex =
+                        GetIndex(quantizer->root, octants, QuantDepth);
+                    if (x & 1) {
+                        *destination &= 0x0F;
+                        *destination |= (nodeIndex & 0x0F) << 4;
+                        destination++;
+                    } else {
+                        *destination &= 0xF0;
+                        *destination |= nodeIndex & 0x0F;
+                    }
+                }
+                pixels += stride;
+                destinationPixels += destinationStride;
+            }
+            break;
+        }
+        case 32:
+            height = image->height;
+            while (height--) {
+                RwRGBA* source = (RwRGBA*)pixels;
+                destination = destinationPixels;
+                width = image->width;
+                for (x = 0; x < width; x++) {
+                    RwRGBA* color = source++;
+                    octants = GetOctAdr(color);
+                    nodeIndex =
+                        GetIndex(quantizer->root, octants, QuantDepth);
+                    if (x & 1) {
+                        *destination &= 0x0F;
+                        *destination |= (nodeIndex & 0x0F) << 4;
+                        destination++;
+                    } else {
+                        *destination &= 0xF0;
+                        *destination |= nodeIndex & 0x0F;
+                    }
+                }
+                pixels += stride;
+                destinationPixels += destinationStride;
+            }
+            break;
+        }
+    } else {
+        switch (image->depth) {
+        case 4:
+        case 8: {
+            RwRGBA* palette = (RwRGBA*)image->palette;
+            height = image->height;
+            while (height--) {
+                RwUInt8* source = pixels;
+                destination = destinationPixels;
+                width = image->width;
+                while (width--) {
+                    RwRGBA* color = &palette[*source++];
+                    octants = GetOctAdr(color);
+                    nodeIndex =
+                        GetIndex(quantizer->root, octants, QuantDepth);
+                    *destination++ = nodeIndex;
+                }
+                pixels += stride;
+                destinationPixels += destinationStride;
+            }
+            break;
+        }
+        case 32:
+            height = image->height;
+            while (height--) {
+                RwRGBA* source = (RwRGBA*)pixels;
+                destination = destinationPixels;
+                width = image->width;
+                while (width--) {
+                    RwRGBA* color = source++;
+                    octants = GetOctAdr(color);
+                    nodeIndex =
+                        GetIndex(quantizer->root, octants, QuantDepth);
+                    *destination++ = nodeIndex;
+                }
+                pixels += stride;
+                destinationPixels += destinationStride;
+            }
+            break;
+        }
+    }
 }
 
-void *RepresentativeColor(void)
+RwBool RwPalQuantInit(RwPalQuant* quantizer)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwUInt32 i;
+    RwUInt32 j;
+    RwUInt32 maxValue = 1 << QuantDepth;
+
+    for (i = 0; i < maxValue; i++) {
+        OctantMap mask = 0;
+        for (j = 0; j < QuantDepth; j++)
+            mask |= (i & (1 << j))
+                        ? 1 << ((QuantDepth - 1 - j) * 4)
+                        : 0;
+        splice[i] = mask;
+    }
+    quantizer->cubeFreeList =
+        RwFreeListCreate(sizeof(RwPalQuantOctNode), 0x400, 4, 0x30411);
+    quantizer->root = RwEngineInstance->fpFreeListAlloc(
+        quantizer->cubeFreeList, 0x30411);
+    InitBranch(&quantizer->root->branch);
+    return 1;
 }
 
-void *InitBranch(void)
+static void DeleteOctTree(RwPalQuant* quantizer, RwPalQuantOctNode* root,
+                          RwInt32 depth)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+    RwInt32 i;
+    if (root != 0) {
+        if (depth > 0) {
+            for (i = 0; i < 16; i++) {
+                DeleteOctTree(quantizer, root->branch.dir[i], depth - 1);
+            }
+        }
+        RwEngineInstance->fpFreeListFree(quantizer->cubeFreeList, root);
+    }
 }
 
-void *GetOctAdr(void)
+void RwPalQuantTerm(RwPalQuant* quantizer)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *AllocateToLeaf(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *RwPalQuantAddImage(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *assignindex(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *AssignPalIndex(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *addvolume(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *BoxStats(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *FindBestCut(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *nCut(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *CalcNodeWeights(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *CountLeafs(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *ExtractNodes(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *GetIndex(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *RwPalQuantResolvePalette(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *RwPalQuantMatchImage(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *RwPalQuantInit(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DeleteOctTree(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *RwPalQuantTerm(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    DeleteOctTree(quantizer, quantizer->root, QuantDepth);
+    quantizer->root = 0;
+    RwFreeListDestroy(quantizer->cubeFreeList);
 }
