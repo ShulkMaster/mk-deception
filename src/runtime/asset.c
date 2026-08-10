@@ -846,7 +846,7 @@ void process_art_section_data(SecSlotFileEntry* entry) {
                     while ((unsigned int)last_non_tex < (unsigned int)entry->member_count) {
                         member = &entry->members[last_non_tex];
                         skip = member->data_offset -
-                               (int)stream->bufferPosition;
+                               (int)stream->data.memory.position;
                         if (skip != 0) {
                             RwStreamSkip(stream, (unsigned long)skip);
                         }

@@ -1,13 +1,30 @@
-/* TODO: Missing implementation for retail unit batypehf.c. */
+#include "rw/rwtypehf.h"
 
-void *_rwObjectHasFrameSetFrame(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+extern RwFrame* RwFrameUpdateObjects(RwFrame* frame);
+
+void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame) {
+    RwObjectHasFrame* objectHasFrame = object;
+
+    if (objectHasFrame->object.parent != 0) {
+        objectHasFrame->lFrame.prev->next = objectHasFrame->lFrame.next;
+        objectHasFrame->lFrame.next->prev = objectHasFrame->lFrame.prev;
+    }
+
+    ((RwObject*)object)->parent = frame;
+    if (frame != 0) {
+        objectHasFrame->lFrame.next = frame->objectList.link.next;
+        objectHasFrame->lFrame.prev = &frame->objectList.link;
+        frame->objectList.link.next->prev = &objectHasFrame->lFrame;
+        frame->objectList.link.next = &objectHasFrame->lFrame;
+        RwFrameUpdateObjects(frame);
+    }
 }
 
-void *_rwObjectHasFrameReleaseFrame(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void _rwObjectHasFrameReleaseFrame(void* object) {
+    RwObjectHasFrame* objectHasFrame = object;
+
+    if (objectHasFrame->object.parent != 0) {
+        objectHasFrame->lFrame.prev->next = objectHasFrame->lFrame.next;
+        objectHasFrame->lFrame.next->prev = objectHasFrame->lFrame.prev;
+    }
 }

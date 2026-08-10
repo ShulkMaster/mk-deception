@@ -11,6 +11,7 @@ int memcmp(const void* lhs, const void* rhs, unsigned long size);
 char* strcpy(char* destination, const char* source);
 char* strncpy(char* destination, const char* source, unsigned long count);
 char* strcat(char* destination, const char* source);
+char* strncat(char* destination, const char* source, unsigned long count);
 char* strchr(const char* string, int character);
 char* strrchr(const char* string, int character);
 char* strstr(const char* string, const char* substring);

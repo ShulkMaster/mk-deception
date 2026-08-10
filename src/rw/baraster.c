@@ -2,8 +2,7 @@
 #include "libmkparticle/rw_engine.h"
 
 extern int rasterModule;
-extern char rasterTKList[];
-extern void* _rwPluginRegistryInitObject(void* registry, void* object);
+extern RwPluginRegistry rasterTKList;
 
 typedef struct RwRasterModuleGlobals {
     char pad00[0x60];
@@ -62,7 +61,7 @@ RwRaster* RwRasterCreate(int width, int height, int depth, int flags) {
         return 0;
     }
 
-    _rwPluginRegistryInitObject(rasterTKList, raster);
+    _rwPluginRegistryInitObject(&rasterTKList, raster);
     return raster;
 }
 

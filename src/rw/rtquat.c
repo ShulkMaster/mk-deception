@@ -1,17 +1,4 @@
-/*
- * Port readiness:
- *   Structs: CLEAN
- *   Matching: 100.00% (.text)
- *   Linked: YES
- *   Status: READY
- *   Gaps: none
- */
 #include "rw/rtquat.h"
-
-/* rtquat.a/rtquat.obj -- RtQuatConvertFromMatrix + diag helpers.
- * Algorithm from GQNE5D ASM; types from BFBB rtquat/rwplcore.
- * PS2 MKD / MKDHook = API only, never EE ASM.
- * Build: -opt off -O0 -inline off (see configure.py). */
 
 static RtQuat* QuatFromPositiveDiagMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix, RwReal T) {
     RwReal S;
@@ -76,23 +63,12 @@ static RtQuat* QuatFromZDiagDomMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix) 
 typedef RtQuat* (*QuatFromMatrixFn)(RtQuat* qpQuat, const RwMatrix* mpMatrix);
 
 RwBool RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix) {
-    /* Locals ordered for MWCC -O0 (matches retail stack/register layout). */
-    RwBool ok;
-    RwBool result;
+    RwBool valid;
 
-    result = FALSE;
-    if (qpQuat != NULL) {
-        if (mpMatrix != NULL) {
-            result = TRUE;
-        }
-    }
+    valid = qpQuat != 0 && mpMatrix != 0;
 
-    ok = result;
-    if (ok) {
-        QuatFromMatrixFn tmpX;
-        QuatFromMatrixFn func;
-        QuatFromMatrixFn tmpY;
-        QuatFromMatrixFn call;
+    if (valid) {
+        QuatFromMatrixFn convert;
         RwReal T;
 
         T = mpMatrix->at.z + (mpMatrix->right.x + mpMatrix->up.y);
@@ -102,24 +78,20 @@ RwBool RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix) {
         } else {
             if (mpMatrix->right.x > mpMatrix->up.y) {
                 if (mpMatrix->right.x > mpMatrix->at.z) {
-                    tmpX = QuatFromXDiagDomMatrix;
+                    convert = QuatFromXDiagDomMatrix;
                 } else {
-                    tmpX = QuatFromZDiagDomMatrix;
+                    convert = QuatFromZDiagDomMatrix;
                 }
-                func = tmpX;
             } else {
                 if (mpMatrix->up.y > mpMatrix->at.z) {
-                    tmpY = QuatFromYDiagDomMatrix;
+                    convert = QuatFromYDiagDomMatrix;
                 } else {
-                    tmpY = QuatFromZDiagDomMatrix;
+                    convert = QuatFromZDiagDomMatrix;
                 }
-                func = tmpY;
             }
-
-            call = func;
-            (call)(qpQuat, mpMatrix);
+            convert(qpQuat, mpMatrix);
         }
     }
 
-    return ok;
+    return valid;
 }

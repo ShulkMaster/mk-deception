@@ -4,7 +4,7 @@
 #include "rw/rwcore_types.h"
 
 extern int textureModule;
-extern char textureTKList[];
+extern RwPluginRegistry textureTKList;
 
 int TextureAnnihilate(RwTexture* texture);
 RwTexDictionary* RwTexDictionaryGetCurrent(void);

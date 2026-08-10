@@ -1,25 +1,37 @@
-/* TODO: Missing implementation for retail unit bafsys.c. */
+#include "libmkparticle/rw_engine.h"
+#include "runtime/cfile.h"
 
-void *RwOsGetFileInterface(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RwFileFunctions* RwOsGetFileInterface(void) {
+    return &RwEngineInstance->fileFuncs;
 }
 
-void *rwfexist(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+static RwBool rwfexist(const RwChar* name) {
+    void* file;
+    RwBool exists;
+
+    file = RwEngineInstance->fileFuncs.open(name, "rb");
+    exists = file != 0;
+
+    if (file != 0) {
+        RwEngineInstance->fileFuncs.close(file);
+    }
+    return exists;
 }
 
-void *_rwFileSystemOpen(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RwBool _rwFileSystemOpen(void) {
+    RwEngineInstance->fileFuncs.exists = rwfexist;
+    RwEngineInstance->fileFuncs.open = (RwFileOpenCall)fopen;
+    RwEngineInstance->fileFuncs.close = (RwFileCloseCall)fclose;
+    RwEngineInstance->fileFuncs.read = (RwFileReadCall)fread;
+    RwEngineInstance->fileFuncs.write = (RwFileWriteCall)fwrite;
+    RwEngineInstance->fileFuncs.gets = (RwFileGetsCall)fgets;
+    RwEngineInstance->fileFuncs.puts = (RwFilePutsCall)fputs;
+    RwEngineInstance->fileFuncs.eof = (RwFileEofCall)feof;
+    RwEngineInstance->fileFuncs.seek = (RwFileSeekCall)fseek;
+    RwEngineInstance->fileFuncs.flush = (RwFileFlushCall)fflush;
+    RwEngineInstance->fileFuncs.tell = (RwFileTellCall)ftell;
+    return 1;
 }
 
-void *_rwFileSystemClose(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+void _rwFileSystemClose(void) {}

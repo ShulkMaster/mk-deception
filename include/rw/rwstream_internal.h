@@ -1,9 +1,15 @@
 #ifndef RW_RWSTREAM_INTERNAL_H
 #define RW_RWSTREAM_INTERNAL_H
 
+#include "rw/rwcore_types.h"
+#include "rw/rwplcore.h"
+
+typedef struct RpGeometry RpGeometry;
+typedef struct RpMaterialList RpMaterialList;
+
 typedef struct RwFrameList {
     RwFrame** frames;
-    int num_frames;
+    RwInt32 numFrames;
 } RwFrameList;
 
 typedef struct RpGeometryList {
@@ -11,16 +17,19 @@ typedef struct RpGeometryList {
     int num_geometries;
 } RpGeometryList;
 
-int _rwFrameListStreamRead(RwStream* stream, RwFrameList* frame_list);
-void _rwFrameListDeinitialize(RwFrameList* frame_list);
+RwFrameList* _rwFrameListStreamRead(RwStream* stream, RwFrameList* frameList);
+RwFrameList* _rwFrameListDeinitialize(RwFrameList* frameList);
 void GeometryListDeinitialize(RpGeometryList* geometry_list);
-RwStream* _rpMaterialListStreamRead(RwStream* stream,
-                                    RpMaterialList* material_list);
-unsigned int _rpMaterialListInitialize(RpMaterialList* material_list);
-RwStream* _rwPluginRegistryReadDataChunks(RwPluginRegistry* registry,
-                                          RwStream* stream, void* object);
-void* _rwPluginRegistryInvokeRights(RwPluginRegistry* registry,
-                                    unsigned int plugin_id, void* object,
-                                    int extra_data);
-
+RpMaterialList* _rpMaterialListStreamRead(RwStream* stream,
+                                          RpMaterialList* materialList);
+RpMaterialList* _rpMaterialListInitialize(RpMaterialList* materialList);
+RwInt32 _rwStringStreamGetSize(const RwChar* string);
+const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream);
+RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream);
+RwStream* _rwStreamWriteVersionedChunkHeader(
+    RwStream* stream, RwInt32 type, RwInt32 size, RwUInt32 version,
+    RwUInt32 buildNum);
+RwBool _rwStreamReadChunkHeader(RwStream* stream, RwUInt32* type,
+                                RwUInt32* length, RwUInt32* version,
+                                RwUInt32* buildNum);
 #endif

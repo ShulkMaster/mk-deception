@@ -10,12 +10,39 @@ typedef struct RwObject {
     void* parent;               /**< Retail offset 0x04; commonly an `RwFrame*`. */
 } RwObject;
 
-/** Partial RenderWare stream view; complete object extent is unknown. */
+typedef int RwStreamType;
+typedef int RwStreamAccessType;
+typedef void (*RwStreamCloseCallBack)(void* data);
+typedef unsigned int (*RwStreamReadCallBack)(void* data, void* buffer,
+                                             unsigned int length);
+typedef int (*RwStreamWriteCallBack)(void* data, const void* buffer,
+                                     unsigned int length);
+typedef int (*RwStreamSkipCallBack)(void* data, unsigned int offset);
+
+typedef struct RwStreamCustom {
+    RwStreamCloseCallBack close;
+    RwStreamReadCallBack read;
+    RwStreamWriteCallBack write;
+    RwStreamSkipCallBack skip;
+    void* data;
+} RwStreamCustom;
+
 typedef struct RwStream {
-    char pad00[0x0C];          /**< Retail offsets 0x00-0x0B; fields unknown. */
-    unsigned int bufferPosition; /**< Retail offset 0x0C. */
-    char pad10[0x04];          /**< Retail offsets 0x10-0x13; fields unknown. */
-    unsigned char* data;       /**< Retail offset 0x14. */
+    RwStreamType type;
+    RwStreamAccessType accessType;
+    unsigned int field_08;
+    union {
+        struct {
+            void* file;
+        } file;
+        struct {
+            unsigned int position;
+            unsigned int length;
+            unsigned char* start;
+        } memory;
+        RwStreamCustom custom;
+    } data;
+    int owned;
 } RwStream;
 
 #endif

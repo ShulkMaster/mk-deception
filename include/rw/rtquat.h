@@ -4,8 +4,6 @@
 #include "math/gxVect.h"
 #include "rw/rwplcore.h"
 
-/* RtQuat + RwMatrix layouts from BFBB include/rwsdk (PS2 MKD = API only). */
-
 typedef struct RwMatrixPosition {
     Vec value;
     RwUInt32 pad;
@@ -36,12 +34,21 @@ typedef struct RtQuat {
     RwReal real;
 } RtQuat;
 
+typedef int RwOpCombineType;
+
 RwReal _rwSqrt(RwReal num);
 
 RwBool RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix);
 
-RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation, int combineOp);
-RwMatrix* RwMatrixScale(RwMatrix* matrix, const RwV3d* scale, int combineOp);
-RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, RwReal angle, int combineOp);
+RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation,
+                            RwOpCombineType combineOp);
+RwMatrix* RwMatrixScale(RwMatrix* matrix, const RwV3d* scale,
+                        RwOpCombineType combineOp);
+RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, RwReal angle,
+                         RwOpCombineType combineOp);
+RwMatrix* RwMatrixTransform(RwMatrix* matrix, const RwMatrix* transform,
+                            RwOpCombineType combineOp);
+RwMatrix* RwMatrixOrthoNormalize(RwMatrix* matrixOut,
+                                 const RwMatrix* matrixIn);
 
 #endif

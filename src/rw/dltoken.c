@@ -1,7 +1,26 @@
-/* TODO: Missing implementation for retail unit dltoken.c. */
+#include "rw/rwplcore.h"
+#include "dolphin/gx.h"
 
-void *_rwDlTokenQueryDone(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RwUInt16 _RwDlTokenCurrent = 1;
+RwUInt16 _RwDlTokenLastSeen;
+
+RwBool _rwDlTokenQueryDone(RwUInt16 token) {
+    _RwDlTokenLastSeen = GXReadDrawSync();
+    if (_RwDlTokenLastSeen >= 0xE000) {
+        return 0;
+    }
+
+    if (_RwDlTokenCurrent >= _RwDlTokenLastSeen) {
+        RwBool done = 1;
+        if (token > _RwDlTokenLastSeen && token <= _RwDlTokenCurrent) {
+            done = 0;
+        }
+        return done;
+    } else {
+        RwBool done = 0;
+        if (token > _RwDlTokenCurrent && token <= _RwDlTokenLastSeen) {
+            done = 1;
+        }
+        return done;
+    }
 }
