@@ -1292,6 +1292,8 @@ config.libs = [
             Object(Matching, "rpmatfx.a/multiTexGcn.obj",
                    source="rw/multiTexGcn.c",
                    extra_cflags=["-opt", "off", "-O0"]),
+            Object(NonMatching, "rpmatfx.a/nbtGen.obj", source="rw/nbtGen.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
     ),
     RenderWareLib(
