@@ -1399,6 +1399,9 @@ config.libs = [
             Object(NonMatching, "rpskin.a/skingcnasm.obj",
                    source="rw/skingcnasm.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+            Object(NonMatching, "rpskin.a/skingcn.obj",
+                   source="rw/skingcn.c",
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],
     ),
     RenderWareLib(
