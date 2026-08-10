@@ -1,17 +1,39 @@
 #ifndef RW_RWOBJECT_H
 #define RW_RWOBJECT_H
 
-/** Stock RenderWare object header. Retail layout: 0x08 bytes. */
+
 typedef struct RwObject {
-    unsigned char type;         /**< Retail offset 0x00. */
-    unsigned char subType;      /**< Retail offset 0x01. */
-    unsigned char flags;        /**< Retail offset 0x02. */
-    unsigned char privateFlags; /**< Retail offset 0x03. */
-    void* parent;               /**< Retail offset 0x04; commonly an `RwFrame*`. */
+    unsigned char type;
+    unsigned char subType;
+    unsigned char flags;
+    unsigned char privateFlags;
+    void* parent;
 } RwObject;
 
-typedef int RwStreamType;
-typedef int RwStreamAccessType;
+static inline void rwObjectInitialize(void* object, int objectType,
+                                      int objectSubType)
+{
+    RwObject* header = (RwObject*)object;
+    header->type = (unsigned char)objectType;
+    header->subType = (unsigned char)objectSubType;
+    header->flags = 0;
+    header->privateFlags = 0;
+    header->parent = 0;
+}
+
+typedef enum RwStreamType {
+    rwSTREAMFILE = 1,
+    rwSTREAMFILENAME = 2,
+    rwSTREAMMEMORY = 3,
+    rwSTREAMCUSTOM = 4
+} RwStreamType;
+
+typedef enum RwStreamAccessType {
+    rwSTREAMREAD = 1,
+    rwSTREAMWRITE = 2,
+    rwSTREAMAPPEND = 3
+} RwStreamAccessType;
+
 typedef void (*RwStreamCloseCallBack)(void* data);
 typedef unsigned int (*RwStreamReadCallBack)(void* data, void* buffer,
                                              unsigned int length);
@@ -27,14 +49,13 @@ typedef struct RwStreamCustom {
     void* data;
 } RwStreamCustom;
 
+
 typedef struct RwStream {
     RwStreamType type;
     RwStreamAccessType accessType;
-    unsigned int field_08;
+    unsigned int reserved;
     union {
-        struct {
-            void* file;
-        } file;
+        struct { void* file; } file;
         struct {
             unsigned int position;
             unsigned int length;
