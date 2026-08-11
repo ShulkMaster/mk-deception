@@ -375,7 +375,7 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, void* owner) {
     RwLLLink* sentinel = &clump->atomicList;
 
     while (link != sentinel) {
-        RpAtomic* atomic = RP_ATOMIC_FROM_CLUMP_LINK(link);
+        RpAtomic* atomic = RpAtomicFromClumpLink(link);
         RpGeometry* geometry = atomic->geometry;
         RwLLLink* next = link->next;
         MksobjPluginData* atomic_data = MK_ATOMIC_PLUGIN(atomic);

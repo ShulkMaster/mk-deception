@@ -1,49 +1,225 @@
-/* TODO: Missing implementation for retail unit bamatlst.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/rpworld_types.h"
+#include "rw/rwerror.h"
+#include "rw/rwstream.h"
+#include "rw/rwstream_internal.h"
 
-void *_rpMaterialListDeinitialize(void)
+static RpMaterial* MaterialAddRef(RpMaterial* material)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    material->refCount++;
+    return material;
 }
 
-void *_rpMaterialListInitialize(void)
+static RpMaterial **_rpMaterialListAlloc(RwInt32 size);
+
+RpMaterialList *_rpMaterialListDeinitialize(RpMaterialList *materialList)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMaterial **materials = materialList->materials;
+
+    if (materials != 0) {
+        RwInt32 numMaterials = materialList->numMaterials;
+        RwInt32 index;
+
+        for (index = 0; index < numMaterials; index++) {
+            RpMaterialDestroy(materials[index]);
+            materials[index] = 0;
+        }
+        RwEngineInstance->fpFree(materials);
+        materials = 0;
+        materialList->materials = materials;
+    }
+    materialList->numMaterials = 0;
+    materialList->space = 0;
+    return materialList;
 }
 
-void *_rpMaterialListAlloc(void)
+RpMaterialList *_rpMaterialListInitialize(RpMaterialList *materialList)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    materialList->space = 0;
+    materialList->materials = 0;
+    materialList->numMaterials = 0;
+    return materialList;
 }
 
-void *_rpMaterialListGetMaterial(void)
+static RpMaterial **_rpMaterialListAlloc(RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+
+
+    RpMaterial **materials;
+    RwUInt32 bytes = size * sizeof(RpMaterial *);
+
+    materials = RwEngineInstance->fpMalloc(bytes, 0x1030008);
+    return materials;
 }
 
-void *_rpMaterialListSetSize(void)
+RpMaterial *_rpMaterialListGetMaterial(const RpMaterialList *materialList,
+                                       RwInt32 index)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return materialList->materials[index];
 }
 
-void *_rpMaterialListAppendMaterial(void)
+RpMaterialList *_rpMaterialListSetSize(RpMaterialList *materialList,
+                                       RwInt32 size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (materialList->space < size) {
+        RpMaterial **materials;
+        RwUInt32 bytes = size * sizeof(RpMaterial *);
+
+        if (materialList->materials != 0) {
+            materials = RwEngineInstance->fpRealloc(materialList->materials,
+                                                    bytes, 0x1030008);
+        } else {
+            materials = RwEngineInstance->fpMalloc(bytes, 0x1030008);
+        }
+        if (materials == 0) {
+            RwError error;
+            error.pluginID = 2;
+            error.errorCode = _rwerror(0x80000013, bytes);
+            RwErrorSet(&error);
+            return 0;
+        }
+        materialList->materials = materials;
+        materialList->space = size;
+    }
+    return materialList;
 }
 
-void *_rpMaterialListFindMaterialIndex(void)
+RwInt32 _rpMaterialListAppendMaterial(RpMaterialList *materialList,
+                                      RpMaterial *material)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RpMaterial **materials;
+
+    if (materialList->space > materialList->numMaterials) {
+        materials = materialList->materials + materialList->numMaterials;
+        *materials = material;
+        MaterialAddRef(material);
+        materialList->numMaterials++;
+        return materialList->numMaterials - 1;
+    }
+
+    {
+        RwInt32 space = materialList->space + 20;
+        RwUInt32 bytes = space * sizeof(RpMaterial *);
+
+        if (materialList->materials != 0) {
+            materials = RwEngineInstance->fpRealloc(materialList->materials,
+                                                    bytes, 0x1030008);
+        } else {
+            materials = _rpMaterialListAlloc(space);
+        }
+        if (materials == 0) {
+            RwError error;
+            error.pluginID = 2;
+            error.errorCode = _rwerror(0x80000013, bytes);
+            RwErrorSet(&error);
+            return -1;
+        }
+        materialList->materials = materials;
+        materialList->space += 20;
+    }
+
+    materials[materialList->numMaterials] = material;
+    MaterialAddRef(material);
+    materialList->numMaterials++;
+    return materialList->numMaterials - 1;
 }
 
-void *_rpMaterialListStreamRead(void)
+RwInt32 _rpMaterialListFindMaterialIndex(const RpMaterialList *materialList,
+                                         const RpMaterial *material)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    RwInt32 index = materialList->numMaterials;
+
+    while (index-- > 0) {
+        if (materialList->materials[index] == material) {
+            break;
+        }
+    }
+    return index;
+}
+
+
+
+RpMaterialList *_rpMaterialListStreamRead(RwStream *stream,
+                                          RpMaterialList *materialList)
+{
+    RwInt32 numMaterials;
+    RwUInt32 length;
+    RwUInt32 version;
+    RwInt32 *materialIndices;
+    RwInt32 index;
+    RwBool status;
+
+    if (!RwStreamFindChunk(stream, 1, &length, &version)) {
+        return 0;
+    }
+    if (version >= 0x34000 && version <= 0x36003) {
+        status = RwStreamReadInt32(stream, &numMaterials,
+                                   sizeof(numMaterials)) != 0;
+        if (!status) {
+            return 0;
+        }
+
+        _rpMaterialListInitialize(materialList);
+        if (numMaterials == 0) {
+            return materialList;
+        }
+        if (_rpMaterialListSetSize(materialList, numMaterials) == 0) {
+            _rpMaterialListDeinitialize(materialList);
+            return 0;
+        }
+
+        materialIndices =
+            RwEngineInstance->fpMalloc(numMaterials * sizeof(RwInt32), 0x10501);
+        status = RwStreamReadInt32(stream, materialIndices,
+                                   numMaterials * sizeof(RwInt32)) != 0;
+        if (!status) {
+            RwEngineInstance->fpFree(materialIndices);
+            _rpMaterialListDeinitialize(materialList);
+            return 0;
+        }
+
+        for (index = 0; index < numMaterials; index++) {
+            RpMaterial *material;
+
+            if (materialIndices[index] < 0) {
+                if (!RwStreamFindChunk(stream, 7, 0, &version)) {
+                    RwEngineInstance->fpFree(materialIndices);
+                    _rpMaterialListDeinitialize(materialList);
+                    return 0;
+                }
+                if (version >= 0x34000 && version <= 0x36003) {
+                    material = RpMaterialStreamRead(stream);
+                    if (material == 0) {
+                        RwEngineInstance->fpFree(materialIndices);
+                        _rpMaterialListDeinitialize(materialList);
+                        return 0;
+                    }
+                } else {
+                    RwError error;
+                    error.pluginID = 2;
+                    error.errorCode = _rwerror(0x80000004);
+                    RwErrorSet(&error);
+                    RwEngineInstance->fpFree(materialIndices);
+                    _rpMaterialListDeinitialize(materialList);
+                    return 0;
+                }
+            } else {
+                material = _rpMaterialListGetMaterial(materialList,
+                                                      materialIndices[index]);
+                MaterialAddRef(material);
+            }
+
+            _rpMaterialListAppendMaterial(materialList, material);
+            RpMaterialDestroy(material);
+        }
+
+        RwEngineInstance->fpFree(materialIndices);
+        return materialList;
+    } else {
+        RwError error;
+        error.pluginID = 2;
+        error.errorCode = _rwerror(0x80000004);
+        RwErrorSet(&error);
+        return 0;
+    }
 }

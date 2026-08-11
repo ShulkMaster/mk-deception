@@ -54,23 +54,63 @@ typedef struct RwStringFunctions {
 } RwStringFunctions;
 
 typedef int (*RwRasterDeviceCall)(void* result, void* raster, int flags);
-typedef void* (*RwFreeListAllocCall)(void* freelist, int hint);
-typedef void (*RwFreeListFreeCall)(void* freelist, void* entry);
+typedef int (*RwSystemCall)(int request, void* out, void* in_out, int value);
+typedef int (*RwStandardCall)(void* out, void* in_out, int value);
+typedef RwSystemCall RwSystemFunc;
+typedef RwStandardCall RwStandardFunc;
+typedef struct RwFreeList RwFreeList;
+typedef void* (*RwFreeListAllocCall)(RwFreeList* freelist, unsigned int hint);
+typedef RwFreeList* (*RwFreeListFreeCall)(RwFreeList* freelist, void* entry);
 typedef void (*RwStringCopyCall)(char* destination, const char* source,
                                  unsigned int size);
 typedef unsigned int (*RwStringLengthCall)(const char* string);
 
-typedef struct PfxRwEngineInstance {
-    char pad00[0x20];
-    int (*fpRenderStateSet)(int state, int value); /* +0x20 */
-    void (*fpRenderStateGet)(int state, void* out); /* +0x24 */
-    char pad28[0x30];
-    RwRasterDeviceCall fpRasterCreate; /* +0x58 */
-    char pad5C[0x28];
-    RwRasterDeviceCall fpRasterLock; /* +0x84 */
-    RwRasterDeviceCall fpRasterUnlock; /* +0x88 */
-    char pad8C[0x2C];
-    RwRasterDeviceCall fpRasterGetNumLevels; /* +0xB8 */
+typedef struct RwDevice {
+    float gammaCorrection;
+    RwSystemCall fpSystem;
+    float zBufferNear;
+    float zBufferFar;
+    RwStandardCall standard[29];
+} RwDevice;
+
+typedef struct RwGlobals {
+    union {
+        void* field_0x00;
+        void* curCamera;
+    };
+    void* field_0x04;
+    unsigned short field_0x08;
+    unsigned short field_0x0A;
+    unsigned int field_0x0C;
+    float gammaCorrection;
+    RwSystemCall fpSystem;
+    float zBufferNear;
+    float zBufferFar;
+    int (*fpRenderStateSet)(int state, int value);
+    void (*fpRenderStateGet)(int state, void* out);
+    char pad28[0x24];
+    void* field_0x4C;
+    char pad50[0x8];
+    RwRasterDeviceCall fpRasterCreate;
+    RwRasterDeviceCall fpRasterDestroy;
+    RwRasterDeviceCall fpImageSetFromRaster;
+    RwRasterDeviceCall fpRasterSetFromImage;
+    RwRasterDeviceCall fpTextureSetRaster;
+    RwRasterDeviceCall fpImageFindRasterFormat;
+    void* field_0x70;
+    void* field_0x74;
+    RwRasterDeviceCall fpRasterSubRaster;
+    char pad7C[0x8];
+    RwRasterDeviceCall fpRasterLock;
+    RwRasterDeviceCall fpRasterUnlock;
+    char pad8C[0xC];
+    RwRasterDeviceCall fpRasterShowRaster;
+    void* field_0x9C;
+    void* field_0xA0;
+    RwRasterDeviceCall fpRasterLockPalette;
+    RwRasterDeviceCall fpRasterUnlockPalette;
+    char padAC[0xC];
+    RwRasterDeviceCall fpRasterGetNumLevels;
     RwLinkList dirtyFrameList;
     RwFileFunctions fileFuncs;
     RwStringFunctions stringFuncs;
@@ -79,13 +119,15 @@ typedef struct PfxRwEngineInstance {
     void* (*fpRealloc)(void* memory, unsigned int size, unsigned int hint);
     void* (*fpCalloc)(unsigned int count, unsigned int size,
                       unsigned int hint);
-    RwFreeListAllocCall fpFreeListAlloc; /* +0x144 */
-    RwFreeListFreeCall fpFreeListFree; /* +0x148 */
+    RwFreeListAllocCall fpFreeListAlloc;
+    RwFreeListFreeCall fpFreeListFree;
     void* metrics;
     int engineStatus;
     unsigned int resArenaInitSize;
-} PfxRwEngineInstance;
+} RwGlobals;
 
-extern PfxRwEngineInstance* RwEngineInstance;
+typedef RwGlobals PfxRwEngineInstance;
+
+extern RwGlobals* RwEngineInstance;
 
 #endif

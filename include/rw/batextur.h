@@ -3,18 +3,18 @@
 
 #include "rw/rwcore_types.h"
 
-extern int textureModule;
-extern RwPluginRegistry textureTKList;
-
-int TextureAnnihilate(RwTexture* texture);
 RwTexDictionary* RwTexDictionaryGetCurrent(void);
-RwTexDictionary* RwTexDictionarySetCurrent(RwTexDictionary* dictionary);
+void RwTexDictionarySetCurrent(RwTexDictionary* dictionary);
 RwTexDictionary* RwTexDictionaryCreate(void);
 int RwTexDictionaryDestroy(RwTexDictionary* dictionary);
+RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* maskName);
 RwTexture* RwTexDictionaryAddTexture(RwTexDictionary* dictionary,
                                      RwTexture* texture);
+RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
+                                            const char* name);
 RwTexDictionary* RwTexDictionaryForAllTextures(
     RwTexDictionary* dictionary,
     RwTexture* (*callback)(RwTexture*, void*), void* data);
+RwTexture* RwTextureStreamRead(RwStream* stream);
 
 #endif

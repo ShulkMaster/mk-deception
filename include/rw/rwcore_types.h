@@ -4,6 +4,7 @@
 #include "rw/rwobject.h"
 #include "rw/rtquat.h"
 
+typedef RwObject* (*RwObjectCallBack)(RwObject* object, void* data);
 
 typedef struct RwLLLink {
     struct RwLLLink* next;
@@ -66,25 +67,45 @@ typedef struct RwRaster {
     unsigned char flags;
     unsigned char privateFlags;
     unsigned char format;
+    unsigned char* originalPixels;
+    int originalWidth;
+    int originalHeight;
+    int originalStride;
 } RwRaster;
 
 
 typedef struct RwTexture {
     RwRaster* raster;
     RwTexDictionary* dictionary;
-    RwLLLink* next_link;
-    RwLLLink* prev_link;
+    union {
+        RwLLLink lInDictionary;
+        struct {
+            RwLLLink* next_link;
+            RwLLLink* prev_link;
+        };
+    };
     char name[32];
     char mask[32];
     unsigned int filter_flags;
     int ref_count;
 } RwTexture;
 
+struct RwTexDictionary {
+    RwObject object;
+    RwLLLink textures;
+    RwLLLink lInInstance;
+};
+
 
 typedef struct RwFrame {
     RwObject object;
-    void* object_link_next;
-    void* object_link_prev;
+    union {
+        RwLLLink inDirtyListLink;
+        struct {
+            void* object_link_next;
+            void* object_link_prev;
+        };
+    };
     RwMatrix modelling;
     RwMatrix ltm;
     union {
@@ -99,6 +120,8 @@ typedef struct RwFrame {
     struct RwFrame* root;
 } RwFrame;
 
+typedef RwFrame* (*RwFrameCallBack)(RwFrame* frame, void* data);
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -111,7 +134,7 @@ void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
 RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
-void RwTexDictionaryRemoveTexture(RwTexture* texture);
+RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture);
 
 #ifdef __cplusplus
 }
