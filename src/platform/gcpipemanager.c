@@ -8,34 +8,14 @@ typedef struct RpGameCubeVtxFmt {
     unsigned char data[0x18];
 } RpGameCubeVtxFmt;
 
-static void MatFunc6(RwRGBAReal* color, GXColor* material, float intensity);
-static void MatFunc5(RwRGBAReal* color, GXColor* material, float intensity);
-static void MatFunc4(RwRGBAReal* color, GXColor* material, float intensity);
-static void MatFunc3(RwRGBAReal* color, GXColor* material, float intensity);
-static void MatFunc2(RwRGBAReal* color, GXColor* material, float intensity);
-static void MatFunc1(RwRGBAReal* color, GXColor* material, float intensity);
+static void MatFunc6(RwRGBAReal* color, GXColor* material, void*, float intensity);
+static void MatFunc5(RwRGBAReal* color, GXColor* material, void*, float intensity);
+static void MatFunc4(RwRGBAReal* color, GXColor* material, void*, float intensity);
+static void MatFunc3(RwRGBAReal* color, GXColor* material, void*, float intensity);
+static void MatFunc2(RwRGBAReal* color, GXColor* material, void*, float intensity);
+static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensity);
 static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner);
 
-void GXSetChanAmbColor(int channel, GXColor color);
-void GXSetChanMatColor(int channel, GXColor color);
-void GXSetTevColor(int stage, GXColor color);
-void GXSetTevKColor(int stage, GXColor color);
-void GXSetNumTevStages(unsigned char count);
-void GXSetNumTexGens(int count);
-void GXSetNumChans(int count);
-void GXSetTevKColorSel(int stage, int selection);
-void GXSetTevKAlphaSel(int stage, int selection);
-void GXSetTevColorIn(int stage, int a, int b, int c, int d);
-void GXSetTevAlphaIn(int stage, int a, int b, int c, int d);
-void GXSetTevColorOp(int stage, int op, int bias, int scale, int clamp,
-                     int output);
-void GXSetTevAlphaOp(int stage, int op, int bias, int scale, int clamp,
-                     int output);
-void GXSetTevOrder(int stage, int texcoord, int texmap, int color);
-void GXSetTexCoordGen2(int coord, int function, int source, int matrix,
-                       int normalize, int post_matrix);
-void GXSetChanCtrl(int channel, int enable, int amb_source, int mat_source,
-                   unsigned int light_mask, int diffuse, int attenuation);
 void RpGameCubeVtxFmtInit(RpGameCubeVtxFmt* format);
 void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, int count, int type);
 void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, int count, int type);
@@ -310,7 +290,7 @@ DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
     return callback;
 }
 
-static void MatFunc6(RwRGBAReal* color, GXColor* material, float intensity) {
+static void MatFunc6(RwRGBAReal* color, GXColor* material, void*, float intensity) {
     GXColor output;
     float scale = 255.0f * intensity;
     output.r = color->red * scale;
@@ -320,12 +300,12 @@ static void MatFunc6(RwRGBAReal* color, GXColor* material, float intensity) {
     GXSetChanMatColor(0, output);
 }
 
-static void MatFunc5(RwRGBAReal* color, GXColor* material, float intensity) {
+static void MatFunc5(RwRGBAReal* color, GXColor* material, void*, float intensity) {
     GXColor output = *material;
     GXSetChanMatColor(4, output);
 }
 
-static void MatFunc4(RwRGBAReal* color, GXColor* material, float intensity) {
+static void MatFunc4(RwRGBAReal* color, GXColor* material, void*, float intensity) {
     GXColor output;
     GXColor ambient;
     float scale = 255.0f * intensity;
@@ -338,7 +318,7 @@ static void MatFunc4(RwRGBAReal* color, GXColor* material, float intensity) {
     GXSetChanAmbColor(0, ambient);
 }
 
-static void MatFunc3(RwRGBAReal* color, GXColor* material, float intensity) {
+static void MatFunc3(RwRGBAReal* color, GXColor* material, void*, float intensity) {
     GXColor output;
     float scale = 255.0f * intensity;
     output.r = color->red * scale;
@@ -348,7 +328,7 @@ static void MatFunc3(RwRGBAReal* color, GXColor* material, float intensity) {
     GXSetChanAmbColor(0, output);
 }
 
-static void MatFunc2(RwRGBAReal* color, GXColor* material, float intensity) {
+static void MatFunc2(RwRGBAReal* color, GXColor* material, void*, float intensity) {
     GXColor output;
     float scale = 255.0f * intensity;
     output.r = color->red * scale;
@@ -358,7 +338,7 @@ static void MatFunc2(RwRGBAReal* color, GXColor* material, float intensity) {
     GXSetTevKColor(1, output);
 }
 
-static void MatFunc1(RwRGBAReal* color, GXColor* material, float intensity) {
+static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensity) {
     GXColor output;
     GXColor konst;
     output.r = material->r * (color->red * intensity);

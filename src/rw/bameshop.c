@@ -1,85 +1,1025 @@
-/* TODO: Missing implementation for retail unit bameshop.c. */
+#include "libmkparticle/rw_engine.h"
+#include "rw/rpworld_types.h"
+#include "rw/rwerror.h"
+#include "rw/rwfreelist.h"
 
-void *SortPolygons(void)
+typedef RpMeshHeader *(*RpTriStripMeshCallBack)(RpBuildMesh *, void *);
+
+typedef struct rpMeshGlobals {
+    RwInt16 nextSerialNum;
+    RwUInt16 reserved02;
+    RwFreeList *triStripListEntryFreeList;
+    RwUInt8 meshFlags[0x20];
+    RwUInt8 primitiveType[6];
+} rpMeshGlobals;
+
+extern RwModuleInfo meshModule;
+RpMeshHeader *RpBuildMeshGenerateDefaultTriStrip(RpBuildMesh *, void *);
+extern void qsort(void *, RwUInt32, RwUInt32,
+                  RwInt32 (*)(const void *, const void *));
+
+static void MeshReportAllocationFailure(RwInt32 value)
 {
-    /* TODO: Missing canonical function implementation. */
+    RwError error;
+    error.pluginID = 2;
+    error.errorCode = _rwerror(0x80000013, value);
+    RwErrorSet(&error);
+}
+
+typedef struct TriStripListEntry {
+    RwUInt16 *strip;
+    RwUInt32 stripLen;
+    RwUInt32 stripSize;
+    struct TriStripListEntry *next;
+} TriStripListEntry;
+
+typedef struct TriStripList {
+    TriStripListEntry *head;
+} TriStripList;
+
+typedef struct TriBinEntry TriBinEntry;
+
+typedef struct Edge {
+    RwUInt16 v1;
+    RwUInt16 v2;
+    TriBinEntry *tri1;
+    TriBinEntry *tri2;
+    struct Edge *next;
+} Edge;
+
+struct TriBinEntry {
+    RwUInt32 tri;
+    Edge *edge[3];
+    TriBinEntry *next;
+    TriBinEntry *prev;
+
+    RwBool used;
+    RwBool used2;
+
+    RwUInt8 adjCount;
+};
+
+typedef struct TriBinList {
+    TriBinEntry *head;
+} TriBinList;
+
+typedef struct MeshOpFreeLists {
+    RwFreeList *binEntryFreeList;
+    RwFreeList *edgeFreeList;
+} MeshOpFreeLists;
+
+typedef struct RpMeshopStatic {
+    RpMeshHeader nullMeshHeader;
+    RpTriStripMeshCallBack meshTristripMethod;
+    void *data;
+} RpMeshopStatic;
+
+static rpMeshGlobals *MeshGlobals(void)
+{
+    return (rpMeshGlobals *)((RwUInt8 *)RwEngineInstance +
+                             meshModule.globalsOffset);
+}
+
+static RwInt32 EdgeUnusedTriangleCount(const Edge *edge)
+{
+    return (edge->tri1 != 0 && !edge->tri1->used ? 1 : 0) +
+           (edge->tri2 != 0 && !edge->tri2->used ? 1 : 0);
+}
+
+static RwInt32 EdgeUnusedTriangleCountSecondPass(const Edge *edge)
+{
+    return (edge->tri1 != 0 && !edge->tri1->used2 ? 1 : 0) +
+           (edge->tri2 != 0 && !edge->tri2->used2 ? 1 : 0);
+}
+
+static RpMeshopStatic MeshopStatic = {
+    {0}, RpBuildMeshGenerateDefaultTriStrip, 0};
+
+static int SortPolygons(const void *pA, const void *pB) {
+    const RpBuildMeshTriangle *const *triangleA =
+        (const RpBuildMeshTriangle *const *)pA;
+    const RpBuildMeshTriangle *const *triangleB =
+        (const RpBuildMeshTriangle *const *)pB;
+    RpMaterial *materialA = (*triangleA)->material;
+    RpMaterial *materialB = (*triangleB)->material;
+    RwUInt32 orderA = 0;
+    RwUInt32 orderB = 0;
+
+    if (materialA == materialB) {
+        return 0;
+    }
+
+    if (materialA != 0) {
+        if (materialA->texture != 0) {
+            RwRaster *raster = materialA->texture->raster;
+            RwInt32 format = (RwInt32)raster->format << 8;
+            format &= 0x0F00;
+            if (format == 0x0100 ||
+                format == 0x0300 ||
+                format == 0x0500) {
+                orderA = 16;
+            }
+        }
+        if (materialA->color.alpha != 0xff) {
+            orderA |= 16;
+        }
+    }
+
+    if (materialB != 0) {
+        if (materialB->texture != 0) {
+            RwRaster *raster = materialB->texture->raster;
+            RwInt32 format = (RwInt32)raster->format << 8;
+            format &= 0x0F00;
+            if (format == 0x0100 ||
+                format == 0x0300 ||
+                format == 0x0500) {
+                orderB = 16;
+            }
+        }
+        if (materialB->color.alpha != 0xff) {
+            orderB |= 16;
+        }
+    }
+
+    orderA |= (*triangleA)->rasterIndex > (*triangleB)->rasterIndex ? 8 : 0;
+    orderB |= (*triangleA)->rasterIndex < (*triangleB)->rasterIndex ? 8 : 0;
+    orderA |= (*triangleA)->pipelineIndex > (*triangleB)->pipelineIndex ? 4 : 0;
+    orderB |= (*triangleA)->pipelineIndex < (*triangleB)->pipelineIndex ? 4 : 0;
+    orderA |= (*triangleA)->textureIndex > (*triangleB)->textureIndex ? 2 : 0;
+    orderB |= (*triangleA)->textureIndex < (*triangleB)->textureIndex ? 2 : 0;
+    orderA |= (*triangleA)->matIndex > (*triangleB)->matIndex ? 1 : 0;
+    orderB |= (*triangleA)->matIndex < (*triangleB)->matIndex ? 1 : 0;
+    return orderA - orderB;
+}
+
+static RpMesh *SortPolygonsInTriListMesh(RpMesh *mesh,
+                                         RpMeshHeader *meshHeader ,
+                                         void *pData ) {
+    RwUInt32 maxVertex = 0;
+    RwUInt32 numTriangles = mesh->numIndices / 3;
+    RwUInt32 tagBytes;
+    RwUInt32 i;
+    RwUInt32 *vertexTagBuffer;
+    RxVertexIndex *indices;
+
+    indices = mesh->indices;
+    for (i = 0; i < mesh->numIndices; i++) {
+        maxVertex |= indices[i];
+    }
+
+    tagBytes = (maxVertex + 31) >> 3;
+    vertexTagBuffer = RwEngineInstance->fpMalloc(tagBytes,
+                               0x10000 | 0x502);
+    if (vertexTagBuffer != 0) {
+        RwUInt32 arraySize = sizeof(RxVertexIndex) * mesh->numIndices;
+        RxVertexIndex *oldIndices = RwEngineInstance->fpMalloc(
+            arraySize, 0x10000 | 0x502);
+
+        if (oldIndices != 0) {
+            RwUInt32 copied = 0;
+            memcpy(oldIndices, indices, arraySize);
+
+            while (copied < numTriangles) {
+                RwUInt8 *tag = (RwUInt8 *)vertexTagBuffer;
+                RwUInt32 remaining = tagBytes;
+                RwUInt32 triangleIndex;
+                while (remaining-- != 0) {
+                    *tag++ = 0;
+                }
+
+                for (triangleIndex = 0; triangleIndex < numTriangles;
+                     triangleIndex++) {
+                    RxVertexIndex *triangle = &oldIndices[triangleIndex * 3];
+                    if ((triangle[0] & triangle[1] & triangle[2]) != 0xffff &&
+                        !(vertexTagBuffer[triangle[0] >> 5] &
+                          (1 << (triangle[0] & 31))) &&
+                        !(vertexTagBuffer[triangle[1] >> 5] &
+                          (1 << (triangle[1] & 31))) &&
+                        !(vertexTagBuffer[triangle[2] >> 5] &
+                          (1 << (triangle[2] & 31)))) {
+                        vertexTagBuffer[triangle[0] >> 5] |=
+                            1 << (triangle[0] & 31);
+                        vertexTagBuffer[triangle[1] >> 5] |=
+                            1 << (triangle[1] & 31);
+                        vertexTagBuffer[triangle[2] >> 5] |=
+                            1 << (triangle[2] & 31);
+                        *indices++ = triangle[0];
+                        *indices++ = triangle[1];
+                        *indices++ = triangle[2];
+                        triangle[0] = triangle[1] = triangle[2] = 0xffff;
+                        copied++;
+                    }
+                }
+            }
+            RwEngineInstance->fpFree(oldIndices);
+        }
+        RwEngineInstance->fpFree(vertexTagBuffer);
+    }
+    return mesh;
+}
+
+static Edge *TriStripAddEdge(RwFreeList *edgeFreeList, Edge **edgelist,
+                             RwUInt16 v1, RwUInt16 v2, RwUInt32 tri,
+                             TriBinEntry **binEntryArray) {
+    Edge *edge;
+
+    for (edge = *edgelist; edge != 0; edge = edge->next) {
+        if (edge->v2 == v1 && edge->v1 == v2 && edge->tri2 == 0) {
+            edge->tri1->adjCount++;
+            binEntryArray[tri]->adjCount++;
+            edge->tri2 = binEntryArray[tri];
+            return edge;
+        }
+    }
+
+    edge = RwEngineInstance->fpFreeListAlloc(edgeFreeList,
+                           0x30000 | 0x502);
+    edge->v1 = v1;
+    edge->v2 = v2;
+    edge->tri1 = binEntryArray[tri];
+    edge->tri2 = 0;
+    edge->next = *edgelist;
+    *edgelist = edge;
+    return edge;
+}
+
+static TriBinEntry **
+TriStripBinEntryArrayDestroy(RwUInt32 numTris, MeshOpFreeLists *meshOpFreeLists,
+                             Edge *edge, TriBinEntry **binEntryArray) {
+    RwUInt32 i;
+
+    while (edge != 0) {
+        Edge *next = edge->next;
+        RwEngineInstance->fpFreeListFree(meshOpFreeLists->edgeFreeList, edge);
+        edge = next;
+    }
+    RwFreeListDestroy(meshOpFreeLists->edgeFreeList);
+    meshOpFreeLists->edgeFreeList = 0;
+
+    for (i = 0; i < numTris; i++) {
+        RwEngineInstance->fpFreeListFree(meshOpFreeLists->binEntryFreeList, binEntryArray[i]);
+        binEntryArray[i] = 0;
+    }
+    RwFreeListDestroy(meshOpFreeLists->binEntryFreeList);
+    meshOpFreeLists->binEntryFreeList = 0;
+    RwEngineInstance->fpFree(binEntryArray);
     return 0;
 }
 
-void *SortPolygonsInTriListMesh(void)
-{
-    /* TODO: Missing canonical function implementation. */
+static TriBinEntry **
+TriStripBinEntryArrayCreate(RwUInt32 numTris, MeshOpFreeLists *meshOpFreeLists,
+                            Edge **edgelist, RpBuildMeshTriangle *triList) {
+    TriBinEntry **binEntryArray;
+    RwUInt32 i;
+
+    binEntryArray = RwEngineInstance->fpMalloc(
+        numTris * sizeof(*binEntryArray),
+        0x30000 | 0x502);
+    meshOpFreeLists->binEntryFreeList =
+        RwFreeListCreate(sizeof(TriBinEntry), numTris,
+                         sizeof(binEntryArray[0]->tri),
+                         0x30000 | 0x502);
+    meshOpFreeLists->edgeFreeList =
+        RwFreeListCreate(sizeof(Edge), numTris / 2U + 1U,
+                         sizeof(binEntryArray[0]->tri),
+                         0x30000 | 0x502);
+
+    for (i = 0; i < numTris; i++) {
+        RpBuildMeshTriangle *triangle = &triList[i];
+        TriBinEntry *entry = RwEngineInstance->fpFreeListAlloc(
+            meshOpFreeLists->binEntryFreeList,
+            0x30000 | 0x502);
+        binEntryArray[i] = entry;
+        entry->adjCount = 0;
+        entry->tri = i;
+        entry->prev = 0;
+        entry->next = 0;
+        entry->used = 0;
+        entry->edge[0] = TriStripAddEdge(
+            meshOpFreeLists->edgeFreeList, edgelist, triangle->vertIndex[0],
+            triangle->vertIndex[1], i, binEntryArray);
+        entry->edge[1] = TriStripAddEdge(
+            meshOpFreeLists->edgeFreeList, edgelist, triangle->vertIndex[1],
+            triangle->vertIndex[2], i, binEntryArray);
+        entry->edge[2] = TriStripAddEdge(
+            meshOpFreeLists->edgeFreeList, edgelist, triangle->vertIndex[2],
+            triangle->vertIndex[0], i, binEntryArray);
+    }
+
+    return binEntryArray;
+}
+
+static Edge *TriStripGetTriEdge(TriBinEntry *binEntry, RwUInt16 v1,
+                                RwUInt16 v2) {
+    RwUInt32 i;
+
+    for (i = 0; i < 3; i++) {
+        Edge *edge = binEntry->edge[i];
+        if ((edge->v1 == v1 && edge->v2 == v2) ||
+            (edge->v1 == v2 && edge->v2 == v1)) {
+            return edge;
+        }
+    }
     return 0;
 }
 
-void *TriStripAddEdge(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static void TriStripMarkTriUsed(TriBinEntry *tri, TriBinList *binListArray,
+                                RwInt32 currentAttempt) {
+    RwUInt8 i;
+
+    if (currentAttempt < 4) {
+        tri->used2 = 1;
+        return;
+    }
+
+    tri->used = 1;
+    if (binListArray[tri->adjCount].head == tri) {
+        binListArray[tri->adjCount].head = tri->next;
+        if (tri->next != 0) {
+            tri->next->prev = 0;
+        }
+    } else {
+        if (tri->next != 0) {
+            tri->next->prev = tri->prev;
+        }
+        if (tri->prev != 0) {
+            tri->prev->next = tri->next;
+        }
+    }
+
+    for (i = 0; i < 3; i++) {
+        Edge *edge = tri->edge[i];
+        TriBinEntry *adjacent = 0;
+
+        if (edge->tri1 != 0 && edge->tri1 != tri && !edge->tri1->used) {
+            adjacent = edge->tri1;
+        } else if (edge->tri2 != 0 && !edge->tri2->used) {
+            adjacent = edge->tri2;
+        }
+        if (adjacent == 0) {
+            continue;
+        }
+
+        if (binListArray[adjacent->adjCount].head == adjacent) {
+            binListArray[adjacent->adjCount].head = adjacent->next;
+            if (adjacent->next != 0) {
+                adjacent->next->prev = 0;
+            }
+        } else {
+            if (adjacent->next != 0) {
+                adjacent->next->prev = adjacent->prev;
+            }
+            if (adjacent->prev != 0) {
+                adjacent->prev->next = adjacent->next;
+            }
+        }
+
+        adjacent->adjCount--;
+        adjacent->next = binListArray[adjacent->adjCount].head;
+        if (adjacent->next != 0) {
+            adjacent->next->prev = adjacent;
+        }
+        binListArray[adjacent->adjCount].head = adjacent;
+        adjacent->prev = 0;
+    }
 }
 
-void *TriStripBinEntryArrayDestroy(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static RwUInt32 TriStripFollow(TriStripListEntry *strip, Edge *nextEdge,
+                               TriBinList *binListArray,
+                               RpBuildMeshTriangle *triList ,
+                               RwInt32 currentAttempt) {
+    RwUInt32 trianglesAdded = 0;
+    Edge *alternateEdge = 0;
+
+    while (nextEdge != 0) {
+        TriBinEntry *triangle = 0;
+        Edge *incomingEdge = nextEdge;
+        RwUInt16 thirdVertex;
+        RwInt32 incomingIndex;
+        RwBool turn;
+
+        if (currentAttempt < 4) {
+            if (nextEdge->tri1 != 0 && !nextEdge->tri1->used2) {
+                triangle = nextEdge->tri1;
+            } else if (nextEdge->tri2 != 0 && !nextEdge->tri2->used2) {
+                triangle = nextEdge->tri2;
+            }
+        } else {
+            if (nextEdge->tri1 != 0 && !nextEdge->tri1->used) {
+                triangle = nextEdge->tri1;
+            } else if (nextEdge->tri2 != 0 && !nextEdge->tri2->used) {
+                triangle = nextEdge->tri2;
+            }
+        }
+        if (triangle == 0) {
+            return trianglesAdded;
+        }
+
+        trianglesAdded++;
+        TriStripMarkTriUsed(triangle, binListArray, currentAttempt);
+
+        if (incomingEdge == triangle->edge[0]) {
+            incomingIndex = 0;
+        } else if (incomingEdge == triangle->edge[1]) {
+            incomingIndex = 1;
+        } else {
+            incomingIndex = 2;
+        }
+
+        alternateEdge = triangle->edge[(incomingIndex + 1) % 3];
+        if (alternateEdge->tri1 == triangle) {
+            thirdVertex = alternateEdge->v2;
+        } else {
+            thirdVertex = alternateEdge->v1;
+        }
+
+        nextEdge = TriStripGetTriEdge(
+            triangle, strip->strip[strip->stripLen - 1], thirdVertex);
+        if (currentAttempt < 4) {
+            turn = nextEdge == 0 || EdgeUnusedTriangleCountSecondPass(nextEdge) == 0;
+        } else {
+            turn = nextEdge == 0 || EdgeUnusedTriangleCount(nextEdge) == 0;
+        }
+
+        if (turn) {
+            if (triangle->edge[0] != incomingEdge &&
+                triangle->edge[0] != nextEdge) {
+                alternateEdge = triangle->edge[0];
+            } else if (triangle->edge[1] != incomingEdge &&
+                       triangle->edge[1] != nextEdge) {
+                alternateEdge = triangle->edge[1];
+            } else {
+                alternateEdge = triangle->edge[2];
+            }
+
+            if (currentAttempt < 4) {
+                turn = alternateEdge != 0 && EdgeUnusedTriangleCountSecondPass(alternateEdge) != 0;
+            } else {
+                turn = alternateEdge != 0 && EdgeUnusedTriangleCount(alternateEdge) != 0;
+            }
+
+            if (turn) {
+                if (strip->stripLen & 1) {
+                    strip->strip[strip->stripLen++] = thirdVertex;
+                    nextEdge = 0;
+                } else {
+                    strip->strip[strip->stripLen] =
+                        strip->strip[strip->stripLen - 2];
+                    strip->stripLen++;
+                    strip->strip[strip->stripLen++] = thirdVertex;
+                    nextEdge = alternateEdge;
+                }
+            } else {
+                strip->strip[strip->stripLen++] = thirdVertex;
+                nextEdge = 0;
+            }
+        } else {
+            strip->strip[strip->stripLen++] = thirdVertex;
+        }
+    }
+    return trianglesAdded;
 }
 
-void *TriStripBinEntryArrayCreate(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
+                                TriStripList *stripList, RwBool preprocess) {
+    Edge *edgeList = 0;
+    Edge *forwardEdge;
+    Edge *reverseEdge;
+    TriBinList bins[4] = {{0}, {0}, {0}, {0}};
+    MeshOpFreeLists freeLists = {0, 0};
+    TriBinEntry **entries;
+    TriStripListEntry *forward;
+    TriStripListEntry *reverse;
+    RwUInt32 consumed = 0;
+    RwUInt32 i;
+
+    entries = TriStripBinEntryArrayCreate(numTris, &freeLists, &edgeList,
+                                          triList);
+    for (i = 0; i < numTris; i++) {
+        TriBinEntry *entry = entries[i];
+        entry->next = bins[entry->adjCount].head;
+        if (entry->next != 0) {
+            entry->next->prev = entry;
+        }
+        bins[entry->adjCount].head = entry;
+        entry->prev = 0;
+    }
+
+    forward = RwEngineInstance->fpFreeListAlloc(MeshGlobals()->triStripListEntryFreeList,
+                              0x10000 | 0x502);
+    reverse = RwEngineInstance->fpFreeListAlloc(MeshGlobals()->triStripListEntryFreeList,
+                              0x10000 | 0x502);
+    forward->stripSize = reverse->stripSize = numTris * 2 + 2;
+    forward->stripLen = reverse->stripLen = 0;
+    forward->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * forward->stripSize,
+                              0x10000 | 0x502);
+    reverse->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * reverse->stripSize,
+                              0x10000 | 0x502);
+
+    while (consumed < numTris) {
+        TriStripListEntry *output;
+        RwUInt32 bestLength = 0;
+        RwInt32 bestRotation = 0;
+        RwInt32 attempt = preprocess ? 0 : 3;
+
+        if (bins[0].head != 0) {
+            TriBinEntry *isolated = bins[0].head;
+            RpBuildMeshTriangle *triangle = &triList[isolated->tri];
+
+            output = RwEngineInstance->fpFreeListAlloc(MeshGlobals()->triStripListEntryFreeList,
+                                     0x30000 | 0x502);
+            output->next = stripList->head;
+            stripList->head = output;
+            output->stripSize = output->stripLen = 3;
+            output->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * 3,
+                                     0x30000 | 0x502);
+            output->strip[0] = triangle->vertIndex[0];
+            output->strip[1] = triangle->vertIndex[1];
+            output->strip[2] = triangle->vertIndex[2];
+            isolated->used = isolated->used2 = 1;
+            bins[0].head = isolated->next;
+            if (bins[0].head != 0) {
+                bins[0].head->prev = 0;
+            }
+            consumed++;
+        } else {
+            TriBinEntry *starter;
+            RpBuildMeshTriangle *source;
+            RwUInt32 savedConsumed = consumed;
+            RwUInt32 initialRotation;
+            RwUInt32 rotation;
+            RwUInt32 j;
+
+            i = 1;
+            while (bins[i].head == 0) {
+                i++;
+            }
+            starter = bins[i].head;
+
+            if (EdgeUnusedTriangleCount(starter->edge[2]) >= 2 &&
+                EdgeUnusedTriangleCount(starter->edge[1]) >= 2) {
+                rotation = 1;
+            } else if (EdgeUnusedTriangleCount(starter->edge[0]) >= 2 &&
+                       EdgeUnusedTriangleCount(starter->edge[2]) >= 2) {
+                rotation = 2;
+            } else if (EdgeUnusedTriangleCount(starter->edge[1]) >= 2 &&
+                       EdgeUnusedTriangleCount(starter->edge[0]) >= 2) {
+                rotation = 0;
+            } else if (EdgeUnusedTriangleCount(starter->edge[0]) >
+                       EdgeUnusedTriangleCount(starter->edge[1])) {
+                rotation = EdgeUnusedTriangleCount(starter->edge[0]) >
+                                   EdgeUnusedTriangleCount(starter->edge[2])
+                               ? 2
+                               : 1;
+            } else {
+                rotation = EdgeUnusedTriangleCount(starter->edge[1]) >
+                                   EdgeUnusedTriangleCount(starter->edge[2])
+                               ? 0
+                               : 1;
+            }
+            initialRotation = rotation;
+            bestRotation = rotation;
+
+            do {
+                RwBool canReverse;
+                consumed = savedConsumed;
+                for (j = 0; j < numTris; j++) {
+                    entries[j]->used2 = entries[j]->used;
+                }
+
+                switch (attempt++) {
+                case 0:
+                    rotation = initialRotation;
+                    break;
+                case 1:
+                    rotation = (initialRotation + 1) % 3;
+                    break;
+                case 2:
+                    rotation = (initialRotation + 2) % 3;
+                    break;
+                default:
+                    rotation = bestRotation;
+                    break;
+                }
+
+                forwardEdge = starter->edge[(rotation + 1) % 3];
+                reverseEdge = starter->edge[rotation];
+                source = &triList[starter->tri];
+                forward->strip[0] = source->vertIndex[rotation];
+                forward->strip[1] = source->vertIndex[(rotation + 1) % 3];
+                forward->strip[2] = source->vertIndex[(rotation + 2) % 3];
+                forward->stripLen = 3;
+
+                TriStripMarkTriUsed(starter, bins, attempt);
+                consumed++;
+                consumed += TriStripFollow(forward, forwardEdge, bins, triList,
+                                           attempt);
+                canReverse = attempt < 4 ? EdgeUnusedTriangleCountSecondPass(reverseEdge) != 0
+                                         : EdgeUnusedTriangleCount(reverseEdge) != 0;
+
+                if (canReverse) {
+                    reverse->strip[0] = forward->strip[1];
+                    reverse->strip[1] = forward->strip[0];
+                    reverse->stripLen = 2;
+                    consumed += TriStripFollow(reverse, reverseEdge, bins,
+                                               triList, attempt);
+                    if (reverse->stripLen & 1) {
+                        reverse->strip[reverse->stripLen] =
+                            reverse->strip[reverse->stripLen - 2];
+                        reverse->stripLen++;
+                    }
+                }
+
+                if (consumed > bestLength) {
+                    bestLength = consumed;
+                    bestRotation = rotation;
+                }
+                if (attempt < 4) {
+                    continue;
+                }
+
+                output = RwEngineInstance->fpFreeListAlloc(
+                    MeshGlobals()->triStripListEntryFreeList,
+                    0x30000 | 0x502);
+                output->next = stripList->head;
+                stripList->head = output;
+
+                if (canReverse) {
+                    output->stripSize =
+                        forward->stripLen + reverse->stripLen - 2;
+                    output->stripLen = 0;
+                    output->strip = RwEngineInstance->fpMalloc(
+                        sizeof(RwUInt32) * output->stripSize,
+                        0x30000 | 0x502);
+                    while (reverse->stripLen > 2) {
+                        output->strip[output->stripLen++] =
+                            reverse->strip[--reverse->stripLen];
+                    }
+                    memcpy(output->strip + output->stripLen, forward->strip,
+                           sizeof(RwUInt32) * forward->stripLen);
+                    output->stripLen = output->stripSize;
+                } else {
+                    output->stripSize = output->stripLen = forward->stripLen;
+                    output->strip = RwEngineInstance->fpMalloc(
+                        sizeof(RwUInt32) * output->stripLen,
+                        0x30000 | 0x502);
+                    memcpy(output->strip, forward->strip,
+                           sizeof(RwUInt32) * forward->stripLen);
+                }
+            } while (attempt < 4);
+        }
+    }
+
+    RwEngineInstance->fpFree(reverse->strip);
+    RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, reverse);
+    RwEngineInstance->fpFree(forward->strip);
+    RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, forward);
+    TriStripBinEntryArrayDestroy(numTris, &freeLists, edgeList, entries);
+    return 1;
 }
 
-void *TriStripGetTriEdge(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static RwBool TriStripJoin(TriStripList *stripList, RwBool maintainWinding) {
+    TriStripListEntry *joined;
+    TriStripListEntry *remaining;
+    RwUInt32 i;
+
+    if (stripList->head == 0) {
+        return 0;
+    }
+
+    joined = RwEngineInstance->fpFreeListAlloc(
+        MeshGlobals()->triStripListEntryFreeList,
+        0x30000 | 0x502);
+    joined->stripLen = 0;
+    joined->stripSize = 0;
+
+    for (remaining = stripList->head; remaining != 0;
+         remaining = remaining->next) {
+        joined->stripSize += remaining->stripLen + 6;
+    }
+    joined->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * joined->stripSize,
+                             0x30000 | 0x502);
+
+    remaining = stripList->head;
+    for (i = 0; i < remaining->stripLen; i++) {
+        joined->strip[joined->stripLen++] = remaining->strip[i];
+    }
+    RwEngineInstance->fpFree(remaining->strip);
+    {
+        TriStripListEntry *next = remaining->next;
+        RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, remaining);
+        remaining = next;
+    }
+
+    while (remaining != 0) {
+        TriStripListEntry *selected;
+        TriStripListEntry *previous;
+
+        for (selected = remaining; selected != 0; selected = selected->next) {
+            if (selected->strip[0] == joined->strip[joined->stripLen - 1]) {
+                if ((joined->stripLen & 1) && maintainWinding) {
+                    joined->strip[joined->stripLen++] = selected->strip[0];
+                }
+                break;
+            }
+        }
+
+        if (selected == 0) {
+            for (selected = remaining; selected != 0;
+                 selected = selected->next) {
+                if (selected->strip[0] == joined->strip[joined->stripLen - 2]) {
+                    if (!(joined->stripLen & 1) && maintainWinding) {
+                        joined->strip[joined->stripLen++] = selected->strip[0];
+                        joined->strip[joined->stripLen++] = selected->strip[0];
+                    } else {
+                        joined->strip[joined->stripLen++] = selected->strip[0];
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (selected == 0) {
+            selected = remaining;
+            joined->strip[joined->stripLen] =
+                joined->strip[joined->stripLen - 1];
+            joined->stripLen++;
+            joined->strip[joined->stripLen++] = selected->strip[0];
+            if ((joined->stripLen & 1) && maintainWinding) {
+                joined->strip[joined->stripLen++] = selected->strip[0];
+            }
+        }
+
+        for (i = 0; i < selected->stripLen; i++) {
+            joined->strip[joined->stripLen++] = selected->strip[i];
+        }
+        RwEngineInstance->fpFree(selected->strip);
+
+        if (remaining == selected) {
+            remaining = selected->next;
+        } else {
+            previous = remaining;
+            while (previous->next != selected) {
+                previous = previous->next;
+            }
+            previous->next = selected->next;
+        }
+        RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, selected);
+    }
+
+    stripList->head = joined;
+    joined->next = 0;
+    return 1;
 }
 
-void *TriStripMarkTriUsed(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, RwBool preprocess,
+                                          RwBool maintainWinding) {
+    RpBuildMeshTriangle **sorted;
+    RpBuildMeshTriangle **source;
+    RpMesh **generated;
+    RpMesh *materialRuns;
+    RpMeshHeader *header;
+    RwUInt16 generatedCount = 0;
+    RwUInt32 materialCount = 1;
+    RwUInt32 totalIndices = 0;
+    RwUInt32 headerSize = sizeof(RpMeshHeader);
+    RwUInt32 i;
+
+    sorted = RwEngineInstance->fpMalloc(
+        mesh->numTriangles * sizeof(RpBuildMeshTriangle *),
+        0x10000 | 0x502);
+    if (sorted == 0) {
+        return 0;
+    }
+
+    for (i = 0; i < mesh->numTriangles; i++) {
+        sorted[i] = &mesh->meshTriangles[i];
+    }
+    qsort(sorted, mesh->numTriangles, sizeof(*sorted), SortPolygons);
+
+    if (mesh->numTriangles >= 2) {
+        RpMaterial *previous = sorted[0]->material;
+        for (i = 1; i < mesh->numTriangles; i++) {
+            if (sorted[i]->material != previous) {
+                previous = sorted[i]->material;
+                materialCount++;
+            }
+        }
+    }
+
+    generated = RwEngineInstance->fpMalloc(sizeof(*generated) * materialCount,
+                         0x10000 | 0x502 |
+                             0x01000000);
+    materialRuns = RwEngineInstance->fpMalloc(sizeof(*materialRuns) * materialCount,
+                            0x10000 | 0x502);
+    materialCount = 1;
+    materialRuns[0].indices = 0;
+    materialRuns[0].numIndices = 0;
+    materialRuns[0].material = sorted[0]->material;
+    if (mesh->numTriangles >= 2) {
+        for (i = 0; i < mesh->numTriangles - 1; i++) {
+            if (sorted[i]->material != sorted[i + 1]->material) {
+                materialRuns[materialCount].indices = 0;
+                materialRuns[materialCount].numIndices = i + 1;
+                materialRuns[materialCount].material = sorted[i + 1]->material;
+                materialRuns[materialCount - 1].numIndices =
+                    i + 1 - materialRuns[materialCount - 1].numIndices;
+                materialCount++;
+            }
+        }
+    }
+    materialRuns[materialCount - 1].numIndices =
+        mesh->numTriangles - materialRuns[materialCount - 1].numIndices;
+
+    MeshGlobals()->triStripListEntryFreeList = RwFreeListCreate(
+        sizeof(TriStripListEntry), (mesh->numTriangles / 10) + 5,
+        sizeof(RwUInt32), 0x10000 | 0x502);
+
+    source = sorted;
+    for (i = 0; i < materialCount; i++) {
+        TriStripList strips = {0};
+        TriStripListEntry *entry;
+        RpBuildMeshTriangle *triangles;
+        RwUInt32 j;
+
+        triangles = RwEngineInstance->fpMalloc(
+            sizeof(*triangles) * materialRuns[i].numIndices,
+            0x10000 | 0x502);
+        for (j = 0; j < materialRuns[i].numIndices; j++) {
+            triangles[j] = **source++;
+        }
+
+        TriStripStripTris(triangles, materialRuns[i].numIndices, &strips,
+                          preprocess);
+        TriStripJoin(&strips, maintainWinding);
+
+        for (entry = strips.head; entry != 0; entry = entry->next) {
+            RwUInt32 bytes =
+                sizeof(RpMesh) + sizeof(RxVertexIndex) * entry->stripLen;
+            RpMesh *output = RwEngineInstance->fpMalloc(
+                bytes, 0x10000 | 0x502);
+            output->indices = (RxVertexIndex *)(output + 1);
+            output->numIndices = entry->stripLen;
+            output->material = materialRuns[i].material;
+            for (j = 0; j < output->numIndices; j++) {
+                output->indices[j] = entry->strip[j];
+            }
+            generated[generatedCount++] = output;
+        }
+
+        while (strips.head != 0) {
+            entry = strips.head;
+            strips.head = entry->next;
+            RwEngineInstance->fpFree(entry->strip);
+            RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, entry);
+        }
+        RwEngineInstance->fpFree(triangles);
+    }
+
+    RwFreeListDestroy(MeshGlobals()->triStripListEntryFreeList);
+    MeshGlobals()->triStripListEntryFreeList = 0;
+
+    for (i = 0; i < generatedCount; i++) {
+        headerSize += sizeof(RpMesh) +
+                      sizeof(RxVertexIndex) * generated[i]->numIndices;
+        totalIndices += generated[i]->numIndices;
+    }
+
+    header = _rpMeshHeaderCreate(headerSize);
+    header->flags = 1;
+    header->numMeshes = generatedCount;
+    header->serialNum = MeshGlobals()->nextSerialNum++;
+    header->firstMeshOffset = 0;
+    header->totalIndices = totalIndices;
+
+    {
+        RpMesh *destination = (RpMesh *)(header + 1);
+        RxVertexIndex *destinationIndices =
+            (RxVertexIndex *)(destination + generatedCount);
+        for (i = 0; i < generatedCount; i++) {
+            RwUInt32 bytes =
+                sizeof(RxVertexIndex) * generated[i]->numIndices;
+            destination->indices = destinationIndices;
+            destination->numIndices = generated[i]->numIndices;
+            destination->material = generated[i]->material;
+            memcpy(destinationIndices, generated[i]->indices, bytes);
+            destinationIndices += destination->numIndices;
+            destination++;
+            RwEngineInstance->fpFree(generated[i]);
+        }
+    }
+
+    RwEngineInstance->fpFree(sorted);
+    RwEngineInstance->fpFree(generated);
+    RwEngineInstance->fpFree(materialRuns);
+    return header;
 }
 
-void *TriStripFollow(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RpMeshHeader *RpBuildMeshGenerateDefaultTriStrip(RpBuildMesh *buildMesh,
+                                                 void *data ) {
+    return TriStripMeshGenerate(buildMesh, 0, 1);
 }
 
-void *TriStripStripTris(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RpMeshHeader *_rpTriListMeshGenerate(RpBuildMesh *buildMesh,
+                                     void *data ) {
+    RpBuildMeshTriangle **triPointers;
+    RpMeshHeader *header;
+    RpMesh *outputMesh;
+    RxVertexIndex *outputIndex;
+    RwUInt32 materialCount = 1;
+    RwUInt32 meshSize;
+    RwUInt32 i;
+
+    triPointers = RwEngineInstance->fpMalloc(
+        buildMesh->numTriangles * sizeof(RpBuildMeshTriangle *),
+        0x10000 | 0x502);
+    if (triPointers == 0) {
+        MeshReportAllocationFailure(
+            buildMesh->numTriangles * sizeof(RpBuildMeshTriangle *));
+        return 0;
+    }
+
+    for (i = 0; i < buildMesh->numTriangles; i++) {
+        triPointers[i] = &buildMesh->meshTriangles[i];
+    }
+    qsort(triPointers, buildMesh->numTriangles, sizeof(*triPointers),
+          SortPolygons);
+
+    if (buildMesh->numTriangles >= 2) {
+        RpMaterial *previous = triPointers[0]->material;
+        for (i = 1; i < buildMesh->numTriangles; i++) {
+            if (triPointers[i]->material != previous) {
+                previous = triPointers[i]->material;
+                materialCount++;
+            }
+        }
+    }
+
+    meshSize = sizeof(RpMeshHeader) + sizeof(RpMesh) * materialCount +
+               sizeof(RxVertexIndex) * 3 * buildMesh->numTriangles;
+    header = _rpMeshHeaderCreate(meshSize);
+    if (header == 0) {
+        RwEngineInstance->fpFree(triPointers);
+        MeshReportAllocationFailure(meshSize);
+        return 0;
+    }
+
+    header->flags = 0;
+    header->numMeshes = 1;
+    header->serialNum = MeshGlobals()->nextSerialNum++;
+    header->firstMeshOffset = 0;
+    header->totalIndices = buildMesh->numTriangles * 3;
+
+    outputMesh = (RpMesh *)(header + 1);
+    outputIndex = (RxVertexIndex *)(outputMesh + materialCount);
+    outputMesh->indices = outputIndex;
+    outputMesh->numIndices = 0;
+    outputMesh->material = triPointers[0]->material;
+
+    for (i = 0; i < buildMesh->numTriangles; i++) {
+        RpBuildMeshTriangle *triangle = triPointers[i];
+        if (triangle->material != outputMesh->material) {
+            outputMesh++;
+            outputMesh->indices = outputIndex;
+            outputMesh->numIndices = 0;
+            outputMesh->material = triangle->material;
+            header->numMeshes++;
+        }
+        *outputIndex++ = triangle->vertIndex[0];
+        *outputIndex++ = triangle->vertIndex[1];
+        *outputIndex++ = triangle->vertIndex[2];
+        outputMesh->numIndices += 3;
+    }
+
+    _rpMeshHeaderForAllMeshes(header, SortPolygonsInTriListMesh, 0);
+    RwEngineInstance->fpFree(triPointers);
+    return header;
 }
 
-void *TriStripJoin(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+RpMeshHeader *_rpMeshOptimise(RpBuildMesh *mesh, RwUInt32 flags) {
+    RpTriStripMeshCallBack generate;
+    void *generateData;
+    RpMeshHeader *result;
 
-void *TriStripMeshGenerate(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+    if (mesh == 0) {
+        return 0;
+    }
+    if (mesh->numTriangles == 0) {
+        _rpBuildMeshDestroy(mesh);
+        return &MeshopStatic.nullMeshHeader;
+    }
 
-void *RpBuildMeshGenerateDefaultTriStrip(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+    if (flags & 1) {
+        generate = MeshopStatic.meshTristripMethod;
+        generateData = MeshopStatic.data;
+    } else {
+        generate = _rpTriListMeshGenerate;
+        generateData = 0;
+    }
 
-void *_rpTriListMeshGenerate(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *_rpMeshOptimise(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    result = generate(mesh, generateData);
+    if (result != 0) {
+        _rpBuildMeshDestroy(mesh);
+    }
+    return result;
 }

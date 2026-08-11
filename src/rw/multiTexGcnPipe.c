@@ -1,19 +1,24 @@
-/* TODO: Missing implementation for retail unit multiTexGcnPipe.c. */
+#include "rw/rwplcore.h"
+#include "runtime/cstring.h"
 
-void *GameCubeMTOpen(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+extern void* RwEngineInstance;
+
+RwInt32 _rpGameCubeMTEngineOffset;
+
+static void* GameCubeMTOpen(void* instance, RwInt32 offset, RwInt32 size) {
+    memset((unsigned char*)RwEngineInstance + _rpGameCubeMTEngineOffset, 0, 8);
+    return instance;
 }
 
-void *GameCubeMTClose(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+static void* GameCubeMTClose(void* instance, RwInt32 offset, RwInt32 size) {
+    return instance;
 }
 
-void *_rpGameCubeMTPipePluginAttach(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+RwBool _rpGameCubeMTPipePluginAttach(void) {
+    _rpGameCubeMTEngineOffset = RwEngineRegisterPlugin(
+        8, 0x129, GameCubeMTOpen, GameCubeMTClose);
+    if (_rpGameCubeMTEngineOffset < 0) {
+        return 0;
+    }
+    return 1;
 }

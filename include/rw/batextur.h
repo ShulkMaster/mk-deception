@@ -16,5 +16,10 @@ RwTexDictionary* RwTexDictionaryForAllTextures(
     RwTexDictionary* dictionary,
     RwTexture* (*callback)(RwTexture*, void*), void* data);
 RwTexture* RwTextureStreamRead(RwStream* stream);
+RwTexture* RwTextureRead(const char* name, const char* maskName);
+RwBool RwTextureSetMipmapping(RwBool enable);
+RwBool RwTextureGetMipmapping(void);
+RwBool RwTextureSetAutoMipmapping(RwBool enable);
+RwBool RwTextureGetAutoMipmapping(void);
 
 #endif

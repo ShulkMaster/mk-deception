@@ -56,6 +56,8 @@ typedef struct RwStringFunctions {
 typedef int (*RwRasterDeviceCall)(void* result, void* raster, int flags);
 typedef int (*RwSystemCall)(int request, void* out, void* in_out, int value);
 typedef int (*RwStandardCall)(void* out, void* in_out, int value);
+typedef int (*RwCameraDeviceCall)(void* out, void* camera, int value);
+typedef int (*RwCameraClearCall)(void* camera, void* color, int clear_mode);
 typedef RwSystemCall RwSystemFunc;
 typedef RwStandardCall RwStandardFunc;
 typedef struct RwFreeList RwFreeList;
@@ -78,9 +80,18 @@ typedef struct RwGlobals {
         void* field_0x00;
         void* curCamera;
     };
-    void* field_0x04;
-    unsigned short field_0x08;
-    unsigned short field_0x0A;
+    union {
+        void* field_0x04;
+        void* curWorld;
+    };
+    union {
+        unsigned short field_0x08;
+        unsigned short renderFrame;
+    };
+    union {
+        unsigned short field_0x0A;
+        unsigned short lightFrame;
+    };
     unsigned int field_0x0C;
     float gammaCorrection;
     RwSystemCall fpSystem;
@@ -89,7 +100,10 @@ typedef struct RwGlobals {
     int (*fpRenderStateSet)(int state, int value);
     void (*fpRenderStateGet)(int state, void* out);
     char pad28[0x24];
-    void* field_0x4C;
+    union {
+        void* field_0x4C;
+        RwCameraDeviceCall fpCameraBeginUpdate;
+    };
     char pad50[0x8];
     RwRasterDeviceCall fpRasterCreate;
     RwRasterDeviceCall fpRasterDestroy;
@@ -97,7 +111,10 @@ typedef struct RwGlobals {
     RwRasterDeviceCall fpRasterSetFromImage;
     RwRasterDeviceCall fpTextureSetRaster;
     RwRasterDeviceCall fpImageFindRasterFormat;
-    void* field_0x70;
+    union {
+        void* field_0x70;
+        RwCameraDeviceCall fpCameraEndUpdate;
+    };
     void* field_0x74;
     RwRasterDeviceCall fpRasterSubRaster;
     char pad7C[0x8];
@@ -105,8 +122,14 @@ typedef struct RwGlobals {
     RwRasterDeviceCall fpRasterUnlock;
     char pad8C[0xC];
     RwRasterDeviceCall fpRasterShowRaster;
-    void* field_0x9C;
-    void* field_0xA0;
+    union {
+        void* field_0x9C;
+        RwCameraClearCall fpCameraClear;
+    };
+    union {
+        void* field_0xA0;
+        RwStandardCall fpHintRenderFrontToBack;
+    };
     RwRasterDeviceCall fpRasterLockPalette;
     RwRasterDeviceCall fpRasterUnlockPalette;
     char padAC[0xC];
