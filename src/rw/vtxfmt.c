@@ -3,28 +3,28 @@
 #include "rw/gamecube.h"
 #include "rw/rwplcore.h"
 
-extern RwInt32 RpGeometryRegisterPlugin(
-    RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
+extern int RpGeometryRegisterPlugin(
+    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
     RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
-extern RwInt32 RpWorldRegisterPlugin(
-    RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
+extern int RpWorldRegisterPlugin(
+    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
     RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
 
 static RpGameCubeVtxFmt _RpDlVtxFmtDefault;
 static RwModuleInfo _RpVtxFmtModule;
-RwInt32 _rpDlWorldVtxFmtOffset;
-RwInt32 _rpDlGeomVtxFmtOffset;
+int _rpDlWorldVtxFmtOffset;
+int _rpDlGeomVtxFmtOffset;
 
 void _rwDlVtxFmtSetup(RpGameCubeVtxFmt* format,
                       RpGameCubeVtxFmtSetupData* setupData)
 {
     RwGameCubeVertexBuffer* resource;
-    RwUInt32 arrayIndex = 0;
-    RwUInt32 attribute;
-    RwInt32 colorCount;
+    unsigned int arrayIndex = 0;
+    unsigned int attribute;
+    int colorCount;
 
     if (format == 0) format = &_RpDlVtxFmtDefault;
-    resource = (RwGameCubeVertexBuffer*)((RwUInt8*)setupData->resourceEntry + 0x18);
+    resource = (RwGameCubeVertexBuffer*)((unsigned char*)setupData->resourceEntry + 0x18);
 
     GXClearVtxDesc();
     GXSetVtxDesc(9, resource->arrays[arrayIndex].descriptor);
@@ -83,21 +83,21 @@ RpGameCubeVtxFmt* _rpGameCubeVtxFmtGetDefault(void)
     return &_RpDlVtxFmtDefault;
 }
 
-static void* _rxDlVertexFmtConst(void* object, RwInt32 offset, RwInt32 size)
+static void* _rxDlVertexFmtConst(void* object, int offset, int size)
 {
-    *(RpGameCubeVtxFmt**)((RwUInt8*)object + offset) = 0;
+    *(RpGameCubeVtxFmt**)((unsigned char*)object + offset) = 0;
     return object;
 }
 
-static void* _rxDlVertexFmtDest(void* object, RwInt32 offset, RwInt32 size)
+static void* _rxDlVertexFmtDest(void* object, int offset, int size)
 {
     RpGameCubeVtxFmt** format =
-        (RpGameCubeVtxFmt**)((RwUInt8*)object + offset);
+        (RpGameCubeVtxFmt**)((unsigned char*)object + offset);
     if (*format != 0) RpGameCubeVtxFmtDestroy(*format);
     return object;
 }
 
-static void* _rpDlVtxFmtOpen(void* instance, RwInt32 offset, RwInt32 size)
+static void* _rpDlVtxFmtOpen(void* instance, int offset, int size)
 {
     _RpVtxFmtModule.numInstances++;
     if (_RpVtxFmtModule.numInstances == 1)
@@ -105,15 +105,15 @@ static void* _rpDlVtxFmtOpen(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-static void* _rpDlVtxFmtClose(void* instance, RwInt32 offset, RwInt32 size)
+static void* _rpDlVtxFmtClose(void* instance, int offset, int size)
 {
     _RpVtxFmtModule.numInstances--;
     return instance;
 }
 
-RwBool _rpDlVtxFmtPluginAttach(void)
+int _rpDlVtxFmtPluginAttach(void)
 {
-    RwInt32 result = RwEngineRegisterPlugin(
+    int result = RwEngineRegisterPlugin(
         0, 0x511, _rpDlVtxFmtOpen, _rpDlVtxFmtClose);
     if (result < 0) return 0;
 
@@ -127,30 +127,30 @@ RwBool _rpDlVtxFmtPluginAttach(void)
     return 1;
 }
 
-void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, RwUInt32 type,
-                                 RwUInt8 fraction)
+void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, unsigned int type,
+                                 unsigned char fraction)
 {
-    format->positionType = (RwUInt8)type;
+    format->positionType = (unsigned char)type;
     format->positionFraction = fraction;
 }
 
-void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, RwUInt32 type,
-                               RwUInt32 mode)
+void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, unsigned int type,
+                               unsigned int mode)
 {
-    format->normalType = (RwUInt8)type;
-    format->normalMode = (RwUInt8)mode;
+    format->normalType = (unsigned char)type;
+    format->normalMode = (unsigned char)mode;
 }
 
-void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, RwInt32 index,
-                                 RwUInt32 type, RwUInt8 fraction)
+void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
+                                 unsigned int type, unsigned char fraction)
 {
-    format->fields[index + 1] = (RwUInt8)type;
+    format->fields[index + 1] = (unsigned char)type;
     format->fields[index + 0xD] = fraction;
 }
 
 void RpGameCubeVtxFmtInit(RpGameCubeVtxFmt* format)
 {
-    RwInt32 i;
+    int i;
 
     format->positionType = 4;
     format->normalType = 4;
@@ -183,7 +183,7 @@ void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
                                  RpGameCubeVtxFmt* format)
 {
     RpGameCubeVtxFmt** current = (RpGameCubeVtxFmt**)(
-        (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
+        (unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
     if (*current != 0) RpGameCubeVtxFmtDestroy(*current);
     *current = format;
     (*current)->refCount++;

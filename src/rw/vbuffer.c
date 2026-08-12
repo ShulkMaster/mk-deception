@@ -1,29 +1,29 @@
 #include "rw/gamecube.h"
 
-extern RwUInt32 rwGCNPosGetSize(const RwGameCubeVertexDescriptor* descriptor);
-extern RwUInt32 rwGCNNrmGetSize(const RwGameCubeVertexDescriptor* descriptor);
-extern RwUInt32 rwGCNClrGetSize(const RwGameCubeVertexDescriptor* descriptor,
-                               RwUInt8 index);
-extern RwUInt32 rwGCNTexGetSize(const RwGameCubeVertexDescriptor* descriptor,
-                               RwUInt8 index);
+extern unsigned int rwGCNPosGetSize(const RwGameCubeVertexDescriptor* descriptor);
+extern unsigned int rwGCNNrmGetSize(const RwGameCubeVertexDescriptor* descriptor);
+extern unsigned int rwGCNClrGetSize(const RwGameCubeVertexDescriptor* descriptor,
+                               unsigned char index);
+extern unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor* descriptor,
+                               unsigned char index);
 
-RwUInt32 _rwGCNVertexBufferHeaderGetSize(
+unsigned int _rwGCNVertexBufferHeaderGetSize(
     const RwGameCubeVertexDescriptor* descriptor)
 {
-    RwUInt32 size = 0x14;
+    unsigned int size = 0x14;
 
     size += (descriptor->numIndexedAttrs - 1) * 8;
     return size;
 }
 
-RwUInt32 _rwGCNVertexBufferGetSize(
+unsigned int _rwGCNVertexBufferGetSize(
     const RwGameCubeVertexDescriptor* descriptor,
-    const RwUInt32* vertexCounts)
+    const unsigned int* vertexCounts)
 {
-    RwUInt32 size = 0;
-    RwUInt32 descriptorType;
-    RwUInt32 attribute = 9;
-    RwUInt32 hasNBT;
+    unsigned int size = 0;
+    unsigned int descriptorType;
+    unsigned int attribute = 9;
+    unsigned int hasNBT;
 
     while (attribute < 21) {
         switch (attribute) {
@@ -31,7 +31,7 @@ RwUInt32 _rwGCNVertexBufferGetSize(
             descriptorType = descriptor->vcdLo & 0x600U;
             descriptorType >>= 9;
             if (descriptorType == 2 || descriptorType == 3) {
-                RwUInt32 bytes =
+                unsigned int bytes =
                     vertexCounts[attribute] * rwGCNPosGetSize(descriptor);
                 size += (bytes + 31U) & ~31U;
             }
@@ -42,11 +42,11 @@ RwUInt32 _rwGCNVertexBufferGetSize(
             if (descriptorType == 2 || descriptorType == 3) {
                 hasNBT = (descriptor->vatA >> 9) & 1;
                 if (hasNBT == 1) {
-                    RwUInt32 bytes = vertexCounts[attribute] *
+                    unsigned int bytes = vertexCounts[attribute] *
                                      rwGCNNrmGetSize(descriptor) * 3;
                     size += (bytes + 31U) & ~31U;
                 } else {
-                    RwUInt32 bytes = vertexCounts[attribute] *
+                    unsigned int bytes = vertexCounts[attribute] *
                                      rwGCNNrmGetSize(descriptor);
                     size += (bytes + 31U) & ~31U;
                 }
@@ -57,8 +57,8 @@ RwUInt32 _rwGCNVertexBufferGetSize(
             descriptorType =
                 (descriptor->vcdLo >> (13 + (attribute - 11) * 2)) & 3;
             if (descriptorType == 2 || descriptorType == 3) {
-                RwUInt32 bytes = vertexCounts[attribute] *
-                    rwGCNClrGetSize(descriptor, (RwUInt8)(attribute - 11));
+                unsigned int bytes = vertexCounts[attribute] *
+                    rwGCNClrGetSize(descriptor, (unsigned char)(attribute - 11));
                 size += (bytes + 31U) & ~31U;
             }
             break;
@@ -66,8 +66,8 @@ RwUInt32 _rwGCNVertexBufferGetSize(
             descriptorType =
                 (descriptor->vcdHi >> ((attribute - 13) * 2)) & 3;
             if (descriptorType == 2 || descriptorType == 3) {
-                RwUInt32 bytes = vertexCounts[attribute] *
-                    rwGCNTexGetSize(descriptor, (RwUInt8)(attribute - 13));
+                unsigned int bytes = vertexCounts[attribute] *
+                    rwGCNTexGetSize(descriptor, (unsigned char)(attribute - 13));
                 size += (bytes + 31U) & ~31U;
             }
             break;
@@ -79,20 +79,20 @@ RwUInt32 _rwGCNVertexBufferGetSize(
 
 void _rwGCNVertexBufferInitialize(
     const RwGameCubeVertexDescriptor* descriptor,
-    RwGameCubeVertexBuffer* vertexBuffer, const RwUInt32* vertexCounts,
+    RwGameCubeVertexBuffer* vertexBuffer, const unsigned int* vertexCounts,
     void* data)
 {
-    RwUInt32 numArrays = 0;
-    RwUInt32 dataSize = 0;
-    RwUInt32 attribute = 9;
-    RwUInt8* currentData;
+    unsigned int numArrays = 0;
+    unsigned int dataSize = 0;
+    unsigned int attribute = 9;
+    unsigned char* currentData;
 
     while (attribute < 21) {
-        RwUInt32 descriptorType;
-        RwUInt32 stride;
-        RwUInt32 hasNBT;
+        unsigned int descriptorType;
+        unsigned int stride;
+        unsigned int hasNBT;
 
-        currentData = (RwUInt8*)data + dataSize;
+        currentData = (unsigned char*)data + dataSize;
 
         switch (attribute) {
         case 9:
@@ -101,10 +101,10 @@ void _rwGCNVertexBufferInitialize(
             if (descriptorType == 2 || descriptorType == 3) {
                 stride = rwGCNPosGetSize(descriptor);
                 vertexBuffer->arrays[numArrays].data = currentData;
-                vertexBuffer->arrays[numArrays].attribute = (RwUInt8)attribute;
-                vertexBuffer->arrays[numArrays].stride = (RwUInt8)stride;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
                 vertexBuffer->arrays[numArrays].descriptor =
-                    (RwUInt8)descriptorType;
+                    (unsigned char)descriptorType;
                 dataSize +=
                     (stride * vertexCounts[attribute] + 31U) & ~31U;
                 numArrays++;
@@ -119,10 +119,10 @@ void _rwGCNVertexBufferInitialize(
                     stride = rwGCNNrmGetSize(descriptor) * 3;
                     vertexBuffer->arrays[numArrays].data = currentData;
                     vertexBuffer->arrays[numArrays].attribute =
-                        (RwUInt8)attribute;
-                    vertexBuffer->arrays[numArrays].stride = (RwUInt8)stride;
+                        (unsigned char)attribute;
+                    vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
                     vertexBuffer->arrays[numArrays].descriptor =
-                        (RwUInt8)descriptorType;
+                        (unsigned char)descriptorType;
                     dataSize +=
                         (stride * vertexCounts[attribute] + 31U) & ~31U;
                     numArrays++;
@@ -130,10 +130,10 @@ void _rwGCNVertexBufferInitialize(
                     stride = rwGCNNrmGetSize(descriptor);
                     vertexBuffer->arrays[numArrays].data = currentData;
                     vertexBuffer->arrays[numArrays].attribute =
-                        (RwUInt8)attribute;
-                    vertexBuffer->arrays[numArrays].stride = (RwUInt8)stride;
+                        (unsigned char)attribute;
+                    vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
                     vertexBuffer->arrays[numArrays].descriptor =
-                        (RwUInt8)descriptorType;
+                        (unsigned char)descriptorType;
                     dataSize +=
                         (stride * vertexCounts[attribute] + 31U) & ~31U;
                     numArrays++;
@@ -145,12 +145,12 @@ void _rwGCNVertexBufferInitialize(
             descriptorType =
                 (descriptor->vcdLo >> (13 + (attribute - 11) * 2)) & 3;
             if (descriptorType == 2 || descriptorType == 3) {
-                stride = rwGCNClrGetSize(descriptor, (RwUInt8)(attribute - 11));
+                stride = rwGCNClrGetSize(descriptor, (unsigned char)(attribute - 11));
                 vertexBuffer->arrays[numArrays].data = currentData;
-                vertexBuffer->arrays[numArrays].attribute = (RwUInt8)attribute;
-                vertexBuffer->arrays[numArrays].stride = (RwUInt8)stride;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
                 vertexBuffer->arrays[numArrays].descriptor =
-                    (RwUInt8)descriptorType;
+                    (unsigned char)descriptorType;
                 dataSize +=
                     (stride * vertexCounts[attribute] + 31U) & ~31U;
                 numArrays++;
@@ -161,12 +161,12 @@ void _rwGCNVertexBufferInitialize(
                 (descriptor->vcdHi >> ((attribute - 13) * 2)) & 3;
             if (descriptorType == 2 || descriptorType == 3) {
                 stride = rwGCNTexGetSize(
-                    descriptor, (RwUInt8)(attribute - 13));
+                    descriptor, (unsigned char)(attribute - 13));
                 vertexBuffer->arrays[numArrays].data = currentData;
-                vertexBuffer->arrays[numArrays].attribute = (RwUInt8)attribute;
-                vertexBuffer->arrays[numArrays].stride = (RwUInt8)stride;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
                 vertexBuffer->arrays[numArrays].descriptor =
-                    (RwUInt8)descriptorType;
+                    (unsigned char)descriptorType;
                 dataSize +=
                     (stride * vertexCounts[attribute] + 31U) & ~31U;
                 numArrays++;
