@@ -21,7 +21,7 @@ typedef struct RpWorldSector RpWorldSector;
 typedef struct RxPipeline RxPipeline;
 typedef struct RwRGBA RwRGBA;
 typedef struct RpMaterial RpMaterial;
-typedef RwUInt16 RxVertexIndex;
+typedef unsigned short RxVertexIndex;
 typedef struct RpBuildMesh RpBuildMesh;
 typedef struct RpMesh RpMesh;
 typedef struct RpTriangle RpTriangle;
@@ -30,8 +30,8 @@ typedef struct RpLight RpLight;
 typedef RpLight* (*RpLightCallBack)(RpLight*, void*);
 
 typedef struct RwTexCoords {
-    RwReal u;
-    RwReal v;
+    float u;
+    float v;
 } RwTexCoords;
 
 typedef struct RpMeshHeader {
@@ -45,21 +45,21 @@ typedef struct RpMeshHeader {
 typedef struct RpBuildMeshTriangle {
     RxVertexIndex vertIndex[3];
     RpMaterial* material;
-    RwUInt16 matIndex;
-    RwUInt16 textureIndex;
-    RwUInt16 rasterIndex;
-    RwUInt16 pipelineIndex;
+    unsigned short matIndex;
+    unsigned short textureIndex;
+    unsigned short rasterIndex;
+    unsigned short pipelineIndex;
 } RpBuildMeshTriangle;
 
 struct RpBuildMesh {
-    RwUInt32 triangleBufferSize;
-    RwUInt32 numTriangles;
+    unsigned int triangleBufferSize;
+    unsigned int numTriangles;
     RpBuildMeshTriangle* meshTriangles;
 };
 
 struct RpMesh {
     RxVertexIndex* indices;
-    RwUInt32 numIndices;
+    unsigned int numIndices;
     RpMaterial* material;
 };
 
@@ -67,8 +67,8 @@ typedef RpMesh* (*RpMeshCallBack)(RpMesh*, RpMeshHeader*, void*);
 typedef RpMaterial* (*RpMaterialCallBack)(RpMaterial*, void*);
 
 struct RpTriangle {
-    RwUInt16 vertIndex[3];
-    RwUInt16 matIndex;
+    unsigned short vertIndex[3];
+    unsigned short matIndex;
 };
 
 typedef union RpMaterialColor {
@@ -92,8 +92,8 @@ typedef struct RpMaterial {
     RpMaterialColor color;
     struct RxPipeline* pipeline;
     RpSurfaceProperties surface;
-    RwInt16 refCount;
-    RwUInt16 reserved_0x1A;
+    short refCount;
+    unsigned short reserved_0x1A;
 } RpMaterial;
 
 typedef RpAtomic* (*RpAtomicCallBackRender)(RpAtomic* atomic);
@@ -101,12 +101,12 @@ typedef RpAtomic* (*RpAtomicCallBack)(RpAtomic* atomic, void* data);
 typedef RpClump* (*RpClumpCallBack)(RpClump* clump, void* data);
 
 typedef struct RpInterpolator {
-    RwInt32 flags;
-    RwInt16 startMorphTarget;
-    RwInt16 endMorphTarget;
-    RwReal time;
-    RwReal recipTime;
-    RwReal position;
+    int flags;
+    short startMorphTarget;
+    short endMorphTarget;
+    float time;
+    float recipTime;
+    float position;
 } RpInterpolator;
 
 
@@ -119,34 +119,34 @@ typedef struct RpMaterialList {
 RpMaterialList* _rpMaterialListDeinitialize(RpMaterialList* materialList);
 RpMaterialList* _rpMaterialListInitialize(RpMaterialList* materialList);
 RpMaterial* _rpMaterialListGetMaterial(const RpMaterialList* materialList,
-                                       RwInt32 index);
+                                       int index);
 RpMaterialList* _rpMaterialListSetSize(RpMaterialList* materialList,
-                                       RwInt32 size);
-RwInt32 _rpMaterialListAppendMaterial(RpMaterialList* materialList,
+                                       int size);
+int _rpMaterialListAppendMaterial(RpMaterialList* materialList,
                                       RpMaterial* material);
-RwInt32 _rpMaterialListFindMaterialIndex(const RpMaterialList* materialList,
+int _rpMaterialListFindMaterialIndex(const RpMaterialList* materialList,
                                          const RpMaterial* material);
-RwBool RpMaterialDestroy(RpMaterial* material);
+int RpMaterialDestroy(RpMaterial* material);
 RpMaterial* RpMaterialCreate(void);
 RpMaterial* RpMaterialSetTexture(RpMaterial* material, RwTexture* texture);
 RpMaterial* RpMaterialStreamRead(RwStream* stream);
-RpMeshHeader* _rpMeshHeaderCreate(RwUInt32 size);
-void* _rpMeshClose(void* instance, RwInt32 offset, RwInt32 size);
-void* _rpMeshOpen(void* instance, RwInt32 offset, RwInt32 size);
-RpBuildMesh* _rpBuildMeshCreate(RwUInt32 bufferSize);
-RwBool _rpBuildMeshDestroy(RpBuildMesh* mesh);
-RwBool _rpMeshDestroy(RpMeshHeader* meshHeader);
+RpMeshHeader* _rpMeshHeaderCreate(unsigned int size);
+void* _rpMeshClose(void* instance, int offset, int size);
+void* _rpMeshOpen(void* instance, int offset, int size);
+RpBuildMesh* _rpBuildMeshCreate(unsigned int bufferSize);
+int _rpBuildMeshDestroy(RpBuildMesh* mesh);
+int _rpMeshDestroy(RpMeshHeader* meshHeader);
 RpBuildMesh* _rpBuildMeshAddTriangle(
-    RpBuildMesh* mesh, RpMaterial* material, RwInt32 vert1, RwInt32 vert2,
-    RwInt32 vert3, RwUInt16 matIndex, RwUInt16 textureIndex,
-    RwUInt16 rasterIndex, RwUInt16 pipelineIndex);
+    RpBuildMesh* mesh, RpMaterial* material, int vert1, int vert2,
+    int vert3, unsigned short matIndex, unsigned short textureIndex,
+    unsigned short rasterIndex, unsigned short pipelineIndex);
 RpMeshHeader* _rpMeshHeaderForAllMeshes(RpMeshHeader* meshHeader,
                                         RpMeshCallBack callback, void* data);
 RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
                        RwStream* stream, const RpMaterialList* materialList);
 RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
                           const RpMaterialList* materialList);
-RwInt32 _rpMeshSize(const RpMeshHeader* meshHeader, const void* object);
+int _rpMeshSize(const RpMeshHeader* meshHeader, const void* object);
 
 
 
@@ -184,10 +184,10 @@ struct RpAtomic {
     RpAtomicCallBackRender renderCallBack;
     union {
         RpInterpolator interpolator;
-        RwUInt32 interpolatorFlags;
+        unsigned int interpolatorFlags;
     };
-    RwUInt16 renderFrame;
-    RwUInt16 reserved62;
+    unsigned short renderFrame;
+    unsigned short reserved62;
     RwLinkList worldSectorsInAtomic;
     RxPipeline* pipeline;
 };
@@ -205,9 +205,9 @@ static inline RpAtomic* RpAtomicFromClumpLink(RwLLLink* link)
 
 typedef struct RpGeometry {
     RwObject object;
-    RwUInt32 flags;
+    unsigned int flags;
     unsigned short lockedSinceLastInst;
-    RwInt16 refCount;
+    short refCount;
     int numTriangles;
     int numVertices;
     int numMorphTargets;
@@ -221,22 +221,22 @@ typedef struct RpGeometry {
     struct RpMorphTarget* morphTarget;
 } RpGeometry;
 
-RwInt32 RpGeometryAddMorphTargets(RpGeometry* geometry, RwInt32 count);
-RwInt32 RpGeometryAddMorphTarget(RpGeometry* geometry);
+int RpGeometryAddMorphTargets(RpGeometry* geometry, int count);
+int RpGeometryAddMorphTarget(RpGeometry* geometry);
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry,
                                       RpMaterialCallBack callback, void* data);
-RpGeometry* RpGeometryLock(RpGeometry* geometry, RwInt32 lockMode);
+RpGeometry* RpGeometryLock(RpGeometry* geometry, int lockMode);
 RpGeometry* RpGeometryUnlock(RpGeometry* geometry);
-RpGeometry* RpGeometryCreate(RwInt32 numVertices, RwInt32 numTriangles,
-                             RwUInt32 format);
+RpGeometry* RpGeometryCreate(int numVertices, int numTriangles,
+                             unsigned int format);
 RpGeometry* _rpGeometryAddRef(RpGeometry* geometry);
-RwBool RpGeometryDestroy(RpGeometry* geometry);
-RwInt32 RpGeometryRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RpGeometryDestroy(RpGeometry* geometry);
+int RpGeometryRegisterPlugin(int size, unsigned int pluginID,
                                  RwPluginObjectConstructor constructCB,
                                  RwPluginObjectDestructor destructCB,
                                  RwPluginObjectCopy copyCB);
-RwInt32 RpGeometryRegisterPluginStream(
-    RwUInt32 pluginID, RwPluginDataChunkReadCallBack readCB,
+int RpGeometryRegisterPluginStream(
+    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
     RwPluginDataChunkWriteCallBack writeCB,
     RwPluginDataChunkGetSizeCallBack getSizeCB);
 RpGeometry* RpGeometryStreamRead(RwStream* stream);
@@ -268,10 +268,10 @@ typedef struct RpClump {
         };
     };
     RpClumpCallBack callback;
-    RwUInt8 field_0x2C[0x74];
-    RwReal worldAnchorX;
-    RwReal worldAnchorY;
-    RwReal worldAnchorZ;
+    unsigned char field_0x2C[0x74];
+    float worldAnchorX;
+    float worldAnchorY;
+    float worldAnchorZ;
 } RpClump;
 
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
@@ -279,34 +279,34 @@ void _rpAtomicResyncInterpolatedSphere(RpAtomic* atomic);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 RpClump* RpClumpRender(RpClump* clump);
 RpAtomic* RpAtomicCreate(void);
-RpAtomic* RpAtomicSetGeometry(RpAtomic*, RpGeometry*, RwUInt32);
-RwBool RpAtomicDestroy(RpAtomic*);
+RpAtomic* RpAtomicSetGeometry(RpAtomic*, RpGeometry*, unsigned int);
+int RpAtomicDestroy(RpAtomic*);
 RpClump* RpClumpCreate(void);
-RwBool RpClumpDestroy(RpClump*);
+int RpClumpDestroy(RpClump*);
 RpClump* RpClumpAddAtomic(RpClump*, RpAtomic*);
 RpClump* RpClumpRemoveLight(RpClump*, RpLight*);
 RpClump* RpClumpRemoveCamera(RpClump*, RwCamera*);
 
 typedef struct RpVertexNormal {
     signed char x, y, z;
-    RwUInt8 pad;
+    unsigned char pad;
 } RpVertexNormal;
 
 struct RpSector {
-    RwInt32 type;
+    int type;
 };
 
 typedef struct RpPlaneSector {
-    RwInt32 type;
-    RwReal value;
+    int type;
+    float value;
     RpSector* leftSubTree;
     RpSector* rightSubTree;
-    RwReal leftValue;
-    RwReal rightValue;
+    float leftValue;
+    float rightValue;
 } RpPlaneSector;
 
 struct RpWorldSector {
-    RwInt32 type;
+    int type;
     RpTriangle* triangles;
     RwV3d* vertices;
     RpVertexNormal* normals;
@@ -319,10 +319,10 @@ struct RpWorldSector {
     RwBBox tightBoundingBox;
     RpMeshHeader* mesh;
     RxPipeline* pipeline;
-    RwUInt16 matListWindowBase;
-    RwUInt16 numVertices;
-    RwUInt16 numTriangles;
-    RwUInt16 pad;
+    unsigned short matListWindowBase;
+    unsigned short numVertices;
+    unsigned short numTriangles;
+    unsigned short pad;
 };
 
 typedef enum RpWorldRenderOrder {
@@ -336,12 +336,12 @@ typedef RpWorldSector* (*RpWorldSectorCallBack)(RpWorldSector*, void*);
 
 struct RpWorld {
     RwObject object;
-    RwUInt32 flags;
+    unsigned int flags;
     RpWorldRenderOrder renderOrder;
     RpMaterialList matList;
     RpSector* rootSector;
-    RwInt32 numTexCoordSets;
-    RwInt32 numClumpsInWorld;
+    int numTexCoordSets;
+    int numClumpsInWorld;
     RwLLLink* currentClumpLink;
     RwLinkList clumpList;
     RwLinkList lightList;
@@ -355,13 +355,13 @@ struct RpWorld {
 RpWorld* RpWorldLock(RpWorld* world);
 RpWorld* RpWorldUnlock(RpWorld* world);
 RpWorld* RpWorldSectorGetWorld(const RpWorldSector* sector);
-RwBool RpWorldDestroy(RpWorld* world);
+int RpWorldDestroy(RpWorld* world);
 void RpWorldSetSectorRenderCallBack(RpWorld*, RpWorldSectorCallBackRender);
 RpWorld* RpWorldCreate(RwBBox* boundingBox);
 RpWorld* RpWorldForAllWorldSectors(RpWorld*, RpWorldSectorCallBack, void*);
 RpWorld* RpWorldForAllLights(RpWorld*, RpLightCallBack, void*);
-RwInt32 RpWorldRegisterPlugin(RwInt32, RwUInt32, RwPluginObjectConstructor,
+int RpWorldRegisterPlugin(int, unsigned int, RwPluginObjectConstructor,
                               RwPluginObjectDestructor, RwPluginObjectCopy);
-RwBool RpWorldPluginAttach(void);
+int RpWorldPluginAttach(void);
 
 #endif

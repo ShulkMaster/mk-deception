@@ -9,6 +9,7 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
+#include "rw/rtquat.h"
 
 /*
  * Soft ceiling: retail gives several automatic Vec/Quat temporaries 16-byte
@@ -129,9 +130,7 @@ static void cloth_coll_point_cyl_rel(void);
 int obj_get_bid_for_tid(MkObj* obj, int tag);
 MkObj* load_model_from_slot(int slot, int model_id, int heap_id);
 void* memcpy(void* destination, const void* source, unsigned int size);
-void RwMatrixUpdate(RwMatrix* matrix);
 void RwFrameUpdateObjects(RwFrame* frame);
-RwMatrix* RwMatrixInvert(RwMatrix* output, const RwMatrix* input);
 void PSVECAdd(const Vec* first, const Vec* second, Vec* output);
 
 typedef struct ClothWindPdata {
