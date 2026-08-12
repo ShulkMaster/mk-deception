@@ -7,14 +7,14 @@
 extern RxExecutionContext _rxExecCtxGlobal;
 
 static RwFreeList _rxPipesFreeList;
-RwUInt32 _rxHeapInitialSize = 0x1000;
-RwUInt32 _rxPipelineMaxNodes = 0x40;
-static RwInt32 _rxPipesFreeListBlockSize = 0x40;
-static RwInt32 _rxPipesFreeListPreallocBlocks = 1;
+unsigned int _rxHeapInitialSize = 0x1000;
+unsigned int _rxPipelineMaxNodes = 0x40;
+static int _rxPipesFreeListBlockSize = 0x40;
+static int _rxPipesFreeListPreallocBlocks = 1;
 RxHeap* _rxHeapGlobal;
-RwBool RxPipelineInstanced;
+int RxPipelineInstanced;
 
-RwBool _rxPipelineClose(void)
+int _rxPipelineClose(void)
 {
     if (RxPipelineInstanced) {
         RwFreeListDestroy(RxPipelineGlobals()->pipelines);
@@ -26,7 +26,7 @@ RwBool _rxPipelineClose(void)
     return 1;
 }
 
-RwBool _rxPipelineOpen(void)
+int _rxPipelineOpen(void)
 {
     if (!RxPipelineInstanced) {
         _rxHeapGlobal = RxHeapCreate(_rxHeapInitialSize);
@@ -80,7 +80,7 @@ RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
         }
         memset(node, 0, sizeof(*node));
     } else {
-        RwUInt32 nodeIndex;
+        unsigned int nodeIndex;
 
         if (node->initializationData != 0) {
             RwEngineInstance->fpFree(node->initializationData);
@@ -94,13 +94,13 @@ RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
 
         nodeIndex = node - pipeline->nodes;
         if (nodeIndex < pipeline->numNodes - 1) {
-            RwUInt8* output;
-            RwUInt8* nextOutput;
+            unsigned char* output;
+            unsigned char* nextOutput;
             RxPipelineNodeTopSortData* topSort;
             RxPipelineNodeTopSortData* nextTopSort;
-            RwUInt32 i;
+            unsigned int i;
 
-            output = (RwUInt8*)pipeline->nodes +
+            output = (unsigned char*)pipeline->nodes +
                      RxPipelineGlobals()->maxNodes * sizeof(*node);
             output += nodeIndex * 0x80;
             nextOutput = output + 0x80;
@@ -110,9 +110,9 @@ RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
                 nextOutput += 0x80;
             }
 
-            topSort = (RxPipelineNodeTopSortData*)((RwUInt8*)pipeline->nodes +
+            topSort = (RxPipelineNodeTopSortData*)((unsigned char*)pipeline->nodes +
                       RxPipelineGlobals()->maxNodes * sizeof(*node));
-            topSort = (RxPipelineNodeTopSortData*)((RwUInt8*)topSort +
+            topSort = (RxPipelineNodeTopSortData*)((unsigned char*)topSort +
                       RxPipelineGlobals()->maxNodes * 0x80);
             nextTopSort = topSort + 1;
             for (i = nodeIndex; i < pipeline->numNodes - 1; ++i) {
@@ -124,11 +124,11 @@ RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
                 memcpy(&pipeline->nodes[i], &pipeline->nodes[i + 1],
                        sizeof(*node));
                 pipeline->nodes[i].outputs =
-                    (RwUInt32*)((RwUInt8*)pipeline->nodes[i].outputs - 0x80);
+                    (unsigned int*)((unsigned char*)pipeline->nodes[i].outputs - 0x80);
                 --pipeline->nodes[i].topSortData;
             }
             for (i = 0; i < pipeline->numNodes - 1; ++i) {
-                RwUInt32 j;
+                unsigned int j;
 
                 for (j = 0; j < pipeline->nodes[i].numOutputs; ++j) {
                     if (pipeline->nodes[i].outputs[j] >= nodeIndex) {
@@ -154,11 +154,11 @@ RxHeap* RxHeapGetGlobalHeap(void)
 
 
 RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
-                              RwBool heapReset)
+                              int heapReset)
 {
     RxPipelineNode* node;
     RxNodeDefinition* nodeDef;
-    RwBool result;
+    int result;
 
     if (heapReset && _rxHeapGlobal->dirty) {
         _rxHeapReset(_rxHeapGlobal);
@@ -215,8 +215,8 @@ RxPipeline* RxPipelineCreate(void)
 void _rxPipelineDestroy(RxPipeline* pipeline)
 {
     if (pipeline != 0) {
-        RwUInt32 i;
-        RwUInt32 numNodes;
+        unsigned int i;
+        unsigned int numNodes;
         RxPipelineNode* node;
 
         node = pipeline->nodes;

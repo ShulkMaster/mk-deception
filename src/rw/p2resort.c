@@ -1,13 +1,13 @@
 #include "rw/rwplcore.h"
 
 typedef struct RxSortPartition {
-    RwUInt8* first;
-    RwUInt8* last;
-    RwUInt32 bit;
+    unsigned char* first;
+    unsigned char* last;
+    unsigned int bit;
 } RxSortPartition;
 
-static RwInt32 _msbitpos(RwUInt32 value) {
-    RwInt32 position;
+static int _msbitpos(unsigned int value) {
+    int position;
 
     if (value != 0) {
         position = 0;
@@ -19,9 +19,9 @@ static RwInt32 _msbitpos(RwUInt32 value) {
     return -1;
 }
 
-static void _repartition(RwUInt8* first, RwUInt8* last,
-                         RwUInt32 entrySize, RwUInt32 keyOffset,
-                         RwUInt32 bit) {
+static void _repartition(unsigned char* first, unsigned char* last,
+                         unsigned int entrySize, unsigned int keyOffset,
+                         unsigned int bit) {
     RxSortPartition stack[32];
     RxSortPartition* stackTop = stack;
 
@@ -31,9 +31,9 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
     stackTop++;
 
     while (stackTop != stack) {
-        RwUInt8* originalFirst;
-        RwUInt8* originalLast;
-        RwUInt8* rightFirst;
+        unsigned char* originalFirst;
+        unsigned char* originalLast;
+        unsigned char* rightFirst;
 
         stackTop--;
         first = stackTop->first;
@@ -46,25 +46,25 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
 
                 while (first <= last) {
                 while (first <= last &&
-                       (bit & *(RwUInt32*)(first + keyOffset)) == 0) {
+                       (bit & *(unsigned int*)(first + keyOffset)) == 0) {
                     first += entrySize;
                 }
                 while (first <= last &&
-                       (bit & *(RwUInt32*)(last + keyOffset)) != 0) {
+                       (bit & *(unsigned int*)(last + keyOffset)) != 0) {
                     last -= entrySize;
                 }
                 if (first <= last) {
-                    RwUInt8* leftWord = first;
-                    RwUInt8* rightWord = last;
-                    RwUInt32 remaining = entrySize;
+                    unsigned char* leftWord = first;
+                    unsigned char* rightWord = last;
+                    unsigned int remaining = entrySize;
 
-                    while (remaining >= sizeof(RwUInt32)) {
-                        RwUInt32 value = *(RwUInt32*)leftWord;
-                        *(RwUInt32*)leftWord = *(RwUInt32*)rightWord;
-                        *(RwUInt32*)rightWord = value;
-                        leftWord += sizeof(RwUInt32);
-                        rightWord += sizeof(RwUInt32);
-                        remaining -= sizeof(RwUInt32);
+                    while (remaining >= sizeof(unsigned int)) {
+                        unsigned int value = *(unsigned int*)leftWord;
+                        *(unsigned int*)leftWord = *(unsigned int*)rightWord;
+                        *(unsigned int*)rightWord = value;
+                        leftWord += sizeof(unsigned int);
+                        rightWord += sizeof(unsigned int);
+                        remaining -= sizeof(unsigned int);
                     }
                     first += entrySize;
                     last -= entrySize;
@@ -93,34 +93,34 @@ static void _repartition(RwUInt8* first, RwUInt8* last,
     }
 }
 
-static void _insertionsort(RwUInt8* base, RwUInt32 numEntries,
-                           RwUInt32 entrySize, RwUInt32 keyOffset) {
+static void _insertionsort(unsigned char* base, unsigned int numEntries,
+                           unsigned int entrySize, unsigned int keyOffset) {
     while (base += entrySize, --numEntries) {
-        RwUInt32 currentKey = *(RwUInt32*)(base + keyOffset);
-        RwUInt8* previous = base;
+        unsigned int currentKey = *(unsigned int*)(base + keyOffset);
+        unsigned char* previous = base;
 
         while (previous -= entrySize,
-               *(RwUInt32*)(previous + keyOffset) > currentKey) {
-            RwUInt8* leftWord = previous;
-            RwUInt8* rightWord = previous + entrySize;
-            RwUInt32 remaining = entrySize;
+               *(unsigned int*)(previous + keyOffset) > currentKey) {
+            unsigned char* leftWord = previous;
+            unsigned char* rightWord = previous + entrySize;
+            unsigned int remaining = entrySize;
 
-            while (remaining >= sizeof(RwUInt32)) {
-                RwUInt32 value = *(RwUInt32*)leftWord;
-                *(RwUInt32*)leftWord = *(RwUInt32*)rightWord;
-                *(RwUInt32*)rightWord = value;
-                leftWord += sizeof(RwUInt32);
-                rightWord += sizeof(RwUInt32);
-                remaining -= sizeof(RwUInt32);
+            while (remaining >= sizeof(unsigned int)) {
+                unsigned int value = *(unsigned int*)leftWord;
+                *(unsigned int*)leftWord = *(unsigned int*)rightWord;
+                *(unsigned int*)rightWord = value;
+                leftWord += sizeof(unsigned int);
+                rightWord += sizeof(unsigned int);
+                remaining -= sizeof(unsigned int);
             }
         }
     }
 }
 
-void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,
-                             RwUInt32 entrySize, RwUInt32 keyOffset,
-                             RwUInt32 keyLowerBound,
-                             RwUInt32 keyUpperBound) {
+void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
+                             unsigned int entrySize, unsigned int keyOffset,
+                             unsigned int keyLowerBound,
+                             unsigned int keyUpperBound) {
     if (base == 0) {
         return;
     }
@@ -137,18 +137,18 @@ void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,
     }
 
     if (numEntries > 1) {
-        RwUInt32 index = 4;
-        RwUInt32 minimumIndex;
-        RwUInt32 minimumKey;
+        unsigned int index = 4;
+        unsigned int minimumIndex;
+        unsigned int minimumKey;
 
         if (index > numEntries - 1) {
             index = numEntries - 1;
         }
-        minimumKey = *(RwUInt32*)(base + index * entrySize + keyOffset);
+        minimumKey = *(unsigned int*)(base + index * entrySize + keyOffset);
         minimumIndex = index;
         index--;
         do {
-            RwUInt32 key = *(RwUInt32*)(base + index * entrySize + keyOffset);
+            unsigned int key = *(unsigned int*)(base + index * entrySize + keyOffset);
             if (key < minimumKey) {
                 minimumKey = key;
                 minimumIndex = index;
@@ -156,17 +156,17 @@ void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,
         } while (index-- != 0);
 
         if (minimumIndex != 0) {
-            RwUInt8* leftWord = base;
-            RwUInt8* rightWord = base + minimumIndex * entrySize;
-            RwUInt32 remaining = entrySize;
+            unsigned char* leftWord = base;
+            unsigned char* rightWord = base + minimumIndex * entrySize;
+            unsigned int remaining = entrySize;
 
-            while (remaining >= sizeof(RwUInt32)) {
-                RwUInt32 value = *(RwUInt32*)leftWord;
-                *(RwUInt32*)leftWord = *(RwUInt32*)rightWord;
-                *(RwUInt32*)rightWord = value;
-                leftWord += sizeof(RwUInt32);
-                rightWord += sizeof(RwUInt32);
-                remaining -= sizeof(RwUInt32);
+            while (remaining >= sizeof(unsigned int)) {
+                unsigned int value = *(unsigned int*)leftWord;
+                *(unsigned int*)leftWord = *(unsigned int*)rightWord;
+                *(unsigned int*)rightWord = value;
+                leftWord += sizeof(unsigned int);
+                rightWord += sizeof(unsigned int);
+                remaining -= sizeof(unsigned int);
             }
         }
         _insertionsort(base, numEntries, entrySize, keyOffset);

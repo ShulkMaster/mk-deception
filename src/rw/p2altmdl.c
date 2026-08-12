@@ -5,7 +5,7 @@ extern RxHeap* _rxHeapGlobal;
 RxExecutionContext _rxExecCtxGlobal;
 
 void _rxPacketDestroy(RxPacket* packet) {
-    RwUInt32 numClusters;
+    unsigned int numClusters;
     RxPipeline* pipeline;
     RxCluster* cluster;
 

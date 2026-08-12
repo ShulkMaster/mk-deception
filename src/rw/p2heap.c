@@ -5,7 +5,7 @@
 static RxHeapFreeBlock* HeapFreeBlocksNewEntry(RxHeap* heap)
 {
     RxHeapFreeBlock* freeBlocks = heap->freeBlocks;
-    RwUInt32 used = heap->freeBlocksUsed;
+    unsigned int used = heap->freeBlocksUsed;
 
     if (heap->freeBlocksAllocated <= used) {
         freeBlocks = RwEngineInstance->fpRealloc(
@@ -24,7 +24,7 @@ static RxHeapFreeBlock* HeapFreeBlocksNewEntry(RxHeap* heap)
         } else {
             if (freeBlocks != heap->freeBlocks && used != 0) {
                 RxHeapFreeBlock* entry = freeBlocks;
-                RwUInt32 remaining;
+                unsigned int remaining;
 
                 do {
                     entry->block->freeEntry = entry;
@@ -52,7 +52,7 @@ static void HeapFreeBlocksDeleteEntry(RxHeap* heap, RxHeapFreeBlock* entry)
     --heap->freeBlocksUsed;
 }
 
-static RxHeapSuperBlock* HeapSuperBlockCreate(RwUInt32 size)
+static RxHeapSuperBlock* HeapSuperBlockCreate(unsigned int size)
 {
     RxHeapSuperBlock* superBlock =
         RwEngineInstance->fpMalloc(size + 0x8B, 0x1040409);
@@ -73,7 +73,7 @@ static void HeapSuperBlockDestroy(RxHeapSuperBlock* superBlock)
     }
 }
 
-static RwBool HeapSuperBlockReset(RxHeapSuperBlock* superBlock,
+static int HeapSuperBlockReset(RxHeapSuperBlock* superBlock,
                                   RxHeapSuperBlock* previous, RxHeap* heap)
 {
     RxHeapFreeBlock* freeEntry = HeapFreeBlocksNewEntry(heap);
@@ -81,7 +81,7 @@ static RwBool HeapSuperBlockReset(RxHeapSuperBlock* superBlock,
     if (freeEntry != 0) {
         RxHeapBlock* first = superBlock->start;
         RxHeapBlock* freeBlock = first + 1;
-        RxHeapBlock* last = (RxHeapBlock*)((RwUInt8*)superBlock->start +
+        RxHeapBlock* last = (RxHeapBlock*)((unsigned char*)superBlock->start +
                                           superBlock->size - sizeof(*last));
 
         first->prev = 0;
@@ -94,15 +94,15 @@ static RwBool HeapSuperBlockReset(RxHeapSuperBlock* superBlock,
         freeBlock->prev = first;
         freeBlock->next = last;
         last->prev = freeBlock;
-        freeBlock->size = (RwUInt8*)last -
-                          ((RwUInt8*)freeBlock + sizeof(*freeBlock));
+        freeBlock->size = (unsigned char*)last -
+                          ((unsigned char*)freeBlock + sizeof(*freeBlock));
         freeBlock->freeEntry = freeEntry;
         freeEntry->block = freeBlock;
         freeEntry->size = freeBlock->size;
 
         if (previous != 0) {
             RxHeapBlock* previousLast =
-                (RxHeapBlock*)((RwUInt8*)previous->start + previous->size -
+                (RxHeapBlock*)((unsigned char*)previous->start + previous->size -
                                sizeof(*previousLast));
             previousLast->next = first;
             first->prev = previousLast;
@@ -115,9 +115,9 @@ static RwBool HeapSuperBlockReset(RxHeapSuperBlock* superBlock,
 void RxHeapFree(RxHeap* heap, void* memory)
 {
     RxHeapBlock* block = (RxHeapBlock*)memory - 1;
-    RwBool previousIsFree =
+    int previousIsFree =
         block->prev != 0 && block->prev->freeEntry != 0;
-    RwBool nextIsFree =
+    int nextIsFree =
         block->next != 0 && block->next->freeEntry != 0;
 
     if (previousIsFree) {
@@ -158,7 +158,7 @@ void RxHeapFree(RxHeap* heap, void* memory)
     }
 }
 
-RwBool _rxHeapReset(RxHeap* heap)
+int _rxHeapReset(RxHeap* heap)
 {
     RxHeapSuperBlock* previous = 0;
     RxHeapSuperBlock* superBlock;
@@ -207,7 +207,7 @@ void RxHeapDestroy(RxHeap* heap)
     }
 }
 
-RxHeap* RxHeapCreate(RwUInt32 size)
+RxHeap* RxHeapCreate(unsigned int size)
 {
     RxHeap* heap;
 
@@ -217,7 +217,7 @@ RxHeap* RxHeapCreate(RwUInt32 size)
     heap = RwEngineInstance->fpMalloc(sizeof(*heap), 0x40409);
     if (heap != 0) {
         RxHeapSuperBlock* superBlock;
-        size = (size + 0x1F) & ~(RwUInt32)0x1F;
+        size = (size + 0x1F) & ~(unsigned int)0x1F;
         if (size < 0x80) {
             size = 0x80;
         }

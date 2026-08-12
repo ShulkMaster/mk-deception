@@ -4,18 +4,18 @@
 #include "rw/rxpipeline.h"
 
 typedef struct RxMemoryLimits {
-    RwUInt8* stalactite;
-    RwUInt8* stalagmite;
+    unsigned char* stalactite;
+    unsigned char* stalagmite;
 } RxMemoryLimits;
 
 static RxMemoryLimits gMemoryLimits;
 
-extern RwUInt32 _rxPipelineMaxNodes;
-extern RwUInt32 _rxChaseDependencies(RxPipeline* pipeline);
+extern unsigned int _rxPipelineMaxNodes;
+extern unsigned int _rxChaseDependencies(RxPipeline* pipeline);
 extern RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
                                            RxPipeline* pipeline);
 
-void* StalacTiteAlloc(RwInt32 size)
+void* StalacTiteAlloc(int size)
 {
     size = (size + 3) & ~3U;
 
@@ -31,7 +31,7 @@ void* StalacTiteAlloc(RwInt32 size)
     return gMemoryLimits.stalactite;
 }
 
-void* StalacMiteAlloc(RwInt32 size)
+void* StalacMiteAlloc(int size)
 {
     size = (size + 3) & ~3U;
 
@@ -47,13 +47,13 @@ void* StalacMiteAlloc(RwInt32 size)
     return gMemoryLimits.stalagmite - size;
 }
 
-RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
+unsigned int PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
 {
     RxClusterDefinition* previous;
     RxClusterDefinition* next;
-    RwUInt32 count;
-    RwUInt32 nodeIndex;
-    RwUInt32 clusterIndex;
+    unsigned int count;
+    unsigned int nodeIndex;
+    unsigned int clusterIndex;
 
     count = 0;
     next = 0;
@@ -82,19 +82,19 @@ RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline)
     return count;
 }
 
-static RwBool ReallocAndFixupSuperBlock(RxPipeline* pipeline,
-                                        RwUInt32 newSize)
+static int ReallocAndFixupSuperBlock(RxPipeline* pipeline,
+                                        unsigned int newSize)
 {
 
 
-    RwUInt8* oldBlock = pipeline->superBlock;
-    RwUInt8* newBlock = RwEngineInstance->fpRealloc(
+    unsigned char* oldBlock = pipeline->superBlock;
+    unsigned char* newBlock = RwEngineInstance->fpRealloc(
         oldBlock, newSize, 0x01040409);
 
     if (newBlock != 0) {
-        RwUInt32 numNodes = pipeline->numNodes;
-        RwInt32 displacement = newBlock - oldBlock;
-        RwUInt32 index;
+        unsigned int numNodes = pipeline->numNodes;
+        int displacement = newBlock - oldBlock;
+        unsigned int index;
 
         pipeline->superBlock = newBlock;
         pipeline->superBlockSize = newSize;
@@ -103,46 +103,46 @@ static RwBool ReallocAndFixupSuperBlock(RxPipeline* pipeline,
             pipeline->inputRequirements == 0
                 ? 0
                 : (RxPipelineRequiresCluster*)(
-                      (RwUInt8*)pipeline->inputRequirements + displacement);
+                      (unsigned char*)pipeline->inputRequirements + displacement);
         pipeline->embeddedPacket =
             pipeline->embeddedPacket == 0
                 ? 0
-                : (RxPacket*)((RwUInt8*)pipeline->embeddedPacket +
+                : (RxPacket*)((unsigned char*)pipeline->embeddedPacket +
                               displacement);
         for (index = 0; index < numNodes; index++) {
             pipeline->nodes[index].outputs =
                 pipeline->nodes[index].outputs == 0
                     ? 0
-                    : (RwUInt32*)((RwUInt8*)pipeline->nodes[index].outputs +
+                    : (unsigned int*)((unsigned char*)pipeline->nodes[index].outputs +
                                  displacement);
             pipeline->nodes[index].slotClusterRefs =
                 pipeline->nodes[index].slotClusterRefs == 0
                     ? 0
                     : (RxPipelineCluster**)(
-                        (RwUInt8*)pipeline->nodes[index].slotClusterRefs +
+                        (unsigned char*)pipeline->nodes[index].slotClusterRefs +
                         displacement);
             pipeline->nodes[index].slotsContinue =
                 pipeline->nodes[index].slotsContinue == 0
                     ? 0
-                    : (RwUInt32*)(
-                          (RwUInt8*)pipeline->nodes[index].slotsContinue +
+                    : (unsigned int*)(
+                          (unsigned char*)pipeline->nodes[index].slotsContinue +
                           displacement);
             pipeline->nodes[index].privateData =
                 pipeline->nodes[index].privateData == 0
                     ? 0
-                    : (RwUInt8*)pipeline->nodes[index].privateData +
+                    : (unsigned char*)pipeline->nodes[index].privateData +
                           displacement;
             pipeline->nodes[index].inputToClusterSlot =
                 pipeline->nodes[index].inputToClusterSlot == 0
                     ? 0
-                    : (RwUInt32*)(
-                          (RwUInt8*)pipeline->nodes[index].inputToClusterSlot +
+                    : (unsigned int*)(
+                          (unsigned char*)pipeline->nodes[index].inputToClusterSlot +
                           displacement);
             pipeline->nodes[index].topSortData =
                 pipeline->nodes[index].topSortData == 0
                     ? 0
                     : (RxPipelineNodeTopSortData*)(
-                        (RwUInt8*)pipeline->nodes[index].topSortData +
+                        (unsigned char*)pipeline->nodes[index].topSortData +
                         displacement);
         }
     } else {
@@ -155,15 +155,15 @@ static RwBool ReallocAndFixupSuperBlock(RxPipeline* pipeline,
     return 1;
 }
 
-static RwBool LockPipelineExpandData(RxPipeline* destination,
+static int LockPipelineExpandData(RxPipeline* destination,
                                      const RxPipeline* source)
 {
-    RwInt32 index;
-    RwUInt32* outputsBase;
+    int index;
+    unsigned int* outputsBase;
     RxPipelineNodeTopSortData* topSortBase;
 
     if (destination != source) {
-        for (index = (RwInt32)source->numNodes - 1; index >= 0; index--) {
+        for (index = (int)source->numNodes - 1; index >= 0; index--) {
             memcpy(&destination->nodes[index], &source->nodes[index],
                    sizeof(RxPipelineNode));
             destination->nodes[index].slotClusterRefs = 0;
@@ -192,21 +192,21 @@ static RwBool LockPipelineExpandData(RxPipeline* destination,
         destination->numNodes = source->numNodes;
     }
 
-    outputsBase = (RwUInt32*)((RwUInt8*)destination->nodes +
+    outputsBase = (unsigned int*)((unsigned char*)destination->nodes +
                               RxPipelineGlobals()->maxNodes *
                                   sizeof(RxPipelineNode));
-    for (index = (RwInt32)source->numNodes - 1; index >= 0; index--) {
+    for (index = (int)source->numNodes - 1; index >= 0; index--) {
         destination->nodes[index].outputs = outputsBase + index * 0x20;
         if (source->nodes[index].outputs != 0) {
             memcpy(destination->nodes[index].outputs,
                    source->nodes[index].outputs,
-                   0x20 * sizeof(RwUInt32));
+                   0x20 * sizeof(unsigned int));
         }
     }
 
     topSortBase = (RxPipelineNodeTopSortData*)(
         outputsBase + RxPipelineGlobals()->maxNodes * 0x20);
-    for (index = 0; (RwUInt32)index < source->numNodes; index++) {
+    for (index = 0; (unsigned int)index < source->numNodes; index++) {
         topSortBase[index].numIns = 0;
         topSortBase[index].numInsVisited = 0;
         topSortBase[index].req = 0;
@@ -215,51 +215,51 @@ static RwBool LockPipelineExpandData(RxPipeline* destination,
     return 1;
 }
 
-static RwUInt32 CalcNodesOutputsCompactedMemSize(const RxPipeline* pipeline)
+static unsigned int CalcNodesOutputsCompactedMemSize(const RxPipeline* pipeline)
 {
-    RwUInt32 size = pipeline->numNodes * sizeof(RxPipelineNode);
-    RwUInt32 index;
+    unsigned int size = pipeline->numNodes * sizeof(RxPipelineNode);
+    unsigned int index;
 
 
     for (index = 0; index < pipeline->numNodes; index++) {
-        size += pipeline->nodes->numOutputs * sizeof(RwUInt32);
+        size += pipeline->nodes->numOutputs * sizeof(unsigned int);
     }
     return size;
 }
 
-static RwUInt32 CalcUnlockPersistentMemSize(const RxPipeline* pipeline,
-                                            RwUInt32 numClusters)
+static unsigned int CalcUnlockPersistentMemSize(const RxPipeline* pipeline,
+                                            unsigned int numClusters)
 {
 
 
 
 
-    RwUInt32 size = 0;
-    RwUInt32 index;
+    unsigned int size = 0;
+    unsigned int index;
 
     size += numClusters * 8;
     size += numClusters * 12;
-    size += pipeline->numNodes * numClusters * sizeof(RwUInt32);
-    size += pipeline->numNodes * (numClusters + 1) * sizeof(RwUInt32);
+    size += pipeline->numNodes * numClusters * sizeof(unsigned int);
+    size += pipeline->numNodes * (numClusters + 1) * sizeof(unsigned int);
     for (index = 0; index < pipeline->numNodes; index++) {
         const RxPipelineNode* node = &pipeline->nodes[index];
         if (node->nodeDef->pipelineNodePrivateDataSize != 0) {
             size += node->nodeDef->pipelineNodePrivateDataSize;
         }
-        size += node->nodeDef->io.numClustersOfInterest * sizeof(RwUInt32);
+        size += node->nodeDef->io.numClustersOfInterest * sizeof(unsigned int);
     }
     size += (numClusters - 1) * 0x1C;
     size += 0x30;
     return size;
 }
 
-static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
+static int _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
                           RxNodeDefinition* nodeDef)
 {
     RxPipelineNodeTopSortData* topSortData;
-    RwUInt32* outputs;
-    RwBool result = 1;
-    RwUInt32 n;
+    unsigned int* outputs;
+    int result = 1;
+    unsigned int n;
 
     n = nodeDef->io.numOutputs;
 
@@ -291,15 +291,15 @@ static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
         result = 0;
     }
     if (result) {
-        outputs = (RwUInt32*)&pipeline->nodes[RxPipelineGlobals()->maxNodes];
+        outputs = (unsigned int*)&pipeline->nodes[RxPipelineGlobals()->maxNodes];
         outputs += pipeline->numNodes * 0x20;
         node->outputs = outputs;
         node->numOutputs = n;
         for (n = 0; n < node->numOutputs; n++) {
-            *outputs = (RwUInt32)-1;
+            *outputs = (unsigned int)-1;
             outputs++;
         }
-        outputs = (RwUInt32*)&pipeline->nodes[RxPipelineGlobals()->maxNodes];
+        outputs = (unsigned int*)&pipeline->nodes[RxPipelineGlobals()->maxNodes];
         topSortData = (RxPipelineNodeTopSortData*)&outputs[
             RxPipelineGlobals()->maxNodes * 0x20];
         topSortData += pipeline->numNodes;
@@ -318,7 +318,7 @@ static RwBool _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
 static void PipelineTallyInputs(RxPipeline* pipeline)
 {
     RxPipelineNode* node = pipeline->nodes;
-    RwUInt32 index;
+    unsigned int index;
 
     for (index = 0; index < pipeline->numNodes;) {
         if (node->nodeDef != 0) {
@@ -331,11 +331,11 @@ static void PipelineTallyInputs(RxPipeline* pipeline)
     node = pipeline->nodes;
     for (index = 0; index < pipeline->numNodes;) {
         if (node->nodeDef != 0 && node->numOutputs != 0) {
-            RwInt32 remaining;
-            RwUInt32 outputsRemaining = node->numOutputs;
-            RwUInt32* output = node->outputs;
+            int remaining;
+            unsigned int outputsRemaining = node->numOutputs;
+            unsigned int* output = node->outputs;
             do {
-                if ((RwInt32)*output != -1) {
+                if ((int)*output != -1) {
                     pipeline->nodes[*output].topSortData->numIns++;
                 }
                 output++;
@@ -349,27 +349,27 @@ static void PipelineTallyInputs(RxPipeline* pipeline)
 
 typedef struct PipelineTopSortState {
     RxPipeline* pipeline;
-    RwUInt32 nodesArraySlot;
+    unsigned int nodesArraySlot;
 } PipelineTopSortState;
 
-static void PipelineTopSort(PipelineTopSortState* data, RwUInt32 nodeIndex)
+static void PipelineTopSort(PipelineTopSortState* data, unsigned int nodeIndex)
 {
 
 
     RxPipelineNode* currentNode;
-    RwUInt32 i = data->nodesArraySlot;
-    RwUInt32 j = nodeIndex;
+    unsigned int i = data->nodesArraySlot;
+    unsigned int j = nodeIndex;
 
     if (i != j) {
-        RwUInt32 temporaryOutput;
-        RwUInt32* outputsI;
-        RwUInt32* outputsJ;
+        unsigned int temporaryOutput;
+        unsigned int* outputsI;
+        unsigned int* outputsJ;
         RxPipelineNodeTopSortData temporaryTopSortData;
         RxPipelineNodeTopSortData* topSortDataI;
         RxPipelineNodeTopSortData* topSortDataJ;
         RxPipelineNode temporaryNode;
-        RwUInt32 k;
-        RwUInt32 l;
+        unsigned int k;
+        unsigned int l;
 
         outputsI = data->pipeline->nodes[i].outputs;
         outputsJ = data->pipeline->nodes[j].outputs;
@@ -409,9 +409,9 @@ static void PipelineTopSort(PipelineTopSortState* data, RwUInt32 nodeIndex)
     data->nodesArraySlot++;
     if (currentNode->numOutputs != 0) {
         for (i = 0; i < currentNode->numOutputs; i++) {
-            RwUInt32 outputIndex = currentNode->outputs[i];
+            unsigned int outputIndex = currentNode->outputs[i];
 
-            if (outputIndex != (RwUInt32)-1) {
+            if (outputIndex != (unsigned int)-1) {
                 RxPipelineNode* outputNode = &data->pipeline->nodes[outputIndex];
                 outputNode->topSortData->numInsVisited++;
                 if (outputNode->topSortData->numIns ==
@@ -423,15 +423,15 @@ static void PipelineTopSort(PipelineTopSortState* data, RwUInt32 nodeIndex)
     }
 }
 
-static RwUInt32 PipelineNode2Index(RxPipeline* pipeline, RxPipelineNode* node)
+static unsigned int PipelineNode2Index(RxPipeline* pipeline, RxPipelineNode* node)
 {
-    RwUInt32 index;
+    unsigned int index;
 
 
 
     {
-        RwInt32 nodeSize = sizeof(*node);
-        index = ((RwUInt8*)node - (RwUInt8*)pipeline->nodes) / nodeSize;
+        int nodeSize = sizeof(*node);
+        index = ((unsigned char*)node - (unsigned char*)pipeline->nodes) / nodeSize;
     }
 
     if (&pipeline->nodes[index] == node &&
@@ -444,7 +444,7 @@ static RwUInt32 PipelineNode2Index(RxPipeline* pipeline, RxPipelineNode* node)
 static RxPipeline* PipelineUnlockTopSort(RxPipeline* pipeline)
 {
     PipelineTopSortState state;
-    RwUInt32 index;
+    unsigned int index;
 
     state.pipeline = pipeline;
     state.nodesArraySlot = 0;
@@ -482,7 +482,7 @@ static RxPipeline* PipelineUnlockTopSort(RxPipeline* pipeline)
 }
 
 RxNodeOutput RxPipelineNodeFindOutputByIndex(RxPipelineNode* node,
-                                             RwUInt32 outputIndex)
+                                             unsigned int outputIndex)
 {
     if (node != 0 && node->nodeDef != 0 &&
         outputIndex < node->numOutputs) {
@@ -505,17 +505,17 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
 {
     RxPipelineNodeTopSortData* newTopSortData;
     RxPipelineNodeTopSortData* topSortData;
-    RwUInt32 numUniqueClusters;
-    RwUInt32 unlockStartBlockSize;
-    RwUInt32 unlockEndBlockSize;
-    RwUInt32 topSortBlockSize;
-    RwUInt32 depChaseBlockSize;
-    RwUInt32 totalOutputs;
-    RwUInt32* newOutputs;
-    RwUInt32* outputs;
-    RwBool error;
-    RwUInt32 doneNodes;
-    RwInt32 i;
+    unsigned int numUniqueClusters;
+    unsigned int unlockStartBlockSize;
+    unsigned int unlockEndBlockSize;
+    unsigned int topSortBlockSize;
+    unsigned int depChaseBlockSize;
+    unsigned int totalOutputs;
+    unsigned int* newOutputs;
+    unsigned int* outputs;
+    int error;
+    unsigned int doneNodes;
+    int i;
 
     if (pipeline != 0 && pipeline->locked) {
       if (pipeline->numNodes != 0) {
@@ -555,65 +555,65 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
         }
 
         gMemoryLimits.stalactite =
-            (RwUInt8*)pipeline->superBlock + unlockStartBlockSize;
+            (unsigned char*)pipeline->superBlock + unlockStartBlockSize;
         gMemoryLimits.stalagmite = pipeline->superBlock;
         pipeline = PipelineUnlockTopSort(pipeline);
         if (pipeline == 0) {
             return 0;
         }
 
-        outputs = (RwUInt32*)&pipeline->nodes[RxPipelineGlobals()->maxNodes];
+        outputs = (unsigned int*)&pipeline->nodes[RxPipelineGlobals()->maxNodes];
         topSortData = (RxPipelineNodeTopSortData*)&outputs[
             0x20 * RxPipelineGlobals()->maxNodes];
         topSortData += pipeline->numNodes - 1;
         newTopSortData = (RxPipelineNodeTopSortData*)(
-            (RwUInt8*)pipeline->superBlock + unlockStartBlockSize);
+            (unsigned char*)pipeline->superBlock + unlockStartBlockSize);
         newTopSortData--;
-        for (i = (RwInt32)pipeline->numNodes - 1; i >= 0; i--) {
+        for (i = (int)pipeline->numNodes - 1; i >= 0; i--) {
             memcpy(newTopSortData, topSortData, sizeof(*newTopSortData));
             pipeline->nodes[i].topSortData = newTopSortData;
             topSortData--;
             newTopSortData--;
         }
-        newOutputs = (RwUInt32*)&pipeline->nodes[pipeline->numNodes];
-        for (i = 0; (RwUInt32)i < pipeline->numNodes; i++) {
+        newOutputs = (unsigned int*)&pipeline->nodes[pipeline->numNodes];
+        for (i = 0; (unsigned int)i < pipeline->numNodes; i++) {
             if (pipeline->nodes[i].numOutputs == 0) {
                 pipeline->nodes[i].outputs = 0;
             } else {
                 memcpy(newOutputs, outputs,
-                       pipeline->nodes[i].numOutputs * sizeof(RwUInt32));
+                       pipeline->nodes[i].numOutputs * sizeof(unsigned int));
                 pipeline->nodes[i].outputs = newOutputs;
             }
             outputs += 0x20;
             newOutputs += pipeline->nodes[i].numOutputs;
             totalOutputs += pipeline->nodes[i].numOutputs;
         }
-        gMemoryLimits.stalagmite = (RwUInt8*)&outputs[totalOutputs];
-        gMemoryLimits.stalactite = (RwUInt8*)topSortData;
+        gMemoryLimits.stalagmite = (unsigned char*)&outputs[totalOutputs];
+        gMemoryLimits.stalactite = (unsigned char*)topSortData;
 
         if (_rxChaseDependencies(pipeline) != 0) {
             return 0;
         }
-        unlockEndBlockSize = (RwUInt32)(
-            gMemoryLimits.stalagmite - (RwUInt8*)pipeline->superBlock);
+        unlockEndBlockSize = (unsigned int)(
+            gMemoryLimits.stalagmite - (unsigned char*)pipeline->superBlock);
         if (!ReallocAndFixupSuperBlock(pipeline, unlockEndBlockSize)) {
             LockPipelineExpandData(pipeline, pipeline);
             return 0;
         }
-        for (i = 0; (RwUInt32)i < pipeline->numNodes; i++) {
+        for (i = 0; (unsigned int)i < pipeline->numNodes; i++) {
             pipeline->nodes[i].topSortData = 0;
         }
 
-        for (i = (RwInt32)pipeline->numNodes - 1; i >= 0; i--) {
+        for (i = (int)pipeline->numNodes - 1; i >= 0; i--) {
                 RxNodeDefinition* nodeDef = pipeline->nodes[i].nodeDef;
                 RxPipelineNode* node = &pipeline->nodes[i];
-                RwInt32 oldCount = nodeDef->InputPipesCnt++;
+                int oldCount = nodeDef->InputPipesCnt++;
 
                 if (oldCount == 0) {
                     if (nodeDef->nodeMethods.nodeInit != 0) {
                         if (!nodeDef->nodeMethods.nodeInit(nodeDef)) {
                             doneNodes =
-                                (pipeline->numNodes - 1) - (RwUInt32)i;
+                                (pipeline->numNodes - 1) - (unsigned int)i;
                             error = 1;
                             break;
                         }
@@ -627,7 +627,7 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
                                 nodeDef->nodeMethods.nodeTerm(nodeDef);
                             }
                         }
-                        doneNodes = (pipeline->numNodes - 1) - (RwUInt32)i;
+                        doneNodes = (pipeline->numNodes - 1) - (unsigned int)i;
                         error = 1;
                         break;
                     }
@@ -635,7 +635,7 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
         }
 
         if (!error) {
-            for (i = (RwInt32)pipeline->numNodes - 1; i >= 0; i--) {
+            for (i = (int)pipeline->numNodes - 1; i >= 0; i--) {
                 RxNodeDefinition* nodeDef = pipeline->nodes[i].nodeDef;
                 RxPipelineNode* node = &pipeline->nodes[i];
                 if (nodeDef->nodeMethods.pipelineNodeConfig != 0) {
@@ -651,7 +651,7 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
 
         if (error) {
             for (i = (pipeline->numNodes - 1) - (doneNodes - 1);
-                 (RwUInt32)i < pipeline->numNodes; i++) {
+                 (unsigned int)i < pipeline->numNodes; i++) {
                 RxNodeDefinition* nodeDef = pipeline->nodes[i].nodeDef;
                 RxPipelineNode* node = &pipeline->nodes[i];
                 if (nodeDef->nodeMethods.pipelineNodeTerm != 0) {
@@ -690,12 +690,12 @@ RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
 {
 
     if (!pipeline->locked) {
-        RwUInt32 requiredSize =
+        unsigned int requiredSize =
             RxPipelineGlobals()->maxNodes *
                 sizeof(RxPipelineNodeTopSortData) +
             (RxPipelineGlobals()->maxNodes * sizeof(RxPipelineNode) +
              RxPipelineGlobals()->maxNodes * 0x80);
-        RwUInt32 index;
+        unsigned int index;
         if (pipeline->nodes != 0) {
             if (requiredSize > pipeline->superBlockSize &&
                 !ReallocAndFixupSuperBlock(pipeline, requiredSize)) {
@@ -741,12 +741,12 @@ RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
 
 
 RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
-                                         const RwChar* name,
+                                         const char* name,
                                          RxPipelineNode* start,
-                                         RwInt32* nodeIndex)
+                                         int* nodeIndex)
 {
-    RwBool hasNodes = 0;
-    RwBool validArguments = 0;
+    int hasNodes = 0;
+    int validArguments = 0;
 
     if (pipeline != 0 && name != 0) {
         validArguments = 1;
@@ -756,7 +756,7 @@ RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
     }
     if (hasNodes) {
         RxPipelineNode* node = pipeline->nodes;
-        RwInt32 remaining = pipeline->numNodes;
+        int remaining = pipeline->numNodes;
 
         if (start != 0) {
             while (node != start && remaining > 0) {
@@ -790,14 +790,14 @@ RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
 
 
 RxLockedPipe* RxLockedPipeAddFragment(RxLockedPipe* pipeline,
-                                      RwUInt32* firstIndex,
+                                      unsigned int* firstIndex,
                                       RxNodeDefinition* nodeDef0, ...)
 {
     __va_list arguments;
     RxNodeDefinition* nodeDef;
-    RwUInt32 count;
-    RwUInt32 created;
-    RwUInt32 firstNode;
+    unsigned int count;
+    unsigned int created;
+    unsigned int firstNode;
     RxPipelineNode* previous;
 
     if (pipeline != 0 && pipeline->locked) {
@@ -874,9 +874,9 @@ RxPipeline* RxLockedPipeAddPath(RxLockedPipe* pipeline, RxNodeOutput output,
                                 RxNodeInput input)
 {
     if (pipeline != 0 && pipeline->locked && output != 0 &&
-        *output == (RwUInt32)-1 && input != 0 && input->nodeDef != 0) {
-        RwUInt32 inputIndex = PipelineNode2Index(pipeline, input);
-        if (inputIndex != (RwUInt32)-1) {
+        *output == (unsigned int)-1 && input != 0 && input->nodeDef != 0) {
+        unsigned int inputIndex = PipelineNode2Index(pipeline, input);
+        if (inputIndex != (unsigned int)-1) {
             *output = inputIndex;
             return pipeline;
         }
