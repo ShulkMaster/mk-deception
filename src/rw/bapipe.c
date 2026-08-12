@@ -2,12 +2,12 @@
 
 typedef struct RwCamera RwCamera;
 
-extern RwBool _rxPipelineOpen(void);
+extern int _rxPipelineOpen(void);
 extern void _rxPipelineClose(void);
 
-RwInt32 _rxPipelineGlobalsOffset;
+int _rxPipelineGlobalsOffset;
 
-void* _rwRenderPipelineOpen(void* instance, RwInt32 offset, RwInt32 size) {
+void* _rwRenderPipelineOpen(void* instance, int offset, int size) {
     _rxPipelineGlobalsOffset = offset;
     if (_rxPipelineOpen() == 0) {
         return 0;
@@ -15,12 +15,12 @@ void* _rwRenderPipelineOpen(void* instance, RwInt32 offset, RwInt32 size) {
     return instance;
 }
 
-void* _rwRenderPipelineClose(void* instance, RwInt32 offset, RwInt32 size) {
+void* _rwRenderPipelineClose(void* instance, int offset, int size) {
     _rxPipelineClose();
     return instance;
 }
 
-RwBool _rwPipeAttach(void) {
+int _rwPipeAttach(void) {
     return 1;
 }
 

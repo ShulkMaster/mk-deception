@@ -2,15 +2,11 @@
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 
-RwMatrix* RwMatrixUpdate(RwMatrix* matrix);
-RwMatrix* RwMatrixMultiply(RwMatrix* matrixOut, const RwMatrix* matrixIn1,
-                           const RwMatrix* matrixIn2);
-
-static void FrameSyncHierarchyRecurse(RwFrame* frame, RwUInt32 inheritedFlags) {
+static void FrameSyncHierarchyRecurse(RwFrame* frame, unsigned int inheritedFlags) {
     while (frame != 0) {
-        RwUInt32 flags = inheritedFlags | frame->object.privateFlags;
+        unsigned int flags = inheritedFlags | frame->object.privateFlags;
 
-        if ((RwInt32)(flags & 0x04) != 0) {
+        if ((int)(flags & 0x04) != 0) {
             if ((frame->object.privateFlags & 0x20) != 0) {
                 frame->ltm = frame->modelling;
                 RwV3dTransformPoints(&frame->ltm.pos, &frame->modelling.pos,
@@ -58,10 +54,10 @@ static void FrameSyncHierarchyRecurseNoLTM(RwFrame* frame) {
 }
 
 static void FrameSyncHierarchy(RwFrame* root) {
-    RwUInt32 flags = root->object.privateFlags;
+    unsigned int flags = root->object.privateFlags;
 
-    if ((RwInt32)(flags & 0x01) != 0) {
-        if ((RwInt32)(flags & 0x04) != 0) {
+    if ((int)(flags & 0x01) != 0) {
+        if ((int)(flags & 0x04) != 0) {
             root->ltm = root->modelling;
         }
         if (root->objectList.link.next != &root->objectList.link) {
@@ -92,7 +88,7 @@ static void FrameSyncHierarchy(RwFrame* root) {
     root->object.privateFlags = flags & ~0x0FU;
 }
 
-RwBool _rwFrameSyncDirty(void) {
+int _rwFrameSyncDirty(void) {
     RwLLLink* link = RwEngineInstance->dirtyFrameList.link.next;
     RwLLLink* sentinel = &RwEngineInstance->dirtyFrameList.link;
 
@@ -111,11 +107,11 @@ RwBool _rwFrameSyncDirty(void) {
 }
 
 static void FrameSyncHierarchyLTMRecurse(RwFrame* frame,
-                                         RwUInt32 inheritedFlags) {
+                                         unsigned int inheritedFlags) {
     while (frame != 0) {
-        RwUInt32 flags = inheritedFlags | frame->object.privateFlags;
+        unsigned int flags = inheritedFlags | frame->object.privateFlags;
 
-        if ((RwInt32)(flags & 0x04) != 0) {
+        if ((int)(flags & 0x04) != 0) {
             if ((frame->object.privateFlags & 0x20) != 0) {
                 frame->ltm = frame->modelling;
                 RwV3dTransformPoints(&frame->ltm.pos, &frame->modelling.pos,
@@ -133,9 +129,9 @@ static void FrameSyncHierarchyLTMRecurse(RwFrame* frame,
 }
 
 void _rwFrameSyncHierarchyLTM(RwFrame* root) {
-    RwUInt32 flags = root->object.privateFlags;
+    unsigned int flags = root->object.privateFlags;
 
-    if ((RwInt32)(flags & 0x04) != 0) {
+    if ((int)(flags & 0x04) != 0) {
         root->ltm = root->modelling;
     }
     FrameSyncHierarchyLTMRecurse(root->child, flags);

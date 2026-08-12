@@ -3,8 +3,8 @@
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
-RwInt32 _rwPluginRegistryAddPluginStream(
-    RwPluginRegistry* registry, RwUInt32 pluginID,
+int _rwPluginRegistryAddPluginStream(
+    RwPluginRegistry* registry, unsigned int pluginID,
     RwPluginDataChunkReadCallBack readCB,
     RwPluginDataChunkWriteCallBack writeCB,
     RwPluginDataChunkGetSizeCallBack getSizeCB) {
@@ -24,8 +24,8 @@ RwInt32 _rwPluginRegistryAddPluginStream(
     return -1;
 }
 
-RwInt32 _rwPluginRegistryAddPlgnStrmlwysCB(
-    RwPluginRegistry* registry, RwUInt32 pluginID,
+int _rwPluginRegistryAddPlgnStrmlwysCB(
+    RwPluginRegistry* registry, unsigned int pluginID,
     RwPluginDataChunkAlwaysCallBack alwaysCB) {
     RwPluginRegEntry* entry = registry->firstRegEntry;
     while (entry != 0) {
@@ -41,8 +41,8 @@ RwInt32 _rwPluginRegistryAddPlgnStrmlwysCB(
     return -1;
 }
 
-RwInt32 _rwPluginRegistryAddPlgnStrmRightsCB(
-    RwPluginRegistry* registry, RwUInt32 pluginID,
+int _rwPluginRegistryAddPlgnStrmRightsCB(
+    RwPluginRegistry* registry, unsigned int pluginID,
     RwPluginDataChunkRightsCallBack rightsCB) {
     RwPluginRegEntry* entry = registry->firstRegEntry;
     while (entry != 0) {
@@ -61,16 +61,16 @@ RwInt32 _rwPluginRegistryAddPlgnStrmRightsCB(
 
 const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
     const RwPluginRegistry* registry, RwStream* stream, void* object) {
-    RwUInt32 version;
-    RwUInt32 length;
+    unsigned int version;
+    unsigned int length;
 
     if (!RwStreamFindChunk(stream, 3, &length, &version)) {
         return 0;
     }
     if (version >= 0x34000 && version <= 0x36003) {
         while (length != 0) {
-            RwUInt32 pluginID;
-            RwUInt32 pluginDataLength;
+            unsigned int pluginID;
+            unsigned int pluginDataLength;
             RwPluginRegEntry* entry;
 
             if (_rwStreamReadChunkHeader(stream, &pluginID, &pluginDataLength,
@@ -115,8 +115,8 @@ const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
 }
 
 const RwPluginRegistry* _rwPluginRegistryInvokeRights(
-    const RwPluginRegistry* registry, RwUInt32 pluginID, void* object,
-    RwUInt32 extraData) {
+    const RwPluginRegistry* registry, unsigned int pluginID, void* object,
+    unsigned int extraData) {
     RwPluginRegEntry* entry = registry->firstRegEntry;
     while (entry != 0) {
         if (entry->pluginID == pluginID) {
@@ -133,15 +133,15 @@ const RwPluginRegistry* _rwPluginRegistryInvokeRights(
     return 0;
 }
 
-RwInt32 _rwPluginRegistryGetSize(const RwPluginRegistry* registry,
+int _rwPluginRegistryGetSize(const RwPluginRegistry* registry,
                                  const void* object) {
 
     const void* pluginObject = object;
-    RwInt32 size = 0;
+    int size = 0;
     RwPluginRegEntry* entry = registry->firstRegEntry;
     while (entry != 0) {
         if (entry->getSizeCB != 0) {
-            RwInt32 pluginSize = entry->getSizeCB(pluginObject, entry->offset,
+            int pluginSize = entry->getSizeCB(pluginObject, entry->offset,
                                                    entry->size);
             if (pluginSize > 0) {
                 size += pluginSize;
@@ -166,7 +166,7 @@ const RwPluginRegistry* _rwPluginRegistryWriteDataChunks(
     entry = registry->firstRegEntry;
     while (entry != 0) {
         if (entry->getSizeCB != 0 && entry->writeCB != 0) {
-            RwInt32 size = entry->getSizeCB(object, entry->offset, entry->size);
+            int size = entry->getSizeCB(object, entry->offset, entry->size);
             if (size > 0) {
                 if (_rwStreamWriteVersionedChunkHeader(
                         stream, entry->pluginID, size, 0x36003, 0xFFFF) ==
@@ -187,13 +187,13 @@ const RwPluginRegistry* _rwPluginRegistryWriteDataChunks(
 
 const RwPluginRegistry* _rwPluginRegistrySkipDataChunks(
     const RwPluginRegistry* registry, RwStream* stream) {
-    RwUInt32 length;
+    unsigned int length;
 
     if (!RwStreamFindChunk(stream, 3, &length, 0)) {
         return 0;
     }
     while (length != 0) {
-        RwUInt32 pluginDataLength;
+        unsigned int pluginDataLength;
         if (_rwStreamReadChunkHeader(stream, 0, &pluginDataLength, 0,
                                      0) == 0) {
             return 0;

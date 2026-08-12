@@ -6,20 +6,20 @@
 typedef void (*rwMatrixMultFn)(RwMatrix *, const RwMatrix *, const RwMatrix *);
 
 typedef struct RwMatrixTolerance {
-  RwReal Normal;
-  RwReal Orthogonal;
-  RwReal Identity;
+  float Normal;
+  float Orthogonal;
+  float Identity;
 } RwMatrixTolerance;
 
 typedef struct rwMatrixGlobals {
   RwFreeList *matrixFreeList;
-  RwInt32 matrixOptimizations;
+  int matrixOptimizations;
   rwMatrixMultFn multMatrix;
   RwMatrixTolerance tolerance;
 } rwMatrixGlobals;
 
-RwReal sinf(RwReal value);
-RwReal cosf(RwReal value);
+float sinf(float value);
+float cosf(float value);
 
 static RwModuleInfo matrixModule;
 
@@ -61,11 +61,11 @@ static RwMatrix *MatrixOrthoNormalize(RwMatrix *dst, const RwMatrix *src) {
   RwV3d *primary;
   RwV3d *secondary;
   RwV3d *rebuilt;
-  RwReal inverseLength;
-  RwReal lengthSquared;
-  RwReal crossX;
-  RwReal crossY;
-  RwReal crossZ;
+  float inverseLength;
+  float lengthSquared;
+  float crossX;
+  float crossY;
+  float crossZ;
 
   lengthSquared = right.x * right.x + right.y * right.y + right.z * right.z;
   inverseLengths.x = _rwInvSqrt(lengthSquared);
@@ -190,7 +190,7 @@ static RwMatrix *MatrixInvertOrthoNormalized(RwMatrix *dst,
 
 static RwMatrix *MatrixInvertGeneric(RwMatrix *dst, const RwMatrix *src) {
   RwSplitBits determinant;
-  RwReal inverseDeterminant;
+  float inverseDeterminant;
 
   dst->right.x = src->up.y * src->at.z - src->up.z * src->at.y;
   dst->right.y = -(src->right.y * src->at.z - src->right.z * src->at.y);
@@ -223,8 +223,8 @@ static RwMatrix *MatrixInvertGeneric(RwMatrix *dst, const RwMatrix *src) {
   return dst;
 }
 
-RwBool _rwMatrixSetMultFn(rwMatrixMultFn multiply) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((RwUInt8 *)RwEngineInstance +
+int _rwMatrixSetMultFn(rwMatrixMultFn multiply) {
+  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
                                                  matrixModule.globalsOffset);
 
   if (multiply == 0) {
@@ -234,14 +234,15 @@ RwBool _rwMatrixSetMultFn(rwMatrixMultFn multiply) {
   return 1;
 }
 
-RwBool _rwMatrixSetOptimizations(RwInt32 optimizeFlags) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((RwUInt8 *)RwEngineInstance +
+int _rwMatrixSetOptimizations(int optimizeFlags) {
+  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
                                                  matrixModule.globalsOffset);
   globals->matrixOptimizations = optimizeFlags;
   return 1;
 }
 
-RwReal _rwMatrixDeterminant(const RwMatrix *matrix) {
+#pragma scheduling on
+float _rwMatrixDeterminant(const RwMatrix *matrix) {
   RwV3d cross;
   cross.x = matrix->up.y * matrix->at.z - matrix->up.z * matrix->at.y;
   cross.y = matrix->up.z * matrix->at.x - matrix->up.x * matrix->at.z;
@@ -249,8 +250,10 @@ RwReal _rwMatrixDeterminant(const RwMatrix *matrix) {
   return cross.x * matrix->right.x + cross.y * matrix->right.y +
          cross.z * matrix->right.z;
 }
+#pragma scheduling off
 
-RwReal _rwMatrixOrthogonalError(const RwMatrix *matrix) {
+#pragma scheduling on
+float _rwMatrixOrthogonalError(const RwMatrix *matrix) {
   RwV3d dot;
   dot.x = matrix->up.x * matrix->at.x + matrix->up.y * matrix->at.y +
           matrix->up.z * matrix->at.z;
@@ -260,8 +263,9 @@ RwReal _rwMatrixOrthogonalError(const RwMatrix *matrix) {
           matrix->right.z * matrix->up.z;
   return dot.x * dot.x + dot.y * dot.y + dot.z * dot.z;
 }
+#pragma scheduling off
 
-RwReal _rwMatrixNormalError(const RwMatrix *matrix) {
+float _rwMatrixNormalError(const RwMatrix *matrix) {
   RwV3d error;
   error.x = matrix->right.x * matrix->right.x +
             matrix->right.y * matrix->right.y +
@@ -273,24 +277,26 @@ RwReal _rwMatrixNormalError(const RwMatrix *matrix) {
   return error.x * error.x + error.y * error.y + error.z * error.z;
 }
 
-RwReal _rwMatrixIdentityError(const RwMatrix *matrix) {
-  RwReal rightX = matrix->right.x - 1.0f;
-  RwReal upY = matrix->up.y - 1.0f;
-  RwReal atZ = matrix->at.z - 1.0f;
-  RwReal rightError = rightX * rightX + matrix->right.y * matrix->right.y +
+#pragma scheduling on
+float _rwMatrixIdentityError(const RwMatrix *matrix) {
+  float rightX = matrix->right.x - 1.0f;
+  float upY = matrix->up.y - 1.0f;
+  float atZ = matrix->at.z - 1.0f;
+  float rightError = rightX * rightX + matrix->right.y * matrix->right.y +
                       matrix->right.z * matrix->right.z;
-  RwReal upError =
+  float upError =
       matrix->up.x * matrix->up.x + upY * upY + matrix->up.z * matrix->up.z;
-  RwReal atError =
+  float atError =
       matrix->at.x * matrix->at.x + matrix->at.y * matrix->at.y + atZ * atZ;
-  RwReal posError = matrix->pos.x * matrix->pos.x +
+  float posError = matrix->pos.x * matrix->pos.x +
                     matrix->pos.y * matrix->pos.y +
                     matrix->pos.z * matrix->pos.z;
   return rightError + upError + atError + posError;
 }
+#pragma scheduling off
 
-void *_rwMatrixClose(void *instance, RwInt32 offset, RwInt32 size) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((RwUInt8 *)RwEngineInstance +
+void *_rwMatrixClose(void *instance, int offset, int size) {
+  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
                                                  matrixModule.globalsOffset);
   if (globals->matrixFreeList != 0) {
     RwFreeListDestroy(globals->matrixFreeList);
@@ -300,23 +306,23 @@ void *_rwMatrixClose(void *instance, RwInt32 offset, RwInt32 size) {
   return instance;
 }
 
-static RwInt32 _rwMatrixFreeListBlockSize = 256,
+static int _rwMatrixFreeListBlockSize = 256,
                _rwMatrixFreeListPreallocBlocks = 1;
 static RwFreeList _rwMatrixFreeList;
 
-void *_rwMatrixOpen(void *instance, RwInt32 offset, RwInt32 size) {
+void *_rwMatrixOpen(void *instance, int offset, int size) {
   rwMatrixGlobals *globals;
 
   matrixModule.globalsOffset = offset;
-  globals = (rwMatrixGlobals *)((RwUInt8 *)RwEngineInstance + offset);
+  globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance + offset);
   globals->matrixFreeList = RwFreeListCreateAndPreallocateSpace(
       sizeof(RwMatrix), _rwMatrixFreeListBlockSize, 16,
       _rwMatrixFreeListPreallocBlocks, &_rwMatrixFreeList, 0x40000 | 0x0D);
   if (globals->matrixFreeList == 0) {
     instance = 0;
   } else {
-    const RwMatrixTolerance tolerance = {((RwReal)0.01), ((RwReal)0.01),
-                                         ((RwReal)0.01)};
+    const RwMatrixTolerance tolerance = {((float)0.01), ((float)0.01),
+                                         ((float)0.01)};
     _rwMatrixSetOptimizations(0x20000);
     _rwMatrixSetMultFn(0);
     RwEngineSetMatrixTolerances(&tolerance);
@@ -325,8 +331,8 @@ void *_rwMatrixOpen(void *instance, RwInt32 offset, RwInt32 size) {
   return instance;
 }
 
-RwBool RwEngineSetMatrixTolerances(const RwMatrixTolerance *const tolerance) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((RwUInt8 *)RwEngineInstance +
+int RwEngineSetMatrixTolerances(const RwMatrixTolerance *const tolerance) {
+  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
                                                  matrixModule.globalsOffset);
   globals->tolerance = *tolerance;
   return 1;
@@ -334,12 +340,12 @@ RwBool RwEngineSetMatrixTolerances(const RwMatrixTolerance *const tolerance) {
 
 RwMatrix *RwMatrixOptimize(RwMatrix *matrix,
                            const RwMatrixTolerance *tolerance) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((RwUInt8 *)RwEngineInstance +
+  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
                                                  matrixModule.globalsOffset);
-  RwUInt32 flags;
-  RwBool isNormal;
-  RwBool isOrthogonal;
-  RwBool isIdentity;
+  unsigned int flags;
+  int isNormal;
+  int isOrthogonal;
+  int isIdentity;
 
   if (tolerance == 0) {
     tolerance = &globals->tolerance;
@@ -383,16 +389,16 @@ RwMatrix *RwMatrixOrthoNormalize(RwMatrix *dst, const RwMatrix *src) {
 
 RwMatrix *RwMatrixRotateOneMinusCosineSine(RwMatrix *matrix,
                                            const RwV3d *unitAxis,
-                                           RwReal oneMinusCosine, RwReal sine,
+                                           float oneMinusCosine, float sine,
                                            RwOpCombineType combineOp) {
   RwMatrix rotation;
   RwMatrix result;
-  RwReal xy = unitAxis->x * unitAxis->y * oneMinusCosine;
-  RwReal yz = unitAxis->y * unitAxis->z * oneMinusCosine;
-  RwReal zx = unitAxis->z * unitAxis->x * oneMinusCosine;
-  RwReal xSine = unitAxis->x * sine;
-  RwReal ySine = unitAxis->y * sine;
-  RwReal zSine = unitAxis->z * sine;
+  float xy = unitAxis->x * unitAxis->y * oneMinusCosine;
+  float yz = unitAxis->y * unitAxis->z * oneMinusCosine;
+  float zx = unitAxis->z * unitAxis->x * oneMinusCosine;
+  float xSine = unitAxis->x * sine;
+  float ySine = unitAxis->y * sine;
+  float zSine = unitAxis->z * sine;
 
   rotation.right.x = 1.0f - (1.0f - unitAxis->x * unitAxis->x) * oneMinusCosine;
   rotation.right.y = xy + zSine;
@@ -432,14 +438,14 @@ RwMatrix *RwMatrixRotateOneMinusCosineSine(RwMatrix *matrix,
   return matrix;
 }
 
-RwMatrix *RwMatrixRotate(RwMatrix *matrix, const RwV3d *axis, RwReal angle,
+RwMatrix *RwMatrixRotate(RwMatrix *matrix, const RwV3d *axis, float angle,
                          RwOpCombineType combineOp) {
   RwV3d unitAxis;
-  RwReal radians = angle * (RwReal)(3.14159265358979323846 / 180.0);
-  RwReal inverseLength =
+  float radians = angle * (float)(3.14159265358979323846 / 180.0);
+  float inverseLength =
       _rwInvSqrt(axis->x * axis->x + axis->y * axis->y + axis->z * axis->z);
-  RwReal sinVal;
-  RwReal oneMinusCosVal;
+  float sinVal;
+  float oneMinusCosVal;
 
   unitAxis.x = axis->x * inverseLength;
   unitAxis.y = axis->y * inverseLength;
@@ -452,7 +458,7 @@ RwMatrix *RwMatrixRotate(RwMatrix *matrix, const RwV3d *axis, RwReal angle,
 }
 
 RwMatrix *RwMatrixInvert(RwMatrix *dst, const RwMatrix *src) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((RwUInt8 *)RwEngineInstance +
+  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
                                                  matrixModule.globalsOffset);
   if (src->flags & (globals->matrixOptimizations & 0x20000)) {
     *dst = *src;

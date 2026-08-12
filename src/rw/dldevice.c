@@ -2,24 +2,26 @@
 #include "dolphin/vi.h"
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
+#include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rwerror.h"
 #include "rw/rwim3d.h"
+#include "rw/rtquat.h"
 #include "rw/rxpipeline.h"
 
 typedef struct RwVideoMode {
-    RwInt32 width;
-    RwInt32 height;
-    RwInt32 depth;
-    RwInt32 flags;
-    RwInt32 refreshRate;
-    RwInt32 format;
+    int width;
+    int height;
+    int depth;
+    int flags;
+    int refreshRate;
+    int format;
 } RwVideoMode;
 
 typedef struct RwDlOpenParams {
     GXRenderModeObj* renderMode;
-    RwInt32 pixelFormat;
-    RwUInt32 fifoSize;
+    int pixelFormat;
+    unsigned int fifoSize;
 } RwDlOpenParams;
 
 typedef struct RwGCFrameQueueEntry {
@@ -33,12 +35,12 @@ typedef struct OSThreadQueue {
 } OSThreadQueue;
 
 typedef struct GXFifoObj {
-    RwUInt8 data[0x80];
+    unsigned char data[0x80];
 } GXFifoObj;
 
 struct RwCamera {
     RwObjectHasFrame object;
-    RwInt32 projectionType;
+    int projectionType;
     void* beginUpdate;
     void* endUpdate;
     RwMatrix viewMatrix;
@@ -47,8 +49,8 @@ struct RwCamera {
     RwV2d viewWindow;
     RwV2d recipViewWindow;
     RwV2d viewOffset;
-    RwReal nearPlane;
-    RwReal farPlane;
+    float nearPlane;
+    float farPlane;
 };
 
 typedef struct RwDlGlobals {
@@ -57,12 +59,12 @@ typedef struct RwDlGlobals {
 } RwDlGlobals;
 
 typedef struct RwDlDevice {
-    RwReal gammaCorrection;
+    float gammaCorrection;
     RwSystemFunc system;
-    RwReal zBufferNear;
-    RwReal zBufferFar;
-    RwBool (*renderStateSet)(RwInt32 state, void* value);
-    RwBool (*renderStateGet)(RwInt32 state, void* value);
+    float zBufferNear;
+    float zBufferFar;
+    int (*renderStateSet)(int state, void* value);
+    int (*renderStateGet)(int state, void* value);
     void* im2DRenderLine;
     void* im2DRenderTriangle;
     void* im2DRenderPrimitive;
@@ -71,7 +73,7 @@ typedef struct RwDlDevice {
 } RwDlDevice;
 
 typedef struct RwStandardEntry {
-    RwInt32 index;
+    int index;
     RwStandardFunc function;
 } RwStandardEntry;
 
@@ -79,60 +81,55 @@ static void _rwDlBreakNext(void);
 static void _rwDlBreakPtCallback(void);
 static void _rwDlVIPreRetraceCallback(void);
 static void _rwDlVIPostRetraceCallback(void);
-static RwBool _rwDlNullStandard(void* out, void* inOut, RwInt32 in);
-static RwBool _rwDlDeviceSystemStandards(RwStandardFunc* standards,
-                                          RwInt32 numStandards);
+static int _rwDlNullStandard(void* out, void* inOut, int in);
+static int _rwDlDeviceSystemStandards(RwStandardFunc* standards,
+                                          int numStandards);
 static void _rwDlRenderModeSelect(GXRenderModeObj* renderMode,
-                                   RwInt32 pixelFormat);
+                                   int pixelFormat);
 static void _rwDlRenderModeInit(GXRenderModeObj* renderMode,
-                                 RwInt32 pixelFormat);
-static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in);
-RwBool _rwDlCameraClear(void* cameraObject, RwRGBA* color,
-                        RwInt32 clearMode);
-RwBool _rwDlCameraBeginUpdate(void* out, void* inOut, RwInt32 in);
-RwBool _rwDlCameraEndUpdate(void* out, RwCamera* camera, RwInt32 in);
-RwBool _rwDlRasterShowRaster(void* out, void* inOut, RwInt32 in);
+                                 int pixelFormat);
+static int _rwDlSystem(int option, void* out, void* inOut, int in);
+int _rwDlCameraClear(void* cameraObject, RwRGBA* color,
+                        int clearMode);
+int _rwDlCameraBeginUpdate(void* out, void* inOut, int in);
+int _rwDlCameraEndUpdate(void* out, RwCamera* camera, int in);
+int _rwDlRasterShowRaster(void* out, void* inOut, int in);
 extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
-extern RwBool _rwDlRasterPluginAttach(void);
-extern RwBool _rwDlTexturePluginAttach(void);
-extern RwBool _rwDlSetRenderState(RwInt32 state, void* value);
-extern RwBool _rwDlGetRenderState(RwInt32 state, void* value);
-extern RwBool _rwDlIm2DRenderLine(void*, RwInt32, RwInt32, RwInt32);
-extern RwBool _rwDlIm2DRenderTriangle(void*, RwInt32, RwInt32, RwInt32,
-                                      RwInt32);
-extern RwBool _rwDlIm2DRenderPrimitive(RwInt32, void*, RwInt32);
-extern RwBool _rwDlIm2DRenderIndexedPrimitive(RwInt32, void*, RwInt32,
-                                               RwUInt16*, RwInt32);
-extern RwBool _rwDlRasterCamera_ZClearRect(RwRaster*, void*, RwRGBA*,
-                                            RwInt32);
-extern RwUInt16 _RwDlTokenCurrent;
-extern RwUInt16 _RwDlTokenLastSeen;
+extern int _rwDlRasterPluginAttach(void);
+extern int _rwDlTexturePluginAttach(void);
+extern int _rwDlIm2DRenderLine(void*, int, int, int);
+extern int _rwDlIm2DRenderTriangle(void*, int, int, int,
+                                      int);
+extern int _rwDlIm2DRenderPrimitive(int, void*, int);
+extern int _rwDlIm2DRenderIndexedPrimitive(int, void*, int,
+                                               unsigned short*, int);
+extern int _rwDlRasterCamera_ZClearRect(RwRaster*, void*, RwRGBA*,
+                                            int);
 
-extern void MWY_GCN_RW_ActivateGxBreakPt(void* breakPoint, RwInt32 index);
+extern void MWY_GCN_RW_ActivateGxBreakPt(void* breakPoint, int index);
 extern void MWY_GCN_RW_RestartFromGxBreakPtCurrent(void);
 extern void MWY_GCN_RW_InsertRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_NoteRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_SetGxBreakPtCallback(void (*callback)(void));
-extern RwBool _rwDlTokenQueryDone(RwUInt16 token);
-extern RwBool OSDisableInterrupts(void);
-extern void OSRestoreInterrupts(RwBool enabled);
+extern int OSDisableInterrupts(void);
+extern void OSRestoreInterrupts(int enabled);
 extern void OSInitThreadQueue(OSThreadQueue* queue);
 extern void OSSleepThread(OSThreadQueue* queue);
 extern void OSWakeupThread(OSThreadQueue* queue);
-extern void DCInvalidateRange(void* memory, RwUInt32 size);
+extern void DCInvalidateRange(void* memory, unsigned int size);
 extern GXFifoObj* GXGetCPUFifo(void);
 extern void GXGetFifoPtrs(GXFifoObj* fifo, void** readPtr,
                           void** writePtr);
-extern void GXInitFifoBase(GXFifoObj* fifo, void* base, RwUInt32 size);
+extern void GXInitFifoBase(GXFifoObj* fifo, void* base, unsigned int size);
 extern void GXSetCPUFifo(GXFifoObj* fifo);
 extern void GXSetGPFifo(GXFifoObj* fifo);
 extern void GXSetCurrentGXThread(void);
-extern void GXSetDrawSync(RwUInt16 token);
-extern void GXSetCopyClamp(RwInt32 clamp);
-extern void GXSetDispCopyGamma(RwInt32 gamma);
+extern void GXSetDrawSync(unsigned short token);
+extern void GXSetCopyClamp(int clamp);
+extern void GXSetDispCopyGamma(int gamma);
 extern void GXInvalidateTexRegion(void* region);
-extern void GXLoadNrmMtxImm(Mtx matrix, RwUInt32 id);
+extern void GXLoadNrmMtxImm(Mtx matrix, unsigned int id);
 extern void VISetPreRetraceCallback(void (*callback)(void));
 extern void VISetPostRetraceCallback(void (*callback)(void));
 extern void* memcpy(void* destination, const void* source,
@@ -141,29 +138,28 @@ extern GXRenderModeObj GXNtsc480IntDf;
 extern GXRenderModeObj GXPal528IntDf;
 extern GXRenderModeObj GXMpal480IntDf;
 
-extern RwBool _rwDlRGBToPixel(void*, void*, RwInt32);
-extern RwBool _rwDlPixelToRGB(void*, void*, RwInt32);
-extern RwBool _rwDlRasterSetFromImage(void*, void*, RwInt32);
-extern RwBool _rwDlImageGetFromRaster(void*, void*, RwInt32);
-extern RwBool _rwDlRasterDestroy(void*, void*, RwInt32);
-extern RwBool _rwDlRasterCreate(void*, void*, RwInt32);
-extern RwBool _rwDlImageFindRasterFormat(void*, void*, RwInt32);
-extern RwBool _rwDlTextureSetRaster(void*, void*, RwInt32);
-extern RwBool _rwDlRasterLock(void*, void*, RwInt32);
-extern RwBool _rwDlRasterUnlock(void*, void*, RwInt32);
-extern RwBool _rwDlRasterLockPalette(void*, void*, RwInt32);
-extern RwBool _rwDlRasterUnlockPalette(void*, void*, RwInt32);
-extern RwBool _rwDlRasterClear(void*, void*, RwInt32);
-extern RwBool _rwDlRasterClearRect(void*, void*, RwInt32);
-extern RwBool _rwDlRasterRender(RwRaster*, void*);
-extern RwBool _rwDlRasterRenderScaled(RwRaster*, void*);
-extern RwBool _rwDlRasterRenderFast(RwRaster*, void*);
-extern RwBool _rwDlSetRasterContext(void*, void*, RwInt32);
-extern RwBool _rwDlRasterSubRaster(void*, void*, RwInt32);
-extern RwBool _rwDlNativeTextureGetSize(void*, void*, RwInt32);
-extern RwBool _rwDlNativeTextureWrite(void*, void*, RwInt32);
-extern RwBool _rwDlNativeTextureRead(void*, void*, RwInt32);
-extern RwBool _rwDlRasterGetNumMipLevels(void*, void*, RwInt32);
+extern int _rwDlRGBToPixel(void*, void*, int);
+extern int _rwDlPixelToRGB(void*, void*, int);
+extern int _rwDlRasterSetFromImage(void*, void*, int);
+extern int _rwDlImageGetFromRaster(void*, void*, int);
+extern int _rwDlRasterDestroy(void*, void*, int);
+extern int _rwDlRasterCreate(void*, void*, int);
+extern int _rwDlImageFindRasterFormat(void*, void*, int);
+extern int _rwDlRasterLock(void*, void*, int);
+extern int _rwDlRasterUnlock(void*, void*, int);
+extern int _rwDlRasterLockPalette(void*, void*, int);
+extern int _rwDlRasterUnlockPalette(void*, void*, int);
+extern int _rwDlRasterClear(void*, void*, int);
+extern int _rwDlRasterClearRect(void*, void*, int);
+extern int _rwDlRasterRender(RwRaster*, void*);
+extern int _rwDlRasterRenderScaled(RwRaster*, void*);
+extern int _rwDlRasterRenderFast(RwRaster*, void*);
+extern int _rwDlSetRasterContext(void*, void*, int);
+extern int _rwDlRasterSubRaster(void*, void*, int);
+extern int _rwDlNativeTextureGetSize(void*, void*, int);
+extern int _rwDlNativeTextureWrite(void*, void*, int);
+extern int _rwDlNativeTextureRead(void*, void*, int);
+extern int _rwDlRasterGetNumMipLevels(void*, void*, int);
 extern void _rwDlRenderStateOpen(void);
 extern void _rwDlRenderStateClose(void);
 
@@ -174,47 +170,47 @@ static RwVideoMode _RwDlVideoModes[4] = {
     {0, 0, 0, 1, 0, 0},
 };
 
-RwInt32 _RwDlFSAATop = 1;
-RwUInt32 _RwDlFifoSize = 0x40000;
-static RwInt32 _RwDlFirstFrame = 1;
-static RwInt32 _RwDlLatency = 3;
-static RwUInt8 _RwDlRetraceCount = 1;
-static RwUInt8 _RwDlRetraceMinCount = 1;
+int _RwDlFSAATop = 1;
+unsigned int _RwDlFifoSize = 0x40000;
+static int _RwDlFirstFrame = 1;
+static int _RwDlLatency = 3;
+static unsigned char _RwDlRetraceCount = 1;
+static unsigned char _RwDlRetraceMinCount = 1;
 
 static RwGCFrameQueueEntry _RwGCFrameQueue[3];
 static GXRenderModeObj _RwGameCubeRenderModeObj;
 RwMatrix _RwDlInvCamLTM;
 
-static RwBool _RwDlCopyClear;
-RwInt32 _RwDlPixelFormat;
-RwInt32 _RwDlCurPixelFormat;
-RwInt32 _RwGameCubeVideoMode;
-RwInt32 _RwDlFSAA;
+static int _RwDlCopyClear;
+int _RwDlPixelFormat;
+int _RwDlCurPixelFormat;
+int _RwGameCubeVideoMode;
+int _RwDlFSAA;
 void* _RwDl_FIFO_XFB;
 void* _RwGCXFB1;
 void* _RwGCXFB2;
 void* _RwGCXFBCopy;
 void* _RwGCXFBDisp;
-static RwInt32 _RwDlFrameCurrent;
-static RwInt32 _RwDlFrameNew;
-static RwInt32 _RwDlFrameTokenNew;
-static RwInt32 _RwDlFrameTokenCurrent;
-static RwBool _RwDlBreakPointEnabled;
-static RwBool _RwDlFrameReadyOnToken;
-static RwBool _RwDlFrameWait;
-static RwBool _RwDlFrameGo;
+static int _RwDlFrameCurrent;
+static int _RwDlFrameNew;
+static int _RwDlFrameTokenNew;
+static int _RwDlFrameTokenCurrent;
+static int _RwDlBreakPointEnabled;
+static int _RwDlFrameReadyOnToken;
+static int _RwDlFrameWait;
+static int _RwDlFrameGo;
 static OSThreadQueue _RwDlWaitingDoneRender;
-static RwUInt16 _RwDlFrameSwap[3];
+static unsigned short _RwDlFrameSwap[3];
 void* _RwDlDefaultFifo;
 GXFifoObj* _RwDlDefaultFifoObj;
-RwInt32 _RwDlHalfHeight;
+int _RwDlHalfHeight;
 GXRenderModeObj* _RwDlRenderMode;
 RwDlGlobals dgGGlobals;
 
 static void _rwDlBreakNext(void)
 {
-    static RwInt32 swap;
-    RwInt32 next = (_RwDlFrameCurrent + 1) % _RwDlLatency;
+    static int swap;
+    int next = (_RwDlFrameCurrent + 1) % _RwDlLatency;
 
     if (next == _RwDlFrameNew) {
         MWY_GCN_RW_RestartFromGxBreakPtCurrent();
@@ -246,7 +242,7 @@ static void _rwDlBreakPtCallback(void)
 
 static void _rwDlVIPreRetraceCallback(void)
 {
-    RwInt16 frameToken;
+    short frameToken;
 
     _RwDlRetraceCount++;
     frameToken = _RwDlFrameSwap[_RwDlFrameTokenCurrent];
@@ -278,13 +274,13 @@ static void _rwDlVIPostRetraceCallback(void)
     _RwDlFrameGo = 0;
 }
 
-static RwBool _rwDlNullStandard(void* out, void* inOut, RwInt32 in)
+static int _rwDlNullStandard(void* out, void* inOut, int in)
 {
     return 0;
 }
 
-static RwBool _rwDlDeviceSystemStandards(RwStandardFunc* standards,
-                                          RwInt32 numStandards)
+static int _rwDlDeviceSystemStandards(RwStandardFunc* standards,
+                                          int numStandards)
 {
     RwStandardEntry standardTable[27] = {
         {1, (RwStandardFunc)_rwDlCameraBeginUpdate},
@@ -315,8 +311,8 @@ static RwBool _rwDlDeviceSystemStandards(RwStandardFunc* standards,
         {26, _rwDlNativeTextureRead},
         {28, _rwDlRasterGetNumMipLevels},
     };
-    RwInt32 i = 0;
-    RwInt32 numStandardFunctions = 27;
+    int i = 0;
+    int numStandardFunctions = 27;
 
     while (i < numStandards) {
         standards[i] = _rwDlNullStandard;
@@ -336,7 +332,7 @@ static RwBool _rwDlDeviceSystemStandards(RwStandardFunc* standards,
 }
 
 static void _rwDlRenderModeSelect(GXRenderModeObj* renderMode,
-                                   RwInt32 pixelFormat)
+                                   int pixelFormat)
 {
     if (renderMode != 0) {
         memcpy(&_RwGameCubeRenderModeObj, renderMode,
@@ -391,12 +387,12 @@ static void _rwDlRenderModeSelect(GXRenderModeObj* renderMode,
 }
 
 static void _rwDlRenderModeInit(GXRenderModeObj* renderMode,
-                                 RwInt32 pixelFormat)
+                                 int pixelFormat)
 {
     _RwDlFirstFrame = 1;
 }
 
-RwBool _rwDeviceRegisterPlugin(void)
+int _rwDeviceRegisterPlugin(void)
 {
     _rwDlRasterPluginAttach();
     _rwDlTexturePluginAttach();
@@ -405,7 +401,7 @@ RwBool _rwDeviceRegisterPlugin(void)
 
 static RwDlDevice* _rwDeviceGetHandle(void);
 
-static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in)
+static int _rwDlSystem(int option, void* out, void* inOut, int in)
 {
     switch (option) {
     case 7:
@@ -413,7 +409,7 @@ static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in)
     default:
         return 0;
     case 5:
-        *(RwInt32*)out = 1;
+        *(int*)out = 1;
         return 1;
     case 6:
         if (in < 1) {
@@ -436,7 +432,7 @@ static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in)
         }
         return 0;
     case 10:
-        *(RwInt32*)out = 0;
+        *(int*)out = 0;
         return 1;
     case 8:
     case 9:
@@ -447,7 +443,7 @@ static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in)
         return 1;
     case 0: {
         RwDlOpenParams* params = *(RwDlOpenParams**)inOut;
-        RwUInt32 xfbSize;
+        unsigned int xfbSize;
         if (params != 0) {
             _rwDlRenderModeSelect(params->renderMode, params->pixelFormat);
             _RwDlFifoSize = params->fifoSize;
@@ -455,15 +451,15 @@ static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in)
             _rwDlRenderModeSelect(0, _RwDlPixelFormat);
         }
         if (_RwGCXFBDisp == 0) {
-            RwUInt32 width = (_RwDlRenderMode->fbWidth + 15) & ~15;
+            unsigned int width = (_RwDlRenderMode->fbWidth + 15) & ~15;
             xfbSize = width * _RwDlRenderMode->xfbHeight * 2;
             _RwDl_FIFO_XFB = RwEngineInstance->fpMalloc(
                 _RwDlFifoSize + xfbSize * 2 + 31, 0x40411);
             _RwDlDefaultFifo =
-                (void*)(((RwUInt32)_RwDl_FIFO_XFB + 31) & ~31U);
+                (void*)(((unsigned int)_RwDl_FIFO_XFB + 31) & ~31U);
             DCInvalidateRange(_RwDlDefaultFifo, _RwDlFifoSize);
-            _RwGCXFB1 = (RwUInt8*)_RwDlDefaultFifo + _RwDlFifoSize;
-            _RwGCXFB2 = (RwUInt8*)_RwGCXFB1 + xfbSize;
+            _RwGCXFB1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
+            _RwGCXFB2 = (unsigned char*)_RwGCXFB1 + xfbSize;
             _RwGCXFBDisp = _RwGCXFB1;
             _RwGCXFBCopy = _RwGCXFB2;
         }
@@ -480,7 +476,7 @@ static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in)
         _RwDl_FIFO_XFB = 0;
         return 1;
     case 2: {
-        static RwBool gxInit;
+        static int gxInit;
         if (gxInit == 0) {
             _RwDlDefaultFifoObj =
                 (GXFifoObj*)GXInit(_RwDlDefaultFifo, _RwDlFifoSize);
@@ -520,23 +516,23 @@ static RwBool _rwDlSystem(RwInt32 option, void* out, void* inOut, RwInt32 in)
     case 11:
         return _rwDlDeviceSystemStandards(out, in);
     case 20:
-        *(RwInt32*)out = 0x400;
+        *(int*)out = 0x400;
         return 1;
     case 22:
-        *(RwUInt16*)out = 3;
+        *(unsigned short*)out = 3;
         return 1;
     }
 }
 
-RwBool _rwDlCameraClear(void* cameraObject, RwRGBA* color,
-                        RwInt32 clearMode)
+int _rwDlCameraClear(void* cameraObject, RwRGBA* color,
+                        int clearMode)
 {
     RwCamera* camera = cameraObject;
 
     if (_RwDlCopyClear == 0) {
         RwRaster* raster = camera->frameBuffer;
         struct {
-            RwInt32 x, y, w, h;
+            int x, y, w, h;
         } rectangle;
         if (_RwDlFSAA == 0) {
             rectangle.x = raster->offsetX;
@@ -561,15 +557,9 @@ RwBool _rwDlCameraClear(void* cameraObject, RwRGBA* color,
     return 1;
 }
 
-extern RwMatrix* RwMatrixInvert(RwMatrix* destination,
-                                 const RwMatrix* source);
-extern RwMatrix* RwMatrixMultiply(RwMatrix* destination,
-                                   const RwMatrix* first,
-                                   const RwMatrix* second);
-
-RwBool _rwDlCameraBeginUpdate(void* out, void* inOut, RwInt32 in)
+int _rwDlCameraBeginUpdate(void* out, void* inOut, int in)
 {
-    static RwReal projVector[7] = {0.0f, 1.0f, 0.0f, 1.0f,
+    static float projVector[7] = {0.0f, 1.0f, 0.0f, 1.0f,
                                     0.0f, 1.0f, 0.0f};
     RwMatrix viewOffset;
     RwV3d* right = &viewOffset.right;
@@ -686,18 +676,18 @@ RwBool _rwDlCameraBeginUpdate(void* out, void* inOut, RwInt32 in)
     return 1;
 }
 
-RwBool _rwDlCameraEndUpdate(void* out, RwCamera* camera, RwInt32 in)
+int _rwDlCameraEndUpdate(void* out, RwCamera* camera, int in)
 {
     dgGGlobals.camera = 0;
     return 1;
 }
 
-RwBool _rwDlRasterShowRaster(void* out, void* inOut, RwInt32 in)
+int _rwDlRasterShowRaster(void* out, void* inOut, int in)
 {
     void* readPtr;
     void* writePtr;
-    RwBool interrupts;
-    RwBool queueFull;
+    int interrupts;
+    int queueFull;
 
     interrupts = OSDisableInterrupts();
     queueFull = (_RwDlFrameNew - _RwDlFrameCurrent == -1) ||
@@ -723,7 +713,7 @@ RwBool _rwDlRasterShowRaster(void* out, void* inOut, RwInt32 in)
             MWY_GCN_RW_NoteRwGxBreakPt(writePtr);
         }
         OSRestoreInterrupts(interrupts);
-        GXCopyDisp(_RwGCXFBCopy, (RwUInt8)_RwDlCopyClear);
+        GXCopyDisp(_RwGCXFBCopy, (unsigned char)_RwDlCopyClear);
         GXSetDrawSync(_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 0xE000;
         GXFlush();
@@ -743,13 +733,13 @@ RwBool _rwDlRasterShowRaster(void* out, void* inOut, RwInt32 in)
             MWY_GCN_RW_NoteRwGxBreakPt(writePtr);
         }
         OSRestoreInterrupts(interrupts);
-        GXCopyDisp(_RwGCXFBCopy, (RwUInt8)_RwDlCopyClear);
+        GXCopyDisp(_RwGCXFBCopy, (unsigned char)_RwDlCopyClear);
         GXSetDrawSync(_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 0xE000;
         GXFlush();
         _RwDlFSAATop = 0;
     } else {
-        RwUInt32 stride;
+        unsigned int stride;
         GXFlush();
         GXGetFifoPtrs(GXGetCPUFifo(), &readPtr, &writePtr);
         interrupts = OSDisableInterrupts();
@@ -770,9 +760,9 @@ RwBool _rwDlRasterShowRaster(void* out, void* inOut, RwInt32 in)
         GXSetDispCopySrc(0, 2, _RwDlRenderMode->fbWidth,
                          _RwDlRenderMode->efbHeight - 2);
         stride = (_RwDlRenderMode->fbWidth + 15) & ~15;
-        GXCopyDisp((RwUInt8*)_RwGCXFBCopy +
+        GXCopyDisp((unsigned char*)_RwGCXFBCopy +
                        stride * (_RwDlRenderMode->efbHeight - 2) * 2,
-                   (RwUInt8)_RwDlCopyClear);
+                   (unsigned char)_RwDlCopyClear);
         GXSetDrawSync(_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 0xE000;
         GXSetCopyClamp(3);
@@ -804,7 +794,7 @@ static RwDlDevice* _rwDeviceGetHandle(void)
     return &device;
 }
 
-void _rwDlTransformSetup(const RwMatrix* matrix, RwBool normalize)
+void _rwDlTransformSetup(const RwMatrix* matrix, int normalize)
 {
     RwMatrix combined;
     const RwMatrix* source;
@@ -835,27 +825,27 @@ void _rwDlTransformSetup(const RwMatrix* matrix, RwBool normalize)
     GXSetCurrentMtx(0);
 }
 
-void RwGameCubeCameraTextureFlush(RwRaster* raster, RwBool mipmap)
+void RwGameCubeCameraTextureFlush(RwRaster* raster, int mipmap)
 {
     RwRaster* parent = raster->parent;
     RwGameCubeRasterExt* extension =
         RwGameCubeRasterExtension(parent);
-    RwUInt32 offset;
+    unsigned int offset;
 
     GXSetCopyFilter(0, 0, 0, 0);
     if (mipmap != 0) {
-        GXSetTexCopySrc((RwUInt16)(raster->offsetX * 2),
-                        (RwUInt16)(raster->offsetY * 2),
-                        (RwUInt16)(raster->width * 2),
-                        (RwUInt16)(raster->height * 2));
+        GXSetTexCopySrc((unsigned short)(raster->offsetX * 2),
+                        (unsigned short)(raster->offsetY * 2),
+                        (unsigned short)(raster->width * 2),
+                        (unsigned short)(raster->height * 2));
     } else {
-        GXSetTexCopySrc((RwUInt16)raster->offsetX,
-                        (RwUInt16)raster->offsetY,
-                        (RwUInt16)raster->width,
-                        (RwUInt16)raster->height);
+        GXSetTexCopySrc((unsigned short)raster->offsetX,
+                        (unsigned short)raster->offsetY,
+                        (unsigned short)raster->width,
+                        (unsigned short)raster->height);
     }
-    GXSetTexCopyDst((RwUInt16)parent->width, (RwUInt16)parent->height,
-                    extension->format, (RwUInt8)mipmap);
+    GXSetTexCopyDst((unsigned short)parent->width, (unsigned short)parent->height,
+                    extension->format, (unsigned char)mipmap);
 
 
 
@@ -885,8 +875,8 @@ void RwGameCubeCameraTextureFlush(RwRaster* raster, RwBool mipmap)
     }
     }
 
-    GXCopyTex((RwUInt8*)extension->imageData + offset,
-              (RwUInt8)_RwDlCopyClear);
+    GXCopyTex((unsigned char*)extension->imageData + offset,
+              (unsigned char)_RwDlCopyClear);
     GXPixModeSync();
     GXSetCopyFilter(_RwDlRenderMode->aa, _RwDlRenderMode->sample_pattern,
                     1, _RwDlRenderMode->vfilter);

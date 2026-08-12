@@ -49,8 +49,6 @@ extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
                                             const char* name);
-int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
-                                int format);
 
 static const char character_25[] = "0123456789abcdef";
 static char emptyTextureName[] = "";
@@ -62,7 +60,7 @@ static int _rwTexDictionaryFreeListPreallocBlocks = 1;
 
 static RwTextureModuleGlobals* TextureGlobals(void)
 {
-    return (RwTextureModuleGlobals*)((char*)RwEngineInstance +
+    return (RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
                                      textureModule.globalsOffset);
 }
 
@@ -630,6 +628,7 @@ static RwRaster* TextureRasterDefaultBuildMipmaps(RwRaster* raster,
     return raster;
 }
 
+#pragma dont_inline on
 static int TextureAnnihilate(RwTexture* texture) {
     RwLLLink* previous;
 
@@ -648,7 +647,9 @@ static int TextureAnnihilate(RwTexture* texture) {
     RwEngineInstance->fpFreeListFree(TextureGlobals()->textureFreeList, texture);
     return 1;
 }
+#pragma dont_inline reset
 
+#pragma dont_inline on
 static int StringCompare(const char* left, const char* right) {
     while (*left != 0 && *right != 0) {
         char leftCharacter = *left;
@@ -671,6 +672,7 @@ static int StringCompare(const char* left, const char* right) {
     }
     return 0;
 }
+#pragma dont_inline reset
 
 static RwTexture* TextureDefaultFind(const char* name) {
     RwTexDictionary* dictionary = TextureGlobals()->currentDictionary;
@@ -696,32 +698,38 @@ static RwTexture* TextureDefaultFind(const char* name) {
     return 0;
 }
 
-int RwTextureSetFindCallBack(RwTexture* (*callback)(const char*)) {
-    TextureGlobals()->findCallback = callback;
+int RwTextureSetFindCallBack(RwTextureFindCallBack callback) {
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->findCallback = callback;
     return 1;
 }
 
-int RwTextureSetReadCallBack(RwTexture* (*callback)(const char*, const char*)) {
-    TextureGlobals()->readCallback = callback;
+int RwTextureSetReadCallBack(RwTextureReadCallBack callback) {
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->readCallback = callback;
     return 1;
 }
 
 int RwTextureSetMipmapping(int enable) {
-    TextureGlobals()->mipmapping = enable;
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->mipmapping = enable;
     return 1;
 }
 
 int RwTextureGetMipmapping(void) {
-    return TextureGlobals()->mipmapping;
+    return ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->mipmapping;
 }
 
 int RwTextureSetAutoMipmapping(int enable) {
-    TextureGlobals()->autoMipmapping = enable;
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->autoMipmapping = enable;
     return 1;
 }
 
 int RwTextureGetAutoMipmapping(void) {
-    return TextureGlobals()->autoMipmapping;
+    return ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->autoMipmapping;
 }
 
 RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster) {
@@ -855,6 +863,7 @@ RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* maskName) {
     return texture;
 }
 
+#pragma dont_inline on
 RwTexture* RwTexDictionaryAddTexture(RwTexDictionary* dictionary,
                                      RwTexture* texture) {
     RwLLLink* previous;
@@ -873,6 +882,7 @@ RwTexture* RwTexDictionaryAddTexture(RwTexDictionary* dictionary,
     dictionary->textures.next = link;
     return texture;
 }
+#pragma dont_inline reset
 
 RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture) {
     RwLLLink* previous;
@@ -902,30 +912,38 @@ RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
 }
 
 void RwTexDictionarySetCurrent(RwTexDictionary* dictionary) {
-    TextureGlobals()->currentDictionary = dictionary;
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->currentDictionary = dictionary;
 }
 
 RwTexDictionary* RwTexDictionaryGetCurrent(void) {
-    return TextureGlobals()->currentDictionary;
+    return ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->currentDictionary;
 }
 
 int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
-                                int format) {
-    if (TextureGlobals()->mipmapNameCallback != 0) {
-        return TextureGlobals()->mipmapNameCallback(name, maskName, level, format);
+                                   int format) {
+    if (((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+            textureModule.globalsOffset))->mipmapNameCallback != 0) {
+        return ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+            textureModule.globalsOffset))->mipmapNameCallback(
+                name, maskName, level, format);
     }
     return 0;
 }
 
 
 RwTexture* RwTextureRead(const char* name, const char* maskName) {
-    RwTexture* texture = TextureGlobals()->findCallback(name);
+    RwTexture* texture =
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+            textureModule.globalsOffset))->findCallback(name);
 
     if (texture != 0) {
         texture->ref_count++;
         return texture;
     }
-    texture = TextureGlobals()->readCallback(name, maskName);
+    texture = ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->readCallback(name, maskName);
     if (texture == 0) {
         if (maskName != 0) {
             RwError error;
@@ -940,8 +958,12 @@ RwTexture* RwTextureRead(const char* name, const char* maskName) {
         }
         return 0;
     }
-    if (TextureGlobals()->currentDictionary != 0) {
-        RwTexDictionaryAddTexture(TextureGlobals()->currentDictionary, texture);
+    if (((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+            textureModule.globalsOffset))->currentDictionary != 0) {
+        RwTexDictionaryAddTexture(
+            ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                textureModule.globalsOffset))->currentDictionary,
+            texture);
     }
     return texture;
 }
@@ -957,19 +979,22 @@ int RwTextureRegisterPlugin(int size, unsigned int pluginID,
 }
 
 int RwTextureSetMipmapGenerationCallBack(
-    RwRaster* (*callback)(RwRaster*, RwImage*)) {
-    TextureGlobals()->mipmapGenerationCallback = callback;
+    RwTextureMipmapGenerationCallBack callback) {
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->mipmapGenerationCallback = callback;
     return 1;
 }
 
-int RwTextureSetMipmapNameCallBack(
-    int (*callback)(char*, char*, unsigned char, int)) {
-    TextureGlobals()->mipmapNameCallback = callback;
+int RwTextureSetMipmapNameCallBack(RwTextureMipmapNameCallBack callback) {
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+        textureModule.globalsOffset))->mipmapNameCallback = callback;
     return 1;
 }
 
 int RwTextureRasterGenerateMipmaps(RwRaster* raster, RwImage* image) {
-    if (TextureGlobals()->mipmapGenerationCallback(raster, image) != 0) {
+    if (((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+            textureModule.globalsOffset))->mipmapGenerationCallback(
+                raster, image) != 0) {
         return 1;
     }
     return 0;

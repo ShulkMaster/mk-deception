@@ -1,4 +1,6 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/batextur.h"
+#include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rwerror.h"
 
@@ -27,35 +29,29 @@ enum {
   GX_TL_RGB5A3 = 2,
 };
 
-extern RwInt32 RwRasterRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+extern int RwRasterRegisterPlugin(int size, unsigned int pluginID,
                                       RwPluginObjectConstructor constructCB,
                                       RwPluginObjectDestructor destructCB,
                                       RwPluginObjectCopy copyCB);
-extern RwInt32 _rwDlFindMSB(RwInt32 value);
-extern RwUInt16 _RwDlTokenCurrent;
-extern RwUInt16 _RwDlTokenLastSeen;
+extern int _rwDlFindMSB(int value);
 extern RwTexture *_RwDlTexture;
 extern GXRenderModeObj *_RwDlRenderMode;
-extern RwBool _rwDlTokenQueryDone(RwUInt16 token);
-extern RwBool RwTextureRasterGenerateMipmaps(RwRaster *, RwImage *);
-RwBool _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
-                                  RwInt32 unused);
-RwBool _rwDlTextureSetRaster(void *textureIn, void *rasterIn, RwInt32 unused);
-
-static RwUInt32 DlRasterGetMipLevelSize(RwRaster *raster, RwUInt8 level);
-static RwUInt32 DlRasterGetMipLevelOffset(RwRaster *raster, RwUInt8 level);
-static RwUInt8 DlRasterFindNumMipLevels(RwRaster *raster);
+int _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
+                                  int unused);
+static unsigned int DlRasterGetMipLevelSize(RwRaster *raster, unsigned char level);
+static unsigned int DlRasterGetMipLevelOffset(RwRaster *raster, unsigned char level);
+static unsigned char DlRasterFindNumMipLevels(RwRaster *raster);
 
 void _rwDlRasterPluginAttach(void) {
   _RwGameCubeRasterExtOffset = RwRasterRegisterPlugin(
       sizeof(RwGameCubeRasterExt), 0x40C, 0, 0, 0);
 }
 
-static RwUInt32 DlRasterGetMipLevelSize(RwRaster *raster, RwUInt8 level) {
+static unsigned int DlRasterGetMipLevelSize(RwRaster *raster, unsigned char level) {
   RwRaster *parent = raster->parent;
-  RwUInt32 width;
-  RwUInt32 height;
-  RwUInt32 size = 0;
+  unsigned int width;
+  unsigned int height;
+  unsigned int size = 0;
 
   if ((raster->privateFlags & 6) != 0) {
     width = parent->width;
@@ -98,31 +94,31 @@ static RwUInt32 DlRasterGetMipLevelSize(RwRaster *raster, RwUInt8 level) {
   return (size + 31) & ~31U;
 }
 
-static RwUInt32 DlRasterGetMipLevelOffset(RwRaster *raster, RwUInt8 level) {
-  RwUInt32 offset = 0;
+static unsigned int DlRasterGetMipLevelOffset(RwRaster *raster, unsigned char level) {
+  unsigned int offset = 0;
 
   while (level-- != 0)
     offset += DlRasterGetMipLevelSize(raster, level);
   return offset;
 }
 
-RwUInt32 _rwDlRasterGetSize(RwRaster *raster) {
-  RwInt32 levels;
-  RwUInt32 size = 0;
+unsigned int _rwDlRasterGetSize(RwRaster *raster) {
+  int levels;
+  unsigned int size = 0;
 
   _rwDlRasterGetNumMipLevels(&levels, raster, 0);
   while (levels-- != 0)
-    size += DlRasterGetMipLevelSize(raster, (RwUInt8)levels);
+    size += DlRasterGetMipLevelSize(raster, (unsigned char)levels);
   return size;
 }
 
-RwUInt32 _rwDlRasterGetStride(RwRaster *raster, RwUInt8 level) {
-  RwInt32 stride = 0;
-  RwInt32 width = raster->parent->width >> level;
+unsigned int _rwDlRasterGetStride(RwRaster *raster, unsigned char level) {
+  int stride = 0;
+  int width = raster->parent->width >> level;
 
   width = width == 0 ? 1 : width;
 
-  switch ((RwUInt32)raster->depth) {
+  switch ((unsigned int)raster->depth) {
   case 4:
     stride = ((width + 7) & ~7) >> 1;
     break;
@@ -146,20 +142,20 @@ RwUInt32 _rwDlRasterGetStride(RwRaster *raster, RwUInt8 level) {
   return stride;
 }
 
-static RwUInt8 DlRasterFindNumMipLevels(RwRaster *raster) {
+static unsigned char DlRasterFindNumMipLevels(RwRaster *raster) {
   if ((((raster->format & 0xFF) << 8) & rwRASTERFORMATMIPMAP) != 0) {
     if (raster->width > raster->height)
-      return (RwUInt8)_rwDlFindMSB(raster->width) + 1;
-    return (RwUInt8)_rwDlFindMSB(raster->height) + 1;
+      return (unsigned char)_rwDlFindMSB(raster->width) + 1;
+    return (unsigned char)_rwDlFindMSB(raster->height) + 1;
   }
   return 1;
 }
 
-RwBool _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
-                                  RwInt32 unused) {
+int _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
+                                  int unused) {
   RwGameCubeRasterExt *extension;
   RwRaster *raster = rasterIn;
-  RwInt32 *levels = levelsOut;
+  int *levels = levelsOut;
   extension = RwGameCubeRasterExtension(raster->parent);
 
   if (extension->maxLod != 0xFF)
@@ -169,67 +165,67 @@ RwBool _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
   return 1;
 }
 
-static void DlRasterTile(void *tiledData, const void *linearData, RwInt32 width,
-                         RwInt32 height, RwInt32 depth, RwInt32 stride) {
-  RwUInt8 *destination = tiledData;
-  const RwUInt8 *source = linearData;
-  RwInt32 y;
+static void DlRasterTile(void *tiledData, const void *linearData, int width,
+                         int height, int depth, int stride) {
+  unsigned char *destination = tiledData;
+  const unsigned char *source = linearData;
+  int y;
 
   switch (depth) {
   case 4: {
-    RwInt32 tilesAcross = ((width + 7) & ~7) >> 3;
+    int tilesAcross = ((width + 7) & ~7) >> 3;
     for (y = 0; y < height; y++) {
-      const RwUInt8 *row = source + stride * y;
-      RwInt32 rowInTile = (y & 7) << 3;
-      RwInt32 tileRow = tilesAcross * (y >> 3);
-      RwInt32 x;
+      const unsigned char *row = source + stride * y;
+      int rowInTile = (y & 7) << 3;
+      int tileRow = tilesAcross * (y >> 3);
+      int x;
       for (x = 0; x < width; x += 8) {
-        RwInt32 texelOffset = rowInTile + (tileRow + (x >> 3)) * 64;
-        RwUInt32 byteOffset = (RwUInt32)texelOffset >> 1;
+        int texelOffset = rowInTile + (tileRow + (x >> 3)) * 64;
+        unsigned int byteOffset = (unsigned int)texelOffset >> 1;
         memcpy(destination + byteOffset, row + (x >> 1), 4);
       }
     }
     break;
   }
   case 8: {
-    RwInt32 tilesAcross = ((width + 7) & ~7) >> 3;
+    int tilesAcross = ((width + 7) & ~7) >> 3;
     for (y = 0; y < height; y++) {
-      const RwUInt8 *row = source + stride * y;
-      RwInt32 rowInTile = (y & 3) << 3;
-      RwInt32 tileRow = tilesAcross * (y >> 2);
-      RwInt32 x;
+      const unsigned char *row = source + stride * y;
+      int rowInTile = (y & 3) << 3;
+      int tileRow = tilesAcross * (y >> 2);
+      int x;
       for (x = 0; x < width; x += 8) {
-        RwInt32 texelOffset = rowInTile + (tileRow + (x >> 3)) * 32;
-        RwInt32 byteOffset = texelOffset;
+        int texelOffset = rowInTile + (tileRow + (x >> 3)) * 32;
+        int byteOffset = texelOffset;
         memcpy(destination + byteOffset, row + x, 8);
       }
     }
     break;
   }
   case 16: {
-    RwInt32 tilesAcross = ((width + 3) & ~3) >> 2;
+    int tilesAcross = ((width + 3) & ~3) >> 2;
     for (y = 0; y < height; y++) {
-      RwInt32 rowInTile = (y & 3) << 2;
-      RwInt32 tileRow = tilesAcross * (y >> 2);
-      const RwUInt8 *row = source + stride * y;
-      RwInt32 x;
+      int rowInTile = (y & 3) << 2;
+      int tileRow = tilesAcross * (y >> 2);
+      const unsigned char *row = source + stride * y;
+      int x;
       for (x = 0; x < width; x += 4) {
-        RwInt32 texelOffset = rowInTile + (tileRow + (x >> 2)) * 16;
-        RwInt32 byteOffset = texelOffset << 1;
+        int texelOffset = rowInTile + (tileRow + (x >> 2)) * 16;
+        int byteOffset = texelOffset << 1;
         memcpy(destination + byteOffset, row + (x << 1), 8);
       }
     }
     break;
   }
   case 32: {
-    RwInt32 tilesAcross = ((width + 3) & ~3) >> 2;
-    RwUInt16 *tiled = (RwUInt16 *)destination;
+    int tilesAcross = ((width + 3) & ~3) >> 2;
+    unsigned short *tiled = (unsigned short *)destination;
     for (y = 0; y < height; y++) {
-      const RwUInt16 *row = (const RwUInt16 *)(source + stride * y);
-      RwInt32 tileOffset = 0;
-      RwInt32 rowInTile = (y & 3) << 2;
-      RwInt32 tileRow = tilesAcross * (y >> 2);
-      RwInt32 x;
+      const unsigned short *row = (const unsigned short *)(source + stride * y);
+      int tileOffset = 0;
+      int rowInTile = (y & 3) << 2;
+      int tileRow = tilesAcross * (y >> 2);
+      int x;
       for (x = 0; x < width; x++) {
         if ((x & 3) == 0)
           tileOffset = (tileRow + (x >> 2)) << 4;
@@ -249,61 +245,61 @@ static void DlRasterTile(void *tiledData, const void *linearData, RwInt32 width,
   }
 }
 
-static void DlRasterUntile(RwUInt8 *linearData, const RwUInt8 *tiledData,
-                           RwInt32 width, RwInt32 height, RwInt32 depth,
-                           RwInt32 stride) {
-  RwInt32 y;
+static void DlRasterUntile(unsigned char *linearData, const unsigned char *tiledData,
+                           int width, int height, int depth,
+                           int stride) {
+  int y;
 
   if (depth == 4) {
-    RwInt32 tilesAcross = ((width + 7) & ~7) >> 3;
+    int tilesAcross = ((width + 7) & ~7) >> 3;
     for (y = 0; y < height; y++) {
-      RwUInt8 *row = linearData + stride * y;
-      RwInt32 rowInTile = (y & 7) << 3;
-      RwInt32 tileRow = tilesAcross * (y >> 3);
-      RwInt32 x;
+      unsigned char *row = linearData + stride * y;
+      int rowInTile = (y & 7) << 3;
+      int tileRow = tilesAcross * (y >> 3);
+      int x;
       for (x = 0; x < width; x += 8) {
-        RwInt32 texelOffset = rowInTile + (tileRow + (x >> 3)) * 64;
-        RwUInt32 byteOffset = texelOffset >> 1;
+        int texelOffset = rowInTile + (tileRow + (x >> 3)) * 64;
+        unsigned int byteOffset = texelOffset >> 1;
         memcpy(row + (x >> 1), tiledData + byteOffset, 4);
       }
     }
   } else if (depth == 8) {
-    RwInt32 tilesAcross = ((width + 7) & ~7) >> 3;
+    int tilesAcross = ((width + 7) & ~7) >> 3;
     for (y = 0; y < height; y++) {
-      RwUInt8 *row = linearData + stride * y;
-      RwInt32 rowInTile = (y & 3) << 3;
-      RwInt32 tileRow = tilesAcross * (y >> 2);
-      RwInt32 x;
+      unsigned char *row = linearData + stride * y;
+      int rowInTile = (y & 3) << 3;
+      int tileRow = tilesAcross * (y >> 2);
+      int x;
       for (x = 0; x < width; x += 8) {
-        RwInt32 texelOffset = rowInTile + (tileRow + (x >> 3)) * 32;
-        RwInt32 byteOffset = texelOffset;
+        int texelOffset = rowInTile + (tileRow + (x >> 3)) * 32;
+        int byteOffset = texelOffset;
         memcpy(row + x, tiledData + byteOffset, 8);
       }
     }
   } else if (depth == 16) {
-    RwInt32 tilesAcross = ((width + 3) & ~3) >> 2;
+    int tilesAcross = ((width + 3) & ~3) >> 2;
     for (y = 0; y < height; y++) {
-      RwInt32 rowInTile = (y & 3) << 2;
-      RwInt32 tileRow = tilesAcross * (y >> 2);
-      RwUInt8 *row = linearData + stride * y;
-      RwInt32 x;
+      int rowInTile = (y & 3) << 2;
+      int tileRow = tilesAcross * (y >> 2);
+      unsigned char *row = linearData + stride * y;
+      int x;
       for (x = 0; x < width; x += 4) {
-        RwInt32 texelOffset = rowInTile + (tileRow + (x >> 2)) * 16;
-        RwInt32 byteOffset = texelOffset << 1;
+        int texelOffset = rowInTile + (tileRow + (x >> 2)) * 16;
+        int byteOffset = texelOffset << 1;
         memcpy(row + (x << 1), tiledData + byteOffset, 8);
       }
     }
   } else if (depth == 32) {
-    RwInt32 tilesAcross = ((width + 3) & ~3) >> 2;
-    const RwUInt16 *tiled = (const RwUInt16 *)tiledData;
+    int tilesAcross = ((width + 3) & ~3) >> 2;
+    const unsigned short *tiled = (const unsigned short *)tiledData;
     for (y = 0; y < height; y++) {
-      RwUInt16 *row = (RwUInt16 *)(linearData + stride * y);
-      RwInt32 tileOffset = 0;
-      RwInt32 rowInTile = (y & 3) << 2;
-      RwInt32 tileRow = tilesAcross * (y >> 2);
-      RwInt32 x;
+      unsigned short *row = (unsigned short *)(linearData + stride * y);
+      int tileOffset = 0;
+      int rowInTile = (y & 3) << 2;
+      int tileRow = tilesAcross * (y >> 2);
+      int x;
       for (x = 0; x < width; x++) {
-        RwInt32 pixelOffset;
+        int pixelOffset;
         if ((x & 3) == 0)
           tileOffset = (tileRow + (x >> 2)) << 4;
         pixelOffset = (tileOffset << 1) + rowInTile + (x & 3);
@@ -319,25 +315,25 @@ static void DlRasterUntile(RwUInt8 *linearData, const RwUInt8 *tiledData,
   }
 }
 
-RwBool _rwDlRasterLock(void *pixelsOut, void *rasterIn, RwInt32 flags) {
+int _rwDlRasterLock(void *pixelsOut, void *rasterIn, int flags) {
   void **pixels = pixelsOut;
-  RwUInt8 *tiled;
+  unsigned char *tiled;
   RwRaster *raster = rasterIn;
   RwRaster *parent = raster->parent;
-  RwUInt8 level = (RwUInt8)((flags & 0xFF00) >> 8);
+  unsigned char level = (unsigned char)((flags & 0xFF00) >> 8);
   RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(parent);
 
   switch (raster->type & 7) {
   case 0:
   case 4:
   case 5: {
-    RwUInt32 stride;
-    tiled = (RwUInt8 *)extension->imageData +
+    unsigned int stride;
+    tiled = (unsigned char *)extension->imageData +
             DlRasterGetMipLevelOffset(raster, level);
     stride = _rwDlRasterGetStride(raster, level);
 
     if ((flags & 8) == 0) {
-      RwInt32 height = parent->height >> level;
+      int height = parent->height >> level;
       height = height == 0 ? 1 : height;
       extension->lockBuffer =
           RwEngineInstance->fpMalloc(stride * height, 0x30411);
@@ -345,8 +341,8 @@ RwBool _rwDlRasterLock(void *pixelsOut, void *rasterIn, RwInt32 flags) {
         return 0;
     }
     if (parent == raster) {
-      RwInt32 width = raster->width >> level;
-      RwInt32 rootHeight = raster->height >> level;
+      int width = raster->width >> level;
+      int rootHeight = raster->height >> level;
 
       width = width == 0 ? 1 : width;
       rootHeight = rootHeight == 0 ? 1 : rootHeight;
@@ -361,19 +357,19 @@ RwBool _rwDlRasterLock(void *pixelsOut, void *rasterIn, RwInt32 flags) {
     } else if ((flags & 8) == 0) {
       switch (raster->depth) {
       case 4:
-        raster->pixels = (RwUInt8 *)extension->lockBuffer +
+        raster->pixels = (unsigned char *)extension->lockBuffer +
                          stride * raster->offsetY + (raster->offsetX >> 1);
         break;
       case 8:
-        raster->pixels = (RwUInt8 *)extension->lockBuffer +
+        raster->pixels = (unsigned char *)extension->lockBuffer +
                          stride * raster->offsetY + raster->offsetX;
         break;
       case 16:
-        raster->pixels = (RwUInt8 *)extension->lockBuffer +
+        raster->pixels = (unsigned char *)extension->lockBuffer +
                          stride * raster->offsetY + raster->offsetX * 2;
         break;
       case 32:
-        raster->pixels = (RwUInt8 *)extension->lockBuffer +
+        raster->pixels = (unsigned char *)extension->lockBuffer +
                          stride * raster->offsetY + raster->offsetX * 4;
         break;
       default: {
@@ -433,7 +429,7 @@ RwBool _rwDlRasterLock(void *pixelsOut, void *rasterIn, RwInt32 flags) {
   return 1;
 }
 
-RwBool _rwDlRasterUnlock(void *unused, void *rasterIn, RwInt32 in) {
+int _rwDlRasterUnlock(void *unused, void *rasterIn, int in) {
   RwRaster *raster = rasterIn;
   RwRaster *parent = raster->parent;
   RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(parent);
@@ -484,7 +480,7 @@ RwBool _rwDlRasterUnlock(void *unused, void *rasterIn, RwInt32 in) {
   return 1;
 }
 
-RwBool _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, RwInt32 flags) {
+int _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, int flags) {
   void **palette = paletteOut;
   RwRaster *raster = rasterIn;
 
@@ -512,7 +508,7 @@ RwBool _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, RwInt32 flags) {
   }
 }
 
-RwBool _rwDlRasterUnlockPalette(void *unused, void *rasterIn, RwInt32 in) {
+int _rwDlRasterUnlockPalette(void *unused, void *rasterIn, int in) {
   RwRaster *raster = rasterIn;
 
   switch (raster->type & 7) {
@@ -537,9 +533,9 @@ RwBool _rwDlRasterUnlockPalette(void *unused, void *rasterIn, RwInt32 in) {
   }
 }
 
-static RwBool DlGetRasterFormat(RwRaster *raster, RwInt32 flags) {
+static int DlGetRasterFormat(RwRaster *raster, int flags) {
   RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster->parent);
-  RwUInt32 format = flags & 0xFF00;
+  unsigned int format = flags & 0xFF00;
 
   raster->type = flags & 7;
   raster->flags = flags & ~7;
@@ -756,14 +752,14 @@ static RwBool DlGetRasterFormat(RwRaster *raster, RwInt32 flags) {
     return 0;
   }
   }
-  raster->format = (RwUInt8)(format >> 8);
+  raster->format = (unsigned char)(format >> 8);
   return 1;
 }
 
-RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
+int _rwDlTextureRasterCreate(RwRaster *raster, unsigned char levels) {
   RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
-  RwUInt32 size;
-  RwUInt32 paletteSize;
+  unsigned int size;
+  unsigned int paletteSize;
 
   extension->maxLod = levels - 1;
   size = _rwDlRasterGetSize(raster);
@@ -780,8 +776,8 @@ RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
       return 0;
     }
     extension->imageData =
-        (void *)(((RwUInt32)extension->allocation + 31) & ~31U);
-    extension->paletteData = (RwUInt8 *)extension->imageData + size;
+        (void *)(((unsigned int)extension->allocation + 31) & ~31U);
+    extension->paletteData = (unsigned char *)extension->imageData + size;
     GXInitTlutObj(&extension->tlut, extension->paletteData,
                   extension->paletteFormat, 1U << raster->depth);
   } else {
@@ -794,14 +790,14 @@ RwBool _rwDlTextureRasterCreate(RwRaster *raster, RwUInt8 levels) {
       return 0;
     }
     extension->imageData =
-        (void *)(((RwUInt32)extension->allocation + 31) & ~31U);
+        (void *)(((unsigned int)extension->allocation + 31) & ~31U);
     if (raster->type == 5)
       DCInvalidateRange(extension->imageData, size);
   }
   return 1;
 }
 
-RwBool _rwDlRasterCreate(void *unused, void *rasterIn, RwInt32 flags) {
+int _rwDlRasterCreate(void *unused, void *rasterIn, int flags) {
   RwRaster *raster = rasterIn;
   RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
 
@@ -815,7 +811,7 @@ RwBool _rwDlRasterCreate(void *unused, void *rasterIn, RwInt32 flags) {
   extension->lockedTiledData = 0;
   extension->lockBuffer = 0;
   extension->textureRegion = 0;
-  extension->token = (RwUInt16)_RwDlTokenLastSeen;
+  extension->token = (unsigned short)_RwDlTokenLastSeen;
   extension->maxLod = 0xFF;
   extension->lockedMipLevel = 0xFF;
   if (!DlGetRasterFormat(raster, flags))
@@ -853,7 +849,7 @@ RwBool _rwDlRasterCreate(void *unused, void *rasterIn, RwInt32 flags) {
   return 1;
 }
 
-RwBool _rwDlRasterDestroy(void *unused, void *rasterIn, RwInt32 in) {
+int _rwDlRasterDestroy(void *unused, void *rasterIn, int in) {
   RwRaster *raster = rasterIn;
 
   if (raster->parent == raster && (raster->flags & 0x80) == 0) {
@@ -863,7 +859,7 @@ RwBool _rwDlRasterDestroy(void *unused, void *rasterIn, RwInt32 in) {
     case 5: {
       RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
       if (extension->token == _RwDlTokenCurrent) {
-        GXSetDrawSync((RwUInt32)_RwDlTokenCurrent);
+        GXSetDrawSync((unsigned int)_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
       }
       while (!_rwDlTokenQueryDone(extension->token)) {
@@ -888,15 +884,16 @@ RwBool _rwDlRasterDestroy(void *unused, void *rasterIn, RwInt32 in) {
   return 1;
 }
 
-RwBool _rwDlTextureSetRaster(void *textureIn, void *rasterIn, RwInt32 unused) {
+int _rwDlTextureSetRaster(void *textureIn, void *rasterIn, int unused) {
   RwGameCubeTextureExt *extension;
   ((RwTexture *)textureIn)->raster = rasterIn;
-  extension = RwGameCubeTextureExtension((RwTexture *)textureIn);
+  extension = (RwGameCubeTextureExt *)((unsigned char *)textureIn +
+                                       _RwGameCubeTextureExtOffset);
   extension->flags = 0x01000000;
   return 1;
 }
 
-RwBool _rwDlRasterSubRaster(void *subRasterIn, void *rasterIn, RwInt32 unused) {
+int _rwDlRasterSubRaster(void *subRasterIn, void *rasterIn, int unused) {
   RwRaster *subRaster = subRasterIn;
   RwRaster *raster = rasterIn;
   subRaster->stride = raster->stride;

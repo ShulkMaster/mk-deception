@@ -2,30 +2,30 @@
 #include "rw/rwfreelist.h"
 #include "rw/rwstream.h"
 
-extern RwInt32 _rwerror(RwInt32, ...);
+extern int _rwerror(int, ...);
 extern RwError *RwErrorSet(RwError *);
-extern void *memcpy(void *, const void *, RwUInt32);
+extern void *memcpy(void *, const void *, unsigned int);
 
 static RwFreeList _rwStreamFreeList;
-static RwInt32 _rwStreamFreeListBlockSize = 0x10;
-static RwInt32 _rwStreamFreeListPreallocBlocks = 1;
+static int _rwStreamFreeListBlockSize = 0x10;
+static int _rwStreamFreeListPreallocBlocks = 1;
 static RwModuleInfo streamModule;
 
-void *_rwStreamModuleOpen(void *instance, RwInt32 offset, RwInt32 size) {
+void *_rwStreamModuleOpen(void *instance, int offset, int size) {
   streamModule.globalsOffset = offset;
-  *(RwFreeList **)((RwUInt8 *)RwEngineInstance + streamModule.globalsOffset) =
+  *(RwFreeList **)((unsigned char *)RwEngineInstance + streamModule.globalsOffset) =
       RwFreeListCreateAndPreallocateSpace(
           sizeof(RwStream), _rwStreamFreeListBlockSize, 4,
           _rwStreamFreeListPreallocBlocks, &_rwStreamFreeList, 0x40404);
-  if (*(RwFreeList **)((RwUInt8 *)RwEngineInstance +
+  if (*(RwFreeList **)((unsigned char *)RwEngineInstance +
                        streamModule.globalsOffset) == 0)
     return 0;
   ++streamModule.numInstances;
   return instance;
 }
 
-void *_rwStreamModuleClose(void *instance, RwInt32 offset, RwInt32 size) {
-  RwFreeList *freeList = *(RwFreeList **)((RwUInt8 *)RwEngineInstance +
+void *_rwStreamModuleClose(void *instance, int offset, int size) {
+  RwFreeList *freeList = *(RwFreeList **)((unsigned char *)RwEngineInstance +
                                           streamModule.globalsOffset);
   if (freeList != 0)
     RwFreeListDestroy(freeList);
@@ -42,7 +42,7 @@ static RwStream *StreamFileInitialize(RwStream *stream, void *file) {
 
 static RwStream *StreamFileNameInitialize(RwStream *stream,
                                           RwStreamAccessType access,
-                                          const RwChar *name) {
+                                          const char *name) {
   void *file = 0;
   RwStream *result = 0;
   switch (access) {
@@ -113,7 +113,7 @@ static RwStream *StreamCustomInitialize(RwStream *stream,
   return stream;
 }
 
-RwStream *_rwStreamInitialize(RwStream *stream, RwBool owned, RwStreamType type,
+RwStream *_rwStreamInitialize(RwStream *stream, int owned, RwStreamType type,
                               RwStreamAccessType access, void *data) {
   RwStream *result = 0;
   if (stream == 0)
@@ -144,9 +144,9 @@ RwStream *_rwStreamInitialize(RwStream *stream, RwBool owned, RwStreamType type,
   return result;
 }
 
-RwUInt32 RwStreamRead(RwStream *stream, void *buffer, RwUInt32 length) {
+unsigned int RwStreamRead(RwStream *stream, void *buffer, unsigned int length) {
   void *file;
-  RwUInt32 count;
+  unsigned int count;
 
   switch (stream->type) {
   case 1:
@@ -193,9 +193,9 @@ RwUInt32 RwStreamRead(RwStream *stream, void *buffer, RwUInt32 length) {
   }
 }
 
-RwStream *RwStreamWrite(RwStream *stream, const void *buffer, RwUInt32 length) {
+RwStream *RwStreamWrite(RwStream *stream, const void *buffer, unsigned int length) {
   void *file;
-  RwUInt32 count;
+  unsigned int count;
 
   switch (stream->type) {
   case 1:
@@ -225,8 +225,8 @@ RwStream *RwStreamWrite(RwStream *stream, const void *buffer, RwUInt32 length) {
       stream->data.memory.length = 0x200;
     }
     if (stream->data.memory.length - stream->data.memory.position < length) {
-      RwUInt32 newLength;
-      RwUInt8 *start;
+      unsigned int newLength;
+      unsigned char *start;
       if (length < 0x200) {
         newLength = stream->data.memory.length + 0x200;
       } else {
@@ -263,7 +263,7 @@ RwStream *RwStreamWrite(RwStream *stream, const void *buffer, RwUInt32 length) {
   }
 }
 
-RwStream *RwStreamSkip(RwStream *stream, RwUInt32 offset) {
+RwStream *RwStreamSkip(RwStream *stream, unsigned int offset) {
   RwStream *result;
   void *file;
 
@@ -311,9 +311,9 @@ RwStream *RwStreamSkip(RwStream *stream, RwUInt32 offset) {
   }
 }
 
-RwBool RwStreamClose(RwStream *stream, void *data) {
-  RwBool result;
-  RwBool closeResult;
+int RwStreamClose(RwStream *stream, void *data) {
+  int result;
+  int closeResult;
   switch (stream->type) {
   case 1:
     result = 1;
@@ -347,7 +347,7 @@ RwBool RwStreamClose(RwStream *stream, void *data) {
     return 0;
   }
   if (stream->owned) {
-    RwFreeList *freeList = *(RwFreeList **)((RwUInt8 *)RwEngineInstance +
+    RwFreeList *freeList = *(RwFreeList **)((unsigned char *)RwEngineInstance +
                                             streamModule.globalsOffset);
     RwEngineInstance->fpFreeListFree(freeList, stream);
   }
@@ -356,7 +356,7 @@ RwBool RwStreamClose(RwStream *stream, void *data) {
 
 RwStream *RwStreamOpen(RwStreamType type, RwStreamAccessType access,
                        void *data) {
-  RwFreeList *freeList = *(RwFreeList **)((RwUInt8 *)RwEngineInstance +
+  RwFreeList *freeList = *(RwFreeList **)((unsigned char *)RwEngineInstance +
                                           streamModule.globalsOffset);
   RwStream *stream = RwEngineInstance->fpFreeListAlloc(freeList, 0x30404);
   if (_rwStreamInitialize(stream, 1, type, access, data) == 0) {

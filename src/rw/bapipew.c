@@ -1,15 +1,15 @@
 #include "rw/rxpipeline.h"
 
-extern RwBool _rpCreatePlatformMaterialPipelines(void);
+extern int _rpCreatePlatformMaterialPipelines(void);
 extern void _rpDestroyPlatformMaterialPipelines(void);
-extern RwBool _rpCreatePlatformWorldSectorPipelines(void);
+extern int _rpCreatePlatformWorldSectorPipelines(void);
 extern void _rpDestroyPlatformWorldSectorPipelines(void);
-extern RwBool _rpCreatePlatformAtomicPipelines(void);
+extern int _rpCreatePlatformAtomicPipelines(void);
 extern void _rpDestroyPlatformAtomicPipelines(void);
 
 RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline) {
     RxPipelinePlatformGlobals* globals = (RxPipelinePlatformGlobals*)
-        ((RwUInt8*)RwEngineInstance + _rxPipelineGlobalsOffset);
+        ((unsigned char*)RwEngineInstance + _rxPipelineGlobalsOffset);
     if (pipeline == 0) {
         if (globals->platformWorldSectorPipeline != 0) {
             pipeline = globals->platformWorldSectorPipeline;
@@ -23,7 +23,7 @@ RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline) {
 
 RxPipeline* RpAtomicSetDefaultPipeline(RxPipeline* pipeline) {
     RxPipelinePlatformGlobals* globals = (RxPipelinePlatformGlobals*)
-        ((RwUInt8*)RwEngineInstance + _rxPipelineGlobalsOffset);
+        ((unsigned char*)RwEngineInstance + _rxPipelineGlobalsOffset);
     if (pipeline == 0) {
         if (globals->platformAtomicPipeline != 0) {
             pipeline = globals->platformAtomicPipeline;
@@ -41,10 +41,10 @@ void _rpWorldPipelineClose(void) {
     _rpDestroyPlatformMaterialPipelines();
 }
 
-RwBool _rpWorldPipelineOpen(void) {
+int _rpWorldPipelineOpen(void) {
     RxPipelinePlatformGlobals* globals = (RxPipelinePlatformGlobals*)
-        ((RwUInt8*)RwEngineInstance + _rxPipelineGlobalsOffset);
-    RwBool result = 1;
+        ((unsigned char*)RwEngineInstance + _rxPipelineGlobalsOffset);
+    int result = 1;
 
     globals->defaultAtomicPipeline = 0;
     globals->defaultWorldSectorPipeline = 0;
@@ -70,6 +70,6 @@ RwBool _rpWorldPipelineOpen(void) {
     return 0;
 }
 
-RwBool _rpWorldPipeAttach(void) {
+int _rpWorldPipeAttach(void) {
     return 1;
 }

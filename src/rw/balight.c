@@ -4,12 +4,12 @@
 
 extern RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 extern float cosf(float);
-extern RwReal _rwSqrt(RwReal value);
+extern float _rwSqrt(float value);
 
 static RwPluginRegistry lightTKList = {0x40, 0x40, 0, 0, 0, 0};
 static RwFreeList _rpLightFreeList;
-static RwInt32 _rpLightFreeListBlockSize = 0x20;
-static RwInt32 _rpLightFreeListPreallocBlocks = 1;
+static int _rpLightFreeListBlockSize = 0x20;
+static int _rpLightFreeListPreallocBlocks = 1;
 static RwModuleInfo lightModule;
 
 static void LightTidyDestroyLight(void* light, void*)
@@ -22,7 +22,7 @@ static RwObjectHasFrame* LightSync(RwObjectHasFrame* object)
     return object;
 }
 
-RpLight* RpLightSetRadius(RpLight* light, RwReal radius)
+RpLight* RpLightSetRadius(RpLight* light, float radius)
 {
     RwFrame* frame = light->object.object.parent;
     light->radius = radius;
@@ -42,21 +42,21 @@ RpLight* RpLightSetColor(RpLight* light, const RwRGBAReal* color)
     return light;
 }
 
-RwReal RpLightGetConeAngle(const RpLight* light)
+float RpLightGetConeAngle(const RpLight* light)
 {
     RwSplitBits value;
     RwSplitBits truncated;
-    RwReal x = -light->minusCosAngle;
-    RwReal z;
-    RwReal p;
-    RwReal q;
-    RwReal r;
-    RwReal s;
-    RwReal w;
-    RwReal correction;
-    RwReal high;
-    RwInt32 bits;
-    RwInt32 magnitude;
+    float x = -light->minusCosAngle;
+    float z;
+    float p;
+    float q;
+    float r;
+    float s;
+    float w;
+    float correction;
+    float high;
+    int bits;
+    int magnitude;
 
     value.nReal = x;
     bits = value.nInt;
@@ -108,28 +108,28 @@ RwReal RpLightGetConeAngle(const RpLight* light)
     return 2.0f * (high + w);
 }
 
-RpLight* RpLightSetConeAngle(RpLight* light, RwReal angle)
+RpLight* RpLightSetConeAngle(RpLight* light, float angle)
 {
-    RwReal minusCosAngle;
+    float minusCosAngle;
     if (angle < 0.0f || angle > 1.5707963705062866f) return 0;
     minusCosAngle = -cosf(angle);
     light->minusCosAngle = minusCosAngle;
     return light;
 }
 
-RwInt32 RpLightRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RpLightRegisterPlugin(int size, unsigned int pluginID,
                               RwPluginObjectConstructor constructCB,
                               RwPluginObjectDestructor destructCB,
                               RwPluginObjectCopy copyCB)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlugin(
+    int offset = _rwPluginRegistryAddPlugin(
         &lightTKList, size, pluginID, constructCB, destructCB, copyCB);
     return offset;
 }
 
-RwBool RpLightDestroy(RpLight* light)
+int RpLightDestroy(RpLight* light)
 {
-    RwFreeList* freeList = *(RwFreeList**)((RwUInt8*)RwEngineInstance +
+    RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
                                           lightModule.globalsOffset);
     _rwPluginRegistryDeInitObject(&lightTKList, light);
     _rwObjectHasFrameReleaseFrame(light);
@@ -138,9 +138,9 @@ RwBool RpLightDestroy(RpLight* light)
 }
 
 
-RpLight* RpLightCreate(RwInt32 type)
+RpLight* RpLightCreate(int type)
 {
-    RwFreeList* freeList = *(RwFreeList**)((RwUInt8*)RwEngineInstance +
+    RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
                                           lightModule.globalsOffset);
     RpLight* light;
 
@@ -159,15 +159,15 @@ RpLight* RpLightCreate(RwInt32 type)
     rwLinkListInitialize(&light->worldSectorsInLight);
     light->inWorld.prev = 0;
     light->inWorld.next = 0;
-    light->lightFrame = *(RwUInt16*)((RwUInt8*)RwEngineInstance + 0xA) - 1;
+    light->lightFrame = *(unsigned short*)((unsigned char*)RwEngineInstance + 0xA) - 1;
     light->object.object.flags = 3;
     _rwPluginRegistryInitObject(&lightTKList, light);
     return light;
 }
 
-void* _rpLightClose(void* instance, RwInt32, RwInt32)
+void* _rpLightClose(void* instance, int, int)
 {
-    RwFreeList** freeList = (RwFreeList**)((RwUInt8*)RwEngineInstance +
+    RwFreeList** freeList = (RwFreeList**)((unsigned char*)RwEngineInstance +
                                           lightModule.globalsOffset);
     RwFreeListForAllUsed(*freeList, LightTidyDestroyLight, 0);
     RwFreeListDestroy(*freeList);
@@ -176,11 +176,11 @@ void* _rpLightClose(void* instance, RwInt32, RwInt32)
     return instance;
 }
 
-void* _rpLightOpen(void* instance, RwInt32 offset, RwInt32)
+void* _rpLightOpen(void* instance, int offset, int)
 {
     RwFreeList** freeList;
     lightModule.globalsOffset = offset;
-    freeList = (RwFreeList**)((RwUInt8*)RwEngineInstance + offset);
+    freeList = (RwFreeList**)((unsigned char*)RwEngineInstance + offset);
     *freeList = RwFreeListCreateAndPreallocateSpace(
         lightTKList.sizeOfStruct, _rpLightFreeListBlockSize, 4,
         _rpLightFreeListPreallocBlocks, &_rpLightFreeList, 0x40012);

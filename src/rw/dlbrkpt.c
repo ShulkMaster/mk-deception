@@ -8,24 +8,24 @@ typedef void (*GXDrawDoneCallback)(void);
 
 typedef struct RwGxBreakPtEntry {
     void* address;
-    RwUInt8 active;
-    RwUInt8 drawDone;
-    RwUInt8 reserved_0x06[2];
+    unsigned char active;
+    unsigned char drawDone;
+    unsigned char reserved_0x06[2];
     RwGxDrawDoneUserCallback callback;
     void* data;
 } RwGxBreakPtEntry;
 
 typedef struct RwGxBreakPtQueue {
-    RwUInt8 inCallback;
-    RwUInt8 waiting;
-    RwUInt8 restartRequested;
-    RwUInt8 breakEnabled;
+    unsigned char inCallback;
+    unsigned char waiting;
+    unsigned char restartRequested;
+    unsigned char breakEnabled;
     void* currentAddress;
-    RwInt32 currentIndex;
-    RwInt32 capacity;
-    RwInt32 count;
-    RwInt32 head;
-    RwInt32 pendingDrawDone;
+    int currentIndex;
+    int capacity;
+    int count;
+    int head;
+    int pendingDrawDone;
     RwGxBreakPtEntry* entries;
 } RwGxBreakPtQueue;
 
@@ -41,21 +41,21 @@ extern void* memset(void* destination, int value, unsigned long size);
 void MWY_GCN_RW_RestartFromGxBreakPtCurrent(void);
 
 static void MWY_GCN_RW_GxBreakPtCallback_ForRW(void* data);
-static RwInt32 i_SkipInactiveGxBreakPts(void);
+static int i_SkipInactiveGxBreakPts(void);
 static void i_AdvanceToNextGxBreakPt(void);
-static RwInt32 i_FindGxBreakPt(void* address);
+static int i_FindGxBreakPt(void* address);
 static void MWY_GCN_RW_GxDrawDoneCallback_General(void);
 static void MWY_GCN_RW_GxBreakPtCallback_General(void);
 static RwGxBreakPtEntry* i_MWY_GCN_RW_AppendGxBreakPtQueue(
-    void* address, RwUInt8 active, RwGxDrawDoneUserCallback callback,
+    void* address, unsigned char active, RwGxDrawDoneUserCallback callback,
     void* data);
-static void MWY_GCN_RW_AppendGxBreakPtQueue(void* address, RwBool active,
+static void MWY_GCN_RW_AppendGxBreakPtQueue(void* address, int active,
                                            RwGxDrawDoneUserCallback callback,
                                            void* data);
 
 RwGxBreakPtQueue RwGxBreakPt_Q;
-RwInt32 _RwGxBreakPtInitialQueueSize = 0x10;
-RwInt32 RwGxBreakPt_bQInitialized;
+int _RwGxBreakPtInitialQueueSize = 0x10;
+int RwGxBreakPt_bQInitialized;
 RwGxBreakPtCallback RwGxBreakPt_Callback;
 GXBreakPtCallback RwGxBreakPt_PreviousCallback;
 GXDrawDoneCallback RwGxDrawDone_PreviousCallback;
@@ -70,13 +70,13 @@ static void MWY_GCN_RW_GxBreakPtCallback_ForRW(void* data)
     }
 }
 
-static RwInt32 i_SkipInactiveGxBreakPts(void)
+static int i_SkipInactiveGxBreakPts(void)
 {
 
 
-    RwInt32 count = RwGxBreakPt_Q.count;
-    RwInt32 head = RwGxBreakPt_Q.head;
-    RwInt32 capacity = RwGxBreakPt_Q.capacity;
+    int count = RwGxBreakPt_Q.count;
+    int head = RwGxBreakPt_Q.head;
+    int capacity = RwGxBreakPt_Q.capacity;
     RwGxBreakPtEntry* entry = &RwGxBreakPt_Q.entries[head];
 
     while (count > 0 && entry->active == 0) {
@@ -96,10 +96,10 @@ static void i_AdvanceToNextGxBreakPt(void)
 {
 
 
-    RwInt32 count = i_SkipInactiveGxBreakPts();
+    int count = i_SkipInactiveGxBreakPts();
 
     if (count != 0) {
-        RwInt32 index = RwGxBreakPt_Q.head;
+        int index = RwGxBreakPt_Q.head;
         RwGxBreakPtEntry* entry = &RwGxBreakPt_Q.entries[index];
 
         RwGxBreakPt_Q.breakEnabled = 1;
@@ -112,12 +112,12 @@ static void i_AdvanceToNextGxBreakPt(void)
     }
 }
 
-static RwInt32 i_FindGxBreakPt(void* address)
+static int i_FindGxBreakPt(void* address)
 {
-    RwInt32 found = -1;
-    RwInt32 count = RwGxBreakPt_Q.count;
-    RwInt32 index = RwGxBreakPt_Q.head;
-    RwInt32 capacity = RwGxBreakPt_Q.capacity;
+    int found = -1;
+    int count = RwGxBreakPt_Q.count;
+    int index = RwGxBreakPt_Q.head;
+    int capacity = RwGxBreakPt_Q.capacity;
     RwGxBreakPtEntry* entry = &RwGxBreakPt_Q.entries[index];
 
     while (count != 0) {
@@ -143,7 +143,7 @@ static void MWY_GCN_RW_GxDrawDoneCallback_General(void)
 {
     if (RwGxBreakPt_Q.pendingDrawDone > 0 && RwGxBreakPt_Q.waiting != 0 &&
         RwGxBreakPt_Q.breakEnabled != 0) {
-        RwInt32 index = RwGxBreakPt_Q.head;
+        int index = RwGxBreakPt_Q.head;
         RwGxBreakPtEntry* entry = &RwGxBreakPt_Q.entries[index];
 
         entry->callback(entry->data);
@@ -154,11 +154,11 @@ static void MWY_GCN_RW_GxDrawDoneCallback_General(void)
 
 static void MWY_GCN_RW_GxBreakPtCallback_General(void)
 {
-    RwBool interrupts = OSDisableInterrupts();
+    int interrupts = OSDisableInterrupts();
     void* previousAddress;
-    RwBool advanced;
-    RwInt32 count;
-    RwInt32 index;
+    int advanced;
+    int count;
+    int index;
     RwGxBreakPtEntry* entry;
 
     RwGxBreakPt_Q.inCallback = 1;
@@ -207,16 +207,16 @@ static void MWY_GCN_RW_GxBreakPtCallback_General(void)
 }
 
 static RwGxBreakPtEntry* i_MWY_GCN_RW_AppendGxBreakPtQueue(
-    void* address, RwUInt8 active, RwGxDrawDoneUserCallback callback,
+    void* address, unsigned char active, RwGxDrawDoneUserCallback callback,
     void* data)
 {
     RwGxBreakPtEntry* entry = 0;
 
     if (RwGxBreakPt_Q.capacity > RwGxBreakPt_Q.count) {
-        RwInt32 count = RwGxBreakPt_Q.count;
-        RwInt32 head = RwGxBreakPt_Q.head;
-        RwInt32 capacity = RwGxBreakPt_Q.capacity;
-        RwInt32 index = head + count;
+        int count = RwGxBreakPt_Q.count;
+        int head = RwGxBreakPt_Q.head;
+        int capacity = RwGxBreakPt_Q.capacity;
+        int index = head + count;
 
         RwGxBreakPt_Q.count = count + 1;
         if (index >= capacity) {
@@ -238,11 +238,11 @@ static RwGxBreakPtEntry* i_MWY_GCN_RW_AppendGxBreakPtQueue(
     return entry;
 }
 
-static void MWY_GCN_RW_AppendGxBreakPtQueue(void* address, RwBool active,
+static void MWY_GCN_RW_AppendGxBreakPtQueue(void* address, int active,
                                            RwGxDrawDoneUserCallback callback,
                                            void* data)
 {
-    RwBool interrupts = OSDisableInterrupts();
+    int interrupts = OSDisableInterrupts();
 
     i_MWY_GCN_RW_AppendGxBreakPtQueue(address, active, callback, data);
     OSRestoreInterrupts(interrupts);
@@ -252,7 +252,7 @@ void MWY_GCN_RW_ActivateGxBreakPtQueue(void)
 {
 
 
-    RwBool interrupts = OSDisableInterrupts();
+    int interrupts = OSDisableInterrupts();
     GXBreakPtCallback previousBreak;
     GXDrawDoneCallback previousDrawDone;
 
@@ -286,7 +286,7 @@ void MWY_GCN_RW_SetGxBreakPtCallback(RwGxBreakPtCallback callback)
 void MWY_GCN_RW_InsertGxDrawDoneCallback(RwGxDrawDoneUserCallback callback,
                                          void* data)
 {
-    RwBool interrupts = OSDisableInterrupts();
+    int interrupts = OSDisableInterrupts();
     void* readPtr;
     void* writePtr;
     RwGxBreakPtEntry* entry;
@@ -302,9 +302,9 @@ void MWY_GCN_RW_ActivateGxBreakPt(void* address)
 {
 
 
-    RwBool interrupts = OSDisableInterrupts();
+    int interrupts = OSDisableInterrupts();
     RwGxBreakPtEntry* entry;
-    RwInt32 index = i_FindGxBreakPt(address);
+    int index = i_FindGxBreakPt(address);
 
     if (index >= 0) {
         entry = &RwGxBreakPt_Q.entries[index];
@@ -323,7 +323,7 @@ void MWY_GCN_RW_RestartFromGxBreakPtCurrent(void)
 
 
     void* previousAddress;
-    RwBool interrupts = OSDisableInterrupts();
+    int interrupts = OSDisableInterrupts();
 
     if (RwGxBreakPt_Q.inCallback != 0) {
         RwGxBreakPt_Q.restartRequested = 1;

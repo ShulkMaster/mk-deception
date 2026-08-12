@@ -5,28 +5,28 @@
 #include "rw/rwstream.h"
 
 typedef struct RpMeshGlobals {
-    RwInt16 nextSerialNum;
-    RwUInt16 reserved02;
+    short nextSerialNum;
+    unsigned short reserved02;
     RwFreeList* triStripListEntryFreeList;
-    RwUInt8 meshFlags[0x20];
-    RwUInt8 primitiveType[6];
+    unsigned char meshFlags[0x20];
+    unsigned char primitiveType[6];
 } RpMeshGlobals;
 
 typedef struct RpMeshObjectHeader {
-    RwUInt8 type;
-    RwUInt8 reserved01[7];
-    RwUInt32 flags;
+    unsigned char type;
+    unsigned char reserved01[7];
+    unsigned int flags;
 } RpMeshObjectHeader;
 
 typedef struct RpBinMeshHeader {
-    RwInt32 flags;
-    RwInt32 numMeshes;
-    RwInt32 totalIndices;
+    int flags;
+    int numMeshes;
+    int totalIndices;
 } RpBinMeshHeader;
 
 typedef struct RpBinMesh {
-    RwInt32 numIndices;
-    RwInt32 materialIndex;
+    int numIndices;
+    int materialIndex;
 } RpBinMesh;
 
 typedef struct RpMeshStatic {
@@ -38,11 +38,11 @@ RwModuleInfo meshModule;
 
 static RpMeshGlobals* MeshGlobals(void)
 {
-    return (RpMeshGlobals*)((RwUInt8*)RwEngineInstance +
+    return (RpMeshGlobals*)((unsigned char*)RwEngineInstance +
                             meshModule.globalsOffset);
 }
 
-static RwBool MeshObjectHasIndices(const void* object)
+static int MeshObjectHasIndices(const void* object)
 {
     const RpMeshObjectHeader* header = object;
     return (header->type == 8 || header->type == 7) &&
@@ -57,11 +57,11 @@ static void MeshFreeListsDestroy(void)
     }
 }
 
-static RwBool MeshFreeListsCreate(void)
+static int MeshFreeListsCreate(void)
 {
 
 
-    RwBool result;
+    int result;
     MeshStatic.buildMeshFreeList =
         RwFreeListCreate(sizeof(RpBuildMesh), 50, 4, 0x40502);
     result = MeshStatic.buildMeshFreeList != 0;
@@ -74,13 +74,13 @@ void _rpMeshHeaderDestroy(RpMeshHeader* meshHeader)
     RwEngineInstance->fpFree(meshHeader);
 }
 
-RpMeshHeader* _rpMeshHeaderCreate(RwUInt32 size)
+RpMeshHeader* _rpMeshHeaderCreate(unsigned int size)
 {
     RpMeshHeader* meshHeader = RwEngineInstance->fpMalloc(size, 0x30502);
     return meshHeader;
 }
 
-void* _rpMeshClose(void* instance, RwInt32 offset, RwInt32 size)
+void* _rpMeshClose(void* instance, int offset, int size)
 {
     meshModule.numInstances--;
     if (meshModule.numInstances == 0) {
@@ -89,7 +89,7 @@ void* _rpMeshClose(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-void* _rpMeshOpen(void* instance, RwInt32 offset, RwInt32 size)
+void* _rpMeshOpen(void* instance, int offset, int size)
 {
     meshModule.globalsOffset = offset;
     if (meshModule.numInstances == 0 && !MeshFreeListsCreate()) {
@@ -114,7 +114,7 @@ void* _rpMeshOpen(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-RpBuildMesh* _rpBuildMeshCreate(RwUInt32 bufferSize)
+RpBuildMesh* _rpBuildMeshCreate(unsigned int bufferSize)
 {
 
     RpBuildMesh* mesh =
@@ -123,7 +123,7 @@ RpBuildMesh* _rpBuildMeshCreate(RwUInt32 bufferSize)
     if (mesh != 0) {
         mesh->numTriangles = 0;
         if (bufferSize != 0) {
-            RwUInt32 size = bufferSize * sizeof(RpBuildMeshTriangle);
+            unsigned int size = bufferSize * sizeof(RpBuildMeshTriangle);
             mesh->meshTriangles = RwEngineInstance->fpMalloc(size, 0x01030502);
             if (mesh->meshTriangles == 0) {
                 RwError error;
@@ -149,7 +149,7 @@ RpBuildMesh* _rpBuildMeshCreate(RwUInt32 bufferSize)
     return 0;
 }
 
-RwBool _rpBuildMeshDestroy(RpBuildMesh* mesh)
+int _rpBuildMeshDestroy(RpBuildMesh* mesh)
 {
 
     if (mesh->meshTriangles != 0) {
@@ -160,7 +160,7 @@ RwBool _rpBuildMeshDestroy(RpBuildMesh* mesh)
     return 1;
 }
 
-RwBool _rpMeshDestroy(RpMeshHeader* meshHeader)
+int _rpMeshDestroy(RpMeshHeader* meshHeader)
 {
     if (meshHeader->flags != 0 || meshHeader->numMeshes != 0 ||
         meshHeader->serialNum != 0 || meshHeader->totalIndices != 0 ||
@@ -176,15 +176,15 @@ RwBool _rpMeshDestroy(RpMeshHeader* meshHeader)
 
 
 RpBuildMesh* _rpBuildMeshAddTriangle(
-    RpBuildMesh* mesh, RpMaterial* material, RwInt32 vert1, RwInt32 vert2,
-    RwInt32 vert3, RwUInt16 matIndex, RwUInt16 textureIndex,
-RwUInt16 rasterIndex, RwUInt16 pipelineIndex)
+    RpBuildMesh* mesh, RpMaterial* material, int vert1, int vert2,
+    int vert3, unsigned short matIndex, unsigned short textureIndex,
+unsigned short rasterIndex, unsigned short pipelineIndex)
 {
     RpBuildMeshTriangle* triangle;
 
     if (mesh->numTriangles >= mesh->triangleBufferSize) {
         RpBuildMeshTriangle* triangles;
-        RwUInt32 size = (mesh->numTriangles + 1) * sizeof(RpBuildMeshTriangle);
+        unsigned int size = (mesh->numTriangles + 1) * sizeof(RpBuildMeshTriangle);
         if (mesh->numTriangles != 0) {
             triangles = RwEngineInstance->fpRealloc(mesh->meshTriangles, size,
                                                     0x01030502);
@@ -203,9 +203,9 @@ RwUInt16 rasterIndex, RwUInt16 pipelineIndex)
     }
     triangle = &mesh->meshTriangles[mesh->numTriangles];
     triangle->material = material;
-    triangle->vertIndex[0] = (RwInt16)vert1;
-    triangle->vertIndex[1] = (RwInt16)vert2;
-    triangle->vertIndex[2] = (RwInt16)vert3;
+    triangle->vertIndex[0] = (short)vert1;
+    triangle->vertIndex[1] = (short)vert2;
+    triangle->vertIndex[2] = (short)vert3;
     triangle->matIndex = matIndex;
     triangle->textureIndex = textureIndex;
     triangle->rasterIndex = rasterIndex;
@@ -218,8 +218,8 @@ RpMeshHeader* _rpMeshHeaderForAllMeshes(RpMeshHeader* meshHeader,
                                         RpMeshCallBack callback, void* data)
 {
 
-    RwInt32 numMeshes = meshHeader->numMeshes;
-    RpMesh* mesh = (RpMesh*)((RwUInt8*)(meshHeader + 1) +
+    int numMeshes = meshHeader->numMeshes;
+    RpMesh* mesh = (RpMesh*)((unsigned char*)(meshHeader + 1) +
                             meshHeader->firstMeshOffset);
     while (numMeshes--) {
         if (callback(mesh, meshHeader, data) == 0) {
@@ -233,9 +233,9 @@ RpMeshHeader* _rpMeshHeaderForAllMeshes(RpMeshHeader* meshHeader,
 RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
                        RwStream* stream, const RpMaterialList* materialList)
 {
-    RwInt32 header[3];
+    int header[3];
     const RpMesh* mesh;
-    RwUInt32 numMeshes;
+    unsigned int numMeshes;
 
     header[0] = meshHeader->flags;
     header[1] = meshHeader->numMeshes;
@@ -244,18 +244,18 @@ RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
     mesh = (const RpMesh*)(meshHeader + 1);
     numMeshes = meshHeader->numMeshes;
     while (numMeshes--) {
-        RwInt32 info[2];
+        int info[2];
         info[0] = mesh->numIndices;
         info[1] = _rpMaterialListFindMaterialIndex(materialList, mesh->material);
         if (info[1] < 0) info[1] = 0;
         if (RwStreamWriteInt32(stream, info, sizeof(info)) == 0) return 0;
         if (MeshObjectHasIndices(object)) {
-            RwUInt32 remaining = mesh->numIndices;
+            unsigned int remaining = mesh->numIndices;
             const RxVertexIndex* index = mesh->indices;
             while (remaining != 0) {
-                RwInt32 buffer[256];
-                RwUInt32 count = remaining < 256 ? remaining : 256;
-                RwUInt32 i;
+                int buffer[256];
+                unsigned int count = remaining < 256 ? remaining : 256;
+                unsigned int i;
                 for (i = 0; i < count; i++) buffer[i] = *index++;
                 if (RwStreamWriteInt32(stream, buffer, count * 4) == 0)
                     return 0;
@@ -271,13 +271,13 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
                           const RpMaterialList* materialList)
 {
     RpBinMeshHeader header;
-    RwInt32 size;
+    int size;
     RpMeshHeader* meshHeader;
     RpMesh* mesh;
     RxVertexIndex* indices;
-    RwUInt32 numMeshes;
+    unsigned int numMeshes;
 
-    if (RwStreamReadInt32(stream, (RwInt32*)&header, sizeof(header)) == 0)
+    if (RwStreamReadInt32(stream, (int*)&header, sizeof(header)) == 0)
         return 0;
     size = header.numMeshes * 16 + sizeof(RpMeshHeader);
     if (MeshObjectHasIndices(object))
@@ -286,7 +286,7 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
     if (meshHeader != 0) {
         mesh = (RpMesh*)(meshHeader + 1);
         indices =
-            (RxVertexIndex*)((RwUInt8*)mesh + header.numMeshes * sizeof(RpMesh));
+            (RxVertexIndex*)((unsigned char*)mesh + header.numMeshes * sizeof(RpMesh));
         meshHeader->flags = header.flags;
         meshHeader->numMeshes = header.numMeshes;
         meshHeader->serialNum = MeshGlobals()->nextSerialNum;
@@ -296,18 +296,18 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
         numMeshes = meshHeader->numMeshes;
         while (numMeshes--) {
             RpBinMesh info;
-            if (RwStreamReadInt32(stream, (RwInt32*)&info, sizeof(info)) == 0)
+            if (RwStreamReadInt32(stream, (int*)&info, sizeof(info)) == 0)
                 return 0;
             mesh->numIndices = info.numIndices;
             mesh->material =
                 _rpMaterialListGetMaterial(materialList, info.materialIndex);
             mesh->indices = indices;
             if (MeshObjectHasIndices(object)) {
-                RwUInt32 remaining = mesh->numIndices;
+                unsigned int remaining = mesh->numIndices;
                 while (remaining != 0) {
-                    RwInt32 buffer[256];
-                    RwInt32* source = buffer;
-                    RwUInt32 readIndices =
+                    int buffer[256];
+                    int* source = buffer;
+                    unsigned int readIndices =
                         remaining < 256 ? remaining : 256;
                     if (RwStreamReadInt32(stream, source, readIndices * 4) == 0)
                         return 0;
@@ -322,9 +322,9 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
     return meshHeader;
 }
 
-RwInt32 _rpMeshSize(const RpMeshHeader* meshHeader, const void* object)
+int _rpMeshSize(const RpMeshHeader* meshHeader, const void* object)
 {
-    RwInt32 size;
+    int size;
 
     if ((((const RpMeshObjectHeader*)object)->type == 8 &&
          (((const RpMeshObjectHeader*)object)->flags & 0x01000000)) ||

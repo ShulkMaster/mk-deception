@@ -56,18 +56,18 @@ RwRaster* RwRasterUnlockPalette(RwRaster* raster) {
     return raster;
 }
 
-RwBool RwRasterDestroy(RwRaster* raster) {
+int RwRasterDestroy(RwRaster* raster) {
     _rwPluginRegistryDeInitObject(&rasterTKList, raster);
     RwEngineInstance->fpRasterDestroy(0, raster, 0);
     RwEngineInstance->fpFreeListFree(RasterGlobals()->freelist, raster);
     return 1;
 }
 
-RwInt32 RwRasterRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RwRasterRegisterPlugin(int size, unsigned int pluginID,
                                RwPluginObjectConstructor constructCB,
                                RwPluginObjectDestructor destructCB,
                                RwPluginObjectCopy copyCB) {
-    RwInt32 offset;
+    int offset;
     offset = _rwPluginRegistryAddPlugin(&rasterTKList, size, pluginID, constructCB, destructCB,
                                         copyCB);
     return offset;
@@ -94,7 +94,7 @@ int RwRasterGetNumLevels(RwRaster* raster) {
     return -1;
 }
 
-RwRaster* RwRasterShowRaster(RwRaster* raster, void* device, RwUInt32 flags) {
+RwRaster* RwRasterShowRaster(RwRaster* raster, void* device, unsigned int flags) {
     RwRasterDeviceCall showRaster = RwEngineInstance->fpRasterShowRaster;
     _rwResourcesPurge();
     if (showRaster(raster, device, flags) != 0) {

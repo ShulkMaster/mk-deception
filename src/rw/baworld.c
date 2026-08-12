@@ -7,7 +7,7 @@
 
 typedef struct RpWorldListEntry {
     RpWorld *world;
-    RwInt32 memorySize;
+    int memorySize;
     RwLLLink link;
 } RpWorldListEntry;
 
@@ -18,35 +18,35 @@ typedef struct RpWorldGlobals {
 
 typedef struct RpWorldFindSectorData {
     const RpWorldSector *sector;
-    RwBool foundSector;
+    int foundSector;
 } RpWorldFindSectorData;
 
 extern RwPluginRegistry sectorTKList;
-extern RwInt32 _rxPipelineGlobalsOffset;
-extern RwBool _rpWorldPipelineOpen(void);
+extern int _rxPipelineGlobalsOffset;
+extern int _rpWorldPipelineOpen(void);
 extern void _rpWorldPipelineClose(void);
-extern RpMeshHeader *_rpMeshOptimise(RpBuildMesh *, RwUInt32);
+extern RpMeshHeader *_rpMeshOptimise(RpBuildMesh *, unsigned int);
 extern void RwResourcesFreeResEntry(RwResEntry *);
 extern void _rpTieDestroy(RwLLLink *);
 extern void _rpLightTieDestroy(RwLLLink *);
-extern RwBool _rpWorldObjRegisterExtensions(void);
-extern RwBool _rpClumpRegisterExtensions(void);
-extern RwBool _rxWorldDevicePluginAttach(void);
-extern void *_rpMaterialOpen(void *, RwInt32, RwInt32);
-extern void *_rpMaterialClose(void *, RwInt32, RwInt32);
-extern void *_rpGeometryOpen(void *, RwInt32, RwInt32);
-extern void *_rpGeometryClose(void *, RwInt32, RwInt32);
-extern void *_rpClumpOpen(void *, RwInt32, RwInt32);
-extern void *_rpClumpClose(void *, RwInt32, RwInt32);
-extern void *_rpLightOpen(void *, RwInt32, RwInt32);
-extern void *_rpLightClose(void *, RwInt32, RwInt32);
-extern void *_rpSectorOpen(void *, RwInt32, RwInt32);
-extern void *_rpSectorClose(void *, RwInt32, RwInt32);
-extern void *_rpBinaryWorldOpen(void *, RwInt32, RwInt32);
-extern void *_rpBinaryWorldClose(void *, RwInt32, RwInt32);
+extern int _rpWorldObjRegisterExtensions(void);
+extern int _rpClumpRegisterExtensions(void);
+extern int _rxWorldDevicePluginAttach(void);
+extern void *_rpMaterialOpen(void *, int, int);
+extern void *_rpMaterialClose(void *, int, int);
+extern void *_rpGeometryOpen(void *, int, int);
+extern void *_rpGeometryClose(void *, int, int);
+extern void *_rpClumpOpen(void *, int, int);
+extern void *_rpClumpClose(void *, int, int);
+extern void *_rpLightOpen(void *, int, int);
+extern void *_rpLightClose(void *, int, int);
+extern void *_rpSectorOpen(void *, int, int);
+extern void *_rpSectorClose(void *, int, int);
+extern void *_rpBinaryWorldOpen(void *, int, int);
+extern void *_rpBinaryWorldClose(void *, int, int);
 extern void RwErrorSet(const RwError *);
-extern RwInt32 _rwerror(RwInt32, ...);
-extern void *memset(void *, RwInt32, RwUInt32);
+extern int _rwerror(int, ...);
+extern void *memset(void *, int, unsigned int);
 
 static RwPluginRegistry worldTKList = {
     sizeof(RpWorld), sizeof(RpWorld), 0, 0, 0, 0};
@@ -54,7 +54,7 @@ static RwFreeList _rpWorldListFreeList;
 static RwModuleInfo worldModule;
 
 static RpWorldGlobals *WorldGlobals(void) {
-    return (RpWorldGlobals *)((RwUInt8 *)RwEngineInstance +
+    return (RpWorldGlobals *)((unsigned char *)RwEngineInstance +
                               worldModule.globalsOffset);
 }
 
@@ -71,14 +71,14 @@ static RpWorld *WorldBuildMeshAtomicSector(RpWorld *world, RpBuildMesh *build,
                                            RpWorldSector *sector,
                                            RpMaterial **materials) {
     RpMeshHeader *mesh;
-    RwInt32 i;
+    int i;
     RwTexture **textures;
     RwRaster **rasters;
     RxPipeline **pipelines;
-    RwUInt16 numTextures = 0;
-    RwUInt16 numRasters = 0;
-    RwUInt16 numPipelines = 0;
-    RwUInt32 numMaterials;
+    unsigned short numTextures = 0;
+    unsigned short numRasters = 0;
+    unsigned short numPipelines = 0;
+    unsigned int numMaterials;
 
     numMaterials = world->matList.numMaterials;
     if (numMaterials != 0) {
@@ -88,9 +88,9 @@ static RpWorld *WorldBuildMeshAtomicSector(RpWorld *world, RpBuildMesh *build,
         for (i = 0; i < sector->numTriangles; i++) {
             RpTriangle *triangle;
             RpMaterial *material;
-            RwUInt16 textureIndex;
-            RwUInt16 rasterIndex;
-            RwUInt16 pipelineIndex;
+            unsigned short textureIndex;
+            unsigned short rasterIndex;
+            unsigned short pipelineIndex;
             RxPipeline *pipeline = 0;
             RwTexture *texture = 0;
             RwRaster *raster = 0;
@@ -202,7 +202,7 @@ void _rpWorldSectorDestroyRecurse(RpSector *sector) {
         RwLLLink *end;
         RwLLLink *tie;
         RwLLLink *lightTie;
-        RwInt32 i;
+        int i;
 
         if (atomic->repEntry)
             RwResourcesFreeResEntry(atomic->repEntry);
@@ -266,7 +266,7 @@ void _rpWorldSectorDestroyRecurse(RpSector *sector) {
     }
 }
 
-static void *WorldClose(void *instance, RwInt32 offset, RwInt32 size) {
+static void *WorldClose(void *instance, int offset, int size) {
     if (WorldGlobals()->worldListFreeList) {
         RwFreeListDestroy(WorldGlobals()->worldListFreeList);
         WorldGlobals()->worldListFreeList = 0;
@@ -276,7 +276,7 @@ static void *WorldClose(void *instance, RwInt32 offset, RwInt32 size) {
     return instance;
 }
 
-static void *WorldOpen(void *instance, RwInt32 offset, RwInt32 size) {
+static void *WorldOpen(void *instance, int offset, int size) {
     worldModule.globalsOffset = offset;
     if (!_rpWorldPipelineOpen())
         return 0;
@@ -300,7 +300,7 @@ RpWorldSector *_rpSectorDefaultRenderCallBack(RpWorldSector *sector) {
         if (((RpWorld *)RwEngineInstance->field_0x04)->pipeline) {
             pipeline = ((RpWorld *)RwEngineInstance->field_0x04)->pipeline;
         } else {
-            pipeline = *(RxPipeline **)((RwUInt8 *)RwEngineInstance +
+            pipeline = *(RxPipeline **)((unsigned char *)RwEngineInstance +
                                         _rxPipelineGlobalsOffset + 0x40);
         }
     }
@@ -310,7 +310,7 @@ RpWorldSector *_rpSectorDefaultRenderCallBack(RpWorldSector *sector) {
     return 0;
 }
 
-void _rpWorldRegisterWorld(RpWorld *world, RwInt32 size) {
+void _rpWorldRegisterWorld(RpWorld *world, int size) {
     RpWorldListEntry *entry = RwEngineInstance->fpFreeListAlloc(
         WorldGlobals()->worldListFreeList, 0x40507);
     if (entry) {
@@ -328,7 +328,7 @@ void _rpWorldUnregisterWorld(RpWorld *world) {
     link = WorldGlobals()->worldList.link.next;
     end = &WorldGlobals()->worldList.link;
     while (link != end) {
-        RpWorldListEntry *entry = (RpWorldListEntry *)((RwUInt8 *)link - 8);
+        RpWorldListEntry *entry = (RpWorldListEntry *)((unsigned char *)link - 8);
         if (entry->world == world) {
             rwLinkListRemoveLLLink(&entry->link);
             RwEngineInstance->fpFreeListFree(WorldGlobals()->worldListFreeList,
@@ -341,7 +341,7 @@ void _rpWorldUnregisterWorld(RpWorld *world) {
 
 RpWorld *RpWorldLock(RpWorld *world) {
     RpSector *stack[64];
-    RwInt32 top = 0;
+    int top = 0;
     RpSector *sector = world->rootSector;
     if (!sector)
         return 0;
@@ -365,7 +365,7 @@ RpWorld *RpWorldLock(RpWorld *world) {
 RpWorld *RpWorldUnlock(RpWorld *world) {
     RpSector *sector;
     RpSector *stack[64];
-    RwInt32 top = 0;
+    int top = 0;
 
     sector = world->rootSector;
     if (!sector)
@@ -407,12 +407,12 @@ RpWorld *RpWorldSectorGetWorld(const RpWorldSector *target) {
     end = &WorldGlobals()->worldList.link;
     while (link != end) {
         const RpWorldListEntry *entry =
-            (const RpWorldListEntry *)((const RwUInt8 *)link - 8);
+            (const RpWorldListEntry *)((const unsigned char *)link - 8);
 
         if (entry->world->object.privateFlags & 1) {
             if ((const void *)target >= (const void *)entry->world) {
                 const void *endOfWorld =
-                    (const void *)((const RwUInt8 *)entry->world +
+                    (const void *)((const unsigned char *)entry->world +
                                    entry->memorySize);
                 if ((const void *)target < endOfWorld)
                     return entry->world;
@@ -430,7 +430,7 @@ RpWorld *RpWorldSectorGetWorld(const RpWorldSector *target) {
     return 0;
 }
 
-RwBool RpWorldDestroy(RpWorld *world) {
+int RpWorldDestroy(RpWorld *world) {
     _rpWorldUnregisterWorld(world);
     RpWorldLock(world);
     _rpMaterialListDeinitialize(&world->matList);
@@ -478,7 +478,7 @@ RpWorld *RpWorldCreate(RwBBox *box) {
     if (!sector) {
         RwError error;
         error.pluginID = 2;
-        error.errorCode = _rwerror(0x80000013, sizeof(RwInt32));
+        error.errorCode = _rwerror(0x80000013, sizeof(int));
         RwErrorSet(&error);
         RwEngineInstance->fpFree(world);
         return 0;
@@ -532,7 +532,7 @@ RpWorld *RpWorldForAllLights(RpWorld *world, RpLightCallBack cb, void *data) {
         link = world->directionalLightList.link.next;
         end = &world->directionalLightList.link;
         while (end != link) {
-            RpLight *light = (RpLight *)((RwUInt8 *)link - 0x34);
+            RpLight *light = (RpLight *)((unsigned char *)link - 0x34);
             next = link->next;
             if (cb(light, data) == 0) {
                 return world;
@@ -545,7 +545,7 @@ RpWorld *RpWorldForAllLights(RpWorld *world, RpLightCallBack cb, void *data) {
         link = world->lightList.link.next;
         end = &world->lightList.link;
         while (end != link) {
-            RpLight *light = (RpLight *)((RwUInt8 *)link - 0x34);
+            RpLight *light = (RpLight *)((unsigned char *)link - 0x34);
             next = link->next;
             if (cb(light, data) == 0) {
                 return world;
@@ -561,7 +561,7 @@ RpWorld *RpWorldForAllWorldSectors(RpWorld *world, RpWorldSectorCallBack cb,
                                    void *data) {
     RpSector *sector;
     RpSector *stack[64];
-    RwInt32 top = 0;
+    int top = 0;
 
     sector = world->rootSector;
     do {
@@ -578,23 +578,23 @@ RpWorld *RpWorldForAllWorldSectors(RpWorld *world, RpWorldSectorCallBack cb,
     return world;
 }
 
-RwInt32 RpWorldRegisterPlugin(RwInt32 size, RwUInt32 id,
+int RpWorldRegisterPlugin(int size, unsigned int id,
                               RwPluginObjectConstructor c,
                               RwPluginObjectDestructor d,
                               RwPluginObjectCopy cp) {
-    RwInt32 result;
+    int result;
     result = _rwPluginRegistryAddPlugin(&worldTKList, size, id, c, d, cp);
     return result;
 }
-RwInt32 RpWorldRegisterPluginStream(RwUInt32 id,
+int RpWorldRegisterPluginStream(unsigned int id,
                                     RwPluginDataChunkReadCallBack r,
                                     RwPluginDataChunkWriteCallBack w,
                                     RwPluginDataChunkGetSizeCallBack s) {
     return 0;
 }
 
-RwBool RpWorldPluginAttach(void) {
-    RwInt32 result = 0;
+int RpWorldPluginAttach(void) {
+    int result = 0;
     result |=
         RwEngineRegisterPlugin(4, 0x501, _rpMaterialOpen, _rpMaterialClose);
     result |= RwEngineRegisterPlugin(0x30, 0x502, _rpMeshOpen, _rpMeshClose);

@@ -25,16 +25,16 @@ RwRaster* RwRasterSetFromImage(RwRaster* raster, RwImage* image) {
     return 0;
 }
 
-RwImage* RwImageFindRasterFormat(RwImage* image, RwInt32 rasterType,
-                                 RwInt32* width, RwInt32* height,
-                                 RwInt32* depth, RwInt32* format) {
+RwImage* RwImageFindRasterFormat(RwImage* image, int rasterType,
+                                 int* width, int* height,
+                                 int* depth, int* format) {
     RwRaster raster;
 
     if (!RwEngineInstance->fpImageFindRasterFormat(&raster, image,
                                                     rasterType)) {
         return 0;
     }
-    *format = (((RwUInt32)raster.format & 0xFF) << 8) | raster.type;
+    *format = (((unsigned int)raster.format & 0xFF) << 8) | raster.type;
     *width = raster.width;
     *height = raster.height;
     *depth = raster.depth;

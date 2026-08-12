@@ -1,20 +1,20 @@
 #include "rw/rwcore_types.h"
 
-extern RwImage* RwImageCreate(RwInt32 width, RwInt32 height, RwInt32 depth);
+extern RwImage* RwImageCreate(int width, int height, int depth);
 extern RwImage* RwImageAllocatePixels(RwImage* image);
-extern RwBool RwImageDestroy(RwImage* image);
+extern int RwImageDestroy(RwImage* image);
 extern RwImage* RwImageFreePixels(RwImage* image);
 extern RwImage* RwImageCopy(RwImage* destination, const RwImage* source);
 
 
-static void ImageResampleGetSpan(const RwImage* source, RwInt32 xStart,
-                                 RwInt32 xEnd, RwInt32 y,
+static void ImageResampleGetSpan(const RwImage* source, int xStart,
+                                 int xEnd, int y,
                                  RwRGBAReal* color)
 {
-    RwUInt8* pixel = source->pixels + (y >> 16) * source->stride +
+    unsigned char* pixel = source->pixels + (y >> 16) * source->stride +
                      (xStart >> 16) * 4;
-    RwInt32 current;
-    RwReal weight;
+    int current;
+    float weight;
 
     if ((xStart >> 16) == (xEnd >> 16)) {
         color->red = (1.0f / 255.0f) * pixel[0];
@@ -73,12 +73,12 @@ static void ImageResampleGetSpan(const RwImage* source, RwInt32 xStart,
 }
 
 
-static void ImageResampleGetAvgPixel(const RwImage* source, RwInt32 xStart,
-                                     RwInt32 xEnd, RwInt32 yStart,
-                                     RwInt32 yEnd, RwRGBAReal* color)
+static void ImageResampleGetAvgPixel(const RwImage* source, int xStart,
+                                     int xEnd, int yStart,
+                                     int yEnd, RwRGBAReal* color)
 {
-    RwInt32 current;
-    RwReal weight;
+    int current;
+    float weight;
 
     if ((yStart >> 16) == (yEnd >> 16)) {
         ImageResampleGetSpan(source, xStart, xEnd, yStart, color);
@@ -125,30 +125,30 @@ static void ImageResampleGetAvgPixel(const RwImage* source, RwInt32 xStart,
 
 RwImage* RwImageResample(RwImage* destination, const RwImage* source)
 {
-    RwInt32 destWidth = destination->width;
-    RwInt32 destHeight = destination->height;
-    RwInt32 sourceWidth = source->width;
-    RwInt32 sourceHeight = source->height;
-    RwInt32 xStep;
-    RwInt32 yStep;
-    RwInt32 sourceY = 0;
-    RwInt32 y;
+    int destWidth = destination->width;
+    int destHeight = destination->height;
+    int sourceWidth = source->width;
+    int sourceHeight = source->height;
+    int xStep;
+    int yStep;
+    int sourceY = 0;
+    int y;
 
     destination->flags |= source->flags & 2;
-    xStep = (RwInt32)(65536.0f * ((RwReal)sourceWidth / (RwReal)destWidth));
-    yStep = (RwInt32)(65536.0f * ((RwReal)sourceHeight / (RwReal)destHeight));
+    xStep = (int)(65536.0f * ((float)sourceWidth / (float)destWidth));
+    yStep = (int)(65536.0f * ((float)sourceHeight / (float)destHeight));
     for (y = 0; y < destHeight; ++y) {
-        RwUInt8* destinationPixel = destination->pixels + destination->stride * y;
-        RwInt32 sourceX = 0;
-        RwInt32 x;
+        unsigned char* destinationPixel = destination->pixels + destination->stride * y;
+        int sourceX = 0;
+        int x;
         for (x = 0; x < destWidth; ++x) {
             RwRGBAReal color;
             ImageResampleGetAvgPixel(source, sourceX, sourceX + xStep - 1,
                                      sourceY, sourceY + yStep - 1, &color);
-            destinationPixel[x * 4] = (RwUInt8)(RwInt32)(255.0f * color.red + 0.5f);
-            destinationPixel[x * 4 + 1] = (RwUInt8)(RwInt32)(255.0f * color.green + 0.5f);
-            destinationPixel[x * 4 + 2] = (RwUInt8)(RwInt32)(255.0f * color.blue + 0.5f);
-            destinationPixel[x * 4 + 3] = (RwUInt8)(RwInt32)(255.0f * color.alpha + 0.5f);
+            destinationPixel[x * 4] = (unsigned char)(int)(255.0f * color.red + 0.5f);
+            destinationPixel[x * 4 + 1] = (unsigned char)(int)(255.0f * color.green + 0.5f);
+            destinationPixel[x * 4 + 2] = (unsigned char)(int)(255.0f * color.blue + 0.5f);
+            destinationPixel[x * 4 + 3] = (unsigned char)(int)(255.0f * color.alpha + 0.5f);
             sourceX += xStep;
         }
         sourceY += yStep;
@@ -156,8 +156,8 @@ RwImage* RwImageResample(RwImage* destination, const RwImage* source)
     return destination;
 }
 
-RwImage* RwImageCreateResample(const RwImage* source, RwInt32 width,
-                               RwInt32 height)
+RwImage* RwImageCreateResample(const RwImage* source, int width,
+                               int height)
 {
     RwImage* destination = RwImageCreate(width, height, 32);
     if (destination == 0)

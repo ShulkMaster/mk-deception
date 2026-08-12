@@ -8,12 +8,12 @@
 typedef struct RwIm2DVertex {
     RwV3d position;
     union {
-        RwUInt32 color;
+        unsigned int color;
         struct {
-            RwUInt8 red;
-            RwUInt8 green;
-            RwUInt8 blue;
-            RwUInt8 alpha;
+            unsigned char red;
+            unsigned char green;
+            unsigned char blue;
+            unsigned char alpha;
         } channels;
     } emissiveColor;
     RwV2d texCoords;
@@ -21,26 +21,26 @@ typedef struct RwIm2DVertex {
 
 extern RwTexture* _RwDlTexture;
 extern GXRenderModeObj* _RwDlRenderMode;
-extern RwInt32 _RwDlFSAA;
-extern RwInt32 _RwDlFSAATop;
-extern RwInt32 _RwDlHalfHeight;
+extern int _RwDlFSAA;
+extern int _RwDlFSAATop;
+extern int _RwDlHalfHeight;
 
 extern void _rwDlTextureRasterFlush(void);
-extern void GXSetCurrentMtx(RwUInt32 matrix);
+extern void GXSetCurrentMtx(unsigned int matrix);
 
-static void GXSetTexCoordGen(RwInt32 destination, RwInt32 function,
-                             RwInt32 source, RwInt32 matrix);
+static void GXSetTexCoordGen(int destination, int function,
+                             int source, int matrix);
 static void GXEnd(void);
-static void GXTexCoord2f32(RwReal s, RwReal t);
-static void GXColor4u8(RwUInt8 red, RwUInt8 green, RwUInt8 blue,
-                       RwUInt8 alpha);
-static void GXPosition3f32(RwReal x, RwReal y, RwReal z);
+static void GXTexCoord2f32(float s, float t);
+static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
+                       unsigned char alpha);
+static void GXPosition3f32(float x, float y, float z);
 
-static RwInt32 _rwDlPrimConvTbl[7] = {
+static int _rwDlPrimConvTbl[7] = {
     0, 0xA8, 0xB0, 0x90, 0x98, 0xA0, 0xB8
 };
 
-static RwReal projVector[7] = {
+static float projVector[7] = {
     1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f
 };
 
@@ -50,7 +50,7 @@ static Mtx posMatrix = {
     {0.0f, 0.0f, -1.0f, 0.0f},
 };
 
-static RwReal _rwDlProjectionMatrix[7];
+static float _rwDlProjectionMatrix[7];
 
 static void _rw2DRenderPrimitiveInit(void)
 {
@@ -167,9 +167,9 @@ static void _rw2DRenderPrimativeTerm(void)
     GXSetProjectionv(_rwDlProjectionMatrix);
 }
 
-RwBool _rwDlIm2DRenderTriangle(RwIm2DVertex* vertices,
-                               RwInt32 numVertices, RwInt32 vertex1,
-                               RwInt32 vertex2, RwInt32 vertex3)
+int _rwDlIm2DRenderTriangle(RwIm2DVertex* vertices,
+                               int numVertices, int vertex1,
+                               int vertex2, int vertex3)
 {
 
     RwIm2DVertex* first = &vertices[vertex1];
@@ -220,8 +220,8 @@ RwBool _rwDlIm2DRenderTriangle(RwIm2DVertex* vertices,
     return 1;
 }
 
-RwBool _rwDlIm2DRenderLine(RwIm2DVertex* vertices, RwInt32 numVertices,
-                           RwInt32 vertex1, RwInt32 vertex2)
+int _rwDlIm2DRenderLine(RwIm2DVertex* vertices, int numVertices,
+                           int vertex1, int vertex2)
 {
 
     RwIm2DVertex* first = &vertices[vertex1];
@@ -260,15 +260,15 @@ RwBool _rwDlIm2DRenderLine(RwIm2DVertex* vertices, RwInt32 numVertices,
     return 1;
 }
 
-RwBool _rwDlIm2DRenderPrimitive(RwPrimitiveType primitiveType,
+int _rwDlIm2DRenderPrimitive(RwPrimitiveType primitiveType,
                                 RwIm2DVertex* vertices,
-                                RwInt32 numVertices)
+                                int numVertices)
 {
 
     RwIm2DVertex* vertex = vertices;
-    RwUInt16 count = (RwUInt16)numVertices;
-    RwUInt16 verticesPerPrimitive;
-    RwBool textured;
+    unsigned short count = (unsigned short)numVertices;
+    unsigned short verticesPerPrimitive;
+    int textured;
 
     _rw2DRenderPrimitiveInit();
     GXBegin(_rwDlPrimConvTbl[primitiveType], 0, count);
@@ -297,10 +297,10 @@ RwBool _rwDlIm2DRenderPrimitive(RwPrimitiveType primitiveType,
 
     textured = _RwDlTexture->raster != 0;
     if (verticesPerPrimitive != 0) {
-        RwUInt16 primitiveCount = count / verticesPerPrimitive;
+        unsigned short primitiveCount = count / verticesPerPrimitive;
 
         while (primitiveCount-- != 0) {
-            RwUInt16 vertexCount = verticesPerPrimitive;
+            unsigned short vertexCount = verticesPerPrimitive;
 
             while (vertexCount-- != 0) {
                 GXPosition3f32(vertex->position.x, vertex->position.y,
@@ -322,15 +322,15 @@ RwBool _rwDlIm2DRenderPrimitive(RwPrimitiveType primitiveType,
     return 1;
 }
 
-RwBool _rwDlIm2DRenderIndexedPrimitive(
+int _rwDlIm2DRenderIndexedPrimitive(
     RwPrimitiveType primitiveType, RwIm2DVertex* vertices,
-    RwInt32 numVertices, RwImVertexIndex* indices, RwInt32 numIndices)
+    int numVertices, RwImVertexIndex* indices, int numIndices)
 {
 
     RwImVertexIndex* index = indices;
-    RwUInt16 count = (RwUInt16)numIndices;
-    RwUInt16 verticesPerPrimitive;
-    RwBool textured;
+    unsigned short count = (unsigned short)numIndices;
+    unsigned short verticesPerPrimitive;
+    int textured;
 
     _rw2DRenderPrimitiveInit();
     GXBegin(_rwDlPrimConvTbl[primitiveType], 0, count);
@@ -358,10 +358,10 @@ RwBool _rwDlIm2DRenderIndexedPrimitive(
 
     textured = _RwDlTexture->raster != 0;
     if (verticesPerPrimitive != 0) {
-        RwUInt16 primitiveCount = count / verticesPerPrimitive;
+        unsigned short primitiveCount = count / verticesPerPrimitive;
 
         while (primitiveCount-- != 0) {
-            RwUInt16 vertexCount = verticesPerPrimitive;
+            unsigned short vertexCount = verticesPerPrimitive;
 
             while (vertexCount-- != 0) {
                 RwIm2DVertex* vertex = &vertices[*index++];
@@ -384,8 +384,8 @@ RwBool _rwDlIm2DRenderIndexedPrimitive(
     return 1;
 }
 
-static void GXSetTexCoordGen(RwInt32 destination, RwInt32 function,
-                             RwInt32 source, RwInt32 matrix)
+static void GXSetTexCoordGen(int destination, int function,
+                             int source, int matrix)
 {
     GXSetTexCoordGen2(destination, function, source, matrix, 0, 0x7D);
 }
@@ -395,24 +395,24 @@ static void GXEnd(void)
 }
 
 
-static void GXTexCoord2f32(RwReal s, RwReal t)
+static void GXTexCoord2f32(float s, float t)
 {
-    *(volatile RwReal*)0xCC008000 = s;
-    *(volatile RwReal*)0xCC008000 = t;
+    *(volatile float*)0xCC008000 = s;
+    *(volatile float*)0xCC008000 = t;
 }
 
-static void GXColor4u8(RwUInt8 red, RwUInt8 green, RwUInt8 blue,
-                       RwUInt8 alpha)
+static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
+                       unsigned char alpha)
 {
-    *(volatile RwUInt8*)0xCC008000 = red;
-    *(volatile RwUInt8*)0xCC008000 = green;
-    *(volatile RwUInt8*)0xCC008000 = blue;
-    *(volatile RwUInt8*)0xCC008000 = alpha;
+    *(volatile unsigned char*)0xCC008000 = red;
+    *(volatile unsigned char*)0xCC008000 = green;
+    *(volatile unsigned char*)0xCC008000 = blue;
+    *(volatile unsigned char*)0xCC008000 = alpha;
 }
 
-static void GXPosition3f32(RwReal x, RwReal y, RwReal z)
+static void GXPosition3f32(float x, float y, float z)
 {
-    *(volatile RwReal*)0xCC008000 = x;
-    *(volatile RwReal*)0xCC008000 = y;
-    *(volatile RwReal*)0xCC008000 = z;
+    *(volatile float*)0xCC008000 = x;
+    *(volatile float*)0xCC008000 = y;
+    *(volatile float*)0xCC008000 = z;
 }

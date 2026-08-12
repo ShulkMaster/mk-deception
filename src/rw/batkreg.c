@@ -3,15 +3,15 @@
 #include "rw/rwfreelist.h"
 
 static RwFreeList toolkitRegEntriesSpace;
-static RwInt32 _rwPluginRegFreeListBlockSize = 0x40;
-static RwInt32 _rwPluginRegListPreallocBlocks = 1;
+static int _rwPluginRegFreeListBlockSize = 0x40;
+static int _rwPluginRegListPreallocBlocks = 1;
 static RwPluginRegistry** toolkitNonFLRegList;
-static RwUInt32 numRegToolkits;
+static unsigned int numRegToolkits;
 static RwFreeList* toolkitRegEntries;
 
-extern RwUInt32 _rwGetNumEngineInstances(void);
+extern unsigned int _rwGetNumEngineInstances(void);
 
-RwBool _rwPluginRegistryOpen(void) {
+int _rwPluginRegistryOpen(void) {
     toolkitRegEntries = RwFreeListCreateAndPreallocateSpace(
         sizeof(RwPluginRegEntry), _rwPluginRegFreeListBlockSize, 4,
         _rwPluginRegListPreallocBlocks, &toolkitRegEntriesSpace, 0x40000);
@@ -37,13 +37,13 @@ static void rwDestroyEntry(void* memory, void* data) {
 
 
 
-RwBool _rwPluginRegistryClose(void) {
+int _rwPluginRegistryClose(void) {
     if (toolkitRegEntries != 0) {
         RwFreeListForAllUsed(toolkitRegEntries, rwDestroyEntry,
                              toolkitRegEntries);
         if (RwEngineInstance->fpFreeListAlloc !=
             (RwFreeListAllocCall)_rwFreeListAllocReal) {
-            RwUInt32 i;
+            unsigned int i;
             for (i = 0; i < numRegToolkits; i++) {
                 RwPluginRegEntry* entry =
                     toolkitNonFLRegList[i]->firstRegEntry;
@@ -71,23 +71,23 @@ RwBool _rwPluginRegistryClose(void) {
     return 1;
 }
 
-static void* PluginDefaultConstructor(void* object, RwInt32 offset,
-                                      RwInt32 size) {
+static void* PluginDefaultConstructor(void* object, int offset,
+                                      int size) {
     return object;
 }
 
-static void* PluginDefaultDestructor(void* object, RwInt32 offset,
-                                     RwInt32 size) {
+static void* PluginDefaultDestructor(void* object, int offset,
+                                     int size) {
     return object;
 }
 
 static void* PluginDefaultCopy(void* destination, const void* source,
-                               RwInt32 offset, RwInt32 size) {
+                               int offset, int size) {
     return destination;
 }
 
-RwInt32 _rwPluginRegistryGetPluginOffset(const RwPluginRegistry* registry,
-                                         RwUInt32 pluginID) {
+int _rwPluginRegistryGetPluginOffset(const RwPluginRegistry* registry,
+                                         unsigned int pluginID) {
     RwPluginRegEntry* entry = registry->firstRegEntry;
     while (entry != 0) {
         if (entry->pluginID == pluginID) {
@@ -98,12 +98,12 @@ RwInt32 _rwPluginRegistryGetPluginOffset(const RwPluginRegistry* registry,
     return -1;
 }
 
-RwInt32 _rwPluginRegistryAddPlugin(
-    RwPluginRegistry* registry, RwInt32 size, RwUInt32 pluginID,
+int _rwPluginRegistryAddPlugin(
+    RwPluginRegistry* registry, int size, unsigned int pluginID,
     RwPluginObjectConstructor constructCB,
     RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB) {
     RwPluginRegEntry* entry;
-    RwInt32 newSize;
+    int newSize;
 
     if (toolkitRegEntries == 0) {
         return -1;
@@ -117,7 +117,7 @@ RwInt32 _rwPluginRegistryAddPlugin(
     }
     if (RwEngineInstance->fpFreeListAlloc !=
         (RwFreeListAllocCall)_rwFreeListAllocReal) {
-        RwUInt32 index;
+        unsigned int index;
         for (index = 0; index < numRegToolkits; index++) {
             if (registry == toolkitNonFLRegList[index]) {
                 break;
@@ -126,7 +126,7 @@ RwInt32 _rwPluginRegistryAddPlugin(
         if (numRegToolkits == index) {
             RwPluginRegistry** newList = RwEngineInstance->fpMalloc(
                 (numRegToolkits + 1) * sizeof(*newList), 0x40000);
-            RwUInt32 copyIndex = 0;
+            unsigned int copyIndex = 0;
             if (toolkitNonFLRegList != 0) {
                 while (copyIndex < numRegToolkits) {
                     newList[copyIndex] = toolkitNonFLRegList[copyIndex];
@@ -214,8 +214,8 @@ const RwPluginRegistry* _rwPluginRegistryDeInitObject(
     RwPluginRegEntry* entry = registry->lastRegEntry;
     while (entry != 0) {
         RwPluginObjectDestructor destructCB = entry->destructCB;
-        RwInt32 offset = entry->offset;
-        RwInt32 size = entry->size;
+        int offset = entry->offset;
+        int size = entry->size;
         destructCB(object, offset, size);
         entry = entry->prevRegEntry;
     }

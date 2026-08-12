@@ -6,19 +6,19 @@
 typedef RpMeshHeader *(*RpTriStripMeshCallBack)(RpBuildMesh *, void *);
 
 typedef struct rpMeshGlobals {
-    RwInt16 nextSerialNum;
-    RwUInt16 reserved02;
+    short nextSerialNum;
+    unsigned short reserved02;
     RwFreeList *triStripListEntryFreeList;
-    RwUInt8 meshFlags[0x20];
-    RwUInt8 primitiveType[6];
+    unsigned char meshFlags[0x20];
+    unsigned char primitiveType[6];
 } rpMeshGlobals;
 
 extern RwModuleInfo meshModule;
 RpMeshHeader *RpBuildMeshGenerateDefaultTriStrip(RpBuildMesh *, void *);
-extern void qsort(void *, RwUInt32, RwUInt32,
-                  RwInt32 (*)(const void *, const void *));
+extern void qsort(void *, unsigned int, unsigned int,
+                  int (*)(const void *, const void *));
 
-static void MeshReportAllocationFailure(RwInt32 value)
+static void MeshReportAllocationFailure(int value)
 {
     RwError error;
     error.pluginID = 2;
@@ -27,9 +27,9 @@ static void MeshReportAllocationFailure(RwInt32 value)
 }
 
 typedef struct TriStripListEntry {
-    RwUInt16 *strip;
-    RwUInt32 stripLen;
-    RwUInt32 stripSize;
+    unsigned short *strip;
+    unsigned int stripLen;
+    unsigned int stripSize;
     struct TriStripListEntry *next;
 } TriStripListEntry;
 
@@ -40,23 +40,23 @@ typedef struct TriStripList {
 typedef struct TriBinEntry TriBinEntry;
 
 typedef struct Edge {
-    RwUInt16 v1;
-    RwUInt16 v2;
+    unsigned short v1;
+    unsigned short v2;
     TriBinEntry *tri1;
     TriBinEntry *tri2;
     struct Edge *next;
 } Edge;
 
 struct TriBinEntry {
-    RwUInt32 tri;
+    unsigned int tri;
     Edge *edge[3];
     TriBinEntry *next;
     TriBinEntry *prev;
 
-    RwBool used;
-    RwBool used2;
+    int used;
+    int used2;
 
-    RwUInt8 adjCount;
+    unsigned char adjCount;
 };
 
 typedef struct TriBinList {
@@ -76,17 +76,17 @@ typedef struct RpMeshopStatic {
 
 static rpMeshGlobals *MeshGlobals(void)
 {
-    return (rpMeshGlobals *)((RwUInt8 *)RwEngineInstance +
+    return (rpMeshGlobals *)((unsigned char *)RwEngineInstance +
                              meshModule.globalsOffset);
 }
 
-static RwInt32 EdgeUnusedTriangleCount(const Edge *edge)
+static int EdgeUnusedTriangleCount(const Edge *edge)
 {
     return (edge->tri1 != 0 && !edge->tri1->used ? 1 : 0) +
            (edge->tri2 != 0 && !edge->tri2->used ? 1 : 0);
 }
 
-static RwInt32 EdgeUnusedTriangleCountSecondPass(const Edge *edge)
+static int EdgeUnusedTriangleCountSecondPass(const Edge *edge)
 {
     return (edge->tri1 != 0 && !edge->tri1->used2 ? 1 : 0) +
            (edge->tri2 != 0 && !edge->tri2->used2 ? 1 : 0);
@@ -102,8 +102,8 @@ static int SortPolygons(const void *pA, const void *pB) {
         (const RpBuildMeshTriangle *const *)pB;
     RpMaterial *materialA = (*triangleA)->material;
     RpMaterial *materialB = (*triangleB)->material;
-    RwUInt32 orderA = 0;
-    RwUInt32 orderB = 0;
+    unsigned int orderA = 0;
+    unsigned int orderB = 0;
 
     if (materialA == materialB) {
         return 0;
@@ -112,7 +112,7 @@ static int SortPolygons(const void *pA, const void *pB) {
     if (materialA != 0) {
         if (materialA->texture != 0) {
             RwRaster *raster = materialA->texture->raster;
-            RwInt32 format = (RwInt32)raster->format << 8;
+            int format = (int)raster->format << 8;
             format &= 0x0F00;
             if (format == 0x0100 ||
                 format == 0x0300 ||
@@ -128,7 +128,7 @@ static int SortPolygons(const void *pA, const void *pB) {
     if (materialB != 0) {
         if (materialB->texture != 0) {
             RwRaster *raster = materialB->texture->raster;
-            RwInt32 format = (RwInt32)raster->format << 8;
+            int format = (int)raster->format << 8;
             format &= 0x0F00;
             if (format == 0x0100 ||
                 format == 0x0300 ||
@@ -155,11 +155,11 @@ static int SortPolygons(const void *pA, const void *pB) {
 static RpMesh *SortPolygonsInTriListMesh(RpMesh *mesh,
                                          RpMeshHeader *meshHeader ,
                                          void *pData ) {
-    RwUInt32 maxVertex = 0;
-    RwUInt32 numTriangles = mesh->numIndices / 3;
-    RwUInt32 tagBytes;
-    RwUInt32 i;
-    RwUInt32 *vertexTagBuffer;
+    unsigned int maxVertex = 0;
+    unsigned int numTriangles = mesh->numIndices / 3;
+    unsigned int tagBytes;
+    unsigned int i;
+    unsigned int *vertexTagBuffer;
     RxVertexIndex *indices;
 
     indices = mesh->indices;
@@ -171,18 +171,18 @@ static RpMesh *SortPolygonsInTriListMesh(RpMesh *mesh,
     vertexTagBuffer = RwEngineInstance->fpMalloc(tagBytes,
                                0x10000 | 0x502);
     if (vertexTagBuffer != 0) {
-        RwUInt32 arraySize = sizeof(RxVertexIndex) * mesh->numIndices;
+        unsigned int arraySize = sizeof(RxVertexIndex) * mesh->numIndices;
         RxVertexIndex *oldIndices = RwEngineInstance->fpMalloc(
             arraySize, 0x10000 | 0x502);
 
         if (oldIndices != 0) {
-            RwUInt32 copied = 0;
+            unsigned int copied = 0;
             memcpy(oldIndices, indices, arraySize);
 
             while (copied < numTriangles) {
-                RwUInt8 *tag = (RwUInt8 *)vertexTagBuffer;
-                RwUInt32 remaining = tagBytes;
-                RwUInt32 triangleIndex;
+                unsigned char *tag = (unsigned char *)vertexTagBuffer;
+                unsigned int remaining = tagBytes;
+                unsigned int triangleIndex;
                 while (remaining-- != 0) {
                     *tag++ = 0;
                 }
@@ -219,7 +219,7 @@ static RpMesh *SortPolygonsInTriListMesh(RpMesh *mesh,
 }
 
 static Edge *TriStripAddEdge(RwFreeList *edgeFreeList, Edge **edgelist,
-                             RwUInt16 v1, RwUInt16 v2, RwUInt32 tri,
+                             unsigned short v1, unsigned short v2, unsigned int tri,
                              TriBinEntry **binEntryArray) {
     Edge *edge;
 
@@ -244,9 +244,9 @@ static Edge *TriStripAddEdge(RwFreeList *edgeFreeList, Edge **edgelist,
 }
 
 static TriBinEntry **
-TriStripBinEntryArrayDestroy(RwUInt32 numTris, MeshOpFreeLists *meshOpFreeLists,
+TriStripBinEntryArrayDestroy(unsigned int numTris, MeshOpFreeLists *meshOpFreeLists,
                              Edge *edge, TriBinEntry **binEntryArray) {
-    RwUInt32 i;
+    unsigned int i;
 
     while (edge != 0) {
         Edge *next = edge->next;
@@ -267,10 +267,10 @@ TriStripBinEntryArrayDestroy(RwUInt32 numTris, MeshOpFreeLists *meshOpFreeLists,
 }
 
 static TriBinEntry **
-TriStripBinEntryArrayCreate(RwUInt32 numTris, MeshOpFreeLists *meshOpFreeLists,
+TriStripBinEntryArrayCreate(unsigned int numTris, MeshOpFreeLists *meshOpFreeLists,
                             Edge **edgelist, RpBuildMeshTriangle *triList) {
     TriBinEntry **binEntryArray;
-    RwUInt32 i;
+    unsigned int i;
 
     binEntryArray = RwEngineInstance->fpMalloc(
         numTris * sizeof(*binEntryArray),
@@ -309,9 +309,9 @@ TriStripBinEntryArrayCreate(RwUInt32 numTris, MeshOpFreeLists *meshOpFreeLists,
     return binEntryArray;
 }
 
-static Edge *TriStripGetTriEdge(TriBinEntry *binEntry, RwUInt16 v1,
-                                RwUInt16 v2) {
-    RwUInt32 i;
+static Edge *TriStripGetTriEdge(TriBinEntry *binEntry, unsigned short v1,
+                                unsigned short v2) {
+    unsigned int i;
 
     for (i = 0; i < 3; i++) {
         Edge *edge = binEntry->edge[i];
@@ -324,8 +324,8 @@ static Edge *TriStripGetTriEdge(TriBinEntry *binEntry, RwUInt16 v1,
 }
 
 static void TriStripMarkTriUsed(TriBinEntry *tri, TriBinList *binListArray,
-                                RwInt32 currentAttempt) {
-    RwUInt8 i;
+                                int currentAttempt) {
+    unsigned char i;
 
     if (currentAttempt < 4) {
         tri->used2 = 1;
@@ -384,19 +384,19 @@ static void TriStripMarkTriUsed(TriBinEntry *tri, TriBinList *binListArray,
     }
 }
 
-static RwUInt32 TriStripFollow(TriStripListEntry *strip, Edge *nextEdge,
+static unsigned int TriStripFollow(TriStripListEntry *strip, Edge *nextEdge,
                                TriBinList *binListArray,
                                RpBuildMeshTriangle *triList ,
-                               RwInt32 currentAttempt) {
-    RwUInt32 trianglesAdded = 0;
+                               int currentAttempt) {
+    unsigned int trianglesAdded = 0;
     Edge *alternateEdge = 0;
 
     while (nextEdge != 0) {
         TriBinEntry *triangle = 0;
         Edge *incomingEdge = nextEdge;
-        RwUInt16 thirdVertex;
-        RwInt32 incomingIndex;
-        RwBool turn;
+        unsigned short thirdVertex;
+        int incomingIndex;
+        int turn;
 
         if (currentAttempt < 4) {
             if (nextEdge->tri1 != 0 && !nextEdge->tri1->used2) {
@@ -480,8 +480,8 @@ static RwUInt32 TriStripFollow(TriStripListEntry *strip, Edge *nextEdge,
     return trianglesAdded;
 }
 
-static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
-                                TriStripList *stripList, RwBool preprocess) {
+static int TriStripStripTris(RpBuildMeshTriangle *triList, unsigned int numTris,
+                                TriStripList *stripList, int preprocess) {
     Edge *edgeList = 0;
     Edge *forwardEdge;
     Edge *reverseEdge;
@@ -490,8 +490,8 @@ static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
     TriBinEntry **entries;
     TriStripListEntry *forward;
     TriStripListEntry *reverse;
-    RwUInt32 consumed = 0;
-    RwUInt32 i;
+    unsigned int consumed = 0;
+    unsigned int i;
 
     entries = TriStripBinEntryArrayCreate(numTris, &freeLists, &edgeList,
                                           triList);
@@ -511,16 +511,16 @@ static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
                               0x10000 | 0x502);
     forward->stripSize = reverse->stripSize = numTris * 2 + 2;
     forward->stripLen = reverse->stripLen = 0;
-    forward->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * forward->stripSize,
+    forward->strip = RwEngineInstance->fpMalloc(sizeof(unsigned int) * forward->stripSize,
                               0x10000 | 0x502);
-    reverse->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * reverse->stripSize,
+    reverse->strip = RwEngineInstance->fpMalloc(sizeof(unsigned int) * reverse->stripSize,
                               0x10000 | 0x502);
 
     while (consumed < numTris) {
         TriStripListEntry *output;
-        RwUInt32 bestLength = 0;
-        RwInt32 bestRotation = 0;
-        RwInt32 attempt = preprocess ? 0 : 3;
+        unsigned int bestLength = 0;
+        int bestRotation = 0;
+        int attempt = preprocess ? 0 : 3;
 
         if (bins[0].head != 0) {
             TriBinEntry *isolated = bins[0].head;
@@ -531,7 +531,7 @@ static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
             output->next = stripList->head;
             stripList->head = output;
             output->stripSize = output->stripLen = 3;
-            output->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * 3,
+            output->strip = RwEngineInstance->fpMalloc(sizeof(unsigned int) * 3,
                                      0x30000 | 0x502);
             output->strip[0] = triangle->vertIndex[0];
             output->strip[1] = triangle->vertIndex[1];
@@ -545,10 +545,10 @@ static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
         } else {
             TriBinEntry *starter;
             RpBuildMeshTriangle *source;
-            RwUInt32 savedConsumed = consumed;
-            RwUInt32 initialRotation;
-            RwUInt32 rotation;
-            RwUInt32 j;
+            unsigned int savedConsumed = consumed;
+            unsigned int initialRotation;
+            unsigned int rotation;
+            unsigned int j;
 
             i = 1;
             while (bins[i].head == 0) {
@@ -581,7 +581,7 @@ static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
             bestRotation = rotation;
 
             do {
-                RwBool canReverse;
+                int canReverse;
                 consumed = savedConsumed;
                 for (j = 0; j < numTris; j++) {
                     entries[j]->used2 = entries[j]->used;
@@ -649,22 +649,22 @@ static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
                         forward->stripLen + reverse->stripLen - 2;
                     output->stripLen = 0;
                     output->strip = RwEngineInstance->fpMalloc(
-                        sizeof(RwUInt32) * output->stripSize,
+                        sizeof(unsigned int) * output->stripSize,
                         0x30000 | 0x502);
                     while (reverse->stripLen > 2) {
                         output->strip[output->stripLen++] =
                             reverse->strip[--reverse->stripLen];
                     }
                     memcpy(output->strip + output->stripLen, forward->strip,
-                           sizeof(RwUInt32) * forward->stripLen);
+                           sizeof(unsigned int) * forward->stripLen);
                     output->stripLen = output->stripSize;
                 } else {
                     output->stripSize = output->stripLen = forward->stripLen;
                     output->strip = RwEngineInstance->fpMalloc(
-                        sizeof(RwUInt32) * output->stripLen,
+                        sizeof(unsigned int) * output->stripLen,
                         0x30000 | 0x502);
                     memcpy(output->strip, forward->strip,
-                           sizeof(RwUInt32) * forward->stripLen);
+                           sizeof(unsigned int) * forward->stripLen);
                 }
             } while (attempt < 4);
         }
@@ -678,10 +678,10 @@ static RwBool TriStripStripTris(RpBuildMeshTriangle *triList, RwUInt32 numTris,
     return 1;
 }
 
-static RwBool TriStripJoin(TriStripList *stripList, RwBool maintainWinding) {
+static int TriStripJoin(TriStripList *stripList, int maintainWinding) {
     TriStripListEntry *joined;
     TriStripListEntry *remaining;
-    RwUInt32 i;
+    unsigned int i;
 
     if (stripList->head == 0) {
         return 0;
@@ -697,7 +697,7 @@ static RwBool TriStripJoin(TriStripList *stripList, RwBool maintainWinding) {
          remaining = remaining->next) {
         joined->stripSize += remaining->stripLen + 6;
     }
-    joined->strip = RwEngineInstance->fpMalloc(sizeof(RwUInt32) * joined->stripSize,
+    joined->strip = RwEngineInstance->fpMalloc(sizeof(unsigned int) * joined->stripSize,
                              0x30000 | 0x502);
 
     remaining = stripList->head;
@@ -772,18 +772,18 @@ static RwBool TriStripJoin(TriStripList *stripList, RwBool maintainWinding) {
     return 1;
 }
 
-static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, RwBool preprocess,
-                                          RwBool maintainWinding) {
+static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, int preprocess,
+                                          int maintainWinding) {
     RpBuildMeshTriangle **sorted;
     RpBuildMeshTriangle **source;
     RpMesh **generated;
     RpMesh *materialRuns;
     RpMeshHeader *header;
-    RwUInt16 generatedCount = 0;
-    RwUInt32 materialCount = 1;
-    RwUInt32 totalIndices = 0;
-    RwUInt32 headerSize = sizeof(RpMeshHeader);
-    RwUInt32 i;
+    unsigned short generatedCount = 0;
+    unsigned int materialCount = 1;
+    unsigned int totalIndices = 0;
+    unsigned int headerSize = sizeof(RpMeshHeader);
+    unsigned int i;
 
     sorted = RwEngineInstance->fpMalloc(
         mesh->numTriangles * sizeof(RpBuildMeshTriangle *),
@@ -833,14 +833,14 @@ static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, RwBool preprocess,
 
     MeshGlobals()->triStripListEntryFreeList = RwFreeListCreate(
         sizeof(TriStripListEntry), (mesh->numTriangles / 10) + 5,
-        sizeof(RwUInt32), 0x10000 | 0x502);
+        sizeof(unsigned int), 0x10000 | 0x502);
 
     source = sorted;
     for (i = 0; i < materialCount; i++) {
         TriStripList strips = {0};
         TriStripListEntry *entry;
         RpBuildMeshTriangle *triangles;
-        RwUInt32 j;
+        unsigned int j;
 
         triangles = RwEngineInstance->fpMalloc(
             sizeof(*triangles) * materialRuns[i].numIndices,
@@ -854,7 +854,7 @@ static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, RwBool preprocess,
         TriStripJoin(&strips, maintainWinding);
 
         for (entry = strips.head; entry != 0; entry = entry->next) {
-            RwUInt32 bytes =
+            unsigned int bytes =
                 sizeof(RpMesh) + sizeof(RxVertexIndex) * entry->stripLen;
             RpMesh *output = RwEngineInstance->fpMalloc(
                 bytes, 0x10000 | 0x502);
@@ -897,7 +897,7 @@ static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, RwBool preprocess,
         RxVertexIndex *destinationIndices =
             (RxVertexIndex *)(destination + generatedCount);
         for (i = 0; i < generatedCount; i++) {
-            RwUInt32 bytes =
+            unsigned int bytes =
                 sizeof(RxVertexIndex) * generated[i]->numIndices;
             destination->indices = destinationIndices;
             destination->numIndices = generated[i]->numIndices;
@@ -926,9 +926,9 @@ RpMeshHeader *_rpTriListMeshGenerate(RpBuildMesh *buildMesh,
     RpMeshHeader *header;
     RpMesh *outputMesh;
     RxVertexIndex *outputIndex;
-    RwUInt32 materialCount = 1;
-    RwUInt32 meshSize;
-    RwUInt32 i;
+    unsigned int materialCount = 1;
+    unsigned int meshSize;
+    unsigned int i;
 
     triPointers = RwEngineInstance->fpMalloc(
         buildMesh->numTriangles * sizeof(RpBuildMeshTriangle *),
@@ -996,7 +996,7 @@ RpMeshHeader *_rpTriListMeshGenerate(RpBuildMesh *buildMesh,
     return header;
 }
 
-RpMeshHeader *_rpMeshOptimise(RpBuildMesh *mesh, RwUInt32 flags) {
+RpMeshHeader *_rpMeshOptimise(RpBuildMesh *mesh, unsigned int flags) {
     RpTriStripMeshCallBack generate;
     void *generateData;
     RpMeshHeader *result;
