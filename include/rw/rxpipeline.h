@@ -26,7 +26,7 @@ typedef struct RwFreeList RwFreeList;
 typedef struct RxPipelineCluster RxPipelineCluster;
 typedef struct RxPipelineRequiresCluster RxPipelineRequiresCluster;
 typedef RxPipeline RxLockedPipe;
-typedef RwUInt32* RxNodeOutput;
+typedef unsigned int* RxNodeOutput;
 typedef RxPipelineNode* RxNodeInput;
 typedef struct RxPacket RxPacket;
 
@@ -35,7 +35,7 @@ typedef int RwBlendFunction;
 typedef int RwFogType;
 
 typedef struct RxRenderStateVector {
-    RwUInt32 Flags;
+    unsigned int Flags;
     RwShadeMode ShadeMode;
     RwBlendFunction SrcBlend;
     RwBlendFunction DestBlend;
@@ -53,84 +53,84 @@ typedef int RxEmbeddedPacketState;
 typedef struct RxCluster {
     union {
         struct {
-            RwUInt16 flags;
-            RwUInt16 stride;
+            unsigned short flags;
+            unsigned short stride;
         };
-        RwUInt32 flagsAndStride;
+        unsigned int flagsAndStride;
     };
     void* data;
     void* currentData;
-    RwUInt32 numAlloced;
-    RwUInt32 numUsed;
+    unsigned int numAlloced;
+    unsigned int numUsed;
     RxPipelineCluster* clusterRef;
-    RwUInt32 attributes;
+    unsigned int attributes;
 } RxCluster;
 
 typedef struct RxPipeline {
-    RwBool locked;
-    RwUInt32 numNodes;
+    int locked;
+    unsigned int numNodes;
     RxPipelineNode* nodes;
-    RwUInt32 packetNumClusterSlots;
+    unsigned int packetNumClusterSlots;
     RxEmbeddedPacketState embeddedPacketState;
     RxPacket* embeddedPacket;
-    RwUInt32 numInputRequirements;
+    unsigned int numInputRequirements;
     RxPipelineRequiresCluster* inputRequirements;
     void* superBlock;
-    RwUInt32 superBlockSize;
-    RwUInt32 entryPoint;
-    RwUInt32 pluginId;
-    RwUInt32 pluginData;
+    unsigned int superBlockSize;
+    unsigned int entryPoint;
+    unsigned int pluginId;
+    unsigned int pluginData;
 } RxPipeline;
 
 typedef int RxClusterValidityReq;
 typedef int RxClusterValid;
 
 struct RxClusterDefinition {
-    RwChar* name;
-    RwUInt32 defaultStride;
-    RwUInt32 defaultAttributes;
-    const RwChar* attributeSet;
+    char* name;
+    unsigned int defaultStride;
+    unsigned int defaultAttributes;
+    const char* attributeSet;
 };
 
 struct RxOutputSpec {
-    RwChar* name;
+    char* name;
     RxClusterValid* outputClusters;
     RxClusterValid allOtherClusters;
 };
 
 struct RxClusterRef {
     RxClusterDefinition* clusterDef;
-    RwBool forcePresent;
-    RwUInt32 reserved;
+    int forcePresent;
+    unsigned int reserved;
 };
 
 struct RxPipelineCluster {
     RxClusterDefinition* clusterRef;
-    RwUInt32 creationAttributes;
+    unsigned int creationAttributes;
 };
 
 struct RxPipelineRequiresCluster {
     RxClusterDefinition* clusterDef;
     RxClusterValidityReq rqdOrOpt;
-    RwUInt32 slotIndex;
+    unsigned int slotIndex;
 };
 
 typedef struct RxIoSpec {
-    RwUInt32 numClustersOfInterest;
+    unsigned int numClustersOfInterest;
     RxClusterRef* clustersOfInterest;
     RxClusterValidityReq* inputRequirements;
-    RwUInt32 numOutputs;
+    unsigned int numOutputs;
     RxOutputSpec* outputs;
 } RxIoSpec;
 
-typedef RwBool (*RxNodeBodyFn)(RxPipelineNode*, const RxPipelineNodeParam*);
-typedef RwBool (*RxNodeInitFn)(RxNodeDefinition*);
+typedef int (*RxNodeBodyFn)(RxPipelineNode*, const RxPipelineNodeParam*);
+typedef int (*RxNodeInitFn)(RxNodeDefinition*);
 typedef void (*RxNodeTermFn)(RxNodeDefinition*);
-typedef RwBool (*RxPipelineNodeInitFn)(RxPipelineNode*);
+typedef int (*RxPipelineNodeInitFn)(RxPipelineNode*);
 typedef void (*RxPipelineNodeTermFn)(RxPipelineNode*);
-typedef RwBool (*RxPipelineNodeConfigFn)(RxPipelineNode*, RxPipeline*);
-typedef RwUInt32 (*RxConfigMsgHandlerFn)(RxPipelineNode*, RwUInt32,
-                                         RwUInt32, void*);
+typedef int (*RxPipelineNodeConfigFn)(RxPipelineNode*, RxPipeline*);
+typedef unsigned int (*RxConfigMsgHandlerFn)(RxPipelineNode*, unsigned int,
+                                         unsigned int, void*);
 
 typedef struct RxNodeMethods {
     RxNodeBodyFn nodeBody;
@@ -143,30 +143,30 @@ typedef struct RxNodeMethods {
 } RxNodeMethods;
 
 struct RxNodeDefinition {
-    RwChar* name;
+    char* name;
     RxNodeMethods nodeMethods;
     RxIoSpec io;
-    RwUInt32 pipelineNodePrivateDataSize;
-    RwBool editable;
-    RwInt32 InputPipesCnt;
+    unsigned int pipelineNodePrivateDataSize;
+    int editable;
+    int InputPipesCnt;
 };
 
 struct RxPipelineNode {
     RxNodeDefinition* nodeDef;
-    RwUInt32 numOutputs;
-    RwUInt32* outputs;
+    unsigned int numOutputs;
+    unsigned int* outputs;
     RxPipelineCluster** slotClusterRefs;
-    RwUInt32* slotsContinue;
+    unsigned int* slotsContinue;
     void* privateData;
-    RwUInt32* inputToClusterSlot;
+    unsigned int* inputToClusterSlot;
     RxPipelineNodeTopSortData* topSortData;
     void* initializationData;
-    RwUInt32 initializationDataSize;
+    unsigned int initializationDataSize;
 };
 
 struct RxPipelineNodeTopSortData {
-    RwUInt32 numIns;
-    RwUInt32 numInsVisited;
+    unsigned int numIns;
+    unsigned int numInsVisited;
     rxReq* req;
 };
 
@@ -176,11 +176,11 @@ struct RxPipelineNodeParam {
 };
 
 struct RxPacket {
-    RwUInt16 flags;
-    RwUInt16 numClusters;
+    unsigned short flags;
+    unsigned short numClusters;
     RxPipeline* pipeline;
-    RwUInt32* inputToClusterSlot;
-    RwUInt32* slotsContinue;
+    unsigned int* inputToClusterSlot;
+    unsigned int* slotsContinue;
     RxPipelineCluster** slotClusterRefs;
     RxCluster clusters[1];
 };
@@ -190,7 +190,7 @@ typedef struct RxPipelinePlatformGlobals {
     RxRenderStateVector defaultRenderState;
     RxPipeline* currentPipeline;
     RxPipelineNode* currentNode;
-    RwUInt32 maxNodes;
+    unsigned int maxNodes;
     RxPipeline* defaultAtomicPipeline;
     RxPipeline* defaultWorldSectorPipeline;
     RxPipeline* defaultMaterialPipeline;
@@ -204,83 +204,83 @@ typedef struct RxPipelinePlatformGlobals {
 
 typedef struct RxExecutionContext {
     RxPipeline* pipeline;
-    RwUInt32 field04;
-    RwBool executionStatus;
-    RwUInt32 field0C;
+    unsigned int field04;
+    int executionStatus;
+    unsigned int field0C;
     RxPipelineNodeParam params;
 } RxExecutionContext;
 
 struct RxHeapFreeBlock {
-    RwUInt32 size;
+    unsigned int size;
     RxHeapBlock* block;
 };
 
 struct RxHeapBlock {
     RxHeapBlock* prev;
     RxHeapBlock* next;
-    RwUInt32 size;
+    unsigned int size;
     RxHeapFreeBlock* freeEntry;
-    RwUInt32 bookkeeping[4];
+    unsigned int bookkeeping[4];
 };
 
 struct RxHeapSuperBlock {
     RxHeapBlock* start;
-    RwUInt32 size;
+    unsigned int size;
     RxHeapSuperBlock* next;
 };
 
 struct RxHeap {
-    RwUInt32 superBlockSize;
+    unsigned int superBlockSize;
     RxHeapSuperBlock* firstSuperBlock;
     RxHeapBlock* firstBlock;
     RxHeapFreeBlock* freeBlocks;
-    RwUInt32 freeBlocksAllocated;
-    RwUInt32 freeBlocksUsed;
-    RwBool dirty;
+    unsigned int freeBlocksAllocated;
+    unsigned int freeBlocksUsed;
+    int dirty;
 };
 
-extern RwInt32 _rxPipelineGlobalsOffset;
+extern int _rxPipelineGlobalsOffset;
 
 static inline RxPipelinePlatformGlobals* RxPipelineGlobals(void)
 {
-    return (RxPipelinePlatformGlobals*)((RwUInt8*)RwEngineInstance +
+    return (RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance +
                                         _rxPipelineGlobalsOffset);
 }
 
 void _rxPacketDestroy(RxPacket* packet);
-RwBool _rxPipelineOpen(void);
-RwBool _rxPipelineClose(void);
+int _rxPipelineOpen(void);
+int _rxPipelineClose(void);
 RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
-                              RwBool heapReset);
+                              int heapReset);
 RxHeap* RxHeapGetGlobalHeap(void);
 RxPipeline* RxPipelineCreate(void);
 void _rxPipelineDestroy(RxPipeline* pipeline);
 RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline);
 RxLockedPipe* RxPipelineLock(RxPipeline* pipeline);
 RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
-                                         const RwChar* name,
+                                         const char* name,
                                          RxPipelineNode* start,
-                                         RwInt32* nodeIndex);
+                                         int* nodeIndex);
 RxLockedPipe* RxLockedPipeAddFragment(RxLockedPipe* pipeline,
-                                      RwUInt32* firstIndex,
+                                      unsigned int* firstIndex,
                                       RxNodeDefinition* nodeDef0, ...);
 RxPipeline* RxLockedPipeAddPath(RxLockedPipe* pipeline, RxNodeOutput output,
                                 RxNodeInput input);
 RxNodeOutput RxPipelineNodeFindOutputByIndex(RxPipelineNode* node,
-                                             RwUInt32 outputIndex);
+                                             unsigned int outputIndex);
 RxNodeInput RxPipelineNodeFindInput(RxPipelineNode* node);
-void* StalacTiteAlloc(RwInt32 size);
-void* StalacMiteAlloc(RwInt32 size);
-RwUInt32 PipelineCalcNumUniqueClusters(RxPipeline* pipeline);
+void* StalacTiteAlloc(int size);
+void* StalacMiteAlloc(int size);
+unsigned int PipelineCalcNumUniqueClusters(RxPipeline* pipeline);
 void RxHeapFree(RxHeap* heap, void* block);
-RwBool _rxHeapReset(RxHeap* heap);
+int _rxHeapReset(RxHeap* heap);
 void RxHeapDestroy(RxHeap* heap);
-RxHeap* RxHeapCreate(RwUInt32 size);
+RxHeap* RxHeapCreate(unsigned int size);
 RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(
     RxRenderStateVector* renderState);
-void _rx_rxRadixExchangeSort(RwUInt8* base, RwUInt32 numEntries,
-                             RwUInt32 entrySize, RwUInt32 keyOffset,
-                             RwUInt32 keyLowerBound,
-                             RwUInt32 keyUpperBound);
+void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
+                             unsigned int entrySize, unsigned int keyOffset,
+                             unsigned int keyLowerBound,
+                             unsigned int keyUpperBound);
 
 #endif

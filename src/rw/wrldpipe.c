@@ -1,14 +1,14 @@
 #include "rw/nodegamecube.h"
 
-extern RwBool _rpDlVtxFmtPluginAttach(void);
-extern RwBool _rpDlLightPluginAttach(void);
-extern RwBool RpMatGCAlphaPassAttach(void);
+extern int _rpDlVtxFmtPluginAttach(void);
+extern int _rpDlLightPluginAttach(void);
+extern int RpMatGCAlphaPassAttach(void);
 typedef void (*RxGCInstanceCallback)(void);
 typedef void (*RxGCReinstanceCallback)(void);
 typedef void (*RxGCLightingCallback)(void);
 typedef void (*RxGCRenderCallback)(void);
 extern RxPipeline* _rpDlAtomicPipelineCreate(
-    RwUInt32 pluginId, RwUInt32 pluginData,
+    unsigned int pluginId, unsigned int pluginData,
     RxGCInstanceCallback instanceCallback,
     RxGCReinstanceCallback reinstanceCallback,
     RxGCLightingCallback lightingCallback, RxGCRenderCallback renderCallback);
@@ -20,8 +20,8 @@ extern void _rxGCAtomicDefaultReinstanceCallback(void);
 extern void _rxGCAtomicDefaultLightingCallback(void);
 extern void _rxGCDefaultRenderCallback(void);
 
-RwBool _rxWorldDevicePluginAttach(void) {
-    RwBool result;
+int _rxWorldDevicePluginAttach(void) {
+    int result;
 
     if (_rpDlVtxFmtPluginAttach() == 0) {
         return 0;
@@ -36,14 +36,14 @@ RwBool _rxWorldDevicePluginAttach(void) {
     return 1;
 }
 
-RwBool _rpCreatePlatformMaterialPipelines(void) {
+int _rpCreatePlatformMaterialPipelines(void) {
     return 1;
 }
 
 void _rpDestroyPlatformMaterialPipelines(void) {
 }
 
-RwBool _rpCreatePlatformWorldSectorPipelines(void) {
+int _rpCreatePlatformWorldSectorPipelines(void) {
     RxPipeline* pipeline = _rpDlSectorPipelineCreate(
         2, 0, _rxGCSectorDefaultInstanceCallback, 0,
         _rxGCSectorDefaultLightingCallback,
@@ -65,7 +65,7 @@ void _rpDestroyPlatformWorldSectorPipelines(void) {
     }
 }
 
-RwBool _rpCreatePlatformAtomicPipelines(void) {
+int _rpCreatePlatformAtomicPipelines(void) {
     RxPipeline* pipeline = _rpDlAtomicPipelineCreate(
         2, 0, _rxGCAtomicDefaultInstanceCallback,
         _rxGCAtomicDefaultReinstanceCallback,

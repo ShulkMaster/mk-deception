@@ -10,15 +10,15 @@ static RpMaterial* MaterialAddRef(RpMaterial* material)
     return material;
 }
 
-static RpMaterial **_rpMaterialListAlloc(RwInt32 size);
+static RpMaterial **_rpMaterialListAlloc(int size);
 
 RpMaterialList *_rpMaterialListDeinitialize(RpMaterialList *materialList)
 {
     RpMaterial **materials = materialList->materials;
 
     if (materials != 0) {
-        RwInt32 numMaterials = materialList->numMaterials;
-        RwInt32 index;
+        int numMaterials = materialList->numMaterials;
+        int index;
 
         for (index = 0; index < numMaterials; index++) {
             RpMaterialDestroy(materials[index]);
@@ -41,29 +41,29 @@ RpMaterialList *_rpMaterialListInitialize(RpMaterialList *materialList)
     return materialList;
 }
 
-static RpMaterial **_rpMaterialListAlloc(RwInt32 size)
+static RpMaterial **_rpMaterialListAlloc(int size)
 {
 
 
     RpMaterial **materials;
-    RwUInt32 bytes = size * sizeof(RpMaterial *);
+    unsigned int bytes = size * sizeof(RpMaterial *);
 
     materials = RwEngineInstance->fpMalloc(bytes, 0x1030008);
     return materials;
 }
 
 RpMaterial *_rpMaterialListGetMaterial(const RpMaterialList *materialList,
-                                       RwInt32 index)
+                                       int index)
 {
     return materialList->materials[index];
 }
 
 RpMaterialList *_rpMaterialListSetSize(RpMaterialList *materialList,
-                                       RwInt32 size)
+                                       int size)
 {
     if (materialList->space < size) {
         RpMaterial **materials;
-        RwUInt32 bytes = size * sizeof(RpMaterial *);
+        unsigned int bytes = size * sizeof(RpMaterial *);
 
         if (materialList->materials != 0) {
             materials = RwEngineInstance->fpRealloc(materialList->materials,
@@ -84,7 +84,7 @@ RpMaterialList *_rpMaterialListSetSize(RpMaterialList *materialList,
     return materialList;
 }
 
-RwInt32 _rpMaterialListAppendMaterial(RpMaterialList *materialList,
+int _rpMaterialListAppendMaterial(RpMaterialList *materialList,
                                       RpMaterial *material)
 {
     RpMaterial **materials;
@@ -98,8 +98,8 @@ RwInt32 _rpMaterialListAppendMaterial(RpMaterialList *materialList,
     }
 
     {
-        RwInt32 space = materialList->space + 20;
-        RwUInt32 bytes = space * sizeof(RpMaterial *);
+        int space = materialList->space + 20;
+        unsigned int bytes = space * sizeof(RpMaterial *);
 
         if (materialList->materials != 0) {
             materials = RwEngineInstance->fpRealloc(materialList->materials,
@@ -124,10 +124,10 @@ RwInt32 _rpMaterialListAppendMaterial(RpMaterialList *materialList,
     return materialList->numMaterials - 1;
 }
 
-RwInt32 _rpMaterialListFindMaterialIndex(const RpMaterialList *materialList,
+int _rpMaterialListFindMaterialIndex(const RpMaterialList *materialList,
                                          const RpMaterial *material)
 {
-    RwInt32 index = materialList->numMaterials;
+    int index = materialList->numMaterials;
 
     while (index-- > 0) {
         if (materialList->materials[index] == material) {
@@ -142,12 +142,12 @@ RwInt32 _rpMaterialListFindMaterialIndex(const RpMaterialList *materialList,
 RpMaterialList *_rpMaterialListStreamRead(RwStream *stream,
                                           RpMaterialList *materialList)
 {
-    RwInt32 numMaterials;
-    RwUInt32 length;
-    RwUInt32 version;
-    RwInt32 *materialIndices;
-    RwInt32 index;
-    RwBool status;
+    int numMaterials;
+    unsigned int length;
+    unsigned int version;
+    int *materialIndices;
+    int index;
+    int status;
 
     if (!RwStreamFindChunk(stream, 1, &length, &version)) {
         return 0;
@@ -169,9 +169,9 @@ RpMaterialList *_rpMaterialListStreamRead(RwStream *stream,
         }
 
         materialIndices =
-            RwEngineInstance->fpMalloc(numMaterials * sizeof(RwInt32), 0x10501);
+            RwEngineInstance->fpMalloc(numMaterials * sizeof(int), 0x10501);
         status = RwStreamReadInt32(stream, materialIndices,
-                                   numMaterials * sizeof(RwInt32)) != 0;
+                                   numMaterials * sizeof(int)) != 0;
         if (!status) {
             RwEngineInstance->fpFree(materialIndices);
             _rpMaterialListDeinitialize(materialList);

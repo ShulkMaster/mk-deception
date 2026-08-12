@@ -280,7 +280,6 @@ static void render_hero_collision(void);
 static void render_konquest_shadow_objects(MkHdr* object);
 static void render_konquest_collision_obj(MkHdr* object);
 extern void render_background_danger_areas(void);
-extern RwMatrix* RwMatrixInvert(RwMatrix* dst, const RwMatrix* src);
 extern RwMatrix* RwMatrixOrthoNormalize(
     RwMatrix* dst, const RwMatrix* src);
 extern RwEngineInstanceView* RwEngineInstance;
@@ -4532,3 +4531,4 @@ void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
 void set_collision_render_state(int enabled) {
     g_game_info.pause_flag_bits.paused = (unsigned char)enabled;
 }
+#include "rw/rtquat.h"

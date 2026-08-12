@@ -1,30 +1,20 @@
 #include "dolphin/gx.h"
 #include "rw/alphapass.h"
+#include "rw/bamateri.h"
 #include "rw/batextur.h"
+#include "rw/dltextur.h"
 #include "rw/gamecube.h"
+#include "rw/gamecube_texture.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwplcore.h"
+#include "rw/rwstream.h"
 
 typedef struct RpMaterialAlphaPass {
     RwTexture* texture;
     RwTexture* dualTexture;
 } RpMaterialAlphaPass;
 
-typedef struct RwGameCubeRasterExt {
-    char pad00[0x14];
-    unsigned int flags;
-} RwGameCubeRasterExt;
-
-extern int RpMaterialRegisterPlugin(int size, int pluginID, void* constructCB,
-                                    void* destructCB, void* copyCB);
-extern int RpMaterialRegisterPluginStream(int pluginID, void* readCB, void* writeCB,
-                                          void* getSizeCB);
-extern void* RwStreamWrite(RwStream* stream, const void* buffer, unsigned int length);
-extern void* RwStreamRead(RwStream* stream, void* buffer, unsigned int length);
-extern int RwStreamFindChunk(RwStream* stream, int type, unsigned int* length,
-                             unsigned int* version);
 extern void _rwDlRenderStateSetZCompLoc(int beforeTexture);
-extern int _RwGameCubeRasterExtOffset;
 
 unsigned int alphaPassPluginOffset = -1;
 
@@ -76,11 +66,12 @@ static void* AlphaPassDestructor(void* object, int offset, int size) {
 }
 
 static void* AlphaPassCopy(void* destination, const void* source, int offset, int size) {
-    RpMaterialSetAlphaPassTexture((RpMaterial*)destination,
-        RpMaterialGetAlphaPassTexture((RpMaterial*)source));
+    RpMaterialSetAlphaPassTexture(destination,
+        RpMaterialGetAlphaPassTexture(source));
     return destination;
 }
 
+#pragma dont_inline on
 static int AlphaPassStreamWriteTexture(RwStream* stream, RwTexture* texture) {
     int size = 0;
     int present = texture != 0;
@@ -125,21 +116,27 @@ static int AlphaPassStreamSizeTexture(RwTexture* texture) {
     }
     return size;
 }
+#pragma dont_inline reset
 
 static RwStream* AlphaPassMaterialStreamWrite(RwStream* stream, int length,
-                                               const RpMaterial* material, int offset,
+                                               const void* object,
+                                               int offset,
                                                int sizeOfObject) {
+    const RpMaterial* material = object;
+    RwTexture* texture;
     (void)length;
-    AlphaPassStreamWriteTexture(stream,
-        RpMaterialGetAlphaPassTexture((RpMaterial*)material));
-    AlphaPassStreamWriteTexture(stream,
-        RpMaterialGetDualAlphaPassTexture((RpMaterial*)material));
+
+    texture = RpMaterialGetAlphaPassTexture(material);
+    AlphaPassStreamWriteTexture(stream, texture);
+    texture = RpMaterialGetDualAlphaPassTexture(material);
+    AlphaPassStreamWriteTexture(stream, texture);
     return stream;
 }
 
 static RwStream* AlphaPassMaterialStreamRead(RwStream* stream, int length,
-                                              RpMaterial* material, int offset,
+                                              void* object, int offset,
                                               int sizeOfObject) {
+    RpMaterial* material = object;
     RpMaterialAlphaPass* plugin = (RpMaterialAlphaPass*)(
         ((unsigned long)material + alphaPassPluginOffset + 15) & ~15UL);
     RwTexture* texture;
@@ -159,14 +156,18 @@ static RwStream* AlphaPassMaterialStreamRead(RwStream* stream, int length,
     return stream;
 }
 
-static int AlphaPassMaterialStreamGetSize(const RpMaterial* material, int offset,
-                                           int sizeOfObject) {
-    int size = 0;
-    size += AlphaPassStreamSizeTexture(
-        RpMaterialGetAlphaPassTexture((RpMaterial*)material));
-    size += AlphaPassStreamSizeTexture(
-        RpMaterialGetDualAlphaPassTexture((RpMaterial*)material));
-    return size;
+static int AlphaPassMaterialStreamGetSize(const void* object,
+                                               int offset,
+                                               int sizeOfObject) {
+    const RpMaterial* material = object;
+    RwTexture* texture;
+    int streamSize = 0;
+
+    texture = RpMaterialGetAlphaPassTexture(material);
+    streamSize += AlphaPassStreamSizeTexture(texture);
+    texture = RpMaterialGetDualAlphaPassTexture(material);
+    streamSize += AlphaPassStreamSizeTexture(texture);
+    return streamSize;
 }
 
 int RpMatGCAlphaPassAttach(void) {
@@ -193,7 +194,7 @@ int RpMatGCAlphaPassAttach(void) {
     return 1;
 }
 
-RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial* material) {
+RwTexture* RpMaterialGetAlphaPassTexture(const RpMaterial* material) {
     RpMaterialAlphaPass* plugin = (RpMaterialAlphaPass*)(
         ((unsigned long)material + alphaPassPluginOffset + 15) & ~15UL);
     return plugin->texture;
@@ -206,7 +207,7 @@ RwTexture* RpMaterialSetAlphaPassTexture(RpMaterial* material, RwTexture* textur
     return plugin->texture;
 }
 
-RwTexture* RpMaterialGetDualAlphaPassTexture(RpMaterial* material) {
+RwTexture* RpMaterialGetDualAlphaPassTexture(const RpMaterial* material) {
     RpMaterialAlphaPass* plugin = (RpMaterialAlphaPass*)(
         ((unsigned long)material + alphaPassPluginOffset + 15) & ~15UL);
     return plugin->dualTexture;
@@ -219,6 +220,7 @@ RwTexture* RpMaterialSetDualAlphaPassTexture(RpMaterial* material, RwTexture* te
     return plugin->dualTexture;
 }
 
+#pragma dont_inline on
 void _rxGCTevAlphaPassSetup(RxGCTevAlphaPass* state) {
     unsigned char stage;
     if ((state->mode & 8) != 0 && (state->mode & 0x84) != 0 && state->field_0x1C != 0) {
@@ -278,6 +280,7 @@ void _rxGCTevAlphaMultiPassCleanup(RxGCTevAlphaPass* state) {
     GXSetTevSwapMode(stage, 0, 0);
     _rwDlTextureSet(0, 1);
 }
+#pragma dont_inline reset
 
 void SetSingleTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alphaTexture,
                                             RxGCTevAlphaPass* state) {
@@ -292,9 +295,8 @@ void SetSingleTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alpha
         _rwDlTextureSet(alphaTexture, 1);
     }
     if (baseTexture != 0 && baseTexture->raster != 0) {
-        extension = (RwGameCubeRasterExt*)((char*)baseTexture->raster +
-                                           _RwGameCubeRasterExtOffset);
-        if ((extension->flags & 1) != 0 || alphaTexture != 0) {
+        extension = RwGameCubeRasterExtension(baseTexture->raster);
+        if ((extension->hasAlpha & 1) != 0 || alphaTexture != 0) {
             _rwDlRenderStateSetZCompLoc(0);
             return;
         }
@@ -315,9 +317,8 @@ void SetFirstTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alphaT
         _rwDlTextureSet(alphaTexture, 1);
     }
     if (baseTexture != 0 && baseTexture->raster != 0) {
-        extension = (RwGameCubeRasterExt*)((char*)baseTexture->raster +
-                                           _RwGameCubeRasterExtOffset);
-        if ((extension->flags & 1) != 0 || alphaTexture != 0) {
+        extension = RwGameCubeRasterExtension(baseTexture->raster);
+        if ((extension->hasAlpha & 1) != 0 || alphaTexture != 0) {
             _rwDlRenderStateSetZCompLoc(0);
         }
     } else {

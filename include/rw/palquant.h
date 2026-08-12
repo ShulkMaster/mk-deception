@@ -5,46 +5,46 @@
 
 typedef struct RwFreeList RwFreeList;
 
-typedef struct RwPalQuantRGBABox {
-    RwInt32 col0[4];
-    RwInt32 col1[4];
-} RwPalQuantRGBABox;
+typedef struct PalQuantColorBox {
+    int col0[4];
+    int col1[4];
+} PalQuantColorBox;
 
-typedef struct RwPalQuantLeafNode {
-    RwReal weight;
+typedef struct PalQuantLeaf {
+    float weight;
     RwRGBAReal ac;
-    RwReal variance;
-    RwUInt8 palIndex;
-} RwPalQuantLeafNode;
+    float variance;
+    unsigned char palIndex;
+} PalQuantLeaf;
 
-typedef struct RwPalQuantOctNode RwPalQuantOctNode;
+typedef struct PalQuantNode PalQuantNode;
 
-typedef struct RwPalQuantBranchNode {
-    RwPalQuantOctNode* dir[16];
-} RwPalQuantBranchNode;
+typedef struct PalQuantBranch {
+    PalQuantNode* dir[16];
+} PalQuantBranch;
 
-struct RwPalQuantOctNode {
-    RwPalQuantLeafNode leaf;
-    RwPalQuantBranchNode branch;
+struct PalQuantNode {
+    PalQuantLeaf leaf;
+    PalQuantBranch branch;
 };
 
 typedef struct RwPalQuant {
-    RwPalQuantRGBABox cubes[256];
-    RwReal variances[256];
-    RwPalQuantLeafNode volumes[256];
-    RwPalQuantOctNode* root;
+    PalQuantColorBox cubes[256];
+    float variances[256];
+    PalQuantLeaf volumes[256];
+    PalQuantNode* root;
     RwFreeList* cubeFreeList;
 } RwPalQuant;
 
-RwBool RwPalQuantInit(RwPalQuant* quantizer);
+int RwPalQuantInit(RwPalQuant* quantizer);
 void RwPalQuantTerm(RwPalQuant* quantizer);
 void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
-                        RwReal weight);
-RwInt32 RwPalQuantResolvePalette(RwRGBA* palette, RwInt32 maxColors,
+                        float weight);
+int RwPalQuantResolvePalette(RwRGBA* palette, int maxColors,
                                  RwPalQuant* quantizer);
-void RwPalQuantMatchImage(RwUInt8* destinationPixels,
-                          RwInt32 destinationStride,
-                          RwInt32 destinationDepth, RwBool packed,
+void RwPalQuantMatchImage(unsigned char* destinationPixels,
+                          int destinationStride,
+                          int destinationDepth, int packed,
                           RwPalQuant* quantizer, RwImage* image);
 
 #endif

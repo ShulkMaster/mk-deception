@@ -14,89 +14,117 @@ typedef struct RwMatrix RwMatrix;
 typedef void (*RwDlObjectRenderCallBack)(const RwRGBAReal* surface,
                                          const GXColor* material,
                                          RpMaterial* owner,
-                                         RwReal intensity);
+                                         float intensity);
 
 typedef struct RwGameCubeVtxFmt {
-    RwUInt32 reserved_0x00;
-    RwUInt32 vatA;
-    RwUInt32 reserved_0x08[2];
-    RwUInt32 vcdLo;
-    RwUInt32 vcdHi;
+    unsigned int reserved_0x00;
+    unsigned int vatA;
+    unsigned int reserved_0x08[2];
+    unsigned int vcdLo;
+    unsigned int vcdHi;
 } RwGameCubeVtxFmt;
 
 typedef struct RpGameCubeVtxFmt {
     union {
         struct {
-            RwUInt8 positionType;
-            RwUInt8 normalType;
-            RwUInt8 texCoordType[8];
-            RwUInt8 colorType;
-            RwUInt8 field_0x0B;
-            RwUInt8 positionFraction;
-            RwUInt8 normalMode;
-            RwUInt8 texCoordFraction[8];
+            unsigned char positionType;
+            unsigned char normalType;
+            unsigned char texCoordType[8];
+            unsigned char colorType;
+            unsigned char field_0x0B;
+            unsigned char positionFraction;
+            unsigned char normalMode;
+            unsigned char texCoordFraction[8];
         };
-        RwUInt8 fields[0x16];
+        unsigned char fields[0x16];
     };
-    RwUInt16 refCount;
+    unsigned short refCount;
 } RpGameCubeVtxFmt;
 
 typedef struct RpGameCubeVtxFmtSetupData {
     void* resourceEntry;
-    RwUInt32 field_0x04;
-    RwInt32 flags;
+    unsigned int field_0x04;
+    int flags;
 } RpGameCubeVtxFmtSetupData;
 
 typedef struct RwGameCubeDisplayList {
     void* data;
-    RwUInt32 size;
+    unsigned int size;
 } RwGameCubeDisplayList;
+
+typedef struct RwDlStateCache {
+    int zWriteEnable;
+    int zTestEnable;
+    int zCompare;
+    int cullMode;
+    int fogEnable;
+    int fogType;
+    unsigned int fogColor;
+    GXColor gxFogColor;
+    int fogDensity;
+    float fogStart;
+    float fogEnd;
+    float fogNear;
+    float fogFar;
+    int srcBlend;
+    int dstBlend;
+    int zCompLoc;
+    int alphaCompare0;
+    int alphaCompare1;
+    int alphaOperation;
+    unsigned char alphaRef0;
+    unsigned char alphaRef1;
+    unsigned char alphaMode;
+    unsigned char reserved_4F;
+} RwDlStateCache;
+
+extern RwDlStateCache _RwDlStateCache;
 
 typedef struct RwGameCubeVertexArray {
     void* data;
-    RwUInt8 attribute;
-    RwUInt8 stride;
-    RwUInt8 descriptor;
-    RwUInt8 reserved_0x07;
+    unsigned char attribute;
+    unsigned char stride;
+    unsigned char descriptor;
+    unsigned char reserved_0x07;
 } RwGameCubeVertexArray;
 
 typedef struct RwGameCubeVertexStream {
     void* data;
-    RwUInt8 reserved_0x04;
-    RwUInt8 stride;
-    RwUInt8 reserved_0x06[2];
+    unsigned char reserved_0x04;
+    unsigned char stride;
+    unsigned char reserved_0x06[2];
 } RwGameCubeVertexStream;
 
 typedef struct RwGameCubeVertexStreams {
-    RwUInt8 reserved_0x00[0x0C];
+    unsigned char reserved_0x00[0x0C];
     RwGameCubeVertexStream streams[12];
 } RwGameCubeVertexStreams;
 
 typedef struct RwGameCubeVertexData {
-    RwUInt32 counts[26];
+    unsigned int counts[26];
     const void* source[26];
 } RwGameCubeVertexData;
 
 typedef struct RwGameCubeIndexData {
-    RwUInt16* attributes[21];
+    unsigned short* attributes[21];
 } RwGameCubeIndexData;
 
 typedef struct RwGameCubeVertexBuffer {
-    RwUInt32 reserved_0x00[2];
-    RwUInt32 numArrays;
+    unsigned int reserved_0x00[2];
+    unsigned int numArrays;
     RwGameCubeVertexArray arrays[1];
 } RwGameCubeVertexBuffer;
 
 typedef struct RwGameCubeVertexDescriptor {
-    RwUInt32 vat;
-    RwUInt32 vatA;
-    RwUInt32 vatB;
-    RwUInt32 vatC;
-    RwUInt32 vcdLo;
-    RwUInt32 vcdHi;
-    RwUInt32 metadata;
-    RwUInt8 numIndexedAttrs;
-    RwUInt8 reserved_0x1D[3];
+    unsigned int vat;
+    unsigned int vatA;
+    unsigned int vatB;
+    unsigned int vatC;
+    unsigned int vcdLo;
+    unsigned int vcdHi;
+    unsigned int metadata;
+    unsigned char numIndexedAttrs;
+    unsigned char reserved_0x1D[3];
 } RwGameCubeVertexDescriptor;
 
 typedef char RwGameCubeVtxFmtSizeCheck[
@@ -112,91 +140,91 @@ void _rxGCResEntryWaitDone(RwResEntry* entry);
 void _rxGCInstanceMorphUpdate(RpGeometry* geometry,
                               RwGameCubeVertexBuffer* vertexBuffer,
                               const RpInterpolator* interpolator);
-void RwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
-                             RwInt32 biasClamp, RwInt32 edgeLod,
-                             RwInt32 maxAnisotropy);
 RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
-void _rwDlTextureSet(RwTexture* texture, int mapid);
 void _rwDlTextureRasterFlush(void);
 void _rwDlVtxFmtSetup(RpGameCubeVtxFmt* format,
                       RpGameCubeVtxFmtSetupData* setupData);
-void _rwDlTransformSetup(const RwMatrix* matrix, RwBool normalize);
-void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture);
-RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
-                                                 RwUInt32 lightMask,
-                                                 RwInt32 textureMode,
-                                                 RwBool useAmbient);
+void _rwDlTransformSetup(const RwMatrix* matrix, int normalize);
+void _rwDlRenderStateSetZCompLoc(int beforeTexture);
+int _rwDlGetRenderState(int state, void* value);
+int _rwDlSetRenderState(int state, void* value);
+int _rwDlRenderStateFogEnable(unsigned int enable);
+void _rwDlSetRenderStateSrcDestBlend(int source, int destination);
+RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
+                                                 unsigned int lightMask,
+                                                 int textureMode,
+                                                 int useAmbient);
 RpGameCubeVtxFmt* _rpGameCubeVtxFmtGetDefault(void);
-RwBool _rpDlVtxFmtPluginAttach(void);
-void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, RwUInt32 type,
-                                 RwUInt8 fraction);
-void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, RwUInt32 type,
-                               RwUInt32 mode);
-void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, RwInt32 index,
-                                 RwUInt32 type, RwUInt8 fraction);
+int _rpDlVtxFmtPluginAttach(void);
+void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, unsigned int type,
+                                 unsigned char fraction);
+void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, unsigned int type,
+                               unsigned int mode);
+void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
+                                 unsigned int type, unsigned char fraction);
 void RpGameCubeVtxFmtInit(RpGameCubeVtxFmt* format);
 RpGameCubeVtxFmt* RpGameCubeVtxFmtCreate(void);
 void RpGameCubeVtxFmtDestroy(RpGameCubeVtxFmt* format);
 void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
                                  RpGameCubeVtxFmt* format);
-RwUInt32 _rwGCNDisplayListGetStride(
+unsigned int _rwGCNDisplayListGetStride(
     const RwGameCubeVertexDescriptor* format);
-RwUInt32 _rwGCNDisplayListGetSize(
-    const RwGameCubeVertexDescriptor* format, RwUInt32 numIndices,
-                                  RwUInt32 numVertices);
+unsigned int _rwGCNDisplayListGetSize(
+    const RwGameCubeVertexDescriptor* format, unsigned int numIndices,
+                                  unsigned int numVertices);
 void _rwGCNDisplayListInitialize(RwGameCubeDisplayList* displayList,
-                                 RwUInt32 index, RwUInt32 size, void* data);
+                                 unsigned int index, unsigned int size, void* data);
 void _rwVertexDescriptorInit(RwGameCubeVertexDescriptor* descriptor);
 void _rwGCNVertexDescSetVAT(RwGameCubeVertexDescriptor* descriptor,
-                            RwUInt32 vat);
+                            unsigned int vat);
 void _rwGCNVertexDescSetElementAttr(RwGameCubeVertexDescriptor* descriptor,
-                                    RwUInt32 attr, RwInt32 componentCount,
-                                    RwUInt32 componentType, RwUInt8 fraction);
+                                    unsigned int attr, int componentCount,
+                                    unsigned int componentType, unsigned char fraction);
 void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
-                                    RwUInt32 attr, RwInt32 type);
+                                    unsigned int attr, int type);
 void _rwGCNVertexDescSetNumIndexedAttr(
-    RwGameCubeVertexDescriptor* descriptor, RwUInt8 count);
-RwUInt32 _rwGCNVertexBufferHeaderGetSize(
+    RwGameCubeVertexDescriptor* descriptor, unsigned char count);
+unsigned int _rwGCNVertexBufferHeaderGetSize(
     const RwGameCubeVertexDescriptor* descriptor);
-RwUInt32 _rwGCNVtxFmtInstPos3D(void* destination, const RwV3d* source,
-                               RwUInt32 type, RwUInt32 count,
-                               RwUInt32 stride, const RwV3d* origin,
-                               RwReal scale);
-RwUInt32 _rwGCNVtxFmtInstNrm(void* destination, const RwV3d* source,
-                             RwUInt32 type, RwUInt32 count, RwUInt32 stride);
-RwUInt32 _rwGCNVtxFmtInstNrmCmp(void* destination, const void* source,
-                                RwUInt32 type, RwUInt32 count,
-                                RwUInt32 stride);
-RwUInt32 _rwGCNVtxFmtInstNBT(void* destination, const RwV3d* source,
-                             RwUInt32 type, RwUInt32 count, RwUInt32 stride);
-RwUInt32 _rwGCNVtxFmtInstNBTCmp(void* destination, const void* source,
-                                RwUInt32 type, RwUInt32 count,
-                                RwUInt32 stride);
-RwUInt32 _rwGCNVtxFmtInstClr(void* destination, const RwRGBA* source,
-                             RwUInt32 type, RwUInt32 count, RwUInt32 stride);
-RwUInt32 _rwGCNVtxFmtInstTex(void* destination, const RwTexCoords* source,
-                             RwUInt32 type, RwUInt32 count, RwUInt32 stride,
-                             RwReal scale);
-RwUInt32 _rwGCNVertexBufferGetSize(
+unsigned int _rwGCNVtxFmtInstPos3D(void* destination, const RwV3d* source,
+                               unsigned int type, unsigned int count,
+                               unsigned int stride, const RwV3d* origin,
+                               float scale);
+unsigned int _rwGCNVtxFmtInstNrm(void* destination, const RwV3d* source,
+                             unsigned int type, unsigned int count, unsigned int stride);
+unsigned int _rwGCNVtxFmtInstNrmCmp(void* destination, const void* source,
+                                unsigned int type, unsigned int count,
+                                unsigned int stride);
+unsigned int _rwGCNVtxFmtInstNBT(void* destination, const RwV3d* source,
+                             unsigned int type, unsigned int count, unsigned int stride);
+unsigned int _rwGCNVtxFmtInstNBTCmp(void* destination, const void* source,
+                                unsigned int type, unsigned int count,
+                                unsigned int stride);
+unsigned int _rwGCNVtxFmtInstClr(void* destination, const RwRGBA* source,
+                             unsigned int type, unsigned int count, unsigned int stride);
+unsigned int _rwGCNVtxFmtInstTex(void* destination, const RwTexCoords* source,
+                             unsigned int type, unsigned int count, unsigned int stride,
+                             float scale);
+unsigned int _rwGCNVertexBufferGetSize(
     const RwGameCubeVertexDescriptor* descriptor,
-    const RwUInt32* vertexCounts);
+    const unsigned int* vertexCounts);
 void _rwGCNVertexBufferInitialize(
     const RwGameCubeVertexDescriptor* descriptor,
-    RwGameCubeVertexBuffer* vertexBuffer, const RwUInt32* vertexCounts,
+    RwGameCubeVertexBuffer* vertexBuffer, const unsigned int* vertexCounts,
     void* data);
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* descriptor,
                             const RwGameCubeVertexStreams* streams,
                             const RwGameCubeVertexData* vertexData,
-                            RwBool compressedNormals, void* remap);
-void _rwGCNTriStripGetStats(RwUInt16* indices, RwUInt32 numIndices,
-                            RwUInt32* numStrips, RwUInt32* stripIndices,
-                            RwBool optimize);
+                            int compressedNormals, void* remap);
+void _rwGCNTriStripGetStats(unsigned short* indices, unsigned int numIndices,
+                            unsigned int* numStrips, unsigned int* stripIndices,
+                            int optimize);
 void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor* descriptor,
                            RwGameCubeDisplayList* displayList,
                            const RwGameCubeIndexData* indexData,
-                           RwUInt32 numIndices,
-                           RwBool triangleStrip, RwUInt32 stride,
-                           RwBool optimize, RwUInt8 primitive,
+                           unsigned int numIndices,
+                           int triangleStrip, unsigned int stride,
+                           int optimize, unsigned char primitive,
                            const RwV3d* remap);
 RwResEntry* _rwDlGeometrySkinInstanceOptimized(RpGeometry* geometry,
                                                void* owner,

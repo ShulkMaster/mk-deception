@@ -18,22 +18,22 @@ typedef enum RpMatFXMaterialFlags {
 typedef struct RpMatFXEnvMapData {
     RwFrame* frame;
     RwTexture* texture;
-    RwReal coefficient;
-    RwBool useFrameBufferAlpha;
+    float coefficient;
+    int useFrameBufferAlpha;
 } RpMatFXEnvMapData;
 
 typedef struct RpMatFXBumpMapData {
     RwFrame* frame;
     RwTexture* texture;
     RwTexture* bumped_texture;
-    RwReal storedCoefficient;
-    RwReal coefficient;
+    float storedCoefficient;
+    float coefficient;
 } RpMatFXBumpMapData;
 
 typedef struct RpMatFXDualData {
     RwTexture* texture;
-    RwInt32 srcBlendMode;
-    RwInt32 dstBlendMode;
+    int srcBlendMode;
+    int dstBlendMode;
 } RpMatFXDualData;
 
 typedef struct RpMatFXUVTransformData {
@@ -46,7 +46,7 @@ typedef union RpMatFXDataUnion {
     RpMatFXEnvMapData env;
     RpMatFXDualData dual;
     RpMatFXUVTransformData uv;
-    RwUInt8 raw[0x14];
+    unsigned char raw[0x14];
 } RpMatFXDataUnion;
 
 typedef struct RpMatFXMaterialSlot {

@@ -4,7 +4,7 @@
 extern RxPipeline* RxPipelineCreate(void);
 extern void _rxPipelineDestroy(RxPipeline* pipeline);
 
-RwBool _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
+int _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
     RxPipeline* pipeline;
     RxLockedPipe* lockedPipeline;
 
@@ -53,7 +53,7 @@ void _rwIm3DDestroyPlatformRenderPipelines(
     renderPipelines->polyLine = 0;
 }
 
-RwBool _rwIm3DCreatePlatformRenderPipelines(
+int _rwIm3DCreatePlatformRenderPipelines(
     RwIm3DRenderPipelines* renderPipelines) {
     RxPipeline* pipeline;
     RxLockedPipe* lockedPipeline;

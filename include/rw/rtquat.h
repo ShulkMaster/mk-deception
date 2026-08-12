@@ -6,24 +6,24 @@
 
 typedef struct RwMatrixPosition {
     Vec value;
-    RwUInt32 pad;
+    unsigned int pad;
 } RwMatrixPosition;
 
 typedef struct RwMatrix {
     RwV3d right;
-    RwUInt32 flags;
+    unsigned int flags;
     RwV3d up;
-    RwUInt32 pad1;
+    unsigned int pad1;
     RwV3d at;
-    RwUInt32 pad2;
+    unsigned int pad2;
     union {
         struct {
             RwV3d pos;
-            RwUInt32 pad3;
+            unsigned int pad3;
         };
         struct {
             Vec pos_vec;
-            RwUInt32 pos_vec_pad;
+            unsigned int pos_vec_pad;
         };
         RwMatrixPosition pos_row;
     };
@@ -31,24 +31,28 @@ typedef struct RwMatrix {
 
 typedef struct RtQuat {
     RwV3d imag;
-    RwReal real;
+    float real;
 } RtQuat;
 
 typedef int RwOpCombineType;
 
-RwReal _rwSqrt(RwReal num);
+float _rwSqrt(float num);
 
-RwBool RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix);
+int RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix);
 
 RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation,
                             RwOpCombineType combineOp);
 RwMatrix* RwMatrixScale(RwMatrix* matrix, const RwV3d* scale,
                         RwOpCombineType combineOp);
-RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, RwReal angle,
+RwMatrix* RwMatrixRotate(RwMatrix* matrix, const RwV3d* axis, float angle,
                          RwOpCombineType combineOp);
 RwMatrix* RwMatrixTransform(RwMatrix* matrix, const RwMatrix* transform,
                             RwOpCombineType combineOp);
 RwMatrix* RwMatrixOrthoNormalize(RwMatrix* matrixOut,
                                  const RwMatrix* matrixIn);
+RwMatrix* RwMatrixUpdate(RwMatrix* matrix);
+RwMatrix* RwMatrixMultiply(RwMatrix* matrixOut, const RwMatrix* matrixIn1,
+                           const RwMatrix* matrixIn2);
+RwMatrix* RwMatrixInvert(RwMatrix* matrixOut, const RwMatrix* matrixIn);
 
 #endif

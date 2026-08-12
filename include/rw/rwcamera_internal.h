@@ -7,15 +7,15 @@ typedef struct RwCamera RwCamera;
 
 typedef struct RwPlane {
     RwV3d normal;
-    RwReal distance;
+    float distance;
 } RwPlane;
 
 typedef struct RwFrustumPlane {
     RwPlane plane;
-    RwUInt8 closestX;
-    RwUInt8 closestY;
-    RwUInt8 closestZ;
-    RwUInt8 field_0x13;
+    unsigned char closestX;
+    unsigned char closestY;
+    unsigned char closestZ;
+    unsigned char field_0x13;
 } RwFrustumPlane;
 
 typedef RwCamera* (*RwCameraBeginUpdateFunc)(RwCamera* camera);
@@ -23,7 +23,7 @@ typedef RwCamera* (*RwCameraEndUpdateFunc)(RwCamera* camera);
 
 struct RwCamera {
     RwObjectHasFrame object;
-    RwInt32 projectionType;
+    int projectionType;
     RwCameraBeginUpdateFunc beginUpdate;
     RwCameraEndUpdateFunc endUpdate;
     RwMatrix viewMatrix;
@@ -32,11 +32,11 @@ struct RwCamera {
     RwV2d viewWindow;
     RwV2d recipViewWindow;
     RwV2d viewOffset;
-    RwReal nearPlane;
-    RwReal farPlane;
-    RwReal fogPlane;
-    RwReal zScale;
-    RwReal zShift;
+    float nearPlane;
+    float farPlane;
+    float fogPlane;
+    float zScale;
+    float zShift;
     RwFrustumPlane frustumPlanes[6];
     RwBBox frustumBoundBox;
     RwV3d frustumCorners[8];

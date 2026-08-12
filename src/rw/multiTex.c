@@ -1,45 +1,40 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/bamateri.h"
 #include "rw/rpmatfx.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwstream_internal.h"
 
-extern void* memset(void*, RwInt32, RwUInt32);
-extern RwInt32 RwEngineGetVersion(void);
-extern RwInt32 RpMaterialRegisterPlugin(
-    RwInt32, RwUInt32, RwPluginObjectConstructor,
-    RwPluginObjectDestructor, RwPluginObjectCopy);
-extern RwInt32 RpMaterialRegisterPluginStream(
-    RwUInt32, RwPluginDataChunkReadCallBack,
-    RwPluginDataChunkWriteCallBack, RwPluginDataChunkGetSizeCallBack);
-extern RwInt32 _rpMatFXStreamSizeTexture(RwTexture*);
+extern void* memset(void*, int, unsigned int);
+extern int RwEngineGetVersion(void);
+extern int _rpMatFXStreamSizeTexture(RwTexture*);
 extern RwStream* _rpMatFXStreamWriteTexture(RwStream*, RwTexture*);
 extern RwTexture* _rpMatFXStreamReadTexture(RwStream*, RwTexture**);
 
-static void* MultiTextureOpen(void*, RwInt32, RwInt32);
-static void* MultiTextureClose(void*, RwInt32, RwInt32);
-static RpMultiTexture* MultiTextureCreate(RpMultiTextureRegEntry*, RwUInt32);
+static void* MultiTextureOpen(void*, int, int);
+static void* MultiTextureClose(void*, int, int);
+static RpMultiTexture* MultiTextureCreate(RpMultiTextureRegEntry*, unsigned int);
 static void MultiTextureDestroy(RpMultiTexture*);
-static void* MultiTextureConstructor(void*, RwInt32, RwInt32);
-static void* MultiTextureDestructor(void*, RwInt32, RwInt32);
-static void* MultiTextureCopy(void*, const void*, RwInt32, RwInt32);
-static RwInt32 MultiTextureStreamGetSize(const void*, RwInt32, RwInt32);
-static RwStream* MultiTextureStreamWrite(RwStream*, RwInt32, const void*,
-                                         RwInt32, RwInt32);
-static RwStream* MultiTextureStreamRead(RwStream*, RwInt32, void*, RwInt32,
-                                        RwInt32);
+static void* MultiTextureConstructor(void*, int, int);
+static void* MultiTextureDestructor(void*, int, int);
+static void* MultiTextureCopy(void*, const void*, int, int);
+static int MultiTextureStreamGetSize(const void*, int, int);
+static RwStream* MultiTextureStreamWrite(RwStream*, int, const void*,
+                                         int, int);
+static RwStream* MultiTextureStreamRead(RwStream*, int, void*, int,
+                                        int);
 
 static RpMultiTextureRegEntry RegEntries[10];
 RwModuleInfo _rpMultiTextureModule = { 0, 0 };
 
-static void* MultiTextureOpen(void* instance, RwInt32 offset, RwInt32 size)
+static void* MultiTextureOpen(void* instance, int offset, int size)
 {
     _rpMultiTextureModule.numInstances++;
     _rpMTEffectOpen();
     return instance;
 }
 
-static void* MultiTextureClose(void* instance, RwInt32 offset, RwInt32 size)
+static void* MultiTextureClose(void* instance, int offset, int size)
 {
     _rpMTEffectClose();
     _rpMultiTextureModule.numInstances--;
@@ -47,10 +42,10 @@ static void* MultiTextureClose(void* instance, RwInt32 offset, RwInt32 size)
 }
 
 static RpMultiTexture* MultiTextureCreate(RpMultiTextureRegEntry* registration,
-                                          RwUInt32 numTextures)
+                                          unsigned int numTextures)
 {
 
-    RwUInt32 size = registration->platformDataSize + 0x38;
+    unsigned int size = registration->platformDataSize + 0x38;
     RpMultiTexture* multiTexture =
         RwEngineInstance->fpMalloc(size, 0x0103012C);
     if (!multiTexture) {
@@ -64,13 +59,13 @@ static RpMultiTexture* MultiTextureCreate(RpMultiTextureRegEntry* registration,
     multiTexture->registration = registration;
     multiTexture->numTextures = numTextures;
     if (registration->platformDataSize)
-        multiTexture->platformData = (RwUInt8*)multiTexture + 0x38;
+        multiTexture->platformData = (unsigned char*)multiTexture + 0x38;
     return multiTexture;
 }
 
 static void MultiTextureDestroy(RpMultiTexture* multiTexture)
 {
-    RwUInt32 i;
+    unsigned int i;
     for (i = 0; i < multiTexture->numTextures; i++) {
         if (multiTexture->textures[i]) {
             RwTextureDestroy(multiTexture->textures[i]);
@@ -84,17 +79,17 @@ static void MultiTextureDestroy(RpMultiTexture* multiTexture)
     RwEngineInstance->fpFree(multiTexture);
 }
 
-static void* MultiTextureConstructor(void* object, RwInt32 offset, RwInt32 size)
+static void* MultiTextureConstructor(void* object, int offset, int size)
 {
     RpMultiTexture** slot =
-        (RpMultiTexture**)((RwUInt8*)object + offset);
+        (RpMultiTexture**)((unsigned char*)object + offset);
     *slot = 0;
     return object;
 }
 
-static void* MultiTextureDestructor(void* object, RwInt32 offset, RwInt32 size)
+static void* MultiTextureDestructor(void* object, int offset, int size)
 {
-    RpMultiTexture** slot = (RpMultiTexture**)((RwUInt8*)object + offset);
+    RpMultiTexture** slot = (RpMultiTexture**)((unsigned char*)object + offset);
     if (*slot) {
         MultiTextureDestroy(*slot);
         *slot = 0;
@@ -103,19 +98,19 @@ static void* MultiTextureDestructor(void* object, RwInt32 offset, RwInt32 size)
 }
 
 static void* MultiTextureCopy(void* destination, const void* source,
-                              RwInt32 offset, RwInt32 size)
+                              int offset, int size)
 {
     RpMultiTexture* sourceMulti =
-        *(RpMultiTexture* const*)((const RwUInt8*)source + offset);
+        *(RpMultiTexture* const*)((const unsigned char*)source + offset);
     RpMultiTexture* destinationMulti;
-    RwUInt32 i;
+    unsigned int i;
     if (!sourceMulti)
         return destination;
     destinationMulti = MultiTextureCreate(sourceMulti->registration,
                                           sourceMulti->numTextures);
     if (!destinationMulti)
         return 0;
-    *(RpMultiTexture**)((RwUInt8*)destination + offset) = destinationMulti;
+    *(RpMultiTexture**)((unsigned char*)destination + offset) = destinationMulti;
     for (i = 0; i < sourceMulti->numTextures; i++) {
         RpMultiTextureSetTexture(destinationMulti, i,
             RpMultiTextureGetTexture(sourceMulti, i));
@@ -128,13 +123,13 @@ static void* MultiTextureCopy(void* destination, const void* source,
 }
 
 
-static RwInt32 MultiTextureStreamGetSize(const void* object, RwInt32 offset,
-                                         RwInt32 size)
+static int MultiTextureStreamGetSize(const void* object, int offset,
+                                         int size)
 {
     const RpMultiTexture* multiTexture =
-        *(RpMultiTexture* const*)((const RwUInt8*)object + offset);
-    RwInt32 streamSize = 0;
-    RwUInt32 i;
+        *(RpMultiTexture* const*)((const unsigned char*)object + offset);
+    int streamSize = 0;
+    unsigned int i;
     if (multiTexture) {
         streamSize += 8;
         streamSize += multiTexture->numTextures;
@@ -147,21 +142,21 @@ static RwInt32 MultiTextureStreamGetSize(const void* object, RwInt32 offset,
 }
 
 
-static RwStream* MultiTextureStreamWrite(RwStream* stream, RwInt32 length,
-                                         const void* object, RwInt32 offset,
-                                         RwInt32 size)
+static RwStream* MultiTextureStreamWrite(RwStream* stream, int length,
+                                         const void* object, int offset,
+                                         int size)
 {
     const RpMultiTexture* multiTexture =
-        *(RpMultiTexture* const*)((const RwUInt8*)object + offset);
-    RwInt32 version;
-    RwBool hasEffect;
-    struct { RwUInt8 platform, count, hasEffect, pad; } header;
-    RwUInt32 i;
+        *(RpMultiTexture* const*)((const unsigned char*)object + offset);
+    int version;
+    int hasEffect;
+    struct { unsigned char platform, count, hasEffect, pad; } header;
+    unsigned int i;
     if (multiTexture) {
         version = RwEngineGetVersion();
         if (!RwStreamWriteInt32(stream, &version, 4)) return 0;
-        header.platform = (RwUInt8)multiTexture->registration->platform;
-        header.count = (RwUInt8)multiTexture->numTextures;
+        header.platform = (unsigned char)multiTexture->registration->platform;
+        header.count = (unsigned char)multiTexture->numTextures;
         if (multiTexture->effect)
             hasEffect = 1;
         else
@@ -182,16 +177,16 @@ static RwStream* MultiTextureStreamWrite(RwStream* stream, RwInt32 length,
     return stream;
 }
 
-static RwStream* MultiTextureStreamRead(RwStream* stream, RwInt32 length,
-                                        void* object, RwInt32 offset,
-                                        RwInt32 size)
+static RwStream* MultiTextureStreamRead(RwStream* stream, int length,
+                                        void* object, int offset,
+                                        int size)
 {
-    RwInt32 version;
-    struct { RwUInt8 platform, count, hasEffect, pad; } header;
+    int version;
+    struct { unsigned char platform, count, hasEffect, pad; } header;
     RpMultiTextureRegEntry* registration;
     RpMultiTexture* multiTexture;
-    RwUInt32 i;
-    RwChar name[32];
+    unsigned int i;
+    char name[32];
     RpMTEffect* effect;
     if (!RwStreamReadInt32(stream, &version, 4)) return 0;
     if (!RwStreamRead(stream, &header, 4)) return 0;
@@ -222,11 +217,11 @@ static RwStream* MultiTextureStreamRead(RwStream* stream, RwInt32 length,
         RpMultiTextureSetEffect(multiTexture, effect);
         RpMTEffectDestroy(effect);
     }
-    *(RpMultiTexture**)((RwUInt8*)object + offset) = multiTexture;
+    *(RpMultiTexture**)((unsigned char*)object + offset) = multiTexture;
     return stream;
 }
 
-RwBool _rpMultiTexturePluginAttach(void)
+int _rpMultiTexturePluginAttach(void)
 {
     if (!_rpMTEffectSystemInit()) return 0;
     memset(RegEntries, 0, sizeof(RegEntries));
@@ -237,12 +232,12 @@ RwBool _rpMultiTexturePluginAttach(void)
 }
 
 
-RwBool _rpMaterialRegisterMultiTexturePlugin(RwInt32 platform,
-                                             RwUInt32 pluginID,
-                                             RwUInt32 platformDataSize)
+int _rpMaterialRegisterMultiTexturePlugin(int platform,
+                                             unsigned int pluginID,
+                                             unsigned int platformDataSize)
 {
     RpMultiTextureRegEntry* entry;
-    RwInt32 offset = RpMaterialRegisterPlugin(4, pluginID,
+    int offset = RpMaterialRegisterPlugin(4, pluginID,
         MultiTextureConstructor, MultiTextureDestructor, MultiTextureCopy);
     if (offset < 0) return 0;
     entry = &RegEntries[platform];
@@ -269,7 +264,7 @@ RpMTEffect* RpMultiTextureGetEffect(const RpMultiTexture* multiTexture)
 { return multiTexture->effect; }
 
 RpMultiTexture* RpMultiTextureSetTexture(RpMultiTexture* multiTexture,
-                                         RwUInt32 index, RwTexture* texture)
+                                         unsigned int index, RwTexture* texture)
 {
 
     if (multiTexture->textures[index])
@@ -281,24 +276,24 @@ RpMultiTexture* RpMultiTextureSetTexture(RpMultiTexture* multiTexture,
 }
 
 RwTexture* RpMultiTextureGetTexture(const RpMultiTexture* multiTexture,
-                                    RwUInt32 index)
+                                    unsigned int index)
 { return multiTexture->textures[index]; }
 
-void RpMultiTextureSetCoords(RpMultiTexture* multiTexture, RwUInt32 index,
-                             RwUInt32 coords)
+void RpMultiTextureSetCoords(RpMultiTexture* multiTexture, unsigned int index,
+                             unsigned int coords)
 { multiTexture->texCoords[index] = coords; }
 
-RwUInt32 RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
-                                 RwUInt32 index)
+unsigned int RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
+                                 unsigned int index)
 { return multiTexture->texCoords[index]; }
 
 RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
-                                          RwInt32 platform)
+                                          int platform)
 {
     RpMultiTextureRegEntry* entry = &RegEntries[platform];
     if (entry->pluginID) {
         RpMultiTexture** slot =
-            (RpMultiTexture**)((RwUInt8*)material + entry->materialOffset);
+            (RpMultiTexture**)((unsigned char*)material + entry->materialOffset);
         return *slot;
     }
     return 0;

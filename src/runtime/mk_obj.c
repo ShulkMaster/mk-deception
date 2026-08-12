@@ -283,7 +283,6 @@ MkBone* alloc_bone(void);
 void mkbone_remove(MkBone* bone);
 void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent);
 void mkbone_insert_child_of_parent(MkBone* bone, MkBone* parent);
-void RwMatrixUpdate(RwMatrix* matrix);
 void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
 void* find_pfx_by_name_by_bankowner(const char* name, unsigned int owner);
 void reset_effect_ppfx(void* effect);

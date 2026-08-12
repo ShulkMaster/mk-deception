@@ -1,5 +1,6 @@
 #include "libmkparticle/rw_engine.h"
 #include "runtime/cstring.h"
+#include "rw/bamateri.h"
 #include "rw/batextur.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwerror.h"
@@ -8,41 +9,41 @@
 #include "rw/rwstream.h"
 
 typedef struct RpMaterialChunkInfo {
-    RwInt32 flags;
+    int flags;
     RpMaterialColor color;
-    RwInt32 unused;
-    RwInt32 textured;
+    int unused;
+    int textured;
     RpSurfaceProperties surface;
 } RpMaterialChunkInfo;
 
 static RwPluginRegistry materialTKList = {0x1C, 0x1C, 0, 0, 0, 0};
 static RpSurfaceProperties defaultSurfaceProperties = {1.0f, 1.0f, 1.0f};
 static RwFreeList _rpMaterialFreeList;
-static RwInt32 _rpMaterialFreeListBlockSize = 0x100;
-static RwInt32 _rpMaterialFreeListPreallocBlocks = 1;
-static RwInt32 lastSeenExtraData;
-static RwUInt32 lastSeenRightsPluginId;
+static int _rpMaterialFreeListBlockSize = 0x100;
+static int _rpMaterialFreeListPreallocBlocks = 1;
+static int lastSeenExtraData;
+static unsigned int lastSeenRightsPluginId;
 static RwModuleInfo materialModule;
 
-RwStream* _rpReadMaterialRights(RwStream* stream, RwInt32 length)
+RwStream* _rpReadMaterialRights(RwStream* stream, int length)
 {
-    if (!RwStreamReadInt32(stream, (RwInt32*)&lastSeenRightsPluginId, 4)) return 0;
+    if (!RwStreamReadInt32(stream, (int*)&lastSeenRightsPluginId, 4)) return 0;
     if (length == 8 && !RwStreamReadInt32(stream, &lastSeenExtraData, 4)) return 0;
     return stream;
 }
 
-RwStream* _rpWriteMaterialRights(RwStream* stream, RwInt32,
+RwStream* _rpWriteMaterialRights(RwStream* stream, int,
                                   const RpMaterial* object)
 {
     const RpMaterial* material = object;
     if (!RwStreamWriteInt32(stream,
-                            (const RwInt32*)&material->pipeline->pluginId, 4)) return 0;
+                            (const int*)&material->pipeline->pluginId, 4)) return 0;
     if (!RwStreamWriteInt32(stream,
-                            (const RwInt32*)&material->pipeline->pluginData, 4)) return 0;
+                            (const int*)&material->pipeline->pluginData, 4)) return 0;
     return stream;
 }
 
-RwInt32 _rpSizeMaterialRights(const RpMaterial* object)
+int _rpSizeMaterialRights(const RpMaterial* object)
 {
     const RpMaterial* material = object;
     if (material->pipeline != 0 && material->pipeline->pluginId != 0) return 8;
@@ -60,11 +61,11 @@ void _rpMaterialSetDefaultSurfaceProperties(const RpSurfaceProperties* surface)
     }
 }
 
-void* _rpMaterialOpen(void* instance, RwInt32 offset, RwInt32)
+void* _rpMaterialOpen(void* instance, int offset, int)
 {
     RwFreeList** freeList;
     materialModule.globalsOffset = offset;
-    freeList = (RwFreeList**)((RwUInt8*)RwEngineInstance + offset);
+    freeList = (RwFreeList**)((unsigned char*)RwEngineInstance + offset);
     *freeList = RwFreeListCreateAndPreallocateSpace(
         materialTKList.sizeOfStruct, _rpMaterialFreeListBlockSize, 4,
         _rpMaterialFreeListPreallocBlocks, &_rpMaterialFreeList, 0x40007);
@@ -73,9 +74,9 @@ void* _rpMaterialOpen(void* instance, RwInt32 offset, RwInt32)
     return instance;
 }
 
-void* _rpMaterialClose(void* instance, RwInt32, RwInt32)
+void* _rpMaterialClose(void* instance, int, int)
 {
-    RwFreeList** freeList = (RwFreeList**)((RwUInt8*)RwEngineInstance +
+    RwFreeList** freeList = (RwFreeList**)((unsigned char*)RwEngineInstance +
                                           materialModule.globalsOffset);
     if (*freeList != 0) {
         RwFreeListDestroy(*freeList);
@@ -89,7 +90,7 @@ void* _rpMaterialClose(void* instance, RwInt32, RwInt32)
 
 RpMaterial* RpMaterialCreate(void)
 {
-    RwFreeList* freeList = *(RwFreeList**)((RwUInt8*)RwEngineInstance +
+    RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
                                           materialModule.globalsOffset);
     RpMaterial* material;
     RpMaterialColor color;
@@ -112,9 +113,9 @@ RpMaterial* RpMaterialCreate(void)
     return material;
 }
 
-RwBool RpMaterialDestroy(RpMaterial* material)
+int RpMaterialDestroy(RpMaterial* material)
 {
-    RwFreeList* freeList = *(RwFreeList**)((RwUInt8*)RwEngineInstance +
+    RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
                                           materialModule.globalsOffset);
     if (material->refCount == 1) {
         _rwPluginRegistryDeInitObject(&materialTKList, material);
@@ -137,22 +138,22 @@ RpMaterial* RpMaterialSetTexture(RpMaterial* material, RwTexture* texture)
     return material;
 }
 
-RwInt32 RpMaterialRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RpMaterialRegisterPlugin(int size, unsigned int pluginID,
                                  RwPluginObjectConstructor constructCB,
                                  RwPluginObjectDestructor destructCB,
                                  RwPluginObjectCopy copyCB)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlugin(
+    int offset = _rwPluginRegistryAddPlugin(
         &materialTKList, size, pluginID, constructCB, destructCB, copyCB);
     return offset;
 }
 
-RwInt32 RpMaterialRegisterPluginStream(RwUInt32 pluginID,
+int RpMaterialRegisterPluginStream(unsigned int pluginID,
                                        RwPluginDataChunkReadCallBack readCB,
                                        RwPluginDataChunkWriteCallBack writeCB,
                                        RwPluginDataChunkGetSizeCallBack getSizeCB)
 {
-    RwInt32 offset = _rwPluginRegistryAddPluginStream(
+    int offset = _rwPluginRegistryAddPluginStream(
         &materialTKList, pluginID, readCB, writeCB, getSizeCB);
     return offset;
 }
@@ -162,15 +163,15 @@ RwInt32 RpMaterialRegisterPluginStream(RwUInt32 pluginID,
 
 RpMaterial* RpMaterialStreamRead(RwStream* stream)
 {
-    RwUInt32 length;
-    RwUInt32 version;
+    unsigned int length;
+    unsigned int version;
     RwError error;
 
     if (!RwStreamFindChunk(stream, 1, &length, &version)) return 0;
     if (version >= 0x34000 && version <= 0x36003) {
         RpMaterialChunkInfo chunk;
         RpMaterial* material;
-        RwUInt8 color[4];
+        unsigned char color[4];
 
         memset(&chunk, 0, sizeof(chunk));
         if (RwStreamRead(stream, &chunk, length) != length) return 0;

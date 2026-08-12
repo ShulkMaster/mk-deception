@@ -14,10 +14,10 @@ typedef struct RxGCTevAlphaPass {
     char pad28[0x10];
 } RxGCTevAlphaPass;
 
-RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial* material);
+RwTexture* RpMaterialGetAlphaPassTexture(const RpMaterial* material);
 RwTexture* RpMaterialSetAlphaPassTexture(RpMaterial* material,
                                          RwTexture* texture);
-RwTexture* RpMaterialGetDualAlphaPassTexture(RpMaterial* material);
+RwTexture* RpMaterialGetDualAlphaPassTexture(const RpMaterial* material);
 RwTexture* RpMaterialSetDualAlphaPassTexture(RpMaterial* material,
                                              RwTexture* texture);
 void _rxGCTevAlphaPassSetup(RxGCTevAlphaPass* pass);

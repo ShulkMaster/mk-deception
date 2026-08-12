@@ -11,58 +11,64 @@ typedef struct RwMatrix RwMatrix;
 typedef struct RxPipeline RxPipeline;
 
 typedef struct RwMatrixWeights {
-    RwReal w0;
-    RwReal w1;
-    RwReal w2;
-    RwReal w3;
+    float w0;
+    float w1;
+    float w2;
+    float w3;
 } RwMatrixWeights;
 
+typedef struct SkinAtomicState {
+    RpHAnimHierarchy* hierarchy;
+    void* positions;
+    void* normals;
+} SkinAtomicState;
+
 typedef struct RpSkinRLECount {
-    RwUInt8 start;
-    RwUInt8 size;
+    unsigned char start;
+    unsigned char size;
 } RpSkinRLECount;
 
 typedef struct RpSkinRLE {
-    RwUInt8 startBone;
-    RwUInt8 count;
+    unsigned char startBone;
+    unsigned char count;
 } RpSkinRLE;
 
 typedef struct RpSkinSplitData {
-    RwUInt32 boneLimit;
-    RwUInt32 numMeshes;
-    RwUInt32 rleSize;
-    RwUInt8* remapIndices;
+    unsigned int boneLimit;
+    unsigned int numMeshes;
+    unsigned int rleSize;
+    unsigned char* remapIndices;
     RpSkinRLECount* rleCount;
     RpSkinRLE* rle;
 } RpSkinSplitData;
 
 struct RpSkin {
-    RwUInt32 numBones;
-    RwUInt32 numUsedBones;
-    RwUInt8* usedBoneList;
+    unsigned int numBones;
+    unsigned int numUsedBones;
+    unsigned char* usedBoneList;
     RwMatrix* skinToBoneMatrices;
-    RwUInt32 maxNumWeights;
-    RwUInt32* vertexBoneIndices;
+    unsigned int maxNumWeights;
+    unsigned int* vertexBoneIndices;
     RwMatrixWeights* vertexBoneWeights;
     void* nativeData;
     void* nativeData2;
     void* platformWeights;
     void* platformIndices;
-    RwUInt32 platformData;
+    unsigned int platformData;
     RpSkinSplitData splitData;
     void* skinData;
 };
 
 typedef struct RpSkinGlobals {
-    RwInt32 engineOffset;
-    RwInt32 atomicOffset;
-    RwInt32 geometryOffset;
+    int engineOffset;
+    int atomicOffset;
+    int geometryOffset;
     void* alignedScratchMemory;
     void* scratchMemory;
-    RwUInt32 reserved_0x14;
+    unsigned int reserved_0x14;
     void* skinFreeList;
-    RwUInt32 reserved_0x1C;
-    RwInt32 numInstances;
+    unsigned int reserved_0x1C;
+    int numInstances;
     RxPipeline* pipelines[6];
 } RpSkinGlobals;
 
@@ -74,7 +80,7 @@ typedef enum RpSkinType {
     rpSKINTYPETOON = 3
 } RpSkinType;
 
-RwBool RpSkinPluginAttach(void);
+int RpSkinPluginAttach(void);
 RpAtomic* RpSkinAtomicSetHAnimHierarchy(RpAtomic* atomic,
                                         RpHAnimHierarchy* hierarchy);
 RpSkin* RpSkinGeometryGetSkin(RpGeometry* geometry);
@@ -83,26 +89,26 @@ RpSkin* RpSkinDestroy(RpSkin* skin);
 RwMatrix* RpSkinGetSkinToBoneMatrices(RpSkin* skin);
 RpAtomic* RpSkinAtomicSetType(RpAtomic* atomic, RpSkinType type);
 RxPipeline* RpSkinGetGameCubePipeline(RpSkinType type);
-RpSkin* _rpSkinSplitDataCreate(RpSkin* skin, RwUInt32 boneLimit,
-                               RwUInt32 numBones, RwUInt32 numMeshes,
-                               RwUInt32 rleSize);
-RwBool _rpSkinSplitDataDestroy(RpSkin* skin);
+RpSkin* _rpSkinSplitDataCreate(RpSkin* skin, unsigned int boneLimit,
+                               unsigned int numBones, unsigned int numMeshes,
+                               unsigned int rleSize);
+int _rpSkinSplitDataDestroy(RpSkin* skin);
 RwStream* _rpSkinSplitDataStreamWrite(RwStream* stream, const RpSkin* skin);
 RwStream* _rpSkinSplitDataStreamRead(RwStream* stream, RpSkin* skin);
-RwUInt32 _rpSkinSplitDataStreamGetSize(const RpSkin* skin);
-RwUInt32 _rpSkinGeometryNativeSize(const RpGeometry* geometry);
+unsigned int _rpSkinSplitDataStreamGetSize(const RpSkin* skin);
+unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry);
 RwStream* _rpSkinGeometryNativeWrite(RwStream* stream,
                                      const RpGeometry* geometry);
 RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry);
-RwUInt32 _rpSkinAtomicNativeSize(const RpAtomic* atomic);
+unsigned int _rpSkinAtomicNativeSize(const RpAtomic* atomic);
 void _rpSkinMatrixBlendUpdateASM(RwMatrix* destination,
                                  const RwMatrix* skinToBone,
                                  const RwMatrix* hierarchyMatrices,
                                  const RwMatrix* transform,
-                                 const RwUInt8* usedBoneList,
-                                 RwUInt32 numUsedBones);
-RwBool _rpSkinPipelinesCreate(RwUInt32 pipeType);
-RwBool _rpSkinPipelinesDestroy(void);
+                                 const unsigned char* usedBoneList,
+                                 unsigned int numUsedBones);
+int _rpSkinPipelinesCreate(unsigned int pipeType);
+int _rpSkinPipelinesDestroy(void);
 RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType skinType);
 
 #endif

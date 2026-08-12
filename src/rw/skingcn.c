@@ -3,6 +3,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/alphapass.h"
 #include "rw/gamecube.h"
+#include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rphanim.h"
 #include "rw/rpskin.h"
@@ -12,22 +13,16 @@ extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 #include "rw/rwresources.h"
 #include "rw/rwvector.h"
 
-typedef struct RpSkinAtomicData {
-    RpHAnimHierarchy* hierarchy;
-    void* positions;
-    void* normals;
-} RpSkinAtomicData;
-
 typedef struct RwGameCubeResEntryHeader {
     RwResEntry entry;
-    RwUInt16 token;
-    RwUInt16 meshSerialNum;
+    unsigned short token;
+    unsigned short meshSerialNum;
 } RwGameCubeResEntryHeader;
 
 typedef struct RwResourcesGlobalsPrefix {
-    RwUInt32 arenaSize;
-    RwUInt32 arenaUsage;
-    RwUInt32 arenaReusage;
+    unsigned int arenaSize;
+    unsigned int arenaUsage;
+    unsigned int arenaReusage;
     void* arena;
     RwLinkList entriesA;
     RwLinkList entriesB;
@@ -37,16 +32,16 @@ typedef struct RwResourcesGlobalsPrefix {
 typedef struct RxGameCubeAllInOneInstanceData {
     RwResEntry* resourceEntry;
     RpMeshHeader* meshHeader;
-    RwInt32 geometryFlags;
+    int geometryFlags;
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
     void* morphData;
 } RxGameCubeAllInOneInstanceData;
 
 typedef union SpecularMaterialFlags {
-    RwUInt8 value;
+    unsigned char value;
     struct {
         signed char hidden : 1;
         signed char reflectionPass : 1;
@@ -57,41 +52,36 @@ typedef union SpecularMaterialFlags {
 } SpecularMaterialFlags;
 
 typedef struct SpecularMaterialData {
-    RwUInt8 reserved_0x00[0x2C];
+    unsigned char reserved_0x00[0x2C];
     SpecularMaterialFlags flags;
-    RwUInt8 reserved_0x2D[3];
+    unsigned char reserved_0x2D[3];
 } SpecularMaterialData;
 
 typedef struct RpSkinBlendPositionData {
-    RwUInt8* destination;
-    RwUInt8* source;
-    RwUInt32 stride;
-    RwUInt32 numVertices;
+    unsigned char* destination;
+    unsigned char* source;
+    unsigned int stride;
+    unsigned int numVertices;
 } RpSkinBlendPositionData;
 
 typedef struct RpSkinBlendPositionNormalData {
-    RwUInt8* destinationPositions;
-    RwUInt8* destinationNormals;
-    RwUInt8* sourcePositions;
-    RwUInt8* sourceNormals;
-    RwUInt32 positionStride;
-    RwUInt32 normalStride;
-    RwUInt32 nbtStride;
-    RwUInt32 numVertices;
+    unsigned char* destinationPositions;
+    unsigned char* destinationNormals;
+    unsigned char* sourcePositions;
+    unsigned char* sourceNormals;
+    unsigned int positionStride;
+    unsigned int normalStride;
+    unsigned int nbtStride;
+    unsigned int numVertices;
 } RpSkinBlendPositionNormalData;
 
 extern RwModuleInfo resourcesModule;
-extern RwUInt16 _RwDlTokenCurrent;
-extern RwInt32 _RwDlPreInstanceOptimize;
-extern RwInt32 _rpDlGeomVtxFmtOffset;
-extern RwInt32 _RwGameCubeRasterExtOffset;
-extern RwInt32 SpecularMaterialOffset;
+extern int _RwDlPreInstanceOptimize;
+extern int _rpDlGeomVtxFmtOffset;
+extern int _RwGameCubeRasterExtOffset;
+extern int SpecularMaterialOffset;
 extern RwMatrix _RwDlInvCamLTM;
-extern RwInt32 _rwDlTokenQueryDone(RwUInt16 token);
 extern void _rxGCAtomicDefaultReinstanceCallback(void*, RwResEntry**);
-extern RwMatrix* RwMatrixInvert(RwMatrix*, const RwMatrix*);
-extern RwMatrix* RwMatrixMultiply(RwMatrix*, const RwMatrix*,
-                                  const RwMatrix*);
 extern void _rwDlSkinUpdate2WeightsP(const RwMatrix*, const RpSkin*,
                                      const RpSkinBlendPositionData*);
 extern void _rwDlSkinUpdate3WeightsP(const RwMatrix*, const RpSkin*,
@@ -108,13 +98,13 @@ extern void _rwDlSkinUpdate4WeightsPN(
 RpSkinGlobals _rpSkinGlobals = {0, 0, 0, 0, 0, 0, 0, 0, 0,
                                 {0, 0, 0, 0, 0, 0}};
 
-static const RwUInt8 skinVertexSizes[5] = {3, 3, 6, 6, 12};
+static const unsigned char skinVertexSizes[5] = {3, 3, 6, 6, 12};
 
 static void ActivateResourceEntry(RwResEntry* entry)
 {
     RwLLLink* link = &entry->link;
     RwResourcesGlobalsPrefix* resources =
-        (RwResourcesGlobalsPrefix*)((RwUInt8*)RwEngineInstance +
+        (RwResourcesGlobalsPrefix*)((unsigned char*)RwEngineInstance +
                                     resourcesModule.globalsOffset);
     RwLLLink* head = resources->activeList;
 
@@ -134,10 +124,10 @@ static void _rpSkinMainResEntryCB(RwResEntry* entry)
     RwGameCubeVertexBuffer* vertexBuffer =
         (RwGameCubeVertexBuffer*)(header + 1);
     RwObject* owner;
-    RwUInt32 ownerFlags;
+    unsigned int ownerFlags;
 
     owner = (RwObject*)entry->owner;
-    ownerFlags = *(RwUInt32*)((RwUInt8*)owner + 8);
+    ownerFlags = *(unsigned int*)((unsigned char*)owner + 8);
 
     if (header->token == _RwDlTokenCurrent) {
         GXSetDrawSync(_RwDlTokenCurrent);
@@ -147,11 +137,11 @@ static void _rpSkinMainResEntryCB(RwResEntry* entry)
     }
     if (vertexBuffer->arrays[0].data != 0) {
         RwResourcesFreeResEntry(
-            *(RwResEntry**)((RwUInt8*)vertexBuffer->arrays[0].data - 4));
+            *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4));
     }
     if (owner->type == 1) {
-        RpSkinAtomicData* atomicData =
-            (RpSkinAtomicData*)((RwUInt8*)owner + _rpSkinGlobals.atomicOffset);
+        SkinAtomicState* atomicData =
+            (SkinAtomicState*)((unsigned char*)owner + _rpSkinGlobals.atomicOffset);
         vertexBuffer->arrays[0].data = atomicData->positions;
         if ((ownerFlags & 0x10) != 0)
             vertexBuffer->arrays[1].data = atomicData->normals;
@@ -159,7 +149,7 @@ static void _rpSkinMainResEntryCB(RwResEntry* entry)
         atomicData->normals = 0;
     } else {
         RpSkin* skin =
-            *(RpSkin**)((RwUInt8*)owner + _rpSkinGlobals.geometryOffset);
+            *(RpSkin**)((unsigned char*)owner + _rpSkinGlobals.geometryOffset);
         vertexBuffer->arrays[0].data = skin->nativeData;
         if ((ownerFlags & 0x10) != 0)
             vertexBuffer->arrays[1].data = skin->nativeData2;
@@ -180,22 +170,22 @@ static void _rpSkinResEntryWaitDone(RwResEntry* entry)
     }
 }
 
-RwBool _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
+int _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
                                   RwGameCubeVertexBuffer* vertexBuffer,
                                   RwResEntry** resourceEntry)
 {
     RpGeometry* geometry = atomic->geometry;
     RpGameCubeVtxFmt* format;
-    RwUInt32 size;
-    RwUInt32 numVertices;
+    unsigned int size;
+    unsigned int numVertices;
     RwResEntry* entry;
 
     ActivateResourceEntry(*resourceEntry);
     (*resourceEntry)->destroyNotify = _rpSkinMainResEntryCB;
     if ((*resourceEntry)->owner != 0 &&
         ((RwObject*)(*resourceEntry)->owner)->type == 1) {
-        RpSkinAtomicData* atomicData =
-            (RpSkinAtomicData*)((RwUInt8*)atomic +
+        SkinAtomicState* atomicData =
+            (SkinAtomicState*)((unsigned char*)atomic +
                                 _rpSkinGlobals.atomicOffset);
         if (atomicData->positions == 0) {
             atomicData->positions = vertexBuffer->arrays[0].data;
@@ -215,7 +205,7 @@ RwBool _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
     }
     if (vertexBuffer->arrays[0].data != 0) {
         RwResEntry* oldEntry =
-            *(RwResEntry**)((RwUInt8*)vertexBuffer->arrays[0].data - 4);
+            *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4);
         if (_rwDlTokenQueryDone(
                 ((RwGameCubeResEntryHeader*)oldEntry)->token) == 0) {
             oldEntry->ownerRef = 0;
@@ -225,14 +215,14 @@ RwBool _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
         }
     }
     if (vertexBuffer->arrays[0].data == 0) {
-        format = *(RpGameCubeVtxFmt**)((RwUInt8*)geometry +
+        format = *(RpGameCubeVtxFmt**)((unsigned char*)geometry +
                                        _rpDlGeomVtxFmtOffset);
         if (format != 0) {
             size = (geometry->numVertices *
                     skinVertexSizes[format->positionType] + 31) & ~31U;
             size += 6;
             if ((geometry->flags & 0x10) != 0) {
-                RwUInt32 components = format->normalMode != 0 ? 3 : 1;
+                unsigned int components = format->normalMode != 0 ? 3 : 1;
                 size += (geometry->numVertices *
                          skinVertexSizes[format->normalType] * components + 31) &
                         ~31U;
@@ -247,24 +237,24 @@ RwBool _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
             atomic, (RwResEntry**)&vertexBuffer->arrays[0].data, size,
             _rpSkinResEntryWaitDone);
         numVertices = geometry->numMorphTargets == 1
-                          ? (RwUInt32)geometry->numVertices
-                          : (RwUInt32)atomic->interpolator.position;
+                          ? (unsigned int)geometry->numVertices
+                          : (unsigned int)atomic->interpolator.position;
         if (entry == 0 || numVertices == 0) {
             if (entry != 0)
                 RwResourcesFreeResEntry(entry);
             return 0;
         }
         vertexBuffer->arrays[0].data = (void*)
-            (((RwUInt32)vertexBuffer->arrays[0].data + 0x3D) & ~31U);
+            (((unsigned int)vertexBuffer->arrays[0].data + 0x3D) & ~31U);
         if ((geometry->flags & 0x10) != 0) {
             vertexBuffer->arrays[1].data =
-                (RwUInt8*)vertexBuffer->arrays[0].data +
+                (unsigned char*)vertexBuffer->arrays[0].data +
                 ((geometry->numVertices * vertexBuffer->arrays[0].stride + 31) &
                  ~31U);
         }
-        *(RwResEntry**)((RwUInt8*)vertexBuffer->arrays[0].data - 4) = entry;
+        *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4) = entry;
     } else {
-        entry = *(RwResEntry**)((RwUInt8*)vertexBuffer->arrays[0].data - 4);
+        entry = *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4);
         ActivateResourceEntry(entry);
     }
     ((RwGameCubeResEntryHeader*)entry)->token = _RwDlTokenCurrent;
@@ -278,7 +268,7 @@ void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
     RwMatrix inverse;
     RwMatrix temporary;
     const RwMatrix* transform;
-    RwUInt32 i;
+    unsigned int i;
 
     if (hierarchy == 0)
         return;
@@ -290,7 +280,7 @@ void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
             transform = &_RwDlInvCamLTM;
         }
         for (i = 0; i < skin->numUsedBones; i++) {
-            RwUInt32 bone = skin->usedBoneList[i];
+            unsigned int bone = skin->usedBoneList[i];
             RwFrame* frame = hierarchy->pNodeInfo[bone].pFrame;
             RwMatrixMultiply(&temporary, &skin->skinToBoneMatrices[bone],
                              RwFrameGetLTM(frame));
@@ -299,7 +289,7 @@ void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
     } else if ((hierarchy->flags & rpHANIMHIERARCHYLOCALSPACEMATRICES) != 0) {
         if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
             for (i = 0; i < skin->numUsedBones; i++) {
-                RwUInt32 bone = skin->usedBoneList[i];
+                unsigned int bone = skin->usedBoneList[i];
                 RwMatrixMultiply(&destination[bone],
                                  &skin->skinToBoneMatrices[bone],
                                  &hierarchy->pMatrixArray[bone]);
@@ -324,22 +314,22 @@ void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
     }
 }
 
-static RwUInt32 SkinVertexScalarSize(RwUInt8 type)
+static unsigned int SkinVertexScalarSize(unsigned char type)
 {
-    static const RwUInt8 sizes[5] = {4, 1, 1, 2, 2};
+    static const unsigned char sizes[5] = {4, 1, 1, 2, 2};
     return sizes[type];
 }
 
 void _rpSkinBlendBodyP(RpSkin* skin, const RwMatrix* matrices,
-                       RwUInt8* source, RwUInt8* destination,
+                       unsigned char* source, unsigned char* destination,
                        const RpGameCubeVtxFmt* format,
-                       RwUInt32 numVertices)
+                       unsigned int numVertices)
 {
     RpSkinBlendPositionData data;
-    RwUInt32 stride = format != 0
+    unsigned int stride = format != 0
                           ? SkinVertexScalarSize(format->positionType) * 3
-                          : sizeof(RwReal);
-    RwUInt32 i;
+                          : sizeof(float);
+    unsigned int i;
 
     data.destination = destination;
     data.source = source;
@@ -350,7 +340,7 @@ void _rpSkinBlendBodyP(RpSkin* skin, const RwMatrix* matrices,
         const RwV3d* input = (const RwV3d*)skin->nativeData;
         RwV3d* output = (RwV3d*)destination;
         for (i = 0; i < numVertices; i++) {
-            RwUInt8 bone = (RwUInt8)skin->vertexBoneIndices[i];
+            unsigned char bone = (unsigned char)skin->vertexBoneIndices[i];
             RwV3dTransformPoint(&output[i], &input[i], &matrices[bone]);
         }
         break;
@@ -371,23 +361,23 @@ void _rpSkinBlendBodyP(RpSkin* skin, const RwMatrix* matrices,
 }
 
 void _rpSkinBlendBodyPN(RpSkin* skin, const RwMatrix* matrices,
-                        RwUInt8* sourcePositions, RwUInt8* sourceNormals,
-                        RwUInt8* destinationPositions,
-                        RwUInt8* destinationNormals,
+                        unsigned char* sourcePositions, unsigned char* sourceNormals,
+                        unsigned char* destinationPositions,
+                        unsigned char* destinationNormals,
                         const RpGameCubeVtxFmt* format,
-                        RwUInt32 numVertices)
+                        unsigned int numVertices)
 {
     RpSkinBlendPositionNormalData data;
-    RwUInt32 posStride = format != 0
+    unsigned int posStride = format != 0
                             ? SkinVertexScalarSize(format->positionType) * 3
-                            : sizeof(RwReal);
-    RwUInt32 normalStride = format != 0
+                            : sizeof(float);
+    unsigned int normalStride = format != 0
                                ? SkinVertexScalarSize(format->normalType) * 3
-                               : sizeof(RwReal);
-    RwUInt32 nbtStride = format != 0 && format->normalMode != 0
+                               : sizeof(float);
+    unsigned int nbtStride = format != 0 && format->normalMode != 0
                             ? normalStride * 2
                             : 0;
-    RwUInt32 i;
+    unsigned int i;
 
     data.destinationPositions = destinationPositions;
     data.destinationNormals = destinationNormals;
@@ -404,7 +394,7 @@ void _rpSkinBlendBodyPN(RpSkin* skin, const RwMatrix* matrices,
         RwV3d* outputPositions = (RwV3d*)destinationPositions;
         RwV3d* outputNormals = (RwV3d*)destinationNormals;
         for (i = 0; i < numVertices; i++) {
-            RwUInt8 bone = (RwUInt8)skin->vertexBoneIndices[i];
+            unsigned char bone = (unsigned char)skin->vertexBoneIndices[i];
             RwV3dTransformPoint(&outputPositions[i], &inputPositions[i],
                                 &matrices[bone]);
             RwV3dTransformVector(&outputNormals[i], &inputNormals[i],
@@ -468,7 +458,7 @@ void* _rpSkinAtomicReinstanceCallBack(void* object,
 {
     RpAtomic* atomic = (RpAtomic*)object;
     RpGeometry* geometry = atomic->geometry;
-    RpSkin* skin = *(RpSkin**)((RwUInt8*)geometry +
+    RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
 
     if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
@@ -481,8 +471,8 @@ void* _rpSkinAtomicReinstanceCallBack(void* object,
 
         if ((*resourceEntry)->owner != 0 &&
             ((RwObject*)(*resourceEntry)->owner)->type == 1) {
-            RpSkinAtomicData* atomicData =
-                (RpSkinAtomicData*)((RwUInt8*)atomic +
+            SkinAtomicState* atomicData =
+                (SkinAtomicState*)((unsigned char*)atomic +
                                     _rpSkinGlobals.atomicOffset);
             cachedPositions = &atomicData->positions;
             cachedNormals = &atomicData->normals;
@@ -514,8 +504,8 @@ void* _rpSkinAtomicReinstanceCallBack(void* object,
                                         resourceEntry))
             return 0;
         {
-            RpSkinAtomicData* atomicData =
-                (RpSkinAtomicData*)((RwUInt8*)atomic +
+            SkinAtomicState* atomicData =
+                (SkinAtomicState*)((unsigned char*)atomic +
                                     _rpSkinGlobals.atomicOffset);
             _rpSkinMatrixBlendUpdate(_rpSkinGlobals.alignedScratchMemory,
                                      skin,
@@ -527,19 +517,19 @@ void* _rpSkinAtomicReinstanceCallBack(void* object,
                 skin, _rpSkinGlobals.alignedScratchMemory, *cachedPositions,
                 *cachedNormals, vertexBuffer->arrays[0].data,
                 vertexBuffer->arrays[1].data,
-                *(RpGameCubeVtxFmt**)((RwUInt8*)geometry +
+                *(RpGameCubeVtxFmt**)((unsigned char*)geometry +
                                       _rpDlGeomVtxFmtOffset),
                 geometry->numVertices);
         else
             _rpSkinBlendBodyP(
                 skin, _rpSkinGlobals.alignedScratchMemory, *cachedPositions,
                 vertexBuffer->arrays[0].data,
-                *(RpGameCubeVtxFmt**)((RwUInt8*)geometry +
+                *(RpGameCubeVtxFmt**)((unsigned char*)geometry +
                                       _rpDlGeomVtxFmtOffset),
                 geometry->numVertices);
     } else {
-        RpSkinAtomicData* atomicData =
-            (RpSkinAtomicData*)((RwUInt8*)atomic +
+        SkinAtomicState* atomicData =
+            (SkinAtomicState*)((unsigned char*)atomic +
                                 _rpSkinGlobals.atomicOffset);
         _rpSkinMatrixBlendUpdate(_rpSkinGlobals.alignedScratchMemory, skin,
                                  RwFrameGetLTM(atomic->object.parent),
@@ -548,8 +538,8 @@ void* _rpSkinAtomicReinstanceCallBack(void* object,
     return object;
 }
 
-void _rpSkinLoadMatrix(const RwMatrix* matrix, RwUInt32 index,
-                       RwBool normals)
+void _rpSkinLoadMatrix(const RwMatrix* matrix, unsigned int index,
+                       int normals)
 {
     Mtx gxMatrix;
 
@@ -570,17 +560,17 @@ void _rpSkinLoadMatrix(const RwMatrix* matrix, RwUInt32 index,
         GXLoadNrmMtxImm(gxMatrix, index);
 }
 
-void _rpSkinLoadMatrixPalette(const RpSkin* skin, RwUInt32 meshIndex,
-                              RwBool normals)
+void _rpSkinLoadMatrixPalette(const RpSkin* skin, unsigned int meshIndex,
+                              int normals)
 {
     const RpSkinRLECount* count = &skin->splitData.rleCount[meshIndex];
-    RwUInt32 matrixIndex = 0;
-    RwUInt32 run;
+    unsigned int matrixIndex = 0;
+    unsigned int run;
 
     for (run = 0; run < count->size; run++) {
         const RpSkinRLE* rle =
             &skin->splitData.rle[count->start + run];
-        RwUInt32 i;
+        unsigned int i;
         for (i = 0; i < rle->count; i++) {
             _rpSkinLoadMatrix(
                 &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
@@ -606,10 +596,10 @@ void* _rpSkinRenderCallback(void* object,
     RpMesh* mesh = (RpMesh*)(instanceData->meshHeader + 1);
     RwDlObjectRenderCallBack materialCallback;
     RpGameCubeVtxFmt* format =
-        *(RpGameCubeVtxFmt**)((RwUInt8*)geometry +
+        *(RpGameCubeVtxFmt**)((unsigned char*)geometry +
                               _rpDlGeomVtxFmtOffset);
-    RwUInt32 meshCount = instanceData->meshHeader->numMeshes;
-    RwUInt32 meshIndex = 0;
+    unsigned int meshCount = instanceData->meshHeader->numMeshes;
+    unsigned int meshIndex = 0;
 
     ((RwGameCubeResEntryHeader*)instanceData->resourceEntry)->token =
         _RwDlTokenCurrent;
@@ -625,7 +615,7 @@ void* _rpSkinRenderCallback(void* object,
         instanceData->geometryFlags, instanceData->lightMask,
         instanceData->hasAmbient, vertexBuffer->reserved_0x00[1] & 1);
     if (skin->maxNumWeights == 1 && skin->splitData.numMeshes == 0) {
-        RwUInt32 i;
+        unsigned int i;
         for (i = 0; i < skin->numUsedBones; i++)
             _rpSkinLoadMatrix(
                 &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
@@ -635,13 +625,13 @@ void* _rpSkinRenderCallback(void* object,
     if ((instanceData->geometryFlags & 0x84) != 0) {
         RpMesh* deferredMesh[64];
         RwGameCubeDisplayList* deferredList[64];
-        RwUInt32 deferredIndex[64];
-        RwUInt32 deferredCount = 0;
+        unsigned int deferredIndex[64];
+        unsigned int deferredCount = 0;
 
         while (meshIndex < meshCount) {
             RpMaterial* material = mesh->material;
             SpecularMaterialData* specular =
-                (SpecularMaterialData*)((RwUInt8*)material +
+                (SpecularMaterialData*)((unsigned char*)material +
                                         SpecularMaterialOffset);
             if (!specular->flags.bits.hidden) {
                 if (specular->flags.bits.reflectionPass) {
@@ -654,7 +644,7 @@ void* _rpSkinRenderCallback(void* object,
                         RpMaterialGetAlphaPassTexture(material);
                     if (texture != 0 && texture->raster != 0) {
                         RwGameCubeRasterExt* extension =
-                            (RwGameCubeRasterExt*)((RwUInt8*)texture->raster +
+                            (RwGameCubeRasterExt*)((unsigned char*)texture->raster +
                                                   _RwGameCubeRasterExtOffset);
                         _rwDlRenderStateSetZCompLoc(
                             (extension->hasAlpha & 1) == 0);
@@ -684,14 +674,14 @@ void* _rpSkinRenderCallback(void* object,
         for (meshIndex = 0; meshIndex < deferredCount; meshIndex++) {
             RpMaterial* material = deferredMesh[meshIndex]->material;
             SpecularMaterialData* specular =
-                (SpecularMaterialData*)((RwUInt8*)material +
+                (SpecularMaterialData*)((unsigned char*)material +
                                         SpecularMaterialOffset);
             if (!specular->flags.bits.hidden) {
                 RwTexture* texture = material->texture;
                 RwTexture* alpha = RpMaterialGetAlphaPassTexture(material);
                 if (texture != 0 && texture->raster != 0) {
                     RwGameCubeRasterExt* extension =
-                        (RwGameCubeRasterExt*)((RwUInt8*)texture->raster +
+                        (RwGameCubeRasterExt*)((unsigned char*)texture->raster +
                                               _RwGameCubeRasterExtOffset);
                     _rwDlRenderStateSetZCompLoc(
                         (extension->hasAlpha & 1) == 0);
@@ -735,25 +725,25 @@ void* _rpSkinRenderCallback(void* object,
     return object;
 }
 
-static RpSkin* _rpSkinCreate(RpSkin* skin, RwUInt32 numVertices)
+static RpSkin* _rpSkinCreate(RpSkin* skin, unsigned int numVertices)
 {
-    RwUInt32 vertex;
+    unsigned int vertex;
 
     skin->nativeData = 0;
     skin->nativeData2 = 0;
     skin->platformWeights = 0;
     skin->platformIndices = 0;
     for (vertex = 0; vertex < numVertices; vertex++) {
-        RwUInt32 position;
+        unsigned int position;
         for (position = 0; position < 3; position++) {
-            RwUInt32 candidate;
+            unsigned int candidate;
             for (candidate = 1; candidate < 4 - position; candidate++) {
-                RwReal* weights = (RwReal*)&skin->vertexBoneWeights[vertex];
+                float* weights = (float*)&skin->vertexBoneWeights[vertex];
                 if (weights[position + candidate] > weights[position]) {
-                    RwReal weight = weights[position];
-                    RwUInt32 indices = skin->vertexBoneIndices[vertex];
-                    RwUInt8* bytes = (RwUInt8*)&indices;
-                    RwUInt8 index = bytes[position];
+                    float weight = weights[position];
+                    unsigned int indices = skin->vertexBoneIndices[vertex];
+                    unsigned char* bytes = (unsigned char*)&indices;
+                    unsigned char index = bytes[position];
                     weights[position] = weights[position + candidate];
                     weights[position + candidate] = weight;
                     bytes[position] = bytes[position + candidate];
@@ -764,19 +754,19 @@ static RpSkin* _rpSkinCreate(RpSkin* skin, RwUInt32 numVertices)
         }
     }
     if (skin->maxNumWeights > 1) {
-        RwUInt8* weights;
-        RwUInt8* indices;
+        unsigned char* weights;
+        unsigned char* indices;
         skin->platformWeights = RwEngineInstance->fpMalloc(
             numVertices * skin->maxNumWeights * 2 + 3, 0x30116);
         if (skin->platformWeights == 0)
             return 0;
         weights = skin->platformWeights;
         for (vertex = 0; vertex < numVertices; vertex++) {
-            RwUInt32 weight;
-            RwUInt32 sum = 0;
+            unsigned int weight;
+            unsigned int sum = 0;
             for (weight = 0; weight < skin->maxNumWeights; weight++) {
-                *weights = (RwUInt8)(128.0f *
-                    ((RwReal*)&skin->vertexBoneWeights[vertex])[weight]);
+                *weights = (unsigned char)(128.0f *
+                    ((float*)&skin->vertexBoneWeights[vertex])[weight]);
                 sum += *weights++;
             }
             for (weight = 0; sum < 128 && weight < skin->maxNumWeights;
@@ -786,12 +776,12 @@ static RpSkin* _rpSkinCreate(RpSkin* skin, RwUInt32 numVertices)
             }
         }
         skin->platformIndices = (void*)
-            (((RwUInt32)weights + 3) & ~3U);
+            (((unsigned int)weights + 3) & ~3U);
         indices = skin->platformIndices;
         for (vertex = 0; vertex < numVertices; vertex++) {
-            RwUInt32 weight;
+            unsigned int weight;
             for (weight = 0; weight < skin->maxNumWeights; weight++)
-                *indices++ = (RwUInt8)(skin->vertexBoneIndices[vertex] >>
+                *indices++ = (unsigned char)(skin->vertexBoneIndices[vertex] >>
                                        (weight * 8));
         }
     }
@@ -800,17 +790,17 @@ static RpSkin* _rpSkinCreate(RpSkin* skin, RwUInt32 numVertices)
 
 RpGeometry* _rpSkinInitialize(RpGeometry* geometry)
 {
-    RpSkin* skin = *(RpSkin**)((RwUInt8*)geometry +
+    RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
 
     if (skin != 0) {
         if ((geometry->flags & 0x01000000) != 0) {
             if ((geometry->flags & 0x10) != 0)
                 geometry->lockedSinceLastInst =
-                    (RwUInt16)(geometry->lockedSinceLastInst | 6);
+                    (unsigned short)(geometry->lockedSinceLastInst | 6);
             else
                 geometry->lockedSinceLastInst =
-                    (RwUInt16)(geometry->lockedSinceLastInst | 2);
+                    (unsigned short)(geometry->lockedSinceLastInst | 2);
             skin->nativeData = 0;
             skin->nativeData2 = 0;
         } else if (_rpSkinCreate(skin, geometry->numVertices) == 0) {
@@ -822,7 +812,7 @@ RpGeometry* _rpSkinInitialize(RpGeometry* geometry)
 
 RpGeometry* _rpSkinDeinitialize(RpGeometry* geometry)
 {
-    RpSkin* skin = *(RpSkin**)((RwUInt8*)geometry +
+    RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
 
     if (skin->platformWeights != 0) {

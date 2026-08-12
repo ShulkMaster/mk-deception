@@ -10,55 +10,55 @@ typedef int RwBool;
 typedef char RwChar;
 typedef float RwReal;
 typedef union RwSplitBits {
-    RwReal nReal;
-    volatile RwInt32 nInt;
-    volatile RwUInt32 nUInt;
+    float nReal;
+    volatile int nInt;
+    volatile unsigned int nUInt;
 } RwSplitBits;
 #define NULL 0
-typedef struct RwModuleInfo { RwInt32 globalsOffset; RwInt32 numInstances; } RwModuleInfo;
-typedef struct RwV3d { RwReal x; RwReal y; RwReal z; } RwV3d;
+typedef struct RwModuleInfo { int globalsOffset; int numInstances; } RwModuleInfo;
+typedef struct RwV3d { float x; float y; float z; } RwV3d;
 typedef struct RwBBox { RwV3d sup; RwV3d inf; } RwBBox;
 typedef struct RwSphere {
     union {
         RwV3d center;
         struct {
-            RwReal x;
-            RwReal y;
-            RwReal z;
+            float x;
+            float y;
+            float z;
         };
     };
-    RwReal radius;
+    float radius;
 } RwSphere;
 typedef struct RwError {
-    RwInt32 pluginID;
-    RwInt32 errorCode;
+    int pluginID;
+    int errorCode;
 } RwError;
 typedef struct RwPluginRegEntry RwPluginRegEntry;
 typedef struct RwStream RwStream;
 typedef struct RwPluginRegistry {
-    RwInt32 sizeOfStruct;
-    RwInt32 origSizeOfStruct;
-    RwInt32 maxSizeOfStruct;
-    RwInt32 staticAlloc;
+    int sizeOfStruct;
+    int origSizeOfStruct;
+    int maxSizeOfStruct;
+    int staticAlloc;
     RwPluginRegEntry* firstRegEntry;
     RwPluginRegEntry* lastRegEntry;
 } RwPluginRegistry;
-typedef void* (*RwPluginObjectConstructor)(void*, RwInt32, RwInt32);
-typedef void* (*RwPluginObjectDestructor)(void*, RwInt32, RwInt32);
-typedef void* (*RwPluginObjectCopy)(void*, const void*, RwInt32, RwInt32);
-typedef RwStream* (*RwPluginDataChunkReadCallBack)(RwStream*, RwInt32, void*, RwInt32,
-                                                   RwInt32);
-typedef RwStream* (*RwPluginDataChunkWriteCallBack)(RwStream*, RwInt32, const void*, RwInt32,
-                                                    RwInt32);
-typedef RwInt32 (*RwPluginDataChunkGetSizeCallBack)(const void*, RwInt32, RwInt32);
-typedef RwBool (*RwPluginDataChunkAlwaysCallBack)(void*, RwInt32, RwInt32);
-typedef RwBool (*RwPluginDataChunkRightsCallBack)(void*, RwInt32, RwInt32,
-                                                  RwUInt32);
+typedef void* (*RwPluginObjectConstructor)(void*, int, int);
+typedef void* (*RwPluginObjectDestructor)(void*, int, int);
+typedef void* (*RwPluginObjectCopy)(void*, const void*, int, int);
+typedef RwStream* (*RwPluginDataChunkReadCallBack)(RwStream*, int, void*, int,
+                                                   int);
+typedef RwStream* (*RwPluginDataChunkWriteCallBack)(RwStream*, int, const void*, int,
+                                                    int);
+typedef int (*RwPluginDataChunkGetSizeCallBack)(const void*, int, int);
+typedef int (*RwPluginDataChunkAlwaysCallBack)(void*, int, int);
+typedef int (*RwPluginDataChunkRightsCallBack)(void*, int, int,
+                                                  unsigned int);
 typedef void* (*RwPluginErrorStrCallBack)(void*);
 struct RwPluginRegEntry {
-    RwInt32 offset;
-    RwInt32 size;
-    RwUInt32 pluginID;
+    int offset;
+    int size;
+    unsigned int pluginID;
     RwPluginDataChunkReadCallBack readCB;
     RwPluginDataChunkWriteCallBack writeCB;
     RwPluginDataChunkGetSizeCallBack getSizeCB;
@@ -72,32 +72,32 @@ struct RwPluginRegEntry {
     RwPluginRegEntry* prevRegEntry;
     RwPluginRegistry* parentRegistry;
 };
-RwInt32 _rwPluginRegistryAddPlugin(RwPluginRegistry*, RwInt32, RwUInt32,
+int _rwPluginRegistryAddPlugin(RwPluginRegistry*, int, unsigned int,
                                    RwPluginObjectConstructor, RwPluginObjectDestructor,
                                    RwPluginObjectCopy);
-RwInt32 _rwPluginRegistryGetPluginOffset(const RwPluginRegistry*, RwUInt32);
+int _rwPluginRegistryGetPluginOffset(const RwPluginRegistry*, unsigned int);
 const RwPluginRegistry* _rwPluginRegistryInitObject(const RwPluginRegistry*,
                                                     void*);
 const RwPluginRegistry* _rwPluginRegistryDeInitObject(const RwPluginRegistry*,
                                                       void*);
-RwInt32 _rwPluginRegistryAddPluginStream(
-    RwPluginRegistry*, RwUInt32, RwPluginDataChunkReadCallBack,
+int _rwPluginRegistryAddPluginStream(
+    RwPluginRegistry*, unsigned int, RwPluginDataChunkReadCallBack,
     RwPluginDataChunkWriteCallBack, RwPluginDataChunkGetSizeCallBack);
-RwInt32 _rwPluginRegistryAddPlgnStrmlwysCB(
-    RwPluginRegistry*, RwUInt32, RwPluginDataChunkAlwaysCallBack);
-RwInt32 _rwPluginRegistryAddPlgnStrmRightsCB(
-    RwPluginRegistry*, RwUInt32, RwPluginDataChunkRightsCallBack);
+int _rwPluginRegistryAddPlgnStrmlwysCB(
+    RwPluginRegistry*, unsigned int, RwPluginDataChunkAlwaysCallBack);
+int _rwPluginRegistryAddPlgnStrmRightsCB(
+    RwPluginRegistry*, unsigned int, RwPluginDataChunkRightsCallBack);
 const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
     const RwPluginRegistry*, RwStream*, void*);
 const RwPluginRegistry* _rwPluginRegistryInvokeRights(
-    const RwPluginRegistry*, RwUInt32, void*, RwUInt32);
-RwInt32 _rwPluginRegistryGetSize(const RwPluginRegistry*, const void*);
+    const RwPluginRegistry*, unsigned int, void*, unsigned int);
+int _rwPluginRegistryGetSize(const RwPluginRegistry*, const void*);
 const RwPluginRegistry* _rwPluginRegistryWriteDataChunks(
     const RwPluginRegistry*, RwStream*, const void*);
 const RwPluginRegistry* _rwPluginRegistrySkipDataChunks(
     const RwPluginRegistry*, RwStream*);
-RwInt32 RwEngineRegisterPlugin(RwInt32, RwUInt32,
+int RwEngineRegisterPlugin(int, unsigned int,
                                RwPluginObjectConstructor,
                                RwPluginObjectDestructor);
-RwBool _rwpathisabsolute(const RwChar*);
+int _rwpathisabsolute(const char*);
 #endif

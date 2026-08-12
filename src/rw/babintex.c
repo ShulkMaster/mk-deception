@@ -8,8 +8,8 @@
 extern RwPluginRegistry textureTKList;
 
 
-RwUInt32 RwTextureStreamGetSize(const RwTexture *texture) {
-    RwInt32 size = 0x10;
+unsigned int RwTextureStreamGetSize(const RwTexture *texture) {
+    int size = 0x10;
 
     size = _rwStringStreamGetSize(texture->name) + size;
     size += 0xC;
@@ -21,8 +21,8 @@ RwUInt32 RwTextureStreamGetSize(const RwTexture *texture) {
 }
 
 const RwTexture *RwTextureStreamWrite(const RwTexture *texture, RwStream *stream) {
-    RwUInt32 filterAddressing;
-    RwUInt8 noAutoMip;
+    unsigned int filterAddressing;
+    unsigned char noAutoMip;
 
     if (_rwStreamWriteVersionedChunkHeader(stream, 6, RwTextureStreamGetSize(texture), 0x36003,
                                            0xFFFF) == 0) {
@@ -36,7 +36,7 @@ const RwTexture *RwTextureStreamWrite(const RwTexture *texture, RwStream *stream
     } else {
         noAutoMip = 0;
     }
-    filterAddressing = (RwUInt16)texture->filter_flags | ((RwUInt32)noAutoMip << 16);
+    filterAddressing = (unsigned short)texture->filter_flags | ((unsigned int)noAutoMip << 16);
     RwMemLittleEndian32(&filterAddressing, sizeof(filterAddressing));
     if (RwStreamWrite(stream, &filterAddressing, sizeof(filterAddressing)) == 0) {
         return 0;
@@ -54,18 +54,18 @@ const RwTexture *RwTextureStreamWrite(const RwTexture *texture, RwStream *stream
 }
 
 RwTexture *RwTextureStreamRead(RwStream *stream) {
-    RwChar name[128];
-    RwChar mask[128];
+    char name[128];
+    char mask[128];
     RwError error;
-    RwUInt32 length;
-    RwUInt32 version;
-    RwUInt32 packed;
-    RwInt32 filterMode;
-    RwInt32 addressingV;
-    RwInt32 addressingU;
-    RwInt32 autoMipMap;
-    RwBool mipMapping;
-    RwBool autoMipMapping;
+    unsigned int length;
+    unsigned int version;
+    unsigned int packed;
+    int filterMode;
+    int addressingV;
+    int addressingU;
+    int autoMipMap;
+    int mipMapping;
+    int autoMipMapping;
     RwTexture *texture;
 
     if (!RwStreamFindChunk(stream, 1, &length, &version)) {
@@ -77,12 +77,12 @@ RwTexture *RwTextureStreamRead(RwStream *stream) {
             return 0;
         }
         RwMemNative32(&packed, sizeof(packed));
-        filterMode = (RwUInt8)packed;
+        filterMode = (unsigned char)packed;
         addressingU = (packed >> 8) & 0xF;
         addressingV = (packed >> 12) & 0xF;
         if (addressingV == 0) {
             addressingV = addressingU;
-            packed |= ((RwUInt32)addressingV & 0xF) << 12;
+            packed |= ((unsigned int)addressingV & 0xF) << 12;
         }
         autoMipMap = (packed >> 16) & 0xFF;
 
@@ -122,7 +122,7 @@ RwTexture *RwTextureStreamRead(RwStream *stream) {
         RwTextureSetMipmapping(mipMapping);
         RwTextureSetAutoMipmapping(autoMipMapping);
         if (texture->ref_count == 1) {
-            texture->filter_flags = (RwUInt16)packed;
+            texture->filter_flags = (unsigned short)packed;
             if (_rwPluginRegistryReadDataChunks(&textureTKList, stream, texture) == 0) {
                 return 0;
             }

@@ -1375,7 +1375,6 @@ PfxEmitter* pfx_get_emitter(void* pfx_vm, int emitter_index);
 void* pfx_get_field(void* pfx_vm, int emitter_index, int field);
 int pfx_get_struct_size(void* pfx_vm, int field);
 void update_live_particles(void* pfx_vm);
-RwMatrix* RwMatrixInvert(RwMatrix* output, const RwMatrix* input);
 int obj_spawn_bld(
     MkObj* object, BloodVelocityState* previous, int batch_count,
     BloodSpawnStep* step, BloodSpawnTarget* path, int point_index,
@@ -3428,3 +3427,4 @@ static void bloodfx_init(BloodFxUserdata* userdata) {
     userdata->flags_40_bits.bit4 = 1;
     userdata->flags_40_bits.bit3 = 1;
 }
+#include "rw/rtquat.h"

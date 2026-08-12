@@ -12,17 +12,17 @@ struct RwResHeapBlock {
     RwResHeap* heap;
     RwResHeapBlock* next;
     RwResHeapBlock* prev;
-    RwUInt32 size;
-    RwUInt32 flags;
-    RwUInt32 reserved[3];
+    unsigned int size;
+    unsigned int flags;
+    unsigned int reserved[3];
 };
 
-static void splitBlock(RwResHeapBlock* block, RwUInt32 size) {
+static void splitBlock(RwResHeapBlock* block, unsigned int size) {
     RwResHeapBlock* newBlock =
         (RwResHeapBlock*)((unsigned char*)block + 0x20 + size);
 
     if (block->next != 0 &&
-        (RwInt32)(~block->next->flags & 1) != 0) {
+        (int)(~block->next->flags & 1) != 0) {
         newBlock->next = block->next->next;
         newBlock->size = block->next->size + (block->size - size);
     } else {
@@ -39,11 +39,11 @@ static void splitBlock(RwResHeapBlock* block, RwUInt32 size) {
     newBlock->heap = block->heap;
 }
 
-RwBool _rwResHeapInit(RwResHeap* heap, RwUInt32 size) {
+int _rwResHeapInit(RwResHeap* heap, unsigned int size) {
     RwResHeap* owner = heap;
     unsigned long startAddress = ((unsigned long)heap + 0x27) & ~0x1FUL;
     unsigned long endAddress = ((unsigned long)heap + size) & ~0x1FUL;
-    RwInt32 payloadSize = (RwInt32)(endAddress - startAddress - 0x20);
+    int payloadSize = (int)(endAddress - startAddress - 0x20);
     RwResHeapBlock* block;
 
     if (payloadSize < 0x20) {
@@ -60,7 +60,7 @@ RwBool _rwResHeapInit(RwResHeap* heap, RwUInt32 size) {
     return 1;
 }
 
-RwBool _rwResHeapClose(RwResHeap* heap) {
+int _rwResHeapClose(RwResHeap* heap) {
     return 1;
 }
 
@@ -77,8 +77,8 @@ void _rwResHeapFree(void* memory) {
         block < block->heap->firstFreeBlock) {
         block->heap->firstFreeBlock = block;
     }
-    if (previous != 0 && (RwInt32)(~previous->flags & 1) != 0) {
-        RwUInt32 mergedSize;
+    if (previous != 0 && (int)(~previous->flags & 1) != 0) {
+        unsigned int mergedSize;
 
         previous->next = next;
         if (next != 0) {
@@ -88,8 +88,8 @@ void _rwResHeapFree(void* memory) {
         previous->size = mergedSize + 0x20;
         block = previous;
     }
-    if (next != 0 && (RwInt32)(~next->flags & 1) != 0) {
-        RwUInt32 mergedSize;
+    if (next != 0 && (int)(~next->flags & 1) != 0) {
+        unsigned int mergedSize;
 
         block->next = next->next;
         if (next->next != 0) {
@@ -100,7 +100,7 @@ void _rwResHeapFree(void* memory) {
     }
 }
 
-void* _rwResHeapAlloc(RwResHeap* heap, RwUInt32 size) {
+void* _rwResHeapAlloc(RwResHeap* heap, unsigned int size) {
     RwResHeapBlock* cursor;
     RwResHeapBlock* block;
 
@@ -108,7 +108,7 @@ void* _rwResHeapAlloc(RwResHeap* heap, RwUInt32 size) {
     block = 0;
     cursor = heap->firstFreeBlock;
     while (cursor != 0 && block == 0) {
-        if ((RwInt32)(~cursor->flags & 1) != 0 && cursor->size >= size) {
+        if ((int)(~cursor->flags & 1) != 0 && cursor->size >= size) {
             block = cursor;
         }
         cursor = cursor->next;
@@ -123,7 +123,7 @@ void* _rwResHeapAlloc(RwResHeap* heap, RwUInt32 size) {
         do {
             heap->firstFreeBlock = heap->firstFreeBlock->next;
         } while (heap->firstFreeBlock != 0 &&
-                 (RwInt32)(heap->firstFreeBlock->flags & 1) != 0);
+                 (int)(heap->firstFreeBlock->flags & 1) != 0);
     }
     block->flags = 1;
     return (unsigned char*)block + 0x20;

@@ -6,51 +6,35 @@
 #include "rw/rwfreelist.h"
 #include "rw/rwstream.h"
 
-typedef struct RpSkinAtomicData {
-    RpHAnimHierarchy* hierarchy;
-    RwUInt32 reserved_0x04[2];
-} RpSkinAtomicData;
-
 static RwFreeList _rpSkinFreeList;
-static RwInt32 _rpSkinFreeListBlockSize = 0x14;
-static RwInt32 _rpSkinFreeListPreallocBlocks = 1;
+static int _rpSkinFreeListBlockSize = 0x14;
+static int _rpSkinFreeListPreallocBlocks = 1;
 
-extern RwInt32 RwEngineGetPluginOffset(RwUInt32 pluginID);
-extern RwInt32 RpAtomicRegisterPlugin(
-    RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
+extern int RwEngineGetPluginOffset(unsigned int pluginID);
+extern int RpAtomicRegisterPlugin(
+    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
     RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
-extern RwInt32 RpAtomicRegisterPluginStream(
-    RwUInt32 pluginID, RwPluginDataChunkReadCallBack readCB,
+extern int RpAtomicRegisterPluginStream(
+    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
     RwPluginDataChunkWriteCallBack writeCB,
     RwPluginDataChunkGetSizeCallBack getSizeCB);
-extern RwInt32 RpAtomicSetStreamAlwaysCallBack(
-    RwUInt32 pluginID, RwPluginDataChunkAlwaysCallBack callback);
-extern RwInt32 RpAtomicSetStreamRightsCallBack(
-    RwUInt32 pluginID, RwPluginDataChunkRightsCallBack callback);
-extern RwInt32 RpAtomicGetPluginOffset(RwUInt32 pluginID);
-extern RwStream* RwStreamWriteReal(RwStream* stream, const RwReal* values,
-                                   RwUInt32 numBytes);
-extern RwStream* RwStreamReadReal(RwStream* stream, RwReal* values,
-                                  RwUInt32 numBytes);
+extern int RpAtomicSetStreamAlwaysCallBack(
+    unsigned int pluginID, RwPluginDataChunkAlwaysCallBack callback);
+extern int RpAtomicSetStreamRightsCallBack(
+    unsigned int pluginID, RwPluginDataChunkRightsCallBack callback);
+extern int RpAtomicGetPluginOffset(unsigned int pluginID);
+extern RwStream* RwStreamWriteReal(RwStream* stream, const float* values,
+                                   unsigned int numBytes);
+extern RwStream* RwStreamReadReal(RwStream* stream, float* values,
+                                  unsigned int numBytes);
 extern RpGeometry* _rpSkinInitialize(RpGeometry* geometry);
 extern RpGeometry* _rpSkinDeinitialize(RpGeometry* geometry);
-static RpSkinAtomicData* SkinAtomicData(const void* atomic)
-{
-    return (RpSkinAtomicData*)((RwUInt8*)atomic +
-                               _rpSkinGlobals.atomicOffset);
-}
-
-static RpSkin** SkinGeometryData(const void* geometry)
-{
-    return (RpSkin**)((RwUInt8*)geometry + _rpSkinGlobals.geometryOffset);
-}
-
-static RwBool MatfxPluginIsAttached(void)
+static int MatfxPluginIsAttached(void)
 {
     return RwEngineGetPluginOffset(0x120) != -1;
 }
 
-static RwBool ToonPluginIsAttached(void)
+static int ToonPluginIsAttached(void)
 {
     return RwEngineGetPluginOffset(0x12E) != -1;
 }
@@ -83,15 +67,15 @@ static RpAtomic* SkinAtomicSetup(RpAtomic* atomic, RpSkinType type)
 
 static void SkinFindMaxWeights(RpSkin* skin,
                                const RwMatrixWeights* vertexWeights,
-                               RwUInt32 numVertices)
+                               unsigned int numVertices)
 {
-    RwUInt32 vertex;
+    unsigned int vertex;
 
     skin->maxNumWeights = 1;
     for (vertex = 0; vertex < numVertices; vertex++) {
-        RwUInt32 weight;
+        unsigned int weight;
         for (weight = skin->maxNumWeights; weight < 4; weight++) {
-            if (((const RwUInt32*)&vertexWeights[vertex])[weight] != 0) {
+            if (((const unsigned int*)&vertexWeights[vertex])[weight] != 0) {
                 skin->maxNumWeights++;
                 if (skin->maxNumWeights == 4) {
                     return;
@@ -103,24 +87,24 @@ static void SkinFindMaxWeights(RpSkin* skin,
     }
 }
 
-static void SkinFindNumUsedBones(RpSkin* skin, const RwUInt32* vertexIndices,
+static void SkinFindNumUsedBones(RpSkin* skin, const unsigned int* vertexIndices,
                                  const RwMatrixWeights* vertexWeights,
-                                 RwUInt8* usedBoneList,
-                                 RwUInt32* numUsedBones,
-                                 RwUInt32 numVertices)
+                                 unsigned char* usedBoneList,
+                                 unsigned int* numUsedBones,
+                                 unsigned int numVertices)
 {
-    RwUInt32 vertex;
+    unsigned int vertex;
 
     *numUsedBones = 0;
     for (vertex = 0; vertex < numVertices; vertex++) {
-        RwUInt32 weight;
+        unsigned int weight;
         for (weight = 0; weight < skin->maxNumWeights; weight++) {
-            if (((const RwUInt32*)&vertexWeights[vertex])[weight] != 0) {
-                RwUInt32 bone;
-                RwBool unique = 1;
-                RwUInt32 index;
+            if (((const unsigned int*)&vertexWeights[vertex])[weight] != 0) {
+                unsigned int bone;
+                int unique = 1;
+                unsigned int index;
 
-                bone = (RwUInt8)(vertexIndices[vertex] >> (weight * 8));
+                bone = (unsigned char)(vertexIndices[vertex] >> (weight * 8));
                 for (index = 0; index < *numUsedBones; index++) {
                     if (bone == usedBoneList[index]) {
                         unique = 0;
@@ -136,14 +120,14 @@ static void SkinFindNumUsedBones(RpSkin* skin, const RwUInt32* vertexIndices,
     }
 }
 
-static RwBool SkinCreateSkinData(
-    RpSkin* skin, RwUInt32 numBones, RwUInt32 numUsedBones,
-    RwUInt32 numVertices, const RwUInt8* usedBoneList,
-    const RwMatrixWeights* vertexWeights, const RwUInt32* vertexIndices,
+static int SkinCreateSkinData(
+    RpSkin* skin, unsigned int numBones, unsigned int numUsedBones,
+    unsigned int numVertices, const unsigned char* usedBoneList,
+    const RwMatrixWeights* vertexWeights, const unsigned int* vertexIndices,
     const RwMatrix* skinToBoneMatrices)
 {
-    RwUInt32 allocationSize =
-        numVertices * (sizeof(RwUInt32) + sizeof(RwMatrixWeights)) +
+    unsigned int allocationSize =
+        numVertices * (sizeof(unsigned int) + sizeof(RwMatrixWeights)) +
         numBones * sizeof(RwMatrix) + numUsedBones + 15;
 
     skin->skinData = RwEngineInstance->fpMalloc(allocationSize, 0x30116);
@@ -156,25 +140,25 @@ static RwBool SkinCreateSkinData(
     skin->numUsedBones = numUsedBones;
     skin->usedBoneList = skin->skinData;
     skin->skinToBoneMatrices = (RwMatrix*)
-        (((RwUInt32)skin->usedBoneList + numUsedBones + 15) & ~15U);
+        (((unsigned int)skin->usedBoneList + numUsedBones + 15) & ~15U);
     skin->vertexBoneIndices =
-        (RwUInt32*)((RwUInt8*)skin->skinToBoneMatrices +
+        (unsigned int*)((unsigned char*)skin->skinToBoneMatrices +
                    numBones * sizeof(RwMatrix));
     skin->vertexBoneWeights =
         (RwMatrixWeights*)(skin->vertexBoneIndices + numVertices);
 
     if (usedBoneList != 0 && numUsedBones != 0) {
-        RwUInt32 usedBoneDataSize = numUsedBones * sizeof(RwUInt8);
+        unsigned int usedBoneDataSize = numUsedBones * sizeof(unsigned char);
         memcpy(skin->usedBoneList, usedBoneList, usedBoneDataSize);
     }
     if (skinToBoneMatrices != 0) {
-        RwUInt32 bone = numBones;
+        unsigned int bone = numBones;
         while (bone-- != 0) {
-            RwUInt32* destination =
-                (RwUInt32*)&skin->skinToBoneMatrices[bone];
-            const RwUInt32* source =
-                (const RwUInt32*)&skinToBoneMatrices[bone];
-            RwUInt32 pair = sizeof(RwMatrix) / (2 * sizeof(RwUInt32));
+            unsigned int* destination =
+                (unsigned int*)&skin->skinToBoneMatrices[bone];
+            const unsigned int* source =
+                (const unsigned int*)&skinToBoneMatrices[bone];
+            unsigned int pair = sizeof(RwMatrix) / (2 * sizeof(unsigned int));
 
 
 
@@ -185,25 +169,25 @@ static RwBool SkinCreateSkinData(
         }
     }
     if (vertexIndices != 0) {
-        RwUInt32 vertexIndicesSize = numVertices * sizeof(RwUInt32);
+        unsigned int vertexIndicesSize = numVertices * sizeof(unsigned int);
         memcpy(skin->vertexBoneIndices, vertexIndices,
                vertexIndicesSize);
     }
     if (vertexWeights != 0) {
-        RwUInt32 vertexWeightsSize = numVertices * sizeof(RwMatrixWeights);
+        unsigned int vertexWeightsSize = numVertices * sizeof(RwMatrixWeights);
         memcpy(skin->vertexBoneWeights, vertexWeights,
                vertexWeightsSize);
     }
     return 1;
 }
 
-static RpSkin* SkinCreate(RwUInt32 numVertices, RwUInt32 numBones,
-                          RwUInt32 numUsedBones, RwUInt32 maxNumWeights,
+static RpSkin* SkinCreate(unsigned int numVertices, unsigned int numBones,
+                          unsigned int numUsedBones, unsigned int maxNumWeights,
                           const RwMatrixWeights* vertexWeights,
-                          const RwUInt32* vertexIndices,
+                          const unsigned int* vertexIndices,
                           const RwMatrix* skinToBoneMatrices)
 {
-    RwUInt8 usedBoneList[256];
+    unsigned char usedBoneList[256];
     RpSkin* skin = RwEngineInstance->fpFreeListAlloc(
         (RwFreeList*)_rpSkinGlobals.skinFreeList, 0x30116);
 
@@ -225,11 +209,11 @@ static RpSkin* SkinCreate(RwUInt32 numVertices, RwUInt32 numBones,
     return skin;
 }
 
-static void* SkinOpen(void* instance, RwInt32 offset, RwInt32 size)
+static void* SkinOpen(void* instance, int offset, int size)
 {
     if (_rpSkinGlobals.numInstances == 0) {
-        RwUInt32 pipelineTypes = rpSKINTYPEGENERIC;
-        RwUInt32 scratchSize;
+        unsigned int pipelineTypes = rpSKINTYPEGENERIC;
+        unsigned int scratchSize;
 
         if (MatfxPluginIsAttached()) {
             pipelineTypes |= rpSKINTYPEMATFX;
@@ -247,13 +231,13 @@ static void* SkinOpen(void* instance, RwInt32 offset, RwInt32 size)
             RwEngineInstance->fpMalloc(scratchSize, 0x40116);
         memset(_rpSkinGlobals.scratchMemory, 0, scratchSize);
         _rpSkinGlobals.alignedScratchMemory = (void*)
-            (((RwUInt32)_rpSkinGlobals.scratchMemory + 15) & ~15U);
+            (((unsigned int)_rpSkinGlobals.scratchMemory + 15) & ~15U);
     }
     _rpSkinGlobals.numInstances++;
     return instance;
 }
 
-static void* SkinClose(void* instance, RwInt32 offset, RwInt32 size)
+static void* SkinClose(void* instance, int offset, int size)
 {
     _rpSkinGlobals.numInstances--;
     if (_rpSkinGlobals.numInstances == 0) {
@@ -267,44 +251,49 @@ static void* SkinClose(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-static void* SkinGeometryConstructor(void* object, RwInt32 offset,
-                                     RwInt32 size)
+static void* SkinGeometryConstructor(void* object, int offset,
+                                     int size)
 {
-    *SkinGeometryData(object) = 0;
+    *(RpSkin**)((unsigned char*)object + _rpSkinGlobals.geometryOffset) = 0;
     return object;
 }
 
-static void* SkinGeometryDestructor(void* object, RwInt32 offset,
-                                    RwInt32 size)
+static void* SkinGeometryDestructor(void* object, int offset,
+                                    int size)
 {
 
     RpGeometry* geometry = object;
-    RpSkin* skin = *SkinGeometryData(geometry);
+    RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
+                               _rpSkinGlobals.geometryOffset);
 
     if (skin != 0) {
         _rpSkinDeinitialize(geometry);
-        *SkinGeometryData(geometry) = RpSkinDestroy(skin);
+        *(RpSkin**)((unsigned char*)geometry + _rpSkinGlobals.geometryOffset) =
+            RpSkinDestroy(skin);
     }
     return object;
 }
 
 static void* SkinGeometryCopy(void* destination, const void* source,
-                              RwInt32 offset, RwInt32 size)
+                              int offset, int size)
 {
     return destination;
 }
 
-static void* SkinAtomicConstructor(void* object, RwInt32 offset, RwInt32 size)
+static void* SkinAtomicConstructor(void* object, int offset, int size)
 {
+    SkinAtomicState* data =
+        (SkinAtomicState*)((unsigned char*)object + _rpSkinGlobals.atomicOffset);
 
-    memset(SkinAtomicData(object), 0, sizeof(RpSkinAtomicData));
+    memset(data, 0, sizeof(SkinAtomicState));
     return object;
 }
 
-static void* SkinAtomicDestructor(void* object, RwInt32 offset, RwInt32 size)
+static void* SkinAtomicDestructor(void* object, int offset, int size)
 {
     RpAtomic* atomic = object;
-    RpSkinAtomicData* data = SkinAtomicData(atomic);
+    SkinAtomicState* data =
+        (SkinAtomicState*)((unsigned char*)atomic + _rpSkinGlobals.atomicOffset);
     if (data->hierarchy != 0) {
         data->hierarchy = 0;
     }
@@ -312,31 +301,35 @@ static void* SkinAtomicDestructor(void* object, RwInt32 offset, RwInt32 size)
 }
 
 static void* SkinAtomicCopy(void* destination, const void* source,
-                            RwInt32 offset, RwInt32 size)
+                            int offset, int size)
 {
-    const RpSkinAtomicData* sourceData = SkinAtomicData(source);
-    RpSkinAtomicData* destinationData = SkinAtomicData(destination);
+    const SkinAtomicState* sourceData =
+        (const SkinAtomicState*)((const unsigned char*)source +
+                                  _rpSkinGlobals.atomicOffset);
+    SkinAtomicState* destinationData =
+        (SkinAtomicState*)((unsigned char*)destination +
+                            _rpSkinGlobals.atomicOffset);
 
     destinationData->hierarchy = sourceData->hierarchy;
     return destination;
 }
 
-static RwBool SkinAtomicAlways(void* object, RwInt32 offset, RwInt32 size)
+static int SkinAtomicAlways(void* object, int offset, int size)
 {
     RpAtomic* atomic;
     RpSkinType type = rpSKINTYPEGENERIC;
     atomic = object;
 
     if (MatfxPluginIsAttached() &&
-        *(RwUInt8*)((RwUInt8*)atomic + RpAtomicGetPluginOffset(0x120)) != 0) {
+        *(unsigned char*)((unsigned char*)atomic + RpAtomicGetPluginOffset(0x120)) != 0) {
         type = rpSKINTYPEMATFX;
     }
     SkinAtomicSetup(atomic, type);
     return 1;
 }
 
-static RwBool SkinAtomicRights(void* object, RwInt32 offset, RwInt32 size,
-                               RwUInt32 extraData)
+static int SkinAtomicRights(void* object, int offset, int size,
+                               unsigned int extraData)
 {
     RpAtomic* atomic = object;
     RpSkinType type = (RpSkinType)extraData;
@@ -345,20 +338,21 @@ static RwBool SkinAtomicRights(void* object, RwInt32 offset, RwInt32 size,
     return 1;
 }
 
-static RwInt32 SkinGeometrySize(const void* object, RwInt32 offset,
-                                RwInt32 size)
+static int SkinGeometrySize(const void* object, int offset,
+                                int size)
 {
 
-    RwInt32 result = 0;
+    int result = 0;
     const RpGeometry* geometry = object;
-    RpSkin* skin = *SkinGeometryData(geometry);
+    RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
+                               _rpSkinGlobals.geometryOffset);
 
     if (skin != 0) {
         if (!(geometry->flags & 0x01000000)) {
-            RwInt32 numVertices = geometry->numVertices;
+            int numVertices = geometry->numVertices;
             result = 4;
             result += skin->numUsedBones;
-            result += numVertices * sizeof(RwUInt32);
+            result += numVertices * sizeof(unsigned int);
             result += numVertices * sizeof(RwMatrixWeights);
             result += skin->numBones * sizeof(RwMatrix);
             result += _rpSkinSplitDataStreamGetSize(skin);
@@ -369,18 +363,19 @@ static RwInt32 SkinGeometrySize(const void* object, RwInt32 offset,
     return result;
 }
 
-static RwStream* SkinGeometryWrite(RwStream* stream, RwInt32 binaryLength,
-                                   const void* object, RwInt32 offset,
-                                   RwInt32 size)
+static RwStream* SkinGeometryWrite(RwStream* stream, int binaryLength,
+                                   const void* object, int offset,
+                                   int size)
 {
     RwStream* result;
     const RpGeometry* geometry = object;
-    const RpSkin* skin = *SkinGeometryData(geometry);
+    const RpSkin* skin = *(RpSkin* const*)((const unsigned char*)geometry +
+                                           _rpSkinGlobals.geometryOffset);
 
     if (skin != 0) {
         if (!(geometry->flags & 0x01000000)) {
-            RwInt32 numVertices = geometry->numVertices;
-            RwInt32 header = (RwUInt8)skin->numBones |
+            int numVertices = geometry->numVertices;
+            int header = (unsigned char)skin->numBones |
                              (((skin->maxNumWeights << 16) & 0xFF0000) |
                               ((skin->numUsedBones << 8) & 0xFF00));
 
@@ -390,15 +385,15 @@ static RwStream* SkinGeometryWrite(RwStream* stream, RwInt32 binaryLength,
                                    skin->numUsedBones);
             if (result == 0) return 0;
             result = RwStreamWriteInt32(
-                stream, (const RwInt32*)skin->vertexBoneIndices,
+                stream, (const int*)skin->vertexBoneIndices,
                 numVertices * 4);
             if (result == 0) return 0;
             result = RwStreamWriteReal(
-                stream, (const RwReal*)skin->vertexBoneWeights,
+                stream, (const float*)skin->vertexBoneWeights,
                 numVertices * 0x10);
             if (result == 0) return 0;
             result = RwStreamWriteReal(
-                stream, (const RwReal*)skin->skinToBoneMatrices,
+                stream, (const float*)skin->skinToBoneMatrices,
                 skin->numBones * 0x40);
             if (result == 0) return 0;
             result = _rpSkinSplitDataStreamWrite(stream, skin);
@@ -412,22 +407,22 @@ static RwStream* SkinGeometryWrite(RwStream* stream, RwInt32 binaryLength,
     return stream;
 }
 
-static RwStream* SkinGeometryRead(RwStream* stream, RwInt32 binaryLength,
-                                  void* object, RwInt32 offset, RwInt32 size)
+static RwStream* SkinGeometryRead(RwStream* stream, int binaryLength,
+                                  void* object, int offset, int size)
 {
     RwStream* result;
     RpGeometry* geometry = object;
     RpSkin* skin;
 
     if (!(geometry->flags & 0x01000000)) {
-        RwUInt32 packed;
-        RwUInt32 numBones;
-        RwUInt32 numUsedBones;
-        RwUInt32 maxWeights;
-        RwInt32 numVertices;
-        RwUInt32 bytesToRead;
+        unsigned int packed;
+        unsigned int numBones;
+        unsigned int numUsedBones;
+        unsigned int maxWeights;
+        int numVertices;
+        unsigned int bytesToRead;
 
-        result = RwStreamReadInt32(stream, (RwInt32*)&packed, 4);
+        result = RwStreamReadInt32(stream, (int*)&packed, 4);
         if (result == 0) return 0;
         numBones = packed & 0xFF;
         numUsedBones = (packed >> 8) & 0xFF;
@@ -448,19 +443,19 @@ static RwStream* SkinGeometryRead(RwStream* stream, RwInt32 binaryLength,
             }
         }
         result = RwStreamReadInt32(stream,
-                                   (RwInt32*)skin->vertexBoneIndices,
+                                   (int*)skin->vertexBoneIndices,
                                    numVertices * 4);
         if (result == 0) return 0;
-        result = RwStreamReadReal(stream, (RwReal*)skin->vertexBoneWeights,
+        result = RwStreamReadReal(stream, (float*)skin->vertexBoneWeights,
                                   numVertices * 0x10);
         if (result == 0) return 0;
         if (maxWeights == 0) {
-            RwUInt32 bone;
+            unsigned int bone;
             for (bone = 0; bone < skin->numBones; bone++) {
                 result = RwStreamSkip(stream, 4);
                 if (result == 0) return 0;
                 result = RwStreamReadReal(
-                    stream, (RwReal*)&skin->skinToBoneMatrices[bone], 0x40);
+                    stream, (float*)&skin->skinToBoneMatrices[bone], 0x40);
                 if (result == 0) return 0;
             }
             SkinFindMaxWeights(skin, skin->vertexBoneWeights, numVertices);
@@ -470,7 +465,7 @@ static RwStream* SkinGeometryRead(RwStream* stream, RwInt32 binaryLength,
         } else {
             skin->maxNumWeights = maxWeights;
             result = RwStreamReadReal(stream,
-                                      (RwReal*)skin->skinToBoneMatrices,
+                                      (float*)skin->skinToBoneMatrices,
                                       skin->numBones * 0x40);
             if (result == 0) return 0;
             result = _rpSkinSplitDataStreamRead(stream, skin);
@@ -484,8 +479,8 @@ static RwStream* SkinGeometryRead(RwStream* stream, RwInt32 binaryLength,
     return stream;
 }
 
-static RwStream* SkinAtomicRead(RwStream* stream, RwInt32 binaryLength,
-                                void* object, RwInt32 offset, RwInt32 size)
+static RwStream* SkinAtomicRead(RwStream* stream, int binaryLength,
+                                void* object, int offset, int size)
 {
 
     RwStream* result;
@@ -494,9 +489,9 @@ static RwStream* SkinAtomicRead(RwStream* stream, RwInt32 binaryLength,
     RpSkin* skin = RpSkinGeometryGetSkin(geometry);
 
     if (skin == 0) {
-        RwInt32 numBones;
-        RwInt32 numVertices;
-        RwUInt32 bone;
+        int numBones;
+        int numVertices;
+        unsigned int bone;
 
         result = RwStreamReadInt32(stream, &numBones, 4);
         if (result == 0) return 0;
@@ -506,17 +501,17 @@ static RwStream* SkinAtomicRead(RwStream* stream, RwInt32 binaryLength,
         result = RwStreamSkip(stream, 4);
         if (result == 0) return 0;
         result = RwStreamReadInt32(stream,
-                                   (RwInt32*)skin->vertexBoneIndices,
+                                   (int*)skin->vertexBoneIndices,
                                    numVertices * 4);
         if (result == 0) return 0;
-        result = RwStreamReadReal(stream, (RwReal*)skin->vertexBoneWeights,
+        result = RwStreamReadReal(stream, (float*)skin->vertexBoneWeights,
                                   numVertices * 0x10);
         if (result == 0) return 0;
         for (bone = 0; bone < skin->numBones; bone++) {
             result = RwStreamSkip(stream, 0xC);
             if (result == 0) return 0;
             result = RwStreamReadReal(
-                stream, (RwReal*)&skin->skinToBoneMatrices[bone], 0x40);
+                stream, (float*)&skin->skinToBoneMatrices[bone], 0x40);
             if (result == 0) return 0;
         }
         SkinFindMaxWeights(skin, skin->vertexBoneWeights, numVertices);
@@ -531,28 +526,28 @@ static RwStream* SkinAtomicRead(RwStream* stream, RwInt32 binaryLength,
     return stream;
 }
 
-static RwStream* SkinAtomicWrite(RwStream* stream, RwInt32 binaryLength,
-                                 const void* object, RwInt32 offset,
-                                 RwInt32 size)
+static RwStream* SkinAtomicWrite(RwStream* stream, int binaryLength,
+                                 const void* object, int offset,
+                                 int size)
 {
     return stream;
 }
 
-static RwInt32 SkinAtomicGetSize(const void* object, RwInt32 offset,
-                                 RwInt32 size)
+static int SkinAtomicGetSize(const void* object, int offset,
+                                 int size)
 {
-    RwInt32 result = 0;
+    int result = 0;
     result += _rpSkinAtomicNativeSize(object);
     return result;
 }
 
-RwBool RpSkinPluginAttach(void)
+int RpSkinPluginAttach(void)
 {
 
     _rpSkinGlobals.engineOffset =
         RwEngineRegisterPlugin(0, 0x116, SkinOpen, SkinClose);
     _rpSkinGlobals.atomicOffset = RpAtomicRegisterPlugin(
-        sizeof(RpSkinAtomicData), 0x116, SkinAtomicConstructor,
+        sizeof(SkinAtomicState), 0x116, SkinAtomicConstructor,
         SkinAtomicDestructor, SkinAtomicCopy);
     RpAtomicRegisterPluginStream(
         0x116, SkinAtomicRead, SkinAtomicWrite, SkinAtomicGetSize);
@@ -569,26 +564,29 @@ RwBool RpSkinPluginAttach(void)
 RpAtomic* RpSkinAtomicSetHAnimHierarchy(RpAtomic* atomic,
                                         RpHAnimHierarchy* hierarchy)
 {
-    RpSkinAtomicData* data = SkinAtomicData(atomic);
+    SkinAtomicState* data = (SkinAtomicState*)((unsigned char*)atomic +
+                                                 _rpSkinGlobals.atomicOffset);
     data->hierarchy = hierarchy;
     return atomic;
 }
 
 RpSkin* RpSkinGeometryGetSkin(RpGeometry* geometry)
 {
-    RpSkin* skin = *SkinGeometryData(geometry);
+    RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
+                               _rpSkinGlobals.geometryOffset);
     return skin;
 }
 
 RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin)
 {
-    RpSkin* oldSkin = *SkinGeometryData(geometry);
+    RpSkin* oldSkin = *(RpSkin**)((unsigned char*)geometry +
+                                  _rpSkinGlobals.geometryOffset);
 
     if (skin != oldSkin) {
         if (oldSkin != 0) {
             _rpSkinDeinitialize(geometry);
         }
-        *SkinGeometryData(geometry) = skin;
+        *(RpSkin**)((unsigned char*)geometry + _rpSkinGlobals.geometryOffset) = skin;
         if (skin != 0 && !_rpSkinInitialize(geometry)) {
             return 0;
         }

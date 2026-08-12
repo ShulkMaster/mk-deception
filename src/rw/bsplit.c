@@ -3,12 +3,12 @@
 #include "rw/rwstream.h"
 #include "runtime/cstring.h"
 
-RpSkin* _rpSkinSplitDataCreate(RpSkin* skin, RwUInt32 boneLimit,
-                               RwUInt32 numBones, RwUInt32 numMeshes,
-                               RwUInt32 rleSize)
+RpSkin* _rpSkinSplitDataCreate(RpSkin* skin, unsigned int boneLimit,
+                               unsigned int numBones, unsigned int numMeshes,
+                               unsigned int rleSize)
 {
     RpSkinSplitData* splitData = &skin->splitData;
-    RwUInt32 size;
+    unsigned int size;
 
     _rpSkinSplitDataDestroy(skin);
     size = numBones + 2 * numMeshes + 2 * rleSize;
@@ -27,7 +27,7 @@ RpSkin* _rpSkinSplitDataCreate(RpSkin* skin, RwUInt32 boneLimit,
     return skin;
 }
 
-RwBool _rpSkinSplitDataDestroy(RpSkin* skin)
+int _rpSkinSplitDataDestroy(RpSkin* skin)
 {
     RpSkinSplitData* splitData = &skin->splitData;
 
@@ -48,20 +48,20 @@ RwStream* _rpSkinSplitDataStreamWrite(RwStream* stream, const RpSkin* skin)
 {
     const RpSkinSplitData* splitData = &skin->splitData;
 
-    if (RwStreamWriteInt32(stream, (const RwInt32*)&splitData->boneLimit,
+    if (RwStreamWriteInt32(stream, (const int*)&splitData->boneLimit,
                            sizeof(splitData->boneLimit)) == 0) {
         return 0;
     }
-    if (RwStreamWriteInt32(stream, (const RwInt32*)&splitData->numMeshes,
+    if (RwStreamWriteInt32(stream, (const int*)&splitData->numMeshes,
                            sizeof(splitData->numMeshes)) == 0) {
         return 0;
     }
-    if (RwStreamWriteInt32(stream, (const RwInt32*)&splitData->rleSize,
+    if (RwStreamWriteInt32(stream, (const int*)&splitData->rleSize,
                            sizeof(splitData->rleSize)) == 0) {
         return 0;
     }
     if (splitData->numMeshes != 0) {
-        RwUInt32 size = skin->numBones +
+        unsigned int size = skin->numBones +
                         2 * splitData->numMeshes + 2 * splitData->rleSize;
         if (RwStreamWrite(stream, splitData->remapIndices, size) == 0) {
             return 0;
@@ -73,9 +73,9 @@ RwStream* _rpSkinSplitDataStreamWrite(RwStream* stream, const RpSkin* skin)
 RwStream* _rpSkinSplitDataStreamRead(RwStream* stream, RpSkin* skin)
 {
     RpSkinSplitData* splitData = &skin->splitData;
-    RwInt32 numMeshes;
-    RwInt32 rleSize;
-    RwInt32 boneLimit;
+    int numMeshes;
+    int rleSize;
+    int boneLimit;
 
     if (RwStreamReadInt32(stream, &boneLimit, sizeof(boneLimit)) == 0) {
         return 0;
@@ -87,7 +87,7 @@ RwStream* _rpSkinSplitDataStreamRead(RwStream* stream, RpSkin* skin)
         return 0;
     }
     if (numMeshes > 0) {
-        RwUInt32 size;
+        unsigned int size;
 
         if (_rpSkinSplitDataCreate(skin, boneLimit, skin->numBones,
                                    numMeshes, rleSize) == 0) {
@@ -104,9 +104,9 @@ RwStream* _rpSkinSplitDataStreamRead(RwStream* stream, RpSkin* skin)
     return stream;
 }
 
-RwUInt32 _rpSkinSplitDataStreamGetSize(const RpSkin* skin)
+unsigned int _rpSkinSplitDataStreamGetSize(const RpSkin* skin)
 {
-    RwUInt32 size = 3 * sizeof(RwUInt32);
+    unsigned int size = 3 * sizeof(unsigned int);
 
     if (skin->splitData.numMeshes != 0) {
         size += skin->numBones + 2 * skin->splitData.numMeshes +

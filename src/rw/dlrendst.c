@@ -1,58 +1,13 @@
 #include "dolphin/gx.h"
 #include "libmkparticle/rw_engine.h"
+#include "rw/dltextur.h"
 #include "rw/gamecube.h"
 #include "rw/gamecube_texture.h"
+#include "rw/rwcamera_internal.h"
 #include "rw/rwcore_types.h"
 
-typedef struct RwDlPair {
-    RwReal x;
-    RwReal y;
-} RwDlPair;
-
-struct RwCamera {
-    RwObjectHasFrame object;
-    RwInt32 projectionType;
-    void* beginUpdate;
-    void* endUpdate;
-    RwMatrix viewMatrix;
-    RwRaster* frameBuffer;
-    RwRaster* zBuffer;
-    RwDlPair viewWindow;
-    RwDlPair recipViewWindow;
-    RwDlPair viewOffset;
-    RwReal nearPlane;
-    RwReal farPlane;
-    RwReal fogPlane;
-};
-
-typedef struct RwDlStateCache {
-    RwBool zWriteEnable;
-    RwBool zTestEnable;
-    RwInt32 zCompare;
-    RwInt32 cullMode;
-    RwBool fogEnable;
-    RwInt32 fogType;
-    RwUInt32 fogColor;
-    GXColor gxFogColor;
-    RwInt32 fogDensity;
-    RwReal fogStart;
-    RwReal fogEnd;
-    RwReal fogNear;
-    RwReal fogFar;
-    RwInt32 srcBlend;
-    RwInt32 dstBlend;
-    RwBool zCompLoc;
-    RwInt32 alphaCompare0;
-    RwInt32 alphaCompare1;
-    RwInt32 alphaOperation;
-    RwUInt8 alphaRef0;
-    RwUInt8 alphaRef1;
-    RwUInt8 alphaMode;
-    RwUInt8 reserved_4F;
-} RwDlStateCache;
-
-static RwInt32 _RwDlFogConvTable[4] = {0, 2, 4, 5};
-static RwInt32 _RwDlBlendConvTable[12] = {
+static int _RwDlFogConvTable[4] = {0, 2, 4, 5};
+static int _RwDlBlendConvTable[12] = {
     0, 0, 1, 2, 3, 4, 5, 6, 7, 2, 3, 0
 };
 RwDlStateCache _RwDlStateCache;
@@ -60,29 +15,24 @@ RwDlStateCache _RwDlStateCache;
 RwTexture* _RwDlTexture;
 RwRaster* _RwDlRasterWhite;
 
-extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
-extern void GXSetCurrentMtx(RwUInt32 matrix);
+extern void* memset(void* destination, int value, unsigned int size);
+extern void GXSetCurrentMtx(unsigned int matrix);
 extern void _rwDlTextureCacheInit(void);
-extern void _rwDlTextureSetRaster(RwTexture* texture, RwRaster* raster,
-                                  RwBool releaseRaster);
-
-RwBool _rwDlRenderStateFogEnable(RwUInt32 enable);
-static RwBool _rwDlRenderStateFogColor(RwUInt32 color);
-static RwBool _rwDlRenderStateFogType(RwInt32 type);
-static RwBool _rwDlRenderStateFogDensity(RwReal density);
-static RwBool _rwDlRenderStateTextureAddress(RwInt32 address);
-static RwBool _rwDlRenderStateTextureAddressU(RwInt32 address);
-static RwBool _rwDlRenderStateTextureAddressV(RwInt32 address);
-static RwBool _rwDlRenderStateTextureFilter(RwUInt32 filter);
-static RwBool _rwDlRenderStateTextureRaster(RwRaster* raster);
-void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture);
-static RwBool _rwDlRenderStateZWriteEnable(RwUInt32 enable);
-static RwBool _rwDlRenderStateZTestEnable(RwUInt32 enable);
-static RwBool _rwDlRenderStateSrcBlend(RwInt32 blend);
-static RwBool _rwDlRenderStateDstBlend(RwInt32 blend);
-static RwBool _rwDlRenderStateCullMode(RwInt32 cullMode);
-static RwBool rwDlRenderStateAlphaTestFunction(RwInt32 function);
-static RwBool rwDlRenderStateAlphaTestFunctionRef(RwInt32 reference);
+static int _rwDlRenderStateFogColor(unsigned int color);
+static int _rwDlRenderStateFogType(int type);
+static int _rwDlRenderStateFogDensity(float density);
+static int _rwDlRenderStateTextureAddress(int address);
+static int _rwDlRenderStateTextureAddressU(int address);
+static int _rwDlRenderStateTextureAddressV(int address);
+static int _rwDlRenderStateTextureFilter(unsigned int filter);
+static int _rwDlRenderStateTextureRaster(RwRaster* raster);
+static int _rwDlRenderStateZWriteEnable(unsigned int enable);
+static int _rwDlRenderStateZTestEnable(unsigned int enable);
+static int _rwDlRenderStateSrcBlend(int blend);
+static int _rwDlRenderStateDstBlend(int blend);
+static int _rwDlRenderStateCullMode(int cullMode);
+static int rwDlRenderStateAlphaTestFunction(int function);
+static int rwDlRenderStateAlphaTestFunctionRef(int reference);
 
 void _rwDlRenderStateOpen(void)
 {
@@ -161,7 +111,7 @@ void _rwDlRenderStateClose(void)
     _RwDlTexture = 0;
 }
 
-RwBool _rwDlGetRenderState(RwInt32 state, void* value)
+int _rwDlGetRenderState(int state, void* value)
 {
 
 
@@ -175,68 +125,68 @@ RwBool _rwDlGetRenderState(RwInt32 state, void* value)
     case 2:
         if (((_RwDlTexture->filter_flags >> 8) & 0xF) ==
             ((_RwDlTexture->filter_flags >> 12) & 0xF)) {
-            *(RwInt32*)value = (_RwDlTexture->filter_flags >> 8) & 0xF;
+            *(int*)value = (_RwDlTexture->filter_flags >> 8) & 0xF;
             return 1;
         }
         return 0;
     case 3:
-        *(RwInt32*)value = (_RwDlTexture->filter_flags >> 8) & 0xF;
+        *(int*)value = (_RwDlTexture->filter_flags >> 8) & 0xF;
         return 1;
     case 4:
-        *(RwInt32*)value = (_RwDlTexture->filter_flags >> 12) & 0xF;
+        *(int*)value = (_RwDlTexture->filter_flags >> 12) & 0xF;
         return 1;
     case 5:
-        *(RwInt32*)value = 1;
+        *(int*)value = 1;
         return 1;
     case 6:
-        *(RwInt32*)value = _RwDlStateCache.zTestEnable;
+        *(int*)value = _RwDlStateCache.zTestEnable;
         return 1;
     case 7:
-        *(RwInt32*)value = 2;
+        *(int*)value = 2;
         return 1;
     case 8:
-        *(RwInt32*)value = _RwDlStateCache.zWriteEnable;
+        *(int*)value = _RwDlStateCache.zWriteEnable;
         return 1;
     case 9:
-        *(RwInt32*)value = (RwUInt8)_RwDlTexture->filter_flags;
+        *(int*)value = (unsigned char)_RwDlTexture->filter_flags;
         return 1;
     case 10:
-        *(RwInt32*)value = _RwDlStateCache.srcBlend;
+        *(int*)value = _RwDlStateCache.srcBlend;
         return 1;
     case 11:
-        *(RwInt32*)value = _RwDlStateCache.dstBlend;
+        *(int*)value = _RwDlStateCache.dstBlend;
         return 1;
     case 14:
-        *(RwInt32*)value = _RwDlStateCache.fogEnable;
+        *(int*)value = _RwDlStateCache.fogEnable;
         return 1;
     case 15:
-        *(RwUInt32*)value = _RwDlStateCache.fogColor;
+        *(unsigned int*)value = _RwDlStateCache.fogColor;
         return 1;
     case 16:
-        *(RwInt32*)value = _RwDlStateCache.fogType;
+        *(int*)value = _RwDlStateCache.fogType;
         return 1;
     case 17:
         return 0;
     case 20:
-        *(RwInt32*)value = _RwDlStateCache.cullMode;
+        *(int*)value = _RwDlStateCache.cullMode;
         return 1;
     case 29:
         if (_RwDlStateCache.alphaOperation == 0 &&
             _RwDlStateCache.alphaCompare1 == 7) {
-            *(RwInt32*)value = _RwDlStateCache.alphaCompare0 + 1;
+            *(int*)value = _RwDlStateCache.alphaCompare0 + 1;
         } else {
-            *(RwInt32*)value = 0;
+            *(int*)value = 0;
         }
         return 1;
     case 30:
-        *(RwInt32*)value = _RwDlStateCache.alphaRef0;
+        *(int*)value = _RwDlStateCache.alphaRef0;
         return 1;
     default:
         return 0;
     }
 }
 
-RwBool _rwDlRenderStateFogEnable(RwUInt32 enable)
+int _rwDlRenderStateFogEnable(unsigned int enable)
 {
     if (enable != 0) {
         if (_RwDlStateCache.fogEnable == 0) {
@@ -262,14 +212,14 @@ RwBool _rwDlRenderStateFogEnable(RwUInt32 enable)
     return 1;
 }
 
-static RwBool _rwDlRenderStateFogColor(RwUInt32 color)
+static int _rwDlRenderStateFogColor(unsigned int color)
 {
     if (color != _RwDlStateCache.fogColor) {
         RwCamera* camera = (RwCamera*)RwEngineInstance->curCamera;
-        _RwDlStateCache.gxFogColor.a = (RwUInt8)(color >> 24);
-        _RwDlStateCache.gxFogColor.r = (RwUInt8)(color >> 16);
-        _RwDlStateCache.gxFogColor.g = (RwUInt8)(color >> 8);
-        _RwDlStateCache.gxFogColor.b = (RwUInt8)color;
+        _RwDlStateCache.gxFogColor.a = (unsigned char)(color >> 24);
+        _RwDlStateCache.gxFogColor.r = (unsigned char)(color >> 16);
+        _RwDlStateCache.gxFogColor.g = (unsigned char)(color >> 8);
+        _RwDlStateCache.gxFogColor.b = (unsigned char)color;
         GXSetFog(_RwDlFogConvTable[_RwDlStateCache.fogType],
                  camera->fogPlane, camera->farPlane, camera->nearPlane,
                  camera->farPlane, _RwDlStateCache.gxFogColor);
@@ -278,7 +228,7 @@ static RwBool _rwDlRenderStateFogColor(RwUInt32 color)
     return 1;
 }
 
-static RwBool _rwDlRenderStateFogType(RwInt32 type)
+static int _rwDlRenderStateFogType(int type)
 {
     if (type != _RwDlStateCache.fogType) {
         RwCamera* camera;
@@ -293,12 +243,12 @@ static RwBool _rwDlRenderStateFogType(RwInt32 type)
     return 1;
 }
 
-static RwBool _rwDlRenderStateFogDensity(RwReal density)
+static int _rwDlRenderStateFogDensity(float density)
 {
     return 0;
 }
 
-static RwBool _rwDlRenderStateTextureAddress(RwInt32 address)
+static int _rwDlRenderStateTextureAddress(int address)
 {
 
     if (address == 4)
@@ -309,7 +259,7 @@ static RwBool _rwDlRenderStateTextureAddress(RwInt32 address)
     return 1;
 }
 
-static RwBool _rwDlRenderStateTextureAddressU(RwInt32 address)
+static int _rwDlRenderStateTextureAddressU(int address)
 {
 
     if (address == 4)
@@ -320,7 +270,7 @@ static RwBool _rwDlRenderStateTextureAddressU(RwInt32 address)
     return 1;
 }
 
-static RwBool _rwDlRenderStateTextureAddressV(RwInt32 address)
+static int _rwDlRenderStateTextureAddressV(int address)
 {
 
     if (address == 4)
@@ -331,22 +281,22 @@ static RwBool _rwDlRenderStateTextureAddressV(RwInt32 address)
     return 1;
 }
 
-static RwBool _rwDlRenderStateTextureFilter(RwUInt32 filter)
+static int _rwDlRenderStateTextureFilter(unsigned int filter)
 {
 
     _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFFFF00) | (RwUInt8)filter;
+        (_RwDlTexture->filter_flags & 0xFFFFFF00) | (unsigned char)filter;
     return 1;
 }
 
-static RwBool _rwDlRenderStateTextureRaster(RwRaster* raster)
+static int _rwDlRenderStateTextureRaster(RwRaster* raster)
 {
     if (raster != _RwDlTexture->raster)
         _rwDlTextureSetRaster(_RwDlTexture, raster, 0);
     return 1;
 }
 
-void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture)
+void _rwDlRenderStateSetZCompLoc(int beforeTexture)
 {
     if (_RwDlStateCache.zCompLoc != beforeTexture) {
         if (beforeTexture == 1) {
@@ -359,7 +309,7 @@ void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture)
                 _RwDlStateCache.alphaCompare1,
                 _RwDlStateCache.alphaRef1);
         }
-        GXSetZCompLoc((RwUInt8)beforeTexture);
+        GXSetZCompLoc((unsigned char)beforeTexture);
         _RwDlStateCache.zCompLoc = beforeTexture;
     }
 }
@@ -368,7 +318,7 @@ void _rwDlTextureRasterFlush(void)
 {
     if (_RwDlTexture->raster != 0) {
         RwGameCubeRasterExt* rasterExt;
-        RwBool beforeTexture;
+        int beforeTexture;
         _rwDlTextureSet(_RwDlTexture, 0);
         rasterExt = RwGameCubeRasterExtension(_RwDlTexture->raster);
         beforeTexture = (rasterExt->hasAlpha & 1) == 0;
@@ -376,7 +326,7 @@ void _rwDlTextureRasterFlush(void)
     }
 }
 
-static RwBool _rwDlRenderStateZWriteEnable(RwUInt32 enable)
+static int _rwDlRenderStateZWriteEnable(unsigned int enable)
 {
     if (enable != 0) {
         if (_RwDlStateCache.zWriteEnable == 0) {
@@ -390,29 +340,29 @@ static RwBool _rwDlRenderStateZWriteEnable(RwUInt32 enable)
     return 1;
 }
 
-static RwBool _rwDlRenderStateZTestEnable(RwUInt32 enable)
+static int _rwDlRenderStateZTestEnable(unsigned int enable)
 {
     if (enable != 0) {
         if (_RwDlStateCache.zTestEnable == 0) {
-            GXSetZMode(1, 3, (RwUInt8)_RwDlStateCache.zWriteEnable);
+            GXSetZMode(1, 3, (unsigned char)_RwDlStateCache.zWriteEnable);
             _RwDlStateCache.zCompare = 3;
             _RwDlStateCache.zTestEnable = 1;
         }
     } else if (_RwDlStateCache.zTestEnable != 0) {
-        GXSetZMode(1, 7, (RwUInt8)_RwDlStateCache.zWriteEnable);
+        GXSetZMode(1, 7, (unsigned char)_RwDlStateCache.zWriteEnable);
         _RwDlStateCache.zCompare = 7;
         _RwDlStateCache.zTestEnable = 0;
     }
     return 1;
 }
 
-void _rwDlSetRenderStateSrcDestBlend(RwInt32 source, RwInt32 destination)
+void _rwDlSetRenderStateSrcDestBlend(int source, int destination)
 {
     GXSetBlendMode(1, _RwDlBlendConvTable[source],
                    _RwDlBlendConvTable[destination], 0);
 }
 
-static RwBool _rwDlRenderStateSrcBlend(RwInt32 blend)
+static int _rwDlRenderStateSrcBlend(int blend)
 {
     if (blend != _RwDlStateCache.srcBlend) {
         if (!((blend >= 1 && blend < 3) ||
@@ -426,7 +376,7 @@ static RwBool _rwDlRenderStateSrcBlend(RwInt32 blend)
     return 1;
 }
 
-static RwBool _rwDlRenderStateDstBlend(RwInt32 blend)
+static int _rwDlRenderStateDstBlend(int blend)
 {
     if (blend != _RwDlStateCache.dstBlend) {
         if (blend < 1 || blend >= 9)
@@ -438,7 +388,7 @@ static RwBool _rwDlRenderStateDstBlend(RwInt32 blend)
     return 1;
 }
 
-static RwBool _rwDlRenderStateCullMode(RwInt32 cullMode)
+static int _rwDlRenderStateCullMode(int cullMode)
 {
     if (cullMode != _RwDlStateCache.cullMode) {
         GXSetCullMode(cullMode - 1);
@@ -447,7 +397,7 @@ static RwBool _rwDlRenderStateCullMode(RwInt32 cullMode)
     return 1;
 }
 
-static RwBool rwDlRenderStateAlphaTestFunction(RwInt32 function)
+static int rwDlRenderStateAlphaTestFunction(int function)
 {
     if (_RwDlStateCache.alphaMode != 0) {
         if (_RwDlStateCache.zCompLoc != 1)
@@ -470,87 +420,94 @@ static RwBool rwDlRenderStateAlphaTestFunction(RwInt32 function)
     return 1;
 }
 
-static RwBool rwDlRenderStateAlphaTestFunctionRef(RwInt32 reference)
+static int rwDlRenderStateAlphaTestFunctionRef(int reference)
 {
     if (reference != _RwDlStateCache.alphaRef0) {
         if (_RwDlStateCache.zCompLoc != 1) {
             GXSetAlphaCompare(
-                _RwDlStateCache.alphaCompare0, (RwUInt8)reference,
+                _RwDlStateCache.alphaCompare0, (unsigned char)reference,
                 _RwDlStateCache.alphaOperation,
                 _RwDlStateCache.alphaCompare1,
                 _RwDlStateCache.alphaRef1);
         }
-        _RwDlStateCache.alphaRef0 = (RwUInt8)reference;
+        _RwDlStateCache.alphaRef0 = (unsigned char)reference;
     }
     return 1;
 }
 
-RwBool _rwDlSetRenderState(RwInt32 state, void* value)
+int _rwDlSetRenderState(int state, void* value)
 {
 
 
 
 
 
-    RwBool result = 0;
+    int result = 0;
 
     switch (state) {
     case 1:
         result = _rwDlRenderStateTextureRaster(value);
         break;
     case 2:
-        result = _rwDlRenderStateTextureAddress((RwInt32)value);
+        result = _rwDlRenderStateTextureAddress((int)value);
         break;
     case 3:
-        result = _rwDlRenderStateTextureAddressU((RwInt32)value);
+        result = _rwDlRenderStateTextureAddressU((int)value);
         break;
     case 4:
-        result = _rwDlRenderStateTextureAddressV((RwInt32)value);
+        result = _rwDlRenderStateTextureAddressV((int)value);
         break;
     case 5:
-        result = (RwBool)value;
+        result = (int)value;
         break;
     case 6:
-        result = _rwDlRenderStateZTestEnable((RwUInt32)value);
+        result = _rwDlRenderStateZTestEnable((unsigned int)value);
         break;
     case 7:
-        result = (RwInt32)value == 2;
+    {
+        int supported;
+        if ((int)value == 2)
+            supported = 1;
+        else
+            supported = 0;
+        result = supported;
         break;
+    }
     case 8:
-        result = _rwDlRenderStateZWriteEnable((RwUInt32)value);
+        result = _rwDlRenderStateZWriteEnable((unsigned int)value);
         break;
     case 9:
-        result = _rwDlRenderStateTextureFilter((RwUInt32)value);
+        result = _rwDlRenderStateTextureFilter((unsigned int)value);
         break;
     case 10:
-        result = _rwDlRenderStateSrcBlend((RwInt32)value);
+        result = _rwDlRenderStateSrcBlend((int)value);
         break;
     case 11:
-        result = _rwDlRenderStateDstBlend((RwInt32)value);
+        result = _rwDlRenderStateDstBlend((int)value);
         break;
     case 13:
         result = 0;
         break;
     case 14:
-        result = _rwDlRenderStateFogEnable((RwUInt32)value);
+        result = _rwDlRenderStateFogEnable((unsigned int)value);
         break;
     case 15:
-        result = _rwDlRenderStateFogColor((RwUInt32)value);
+        result = _rwDlRenderStateFogColor((unsigned int)value);
         break;
     case 16:
-        result = _rwDlRenderStateFogType((RwInt32)value);
+        result = _rwDlRenderStateFogType((int)value);
         break;
     case 17:
-        result = _rwDlRenderStateFogDensity(*(RwReal*)value);
+        result = _rwDlRenderStateFogDensity(*(float*)value);
         break;
     case 20:
-        result = _rwDlRenderStateCullMode((RwInt32)value);
+        result = _rwDlRenderStateCullMode((int)value);
         break;
     case 29:
-        result = rwDlRenderStateAlphaTestFunction((RwInt32)value);
+        result = rwDlRenderStateAlphaTestFunction((int)value);
         break;
     case 30:
-        result = rwDlRenderStateAlphaTestFunctionRef((RwInt32)value);
+        result = rwDlRenderStateAlphaTestFunctionRef((int)value);
         break;
     }
     return result;

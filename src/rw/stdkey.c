@@ -1,21 +1,21 @@
 #include "rw/rphanim.h"
 #include "rw/rwstream.h"
 
-static RwReal HAnimAcosNumerator(RwReal z)
+static float HAnimAcosNumerator(float z)
 {
     return z * (z * (z * (z * (z * (0.00003479331f * z + 0.000791535f) -
         0.040055536f) + 0.20121253f) - 0.32556581f) + 0.16666667f);
 }
 
-static RwReal HAnimAcosDenominator(RwReal z)
+static float HAnimAcosDenominator(float z)
 {
     return z * (z * (z * (0.077038154f * z - 0.688284f) + 2.0209458f) -
         2.403395f) + 1.0f;
 }
 
-static RwReal HAnimSinApprox(RwReal x)
+static float HAnimSinApprox(float x)
 {
-    RwReal square = x * x;
+    float square = x * x;
     return x + square * x * (-0.16666667f + square *
         (0.008333334f + square * (-0.0001984127f + square *
         (0.0000027557314f + square * (-2.505076e-8f +
@@ -25,10 +25,10 @@ static RwReal HAnimSinApprox(RwReal x)
 void RpHAnimKeyFrameApply(void *matrix, void *voidFrame) {
     RwMatrix *m = matrix;
     RpHAnimKeyFrame *frame = voidFrame;
-    const RwReal x = frame->q.imag.x;
-    const RwReal y = frame->q.imag.y;
-    const RwReal z = frame->q.imag.z;
-    const RwReal w = frame->q.real;
+    const float x = frame->q.imag.x;
+    const float y = frame->q.imag.y;
+    const float z = frame->q.imag.z;
+    const float w = frame->q.real;
     RwV3d square;
     RwV3d cross;
     RwV3d wimag;
@@ -58,21 +58,21 @@ void RpHAnimKeyFrameApply(void *matrix, void *voidFrame) {
     m->pos = frame->t;
 }
 
-void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, RwReal time,
+void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, float time,
                                 void *customData) {
     RpHAnimKeyFrame *out = vout;
     RpHAnimKeyFrame *a = va;
     RpHAnimKeyFrame *b = vb;
-    RwReal alpha = (time - a->time) / (b->time - a->time);
+    float alpha = (time - a->time) / (b->time - a->time);
     out->t.x = a->t.x + alpha * (b->t.x - a->t.x);
     out->t.y = a->t.y + alpha * (b->t.y - a->t.y);
     out->t.z = a->t.z + alpha * (b->t.z - a->t.z);
     {
-        RwReal cosTheta = a->q.imag.x * b->q.imag.x +
+        float cosTheta = a->q.imag.x * b->q.imag.x +
                           a->q.imag.y * b->q.imag.y +
                           a->q.imag.z * b->q.imag.z +
                           a->q.real * b->q.real;
-        RwReal beta = 1.0f - alpha;
+        float beta = 1.0f - alpha;
 
         if (cosTheta < 0.0f) {
             cosTheta = -cosTheta;
@@ -82,8 +82,8 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, RwReal time,
             b->q.real = -b->q.real;
         }
         if (cosTheta <= 0.999f) {
-            RwReal theta;
-            RwReal z;
+            float theta;
+            float z;
 
             if (cosTheta < 0.5f) {
                 RwSplitBits bits;
@@ -91,7 +91,7 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, RwReal time,
                 if ((bits.nInt & 0x7fffffff) <= 0x23000000) {
                     theta = 1.5707964f;
                 } else {
-                    RwReal ratio;
+                    float ratio;
                     z = cosTheta * cosTheta;
                     ratio = HAnimAcosNumerator(z) /
                             HAnimAcosDenominator(z);
@@ -100,10 +100,10 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, RwReal time,
                 }
             } else {
                 RwSplitBits truncated;
-                RwReal root;
-                RwReal high;
-                RwReal correction;
-                RwReal ratio;
+                float root;
+                float high;
+                float correction;
+                float ratio;
                 z = 0.5f * (1.0f - cosTheta);
                 root = _rwSqrt(z);
                 truncated.nReal = root;
@@ -115,7 +115,7 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, RwReal time,
                 theta = 2.0f * (high + ratio * root + correction);
             }
             {
-                RwReal reciprocal = 1.0f / HAnimSinApprox(theta);
+                float reciprocal = 1.0f / HAnimSinApprox(theta);
                 beta = HAnimSinApprox(beta * theta) * reciprocal;
                 alpha = HAnimSinApprox(alpha * theta) * reciprocal;
             }
@@ -127,7 +127,7 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, RwReal time,
     }
 }
 
-void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
+void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, float alpha) {
     RpHAnimKeyFrame *out = vout;
     RpHAnimKeyFrame *a = va;
     RpHAnimKeyFrame *b = vb;
@@ -135,11 +135,11 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
     out->t.y = a->t.y + alpha * (b->t.y - a->t.y);
     out->t.z = a->t.z + alpha * (b->t.z - a->t.z);
     {
-        RwReal cosTheta = a->q.imag.x * b->q.imag.x +
+        float cosTheta = a->q.imag.x * b->q.imag.x +
                           a->q.imag.y * b->q.imag.y +
                           a->q.imag.z * b->q.imag.z +
                           a->q.real * b->q.real;
-        RwReal beta = 1.0f - alpha;
+        float beta = 1.0f - alpha;
 
         if (cosTheta < 0.0f) {
             cosTheta = -cosTheta;
@@ -149,8 +149,8 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
             b->q.real = -b->q.real;
         }
         if (cosTheta <= 0.999f) {
-            RwReal theta;
-            RwReal z;
+            float theta;
+            float z;
 
             if (cosTheta < 0.5f) {
                 RwSplitBits bits;
@@ -158,7 +158,7 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
                 if ((bits.nInt & 0x7fffffff) <= 0x23000000) {
                     theta = 1.5707964f;
                 } else {
-                    RwReal ratio;
+                    float ratio;
                     z = cosTheta * cosTheta;
                     ratio = HAnimAcosNumerator(z) /
                             HAnimAcosDenominator(z);
@@ -167,10 +167,10 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
                 }
             } else {
                 RwSplitBits truncated;
-                RwReal root;
-                RwReal high;
-                RwReal correction;
-                RwReal ratio;
+                float root;
+                float high;
+                float correction;
+                float ratio;
                 z = 0.5f * (1.0f - cosTheta);
                 root = _rwSqrt(z);
                 truncated.nReal = root;
@@ -182,7 +182,7 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
                 theta = 2.0f * (high + ratio * root + correction);
             }
             {
-                RwReal reciprocal = 1.0f / HAnimSinApprox(theta);
+                float reciprocal = 1.0f / HAnimSinApprox(theta);
                 beta = HAnimSinApprox(beta * theta) * reciprocal;
                 alpha = HAnimSinApprox(alpha * theta) * reciprocal;
             }
@@ -197,36 +197,36 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, RwReal alpha) {
 RtAnimAnimation *RpHAnimKeyFrameStreamRead(RwStream *stream,
                                            RtAnimAnimation *animation) {
     RpHAnimKeyFrame *frames = animation->pFrames;
-    RwUInt32 frameSize = sizeof(RpHAnimKeyFrame);
-    RwInt32 i;
+    unsigned int frameSize = sizeof(RpHAnimKeyFrame);
+    int i;
     for (i = 0; i < animation->numFrames; i++) {
-        RwUInt32 offset;
+        unsigned int offset;
         if (!RwStreamReadReal(stream, &frames[i].time, 0x20))
             return 0;
-        if (!RwStreamReadInt32(stream, (RwInt32 *)&offset, 4))
+        if (!RwStreamReadInt32(stream, (int *)&offset, 4))
             return 0;
         frames[i].prevFrame =
-            (RpHAnimKeyFrame *)((RwUInt8 *)frames +
+            (RpHAnimKeyFrame *)((unsigned char *)frames +
                                 (offset / frameSize) * frameSize);
     }
     return animation;
 }
-RwBool RpHAnimKeyFrameStreamWrite(RtAnimAnimation *animation,
+int RpHAnimKeyFrameStreamWrite(RtAnimAnimation *animation,
                                   RwStream *stream) {
     const RpHAnimKeyFrame *frames = animation->pFrames;
-    RwInt32 i;
+    int i;
     for (i = 0; i < animation->numFrames; i++) {
-        RwInt32 offset;
+        int offset;
         if (RwStreamWriteReal(stream, &frames[i].time, 0x20) == 0)
             return 0;
-        offset = (RwUInt8 *)frames[i].prevFrame - (RwUInt8 *)frames;
+        offset = (unsigned char *)frames[i].prevFrame - (unsigned char *)frames;
         if (!RwStreamWriteInt32(stream, &offset, 4))
             return 0;
     }
     return 1;
 }
-RwInt32 RpHAnimKeyFrameStreamGetSize(RtAnimAnimation *animation) {
-    RwInt32 size = sizeof(RpHAnimKeyFrame);
+int RpHAnimKeyFrameStreamGetSize(RtAnimAnimation *animation) {
+    int size = sizeof(RpHAnimKeyFrame);
     size *= animation->numFrames;
     return size;
 }
@@ -235,7 +235,7 @@ void RpHAnimKeyFrameMulRecip(void *vf, void *vs) {
     RpHAnimKeyFrame *f = vf;
     RpHAnimKeyFrame *s = vs;
     RtQuat q = f->q, inv;
-    RwReal n = s->q.real * s->q.real + s->q.imag.x * s->q.imag.x +
+    float n = s->q.real * s->q.real + s->q.imag.x * s->q.imag.x +
                s->q.imag.y * s->q.imag.y + s->q.imag.z * s->q.imag.z;
     if (n > 0) {
         n = 1.0f / n;

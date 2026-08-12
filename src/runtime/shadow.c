@@ -10,17 +10,10 @@
 #define NULL ((void*)0)
 #endif
 
-typedef struct ShadowMatrix {
-    float right[4];
-    float up[4];
-    float at[4];
-    float pos[4];
-} ShadowMatrix;
-
 /* RwFrame modelling matrix @ +0x10 (stock RW). */
 typedef struct ShadowFrame {
     char pad[0x10];
-    ShadowMatrix modelling; /* +0x10 */
+    RwMatrix modelling; /* +0x10 */
 } ShadowFrame;
 
 typedef struct RwEngineInstanceType {
@@ -151,9 +144,8 @@ typedef struct ShadowSobj {
 
 void set_render_state(int state, int value);
 void* RpClumpForAllAtomics(void* clump, void* callback, void* data);
-void RwV3dTransformPoints(void* dst, void* src, int count, ShadowMatrix* matrix);
+void RwV3dTransformPoints(void* dst, void* src, int count, RwMatrix* matrix);
 void RwRasterDestroy(void* raster);
-void RwMatrixUpdate(ShadowMatrix* matrix);
 void RwFrameUpdateObjects(void* frame);
 void RwCameraSetFarClipPlane(void* camera, float distance);
 void RwCameraSetNearClipPlane(void* camera, float distance);
@@ -170,7 +162,7 @@ void RwFrameDestroy(void* frame);
 void RwCameraDestroy(void* camera);
 void RwFrameOrthoNormalize(void* frame);
 void* RwFrameGetLTM(void* frame);
-void YXZ_angles_to_MKMATRIX(const float* angles, ShadowMatrix* matrix);
+void YXZ_angles_to_MKMATRIX(const float* angles, RwMatrix* matrix);
 void* load_model_from_slot_transl(int slot_hi, int slot_lo, int flags);
 void insert_fgnd_mkobj(void* model);
 RpMaterial* obj_find_material_with_texture(void* model, const char* name);
@@ -203,7 +195,7 @@ int ShadowAA = 1;
 int ShadowBlur = 1;
 int ShadowResolutionIndex = 8;
 
-ShadowMatrix ShadowDirectionMatrix;
+RwMatrix ShadowDirectionMatrix;
 
 int ShadowCameraUpdate_flag;
 static unsigned char colorgray;
@@ -315,8 +307,8 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     ShadowObject* shadow;
     ClumpRenderContext* ctx;
     RwCamera* camera;
-    ShadowMatrix* frame_matrix;
-    ShadowMatrix* dir_matrix;
+    RwMatrix* frame_matrix;
+    RwMatrix* dir_matrix;
     ShadowLightPair* lights;
     FighterState* validated;
     float shadow_scale;
@@ -365,15 +357,9 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     camera = ShadowCamera;
     dir_matrix = &ShadowDirectionMatrix;
     frame_matrix = &camera->frame->modelling;
-    frame_matrix->right[0] = dir_matrix->right[0];
-    frame_matrix->right[1] = dir_matrix->right[1];
-    frame_matrix->right[2] = dir_matrix->right[2];
-    frame_matrix->up[0] = dir_matrix->up[0];
-    frame_matrix->up[1] = dir_matrix->up[1];
-    frame_matrix->up[2] = dir_matrix->up[2];
-    frame_matrix->at[0] = dir_matrix->at[0];
-    frame_matrix->at[1] = dir_matrix->at[1];
-    frame_matrix->at[2] = dir_matrix->at[2];
+    frame_matrix->right = dir_matrix->right;
+    frame_matrix->up = dir_matrix->up;
+    frame_matrix->at = dir_matrix->at;
     RwMatrixUpdate(frame_matrix);
     RwFrameUpdateObjects(camera->frame);
     RwCameraSetFarClipPlane(camera, kFarClipMul * shadow_scale);
@@ -381,12 +367,12 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     view_window = shadow_scale;
     RwCameraSetViewWindow(camera, &view_window, &view_window);
     frame_matrix = &camera->frame->modelling;
-    frame_matrix->pos[0] = fighter->position.x;
-    frame_matrix->pos[1] = fighter->position.y;
-    frame_matrix->pos[2] = fighter->position.z;
-    frame_matrix->pos[0] = frame_matrix->pos[0] + frame_matrix->at[0] * (kViewWindowBias * camera->view_window_scale);
-    frame_matrix->pos[1] = frame_matrix->pos[1] + frame_matrix->up[1] * (kViewWindowBias * camera->view_window_scale);
-    frame_matrix->pos[2] = frame_matrix->pos[2] + frame_matrix->at[2] * (kViewWindowBias * camera->view_window_scale);
+    frame_matrix->pos.x = fighter->position.x;
+    frame_matrix->pos.y = fighter->position.y;
+    frame_matrix->pos.z = fighter->position.z;
+    frame_matrix->pos.x = frame_matrix->pos.x + frame_matrix->at.x * (kViewWindowBias * camera->view_window_scale);
+    frame_matrix->pos.y = frame_matrix->pos.y + frame_matrix->up.y * (kViewWindowBias * camera->view_window_scale);
+    frame_matrix->pos.z = frame_matrix->pos.z + frame_matrix->at.z * (kViewWindowBias * camera->view_window_scale);
     RwMatrixUpdate(frame_matrix);
     RwFrameUpdateObjects(camera->frame);
     ShadowCameraUpdate_flag = 1;
@@ -459,9 +445,9 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     light_pos.x = fighter->position.x;
     light_pos.y = fighter->position.y;
     light_pos.z = fighter->position.z;
-    light_dir.x = dir_matrix->at[0];
-    light_dir.y = dir_matrix->at[1];
-    light_dir.z = dir_matrix->at[2];
+    light_dir.x = dir_matrix->at.x;
+    light_dir.y = dir_matrix->at.y;
+    light_dir.z = dir_matrix->at.z;
     delta_pos.x = light_pos.x - plane_point.x;
     delta_pos.y = light_pos.y - plane_point.y;
     delta_pos.z = light_pos.z - plane_point.z;
@@ -475,27 +461,27 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     box->pos_x = work_b.x;
     box->pos_z = work_b.z;
     box->field_D4 = gxVectAngleZX(&light_dir) - kPi;
-    work_c.x = (dir_matrix->up[0] - dir_matrix->right[0]) * shadow_scale;
-    work_c.y = (dir_matrix->up[1] - dir_matrix->right[1]) * shadow_scale;
-    work_c.z = (dir_matrix->up[2] - dir_matrix->right[2]) * shadow_scale;
+    work_c.x = (dir_matrix->up.x - dir_matrix->right.x) * shadow_scale;
+    work_c.y = (dir_matrix->up.y - dir_matrix->right.y) * shadow_scale;
+    work_c.z = (dir_matrix->up.z - dir_matrix->right.z) * shadow_scale;
     PSVECAdd(&light_pos, &work_c, &corner_a);
     angle = -PSVECDotProduct(&plane_normal, &corner_a) * proj_scale;
     work_a.x = angle * light_dir.x;
     work_a.y = angle * light_dir.y;
     work_a.z = angle * light_dir.z;
     PSVECAdd(&corner_a, &work_a, &corner_b);
-    corner_c.x = (dir_matrix->right[0] + dir_matrix->up[0]) * shadow_scale;
-    corner_c.y = (dir_matrix->right[1] + dir_matrix->up[1]) * shadow_scale;
-    corner_c.z = (dir_matrix->right[2] + dir_matrix->up[2]) * shadow_scale;
+    corner_c.x = (dir_matrix->right.x + dir_matrix->up.x) * shadow_scale;
+    corner_c.y = (dir_matrix->right.y + dir_matrix->up.y) * shadow_scale;
+    corner_c.z = (dir_matrix->right.z + dir_matrix->up.z) * shadow_scale;
     PSVECAdd(&light_pos, &corner_c, &corner_d);
     angle = -PSVECDotProduct(&plane_normal, &corner_d) * proj_scale;
     work_a.x = angle * light_dir.x;
     work_a.y = angle * light_dir.y;
     work_a.z = angle * light_dir.z;
     PSVECAdd(&corner_d, &work_a, &offset);
-    work_c.x = (-dir_matrix->up[0] - dir_matrix->right[0]) * shadow_scale;
-    work_c.y = (-dir_matrix->up[1] - dir_matrix->right[1]) * shadow_scale;
-    work_c.z = (-dir_matrix->up[2] - dir_matrix->right[2]) * shadow_scale;
+    work_c.x = (-dir_matrix->up.x - dir_matrix->right.x) * shadow_scale;
+    work_c.y = (-dir_matrix->up.y - dir_matrix->right.y) * shadow_scale;
+    work_c.z = (-dir_matrix->up.z - dir_matrix->right.z) * shadow_scale;
     PSVECAdd(&light_pos, &work_c, &corner_a);
     angle = -PSVECDotProduct(&plane_normal, &corner_a) * proj_scale;
     work_a.x = angle * light_dir.x;
@@ -696,8 +682,8 @@ int SetupShadow(void* shadow_ptr) {
 
 int init_shadow_system(void) {
     RwCamera* camera;
-    ShadowMatrix* frame_matrix;
-    ShadowMatrix* dir_matrix;
+    RwMatrix* frame_matrix;
+    RwMatrix* dir_matrix;
     int resolution;
     int aa_resolution;
     void* raster;
@@ -717,15 +703,9 @@ int init_shadow_system(void) {
     }
     dir_matrix = &ShadowDirectionMatrix;
     frame_matrix = &camera->frame->modelling;
-    frame_matrix->right[0] = dir_matrix->right[0];
-    frame_matrix->right[1] = dir_matrix->right[1];
-    frame_matrix->right[2] = dir_matrix->right[2];
-    frame_matrix->up[0] = dir_matrix->up[0];
-    frame_matrix->up[1] = dir_matrix->up[1];
-    frame_matrix->up[2] = dir_matrix->up[2];
-    frame_matrix->at[0] = dir_matrix->at[0];
-    frame_matrix->at[1] = dir_matrix->at[1];
-    frame_matrix->at[2] = dir_matrix->at[2];
+    frame_matrix->right = dir_matrix->right;
+    frame_matrix->up = dir_matrix->up;
+    frame_matrix->at = dir_matrix->at;
     RwMatrixUpdate(frame_matrix);
     RwFrameUpdateObjects(camera->frame);
     camera = shadow_create_camera(aa_resolution);

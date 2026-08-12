@@ -6,38 +6,40 @@
 
 typedef struct RwGameCubeTextureExt {
     GXTexObj object;
-    RwUInt32 flags;
+    unsigned int flags;
 } RwGameCubeTextureExt;
 
 typedef struct RwGameCubeRasterExt {
     GXTlutObj tlut;
-    RwInt32 format;
-    RwInt32 paletteFormat;
-    RwUInt32 hasAlpha;
+    int format;
+    int paletteFormat;
+    unsigned int hasAlpha;
     void* allocation;
     void* imageData;
     void* paletteData;
     void* lockedTiledData;
     void* lockBuffer;
     GXTexRegion* textureRegion;
-    RwUInt16 token;
-    RwUInt8 maxLod;
-    RwUInt8 lockedMipLevel;
+    unsigned short token;
+    unsigned char maxLod;
+    unsigned char lockedMipLevel;
 } RwGameCubeRasterExt;
 
-extern RwInt32 _RwGameCubeRasterExtOffset;
-extern RwInt32 _RwGameCubeTextureExtOffset;
+extern int _RwGameCubeRasterExtOffset;
+extern int _RwGameCubeTextureExtOffset;
+
+int _rwDlTextureSetRaster(void* texture, void* raster, int unused);
 
 static inline RwGameCubeTextureExt* RwGameCubeTextureExtension(
     RwTexture* texture)
 {
-    return (RwGameCubeTextureExt*)((RwUInt8*)texture +
+    return (RwGameCubeTextureExt*)((unsigned char*)texture +
                                    _RwGameCubeTextureExtOffset);
 }
 
 static inline RwGameCubeRasterExt* RwGameCubeRasterExtension(RwRaster* raster)
 {
-    return (RwGameCubeRasterExt*)((RwUInt8*)raster +
+    return (RwGameCubeRasterExt*)((unsigned char*)raster +
                                   _RwGameCubeRasterExtOffset);
 }
 

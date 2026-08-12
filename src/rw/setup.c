@@ -7,7 +7,7 @@ static const GXColor OpaqueBlack = {0, 0, 0, 255};
 
 static void MatFunc1(const RwRGBAReal* surface, const GXColor* color,
                      RpMaterial* owner,
-                     RwReal scale)
+                     float scale)
 {
     GXColor ambient;
 
@@ -21,10 +21,10 @@ static void MatFunc1(const RwRGBAReal* surface, const GXColor* color,
 
 static void MatFunc2(const RwRGBAReal* surface, const GXColor* material,
                      RpMaterial* owner,
-                     RwReal scale)
+                     float scale)
 {
     GXColor color;
-    RwReal intensity = 255.0f * scale;
+    float intensity = 255.0f * scale;
 
     color.r = surface->red * intensity;
     color.g = surface->green * intensity;
@@ -35,10 +35,10 @@ static void MatFunc2(const RwRGBAReal* surface, const GXColor* material,
 
 static void MatFunc3(const RwRGBAReal* surface, const GXColor* material,
                      RpMaterial* owner,
-                     RwReal scale)
+                     float scale)
 {
     GXColor color;
-    RwReal intensity = 255.0f * scale;
+    float intensity = 255.0f * scale;
 
     color.r = surface->red * intensity;
     color.g = surface->green * intensity;
@@ -49,11 +49,11 @@ static void MatFunc3(const RwRGBAReal* surface, const GXColor* material,
 
 static void MatFunc4(const RwRGBAReal* surface, const GXColor* material,
                      RpMaterial* owner,
-                     RwReal scale)
+                     float scale)
 {
 
     GXColor color;
-    RwReal intensity = 255.0f * scale;
+    float intensity = 255.0f * scale;
 
     color.r = surface->red * intensity;
     color.g = surface->green * intensity;
@@ -65,7 +65,7 @@ static void MatFunc4(const RwRGBAReal* surface, const GXColor* material,
 
 static void MatFunc5(const RwRGBAReal* surface, const GXColor* material,
                      RpMaterial* owner,
-                     RwReal scale)
+                     float scale)
 {
 
     GXSetChanMatColor(4, *material);
@@ -73,10 +73,10 @@ static void MatFunc5(const RwRGBAReal* surface, const GXColor* material,
 
 static void MatFunc6(const RwRGBAReal* surface, const GXColor* material,
                      RpMaterial* owner,
-                     RwReal scale)
+                     float scale)
 {
     GXColor color;
-    RwReal intensity = 255.0f * scale;
+    float intensity = 255.0f * scale;
 
     color.r = surface->red * intensity;
     color.g = surface->green * intensity;
@@ -85,19 +85,19 @@ static void MatFunc6(const RwRGBAReal* surface, const GXColor* material,
     GXSetChanMatColor(0, color);
 }
 
-RwDlObjectRenderCallBack _rwDlObjectRenderSetup(RwUInt32 flags,
-                                                 RwUInt32 lightMask,
-                                                 RwInt32 textureMode,
-                                                 RwBool useAmbient)
+RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
+                                                 unsigned int lightMask,
+                                                 int textureMode,
+                                                 int useAmbient)
 {
     RwDlObjectRenderCallBack callback = 0;
-    RwUInt32 materialSource;
-    RwUInt32 ambientSource;
-    RwUInt32 enableColor;
-    RwUInt32 alphaAmbientSource;
-    RwUInt32 enableAlpha;
-    RwUInt32 colorMaterialSource;
-    RwUInt8 numStages;
+    unsigned int materialSource;
+    unsigned int ambientSource;
+    unsigned int enableColor;
+    unsigned int alphaAmbientSource;
+    unsigned int enableAlpha;
+    unsigned int colorMaterialSource;
+    unsigned char numStages;
 
     if (flags & 0x84) {
         if ((flags & 8) && textureMode == 1) {

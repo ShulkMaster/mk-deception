@@ -3,9 +3,8 @@
 #include "libmkparticle/pfx_rw_types.h"
 #include "dolphin/gx.h"
 #include "platform/display_metrics.h"
+#include "rw/dltextur.h"
 #include "runtime/cstring.h"
-
-void _rwDlTextureSet(RwTexture* texture, int mapid);
 
 /* WGPIPE at 0xCC008000 -- mixed short/word/float FIFO writes. */
 #define WGPIPE_U16 (*(volatile unsigned short*)0xCC008000)

@@ -18,6 +18,8 @@
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
 #include "runtime/plyr_pdata.h"
+#include "rw/rpmatfx.h"
+#include "rw/rpskin.h"
 
 extern MkVtable5 vtbl_mkpdata_string_obj;
 
@@ -1146,18 +1148,7 @@ void set_screen_obj_alpha(void* obj, float alpha) {
 
 extern double fmod(double x, double y);
 extern void MKMatrixSetIdentity(void* m);
-extern RpMaterial* RpMatFXMaterialGetUVTransformMatrices(RpMaterial* material, void** m1, void** m2);
-extern RpMaterial* RpMatFXMaterialSetUVTransformMatrices(RpMaterial* material, void* m1, void* m2);
 extern void* RpClumpForAllAtomics(void* clump, void* cb, void* data);
-extern int RpMatFXMaterialGetEffects(RpMaterial* material);
-extern RwTexture* RpMatFXMaterialGetDualTexture(RpMaterial* material);
-extern void RpMatFXMaterialGetDualBlendModes(RpMaterial* material, int* src, int* dst);
-extern RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material, int effects);
-extern RpMaterial* RpMatFXMaterialSetDualBlendModes(RpMaterial* material, int src, int dst);
-extern RpMaterial* RpMatFXMaterialSetDualTexture(RpMaterial* material, RwTexture* texture);
-extern void* RpMatFXAtomicEnableEffects(void* atomic);
-extern void* RpSkinGeometryGetSkin(void* geom);
-extern void* RpSkinAtomicSetType(void* atomic, int type);
 
 /*
  * UV scroll (MatFX) -- 3D material UV animation (bgnd / konquest / gcpipemanager).
@@ -1266,8 +1257,8 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
 
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix) {
-    void* base;
-    void* dual;
+    RwMatrix* base;
+    RwMatrix* dual;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, dual, matrix);
     return material;
@@ -1275,8 +1266,8 @@ static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
 
 static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
                                                  void* matrix) {
-    void* base;
-    void* dual;
+    RwMatrix* base;
+    RwMatrix* dual;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, matrix, base);
     return material;

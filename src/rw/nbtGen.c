@@ -6,29 +6,29 @@
 #include "rw/rwresources.h"
 
 typedef struct RpMTEffect {
-    RwInt32 type;
+    int type;
 } RpMTEffect;
 
 typedef struct RpMultiTexture {
-    RwUInt8 field_0x00[0x30];
+    unsigned char field_0x00[0x30];
     RpMTEffect* effect;
 } RpMultiTexture;
 
 typedef struct RpGameCubeMTEffectConfig RpGameCubeMTEffectConfig;
 
 extern RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
-                                                 RwInt32 platform);
+                                                 int platform);
 extern RpGameCubeMTEffectConfig* RpGameCubeMTEffectGetConfig(
     RpMTEffect* effect);
 
 typedef struct NBTCalcData {
-    const RwUInt8* positions[3];
-    RwUInt8* normal;
-    const RwUInt8* texCoords[3];
-    RwUInt8 positionSize;
-    RwUInt8 normalSize;
-    RwUInt8 texCoordSize;
-    RwUInt8 reserved;
+    const unsigned char* positions[3];
+    unsigned char* normal;
+    const unsigned char* texCoords[3];
+    unsigned char positionSize;
+    unsigned char normalSize;
+    unsigned char texCoordSize;
+    unsigned char reserved;
 } NBTCalcData;
 
 typedef struct NBTInstanceData {
@@ -38,21 +38,21 @@ typedef struct NBTInstanceData {
 
 typedef struct NBTResourceEntry {
     RwResEntry entry;
-    RwUInt16 token;
-    RwUInt16 meshSerialNum;
+    unsigned short token;
+    unsigned short meshSerialNum;
     RwGameCubeVertexBuffer vertexBuffer;
 } NBTResourceEntry;
 
 typedef struct RpGameCubeMTEntry24Private {
-    RwInt32 value[5];
-    RwUInt16 field_0x14;
-    RwUInt16 field_0x16;
+    int value[5];
+    unsigned short field_0x14;
+    unsigned short field_0x16;
 } RpGameCubeMTEntry24Private;
 
 typedef struct RpGameCubeMTEffectConfigPrivate {
-    RwUInt8 reserved_0x00[9];
-    RwUInt8 count24;
-    RwUInt8 reserved_0x0A[0x3A];
+    unsigned char reserved_0x00[9];
+    unsigned char count24;
+    unsigned char reserved_0x0A[0x3A];
     RpGameCubeMTEntry24Private* entries24;
 } RpGameCubeMTEffectConfigPrivate;
 
@@ -61,24 +61,24 @@ typedef char NBTInstanceDataSizeCheck[sizeof(NBTInstanceData) == 8 ? 1 : -1];
 typedef char RpGameCubeMTEntry24PrivateSizeCheck[
     sizeof(RpGameCubeMTEntry24Private) == 0x18 ? 1 : -1];
 
-static RwUInt8 nbtPositionType;
-static RwUInt8 nbtNormalType;
-static RwUInt8 nbtTexCoordType;
-static RwUInt8 nbtPositionFraction;
-static RwUInt8 nbtNormalFraction;
-static RwUInt8 nbtTexCoordFraction;
+static unsigned char nbtPositionType;
+static unsigned char nbtNormalType;
+static unsigned char nbtTexCoordType;
+static unsigned char nbtPositionFraction;
+static unsigned char nbtNormalFraction;
+static unsigned char nbtTexCoordFraction;
 
-static RwReal ReadScalar(const RwUInt8* address, RwUInt8 type,
-                         RwUInt8 fraction);
-static void WriteScalar(RwUInt8* address, RwReal value, RwUInt8 type,
-                        RwUInt8 fraction);
+static float ReadScalar(const unsigned char* address, unsigned char type,
+                         unsigned char fraction);
+static void WriteScalar(unsigned char* address, float value, unsigned char type,
+                        unsigned char fraction);
 
 static void CalcNBTSetup(const RpGameCubeVtxFmt* format,
-                         RwUInt8* positionSize, RwUInt8* normalSize,
-                         RwUInt8* texCoordSize, RwUInt32* savedGQR5)
+                         unsigned char* positionSize, unsigned char* normalSize,
+                         unsigned char* texCoordSize, unsigned int* savedGQR5)
 {
-    static const RwUInt8 elementSize[5] = {1, 1, 2, 2, 4};
-    static const RwUInt8 normalFraction[5] = {0, 6, 0, 14, 0};
+    static const unsigned char elementSize[5] = {1, 1, 2, 2, 4};
+    static const unsigned char normalFraction[5] = {0, 6, 0, 14, 0};
 
     *savedGQR5 = 0;
     if (format != 0) {
@@ -94,30 +94,30 @@ static void CalcNBTSetup(const RpGameCubeVtxFmt* format,
     } else {
         nbtPositionType = nbtNormalType = nbtTexCoordType = 4;
         nbtPositionFraction = nbtNormalFraction = nbtTexCoordFraction = 0;
-        *positionSize = *normalSize = *texCoordSize = sizeof(RwReal);
+        *positionSize = *normalSize = *texCoordSize = sizeof(float);
     }
 }
 
-static void CalcNBTRestore(RwUInt32 savedGQR5)
+static void CalcNBTRestore(unsigned int savedGQR5)
 {
     (void)savedGQR5;
 }
 
-static void SetNBTPointers(NBTCalcData* data, const RwUInt8* positionBase,
-                           RwUInt8* normalBase,
-                           const RwUInt8* texCoordBase, RwUInt32 first,
-                           RwUInt32 second, RwUInt32 third);
+static void SetNBTPointers(NBTCalcData* data, const unsigned char* positionBase,
+                           unsigned char* normalBase,
+                           const unsigned char* texCoordBase, unsigned int first,
+                           unsigned int second, unsigned int third);
 
-static void TriStripNBTDataSetup8(NBTCalcData* data, const RwUInt8* indices,
-                                  RwUInt32 stride,
-                                  const RwUInt8* positionBase,
-                                  RwUInt8* normalBase,
-                                  const RwUInt8* texCoordBase,
-                                  RwUInt32 vertex)
+static void TriStripNBTDataSetup8(NBTCalcData* data, const unsigned char* indices,
+                                  unsigned int stride,
+                                  const unsigned char* positionBase,
+                                  unsigned char* normalBase,
+                                  const unsigned char* texCoordBase,
+                                  unsigned int vertex)
 {
-    RwUInt32 first = indices[vertex * stride];
-    RwUInt32 second;
-    RwUInt32 third;
+    unsigned int first = indices[vertex * stride];
+    unsigned int second;
+    unsigned int third;
 
     if (vertex == 0) {
         second = indices[stride];
@@ -129,7 +129,7 @@ static void TriStripNBTDataSetup8(NBTCalcData* data, const RwUInt8* indices,
         second = indices[(vertex - 2) * stride];
         third = indices[(vertex - 1) * stride];
         if (second == third) {
-            RwUInt32 next = indices[(vertex + 1) * stride];
+            unsigned int next = indices[(vertex + 1) * stride];
             if (first == next) {
                 vertex++;
                 second = indices[(vertex + 1) * stride];
@@ -144,7 +144,7 @@ static void TriStripNBTDataSetup8(NBTCalcData* data, const RwUInt8* indices,
             }
         }
         if ((vertex & 1) != 0) {
-            RwUInt32 swap = second;
+            unsigned int swap = second;
             second = third;
             third = swap;
         }
@@ -153,62 +153,62 @@ static void TriStripNBTDataSetup8(NBTCalcData* data, const RwUInt8* indices,
                    first, second, third);
 }
 
-static void TriStripNBTDataSetup16(NBTCalcData* data, const RwUInt8* records,
-                                   RwUInt32 stride,
-                                   const RwUInt8* positionBase,
-                                   RwUInt8* normalBase,
-                                   const RwUInt8* texCoordBase,
-                                   RwUInt32 vertex)
+static void TriStripNBTDataSetup16(NBTCalcData* data, const unsigned char* records,
+                                   unsigned int stride,
+                                   const unsigned char* positionBase,
+                                   unsigned char* normalBase,
+                                   const unsigned char* texCoordBase,
+                                   unsigned int vertex)
 {
-    RwUInt32 first = *(const RwUInt16*)(records + vertex * stride);
-    RwUInt32 second;
-    RwUInt32 third;
+    unsigned int first = *(const unsigned short*)(records + vertex * stride);
+    unsigned int second;
+    unsigned int third;
 
     if (vertex == 0) {
-        second = *(const RwUInt16*)(records + stride);
-        third = *(const RwUInt16*)(records + 2 * stride);
+        second = *(const unsigned short*)(records + stride);
+        third = *(const unsigned short*)(records + 2 * stride);
     } else if (vertex == 1) {
-        second = *(const RwUInt16*)(records + 2 * stride);
-        third = *(const RwUInt16*)records;
+        second = *(const unsigned short*)(records + 2 * stride);
+        third = *(const unsigned short*)records;
     } else {
-        second = *(const RwUInt16*)(records + (vertex - 2) * stride);
-        third = *(const RwUInt16*)(records + (vertex - 1) * stride);
+        second = *(const unsigned short*)(records + (vertex - 2) * stride);
+        third = *(const unsigned short*)(records + (vertex - 1) * stride);
         if (second == third) {
-            RwUInt32 next =
-                *(const RwUInt16*)(records + (vertex + 1) * stride);
+            unsigned int next =
+                *(const unsigned short*)(records + (vertex + 1) * stride);
             if (first == next) {
                 vertex++;
                 second =
-                    *(const RwUInt16*)(records + (vertex + 1) * stride);
+                    *(const unsigned short*)(records + (vertex + 1) * stride);
                 if (first == second) {
                     vertex++;
                     second =
-                        *(const RwUInt16*)(records + (vertex + 1) * stride);
+                        *(const unsigned short*)(records + (vertex + 1) * stride);
                 }
                 third =
-                    *(const RwUInt16*)(records + (vertex + 2) * stride);
+                    *(const unsigned short*)(records + (vertex + 2) * stride);
             } else {
                 second = third; third = next;
             }
         }
         if ((vertex & 1) != 0) {
-            RwUInt32 swap = second; second = third; third = swap;
+            unsigned int swap = second; second = third; third = swap;
         }
     }
     SetNBTPointers(data, positionBase, normalBase, texCoordBase,
                    first, second, third);
 }
 
-static void TriListNBTDataSetup8(NBTCalcData* data, const RwUInt8* indices,
-                                 RwUInt32 stride,
-                                 const RwUInt8* positionBase,
-                                 RwUInt8* normalBase,
-                                 const RwUInt8* texCoordBase,
-                                 RwUInt32 vertex)
+static void TriListNBTDataSetup8(NBTCalcData* data, const unsigned char* indices,
+                                 unsigned int stride,
+                                 const unsigned char* positionBase,
+                                 unsigned char* normalBase,
+                                 const unsigned char* texCoordBase,
+                                 unsigned int vertex)
 {
-    RwUInt32 first = indices[vertex * stride];
-    RwUInt32 second;
-    RwUInt32 third;
+    unsigned int first = indices[vertex * stride];
+    unsigned int second;
+    unsigned int third;
     switch (vertex % 3) {
     case 0: second = indices[(vertex + 1) * stride];
             third = indices[(vertex + 2) * stride]; break;
@@ -221,28 +221,28 @@ static void TriListNBTDataSetup8(NBTCalcData* data, const RwUInt8* indices,
                    first, second, third);
 }
 
-static void TriListNBTDataSetup16(NBTCalcData* data, const RwUInt8* records,
-                                  RwUInt32 stride,
-                                  const RwUInt8* positionBase,
-                                  RwUInt8* normalBase,
-                                  const RwUInt8* texCoordBase,
-                                  RwUInt32 vertex)
+static void TriListNBTDataSetup16(NBTCalcData* data, const unsigned char* records,
+                                  unsigned int stride,
+                                  const unsigned char* positionBase,
+                                  unsigned char* normalBase,
+                                  const unsigned char* texCoordBase,
+                                  unsigned int vertex)
 {
-    RwUInt32 first = *(const RwUInt16*)(records + vertex * stride);
-    RwUInt32 second;
-    RwUInt32 third;
+    unsigned int first = *(const unsigned short*)(records + vertex * stride);
+    unsigned int second;
+    unsigned int third;
     switch (vertex % 3) {
     case 0:
-        second = *(const RwUInt16*)(records + (vertex + 1) * stride);
-        third = *(const RwUInt16*)(records + (vertex + 2) * stride);
+        second = *(const unsigned short*)(records + (vertex + 1) * stride);
+        third = *(const unsigned short*)(records + (vertex + 2) * stride);
         break;
     case 1:
-        second = *(const RwUInt16*)(records + (vertex + 1) * stride);
-        third = *(const RwUInt16*)(records + (vertex - 1) * stride);
+        second = *(const unsigned short*)(records + (vertex + 1) * stride);
+        third = *(const unsigned short*)(records + (vertex - 1) * stride);
         break;
     default:
-        second = *(const RwUInt16*)(records + (vertex - 2) * stride);
-        third = *(const RwUInt16*)(records + (vertex - 1) * stride);
+        second = *(const unsigned short*)(records + (vertex - 2) * stride);
+        third = *(const unsigned short*)(records + (vertex - 1) * stride);
         break;
     }
     SetNBTPointers(data, positionBase, normalBase, texCoordBase,
@@ -255,16 +255,16 @@ static void CalcMeshNBTs(RwGameCubeVertexBuffer* vertexBuffer,
                          const RwGameCubeDisplayList* displayList,
                          const RpGameCubeVtxFmt* format)
 {
-    RwUInt8 positionSize, normalSize, texCoordSize;
-    RwUInt32 savedGQR5;
-    RwUInt32 recordStride = 0;
-    RwUInt32 arrayIndex;
-    const RwUInt8* command = displayList->data;
-    const RwUInt8* end = command + displayList->size;
-    const RwUInt8* positionBase = vertexBuffer->arrays[0].data;
-    RwUInt8* normalBase = vertexBuffer->arrays[1].data;
-    const RwUInt8* texCoordBase = 0;
-    RwBool index16 = vertexBuffer->arrays[0].descriptor == 3;
+    unsigned char positionSize, normalSize, texCoordSize;
+    unsigned int savedGQR5;
+    unsigned int recordStride = 0;
+    unsigned int arrayIndex;
+    const unsigned char* command = displayList->data;
+    const unsigned char* end = command + displayList->size;
+    const unsigned char* positionBase = vertexBuffer->arrays[0].data;
+    unsigned char* normalBase = vertexBuffer->arrays[1].data;
+    const unsigned char* texCoordBase = 0;
+    int index16 = vertexBuffer->arrays[0].descriptor == 3;
     NBTCalcData data;
 
     for (arrayIndex = 0; arrayIndex < vertexBuffer->numArrays; arrayIndex++) {
@@ -280,25 +280,25 @@ static void CalcMeshNBTs(RwGameCubeVertexBuffer* vertexBuffer,
     data.texCoordSize = texCoordSize;
 
     while (command < end && *command != 0) {
-        RwUInt8 primitive = *command++;
-        RwUInt32 count = *(const RwUInt16*)command;
-        const RwUInt8* records;
-        RwUInt32 vertex;
+        unsigned char primitive = *command++;
+        unsigned int count = *(const unsigned short*)command;
+        const unsigned char* records;
+        unsigned int vertex;
         command += 2;
         records = command;
         for (vertex = 0; vertex < count; vertex++) {
-            RwUInt32 index = index16
-                ? *(const RwUInt16*)(records + vertex * recordStride)
+            unsigned int index = index16
+                ? *(const unsigned short*)(records + vertex * recordStride)
                 : records[vertex * recordStride];
-            RwUInt8* tangent = normalBase +
+            unsigned char* tangent = normalBase +
                 index * normalSize * 9 + normalSize * 3;
-            RwBool unset;
+            int unset;
             if (normalSize == 1)
-                unset = *(RwUInt8*)tangent == 0xFF;
+                unset = *(unsigned char*)tangent == 0xFF;
             else if (normalSize == 2)
-                unset = *(RwUInt16*)tangent == 0xFFFF;
+                unset = *(unsigned short*)tangent == 0xFFFF;
             else
-                unset = *(RwReal*)tangent == 3.4028235e38f;
+                unset = *(float*)tangent == 3.4028235e38f;
             if (unset) {
                 if (primitive == 0x98) {
                     if (index16)
@@ -325,30 +325,30 @@ static void CalcMeshNBTs(RwGameCubeVertexBuffer* vertexBuffer,
 
 void _rpGameCubeMTPipeDataCalcNBTs(NBTInstanceData* instanceData,
                                    const RpGameCubeVtxFmt* format,
-                                   RwInt32 numVertices)
+                                   int numVertices)
 {
     RwGameCubeVertexBuffer* vertexBuffer =
         &((NBTResourceEntry*)instanceData->resourceEntry)->vertexBuffer;
     RwGameCubeDisplayList* displayLists =
         (RwGameCubeDisplayList*)&vertexBuffer->arrays[vertexBuffer->numArrays];
     RpMesh* mesh = (RpMesh*)(instanceData->meshHeader + 1);
-    RwUInt32 meshIndex;
-    RwUInt8* normalBase = vertexBuffer->arrays[1].data;
+    unsigned int meshIndex;
+    unsigned char* normalBase = vertexBuffer->arrays[1].data;
 
     if (format != 0 && format->normalType == 1) {
-        RwInt32 i;
+        int i;
         for (i = 0; i < numVertices; i++) normalBase[i * 9 + 3] = 0xFF;
     } else if (format != 0 && format->normalType == 3) {
-        RwInt32 i;
+        int i;
         for (i = 0; i < numVertices; i++)
-            *(RwUInt16*)(normalBase + i * 18 + 6) = 0xFFFF;
+            *(unsigned short*)(normalBase + i * 18 + 6) = 0xFFFF;
     } else {
-        RwInt32 i;
+        int i;
         for (i = 0; i < numVertices; i++)
-            *(RwReal*)(normalBase + i * 36 + 12) = 3.4028235e38f;
+            *(float*)(normalBase + i * 36 + 12) = 3.4028235e38f;
     }
 
-    for (meshIndex = 0; meshIndex < (RwUInt32)instanceData->meshHeader->numMeshes;
+    for (meshIndex = 0; meshIndex < (unsigned int)instanceData->meshHeader->numMeshes;
          meshIndex++, mesh++) {
         RpMultiTexture* multiTexture =
             RpMaterialGetMultiTexture(mesh->material, 6);
@@ -357,7 +357,7 @@ void _rpGameCubeMTPipeDataCalcNBTs(NBTInstanceData* instanceData,
             RpGameCubeMTEffectConfigPrivate* config =
                 (RpGameCubeMTEffectConfigPrivate*)
                 RpGameCubeMTEffectGetConfig(multiTexture->effect);
-            RwUInt32 entryIndex;
+            unsigned int entryIndex;
             for (entryIndex = 0; entryIndex < config->count24; entryIndex++) {
                 RpGameCubeMTEntry24Private* entry =
                     &config->entries24[entryIndex];
@@ -374,13 +374,13 @@ void _rpGameCubeMTPipeDataCalcNBTs(NBTInstanceData* instanceData,
     GXInvalidateVtxCache();
 }
 
-RwBool _rpGameCubeMTPipeDataQueryNBTs(const NBTInstanceData* instanceData)
+int _rpGameCubeMTPipeDataQueryNBTs(const NBTInstanceData* instanceData)
 {
 
 
     const RpMesh* mesh = (const RpMesh*)(instanceData->meshHeader + 1);
-    RwUInt32 i;
-    for (i = 0; i < (RwUInt32)instanceData->meshHeader->numMeshes; i++, mesh++) {
+    unsigned int i;
+    for (i = 0; i < (unsigned int)instanceData->meshHeader->numMeshes; i++, mesh++) {
         RpMultiTexture* multiTexture =
             RpMaterialGetMultiTexture(mesh->material, 6);
         if (multiTexture != 0 && multiTexture->effect != 0 &&
@@ -388,7 +388,7 @@ RwBool _rpGameCubeMTPipeDataQueryNBTs(const NBTInstanceData* instanceData)
             RpGameCubeMTEffectConfigPrivate* config =
                 (RpGameCubeMTEffectConfigPrivate*)
                 RpGameCubeMTEffectGetConfig(multiTexture->effect);
-            RwUInt32 entryIndex;
+            unsigned int entryIndex;
             for (entryIndex = 0; entryIndex < config->count24; entryIndex++) {
                 RpGameCubeMTEntry24Private* entry =
                     &config->entries24[entryIndex];
@@ -409,9 +409,9 @@ void CalcNBT(NBTCalcData* data)
     RwTexCoords texCoords[3];
     RwV3d normal;
     RwV3d edge1, edge2, tangent, binormal;
-    RwUInt8* output;
-    RwReal du1, dv1, du2, dv2, projection, length;
-    RwUInt32 i;
+    unsigned char* output;
+    float du1, dv1, du2, dv2, projection, length;
+    unsigned int i;
 
     for (i = 0; i < 3; i++) {
         positions[i].x = ReadScalar(data->positions[i], nbtPositionType,
@@ -477,38 +477,38 @@ void CalcNBT(NBTCalcData* data)
                 nbtNormalFraction);
 }
 
-static RwReal ReadScalar(const RwUInt8* address, RwUInt8 type,
-                         RwUInt8 fraction)
+static float ReadScalar(const unsigned char* address, unsigned char type,
+                         unsigned char fraction)
 {
-    RwReal scale = (RwReal)(1U << fraction);
+    float scale = (float)(1U << fraction);
 
     switch (type) {
-    case 0: return *(const RwUInt8*)address / scale;
+    case 0: return *(const unsigned char*)address / scale;
     case 1: return *(const signed char*)address / scale;
-    case 2: return *(const RwUInt16*)address / scale;
-    case 3: return *(const RwInt16*)address / scale;
-    default: return *(const RwReal*)address;
+    case 2: return *(const unsigned short*)address / scale;
+    case 3: return *(const short*)address / scale;
+    default: return *(const float*)address;
     }
 }
 
-static void WriteScalar(RwUInt8* address, RwReal value, RwUInt8 type,
-                        RwUInt8 fraction)
+static void WriteScalar(unsigned char* address, float value, unsigned char type,
+                        unsigned char fraction)
 {
-    RwReal scaled = value * (RwReal)(1U << fraction);
+    float scaled = value * (float)(1U << fraction);
 
     switch (type) {
-    case 0: *(RwUInt8*)address = (RwUInt8)scaled; break;
+    case 0: *(unsigned char*)address = (unsigned char)scaled; break;
     case 1: *(signed char*)address = (signed char)scaled; break;
-    case 2: *(RwUInt16*)address = (RwUInt16)scaled; break;
-    case 3: *(RwInt16*)address = (RwInt16)scaled; break;
-    default: *(RwReal*)address = value; break;
+    case 2: *(unsigned short*)address = (unsigned short)scaled; break;
+    case 3: *(short*)address = (short)scaled; break;
+    default: *(float*)address = value; break;
     }
 }
 
-static void SetNBTPointers(NBTCalcData* data, const RwUInt8* positionBase,
-                           RwUInt8* normalBase,
-                           const RwUInt8* texCoordBase, RwUInt32 first,
-                           RwUInt32 second, RwUInt32 third)
+static void SetNBTPointers(NBTCalcData* data, const unsigned char* positionBase,
+                           unsigned char* normalBase,
+                           const unsigned char* texCoordBase, unsigned int first,
+                           unsigned int second, unsigned int third)
 {
     data->positions[0] = positionBase + first * data->positionSize * 3;
     data->positions[1] = positionBase + second * data->positionSize * 3;

@@ -46,10 +46,10 @@ typedef struct RwRGBAReal {
 } RwRGBAReal;
 
 typedef struct RwRGBA {
-    RwUInt8 red;
-    RwUInt8 green;
-    RwUInt8 blue;
-    RwUInt8 alpha;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
 } RwRGBA;
 
 
@@ -77,18 +77,14 @@ typedef struct RwRaster {
 typedef struct RwTexture {
     RwRaster* raster;
     RwTexDictionary* dictionary;
-    union {
-        RwLLLink lInDictionary;
-        struct {
-            RwLLLink* next_link;
-            RwLLLink* prev_link;
-        };
-    };
+    RwLLLink lInDictionary;
     char name[32];
     char mask[32];
     unsigned int filter_flags;
     int ref_count;
 } RwTexture;
+
+typedef char RwTextureSizeCheck[sizeof(RwTexture) == 0x58 ? 1 : -1];
 
 struct RwTexDictionary {
     RwObject object;

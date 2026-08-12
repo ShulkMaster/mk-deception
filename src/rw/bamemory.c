@@ -4,32 +4,32 @@
 
 typedef struct RwFreeBlock {
     RwLLLink link;
-    RwUInt8 heap[1];
+    unsigned char heap[1];
 } RwFreeBlock;
 
-extern void* malloc(RwUInt32);
+extern void* malloc(unsigned int);
 extern void free(void*);
-extern void* realloc(void*, RwUInt32);
-extern void* calloc(RwUInt32, RwUInt32);
+extern void* realloc(void*, unsigned int);
+extern void* calloc(unsigned int, unsigned int);
 
 static RwFreeList _masterFreeList;
-static RwBool FreeListsEnabled = 1;
+static int FreeListsEnabled = 1;
 static RwLinkList _freeListList;
 static RwFreeList* _masterFreeListPtr;
-static RwBool freeListModuleOpen;
+static int freeListModuleOpen;
 
-static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
-                                  RwUInt32 alignment, RwUInt32 preallocBlocks,
-                                  RwFreeList* freeList, RwUInt32 hint);
+static RwFreeList* FreeListCreate(int entrySize, int entriesPerBlock,
+                                  unsigned int alignment, unsigned int preallocBlocks,
+                                  RwFreeList* freeList, unsigned int hint);
 static void _RwFreeListFree(RwFreeList* freeList);
-static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwUInt32 heapSize);
+static int FreeListBlockIsEmpty(const unsigned char* heap, unsigned int heapSize);
 
-void _rwFreeListEnable(RwBool enable)
+void _rwFreeListEnable(int enable)
 {
     FreeListsEnabled = enable;
 }
 
-static RwBool _rwFreeListModuleOpen(void)
+static int _rwFreeListModuleOpen(void)
 {
     RwLLLink* head;
 
@@ -53,7 +53,7 @@ static void _rwFreeListModuleClose(void)
     RwLLLink* head = &_freeListList.link;
 
     while (link != head) {
-        RwFreeList* freeList = (RwFreeList*)((RwUInt8*)link - 0x1C);
+        RwFreeList* freeList = (RwFreeList*)((unsigned char*)link - 0x1C);
         RwFreeListDestroy(freeList);
         link = _freeListList.link.next;
         head = &_freeListList.link;
@@ -64,12 +64,12 @@ static void _rwFreeListModuleClose(void)
 }
 
 
-static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
-                                  RwUInt32 alignment, RwUInt32 preallocBlocks,
-                                  RwFreeList* freeList, RwUInt32 hint)
+static RwFreeList* FreeListCreate(int entrySize, int entriesPerBlock,
+                                  unsigned int alignment, unsigned int preallocBlocks,
+                                  RwFreeList* freeList, unsigned int hint)
 {
-    RwInt32 alignedEntrySize;
-    RwUInt32 heapSize;
+    int alignedEntrySize;
+    unsigned int heapSize;
 
     if (!FreeListsEnabled)
         preallocBlocks = 0;
@@ -90,7 +90,7 @@ static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
     }
 
     alignedEntrySize = (entrySize + alignment - 1) & ~(alignment - 1);
-    heapSize = ((RwUInt32)(entriesPerBlock + 7) & ~7U) >> 3;
+    heapSize = ((unsigned int)(entriesPerBlock + 7) & ~7U) >> 3;
     freeList->entrySize = alignedEntrySize;
     freeList->entriesPerBlock = entriesPerBlock;
     freeList->alignment = alignment;
@@ -120,15 +120,15 @@ static RwFreeList* FreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
     return freeList;
 }
 
-RwFreeList* RwFreeListCreate(RwInt32 entrySize, RwInt32 entriesPerBlock,
-                             RwInt32 alignment, RwUInt32 hint)
+RwFreeList* RwFreeListCreate(int entrySize, int entriesPerBlock,
+                             int alignment, unsigned int hint)
 {
     return FreeListCreate(entrySize, entriesPerBlock, alignment, 1, 0, hint);
 }
 
 RwFreeList* RwFreeListCreateAndPreallocateSpace(
-    RwInt32 entrySize, RwInt32 entriesPerBlock, RwInt32 alignment,
-    RwInt32 preallocBlocks, RwFreeList* freeList, RwUInt32 hint)
+    int entrySize, int entriesPerBlock, int alignment,
+    int preallocBlocks, RwFreeList* freeList, unsigned int hint)
 {
     return FreeListCreate(entrySize, entriesPerBlock, alignment, preallocBlocks,
                           freeList, hint);
@@ -153,7 +153,7 @@ static void _RwFreeListFree(RwFreeList* freeList)
     }
 }
 
-RwBool RwFreeListDestroy(RwFreeList* freeList)
+int RwFreeListDestroy(RwFreeList* freeList)
 {
     rwLinkListRemoveLLLink(&freeList->link);
     _RwFreeListFree(freeList);
@@ -161,29 +161,29 @@ RwBool RwFreeListDestroy(RwFreeList* freeList)
 }
 
 
-void* _rwFreeListAllocReal(RwFreeList* freeList, RwUInt32 hint)
+void* _rwFreeListAllocReal(RwFreeList* freeList, unsigned int hint)
 {
-    RwUInt8* result = 0;
-    RwUInt32 heapSize = freeList->heapSize;
+    unsigned char* result = 0;
+    unsigned int heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
     RwLLLink* head = &freeList->blockList.link;
     while (link != head && result == 0) {
-        RwUInt8* heap = ((RwFreeBlock*)link)->heap;
-        RwUInt32 remaining = freeList->entriesPerBlock;
-        RwUInt32 byteIndex = 0;
+        unsigned char* heap = ((RwFreeBlock*)link)->heap;
+        unsigned int remaining = freeList->entriesPerBlock;
+        unsigned int byteIndex = 0;
         while (byteIndex < heapSize) {
-            RwUInt8 byte = heap[byteIndex];
+            unsigned char byte = heap[byteIndex];
             if (byte != 0xFF) {
-                RwUInt32 bitIndex = 0;
+                unsigned int bitIndex = 0;
                 while (bitIndex < 8 && remaining != 0) {
-                    RwUInt8 mask = (RwUInt8)(0x80 >> bitIndex);
+                    unsigned char mask = (unsigned char)(0x80 >> bitIndex);
                     if (!(byte & mask)) {
-                        RwUInt8* base;
+                        unsigned char* base;
                         heap[byteIndex] =
-                            (RwUInt8)(heap[byteIndex] | mask);
-                        base = (RwUInt8*)link + heapSize +
+                            (unsigned char)(heap[byteIndex] | mask);
+                        base = (unsigned char*)link + heapSize +
                                freeList->alignment + 7;
-                        base = (RwUInt8*)((unsigned long)base &
+                        base = (unsigned char*)((unsigned long)base &
                                          ~(freeList->alignment - 1));
                         result = base + freeList->entrySize *
                                         (byteIndex * 8 + bitIndex);
@@ -206,7 +206,7 @@ void* _rwFreeListAllocReal(RwFreeList* freeList, RwUInt32 hint)
     if (result == 0) {
         RwLLLink* newLink;
         RwFreeBlock* block;
-        RwUInt8* base;
+        unsigned char* base;
         block = RwEngineInstance->fpMalloc(
             freeList->alignment +
                 (heapSize + freeList->entriesPerBlock * freeList->entrySize) + 7,
@@ -217,18 +217,18 @@ void* _rwFreeListAllocReal(RwFreeList* freeList, RwUInt32 hint)
         newLink = &block->link;
         rwLinkListAddLLLink(&freeList->blockList, newLink);
         block->heap[0] = 0x80;
-        base = (RwUInt8*)block + heapSize + freeList->alignment + 7;
-        base = (RwUInt8*)((unsigned long)base &
+        base = (unsigned char*)block + heapSize + freeList->alignment + 7;
+        base = (unsigned char*)((unsigned long)base &
                          ~(freeList->alignment - 1));
         result = base;
     }
     return result;
 }
 
-static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwUInt32 heapSize)
+static int FreeListBlockIsEmpty(const unsigned char* heap, unsigned int heapSize)
 {
-    RwInt32 sum = 0;
-    RwInt32 i;
+    int sum = 0;
+    int i;
     for (i = 0; i < heapSize; ++i)
         sum += heap[i];
     return sum == 0;
@@ -237,19 +237,19 @@ static RwBool FreeListBlockIsEmpty(const RwUInt8* heap, RwUInt32 heapSize)
 
 RwFreeList* _rwFreeListFreeReal(RwFreeList* freeList, void* entry)
 {
-    RwUInt32 heapSize = freeList->heapSize;
+    unsigned int heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
     RwLLLink* head = &freeList->blockList.link;
     while (link != head) {
-        RwUInt8* rawBase = ((RwFreeBlock*)link)->heap + heapSize;
-        if ((RwUInt8*)entry >= rawBase &&
-            (RwUInt8*)entry <= rawBase + freeList->entriesPerBlock * freeList->entrySize) {
-            RwUInt32 index = ((RwUInt8*)entry - rawBase) /
-                             (RwUInt32)freeList->entrySize;
-            RwUInt32 byteIndex = index >> 3;
-            RwUInt8 mask = (RwUInt8)(0x80 >> (index - byteIndex * 8));
-            RwUInt8* heap = ((RwFreeBlock*)link)->heap;
-            heap[byteIndex] &= (RwUInt8)~mask;
+        unsigned char* rawBase = ((RwFreeBlock*)link)->heap + heapSize;
+        if ((unsigned char*)entry >= rawBase &&
+            (unsigned char*)entry <= rawBase + freeList->entriesPerBlock * freeList->entrySize) {
+            unsigned int index = ((unsigned char*)entry - rawBase) /
+                             (unsigned int)freeList->entrySize;
+            unsigned int byteIndex = index >> 3;
+            unsigned char mask = (unsigned char)(0x80 >> (index - byteIndex * 8));
+            unsigned char* heap = ((RwFreeBlock*)link)->heap;
+            heap[byteIndex] &= (unsigned char)~mask;
             if ((freeList->flags & 2) &&
                 FreeListBlockIsEmpty(heap, heapSize)) {
                 rwLinkListRemoveLLLink(link);
@@ -262,15 +262,15 @@ RwFreeList* _rwFreeListFreeReal(RwFreeList* freeList, void* entry)
     return 0;
 }
 
-RwInt32 RwFreeListPurge(RwFreeList* freeList)
+int RwFreeListPurge(RwFreeList* freeList)
 {
-    RwInt32 freed = 0;
-    RwUInt32 heapSize = freeList->heapSize;
+    int freed = 0;
+    unsigned int heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
     RwLLLink* next;
     RwLLLink* head = &freeList->blockList.link;
     while (link != head) {
-        RwUInt8* heap = ((RwFreeBlock*)link)->heap;
+        unsigned char* heap = ((RwFreeBlock*)link)->heap;
         rwLinkListRemoveLLLink(link);
         next = link->next;
         if (FreeListBlockIsEmpty(heap, heapSize)) {
@@ -288,29 +288,29 @@ RwInt32 RwFreeListPurge(RwFreeList* freeList)
 RwFreeList* RwFreeListForAllUsed(RwFreeList* freeList,
                                  RwFreeListCallBack callback, void* data)
 {
-    RwUInt32 heapSize = freeList->heapSize;
+    unsigned int heapSize = freeList->heapSize;
     RwLLLink* link = freeList->blockList.link.next;
     RwLLLink* head = &freeList->blockList.link;
     while (link != head) {
         RwLLLink* next;
-        RwUInt8* blockHeap = ((RwFreeBlock*)link)->heap;
-        RwUInt8* heap = RwEngineInstance->fpMalloc(heapSize, 0x10000);
-        RwUInt32 byteIndex;
+        unsigned char* blockHeap = ((RwFreeBlock*)link)->heap;
+        unsigned char* heap = RwEngineInstance->fpMalloc(heapSize, 0x10000);
+        unsigned int byteIndex;
         if (heap == 0)
             return 0;
         memcpy(heap, blockHeap, heapSize);
         next = link->next;
         for (byteIndex = 0; byteIndex < heapSize; ++byteIndex) {
-            RwUInt32 byte = heap[byteIndex];
+            unsigned int byte = heap[byteIndex];
             if (byte != 0) {
-                RwUInt32 bitIndex;
+                unsigned int bitIndex;
                 for (bitIndex = 0; bitIndex < 8; ++bitIndex) {
-                    RwUInt8 mask = (RwUInt8)(0x80 >> bitIndex);
+                    unsigned char mask = (unsigned char)(0x80 >> bitIndex);
                     if (byte & mask) {
-                        RwUInt8* base = (RwUInt8*)link + heapSize +
+                        unsigned char* base = (unsigned char*)link + heapSize +
                                         freeList->alignment + 7;
                         void* entry;
-                        base = (RwUInt8*)((unsigned long)base &
+                        base = (unsigned char*)((unsigned long)base &
                                          ~(freeList->alignment - 1));
                         entry = base + freeList->entrySize *
                                        (byteIndex * 8 + bitIndex);
@@ -325,14 +325,14 @@ RwFreeList* RwFreeListForAllUsed(RwFreeList* freeList,
     return freeList;
 }
 
-RwInt32 RwFreeListPurgeAllFreeLists(void)
+int RwFreeListPurgeAllFreeLists(void)
 {
-    RwInt32 total = 0;
+    int total = 0;
     RwLLLink* link = _freeListList.link.next;
     RwLLLink* head = &_freeListList.link;
     while (link != head) {
-        RwFreeList* freeList = (RwFreeList*)((RwUInt8*)link - 0x1C);
-        RwInt32 purged = RwFreeListPurge(freeList);
+        RwFreeList* freeList = (RwFreeList*)((unsigned char*)link - 0x1C);
+        int purged = RwFreeListPurge(freeList);
         if (purged > 0)
             total += purged;
         link = link->next;
@@ -340,23 +340,23 @@ RwInt32 RwFreeListPurgeAllFreeLists(void)
     return total;
 }
 
-static void* HMalloc(RwUInt32 size, RwUInt32 hint)
+static void* HMalloc(unsigned int size, unsigned int hint)
 {
     return malloc(size);
 }
 
-static void* HRealloc(void* memory, RwUInt32 size, RwUInt32 hint)
+static void* HRealloc(void* memory, unsigned int size, unsigned int hint)
 {
     return realloc(memory, size);
 }
 
-static void* HCalloc(RwUInt32 count, RwUInt32 size, RwUInt32 hint)
+static void* HCalloc(unsigned int count, unsigned int size, unsigned int hint)
 {
     return calloc(count, size);
 }
 
 
-RwBool _rwMemoryOpen(const RwMemoryFunctions* functions)
+int _rwMemoryOpen(const RwMemoryFunctions* functions)
 {
     if (!_rwFreeListModuleOpen())
         return 0;

@@ -7,69 +7,34 @@
 #include "rw/rxpipeline.h"
 
 typedef struct RwRect {
-    RwInt32 x;
-    RwInt32 y;
-    RwInt32 w;
-    RwInt32 h;
+    int x;
+    int y;
+    int w;
+    int h;
 } RwRect;
-
-typedef struct RwDlStateCache {
-    RwBool zWriteEnable;
-    RwBool zTestEnable;
-    RwInt32 zCompare;
-    RwInt32 cullMode;
-    RwBool fogEnable;
-    RwInt32 fogType;
-    RwUInt32 fogColor;
-    GXColor gxFogColor;
-    RwInt32 fogDensity;
-    RwReal fogStart;
-    RwReal fogEnd;
-    RwReal fogNear;
-    RwReal fogFar;
-    RwInt32 srcBlend;
-    RwInt32 dstBlend;
-    RwBool zCompLoc;
-    RwInt32 alphaCompare0;
-    RwInt32 alphaCompare1;
-    RwInt32 alphaOperation;
-    RwUInt8 alphaRef0;
-    RwUInt8 alphaRef1;
-    RwUInt8 alphaMode;
-    RwUInt8 reserved_4F;
-} RwDlStateCache;
 
 RwRaster* _RwDlRasterTarget;
 
 extern GXRenderModeObj* _RwDlRenderMode;
-extern RwInt32 _RwDlFSAA;
-extern RwInt32 _RwDlFSAATop;
-extern RwInt32 _RwDlHalfHeight;
-extern RwInt32 _RwDlPixelFormat;
-extern RwInt32 _RwDlCurPixelFormat;
-extern RwDlStateCache _RwDlStateCache;
-
-extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
-extern RwRGBA* RwRGBASetFromPixel(RwRGBA* color, RwUInt32 pixel,
-                                  RwInt32 format);
-extern RwBool _rwDlGetRenderState(RwInt32 state, void* value);
-extern RwBool _rwDlSetRenderState(RwInt32 state, void* value);
-extern RwBool _rwDlRenderStateFogEnable(RwUInt32 enable);
-extern void _rwDlRenderStateSetZCompLoc(RwBool beforeTexture);
-extern void _rwDlSetRenderStateSrcDestBlend(RwInt32 source,
-                                             RwInt32 destination);
-
-static void GXSetTexCoordGen(RwInt32 destination, RwInt32 function,
-                             RwInt32 source, RwInt32 matrix);
+extern int _RwDlFSAA;
+extern int _RwDlFSAATop;
+extern int _RwDlHalfHeight;
+extern int _RwDlPixelFormat;
+extern int _RwDlCurPixelFormat;
+extern void* memset(void* destination, int value, unsigned int size);
+extern RwRGBA* RwRGBASetFromPixel(RwRGBA* color, unsigned int pixel,
+                                  int format);
+static void GXSetTexCoordGen(int destination, int function,
+                             int source, int matrix);
 static void GXEnd(void);
-static void GXTexCoord2f32(RwReal s, RwReal t);
-static void GXPosition2s16(RwInt16 x, RwInt16 y);
-static void GXPosition3f32(RwReal x, RwReal y, RwReal z);
+static void GXTexCoord2f32(float s, float t);
+static void GXPosition2s16(short x, short y);
+static void GXPosition3f32(float x, float y, float z);
 
 static void _rwDlRasterRenderQuadInit(const RwRect* rectangle)
 {
 
-    static RwReal projVector[7] = {
+    static float projVector[7] = {
         1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f
     };
     static Mtx posMatrix = {
@@ -115,7 +80,7 @@ static void _rwDlRasterRenderQuadInit(const RwRect* rectangle)
             GXSetScissor(0, 0, _RwDlRenderMode->fbWidth,
                          _RwDlHalfHeight + 2);
         } else {
-            RwInt32 top = _RwDlRasterTarget->offsetY * 2 + rectangle->y;
+            int top = _RwDlRasterTarget->offsetY * 2 + rectangle->y;
             GXSetScissor(_RwDlRasterTarget->offsetX + rectangle->x, top,
                          rectangle->w, _RwDlHalfHeight + 2 - top);
         }
@@ -131,8 +96,8 @@ static void _rwDlRasterRenderQuadInit(const RwRect* rectangle)
             GXSetScissor(0, _RwDlHalfHeight - 2,
                          _RwDlRenderMode->fbWidth, _RwDlHalfHeight + 2);
         } else {
-            RwInt32 boundary = _RwDlHalfHeight - 2;
-            RwInt32 height = rectangle->h;
+            int boundary = _RwDlHalfHeight - 2;
+            int height = rectangle->h;
             GXSetScissor(_RwDlRasterTarget->offsetX + rectangle->x,
                          boundary, rectangle->w,
                          _RwDlRasterTarget->offsetY * 2 + rectangle->y +
@@ -149,7 +114,7 @@ static void _rwDlRasterRenderQuadInit(const RwRect* rectangle)
 }
 
 static void _rwDlRasterRenderQuad(RwRaster* raster, const RwRect* rectangle,
-                                  RwBool scaled, RwBool alpha)
+                                  int scaled, int alpha)
 {
 
     RwRaster* source = raster->parent;
@@ -158,8 +123,8 @@ static void _rwDlRasterRenderQuad(RwRaster* raster, const RwRect* rectangle,
     void* addressU;
     void* addressV;
     void* oldRaster;
-    RwReal recipWidth;
-    RwReal recipHeight;
+    float recipWidth;
+    float recipHeight;
 
     _rwDlGetRenderState(14, &fogEnable);
     _rwDlGetRenderState(9, &filterMode);
@@ -228,8 +193,8 @@ static void _rwDlRasterRenderQuad(RwRaster* raster, const RwRect* rectangle,
     _rwDlSetRenderState(1, oldRaster);
 }
 
-static RwBool _rwDlRasterRenderGeneric(RwRaster* raster, RwRect* rectangle,
-                                       RwBool scaled, RwBool alpha)
+static int _rwDlRasterRenderGeneric(RwRaster* raster, RwRect* rectangle,
+                                       int scaled, int alpha)
 {
 
     RwRect destination = *rectangle;
@@ -283,24 +248,24 @@ static RwBool _rwDlRasterRenderGeneric(RwRaster* raster, RwRect* rectangle,
     return 1;
 }
 
-RwBool _rwDlRasterRender(RwRaster* raster, RwRect* rectangle)
+int _rwDlRasterRender(RwRaster* raster, RwRect* rectangle)
 {
     return _rwDlRasterRenderGeneric(raster, rectangle, 0, 1);
 }
 
-RwBool _rwDlRasterRenderFast(RwRaster* raster, RwRect* rectangle)
+int _rwDlRasterRenderFast(RwRaster* raster, RwRect* rectangle)
 {
     return _rwDlRasterRenderGeneric(raster, rectangle, 0, 0);
 }
 
-RwBool _rwDlRasterRenderScaled(RwRaster* raster, RwRect* rectangle)
+int _rwDlRasterRenderScaled(RwRaster* raster, RwRect* rectangle)
 {
     return _rwDlRasterRenderGeneric(raster, rectangle, 1, 1);
 }
 
 static void _rwDlRasterCamera_ZClearRectInit(RwRaster* raster)
 {
-    static RwReal projVector[7] = {
+    static float projVector[7] = {
         1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f
     };
     static Mtx posMatrix = {
@@ -369,11 +334,11 @@ static void _rwDlRasterCamera_ZClearRectInit(RwRaster* raster)
 }
 
 void _rwDlRasterCamera_ZClearRect(RwRaster* raster, const RwRect* rectangle,
-                                  const RwRGBA* color, RwInt32 clearMode)
+                                  const RwRGBA* color, int clearMode)
 {
 
     GXColor material;
-    RwBool fogWasEnabled = 0;
+    int fogWasEnabled = 0;
 
     if ((clearMode & 1) != 0) {
         material.r = color->red;
@@ -405,13 +370,13 @@ void _rwDlRasterCamera_ZClearRect(RwRaster* raster, const RwRect* rectangle,
     }
     _rwDlRasterCamera_ZClearRectInit(raster);
     GXBegin(0x80, 0, 4);
-    GXPosition3f32((RwReal)rectangle->x, (RwReal)rectangle->y, 0.99999994f);
-    GXPosition3f32((RwReal)rectangle->x,
-                   (RwReal)(rectangle->y + rectangle->h), 0.99999994f);
-    GXPosition3f32((RwReal)(rectangle->x + rectangle->w),
-                   (RwReal)(rectangle->y + rectangle->h), 0.99999994f);
-    GXPosition3f32((RwReal)(rectangle->x + rectangle->w),
-                   (RwReal)rectangle->y, 0.99999994f);
+    GXPosition3f32((float)rectangle->x, (float)rectangle->y, 0.99999994f);
+    GXPosition3f32((float)rectangle->x,
+                   (float)(rectangle->y + rectangle->h), 0.99999994f);
+    GXPosition3f32((float)(rectangle->x + rectangle->w),
+                   (float)(rectangle->y + rectangle->h), 0.99999994f);
+    GXPosition3f32((float)(rectangle->x + rectangle->w),
+                   (float)rectangle->y, 0.99999994f);
     GXEnd();
 
     if (fogWasEnabled != 0)
@@ -419,17 +384,17 @@ void _rwDlRasterCamera_ZClearRect(RwRaster* raster, const RwRect* rectangle,
     _rwDlSetRenderStateSrcDestBlend(_RwDlStateCache.srcBlend,
                                      _RwDlStateCache.dstBlend);
     GXSetZMode(1, _RwDlStateCache.zCompare,
-               (RwUInt8)_RwDlStateCache.zWriteEnable);
+               (unsigned char)_RwDlStateCache.zWriteEnable);
     GXSetCullMode(_RwDlStateCache.cullMode - 1);
     GXSetColorUpdate(1);
 }
 
-static RwBool _rwDlRasterClearGeneric(RwRaster* raster, RwRect* rectangle,
-                                      RwInt32 pixel)
+static int _rwDlRasterClearGeneric(RwRaster* raster, RwRect* rectangle,
+                                      int pixel)
 {
 
-    RwBool locked = 0;
-    RwInt32 y;
+    int locked = 0;
+    int y;
 
     switch (_RwDlRasterTarget->type) {
     case 2: {
@@ -481,9 +446,9 @@ static RwBool _rwDlRasterClearGeneric(RwRaster* raster, RwRect* rectangle,
 
     switch (_RwDlRasterTarget->depth) {
     case 4: {
-        RwUInt8 value = (RwUInt8)(((pixel & 0xF) << 4) | (pixel & 0xF));
+        unsigned char value = (unsigned char)(((pixel & 0xF) << 4) | (pixel & 0xF));
         for (y = 0; y < rectangle->h; y++) {
-            RwUInt8* destination = _RwDlRasterTarget->pixels +
+            unsigned char* destination = _RwDlRasterTarget->pixels +
                 _RwDlRasterTarget->stride * (rectangle->y + y) +
                 (rectangle->x >> 1);
             memset(destination, value, rectangle->w >> 1);
@@ -492,27 +457,27 @@ static RwBool _rwDlRasterClearGeneric(RwRaster* raster, RwRect* rectangle,
     }
     case 8:
         for (y = 0; y < rectangle->h; y++) {
-            RwUInt8* destination = _RwDlRasterTarget->pixels +
+            unsigned char* destination = _RwDlRasterTarget->pixels +
                 _RwDlRasterTarget->stride * (rectangle->y + y) + rectangle->x;
             memset(destination, pixel, rectangle->w);
         }
         break;
     case 16:
         for (y = 0; y < rectangle->h; y++) {
-            RwUInt16* destination = (RwUInt16*)(_RwDlRasterTarget->pixels +
+            unsigned short* destination = (unsigned short*)(_RwDlRasterTarget->pixels +
                 _RwDlRasterTarget->stride * (rectangle->y + y)) + rectangle->x;
-            RwInt32 x;
+            int x;
             for (x = 0; x < rectangle->w; x++)
-                *destination++ = (RwUInt16)pixel;
+                *destination++ = (unsigned short)pixel;
         }
         break;
     case 32:
         for (y = 0; y < rectangle->h; y++) {
-            RwUInt32* destination = (RwUInt32*)(_RwDlRasterTarget->pixels +
+            unsigned int* destination = (unsigned int*)(_RwDlRasterTarget->pixels +
                 _RwDlRasterTarget->stride * (rectangle->y + y)) + rectangle->x;
-            RwInt32 x;
+            int x;
             for (x = 0; x < rectangle->w; x++)
-                *destination++ = (RwUInt32)pixel;
+                *destination++ = (unsigned int)pixel;
         }
         break;
     default: {
@@ -529,12 +494,12 @@ static RwBool _rwDlRasterClearGeneric(RwRaster* raster, RwRect* rectangle,
     return 1;
 }
 
-RwBool _rwDlRasterClearRect(void* unused, RwRect* rectangle, RwInt32 pixel)
+int _rwDlRasterClearRect(void* unused, RwRect* rectangle, int pixel)
 {
     return _rwDlRasterClearGeneric(_RwDlRasterTarget, rectangle, pixel);
 }
 
-RwBool _rwDlRasterClear(void* unused0, void* unused1, RwInt32 pixel)
+int _rwDlRasterClear(void* unused0, void* unused1, int pixel)
 {
     RwRect rectangle;
     rectangle.x = 0;
@@ -544,15 +509,15 @@ RwBool _rwDlRasterClear(void* unused0, void* unused1, RwInt32 pixel)
     return _rwDlRasterClearGeneric(_RwDlRasterTarget, &rectangle, pixel);
 }
 
-RwBool _rwDlSetRasterContext(void* out, void* inOut, RwInt32 in)
+int _rwDlSetRasterContext(void* out, void* inOut, int in)
 {
     RwRaster* raster = inOut;
     _RwDlRasterTarget = raster;
     return 1;
 }
 
-static void GXSetTexCoordGen(RwInt32 destination, RwInt32 function,
-                             RwInt32 source, RwInt32 matrix)
+static void GXSetTexCoordGen(int destination, int function,
+                             int source, int matrix)
 {
     GXSetTexCoordGen2(destination, function, source, matrix, 0, 0x7D);
 }
@@ -562,21 +527,21 @@ static void GXEnd(void)
 }
 
 
-static void GXTexCoord2f32(RwReal s, RwReal t)
+static void GXTexCoord2f32(float s, float t)
 {
-    *(volatile RwReal*)0xCC008000 = s;
-    *(volatile RwReal*)0xCC008000 = t;
+    *(volatile float*)0xCC008000 = s;
+    *(volatile float*)0xCC008000 = t;
 }
 
-static void GXPosition2s16(RwInt16 x, RwInt16 y)
+static void GXPosition2s16(short x, short y)
 {
-    *(volatile RwInt16*)0xCC008000 = x;
-    *(volatile RwInt16*)0xCC008000 = y;
+    *(volatile short*)0xCC008000 = x;
+    *(volatile short*)0xCC008000 = y;
 }
 
-static void GXPosition3f32(RwReal x, RwReal y, RwReal z)
+static void GXPosition3f32(float x, float y, float z)
 {
-    *(volatile RwReal*)0xCC008000 = x;
-    *(volatile RwReal*)0xCC008000 = y;
-    *(volatile RwReal*)0xCC008000 = z;
+    *(volatile float*)0xCC008000 = x;
+    *(volatile float*)0xCC008000 = y;
+    *(volatile float*)0xCC008000 = z;
 }

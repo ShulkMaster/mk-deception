@@ -1,42 +1,43 @@
 #include "dolphin/gx.h"
+#include "rw/dltextur.h"
+#include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rwcore_types.h"
 #include "rw/rwplcore.h"
 
-typedef struct RwDlFilterMode {
-    RwInt32 minFilter;
-    RwInt32 magFilter;
-} RwDlFilterMode;
+typedef struct DlFilterMode {
+    int minFilter;
+    int magFilter;
+} DlFilterMode;
 
-RwInt32 _RwGameCubeTextureExtOffset;
-extern RwUInt16 _RwDlTokenCurrent;
+int _RwGameCubeTextureExtOffset;
 extern RwRaster* _RwDlRasterWhite;
 extern RwTexture* _RwDlTexture;
 
-extern void _rwDlTextureSetRaster(RwTexture* texture, RwRaster* raster,
-                                  RwBool releaseRaster);
-extern RwInt32 RwTextureRegisterPlugin(
-    RwInt32 size, RwUInt32 pluginID, RwPluginObjectConstructor constructCB,
+extern int RwTextureRegisterPlugin(
+    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
     RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
 
-static RwDlFilterMode _RwDlFilterModeConvTable[7] = {
+static DlFilterMode _RwDlFilterModeConvTable[7] = {
     {0, 0}, {0, 0}, {1, 1}, {2, 0}, {3, 1}, {4, 0}, {5, 1},
 };
-static RwInt32 _RwDlAddressConvTable[5] = {0, 1, 2, 0, 0};
+static int _RwDlAddressConvTable[5] = {0, 1, 2, 0, 0};
 static RwTexture* _RwDlTextureCache[8] = {0, 0, 0, 0,
                                           0, 0, 0, 0};
 
-static void _rwDlTextureConst(RwTexture* texture)
+static void* _rwDlTextureConst(void* object, int offset, int size)
 {
     RwGameCubeTextureExt* textureExt =
-        RwGameCubeTextureExtension(texture);
+        (RwGameCubeTextureExt*)((unsigned char*)object +
+                                _RwGameCubeTextureExtOffset);
 
     textureExt->flags = 0x01000000;
+    return object;
 }
 
 static void _rwDlTextureDest(RwTexture* texture)
 {
-    RwInt32 index;
+    int index;
 
     for (index = 0; index < 8; index++) {
         if (texture == _RwDlTextureCache[index]) {
@@ -47,7 +48,7 @@ static void _rwDlTextureDest(RwTexture* texture)
 
 void _rwDlTextureCacheInit(void)
 {
-    RwUInt32 index = 8;
+    unsigned int index = 8;
 
     while (index-- != 0) {
         _RwDlTextureCache[index] = 0;
@@ -58,27 +59,27 @@ void _rwDlTexturePluginAttach(void)
 {
     _RwGameCubeTextureExtOffset = RwTextureRegisterPlugin(
         sizeof(RwGameCubeTextureExt), 0x40C,
-        (RwPluginObjectConstructor)_rwDlTextureConst,
+        _rwDlTextureConst,
         (RwPluginObjectDestructor)_rwDlTextureDest, 0);
 }
 
-static void _rwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
-                                     RwUInt32 biasClamp, RwUInt32 edgeLod,
-                                     RwInt32 maxAnisotropy,
-                                     RwUInt32 textureMap)
+static void _rwGameCubeTextureSetLOD(RwTexture* texture, float lodBias,
+                                     unsigned int biasClamp, unsigned int edgeLod,
+                                     int maxAnisotropy,
+                                     unsigned int textureMap)
 {
     RwGameCubeTextureExt* textureExt =
         RwGameCubeTextureExtension(texture);
     RwRaster* raster = texture->raster;
     RwGameCubeRasterExt* rasterExt =
         RwGameCubeRasterExtension(raster->parent);
-    RwInt32 rasterFormat = (RwUInt8)raster->format << 8;
-    RwInt32 minFilter;
-    RwInt32 magFilter;
+    int rasterFormat = (unsigned char)raster->format << 8;
+    int minFilter;
+    int magFilter;
 
     if ((rasterFormat & 0x6000) != 0) {
-        RwUInt32 tlut;
-        RwBool mipmap;
+        unsigned int tlut;
+        int mipmap;
 
         if ((textureExt->flags & 0x02000000) != 0) {
             tlut = GXGetTexObjTlut(&textureExt->object);
@@ -91,23 +92,23 @@ static void _rwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
             mipmap = 0;
         }
         GXInitTexObjCI(&textureExt->object, rasterExt->imageData,
-                       (RwUInt16)raster->width, (RwUInt16)raster->height,
+                       (unsigned short)raster->width, (unsigned short)raster->height,
                        rasterExt->format,
                        _RwDlAddressConvTable[(texture->filter_flags & 0xF00) >> 8],
                        _RwDlAddressConvTable[(texture->filter_flags & 0xF000) >> 12],
                        mipmap, tlut);
-        if ((RwInt32)(RwUInt8)texture->filter_flags == 6 ||
-            (RwInt32)(RwUInt8)texture->filter_flags == 5) {
+        if ((int)(unsigned char)texture->filter_flags == 6 ||
+            (int)(unsigned char)texture->filter_flags == 5) {
             minFilter = _RwDlFilterModeConvTable[4].minFilter;
             magFilter = _RwDlFilterModeConvTable[4].magFilter;
         } else {
             minFilter =
-                _RwDlFilterModeConvTable[(RwUInt8)texture->filter_flags].minFilter;
+                _RwDlFilterModeConvTable[(unsigned char)texture->filter_flags].minFilter;
             magFilter =
-                _RwDlFilterModeConvTable[(RwUInt8)texture->filter_flags].magFilter;
+                _RwDlFilterModeConvTable[(unsigned char)texture->filter_flags].magFilter;
         }
     } else {
-        RwBool mipmap;
+        int mipmap;
 
         if ((rasterFormat & 0x8000) != 0) {
             mipmap = 1;
@@ -116,27 +117,27 @@ static void _rwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
         }
 
         GXInitTexObj(&textureExt->object, rasterExt->imageData,
-                     (RwUInt16)raster->width, (RwUInt16)raster->height,
+                     (unsigned short)raster->width, (unsigned short)raster->height,
                      rasterExt->format,
                      _RwDlAddressConvTable[(texture->filter_flags & 0xF00) >> 8],
                      _RwDlAddressConvTable[(texture->filter_flags & 0xF000) >> 12],
                      mipmap);
         minFilter =
-            _RwDlFilterModeConvTable[(RwUInt8)texture->filter_flags].minFilter;
+            _RwDlFilterModeConvTable[(unsigned char)texture->filter_flags].minFilter;
         magFilter =
-            _RwDlFilterModeConvTable[(RwUInt8)texture->filter_flags].magFilter;
+            _RwDlFilterModeConvTable[(unsigned char)texture->filter_flags].magFilter;
     }
 
     GXInitTexObjLOD(&textureExt->object, minFilter, magFilter, 0.0f,
-                    (RwReal)rasterExt->maxLod, lodBias, (RwUInt8)biasClamp,
-                    (RwUInt8)edgeLod, maxAnisotropy);
+                    (float)rasterExt->maxLod, lodBias, (unsigned char)biasClamp,
+                    (unsigned char)edgeLod, maxAnisotropy);
     textureExt->flags =
         ((textureExt->flags & 0xFFFF0000) |
-         (RwUInt16)texture->filter_flags) &
+         (unsigned short)texture->filter_flags) &
         ~0x01000000;
 }
 
-void _rwDlTextureSet(RwTexture* texture, RwUInt32 textureMap)
+void _rwDlTextureSet(RwTexture* texture, unsigned int textureMap)
 {
     RwRaster* raster;
     RwGameCubeRasterExt* rasterExt;
@@ -152,12 +153,12 @@ void _rwDlTextureSet(RwTexture* texture, RwUInt32 textureMap)
     textureExt = RwGameCubeTextureExtension(texture);
     rasterExt->token = _RwDlTokenCurrent & 0xFFFF;
 
-    if ((RwInt32)((((RwUInt32)raster->format & 0xFF) << 8) & 0x6000) != 0) {
+    if ((int)((((unsigned int)raster->format & 0xFF) << 8) & 0x6000) != 0) {
         if ((textureExt->flags & 0x01000000) != 0) {
             _rwGameCubeTextureSetLOD(texture, 0.0f, 1, 1, 0,
                                      textureMap);
-        } else if ((RwUInt16)texture->filter_flags !=
-                   (RwUInt16)textureExt->flags) {
+        } else if ((unsigned short)texture->filter_flags !=
+                   (unsigned short)textureExt->flags) {
             _rwGameCubeTextureSetLOD(
                 texture, GXGetTexObjLODBias(&textureExt->object),
                 GXGetTexObjBiasClamp(&textureExt->object),
@@ -176,8 +177,8 @@ void _rwDlTextureSet(RwTexture* texture, RwUInt32 textureMap)
         }
     } else if ((textureExt->flags & 0x01000000) != 0) {
         _rwGameCubeTextureSetLOD(texture, 0.0f, 1, 1, 0, 0);
-    } else if ((RwUInt16)texture->filter_flags !=
-               (RwUInt16)textureExt->flags) {
+    } else if ((unsigned short)texture->filter_flags !=
+               (unsigned short)textureExt->flags) {
         _rwGameCubeTextureSetLOD(
             texture, GXGetTexObjLODBias(&textureExt->object),
             GXGetTexObjBiasClamp(&textureExt->object),
@@ -194,9 +195,9 @@ void _rwDlTextureSet(RwTexture* texture, RwUInt32 textureMap)
     _RwDlTextureCache[textureMap] = texture;
 }
 
-void RwGameCubeTextureSetLOD(RwTexture* texture, RwReal lodBias,
-                             RwInt32 biasClamp, RwInt32 edgeLod,
-                             RwInt32 maxAnisotropy)
+void RwGameCubeTextureSetLOD(RwTexture* texture, float lodBias,
+                             int biasClamp, int edgeLod,
+                             int maxAnisotropy)
 {
     _rwGameCubeTextureSetLOD(texture, lodBias, biasClamp, edgeLod,
                              maxAnisotropy, 0);

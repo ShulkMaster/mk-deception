@@ -7,22 +7,22 @@ typedef struct RtAnimAnimation RtAnimAnimation;
 typedef struct RtAnimInterpolator RtAnimInterpolator;
 
 typedef void (*RtAnimKeyFrameApplyCallBack)(void*, void*);
-typedef void (*RtAnimKeyFrameBlendCallBack)(void*, void*, void*, RwReal);
-typedef void (*RtAnimKeyFrameInterpolateCallBack)(void*, void*, void*, RwReal,
+typedef void (*RtAnimKeyFrameBlendCallBack)(void*, void*, void*, float);
+typedef void (*RtAnimKeyFrameInterpolateCallBack)(void*, void*, void*, float,
                                                    void*);
 typedef void (*RtAnimKeyFrameAddCallBack)(void*, void*, void*);
 typedef void (*RtAnimKeyFrameMulRecipCallBack)(void*, void*);
 typedef RtAnimAnimation* (*RtAnimKeyFrameStreamReadCallBack)(RwStream*,
                                                              RtAnimAnimation*);
-typedef RwBool (*RtAnimKeyFrameStreamWriteCallBack)(RtAnimAnimation*,
+typedef int (*RtAnimKeyFrameStreamWriteCallBack)(RtAnimAnimation*,
                                                     RwStream*);
-typedef RwInt32 (*RtAnimKeyFrameStreamGetSizeCallBack)(RtAnimAnimation*);
+typedef int (*RtAnimKeyFrameStreamGetSizeCallBack)(RtAnimAnimation*);
 typedef RtAnimInterpolator* (*RtAnimCallBack)(RtAnimInterpolator*, void*);
 
 typedef struct RtAnimInterpolatorInfo {
-    RwInt32 typeID;
-    RwInt32 interpKeyFrameSize;
-    RwInt32 animKeyFrameSize;
+    int typeID;
+    int interpKeyFrameSize;
+    int animKeyFrameSize;
     RtAnimKeyFrameApplyCallBack keyFrameApplyCB;
     RtAnimKeyFrameBlendCallBack keyFrameBlendCB;
     RtAnimKeyFrameInterpolateCallBack keyFrameInterpolateCB;
@@ -31,33 +31,33 @@ typedef struct RtAnimInterpolatorInfo {
     RtAnimKeyFrameStreamReadCallBack keyFrameStreamReadCB;
     RtAnimKeyFrameStreamWriteCallBack keyFrameStreamWriteCB;
     RtAnimKeyFrameStreamGetSizeCallBack keyFrameStreamGetSizeCB;
-    RwInt32 customDataSize;
+    int customDataSize;
 } RtAnimInterpolatorInfo;
 
 struct RtAnimAnimation {
     RtAnimInterpolatorInfo* interpInfo;
-    RwInt32 numFrames;
-    RwInt32 flags;
-    RwReal duration;
+    int numFrames;
+    int flags;
+    float duration;
     void* pFrames;
     void* customData;
 };
 
 struct RtAnimInterpolator {
     RtAnimAnimation* pCurrentAnim;
-    RwReal currentTime;
+    float currentTime;
     void* pNextFrame;
     RtAnimCallBack pAnimCallBack;
     void* pAnimCallBackData;
-    RwReal animCallBackTime;
+    float animCallBackTime;
     RtAnimCallBack pAnimLoopCallBack;
     void* pAnimLoopCallBackData;
-    RwInt32 maxInterpKeyFrameSize;
-    RwInt32 currentInterpKeyFrameSize;
-    RwInt32 currentAnimKeyFrameSize;
-    RwInt32 numNodes;
-    RwBool isSubInterpolator;
-    RwInt32 offsetInParent;
+    int maxInterpKeyFrameSize;
+    int currentInterpKeyFrameSize;
+    int currentAnimKeyFrameSize;
+    int numNodes;
+    int isSubInterpolator;
+    int offsetInParent;
     RtAnimInterpolator* parentAnimation;
     RtAnimKeyFrameApplyCallBack keyFrameApplyCB;
     RtAnimKeyFrameBlendCallBack keyFrameBlendCB;
@@ -65,10 +65,10 @@ struct RtAnimInterpolator {
     RtAnimKeyFrameAddCallBack keyFrameAddCB;
 };
 
-RwBool RtAnimInitialize(void);
-RwBool RtAnimRegisterInterpolationScheme(RtAnimInterpolatorInfo* info);
-RtAnimInterpolator* RtAnimInterpolatorCreate(RwInt32 numNodes,
-                                             RwInt32 maxInterpKeyFrameSize);
+int RtAnimInitialize(void);
+int RtAnimRegisterInterpolationScheme(RtAnimInterpolatorInfo* info);
+RtAnimInterpolator* RtAnimInterpolatorCreate(int numNodes,
+                                             int maxInterpKeyFrameSize);
 void RtAnimInterpolatorDestroy(RtAnimInterpolator* interpolator);
 
 #endif

@@ -22,38 +22,38 @@ typedef struct RpClumpObjectExtension {
 
 typedef struct RpGeometryList {
     RpGeometry** geometries;
-    RwInt32 numGeometries;
+    int numGeometries;
 } RpGeometryList;
 
 static RwPluginRegistry atomicTKList = {0x70, 0x70, 0, 0, 0, 0};
 static RwPluginRegistry clumpTKList = {0x2C, 0x2C, 0, 0, 0, 0};
 static RwFreeList _rpAtomicFreeList;
 static RwFreeList _rpClumpFreeList;
-static RwInt32 _rpAtomicFreeListBlockSize = 0x80;
-static RwInt32 _rpAtomicFreeListPreallocBlocks = 1;
-static RwInt32 _rpClumpFreeListBlockSize = 0x80;
-static RwInt32 _rpClumpFreeListPreallocBlocks = 1;
-RwInt32 _rpClumpCameraExtOffset;
-RwInt32 _rpClumpLightExtOffset;
-RwUInt32 lastSeenExtraData;
-RwUInt32 lastSeenRightsPluginId;
+static int _rpAtomicFreeListBlockSize = 0x80;
+static int _rpAtomicFreeListPreallocBlocks = 1;
+static int _rpClumpFreeListBlockSize = 0x80;
+static int _rpClumpFreeListPreallocBlocks = 1;
+int _rpClumpCameraExtOffset;
+int _rpClumpLightExtOffset;
+unsigned int lastSeenExtraData;
+unsigned int lastSeenRightsPluginId;
 static RwModuleInfo clumpModule;
 
 static RpClumpGlobals* ClumpGlobals(void)
 {
-    return (RpClumpGlobals*)((RwUInt8*)RwEngineInstance +
+    return (RpClumpGlobals*)((unsigned char*)RwEngineInstance +
                              clumpModule.globalsOffset);
 }
 
 extern void RwResourcesFreeResEntry(RwResEntry*);
-extern RwBool RwCameraDestroy(RwCamera*);
-extern RwInt32 RwCameraRegisterPlugin(RwInt32, RwUInt32,
+extern int RwCameraDestroy(RwCamera*);
+extern int RwCameraRegisterPlugin(int, unsigned int,
                                      RwPluginObjectConstructor,
                                      RwPluginObjectDestructor,
                                      RwPluginObjectCopy);
 extern RpWorld* RpAtomicGetWorld(RpAtomic*);
-extern RwReal _rwSqrt(RwReal);
-extern RwInt32 _rxPipelineGlobalsOffset;
+extern float _rwSqrt(float);
+extern int _rxPipelineGlobalsOffset;
 
 
 static void ClumpTidyDestroyClump(void* clump, void* data)
@@ -66,29 +66,29 @@ static void ClumpTidyDestroyAtomic(void* atomic, void* data)
     RpAtomicDestroy(atomic);
 }
 
-RwStream* _rpReadAtomicRights(RwStream* stream, RwInt32 length,
-                              void* object, RwInt32 offset, RwInt32 size)
+RwStream* _rpReadAtomicRights(RwStream* stream, int length,
+                              void* object, int offset, int size)
 {
-    if (RwStreamReadInt32(stream, (RwInt32*)&lastSeenRightsPluginId, 4) == 0)
+    if (RwStreamReadInt32(stream, (int*)&lastSeenRightsPluginId, 4) == 0)
         return 0;
     if (length == 8 &&
-        RwStreamReadInt32(stream, (RwInt32*)&lastSeenExtraData, 4) == 0)
+        RwStreamReadInt32(stream, (int*)&lastSeenExtraData, 4) == 0)
         return 0;
     return stream;
 }
 
-RwStream* _rpWriteAtomicRights(RwStream* stream, RwInt32 length,
-                               const void* object, RwInt32 offset, RwInt32 size)
+RwStream* _rpWriteAtomicRights(RwStream* stream, int length,
+                               const void* object, int offset, int size)
 {
     const RpAtomic* atomic = object;
-    if (RwStreamWriteInt32(stream, (const RwInt32*)&atomic->pipeline->pluginId, 4) == 0)
+    if (RwStreamWriteInt32(stream, (const int*)&atomic->pipeline->pluginId, 4) == 0)
         return 0;
-    if (RwStreamWriteInt32(stream, (const RwInt32*)&atomic->pipeline->pluginData, 4) == 0)
+    if (RwStreamWriteInt32(stream, (const int*)&atomic->pipeline->pluginData, 4) == 0)
         return 0;
     return stream;
 }
 
-RwInt32 _rpSizeAtomicRights(const void* object, RwInt32 offset, RwInt32 size)
+int _rpSizeAtomicRights(const void* object, int offset, int size)
 {
     const RpAtomic* atomic = object;
     if (atomic->pipeline != 0) {
@@ -119,7 +119,7 @@ RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic)
 
 static RpGeometryList* GeometryListDeinitialize(RpGeometryList* geometryList)
 {
-    RwInt32 i;
+    int i;
     for (i = 0; i < geometryList->numGeometries; i++)
         RpGeometryDestroy(geometryList->geometries[i]);
     if (geometryList->geometries != 0) {
@@ -130,39 +130,39 @@ static RpGeometryList* GeometryListDeinitialize(RpGeometryList* geometryList)
 }
 
 
-static void* ClumpInitCameraExt(void* object, RwInt32 offset, RwInt32 size)
+static void* ClumpInitCameraExt(void* object, int offset, int size)
 {
     RpClumpObjectExtension* ext =
-        (RpClumpObjectExtension*)((RwUInt8*)object +
+        (RpClumpObjectExtension*)((unsigned char*)object +
                                   _rpClumpCameraExtOffset);
     ext->inClumpLink.next = ext->inClumpLink.prev = 0;
     ext->clump = 0;
     return object;
 }
 
-static void* ClumpDeInitCameraExt(void* object, RwInt32 offset, RwInt32 size)
+static void* ClumpDeInitCameraExt(void* object, int offset, int size)
 {
     return object;
 }
 
-static void* ClumpInitLightExt(void* object, RwInt32 offset, RwInt32 size)
+static void* ClumpInitLightExt(void* object, int offset, int size)
 {
     RpClumpObjectExtension* ext =
-        (RpClumpObjectExtension*)((RwUInt8*)object +
+        (RpClumpObjectExtension*)((unsigned char*)object +
                                   _rpClumpLightExtOffset);
     ext->inClumpLink.next = ext->inClumpLink.prev = 0;
     ext->clump = 0;
     return object;
 }
 
-static void* ClumpDeInitLightExt(void* object, RwInt32 offset, RwInt32 size)
+static void* ClumpDeInitLightExt(void* object, int offset, int size)
 {
     return object;
 }
 
 static RpLight* DestroyClumpLight(RpLight* light, void* data)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)light + _rpClumpLightExtOffset);
+    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((unsigned char*)light + _rpClumpLightExtOffset);
     RpClumpRemoveLight(ext->clump, light);
     RpLightDestroy(light);
     return light;
@@ -170,7 +170,7 @@ static RpLight* DestroyClumpLight(RpLight* light, void* data)
 
 static RwCamera* DestroyClumpCamera(RwCamera* camera, void* data)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)camera + _rpClumpCameraExtOffset);
+    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((unsigned char*)camera + _rpClumpCameraExtOffset);
     RpClumpRemoveCamera(ext->clump, camera);
     RwCameraDestroy(camera);
     return camera;
@@ -208,7 +208,7 @@ void _rpAtomicResyncInterpolatedSphere(RpAtomic* atomic)
     } else {
         RpMorphTarget* start = &geometry->morphTarget[interp->startMorphTarget];
         RpMorphTarget* end = &geometry->morphTarget[interp->endMorphTarget];
-        RwReal alpha = interp->position * interp->recipTime;
+        float alpha = interp->position * interp->recipTime;
         atomic->boundingSphere.radius =
             start->sphere.radius +
             alpha * (end->sphere.radius - start->sphere.radius);
@@ -237,11 +237,11 @@ RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic)
         RwV3dTransformPoint((RwV3d*)&atomic->worldBoundingSphere,
                             (const RwV3d*)&atomic->boundingSphere, matrix);
         if ((matrix->flags & 3) != 3) {
-            RwReal sx;
-            RwReal sy;
-            RwReal sz;
-            RwReal scale;
-            RwReal scaleSquared;
+            float sx;
+            float sy;
+            float sz;
+            float scale;
+            float scaleSquared;
             RwV3d* right = &matrix->right;
             RwV3d* up = &matrix->up;
             RwV3d* at = &matrix->at;
@@ -263,7 +263,7 @@ RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic)
     return &atomic->worldBoundingSphere;
 }
 
-void* _rpClumpClose(void* instance, RwInt32 offset, RwInt32 size)
+void* _rpClumpClose(void* instance, int offset, int size)
 {
     RwFreeListForAllUsed(ClumpGlobals()->clumpFreeList, ClumpTidyDestroyClump, 0);
     RwFreeListForAllUsed(ClumpGlobals()->atomicFreeList, ClumpTidyDestroyAtomic, 0);
@@ -275,7 +275,7 @@ void* _rpClumpClose(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-void* _rpClumpOpen(void* instance, RwInt32 offset, RwInt32 size)
+void* _rpClumpOpen(void* instance, int offset, int size)
 {
     clumpModule.globalsOffset = offset;
     ClumpGlobals()->atomicFreeList = RwFreeListCreateAndPreallocateSpace(
@@ -295,7 +295,7 @@ void* _rpClumpOpen(void* instance, RwInt32 offset, RwInt32 size)
     return 0;
 }
 
-RwBool _rpClumpRegisterExtensions(void)
+int _rpClumpRegisterExtensions(void)
 {
     _rpClumpCameraExtOffset = RwCameraRegisterPlugin(12, 0x10, ClumpInitCameraExt, ClumpDeInitCameraExt, 0);
     if (_rpClumpCameraExtOffset < 0)
@@ -357,7 +357,7 @@ RpClump* RpClumpForAllCameras(RpClump* clump,
     link = clump->cameraList.next;
     end = &clump->cameraList;
     while (link != end) {
-        RwCamera* camera = (RwCamera*)((RwUInt8*)link - 4 - _rpClumpCameraExtOffset);
+        RwCamera* camera = (RwCamera*)((unsigned char*)link - 4 - _rpClumpCameraExtOffset);
         next = link->next;
         if (callback(camera, data) == 0)
             return clump;
@@ -375,7 +375,7 @@ RpClump* RpClumpForAllLights(RpClump* clump, RpLightCallBack callback, void* dat
     link = clump->lightList.next;
     end = &clump->lightList;
     while (link != end) {
-        RpLight* light = (RpLight*)((RwUInt8*)link - 4 - _rpClumpLightExtOffset);
+        RpLight* light = (RpLight*)((unsigned char*)link - 4 - _rpClumpLightExtOffset);
         next = link->next;
         if (callback(light, data) == 0)
             return clump;
@@ -423,7 +423,7 @@ RpAtomic* RpAtomicCreate(void)
 }
 
 
-RpAtomic* RpAtomicSetGeometry(RpAtomic* atomic, RpGeometry* geometry, RwUInt32 flags)
+RpAtomic* RpAtomicSetGeometry(RpAtomic* atomic, RpGeometry* geometry, unsigned int flags)
 {
     if (atomic->geometry != geometry) {
         if (geometry != 0)
@@ -441,7 +441,7 @@ RpAtomic* RpAtomicSetGeometry(RpAtomic* atomic, RpGeometry* geometry, RwUInt32 f
     return atomic;
 }
 
-RwBool RpAtomicDestroy(RpAtomic* atomic)
+int RpAtomicDestroy(RpAtomic* atomic)
 {
     _rwPluginRegistryDeInitObject(&atomicTKList, atomic);
     if (atomic->repEntry != 0)
@@ -480,7 +480,7 @@ RpClump* RpClumpCreate(void)
     return clump;
 }
 
-RwBool RpClumpDestroy(RpClump* clump)
+int RpClumpDestroy(RpClump* clump)
 {
     RwFrame* frame;
     _rwPluginRegistryDeInitObject(&clumpTKList, clump);
@@ -504,7 +504,7 @@ RpClump* RpClumpAddAtomic(RpClump* clump, RpAtomic* atomic)
 
 RpClump* RpClumpRemoveLight(RpClump* clump, RpLight* light)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)light + _rpClumpLightExtOffset);
+    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((unsigned char*)light + _rpClumpLightExtOffset);
     rwLinkListRemoveLLLink(&ext->inClumpLink);
     ext->inClumpLink.prev = 0;
     ext->inClumpLink.next = 0;
@@ -514,7 +514,7 @@ RpClump* RpClumpRemoveLight(RpClump* clump, RpLight* light)
 
 RpClump* RpClumpRemoveCamera(RpClump* clump, RwCamera* camera)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((RwUInt8*)camera + _rpClumpCameraExtOffset);
+    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((unsigned char*)camera + _rpClumpCameraExtOffset);
     rwLinkListRemoveLLLink(&ext->inClumpLink);
     ext->inClumpLink.prev = 0;
     ext->inClumpLink.next = 0;
@@ -522,45 +522,45 @@ RpClump* RpClumpRemoveCamera(RpClump* clump, RwCamera* camera)
     return clump;
 }
 
-RwInt32 RpAtomicRegisterPlugin(RwInt32 size, RwUInt32 id, RwPluginObjectConstructor ctor, RwPluginObjectDestructor dtor, RwPluginObjectCopy copy)
+int RpAtomicRegisterPlugin(int size, unsigned int id, RwPluginObjectConstructor ctor, RwPluginObjectDestructor dtor, RwPluginObjectCopy copy)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlugin(
+    int offset = _rwPluginRegistryAddPlugin(
         &atomicTKList, size, id, ctor, dtor, copy);
     return offset;
 }
-RwInt32 RpClumpRegisterPlugin(RwInt32 size, RwUInt32 id, RwPluginObjectConstructor ctor, RwPluginObjectDestructor dtor, RwPluginObjectCopy copy)
+int RpClumpRegisterPlugin(int size, unsigned int id, RwPluginObjectConstructor ctor, RwPluginObjectDestructor dtor, RwPluginObjectCopy copy)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlugin(
+    int offset = _rwPluginRegistryAddPlugin(
         &clumpTKList, size, id, ctor, dtor, copy);
     return offset;
 }
-RwInt32 RpAtomicRegisterPluginStream(RwUInt32 id, RwPluginDataChunkReadCallBack read, RwPluginDataChunkWriteCallBack write, RwPluginDataChunkGetSizeCallBack size)
+int RpAtomicRegisterPluginStream(unsigned int id, RwPluginDataChunkReadCallBack read, RwPluginDataChunkWriteCallBack write, RwPluginDataChunkGetSizeCallBack size)
 {
-    RwInt32 offset = _rwPluginRegistryAddPluginStream(
+    int offset = _rwPluginRegistryAddPluginStream(
         &atomicTKList, id, read, write, size);
     return offset;
 }
-RwInt32 RpAtomicSetStreamAlwaysCallBack(RwUInt32 id, RwPluginDataChunkAlwaysCallBack callback)
+int RpAtomicSetStreamAlwaysCallBack(unsigned int id, RwPluginDataChunkAlwaysCallBack callback)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlgnStrmlwysCB(
+    int offset = _rwPluginRegistryAddPlgnStrmlwysCB(
         &atomicTKList, id, callback);
     return offset;
 }
-RwInt32 RpAtomicSetStreamRightsCallBack(RwUInt32 id, RwPluginDataChunkRightsCallBack callback)
+int RpAtomicSetStreamRightsCallBack(unsigned int id, RwPluginDataChunkRightsCallBack callback)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlgnStrmRightsCB(
+    int offset = _rwPluginRegistryAddPlgnStrmRightsCB(
         &atomicTKList, id, callback);
     return offset;
 }
-RwInt32 RpClumpRegisterPluginStream(RwUInt32 id, RwPluginDataChunkReadCallBack read, RwPluginDataChunkWriteCallBack write, RwPluginDataChunkGetSizeCallBack size)
+int RpClumpRegisterPluginStream(unsigned int id, RwPluginDataChunkReadCallBack read, RwPluginDataChunkWriteCallBack write, RwPluginDataChunkGetSizeCallBack size)
 {
-    RwInt32 offset = _rwPluginRegistryAddPluginStream(
+    int offset = _rwPluginRegistryAddPluginStream(
         &clumpTKList, id, read, write, size);
     return offset;
 }
-RwInt32 RpAtomicGetPluginOffset(RwUInt32 id)
+int RpAtomicGetPluginOffset(unsigned int id)
 {
-    RwInt32 offset = _rwPluginRegistryGetPluginOffset(&atomicTKList, id);
+    int offset = _rwPluginRegistryGetPluginOffset(&atomicTKList, id);
     return offset;
 }
 

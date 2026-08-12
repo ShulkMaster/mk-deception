@@ -1,4 +1,5 @@
 #include "platform/gcinstance.h"
+#include "rw/dltextur.h"
 
 typedef void (*RwResEntryDestroyNotify)(RwResEntry* entry);
 
@@ -108,9 +109,6 @@ extern RwTexture* RwTextureCreate(RwRaster* raster);
 extern RwRaster* RwRasterDestroy(RwRaster* raster);
 extern RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
-extern void RwGameCubeTextureSetLOD(RwTexture* texture, int field_0x0C,
-                                    int field_0x10, int field_0x08,
-                                    float lod_bias);
 extern void* memset(void* destination, int value, unsigned int size);
 extern RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
 
@@ -395,10 +393,10 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
                            (texture_header.filter_addressing & 0xf000);
     RwTextureSetName(result, texture_header.name);
     RwTextureSetMaskName(result, texture_header.mask);
-    RwGameCubeTextureSetLOD(result, texture_header.lod_field_0x0C,
+    RwGameCubeTextureSetLOD(result, texture_header.lod_bias,
+                            texture_header.lod_field_0x0C,
                             texture_header.lod_field_0x10,
-                            texture_header.lod_field_0x08,
-                            texture_header.lod_bias);
+                            texture_header.lod_field_0x08);
     *texture = result;
     return 1;
 }

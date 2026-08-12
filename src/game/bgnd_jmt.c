@@ -187,7 +187,6 @@ RopeProcLatch sobj_ctrl_proc_item;
 int g_ticks_delay;
 int g_delay_rnd;
 
-extern RwMatrix* RwMatrixInvert(RwMatrix* dst, const RwMatrix* src);
 
 void build_bones_tbl(MkObj* object, const int* tags);
 void update_bone_hierarchy(void* object);
@@ -1845,3 +1844,4 @@ static void rope_controller_update(MkHdr* pdata) {
         }
     }
 }
+#include "rw/rtquat.h"

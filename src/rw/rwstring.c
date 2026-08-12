@@ -5,14 +5,14 @@
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
-extern RwChar* strlwr(RwChar*);
-extern int sscanf(const RwChar*, const RwChar*, ...);
+extern char* strlwr(char*);
+extern int sscanf(const char*, const char*, ...);
 
-static const RwChar nullString[] = "";
+static const char nullString[] = "";
 
-static int StrICmp(const RwChar* string1, const RwChar* string2) {
-    RwChar character1;
-    RwChar character2;
+static int StrICmp(const char* string1, const char* string2) {
+    char character1;
+    char character2;
 
     if (string1 != 0 && string2 != 0) {
         do {
@@ -37,9 +37,9 @@ static int StrICmp(const RwChar* string1, const RwChar* string2) {
     return 0;
 }
 
-static void StrUpr(RwChar* string) {
-    RwChar* character;
-    RwChar value;
+static void StrUpr(char* string) {
+    char* character;
+    char value;
     if (string != 0) {
         character = string;
         while (*character != '\0') {
@@ -53,9 +53,9 @@ static void StrUpr(RwChar* string) {
     }
 }
 
-static void StrLwr(RwChar* string) {
-    RwChar* character;
-    RwChar value;
+static void StrLwr(char* string) {
+    char* character;
+    char value;
     if (string != 0) {
         character = string;
         while (*character != '\0') {
@@ -72,14 +72,14 @@ static void StrLwr(RwChar* string) {
 
 
 
-static RwChar* StrChr(const RwChar* string, int findThis) {
-    RwChar* result = 0;
-    RwChar character;
+static char* StrChr(const char* string, int findThis) {
+    char* result = 0;
+    char character;
 
     do {
         character = *string;
-        if (character == (RwChar)findThis) {
-            result = (RwChar*)string;
+        if (character == (char)findThis) {
+            result = (char*)string;
             break;
         }
         string++;
@@ -90,21 +90,21 @@ static RwChar* StrChr(const RwChar* string, int findThis) {
 
 
 
-static RwChar* StrRChr(const RwChar* string, int findThis) {
-    RwChar* result = 0;
-    RwChar character;
+static char* StrRChr(const char* string, int findThis) {
+    char* result = 0;
+    char character;
 
     do {
         character = *string;
-        if (character == (RwChar)findThis) {
-            result = (RwChar*)string;
+        if (character == (char)findThis) {
+            result = (char*)string;
         }
         string++;
     } while (character != '\0');
     return result;
 }
 
-RwBool _rwStringOpen(void) {
+int _rwStringOpen(void) {
     RwEngineInstance->stringFuncs.sprintf = sprintf;
     RwEngineInstance->stringFuncs.vsprintf = vsprintf;
     RwEngineInstance->stringFuncs.strcpy = strcpy;
@@ -128,7 +128,7 @@ RwBool _rwStringOpen(void) {
 void _rwStringClose(void) {
 }
 
-RwInt32 _rwStringStreamGetSize(const RwChar* string) {
+int _rwStringStreamGetSize(const char* string) {
     if (string == 0) {
         string = nullString;
     }
@@ -138,8 +138,8 @@ RwInt32 _rwStringStreamGetSize(const RwChar* string) {
 
 
 
-const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream) {
-    RwUInt32 length;
+const char* _rwStringStreamWrite(const char* string, RwStream* stream) {
+    unsigned int length;
     if (string == 0) {
         string = nullString;
     }
@@ -157,10 +157,10 @@ const RwChar* _rwStringStreamWrite(const RwChar* string, RwStream* stream) {
 
 
 
-static RwChar* StringStreamRead(RwChar* string, RwStream* stream,
-                                RwUInt32 length) {
-    RwUInt8 buffer[64] __attribute__((aligned(64)));
-    RwChar* destination;
+static char* StringStreamRead(char* string, RwStream* stream,
+                                unsigned int length) {
+    unsigned char buffer[64] __attribute__((aligned(64)));
+    char* destination;
 
     if (string == 0) {
         string = RwEngineInstance->fpMalloc(length, 0x30002);
@@ -174,8 +174,8 @@ static RwChar* StringStreamRead(RwChar* string, RwStream* stream,
     }
     destination = string;
     while (length != 0) {
-        RwUInt32 chunkSize = length < sizeof(buffer) ? length : sizeof(buffer);
-        RwUInt32 i;
+        unsigned int chunkSize = length < sizeof(buffer) ? length : sizeof(buffer);
+        unsigned int i;
         if (RwStreamRead(stream, buffer, chunkSize) != chunkSize) {
             return 0;
         }
@@ -191,11 +191,11 @@ static RwChar* StringStreamRead(RwChar* string, RwStream* stream,
 
 
 
-static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
-                                       RwUInt32 length) {
-    RwUInt16 buffer[64] __attribute__((aligned(64)));
-    RwChar* destination;
-    RwBool allocated = 0;
+static char* UnicodeStringStreamRead(char* string, RwStream* stream,
+                                       unsigned int length) {
+    unsigned short buffer[64] __attribute__((aligned(64)));
+    char* destination;
+    int allocated = 0;
 
     if (string == 0) {
         string = RwEngineInstance->fpMalloc(length, 0x30002);
@@ -210,9 +210,9 @@ static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
     }
     destination = string;
     while (length != 0) {
-        RwUInt32 chunkSize;
-        RwUInt32 characterCount;
-        RwUInt32 i;
+        unsigned int chunkSize;
+        unsigned int characterCount;
+        unsigned int i;
         if (length > sizeof(buffer)) {
             chunkSize = sizeof(buffer);
         } else {
@@ -227,7 +227,7 @@ static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
         length -= chunkSize;
         characterCount = chunkSize >> 1;
         for (i = 0; i < characterCount; i++) {
-            destination[i] = (RwChar)buffer[i];
+            destination[i] = (char)buffer[i];
         }
         destination += characterCount;
     }
@@ -237,14 +237,14 @@ static RwChar* UnicodeStringStreamRead(RwChar* string, RwStream* stream,
 
 
 
-RwChar* _rwStringStreamFindAndRead(RwChar* string, RwStream* stream) {
-    RwUInt32 type;
-    RwUInt32 length;
-    RwUInt32 version;
+char* _rwStringStreamFindAndRead(char* string, RwStream* stream) {
+    unsigned int type;
+    unsigned int length;
+    unsigned int version;
 
     while (_rwStreamReadChunkHeader(stream, &type, &length, &version, 0) !=
            0) {
-        RwBool validVersion = 0;
+        int validVersion = 0;
         if (version >= 0x34000 && version <= 0x36003) {
             validVersion = 1;
         }

@@ -1,33 +1,33 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
+#include "rw/dltoken.h"
 #include "rw/geomcond.h"
 #include "rw/rwresources.h"
 #include "rw/rxpipeline.h"
 
-extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
-extern void DCFlushRange(void* start, RwUInt32 length);
+extern void* memset(void* destination, int value, unsigned int size);
+extern void DCFlushRange(void* start, unsigned int length);
 extern void GXInvalidateVtxCache(void);
 
-extern RwInt32 _rpDlWorldVtxFmtOffset;
-extern RwUInt16 _RwDlTokenLastSeen;
+extern int _rpDlWorldVtxFmtOffset;
 
 static RwGameCubeVertexDescriptor VtxDesc;
 
-static RwBool ReconditionVertexIndexData(RpWorld* world,
+static int ReconditionVertexIndexData(RpWorld* world,
                                          RpWorldSector* sector,
                                          GeomCondMap** remappedVertices,
-                                         RwUInt16**** remappedIndices)
+                                         unsigned short**** remappedIndices)
 {
 
     GeomCondVertexData streams[13];
     GeomCondMap* maps;
-    RwUInt16** sourceIndices;
-    RwUInt32 numStreams;
-    RwInt32 meshIndex;
-    RwUInt32 streamIndex;
-    RwUInt16 numMeshes;
+    unsigned short** sourceIndices;
+    unsigned int numStreams;
+    int meshIndex;
+    unsigned int streamIndex;
+    unsigned short numMeshes;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)world + _rpDlWorldVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)world + _rpDlWorldVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -39,7 +39,7 @@ static RwBool ReconditionVertexIndexData(RpWorld* world,
     numStreams++;
 
     if ((world->flags & 0x10) != 0) {
-        RwInt32 vertex;
+        int vertex;
         for (vertex = 0; vertex < sector->numVertices; vertex++)
             sector->normals[vertex].pad = 0;
         streams[numStreams].data = sector->normals;
@@ -54,7 +54,7 @@ static RwBool ReconditionVertexIndexData(RpWorld* world,
         numStreams++;
     }
     if ((world->flags & 0x84) != 0) {
-        RwInt32 texCoord;
+        int texCoord;
         for (texCoord = 0; texCoord < world->numTexCoordSets; texCoord++) {
             streams[numStreams].data = sector->texCoords[texCoord];
             streams[numStreams].type = 7;
@@ -103,7 +103,7 @@ static RwBool ReconditionVertexIndexData(RpWorld* world,
     for (meshIndex = 0; meshIndex < numMeshes; meshIndex++) {
         RpMesh* mesh = (RpMesh*)(sector->mesh + 1) + meshIndex;
         (*remappedIndices)[meshIndex] = IndexDataCreateRemapped(
-            maps, (const RwUInt16* const*)&sourceIndices[meshIndex *
+            maps, (const unsigned short* const*)&sourceIndices[meshIndex *
                                                         numStreams],
             numStreams, mesh->numIndices);
         if ((*remappedIndices)[meshIndex] == 0) {
@@ -122,10 +122,10 @@ static const RwGameCubeVertexDescriptor* VtxDescInitOptimized(
     RpWorld* world, const GeomCondMap* streams)
 {
 
-    RwUInt8 streamIndex = 0;
+    unsigned char streamIndex = 0;
     RpGameCubeVtxFmt* format =
-        *(RpGameCubeVtxFmt**)((RwUInt8*)world + _rpDlWorldVtxFmtOffset);
-    RwInt32 texCoord;
+        *(RpGameCubeVtxFmt**)((unsigned char*)world + _rpDlWorldVtxFmtOffset);
+    int texCoord;
 
     if (format == 0)
         format = _rpGameCubeVtxFmtGetDefault();
@@ -154,7 +154,7 @@ static const RwGameCubeVertexDescriptor* VtxDescInitOptimized(
         streamIndex++;
     }
     if ((world->flags & 8) != 0) {
-        RwInt32 componentCount;
+        int componentCount;
         if (format->colorType > 2)
             componentCount = 1;
         else
@@ -187,12 +187,12 @@ static void VertexDataSetupOptimized(RwGameCubeVertexData* vertexData,
                                      const RpWorld* world)
 {
 
-    RwUInt32 streamIndex = 0;
-    RwUInt32 flags = world->flags;
-    RwUInt8 numTexCoordSets = (RwUInt8)world->numTexCoordSets;
-    RwUInt32 texCoord;
+    unsigned int streamIndex = 0;
+    unsigned int flags = world->flags;
+    unsigned char numTexCoordSets = (unsigned char)world->numTexCoordSets;
+    unsigned int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)world + _rpDlWorldVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)world + _rpDlWorldVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -220,16 +220,16 @@ static void VertexDataSetupOptimized(RwGameCubeVertexData* vertexData,
 }
 
 static void IndexDataSetupOptimized(RwGameCubeIndexData* indexData,
-                                    RwUInt16* const* indices,
+                                    unsigned short* const* indices,
                                     const RpWorld* world)
 {
 
-    RwUInt32 streamIndex = 0;
-    RwUInt32 flags = world->flags;
-    RwUInt8 numTexCoordSets = (RwUInt8)world->numTexCoordSets;
-    RwUInt32 texCoord;
+    unsigned int streamIndex = 0;
+    unsigned int flags = world->flags;
+    unsigned char numTexCoordSets = (unsigned char)world->numTexCoordSets;
+    unsigned int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)world + _rpDlWorldVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)world + _rpDlWorldVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -256,21 +256,21 @@ RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
 {
 
     GeomCondMap* remappedVertices;
-    RwUInt16*** remappedIndices;
+    unsigned short*** remappedIndices;
     RwGameCubeVertexData vertexData;
     RwGameCubeIndexData indexData;
     const RwGameCubeVertexDescriptor* descriptor;
     RwGameCubeVertexBuffer* vertexBuffer;
     RwGameCubeDisplayList* displayLists;
     RpGameCubeVtxFmt* format;
-    RwUInt32 headerSize;
-    RwUInt32 displayArraySize;
-    RwUInt32 vertexSize;
-    RwUInt32 totalSize;
+    unsigned int headerSize;
+    unsigned int displayArraySize;
+    unsigned int vertexSize;
+    unsigned int totalSize;
     RwResEntry* entry;
-    RwUInt32 dataOffset;
-    RwUInt32 meshIndex;
-    RwUInt8 primitive;
+    unsigned int dataOffset;
+    unsigned int meshIndex;
+    unsigned char primitive;
 
     totalSize = 0;
     ReconditionVertexIndexData(world, sector, &remappedVertices,
@@ -291,8 +291,8 @@ RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
     for (meshIndex = 0; meshIndex < sector->mesh->numMeshes;
          meshIndex++) {
         if ((world->flags & 1) != 0) {
-            RwUInt32 numStrips;
-            RwUInt32 stripIndices;
+            unsigned int numStrips;
+            unsigned int stripIndices;
             _rwGCNTriStripGetStats(remappedIndices[meshIndex][0],
                                    ((RpMesh*)(sector->mesh + 1) +
                                     meshIndex)->numIndices,
@@ -301,7 +301,7 @@ RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
             totalSize += _rwGCNDisplayListGetSize(
                 descriptor, numStrips, stripIndices);
         } else {
-            RwUInt32 numIndices =
+            unsigned int numIndices =
                 ((RpMesh*)(sector->mesh + 1) + meshIndex)
                     ->numIndices;
             totalSize += _rwGCNDisplayListGetSize(descriptor, 1, numIndices);
@@ -317,17 +317,17 @@ RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
     entry->ownerRef = &sector->repEntry;
     entry->destroyNotify = _rxGCResEntryWaitDone;
     sector->repEntry = entry;
-    dataOffset = (RwUInt32)(entry + 1);
+    dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((RwUInt16*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((RwUInt16*)vertexBuffer)[1] = sector->mesh->serialNum;
+    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
+    ((unsigned short*)vertexBuffer)[1] = sector->mesh->serialNum;
     vertexBuffer->reserved_0x00[1] = 0;
     if ((world->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
-            (RwUInt8*)world + _rpDlWorldVtxFmtOffset);
+            (unsigned char*)world + _rpDlWorldVtxFmtOffset);
         if (format == 0) {
-            RwInt32 vertex;
+            int vertex;
             vertexBuffer->reserved_0x00[1] &= ~1U;
             for (vertex = 0; vertex < sector->numVertices; vertex++) {
                 if (sector->preLitLum[vertex].alpha <
@@ -351,11 +351,11 @@ RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
     for (meshIndex = 0; meshIndex < sector->mesh->numMeshes;
          meshIndex++) {
         RpMesh* mesh = (RpMesh*)(sector->mesh + 1) + meshIndex;
-        RwUInt32 numStrips;
-        RwUInt32 stripIndices;
-        RwUInt32 listSize;
-        RwUInt32 stride;
-        RwBool isStrip;
+        unsigned int numStrips;
+        unsigned int stripIndices;
+        unsigned int listSize;
+        unsigned int stride;
+        int isStrip;
 
         if ((world->flags & 1) != 0) {
             _rwGCNTriStripGetStats(remappedIndices[meshIndex][0],
@@ -402,11 +402,11 @@ static const RwGameCubeVertexDescriptor* VtxDescInitFast(
     const RpWorld* world, const RpWorldSector* sector)
 {
 
-    RwUInt8 indexedCount = 0;
-    RwUInt32 numVertices = sector->numVertices;
+    unsigned char indexedCount = 0;
+    unsigned int numVertices = sector->numVertices;
     RpGameCubeVtxFmt* format =
-        *(RpGameCubeVtxFmt**)((RwUInt8*)world + _rpDlWorldVtxFmtOffset);
-    RwInt32 texCoord;
+        *(RpGameCubeVtxFmt**)((unsigned char*)world + _rpDlWorldVtxFmtOffset);
+    int texCoord;
 
     if (format == 0)
         format = _rpGameCubeVtxFmtGetDefault();
@@ -432,7 +432,7 @@ static const RwGameCubeVertexDescriptor* VtxDescInitFast(
         indexedCount = 2;
     }
     if ((world->flags & 8) != 0) {
-        RwInt32 componentCount;
+        int componentCount;
         if (format->colorType > 2)
             componentCount = 1;
         else
@@ -463,9 +463,9 @@ static void VertexDataFastSetup(RwGameCubeVertexData* vertexData,
                                 const RpWorldSector* sector)
 {
 
-    RwInt32 texCoord;
+    int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)world + _rpDlWorldVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)world + _rpDlWorldVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -488,13 +488,13 @@ static void VertexDataFastSetup(RwGameCubeVertexData* vertexData,
 }
 
 static void IndexDataSetupFast(RwGameCubeIndexData* indexData,
-                               RwUInt16* primitiveIndices,
+                               unsigned short* primitiveIndices,
                                const RpWorld* world)
 {
 
-    RwInt32 texCoord;
+    int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)world + _rpDlWorldVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)world + _rpDlWorldVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -521,14 +521,14 @@ RwResEntry* _rwDlWorldSectorInstanceFast(RpWorld* world,
     RwGameCubeVertexBuffer* vertexBuffer;
     RwGameCubeDisplayList* displayLists;
     RpGameCubeVtxFmt* format;
-    RwUInt32 headerSize;
-    RwUInt32 displayArraySize;
-    RwUInt32 vertexSize;
-    RwUInt32 totalSize;
+    unsigned int headerSize;
+    unsigned int displayArraySize;
+    unsigned int vertexSize;
+    unsigned int totalSize;
     RwResEntry* entry;
-    RwUInt32 dataOffset;
-    RwUInt32 meshIndex;
-    RwUInt8 primitive;
+    unsigned int dataOffset;
+    unsigned int meshIndex;
+    unsigned char primitive;
 
     descriptor = VtxDescInitFast(world, sector);
     VertexDataFastSetup(&vertexData, world, sector);
@@ -542,7 +542,7 @@ RwResEntry* _rwDlWorldSectorInstanceFast(RpWorld* world,
         primitive = 0x90;
     for (meshIndex = 0; meshIndex < sector->mesh->numMeshes;
          meshIndex++) {
-        RwUInt32 numIndices =
+        unsigned int numIndices =
             ((RpMesh*)(sector->mesh + 1) + meshIndex)->numIndices;
         totalSize += _rwGCNDisplayListGetSize(descriptor, 1, numIndices);
     }
@@ -562,17 +562,17 @@ RwResEntry* _rwDlWorldSectorInstanceFast(RpWorld* world,
         entry = RwResourcesAllocateResEntry(owner, ownerRef, totalSize,
                                             _rxGCResEntryWaitDone);
     }
-    dataOffset = (RwUInt32)(entry + 1);
+    dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((RwUInt16*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((RwUInt16*)vertexBuffer)[1] = sector->mesh->serialNum;
+    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
+    ((unsigned short*)vertexBuffer)[1] = sector->mesh->serialNum;
     vertexBuffer->reserved_0x00[1] = 0;
     if ((world->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
-            (RwUInt8*)world + _rpDlWorldVtxFmtOffset);
+            (unsigned char*)world + _rpDlWorldVtxFmtOffset);
         if (format == 0) {
-            RwInt32 vertex;
+            int vertex;
             vertexBuffer->reserved_0x00[1] &= ~1U;
             for (vertex = 0; vertex < sector->numVertices; vertex++) {
                 if (sector->preLitLum[vertex].alpha <
@@ -596,9 +596,9 @@ RwResEntry* _rwDlWorldSectorInstanceFast(RpWorld* world,
     for (meshIndex = 0; meshIndex < sector->mesh->numMeshes;
          meshIndex++) {
         RpMesh* mesh = (RpMesh*)(sector->mesh + 1) + meshIndex;
-        RwUInt32 listSize = _rwGCNDisplayListGetSize(
+        unsigned int listSize = _rwGCNDisplayListGetSize(
             descriptor, 1, mesh->numIndices);
-        RwUInt32 stride;
+        unsigned int stride;
 
         _rwGCNDisplayListInitialize(&displayLists[meshIndex], meshIndex,
                                     listSize, (void*)dataOffset);

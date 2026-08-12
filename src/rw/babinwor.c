@@ -3,13 +3,13 @@
 #include "rw/rxpipeline.h"
 
 static RwModuleInfo binWorldModule;
-static RwInt32 lastSeenWorldRightsPluginId;
-static RwInt32 lastSeenWorldExtraData;
-static RwInt32 lastSeenSectRightsPluginId;
-static RwInt32 lastSeenSectExtraData;
+static int lastSeenWorldRightsPluginId;
+static int lastSeenWorldExtraData;
+static int lastSeenSectRightsPluginId;
+static int lastSeenSectExtraData;
 
-RwStream* _rpReadWorldRights(RwStream* stream, RwInt32 binaryLength,
-                             void* object, RwInt32 offset, RwInt32 size) {
+RwStream* _rpReadWorldRights(RwStream* stream, int binaryLength,
+                             void* object, int offset, int size) {
     if (RwStreamReadInt32(stream, &lastSeenWorldRightsPluginId, 4) == 0) {
         return 0;
     }
@@ -20,24 +20,24 @@ RwStream* _rpReadWorldRights(RwStream* stream, RwInt32 binaryLength,
     return stream;
 }
 
-RwStream* _rpWriteWorldRights(RwStream* stream, RwInt32 binaryLength,
-                              const void* object, RwInt32 offset,
-                              RwInt32 size) {
+RwStream* _rpWriteWorldRights(RwStream* stream, int binaryLength,
+                              const void* object, int offset,
+                              int size) {
     const RpWorld* world = object;
-    if (RwStreamWriteInt32(stream, (const RwInt32*)&world->pipeline->pluginId,
+    if (RwStreamWriteInt32(stream, (const int*)&world->pipeline->pluginId,
                            4) == 0) {
         return 0;
     }
     if (RwStreamWriteInt32(stream,
-                           (const RwInt32*)&world->pipeline->pluginData, 4) ==
+                           (const int*)&world->pipeline->pluginData, 4) ==
         0) {
         return 0;
     }
     return stream;
 }
 
-RwInt32 _rpSizeWorldRights(const void* object, RwInt32 offset,
-                           RwInt32 size) {
+int _rpSizeWorldRights(const void* object, int offset,
+                           int size) {
     const RpWorld* world = object;
     if (world->pipeline != 0 && world->pipeline->pluginId != 0) {
         return 8;
@@ -45,8 +45,8 @@ RwInt32 _rpSizeWorldRights(const void* object, RwInt32 offset,
     return 0;
 }
 
-RwStream* _rpReadSectRights(RwStream* stream, RwInt32 binaryLength,
-                            void* object, RwInt32 offset, RwInt32 size) {
+RwStream* _rpReadSectRights(RwStream* stream, int binaryLength,
+                            void* object, int offset, int size) {
     if (RwStreamReadInt32(stream, &lastSeenSectRightsPluginId, 4) == 0) {
         return 0;
     }
@@ -57,24 +57,24 @@ RwStream* _rpReadSectRights(RwStream* stream, RwInt32 binaryLength,
     return stream;
 }
 
-RwStream* _rpWriteSectRights(RwStream* stream, RwInt32 binaryLength,
-                             const void* object, RwInt32 offset,
-                             RwInt32 size) {
+RwStream* _rpWriteSectRights(RwStream* stream, int binaryLength,
+                             const void* object, int offset,
+                             int size) {
     const RpWorldSector* sector = object;
-    if (RwStreamWriteInt32(stream, (const RwInt32*)&sector->pipeline->pluginId,
+    if (RwStreamWriteInt32(stream, (const int*)&sector->pipeline->pluginId,
                            4) == 0) {
         return 0;
     }
     if (RwStreamWriteInt32(stream,
-                           (const RwInt32*)&sector->pipeline->pluginData, 4) ==
+                           (const int*)&sector->pipeline->pluginData, 4) ==
         0) {
         return 0;
     }
     return stream;
 }
 
-RwInt32 _rpSizeSectRights(const void* object, RwInt32 offset,
-                          RwInt32 size) {
+int _rpSizeSectRights(const void* object, int offset,
+                          int size) {
     const RpWorldSector* sector = object;
     if (sector->pipeline != 0 && sector->pipeline->pluginId != 0) {
         return 8;
@@ -82,12 +82,12 @@ RwInt32 _rpSizeSectRights(const void* object, RwInt32 offset,
     return 0;
 }
 
-void* _rpBinaryWorldClose(void* instance, RwInt32 offset, RwInt32 size) {
+void* _rpBinaryWorldClose(void* instance, int offset, int size) {
     binWorldModule.numInstances--;
     return instance;
 }
 
-void* _rpBinaryWorldOpen(void* instance, RwInt32 offset, RwInt32 size) {
+void* _rpBinaryWorldOpen(void* instance, int offset, int size) {
     binWorldModule.numInstances++;
     return instance;
 }

@@ -1,6 +1,6 @@
 #include "rw/rwplcore.h"
 
-RwBBox* RwBBoxCalculate(RwBBox* boundBox, const RwV3d* verts, RwInt32 numVerts) {
+RwBBox* RwBBoxCalculate(RwBBox* boundBox, const RwV3d* verts, int numVerts) {
     boundBox->inf = *verts;
     boundBox->sup = *verts;
     verts++;

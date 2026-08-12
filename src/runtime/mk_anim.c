@@ -5,6 +5,8 @@
 #include "math/gxMath.h"
 #include "math/mk_math.h"
 #include "platform/main.h"
+#include "rw/rphanim.h"
+#include "rw/rpskin.h"
 #include "rw/rwcore_types.h"
 
 #define RW_MATRIX_MAT33(matrix_) ((Mat33*)(matrix_))
@@ -135,21 +137,6 @@ typedef struct FlippedBoneMap {
     unsigned int count;
     unsigned int* bone_indices;
 } FlippedBoneMap;
-
-typedef struct HAnimHierarchyView {
-    unsigned int flags;
-    int node_count;
-    RwMatrix* matrices;
-    char pad0C[4];
-    struct HAnimNodeInfo* nodes;
-} HAnimHierarchyView;
-
-typedef struct HAnimNodeInfo {
-    unsigned int node_id;
-    int node_index;
-    unsigned int flags;
-    RwFrame* frame;
-} HAnimNodeInfo;
 
 typedef AnimChannelHeader AnimTrack;
 
@@ -353,14 +340,10 @@ void get_bone_offset_world_pos(
     MkObj* obj, int bone, const Vec* offset, Vec* out);
 void update_bone_hierarchy(MkHdr* obj);
 void RwFrameUpdateObjects(RwFrame* frame);
-void* RpHAnimFrameGetHierarchy(RwFrame* frame);
 RwFrame* RwFrameForAllChildren(
     RwFrame* frame,
     RwFrame* (*callback)(RwFrame*, void*),
     void* data);
-void* RpSkinAtomicSetHAnimHierarchy(void* atomic, void* hierarchy);
-void* RpSkinGeometryGetSkin(RpGeometry* geometry);
-RwMatrix* RpSkinGetSkinToBoneMatrices(void* skin);
 void insert_bone_hierarchy_mkobj(void* object);
 void set_camera_focal_length();
 int pose_anim(AnimState* anim, int update_object);
@@ -1668,13 +1651,13 @@ static void* atomic_set_HAnimHierarchy(void* atomic, void* hierarchy) {
 
 /* Soft ceiling: get_child_frame_hierarchy ~82.35% - typed recursion retained. */
 static RwFrame* get_child_frame_hierarchy(RwFrame* frame, void* out_data) {
-    void* hierarchy = RpHAnimFrameGetHierarchy(frame);
+    RpHAnimHierarchy* hierarchy = RpHAnimFrameGetHierarchy(frame);
 
     if (hierarchy == 0) {
         RwFrameForAllChildren(frame, get_child_frame_hierarchy, out_data);
         return frame;
     }
-    *(void**)out_data = hierarchy;
+    *(RpHAnimHierarchy**)out_data = hierarchy;
     return frame;
 }
 
@@ -2825,7 +2808,7 @@ static RpAtomic* ScanForBone_callback(
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 static void process_obj_bones(MkObj* obj, const int* tags) {
-    HAnimHierarchyView* hierarchy = 0;
+    RpHAnimHierarchy* hierarchy = 0;
     MkBone* linked_bones[256];
     int bone_indices[256];
     MkBone* parent_stack[256];
@@ -2852,7 +2835,7 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
         hierarchy);
 
     bone_count = obj->bone_count;
-    hierarchy_count = hierarchy->node_count;
+    hierarchy_count = hierarchy->numNodes;
     first_root = bone_count;
     for (i = 0; i < bone_count; i++) {
         MkBone* bone = alloc_bone();
@@ -2875,8 +2858,8 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
     }
 
     for (i = 0; i < hierarchy_count; i++) {
-        HAnimNodeInfo* node = &hierarchy->nodes[i];
-        unsigned int node_id = node->node_id;
+        RpHAnimNodeInfo* node = &hierarchy->pNodeInfo[i];
+        unsigned int node_id = node->nodeID;
         int masked_id = node_id & 0xFFF07FFF;
         int limb_id = (node_id >> 16) & 0xF;
         int j;
@@ -2893,21 +2876,21 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
                 continue;
             }
             bone = obj->bones[j];
-            if ((node->node_id & 0x8000) != 0) {
+            if ((node->nodeID & 0x8000) != 0) {
                 linked_bones[i] = bone;
             } else if (bone->tag == -2) {
                 bone_indices[i] = j;
-                bone->tag = node->node_id & 0xFFF0FFFF;
+                bone->tag = node->nodeID & 0xFFF0FFFF;
                 bone->limb_id = limb_id;
             }
         }
     }
 
-    matrix = hierarchy->matrices;
+    matrix = hierarchy->pMatrixArray;
     next_unmapped = 0;
     stack_index = -1;
     for (i = 0; i < hierarchy_count; i++, matrix++) {
-        HAnimNodeInfo* node = &hierarchy->nodes[i];
+        RpHAnimNodeInfo* node = &hierarchy->pNodeInfo[i];
         MkBone* bone;
         BoneScanContext context;
 
@@ -2918,9 +2901,9 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
                 next_unmapped++;
             }
             bone = obj->bones[next_unmapped];
-            bone->tag = node->node_id & 0xFFF0FFFF;
+            bone->tag = node->nodeID & 0xFFF0FFFF;
             bone_indices[i] = next_unmapped;
-            bone->limb_id = (node->node_id >> 16) & 0xF;
+            bone->limb_id = (node->nodeID >> 16) & 0xF;
             if (linked_bones[i] != 0) {
                 MkBone* linked = linked_bones[i];
 
@@ -2998,7 +2981,7 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
 #pragma opt_unroll_loops reset
 
 void build_bones_tbl(MkObj* obj, const int* tags) {
-    HAnimHierarchyView* hierarchy;
+    RpHAnimHierarchy* hierarchy;
     RwFrame* frame;
     int bone_count;
     const int* tag;
@@ -3015,7 +2998,7 @@ void build_bones_tbl(MkObj* obj, const int* tags) {
         return;
     }
 
-    bone_count = hierarchy->node_count;
+    bone_count = hierarchy->numNodes;
     for (tag = tags; *tag != 0; tag++) {
         if (*tag == -1) {
             bone_count++;

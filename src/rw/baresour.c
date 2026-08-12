@@ -7,9 +7,9 @@
 typedef struct RwResHeap RwResHeap;
 
 typedef struct RwResourcesGlobals {
-    RwUInt32 arenaSize;
-    RwUInt32 arenaUsage;
-    RwUInt32 arenaReusage;
+    unsigned int arenaSize;
+    unsigned int arenaUsage;
+    unsigned int arenaReusage;
     RwResHeap* arena;
     RwLinkList entriesA;
     RwLinkList entriesB;
@@ -19,16 +19,16 @@ typedef struct RwResourcesGlobals {
 
 RwModuleInfo resourcesModule;
 
-extern RwBool _rwResHeapInit(RwResHeap* heap, RwUInt32 size);
-extern RwBool _rwResHeapClose(RwResHeap* heap);
+extern int _rwResHeapInit(RwResHeap* heap, unsigned int size);
+extern int _rwResHeapClose(RwResHeap* heap);
 extern void _rwResHeapFree(void* memory);
-extern void* _rwResHeapAlloc(RwResHeap* heap, RwUInt32 size);
+extern void* _rwResHeapAlloc(RwResHeap* heap, unsigned int size);
 
 
 
 
 static RwResourcesGlobals* ResourcesInit(RwResourcesGlobals* globals,
-                                         RwUInt32 size) {
+                                         unsigned int size) {
     if (size != 0) {
         globals->arena = RwEngineInstance->fpMalloc(size, 0x4040B);
         if (globals->arena == 0) {
@@ -63,28 +63,28 @@ static RwResourcesGlobals* ResourcesInit(RwResourcesGlobals* globals,
     return globals;
 }
 
-void* _rwResourcesOpen(void* object, RwInt32 offset, RwInt32 size) {
-    RwUInt32 arenaSize;
+void* _rwResourcesOpen(void* object, int offset, int size) {
+    unsigned int arenaSize;
 
     resourcesModule.globalsOffset = offset;
     arenaSize = RwEngineInstance->resArenaInitSize;
-    if (ResourcesInit(&(*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)), arenaSize) == 0) {
+    if (ResourcesInit(&(*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)), arenaSize) == 0) {
         return 0;
     }
     resourcesModule.numInstances++;
     return object;
 }
 
-void* _rwResourcesClose(void* object, RwInt32 offset, RwInt32 size) {
+void* _rwResourcesClose(void* object, int offset, int size) {
     RwResourcesEmptyArena();
-    _rwResHeapClose((*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arena);
-    RwEngineInstance->fpFree((*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arena);
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arena = 0;
+    _rwResHeapClose((*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arena);
+    RwEngineInstance->fpFree((*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arena);
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arena = 0;
     resourcesModule.numInstances--;
     return object;
 }
 
-RwBool RwResourcesFreeResEntry(RwResEntry* entry) {
+int RwResourcesFreeResEntry(RwResEntry* entry) {
     if (entry->destroyNotify != 0) {
         entry->destroyNotify(entry);
     }
@@ -97,7 +97,7 @@ RwBool RwResourcesFreeResEntry(RwResEntry* entry) {
             RwLLLink* previous = entry->link.prev;
             entry->link.next->prev = previous;
         }
-        (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arenaUsage -= entry->size;
+        (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arenaUsage -= entry->size;
         _rwResHeapFree(entry);
     } else {
         RwEngineInstance->fpFree(entry);
@@ -109,8 +109,8 @@ RwBool RwResourcesFreeResEntry(RwResEntry* entry) {
 
 
 void _rwResourcesPurge(void) {
-    RwLLLink* active = (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).activeList;
-    RwLLLink* alloc = (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList;
+    RwLLLink* active = (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).activeList;
+    RwLLLink* alloc = (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList;
 
     if (active->next != active) {
         if (alloc->next == alloc) {
@@ -131,46 +131,46 @@ void _rwResourcesPurge(void) {
         active->next = active;
         active->prev = active;
     }
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList = active;
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).activeList = alloc;
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arenaReusage = 0;
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList = active;
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).activeList = alloc;
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arenaReusage = 0;
 }
 
 RwResEntry* RwResourcesAllocateResEntry(
-    void* owner, RwResEntry** ownerRef, RwInt32 size,
+    void* owner, RwResEntry** ownerRef, int size,
     RwResEntryDestroyNotify destroyNotify) {
     RwResEntry* entry;
-    RwBool exhausted = 0;
+    int exhausted = 0;
 
     while (exhausted == 0) {
-        entry = _rwResHeapAlloc((*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arena,
+        entry = _rwResHeapAlloc((*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arena,
                                 size + sizeof(RwResEntry));
         if (entry != 0) {
-            entry->link.next = (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->next;
-            entry->link.prev = (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList;
-            (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->next->prev = &entry->link;
-            (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->next = &entry->link;
+            entry->link.next = (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->next;
+            entry->link.prev = (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList;
+            (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->next->prev = &entry->link;
+            (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->next = &entry->link;
             entry->owner = owner;
             entry->size = size;
             entry->ownerRef = ownerRef;
             entry->destroyNotify = destroyNotify;
-            (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arenaUsage += size;
+            (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arenaUsage += size;
             if (ownerRef != 0) {
                 *ownerRef = entry;
             }
             return entry;
         }
         {
-            RwLLLink* tail = (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).activeList->prev;
+            RwLLLink* tail = (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).activeList->prev;
 
-            if (tail != (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).activeList) {
+            if (tail != (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).activeList) {
                 entry = (RwResEntry*)tail;
                 RwResourcesFreeResEntry(entry);
             } else {
-                tail = (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->prev;
-                if (tail != (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).allocList) {
+                tail = (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList->prev;
+                if (tail != (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).allocList) {
                     entry = (RwResEntry*)tail;
-                    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arenaReusage += entry->size;
+                    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arenaReusage += entry->size;
                     RwResourcesFreeResEntry(entry);
                 } else {
                     exhausted = 1;
@@ -191,14 +191,14 @@ RwResEntry* RwResourcesAllocateResEntry(
     return 0;
 }
 
-RwBool RwResourcesSetArenaSize(RwUInt32 size) {
+int RwResourcesSetArenaSize(unsigned int size) {
     RwResourcesGlobals* globals;
 
     if (resourcesModule.numInstances == 0) {
         RwEngineInstance->resArenaInitSize = size;
         return 1;
     }
-    globals = &(*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset));
+    globals = &(*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset));
     globals->arenaSize = size;
     RwResourcesEmptyArena();
     _rwResHeapClose(globals->arena);
@@ -227,30 +227,30 @@ RwBool RwResourcesSetArenaSize(RwUInt32 size) {
 
 
 
-RwBool RwResourcesEmptyArena(void) {
+int RwResourcesEmptyArena(void) {
     RwLLLink* link;
     RwLLLink* end;
 
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.prev->next =
-        (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link.next;
-    link = (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.next;
-    end = &(*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link;
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.prev->next =
+        (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link.next;
+    link = (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.next;
+    end = &(*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link;
     while (link != end) {
         RwResEntry* entry = (RwResEntry*)link;
 
         link = link->next;
         RwResourcesFreeResEntry(entry);
     }
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.next = &(*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link;
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.next = &(*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link;
     {
-        RwLLLink* sentinelA = &(*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link;
-        (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.prev = sentinelA;
+        RwLLLink* sentinelA = &(*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link;
+        (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesA.link.prev = sentinelA;
     }
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link.next = &(*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link;
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link.next = &(*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link;
     {
-        RwLLLink* sentinelB = &(*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link;
-        (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link.prev = sentinelB;
+        RwLLLink* sentinelB = &(*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link;
+        (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).entriesB.link.prev = sentinelB;
     }
-    (*(RwResourcesGlobals*)((RwUInt8*)RwEngineInstance + resourcesModule.globalsOffset)).arenaReusage = 0;
+    (*(RwResourcesGlobals*)((unsigned char*)RwEngineInstance + resourcesModule.globalsOffset)).arenaReusage = 0;
     return 1;
 }

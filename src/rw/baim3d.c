@@ -19,12 +19,12 @@ RwModuleInfo _rwIm3DModule;
 
 static RwIm3DGlobals* Im3DGlobals(void)
 {
-    return (RwIm3DGlobals*)((RwUInt8*)RwEngineInstance +
+    return (RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
                             _rwIm3DModule.globalsOffset);
 }
 
-RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
-                              const RwMatrix* localToWorld, RwUInt32 flags)
+RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, unsigned int numVertices,
+                              const RwMatrix* localToWorld, unsigned int flags)
 {
     if (numVertices > 0x10000) {
         RwError error;
@@ -47,9 +47,9 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, RwUInt32 numVertices,
     return 0;
 }
 
-RwBool RwIm3DEnd(void)
+int RwIm3DEnd(void)
 {
-    RwBool transformed = Im3DGlobals()->transformData.vertices != 0;
+    int transformed = Im3DGlobals()->transformData.vertices != 0;
 
     if (!transformed) {
         return 0;
@@ -58,11 +58,11 @@ RwBool RwIm3DEnd(void)
     return 1;
 }
 
-RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
+int RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
                                     const RwImVertexIndex* indices,
-                                    RwInt32 numIndices)
+                                    int numIndices)
 {
-    RwBool transformed = Im3DGlobals()->transformData.vertices != 0;
+    int transformed = Im3DGlobals()->transformData.vertices != 0;
 
     if (transformed) {
         RwIm3DStash* data = &Im3DGlobals()->stash;
@@ -108,10 +108,10 @@ RwBool RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
     return 0;
 }
 
-RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
+int RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 {
     void* vertices = Im3DGlobals()->transformData.vertices;
-    RwBool transformed = vertices != 0;
+    int transformed = vertices != 0;
 
     if (transformed) {
         RwIm3DStash* data = &Im3DGlobals()->stash;
@@ -158,13 +158,20 @@ RwBool RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 RxPipeline* RwIm3DSetTransformPipeline(RxPipeline* pipeline)
 {
     if (pipeline != 0) {
-        Im3DGlobals()->transformPipeline = pipeline;
-    } else if (Im3DGlobals()->defaultTransformPipeline != 0) {
-        Im3DGlobals()->transformPipeline = Im3DGlobals()->defaultTransformPipeline;
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+            _rwIm3DModule.globalsOffset))->transformPipeline = pipeline;
+    } else if (((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                   _rwIm3DModule.globalsOffset))->defaultTransformPipeline != 0) {
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+            _rwIm3DModule.globalsOffset))->transformPipeline =
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                _rwIm3DModule.globalsOffset))->defaultTransformPipeline;
     } else {
-        Im3DGlobals()->transformPipeline = 0;
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+            _rwIm3DModule.globalsOffset))->transformPipeline = 0;
     }
-    return Im3DGlobals()->transformPipeline;
+    return ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+        _rwIm3DModule.globalsOffset))->transformPipeline;
 }
 
 RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
@@ -260,7 +267,7 @@ RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
     return 0;
 }
 
-void* _rwIm3DClose(void* instance, RwInt32 offset, RwInt32 size)
+void* _rwIm3DClose(void* instance, int offset, int size)
 {
     _rwIm3DDestroyPlatformRenderPipelines(
         &Im3DGlobals()->defaultRenderPipelines);
@@ -270,9 +277,9 @@ void* _rwIm3DClose(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-void* _rwIm3DOpen(void* instance, RwInt32 offset, RwInt32 size)
+void* _rwIm3DOpen(void* instance, int offset, int size)
 {
-    RwBool result = 1;
+    int result = 1;
     _rwIm3DModule.globalsOffset = offset;
     _rwIm3DGlobals = Im3DGlobals();
     ++_rwIm3DModule.numInstances;
