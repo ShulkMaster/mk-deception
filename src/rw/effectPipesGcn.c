@@ -2,34 +2,36 @@
 #include "libmkparticle/rw_engine.h"
 #include "platform/gcpipemanager.h"
 #include "rw/alphapass.h"
+#include "rw/dltextur.h"
 #include "rw/gamecube.h"
+#include "rw/dltoken.h"
 #include "rw/nodegamecube.h"
 #include "rw/rpmatfx.h"
 #include "rw/rwresources.h"
 
 typedef struct RwGameCubeLightingData {
-    RwUInt8 reserved_0x00[0x0C];
+    unsigned char reserved_0x00[0x0C];
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
 } RwGameCubeLightingData;
 
 typedef struct RxGameCubeAllInOneInstanceData {
     RwResEntry* resourceEntry;
     RpMeshHeader* meshHeader;
-    RwUInt32 geometryFlags;
+    unsigned int geometryFlags;
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
     void* morphData;
 } RxGameCubeAllInOneInstanceData;
 
 typedef struct MatFXStateCache {
-    RwBool lightingSetup;
+    int lightingSetup;
     RpMaterial* material;
-    RwInt32 effect;
+    int effectType;
 } MatFXStateCache;
 
 typedef struct SpecularMaterialData {
@@ -38,40 +40,39 @@ typedef struct SpecularMaterialData {
     RwTexture* texture;
     RwTexture* savedTexture;
     RpSurfaceProperties savedSurface;
-    RwReal clipValue;
-    RwReal shininess;
-    RwUInt8 tint[4];
-    RwReal gloss;
-    RwUInt8 flags;
-    RwUInt8 reserved_0x2D[3];
+    float clipValue;
+    float shininess;
+    unsigned char tint[4];
+    float gloss;
+    unsigned char flags;
+    unsigned char reserved_0x2D[3];
 } SpecularMaterialData;
 
 typedef struct SpecularLightData {
-    RwUInt8 reserved_0x00[0x18];
+    unsigned char reserved_0x00[0x18];
     RwRGBAReal color;
 } SpecularLightData;
 
 typedef struct RwGameCubeDisplayResource {
-    RwUInt16 token;
-    RwUInt16 reserved_0x02;
-    RwUInt32 reserved_0x04;
-    RwUInt32 numDisplayLists;
-    RwUInt8 reserved_0x0C[8];
+    unsigned short token;
+    unsigned short reserved_0x02;
+    unsigned int reserved_0x04;
+    unsigned int numDisplayLists;
+    unsigned char reserved_0x0C[8];
     RwGameCubeDisplayList displayLists[1];
 } RwGameCubeDisplayResource;
 
-typedef void (*RwRenderStateSetCall)(RwUInt32, RwUInt32, RwGlobals*);
-typedef void (*RwRenderStateGetCall)(RwUInt32, void*, RwGlobals*);
+typedef void (*RenderStateSetCall)(unsigned int, unsigned int, RwGlobals*);
+typedef void (*RenderStateGetCall)(unsigned int, void*, RwGlobals*);
 
-extern RwInt32 MatFXMaterialDataOffset;
-extern RwInt32 SpecularMaterialOffset;
-extern RwInt32 _rpDlGeomVtxFmtOffset;
-extern RwUInt16 _RwDlTokenCurrent;
+extern int MatFXMaterialDataOffset;
+extern int SpecularMaterialOffset;
+extern int _rpDlGeomVtxFmtOffset;
 extern RpAtomic* _rxGCAtomicDefaultLightingCallback(
     RpAtomic*, RwGameCubeLightingData*);
 
 extern void SetupAtomicSpecularity(RpAtomic* atomic);
-extern void ProcessSpecularity(RpMaterial*, RwTexture*, RwTexture*, RwBool);
+extern void ProcessSpecularity(RpMaterial*, RwTexture*, RwTexture*, int);
 extern void CleanupSpecularity(RpMaterial*, RwTexture*, RwTexture*);
 extern void SetFirstTextureAlphaPassWithAlphaComp(
     RwTexture*, RwTexture*, RxGCTevAlphaPass*);
@@ -80,14 +81,14 @@ extern RwTexture* _rpMatFXTextureMaskCreate(
 extern void* _rxGCAtomicDefaultInstanceCallback(void*, RwResEntry**);
 extern void* _rxGCAtomicDefaultReinstanceCallback(void*, RwResEntry**);
 extern RxPipeline* _rpDlAtomicPipelineCreate(
-    RwUInt32, RwUInt32, void*, void*, void*, void*);
-extern RwBool RxGameCubePreInstanceGetOptimize(void);
-extern void RxGameCubePreInstanceSetOptimize(RwBool optimize);
-extern RwBool _rpGameCubeMTPipeDataQueryNBTs(
+    unsigned int, unsigned int, void*, void*, void*, void*);
+extern int RxGameCubePreInstanceGetOptimize(void);
+extern void RxGameCubePreInstanceSetOptimize(int optimize);
+extern int _rpGameCubeMTPipeDataQueryNBTs(
     const RxGameCubeAllInOneInstanceData* data);
 extern void _rpGameCubeMTPipeDataCalcNBTs(
     RxGameCubeAllInOneInstanceData* data,
-    const RpGameCubeVtxFmt* format, RwInt32 numVertices);
+    const RpGameCubeVtxFmt* format, int numVertices);
 extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 static const GXColor opaqueWhite = {255, 255, 255, 255};
@@ -99,31 +100,31 @@ RpGameCubeVtxFmt* _rpGCMatFXVtxFmtNBT;
 
 static RpMatFXMaterialData* MatFXData(const RpMaterial* material)
 {
-    return *(RpMatFXMaterialData**)((RwUInt8*)material +
+    return *(RpMatFXMaterialData**)((unsigned char*)material +
                                     MatFXMaterialDataOffset);
 }
 
 static SpecularMaterialData* SpecularData(const RpMaterial* material)
 {
-    return (SpecularMaterialData*)((RwUInt8*)material +
+    return (SpecularMaterialData*)((unsigned char*)material +
                                    SpecularMaterialOffset);
 }
 
 static RpGameCubeVtxFmt* GeometryVertexFormat(const RpGeometry* geometry)
 {
-    return *(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
+    return *(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
 }
 
-static void GXSetTexCoordGen(RwInt32 dst, RwInt32 func, RwInt32 src,
-                             RwUInt32 matrix);
+static void GXSetTexCoordGen(int dst, int func, int src,
+                             unsigned int matrix);
 
 static void _rxGCChannelLightingSetup(
     const RxGameCubeAllInOneInstanceData* data)
 {
-    RwUInt32 flags = data->geometryFlags;
+    unsigned int flags = data->geometryFlags;
 
     if (data->lightIndex > 0) {
-        RwBool ambientSource;
+        int ambientSource;
         if ((flags & 8) != 0) {
             ambientSource = 1;
         } else {
@@ -152,15 +153,15 @@ static void _rxGCChannelLightingSetup(
 static void _rxGCChannelMaterialSetup(
     const RxGameCubeAllInOneInstanceData* data, const RpMaterial* material)
 {
-    RwUInt32 flags = data->geometryFlags;
+    unsigned int flags = data->geometryFlags;
     GXColor color;
 
     if (data->lightIndex > 0) {
         if (data->hasAmbient && (flags & 8) == 0) {
-            RwReal scale = 255.0f * material->surface.ambient;
-            color.r = (RwUInt8)(scale * data->ambient.red);
-            color.g = (RwUInt8)(scale * data->ambient.green);
-            color.b = (RwUInt8)(scale * data->ambient.blue);
+            float scale = 255.0f * material->surface.ambient;
+            color.r = (unsigned char)(scale * data->ambient.red);
+            color.g = (unsigned char)(scale * data->ambient.green);
+            color.b = (unsigned char)(scale * data->ambient.blue);
             color.a = 255;
             GXSetChanAmbColor(4, color);
         }
@@ -173,39 +174,39 @@ static void _rxGCChannelMaterialSetup(
             GXSetChanMatColor(4, channelMaterialWhite);
 
         if (data->hasAmbient) {
-            RwReal scale = 255.0f * material->surface.ambient;
+            float scale = 255.0f * material->surface.ambient;
             if ((flags & 0x40) != 0) {
-                color.r = (RwUInt8)(material->color.red *
+                color.r = (unsigned char)(material->color.red *
                                      (scale * data->ambient.red));
-                color.g = (RwUInt8)(material->color.green *
+                color.g = (unsigned char)(material->color.green *
                                      (scale * data->ambient.green));
-                color.b = (RwUInt8)(material->color.blue *
+                color.b = (unsigned char)(material->color.blue *
                                      (scale * data->ambient.blue));
                 color.a = material->color.alpha;
             } else {
                 scale *= 255.0f;
-                color.r = (RwUInt8)(scale * data->ambient.red);
-                color.g = (RwUInt8)(scale * data->ambient.green);
-                color.b = (RwUInt8)(scale * data->ambient.blue);
+                color.r = (unsigned char)(scale * data->ambient.red);
+                color.g = (unsigned char)(scale * data->ambient.green);
+                color.b = (unsigned char)(scale * data->ambient.blue);
                 color.a = 255;
             }
             GXSetChanAmbColor(4, color);
         }
     } else if (data->hasAmbient) {
-        RwReal scale = material->surface.ambient;
+        float scale = material->surface.ambient;
         if ((flags & 0x40) != 0) {
-            color.r = (RwUInt8)(material->color.red *
+            color.r = (unsigned char)(material->color.red *
                                  (scale * data->ambient.red));
-            color.g = (RwUInt8)(material->color.green *
+            color.g = (unsigned char)(material->color.green *
                                  (scale * data->ambient.green));
-            color.b = (RwUInt8)(material->color.blue *
+            color.b = (unsigned char)(material->color.blue *
                                  (scale * data->ambient.blue));
             color.a = material->color.alpha;
         } else {
             scale *= 255.0f;
-            color.r = (RwUInt8)(scale * data->ambient.red);
-            color.g = (RwUInt8)(scale * data->ambient.green);
-            color.b = (RwUInt8)(scale * data->ambient.blue);
+            color.r = (unsigned char)(scale * data->ambient.red);
+            color.g = (unsigned char)(scale * data->ambient.green);
+            color.b = (unsigned char)(scale * data->ambient.blue);
             color.a = 255;
         }
         GXSetChanMatColor(4, color);
@@ -218,7 +219,7 @@ static void _rxGCChannelMaterialSetup(
 
 void _rpDlMatFXStateCacheInit(void)
 {
-    FXStateCache.effect = 0;
+    FXStateCache.effectType = 0;
     FXStateCache.lightingSetup = 0;
     FXStateCache.material = 0;
 }
@@ -227,7 +228,7 @@ static void SetupMaterial(RpMaterial* material,
                           RxGameCubeAllInOneInstanceData* data)
 {
     RwGameCubeVertexBuffer* vertexBuffer =
-        (RwGameCubeVertexBuffer*)((RwUInt8*)data->resourceEntry + 0x18);
+        (RwGameCubeVertexBuffer*)((unsigned char*)data->resourceEntry + 0x18);
     DpMaterialCallback callback;
 
     if (!FXStateCache.lightingSetup) {
@@ -238,7 +239,7 @@ static void SetupMaterial(RpMaterial* material,
         _rxGCChannelMaterialSetup(data, material);
         FXStateCache.material = material;
     }
-    FXStateCache.effect = 0;
+    FXStateCache.effectType = 0;
     callback = DPObjectRenderSetup(data->geometryFlags, data->lightMask,
                                    data->hasAmbient,
                                    vertexBuffer->reserved_0x00[1] & 1);
@@ -255,8 +256,9 @@ static void MeshRenderStandard(
     RpMaterial* material = mesh->material;
     RwTexture* texture = material->texture;
     RwTexture* alphaTexture = RpMaterialGetAlphaPassTexture(material);
-    SpecularMaterialData* specular = SpecularData(material);
-    RwBool useSpecularMap;
+    SpecularMaterialData* specular =
+        (SpecularMaterialData*)((unsigned char*)material + SpecularMaterialOffset);
+    int useSpecularMap;
 
     SetupMaterial(material, data);
     if ((data->geometryFlags & 8) != 0 && data->hasAmbient &&
@@ -278,7 +280,7 @@ static void MeshRenderStandard(
         _rxGCTevAlphaMultiPassCleanup((RxGCTevAlphaPass*)data);
 }
 
-static void LoadUVMatrix(const RwMatrix* matrix, RwInt32 id, Mtx texMatrix)
+static void LoadUVMatrix(const RwMatrix* matrix, int id, Mtx texMatrix)
 {
     texMatrix[0][0] = matrix->right.x;
     texMatrix[0][1] = matrix->up.x;
@@ -300,8 +302,8 @@ static void MeshRenderUVAnim(
     RpMatFXMaterialData* matFX = MatFXData(material);
     RwTexture* alphaTexture;
     SpecularMaterialData* specular = SpecularData(material);
-    RwBool useSpecularMap;
-    RwReal texMatrix[2][4];
+    int useSpecularMap;
+    float texMatrix[2][4];
 
     SetupMaterial(material, data);
     if ((data->geometryFlags & 8) != 0 && data->hasAmbient &&
@@ -339,7 +341,9 @@ void _rpDlMatFXMeshRender(
     RpAtomic* atomic, RwMatrix* ltm,
     RxGameCubeAllInOneInstanceData* data)
 {
-    RpMatFXMaterialData* matFX = MatFXData(mesh->material);
+    RpMatFXMaterialData* matFX =
+        *(RpMatFXMaterialData**)((unsigned char*)mesh->material +
+                                 MatFXMaterialDataOffset);
     if (matFX != 0) {
         switch (matFX->effects) {
         case rpMATFXEFFECTDUAL:
@@ -366,8 +370,10 @@ void* _rpGCMatFXAtomicInstanceCallBack(
 
     if (_rpGameCubeMTPipeDataQueryNBTs(data)) {
         RpGeometry* geometry = atomic->geometry;
-        RpGameCubeVtxFmt* format = GeometryVertexFormat(geometry);
-        RwBool optimize;
+        RpGameCubeVtxFmt* format =
+            *(RpGameCubeVtxFmt**)((unsigned char*)geometry +
+                                  _rpDlGeomVtxFmtOffset);
+        int optimize;
         void* result;
         if (format == 0) {
             RpGameCubeGeometrySetVtxFmt(geometry, _rpGCMatFXVtxFmtNBT);
@@ -392,13 +398,14 @@ void* _rpGCMatFXAtomicReinstanceCallBack(
     RpAtomic* atomic, RxGameCubeAllInOneInstanceData* data)
 {
     RpGeometry* geometry = atomic->geometry;
-    RpGameCubeVtxFmt* format = GeometryVertexFormat(geometry);
-    RwBool calculateNBTs = 0;
+    RpGameCubeVtxFmt* format =
+        *(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
+    int calculateNBTs = 0;
 
     if (format != 0 && format->normalMode != 0 &&
         (geometry->flags & 0x10) != 0) {
-        RwBool morphing = 0;
-        RwBool required;
+        int morphing = 0;
+        int required;
         if (geometry->numMorphTargets != 1 &&
             (atomic->interpolator.flags & 1) != 0)
             morphing = 1;
@@ -419,11 +426,11 @@ void* _rpGCMatFXRenderCallback(
     RpAtomic* atomic, RxGameCubeAllInOneInstanceData* data)
 {
     RwGameCubeDisplayResource* resource =
-        (RwGameCubeDisplayResource*)((RwUInt8*)data->resourceEntry + 0x18);
+        (RwGameCubeDisplayResource*)((unsigned char*)data->resourceEntry + 0x18);
     RwGameCubeDisplayList* displayList =
         &resource->displayLists[resource->numDisplayLists - 1];
     RpMesh* mesh = (RpMesh*)(data->meshHeader + 1);
-    RwUInt32 numMeshes = data->meshHeader->numMeshes;
+    unsigned int numMeshes = data->meshHeader->numMeshes;
     RwMatrix* ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
 
     resource->token = _RwDlTokenCurrent;
@@ -435,18 +442,18 @@ void* _rpGCMatFXRenderCallback(
     while (numMeshes-- != 0) {
         SpecularMaterialData* specular = SpecularData(mesh->material);
         if ((specular->flags & 2) == 0) {
-            RwBool restoreCull = 0;
-            RwInt32 oldCullMode;
+            int restoreCull = 0;
+            int oldCullMode;
             if ((specular->flags & 4) != 0) {
                 restoreCull = 1;
-                ((RwRenderStateGetCall)RwEngineInstance->fpRenderStateGet)(
+                ((RenderStateGetCall)RwEngineInstance->fpRenderStateGet)(
                     0x14, &oldCullMode, RwEngineInstance);
-                ((RwRenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                ((RenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
                     0x14, 1, RwEngineInstance);
             }
             _rpDlMatFXMeshRender(mesh, displayList, atomic, ltm, data);
             if (restoreCull)
-                ((RwRenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                ((RenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
                     0x14, oldCullMode, RwEngineInstance);
         }
         mesh++;
@@ -455,7 +462,7 @@ void* _rpGCMatFXRenderCallback(
     return atomic;
 }
 
-RwBool _rpMatFXPipelinesCreate(void)
+int _rpMatFXPipelinesCreate(void)
 {
     _rpGCMatFXVtxFmtNBT = RpGameCubeVtxFmtCreate();
     RpGameCubeVtxFmtSetNormal(_rpGCMatFXVtxFmtNBT, 4, 1);
@@ -466,7 +473,7 @@ RwBool _rpMatFXPipelinesCreate(void)
     return 1;
 }
 
-RwBool _rpMatFXPipelinesDestroy(void)
+int _rpMatFXPipelinesDestroy(void)
 {
 
     if (_rpGCMatFXVtxFmtNBT != 0) {
@@ -492,8 +499,8 @@ void _rpMatFXPipelineWorldSectorSetup(void)
 {
 }
 
-RwBool _rpMatFXSetupDualRenderState(
-    RpMatFXDualData* data, RwInt32 renderState)
+int _rpMatFXSetupDualRenderState(
+    RpMatFXDualData* data, int renderState)
 {
     return 1;
 }
@@ -506,11 +513,11 @@ RwTexture* _rpMatFXSetupBumpMapTexture(
     return result;
 }
 
-static RwUInt32 SetupAlphaTextureForDualPass(
-    RwTexture* texture, RwInt32* tevStage, RwInt32* texMap,
-    RwBool secondCoords)
+static unsigned int SetupAlphaTextureForDualPass(
+    RwTexture* texture, int* tevStage, int* texMap,
+    int secondCoords)
 {
-    RwInt32 swapStage;
+    int swapStage;
     GXSetTevColorOp(*tevStage, 0, 0, 0, 1, 0);
     GXSetTevAlphaOp(*tevStage, 0, 0, 0, 1, 0);
     (*tevStage)++;
@@ -527,7 +534,7 @@ static RwUInt32 SetupAlphaTextureForDualPass(
     return swapStage;
 }
 
-static void BlendSetup_Zero_SrcAlpha(RwInt32* tevStage)
+static void BlendSetup_Zero_SrcAlpha(int* tevStage)
 {
     GXSetTevOrder(*tevStage, 0xFF, 0xFF, 0xFF);
     GXSetTevColorIn(*tevStage, 15, 5, 2, 15);
@@ -537,7 +544,7 @@ static void BlendSetup_Zero_SrcAlpha(RwInt32* tevStage)
     (*tevStage)++;
 }
 
-static void BlendSetup_SrcAlpha_InvSrcAlpha(RwInt32* tevStage)
+static void BlendSetup_SrcAlpha_InvSrcAlpha(int* tevStage)
 {
     GXSetTevOrder(*tevStage, 0xFF, 0xFF, 0xFF);
     GXSetTevColorIn(*tevStage, 2, 4, 5, 15);
@@ -547,7 +554,7 @@ static void BlendSetup_SrcAlpha_InvSrcAlpha(RwInt32* tevStage)
     (*tevStage)++;
 }
 
-static void BlendSetup_SrcAlpha_One(RwInt32* tevStage)
+static void BlendSetup_SrcAlpha_One(int* tevStage)
 {
     GXSetTevOrder(*tevStage, 0xFF, 0xFF, 0xFF);
     GXSetTevColorIn(*tevStage, 15, 4, 5, 2);
@@ -557,7 +564,7 @@ static void BlendSetup_SrcAlpha_One(RwInt32* tevStage)
     (*tevStage)++;
 }
 
-static void BlendSetup_One_One(RwInt32* tevStage)
+static void BlendSetup_One_One(int* tevStage)
 {
     GXSetTevOrder(*tevStage, 0xFF, 0xFF, 0xFF);
     GXSetTevColorIn(*tevStage, 15, 2, 12, 4);
@@ -568,7 +575,7 @@ static void BlendSetup_One_One(RwInt32* tevStage)
 }
 
 static void MKChooseBlendMode(
-    RwInt32 srcBlend, RwInt32 dstBlend, RwInt32* tevStage)
+    int srcBlend, int dstBlend, int* tevStage)
 {
     if (srcBlend == 1 && dstBlend == 5)
         BlendSetup_Zero_SrcAlpha(tevStage);
@@ -581,19 +588,20 @@ static void MKChooseBlendMode(
 }
 
 static void ApplySpecularityToDualPass(
-    RpMaterial* material, RwInt32* texCoord, RwInt32* tevStage)
+    RpMaterial* material, int* texCoord, int* tevStage)
 {
-    SpecularMaterialData* specular = SpecularData(material);
+    SpecularMaterialData* specular =
+        (SpecularMaterialData*)((unsigned char*)material + SpecularMaterialOffset);
     SpecularLightData* light = specular->light;
     GXColor color;
-    RwReal scale = 2.0f * material->surface.specular;
-    RwInt32 coord = (*texCoord)++;
+    float scale = 2.0f * material->surface.specular;
+    int coord = (*texCoord)++;
 
     if (scale > 1.0f)
         scale = 1.0f;
-    color.r = (RwUInt8)(specular->tint[0] * (scale * light->color.red));
-    color.g = (RwUInt8)(specular->tint[1] * (scale * light->color.green));
-    color.b = (RwUInt8)(specular->tint[2] * (scale * light->color.blue));
+    color.r = (unsigned char)(specular->tint[0] * (scale * light->color.red));
+    color.g = (unsigned char)(specular->tint[1] * (scale * light->color.green));
+    color.b = (unsigned char)(specular->tint[2] * (scale * light->color.blue));
     color.a = 255;
     GXSetTexCoordGen(coord, 1, 1, 0x39);
     specular->texture->filter_flags =
@@ -610,11 +618,11 @@ static void ApplySpecularityToDualPass(
 }
 
 static void FinishDualPass(RwGameCubeDisplayList* displayList,
-                           RwInt32 tevStage, RwInt32 texCoord,
-                           RwUInt32 firstSwap, RwUInt32 secondSwap)
+                           int tevStage, int texCoord,
+                           unsigned int firstSwap, unsigned int secondSwap)
 {
-    GXSetNumTevStages((RwUInt8)tevStage);
-    GXSetNumTexGens((RwUInt8)texCoord);
+    GXSetNumTevStages((unsigned char)tevStage);
+    GXSetNumTexGens((unsigned char)texCoord);
     GXSetAlphaCompare(7, 0, 0, 7, 0);
     GXSetZCompLoc(1);
     GXCallDisplayList(displayList->data, displayList->size);
@@ -624,7 +632,7 @@ static void FinishDualPass(RwGameCubeDisplayList* displayList,
         GXSetTevSwapMode(secondSwap, 0, 0);
     FXStateCache.lightingSetup = 0;
     FXStateCache.material = 0;
-    FXStateCache.effect = 0;
+    FXStateCache.effectType = 0;
 }
 
 static void MKMeshRenderDual(
@@ -632,15 +640,19 @@ static void MKMeshRenderDual(
     RxGameCubeAllInOneInstanceData* data)
 {
     RpMaterial* material = mesh->material;
-    RpMatFXMaterialData* matFX = MatFXData(material);
+    RpMatFXMaterialData* matFX =
+        *(RpMatFXMaterialData**)((unsigned char*)material +
+                                 MatFXMaterialDataOffset);
     RpMatFXDualData* dual = &matFX->slot[0].data.dual;
+    SpecularMaterialData* specular =
+        (SpecularMaterialData*)((unsigned char*)material + SpecularMaterialOffset);
     RwTexture* alpha = RpMaterialGetAlphaPassTexture(material);
     RwTexture* dualAlpha = RpMaterialGetDualAlphaPassTexture(material);
-    RwInt32 tevStage = 0;
-    RwInt32 texMap = 0;
-    RwInt32 texCoord = material->texture != 0;
-    RwUInt32 firstSwap = 0;
-    RwUInt32 secondSwap = 0;
+    int tevStage = 0;
+    int texMap = 0;
+    int texCoord = material->texture != 0;
+    unsigned int firstSwap = 0;
+    unsigned int secondSwap = 0;
 
     if (material->texture != 0)
         texMap = 1;
@@ -675,7 +687,7 @@ static void MKMeshRenderDual(
     GXSetTevAlphaOp(tevStage, 0, 0, 0, 1, 2);
     tevStage++;
     MKChooseBlendMode(dual->srcBlendMode, dual->dstBlendMode, &tevStage);
-    if (SpecularData(material)->shininess != 0.0f)
+    if (specular->shininess != 0.0f)
         ApplySpecularityToDualPass(material, &texCoord, &tevStage);
     FinishDualPass(displayList, tevStage, texCoord, firstSwap, secondSwap);
 }
@@ -685,18 +697,22 @@ static void MKMeshRenderUVAnimDual(
     RxGameCubeAllInOneInstanceData* data)
 {
     RpMaterial* material = mesh->material;
-    RpMatFXMaterialData* matFX = MatFXData(material);
+    RpMatFXMaterialData* matFX =
+        *(RpMatFXMaterialData**)((unsigned char*)material +
+                                 MatFXMaterialDataOffset);
     RpMatFXUVTransformData* uv = &matFX->slot[0].data.uv;
     RpMatFXDualData* dual = &matFX->slot[1].data.dual;
+    SpecularMaterialData* specular =
+        (SpecularMaterialData*)((unsigned char*)material + SpecularMaterialOffset);
     RwTexture* alpha = RpMaterialGetAlphaPassTexture(material);
     RwTexture* dualAlpha = RpMaterialGetDualAlphaPassTexture(material);
-    RwInt32 tevStage = 0;
-    RwInt32 texMap = material->texture != 0;
-    RwInt32 texCoord = material->texture != 0;
-    RwInt32 dualSource;
-    RwUInt32 firstSwap = 0;
-    RwUInt32 secondSwap = 0;
-    RwReal texMatrix[2][4];
+    int tevStage = 0;
+    int texMap = material->texture != 0;
+    int texCoord = material->texture != 0;
+    int dualSource;
+    unsigned int firstSwap = 0;
+    unsigned int secondSwap = 0;
+    float texMatrix[2][4];
 
     _rwDlTextureSet(material->texture, 0);
     GXSetTevSwapModeTable(3, 0, 3, 2, 1);
@@ -737,13 +753,13 @@ static void MKMeshRenderUVAnimDual(
     GXSetTevAlphaOp(tevStage, 0, 0, 0, 1, 2);
     tevStage++;
     MKChooseBlendMode(dual->srcBlendMode, dual->dstBlendMode, &tevStage);
-    if (SpecularData(material)->shininess != 0.0f)
+    if (specular->shininess != 0.0f)
         ApplySpecularityToDualPass(material, &texCoord, &tevStage);
     FinishDualPass(displayList, tevStage, texCoord, firstSwap, secondSwap);
 }
 
 static void GXSetTexCoordGen(
-    RwInt32 dst, RwInt32 func, RwInt32 src, RwUInt32 matrix)
+    int dst, int func, int src, unsigned int matrix)
 {
     GXSetTexCoordGen2(dst, func, src, matrix, 0, 0x7D);
 }

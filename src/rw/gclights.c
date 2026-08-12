@@ -6,24 +6,24 @@
 #include "rw/rwvector.h"
 
 typedef struct RwGameCubeLightExt {
-    RwUInt32 useAttenuation;
-    RwReal a0;
-    RwReal a1;
-    RwReal a2;
-    RwReal k0;
-    RwReal k1;
-    RwReal k2;
+    unsigned int useAttenuation;
+    float a0;
+    float a1;
+    float a2;
+    float k0;
+    float k1;
+    float k2;
 } RwGameCubeLightExt;
 
 typedef struct RwGameCubeLightingData {
-    RwUInt8 reserved_0x00[0x0C];
+    unsigned char reserved_0x00[0x0C];
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
 } RwGameCubeLightingData;
 
-RwInt32 _RwDlLightExtOffset;
+int _RwDlLightExtOffset;
 GXLightObj _RwGCLightObjs[8];
 extern RwMatrix _RwDlInvCamLTM;
 extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
@@ -31,7 +31,7 @@ extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 
 static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
-                                                  RwInt32 index)
+                                                  int index)
 {
     RwV3d direction;
     RwGameCubeLightExt* extension;
@@ -41,7 +41,7 @@ static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
     RwV3dTransformVector(&direction, &RwFrameGetLTM(RpLightGetFrame(light))->at,
                          &_RwDlInvCamLTM);
     extension =
-        (RwGameCubeLightExt*)((RwUInt8*)light + _RwDlLightExtOffset);
+        (RwGameCubeLightExt*)((unsigned char*)light + _RwDlLightExtOffset);
     if (extension->useAttenuation == 0) {
         GXInitLightAttn(&_RwGCLightObjs[index], 1.0f, 0.0f, 0.0f, 1.0f,
                         0.0f, 0.0f);
@@ -64,7 +64,7 @@ static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
 
 
 
-void _rwGCLightsGlobalEnable(RwInt32 flags, RwGameCubeLightingData* lighting)
+void _rwGCLightsGlobalEnable(int flags, RwGameCubeLightingData* lighting)
 {
     RpWorld* world = (RpWorld*)RwEngineInstance->field_0x04;
     RwLLLink* link = world->directionalLightList.link.next;
@@ -72,11 +72,11 @@ void _rwGCLightsGlobalEnable(RwInt32 flags, RwGameCubeLightingData* lighting)
 
     while (link != end) {
 
-        RpLight* light = (RpLight*)((RwUInt8*)link - 0x34);
+        RpLight* light = (RpLight*)((unsigned char*)link - 0x34);
 
         if (light != 0 &&
-            (light->object.object.flags & (RwUInt8)flags) != 0) {
-            if ((RwInt32)RpLightGetType(light) == rpLIGHTDIRECTIONAL) {
+            (light->object.object.flags & (unsigned char)flags) != 0) {
+            if ((int)RpLightGetType(light) == rpLIGHTDIRECTIONAL) {
                 _rpGCHWLightingApplyDirectionalLight(light,
                                                       lighting->lightIndex);
                 lighting->lightMask |= 1U << lighting->lightIndex;
@@ -118,7 +118,7 @@ void _rwGCLightsLocalEnable(RpLight* light,
         GXInitLightPos(&_RwGCLightObjs[lighting->lightIndex], -position.x,
                        position.y, -position.z);
         extension =
-            (RwGameCubeLightExt*)((RwUInt8*)light + _RwDlLightExtOffset);
+            (RwGameCubeLightExt*)((unsigned char*)light + _RwDlLightExtOffset);
 
         switch (RpLightGetType(light)) {
         case rpLIGHTPOINT:
@@ -190,7 +190,7 @@ void _rwGCLightsLocalEnable(RpLight* light,
 static void rwDlLightExtCnst(RpLight* light)
 {
     RwGameCubeLightExt* extension =
-        (RwGameCubeLightExt*)((RwUInt8*)light + _RwDlLightExtOffset);
+        (RwGameCubeLightExt*)((unsigned char*)light + _RwDlLightExtOffset);
 
     extension->useAttenuation = 0;
 }
@@ -203,7 +203,7 @@ static void rwDlLightExtCopy(void)
 {
 }
 
-RwBool _rpDlLightPluginAttach(void)
+int _rpDlLightPluginAttach(void)
 {
     _RwDlLightExtOffset = RpLightRegisterPlugin(
         sizeof(RwGameCubeLightExt), 0x505,

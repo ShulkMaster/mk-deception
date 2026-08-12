@@ -4,7 +4,7 @@
 #include "rw/rwstream_internal.h"
 
 typedef struct RpMTEffectRegEntry {
-    RwInt32 type;
+    int type;
     RpMTEffectDestroyCallBack destroy;
     RpMTEffectStreamReadCallBack streamRead;
     RpMTEffectStreamWriteCallBack streamWrite;
@@ -14,41 +14,41 @@ typedef struct RpMTEffectRegEntry {
 typedef struct RpMTEffectGlobals {
     RwLinkList dictionaries;
     RpMTEffectDict* currentDictionary;
-    RwInt32 scratchSize;
-    RwChar* scratch;
-    RwChar* scratchName;
+    int scratchSize;
+    char* scratch;
+    char* scratchName;
 } RpMTEffectGlobals;
 
-extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
+extern void* memset(void* destination, int value, unsigned int size);
 extern RwModuleInfo _rpMultiTextureModule;
 
 static RpMTEffectGlobals* MultiTextureEffectGlobals(void)
 {
-    return (RpMTEffectGlobals*)((RwUInt8*)RwEngineInstance +
+    return (RpMTEffectGlobals*)((unsigned char*)RwEngineInstance +
                                 _rpMultiTextureModule.globalsOffset);
 }
 
 static RpMTEffect* EffectFromLink(RwLLLink* link)
 {
-    return (RpMTEffect*)((RwUInt8*)link - 0x28);
+    return (RpMTEffect*)((unsigned char*)link - 0x28);
 }
 
 static RpMTEffectDict* DictionaryFromLink(RwLLLink* link)
 {
-    return (RpMTEffectDict*)((RwUInt8*)link - 8);
+    return (RpMTEffectDict*)((unsigned char*)link - 8);
 }
 
 static RpMTEffectRegEntry EffectRegEntries[10];
 static RpMTEffectDict* DummyDict;
 
-RwBool _rpMTEffectSystemInit(void)
+int _rpMTEffectSystemInit(void)
 {
     memset(EffectRegEntries, 0, sizeof(EffectRegEntries));
     return 1;
 }
 
-RwBool _rpMTEffectRegisterPlatform(
-    RwInt32 type, RpMTEffectStreamReadCallBack read,
+int _rpMTEffectRegisterPlatform(
+    int type, RpMTEffectStreamReadCallBack read,
     RpMTEffectStreamWriteCallBack write,
     RpMTEffectStreamGetSizeCallBack getSize,
     RpMTEffectDestroyCallBack destroy)
@@ -62,12 +62,12 @@ RwBool _rpMTEffectRegisterPlatform(
     return 1;
 }
 
-RwBool _rpMTEffectOpen(void)
+int _rpMTEffectOpen(void)
 {
 
-    RwChar* scratch;
-    RwInt32 allocationSize;
-    RwInt32 scratchSize;
+    char* scratch;
+    int allocationSize;
+    int scratchSize;
 
     rwLinkListInitialize(&MultiTextureEffectGlobals()->dictionaries);
     DummyDict = RpMTEffectDictCreate();
@@ -92,7 +92,7 @@ RwBool _rpMTEffectOpen(void)
     return 1;
 }
 
-RwBool _rpMTEffectClose(void)
+int _rpMTEffectClose(void)
 {
 
     RwLLLink* link;
@@ -117,7 +117,7 @@ RwBool _rpMTEffectClose(void)
     return 1;
 }
 
-RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, RwInt32 type)
+RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, int type)
 {
 
     memset(effect, 0, sizeof(*effect));
@@ -133,7 +133,7 @@ RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, RwInt32 type)
 RpMTEffectDict* RpMTEffectDictCreate(void)
 {
 
-    RwUInt32 size = sizeof(RpMTEffectDict);
+    unsigned int size = sizeof(RpMTEffectDict);
     RpMTEffectDict* dictionary =
         RwEngineInstance->fpMalloc(size, 0x3012C);
     if (!dictionary) {
@@ -190,7 +190,7 @@ RpMTEffect* RpMTEffectDictRemoveEffect(RpMTEffect* effect)
 }
 
 RpMTEffect* RpMTEffectDictFindNamedEffect(RpMTEffectDict* dictionary,
-                                          const RwChar* name)
+                                          const char* name)
 {
 
     RwLLLink* link = dictionary->effects.link.next;
@@ -205,7 +205,7 @@ RpMTEffect* RpMTEffectDictFindNamedEffect(RpMTEffectDict* dictionary,
 
 RpMTEffect* RpMTEffectCreateDummy(void)
 {
-    RwUInt32 size = sizeof(RpMTEffect);
+    unsigned int size = sizeof(RpMTEffect);
     RpMTEffect* effect = RwEngineInstance->fpMalloc(size, 0x3012C);
     if (!effect) {
         RwError error;
@@ -239,10 +239,10 @@ void RpMTEffectDestroy(RpMTEffect* effect)
 RpMTEffect* RpMTEffectStreamRead(RwStream* stream)
 {
 
-    RwInt32 type;
-    RwUInt32 version;
-    RwUInt32 length;
-    RwChar name[32];
+    int type;
+    unsigned int version;
+    unsigned int length;
+    char name[32];
     RpMTEffect* effect;
     RpMTEffectRegEntry* entry;
     if (!RwStreamFindChunk(stream, 1, 0, 0) ||
@@ -263,11 +263,11 @@ RpMTEffect* RpMTEffectStreamRead(RwStream* stream)
     return effect;
 }
 
-RpMTEffect* RpMTEffectFind(const RwChar* name)
+RpMTEffect* RpMTEffectFind(const char* name)
 {
 
     RpMTEffect* effect = 0;
-    RwChar* path;
+    char* path;
     RwStream* stream;
     if (MultiTextureEffectGlobals()->currentDictionary) {
         effect = RpMTEffectDictFindNamedEffect(
@@ -300,7 +300,7 @@ RpMTEffect* RpMTEffectFind(const RwChar* name)
     return effect;
 }
 
-RpMTEffect* RpMTEffectSetName(RpMTEffect* effect, const RwChar* name)
+RpMTEffect* RpMTEffectSetName(RpMTEffect* effect, const char* name)
 {
     RwEngineInstance->stringFuncs.strncpy(effect->name, name, 0x1F);
     return effect;

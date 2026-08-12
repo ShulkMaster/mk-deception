@@ -1,9 +1,9 @@
 #include "rw/rpmatfx.h"
 
-extern RwBool _rpGameCubeMTPipePluginAttach(void);
+extern int _rpGameCubeMTPipePluginAttach(void);
 
-RwBool _rpMultiTexturePlatformPluginsAttach(void) {
-    RwBool result = _rpMultiTexturePluginAttach();
+int _rpMultiTexturePlatformPluginsAttach(void) {
+    int result = _rpMultiTexturePluginAttach();
     if (result == 0) {
         return 0;
     }

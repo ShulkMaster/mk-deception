@@ -1,22 +1,22 @@
 #include "rw/gamecube.h"
 #include "runtime/cstring.h"
 
-extern RwUInt32 rwGCNPosGetSize(const RwGameCubeVertexDescriptor* format);
-extern RwUInt32 rwGCNNrmGetSize(const RwGameCubeVertexDescriptor* format);
-extern RwUInt32 rwGCNClrGetSize(const RwGameCubeVertexDescriptor* format,
-                                RwUInt8 colorIndex);
-extern RwUInt32 rwGCNTexGetSize(const RwGameCubeVertexDescriptor* format,
-                                RwUInt32 texCoordIndex);
+extern unsigned int rwGCNPosGetSize(const RwGameCubeVertexDescriptor* format);
+extern unsigned int rwGCNNrmGetSize(const RwGameCubeVertexDescriptor* format);
+extern unsigned int rwGCNClrGetSize(const RwGameCubeVertexDescriptor* format,
+                                unsigned char colorIndex);
+extern unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor* format,
+                                unsigned int texCoordIndex);
 
 
-RwUInt32 _rwGCNDisplayListGetStride(
+unsigned int _rwGCNDisplayListGetStride(
     const RwGameCubeVertexDescriptor* format)
 {
-    RwUInt32 stride = 0;
-    RwInt32 attribute;
+    unsigned int stride = 0;
+    int attribute;
 
     for (attribute = 0; attribute < 21; attribute++) {
-        RwUInt32 type;
+        unsigned int type;
 
         switch (attribute) {
         case 0:
@@ -44,7 +44,7 @@ RwUInt32 _rwGCNDisplayListGetStride(
             }
             break;
         case 10: {
-            RwUInt32 vectors;
+            unsigned int vectors;
 
             vectors = (format->vatA >> 9) & 1;
             type = format->vcdLo & (3U << 11);
@@ -77,7 +77,7 @@ RwUInt32 _rwGCNDisplayListGetStride(
             type = (format->vcdLo >> (13 + ((attribute - 11) * 2))) & 3;
             if (type == 1) {
                 stride += rwGCNClrGetSize(
-                    format, (RwUInt8)(signed char)(attribute - 11));
+                    format, (unsigned char)(signed char)(attribute - 11));
             } else if (type == 2) {
                 stride += 1;
             } else if (type == 3) {
@@ -88,7 +88,7 @@ RwUInt32 _rwGCNDisplayListGetStride(
             type = (format->vcdHi >> ((attribute - 13) * 2)) & 3;
             if (type == 1) {
                 stride += rwGCNTexGetSize(
-                    format, (RwUInt32)(attribute - 13));
+                    format, (unsigned int)(attribute - 13));
             } else if (type == 2) {
                 stride += 1;
             } else if (type == 3) {
@@ -100,12 +100,12 @@ RwUInt32 _rwGCNDisplayListGetStride(
     return stride;
 }
 
-RwUInt32 _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
-                                  RwUInt32 numIndices,
-                                  RwUInt32 numVertices)
+unsigned int _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
+                                  unsigned int numIndices,
+                                  unsigned int numVertices)
 {
-    RwUInt32 size;
-    RwUInt32 stride;
+    unsigned int size;
+    unsigned int stride;
 
     stride = _rwGCNDisplayListGetStride(format);
     size = numIndices * 3 + numVertices * stride;
@@ -114,7 +114,7 @@ RwUInt32 _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
 }
 
 void _rwGCNDisplayListInitialize(RwGameCubeDisplayList* displayList,
-                                 RwUInt32 index, RwUInt32 size, void* data)
+                                 unsigned int index, unsigned int size, void* data)
 {
     displayList->data = data;
     displayList->size = size;

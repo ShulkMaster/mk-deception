@@ -1,42 +1,43 @@
 #include "dolphin/gx.h"
+#include "rw/dltextur.h"
 #include "rw/gamecube.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
-extern void* memcpy(void* destination, const void* source, RwUInt32 size);
+extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 typedef struct RwGameCubeNativeTextureHeader {
-    RwInt32 platform;
-    RwUInt32 filterAddressing;
-    RwInt32 maxAnisotropy;
-    RwInt32 biasClamp;
-    RwInt32 edgeLod;
-    RwReal lodBias;
-    RwChar name[32];
-    RwChar mask[32];
+    int platform;
+    unsigned int filterAddressing;
+    int maxAnisotropy;
+    int biasClamp;
+    int edgeLod;
+    float lodBias;
+    char name[32];
+    char mask[32];
 } RwGameCubeNativeTextureHeader;
 
 typedef struct RwGameCubeNativeRasterHeader {
-    RwInt32 format;
-    RwUInt16 width;
-    RwUInt16 height;
-    RwUInt8 depth;
-    RwUInt8 numLevels;
-    RwUInt8 tileMode;
-    RwUInt8 paletteFormat;
-    RwInt32 hasAlpha;
+    int format;
+    unsigned short width;
+    unsigned short height;
+    unsigned char depth;
+    unsigned char numLevels;
+    unsigned char tileMode;
+    unsigned char paletteFormat;
+    int hasAlpha;
 } RwGameCubeNativeRasterHeader;
 
-extern RwUInt32 _rwDlRasterGetSize(RwRaster* raster);
-extern RwBool _rwDlTextureRasterCreate(RwRaster* raster,
-                                       RwUInt8 numLevels);
-extern void DCFlushRange(void* address, RwUInt32 length);
+extern unsigned int _rwDlRasterGetSize(RwRaster* raster);
+extern int _rwDlTextureRasterCreate(RwRaster* raster,
+                                       unsigned char numLevels);
+extern void DCFlushRange(void* address, unsigned int length);
 extern void GXInvalidateTexAll(void);
 
-RwBool _rwDlNativeTextureGetSize(RwUInt32* size, void* object, RwInt32 unused)
+int _rwDlNativeTextureGetSize(unsigned int* size, void* object, int unused)
 {
-    RwUInt32 result;
+    unsigned int result;
     RwRaster* raster;
 
     result = sizeof(RwGameCubeNativeTextureHeader) + 12;
@@ -47,10 +48,10 @@ RwBool _rwDlNativeTextureGetSize(RwUInt32* size, void* object, RwInt32 unused)
     }
 
     result += sizeof(RwGameCubeNativeRasterHeader);
-    if ((RwInt32)(((RwUInt32)(RwUInt8)raster->format << 8) & 0x6000) != 0) {
-        result += (1U << raster->depth) * sizeof(RwUInt16);
+    if ((int)(((unsigned int)(unsigned char)raster->format << 8) & 0x6000) != 0) {
+        result += (1U << raster->depth) * sizeof(unsigned short);
     }
-    result += sizeof(RwUInt32);
+    result += sizeof(unsigned int);
     result += _rwDlRasterGetSize(raster);
     *size = result;
     return 1;
@@ -58,10 +59,10 @@ RwBool _rwDlNativeTextureGetSize(RwUInt32* size, void* object, RwInt32 unused)
 
 
 
-RwBool _rwDlNativeTextureWrite(RwStream* stream, void* object, RwInt32 unused)
+int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
 {
-    RwUInt32 rasterSize;
-    RwUInt32 bytesRemaining;
+    unsigned int rasterSize;
+    unsigned int bytesRemaining;
     RwGameCubeNativeTextureHeader textureHeader;
     RwGameCubeNativeRasterHeader rasterHeader;
     RwGameCubeTextureExt* textureExt;
@@ -78,7 +79,7 @@ RwBool _rwDlNativeTextureWrite(RwStream* stream, void* object, RwInt32 unused)
     textureHeader.platform = 6;
     textureHeader.filterAddressing =
         (((((RwTexture*)object)->filter_flags & 0xF000) >> 12 << 12) & 0xF000) |
-        ((RwUInt8)(((RwTexture*)object)->filter_flags & 0xFF) |
+        ((unsigned char)(((RwTexture*)object)->filter_flags & 0xFF) |
          ((((RwTexture*)object)->filter_flags & 0xF00) >> 8 << 8) & 0xF00);
     textureExt = RwGameCubeTextureExtension((RwTexture*)object);
     if ((textureExt->flags & 0x01000000) != 0) {
@@ -102,21 +103,21 @@ RwBool _rwDlNativeTextureWrite(RwStream* stream, void* object, RwInt32 unused)
     raster = ((RwTexture*)object)->raster;
     rasterExt = RwGameCubeRasterExtension(raster->parent);
     rasterHeader.format =
-        ((RwUInt32)(RwUInt8)raster->format << 8) | raster->type;
-    rasterHeader.width = (RwUInt16)raster->width;
-    rasterHeader.height = (RwUInt16)raster->height;
-    rasterHeader.depth = (RwUInt8)raster->depth;
-    rasterHeader.numLevels = (RwUInt8)RwRasterGetNumLevels(raster);
-    rasterHeader.tileMode = (RwUInt8)rasterExt->format;
-    rasterHeader.paletteFormat = (RwUInt8)rasterExt->paletteFormat;
+        ((unsigned int)(unsigned char)raster->format << 8) | raster->type;
+    rasterHeader.width = (unsigned short)raster->width;
+    rasterHeader.height = (unsigned short)raster->height;
+    rasterHeader.depth = (unsigned char)raster->depth;
+    rasterHeader.numLevels = (unsigned char)RwRasterGetNumLevels(raster);
+    rasterHeader.tileMode = (unsigned char)rasterExt->format;
+    rasterHeader.paletteFormat = (unsigned char)rasterExt->paletteFormat;
     rasterHeader.hasAlpha = rasterExt->hasAlpha & 1;
     if (RwStreamWrite(stream, &rasterHeader, sizeof(rasterHeader)) == 0) {
         return 0;
     }
     bytesRemaining -= sizeof(rasterHeader);
 
-    if ((RwInt32)(((RwUInt32)(RwUInt8)raster->format << 8) & 0x6000) != 0) {
-        RwUInt32 paletteSize = (1U << raster->depth) * sizeof(RwUInt16);
+    if ((int)(((unsigned int)(unsigned char)raster->format << 8) & 0x6000) != 0) {
+        unsigned int paletteSize = (1U << raster->depth) * sizeof(unsigned short);
 
         if (RwStreamWrite(stream, rasterExt->paletteData, paletteSize) ==
             0) {
@@ -141,16 +142,16 @@ RwBool _rwDlNativeTextureWrite(RwStream* stream, void* object, RwInt32 unused)
 
 
 
-RwBool _rwDlNativeTextureRead(RwStream* stream, void* object, RwInt32 unused)
+int _rwDlNativeTextureRead(RwStream* stream, void* object, int unused)
 {
-    RwUInt32 chunkLength;
-    RwUInt32 version;
+    unsigned int chunkLength;
+    unsigned int version;
     RwGameCubeNativeTextureHeader textureHeader;
     RwGameCubeNativeRasterHeader rasterHeader;
     RwRaster* raster;
     RwGameCubeRasterExt* rasterExt;
-    RwUInt32 rasterSize;
-    RwUInt32 rasterFormatBit;
+    unsigned int rasterSize;
+    unsigned int rasterFormatBit;
     RwTexture* result;
 
     if (!RwStreamFindChunk(stream, 1, &chunkLength, &version)) {
@@ -190,15 +191,15 @@ RwBool _rwDlNativeTextureRead(RwStream* stream, void* object, RwInt32 unused)
     }
     raster->flags &= ~0x80;
 
-    if ((RwInt32)(((RwUInt32)(RwUInt8)raster->format << 8) & 0x6000) != 0) {
-        RwUInt32 paletteSize = (1U << raster->depth) * sizeof(RwUInt16);
+    if ((int)(((unsigned int)(unsigned char)raster->format << 8) & 0x6000) != 0) {
+        unsigned int paletteSize = (1U << raster->depth) * sizeof(unsigned short);
 
         if (RwStreamRead(stream, rasterExt->paletteData, paletteSize) !=
             paletteSize) {
             return 0;
         }
         DCFlushRange(rasterExt->paletteData,
-                     (1U << raster->depth) * sizeof(RwUInt16));
+                     (1U << raster->depth) * sizeof(unsigned short));
     }
 
     rasterFormatBit = raster->format & 0x10;
@@ -221,7 +222,7 @@ RwBool _rwDlNativeTextureRead(RwStream* stream, void* object, RwInt32 unused)
     }
     result->filter_flags =
         (result->filter_flags & ~0xFF) |
-        (RwUInt8)textureHeader.filterAddressing;
+        (unsigned char)textureHeader.filterAddressing;
     result->filter_flags =
         (result->filter_flags & ~0xF00) |
         ((((textureHeader.filterAddressing >> 8) & 0xF) << 8) & 0xF00);

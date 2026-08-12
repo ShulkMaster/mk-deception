@@ -11,19 +11,19 @@ typedef struct RwIm3DPool {
 
 static RwIm3DPool* _rwDlImmPool;
 
-static RwInt32 _rwDlPrimConvTbl[7] = {
+static int _rwDlPrimConvTbl[7] = {
     0, 0xA8, 0xB0, 0x90, 0x98, 0xA0, 0xB8
 };
 
-static void GXSetTexCoordGen(RwInt32 destination, RwInt32 function,
-                             RwInt32 source, RwInt32 matrix);
+static void GXSetTexCoordGen(int destination, int function,
+                             int source, int matrix);
 static void GXEnd(void);
-static void GXTexCoord2f32(RwReal s, RwReal t);
-static void GXColor4u8(RwUInt8 red, RwUInt8 green, RwUInt8 blue,
-                       RwUInt8 alpha);
-static void GXPosition3f32(RwReal x, RwReal y, RwReal z);
+static void GXTexCoord2f32(float s, float t);
+static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
+                       unsigned char alpha);
+static void GXPosition3f32(float x, float y, float z);
 
-static RwBool _rwDlImmInstanceNode(
+static int _rwDlImmInstanceNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
     _rwDlImmPool = params->dataParam;
@@ -72,19 +72,19 @@ static void _rw3DRenderPrimitiveInit(const RwIm3DStash* stash)
 }
 
 
-static RwBool DlSubmitNode(
+static int DlSubmitNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
     RwIm3DStash* stash = &_rwDlImmPool->stash;
     RwIm3DVertex* vertices = _rwDlImmPool->transformData.vertices;
     const RwImVertexIndex* indices = stash->renderData.indices;
-    RwUInt16 count;
-    RwUInt16 verticesPerPrimitive;
-    RwBool textured;
+    unsigned short count;
+    unsigned short verticesPerPrimitive;
+    int textured;
 
     _rw3DRenderPrimitiveInit(stash);
     if (indices != 0) {
-        count = (RwUInt16)stash->renderData.numIndices;
+        count = (unsigned short)stash->renderData.numIndices;
     } else {
         count = _rwDlImmPool->transformData.numVertices;
     }
@@ -114,10 +114,10 @@ static RwBool DlSubmitNode(
 
     textured = (stash->flags & 1) != 0;
     if (verticesPerPrimitive != 0) {
-        RwUInt16 primitiveCount = count / verticesPerPrimitive;
+        unsigned short primitiveCount = count / verticesPerPrimitive;
 
         while (primitiveCount-- != 0) {
-            RwUInt16 vertexCount = verticesPerPrimitive;
+            unsigned short vertexCount = verticesPerPrimitive;
 
             while (vertexCount-- != 0) {
                 RwIm3DVertex* vertex;
@@ -157,8 +157,8 @@ RxNodeDefinition* RxNodeDefinitionGetGameCubeSubmitNoLight(void)
     return &nodeDlSubmitNoLightCSL;
 }
 
-static void GXSetTexCoordGen(RwInt32 destination, RwInt32 function,
-                             RwInt32 source, RwInt32 matrix)
+static void GXSetTexCoordGen(int destination, int function,
+                             int source, int matrix)
 {
     GXSetTexCoordGen2(destination, function, source, matrix, 0, 0x7D);
 }
@@ -168,24 +168,24 @@ static void GXEnd(void)
 }
 
 
-static void GXTexCoord2f32(RwReal s, RwReal t)
+static void GXTexCoord2f32(float s, float t)
 {
-    *(volatile RwReal*)0xCC008000 = s;
-    *(volatile RwReal*)0xCC008000 = t;
+    *(volatile float*)0xCC008000 = s;
+    *(volatile float*)0xCC008000 = t;
 }
 
-static void GXColor4u8(RwUInt8 red, RwUInt8 green, RwUInt8 blue,
-                       RwUInt8 alpha)
+static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
+                       unsigned char alpha)
 {
-    *(volatile RwUInt8*)0xCC008000 = red;
-    *(volatile RwUInt8*)0xCC008000 = green;
-    *(volatile RwUInt8*)0xCC008000 = blue;
-    *(volatile RwUInt8*)0xCC008000 = alpha;
+    *(volatile unsigned char*)0xCC008000 = red;
+    *(volatile unsigned char*)0xCC008000 = green;
+    *(volatile unsigned char*)0xCC008000 = blue;
+    *(volatile unsigned char*)0xCC008000 = alpha;
 }
 
-static void GXPosition3f32(RwReal x, RwReal y, RwReal z)
+static void GXPosition3f32(float x, float y, float z)
 {
-    *(volatile RwReal*)0xCC008000 = x;
-    *(volatile RwReal*)0xCC008000 = y;
-    *(volatile RwReal*)0xCC008000 = z;
+    *(volatile float*)0xCC008000 = x;
+    *(volatile float*)0xCC008000 = y;
+    *(volatile float*)0xCC008000 = z;
 }

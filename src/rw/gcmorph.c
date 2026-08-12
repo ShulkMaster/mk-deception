@@ -3,23 +3,23 @@
 #include "rw/gamecube.h"
 #include "rw/rpworld_types.h"
 
-static RwUInt8 vtxFmtTypeConvTable[5] = {4, 6, 5, 7, 0};
-static RwUInt8 vtxFmtSizeConvTable[5] = {1, 1, 2, 2, 4};
-static RwUInt32 interpGQR6;
+static unsigned char vtxFmtTypeConvTable[5] = {4, 6, 5, 7, 0};
+static unsigned char vtxFmtSizeConvTable[5] = {1, 1, 2, 2, 4};
+static unsigned int interpGQR6;
 
-extern RwInt32 _rpDlGeomVtxFmtOffset;
+extern int _rpDlGeomVtxFmtOffset;
 
 static void _rwDlV3dInterpPosGQRSetup(const RpGameCubeVtxFmt* format,
-                                     RwInt32* elementSize)
+                                     int* elementSize)
 {
-    RwUInt32 value = 0;
+    unsigned int value = 0;
 
     if (format != 0) {
-        value = ((RwUInt32)format->positionFraction << 8) |
+        value = ((unsigned int)format->positionFraction << 8) |
             vtxFmtTypeConvTable[format->positionType];
         *elementSize = vtxFmtSizeConvTable[format->positionType];
     } else {
-        *elementSize = sizeof(RwReal);
+        *elementSize = sizeof(float);
     }
 
 
@@ -28,18 +28,18 @@ static void _rwDlV3dInterpPosGQRSetup(const RpGameCubeVtxFmt* format,
 }
 
 static void _rwDlV3dInterpNormGQRSetup(const RpGameCubeVtxFmt* format,
-                                      RwInt32* elementSize,
-                                      RwInt32* extraSize)
+                                      int* elementSize,
+                                      int* extraSize)
 {
-    RwUInt32 value = 0;
-    RwInt32 extra;
+    unsigned int value = 0;
+    int extra;
 
     if (format != 0) {
-        RwUInt8 typeTable[5] = {4, 6, 5, 7, 0};
-        RwUInt8 sizeTable[5] = {1, 1, 2, 2, 4};
-        RwUInt8 fractionTable[5] = {0, 6, 0, 14, 0};
+        unsigned char typeTable[5] = {4, 6, 5, 7, 0};
+        unsigned char sizeTable[5] = {1, 1, 2, 2, 4};
+        unsigned char fractionTable[5] = {0, 6, 0, 14, 0};
 
-        value = ((RwUInt32)fractionTable[format->normalType] << 8) |
+        value = ((unsigned int)fractionTable[format->normalType] << 8) |
             typeTable[format->normalType];
         *elementSize = sizeTable[format->normalType];
         if (format->normalMode != 0)
@@ -48,51 +48,51 @@ static void _rwDlV3dInterpNormGQRSetup(const RpGameCubeVtxFmt* format,
             extra = 0;
         *extraSize = extra;
     } else {
-        *elementSize = sizeof(RwReal);
+        *elementSize = sizeof(float);
         *extraSize = 0;
     }
 
     interpGQR6 = value;
 }
 
-static RwInt32 ClampQuantized(RwReal value, RwInt32 minimum,
-                              RwInt32 maximum)
+static int ClampQuantized(float value, int minimum,
+                              int maximum)
 {
-    if (value < (RwReal)minimum)
+    if (value < (float)minimum)
         return minimum;
-    if (value > (RwReal)maximum)
+    if (value > (float)maximum)
         return maximum;
-    return (RwInt32)value;
+    return (int)value;
 }
 
 static void _rwDlV3dInterp(void* destination, const RwV3d* source,
-                           const RwV3d* target, const RwReal* position,
-                           RwInt32 count, RwUInt32 sourceElementSize,
-                           RwUInt32 destinationElementSize,
-                           RwInt32 extraSize)
+                           const RwV3d* target, const float* position,
+                           int count, unsigned int sourceElementSize,
+                           unsigned int destinationElementSize,
+                           int extraSize)
 {
 
 
 
 
-    RwUInt8* output = destination;
-    RwUInt32 type = interpGQR6 & 7;
-    RwUInt32 fraction = (interpGQR6 >> 8) & 0x3F;
-    RwReal scale = (RwReal)(1U << fraction);
-    RwInt32 vertex;
+    unsigned char* output = destination;
+    unsigned int type = interpGQR6 & 7;
+    unsigned int fraction = (interpGQR6 >> 8) & 0x3F;
+    float scale = (float)(1U << fraction);
+    int vertex;
 
     for (vertex = 0; vertex < count; vertex++) {
-        const RwReal* first = (const RwReal*)source;
-        const RwReal* second = (const RwReal*)target;
-        RwInt32 component;
+        const float* first = (const float*)source;
+        const float* second = (const float*)target;
+        int component;
 
         for (component = 0; component < 3; component++) {
-            RwReal value = first[component] +
+            float value = first[component] +
                 (second[component] - first[component]) * *position;
 
             switch (type) {
             case 4:
-                *(RwUInt8*)output =
+                *(unsigned char*)output =
                     ClampQuantized(value * scale, 0, 0xFF);
                 break;
             case 6:
@@ -100,23 +100,23 @@ static void _rwDlV3dInterp(void* destination, const RwV3d* source,
                     ClampQuantized(value * scale, -0x80, 0x7F);
                 break;
             case 5:
-                *(RwUInt16*)output =
+                *(unsigned short*)output =
                     ClampQuantized(value * scale, 0, 0xFFFF);
                 break;
             case 7:
-                *(RwInt16*)output =
+                *(short*)output =
                     ClampQuantized(value * scale, -0x8000, 0x7FFF);
                 break;
             default:
-                *(RwReal*)output = value;
+                *(float*)output = value;
                 break;
             }
             output += destinationElementSize;
         }
         output += extraSize;
-        source = (const RwV3d*)((const RwUInt8*)source +
+        source = (const RwV3d*)((const unsigned char*)source +
             sourceElementSize * 3);
-        target = (const RwV3d*)((const RwUInt8*)target +
+        target = (const RwV3d*)((const unsigned char*)target +
             sourceElementSize * 3);
     }
 }
@@ -128,22 +128,22 @@ void _rxGCInstanceMorphUpdate(RpGeometry* geometry,
 
 
 
-    RwInt32 startMorphTarget = interpolator->startMorphTarget;
-    RwInt32 endMorphTarget = interpolator->endMorphTarget;
+    int startMorphTarget = interpolator->startMorphTarget;
+    int endMorphTarget = interpolator->endMorphTarget;
     void* positions = vertexBuffer->arrays[0].data;
     RpMorphTarget* source =
         &geometry->morphTarget[startMorphTarget];
     RpMorphTarget* target =
         &geometry->morphTarget[endMorphTarget];
-    RwReal position = interpolator->time * interpolator->recipTime;
-    RwInt32 elementSize;
-    RwInt32 extraSize;
+    float position = interpolator->time * interpolator->recipTime;
+    int elementSize;
+    int extraSize;
 
     _rwDlV3dInterpPosGQRSetup(*(RpGameCubeVtxFmt**)(
-        (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset), &elementSize);
+        (unsigned char*)geometry + _rpDlGeomVtxFmtOffset), &elementSize);
     _rwDlV3dInterp(positions, source->verts,
                    target->verts, &position, geometry->numVertices,
-                   sizeof(RwReal), elementSize, 0);
+                   sizeof(float), elementSize, 0);
     DCFlushRange(positions,
                  geometry->numVertices * (elementSize * 3));
 
@@ -151,11 +151,11 @@ void _rxGCInstanceMorphUpdate(RpGeometry* geometry,
         void* normals = vertexBuffer->arrays[1].data;
 
         _rwDlV3dInterpNormGQRSetup(*(RpGameCubeVtxFmt**)(
-            (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset), &elementSize,
+            (unsigned char*)geometry + _rpDlGeomVtxFmtOffset), &elementSize,
             &extraSize);
         _rwDlV3dInterp(normals, source->normals,
                        target->normals, &position, geometry->numVertices,
-                       sizeof(RwReal), elementSize, extraSize);
+                       sizeof(float), elementSize, extraSize);
         DCFlushRange(normals,
                      geometry->numVertices *
                          (elementSize * 3 + extraSize));

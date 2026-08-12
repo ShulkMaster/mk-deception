@@ -2,6 +2,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/alphapass.h"
 #include "rw/gamecube.h"
+#include "rw/dltoken.h"
 #include "rw/nodegamecube.h"
 #include "rw/rxpipeline.h"
 
@@ -10,16 +11,16 @@ extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 typedef struct RxGameCubeAllInOneInstanceData {
     RwResEntry* resourceEntry;
     RpMeshHeader* meshHeader;
-    RwInt32 geometryFlags;
+    int geometryFlags;
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
     void* morphData;
 } RxGameCubeAllInOneInstanceData;
 
 typedef union SpecularMaterialFlags {
-    RwUInt8 value;
+    unsigned char value;
     struct {
         signed char hidden : 1;
         signed char reflectionPass : 1;
@@ -35,12 +36,12 @@ typedef struct SpecularMaterialData {
     RwTexture* texture;
     RwTexture* savedTexture;
     RpSurfaceProperties savedSurface;
-    RwReal clipValue;
-    RwReal shininess;
-    RwUInt8 tint[4];
-    RwReal gloss;
+    float clipValue;
+    float shininess;
+    unsigned char tint[4];
+    float gloss;
     SpecularMaterialFlags flags;
-    RwUInt8 reserved_0x2D[3];
+    unsigned char reserved_0x2D[3];
 } SpecularMaterialData;
 
 typedef void* (*RxGCInstanceCallBack)(void*, RwResEntry**);
@@ -55,29 +56,27 @@ typedef struct RxGameCubeAllInOnePrivateData {
     RxGCRenderCallBack renderCallback;
 } RxGameCubeAllInOnePrivateData;
 
-typedef void (*RwRenderStateSetCall)(RwUInt32, RwUInt32, RwGlobals*);
-typedef void (*RwRenderStateGetCall)(RwUInt32, void*, RwGlobals*);
+typedef void (*RwRenderStateSetCall)(unsigned int, unsigned int, RwGlobals*);
+typedef void (*RwRenderStateGetCall)(unsigned int, void*, RwGlobals*);
 
-extern RwUInt16 _RwDlTokenCurrent;
-extern RwInt32 _rpDlGeomVtxFmtOffset;
-extern RwInt32 SpecularMaterialOffset;
-extern RwBool _rwDlTokenQueryDone(RwUInt16 token);
+extern int _rpDlGeomVtxFmtOffset;
+extern int SpecularMaterialOffset;
 extern void SetupAtomicSpecularity(RpAtomic* atomic);
 extern void ProcessSpecularity(RpMaterial* material, RwTexture* texture,
                                RwTexture* alphaTexture,
-                               RwBool useSpecularMap);
+                               int useSpecularMap);
 extern void CleanupSpecularity(RpMaterial* material, RwTexture* texture,
                                RwTexture* alphaTexture);
 
-RwInt32 _RwDlPreInstanceOptimize = 1;
+int _RwDlPreInstanceOptimize = 1;
 
 
 void _rxGCResEntryWaitDone(RwResEntry* entry)
 {
-    RwUInt16* token = (RwUInt16*)(entry + 1);
+    unsigned short* token = (unsigned short*)(entry + 1);
 
     if (*token == _RwDlTokenCurrent) {
-        GXSetDrawSync((RwUInt32)_RwDlTokenCurrent);
+        GXSetDrawSync((unsigned int)_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
     }
     do {
@@ -96,7 +95,7 @@ void* _rxGCDefaultRenderCallback(
     RwDlObjectRenderCallBack materialCallback;
     RwMatrix* ltm;
     RpGameCubeVtxFmt* vertexFormat;
-    RwUInt32 numMeshes;
+    unsigned int numMeshes;
 
     result = object;
     vertexBuffer =
@@ -104,11 +103,11 @@ void* _rxGCDefaultRenderCallback(
     vertexArrays = vertexBuffer->arrays;
     displayList = (RwGameCubeDisplayList*)&vertexArrays[
         vertexBuffer->numArrays];
-    *(RwUInt16*)vertexBuffer = _RwDlTokenCurrent;
+    *(unsigned short*)vertexBuffer = _RwDlTokenCurrent;
 
     ltm = RwFrameGetLTM((RwFrame*)((RpAtomic*)object)->object.parent);
     vertexFormat = *(RpGameCubeVtxFmt**)(
-        (RwUInt8*)((RpAtomic*)object)->geometry + _rpDlGeomVtxFmtOffset);
+        (unsigned char*)((RpAtomic*)object)->geometry + _rpDlGeomVtxFmtOffset);
     _rwDlVtxFmtSetup(vertexFormat,
                      (RpGameCubeVtxFmtSetupData*)instanceData);
     if ((instanceData->geometryFlags & 0x10) != 0) {
@@ -128,11 +127,11 @@ void* _rxGCDefaultRenderCallback(
         while (numMeshes-- != 0) {
             RpMaterial* material = mesh->material;
             SpecularMaterialData* specular = (SpecularMaterialData*)(
-                (RwUInt8*)material + SpecularMaterialOffset);
-            RwBool restoreState = 0;
+                (unsigned char*)material + SpecularMaterialOffset);
+            int restoreState = 0;
 
             if (specular->flags.bits.hidden == 0) {
-                RwUInt32 oldState;
+                unsigned int oldState;
                 RwTexture* texture;
                 RwTexture* alphaTexture;
 
@@ -153,8 +152,8 @@ void* _rxGCDefaultRenderCallback(
                 SetSingleTextureAlphaPassWithAlphaComp(
                     texture, alphaTexture, (RxGCTevAlphaPass*)instanceData);
                 if (0.0f != specular->shininess) {
-                    RwBool useSpecularMap = 0;
-                    RwBool hasLighting = 0;
+                    int useSpecularMap = 0;
+                    int hasLighting = 0;
 
                     if ((instanceData->geometryFlags & 8) != 0 &&
                         instanceData->hasAmbient != 0) {
@@ -185,11 +184,11 @@ void* _rxGCDefaultRenderCallback(
         while (numMeshes-- != 0) {
             RpMaterial* material = mesh->material;
             SpecularMaterialData* specular = (SpecularMaterialData*)(
-                (RwUInt8*)material + SpecularMaterialOffset);
+                (unsigned char*)material + SpecularMaterialOffset);
 
             if (specular->flags.bits.hidden == 0) {
-                RwBool restoreState = 0;
-                RwUInt32 oldState;
+                int restoreState = 0;
+                unsigned int oldState;
 
                 if (specular->flags.bits.cullFront != 0) {
                     restoreState = 1;
@@ -262,12 +261,12 @@ RxPipelineNode* RxGameCubeAllInOneSetRenderCallBack(
     return node;
 }
 
-void RxGameCubePreInstanceSetOptimize(RwInt32 optimize)
+void RxGameCubePreInstanceSetOptimize(int optimize)
 {
     _RwDlPreInstanceOptimize = optimize;
 }
 
-RwInt32 RxGameCubePreInstanceGetOptimize(void)
+int RxGameCubePreInstanceGetOptimize(void)
 {
     return _RwDlPreInstanceOptimize;
 }

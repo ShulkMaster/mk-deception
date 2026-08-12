@@ -4,11 +4,11 @@
 #include "rw/rplight.h"
 
 struct RwGameCubeLightingData {
-    RwUInt8 reserved_0x00[0x0C];
+    unsigned char reserved_0x00[0x0C];
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
 };
 
 typedef struct RpLightTie {
@@ -18,14 +18,14 @@ typedef struct RpLightTie {
 
 typedef struct RwGameCubeResEntryHeader {
     RwResEntry entry;
-    RwUInt16 field_0x18;
-    RwUInt16 meshSerialNum;
+    unsigned short field_0x18;
+    unsigned short meshSerialNum;
 } RwGameCubeResEntryHeader;
 
 typedef struct RwResourcesGlobalsPrefix {
-    RwUInt32 arenaSize;
-    RwUInt32 arenaUsage;
-    RwUInt32 arenaReusage;
+    unsigned int arenaSize;
+    unsigned int arenaUsage;
+    unsigned int arenaReusage;
     void* arena;
     RwLinkList entriesA;
     RwLinkList entriesB;
@@ -35,11 +35,11 @@ typedef struct RwResourcesGlobalsPrefix {
 struct RxGameCubeAllInOneInstanceData {
     RwResEntry* resourceEntry;
     RpMeshHeader* meshHeader;
-    RwUInt32 worldFlags;
+    unsigned int worldFlags;
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
 };
 
 typedef struct RxGameCubeAllInOnePrivateData {
@@ -50,9 +50,9 @@ typedef struct RxGameCubeAllInOnePrivateData {
 } RxGameCubeAllInOnePrivateData;
 
 extern RwModuleInfo resourcesModule;
-extern RwInt32 _RwDlPreInstanceOptimize;
+extern int _RwDlPreInstanceOptimize;
 
-extern void _rwGCLightsGlobalEnable(RwInt32,
+extern void _rwGCLightsGlobalEnable(int,
                                     RwGameCubeLightingData*);
 extern void _rwGCLightsLocalEnable(RpLight*, RwGameCubeLightingData*);
 extern RpWorldSector* _rxGCDefaultRenderCallback(
@@ -67,9 +67,9 @@ extern RxPipelineNode* _rxGameCubeAllInOneSetLightingCallBack(
 extern RxPipelineNode* RxGameCubeAllInOneSetRenderCallBack(
     RxPipelineNode*, RxGCSectorRenderCallBack);
 
-static RwBool _rxGCWorldSectorAllInOneNode(
+static int _rxGCWorldSectorAllInOneNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params);
-static RwBool _rxGCWorldSectorAllInOnePipelineInit(RxPipelineNode* self);
+static int _rxGCWorldSectorAllInOnePipelineInit(RxPipelineNode* self);
 
 static RxNodeDefinition nodeGameCubeWorldSectorAllInOneCSL = {
     "GamerCubeWorldSectorAllInOne.csl",
@@ -88,7 +88,7 @@ RxNodeDefinition* RxNodeDefinitionGetGameCubeWorldSectorAllInOne(void)
 
 
 RxPipeline* _rpDlSectorPipelineCreate(
-    RwUInt32 pluginId, RwUInt32 pluginData,
+    unsigned int pluginId, unsigned int pluginData,
     RxGCSectorInstanceCallBack instanceCallback,
     RxGCSectorInstanceCallBack reinstanceCallback,
     RxGCSectorLightingCallBack lightingCallback,
@@ -183,7 +183,7 @@ RpWorldSector* _rxGCSectorDefaultInstanceCallback(
 }
 
 
-static RwBool _rxGCWorldSectorAllInOneNode(
+static int _rxGCWorldSectorAllInOneNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
     RpWorldSector* sector = (RpWorldSector*)params->dataParam;
@@ -194,9 +194,9 @@ static RwBool _rxGCWorldSectorAllInOneNode(
 
     if ((world->flags & 0x01000000) == 0) {
         RwResEntry* resourceEntry;
-        RwUInt16 numPolygons = sector->numTriangles;
+        unsigned short numPolygons = sector->numTriangles;
         RpMeshHeader* meshHeader;
-        RwUInt16 numMeshes;
+        unsigned short numMeshes;
 
         if (numPolygons == 0) {
             return 1;
@@ -227,7 +227,7 @@ static RwBool _rxGCWorldSectorAllInOneNode(
 
             if (link->next != 0) {
                 RwResourcesGlobalsPrefix* resources =
-                    (RwResourcesGlobalsPrefix*)((RwUInt8*)RwEngineInstance +
+                    (RwResourcesGlobalsPrefix*)((unsigned char*)RwEngineInstance +
                                                  resourcesModule.globalsOffset);
 
                 link->prev->next = link->next;
@@ -260,7 +260,7 @@ static RwBool _rxGCWorldSectorAllInOneNode(
     return 1;
 }
 
-static RwBool _rxGCWorldSectorAllInOnePipelineInit(RxPipelineNode* self)
+static int _rxGCWorldSectorAllInOnePipelineInit(RxPipelineNode* self)
 {
     RxGameCubeAllInOnePrivateData* privateData =
         (RxGameCubeAllInOnePrivateData*)self->privateData;

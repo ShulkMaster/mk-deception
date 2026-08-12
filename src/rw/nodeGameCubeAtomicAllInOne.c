@@ -2,6 +2,7 @@
 #include "dolphin/os.h"
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
+#include "rw/dltoken.h"
 #include "rw/nodegamecube.h"
 #include "rw/rplight.h"
 #include "rw/rwresources.h"
@@ -9,26 +10,26 @@
 extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 struct RwGameCubeLightingData {
-    RwUInt8 reserved_0x00[0x0C];
+    unsigned char reserved_0x00[0x0C];
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
 };
 
 struct RxGameCubeAllInOneInstanceData {
     RwResEntry* resourceEntry;
     RpMeshHeader* meshHeader;
-    RwUInt32 geometryFlags;
+    unsigned int geometryFlags;
     RwRGBAReal ambient;
-    RwBool hasAmbient;
-    RwUInt32 lightMask;
-    RwInt32 lightIndex;
+    int hasAmbient;
+    unsigned int lightMask;
+    int lightIndex;
     void* morphData;
 };
 
 typedef struct RpAtomicSectorTie {
-    RwUInt8 reserved_0x00[0x0C];
+    unsigned char reserved_0x00[0x0C];
     RwLLLink atomicLink;
     RpWorldSector* sector;
 } RpAtomicSectorTie;
@@ -42,17 +43,17 @@ typedef struct RwGameCubeResEntryHeader {
     RwResEntry entry;
     union {
         struct {
-            RwUInt16 token;
-            RwUInt16 meshSerialNum;
+            unsigned short token;
+            unsigned short meshSerialNum;
         };
         RwGameCubeVertexBuffer vertexBuffer;
     };
 } RwGameCubeResEntryHeader;
 
 typedef struct RwResourcesGlobalsPrefix {
-    RwUInt32 arenaSize;
-    RwUInt32 arenaUsage;
-    RwUInt32 arenaReusage;
+    unsigned int arenaSize;
+    unsigned int arenaUsage;
+    unsigned int arenaReusage;
     void* arena;
     RwLinkList entriesA;
     RwLinkList entriesB;
@@ -73,14 +74,12 @@ typedef struct RxGameCubeAtomicAllInOnePrivateData {
 } RxGameCubeAtomicAllInOnePrivateData;
 
 extern RwModuleInfo resourcesModule;
-extern RwInt32 _RwDlPreInstanceOptimize;
-extern RwInt32 _rpDlGeomVtxFmtOffset;
-extern RwUInt16 _RwDlTokenCurrent;
+extern int _RwDlPreInstanceOptimize;
+extern int _rpDlGeomVtxFmtOffset;
 
-extern void _rwGCLightsGlobalEnable(RwInt32,
+extern void _rwGCLightsGlobalEnable(int,
                                     RwGameCubeLightingData*);
 extern void _rwGCLightsLocalEnable(RpLight*, RwGameCubeLightingData*);
-extern RwInt32 _rwDlTokenQueryDone(RwUInt16);
 extern RpAtomic* _rxGCDefaultRenderCallback(
     RpAtomic*, RxGameCubeAllInOneInstanceData*);
 
@@ -94,9 +93,9 @@ extern RxPipelineNode* RxGameCubeAllInOneSetRenderCallBack(
     RxPipelineNode*, RxGCAtomicRenderCallBack);
 
 
-static RwBool _rxGCAtomicAllInOneNode(
+static int _rxGCAtomicAllInOneNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params);
-static RwBool _rxGCAtomicAllInOnePipelineInit(RxPipelineNode* self);
+static int _rxGCAtomicAllInOnePipelineInit(RxPipelineNode* self);
 
 static RxNodeDefinition nodeGameCubeAtomicAllInOneCSL = {
     "GameCubeAtomicAllInOne.csl",
@@ -115,7 +114,7 @@ RxNodeDefinition* RxNodeDefinitionGetGameCubeAtomicAllInOne(void)
 
 
 RxPipeline* _rpDlAtomicPipelineCreate(
-    RwUInt32 pluginId, RwUInt32 pluginData,
+    unsigned int pluginId, unsigned int pluginData,
     RxGCAtomicInstanceCallBack instanceCallback,
     RxGCAtomicInstanceCallBack reinstanceCallback,
     RxGCAtomicLightingCallBack lightingCallback,
@@ -165,7 +164,7 @@ RpAtomic* _rxGCAtomicDefaultLightingCallback(
         sectorEnd = &atomic->worldSectorsInAtomic.link;
         while (sectorLink != sectorEnd) {
             RpAtomicSectorTie* atomicTie =
-                (RpAtomicSectorTie*)((RwUInt8*)sectorLink - 0x0C);
+                (RpAtomicSectorTie*)((unsigned char*)sectorLink - 0x0C);
             RpWorldSector* sector = atomicTie->sector;
             RwLLLink* lightLink = sector->lightsInWorldSector.link.next;
             RwLLLink* lightEnd = &sector->lightsInWorldSector.link;
@@ -179,7 +178,7 @@ RpAtomic* _rxGCAtomicDefaultLightingCallback(
                     RwV3d delta;
                     RwV3d* lightPosition;
                     RwSphere* sphere;
-                    RwReal radius;
+                    float radius;
 
                     light->lightFrame = RwEngineInstance->lightFrame;
                     lightPosition =
@@ -215,14 +214,14 @@ RpAtomic* _rxGCAtomicDefaultLightingCallback(
 
 static void _rxGCDefaultReinstance(
     RpGeometry* geometry, RwGameCubeVertexBuffer* vertexBuffer,
-    RwUInt32 flags)
+    unsigned int flags)
 {
-    RwUInt32 streamIndex = 0;
-    RwUInt16 locked = geometry->lockedSinceLastInst;
-    RwUInt32 geometryFlags = geometry->flags | 2;
-    RwUInt32 numVertices = geometry->numVertices;
+    unsigned int streamIndex = 0;
+    unsigned short locked = geometry->lockedSinceLastInst;
+    unsigned int geometryFlags = geometry->flags | 2;
+    unsigned int numVertices = geometry->numVertices;
     RpGameCubeVtxFmt* format = *(RpGameCubeVtxFmt**)(
-        (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
+        (unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
 
     if (format == 0)
         format = _rpGameCubeVtxFmtGetDefault();
@@ -230,11 +229,11 @@ static void _rxGCDefaultReinstance(
     if ((geometryFlags & 2) != 0) {
         if ((locked & 2) != 0) {
             void* destination = vertexBuffer->arrays[streamIndex].data;
-            RwUInt32 size = _rwGCNVtxFmtInstPos3D(
+            unsigned int size = _rwGCNVtxFmtInstPos3D(
                 destination, geometry->morphTarget->verts,
                 format->positionType, numVertices,
                 vertexBuffer->arrays[streamIndex].stride, 0,
-                (RwReal)(1 << format->positionFraction));
+                (float)(1 << format->positionFraction));
             DCFlushRange(destination, size);
         }
         streamIndex++;
@@ -242,7 +241,7 @@ static void _rxGCDefaultReinstance(
     if ((geometryFlags & 0x10) != 0) {
         if ((locked & 4) != 0) {
             void* destination = vertexBuffer->arrays[streamIndex].data;
-            RwUInt32 size = _rwGCNVtxFmtInstNrm(
+            unsigned int size = _rwGCNVtxFmtInstNrm(
                 destination, geometry->morphTarget->normals,
                 format->normalType, numVertices,
                 vertexBuffer->arrays[streamIndex].stride);
@@ -253,11 +252,11 @@ static void _rxGCDefaultReinstance(
     if ((geometryFlags & 8) != 0) {
         if ((locked & 8) != 0) {
             void* destination = vertexBuffer->arrays[streamIndex].data;
-            RwUInt32 size;
+            unsigned int size;
 
             if (*(RpGameCubeVtxFmt**)(
-                    (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) == 0) {
-                RwUInt32 i;
+                    (unsigned char*)geometry + _rpDlGeomVtxFmtOffset) == 0) {
+                unsigned int i;
 
                 vertexBuffer->reserved_0x00[1] &= ~1U;
                 for (i = 0; i < numVertices; i++) {
@@ -279,16 +278,16 @@ static void _rxGCDefaultReinstance(
         streamIndex++;
     }
     if ((geometryFlags & 0x84) != 0) {
-        RwInt32 i;
+        int i;
 
         for (i = 0; i < geometry->numTexCoordSets; i++) {
             if ((locked & (0x10 << i)) != 0) {
                 void* destination = vertexBuffer->arrays[streamIndex].data;
-                RwUInt32 size = _rwGCNVtxFmtInstTex(
+                unsigned int size = _rwGCNVtxFmtInstTex(
                     destination, geometry->texCoords[i],
                     format->texCoordType[i], numVertices,
                     vertexBuffer->arrays[streamIndex].stride,
-                    (RwReal)(1 << format->texCoordFraction[i]));
+                    (float)(1 << format->texCoordFraction[i]));
                 DCFlushRange(destination, size);
             }
             streamIndex++;
@@ -364,7 +363,7 @@ void* _rxGCAtomicDefaultInstanceCallback(
 }
 
 
-static RwBool _rxGCAtomicAllInOneNode(
+static int _rxGCAtomicAllInOneNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
     RpAtomic* atomic = (RpAtomic*)params->dataParam;
@@ -406,7 +405,7 @@ static RwBool _rxGCAtomicAllInOneNode(
             if (instanceData.resourceEntry->link.next != 0) {
                 RwLLLink* link = &instanceData.resourceEntry->link;
                 RwResourcesGlobalsPrefix* resources =
-                    (RwResourcesGlobalsPrefix*)((RwUInt8*)RwEngineInstance +
+                    (RwResourcesGlobalsPrefix*)((unsigned char*)RwEngineInstance +
                                                 resourcesModule.globalsOffset);
 
                 link->prev->next = link->next;
@@ -446,7 +445,7 @@ static RwBool _rxGCAtomicAllInOneNode(
     return 1;
 }
 
-static RwBool _rxGCAtomicAllInOnePipelineInit(RxPipelineNode* self)
+static int _rxGCAtomicAllInOnePipelineInit(RxPipelineNode* self)
 {
     RxGameCubeAtomicAllInOnePrivateData* privateData =
         (RxGameCubeAtomicAllInOnePrivateData*)self->privateData;

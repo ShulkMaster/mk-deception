@@ -1,21 +1,21 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
+#include "rw/dltoken.h"
 #include "rw/geomcond.h"
 #include "rw/rwresources.h"
 #include "rw/rxpipeline.h"
 
-extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
-extern void DCFlushRange(void* start, RwUInt32 length);
+extern void* memset(void* destination, int value, unsigned int size);
+extern void DCFlushRange(void* start, unsigned int length);
 extern void GXInvalidateVtxCache(void);
 
-extern RwInt32 _rpDlGeomVtxFmtOffset;
-extern RwUInt16 _RwDlTokenLastSeen;
+extern int _rpDlGeomVtxFmtOffset;
 
 static RwGameCubeVertexDescriptor VtxDesc;
 
-static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
+static int ReconditionVertexIndexData(RpGeometry* geometry,
                                          GeomCondMap** remappedVertices,
-                                         RwUInt16**** remappedIndices)
+                                         unsigned short**** remappedIndices)
 {
 
 
@@ -23,13 +23,13 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
     GeomCondVertexData streams[13];
     RpMorphTarget* morphTarget;
     GeomCondMap* maps;
-    RwUInt16** sourceIndices;
-    RwUInt32 numStreams;
-    RwInt32 meshIndex;
-    RwUInt32 streamIndex;
-    RwUInt16 numMeshes;
+    unsigned short** sourceIndices;
+    unsigned int numStreams;
+    int meshIndex;
+    unsigned int streamIndex;
+    unsigned short numMeshes;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -54,7 +54,7 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
         numStreams++;
     }
     if ((geometry->flags & 0x84) != 0) {
-        RwInt32 texCoord;
+        int texCoord;
         for (texCoord = 0; texCoord < geometry->numTexCoordSets; texCoord++) {
             streams[numStreams].data = geometry->texCoords[texCoord];
             streams[numStreams].type = 7;
@@ -103,7 +103,7 @@ static RwBool ReconditionVertexIndexData(RpGeometry* geometry,
     for (meshIndex = 0; meshIndex < numMeshes; meshIndex++) {
         RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
         (*remappedIndices)[meshIndex] = IndexDataCreateRemapped(
-            maps, (const RwUInt16* const*)&sourceIndices[meshIndex *
+            maps, (const unsigned short* const*)&sourceIndices[meshIndex *
                                                         numStreams],
             numStreams, mesh->numIndices);
         if ((*remappedIndices)[meshIndex] == 0) {
@@ -123,10 +123,10 @@ static const RwGameCubeVertexDescriptor* VtxDescInitOptimized(
 {
 
 
-    RwUInt8 streamIndex = 0;
+    unsigned char streamIndex = 0;
     RpGameCubeVtxFmt* format =
-        *(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
-    RwInt32 texCoord;
+        *(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
+    int texCoord;
 
     if (format == 0)
         format = _rpGameCubeVtxFmtGetDefault();
@@ -155,7 +155,7 @@ static const RwGameCubeVertexDescriptor* VtxDescInitOptimized(
         streamIndex++;
     }
     if ((geometry->flags & 8) != 0) {
-        RwInt32 componentCount;
+        int componentCount;
         if (format->colorType > 2)
             componentCount = 1;
         else
@@ -189,12 +189,12 @@ static void VertexDataSetupOptimized(RwGameCubeVertexData* vertexData,
 {
 
 
-    RwUInt32 streamIndex = 0;
-    RwUInt32 flags = geometry->flags;
-    RwUInt8 numTexCoordSets = (RwUInt8)geometry->numTexCoordSets;
-    RwUInt32 texCoord;
+    unsigned int streamIndex = 0;
+    unsigned int flags = geometry->flags;
+    unsigned char numTexCoordSets = (unsigned char)geometry->numTexCoordSets;
+    unsigned int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -222,17 +222,17 @@ static void VertexDataSetupOptimized(RwGameCubeVertexData* vertexData,
 }
 
 static void IndexDataSetupOptimized(RwGameCubeIndexData* indexData,
-                                    RwUInt16* const* indices,
+                                    unsigned short* const* indices,
                                     const RpGeometry* geometry)
 {
 
 
-    RwUInt32 streamIndex = 0;
-    RwUInt32 flags = geometry->flags;
-    RwUInt8 numTexCoordSets = (RwUInt8)geometry->numTexCoordSets;
-    RwUInt32 texCoord;
+    unsigned int streamIndex = 0;
+    unsigned int flags = geometry->flags;
+    unsigned char numTexCoordSets = (unsigned char)geometry->numTexCoordSets;
+    unsigned int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -262,21 +262,21 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry,
 
 
     GeomCondMap* remappedVertices;
-    RwUInt16*** remappedIndices;
+    unsigned short*** remappedIndices;
     RwGameCubeVertexData vertexData;
     RwGameCubeIndexData indexData;
     const RwGameCubeVertexDescriptor* descriptor;
     RwGameCubeVertexBuffer* vertexBuffer;
     RwGameCubeDisplayList* displayLists;
     RpGameCubeVtxFmt* format;
-    RwUInt32 headerSize;
-    RwUInt32 displayArraySize;
-    RwUInt32 vertexSize;
-    RwUInt32 totalSize;
+    unsigned int headerSize;
+    unsigned int displayArraySize;
+    unsigned int vertexSize;
+    unsigned int totalSize;
     RwResEntry* entry;
-    RwUInt32 dataOffset;
-    RwUInt32 meshIndex;
-    RwUInt8 primitive;
+    unsigned int dataOffset;
+    unsigned int meshIndex;
+    unsigned char primitive;
 
     totalSize = 0;
     ReconditionVertexIndexData(geometry, &remappedVertices,
@@ -297,8 +297,8 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry,
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
         if ((geometry->flags & 1) != 0) {
-            RwUInt32 numStrips;
-            RwUInt32 stripIndices;
+            unsigned int numStrips;
+            unsigned int stripIndices;
             _rwGCNTriStripGetStats(remappedIndices[meshIndex][0],
                                    ((RpMesh*)(geometry->meshHeader + 1) +
                                     meshIndex)->numIndices,
@@ -307,7 +307,7 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry,
             totalSize += _rwGCNDisplayListGetSize(
                 descriptor, numStrips, stripIndices);
         } else {
-            RwUInt32 numIndices =
+            unsigned int numIndices =
                 ((RpMesh*)(geometry->meshHeader + 1) + meshIndex)
                     ->numIndices;
             totalSize += _rwGCNDisplayListGetSize(descriptor, 1, numIndices);
@@ -323,17 +323,17 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry,
     entry->ownerRef = ownerRef;
     entry->destroyNotify = _rxGCResEntryWaitDone;
     *ownerRef = entry;
-    dataOffset = (RwUInt32)(entry + 1);
+    dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((RwUInt16*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((RwUInt16*)vertexBuffer)[1] = geometry->meshHeader->serialNum;
+    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
+    ((unsigned short*)vertexBuffer)[1] = geometry->meshHeader->serialNum;
     vertexBuffer->reserved_0x00[1] = 0;
     if ((geometry->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
-            (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
+            (unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
         if (format == 0) {
-            RwInt32 vertex;
+            int vertex;
             vertexBuffer->reserved_0x00[1] &= ~1U;
             for (vertex = 0; vertex < geometry->numVertices; vertex++) {
                 if (((const RwRGBA*)geometry->preLitLum)[vertex].alpha <
@@ -357,11 +357,11 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry,
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
         RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
-        RwUInt32 numStrips;
-        RwUInt32 stripIndices;
-        RwUInt32 listSize;
-        RwUInt32 stride;
-        RwBool isStrip;
+        unsigned int numStrips;
+        unsigned int stripIndices;
+        unsigned int listSize;
+        unsigned int stride;
+        int isStrip;
 
         if ((geometry->flags & 1) != 0) {
             _rwGCNTriStripGetStats(remappedIndices[meshIndex][0],
@@ -408,11 +408,11 @@ static const RwGameCubeVertexDescriptor* VtxDescInitFast(
 {
 
 
-    RwUInt8 indexedCount = 0;
-    RwUInt32 numVertices = (RwUInt32)geometry->numVertices;
+    unsigned char indexedCount = 0;
+    unsigned int numVertices = (unsigned int)geometry->numVertices;
     RpGameCubeVtxFmt* format =
-        *(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
-    RwInt32 texCoord;
+        *(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
+    int texCoord;
 
     if (format == 0)
         format = _rpGameCubeVtxFmtGetDefault();
@@ -438,7 +438,7 @@ static const RwGameCubeVertexDescriptor* VtxDescInitFast(
         indexedCount = 2;
     }
     if ((geometry->flags & 8) != 0) {
-        RwInt32 componentCount;
+        int componentCount;
         if (format->colorType > 2)
             componentCount = 1;
         else
@@ -471,9 +471,9 @@ static void VertexDataFastSetup(RwGameCubeVertexData* vertexData,
 
 
     const RpMorphTarget* morphTarget;
-    RwInt32 texCoord;
+    int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -497,14 +497,14 @@ static void VertexDataFastSetup(RwGameCubeVertexData* vertexData,
 }
 
 static void IndexDataSetupFast(RwGameCubeIndexData* indexData,
-                               RwUInt16* primitiveIndices,
+                               unsigned short* primitiveIndices,
                                const RpGeometry* geometry)
 {
 
 
-    RwInt32 texCoord;
+    int texCoord;
 
-    if (*(RpGameCubeVtxFmt**)((RwUInt8*)geometry + _rpDlGeomVtxFmtOffset) ==
+    if (*(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset) ==
         0) {
         _rpGameCubeVtxFmtGetDefault();
     }
@@ -531,14 +531,14 @@ RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
     RwGameCubeVertexBuffer* vertexBuffer;
     RwGameCubeDisplayList* displayLists;
     RpGameCubeVtxFmt* format;
-    RwUInt32 headerSize;
-    RwUInt32 displayArraySize;
-    RwUInt32 vertexSize;
-    RwUInt32 totalSize;
+    unsigned int headerSize;
+    unsigned int displayArraySize;
+    unsigned int vertexSize;
+    unsigned int totalSize;
     RwResEntry* entry;
-    RwUInt32 dataOffset;
-    RwUInt32 meshIndex;
-    RwUInt8 primitive;
+    unsigned int dataOffset;
+    unsigned int meshIndex;
+    unsigned char primitive;
 
     totalSize = 0;
     descriptor = VtxDescInitFast(geometry);
@@ -555,7 +555,7 @@ RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
         primitive = 0x90;
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
-        RwUInt32 numIndices =
+        unsigned int numIndices =
             ((RpMesh*)(geometry->meshHeader + 1) + meshIndex)->numIndices;
         totalSize += _rwGCNDisplayListGetSize(descriptor, 1, numIndices);
     }
@@ -575,17 +575,17 @@ RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
         entry = RwResourcesAllocateResEntry(owner, ownerRef, totalSize,
                                             _rxGCResEntryWaitDone);
     }
-    dataOffset = (RwUInt32)(entry + 1);
+    dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((RwUInt16*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((RwUInt16*)vertexBuffer)[1] = geometry->meshHeader->serialNum;
+    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
+    ((unsigned short*)vertexBuffer)[1] = geometry->meshHeader->serialNum;
     vertexBuffer->reserved_0x00[1] = 0;
     if ((geometry->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
-            (RwUInt8*)geometry + _rpDlGeomVtxFmtOffset);
+            (unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
         if (format == 0) {
-            RwInt32 vertex;
+            int vertex;
             vertexBuffer->reserved_0x00[1] &= ~1U;
             for (vertex = 0; vertex < geometry->numVertices; vertex++) {
                 if (((const RwRGBA*)geometry->preLitLum)[vertex].alpha <
@@ -609,9 +609,9 @@ RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
     for (meshIndex = 0; meshIndex < geometry->meshHeader->numMeshes;
          meshIndex++) {
         RpMesh* mesh = (RpMesh*)(geometry->meshHeader + 1) + meshIndex;
-        RwUInt32 listSize = _rwGCNDisplayListGetSize(
+        unsigned int listSize = _rwGCNDisplayListGetSize(
             descriptor, 1, mesh->numIndices);
-        RwUInt32 stride;
+        unsigned int stride;
 
         _rwGCNDisplayListInitialize(&displayLists[meshIndex], meshIndex,
                                     listSize, (void*)dataOffset);

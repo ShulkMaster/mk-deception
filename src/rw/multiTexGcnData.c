@@ -4,133 +4,133 @@
 #include "rw/rwstream_internal.h"
 
 typedef struct RpGameCubeMTEntry24 {
-    RwInt32 value[5];
-    RwUInt16 field_0x14;
-    RwUInt16 field_0x16;
+    int value[5];
+    unsigned short field_0x14;
+    unsigned short field_0x16;
 } RpGameCubeMTEntry24;
 
 typedef struct RpGameCubeMTEntry64 {
-    RwInt32 field_0x00;
-    RwInt32 field_0x04;
-    RwInt32 field_0x08;
-    RwInt32 field_0x0C;
-    RwInt32 field_0x10;
-    RwInt32 field_0x14;
-    RwInt32 field_0x18;
-    RwInt32 field_0x1C;
-    RwInt32 field_0x20;
-    RwInt32 field_0x24;
-    RwInt32 field_0x28;
-    RwUInt8 field_0x2C;
-    RwUInt8 reserved_0x2D[3];
-    RwInt32 field_0x30;
-    RwInt32 field_0x34;
-    RwInt32 field_0x38;
-    RwInt32 field_0x3C;
-    RwUInt8 field_0x40;
-    RwUInt8 reserved_0x41[3];
-    RwInt32 field_0x44;
-    RwInt32 field_0x48;
-    RwInt32 field_0x4C;
-    RwInt32 field_0x50;
-    RwInt32 field_0x54;
-    RwInt32 field_0x58;
-    RwUInt32 field_0x5C;
-    RwInt32 field_0x60;
+    int field_0x00;
+    int field_0x04;
+    int field_0x08;
+    int field_0x0C;
+    int field_0x10;
+    int field_0x14;
+    int field_0x18;
+    int field_0x1C;
+    int field_0x20;
+    int field_0x24;
+    int field_0x28;
+    unsigned char field_0x2C;
+    unsigned char reserved_0x2D[3];
+    int field_0x30;
+    int field_0x34;
+    int field_0x38;
+    int field_0x3C;
+    unsigned char field_0x40;
+    unsigned char reserved_0x41[3];
+    int field_0x44;
+    int field_0x48;
+    int field_0x4C;
+    int field_0x50;
+    int field_0x54;
+    int field_0x58;
+    unsigned int field_0x5C;
+    int field_0x60;
 } RpGameCubeMTEntry64;
 
 typedef struct RpGameCubeMTEntry60 {
-    RwInt32 value[3];
-    RwReal real[12];
+    int value[3];
+    float real[12];
 } RpGameCubeMTEntry60;
 
 typedef struct RpGameCubeMTEntry20 {
-    RwInt32 value[5];
+    int value[5];
 } RpGameCubeMTEntry20;
 
 typedef struct RpGameCubeMTEntry40 {
-    RwInt32 value[3];
-    RwReal real[6];
-    RwInt32 field_0x24;
+    int value[3];
+    float real[6];
+    int field_0x24;
 } RpGameCubeMTEntry40;
 
 struct RpGameCubeMTEffectConfig {
-    RwInt32 field_0x00;
-    RwUInt8 allocationCount24;
-    RwUInt8 allocationCount64;
-    RwUInt8 allocationCount60;
-    RwUInt8 allocationCount20;
-    RwUInt8 allocationCount40;
-    RwUInt8 count24;
-    RwUInt8 count64;
-    RwUInt8 count60;
-    RwUInt8 count20;
-    RwUInt8 count40;
-    RwUInt16 values[16];
-    RwUInt8 bytes[16];
-    RwUInt8 reserved_0x3E[2];
+    int field_0x00;
+    unsigned char allocationCount24;
+    unsigned char allocationCount64;
+    unsigned char allocationCount60;
+    unsigned char allocationCount20;
+    unsigned char allocationCount40;
+    unsigned char count24;
+    unsigned char count64;
+    unsigned char count60;
+    unsigned char count20;
+    unsigned char count40;
+    unsigned short values[16];
+    unsigned char bytes[16];
+    unsigned char reserved_0x3E[2];
     RpGameCubeMTEntry60* entries60;
     RpGameCubeMTEntry24* entries24;
     RpGameCubeMTEntry40* entries40;
     RpGameCubeMTEntry20* entries20;
     RpGameCubeMTEntry64* entries64;
-    RwInt32 field_0x54;
-    RwInt32 field_0x58;
+    int field_0x54;
+    int field_0x58;
 };
 
 typedef struct RpGameCubeMTStreamHeader {
-    RwUInt8 count24;
-    RwUInt8 count64;
-    RwUInt8 field_0x02;
-    RwUInt8 packedFields;
-    RwUInt16 values[16];
-    RwUInt8 bytes[16];
-    RwUInt8 count60;
-    RwUInt8 count40;
-    RwUInt8 count20;
-    RwUInt8 reserved;
+    unsigned char count24;
+    unsigned char count64;
+    unsigned char field_0x02;
+    unsigned char packedFields;
+    unsigned short values[16];
+    unsigned char bytes[16];
+    unsigned char count60;
+    unsigned char count40;
+    unsigned char count20;
+    unsigned char reserved;
 } RpGameCubeMTStreamHeader;
 
 typedef struct RpGameCubeMTStreamEntry24 {
-    RwUInt8 value[5];
-    RwUInt8 reserved[3];
-    RwUInt16 field_0x08;
-    RwUInt16 field_0x0A;
+    unsigned char value[5];
+    unsigned char reserved[3];
+    unsigned short field_0x08;
+    unsigned short field_0x0A;
 } RpGameCubeMTStreamEntry24;
 
 typedef struct RpGameCubeMTStreamEntry64 {
-    RwUInt8 value[24];
-    RwUInt32 field_0x18;
+    unsigned char value[24];
+    unsigned int field_0x18;
 } RpGameCubeMTStreamEntry64;
 
 typedef struct RpGameCubeMTStreamEntry60 {
-    RwUInt8 value[3];
-    RwUInt8 reserved;
+    unsigned char value[3];
+    unsigned char reserved;
 } RpGameCubeMTStreamEntry60;
 
 typedef struct RpGameCubeMTStreamEntry20 {
-    RwUInt8 value[5];
-    RwUInt8 reserved[3];
+    unsigned char value[5];
+    unsigned char reserved[3];
 } RpGameCubeMTStreamEntry20;
 
 typedef struct RpGameCubeMTStreamEntry40 {
-    RwUInt8 value[3];
+    unsigned char value[3];
     signed char field_0x03;
 } RpGameCubeMTStreamEntry40;
 
-extern void* memcpy(void* destination, const void* source, RwUInt32 size);
-extern void* memset(void* destination, RwInt32 value, RwUInt32 size);
-extern void* RwMemLittleEndian16(void* memory, RwUInt32 size);
-extern RwStream* RwStreamWriteReal(RwStream* stream, const RwReal* values,
-                                   RwUInt32 size);
-extern RwStream* RwStreamReadReal(RwStream* stream, RwReal* values,
-                                  RwUInt32 size);
+extern void* memcpy(void* destination, const void* source, unsigned int size);
+extern void* memset(void* destination, int value, unsigned int size);
+extern void* RwMemLittleEndian16(void* memory, unsigned int size);
+extern RwStream* RwStreamWriteReal(RwStream* stream, const float* values,
+                                   unsigned int size);
+extern RwStream* RwStreamReadReal(RwStream* stream, float* values,
+                                  unsigned int size);
 
-static RwInt32 GameCubeMTEffectStreamGetSize(const RpMTEffect* effect)
+static int GameCubeMTEffectStreamGetSize(const RpMTEffect* effect)
 {
-    RwInt32 size = 0;
+    int size = 0;
     const RpGameCubeMTEffectConfig* config =
-        (const RpGameCubeMTEffectConfig*)((const RwUInt8*)effect + 0x30);
+        (const RpGameCubeMTEffectConfig*)((const unsigned char*)effect + 0x30);
 
     size += sizeof(RpGameCubeMTStreamHeader);
     size += config->count60 * (sizeof(RpGameCubeMTStreamEntry60) + 0x30);
@@ -147,9 +147,9 @@ static RwStream* GameCubeMTEffectStreamWrite(
     const RpMTEffect* effect, RwStream* stream)
 {
     const RpGameCubeMTEffectConfig* config =
-        (const RpGameCubeMTEffectConfig*)((const RwUInt8*)effect + 0x30);
+        (const RpGameCubeMTEffectConfig*)((const unsigned char*)effect + 0x30);
     RpGameCubeMTStreamHeader header;
-    RwUInt32 index;
+    unsigned int index;
 
     if (_rwStreamWriteVersionedChunkHeader(
             stream, 3, GameCubeMTEffectStreamGetSize(effect),
@@ -157,15 +157,15 @@ static RwStream* GameCubeMTEffectStreamWrite(
         return 0;
     }
 
-    header.field_0x02 = (RwUInt8)config->field_0x00;
+    header.field_0x02 = (unsigned char)config->field_0x00;
     header.count64 = config->count64;
     header.count24 = config->count24;
     header.count60 = config->count60;
     header.count40 = config->count40;
     header.count20 = config->count20;
     header.packedFields =
-        (((RwUInt8)config->field_0x54 & 0xF) * 0x10) |
-        ((RwUInt8)config->field_0x58 & 0xF);
+        (((unsigned char)config->field_0x54 & 0xF) * 0x10) |
+        ((unsigned char)config->field_0x58 & 0xF);
     memcpy(header.bytes, config->bytes, sizeof(header.bytes));
     memcpy(header.values, config->values, sizeof(header.values));
     RwMemLittleEndian16(header.values, sizeof(header.values));
@@ -177,11 +177,11 @@ static RwStream* GameCubeMTEffectStreamWrite(
         const RpGameCubeMTEntry24* entry = &config->entries24[index];
         RpGameCubeMTStreamEntry24 encoded;
 
-        encoded.value[0] = (RwUInt8)entry->value[0];
-        encoded.value[1] = (RwUInt8)entry->value[1];
-        encoded.value[2] = (RwUInt8)entry->value[2];
-        encoded.value[3] = (RwUInt8)entry->value[3];
-        encoded.value[4] = (RwUInt8)entry->value[4];
+        encoded.value[0] = (unsigned char)entry->value[0];
+        encoded.value[1] = (unsigned char)entry->value[1];
+        encoded.value[2] = (unsigned char)entry->value[2];
+        encoded.value[3] = (unsigned char)entry->value[3];
+        encoded.value[4] = (unsigned char)entry->value[4];
         encoded.reserved[0] = 0;
         encoded.reserved[1] = 0;
         encoded.reserved[2] = 0;
@@ -197,31 +197,31 @@ static RwStream* GameCubeMTEffectStreamWrite(
         const RpGameCubeMTEntry64* entry = &config->entries64[index];
         RpGameCubeMTStreamEntry64 encoded;
 
-        encoded.value[0] = (RwUInt8)entry->field_0x00;
-        encoded.value[1] = (RwUInt8)entry->field_0x04;
-        encoded.value[2] = (RwUInt8)entry->field_0x08;
-        encoded.value[3] = (RwUInt8)entry->field_0x0C;
-        encoded.value[4] = (RwUInt8)entry->field_0x10;
-        encoded.value[5] = (RwUInt8)entry->field_0x14;
-        encoded.value[6] = (RwUInt8)entry->field_0x18;
-        encoded.value[7] = (RwUInt8)entry->field_0x1C;
-        encoded.value[8] = (RwUInt8)entry->field_0x20;
-        encoded.value[9] = (RwUInt8)entry->field_0x24;
-        encoded.value[10] = (RwUInt8)entry->field_0x28;
-        encoded.value[11] = (RwUInt8)entry->field_0x2C;
-        encoded.value[12] = (RwUInt8)entry->field_0x30;
-        encoded.value[13] = (RwUInt8)entry->field_0x34;
-        encoded.value[14] = (RwUInt8)entry->field_0x38;
-        encoded.value[15] = (RwUInt8)entry->field_0x3C;
-        encoded.value[16] = (RwUInt8)entry->field_0x40;
-        encoded.value[17] = (RwUInt8)entry->field_0x44;
-        encoded.value[18] = (RwUInt8)entry->field_0x48;
-        encoded.value[19] = (RwUInt8)entry->field_0x4C;
-        encoded.value[20] = (RwUInt8)entry->field_0x50;
-        encoded.value[21] = (RwUInt8)entry->field_0x54;
-        encoded.value[22] = (RwUInt8)entry->field_0x58;
-        encoded.value[23] = (RwUInt8)entry->field_0x5C;
-        encoded.field_0x18 = (RwUInt32)entry->field_0x60;
+        encoded.value[0] = (unsigned char)entry->field_0x00;
+        encoded.value[1] = (unsigned char)entry->field_0x04;
+        encoded.value[2] = (unsigned char)entry->field_0x08;
+        encoded.value[3] = (unsigned char)entry->field_0x0C;
+        encoded.value[4] = (unsigned char)entry->field_0x10;
+        encoded.value[5] = (unsigned char)entry->field_0x14;
+        encoded.value[6] = (unsigned char)entry->field_0x18;
+        encoded.value[7] = (unsigned char)entry->field_0x1C;
+        encoded.value[8] = (unsigned char)entry->field_0x20;
+        encoded.value[9] = (unsigned char)entry->field_0x24;
+        encoded.value[10] = (unsigned char)entry->field_0x28;
+        encoded.value[11] = (unsigned char)entry->field_0x2C;
+        encoded.value[12] = (unsigned char)entry->field_0x30;
+        encoded.value[13] = (unsigned char)entry->field_0x34;
+        encoded.value[14] = (unsigned char)entry->field_0x38;
+        encoded.value[15] = (unsigned char)entry->field_0x3C;
+        encoded.value[16] = (unsigned char)entry->field_0x40;
+        encoded.value[17] = (unsigned char)entry->field_0x44;
+        encoded.value[18] = (unsigned char)entry->field_0x48;
+        encoded.value[19] = (unsigned char)entry->field_0x4C;
+        encoded.value[20] = (unsigned char)entry->field_0x50;
+        encoded.value[21] = (unsigned char)entry->field_0x54;
+        encoded.value[22] = (unsigned char)entry->field_0x58;
+        encoded.value[23] = (unsigned char)entry->field_0x5C;
+        encoded.field_0x18 = (unsigned int)entry->field_0x60;
         RwMemLittleEndian32(&encoded.field_0x18, sizeof(encoded.field_0x18));
         if ((entry->field_0x54 & 0x100) != 0) {
             encoded.value[23] |= 0x80;
@@ -235,9 +235,9 @@ static RwStream* GameCubeMTEffectStreamWrite(
         const RpGameCubeMTEntry60* entry = &config->entries60[index];
         RpGameCubeMTStreamEntry60 encoded;
 
-        encoded.value[0] = (RwUInt8)entry->value[0];
-        encoded.value[1] = (RwUInt8)entry->value[1];
-        encoded.value[2] = (RwUInt8)entry->value[2];
+        encoded.value[0] = (unsigned char)entry->value[0];
+        encoded.value[1] = (unsigned char)entry->value[1];
+        encoded.value[2] = (unsigned char)entry->value[2];
         encoded.reserved = 0;
         if (RwStreamWrite(stream, &encoded, sizeof(encoded)) == 0 ||
             RwStreamWriteReal(stream, entry->real, sizeof(entry->real)) ==
@@ -250,9 +250,9 @@ static RwStream* GameCubeMTEffectStreamWrite(
         const RpGameCubeMTEntry40* entry = &config->entries40[index];
         RpGameCubeMTStreamEntry40 encoded;
 
-        encoded.value[0] = (RwUInt8)entry->value[0];
-        encoded.value[1] = (RwUInt8)entry->value[1];
-        encoded.value[2] = (RwUInt8)entry->value[2];
+        encoded.value[0] = (unsigned char)entry->value[0];
+        encoded.value[1] = (unsigned char)entry->value[1];
+        encoded.value[2] = (unsigned char)entry->value[2];
         encoded.field_0x03 = (signed char)entry->field_0x24;
         if (RwStreamWrite(stream, &encoded, sizeof(encoded)) == 0 ||
             RwStreamWriteReal(stream, entry->real, sizeof(entry->real)) ==
@@ -265,11 +265,11 @@ static RwStream* GameCubeMTEffectStreamWrite(
         const RpGameCubeMTEntry20* entry = &config->entries20[index];
         RpGameCubeMTStreamEntry20 encoded;
 
-        encoded.value[0] = (RwUInt8)entry->value[0];
-        encoded.value[1] = (RwUInt8)entry->value[1];
-        encoded.value[2] = (RwUInt8)entry->value[2];
-        encoded.value[3] = (RwUInt8)entry->value[3];
-        encoded.value[4] = (RwUInt8)entry->value[4];
+        encoded.value[0] = (unsigned char)entry->value[0];
+        encoded.value[1] = (unsigned char)entry->value[1];
+        encoded.value[2] = (unsigned char)entry->value[2];
+        encoded.value[3] = (unsigned char)entry->value[3];
+        encoded.value[4] = (unsigned char)entry->value[4];
         encoded.reserved[0] = 0;
         encoded.reserved[1] = 0;
         encoded.reserved[2] = 0;
@@ -282,13 +282,13 @@ static RwStream* GameCubeMTEffectStreamWrite(
 
 
 static RpMTEffect* GameCubeMTEffectStreamRead(
-    RwStream* stream, RwInt32 type, RwUInt32 version, RwInt32 length)
+    RwStream* stream, int type, unsigned int version, int length)
 {
     RpGameCubeMTStreamHeader header;
     RpMTEffect* effect;
     RpGameCubeMTEffectConfig* config;
-    RwUInt32 streamSize;
-    RwUInt32 index;
+    unsigned int streamSize;
+    unsigned int index;
 
     streamSize = sizeof(header);
     if (RwStreamRead(stream, &header, streamSize) != streamSize) {
@@ -361,7 +361,7 @@ static RpMTEffect* GameCubeMTEffectStreamRead(
         entry->field_0x58 = encoded.value[22];
         entry->field_0x5C = encoded.value[23];
         RwMemNative32(&encoded.field_0x18, sizeof(encoded.field_0x18));
-        entry->field_0x60 = (RwInt32)encoded.field_0x18;
+        entry->field_0x60 = (int)encoded.field_0x18;
         if ((entry->field_0x5C & 0x80) != 0) {
             entry->field_0x54 |= 0x100;
             entry->field_0x5C &= ~0x80;
@@ -419,22 +419,22 @@ static RpMTEffect* GameCubeMTEffectStreamRead(
     return effect;
 }
 
-RwBool _rpGameCubeMTDataPluginAttach(void)
+int _rpGameCubeMTDataPluginAttach(void)
 {
-    RwBool result = _rpMTEffectRegisterPlatform(
+    int result = _rpMTEffectRegisterPlatform(
         6, GameCubeMTEffectStreamRead, GameCubeMTEffectStreamWrite,
         GameCubeMTEffectStreamGetSize, 0);
     return result;
 }
 
 RpMTEffect* RpGameCubeMTEffectCreate(
-    RwUInt32 count64, RwUInt32 count24, RwUInt32 count60,
-    RwUInt32 count20, RwUInt32 count40)
+    unsigned int count64, unsigned int count24, unsigned int count60,
+    unsigned int count20, unsigned int count40)
 {
-    RwUInt32 size = 0x8C;
+    unsigned int size = 0x8C;
     RpMTEffect* effect;
     RpGameCubeMTEffectConfig* config;
-    RwUInt8* next;
+    unsigned char* next;
 
     size = ((size + 3) & ~3U) +
         count24 * sizeof(RpGameCubeMTEntry24);
@@ -459,7 +459,7 @@ RpMTEffect* RpGameCubeMTEffectCreate(
     }
     memset(effect, 0, size);
     _rpMTEffectInit(effect, 6);
-    config = (RpGameCubeMTEffectConfig*)((RwUInt8*)effect + 0x30);
+    config = (RpGameCubeMTEffectConfig*)((unsigned char*)effect + 0x30);
     config->allocationCount64 = count64;
     config->allocationCount24 = count24;
     config->allocationCount20 = count20;
@@ -471,7 +471,7 @@ RpMTEffect* RpGameCubeMTEffectCreate(
     config->count60 = config->allocationCount60;
     config->count40 = config->allocationCount40;
 
-    next = (RwUInt8*)config + sizeof(*config);
+    next = (unsigned char*)config + sizeof(*config);
     if (count60 != 0) {
         config->entries60 = (RpGameCubeMTEntry60*)next;
         next += count60 * sizeof(*config->entries60);
@@ -497,6 +497,6 @@ RpMTEffect* RpGameCubeMTEffectCreate(
 RpGameCubeMTEffectConfig* RpGameCubeMTEffectGetConfig(RpMTEffect* effect)
 {
     RpGameCubeMTEffectConfig* config =
-        (RpGameCubeMTEffectConfig*)((RwUInt8*)effect + 0x30);
+        (RpGameCubeMTEffectConfig*)((unsigned char*)effect + 0x30);
     return config;
 }
