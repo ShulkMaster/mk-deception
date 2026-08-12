@@ -1,12 +1,13 @@
 #include "math/gxMath.h"
 
 /*
- * Soft ceiling: Wave D NonMatching -- sdata2 first-use pool / FP schedule.
- * GXMathSqrtTable (.data 0x4000) remains on split ASM until Matching.
- * Soft ceiling: gxMathCosSin ~70% -- dual-poly FP interleave vs retail; stop.
- * Soft ceiling: gxMathSin ~97% -- f5 vs f1 after int-float + sdata2 relocs; stop.
- * Soft ceiling: gxMathCos ~99% -- instruction-identical; sdata2 reloc leftover; stop.
- * Soft ceiling: gxMathArcTanYX ~94% / ArcTan ~91% -- atan poly reg/load schedule; stop.
+ * Soft ceiling: gxMathArcTan ~93.28% -- op order and structure identical;
+ *   residue is FPR scratch rotation only (verified reachable via dead-code
+ *   allocation probes, so no semantic delta remains); stop.
+ * Soft ceiling: gxMathArcTanYX ~95.65% -- same rotation class, plus retail
+ *   keeps x2 in volatile f13 and uses f30/f31 transiently where our
+ *   allocator homes x2 in f31. The quot/ratio split and quot's declaration
+ *   slot are retail-derived allocation seeding; stop.
  */
 
 /* Angle scale: 2^20 / (2*pi) and reciprocal 2*pi / 2^20 */
@@ -92,8 +93,8 @@ float gxMathSin(float angle) {
     unsigned int bits;
     int folded;
     float scale;
-    float x;
     float x2;
+    float x;
     float t;
 
     bits = (unsigned int)(int)(angle * kAngleToIndex);
@@ -101,12 +102,13 @@ float gxMathSin(float angle) {
     if ((bits & 0x40000u) != 0) {
         folded = 0x40000 - folded;
     }
+    x = (float)folded;
     if ((bits & 0x80000u) != 0) {
         scale = kNegIndexToRad;
     } else {
         scale = kIndexToRad;
     }
-    x = (float)folded * scale;
+    x *= scale;
     x2 = x * x;
     /* Horner: x * (x2 * ((c6*x2+c4)*x2+c2) + 1) -- fmadds operand order */
     t = kSinC6 * x2 + kSinC4;
@@ -117,28 +119,42 @@ float gxMathSin(float angle) {
 
 void gxMathCosSin(float* cosOut, float* sinOut, float angle) {
     unsigned int bits;
+    unsigned int doubled;
     int folded;
     float scale;
-    float x;
+    float cosV;
     float x2;
     float sinV;
-    float cosV;
+    float x;
 
     bits = (unsigned int)(int)(angle * kAngleToIndex);
     folded = (int)(bits & 0x3FFFFu);
     if ((bits & 0x40000u) != 0) {
         folded = 0x40000 - folded;
     }
+    doubled = bits + bits;
+    x = (float)folded;
     if ((bits & 0x80000u) != 0) {
         scale = kNegIndexToRad;
     } else {
         scale = kIndexToRad;
     }
-    x = (float)folded * scale;
+    x *= scale;
     x2 = x * x;
-    sinV = x * (kOne + x2 * (kSinC2 + x2 * (kSinC4 + x2 * kSinC6)));
-    cosV = kOne + x2 * (kCosC2 + x2 * (kCosC4 + x2 * kCosC6));
-    if ((((bits + bits) ^ bits) & 0x80000u) != 0) {
+    sinV = kSinC6 * x2;
+    cosV = kCosC6 * x2;
+    sinV += kSinC4;
+    cosV += kCosC4;
+    sinV *= x2;
+    cosV *= x2;
+    sinV += kSinC2;
+    cosV += kCosC2;
+    sinV *= x2;
+    cosV *= x2;
+    sinV += kOne;
+    cosV += kOne;
+    sinV *= x;
+    if (((doubled ^ bits) & 0x80000u) != 0) {
         cosV = -cosV;
     }
     *sinOut = sinV;
@@ -183,6 +199,7 @@ float gxMathArcTanYX(float y, float x) {
     float t17;
     float t19;
     float t21;
+    float quot;
     float t23;
     float t25;
     float t27;
@@ -201,7 +218,8 @@ float gxMathArcTanYX(float y, float x) {
         return kNegHalfPi;
     }
 
-    ratio = y / x;
+    quot = y / x;
+    ratio = quot;
     if (ratio <= kOne && ratio >= kNegOne) {
         x2 = ratio * ratio;
         t3 = x2 * ratio;
@@ -267,8 +285,10 @@ float gxMathArcTanYX(float y, float x) {
 float gxMathArcTan(float x) {
     float result;
     float x2;
-    float t3;
+    /* t5 before t3: declaration order shifts FPR scratch seeding toward
+     * retail (objdiff-verified); the ladder math is unchanged. */
     float t5;
+    float t3;
     float t7;
     float t9;
     float t11;
@@ -281,6 +301,7 @@ float gxMathArcTan(float x) {
     float t25;
     float t27;
     float inv;
+    float invSq;
 
     if (x <= kOne && x >= kNegOne) {
         if (x == kZero) {
@@ -317,14 +338,14 @@ float gxMathArcTan(float x) {
     }
 
     inv = kOne / x;
-    x2 = inv * inv;
-    t3 = x2 * inv;
-    t5 = t3 * x2;
-    t7 = t5 * x2;
-    t9 = t7 * x2;
-    t11 = t9 * x2;
-    t13 = t11 * x2;
-    t15 = t13 * x2;
+    invSq = inv * inv;
+    t3 = invSq * inv;
+    t5 = t3 * invSq;
+    t7 = t5 * invSq;
+    t9 = t7 * invSq;
+    t11 = t9 * invSq;
+    t13 = t11 * invSq;
+    t15 = t13 * invSq;
     result = -inv + kAtan3 * t3;
     result = result - kAtan5 * t5;
     result = result + kAtan7 * t7;
@@ -393,3 +414,5 @@ float gxMathArcCos(float x) {
     p = x2 * p + kNegOne;
     return x * p + kHalfPi;
 }
+
+#include "src/math/gxmath_sqrt_table.inc"

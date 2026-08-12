@@ -1054,12 +1054,12 @@ static void do_cloth_colls(MkHdr* collision) {
                 }
                 gxMat33Tx31(
                     &world_normal, &plane->normal,
-                    (const Mat33*)&reference->matrix);
+                    (Mat33*)&reference->matrix);
                 PSVECScale(
                     &plane->normal, &plane_offset, plane->distance);
                 gxMatV3MatAddV3(
                     &plane_point, &plane_offset,
-                    (const Mat33*)&reference->matrix,
+                    (Mat33*)&reference->matrix,
                     &reference->matrix.pos_vec);
                 plane_distance =
                     PSVECDotProduct(&world_normal, &plane_point);
@@ -1189,7 +1189,7 @@ static void cloth_coll_point_cyl_inside(void) {
         gxMatV3MatAddV3(
             &world_point,
             &cloth_bone->collision_points[index].position,
-            (const Mat33*)&cloth_bone->bone->matrix,
+            (Mat33*)&cloth_bone->bone->matrix,
             force_position);
         PSVECSubtract(
             &world_point,
@@ -1270,7 +1270,7 @@ static inline int cloth_vector_cylinder_displacement(const Vec* point) {
             &cloth_bone->collision_local_position);
         gxMat33Tx31(
             &world_displacement, &cloth_bone->collision_local_position,
-            (const Mat33*)&cloth_coll_bone->transform_parent->matrix);
+            (Mat33*)&cloth_coll_bone->transform_parent->matrix);
         PSVECAdd(
             &world_displacement,
             &cloth_coll_bone->transform_parent->matrix.pos_vec,
@@ -1297,7 +1297,7 @@ static void cloth_coll_vector_cyl(void) {
         &object_offset);
     gxMat33Tx31(
         &cloth_bone->collision_local_position, &object_offset,
-        (const Mat33*)&cloth_coll_bone_parent_world_mat_inv);
+        (Mat33*)&cloth_coll_bone_parent_world_mat_inv);
     if (cloth_vector_cylinder_displacement(
             &cloth_bone->collision_local_position)) {
         PSVECAdd(
@@ -1309,7 +1309,7 @@ static void cloth_coll_vector_cyl(void) {
         gxMatV3MatAddV3(
             &world_point,
             &cloth_bone->collision_points[index].position,
-            (const Mat33*)&cloth_bone->bone->matrix,
+            (Mat33*)&cloth_bone->bone->matrix,
             &cloth_bone->force_position);
         PSVECSubtract(
             &world_point,
@@ -1317,7 +1317,7 @@ static void cloth_coll_vector_cyl(void) {
             &object_offset);
         gxMat33Tx31(
             &world_point, &object_offset,
-            (const Mat33*)&cloth_coll_bone_parent_world_mat_inv);
+            (Mat33*)&cloth_coll_bone_parent_world_mat_inv);
         if (cloth_vector_cylinder_displacement(&world_point)) {
             position_weight = 1.0f - cloth_bone->table_scale;
             PSVECScale(
@@ -1369,7 +1369,7 @@ static void cloth_coll_point_cyl_abs(void) {
             &axis_offset_0, &axis_point_0);
         gxMatV3MatAddV3(
             &offset_point_0, &cloth_bone->collision_offset,
-            (const Mat33*)&cloth_bone->bone->matrix,
+            (Mat33*)&cloth_bone->bone->matrix,
             force_position);
         gxVectUVV3ToV3(
             &radial_direction_0, &axis_point_0, &offset_point_0);
@@ -1398,7 +1398,7 @@ static void cloth_coll_point_cyl_abs(void) {
         gxMatV3MatAddV3(
             &world_point,
             &cloth_bone->collision_points[index].position,
-            (const Mat33*)&cloth_bone->bone->matrix,
+            (Mat33*)&cloth_bone->bone->matrix,
             force_position);
         PSVECSubtract(
             &world_point,
@@ -1419,7 +1419,7 @@ static void cloth_coll_point_cyl_abs(void) {
                 &axis_offset_1, &axis_point_1);
             gxMatV3MatAddV3(
                 &offset_point_1, &cloth_bone->collision_offset,
-                (const Mat33*)&cloth_bone->bone->matrix, &world_point);
+                (Mat33*)&cloth_bone->bone->matrix, &world_point);
             gxVectUVV3ToV3(
                 &radial_direction_1, &axis_point_1, &offset_point_1);
             PSVECScale(
@@ -1487,7 +1487,7 @@ static void cloth_coll_point_cyl_rel(void) {
             &axis_point_0, &axis_point_0);
         gxMatV3MatAddV3(
             &offset_point_0, &cloth_bone->collision_offset,
-            (const Mat33*)&cloth_bone->bone->matrix,
+            (Mat33*)&cloth_bone->bone->matrix,
             force_position);
         gxVectUVV3ToV3(
             &radial_direction_0, &axis_point_0, &offset_point_0);
@@ -1514,7 +1514,7 @@ static void cloth_coll_point_cyl_rel(void) {
         gxMatV3MatAddV3(
             &world_point,
             &cloth_bone->collision_points[index].position,
-            (const Mat33*)&cloth_bone->bone->matrix,
+            (Mat33*)&cloth_bone->bone->matrix,
             force_position);
         PSVECSubtract(
             &world_point,
@@ -1535,7 +1535,7 @@ static void cloth_coll_point_cyl_rel(void) {
                 &axis_point_1, &axis_point_1);
             gxMatV3MatAddV3(
                 &offset_point_1, &cloth_bone->collision_offset,
-                (const Mat33*)&cloth_bone->bone->matrix, &world_point);
+                (Mat33*)&cloth_bone->bone->matrix, &world_point);
             gxVectUVV3ToV3(
                 &radial_direction_1, &axis_point_1, &offset_point_1);
             displacement_length =
@@ -1588,7 +1588,7 @@ static void set_cloth_pos(ClothBone* bone) {
             &object_position);
         gxMat33Tx31(
             &render_bone->parent_matrix->pos_vec, &object_position,
-            (const Mat33*)&cloth_obj_mat_inv);
+            (Mat33*)&cloth_obj_mat_inv);
 
         if (bone->target_bone != 0) {
             PSVECSubtract(
@@ -1596,11 +1596,11 @@ static void set_cloth_pos(ClothBone* bone) {
                 &bone->force_position, &object_position);
             gxMat33Tx31(
                 &direction, &object_position,
-                (const Mat33*)&cloth_obj_mat_inv);
+                (Mat33*)&cloth_obj_mat_inv);
             RwMatrixInvert(&inverse_parent, parent_bone->parent_matrix);
             gxMat33Tx31(
                 &object_position, &direction,
-                (const Mat33*)&inverse_parent);
+                (Mat33*)&inverse_parent);
             PSVECNormalize(&object_position, &direction);
             gxVectV3V3ToQuat(
                 &rotation, &bone->target_vector, &direction);
@@ -1655,7 +1655,7 @@ static void set_cloth_pos(ClothBone* bone) {
         }
         gxMat33Tx31(
             &direction, &object_position,
-            (const Mat33*)&inverse_parent);
+            (Mat33*)&inverse_parent);
         if (direction.x == 0.0f && direction.y == 0.0f &&
             direction.z == 0.0f) {
             direction.z = 0.00001f;
@@ -1835,7 +1835,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
         }
         gxMatV3MatAddV3(
             &bone->world_target, &bone->local_cloth_position,
-            (const Mat33*)target_matrix, target_origin);
+            (Mat33*)target_matrix, (Vec*)target_origin);
         PSVECSubtract(
             &bone->world_target, &render_bone->matrix.pos_vec,
             &adjustment);
@@ -2085,7 +2085,7 @@ float p_axis_track_bone_world_mat(void) {
     memcpy(matrix, &target_bone->matrix, sizeof(*matrix));
     if (axis_obj->flags_08_bits.scale_active) {
         gxMatScaledByV3(
-            (Mat33*)matrix, (const Mat33*)matrix, &axis_obj->scale);
+            (Mat33*)matrix, (Mat33*)matrix, &axis_obj->scale);
     }
     RwMatrixUpdate(matrix);
     RwFrameUpdateObjects(frame);

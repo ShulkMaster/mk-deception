@@ -3,8 +3,8 @@
 
 /*
  * Midway / GX-style float trig + arccos (gxMath.o).
- * GXMathSqrtTable is .data of this TU (0x4000 bytes); linked from split ASM
- * while Object(NonMatching). Used by quat / cam invsqrt helpers.
+ * GXMathSqrtTable is .data of this TU (0x4000 bytes, generated
+ * gxmath_sqrt_table.inc). Used by quat / cam invsqrt helpers.
  */
 
 extern unsigned short GXMathSqrtTable[];

@@ -6,8 +6,9 @@ static const float _464 = 3.0f;
 static const float _465 = 0.0625f;
 static const float _466 = 12.0f;
 
-/* Soft ceiling: gxVectAngleZX ~84.8% -- zero-const load vs v load interleave;
- * sdata2 label names. UVV3ToV3 is 100%. */
+/* Soft ceiling: gxVectAngleZX ~97.72% -- ops and branch layout identical;
+ * residue is FPR scratch rotation seeded by the first v->x load (retail f0,
+ * ours f1); stop. UVV3ToV3 is 100%. */
 
 float gxVectAngleZX(const Vec* v) {
     union {
@@ -22,15 +23,18 @@ float gxVectAngleZX(const Vec* v) {
     float z;
     float x;
     float x2;
+    float zz;
     float t1;
     float t3;
 
     x = v->x;
     z = v->z;
     x2 = x * x;
-    lenSq = x2 + (z * z);
-    invLen = _235;
-    if (lenSq > invLen) {
+    zz = z * z;
+    lenSq = x2 + zz;
+    if (lenSq <= _235) {
+        invLen = _235;
+    } else {
         /* Fast inverse sqrt of (x*x + z*z) with one Newton step. */
         pun.f = lenSq;
         guessBits = 0x5F375A00U - (pun.u >> 1);
