@@ -5,6 +5,6 @@
 
 RwError* RwErrorSet(RwError* error);
 RwError* RwErrorGet(RwError* error);
-RwInt32 _rwerror(RwInt32 code, ...);
+int _rwerror(int code, ...);
 
 #endif

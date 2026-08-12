@@ -19,6 +19,7 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 #include "rw/rwcore_types.h"
+#include "rw/rphanim.h"
 
 extern void destroy_fade_box(void);
 extern void GProfile_GCN_GxDrawDone(void);
@@ -66,8 +67,6 @@ extern void init_mk_render(void);
 extern int fog_on;
 extern int RpWorldPluginAttach(void);
 extern int RpSkinPluginAttach(void);
-extern void RtAnimInitialize(void);
-extern int RpHAnimPluginAttach(void);
 extern int RpSpecularPluginAttach(void);
 extern int specskin_plugin_attach(void);
 extern int RpMatFXPluginAttach(void);

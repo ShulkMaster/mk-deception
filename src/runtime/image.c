@@ -3,6 +3,7 @@
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
+#include "rw/alphapass.h"
 
 extern float game_speed;
 extern MkVtable5 vtbl_mkpdata_string_obj;
@@ -22,8 +23,6 @@ AniTextureControl* get_wiff_atc_block(int a, int b);
 RwTexture* material_get_texture_pointer(RpMaterial* mat, int flag);
 void material_set_texture_pointer(RpMaterial* mat, RwTexture* tex, int flag);
 int RwRasterGetNumLevels(RwRaster* raster);
-RwTexture* RpMaterialGetAlphaPassTexture(RpMaterial* mat);
-void RpMaterialSetAlphaPassTexture(RpMaterial* mat, RwTexture* tex);
 RpClump* RpClumpForAllAtomics(RpClump* clump, void* cb, void* data);
 
 void set_render_state(int state, int value);

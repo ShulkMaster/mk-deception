@@ -3,6 +3,8 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/utils.h"
+#include "rw/rpmatfx.h"
+#include "rw/rpskin.h"
 
 typedef struct RpGameCubeVtxFmt {
     unsigned char data[0x18];
@@ -23,15 +25,7 @@ void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
                                  int count, int type);
 void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
                                  RpGameCubeVtxFmt* format);
-void* RpSkinGeometryGetSkin(RpGeometry* geometry);
-int RpMatFXMaterialGetEffects(RpMaterial* material);
-RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material, int effects);
-void* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
-int RpMatFXAtomicQueryEffects(RpAtomic* atomic);
-void* RpSkinGetGameCubePipeline(int type);
-
 extern void* SpecSkinAtomicPipeline;
-extern void* RwEngineInstance;
 extern int _rxPipelineGlobalsOffset;
 
 static const GXColor OpaqueWhite = {255, 255, 255, 255};
