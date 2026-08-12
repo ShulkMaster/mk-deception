@@ -3,76 +3,76 @@
 #include "rw/rwplcore.h"
 
 typedef struct RwVideoMode {
-    RwInt32 width;
-    RwInt32 height;
-    RwInt32 depth;
-    RwUInt32 flags;
-    RwInt32 refRate;
-    RwInt32 format;
+    int width;
+    int height;
+    int depth;
+    unsigned int flags;
+    int refRate;
+    int format;
 } RwVideoMode;
 
 typedef struct RwSubSystemInfo {
-    RwChar name[80];
+    char name[80];
 } RwSubSystemInfo;
 
 typedef struct RwEngineOpenParams {
     void* displayID;
 } RwEngineOpenParams;
 
-extern void* memcpy(void* destination, const void* source, RwUInt32 size);
+extern void* memcpy(void* destination, const void* source, unsigned int size);
 
-extern RwBool _rwPipeAttach(void);
+extern int _rwPipeAttach(void);
 extern RwDevice* _rwDeviceGetHandle(void);
-extern RwBool _rwDeviceRegisterPlugin(void);
-extern RwBool _rwStringOpen(void);
+extern int _rwDeviceRegisterPlugin(void);
+extern int _rwStringOpen(void);
 extern void _rwStringClose(void);
-extern RwBool _rwFileSystemOpen(void);
+extern int _rwFileSystemOpen(void);
 extern void _rwFileSystemClose(void);
-extern RwBool _rwPluginRegistryOpen(void);
+extern int _rwPluginRegistryOpen(void);
 extern void _rwPluginRegistryClose(void);
-extern void RwImageSetGamma(RwReal gamma);
+extern void RwImageSetGamma(float gamma);
 extern void RwErrorSet(const RwError* error);
-extern RwInt32 _rwerror(RwInt32 errorCode, ...);
+extern int _rwerror(int errorCode, ...);
 
-extern void* _rwErrorOpen(void*, RwInt32, RwInt32);
-extern void* _rwErrorClose(void*, RwInt32, RwInt32);
-extern void* _rwVectorOpen(void*, RwInt32, RwInt32);
-extern void* _rwVectorClose(void*, RwInt32, RwInt32);
-extern void* _rwColorOpen(void*, RwInt32, RwInt32);
-extern void* _rwColorClose(void*, RwInt32, RwInt32);
-extern void* _rwMatrixOpen(void*, RwInt32, RwInt32);
-extern void* _rwMatrixClose(void*, RwInt32, RwInt32);
-extern void* _rwFrameOpen(void*, RwInt32, RwInt32);
-extern void* _rwFrameClose(void*, RwInt32, RwInt32);
-extern void* _rwCameraOpen(void*, RwInt32, RwInt32);
-extern void* _rwCameraClose(void*, RwInt32, RwInt32);
-extern void* _rwImageOpen(void*, RwInt32, RwInt32);
-extern void* _rwImageClose(void*, RwInt32, RwInt32);
-extern void* _rwRasterOpen(void*, RwInt32, RwInt32);
-extern void* _rwRasterClose(void*, RwInt32, RwInt32);
-extern void* _rwTextureOpen(void*, RwInt32, RwInt32);
-extern void* _rwTextureClose(void*, RwInt32, RwInt32);
-extern void* _rwRenderPipelineOpen(void*, RwInt32, RwInt32);
-extern void* _rwRenderPipelineClose(void*, RwInt32, RwInt32);
-extern void* _rwChunkGroupOpen(void*, RwInt32, RwInt32);
-extern void* _rwChunkGroupClose(void*, RwInt32, RwInt32);
-extern void* _rwIm3DOpen(void*, RwInt32, RwInt32);
-extern void* _rwIm3DClose(void*, RwInt32, RwInt32);
-extern void* _rwResourcesOpen(void*, RwInt32, RwInt32);
-extern void* _rwResourcesClose(void*, RwInt32, RwInt32);
-extern void* _rwStreamModuleOpen(void*, RwInt32, RwInt32);
-extern void* _rwStreamModuleClose(void*, RwInt32, RwInt32);
+extern void* _rwErrorOpen(void*, int, int);
+extern void* _rwErrorClose(void*, int, int);
+extern void* _rwVectorOpen(void*, int, int);
+extern void* _rwVectorClose(void*, int, int);
+extern void* _rwColorOpen(void*, int, int);
+extern void* _rwColorClose(void*, int, int);
+extern void* _rwMatrixOpen(void*, int, int);
+extern void* _rwMatrixClose(void*, int, int);
+extern void* _rwFrameOpen(void*, int, int);
+extern void* _rwFrameClose(void*, int, int);
+extern void* _rwCameraOpen(void*, int, int);
+extern void* _rwCameraClose(void*, int, int);
+extern void* _rwImageOpen(void*, int, int);
+extern void* _rwImageClose(void*, int, int);
+extern void* _rwRasterOpen(void*, int, int);
+extern void* _rwRasterClose(void*, int, int);
+extern void* _rwTextureOpen(void*, int, int);
+extern void* _rwTextureClose(void*, int, int);
+extern void* _rwRenderPipelineOpen(void*, int, int);
+extern void* _rwRenderPipelineClose(void*, int, int);
+extern void* _rwChunkGroupOpen(void*, int, int);
+extern void* _rwChunkGroupClose(void*, int, int);
+extern void* _rwIm3DOpen(void*, int, int);
+extern void* _rwIm3DClose(void*, int, int);
+extern void* _rwResourcesOpen(void*, int, int);
+extern void* _rwResourcesClose(void*, int, int);
+extern void* _rwStreamModuleOpen(void*, int, int);
+extern void* _rwStreamModuleClose(void*, int, int);
 
 static RwPluginRegistry engineTKList = { sizeof(RwGlobals), sizeof(RwGlobals),
                                          0, 0, 0, 0 };
-static RwChar onlyRenderingSubSystem[] = "Only rendering sub system";
+static char onlyRenderingSubSystem[] = "Only rendering sub system";
 static RwGlobals staticGlobals;
-static RwInt32 engineInstancesOpened;
+static int engineInstancesOpened;
 RwGlobals* RwEngineInstance;
 
-static RwBool CorePluginAttach(void)
+static int CorePluginAttach(void)
 {
-    RwInt32 result;
+    int result;
 
     result = 0;
     result |= RwEngineRegisterPlugin(8, 0x40F, _rwErrorOpen, _rwErrorClose);
@@ -100,7 +100,7 @@ static RwBool CorePluginAttach(void)
     return 0;
 }
 
-static void* MallocWrapper(RwFreeList* freeList, RwUInt32 hint)
+static void* MallocWrapper(RwFreeList* freeList, unsigned int hint)
 {
     return RwEngineInstance->fpMalloc(freeList->entrySize, hint);
 }
@@ -111,10 +111,10 @@ static RwFreeList* FreeWrapper(RwFreeList* freeList, void* entry)
     return freeList;
 }
 
-static RwBool _rwDeviceSystemRequest(RwDevice* device, RwInt32 request,
-                                     void* out, void* inOut, RwInt32 in)
+static int _rwDeviceSystemRequest(RwDevice* device, int request,
+                                     void* out, void* inOut, int in)
 {
-    RwBool result = device->fpSystem(request, out, inOut, in);
+    int result = device->fpSystem(request, out, inOut, in);
 
     if (!result) {
         switch (request) {
@@ -123,7 +123,7 @@ static RwBool _rwDeviceSystemRequest(RwDevice* device, RwInt32 request,
             result = 1;
             break;
         case 13:
-            *(RwInt32*)out = 1;
+            *(int*)out = 1;
             result = 1;
             break;
         case 14:
@@ -135,7 +135,7 @@ static RwBool _rwDeviceSystemRequest(RwDevice* device, RwInt32 request,
             }
             break;
         case 15:
-            *(RwInt32*)out = 0;
+            *(int*)out = 0;
             result = 1;
             break;
         case 16:
@@ -154,7 +154,7 @@ static RwBool _rwDeviceSystemRequest(RwDevice* device, RwInt32 request,
     return result;
 }
 
-static RwBool EngineOpen(RwDevice* device, RwEngineOpenParams* params)
+static int EngineOpen(RwDevice* device, RwEngineOpenParams* params)
 {
     RwEngineInstance =
         RwEngineInstance->fpMalloc(engineTKList.sizeOfStruct, 0x40000);
@@ -183,34 +183,34 @@ static RwBool EngineOpen(RwDevice* device, RwEngineOpenParams* params)
     return 0;
 }
 
-RwInt32 _rwGetNumEngineInstances(void)
+int _rwGetNumEngineInstances(void)
 {
     return engineInstancesOpened;
 }
 
-RwInt32 RwEngineGetVersion(void)
+int RwEngineGetVersion(void)
 {
     return 0x36003;
 }
 
-RwInt32 RwEngineRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RwEngineRegisterPlugin(int size, unsigned int pluginID,
                                RwPluginObjectConstructor openCB,
                                RwPluginObjectDestructor closeCB)
 {
-    RwInt32 result;
+    int result;
     result = _rwPluginRegistryAddPlugin(&engineTKList, size, pluginID, openCB,
                                         closeCB, 0);
     return result;
 }
 
-RwInt32 RwEngineGetPluginOffset(RwUInt32 pluginID)
+int RwEngineGetPluginOffset(unsigned int pluginID)
 {
-    RwInt32 offset;
+    int offset;
     offset = _rwPluginRegistryGetPluginOffset(&engineTKList, pluginID);
     return offset;
 }
 
-RwVideoMode* RwEngineGetVideoModeInfo(RwVideoMode* modeInfo, RwInt32 mode)
+RwVideoMode* RwEngineGetVideoModeInfo(RwVideoMode* modeInfo, int mode)
 {
     if (!_rwDeviceSystemRequest((RwDevice*)&RwEngineInstance->gammaCorrection,
                                 6, modeInfo, 0, mode)) {
@@ -219,9 +219,9 @@ RwVideoMode* RwEngineGetVideoModeInfo(RwVideoMode* modeInfo, RwInt32 mode)
     return modeInfo;
 }
 
-RwInt32 RwEngineGetCurrentVideoMode(void)
+int RwEngineGetCurrentVideoMode(void)
 {
-    RwInt32 mode;
+    int mode;
     if (_rwDeviceSystemRequest((RwDevice*)&RwEngineInstance->gammaCorrection,
                                10, &mode, 0, 0)) {
         return mode;
@@ -229,7 +229,7 @@ RwInt32 RwEngineGetCurrentVideoMode(void)
     return -1;
 }
 
-RwBool RwEngineStart(void)
+int RwEngineStart(void)
 {
     RwDevice* device = (RwDevice*)&RwEngineInstance->gammaCorrection;
     if (_rwDeviceSystemRequest(device, 2, 0, 0, 0)) {
@@ -244,11 +244,11 @@ RwBool RwEngineStart(void)
     return 0;
 }
 
-RwBool RwEngineClose(void)
+int RwEngineClose(void)
 {
 
 
-    RwBool result;
+    int result;
     RwDevice* target;
 
     target = (RwDevice*)&RwEngineInstance->gammaCorrection;
@@ -266,9 +266,9 @@ RwBool RwEngineClose(void)
     return result;
 }
 
-RwBool RwEngineOpen(RwEngineOpenParams* params)
+int RwEngineOpen(RwEngineOpenParams* params)
 {
-    RwBool result;
+    int result;
     if (RwEngineInstance == 0) {
         RwEngineInstance = &staticGlobals;
     }
@@ -299,9 +299,9 @@ RwBool RwEngineOpen(RwEngineOpenParams* params)
     return result;
 }
 
-RwBool RwEngineTerm(void)
+int RwEngineTerm(void)
 {
-    RwBool result = engineInstancesOpened == 0;
+    int result = engineInstancesOpened == 0;
     if (result) {
         _rwPluginRegistryClose();
         _rwFileSystemClose();
@@ -311,10 +311,10 @@ RwBool RwEngineTerm(void)
     return result;
 }
 
-RwBool RwEngineInit(const RwMemoryFunctions* memoryFunctions,
-                    RwUInt32 initFlags, RwUInt32 resArenaSize)
+int RwEngineInit(const RwMemoryFunctions* memoryFunctions,
+                    unsigned int initFlags, unsigned int resArenaSize)
 {
-    RwBool result = 0;
+    int result = 0;
     RwEngineInstance = &staticGlobals;
     if (initFlags & 1) {
         RwEngineInstance->fpFreeListAlloc = MallocWrapper;

@@ -6,25 +6,25 @@
 
 extern float powf(float, float);
 
-typedef RwImage *(*RwImageReadCallBack)(const RwChar *);
-typedef RwBool (*RwRGBASetFromPixelCallBack)(RwRGBA *, const RwUInt32 *,
-                                             RwInt32);
+typedef RwImage *(*RwImageReadCallBack)(const char *);
+typedef int (*RwRGBASetFromPixelCallBack)(RwRGBA *, const unsigned int *,
+                                             int);
 typedef struct RwImageFormat {
-  RwChar extension[20];
-  RwChar alternateExtension[20];
+  char extension[20];
+  char alternateExtension[20];
   RwImageReadCallBack read;
   void *reservedCallback;
   struct RwImageFormat *next;
 } RwImageFormat;
 typedef struct RwImageGlobals {
   RwFreeList *imageFreeList;
-  RwChar *imagePath;
-  RwInt32 imagePathSize;
-  RwUInt8 gammaTable[256];
-  RwUInt8 inverseGammaTable[256];
-  RwReal gamma;
+  char *imagePath;
+  int imagePathSize;
+  unsigned char gammaTable[256];
+  unsigned char inverseGammaTable[256];
+  float gamma;
   void *scratchMemory;
-  RwInt32 scratchSize;
+  int scratchSize;
   RwFreeList *formatFreeList;
   RwImageFormat *formats;
 } RwImageGlobals;
@@ -32,109 +32,109 @@ typedef struct ImageReadState {
   RwImageReadCallBack read;
   RwImage *image;
 } ImageReadState;
-typedef RwChar *(*ImagePathCallBack)(RwChar *, void *);
+typedef char *(*ImagePathCallBack)(char *, void *);
 
 static RwPluginRegistry imageTKList = {
     sizeof(RwImage), sizeof(RwImage), 0, 0, 0, 0};
 static RwFreeList _rwImageFreeList;
 static RwFreeList _rwImageFormatFreeList;
-static RwInt32 _rwImageFreeListBlockSize = 0x80;
-static RwInt32 _rwImageFreeListPreallocBlocks = 1;
-static RwInt32 _rwImageFormatFreeListPreallocBlocks = 1;
+static int _rwImageFreeListBlockSize = 0x80;
+static int _rwImageFreeListPreallocBlocks = 1;
+static int _rwImageFormatFreeListPreallocBlocks = 1;
 static RwModuleInfo imageModule;
-RwBool RwImageSetGamma(RwReal);
+int RwImageSetGamma(float);
 RwImage *RwImageCopy(RwImage *, const RwImage *);
 RwImage *RwImageFreePixels(RwImage *);
-RwBool RwImageDestroy(RwImage *);
+int RwImageDestroy(RwImage *);
 RwImage *RwImageAllocatePixels(RwImage *);
-RwImage *RwImageCreate(RwInt32, RwInt32, RwInt32);
+RwImage *RwImageCreate(int, int, int);
 
-void *_rwImageOpen(void *instance, RwInt32 offset, RwInt32 size) {
+void *_rwImageOpen(void *instance, int offset, int size) {
   imageModule.globalsOffset = offset;
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->imageFreeList = RwFreeListCreateAndPreallocateSpace(
       imageTKList.sizeOfStruct, _rwImageFreeListBlockSize, 4,
       _rwImageFreeListPreallocBlocks, &_rwImageFreeList, 0x40018);
-  if (!((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (!((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                            imageModule.globalsOffset))
            ->imageFreeList)
     return 0;
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->formatFreeList = RwFreeListCreateAndPreallocateSpace(
       sizeof(RwImageFormat), _rwImageFreeListBlockSize, 4,
       _rwImageFormatFreeListPreallocBlocks, &_rwImageFormatFreeList, 0x40406);
-  if (!((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (!((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                            imageModule.globalsOffset))
            ->formatFreeList) {
-    RwFreeListDestroy(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwFreeListDestroy(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                           imageModule.globalsOffset))
                           ->imageFreeList);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imageFreeList = 0;
     return 0;
   }
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->imagePathSize = 0x100;
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->imagePath = RwEngineInstance->fpMalloc(
-      ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+      ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->imagePathSize,
       0x01040406);
-  if (!((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (!((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                            imageModule.globalsOffset))
            ->imagePath) {
-    RwFreeListDestroy(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwFreeListDestroy(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                           imageModule.globalsOffset))
                           ->formatFreeList);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->formatFreeList = 0;
-    RwFreeListDestroy(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwFreeListDestroy(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                           imageModule.globalsOffset))
                           ->imageFreeList);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imageFreeList = 0;
     return 0;
   }
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->imagePath[0] = 0;
   imageModule.numInstances++;
   RwImageSetGamma(1.0f);
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->formats = 0;
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->scratchSize = 0x100;
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->scratchMemory = RwEngineInstance->fpMalloc(
-      ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+      ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->scratchSize,
       0x01040018);
-  if (!((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (!((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                            imageModule.globalsOffset))
            ->scratchMemory) {
-    RwEngineInstance->fpFree(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwEngineInstance->fpFree(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                                  imageModule.globalsOffset))
                                  ->imagePath);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imagePath = 0;
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imagePathSize = 0;
-    RwFreeListDestroy(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwFreeListDestroy(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                           imageModule.globalsOffset))
                           ->formatFreeList);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->formatFreeList = 0;
-    RwFreeListDestroy(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwFreeListDestroy(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                           imageModule.globalsOffset))
                           ->imageFreeList);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imageFreeList = 0;
     return 0;
@@ -142,65 +142,65 @@ void *_rwImageOpen(void *instance, RwInt32 offset, RwInt32 size) {
   return instance;
 }
 
-void *_rwImageClose(void *instance, RwInt32 offset, RwInt32 size) {
-  if (((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+void *_rwImageClose(void *instance, int offset, int size) {
+  if (((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->scratchMemory) {
-    RwEngineInstance->fpFree(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwEngineInstance->fpFree(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                                  imageModule.globalsOffset))
                                  ->scratchMemory);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->scratchMemory = 0;
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->scratchSize = 0;
   }
-  if (((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->imagePath) {
-    RwEngineInstance->fpFree(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwEngineInstance->fpFree(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                                  imageModule.globalsOffset))
                                  ->imagePath);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imagePath = 0;
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imagePathSize = 0;
   }
-  while (((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  while (((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                              imageModule.globalsOffset))
              ->formats) {
-    RwImageFormat *format = ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwImageFormat *format = ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                                 imageModule.globalsOffset))
                                 ->formats;
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->formats = format->next;
     RwEngineInstance->fpFreeListFree(
-        ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+        ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                             imageModule.globalsOffset))
             ->formatFreeList,
         format);
   }
-  if (((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->formatFreeList) {
-    RwFreeListDestroy(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwFreeListDestroy(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                           imageModule.globalsOffset))
                           ->formatFreeList);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->formatFreeList = 0;
   }
-  if (((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->imageFreeList) {
-    RwFreeListDestroy(((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwFreeListDestroy(((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                           imageModule.globalsOffset))
                           ->imageFreeList);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->imageFreeList = 0;
   }
@@ -208,17 +208,17 @@ void *_rwImageClose(void *instance, RwInt32 offset, RwInt32 size) {
   return instance;
 }
 
-static void *ImageGetScratchMem(RwInt32 size) {
+static void *ImageGetScratchMem(int size) {
   void *memory;
 
-  if (size > ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  if (size > ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                  imageModule.globalsOffset))
                  ->scratchSize) {
-    if (((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    if (((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                             imageModule.globalsOffset))
             ->scratchMemory)
       memory = RwEngineInstance->fpRealloc(
-          ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+          ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                               imageModule.globalsOffset))
               ->scratchMemory,
           size, 0x01040018);
@@ -231,21 +231,21 @@ static void *ImageGetScratchMem(RwInt32 size) {
       RwErrorSet(&error);
       return 0;
     }
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->scratchMemory = memory;
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
         ->scratchSize = size;
   }
-  return ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  return ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                              imageModule.globalsOffset))
       ->scratchMemory;
 }
 
 void _rwImageGammaCorrectArrayOfRGBA(RwRGBA *out, const RwRGBA *in,
-                                     RwInt32 count) {
-  const RwUInt8 *table = ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+                                     int count) {
+  const unsigned char *table = ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                              imageModule.globalsOffset))
                              ->gammaTable;
   while (count-- != 0) {
@@ -258,9 +258,9 @@ void _rwImageGammaCorrectArrayOfRGBA(RwRGBA *out, const RwRGBA *in,
   }
 }
 
-RwImage *RwImageCreate(RwInt32 width, RwInt32 height, RwInt32 depth) {
+RwImage *RwImageCreate(int width, int height, int depth) {
   RwImage *image = RwEngineInstance->fpFreeListAlloc(
-      ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+      ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->imageFreeList,
       0x30018);
@@ -276,12 +276,12 @@ RwImage *RwImageCreate(RwInt32 width, RwInt32 height, RwInt32 depth) {
   return image;
 }
 
-RwBool RwImageDestroy(RwImage *image) {
+int RwImageDestroy(RwImage *image) {
   if (image->flags & 1)
     RwImageFreePixels(image);
   _rwPluginRegistryDeInitObject(&imageTKList, image);
   RwEngineInstance->fpFreeListFree(
-      ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+      ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                           imageModule.globalsOffset))
           ->imageFreeList,
       image);
@@ -289,10 +289,10 @@ RwBool RwImageDestroy(RwImage *image) {
 }
 
 RwImage *RwImageAllocatePixels(RwImage *image) {
-  RwUInt32 depth = image->depth;
-  RwBool paletted = 1;
-  RwInt32 paletteSize;
-  RwInt32 pixelSize, totalSize;
+  unsigned int depth = image->depth;
+  int paletted = 1;
+  int paletteSize;
+  int pixelSize, totalSize;
 
   if (depth != 4 && depth != 8)
     paletted = 0;
@@ -327,40 +327,40 @@ RwImage *RwImageFreePixels(RwImage *image) {
 }
 
 RwImage *RwImageMakeMask(RwImage *image) {
-  RwInt32 i;
+  int i;
 
   switch (image->depth) {
   case 4:
   case 8: {
-    RwInt32 paletteSize = 1 << image->depth;
+    int paletteSize = 1 << image->depth;
     RwRGBA *palette = (RwRGBA *)image->palette;
 
     for (i = 0; i < paletteSize; i++) {
-      RwInt32 opacity = palette[i].red;
+      int opacity = palette[i].red;
 
       if (palette[i].green > opacity)
         opacity = palette[i].green;
       if (palette[i].blue > opacity)
         opacity = palette[i].blue;
-      palette[i].alpha = (RwUInt8)opacity;
+      palette[i].alpha = (unsigned char)opacity;
     }
     break;
   }
   case 32: {
-    RwUInt8 *row = image->pixels;
-    RwInt32 j;
+    unsigned char *row = image->pixels;
+    int j;
 
     for (i = 0; i < image->height; i++) {
       RwRGBA *pixel = (RwRGBA *)row;
 
       for (j = 0; j < image->width; j++) {
-        RwInt32 opacity = pixel[j].red;
+        int opacity = pixel[j].red;
 
         if (pixel[j].green > opacity)
           opacity = pixel[j].green;
         if (pixel[j].blue > opacity)
           opacity = pixel[j].blue;
-        pixel[j].alpha = (RwUInt8)opacity;
+        pixel[j].alpha = (unsigned char)opacity;
       }
       row += image->stride;
     }
@@ -404,10 +404,10 @@ RwImage *RwImageApplyMask(RwImage *image, const RwImage *mask) {
     RwImageDestroy(tempImage);
   }
   case 32: {
-    RwInt32 i, j;
-    const RwUInt8 *src = mask->pixels;
+    int i, j;
+    const unsigned char *src = mask->pixels;
     const RwRGBA *palette = (const RwRGBA *)mask->palette;
-    RwUInt8 *dst = image->pixels;
+    unsigned char *dst = image->pixels;
 
     for (i = 0; i < image->height; i++) {
       RwRGBA *dstPixel = (RwRGBA *)dst;
@@ -415,7 +415,7 @@ RwImage *RwImageApplyMask(RwImage *image, const RwImage *mask) {
       switch (mask->depth) {
       case 4:
       case 8: {
-        const RwUInt8 *srcIndex = src;
+        const unsigned char *srcIndex = src;
 
         for (j = 0; j < image->width; j++) {
           dstPixel->alpha = palette[*srcIndex].alpha;
@@ -453,14 +453,14 @@ RwImage *RwImageApplyMask(RwImage *image, const RwImage *mask) {
   return image;
 }
 
-static RwChar *ImagePathForAllFullNames(const RwChar *name, RwInt32 extra,
+static char *ImagePathForAllFullNames(const char *name, int extra,
                                         ImagePathCallBack callback,
                                         void *data) {
-  RwInt32 pathSize;
-  RwChar *fullName;
-  const RwChar *pathElement;
+  int pathSize;
+  char *fullName;
+  const char *pathElement;
 
-  pathElement = ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+  pathElement = ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                     imageModule.globalsOffset))
                     ->imagePath;
   if (_rwpathisabsolute(name) || pathElement == 0 || pathElement[0] == '\0') {
@@ -472,9 +472,9 @@ static RwChar *ImagePathForAllFullNames(const RwChar *name, RwInt32 extra,
     callback(fullName, data);
   } else {
     while (pathElement != 0 && pathElement[0] != '\0') {
-      const RwChar *nextPathElement =
+      const char *nextPathElement =
           RwEngineInstance->stringFuncs.strchr(pathElement, ';');
-      RwInt32 pathElementLength;
+      int pathElementLength;
 
       if (nextPathElement != 0) {
         pathElementLength = nextPathElement - pathElement;
@@ -492,16 +492,16 @@ static RwChar *ImagePathForAllFullNames(const RwChar *name, RwInt32 extra,
       memcpy(fullName, pathElement, pathElementLength);
       RwEngineInstance->stringFuncs.strcpy(fullName + pathElementLength, name);
       if (callback(fullName, data) == 0)
-        return (RwChar *)name;
+        return (char *)name;
 
       pathElement = nextPathElement;
     }
   }
 
-  return (RwChar *)name;
+  return (char *)name;
 }
 
-static RwChar *ImageAttempRead(RwChar *name, void *data) {
+static char *ImageAttempRead(char *name, void *data) {
   ImageReadState *state = data;
   if (RwEngineInstance->fileFuncs.exists(name)) {
     state->image = state->read(name);
@@ -511,8 +511,8 @@ static RwChar *ImageAttempRead(RwChar *name, void *data) {
   return name;
 }
 
-RwImage *RwImageRead(const RwChar *name) {
-  const RwChar *lastSeparator, *testSeparator, *extension;
+RwImage *RwImageRead(const char *name) {
+  const char *lastSeparator, *testSeparator, *extension;
 
   lastSeparator = name;
   testSeparator = RwEngineInstance->stringFuncs.strrchr(lastSeparator, ':');
@@ -524,7 +524,7 @@ RwImage *RwImageRead(const RwChar *name) {
   extension = RwEngineInstance->stringFuncs.strrchr(lastSeparator, '.');
 
   if (extension != 0) {
-    RwImageFormat *format = ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    RwImageFormat *format = ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                                 imageModule.globalsOffset))
                                 ->formats;
 
@@ -552,10 +552,10 @@ RwImage *RwImageRead(const RwChar *name) {
   return 0;
 }
 
-static RwChar *ImageDetermineExtender(RwChar *name, void *data) {
-  RwChar **result = data;
-  RwChar *end = name + RwEngineInstance->stringFuncs.strlen(name);
-  RwImageFormat *format = ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+static char *ImageDetermineExtender(char *name, void *data) {
+  char **result = data;
+  char *end = name + RwEngineInstance->stringFuncs.strlen(name);
+  RwImageFormat *format = ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                                               imageModule.globalsOffset))
                               ->formats;
 
@@ -577,14 +577,14 @@ static RwChar *ImageDetermineExtender(RwChar *name, void *data) {
   return name;
 }
 
-const RwChar *RwImageFindFileType(const RwChar *name) {
-  RwChar *result = 0;
+const char *RwImageFindFileType(const char *name) {
+  char *result = 0;
   ImagePathForAllFullNames(name, 20, ImageDetermineExtender, &result);
   return result;
 }
 
-RwImage *RwImageReadMaskedImage(const RwChar *imageName,
-                                const RwChar *maskName) {
+RwImage *RwImageReadMaskedImage(const char *imageName,
+                                const char *maskName) {
   RwImage *image = RwImageRead(imageName);
 
   if (image != 0) {
@@ -615,18 +615,18 @@ RwImage *RwImageReadMaskedImage(const RwChar *imageName,
   return 0;
 }
 
-RwRGBA *RwRGBASetFromPixel(RwRGBA *color, RwUInt32 pixel, RwInt32 format) {
-  RwUInt32 value = pixel;
-  (*(RwRGBASetFromPixelCallBack *)((RwUInt8 *)RwEngineInstance + 0x54))(
+RwRGBA *RwRGBASetFromPixel(RwRGBA *color, unsigned int pixel, int format) {
+  unsigned int value = pixel;
+  (*(RwRGBASetFromPixelCallBack *)((unsigned char *)RwEngineInstance + 0x54))(
       color, &value, format);
   return color;
 }
 
-static RwBool ImageStraightCopy(RwImage *destination, const RwImage *source) {
-  RwInt32 rowSize;
-  RwUInt8 *src;
-  RwUInt8 *dst;
-  RwInt32 y;
+static int ImageStraightCopy(RwImage *destination, const RwImage *source) {
+  int rowSize;
+  unsigned char *src;
+  unsigned char *dst;
+  int y;
   if (destination->palette && source->palette && source->depth <= 8)
     memcpy(destination->palette, source->palette, (1 << source->depth) * 4);
   rowSize = ((destination->depth + 7) >> 3) * destination->width;
@@ -640,15 +640,15 @@ static RwBool ImageStraightCopy(RwImage *destination, const RwImage *source) {
   return 1;
 }
 
-static RwBool ImageConvertDepth(RwImage *destination, const RwImage *source) {
-  RwBool result = 0;
-  RwInt32 width = destination->width;
-  RwInt32 height = destination->height;
-  RwInt32 x, y;
+static int ImageConvertDepth(RwImage *destination, const RwImage *source) {
+  int result = 0;
+  int width = destination->width;
+  int height = destination->height;
+  int x, y;
   const RwRGBA *palette = (const RwRGBA *)source->palette;
-  RwUInt8 *src = source->pixels;
-  RwUInt8 *dst = destination->pixels;
-  RwInt32 conversion = (source->depth << 8) | destination->depth;
+  unsigned char *src = source->pixels;
+  unsigned char *dst = destination->pixels;
+  int conversion = (source->depth << 8) | destination->depth;
   switch (conversion) {
   case 0x404:
   case 0x808:
@@ -705,7 +705,7 @@ RwImage *RwImageGammaCorrect(RwImage *image) {
   case 4:
   case 8: {
     RwRGBA *palette = (RwRGBA *)image->palette;
-    RwUInt32 paletteSize = 1 << image->depth;
+    unsigned int paletteSize = 1 << image->depth;
 
     if (palette == 0) {
       RwError e;
@@ -718,10 +718,10 @@ RwImage *RwImageGammaCorrect(RwImage *image) {
     break;
   }
   case 32: {
-    RwUInt8 *row = image->pixels;
-    RwInt32 width = image->width;
-    RwInt32 height = image->height;
-    RwInt32 y;
+    unsigned char *row = image->pixels;
+    int width = image->width;
+    int height = image->height;
+    int y;
 
     if (row == 0) {
       RwError e;
@@ -750,35 +750,35 @@ RwImage *RwImageGammaCorrect(RwImage *image) {
   return image;
 }
 
-RwBool RwImageSetGamma(RwReal gammaValue) {
-  RwReal gammaExponent, inverseGammaExponent;
-  RwInt32 i;
+int RwImageSetGamma(float gammaValue) {
+  float gammaExponent, inverseGammaExponent;
+  int i;
 
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->gamma = gammaValue;
   gammaExponent = gammaValue;
   inverseGammaExponent = 1.0f / gammaExponent;
 
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->gammaTable[0] = 0;
-  ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance + imageModule.globalsOffset))
+  ((RwImageGlobals *)((unsigned char *)RwEngineInstance + imageModule.globalsOffset))
       ->inverseGammaTable[0] = 0;
   for (i = 1; i < 256; i++) {
-    RwReal value = (RwReal)i / 255.0f;
-    RwReal scaled;
-    RwInt32 quantized;
+    float value = (float)i / 255.0f;
+    float scaled;
+    int quantized;
 
     scaled = powf(value, inverseGammaExponent) * 255.0f;
-    quantized = (RwInt32)(scaled + 0.5f);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    quantized = (int)(scaled + 0.5f);
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
-        ->gammaTable[i] = (RwUInt8)quantized;
+        ->gammaTable[i] = (unsigned char)quantized;
 
     scaled = powf(value, gammaExponent) * 255.0f;
-    quantized = (RwInt32)(scaled + 0.5f);
-    ((RwImageGlobals *)((RwUInt8 *)RwEngineInstance +
+    quantized = (int)(scaled + 0.5f);
+    ((RwImageGlobals *)((unsigned char *)RwEngineInstance +
                         imageModule.globalsOffset))
-        ->inverseGammaTable[i] = (RwUInt8)quantized;
+        ->inverseGammaTable[i] = (unsigned char)quantized;
   }
   return 1;
 }

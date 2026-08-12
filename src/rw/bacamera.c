@@ -12,24 +12,24 @@ extern RwMatrix* RwMatrixOptimize(RwMatrix* matrix, const void* tolerance);
 RwPluginRegistry cameraTKList = { sizeof(RwCamera), sizeof(RwCamera), 0, 0,
                                   0, 0 };
 static RwFreeList _rwCameraFreeList;
-static RwInt32 _rwCameraFreeListBlockSize = 4;
-static RwInt32 _rwCameraFreeListPreallocBlocks = 1;
+static int _rwCameraFreeListBlockSize = 4;
+static int _rwCameraFreeListPreallocBlocks = 1;
 static RwModuleInfo cameraModule;
 
 static RwFreeList** CameraFreeListSlot(void)
 {
-    return (RwFreeList**)((RwUInt8*)RwEngineInstance +
+    return (RwFreeList**)((unsigned char*)RwEngineInstance +
                           cameraModule.globalsOffset);
 }
 
 static void CameraSetClosestVertex(RwFrustumPlane* frustumPlane)
 {
     frustumPlane->closestX =
-        (RwUInt8)(((*(RwUInt32*)&frustumPlane->plane.normal.x) >> 31) + 1);
+        (unsigned char)(((*(unsigned int*)&frustumPlane->plane.normal.x) >> 31) + 1);
     frustumPlane->closestY =
-        (RwUInt8)(((*(RwUInt32*)&frustumPlane->plane.normal.y) >> 31) + 1);
+        (unsigned char)(((*(unsigned int*)&frustumPlane->plane.normal.y) >> 31) + 1);
     frustumPlane->closestZ =
-        (RwUInt8)(((*(RwUInt32*)&frustumPlane->plane.normal.z) >> 31) + 1);
+        (unsigned char)(((*(unsigned int*)&frustumPlane->plane.normal.z) >> 31) + 1);
 }
 
 static void CameraBuildSidePlane(RwFrustumPlane* frustumPlane,
@@ -38,7 +38,7 @@ static void CameraBuildSidePlane(RwFrustumPlane* frustumPlane,
 {
     RwV3d edgeA;
     RwV3d edgeB;
-    RwReal invLength;
+    float invLength;
 
     edgeA.x = first->x - origin->x;
     edgeA.y = first->y - origin->y;
@@ -66,14 +66,14 @@ static void CameraBuildSidePlane(RwFrustumPlane* frustumPlane,
 
 static void CameraUpdateZShiftScale(RwCamera* camera)
 {
-    RwReal nearScreenZ = RwEngineInstance->zBufferNear;
-    RwReal farScreenZ = RwEngineInstance->zBufferFar;
-    RwReal nearPlane;
-    RwReal farPlane;
-    RwReal adjustment;
-    RwReal planeDifference;
-    RwReal zScale;
-    RwReal zShift;
+    float nearScreenZ = RwEngineInstance->zBufferNear;
+    float farScreenZ = RwEngineInstance->zBufferFar;
+    float nearPlane;
+    float farPlane;
+    float adjustment;
+    float planeDifference;
+    float zScale;
+    float zShift;
 
     switch (camera->projectionType) {
     case 2:
@@ -106,7 +106,7 @@ static void CameraBuildPerspClipPlanes(RwCamera* camera)
     RwV3d center;
     RwV3d right;
     RwV3d up;
-    RwUInt32 index;
+    unsigned int index;
 
     center.x = ltm->right.x * -camera->viewOffset.x +
                ltm->up.x * camera->viewOffset.y;
@@ -190,7 +190,7 @@ static RwCamera* CameraBuildPerspViewMatrix(RwCamera* camera)
     const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
     RwMatrix* view = &camera->viewMatrix;
     RwV3d vector;
-    RwReal scalar;
+    float scalar;
 
     scalar = -0.5f * camera->recipViewWindow.x;
     vector.x = ltm->right.x * scalar;
@@ -238,10 +238,10 @@ static void CameraBuildParallelClipPlanes(RwCamera* camera)
     const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
     RwV3d* corners = camera->frustumCorners;
     RwFrustumPlane* planes = camera->frustumPlanes;
-    RwReal nearX = (1.0f - camera->nearPlane) * -camera->viewOffset.x;
-    RwReal farX = (1.0f - camera->farPlane) * -camera->viewOffset.x;
-    RwReal nearY = (1.0f - camera->nearPlane) * camera->viewOffset.y;
-    RwReal farY = (1.0f - camera->farPlane) * camera->viewOffset.y;
+    float nearX = (1.0f - camera->nearPlane) * -camera->viewOffset.x;
+    float farX = (1.0f - camera->farPlane) * -camera->viewOffset.x;
+    float nearY = (1.0f - camera->nearPlane) * camera->viewOffset.y;
+    float farY = (1.0f - camera->farPlane) * camera->viewOffset.y;
 
     corners[0].x = corners[2].x = camera->viewWindow.x + nearX;
     corners[1].x = corners[3].x = -camera->viewWindow.x + nearX;
@@ -300,7 +300,7 @@ static RwCamera* CameraBuildParallelViewMatrix(RwCamera* camera)
     const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
     RwMatrix* view = &camera->viewMatrix;
     RwV3d vector;
-    RwReal scalar;
+    float scalar;
 
     scalar = -0.5f * camera->recipViewWindow.x;
     vector.x = ltm->right.x * scalar;
@@ -383,7 +383,7 @@ static RwCamera* CameraBeginUpdate(RwCamera* camera)
     return 0;
 }
 
-void* _rwCameraClose(void* instance, RwInt32 offset, RwInt32 size)
+void* _rwCameraClose(void* instance, int offset, int size)
 {
     if (*CameraFreeListSlot() != 0) {
         RwFreeListDestroy(*CameraFreeListSlot());
@@ -393,7 +393,7 @@ void* _rwCameraClose(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-void* _rwCameraOpen(void* instance, RwInt32 offset, RwInt32 size)
+void* _rwCameraOpen(void* instance, int offset, int size)
 {
     cameraModule.globalsOffset = offset;
     *CameraFreeListSlot() =
@@ -419,7 +419,7 @@ RwCamera* RwCameraBeginUpdate(RwCamera* camera)
     return result;
 }
 
-RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, RwReal nearClip)
+RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, float nearClip)
 {
     RwFrame* frame;
 
@@ -432,7 +432,7 @@ RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, RwReal nearClip)
     return camera;
 }
 
-RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, RwReal farClip)
+RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, float farClip)
 {
     RwFrame* frame;
 
@@ -445,16 +445,16 @@ RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, RwReal farClip)
     return camera;
 }
 
-RwInt32 RwCameraFrustumTestSphere(const RwCamera* camera,
+int RwCameraFrustumTestSphere(const RwCamera* camera,
                                   const RwSphere* sphere)
 {
 
-    RwInt32 result = 2;
+    int result = 2;
     const RwFrustumPlane* plane = camera->frustumPlanes;
-    RwInt32 count = 6;
+    int count = 6;
 
     while (count-- != 0) {
-        RwReal distance;
+        float distance;
         distance = sphere->center.x * plane->plane.normal.x +
                    sphere->center.y * plane->plane.normal.y +
                    sphere->center.z * plane->plane.normal.z -
@@ -470,7 +470,7 @@ RwInt32 RwCameraFrustumTestSphere(const RwCamera* camera,
     return result;
 }
 
-RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, RwInt32 clearMode)
+RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, int clearMode)
 {
     RwCameraClearCall clear = RwEngineInstance->fpCameraClear;
 
@@ -480,7 +480,7 @@ RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, RwInt32 clearMode)
     return 0;
 }
 
-RwCamera* RwCameraShowRaster(RwCamera* camera, void* device, RwUInt32 flags)
+RwCamera* RwCameraShowRaster(RwCamera* camera, void* device, unsigned int flags)
 {
     if (RwRasterShowRaster(camera->frameBuffer, device, flags) != 0) {
         return camera;
@@ -489,7 +489,7 @@ RwCamera* RwCameraShowRaster(RwCamera* camera, void* device, RwUInt32 flags)
 }
 
 RwCamera* RwCameraSetProjection(RwCamera* camera,
-                                RwInt32 projection)
+                                int projection)
 {
     switch (projection) {
     case 1:
@@ -533,17 +533,17 @@ RwCamera* RwCameraSetViewWindow(RwCamera* camera,
     return camera;
 }
 
-RwInt32 RwCameraRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RwCameraRegisterPlugin(int size, unsigned int pluginID,
                               RwPluginObjectConstructor constructCB,
                               RwPluginObjectDestructor destructCB,
                               RwPluginObjectCopy copyCB)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlugin(
+    int offset = _rwPluginRegistryAddPlugin(
         &cameraTKList, size, pluginID, constructCB, destructCB, copyCB);
     return offset;
 }
 
-RwBool RwCameraDestroy(RwCamera* camera)
+int RwCameraDestroy(RwCamera* camera)
 {
     _rwPluginRegistryDeInitObject(&cameraTKList, camera);
     _rwObjectHasFrameReleaseFrame(camera);

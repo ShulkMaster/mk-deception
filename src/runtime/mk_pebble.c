@@ -4,6 +4,7 @@
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
 #include "runtime/mk_vtbl.h"
+#include "rw/rtquat.h"
 
 void* memcpy(void* dest, const void* src, unsigned int size);
 
@@ -13,7 +14,6 @@ extern RwCamera* Camera;
 RwMatrix* RwFrameGetLTM(RwFrame* frame);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere, PebbleFlags* flags, int factor);
-RwMatrix* RwMatrixMultiply(RwMatrix* dst, const RwMatrix* left, const RwMatrix* right);
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
 
 static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic);

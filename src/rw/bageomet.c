@@ -8,34 +8,34 @@
 #include "rw/rwstream_internal.h"
 
 typedef struct RpGeometryChunkInfo {
-    RwUInt32 format;
-    RwInt32 numTriangles;
-    RwInt32 numVertices;
-    RwInt32 numMorphTargets;
+    unsigned int format;
+    int numTriangles;
+    int numVertices;
+    int numMorphTargets;
 } RpGeometryChunkInfo;
 
 typedef struct RpMorphTargetChunkInfo {
     RwSphere sphere;
-    RwInt32 hasVertices;
-    RwInt32 hasNormals;
+    int hasVertices;
+    int hasNormals;
 } RpMorphTargetChunkInfo;
 
 typedef struct RpPackedTriangle {
-    RwUInt32 vertex01;
-    RwUInt32 vertex2Mat;
+    unsigned int vertex01;
+    unsigned int vertex2Mat;
 } RpPackedTriangle;
 
 RwPluginRegistry geometryTKList = {0x60, 0x60, 0, 0, 0, 0};
 static RwModuleInfo geometryModule;
 
 extern RpMeshHeader* _rpMeshOptimise(RpBuildMesh* buildMesh,
-                                     RwBool useTriStrip);
-extern RwStream* RwStreamReadReal(RwStream* stream, RwReal* reals,
-                                  RwUInt32 numBytes);
+                                     int useTriStrip);
+extern RwStream* RwStreamReadReal(RwStream* stream, float* reals,
+                                  unsigned int numBytes);
 extern void _rpMaterialSetDefaultSurfaceProperties(
     const RpSurfaceProperties* surface);
 
-static RwBool GeometryAnnihilate(RpGeometry* geometry)
+static int GeometryAnnihilate(RpGeometry* geometry)
 {
     geometry->refCount++;
     RpGeometryLock(geometry, 0xFFF);
@@ -50,26 +50,26 @@ static RwBool GeometryAnnihilate(RpGeometry* geometry)
     return 1;
 }
 
-void* _rpGeometryOpen(void* instance, RwInt32 offset, RwInt32 size)
+void* _rpGeometryOpen(void* instance, int offset, int size)
 {
     geometryModule.globalsOffset = offset;
     geometryModule.numInstances++;
     return instance;
 }
 
-void* _rpGeometryClose(void* instance, RwInt32 offset, RwInt32 size)
+void* _rpGeometryClose(void* instance, int offset, int size)
 {
     geometryModule.numInstances--;
     return instance;
 }
 
-RwInt32 RpGeometryAddMorphTargets(RpGeometry* geometry, RwInt32 count)
+int RpGeometryAddMorphTargets(RpGeometry* geometry, int count)
 {
-    RwInt32 morphTargetSize;
-    RwInt32 allocationSize;
+    int morphTargetSize;
+    int allocationSize;
     RpMorphTarget* morphTargets;
-    RwUInt8* data;
-    RwInt32 index;
+    unsigned char* data;
+    int index;
 
     if (geometry->flags & 0x01000000) {
         morphTargetSize = sizeof(RpMorphTarget);
@@ -83,9 +83,9 @@ RwInt32 RpGeometryAddMorphTargets(RpGeometry* geometry, RwInt32 count)
 
     allocationSize = morphTargetSize * (geometry->numMorphTargets + count);
     if (geometry->morphTarget != 0) {
-        RwUInt8* source;
-        RwUInt8* destination;
-        RwInt32 bytes;
+        unsigned char* source;
+        unsigned char* destination;
+        int bytes;
 
         morphTargets = RwEngineInstance->fpRealloc(
             geometry->morphTarget, allocationSize, 0x3000F);
@@ -97,7 +97,7 @@ RwInt32 RpGeometryAddMorphTargets(RpGeometry* geometry, RwInt32 count)
             return -1;
         }
 
-        source = (RwUInt8*)morphTargets +
+        source = (unsigned char*)morphTargets +
                  morphTargetSize * geometry->numMorphTargets - 1;
         destination = source + count * sizeof(RpMorphTarget);
         bytes = morphTargetSize * geometry->numMorphTargets -
@@ -118,7 +118,7 @@ RwInt32 RpGeometryAddMorphTargets(RpGeometry* geometry, RwInt32 count)
 
     geometry->numMorphTargets += count;
     geometry->morphTarget = morphTargets;
-    data = (RwUInt8*)morphTargets +
+    data = (unsigned char*)morphTargets +
            geometry->numMorphTargets * sizeof(RpMorphTarget);
 
     for (index = 0; index < geometry->numMorphTargets; index++) {
@@ -148,7 +148,7 @@ RwInt32 RpGeometryAddMorphTargets(RpGeometry* geometry, RwInt32 count)
     return geometry->numMorphTargets - count;
 }
 
-RwInt32 RpGeometryAddMorphTarget(RpGeometry* geometry)
+int RpGeometryAddMorphTarget(RpGeometry* geometry)
 {
     return RpGeometryAddMorphTargets(geometry, 1);
 }
@@ -160,8 +160,8 @@ RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry,
 
     RpMaterialCallBack callBack = callback;
     void* pData = data;
-    RwInt32 numMaterials = geometry->matList.numMaterials;
-    RwInt32 index;
+    int numMaterials = geometry->matList.numMaterials;
+    int index;
 
     for (index = 0; index < numMaterials; index++) {
         RpMaterial* material = geometry->matList.materials[index];
@@ -172,7 +172,7 @@ RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry,
     return geometry;
 }
 
-RpGeometry* RpGeometryLock(RpGeometry* geometry, RwInt32 lockMode)
+RpGeometry* RpGeometryLock(RpGeometry* geometry, int lockMode)
 {
     geometry->lockedSinceLastInst |= lockMode;
     if ((lockMode & 1) && geometry->meshHeader != 0) {
@@ -187,17 +187,17 @@ RpGeometry* RpGeometryUnlock(RpGeometry* geometry)
     RwTexture** textures;
     RwRaster** rasters;
     RxPipeline** pipelines;
-    RwUInt16 numTextures = 0;
-    RwUInt16 numRasters = 0;
-    RwUInt16 numPipelines = 0;
+    unsigned short numTextures = 0;
+    unsigned short numRasters = 0;
+    unsigned short numPipelines = 0;
 
     if (geometry->meshHeader == 0) {
         RpBuildMesh* buildMesh = _rpBuildMeshCreate(geometry->numTriangles);
 
         if (buildMesh != 0) {
             RpMeshHeader* meshHeader;
-            RwInt32 triangleIndex;
-            RwInt32 numMaterials = geometry->matList.numMaterials;
+            int triangleIndex;
+            int numMaterials = geometry->matList.numMaterials;
 
             if (numMaterials > 0) {
                 textures = RwEngineInstance->fpMalloc(
@@ -213,9 +213,9 @@ RpGeometry* RpGeometryUnlock(RpGeometry* geometry)
                     RpTriangle* triangle =
                         &geometry->triangles[triangleIndex];
                     RpMaterial* material;
-                    RwUInt16 textureIndex;
-                    RwUInt16 rasterIndex;
-                    RwUInt16 pipelineIndex;
+                    unsigned short textureIndex;
+                    unsigned short rasterIndex;
+                    unsigned short pipelineIndex;
                     RxPipeline* pipeline = 0;
                     RwTexture* texture = 0;
                     RwRaster* raster = 0;
@@ -293,14 +293,14 @@ RpGeometry* RpGeometryUnlock(RpGeometry* geometry)
     return geometry;
 }
 
-RpGeometry* RpGeometryCreate(RwInt32 numVertices, RwInt32 numTriangles,
-                             RwUInt32 format)
+RpGeometry* RpGeometryCreate(int numVertices, int numTriangles,
+                             unsigned int format)
 {
 
 
-    RwUInt32 allocationSize;
-    RwInt32 formatFlags;
-    RwUInt32 numTexCoordSets;
+    unsigned int allocationSize;
+    int formatFlags;
+    unsigned int numTexCoordSets;
     RpGeometry* geometry;
 
     if (numVertices < 0 || numVertices >= 0x10000 || numTriangles < 0) {
@@ -360,8 +360,8 @@ RpGeometry* RpGeometryCreate(RwInt32 numVertices, RwInt32 numTriangles,
     geometry->numVertices = numVertices;
 
     if (!(format & 0x01000000)) {
-        RwUInt8* data = (RwUInt8*)geometry + geometryTKList.sizeOfStruct;
-        RwUInt32 index;
+        unsigned char* data = (unsigned char*)geometry + geometryTKList.sizeOfStruct;
+        unsigned int index;
 
         if ((formatFlags & 8) && numVertices != 0) {
             geometry->preLitLum = data;
@@ -374,7 +374,7 @@ RpGeometry* RpGeometryCreate(RwInt32 numVertices, RwInt32 numTriangles,
             }
         }
         if (numTriangles != 0) {
-            RwInt32 index;
+            int index;
             geometry->triangles = (RpTriangle*)data;
             data += numTriangles * sizeof(RpTriangle);
             for (index = 0; index < numTriangles; index++) {
@@ -399,9 +399,9 @@ RpGeometry* _rpGeometryAddRef(RpGeometry* geometry)
     return geometry;
 }
 
-RwBool RpGeometryDestroy(RpGeometry* geometry)
+int RpGeometryDestroy(RpGeometry* geometry)
 {
-    RwBool result = 1;
+    int result = 1;
 
     if (geometry->refCount - 1 <= 0) {
         if (geometry->repEntry != 0) {
@@ -415,22 +415,22 @@ RwBool RpGeometryDestroy(RpGeometry* geometry)
     return result;
 }
 
-RwInt32 RpGeometryRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RpGeometryRegisterPlugin(int size, unsigned int pluginID,
                                  RwPluginObjectConstructor constructCB,
                                  RwPluginObjectDestructor destructCB,
                                  RwPluginObjectCopy copyCB)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlugin(
+    int offset = _rwPluginRegistryAddPlugin(
         &geometryTKList, size, pluginID, constructCB, destructCB, copyCB);
     return offset;
 }
 
-RwInt32 RpGeometryRegisterPluginStream(
-    RwUInt32 pluginID, RwPluginDataChunkReadCallBack readCB,
+int RpGeometryRegisterPluginStream(
+    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
     RwPluginDataChunkWriteCallBack writeCB,
     RwPluginDataChunkGetSizeCallBack getSizeCB)
 {
-    RwInt32 offset = _rwPluginRegistryAddPluginStream(
+    int offset = _rwPluginRegistryAddPluginStream(
         &geometryTKList, pluginID, readCB, writeCB, getSizeCB);
     return offset;
 }
@@ -440,11 +440,11 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
 
 
 
-    RwUInt32 version;
+    unsigned int version;
     RpGeometryChunkInfo chunk;
     RpSurfaceProperties oldSurface;
     RpGeometry* geometry;
-    RwInt32 index;
+    int index;
 
     if (!RwStreamFindChunk(stream, 1, 0, &version)) {
         return 0;
@@ -484,8 +484,8 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
     }
 
     if (!(geometry->flags & 0x01000000) && geometry->numVertices != 0) {
-        if ((RwInt32)(chunk.format & 8) != 0) {
-            RwUInt32 preLitSize = geometry->numVertices * 4;
+        if ((int)(chunk.format & 8) != 0) {
+            unsigned int preLitSize = geometry->numVertices * 4;
             if (RwStreamRead(stream, geometry->preLitLum, preLitSize) !=
                 preLitSize) {
                 RpGeometryDestroy(geometry);
@@ -494,7 +494,7 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
         }
 
         if (geometry->numTexCoordSets > 0) {
-            RwUInt32 texCoordSize = geometry->numVertices *
+            unsigned int texCoordSize = geometry->numVertices *
                                     sizeof(RwTexCoords);
             for (index = 0; index < geometry->numTexCoordSets; index++) {
                 if (RwStreamReadReal(stream, geometry->texCoords[index],
@@ -507,8 +507,8 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
 
         if (geometry->numTriangles != 0) {
             RpTriangle* triangle;
-            RwInt32 count;
-            RwUInt32 size;
+            int count;
+            unsigned int size;
 
             count = geometry->numTriangles;
             triangle = geometry->triangles;
@@ -520,17 +520,17 @@ RpGeometry* RpGeometryStreamRead(RwStream* stream)
             }
             RwMemNative32(triangle, size);
             while (count-- != 0) {
-                RwUInt16 high;
-                RwUInt16 low;
+                unsigned short high;
+                unsigned short low;
                 RpPackedTriangle* source = (RpPackedTriangle*)triangle;
 
-                high = (RwUInt16)(source->vertex01 >> 16) & 0xFFFF;
-                low = (RwUInt16)source->vertex01 & 0xFFFF;
+                high = (unsigned short)(source->vertex01 >> 16) & 0xFFFF;
+                low = (unsigned short)source->vertex01 & 0xFFFF;
                 triangle->vertIndex[0] = high;
                 triangle->vertIndex[1] = low;
 
-                high = (RwUInt16)(source->vertex2Mat >> 16) & 0xFFFF;
-                low = (RwUInt16)source->vertex2Mat & 0xFFFF;
+                high = (unsigned short)(source->vertex2Mat >> 16) & 0xFFFF;
+                low = (unsigned short)source->vertex2Mat & 0xFFFF;
                 triangle->vertIndex[2] = high;
                 triangle->matIndex = low;
                 triangle++;

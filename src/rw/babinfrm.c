@@ -7,31 +7,31 @@ typedef struct RwFrameChunkInfo {
     RwV3d up;
     RwV3d at;
     RwV3d pos;
-    RwInt32 parentIndex;
-    RwUInt32 data;
+    int parentIndex;
+    unsigned int data;
 } RwFrameChunkInfo;
 
 extern RwPluginRegistry frameTKList;
-extern RwBool RwStreamFindChunk(RwStream*, RwUInt32, RwUInt32*, RwUInt32*);
-extern RwUInt32 RwStreamRead(RwStream*, void*, RwUInt32);
-extern void RwMemNative32(void*, RwUInt32);
+extern int RwStreamFindChunk(RwStream*, unsigned int, unsigned int*, unsigned int*);
+extern unsigned int RwStreamRead(RwStream*, void*, unsigned int);
+extern void RwMemNative32(void*, unsigned int);
 extern RwFrame* RwFrameCreate(void);
-extern RwBool RwFrameDestroyHierarchy(RwFrame*);
+extern int RwFrameDestroyHierarchy(RwFrame*);
 extern RwFrame* RwFrameAddChild(RwFrame*, RwFrame*);
 extern RwFrame* RwFrameAddChildNoUpdate(RwFrame*, RwFrame*);
 extern RwFrame* RwFrameGetRoot(const RwFrame*);
 extern RwFrame* RwFrameUpdateObjects(RwFrame*);
-extern RwReal _rwMatrixNormalError(const RwMatrix*);
-extern RwReal _rwMatrixOrthogonalError(const RwMatrix*);
-extern RwReal _rwMatrixDeterminant(const RwMatrix*);
+extern float _rwMatrixNormalError(const RwMatrix*);
+extern float _rwMatrixOrthogonalError(const RwMatrix*);
+extern float _rwMatrixDeterminant(const RwMatrix*);
 
-static RwBool _rwFrameListDirtyListUpdate = 1;
+static int _rwFrameListDirtyListUpdate = 1;
 
-RwInt32 RwFrameRegisterPluginStream(
-    RwUInt32 pluginID, RwPluginDataChunkReadCallBack readCB,
+int RwFrameRegisterPluginStream(
+    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
     RwPluginDataChunkWriteCallBack writeCB,
     RwPluginDataChunkGetSizeCallBack getSizeCB) {
-    RwInt32 offset;
+    int offset;
 
     offset = _rwPluginRegistryAddPluginStream(&frameTKList, pluginID, readCB,
                                                writeCB, getSizeCB);
@@ -46,10 +46,10 @@ RwFrameList* _rwFrameListDeinitialize(RwFrameList* frameList) {
 }
 
 RwFrameList* _rwFrameListStreamRead(RwStream* stream, RwFrameList* frameList) {
-    RwInt32 numFrames;
-    RwUInt32 length;
-    RwUInt32 version;
-    RwInt32 i;
+    int numFrames;
+    unsigned int length;
+    unsigned int version;
+    int i;
 
     if (!RwStreamFindChunk(stream, 1, &length, &version)) {
         return 0;

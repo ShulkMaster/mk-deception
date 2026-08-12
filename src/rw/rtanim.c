@@ -6,13 +6,13 @@
 RtAnimInterpolatorInfo RtAnimInterpolatorInfoBlock[16];
 RwFreeList RtAnimAnimationFreeListSpace;
 
-static RwInt32 _rtAnimAnimationFreeListBlockSize = 0x80;
-static RwInt32 _rtAnimAnimationFreeListPreallocBlocks = 1;
+static int _rtAnimAnimationFreeListBlockSize = 0x80;
+static int _rtAnimAnimationFreeListPreallocBlocks = 1;
 
 RwFreeList* RtAnimAnimationFreeList;
-RwInt32 RtAnimInterpolatorInfoBlockNumEntries;
+int RtAnimInterpolatorInfoBlockNumEntries;
 
-static void* AnimOpen(void* instance, RwInt32 offset, RwInt32 size) {
+static void* AnimOpen(void* instance, int offset, int size) {
     RtAnimAnimationFreeList = RwFreeListCreateAndPreallocateSpace(
         sizeof(RtAnimAnimation), _rtAnimAnimationFreeListBlockSize, 4,
         _rtAnimAnimationFreeListPreallocBlocks,
@@ -23,7 +23,7 @@ static void* AnimOpen(void* instance, RwInt32 offset, RwInt32 size) {
     return instance;
 }
 
-static void* AnimClose(void* instance, RwInt32 offset, RwInt32 size) {
+static void* AnimClose(void* instance, int offset, int size) {
     RtAnimInterpolatorInfoBlockNumEntries = 0;
     if (RtAnimAnimationFreeList != 0) {
         RwFreeListDestroy(RtAnimAnimationFreeList);
@@ -32,15 +32,15 @@ static void* AnimClose(void* instance, RwInt32 offset, RwInt32 size) {
     return instance;
 }
 
-RwBool RtAnimInitialize(void) {
-    RwBool result;
+int RtAnimInitialize(void) {
+    int result;
 
     result = RwEngineRegisterPlugin(0, 0x1B7, AnimOpen, AnimClose) > 0;
     return result;
 }
 
-RwBool RtAnimRegisterInterpolationScheme(RtAnimInterpolatorInfo* info) {
-    RwInt32 index;
+int RtAnimRegisterInterpolationScheme(RtAnimInterpolatorInfo* info) {
+    int index;
 
     if (RtAnimInterpolatorInfoBlockNumEntries < 16) {
         for (index = 0; index < RtAnimInterpolatorInfoBlockNumEntries;
@@ -70,7 +70,7 @@ RwBool RtAnimRegisterInterpolationScheme(RtAnimInterpolatorInfo* info) {
 }
 
 RtAnimInterpolator* RtAnimInterpolatorCreate(
-    RwInt32 numNodes, RwInt32 maxInterpKeyFrameSize) {
+    int numNodes, int maxInterpKeyFrameSize) {
     void* memory;
     RtAnimInterpolator* interpolator;
 

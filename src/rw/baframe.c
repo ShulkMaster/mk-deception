@@ -14,8 +14,8 @@ extern void _rwFrameSyncHierarchyLTM(RwFrame*);
 
 RwPluginRegistry frameTKList = { sizeof(RwFrame), sizeof(RwFrame), 0, 0, 0, 0 };
 static RwFreeList frameFreeList;
-static RwInt32 _rwFrameFreeListBlockSize = 0x32;
-static RwInt32 _rwFrameFreeListPreallocBlocks = 1;
+static int _rwFrameFreeListBlockSize = 0x32;
+static int _rwFrameFreeListPreallocBlocks = 1;
 static RwModuleInfo frameModule;
 
 static void rwSetHierarchyRoot(RwFrame* frame, RwFrame* root);
@@ -25,11 +25,11 @@ static void rwFrameDestroyRecurse(RwFrame* frame);
 
 static RwFreeList** frameFreeListSlot(void)
 {
-    return (RwFreeList**)((RwUInt8*)RwEngineInstance +
+    return (RwFreeList**)((unsigned char*)RwEngineInstance +
                           frameModule.globalsOffset);
 }
 
-void* _rwFrameOpen(void* instance, RwInt32 offset, RwInt32 size)
+void* _rwFrameOpen(void* instance, int offset, int size)
 {
     frameModule.globalsOffset = offset;
     *frameFreeListSlot() =
@@ -43,7 +43,7 @@ void* _rwFrameOpen(void* instance, RwInt32 offset, RwInt32 size)
     return instance;
 }
 
-void* _rwFrameClose(void* instance, RwInt32 offset, RwInt32 size)
+void* _rwFrameClose(void* instance, int offset, int size)
 {
     if (*frameFreeListSlot() != 0) {
         RwFreeListDestroy(*frameFreeListSlot());
@@ -63,9 +63,9 @@ static void rwSetHierarchyRoot(RwFrame* frame, RwFrame* root)
     }
 }
 
-RwBool RwFrameDirty(const RwFrame* frame)
+int RwFrameDirty(const RwFrame* frame)
 {
-    RwBool dirty;
+    int dirty;
     frame = frame->root;
     dirty = frame->object.privateFlags & 3;
     return dirty;
@@ -126,7 +126,7 @@ void _rwFrameDeInit(RwFrame* frame)
     }
 }
 
-RwBool RwFrameDestroy(RwFrame* frame)
+int RwFrameDestroy(RwFrame* frame)
 {
     _rwFrameDeInit(frame);
     RwEngineInstance->fpFreeListFree(
@@ -162,7 +162,7 @@ static void rwFrameDestroyRecurse(RwFrame* frame)
     }
 }
 
-RwBool RwFrameDestroyHierarchy(RwFrame* frame)
+int RwFrameDestroyHierarchy(RwFrame* frame)
 {
     rwFrameDestroyRecurse(frame);
     return 1;
@@ -170,7 +170,7 @@ RwBool RwFrameDestroyHierarchy(RwFrame* frame)
 
 RwFrame* RwFrameUpdateObjects(RwFrame* frame)
 {
-    RwUInt32 privateFlags = frame->root->object.privateFlags;
+    unsigned int privateFlags = frame->root->object.privateFlags;
     if (!(privateFlags & 3))
         rwLinkListAddLLLink(&RwEngineInstance->dirtyFrameList,
                             &frame->root->inDirtyListLink);
@@ -250,29 +250,29 @@ RwFrame* RwFrameForAllChildren(RwFrame* frame, RwFrameCallBack callback, void* d
     return frame;
 }
 
-RwFrame* RwFrameTranslate(RwFrame* frame, const RwV3d* translation, RwInt32 combineOp)
+RwFrame* RwFrameTranslate(RwFrame* frame, const RwV3d* translation, int combineOp)
 {
     RwMatrixTranslate(&frame->modelling, translation, combineOp);
     RwFrameUpdateObjects(frame);
     return frame;
 }
 
-RwFrame* RwFrameScale(RwFrame* frame, const RwV3d* scale, RwInt32 combineOp)
+RwFrame* RwFrameScale(RwFrame* frame, const RwV3d* scale, int combineOp)
 {
     RwMatrixScale(&frame->modelling, scale, combineOp);
     RwFrameUpdateObjects(frame);
     return frame;
 }
 
-RwFrame* RwFrameTransform(RwFrame* frame, const RwMatrix* matrix, RwInt32 combineOp)
+RwFrame* RwFrameTransform(RwFrame* frame, const RwMatrix* matrix, int combineOp)
 {
     RwMatrixTransform(&frame->modelling, matrix, combineOp);
     RwFrameUpdateObjects(frame);
     return frame;
 }
 
-RwFrame* RwFrameRotate(RwFrame* frame, const RwV3d* axis, RwReal angle,
-                       RwInt32 combineOp)
+RwFrame* RwFrameRotate(RwFrame* frame, const RwV3d* axis, float angle,
+                       int combineOp)
 {
     RwMatrixRotate(&frame->modelling, axis, angle, combineOp);
     RwFrameUpdateObjects(frame);
@@ -310,7 +310,7 @@ RwFrame* RwFrameForAllObjects(RwFrame* frame, RwObjectCallBack callback, void* d
 
         RwObjectHasFrame* object;
         next = link->next;
-        object = (RwObjectHasFrame*)((RwUInt8*)link - 8);
+        object = (RwObjectHasFrame*)((unsigned char*)link - 8);
         if (callback((RwObject*)object, data) == 0)
             return frame;
         link = next;
@@ -318,12 +318,12 @@ RwFrame* RwFrameForAllObjects(RwFrame* frame, RwObjectCallBack callback, void* d
     return frame;
 }
 
-RwInt32 RwFrameRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+int RwFrameRegisterPlugin(int size, unsigned int pluginID,
                               RwPluginObjectConstructor constructCB,
                               RwPluginObjectDestructor destructCB,
                               RwPluginObjectCopy copyCB)
 {
-    RwInt32 offset = _rwPluginRegistryAddPlugin(
+    int offset = _rwPluginRegistryAddPlugin(
         &frameTKList, size, pluginID, constructCB, destructCB, copyCB);
     return offset;
 }
