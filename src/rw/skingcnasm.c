@@ -2,21 +2,21 @@
 #include "rw/rtquat.h"
 
 typedef struct RpSkinBlendPositionData {
-    RwUInt8* destination;
-    RwUInt8* source;
-    RwUInt32 stride;
-    RwUInt32 numVertices;
+    unsigned char* destination;
+    unsigned char* source;
+    unsigned int stride;
+    unsigned int numVertices;
 } RpSkinBlendPositionData;
 
 typedef struct RpSkinBlendPositionNormalData {
-    RwUInt8* destinationPositions;
-    RwUInt8* destinationNormals;
-    RwUInt8* sourcePositions;
-    RwUInt8* sourceNormals;
-    RwUInt32 positionStride;
-    RwUInt32 normalStride;
-    RwUInt32 nbtStride;
-    RwUInt32 numVertices;
+    unsigned char* destinationPositions;
+    unsigned char* destinationNormals;
+    unsigned char* sourcePositions;
+    unsigned char* sourceNormals;
+    unsigned int positionStride;
+    unsigned int normalStride;
+    unsigned int nbtStride;
+    unsigned int numVertices;
 } RpSkinBlendPositionNormalData;
 
 
@@ -26,17 +26,17 @@ typedef struct RpSkinBlendPositionNormalData {
 void _rwDlSkinUpdate2WeightsP(const RwMatrix* matrices, const RpSkin* skin,
                               const RpSkinBlendPositionData* data)
 {
-    const RwUInt8* weights = (const RwUInt8*)skin->platformWeights;
-    const RwUInt8* indices = (const RwUInt8*)skin->platformIndices;
-    RwUInt8* source = data->source;
-    RwUInt8* destination = data->destination;
-    RwUInt32 i;
+    const unsigned char* weights = (const unsigned char*)skin->platformWeights;
+    const unsigned char* indices = (const unsigned char*)skin->platformIndices;
+    unsigned char* source = data->source;
+    unsigned char* destination = data->destination;
+    unsigned int i;
 
     for (i = 0; i < data->numVertices; i++) {
         const RwV3d* point = (const RwV3d*)source;
         RwV3d* output = (RwV3d*)destination;
         RwV3d transformed;
-        RwReal weight = weights[0] * (1.0f / 128.0f);
+        float weight = weights[0] * (1.0f / 128.0f);
 
         RwV3dTransformPoint(&transformed, point, &matrices[indices[0]]);
         output->x = transformed.x * weight;
@@ -62,13 +62,13 @@ void _rwDlSkinUpdate2WeightsPN(
     const RwMatrix* matrices, const RpSkin* skin,
     const RpSkinBlendPositionNormalData* data)
 {
-    const RwUInt8* weights = (const RwUInt8*)skin->platformWeights;
-    const RwUInt8* indices = (const RwUInt8*)skin->platformIndices;
-    RwUInt8* sourcePositions = data->sourcePositions;
-    RwUInt8* sourceNormals = data->sourceNormals;
-    RwUInt8* destinationPositions = data->destinationPositions;
-    RwUInt8* destinationNormals = data->destinationNormals;
-    RwUInt32 i;
+    const unsigned char* weights = (const unsigned char*)skin->platformWeights;
+    const unsigned char* indices = (const unsigned char*)skin->platformIndices;
+    unsigned char* sourcePositions = data->sourcePositions;
+    unsigned char* sourceNormals = data->sourceNormals;
+    unsigned char* destinationPositions = data->destinationPositions;
+    unsigned char* destinationNormals = data->destinationNormals;
+    unsigned int i;
 
     for (i = 0; i < data->numVertices; i++) {
         const RwV3d* point = (const RwV3d*)sourcePositions;
@@ -77,7 +77,7 @@ void _rwDlSkinUpdate2WeightsPN(
         RwV3d* outputNormal = (RwV3d*)destinationNormals;
         RwV3d transformedPoint;
         RwV3d transformedNormal;
-        RwReal weight = weights[0] * (1.0f / 128.0f);
+        float weight = weights[0] * (1.0f / 128.0f);
 
         RwV3dTransformPoint(&transformedPoint, point, &matrices[indices[0]]);
         RwV3dTransformVector(&transformedNormal, normal,
@@ -115,20 +115,20 @@ void _rwDlSkinUpdate2WeightsPN(
 void _rwDlSkinUpdate3WeightsP(const RwMatrix* matrices, const RpSkin* skin,
                               const RpSkinBlendPositionData* data)
 {
-    const RwUInt8* weights = (const RwUInt8*)skin->platformWeights;
-    const RwUInt8* indices = (const RwUInt8*)skin->platformIndices;
-    RwUInt8* source = data->source;
-    RwUInt8* destination = data->destination;
-    RwUInt32 i;
+    const unsigned char* weights = (const unsigned char*)skin->platformWeights;
+    const unsigned char* indices = (const unsigned char*)skin->platformIndices;
+    unsigned char* source = data->source;
+    unsigned char* destination = data->destination;
+    unsigned int i;
 
     for (i = 0; i < data->numVertices; i++) {
         const RwV3d* point = (const RwV3d*)source;
         RwV3d* output = (RwV3d*)destination;
         RwV3d transformed;
-        RwUInt32 j;
+        unsigned int j;
 
         for (j = 0; j < 3; j++) {
-            RwReal weight = weights[j] * (1.0f / 128.0f);
+            float weight = weights[j] * (1.0f / 128.0f);
             if (j == 0 || weight > 0.0f) {
                 RwV3dTransformPoint(&transformed, point,
                                     &matrices[indices[j]]);
@@ -155,13 +155,13 @@ void _rwDlSkinUpdate3WeightsPN(
     const RwMatrix* matrices, const RpSkin* skin,
     const RpSkinBlendPositionNormalData* data)
 {
-    const RwUInt8* weights = (const RwUInt8*)skin->platformWeights;
-    const RwUInt8* indices = (const RwUInt8*)skin->platformIndices;
-    RwUInt8* sourcePositions = data->sourcePositions;
-    RwUInt8* sourceNormals = data->sourceNormals;
-    RwUInt8* destinationPositions = data->destinationPositions;
-    RwUInt8* destinationNormals = data->destinationNormals;
-    RwUInt32 i;
+    const unsigned char* weights = (const unsigned char*)skin->platformWeights;
+    const unsigned char* indices = (const unsigned char*)skin->platformIndices;
+    unsigned char* sourcePositions = data->sourcePositions;
+    unsigned char* sourceNormals = data->sourceNormals;
+    unsigned char* destinationPositions = data->destinationPositions;
+    unsigned char* destinationNormals = data->destinationNormals;
+    unsigned int i;
 
     for (i = 0; i < data->numVertices; i++) {
         const RwV3d* point = (const RwV3d*)sourcePositions;
@@ -170,10 +170,10 @@ void _rwDlSkinUpdate3WeightsPN(
         RwV3d* outputNormal = (RwV3d*)destinationNormals;
         RwV3d transformedPoint;
         RwV3d transformedNormal;
-        RwUInt32 j;
+        unsigned int j;
 
         for (j = 0; j < 3; j++) {
-            RwReal weight = weights[j] * (1.0f / 128.0f);
+            float weight = weights[j] * (1.0f / 128.0f);
             if (j == 0 || weight > 0.0f) {
                 RwV3dTransformPoint(&transformedPoint, point,
                                     &matrices[indices[j]]);
@@ -209,20 +209,20 @@ void _rwDlSkinUpdate3WeightsPN(
 void _rwDlSkinUpdate4WeightsP(const RwMatrix* matrices, const RpSkin* skin,
                               const RpSkinBlendPositionData* data)
 {
-    const RwUInt8* weights = (const RwUInt8*)skin->platformWeights;
-    const RwUInt8* indices = (const RwUInt8*)skin->platformIndices;
-    RwUInt8* source = data->source;
-    RwUInt8* destination = data->destination;
-    RwUInt32 i;
+    const unsigned char* weights = (const unsigned char*)skin->platformWeights;
+    const unsigned char* indices = (const unsigned char*)skin->platformIndices;
+    unsigned char* source = data->source;
+    unsigned char* destination = data->destination;
+    unsigned int i;
 
     for (i = 0; i < data->numVertices; i++) {
         const RwV3d* point = (const RwV3d*)source;
         RwV3d* output = (RwV3d*)destination;
         RwV3d transformed;
-        RwUInt32 j;
+        unsigned int j;
 
         for (j = 0; j < 4; j++) {
-            RwReal weight = weights[j] * (1.0f / 128.0f);
+            float weight = weights[j] * (1.0f / 128.0f);
             if (j == 0 || weight > 0.0f) {
                 RwV3dTransformPoint(&transformed, point,
                                     &matrices[indices[j]]);
@@ -249,13 +249,13 @@ void _rwDlSkinUpdate4WeightsPN(
     const RwMatrix* matrices, const RpSkin* skin,
     const RpSkinBlendPositionNormalData* data)
 {
-    const RwUInt8* weights = (const RwUInt8*)skin->platformWeights;
-    const RwUInt8* indices = (const RwUInt8*)skin->platformIndices;
-    RwUInt8* sourcePositions = data->sourcePositions;
-    RwUInt8* sourceNormals = data->sourceNormals;
-    RwUInt8* destinationPositions = data->destinationPositions;
-    RwUInt8* destinationNormals = data->destinationNormals;
-    RwUInt32 i;
+    const unsigned char* weights = (const unsigned char*)skin->platformWeights;
+    const unsigned char* indices = (const unsigned char*)skin->platformIndices;
+    unsigned char* sourcePositions = data->sourcePositions;
+    unsigned char* sourceNormals = data->sourceNormals;
+    unsigned char* destinationPositions = data->destinationPositions;
+    unsigned char* destinationNormals = data->destinationNormals;
+    unsigned int i;
 
     for (i = 0; i < data->numVertices; i++) {
         const RwV3d* point = (const RwV3d*)sourcePositions;
@@ -264,10 +264,10 @@ void _rwDlSkinUpdate4WeightsPN(
         RwV3d* outputNormal = (RwV3d*)destinationNormals;
         RwV3d transformedPoint;
         RwV3d transformedNormal;
-        RwUInt32 j;
+        unsigned int j;
 
         for (j = 0; j < 4; j++) {
-            RwReal weight = weights[j] * (1.0f / 128.0f);
+            float weight = weights[j] * (1.0f / 128.0f);
             if (j == 0 || weight > 0.0f) {
                 RwV3dTransformPoint(&transformedPoint, point,
                                     &matrices[indices[j]]);

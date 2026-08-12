@@ -14,18 +14,18 @@ typedef struct RpMultiTextureRegEntry RpMultiTextureRegEntry;
 typedef struct RpGameCubeMTEffectConfig RpGameCubeMTEffectConfig;
 
 typedef RpMTEffect* (*RpMTEffectStreamReadCallBack)(RwStream* stream,
-                                                    RwInt32 type,
-                                                    RwUInt32 version,
-                                                    RwInt32 length);
+                                                    int type,
+                                                    unsigned int version,
+                                                    int length);
 typedef RwStream* (*RpMTEffectStreamWriteCallBack)(const RpMTEffect* effect,
                                                    RwStream* stream);
-typedef RwInt32 (*RpMTEffectStreamGetSizeCallBack)(const RpMTEffect* effect);
+typedef int (*RpMTEffectStreamGetSizeCallBack)(const RpMTEffect* effect);
 typedef void (*RpMTEffectDestroyCallBack)(RpMTEffect* effect);
 
 struct RpMTEffect {
-    RwInt32 type;
-    RwUInt32 refCount;
-    RwChar name[32];
+    int type;
+    unsigned int refCount;
+    char name[32];
     RwLLLink dictLink;
 };
 
@@ -35,87 +35,87 @@ struct RpMTEffectDict {
 };
 
 struct RpMultiTextureRegEntry {
-    RwInt32 platform;
-    RwUInt32 pluginID;
-    RwInt32 materialOffset;
-    RwUInt32 platformDataSize;
+    int platform;
+    unsigned int pluginID;
+    int materialOffset;
+    unsigned int platformDataSize;
 };
 
 struct RpMultiTexture {
     RpMultiTextureRegEntry* registration;
-    RwUInt32 numTextures;
+    unsigned int numTextures;
     RwTexture* textures[8];
-    RwUInt8 texCoords[8];
+    unsigned char texCoords[8];
     RpMTEffect* effect;
     void* platformData;
 };
 
-RwBool _rpMTEffectSystemInit(void);
-RwBool _rpMTEffectRegisterPlatform(
-    RwInt32 type, RpMTEffectStreamReadCallBack read,
+int _rpMTEffectSystemInit(void);
+int _rpMTEffectRegisterPlatform(
+    int type, RpMTEffectStreamReadCallBack read,
     RpMTEffectStreamWriteCallBack write,
     RpMTEffectStreamGetSizeCallBack getSize,
     RpMTEffectDestroyCallBack destroy);
-RwBool _rpMTEffectOpen(void);
-RwBool _rpMTEffectClose(void);
-RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, RwInt32 type);
+int _rpMTEffectOpen(void);
+int _rpMTEffectClose(void);
+RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, int type);
 RpMTEffectDict* RpMTEffectDictCreate(void);
 void RpMTEffectDictDestroy(RpMTEffectDict* dictionary);
 RpMTEffectDict* RpMTEffectDictAddEffect(RpMTEffectDict* dictionary,
                                         RpMTEffect* effect);
 RpMTEffect* RpMTEffectDictRemoveEffect(RpMTEffect* effect);
 RpMTEffect* RpMTEffectDictFindNamedEffect(RpMTEffectDict* dictionary,
-                                          const RwChar* name);
+                                          const char* name);
 RpMTEffect* RpMTEffectCreateDummy(void);
 void RpMTEffectDestroy(RpMTEffect* effect);
 RpMTEffect* RpMTEffectStreamRead(RwStream* stream);
-RpMTEffect* RpMTEffectFind(const RwChar* name);
-RpMTEffect* RpMTEffectSetName(RpMTEffect* effect, const RwChar* name);
+RpMTEffect* RpMTEffectFind(const char* name);
+RpMTEffect* RpMTEffectSetName(RpMTEffect* effect, const char* name);
 void RpMTEffectAddRef(RpMTEffect* effect);
 RpMTEffect* RpGameCubeMTEffectCreate(
-    RwUInt32 count64, RwUInt32 count24, RwUInt32 count60,
-    RwUInt32 count20, RwUInt32 count40);
+    unsigned int count64, unsigned int count24, unsigned int count60,
+    unsigned int count20, unsigned int count40);
 RpGameCubeMTEffectConfig* RpGameCubeMTEffectGetConfig(RpMTEffect* effect);
-RwBool _rpGameCubeMTDataPluginAttach(void);
+int _rpGameCubeMTDataPluginAttach(void);
 
-RwBool _rpMultiTexturePluginAttach(void);
-RwBool _rpMaterialRegisterMultiTexturePlugin(RwInt32 platform,
-                                             RwUInt32 pluginID,
-                                             RwUInt32 platformDataSize);
+int _rpMultiTexturePluginAttach(void);
+int _rpMaterialRegisterMultiTexturePlugin(int platform,
+                                             unsigned int pluginID,
+                                             unsigned int platformDataSize);
 RpMultiTexture* RpMultiTextureSetEffect(RpMultiTexture* multiTexture,
                                         RpMTEffect* effect);
 RpMTEffect* RpMultiTextureGetEffect(const RpMultiTexture* multiTexture);
 RpMultiTexture* RpMultiTextureSetTexture(RpMultiTexture* multiTexture,
-                                         RwUInt32 index,
+                                         unsigned int index,
                                          RwTexture* texture);
 RwTexture* RpMultiTextureGetTexture(const RpMultiTexture* multiTexture,
-                                    RwUInt32 index);
-void RpMultiTextureSetCoords(RpMultiTexture* multiTexture, RwUInt32 index,
-                             RwUInt32 coords);
-RwUInt32 RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
-                                 RwUInt32 index);
+                                    unsigned int index);
+void RpMultiTextureSetCoords(RpMultiTexture* multiTexture, unsigned int index,
+                             unsigned int coords);
+unsigned int RpMultiTextureGetCoords(const RpMultiTexture* multiTexture,
+                                 unsigned int index);
 RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
-                                          RwInt32 platform);
+                                          int platform);
 
-RwBool RpMatFXPluginAttach(void);
+int RpMatFXPluginAttach(void);
 RpAtomic* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
-RwBool RpMatFXAtomicQueryEffects(const RpAtomic* atomic);
+int RpMatFXAtomicQueryEffects(const RpAtomic* atomic);
 RpWorldSector* RpMatFXWorldSectorEnableEffects(RpWorldSector* worldSector);
 RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material,
                                       RpMatFXMaterialFlags effects);
 RpMaterial* RpMatFXMaterialSetBumpMapTexture(RpMaterial*, RwTexture*);
 RpMaterial* RpMatFXMaterialSetBumpMapFrame(RpMaterial*, RwFrame*);
-RpMaterial* RpMatFXMaterialSetBumpMapCoefficient(RpMaterial*, RwReal);
+RpMaterial* RpMatFXMaterialSetBumpMapCoefficient(RpMaterial*, float);
 RwFrame* RpMatFXMaterialGetBumpMapFrame(const RpMaterial*);
-RwReal RpMatFXMaterialGetBumpMapCoefficient(const RpMaterial*);
+float RpMatFXMaterialGetBumpMapCoefficient(const RpMaterial*);
 RpMaterial* RpMatFXMaterialSetEnvMapTexture(RpMaterial*, RwTexture*);
 RpMaterial* RpMatFXMaterialSetEnvMapFrame(RpMaterial*, RwFrame*);
-RpMaterial* RpMatFXMaterialSetEnvMapFrameBufferAlpha(RpMaterial*, RwBool);
-RpMaterial* RpMatFXMaterialSetEnvMapCoefficient(RpMaterial*, RwReal);
+RpMaterial* RpMatFXMaterialSetEnvMapFrameBufferAlpha(RpMaterial*, int);
+RpMaterial* RpMatFXMaterialSetEnvMapCoefficient(RpMaterial*, float);
 RwTexture* RpMatFXMaterialGetEnvMapTexture(const RpMaterial*);
 RwFrame* RpMatFXMaterialGetEnvMapFrame(const RpMaterial*);
-RwBool RpMatFXMaterialGetEnvMapFrameBufferAlpha(const RpMaterial*);
-RwReal RpMatFXMaterialGetEnvMapCoefficient(const RpMaterial*);
+int RpMatFXMaterialGetEnvMapFrameBufferAlpha(const RpMaterial*);
+float RpMatFXMaterialGetEnvMapCoefficient(const RpMaterial*);
 RpMaterial* RpMatFXMaterialSetDualTexture(RpMaterial*, RwTexture*);
 RpMaterial* RpMatFXMaterialSetDualBlendModes(RpMaterial*, RwBlendFunction,
                                              RwBlendFunction);

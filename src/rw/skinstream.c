@@ -7,23 +7,17 @@
 #include "rw/rwresources.h"
 #include "rw/rwstream.h"
 
-typedef struct RpSkinAtomicData {
-    RpHAnimHierarchy* hierarchy;
-    void* cachedVertexData;
-    void* cachedVertexData2;
-} RpSkinAtomicData;
-
 typedef struct RwGameCubeVertexDataHeader {
-    RwUInt8 reserved_0x00[0x10];
-    RwUInt32 serialNumber;
+    unsigned char reserved_0x00[0x10];
+    unsigned int serialNumber;
 } RwGameCubeVertexDataHeader;
 
-RwUInt32 _rpSkinGeometryNativeSize(const RpGeometry* geometry)
+unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
 {
 
-    RpSkin* skin = *(RpSkin**)((RwUInt8*)geometry +
+    RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
-    RwUInt32 size;
+    unsigned int size;
 
     size = 0x10;
     size += 4;
@@ -38,7 +32,7 @@ RwUInt32 _rpSkinGeometryNativeSize(const RpGeometry* geometry)
             (RwGameCubeVertexBuffer*)(geometry->repEntry + 1);
 
         (*(RwGameCubeVertexDataHeader**)(
-             (RwUInt8*)vertexBuffer->arrays[0].data - sizeof(void*)))
+             (unsigned char*)vertexBuffer->arrays[0].data - sizeof(void*)))
             ->serialNumber = 0;
         vertexBuffer->arrays[0].data = skin->nativeData;
         if ((geometry->flags & 0x10) != 0)
@@ -65,12 +59,12 @@ RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
 
 
 
-    RwUInt32 version;
-    RwUInt32 chunkSize;
-    RwInt32 skinHeader;
-    RwInt32 nativeVersion;
+    unsigned int version;
+    unsigned int chunkSize;
+    int skinHeader;
+    int nativeVersion;
     RpSkin* skin;
-    RwUInt32 numVertices;
+    unsigned int numVertices;
 
     if (!RwStreamFindChunk(stream, 1, &chunkSize, &version))
         return 0;
@@ -100,24 +94,24 @@ RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
     if (RwStreamReadInt32(stream, &skinHeader, sizeof(skinHeader)) == 0)
         return 0;
 
-    skin->numBones = (RwUInt8)skinHeader;
-    skin->numUsedBones = (RwUInt8)((RwUInt32)skinHeader >> 8);
-    skin->maxNumWeights = (RwUInt8)((RwUInt32)skinHeader >> 16);
+    skin->numBones = (unsigned char)skinHeader;
+    skin->numUsedBones = (unsigned char)((unsigned int)skinHeader >> 8);
+    skin->maxNumWeights = (unsigned char)((unsigned int)skinHeader >> 16);
     numVertices = geometry->numVertices;
     chunkSize -= 8;
 
     if (skin->maxNumWeights > 1) {
         skin->platformWeights = RwEngineInstance->fpMalloc(
             chunkSize + 5, 0x30116);
-        skin->platformIndices = (RwUInt8*)skin->platformWeights +
+        skin->platformIndices = (unsigned char*)skin->platformWeights +
             skin->maxNumWeights * numVertices;
         skin->platformIndices = (void*)
-            (((RwUInt32)skin->platformIndices + 3) & ~3U);
-        skin->skinToBoneMatrices = (RwMatrix*)((RwUInt8*)skin->platformIndices +
+            (((unsigned int)skin->platformIndices + 3) & ~3U);
+        skin->skinToBoneMatrices = (RwMatrix*)((unsigned char*)skin->platformIndices +
             skin->maxNumWeights * numVertices);
         skin->skinToBoneMatrices = (RwMatrix*)
-            (((RwUInt32)skin->skinToBoneMatrices + 3) & ~3U);
-        skin->usedBoneList = (RwUInt8*)skin->skinToBoneMatrices +
+            (((unsigned int)skin->skinToBoneMatrices + 3) & ~3U);
+        skin->usedBoneList = (unsigned char*)skin->skinToBoneMatrices +
             skin->numBones * sizeof(RwMatrix);
 
         chunkSize = skin->numUsedBones;
@@ -140,8 +134,8 @@ RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
             chunkSize + 3, 0x30116);
         skin->skinToBoneMatrices = (RwMatrix*)skin->platformWeights;
         skin->skinToBoneMatrices = (RwMatrix*)
-            (((RwUInt32)skin->skinToBoneMatrices + 3) & ~3U);
-        skin->usedBoneList = (RwUInt8*)skin->skinToBoneMatrices +
+            (((unsigned int)skin->skinToBoneMatrices + 3) & ~3U);
+        skin->usedBoneList = (unsigned char*)skin->skinToBoneMatrices +
             skin->numBones * sizeof(RwMatrix);
 
         chunkSize = skin->numUsedBones;
@@ -159,25 +153,25 @@ RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
     return stream;
 }
 
-RwUInt32 _rpSkinAtomicNativeSize(const RpAtomic* atomic)
+unsigned int _rpSkinAtomicNativeSize(const RpAtomic* atomic)
 {
-    RpSkinAtomicData* skinData =
-        (RpSkinAtomicData*)((RwUInt8*)atomic + _rpSkinGlobals.atomicOffset);
+    SkinAtomicState* skinData =
+        (SkinAtomicState*)((unsigned char*)atomic + _rpSkinGlobals.atomicOffset);
 
-    if (skinData->cachedVertexData != 0) {
+    if (skinData->positions != 0) {
         RwGameCubeVertexBuffer* vertexBuffer =
             (RwGameCubeVertexBuffer*)((RwResEntry*)atomic->repEntry + 1);
 
         (*(RwGameCubeVertexDataHeader**)(
-             (RwUInt8*)vertexBuffer->arrays[0].data - sizeof(void*)))
+             (unsigned char*)vertexBuffer->arrays[0].data - sizeof(void*)))
             ->serialNumber = 0;
-        vertexBuffer->arrays[0].data = skinData->cachedVertexData;
+        vertexBuffer->arrays[0].data = skinData->positions;
         if ((atomic->geometry->flags & 0x10) != 0)
-            vertexBuffer->arrays[1].data = skinData->cachedVertexData2;
+            vertexBuffer->arrays[1].data = skinData->normals;
         ((RwResEntry*)atomic->repEntry)->destroyNotify =
             _rxGCResEntryWaitDone;
-        skinData->cachedVertexData = 0;
-        skinData->cachedVertexData2 = 0;
+        skinData->positions = 0;
+        skinData->normals = 0;
     }
     return 0;
 }

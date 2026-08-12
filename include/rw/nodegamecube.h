@@ -16,7 +16,7 @@ typedef RpWorldSector* (*RxGCSectorRenderCallBack)(
     RpWorldSector*, RxGameCubeAllInOneInstanceData*);
 
 RxPipeline* _rpDlSectorPipelineCreate(
-    RwUInt32 pluginId, RwUInt32 pluginData,
+    unsigned int pluginId, unsigned int pluginData,
     RxGCSectorInstanceCallBack instanceCallback,
     RxGCSectorInstanceCallBack reinstanceCallback,
     RxGCSectorLightingCallBack lightingCallback,

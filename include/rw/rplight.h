@@ -14,16 +14,16 @@ typedef enum RpLightType {
 
 typedef struct RpLight {
     RwObjectHasFrame object;
-    RwReal radius;
+    float radius;
     RwRGBAReal color;
-    RwReal minusCosAngle;
+    float minusCosAngle;
     RwLinkList worldSectorsInLight;
     RwLLLink inWorld;
-    RwUInt16 lightFrame;
-    RwUInt16 reserved3E;
+    unsigned short lightFrame;
+    unsigned short reserved3E;
 } RpLight;
 
-static inline RwInt32 RpLightGetType(const RpLight* light)
+static inline int RpLightGetType(const RpLight* light)
 {
     return light->object.object.subType;
 }
@@ -33,13 +33,13 @@ static inline RwFrame* RpLightGetFrame(const RpLight* light)
     return (RwFrame*)light->object.object.parent;
 }
 
-RpLight* RpLightCreate(RwInt32 type);
-RwBool RpLightDestroy(RpLight* light);
+RpLight* RpLightCreate(int type);
+int RpLightDestroy(RpLight* light);
 RpLight* RpLightSetColor(RpLight* light, const RwRGBAReal* color);
-RpLight* RpLightSetRadius(RpLight* light, RwReal radius);
-RwReal RpLightGetConeAngle(const RpLight* light);
-RpLight* RpLightSetConeAngle(RpLight* light, RwReal angle);
-RwInt32 RpLightRegisterPlugin(RwInt32 size, RwUInt32 pluginID,
+RpLight* RpLightSetRadius(RpLight* light, float radius);
+float RpLightGetConeAngle(const RpLight* light);
+RpLight* RpLightSetConeAngle(RpLight* light, float angle);
+int RpLightRegisterPlugin(int size, unsigned int pluginID,
                               RwPluginObjectConstructor constructCB,
                               RwPluginObjectDestructor destructCB,
                               RwPluginObjectCopy copyCB);

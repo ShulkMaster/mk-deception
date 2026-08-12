@@ -13,7 +13,7 @@ typedef RpAtomic* (*RxGCRenderCallback)(RpAtomic*,
                                         RxGCAtomicResourceEntry*);
 
 extern RxPipeline* _rpDlAtomicPipelineCreate(
-    RwUInt32 pluginId, RwUInt32 pluginData,
+    unsigned int pluginId, unsigned int pluginData,
     RxGCInstanceCallback instanceCallback,
     RxGCInstanceCallback reinstanceCallback,
     RxGCLightingCallback lightingCallback, RxGCRenderCallback renderCallback);
@@ -24,7 +24,7 @@ extern RpAtomic* _rxGCAtomicDefaultLightingCallback(
     RpAtomic*, RxGCAtomicLightingData*);
 extern RpAtomic* _rpSkinRenderCallback(RpAtomic*, RxGCAtomicResourceEntry*);
 
-RwBool _rpSkinPipelinesCreate(RwUInt32 pipeType)
+int _rpSkinPipelinesCreate(unsigned int pipeType)
 {
     RxPipeline** pipelines = _rpSkinGlobals.pipelines;
 
@@ -38,7 +38,7 @@ RwBool _rpSkinPipelinesCreate(RwUInt32 pipeType)
     return 1;
 }
 
-RwBool _rpSkinPipelinesDestroy(void)
+int _rpSkinPipelinesDestroy(void)
 {
     RxPipeline** pipelines = _rpSkinGlobals.pipelines;
 

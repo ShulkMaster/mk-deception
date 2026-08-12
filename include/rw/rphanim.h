@@ -13,46 +13,46 @@ typedef enum RpHAnimHierarchyFlag {
 } RpHAnimHierarchyFlag;
 
 typedef struct RpHAnimNodeInfo {
-    RwInt32 nodeID;
-    RwInt32 nodeIndex;
-    RwInt32 flags;
+    int nodeID;
+    int nodeIndex;
+    int flags;
     RwFrame *pFrame;
 } RpHAnimNodeInfo;
 
 typedef struct RpHAnimHierarchy {
-    RwInt32 flags;
-    RwInt32 numNodes;
+    int flags;
+    int numNodes;
     RwMatrix *pMatrixArray;
     void *pMatrixArrayUnaligned;
     RpHAnimNodeInfo *pNodeInfo;
     RwFrame *parentFrame;
     struct RpHAnimHierarchy *parentHierarchy;
-    RwInt32 rootParentOffset;
+    int rootParentOffset;
     RtAnimInterpolator *currentAnim;
 } RpHAnimHierarchy;
 
 typedef struct RpHAnimKeyFrame {
     struct RpHAnimKeyFrame *prevFrame;
-    RwReal time;
+    float time;
     RtQuat q;
     RwV3d t;
 } RpHAnimKeyFrame;
 
 void RpHAnimKeyFrameApply(void *matrix, void *frame);
-void RpHAnimKeyFrameInterpolate(void *out, void *in1, void *in2, RwReal time,
+void RpHAnimKeyFrameInterpolate(void *out, void *in1, void *in2, float time,
                                 void *customData);
-void RpHAnimKeyFrameBlend(void *out, void *in1, void *in2, RwReal alpha);
+void RpHAnimKeyFrameBlend(void *out, void *in1, void *in2, float alpha);
 RtAnimAnimation *RpHAnimKeyFrameStreamRead(RwStream *, RtAnimAnimation *);
-RwBool RpHAnimKeyFrameStreamWrite(RtAnimAnimation *, RwStream *);
-RwInt32 RpHAnimKeyFrameStreamGetSize(RtAnimAnimation *);
+int RpHAnimKeyFrameStreamWrite(RtAnimAnimation *, RwStream *);
+int RpHAnimKeyFrameStreamGetSize(RtAnimAnimation *);
 void RpHAnimKeyFrameMulRecip(void *frame, void *start);
 void RpHAnimKeyFrameAdd(void *out, void *in1, void *in2);
 
-RwBool RpHAnimPluginAttach(void);
-RpHAnimHierarchy *RpHAnimHierarchyCreate(RwInt32 numNodes, RwUInt32 *nodeFlags,
-                                         RwInt32 *nodeIDs,
+int RpHAnimPluginAttach(void);
+RpHAnimHierarchy *RpHAnimHierarchyCreate(int numNodes, unsigned int *nodeFlags,
+                                         int *nodeIDs,
                                          RpHAnimHierarchyFlag flags,
-                                         RwInt32 maxInterpKeyFrameSize);
+                                         int maxInterpKeyFrameSize);
 RpHAnimHierarchy *RpHAnimHierarchyDestroy(RpHAnimHierarchy *hierarchy);
 RpHAnimHierarchy *RpHAnimFrameGetHierarchy(RwFrame *frame);
 
