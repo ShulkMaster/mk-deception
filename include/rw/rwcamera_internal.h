@@ -43,8 +43,18 @@ struct RwCamera {
     RwV3d frustumCorners[8];
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 RwCamera* RwCameraCreate(void);
 int RwCameraDestroy(RwCamera* camera);
+RwCamera* RwCameraBeginUpdate(RwCamera* camera);
+RwCamera* RwCameraEndUpdate(RwCamera* camera);
+RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, float distance);
+RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, float distance);
+RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, int clearMode);
+RwCamera* RwCameraSetProjection(RwCamera* camera, int projection);
 int RwCameraRegisterPlugin(int size, unsigned int pluginID,
                            RwPluginObjectConstructor constructCB,
                            RwPluginObjectDestructor destructCB,
@@ -60,5 +70,14 @@ struct RpWorld* RpWorldAddCamera(struct RpWorld* world, RwCamera* camera);
 struct RpWorld* RpWorldRemoveCamera(struct RpWorld* world, RwCamera* camera);
 void* _rwCameraOpen(void* instance, int offset, int size);
 void* _rwCameraClose(void* instance, int offset, int size);
+
+#ifdef __cplusplus
+}
+#endif
+
+static inline RwFrame* RwCameraGetFrame(const RwCamera* camera)
+{
+    return (RwFrame*)camera->object.object.parent;
+}
 
 #endif

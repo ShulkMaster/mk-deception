@@ -12,6 +12,11 @@ typedef struct RpMaterial RpMaterial;
 typedef struct RpMultiTexture RpMultiTexture;
 typedef struct RpMultiTextureRegEntry RpMultiTextureRegEntry;
 typedef struct RpGameCubeMTEffectConfig RpGameCubeMTEffectConfig;
+typedef struct RpGameCubeMTEntry24 RpGameCubeMTEntry24;
+typedef struct RpGameCubeMTEntry64 RpGameCubeMTEntry64;
+typedef struct RpGameCubeMTEntry60 RpGameCubeMTEntry60;
+typedef struct RpGameCubeMTEntry20 RpGameCubeMTEntry20;
+typedef struct RpGameCubeMTEntry40 RpGameCubeMTEntry40;
 
 typedef RpMTEffect* (*RpMTEffectStreamReadCallBack)(RwStream* stream,
                                                     int type,
@@ -48,6 +53,36 @@ struct RpMultiTexture {
     unsigned char texCoords[8];
     RpMTEffect* effect;
     void* platformData;
+};
+
+struct RpGameCubeMTEntry24 {
+    int value[5];
+    unsigned short field_0x14;
+    unsigned short field_0x16;
+};
+
+struct RpGameCubeMTEffectConfig {
+    int field_0x00;
+    unsigned char allocationCount24;
+    unsigned char allocationCount64;
+    unsigned char allocationCount60;
+    unsigned char allocationCount20;
+    unsigned char allocationCount40;
+    unsigned char count24;
+    unsigned char count64;
+    unsigned char count60;
+    unsigned char count20;
+    unsigned char count40;
+    unsigned short values[16];
+    unsigned char bytes[16];
+    unsigned char reserved_0x3E[2];
+    RpGameCubeMTEntry60* entries60;
+    RpGameCubeMTEntry24* entries24;
+    RpGameCubeMTEntry40* entries40;
+    RpGameCubeMTEntry20* entries20;
+    RpGameCubeMTEntry64* entries64;
+    int field_0x54;
+    int field_0x58;
 };
 
 int _rpMTEffectSystemInit(void);

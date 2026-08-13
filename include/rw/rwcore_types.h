@@ -15,6 +15,13 @@ typedef struct RwLinkList {
     RwLLLink link;
 } RwLinkList;
 
+typedef struct RwRect {
+    int x;
+    int y;
+    int w;
+    int h;
+} RwRect;
+
 typedef struct RwObjectHasFrame RwObjectHasFrame;
 typedef RwObjectHasFrame* (*RwObjectHasFrameSyncFunction)(
     RwObjectHasFrame* object);
@@ -95,22 +102,10 @@ struct RwTexDictionary {
 
 typedef struct RwFrame {
     RwObject object;
-    union {
-        RwLLLink inDirtyListLink;
-        struct {
-            void* object_link_next;
-            void* object_link_prev;
-        };
-    };
+    RwLLLink inDirtyListLink;
     RwMatrix modelling;
     RwMatrix ltm;
-    union {
-        RwLinkList objectList;
-        struct {
-            void* object_list_next;
-            void* object_list_prev;
-        };
-    };
+    RwLinkList objectList;
     struct RwFrame* child;
     struct RwFrame* next;
     struct RwFrame* root;
@@ -123,6 +118,7 @@ extern "C" {
 #endif
 
 RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
+int RwRasterDestroy(RwRaster* raster);
 RwRaster* RwRasterUnlock(RwRaster* raster);
 int RwRasterGetNumLevels(RwRaster* raster);
 void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);

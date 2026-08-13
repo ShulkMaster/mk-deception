@@ -127,6 +127,11 @@ int RpAtomicRegisterPluginStream(
     unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
     RwPluginDataChunkWriteCallBack writeCB,
     RwPluginDataChunkGetSizeCallBack getSizeCB);
+int RpAtomicSetStreamAlwaysCallBack(
+    unsigned int pluginID, RwPluginDataChunkAlwaysCallBack callback);
+int RpAtomicSetStreamRightsCallBack(
+    unsigned int pluginID, RwPluginDataChunkRightsCallBack callback);
+int RpAtomicGetPluginOffset(unsigned int pluginID);
 int RpClumpRegisterPlugin(
     int size, unsigned int pluginID,
     RwPluginObjectConstructor constructCB,
@@ -184,6 +189,7 @@ int _rpClumpRegisterExtensions(void);
 RpBuildMesh* _rpBuildMeshCreate(unsigned int bufferSize);
 int _rpBuildMeshDestroy(RpBuildMesh* mesh);
 int _rpMeshDestroy(RpMeshHeader* meshHeader);
+RpMeshHeader* _rpMeshOptimise(RpBuildMesh* mesh, int flags);
 RpBuildMesh* _rpBuildMeshAddTriangle(
     RpBuildMesh* mesh, RpMaterial* material, int vert1, int vert2,
     int vert3, unsigned short matIndex, unsigned short textureIndex,
@@ -204,36 +210,16 @@ int _rpMeshSize(const RpMeshHeader* meshHeader, const void* object);
 
 struct RpAtomic {
     RwObject object;
-    union {
-        RwLLLink frameLink;
-        struct {
-            void* inClumpLinkNext;
-            void* inClumpLinkPrev;
-        };
-    };
-    void* sync;
-    void* repEntry;
+    RwLLLink frameLink;
+    RwObjectHasFrameSyncFunction sync;
+    RwResEntry* repEntry;
     RpGeometry* geometry;
-    union {
-        RwSphere boundingSphere;
-        struct {
-            float boundingSphereX;
-            float boundingSphereY;
-            float boundingSphereZ;
-            float boundingSphereRadius;
-        };
-    };
+    RwSphere boundingSphere;
     RwSphere worldBoundingSphere;
-    union {
-        RpClump* clump;
-        void* lights;
-    };
+    RpClump* clump;
     RwLLLink inClumpLink;
     RpAtomicCallBackRender renderCallBack;
-    union {
-        RpInterpolator interpolator;
-        unsigned int interpolatorFlags;
-    };
+    RpInterpolator interpolator;
     unsigned short renderFrame;
     unsigned short reserved62;
     RwLinkList worldSectorsInAtomic;
@@ -301,25 +287,9 @@ typedef struct RpClump {
     RwObject object;
     RwLLLink atomicList;
     RwLLLink lightList;
-    union {
-        RwLLLink cameraList;
-        struct {
-            void* atomics;
-            void* field_0x1C;
-        };
-    };
-    union {
-        RwLLLink inWorldLink;
-        struct {
-            void* modellingFrame;
-            void* field_0x24;
-        };
-    };
+    RwLLLink cameraList;
+    RwLLLink inWorldLink;
     RpClumpCallBack callback;
-    unsigned char field_0x2C[0x74];
-    float worldAnchorX;
-    float worldAnchorY;
-    float worldAnchorZ;
 } RpClump;
 
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
@@ -328,10 +298,13 @@ RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 RpClump* RpClumpRender(RpClump* clump);
 RpAtomic* RpAtomicCreate(void);
 RpAtomic* RpAtomicSetGeometry(RpAtomic*, RpGeometry*, unsigned int);
+RpAtomic* RpAtomicSetFrame(RpAtomic* atomic, RwFrame* frame);
 int RpAtomicDestroy(RpAtomic*);
 RpClump* RpClumpCreate(void);
 int RpClumpDestroy(RpClump*);
 RpClump* RpClumpAddAtomic(RpClump*, RpAtomic*);
+RpClump* RpClumpForAllAtomics(RpClump* clump, RpAtomicCallBack callback,
+                              void* data);
 RpClump* RpClumpRemoveLight(RpClump*, RpLight*);
 RpClump* RpClumpRemoveCamera(RpClump*, RwCamera*);
 
