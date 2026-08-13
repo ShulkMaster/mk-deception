@@ -3,6 +3,7 @@
 #include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rwerror.h"
+#include "rw/rwraster.h"
 
 enum {
   rwRASTERFORMATPIXELFORMATMASK = 0x0F00,
@@ -29,10 +30,6 @@ enum {
   GX_TL_RGB5A3 = 2,
 };
 
-extern int RwRasterRegisterPlugin(int size, unsigned int pluginID,
-                                      RwPluginObjectConstructor constructCB,
-                                      RwPluginObjectDestructor destructCB,
-                                      RwPluginObjectCopy copyCB);
 extern int _rwDlFindMSB(int value);
 extern RwTexture *_RwDlTexture;
 extern GXRenderModeObj *_RwDlRenderMode;

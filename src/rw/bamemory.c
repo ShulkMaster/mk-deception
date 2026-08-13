@@ -7,10 +7,10 @@ typedef struct RwFreeBlock {
     unsigned char heap[1];
 } RwFreeBlock;
 
-extern void* malloc(unsigned int);
+extern void* malloc(unsigned long);
 extern void free(void*);
-extern void* realloc(void*, unsigned int);
-extern void* calloc(unsigned int, unsigned int);
+extern void* realloc(void*, unsigned long);
+extern void* calloc(unsigned long, unsigned long);
 
 static RwFreeList _masterFreeList;
 static int FreeListsEnabled = 1;
@@ -155,7 +155,11 @@ static void _RwFreeListFree(RwFreeList* freeList)
 
 int RwFreeListDestroy(RwFreeList* freeList)
 {
-    rwLinkListRemoveLLLink(&freeList->link);
+    RwLLLink* previous;
+
+    freeList->link.prev->next = freeList->link.next;
+    previous = freeList->link.prev;
+    freeList->link.next->prev = previous;
     _RwFreeListFree(freeList);
     return 1;
 }
@@ -252,7 +256,11 @@ RwFreeList* _rwFreeListFreeReal(RwFreeList* freeList, void* entry)
             heap[byteIndex] &= (unsigned char)~mask;
             if ((freeList->flags & 2) &&
                 FreeListBlockIsEmpty(heap, heapSize)) {
-                rwLinkListRemoveLLLink(link);
+                RwLLLink* previous;
+
+                link->prev->next = link->next;
+                previous = link->prev;
+                link->next->prev = previous;
                 RwEngineInstance->fpFree(link);
             }
             return freeList;
@@ -271,13 +279,20 @@ int RwFreeListPurge(RwFreeList* freeList)
     RwLLLink* head = &freeList->blockList.link;
     while (link != head) {
         unsigned char* heap = ((RwFreeBlock*)link)->heap;
-        rwLinkListRemoveLLLink(link);
+        RwLLLink* previous;
+
+        link->prev->next = link->next;
+        previous = link->prev;
+        link->next->prev = previous;
         next = link->next;
         if (FreeListBlockIsEmpty(heap, heapSize)) {
             RwEngineInstance->fpFree(link);
             ++freed;
         } else {
-            rwLinkListAddLLLink(&freeList->blockList, link);
+            link->next = freeList->blockList.link.next;
+            link->prev = &freeList->blockList.link;
+            freeList->blockList.link.next->prev = link;
+            freeList->blockList.link.next = link;
         }
         link = next;
     }
@@ -340,17 +355,17 @@ int RwFreeListPurgeAllFreeLists(void)
     return total;
 }
 
-static void* HMalloc(unsigned int size, unsigned int hint)
+static void* HMalloc(unsigned long size, unsigned int hint)
 {
     return malloc(size);
 }
 
-static void* HRealloc(void* memory, unsigned int size, unsigned int hint)
+static void* HRealloc(void* memory, unsigned long size, unsigned int hint)
 {
     return realloc(memory, size);
 }
 
-static void* HCalloc(unsigned int count, unsigned int size, unsigned int hint)
+static void* HCalloc(unsigned long count, unsigned long size, unsigned int hint)
 {
     return calloc(count, size);
 }
@@ -361,7 +376,10 @@ int _rwMemoryOpen(const RwMemoryFunctions* functions)
     if (!_rwFreeListModuleOpen())
         return 0;
     if (functions != 0) {
-        *(RwMemoryFunctions*)&RwEngineInstance->fpMalloc = *functions;
+        RwEngineInstance->fpMalloc = functions->alloc;
+        RwEngineInstance->fpFree = functions->free;
+        RwEngineInstance->fpRealloc = functions->realloc;
+        RwEngineInstance->fpCalloc = functions->calloc;
     } else {
         RwEngineInstance->fpMalloc = HMalloc;
         RwEngineInstance->fpFree = free;

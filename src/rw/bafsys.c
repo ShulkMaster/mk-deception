@@ -1,4 +1,5 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/rwfilesystem.h"
 #include "runtime/cfile.h"
 
 RwFileFunctions* RwOsGetFileInterface(void) {

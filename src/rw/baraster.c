@@ -21,13 +21,6 @@ typedef struct RwRasterModuleGlobals {
     RwFreeList* freelist;
 } RwRasterModuleGlobals;
 
-typedef struct RwRect {
-    int x;
-    int y;
-    int w;
-    int h;
-} RwRect;
-
 extern void _rwResourcesPurge(void);
 extern void* memset(void* destination, int value, unsigned int size);
 

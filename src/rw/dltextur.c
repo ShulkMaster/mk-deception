@@ -14,10 +14,6 @@ int _RwGameCubeTextureExtOffset;
 extern RwRaster* _RwDlRasterWhite;
 extern RwTexture* _RwDlTexture;
 
-extern int RwTextureRegisterPlugin(
-    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
-    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
-
 static DlFilterMode _RwDlFilterModeConvTable[7] = {
     {0, 0}, {0, 0}, {1, 1}, {2, 0}, {3, 1}, {4, 0}, {5, 1},
 };

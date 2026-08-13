@@ -3,15 +3,9 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
 #include "rw/gamecube_texture.h"
+#include "rw/rwcore_types.h"
 #include "rw/rwerror.h"
 #include "rw/rxpipeline.h"
-
-typedef struct RwRect {
-    int x;
-    int y;
-    int w;
-    int h;
-} RwRect;
 
 RwRaster* _RwDlRasterTarget;
 

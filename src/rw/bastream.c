@@ -1,9 +1,8 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwstream.h"
 
-extern int _rwerror(int, ...);
-extern RwError *RwErrorSet(RwError *);
 extern void *memcpy(void *, const void *, unsigned int);
 
 static RwFreeList _rwStreamFreeList;

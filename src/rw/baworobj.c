@@ -1,6 +1,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "runtime/cstring.h"
 #include "rw/rplight.h"
+#include "rw/native_internal.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwerror.h"
 #include "rw/rwcamera_internal.h"
@@ -30,15 +31,6 @@ static float WorldObjectCoordinate(const RwV3d* vector, int axis)
     return *(const float*)((const unsigned char*)&vector->x + axis);
 }
 
-RwStream* _rpGeometryNativeWrite(RwStream* stream,
-                                 const RpGeometry* geometry);
-RpGeometry* _rpGeometryNativeRead(RwStream* stream, RpGeometry* geometry);
-int _rpGeometryNativeSize(const RpGeometry* geometry);
-RwStream* _rpWorldSectorNativeWrite(RwStream* stream,
-                                    const RpWorldSector* sector);
-RpWorldSector* _rpWorldSectorNativeRead(RwStream* stream,
-                                        RpWorldSector* sector);
-int _rpWorldSectorNativeSize(const RpWorldSector* sector);
 RwStream* _rpReadAtomicRights(RwStream*, int, void*, int, int);
 RwStream* _rpWriteAtomicRights(RwStream*, int, const void*, int,
                                int);
@@ -460,7 +452,7 @@ WorldInitAtomicExt(void *object,
 
     atomicExt->world = 0;
     atomic->renderFrame = RwEngineInstance->renderFrame - 1;
-    atomicExt->oldSync = (RwObjectHasFrameSyncFunction)atomic->sync;
+    atomicExt->oldSync = atomic->sync;
     atomic->sync = WorldAtomicSync;
     return object;
 }

@@ -118,12 +118,13 @@ RpMaterial* RpMaterialCreate(void)
 
 int RpMaterialDestroy(RpMaterial* material)
 {
-    RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
-                                          materialModule.globalsOffset);
     if (material->refCount == 1) {
         _rwPluginRegistryDeInitObject(&materialTKList, material);
         RpMaterialSetTexture(material, 0);
-        RwEngineInstance->fpFreeListFree(freeList, material);
+        RwEngineInstance->fpFreeListFree(
+            *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                            materialModule.globalsOffset),
+            material);
     } else {
         material->refCount--;
     }

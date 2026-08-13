@@ -1,4 +1,5 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/rwframe_internal.h"
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 

@@ -29,19 +29,6 @@ typedef struct RpMeshStatic {
 static RpMeshStatic MeshStatic = {0};
 RwModuleInfo meshModule;
 
-static RpMeshGlobals* MeshGlobals(void)
-{
-    return (RpMeshGlobals*)((unsigned char*)RwEngineInstance +
-                            meshModule.globalsOffset);
-}
-
-static int MeshObjectHasIndices(const void* object)
-{
-    const RpMeshObjectHeader* header = object;
-    return (header->type == 8 || header->type == 7) &&
-           !(header->flags & 0x01000000);
-}
-
 static void MeshFreeListsDestroy(void)
 {
     if (MeshStatic.buildMeshFreeList != 0) {
@@ -84,29 +71,39 @@ void* _rpMeshClose(void* instance, int offset, int size)
 
 void* _rpMeshOpen(void* instance, int offset, int size)
 {
-    RpMeshGlobals* globals;
-
     meshModule.globalsOffset = offset;
     if (meshModule.numInstances == 0 && !MeshFreeListsCreate()) {
         MeshFreeListsDestroy();
         instance = 0;
         return instance;
     }
-    globals = MeshGlobals();
-    globals->nextSerialNum = 1;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->nextSerialNum = 1;
     meshModule.numInstances++;
-    globals->meshFlags[0] = 3;
-    globals->meshFlags[1] = 4;
-    globals->meshFlags[2] = 5;
-    globals->meshFlags[4] = 1;
-    globals->meshFlags[8] = 2;
-    globals->meshFlags[0x10] = 6;
-    globals->primitiveType[0] = 4;
-    globals->primitiveType[1] = 8;
-    globals->primitiveType[2] = 0;
-    globals->primitiveType[3] = 1;
-    globals->primitiveType[4] = 2;
-    globals->primitiveType[5] = 0x10;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->meshFlags[0] = 3;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->meshFlags[1] = 4;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->meshFlags[2] = 5;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->meshFlags[4] = 1;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->meshFlags[8] = 2;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->meshFlags[0x10] = 6;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->primitiveType[0] = 4;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->primitiveType[1] = 8;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->primitiveType[2] = 0;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->primitiveType[3] = 1;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->primitiveType[4] = 2;
+    ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                      meshModule.globalsOffset))->primitiveType[5] = 0x10;
     return instance;
 }
 
@@ -232,6 +229,7 @@ RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
     int header[3];
     const RpMesh* mesh;
     unsigned int numMeshes;
+    const RpMeshObjectHeader* objectHeader = object;
 
     header[0] = meshHeader->flags;
     header[1] = meshHeader->numMeshes;
@@ -245,7 +243,10 @@ RwStream* _rpMeshWrite(const RpMeshHeader* meshHeader, const void* object,
         info[1] = _rpMaterialListFindMaterialIndex(materialList, mesh->material);
         if (info[1] < 0) info[1] = 0;
         if (RwStreamWriteInt32(stream, info, sizeof(info)) == 0) return 0;
-        if (MeshObjectHasIndices(object)) {
+        if ((objectHeader->type == 8 &&
+             !(objectHeader->flags & 0x01000000)) ||
+            (objectHeader->type == 7 &&
+             !(objectHeader->flags & 0x01000000))) {
             unsigned int remaining = mesh->numIndices;
             const RxVertexIndex* index = mesh->indices;
             while (remaining != 0) {
@@ -267,6 +268,7 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
                           const RpMaterialList* materialList)
 {
     RpBinMeshHeader header;
+    const RpMeshObjectHeader* objectHeader = object;
     int size;
     RpMeshHeader* meshHeader;
     RpMesh* mesh;
@@ -276,19 +278,24 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
     if (RwStreamReadInt32(stream, (int*)&header, sizeof(header)) == 0)
         return 0;
     size = header.numMeshes * 16 + sizeof(RpMeshHeader);
-    if (MeshObjectHasIndices(object))
+    if ((objectHeader->type == 8 &&
+         !(objectHeader->flags & 0x01000000)) ||
+        (objectHeader->type == 7 &&
+         !(objectHeader->flags & 0x01000000)))
         size += header.totalIndices * 2;
     meshHeader = _rpMeshHeaderCreate(size);
     if (meshHeader != 0) {
         mesh = (RpMesh*)(meshHeader + 1);
-        indices =
-            (RxVertexIndex*)((unsigned char*)mesh + header.numMeshes * sizeof(RpMesh));
+        indices = (RxVertexIndex*)&mesh[header.numMeshes];
         meshHeader->flags = header.flags;
         meshHeader->numMeshes = header.numMeshes;
-        meshHeader->serialNum = MeshGlobals()->nextSerialNum;
+        meshHeader->serialNum =
+            ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                              meshModule.globalsOffset))->nextSerialNum;
         meshHeader->totalIndices = header.totalIndices;
         meshHeader->firstMeshOffset = 0;
-        MeshGlobals()->nextSerialNum++;
+        ((RpMeshGlobals*)((unsigned char*)RwEngineInstance +
+                          meshModule.globalsOffset))->nextSerialNum++;
         numMeshes = meshHeader->numMeshes;
         while (numMeshes--) {
             RpBinMesh info;
@@ -298,7 +305,10 @@ RpMeshHeader* _rpMeshRead(RwStream* stream, const void* object,
             mesh->material =
                 _rpMaterialListGetMaterial(materialList, info.materialIndex);
             mesh->indices = indices;
-            if (MeshObjectHasIndices(object)) {
+            if ((objectHeader->type == 8 &&
+                 !(objectHeader->flags & 0x01000000)) ||
+                (objectHeader->type == 7 &&
+                 !(objectHeader->flags & 0x01000000))) {
                 unsigned int remaining = mesh->numIndices;
                 while (remaining != 0) {
                     int buffer[256];

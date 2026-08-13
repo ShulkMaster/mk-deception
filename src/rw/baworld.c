@@ -1,8 +1,11 @@
 #include "libmkparticle/rw_engine.h"
+#include "runtime/cstring.h"
 #include "rw/rpworld_types.h"
 #include "rw/rplight.h"
+#include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwplcore.h"
+#include "rw/rwresources.h"
 #include "rw/rxpipeline.h"
 
 typedef struct RpWorldListEntry {
@@ -22,11 +25,6 @@ typedef struct RpWorldFindSectorData {
 } RpWorldFindSectorData;
 
 extern RwPluginRegistry sectorTKList;
-extern RpMeshHeader *_rpMeshOptimise(RpBuildMesh *, unsigned int);
-extern void RwResourcesFreeResEntry(RwResEntry *);
-extern void RwErrorSet(const RwError *);
-extern int _rwerror(int, ...);
-extern void *memset(void *, int, unsigned int);
 
 static RwPluginRegistry worldTKList = {
     sizeof(RpWorld), sizeof(RpWorld), 0, 0, 0, 0};
@@ -317,17 +315,23 @@ void _rpWorldRegisterWorld(RpWorld *world, int size) {
 
 
 void _rpWorldUnregisterWorld(RpWorld *world) {
+    RpWorldGlobals *globals;
     RwLLLink *link;
     RwLLLink *end;
 
-    link = WorldGlobals()->worldList.link.next;
-    end = &WorldGlobals()->worldList.link;
+    globals = (RpWorldGlobals *)((unsigned char *)RwEngineInstance +
+                                 worldModule.globalsOffset);
+    link = globals->worldList.link.next;
+    end = &globals->worldList.link;
     while (link != end) {
-        RpWorldListEntry *entry = (RpWorldListEntry *)((unsigned char *)link - 8);
+        RpWorldListEntry *entry = (RpWorldListEntry *)(link - 1);
         if (entry->world == world) {
-            rwLinkListRemoveLLLink(&entry->link);
-            RwEngineInstance->fpFreeListFree(WorldGlobals()->worldListFreeList,
-                                             entry);
+            RwLLLink *previous;
+
+            entry->link.prev->next = entry->link.next;
+            previous = entry->link.prev;
+            entry->link.next->prev = previous;
+            RwEngineInstance->fpFreeListFree(globals->worldListFreeList, entry);
             return;
         }
         link = link->next;

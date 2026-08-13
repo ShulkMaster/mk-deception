@@ -24,6 +24,9 @@ void _rwObjectHasFrameReleaseFrame(void* object) {
 
     if (objectHasFrame->object.parent != 0) {
         objectHasFrame->lFrame.prev->next = objectHasFrame->lFrame.next;
-        objectHasFrame->lFrame.next->prev = objectHasFrame->lFrame.prev;
+        {
+            RwLLLink* previous = objectHasFrame->lFrame.prev;
+            objectHasFrame->lFrame.next->prev = previous;
+        }
     }
 }

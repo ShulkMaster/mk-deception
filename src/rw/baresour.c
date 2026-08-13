@@ -4,25 +4,7 @@
 #include "rw/rwfreelist.h"
 #include "rw/rwresources.h"
 
-typedef struct RwResHeap RwResHeap;
-
-typedef struct RwResourcesGlobals {
-    unsigned int arenaSize;
-    unsigned int arenaUsage;
-    unsigned int arenaReusage;
-    RwResHeap* arena;
-    RwLinkList entriesA;
-    RwLinkList entriesB;
-    RwLLLink* activeList;
-    RwLLLink* allocList;
-} RwResourcesGlobals;
-
 RwModuleInfo resourcesModule;
-
-extern int _rwResHeapInit(RwResHeap* heap, unsigned int size);
-extern int _rwResHeapClose(RwResHeap* heap);
-extern void _rwResHeapFree(void* memory);
-extern void* _rwResHeapAlloc(RwResHeap* heap, unsigned int size);
 
 
 

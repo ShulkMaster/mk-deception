@@ -2,6 +2,7 @@
 #include "rw/gamecube_texture.h"
 #include "rw/palquant.h"
 #include "rw/rwerror.h"
+#include "rw/rwimage.h"
 #include "rw/rxpipeline.h"
 
 enum {
@@ -25,9 +26,6 @@ typedef void (*RwDlPixelUnconvertFn)(RwRGBA* color, unsigned int pixel);
 
 extern void* RwRasterLockPalette(RwRaster* raster, int lockMode);
 extern RwRaster* RwRasterUnlockPalette(RwRaster* raster);
-extern RwImage* RwImageCreate(int width, int height, int depth);
-extern int RwImageDestroy(RwImage* image);
-extern RwImage* RwImageAllocatePixels(RwImage* image);
 
 int _rwDlFindMSB(int value)
 {

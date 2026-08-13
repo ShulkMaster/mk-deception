@@ -1,10 +1,5 @@
 #include "rw/rwcore_types.h"
-
-extern RwImage* RwImageCreate(int width, int height, int depth);
-extern RwImage* RwImageAllocatePixels(RwImage* image);
-extern int RwImageDestroy(RwImage* image);
-extern RwImage* RwImageFreePixels(RwImage* image);
-extern RwImage* RwImageCopy(RwImage* destination, const RwImage* source);
+#include "rw/rwimage.h"
 
 
 static void ImageResampleGetSpan(const RwImage* source, int xStart,

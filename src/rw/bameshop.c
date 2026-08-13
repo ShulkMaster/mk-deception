@@ -988,7 +988,7 @@ RpMeshHeader *_rpTriListMeshGenerate(RpBuildMesh *buildMesh,
     return header;
 }
 
-RpMeshHeader *_rpMeshOptimise(RpBuildMesh *mesh, unsigned int flags) {
+RpMeshHeader *_rpMeshOptimise(RpBuildMesh *mesh, int flags) {
     RpTriStripMeshCallBack generate;
     void *generateData;
     RpMeshHeader *result;

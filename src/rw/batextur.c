@@ -2,6 +2,7 @@
 #include "rw/batextur.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwimage.h"
 #include "rw/palquant.h"
 #include "rw/rwplcore.h"
 #include "libmkparticle/rw_engine.h"
@@ -29,15 +30,6 @@ static RwFreeList _rwTexDictionaryFreeList;
 
 static RwModuleInfo textureModule;
 static RwTexDictionary* dummyTexDict;
-extern RwImage* RwImageCreate(int width, int height, int depth);
-extern RwImage* RwImageAllocatePixels(RwImage* image);
-extern int RwImageDestroy(RwImage* image);
-extern RwImage* RwImageCopy(RwImage* destination, const RwImage* source);
-extern const char* RwImageFindFileType(const char* name);
-extern RwImage* RwImageReadMaskedImage(const char* name, const char* maskName);
-extern RwImage* RwImageResample(RwImage* destination, const RwImage* source);
-extern RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
-extern RwImage* RwImageGammaCorrect(RwImage* image);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 static const char character_25[] = "0123456789abcdef";
@@ -54,6 +46,7 @@ static RwTextureModuleGlobals* TextureGlobals(void)
                                      textureModule.globalsOffset);
 }
 
+#pragma dont_inline on
 static char CalculateIndexCharacter(unsigned char level) {
     char result = 0;
     int valid = 0;
@@ -64,6 +57,7 @@ static char CalculateIndexCharacter(unsigned char level) {
     result = valid ? character_25[level] : 0;
     return result;
 }
+#pragma dont_inline reset
 
 static int TextureDefaultMipmapName(char* name, char* maskName, unsigned char level,
                                     int format) {
