@@ -2,8 +2,7 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
 #include "rw/rplight.h"
-
-typedef struct RwFrame RwFrame;
+#include "rw/rwframe.h"
 
 typedef int (*MkObjDestroyFn)(MkObj* obj);
 
@@ -31,9 +30,6 @@ extern int vdestroy_mkx_rplight(MkxRpLight* light);
 MkObj* get_mkobj_frame(int type, RwFrame* frame);
 MkxRpLight* get_mkx_rplight(RpLight* light);
 void bind_rplight_to_obj(RpLight* light, MkObj* obj);
-
-RwFrame* RwFrameCreate(void);
-void RwFrameDestroy(RwFrame* frame);
 
 /* Retail leaves create_mkproc's return (mkproc*) in r3. */
 MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,

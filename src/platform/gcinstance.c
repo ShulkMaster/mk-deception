@@ -41,9 +41,6 @@ extern void GXInvalidateVtxCache(void);
 extern void GXInvalidateTexAll(void);
 extern void GXInitTlutObj(GameCubeRasterExtView* extension, void* palette,
                           int palette_format, unsigned short entries);
-extern RwTexture* RwTextureCreate(RwRaster* raster);
-extern RwRaster* RwRasterDestroy(RwRaster* raster);
-extern RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
 extern void* memset(void* destination, int value, unsigned int size);
 

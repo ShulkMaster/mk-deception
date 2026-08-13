@@ -50,7 +50,7 @@ RwMatrix* RwMatrixTransform(RwMatrix* matrix, const RwMatrix* transform,
                             RwOpCombineType combineOp);
 RwMatrix* RwMatrixOrthoNormalize(RwMatrix* matrixOut,
                                  const RwMatrix* matrixIn);
-RwMatrix* RwMatrixUpdate(RwMatrix* matrix);
+void RwMatrixUpdate(RwMatrix* matrix);
 RwMatrix* RwMatrixMultiply(RwMatrix* matrixOut, const RwMatrix* matrixIn1,
                            const RwMatrix* matrixIn2);
 RwMatrix* RwMatrixInvert(RwMatrix* matrixOut, const RwMatrix* matrixIn);

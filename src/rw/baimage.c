@@ -625,9 +625,9 @@ RwRGBA *RwRGBASetFromPixel(RwRGBA *color, unsigned int pixel, int format) {
 
 static int ImageStraightCopy(RwImage *destination, const RwImage *source) {
   int rowSize;
+  int y;
   unsigned char *src;
   unsigned char *dst;
-  int y;
   if (destination->palette && source->palette && source->depth <= 8)
     memcpy(destination->palette, source->palette, (1 << source->depth) * 4);
   rowSize = ((destination->depth + 7) >> 3) * destination->width;

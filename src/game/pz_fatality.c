@@ -1,6 +1,7 @@
 #include "math/gxVect.h"
 #include "math/mk_math.h"
 #include "game/pz_fatality.h"
+#include "rw/rwframe.h"
 
 typedef void (*PuzzleFatalityFn)();
 typedef struct PuzzleFatalityFnPair {
@@ -610,7 +611,6 @@ void fx_set_param_v3(
 void fx_set_render_priority(void* effect, int priority);
 MKMATRIX* force_calc_bone_world_mat(
     PuzzleFighterRenderObject* object, int bone);
-void* RwFrameTransform(void* frame, const MKMATRIX* matrix, int combine);
 void* RpGeometryForAllMaterials(
     void* geometry, RpMaterial* (*callback)(RpMaterial*, RwTexture*),
     RwTexture* texture);

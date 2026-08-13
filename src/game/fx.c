@@ -199,8 +199,6 @@ static int f_p2_show_fatality_off;
 extern int check_for_winner(void);
 extern int get_fatality_available_flag(void);
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
-extern RpClump* RpClumpForAllAtomics(
-    RpClump* clump, void* callback, void* data);
 extern MkPtr* freeze_light_list;
 extern PlyrPdata* his_pdata;
 extern int snd_req(int sound_id);

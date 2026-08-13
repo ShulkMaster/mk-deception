@@ -6,12 +6,6 @@
 
 typedef void (*rwMatrixMultFn)(RwMatrix *, const RwMatrix *, const RwMatrix *);
 
-typedef struct RwMatrixTolerance {
-  float Normal;
-  float Orthogonal;
-  float Identity;
-} RwMatrixTolerance;
-
 typedef struct rwMatrixGlobals {
   RwFreeList *matrixFreeList;
   int matrixOptimizations;
@@ -331,12 +325,14 @@ void *_rwMatrixOpen(void *instance, int offset, int size) {
   return instance;
 }
 
+#pragma optimization_level 0
 int RwEngineSetMatrixTolerances(const RwMatrixTolerance *const tolerance) {
   rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
                                                  matrixModule.globalsOffset);
   globals->tolerance = *tolerance;
   return 1;
 }
+#pragma optimization_level 4
 
 RwMatrix *RwMatrixOptimize(RwMatrix *matrix,
                            const RwMatrixTolerance *tolerance) {
@@ -371,9 +367,8 @@ RwMatrix *RwMatrixOptimize(RwMatrix *matrix,
   return matrix;
 }
 
-RwMatrix *RwMatrixUpdate(RwMatrix *matrix) {
+void RwMatrixUpdate(RwMatrix *matrix) {
   matrix->flags &= ~(3 | 0x20000);
-  return matrix;
 }
 
 RwMatrix *RwMatrixMultiply(RwMatrix *dst, const RwMatrix *src1,
@@ -383,9 +378,11 @@ RwMatrix *RwMatrixMultiply(RwMatrix *dst, const RwMatrix *src1,
   return dst;
 }
 
+#pragma optimization_level 0
 RwMatrix *RwMatrixOrthoNormalize(RwMatrix *dst, const RwMatrix *src) {
   return MatrixOrthoNormalize(dst, src);
 }
+#pragma optimization_level 4
 
 RwMatrix *RwMatrixRotateOneMinusCosineSine(RwMatrix *matrix,
                                            const RwV3d *unitAxis,

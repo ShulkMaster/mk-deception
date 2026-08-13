@@ -147,14 +147,14 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
         visible_count = 0;
         cull_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
         atomic_sphere = RpAtomicGetWorldBoundingSphere(atomic);
-        sphere_offset.x = atomic_sphere->x - cull_ltm->pos.x;
-        sphere_offset.y = atomic_sphere->y - cull_ltm->pos.y;
-        sphere_offset.z = atomic_sphere->z - cull_ltm->pos.z;
+        sphere_offset.x = atomic_sphere->center.x - cull_ltm->pos.x;
+        sphere_offset.y = atomic_sphere->center.y - cull_ltm->pos.y;
+        sphere_offset.z = atomic_sphere->center.z - cull_ltm->pos.z;
         test_sphere.radius = atomic_sphere->radius + PSVECMag(&sphere_offset);
         for (i = 0; i < pebble_data->count; i++) {
-            test_sphere.x = pebble_data->pebbles[i].matrix.pos.x;
-            test_sphere.y = pebble_data->pebbles[i].matrix.pos.y;
-            test_sphere.z = pebble_data->pebbles[i].matrix.pos.z;
+            test_sphere.center.x = pebble_data->pebbles[i].matrix.pos.x;
+            test_sphere.center.y = pebble_data->pebbles[i].matrix.pos.y;
+            test_sphere.center.z = pebble_data->pebbles[i].matrix.pos.z;
             pebble_data->flags[i].bits.visible = 1;
             switch (RwCameraFrustumTestSphere(camera, &test_sphere)) {
             case 0:
@@ -182,9 +182,9 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
         if (pebble_data->flags[i].bits.visible) {
             RwMatrixMultiply(&frame->ltm, &saved_matrix,
                              &pebble_data->pebbles[i].matrix);
-            render_sphere.x = saved_sphere.x + frame->ltm.pos.x;
-            render_sphere.y = saved_sphere.y + frame->ltm.pos.y;
-            render_sphere.z = saved_sphere.z + frame->ltm.pos.z;
+            render_sphere.center.x = saved_sphere.center.x + frame->ltm.pos.x;
+            render_sphere.center.y = saved_sphere.center.y + frame->ltm.pos.y;
+            render_sphere.center.z = saved_sphere.center.z + frame->ltm.pos.z;
             atomic->worldBoundingSphere = render_sphere;
             pebble_data->render_data->callback(atomic);
         }

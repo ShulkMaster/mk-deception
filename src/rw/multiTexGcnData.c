@@ -3,13 +3,7 @@
 #include "rw/rwerror.h"
 #include "rw/rwstream_internal.h"
 
-typedef struct RpGameCubeMTEntry24 {
-    int value[5];
-    unsigned short field_0x14;
-    unsigned short field_0x16;
-} RpGameCubeMTEntry24;
-
-typedef struct RpGameCubeMTEntry64 {
+struct RpGameCubeMTEntry64 {
     int field_0x00;
     int field_0x04;
     int field_0x08;
@@ -37,45 +31,21 @@ typedef struct RpGameCubeMTEntry64 {
     int field_0x58;
     unsigned int field_0x5C;
     int field_0x60;
-} RpGameCubeMTEntry64;
+};
 
-typedef struct RpGameCubeMTEntry60 {
+struct RpGameCubeMTEntry60 {
     int value[3];
     float real[12];
-} RpGameCubeMTEntry60;
+};
 
-typedef struct RpGameCubeMTEntry20 {
+struct RpGameCubeMTEntry20 {
     int value[5];
-} RpGameCubeMTEntry20;
+};
 
-typedef struct RpGameCubeMTEntry40 {
+struct RpGameCubeMTEntry40 {
     int value[3];
     float real[6];
     int field_0x24;
-} RpGameCubeMTEntry40;
-
-struct RpGameCubeMTEffectConfig {
-    int field_0x00;
-    unsigned char allocationCount24;
-    unsigned char allocationCount64;
-    unsigned char allocationCount60;
-    unsigned char allocationCount20;
-    unsigned char allocationCount40;
-    unsigned char count24;
-    unsigned char count64;
-    unsigned char count60;
-    unsigned char count20;
-    unsigned char count40;
-    unsigned short values[16];
-    unsigned char bytes[16];
-    unsigned char reserved_0x3E[2];
-    RpGameCubeMTEntry60* entries60;
-    RpGameCubeMTEntry24* entries24;
-    RpGameCubeMTEntry40* entries40;
-    RpGameCubeMTEntry20* entries20;
-    RpGameCubeMTEntry64* entries64;
-    int field_0x54;
-    int field_0x58;
 };
 
 typedef struct RpGameCubeMTStreamHeader {

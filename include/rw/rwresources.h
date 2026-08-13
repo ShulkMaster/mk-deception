@@ -6,6 +6,23 @@
 #include "rw/rwplcore.h"
 #include "rw/rwresentry.h"
 
+typedef struct RwResHeap RwResHeap;
+typedef struct RwResHeapBlock RwResHeapBlock;
+
+struct RwResHeap {
+    RwResHeapBlock* firstBlock;
+    RwResHeapBlock* firstFreeBlock;
+};
+
+struct RwResHeapBlock {
+    RwResHeap* heap;
+    RwResHeapBlock* next;
+    RwResHeapBlock* prev;
+    unsigned int size;
+    unsigned int flags;
+    unsigned int reserved[3];
+};
+
 typedef struct RwGameCubeResEntryHeader {
     RwResEntry entry;
     union {
@@ -17,18 +34,23 @@ typedef struct RwGameCubeResEntryHeader {
     } data;
 } RwGameCubeResEntryHeader;
 
-typedef struct RwResourcesGlobalsPrefix {
+typedef struct RwResourcesGlobals {
     unsigned int arenaSize;
     unsigned int arenaUsage;
     unsigned int arenaReusage;
-    void* arena;
+    RwResHeap* arena;
     RwLinkList entriesA;
     RwLinkList entriesB;
     RwLLLink* activeList;
-} RwResourcesGlobalsPrefix;
+    RwLLLink* allocList;
+} RwResourcesGlobals;
 
 extern RwModuleInfo resourcesModule;
 
+int _rwResHeapInit(RwResHeap* heap, unsigned int size);
+int _rwResHeapClose(RwResHeap* heap);
+void _rwResHeapFree(void* memory);
+void* _rwResHeapAlloc(RwResHeap* heap, unsigned int size);
 int RwResourcesFreeResEntry(RwResEntry* entry);
 RwResEntry* RwResourcesAllocateResEntry(
     void* owner, RwResEntry** ownerRef, int size,

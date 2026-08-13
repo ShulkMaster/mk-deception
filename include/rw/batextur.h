@@ -40,6 +40,10 @@ int RwTextureSetMipmapNameCallBack(RwTextureMipmapNameCallBack callback);
 int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
                                    int format);
 int RwTextureRasterGenerateMipmaps(RwRaster* raster, RwImage* image);
+int RwTextureRegisterPlugin(
+    int size, unsigned int pluginID,
+    RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
 void* _rwTextureOpen(void* instance, int offset, int size);
 void* _rwTextureClose(void* instance, int offset, int size);
 

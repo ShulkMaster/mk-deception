@@ -1,6 +1,10 @@
 #ifndef RW_NATIVE_INTERNAL_H
 #define RW_NATIVE_INTERNAL_H
 
+typedef struct RwStream RwStream;
+typedef struct RpGeometry RpGeometry;
+typedef struct RpWorldSector RpWorldSector;
+
 typedef union GameCubeNativeDataReference {
     unsigned int offset;
     void* pointer;
@@ -40,5 +44,15 @@ typedef struct GameCubeNativeRasterHeader {
     unsigned char paletteFormat;
     int hasAlpha;
 } GameCubeNativeRasterHeader;
+
+int _rpGeometryNativeSize(const RpGeometry* geometry);
+RwStream* _rpGeometryNativeWrite(RwStream* stream,
+                                 const RpGeometry* geometry);
+RpGeometry* _rpGeometryNativeRead(RwStream* stream, RpGeometry* geometry);
+int _rpWorldSectorNativeSize(const RpWorldSector* sector);
+RwStream* _rpWorldSectorNativeWrite(RwStream* stream,
+                                    const RpWorldSector* sector);
+RpWorldSector* _rpWorldSectorNativeRead(RwStream* stream,
+                                        RpWorldSector* sector);
 
 #endif

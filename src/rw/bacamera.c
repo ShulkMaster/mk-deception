@@ -2,12 +2,12 @@
 #include "rw/rwerror.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwmatrix.h"
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 
 extern void _rwFrameSyncDirty(void);
 extern void _rwPipeInitForCamera(RwCamera* camera);
-extern RwMatrix* RwMatrixOptimize(RwMatrix* matrix, const void* tolerance);
 
 RwPluginRegistry cameraTKList = { sizeof(RwCamera), sizeof(RwCamera), 0, 0,
                                   0, 0 };

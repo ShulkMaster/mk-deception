@@ -1,9 +1,6 @@
 #include "rw/rwplcore.h"
-
-typedef struct RwCamera RwCamera;
-
-extern int _rxPipelineOpen(void);
-extern void _rxPipelineClose(void);
+#include "rw/rwcamera_internal.h"
+#include "rw/rxpipeline.h"
 
 int _rxPipelineGlobalsOffset;
 

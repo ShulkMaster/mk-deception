@@ -457,8 +457,9 @@ RpAtomic* _rpMatFXPipelineAtomicSetup(RpAtomic* atomic)
     return result;
 }
 
-void _rpMatFXPipelineWorldSectorSetup(void)
+RpWorldSector* _rpMatFXPipelineWorldSectorSetup(RpWorldSector* worldSector)
 {
+    return worldSector;
 }
 
 int _rpMatFXSetupDualRenderState(

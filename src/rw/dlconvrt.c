@@ -2,6 +2,7 @@
 #include "rw/gamecube_texture.h"
 #include "rw/palquant.h"
 #include "rw/rwerror.h"
+#include "rw/rwimage.h"
 #include "rw/rxpipeline.h"
 
 enum {
@@ -25,9 +26,6 @@ typedef void (*RwDlPixelUnconvertFn)(RwRGBA* color, unsigned int pixel);
 
 extern void* RwRasterLockPalette(RwRaster* raster, int lockMode);
 extern RwRaster* RwRasterUnlockPalette(RwRaster* raster);
-extern RwImage* RwImageCreate(int width, int height, int depth);
-extern int RwImageDestroy(RwImage* image);
-extern RwImage* RwImageAllocatePixels(RwImage* image);
 
 int _rwDlFindMSB(int value)
 {
@@ -44,7 +42,7 @@ static int _rwDlConv8888To555(const RwRGBA* color)
 {
     int result = ((color->blue >> 3) & 0x1F) |
         (((color->red << 7) & 0x7C00) | 0x8000 |
-         ((color->green & 0xF8) << 2));
+         ((color->green << 2) & 0x3E0));
 
     return result;
 }
@@ -53,7 +51,7 @@ static int _rwDlConv8888To565(const RwRGBA* color)
 {
     int result = ((color->blue >> 3) & 0x1F) |
         (((color->red << 8) & 0xF800) |
-         ((color->green & 0xFC) << 3));
+         ((color->green << 3) & 0x7E0));
 
     return result;
 }
@@ -66,11 +64,11 @@ static int _rwDlConv8888To555or3444(const RwRGBA* color)
         result = ((color->blue >> 4) & 0x0F) |
             ((color->green & 0xF0) |
              (((color->alpha << 7) & 0x7000) |
-              ((color->red & 0xF0) << 4)));
+              ((color->red << 4) & 0xF00)));
     } else {
         result = ((color->blue >> 3) & 0x1F) |
             (((color->red << 7) & 0x7C00) | 0x8000 |
-             ((color->green & 0xF8) << 2));
+             ((color->green << 2) & 0x3E0));
     }
     return result;
 }

@@ -2,6 +2,7 @@
 #include "runtime/cstring.h"
 #include "rw/rwcore_types.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwframe.h"
 #include "rw/rphanim.h"
 #include "rw/rwplcore.h"
 #include "rw/rwstream.h"
@@ -20,14 +21,6 @@ static RwFreeList _rpHAnimHierarchyFreeList;
 static int _rpHAnimHierarchyFreeListBlockSize = 0x80;
 static int _rpHAnimHierarchyFreeListPreallocBlocks = 1;
 HAnimState RpHAnimAtomicGlobals;
-
-extern int RwFrameRegisterPlugin(int, unsigned int,
-                                     RwPluginObjectConstructor,
-                                     RwPluginObjectDestructor,
-                                     RwPluginObjectCopy);
-extern int RwFrameRegisterPluginStream(
-    unsigned int, RwPluginDataChunkReadCallBack,
-    RwPluginDataChunkWriteCallBack, RwPluginDataChunkGetSizeCallBack);
 
 static void* HAnimOpen(void* instance, int offset, int size)
 {
@@ -337,10 +330,11 @@ RpHAnimHierarchy* RpHAnimHierarchyDestroy(RpHAnimHierarchy* hierarchy)
 
 RpHAnimHierarchy* RpHAnimFrameGetHierarchy(RwFrame* frame)
 {
+    HAnimFrameState* frameExtension;
     RpHAnimHierarchy* hierarchy = 0;
-    HAnimFrameState* frameExtension =
-        (HAnimFrameState*)((unsigned char*)frame +
-            RpHAnimAtomicGlobals.frameExtensionOffset);
+
+    frameExtension = (HAnimFrameState*)((unsigned char*)frame +
+        RpHAnimAtomicGlobals.frameExtensionOffset);
     hierarchy = frameExtension->hierarchy;
     return hierarchy;
 }

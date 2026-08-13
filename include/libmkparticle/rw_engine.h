@@ -137,10 +137,10 @@ typedef struct RwGlobals {
     RwLinkList dirtyFrameList;
     RwFileFunctions fileFuncs;
     RwStringFunctions stringFuncs;
-    void* (*fpMalloc)(unsigned int size, unsigned int hint);
+    void* (*fpMalloc)(unsigned long size, unsigned int hint);
     void (*fpFree)(void* memory);
-    void* (*fpRealloc)(void* memory, unsigned int size, unsigned int hint);
-    void* (*fpCalloc)(unsigned int count, unsigned int size,
+    void* (*fpRealloc)(void* memory, unsigned long size, unsigned int hint);
+    void* (*fpCalloc)(unsigned long count, unsigned long size,
                       unsigned int hint);
     RwFreeListAllocCall fpFreeListAlloc;
     RwFreeListFreeCall fpFreeListFree;

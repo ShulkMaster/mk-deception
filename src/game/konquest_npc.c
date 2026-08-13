@@ -2098,9 +2098,9 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         }
 
         data = npc->data;
-        sphere.x = data->position.x;
-        sphere.y = data->position.y;
-        sphere.z = data->position.z;
+        sphere.center.x = data->position.x;
+        sphere.center.y = data->position.y;
+        sphere.center.z = data->position.z;
         matrix = camera_obj->field_24;
         direction_y = matrix->at.y;
         direction_x = matrix->at.x;
@@ -2126,9 +2126,9 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         direction_x *= inverse_length;
         direction_y *= inverse_length;
         direction_z *= inverse_length;
-        sphere.x += 3.0f * direction_x;
-        sphere.y += 3.0f * direction_y;
-        sphere.z += 3.0f * direction_z;
+        sphere.center.x += 3.0f * direction_x;
+        sphere.center.y += 3.0f * direction_y;
+        sphere.center.z += 3.0f * direction_z;
         sphere.radius = 1.0f;
         if (RwCameraFrustumTestSphere(Camera, &sphere) == 0) {
             return 0;

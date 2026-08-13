@@ -1,21 +1,4 @@
-#include "rw/rwplcore.h"
-
-typedef struct RwResHeap RwResHeap;
-typedef struct RwResHeapBlock RwResHeapBlock;
-
-struct RwResHeap {
-    RwResHeapBlock* firstBlock;
-    RwResHeapBlock* firstFreeBlock;
-};
-
-struct RwResHeapBlock {
-    RwResHeap* heap;
-    RwResHeapBlock* next;
-    RwResHeapBlock* prev;
-    unsigned int size;
-    unsigned int flags;
-    unsigned int reserved[3];
-};
+#include "rw/rwresources.h"
 
 static void splitBlock(RwResHeapBlock* block, unsigned int size) {
     RwResHeapBlock* newBlock =

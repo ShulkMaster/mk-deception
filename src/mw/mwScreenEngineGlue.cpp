@@ -187,13 +187,6 @@ void free_mem(void* mem);
 void __ct__17ScreenMatrixStackFv(void* self);
 void __dt__17ScreenMatrixStackFv(void* self, short del);
 void __dl__FPv(void* p);
-void* RwFrameCreate(void);
-void RwFrameDestroy(void* frame);
-void RwFrameTranslate(void* frame, void* delta, int combine);
-void RwFrameScale(void* frame, void* scale, int combine);
-void RwFrameRotate(void* frame, void* axis, float angle, int combine);
-void RwFrameSetIdentity(void* frame);
-void RwFrameAddChild(void* parent, void* child);
 void MKMatrixTranslate(void* matrix, float* delta, int combine);
 int is_controller_removed(void);
 
@@ -4764,28 +4757,28 @@ typedef struct mkScreenEngineMatrixStackVtbl {
     void (*dispose)(mkScreenEngineMatrixStack* self); /* +0x10 */
     void (*setIdentity)(mkScreenEngineMatrixStack* self); /* +0x14 */
     void (*addChild)(mkScreenEngineMatrixStack* self, mkScreenEngineMatrixStack* child); /* +0x18 */
-    void (*rotate)(mkScreenEngineMatrixStack* self, void* axis, float angle); /* +0x1C */
-    void (*scale)(mkScreenEngineMatrixStack* self, void* scale); /* +0x20 */
-    void (*translate)(mkScreenEngineMatrixStack* self, void* delta); /* +0x24 */
+    void (*rotate)(mkScreenEngineMatrixStack* self, RwV3d* axis, float angle); /* +0x1C */
+    void (*scale)(mkScreenEngineMatrixStack* self, RwV3d* scale); /* +0x20 */
+    void (*translate)(mkScreenEngineMatrixStack* self, RwV3d* delta); /* +0x24 */
 } mkScreenEngineMatrixStackVtbl;
 
 struct mkScreenEngineMatrixStack {
     mkScreenEngineMatrixStackVtbl* vtbl; /* +0x00 */
-    void* frame; /* +0x04 -- RwFrame* */
+    RwFrame* frame; /* +0x04 */
 };
 
 void Translate__25mkScreenEngineMatrixStackFP14Screen3DVector(mkScreenEngineMatrixStack* self,
-                                                             void* delta) {
+                                                             RwV3d* delta) {
     RwFrameTranslate(self->frame, delta, 2);
 }
 
 void Scale__25mkScreenEngineMatrixStackFP14Screen3DVector(mkScreenEngineMatrixStack* self,
-                                                         void* scale) {
+                                                         RwV3d* scale) {
     RwFrameScale(self->frame, scale, 2);
 }
 
 void Rotate__25mkScreenEngineMatrixStackFP14Screen3DVectorf(mkScreenEngineMatrixStack* self,
-                                                           void* axis, float angle) {
+                                                           RwV3d* axis, float angle) {
     RwFrameRotate(self->frame, axis, angle, 2);
 }
 

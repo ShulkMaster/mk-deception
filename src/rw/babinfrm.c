@@ -1,6 +1,8 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rwerror.h"
 #include "rw/rwframe.h"
+#include "rw/rwframe_internal.h"
+#include "rw/rwmatrix.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
@@ -12,16 +14,6 @@ typedef struct RwFrameChunkInfo {
     int parentIndex;
     unsigned int data;
 } RwFrameChunkInfo;
-
-extern RwPluginRegistry frameTKList;
-extern RwFrame* RwFrameCreate(void);
-extern int RwFrameDestroyHierarchy(RwFrame*);
-extern RwFrame* RwFrameAddChild(RwFrame*, RwFrame*);
-extern RwFrame* RwFrameAddChildNoUpdate(RwFrame*, RwFrame*);
-extern RwFrame* RwFrameGetRoot(const RwFrame*);
-extern float _rwMatrixNormalError(const RwMatrix*);
-extern float _rwMatrixOrthogonalError(const RwMatrix*);
-extern float _rwMatrixDeterminant(const RwMatrix*);
 
 static int _rwFrameListDirtyListUpdate = 1;
 

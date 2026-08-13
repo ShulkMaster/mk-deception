@@ -1,7 +1,7 @@
 #ifndef PLATFORM_GCINIT_H
 #define PLATFORM_GCINIT_H
 
-typedef struct RwMemoryFunctions RwMemoryFunctions;
+#include "rw/rwdevice.h"
 
 extern RwMemoryFunctions mem_funcs;
 

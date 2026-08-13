@@ -1,14 +1,6 @@
 #include "runtime/mk_plugins.h"
+#include "rw/bamateri.h"
 #include "rw/rwstream.h"
-
-typedef struct RwStream RwStream;
-typedef void* (*RwPluginConstructor)(void* object, int offset, int size);
-typedef void* (*RwPluginDestructor)(void* object, int offset, int size);
-typedef void* (*RwPluginCopy)(void* destination, const void* source, int offset, int size);
-typedef RwStream* (*RwPluginRead)(RwStream* stream, int length, void* object, int offset, int size);
-typedef RwStream* (*RwPluginWrite)(RwStream* stream, int length, const void* object, int offset,
-                                   int size);
-typedef int (*RwPluginSize)(const void* object, int offset, int size);
 
 typedef struct PluginEngineView {
     char pad00[0x134];
@@ -23,22 +15,6 @@ typedef struct MkmaterialExtraAllocation {
 
 extern PluginEngineView* RwEngineInstance;
 
-int RwEngineRegisterPlugin(int size, unsigned int id, RwPluginConstructor constructor,
-                           RwPluginDestructor destructor);
-int RpGeometryRegisterPlugin(int size, unsigned int id, RwPluginConstructor constructor,
-                             RwPluginDestructor destructor, RwPluginCopy copy);
-int RpMaterialRegisterPlugin(int size, unsigned int id, RwPluginConstructor constructor,
-                             RwPluginDestructor destructor, RwPluginCopy copy, unsigned int rights);
-int RpMaterialRegisterPluginStream(unsigned int id, RwPluginRead read, RwPluginWrite write,
-                                   RwPluginSize size, unsigned int rights);
-int RpAtomicRegisterPlugin(int size, unsigned int id, RwPluginConstructor constructor,
-                           RwPluginDestructor destructor, RwPluginCopy copy, unsigned int rights);
-int RpAtomicRegisterPluginStream(unsigned int id, RwPluginRead read, RwPluginWrite write,
-                                 RwPluginSize size, unsigned int rights);
-int RpClumpRegisterPlugin(int size, unsigned int id, RwPluginConstructor constructor,
-                          RwPluginDestructor destructor, RwPluginCopy copy, unsigned int rights);
-int RpClumpRegisterPluginStream(unsigned int id, RwPluginRead read, RwPluginWrite write,
-                                RwPluginSize size, unsigned int rights);
 int MkobjGlobalOffset = -1;
 int MkobjLocalOffset = -1;
 int MksobjGlobalOffset = -1;
@@ -88,16 +64,14 @@ static void* MkobjGlobalDataDestructor(void* object, int offset, int size);
 static void* MkobjGlobalDataConstructor(void* object, int offset, int size);
 
 int RpColorSetPluginAttach(void) {
-    int plugin_offset;
-
     if (RwEngineRegisterPlugin(0, 0xBA, ColorSetOpen, ColorSetClose) < 0) {
         return 0;
     }
-    plugin_offset = RpGeometryRegisterPlugin(sizeof(ColorSetPluginData), 0x1BA,
-                                             ColorSetGeometryConstructor,
-                                             ColorSetGeometryDestructor, ColorSetGeometryCopy);
-    ColorSetGeometryOffset = plugin_offset;
-    return plugin_offset >= 0;
+    return (ColorSetGeometryOffset =
+                RpGeometryRegisterPlugin(
+                    sizeof(ColorSetPluginData), 0x1BA,
+                    ColorSetGeometryConstructor, ColorSetGeometryDestructor,
+                    ColorSetGeometryCopy)) >= 0;
 }
 
 static void* ColorSetGeometryCopy(void* destination, const void* source, int offset, int size) {
@@ -175,14 +149,15 @@ int RpMaterialMkmaterialPluginAttach(void) {
     }
     MkmaterialLocalOffset = RpMaterialRegisterPlugin(
         sizeof(MkmaterialPluginData), 0x895303, MkmaterialDataConstructor,
-        MkmaterialDataDestructor, MkmaterialDataCopier, 0x890000);
+        MkmaterialDataDestructor, MkmaterialDataCopier);
     if (MkmaterialLocalOffset < 0) {
         return 0;
     }
-    return RpMaterialRegisterPluginStream(0x895303, MkmaterialDataReadStream,
-                                          MkmaterialDataWriteStream,
-                                          MkmaterialDataGetStreamSize,
-                                          0x890000) == MkmaterialLocalOffset;
+    return MkmaterialLocalOffset -
+               RpMaterialRegisterPluginStream(
+                   0x895303, MkmaterialDataReadStream,
+                   MkmaterialDataWriteStream, MkmaterialDataGetStreamSize) ==
+           0;
 }
 
 static void* MkmaterialDataConstructor(void* object, int offset, int size) {
@@ -417,12 +392,15 @@ int RpAtomicMksobjPluginAttach(void) {
     }
     MksobjLocalOffset = RpAtomicRegisterPlugin(sizeof(MksobjPluginData), 0x895302,
                                                MksobjDataConstructor, MksobjDataDestructor,
-                                               MksobjDataCopier, 0x890000);
+                                               MksobjDataCopier);
     if (MksobjLocalOffset < 0) {
         return 0;
     }
-    return RpAtomicRegisterPluginStream(0x895302, MksobjDataReadStream, MksobjDataWriteStream,
-                                        MksobjDataGetStreamSize, 0x890000) == MksobjLocalOffset;
+    return MksobjLocalOffset -
+               RpAtomicRegisterPluginStream(0x895302, MksobjDataReadStream,
+                                            MksobjDataWriteStream,
+                                            MksobjDataGetStreamSize) ==
+           0;
 }
 
 static int MksobjDataGetStreamSize(const void* object, int offset, int size) {
@@ -508,12 +486,15 @@ int RpClumpMkobjPluginAttach(void) {
     }
     MkobjLocalOffset = RpClumpRegisterPlugin(sizeof(MkobjPluginData), 0x895301,
                                              MkobjDataConstructor, MkobjDataDestructor,
-                                             MkobjDataCopier, 0x890000);
+                                             MkobjDataCopier);
     if (MkobjLocalOffset < 0) {
         return 0;
     }
-    return RpClumpRegisterPluginStream(0x895301, MkobjDataReadStream, MkobjDataWriteStream,
-                                       MkobjDataGetStreamSize, 0x890000) == MkobjLocalOffset;
+    return MkobjLocalOffset -
+               RpClumpRegisterPluginStream(
+                   0x895301, MkobjDataReadStream, MkobjDataWriteStream,
+                   MkobjDataGetStreamSize) ==
+           0;
 }
 
 static RwStream* MkobjDataWriteStream(RwStream* stream, int length, const void* object, int offset,

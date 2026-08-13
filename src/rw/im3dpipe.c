@@ -1,9 +1,6 @@
 #include "rw/rwim3d.h"
 #include "rw/rxpipeline.h"
 
-extern RxPipeline* RxPipelineCreate(void);
-extern void _rxPipelineDestroy(RxPipeline* pipeline);
-
 int _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
     RxPipeline* pipeline;
     RxLockedPipe* lockedPipeline;
@@ -16,11 +13,11 @@ int _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
             lockedPipeline = RxLockedPipeAddFragment(
                 lockedPipeline, 0, RxNodeDefinitionGetGameCubeImmInstance(), 0);
             pipeline = RxLockedPipeUnlock(lockedPipeline);
-        }
-        if (pipeline != 0) {
-            *transformPipeline = pipeline;
-            RwIm3DSetTransformPipeline(pipeline);
-            return 1;
+            if (pipeline != 0) {
+                *transformPipeline = pipeline;
+                RwIm3DSetTransformPipeline(pipeline);
+                return 1;
+            }
         }
         _rxPipelineDestroy(pipeline);
     }
@@ -67,19 +64,19 @@ int _rwIm3DCreatePlatformRenderPipelines(
                 lockedPipeline, 0,
                 RxNodeDefinitionGetGameCubeSubmitNoLight(), 0);
             pipeline = RxLockedPipeUnlock(lockedPipeline);
-        }
-        if (pipeline != 0) {
-            renderPipelines->triList = pipeline;
-            renderPipelines->triFan = pipeline;
-            renderPipelines->triStrip = pipeline;
-            renderPipelines->lineList = pipeline;
-            renderPipelines->polyLine = pipeline;
-            RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPETRILIST);
-            RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPETRIFAN);
-            RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPETRISTRIP);
-            RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPELINELIST);
-            RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPEPOLYLINE);
-            return 1;
+            if (pipeline != 0) {
+                renderPipelines->triList = pipeline;
+                renderPipelines->triFan = pipeline;
+                renderPipelines->triStrip = pipeline;
+                renderPipelines->lineList = pipeline;
+                renderPipelines->polyLine = pipeline;
+                RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPETRILIST);
+                RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPETRIFAN);
+                RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPETRISTRIP);
+                RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPELINELIST);
+                RwIm3DSetRenderPipeline(pipeline, rwPRIMTYPEPOLYLINE);
+                return 1;
+            }
         }
         _rxPipelineDestroy(pipeline);
     }

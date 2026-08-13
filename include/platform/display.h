@@ -2,17 +2,10 @@
 #define PLATFORM_DISPLAY_H
 #include "rw/rplight.h"
 #include "rw/rwcamera_internal.h"
+#include "rw/rwdevice.h"
 typedef struct RwTexture RwTexture;
 typedef struct ScreenObj ScreenObj;
 typedef struct RwRaster RwRaster;
-#ifndef RW_MEMORY_FUNCTIONS_DEFINED
-#define RW_MEMORY_FUNCTIONS_DEFINED
-typedef struct RwMemoryFunctions {
-    void* (*alloc)(unsigned long, unsigned int); void (*free)(void*);
-    void* (*realloc)(void*, unsigned long, unsigned int);
-    void* (*calloc)(unsigned long, unsigned long, unsigned int);
-} RwMemoryFunctions;
-#endif
 typedef struct FadingScreen {
     unsigned long field_00; unsigned long field_04; RwTexture* snapshotTex;
     int fade_active; float alpha; ScreenObj* fade_obj;
@@ -23,7 +16,8 @@ typedef struct RwEngineInstanceType {
     void* (*fpMalloc)(unsigned long, unsigned long); void (*fpFree)(void*);
 } RwEngineInstanceType;
 extern FadingScreen fading_screen;
-extern unsigned char background_color[4], load_meter_bgnd_color[4];
+extern RwRGBA background_color;
+extern RwRGBA load_meter_bgnd_color;
 extern RwCamera* Camera; extern RpWorld* World;
 extern unsigned long f_render_all_atomics, display_off, renderware_initialized;
 int init_display(void); int AttachPlugins(void); void Render(void); void display_shutdown(void);

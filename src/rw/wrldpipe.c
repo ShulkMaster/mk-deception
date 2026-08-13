@@ -3,7 +3,6 @@
 extern int _rpDlVtxFmtPluginAttach(void);
 extern int _rpDlLightPluginAttach(void);
 extern int RpMatGCAlphaPassAttach(void);
-extern void _rxPipelineDestroy(RxPipeline* pipeline);
 
 int _rxWorldDevicePluginAttach(void) {
     int result;

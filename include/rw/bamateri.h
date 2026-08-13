@@ -3,6 +3,8 @@
 
 #include "rw/rpworld_types.h"
 
+void _rpMaterialSetDefaultSurfaceProperties(
+    const RpSurfaceProperties* surface);
 int RpMaterialRegisterPlugin(
     int size, unsigned int pluginID,
     RwPluginObjectConstructor constructCB,

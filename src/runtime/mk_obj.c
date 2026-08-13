@@ -173,13 +173,8 @@ extern int limb_meat_chunk_list[];
 extern int* limb_meats_mat_id_tbl[];
 extern int* limb_children_table[];
 
-RwFrame* RwFrameForAllChildren(RwFrame* frame, RwFrameCallBack callback, void* data);
-RwFrame* RwFrameForAllObjects(RwFrame* frame, RwObjectCallBack callback, void* data);
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry, RpMaterialCallBack callback, void* data);
-RpClump* RpClumpForAllAtomics(RpClump* clump, RpAtomicCallBack callback, void* data);
 void* memcpy(void* dst, const void* src, unsigned int size);
-int RwFrameDestroy(RwFrame* frame);
-RwFrame* RwFrameCreate(void);
 int RpClumpDestroy(RpClump* clump);
 void set_atomic_material_alpha(RpAtomic* atomic, int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
@@ -325,7 +320,7 @@ void* obj_find_child_sobj_by_id(void* obj, unsigned int id, int depth) {
 static void* rwframe_find_child_sobj_by_id(void* frame_arg, unsigned int id,
                                            int depth) {
     RwFrame* frame;
-    void* link;
+    RwLLLink* link;
     RwObject* object;
     MksobjPluginData* plugin;
     MkSobj* sobj;
@@ -333,10 +328,10 @@ static void* rwframe_find_child_sobj_by_id(void* frame_arg, unsigned int id,
     RwFrame* next;
 
     frame = (RwFrame*)frame_arg;
-    link = frame->object_list_next;
-    while (link != &frame->object_list_next) {
-        object = (RwObject*)((char*)link - 8);
-        link = *(void**)link;
+    link = frame->objectList.link.next;
+    while (link != &frame->objectList.link) {
+        object = RW_OBJECT_FROM_FRAME_LINK(link);
+        link = link->next;
         if (object->type == 1) {
             plugin = (MksobjPluginData*)((char*)object + MksobjLocalOffset);
             sobj = plugin->sobj;
@@ -397,8 +392,8 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
     RwFrame* descendant;
     RwFrame* next_descendant;
 
-    end = (RwLLLink*)&frame->object_list_next;
-    link = frame->object_list_next;
+    end = &frame->objectList.link;
+    link = frame->objectList.link.next;
     while (link != end) {
         object = RW_OBJECT_FROM_FRAME_LINK(link);
         if (object->type == 1) {
@@ -414,8 +409,8 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
     child = frame->child;
     while (child != 0) {
         next_child = child->next;
-        end = (RwLLLink*)&child->object_list_next;
-        link = child->object_list_next;
+        end = &child->objectList.link;
+        link = child->objectList.link.next;
         while (link != end) {
             next_link = link->next;
             object = RW_OBJECT_FROM_FRAME_LINK(link);
@@ -432,8 +427,8 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
         grandchild = child->child;
         while (grandchild != 0) {
             next_grandchild = grandchild->next;
-            end = (RwLLLink*)&grandchild->object_list_next;
-            link = grandchild->object_list_next;
+            end = &grandchild->objectList.link;
+            link = grandchild->objectList.link.next;
             while (link != end) {
                 next_link = link->next;
                 rwobject_set_true_clip_flag(RW_OBJECT_FROM_FRAME_LINK(link),

@@ -289,6 +289,7 @@ void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
                              unsigned int keyUpperBound);
 void* _rwRenderPipelineOpen(void* instance, int offset, int size);
 void* _rwRenderPipelineClose(void* instance, int offset, int size);
+int _rwPipeAttach(void);
 int _rxWorldDevicePluginAttach(void);
 
 #endif

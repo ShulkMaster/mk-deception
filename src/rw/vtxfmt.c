@@ -2,13 +2,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
 #include "rw/rwplcore.h"
-
-extern int RpGeometryRegisterPlugin(
-    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
-    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
-extern int RpWorldRegisterPlugin(
-    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
-    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
+#include "rw/rwresentry.h"
 
 static RpGameCubeVtxFmt _RpDlVtxFmtDefault;
 static RwModuleInfo _RpVtxFmtModule;
@@ -24,7 +18,7 @@ void _rwDlVtxFmtSetup(RpGameCubeVtxFmt* format,
     int colorCount;
 
     if (format == 0) format = &_RpDlVtxFmtDefault;
-    resource = (RwGameCubeVertexBuffer*)((unsigned char*)setupData->resourceEntry + 0x18);
+    resource = (RwGameCubeVertexBuffer*)(setupData->resourceEntry + 1);
 
     GXClearVtxDesc();
     GXSetVtxDesc(9, resource->arrays[arrayIndex].descriptor);
@@ -144,8 +138,8 @@ void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, unsigned int type,
 void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
                                  unsigned int type, unsigned char fraction)
 {
-    format->fields[index + 1] = (unsigned char)type;
-    format->fields[index + 0xD] = fraction;
+    format->texCoordType[index - 1] = (unsigned char)type;
+    format->texCoordFraction[index - 1] = fraction;
 }
 
 void RpGameCubeVtxFmtInit(RpGameCubeVtxFmt* format)

@@ -1,14 +1,6 @@
 #ifndef RW_RWPLCORE_H
 #define RW_RWPLCORE_H
 
-typedef int RwInt32;
-typedef unsigned int RwUInt32;
-typedef unsigned short RwUInt16;
-typedef signed short RwInt16;
-typedef unsigned char RwUInt8;
-typedef int RwBool;
-typedef char RwChar;
-typedef float RwReal;
 typedef union RwSplitBits {
     float nReal;
     volatile int nInt;
@@ -20,14 +12,7 @@ typedef struct RwV2d { float x; float y; } RwV2d;
 typedef struct RwV3d { float x; float y; float z; } RwV3d;
 typedef struct RwBBox { RwV3d sup; RwV3d inf; } RwBBox;
 typedef struct RwSphere {
-    union {
-        RwV3d center;
-        struct {
-            float x;
-            float y;
-            float z;
-        };
-    };
+    RwV3d center;
     float radius;
 } RwSphere;
 typedef struct RwError {
@@ -100,5 +85,8 @@ const RwPluginRegistry* _rwPluginRegistrySkipDataChunks(
 int RwEngineRegisterPlugin(int, unsigned int,
                                RwPluginObjectConstructor,
                                RwPluginObjectDestructor);
+int RwEngineGetPluginOffset(unsigned int pluginID);
+int _rwPluginRegistryOpen(void);
+int _rwPluginRegistryClose(void);
 int _rwpathisabsolute(const char*);
 #endif

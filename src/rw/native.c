@@ -11,23 +11,12 @@
 
 extern void GXInvalidateVtxCache(void);
 
-static GameCubeNativeMesh* NativeMeshTable(GameCubeNativeMeshHeader* native)
-{
-    return &native->meshes[native->numMeshes];
-}
-
-static unsigned char* NativeVertexData(GameCubeNativeMesh* meshes,
-                                 unsigned int count)
-{
-    return (unsigned char*)(((unsigned int)meshes +
-        count * sizeof(GameCubeNativeMesh) + 0x1F) & ~0x1FU);
-}
-
 static void _rpNativePointer2Offset(GameCubeNativeMeshHeader* native,
                                     GameCubeNativeMesh* meshes,
                                     unsigned int numMeshes)
 {
-    unsigned char* vertexData = NativeVertexData(meshes, numMeshes);
+    unsigned char* vertexData = (unsigned char*)(((unsigned int)meshes +
+        numMeshes * sizeof(GameCubeNativeMesh) + 0x1F) & ~0x1FU);
     unsigned int i;
 
     for (i = 0; i < native->numMeshes; i++)
@@ -43,7 +32,8 @@ static void _rpNativeOffset2Pointer(GameCubeNativeMeshHeader* native,
                                     GameCubeNativeMesh* meshes,
                                     unsigned int numMeshes)
 {
-    unsigned char* vertexData = NativeVertexData(meshes, numMeshes);
+    unsigned char* vertexData = (unsigned char*)(((unsigned int)meshes +
+        numMeshes * sizeof(GameCubeNativeMesh) + 0x1F) & ~0x1FU);
     unsigned int i;
 
     for (i = 0; i < native->numMeshes; i++)
@@ -58,6 +48,10 @@ static void _rpNativeOffset2Pointer(GameCubeNativeMeshHeader* native,
 static int _rpNativeSize(const RwResEntry* entry, unsigned int numMeshes)
 {
     int size = 0;
+    const GameCubeNativeMeshHeader* native =
+        (const GameCubeNativeMeshHeader*)(entry + 1);
+    const GameCubeNativeMesh* meshes =
+        &native->meshes[native->numMeshes - 1] + 1;
 
     size = entry->size - 7;
     return size;
@@ -66,12 +60,11 @@ static int _rpNativeSize(const RwResEntry* entry, unsigned int numMeshes)
 static void* _rpNativeRead(RwStream* stream, void* owner,
                            RwResEntry** entryRef, unsigned int numMeshes)
 {
-    unsigned int chunkLength;
     unsigned int version;
-    int platform;
+    unsigned int chunkLength;
     int headerSize;
     int dataSize;
-    RwResEntry* entry;
+    int platform;
     GameCubeNativeMeshHeader* native;
     GameCubeNativeMesh* meshes;
     unsigned char* vertexData;
@@ -91,31 +84,30 @@ static void* _rpNativeRead(RwStream* stream, void* owner,
         RwErrorSet(&error);
         return 0;
     }
-    if (!RwStreamReadInt32(stream, &platform, 4) || platform != 6)
-        return 0;
+    if (!RwStreamReadInt32(stream, &platform, 4)) return 0;
+    if (platform != 6) return 0;
     if (!RwStreamReadInt32(stream, &headerSize, 4)) return 0;
     if (!RwStreamReadInt32(stream, &dataSize, 4)) return 0;
 
-    entry = RwEngineInstance->fpMalloc(headerSize + dataSize + 0x37,
-                                       0x3050D);
-    *entryRef = entry;
-    native = (GameCubeNativeMeshHeader*)(entry + 1);
+    *entryRef = RwEngineInstance->fpMalloc(headerSize + dataSize + 0x37,
+                                           0x3050D);
+    native = (GameCubeNativeMeshHeader*)(*entryRef + 1);
     if (RwStreamRead(stream, native, headerSize) != (unsigned int)headerSize)
         return 0;
     vertexData = (unsigned char*)(((unsigned int)native + headerSize + 0x1F) & ~0x1FU);
     if (RwStreamRead(stream, vertexData, dataSize) != (unsigned int)dataSize)
         return 0;
 
-    meshes = NativeMeshTable(native);
+    meshes = &native->meshes[native->numMeshes - 1] + 1;
     _rpNativeOffset2Pointer(native, meshes, numMeshes);
-    entry->link.next = 0;
-    entry->link.prev = 0;
-    entry->owner = owner;
-    entry->size = chunkLength;
-    entry->ownerRef = entryRef;
-    entry->destroyNotify = _rxGCResEntryWaitDone;
+    (*entryRef)->link.next = 0;
+    (*entryRef)->link.prev = 0;
+    (*entryRef)->owner = owner;
+    (*entryRef)->size = chunkLength;
+    (*entryRef)->ownerRef = entryRef;
+    (*entryRef)->destroyNotify = _rxGCResEntryWaitDone;
     native->token = _RwDlTokenCurrent;
-    DCFlushRange(native, entry->size);
+    DCFlushRange(*entryRef + 1, (*entryRef)->size);
     GXInvalidateVtxCache();
     return owner;
 }
@@ -125,8 +117,9 @@ static RwStream* _rpNativeWrite(RwStream* stream, RwResEntry* entry,
 {
     int platform = 6;
     GameCubeNativeMeshHeader* native =
-        (GameCubeNativeMeshHeader*)((unsigned char*)entry + sizeof(RwResEntry));
-    GameCubeNativeMesh* meshes = NativeMeshTable(native);
+        (GameCubeNativeMeshHeader*)(entry + 1);
+    GameCubeNativeMesh* meshes =
+        &native->meshes[native->numMeshes - 1] + 1;
     int chunkSize = _rpNativeSize(entry, numMeshes) - 12;
     int headerSize;
     int dataSize;
@@ -170,8 +163,9 @@ RwStream* _rpGeometryNativeWrite(RwStream* stream,
 
 RpGeometry* _rpGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
 {
-    return _rpNativeRead(stream, geometry, &geometry->repEntry,
-                         geometry->meshHeader->numMeshes);
+    RpGeometry* result = _rpNativeRead(stream, geometry, &geometry->repEntry,
+                                       geometry->meshHeader->numMeshes);
+    return result;
 }
 
 int _rpWorldSectorNativeSize(const RpWorldSector* sector)
@@ -194,6 +188,7 @@ RwStream* _rpWorldSectorNativeWrite(RwStream* stream,
 RpWorldSector* _rpWorldSectorNativeRead(RwStream* stream,
                                         RpWorldSector* sector)
 {
-    return _rpNativeRead(stream, sector, &sector->repEntry,
-                         sector->mesh->numMeshes);
+    RpWorldSector* result = _rpNativeRead(stream, sector, &sector->repEntry,
+                                          sector->mesh->numMeshes);
+    return result;
 }

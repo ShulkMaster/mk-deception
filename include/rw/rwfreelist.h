@@ -2,10 +2,10 @@
 #define RW_RWFREELIST_H
 
 #include "rw/rwcore_types.h"
+#include "rw/rwdevice.h"
 #include "rw/rwplcore.h"
 
 typedef struct RwGlobals RwGlobals;
-typedef struct RwMemoryFunctions RwMemoryFunctions;
 
 typedef struct RwFreeList {
     int entrySize;

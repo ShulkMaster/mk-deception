@@ -179,8 +179,8 @@ static int _rxGCWorldSectorAllInOneNode(
             RwLLLink* link = &instanceData.resourceEntry->link;
 
             if (link->next != 0) {
-                RwResourcesGlobalsPrefix* resources =
-                    (RwResourcesGlobalsPrefix*)((unsigned char*)RwEngineInstance +
+                RwResourcesGlobals* resources =
+                    (RwResourcesGlobals*)((unsigned char*)RwEngineInstance +
                                                  resourcesModule.globalsOffset);
 
                 link->prev->next = link->next;

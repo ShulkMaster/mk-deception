@@ -22,8 +22,8 @@ static const unsigned char skinVertexSizes[5] = {3, 3, 6, 6, 12};
 static void ActivateResourceEntry(RwResEntry* entry)
 {
     RwLLLink* link = &entry->link;
-    RwResourcesGlobalsPrefix* resources =
-        (RwResourcesGlobalsPrefix*)((unsigned char*)RwEngineInstance +
+    RwResourcesGlobals* resources =
+        (RwResourcesGlobals*)((unsigned char*)RwEngineInstance +
                                     resourcesModule.globalsOffset);
     RwLLLink* head = resources->activeList;
 
@@ -347,7 +347,7 @@ void* _rpSkinInstanceCallback(void* object, RwResEntry** resourceEntry)
 
     if (geometry->numMorphTargets != 1) {
         owner = atomic;
-        ownerRef = (RwResEntry**)&atomic->repEntry;
+        ownerRef = &atomic->repEntry;
     } else {
         owner = geometry;
         ownerRef = &geometry->repEntry;

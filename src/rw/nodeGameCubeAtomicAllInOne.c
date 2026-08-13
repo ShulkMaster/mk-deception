@@ -282,7 +282,7 @@ void* _rxGCAtomicDefaultInstanceCallback(
 
     if (geometry->numMorphTargets != 1) {
         owner = atomic;
-        ownerRef = (RwResEntry**)&atomic->repEntry;
+        ownerRef = &atomic->repEntry;
     } else {
         owner = geometry;
         ownerRef = &geometry->repEntry;
@@ -322,7 +322,7 @@ static int _rxGCAtomicAllInOneNode(
             return 1;
 
         if (geometry->numMorphTargets != 1)
-            resourceEntry = (RwResEntry*)atomic->repEntry;
+            resourceEntry = atomic->repEntry;
         else
             resourceEntry = geometry->repEntry;
         instanceData.resourceEntry = resourceEntry;
@@ -344,8 +344,8 @@ static int _rxGCAtomicAllInOneNode(
 
             if (instanceData.resourceEntry->link.next != 0) {
                 RwLLLink* link = &instanceData.resourceEntry->link;
-                RwResourcesGlobalsPrefix* resources =
-                    (RwResourcesGlobalsPrefix*)((unsigned char*)RwEngineInstance +
+                RwResourcesGlobals* resources =
+                    (RwResourcesGlobals*)((unsigned char*)RwEngineInstance +
                                                 resourcesModule.globalsOffset);
 
                 link->prev->next = link->next;

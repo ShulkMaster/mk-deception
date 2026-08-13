@@ -3,8 +3,10 @@
 #include "rw/batextur.h"
 #include "rw/rwcolor.h"
 #include "rw/rwdevice.h"
+#include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwframe.h"
+#include "rw/rwfilesystem.h"
 #include "rw/rwgrp.h"
 #include "rw/rwim3d.h"
 #include "rw/rwmatrix.h"
@@ -14,6 +16,7 @@
 #include "rw/rwraster.h"
 #include "rw/rwresources.h"
 #include "rw/rwstream.h"
+#include "rw/rwstring.h"
 #include "rw/rwvector.h"
 
 typedef struct RwSubSystemInfo {
@@ -22,21 +25,7 @@ typedef struct RwSubSystemInfo {
 
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
-extern int _rwPipeAttach(void);
 extern RwDevice* _rwDeviceGetHandle(void);
-extern int _rwDeviceRegisterPlugin(void);
-extern int _rwStringOpen(void);
-extern void _rwStringClose(void);
-extern int _rwFileSystemOpen(void);
-extern void _rwFileSystemClose(void);
-extern int _rwPluginRegistryOpen(void);
-extern void _rwPluginRegistryClose(void);
-extern void RwImageSetGamma(float gamma);
-extern void RwErrorSet(const RwError* error);
-extern int _rwerror(int errorCode, ...);
-
-extern void* _rwErrorOpen(void*, int, int);
-extern void* _rwErrorClose(void*, int, int);
 
 static RwPluginRegistry engineTKList = { sizeof(RwGlobals), sizeof(RwGlobals),
                                          0, 0, 0, 0 };

@@ -179,7 +179,8 @@ static void btree_render(TranslSortNode* node) {
                 last_pipeline_used = curr_pipeline_used;
                 curr_pipeline_used = 0;
             }
-            obj_set_rw_lights(MK_CLUMP_PLUGIN((RpClump*)((RpAtomic*)node->payload)->lights)->owner);
+            obj_set_rw_lights(
+                MK_CLUMP_PLUGIN(((RpAtomic*)node->payload)->clump)->owner);
             render_mkatomic((RpAtomic*)node->payload);
         }
         node = node->left;

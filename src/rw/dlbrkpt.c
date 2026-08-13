@@ -1,10 +1,7 @@
 #include "dolphin/os.h"
+#include "dolphin/gx_fifo.h"
 #include "libmkparticle/rw_engine.h"
 #include "rw/dlbrkpt.h"
-
-typedef struct GXFifoObj GXFifoObj;
-typedef void (*GXBreakPtCallback)(void);
-typedef void (*GXDrawDoneCallback)(void);
 
 typedef struct RwGxBreakPtEntry {
     void* address;
@@ -29,13 +26,6 @@ typedef struct RwGxBreakPtQueue {
     RwGxBreakPtEntry* entries;
 } RwGxBreakPtQueue;
 
-extern void GXEnableBreakPt(void* address);
-extern void GXDisableBreakPt(void);
-extern GXBreakPtCallback GXSetBreakPtCallback(GXBreakPtCallback callback);
-extern GXDrawDoneCallback GXSetDrawDoneCallback(GXDrawDoneCallback callback);
-extern void GXSetDrawDone(void);
-extern GXFifoObj* GXGetCPUFifo(void);
-extern void GXGetFifoPtrs(GXFifoObj* fifo, void** readPtr, void** writePtr);
 extern void* memset(void* destination, int value, unsigned long size);
 
 void MWY_GCN_RW_RestartFromGxBreakPtCurrent(void);

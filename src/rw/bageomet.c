@@ -1,5 +1,6 @@
 #include "libmkparticle/rw_engine.h"
 #include "runtime/cstring.h"
+#include "rw/bamateri.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwerror.h"
 #include "rw/rwplcore.h"
@@ -27,13 +28,6 @@ typedef struct RpPackedTriangle {
 
 RwPluginRegistry geometryTKList = {0x60, 0x60, 0, 0, 0, 0};
 static RwModuleInfo geometryModule;
-
-extern RpMeshHeader* _rpMeshOptimise(RpBuildMesh* buildMesh,
-                                     int useTriStrip);
-extern RwStream* RwStreamReadReal(RwStream* stream, float* reals,
-                                  unsigned int numBytes);
-extern void _rpMaterialSetDefaultSurfaceProperties(
-    const RpSurfaceProperties* surface);
 
 static int GeometryAnnihilate(RpGeometry* geometry)
 {
@@ -138,9 +132,9 @@ int RpGeometryAddMorphTargets(RpGeometry* geometry, int count)
     for (index = geometry->numMorphTargets - count;
          index < geometry->numMorphTargets; index++) {
         RpMorphTarget* morphTarget = &geometry->morphTarget[index];
-        morphTarget->sphere.x = 0.0f;
-        morphTarget->sphere.y = 0.0f;
-        morphTarget->sphere.z = 0.0f;
+        morphTarget->sphere.center.x = 0.0f;
+        morphTarget->sphere.center.y = 0.0f;
+        morphTarget->sphere.center.z = 0.0f;
         morphTarget->sphere.radius = 0.0f;
         morphTarget->parentGeom = geometry;
     }

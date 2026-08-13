@@ -26,24 +26,19 @@ typedef struct RwGameCubeVtxFmt {
 } RwGameCubeVtxFmt;
 
 typedef struct RpGameCubeVtxFmt {
-    union {
-        struct {
-            unsigned char positionType;
-            unsigned char normalType;
-            unsigned char texCoordType[8];
-            unsigned char colorType;
-            unsigned char field_0x0B;
-            unsigned char positionFraction;
-            unsigned char normalMode;
-            unsigned char texCoordFraction[8];
-        };
-        unsigned char fields[0x16];
-    };
+    unsigned char positionType;
+    unsigned char normalType;
+    unsigned char texCoordType[8];
+    unsigned char colorType;
+    unsigned char field_0x0B;
+    unsigned char positionFraction;
+    unsigned char normalMode;
+    unsigned char texCoordFraction[8];
     unsigned short refCount;
 } RpGameCubeVtxFmt;
 
 typedef struct RpGameCubeVtxFmtSetupData {
-    void* resourceEntry;
+    RwResEntry* resourceEntry;
     unsigned int field_0x04;
     int flags;
 } RpGameCubeVtxFmtSetupData;
@@ -152,6 +147,7 @@ void _rxGCInstanceMorphUpdate(RpGeometry* geometry,
                               const RpInterpolator* interpolator);
 RpGeometry* RpSkinGeometrySetSkin(RpGeometry* geometry, RpSkin* skin);
 void _rwDlTextureRasterFlush(void);
+void RwGameCubeCameraTextureFlush(RwRaster* raster, int generateMipmaps);
 void _rwDlVtxFmtSetup(RpGameCubeVtxFmt* format,
                       RpGameCubeVtxFmtSetupData* setupData);
 void _rwDlTransformSetup(const RwMatrix* matrix, int normalize);

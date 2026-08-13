@@ -1148,8 +1148,6 @@ void set_screen_obj_alpha(void* obj, float alpha) {
 
 extern double fmod(double x, double y);
 extern void MKMatrixSetIdentity(void* m);
-extern void* RpClumpForAllAtomics(void* clump, void* cb, void* data);
-
 /*
  * UV scroll (MatFX) -- 3D material UV animation (bgnd / konquest / gcpipemanager).
  * Mode-select 2D cloud polys use ScreenAnim UV keys, not this path.
@@ -1345,7 +1343,7 @@ static void* material_scroll_uvs_callback(void* mat, void* data) {
     return mat;
 }
 
-static void* atomic_scroll_uvs_callback(void* atomic, void* data) {
+static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
     UvScrollControl* ctrl;
     unsigned int flags;
     unsigned int bit0;
