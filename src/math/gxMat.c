@@ -3,26 +3,25 @@
 typedef char Mat33SizeMustBe0x30[(sizeof(Mat33) == 0x30) ? 1 : -1];
 
 /*
- * Soft ceilings (NonMatching -- clean math preferred over FP schedule):
- *   gxMat33Tx31 / gxMatV3MatAddV3* ~77%/79% -- FP coloring + axis reload CSE; stop.
- *   gxMatScaledByV3 ~92.6% -- first lfs scale->x before stmw (sched off fixes
- *     prologue but scrambles later call setup); stop after budget.
- *   gxMat33x33 ~97% -- retail dual path recovered; remaining mismatch is FPR
- *     allocation/scheduling in the alias-safe path.
+ * Non-const pointer params are load-bearing: MWCC 2.4.7 treats loads through
+ * pointer-to-const as immune to stores (CSE + store sinking), which breaks the
+ * retail per-row reload schedule. Mat33 params reached through union members
+ * are conservative either way, so gxMat33x33/_Check keep const.
+ *
+ * Soft ceiling: gxMat33x33 ~97.43% -- FPR allocation plus load scheduling in
+ *   the aliased (out == a || out == b) arm (same op set, partly reordered);
+ *   direct arm and prologue/epilogue are exact. The hoisted-initializer order
+ *   in that arm is retail-derived (a02 fifth); reordering it shifts the load
+ *   schedule. Stop.
  */
 
-void gxMat33Tx31(Vec* out, const Vec* v, const Mat33* m) {
-    float x = v->x;
-    float y = v->y;
-    float z = v->z;
-
-    out->x = z * m->col2[0] + x * m->col0[0] + y * m->col1[0];
-    out->y = z * m->col2[1] + x * m->col0[1] + y * m->col1[1];
-    out->z = z * m->col2[2] + x * m->col0[2] + y * m->col1[2];
+void gxMat33Tx31(Vec* out, Vec* v, Mat33* m) {
+    out->x = v->x * m->col0[0] + v->y * m->col1[0] + v->z * m->col2[0];
+    out->y = v->x * m->col0[1] + v->y * m->col1[1] + v->z * m->col2[1];
+    out->z = v->x * m->col0[2] + v->y * m->col1[2] + v->z * m->col2[2];
 }
 
-void gxMatScaledByV3(Mat33* out, const Mat33* in, const Vec* scale) {
-    /* Soft ceiling ~92.6%: retail lfs scale->x after mrs; MWCC before stmw. */
+void gxMatScaledByV3(Mat33* out, Mat33* in, Vec* scale) {
     PSVECScale(&in->col0_vec, &out->col0_vec, scale->x);
     PSVECScale(&in->col1_vec, &out->col1_vec, scale->y);
     PSVECScale(&in->col2_vec, &out->col2_vec, scale->z);
@@ -35,24 +34,16 @@ void gxMat33x33_Check(Mat33* out, const Mat33* a, const Mat33* b) {
     gxMat33x33(out, a, b);
 }
 
-void gxMatV3MatAddV3_Check(Vec* out, const Vec* v, const Mat33* m, const Vec* add) {
-    float x = v->x;
-    float y = v->y;
-    float z = v->z;
-
-    out->x = add->x + (y * m->col1[0] + x * m->col0[0] + z * m->col2[0]);
-    out->y = add->y + (y * m->col1[1] + x * m->col0[1] + z * m->col2[1]);
-    out->z = add->z + (y * m->col1[2] + x * m->col0[2] + z * m->col2[2]);
+void gxMatV3MatAddV3_Check(Vec* out, Vec* v, Mat33* m, Vec* add) {
+    out->x = add->x + (v->x * m->col0[0] + v->y * m->col1[0] + v->z * m->col2[0]);
+    out->y = add->y + (v->x * m->col0[1] + v->y * m->col1[1] + v->z * m->col2[1]);
+    out->z = add->z + (v->x * m->col0[2] + v->y * m->col1[2] + v->z * m->col2[2]);
 }
 
-void gxMatV3MatAddV3(Vec* out, const Vec* v, const Mat33* m, const Vec* add) {
-    float x = v->x;
-    float y = v->y;
-    float z = v->z;
-
-    out->x = add->x + (y * m->col1[0] + x * m->col0[0] + z * m->col2[0]);
-    out->y = add->y + (y * m->col1[1] + x * m->col0[1] + z * m->col2[1]);
-    out->z = add->z + (y * m->col1[2] + x * m->col0[2] + z * m->col2[2]);
+void gxMatV3MatAddV3(Vec* out, Vec* v, Mat33* m, Vec* add) {
+    out->x = add->x + (v->x * m->col0[0] + v->y * m->col1[0] + v->z * m->col2[0]);
+    out->y = add->y + (v->x * m->col0[1] + v->y * m->col1[1] + v->z * m->col2[1]);
+    out->z = add->z + (v->x * m->col0[2] + v->y * m->col1[2] + v->z * m->col2[2]);
 }
 
 void gxMat33x33(Mat33* out, const Mat33* a, const Mat33* b) {
@@ -65,13 +56,13 @@ void gxMat33x33(Mat33* out, const Mat33* a, const Mat33* b) {
         float b10 = b->col1[0];
         float b11 = b->col1[1];
         float a00 = a->col0[0];
+        float a02 = a->col0[2];
         float b00 = b->col0[0];
         float b12 = b->col1[2];
         float a11 = a->col1[1];
         float b01 = b->col0[1];
         float b02 = b->col0[2];
         float a21 = a->col2[1];
-        float a02 = a->col0[2];
         float b20 = b->col2[0];
         float b21 = b->col2[1];
         float a10 = a->col1[0];

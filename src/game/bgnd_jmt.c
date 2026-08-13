@@ -1562,7 +1562,7 @@ static inline void rope_update_bone_matrix(
         (const Mat33*)model_matrix);
     gxMatV3MatAddV3(
         &bone->matrix.pos_vec, &parent_matrix->pos_vec,
-        (const Mat33*)model_matrix, &model_matrix->pos_vec);
+        (Mat33*)model_matrix, (Vec*)&model_matrix->pos_vec);
 }
 
 static inline void rope_set_identity(RwMatrix* matrix) {
@@ -1758,7 +1758,7 @@ static void rope_controller_update(MkHdr* pdata) {
                 gxMatV3MatAddV3(
                     &attached_matrix.pos_vec,
                     &attached_bone->parent_matrix->pos_vec,
-                    (const Mat33*)attached_model_matrix,
+                    (Mat33*)attached_model_matrix,
                     &attached_model_matrix->pos_vec);
             }
             attached_position.x = attached_matrix.pos.x;
@@ -1766,7 +1766,7 @@ static void rope_controller_update(MkHdr* pdata) {
             attached_position.z = attached_matrix.pos.z;
             gxMat33Tx31(
                 &local_position, &attached_position,
-                (const Mat33*)&inverse_model_matrix);
+                (Mat33*)&inverse_model_matrix);
             local_position.x += model->pos.x;
             local_position.y += model->pos.y;
             local_position.z += model->pos.z;
