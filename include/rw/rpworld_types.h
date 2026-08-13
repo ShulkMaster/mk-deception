@@ -389,6 +389,10 @@ RpWorld* RpWorldSectorGetWorld(const RpWorldSector* sector);
 int RpWorldDestroy(RpWorld* world);
 void RpWorldSetSectorRenderCallBack(RpWorld*, RpWorldSectorCallBackRender);
 RpWorld* RpWorldCreate(RwBBox* boundingBox);
+RpWorld* RpWorldAddAtomic(RpWorld* world, RpAtomic* atomic);
+RpWorld* RpWorldRemoveAtomic(RpWorld* world, RpAtomic* atomic);
+RpWorld* RpWorldAddClump(RpWorld* world, RpClump* clump);
+RpWorld* RpWorldRemoveClump(RpWorld* world, RpClump* clump);
 RpWorld* RpWorldForAllWorldSectors(RpWorld*, RpWorldSectorCallBack, void*);
 RpWorld* RpWorldForAllLights(RpWorld*, RpLightCallBack, void*);
 int RpWorldRegisterPlugin(int, unsigned int, RwPluginObjectConstructor,

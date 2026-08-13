@@ -19,6 +19,8 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 #include "rw/rwcore_types.h"
+#include "rw/rwcamera_internal.h"
+#include "rw/rwdevice.h"
 #include "rw/rphanim.h"
 #include "rw/rplight.h"
 
@@ -31,8 +33,6 @@ extern int RwFrameDestroy(RwFrame* frame);
 extern int RwTextureDestroy(RwTexture* texture);
 extern int RwRasterDestroy(RwRaster* raster);
 extern RwFrame* RwFrameCreate(void);
-extern RwCamera* RwCameraCreate(void);
-extern int RwCameraDestroy(RwCamera* camera);
 extern RwFrame* RwFrameTransform(RwFrame* frame, const void* matrix, int combine);
 extern RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, float distance);
 extern void RwGameCubeCameraTextureFlush(RwRaster* raster, int generate_mipmaps);
@@ -51,12 +51,7 @@ extern void render_mkobj(MkObj* object);
 extern void render_transl_atomics(void);
 extern void update_fog_render_states(void);
 extern void init_debug_message_handler(void);
-extern int RwEngineInit(RwMemoryFunctions* functions, int arena_size);
-extern int RwEngineOpen(void* parameters);
-extern void RwEngineTerm(void);
 extern int select_display_device(void);
-extern int RwEngineStart(void);
-extern void RwEngineClose(void);
 extern void init_mk_render(void);
 extern int fog_on;
 extern int RpWorldPluginAttach(void);
@@ -88,8 +83,6 @@ extern void plyr_turn_off_mirrorguy(PlyrInfo* player);
 extern void del_string_obj_by_id(int id);
 extern void RwCameraClear(RwCamera* camera, const unsigned char* color,
                           int clear_mode);
-extern void RwCameraShowRaster(RwCamera* camera, void* device, int flags);
-
 static const char display_text[] =                                             \
     "/hostwrite/%03d.tga\0"                                                   \
     "Tick = %02d\0"                                                           \
@@ -730,16 +723,15 @@ void update_camera_facing_matrix(void) {
 }
 
 int init_display(void) {
-    int parameters;
-    setup_memory_functions();
-    if (!RwEngineInit(0, 0x48000)) {
+    RwEngineOpenParams parameters;
+    if (!RwEngineInit(setup_memory_functions(), 0, 0x48000)) {
         return 0;
     }
     init_debug_message_handler();
     if (!AttachPlugins()) {
         return 0;
     }
-    parameters = 0;
+    parameters.displayID = 0;
     if (!RwEngineOpen(&parameters)) {
         RwEngineTerm();
         return 0;

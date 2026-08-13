@@ -17,8 +17,8 @@ typedef RpMTEffect* (*RpMTEffectStreamReadCallBack)(RwStream* stream,
                                                     int type,
                                                     unsigned int version,
                                                     int length);
-typedef RwStream* (*RpMTEffectStreamWriteCallBack)(const RpMTEffect* effect,
-                                                   RwStream* stream);
+typedef const RpMTEffect* (*RpMTEffectStreamWriteCallBack)(
+    const RpMTEffect* effect, RwStream* stream);
 typedef int (*RpMTEffectStreamGetSizeCallBack)(const RpMTEffect* effect);
 typedef void (*RpMTEffectDestroyCallBack)(RpMTEffect* effect);
 

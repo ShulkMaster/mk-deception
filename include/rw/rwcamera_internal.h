@@ -43,8 +43,18 @@ struct RwCamera {
     RwV3d frustumCorners[8];
 };
 
+RwCamera* RwCameraCreate(void);
+int RwCameraDestroy(RwCamera* camera);
+int RwCameraRegisterPlugin(int size, unsigned int pluginID,
+                           RwPluginObjectConstructor constructCB,
+                           RwPluginObjectDestructor destructCB,
+                           RwPluginObjectCopy copyCB);
+int RwCameraFrustumTestSphere(const RwCamera* camera,
+                              const RwSphere* sphere);
 RwCamera* RwCameraSetViewWindow(RwCamera* camera,
                                 const RwV2d* viewWindow);
+RwCamera* RwCameraShowRaster(RwCamera* camera, void* device,
+                             unsigned int flags);
 struct RpWorld* RwCameraGetWorld(const RwCamera* camera);
 struct RpWorld* RpWorldAddCamera(struct RpWorld* world, RwCamera* camera);
 struct RpWorld* RpWorldRemoveCamera(struct RpWorld* world, RwCamera* camera);
