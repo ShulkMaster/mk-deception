@@ -1023,9 +1023,7 @@ void init_plyr_severed_limb_list(PlyrInfo* player) {
         MkObj* object = severed->object;
 
         if (object != 0) {
-            if (object->hdr.instance == severed->instance) {
-                /* Keep the live object. */
-            } else {
+            if (object->hdr.instance != severed->instance) {
                 object = 0;
             }
         } else {
@@ -1108,9 +1106,11 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     YinyangFishPair* current;
     int index;
 
-    camera_direction.x = Camera->frame->modelling.at.x;
+    camera_direction.x =
+        ((RwFrame*)Camera->object.object.parent)->modelling.at.x;
     camera_direction.y = 0.0f;
-    camera_direction.z = Camera->frame->modelling.at.z;
+    camera_direction.z =
+        ((RwFrame*)Camera->object.object.parent)->modelling.at.z;
     ray_cyl_intersection(
         (Vec*)&camera_obj->pos_x, &camera_direction,
         &cylinder_position, &cylinder_axis,
@@ -1514,7 +1514,8 @@ static float p_cam_bounce_monitor(void) {
     object->pos_vel = saved_velocity;
     object->ang_vel = saved_angular_velocity;
 
-    camera_normal = (Vec*)&Camera->frame->modelling.pos;
+    camera_normal =
+        (Vec*)&((RwFrame*)Camera->object.object.parent)->modelling.pos;
     normalize_v3(camera_normal);
     reflection = 2.0f *
         (object->pos_vel.x * camera_normal->x +

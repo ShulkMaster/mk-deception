@@ -1,9 +1,10 @@
 #ifndef RW_RWCAMERA_INTERNAL_H
 #define RW_RWCAMERA_INTERNAL_H
 
-#include "rw/rwim3d.h"
+#include "rw/rwcore_types.h"
 
 typedef struct RwCamera RwCamera;
+struct RpWorld;
 
 typedef struct RwPlane {
     RwV3d normal;
@@ -41,5 +42,13 @@ struct RwCamera {
     RwBBox frustumBoundBox;
     RwV3d frustumCorners[8];
 };
+
+RwCamera* RwCameraSetViewWindow(RwCamera* camera,
+                                const RwV2d* viewWindow);
+struct RpWorld* RwCameraGetWorld(const RwCamera* camera);
+struct RpWorld* RpWorldAddCamera(struct RpWorld* world, RwCamera* camera);
+struct RpWorld* RpWorldRemoveCamera(struct RpWorld* world, RwCamera* camera);
+void* _rwCameraOpen(void* instance, int offset, int size);
+void* _rwCameraClose(void* instance, int offset, int size);
 
 #endif

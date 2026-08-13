@@ -250,6 +250,11 @@ static inline RxPipelinePlatformGlobals* RxPipelineGlobals(void)
 void _rxPacketDestroy(RxPacket* packet);
 int _rxPipelineOpen(void);
 int _rxPipelineClose(void);
+RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline);
+RxPipeline* RpAtomicSetDefaultPipeline(RxPipeline* pipeline);
+int _rpWorldPipelineOpen(void);
+void _rpWorldPipelineClose(void);
+int _rpWorldPipeAttach(void);
 RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
                               int heapReset);
 RxHeap* RxHeapGetGlobalHeap(void);
@@ -282,5 +287,8 @@ void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
                              unsigned int entrySize, unsigned int keyOffset,
                              unsigned int keyLowerBound,
                              unsigned int keyUpperBound);
+void* _rwRenderPipelineOpen(void* instance, int offset, int size);
+void* _rwRenderPipelineClose(void* instance, int offset, int size);
+int _rxWorldDevicePluginAttach(void);
 
 #endif

@@ -27,7 +27,26 @@ typedef struct RpMesh RpMesh;
 typedef struct RpTriangle RpTriangle;
 typedef struct RpSector RpSector;
 typedef struct RpLight RpLight;
+typedef struct RpTie RpTie;
+typedef struct RpLightTie RpLightTie;
 typedef RpLight* (*RpLightCallBack)(RpLight*, void*);
+
+struct RpTie {
+    RwLLLink lAtomicInWorldSector;
+    RpAtomic* atomic;
+    RwLLLink lWorldSectorInAtomic;
+    RpWorldSector* worldSector;
+};
+
+struct RpLightTie {
+    RwLLLink lightInWorldSector;
+    RpLight* light;
+    RwLLLink worldSectorInLight;
+    RpWorldSector* worldSector;
+};
+
+int _rpTieDestroy(RpTie* tie);
+int _rpLightTieDestroy(RpLightTie* tie);
 
 typedef struct RwTexCoords {
     float u;
@@ -130,9 +149,21 @@ int RpMaterialDestroy(RpMaterial* material);
 RpMaterial* RpMaterialCreate(void);
 RpMaterial* RpMaterialSetTexture(RpMaterial* material, RwTexture* texture);
 RpMaterial* RpMaterialStreamRead(RwStream* stream);
+void* _rpMaterialOpen(void* instance, int offset, int size);
+void* _rpMaterialClose(void* instance, int offset, int size);
 RpMeshHeader* _rpMeshHeaderCreate(unsigned int size);
 void* _rpMeshClose(void* instance, int offset, int size);
 void* _rpMeshOpen(void* instance, int offset, int size);
+void* _rpGeometryOpen(void* instance, int offset, int size);
+void* _rpGeometryClose(void* instance, int offset, int size);
+void* _rpClumpOpen(void* instance, int offset, int size);
+void* _rpClumpClose(void* instance, int offset, int size);
+void* _rpSectorOpen(void* instance, int offset, int size);
+void* _rpSectorClose(void* instance, int offset, int size);
+void* _rpBinaryWorldOpen(void* instance, int offset, int size);
+void* _rpBinaryWorldClose(void* instance, int offset, int size);
+int _rpWorldObjRegisterExtensions(void);
+int _rpClumpRegisterExtensions(void);
 RpBuildMesh* _rpBuildMeshCreate(unsigned int bufferSize);
 int _rpBuildMeshDestroy(RpBuildMesh* mesh);
 int _rpMeshDestroy(RpMeshHeader* meshHeader);

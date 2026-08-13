@@ -17,6 +17,7 @@
 #include "platform/display.h"
 #include "platform/fog.h"
 #include "rw/rtquat.h"
+#include "rw/rwframe.h"
 #include "platform/gcutils.h"
 #include "platform/main.h"
 
@@ -622,7 +623,6 @@ void* create_pebble_userdata(MkSobj* object, int pebble_id, int arg);
 void material_set_zbias(RpMaterial* material, float bias);
 void* memcpy(void* destination, const void* source, unsigned long size);
 void* memset(void* destination, int value, unsigned long size);
-RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 
 typedef int FatalityEffectHandle;
 extern FatalityEffectHandle fx_by_owner(

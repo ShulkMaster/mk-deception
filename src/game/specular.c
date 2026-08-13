@@ -1,4 +1,6 @@
 #include "rw/rtquat.h"
+#include "rw/rwcamera_internal.h"
+#include "rw/rwframe.h"
 
 typedef union FloatBits {
     float value;
@@ -72,24 +74,10 @@ typedef struct RpAtomic {
     void* pipeline;
 } RpAtomic;
 
-typedef struct RwLLLink {
-    struct RwLLLink* next;
-    struct RwLLLink* prev;
-} RwLLLink;
-
-typedef struct RwLinkList {
-    RwLLLink link;
-} RwLinkList;
-
 typedef struct RpClump {
     char pad[0x8];
     RwLinkList atomic_list;
 } RpClump;
-
-typedef struct CameraType {
-    char pad[0x4];
-    void* frame;
-} CameraType;
 
 typedef struct MkMaterialExt {
     unsigned int flags;
@@ -148,7 +136,6 @@ void* get_specular_light(void);
 void* create_default_specular_light(void);
 void* get_bgnd_specular_light(void);
 void* create_default_bgnd_specular_light(void);
-void* RwFrameGetLTM(void* frame);
 RpSkin* RpSkinGeometryGetSkin(RpGeometry* geometry);
 void* _rpMaterialListGetMaterial(RpMaterialList* material_list, int index);
 void SpecularCreatePipelines(void);
@@ -159,7 +146,7 @@ extern RxPipeline* SpecSkinMaterialPipeline;
 extern int SpecularGeometryOffset;
 extern int MkmaterialLocalOffset;
 extern int MksobjLocalOffset;
-extern CameraType* Camera;
+extern RwCamera* Camera;
 extern RwEngineInstanceType* RwEngineInstance;
 extern void* PhongTextures[3];
 extern float PhongCoefficients[3];
@@ -523,7 +510,7 @@ void* specskin_material_setup(void* material, unsigned int is_player) {
         mat->surface = surface;
     }
     selected_texture = PhongTextures[phong_index];
-    camera_frame = Camera->frame;
+    camera_frame = Camera->object.object.parent;
     spec = specular_material_ext(mat);
     if (mat->surface.specular > kOne) {
         mat->surface.specular = kOne;

@@ -40,5 +40,7 @@ int RwTextureSetMipmapNameCallBack(RwTextureMipmapNameCallBack callback);
 int RwTextureGenerateMipmapName(char* name, char* maskName, unsigned char level,
                                    int format);
 int RwTextureRasterGenerateMipmaps(RwRaster* raster, RwImage* image);
+void* _rwTextureOpen(void* instance, int offset, int size);
+void* _rwTextureClose(void* instance, int offset, int size);
 
 #endif

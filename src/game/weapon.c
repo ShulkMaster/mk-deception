@@ -6,6 +6,7 @@
 #include "runtime/asset.h"
 #include "game/specular.h"
 #include "math/mk_math.h"
+#include "rw/rwframe.h"
 
 typedef struct WeaponTrailMap {
     int trail_bone_index;
@@ -166,7 +167,6 @@ RpMaterial* sobj_find_material_by_id(MkSobj* sobj, int material_id);
 void sobj_use_material_color(MkSobj* sobj);
 void obj_set_material_fade(MkObj* object, unsigned int material_id, int alpha);
 void material_set_zbias(RpMaterial* material, float bias);
-void RwFrameUpdateObjects(RwFrame* frame);
 void* memcpy(void* destination, const void* source, unsigned int size);
 MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,
                       unsigned int material_id, int frames);
