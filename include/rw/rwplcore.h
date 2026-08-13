@@ -100,5 +100,6 @@ const RwPluginRegistry* _rwPluginRegistrySkipDataChunks(
 int RwEngineRegisterPlugin(int, unsigned int,
                                RwPluginObjectConstructor,
                                RwPluginObjectDestructor);
+int RwEngineGetPluginOffset(unsigned int pluginID);
 int _rwpathisabsolute(const char*);
 #endif

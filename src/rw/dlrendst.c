@@ -24,7 +24,7 @@ static int _rwDlRenderStateFogDensity(float density);
 static int _rwDlRenderStateTextureAddress(int address);
 static int _rwDlRenderStateTextureAddressU(int address);
 static int _rwDlRenderStateTextureAddressV(int address);
-static int _rwDlRenderStateTextureFilter(unsigned int filter);
+static int _rwDlRenderStateTextureFilter(unsigned char filter);
 static int _rwDlRenderStateTextureRaster(RwRaster* raster);
 static int _rwDlRenderStateZWriteEnable(unsigned int enable);
 static int _rwDlRenderStateZTestEnable(unsigned int enable);
@@ -281,11 +281,11 @@ static int _rwDlRenderStateTextureAddressV(int address)
     return 1;
 }
 
-static int _rwDlRenderStateTextureFilter(unsigned int filter)
+static int _rwDlRenderStateTextureFilter(unsigned char filter)
 {
 
     _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFFFF00) | (unsigned char)filter;
+        (_RwDlTexture->filter_flags & 0xFFFFFF00) | filter;
     return 1;
 }
 
@@ -477,7 +477,7 @@ int _rwDlSetRenderState(int state, void* value)
         result = _rwDlRenderStateZWriteEnable((unsigned int)value);
         break;
     case 9:
-        result = _rwDlRenderStateTextureFilter((unsigned int)value);
+        result = _rwDlRenderStateTextureFilter((unsigned char)value);
         break;
     case 10:
         result = _rwDlRenderStateSrcBlend((int)value);

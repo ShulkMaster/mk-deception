@@ -10,14 +10,6 @@ static RwFreeList _rpSkinFreeList;
 static int _rpSkinFreeListBlockSize = 0x14;
 static int _rpSkinFreeListPreallocBlocks = 1;
 
-extern int RwEngineGetPluginOffset(unsigned int pluginID);
-extern int RpAtomicRegisterPlugin(
-    int size, unsigned int pluginID, RwPluginObjectConstructor constructCB,
-    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
-extern int RpAtomicRegisterPluginStream(
-    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
-    RwPluginDataChunkWriteCallBack writeCB,
-    RwPluginDataChunkGetSizeCallBack getSizeCB);
 extern int RpAtomicSetStreamAlwaysCallBack(
     unsigned int pluginID, RwPluginDataChunkAlwaysCallBack callback);
 extern int RpAtomicSetStreamRightsCallBack(

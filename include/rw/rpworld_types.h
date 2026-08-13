@@ -119,6 +119,23 @@ typedef RpAtomic* (*RpAtomicCallBackRender)(RpAtomic* atomic);
 typedef RpAtomic* (*RpAtomicCallBack)(RpAtomic* atomic, void* data);
 typedef RpClump* (*RpClumpCallBack)(RpClump* clump, void* data);
 
+int RpAtomicRegisterPlugin(
+    int size, unsigned int pluginID,
+    RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
+int RpAtomicRegisterPluginStream(
+    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
+    RwPluginDataChunkWriteCallBack writeCB,
+    RwPluginDataChunkGetSizeCallBack getSizeCB);
+int RpClumpRegisterPlugin(
+    int size, unsigned int pluginID,
+    RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
+int RpClumpRegisterPluginStream(
+    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
+    RwPluginDataChunkWriteCallBack writeCB,
+    RwPluginDataChunkGetSizeCallBack getSizeCB);
+
 typedef struct RpInterpolator {
     int flags;
     short startMorphTarget;

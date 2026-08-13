@@ -29,12 +29,11 @@ int _rpSkinPipelinesDestroy(void)
 }
 
 
-RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType skinType)
+RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType)
 {
     RpSkin* skin;
     RxPipeline* pipeline;
 
-    (void)skinType;
     pipeline = _rpSkinGlobals.pipelines[rpSKINTYPEGENERIC];
     atomic->pipeline = pipeline;
     skin = RpSkinGeometryGetSkin(atomic->geometry);

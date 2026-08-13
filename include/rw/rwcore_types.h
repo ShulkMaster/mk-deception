@@ -126,6 +126,8 @@ RwRaster* RwRasterCreate(int width, int height, int depth, int flags);
 RwRaster* RwRasterUnlock(RwRaster* raster);
 int RwRasterGetNumLevels(RwRaster* raster);
 void* RwRasterLock(RwRaster* raster, unsigned char level, int flags);
+RwRaster* RwRasterShowRaster(RwRaster* raster, void* device,
+                             unsigned int flags);
 
 RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);

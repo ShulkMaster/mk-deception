@@ -49,7 +49,7 @@ unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
 RwStream* _rpSkinGeometryNativeWrite(RwStream* stream,
                                      const RpGeometry* geometry)
 {
-
+    int platform = 6;
 
     return stream;
 }

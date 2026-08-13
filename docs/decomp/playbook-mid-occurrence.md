@@ -15,6 +15,7 @@ source-shape change per rebuild.
 | 7 | If compare immediates differ by one, `x > N-1`/`x <= N-1` → `x >= N`/`x < N` | Boundary semantics are exactly equivalent | Compare immediate and branch selection | M/H/M |
 | 8 | If retail implements signed invalid-range without branches, `(x < 0) \|\| (x >= N)` → `(x < 0) \| (x >= N)` | Both operands are pure boolean comparisons and both may be evaluated | `srawi/srwi/subfc/adde/or.` lowering | M/H/H |
 | 9 | If a masked flag emits the wrong rotate/branch, shift/mask expression → typed bitfield access or `(flags & MASK) != 0`; use `(int)(flags & MASK) > 0` only for proven signed `ble` shape | Exact mask, signedness, and access width are known | `extrwi/rlwinm.` choice and branch polarity | M/M/M |
+| 10 | If `(byte & sourceMask) << shift` emits separate mask and shift instructions but retail uses one `rlwinm`, rewrite it as `(byte << shift) & destinationMask` | The masks are algebraically equivalent and the byte load is proven unsigned | Packed-field mask/shift fusion | L/H/M |
 | 10 | If retail retains a byte/halfword result without caller masking, narrow accessor return → full-width `unsigned int` while the stored member remains narrow | Multiple callers prove return ABI | Caller-side `clrlwi` and ABI mismatch | M/H/H |
 | 11 | If retail creates a by-value aggregate argument copy, `f(&value)` → declare `f(T value)` and call `f(value)` | Stack-copy pattern and callee ABI are proven | PPC EABI argument temporary and later stack offsets | M/H/H |
 | 12 | If a 64-bit argument follows an r3 pointer and retail skips r4, `f(p, u32)` → `f(p, u64)` | Callee/callers prove width and signedness | EABI aligned r5:r6 argument pair | M/H/H |
@@ -30,6 +31,7 @@ source-shape change per rebuild.
 | 22 | If retail destructor open-codes base teardown but ours calls it, out-of-line empty base dtor → inline class definition while preserving retail standalone ownership | Class hierarchy and vtables are verified | Destructor inlining and vtable rematerialization | M/M/H |
 | 23 | If repeated functions show source-ordered independent ops, default schedule → test object-scoped `-schedule off` once | Whole TU shares the smell; all exact functions are rechecked | Instruction scheduling across independent loads/stores | M/M/H |
 | 24 | If a helper's local lifetime begins after an inline region, eager initializer → declare early but assign after that region | Retail first-use point is clear | Saved-register count and inline-body coloring | M/H/M |
+| 25 | If retail derives a boolean from a registration result before publishing that result to a global, separate local assignment and comparison → compare the value of the global assignment expression directly | The call result is both the published value and the compared value; no intervening side effects are present | Result-test/store scheduling around plugin registration | L/H/M |
 
 ## Mid-tier stop rule
 

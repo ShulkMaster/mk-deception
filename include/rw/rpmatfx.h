@@ -98,6 +98,8 @@ RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
                                           int platform);
 
 int RpMatFXPluginAttach(void);
+RpAtomic* _rpMatFXPipelineAtomicSetup(RpAtomic* atomic);
+RpWorldSector* _rpMatFXPipelineWorldSectorSetup(RpWorldSector* worldSector);
 RpAtomic* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
 int RpMatFXAtomicQueryEffects(const RpAtomic* atomic);
 RpWorldSector* RpMatFXWorldSectorEnableEffects(RpWorldSector* worldSector);

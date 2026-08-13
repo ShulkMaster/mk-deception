@@ -21,16 +21,8 @@ extern RwImage* RwImageAllocatePixels(RwImage*);
 extern int RwImageDestroy(RwImage*);
 extern RwImage* RwImageMakeMask(RwImage*);
 extern RwImage* RwImageApplyMask(RwImage*, const RwImage*);
-extern int RpAtomicRegisterPlugin(
-    int, unsigned int, RwPluginObjectConstructor, RwPluginObjectDestructor,
-    RwPluginObjectCopy);
-extern int RpAtomicRegisterPluginStream(
-    unsigned int, RwPluginDataChunkReadCallBack, RwPluginDataChunkWriteCallBack,
-    RwPluginDataChunkGetSizeCallBack);
 extern int _rpMatFXPipelinesCreate(void);
 extern int _rpMatFXPipelinesDestroy(void);
-extern RpAtomic* _rpMatFXPipelineAtomicSetup(RpAtomic*);
-extern RpWorldSector* _rpMatFXPipelineWorldSectorSetup(RpWorldSector*);
 extern RwTexture* _rpMatFXSetupBumpMapTexture(RwTexture*, RwTexture*);
 extern int _rpMatFXSetupDualRenderState(RpMatFXDualData*, int);
 extern int _rpMultiTexturePlatformPluginsAttach(void);
