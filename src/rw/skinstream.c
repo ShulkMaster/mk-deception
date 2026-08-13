@@ -160,7 +160,7 @@ unsigned int _rpSkinAtomicNativeSize(const RpAtomic* atomic)
 
     if (skinData->positions != 0) {
         RwGameCubeVertexBuffer* vertexBuffer =
-            (RwGameCubeVertexBuffer*)((RwResEntry*)atomic->repEntry + 1);
+            (RwGameCubeVertexBuffer*)(atomic->repEntry + 1);
 
         (*(RwGameCubeVertexDataHeader**)(
              (unsigned char*)vertexBuffer->arrays[0].data - sizeof(void*)))
@@ -168,7 +168,7 @@ unsigned int _rpSkinAtomicNativeSize(const RpAtomic* atomic)
         vertexBuffer->arrays[0].data = skinData->positions;
         if ((atomic->geometry->flags & 0x10) != 0)
             vertexBuffer->arrays[1].data = skinData->normals;
-        ((RwResEntry*)atomic->repEntry)->destroyNotify =
+        atomic->repEntry->destroyNotify =
             _rxGCResEntryWaitDone;
         skinData->positions = 0;
         skinData->normals = 0;

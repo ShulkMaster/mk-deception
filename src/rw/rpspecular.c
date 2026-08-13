@@ -4,6 +4,7 @@
 #include "rw/gcspecular.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwplcore.h"
+#include "rw/rwimage.h"
 #include "rw/rwstream.h"
 
 typedef struct SpecularGeometryPluginData {
@@ -12,8 +13,6 @@ typedef struct SpecularGeometryPluginData {
 } SpecularGeometryPluginData;
 
 extern void* ImagePixels;
-extern RwImage* RwImageCreate(int width, int height, int depth);
-extern int RwImageDestroy(RwImage* image);
 extern float powf(float value, float power);
 RwTexture* PhongTextures[3] = { 0, 0, 0 };
 float PhongCoefficients[3] = { 10.0f, 25.0f, 40.0f };

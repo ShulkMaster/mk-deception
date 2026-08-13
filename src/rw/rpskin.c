@@ -10,15 +10,6 @@ static RwFreeList _rpSkinFreeList;
 static int _rpSkinFreeListBlockSize = 0x14;
 static int _rpSkinFreeListPreallocBlocks = 1;
 
-extern int RpAtomicSetStreamAlwaysCallBack(
-    unsigned int pluginID, RwPluginDataChunkAlwaysCallBack callback);
-extern int RpAtomicSetStreamRightsCallBack(
-    unsigned int pluginID, RwPluginDataChunkRightsCallBack callback);
-extern int RpAtomicGetPluginOffset(unsigned int pluginID);
-extern RwStream* RwStreamWriteReal(RwStream* stream, const float* values,
-                                   unsigned int numBytes);
-extern RwStream* RwStreamReadReal(RwStream* stream, float* values,
-                                  unsigned int numBytes);
 extern RpGeometry* _rpSkinInitialize(RpGeometry* geometry);
 extern RpGeometry* _rpSkinDeinitialize(RpGeometry* geometry);
 static int MatfxPluginIsAttached(void)

@@ -349,49 +349,49 @@ static void PipelineTallyInputs(RxPipeline* pipeline)
 
 typedef struct PipelineTopSortState {
     RxPipeline* pipeline;
-    unsigned int nodesArraySlot;
+    unsigned int sortedCount;
 } PipelineTopSortState;
 
 static void PipelineTopSort(PipelineTopSortState* data, unsigned int nodeIndex)
 {
 
 
-    RxPipelineNode* currentNode;
-    unsigned int i = data->nodesArraySlot;
+    RxPipelineNode* placedNode;
+    unsigned int i = data->sortedCount;
     unsigned int j = nodeIndex;
 
     if (i != j) {
-        unsigned int temporaryOutput;
-        unsigned int* outputsI;
-        unsigned int* outputsJ;
-        RxPipelineNodeTopSortData temporaryTopSortData;
-        RxPipelineNodeTopSortData* topSortDataI;
-        RxPipelineNodeTopSortData* topSortDataJ;
-        RxPipelineNode temporaryNode;
+        unsigned int swappedOutput;
+        unsigned int* sortedOutputs;
+        unsigned int* selectedOutputs;
+        RxPipelineNodeTopSortData swappedSortState;
+        RxPipelineNodeTopSortData* sortedState;
+        RxPipelineNodeTopSortData* selectedState;
+        RxPipelineNode swappedNode;
         unsigned int k;
         unsigned int l;
 
-        outputsI = data->pipeline->nodes[i].outputs;
-        outputsJ = data->pipeline->nodes[j].outputs;
+        sortedOutputs = data->pipeline->nodes[i].outputs;
+        selectedOutputs = data->pipeline->nodes[j].outputs;
         for (k = 0; k < 0x20; k++) {
-            temporaryOutput = outputsI[k];
-            outputsI[k] = outputsJ[k];
-            outputsJ[k] = temporaryOutput;
+            swappedOutput = sortedOutputs[k];
+            sortedOutputs[k] = selectedOutputs[k];
+            selectedOutputs[k] = swappedOutput;
         }
-        data->pipeline->nodes[i].outputs = outputsJ;
-        data->pipeline->nodes[j].outputs = outputsI;
+        data->pipeline->nodes[i].outputs = selectedOutputs;
+        data->pipeline->nodes[j].outputs = sortedOutputs;
 
-        topSortDataI = data->pipeline->nodes[i].topSortData;
-        topSortDataJ = data->pipeline->nodes[j].topSortData;
-        temporaryTopSortData = *topSortDataI;
-        *topSortDataI = *topSortDataJ;
-        *topSortDataJ = temporaryTopSortData;
-        data->pipeline->nodes[i].topSortData = topSortDataJ;
-        data->pipeline->nodes[j].topSortData = topSortDataI;
+        sortedState = data->pipeline->nodes[i].topSortData;
+        selectedState = data->pipeline->nodes[j].topSortData;
+        swappedSortState = *sortedState;
+        *sortedState = *selectedState;
+        *selectedState = swappedSortState;
+        data->pipeline->nodes[i].topSortData = selectedState;
+        data->pipeline->nodes[j].topSortData = sortedState;
 
-        temporaryNode = data->pipeline->nodes[i];
+        swappedNode = data->pipeline->nodes[i];
         data->pipeline->nodes[i] = data->pipeline->nodes[j];
-        data->pipeline->nodes[j] = temporaryNode;
+        data->pipeline->nodes[j] = swappedNode;
 
         for (k = 0; k < data->pipeline->numNodes; k++) {
             RxPipelineNode* node = &data->pipeline->nodes[k];
@@ -405,18 +405,19 @@ static void PipelineTopSort(PipelineTopSortState* data, unsigned int nodeIndex)
         }
     }
 
-    currentNode = &data->pipeline->nodes[data->nodesArraySlot];
-    data->nodesArraySlot++;
-    if (currentNode->numOutputs != 0) {
-        for (i = 0; i < currentNode->numOutputs; i++) {
-            unsigned int outputIndex = currentNode->outputs[i];
+    placedNode = &data->pipeline->nodes[data->sortedCount];
+    data->sortedCount++;
+    if (placedNode->numOutputs != 0) {
+        for (i = 0; i < placedNode->numOutputs; i++) {
+            unsigned int successorIndex = placedNode->outputs[i];
 
-            if (outputIndex != (unsigned int)-1) {
-                RxPipelineNode* outputNode = &data->pipeline->nodes[outputIndex];
-                outputNode->topSortData->numInsVisited++;
-                if (outputNode->topSortData->numIns ==
-                    outputNode->topSortData->numInsVisited) {
-                    PipelineTopSort(data, outputIndex);
+            if (successorIndex != (unsigned int)-1) {
+                RxPipelineNode* successor =
+                    &data->pipeline->nodes[successorIndex];
+                successor->topSortData->numInsVisited++;
+                if (successor->topSortData->numIns ==
+                    successor->topSortData->numInsVisited) {
+                    PipelineTopSort(data, successorIndex);
                 }
             }
         }
@@ -447,7 +448,7 @@ static RxPipeline* PipelineUnlockTopSort(RxPipeline* pipeline)
     unsigned int index;
 
     state.pipeline = pipeline;
-    state.nodesArraySlot = 0;
+    state.sortedCount = 0;
     PipelineTallyInputs(pipeline);
     if (pipeline->nodes[pipeline->entryPoint].topSortData->numIns != 0) {
         RwError error;

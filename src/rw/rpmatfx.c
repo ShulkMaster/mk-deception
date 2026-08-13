@@ -4,6 +4,7 @@
 #include "rw/rpmatfx.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwimage.h"
 #include "rw/rwplcore.h"
 
 typedef struct MatFXModuleInfo {
@@ -14,13 +15,6 @@ typedef struct MatFXModuleInfo {
 
 extern void* memset(void*, int, unsigned int);
 extern void* memcpy(void*, const void*, unsigned int);
-extern RwStream* RwStreamWriteReal(RwStream*, const float*, unsigned int);
-extern RwStream* RwStreamReadReal(RwStream*, float*, unsigned int);
-extern RwImage* RwImageCreate(int, int, int);
-extern RwImage* RwImageAllocatePixels(RwImage*);
-extern int RwImageDestroy(RwImage*);
-extern RwImage* RwImageMakeMask(RwImage*);
-extern RwImage* RwImageApplyMask(RwImage*, const RwImage*);
 extern int _rpMatFXPipelinesCreate(void);
 extern int _rpMatFXPipelinesDestroy(void);
 extern RwTexture* _rpMatFXSetupBumpMapTexture(RwTexture*, RwTexture*);

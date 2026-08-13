@@ -2,25 +2,10 @@
 #include "dolphin/gx.h"
 #include "rw/gamecube.h"
 #include "rw/nodegamecube.h"
+#include "rw/rpmatfx.h"
 #include "rw/rpworld_types.h"
 #include "rw/rtquat.h"
 #include "rw/rwresources.h"
-
-typedef struct RpMTEffect {
-    int type;
-} RpMTEffect;
-
-typedef struct RpMultiTexture {
-    unsigned char field_0x00[0x30];
-    RpMTEffect* effect;
-} RpMultiTexture;
-
-typedef struct RpGameCubeMTEffectConfig RpGameCubeMTEffectConfig;
-
-extern RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
-                                                 int platform);
-extern RpGameCubeMTEffectConfig* RpGameCubeMTEffectGetConfig(
-    RpMTEffect* effect);
 
 typedef struct NBTResourceEntry {
     RwResEntry entry;
@@ -39,22 +24,7 @@ typedef struct NBTCalcData {
     unsigned char reserved;
 } NBTCalcData;
 
-typedef struct RpGameCubeMTEntry24Private {
-    int value[5];
-    unsigned short field_0x14;
-    unsigned short field_0x16;
-} RpGameCubeMTEntry24Private;
-
-typedef struct RpGameCubeMTEffectConfigPrivate {
-    unsigned char reserved_0x00[9];
-    unsigned char count24;
-    unsigned char reserved_0x0A[0x3A];
-    RpGameCubeMTEntry24Private* entries24;
-} RpGameCubeMTEffectConfigPrivate;
-
 typedef char NBTCalcDataSizeCheck[sizeof(NBTCalcData) == 0x20 ? 1 : -1];
-typedef char RpGameCubeMTEntry24PrivateSizeCheck[
-    sizeof(RpGameCubeMTEntry24Private) == 0x18 ? 1 : -1];
 
 static unsigned char nbtPositionType;
 static unsigned char nbtNormalType;
@@ -349,12 +319,11 @@ void _rpGameCubeMTPipeDataCalcNBTs(
             RpMaterialGetMultiTexture(mesh->material, 6);
         if (multiTexture != 0 && multiTexture->effect != 0 &&
             multiTexture->effect->type == 6) {
-            RpGameCubeMTEffectConfigPrivate* config =
-                (RpGameCubeMTEffectConfigPrivate*)
+            RpGameCubeMTEffectConfig* config =
                 RpGameCubeMTEffectGetConfig(multiTexture->effect);
             unsigned int entryIndex;
             for (entryIndex = 0; entryIndex < config->count24; entryIndex++) {
-                RpGameCubeMTEntry24Private* entry =
+                RpGameCubeMTEntry24* entry =
                     &config->entries24[entryIndex];
                 if (entry->value[2] == 2 || entry->value[2] == 3 ||
                     (entry->value[1] >= 2 && entry->value[1] <= 9)) {
@@ -381,12 +350,11 @@ int _rpGameCubeMTPipeDataQueryNBTs(
             RpMaterialGetMultiTexture(mesh->material, 6);
         if (multiTexture != 0 && multiTexture->effect != 0 &&
             multiTexture->effect->type == 6) {
-            RpGameCubeMTEffectConfigPrivate* config =
-                (RpGameCubeMTEffectConfigPrivate*)
+            RpGameCubeMTEffectConfig* config =
                 RpGameCubeMTEffectGetConfig(multiTexture->effect);
             unsigned int entryIndex;
             for (entryIndex = 0; entryIndex < config->count24; entryIndex++) {
-                RpGameCubeMTEntry24Private* entry =
+                RpGameCubeMTEntry24* entry =
                     &config->entries24[entryIndex];
                 if (entry->value[2] == 2 || entry->value[2] == 3 ||
                     (entry->value[1] >= 2 && entry->value[1] <= 9))
