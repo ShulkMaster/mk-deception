@@ -12,6 +12,8 @@
 #include "math/mk_math.h"
 #include "math/gxMath.h"
 #include "math/gxQuat.h"
+#include "rw/rwim3d.h"
+#include "rw/rtquat.h"
 
 typedef union CollisionObjListRef {
     MkHdr* hdr;
@@ -33,20 +35,7 @@ typedef struct CdfCollisionPrimitive {
     Vec vertices[1];
 } CdfCollisionPrimitive;
 
-typedef struct CollisionIm3DVertex {
-    Vec position;
-    char pad0C[0x0C];
-    union {
-        unsigned int color;
-        struct {
-            unsigned char red;
-            unsigned char green;
-            unsigned char blue;
-            unsigned char alpha;
-        } color_channels;
-    };
-    char pad1C[8];
-} CollisionIm3DVertex; /* 0x24 */
+typedef RwIm3DVertex CollisionIm3DVertex;
 
 typedef struct PlayerCollisionAnimView {
     char pad00[0x1BC];
@@ -280,8 +269,6 @@ static void render_hero_collision(void);
 static void render_konquest_shadow_objects(MkHdr* object);
 static void render_konquest_collision_obj(MkHdr* object);
 extern void render_background_danger_areas(void);
-extern RwMatrix* RwMatrixOrthoNormalize(
-    RwMatrix* dst, const RwMatrix* src);
 extern RwEngineInstanceView* RwEngineInstance;
 extern int mode_of_play;
 int collide_shape_vs_plyr(
@@ -366,7 +353,9 @@ static inline void set_collision_vertex(
     const unsigned int* color) {
     const unsigned char* channels = (const unsigned char*)color;
 
-    vertex->position = *position;
+    vertex->position.x = position->x;
+    vertex->position.y = position->y;
+    vertex->position.z = position->z;
     vertex->color_channels.red = channels[0];
     vertex->color_channels.green = channels[1];
     vertex->color_channels.blue = channels[2];
@@ -505,13 +494,6 @@ extern unsigned int rgba_blue;
 extern unsigned int rgba_red;
 extern unsigned int rgba_green;
 extern unsigned int rgba_cyan;
-extern void* RwIm3DTransform(
-    CollisionIm3DVertex* vertices, unsigned int count, void* matrix,
-    unsigned int flags);
-extern void RwIm3DRenderPrimitive(int primitive);
-extern void RwIm3DRenderIndexedPrimitive(
-    int primitive, const unsigned short* indices, int count);
-extern void RwIm3DEnd(void);
 /* Runtime-owned scalar; array form preserves its ordinary-data addressing. */
 
 static inline void insert_player_attack_node_unshifted(
@@ -4531,4 +4513,3 @@ void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
 void set_collision_render_state(int enabled) {
     g_game_info.pause_flag_bits.paused = (unsigned char)enabled;
 }
-#include "rw/rtquat.h"

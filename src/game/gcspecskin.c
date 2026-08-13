@@ -7,6 +7,9 @@
  */
 #include "rw/alphapass.h"
 #include "rw/dltextur.h"
+#include "rw/dltoken.h"
+#include "rw/gamecube_globals.h"
+#include "rw/gcspecular.h"
 #include "rw/rpworld_types.h"
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
@@ -14,9 +17,8 @@
 #include "rw/rwframe.h"
 #include "rw/rwvector.h"
 #include "math/gxMath.h"
+#include "game/gcspecskin.h"
 #include "runtime/mk_plugins.h"
-
-typedef struct RxPipeline RxPipeline;
 
 typedef struct GXColor {
     unsigned char r;
@@ -28,27 +30,6 @@ typedef struct GXColor {
 typedef struct GXLightObj {
     unsigned char data[0x40];
 } GXLightObj;
-
-typedef struct SpecFlags {
-    signed char hidden : 1;
-    signed char reflection_pass : 1;
-    signed char cull_front : 1;
-    signed char swap_mode : 1;
-    unsigned char upper : 4;
-} SpecFlags;
-
-typedef struct SpecularMaterialData {
-    struct SpecLight* light;        /* +0x00 */
-    RwFrame* frame;                 /* +0x04 */
-    RwTexture* texture;             /* +0x08 */
-    RwTexture* saved_texture;       /* +0x0C */
-    unsigned char pad10[0x14];
-    unsigned char tint[3];          /* +0x24 */
-    unsigned char pad27;
-    float gloss;                    /* +0x28 */
-    SpecFlags flags;                /* +0x2C */
-    unsigned char pad2D[3];
-} SpecularMaterialData;
 
 typedef struct SpecularGeometryData {
     void* field_00;
@@ -155,7 +136,7 @@ typedef struct SpecLightingData {
     int light_count;                 /* +0x24 */
 } SpecLightingData;
 
-typedef RpAtomic* (*RpSkinInstanceCallback)(RpAtomic*, SpecResourceEntry*);
+typedef void* (*RpSkinInstanceCallback)(void*, RwResEntry**);
 typedef RpAtomic* (*RpSkinRenderCallback)(RpAtomic*, SpecResourceEntry*);
 typedef RpAtomic* (*RpSkinLightingCallback)(RpAtomic*, SpecLightingData*);
 
@@ -170,13 +151,7 @@ static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass);
 static RpAtomic* GCSpecSkinLighting(
     RpAtomic* atomic, SpecLightingData* lighting);
 
-extern int SpecularGeometryOffset;
-extern int _rpDlGeomVtxFmtOffset;
-extern int _RwGameCubeRasterExtOffset;
-extern unsigned short _RwDlTokenCurrent;
 extern GXLightObj _RwGCLightObjs[8];
-extern RwMatrix SpecularMatrix;
-extern RwMatrix _RwDlInvCamLTM;
 
 RxPipeline* _rpDlAtomicPipelineCreate(
     unsigned int plugin_id,
@@ -185,8 +160,6 @@ RxPipeline* _rpDlAtomicPipelineCreate(
     RpSkinInstanceCallback reinstance_callback,
     RpSkinLightingCallback lighting_callback,
     RpSkinRenderCallback render_callback);
-RpAtomic* _rpSkinInstanceCallback(RpAtomic*, SpecResourceEntry*);
-RpAtomic* _rpSkinAtomicReinstanceCallBack(RpAtomic*, SpecResourceEntry*);
 void SpecularMaterialCalcMatrix(void*);
 void _rwDlVtxFmtSetup(void*, SpecResourceEntry*);
 void _rwDlTransformSetup(const RwMatrix*, int);
@@ -249,8 +222,8 @@ static inline void* rw_plugin_data(void* owner, int offset) {
     return (unsigned char*)owner + offset;
 }
 
-static inline SpecularMaterialData* specular_data(RpMaterial* material) {
-    return (SpecularMaterialData*)rw_plugin_data(
+static inline SpecularMaterialPluginData* specular_data(RpMaterial* material) {
+    return (SpecularMaterialPluginData*)rw_plugin_data(
         material, SpecularMaterialOffset);
 }
 
@@ -303,7 +276,7 @@ void ProcessSpecularity(
     int has_texture,
     unsigned int has_specularity,
     unsigned int has_specular_map) {
-    SpecularMaterialData* specular;
+    SpecularMaterialPluginData* specular;
     SpecLight* light;
     GXColor color;
     float scale;
@@ -325,11 +298,11 @@ void ProcessSpecularity(
     light = specular->light;
     scale = scale <= material_scale ? scale : material_scale;
     color.r = color_component(
-        specular->tint[0] * (scale * light->color.red));
+        specular->tint.red * (scale * light->color.red));
     color.g = color_component(
-        specular->tint[1] * (scale * light->color.green));
+        specular->tint.green * (scale * light->color.green));
     color.b = color_component(
-        specular->tint[2] * (scale * light->color.blue));
+        specular->tint.blue * (scale * light->color.blue));
     color.a = 0xFF;
     GXSetTevColor(3, color);
 
@@ -354,7 +327,7 @@ void ProcessSpecularity(
 /* Soft ceiling: 73.44% -- boolean scheduling changes only the frame and NV homes. */
 void CleanupSpecularity(
     RpMaterial* material, int has_texture, unsigned int has_specularity) {
-    SpecularMaterialData* specular;
+    SpecularMaterialPluginData* specular;
     int textured;
     unsigned int stage_count;
 
@@ -364,7 +337,7 @@ void CleanupSpecularity(
 
     GXSetNumTexGens(textured);
     GXSetNumTevStages(stage_count);
-    if (has_specularity != 0 && specular->flags.swap_mode != 0) {
+    if (has_specularity != 0 && specular->flags.bits.swapMode != 0) {
         GXSetTevSwapMode(2, 0, 0);
         GXSetTevSwapMode(3, 0, 0);
     }
@@ -604,10 +577,10 @@ static void SpecSkinProcessMaterialList(
     for (mesh_index = 0, mesh = first_mesh;
          mesh_index < num_meshes;
          mesh_index++, mesh++) {
-        SpecularMaterialData* specular = specular_data(mesh->material);
+        SpecularMaterialPluginData* specular = specular_data(mesh->material);
         unsigned int flags = mkmaterial_data(mesh->material)->flags;
 
-        if (specular->flags.hidden != 0) {
+        if (specular->flags.bits.hidden != 0) {
             continue;
         }
 
@@ -641,7 +614,7 @@ static void SpecSkinProcessMaterialList(
         } else if ((int)(flags & 0xFFF) > 0) {
             alpha_meshes[alpha_count++] = mesh;
         } else {
-            if (specular->flags.cull_front != 0) {
+            if (specular->flags.bits.cullFront != 0) {
                 GXSetCullMode(0);
             } else {
                 GXSetCullMode(1);
@@ -653,9 +626,9 @@ static void SpecSkinProcessMaterialList(
 
     for (mesh_index = 0; mesh_index < alpha_count; mesh_index++) {
         SpecMesh* mesh = alpha_meshes[mesh_index];
-        SpecularMaterialData* specular = specular_data(mesh->material);
+        SpecularMaterialPluginData* specular = specular_data(mesh->material);
 
-        if (specular->flags.cull_front != 0) {
+        if (specular->flags.bits.cullFront != 0) {
             GXSetCullMode(0);
         } else {
             GXSetCullMode(1);
@@ -668,9 +641,9 @@ static void SpecSkinProcessMaterialList(
              (int)mesh_index >= 0;
              mesh_index--) {
             SpecMesh* mesh = reflection_meshes[mesh_index];
-            SpecularMaterialData* specular = specular_data(mesh->material);
+            SpecularMaterialPluginData* specular = specular_data(mesh->material);
 
-            if (specular->flags.reflection_pass == 0) {
+            if (specular->flags.bits.reflectionPass == 0) {
                 GXSetCullMode(2);
                 draw_spec_mesh(
                     atomic, first_mesh, mesh, display_lists, 1);
@@ -780,7 +753,8 @@ static inline void setup_base_z_compare(RwTexture* texture) {
 /* Soft ceiling: 90.39% -- channel aggregates and specular-color scheduling remain. */
 static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
     RpMaterial* material = mesh->material;
-    SpecularMaterialData* specular = specular_data(material);
+    SpecularMaterialPluginData* specular = specular_data(material);
+    SpecLight* light = specular->light;
     RwTexture* base_texture;
     RwTexture* specular_texture;
     RwMatrix* base_transform;
@@ -813,14 +787,11 @@ static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
     material_scale = 2.0f * material->surface.specular;
     scale = 1.0f <= material_scale ? 1.0f : material_scale;
     specular_color.r = float_color_component(
-        specular->tint[0] *
-        (scale * specular->light->color.red));
+        specular->tint.red * (scale * light->color.red));
     specular_color.g = float_color_component(
-        specular->tint[1] *
-        (scale * specular->light->color.green));
+        specular->tint.green * (scale * light->color.green));
     specular_color.b = float_color_component(
-        specular->tint[2] *
-        (scale * specular->light->color.blue));
+        specular->tint.blue * (scale * light->color.blue));
     specular_color.a = 0xFF;
     GXSetTevColor(3, specular_color);
 
@@ -838,7 +809,8 @@ static void GCSpecSkinMaterialNoSpecmap(SpecMesh* mesh) {
 /* Soft ceiling: 93.01% -- retail alpha-pass TEV programs are aligned; scheduling remains. */
 static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass) {
     RpMaterial* material = mesh->material;
-    SpecularMaterialData* specular = specular_data(material);
+    SpecularMaterialPluginData* specular = specular_data(material);
+    SpecLight* light = specular->light;
     RwTexture* base_texture;
     RwTexture* specular_texture;
     RwTexture* alpha_texture;
@@ -879,14 +851,11 @@ static void GCSpecSkinMaterial(SpecMesh* mesh, int alpha_pass) {
     material_scale = 2.0f * material->surface.specular;
     scale = 1.0f <= material_scale ? 1.0f : material_scale;
     specular_color.r = float_color_component(
-        specular->tint[0] *
-        (scale * specular->light->color.red));
+        specular->tint.red * (scale * light->color.red));
     specular_color.g = float_color_component(
-        specular->tint[1] *
-        (scale * specular->light->color.green));
+        specular->tint.green * (scale * light->color.green));
     specular_color.b = float_color_component(
-        specular->tint[2] *
-        (scale * specular->light->color.blue));
+        specular->tint.blue * (scale * light->color.blue));
     specular_color.a = 0xFF;
     GXSetTevColor(3, specular_color);
 

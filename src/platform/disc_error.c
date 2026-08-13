@@ -3,6 +3,7 @@
 #include "libmkparticle/pfxfont.h"
 #include "platform/display.h"
 #include "runtime/fonts.h"
+#include "rw/rwcamera_internal.h"
 
 typedef int (*DiscErrorHandler)(int error, const char* text);
 
@@ -18,8 +19,6 @@ extern void VIFlush(void);
 extern void RwCameraClear(RwCamera* camera, const unsigned int* color, int clear_mode);
 extern void RwCameraBeginUpdate(RwCamera* camera);
 extern void RwCameraEndUpdate(RwCamera* camera);
-extern void RwCameraShowRaster(RwCamera* camera, void* device, int flags);
-
 extern void pause_all_game_sounds(void);
 extern void unpause_all_game_sounds(void);
 extern void turn_all_rumble_motors_off(void);
