@@ -1,6 +1,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwmatrix.h"
 #include "rw/rwvector.h"
 
 typedef void (*rwMatrixMultFn)(RwMatrix *, const RwMatrix *, const RwMatrix *);
@@ -224,13 +225,11 @@ static RwMatrix *MatrixInvertGeneric(RwMatrix *dst, const RwMatrix *src) {
 }
 
 int _rwMatrixSetMultFn(rwMatrixMultFn multiply) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
-                                                 matrixModule.globalsOffset);
-
   if (multiply == 0) {
     multiply = MatrixMultiply;
   }
-  globals->multMatrix = multiply;
+  *(rwMatrixMultFn *)((unsigned char *)RwEngineInstance +
+                      matrixModule.globalsOffset + 8) = multiply;
   return 1;
 }
 
@@ -296,11 +295,12 @@ float _rwMatrixIdentityError(const RwMatrix *matrix) {
 #pragma scheduling off
 
 void *_rwMatrixClose(void *instance, int offset, int size) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
-                                                 matrixModule.globalsOffset);
-  if (globals->matrixFreeList != 0) {
-    RwFreeListDestroy(globals->matrixFreeList);
-    globals->matrixFreeList = 0;
+  if (*(RwFreeList **)((unsigned char *)RwEngineInstance +
+                       matrixModule.globalsOffset) != 0) {
+    RwFreeListDestroy(*(RwFreeList **)((unsigned char *)RwEngineInstance +
+                                       matrixModule.globalsOffset));
+    *(RwFreeList **)((unsigned char *)RwEngineInstance +
+                     matrixModule.globalsOffset) = 0;
   }
   matrixModule.numInstances--;
   return instance;

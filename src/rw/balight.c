@@ -1,8 +1,8 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rplight.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwframe.h"
 
-extern RwFrame* RwFrameUpdateObjects(RwFrame* frame);
 extern float cosf(float);
 extern float _rwSqrt(float value);
 
@@ -129,25 +129,31 @@ int RpLightRegisterPlugin(int size, unsigned int pluginID,
 
 int RpLightDestroy(RpLight* light)
 {
-    RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
-                                          lightModule.globalsOffset);
     _rwPluginRegistryDeInitObject(&lightTKList, light);
     _rwObjectHasFrameReleaseFrame(light);
-    RwEngineInstance->fpFreeListFree(freeList, light);
+    RwEngineInstance->fpFreeListFree(
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        lightModule.globalsOffset),
+        light);
     return 1;
 }
 
 
 RpLight* RpLightCreate(int type)
 {
-    RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
-                                          lightModule.globalsOffset);
     RpLight* light;
 
-    light = RwEngineInstance->fpFreeListAlloc(freeList, 0x30012);
+    light = RwEngineInstance->fpFreeListAlloc(
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        lightModule.globalsOffset),
+        0x30012);
     if (light == 0) return 0;
 
-    rwObjectInitialize(light, 3, type);
+    light->object.object.type = 3;
+    light->object.object.subType = (unsigned char)type;
+    light->object.object.flags = 0;
+    light->object.object.privateFlags = 0;
+    light->object.object.parent = 0;
     light->object.sync = LightSync;
     light->radius = 0.0f;
     light->minusCosAngle = 0.0f;
@@ -156,10 +162,11 @@ RpLight* RpLightCreate(int type)
     light->color.blue = 1.0f;
     light->color.alpha = 1.0f;
     light->object.object.privateFlags = 1;
-    rwLinkListInitialize(&light->worldSectorsInLight);
+    light->worldSectorsInLight.link.next = &light->worldSectorsInLight.link;
+    light->worldSectorsInLight.link.prev = &light->worldSectorsInLight.link;
     light->inWorld.prev = 0;
     light->inWorld.next = 0;
-    light->lightFrame = *(unsigned short*)((unsigned char*)RwEngineInstance + 0xA) - 1;
+    light->lightFrame = RwEngineInstance->lightFrame - 1;
     light->object.object.flags = 3;
     _rwPluginRegistryInitObject(&lightTKList, light);
     return light;
@@ -167,24 +174,29 @@ RpLight* RpLightCreate(int type)
 
 void* _rpLightClose(void* instance, int, int)
 {
-    RwFreeList** freeList = (RwFreeList**)((unsigned char*)RwEngineInstance +
-                                          lightModule.globalsOffset);
-    RwFreeListForAllUsed(*freeList, LightTidyDestroyLight, 0);
-    RwFreeListDestroy(*freeList);
-    *freeList = 0;
+    RwFreeListForAllUsed(
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        lightModule.globalsOffset),
+        LightTidyDestroyLight, 0);
+    RwFreeListDestroy(
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        lightModule.globalsOffset));
+    *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                    lightModule.globalsOffset) = 0;
     lightModule.numInstances--;
     return instance;
 }
 
 void* _rpLightOpen(void* instance, int offset, int)
 {
-    RwFreeList** freeList;
     lightModule.globalsOffset = offset;
-    freeList = (RwFreeList**)((unsigned char*)RwEngineInstance + offset);
-    *freeList = RwFreeListCreateAndPreallocateSpace(
+    *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                    lightModule.globalsOffset) =
+        RwFreeListCreateAndPreallocateSpace(
         lightTKList.sizeOfStruct, _rpLightFreeListBlockSize, 4,
         _rpLightFreeListPreallocBlocks, &_rpLightFreeList, 0x40012);
-    if (*freeList != 0) {
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        lightModule.globalsOffset) != 0) {
         lightModule.numInstances++;
         return instance;
     }

@@ -1,6 +1,19 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/rwcamera_internal.h"
+#include "rw/batextur.h"
+#include "rw/rwcolor.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwframe.h"
+#include "rw/rwgrp.h"
+#include "rw/rwim3d.h"
+#include "rw/rwmatrix.h"
+#include "rw/rwimage.h"
 #include "rw/rwplcore.h"
+#include "rw/rxpipeline.h"
+#include "rw/rwraster.h"
+#include "rw/rwresources.h"
+#include "rw/rwstream.h"
+#include "rw/rwvector.h"
 
 typedef struct RwVideoMode {
     int width;
@@ -36,32 +49,6 @@ extern int _rwerror(int errorCode, ...);
 
 extern void* _rwErrorOpen(void*, int, int);
 extern void* _rwErrorClose(void*, int, int);
-extern void* _rwVectorOpen(void*, int, int);
-extern void* _rwVectorClose(void*, int, int);
-extern void* _rwColorOpen(void*, int, int);
-extern void* _rwColorClose(void*, int, int);
-extern void* _rwMatrixOpen(void*, int, int);
-extern void* _rwMatrixClose(void*, int, int);
-extern void* _rwFrameOpen(void*, int, int);
-extern void* _rwFrameClose(void*, int, int);
-extern void* _rwCameraOpen(void*, int, int);
-extern void* _rwCameraClose(void*, int, int);
-extern void* _rwImageOpen(void*, int, int);
-extern void* _rwImageClose(void*, int, int);
-extern void* _rwRasterOpen(void*, int, int);
-extern void* _rwRasterClose(void*, int, int);
-extern void* _rwTextureOpen(void*, int, int);
-extern void* _rwTextureClose(void*, int, int);
-extern void* _rwRenderPipelineOpen(void*, int, int);
-extern void* _rwRenderPipelineClose(void*, int, int);
-extern void* _rwChunkGroupOpen(void*, int, int);
-extern void* _rwChunkGroupClose(void*, int, int);
-extern void* _rwIm3DOpen(void*, int, int);
-extern void* _rwIm3DClose(void*, int, int);
-extern void* _rwResourcesOpen(void*, int, int);
-extern void* _rwResourcesClose(void*, int, int);
-extern void* _rwStreamModuleOpen(void*, int, int);
-extern void* _rwStreamModuleClose(void*, int, int);
 
 static RwPluginRegistry engineTKList = { sizeof(RwGlobals), sizeof(RwGlobals),
                                          0, 0, 0, 0 };

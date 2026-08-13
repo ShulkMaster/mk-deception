@@ -1,6 +1,7 @@
 #include "rw/rwcore_types.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwplcore.h"
+#include "rw/rwraster.h"
 #include "libmkparticle/rw_engine.h"
 
 typedef struct RwRasterModuleGlobals {
@@ -156,9 +157,12 @@ void* RwRasterLock(RwRaster* raster, unsigned char level, int flags) {
 }
 
 void* _rwRasterClose(void* instance, int offset, int size) {
-    if (RasterGlobals()->freelist != 0) {
-        RwFreeListDestroy(RasterGlobals()->freelist);
-        RasterGlobals()->freelist = 0;
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        rasterModule.globalsOffset + 0x60) != 0) {
+        RwFreeListDestroy(*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                                          rasterModule.globalsOffset + 0x60));
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        rasterModule.globalsOffset + 0x60) = 0;
     }
     rasterModule.numInstances--;
     return instance;
@@ -166,20 +170,36 @@ void* _rwRasterClose(void* instance, int offset, int size) {
 
 void* _rwRasterOpen(void* instance, int offset, int size) {
     rasterModule.globalsOffset = offset;
-    memset(&RasterGlobals()->field_0x2c, 0, 0x34);
-    RasterGlobals()->field_0x38 = 0;
-    RasterGlobals()->field_0x3c = 0;
-    RasterGlobals()->field_0x40 = 0;
-    RasterGlobals()->field_0x4d = 0x80;
-    RasterGlobals()->field_0x30 = 0;
-    RasterGlobals()->field_0x34 = 0;
-    RasterGlobals()->field_0x4c = 0;
-    RasterGlobals()->field_0x28 = 0;
-    RasterGlobals()->currentRaster = (RwRaster*)&RasterGlobals()->field_0x2c;
-    RasterGlobals()->freelist = RwFreeListCreateAndPreallocateSpace(
+    memset(&((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                      rasterModule.globalsOffset))->field_0x2c,
+           0, 0x34);
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x38 = 0;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x3c = 0;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x40 = 0;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x4d = 0x80;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x30 = 0;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x34 = 0;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x4c = 0;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->field_0x28 = 0;
+    ((RwRasterModuleGlobals*)((unsigned char*)RwEngineInstance +
+                              rasterModule.globalsOffset))->currentRaster =
+        (RwRaster*)((unsigned char*)RwEngineInstance +
+                    rasterModule.globalsOffset + 0x2c);
+    *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                    rasterModule.globalsOffset + 0x60) =
+        RwFreeListCreateAndPreallocateSpace(
         rasterTKList.sizeOfStruct, _rwRasterFreeListBlockSize, 4,
         _rwRasterFreeListPreallocBlocks, &_rwRasterFreeList, 0x40407);
-    if (RasterGlobals()->freelist == 0) {
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        rasterModule.globalsOffset + 0x60) == 0) {
         return 0;
     }
     rasterModule.numInstances++;
