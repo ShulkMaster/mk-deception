@@ -2,6 +2,8 @@
 
 #include "game/game_info.h"
 #include "runtime/mk_mem.h"
+#include "rw/rwcamera_internal.h"
+#include "rw/rwframe.h"
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -21,7 +23,6 @@ extern int exec_tick_ctr;
 extern MkHdr* apdata;
 extern MkProc* aproc;
 
-void* RwFrameGetLTM(void* frame);
 void memcpy(void* dst, const void* src, int size);
 void memset(void* dst, int c, int size);
 char* strcpy(char* dst, const char* src);
@@ -436,19 +437,14 @@ void pfx_start_batch(void) {
 }
 
 void insert_PFXlist_in_transl_tree(void) {
-    /* RwCamera: first engine camera ptr; frame @ +0x04. */
-    typedef struct RwCameraFrame {
-        char pad00[4];
-        void* frame;
-    } RwCameraFrame;
-    RwCameraFrame* camera;
+    RwCamera* camera;
     void* frame;
 
-    camera = *(RwCameraFrame**)RwEngineInstance;
+    camera = *(RwCamera**)RwEngineInstance;
     if (camera == 0) {
         return;
     }
-    frame = camera->frame;
+    frame = camera->object.object.parent;
     inverse_camera_matrix = (float*)RwFrameGetLTM(frame);
     apply_to_mklist(InsertPFXInTranslTree, &pfx_render_list);
     apply_to_mklist(InsertPFXCloneInTranslTree, &pfx_clone_render_list);

@@ -5,13 +5,13 @@
 #include "runtime/mk_struct.h"
 #include "runtime/mk_vtbl.h"
 #include "rw/rtquat.h"
+#include "rw/rwframe.h"
 
 void* memcpy(void* dest, const void* src, unsigned int size);
 
 extern int MksobjLocalOffset;
 extern RwCamera* Camera;
 
-RwMatrix* RwFrameGetLTM(RwFrame* frame);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere, PebbleFlags* flags, int factor);
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
