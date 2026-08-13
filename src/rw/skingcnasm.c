@@ -1,28 +1,6 @@
 #include "rw/rpskin.h"
 #include "rw/rtquat.h"
 
-typedef struct RpSkinBlendPositionData {
-    unsigned char* destination;
-    unsigned char* source;
-    unsigned int stride;
-    unsigned int numVertices;
-} RpSkinBlendPositionData;
-
-typedef struct RpSkinBlendPositionNormalData {
-    unsigned char* destinationPositions;
-    unsigned char* destinationNormals;
-    unsigned char* sourcePositions;
-    unsigned char* sourceNormals;
-    unsigned int positionStride;
-    unsigned int normalStride;
-    unsigned int nbtStride;
-    unsigned int numVertices;
-} RpSkinBlendPositionNormalData;
-
-
-
-
-
 void _rwDlSkinUpdate2WeightsP(const RwMatrix* matrices, const RpSkin* skin,
                               const RpSkinBlendPositionData* data)
 {

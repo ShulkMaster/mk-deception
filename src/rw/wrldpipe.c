@@ -3,20 +3,7 @@
 extern int _rpDlVtxFmtPluginAttach(void);
 extern int _rpDlLightPluginAttach(void);
 extern int RpMatGCAlphaPassAttach(void);
-typedef void (*RxGCInstanceCallback)(void);
-typedef void (*RxGCReinstanceCallback)(void);
-typedef void (*RxGCLightingCallback)(void);
-typedef void (*RxGCRenderCallback)(void);
-extern RxPipeline* _rpDlAtomicPipelineCreate(
-    unsigned int pluginId, unsigned int pluginData,
-    RxGCInstanceCallback instanceCallback,
-    RxGCReinstanceCallback reinstanceCallback,
-    RxGCLightingCallback lightingCallback, RxGCRenderCallback renderCallback);
 extern void _rxPipelineDestroy(RxPipeline* pipeline);
-extern void _rxGCAtomicDefaultInstanceCallback(void);
-extern void _rxGCAtomicDefaultReinstanceCallback(void);
-extern void _rxGCAtomicDefaultLightingCallback(void);
-extern void _rxGCDefaultRenderCallback(void);
 
 int _rxWorldDevicePluginAttach(void) {
     int result;

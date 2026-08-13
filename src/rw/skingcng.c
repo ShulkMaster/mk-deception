@@ -1,28 +1,7 @@
+#include "rw/nodegamecube.h"
 #include "rw/rpskin.h"
 #include "rw/rpworld_types.h"
 #include "rw/rxpipeline.h"
-
-typedef struct RxGCAtomicResourceEntry RxGCAtomicResourceEntry;
-typedef struct RxGCAtomicLightingData RxGCAtomicLightingData;
-
-typedef RpAtomic* (*RxGCInstanceCallback)(RpAtomic*,
-                                          RxGCAtomicResourceEntry*);
-typedef RpAtomic* (*RxGCLightingCallback)(RpAtomic*,
-                                          RxGCAtomicLightingData*);
-typedef RpAtomic* (*RxGCRenderCallback)(RpAtomic*,
-                                        RxGCAtomicResourceEntry*);
-
-extern RxPipeline* _rpDlAtomicPipelineCreate(
-    unsigned int pluginId, unsigned int pluginData,
-    RxGCInstanceCallback instanceCallback,
-    RxGCInstanceCallback reinstanceCallback,
-    RxGCLightingCallback lightingCallback, RxGCRenderCallback renderCallback);
-extern RpAtomic* _rpSkinInstanceCallback(RpAtomic*, RxGCAtomicResourceEntry*);
-extern RpAtomic* _rpSkinAtomicReinstanceCallBack(
-    RpAtomic*, RxGCAtomicResourceEntry*);
-extern RpAtomic* _rxGCAtomicDefaultLightingCallback(
-    RpAtomic*, RxGCAtomicLightingData*);
-extern RpAtomic* _rpSkinRenderCallback(RpAtomic*, RxGCAtomicResourceEntry*);
 
 int _rpSkinPipelinesCreate(unsigned int pipeType)
 {

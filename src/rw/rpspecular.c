@@ -1,6 +1,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/bamateri.h"
 #include "rw/batextur.h"
+#include "rw/gcspecular.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwplcore.h"
 #include "rw/rwstream.h"
@@ -9,26 +10,6 @@ typedef struct SpecularGeometryPluginData {
     void* allocation;
     int materialIndex;
 } SpecularGeometryPluginData;
-
-typedef struct SpecularColor {
-    unsigned char red;
-    unsigned char green;
-    unsigned char blue;
-    unsigned char alpha;
-} SpecularColor;
-
-typedef struct SpecularMaterialPluginData {
-    void* light;
-    RwFrame* frame;
-    RwTexture* texture;
-    RwTexture* savedTexture;
-    unsigned char savedSurface[0xC];
-    int clipValue;
-    float shininess;
-    SpecularColor tint;
-    float gloss;
-    unsigned int flags;
-} SpecularMaterialPluginData;
 
 extern void* ImagePixels;
 extern RwImage* RwImageCreate(int width, int height, int depth);
@@ -186,11 +167,11 @@ static void* SpecularGeometryCopy(void* destination, const void* source,
 static void* SpecularMaterialConstructor(void* object, int offset,
                                          int size)
 {
-    static const SpecularColor whiteColor = { 255, 255, 255, 255 };
+    static const RwRGBA whiteColor = { 255, 255, 255, 255 };
     ((SpecularMaterialPluginData*)((unsigned char*)object +
                                    SpecularMaterialOffset))->texture = 0;
     ((SpecularMaterialPluginData*)((unsigned char*)object +
-                                   SpecularMaterialOffset))->savedTexture = 0;
+                                   SpecularMaterialOffset))->saved_texture = 0;
     ((SpecularMaterialPluginData*)((unsigned char*)object +
                                    SpecularMaterialOffset))->light = 0;
     ((SpecularMaterialPluginData*)((unsigned char*)object +
@@ -204,7 +185,7 @@ static void* SpecularMaterialConstructor(void* object, int offset,
     ((SpecularMaterialPluginData*)((unsigned char*)object +
                                    SpecularMaterialOffset))->gloss = 0.0f;
     ((SpecularMaterialPluginData*)((unsigned char*)object +
-                                   SpecularMaterialOffset))->flags = 0;
+                                   SpecularMaterialOffset))->flags.word = 0;
     return object;
 }
 
@@ -229,7 +210,7 @@ static void* SpecularMaterialCopy(void* destination, const void* source,
     destinationData->texture = sourceData->texture;
     destinationData->shininess = sourceData->shininess;
     destinationData->tint = sourceData->tint;
-    destinationData->flags = sourceData->flags;
+    destinationData->flags.word = sourceData->flags.word;
     return destination;
 }
 

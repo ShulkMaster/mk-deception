@@ -1,12 +1,5 @@
 #include "rw/gamecube.h"
 
-extern unsigned int rwGCNPosGetSize(const RwGameCubeVertexDescriptor* descriptor);
-extern unsigned int rwGCNNrmGetSize(const RwGameCubeVertexDescriptor* descriptor);
-extern unsigned int rwGCNClrGetSize(const RwGameCubeVertexDescriptor* descriptor,
-                               unsigned char index);
-extern unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor* descriptor,
-                               unsigned char index);
-
 unsigned int _rwGCNVertexBufferHeaderGetSize(
     const RwGameCubeVertexDescriptor* descriptor)
 {
