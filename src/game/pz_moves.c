@@ -11,6 +11,8 @@
 #include "game/game_info.h"
 #include "game/pz_fatality.h"
 #include "math/mk_math.h"
+#include "rw/rwframe.h"
+#include "rw/rwcore_types.h"
 
 typedef float (*PuzzleMoveEntry)(void);
 typedef float (*PuzzleProcessTransfer)(PuzzleMoveEntry entry, float delay);
@@ -127,11 +129,6 @@ typedef struct PuzzleProjectile {
     unsigned int effect; /* +0x28 */
 } PuzzleProjectile;
 
-typedef struct PuzzleRwFrame {
-    char pad00[0x40];
-    Vec position; /* +0x40 */
-} PuzzleRwFrame;
-
 typedef struct PuzzleFighterObject {
     char pad00[8];
     union {
@@ -165,7 +162,7 @@ typedef struct PuzzleFighterObject {
         } movement_flags;
     };
     char pad0A[0x16];
-    PuzzleRwFrame* frame; /* +0x20 */
+    RwFrame* frame; /* +0x20 */
     char pad24[0x0C];
     float gravity; /* +0x30 */
     char pad34[0x6C];
@@ -458,7 +455,6 @@ void bgnd_launch_fx_at_position(
 void bgnd_set_fx_ang_y(float angle);
 void get_bone_world_pos(
     PuzzleFighterObject* object, int bone, Vec* position);
-void RwFrameUpdateObjects(PuzzleRwFrame* frame);
 void fx_reset(unsigned int effect);
 void set_my_secondary_state(int state);
 void set_block_requirement(int requirement);
@@ -1642,7 +1638,7 @@ static float p_pz_fighter_projectile_launcher(void) {
     if (--projectile->timer != 0) {
         switch (projectile->state) {
         case 0: {
-            PuzzleRwFrame* frame = projectile->object->frame;
+            RwFrame* frame = projectile->object->frame;
 
             get_bone_world_pos(
                 projectile->launch_bone_owner, 0x1B, &position);
@@ -1653,22 +1649,22 @@ static float p_pz_fighter_projectile_launcher(void) {
                 projectile->timer = 1;
             }
             RwFrameUpdateObjects(projectile->object->frame);
-            frame->position.x = projectile->object->x;
-            frame->position.y = projectile->object->y;
-            frame->position.z = projectile->object->z;
+            frame->modelling.pos.x = projectile->object->x;
+            frame->modelling.pos.y = projectile->object->y;
+            frame->modelling.pos.z = projectile->object->z;
             RwFrameUpdateObjects(projectile->object->frame);
             break;
         }
         case 1: {
-            PuzzleRwFrame* frame = projectile->object->frame;
+            RwFrame* frame = projectile->object->frame;
 
             RwFrameUpdateObjects(frame);
             projectile->object->x += projectile->object->external_force_x;
             projectile->object->y += projectile->object->vertical_velocity;
             projectile->object->z += projectile->object->external_force_z;
-            frame->position.x = projectile->object->x;
-            frame->position.y = projectile->object->y;
-            frame->position.z = projectile->object->z;
+            frame->modelling.pos.x = projectile->object->x;
+            frame->modelling.pos.y = projectile->object->y;
+            frame->modelling.pos.z = projectile->object->z;
             RwFrameUpdateObjects(projectile->object->frame);
             get_bone_world_pos(projectile->target, 9, &position);
             if (projectile->object->external_force_x > 0.0f) {

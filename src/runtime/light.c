@@ -1,8 +1,8 @@
 #include "runtime/light.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
+#include "rw/rplight.h"
 
-typedef struct RpWorld RpWorld;
 typedef struct RwFrame RwFrame;
 
 typedef int (*MkObjDestroyFn)(MkObj* obj);
@@ -12,7 +12,7 @@ typedef struct SpecularLightDef {
     int type;
     MkProcEntryFn procFn;
     int flags;
-    float color[4];
+    RwRGBAReal color;
     float field1C;
     float field20;
     float field24;
@@ -32,17 +32,8 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame);
 MkxRpLight* get_mkx_rplight(RpLight* light);
 void bind_rplight_to_obj(RpLight* light, MkObj* obj);
 
-RpLight* RpLightCreate(int type);
-void RpLightDestroy(RpLight* light);
-void RpLightSetColor(RpLight* light, float* color);
-void RpLightSetRadius(RpLight* light, float radius);
-void RpLightSetConeAngle(RpLight* light, float angle);
-RpWorld* RpLightGetWorld(RpLight* light);
-void RpWorldAddLight(RpWorld* world, RpLight* light);
-void RpWorldRemoveLight(RpWorld* world, RpLight* light);
 RwFrame* RwFrameCreate(void);
 void RwFrameDestroy(RwFrame* frame);
-void _rwObjectHasFrameSetFrame(RpLight* light, RwFrame* frame);
 
 /* Retail leaves create_mkproc's return (mkproc*) in r3. */
 MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
@@ -94,7 +85,7 @@ static MkObj* valid_linked_obj(MkxRpLight* mkx) {
 }
 
 static unsigned char rp_light_type(RpLight* light) {
-    return light->object.subType;
+    return light->object.object.subType;
 }
 
 static void mkobj_or_flag(MkObj* obj, unsigned char bit) {
@@ -102,7 +93,8 @@ static void mkobj_or_flag(MkObj* obj, unsigned char bit) {
 }
 
 static void clear_light_low_flags(RpLight* light) {
-    light->object.flags = (unsigned char)(light->object.flags & 0xFC);
+    light->object.object.flags =
+        (unsigned char)(light->object.object.flags & 0xFC);
 }
 
 static void destroy_owned_mkobj(MkObj* mkobj, MkObj* parent) {
@@ -188,7 +180,7 @@ RpLight* create_spot_light(MkObj* parent, LightDef* def) {
     if (light == 0) {
         return 0;
     }
-    RpLightSetColor(light, def->color);
+    RpLightSetColor(light, &def->color);
     RpLightSetConeAngle(light, def->coneAngle);
     RpLightSetRadius(light, def->spotRadius);
 
@@ -263,7 +255,7 @@ RpLight* get_bgnd_specular_light(void) {
         mkx = probe_mkx(node->hdr);
         if (mkx != 0) {
             light = mkx->light;
-            if ((int)light->object.subType == 1) {
+            if ((int)light->object.object.subType == 1) {
                 return light;
             }
         }
@@ -282,7 +274,7 @@ RpLight* get_specular_light(void) {
         mkx = probe_mkx(node->hdr);
         if (mkx != 0) {
             light = mkx->light;
-            if ((int)light->object.subType == 1) {
+            if ((int)light->object.object.subType == 1) {
                 return light;
             }
         }
@@ -323,7 +315,7 @@ void load_back_in_lights(LightDef** defs, MkPtr** list) {
                 index++;
                 continue;
             }
-            RpLightSetColor(light, def->color);
+            RpLightSetColor(light, &def->color);
             if (RpLightGetWorld(light) == 0) {
                 RpWorldAddLight(World, light);
             }
@@ -339,7 +331,7 @@ void load_back_in_lights(LightDef** defs, MkPtr** list) {
             continue;
         }
         spotIndex++;
-        RpLightSetColor(light, def->color);
+        RpLightSetColor(light, &def->color);
         if (RpLightGetWorld(light) == 0) {
             RpWorldAddLight(World, light);
         }
@@ -385,7 +377,7 @@ static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int ind
                     mkx = 0;
                 }
                 if (mkx != 0) {
-                    lightType = (int)mkx->light->object.subType;
+                    lightType = (int)mkx->light->object.object.subType;
                     switch (lightType) {
                     case 0x80:
                         if (type == 2) {
@@ -484,7 +476,7 @@ static RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     if (light == 0) {
         return 0;
     }
-    RpLightSetColor(light, def->color);
+    RpLightSetColor(light, &def->color);
     RpLightSetConeAngle(light, def->coneAngle);
     RpLightSetRadius(light, def->spotRadius);
 
@@ -542,7 +534,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         if (light == 0) {
             break;
         }
-        RpLightSetColor(light, def->color);
+        RpLightSetColor(light, &def->color);
         RpWorldAddLight(World, light);
         ok = 1;
         break;
@@ -599,7 +591,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
             break;
         }
         _rwObjectHasFrameSetFrame(light, frame);
-        RpLightSetColor(light, def->color);
+        RpLightSetColor(light, &def->color);
         RpLightSetRadius(light, def->field1C);
         RpWorldAddLight(World, light);
         mkobj->light_flags = def->flags;
@@ -646,7 +638,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
             break;
         }
         _rwObjectHasFrameSetFrame(light, frame);
-        RpLightSetColor(light, def->color);
+        RpLightSetColor(light, &def->color);
         RpWorldAddLight(World, light);
         mkobj->light_flags = def->flags;
         mkobj_or_flag(mkobj, 0x40);

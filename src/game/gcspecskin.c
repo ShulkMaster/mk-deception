@@ -11,6 +11,7 @@
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
 #include "rw/rtquat.h"
+#include "rw/rwframe.h"
 #include "rw/rwvector.h"
 #include "math/gxMath.h"
 #include "runtime/mk_plugins.h"
@@ -186,7 +187,6 @@ RxPipeline* _rpDlAtomicPipelineCreate(
     RpSkinRenderCallback render_callback);
 RpAtomic* _rpSkinInstanceCallback(RpAtomic*, SpecResourceEntry*);
 RpAtomic* _rpSkinAtomicReinstanceCallBack(RpAtomic*, SpecResourceEntry*);
-RwMatrix* RwFrameGetLTM(RwFrame*);
 void SpecularMaterialCalcMatrix(void*);
 void _rwDlVtxFmtSetup(void*, SpecResourceEntry*);
 void _rwDlTransformSetup(const RwMatrix*, int);

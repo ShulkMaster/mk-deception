@@ -2,13 +2,12 @@
 #include "rw/rpworld_types.h"
 #include "rw/rplight.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwframe.h"
 #include "rw/rwplcore.h"
 #include "rw/rwstream.h"
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 #include "rw/rxpipeline.h"
-
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 typedef struct RpClumpGlobals {
     RwFreeList* atomicFreeList;
@@ -265,12 +264,20 @@ RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic)
 
 void* _rpClumpClose(void* instance, int offset, int size)
 {
-    RwFreeListForAllUsed(ClumpGlobals()->clumpFreeList, ClumpTidyDestroyClump, 0);
-    RwFreeListForAllUsed(ClumpGlobals()->atomicFreeList, ClumpTidyDestroyAtomic, 0);
-    RwFreeListDestroy(ClumpGlobals()->atomicFreeList);
-    RwFreeListDestroy(ClumpGlobals()->clumpFreeList);
-    ClumpGlobals()->atomicFreeList = 0;
-    ClumpGlobals()->clumpFreeList = 0;
+    RwFreeListForAllUsed(((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                                            clumpModule.globalsOffset))->clumpFreeList,
+                         ClumpTidyDestroyClump, 0);
+    RwFreeListForAllUsed(((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                                            clumpModule.globalsOffset))->atomicFreeList,
+                         ClumpTidyDestroyAtomic, 0);
+    RwFreeListDestroy(((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                                         clumpModule.globalsOffset))->atomicFreeList);
+    RwFreeListDestroy(((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                                         clumpModule.globalsOffset))->clumpFreeList);
+    ((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                       clumpModule.globalsOffset))->atomicFreeList = 0;
+    ((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                       clumpModule.globalsOffset))->clumpFreeList = 0;
     clumpModule.numInstances--;
     return instance;
 }
@@ -278,19 +285,27 @@ void* _rpClumpClose(void* instance, int offset, int size)
 void* _rpClumpOpen(void* instance, int offset, int size)
 {
     clumpModule.globalsOffset = offset;
-    ClumpGlobals()->atomicFreeList = RwFreeListCreateAndPreallocateSpace(
+    ((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                       clumpModule.globalsOffset))->atomicFreeList =
+        RwFreeListCreateAndPreallocateSpace(
         atomicTKList.sizeOfStruct, _rpAtomicFreeListBlockSize, 4,
         _rpAtomicFreeListPreallocBlocks, &_rpAtomicFreeList, 0x40010);
-    if (ClumpGlobals()->atomicFreeList != 0) {
-        ClumpGlobals()->clumpFreeList = RwFreeListCreateAndPreallocateSpace(
+    if (((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                           clumpModule.globalsOffset))->atomicFreeList != 0) {
+        ((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                           clumpModule.globalsOffset))->clumpFreeList =
+            RwFreeListCreateAndPreallocateSpace(
             clumpTKList.sizeOfStruct, _rpClumpFreeListBlockSize, 4,
             _rpClumpFreeListPreallocBlocks, &_rpClumpFreeList, 0x40014);
-        if (ClumpGlobals()->clumpFreeList != 0) {
+        if (((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                               clumpModule.globalsOffset))->clumpFreeList != 0) {
             clumpModule.numInstances++;
             return instance;
         }
-        RwFreeListDestroy(ClumpGlobals()->atomicFreeList);
-        ClumpGlobals()->atomicFreeList = 0;
+        RwFreeListDestroy(((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                                             clumpModule.globalsOffset))->atomicFreeList);
+        ((RpClumpGlobals*)((unsigned char*)RwEngineInstance +
+                           clumpModule.globalsOffset))->atomicFreeList = 0;
     }
     return 0;
 }
@@ -496,7 +511,12 @@ int RpClumpDestroy(RpClump* clump)
 
 RpClump* RpClumpAddAtomic(RpClump* clump, RpAtomic* atomic)
 {
-    rwLinkListAddLLLink(&clump->atomicList, &atomic->inClumpLink);
+    RwLLLink* link;
+    atomic->inClumpLink.next = clump->atomicList.next;
+    atomic->inClumpLink.prev = &clump->atomicList;
+    clump->atomicList.next->prev = &atomic->inClumpLink;
+    link = &atomic->inClumpLink;
+    clump->atomicList.next = link;
     atomic->clump = clump;
     return clump;
 }
@@ -504,8 +524,14 @@ RpClump* RpClumpAddAtomic(RpClump* clump, RpAtomic* atomic)
 
 RpClump* RpClumpRemoveLight(RpClump* clump, RpLight* light)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((unsigned char*)light + _rpClumpLightExtOffset);
-    rwLinkListRemoveLLLink(&ext->inClumpLink);
+    RpClumpObjectExtension* ext =
+        (RpClumpObjectExtension*)((unsigned char*)light +
+                                  _rpClumpLightExtOffset);
+    RwLLLink* previous;
+
+    ext->inClumpLink.prev->next = ext->inClumpLink.next;
+    previous = ext->inClumpLink.prev;
+    ext->inClumpLink.next->prev = previous;
     ext->inClumpLink.prev = 0;
     ext->inClumpLink.next = 0;
     ext->clump = 0;
@@ -514,8 +540,14 @@ RpClump* RpClumpRemoveLight(RpClump* clump, RpLight* light)
 
 RpClump* RpClumpRemoveCamera(RpClump* clump, RwCamera* camera)
 {
-    RpClumpObjectExtension* ext = (RpClumpObjectExtension*)((unsigned char*)camera + _rpClumpCameraExtOffset);
-    rwLinkListRemoveLLLink(&ext->inClumpLink);
+    RpClumpObjectExtension* ext =
+        (RpClumpObjectExtension*)((unsigned char*)camera +
+                                  _rpClumpCameraExtOffset);
+    RwLLLink* previous;
+
+    ext->inClumpLink.prev->next = ext->inClumpLink.next;
+    previous = ext->inClumpLink.prev;
+    ext->inClumpLink.next->prev = previous;
     ext->inClumpLink.prev = 0;
     ext->inClumpLink.next = 0;
     ext->clump = 0;

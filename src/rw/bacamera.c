@@ -385,9 +385,13 @@ static RwCamera* CameraBeginUpdate(RwCamera* camera)
 
 void* _rwCameraClose(void* instance, int offset, int size)
 {
-    if (*CameraFreeListSlot() != 0) {
-        RwFreeListDestroy(*CameraFreeListSlot());
-        *CameraFreeListSlot() = 0;
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        cameraModule.globalsOffset) != 0) {
+        RwFreeListDestroy(
+            *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                            cameraModule.globalsOffset));
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        cameraModule.globalsOffset) = 0;
     }
     cameraModule.numInstances--;
     return instance;
@@ -396,11 +400,13 @@ void* _rwCameraClose(void* instance, int offset, int size)
 void* _rwCameraOpen(void* instance, int offset, int size)
 {
     cameraModule.globalsOffset = offset;
-    *CameraFreeListSlot() =
+    *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                    cameraModule.globalsOffset) =
         RwFreeListCreateAndPreallocateSpace(
             cameraTKList.sizeOfStruct, _rwCameraFreeListBlockSize, 4,
             _rwCameraFreeListPreallocBlocks, &_rwCameraFreeList, 0x40005);
-    if (*CameraFreeListSlot() == 0) {
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        cameraModule.globalsOffset) == 0) {
         return 0;
     }
     cameraModule.numInstances++;

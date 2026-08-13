@@ -6,8 +6,7 @@
 #include "rw/nodegamecube.h"
 #include "rw/rplight.h"
 #include "rw/rwresources.h"
-
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
+#include "rw/rwframe.h"
 
 struct RwGameCubeLightingData {
     unsigned char reserved_0x00[0x0C];
@@ -33,11 +32,6 @@ typedef struct RpAtomicSectorTie {
     RwLLLink atomicLink;
     RpWorldSector* sector;
 } RpAtomicSectorTie;
-
-typedef struct RpLightTie {
-    RwLLLink link;
-    RpLight* light;
-} RpLightTie;
 
 typedef struct RwGameCubeResEntryHeader {
     RwResEntry entry;

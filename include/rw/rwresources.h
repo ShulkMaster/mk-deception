@@ -22,5 +22,7 @@ RwResEntry* RwResourcesAllocateResEntry(
 int RwResourcesSetArenaSize(unsigned int size);
 int RwResourcesEmptyArena(void);
 void _rwResourcesPurge(void);
+void* _rwResourcesOpen(void* instance, int offset, int size);
+void* _rwResourcesClose(void* instance, int offset, int size);
 
 #endif

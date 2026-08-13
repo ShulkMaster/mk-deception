@@ -5,6 +5,7 @@
 #include "rw/rwerror.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwframe.h"
 #include "rw/rwplcore.h"
 #include "rw/rwstream.h"
 
@@ -53,15 +54,10 @@ int _rpSizeSectRights(const void*, int, int);
 RwStream* _rpReadMaterialRights(RwStream*, int);
 RwStream* _rpWriteMaterialRights(RwStream*, int, const RpMaterial*);
 int _rpSizeMaterialRights(const RpMaterial*);
-RpWorld* RpWorldAddCamera(RpWorld*, RwCamera*);
-RpWorld* RpWorldRemoveCamera(RpWorld*, RwCamera*);
 RpWorld* RpWorldAddAtomic(RpWorld*, RpAtomic*);
 RpWorld* RpWorldRemoveAtomic(RpWorld*, RpAtomic*);
 RpWorld* RpWorldAddClump(RpWorld*, RpClump*);
 RpWorld* RpWorldRemoveClump(RpWorld*, RpClump*);
-RpWorld* RpWorldAddLight(RpWorld*, RpLight*);
-RpWorld* RpWorldRemoveLight(RpWorld*, RpLight*);
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 typedef struct RpWorldCameraExt {
     RpWorldSector **frustumSectors;
@@ -87,20 +83,6 @@ typedef struct RpWorldLightExt {
     RpWorld *world;
     RwObjectHasFrameSyncFunction oldSync;
 } RpWorldLightExt;
-
-typedef struct RpTie {
-    RwLLLink lAtomicInWorldSector;
-    RpAtomic* apAtom;
-    RwLLLink lWorldSectorInAtomic;
-    RpWorldSector* worldSector;
-} RpTie;
-
-typedef struct RpLightTie {
-    RwLLLink lightInWorldSector;
-    RpLight* light;
-    RwLLLink WorldSectorInLight;
-    RpWorldSector* sect;
-} RpLightTie;
 
 typedef struct rpWorldObjGlobals {
     RwFreeList *tieFreeList;
@@ -157,30 +139,37 @@ WorldObjectOpen(void *instance, int offset,
                 int size )
 {
     worldObjModule.globalsOffset = offset;
-    WorldObjectGlobals()->tieFreeList =
+    ((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                          worldObjModule.globalsOffset))->tieFreeList =
         RwFreeListCreateAndPreallocateSpace(sizeof(RpTie), _rpTieFreeListBlockSize,
                                              sizeof(unsigned int),
                                              _rpTieFreeListPreallocBlocks,
                                              &_rpTieFreeList,
                                              0x00040000 |
                                                  0x507);
-    if (WorldObjectGlobals()->tieFreeList == 0) {
+    if (((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                              worldObjModule.globalsOffset))->tieFreeList == 0) {
         return 0;
     }
 
-    WorldObjectGlobals()->lightTieFreeList =
+    ((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                          worldObjModule.globalsOffset))->lightTieFreeList =
         RwFreeListCreateAndPreallocateSpace(
             sizeof(RpLightTie), _rpLightTieFreeListBlockSize,
             sizeof(unsigned int), _rpLightTieFreeListPreallocBlocks,
             &_rpLightTieFreeList, 0x00040000 | 0x507);
-    if (WorldObjectGlobals()->lightTieFreeList == 0) {
-        RwFreeListDestroy(WorldObjectGlobals()->tieFreeList);
-        WorldObjectGlobals()->tieFreeList = 0;
+    if (((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                              worldObjModule.globalsOffset))->lightTieFreeList == 0) {
+        RwFreeListDestroy(((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                                                worldObjModule.globalsOffset))->tieFreeList);
+        ((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                              worldObjModule.globalsOffset))->tieFreeList = 0;
         return 0;
     }
 
     RwEngineInstance->renderFrame = 1;
-    WorldObjectGlobals()->clumpsInFrustumID = 0;
+    ((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                          worldObjModule.globalsOffset))->clumpsInFrustumID = 0;
     worldObjModule.numInstances++;
     return instance;
 }
@@ -190,13 +179,19 @@ WorldObjectClose(void *instance,
                  int offset ,
                  int size )
 {
-    if (WorldObjectGlobals()->lightTieFreeList != 0) {
-        RwFreeListDestroy(WorldObjectGlobals()->lightTieFreeList);
-        WorldObjectGlobals()->lightTieFreeList = 0;
+    if (((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                              worldObjModule.globalsOffset))->lightTieFreeList != 0) {
+        RwFreeListDestroy(((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                                                worldObjModule.globalsOffset))->lightTieFreeList);
+        ((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                              worldObjModule.globalsOffset))->lightTieFreeList = 0;
     }
-    if (WorldObjectGlobals()->tieFreeList != 0) {
-        RwFreeListDestroy(WorldObjectGlobals()->tieFreeList);
-        WorldObjectGlobals()->tieFreeList = 0;
+    if (((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                              worldObjModule.globalsOffset))->tieFreeList != 0) {
+        RwFreeListDestroy(((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                                                worldObjModule.globalsOffset))->tieFreeList);
+        ((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                              worldObjModule.globalsOffset))->tieFreeList = 0;
     }
     worldObjModule.numInstances--;
     return instance;
@@ -347,16 +342,25 @@ WorldDeInitCameraExt(void *object,
 int
 _rpLightTieDestroy(RpLightTie * tie)
 {
-    rwLinkListRemoveLLLink(&tie->WorldSectorInLight);
-    rwLinkListRemoveLLLink(&tie->lightInWorldSector);
-    RwEngineInstance->fpFreeListFree(WorldObjectGlobals()->lightTieFreeList, tie);
+    RwLLLink *previous;
+
+    tie->worldSectorInLight.prev->next = tie->worldSectorInLight.next;
+    previous = tie->worldSectorInLight.prev;
+    tie->worldSectorInLight.next->prev = previous;
+    tie->lightInWorldSector.prev->next = tie->lightInWorldSector.next;
+    previous = tie->lightInWorldSector.prev;
+    tie->lightInWorldSector.next->prev = previous;
+    RwEngineInstance->fpFreeListFree(
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        worldObjModule.globalsOffset + sizeof(void*)),
+        tie);
     return 1;
 }
 
 int
 _rpTieDestroy(RpTie * tie)
 {
-    if (tie->apAtom != 0 && tie->worldSector != 0) {
+    if (tie->atomic != 0 && tie->worldSector != 0) {
         rwLinkListRemoveLLLink(&tie->lWorldSectorInAtomic);
         rwLinkListRemoveLLLink(&tie->lAtomicInWorldSector);
         RwEngineInstance->fpFreeListFree(WorldObjectGlobals()->tieFreeList, tie);
@@ -400,7 +404,7 @@ WorldAttachAtomicSphere(RpWorld * world, RpAtomic * atomic)
                                          0x00030000 |
                                              0x507);
             tie->worldSector = (RpWorldSector *)sector;
-            tie->apAtom = atomic;
+            tie->atomic = atomic;
             rwLinkListAddLLLink(&((RpWorldSector *)sector)->collAtomicsInWorldSector,
                                 &tie->lAtomicInWorldSector);
             rwLinkListAddLLLink(&atomic->worldSectorsInAtomic,
@@ -534,7 +538,8 @@ static RwObjectHasFrame *
 WorldLightSync(RwObjectHasFrame * object)
 {
     RpLight *light = (RpLight *)object;
-    RpWorldLightExt *lightExt = WorldLightExtension(light);
+    RpWorldLightExt *lightExt =
+        (RpWorldLightExt*)((unsigned char*)light + lightExtOffset);
     RpWorld *world;
     RwFrame *frame;
 
@@ -569,12 +574,12 @@ WorldLightSync(RwObjectHasFrame * object)
                 RpLightTie *tie = RwEngineInstance->fpFreeListAlloc(
                     WorldObjectGlobals()->lightTieFreeList,
                     0x00030000 | 0x507);
-                    tie->sect = (RpWorldSector *)sector;
+                    tie->worldSector = (RpWorldSector *)sector;
                     tie->light = light;
                     rwLinkListAddLLLink(&((RpWorldSector *)sector)->lightsInWorldSector,
                                         &tie->lightInWorldSector);
                     rwLinkListAddLLLink(&light->worldSectorsInLight,
-                                        &tie->WorldSectorInLight);
+                                        &tie->worldSectorInLight);
                 sector = stack[stackDepth--];
             } else {
                 RpPlaneSector *plane = (RpPlaneSector *)sector;
@@ -1113,17 +1118,29 @@ RpClumpGetWorld(const RpClump * clump)
 RpWorld            *
 RpWorldAddLight(RpWorld * world, RpLight * light)
 {
-    RpWorldLightExt *lightExt =
-        (RpWorldLightExt*)((unsigned char*)light + lightExtOffset);
+    RpWorldLightExt *lightExt;
+    RwFrame *frame;
+    RwLLLink *directionalLink;
+    RwLLLink *localLink;
+
+    lightExt = (RpWorldLightExt*)((unsigned char*)light + lightExtOffset);
     lightExt->world = world;
-    if (RpLightGetType(light) < 0x80) {
-        rwLinkListAddLLLink(&world->directionalLightList, &light->inWorld);
+    if (light->object.object.subType < 0x80) {
+        light->inWorld.next = world->directionalLightList.link.next;
+        light->inWorld.prev = &world->directionalLightList.link;
+        world->directionalLightList.link.next->prev = &light->inWorld;
+        directionalLink = &light->inWorld;
+        world->directionalLightList.link.next = directionalLink;
     } else {
-        RwFrame *frame = RpLightGetFrame(light);
+        frame = (RwFrame*)light->object.object.parent;
         if (frame != 0) {
             RwFrameUpdateObjects(frame);
         }
-        rwLinkListAddLLLink(&world->lightList, &light->inWorld);
+        light->inWorld.next = world->lightList.link.next;
+        light->inWorld.prev = &world->lightList.link;
+        world->lightList.link.next->prev = &light->inWorld;
+        localLink = &light->inWorld;
+        world->lightList.link.next = localLink;
     }
     return world;
 }

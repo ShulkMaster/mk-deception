@@ -6,6 +6,8 @@
 #include "rw/gamecube_texture.h"
 #include "rw/rwerror.h"
 #include "rw/rwim3d.h"
+#include "rw/rwcamera_internal.h"
+#include "rw/rwframe.h"
 #include "rw/rtquat.h"
 #include "rw/rxpipeline.h"
 
@@ -37,21 +39,6 @@ typedef struct OSThreadQueue {
 typedef struct GXFifoObj {
     unsigned char data[0x80];
 } GXFifoObj;
-
-struct RwCamera {
-    RwObjectHasFrame object;
-    int projectionType;
-    void* beginUpdate;
-    void* endUpdate;
-    RwMatrix viewMatrix;
-    RwRaster* frameBuffer;
-    RwRaster* zBuffer;
-    RwV2d viewWindow;
-    RwV2d recipViewWindow;
-    RwV2d viewOffset;
-    float nearPlane;
-    float farPlane;
-};
 
 typedef struct RwDlGlobals {
     RwCamera* camera;
@@ -94,7 +81,6 @@ int _rwDlCameraClear(void* cameraObject, RwRGBA* color,
 int _rwDlCameraBeginUpdate(void* out, void* inOut, int in);
 int _rwDlCameraEndUpdate(void* out, RwCamera* camera, int in);
 int _rwDlRasterShowRaster(void* out, void* inOut, int in);
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 extern int _rwDlRasterPluginAttach(void);
 extern int _rwDlTexturePluginAttach(void);

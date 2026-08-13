@@ -1,6 +1,7 @@
 #ifndef PLATFORM_DISPLAY_H
 #define PLATFORM_DISPLAY_H
-typedef struct RwFrame RwFrame;
+#include "rw/rplight.h"
+#include "rw/rwcamera_internal.h"
 typedef struct RwTexture RwTexture;
 typedef struct ScreenObj ScreenObj;
 typedef struct RwRaster RwRaster;
@@ -16,14 +17,7 @@ typedef struct FadingScreen {
     unsigned long field_00; unsigned long field_04; RwTexture* snapshotTex;
     int fade_active; float alpha; ScreenObj* fade_obj;
 } FadingScreen;
-typedef struct RwCamera {
-    char object[4]; RwFrame* frame; char pad08[0x58]; RwRaster* frameBuffer; RwRaster* zBuffer;
-    float viewWindow[2]; char pad70[0x10]; float nearPlane; float farPlane; float fogPlane;
-} RwCamera;
 typedef struct RpWorld RpWorld; typedef struct RpClump RpClump;
-typedef struct RpLight {
-    unsigned char type, subType, flags, privateFlags; RwFrame* frame;
-} RpLight;
 typedef struct RwEngineInstanceType {
     char pad00[0x20]; int (*fpRenderStateSet)(int, int); char pad24[0x110];
     void* (*fpMalloc)(unsigned long, unsigned long); void (*fpFree)(void*);

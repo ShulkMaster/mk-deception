@@ -13,7 +13,9 @@
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
 #include "rw/rpmatfx_types.h"
+#include "rw/rplight.h"
 #include "rw/rtquat.h"
+#include "rw/rwframe.h"
 
 typedef RwFrame* (*RwFrameCallBack)(RwFrame* frame, void* data);
 typedef RwObject* (*RwObjectCallBack)(RwObject* object, void* data);
@@ -175,20 +177,15 @@ RwFrame* RwFrameForAllChildren(RwFrame* frame, RwFrameCallBack callback, void* d
 RwFrame* RwFrameForAllObjects(RwFrame* frame, RwObjectCallBack callback, void* data);
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry, RpMaterialCallBack callback, void* data);
 RpClump* RpClumpForAllAtomics(RpClump* clump, RpAtomicCallBack callback, void* data);
-void* RwFrameGetLTM(void* frame);
 void* memcpy(void* dst, const void* src, unsigned int size);
 int RwFrameDestroy(RwFrame* frame);
 RwFrame* RwFrameCreate(void);
-void RwFrameUpdateObjects(RwFrame* frame);
 int RpClumpDestroy(RpClump* clump);
 void set_atomic_material_alpha(RpAtomic* atomic, int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
 void pull_clump_from_world(RpClump* clump);
 void mkobj_destroy_bones(MkObj* obj);
 void free_mem(void* ptr);
-void* RpLightGetWorld(void* light);
-void RpWorldRemoveLight(void* world, void* light);
-void RpLightDestroy(void* light);
 int stricmp(const char* lhs, const char* rhs);
 int vdestroy_mkx_rplight(void* light);
 extern MkObj* plyr_obj;
@@ -196,7 +193,7 @@ extern MkVtable5 vtbl_mkx_mem;
 extern MkVtable5 vtbl_mkx_rplight;
 extern MkVtable5 vtbl_mkobj;
 extern _mwMemHeap* mkobj_heap;
-extern void* World;
+extern RpWorld* World;
 static void* pdata_headtracking;
 static MkPtr* limb_bone_list;
 unsigned int uploaded_light_state;
@@ -3692,9 +3689,9 @@ void obj_set_rw_lights(void* obj) {
             while (ptr != 0) {
                 wrapper = (MkxRpLight*)ptr->hdr;
                 if (active != 0) {
-                    wrapper->light->object.flags |= 3;
+                    wrapper->light->object.object.flags |= 3;
                 } else {
-                    wrapper->light->object.flags &= ~3u;
+                    wrapper->light->object.object.flags &= ~3u;
                 }
                 ptr = next_mkptr(ptr);
             }

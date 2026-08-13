@@ -43,7 +43,10 @@ int RpLightRegisterPlugin(int size, unsigned int pluginID,
                               RwPluginObjectConstructor constructCB,
                               RwPluginObjectDestructor destructCB,
                               RwPluginObjectCopy copyCB);
+void* _rpLightOpen(void* instance, int offset, int size);
+void* _rpLightClose(void* instance, int offset, int size);
 struct RpWorld* RpLightGetWorld(const RpLight* light);
 struct RpWorld* RpWorldAddLight(struct RpWorld* world, RpLight* light);
+struct RpWorld* RpWorldRemoveLight(struct RpWorld* world, RpLight* light);
 
 #endif

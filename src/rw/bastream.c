@@ -25,10 +25,10 @@ void *_rwStreamModuleOpen(void *instance, int offset, int size) {
 }
 
 void *_rwStreamModuleClose(void *instance, int offset, int size) {
-  RwFreeList *freeList = *(RwFreeList **)((unsigned char *)RwEngineInstance +
-                                          streamModule.globalsOffset);
-  if (freeList != 0)
-    RwFreeListDestroy(freeList);
+  if (*(RwFreeList **)((unsigned char *)RwEngineInstance +
+                       streamModule.globalsOffset) != 0)
+    RwFreeListDestroy(*(RwFreeList **)((unsigned char *)RwEngineInstance +
+                                       streamModule.globalsOffset));
   --streamModule.numInstances;
   return instance;
 }

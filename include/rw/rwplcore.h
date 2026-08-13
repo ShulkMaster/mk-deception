@@ -16,6 +16,7 @@ typedef union RwSplitBits {
 } RwSplitBits;
 #define NULL 0
 typedef struct RwModuleInfo { int globalsOffset; int numInstances; } RwModuleInfo;
+typedef struct RwV2d { float x; float y; } RwV2d;
 typedef struct RwV3d { float x; float y; float z; } RwV3d;
 typedef struct RwBBox { RwV3d sup; RwV3d inf; } RwBBox;
 typedef struct RwSphere {

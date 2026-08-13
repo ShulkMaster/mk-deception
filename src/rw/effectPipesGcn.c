@@ -8,6 +8,7 @@
 #include "rw/nodegamecube.h"
 #include "rw/rpmatfx.h"
 #include "rw/rwresources.h"
+#include "rw/rwframe.h"
 
 typedef struct RwGameCubeLightingData {
     unsigned char reserved_0x00[0x0C];
@@ -89,7 +90,6 @@ extern int _rpGameCubeMTPipeDataQueryNBTs(
 extern void _rpGameCubeMTPipeDataCalcNBTs(
     RxGameCubeAllInOneInstanceData* data,
     const RpGameCubeVtxFmt* format, int numVertices);
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 static const GXColor opaqueWhite = {255, 255, 255, 255};
 static const GXColor opaqueBlack = {0, 0, 0, 255};

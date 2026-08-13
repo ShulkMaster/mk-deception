@@ -5,32 +5,20 @@
 #include "platform/gcutils.h"
 #include "runtime/mk_struct.h"
 #include "rw/rpworld_types.h"
+#include "rw/rwframe.h"
 
 #ifndef NULL
 #define NULL ((void*)0)
 #endif
 
-/* RwFrame modelling matrix @ +0x10 (stock RW). */
-typedef struct ShadowFrame {
-    char pad[0x10];
-    RwMatrix modelling; /* +0x10 */
-} ShadowFrame;
-
-typedef struct RwEngineInstanceType {
-    char pad[0x1C];
-    float field_1C;
-    char pad2[0x10];
-    void (*fpIm2DRenderIndexedPrimitive)(int primType, void* vertices, int numVertices);
-} RwEngineInstanceType;
-
 typedef struct RwCamera {
     char object[0x4];
-    ShadowFrame* frame; /* +0x04 */
+    RwFrame* frame;
     char pad[0x58];
-    void* raster_target; /* +0x60 */
-    void* z_raster;      /* +0x64 */
+    void* raster_target;
+    void* z_raster;
     char pad68[0x1C];
-    float view_window_scale; /* +0x84 */
+    float view_window_scale;
 } RwCamera;
 
 /* Raster height @ +0x0C (used for Im2D aspect). */
@@ -38,6 +26,13 @@ typedef struct ShadowRaster {
     char pad[0x0C];
     int height; /* +0x0C */
 } ShadowRaster;
+
+typedef struct RwEngineInstanceType {
+    char pad[0x1C];
+    float field_1C;
+    char pad2[0x10];
+    void (*fpIm2DRenderIndexedPrimitive)(int primType, void* vertices, int numVertices);
+} RwEngineInstanceType;
 
 typedef struct FighterState FighterState;
 
@@ -146,10 +141,10 @@ void set_render_state(int state, int value);
 void* RpClumpForAllAtomics(void* clump, void* callback, void* data);
 void RwV3dTransformPoints(void* dst, void* src, int count, RwMatrix* matrix);
 void RwRasterDestroy(void* raster);
-void RwFrameUpdateObjects(void* frame);
 void RwCameraSetFarClipPlane(void* camera, float distance);
 void RwCameraSetNearClipPlane(void* camera, float distance);
-void RwCameraSetViewWindow(void* camera, float* width, float* height);
+RwCamera* RwCameraSetViewWindow(RwCamera* camera,
+                                const RwV2d* viewWindow);
 int RwCameraClear(void* camera, RwRGBA* color, int flags);
 int RwCameraBeginUpdate(void* camera);
 void RwCameraEndUpdate(void* camera);
@@ -161,7 +156,6 @@ void RwCameraSetProjection(void* camera, int projection);
 void RwFrameDestroy(void* frame);
 void RwCameraDestroy(void* camera);
 void RwFrameOrthoNormalize(void* frame);
-void* RwFrameGetLTM(void* frame);
 void YXZ_angles_to_MKMATRIX(const float* angles, RwMatrix* matrix);
 void* load_model_from_slot_transl(int slot_hi, int slot_lo, int flags);
 void insert_fgnd_mkobj(void* model);
@@ -283,7 +277,7 @@ int init_shadow(void* shadow_ptr, void* clump_ptr) {
             shadow->sphere_w = atomic->boundingSphereRadius;
             shadow->ground_w = shadow->sphere_w;
             RwV3dTransformPoints(&shadow->ground_point, &clump->worldAnchorX, 1,
-                                 &((ShadowFrame*)clump->modellingFrame)->modelling);
+                                 &((RwFrame*)clump->modellingFrame)->modelling);
         }
     }
     result = SetupShadow(shadow);
@@ -312,7 +306,7 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     ShadowLightPair* lights;
     FighterState* validated;
     float shadow_scale;
-    float view_window;
+    RwV2d view_window;
     RwCamera* ip_camera;
     ShadowRaster* src_raster;
     void* dst_raster;
@@ -353,7 +347,7 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     }
     gc_enable_alpha_writes(1);
     RwV3dTransformPoints(&shadow->ground_point, &ctx->world_anchor, 1,
-                         &((ShadowFrame*)ctx->matrix_holder)->modelling);
+                         &((RwFrame*)ctx->matrix_holder)->modelling);
     camera = ShadowCamera;
     dir_matrix = &ShadowDirectionMatrix;
     frame_matrix = &camera->frame->modelling;
@@ -364,8 +358,9 @@ void UpdateShadow(void* fighter_ptr, void* shadow_ptr, void* ltm_ptr) {
     RwFrameUpdateObjects(camera->frame);
     RwCameraSetFarClipPlane(camera, kFarClipMul * shadow_scale);
     RwCameraSetNearClipPlane(camera, kNearClipMul * shadow_scale);
-    view_window = shadow_scale;
-    RwCameraSetViewWindow(camera, &view_window, &view_window);
+    view_window.x = shadow_scale;
+    view_window.y = shadow_scale;
+    RwCameraSetViewWindow(camera, &view_window);
     frame_matrix = &camera->frame->modelling;
     frame_matrix->pos.x = fighter->position.x;
     frame_matrix->pos.y = fighter->position.y;
@@ -735,7 +730,8 @@ static int shadow_getFirstAtomic(void* atomic, void* out) {
     return 0;
 }
 
-void ShadowRasterBlur(void* src_raster, void* dst_raster, void* ip_camera_ptr) {
+void ShadowRasterBlur(void* src_raster, void* dst_raster,
+                      void* ip_camera_ptr) {
     RwCamera* ip_camera;
     ShadowRaster* src;
     int pass;

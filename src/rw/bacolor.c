@@ -1,4 +1,5 @@
 #include "rw/rwplcore.h"
+#include "rw/rwcolor.h"
 
 
 

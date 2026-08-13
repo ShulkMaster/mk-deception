@@ -130,6 +130,8 @@
 
 extern "C" {
 
+#include "rw/rwframe.h"
+
 /* MWCC 2.7 O4 workaround: removing this duplicate triggers optimizer code 159. */
 #pragma use_lmw_stmw on
 
@@ -3359,8 +3361,6 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
 
     return poly;
 }
-
-extern void* RwFrameGetLTM(void* frame);
 
 enum { kScreenPolyPfxOid = 0x900B };
 

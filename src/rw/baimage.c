@@ -2,6 +2,7 @@
 #include "runtime/cstring.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwimage.h"
 #include "rw/rxpipeline.h"
 
 extern float powf(float, float);

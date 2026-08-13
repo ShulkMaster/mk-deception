@@ -13,8 +13,6 @@ extern RxPipeline* _rpDlAtomicPipelineCreate(
     RxGCReinstanceCallback reinstanceCallback,
     RxGCLightingCallback lightingCallback, RxGCRenderCallback renderCallback);
 extern void _rxPipelineDestroy(RxPipeline* pipeline);
-extern RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline);
-extern RxPipeline* RpAtomicSetDefaultPipeline(RxPipeline* pipeline);
 extern void _rxGCAtomicDefaultInstanceCallback(void);
 extern void _rxGCAtomicDefaultReinstanceCallback(void);
 extern void _rxGCAtomicDefaultLightingCallback(void);

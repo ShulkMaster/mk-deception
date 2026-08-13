@@ -28,6 +28,7 @@ Score key: `H/H/H` = occurrence / likelihood that the smell identifies the cause
 | 16 | If retail uses natural signed-int-to-float conversion, volatile `0x4330` scaffold → `(float)value` | Input signedness and output precision are proven | Native `xoris/lfd/fsubs`; removes fake volatile spills | M/H/H |
 | 17 | If a member load/store width is wrong, broad scalar type → exact `u8/u16/u32` member while keeping promoted locals natural-width | ABI and stored width are proven independently | Extend/truncate instructions and narrow-store scheduling | H/H/H |
 | 18 | If retail has one joined result block, multiple early returns → assign a typed `result` in each arm and `return result` once | CFG and side effects prove a common join | Tail duplication, extra `li`, branch layout | H/M/H |
+| 19 | If retail open-codes an intrusive-list insertion and keeps the inserted node in a nonvolatile register only for the final head store, spell the four link stores directly and introduce a typed node alias immediately before that final store | Retail has no helper `bl`; list layout and store order are proven; the alias represents the inserted node | Hidden helper calls; intrusive-list store order; node live range | M/H/H |
 
 ## High-frequency guardrails
 

@@ -8,30 +8,32 @@ extern int _rpCreatePlatformAtomicPipelines(void);
 extern void _rpDestroyPlatformAtomicPipelines(void);
 
 RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline) {
-    RxPipelinePlatformGlobals* globals = (RxPipelinePlatformGlobals*)
-        ((unsigned char*)RwEngineInstance + _rxPipelineGlobalsOffset);
     if (pipeline == 0) {
-        if (globals->platformWorldSectorPipeline != 0) {
-            pipeline = globals->platformWorldSectorPipeline;
+        if (*(RxPipeline**)((unsigned char*)RwEngineInstance +
+                            _rxPipelineGlobalsOffset + 0x58) != 0) {
+            pipeline = *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                                       _rxPipelineGlobalsOffset + 0x58);
         } else {
             pipeline = 0;
         }
     }
-    globals->defaultWorldSectorPipeline = pipeline;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x40) = pipeline;
     return pipeline;
 }
 
 RxPipeline* RpAtomicSetDefaultPipeline(RxPipeline* pipeline) {
-    RxPipelinePlatformGlobals* globals = (RxPipelinePlatformGlobals*)
-        ((unsigned char*)RwEngineInstance + _rxPipelineGlobalsOffset);
     if (pipeline == 0) {
-        if (globals->platformAtomicPipeline != 0) {
-            pipeline = globals->platformAtomicPipeline;
+        if (*(RxPipeline**)((unsigned char*)RwEngineInstance +
+                            _rxPipelineGlobalsOffset + 0x54) != 0) {
+            pipeline = *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                                       _rxPipelineGlobalsOffset + 0x54);
         } else {
             pipeline = 0;
         }
     }
-    globals->defaultAtomicPipeline = pipeline;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x3C) = pipeline;
     return pipeline;
 }
 
@@ -42,19 +44,26 @@ void _rpWorldPipelineClose(void) {
 }
 
 int _rpWorldPipelineOpen(void) {
-    RxPipelinePlatformGlobals* globals = (RxPipelinePlatformGlobals*)
-        ((unsigned char*)RwEngineInstance + _rxPipelineGlobalsOffset);
     int result = 1;
 
-    globals->defaultAtomicPipeline = 0;
-    globals->defaultWorldSectorPipeline = 0;
-    globals->defaultMaterialPipeline = 0;
-    globals->field_0x48 = 0;
-    globals->field_0x4C = 0;
-    globals->field_0x50 = 0;
-    globals->platformAtomicPipeline = 0;
-    globals->platformWorldSectorPipeline = 0;
-    globals->platformMaterialPipeline = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x3C) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x40) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x44) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x48) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x4C) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x50) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x54) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x58) = 0;
+    *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                    _rxPipelineGlobalsOffset + 0x5C) = 0;
 
     result = _rpCreatePlatformMaterialPipelines();
     if (result != 0) {

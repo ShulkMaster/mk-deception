@@ -25,5 +25,7 @@ RwStream* RwStreamWriteInt32(RwStream* stream, const int* values,
                              unsigned int numBytes);
 RwStream* RwStreamReadInt32(RwStream* stream, int* values,
                             unsigned int numBytes);
+void* _rwStreamModuleOpen(void* instance, int offset, int size);
+void* _rwStreamModuleClose(void* instance, int offset, int size);
 
 #endif

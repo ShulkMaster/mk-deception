@@ -1,6 +1,5 @@
 #include "rw/rwtypehf.h"
-
-extern RwFrame* RwFrameUpdateObjects(RwFrame* frame);
+#include "rw/rwframe.h"
 
 void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame) {
     RwObjectHasFrame* objectHasFrame = object;

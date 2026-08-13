@@ -3,8 +3,6 @@
 
 #include "rw/rwplcore.h"
 
-typedef struct RwV2d { float x; float y; } RwV2d;
-
 typedef struct RxPipeline RxPipeline;
 typedef struct RxNodeDefinition RxNodeDefinition;
 typedef struct RwMatrix RwMatrix;
@@ -83,5 +81,7 @@ void _rwIm3DDestroyPlatformRenderPipelines(
     RwIm3DRenderPipelines* pipelines);
 RxNodeDefinition* RxNodeDefinitionGetGameCubeImmInstance(void);
 RxNodeDefinition* RxNodeDefinitionGetGameCubeSubmitNoLight(void);
+void* _rwIm3DOpen(void* instance, int offset, int size);
+void* _rwIm3DClose(void* instance, int offset, int size);
 
 #endif

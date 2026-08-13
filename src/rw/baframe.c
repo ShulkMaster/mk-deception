@@ -1,5 +1,6 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rwfreelist.h"
+#include "rw/rwframe.h"
 #include "rw/rwplcore.h"
 #include "rw/rwtypehf.h"
 
@@ -31,23 +32,34 @@ static RwFreeList** frameFreeListSlot(void)
 
 void* _rwFrameOpen(void* instance, int offset, int size)
 {
+    RwLLLink* dirtyLink;
+
     frameModule.globalsOffset = offset;
-    *frameFreeListSlot() =
+    *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                    frameModule.globalsOffset) =
         RwFreeListCreateAndPreallocateSpace(
             frameTKList.sizeOfStruct, _rwFrameFreeListBlockSize, 4,
             _rwFrameFreeListPreallocBlocks, &frameFreeList, 0x4000E);
-    if (*frameFreeListSlot() == 0)
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        frameModule.globalsOffset) == 0)
         return 0;
-    rwLinkListInitialize(&RwEngineInstance->dirtyFrameList);
+    RwEngineInstance->dirtyFrameList.link.next =
+        &RwEngineInstance->dirtyFrameList.link;
+    dirtyLink = &RwEngineInstance->dirtyFrameList.link;
+    RwEngineInstance->dirtyFrameList.link.prev = dirtyLink;
     frameModule.numInstances++;
     return instance;
 }
 
 void* _rwFrameClose(void* instance, int offset, int size)
 {
-    if (*frameFreeListSlot() != 0) {
-        RwFreeListDestroy(*frameFreeListSlot());
-        *frameFreeListSlot() = 0;
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        frameModule.globalsOffset) != 0) {
+        RwFreeListDestroy(
+            *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                            frameModule.globalsOffset));
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        frameModule.globalsOffset) = 0;
     }
     frameModule.numInstances--;
     return instance;

@@ -63,24 +63,27 @@ void _rpMaterialSetDefaultSurfaceProperties(const RpSurfaceProperties* surface)
 
 void* _rpMaterialOpen(void* instance, int offset, int)
 {
-    RwFreeList** freeList;
     materialModule.globalsOffset = offset;
-    freeList = (RwFreeList**)((unsigned char*)RwEngineInstance + offset);
-    *freeList = RwFreeListCreateAndPreallocateSpace(
-        materialTKList.sizeOfStruct, _rpMaterialFreeListBlockSize, 4,
-        _rpMaterialFreeListPreallocBlocks, &_rpMaterialFreeList, 0x40007);
-    if (*freeList == 0) return 0;
+    *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                    materialModule.globalsOffset) =
+        RwFreeListCreateAndPreallocateSpace(
+            materialTKList.sizeOfStruct, _rpMaterialFreeListBlockSize, 4,
+            _rpMaterialFreeListPreallocBlocks, &_rpMaterialFreeList, 0x40007);
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        materialModule.globalsOffset) == 0) return 0;
     materialModule.numInstances++;
     return instance;
 }
 
 void* _rpMaterialClose(void* instance, int, int)
 {
-    RwFreeList** freeList = (RwFreeList**)((unsigned char*)RwEngineInstance +
-                                          materialModule.globalsOffset);
-    if (*freeList != 0) {
-        RwFreeListDestroy(*freeList);
-        *freeList = 0;
+    if (*(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        materialModule.globalsOffset) != 0) {
+        RwFreeListDestroy(
+            *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                            materialModule.globalsOffset));
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        materialModule.globalsOffset) = 0;
     }
     materialModule.numInstances--;
     return instance;

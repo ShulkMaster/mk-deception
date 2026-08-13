@@ -8,6 +8,7 @@
 #include "rw/rphanim.h"
 #include "rw/rpskin.h"
 #include "rw/rwcore_types.h"
+#include "rw/rwframe.h"
 
 #define RW_MATRIX_MAT33(matrix_) ((Mat33*)(matrix_))
 
@@ -339,7 +340,6 @@ void get_bone_world_pos(MkObj* obj, int bone, Vec* out);
 void get_bone_offset_world_pos(
     MkObj* obj, int bone, const Vec* offset, Vec* out);
 void update_bone_hierarchy(MkHdr* obj);
-void RwFrameUpdateObjects(RwFrame* frame);
 RwFrame* RwFrameForAllChildren(
     RwFrame* frame,
     RwFrame* (*callback)(RwFrame*, void*),

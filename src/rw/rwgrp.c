@@ -1,4 +1,5 @@
 #include "rw/rwfreelist.h"
+#include "rw/rwgrp.h"
 
 extern RwGlobals* RwEngineInstance;
 

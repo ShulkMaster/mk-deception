@@ -270,9 +270,11 @@ RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
 void* _rwIm3DClose(void* instance, int offset, int size)
 {
     _rwIm3DDestroyPlatformRenderPipelines(
-        &Im3DGlobals()->defaultRenderPipelines);
+        &((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                           _rwIm3DModule.globalsOffset))->defaultRenderPipelines);
     _rwIm3DDestroyPlatformTransformPipeline(
-        &Im3DGlobals()->defaultTransformPipeline);
+        &((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                           _rwIm3DModule.globalsOffset))->defaultTransformPipeline);
     --_rwIm3DModule.numInstances;
     return instance;
 }
@@ -281,16 +283,20 @@ void* _rwIm3DOpen(void* instance, int offset, int size)
 {
     int result = 1;
     _rwIm3DModule.globalsOffset = offset;
-    _rwIm3DGlobals = Im3DGlobals();
+    _rwIm3DGlobals = (RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                      _rwIm3DModule.globalsOffset);
     ++_rwIm3DModule.numInstances;
-    memset(Im3DGlobals(), 0, sizeof(*Im3DGlobals()));
+    memset((unsigned char*)RwEngineInstance + _rwIm3DModule.globalsOffset, 0,
+           sizeof(RwIm3DGlobals));
     if (result) {
         result = _rwIm3DCreatePlatformTransformPipeline(
-            &Im3DGlobals()->defaultTransformPipeline);
+            &((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                               _rwIm3DModule.globalsOffset))->defaultTransformPipeline);
     }
     if (result) {
         result = _rwIm3DCreatePlatformRenderPipelines(
-            &Im3DGlobals()->defaultRenderPipelines);
+            &((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                               _rwIm3DModule.globalsOffset))->defaultRenderPipelines);
     }
     if (result) {
         return instance;

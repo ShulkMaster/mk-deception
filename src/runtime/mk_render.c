@@ -3,6 +3,7 @@
 #include "platform/display.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_vtbl.h"
+#include "rw/rwframe.h"
 
 typedef union TranslNodeFlags {
     unsigned int word;
@@ -89,7 +90,6 @@ void pfx_end_batch(void);
 void render_pfx(void* pfx);
 void render_pfx_clone(void* clone);
 void mkpfx_get_origin(PfxSortView* pfx, RwV3d* origin);
-RwMatrix* RwFrameGetLTM(RwFrame* frame);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere);
 
