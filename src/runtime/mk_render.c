@@ -4,6 +4,7 @@
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_vtbl.h"
 #include "rw/rwframe.h"
+#include "rw/rwcamera_internal.h"
 
 typedef union TranslNodeFlags {
     unsigned int word;
@@ -91,7 +92,6 @@ void render_pfx(void* pfx);
 void render_pfx_clone(void* clone);
 void mkpfx_get_origin(PfxSortView* pfx, RwV3d* origin);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
-int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere);
 
 static TranslSortNode transl_sort_nodes[250];
 static int in_batch;

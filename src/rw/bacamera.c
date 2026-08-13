@@ -16,12 +16,6 @@ static int _rwCameraFreeListBlockSize = 4;
 static int _rwCameraFreeListPreallocBlocks = 1;
 static RwModuleInfo cameraModule;
 
-static RwFreeList** CameraFreeListSlot(void)
-{
-    return (RwFreeList**)((unsigned char*)RwEngineInstance +
-                          cameraModule.globalsOffset);
-}
-
 static void CameraSetClosestVertex(RwFrustumPlane* frustumPlane)
 {
     frustumPlane->closestX =
@@ -554,7 +548,8 @@ int RwCameraDestroy(RwCamera* camera)
     _rwPluginRegistryDeInitObject(&cameraTKList, camera);
     _rwObjectHasFrameReleaseFrame(camera);
     RwEngineInstance->fpFreeListFree(
-        *CameraFreeListSlot(),
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        cameraModule.globalsOffset),
         camera);
     return 1;
 }
@@ -562,13 +557,18 @@ int RwCameraDestroy(RwCamera* camera)
 RwCamera* RwCameraCreate(void)
 {
     RwCamera* camera = RwEngineInstance->fpFreeListAlloc(
-        *CameraFreeListSlot(),
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                        cameraModule.globalsOffset),
         0x30005);
 
     if (camera == 0) {
         return 0;
     }
-    rwObjectInitialize(camera, 4, 0);
+    camera->object.object.type = 4;
+    camera->object.object.subType = 0;
+    camera->object.object.flags = 0;
+    camera->object.object.privateFlags = 0;
+    camera->object.object.parent = 0;
     camera->object.sync = CameraSync;
     camera->beginUpdate = CameraBeginUpdate;
     camera->endUpdate = CameraEndUpdate;

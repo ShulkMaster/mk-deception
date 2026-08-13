@@ -1,10 +1,12 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rpworld_types.h"
+#include "rw/rwcamera_internal.h"
 #include "rw/rplight.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwframe.h"
 #include "rw/rwplcore.h"
 #include "rw/rwstream.h"
+#include "rw/rwstream_internal.h"
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 #include "rw/rxpipeline.h"
@@ -18,11 +20,6 @@ typedef struct RpClumpObjectExtension {
     RpClump* clump;
     RwLLLink inClumpLink;
 } RpClumpObjectExtension;
-
-typedef struct RpGeometryList {
-    RpGeometry** geometries;
-    int numGeometries;
-} RpGeometryList;
 
 static RwPluginRegistry atomicTKList = {0x70, 0x70, 0, 0, 0, 0};
 static RwPluginRegistry clumpTKList = {0x2C, 0x2C, 0, 0, 0, 0};
@@ -45,14 +42,8 @@ static RpClumpGlobals* ClumpGlobals(void)
 }
 
 extern void RwResourcesFreeResEntry(RwResEntry*);
-extern int RwCameraDestroy(RwCamera*);
-extern int RwCameraRegisterPlugin(int, unsigned int,
-                                     RwPluginObjectConstructor,
-                                     RwPluginObjectDestructor,
-                                     RwPluginObjectCopy);
 extern RpWorld* RpAtomicGetWorld(RpAtomic*);
 extern float _rwSqrt(float);
-extern int _rxPipelineGlobalsOffset;
 
 
 static void ClumpTidyDestroyClump(void* clump, void* data)
@@ -116,7 +107,7 @@ RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic)
     return 0;
 }
 
-static RpGeometryList* GeometryListDeinitialize(RpGeometryList* geometryList)
+RpGeometryList* GeometryListDeinitialize(RpGeometryList* geometryList)
 {
     int i;
     for (i = 0; i < geometryList->numGeometries; i++)

@@ -5,6 +5,7 @@
 #include "math/mk_math.h"
 #include "platform/display.h"
 #include "rw/rwcore_types.h"
+#include "rw/rwdevice.h"
 #include "rw/rpworld_types.h"
 
 /*
@@ -38,15 +39,6 @@ typedef struct RwRect {
     int w;
     int h;
 } RwRect;
-
-typedef struct RwVideoMode {
-    int width;
-    int height;
-    int depth;
-    int flags;
-    int refresh_rate;
-    int format;
-} RwVideoMode;
 
 typedef struct ScriptedCameraData {
     int movement_mode;       /* +0x00 */
@@ -91,8 +83,6 @@ Vec cam_right_uv;
 
 float gxMathTan(float x);
 RwCamera* RwCameraSetProjection(RwCamera* camera, int projection);
-int RwEngineGetCurrentVideoMode(void);
-RwVideoMode* RwEngineGetVideoModeInfo(RwVideoMode* mode_info, int mode);
 RwRaster* RwRasterSubRaster(RwRaster* sub_raster, RwRaster* raster, RwRect* rect);
 /* Must stay external so xfer_camera emits bl (local stub was inlined away). */
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);

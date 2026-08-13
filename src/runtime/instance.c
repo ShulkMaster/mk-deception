@@ -1,21 +1,13 @@
 #include "runtime/instance.h"
 #include "platform/gcinstance.h"
 #include "rw/rwplcore.h"
+#include "rw/rwstream.h"
+#include "rw/rwstream_internal.h"
 
 typedef struct RwEngineInstanceType {
     unsigned char pad_0x00[0x134];
     void* (*fpMalloc)(unsigned int size, unsigned int hint);
 } RwEngineInstanceType;
-
-typedef struct RwFrameList {
-    RwFrame** frames;
-    int num_frames;
-} RwFrameList;
-
-typedef struct RpGeometryList {
-    RpGeometry** geometries;
-    int num_geometries;
-} RpGeometryList;
 
 typedef struct RpClumpChunkInfo {
     int num_atomics;
@@ -50,12 +42,6 @@ extern RwPluginRegistry geometryTKList;
 extern int lastSeenExtraData;
 extern unsigned int lastSeenRightsPluginId;
 
-extern int RwStreamFindChunk(RwStream* stream, unsigned int type,
-                             unsigned int* length, unsigned int* version);
-extern unsigned int RwStreamRead(RwStream* stream, void* destination,
-                                 unsigned int length);
-extern RwStream* RwStreamSkip(RwStream* stream, unsigned int length);
-extern void RwMemNative32(void* memory, unsigned int length);
 extern int _rwerror(int code, ...);
 extern void RwErrorSet(int* error);
 extern void* memset(void* destination, int value, unsigned int length);
@@ -72,11 +58,6 @@ extern RpGeometry* RpGeometryStreamRead(RwStream* stream);
 extern int RpGeometryDestroy(RpGeometry* geometry);
 extern RpGeometry* RpGeometryUnlock(RpGeometry* geometry);
 
-extern int _rwFrameListStreamRead(RwStream* stream, RwFrameList* frame_list);
-extern void _rwFrameListDeinitialize(RwFrameList* frame_list);
-extern void GeometryListDeinitialize(RpGeometryList* geometry_list);
-extern RwStream* _rpMaterialListStreamRead(RwStream* stream,
-                                           RpMaterialList* material_list);
 extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
 
 static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
@@ -243,11 +224,11 @@ static RpAtomic* inplaceClumpAtomicStreamRead(RwStream* stream,
             return 0;
         }
         atomic->object.flags = (unsigned char)chunk_info.flags;
-        if (frame_list->num_frames != 0) {
+        if (frame_list->numFrames != 0) {
             RpAtomicSetFrame(atomic,
                              frame_list->frames[chunk_info.frame_index]);
         }
-        if (geometry_list->num_geometries != 0) {
+        if (geometry_list->numGeometries != 0) {
             RpAtomicSetGeometry(
                 atomic, geometry_list->geometries[chunk_info.geometry_index],
                 0);
@@ -328,7 +309,7 @@ static RpGeometryList* inplaceGeometryListStreamRead(
             return 0;
         }
         RwMemNative32(&count, sizeof(count));
-        geometry_list->num_geometries = 0;
+        geometry_list->numGeometries = 0;
         if (count > 0) {
             geometry_list->geometries = RwEngineInstance->fpMalloc(
                 count * sizeof(*geometry_list->geometries), 0x3000F);
@@ -357,7 +338,7 @@ static RpGeometryList* inplaceGeometryListStreamRead(
                     GeometryListDeinitialize(geometry_list);
                     return 0;
                 }
-                geometry_list->num_geometries++;
+                geometry_list->numGeometries++;
             } else {
                 GeometryListDeinitialize(geometry_list);
                 return 0;
