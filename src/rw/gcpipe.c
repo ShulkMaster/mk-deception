@@ -5,8 +5,7 @@
 #include "rw/dltoken.h"
 #include "rw/nodegamecube.h"
 #include "rw/rxpipeline.h"
-
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
+#include "rw/rwframe.h"
 
 typedef struct RxGameCubeAllInOneInstanceData {
     RwResEntry* resourceEntry;

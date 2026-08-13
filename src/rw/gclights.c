@@ -3,6 +3,7 @@
 #include "rw/rplight.h"
 #include "rw/rpworld_types.h"
 #include "rw/rtquat.h"
+#include "rw/rwframe.h"
 #include "rw/rwvector.h"
 
 typedef struct RwGameCubeLightExt {
@@ -26,7 +27,6 @@ typedef struct RwGameCubeLightingData {
 int _RwDlLightExtOffset;
 GXLightObj _RwGCLightObjs[8];
 extern RwMatrix _RwDlInvCamLTM;
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 
 
 

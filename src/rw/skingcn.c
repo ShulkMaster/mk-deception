@@ -7,9 +7,8 @@
 #include "rw/gamecube_texture.h"
 #include "rw/rphanim.h"
 #include "rw/rpskin.h"
-
-extern RwMatrix* RwFrameGetLTM(RwFrame* frame);
 #include "rw/rtquat.h"
+#include "rw/rwframe.h"
 #include "rw/rwresources.h"
 #include "rw/rwvector.h"
 

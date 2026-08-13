@@ -1,18 +1,15 @@
 #include "rw/rwcore_types.h"
 #include "rw/batextur.h"
 #include "rw/rwerror.h"
+#include "rw/rwfreelist.h"
 #include "rw/palquant.h"
 #include "rw/rwplcore.h"
 #include "libmkparticle/rw_engine.h"
 
-typedef struct RwFreeListStorage {
-    unsigned char storage[0x24];
-} RwFreeListStorage;
-
 typedef struct RwTextureModuleGlobals {
     RwLLLink dictionaries;
-    void* textureFreeList;
-    void* dictionaryFreeList;
+    RwFreeList* textureFreeList;
+    RwFreeList* dictionaryFreeList;
     RwTexDictionary* currentDictionary;
     RwTexture* (*readCallback)(const char*, const char*);
     RwTexture* (*findCallback)(const char*);
@@ -27,8 +24,8 @@ typedef struct RwTextureModuleGlobals {
 
 RwPluginRegistry textureTKList = { 0x58, 0x58, 0, 0, 0, 0 };
 static RwPluginRegistry texDictTKList = { 0x18, 0x18, 0, 0, 0, 0 };
-static RwFreeListStorage _rwTextureFreeList;
-static RwFreeListStorage _rwTexDictionaryFreeList;
+static RwFreeList _rwTextureFreeList;
+static RwFreeList _rwTexDictionaryFreeList;
 
 static RwModuleInfo textureModule;
 static RwTexDictionary* dummyTexDict;
@@ -41,10 +38,6 @@ extern RwImage* RwImageReadMaskedImage(const char* name, const char* maskName);
 extern RwImage* RwImageResample(RwImage* destination, const RwImage* source);
 extern RwImage* RwImageCreateResample(const RwImage* source, int width, int height);
 extern RwImage* RwImageGammaCorrect(RwImage* image);
-extern void* RwFreeListCreateAndPreallocateSpace(
-    int entrySize, int entriesPerBlock, int alignment, int preallocBlocks,
-    RwFreeListStorage* freeList, int hint);
-extern int RwFreeListDestroy(void* freeList);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
@@ -1004,16 +997,18 @@ int RwTextureRasterGenerateMipmaps(RwRaster* raster, RwImage* image) {
 void* _rwTextureClose(void* instance, int offset, int size) {
     RwLLLink* link;
     RwLLLink* end;
+    RwTextureModuleGlobals* globals =
+        (RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                  textureModule.globalsOffset);
 
-    if (TextureGlobals()->workImage != 0) {
-        RwEngineInstance->fpFree(TextureGlobals()->workImage);
-        TextureGlobals()->workImage = 0;
-        TextureGlobals()->state = 0;
+    if (globals->workImage != 0) {
+        RwEngineInstance->fpFree(globals->workImage);
+        globals->workImage = 0;
+        globals->state = 0;
     }
-    if (TextureGlobals()->textureFreeList != 0 &&
-        TextureGlobals()->dictionaryFreeList != 0) {
-        link = TextureGlobals()->dictionaries.next;
-        end = &TextureGlobals()->dictionaries;
+    if (globals->textureFreeList != 0 && globals->dictionaryFreeList != 0) {
+        link = globals->dictionaries.next;
+        end = &globals->dictionaries;
         while (link != end) {
             RwTexDictionary* dictionary =
                 (RwTexDictionary*)((char*)link - 0x10);
@@ -1026,59 +1021,62 @@ void* _rwTextureClose(void* instance, int offset, int size) {
             link = next;
         }
     }
-    if (TextureGlobals()->textureFreeList != 0) {
-        RwFreeListDestroy(TextureGlobals()->textureFreeList);
-        TextureGlobals()->textureFreeList = 0;
+    if (globals->textureFreeList != 0) {
+        RwFreeListDestroy(globals->textureFreeList);
+        globals->textureFreeList = 0;
     }
-    if (TextureGlobals()->dictionaryFreeList != 0) {
-        RwFreeListDestroy(TextureGlobals()->dictionaryFreeList);
-        TextureGlobals()->dictionaryFreeList = 0;
+    if (globals->dictionaryFreeList != 0) {
+        RwFreeListDestroy(globals->dictionaryFreeList);
+        globals->dictionaryFreeList = 0;
     }
     textureModule.numInstances--;
     return instance;
 }
 
 void* _rwTextureOpen(void* instance, int offset, int size) {
+    RwTextureModuleGlobals* globals;
+
     textureModule.globalsOffset = offset;
-    TextureGlobals()->textureFreeList = RwFreeListCreateAndPreallocateSpace(
+    globals = (RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance + offset);
+    globals->textureFreeList = RwFreeListCreateAndPreallocateSpace(
         textureTKList.sizeOfStruct, _rwTextureFreeListBlockSize, 4,
         _rwTextureFreeListPreallocBlocks, &_rwTextureFreeList, 0x40006);
-    if (TextureGlobals()->textureFreeList == 0) {
+    if (globals->textureFreeList == 0) {
         return 0;
     }
-    TextureGlobals()->dictionaryFreeList = RwFreeListCreateAndPreallocateSpace(
+    globals->dictionaryFreeList = RwFreeListCreateAndPreallocateSpace(
         texDictTKList.sizeOfStruct, _rwTexDictionaryFreeListBlockSize, 4,
         _rwTexDictionaryFreeListPreallocBlocks, &_rwTexDictionaryFreeList,
         0x40408);
-    if (TextureGlobals()->dictionaryFreeList == 0) {
-        RwFreeListDestroy(TextureGlobals()->textureFreeList);
-        TextureGlobals()->textureFreeList = 0;
+    if (globals->dictionaryFreeList == 0) {
+        RwFreeListDestroy(globals->textureFreeList);
+        globals->textureFreeList = 0;
         return 0;
     }
 
-    TextureGlobals()->dictionaries.next = &TextureGlobals()->dictionaries;
+    globals->dictionaries.next = &globals->dictionaries;
     {
-        RwLLLink* sentinel = &TextureGlobals()->dictionaries;
-        TextureGlobals()->dictionaries.prev = sentinel;
+        RwLLLink* sentinel = &globals->dictionaries;
+        globals->dictionaries.prev = sentinel;
     }
     textureModule.numInstances++;
     dummyTexDict = RwTexDictionaryCreate();
-    TextureGlobals()->currentDictionary = dummyTexDict;
-    if (TextureGlobals()->currentDictionary == 0) {
-        RwFreeListDestroy(TextureGlobals()->dictionaryFreeList);
-        TextureGlobals()->dictionaryFreeList = 0;
-        RwFreeListDestroy(TextureGlobals()->textureFreeList);
-        TextureGlobals()->textureFreeList = 0;
+    globals->currentDictionary = dummyTexDict;
+    if (globals->currentDictionary == 0) {
+        RwFreeListDestroy(globals->dictionaryFreeList);
+        globals->dictionaryFreeList = 0;
+        RwFreeListDestroy(globals->textureFreeList);
+        globals->textureFreeList = 0;
         return 0;
     }
 
-    TextureGlobals()->mipmapping = 0;
-    TextureGlobals()->autoMipmapping = 0;
+    globals->mipmapping = 0;
+    globals->autoMipmapping = 0;
     RwTextureSetFindCallBack(TextureDefaultFind);
     RwTextureSetReadCallBack(TextureDefaultRead);
     RwTextureSetMipmapGenerationCallBack(TextureRasterDefaultBuildMipmaps);
     RwTextureSetMipmapNameCallBack(TextureDefaultMipmapName);
-    TextureGlobals()->workImage = 0;
-    TextureGlobals()->state = 0;
+    globals->workImage = 0;
+    globals->state = 0;
     return instance;
 }

@@ -11,11 +11,6 @@ struct RwGameCubeLightingData {
     int lightIndex;
 };
 
-typedef struct RpLightTie {
-    RwLLLink link;
-    RpLight* light;
-} RpLightTie;
-
 typedef struct RwGameCubeResEntryHeader {
     RwResEntry entry;
     unsigned short field_0x18;
