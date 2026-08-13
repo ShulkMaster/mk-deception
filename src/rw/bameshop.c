@@ -1,19 +1,11 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/rpmesh_internal.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 
 typedef RpMeshHeader *(*RpTriStripMeshCallBack)(RpBuildMesh *, void *);
 
-typedef struct rpMeshGlobals {
-    short nextSerialNum;
-    unsigned short reserved02;
-    RwFreeList *triStripListEntryFreeList;
-    unsigned char meshFlags[0x20];
-    unsigned char primitiveType[6];
-} rpMeshGlobals;
-
-extern RwModuleInfo meshModule;
 RpMeshHeader *RpBuildMeshGenerateDefaultTriStrip(RpBuildMesh *, void *);
 extern void qsort(void *, unsigned int, unsigned int,
                   int (*)(const void *, const void *));
@@ -74,9 +66,9 @@ typedef struct RpMeshopStatic {
     void *data;
 } RpMeshopStatic;
 
-static rpMeshGlobals *MeshGlobals(void)
+static RpMeshGlobals *MeshGlobals(void)
 {
-    return (rpMeshGlobals *)((unsigned char *)RwEngineInstance +
+    return (RpMeshGlobals *)((unsigned char *)RwEngineInstance +
                              meshModule.globalsOffset);
 }
 

@@ -7,7 +7,7 @@ RwFileFunctions* RwOsGetFileInterface(void) {
 
 
 static int rwfexist(const char* name) {
-    void* file;
+    FILE* file;
     int exists;
 
     file = RwEngineInstance->fileFuncs.open(name, "rb");

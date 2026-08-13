@@ -4,21 +4,13 @@
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
+#include "rw/rwdevice.h"
 #include "rw/rwerror.h"
 #include "rw/rwim3d.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 #include "rw/rtquat.h"
 #include "rw/rxpipeline.h"
-
-typedef struct RwVideoMode {
-    int width;
-    int height;
-    int depth;
-    int flags;
-    int refreshRate;
-    int format;
-} RwVideoMode;
 
 typedef struct RwDlOpenParams {
     GXRenderModeObj* renderMode;

@@ -2,6 +2,7 @@
 #include "rw/rwcamera_internal.h"
 #include "rw/batextur.h"
 #include "rw/rwcolor.h"
+#include "rw/rwdevice.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwframe.h"
 #include "rw/rwgrp.h"
@@ -15,22 +16,9 @@
 #include "rw/rwstream.h"
 #include "rw/rwvector.h"
 
-typedef struct RwVideoMode {
-    int width;
-    int height;
-    int depth;
-    unsigned int flags;
-    int refRate;
-    int format;
-} RwVideoMode;
-
 typedef struct RwSubSystemInfo {
     char name[80];
 } RwSubSystemInfo;
-
-typedef struct RwEngineOpenParams {
-    void* displayID;
-} RwEngineOpenParams;
 
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
@@ -241,7 +229,7 @@ int RwEngineClose(void)
     target = (RwDevice*)&RwEngineInstance->gammaCorrection;
     result = _rwDeviceSystemRequest(target, 1, 0, 0, 0);
     if (result) {
-        void* instance;
+        RwGlobals* instance;
 
         instance = RwEngineInstance;
         RwEngineInstance = &staticGlobals;

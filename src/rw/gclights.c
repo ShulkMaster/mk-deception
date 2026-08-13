@@ -1,6 +1,8 @@
 #include "dolphin/gx.h"
 #include "libmkparticle/rw_engine.h"
 #include "rw/rplight.h"
+#include "rw/gamecube.h"
+#include "rw/nodegamecube.h"
 #include "rw/rpworld_types.h"
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
@@ -16,17 +18,8 @@ typedef struct RwGameCubeLightExt {
     float k2;
 } RwGameCubeLightExt;
 
-typedef struct RwGameCubeLightingData {
-    unsigned char reserved_0x00[0x0C];
-    RwRGBAReal ambient;
-    int hasAmbient;
-    unsigned int lightMask;
-    int lightIndex;
-} RwGameCubeLightingData;
-
 int _RwDlLightExtOffset;
 GXLightObj _RwGCLightObjs[8];
-extern RwMatrix _RwDlInvCamLTM;
 
 
 

@@ -17,12 +17,6 @@ typedef struct RwIm3DGlobals {
 RwIm3DGlobals* _rwIm3DGlobals;
 RwModuleInfo _rwIm3DModule;
 
-static RwIm3DGlobals* Im3DGlobals(void)
-{
-    return (RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
-                            _rwIm3DModule.globalsOffset);
-}
-
 RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, unsigned int numVertices,
                               const RwMatrix* localToWorld, unsigned int flags)
 {
@@ -33,13 +27,30 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, unsigned int numVertices,
         RwErrorSet(&error);
     } else {
         void* result;
-        Im3DGlobals()->transformData.numVertices = numVertices;
-        Im3DGlobals()->transformData.vertices = vertices;
-        Im3DGlobals()->transformData.stride = 0x24;
-        Im3DGlobals()->stash.localToWorld = localToWorld;
-        Im3DGlobals()->stash.flags = flags | 8 | 0x10;
-        result = RxPipelineExecute(Im3DGlobals()->transformPipeline,
-                                   &Im3DGlobals()->transformData, 1);
+
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->transformData.numVertices = numVertices;
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->transformData.vertices = vertices;
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->transformData.stride = sizeof(RwIm3DVertex);
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->stash.localToWorld = localToWorld;
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->stash.flags = flags | 8 | 0x10;
+        result = RxPipelineExecute(
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))
+                ->transformPipeline,
+            &((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                               _rwIm3DModule.globalsOffset))
+                 ->transformData,
+            1);
         if (result != 0) {
             return vertices;
         }
@@ -49,12 +60,18 @@ RwIm3DVertex* RwIm3DTransform(RwIm3DVertex* vertices, unsigned int numVertices,
 
 int RwIm3DEnd(void)
 {
-    int transformed = Im3DGlobals()->transformData.vertices != 0;
+    int transformed =
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->transformData.vertices != 0;
 
     if (!transformed) {
         return 0;
     }
-    memset(&Im3DGlobals()->transformData, 0, 0x3C);
+    memset(&((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))
+                ->transformData,
+           0, sizeof(RwIm3DTransformData) + sizeof(RwIm3DStash));
     return 1;
 }
 
@@ -62,31 +79,52 @@ int RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
                                     const RwImVertexIndex* indices,
                                     int numIndices)
 {
-    int transformed = Im3DGlobals()->transformData.vertices != 0;
+    int transformed =
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->transformData.vertices != 0;
 
     if (transformed) {
-        RwIm3DStash* data = &Im3DGlobals()->stash;
+        RwIm3DStash* data =
+            &((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                               _rwIm3DModule.globalsOffset))
+                 ->stash;
         data->renderData.pipeline = 0;
         data->renderData.primitiveType = primitiveType;
         data->renderData.indices = indices;
         data->renderData.numIndices = numIndices;
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.triList;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.triList;
             data->renderData.numIndices = numIndices - (numIndices % 3);
             break;
         case rwPRIMTYPETRIFAN:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.triFan;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.triFan;
             break;
         case rwPRIMTYPETRISTRIP:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.triStrip;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.triStrip;
             break;
         case rwPRIMTYPELINELIST:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.lineList;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.lineList;
             data->renderData.numIndices = numIndices - (numIndices % 2);
             break;
         case rwPRIMTYPEPOLYLINE:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.polyLine;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.polyLine;
             break;
         default: {
             RwError error;
@@ -110,30 +148,54 @@ int RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
 
 int RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 {
-    void* vertices = Im3DGlobals()->transformData.vertices;
+    RwIm3DVertex* vertices =
+        ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                          _rwIm3DModule.globalsOffset))
+            ->transformData.vertices;
     int transformed = vertices != 0;
 
     if (transformed) {
-        RwIm3DStash* data = &Im3DGlobals()->stash;
+        RwIm3DStash* data =
+            &((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                               _rwIm3DModule.globalsOffset))
+                 ->stash;
         data->renderData.pipeline = 0;
         data->renderData.primitiveType = primitiveType;
         data->renderData.indices = 0;
-        data->renderData.numIndices = Im3DGlobals()->transformData.numVertices;
+        data->renderData.numIndices =
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))
+                ->transformData.numVertices;
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.triList;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.triList;
             break;
         case rwPRIMTYPETRIFAN:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.triFan;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.triFan;
             break;
         case rwPRIMTYPETRISTRIP:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.triStrip;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.triStrip;
             break;
         case rwPRIMTYPELINELIST:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.lineList;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.lineList;
             break;
         case rwPRIMTYPEPOLYLINE:
-            data->renderData.pipeline = Im3DGlobals()->renderPipelines.polyLine;
+            data->renderData.pipeline =
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))
+                    ->renderPipelines.polyLine;
             break;
         default: {
             RwError error;
@@ -180,22 +242,28 @@ RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
     if (pipeline != 0) {
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            Im3DGlobals()->renderPipelines.triList = pipeline;
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))->renderPipelines.triList = pipeline;
             return pipeline;
         case rwPRIMTYPETRIFAN:
-            Im3DGlobals()->renderPipelines.triFan = pipeline;
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))->renderPipelines.triFan = pipeline;
             return pipeline;
         case rwPRIMTYPETRISTRIP:
-            Im3DGlobals()->renderPipelines.triStrip = pipeline;
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))->renderPipelines.triStrip = pipeline;
             return pipeline;
         case rwPRIMTYPELINELIST:
-            Im3DGlobals()->renderPipelines.lineList = pipeline;
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))->renderPipelines.lineList = pipeline;
             return pipeline;
         case rwPRIMTYPEPOLYLINE:
-            Im3DGlobals()->renderPipelines.polyLine = pipeline;
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))->renderPipelines.polyLine = pipeline;
             return pipeline;
         case rwPRIMTYPEPOINTLIST:
-            Im3DGlobals()->renderPipelines.pointList = pipeline;
+            ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                              _rwIm3DModule.globalsOffset))->renderPipelines.pointList = pipeline;
             return pipeline;
         default: {
             RwError error;
@@ -208,53 +276,83 @@ RxPipeline* RwIm3DSetRenderPipeline(RxPipeline* pipeline,
     } else {
         switch (primitiveType) {
         case rwPRIMTYPETRILIST:
-            if (Im3DGlobals()->defaultRenderPipelines.triList != 0) {
-                Im3DGlobals()->renderPipelines.triList =
-                    Im3DGlobals()->defaultRenderPipelines.triList;
+            if (((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rwIm3DModule.globalsOffset))->defaultRenderPipelines.triList != 0) {
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.triList =
+                    ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                      _rwIm3DModule.globalsOffset))->defaultRenderPipelines.triList;
             } else {
-                Im3DGlobals()->renderPipelines.triList = 0;
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.triList = 0;
             }
-            return Im3DGlobals()->renderPipelines.triList;
+            return ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                     _rwIm3DModule.globalsOffset))->renderPipelines.triList;
         case rwPRIMTYPETRIFAN:
-            if (Im3DGlobals()->defaultRenderPipelines.triFan != 0) {
-                Im3DGlobals()->renderPipelines.triFan =
-                    Im3DGlobals()->defaultRenderPipelines.triFan;
+            if (((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rwIm3DModule.globalsOffset))->defaultRenderPipelines.triFan != 0) {
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.triFan =
+                    ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                      _rwIm3DModule.globalsOffset))->defaultRenderPipelines.triFan;
             } else {
-                Im3DGlobals()->renderPipelines.triFan = 0;
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.triFan = 0;
             }
-            return Im3DGlobals()->renderPipelines.triFan;
+            return ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                     _rwIm3DModule.globalsOffset))->renderPipelines.triFan;
         case rwPRIMTYPETRISTRIP:
-            if (Im3DGlobals()->defaultRenderPipelines.triStrip != 0) {
-                Im3DGlobals()->renderPipelines.triStrip =
-                    Im3DGlobals()->defaultRenderPipelines.triStrip;
+            if (((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rwIm3DModule.globalsOffset))->defaultRenderPipelines.triStrip != 0) {
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.triStrip =
+                    ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                      _rwIm3DModule.globalsOffset))->defaultRenderPipelines.triStrip;
             } else {
-                Im3DGlobals()->renderPipelines.triStrip = 0;
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.triStrip = 0;
             }
-            return Im3DGlobals()->defaultRenderPipelines.triStrip;
+            return ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                     _rwIm3DModule.globalsOffset))->defaultRenderPipelines.triStrip;
         case rwPRIMTYPELINELIST:
-            if (Im3DGlobals()->defaultRenderPipelines.lineList != 0) {
-                Im3DGlobals()->renderPipelines.lineList =
-                    Im3DGlobals()->defaultRenderPipelines.lineList;
+            if (((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rwIm3DModule.globalsOffset))->defaultRenderPipelines.lineList != 0) {
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.lineList =
+                    ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                      _rwIm3DModule.globalsOffset))->defaultRenderPipelines.lineList;
             } else {
-                Im3DGlobals()->renderPipelines.lineList = 0;
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.lineList = 0;
             }
-            return Im3DGlobals()->defaultRenderPipelines.lineList;
+            return ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                     _rwIm3DModule.globalsOffset))->defaultRenderPipelines.lineList;
         case rwPRIMTYPEPOLYLINE:
-            if (Im3DGlobals()->defaultRenderPipelines.polyLine != 0) {
-                Im3DGlobals()->renderPipelines.polyLine =
-                    Im3DGlobals()->defaultRenderPipelines.polyLine;
+            if (((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rwIm3DModule.globalsOffset))->defaultRenderPipelines.polyLine != 0) {
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.polyLine =
+                    ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                      _rwIm3DModule.globalsOffset))->defaultRenderPipelines.polyLine;
             } else {
-                Im3DGlobals()->renderPipelines.polyLine = 0;
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.polyLine = 0;
             }
-            return Im3DGlobals()->defaultRenderPipelines.polyLine;
+            return ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                     _rwIm3DModule.globalsOffset))->defaultRenderPipelines.polyLine;
         case rwPRIMTYPEPOINTLIST:
-            if (Im3DGlobals()->defaultRenderPipelines.pointList != 0) {
-                Im3DGlobals()->renderPipelines.pointList =
-                    Im3DGlobals()->defaultRenderPipelines.pointList;
+            if (((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rwIm3DModule.globalsOffset))->defaultRenderPipelines.pointList != 0) {
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.pointList =
+                    ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                      _rwIm3DModule.globalsOffset))->defaultRenderPipelines.pointList;
             } else {
-                Im3DGlobals()->renderPipelines.pointList = 0;
+                ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                  _rwIm3DModule.globalsOffset))->renderPipelines.pointList = 0;
             }
-            return Im3DGlobals()->defaultRenderPipelines.pointList;
+            return ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
+                                     _rwIm3DModule.globalsOffset))->defaultRenderPipelines.pointList;
         default: {
             RwError error;
             error.pluginID = 1;

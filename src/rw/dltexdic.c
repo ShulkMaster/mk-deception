@@ -2,32 +2,11 @@
 #include "rw/dltextur.h"
 #include "rw/gamecube.h"
 #include "rw/gamecube_texture.h"
+#include "rw/native_internal.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
 extern void* memcpy(void* destination, const void* source, unsigned int size);
-
-typedef struct RwGameCubeNativeTextureHeader {
-    int platform;
-    unsigned int filterAddressing;
-    int maxAnisotropy;
-    int biasClamp;
-    int edgeLod;
-    float lodBias;
-    char name[32];
-    char mask[32];
-} RwGameCubeNativeTextureHeader;
-
-typedef struct RwGameCubeNativeRasterHeader {
-    int format;
-    unsigned short width;
-    unsigned short height;
-    unsigned char depth;
-    unsigned char numLevels;
-    unsigned char tileMode;
-    unsigned char paletteFormat;
-    int hasAlpha;
-} RwGameCubeNativeRasterHeader;
 
 extern unsigned int _rwDlRasterGetSize(RwRaster* raster);
 extern int _rwDlTextureRasterCreate(RwRaster* raster,
@@ -40,14 +19,14 @@ int _rwDlNativeTextureGetSize(unsigned int* size, void* object, int unused)
     unsigned int result;
     RwRaster* raster;
 
-    result = sizeof(RwGameCubeNativeTextureHeader) + 12;
+    result = sizeof(GameCubeNativeTextureHeader) + 12;
     raster = ((RwTexture*)object)->raster;
     if (raster == 0) {
         *size = result;
         return 1;
     }
 
-    result += sizeof(RwGameCubeNativeRasterHeader);
+    result += sizeof(GameCubeNativeRasterHeader);
     if ((int)(((unsigned int)(unsigned char)raster->format << 8) & 0x6000) != 0) {
         result += (1U << raster->depth) * sizeof(unsigned short);
     }
@@ -63,8 +42,8 @@ int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
 {
     unsigned int rasterSize;
     unsigned int bytesRemaining;
-    RwGameCubeNativeTextureHeader textureHeader;
-    RwGameCubeNativeRasterHeader rasterHeader;
+    GameCubeNativeTextureHeader textureHeader;
+    GameCubeNativeRasterHeader rasterHeader;
     RwGameCubeTextureExt* textureExt;
     RwGameCubeRasterExt* rasterExt;
     RwRaster* raster;
@@ -146,8 +125,8 @@ int _rwDlNativeTextureRead(RwStream* stream, void* object, int unused)
 {
     unsigned int chunkLength;
     unsigned int version;
-    RwGameCubeNativeTextureHeader textureHeader;
-    RwGameCubeNativeRasterHeader rasterHeader;
+    GameCubeNativeTextureHeader textureHeader;
+    GameCubeNativeRasterHeader rasterHeader;
     RwRaster* raster;
     RwGameCubeRasterExt* rasterExt;
     unsigned int rasterSize;

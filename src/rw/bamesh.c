@@ -1,16 +1,9 @@
 #include "libmkparticle/rw_engine.h"
+#include "rw/rpmesh_internal.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwstream.h"
-
-typedef struct RpMeshGlobals {
-    short nextSerialNum;
-    unsigned short reserved02;
-    RwFreeList* triStripListEntryFreeList;
-    unsigned char meshFlags[0x20];
-    unsigned char primitiveType[6];
-} RpMeshGlobals;
 
 typedef struct RpMeshObjectHeader {
     unsigned char type;
@@ -91,26 +84,29 @@ void* _rpMeshClose(void* instance, int offset, int size)
 
 void* _rpMeshOpen(void* instance, int offset, int size)
 {
+    RpMeshGlobals* globals;
+
     meshModule.globalsOffset = offset;
     if (meshModule.numInstances == 0 && !MeshFreeListsCreate()) {
         MeshFreeListsDestroy();
         instance = 0;
         return instance;
     }
-    MeshGlobals()->nextSerialNum = 1;
+    globals = MeshGlobals();
+    globals->nextSerialNum = 1;
     meshModule.numInstances++;
-    MeshGlobals()->meshFlags[0] = 3;
-    MeshGlobals()->meshFlags[1] = 4;
-    MeshGlobals()->meshFlags[2] = 5;
-    MeshGlobals()->meshFlags[4] = 1;
-    MeshGlobals()->meshFlags[8] = 2;
-    MeshGlobals()->meshFlags[0x10] = 6;
-    MeshGlobals()->primitiveType[0] = 4;
-    MeshGlobals()->primitiveType[1] = 8;
-    MeshGlobals()->primitiveType[2] = 0;
-    MeshGlobals()->primitiveType[3] = 1;
-    MeshGlobals()->primitiveType[4] = 2;
-    MeshGlobals()->primitiveType[5] = 0x10;
+    globals->meshFlags[0] = 3;
+    globals->meshFlags[1] = 4;
+    globals->meshFlags[2] = 5;
+    globals->meshFlags[4] = 1;
+    globals->meshFlags[8] = 2;
+    globals->meshFlags[0x10] = 6;
+    globals->primitiveType[0] = 4;
+    globals->primitiveType[1] = 8;
+    globals->primitiveType[2] = 0;
+    globals->primitiveType[3] = 1;
+    globals->primitiveType[4] = 2;
+    globals->primitiveType[5] = 0x10;
     return instance;
 }
 

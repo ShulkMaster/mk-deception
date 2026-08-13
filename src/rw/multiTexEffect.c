@@ -28,16 +28,6 @@ static RpMTEffectGlobals* MultiTextureEffectGlobals(void)
                                 _rpMultiTextureModule.globalsOffset);
 }
 
-static RpMTEffect* EffectFromLink(RwLLLink* link)
-{
-    return (RpMTEffect*)((unsigned char*)link - 0x28);
-}
-
-static RpMTEffectDict* DictionaryFromLink(RwLLLink* link)
-{
-    return (RpMTEffectDict*)((unsigned char*)link - 8);
-}
-
 static RpMTEffectRegEntry EffectRegEntries[10];
 static RpMTEffectDict* DummyDict;
 
@@ -65,48 +55,64 @@ int _rpMTEffectRegisterPlatform(
 int _rpMTEffectOpen(void)
 {
 
+    RpMTEffectGlobals* globals;
     char* scratch;
     int allocationSize;
     int scratchSize;
 
-    rwLinkListInitialize(&MultiTextureEffectGlobals()->dictionaries);
+    globals = (RpMTEffectGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rpMultiTextureModule.globalsOffset);
+    globals->dictionaries.link.next = &globals->dictionaries.link;
+    globals->dictionaries.link.prev = &globals->dictionaries.link;
     DummyDict = RpMTEffectDictCreate();
     if (!DummyDict)
         return 0;
-    MultiTextureEffectGlobals()->currentDictionary = DummyDict;
+    globals->currentDictionary = DummyDict;
     scratchSize = 0x100;
     allocationSize = scratchSize * 2 + 0x20;
     scratch = RwEngineInstance->fpMalloc(allocationSize, 0x4012C);
     if (!scratch) {
         RwError error;
-        RpMTEffectDictDestroy(MultiTextureEffectGlobals()->currentDictionary);
+        RpMTEffectDictDestroy(globals->currentDictionary);
         error.pluginID = 0x120;
         error.errorCode = _rwerror(0x80000013, allocationSize);
         RwErrorSet(&error);
         return 0;
     }
     memset(scratch, 0, allocationSize);
-    MultiTextureEffectGlobals()->scratch = scratch;
-    MultiTextureEffectGlobals()->scratchName = scratch + 0x100;
-    MultiTextureEffectGlobals()->scratchSize = scratchSize;
+    globals->scratch = scratch;
+    globals->scratchName = scratch + 0x100;
+    globals->scratchSize = scratchSize;
     return 1;
 }
 
 int _rpMTEffectClose(void)
 {
 
+    RwLinkList* dictionaries;
     RwLLLink* link;
     RwLLLink* end;
-    if (MultiTextureEffectGlobals()->scratch) {
-        RwEngineInstance->fpFree(MultiTextureEffectGlobals()->scratch);
-        MultiTextureEffectGlobals()->scratch = 0;
-        MultiTextureEffectGlobals()->scratchName = 0;
-        MultiTextureEffectGlobals()->scratchSize = 0;
+    {
+        RpMTEffectGlobals* globals = (RpMTEffectGlobals*)(
+            (unsigned char*)RwEngineInstance +
+            _rpMultiTextureModule.globalsOffset);
+
+        if (globals->scratch) {
+            RwEngineInstance->fpFree(globals->scratch);
+            globals->scratch = 0;
+            globals->scratchName = 0;
+            globals->scratchSize = 0;
+        }
     }
-    end = &MultiTextureEffectGlobals()->dictionaries.link;
-    link = MultiTextureEffectGlobals()->dictionaries.link.next;
+    dictionaries = (RwLinkList*)((unsigned char*)RwEngineInstance +
+                                 _rpMultiTextureModule.globalsOffset);
+    end = &dictionaries->link;
+    link = dictionaries->link.next;
     while (link != end) {
-        if (DictionaryFromLink(link) == DummyDict) {
+        RpMTEffectDict* dictionary = (RpMTEffectDict*)(
+            (unsigned char*)link - 8);
+
+        if (dictionary == DummyDict) {
             RpMTEffectDictDestroy(DummyDict);
             DummyDict = 0;
             break;
@@ -134,6 +140,9 @@ RpMTEffectDict* RpMTEffectDictCreate(void)
 {
 
     unsigned int size = sizeof(RpMTEffectDict);
+    RpMTEffectGlobals* globals;
+    RwLLLink* dictionaryLink;
+    RwLLLink* listHead;
     RpMTEffectDict* dictionary =
         RwEngineInstance->fpMalloc(size, 0x3012C);
     if (!dictionary) {
@@ -143,9 +152,16 @@ RpMTEffectDict* RpMTEffectDictCreate(void)
         RwErrorSet(&error);
         return 0;
     }
-    rwLinkListInitialize(&dictionary->effects);
-    rwLinkListAddLLLink(&MultiTextureEffectGlobals()->dictionaries,
-                        &dictionary->globalLink);
+    dictionary->effects.link.next = &dictionary->effects.link;
+    dictionary->effects.link.prev = &dictionary->effects.link;
+    globals = (RpMTEffectGlobals*)((unsigned char*)RwEngineInstance +
+                                   _rpMultiTextureModule.globalsOffset);
+    dictionaryLink = &dictionary->globalLink;
+    listHead = &globals->dictionaries.link;
+    dictionaryLink->next = listHead->next;
+    dictionaryLink->prev = listHead;
+    listHead->next->prev = dictionaryLink;
+    listHead->next = dictionaryLink;
     return dictionary;
 }
 
@@ -154,16 +170,21 @@ void RpMTEffectDictDestroy(RpMTEffectDict* dictionary)
 
     RwLLLink* end;
     RwLLLink* link;
-    if (dictionary == MultiTextureEffectGlobals()->currentDictionary)
-        MultiTextureEffectGlobals()->currentDictionary = 0;
+    RpMTEffectGlobals* globals = (RpMTEffectGlobals*)(
+        (unsigned char*)RwEngineInstance + _rpMultiTextureModule.globalsOffset);
+
+    if (dictionary == globals->currentDictionary)
+        globals->currentDictionary = 0;
     end = &dictionary->effects.link;
     link = end->next;
     while (link != end) {
-        RpMTEffect* effect = EffectFromLink(link);
+        RpMTEffect* effect = (RpMTEffect*)(
+            (unsigned char*)link - 0x28);
         link = link->next;
         RpMTEffectDictRemoveEffect(effect);
     }
-    rwLinkListRemoveLLLink(&dictionary->globalLink);
+    dictionary->globalLink.prev->next = dictionary->globalLink.next;
+    dictionary->globalLink.next->prev = dictionary->globalLink.prev;
     RwEngineInstance->fpFree(dictionary);
 }
 
@@ -172,10 +193,14 @@ RpMTEffectDict* RpMTEffectDictAddEffect(RpMTEffectDict* dictionary,
 {
 
     if (effect->dictLink.next) {
-        rwLinkListRemoveLLLink(&effect->dictLink);
+        effect->dictLink.prev->next = effect->dictLink.next;
+        effect->dictLink.next->prev = effect->dictLink.prev;
         RpMTEffectDestroy(effect);
     }
-    rwLinkListAddLLLink(&dictionary->effects, &effect->dictLink);
+    effect->dictLink.next = dictionary->effects.link.next;
+    effect->dictLink.prev = &dictionary->effects.link;
+    dictionary->effects.link.next->prev = &effect->dictLink;
+    dictionary->effects.link.next = &effect->dictLink;
     RpMTEffectAddRef(effect);
     return dictionary;
 }
@@ -183,7 +208,11 @@ RpMTEffectDict* RpMTEffectDictAddEffect(RpMTEffectDict* dictionary,
 RpMTEffect* RpMTEffectDictRemoveEffect(RpMTEffect* effect)
 {
     if (effect->dictLink.next) {
-        rwLinkListRemoveLLLink(&effect->dictLink);
+        RwLLLink* previous;
+
+        effect->dictLink.prev->next = effect->dictLink.next;
+        previous = effect->dictLink.prev;
+        effect->dictLink.next->prev = previous;
         RpMTEffectDestroy(effect);
     }
     return effect;
@@ -192,10 +221,13 @@ RpMTEffect* RpMTEffectDictRemoveEffect(RpMTEffect* effect)
 RpMTEffect* RpMTEffectDictFindNamedEffect(RpMTEffectDict* dictionary,
                                           const char* name)
 {
+    RwLLLink* link;
+    RpMTEffect* effect;
 
-    RwLLLink* link = dictionary->effects.link.next;
+    link = dictionary->effects.link.next;
     while (link != &dictionary->effects.link) {
-        RpMTEffect* effect = EffectFromLink(link);
+        effect = (RpMTEffect*)(
+            (unsigned char*)link - 0x28);
         if (!RwEngineInstance->stringFuncs.strcmp(effect->name, name))
             return effect;
         link = link->next;
@@ -225,10 +257,10 @@ void RpMTEffectDestroy(RpMTEffect* effect)
     if (!effect->refCount) {
         RpMTEffectDictRemoveEffect(effect);
         if (effect->type) {
-            RpMTEffectDestroyCallBack destroy =
-                EffectRegEntries[effect->type].destroy;
-            if (destroy) {
-                destroy(effect);
+            RpMTEffectRegEntry* entry = &EffectRegEntries[effect->type];
+
+            if (entry->destroy) {
+                entry->destroy(effect);
                 return;
             }
         }
@@ -275,7 +307,10 @@ RpMTEffect* RpMTEffectFind(const char* name)
     } else {
         RwLLLink* link = MultiTextureEffectGlobals()->dictionaries.link.next;
         while (link != &MultiTextureEffectGlobals()->dictionaries.link) {
-            effect = RpMTEffectDictFindNamedEffect(DictionaryFromLink(link), name);
+            RpMTEffectDict* dictionary = (RpMTEffectDict*)(
+                (unsigned char*)link - 8);
+
+            effect = RpMTEffectDictFindNamedEffect(dictionary, name);
             if (effect)
                 break;
             link = link->next;

@@ -43,8 +43,8 @@ static RwStream *StreamFileInitialize(RwStream *stream, void *file) {
 static RwStream *StreamFileNameInitialize(RwStream *stream,
                                           RwStreamAccessType access,
                                           const char *name) {
-  void *file = 0;
   RwStream *result = 0;
+  void *file = 0;
   switch (access) {
   case 1:
     file = RwEngineInstance->fileFuncs.open(name, "rb");
@@ -167,9 +167,10 @@ unsigned int RwStreamRead(RwStream *stream, void *buffer, unsigned int length) {
       }
     }
     return count;
-  case 3:
-    if (length > stream->data.memory.length - stream->data.memory.position) {
-      length = stream->data.memory.length - stream->data.memory.position;
+  case 3: {
+    RwStreamMemory *memory = &stream->data.memory;
+    if (length > memory->length - memory->position) {
+      length = memory->length - memory->position;
       {
         RwError error;
         error.pluginID = 1;
@@ -177,10 +178,10 @@ unsigned int RwStreamRead(RwStream *stream, void *buffer, unsigned int length) {
         RwErrorSet(&error);
       }
     }
-    memcpy(buffer, stream->data.memory.start + stream->data.memory.position,
-           length);
-    stream->data.memory.position += length;
+    memcpy(buffer, memory->start + memory->position, length);
+    memory->position += length;
     return length;
+  }
   case 4:
     return stream->data.custom.read(stream->data.custom.data, buffer, length);
   default: {
@@ -212,47 +213,49 @@ RwStream *RwStreamWrite(RwStream *stream, const void *buffer, unsigned int lengt
       return 0;
     }
     return stream;
-  case 3:
-    if (stream->data.memory.start == 0) {
-      stream->data.memory.start = RwEngineInstance->fpMalloc(0x200, 0x30404);
-      if (stream->data.memory.start == 0) {
+  case 3: {
+    RwStreamMemory *memory = &stream->data.memory;
+    if (memory->start == 0) {
+      memory->start = RwEngineInstance->fpMalloc(0x200, 0x30404);
+      if (memory->start == 0) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x80000013, 0x200);
         RwErrorSet(&error);
         return 0;
       }
-      stream->data.memory.length = 0x200;
+      memory->length = 0x200;
     }
-    if (stream->data.memory.length - stream->data.memory.position < length) {
+    if (memory->length - memory->position < length) {
       unsigned int newLength;
       unsigned char *start;
       if (length < 0x200) {
-        newLength = stream->data.memory.length + 0x200;
+        newLength = memory->length + 0x200;
       } else {
-        newLength = length + stream->data.memory.length;
+        newLength = length + memory->length;
       }
-      start = RwEngineInstance->fpRealloc(stream->data.memory.start, newLength,
+      start = RwEngineInstance->fpRealloc(memory->start, newLength,
                                           0x01030404);
       if (start == 0) {
         RwError error;
         error.pluginID = 1;
         error.errorCode =
-            _rwerror(0x80000013, newLength - stream->data.memory.length);
+            _rwerror(0x80000013, newLength - memory->length);
         RwErrorSet(&error);
         return 0;
       }
-      stream->data.memory.start = start;
-      stream->data.memory.length = newLength;
+      memory->start = start;
+      memory->length = newLength;
     }
-    memcpy(stream->data.memory.start + stream->data.memory.position, buffer,
-           length);
-    stream->data.memory.position += length;
+    memcpy(memory->start + memory->position, buffer, length);
+    memory->position += length;
     return stream;
+  }
   case 4:
-    return stream->data.custom.write(stream->data.custom.data, buffer, length)
-               ? stream
-               : 0;
+    if (stream->data.custom.write(stream->data.custom.data, buffer, length)) {
+      return stream;
+    }
+    return 0;
   default: {
     RwError error;
     error.pluginID = 1;
@@ -264,8 +267,8 @@ RwStream *RwStreamWrite(RwStream *stream, const void *buffer, unsigned int lengt
 }
 
 RwStream *RwStreamSkip(RwStream *stream, unsigned int offset) {
-  RwStream *result;
   void *file;
+  RwStream *result;
 
   if (offset == 0)
     return stream;
@@ -285,9 +288,10 @@ RwStream *RwStreamSkip(RwStream *stream, unsigned int offset) {
       result = stream;
     }
     return result;
-  case 3:
-    if (stream->data.memory.position + offset > stream->data.memory.length) {
-      stream->data.memory.position = stream->data.memory.length;
+  case 3: {
+    RwStreamMemory *memory = &stream->data.memory;
+    if (memory->position + offset > memory->length) {
+      memory->position = memory->length;
       {
         RwError error;
         error.pluginID = 1;
@@ -296,11 +300,14 @@ RwStream *RwStreamSkip(RwStream *stream, unsigned int offset) {
       }
       return 0;
     }
-    stream->data.memory.position += offset;
+    memory->position += offset;
     return stream;
+  }
   case 4:
-    return stream->data.custom.skip(stream->data.custom.data, offset) ? stream
-                                                                      : 0;
+    if (stream->data.custom.skip(stream->data.custom.data, offset)) {
+      return stream;
+    }
+    return 0;
   default: {
     RwError error;
     error.pluginID = 1;
@@ -326,13 +333,15 @@ int RwStreamClose(RwStream *stream, void *data) {
     }
     result = closeResult;
     break;
-  case 3:
+  case 3: {
+    RwMemory *memory = data;
     if (stream->accessType != 1 && data != 0) {
-      ((RwMemory *)data)->start = stream->data.memory.start;
-      ((RwMemory *)data)->length = stream->data.memory.position;
+      memory->start = stream->data.memory.start;
+      memory->length = stream->data.memory.position;
     }
     result = 1;
     break;
+  }
   case 4:
     if (stream->data.custom.close != 0)
       stream->data.custom.close(stream->data.custom.data);
@@ -347,20 +356,25 @@ int RwStreamClose(RwStream *stream, void *data) {
     return 0;
   }
   if (stream->owned) {
-    RwFreeList *freeList = *(RwFreeList **)((unsigned char *)RwEngineInstance +
-                                            streamModule.globalsOffset);
-    RwEngineInstance->fpFreeListFree(freeList, stream);
+    RwEngineInstance->fpFreeListFree(
+        *(RwFreeList **)((unsigned char *)RwEngineInstance +
+                         streamModule.globalsOffset),
+        stream);
   }
   return result;
 }
 
 RwStream *RwStreamOpen(RwStreamType type, RwStreamAccessType access,
                        void *data) {
-  RwFreeList *freeList = *(RwFreeList **)((unsigned char *)RwEngineInstance +
-                                          streamModule.globalsOffset);
-  RwStream *stream = RwEngineInstance->fpFreeListAlloc(freeList, 0x30404);
+  RwStream *stream = RwEngineInstance->fpFreeListAlloc(
+      *(RwFreeList **)((unsigned char *)RwEngineInstance +
+                       streamModule.globalsOffset),
+      0x30404);
   if (_rwStreamInitialize(stream, 1, type, access, data) == 0) {
-    RwEngineInstance->fpFreeListFree(freeList, stream);
+    RwEngineInstance->fpFreeListFree(
+        *(RwFreeList **)((unsigned char *)RwEngineInstance +
+                         streamModule.globalsOffset),
+        stream);
     stream = 0;
   }
   return stream;

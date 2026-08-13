@@ -1,6 +1,7 @@
 #include "dolphin/cache.h"
 #include "dolphin/gx.h"
 #include "rw/gamecube.h"
+#include "rw/nodegamecube.h"
 #include "rw/rpworld_types.h"
 #include "rw/rtquat.h"
 #include "rw/rwresources.h"
@@ -21,6 +22,13 @@ extern RpMultiTexture* RpMaterialGetMultiTexture(RpMaterial* material,
 extern RpGameCubeMTEffectConfig* RpGameCubeMTEffectGetConfig(
     RpMTEffect* effect);
 
+typedef struct NBTResourceEntry {
+    RwResEntry entry;
+    unsigned short token;
+    unsigned short meshSerialNum;
+    RwGameCubeVertexBuffer vertexBuffer;
+} NBTResourceEntry;
+
 typedef struct NBTCalcData {
     const unsigned char* positions[3];
     unsigned char* normal;
@@ -30,18 +38,6 @@ typedef struct NBTCalcData {
     unsigned char texCoordSize;
     unsigned char reserved;
 } NBTCalcData;
-
-typedef struct NBTInstanceData {
-    RwResEntry* resourceEntry;
-    RpMeshHeader* meshHeader;
-} NBTInstanceData;
-
-typedef struct NBTResourceEntry {
-    RwResEntry entry;
-    unsigned short token;
-    unsigned short meshSerialNum;
-    RwGameCubeVertexBuffer vertexBuffer;
-} NBTResourceEntry;
 
 typedef struct RpGameCubeMTEntry24Private {
     int value[5];
@@ -57,7 +53,6 @@ typedef struct RpGameCubeMTEffectConfigPrivate {
 } RpGameCubeMTEffectConfigPrivate;
 
 typedef char NBTCalcDataSizeCheck[sizeof(NBTCalcData) == 0x20 ? 1 : -1];
-typedef char NBTInstanceDataSizeCheck[sizeof(NBTInstanceData) == 8 ? 1 : -1];
 typedef char RpGameCubeMTEntry24PrivateSizeCheck[
     sizeof(RpGameCubeMTEntry24Private) == 0x18 ? 1 : -1];
 
@@ -323,9 +318,9 @@ static void CalcMeshNBTs(RwGameCubeVertexBuffer* vertexBuffer,
     CalcNBTRestore(savedGQR5);
 }
 
-void _rpGameCubeMTPipeDataCalcNBTs(NBTInstanceData* instanceData,
-                                   const RpGameCubeVtxFmt* format,
-                                   int numVertices)
+void _rpGameCubeMTPipeDataCalcNBTs(
+    RxGameCubeAtomicAllInOneInstanceData* instanceData,
+    const RpGameCubeVtxFmt* format, int numVertices)
 {
     RwGameCubeVertexBuffer* vertexBuffer =
         &((NBTResourceEntry*)instanceData->resourceEntry)->vertexBuffer;
@@ -374,7 +369,8 @@ void _rpGameCubeMTPipeDataCalcNBTs(NBTInstanceData* instanceData,
     GXInvalidateVtxCache();
 }
 
-int _rpGameCubeMTPipeDataQueryNBTs(const NBTInstanceData* instanceData)
+int _rpGameCubeMTPipeDataQueryNBTs(
+    const RxGameCubeAtomicAllInOneInstanceData* instanceData)
 {
 
 

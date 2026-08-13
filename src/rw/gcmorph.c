@@ -7,7 +7,6 @@ static unsigned char vtxFmtTypeConvTable[5] = {4, 6, 5, 7, 0};
 static unsigned char vtxFmtSizeConvTable[5] = {1, 1, 2, 2, 4};
 static unsigned int interpGQR6;
 
-extern int _rpDlGeomVtxFmtOffset;
 
 static void _rwDlV3dInterpPosGQRSetup(const RpGameCubeVtxFmt* format,
                                      int* elementSize)

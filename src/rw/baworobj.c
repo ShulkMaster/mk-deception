@@ -54,11 +54,6 @@ int _rpSizeSectRights(const void*, int, int);
 RwStream* _rpReadMaterialRights(RwStream*, int);
 RwStream* _rpWriteMaterialRights(RwStream*, int, const RpMaterial*);
 int _rpSizeMaterialRights(const RpMaterial*);
-RpWorld* RpWorldAddAtomic(RpWorld*, RpAtomic*);
-RpWorld* RpWorldRemoveAtomic(RpWorld*, RpAtomic*);
-RpWorld* RpWorldAddClump(RpWorld*, RpClump*);
-RpWorld* RpWorldRemoveClump(RpWorld*, RpClump*);
-
 typedef struct RpWorldCameraExt {
     RpWorldSector **frustumSectors;
     int space;
@@ -360,10 +355,19 @@ _rpLightTieDestroy(RpLightTie * tie)
 int
 _rpTieDestroy(RpTie * tie)
 {
+    RwLLLink *previous;
+
     if (tie->atomic != 0 && tie->worldSector != 0) {
-        rwLinkListRemoveLLLink(&tie->lWorldSectorInAtomic);
-        rwLinkListRemoveLLLink(&tie->lAtomicInWorldSector);
-        RwEngineInstance->fpFreeListFree(WorldObjectGlobals()->tieFreeList, tie);
+        tie->lWorldSectorInAtomic.prev->next = tie->lWorldSectorInAtomic.next;
+        previous = tie->lWorldSectorInAtomic.prev;
+        tie->lWorldSectorInAtomic.next->prev = previous;
+        tie->lAtomicInWorldSector.prev->next = tie->lAtomicInWorldSector.next;
+        previous = tie->lAtomicInWorldSector.prev;
+        tie->lAtomicInWorldSector.next->prev = previous;
+        RwEngineInstance->fpFreeListFree(
+            *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                            worldObjModule.globalsOffset),
+            tie);
     }
     return 1;
 }
@@ -371,8 +375,8 @@ _rpTieDestroy(RpTie * tie)
 static void
 AtomicDestroyTies(RpAtomic * atomic)
 {
-    RwLLLink *link = atomic->worldSectorsInAtomic.link.next;
     RwLLLink *end = &atomic->worldSectorsInAtomic.link;
+    RwLLLink *link = atomic->worldSectorsInAtomic.link.next;
 
     while (link != end) {
         RpTie *tie = (RpTie *)((unsigned char *)link - 12);
@@ -430,18 +434,19 @@ static RwObjectHasFrame *
 WorldAtomicSync(RwObjectHasFrame * type)
 {
     RpAtomic           *atomic = (RpAtomic *) type;
-    RpWorldAtomicExt   *atomicExt = WorldAtomicExtension(type);
+    RpWorldAtomicExt   *atomicExt =
+        (RpWorldAtomicExt*)((unsigned char*)type + atomicExtOffset);
     RpWorld *world;
 
-    if (atomicExt->oldSync(type) == 0) {
-        return 0;
+    if (atomicExt->oldSync(type) != 0) {
+        world = atomicExt->world;
+        if (world != 0) {
+            AtomicDestroyTies(atomic);
+            WorldAttachAtomicSphere(world, atomic);
+        }
+        return type;
     }
-    world = atomicExt->world;
-    if (world != 0) {
-        AtomicDestroyTies(atomic);
-        WorldAttachAtomicSphere(world, atomic);
-    }
-    return type;
+    return 0;
 }
 
 static void        *
@@ -730,7 +735,8 @@ static RpAtomic    *
 WorldRemoveClumpAtomic(RpAtomic * atomic, void *data)
 {
     RpWorld *world = data;
-    RpWorldAtomicExt *atomicExt = WorldAtomicExtension(atomic);
+    RpWorldAtomicExt *atomicExt =
+        (RpWorldAtomicExt*)((unsigned char*)atomic + atomicExtOffset);
     if (atomicExt != 0 && atomicExt->world == world) {
         RpWorldRemoveAtomic(world, atomic);
     }
@@ -749,7 +755,8 @@ static RpLight    *
 WorldRemoveClumpLight(RpLight * light, void *data)
 {
     RpWorld *world = data;
-    RpWorldLightExt *lightExt = WorldLightExtension(light);
+    RpWorldLightExt *lightExt =
+        (RpWorldLightExt*)((unsigned char*)light + lightExtOffset);
     if (lightExt != 0 && lightExt->world == world) {
         RpWorldRemoveLight(world, light);
     }
@@ -767,7 +774,8 @@ static RwCamera    *
 WorldRemoveClumpCamera(RwCamera * camera, void *data)
 {
     RpWorld *world = data;
-    RpWorldCameraExt *cameraExt = WorldCameraExtension(camera);
+    RpWorldCameraExt *cameraExt =
+        (RpWorldCameraExt*)((unsigned char*)camera + cameraExtOffset);
     if (cameraExt != 0 && cameraExt->world == world) {
         RpWorldRemoveCamera(world, camera);
     }
@@ -796,7 +804,10 @@ readGeometryMesh(RwStream * stream,
 {
     RpGeometry         *geometry = (RpGeometry *) object;
     geometry->meshHeader = _rpMeshRead(stream, geometry, &geometry->matList);
-    return geometry->meshHeader != 0 ? stream : 0;
+    if (geometry->meshHeader != 0) {
+        return stream;
+    }
+    return 0;
 }
 
 static int
@@ -805,7 +816,7 @@ sizeGeometryMesh(const void *pluginData,
                  int sizeInObject )
 {
     const RpGeometry *geometry = pluginData;
-    return _rpMeshSize(geometry->meshHeader, geometry);
+    return _rpMeshSize(geometry->meshHeader, pluginData);
 }
 
 static RwStream *
@@ -827,7 +838,10 @@ readGeometryNative(RwStream *stream,
                    int sizeInObject )
 {
     RpGeometry  *geometry = (RpGeometry *)object;
-    return _rpGeometryNativeRead(stream, geometry) != 0 ? stream : 0;
+    if (_rpGeometryNativeRead(stream, geometry) != 0) {
+        return stream;
+    }
+    return 0;
 }
 
 static int
@@ -858,7 +872,10 @@ readWorldSectorNative(RwStream *stream,
                       int sizeInObject )
 {
     RpWorldSector   *sector = (RpWorldSector *)object;
-    return _rpWorldSectorNativeRead(stream, sector) != 0 ? stream : 0;
+    if (_rpWorldSectorNativeRead(stream, sector) != 0) {
+        return stream;
+    }
+    return 0;
 }
 
 static int
@@ -892,7 +909,10 @@ readSectorMesh(RwStream * input,
     RpWorldSector *sector = pluginData;
     const RpWorld *world = RpWorldSectorGetWorld(sector);
     sector->mesh = _rpMeshRead(input, world, &world->matList);
-    return sector->mesh != 0 ? input : 0;
+    if (sector->mesh != 0) {
+        return input;
+    }
+    return 0;
 }
 
 static int
@@ -1064,10 +1084,16 @@ RpAtomicGetWorld(const RpAtomic * atomic)
 RpWorld            *
 RpWorldAddClump(RpWorld * world, RpClump * object)
 {
+    RwFrame *frame = (RwFrame*)object->object.parent;
     RpWorldClumpExt *extension =
         (RpWorldClumpExt*)((unsigned char*)object + clumpExtOffset);
-    RwFrame *frame = (RwFrame*)object->object.parent;
-    rwLinkListAddLLLink(&world->clumpList, &object->inWorldLink);
+    RwLLLink *link;
+
+    object->inWorldLink.next = world->clumpList.link.next;
+    object->inWorldLink.prev = &world->clumpList.link;
+    world->clumpList.link.next->prev = &object->inWorldLink;
+    link = &object->inWorldLink;
+    world->clumpList.link.next = link;
     ++world->numClumpsInWorld;
     extension->world = world;
     RpClumpForAllAtomics(object, WorldAddClumpAtomic, world);
@@ -1078,7 +1104,9 @@ RpWorldAddClump(RpWorld * world, RpClump * object)
         RwMatrixOptimize(&frame->modelling, 0);
         RwFrameUpdateObjects(frame);
     }
-    extension->clumpsInFrustumID = WorldObjectGlobals()->clumpsInFrustumID;
+    extension->clumpsInFrustumID =
+        ((rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
+                             worldObjModule.globalsOffset))->clumpsInFrustumID;
     return world;
 }
 
@@ -1087,21 +1115,28 @@ RpWorldRemoveClump(RpWorld * world, RpClump * object)
 {
     RpWorldClumpExt *extension =
         (RpWorldClumpExt*)((unsigned char*)object + clumpExtOffset);
-    RpWorld *attachedWorld = extension->world;
+    RwLLLink *previous;
 
-    if (attachedWorld != 0) {
-        --attachedWorld->numClumpsInWorld;
-        if (attachedWorld->currentClumpLink == &object->inWorldLink) {
-            attachedWorld->currentClumpLink = object->inWorldLink.next;
+    if (extension->world != 0) {
+        --extension->world->numClumpsInWorld;
+        if (&object->inWorldLink == extension->world->currentClumpLink) {
+            extension->world->currentClumpLink = object->inWorldLink.next;
         }
-        rwLinkListRemoveLLLink(&object->inWorldLink);
+        object->inWorldLink.prev->next = object->inWorldLink.next;
+        previous = object->inWorldLink.prev;
+        object->inWorldLink.next->prev = previous;
         RpClumpForAllAtomics(object, WorldRemoveClumpAtomic, world);
         RpClumpForAllLights(object, WorldRemoveClumpLight, world);
         RpClumpForAllCameras(object, WorldRemoveClumpCamera, world);
         extension->world = 0;
         return world;
     }
-    WorldObjectSetError(4);
+    {
+        RwError error;
+        error.pluginID = 2;
+        error.errorCode = _rwerror(4);
+        RwErrorSet(&error);
+    }
     return 0;
 }
 
