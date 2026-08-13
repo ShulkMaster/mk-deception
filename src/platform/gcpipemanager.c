@@ -4,13 +4,10 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/utils.h"
+#include "rw/gamecube.h"
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
 #include "rw/rxpipeline.h"
-
-typedef struct RpGameCubeVtxFmt {
-    unsigned char data[0x18];
-} RpGameCubeVtxFmt;
 
 static void MatFunc6(RwRGBAReal* color, GXColor* material, void*, float intensity);
 static void MatFunc5(RwRGBAReal* color, GXColor* material, void*, float intensity);
@@ -20,13 +17,6 @@ static void MatFunc2(RwRGBAReal* color, GXColor* material, void*, float intensit
 static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensity);
 static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner);
 
-void RpGameCubeVtxFmtInit(RpGameCubeVtxFmt* format);
-void RpGameCubeVtxFmtSetNormal(RpGameCubeVtxFmt* format, int count, int type);
-void RpGameCubeVtxFmtSetPosition(RpGameCubeVtxFmt* format, int count, int type);
-void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
-                                 int count, int type);
-void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
-                                 RpGameCubeVtxFmt* format);
 static const GXColor OpaqueWhite = {255, 255, 255, 255};
 static const GXColor OpaqueBlack = {0, 0, 0, 255};
 
@@ -446,8 +436,7 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     case 0x305:
     case 0x306:
         if (!has_uv_scroll && atomic_effects == 0) {
-            atomic->pipeline = *(RxPipeline**)((unsigned char*)RwEngineInstance +
-                                               _rxPipelineGlobalsOffset + 0x3C);
+            atomic->pipeline = RxPipelineGlobals()->defaultAtomicPipeline;
         }
         RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_generic);
         break;

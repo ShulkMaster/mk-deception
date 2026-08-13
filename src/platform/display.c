@@ -21,6 +21,7 @@
 #include "rw/rwcore_types.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwdevice.h"
+#include "rw/rwframe.h"
 #include "rw/rphanim.h"
 #include "rw/rplight.h"
 
@@ -29,12 +30,7 @@ extern void GProfile_GCN_GxDrawDone(void);
 extern RpWorld* RpClumpGetWorld(RpClump* clump);
 extern RpWorld* RpWorldRemoveClump(RpWorld* world, RpClump* clump);
 extern RpWorld* RpWorldAddClump(RpWorld* world, RpClump* clump);
-extern int RwFrameDestroy(RwFrame* frame);
 extern int RwTextureDestroy(RwTexture* texture);
-extern int RwRasterDestroy(RwRaster* raster);
-extern RwFrame* RwFrameCreate(void);
-extern RwFrame* RwFrameTransform(RwFrame* frame, const void* matrix, int combine);
-extern RwCamera* RwCameraSetNearClipPlane(RwCamera* camera, float distance);
 extern void RwGameCubeCameraTextureFlush(RwRaster* raster, int generate_mipmaps);
 extern RwImage* RwImageCreate(int width, int height, int depth);
 extern RwImage* RwImageAllocatePixels(RwImage* image);
@@ -44,9 +40,6 @@ extern void create_fade_box(void);
 extern void CameraDestroy(RwCamera* camera);
 extern void destroy_shadow_system(void* item);
 extern int RpWorldDestroy(RpWorld* world);
-extern int RwCameraBeginUpdate(RwCamera* camera);
-extern int RwCameraEndUpdate(RwCamera* camera);
-extern RwCamera* RwCameraSetFarClipPlane(RwCamera* camera, float distance);
 extern void render_mkobj(MkObj* object);
 extern void render_transl_atomics(void);
 extern void update_fog_render_states(void);
@@ -66,7 +59,6 @@ extern int last_pipeline_used;
 extern int uploaded_light_state;
 extern int reseed_rnd_tbl;
 extern void GXSetAlphaUpdate(unsigned char enable);
-extern void RwFrameOrthoNormalize(RwFrame* frame);
 extern void force_rw_lights(void);
 extern int get_bgnd_flags(void);
 extern void render_konquest_shadows(void);
@@ -81,8 +73,6 @@ extern void mirror_guy(MkObj* mirror_object, MirrorObj* mirror_data,
                        FighterMirror* fighter);
 extern void plyr_turn_off_mirrorguy(PlyrInfo* player);
 extern void del_string_obj_by_id(int id);
-extern void RwCameraClear(RwCamera* camera, const unsigned char* color,
-                          int clear_mode);
 static const char display_text[] =                                             \
     "/hostwrite/%03d.tga\0"                                                   \
     "Tick = %02d\0"                                                           \
@@ -120,8 +110,8 @@ extern DisplayEngineVtable* RwEngineInstance;
 
 FadingScreen fading_screen = {0};
 MKMATRIX camera_facing_matrix_ay;
-unsigned char background_color[4] = {0, 0, 0, 0};
-unsigned char load_meter_bgnd_color[4] = {0, 0, 0, 0};
+RwRGBA background_color = {0, 0, 0, 0};
+RwRGBA load_meter_bgnd_color = {0, 0, 0, 0};
 int capture_num = 1;
 int pal50_video_frame_dropping;
 RpWorld* World;
@@ -483,7 +473,7 @@ void Render(void) {
     } else if (display_off != 0) {
         pfxsystem_frame_begin();
         if (Camera != 0) {
-            RwCameraClear(Camera, load_meter_bgnd_color, 7);
+            RwCameraClear(Camera, &load_meter_bgnd_color, 7);
             RwCameraBeginUpdate(Camera);
             RwCameraEndUpdate(Camera);
             RwCameraShowRaster(Camera, 0, 1);
@@ -544,9 +534,9 @@ void Render(void) {
         }
         GXSetAlphaUpdate(1);
         if (g_game_info.flags & 0x80) {
-            RwCameraClear(Camera, load_meter_bgnd_color, 7);
+            RwCameraClear(Camera, &load_meter_bgnd_color, 7);
         } else {
-            RwCameraClear(Camera, background_color, 7);
+            RwCameraClear(Camera, &background_color, 7);
         }
         GXSetAlphaUpdate(0);
         if (!(g_game_info.flags & 0x80) && g_game_info.sky != 0) {
@@ -752,8 +742,8 @@ int init_display(void) {
 
 void set_background_color(unsigned char red, unsigned char green,
                           unsigned char blue) {
-    background_color[0] = red;
-    background_color[1] = green;
-    background_color[2] = blue;
-    background_color[3] = 0xFF;
+    background_color.red = red;
+    background_color.green = green;
+    background_color.blue = blue;
+    background_color.alpha = 0xFF;
 }

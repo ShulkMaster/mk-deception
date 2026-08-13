@@ -16,9 +16,6 @@ extern void OSYieldThread(void);
 extern int DVDGetDriveStatus(void);
 extern void VISetBlack(int black);
 extern void VIFlush(void);
-extern void RwCameraClear(RwCamera* camera, const unsigned int* color, int clear_mode);
-extern void RwCameraBeginUpdate(RwCamera* camera);
-extern void RwCameraEndUpdate(RwCamera* camera);
 extern void pause_all_game_sounds(void);
 extern void unpause_all_game_sounds(void);
 extern void turn_all_rumble_motors_off(void);
@@ -95,7 +92,7 @@ __declspec(section ".sdata") int gap_07_8050FC4C_sdata = 0;
 int disc_error_occurred;
 static int in_error_handler;
 
-static __declspec(section ".sdata2") unsigned int disc_clear_color = 0xff;
+static __declspec(section ".sdata2") RwRGBA disc_clear_color = {0, 0, 0, 0xff};
 
 static inline void render_disc_message(PfxFontString* string, const char* text) {
     PfxFontSlot* font;
@@ -114,7 +111,7 @@ static inline void render_disc_message(PfxFontString* string, const char* text) 
     pfxfont_string_set(string, font, text, (float)width, 1);
 
     for (frame = 0; frame < 3; frame++) {
-        unsigned int clear_color = disc_clear_color;
+        RwRGBA clear_color = disc_clear_color;
 
         RwCameraClear(Camera, &clear_color, 7);
         RwCameraBeginUpdate(Camera);

@@ -23,8 +23,6 @@ AniTextureControl* get_wiff_atc_block(int a, int b);
 RwTexture* material_get_texture_pointer(RpMaterial* mat, int flag);
 void material_set_texture_pointer(RpMaterial* mat, RwTexture* tex, int flag);
 int RwRasterGetNumLevels(RwRaster* raster);
-RpClump* RpClumpForAllAtomics(RpClump* clump, void* cb, void* data);
-
 void set_render_state(int state, int value);
 Pfx2dObj* pfx2d_alloc_obj(void);
 void pfx2d_free_obj(Pfx2dObj* obj);
@@ -419,7 +417,8 @@ fbits = &atc->flag_bits;
     return material;
 }
 
-RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, AniTextureControl* atc) {
+RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data) {
+    AniTextureControl* atc = data;
     AtcFlagBits* fbits;
     RpGeometry* geom;
 
@@ -1019,7 +1018,7 @@ AniTextureControl* append_texture_by_name_to_atomic_material_id(int slot, char* 
     int pot;
     AtcFlagBits* fbits;
 
-    clump = (RpClump*)atomic->lights;
+    clump = atomic->clump;
     if (clump == 0) {
         return 0;
     }
@@ -1135,7 +1134,7 @@ AniTextureControl* attach_wiff_to_atomic_material(int slot, char* name, RpAtomic
     RwTexture* alpha;
     RpClump* clump;
 
-    clump = (RpClump*)atomic->lights;
+    clump = atomic->clump;
     if (clump == 0) {
         return 0;
     }
