@@ -21,8 +21,8 @@ typedef struct RpClumpObjectExtension {
     RwLLLink inClumpLink;
 } RpClumpObjectExtension;
 
-static RwPluginRegistry atomicTKList = {0x70, 0x70, 0, 0, 0, 0};
-static RwPluginRegistry clumpTKList = {0x2C, 0x2C, 0, 0, 0, 0};
+RwPluginRegistry atomicTKList = {0x70, 0x70, 0, 0, 0, 0};
+RwPluginRegistry clumpTKList = {0x2C, 0x2C, 0, 0, 0, 0};
 static RwFreeList _rpAtomicFreeList;
 static RwFreeList _rpClumpFreeList;
 static int _rpAtomicFreeListBlockSize = 0x80;
@@ -89,12 +89,14 @@ int _rpSizeAtomicRights(const void* object, int offset, int size)
 }
 
 
-static RpAtomic* AtomicSync(RpAtomic* atomic)
+static RwObjectHasFrame* AtomicSync(RwObjectHasFrame* object)
 {
+    RpAtomic* atomic = (RpAtomic*)object;
+
     if (atomic->interpolator.flags & 2)
         _rpAtomicResyncInterpolatedSphere(atomic);
     atomic->object.privateFlags |= 1;
-    return atomic;
+    return object;
 }
 
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic)
@@ -125,7 +127,8 @@ static void* ClumpInitCameraExt(void* object, int offset, int size)
     RpClumpObjectExtension* ext =
         (RpClumpObjectExtension*)((unsigned char*)object +
                                   _rpClumpCameraExtOffset);
-    ext->inClumpLink.next = ext->inClumpLink.prev = 0;
+    ext->inClumpLink.prev = 0;
+    ext->inClumpLink.next = 0;
     ext->clump = 0;
     return object;
 }
@@ -140,7 +143,8 @@ static void* ClumpInitLightExt(void* object, int offset, int size)
     RpClumpObjectExtension* ext =
         (RpClumpObjectExtension*)((unsigned char*)object +
                                   _rpClumpLightExtOffset);
-    ext->inClumpLink.next = ext->inClumpLink.prev = 0;
+    ext->inClumpLink.prev = 0;
+    ext->inClumpLink.next = 0;
     ext->clump = 0;
     return object;
 }
@@ -202,15 +206,18 @@ void _rpAtomicResyncInterpolatedSphere(RpAtomic* atomic)
         atomic->boundingSphere.radius =
             start->sphere.radius +
             alpha * (end->sphere.radius - start->sphere.radius);
-        atomic->boundingSphere.x = end->sphere.x - start->sphere.x;
-        atomic->boundingSphere.y = end->sphere.y - start->sphere.y;
-        atomic->boundingSphere.z = end->sphere.z - start->sphere.z;
-        atomic->boundingSphere.x *= alpha;
-        atomic->boundingSphere.y *= alpha;
-        atomic->boundingSphere.z *= alpha;
-        atomic->boundingSphere.x += start->sphere.x;
-        atomic->boundingSphere.y += start->sphere.y;
-        atomic->boundingSphere.z += start->sphere.z;
+        atomic->boundingSphere.center.x =
+            end->sphere.center.x - start->sphere.center.x;
+        atomic->boundingSphere.center.y =
+            end->sphere.center.y - start->sphere.center.y;
+        atomic->boundingSphere.center.z =
+            end->sphere.center.z - start->sphere.center.z;
+        atomic->boundingSphere.center.x *= alpha;
+        atomic->boundingSphere.center.y *= alpha;
+        atomic->boundingSphere.center.z *= alpha;
+        atomic->boundingSphere.center.x += start->sphere.center.x;
+        atomic->boundingSphere.center.y += start->sphere.center.y;
+        atomic->boundingSphere.center.z += start->sphere.center.z;
     }
     interp->flags &= ~2;
     atomic->object.privateFlags |= 1;
@@ -405,13 +412,13 @@ RpAtomic* RpAtomicCreate(void)
     _rwObjectHasFrameSetFrame(atomic, 0);
     atomic->geometry = 0;
     atomic->boundingSphere.radius = 0.0f;
-    atomic->boundingSphere.x = 0.0f;
-    atomic->boundingSphere.y = 0.0f;
-    atomic->boundingSphere.z = 0.0f;
+    atomic->boundingSphere.center.x = 0.0f;
+    atomic->boundingSphere.center.y = 0.0f;
+    atomic->boundingSphere.center.z = 0.0f;
     atomic->worldBoundingSphere.radius = 0.0f;
-    atomic->worldBoundingSphere.x = 0.0f;
-    atomic->worldBoundingSphere.y = 0.0f;
-    atomic->worldBoundingSphere.z = 0.0f;
+    atomic->worldBoundingSphere.center.x = 0.0f;
+    atomic->worldBoundingSphere.center.y = 0.0f;
+    atomic->worldBoundingSphere.center.z = 0.0f;
     atomic->renderCallBack = AtomicDefaultRenderCallBack;
     atomic->interpolator.startMorphTarget = 0;
     atomic->interpolator.endMorphTarget = 0;

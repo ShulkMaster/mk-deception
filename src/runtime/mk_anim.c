@@ -38,7 +38,7 @@ typedef struct MorphState {
     MkHdr hdr;
     unsigned int morph_target_count; /* +0x08 */
     RpAtomic* atomic;                /* +0x0C */
-    void* interpolator;              /* +0x10 */
+    RpInterpolator* interpolator;    /* +0x10 */
     MorphScript* script;             /* +0x14 */
     unsigned short* frame_table;     /* +0x18 */
     int frame_count;                 /* +0x1C */
@@ -53,14 +53,6 @@ typedef struct MorphState {
 } MorphState;
 
 static int set_morph_frameno(MorphState* morph);
-
-typedef struct MorphInterpolator {
-    unsigned int flags;
-    short morph_target;
-    short next_morph_target;
-    char pad08[8];
-    float position;
-} MorphInterpolator;
 
 typedef struct AnimChannelHeader {
     int type;
@@ -340,10 +332,6 @@ void get_bone_world_pos(MkObj* obj, int bone, Vec* out);
 void get_bone_offset_world_pos(
     MkObj* obj, int bone, const Vec* offset, Vec* out);
 void update_bone_hierarchy(MkHdr* obj);
-RwFrame* RwFrameForAllChildren(
-    RwFrame* frame,
-    RwFrame* (*callback)(RwFrame*, void*),
-    void* data);
 void insert_bone_hierarchy_mkobj(void* object);
 void set_camera_focal_length();
 int pose_anim(AnimState* anim, int update_object);
@@ -689,7 +677,7 @@ static unsigned short* morph_find_frame(
 
 static void update_morph_interpolator(
     MorphState* morph,
-    MorphInterpolator* interpolator,
+    RpInterpolator* interpolator,
     float position,
     short target,
     short next_target) {
@@ -698,13 +686,13 @@ static void update_morph_interpolator(
     changed = 0;
     interpolator->position = position;
     interpolator->flags |= 3;
-    if (interpolator->morph_target != target) {
-        interpolator->morph_target = target;
+    if (interpolator->startMorphTarget != target) {
+        interpolator->startMorphTarget = target;
         interpolator->flags |= 3;
         changed = 1;
     }
-    if (interpolator->next_morph_target != next_target) {
-        interpolator->next_morph_target = next_target;
+    if (interpolator->endMorphTarget != next_target) {
+        interpolator->endMorphTarget = next_target;
         interpolator->flags |= 3;
         changed = 1;
     }
@@ -717,7 +705,7 @@ static void update_morph_interpolator(
 
 int pose_morph(MkHdr* hdr) {
     MorphState* morph;
-    MorphInterpolator* interpolator;
+    RpInterpolator* interpolator;
     MorphFrameHeader* frame;
     float position;
     float fraction;
@@ -761,7 +749,7 @@ int pose_morph(MkHdr* hdr) {
             ((MorphFrameHeader*)mka_next_fp)->position * (1.0f - fraction);
     }
 
-    interpolator = (MorphInterpolator*)morph->interpolator;
+    interpolator = morph->interpolator;
     update_morph_interpolator(
         morph, interpolator, position, target, next_target);
     return result;
@@ -973,7 +961,7 @@ MorphState* obj_start_morph(
         return morph;
     }
 
-    morph->interpolator = &morph->atomic->interpolatorFlags;
+    morph->interpolator = &morph->atomic->interpolator;
     morph->morph_target_count =
         morph->atomic->geometry->numMorphTargets;
     morph->frame_step = 1.0f;
@@ -1644,7 +1632,7 @@ static float p_bone_matcher(void) {
     return 1.0f;
 }
 
-static void* atomic_set_HAnimHierarchy(void* atomic, void* hierarchy) {
+static RpAtomic* atomic_set_HAnimHierarchy(RpAtomic* atomic, void* hierarchy) {
     RpSkinAtomicSetHAnimHierarchy(atomic, hierarchy);
     return atomic;
 }
@@ -2798,7 +2786,7 @@ int pose_anim(AnimState* anim, int update_object) {
 }
 
 static RpAtomic* ScanForBone_callback(
-    RpAtomic* atomic, BoneScanContext* context);
+    RpAtomic* atomic, void* data);
 
 /*
  * Soft ceiling: process_obj_bones ~68.59% - retail keeps an extra hierarchy
@@ -3015,7 +3003,8 @@ void build_bones_tbl(MkObj* obj, const int* tags) {
 }
 
 static RpAtomic* ScanForBone_callback(
-    RpAtomic* atomic, BoneScanContext* context) {
+    RpAtomic* atomic, void* data) {
+    BoneScanContext* context = data;
     void* skin;
 
     context->matrix = 0;

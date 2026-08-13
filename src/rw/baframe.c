@@ -1,6 +1,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwframe.h"
+#include "rw/rwframe_internal.h"
 #include "rw/rwplcore.h"
 #include "rw/rwtypehf.h"
 
@@ -10,8 +11,6 @@ enum {
     rwFRAMELTMDIRTY = 0x04,
     rwFRAMEOBJECTSYNCDIRTY = 0x08
 };
-
-extern void _rwFrameSyncHierarchyLTM(RwFrame*);
 
 RwPluginRegistry frameTKList = { sizeof(RwFrame), sizeof(RwFrame), 0, 0, 0, 0 };
 static RwFreeList frameFreeList;
@@ -23,12 +22,6 @@ static void rwSetHierarchyRoot(RwFrame* frame, RwFrame* root);
 static void FrameDestroyRecurseDeInitLeaf(RwFrame* frame);
 static void rwFrameDestroyRecurseDestroyLeaf(RwFrame* frame);
 static void rwFrameDestroyRecurse(RwFrame* frame);
-
-static RwFreeList** frameFreeListSlot(void)
-{
-    return (RwFreeList**)((unsigned char*)RwEngineInstance +
-                          frameModule.globalsOffset);
-}
 
 void* _rwFrameOpen(void* instance, int offset, int size)
 {
@@ -112,7 +105,8 @@ void _rwFrameInit(RwFrame* frame)
 RwFrame* RwFrameCreate(void)
 {
     RwFrame* frame = RwEngineInstance->fpFreeListAlloc(
-        *frameFreeListSlot(),
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                       frameModule.globalsOffset),
         0x3000E);
     if (frame == 0)
         return 0;
@@ -124,13 +118,20 @@ RwFrame* RwFrameRemoveChild(RwFrame* child);
 
 void _rwFrameDeInit(RwFrame* frame)
 {
-
+    RwFrame* parent;
     RwFrame* child;
+
     _rwPluginRegistryDeInitObject(&frameTKList, frame);
-    if (frame->object.parent != 0)
+    parent = frame->object.parent;
+    if (parent != 0)
         RwFrameRemoveChild(frame);
-    if (frame->object.privateFlags & 3)
-        rwLinkListRemoveLLLink(&frame->inDirtyListLink);
+    if (frame->object.privateFlags & 3) {
+        frame->inDirtyListLink.prev->next = frame->inDirtyListLink.next;
+        {
+            RwLLLink* previous = frame->inDirtyListLink.prev;
+            frame->inDirtyListLink.next->prev = previous;
+        }
+    }
     child = frame->child;
     while (child != 0) {
         child->object.parent = 0;
@@ -142,22 +143,31 @@ int RwFrameDestroy(RwFrame* frame)
 {
     _rwFrameDeInit(frame);
     RwEngineInstance->fpFreeListFree(
-        *frameFreeListSlot(), frame);
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                       frameModule.globalsOffset),
+        frame);
     return 1;
 }
 
 static void FrameDestroyRecurseDeInitLeaf(RwFrame* frame)
 {
     _rwPluginRegistryDeInitObject(&frameTKList, frame);
-    if (frame->object.privateFlags & 3)
-        rwLinkListRemoveLLLink(&frame->inDirtyListLink);
+    if (frame->object.privateFlags & 3) {
+        frame->inDirtyListLink.prev->next = frame->inDirtyListLink.next;
+        {
+            RwLLLink* previous = frame->inDirtyListLink.prev;
+            frame->inDirtyListLink.next->prev = previous;
+        }
+    }
 }
 
 static void rwFrameDestroyRecurseDestroyLeaf(RwFrame* frame)
 {
     FrameDestroyRecurseDeInitLeaf(frame);
     RwEngineInstance->fpFreeListFree(
-        *frameFreeListSlot(), frame);
+        *(RwFreeList**)((unsigned char*)RwEngineInstance +
+                       frameModule.globalsOffset),
+        frame);
 }
 
 static void rwFrameDestroyRecurse(RwFrame* frame)
@@ -183,9 +193,18 @@ int RwFrameDestroyHierarchy(RwFrame* frame)
 RwFrame* RwFrameUpdateObjects(RwFrame* frame)
 {
     unsigned int privateFlags = frame->root->object.privateFlags;
-    if (!(privateFlags & 3))
-        rwLinkListAddLLLink(&RwEngineInstance->dirtyFrameList,
-                            &frame->root->inDirtyListLink);
+    if (!(privateFlags & 3)) {
+        frame->root->inDirtyListLink.next =
+            RwEngineInstance->dirtyFrameList.link.next;
+        frame->root->inDirtyListLink.prev =
+            &RwEngineInstance->dirtyFrameList.link;
+        RwEngineInstance->dirtyFrameList.link.next->prev =
+            &frame->root->inDirtyListLink;
+        {
+            RwLLLink* link = &frame->root->inDirtyListLink;
+            RwEngineInstance->dirtyFrameList.link.next = link;
+        }
+    }
     frame->root->object.privateFlags = privateFlags | 3;
     frame->object.privateFlags |= rwFRAMELTMDIRTY | rwFRAMEOBJECTSYNCDIRTY;
     return frame;
@@ -225,7 +244,8 @@ RwFrame* RwFrameAddChild(RwFrame* parent, RwFrame* child)
     child->object.parent = parent;
     rwSetHierarchyRoot(child, parent->root);
     if (child->object.privateFlags & 3) {
-        rwLinkListRemoveLLLink(&child->inDirtyListLink);
+        child->inDirtyListLink.prev->next = child->inDirtyListLink.next;
+        child->inDirtyListLink.next->prev = child->inDirtyListLink.prev;
         child->object.privateFlags &= ~3;
     }
     RwFrameUpdateObjects(child);
