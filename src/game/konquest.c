@@ -2809,7 +2809,7 @@ int load_hero_model(int animation_script) {
     insert_fgnd_mkobj(hero);
     insert_ground_me_mkobj(hero);
     memset(pdata_monk, 0, sizeof(pdata_monk));
-    init_shadow(pdata_monk, hero);
+    init_shadow((ShadowObject*)pdata_monk, hero);
     ShadowStrength = 0.7f;
     return created;
 }
@@ -3809,8 +3809,8 @@ void setup_children_sobjs_of_tile_object(
         RwFrame* next_frame;
 
         next_frame = frame->next;
-        sentinel = (RwLLLink*)&frame->object_list_next;
-        link = (RwLLLink*)frame->object_list_next;
+        sentinel = &frame->objectList.link;
+        link = frame->objectList.link.next;
         while (link != sentinel) {
             RpAtomic* atomic;
             RwLLLink* next;
@@ -3842,8 +3842,8 @@ void setup_children_pebbles_of_tile_object(
         RwFrame* next_frame;
 
         next_frame = frame->next;
-        sentinel = (RwLLLink*)&frame->object_list_next;
-        link = (RwLLLink*)frame->object_list_next;
+        sentinel = &frame->objectList.link;
+        link = frame->objectList.link.next;
         while (link != sentinel) {
             RpAtomic* atomic;
             RwLLLink* next;

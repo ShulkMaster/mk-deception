@@ -2,6 +2,7 @@
 #include "game/game_info.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_obj.h"
+#include "rw/rwcamera_internal.h"
 
 #pragma use_lmw_stmw on
 
@@ -13,7 +14,7 @@ typedef void (*BgndScriptEntryFn)(void);
 void* memset(void* dst, int c, unsigned long n);
 
 extern int mode_of_play;
-extern void* Camera;
+extern RwCamera* Camera;
 extern float ShadowStrength;
 extern float fog_density;
 extern float fog_distance;
@@ -51,8 +52,6 @@ void load_lights(void* lights, void* list);
 void insert_fgnd_mkobj(void* bgnd_obj);
 void set_background_color(int r, int g, int b, int a);
 void UpdateShadowCameraLightSource(void* light);
-void* RwCameraSetNearClipPlane(void* camera, float near);
-void* RwCameraSetFarClipPlane(void* camera, float far);
 void turn_fog_on(void);
 void turn_fog_off(void);
 void initialize_bgnd_collisions(void* data);

@@ -129,7 +129,6 @@ void material_restore_reflection_texture(void);
 void material_cache_reflection_texture(void);
 void material_set_reflection_texture(void* material, void* texture);
 void* RpGeometryForAllMaterials(void* geometry, void* callback, void* data);
-void* RpClumpForAllAtomics(void* clump, void* callback, void* data);
 RpAtomic* RpMatFXAtomicEnableEffects(RpAtomic* atomic);
 RpMaterial* RpMatFXMaterialSetEffects(RpMaterial* material, int effects);
 void* get_specular_light(void);
@@ -269,19 +268,19 @@ void* force_specular_texture_atomic_callback(void* atomic, void* texture) {
     return atomic;
 }
 
-void* restore_specular_texture_atomic_callback(void* atomic, void* data) {
-    RpAtomic* atom;
-
-    atom = atomic;
-    RpGeometryForAllMaterials(atom->geometry, restore_specular_texture_material_callback, data);
+RpAtomic* restore_specular_texture_atomic_callback(RpAtomic* atomic,
+                                                   void* data) {
+    RpGeometryForAllMaterials(atomic->geometry,
+                              restore_specular_texture_material_callback,
+                              data);
     return atomic;
 }
 
-void* swap_specular_texture_atomic_callback(void* atomic, void* texture) {
-    RpAtomic* atom;
-
-    atom = atomic;
-    RpGeometryForAllMaterials(atom->geometry, swap_specular_texture_material_callback, texture);
+RpAtomic* swap_specular_texture_atomic_callback(RpAtomic* atomic,
+                                                void* texture) {
+    RpGeometryForAllMaterials(atomic->geometry,
+                              swap_specular_texture_material_callback,
+                              texture);
     return atomic;
 }
 

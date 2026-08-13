@@ -17,6 +17,7 @@
 #include "platform/display.h"
 #include "platform/fog.h"
 #include "rw/rtquat.h"
+#include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 #include "platform/gcutils.h"
 #include "platform/main.h"
@@ -610,7 +611,6 @@ void mkobj_get_matrix_right(MkObj* object, Vec* out);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
-void* RwCameraSetFarClipPlane(RwCamera* camera, float distance);
 float sqrtf(float value);
 static float p_subzero_ice_chunk(void);
 static float p_subzero_iceblock_alpha(void);
@@ -648,10 +648,10 @@ static inline void fatality_fade_and_cleanup(void) {
     float far_clip;
     float step;
 
-    background_color[0] = 0;
-    background_color[1] = 0;
-    background_color[2] = 0;
-    background_color[3] = 0;
+    background_color.red = 0;
+    background_color.green = 0;
+    background_color.blue = 0;
+    background_color.alpha = 0;
     g_game_info.sky = 0;
     fog_on = 1;
     fog_distance = 0.0f;
@@ -3638,10 +3638,10 @@ void fade_fatality_screen(void) {
     float far_clip;
     float step;
 
-    background_color[0] = 0;
-    background_color[1] = 0;
-    background_color[2] = 0;
-    background_color[3] = 0;
+    background_color.red = 0;
+    background_color.green = 0;
+    background_color.blue = 0;
+    background_color.alpha = 0;
     g_game_info.sky = 0;
     fog_on = 1;
     fog_distance = 0.0f;
