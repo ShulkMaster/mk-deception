@@ -1,14 +1,6 @@
 #include "rw/gamecube.h"
 #include "runtime/cstring.h"
 
-extern unsigned int rwGCNPosGetSize(const RwGameCubeVertexDescriptor* format);
-extern unsigned int rwGCNNrmGetSize(const RwGameCubeVertexDescriptor* format);
-extern unsigned int rwGCNClrGetSize(const RwGameCubeVertexDescriptor* format,
-                                unsigned char colorIndex);
-extern unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor* format,
-                                unsigned int texCoordIndex);
-
-
 unsigned int _rwGCNDisplayListGetStride(
     const RwGameCubeVertexDescriptor* format)
 {

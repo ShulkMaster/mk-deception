@@ -2,6 +2,7 @@
 #define MK_PLUGINS_H
 
 #include "runtime/mk_obj.h"
+#include "rw/gcspecular.h"
 
 /*
  * Midway RW plugin userdata layouts (offsets relative to *LocalOffset /
@@ -50,24 +51,6 @@ typedef struct MkmaterialPluginData {
     unsigned int field_20;     /* +0x20 */
 } MkmaterialPluginData;
 
-/* Game specular material extension at SpecularMaterialOffset (0x30 bytes). */
-typedef struct SpecularMaterialPluginData {
-    void* light;               /* +0x00 */
-    RwFrame* frame;            /* +0x04 */
-    RwTexture* texture;        /* +0x08 */
-    RwTexture* saved_texture;  /* +0x0C */
-    char pad10[0x18];
-    float gloss;               /* +0x28 */
-    union {
-        unsigned char flags;
-        struct {
-            unsigned char hidden : 1;
-            unsigned char flags_pad : 7;
-        } flag_bits;
-    };                         /* +0x2C */
-    char pad2D[3];
-} SpecularMaterialPluginData;
-
 /* Mkobj clump plugin - 4 bytes (id 0x895301). */
 typedef struct MkobjPluginData {
     MkObj* owner; /* +0x00 - owning Midway object */
@@ -87,8 +70,6 @@ extern int MksobjLocalOffset;
 extern int MkmaterialGlobalOffset;
 extern int MkmaterialLocalOffset;
 extern int ColorSetGeometryOffset;
-extern int SpecularMaterialOffset;
-
 #define MK_MATERIAL_PLUGIN(material)                                      \
     ((MkmaterialPluginData*)((unsigned char*)(material) +                 \
                              MkmaterialLocalOffset))
@@ -96,9 +77,11 @@ extern int SpecularMaterialOffset;
     ((MksobjPluginData*)((unsigned char*)(atomic) + MksobjLocalOffset))
 #define MK_CLUMP_PLUGIN(clump)                                           \
     ((MkobjPluginData*)((unsigned char*)(clump) + MkobjLocalOffset))
-#define COLOR_SET_PLUGIN(geometry)                                       \
-    ((ColorSetPluginData*)((unsigned char*)(geometry) +                  \
-                           ColorSetGeometryOffset))
+
+static inline ColorSetPluginData* COLOR_SET_PLUGIN(const void* geometry) {
+    return (ColorSetPluginData*)((const unsigned char*)geometry +
+                                 ColorSetGeometryOffset);
+}
 
 static inline SpecularMaterialPluginData* mk_get_specular_material_plugin(
     RpMaterial* material) {

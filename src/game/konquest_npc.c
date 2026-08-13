@@ -11,6 +11,7 @@
 #include "runtime/mk_proc.h"
 #include "runtime/section.h"
 #include "runtime/mk_struct.h"
+#include "rw/rwcamera_internal.h"
 
 typedef struct KonquestPathData {
     MkHdr hdr;
@@ -361,7 +362,6 @@ RpGeometry* RpGeometryForAllMaterials(
     RpGeometry* geometry, KonquestMaterialCallback callback, void* data);
 int get_konquest_game_mode(void);
 void npc_ani_1_frame(void);
-int RwCameraFrustumTestSphere(void* camera, const RwSphere* sphere);
 void add_npc(int npc_id);
 void* memcpy(void* dst, const void* src, unsigned long size);
 int check_skip_conversation_flag(void);

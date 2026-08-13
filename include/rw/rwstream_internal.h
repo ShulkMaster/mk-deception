@@ -14,12 +14,12 @@ typedef struct RwFrameList {
 
 typedef struct RpGeometryList {
     RpGeometry** geometries;
-    int num_geometries;
+    int numGeometries;
 } RpGeometryList;
 
 RwFrameList* _rwFrameListStreamRead(RwStream* stream, RwFrameList* frameList);
 RwFrameList* _rwFrameListDeinitialize(RwFrameList* frameList);
-void GeometryListDeinitialize(RpGeometryList* geometry_list);
+RpGeometryList* GeometryListDeinitialize(RpGeometryList* geometryList);
 RpMaterialList* _rpMaterialListStreamRead(RwStream* stream,
                                           RpMaterialList* materialList);
 RpMaterialList* _rpMaterialListInitialize(RpMaterialList* materialList);

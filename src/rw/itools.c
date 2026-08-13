@@ -1,12 +1,5 @@
 #include "rw/gamecube.h"
 
-extern unsigned int rwGCNPosGetSize(const RwGameCubeVertexDescriptor *descriptor);
-extern unsigned int rwGCNNrmGetSize(const RwGameCubeVertexDescriptor *descriptor);
-extern unsigned int rwGCNClrGetSize(const RwGameCubeVertexDescriptor *descriptor,
-                                unsigned char colorIndex);
-extern unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor *descriptor,
-                                unsigned char texCoordIndex);
-
 void _rwGCNTriStripGetStats(unsigned short *indices, unsigned int numIndices,
                             unsigned int *numStrips, unsigned int *stripIndices,
                             int optimize) {

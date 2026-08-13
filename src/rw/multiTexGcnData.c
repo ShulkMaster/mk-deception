@@ -120,11 +120,6 @@ typedef struct RpGameCubeMTStreamEntry40 {
 
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 extern void* memset(void* destination, int value, unsigned int size);
-extern void* RwMemLittleEndian16(void* memory, unsigned int size);
-extern RwStream* RwStreamWriteReal(RwStream* stream, const float* values,
-                                   unsigned int size);
-extern RwStream* RwStreamReadReal(RwStream* stream, float* values,
-                                  unsigned int size);
 
 static int GameCubeMTEffectStreamGetSize(const RpMTEffect* effect)
 {
@@ -143,7 +138,7 @@ static int GameCubeMTEffectStreamGetSize(const RpMTEffect* effect)
 }
 
 
-static RwStream* GameCubeMTEffectStreamWrite(
+static const RpMTEffect* GameCubeMTEffectStreamWrite(
     const RpMTEffect* effect, RwStream* stream)
 {
     const RpGameCubeMTEffectConfig* config =
@@ -277,7 +272,7 @@ static RwStream* GameCubeMTEffectStreamWrite(
             return 0;
         }
     }
-    return (RwStream*)effect;
+    return effect;
 }
 
 

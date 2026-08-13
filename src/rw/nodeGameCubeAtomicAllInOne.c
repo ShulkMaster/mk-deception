@@ -8,57 +8,11 @@
 #include "rw/rwresources.h"
 #include "rw/rwframe.h"
 
-struct RwGameCubeLightingData {
-    unsigned char reserved_0x00[0x0C];
-    RwRGBAReal ambient;
-    int hasAmbient;
-    unsigned int lightMask;
-    int lightIndex;
-};
-
-struct RxGameCubeAllInOneInstanceData {
-    RwResEntry* resourceEntry;
-    RpMeshHeader* meshHeader;
-    unsigned int geometryFlags;
-    RwRGBAReal ambient;
-    int hasAmbient;
-    unsigned int lightMask;
-    int lightIndex;
-    void* morphData;
-};
-
 typedef struct RpAtomicSectorTie {
     unsigned char reserved_0x00[0x0C];
     RwLLLink atomicLink;
     RpWorldSector* sector;
 } RpAtomicSectorTie;
-
-typedef struct RwGameCubeResEntryHeader {
-    RwResEntry entry;
-    union {
-        struct {
-            unsigned short token;
-            unsigned short meshSerialNum;
-        };
-        RwGameCubeVertexBuffer vertexBuffer;
-    };
-} RwGameCubeResEntryHeader;
-
-typedef struct RwResourcesGlobalsPrefix {
-    unsigned int arenaSize;
-    unsigned int arenaUsage;
-    unsigned int arenaReusage;
-    void* arena;
-    RwLinkList entriesA;
-    RwLinkList entriesB;
-    RwLLLink* activeList;
-} RwResourcesGlobalsPrefix;
-
-typedef void* (*RxGCAtomicInstanceCallBack)(void*, RwResEntry**);
-typedef RpAtomic* (*RxGCAtomicLightingCallBack)(RpAtomic*,
-                                                RwGameCubeLightingData*);
-typedef RpAtomic* (*RxGCAtomicRenderCallBack)(
-    RpAtomic*, RxGameCubeAllInOneInstanceData*);
 
 typedef struct RxGameCubeAtomicAllInOnePrivateData {
     RxGCAtomicInstanceCallBack instanceCallback;
@@ -67,15 +21,6 @@ typedef struct RxGameCubeAtomicAllInOnePrivateData {
     RxGCAtomicRenderCallBack renderCallback;
 } RxGameCubeAtomicAllInOnePrivateData;
 
-extern RwModuleInfo resourcesModule;
-extern int _RwDlPreInstanceOptimize;
-extern int _rpDlGeomVtxFmtOffset;
-
-extern void _rwGCLightsGlobalEnable(int,
-                                    RwGameCubeLightingData*);
-extern void _rwGCLightsLocalEnable(RpLight*, RwGameCubeLightingData*);
-extern RpAtomic* _rxGCDefaultRenderCallback(
-    RpAtomic*, RxGameCubeAllInOneInstanceData*);
 
 extern RxPipelineNode* _rxGameCubeAllInOneSetInstanceCallBack(
     RxPipelineNode*, RxGCAtomicInstanceCallBack);
@@ -298,14 +243,14 @@ void* _rxGCAtomicDefaultReinstanceCallback(
     RpGeometry* geometry = atomic->geometry;
     RwGameCubeResEntryHeader* header =
         (RwGameCubeResEntryHeader*)*resourceEntry;
-    RwGameCubeVertexBuffer* vertexBuffer = &header->vertexBuffer;
+    RwGameCubeVertexBuffer* vertexBuffer = &header->data.vertexBuffer;
 
     if (geometry->lockedSinceLastInst != 0) {
-        if (header->token == _RwDlTokenCurrent) {
+        if (header->data.sync.token == _RwDlTokenCurrent) {
             GXSetDrawSync(_RwDlTokenCurrent);
             _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
         }
-        while (_rwDlTokenQueryDone(header->token) == 0) {
+        while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
         }
         _rxGCDefaultReinstance(geometry, vertexBuffer,
                                vertexBuffer->reserved_0x00[2]);
@@ -313,11 +258,11 @@ void* _rxGCAtomicDefaultReinstanceCallback(
     }
     if (geometry->numMorphTargets != 1 &&
         (atomic->interpolator.flags & 1) != 0) {
-        if (header->token == _RwDlTokenCurrent) {
+        if (header->data.sync.token == _RwDlTokenCurrent) {
             GXSetDrawSync(_RwDlTokenCurrent);
             _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
         }
-        while (_rwDlTokenQueryDone(header->token) == 0) {
+        while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
         }
         _rxGCInstanceMorphUpdate(geometry, vertexBuffer,
                                  &atomic->interpolator);
@@ -364,7 +309,7 @@ static int _rxGCAtomicAllInOneNode(
     RpGeometry* geometry = atomic->geometry;
     RxGameCubeAtomicAllInOnePrivateData* privateData =
         (RxGameCubeAtomicAllInOnePrivateData*)self->privateData;
-    RxGameCubeAllInOneInstanceData instanceData;
+    RxGameCubeAtomicAllInOneInstanceData instanceData;
 
     if ((geometry->flags & 0x01000000) == 0) {
         RwResEntry* resourceEntry;
@@ -385,7 +330,8 @@ static int _rxGCAtomicAllInOneNode(
         instanceData.geometryFlags = geometry->flags;
 
         if (resourceEntry != 0 &&
-            ((RwGameCubeResEntryHeader*)resourceEntry)->meshSerialNum !=
+            ((RwGameCubeResEntryHeader*)resourceEntry)
+                    ->data.sync.meshSerialNum !=
                 meshHeader->serialNum) {
             RwResourcesFreeResEntry(resourceEntry);
             instanceData.resourceEntry = 0;

@@ -5,94 +5,14 @@
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
+#include "rw/gcspecular.h"
+#include "rw/nodegamecube.h"
 #include "rw/rphanim.h"
 #include "rw/rpskin.h"
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
 #include "rw/rwresources.h"
 #include "rw/rwvector.h"
-
-typedef struct RwGameCubeResEntryHeader {
-    RwResEntry entry;
-    unsigned short token;
-    unsigned short meshSerialNum;
-} RwGameCubeResEntryHeader;
-
-typedef struct RwResourcesGlobalsPrefix {
-    unsigned int arenaSize;
-    unsigned int arenaUsage;
-    unsigned int arenaReusage;
-    void* arena;
-    RwLinkList entriesA;
-    RwLinkList entriesB;
-    RwLLLink* activeList;
-} RwResourcesGlobalsPrefix;
-
-typedef struct RxGameCubeAllInOneInstanceData {
-    RwResEntry* resourceEntry;
-    RpMeshHeader* meshHeader;
-    int geometryFlags;
-    RwRGBAReal ambient;
-    int hasAmbient;
-    unsigned int lightMask;
-    int lightIndex;
-    void* morphData;
-} RxGameCubeAllInOneInstanceData;
-
-typedef union SpecularMaterialFlags {
-    unsigned char value;
-    struct {
-        signed char hidden : 1;
-        signed char reflectionPass : 1;
-        signed char cullFront : 1;
-        signed char swapMode : 1;
-        unsigned char reserved : 4;
-    } bits;
-} SpecularMaterialFlags;
-
-typedef struct SpecularMaterialData {
-    unsigned char reserved_0x00[0x2C];
-    SpecularMaterialFlags flags;
-    unsigned char reserved_0x2D[3];
-} SpecularMaterialData;
-
-typedef struct RpSkinBlendPositionData {
-    unsigned char* destination;
-    unsigned char* source;
-    unsigned int stride;
-    unsigned int numVertices;
-} RpSkinBlendPositionData;
-
-typedef struct RpSkinBlendPositionNormalData {
-    unsigned char* destinationPositions;
-    unsigned char* destinationNormals;
-    unsigned char* sourcePositions;
-    unsigned char* sourceNormals;
-    unsigned int positionStride;
-    unsigned int normalStride;
-    unsigned int nbtStride;
-    unsigned int numVertices;
-} RpSkinBlendPositionNormalData;
-
-extern RwModuleInfo resourcesModule;
-extern int _RwDlPreInstanceOptimize;
-extern int _rpDlGeomVtxFmtOffset;
-extern int _RwGameCubeRasterExtOffset;
-extern int SpecularMaterialOffset;
-extern RwMatrix _RwDlInvCamLTM;
-extern void _rxGCAtomicDefaultReinstanceCallback(void*, RwResEntry**);
-extern void _rwDlSkinUpdate2WeightsP(const RwMatrix*, const RpSkin*,
-                                     const RpSkinBlendPositionData*);
-extern void _rwDlSkinUpdate3WeightsP(const RwMatrix*, const RpSkin*,
-                                     const RpSkinBlendPositionData*);
-extern void _rwDlSkinUpdate4WeightsP(const RwMatrix*, const RpSkin*,
-                                     const RpSkinBlendPositionData*);
-extern void _rwDlSkinUpdate2WeightsPN(
-    const RwMatrix*, const RpSkin*, const RpSkinBlendPositionNormalData*);
-extern void _rwDlSkinUpdate3WeightsPN(
-    const RwMatrix*, const RpSkin*, const RpSkinBlendPositionNormalData*);
-extern void _rwDlSkinUpdate4WeightsPN(
-    const RwMatrix*, const RpSkin*, const RpSkinBlendPositionNormalData*);
 
 RpSkinGlobals _rpSkinGlobals = {0, 0, 0, 0, 0, 0, 0, 0, 0,
                                 {0, 0, 0, 0, 0, 0}};
@@ -128,11 +48,11 @@ static void _rpSkinMainResEntryCB(RwResEntry* entry)
     owner = (RwObject*)entry->owner;
     ownerFlags = *(unsigned int*)((unsigned char*)owner + 8);
 
-    if (header->token == _RwDlTokenCurrent) {
+    if (header->data.sync.token == _RwDlTokenCurrent) {
         GXSetDrawSync(_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
     }
-    while (_rwDlTokenQueryDone(header->token) == 0) {
+    while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
     }
     if (vertexBuffer->arrays[0].data != 0) {
         RwResourcesFreeResEntry(
@@ -161,11 +81,11 @@ static void _rpSkinResEntryWaitDone(RwResEntry* entry)
 {
     RwGameCubeResEntryHeader* header = (RwGameCubeResEntryHeader*)entry;
 
-    if (header->token == _RwDlTokenCurrent) {
+    if (header->data.sync.token == _RwDlTokenCurrent) {
         GXSetDrawSync(_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
     }
-    while (_rwDlTokenQueryDone(header->token) == 0) {
+    while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
     }
 }
 
@@ -206,7 +126,7 @@ int _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
         RwResEntry* oldEntry =
             *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4);
         if (_rwDlTokenQueryDone(
-                ((RwGameCubeResEntryHeader*)oldEntry)->token) == 0) {
+                ((RwGameCubeResEntryHeader*)oldEntry)->data.sync.token) == 0) {
             oldEntry->ownerRef = 0;
             vertexBuffer->arrays[0].data = 0;
             if ((geometry->flags & 0x10) != 0)
@@ -256,7 +176,7 @@ int _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
         entry = *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4);
         ActivateResourceEntry(entry);
     }
-    ((RwGameCubeResEntryHeader*)entry)->token = _RwDlTokenCurrent;
+    ((RwGameCubeResEntryHeader*)entry)->data.sync.token = _RwDlTokenCurrent;
     return 1;
 }
 
@@ -580,8 +500,8 @@ void _rpSkinLoadMatrixPalette(const RpSkin* skin, unsigned int meshIndex,
     }
 }
 
-void* _rpSkinRenderCallback(void* object,
-                            RxGameCubeAllInOneInstanceData* instanceData)
+void* _rpSkinRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* instanceData)
 {
     RpAtomic* atomic = (RpAtomic*)object;
     RpGeometry* geometry = atomic->geometry;
@@ -600,7 +520,7 @@ void* _rpSkinRenderCallback(void* object,
     unsigned int meshCount = instanceData->meshHeader->numMeshes;
     unsigned int meshIndex = 0;
 
-    ((RwGameCubeResEntryHeader*)instanceData->resourceEntry)->token =
+    ((RwGameCubeResEntryHeader*)instanceData->resourceEntry)->data.sync.token =
         _RwDlTokenCurrent;
     _rwDlVtxFmtSetup(format, (RpGameCubeVtxFmtSetupData*)instanceData);
     if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3)
@@ -629,9 +549,9 @@ void* _rpSkinRenderCallback(void* object,
 
         while (meshIndex < meshCount) {
             RpMaterial* material = mesh->material;
-            SpecularMaterialData* specular =
-                (SpecularMaterialData*)((unsigned char*)material +
-                                        SpecularMaterialOffset);
+            SpecularMaterialPluginData* specular =
+                (SpecularMaterialPluginData*)((unsigned char*)material +
+                                              SpecularMaterialOffset);
             if (!specular->flags.bits.hidden) {
                 if (specular->flags.bits.reflectionPass) {
                     deferredMesh[deferredCount] = mesh;
@@ -672,9 +592,9 @@ void* _rpSkinRenderCallback(void* object,
         }
         for (meshIndex = 0; meshIndex < deferredCount; meshIndex++) {
             RpMaterial* material = deferredMesh[meshIndex]->material;
-            SpecularMaterialData* specular =
-                (SpecularMaterialData*)((unsigned char*)material +
-                                        SpecularMaterialOffset);
+            SpecularMaterialPluginData* specular =
+                (SpecularMaterialPluginData*)((unsigned char*)material +
+                                              SpecularMaterialOffset);
             if (!specular->flags.bits.hidden) {
                 RwTexture* texture = material->texture;
                 RwTexture* alpha = RpMaterialGetAlphaPassTexture(material);

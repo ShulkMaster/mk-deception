@@ -8,6 +8,9 @@ typedef struct RpGeometry RpGeometry;
 typedef struct RpHAnimHierarchy RpHAnimHierarchy;
 typedef struct RpSkin RpSkin;
 typedef struct RwMatrix RwMatrix;
+typedef struct RwResEntry RwResEntry;
+typedef struct RxGameCubeAtomicAllInOneInstanceData
+    RxGameCubeAtomicAllInOneInstanceData;
 typedef struct RxPipeline RxPipeline;
 
 typedef struct RwMatrixWeights {
@@ -16,6 +19,24 @@ typedef struct RwMatrixWeights {
     float w2;
     float w3;
 } RwMatrixWeights;
+
+typedef struct RpSkinBlendPositionData {
+    unsigned char* destination;
+    unsigned char* source;
+    unsigned int stride;
+    unsigned int numVertices;
+} RpSkinBlendPositionData;
+
+typedef struct RpSkinBlendPositionNormalData {
+    unsigned char* destinationPositions;
+    unsigned char* destinationNormals;
+    unsigned char* sourcePositions;
+    unsigned char* sourceNormals;
+    unsigned int positionStride;
+    unsigned int normalStride;
+    unsigned int nbtStride;
+    unsigned int numVertices;
+} RpSkinBlendPositionNormalData;
 
 typedef struct SkinAtomicState {
     RpHAnimHierarchy* hierarchy;
@@ -74,6 +95,12 @@ typedef struct RpSkinGlobals {
 
 extern RpSkinGlobals _rpSkinGlobals;
 
+void* _rpSkinInstanceCallback(void* object, RwResEntry** resourceEntry);
+void* _rpSkinAtomicReinstanceCallBack(void* object,
+                                      RwResEntry** resourceEntry);
+void* _rpSkinRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* instanceData);
+
 typedef enum RpSkinType {
     rpSKINTYPEGENERIC = 1,
     rpSKINTYPEMATFX = 2,
@@ -107,6 +134,21 @@ void _rpSkinMatrixBlendUpdateASM(RwMatrix* destination,
                                  const RwMatrix* transform,
                                  const unsigned char* usedBoneList,
                                  unsigned int numUsedBones);
+void _rwDlSkinUpdate2WeightsP(const RwMatrix* matrices, const RpSkin* skin,
+                              const RpSkinBlendPositionData* data);
+void _rwDlSkinUpdate3WeightsP(const RwMatrix* matrices, const RpSkin* skin,
+                              const RpSkinBlendPositionData* data);
+void _rwDlSkinUpdate4WeightsP(const RwMatrix* matrices, const RpSkin* skin,
+                              const RpSkinBlendPositionData* data);
+void _rwDlSkinUpdate2WeightsPN(
+    const RwMatrix* matrices, const RpSkin* skin,
+    const RpSkinBlendPositionNormalData* data);
+void _rwDlSkinUpdate3WeightsPN(
+    const RwMatrix* matrices, const RpSkin* skin,
+    const RpSkinBlendPositionNormalData* data);
+void _rwDlSkinUpdate4WeightsPN(
+    const RwMatrix* matrices, const RpSkin* skin,
+    const RpSkinBlendPositionNormalData* data);
 int _rpSkinPipelinesCreate(unsigned int pipeType);
 int _rpSkinPipelinesDestroy(void);
 RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType skinType);

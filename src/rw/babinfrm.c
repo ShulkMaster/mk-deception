@@ -1,6 +1,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/rwerror.h"
 #include "rw/rwframe.h"
+#include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
 typedef struct RwFrameChunkInfo {
@@ -13,9 +14,6 @@ typedef struct RwFrameChunkInfo {
 } RwFrameChunkInfo;
 
 extern RwPluginRegistry frameTKList;
-extern int RwStreamFindChunk(RwStream*, unsigned int, unsigned int*, unsigned int*);
-extern unsigned int RwStreamRead(RwStream*, void*, unsigned int);
-extern void RwMemNative32(void*, unsigned int);
 extern RwFrame* RwFrameCreate(void);
 extern int RwFrameDestroyHierarchy(RwFrame*);
 extern RwFrame* RwFrameAddChild(RwFrame*, RwFrame*);

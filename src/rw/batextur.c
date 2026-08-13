@@ -40,9 +40,6 @@ extern RwImage* RwImageCreateResample(const RwImage* source, int width, int heig
 extern RwImage* RwImageGammaCorrect(RwImage* image);
 extern void* memcpy(void* destination, const void* source, unsigned int size);
 
-RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
-                                            const char* name);
-
 static const char character_25[] = "0123456789abcdef";
 static char emptyTextureName[] = "";
 static char nullMaskName[] = "(null)";
@@ -637,7 +634,10 @@ static int TextureAnnihilate(RwTexture* texture) {
         texture->raster = 0;
     }
     texture->ref_count--;
-    RwEngineInstance->fpFreeListFree(TextureGlobals()->textureFreeList, texture);
+    RwEngineInstance->fpFreeListFree(
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))->textureFreeList,
+        texture);
     return 1;
 }
 #pragma dont_inline reset
@@ -668,7 +668,9 @@ static int StringCompare(const char* left, const char* right) {
 #pragma dont_inline reset
 
 static RwTexture* TextureDefaultFind(const char* name) {
-    RwTexDictionary* dictionary = TextureGlobals()->currentDictionary;
+    RwTexDictionary* dictionary =
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))->currentDictionary;
     RwLLLink* link;
     RwLLLink* end;
     RwTexture* texture;
@@ -678,8 +680,10 @@ static RwTexture* TextureDefaultFind(const char* name) {
         return texture;
     }
 
-    link = TextureGlobals()->dictionaries.next;
-    end = &TextureGlobals()->dictionaries;
+    link = ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                      textureModule.globalsOffset))->dictionaries.next;
+    end = &((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                      textureModule.globalsOffset))->dictionaries;
     while (link != end) {
         dictionary = (RwTexDictionary*)((char*)link - 0x10);
         texture = RwTexDictionaryFindNamedTexture(dictionary, name);
@@ -736,15 +740,15 @@ RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster) {
     return texture;
 }
 
-RwTexDictionary* RwTexDictionaryForAllTextures(
-    RwTexDictionary* dictionary,
-    RwTexture* (*callback)(RwTexture*, void*), void* data);
-
 RwTexDictionary* RwTexDictionaryCreate(void) {
     RwTexDictionary* dictionary;
+    RwLLLink* instanceLink;
+    RwLLLink* textureLink;
 
     dictionary = (RwTexDictionary*)RwEngineInstance->fpFreeListAlloc(
-        TextureGlobals()->dictionaryFreeList, 0x30016);
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))->dictionaryFreeList,
+        0x30016);
     if (dictionary == 0) {
         return 0;
     }
@@ -754,9 +758,21 @@ RwTexDictionary* RwTexDictionaryCreate(void) {
     dictionary->object.privateFlags = 0;
     dictionary->object.parent = 0;
 
-    rwLinkListAddLLLink((RwLinkList*)&TextureGlobals()->dictionaries,
-                        &dictionary->lInInstance);
-    rwLinkListInitialize((RwLinkList*)&dictionary->textures);
+    dictionary->lInInstance.next =
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))->dictionaries.next;
+    dictionary->lInInstance.prev =
+        &((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                    textureModule.globalsOffset))->dictionaries;
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                               textureModule.globalsOffset))->dictionaries.next->prev =
+        &dictionary->lInInstance;
+    instanceLink = &dictionary->lInInstance;
+    ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                               textureModule.globalsOffset))->dictionaries.next = instanceLink;
+    dictionary->textures.next = &dictionary->textures;
+    textureLink = &dictionary->textures;
+    dictionary->textures.prev = textureLink;
     _rwPluginRegistryInitObject(&texDictTKList, dictionary);
     return dictionary;
 }
@@ -764,8 +780,10 @@ RwTexDictionary* RwTexDictionaryCreate(void) {
 int RwTexDictionaryDestroy(RwTexDictionary* dictionary) {
     RwLLLink* previous;
 
-    if (TextureGlobals()->currentDictionary == dictionary) {
-        TextureGlobals()->currentDictionary = 0;
+    if (((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))->currentDictionary == dictionary) {
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))->currentDictionary = 0;
     }
     RwTexDictionaryForAllTextures(
         dictionary, (RwTexture* (*)(RwTexture*, void*))RwTextureDestroy, 0);
@@ -773,7 +791,10 @@ int RwTexDictionaryDestroy(RwTexDictionary* dictionary) {
     dictionary->lInInstance.prev->next = dictionary->lInInstance.next;
     previous = dictionary->lInInstance.prev;
     dictionary->lInInstance.next->prev = previous;
-    RwEngineInstance->fpFreeListFree(TextureGlobals()->dictionaryFreeList, dictionary);
+    RwEngineInstance->fpFreeListFree(
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))->dictionaryFreeList,
+        dictionary);
     return 1;
 }
 
@@ -800,11 +821,12 @@ RwTexDictionary* RwTexDictionaryForAllTextures(
 
 RwTexture* RwTextureCreate(RwRaster* raster) {
     RwTexture* texture;
-    void* freelist;
 
-    freelist = TextureGlobals()->textureFreeList;
-    texture = (RwTexture*)
-        RwEngineInstance->fpFreeListAlloc(freelist, 0x30006);
+    texture = (RwTexture*)RwEngineInstance->fpFreeListAlloc(
+        ((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
+                                   textureModule.globalsOffset))
+            ->textureFreeList,
+        0x30006);
     if (texture != 0) {
         texture->dictionary = 0;
         texture->name[0] = 0;
@@ -896,7 +918,7 @@ RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
 
     while (link != end) {
         RwTexture* texture = (RwTexture*)((char*)link - 8);
-        if (StringCompare(texture->name, name)) {
+        if (texture->name != 0 && StringCompare(texture->name, name)) {
             return texture;
         }
         link = link->next;

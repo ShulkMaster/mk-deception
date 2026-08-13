@@ -49,6 +49,14 @@ typedef struct RwStreamCustom {
     void* data;
 } RwStreamCustom;
 
+typedef struct RwStreamMemory {
+    unsigned int position;
+    unsigned int length;
+    unsigned char* start;
+} RwStreamMemory;
+
+typedef char RwStreamMemorySizeCheck[sizeof(RwStreamMemory) == 0x0C ? 1 : -1];
+
 
 typedef struct RwStream {
     RwStreamType type;
@@ -56,11 +64,7 @@ typedef struct RwStream {
     unsigned int reserved;
     union {
         struct { void* file; } file;
-        struct {
-            unsigned int position;
-            unsigned int length;
-            unsigned char* start;
-        } memory;
+        RwStreamMemory memory;
         RwStreamCustom custom;
     } data;
     int owned;

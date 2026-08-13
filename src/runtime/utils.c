@@ -697,7 +697,7 @@ void show_material(RpMaterial* material) {
 
     specular = mk_get_specular_material_plugin(material);
     if (specular != 0) {
-        specular->flag_bits.hidden = 0;
+        specular->flags.bits.hidden = 0;
     }
 }
 
@@ -706,7 +706,7 @@ void hide_material(RpMaterial* material) {
 
     specular = mk_get_specular_material_plugin(material);
     if (specular != 0) {
-        specular->flag_bits.hidden = 1;
+        specular->flags.bits.hidden = 1;
     }
 }
 

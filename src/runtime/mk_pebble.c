@@ -5,6 +5,7 @@
 #include "runtime/mk_struct.h"
 #include "runtime/mk_vtbl.h"
 #include "rw/rtquat.h"
+#include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 
 void* memcpy(void* dest, const void* src, unsigned int size);
@@ -13,7 +14,6 @@ extern int MksobjLocalOffset;
 extern RwCamera* Camera;
 
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
-int RwCameraFrustumTestSphere(RwCamera* camera, RwSphere* sphere, PebbleFlags* flags, int factor);
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
 
 static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic);
@@ -156,8 +156,7 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
             test_sphere.y = pebble_data->pebbles[i].matrix.pos.y;
             test_sphere.z = pebble_data->pebbles[i].matrix.pos.z;
             pebble_data->flags[i].bits.visible = 1;
-            switch (RwCameraFrustumTestSphere(camera, &test_sphere,
-                                               &pebble_data->flags[i], 1)) {
+            switch (RwCameraFrustumTestSphere(camera, &test_sphere)) {
             case 0:
                 pebble_data->flags[i].bits.visible = 0;
                 break;

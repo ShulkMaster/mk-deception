@@ -2,18 +2,32 @@
 #define RW_RWRESOURCES_H
 
 #include "rw/rwcore_types.h"
+#include "rw/gamecube.h"
 #include "rw/rwplcore.h"
+#include "rw/rwresentry.h"
 
-typedef struct RwResEntry RwResEntry;
-typedef void (*RwResEntryDestroyNotify)(RwResEntry* entry);
+typedef struct RwGameCubeResEntryHeader {
+    RwResEntry entry;
+    union {
+        struct {
+            unsigned short token;
+            unsigned short meshSerialNum;
+        } sync;
+        RwGameCubeVertexBuffer vertexBuffer;
+    } data;
+} RwGameCubeResEntryHeader;
 
-struct RwResEntry {
-    RwLLLink link;
-    int size;
-    void* owner;
-    RwResEntry** ownerRef;
-    RwResEntryDestroyNotify destroyNotify;
-};
+typedef struct RwResourcesGlobalsPrefix {
+    unsigned int arenaSize;
+    unsigned int arenaUsage;
+    unsigned int arenaReusage;
+    void* arena;
+    RwLinkList entriesA;
+    RwLinkList entriesB;
+    RwLLLink* activeList;
+} RwResourcesGlobalsPrefix;
+
+extern RwModuleInfo resourcesModule;
 
 int RwResourcesFreeResEntry(RwResEntry* entry);
 RwResEntry* RwResourcesAllocateResEntry(

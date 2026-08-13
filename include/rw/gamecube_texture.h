@@ -2,6 +2,7 @@
 #define RW_GAMECUBE_TEXTURE_H
 
 #include "dolphin/gx.h"
+#include "rw/gamecube_globals.h"
 #include "rw/rwcore_types.h"
 
 typedef struct RwGameCubeTextureExt {
@@ -24,9 +25,6 @@ typedef struct RwGameCubeRasterExt {
     unsigned char maxLod;
     unsigned char lockedMipLevel;
 } RwGameCubeRasterExt;
-
-extern int _RwGameCubeRasterExtOffset;
-extern int _RwGameCubeTextureExtOffset;
 
 int _rwDlTextureSetRaster(void* texture, void* raster, int unused);
 

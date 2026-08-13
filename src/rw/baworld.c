@@ -22,7 +22,6 @@ typedef struct RpWorldFindSectorData {
 } RpWorldFindSectorData;
 
 extern RwPluginRegistry sectorTKList;
-extern int _rxPipelineGlobalsOffset;
 extern RpMeshHeader *_rpMeshOptimise(RpBuildMesh *, unsigned int);
 extern void RwResourcesFreeResEntry(RwResEntry *);
 extern void RwErrorSet(const RwError *);

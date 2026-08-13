@@ -11,7 +11,6 @@ extern void* memcpy(void* destination, const void* source, unsigned int size);
 extern void DCFlushRange(void* start, unsigned int length);
 extern void GXInvalidateVtxCache(void);
 
-extern int _rpDlGeomVtxFmtOffset;
 
 static RwGameCubeVertexDescriptor VtxDesc;
 

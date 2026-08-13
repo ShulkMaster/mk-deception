@@ -1,10 +1,12 @@
 #include "platform/gcpipemanager.h"
 
+#include "game/gcspecskin.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/utils.h"
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
+#include "rw/rxpipeline.h"
 
 typedef struct RpGameCubeVtxFmt {
     unsigned char data[0x18];
@@ -25,9 +27,6 @@ void RpGameCubeVtxFmtSetTexCoord(RpGameCubeVtxFmt* format, int index,
                                  int count, int type);
 void RpGameCubeGeometrySetVtxFmt(RpGeometry* geometry,
                                  RpGameCubeVtxFmt* format);
-extern void* SpecSkinAtomicPipeline;
-extern int _rxPipelineGlobalsOffset;
-
 static const GXColor OpaqueWhite = {255, 255, 255, 255};
 static const GXColor OpaqueBlack = {0, 0, 0, 255};
 
@@ -447,8 +446,8 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     case 0x305:
     case 0x306:
         if (!has_uv_scroll && atomic_effects == 0) {
-            atomic->pipeline = *(void**)((unsigned char*)RwEngineInstance +
-                                         _rxPipelineGlobalsOffset + 0x3C);
+            atomic->pipeline = *(RxPipeline**)((unsigned char*)RwEngineInstance +
+                                               _rxPipelineGlobalsOffset + 0x3C);
         }
         RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_generic);
         break;

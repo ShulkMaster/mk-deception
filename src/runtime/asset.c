@@ -11,15 +11,11 @@
 #include "rw/rwcore_types.h"
 #include "rw/rwobject.h"
 #include "rw/rpworld_types.h"
+#include "rw/rwstream.h"
 
 #ifndef NULL
 #define NULL ((void*)0)
 #endif
-
-typedef struct RwMemory {
-    void* start;
-    unsigned int length;
-} RwMemory;
 
 /* Native SEC texture payload view; distinct from the stock raster header. */
 typedef struct AssetNativeRasterView {
@@ -40,12 +36,6 @@ static RwTexture* pull_texture_from_texdict(RwTexture* texture, void* data);
 static RpClump* LoadDffFromSecInMemory(SecSlotFileEntry* entry,
                                        unsigned int offset);
 
-RwStream* RwStreamOpen(int type, int accessType, void* data);
-void RwStreamClose(RwStream* stream, void* data);
-unsigned long RwStreamRead(RwStream* stream, void* buffer, unsigned long size);
-RwStream* RwStreamSkip(RwStream* stream, unsigned long size);
-int RwStreamFindChunk(RwStream* stream, unsigned int type,
-                      unsigned int* length, unsigned int* version);
 RwTexDictionary* RwTexDictionaryGetCurrent(void);
 RwTexDictionary* RwTexDictionarySetCurrent(RwTexDictionary* dictionary);
 RwTexDictionary* RwTexDictionaryCreate(void);
@@ -839,7 +829,7 @@ void process_art_section_data(SecSlotFileEntry* entry) {
                      */
                     skip = entry->members[last_non_tex + 1].data_offset;
                     if (skip != 0) {
-                        RwStreamSkip(stream, (unsigned long)skip);
+                        RwStreamSkip(stream, skip);
                     }
 
                     last_non_tex += 1;
@@ -848,7 +838,7 @@ void process_art_section_data(SecSlotFileEntry* entry) {
                         skip = member->data_offset -
                                (int)stream->data.memory.position;
                         if (skip != 0) {
-                            RwStreamSkip(stream, (unsigned long)skip);
+                            RwStreamSkip(stream, skip);
                         }
 
                         tex = NULL;

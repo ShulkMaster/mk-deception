@@ -9,7 +9,6 @@ extern void* memset(void* destination, int value, unsigned int size);
 extern void DCFlushRange(void* start, unsigned int length);
 extern void GXInvalidateVtxCache(void);
 
-extern int _rpDlWorldVtxFmtOffset;
 
 static RwGameCubeVertexDescriptor VtxDesc;
 

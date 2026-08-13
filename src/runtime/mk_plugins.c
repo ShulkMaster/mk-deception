@@ -1,4 +1,5 @@
 #include "runtime/mk_plugins.h"
+#include "rw/rwstream.h"
 
 typedef struct RwStream RwStream;
 typedef void* (*RwPluginConstructor)(void* object, int offset, int size);
@@ -38,13 +39,6 @@ int RpClumpRegisterPlugin(int size, unsigned int id, RwPluginConstructor constru
                           RwPluginDestructor destructor, RwPluginCopy copy, unsigned int rights);
 int RpClumpRegisterPluginStream(unsigned int id, RwPluginRead read, RwPluginWrite write,
                                 RwPluginSize size, unsigned int rights);
-RwStream* RwStreamSkip(RwStream* stream, unsigned int length);
-RwStream* RwStreamWriteInt32(RwStream* stream, const void* values, unsigned int length);
-RwStream* RwStreamWriteReal(RwStream* stream, const void* values, unsigned int length);
-RwStream* RwStreamReadInt32(RwStream* stream, void* values, unsigned int length);
-RwStream* RwStreamReadReal(RwStream* stream, void* values, unsigned int length);
-void RwMemNative32(void* memory, unsigned int length);
-
 int MkobjGlobalOffset = -1;
 int MkobjLocalOffset = -1;
 int MksobjGlobalOffset = -1;
@@ -255,6 +249,10 @@ static RwStream* MkmaterialDataWriteStream(RwStream* stream, int length, const v
 
 static RwStream* MkmaterialDataReadStream(RwStream* stream, int length, void* object, int offset,
                                           int size) {
+    union {
+        float reals[4];
+        unsigned int words[4];
+    } vec4_values;
     MkmaterialPluginData* data;
     MkmaterialExtra* extra;
     MkmaterialExtraAllocation* extra_allocation;
@@ -266,7 +264,6 @@ static RwStream* MkmaterialDataReadStream(RwStream* stream, int length, void* ob
     unsigned int index;
     unsigned int* word_08;
     float field_0C;
-    unsigned int vec4_values[4];
     unsigned int* vec4;
     int consumed;
 
@@ -301,16 +298,16 @@ static RwStream* MkmaterialDataReadStream(RwStream* stream, int length, void* ob
         MK_MATERIAL_PLUGIN(object)->field_0C = field_0C;
         RwStreamReadReal(stream, &MK_MATERIAL_PLUGIN(object)->z_bias, 4);
         if ((version_flags & 0x8000) != 0) {
-            RwStreamReadReal(stream, &vec4_values[0], 4);
-            RwStreamReadReal(stream, &vec4_values[1], 4);
-            RwStreamReadReal(stream, &vec4_values[2], 4);
-            RwStreamReadReal(stream, &vec4_values[3], 4);
+            RwStreamReadReal(stream, &vec4_values.reals[0], 4);
+            RwStreamReadReal(stream, &vec4_values.reals[1], 4);
+            RwStreamReadReal(stream, &vec4_values.reals[2], 4);
+            RwStreamReadReal(stream, &vec4_values.reals[3], 4);
             vec4 = RwEngineInstance->allocate(0x10, 0x30000);
             if (vec4 != 0) {
-                vec4[0] = vec4_values[0];
-                vec4[1] = vec4_values[1];
-                vec4[2] = vec4_values[2];
-                vec4[3] = vec4_values[3];
+                vec4[0] = vec4_values.words[0];
+                vec4[1] = vec4_values.words[1];
+                vec4[2] = vec4_values.words[2];
+                vec4[3] = vec4_values.words[3];
                 MK_MATERIAL_PLUGIN(object)->vec4_words = vec4;
             }
         }

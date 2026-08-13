@@ -2,6 +2,7 @@
 #define RW_GAMECUBE_H
 
 #include "dolphin/gx.h"
+#include "rw/gamecube_globals.h"
 #include "rw/rpworld_types.h"
 
 typedef struct RpSkin RpSkin;
@@ -136,6 +137,15 @@ typedef char RwGameCubeVertexDescriptorSizeCheck[
 typedef char RwGameCubeVertexArraySizeCheck[
     sizeof(RwGameCubeVertexArray) == 8 ? 1 : -1];
 
+unsigned int rwGCNPosGetSize(
+    const RwGameCubeVertexDescriptor* descriptor);
+unsigned int rwGCNNrmGetSize(
+    const RwGameCubeVertexDescriptor* descriptor);
+unsigned int rwGCNClrGetSize(
+    const RwGameCubeVertexDescriptor* descriptor, unsigned char colorIndex);
+unsigned int rwGCNTexGetSize(
+    const RwGameCubeVertexDescriptor* descriptor,
+    unsigned char texCoordIndex);
 void _rxGCResEntryWaitDone(RwResEntry* entry);
 void _rxGCInstanceMorphUpdate(RpGeometry* geometry,
                               RwGameCubeVertexBuffer* vertexBuffer,

@@ -2,64 +2,27 @@
 #include "libmkparticle/rw_engine.h"
 #include "rw/alphapass.h"
 #include "rw/gamecube.h"
+#include "rw/gcspecular.h"
 #include "rw/dltoken.h"
 #include "rw/nodegamecube.h"
 #include "rw/rxpipeline.h"
 #include "rw/rwframe.h"
 
-typedef struct RxGameCubeAllInOneInstanceData {
-    RwResEntry* resourceEntry;
-    RpMeshHeader* meshHeader;
-    int geometryFlags;
-    RwRGBAReal ambient;
-    int hasAmbient;
-    unsigned int lightMask;
-    int lightIndex;
-    void* morphData;
-} RxGameCubeAllInOneInstanceData;
-
-typedef union SpecularMaterialFlags {
-    unsigned char value;
-    struct {
-        signed char hidden : 1;
-        signed char reflectionPass : 1;
-        signed char cullFront : 1;
-        signed char swapMode : 1;
-        unsigned char reserved : 4;
-    } bits;
-} SpecularMaterialFlags;
-
-typedef struct SpecularMaterialData {
-    void* light;
-    RwFrame* frame;
-    RwTexture* texture;
-    RwTexture* savedTexture;
-    RpSurfaceProperties savedSurface;
-    float clipValue;
-    float shininess;
-    unsigned char tint[4];
-    float gloss;
-    SpecularMaterialFlags flags;
-    unsigned char reserved_0x2D[3];
-} SpecularMaterialData;
-
 typedef void* (*RxGCInstanceCallBack)(void*, RwResEntry**);
 typedef void* (*RxGCLightingCallBack)(void*, void*);
 typedef void* (*RxGCRenderCallBack)(
-    void*, RxGameCubeAllInOneInstanceData*);
+    void*, RxGameCubeAtomicAllInOneInstanceData*);
 
-typedef struct RxGameCubeAllInOnePrivateData {
+typedef struct RxGameCubeAllInOneCallbackSlots {
     RxGCInstanceCallBack instanceCallback;
     RxGCInstanceCallBack reinstanceCallback;
     RxGCLightingCallBack lightingCallback;
     RxGCRenderCallBack renderCallback;
-} RxGameCubeAllInOnePrivateData;
+} RxGameCubeAllInOneCallbackSlots;
 
 typedef void (*RwRenderStateSetCall)(unsigned int, unsigned int, RwGlobals*);
 typedef void (*RwRenderStateGetCall)(unsigned int, void*, RwGlobals*);
 
-extern int _rpDlGeomVtxFmtOffset;
-extern int SpecularMaterialOffset;
 extern void SetupAtomicSpecularity(RpAtomic* atomic);
 extern void ProcessSpecularity(RpMaterial* material, RwTexture* texture,
                                RwTexture* alphaTexture,
@@ -84,7 +47,7 @@ void _rxGCResEntryWaitDone(RwResEntry* entry)
 
 
 void* _rxGCDefaultRenderCallback(
-    void* object, RxGameCubeAllInOneInstanceData* instanceData)
+    void* object, RxGameCubeAtomicAllInOneInstanceData* instanceData)
 {
     void* result;
     RwGameCubeVertexBuffer* vertexBuffer;
@@ -125,7 +88,8 @@ void* _rxGCDefaultRenderCallback(
     if ((instanceData->geometryFlags & 0x84) != 0) {
         while (numMeshes-- != 0) {
             RpMaterial* material = mesh->material;
-            SpecularMaterialData* specular = (SpecularMaterialData*)(
+            SpecularMaterialPluginData* specular =
+                (SpecularMaterialPluginData*)(
                 (unsigned char*)material + SpecularMaterialOffset);
             int restoreState = 0;
 
@@ -182,7 +146,8 @@ void* _rxGCDefaultRenderCallback(
         _rwDlRenderStateSetZCompLoc(1);
         while (numMeshes-- != 0) {
             RpMaterial* material = mesh->material;
-            SpecularMaterialData* specular = (SpecularMaterialData*)(
+            SpecularMaterialPluginData* specular =
+                (SpecularMaterialPluginData*)(
                 (unsigned char*)material + SpecularMaterialOffset);
 
             if (specular->flags.bits.hidden == 0) {
@@ -223,8 +188,8 @@ void* _rxGCDefaultRenderCallback(
 RxPipelineNode* _rxGameCubeAllInOneSetInstanceCallBack(
     RxPipelineNode* node, RxGCInstanceCallBack callback)
 {
-    RxGameCubeAllInOnePrivateData* privateData =
-        (RxGameCubeAllInOnePrivateData*)node->privateData;
+    RxGameCubeAllInOneCallbackSlots* privateData =
+        (RxGameCubeAllInOneCallbackSlots*)node->privateData;
 
     privateData->instanceCallback = callback;
     return node;
@@ -233,8 +198,8 @@ RxPipelineNode* _rxGameCubeAllInOneSetInstanceCallBack(
 RxPipelineNode* _rxGameCubeAllInOneSetReinstanceCallBack(
     RxPipelineNode* node, RxGCInstanceCallBack callback)
 {
-    RxGameCubeAllInOnePrivateData* privateData =
-        (RxGameCubeAllInOnePrivateData*)node->privateData;
+    RxGameCubeAllInOneCallbackSlots* privateData =
+        (RxGameCubeAllInOneCallbackSlots*)node->privateData;
 
     privateData->reinstanceCallback = callback;
     return node;
@@ -243,8 +208,8 @@ RxPipelineNode* _rxGameCubeAllInOneSetReinstanceCallBack(
 RxPipelineNode* _rxGameCubeAllInOneSetLightingCallBack(
     RxPipelineNode* node, RxGCLightingCallBack callback)
 {
-    RxGameCubeAllInOnePrivateData* privateData =
-        (RxGameCubeAllInOnePrivateData*)node->privateData;
+    RxGameCubeAllInOneCallbackSlots* privateData =
+        (RxGameCubeAllInOneCallbackSlots*)node->privateData;
 
     privateData->lightingCallback = callback;
     return node;
@@ -253,8 +218,8 @@ RxPipelineNode* _rxGameCubeAllInOneSetLightingCallBack(
 RxPipelineNode* RxGameCubeAllInOneSetRenderCallBack(
     RxPipelineNode* node, RxGCRenderCallBack callback)
 {
-    RxGameCubeAllInOnePrivateData* privateData =
-        (RxGameCubeAllInOnePrivateData*)node->privateData;
+    RxGameCubeAllInOneCallbackSlots* privateData =
+        (RxGameCubeAllInOneCallbackSlots*)node->privateData;
 
     privateData->renderCallback = callback;
     return node;

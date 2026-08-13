@@ -1,6 +1,7 @@
 #include "libmkparticle/rw_engine.h"
 #include "runtime/cstring.h"
 #include "rw/rwerror.h"
+#include "rw/rwstream.h"
 
 typedef struct RwChunkHeader {
     unsigned int type;
@@ -15,12 +16,6 @@ typedef struct RwChunkHeaderInfo {
     unsigned int buildNum;
     int isComplex;
 } RwChunkHeaderInfo;
-
-extern unsigned int RwStreamRead(RwStream*, void*, unsigned int);
-extern RwStream* RwStreamWrite(RwStream*, const void*, unsigned int);
-extern RwStream* RwStreamSkip(RwStream*, unsigned int);
-void* RwMemLittleEndian32(void*, unsigned int);
-void* RwMemNative32(void*, unsigned int);
 
 static int ChunkIsComplex(const RwChunkHeaderInfo* chunkHeaderInfo) {
     int result = 0;
@@ -147,7 +142,7 @@ int RwStreamFindChunk(RwStream* stream, unsigned int type,
     return 0;
 }
 
-void* RwMemLittleEndian32(void* memory, unsigned int size) {
+void RwMemLittleEndian32(void* memory, unsigned int size) {
     unsigned int* words = memory;
     size >>= 2;
     while (size != 0) {
@@ -157,10 +152,9 @@ void* RwMemLittleEndian32(void* memory, unsigned int size) {
         words++;
         size--;
     }
-    return memory;
 }
 
-void* RwMemLittleEndian16(void* memory, unsigned int size) {
+void RwMemLittleEndian16(void* memory, unsigned int size) {
     unsigned short* halves = memory;
     size >>= 1;
     while (size != 0) {
@@ -168,10 +162,9 @@ void* RwMemLittleEndian16(void* memory, unsigned int size) {
         halves++;
         size--;
     }
-    return memory;
 }
 
-void* RwMemNative32(void* memory, unsigned int size) {
+void RwMemNative32(void* memory, unsigned int size) {
     unsigned int* words = memory;
     size >>= 2;
     while (size != 0) {
@@ -181,7 +174,6 @@ void* RwMemNative32(void* memory, unsigned int size) {
         words++;
         size--;
     }
-    return memory;
 }
 
 
@@ -207,7 +199,7 @@ RwStream* RwStreamWriteReal(RwStream* stream, const float* reals,
 
 
 
-RwStream* RwStreamWriteInt32(RwStream* stream, const int* integers,
+RwStream* RwStreamWriteInt32(RwStream* stream, const void* integers,
                              unsigned int numBytes) {
     unsigned char buffer[256];
     const unsigned char* source = (const unsigned char*)integers;
@@ -243,7 +235,7 @@ RwStream* RwStreamReadReal(RwStream* stream, float* reals,
 
 
 
-RwStream* RwStreamReadInt32(RwStream* stream, int* integers,
+RwStream* RwStreamReadInt32(RwStream* stream, void* integers,
                             unsigned int numBytes) {
     if (RwStreamRead(stream, integers, numBytes) == 0) {
         RwError error;

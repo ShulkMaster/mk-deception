@@ -264,16 +264,16 @@ float _rwMatrixOrthogonalError(const RwMatrix *matrix) {
 }
 #pragma scheduling off
 
+static float MatrixVectorDot(const RwV3d *left, const RwV3d *right) {
+  return left->x * right->x + left->y * right->y + left->z * right->z;
+}
+
 float _rwMatrixNormalError(const RwMatrix *matrix) {
   RwV3d error;
-  error.x = matrix->right.x * matrix->right.x +
-            matrix->right.y * matrix->right.y +
-            matrix->right.z * matrix->right.z - 1.0f;
-  error.y = matrix->up.x * matrix->up.x + matrix->up.y * matrix->up.y +
-            matrix->up.z * matrix->up.z - 1.0f;
-  error.z = matrix->at.x * matrix->at.x + matrix->at.y * matrix->at.y +
-            matrix->at.z * matrix->at.z - 1.0f;
-  return error.x * error.x + error.y * error.y + error.z * error.z;
+  error.x = MatrixVectorDot(&matrix->right, &matrix->right) - 1.0f;
+  error.y = MatrixVectorDot(&matrix->up, &matrix->up) - 1.0f;
+  error.z = MatrixVectorDot(&matrix->at, &matrix->at) - 1.0f;
+  return MatrixVectorDot(&error, &error);
 }
 
 #pragma scheduling on

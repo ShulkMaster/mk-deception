@@ -2,56 +2,14 @@
 #include "rw/gamecube.h"
 #include "rw/nodegamecube.h"
 #include "rw/rplight.h"
+#include "rw/rwresources.h"
 
-struct RwGameCubeLightingData {
-    unsigned char reserved_0x00[0x0C];
-    RwRGBAReal ambient;
-    int hasAmbient;
-    unsigned int lightMask;
-    int lightIndex;
-};
-
-typedef struct RwGameCubeResEntryHeader {
-    RwResEntry entry;
-    unsigned short field_0x18;
-    unsigned short meshSerialNum;
-} RwGameCubeResEntryHeader;
-
-typedef struct RwResourcesGlobalsPrefix {
-    unsigned int arenaSize;
-    unsigned int arenaUsage;
-    unsigned int arenaReusage;
-    void* arena;
-    RwLinkList entriesA;
-    RwLinkList entriesB;
-    RwLLLink* activeList;
-} RwResourcesGlobalsPrefix;
-
-struct RxGameCubeAllInOneInstanceData {
-    RwResEntry* resourceEntry;
-    RpMeshHeader* meshHeader;
-    unsigned int worldFlags;
-    RwRGBAReal ambient;
-    int hasAmbient;
-    unsigned int lightMask;
-    int lightIndex;
-};
-
-typedef struct RxGameCubeAllInOnePrivateData {
+typedef struct RxGameCubeWorldSectorAllInOnePrivateData {
     RxGCSectorInstanceCallBack instanceCallback;
     RxGCSectorInstanceCallBack reinstanceCallback;
     RxGCSectorLightingCallBack lightingCallback;
     RxGCSectorRenderCallBack renderCallback;
-} RxGameCubeAllInOnePrivateData;
-
-extern RwModuleInfo resourcesModule;
-extern int _RwDlPreInstanceOptimize;
-
-extern void _rwGCLightsGlobalEnable(int,
-                                    RwGameCubeLightingData*);
-extern void _rwGCLightsLocalEnable(RpLight*, RwGameCubeLightingData*);
-extern RpWorldSector* _rxGCDefaultRenderCallback(
-    RpWorldSector*, RxGameCubeAllInOneInstanceData*);
+} RxGameCubeWorldSectorAllInOnePrivateData;
 
 extern RxPipelineNode* _rxGameCubeAllInOneSetInstanceCallBack(
     RxPipelineNode*, RxGCSectorInstanceCallBack);
@@ -71,7 +29,7 @@ static RxNodeDefinition nodeGameCubeWorldSectorAllInOneCSL = {
     {_rxGCWorldSectorAllInOneNode, 0, 0,
      _rxGCWorldSectorAllInOnePipelineInit, 0, 0, 0},
     {0, 0, 0, 0, 0},
-    sizeof(RxGameCubeAllInOnePrivateData),
+    sizeof(RxGameCubeWorldSectorAllInOnePrivateData),
     0,
     0
 };
@@ -182,10 +140,10 @@ static int _rxGCWorldSectorAllInOneNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
     RpWorldSector* sector = (RpWorldSector*)params->dataParam;
-    RxGameCubeAllInOnePrivateData* privateData =
-        (RxGameCubeAllInOnePrivateData*)self->privateData;
+    RxGameCubeWorldSectorAllInOnePrivateData* privateData =
+        (RxGameCubeWorldSectorAllInOnePrivateData*)self->privateData;
     RpWorld* world = (RpWorld*)RwEngineInstance->field_0x04;
-    RxGameCubeAllInOneInstanceData instanceData;
+    RxGameCubeWorldSectorAllInOneInstanceData instanceData;
 
     if ((world->flags & 0x01000000) == 0) {
         RwResEntry* resourceEntry;
@@ -211,7 +169,7 @@ static int _rxGCWorldSectorAllInOneNode(
             RwGameCubeResEntryHeader* header =
                 (RwGameCubeResEntryHeader*)resourceEntry;
 
-            if (header->meshSerialNum != meshHeader->serialNum) {
+            if (header->data.sync.meshSerialNum != meshHeader->serialNum) {
                 RwResourcesFreeResEntry(resourceEntry);
                 instanceData.resourceEntry = 0;
             }
@@ -257,12 +215,13 @@ static int _rxGCWorldSectorAllInOneNode(
 
 static int _rxGCWorldSectorAllInOnePipelineInit(RxPipelineNode* self)
 {
-    RxGameCubeAllInOnePrivateData* privateData =
-        (RxGameCubeAllInOnePrivateData*)self->privateData;
+    RxGameCubeWorldSectorAllInOnePrivateData* privateData =
+        (RxGameCubeWorldSectorAllInOnePrivateData*)self->privateData;
 
     privateData->instanceCallback = _rxGCSectorDefaultInstanceCallback;
     privateData->reinstanceCallback = 0;
     privateData->lightingCallback = _rxGCSectorDefaultLightingCallback;
-    privateData->renderCallback = _rxGCDefaultRenderCallback;
+    privateData->renderCallback =
+        (RxGCSectorRenderCallBack)_rxGCDefaultRenderCallback;
     return 1;
 }

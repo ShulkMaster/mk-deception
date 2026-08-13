@@ -1,3 +1,4 @@
+#include "game/gcspecskin.h"
 #include "rw/rtquat.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
@@ -123,7 +124,6 @@ typedef struct MkSObj {
 } MkSObj;
 
 typedef struct RpSkin RpSkin;
-typedef struct RxPipeline RxPipeline;
 
 void material_restore_reflection_texture(void);
 void material_cache_reflection_texture(void);
@@ -141,8 +141,6 @@ void* _rpMaterialListGetMaterial(RpMaterialList* material_list, int index);
 void SpecularCreatePipelines(void);
 
 extern int SpecularMaterialOffset;
-extern RxPipeline* SpecSkinAtomicPipeline;
-extern RxPipeline* SpecSkinMaterialPipeline;
 extern int SpecularGeometryOffset;
 extern int MkmaterialLocalOffset;
 extern int MksobjLocalOffset;
