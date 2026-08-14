@@ -171,7 +171,8 @@ typedef struct KonquestNpc {
                 struct {
                     unsigned char flags_1C_pad_high : 1;
                     unsigned char reaction_active : 1;
-                    unsigned char flags_1C_pad_mid : 2;
+                    unsigned char flags_1C_bit5 : 1;
+                    unsigned char model_visible : 1;
                     unsigned char ignore_events : 1;
                     unsigned char flags_1C_pad_low : 3;
                 };
@@ -517,11 +518,6 @@ typedef union KonquestFloatBits {
     unsigned int bits;
 } KonquestFloatBits;
 
-typedef struct KonquestDestroyVtable {
-    char pad00[0x10];
-    void (*destroy)(void* object); /* +0x10 */
-} KonquestDestroyVtable;
-
 typedef struct KonquestNpcShadows {
     char pad00[0x10];
     Vec light_direction; /* +0x10 */
@@ -531,26 +527,21 @@ typedef struct KonquestNpcShadows {
     union {
         unsigned char flags; /* +0x9C */
         struct {
-            unsigned char initialized : 1;
-            unsigned char pad_flags : 7;
+            signed char initialized : 1;
+            signed char update_disabled : 1;
+            signed char render_disabled : 1;
+            signed char pad_flags : 5;
         };
     };
     char pad9D[3];
     int alpha; /* +0xA0 */
     float scales[15]; /* +0xA4 */
     RpMaterial* materials[15]; /* +0xE0 */
-    int (*render)(int object, struct KonquestNpcShadows* shadows); /* +0x11C */
+    RpAtomic* (*render)(
+        RpAtomic* atomic, struct KonquestNpcShadows* shadows); /* +0x11C */
     int clear_alpha_pending; /* +0x120 */
     char pad124[0x0C];
 } KonquestNpcShadows;
-
-typedef struct KonquestShadowSObj {
-    char pad00[8];
-    unsigned char flags_08;
-    unsigned char flags_09;
-    char pad0A[0x0A];
-    RpAtomic* atomic; /* +0x14 */
-} KonquestShadowSObj;
 
 typedef ObliqueMatrixCell ObliqueMatrix[16];
 
@@ -746,13 +737,18 @@ static RpMaterial* MaterialFindTextureWithRootString(
     RpMaterial* material, void* root_string);
 static RpMaterial* hide_npc_materials(
     RpMaterial* material, void* material_ids);
-static void npc_shadow_update(void);
+void npc_shadow_update(void);
 static void set_shadow_bones(
     MkObj* shadow, MkObj* source, float scale);
 static void append_oblique_projection(
     ObliqueMatrix result, ObliqueMatrix left, ObliqueMatrix right);
 static float p_update_npc_shadows(void);
-static int shadow_render_callback(int object);
+static float p_npc_waypoint_script(void);
+static float p_npc_load_model(void);
+static void npc_resolve_events(KonquestNpc* npc);
+float p_npc_manager(void);
+void npc_update(int update_all);
+static RpAtomic* shadow_render_callback(RpAtomic* atomic);
 static void npc_invisible_update(KonquestNpc* npc);
 static void npc_pre_wake(void);
 static void npc_post_sleep(void);
@@ -839,17 +835,21 @@ static inline float npc_fast_sqrt(float value) {
     unsigned int exponent;
     unsigned int table_index;
 
-    if (value == 0.0f) {
+    estimate.value = value;
+    if (value <= 0.0f) {
         return 0.0f;
     }
-    estimate.value = value;
     table_index = (estimate.bits >> 10) & 0x3FFE;
     exponent =
         (((estimate.bits & 0x7F800000) + 0x3F800000) >> 1) &
         0x7F800000;
-    estimate.bits = (GXMathSqrtTable[table_index] << 8) | exponent;
-    return 0.5f * estimate.value *
-        (3.0f - (estimate.value * estimate.value) / value);
+    /* The retail table is packed and the masked value is a byte offset. */
+    estimate.bits =
+        *(unsigned short*)((unsigned char*)GXMathSqrtTable + table_index) << 8;
+    estimate.bits |= exponent;
+    return 0.5f *
+        (estimate.value *
+         (3.0f - (estimate.value * estimate.value) / value));
 }
 
 static inline KonquestNpc* npc_find_by_data_inline(
@@ -943,6 +943,326 @@ static inline KonquestNpc* npc_find_by_table_index_inline(int table_index) {
     return npc;
 }
 
+/* Shared inline camera-focus sequence used by the standalone script entry and
+ * conversation camera transitions. */
+static inline void npc_switch_camera_focus_inline(int focus_mode) {
+    MkObj* focus;
+
+    camera_set_movement_rate(0.0f);
+    camera_set_rotation_rate(0.0f);
+    switch (focus_mode) {
+    case 2:
+        focus = konquest_pdata->monk;
+        if (focus != 0) {
+            if (focus->hdr.instance != konquest_pdata->monk_instance) {
+                focus = 0;
+            }
+        } else {
+            focus = 0;
+        }
+        camera_set_lookat_focus(focus);
+        camera_set_movement_focus_obj(g_active_npc->animation->object);
+        break;
+    case 0:
+        camera_set_lookat_focus(g_active_npc->animation->object);
+        focus = konquest_pdata->monk;
+        if (focus != 0) {
+            if (focus->hdr.instance != konquest_pdata->monk_instance) {
+                focus = 0;
+            }
+        } else {
+            focus = 0;
+        }
+        camera_set_movement_focus_obj(focus);
+        break;
+    case 1:
+        focus = konquest_pdata->camera_target;
+        if (focus != 0) {
+            if (focus->hdr.instance !=
+                konquest_pdata->camera_target_instance) {
+                focus = 0;
+            }
+        } else {
+            focus = 0;
+        }
+        camera_set_lookat_focus(focus);
+        camera_set_movement_focus_obj(g_active_npc->animation->object);
+        break;
+    }
+    camera_set_glitch_flag();
+}
+
+static inline int npc_is_same(
+    KonquestNpc* left, KonquestNpc* right) {
+    if (left == right) {
+        return 1;
+    }
+    return 0;
+}
+
+static inline int npc_next_waypoint(KonquestNpc* npc) {
+    KonquestPathData* path = npc->path;
+    int waypoint_count;
+    int next;
+
+    if (path->waypoints == 0) {
+        next = 0;
+    } else {
+        waypoint_count = path->waypoint_count;
+        if (waypoint_count == 1) {
+            next = 0;
+        } else {
+            next = path->current_waypoint;
+            if (path->step_direction == 1) {
+                next++;
+                if (next >= waypoint_count) {
+                    if (path->destination_type == 6) {
+                        next = 0;
+                    } else {
+                        path->step_direction = -1;
+                        next = npc->path->current_waypoint - 1;
+                    }
+                }
+            } else {
+                next--;
+                if (next < 0) {
+                    if (path->destination_type == 6) {
+                        next = waypoint_count - 1;
+                    } else {
+                        next = 1;
+                        path->step_direction = 1;
+                    }
+                }
+            }
+        }
+    }
+    return next;
+}
+
+static inline int npc_nav_area_hint(int area) {
+    unsigned int value = (unsigned int)area;
+
+    return (int)(value & ((value >> 31) - 1));
+}
+
+static inline void npc_get_path_target(KonquestNpc* npc, Vec* target) {
+    if (npc != 0) {
+        if (npc->path != 0) {
+            if ((unsigned int)(
+                    npc->path->destination_type + (int)0x80000000) == 7) {
+                target->x = npc->path->destination.x;
+                target->y = npc->path->destination.y;
+                target->z = npc->path->destination.z;
+            } else if (npc->path->waypoints == 0) {
+                target->x = npc->initial_position.x;
+                target->y = npc->initial_position.y;
+                target->z = npc->initial_position.z;
+            } else {
+                target->x = npc->path
+                                ->waypoints[npc->path->target_waypoint]
+                                .position.x;
+                target->y = npc->path
+                                ->waypoints[npc->path->target_waypoint]
+                                .position.y;
+                target->z = npc->path
+                                ->waypoints[npc->path->target_waypoint]
+                                .position.z;
+            }
+        }
+        target->y = 0.0f;
+    }
+}
+
+static inline void npc_start_current_waypoint_script(KonquestNpc* npc) {
+    if (npc->path->waypoints != 0) {
+        if (npc->path->waypoints[npc->path->current_waypoint]
+                .script_function != 0) {
+            KonquestWaypointScriptPdata* pdata;
+            MkProc* proc = _create_mkproc_generic_tinystack(
+                0xA017, 0x1F, p_npc_waypoint_script,
+                sizeof(*pdata), (MkHdr**)&pdata);
+
+            if (proc != 0) {
+                set_process_as_scriptable(proc);
+                pdata->function_index =
+                    npc->path->waypoints[npc->path->current_waypoint]
+                        .script_function;
+                pdata->npc = npc;
+            }
+        }
+    }
+}
+
+static inline Vec* npc_get_navigation_direction(
+    KonquestNpc* npc, Vec* direction) {
+    int current_area;
+    int destination_area = npc->state_26C;
+
+    if (npc->path->current_waypoint != -1) {
+        return 0;
+    }
+    current_area = nav_what_area_is_point_in(
+        &npc->data->position, npc_nav_area_hint(npc->state_268));
+    if (current_area >= 0) {
+        if (npc->state_264 < 0) {
+            npc->state_264 = current_area;
+        } else if (npc->state_264 != npc->state_268) {
+            npc->state_264 = npc->state_268;
+        }
+        npc->state_268 = current_area;
+    }
+    if (destination_area < 0) {
+        return 0;
+    }
+    if (current_area < 0) {
+        if (npc->state_264 >= 0) {
+            nav_get_unit_vector_to_area(
+                npc->state_264, direction, &npc->data->position);
+        } else {
+            nav_get_unit_vector_to_closest_area(
+                direction, &npc->data->position);
+        }
+        return direction;
+    }
+    {
+        int next_area = nav_which_area_is_next(
+            current_area, destination_area);
+
+        if (current_area != next_area) {
+            nav_get_unit_vector_to_nav_portal(
+                direction, &npc->data->position, current_area, next_area);
+            return direction;
+        }
+    }
+    return 0;
+}
+
+static inline void npc_suspend_animation_wait(void) {
+    KonquestCmdScriptView* script;
+    CmdScript* saved_script;
+    KonquestNpc* npc = g_active_npc;
+
+    if (npc == 0) {
+        return;
+    }
+    npc->wait_ticks -= 1.0f;
+    if (npc->wait_ticks <= 0.0f) {
+        npc->wait_ticks = 0.0f;
+        return;
+    }
+    script = (KonquestCmdScriptView*)active_cmdscript;
+    script->state = 2;
+    saved_script = active_cmdscript;
+    npc = g_active_npc;
+    cmdscript_step_backward();
+    memcpy(
+        npc->saved_script_state,
+        ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
+        sizeof(npc->saved_script_state));
+    npc->saved_script_position =
+        ((KonquestCmdScriptView*)active_cmdscript)->position;
+    npc->saved_script_stack_depth = get_script_stack_depth();
+    active_cmdscript = saved_script;
+}
+
+/* Near match: 78.13265% and four bytes from retail. Both special and regular
+ * model-slot ownership paths, destruction, alpha teardown, and slot resets
+ * match; residue is branch scheduling and GPR save form. */
+static inline void npc_manager_remove_visible_entry(KonquestNpc* npc) {
+    int index;
+
+    for (index = 0; index < 15; index++) {
+        if (npc_manager_pdata->visible_npcs[index] == npc) {
+            npc_manager_pdata->visible_npcs[index] = 0;
+            npc_manager_pdata->visible_count--;
+            if (npc->data->events[7].script_function == 1) {
+                npc_manager_pdata->special_count--;
+            }
+            npc->model_visible = 0;
+            return;
+        }
+    }
+}static inline void npc_manager_setup_model(MkObj* object) {
+    MkSobj* sobj;
+
+    obj_create_sobjs(object);
+    sobj = (MkSobj*)obj_first_sobj(object);
+    if (sobj != 0) {
+        sobj->flags09_bits.bit4 = 0;
+        sobj->flags09_bits.bit2 = 0;
+    }
+    obj_set_all_sobjs_priority(object, 0x13);
+    obj_for_all_atomics_set_material_alpha(object, 0);
+    if (sobj->atomic->geometry != 0) {
+        RpGeometryForAllMaterials(
+            sobj->atomic->geometry,
+            (KonquestMaterialCallback)material_store_texture_pointer, 0);
+    }
+    object->flags_08_bits.airborne = 1;
+    object->flags_08_bits.angular_velocity_enabled = 1;
+    build_bones_tbl(object, konquest_human_bones, 1);
+    object->flipped_bone_map = &flipped_konquest_human_bones;
+    object->flags_09_bits.launched = 1;
+    object->flags_09_bits.bit6 = 1;
+    object->ground_colls = npc_ground_colls;
+    object->light_flags = 1;
+}
+
+static inline unsigned int npc_manager_find_mouth_art_id(MkObj* object) {
+    KonquestTextureSearch search;
+
+    search.texture_name[0] = 0;
+    search.root_length = 10;
+    search.root = "kon_mouth0";
+    RpClumpForAllAtomics(
+        object->clump, AtomicFindTextureWithRootString, &search);
+    if (search.texture_name[0] != 0) {
+        strupr(search.texture_name);
+        return get_artid_of_named_item_in_slot(
+            0x6002B, search.texture_name, 0);
+    }
+    return 0;
+}
+
+static inline void npc_copy_time(
+    KonquestTime* destination, const KonquestTime* source) {
+    *destination = *source;
+}
+
+static inline void npc_find_next_timed_event(KonquestNpc* npc) {
+    KonquestTimedEvent* event = npc->data->timed_events;
+    int count = get_row_count_for_table_by_pointer(
+        konquest_pdata->waypoint_script, event);
+    const KonquestTime* current = &konquest_pdata->current_time;
+    KonquestTime next_time;
+    KonquestTime previous_next_time;
+
+    if (npc->next_timed_event != 0) {
+        npc->next_timed_event = 0;
+        npc_copy_time(&previous_next_time, &npc->next_event_time);
+        current = &previous_next_time;
+    }
+    while (count-- != 0) {
+        if (is_valid_event_time(&event->time) != 0 &&
+            calc_next_occurrence_of_event(
+                &next_time, &event->time, current) != 0) {
+            if (npc->next_timed_event == 0) {
+                npc->next_timed_event = event;
+                npc_copy_time(&npc->next_event_time, &next_time);
+            } else if (is_time_a_greater_than_time_b(
+                           &next_time, &npc->next_event_time) == 0 &&
+                       (is_time_a_equal_to_time_b(
+                            &next_time, &npc->next_event_time) == 0 ||
+                        does_event_a_trump_event_b(
+                            event, npc->next_timed_event) != 0)) {
+                npc->next_timed_event = event;
+                npc_copy_time(&npc->next_event_time, &next_time);
+            }
+        }
+        event++;
+    }
+}
+
 void npc_sleep_until_model_loaded(void) {
     KonquestCmdScriptView* script;
     CmdScript* saved_script;
@@ -978,53 +1298,6 @@ void npc_sleep_until_model_loaded(void) {
         ((KonquestCmdScriptView*)active_cmdscript)->position;
     npc->saved_script_stack_depth = get_script_stack_depth();
     active_cmdscript = saved_script;
-}
-
-/*
- * Soft ceiling: 92.552635% - both cmdscript suspension and process-sleep paths
- * are exact; fixed-copy scheduling, save form, and float relocations remain.
- */
-void npc_wait_for_wake_up(void) {
-    if (aproc->pid == 0xA014) {
-        if (is_time_a_greater_than_time_b(
-                &konquest_pdata->current_time,
-                &g_active_npc->wake_time) == 0) {
-            KonquestCmdScriptView* script;
-            CmdScript* saved_script;
-            KonquestNpc* npc;
-
-            g_active_npc->wait_ticks = 2.0f;
-            npc = g_active_npc;
-            if (npc == 0) {
-                return;
-            }
-            npc->wait_ticks -= 1.0f;
-            if (npc->wait_ticks <= 0.0f) {
-                npc->wait_ticks = 0.0f;
-                return;
-            }
-            script = (KonquestCmdScriptView*)active_cmdscript;
-            script->state = 2;
-            saved_script = active_cmdscript;
-            npc = g_active_npc;
-            cmdscript_step_backward();
-            memcpy(
-                npc->saved_script_state,
-                ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
-                sizeof(npc->saved_script_state));
-            npc->saved_script_position =
-                ((KonquestCmdScriptView*)active_cmdscript)->position;
-            npc->saved_script_stack_depth = get_script_stack_depth();
-            active_cmdscript = saved_script;
-        }
-    } else {
-        while (is_time_a_greater_than_time_b(
-                   &konquest_pdata->current_time,
-                   &g_active_npc->wake_time) == 0) {
-            _mkproc_sleep_ticks = 1.0f;
-            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-        }
-    }
 }
 
 void cleanup_npc_manager(void) {
@@ -1137,6 +1410,53 @@ void make_damashi_npc(MkObj* object) {
                 0x5002, p_anim_idle, &animation_pdata);
             animation_pdata->obj = object;
             animation_pdata->obj_instance = object->hdr.instance;
+        }
+    }
+}
+
+/*
+ * Soft ceiling: 92.552635% - both cmdscript suspension and process-sleep paths
+ * are exact; fixed-copy scheduling, save form, and float relocations remain.
+ */
+void npc_wait_for_wake_up(void) {
+    if (aproc->pid == 0xA014) {
+        if (is_time_a_greater_than_time_b(
+                &konquest_pdata->current_time,
+                &g_active_npc->wake_time) == 0) {
+            KonquestCmdScriptView* script;
+            CmdScript* saved_script;
+            KonquestNpc* npc;
+
+            g_active_npc->wait_ticks = 2.0f;
+            npc = g_active_npc;
+            if (npc == 0) {
+                return;
+            }
+            npc->wait_ticks -= 1.0f;
+            if (npc->wait_ticks <= 0.0f) {
+                npc->wait_ticks = 0.0f;
+                return;
+            }
+            script = (KonquestCmdScriptView*)active_cmdscript;
+            script->state = 2;
+            saved_script = active_cmdscript;
+            npc = g_active_npc;
+            cmdscript_step_backward();
+            memcpy(
+                npc->saved_script_state,
+                ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
+                sizeof(npc->saved_script_state));
+            npc->saved_script_position =
+                ((KonquestCmdScriptView*)active_cmdscript)->position;
+            npc->saved_script_stack_depth = get_script_stack_depth();
+            active_cmdscript = saved_script;
+        }
+    } else {
+        while (is_time_a_greater_than_time_b(
+                   &konquest_pdata->current_time,
+                   &g_active_npc->wake_time) == 0) {
+            _mkproc_sleep_ticks = 1.0f;
+            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
         }
     }
 }
@@ -1457,77 +1777,33 @@ void npc_reset_my_timed_events(void) {
     }
 }
 
+/* Near match: 80.588234%, 16 bytes over retail. All operations and branches
+ * are exact; MWCC emits split r29-r31 saves/restores instead of stmw/lmw. */
 void npc_reset_all_timed_events(void) {
+    MkPtr** list = &konquest_pdata->npc_list;
     MkPtr* link;
 
-    link = konquest_pdata->npc_list;
-    while (link != 0) {
-        KonquestNpc* npc;
+    if (list != 0) {
+        link = *list;
+        while (link != 0) {
+            KonquestNpc* npc;
 
-        npc = (KonquestNpc*)link->hdr;
-        if (link->instance != npc->hdr.instance) {
-            MkPtr* next;
+            npc = (KonquestNpc*)link->hdr;
+            if (link->instance != npc->hdr.instance) {
+                MkPtr* next;
 
-            next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
-            link = next;
-        } else {
-            if (npc != 0) {
-                npc->reset_timed_events = 1;
+                next = link->next;
+                link->hdr = 0;
+                destroy_mkptr(link);
+                link = next;
+            } else {
+                if (npc != 0) {
+                    npc->reset_timed_events = 1;
+                }
+                link = link->next;
             }
-            link = link->next;
         }
     }
-}
-
-/* Shared inline camera-focus sequence used by the standalone script entry and
- * conversation camera transitions. */
-static inline void npc_switch_camera_focus_inline(int focus_mode) {
-    MkObj* focus;
-
-    camera_set_movement_rate(0.0f);
-    camera_set_rotation_rate(0.0f);
-    switch (focus_mode) {
-    case 2:
-        focus = konquest_pdata->monk;
-        if (focus != 0) {
-            if (focus->hdr.instance != konquest_pdata->monk_instance) {
-                focus = 0;
-            }
-        } else {
-            focus = 0;
-        }
-        camera_set_lookat_focus(focus);
-        camera_set_movement_focus_obj(g_active_npc->animation->object);
-        break;
-    case 0:
-        camera_set_lookat_focus(g_active_npc->animation->object);
-        focus = konquest_pdata->monk;
-        if (focus != 0) {
-            if (focus->hdr.instance != konquest_pdata->monk_instance) {
-                focus = 0;
-            }
-        } else {
-            focus = 0;
-        }
-        camera_set_movement_focus_obj(focus);
-        break;
-    case 1:
-        focus = konquest_pdata->camera_target;
-        if (focus != 0) {
-            if (focus->hdr.instance !=
-                konquest_pdata->camera_target_instance) {
-                focus = 0;
-            }
-        } else {
-            focus = 0;
-        }
-        camera_set_lookat_focus(focus);
-        camera_set_movement_focus_obj(g_active_npc->animation->object);
-        break;
-    }
-    camera_set_glitch_flag();
 }
 
 /* Soft ceiling: 95.6579% - exact body and size; zero-float relocation and
@@ -1536,10 +1812,9 @@ void npc_switch_camera_focus(int focus_mode) {
     npc_switch_camera_focus_inline(focus_mode);
 }
 
-/*
- * Soft ceiling: 78.548386% - the typed body is exact; MWCC uses split
- * nonvolatile saves/restores and different GPR coloring from retail.
- */
+/* Matching: retail uses the compact save/restore form selected by the local
+ * size mode; the typed queued/live animation paths compile exactly. */
+#pragma optimize_for_size on
 void npc_glitch_to_ani(int animation_id, int flags) {
     AniData* animation;
     KonquestNpc* npc;
@@ -1558,6 +1833,7 @@ void npc_glitch_to_ani(int animation_id, int flags) {
         set_anim_script(animation_pdata, animation, flags);
     }
 }
+#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: 97.58242% - lookup, animation selection, queued-state path,
@@ -1716,6 +1992,10 @@ void npc_set_random_dialog_and_anim_sequence(int dialog, int animation) {
     }
 }
 
+/* Near match: 90.31868% at exact retail size. Dialog lookup, lip-sync process
+ * ownership, validated animated texture, text selection, and wait ordering
+ * match; residue is compact-mode register allocation and latch scheduling. */
+#pragma optimize_for_size on
 void npc_play_dialog_and_anim_sequence(int dialog_id, int animation_id) {
     int sound_id;
     LipSyncKeyframe* keyframes;
@@ -1773,8 +2053,28 @@ void npc_play_dialog_and_anim_sequence(int dialog_id, int animation_id) {
         npc_wait_for_dialog();
     }
 }
+#pragma optimize_for_size reset
+
+
 
 /*
+ * Matching: 99.86842% - instructions are exact; only the 1.0f relocation
+ * differs.
+ */
+static int npc_dialog_wait_for_widescreen_bars(void) {
+    if (konquest_pdata->dialog_ready != 0) {
+        return 1;
+    }
+    if (find_mkproc_pid(0x8229) == 0) {
+        return 0;
+    }
+    while (konquest_pdata->dialog_ready == 0) {
+        npc_ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+    }
+    return 1;
+}/*
  * Soft ceiling: 85.7619% - controller gating, attack transition/speed/sound,
  * frame waits, collision arguments/state, idle restoration, and flag clear are
  * recovered. The size residue is repeated typed active-animation lowering and
@@ -1830,88 +2130,6 @@ void npc_attack(int attack_arg_a, int attack_arg_b) {
             }
         }
         g_active_npc->flags &= 0xF7FFFFFF;
-    }
-}
-
-/*
- * Breakthrough: both animation processes, validated owners, frame thresholds,
- * and idle restoration follow retail. Current output is 0x348 versus retail's
- * 0x3A4, so the remaining 0x5C-byte gap is not a near miss yet.
- */
-void npc_play_two_player_one_shot_anims(
-    int npc_animation_id, int monk_animation_id) {
-    int npc_finished = 0;
-    int monk_finished = 0;
-
-    if (g_active_npc != 0 &&
-        npc_event_has_active_animation(g_active_npc) == 1 &&
-        (g_active_npc->timed_event_flags & 0x40) != 0) {
-        KonquestAnimPdata* npc_animation =
-            (KonquestAnimPdata*)pdata_of_proc(
-                g_active_npc->animation->proc);
-        AnimPdata* monk_animation = konquest_pdata->monk_animation;
-        KonquestNpc* monk_npc = konquest_pdata->monk_npc;
-
-        g_active_npc->queued_animation = get_animation(npc_animation_id);
-        g_active_npc->animation_flags = 3;
-        g_active_npc->queued_animation_frame = 0.0f;
-        if (aproc->pid != 0xA014 &&
-            npc_event_has_active_animation(g_active_npc) != 0) {
-            AniData* script = get_animation(npc_animation_id);
-            KonquestAnimPdata* current =
-                (KonquestAnimPdata*)pdata_of_proc(
-                    g_active_npc->animation->proc);
-
-            current->step = 1.0f;
-            if (current->animation != script || current->flags != 3 ||
-                current->step != 1.0f) {
-                transition_to_anim_script(current, script, 3, 0.1f);
-            }
-        }
-
-        xfer_proc(monk_animation->proc, (MkProcEntryFn)p_animate);
-        monk_animation->step = 1.0f;
-        transition_to_anim_script(
-            (KonquestAnimPdata*)monk_animation,
-            get_animation(monk_animation_id), 0, 0.1f);
-
-        while (npc_finished == 0 || monk_finished == 0) {
-            if (npc_finished == 0 &&
-                npc_animation->frame >= npc_animation->high_frame - 10.0f) {
-                int idle_animation = g_active_npc->data->idle_animation;
-
-                g_active_npc->queued_animation =
-                    get_animation(idle_animation);
-                g_active_npc->animation_flags = 0;
-                g_active_npc->queued_animation_frame = 0.0f;
-                if (aproc->pid != 0xA014 &&
-                    npc_event_has_active_animation(g_active_npc) != 0) {
-                    AniData* idle = get_animation(idle_animation);
-                    KonquestAnimPdata* current =
-                        (KonquestAnimPdata*)pdata_of_proc(
-                            g_active_npc->animation->proc);
-
-                    current->step = 1.0f;
-                    if (current->animation != idle || current->flags != 0 ||
-                        current->step != 1.0f) {
-                        transition_to_anim_script(current, idle, 0, 0.1f);
-                    }
-                }
-                npc_finished = 1;
-            }
-            if (monk_finished == 0 &&
-                monk_animation->frame >= monk_animation->high_frame - 10.0f) {
-                monk_animation->step = 1.0f;
-                transition_to_anim_script(
-                    (KonquestAnimPdata*)monk_animation,
-                    get_animation(monk_npc->data->idle_animation),
-                    0, 0.1f);
-                monk_finished = 1;
-            }
-            npc_ani_1_frame();
-            _mkproc_sleep_ticks = 1.0f;
-            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-        }
     }
 }
 
@@ -2044,114 +2262,6 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
         }
     }
     return npc;
-}
-
-/* Soft ceiling: 90.40084% - exact retail size, camera/control-flow sequence,
- * animation transfers, and event ordering; save and GPR scheduling remain. */
-void npc_play_conversation_part(
-    int dialog_id, int animation_id, int conversation_mode) {
-    KonquestNpcPdata* pdata = konquest_pdata;
-
-    pdata->conversation_state_a = dialog_id;
-    pdata->conversation_state_b = animation_id;
-    pdata->conversation_mode_a = conversation_mode;
-    if (check_skip_conversation_flag() == 0) {
-        _mkproc_sleep_ticks = 1.0f;
-        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-        nis_signal_event(konquest_pdata->conversation_event);
-
-        if (conversation_mode != 2) {
-            if (konquest_pdata->conversation_mode_b != conversation_mode) {
-                KonquestNpc* monk;
-                KonquestAnimPdata* animation;
-
-                npc_switch_camera_focus_inline(conversation_mode);
-                konquest_pdata->conversation_mode_b = conversation_mode;
-                monk = konquest_pdata->monk_npc;
-                if (monk != 0) {
-                    if (monk->hdr.instance !=
-                        konquest_pdata->monk_npc_instance) {
-                        monk = 0;
-                    }
-                } else {
-                    monk = 0;
-                }
-                xfer_proc(
-                    monk->animation->proc, (MkProcEntryFn)p_animate);
-                animation = (KonquestAnimPdata*)pdata_of_proc(
-                    monk->animation->proc);
-                animation->animation = 0;
-                animation->step = 1.0f;
-                set_anim_script(
-                    animation,
-                    get_animation(monk->data->idle_animation), 0);
-            }
-            xfer_proc(g_active_npc->animation->proc, p_anim_idle);
-            npc_play_dialog_and_anim_sequence(dialog_id, animation_id);
-            nis_signal_event(konquest_pdata->conversation_event + 1);
-            konquest_pdata->conversation_event += 2;
-            return;
-        }
-
-        if (konquest_pdata->conversation_mode_b == 0) {
-            KonquestAnimPdata* animation;
-
-            npc_switch_camera_focus_inline(2);
-            konquest_pdata->conversation_mode_b = 2;
-            xfer_proc(
-                g_active_npc->animation->proc, (MkProcEntryFn)p_animate);
-            animation = (KonquestAnimPdata*)pdata_of_proc(
-                g_active_npc->animation->proc);
-            animation->animation = 0;
-            animation->step = 1.0f;
-            set_anim_script(
-                animation,
-                get_animation(g_active_npc->data->idle_animation), 0);
-        } else if (konquest_pdata->conversation_mode_b == 1) {
-            npc_switch_camera_focus_inline(2);
-            konquest_pdata->conversation_mode_b = 2;
-        }
-        nis_wait_for_event(konquest_pdata->conversation_event + 1, -1);
-    }
-}
-
-/* Near match: 85.76744%. Shared NPC lookup, slot-7 script publication,
- * animation reset, and state transition are exact; residue is inline/latch
- * scheduling and the portable failure diagnostic. */
-void npc_take_control_of_him(
-    KonquestNpcData* data, unsigned int script_function) {
-    KonquestNpc* npc = npc_find_by_data_inline(data);
-
-    if (npc == 0) {
-        char message[256];
-
-        sprintf(
-            message,
-            "NP: %s -- npc_take_control_of_him -- Couldn't find npc",
-            data->name);
-        return;
-    }
-    npc_set_event_script(npc, 7, script_function);
-    npc_set_state_for_npc(npc, 7);
-}
-
-/*
- * Matching: 99.86842% - instructions are exact; only the 1.0f relocation
- * differs.
- */
-static int npc_dialog_wait_for_widescreen_bars(void) {
-    if (konquest_pdata->dialog_ready != 0) {
-        return 1;
-    }
-    if (find_mkproc_pid(0x8229) == 0) {
-        return 0;
-    }
-    while (konquest_pdata->dialog_ready == 0) {
-        npc_ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-    }
-    return 1;
 }
 
 /* Soft ceiling: 88.42105% - typed active-animation boolean lowers differently. */
@@ -2305,10 +2415,10 @@ void npc_open_door_at_waypoint(void) {
     }
 }
 
-/*
- * Soft ceiling: 76.0% - the typed body is exact; MWCC splits the r30/r31
- * saves instead of using retail's stmw/lmw pair.
- */
+#pragma dont_inline on
+#pragma optimize_for_size on
+/* Matching: compact save/restore lowering plus the retail non-inlined call
+ * boundary reproduces the function exactly. */
 void npc_at_waypoint_set_flags(int flags, int enabled) {
     KonquestWaypointScriptPdata* pdata =
         (KonquestWaypointScriptPdata*)pdata_of_proc(aproc);
@@ -2317,6 +2427,8 @@ void npc_at_waypoint_set_flags(int flags, int enabled) {
         npc_set_his_flags(pdata->npc->data, flags, enabled);
     }
 }
+#pragma optimize_for_size reset
+#pragma dont_inline reset
 
 /*
  * Soft ceiling: 86.585365% - lookup and byte-width bit update are exact;
@@ -2350,6 +2462,195 @@ void npc_set_flags(int flags, int enabled) {
     g_active_npc->flags &= ~flags;
 }
 
+/* Near match: 95.03509% at exact retail size. Repeated path ownership loads,
+ * waypoint selection, navigation hint lowering, steering, inverse length,
+ * arrival scripts, and final position/facing stores match. Residue is GPR/FPR
+ * allocation, call scheduling, and one equivalent branch placement. */
+static int npc_update_pos_on_path(
+    KonquestNpc* npc, int destination_type, int destination) {
+    KonquestWaypoint* waypoints;
+    Vec target;
+    Vec direction;
+    Vec* movement;
+    float speed;
+    int target_waypoint;
+
+    if (npc->path == 0) {
+        return 1;
+    }
+    waypoints = npc->path->waypoints;
+    if (is_npc_at_destination(npc, destination_type, destination) != 0) {
+        if (waypoints == 0) {
+            npc->data->angle_y = npc->current_waypoint_angle;
+        } else {
+            npc->data->angle_y =
+                waypoints[npc->path->current_waypoint].angle;
+        }
+        npc->path->previous_waypoint = npc->path->current_waypoint;
+        return 1;
+    }
+
+    if (npc->path->target_waypoint == npc->path->current_waypoint) {
+        npc->path->target_waypoint = npc_next_waypoint(npc);
+    }
+    target_waypoint = npc->path->target_waypoint;
+    if (npc->path != 0) {
+        if ((unsigned int)(
+                npc->path->destination_type + (int)0x80000000) == 7) {
+            target.x = npc->path->destination.x;
+            target.y = npc->path->destination.y;
+            target.z = npc->path->destination.z;
+        } else if (waypoints == 0) {
+            target.x = npc->initial_position.x;
+            target.y = npc->initial_position.y;
+            target.z = npc->initial_position.z;
+        } else {
+            target.x = waypoints[target_waypoint].position.x;
+            target.y = waypoints[target_waypoint].position.y;
+            target.z = waypoints[target_waypoint].position.z;
+        }
+    }
+    target.y = 0.0f;
+
+    if (npc->path->travel_mode == 0) {
+        speed = 0.03f * npc->path->speed * game_speed;
+    } else {
+        speed = 0.0525f * npc->path->speed * game_speed;
+    }
+
+    if (dist_xz_to_xz(&npc->data->position, &target) > 0.1f + speed) {
+        movement = 0;
+        if (npc->path->current_waypoint == -1) {
+            int current_area;
+            int destination_area;
+            int has_navigation_direction = 0;
+
+            if (target.x != npc->distance_270 ||
+                target.z != npc->distance_278) {
+                npc->state_26C = nav_what_area_is_point_in(
+                    &target, npc_nav_area_hint(npc->state_26C));
+                npc->distance_270 = target.x;
+                npc->distance_278 = target.z;
+            }
+            destination_area = npc->state_26C;
+            current_area = nav_what_area_is_point_in(
+                &npc->data->position, npc_nav_area_hint(npc->state_268));
+            if (current_area >= 0) {
+                if (npc->state_264 < 0) {
+                    npc->state_264 = current_area;
+                } else if (npc->state_264 != npc->state_268) {
+                    npc->state_264 = npc->state_268;
+                }
+                npc->state_268 = current_area;
+            }
+            if (destination_area >= 0) {
+                if (current_area < 0) {
+                    if (npc->state_264 >= 0) {
+                        nav_get_unit_vector_to_area(
+                            npc->state_264, &direction,
+                            &npc->data->position);
+                    } else {
+                        nav_get_unit_vector_to_closest_area(
+                            &direction, &npc->data->position);
+                    }
+                    has_navigation_direction = 1;
+                } else {
+                    int next_area = nav_which_area_is_next(
+                        current_area, destination_area);
+
+                    if (current_area != next_area) {
+                        nav_get_unit_vector_to_nav_portal(
+                            &direction, &npc->data->position,
+                            current_area, next_area);
+                        has_navigation_direction = 1;
+                    }
+                }
+            }
+            if (has_navigation_direction != 0) {
+                movement = &direction;
+            }
+        }
+
+        if (movement == 0) {
+            float length_squared;
+            float inverse_length = 0.0f;
+
+            movement = &direction;
+            direction.x = target.x - npc->data->position.x;
+            direction.y = target.y - npc->data->position.y;
+            direction.z = target.z - npc->data->position.z;
+            length_squared =
+                direction.z * direction.z +
+                (direction.x * direction.x + direction.y * direction.y);
+            if (length_squared <= 0.0f) {
+                inverse_length = 0.0f;
+            } else {
+                KonquestFloatBits estimate;
+                float product;
+                float correction;
+
+                estimate.value = length_squared;
+                estimate.bits = 0x5F375A00 - (estimate.bits >> 1);
+                product = estimate.value * (length_squared * estimate.value);
+                correction = 3.0f - product;
+                inverse_length =
+                    0.0625f * estimate.value * correction *
+                    -((correction * (product * correction)) - 12.0f);
+            }
+            direction.x *= inverse_length;
+            direction.y *= inverse_length;
+            direction.z *= inverse_length;
+        }
+
+        movement->x *= speed;
+        movement->y *= speed;
+        movement->z *= speed;
+        movement->y = 0.0f;
+        npc->data->position.x += movement->x;
+        npc->data->position.y += movement->y;
+        npc->data->position.z += movement->z;
+        npc->data->angle_y = gxMathArcTanYX(movement->x, movement->z);
+        npc->data->angle_y =
+            0.000005992112f *
+            (float)(((int)(166886.1f * npc->data->angle_y)) & 0xFFFFF);
+    } else {
+        npc->data->position.x = target.x;
+        npc->data->position.y = target.y;
+        npc->data->position.z = target.z;
+        npc->path->current_waypoint = target_waypoint;
+        if (npc->path->waypoints != 0) {
+            if (npc->path->waypoints[npc->path->current_waypoint]
+                    .script_function != 0) {
+                KonquestWaypointScriptPdata* pdata = 0;
+                MkProc* proc = _create_mkproc_generic_tinystack(
+                    0xA017, 0x1F, p_npc_waypoint_script,
+                    sizeof(*pdata), (MkHdr**)&pdata);
+
+                if (proc != 0) {
+                    set_process_as_scriptable(proc);
+                    pdata->function_index =
+                        npc->path->waypoints[npc->path->current_waypoint]
+                            .script_function;
+                    pdata->npc = npc;
+                }
+            }
+        }
+        if (is_npc_at_destination(npc, destination_type, destination) != 0) {
+            if (waypoints == 0) {
+                npc->data->angle_y = npc->current_waypoint_angle;
+            } else {
+                npc->data->angle_y =
+                    waypoints[npc->path->current_waypoint].angle;
+            }
+            npc->path->previous_waypoint = npc->path->current_waypoint;
+            return 1;
+        }
+    }
+
+    npc->tile_index = get_tile_from_position(&npc->data->position);
+    return 0;
+}
+
 void npc_set_dialog_anim(int animation) {
     if (g_active_npc->animation != 0) {
         g_active_npc->animation->dialog_anim = animation;
@@ -2374,6 +2675,75 @@ void hero_handle_conversation(void) {
     }
 }
 
+/* Soft ceiling: 90.40084% - exact retail size, camera/control-flow sequence,
+ * animation transfers, and event ordering; save and GPR scheduling remain. */
+void npc_play_conversation_part(
+    int dialog_id, int animation_id, int conversation_mode) {
+    KonquestNpcPdata* pdata = konquest_pdata;
+
+    pdata->conversation_state_a = dialog_id;
+    pdata->conversation_state_b = animation_id;
+    pdata->conversation_mode_a = conversation_mode;
+    if (check_skip_conversation_flag() == 0) {
+        _mkproc_sleep_ticks = 1.0f;
+        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+        nis_signal_event(konquest_pdata->conversation_event);
+
+        if (conversation_mode != 2) {
+            if (konquest_pdata->conversation_mode_b != conversation_mode) {
+                KonquestNpc* monk;
+                KonquestAnimPdata* animation;
+
+                npc_switch_camera_focus_inline(conversation_mode);
+                konquest_pdata->conversation_mode_b = conversation_mode;
+                monk = konquest_pdata->monk_npc;
+                if (monk != 0) {
+                    if (monk->hdr.instance !=
+                        konquest_pdata->monk_npc_instance) {
+                        monk = 0;
+                    }
+                } else {
+                    monk = 0;
+                }
+                xfer_proc(
+                    monk->animation->proc, (MkProcEntryFn)p_animate);
+                animation = (KonquestAnimPdata*)pdata_of_proc(
+                    monk->animation->proc);
+                animation->animation = 0;
+                animation->step = 1.0f;
+                set_anim_script(
+                    animation,
+                    get_animation(monk->data->idle_animation), 0);
+            }
+            xfer_proc(g_active_npc->animation->proc, p_anim_idle);
+            npc_play_dialog_and_anim_sequence(dialog_id, animation_id);
+            nis_signal_event(konquest_pdata->conversation_event + 1);
+            konquest_pdata->conversation_event += 2;
+            return;
+        }
+
+        if (konquest_pdata->conversation_mode_b == 0) {
+            KonquestAnimPdata* animation;
+
+            npc_switch_camera_focus_inline(2);
+            konquest_pdata->conversation_mode_b = 2;
+            xfer_proc(
+                g_active_npc->animation->proc, (MkProcEntryFn)p_animate);
+            animation = (KonquestAnimPdata*)pdata_of_proc(
+                g_active_npc->animation->proc);
+            animation->animation = 0;
+            animation->step = 1.0f;
+            set_anim_script(
+                animation,
+                get_animation(g_active_npc->data->idle_animation), 0);
+        } else if (konquest_pdata->conversation_mode_b == 1) {
+            npc_switch_camera_focus_inline(2);
+            konquest_pdata->conversation_mode_b = 2;
+        }
+        nis_wait_for_event(konquest_pdata->conversation_event + 1, -1);
+    }
+}
+
 void conversation_term(void) {
     konquest_pdata->conversation_state_a = 0;
     konquest_pdata->conversation_state_b = 0;
@@ -2391,12 +2761,110 @@ void conversation_init(int mode) {
     konquest_pdata->conversation_event = 0;
 }
 
-static inline int npc_is_same(
-    KonquestNpc* left, KonquestNpc* right) {
-    if (left == right) {
-        return 1;
+/* Near match: 94.16309%, four bytes short of retail. Both animation-process
+ * and monk-NPC handles are validated in retail order; the remaining difference
+ * is one compiler-emission instruction plus register allocation. */
+void npc_play_two_player_one_shot_anims(int npc_animation_id,
+                                        int monk_animation_id) {
+    int npc_finished = 0;
+    int monk_finished = 0;
+
+    if (g_active_npc != 0) {
+        int blocked;
+
+        if (npc_event_has_active_animation(g_active_npc) == 1) {
+            blocked = (g_active_npc->timed_event_flags & 0x40) == 0;
+        } else {
+            blocked = 1;
+        }
+        if (blocked == 0) {
+            KonquestAnimPdata* npc_animation =
+                (KonquestAnimPdata*)pdata_of_proc(
+                    g_active_npc->animation->proc);
+            AnimPdata* monk_animation;
+            MkProc* monk_animation_proc;
+            KonquestNpc* monk_npc;
+
+            g_active_npc->queued_animation = get_animation(npc_animation_id);
+            g_active_npc->animation_flags = 3;
+            g_active_npc->queued_animation_frame = 0.0f;
+            if (aproc->pid != 0xA014 &&
+                npc_event_has_active_animation(g_active_npc) != 0) {
+                AniData* script = get_animation(npc_animation_id);
+                KonquestAnimPdata* current = (KonquestAnimPdata*)pdata_of_proc(
+                    g_active_npc->animation->proc);
+
+                current->step = 1.0f;
+                if (current->animation != script || current->flags != 3 ||
+                    current->step != 1.0f) {
+                    transition_to_anim_script(current, script, 3, 0.1f);
+                }
+            }
+
+            monk_animation = konquest_pdata->monk_animation;
+            monk_animation_proc = monk_animation->proc;
+            if (monk_animation_proc != 0) {
+                if (monk_animation_proc->instance !=
+                    monk_animation->proc_instance) {
+                    monk_animation_proc = 0;
+                }
+            } else {
+                monk_animation_proc = 0;
+            }
+            monk_npc = konquest_pdata->monk_npc;
+            if (monk_npc != 0) {
+                if (monk_npc->hdr.instance !=
+                    konquest_pdata->monk_npc_instance) {
+                    monk_npc = 0;
+                }
+            } else {
+                monk_npc = 0;
+            }
+            xfer_proc(monk_animation_proc, (MkProcEntryFn)p_animate);
+            monk_animation->step = 1.0f;
+            transition_to_anim_script((KonquestAnimPdata*)monk_animation,
+                                      get_animation(monk_animation_id), 0,
+                                      0.1f);
+
+            while (npc_finished == 0 || monk_finished == 0) {
+                if (npc_finished == 0 &&
+                    npc_animation->frame >= npc_animation->high_frame - 10.0f) {
+                    int idle_animation = g_active_npc->data->idle_animation;
+
+                    g_active_npc->queued_animation =
+                        get_animation(idle_animation);
+                    g_active_npc->animation_flags = 0;
+                    g_active_npc->queued_animation_frame = 0.0f;
+                    if (aproc->pid != 0xA014 &&
+                        npc_event_has_active_animation(g_active_npc) != 0) {
+                        AniData* idle = get_animation(idle_animation);
+                        KonquestAnimPdata* current =
+                            (KonquestAnimPdata*)pdata_of_proc(
+                                g_active_npc->animation->proc);
+
+                        current->step = 1.0f;
+                        if (current->animation != idle || current->flags != 0 ||
+                            current->step != 1.0f) {
+                            transition_to_anim_script(current, idle, 0, 0.1f);
+                        }
+                    }
+                    npc_finished = 1;
+                }
+                if (monk_finished == 0 &&
+                    monk_animation->frame >=
+                        monk_animation->high_frame - 10.0f) {
+                    monk_animation->step = 1.0f;
+                    transition_to_anim_script(
+                        (KonquestAnimPdata*)monk_animation,
+                        get_animation(monk_npc->data->idle_animation), 0, 0.1f);
+                    monk_finished = 1;
+                }
+                npc_ani_1_frame();
+                _mkproc_sleep_ticks = 1.0f;
+                ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+            }
+        }
     }
-    return 0;
 }
 
 /*
@@ -2512,250 +2980,6 @@ void npc_wait_for_dialog(void) {
     }
 }
 
-void npc_stop_goro_bone_match(void) {
-    MkProc* proc = find_mkproc_pid(0x500F);
-
-    if (proc != 0) {
-        destroy_mkproc_nostack(proc);
-    }
-}
-
-/*
- * Soft ceiling: 81.88172% - script object flag, shared NPC lookup, matcher
- * arguments, three offset components, and byte flag update match at retail
- * size. Residue is latch/save/register emission and float relocations.
- */
-void npc_start_goro_bone_match(KonquestNpcData* data) {
-    KonquestObjectScriptPdata* pdata =
-        (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
-    KonquestNpc* npc;
-    KonquestBoneMatcher* matcher;
-
-    pdata->object->flags_09 &= ~0x40;
-    npc = npc_find_by_data_inline(data);
-    matcher = start_bone_matcher(
-        0.0f, npc->animation->object, 10, pdata->object, 0);
-    matcher->parent_offset.x = -0.04f;
-    matcher->parent_offset.y = 0.1f;
-    matcher->parent_offset.z = -0.15f;
-    matcher->flags_08 |= 8;
-}
-
-void vdestroy_path_data_struct(KonquestPathData* path) {
-    path->hdr.instance = 0;
-    mkhdr_memfree(&path->hdr);
-}
-
-/* Matching: 99.8% - code is exact; only the 1.0f relocation differs. */
-KonquestPathData* get_new_path_data_struct(void) {
-    KonquestPathData* path = (KonquestPathData*)get_mkhdr(
-        &vtbl_path_data_struct, sizeof(KonquestPathData));
-
-    if (path != 0) {
-        zero_pdata_payload(sizeof(KonquestPathData), &path->hdr);
-        path->travel_mode = 0;
-        path->speed = 1.0f;
-        path->table_index = -2;
-    }
-    return path;
-}
-
-void vdestroy_konquest_npc_struct(KonquestNpc* npc) {
-    npc->hdr.instance = 0;
-    mkhdr_memfree(&npc->hdr);
-}
-
-/*
- * Soft ceiling: 83.098595% - ID validation, table-index decode, stale-list
- * cleanup, state check, and event dispatch match at retail size. Remaining
- * differences are latch branch polarity, save form, and register allocation.
- */
-int npc_collision_callback(unsigned int* collision_id) {
-    unsigned int id = *collision_id;
-
-    if (id != 0 && (id & 0x80000000) == 0 &&
-        konquest_pdata->collision_mode == 2) {
-        int table_index = id - 0x10001;
-        KonquestNpc* npc = npc_find_by_table_index_inline(table_index);
-
-        if (npc->state_58 != 5) {
-            npc_signal_event(npc, 5);
-        }
-        return 1;
-    }
-    return 0;
-}
-
-void npc_signal_event(KonquestNpc* npc, int event_index) {
-    if (!npc->ignore_events) {
-        npc_set_state_for_npc(npc, event_index);
-    }
-}
-
-/* Soft ceiling: 92.413795% - typed active-animation boolean lowers differently. */
-void npc_set_my_ang_y(float angle) {
-    KonquestNpcAnimState* state;
-    int has_active_animation;
-
-    g_active_npc->data->angle_y = angle;
-    state = g_active_npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
-    if (has_active_animation != 0) {
-        MkObj* object = state->object;
-
-        object->hide_flag_bits.pin_animation = 0;
-        g_active_npc->animation->object->ang.y = angle;
-    }
-}
-
-/*
- * Soft ceiling: 86.447914% - lookup, persistent angle, active-animation
- * predicate, byte flag access, and object angle store are exact; latch and
- * register allocation differ.
- */
-void npc_set_his_ang_y(KonquestNpcData* data, float angle) {
-    KonquestNpc* npc = npc_find_by_data_inline(data);
-    KonquestNpcAnimState* state;
-    int has_active_animation;
-
-    npc->data->angle_y = angle;
-    state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
-    if (has_active_animation != 0) {
-        state->object->hide_flags &= ~2;
-        npc->animation->object->ang.y = angle;
-    }
-}
-
-/*
- * Soft ceiling: 89.45385% - lookup, position stores, tile update, animation
- * predicate, access width, and object position transfer are exact; remaining
- * differences are latch branches and FPR/GPR allocation.
- */
-void npc_set_his_world_pos(
-    KonquestNpcData* data, float x, float y, float z) {
-    KonquestNpc* npc = npc_find_by_data_inline(data);
-    KonquestNpcAnimState* state;
-    Vec position;
-    int has_active_animation;
-
-    position.x = x;
-    position.y = y;
-    position.z = z;
-    npc->data->position.x = x;
-    npc->data->position.y = position.y;
-    npc->data->position.z = position.z;
-    npc->tile_index = get_tile_from_position(&position);
-    state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
-    if (has_active_animation != 0) {
-        state->object->hide_flags &= ~2;
-        npc->animation->object->pos.x = position.x;
-        npc->animation->object->pos.y = position.y;
-        npc->animation->object->pos.z = position.z;
-    }
-}
-
-/*
- * Soft ceiling: 86.77631% - shared lookup, state read, and 0/7 restart rule
- * are exact; stale-latch lowering and nonvolatile allocation remain.
- */
-void npc_restart_his_normal_behavior(KonquestNpcData* data) {
-    KonquestNpc* npc = npc_find_by_data_inline(data);
-    int state = npc->state_58;
-
-    if (state == 0 || state == 7) {
-        npc_force_state_for_npc(npc, 0);
-    }
-}
-
-/*
- * Soft ceiling: 96.14035% - the typed body is exact; proc-pointer boolean
- * lowering and the nonvolatile save form differ.
- */
-void npc_set_my_world_pos(float x, float y, float z) {
-    Vec position;
-    KonquestNpc* npc = g_active_npc;
-    KonquestNpcAnimState* state;
-    int has_active_animation;
-
-    position.x = x;
-    position.y = y;
-    position.z = z;
-    npc->data->position.x = position.x;
-    npc->data->position.y = position.y;
-    npc->data->position.z = position.z;
-    npc->tile_index = get_tile_from_position(&position);
-
-    state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
-    if (has_active_animation != 0) {
-        state->object->hide_flag_bits.pin_animation = 0;
-        npc->animation->object->pos.x = position.x;
-        npc->animation->object->pos.y = position.y;
-        npc->animation->object->pos.z = position.z;
-    }
-}
-
-/* Soft ceiling: 97.25% - typed active-animation boolean lowers differently. */
-void npc_set_my_pos(float x, float y, float z) {
-    KonquestTileOrigin* tile =
-        get_nth_tile_struct(g_active_npc->tile_index);
-    KonquestNpc* npc = g_active_npc;
-    Vec position;
-    KonquestNpcAnimState* state;
-    int has_active_animation;
-
-    position.x = x + tile->origin.x;
-    position.y = y + tile->origin.y;
-    position.z = z + tile->origin.z;
-    npc->data->position.x = position.x;
-    npc->data->position.y = position.y;
-    npc->data->position.z = position.z;
-    npc->tile_index = get_tile_from_position(&position);
-
-    state = npc->animation;
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
-    if (has_active_animation != 0) {
-        MkObj* object = state->object;
-
-        object->hide_flag_bits.pin_animation = 0;
-        npc->animation->object->pos.x = position.x;
-        npc->animation->object->pos.y = position.y;
-        npc->animation->object->pos.z = position.z;
-    }
-}
-
 /*
  * Soft ceiling: 99.85294% - instructions are exact; only the signed-int to
  * float conversion constant relocation differs.
@@ -2849,6 +3073,270 @@ float p_wait_for_dialog(void) {
     return -1.0f;
 }
 
+void npc_stop_goro_bone_match(void) {
+    MkProc* proc = find_mkproc_pid(0x500F);
+
+    if (proc != 0) {
+        destroy_mkproc_nostack(proc);
+    }
+}
+
+/*
+ * Soft ceiling: 81.88172% - script object flag, shared NPC lookup, matcher
+ * arguments, three offset components, and byte flag update match at retail
+ * size. Residue is latch/save/register emission and float relocations.
+ */
+void npc_start_goro_bone_match(KonquestNpcData* data) {
+    KonquestObjectScriptPdata* pdata =
+        (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
+    KonquestNpc* npc;
+    KonquestBoneMatcher* matcher;
+
+    pdata->object->flags_09 &= ~0x40;
+    npc = npc_find_by_data_inline(data);
+    matcher = start_bone_matcher(
+        0.0f, npc->animation->object, 10, pdata->object, 0);
+    matcher->parent_offset.x = -0.04f;
+    matcher->parent_offset.y = 0.1f;
+    matcher->parent_offset.z = -0.15f;
+    matcher->flags_08 |= 8;
+}
+
+void vdestroy_path_data_struct(KonquestPathData* path) {
+    path->hdr.instance = 0;
+    mkhdr_memfree(&path->hdr);
+}
+
+/* Matching: 99.8% - code is exact; only the 1.0f relocation differs. */
+KonquestPathData* get_new_path_data_struct(void) {
+    KonquestPathData* path = (KonquestPathData*)get_mkhdr(
+        &vtbl_path_data_struct, sizeof(KonquestPathData));
+
+    if (path != 0) {
+        zero_pdata_payload(sizeof(KonquestPathData), &path->hdr);
+        path->travel_mode = 0;
+        path->speed = 1.0f;
+        path->table_index = -2;
+    }
+    return path;
+}
+
+void vdestroy_konquest_npc_struct(KonquestNpc* npc) {
+    npc->hdr.instance = 0;
+    mkhdr_memfree(&npc->hdr);
+}
+
+/*
+ * Soft ceiling: 83.098595% - ID validation, table-index decode, stale-list
+ * cleanup, state check, and event dispatch match at retail size. Remaining
+ * differences are latch branch polarity, save form, and register allocation.
+ */
+int npc_collision_callback(unsigned int* collision_id) {
+    unsigned int id = *collision_id;
+
+    if (id != 0 && (id & 0x80000000) == 0 &&
+        konquest_pdata->collision_mode == 2) {
+        int table_index = id - 0x10001;
+        KonquestNpc* npc = npc_find_by_table_index_inline(table_index);
+
+        if (npc->state_58 != 5) {
+            npc_signal_event(npc, 5);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+void npc_signal_event(KonquestNpc* npc, int event_index) {
+    if (!npc->ignore_events) {
+        npc_set_state_for_npc(npc, event_index);
+    }
+}
+
+/* Near match: 85.76744%. Shared NPC lookup, slot-7 script publication,
+ * animation reset, and state transition are exact; residue is inline/latch
+ * scheduling and the portable failure diagnostic. */
+void npc_take_control_of_him(
+    KonquestNpcData* data, unsigned int script_function) {
+    KonquestNpc* npc = npc_find_by_data_inline(data);
+
+    if (npc == 0) {
+        char message[256];
+
+        sprintf(
+            message,
+            "NP: %s -- npc_take_control_of_him -- Couldn't find npc",
+            data->name);
+        return;
+    }
+    npc_set_event_script(npc, 7, script_function);
+    npc_set_state_for_npc(npc, 7);
+}
+
+/*
+ * Soft ceiling: 86.77631% - shared lookup, state read, and 0/7 restart rule
+ * are exact; stale-latch lowering and nonvolatile allocation remain.
+ */
+void npc_restart_his_normal_behavior(KonquestNpcData* data) {
+    KonquestNpc* npc = npc_find_by_data_inline(data);
+    int state = npc->state_58;
+
+    if (state == 0 || state == 7) {
+        npc_force_state_for_npc(npc, 0);
+    }
+}
+
+/*
+ * Soft ceiling: 86.447914% - lookup, persistent angle, active-animation
+ * predicate, byte flag access, and object angle store are exact; latch and
+ * register allocation differ.
+ */
+void npc_set_his_ang_y(KonquestNpcData* data, float angle) {
+    KonquestNpc* npc = npc_find_by_data_inline(data);
+    KonquestNpcAnimState* state;
+    int has_active_animation;
+
+    npc->data->angle_y = angle;
+    state = npc->animation;
+    if (state == 0) {
+        has_active_animation = 0;
+    } else if (state->object == 0) {
+        has_active_animation = 0;
+    } else {
+        has_active_animation = state->proc != 0;
+    }
+    if (has_active_animation != 0) {
+        state->object->hide_flags &= ~2;
+        npc->animation->object->ang.y = angle;
+    }
+}
+
+/* Soft ceiling: 92.413795% - typed active-animation boolean lowers differently. */
+void npc_set_my_ang_y(float angle) {
+    KonquestNpcAnimState* state;
+    int has_active_animation;
+
+    g_active_npc->data->angle_y = angle;
+    state = g_active_npc->animation;
+    if (state == 0) {
+        has_active_animation = 0;
+    } else if (state->object == 0) {
+        has_active_animation = 0;
+    } else {
+        has_active_animation = state->proc != 0;
+    }
+    if (has_active_animation != 0) {
+        MkObj* object = state->object;
+
+        object->hide_flag_bits.pin_animation = 0;
+        g_active_npc->animation->object->ang.y = angle;
+    }
+}
+
+/*
+ * Soft ceiling: 89.45385% - lookup, position stores, tile update, animation
+ * predicate, access width, and object position transfer are exact; remaining
+ * differences are latch branches and FPR/GPR allocation.
+ */
+void npc_set_his_world_pos(
+    KonquestNpcData* data, float x, float y, float z) {
+    KonquestNpc* npc = npc_find_by_data_inline(data);
+    KonquestNpcAnimState* state;
+    Vec position;
+    int has_active_animation;
+
+    position.x = x;
+    position.y = y;
+    position.z = z;
+    npc->data->position.x = x;
+    npc->data->position.y = position.y;
+    npc->data->position.z = position.z;
+    npc->tile_index = get_tile_from_position(&position);
+    state = npc->animation;
+    if (state == 0) {
+        has_active_animation = 0;
+    } else if (state->object == 0) {
+        has_active_animation = 0;
+    } else {
+        has_active_animation = state->proc != 0;
+    }
+    if (has_active_animation != 0) {
+        state->object->hide_flags &= ~2;
+        npc->animation->object->pos.x = position.x;
+        npc->animation->object->pos.y = position.y;
+        npc->animation->object->pos.z = position.z;
+    }
+}
+
+/*
+ * Soft ceiling: 96.14035% - the typed body is exact; proc-pointer boolean
+ * lowering and the nonvolatile save form differ.
+ */
+void npc_set_my_world_pos(float x, float y, float z) {
+    Vec position;
+    KonquestNpc* npc = g_active_npc;
+    KonquestNpcAnimState* state;
+    int has_active_animation;
+
+    position.x = x;
+    position.y = y;
+    position.z = z;
+    npc->data->position.x = position.x;
+    npc->data->position.y = position.y;
+    npc->data->position.z = position.z;
+    npc->tile_index = get_tile_from_position(&position);
+
+    state = npc->animation;
+    if (state == 0) {
+        has_active_animation = 0;
+    } else if (state->object == 0) {
+        has_active_animation = 0;
+    } else {
+        has_active_animation = state->proc != 0;
+    }
+    if (has_active_animation != 0) {
+        state->object->hide_flag_bits.pin_animation = 0;
+        npc->animation->object->pos.x = position.x;
+        npc->animation->object->pos.y = position.y;
+        npc->animation->object->pos.z = position.z;
+    }
+}
+
+/* Soft ceiling: 97.25% - typed active-animation boolean lowers differently. */
+void npc_set_my_pos(float x, float y, float z) {
+    KonquestTileOrigin* tile =
+        get_nth_tile_struct(g_active_npc->tile_index);
+    KonquestNpc* npc = g_active_npc;
+    Vec position;
+    KonquestNpcAnimState* state;
+    int has_active_animation;
+
+    position.x = x + tile->origin.x;
+    position.y = y + tile->origin.y;
+    position.z = z + tile->origin.z;
+    npc->data->position.x = position.x;
+    npc->data->position.y = position.y;
+    npc->data->position.z = position.z;
+    npc->tile_index = get_tile_from_position(&position);
+
+    state = npc->animation;
+    if (state == 0) {
+        has_active_animation = 0;
+    } else if (state->object == 0) {
+        has_active_animation = 0;
+    } else {
+        has_active_animation = state->proc != 0;
+    }
+    if (has_active_animation != 0) {
+        MkObj* object = state->object;
+
+        object->hide_flag_bits.pin_animation = 0;
+        npc->animation->object->pos.x = position.x;
+        npc->animation->object->pos.y = position.y;
+        npc->animation->object->pos.z = position.z;
+    }
+}
+
 float duration_of_lip_sync(const LipSyncKeyframe* keyframes) {
     float duration;
 
@@ -2863,100 +3351,6 @@ float duration_of_lip_sync(const LipSyncKeyframe* keyframes) {
         duration = 0.0f;
     }
     return duration * (float)refresh_rate();
-}
-
-/*
- * Soft ceiling: 95.992645% - sound lifecycle, 60 Hz keyframe dispatch,
- * animation/texture modes, stale texture latches, NPC cancellation flags, and
- * elapsed-time update match at retail size. Residue is latch branch polarity
- * and local constant relocation labeling.
- */
-float p_do_lip_synch(void) {
-    KonquestLipSyncPdata* lip =
-        (KonquestLipSyncPdata*)pdata_of_proc(aproc);
-
-    if (lip == 0) {
-        return -1.0f;
-    }
-    if (lip->mode == 0) {
-        return -1.0f;
-    }
-    if (lip->elapsed == 0.0f) {
-        lip->sound_handle = snd_req(lip->sound_handle);
-    }
-    if (lip->keyframes != 0) {
-        while (lip->elapsed >= 60.0f * lip->keyframes->time) {
-            int frame = lip->keyframes->frame;
-
-            if (frame < 0) {
-                return -1.0f;
-            }
-            if (lip->mode == 3) {
-                AniData* animation =
-                    ((AniData**)lip->animation_table)[frame + 6];
-
-                if (animation != 0) {
-                    transition_to_anim_script(
-                        lip->animation, animation, 3, 0.15f);
-                }
-            } else {
-                AniTextureControl* texture = lip->texture;
-
-                if (texture != 0) {
-                    if ((unsigned int)texture->instance !=
-                        lip->texture_instance) {
-                        texture = 0;
-                    }
-                } else {
-                    texture = 0;
-                }
-                if (texture != 0) {
-                    set_ani_texture_frame(texture, frame);
-                }
-            }
-            lip->keyframes++;
-        }
-    }
-    if (lip->mode == 1) {
-        if (mslSoundIsValid(lip->sound_handle) == 0) {
-            AniTextureControl* texture = lip->texture;
-
-            if (texture != 0) {
-                if ((unsigned int)texture->instance !=
-                    lip->texture_instance) {
-                    texture = 0;
-                }
-            } else {
-                texture = 0;
-            }
-            if (texture != 0) {
-                set_ani_texture_frame(texture, 0);
-            }
-            return -1.0f;
-        }
-        if ((((lip->npc->flags_1C & 4) == 0) &&
-             ((lip->npc->flags_1C & 0x80) != 0)) ||
-            lip->stop_requested != 0) {
-            AniTextureControl* texture;
-
-            snd_stop(lip->sound_handle);
-            texture = lip->texture;
-            if (texture != 0) {
-                if ((unsigned int)texture->instance !=
-                    lip->texture_instance) {
-                    texture = 0;
-                }
-            } else {
-                texture = 0;
-            }
-            if (texture != 0) {
-                set_ani_texture_frame(texture, 0);
-            }
-            return -1.0f;
-        }
-    }
-    lip->elapsed += game_speed;
-    return 1.0f;
 }
 
 /*
@@ -3061,6 +3455,363 @@ void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
 }
 
 /*
+ * Soft ceiling: 95.992645% - sound lifecycle, 60 Hz keyframe dispatch,
+ * animation/texture modes, stale texture latches, NPC cancellation flags, and
+ * elapsed-time update match at retail size. Residue is latch branch polarity
+ * and local constant relocation labeling.
+ */
+float p_do_lip_synch(void) {
+    KonquestLipSyncPdata* lip =
+        (KonquestLipSyncPdata*)pdata_of_proc(aproc);
+
+    if (lip == 0) {
+        return -1.0f;
+    }
+    if (lip->mode == 0) {
+        return -1.0f;
+    }
+    if (lip->elapsed == 0.0f) {
+        lip->sound_handle = snd_req(lip->sound_handle);
+    }
+    if (lip->keyframes != 0) {
+        while (lip->elapsed >= 60.0f * lip->keyframes->time) {
+            int frame = lip->keyframes->frame;
+
+            if (frame < 0) {
+                return -1.0f;
+            }
+            if (lip->mode == 3) {
+                AniData* animation =
+                    ((AniData**)lip->animation_table)[frame + 6];
+
+                if (animation != 0) {
+                    transition_to_anim_script(
+                        lip->animation, animation, 3, 0.15f);
+                }
+            } else {
+                AniTextureControl* texture = lip->texture;
+
+                if (texture != 0) {
+                    if ((unsigned int)texture->instance !=
+                        lip->texture_instance) {
+                        texture = 0;
+                    }
+                } else {
+                    texture = 0;
+                }
+                if (texture != 0) {
+                    set_ani_texture_frame(texture, frame);
+                }
+            }
+            lip->keyframes++;
+        }
+    }
+    if (lip->mode == 1) {
+        if (mslSoundIsValid(lip->sound_handle) == 0) {
+            AniTextureControl* texture = lip->texture;
+
+            if (texture != 0) {
+                if ((unsigned int)texture->instance !=
+                    lip->texture_instance) {
+                    texture = 0;
+                }
+            } else {
+                texture = 0;
+            }
+            if (texture != 0) {
+                set_ani_texture_frame(texture, 0);
+            }
+            return -1.0f;
+        }
+        if ((((lip->npc->flags_1C & 4) == 0) &&
+             ((lip->npc->flags_1C & 0x80) != 0)) ||
+            lip->stop_requested != 0) {
+            AniTextureControl* texture;
+
+            snd_stop(lip->sound_handle);
+            texture = lip->texture;
+            if (texture != 0) {
+                if ((unsigned int)texture->instance !=
+                    lip->texture_instance) {
+                    texture = 0;
+                }
+            } else {
+                texture = 0;
+            }
+            if (texture != 0) {
+                set_ani_texture_frame(texture, 0);
+            }
+            return -1.0f;
+        }
+    }
+    lip->elapsed += game_speed;
+    return 1.0f;
+}
+
+/* Near match: 97.48572%, four bytes over retail. Target selection, square-root
+ * estimate, distance bands, turn clamping, angular wrapping, and stores are
+ * exact; residue is FPR/GPR coloring, float relocations, and one staged union
+ * store that crashes this MWCC build when expressed separately. */
+static void npc_update_current_direction(
+    KonquestNpc* npc, const Vec* navigation_direction) {
+    KonquestPathData* path = npc->path;
+    float turn_amount;
+    float target_angle;
+
+    if (path->travel_mode == 0) {
+        turn_amount = 0.108f * path->speed;
+    } else {
+        turn_amount = 0.144f * path->speed;
+    }
+
+    if (navigation_direction == 0) {
+        float target_x;
+        float target_z;
+        float delta_x;
+        float delta_z;
+        float distance;
+        float inverse_distance;
+
+        if (path != 0) {
+            if ((unsigned int)(
+                    path->destination_type + (int)0x80000000) == 7) {
+                target_x = path->destination.x;
+                target_z = path->destination.z;
+            } else if (path->waypoints == 0) {
+                target_x = npc->initial_position.x;
+                target_z = npc->initial_position.z;
+            } else {
+                target_x =
+                    path->waypoints[path->target_waypoint].position.x;
+                target_z =
+                    path->waypoints[path->target_waypoint].position.z;
+            }
+        }
+        delta_x = target_x - npc->animation->object->pos.x;
+        delta_z = target_z - npc->animation->object->pos.z;
+        distance = npc_fast_sqrt(delta_x * delta_x + delta_z * delta_z);
+        inverse_distance = distance > 0.0f ? 1.0f / distance : distance;
+        target_angle = gxMathArcTanYX(
+            delta_x * inverse_distance, delta_z * inverse_distance);
+        if (distance <= 1.0f) {
+            turn_amount *= 4.0f;
+        } else if (distance <= 2.0f) {
+            turn_amount *= 2.0f;
+        }
+    } else {
+        target_angle = gxMathArcTanYX(
+            navigation_direction->x, navigation_direction->z);
+    }
+
+    if (get_konquest_game_mode() == 4) {
+        turn_amount = 1.0f;
+    }
+    {
+        float turn_scale = 1.0f;
+        float delta_angle;
+
+        if (turn_amount >= 1.0f) {
+            turn_scale = 1.0f;
+        } else {
+            turn_scale = turn_amount;
+        }
+        delta_angle =
+            0.000005992112f *
+            (float)(((int)(166886.1f * target_angle)) & 0xFFFFF);
+        delta_angle -= npc->animation->object->ang.y;
+
+        if (delta_angle > 3.1415927f) {
+            delta_angle -= 6.2831855f;
+        } else if (delta_angle < -3.1415927f) {
+            delta_angle += 6.2831855f;
+        }
+        delta_angle *= turn_scale;
+        target_angle = npc->animation->object->ang.y + delta_angle;
+    }
+    npc->animation->object->ang.y =
+        0.000005992112f *
+        (float)(((int)(166886.1f * target_angle)) & 0xFFFFF);
+}
+
+/* Near match: 83.915565% at exact retail size. Live global-NPC ownership,
+ * inlined command-script suspension, target refresh after sleeps, navigation,
+ * animation selection, waypoint scripts, facing, and final object state match.
+ * Residue is register allocation, scheduling islands, and equivalent branch
+ * polarity around the range and navigation latches. */
+void npc_travel_path(
+    int destination_type, int destination, int travel_mode) {
+    if (g_active_npc == 0) {
+        return;
+    }
+    if (g_active_npc->path != 0) {
+        if (travel_mode >= 2) {
+            travel_mode = 1;
+        }
+        g_active_npc->path->travel_mode = travel_mode;
+        g_active_npc->path->destination_type = destination_type;
+    }
+
+    if (aproc->pid == 0xA014) {
+        if (npc_update_pos_on_path(
+                g_active_npc, destination_type, destination) == 0) {
+            g_active_npc->wait_ticks = 2.0f;
+            npc_suspend_animation_wait();
+        } else {
+            g_active_npc->wait_ticks = 0.0f;
+        }
+        return;
+    }
+
+    if (npc_event_has_active_animation(g_active_npc) == 0) {
+        return;
+    }
+    g_active_npc->animation->object->flags_09_bits.bit6 = 0;
+    while (is_npc_at_destination(
+               g_active_npc, destination_type, destination) == 0) {
+        Vec target;
+        float speed;
+
+        if (g_active_npc->path->target_waypoint ==
+            g_active_npc->path->current_waypoint) {
+            g_active_npc->path->target_waypoint =
+                npc_next_waypoint(g_active_npc);
+        }
+        npc_get_path_target(g_active_npc, &target);
+        if (g_active_npc->path->current_waypoint == -1 &&
+            (target.x != g_active_npc->distance_270 ||
+             target.z != g_active_npc->distance_278)) {
+            g_active_npc->state_26C = nav_what_area_is_point_in(
+                &target, npc_nav_area_hint(g_active_npc->state_26C));
+            g_active_npc->distance_270 = target.x;
+            g_active_npc->distance_278 = target.z;
+        }
+
+        speed =
+            (g_active_npc->path->travel_mode == 0 ? 0.03f : 0.0525f) *
+            g_active_npc->path->speed * game_speed;
+        while (dist_xz_to_xz(&g_active_npc->data->position, &target) >
+               0.2f + speed) {
+            Vec direction;
+            Vec* navigation_direction = 0;
+
+            if ((g_active_npc->flags_1C & 0x40) == 0 &&
+                (is_game_mode_in_stack(1) != 0 ||
+                 is_game_mode_in_stack(3) != 0)) {
+                MkObj* monk = konquest_pdata->monk;
+
+                if (monk != 0 &&
+                    monk->hdr.instance != konquest_pdata->monk_instance) {
+                    monk = 0;
+                }
+                if (monk != 0 && g_active_npc->animation != 0 &&
+                    g_active_npc->animation->object != 0) {
+                    float delta_x =
+                        monk->pos.x -
+                        g_active_npc->animation->object->pos.x;
+                    float delta_z =
+                        monk->pos.z -
+                        g_active_npc->animation->object->pos.z;
+                    float distance_squared =
+                        delta_x * delta_x + delta_z * delta_z;
+
+                    if (distance_squared > 4.0f &&
+                        distance_squared <= 16.0f) {
+                        int idle_animation =
+                            g_active_npc->data->idle_animation;
+
+                        g_active_npc->queued_animation =
+                            get_animation(idle_animation);
+                        g_active_npc->animation_flags = 0;
+                        g_active_npc->queued_animation_frame = 0.0f;
+                        if (aproc->pid != 0xA014 &&
+                            npc_event_has_active_animation(g_active_npc) != 0) {
+                            AniData* idle = get_animation(idle_animation);
+                            KonquestAnimPdata* animation =
+                                (KonquestAnimPdata*)pdata_of_proc(
+                                    g_active_npc->animation->proc);
+
+                            animation->step = 1.0f;
+                            if (animation->animation != idle ||
+                                animation->flags != 0 ||
+                                animation->step != 1.0f) {
+                                transition_to_anim_script(
+                                    animation, idle, 0, 0.1f);
+                            }
+                        }
+                        do {
+                            _mkproc_sleep_ticks = 1.0f;
+                            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+                            npc_ani_1_frame();
+                        } while (is_game_mode_in_stack(1) != 0);
+                    }
+                }
+            }
+
+            if (g_active_npc->animation->proc != 0) {
+                KonquestAnimPdata* animation =
+                    (KonquestAnimPdata*)pdata_of_proc(
+                        g_active_npc->animation->proc);
+                AniData* target_animation;
+
+                animation->step = g_active_npc->path->speed;
+                if (g_active_npc->path->use_animation_override == 0) {
+                    target_animation = get_animation(
+                        travel_mode == 0
+                            ? g_active_npc->data->walk_animation
+                            : g_active_npc->data->run_animation);
+                } else {
+                    target_animation =
+                        get_animation(
+                            g_active_npc->path->animation_override);
+                }
+                if (animation->animation != target_animation) {
+                    transition_to_anim_script(
+                        animation, target_animation, 0, 0.1f);
+                    _mkproc_sleep_ticks = 1.0f;
+                    ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+                }
+            }
+            navigation_direction =
+                npc_get_navigation_direction(g_active_npc, &direction);
+            npc_update_current_direction(
+                g_active_npc, navigation_direction);
+            npc_ani_1_frame();
+            _mkproc_sleep_ticks = 1.0f;
+            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+
+            npc_get_path_target(g_active_npc, &target);
+            speed =
+                (g_active_npc->path->travel_mode == 0 ? 0.03f : 0.0525f) *
+                g_active_npc->path->speed * game_speed;
+        }
+
+        g_active_npc->path->current_waypoint =
+            g_active_npc->path->target_waypoint;
+        npc_start_current_waypoint_script(g_active_npc);
+    }
+
+    g_active_npc->path->previous_waypoint =
+        g_active_npc->path->current_waypoint;
+    if ((destination_type & (int)0x80000000) == 0) {
+        if (g_active_npc->path->waypoints == 0) {
+            npc_turn_and_face_angle(
+                g_active_npc, g_active_npc->current_waypoint_angle);
+        } else {
+            npc_turn_and_face_angle(
+                g_active_npc,
+                g_active_npc
+                    ->path->waypoints[g_active_npc->path->current_waypoint]
+                    .angle);
+        }
+    }
+    g_active_npc->path->use_animation_override = 0;
+    g_active_npc->animation->object->pos_vel.x = 0.0f;
+    g_active_npc->animation->object->pos_vel.y = 0.0f;
+    g_active_npc->animation->object->pos_vel.z = 0.0f;
+    g_active_npc->animation->object->flags_09_bits.bit6 = 1;
+}
+
+/*
  * Soft ceiling: 94.791664% - indexed waypoint angle loading uses addi/lfsx
  * instead of retail's equivalent add/lfs addressing.
  */
@@ -3113,45 +3864,6 @@ void npc_travel_path_anim_override(
         g_active_npc->path->animation_override = animation;
         npc_travel_path(path_id, path_arg, travel_mode);
     }
-}
-
-static inline int npc_next_waypoint(KonquestNpc* npc) {
-    KonquestPathData* path = npc->path;
-    int waypoint_count;
-    int next;
-
-    if (path->waypoints == 0) {
-        next = 0;
-    } else {
-        waypoint_count = path->waypoint_count;
-        if (waypoint_count == 1) {
-            next = 0;
-        } else {
-            next = path->current_waypoint;
-            if (path->step_direction == 1) {
-                next++;
-                if (next >= waypoint_count) {
-                    if (path->destination_type == 6) {
-                        next = 0;
-                    } else {
-                        path->step_direction = -1;
-                        next = npc->path->current_waypoint - 1;
-                    }
-                }
-            } else {
-                next--;
-                if (next < 0) {
-                    if (path->destination_type == 6) {
-                        next = waypoint_count - 1;
-                    } else {
-                        next = 1;
-                        path->step_direction = 1;
-                    }
-                }
-            }
-        }
-    }
-    return next;
 }
 
 /*
@@ -3233,505 +3945,6 @@ static int is_npc_at_destination(
     return 0;
 }
 
-static inline int npc_nav_area_hint(int area) {
-    unsigned int sign = area < 0;
-
-    return (int)((unsigned int)area & ~sign);
-}
-
-/*
- * Breakthrough: waypoint selection, navigation steering, arrival scripts, and
- * all field widths/offsets follow retail. Current output is 0x5DC versus
- * retail's 0x63C, so the remaining 0x60-byte gap is not a near miss yet.
- */
-static int npc_update_pos_on_path(
-    KonquestNpc* npc, int destination_type, int destination) {
-    KonquestPathData* path = npc->path;
-    KonquestWaypoint* waypoints;
-    Vec target;
-    Vec direction;
-    Vec* movement;
-    float speed;
-    int target_waypoint;
-
-    if (path == 0) {
-        return 1;
-    }
-    waypoints = path->waypoints;
-    if (is_npc_at_destination(npc, destination_type, destination) != 0) {
-        if (waypoints == 0) {
-            npc->data->angle_y = npc->current_waypoint_angle;
-        } else {
-            npc->data->angle_y = waypoints[path->current_waypoint].angle;
-        }
-        path->previous_waypoint = path->current_waypoint;
-        return 1;
-    }
-
-    if (path->target_waypoint == path->current_waypoint) {
-        path->target_waypoint = npc_next_waypoint(npc);
-    }
-    target_waypoint = path->target_waypoint;
-    if ((unsigned int)(path->destination_type + (int)0x80000000) == 7) {
-        target = path->destination;
-    } else if (waypoints == 0) {
-        target = npc->initial_position;
-    } else {
-        target = waypoints[target_waypoint].position;
-    }
-    target.y = 0.0f;
-
-    if (path->travel_mode == 0) {
-        speed = 0.03f * path->speed * game_speed;
-    } else {
-        speed = 0.0525f * path->speed * game_speed;
-    }
-
-    if (dist_xz_to_xz(&npc->data->position, &target) > 0.1f + speed) {
-        movement = 0;
-        if (path->current_waypoint == -1) {
-            int current_area;
-            int destination_area;
-            int has_navigation_direction = 0;
-
-            if (target.x != npc->distance_270 ||
-                target.z != npc->distance_278) {
-                npc->state_26C = nav_what_area_is_point_in(
-                    &target, npc_nav_area_hint(npc->state_26C));
-                npc->distance_270 = target.x;
-                npc->distance_278 = target.z;
-            }
-            destination_area = npc->state_26C;
-            current_area = nav_what_area_is_point_in(
-                &npc->data->position, npc_nav_area_hint(npc->state_268));
-            if (current_area >= 0) {
-                if (npc->state_264 < 0) {
-                    npc->state_264 = current_area;
-                } else if (npc->state_264 != npc->state_268) {
-                    npc->state_264 = npc->state_268;
-                }
-                npc->state_268 = current_area;
-            }
-            if (destination_area >= 0) {
-                if (current_area < 0) {
-                    if (npc->state_264 >= 0) {
-                        nav_get_unit_vector_to_area(
-                            npc->state_264, &direction,
-                            &npc->data->position);
-                    } else {
-                        nav_get_unit_vector_to_closest_area(
-                            &direction, &npc->data->position);
-                    }
-                    has_navigation_direction = 1;
-                } else {
-                    int next_area = nav_which_area_is_next(
-                        current_area, destination_area);
-
-                    if (current_area != next_area) {
-                        nav_get_unit_vector_to_nav_portal(
-                            &direction, &npc->data->position,
-                            current_area, next_area);
-                        has_navigation_direction = 1;
-                    }
-                }
-            }
-            if (has_navigation_direction != 0) {
-                movement = &direction;
-            }
-        }
-
-        if (movement == 0) {
-            float length_squared;
-            float inverse_length = 0.0f;
-
-            movement = &direction;
-            direction.x = target.x - npc->data->position.x;
-            direction.y = target.y - npc->data->position.y;
-            direction.z = target.z - npc->data->position.z;
-            length_squared =
-                direction.z * direction.z +
-                (direction.x * direction.x + direction.y * direction.y);
-            if (length_squared != 0.0f) {
-                KonquestFloatBits estimate;
-                float product;
-                float correction;
-
-                estimate.value = length_squared;
-                estimate.bits = 0x5F375A00 - (estimate.bits >> 1);
-                product = estimate.value * (length_squared * estimate.value);
-                correction = 3.0f - product;
-                inverse_length =
-                    0.0625f * estimate.value * correction *
-                    -((correction * (product * correction)) - 12.0f);
-            }
-            direction.x *= inverse_length;
-            direction.y *= inverse_length;
-            direction.z *= inverse_length;
-        }
-
-        movement->x *= speed;
-        movement->y *= speed;
-        movement->z *= speed;
-        movement->y = 0.0f;
-        npc->data->position.x += movement->x;
-        npc->data->position.y += movement->y;
-        npc->data->position.z += movement->z;
-        npc->data->angle_y = gxMathArcTanYX(movement->x, movement->z);
-        npc->data->angle_y =
-            0.000005992112f *
-            (float)(((int)(166886.1f * npc->data->angle_y)) & 0xFFFFF);
-    } else {
-        npc->data->position = target;
-        path->current_waypoint = target_waypoint;
-        if (waypoints != 0) {
-            KonquestWaypoint* current = &waypoints[path->current_waypoint];
-
-            if (current->script_function != 0) {
-                KonquestWaypointScriptPdata* pdata = 0;
-                MkProc* proc = _create_mkproc_generic_tinystack(
-                    0xA017, 0x1F, p_npc_waypoint_script,
-                    sizeof(*pdata), (MkHdr**)&pdata);
-
-                if (proc != 0) {
-                    set_process_as_scriptable(proc);
-                    pdata->function_index = current->script_function;
-                    pdata->npc = npc;
-                }
-            }
-        }
-        if (is_npc_at_destination(npc, destination_type, destination) != 0) {
-            if (waypoints == 0) {
-                npc->data->angle_y = npc->current_waypoint_angle;
-            } else {
-                npc->data->angle_y =
-                    waypoints[path->current_waypoint].angle;
-            }
-            path->previous_waypoint = path->current_waypoint;
-            return 1;
-        }
-    }
-
-    npc->tile_index = get_tile_from_position(&npc->data->position);
-    return 0;
-}
-
-/*
- * Breakthrough: the retail steering algorithm and object/path layout are
- * complete. Current MWCC output is 0x284 versus retail's 0x2BC, so the
- * remaining 0x38-byte emission gap is not yet classified as a near miss.
- */
-static void npc_update_current_direction(
-    KonquestNpc* npc, const Vec* navigation_direction) {
-    KonquestPathData* path = npc->path;
-    MkObj* object = npc->animation->object;
-    float turn_amount;
-    float target_angle;
-
-    if (path->travel_mode == 0) {
-        turn_amount = 0.108f * path->speed;
-    } else {
-        turn_amount = 0.144f * path->speed;
-    }
-
-    if (navigation_direction == 0) {
-        float target_x;
-        float target_z;
-        float delta_x;
-        float delta_z;
-        float distance;
-        float inverse_distance;
-
-        if ((unsigned int)(path->destination_type + (int)0x80000000) == 7) {
-            target_x = path->destination.x;
-            target_z = path->destination.z;
-        } else if (path->waypoints == 0) {
-            target_x = npc->initial_position.x;
-            target_z = npc->initial_position.z;
-        } else {
-            target_x = path->waypoints[path->target_waypoint].position.x;
-            target_z = path->waypoints[path->target_waypoint].position.z;
-        }
-        delta_x = target_x - object->pos.x;
-        delta_z = target_z - object->pos.z;
-        distance = npc_fast_sqrt(delta_x * delta_x + delta_z * delta_z);
-        inverse_distance = distance > 0.0f ? 1.0f / distance : distance;
-        target_angle = gxMathArcTanYX(
-            delta_x * inverse_distance, delta_z * inverse_distance);
-        if (distance == 1.0f) {
-            turn_amount *= 4.0f;
-        } else if (distance == 2.0f) {
-            turn_amount *= 2.0f;
-        }
-    } else {
-        target_angle = gxMathArcTanYX(
-            navigation_direction->x, navigation_direction->z);
-    }
-
-    if (get_konquest_game_mode() == 4) {
-        turn_amount = 1.0f;
-    }
-    if (turn_amount != 1.0f) {
-        float delta_angle =
-            0.000005992112f *
-                (float)(((int)(166886.1f * target_angle)) & 0xFFFFF) -
-            object->ang.y;
-
-        if (delta_angle > 3.1415927f) {
-            delta_angle -= 6.2831855f;
-        } else if (delta_angle < -3.1415927f) {
-            delta_angle += 6.2831855f;
-        }
-        target_angle = object->ang.y + delta_angle * turn_amount;
-    }
-    object->ang.y =
-        0.000005992112f *
-        (float)(((int)(166886.1f * target_angle)) & 0xFFFFF);
-}
-
-static inline void npc_get_path_target(KonquestNpc* npc, Vec* target) {
-    KonquestPathData* path = npc->path;
-
-    if ((unsigned int)(path->destination_type + (int)0x80000000) == 7) {
-        *target = path->destination;
-    } else if (path->waypoints == 0) {
-        *target = npc->initial_position;
-    } else {
-        *target = path->waypoints[path->target_waypoint].position;
-    }
-    target->y = 0.0f;
-}
-
-static inline void npc_start_current_waypoint_script(KonquestNpc* npc) {
-    KonquestPathData* path = npc->path;
-
-    if (path->waypoints != 0) {
-        KonquestWaypoint* waypoint =
-            &path->waypoints[path->current_waypoint];
-
-        if (waypoint->script_function != 0) {
-            KonquestWaypointScriptPdata* pdata = 0;
-            MkProc* proc = _create_mkproc_generic_tinystack(
-                0xA017, 0x1F, p_npc_waypoint_script,
-                sizeof(*pdata), (MkHdr**)&pdata);
-
-            if (proc != 0) {
-                set_process_as_scriptable(proc);
-                pdata->function_index = waypoint->script_function;
-                pdata->npc = npc;
-            }
-        }
-    }
-}
-
-static inline Vec* npc_get_navigation_direction(
-    KonquestNpc* npc, Vec* direction) {
-    int current_area;
-    int destination_area = npc->state_26C;
-
-    if (npc->path->current_waypoint != -1) {
-        return 0;
-    }
-    current_area = nav_what_area_is_point_in(
-        &npc->data->position, npc_nav_area_hint(npc->state_268));
-    if (current_area >= 0) {
-        if (npc->state_264 < 0) {
-            npc->state_264 = current_area;
-        } else if (npc->state_264 != npc->state_268) {
-            npc->state_264 = npc->state_268;
-        }
-        npc->state_268 = current_area;
-    }
-    if (destination_area < 0) {
-        return 0;
-    }
-    if (current_area < 0) {
-        if (npc->state_264 >= 0) {
-            nav_get_unit_vector_to_area(
-                npc->state_264, direction, &npc->data->position);
-        } else {
-            nav_get_unit_vector_to_closest_area(
-                direction, &npc->data->position);
-        }
-        return direction;
-    }
-    {
-        int next_area = nav_which_area_is_next(
-            current_area, destination_area);
-
-        if (current_area != next_area) {
-            nav_get_unit_vector_to_nav_portal(
-                direction, &npc->data->position, current_area, next_area);
-            return direction;
-        }
-    }
-    return 0;
-}
-
-/*
- * Breakthrough: script suspension, root-motion traversal, navigation steering,
- * animation selection, waypoint scripts, facing, and final object state follow
- * retail. Remaining emission differences are measured after integration.
- */
-void npc_travel_path(
-    int destination_type, int destination, int travel_mode) {
-    KonquestNpc* npc = g_active_npc;
-
-    if (npc == 0) {
-        return;
-    }
-    if (npc->path != 0) {
-        if (travel_mode >= 2) {
-            travel_mode = 1;
-        }
-        npc->path->travel_mode = travel_mode;
-        npc->path->destination_type = destination_type;
-    }
-
-    if (aproc->pid == 0xA014) {
-        if (npc_update_pos_on_path(
-                npc, destination_type, destination) == 0) {
-            npc->wait_ticks = 2.0f;
-            npc_suspend_cmdscript();
-        } else {
-            npc->wait_ticks = 0.0f;
-        }
-        return;
-    }
-
-    if (npc_event_has_active_animation(npc) == 0) {
-        return;
-    }
-    npc->animation->object->flags_09_bits.bit6 = 0;
-    while (is_npc_at_destination(
-               npc, destination_type, destination) == 0) {
-        KonquestPathData* path = npc->path;
-        Vec target;
-        float speed;
-
-        if (path->target_waypoint == path->current_waypoint) {
-            path->target_waypoint = npc_next_waypoint(npc);
-        }
-        npc_get_path_target(npc, &target);
-        if (path->current_waypoint == -1 &&
-            (target.x != npc->distance_270 ||
-             target.z != npc->distance_278)) {
-            npc->state_26C = nav_what_area_is_point_in(
-                &target, npc_nav_area_hint(npc->state_26C));
-            npc->distance_270 = target.x;
-            npc->distance_278 = target.z;
-        }
-
-        speed = (path->travel_mode == 0 ? 0.03f : 0.0525f) *
-                path->speed * game_speed;
-        while (dist_xz_to_xz(&npc->data->position, &target) >
-               0.2f + speed) {
-            Vec direction;
-            Vec* navigation_direction = 0;
-
-            if ((npc->flags_1C & 0x40) == 0 &&
-                (is_game_mode_in_stack(1) != 0 ||
-                 is_game_mode_in_stack(3) != 0)) {
-                MkObj* monk = konquest_pdata->monk;
-
-                if (monk != 0 &&
-                    monk->hdr.instance != konquest_pdata->monk_instance) {
-                    monk = 0;
-                }
-                if (monk != 0 && npc->animation != 0 &&
-                    npc->animation->object != 0) {
-                    float delta_x =
-                        monk->pos.x - npc->animation->object->pos.x;
-                    float delta_z =
-                        monk->pos.z - npc->animation->object->pos.z;
-                    float distance_squared =
-                        delta_x * delta_x + delta_z * delta_z;
-
-                    if (distance_squared > 4.0f &&
-                        distance_squared <= 16.0f) {
-                        int idle_animation = npc->data->idle_animation;
-
-                        npc->queued_animation =
-                            get_animation(idle_animation);
-                        npc->animation_flags = 0;
-                        npc->queued_animation_frame = 0.0f;
-                        if (npc_event_has_active_animation(npc) != 0) {
-                            AniData* idle = get_animation(idle_animation);
-                            KonquestAnimPdata* animation =
-                                (KonquestAnimPdata*)pdata_of_proc(
-                                    npc->animation->proc);
-
-                            animation->step = 1.0f;
-                            if (animation->animation != idle ||
-                                animation->flags != 0 ||
-                                animation->step != 1.0f) {
-                                transition_to_anim_script(
-                                    animation, idle, 0, 0.1f);
-                            }
-                        }
-                        do {
-                            _mkproc_sleep_ticks = 1.0f;
-                            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-                            npc_ani_1_frame();
-                        } while (is_game_mode_in_stack(1) != 0);
-                    }
-                }
-            }
-
-            if (npc->animation->proc != 0) {
-                KonquestAnimPdata* animation =
-                    (KonquestAnimPdata*)pdata_of_proc(
-                        npc->animation->proc);
-                AniData* target_animation;
-
-                animation->step = path->speed;
-                if (path->use_animation_override == 0) {
-                    target_animation = get_animation(
-                        travel_mode == 0 ? npc->data->walk_animation
-                                         : npc->data->run_animation);
-                } else {
-                    target_animation =
-                        get_animation(path->animation_override);
-                }
-                if (animation->animation != target_animation) {
-                    transition_to_anim_script(
-                        animation, target_animation, 0, 0.1f);
-                    _mkproc_sleep_ticks = 1.0f;
-                    ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-                }
-            }
-            navigation_direction =
-                npc_get_navigation_direction(npc, &direction);
-            npc_update_current_direction(npc, navigation_direction);
-            npc_ani_1_frame();
-            _mkproc_sleep_ticks = 1.0f;
-            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-
-            npc_get_path_target(npc, &target);
-            speed = (path->travel_mode == 0 ? 0.03f : 0.0525f) *
-                    path->speed * game_speed;
-        }
-
-        path->current_waypoint = path->target_waypoint;
-        npc_start_current_waypoint_script(npc);
-    }
-
-    npc->path->previous_waypoint = npc->path->current_waypoint;
-    if ((destination_type & (int)0x80000000) == 0) {
-        if (npc->path->waypoints == 0) {
-            npc_turn_and_face_angle(npc, npc->current_waypoint_angle);
-        } else {
-            npc_turn_and_face_angle(
-                npc,
-                npc->path->waypoints[npc->path->current_waypoint].angle);
-        }
-    }
-    npc->path->use_animation_override = 0;
-    npc->animation->object->pos_vel.x = 0.0f;
-    npc->animation->object->pos_vel.y = 0.0f;
-    npc->animation->object->pos_vel.z = 0.0f;
-    npc->animation->object->flags_09_bits.bit6 = 1;
-}
-
 void npc_set_my_movement_weight(float root_weight, float object_weight) {
     if (g_active_npc->animation != 0) {
         AnimState* animation = (AnimState*)pdata_of_proc(
@@ -3757,88 +3970,6 @@ void npc_set_snap_to_ground(int enabled) {
     if (has_active_animation != 0) {
         state->object->flags_09_bits.bit6 = enabled;
     }
-}
-
-/*
- * Soft ceiling: 89.74026% - command-script suspension and direct animation
- * advance/pose paths are exact; predicate lowering, copy scheduling, save form,
- * and float relocations remain.
- */
-void npc_ani_1_frame(void) {
-    if (aproc->pid == 0xA014) {
-        KonquestCmdScriptView* script;
-        CmdScript* saved_script;
-        KonquestNpc* npc;
-
-        g_active_npc->wait_ticks = 2.0f;
-        npc = g_active_npc;
-        if (npc == 0) {
-            return;
-        }
-        npc->wait_ticks -= 1.0f;
-        if (npc->wait_ticks <= 0.0f) {
-            npc->wait_ticks = 0.0f;
-            return;
-        }
-        script = (KonquestCmdScriptView*)active_cmdscript;
-        script->state = 2;
-        saved_script = active_cmdscript;
-        npc = g_active_npc;
-        cmdscript_step_backward();
-        memcpy(
-            npc->saved_script_state,
-            ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
-            sizeof(npc->saved_script_state));
-        npc->saved_script_position =
-            ((KonquestCmdScriptView*)active_cmdscript)->position;
-        npc->saved_script_stack_depth = get_script_stack_depth();
-        active_cmdscript = saved_script;
-    } else {
-        KonquestNpcAnimState* state = g_active_npc->animation;
-        int has_active_animation;
-
-        if (state == 0) {
-            has_active_animation = 0;
-        } else if (state->object == 0) {
-            has_active_animation = 0;
-        } else {
-            has_active_animation = state->proc != 0;
-        }
-        if (has_active_animation != 0 && state->object->bone_count != 0) {
-            AnimState* animation = (AnimState*)pdata_of_proc(state->proc);
-
-            advance_anim(animation);
-            pose_anim(animation, 1);
-        }
-    }
-}
-
-static inline void npc_suspend_animation_wait(void) {
-    KonquestCmdScriptView* script;
-    CmdScript* saved_script;
-    KonquestNpc* npc = g_active_npc;
-
-    if (npc == 0) {
-        return;
-    }
-    npc->wait_ticks -= 1.0f;
-    if (npc->wait_ticks <= 0.0f) {
-        npc->wait_ticks = 0.0f;
-        return;
-    }
-    script = (KonquestCmdScriptView*)active_cmdscript;
-    script->state = 2;
-    saved_script = active_cmdscript;
-    npc = g_active_npc;
-    cmdscript_step_backward();
-    memcpy(
-        npc->saved_script_state,
-        ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
-        sizeof(npc->saved_script_state));
-    npc->saved_script_position =
-        ((KonquestCmdScriptView*)active_cmdscript)->position;
-    npc->saved_script_stack_depth = get_script_stack_depth();
-    active_cmdscript = saved_script;
 }
 
 /*
@@ -3904,6 +4035,60 @@ void npc_ani_to_end(void) {
 }
 
 /*
+ * Soft ceiling: 89.74026% - command-script suspension and direct animation
+ * advance/pose paths are exact; predicate lowering, copy scheduling, save form,
+ * and float relocations remain.
+ */
+void npc_ani_1_frame(void) {
+    if (aproc->pid == 0xA014) {
+        KonquestCmdScriptView* script;
+        CmdScript* saved_script;
+        KonquestNpc* npc;
+
+        g_active_npc->wait_ticks = 2.0f;
+        npc = g_active_npc;
+        if (npc == 0) {
+            return;
+        }
+        npc->wait_ticks -= 1.0f;
+        if (npc->wait_ticks <= 0.0f) {
+            npc->wait_ticks = 0.0f;
+            return;
+        }
+        script = (KonquestCmdScriptView*)active_cmdscript;
+        script->state = 2;
+        saved_script = active_cmdscript;
+        npc = g_active_npc;
+        cmdscript_step_backward();
+        memcpy(
+            npc->saved_script_state,
+            ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
+            sizeof(npc->saved_script_state));
+        npc->saved_script_position =
+            ((KonquestCmdScriptView*)active_cmdscript)->position;
+        npc->saved_script_stack_depth = get_script_stack_depth();
+        active_cmdscript = saved_script;
+    } else {
+        KonquestNpcAnimState* state = g_active_npc->animation;
+        int has_active_animation;
+
+        if (state == 0) {
+            has_active_animation = 0;
+        } else if (state->object == 0) {
+            has_active_animation = 0;
+        } else {
+            has_active_animation = state->proc != 0;
+        }
+        if (has_active_animation != 0 && state->object->bone_count != 0) {
+            AnimState* animation = (AnimState*)pdata_of_proc(state->proc);
+
+            advance_anim(animation);
+            pose_anim(animation, 1);
+        }
+    }
+}
+
+/*
  * Soft ceiling: 86.638885% - queued blend-duration math, shared suspension,
  * and live high-frame delegation match at retail size. Remaining differences
  * are inline scheduling, save form, registers, and float relocations.
@@ -3927,6 +4112,44 @@ void npc_ani_to_blend_frame(float blend_frames) {
 
         npc_ani_to_frame_x(animation->high_frame - blend_frames);
     }
+}
+
+/* Matching: 99.0% - code is exact; only the TU-local float relocation differs. */
+void npc_set_wait_ticks(float ticks) {
+    g_active_npc->wait_ticks = ticks + 1.0f;
+}
+
+/*
+ * Soft ceiling: 88.78049% - the body is exact; MWCC splits retail's r30-r31
+ * stmw/lmw save and restore sequences.
+ */
+void npc_suspend_cmdscript(void) {
+    KonquestCmdScriptView* script;
+    KonquestNpc* npc;
+    CmdScript* saved_script;
+
+    if (g_active_npc == 0) {
+        return;
+    }
+    g_active_npc->wait_ticks -= 1.0f;
+    if (g_active_npc->wait_ticks <= 0.0f) {
+        g_active_npc->wait_ticks = 0.0f;
+        return;
+    }
+
+    script = (KonquestCmdScriptView*)active_cmdscript;
+    script->state = 2;
+    saved_script = active_cmdscript;
+    npc = g_active_npc;
+    cmdscript_step_backward();
+    memcpy(
+        npc->saved_script_state,
+        ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
+        sizeof(npc->saved_script_state));
+    npc->saved_script_position =
+        ((KonquestCmdScriptView*)active_cmdscript)->position;
+    npc->saved_script_stack_depth = get_script_stack_depth();
+    active_cmdscript = saved_script;
 }
 
 /*
@@ -3982,61 +4205,6 @@ void npc_ani_for_x_ticks(int ticks) {
             _mkproc_sleep_ticks = 1.0f;
             remaining -= game_speed;
             ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-        }
-    }
-}
-
-/*
- * Soft ceiling: 90.46032% - queued long-wait suspension and the live infinite
- * sleep/advance loop match at retail size. Residue is inline scheduling, save
- * form, and float relocation labeling.
- */
-void npc_wait_for_state_change(void) {
-    if (aproc->pid == 0xA014) {
-        g_active_npc->wait_ticks = 1001.0f;
-        npc_suspend_animation_wait();
-        return;
-    }
-    for (;;) {
-        _mkproc_sleep_ticks = 1.0f;
-        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-        npc_ani_1_frame();
-    }
-}
-
-/*
- * Soft ceiling: 82.57746% - queued state, live-animation predicate, target
- * lookup, speed update, change detection, and transition call match at retail
- * size. Residue is predicate lowering, FPR/GPR allocation, and save form.
- */
-void npc_blend_to_ani(
-    int animation_id, unsigned int flags, float blend, float speed) {
-    g_active_npc->queued_animation = get_animation(animation_id);
-    g_active_npc->animation_flags = flags;
-    g_active_npc->queued_animation_frame = 0.0f;
-
-    if (aproc->pid != 0xA014) {
-        KonquestNpcAnimState* state = g_active_npc->animation;
-        int has_active_animation;
-
-        if (state == 0) {
-            has_active_animation = 0;
-        } else if (state->object == 0) {
-            has_active_animation = 0;
-        } else {
-            has_active_animation = state->proc != 0;
-        }
-        if (has_active_animation != 0) {
-            AniData* target = get_animation(animation_id);
-            KonquestAnimPdata* animation =
-                (KonquestAnimPdata*)pdata_of_proc(state->proc);
-
-            animation->step = speed;
-            if (animation->animation != target ||
-                animation->flags != flags || animation->step != speed) {
-                transition_to_anim_script(
-                    animation, target, flags, blend);
-            }
         }
     }
 }
@@ -4108,78 +4276,6 @@ void npc_blend_to_ani_string(int* animation_ids) {
             }
         }
     }
-}
-
-/*
- * Soft ceiling: 88.24272% - queued idle setup, long suspension, live script
- * transition, step reset, and perpetual advance/sleep loop match at retail
- * size. Residue is inline scheduling, save form, registers, and relocations.
- */
-void npc_stand_still(void) {
-    if (aproc->pid == 0xA014) {
-        g_active_npc->queued_animation =
-            get_animation(g_active_npc->data->idle_animation);
-        g_active_npc->animation_flags = 0;
-        g_active_npc->queued_animation_frame = 0.0f;
-        g_active_npc->wait_ticks = 1001.0f;
-        npc_suspend_animation_wait();
-        return;
-    } else {
-        KonquestAnimPdata* animation =
-            (KonquestAnimPdata*)pdata_of_proc(
-                g_active_npc->animation->proc);
-        AniData* idle = get_animation(g_active_npc->data->idle_animation);
-
-        if (animation->animation != idle) {
-            transition_to_anim_script(animation, idle, 0, 0.05f);
-            animation->step = 1.0f;
-            _mkproc_sleep_ticks = 1.0f;
-            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-        }
-    }
-    for (;;) {
-        npc_ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-    }
-}
-
-/* Matching: 99.0% - code is exact; only the TU-local float relocation differs. */
-void npc_set_wait_ticks(float ticks) {
-    g_active_npc->wait_ticks = ticks + 1.0f;
-}
-
-/*
- * Soft ceiling: 88.78049% - the body is exact; MWCC splits retail's r30-r31
- * stmw/lmw save and restore sequences.
- */
-void npc_suspend_cmdscript(void) {
-    KonquestCmdScriptView* script;
-    KonquestNpc* npc;
-    CmdScript* saved_script;
-
-    if (g_active_npc == 0) {
-        return;
-    }
-    g_active_npc->wait_ticks -= 1.0f;
-    if (g_active_npc->wait_ticks <= 0.0f) {
-        g_active_npc->wait_ticks = 0.0f;
-        return;
-    }
-
-    script = (KonquestCmdScriptView*)active_cmdscript;
-    script->state = 2;
-    saved_script = active_cmdscript;
-    npc = g_active_npc;
-    cmdscript_step_backward();
-    memcpy(
-        npc->saved_script_state,
-        ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
-        sizeof(npc->saved_script_state));
-    npc->saved_script_position =
-        ((KonquestCmdScriptView*)active_cmdscript)->position;
-    npc->saved_script_stack_depth = get_script_stack_depth();
-    active_cmdscript = saved_script;
 }
 
 /* Soft ceiling: 92.97298% - typed validity lowering and GPR coloring differ. */
@@ -4279,6 +4375,61 @@ void npc_blend_to_ani_with_offset(
 }
 
 /*
+ * Soft ceiling: 82.57746% - queued state, live-animation predicate, target
+ * lookup, speed update, change detection, and transition call match at retail
+ * size. Residue is predicate lowering, FPR/GPR allocation, and save form.
+ */
+void npc_blend_to_ani(
+    int animation_id, unsigned int flags, float blend, float speed) {
+    g_active_npc->queued_animation = get_animation(animation_id);
+    g_active_npc->animation_flags = flags;
+    g_active_npc->queued_animation_frame = 0.0f;
+
+    if (aproc->pid != 0xA014) {
+        KonquestNpcAnimState* state = g_active_npc->animation;
+        int has_active_animation;
+
+        if (state == 0) {
+            has_active_animation = 0;
+        } else if (state->object == 0) {
+            has_active_animation = 0;
+        } else {
+            has_active_animation = state->proc != 0;
+        }
+        if (has_active_animation != 0) {
+            AniData* target = get_animation(animation_id);
+            KonquestAnimPdata* animation =
+                (KonquestAnimPdata*)pdata_of_proc(state->proc);
+
+            animation->step = speed;
+            if (animation->animation != target ||
+                animation->flags != flags || animation->step != speed) {
+                transition_to_anim_script(
+                    animation, target, flags, blend);
+            }
+        }
+    }
+}
+
+/*
+ * Soft ceiling: 90.46032% - queued long-wait suspension and the live infinite
+ * sleep/advance loop match at retail size. Residue is inline scheduling, save
+ * form, and float relocation labeling.
+ */
+void npc_wait_for_state_change(void) {
+    if (aproc->pid == 0xA014) {
+        g_active_npc->wait_ticks = 1001.0f;
+        npc_suspend_animation_wait();
+        return;
+    }
+    for (;;) {
+        _mkproc_sleep_ticks = 1.0f;
+        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+        npc_ani_1_frame();
+    }
+}
+
+/*
  * Soft ceiling: 88.5812% - nonvolatile GPR coloring/save form, typed
  * active-animation boolean lowering, and float relocations differ.
  */
@@ -4369,6 +4520,10 @@ static float p_turn_and_face(void) {
     return -1.0f;
 }
 
+/* Near match: 71.927925%, 16 bytes short of retail. Path/turn-process latches,
+ * active-animation gate, duplicated next-waypoint selection, angle calculation,
+ * process pdata initialization, and wait loop match. Residue is inlined-helper
+ * register allocation, pointer truth lowering, and save scheduling. */
 void npc_turn_and_face_next_waypoint(void) {
     KonquestPathData* path = g_active_npc->path;
     MkProc* turn_proc = g_active_npc->turn_proc;
@@ -4512,48 +4667,7 @@ void hero_turn_to_face_position(const Vec* position) {
 }
 
 /*
- * Soft ceiling: 89.70886% - process object, hero latch, world delta, angle
- * conversion, normalized quadrant math, signed conversion, and return match at
- * retail size. Residue is latch branches, zero-vector relocations, and GPRs.
- */
-int npc_get_collision_direction_in_script(void) {
-    KonquestObjectScriptPdata* pdata =
-        (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
-    MkObj* hero = konquest_pdata->monk;
-    int direction = 0;
-
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->monk_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
-    if (hero != 0 && pdata != 0) {
-        MkObj* object = pdata->object;
-
-        if (object != 0) {
-            Vec delta = {0.0f, 0.0f, 0.0f};
-            Vec angles = {0.0f, 0.0f, 0.0f};
-
-            if (hero != 0 && object != 0) {
-                delta.x = hero->pos.x - object->pos.x;
-                delta.y = hero->pos.y - object->pos.y;
-                delta.z = hero->pos.z - object->pos.z;
-                v3_to_xy_ang(&angles, &delta);
-                direction = (int)(norm_angle(
-                    0.7853982f +
-                    ang_sub_ang(angles.y, object->ang.y)) /
-                    1.5707964f);
-            }
-        }
-    }
-    return direction;
-}
-
-/*
- * Matching: 99.479164% - instructions are exact; only TU-local float
- * relocations differ.
+ * Matching: retail order resolves the final TU-local float relocation.
  */
 static float p_hero_turn_and_face(void) {
     TurnAndFacePdata* pdata = (TurnAndFacePdata*)pdata_of_proc(aproc);
@@ -4648,8 +4762,9 @@ void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
 }
 
 /*
- * Soft ceiling: 83.08187% - typed latch joins/reloads, active-animation
- * boolean lowering, nonvolatile save form, and the 1.0f relocation differ.
+ * Near match: 91.01755%, 20 bytes short of retail. Monk/process latches,
+ * ownership-sensitive animation reloads, both turn-process setups, and the
+ * wait loop match. Pointer truth lowering and nonvolatile allocation remain.
  */
 void npc_turn_and_face_player(int turn_player) {
     MkObj* monk = konquest_pdata->monk;
@@ -4697,8 +4812,10 @@ void npc_turn_and_face_player(int turn_player) {
                 pdata->target_kind = 0xA002;
                 pdata->target.npc = g_active_npc;
                 pdata->saved_pin_animation =
-                    state->object->hide_flag_bits.pin_animation;
-                state->object->hide_flag_bits.pin_animation = 0;
+                    g_active_npc->animation->object->hide_flag_bits
+                        .pin_animation;
+                g_active_npc->animation->object->hide_flag_bits
+                    .pin_animation = 0;
                 pdata->use_angle = 0;
                 pdata->position.x = monk->pos.x;
                 pdata->position.y = monk->pos.y;
@@ -4719,9 +4836,12 @@ void npc_turn_and_face_player(int turn_player) {
                 monk->hide_flag_bits.pin_animation = 0;
                 pdata->target_kind = 0x9003;
                 pdata->use_angle = 0;
-                pdata->position.x = state->object->pos.x;
-                pdata->position.y = state->object->pos.y;
-                pdata->position.z = state->object->pos.z;
+                pdata->position.x =
+                    g_active_npc->animation->object->pos.x;
+                pdata->position.y =
+                    g_active_npc->animation->object->pos.y;
+                pdata->position.z =
+                    g_active_npc->animation->object->pos.z;
             }
         }
 
@@ -4733,6 +4853,46 @@ void npc_turn_and_face_player(int turn_player) {
             ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
         }
     }
+}
+
+/*
+ * Soft ceiling: 89.70886% - process object, hero latch, world delta, angle
+ * conversion, normalized quadrant math, signed conversion, and return match at
+ * retail size. Residue is latch branches, zero-vector relocations, and GPRs.
+ */
+int npc_get_collision_direction_in_script(void) {
+    KonquestObjectScriptPdata* pdata =
+        (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
+    MkObj* hero = konquest_pdata->monk;
+    int direction = 0;
+
+    if (hero != 0) {
+        if (hero->hdr.instance != konquest_pdata->monk_instance) {
+            hero = 0;
+        }
+    } else {
+        hero = 0;
+    }
+    if (hero != 0 && pdata != 0) {
+        MkObj* object = pdata->object;
+
+        if (object != 0) {
+            Vec delta = {0.0f, 0.0f, 0.0f};
+            Vec angles = {0.0f, 0.0f, 0.0f};
+
+            if (hero != 0 && object != 0) {
+                delta.x = hero->pos.x - object->pos.x;
+                delta.y = hero->pos.y - object->pos.y;
+                delta.z = hero->pos.z - object->pos.z;
+                v3_to_xy_ang(&angles, &delta);
+                direction = (int)(norm_angle(
+                    0.7853982f +
+                    ang_sub_ang(angles.y, object->ang.y)) /
+                    1.5707964f);
+            }
+        }
+    }
+    return direction;
 }
 
 void npc_shove_reaction_standard_shutdown(void) {
@@ -4783,60 +4943,6 @@ void npc_shove_reaction_standard_setup(void) {
         g_active_npc->animation->object->ang_vel.y = 0.0f;
         g_active_npc->animation->object->ang_vel.x = 0.0f;
     }
-}
-
-int npc_hit_by_punch(
-    KonquestNpc* npc, float maximum_distance, float maximum_angle) {
-    MkObj* monk = konquest_pdata->monk;
-    KonquestNpcAnimState* state;
-    MkObj* object;
-    int active;
-    Vec delta = {0.0f, 0.0f, 0.0f};
-    Vec angles = {0.0f, 0.0f, 0.0f};
-    float difference;
-
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
-    if (monk == 0) {
-        return 0;
-    }
-    state = npc->animation;
-    if (state == 0) {
-        active = 0;
-    } else if (state->object == 0) {
-        active = 0;
-    } else {
-        active = state->proc != 0;
-    }
-    if (active == 0) {
-        return 0;
-    }
-    if (konquest_pdata->collision_mode != 3) {
-        return 0;
-    }
-    object = state->object;
-    if (dist_xz_to_xz(&object->pos, &monk->pos) >
-        maximum_distance) {
-        return 0;
-    }
-    delta.x = object->pos.x - monk->pos.x;
-    delta.y = object->pos.y - monk->pos.y;
-    delta.z = object->pos.z - monk->pos.z;
-    v3_to_xy_ang(&angles, &delta);
-    difference = ang_sub_ang(
-        norm_angle(monk->ang.y), norm_angle(angles.y));
-    if (difference < 0.0f) {
-        difference = -difference;
-    }
-    if (difference <= maximum_angle) {
-        return 1;
-    }
-    return 0;
 }
 
 /*
@@ -4990,9 +5096,10 @@ void npc_punch_reaction_standard_setup(void) {
     npc_notify_nearby_npcs_that_player_hit_someone(g_active_npc);
 }
 
-/* Recovered algorithm: visible-list cleanup, loaded-tile gate, squared XZ
- * radius, and violent-event dispatch are exact. The remaining 16-byte size
- * delta is save/bit-test and register emission, pending final soft ceiling. */
+/* Near match: 88.63492% at exact retail size. Visible-list cleanup,
+ * loaded-tile gate, squared XZ radius, and violent-event dispatch match;
+ * residue is branch scheduling and register allocation. */
+#pragma optimize_for_size on
 static void npc_notify_nearby_npcs_that_player_hit_someone(
     KonquestNpc* source) {
     MkPtr* link = konquest_pdata->visible_npc_list;
@@ -5027,8 +5134,43 @@ static void npc_notify_nearby_npcs_that_player_hit_someone(
         }
     }
 }
+#pragma optimize_for_size reset
 
-void npc_set_ani_speed(float speed) {
+
+
+/*
+ * Soft ceiling: 88.24272% - queued idle setup, long suspension, live script
+ * transition, step reset, and perpetual advance/sleep loop match at retail
+ * size. Residue is inline scheduling, save form, registers, and relocations.
+ */
+void npc_stand_still(void) {
+    if (aproc->pid == 0xA014) {
+        g_active_npc->queued_animation =
+            get_animation(g_active_npc->data->idle_animation);
+        g_active_npc->animation_flags = 0;
+        g_active_npc->queued_animation_frame = 0.0f;
+        g_active_npc->wait_ticks = 1001.0f;
+        npc_suspend_animation_wait();
+        return;
+    } else {
+        KonquestAnimPdata* animation =
+            (KonquestAnimPdata*)pdata_of_proc(
+                g_active_npc->animation->proc);
+        AniData* idle = get_animation(g_active_npc->data->idle_animation);
+
+        if (animation->animation != idle) {
+            transition_to_anim_script(animation, idle, 0, 0.05f);
+            animation->step = 1.0f;
+            _mkproc_sleep_ticks = 1.0f;
+            ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+        }
+    }
+    for (;;) {
+        npc_ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
+    }
+}void npc_set_ani_speed(float speed) {
     g_active_npc->animation_speed = speed;
     if (g_active_npc->animation != 0) {
         AnimPdata* animation =
@@ -5039,8 +5181,7 @@ void npc_set_ani_speed(float speed) {
 }
 
 /*
- * Matching: 99.72222% - code is exact; only the integer-conversion constant
- * relocation differs in this partial TU.
+ * Matching: retail order resolves the integer-conversion constant relocation.
  */
 void npc_change_path_speed(float speed) {
     if (g_active_npc->path != 0) {
@@ -5056,22 +5197,116 @@ KonquestNpc* find_npc_by_data(KonquestNpcData* data) {
     return npc_find_by_data_inline(data);
 }
 
-/* Matching: 97.5% - code is exact; only the return float relocation differs. */
-float p_npc_idle(void) {
-    return 1.0f;
+/* Near match: 95.80357% at exact retail size. Monk/game-mode gating, active
+ * animation validation, distance fade, priority, alpha, and event dispatch
+ * match; only latch branches and register scheduling remain. */
+/* Near match: 92.6134% at exact retail size. Animation snapshot, repeated
+ * object ownership loads, editor collision update, repulsion, monk gating,
+ * ground trace, typed render flags, and position handoff match. Residue is
+ * register allocation, scheduling, and one equivalent branch polarity. */
+static void npc_post_sleep(void) {
+    KonquestNpcAnimState* animation = g_active_npc->animation;
+    KonquestNpcData* data = g_active_npc->data;
+
+    if (animation->proc != 0) {
+        KonquestAnimPdata* animation_pdata =
+            (KonquestAnimPdata*)pdata_of_proc(animation->proc);
+
+        if (animation_pdata != 0) {
+            g_active_npc->queued_animation = animation_pdata->animation;
+            g_active_npc->animation_flags = animation_pdata->flags;
+            g_active_npc->queued_animation_frame = animation_pdata->frame;
+        }
+    }
+
+    if (animation->object != 0) {
+        if (konquest_editor_mode_on == 0) {
+            Vec collision_position;
+
+            collision_position.x = data->position.x;
+            collision_position.y = data->position.y;
+            collision_position.z = data->position.z;
+            collision_position.y += -1.0f;
+            if (animation->editor_object != 0) {
+                update_collision_obj_pos(
+                    animation->editor_object, &collision_position);
+            }
+            if ((g_active_npc->flags_1C & 0x80) != 0) {
+                animation->object->hide_flag_bits.pin_animation = 0;
+            }
+            if ((g_active_npc->flags_1D & 4) != 0) {
+                Vec movement;
+
+                movement.x = animation->object->pos.x - data->position.x;
+                movement.y = animation->object->pos.y - data->position.y;
+                movement.z = animation->object->pos.z - data->position.z;
+                if (npc_repel_against_global_collision_list(
+                        &data->position, &movement, &collision_position,
+                        0x10000) != 0) {
+                    animation->object->pos.x = collision_position.x;
+                    animation->object->pos.z = collision_position.z;
+                    animation->object->hide_flag_bits.pin_animation = 0;
+                }
+            }
+
+            {
+                Vec segment_start;
+                Vec segment_end;
+                Vec hit_point;
+                KonquestNpc* monk;
+
+                segment_end.x = animation->object->pos.x;
+                segment_end.y = animation->object->pos.y;
+                segment_end.z = animation->object->pos.z;
+                segment_start.x = animation->object->pos.x;
+                segment_start.y = animation->object->pos.y;
+                segment_start.z = animation->object->pos.z;
+                segment_end.y = -50.0f;
+                segment_start.y = 50.0f;
+                if (animation->object->oid != 0xFFFF9010) {
+                    monk = konquest_pdata->monk_npc;
+                    if (monk != 0) {
+                        if (monk->hdr.instance !=
+                            konquest_pdata->monk_npc_instance) {
+                            monk = 0;
+                        }
+                    } else {
+                        monk = 0;
+                    }
+                    if (monk != g_active_npc ||
+                        get_konquest_game_mode() != 8) {
+                        if (collide_segment_against_global_collision_list_quads(
+                                &segment_start, &segment_end,
+                                &hit_point) != 0) {
+                            animation->object->flags_08_bits.moving = 1;
+                            animation->object->gravity = -0.00325f;
+                            animation->object->hide_flag_bits.pin_animation = 0;
+                            animation->object->ground_colls_y = hit_point.y;
+                        } else {
+                            if (animation->object->ground_colls_y != 0.0f) {
+                                animation->object->pos.y = 0.0f;
+                            }
+                            animation->object->flags_08_bits.moving = 0;
+                            animation->object->ground_colls_y = 0.0f;
+                        }
+                    }
+                }
+            }
+        }
+        if ((animation->owner_npc->flags_1D & 2) != 0) {
+            animation->object->flags_09_bits.launched = 0;
+        } else {
+            animation->object->flags_09_bits.launched = 1;
+        }
+        data->position.x = animation->object->pos.x;
+        data->position.y = animation->object->pos.y;
+        data->position.z = animation->object->pos.z;
+        data->angle_y = animation->object->ang.y;
+    }
+    g_active_npc = 0;
 }
 
-/*
- * Matching: 99.545456% - code is exact; only the -1.0f relocation differs.
- */
-static float p_npc_load_model(void) {
-    KonquestModelLoadPdata* pdata = (KonquestModelLoadPdata*)apdata;
-
-    load_model_for_npc(pdata->npc);
-    return -1.0f;
-}
-
-/* Near match: 76.67841%, eight bytes short of retail. Special asynchronous
+/* Near match: 78.44934%, eight bytes short of retail. Special asynchronous
  * model loading, pdata ownership, animation/runtime snapshots, event setup,
  * saved script restoration/execution, and state reset are complete; residue
  * is pointer-truth lowering, GPR allocation, and save scheduling. */
@@ -5162,157 +5397,9 @@ float p_npc_proc(void) {
     return 1.0f;
 }
 
-/* Near match: 89.20513% - exact mode gates, transition latch, event scan, and
- * typed callback dispatch; pointer-latch branches and GPR coloring remain. */
-static void npc_resolve_events(KonquestNpc* npc) {
-    KonquestNpc* monk;
-    int mode;
-    int event_index;
-    int found;
-
-    found = 0;
-    mode = get_konquest_game_mode();
-    monk = konquest_pdata->monk_npc;
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_npc_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
-    if (mode != 4) {
-        if (mode == 3) {
-            return;
-        }
-        if ((monk == 0 || monk->state_58 != 7) &&
-            (npc->flags_1C & 8) == 0 &&
-            (npc->flags_1D & 0x10) == 0) {
-            if (npc->state_change_pending != 0) {
-                npc->state_change_pending = 0;
-                return;
-            }
-            event_index = 0;
-            while (event_index < 8) {
-                KonquestNpcEvent* event = &npc->events[event_index];
-
-                if (event->enabled != 0 && npc->state_58 != event_index &&
-                    g_event_tbl[event_index].check != 0 &&
-                    g_event_tbl[event_index].check(event->distance) != 0) {
-                    found = 1;
-                    break;
-                }
-                event_index++;
-            }
-            if (found != 0) {
-                npc_set_state_for_npc(npc, event_index);
-            }
-        }
-    }
-}
-
-/* Near match: 95.80357% at exact retail size. Monk/game-mode gating, active
- * animation validation, distance fade, priority, alpha, and event dispatch
- * match; only latch branches and register scheduling remain. */
-/* Breakthrough: 63.118557%. Animation snapshot, editor collision update,
- * repulsion, ground trace, render flags, and data-position handoff are
- * recovered, but the current body is 104 bytes short and is not yet eligible
- * for a compiler-emission-only near-miss classification. */
-static void npc_post_sleep(void) {
-    KonquestNpcAnimState* animation = g_active_npc->animation;
-    KonquestNpcData* data = g_active_npc->data;
-    MkObj* object;
-
-    if (animation->proc != 0) {
-        KonquestAnimPdata* animation_pdata =
-            (KonquestAnimPdata*)pdata_of_proc(animation->proc);
-
-        if (animation_pdata != 0) {
-            g_active_npc->queued_animation = animation_pdata->animation;
-            g_active_npc->animation_flags = animation_pdata->flags;
-            g_active_npc->queued_animation_frame = animation_pdata->frame;
-        }
-    }
-
-    object = animation->object;
-    if (object != 0) {
-        if (konquest_editor_mode_on == 0) {
-            Vec collision_position = data->position;
-
-            collision_position.y -= 1.0f;
-            if (animation->editor_object != 0) {
-                update_collision_obj_pos(
-                    animation->editor_object, &collision_position);
-            }
-            if ((g_active_npc->flags_1C & 1) != 0) {
-                object->hide_flags &= (unsigned char)~2;
-            }
-            if ((g_active_npc->flags_1D & 4) != 0) {
-                Vec movement;
-
-                movement.x = object->pos.x - data->position.x;
-                movement.y = object->pos.y - data->position.y;
-                movement.z = object->pos.z - data->position.z;
-                if (npc_repel_against_global_collision_list(
-                        &data->position, &movement, &collision_position,
-                        0x10000) != 0) {
-                    object->pos.x = collision_position.x;
-                    object->pos.z = collision_position.z;
-                    object->hide_flags &= (unsigned char)~2;
-                }
-            }
-
-            {
-                Vec segment_start;
-                Vec segment_end;
-                Vec hit_point;
-                KonquestNpc* monk;
-
-                segment_start.x = object->pos.x;
-                segment_start.y = 50.0f;
-                segment_start.z = object->pos.z;
-                segment_end.x = object->pos.x;
-                segment_end.y = -50.0f;
-                segment_end.z = object->pos.z;
-                monk = konquest_pdata->monk_npc;
-                if (monk != 0) {
-                    if (monk->hdr.instance !=
-                        konquest_pdata->monk_npc_instance) {
-                        monk = 0;
-                    }
-                } else {
-                    monk = 0;
-                }
-                if (object->oid != 0xFFFF9010 &&
-                    (monk != g_active_npc ||
-                     get_konquest_game_mode() != 8)) {
-                    if (collide_segment_against_global_collision_list_quads(
-                            &segment_start, &segment_end,
-                            &hit_point) != 0) {
-                        object->flags_08 |= 1;
-                        object->gravity = -0.00325f;
-                        object->hide_flags &= (unsigned char)~2;
-                        object->ground_colls_y = hit_point.y;
-                    } else {
-                        if (object->ground_colls_y != 0.0f) {
-                            object->pos.y = 0.0f;
-                        }
-                        object->flags_08 &= (unsigned char)~1;
-                        object->ground_colls_y = 0.0f;
-                    }
-                }
-            }
-        }
-        if ((animation->owner_npc->flags_1D & 2) != 0) {
-            object->flags_09 &= (unsigned char)~0x80;
-        } else {
-            object->flags_09 |= 0x80;
-        }
-        data->position.x = object->pos.x;
-        data->position.y = object->pos.y;
-        data->position.z = object->pos.z;
-        data->angle_y = object->ang.y;
-    }
-    g_active_npc = 0;
+/* Matching: 97.5% - code is exact; only the return float relocation differs. */
+float p_npc_idle(void) {
+    return 1.0f;
 }
 
 static void npc_pre_wake(void) {
@@ -5377,6 +5464,563 @@ static void npc_pre_wake(void) {
         }
     }
     npc_resolve_events(g_active_npc);
+}
+
+/*
+ * Matching: 99.545456% - code is exact; only the -1.0f relocation differs.
+ */
+static float p_npc_load_model(void) {
+    KonquestModelLoadPdata* pdata = (KonquestModelLoadPdata*)apdata;
+
+    load_model_for_npc(pdata->npc);
+    return -1.0f;
+}
+
+/* Near match: 89.20513% - exact mode gates, transition latch, event scan, and
+ * typed callback dispatch; pointer-latch branches and GPR coloring remain. */
+static void npc_resolve_events(KonquestNpc* npc) {
+    KonquestNpc* monk;
+    int mode;
+    int event_index;
+    int found;
+
+    found = 0;
+    mode = get_konquest_game_mode();
+    monk = konquest_pdata->monk_npc;
+    if (monk != 0) {
+        if (monk->hdr.instance != konquest_pdata->monk_npc_instance) {
+            monk = 0;
+        }
+    } else {
+        monk = 0;
+    }
+    if (mode != 4) {
+        if (mode == 3) {
+            return;
+        }
+        if ((monk == 0 || monk->state_58 != 7) &&
+            (npc->flags_1C & 8) == 0 &&
+            (npc->flags_1D & 0x10) == 0) {
+            if (npc->state_change_pending != 0) {
+                npc->state_change_pending = 0;
+                return;
+            }
+            event_index = 0;
+            while (event_index < 8) {
+                KonquestNpcEvent* event = &npc->events[event_index];
+
+                if (event->enabled != 0 && npc->state_58 != event_index &&
+                    g_event_tbl[event_index].check != 0 &&
+                    g_event_tbl[event_index].check(event->distance) != 0) {
+                    found = 1;
+                    break;
+                }
+                event_index++;
+            }
+            if (found != 0) {
+                npc_set_state_for_npc(npc, event_index);
+            }
+        }
+    }
+}
+
+static void npc_set_state_for_npc(KonquestNpc* npc, int event_index) {
+    if (npc->events[event_index].enabled != 0) {
+        npc_force_state_for_npc(npc, event_index);
+    }
+}
+
+/*
+ * Soft ceiling: 88.65169% - shared lookup, visibility teardown, list removal,
+ * and nonnegative count clamp are exact; latch branches and GPRs remain.
+ */
+void remove_npc(KonquestNpcData* data) {
+    KonquestNpc* npc = npc_find_by_data_inline(data);
+
+    if (konquest_editor_mode_on == 0 && npc != 0) {
+        npc_make_invisible(npc);
+        konquest_pdata->npc_count--;
+        mk_pull_destroy(&npc->hdr, &konquest_pdata->npc_list);
+        if (konquest_pdata->npc_count < 0) {
+            konquest_pdata->npc_count = 0;
+        }
+    }
+}
+
+/*
+ * Soft ceiling: 88.96342% - allocation, initialization, ownership, table
+ * metadata, position, event copies, art lookup, and list insertion are exact.
+ * The typed event-pointer loop uses different induction registers/scheduling,
+ * and MWCC splits retail's nonvolatile save/restore sequence.
+ */
+void add_npc(KonquestNpcData* data) {
+    KonquestNpc* npc = (KonquestNpc*)get_mkhdr(
+        &vtbl_konquest_npc_struct, sizeof(*npc));
+
+    if (npc != 0) {
+        zero_pdata_payload(sizeof(*npc), &npc->hdr);
+        npc->state_268 = -3;
+        npc->state_264 = -3;
+        npc->state_26C = -3;
+        npc->distance_270 = __float_max[0];
+        npc->value_274 = 0.0f;
+        npc->distance_278 = __float_max[0];
+    }
+
+    npc->data = 0;
+    npc->path = 0;
+    npc->animation = 0;
+    npc->flags = 0;
+    npc->state_58 = 0;
+    npc->queued_animation = 0;
+    npc->queued_animation_frame = 0.0f;
+    npc->animation_flags = 0;
+    npc->camera_distance_squared = 0.0f;
+    npc->conversation_count = 0;
+    npc->punch_count = 0;
+    npc->saved_script_stack_depth = 0;
+    npc->wait_ticks = 0.0f;
+    npc->animation_speed = 1.0f;
+    npc->turn_proc = 0;
+    npc->turn_proc_instance = 0;
+    npc->flags = 0;
+    memset(npc->runtime_state, 0, sizeof(npc->runtime_state));
+    npc->saved_animation_step = 1.0f;
+    npc->data = data;
+
+    if (npc->path == 0) {
+        KonquestPathData* path = (KonquestPathData*)get_mkhdr(
+            &vtbl_path_data_struct, sizeof(*path));
+
+        if (path != 0) {
+            zero_pdata_payload(sizeof(*path), &path->hdr);
+            path->travel_mode = 0;
+            path->speed = 1.0f;
+            path->table_index = -2;
+        }
+        npc->path = path;
+    }
+    if (data->timed_events == 0) {
+        npc->path->table_index = 0;
+    }
+
+    npc->data_table_index = get_table_index_by_pointer(
+        konquest_pdata->waypoint_script, data);
+    npc->name = get_name_of_table_by_pointer(
+        konquest_pdata->waypoint_script, data);
+    npc->initial_position.x = data->position.x;
+    npc->initial_position.y = data->position.y;
+    npc->initial_position.z = data->position.z;
+    npc->current_waypoint_angle = data->angle_y;
+
+    if ((unsigned int)npc->data_table_index >= 0x10000) {
+        if (npc->hdr.instance != 0) {
+            npc->hdr.typed_vtbl->destroy(&npc->hdr);
+        }
+        return;
+    }
+
+    npc->tile_index = get_tile_from_position(&npc->data->position);
+    {
+        KonquestNpcEvent* event = npc->events;
+        KonquestNpcEventDefinition* definition = data->events;
+        int count = 8;
+
+        do {
+            event->script_function = definition->script_function;
+            event->distance = definition->distance;
+            if (definition->script_function != 0) {
+                event->enabled = 1;
+            } else {
+                event->enabled = 0;
+            }
+            event++;
+            definition++;
+            count--;
+        } while (count != 0);
+    }
+    if (strcmp(data->name, "damashi_npc") != 0) {
+        unsigned int art_id = get_artid_of_named_item_in_slot(
+            0x6002B, data->name, 1);
+
+        if (art_id != 0) {
+            npc->art_id = art_id;
+        } else {
+            npc->art_id = -1;
+        }
+    }
+    konquest_pdata->npc_count++;
+    mk_append(&npc->hdr, &konquest_pdata->npc_list);
+}
+
+/* Near match: 93.1341%, 12 bytes short of retail. The three guarded list
+ * traversals, saved command-script restoration, and distinct visible-list
+ * insertion branches are exact; residue is string relocation, boolean
+ * normalization, and register scheduling. */
+void start_running_npcs(void) {
+    NpcManagerPdata* manager;
+    MkProc* manager_proc;
+    MkPtr* link;
+    int index;
+
+    _create_mkproc_generic_nostack(0xA01C, 0x1F, p_update_npc_shadows, 0, 0);
+    manager_proc = find_mkproc_pid(0xA014);
+    if (manager_proc == 0) {
+        manager_proc = _create_mkproc_generic_nostack(
+            0xA014, 0x1F, p_npc_manager, sizeof(*manager), (MkHdr**)&manager);
+        if (manager_proc != 0) {
+            zero_pdata_payload(sizeof(*manager), (MkHdr*)manager);
+            manager->visible_tile_set = konquest_pdata->visible_tile_set;
+            manager->nearest_npc_distance = -1.0f;
+            for (index = 0; index < 22; index++) {
+                NpcManagerModelSlot* slot = &manager->models[index];
+                memset(slot, 0, sizeof(*slot));
+                slot->available = 1;
+            }
+            for (index = 0; index < 2; index++) {
+                NpcManagerModelSlot* slot = &manager->special_models[index];
+                memset(slot, 0, sizeof(*slot));
+                slot->available = 1;
+            }
+            npc_manager_pdata = manager;
+        }
+    }
+    if (manager_proc != 0) {
+        set_process_as_scriptable(manager_proc);
+    }
+
+    {
+        MkPtr** npc_list = &konquest_pdata->npc_list;
+
+        if (npc_list != 0) {
+            link = *npc_list;
+            while (link != 0) {
+                KonquestNpc* npc = (KonquestNpc*)link->hdr;
+                if (link->instance != npc->hdr.instance) {
+                    MkPtr* next = link->next;
+                    link->hdr = 0;
+                    destroy_mkptr(link);
+                    link = next;
+                } else {
+                    if (npc->name != 0 &&
+                        strcmp(npc->name, "npc_sektor_seller") == 0) {
+                        npc->events[4].script_function =
+                            get_script_function_by_name(
+                                konquest_pdata->waypoint_script,
+                                "npc_block_only");
+                    }
+                    link = link->next;
+                }
+            }
+        }
+    }
+
+    {
+        MkPtr** npc_list = &konquest_pdata->npc_list;
+
+        if (npc_list != 0) {
+            link = *npc_list;
+            while (link != 0) {
+                KonquestNpc* npc = (KonquestNpc*)link->hdr;
+                if (link->instance != npc->hdr.instance) {
+                    MkPtr* next = link->next;
+                    link->hdr = 0;
+                    destroy_mkptr(link);
+                    link = next;
+                } else {
+                    unsigned int script_function =
+                        npc->data->events[7].script_function;
+                    if (script_function != 0) {
+                        ScriptSlot* slot = konquest_pdata->waypoint_script;
+                        g_active_npc = npc;
+                        if (npc != 0) {
+                            if (npc->saved_event_script != script_function) {
+                                npc->wait_ticks = 0.0f;
+                            }
+                            if (g_active_npc->wait_ticks > 0.0f) {
+                                memcpy(
+                                    active_cmdscript->stack_mem,
+                                    g_active_npc->saved_script_state,
+                                    sizeof(g_active_npc->saved_script_state));
+                                active_cmdscript->func_name =
+                                    (char*)(
+                                        slot->func_defs[script_function - 1]
+                                            .name_offset +
+                                        slot->string_reloc - 1);
+                                active_cmdscript->pc = (unsigned int*)
+                                    g_active_npc->saved_script_position;
+                                active_cmdscript->stack_sp =
+                                    &active_cmdscript->stack_mem[
+                                        g_active_npc
+                                            ->saved_script_stack_depth];
+                                active_cmdscript->stack_end =
+                                    active_cmdscript->stack_sp + 1;
+                            } else {
+                                g_active_npc->saved_event_script =
+                                    script_function;
+                                cmdscript_setup_execution(
+                                    slot, script_function);
+                            }
+                        }
+                        cmdscript_execute(
+                            konquest_pdata->waypoint_script);
+                    }
+                    link = link->next;
+                }
+            }
+        }
+    }
+
+    g_active_npc = 0;
+    npc_update(1);
+    get_visible_tile_set(konquest_pdata->visible_tile_set);
+    discard_list(&konquest_pdata->visible_npc_list);
+    {
+        MkPtr** npc_list = &konquest_pdata->npc_list;
+
+        if (npc_list != 0) {
+            link = *npc_list;
+            while (link != 0) {
+                KonquestNpc* npc = (KonquestNpc*)link->hdr;
+                if (link->instance != npc->hdr.instance) {
+                    MkPtr* next = link->next;
+                    link->hdr = 0;
+                    destroy_mkptr(link);
+                    link = next;
+                } else {
+                    KonquestTileOrigin* tile =
+                        get_nth_tile_struct(npc->tile_index);
+                    if (tile != 0) {
+                        if (tile->loaded != 0) {
+                            mk_insert(
+                                &npc->hdr,
+                                &konquest_pdata->visible_npc_list);
+                        } else if (npc_event_has_active_animation(npc) != 0) {
+                            mk_insert(
+                                &npc->hdr,
+                                &konquest_pdata->visible_npc_list);
+                        } else if ((npc->flags_1C & 0x20) != 0) {
+                            mk_insert(
+                                &npc->hdr,
+                                &konquest_pdata->visible_npc_list);
+                        }
+                    }
+                    link = link->next;
+                }
+            }
+        }
+    }
+}
+
+/* Matching: retail's compact count-controlled loop and save form are selected
+ * by the localized size mode. */
+#pragma optimize_for_size on
+void add_npc_list_to_world(int* npc_ids) {
+    unsigned int count = get_row_count_for_table_by_pointer(
+        konquest_pdata->waypoint_script, npc_ids);
+    unsigned int index = 0;
+    int npc_id = *npc_ids;
+
+    while (index < count) {
+        add_npc((KonquestNpcData*)npc_id);
+        npc_id = npc_ids[1];
+        npc_ids++;
+        index++;
+    }
+}
+#pragma optimize_for_size reset
+
+
+
+/* Near match: 90.81739%, exact retail size. Validated monk and animation
+ * ownership, collision-mode and distance gates, vector initialization order,
+ * vector-to-angle conversion, normalized angular subtraction, and absolute
+ * threshold. Residue is pointer-latch lowering and register allocation. */
+int npc_hit_by_punch(
+    KonquestNpc* npc, float maximum_distance, float maximum_angle) {
+    MkObj* monk = konquest_pdata->monk;
+    KonquestNpcAnimState* state;
+    MkObj* object;
+    int active;
+    Vec delta;
+    Vec angles;
+    float difference;
+
+    if (monk != 0) {
+        if (monk->hdr.instance != konquest_pdata->monk_instance) {
+            monk = 0;
+        }
+    } else {
+        monk = 0;
+    }
+    if (monk == 0) {
+        return 0;
+    }
+    state = npc->animation;
+    if (state == 0) {
+        active = 0;
+    } else if (state->object == 0) {
+        active = 0;
+    } else {
+        active = state->proc != 0;
+    }
+    if (active == 0) {
+        return 0;
+    }
+    if (konquest_pdata->collision_mode != 3) {
+        return 0;
+    }
+    object = state->object;
+    if (dist_xz_to_xz(&object->pos, &monk->pos) >
+        maximum_distance) {
+        return 0;
+    }
+    delta = (Vec){0.0f, 0.0f, 0.0f};
+    angles = (Vec){0.0f, 0.0f, 0.0f};
+    delta.x = object->pos.x - monk->pos.x;
+    delta.y = object->pos.y - monk->pos.y;
+    delta.z = object->pos.z - monk->pos.z;
+    v3_to_xy_ang(&angles, &delta);
+    difference = ang_sub_ang(
+        norm_angle(monk->ang.y), norm_angle(angles.y));
+    if (difference < 0.0f) {
+        difference = -difference;
+    }
+    if (difference <= maximum_angle) {
+        return 1;
+    }
+    return 0;
+}
+
+/* Matching: 99.7619% - code is exact; only the 1.0f relocation differs. */
+static void npc_shoved_setup(KonquestNpc* npc) {
+    if (npc->animation != 0) {
+        KonquestAnimPdata* animation =
+            (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
+
+        npc->ignore_events = 1;
+        animation->step = 1.0f;
+    }
+}
+
+static void npc_shoved_cleanup(KonquestNpc* npc) {
+    npc->ignore_events = 0;
+    npc->reaction_active = 0;
+}
+
+static void npc_override_cleanup(KonquestNpc* npc) {
+    npc->animation_override = 0;
+    npc->ignore_events = 0;
+    npc->reaction_active = 0;
+}
+
+static void npc_override_setup(KonquestNpc* npc) {
+    npc->animation_override = 1;
+    npc->ignore_events = 1;
+    npc->reaction_active = 1;
+}
+
+/*
+ * Soft ceiling: 94.23077% - typed active-animation boolean lowering and the
+ * 1.0f relocation differ.
+ */
+static void npc_punched_setup(KonquestNpc* npc) {
+    KonquestNpcAnimState* state = npc->animation;
+    int has_active_animation;
+
+    if (state == 0) {
+        has_active_animation = 0;
+    } else if (state->object == 0) {
+        has_active_animation = 0;
+    } else {
+        has_active_animation = state->proc != 0;
+    }
+    if (has_active_animation != 0) {
+        KonquestAnimPdata* animation =
+            (KonquestAnimPdata*)pdata_of_proc(state->proc);
+
+        npc->animation->object->flags_09_bits.bit6 = 0;
+        npc->ignore_events = 1;
+        animation->step = 1.0f;
+    }
+}
+
+static void npc_plyr_violent_setup(KonquestNpc* npc) {
+}
+
+/*
+ * Soft ceiling: 96.447365% - equivalent pointer-validation latch branches
+ * and GPR coloring differ.
+ */
+static int plyr_leave_area_check(float distance) {
+    KonquestNpcPdata* pdata = konquest_pdata;
+    KonquestNpc* npc = g_active_npc;
+    MkObj* monk = pdata->monk;
+    int is_near;
+
+    if (monk != 0) {
+        if (monk->hdr.instance != pdata->monk_instance) {
+            monk = 0;
+        }
+    } else {
+        monk = 0;
+    }
+    if (monk == 0) {
+        is_near = 0;
+    } else if (dist_xz_to_xz(
+                   &npc->data->position, &monk->pos) < distance) {
+        is_near = 1;
+    } else {
+        is_near = 0;
+    }
+    return is_near == 0;
+}
+
+/*
+ * Soft ceiling: 86.97369% - the body is exact; pointer-validation latch/GPR
+ * coloring and equivalent nonzero booleanization differ.
+ */
+static int plyr_near_check(float distance) {
+    KonquestNpcPdata* pdata = konquest_pdata;
+    KonquestNpc* npc = g_active_npc;
+    MkObj* monk = pdata->monk;
+    int is_near;
+
+    if (monk != 0) {
+        if (monk->hdr.instance != pdata->monk_instance) {
+            monk = 0;
+        }
+    } else {
+        monk = 0;
+    }
+    if (monk == 0) {
+        is_near = 0;
+    } else if (dist_xz_to_xz(
+                   &npc->data->position, &monk->pos) < distance) {
+        is_near = 1;
+    } else {
+        is_near = 0;
+    }
+    return is_near != 0;
+}
+
+void npc_enable_event(int event_index, int enabled) {
+    if (g_active_npc != 0 && event_index >= 0 && event_index < 7) {
+        g_active_npc->events[event_index].enabled = enabled;
+    }
+}
+
+/*
+ * Soft ceiling: 95.19481% - shared lookup, bounds check, stride, and store are
+ * exact; remaining differences are latch branches and GPR allocation.
+ */
+void npc_enable_his_event(
+    KonquestNpcData* data, int event_index, int enabled) {
+    KonquestNpc* npc = npc_find_by_data_inline(data);
+
+    if (event_index >= 0 && event_index < 7) {
+        npc->events[event_index].enabled = enabled;
+    }
 }
 
 /* Near match: 80.61818% - exact retail size and list/update control flow;
@@ -5581,772 +6225,13 @@ void npc_update(int update_all) {
     }
 }
 
-/* Near match: 78.13265% and four bytes from retail. Both special and regular
- * model-slot ownership paths, destruction, alpha teardown, and slot resets
- * match; residue is branch scheduling and GPR save form. */
-static inline void npc_manager_remove_visible_entry(KonquestNpc* npc) {
-    int index;
-
-    for (index = 0; index < 15; index++) {
-        if (npc_manager_pdata->visible_npcs[index] == npc) {
-            npc_manager_pdata->visible_npcs[index] = 0;
-            npc_manager_pdata->visible_count--;
-            if (npc->data->events[7].script_function == 1) {
-                npc_manager_pdata->special_count--;
-            }
-            npc->flags_1C &= (unsigned char)~0x10;
-            return;
-        }
-    }
-}
-
 /*
- * Breakthrough: model-cache attachment, texture/material setup, animation
- * process restoration, collision creation, and visibility rollback are fully
- * recovered. Full-TU emission is measured after integration.
+ * Matching: 99.44444% - code is exact; only the return-value float relocation
+ * differs in this partial TU.
  */
-static void load_model_for_npc(KonquestNpc* npc) {
-    KonquestNpcAnimState* state = npc->animation;
-
-    if (state != 0) {
-        MkSobj* sobj;
-        AnimPdata* animation = 0;
-        MkProc* animation_proc;
-
-        npc_manager_find_model_for_npc(npc);
-        state = npc->animation;
-        if (state != 0) {
-            sobj = (MkSobj*)obj_first_sobj(state->object);
-            if (sobj != 0) {
-                if (sobj->atomic->geometry != 0) {
-                    RpGeometryForAllMaterials(
-                        sobj->atomic->geometry,
-                        (KonquestMaterialCallback)
-                            material_restore_texture_pointer,
-                        0);
-                }
-                if (strcmp(npc->data->texture_name, "npc_block_only") != 0) {
-                    RwTexture* texture = load_named_tga_from_slot(
-                        0x6002B, npc->data->texture_name);
-
-                    if (texture != 0) {
-                        sobj_swap_material_texture(sobj, 5, texture);
-                    }
-                }
-                if (sobj->atomic->geometry != 0) {
-                    RpGeometryForAllMaterials(
-                        sobj->atomic->geometry, hide_npc_materials,
-                        npc->data->visible_material_ids);
-                }
-            }
-        }
-        if (state->object == 0) {
-            npc_manager_remove_visible_entry(npc);
-            return;
-        }
-
-        state->object->hide_flags &= (unsigned char)~2;
-        state->object->flags_0C = 0;
-        npc->saved_object_flags = state->object->flags_word_08;
-        state->object->ang.y = npc->data->angle_y;
-        state->object->pos = npc->data->position;
-        update_mkobj(as_mkhdr(&state->object->hdr));
-        if (konquest_editor_mode_on != 0) {
-            animation_proc = create_mkproc_anim(
-                0x5002, (MkProcEntryFn)p_animate, &animation);
-        } else {
-            animation_proc = create_mkproc_anim(
-                0x5002, p_anim_idle, &animation);
-        }
-        if (animation_proc == 0) {
-            npc_manager_remove_visible_entry(npc);
-            return;
-        }
-
-        animation->obj = state->object;
-        animation->obj_instance = state->object->hdr.instance;
-        set_root_and_obj_movement_weights(
-            0.0f, 1.0f, (AnimState*)animation);
-        if (npc->queued_animation == 0) {
-            set_anim_script(
-                (KonquestAnimPdata*)animation,
-                get_animation(npc->data->idle_animation), 0);
-        } else {
-            set_anim_script_frame(
-                animation, npc->queued_animation,
-                npc->animation_flags, npc->queued_animation_frame);
-            if (npc->queued_animation_frame > animation->high_frame) {
-                npc->queued_animation_frame = animation->high_frame;
-            }
-        }
-        animation->step = 1.0f;
-        state->proc = animation_proc;
-        pose_anim((AnimState*)animation, 1);
-
-        if (konquest_editor_mode_on == 0 &&
-            npc_event_has_active_animation(npc) != 0) {
-            CollisionShape shape;
-            Vec center = state->object->pos;
-
-            center.y -= 1.0f;
-            build_col_shape_vertical_cylinder(&shape, &center, 0.3f, 3.0f);
-            state->editor_object = add_shape_to_global_collision_list(
-                &shape, npc->data_table_index + 0x10001);
-        }
-        if ((npc->flags_1D & 4) != 0) {
-            sobj = (MkSobj*)obj_first_sobj(state->object);
-            if (sobj != 0) {
-                sobj->flags09 |= 0x10;
-            }
-        }
-        insert_fgnd_mkobj(state->object);
-        npc->timed_event_flags |= 0x40;
-    }
-}
-
-static inline void npc_manager_setup_model(MkObj* object) {
-    MkSobj* sobj;
-
-    obj_create_sobjs(object);
-    sobj = (MkSobj*)obj_first_sobj(object);
-    if (sobj != 0) {
-        sobj->flags09_bits.bit4 = 0;
-        sobj->flags09_bits.bit2 = 0;
-    }
-    obj_set_all_sobjs_priority(object, 0x13);
-    obj_for_all_atomics_set_material_alpha(object, 0);
-    if (sobj->atomic->geometry != 0) {
-        RpGeometryForAllMaterials(
-            sobj->atomic->geometry,
-            (KonquestMaterialCallback)material_store_texture_pointer, 0);
-    }
-    object->flags_08_bits.airborne = 1;
-    object->flags_08_bits.angular_velocity_enabled = 1;
-    build_bones_tbl(object, konquest_human_bones, 1);
-    object->flipped_bone_map = &flipped_konquest_human_bones;
-    object->flags_09_bits.launched = 1;
-    object->flags_09_bits.bit6 = 1;
-    object->ground_colls = npc_ground_colls;
-    object->light_flags = 1;
-}
-
-static inline unsigned int npc_manager_find_mouth_art_id(MkObj* object) {
-    KonquestTextureSearch search;
-
-    search.texture_name[0] = 0;
-    search.root_length = 10;
-    search.root = "kon_mouth0";
-    RpClumpForAllAtomics(
-        object->clump, AtomicFindTextureWithRootString, &search);
-    if (search.texture_name[0] != 0) {
-        strupr(search.texture_name);
-        return get_artid_of_named_item_in_slot(
-            0x6002B, search.texture_name, 0);
-    }
-    return 0;
-}
-
-/* Near match: measured scratch candidate 85.72845%, with model loading,
- * section ownership, object setup, mouth WIFF discovery, and cache writes
- * complete. Residue is GPR coloring, loop lowering, and save scheduling. */
-static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
-    AniTextureControl* lip_texture = 0;
-    NpcManagerModelSlot* slot = 0;
-    int slot_handle = 0;
-    unsigned int art_id = 0;
-    int is_special = npc->data->events[7].script_function;
-    int index;
-    MkObj* object;
-
-    if (is_special == 1) {
-        for (index = 0; index < 2; index++) {
-            NpcManagerModelSlot* candidate =
-                &npc_manager_pdata->special_models[index];
-
-            if (candidate->available == 0 &&
-                candidate->data == npc->data) {
-                slot_handle = 0x6002C + index;
-                slot = candidate;
-                break;
-            }
-        }
-    } else {
-        for (index = 0; index < 22; index++) {
-            NpcManagerModelSlot* candidate =
-                &npc_manager_pdata->models[index];
-
-            if (candidate->available == 0 &&
-                candidate->data == npc->data) {
-                slot = candidate;
-                break;
-            }
-        }
-    }
-    if (slot == 0) {
-        return;
-    }
-
-    if (is_special == 1) {
-        char section_name[0x40];
-
-        sprintf(section_name, "%s.sec", npc->data->model_name);
-        strlwr(section_name);
-        load_ssf(kon_unique_npcs_file_table);
-        load_art_section_by_name(slot_handle, section_name);
-        strncpy(slot->name, npc->data->model_name, 0x3F);
-        slot->name[0x3F] = 0;
-        object = (MkObj*)load_named_model_from_slot(
-            slot_handle, "NPC", 0xA002, 0);
-    } else {
-        art_id = get_artid_of_named_item_in_slot(
-            0x6002B, npc->data->model_name, 1);
-        object = load_model_from_slot(0x6002B, art_id, 0xA002);
-    }
-    if (object == 0) {
-        return;
-    }
-
-    npc_manager_setup_model(object);
-    insert_ground_me_mkobj(object);
-    if (konquest_editor_mode_on == 0) {
-        if (npc->art_id == 0) {
-            unsigned int mouth_art_id =
-                npc_manager_find_mouth_art_id(object);
-
-            npc->art_id = mouth_art_id != 0 ? mouth_art_id : (unsigned int)-1;
-        }
-        if (npc->art_id != 0 && npc->art_id != (unsigned int)-1) {
-            lip_texture = append_wiff_to_clump_material_id(
-                0x6002B, (char*)npc->art_id, object->clump, 1);
-        }
-    }
-
-    slot->art_id = art_id;
-    slot->object = object;
-    if (lip_texture != 0) {
-        slot->lip_texture = lip_texture;
-        slot->lip_texture_instance = lip_texture->instance;
-    }
-    slot->age = 0.0f;
-    slot->available = 0;
-    slot->data = npc->data;
-    if (npc->animation != 0) {
-        npc->animation->object = object;
-        if (lip_texture != 0) {
-            npc->animation->lip_texture = lip_texture;
-            npc->animation->lip_texture_instance = lip_texture->instance;
-        }
-    }
-}
-
-/* Near match: measured scratch candidate 85.3764% at exact retail size.
- * Cache selection, texture-instance validation, recreation, and object setup
- * are complete; residue is branch polarity and GPR coloring. */
-static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
-    if (npc->data->events[7].script_function != 1) {
-        unsigned int art_id = get_artid_of_named_item_in_slot(
-            0x6002B, npc->data->model_name, 1);
-        int index;
-        NpcManagerModelSlot* slot = npc_manager_pdata->models;
-
-        for (index = 0; index < 22; index++, slot++) {
-            if (slot->art_id == art_id && slot->available == 0 &&
-                slot->data == npc->data) {
-                AniTextureControl* lip_texture;
-
-                slot->age = 0.0f;
-                if (npc->animation != 0) {
-                    npc->animation->object = slot->object;
-                    lip_texture = slot->lip_texture;
-                    if (lip_texture != 0 &&
-                        (unsigned int)lip_texture->instance !=
-                            slot->lip_texture_instance) {
-                        lip_texture = 0;
-                    }
-                    if (lip_texture == 0) {
-                        if (npc->art_id == 0) {
-                            unsigned int mouth_art_id =
-                                npc_manager_find_mouth_art_id(
-                                    npc->animation->object);
-
-                            npc->art_id = mouth_art_id != 0
-                                ? mouth_art_id : (unsigned int)-1;
-                        }
-                        if (npc->art_id != 0 &&
-                            npc->art_id != (unsigned int)-1) {
-                            lip_texture = append_wiff_to_clump_material_id(
-                                0x6002B, (char*)npc->art_id,
-                                npc->animation->object->clump, 1);
-                            if (lip_texture != 0) {
-                                slot->lip_texture = lip_texture;
-                                slot->lip_texture_instance =
-                                    lip_texture->instance;
-                            }
-                        }
-                    }
-                    npc->animation->lip_texture = slot->lip_texture;
-                    npc->animation->lip_texture_instance =
-                        slot->lip_texture_instance;
-                }
-                npc_manager_setup_model(slot->object);
-                return;
-            }
-        }
-    }
-    npc_manager_load_new_npc_model(npc);
-}
-
-static void npc_manager_release_npc_model(KonquestNpc* npc) {
-    int index;
-
-    if (npc->data->events[7].script_function == 1) {
-        for (index = 0; index < 2; index++) {
-            NpcManagerModelSlot* slot =
-                &npc_manager_pdata->special_models[index];
-
-            if (slot->data == npc->data) {
-                MkObj* object = npc->animation->object;
-                AniTextureControl* texture = npc->animation->lip_texture;
-
-                if (object != 0) {
-                    if (object->hdr.instance != 0) {
-                        object->hdr.typed_vtbl->destroy(&object->hdr);
-                    }
-                    npc->animation->object = 0;
-                }
-                if (texture != 0) {
-                    if ((unsigned int)texture->instance !=
-                        npc->animation->lip_texture_instance) {
-                        texture = 0;
-                    }
-                } else {
-                    texture = 0;
-                }
-                if (texture != 0) {
-                    MkHdr* texture_hdr = (MkHdr*)npc->animation->lip_texture;
-
-                    if (texture_hdr->instance != 0) {
-                        texture_hdr->typed_vtbl->destroy(texture_hdr);
-                    }
-                    npc->animation->lip_texture = 0;
-                    npc->animation->lip_texture_instance = 0;
-                }
-                slot->data = 0;
-                slot->available = 1;
-                slot->art_id = 0;
-                slot->object = 0;
-                slot->age = 0.0f;
-                return;
-            }
-        }
-        return;
-    }
-
-    for (index = 0; index < 22; index++) {
-        NpcManagerModelSlot* slot = &npc_manager_pdata->models[index];
-
-        if (slot->data == npc->data) {
-            if (slot->object != 0) {
-                obj_for_all_atomics_set_material_alpha(slot->object, 0);
-                remove_fgnd_mkobj(slot->object);
-            }
-            slot->data = 0;
-            slot->available = 1;
-            return;
-        }
-    }
-}
-
-void npc_make_visible(KonquestNpc* npc) {
-    NpcManagerModelSlot* slot = 0;
-    KonquestNpcAnimState* animation = 0;
-    int index;
-
-    if ((npc->flags_1C & 0x10) != 0 ||
-        is_it_safe_to_make_this_npc_visible(npc) == 0) {
-        return;
-    }
-
-    for (index = 0; index < 15; index++) {
-        if (npc_manager_pdata->visible_npcs[index] == 0) {
-            npc_manager_pdata->visible_npcs[index] = npc;
-            npc_manager_pdata->visible_count++;
-            if (npc->data->events[7].script_function == 1) {
-                npc_manager_pdata->special_count++;
-                if (npc_manager_pdata->special_count > 2) {
-                    npc_manager_pdata->visible_count--;
-                    npc_manager_pdata->special_count--;
-                    return;
-                }
-            }
-            npc->flags_1C |= 0x10;
-            break;
-        }
-    }
-
-    if (npc->data->events[7].script_function == 1) {
-        for (index = 0; index < 2; index++) {
-            NpcManagerModelSlot* candidate =
-                &npc_manager_pdata->special_models[index];
-
-            if (candidate->available != 0 &&
-                strcmp(candidate->name, npc->data->name) == 0) {
-                slot = candidate;
-                break;
-            }
-        }
-        if (slot == 0) {
-            for (index = 0; index < 2; index++) {
-                NpcManagerModelSlot* candidate =
-                    &npc_manager_pdata->special_models[index];
-
-                if (candidate->available != 0) {
-                    slot = candidate;
-                    break;
-                }
-            }
-        }
-    } else {
-        unsigned int art_id = get_artid_of_named_item_in_slot(
-            0x6002B, npc->data->name, 1);
-
-        for (index = 0; index < 22; index++) {
-            NpcManagerModelSlot* candidate =
-                &npc_manager_pdata->models[index];
-
-            if (candidate->art_id == art_id &&
-                candidate->available != 0) {
-                slot = candidate;
-                break;
-            }
-        }
-        if (slot == 0) {
-            float oldest_age = -1.0f;
-
-            for (index = 0; index < 22; index++) {
-                NpcManagerModelSlot* candidate =
-                    &npc_manager_pdata->models[index];
-
-                if (candidate->age > oldest_age &&
-                    candidate->available != 0) {
-                    oldest_age = candidate->age;
-                    slot = candidate;
-                }
-            }
-            if (slot != 0 && slot->object != 0) {
-                if (slot->object->hdr.instance != 0) {
-                    slot->object->hdr.typed_vtbl->destroy(
-                        &slot->object->hdr);
-                }
-                slot->object = 0;
-                slot->art_id = 0;
-            }
-        }
-    }
-
-    if (slot != 0) {
-        slot->available = 0;
-        slot->data = npc->data;
-        if (npc->animation == 0) {
-            MkProc* proc = _create_mkproc_generic_bigstack(
-                0xA002, 8, p_npc_proc, sizeof(*animation),
-                (MkHdr**)&animation);
-
-            if (proc != 0) {
-                set_process_as_scriptable(proc);
-                proc->pre_destroy = (MkProcCallbackFn)npc_pre_wake;
-                proc->destroy_cb = (MkProcCallbackFn)npc_post_sleep;
-                npc->animation = animation;
-                npc->proc = proc;
-                animation->lip_texture = 0;
-                animation->lip_texture_instance = 0;
-                animation->owner_npc = npc;
-                animation->proc = 0;
-                animation->object = 0;
-                animation->editor_object = 0;
-                animation->dialog_anim = 0;
-                animation->alpha = 0;
-            }
-        }
-    }
-}
-
-static int is_it_safe_to_make_this_npc_visible(KonquestNpc* npc) {
-    KonquestNpc* farthest;
-    int index;
-
-    if (get_konquest_game_mode() == 3 &&
-        (npc->flags_1D & 0x20) == 0) {
-        return 0;
-    }
-    if (npc->data->events[7].script_function == 1 &&
-        npc_manager_pdata->special_count >= 2) {
-        farthest = 0;
-        for (index = 0; index < 15; index++) {
-            KonquestNpc* visible =
-                npc_manager_pdata->visible_npcs[index];
-
-            if (visible != 0 &&
-                visible->data->events[7].script_function == 1 &&
-                npc_is_visible_model_active(visible) != 0) {
-                if (farthest == 0 ||
-                    visible->camera_distance_squared >
-                        farthest->camera_distance_squared) {
-                    farthest = visible;
-                }
-            }
-        }
-        if (farthest != 0) {
-            if ((npc->flags_1C & 0x40) != 0 ||
-                farthest->camera_distance_squared >
-                    npc->camera_distance_squared) {
-                npc_make_invisible(farthest);
-            } else {
-                return 0;
-            }
-        } else {
-            return 0;
-        }
-    }
-    if (npc_manager_pdata->visible_count >= 15) {
-        farthest = 0;
-        for (index = 0; index < 15; index++) {
-            KonquestNpc* visible =
-                npc_manager_pdata->visible_npcs[index];
-
-            if (visible != 0 &&
-                npc_is_visible_model_active(visible) != 0) {
-                if (farthest == 0 ||
-                    visible->camera_distance_squared >
-                        farthest->camera_distance_squared) {
-                    farthest = visible;
-                }
-            }
-        }
-        if (farthest != 0) {
-            if ((npc->flags_1C & 0x40) != 0 ||
-                farthest->camera_distance_squared >
-                    npc->camera_distance_squared) {
-                npc_make_invisible(farthest);
-            } else {
-                return 0;
-            }
-        } else {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-void npc_make_invisible(KonquestNpc* npc) {
-    int index;
-
-    if (npc_is_visible_model_active(npc) == 0) {
-        return;
-    }
-
-    for (index = 0; index < 15; index++) {
-        if (npc_manager_pdata->visible_npcs[index] == npc) {
-            npc_manager_pdata->visible_npcs[index] = 0;
-            npc_manager_pdata->visible_count--;
-            if (npc->data->events[7].script_function == 1) {
-                npc_manager_pdata->special_count--;
-            }
-            npc->flags_1C &= (unsigned char)~0x10;
-            break;
-        }
-    }
-
-    npc->timed_event_flags &= (unsigned char)~0x40;
-    if ((npc->flags_1D & 0x40) == 0) {
-        MkObj* object = npc->animation->object;
-
-        if (object != 0) {
-            npc->data->position.x = object->pos.x;
-            npc->data->position.y = object->pos.y;
-            npc->data->position.z = object->pos.z;
-            npc->tile_index = get_tile_from_position(&object->pos);
-            if (npc_event_has_active_animation(npc) != 0) {
-                object->flags_09_bits.bit6 = 0;
-                npc->animation->object->pos.x = object->pos.x;
-                npc->animation->object->pos.y = object->pos.y;
-                npc->animation->object->pos.z = object->pos.z;
-            }
-            npc->data->angle_y = npc->animation->object->ang.y;
-        }
-        if (npc->animation->proc != 0) {
-            KonquestAnimPdata* animation =
-                (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
-
-            npc->queued_animation_frame = animation->frame;
-            npc->queued_animation = animation->animation;
-            npc->animation_flags = animation->flags;
-        }
-        {
-            CmdScript* script = get_cmdscript_for_proc(npc->proc);
-
-            if (script->pc != 0) {
-                CmdScript* saved_script = active_cmdscript;
-
-                active_cmdscript = script;
-                cmdscript_step_backward();
-                memcpy(
-                    npc->saved_script_state, active_cmdscript->stack_mem,
-                    sizeof(npc->saved_script_state));
-                npc->saved_script_position =
-                    (unsigned int)active_cmdscript->pc;
-                npc->saved_script_stack_depth = get_script_stack_depth();
-                active_cmdscript = saved_script;
-                npc->wait_ticks = npc->proc->sleep_ticks;
-            }
-        }
-    }
-
-    npc_manager_release_npc_model(npc);
-    if (konquest_editor_mode_on == 0 &&
-        npc->animation->editor_object != 0) {
-        if ((npc->animation->editor_object != 0
-                 ? as_mkhdr(&npc->animation->editor_object->hdr)
-                 : 0)->instance != 0) {
-            (npc->animation->editor_object != 0
-                 ? as_mkhdr(&npc->animation->editor_object->hdr)
-                 : 0)->typed_vtbl->destroy(
-                npc->animation->editor_object != 0
-                    ? as_mkhdr(&npc->animation->editor_object->hdr)
-                    : 0);
-        }
-        npc->animation->editor_object = 0;
-    }
-    if (npc->animation != 0) {
-        if (npc->animation->proc != 0 &&
-            npc->animation->proc->instance != 0) {
-            npc->animation->proc->hdr.typed_vtbl->destroy(
-                &npc->animation->proc->hdr);
-        }
-        if (npc->proc->instance != 0) {
-            npc->proc->hdr.typed_vtbl->destroy(&npc->proc->hdr);
-        }
-        npc->animation = 0;
-        npc->proc = 0;
-    }
-}
-
-static void npc_set_state_for_npc(KonquestNpc* npc, int event_index) {
-    if (npc->events[event_index].enabled != 0) {
-        npc_force_state_for_npc(npc, event_index);
-    }
-}
-
-/* Matching: 99.7619% - code is exact; only the 1.0f relocation differs. */
-static void npc_shoved_setup(KonquestNpc* npc) {
-    if (npc->animation != 0) {
-        KonquestAnimPdata* animation =
-            (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
-
-        npc->ignore_events = 1;
-        animation->step = 1.0f;
-    }
-}
-
-static void npc_shoved_cleanup(KonquestNpc* npc) {
-    npc->ignore_events = 0;
-    npc->reaction_active = 0;
-}
-
-static void npc_override_cleanup(KonquestNpc* npc) {
-    npc->animation_override = 0;
-    npc->ignore_events = 0;
-    npc->reaction_active = 0;
-}
-
-static void npc_override_setup(KonquestNpc* npc) {
-    npc->animation_override = 1;
-    npc->ignore_events = 1;
-    npc->reaction_active = 1;
-}
-
-/*
- * Soft ceiling: 94.23077% - typed active-animation boolean lowering and the
- * 1.0f relocation differ.
- */
-static void npc_punched_setup(KonquestNpc* npc) {
-    KonquestNpcAnimState* state = npc->animation;
-    int has_active_animation;
-
-    if (state == 0) {
-        has_active_animation = 0;
-    } else if (state->object == 0) {
-        has_active_animation = 0;
-    } else {
-        has_active_animation = state->proc != 0;
-    }
-    if (has_active_animation != 0) {
-        KonquestAnimPdata* animation =
-            (KonquestAnimPdata*)pdata_of_proc(state->proc);
-
-        npc->animation->object->flags_09_bits.bit6 = 0;
-        npc->ignore_events = 1;
-        animation->step = 1.0f;
-    }
-}
-
-static void npc_plyr_violent_setup(KonquestNpc* npc) {
-}
-
-/*
- * Soft ceiling: 96.447365% - equivalent pointer-validation latch branches
- * and GPR coloring differ.
- */
-static int plyr_leave_area_check(float distance) {
-    KonquestNpcPdata* pdata = konquest_pdata;
-    KonquestNpc* npc = g_active_npc;
-    MkObj* monk = pdata->monk;
-    int is_near;
-
-    if (monk != 0) {
-        if (monk->hdr.instance != pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
-    if (monk == 0) {
-        is_near = 0;
-    } else if (dist_xz_to_xz(
-                   &npc->data->position, &monk->pos) < distance) {
-        is_near = 1;
-    } else {
-        is_near = 0;
-    }
-    return is_near == 0;
-}
-
-/*
- * Soft ceiling: 86.97369% - the body is exact; pointer-validation latch/GPR
- * coloring and equivalent nonzero booleanization differ.
- */
-static int plyr_near_check(float distance) {
-    KonquestNpcPdata* pdata = konquest_pdata;
-    KonquestNpc* npc = g_active_npc;
-    MkObj* monk = pdata->monk;
-    int is_near;
-
-    if (monk != 0) {
-        if (monk->hdr.instance != pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
-    if (monk == 0) {
-        is_near = 0;
-    } else if (dist_xz_to_xz(
-                   &npc->data->position, &monk->pos) < distance) {
-        is_near = 1;
-    } else {
-        is_near = 0;
-    }
-    return is_near != 0;
+static float p_update_npc_shadows(void) {
+    npc_shadow_update();
+    return 1.0f;
 }
 
 KonquestNpcStateDef g_event_tbl[8] = {
@@ -6370,596 +6255,9 @@ GroundCollTable npc_punched_ground_colls[5] = {
     {-1, {0.0f, 0.0f, 0.0f}, 0.0f},
 };
 
-/* Near match: 88.28704% - exact state-transition algorithm and retail table;
- * pointer truth normalization and split GPR saves/restores add four emitted
- * instructions relative to retail. */
-void npc_force_state_for_npc(KonquestNpc* npc, int next_state) {
-    CmdScript* script;
-    KonquestAnimPdata* animation;
-    int active;
-    int old_state;
-
-    npc->wait_ticks = 0.0f;
-    if (npc->proc != 0) {
-        script = get_cmdscript_for_proc(npc->proc);
-        script->stack_sp = script->stack_mem;
-        script->stack_end = script->stack_sp + 1;
-    }
-    old_state = npc->state_58;
-    npc->state_58 = next_state;
-    if (g_event_tbl[old_state].cleanup != 0) {
-        g_event_tbl[old_state].cleanup(npc);
-    }
-    if (npc->path != 0) {
-        npc->path->use_animation_override = 0;
-    }
-    if (npc->animation == 0) {
-        active = 0;
-    } else if (npc->animation->object == 0) {
-        active = 0;
-    } else {
-        active = npc->animation->proc != 0;
-    }
-    if (active != 0) {
-        animation = (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
-        animation->step = npc->saved_animation_step;
-        npc->animation->object->flags_word_08 = npc->saved_object_flags;
-        npc->animation->object->gravity = npc->saved_gravity;
-    }
-    if (((npc->flags_1C & 0x80) != 0 ||
-         (npc->flags_1C & 4) != 0) && npc->state_58 != 7) {
-        npc->flags_1C &= (unsigned char)~0x80;
-        npc->flags_1C &= (unsigned char)~4;
-    }
-    if (next_state != 0) {
-        npc->state_change_pending = 1;
-    }
-    if (npc->proc != 0) {
-        if (npc->animation == 0) {
-            active = 0;
-        } else if (npc->animation->object == 0) {
-            active = 0;
-        } else {
-            active = npc->animation->proc != 0;
-        }
-        if (active != 0) {
-            xfer_proc(npc->proc, p_npc_proc);
-        }
-    }
-}
-
-/* Near match: 86.43519% - exact state-transition algorithm and callback ABI;
- * pointer truth normalization and split GPR saves/restores account for the
- * remaining compiler-emission-only size difference. */
-void npc_xfer(
-    KonquestNpc* npc, MkProcEntryFn entry, int next_state) {
-    CmdScript* script;
-    KonquestAnimPdata* animation;
-    int active;
-    int old_state;
-
-    npc->wait_ticks = 0.0f;
-    if (npc->proc != 0) {
-        script = get_cmdscript_for_proc(npc->proc);
-        script->stack_sp = script->stack_mem;
-        script->stack_end = script->stack_sp + 1;
-    }
-    old_state = npc->state_58;
-    npc->state_58 = next_state;
-    if (g_event_tbl[old_state].cleanup != 0) {
-        g_event_tbl[old_state].cleanup(npc);
-    }
-    if (npc->path != 0) {
-        npc->path->use_animation_override = 0;
-    }
-    if (npc->animation == 0) {
-        active = 0;
-    } else if (npc->animation->object == 0) {
-        active = 0;
-    } else {
-        active = npc->animation->proc != 0;
-    }
-    if (active != 0) {
-        animation = (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
-        animation->step = npc->saved_animation_step;
-        npc->animation->object->flags_word_08 = npc->saved_object_flags;
-        npc->animation->object->gravity = npc->saved_gravity;
-    }
-    if (((npc->flags_1C & 0x80) != 0 ||
-         (npc->flags_1C & 4) != 0) && npc->state_58 != 7) {
-        npc->flags_1C &= (unsigned char)~0x80;
-        npc->flags_1C &= (unsigned char)~4;
-    }
-    if (next_state != 0) {
-        npc->state_change_pending = 1;
-    }
-    if (npc->proc != 0) {
-        if (npc->animation == 0) {
-            active = 0;
-        } else if (npc->animation->object == 0) {
-            active = 0;
-        } else {
-            active = npc->animation->proc != 0;
-        }
-        if (active != 0) {
-            xfer_proc(npc->proc, entry);
-        }
-    }
-}
-
-void npc_enable_event(int event_index, int enabled) {
-    if (g_active_npc != 0 && event_index >= 0 && event_index < 7) {
-        g_active_npc->events[event_index].enabled = enabled;
-    }
-}
-
-/*
- * Soft ceiling: 95.19481% - shared lookup, bounds check, stride, and store are
- * exact; remaining differences are latch branches and GPR allocation.
- */
-void npc_enable_his_event(
-    KonquestNpcData* data, int event_index, int enabled) {
-    KonquestNpc* npc = npc_find_by_data_inline(data);
-
-    if (event_index >= 0 && event_index < 7) {
-        npc->events[event_index].enabled = enabled;
-    }
-}
-
-/*
- * Soft ceiling: 88.65169% - shared lookup, visibility teardown, list removal,
- * and nonnegative count clamp are exact; latch branches and GPRs remain.
- */
-void remove_npc(KonquestNpcData* data) {
-    KonquestNpc* npc = npc_find_by_data_inline(data);
-
-    if (konquest_editor_mode_on == 0 && npc != 0) {
-        npc_make_invisible(npc);
-        konquest_pdata->npc_count--;
-        mk_pull_destroy(&npc->hdr, &konquest_pdata->npc_list);
-        if (konquest_pdata->npc_count < 0) {
-            konquest_pdata->npc_count = 0;
-        }
-    }
-}
-
-/*
- * Soft ceiling: 88.96342% - allocation, initialization, ownership, table
- * metadata, position, event copies, art lookup, and list insertion are exact.
- * The typed event-pointer loop uses different induction registers/scheduling,
- * and MWCC splits retail's nonvolatile save/restore sequence.
- */
-void add_npc(KonquestNpcData* data) {
-    KonquestNpc* npc = (KonquestNpc*)get_mkhdr(
-        &vtbl_konquest_npc_struct, sizeof(*npc));
-
-    if (npc != 0) {
-        zero_pdata_payload(sizeof(*npc), &npc->hdr);
-        npc->state_268 = -3;
-        npc->state_264 = -3;
-        npc->state_26C = -3;
-        npc->distance_270 = __float_max[0];
-        npc->value_274 = 0.0f;
-        npc->distance_278 = __float_max[0];
-    }
-
-    npc->data = 0;
-    npc->path = 0;
-    npc->animation = 0;
-    npc->flags = 0;
-    npc->state_58 = 0;
-    npc->queued_animation = 0;
-    npc->queued_animation_frame = 0.0f;
-    npc->animation_flags = 0;
-    npc->camera_distance_squared = 0.0f;
-    npc->conversation_count = 0;
-    npc->punch_count = 0;
-    npc->saved_script_stack_depth = 0;
-    npc->wait_ticks = 0.0f;
-    npc->animation_speed = 1.0f;
-    npc->turn_proc = 0;
-    npc->turn_proc_instance = 0;
-    npc->flags = 0;
-    memset(npc->runtime_state, 0, sizeof(npc->runtime_state));
-    npc->saved_animation_step = 1.0f;
-    npc->data = data;
-
-    if (npc->path == 0) {
-        KonquestPathData* path = (KonquestPathData*)get_mkhdr(
-            &vtbl_path_data_struct, sizeof(*path));
-
-        if (path != 0) {
-            zero_pdata_payload(sizeof(*path), &path->hdr);
-            path->travel_mode = 0;
-            path->speed = 1.0f;
-            path->table_index = -2;
-        }
-        npc->path = path;
-    }
-    if (data->timed_events == 0) {
-        npc->path->table_index = 0;
-    }
-
-    npc->data_table_index = get_table_index_by_pointer(
-        konquest_pdata->waypoint_script, data);
-    npc->name = get_name_of_table_by_pointer(
-        konquest_pdata->waypoint_script, data);
-    npc->initial_position.x = data->position.x;
-    npc->initial_position.y = data->position.y;
-    npc->initial_position.z = data->position.z;
-    npc->current_waypoint_angle = data->angle_y;
-
-    if ((unsigned int)npc->data_table_index >= 0x10000) {
-        if (npc->hdr.instance != 0) {
-            npc->hdr.typed_vtbl->destroy(&npc->hdr);
-        }
-        return;
-    }
-
-    npc->tile_index = get_tile_from_position(&npc->data->position);
-    {
-        KonquestNpcEvent* event = npc->events;
-        KonquestNpcEventDefinition* definition = data->events;
-        int count = 8;
-
-        do {
-            event->script_function = definition->script_function;
-            event->distance = definition->distance;
-            if (definition->script_function != 0) {
-                event->enabled = 1;
-            } else {
-                event->enabled = 0;
-            }
-            event++;
-            definition++;
-            count--;
-        } while (count != 0);
-    }
-    if (strcmp(data->name, "damashi_npc") != 0) {
-        unsigned int art_id = get_artid_of_named_item_in_slot(
-            0x6002B, data->name, 1);
-
-        if (art_id != 0) {
-            npc->art_id = art_id;
-        } else {
-            npc->art_id = -1;
-        }
-    }
-    konquest_pdata->npc_count++;
-    mk_append(&npc->hdr, &konquest_pdata->npc_list);
-}
-
-/* Breakthrough: 81.39081%. Manager/process setup, 24 model-slot resets,
- * special-script lookup, saved command-script restoration/execution, and
- * visible-list rebuild are recovered. The current body is 88 bytes short, so
- * it is not yet classified as a compiler-emission-only near miss. */
-void start_running_npcs(void) {
-    NpcManagerPdata* manager = 0;
-    MkProc* manager_proc;
-    MkPtr* link;
-    int index;
-
-    _create_mkproc_generic_nostack(
-        0xA01C, 0x1F, p_update_npc_shadows, 0, 0);
-    manager_proc = find_mkproc_pid(0xA014);
-    if (manager_proc == 0) {
-        manager_proc = _create_mkproc_generic_nostack(
-            0xA014, 0x1F, p_npc_manager, sizeof(*manager),
-            (MkHdr**)&manager);
-        if (manager_proc != 0) {
-            zero_pdata_payload(sizeof(*manager), (MkHdr*)manager);
-            manager->visible_tile_set = konquest_pdata->visible_tile_set;
-            manager->nearest_npc_distance = -1.0f;
-            for (index = 0; index < 22; index++) {
-                NpcManagerModelSlot* slot = &manager->models[index];
-                memset(slot, 0, sizeof(*slot));
-                slot->available = 1;
-            }
-            for (index = 0; index < 2; index++) {
-                NpcManagerModelSlot* slot =
-                    &manager->special_models[index];
-                memset(slot, 0, sizeof(*slot));
-                slot->available = 1;
-            }
-            npc_manager_pdata = manager;
-        }
-    }
-    if (manager_proc != 0) {
-        set_process_as_scriptable(manager_proc);
-    }
-
-    link = konquest_pdata->npc_list;
-    while (link != 0) {
-        KonquestNpc* npc = (KonquestNpc*)link->hdr;
-        if (link->instance != npc->hdr.instance) {
-            MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
-            link = next;
-        } else {
-            if (npc->name != 0 &&
-                strcmp(npc->name, "npc_sektor_seller") == 0) {
-                npc->events[4].script_function =
-                    get_script_function_by_name(
-                        konquest_pdata->waypoint_script,
-                        "npc_block_only");
-            }
-            link = link->next;
-        }
-    }
-
-    link = konquest_pdata->npc_list;
-    while (link != 0) {
-        KonquestNpc* npc = (KonquestNpc*)link->hdr;
-        if (link->instance != npc->hdr.instance) {
-            MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
-            link = next;
-        } else {
-            unsigned int script_function =
-                npc->data->events[7].script_function;
-            if (script_function != 0) {
-                ScriptSlot* slot = konquest_pdata->waypoint_script;
-                g_active_npc = npc;
-                if (npc->saved_event_script != script_function) {
-                    npc->wait_ticks = 0.0f;
-                }
-                if (npc->wait_ticks > 0.0f) {
-                    memcpy(
-                        active_cmdscript->stack_mem,
-                        npc->saved_script_state,
-                        sizeof(npc->saved_script_state));
-                    active_cmdscript->func_name =
-                        (char*)(&slot->bytecode[
-                            slot->func_defs[script_function - 1]
-                                .code_offset] - 1);
-                    active_cmdscript->pc =
-                        (unsigned int*)npc->saved_script_position;
-                    active_cmdscript->stack_sp =
-                        &active_cmdscript->stack_mem[
-                            npc->saved_script_stack_depth];
-                    active_cmdscript->stack_end =
-                        active_cmdscript->stack_sp + 1;
-                } else {
-                    npc->saved_event_script = script_function;
-                    cmdscript_setup_execution(slot, script_function);
-                }
-                cmdscript_execute(slot);
-            }
-            link = link->next;
-        }
-    }
-
-    g_active_npc = 0;
-    npc_update(1);
-    get_visible_tile_set(konquest_pdata->visible_tile_set);
-    discard_list(&konquest_pdata->visible_npc_list);
-    link = konquest_pdata->npc_list;
-    while (link != 0) {
-        KonquestNpc* npc = (KonquestNpc*)link->hdr;
-        if (link->instance != npc->hdr.instance) {
-            MkPtr* next = link->next;
-            link->hdr = 0;
-            destroy_mkptr(link);
-            link = next;
-        } else {
-            KonquestTileOrigin* tile =
-                get_nth_tile_struct(npc->tile_index);
-            if (tile != 0 &&
-                (tile->loaded != 0 ||
-                 npc_event_has_active_animation(npc) != 0 ||
-                 (npc->flags_1C & 0x20) != 0)) {
-                mk_insert(&npc->hdr, &konquest_pdata->visible_npc_list);
-            }
-            link = link->next;
-        }
-    }
-}
-
-/*
- * Soft ceiling: 72.5% - the typed loop is exact; nonvolatile save form and
- * load/update scheduling differ from retail.
- */
-void add_npc_list_to_world(int* npc_ids) {
-    unsigned int count = get_row_count_for_table_by_pointer(
-        konquest_pdata->waypoint_script, npc_ids);
-    unsigned int index = 0;
-    int npc_id = *npc_ids;
-
-    while (index < count) {
-        add_npc((KonquestNpcData*)npc_id);
-        npc_id = npc_ids[1];
-        npc_ids++;
-        index++;
-    }
-}
-
-/*
- * Soft ceiling: 89.5% - the typed comparisons are exact; equivalent shared
- * current-time addressing and branch scheduling differ.
- */
-static int is_this_a_current_event_for_today(
-    const KonquestTime* event) {
-    const KonquestTime* current = &konquest_pdata->current_time;
-
-    if (event->year != -1 && event->year != current->year) {
-        return 0;
-    }
-    if (event->month != -1 && event->month != current->month) {
-        return 0;
-    }
-    if (event->day_of_month == -1 && event->day_of_week == -1) {
-        return 1;
-    }
-    if (event->day_of_month == -1 &&
-        event->day_of_week == current->day_of_week) {
-        if (current->hour > event->hour) {
-            return 1;
-        }
-        if (current->hour == event->hour &&
-            current->minute >= event->minute) {
-            return 1;
-        }
-        return 0;
-    }
-    if (event->day_of_month == current->day_of_month &&
-        event->day_of_week == -1) {
-        if (current->hour > event->hour) {
-            return 1;
-        }
-        if (current->hour == event->hour &&
-            current->minute >= event->minute) {
-            return 1;
-        }
-        return 0;
-    }
-    if (event->day_of_month == current->day_of_month &&
-        event->day_of_week == current->day_of_week) {
-        if (current->hour > event->hour) {
-            return 1;
-        }
-        if (current->hour == event->hour &&
-            current->minute >= event->minute) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/*
- * Soft ceiling: 73.89474% - the typed body is exact; array iteration GPR
- * coloring/address scheduling and split saves/restores differ.
- */
-void npc_shadow_teardown(void) {
-    int index;
-
-    for (index = 0; index < 15; index++) {
-        MkObj* object = npc_shadows.objects[index];
-
-        if (object != 0 && object->hdr.instance != 0) {
-            KonquestDestroyVtable* vtable =
-                (KonquestDestroyVtable*)object->hdr.vtbl;
-
-            vtable->destroy(object);
-        }
-        npc_shadows.objects[index] = 0;
-    }
-    npc_shadows.render = 0;
-    npc_shadows.initialized = 0;
-}
-
-void npc_shadow_init(void) {
-    int index;
-
-    if (npc_shadows.initialized != 0) {
-        return;
-    }
-
-    load_ssf(konquest_common_file_table);
-    load_art_section_language(0x60030, &sec_konquest_common_art);
-    for (index = 0; index < 15; index++) {
-        MkObj* object = (MkObj*)load_named_model_from_slot(
-            0x60030, "NPC_SHADOW", 0x7F00, 0);
-
-        npc_shadows.objects[index] = object;
-        if (object == 0) {
-            return;
-        }
-        {
-            KonquestShadowSObj* sobj;
-
-            obj_create_sobjs(object);
-            object->hide_flags |= 0x20;
-            sobj = (KonquestShadowSObj*)obj_first_sobj(object);
-            sobj->flags_08 &= (unsigned char)~1;
-            sobj->flags_09 |= 0x10;
-            object->light_flags = 0;
-            build_bones_tbl(object, konquest_npc_bones, 0);
-            npc_shadows.scales[index] = 1.0f;
-            npc_shadows.materials[index] =
-                obj_find_material_by_id(object, 0);
-            sobj_set_priority(sobj, 0xD);
-            sobj_use_material_color(sobj);
-            if (npc_shadows.render == 0) {
-                npc_shadows.render =
-                    (int (*)(int, KonquestNpcShadows*))
-                        sobj->atomic->renderCallBack;
-            }
-            sobj->atomic->renderCallBack =
-                (RpAtomicCallBackRender)shadow_render_callback;
-            if (sobj->atomic->renderCallBack == 0) {
-                sobj->atomic->renderCallBack = AtomicDefaultRenderCallBack;
-            }
-            sobj->flags_09 |= 2;
-            sobj->flags_09 |= 0x80;
-            insert_fgnd_mkobj(object);
-        }
-    }
-
-    for (index = 0; index < 15; index++) {
-        RpMaterial* material =
-            obj_find_material_by_id(npc_shadows.objects[index], 0);
-        RpMaterialColor color = {0xFFFFFFFF};
-
-        color.red = 0x7F;
-        color.green = 0x7F;
-        color.blue = 0x7F;
-        color.alpha = 0x7F;
-        material->color = color;
-    }
-    npc_shadows.alpha = 0x7F;
-    npc_shadows.initialized = 1;
-}
-
-/*
- * Matching: 99.44444% - code is exact; only the return-value float relocation
- * differs in this partial TU.
- */
-static float p_update_npc_shadows(void) {
-    npc_shadow_update();
-    return 1.0f;
-}
-
-static inline void npc_copy_time(
-    KonquestTime* destination, const KonquestTime* source) {
-    *destination = *source;
-}
-
-static inline void npc_find_next_timed_event(KonquestNpc* npc) {
-    KonquestTimedEvent* event = npc->data->timed_events;
-    int count = get_row_count_for_table_by_pointer(
-        konquest_pdata->waypoint_script, event);
-    const KonquestTime* current = &konquest_pdata->current_time;
-    KonquestTime next_time;
-    KonquestTime previous_next_time;
-
-    if (npc->next_timed_event != 0) {
-        npc->next_timed_event = 0;
-        npc_copy_time(&previous_next_time, &npc->next_event_time);
-        current = &previous_next_time;
-    }
-    while (count-- != 0) {
-        if (is_valid_event_time(&event->time) != 0 &&
-            calc_next_occurrence_of_event(
-                &next_time, &event->time, current) != 0) {
-            if (npc->next_timed_event == 0) {
-                npc->next_timed_event = event;
-                npc_copy_time(&npc->next_event_time, &next_time);
-            } else if (is_time_a_greater_than_time_b(
-                           &next_time, &npc->next_event_time) == 0 &&
-                       (is_time_a_equal_to_time_b(
-                            &next_time, &npc->next_event_time) == 0 ||
-                        does_event_a_trump_event_b(
-                            event, npc->next_timed_event) != 0)) {
-                npc->next_timed_event = event;
-                npc_copy_time(&npc->next_event_time, &next_time);
-            }
-        }
-        event++;
-    }
-}
-
+/* Near match: 77.0814%, four bytes short of retail. Stale-link cleanup,
+ * schedule activation/expiration, state reset, and every byte-width flag
+ * update match; residue is list-loop branch shaping and GPR allocation. */
 static void npc_dispatch_timed_events_for_all_npcs(void) {
     MkPtr** list = &konquest_pdata->npc_list;
     MkPtr* link;
@@ -7085,7 +6383,124 @@ static void npc_check_next_event(KonquestNpc* npc) {
 
 #pragma optimize_for_size reset
 
-/* Near match: 89.27273%, four bytes from retail. Door/table path resolution,
+
+
+/* Near match: 88.28704% - exact state-transition algorithm and retail table;
+ * pointer truth normalization and split GPR saves/restores add four emitted
+ * instructions relative to retail. */
+void npc_force_state_for_npc(KonquestNpc* npc, int next_state) {
+    CmdScript* script;
+    KonquestAnimPdata* animation;
+    int active;
+    int old_state;
+
+    npc->wait_ticks = 0.0f;
+    if (npc->proc != 0) {
+        script = get_cmdscript_for_proc(npc->proc);
+        script->stack_sp = script->stack_mem;
+        script->stack_end = script->stack_sp + 1;
+    }
+    old_state = npc->state_58;
+    npc->state_58 = next_state;
+    if (g_event_tbl[old_state].cleanup != 0) {
+        g_event_tbl[old_state].cleanup(npc);
+    }
+    if (npc->path != 0) {
+        npc->path->use_animation_override = 0;
+    }
+    if (npc->animation == 0) {
+        active = 0;
+    } else if (npc->animation->object == 0) {
+        active = 0;
+    } else {
+        active = npc->animation->proc != 0;
+    }
+    if (active != 0) {
+        animation = (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
+        animation->step = npc->saved_animation_step;
+        npc->animation->object->flags_word_08 = npc->saved_object_flags;
+        npc->animation->object->gravity = npc->saved_gravity;
+    }
+    if (((npc->flags_1C & 0x80) != 0 ||
+         (npc->flags_1C & 4) != 0) && npc->state_58 != 7) {
+        npc->flags_1C &= (unsigned char)~0x80;
+        npc->flags_1C &= (unsigned char)~4;
+    }
+    if (next_state != 0) {
+        npc->state_change_pending = 1;
+    }
+    if (npc->proc != 0) {
+        if (npc->animation == 0) {
+            active = 0;
+        } else if (npc->animation->object == 0) {
+            active = 0;
+        } else {
+            active = npc->animation->proc != 0;
+        }
+        if (active != 0) {
+            xfer_proc(npc->proc, p_npc_proc);
+        }
+    }
+}
+
+/* Near match: 86.43519% - exact state-transition algorithm and callback ABI;
+ * pointer truth normalization and split GPR saves/restores account for the
+ * remaining compiler-emission-only size difference. */
+void npc_xfer(
+    KonquestNpc* npc, MkProcEntryFn entry, int next_state) {
+    CmdScript* script;
+    KonquestAnimPdata* animation;
+    int active;
+    int old_state;
+
+    npc->wait_ticks = 0.0f;
+    if (npc->proc != 0) {
+        script = get_cmdscript_for_proc(npc->proc);
+        script->stack_sp = script->stack_mem;
+        script->stack_end = script->stack_sp + 1;
+    }
+    old_state = npc->state_58;
+    npc->state_58 = next_state;
+    if (g_event_tbl[old_state].cleanup != 0) {
+        g_event_tbl[old_state].cleanup(npc);
+    }
+    if (npc->path != 0) {
+        npc->path->use_animation_override = 0;
+    }
+    if (npc->animation == 0) {
+        active = 0;
+    } else if (npc->animation->object == 0) {
+        active = 0;
+    } else {
+        active = npc->animation->proc != 0;
+    }
+    if (active != 0) {
+        animation = (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
+        animation->step = npc->saved_animation_step;
+        npc->animation->object->flags_word_08 = npc->saved_object_flags;
+        npc->animation->object->gravity = npc->saved_gravity;
+    }
+    if (((npc->flags_1C & 0x80) != 0 ||
+         (npc->flags_1C & 4) != 0) && npc->state_58 != 7) {
+        npc->flags_1C &= (unsigned char)~0x80;
+        npc->flags_1C &= (unsigned char)~4;
+    }
+    if (next_state != 0) {
+        npc->state_change_pending = 1;
+    }
+    if (npc->proc != 0) {
+        if (npc->animation == 0) {
+            active = 0;
+        } else if (npc->animation->object == 0) {
+            active = 0;
+        } else {
+            active = npc->animation->proc != 0;
+        }
+        if (active != 0) {
+            xfer_proc(npc->proc, entry);
+        }
+    }
+}/* Near match: 89.27273%, four bytes from retail. Door/table path resolution,
  * preserved-path handoff, event flags, and restart policy are exact; only
  * branch/register scheduling remains. */
 static void npc_setup_path_for_event(
@@ -7136,184 +6551,89 @@ static void npc_setup_path_for_event(
         return;
     }
     npc_set_path(npc, path, table_index, row_count, 0, 1);
-}
+}/*
+ * Soft ceiling: 89.5% - the typed comparisons are exact; equivalent shared
+ * current-time addressing and branch scheduling differ.
+ */
+static int is_this_a_current_event_for_today(
+    const KonquestTime* event) {
+    const KonquestTime* current = &konquest_pdata->current_time;
 
-/* Near match: 73.03261%, 48 bytes short of retail. All 15-slot visibility,
- * grounded-height alpha, interpolated-sphere resync, projection radius,
- * distance scaling, reveal, and bone-projection behavior is recovered;
- * residue is square-root lowering, GPR/FPR allocation, and save form. */
-static void npc_shadow_update(void) {
-    KonquestCameraPositionView* camera =
-        ((KonquestCameraView*)Camera)->position;
-    float camera_x;
-    float camera_z;
-    int index;
-
-    if ((npc_shadows.flags & 0x40) != 0) {
-        return;
+    if (event->year != -1 && event->year != current->year) {
+        return 0;
     }
-    camera_x = camera->x;
-    camera_z = camera->z;
-    current_npc_count = 0;
-    for (index = 0; index < 15; index++) {
-        MkObj* shadow = npc_shadows.objects[index];
-        KonquestNpc* npc = npc_manager_pdata->visible_npcs[index];
-
-        shadow->hide_flags |= 0x20;
-        if (npc != 0) {
-            KonquestNpc* monk = konquest_pdata->monk_npc;
-
-            if (monk != 0) {
-                if (monk->hdr.instance !=
-                    konquest_pdata->monk_npc_instance) {
-                    monk = 0;
-                }
-            } else {
-                monk = 0;
-            }
-            if (npc->data != monk->data) {
-                int active = npc_event_has_active_animation(npc);
-                int use_shadow;
-
-                if (active == 1) {
-                    use_shadow = npc->wait_for_animation != 0;
-                } else {
-                    use_shadow = 0;
-                }
-                if (use_shadow != 0) {
-                    MkObj* object = npc->animation->object;
-
-                    if (object != 0) {
-                        float scale;
-
-                        if (object->ground_colls_y < 0.0f) {
-                            scale =
-                                (-0.3f - object->ground_colls_y) / -0.15f;
-                        } else {
-                            scale =
-                                (0.5f - object->ground_colls_y) / 0.4f;
-                        }
-                        scale *= npc_shadows.scales[index];
-                        if (scale >= 0.1f) {
-                            RpAtomic* atomic;
-                            float projected_x;
-                            float projected_y;
-                            float projected_z;
-                            float radius;
-                            float distance_squared;
-                            float shadow_scale;
-                            int alpha;
-
-                            if (scale > 1.0f) {
-                                scale = 1.0f;
-                            }
-                            alpha = (int)(scale * npc_shadows.alpha);
-                            npc_shadows.materials[index]->color.red =
-                                (unsigned char)alpha;
-                            npc_shadows.materials[index]->color.green =
-                                (unsigned char)alpha;
-                            npc_shadows.materials[index]->color.blue =
-                                (unsigned char)alpha;
-                            npc_shadows.materials[index]->color.alpha =
-                                (unsigned char)alpha;
-                            atomic = ((KonquestShadowSObj*)
-                                obj_first_sobj(shadow))->atomic;
-                            if ((atomic->interpolator.flags & 2) != 0) {
-                                _rpAtomicResyncInterpolatedSphere(atomic);
-                            }
-                            projected_x = object->pos.x -
-                                (object->pos.z *
-                                     npc_shadows.projection.at.x +
-                                 (object->pos.x *
-                                      npc_shadows.projection.right.x +
-                                  1.4f * npc_shadows.projection.up.x));
-                            projected_y = 0.0f -
-                                (object->pos.z *
-                                     npc_shadows.projection.at.y +
-                                 (object->pos.x *
-                                      npc_shadows.projection.right.y +
-                                  1.4f * npc_shadows.projection.up.y));
-                            projected_z = object->pos.z -
-                                (object->pos.z *
-                                     npc_shadows.projection.at.z +
-                                 (object->pos.x *
-                                      npc_shadows.projection.right.z +
-                                  1.4f * npc_shadows.projection.up.z));
-                            radius = npc_fast_sqrt(
-                                projected_z * projected_z +
-                                (projected_x * projected_x +
-                                 projected_y * projected_y));
-                            atomic->boundingSphere.radius = radius;
-                            distance_squared =
-                                (camera_z - object->pos.z) *
-                                    (camera_z - object->pos.z) +
-                                (camera_x - object->pos.x) *
-                                    (camera_x - object->pos.x);
-                            if (distance_squared < 169.0f) {
-                                shadow_scale = 1.0f;
-                            } else if (distance_squared < 1225.0f) {
-                                shadow_scale =
-                                    1.0f +
-                                    ((npc_fast_sqrt(distance_squared) -
-                                      13.0f) /
-                                     3.0f);
-                            } else {
-                                continue;
-                            }
-                            current_npc_count++;
-                            shadow->hide_flags &= (unsigned char)~0x20;
-                            shadow->pos = object->pos;
-                            shadow->flags_08 |= 0x80;
-                            if (shadow_scale > 3.0f) {
-                                shadow_scale = 3.0f;
-                            }
-                            if (shadow_scale < 1.2f) {
-                                shadow_scale = 1.2f;
-                            }
-                            set_shadow_bones(shadow, object, shadow_scale);
-                        }
-                    }
-                }
-            }
+    if (event->month != -1 && event->month != current->month) {
+        return 0;
+    }
+    if (event->day_of_month == -1 && event->day_of_week == -1) {
+        return 1;
+    }
+    if (event->day_of_month == -1 &&
+        event->day_of_week == current->day_of_week) {
+        if (current->hour > event->hour) {
+            return 1;
+        }
+        if (current->hour == event->hour &&
+            current->minute >= event->minute) {
+            return 1;
+        }
+        return 0;
+    }
+    if (event->day_of_month == current->day_of_month &&
+        event->day_of_week == -1) {
+        if (current->hour > event->hour) {
+            return 1;
+        }
+        if (current->hour == event->hour &&
+            current->minute >= event->minute) {
+            return 1;
+        }
+        return 0;
+    }
+    if (event->day_of_month == current->day_of_month &&
+        event->day_of_week == current->day_of_week) {
+        if (current->hour > event->hour) {
+            return 1;
+        }
+        if (current->hour == event->hour &&
+            current->minute >= event->minute) {
+            return 1;
         }
     }
-    npc_shadows.clear_alpha_pending = 1;
+    return 0;
 }
 
-/*
- * Soft ceiling: 52.060608% - the retail-sized body and memory operations are
- * exact; loop induction/register coloring, save form, and the color constant
- * relocation differ.
- */
-/* Recovered render-state/light/alpha callback. Current output is 16 bytes
- * larger from split nonvolatile saves and constant scheduling; the operations,
- * call order, and 0x130-byte shadow state layout follow retail. */
-static int shadow_render_callback(int object) {
-    static const RwRGBAReal light_color = {
-        1.0f, 1.0f, 1.0f, 1.0f
-    };
-    RwRGBAReal color = light_color;
+/* Near match: 99.68421% at exact retail size. The signed render latch,
+ * post-guard color initialization, render-state/light/alpha call order, typed
+ * callback ABI, and cleanup match; only one render-state argument register
+ * differs. */
+#pragma optimize_for_size on
+static RpAtomic* shadow_render_callback(RpAtomic* atomic) {
     RpLight* light;
     RpWorld* world;
-    int result;
+    RpAtomic* result;
 
-    if ((npc_shadows.flags & 0x20) != 0) {
+    if (npc_shadows.render_disabled != 0) {
         return 0;
     }
     light = RpLightCreate(2);
     world = (RpWorld*)RwEngineInstance->curWorld;
-    gc_enable_alpha_writes(1);
-    if (npc_shadows.clear_alpha_pending != 0) {
-        clear_alpha_channel();
-        npc_shadows.clear_alpha_pending = 0;
+    {
+        RwRGBAReal color = {1.0f, 1.0f, 1.0f, 1.0f};
+
+        gc_enable_alpha_writes(1);
+        if (npc_shadows.clear_alpha_pending != 0) {
+            clear_alpha_channel();
+            npc_shadows.clear_alpha_pending = 0;
+        }
+        RpLightSetColor(light, &color);
     }
-    RpLightSetColor(light, &color);
     if (world != 0) {
         RpWorldAddLight(world, light);
     }
     RwEngineInstance->fpRenderStateSet(10, 9);
     RwEngineInstance->fpRenderStateSet(11, 8);
-    result = npc_shadows.render(object, &npc_shadows);
+    result = npc_shadows.render(atomic, &npc_shadows);
     RwEngineInstance->fpRenderStateSet(10, 5);
     RwEngineInstance->fpRenderStateSet(11, 6);
     gc_enable_alpha_writes(0);
@@ -7325,7 +6645,12 @@ static int shadow_render_callback(int object) {
     }
     return result;
 }
+#pragma optimize_for_size reset
 
+/* Near match: 98.333336% at exact retail size. Compact lowering reproduces the
+ * 15-object traversal, material lookup, packed color construction, and cached
+ * alpha store; only two loop-register assignments differ. */
+#pragma optimize_for_size on
 void npc_shadow_set_alpha(int alpha) {
     int shadow_alpha = 255 - alpha;
     int index;
@@ -7342,6 +6667,184 @@ void npc_shadow_set_alpha(int alpha) {
         material->color = color;
     }
     npc_shadows.alpha = shadow_alpha;
+}
+#pragma optimize_for_size reset
+
+/* Near match: 90.695656%, 12 bytes over retail. All 15-slot visibility,
+ * signed flag semantics, grounded-height packed color, three atomic reloads,
+ * projection staging, corrected packed sqrt lookup, float position copies,
+ * distance scaling, reveal, and bone projection match. Residue is GPR/FPR
+ * allocation and instruction scheduling. */
+#pragma optimize_for_size on
+void npc_shadow_update(void) {
+    KonquestCameraPositionView* camera =
+        ((KonquestCameraView*)Camera)->position;
+    RpMaterialColor color = {0xFFFFFFFF};
+    float camera_x;
+    float camera_z;
+    int index;
+
+    if (npc_shadows.update_disabled != 0) {
+        return;
+    }
+    camera_x = camera->x;
+    camera_z = camera->z;
+    current_npc_count = 0;
+    for (index = 0; index < 15; index++) {
+        MkObj* shadow = npc_shadows.objects[index];
+        KonquestNpc* npc = npc_manager_pdata->visible_npcs[index];
+
+        shadow->hide_flag_bits.hidden = 1;
+        if (npc != 0) {
+            KonquestNpc* monk = konquest_pdata->monk_npc;
+
+            if (monk != 0) {
+                if (monk->hdr.instance !=
+                    konquest_pdata->monk_npc_instance) {
+                    monk = 0;
+                }
+            } else {
+                monk = 0;
+            }
+            if (npc->data != monk->data) {
+                int active = npc_event_has_active_animation(npc);
+                int skip_shadow;
+
+                if (active == 1) {
+                    skip_shadow = npc->wait_for_animation == 0;
+                } else {
+                    skip_shadow = 1;
+                }
+                if (skip_shadow == 0) {
+                    MkObj* object = npc->animation->object;
+
+                    if (object != 0) {
+                        float scale;
+
+                        if (object->ground_colls_y < 0.0f) {
+                            scale =
+                                (-0.3f - object->ground_colls_y) / -0.15f;
+                        } else {
+                            scale =
+                                (0.5f - object->ground_colls_y) / 0.4f;
+                        }
+                        scale *= npc_shadows.scales[index];
+                        if (!(scale < 0.1f)) {
+                            float projected_x;
+                            float projected_y;
+                            float projected_z;
+                            float radius;
+                            float distance_squared;
+                            float shadow_scale;
+                            int alpha;
+
+                            if (scale > 1.0f) {
+                                scale = 1.0f;
+                            }
+                            alpha = (int)(scale * npc_shadows.alpha);
+                            color.red = (unsigned char)alpha;
+                            color.blue = (unsigned char)alpha;
+                            color.green = (unsigned char)alpha;
+                            color.alpha = (unsigned char)alpha;
+                            npc_shadows.materials[index]->color = color;
+                            if ((((MkSobj*)obj_first_sobj(shadow))
+                                     ->atomic->interpolator.flags & 2) != 0) {
+                                _rpAtomicResyncInterpolatedSphere(
+                                    ((MkSobj*)obj_first_sobj(shadow))->atomic);
+                            }
+                            projected_x = object->pos.x *
+                                npc_shadows.projection.right.x +
+                                1.4f * npc_shadows.projection.up.x;
+                            projected_x = object->pos.z *
+                                npc_shadows.projection.at.x + projected_x;
+                            projected_x = object->pos.x - projected_x;
+                            projected_y = object->pos.x *
+                                npc_shadows.projection.right.y +
+                                1.4f * npc_shadows.projection.up.y;
+                            projected_y = object->pos.z *
+                                npc_shadows.projection.at.y + projected_y;
+                            projected_y = 0.0f - projected_y;
+                            projected_z = object->pos.x *
+                                npc_shadows.projection.right.z +
+                                1.4f * npc_shadows.projection.up.z;
+                            projected_z = object->pos.z *
+                                npc_shadows.projection.at.z + projected_z;
+                            projected_z = object->pos.z - projected_z;
+                            radius = npc_fast_sqrt(
+                                projected_z * projected_z +
+                                (projected_x * projected_x +
+                                 projected_y * projected_y));
+                            ((MkSobj*)obj_first_sobj(shadow))
+                                ->atomic->boundingSphere.radius = radius;
+                            {
+                                float delta_x = camera_x - object->pos.x;
+                                float delta_y = 0.0f;
+                                float delta_z = camera_z - object->pos.z;
+
+                                distance_squared = delta_z * delta_z +
+                                    (delta_x * delta_x + delta_y * delta_y);
+                            }
+                            if (distance_squared < 169.0f) {
+                                shadow_scale = 1.0f;
+                            } else if (distance_squared < 1225.0f) {
+                                shadow_scale =
+                                    1.0f +
+                                    ((npc_fast_sqrt(distance_squared) -
+                                      13.0f) /
+                                     3.0f);
+                            } else {
+                                continue;
+                            }
+                            current_npc_count++;
+                            shadow->hide_flag_bits.hidden = 0;
+                            shadow->pos.x = object->pos.x;
+                            shadow->pos.y = object->pos.y;
+                            shadow->pos.z = object->pos.z;
+                            shadow->flags_08_bits.bit7 = 1;
+                            if (shadow_scale > 3.0f) {
+                                shadow_scale = 3.0f;
+                            }
+                            if (shadow_scale < 1.2f) {
+                                shadow_scale = 1.2f;
+                            }
+                            set_shadow_bones(shadow, object, shadow_scale);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    npc_shadows.clear_alpha_pending = 1;
+}
+#pragma optimize_for_size reset
+
+/*
+ * Soft ceiling: retail gives the local matrix 16-byte stack alignment. The
+ * portable matrix declaration preserves the algorithm and exact object
+ * accesses, leaving only frame offsets and FPR allocation different.
+ */
+void npc_shadow_set_light_angle(const Vec* angles) {
+    MKMATRIX rotation;
+    float projection_x;
+    float projection_z;
+
+    if (angles == 0) {
+        return;
+    }
+    if (angles->x < 0.52359873f) {
+        return;
+    }
+
+    YXZ_angles_to_MKMATRIX(angles, &rotation);
+    projection_x = rotation.at.x / rotation.at.y;
+    projection_z = rotation.at.z / rotation.at.y;
+    npc_shadows.light_direction.x = rotation.at.x;
+    npc_shadows.light_direction.y = rotation.at.y;
+    npc_shadows.light_direction.z = rotation.at.z;
+    MKMatrixSetIdentity(&npc_shadows.projection);
+    npc_shadows.projection.up.x = -projection_x;
+    npc_shadows.projection.up.y = 0.0f;
+    npc_shadows.projection.up.z = -projection_z;
 }
 
 /*
@@ -7399,35 +6902,6 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
         }
     }
     RwFrameUpdateObjects(shadow->frame);
-}
-
-/*
- * Soft ceiling: retail gives the local matrix 16-byte stack alignment. The
- * portable matrix declaration preserves the algorithm and exact object
- * accesses, leaving only frame offsets and FPR allocation different.
- */
-void npc_shadow_set_light_angle(const Vec* angles) {
-    MKMATRIX rotation;
-    float projection_x;
-    float projection_z;
-
-    if (angles == 0) {
-        return;
-    }
-    if (angles->x < 0.52359873f) {
-        return;
-    }
-
-    YXZ_angles_to_MKMATRIX(angles, &rotation);
-    projection_x = rotation.at.x / rotation.at.y;
-    projection_z = rotation.at.z / rotation.at.y;
-    npc_shadows.light_direction.x = rotation.at.x;
-    npc_shadows.light_direction.y = rotation.at.y;
-    npc_shadows.light_direction.z = rotation.at.z;
-    MKMatrixSetIdentity(&npc_shadows.projection);
-    npc_shadows.projection.up.x = -projection_x;
-    npc_shadows.projection.up.y = 0.0f;
-    npc_shadows.projection.up.z = -projection_z;
 }
 
 /* Matching: 99.96183% - the 0.01f literal relocation differs. */
@@ -7493,6 +6967,91 @@ static void append_oblique_projection(
  * Soft ceiling: 82.67857% - the typed body is exact; nonvolatile GPR coloring
  * and split saves differ from retail.
  */
+/* Matching: compact loop/save lowering reproduces typed destruction, the
+ * 15-entry clear, callback reset, and signed initialized latch exactly. */
+#pragma optimize_for_size on
+void npc_shadow_teardown(void) {
+    int index;
+
+    for (index = 0; index < 15; index++) {
+        MkObj* object = npc_shadows.objects[index];
+
+        if (object != 0 && object->hdr.instance != 0) {
+            object->hdr.typed_vtbl->destroy(&object->hdr);
+        }
+        npc_shadows.objects[index] = 0;
+    }
+    npc_shadows.render = 0;
+    npc_shadows.initialized = 0;
+}
+#pragma optimize_for_size reset
+
+/* Near match: 93.333336% at exact retail size. Retail function order,
+ * signed initialization guard, model-slot reloads, typed SObj flags/callback,
+ * bone/material setup, foreground insertion, and packed color byte order
+ * match; residue is loop-address and nonvolatile-register allocation. */
+#pragma optimize_for_size on
+void npc_shadow_init(void) {
+    int index;
+
+    if (npc_shadows.initialized != 0) {
+        return;
+    }
+
+    load_ssf(konquest_common_file_table);
+    load_art_section_language(0x60030, &sec_konquest_common_art);
+    for (index = 0; index < 15; index++) {
+        MkSobj* sobj;
+
+        npc_shadows.objects[index] = (MkObj*)load_named_model_from_slot(
+            0x60030, "NPC_SHADOW", 0x7F00, 0);
+        if (npc_shadows.objects[index] == 0) {
+            return;
+        }
+
+        obj_create_sobjs(npc_shadows.objects[index]);
+        npc_shadows.objects[index]->hide_flag_bits.hidden = 1;
+        sobj = (MkSobj*)obj_first_sobj(npc_shadows.objects[index]);
+        sobj->flags_08_bits.bit0 = 0;
+        sobj->flags09_bits.bit4 = 1;
+        npc_shadows.objects[index]->light_flags = 0;
+        build_bones_tbl(
+            npc_shadows.objects[index], konquest_npc_bones, 0);
+        npc_shadows.scales[index] = 1.0f;
+        npc_shadows.materials[index] =
+            obj_find_material_by_id(npc_shadows.objects[index], 0);
+        sobj_set_priority(sobj, 0xD);
+        sobj_use_material_color(sobj);
+        if (npc_shadows.render == 0) {
+            npc_shadows.render =
+                (RpAtomic* (*)(RpAtomic*, KonquestNpcShadows*))
+                    sobj->atomic->renderCallBack;
+        }
+        sobj->atomic->renderCallBack = shadow_render_callback;
+        if (sobj->atomic->renderCallBack == 0) {
+            sobj->atomic->renderCallBack = AtomicDefaultRenderCallBack;
+        }
+        sobj->flags09_bits.has_pebbles = 1;
+        sobj->flags09_bits.bit7 = 1;
+        insert_fgnd_mkobj(npc_shadows.objects[index]);
+    }
+
+    for (index = 0; index < 15; index++) {
+        RpMaterial* material =
+            obj_find_material_by_id(npc_shadows.objects[index], 0);
+        RpMaterialColor color = {0xFFFFFFFF};
+
+        color.red = 0x7F;
+        color.blue = 0x7F;
+        color.green = 0x7F;
+        color.alpha = 0x7F;
+        material->color = color;
+    }
+    npc_shadows.alpha = 0x7F;
+    npc_shadows.initialized = 1;
+}
+#pragma optimize_for_size reset
+
 void npc_assign_door_path(int door_id, int travel_mode) {
     void* path = get_door_path(door_id);
 
@@ -7529,10 +7088,9 @@ void npc_assign_path_to_him(
     }
 }
 
-/*
- * Soft ceiling: 74.85714% - the typed body is exact; MWCC splits the r28-r31
- * save/restore sequence instead of using retail's stmw/lmw pair.
- */
+/* Matching: compact save/restore lowering reproduces the typed path lookup and
+ * assignment body exactly. */
+#pragma optimize_for_size on
 void npc_assign_path(void* path, int flags, int travel_mode) {
     if (g_active_npc != 0) {
         int row_count = 0;
@@ -7548,6 +7106,7 @@ void npc_assign_path(void* path, int flags, int travel_mode) {
             g_active_npc, path, table_index, row_count, flags, travel_mode);
     }
 }
+#pragma optimize_for_size reset
 
 static void npc_set_path(
     KonquestNpc* npc, void* path_pointer, int table_index, int row_count,
@@ -7673,6 +7232,639 @@ static void npc_set_path(
     }
 }
 
+/* Near match: 75.205574%, 12 bytes short of retail with retail-evidenced
+ * compact loop lowering. Model-cache attachment,
+ * texture/material setup, repeated object ownership loads, animation process
+ * restoration, aligned collision construction, and both rollback paths match.
+ * Residue is visible-array loop induction, pointer-boolean lowering, split
+ * saves, and the pooled "0" string relocation. */
+#pragma optimize_for_size on
+static void load_model_for_npc(KonquestNpc* npc) {
+    if (npc->animation != 0) {
+        MkSobj* sobj;
+        AnimPdata* animation;
+        MkProc* animation_proc;
+        MkHdr* object_header;
+
+        npc_manager_find_model_for_npc(npc);
+        if (npc->animation != 0) {
+            sobj = (MkSobj*)obj_first_sobj(npc->animation->object);
+            if (sobj != 0) {
+                if (sobj->atomic->geometry != 0) {
+                    RpGeometryForAllMaterials(
+                        sobj->atomic->geometry,
+                        (KonquestMaterialCallback)
+                            material_restore_texture_pointer,
+                        0);
+                }
+                if (strcmp(npc->data->texture_name, "0") != 0) {
+                    RwTexture* texture = load_named_tga_from_slot(
+                        0x6002B, npc->data->texture_name);
+
+                    if (texture != 0) {
+                        sobj_swap_material_texture(sobj, 5, texture);
+                    }
+                }
+                if (sobj->atomic->geometry != 0) {
+                    RpGeometryForAllMaterials(
+                        sobj->atomic->geometry, hide_npc_materials,
+                        npc->data->visible_material_ids);
+                }
+            }
+        }
+        if (npc->animation->object == 0) {
+            npc_manager_remove_visible_entry(npc);
+            return;
+        }
+
+        npc->animation->object->hide_flag_bits.pin_animation = 0;
+        npc->animation->object->flags_0C = 0;
+        npc->saved_object_flags = npc->animation->object->flags_word_08;
+        npc->animation->object->ang.y = npc->data->angle_y;
+        npc->animation->object->pos.x = npc->data->position.x;
+        npc->animation->object->pos.y = npc->data->position.y;
+        npc->animation->object->pos.z = npc->data->position.z;
+        if (npc->animation->object != 0) {
+            object_header = as_mkhdr(&npc->animation->object->hdr);
+        } else {
+            object_header = 0;
+        }
+        update_mkobj(object_header);
+        if (konquest_editor_mode_on != 0) {
+            animation_proc = create_mkproc_anim(
+                0x5002, (MkProcEntryFn)p_animate, &animation);
+        } else {
+            animation_proc = create_mkproc_anim(
+                0x5002, p_anim_idle, &animation);
+        }
+        if (animation_proc == 0) {
+            npc_manager_remove_visible_entry(npc);
+            return;
+        }
+
+        animation->obj = npc->animation->object;
+        animation->obj_instance = npc->animation->object->hdr.instance;
+        set_root_and_obj_movement_weights(
+            0.0f, 1.0f, (AnimState*)animation);
+        if (npc->queued_animation == 0) {
+            set_anim_script(
+                (KonquestAnimPdata*)animation,
+                get_animation(npc->data->idle_animation), 0);
+        } else {
+            set_anim_script_frame(
+                animation, npc->queued_animation,
+                npc->animation_flags, npc->queued_animation_frame);
+            if (npc->queued_animation_frame > animation->high_frame) {
+                npc->queued_animation_frame = animation->high_frame;
+            }
+        }
+        animation->step = 1.0f;
+        npc->animation->proc = animation_proc;
+        pose_anim((AnimState*)animation, 1);
+
+        if (konquest_editor_mode_on == 0 &&
+            npc_event_has_active_animation(npc) != 0) {
+            CollisionShape shape __attribute__((aligned(16)));
+            Vec center;
+
+            center.x = npc->animation->object->pos.x;
+            center.y = npc->animation->object->pos.y;
+            center.z = npc->animation->object->pos.z;
+            center.y += -1.0f;
+            build_col_shape_vertical_cylinder(&shape, &center, 0.3f, 3.0f);
+            npc->animation->editor_object =
+                add_shape_to_global_collision_list(
+                    &shape, npc->data_table_index + 0x10001);
+        }
+        if ((npc->flags_1D & 0x20) != 0) {
+            sobj = (MkSobj*)obj_first_sobj(npc->animation->object);
+            if (sobj != 0) {
+                sobj->flags09_bits.bit4 = 1;
+            }
+        }
+        insert_fgnd_mkobj(npc->animation->object);
+        npc->wait_for_animation = 1;
+    }
+}
+#pragma optimize_for_size reset
+
+
+
+void npc_make_invisible(KonquestNpc* npc) {
+    int index;
+
+    if (npc_is_visible_model_active(npc) == 0) {
+        return;
+    }
+
+    for (index = 0; index < 15; index++) {
+        if (npc_manager_pdata->visible_npcs[index] == npc) {
+            npc_manager_pdata->visible_npcs[index] = 0;
+            npc_manager_pdata->visible_count--;
+            if (npc->data->events[7].script_function == 1) {
+                npc_manager_pdata->special_count--;
+            }
+            npc->flags_1C &= (unsigned char)~0x10;
+            break;
+        }
+    }
+
+    npc->timed_event_flags &= (unsigned char)~0x40;
+    if ((npc->flags_1D & 0x40) == 0) {
+        MkObj* object = npc->animation->object;
+
+        if (object != 0) {
+            npc->data->position.x = object->pos.x;
+            npc->data->position.y = object->pos.y;
+            npc->data->position.z = object->pos.z;
+            npc->tile_index = get_tile_from_position(&object->pos);
+            if (npc_event_has_active_animation(npc) != 0) {
+                object->flags_09_bits.bit6 = 0;
+                npc->animation->object->pos.x = object->pos.x;
+                npc->animation->object->pos.y = object->pos.y;
+                npc->animation->object->pos.z = object->pos.z;
+            }
+            npc->data->angle_y = npc->animation->object->ang.y;
+        }
+        if (npc->animation->proc != 0) {
+            KonquestAnimPdata* animation =
+                (KonquestAnimPdata*)pdata_of_proc(npc->animation->proc);
+
+            npc->queued_animation_frame = animation->frame;
+            npc->queued_animation = animation->animation;
+            npc->animation_flags = animation->flags;
+        }
+        {
+            CmdScript* script = get_cmdscript_for_proc(npc->proc);
+
+            if (script->pc != 0) {
+                CmdScript* saved_script = active_cmdscript;
+
+                active_cmdscript = script;
+                cmdscript_step_backward();
+                memcpy(
+                    npc->saved_script_state, active_cmdscript->stack_mem,
+                    sizeof(npc->saved_script_state));
+                npc->saved_script_position =
+                    (unsigned int)active_cmdscript->pc;
+                npc->saved_script_stack_depth = get_script_stack_depth();
+                active_cmdscript = saved_script;
+                npc->wait_ticks = npc->proc->sleep_ticks;
+            }
+        }
+    }
+
+    npc_manager_release_npc_model(npc);
+    if (konquest_editor_mode_on == 0 &&
+        npc->animation->editor_object != 0) {
+        if ((npc->animation->editor_object != 0
+                 ? as_mkhdr(&npc->animation->editor_object->hdr)
+                 : 0)->instance != 0) {
+            (npc->animation->editor_object != 0
+                 ? as_mkhdr(&npc->animation->editor_object->hdr)
+                 : 0)->typed_vtbl->destroy(
+                npc->animation->editor_object != 0
+                    ? as_mkhdr(&npc->animation->editor_object->hdr)
+                    : 0);
+        }
+        npc->animation->editor_object = 0;
+    }
+    if (npc->animation != 0) {
+        if (npc->animation->proc != 0 &&
+            npc->animation->proc->instance != 0) {
+            npc->animation->proc->hdr.typed_vtbl->destroy(
+                &npc->animation->proc->hdr);
+        }
+        if (npc->proc->instance != 0) {
+            npc->proc->hdr.typed_vtbl->destroy(&npc->proc->hdr);
+        }
+        npc->animation = 0;
+        npc->proc = 0;
+    }
+}
+
+static void npc_manager_release_npc_model(KonquestNpc* npc) {
+    int index;
+
+    if (npc->data->events[7].script_function == 1) {
+        for (index = 0; index < 2; index++) {
+            NpcManagerModelSlot* slot =
+                &npc_manager_pdata->special_models[index];
+
+            if (slot->data == npc->data) {
+                MkObj* object = npc->animation->object;
+                AniTextureControl* texture = npc->animation->lip_texture;
+
+                if (object != 0) {
+                    if (object->hdr.instance != 0) {
+                        object->hdr.typed_vtbl->destroy(&object->hdr);
+                    }
+                    npc->animation->object = 0;
+                }
+                if (texture != 0) {
+                    if ((unsigned int)texture->instance !=
+                        npc->animation->lip_texture_instance) {
+                        texture = 0;
+                    }
+                } else {
+                    texture = 0;
+                }
+                if (texture != 0) {
+                    MkHdr* texture_hdr = (MkHdr*)npc->animation->lip_texture;
+
+                    if (texture_hdr->instance != 0) {
+                        texture_hdr->typed_vtbl->destroy(texture_hdr);
+                    }
+                    npc->animation->lip_texture = 0;
+                    npc->animation->lip_texture_instance = 0;
+                }
+                slot->data = 0;
+                slot->available = 1;
+                slot->art_id = 0;
+                slot->object = 0;
+                slot->age = 0.0f;
+                return;
+            }
+        }
+        return;
+    }
+
+    for (index = 0; index < 22; index++) {
+        NpcManagerModelSlot* slot = &npc_manager_pdata->models[index];
+
+        if (slot->data == npc->data) {
+            if (slot->object != 0) {
+                obj_for_all_atomics_set_material_alpha(slot->object, 0);
+                remove_fgnd_mkobj(slot->object);
+            }
+            slot->data = 0;
+            slot->available = 1;
+            return;
+        }
+    }
+}
+
+/* Near match: 90.49% at exact retail size. Retail uses the compact loop
+ * lowering selected here for all four fixed-capacity manager scans. Model
+ * cache keys use the +0 model name, and slot selection, eviction, ownership,
+ * and process initialization match; residue is register/branch scheduling. */
+#pragma optimize_for_size on
+void npc_make_visible(KonquestNpc* npc) {
+    NpcManagerModelSlot* slot = 0;
+    KonquestNpcAnimState* animation = 0;
+    int index;
+
+    if ((npc->flags_1C & 0x10) != 0 ||
+        is_it_safe_to_make_this_npc_visible(npc) == 0) {
+        return;
+    }
+
+    for (index = 0; index < 15; index++) {
+        if (npc_manager_pdata->visible_npcs[index] == 0) {
+            npc_manager_pdata->visible_npcs[index] = npc;
+            npc_manager_pdata->visible_count++;
+            if (npc->data->events[7].script_function == 1) {
+                npc_manager_pdata->special_count++;
+                if (npc_manager_pdata->special_count > 2) {
+                    npc_manager_pdata->visible_count--;
+                    npc_manager_pdata->special_count--;
+                    return;
+                }
+            }
+            npc->flags_1C |= 0x10;
+            break;
+        }
+    }
+
+    if (npc->data->events[7].script_function == 1) {
+        for (index = 0; index < 2; index++) {
+            NpcManagerModelSlot* candidate =
+                &npc_manager_pdata->special_models[index];
+
+            if (candidate->available != 0 &&
+                strcmp(candidate->name, npc->data->model_name) == 0) {
+                slot = candidate;
+                break;
+            }
+        }
+        if (slot == 0) {
+            for (index = 0; index < 2; index++) {
+                NpcManagerModelSlot* candidate =
+                    &npc_manager_pdata->special_models[index];
+
+                if (candidate->available != 0) {
+                    slot = candidate;
+                    break;
+                }
+            }
+        }
+    } else {
+        unsigned int art_id = get_artid_of_named_item_in_slot(
+            0x6002B, npc->data->model_name, 1);
+
+        for (index = 0; index < 22; index++) {
+            NpcManagerModelSlot* candidate =
+                &npc_manager_pdata->models[index];
+
+            if (candidate->art_id == art_id &&
+                candidate->available != 0) {
+                slot = candidate;
+                break;
+            }
+        }
+        if (slot == 0) {
+            float oldest_age = -1.0f;
+
+            for (index = 0; index < 22; index++) {
+                NpcManagerModelSlot* candidate =
+                    &npc_manager_pdata->models[index];
+
+                if (candidate->age > oldest_age &&
+                    candidate->available != 0) {
+                    oldest_age = candidate->age;
+                    slot = candidate;
+                }
+            }
+            if (slot != 0 && slot->object != 0) {
+                if (slot->object->hdr.instance != 0) {
+                    slot->object->hdr.typed_vtbl->destroy(
+                        &slot->object->hdr);
+                }
+                slot->object = 0;
+                slot->art_id = 0;
+            }
+        }
+    }
+
+    if (slot != 0) {
+        slot->available = 0;
+        slot->data = npc->data;
+        if (npc->animation == 0) {
+            MkProc* proc = _create_mkproc_generic_bigstack(
+                0xA002, 8, p_npc_proc, sizeof(*animation),
+                (MkHdr**)&animation);
+
+            if (proc != 0) {
+                set_process_as_scriptable(proc);
+                proc->pre_destroy = (MkProcCallbackFn)npc_pre_wake;
+                proc->destroy_cb = (MkProcCallbackFn)npc_post_sleep;
+                npc->animation = animation;
+                npc->proc = proc;
+                animation->lip_texture = 0;
+                animation->lip_texture_instance = 0;
+                animation->owner_npc = npc;
+                animation->proc = 0;
+                animation->object = 0;
+                animation->editor_object = 0;
+                animation->dialog_anim = 0;
+                animation->alpha = 0;
+            }
+        }
+    }
+}
+#pragma optimize_for_size reset
+
+static int is_it_safe_to_make_this_npc_visible(KonquestNpc* npc) {
+    KonquestNpc* farthest;
+    int index;
+
+    if (get_konquest_game_mode() == 3 &&
+        (npc->flags_1D & 0x20) == 0) {
+        return 0;
+    }
+    if (npc->data->events[7].script_function == 1 &&
+        npc_manager_pdata->special_count >= 2) {
+        farthest = 0;
+        for (index = 0; index < 15; index++) {
+            KonquestNpc* visible =
+                npc_manager_pdata->visible_npcs[index];
+
+            if (visible != 0 &&
+                visible->data->events[7].script_function == 1 &&
+                npc_is_visible_model_active(visible) != 0) {
+                if (farthest == 0 ||
+                    visible->camera_distance_squared >
+                        farthest->camera_distance_squared) {
+                    farthest = visible;
+                }
+            }
+        }
+        if (farthest != 0) {
+            if ((npc->flags_1C & 0x40) != 0 ||
+                farthest->camera_distance_squared >
+                    npc->camera_distance_squared) {
+                npc_make_invisible(farthest);
+            } else {
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    if (npc_manager_pdata->visible_count >= 15) {
+        farthest = 0;
+        for (index = 0; index < 15; index++) {
+            KonquestNpc* visible =
+                npc_manager_pdata->visible_npcs[index];
+
+            if (visible != 0 &&
+                npc_is_visible_model_active(visible) != 0) {
+                if (farthest == 0 ||
+                    visible->camera_distance_squared >
+                        farthest->camera_distance_squared) {
+                    farthest = visible;
+                }
+            }
+        }
+        if (farthest != 0) {
+            if ((npc->flags_1C & 0x40) != 0 ||
+                farthest->camera_distance_squared >
+                    npc->camera_distance_squared) {
+                npc_make_invisible(farthest);
+            } else {
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Near match: 82.12931%, 28 bytes over retail. Model loading, section
+ * ownership, object setup, mouth WIFF discovery, and cache writes match.
+ * Residue is GPR coloring, loop lowering, and save scheduling. */
+static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
+    AniTextureControl* lip_texture = 0;
+    NpcManagerModelSlot* slot = 0;
+    int slot_handle = 0;
+    unsigned int art_id = 0;
+    NpcManagerPdata* manager = npc_manager_pdata;
+    int is_special = npc->data->events[7].script_function;
+    int index;
+    MkObj* object;
+
+    if (is_special == 1) {
+        for (index = 0; index < 2; index++) {
+            if (manager->special_models[index].available == 0 &&
+                manager->special_models[index].data == npc->data) {
+                slot_handle = 0x6002C + index;
+                slot = &manager->special_models[index];
+                break;
+            }
+        }
+    } else {
+        for (index = 0; index < 22; index++) {
+            if (manager->models[index].available == 0 &&
+                manager->models[index].data == npc->data) {
+                slot = &manager->models[index];
+                break;
+            }
+        }
+    }
+    if (slot == 0) {
+        return;
+    }
+
+    {
+        char* model_name = npc->data->model_name;
+
+        if (is_special == 1) {
+            char section_name[0x40];
+
+            sprintf(section_name, "%s.sec", model_name);
+            strlwr(section_name);
+            load_ssf(kon_unique_npcs_file_table);
+            load_art_section_by_name(slot_handle, section_name);
+            strncpy(slot->name, model_name, 0x3F);
+            slot->name[0x3F] = 0;
+            object = (MkObj*)load_named_model_from_slot(
+                slot_handle, "NPC", 0xA002, 0);
+        } else {
+            art_id = get_artid_of_named_item_in_slot(
+                0x6002B, model_name, 1);
+            object = load_model_from_slot(0x6002B, art_id, 0xA002);
+        }
+        if (object == 0) {
+            return;
+        }
+    }
+
+    npc_manager_setup_model(object);
+    insert_ground_me_mkobj(object);
+    if (konquest_editor_mode_on == 0) {
+        if (npc->art_id == 0) {
+            unsigned int mouth_art_id =
+                npc_manager_find_mouth_art_id(object);
+
+            if (mouth_art_id != 0) {
+                npc->art_id = mouth_art_id;
+            } else {
+                npc->art_id = (unsigned int)-1;
+            }
+        }
+        if (npc->art_id != 0 && npc->art_id != (unsigned int)-1) {
+            lip_texture = append_wiff_to_clump_material_id(
+                0x6002B, (char*)npc->art_id, object->clump, 1);
+        }
+    }
+
+    slot->art_id = art_id;
+    slot->object = object;
+    if (lip_texture != 0) {
+        slot->lip_texture = lip_texture;
+        slot->lip_texture_instance = lip_texture->instance;
+    }
+    slot->age = 0.0f;
+    slot->available = 0;
+    slot->data = npc->data;
+    if (npc->animation != 0) {
+        npc->animation->object = object;
+        if (lip_texture != 0) {
+            npc->animation->lip_texture = lip_texture;
+            npc->animation->lip_texture_instance = lip_texture->instance;
+        }
+    }
+}
+
+/* Near match: 83.02809%, four bytes over retail. Cache selection,
+ * texture-instance validation, recreation, and object setup match; residue is
+ * branch polarity, loop lowering, and GPR coloring. */
+static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
+    NpcManagerPdata* manager = npc_manager_pdata;
+
+    if (npc->data->events[7].script_function != 1) {
+        unsigned int art_id = get_artid_of_named_item_in_slot(
+            0x6002B, npc->data->model_name, 1);
+        int found = 0;
+        int index;
+        NpcManagerModelSlot* slot = manager->models;
+
+        for (index = 0; index < 22; index++, slot++) {
+            if (slot->art_id == art_id && slot->available == 0 &&
+                slot->data == npc->data) {
+                found = 1;
+            }
+            if (found != 0) {
+                AniTextureControl* lip_texture;
+
+                slot->age = 0.0f;
+                if (npc->animation != 0) {
+                    npc->animation->object = slot->object;
+                    lip_texture = slot->lip_texture;
+                    if (lip_texture != 0) {
+                        if ((unsigned int)lip_texture->instance !=
+                            slot->lip_texture_instance) {
+                            lip_texture = 0;
+                        }
+                    } else {
+                        lip_texture = 0;
+                    }
+                    if (lip_texture == 0) {
+                        if (npc->art_id == 0) {
+                            unsigned int mouth_art_id =
+                                npc_manager_find_mouth_art_id(
+                                    npc->animation->object);
+
+                            if (mouth_art_id != 0) {
+                                npc->art_id = mouth_art_id;
+                            } else {
+                                npc->art_id = (unsigned int)-1;
+                            }
+                        }
+                        if (npc->art_id != 0 &&
+                            npc->art_id != (unsigned int)-1) {
+                            lip_texture = append_wiff_to_clump_material_id(
+                                0x6002B, (char*)npc->art_id,
+                                npc->animation->object->clump, 1);
+                            if (lip_texture != 0) {
+                                slot->lip_texture = lip_texture;
+                                slot->lip_texture_instance =
+                                    lip_texture->instance;
+                            }
+                        }
+                    }
+                    npc->animation->lip_texture = slot->lip_texture;
+                    npc->animation->lip_texture_instance =
+                        slot->lip_texture_instance;
+                }
+                npc_manager_setup_model(slot->object);
+                return;
+            }
+        }
+    }
+    npc_manager_load_new_npc_model(npc);
+}
+
+static RpAtomic* AtomicFindTextureWithRootString(
+    RpAtomic* atomic, void* root_string) {
+    if (atomic->geometry != 0) {
+        RpGeometryForAllMaterials(
+            atomic->geometry, MaterialFindTextureWithRootString, root_string);
+    }
+    return atomic;
+}
+
 static RpMaterial* MaterialFindTextureWithRootString(
     RpMaterial* material, void* data) {
     KonquestTextureSearch* search = (KonquestTextureSearch*)data;
@@ -7687,15 +7879,6 @@ static RpMaterial* MaterialFindTextureWithRootString(
         return 0;
     }
     return material;
-}
-
-static RpAtomic* AtomicFindTextureWithRootString(
-    RpAtomic* atomic, void* root_string) {
-    if (atomic->geometry != 0) {
-        RpGeometryForAllMaterials(
-            atomic->geometry, MaterialFindTextureWithRootString, root_string);
-    }
-    return atomic;
 }
 
 static void material_restore_texture_pointer(RpMaterial* material) {
