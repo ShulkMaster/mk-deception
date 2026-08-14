@@ -176,7 +176,9 @@ typedef struct PlyrStatusData {
         FatalityDefinition* fatality_definition;
         FatalityDistanceLimits* fatality_limits;
     }; /* +0x84 */
-    char pad88[0xAC];
+    char pad88[0x2C];
+    struct TrialWrapupData* trial_wrapup_data; /* +0xB4 */
+    char padB8[0x7C];
     void* reaction_cleanup; /* +0x134 */
     char pad138[4];
     unsigned int throw_script; /* +0x13C */

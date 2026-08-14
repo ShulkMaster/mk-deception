@@ -8,6 +8,7 @@
 #include "runtime/utils.h"
 #include "game/game_info.h"
 #include "game/moveset.h"
+#include "game/trial.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
 #include "platform/io.h"
@@ -483,7 +484,6 @@ void glitch_to_ani(AniData* animation, int transition);
 int drone_ai_get_min_time_in_block(void);
 int get_his_attack_counter(void);
 int get_player_number(MkObj* object);
-void trial_register_attack(int player, int attack_type, int attack_id);
 MkProc* start_scorpion_spear(int field_34);
 int trial_change_style_callback(int player);
 void start_gore2_update(void);

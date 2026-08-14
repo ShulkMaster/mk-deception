@@ -1902,7 +1902,7 @@ int transition_to_region(int);
 int trial_debug_mission_list(int);
 int trial_mirror_anims_if_needed(void);
 int trial_register_special_move(int);
-int trial_restart_round(void);
+void trial_restart_round(void);
 int trial_set_next_setup_function(int);
 int trial_set_num_rounds(int);
 int trial_set_round_timer(int);
@@ -2068,8 +2068,8 @@ int drone_set_anim_step(void *, float);
 int drone_set_damage_multiplier(int, void *, float);
 int drone_set_handicap(int, void *, float);
 int drone_set_health(int, void *, float);
-int drone_set_position(int, void *, float, float, float);
-int drone_set_script(int, int);
+void drone_set_position(int, float, float, float);
+void drone_set_script(int, int);
 int drone_set_special_directions(int, int);
 int drone_set_switch_state(int, int);
 int drone_start_bleeding(int, void *, float);
@@ -2296,7 +2296,7 @@ int trial_set_ending_functions(int, int);
 int trial_set_next_mission(int, int, int, int, int, int, int, int);
 int trial_set_round_health_restoration(void *, float);
 void trial_start_countdown(int, float, float);
-int trial_state_collision_check(int, int);
+void trial_state_collision_check(int, int);
 int trigger_set_time_for_enable(int, int, int, int);
 int uv_my_angle_y(int, void *, float);
 int xfer_player_proc_to_script(int, int);
@@ -2521,7 +2521,8 @@ int camera_set_movement_offset(float *, void *);
 int camera_set_movement_offset_obj_rel(float *, void *);
 int camera_setup_radial_sweep(void *, float, float, float, float, float, float, float, float);
 int display_konquest_text(int, int, float, float, float);
-int drone_blend_to_ani(int, float);
+typedef struct AnimScript AnimScript;
+void drone_blend_to_ani(AnimScript*, int, float);
 int flying_collision(int, int, int, void *, float, float, float, float, float, float, float);
 int force_away(int, int, float, float);
 int force_forward(int, int, float, float);
@@ -2566,7 +2567,7 @@ void start_gore2_pebbles(
     float bounce_scale, int bounce_count);
 int start_gusher(int *, int, int, int, int, int);
 int transition_to_anim_script_frame(int, void*, int, void*, float, float);
-int trial_do_dialog(int, int, int, int, float, float, float);
+void trial_do_dialog(int, int, float, float, float, unsigned int, int);
 void trial_show_spoken_text_window(int, float, float, float, int, int, int, int, int);
 void trial_show_text_window(int, int, int, float, float, float);
 float two_player_animation_blend(int, int, float, float);
@@ -2861,10 +2862,11 @@ void _drone_blend_to_ani(void) {
     int sp10;
     int spC;
     float sp8;
+    AnimScript* animation;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x17, &sp10, &spC, &sp8);
-    get_animation(sp10);
-    drone_blend_to_ani(spC, sp8);
+    animation = (AnimScript*)get_animation(sp10);
+    drone_blend_to_ani(animation, spC, sp8);
 }
 
 void _camera_set_target(void) {
@@ -10259,7 +10261,8 @@ void _drone_set_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    drone_set_position(args.raw->slots[0].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f);
+    drone_set_position(args.raw->slots[0].i, args.raw->slots[1].f,
+                       args.raw->slots[2].f, args.raw->slots[3].f);
 }
 
 void _drone_set_health(void) {
@@ -10341,7 +10344,11 @@ void _trial_do_dialog(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    trial_do_dialog(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    trial_do_dialog(
+        args.raw->slots[0].i, args.raw->slots[1].i,
+        args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].f, args.raw->slots[5].i,
+        args.raw->slots[6].i);
 }
 
 void _drone_set_difficulty_level(void) {
