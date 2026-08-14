@@ -7,6 +7,7 @@
 
 #include "game/pfxscript.h"
 #include "game/projectile.h"
+#include "game/konquest.h"
 #include "math/gxVect.h"
 #include "runtime/limb.h"
 #define PLYR_PDATA_TYPES_ONLY
@@ -1908,7 +1909,7 @@ int trial_set_round_timer(int);
 int trial_set_special_restrictions(int);
 int trial_set_tick_function(int);
 int trial_set_type(int);
-int trial_setup_nis_scene(int);
+void trial_setup_nis_scene(int);
 int trial_show_monk(int);
 int turn_camera_off(void);
 int turn_camera_on(void);
@@ -2062,7 +2063,7 @@ int dk_voice_call(int, int);
 int drone_apply_damage(int, void *, float);
 int drone_change_to_style(int, int);
 int drone_do_special_move(int, int);
-int drone_lip_synch(int, int);
+void drone_lip_synch(int, LipSyncKeyframe*);
 int drone_set_anim_step(void *, float);
 int drone_set_damage_multiplier(int, void *, float);
 int drone_set_handicap(int, void *, float);
@@ -2294,7 +2295,7 @@ int trial_set_combo_requirement(int, void *, float);
 int trial_set_ending_functions(int, int);
 int trial_set_next_mission(int, int, int, int, int, int, int, int);
 int trial_set_round_health_restoration(void *, float);
-int trial_start_countdown(int, void *, float, float);
+void trial_start_countdown(int, float, float);
 int trial_state_collision_check(int, int);
 int trigger_set_time_for_enable(int, int, int, int);
 int uv_my_angle_y(int, void *, float);
@@ -2551,7 +2552,7 @@ int player_area_collision_ticks(int, int, void *, float, float, float, float);
 float pz_fighter_inline_force_away_with_ani(int, int, float, float);
 int set_active_projectile_collision_info(int, void *, float, float, float);
 int shake_hit_voice(int, int, int, float);
-int show_text(int, int, int, int, int, float, float, float);
+void show_text(int, unsigned int, unsigned int, unsigned int, int, float, float, float);
 int sidekick_switch_style_swap(int, float);
 int single_frame_collision_check(int, int, int, void *, float, float, float);
 int special_move_cam_him(int, int, int, float, float, float, float, float);
@@ -2566,8 +2567,8 @@ void start_gore2_pebbles(
 int start_gusher(int *, int, int, int, int, int);
 int transition_to_anim_script_frame(int, void*, int, void*, float, float);
 int trial_do_dialog(int, int, int, int, float, float, float);
-int trial_show_spoken_text_window(int, int, int, int, int, int, float, float, float);
-int trial_show_text_window(int, int, int, float, float, float);
+void trial_show_spoken_text_window(int, float, float, float, int, int, int, int, int);
+void trial_show_text_window(int, int, int, float, float, float);
 float two_player_animation_blend(int, int, float, float);
 
 /* Data used by imported script wrappers. */
@@ -10286,7 +10287,8 @@ void _drone_lip_synch(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    drone_lip_synch(args.raw->slots[0].i, args.raw->slots[1].i);
+    drone_lip_synch(args.raw->slots[0].i,
+                    (LipSyncKeyframe*)args.raw->slots[1].pointer);
 }
 
 void _trial_show_monk(void) {
@@ -10371,7 +10373,9 @@ void _trial_start_countdown(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    trial_start_countdown(args.raw->slots[0].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f);
+    trial_start_countdown(args.raw->slots[0].i,
+                          args.raw->slots[1].f,
+                          args.raw->slots[2].f);
 }
 
 void _trial_set_move_message(void) {
@@ -10431,7 +10435,15 @@ void _trial_show_spoken_text_window(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    trial_show_spoken_text_window(args.raw->slots[0].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[8].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f);
+    trial_show_spoken_text_window(args.raw->slots[0].i,
+                                  args.raw->slots[1].f,
+                                  args.raw->slots[2].f,
+                                  args.raw->slots[3].f,
+                                  args.raw->slots[4].i,
+                                  args.raw->slots[5].i,
+                                  args.raw->slots[6].i,
+                                  args.raw->slots[7].i,
+                                  args.raw->slots[8].i);
 }
 
 void _trial_show_text_window(void) {

@@ -109,7 +109,9 @@ typedef struct FighterMirror {
             unsigned int severed_half_instance; /* +0x1B8 */
         };
     };
-    char pad1BC[0x140];
+    char pad1BC[0x10C];
+    int field_2C8; /* +0x2C8 - set when a trial changes drone player state */
+    char pad2CC[0x30];
     FighterStyleObj* style_objs[3]; /* +0x2FC - movelist style pfx parents */
     int style_idx;                  /* +0x308 - movelist starting style */
     int active_moveset;             /* +0x30C - current style/moveset */

@@ -33,10 +33,13 @@ typedef struct AnimPdata {
     char pad48[0x1C];
     float weight;     /* +0x64 */
     float weight_velocity; /* +0x68 */
-    char pad6C[0x48];
-    float transition_weight; /* +0xB4 */
-    float transition_step; /* +0xB8 */
-    float transition_target; /* +0xBC */
+    char pad6C[0x3C];
+    float transition_weight; /* +0xA8 */
+    float transition_step; /* +0xAC */
+    float transition_accel; /* +0xB0 */
+    float hand_transition; /* +0xB4 */
+    float transition_target; /* +0xB8 */
+    char padBC[4];
     char padC0[0x10];
     MkProcEntryFn hand_script; /* +0xD0 */
     char padD4[0x20];

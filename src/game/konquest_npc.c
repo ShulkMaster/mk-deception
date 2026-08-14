@@ -1,6 +1,7 @@
 #include "runtime/anim_pdata.h"
 #include "runtime/asset.h"
 #include "game/konquest.h"
+#include "game/konquest_lipsync.h"
 #include "game/collision.h"
 #include "game/nis.h"
 #include "game/player_actions.h"
@@ -456,24 +457,6 @@ struct KonquestProcDestroyVtable {
     void (*destroy)(
         MkProc* proc, KonquestProcDestroyVtable* vtable); /* +0x10 */
 };
-
-typedef struct KonquestLipSyncPdata {
-    MkHdr hdr;
-    int mode; /* +0x08 */
-    KonquestNpc* npc; /* +0x0C */
-    union {
-        AniTextureControl* texture;
-        KonquestAnimPdata* animation;
-    }; /* +0x10 */
-    union {
-        unsigned int texture_instance;
-        char* animation_table;
-    }; /* +0x14 */
-    LipSyncKeyframe* keyframes; /* +0x18 */
-    unsigned int sound_handle; /* +0x1C */
-    float elapsed; /* +0x20 */
-    int stop_requested; /* +0x24 */
-} KonquestLipSyncPdata;
 
 typedef struct KonquestWaypointScriptPdata {
     MkHdr hdr;
