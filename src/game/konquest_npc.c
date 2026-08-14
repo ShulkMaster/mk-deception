@@ -486,7 +486,14 @@ typedef struct KonquestObjectScriptPdata {
 
 typedef struct KonquestBoneMatcher {
     MkHdr hdr;
-    unsigned char flags_08;
+    union {
+        unsigned char flags_08;
+        struct {
+            unsigned char pad_7_4 : 4;
+            unsigned char field_bit3 : 1;
+            unsigned char pad_2_0 : 3;
+        } flags_08_bits;
+    };
     char pad09[3];
     float child_weight;
     MkObj* parent;
@@ -1536,8 +1543,8 @@ void npc_set_his_punch_counter(KonquestNpcData* data, int count) {
 }
 
 /*
- * Soft ceiling: 82.560974% - the body is exact; the zero-vector relocation
- * label and split r29-r31 save/restore form differ.
+ * Near match: the body and save form are exact; only the zero-vector
+ * relocation label differs.
  */
 void npc_start_fx_at_his_position(
     KonquestNpcData* data, const char* effect_name, const Vec* offset) {
@@ -1751,8 +1758,8 @@ static float p_blood_fall_control(void) {
 }
 
 /*
- * Soft ceiling: 88.45238% - the body is exact; the zero-vector relocation
- * label and split r30-r31 save/restore form differ.
+ * Near match: the body and save form are exact; only the zero-vector
+ * relocation label differs.
  */
 void npc_start_fx_at_position(
     const char* effect_name, const Vec* offset) {
@@ -1777,8 +1784,7 @@ void npc_reset_my_timed_events(void) {
     }
 }
 
-/* Near match: 80.588234%, 16 bytes over retail. All operations and branches
- * are exact; MWCC emits split r29-r31 saves/restores instead of stmw/lmw. */
+/* Matching: compact save/restore lowering reproduces retail exactly. */
 void npc_reset_all_timed_events(void) {
     MkPtr** list = &konquest_pdata->npc_list;
     MkPtr* link;
@@ -1814,7 +1820,6 @@ void npc_switch_camera_focus(int focus_mode) {
 
 /* Matching: retail uses the compact save/restore form selected by the local
  * size mode; the typed queued/live animation paths compile exactly. */
-#pragma optimize_for_size on
 void npc_glitch_to_ani(int animation_id, int flags) {
     AniData* animation;
     KonquestNpc* npc;
@@ -1833,7 +1838,6 @@ void npc_glitch_to_ani(int animation_id, int flags) {
         set_anim_script(animation_pdata, animation, flags);
     }
 }
-#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: 97.58242% - lookup, animation selection, queued-state path,
@@ -1995,7 +1999,6 @@ void npc_set_random_dialog_and_anim_sequence(int dialog, int animation) {
 /* Near match: 90.31868% at exact retail size. Dialog lookup, lip-sync process
  * ownership, validated animated texture, text selection, and wait ordering
  * match; residue is compact-mode register allocation and latch scheduling. */
-#pragma optimize_for_size on
 void npc_play_dialog_and_anim_sequence(int dialog_id, int animation_id) {
     int sound_id;
     LipSyncKeyframe* keyframes;
@@ -2053,7 +2056,6 @@ void npc_play_dialog_and_anim_sequence(int dialog_id, int animation_id) {
         npc_wait_for_dialog();
     }
 }
-#pragma optimize_for_size reset
 
 
 
@@ -2264,7 +2266,7 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
     return npc;
 }
 
-/* Soft ceiling: 88.42105% - typed active-animation boolean lowers differently. */
+/* Matching: compact pointer-truth lowering reproduces retail exactly. */
 void npc_set_gravity(float gravity) {
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
@@ -2293,10 +2295,12 @@ void npc_set_my_ground_level(float ground_level) {
 void remove_npc_list(KonquestNpcData* list) {
     unsigned int count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, list);
+    KonquestNpcData* current = list;
     unsigned int index;
 
     for (index = 0; index < count; index++) {
-        remove_npc(&list[index]);
+        remove_npc(current);
+        current++;
     }
 
     get_visible_tile_set(konquest_pdata->visible_tile_set);
@@ -2382,8 +2386,7 @@ int npc_get_flag_state(int flags) {
 }
 
 /*
- * Soft ceiling: 84.65116% - the typed door-list traversal and waypoint-pointer
- * comparison are exact; save form and register allocation remain.
+ * Matching: typed door-list traversal and compact save form reproduce retail.
  */
 void npc_open_door_at_waypoint(void) {
     KonquestWaypointScriptPdata* pdata =
@@ -2416,7 +2419,6 @@ void npc_open_door_at_waypoint(void) {
 }
 
 #pragma dont_inline on
-#pragma optimize_for_size on
 /* Matching: compact save/restore lowering plus the retail non-inlined call
  * boundary reproduces the function exactly. */
 void npc_at_waypoint_set_flags(int flags, int enabled) {
@@ -2427,7 +2429,6 @@ void npc_at_waypoint_set_flags(int flags, int enabled) {
         npc_set_his_flags(pdata->npc->data, flags, enabled);
     }
 }
-#pragma optimize_for_size reset
 #pragma dont_inline reset
 
 /*
@@ -3082,9 +3083,10 @@ void npc_stop_goro_bone_match(void) {
 }
 
 /*
- * Soft ceiling: 81.88172% - script object flag, shared NPC lookup, matcher
+ * Near match: script object flag, shared NPC lookup, matcher
  * arguments, three offset components, and byte flag update match at retail
- * size. Residue is latch/save/register emission and float relocations.
+ * size. Typed bitfields now reproduce both retail flag updates; residue is
+ * latch/save/register emission and float relocations.
  */
 void npc_start_goro_bone_match(KonquestNpcData* data) {
     KonquestObjectScriptPdata* pdata =
@@ -3092,14 +3094,14 @@ void npc_start_goro_bone_match(KonquestNpcData* data) {
     KonquestNpc* npc;
     KonquestBoneMatcher* matcher;
 
-    pdata->object->flags_09 &= ~0x40;
+    pdata->object->flags_09_bits.bit6 = 0;
     npc = npc_find_by_data_inline(data);
     matcher = start_bone_matcher(
         0.0f, npc->animation->object, 10, pdata->object, 0);
     matcher->parent_offset.x = -0.04f;
     matcher->parent_offset.y = 0.1f;
     matcher->parent_offset.z = -0.15f;
-    matcher->flags_08 |= 8;
+    matcher->flags_08_bits.field_bit3 = 1;
 }
 
 void vdestroy_path_data_struct(KonquestPathData* path) {
@@ -3955,7 +3957,7 @@ void npc_set_my_movement_weight(float root_weight, float object_weight) {
     }
 }
 
-/* Soft ceiling: 89.52381% - typed active-animation boolean lowers differently. */
+/* Matching: compact pointer-truth lowering reproduces retail exactly. */
 void npc_set_snap_to_ground(int enabled) {
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
@@ -4120,8 +4122,7 @@ void npc_set_wait_ticks(float ticks) {
 }
 
 /*
- * Soft ceiling: 88.78049% - the body is exact; MWCC splits retail's r30-r31
- * stmw/lmw save and restore sequences.
+ * Matching: compact save/restore lowering reproduces retail exactly.
  */
 void npc_suspend_cmdscript(void) {
     KonquestCmdScriptView* script;
@@ -4615,7 +4616,7 @@ void npc_turn_and_face_next_waypoint(void) {
     }
 }
 
-/* Soft ceiling: 89.52381% - typed active-animation boolean lowers differently. */
+/* Matching: compact pointer-truth lowering reproduces retail exactly. */
 void npc_set_pinanim_flag(int enabled) {
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
@@ -4635,14 +4636,14 @@ void npc_set_pinanim_flag(int enabled) {
 }
 
 /*
- * Soft ceiling: 86.55738% - hero latch, world delta, atan argument order,
+ * Near match: hero latch, world delta, atan argument order,
  * process creation, pdata size, angle, and object target are exact. Residue is
  * latch branch shape, zero-vector relocation, saves, and register allocation.
  */
 void hero_turn_to_face_position(const Vec* position) {
     MkObj* hero = konquest_pdata->monk;
     Vec direction = {0.0f, 0.0f, 0.0f};
-    TurnAndFacePdata* pdata = 0;
+    TurnAndFacePdata* pdata;
 
     if (hero != 0) {
         if (hero->hdr.instance != konquest_pdata->monk_instance) {
@@ -4651,6 +4652,7 @@ void hero_turn_to_face_position(const Vec* position) {
     } else {
         hero = 0;
     }
+    pdata = 0;
     if (hero != 0) {
         float angle;
 
@@ -5099,7 +5101,6 @@ void npc_punch_reaction_standard_setup(void) {
 /* Near match: 88.63492% at exact retail size. Visible-list cleanup,
  * loaded-tile gate, squared XZ radius, and violent-event dispatch match;
  * residue is branch scheduling and register allocation. */
-#pragma optimize_for_size on
 static void npc_notify_nearby_npcs_that_player_hit_someone(
     KonquestNpc* source) {
     MkPtr* link = konquest_pdata->visible_npc_list;
@@ -5134,7 +5135,6 @@ static void npc_notify_nearby_npcs_that_player_hit_someone(
         }
     }
 }
-#pragma optimize_for_size reset
 
 
 
@@ -5170,7 +5170,8 @@ void npc_stand_still(void) {
         _mkproc_sleep_ticks = 1.0f;
         ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
     }
-}void npc_set_ani_speed(float speed) {
+}
+void npc_set_ani_speed(float speed) {
     g_active_npc->animation_speed = speed;
     if (g_active_npc->animation != 0) {
         AnimPdata* animation =
@@ -5814,7 +5815,6 @@ void start_running_npcs(void) {
 
 /* Matching: retail's compact count-controlled loop and save form are selected
  * by the localized size mode. */
-#pragma optimize_for_size on
 void add_npc_list_to_world(int* npc_ids) {
     unsigned int count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, npc_ids);
@@ -5828,7 +5828,6 @@ void add_npc_list_to_world(int* npc_ids) {
         index++;
     }
 }
-#pragma optimize_for_size reset
 
 
 
@@ -5977,8 +5976,8 @@ static int plyr_leave_area_check(float distance) {
 }
 
 /*
- * Soft ceiling: 86.97369% - the body is exact; pointer-validation latch/GPR
- * coloring and equivalent nonzero booleanization differ.
+ * Near match: the body is exact; pointer-validation latch/GPR coloring and
+ * redundant retail nonzero booleanization differ.
  */
 static int plyr_near_check(float distance) {
     KonquestNpcPdata* pdata = konquest_pdata;
@@ -6001,7 +6000,7 @@ static int plyr_near_check(float distance) {
     } else {
         is_near = 0;
     }
-    return is_near != 0;
+    return is_near;
 }
 
 void npc_enable_event(int event_index, int enabled) {
@@ -6303,7 +6302,6 @@ static void npc_dispatch_timed_events_for_all_npcs(void) {
     }
 }
 
-#pragma optimize_for_size on
 
 /* Near match: 96.42308% under the authentic TU-wide -O4,p flags with
  * retail-evidenced localized size lowering. Current-day selection, both event
@@ -6381,7 +6379,6 @@ static void npc_check_next_event(KonquestNpc* npc) {
     }
 }
 
-#pragma optimize_for_size reset
 
 
 
@@ -6500,7 +6497,8 @@ void npc_xfer(
             xfer_proc(npc->proc, entry);
         }
     }
-}/* Near match: 89.27273%, four bytes from retail. Door/table path resolution,
+}
+/* Near match: 89.27273%, four bytes from retail. Door/table path resolution,
  * preserved-path handoff, event flags, and restart policy are exact; only
  * branch/register scheduling remains. */
 static void npc_setup_path_for_event(
@@ -6551,7 +6549,8 @@ static void npc_setup_path_for_event(
         return;
     }
     npc_set_path(npc, path, table_index, row_count, 0, 1);
-}/*
+}
+/*
  * Soft ceiling: 89.5% - the typed comparisons are exact; equivalent shared
  * current-time addressing and branch scheduling differ.
  */
@@ -6607,7 +6606,6 @@ static int is_this_a_current_event_for_today(
  * post-guard color initialization, render-state/light/alpha call order, typed
  * callback ABI, and cleanup match; only one render-state argument register
  * differs. */
-#pragma optimize_for_size on
 static RpAtomic* shadow_render_callback(RpAtomic* atomic) {
     RpLight* light;
     RpWorld* world;
@@ -6645,12 +6643,10 @@ static RpAtomic* shadow_render_callback(RpAtomic* atomic) {
     }
     return result;
 }
-#pragma optimize_for_size reset
 
 /* Near match: 98.333336% at exact retail size. Compact lowering reproduces the
  * 15-object traversal, material lookup, packed color construction, and cached
  * alpha store; only two loop-register assignments differ. */
-#pragma optimize_for_size on
 void npc_shadow_set_alpha(int alpha) {
     int shadow_alpha = 255 - alpha;
     int index;
@@ -6668,14 +6664,12 @@ void npc_shadow_set_alpha(int alpha) {
     }
     npc_shadows.alpha = shadow_alpha;
 }
-#pragma optimize_for_size reset
 
 /* Near match: 90.695656%, 12 bytes over retail. All 15-slot visibility,
  * signed flag semantics, grounded-height packed color, three atomic reloads,
  * projection staging, corrected packed sqrt lookup, float position copies,
  * distance scaling, reveal, and bone projection match. Residue is GPR/FPR
  * allocation and instruction scheduling. */
-#pragma optimize_for_size on
 void npc_shadow_update(void) {
     KonquestCameraPositionView* camera =
         ((KonquestCameraView*)Camera)->position;
@@ -6816,17 +6810,12 @@ void npc_shadow_update(void) {
     }
     npc_shadows.clear_alpha_pending = 1;
 }
-#pragma optimize_for_size reset
 
-/*
- * Soft ceiling: retail gives the local matrix 16-byte stack alignment. The
- * portable matrix declaration preserves the algorithm and exact object
- * accesses, leaving only frame offsets and FPR allocation different.
- */
+/* Near match: the remaining difference is FPR allocation and float relocation. */
 void npc_shadow_set_light_angle(const Vec* angles) {
-    MKMATRIX rotation;
-    float projection_x;
+    MKMATRIX rotation __attribute__((aligned(16)));
     float projection_z;
+    float projection_x;
 
     if (angles == 0) {
         return;
@@ -6848,12 +6837,14 @@ void npc_shadow_set_light_angle(const Vec* angles) {
 }
 
 /*
- * Recovered bone projection using the shared RenderWare/Midway matrix layout.
- * The source and shadow skeleton counts must agree, as in retail.
+ * Project the root transforms and each bone's parent matrix into the shadow.
+ * The remaining difference is localized branch and loop-increment scheduling.
  */
 static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
-    RwMatrix inverse;
-    MKMATRIX bone_projection;
+    RwMatrix inverse __attribute__((aligned(16)));
+    MKMATRIX bone_projection __attribute__((aligned(16)));
+    RwMatrix* source_root;
+    RwMatrix* shadow_root;
     float light_x;
     float light_y;
     float light_z;
@@ -6863,8 +6854,10 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
         return;
     }
 
-    memcpy(shadow->field_24, source->field_24, sizeof(RwMatrix));
-    RwMatrixInvert(&inverse, source->field_24);
+    shadow_root = shadow->field_24;
+    source_root = source->field_24;
+    memcpy(shadow_root, source_root, sizeof(RwMatrix));
+    RwMatrixInvert(&inverse, source_root);
     light_x =
         npc_shadows.light_direction.x * inverse.right.x +
         npc_shadows.light_direction.y * inverse.up.x +
@@ -6878,8 +6871,8 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
         npc_shadows.light_direction.y * inverse.up.z +
         npc_shadows.light_direction.z * inverse.at.z;
     append_oblique_projection(
-        (ObliqueMatrixCell*)shadow->field_24,
-        (ObliqueMatrixCell*)source->field_24,
+        (ObliqueMatrixCell*)shadow_root,
+        (ObliqueMatrixCell*)source_root,
         (ObliqueMatrixCell*)&npc_shadows.projection);
 
     MKMatrixSetIdentity(&bone_projection);
@@ -6887,11 +6880,11 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
     bone_projection.pos.y = 0.0f;
     bone_projection.pos.z = -(light_z / light_y);
     for (index = 0; index < source->bone_count; index++) {
-        RwMatrix* shadow_matrix = &shadow->bones[index]->matrix;
+        RwMatrix* shadow_matrix = shadow->bones[index]->parent_matrix;
 
         append_oblique_projection(
             (ObliqueMatrixCell*)shadow_matrix,
-            (ObliqueMatrixCell*)&source->bones[index]->matrix,
+            (ObliqueMatrixCell*)source->bones[index]->parent_matrix,
             (ObliqueMatrixCell*)&bone_projection);
         if (index != 7 && index != 8) {
             shadow_matrix->right.x *= scale;
@@ -6969,7 +6962,6 @@ static void append_oblique_projection(
  */
 /* Matching: compact loop/save lowering reproduces typed destruction, the
  * 15-entry clear, callback reset, and signed initialized latch exactly. */
-#pragma optimize_for_size on
 void npc_shadow_teardown(void) {
     int index;
 
@@ -6984,13 +6976,11 @@ void npc_shadow_teardown(void) {
     npc_shadows.render = 0;
     npc_shadows.initialized = 0;
 }
-#pragma optimize_for_size reset
 
 /* Near match: 93.333336% at exact retail size. Retail function order,
  * signed initialization guard, model-slot reloads, typed SObj flags/callback,
  * bone/material setup, foreground insertion, and packed color byte order
  * match; residue is loop-address and nonvolatile-register allocation. */
-#pragma optimize_for_size on
 void npc_shadow_init(void) {
     int index;
 
@@ -7050,7 +7040,6 @@ void npc_shadow_init(void) {
     npc_shadows.alpha = 0x7F;
     npc_shadows.initialized = 1;
 }
-#pragma optimize_for_size reset
 
 void npc_assign_door_path(int door_id, int travel_mode) {
     void* path = get_door_path(door_id);
@@ -7090,7 +7079,6 @@ void npc_assign_path_to_him(
 
 /* Matching: compact save/restore lowering reproduces the typed path lookup and
  * assignment body exactly. */
-#pragma optimize_for_size on
 void npc_assign_path(void* path, int flags, int travel_mode) {
     if (g_active_npc != 0) {
         int row_count = 0;
@@ -7106,7 +7094,6 @@ void npc_assign_path(void* path, int flags, int travel_mode) {
             g_active_npc, path, table_index, row_count, flags, travel_mode);
     }
 }
-#pragma optimize_for_size reset
 
 static void npc_set_path(
     KonquestNpc* npc, void* path_pointer, int table_index, int row_count,
@@ -7238,7 +7225,6 @@ static void npc_set_path(
  * restoration, aligned collision construction, and both rollback paths match.
  * Residue is visible-array loop induction, pointer-boolean lowering, split
  * saves, and the pooled "0" string relocation. */
-#pragma optimize_for_size on
 static void load_model_for_npc(KonquestNpc* npc) {
     if (npc->animation != 0) {
         MkSobj* sobj;
@@ -7346,7 +7332,6 @@ static void load_model_for_npc(KonquestNpc* npc) {
         npc->wait_for_animation = 1;
     }
 }
-#pragma optimize_for_size reset
 
 
 
@@ -7508,7 +7493,6 @@ static void npc_manager_release_npc_model(KonquestNpc* npc) {
  * lowering selected here for all four fixed-capacity manager scans. Model
  * cache keys use the +0 model name, and slot selection, eviction, ownership,
  * and process initialization match; residue is register/branch scheduling. */
-#pragma optimize_for_size on
 void npc_make_visible(KonquestNpc* npc) {
     NpcManagerModelSlot* slot = 0;
     KonquestNpcAnimState* animation = 0;
@@ -7622,7 +7606,6 @@ void npc_make_visible(KonquestNpc* npc) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 static int is_it_safe_to_make_this_npc_visible(KonquestNpc* npc) {
     KonquestNpc* farthest;
@@ -7920,21 +7903,14 @@ static RpMaterial* hide_npc_materials(
     return material;
 }
 
-/*
- * Soft ceiling: 86.07692% - the typed visibility and distance algorithm is
- * exact; FPR/stack scheduling, save form, and float relocations differ.
- */
+/* Near match: the remaining difference is FPR scheduling and final boolean CFG. */
 static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     if (npc->reaction_active) {
         KonquestNpcData* data = npc->data;
         CameraObj* camera = camera_obj;
-        float delta_x;
-        float delta_y;
-        float delta_z;
-
-        delta_y = data->position.y - camera->pos_y;
-        delta_x = data->position.x - camera->pos_x;
-        delta_z = data->position.z - camera->pos_z;
+        float delta_x = data->position.x - camera->pos_x;
+        float delta_y = data->position.y - camera->pos_y;
+        float delta_z = data->position.z - camera->pos_z;
         npc->camera_distance_squared =
             delta_z * delta_z +
             (delta_x * delta_x + delta_y * delta_y);
@@ -7970,7 +7946,9 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         length_squared =
             direction_z * direction_z +
             (direction_x * direction_x + direction_y * direction_y);
-        if (length_squared > 0.0f) {
+        if (length_squared <= 0.0f) {
+            inverse_length = 0.0f;
+        } else {
             KonquestFloatBits estimate;
             float product;
             float correction;
@@ -7988,9 +7966,12 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         direction_x *= inverse_length;
         direction_y *= inverse_length;
         direction_z *= inverse_length;
-        sphere.center.x += 3.0f * direction_x;
-        sphere.center.y += 3.0f * direction_y;
-        sphere.center.z += 3.0f * direction_z;
+        direction_x *= 3.0f;
+        direction_y *= 3.0f;
+        direction_z *= 3.0f;
+        sphere.center.x += direction_x;
+        sphere.center.y += direction_y;
+        sphere.center.z += direction_z;
         sphere.radius = 1.0f;
         if (RwCameraFrustumTestSphere(Camera, &sphere) == 0) {
             return 0;
@@ -8008,10 +7989,10 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
             (delta_x * delta_x + delta_y * delta_y);
 
         npc->camera_distance_squared = distance_squared;
-        if (distance_squared > 2500.0f) {
-            return 0;
+        if (distance_squared <= 2500.0f) {
+            return 1;
         }
-        return 1;
+        return 0;
     }
 }
 
