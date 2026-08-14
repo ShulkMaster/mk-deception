@@ -962,7 +962,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/GameVariables.o",
                 source="mwScreenEngine/GameVariables.cpp",
                 # -O4,s: prefer stmw/lmw on walker NVs (GetInt/GetIntArray/HandleAction).
