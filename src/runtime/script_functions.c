@@ -1737,7 +1737,7 @@ int npc_ani_for_x_ticks(int);
 int npc_ani_to_end(void);
 int npc_ani_to_frame_x(void *, float);
 int npc_blend_to_ani_string(int);
-int npc_face_current_waypoint_angle(void);
+void npc_face_current_waypoint_angle(void);
 int npc_fire_trigger(int);
 int npc_hide_skip_message(void);
 int npc_ignore_events(int);
@@ -1767,7 +1767,7 @@ int npc_sleep(void *, float);
 int npc_sleep_until_model_loaded(void);
 int npc_snap_to_face_monk(void);
 int npc_stand_still(void);
-int npc_start_blood_fall(void);
+void npc_start_blood_fall(void);
 int npc_start_goro_bone_match(int);
 int npc_stop_goro_bone_match(void);
 int npc_switch_camera_focus(int);
@@ -2204,9 +2204,10 @@ int npc_set_my_ground_level(void *, float);
 int npc_set_my_movement_weight(void *, float, float);
 int npc_set_my_pos(void *, float, float, float);
 int npc_set_my_world_pos(void *, float, float, float);
-int npc_set_random_dialog_and_anim_sequence(int, int);
+void npc_set_random_dialog_and_anim_sequence(int, int);
 int npc_set_wake_up_time(int, int);
-int npc_start_fx_at_his_position(int, char*, int);
+void npc_start_fx_at_his_position(void*, const char*, const Vec*);
+void npc_start_fx_at_position(const char*, const Vec*);
 int npc_take_control_of_him(int, int);
 int npc_travel_path(int, int, int);
 int npc_travel_path_anim_override(int, int, int, int);
@@ -2539,7 +2540,6 @@ int mks_bgnd_pfx_bind_to_sobj(int);
 int mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, int, int, int, void *, float, float, float, float);
 int mks_set_rotate_update_by_group(int, int, int, float, float, float);
 int mks_set_sin_update_by_group(int, int, int, int, float, float, float, float, float, float);
-int npc_start_fx_at_position(int);
 int obj_grnd_bounce(int, int, int, void *, float, float, float);
 int obj_match_obj_pos(int, int, int, float);
 int parse_args(void*, ...);
@@ -10759,18 +10759,16 @@ void _load_krypt_character(void) {
 }
 
 void _npc_start_fx_at_his_position(void) {
-    ScriptArgsRef args;
-
-    args.bytes = current_args;
-    npc_start_fx_at_his_position(args.raw->slots[0].i, get_script_string_arg(2), args.raw->slots[2].i);
+    npc_start_fx_at_his_position(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer,
+        get_script_string_arg(2),
+        (const Vec*)((ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
 void _npc_start_fx_at_position(void) {
-    ScriptArgsRef args;
-
-    args.bytes = current_args;
-    get_script_string_arg(1);
-    npc_start_fx_at_position(args.raw->slots[1].i);
+    npc_start_fx_at_position(
+        get_script_string_arg(1),
+        (const Vec*)((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _hero_start_fx_at_position(void) {

@@ -1,4 +1,5 @@
 #include "game/game_info.h"
+#include "game/konquest.h"
 #include "math/gxVect.h"
 #include "msl/msl_types.h"
 #include "runtime/anim_pdata.h"
@@ -233,7 +234,8 @@ char* strncpy(char* destination, const char* source, unsigned int count);
 int sprintf(char* destination, const char* format, ...);
 int is_a_to_the_right_of_b(MkObj* a, MkObj* b);
 int is_weapon_style(PlyrFighterDefinition* fighter);
-MkHdr* konquest_set_dialog_text(const char* text, int flags);
+MkHdr* konquest_set_dialog_text(
+    const char* text, const LipSyncKeyframe* lip_sync_keyframes);
 void calc_print_speed_for_nis_dialog(void* dialog, unsigned int ticks);
 void xfer_player_proc(MkProc* process, MkProcEntryFn entry);
 static void trial_register_attack(

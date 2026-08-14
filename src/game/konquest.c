@@ -16,6 +16,7 @@
 #include "math/gxMath.h"
 #include "math/mk_math.h"
 #include "game/game_info.h"
+#include "game/konquest.h"
 #include "game/konquest_items.h"
 #include "game/settings.h"
 #include "game/konquest_save.h"
@@ -681,8 +682,12 @@ extern KonquestCharacterBits default_char_bits;
 extern KonquestCharacterBits default_alt_char_bits;
 extern int konq_nis_anims[0x14];
 extern MkPtr* nis_participants;
-extern unsigned char konquest_human_bones[];
-extern unsigned char flipped_konquest_human_bones[];
+typedef struct KonquestFlippedBoneMap {
+    int count;
+    int* bones;
+} KonquestFlippedBoneMap;
+extern int konquest_human_bones[17];
+extern KonquestFlippedBoneMap flipped_konquest_human_bones;
 extern void* g_pui_events;
 extern int f_writing_konquest_profile;
 extern int in_exit_meditation;
@@ -758,7 +763,7 @@ void p_show_fight_message(void);
 void run_camera_script(void* owner, void* script, int flags);
 void destroy_mkprocs_pid(int pid);
 void kill_lip_sync_procs(void);
-float duration_of_lip_sync(unsigned int handle);
+float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
 int get_mode_of_play(void);
 double ceil(double value);
 int create_dialog_proc(MkSobj* owner, const char* text, int print_speed);
@@ -1555,7 +1560,7 @@ void nis_end_scene(void) {
 }
 
 int konquest_set_dialog_text(
-    const char* text, unsigned int lip_sync_handle) {
+    const char* text, const LipSyncKeyframe* lip_sync_keyframes) {
     int print_speed;
     int text_length;
     float duration_per_character;
@@ -1567,9 +1572,9 @@ int konquest_set_dialog_text(
         if (((g_active_npc->fields.flags >> 4) & 1) == 0) {
             return 0;
         }
-        if (lip_sync_handle != 0) {
+        if (lip_sync_keyframes != 0) {
             duration_per_character =
-                duration_of_lip_sync(lip_sync_handle) /
+                duration_of_lip_sync(lip_sync_keyframes) /
                 (float)text_length;
             if ((int)(float)ceil(duration_per_character) >= 10) {
                 print_speed = 10;
@@ -2793,7 +2798,7 @@ int load_hero_model(int animation_script) {
     update_mkobj(as_mkhdr(&hero->hdr));
     hero->light_flags = 1;
     build_bones_tbl(hero, konquest_human_bones);
-    hero->flipped_bone_map = flipped_konquest_human_bones;
+    hero->flipped_bone_map = &flipped_konquest_human_bones;
     hero->flags_09 |= 0x80;
     hero->ground_colls = monk_ground_colls;
 
