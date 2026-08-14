@@ -174,7 +174,9 @@ typedef struct KonquestNpc {
                     unsigned char flags_1C_bit5 : 1;
                     unsigned char model_visible : 1;
                     unsigned char ignore_events : 1;
-                    unsigned char flags_1C_pad_low : 3;
+                    unsigned char flags_1C_field_bit2 : 1;
+                    unsigned char flags_1C_field_bit1 : 1;
+                    unsigned char flags_1C_field_bit0 : 1;
                 };
             };
             union {
@@ -184,7 +186,8 @@ typedef struct KonquestNpc {
                     unsigned char skip_visibility : 1;
                     unsigned char flags_1D_pad_mid : 1;
                     unsigned char reaction_mode : 1;
-                    unsigned char flags_1D_pad_low : 2;
+                    unsigned char flags_1D_field_bit1 : 1;
+                    unsigned char flags_1D_field_bit0 : 1;
                 };
             };
             union {
@@ -4866,7 +4869,7 @@ int npc_get_collision_direction_in_script(void) {
     KonquestObjectScriptPdata* pdata =
         (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
     MkObj* hero = konquest_pdata->monk;
-    int direction = 0;
+    int direction;
 
     if (hero != 0) {
         if (hero->hdr.instance != konquest_pdata->monk_instance) {
@@ -4875,6 +4878,7 @@ int npc_get_collision_direction_in_script(void) {
     } else {
         hero = 0;
     }
+    direction = 0;
     if (hero != 0 && pdata != 0) {
         MkObj* object = pdata->object;
 
@@ -5106,15 +5110,17 @@ static void npc_notify_nearby_npcs_that_player_hit_someone(
     MkPtr* link = konquest_pdata->visible_npc_list;
 
     while (link != 0) {
-        KonquestNpc* npc = (KonquestNpc*)link->hdr;
+        MkHdr* header = link->hdr;
 
-        if (link->instance != npc->hdr.instance) {
+        if (link->instance != header->instance) {
             MkPtr* next = link->next;
 
             link->hdr = 0;
             destroy_mkptr(link);
             link = next;
         } else {
+            KonquestNpc* npc = (KonquestNpc*)header;
+
             if (npc != 0 && npc->data != source->data) {
                 KonquestTileOrigin* tile =
                     get_nth_tile_struct(npc->tile_index);
@@ -6000,7 +6006,7 @@ static int plyr_near_check(float distance) {
     } else {
         is_near = 0;
     }
-    return is_near;
+    return is_near != 0;
 }
 
 void npc_enable_event(int event_index, int enabled) {
@@ -6171,22 +6177,23 @@ void npc_update(int update_all) {
 
     link = konquest_pdata->npc_list;
     while (link != 0) {
-        KonquestNpc* npc = (KonquestNpc*)link->hdr;
+        MkHdr* header = link->hdr;
 
-        if (link->instance != npc->hdr.instance) {
+        if (link->instance != header->instance) {
             MkPtr* next = link->next;
 
             link->hdr = 0;
             destroy_mkptr(link);
             link = next;
         } else {
+            KonquestNpc* npc = (KonquestNpc*)header;
             KonquestTileOrigin* tile =
                 get_nth_tile_struct(npc->tile_index);
 
             if (tile != 0) {
                 if (tile->loaded != 0 ||
                     npc_event_has_active_animation(npc) != 0 ||
-                    (npc->flags_1C & 0x20) != 0) {
+                    npc->flags_1C_bit5) {
                     mk_insert(
                         &npc->hdr, &konquest_pdata->visible_npc_list);
                 }
@@ -6198,17 +6205,19 @@ void npc_update(int update_all) {
     npc_manager_pdata->nearest_npc_distance = -1.0f;
     link = konquest_pdata->visible_npc_list;
     while (link != 0) {
-        KonquestNpc* npc = (KonquestNpc*)link->hdr;
+        MkHdr* header = link->hdr;
 
-        if (link->instance != npc->hdr.instance) {
+        if (link->instance != header->instance) {
             MkPtr* next = link->next;
 
             link->hdr = 0;
             destroy_mkptr(link);
             link = next;
         } else {
+            KonquestNpc* npc = (KonquestNpc*)header;
+
             if (npc_check_visibility_and_calc_dist(npc) != 0) {
-                if ((npc->flags_1C & 0x10) == 0) {
+                if (!npc->model_visible) {
                     if (models_made_visible < 2 || update_all != 0) {
                         npc_make_visible(npc);
                         models_made_visible++;
@@ -6216,7 +6225,7 @@ void npc_update(int update_all) {
                         wait_ticks = 0;
                     }
                 }
-            } else if ((npc->flags_1C & 0x10) != 0) {
+            } else if (npc->model_visible) {
                 npc_make_invisible(npc);
             }
             link = link->next;
@@ -6267,32 +6276,34 @@ static void npc_dispatch_timed_events_for_all_npcs(void) {
     link = *list;
 
     while (link != 0) {
-        KonquestNpc* npc = (KonquestNpc*)link->hdr;
+        MkHdr* header = link->hdr;
 
-        if (link->instance != npc->hdr.instance) {
+        if (link->instance != header->instance) {
             MkPtr* next = link->next;
 
             link->hdr = 0;
             destroy_mkptr(link);
             link = next;
         } else {
+            KonquestNpc* npc = (KonquestNpc*)header;
+
             if (npc->data->timed_events != 0 && npc->state_58 == 0) {
                 if (npc->next_timed_event == 0) {
-                    npc->timed_event_flags &= (unsigned char)~0x10;
+                    npc->reset_timed_events = 0;
                     setup_current_and_next_events(npc, 1);
-                } else if ((npc->timed_event_flags & 0x10) != 0 &&
-                           (npc->timed_event_flags & 0x80) == 0) {
+                } else if (npc->reset_timed_events &&
+                           !npc->animation_override) {
                     npc->next_timed_event = 0;
                     setup_current_and_next_events(npc, 0);
                     npc_force_state_for_npc(npc, 0);
-                    npc->timed_event_flags &= (unsigned char)~0x10;
-                    npc->flags_1D &= (unsigned char)~0x10;
-                    if ((npc->flags_1C & 2) != 0 ||
-                        (npc->flags_1D & 1) != 0) {
-                        npc->flags_1C &= (unsigned char)~8;
+                    npc->reset_timed_events = 0;
+                    npc->skip_visibility = 0;
+                    if (npc->flags_1C_field_bit1 ||
+                        npc->flags_1D_field_bit0) {
+                        npc->model_visible = 0;
                     }
-                    npc->flags_1D &= (unsigned char)~1;
-                    npc->flags_1C &= (unsigned char)~2;
+                    npc->flags_1D_field_bit0 = 0;
+                    npc->flags_1C_field_bit1 = 0;
                 } else {
                     npc_check_next_event(npc);
                 }
@@ -6526,7 +6537,7 @@ static void npc_setup_path_for_event(
     }
 
     if (preserve_path != 0 &&
-        ((npc->flags_1C & 2) != 0 || (npc->flags_1D & 1) != 0)) {
+        (npc->flags_1C_field_bit1 || npc->flags_1D_field_bit0)) {
         if (npc->path->table_index >= 0x10000000) {
             if (npc->path->waypoints != path &&
                 (npc->flags_1D & 0x10) == 0) {
@@ -6534,17 +6545,17 @@ static void npc_setup_path_for_event(
                     npc, npc->path->waypoints, npc->path->table_index,
                     npc->path->waypoint_count, 3, 0);
                 npc_set_path(npc, path, table_index, row_count, 0, 1);
-                npc->flags_1C &= (unsigned char)~2;
-                npc->flags_1D &= (unsigned char)~1;
+                npc->flags_1C_field_bit1 = 0;
+                npc->flags_1D_field_bit0 = 0;
             }
             return;
         }
-        npc->flags_1C &= (unsigned char)~2;
-        npc->flags_1D &= (unsigned char)~1;
+        npc->flags_1C_field_bit1 = 0;
+        npc->flags_1D_field_bit0 = 0;
     }
     if (npc->path->table_index == -2 ||
-        ((npc->timed_event_flags & 0x10) != 0 &&
-         ((npc->flags_1C & 2) != 0 || (npc->flags_1D & 1) != 0))) {
+        (npc->reset_timed_events &&
+         (npc->flags_1C_field_bit1 || npc->flags_1D_field_bit0))) {
         npc_set_path(npc, path, table_index, row_count, 0, 0);
         return;
     }
@@ -6558,10 +6569,8 @@ static int is_this_a_current_event_for_today(
     const KonquestTime* event) {
     const KonquestTime* current = &konquest_pdata->current_time;
 
-    if (event->year != -1 && event->year != current->year) {
-        return 0;
-    }
-    if (event->month != -1 && event->month != current->month) {
+    if (!((event->year == -1 || event->year == current->year) &&
+          (event->month == -1 || event->month == current->month))) {
         return 0;
     }
     if (event->day_of_month == -1 && event->day_of_week == -1) {
@@ -7429,16 +7438,18 @@ void npc_make_invisible(KonquestNpc* npc) {
 }
 
 static void npc_manager_release_npc_model(KonquestNpc* npc) {
+    KonquestNpcData* data = npc->data;
+    NpcManagerPdata* manager = npc_manager_pdata;
     int index;
 
-    if (npc->data->events[7].script_function == 1) {
+    if (data->events[7].script_function == 1) {
         for (index = 0; index < 2; index++) {
             NpcManagerModelSlot* slot =
-                &npc_manager_pdata->special_models[index];
+                &manager->special_models[index];
 
-            if (slot->data == npc->data) {
+            if (slot->data == data) {
                 MkObj* object = npc->animation->object;
-                AniTextureControl* texture = npc->animation->lip_texture;
+                AniTextureControl* texture;
 
                 if (object != 0) {
                     if (object->hdr.instance != 0) {
@@ -7446,13 +7457,18 @@ static void npc_manager_release_npc_model(KonquestNpc* npc) {
                     }
                     npc->animation->object = 0;
                 }
-                if (texture != 0) {
-                    if ((unsigned int)texture->instance !=
-                        npc->animation->lip_texture_instance) {
+                {
+                    KonquestNpcAnimState* animation = npc->animation;
+
+                    texture = animation->lip_texture;
+                    if (texture != 0) {
+                        if ((unsigned int)texture->instance !=
+                            animation->lip_texture_instance) {
+                            texture = 0;
+                        }
+                    } else {
                         texture = 0;
                     }
-                } else {
-                    texture = 0;
                 }
                 if (texture != 0) {
                     MkHdr* texture_hdr = (MkHdr*)npc->animation->lip_texture;
@@ -7475,9 +7491,9 @@ static void npc_manager_release_npc_model(KonquestNpc* npc) {
     }
 
     for (index = 0; index < 22; index++) {
-        NpcManagerModelSlot* slot = &npc_manager_pdata->models[index];
+        NpcManagerModelSlot* slot = &manager->models[index];
 
-        if (slot->data == npc->data) {
+        if (slot->data == data) {
             if (slot->object != 0) {
                 obj_for_all_atomics_set_material_alpha(slot->object, 0);
                 remove_fgnd_mkobj(slot->object);
