@@ -3,6 +3,7 @@
 #include "game/game_info.h"
 #include "game/mcardmsg.h"
 #include "game/plyrprofile.h"
+#include "game/trial.h"
 #include "platform/display.h"
 #include "platform/gcio.h"
 #include "platform/io.h"
@@ -58,7 +59,6 @@ extern SwitchMapEntry p2_temp_switch_map[];
 extern SwitchMapEntry p1_profile_switch_map[];
 extern SwitchMapEntry p2_profile_switch_map[];
 extern int menu_player;
-extern PlyrInfo* trial_get_drone_info(void);
 extern void flush_controller_switch_buffers(void);
 extern int get_stick_pos(int port, int stick, float* out_x, float* out_y);
 extern int sounds_muted;

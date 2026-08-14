@@ -104,7 +104,8 @@ typedef struct GameInfoFlags {
     unsigned char lens_flare_enabled : 1; /* bit5 */
     unsigned char pad_bits4_3 : 2;
     unsigned char level_fatality_done : 1; /* bit2 */
-    unsigned char pad_low : 2;
+    unsigned char pad_bit1 : 1;
+    unsigned char field_bit0 : 1;
 } GameInfoFlags;
 
 #define GC_PAD_FLAG_DISABLED 0x80

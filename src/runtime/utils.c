@@ -689,7 +689,65 @@ void service_game_timers(void) {
     g_game_info.field_20C += 1;
 }
 
-void display_numerical_change(int a, int b, int c) {
+void display_numerical_change(
+    StringObj* string, int font, int start, int change,
+    int ticks, int acceleration_interval, void* context) {
+    char text[40];
+    int target = start + change;
+    int step = change < 0 ? -1 : 1;
+    int tick_count = 0;
+    int acceleration_count = 0;
+
+    if (string != 0) {
+        unsigned int instance = string->instance;
+
+        while (start != target) {
+            StringObj* live;
+
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+            tick_count++;
+            if (tick_count >= ticks) {
+                int distance;
+                int step_magnitude;
+                int next;
+
+                tick_count = 0;
+                if (string != 0) {
+                    if (string->instance == instance) {
+                        live = string;
+                    } else {
+                        live = 0;
+                    }
+                } else {
+                    live = 0;
+                }
+                if (live == 0) {
+                    return;
+                }
+                distance = target - start;
+                if (distance < 0) {
+                    distance = -distance;
+                }
+                step_magnitude = step;
+                if (step_magnitude < 0) {
+                    step_magnitude = -step_magnitude;
+                }
+                next = start + step;
+                if (distance <= step_magnitude) {
+                    next = target;
+                }
+                start = next;
+                format_value_to_display(text, start);
+                update_string_obj(live, font, text);
+            }
+            acceleration_count++;
+            if (acceleration_count >= acceleration_interval) {
+                step *= 2;
+                acceleration_count = 0;
+            }
+        }
+    }
 }
 
 void show_material(RpMaterial* material) {

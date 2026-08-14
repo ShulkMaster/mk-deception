@@ -19,7 +19,8 @@ typedef struct StringObj StringObj;
 typedef struct ScreenObjFlags {
     unsigned char pad0 : 3;
     unsigned char hidden : 1;
-    unsigned char pad1 : 4;
+    unsigned char scaled : 1;
+    unsigned char pad1 : 3;
 } ScreenObjFlags;
 
 typedef struct ScreenObjDrawFlags {
@@ -127,7 +128,7 @@ struct ImageMkSobj {
  */
 struct ScreenObj {
     MkVtable5* vtbl;       /* +0x00 */
-    int instance;          /* +0x04 */
+    unsigned int instance; /* +0x04 */
     int oid;               /* +0x08 */
     union {
         unsigned int flags_word;

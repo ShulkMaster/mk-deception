@@ -15,6 +15,7 @@ typedef struct MkObj MkObj;
 typedef struct ScriptSlot ScriptSlot;
 typedef struct SwitchData SwitchData;
 typedef struct AniData AniData;
+typedef struct AnimScript AnimScript;
 
 typedef struct PlyrMoveBlendData {
     char pad00[4];
@@ -175,7 +176,9 @@ typedef struct PlyrStatusData {
         FatalityDefinition* fatality_definition;
         FatalityDistanceLimits* fatality_limits;
     }; /* +0x84 */
-    char pad88[0xAC];
+    char pad88[0x2C];
+    struct TrialWrapupData* trial_wrapup_data; /* +0xB4 */
+    char padB8[0x7C];
     void* reaction_cleanup; /* +0x134 */
     char pad138[4];
     unsigned int throw_script; /* +0x13C */
@@ -219,7 +222,9 @@ typedef struct PlyrPdata {
     unsigned int left_hand_anim_instance; /* +0x68 */
     struct MkProc* right_hand_anim_proc; /* +0x6C */
     unsigned int right_hand_anim_instance; /* +0x70 */
-    char pad74[0x40];
+    struct MkProc* face_anim_proc; /* +0x74 */
+    unsigned int face_anim_proc_instance; /* +0x78 */
+    char pad7C[0x38];
     struct MkProc* transient_proc; /* +0xB4 */
     unsigned int transient_proc_instance; /* +0xB8 */
     char padBC[0x20];
@@ -292,7 +297,9 @@ typedef struct PlyrPdata {
     char pad26C[8];
     unsigned int last_collision_tick; /* +0x274 */
     int last_back_dash_tick; /* +0x278 - switch double-tap timing */
-    char pad27C[0x14];
+    char pad27C[8];
+    unsigned int damage_boost_until; /* +0x284 */
+    char pad288[8];
     float postround_value; /* +0x290 */
     float combo_damage; /* +0x294 */
     float damage_multiplier; /* +0x298 */
@@ -379,7 +386,7 @@ typedef struct PlyrPdata {
         };
         unsigned int fatality_camera_scripts[13];
     };
-    char pad3DC[0x94];
+    AnimScript* face_animations[37]; /* +0x3DC */
     MkObj* shadowbox; /* +0x470 */
     char pad474[4];
     ScriptSlot* cmo; /* +0x478 */

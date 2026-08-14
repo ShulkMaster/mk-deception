@@ -45,7 +45,9 @@ int get_language_setting(void);
 void blink_cursor(ScreenObj* obj, int proc_id, int on_ticks, int off_ticks);
 void hide_or_show_2d_obj_by_id(int oid, int hide);
 void service_game_timers(void);
-void display_numerical_change(int a, int b, int c);
+void display_numerical_change(
+    StringObj* string, int font, int start, int change,
+    int ticks, int acceleration_interval, void* context);
 void show_material(RpMaterial* material);
 void hide_material(RpMaterial* material);
 void material_set_color(RpMaterial* material, const RpMaterialColor* color);

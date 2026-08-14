@@ -408,7 +408,7 @@ extern int end_round_cam_done;
 int trial_show_standard_fight_messages(void);
 int mk_chess_did_the_king_just_lose(void);
 void skip_end_of_trial_wrapup(void);
-void end_of_trial_wrapup(int winner);
+float end_of_trial_wrapup(int winner);
 float sqrtf(float value);
 float drone_start(void);
 float go_into_major_pain(void);
