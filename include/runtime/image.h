@@ -15,6 +15,14 @@ typedef struct ImageClumpExt ImageClumpExt;
 typedef struct ImageMkSobj ImageMkSobj;
 typedef struct StringObj StringObj;
 
+typedef struct ScreenObjVtable {
+    MkVtblFn fn0;
+    MkVtblFn fn1;
+    MkVtblFn fn2;
+    MkVtblFn fn3;
+    int (*destroy)(ScreenObj* object);
+} ScreenObjVtable;
+
 /* ScreenObj +0x0C flags; the hide bit is 0x10. */
 typedef struct ScreenObjFlags {
     unsigned char pad0 : 3;
@@ -127,7 +135,10 @@ struct ImageMkSobj {
  * Matched: render_2d_objs; MaterialFindAniTexture; load_wiff_screen_pfxobj.
  */
 struct ScreenObj {
-    MkVtable5* vtbl;       /* +0x00 */
+    union {
+        MkVtable5* vtbl;       /* +0x00 */
+        ScreenObjVtable* typed_vtbl;
+    };
     unsigned int instance; /* +0x04 */
     int oid;               /* +0x08 */
     union {

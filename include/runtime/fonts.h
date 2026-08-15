@@ -11,12 +11,23 @@ typedef struct StringObjVisBits {
     unsigned char pad : 6;
 } StringObjVisBits;
 
+typedef struct StringObjVtable {
+    MkVtblFn fn0;
+    MkVtblFn fn1;
+    MkVtblFn fn2;
+    MkVtblFn fn3;
+    int (*destroy)(struct StringObj* object);
+} StringObjVtable;
+
 /*
  * StringObj is 0xD0. pfx (PfxFontString, 0x90) sits at +0x3C through +0xCB;
  * priority at +0xCC. text_w/text_h copy from pfx.width/height after string_set.
  */
 typedef struct StringObj {
-    MkVtable5* vtbl;       /* +0x00 */
+    union {
+        MkVtable5* vtbl;       /* +0x00 */
+        StringObjVtable* typed_vtbl;
+    };
     unsigned int instance; /* +0x04 */
     int oid;               /* +0x08 */
     union {

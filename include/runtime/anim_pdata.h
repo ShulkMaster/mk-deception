@@ -21,7 +21,10 @@ typedef struct AnimPdata {
     PlyrPdata* owner;                /* +0x18 */
     unsigned int owner_instance;     /* +0x1C */
     char pad20[4];
-    unsigned int last_exec_tick; /* +0x24 */
+    union {
+        unsigned int last_exec_tick;
+        unsigned int last_update_tick; /* +0x24 - pose_anim update latch */
+    };
     char pad28[4];
     unsigned int script_word; /* +0x2C - preserved by player proc teardown */
     unsigned int flags; /* +0x30 */
