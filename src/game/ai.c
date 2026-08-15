@@ -1,3 +1,4 @@
+#include "game/ai.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/mk_obj.h"
@@ -464,8 +465,6 @@ void plyr_going_to_attack_with_action(int action);
 void share_my_attack_info(float duration, float divisor);
 void init_ground_move_no_aniproc(void);
 void face_opponent_now(void);
-void advance_anim(AnimPdata* animation);
-void pose_anim(AnimPdata* animation, int update_object);
 int random_foot(int group);
 void tightrope_restrictions_off(MkObj* object, int clear);
 void transition_to_anim_script(

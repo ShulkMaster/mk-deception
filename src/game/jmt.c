@@ -1,4 +1,5 @@
 #include "game/game_info.h"
+#include "game/constrain.h"
 #include "game/pfxscript.h"
 #include "math/gxMath.h"
 #include "runtime/anim_pdata.h"
@@ -82,7 +83,6 @@ extern float game_speed;
 extern void check_release_other_player(void);
 extern void swap_active_plyr_proc(void);
 extern void adjust_player_life(float amount);
-void set_constrain_last_pos(int player, int position);
 void plyr_bleed_large_ext(PlyrPdata* player);
 
 int local_collision_allowed(PlyrPdata* player);
@@ -359,7 +359,7 @@ void remove_impaled_projectiles(void) {
     g_game_info.plyr1.slot.pdata->impaled_projectile_state = 0;
 }
 
-void set_constrain_last_pos_pdata(int position) {
+void set_constrain_last_pos_pdata(const Vec* position) {
     if (plyr_pdata != 0) {
         set_constrain_last_pos(plyr_pdata->plyr_num, position);
     }

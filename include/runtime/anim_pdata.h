@@ -1,6 +1,7 @@
 #ifndef MKD_ANIM_PDATA_H
 #define MKD_ANIM_PDATA_H
 
+#include "math/gxVect.h"
 #include "runtime/mk_proc.h"
 
 typedef struct AnimScript AnimScript;
@@ -39,12 +40,16 @@ typedef struct AnimPdata {
     float low_frame;  /* +0x3C */
     float high_frame; /* +0x40 */
     float step;       /* +0x44 */
-    char pad48[0x1C];
+    char pad48[8];
+    Vec root_offset; /* +0x50 */
+    char pad5C[8];
     float weight;     /* +0x64 */
     float weight_velocity; /* +0x68 */
     char pad6C[4];
     unsigned int old_flags; /* +0x70 - previous animation flags */
-    char pad74[0x34];
+    char pad74[0x0C];
+    float field_80;
+    char pad84[0x24];
     float transition_weight; /* +0xA8 */
     float transition_step; /* +0xAC */
     float transition_accel; /* +0xB0 */
@@ -53,9 +58,28 @@ typedef struct AnimPdata {
     char padBC[4];
     char padC0[0x0C];
     unsigned char* bone_remap; /* +0xCC - auxiliary bone index remapping */
-    MkProcEntryFn hand_script; /* +0xD0 */
+    union {
+        AniData* hand_animation;
+        MkProcEntryFn hand_script;
+    }; /* +0xD0 */
     char padD4[0x20];
     int rest_ticks;   /* +0xF4 - weapon rest-loop countdown */
 } AnimPdata;
+
+void set_anim_script(
+    AnimPdata* animation, AniData* script, int transition);
+int set_anim_script_frame(
+    float frame, AnimPdata* animation, AniData* script,
+    unsigned int flags);
+int pose_anim(AnimPdata* animation, int update_object);
+int advance_anim(AnimPdata* animation);
+MkProc* create_mkproc_anim(
+    int pid, MkProcEntryFn entry, AnimPdata** pdata_out);
+MkProc* create_mkproc_anim2(
+    int pid, MkProcEntryFn entry, AnimPdata** pdata_out);
+MkProc* create_mkproc_face_anim(
+    int pid, MkProcEntryFn entry, AnimPdata** pdata_out);
+MkProc* create_mkproc_hand_anim(
+    int pid, MkProcEntryFn entry, AnimPdata** pdata_out);
 
 #endif

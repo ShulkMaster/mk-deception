@@ -722,8 +722,6 @@ void cleanup_npc_manager(void);
 void npc_shadow_teardown(void);
 void destroy_konquest_shadow_collision_lists(void);
 void cleanup_mission_state(void);
-void advance_anim(AnimPdata* pdata);
-void pose_anim(AnimPdata* pdata, int update);
 int is_this_the_monk_npc(KonquestNpc* npc);
 void npc_set_wait_ticks(float ticks);
 void npc_suspend_cmdscript(void);
@@ -734,9 +732,6 @@ int refresh_rate(void);
 void obj_create_sobjs(MkObj* object);
 void insert_ground_me_mkobj(MkObj* object);
 void build_bones_tbl(MkObj* object, void* bones);
-int create_mkproc_anim(
-    int pid, MkProcEntryFn entry, AnimPdata** animation);
-void set_anim_script(AnimPdata* animation, int script, int transition);
 void obj_apply_to_sobj_with_id(
     MkObj* object, int id, void (*callback)(void*));
 int load_effect_bank(const char* name);
@@ -2765,7 +2760,7 @@ int load_hero_model(int animation_script) {
     int slot;
     MkObj* hero;
     AnimPdata* animation;
-    int created;
+    MkProc* created;
     char model_name[16];
 
     hero_age = p1_profile_konquest->fields.hero_age;
@@ -2809,14 +2804,14 @@ int load_hero_model(int animation_script) {
         animation->obj_instance = hero->hdr.instance;
         set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
         animation->step = 1.0f;
-        set_anim_script(animation, animation_script, 0);
+        set_anim_script(animation, (AniData*)animation_script, 0);
     }
     insert_fgnd_mkobj(hero);
     insert_ground_me_mkobj(hero);
     memset(pdata_monk, 0, sizeof(pdata_monk));
     init_shadow((ShadowObject*)pdata_monk, hero);
     ShadowStrength = 0.7f;
-    return created;
+    return (int)created;
 }
 
 void setup_konquest_pui(KonquestPuiRuntime* pui) {

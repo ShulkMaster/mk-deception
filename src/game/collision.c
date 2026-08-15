@@ -4424,10 +4424,10 @@ void reset_player_collision(PlayerCollisionData* collision) {
     }
 }
 
-void init_player_collision(PlayerCollisionData* collision) {
-    collision->nodes = get_mem(0x9410);
-    if (collision->nodes != 0) {
-        reset_player_collision(collision);
+void init_player_collision(PlyrInfo* player) {
+    player->collision_data->nodes = get_mem(0x9410);
+    if (player->collision_data->nodes != 0) {
+        reset_player_collision(player->collision_data);
     }
 }
 

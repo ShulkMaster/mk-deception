@@ -244,10 +244,6 @@ typedef struct PlyrInfo {
     void* field_68;   /* +0x68 */
 } PlyrInfo; /* 0x6C */
 
-void set_player_state(PlyrInfo* player, int state);
-void init_plyr_info_struct(PlyrInfo* player);
-int load_plyr_model_async(int player, int char_id, int* flags);
-
 /* Historical name in GameInfo / movelist. */
 typedef PlyrInfo GameInfoPlyr;
 
