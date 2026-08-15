@@ -161,20 +161,14 @@ typedef struct PausedStudioEvent {
  * Provide zeroed storage of these sizes before init_screen_engine().
  *
  * mkGameVariables is the game subclass of mwScreenEngine GameVariables
- * (same 0x1C layout; distinct __vt__15mkGameVariables). Tiny Get/Set stubs
- * live in this Glue TU (SetFloat / GetNumStrings / ...).
+ * (real `class mkGameVariables : public GameVariables`, 0x1C, distinct
+ * __vt__15mkGameVariables). Its Get/Set overrides live in the Glue TU.
+ *
+ * The class and the BSS island overlay are DEFINED IN mwScreenEngineGlue.cpp,
+ * not here: this header is included by C translation units (game.c, menu.c,
+ * pselect.c, ending.c) which cannot see a C++ class. No C consumer references
+ * either type -- the only mentions in C sources are comments.
  */
-
-/* Same layout as GameVariables (0x1C); subclass only swaps vtbl. */
-typedef struct mkGameVariables {
-    void* m_vtbl; /* +0x00 -- __vt__15mkGameVariables */
-    int m_optMin; /* +0x04 */
-    int m_optMax; /* +0x08 */
-    int m_colMin; /* +0x0c */
-    int m_colMax; /* +0x10 */
-    int m_pad14; /* +0x14 */
-    struct mkGameVariables* m_next; /* +0x18 */
-} mkGameVariables; /* sizeof == 0x1C */
 
 #include "libmkparticle/pfxfont.h"
 
@@ -201,19 +195,9 @@ typedef struct ScreenEngineClient {
     int share_instance; /* +0x7C */
 } ScreenEngineClient; /* sizeof == 0x80 */
 
-/*
- * Overlay for init_screen_engine: retail addi from paused_event_queue base.
- * Linker still emits separate symbols (queue / mgr / client / vars + @814..@816).
- */
-typedef struct ScreenEngineBssIsland {
-    PausedStudioEvent queue[12]; /* +0x00 size 0x60 */
-    unsigned char pad_814[0xC]; /* +0x60 -- symbols.txt @814 */
-    char screen_manager[0x264]; /* +0x6C -- ScreenMgr storage */
-    unsigned char pad_815[0xC]; /* +0x2D0 -- @815 */
-    ScreenEngineClient client; /* +0x2DC */
-    unsigned char pad_816[0xC]; /* +0x35C -- @816 */
-    mkGameVariables game_variables; /* +0x368 */
-} ScreenEngineBssIsland;
+/* ScreenEngineBssIsland (the init_screen_engine overlay) is defined in
+ * mwScreenEngineGlue.cpp -- it has a mkGameVariables member, so it is
+ * C++-only for the same reason. See the layout map at the top of this file. */
 
 /* SE string table (Screen.h SEStringTable_t) -- C view for Glue. */
 typedef struct SEStringTableView {

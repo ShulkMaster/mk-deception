@@ -1,16 +1,13 @@
 /*
  * GameVariables.o -- option/collection dispatcher (mwScreenEngine).
  *
- * NonMatching callable for menu confirm (GetInt/SetInt/HandleEvent ->
- * target_game_mode via ScreenControl option ids / m_objTag 'SCtl').
+ * Drives menu confirm (GetInt/SetInt/HandleEvent -> target_game_mode via
+ * ScreenControl option ids / m_objTag 'SCtl').
  *
- * Soft ceilings (walkers / HandleAction):
- *   GetInt/SetInt/SetString ~90.1% -- vtbl load temp (r5/r6 vs r12)
- *   GetIntArray/SetIntArray ~90.5% -- vtbl load temp + arg order
- *   HandleAction ~87.6% -- retail binary cmp tree vs sequential ifs
- *   HandleEvent ~89.3% -- vtbl temp coloring
- *   Register ~94.8% -- lwz r0/mr r5 vs lwz r5
- * Algo matches; stop Matching-grind on reg coloring / branch schedule.
+ * GameVariables is the abstract base; the dispatcher walks the m_next chain,
+ * filters with the non-virtual range helpers, and makes ordinary virtual
+ * calls on the node. Declaration order in the header is the vtable slot
+ * order -- see GameVariables.h before touching it.
  */
 
 #include "mwScreenEngine/GameVariables.h"
@@ -19,8 +16,6 @@
 #include "mwScreenEngine/ScreenNode.h"
 #include "mwScreenEngine/ScreenObject.h"
 #include "mwScreenEngine/ScreenParams.h"
-
-extern void* __vt__13GameVariables;
 
 #define GAME_VARIABLE_ANY_OWNER ((unsigned int)-1)
 
@@ -33,59 +28,8 @@ enum {
     kTagSCtl = 0x5343746c /* 'SCtl' */
 };
 
-/* Vtbl word indices (retail __vt__13GameVariables). */
-enum {
-    kVtHandleAction = 4, /* +0x10 */
-    kVtHandleEvent = 5, /* +0x14 */
-    kVtGetInt = 6, /* +0x18 */
-    kVtIsValidInt = 7, /* +0x1C */
-    kVtSetInt = 8, /* +0x20 */
-    kVtGetString = 11, /* +0x2C */
-    kVtSetString = 12, /* +0x30 */
-    kVtGetIntArray = 13, /* +0x34 */
-    kVtSetIntArray = 14, /* +0x38 */
-    kVtIsValidOption = 15, /* +0x3C */
-    kVtGetRowState = 16, /* +0x40 */
-    kVtSetRowState = 17, /* +0x44 */
-    kVtGetColState = 18, /* +0x48 */
-    kVtSetColState = 19, /* +0x4C */
-    kVtGetStringCollection = 20, /* +0x50 */
-    kVtGetStringMatrix = 21, /* +0x54 */
-    kVtFreeStringCollection = 22, /* +0x58 */
-    kVtGetTextureCollection = 24, /* +0x60 */
-    kVtFreeTextureCollection = 25 /* +0x64 */
-};
-
-/* Typed vtbl word table -- prefer over repeated (void**)m_vtbl cast soup. */
-static inline void** GameVariablesVtbl(GameVariables* gv) {
-    return (void**)gv->m_vtbl;
-}
-
-typedef int (*GV_HandleActionFn)(GameVariables*, ScreenMgr*, const ScreenAction*);
-typedef void (*GV_HandleEventFn)(GameVariables*, ScreenObject*, int, int);
-typedef int (*GV_GetIntFn)(GameVariables*, unsigned int);
-typedef int (*GV_IsValidIntFn)(GameVariables*, unsigned int, unsigned int, int);
-typedef void (*GV_SetIntFn)(GameVariables*, unsigned int, int);
-typedef char* (*GV_GetStringFn)(GameVariables*, unsigned int);
-typedef void (*GV_GetIntArrayFn)(GameVariables*, unsigned int, int*, int);
-typedef void (*GV_SetIntArrayFn)(GameVariables*, unsigned int, int*, int);
-typedef void (*GV_SetStringFn)(GameVariables*, unsigned int, char*);
-typedef int (*GV_IsValidOptionFn)(GameVariables*, unsigned int);
-typedef int (*GV_GetRowStateFn)(GameVariables*, unsigned int, int);
-typedef void (*GV_SetRowStateFn)(GameVariables*, unsigned int, int, int);
-typedef int (*GV_GetColStateFn)(GameVariables*, unsigned int, int);
-typedef void (*GV_SetColStateFn)(GameVariables*, unsigned int, int, int);
-typedef int (*GV_GetStringCollectionFn)(GameVariables*, unsigned int, char***);
-typedef int (*GV_GetStringMatrixFn)(GameVariables*, unsigned int, char***, int*);
-typedef void (*GV_FreeStringCollectionFn)(GameVariables*, unsigned int, char**,
-                                          unsigned int);
-typedef int (*GV_GetTextureCollectionFn)(GameVariables*, int, GMTextureInfo_t*,
-                                         unsigned int*);
-typedef void (*GV_FreeTextureCollectionFn)(GameVariables*, int, GMTextureInfo_t*);
-
 GameVariables::GameVariables() {
-    /* Retail store order: vtbl, m_next, opt*, col* -- pad14 unset. */
-    m_vtbl = &__vt__13GameVariables;
+    /* Retail store order: vtbl (implicit), m_next, opt*, col* -- pad14 unset. */
     m_next = 0;
     m_optMin = 0;
     m_optMax = 0;
@@ -136,17 +80,17 @@ int GameVariables::HandleAction(ScreenMgr* /*mgr*/, const ScreenAction* /*action
 
 void GameVariables::HandleEvent(ScreenObject* /*object*/, int /*event*/, int /*arg*/) {}
 
-int GameVariables::GetRowState(int /*a*/, int /*b*/) {
+int GameVariables::GetRowState(int /*id*/, int /*row*/) {
     return 0;
 }
 
-void GameVariables::SetRowState(int /*a*/, int /*b*/, int /*c*/) {}
+void GameVariables::SetRowState(int /*id*/, int /*row*/, int /*value*/) {}
 
-int GameVariables::GetColState(int /*a*/, int /*b*/) {
+int GameVariables::GetColState(int /*id*/, int /*col*/) {
     return 0;
 }
 
-void GameVariables::SetColState(int /*a*/, int /*b*/, int /*c*/) {}
+void GameVariables::SetColState(int /*id*/, int /*col*/, int /*value*/) {}
 
 int GameVariables::IsValidOption(int /*id*/) {
     return 1;
@@ -158,20 +102,21 @@ GameVariableDispatcher::GameVariableDispatcher() {
 
 void GameVariableDispatcher::Register(GameVariables* vars) {
     GameVariables* cur;
+    GameVariables* next;
 
-    /* Soft ceiling: Register ~94.8% -- lwz r0/mr r5 vs lwz r5; stop. */
-    cur = m_head;
-    if (cur == 0) {
+    next = m_head;
+    cur = next;
+    if (next == 0) {
         m_head = vars;
         vars->m_next = 0;
         return;
     }
 
-    while (cur->m_next != 0) {
+    while ((next = cur->m_next) != 0) {
         if (cur == vars) {
             return;
         }
-        cur = cur->m_next;
+        cur = next;
     }
 
     if (cur != vars) {
@@ -188,8 +133,7 @@ int GameVariableDispatcher::IsValidInt(unsigned int /*a*/, unsigned int b,
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            return ((GV_IsValidIntFn)GameVariablesVtbl(cur)[kVtIsValidInt])(cur, b, id,
-                                                                            value);
+            return cur->IsValidInt(b, id, value);
         }
         cur = cur->m_next;
     }
@@ -199,14 +143,11 @@ int GameVariableDispatcher::IsValidInt(unsigned int /*a*/, unsigned int b,
 #pragma dont_inline on
 int GameVariableDispatcher::GetInt(unsigned int /*unused*/, unsigned int id) {
     GameVariables* cur;
-    void** vtbl;
 
-    /* Soft ceiling: GetInt ~90.1% -- vtbl load temp r5 vs r12; stop. */
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_GetIntFn)vtbl[kVtGetInt])(cur, id);
+            return cur->GetInt(id);
         }
         cur = cur->m_next;
     }
@@ -216,13 +157,11 @@ int GameVariableDispatcher::GetInt(unsigned int /*unused*/, unsigned int id) {
 void GameVariableDispatcher::SetInt(unsigned int /*unused*/, unsigned int id,
                                     int value) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_SetIntFn)vtbl[kVtSetInt])(cur, id, value);
+            cur->SetInt(id, value);
             return;
         }
         cur = cur->m_next;
@@ -231,13 +170,11 @@ void GameVariableDispatcher::SetInt(unsigned int /*unused*/, unsigned int id,
 
 char* GameVariableDispatcher::GetString(unsigned int /*unused*/, unsigned int id) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_GetStringFn)vtbl[kVtGetString])(cur, id);
+            return cur->GetString(id);
         }
         cur = cur->m_next;
     }
@@ -247,14 +184,11 @@ char* GameVariableDispatcher::GetString(unsigned int /*unused*/, unsigned int id
 void GameVariableDispatcher::GetIntArray(unsigned int /*unused*/, unsigned int id,
                                          int* out, int count) {
     GameVariables* cur;
-    void** vtbl;
 
-    /* Soft ceiling: GetIntArray ~90.5% -- vtbl load temp + arg order; stop. */
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_GetIntArrayFn)vtbl[kVtGetIntArray])(cur, id, out, count);
+            cur->GetIntArray(id, out, count);
             return;
         }
         cur = cur->m_next;
@@ -264,13 +198,11 @@ void GameVariableDispatcher::GetIntArray(unsigned int /*unused*/, unsigned int i
 void GameVariableDispatcher::SetIntArray(unsigned int /*unused*/, unsigned int id,
                                          int* values, int count) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_SetIntArrayFn)vtbl[kVtSetIntArray])(cur, id, values, count);
+            cur->SetIntArray(id, values, count);
             return;
         }
         cur = cur->m_next;
@@ -280,13 +212,11 @@ void GameVariableDispatcher::SetIntArray(unsigned int /*unused*/, unsigned int i
 void GameVariableDispatcher::SetString(unsigned int /*unused*/, unsigned int id,
                                        char* str) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_SetStringFn)vtbl[kVtSetString])(cur, id, str);
+            cur->SetString(id, str);
             return;
         }
         cur = cur->m_next;
@@ -296,13 +226,11 @@ void GameVariableDispatcher::SetString(unsigned int /*unused*/, unsigned int id,
 int GameVariableDispatcher::GetRowState(unsigned int /*unused*/, unsigned int id,
                                         int row) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_GetRowStateFn)vtbl[kVtGetRowState])(cur, id, row);
+            return cur->GetRowState(id, row);
         }
         cur = cur->m_next;
     }
@@ -312,13 +240,11 @@ int GameVariableDispatcher::GetRowState(unsigned int /*unused*/, unsigned int id
 int GameVariableDispatcher::GetColState(unsigned int /*unused*/, unsigned int id,
                                         int col) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_GetColStateFn)vtbl[kVtGetColState])(cur, id, col);
+            return cur->GetColState(id, col);
         }
         cur = cur->m_next;
     }
@@ -328,13 +254,11 @@ int GameVariableDispatcher::GetColState(unsigned int /*unused*/, unsigned int id
 void GameVariableDispatcher::SetRowState(unsigned int /*unused*/, unsigned int id,
                                          int row, int value) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_SetRowStateFn)vtbl[kVtSetRowState])(cur, id, row, value);
+            cur->SetRowState(id, row, value);
             return;
         }
         cur = cur->m_next;
@@ -344,13 +268,11 @@ void GameVariableDispatcher::SetRowState(unsigned int /*unused*/, unsigned int i
 void GameVariableDispatcher::SetColState(unsigned int /*unused*/, unsigned int id,
                                          int col, int value) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_SetColStateFn)vtbl[kVtSetColState])(cur, id, col, value);
+            cur->SetColState(id, col, value);
             return;
         }
         cur = cur->m_next;
@@ -359,13 +281,11 @@ void GameVariableDispatcher::SetColState(unsigned int /*unused*/, unsigned int i
 
 int GameVariableDispatcher::IsValidOption(unsigned int /*unused*/, unsigned int id) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidOptionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_IsValidOptionFn)vtbl[kVtIsValidOption])(cur, id);
+            return cur->IsValidOption(id);
         }
         cur = cur->m_next;
     }
@@ -375,14 +295,11 @@ int GameVariableDispatcher::IsValidOption(unsigned int /*unused*/, unsigned int 
 int GameVariableDispatcher::GetStringCollection(unsigned int /*unused*/,
                                                 unsigned int id, char*** out) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_GetStringCollectionFn)vtbl[kVtGetStringCollection])(cur, id,
-                                                                             out);
+            return cur->GetStringCollection(id, out);
         }
         cur = cur->m_next;
     }
@@ -394,14 +311,11 @@ int GameVariableDispatcher::GetStringMatrixCollection(unsigned int /*unused*/,
                                                       unsigned int id, char*** out,
                                                       int& rows) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_GetStringMatrixFn)vtbl[kVtGetStringMatrix])(cur, id, out,
-                                                                    &rows);
+            return cur->GetStringMatrixCollection(id, out, rows);
         }
         cur = cur->m_next;
     }
@@ -413,7 +327,6 @@ void GameVariableDispatcher::FreeStringCollection(unsigned int /*unused*/,
                                                   unsigned int id, char** strings,
                                                   unsigned int count) {
     GameVariables* cur;
-    void** vtbl;
 
     if (strings == 0) {
         return;
@@ -421,9 +334,7 @@ void GameVariableDispatcher::FreeStringCollection(unsigned int /*unused*/,
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange(id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_FreeStringCollectionFn)vtbl[kVtFreeStringCollection])(cur, id, strings,
-                                                                       count);
+            cur->FreeStringCollection(id, strings, count);
             return;
         }
         cur = cur->m_next;
@@ -434,14 +345,11 @@ int GameVariableDispatcher::GetTextureCollection(unsigned int /*unused*/, int id
                                                  GMTextureInfo_t* out,
                                                  unsigned int& count) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange((unsigned int)id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            return ((GV_GetTextureCollectionFn)vtbl[kVtGetTextureCollection])(
-                cur, id, out, &count);
+            return cur->GetTextureCollection(id, out, count);
         }
         cur = cur->m_next;
     }
@@ -451,13 +359,11 @@ int GameVariableDispatcher::GetTextureCollection(unsigned int /*unused*/, int id
 void GameVariableDispatcher::FreeTextureCollection(unsigned int /*unused*/, int id,
                                                    GMTextureInfo_t* info) {
     GameVariables* cur;
-    void** vtbl;
 
     cur = m_head;
     while (cur != 0) {
         if (cur->IsValidCollectionRange((unsigned int)id) != 0) {
-            vtbl = GameVariablesVtbl(cur);
-            ((GV_FreeTextureCollectionFn)vtbl[kVtFreeTextureCollection])(cur, id, info);
+            cur->FreeTextureCollection(id, info);
             return;
         }
         cur = cur->m_next;
@@ -472,14 +378,12 @@ int GameVariableDispatcher::HandleAction(ScreenMgr* mgr, const ScreenAction* act
     int arg;
     GameVariables* cur;
 
-    /*
-     * Soft ceiling: HandleAction ~87.6% -- sequential ifs vs retail binary
-     * cmp tree (0x7E0 / 0x7E1 / 0x7DB); body order matches .text. Stop.
-     */
+    /* Case order follows retail .text body order, not numeric order. */
     params = action->m_params;
     if (params != 0) {
         arg = action->m_arg;
-        if (arg == kArgRefreshCollection) {
+        switch (arg) {
+        case kArgRefreshCollection:
             node = params->GetScreenNode(0);
             if (node != 0) {
                 tmp.Init(action->m_event, action->m_eventIndex, action->m_object,
@@ -487,8 +391,7 @@ int GameVariableDispatcher::HandleAction(ScreenMgr* mgr, const ScreenAction* act
                 node->HandleAction(mgr, &tmp);
             }
             return 1;
-        }
-        if (arg == kArgRefreshCollectionAlt) {
+        case kArgRefreshCollectionAlt:
             node = params->GetScreenNode(0);
             if (node != 0) {
                 tmp.Init(action->m_event, action->m_eventIndex, action->m_object,
@@ -496,8 +399,7 @@ int GameVariableDispatcher::HandleAction(ScreenMgr* mgr, const ScreenAction* act
                 node->HandleAction(mgr, &tmp);
             }
             return 1;
-        }
-        if (arg == kArgRefreshOption) {
+        case kArgRefreshOption:
             node = params->GetScreenNode(0);
             if (node != 0) {
                 node->HandleAction(mgr, action);
@@ -508,17 +410,16 @@ int GameVariableDispatcher::HandleAction(ScreenMgr* mgr, const ScreenAction* act
 
     cur = m_head;
     while (cur != 0) {
-        ((GV_HandleActionFn)GameVariablesVtbl(cur)[kVtHandleAction])(cur, mgr, action);
+        cur->HandleAction(mgr, action);
         cur = cur->m_next;
     }
     return 0;
 }
 
 void GameVariableDispatcher::HandleEvent(ScreenObject* object, int event, int arg) {
+    unsigned int optionId;
     GameVariables* cur;
     ScreenControl* ctrl;
-    unsigned int optionId;
-    void** vtbl;
 
     /*
      * Retail order: non-null object first (tag @ +0x3C = m_objTag 'SCtl'),
@@ -531,8 +432,7 @@ void GameVariableDispatcher::HandleEvent(ScreenObject* object, int event, int ar
             optionId = (unsigned int)ctrl->m_optionId;
             while (cur != 0) {
                 if (cur->IsValidOptionRange(optionId) != 0) {
-                    vtbl = GameVariablesVtbl(cur);
-                    ((GV_HandleEventFn)vtbl[kVtHandleEvent])(cur, object, event, arg);
+                    cur->HandleEvent(object, event, arg);
                     return;
                 }
                 cur = cur->m_next;
@@ -543,8 +443,7 @@ void GameVariableDispatcher::HandleEvent(ScreenObject* object, int event, int ar
 
     cur = m_head;
     if (cur != 0) {
-        vtbl = GameVariablesVtbl(cur);
-        ((GV_HandleEventFn)vtbl[kVtHandleEvent])(cur, object, event, arg);
+        cur->HandleEvent(object, event, arg);
     }
 }
 

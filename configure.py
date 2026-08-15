@@ -571,8 +571,10 @@ config.libs = [
             Object(NonMatching, "ladder.o", source="game/ladder.c",
                    extra_cflags=["-O4,s"]),
             Object(NonMatching, "ending.o", source="game/ending.c"),
+            # -RTTI on: retail's __vt__15mkGameVariables word 0 points at a real
+            # __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off).
             Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off", "-RTTI on"]),
             Object(NonMatching, "plyrprofile.o", source="game/plyrprofile.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
@@ -963,7 +965,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/GameVariables.o",
                 source="mwScreenEngine/GameVariables.cpp",
                 # -O4,s: prefer stmw/lmw on walker NVs (GetInt/GetIntArray/HandleAction).

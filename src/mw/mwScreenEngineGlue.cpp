@@ -107,6 +107,7 @@
 #include "libmkparticle/pfx2d.h"
 #include "libmkparticle/pfxfont.h"
 #include "movie/MkMovies.h"
+#include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/ScreenPoly.h"
 #include "mwScreenEngine/ScreenSCtl.h"
 #include "mwScreenEngine/ScreenText.h"
@@ -232,7 +233,61 @@ extern void* __vt__32ScreenActionOnlinePickChallenger[];
 extern void* __vt__33ScreenActionOnlineChallengeCancel[];
 extern void* __vt__37ScreenActionOnlineResetChallengeState[];
 extern void* __vt__20mkScreenEngineClient[];
+/* Defined by the compiler as mkGameVariables' vtable (below); this C-linkage
+ * declaration names the same symbol so __sinit can store it by hand, the way
+ * retail's inlined constructor does. */
 extern void* __vt__15mkGameVariables[];
+
+/*
+ * The game's GameVariables subclass. Slot order is inherited from the base
+ * (see mwScreenEngine/GameVariables.h); the destructor is the only NEW
+ * virtual, so it lands in the extra trailing slot -- retail's
+ * __vt__15mkGameVariables is 0x6C where the base's is 0x68.
+ *
+ * Lives here rather than in mwScreenEngineGlue.h because that header is
+ * included by C translation units.
+ */
+class mkGameVariables : public GameVariables {
+public:
+    virtual ~mkGameVariables();
+
+    virtual void Init();
+    virtual void Dispose();
+    virtual int GetInt(int id);
+    virtual void SetInt(int id, int value);
+    virtual float GetFloat(int id);
+    virtual void SetFloat(int id, float value);
+    virtual char* GetString(int id);
+    virtual void SetString(int id, char* str);
+    virtual void GetIntArray(int id, int* values, int count);
+    virtual void SetIntArray(int id, int* values, int count);
+    virtual int IsValidOption(int id);
+    virtual int GetRowState(int id, int row);
+    virtual void SetRowState(int id, int row, int value);
+    virtual int GetColState(int id, int col);
+    virtual void SetColState(int id, int col, int value);
+    virtual int GetStringCollection(int id, char*** out);
+    virtual int GetStringMatrixCollection(int id, char*** out, int& rows);
+    virtual void FreeStringCollection(int id, char** strings, unsigned int count);
+    virtual int GetNumStrings(int id);
+    virtual int GetTextureCollection(int id, GMTextureInfo_t* out, unsigned int& count);
+    virtual void FreeTextureCollection(int id, GMTextureInfo_t* info);
+};
+
+/*
+ * Overlay for init_screen_engine: retail addi from paused_event_queue base.
+ * Linker still emits separate symbols (queue / mgr / client / vars + @814..@816);
+ * the 0xC pads are MWCC's static-destructor chain nodes.
+ */
+typedef struct ScreenEngineBssIsland {
+    PausedStudioEvent queue[12]; /* +0x00 size 0x60 */
+    unsigned char pad_814[0xC]; /* +0x60 -- symbols.txt @814 */
+    char screen_manager[0x264]; /* +0x6C -- ScreenMgr storage */
+    unsigned char pad_815[0xC]; /* +0x2D0 -- @815 */
+    ScreenEngineClient client; /* +0x2DC */
+    unsigned char pad_816[0xC]; /* +0x35C -- @816 */
+    mkGameVariables game_variables; /* +0x368 */
+} ScreenEngineBssIsland;
 
 /* Retail leaves create_mkproc's MkProc* in r3. */
 MkProc* _create_mkproc_generic_bigstack(int proc_id, int priority, void* proc_fn, int pdata_size,
@@ -378,7 +433,7 @@ void __sinit_mwScreenEngineGlue_cpp(void) {
         (char*)island + 0x2D0);
 
     __ct__13GameVariablesFv(&island->game_variables);
-    island->game_variables.m_vtbl = __vt__15mkGameVariables;
+    *(void***)&island->game_variables = __vt__15mkGameVariables;
     SetCollectionRange__13GameVariablesFUiUi(
         &island->game_variables, 0, 0x7FFFFFFF);
     SetOptionRange__13GameVariablesFUiUi(
@@ -2038,8 +2093,7 @@ static const float kGvFloatZero = 0.0f;
 
 extern void Free__10ScreenUtilFPv(void* p);
 
-void FreeTextureCollection__15mkGameVariablesFiP15GMTextureInfo_t(
-    mkGameVariables* /*self*/, int /*id*/, GMTextureInfo_t* info) {
+void mkGameVariables::FreeTextureCollection(int /*id*/, GMTextureInfo_t* info) {
     if (info->data != 0) {
         Free__10ScreenUtilFPv(info->data);
     }
@@ -2084,9 +2138,8 @@ void ppv_view_profile_icon_list(GVTexturePair out);
         out->data = collection;                                                      \
     } while (0)
 
-int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
-    mkGameVariables* /*self*/, int id, GMTextureInfo_t* out,
-    unsigned int* columnsOut) {
+int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
+                                          unsigned int& columnsOut) {
     GVTextureCollection* collection;
     GVTexturePair pair;
     unsigned int count = 0;
@@ -2114,7 +2167,7 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         create_inventory_image_list(pair, count);
-        *columnsOut = (count + 1) >> 1;
+        columnsOut = (count + 1) >> 1;
         count = 2;
         break;
     case 0x1fe9:
@@ -2128,8 +2181,8 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         create_gallery_image_list(pair, count);
-        *columnsOut = 6;
-        count = (count + (*columnsOut - 1)) / *columnsOut;
+        columnsOut = 6;
+        count = (count + (columnsOut - 1)) / columnsOut;
         break;
     case 0x1fea:
         count = 2;
@@ -2138,8 +2191,8 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         create_fullscreen_gallery_image_list(pair, 2);
-        *columnsOut = 2;
-        count = (count + (*columnsOut - 1)) / *columnsOut;
+        columnsOut = 2;
+        count = (count + (columnsOut - 1)) / columnsOut;
         break;
     case 0x1fda:
         count = 0x2c;
@@ -2191,7 +2244,7 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         create_left_mc_icon_list(pair, 7);
-        *columnsOut = 1;
+        columnsOut = 1;
         break;
     case 0x1fe3:
         count = 7;
@@ -2200,7 +2253,7 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         create_right_mc_icon_list(pair, 7);
-        *columnsOut = 1;
+        columnsOut = 1;
         break;
     case 0x1fe0:
     case 0x1fe1:
@@ -2226,7 +2279,7 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         ppv_view_profile_icon_list(pair);
-        *columnsOut = 1;
+        columnsOut = 1;
         break;
     case 0x1fed:
         count = ppl_get_multi_profile_count(0);
@@ -2235,7 +2288,7 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         ppl_get_multi_profile_icon_p1(pair, count);
-        *columnsOut = 1;
+        columnsOut = 1;
         if (count == 0) {
             count = 1;
         }
@@ -2247,7 +2300,7 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
         ppl_get_multi_profile_icon_p2(pair, count);
-        *columnsOut = 1;
+        columnsOut = 1;
         if (count == 0) {
             count = 1;
         }
@@ -2258,13 +2311,12 @@ int GetTextureCollection__15mkGameVariablesFiP15GMTextureInfo_tRUi(
 
 #undef ALLOC_GV_TEXTURE_COLLECTION
 
-int GetNumStrings__15mkGameVariablesFi(mkGameVariables* /*self*/, int /*id*/) {
+int mkGameVariables::GetNumStrings(int /*id*/) {
     return 0;
 }
 
-void FreeStringCollection__15mkGameVariablesFiPPcUi(mkGameVariables* /*self*/, int /*id*/,
-                                                    char** /*strings*/,
-                                                    unsigned int /*count*/) {}
+void mkGameVariables::FreeStringCollection(int /*id*/, char** /*strings*/,
+                                           unsigned int /*count*/) {}
 
 extern char* menu_string_matrix[];
 extern char* pselect_string_matrix[];
@@ -2314,8 +2366,7 @@ void get_soundtrack_title_list(const char*** titles_out, unsigned int* count_out
 void get_storage_device_name_list(char** out);
 void get_profile_stats(char** outs);
 
-int GetStringMatrixCollection__15mkGameVariablesFiPPPcRi(
-    mkGameVariables* /*self*/, int id, char*** out, int* rows) {
+int mkGameVariables::GetStringMatrixCollection(int id, char*** out, int& rows) {
     /*
      * Soft ceiling: ~99.59% -- instructions match; the typed contiguous matrix
      * view gives equivalent base+offset addresses with different reloc identities.
@@ -2326,54 +2377,54 @@ int GetStringMatrixCollection__15mkGameVariablesFiPPPcRi(
     switch (id) {
     case 1:
         *out = matrices->menu;
-        *rows = 1;
+        rows = 1;
         count = 6;
         break;
     case 0x50:
         *out = matrices->menu;
-        *rows = 1;
+        rows = 1;
         count = 5;
         break;
     case 4:
         *out = matrices->menu;
-        *rows = 1;
+        rows = 1;
         count = 3;
         break;
     case 0x65:
         *out = (char**)get_movelist_strings(&count);
-        *rows = 3;
+        rows = 3;
         break;
     case 0x3c:
         *out = matrices->pselect;
-        *rows = 10;
+        rows = 10;
         count = 2;
         break;
     case 0x1fe4:
         get_left_mcard_text_matrix(matrices->profileTestA);
         *out = matrices->profileTestA;
-        *rows = 1;
+        rows = 1;
         count = 7;
         break;
     case 0x1fe5:
         get_right_mcard_text_matrix(matrices->profileTestB);
         *out = matrices->profileTestB;
-        *rows = 1;
+        rows = 1;
         count = 7;
         break;
     case 0x300c:
         get_storage_device_name_list(create_profile_storage_location_name_list);
         *out = create_profile_storage_location_name_list;
-        *rows = 1;
+        rows = 1;
         count = 2;
         break;
     case 0x300d:
         get_profile_stats(matrices->viewProfileStats);
         *out = matrices->viewProfileStats;
-        *rows = 3;
+        rows = 3;
         count = 3;
         break;
     case 0x1feb:
-        *rows = 1;
+        rows = 1;
         count = ppl_get_multi_profile_names_p1(matrices->multiProfileP1);
         *out = matrices->multiProfileP1;
         if (count == 0) {
@@ -2381,7 +2432,7 @@ int GetStringMatrixCollection__15mkGameVariablesFiPPPcRi(
         }
         break;
     case 0x1fec:
-        *rows = 1;
+        rows = 1;
         count = ppl_get_multi_profile_names_p2(matrices->multiProfileP2);
         *out = matrices->multiProfileP2;
         if (count == 0) {
@@ -2392,9 +2443,9 @@ int GetStringMatrixCollection__15mkGameVariablesFiPPPcRi(
         if (wager_load_koin_count_string_array__F8PLYR_NUM(0) != 0) {
             *out = matrices->wagerP1;
             count = 6;
-            *rows = 1;
+            rows = 1;
         } else {
-            *rows = 1;
+            rows = 1;
             count = 1;
         }
         break;
@@ -2402,14 +2453,14 @@ int GetStringMatrixCollection__15mkGameVariablesFiPPPcRi(
         if (wager_load_koin_count_string_array__F8PLYR_NUM(1) != 0) {
             *out = matrices->wagerP2;
             count = 6;
-            *rows = 1;
+            rows = 1;
         } else {
-            *rows = 1;
+            rows = 1;
             count = 1;
         }
         break;
     case 0x1ff2:
-        get_soundtrack_title_list((const char***)out, &count, rows);
+        get_soundtrack_title_list((const char***)out, &count, &rows);
         return count;
     case 0:
         return 0;
@@ -2454,8 +2505,7 @@ int wager_load_koin_count_string_array__F8PLYR_NUM(int player) {
 }
 #pragma optimization_level 4
 
-int GetStringCollection__15mkGameVariablesFiPPPc(
-    mkGameVariables* /*self*/, int id, char*** out) {
+int mkGameVariables::GetStringCollection(int id, char*** out) {
     /*
      * Soft ceiling: ~99.46% -- instructions match; anonymous retail
      * @stringBase0 relocation identity differs in the source object.
@@ -2514,17 +2564,15 @@ int GetStringCollection__15mkGameVariablesFiPPPc(
     return 0;
 }
 
-void SetColState__15mkGameVariablesFiii(mkGameVariables* /*self*/, int /*id*/, int /*col*/,
-                                        int /*value*/) {}
+void mkGameVariables::SetColState(int /*id*/, int /*col*/, int /*value*/) {}
 
-int GetColState__15mkGameVariablesFii(mkGameVariables* /*self*/, int /*id*/, int /*col*/) {
+int mkGameVariables::GetColState(int /*id*/, int /*col*/) {
     return 0;
 }
 
-void SetRowState__15mkGameVariablesFiii(mkGameVariables* /*self*/, int /*id*/, int /*row*/,
-                                        int /*value*/) {}
+void mkGameVariables::SetRowState(int /*id*/, int /*row*/, int /*value*/) {}
 
-int GetRowState__15mkGameVariablesFii(mkGameVariables* /*self*/, int /*id*/, int /*row*/) {
+int mkGameVariables::GetRowState(int /*id*/, int /*row*/) {
     return 0;
 }
 
@@ -2536,8 +2584,7 @@ void set_current_soundtrack(int index);
 int get_current_soundtrack(void);
 int get_number_items_in_inventory(void);
 
-void SetIntArray__15mkGameVariablesFiPii(
-    mkGameVariables* /*self*/, int id, int* values, int /*count*/) {
+void mkGameVariables::SetIntArray(int id, int* values, int /*count*/) {
     switch (id) {
     case 3:
         break;
@@ -2561,8 +2608,7 @@ void SetIntArray__15mkGameVariablesFiPii(
     }
 }
 
-void GetIntArray__15mkGameVariablesFiPii(
-    mkGameVariables* /*self*/, int id, int* values, int /*count*/) {
+void mkGameVariables::GetIntArray(int id, int* values, int /*count*/) {
     switch (id) {
     case 0x1fea:
         values[3] = get_current_soundtrack();
@@ -2571,7 +2617,7 @@ void GetIntArray__15mkGameVariablesFiPii(
     }
 }
 
-void SetString__15mkGameVariablesFiPc(mkGameVariables* /*self*/, int /*id*/, char* /*str*/) {}
+void mkGameVariables::SetString(int /*id*/, char* /*str*/) {}
 
 static char temp_string_buf_3481[0x100];
 extern const char* mk6_version_string;
@@ -2611,7 +2657,7 @@ char* ppv_get_current_profile_name(void);
 void ppv_get_current_profile_arcade_finishes(char* dest);
 void ppv_get_current_profile_koins(char* dest, int index);
 
-char* GetString__15mkGameVariablesFi(mkGameVariables* /*self*/, int id) {
+char* mkGameVariables::GetString(int id) {
     /* Soft ceiling: ~53.4% -- complete ID/call inventory; retail binary cmp tree. */
     char* result = temp_string_buf_3481;
     result[0] = 0;
@@ -2762,9 +2808,9 @@ char* GetString__15mkGameVariablesFi(mkGameVariables* /*self*/, int id) {
     return (char*)"UNFORMED";
 }
 
-void SetFloat__15mkGameVariablesFif(mkGameVariables* /*self*/, int /*id*/, float /*value*/) {}
+void mkGameVariables::SetFloat(int /*id*/, float /*value*/) {}
 
-float GetFloat__15mkGameVariablesFi(mkGameVariables* /*self*/, int /*id*/) {
+float mkGameVariables::GetFloat(int /*id*/) {
     /* Soft ceiling ~97.5%: SDA reloc label (@4397 vs local); opcode match. */
     return kGvFloatZero;
 }
@@ -2788,7 +2834,7 @@ extern int winner;
  * Game-facing integer options. IDs are the retail Screen resource IDs; the
  * apparently sparse switch is intentional and mirrors the retail dispatcher.
  */
-void SetInt__15mkGameVariablesFii(mkGameVariables* /*self*/, int id, int value) {
+void mkGameVariables::SetInt(int id, int value) {
     if (id >= 0x332c && id <= 0x3333) {
         set_game_option(id, value);
         return;
@@ -2886,7 +2932,7 @@ void SetInt__15mkGameVariablesFii(mkGameVariables* /*self*/, int id, int value) 
     }
 }
 
-int GetInt__15mkGameVariablesFi(mkGameVariables* /*self*/, int id) {
+int mkGameVariables::GetInt(int id) {
     int state;
 
     if (id >= 0x1f7c && id <= 0x1f93) {
@@ -3021,25 +3067,17 @@ int GetInt__15mkGameVariablesFi(mkGameVariables* /*self*/, int id) {
     return 0;
 }
 
-int IsValidOption__15mkGameVariablesFi(mkGameVariables* /*self*/, int /*id*/) {
+int mkGameVariables::IsValidOption(int /*id*/) {
     return 1;
 }
 
-void Dispose__15mkGameVariablesFv(mkGameVariables* /*self*/) {}
+void mkGameVariables::Dispose() {}
 
-void Init__15mkGameVariablesFv(mkGameVariables* /*self*/) {}
+void mkGameVariables::Init() {}
 
 extern void* __vt__15mkGameVariables[];
 
-mkGameVariables* __dt__15mkGameVariablesFv(mkGameVariables* self, short del) {
-    if (self != 0) {
-        self->m_vtbl = __vt__15mkGameVariables;
-        if (del > 0) {
-            __dl__FPv(self);
-        }
-    }
-    return self;
-}
+mkGameVariables::~mkGameVariables() {}
 
 /*
  * =====================================================================
@@ -5796,7 +5834,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         value = GetInt__12ScreenParamsFUi(params, 0);
         animScene = GetAnimScene__6ScreenFi(animScreen, value);
         resource = GetResourceID__12ScreenParamsFUi(params, 1);
-        value = GetInt__15mkGameVariablesFi(&game_variables, resource);
+        value = game_variables.GetInt(resource);
         PlayUntilTime__15ScreenAnimSceneFi(
             animScene,
             (int)((float)*(int*)(*(char**)((char*)animScene + 0x14) + 4) *
