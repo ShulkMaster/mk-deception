@@ -8,6 +8,7 @@
  */
 
 #include "runtime/asset.h"
+#include "game/profile_unlock.h"
 #include "game/settings.h"
 
 #define STORAGE_MAX_DEVICES 2
@@ -54,16 +55,16 @@ typedef struct StorageProfileSlot {
     unsigned char pad38[0x40 - 0x38]; /* +0x38 .. +0x3F */
     int koins[6]; /* +0x40 -- view profile koin counts */
     unsigned char pad58[0x148 - 0x58];
-    unsigned int unlock_cat1[2]; /* +0x148 */
-    unsigned int unlock_cat2[2]; /* +0x150 */
+    ProfileUnlockBits64 unlock_cat1; /* +0x148 */
+    ProfileUnlockBits64 unlock_cat2; /* +0x150 */
     unsigned int unlock_cat3; /* +0x158 */
     unsigned int pad15C;
-    unsigned int unlock_cat6[2]; /* +0x160 */
-    unsigned int unlock_cat4; /* +0x168 */
-    unsigned int unlock_cat5; /* +0x16C */
-    unsigned int unlock_cat7[2]; /* +0x170 */
-    unsigned int unlock_cat8[2]; /* +0x178 */
-    unsigned int unlock_cat9[2]; /* +0x180 */
+    ProfileUnlockBits64 unlock_cat4; /* +0x160 */
+    unsigned int unlock_cat5; /* +0x168 */
+    unsigned int unlock_cat6; /* +0x16C, indexed from bit 10 */
+    ProfileUnlockBits64 unlock_cat7; /* +0x170 */
+    ProfileUnlockBits64 unlock_cat8; /* +0x178 */
+    ProfileUnlockBits64 unlock_cat9; /* +0x180 */
     unsigned int unlock_cat10; /* +0x188 */
     unsigned int pad18C;
     unsigned char pad190[0x4FC - 0x190];
