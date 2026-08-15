@@ -45,4 +45,7 @@ typedef struct ArenaObstacle {
     MkPtr* shapes; /* +0x18 */
 } ArenaObstacle; /* 0x1C */
 
+void set_constrain_last_pos(int player, const Vec* position);
+void set_constrain_last_pos_pdata(const Vec* position);
+
 #endif

@@ -260,7 +260,9 @@ typedef struct MkObjFlags08 {
 } MkObjFlags08;
 
 typedef struct MkObjFlags0B {
-    unsigned char pad_high : 6;
+    unsigned char pad_bit7 : 1;
+    unsigned char bit6 : 1;
+    unsigned char pad_5_2 : 4;
     unsigned char special_texture : 1; /* bit1 */
     unsigned char pad_low : 1;
 } MkObjFlags0B;

@@ -1,3 +1,4 @@
+#include "game/ai.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/mk_obj.h"
@@ -19,7 +20,7 @@ typedef struct DroneAI {
     PlyrPdata* player; /* +0x14 */
     unsigned int match_stage; /* +0x18 */
     unsigned int big_boss_stage; /* +0x1C */
-    char pad020[4];
+    unsigned int initialization_tick; /* +0x20 */
     unsigned int charge_cooldown_tick; /* +0x24 */
     unsigned int next_style_change_tick; /* +0x28 */
     float opponent_health; /* +0x2C */
@@ -61,7 +62,7 @@ typedef struct DroneAI {
     int avoid_position_request; /* +0xC4 */
     Vec avoid_position_target; /* +0xC8 */
     int avoid_position_ready; /* +0xD4 */
-    char pad0D8[4];
+    int danger_area_state; /* +0xD8 */
     int big_boss_block_state; /* +0xDC */
     int consecutive_losses; /* +0xE0 */
     int reversal_pending; /* +0xE4 */
@@ -88,6 +89,7 @@ typedef struct DroneAI {
     float avoidance_area_duration; /* +0x13C */
     float avoidance_position[3]; /* +0x140 */
     unsigned int block_retry_tick; /* +0x14C */
+    unsigned int field_150; /* +0x150 */
 } DroneAI;
 
 typedef struct AiMovesetTableContainer {
@@ -432,6 +434,7 @@ int drone_ai_check_for_evade_attack(DroneAI* drone);
 int drone_ai_check_for_evade_movement(DroneAI* drone);
 int drone_ai_check_for_extreme_throw(DroneAI* drone);
 int drone_ai_check_for_throw(DroneAI* drone);
+int drone_ai_check_continue_combo(void);
 int drone_ai_check_for_passive_movement(DroneAI* drone);
 int drone_ai_check_change_style(DroneAI* drone);
 int drone_ai_check_push(DroneAI* drone);
@@ -462,8 +465,6 @@ void plyr_going_to_attack_with_action(int action);
 void share_my_attack_info(float duration, float divisor);
 void init_ground_move_no_aniproc(void);
 void face_opponent_now(void);
-void advance_anim(AnimPdata* animation);
-void pose_anim(AnimPdata* animation, int update_object);
 int random_foot(int group);
 void tightrope_restrictions_off(MkObj* object, int clear);
 void transition_to_anim_script(
@@ -541,7 +542,7 @@ int drone_ai_check_for_side_step_counter_attack(DroneAI* drone);
 int drone_ai_should_evade_attack(DroneAI* drone);
 void drone_ai_charge_up_watcher_defense(DroneAI* drone);
 void drone_ai_perform_charge_up(void);
-int get_ladder_position(GameInfo* game);
+int get_ladder_position(void);
 int trial_get_drone_difficulty(void);
 int mk_chess_get_current_difficulty_for_ai(int side);
 extern int g_GameLossesInARow;
@@ -1000,7 +1001,7 @@ void drone_ai_watcher_calculate_data(void) {
     }
 
     drone->reaction_ticks = g_game_info.field_204;
-    ladder_position = get_ladder_position(&g_game_info);
+    ladder_position = get_ladder_position();
     if (ladder_position > 7) {
         ladder_position = 7;
     }
@@ -1703,6 +1704,102 @@ void drone_ai_finished_request(void) {
     drone->request_active = 0;
 }
 
+void drone_ai_initialize(DroneAI* drone) {
+    int ladder_position;
+    unsigned short random_ticks;
+
+    drone->charge_cooldown_tick = exec_tick_ctr;
+    drone->difficulty_index = 4;
+    ladder_position = get_ladder_position();
+    if (ladder_position > 7) {
+        ladder_position = 7;
+    }
+    if (get_game_state() == 3) {
+        ladder_position = 8;
+    }
+    if (mode_of_play == 8) {
+        ladder_position = trial_get_drone_difficulty();
+    }
+    if (mode_of_play == 10) {
+        ladder_position = 4;
+    }
+
+    if (ladder_position < 3) {
+        drone->movement_state = 0;
+        random_ticks = randu0(60);
+        drone->charge_cooldown_tick = exec_tick_ctr + random_ticks + 120;
+        drone->difficulty_index = 0;
+    } else if (randu0(100) < 50) {
+        drone->movement_state = 3;
+    } else {
+        drone->movement_state = 1;
+    }
+
+    random_ticks = randu0(120);
+    drone->next_style_change_tick = exec_tick_ctr + random_ticks + 180;
+    drone->initialization_tick = exec_tick_ctr;
+    drone->background_attack_active = 1;
+    drone->block_subtype = 0;
+    drone->script_attack = 0;
+    drone->script_attack_ready = 0;
+    drone->decision_ready = 1;
+    if (get_game_state() == 3) {
+        drone->difficulty_index = 7;
+    }
+    drone->special_reaction_active = 0;
+    drone->block_request = 1;
+    drone->big_boss_stage_hits = 0;
+    drone->damage_transition_tick = 0;
+    drone->block_hold_ticks = 0;
+    drone->special_reaction_ticks = 0;
+    drone->special_reaction_state = 0;
+    drone->request_active = 0;
+    drone->reaction_watcher = 0;
+    drone->attack_type = 0;
+    drone->force_attack = 0;
+    drone->evade_arena_state = 0;
+    drone->danger_area_request = 0;
+    drone->attack_pending = 0;
+    drone->jump_attack_pending = 0;
+    drone->request_active = 0;
+    drone->attack_latched = 0;
+    drone->movement_attempt = 0;
+    drone->arena_collision_history = 0;
+    drone->arena_collision_count = 0;
+    drone->danger_area_active = 0;
+    drone->danger_area_request = 0;
+    drone->danger_area_ready = 0;
+    drone->taunt_pending = 0;
+    drone->hit_active = 0;
+    drone->fatality_decision = 0;
+    drone->command_active = 0;
+    drone->super_combo_active = 0;
+    drone->avoid_position_request = 0;
+    drone->avoid_position_ready = 0;
+    drone->danger_area_state = 0;
+    drone->reversal_pending = 0;
+    drone->opponent_round_attacks = 0;
+    drone->attack_disable_request = 1;
+    drone->push_attempts = 4;
+    drone->danger_area_counter = 0;
+    drone->duck_reaction_tick = 0;
+    drone->next_special_voice_tick = 0;
+    drone->ai_command = 0;
+    drone->ai_command_arg = 0;
+    drone->ai_command_target = -1;
+    drone->ai_command_value = 0.0f;
+    drone->walk_ticks = 0.0f;
+    drone->ai_command_flag0 = 0;
+    drone->ai_command_flag1 = 0;
+    drone->ai_command_flag2 = 0;
+    drone->avoidance_area_duration = 0.0f;
+    drone->avoidance_position[2] = 0.0f;
+    drone->avoidance_position[1] = 0.0f;
+    drone->avoidance_position[0] = 0.0f;
+    drone->block_retry_tick = 0;
+    drone->field_150 = 0;
+}
+
 void drone_super_combo_refresh(void) {
     DroneAI* drone;
 
@@ -1921,6 +2018,134 @@ void jump_away_opponent_with_jexit(void) {
     jump_away_opponent();
     drone->attack_pending = 0;
     ((AiProcVtable*)aproc->vtbl)->transfer(j_exit, 0.0f);
+}
+
+int drone_ai_check_button_press(int button) {
+    DroneAI* drone;
+    int command_button;
+
+    drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+    if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
+        drone =
+            get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+        drone->ai_command = 0;
+        drone->ai_command_arg = 0;
+        drone->ai_command_target = -1;
+        drone->ai_command_value = 0.0f;
+        drone->ai_command_flag0 = 0;
+        drone->ai_command_flag1 = 0;
+        drone->ai_command_flag2 = 0;
+        drone->command_active = 0;
+        return 0;
+    }
+    if (drone->ai_command != 0) {
+        command_button = -2;
+        switch (button) {
+        case 7:
+            command_button = 0;
+            break;
+        case 4:
+            command_button = 5;
+            break;
+        case 6:
+            command_button = 10;
+            break;
+        case 5:
+            command_button = 15;
+            break;
+        case 3:
+            command_button = 20;
+            break;
+        }
+        if (command_button ==
+            ((int)drone->ai_command[drone->ai_command_arg] / 5) * 5) {
+            if (drone_ai_check_continue_combo() != 0) {
+                return 1;
+            }
+            drone = get_player_number(plyr_obj) == 0
+                        ? &g_DroneAI1
+                        : &g_DroneAI2;
+            drone->ai_command = 0;
+            drone->ai_command_arg = 0;
+            drone->ai_command_target = -1;
+            drone->ai_command_value = 0.0f;
+            drone->ai_command_flag0 = 0;
+            drone->ai_command_flag1 = 0;
+            drone->ai_command_flag2 = 0;
+            drone->command_active = 0;
+        }
+    }
+    return 0;
+}
+
+int drone_ai_check_button_direction(int direction) {
+    DroneAI* drone;
+
+    drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+    if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
+        drone =
+            get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+        drone->ai_command = 0;
+        drone->ai_command_arg = 0;
+        drone->ai_command_target = -1;
+        drone->ai_command_value = 0.0f;
+        drone->ai_command_flag0 = 0;
+        drone->ai_command_flag1 = 0;
+        drone->ai_command_flag2 = 0;
+        drone->command_active = 0;
+        return 0;
+    }
+    if (drone->ai_command != 0 &&
+        direction == (int)drone->ai_command[drone->ai_command_arg] % 5) {
+        if (drone_ai_check_continue_combo() != 0) {
+            return 1;
+        }
+        drone =
+            get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+        drone->ai_command = 0;
+        drone->ai_command_arg = 0;
+        drone->ai_command_target = -1;
+        drone->ai_command_value = 0.0f;
+        drone->ai_command_flag0 = 0;
+        drone->ai_command_flag1 = 0;
+        drone->ai_command_flag2 = 0;
+        drone->command_active = 0;
+    }
+    return 0;
+}
+
+void advance_cur_cmd_idx(void) {
+    DroneAI* drone;
+    int index;
+
+    drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+    drone->ai_command_arg++;
+    index = drone->ai_command_arg;
+    if (index >= 16) {
+        drone =
+            get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+        drone->ai_command = 0;
+        drone->ai_command_arg = 0;
+        drone->ai_command_target = -1;
+        drone->ai_command_value = 0.0f;
+        drone->ai_command_flag0 = 0;
+        drone->ai_command_flag1 = 0;
+        drone->ai_command_flag2 = 0;
+        drone->command_active = 0;
+        return;
+    }
+    if ((int)drone->ai_command[index] == -1) {
+        drone =
+            get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
+        drone->ai_command = 0;
+        drone->ai_command_arg = 0;
+        drone->ai_command_target = -1;
+        drone->ai_command_value = 0.0f;
+        drone->ai_command_flag0 = 0;
+        drone->ai_command_flag1 = 0;
+        drone->ai_command_flag2 = 0;
+        drone->command_active = 0;
+    }
 }
 
 void drone_ai_reset_ai_cmd(void) {
@@ -2737,7 +2962,7 @@ float drone_start(void) {
     drone->start_state_b = 0;
     drone_ai_initialize(drone);
     plyr_pdata->drone_request = 1;
-    while ((g_game_info.flags & 0x20) == 0) {
+    while (!g_game_info.flag_bits.lens_flare_enabled) {
         AI_SLEEP(1.0f);
     }
     AI_TRANSFER(drone_entry);

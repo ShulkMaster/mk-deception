@@ -477,7 +477,6 @@ void blend_to_ani(void* animation, int transition, float blend);
 void ani_to_blend_frame(float frame);
 float p_animate(void);
 float p_do_lip_synch(void);
-void set_anim_script(AnimPdata* pdata, AnimScript* animation, int transition);
 float getup_from_ground(void);
 float switch_proc_advance_moveset(void);
 float j_stay_down_dead(void);
@@ -490,9 +489,6 @@ void set_camera_destination(float* position, CameraObj* camera);
 void set_camera_target_angle(float* angle);
 float p_camera_proc(void);
 float p_anim_idle(void);
-int set_anim_script_frame(
-    float frame, AnimPdata* animation,
-    AnimScript* script, unsigned int flags);
 int transition_to_anim_script_frame(
     float transition_frames, float frame, AnimPdata* animation,
     AnimScript* script, unsigned int flags);
@@ -1337,7 +1333,8 @@ void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
         }
         animation = (AnimPdata*)pdata_of_proc(process);
         if (animation != 0) {
-            set_anim_script(animation, plyr_pdata->face_animations[0], 3);
+            set_anim_script(
+                animation, (AniData*)plyr_pdata->face_animations[0], 3);
             animation->step = 1.0f;
             animation->transition_step = 0.2f;
             animation->hand_transition = 1.0f;
@@ -3953,7 +3950,8 @@ static float p_finish_transform_player(void) {
 
     xfer_proc(animation_process, p_anim_idle);
     set_anim_script_frame(
-        63.0f, animation, bgnd_animations.transform_animation, 0x43);
+        63.0f, animation,
+        (AniData*)bgnd_animations.transform_animation, 0x43);
     plyr_obj->pos.x = monk->pos.x;
     plyr_obj->pos.y = monk->pos.y;
     plyr_obj->pos.z = monk->pos.z;
@@ -4042,7 +4040,7 @@ static float p_finish_transform_monk(void) {
     xfer_proc(monk_process, p_anim_idle);
     set_anim_script_frame(
         32.0f, animation,
-        bgnd_animations.monk_transform_animation, 0x43);
+        (AniData*)bgnd_animations.monk_transform_animation, 0x43);
     monk->pos.x = player_object->pos.x;
     monk->pos.y = player_object->pos.y;
     monk->pos.z = player_object->pos.z;

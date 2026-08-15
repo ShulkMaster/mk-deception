@@ -282,7 +282,7 @@ int p2_alternate;
 int p1_alternate_alpha;
 int p2_alternate_alpha;
 int name_sound_state;
-int force_bgnd_num;
+extern int force_bgnd_num;
 int background_selbox_pos;
 int name_sound_active;
 int psel_p1_handicap;

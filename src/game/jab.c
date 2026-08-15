@@ -8,6 +8,7 @@
 #include "game/specular.h"
 #include "math/mk_math.h"
 #include "game/game_info.h"
+#include "game/plyr.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/image.h"
 #include "runtime/light.h"

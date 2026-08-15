@@ -2,18 +2,35 @@
 #define MKD_GAME_MOVESET_H
 
 typedef struct ScreenObj ScreenObj;
+typedef struct MkObj MkObj;
+typedef struct MkPtr MkPtr;
+
+typedef struct MovesetReflectionOwner {
+    char pad00[0x94];
+    MkPtr* reflections; /* +0x94 */
+} MovesetReflectionOwner;
 
 typedef struct MovesetDefinition {
-    char pad00[0x0C];
+    unsigned int animation_header; /* +0x00 - copied into runtime style */
+    char pad04[8];
     const char* style_sign_name;    /* +0x0C */
     int style_sign_width;           /* +0x10 */
     const char* style_section_name; /* +0x14 */
+    const char* animation_section_name; /* +0x18 */
 } MovesetDefinition;
 
 typedef struct GlobalMoveset {
-    char pad00[4];
+    unsigned int animation_header;
     MovesetDefinition* definition; /* +0x04 */
-    char pad08[0x64];
+    MovesetReflectionOwner* reflection_owner; /* +0x08 */
+    MkObj* primary_weapon; /* +0x0C */
+    unsigned int primary_weapon_instance; /* +0x10 */
+    MkObj* reflection_weapon; /* +0x14 */
+    unsigned int reflection_weapon_instance; /* +0x18 */
+    char pad1C[8];
+    MkObj* secondary_weapon; /* +0x24 */
+    unsigned int secondary_weapon_instance; /* +0x28 */
+    char pad2C[0x40];
     ScreenObj* style_sign;          /* +0x6C */
     unsigned int style_sign_instance; /* +0x70 */
     char pad74[0x138];

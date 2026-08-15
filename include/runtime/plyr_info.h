@@ -14,6 +14,7 @@ typedef struct FighterAiTableContainer FighterAiTableContainer;
 typedef struct FighterRuntimeData FighterRuntimeData;
 typedef struct MkProc MkProc;
 typedef struct MkPtr MkPtr;
+typedef struct MkFileEntry MkFileEntry;
 
 typedef struct LinkedNode {
     void* data;
@@ -132,14 +133,49 @@ typedef struct FighterMirror {
 } FighterMirror;
 
 struct FighterRuntimeData {
-    char pad00[0xAC];
+    char pad00[4];
+    const char* primary_art_section;
+    const char* primary_face_texture;
+    const char* animation_section; /* +0x0C */
+    const int* primary_bone_tags;
+    void* primary_mirror_bone_map; /* +0x14 */
+    void* primary_ground_collision; /* +0x18 */
+    char pad1C[4];
+    unsigned int primary_start_script; /* +0x20 */
+    char pad24[4];
+    const char* alternate_art_section;
+    const char* alternate_face_texture;
+    const char* alternate_animation_section; /* +0x30 */
+    const int* alternate_bone_tags;
+    void* alternate_mirror_bone_map; /* +0x38 */
+    void* alternate_ground_collision; /* +0x3C */
+    char pad40[4];
+    unsigned int alternate_start_script; /* +0x44 */
+    char pad48[4];
+    const char* palette_art_section;
+    const char* palette_face_texture;
+    const char* alternate_palette_art_section;
+    const char* alternate_palette_face_texture;
+    const char* shared_art_section;
+    char pad60[0x0C];
+    int win_sound_id; /* +0x6C */
+    char pad70[0x10];
+    char* const* style_scripts; /* +0x80 */
+    char pad84[0x14];
+    const char* chess_animation_section; /* +0x98 */
+    char pad9C[4];
+    const char* const* effect_banks;
+    const char* const* alternate_effect_banks;
+    char padA8[4];
     Vec* half_sever_velocities; /* +0xAC */
 };
 
 /* global_player_data[] stride 0x10 (movelist_get_character_name). */
 typedef struct GlobalPlayerEntry {
-    void* name; /* +0x00 */
-    char pad04[0xC];
+    char* name; /* +0x00 */
+    MkFileEntry* model_files; /* +0x04 */
+    MkFileEntry* alternate_model_files; /* +0x08 */
+    const char* model_script; /* +0x0C */
 } GlobalPlayerEntry; /* 0x10 */
 
 typedef struct MoveTableContainer {
@@ -173,7 +209,8 @@ typedef struct FighterSlot {
 
 typedef struct PlyrInfoFlags14 {
     unsigned char alternate_costume : 1;
-    unsigned char pad : 7;
+    unsigned char alternate_palette : 1;
+    unsigned char pad : 6;
     unsigned char pad15[3];
 } PlyrInfoFlags14;
 
@@ -206,10 +243,6 @@ typedef struct PlyrInfo {
     void* idle_proc;  /* +0x64 */
     void* field_68;   /* +0x68 */
 } PlyrInfo; /* 0x6C */
-
-void set_player_state(PlyrInfo* player, int state);
-void init_plyr_info_struct(PlyrInfo* player);
-int load_plyr_model_async(int player, int char_id, int* flags);
 
 /* Historical name in GameInfo / movelist. */
 typedef PlyrInfo GameInfoPlyr;

@@ -11,6 +11,7 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
+#include "game/plyr.h"
 #include "game/cloth.h"
 #include "game/specular.h"
 #include "math/mk_math.h"
@@ -531,7 +532,6 @@ void release_other_player(void);
 float p_animate(void);
 int is_my_chest_to_screen(void);
 void head_tracking_off(void);
-void xfer_player_proc(MkProc* proc, void (*entry)(void));
 void two_player_animation_blend(
     AniData* animation, int attacker_mode, int victim_mode,
     MkObj* attacker, int victim_arg, float attacker_blend,
@@ -552,12 +552,8 @@ static float p_raiden_summon_lightning_bolt(void);
 static float p_sd_sonic_waves(void);
 static void sindel_load_projectile_obj_for_sonic_waves(
     FatalitySonicWavePdata* data);
-void set_anim_script(
-    void* animation, void* script, int transition);
 void set_root_and_obj_movement_weights(
     void* animation, float root_weight, float object_weight);
-MkProc* create_mkproc_anim(
-    int pid, MkProcEntryFn entry, AnimPdata** animation);
 MkObj* load_weapon();
 MkObj* load_weapon_reflection(int player, int weapon_id);
 void obj_create_sobjs(MkObj* object);
@@ -3743,7 +3739,8 @@ void run_fatality_sequence(
         cmdscript_set_parameters(victim_cmdscript, 1, &fatality_state);
         victim_cmdscript->unk28 = victim_script;
         xfer_player_proc(
-            fatality_state.victim_proc, call_fatality_script_function);
+            fatality_state.victim_proc,
+            (MkProcEntryFn)call_fatality_script_function);
         if (fatality_state.player_info == &g_game_info.plyr0) {
             FATALITY_SLEEP(1.0f);
         }

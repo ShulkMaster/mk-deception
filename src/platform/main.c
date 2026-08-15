@@ -35,7 +35,7 @@ extern void mk_system_init(void);
 extern void init_section_system(void);
 extern void init_switch_log(void);
 extern void init_pakfile_system(void);
-extern void init_sounds(void);
+extern int init_sounds(void);
 extern void konquest_state_init(void);
 extern void setup_sound_banks(int load_mode);
 extern void load_systemart_phase_1(void);

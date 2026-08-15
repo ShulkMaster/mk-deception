@@ -122,7 +122,7 @@ typedef struct ReactionSharedAnimations {
     char pad1EC[0x2C];
     int post_surf_getup;         /* +0x218 */
     char pad21C[0x0C];
-    int throw_getup;             /* +0x228 */
+    AniData* throw_getup;        /* +0x228 */
     char pad22C[0x60];
     void* throw_fall;            /* +0x28C */
     char pad290[0x1C];
@@ -360,7 +360,6 @@ void myvel_his_angle_y(float y, float x, float z);
 void newani_to_frame_x(
     void* animation, int flags, float frame, float x, float z, float blend);
 void player_feet_land_chores(void);
-void set_anim_script(AnimPdata* animation, int script, int transition);
 void shake_camera(int ticks, float strength);
 void shake_hit_voice(
     int shake_ticks, int hit_voice, int fighter_voice, float rumble_scale);
@@ -399,6 +398,8 @@ float xz_distance_between_players(void);
 float p_joy_loop(void);
 float wall_dodge(void);
 static float r_counter_caught_abort(void);
+static void same_xz(void);
+static void r_top_of_head_slam(void);
 MslSoundHandle snd_req(int sound_id);
 int emitter_id_from_handle(unsigned int handle);
 MkPfx* pfx_from_emitter(unsigned int handle);
@@ -423,20 +424,20 @@ void camera_get_screen_pos_from_world_pos(
 #include "src/game/reactions_table.inc"
 
 /*
- * Soft ceiling: run_reaction_cleanup_function ~93.52% -- nonvolatile
- * assignment order and two uncoalesced ternary copies.
+ * Soft ceiling: run_reaction_cleanup_function ~95.42% -- nonvolatile
+ * coloring, one uncoalesced latch result, and final guard polarity.
  */
 void run_reaction_cleanup_function(PlyrPdata* player) {
-    PlyrPdata* saved_player;
-    PlyrPdata* saved_opponent;
-    MkObj* saved_object;
-    MkObj* saved_opponent_object;
-    MkObj* object;
-    MkObj* opponent_object;
-
     if (player != 0 &&
         ((ReactionStatusFlagsView*)player->status_flags)
             ->cleanup_function != 0) {
+        PlyrPdata* saved_player;
+        PlyrPdata* saved_opponent;
+        MkObj* saved_object;
+        MkObj* saved_opponent_object;
+        MkObj* object;
+        MkObj* opponent_object;
+
         saved_player = plyr_pdata;
         saved_opponent = his_pdata;
         plyr_pdata = player;
@@ -444,21 +445,17 @@ void run_reaction_cleanup_function(PlyrPdata* player) {
         saved_opponent_object = his_obj;
         his_pdata = player->his_plyr_pdata;
         object = player->tracked_obj;
-        if (object != 0) {
-            object = (object->hdr.instance == player->tracked_obj_instance)
-                ? object : 0;
-        } else {
-            object = 0;
-        }
+        object = object != 0
+            ? (object->hdr.instance == player->tracked_obj_instance
+                ? object : 0)
+            : 0;
         plyr_obj = object;
         opponent_object = player->his_plyr_pdata->tracked_obj;
-        if (opponent_object != 0) {
-            opponent_object = (opponent_object->hdr.instance ==
-                player->his_plyr_pdata->tracked_obj_instance)
-                ? opponent_object : 0;
-        } else {
-            opponent_object = 0;
-        }
+        opponent_object = opponent_object != 0
+            ? (opponent_object->hdr.instance ==
+                    player->his_plyr_pdata->tracked_obj_instance
+                ? opponent_object : 0)
+            : 0;
         his_obj = opponent_object;
         if (object != 0) {
             CmdScript* saved_script;
@@ -482,6 +479,75 @@ void run_reaction_cleanup_function(PlyrPdata* player) {
             his_obj = saved_opponent_object;
         }
     }
+}
+
+/* Soft ceiling: p_image_fader ~99.49% -- r3/r4 scratch roles in the destroy tail. */
+static float p_image_fader(void) {
+    ReactionImageFaderPdata* pdata;
+    ScreenObj* object;
+
+    pdata = (ReactionImageFaderPdata*)apdata;
+    if (pdata == 0) {
+        return -1.0f;
+    }
+
+    if (pdata->delay > 0) {
+        object = pdata->object;
+        if (object != 0) {
+            object = (object->instance == pdata->object_instance)
+                ? object : 0;
+        } else {
+            object = 0;
+        }
+        if (object != 0) {
+            if (pdata->direction == 0) {
+                object->x--;
+                object->y++;
+            } else {
+                object->x++;
+                object->y++;
+            }
+        }
+        pdata->delay--;
+        return 2.0f;
+    }
+
+    if (pdata->alpha > 0) {
+        pdata->alpha -= 8;
+        object = pdata->object;
+        if (object != 0) {
+            object = (object->instance == pdata->object_instance)
+                ? object : 0;
+        } else {
+            object = 0;
+        }
+        if (object != 0) {
+            pfx_2d_obj_set_alpha(object, (unsigned char)pdata->alpha);
+            if (pdata->direction == 0) {
+                object->x--;
+                object->y++;
+            } else {
+                object->x++;
+                object->y++;
+            }
+        }
+        if (pdata->alpha - 8 < 0) {
+            pdata->alpha = 0;
+        }
+        return 2.0f;
+    }
+
+    object = pdata->object;
+    if (object != 0) {
+        object = (object->instance == pdata->object_instance)
+            ? object : 0;
+    } else {
+        object = 0;
+    }
+    if (object != 0 && (unsigned int)object->instance != 0) {
+        object->vtbl->destroy();
+    }
+    return -1.0f;
 }
 
 ScreenObj* display_image_by_plyr(
@@ -700,9 +766,85 @@ void general_flash_fx(
         effect, position.x, position.y, position.z);
 }
 
-void load_script_as_reaction(unsigned int slot, int script) {
-    if (slot <= 7U) {
-        g_loadable_reaction_scripts[slot].script = script;
+/* Soft ceiling: fight_fx_blades_clash ~96.80% -- nonvolatile assignment order only. */
+void fight_fx_blades_clash(PlyrPdata* player) {
+    ReactionBladeFighterDefinition* fighter;
+    ReactionBladeTransform* transform;
+    MkObj* blade;
+    MkObj* object;
+    MkPfx* particle;
+    unsigned int effect;
+    int bone;
+    int player_num;
+
+    fighter =
+        (ReactionBladeFighterDefinition*)player->fighter_definition;
+    player_num = player->plyr_num;
+    bone = 0;
+    object = fighter->blade_object;
+    if (object != 0) {
+        object = (object->hdr.instance == fighter->blade_object_instance)
+            ? object : 0;
+    } else {
+        object = 0;
+    }
+    blade = object;
+    if (blade == 0 || blade->hide_flag_bits.hidden == 1) {
+        bone = 0x1C;
+        blade = player->plyr_info->slot.mirror_a;
+    }
+    if (player_num == 0) {
+        effect = fx_by_owner("blade_flash", 1);
+    } else {
+        effect = fx_by_owner("blade_flash", 2);
+    }
+    effect = fx_next_emitter(effect);
+    transform = ((ReactionBladeFighterDefinition*)
+        player->fighter_definition)->blade_root->transform;
+    if (effect != 0) {
+        particle = pfx_from_emitter(effect);
+        pfx_bind_emitter_num_to_obj_bone(
+            particle, blade, bone, emitter_id_from_handle(effect));
+        fx_set_param_v3(
+            effect, 0x202, transform->position.x,
+            transform->position.y, transform->position.z);
+        fx_resume_emit(effect);
+    }
+
+    if (player_num == 0) {
+        effect = fx_by_owner("blade_sparks", 1);
+    } else {
+        effect = fx_by_owner("blade_sparks", 2);
+    }
+    effect = fx_next_emitter(effect);
+    transform = ((ReactionBladeFighterDefinition*)
+        player->fighter_definition)->blade_root->transform;
+    if (effect != 0) {
+        particle = pfx_from_emitter(effect);
+        pfx_bind_emitter_num_to_obj_bone(
+            particle, blade, bone, emitter_id_from_handle(effect));
+        fx_set_param_v3(
+            effect, 0x202, transform->position.x,
+            transform->position.y, transform->position.z);
+        fx_resume_emit(effect);
+    }
+
+    if (player_num == 0) {
+        effect = fx_by_owner("blade_bouncy_sparks", 1);
+    } else {
+        effect = fx_by_owner("blade_bouncy_sparks", 2);
+    }
+    effect = fx_next_emitter(effect);
+    transform = ((ReactionBladeFighterDefinition*)
+        player->fighter_definition)->blade_root->transform;
+    if (effect != 0) {
+        particle = pfx_from_emitter(effect);
+        pfx_bind_emitter_num_to_obj_bone(
+            particle, blade, bone, emitter_id_from_handle(effect));
+        fx_set_param_v3(
+            effect, 0x202, transform->position.x,
+            transform->position.y, transform->position.z);
+        fx_resume_emit(effect);
     }
 }
 
@@ -1236,17 +1378,6 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     return face_after;
 }
 
-/* Soft ceiling: reaction_xfer_him_nohit ~99.71% -- pool-label noise only. */
-void reaction_xfer_him_nohit(int reaction) {
-    int hit_count;
-
-    if (his_pdata->blocking_disabled_2 != 0) {
-        hit_count = his_pdata->hit_count;
-        his_pdata->hit_count = hit_count - 1;
-        reaction_xfer_him(reaction, 0.0f, 2);
-    }
-}
-
 int reaction_fetch_current_flags(int player) {
     int reaction_index;
 
@@ -1277,6 +1408,28 @@ int reaction_fetch_current_power_level(int player) {
         return 2;
     }
     return tbl_xfer_addresses[reaction_index].power_level;
+}
+
+void load_script_as_reaction(unsigned int slot, int script) {
+    if (slot <= 7U) {
+        g_loadable_reaction_scripts[slot].script = script;
+    }
+}
+
+/* Soft ceiling: reaction_xfer_him_nohit ~99.71% -- pool-label noise only. */
+void reaction_xfer_him_nohit(int reaction) {
+    int hit_count;
+
+    if (his_pdata->blocking_disabled_2 != 0) {
+        hit_count = his_pdata->hit_count;
+        his_pdata->hit_count = hit_count - 1;
+        reaction_xfer_him(reaction, 0.0f, 2);
+    }
+}
+
+/* Soft ceiling: r_ZZZZZZZ ~97.50% -- pool-label noise only. */
+static float r_ZZZZZZZ(void) {
+    return 1.0f;
 }
 
 /*
@@ -1460,80 +1613,183 @@ float r_call_script_function(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: these terminal reaction leaves are opcode-identical to retail;
- * objdiff only distinguishes their TU-local float-pool labels.
- */
-static float r_iceball_reversal(void) {
+static float r_chest2_separate(void) {
     ReactionProcVtable* vtable;
 
+    medium_flash_check();
     face_opponent_now();
-    set_my_state(0xC600);
-    plyr_pdata->blocking_disabled = 1;
-    plyr_pdata->blocking_disabled_2 = 1;
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    freeze_player();
-    _mkproc_sleep_ticks = 180.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    unfreeze_player();
-    set_my_state(0);
-    plyr_pdata->summon_position_x = 25.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_blend_to_fstance_in_x, 0.0f);
-    return 0.0f;
-}
-
-static float r_null(void) {
-    ReactionProcVtable* vtable;
-
-    _mkproc_sleep_ticks = 8.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
+    wall_eligible_on();
+    got_hit_fx(2, 4, 0, 0xA, 0, 0, 0.025f);
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    force_away(9, 8, 0.1f, 0.9f);
+    plyr_anim_pdata->weight = 1.0f;
+    plyr_anim_pdata->step = 0.7f;
+    glitch_to_ani(shared_ani.chest_stumble, 3);
+    set_anim_hiframe(47.0f);
+    ani_to_blend_frame(15.0f);
     blend_to_stance(0.1f);
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
-static float r_judo_throw1(void) {
+static float r_cyrus_stomp(void) {
     ReactionProcVtable* vtable;
-    ReactionFighterDefinitionView* fighter;
 
-    fighter = (ReactionFighterDefinitionView*)his_pdata->fighter_definition;
-    glitch_to_ani(fighter->judo_throw_reaction, 3);
+    face_opponent_now();
+    disable_both_repel_flags();
+    got_hit_fx(2, 5, 1, 0xA, 0, 0, 0.05f);
+    blend_to_ani(shared_ani.cyrus_stomp, 3, 0.2f);
+    ani_to_frame_x_call(same_xz, 8.0f);
+    got_hit_fx(4, 8, 1, 0, 0, 0, 0.0f);
+    init_ground_move();
+    ani_to_end();
+    _mkproc_sleep_ticks = 20.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_front_12, 0.0f);
+    return 0.0f;
+}
+
+/* Retail TU-local; referenced by remaining split reaction code. */
+static void same_xz(void) {
+    plyr_obj->pos_x = his_obj->pos_x;
+    plyr_obj->pos_z = his_obj->pos_z;
+}
+
+float r_obstacle_falldown(void) {
+    ReactionProcVtable* vtable;
+
+    init_air_move_no_aniproc();
+    stop_me();
+    face_opponent_now();
+    danger_zone_eligible_on();
+    tightrope_restrictions_off();
+    plyr_obj->flags_09_bits.launched = 0;
+    got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
+    myvel_his_angle_y(0.0f, 0.045f, 0.045f);
+    launch_n_land_ani(
+        shared_ani.falling_back, 0, 0.0f, 0.0f, 24.0f,
+        0.1f, -0.004f, 0.2f);
+    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    if (large_ground_fx != 0) {
+        large_ground_fx();
+    }
+    plyr_anim_pdata->step = 2.0f;
+    back_rollup_check();
     ani_to_end();
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_12, 0.0f);
+    vtable->jump_sleep(j_getup_back_6, 0.0f);
     return 0.0f;
 }
 
-static float r_counter_caught_abort(void) {
+static float r_complete_ermac_slam(void) {
+    ReactionProcVtable* vtable;
+    ReactionDamagePdata* boost_source;
+    float damage;
+
+    _mkproc_sleep_ticks = 50.0f * inverse_game_speed;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    plyr_obj->gravity = -0.1f;
+    if (his_pdata->character_id == 0x19 ||
+        his_pdata->character_id == 0x1A) {
+        snd_req(0x307);
+    } else {
+        snd_req(0x254);
+    }
+    blend_to_ani(shared_ani.ermac_slam, 3, 0.2f);
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_frame_x(6.0f);
+    wait_to_land();
+    snd_req(0x255);
+    snd_req(0x1D7);
+    if (plyr_pdata != 0) {
+        if (aproc->pid == 0x1001) {
+            boost_source =
+                (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
+            damage = 0.07f;
+            damage *= 0.8f;
+            if (boost_source->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= boost_source->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p1_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
+                ->accumulated_damage += damage;
+        } else {
+            boost_source =
+                (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
+            damage = 0.07f;
+            damage *= 0.8f;
+            if (boost_source->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= boost_source->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p2_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
+                ->accumulated_damage += damage;
+        }
+    }
+    adjust_my_damage_multiplier(0.6f);
+    set_my_state(0x3203);
+    init_air_move();
+    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    plyr_anim_pdata->step = 0.6f;
+    launch_me_up(0.08f, -0.003f);
+    myvel_my_angle_y(3.1428f, -0.04f, -0.04f);
+    ani_to_frame_x(34.0f);
+    set_my_state(0x600);
+    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
+    random_hit(9);
+    bulvan_function(0);
+    init_ground_move();
+    stop_me();
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
+static float r_shujinko_slam(void) {
     ReactionProcVtable* vtable;
 
-    plyr_pdata->blocking_disabled = 0;
-    plyr_pdata->blocking_disabled_2 = 0;
-    blend_to_fstance(0.05f);
+    got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
+    init_air_move();
+    face_opponent_now();
+    stop_me();
+    plyr_obj->gravity = 0.0018f;
+    xfer_proc(plyr_anim_proc, p_animate);
+    blend_to_ani(his_pdata->reaction_animation_a, 0, 0.1f);
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
+    vtable->jump_sleep(r_complete_ermac_slam, 0.0f);
     return 0.0f;
 }
 
-#pragma dont_inline on
-static void r_top_of_head_slam(void) {
-    high_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.05f);
-    random_hit(3);
-    blend_to_ani(shared_ani.top_of_head_slam, 3, 0.5f);
-    plyr_anim_pdata->step = 1.5f;
-    ani_to_frame_x(9.0f);
-    plyr_anim_pdata->step = 2.5f;
-    ani_to_blend_frame(4.0f);
-}
-#pragma dont_inline on
+static float r_ermac_slam(void) {
+    ReactionProcVtable* vtable;
 
-#pragma dont_inline on
+    got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
+    init_air_move();
+    face_opponent_now();
+    stop_me();
+    plyr_obj->gravity = 0.0018f;
+    xfer_proc(plyr_anim_proc, p_animate);
+    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(r_complete_ermac_slam, 0.0f);
+    return 0.0f;
+}
 
 static float r_fan_lift(void) {
     ReactionProcVtable* vtable;
@@ -1602,643 +1858,14 @@ float j_counter_caught(void) {
     return 0.0f;
 }
 
-static float r_combo_breaker(void) {
+static float r_counter_caught_abort(void) {
     ReactionProcVtable* vtable;
 
-    trial_increment_state_value(plyr_pdata->plyr_num, 0x20, 0);
-    adjust_my_damage_multiplier(0.75f);
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    plyr_anim_pdata->weight = 1.3f;
-    plyr_anim_pdata->step = 0.7f;
-    face_opponent_now();
-    got_hit_fx(2, 5, 2, 0, 0, 0, 0.0f);
-    reaction_xfer_him(0x79, 0.0f, 2);
-    _mkproc_sleep_ticks = 10.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    plyr_obj->flags_09_bits.bit6 = 1;
-    blend_to_ani_frame(shared_ani.combo_breaker, 3, 0.33f, 7.0f);
-    set_ani_speed(1.0f);
-    ani_to_frame_x(11.0f);
-    reaction_xfer_him(0x7A, 0.0f, 2);
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
-    set_ani_speed(0.5f);
-    ani_to_frame_x(25.0f);
-    ani_to_blend_frame(3.0f);
-    blend_to_stance(0.05f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float r_mileena_hit(void) {
-    ReactionProcVtable* vtable;
-    ReactionDamagePdata* boost_source;
-    float damage;
-
-    if (plyr_pdata != 0) {
-        if (aproc->pid == 0x1001) {
-            boost_source =
-                (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-            damage = 0.12f;
-            damage *= 0.8f;
-            if (boost_source->damage_boost_until >
-                (unsigned int)game_tick_ctr) {
-                damage *= boost_source->damage_boost;
-            }
-            if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
-                damage *= 1.15f;
-            }
-            adjust_p1_life(-damage);
-            ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
-                ->accumulated_damage += damage;
-        } else {
-            boost_source =
-                (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-            damage = 0.12f;
-            damage *= 0.8f;
-            if (boost_source->damage_boost_until >
-                (unsigned int)game_tick_ctr) {
-                damage *= boost_source->damage_boost;
-            }
-            if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
-                damage *= 1.15f;
-            }
-            adjust_p2_life(-damage);
-            ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
-                ->accumulated_damage += damage;
-        }
-    }
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(r_face3_onback, 0.0f);
-    return 0.0f;
-}
-
-static float r_popup_final_hitter(void) {
-    ReactionProcVtable* vtable;
-    int ticks;
-
-    head_tracking_on();
-    face_opponent_now();
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    if (xz_distance_between_players() < 1.0f) {
-        force_away(9, 8, 0.1f, 0.9f);
-    }
-    xfer_proc(plyr_anim_proc, p_animate);
-    set_ani_speed(0.33f);
-    _mkproc_sleep_ticks = 30.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    blend_to_fstance(0.05f);
-    ticks = 0x28;
-    while (is_he_airborn() == 1 && ticks > 0) {
-        _mkproc_sleep_ticks = 1.0f;
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->sleep(vtable);
-        ticks--;
-    }
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-float r_jump_chin3_final_hit(void) {
-    ReactionProcVtable* vtable;
-
-    special_move_cam_setup(
-        0xA, 0x3C, 0, 1.47f, 4.1f, 1.0f, -1.75f, -0.15f);
-    reaction_xfer_him(0xDC, 0.0f, 2);
-    face_opponent_now();
     plyr_pdata->blocking_disabled = 0;
     plyr_pdata->blocking_disabled_2 = 0;
-    plyr_obj->pos_y = his_obj->pos_y;
-    stop_me();
-    init_air_move();
-    plyr_obj->flags_09_bits.launched = 0;
-    shake_hit_voice(2, 4, 3, 0.02f);
-    start_blood_particles_scripts(0x39, 0x10);
-    start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
-    set_my_state(0x605);
-    blend_to_ani(shared_ani.jump_chin, 3, 0.2f);
-    set_ani_speed(0.7f);
-    ani_to_frame_x(43.0f);
-    plyr_obj->gravity = -0.1f;
-    wait_to_land();
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    got_hit_fx(4, 0, 1, 0, 0, 1, 0.0f);
-    set_my_state(0x600);
-    back_rollup_check();
-    ani_to_frame_x(60.0f);
-    set_ani_speed(2.0f);
-    init_ground_move();
-    ani_to_end();
+    blend_to_fstance(0.05f);
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_6, 0.0f);
-    return 0.0f;
-}
-
-/* Soft ceiling: r_sidehead3_spin ~98.49% -- float-guard branch layout (bne+b vs inverted beq). */
-static float r_sidehead3_spin(void) {
-    ReactionProcVtable* vtable;
-    float flight_ticks;
-
-    high_flash_check();
-    face_opponent_now();
-    got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
-    tightrope_restrictions_off();
-    plyr_obj->flags_09_bits.launched = 0;
-    myvel_his_angle_y(-0.71f, 0.03f, 0.03f);
-    plyr_anim_pdata->step = 0.7f;
-    blend_to_ani(shared_ani.side_head_spin, 3, 0.33f);
-    launch_me_up(0.06f, -0.003f);
-    flight_ticks = 2.0f * (plyr_obj->pos_vel.y / plyr_obj->gravity);
-    if (flight_ticks >= 0.0f) {
-        /* Flight time is already positive. */
-    } else {
-        flight_ticks = -flight_ticks;
-    }
-    plyr_anim_pdata->step = 27.0f / flight_ticks;
-    ani_to_frame_x(27.0f);
-    wait_to_land();
-    tightrope_restrictions_on();
-    shake_camera(3, 0.03f);
-    ani_to_end();
-    blend_to_stance(0.1f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(p_joy_loop, 0.0f);
-    return 0.0f;
-}
-
-static float r_feet3_sweptout_rev(void) {
-    ReactionProcVtable* vtable;
-
-    low_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    blend_to_ani_INOUT(
-        shared_ani.swept_reverse, shared_ani.swept_in,
-        0.2f, 1.0f, 0.8f);
-    myvel_his_angle_y_inout(-1.57f, 0.08f, 0.08f);
-    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
-    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_9, 0.0f);
-    return 0.0f;
-}
-
-static float r_feet3_swept_in(void) {
-    ReactionProcVtable* vtable;
-
-    low_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    blend_to_ani_INOUT(
-        shared_ani.swept_in, shared_ani.swept_out,
-        0.2f, 0.8f, 1.0f);
-    myvel_his_angle_y_inout(1.57f, 0.08f, 0.08f);
-    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
-    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
-    if (large_ground_fx != 0) {
-        large_ground_fx();
-    }
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_9, 0.0f);
-    return 0.0f;
-}
-
-static float r_feet3_swept_out(void) {
-    ReactionProcVtable* vtable;
-
-    low_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    blend_to_ani_INOUT(
-        shared_ani.swept_out, shared_ani.swept_in,
-        0.2f, 1.0f, 0.8f);
-    myvel_his_angle_y_inout(-1.57f, 0.08f, 0.08f);
-    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
-    if (large_ground_fx != 0) {
-        large_ground_fx();
-    }
-    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
-    back_rollup_check();
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_9, 0.0f);
-    return 0.0f;
-}
-
-static float r_feet3_sweptin_rev(void) {
-    ReactionProcVtable* vtable;
-
-    low_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
-    tightrope_restrictions_off();
-    blend_to_ani_INOUT(
-        shared_ani.swept_reverse, shared_ani.swept_in,
-        0.2f, 1.0f, 0.8f);
-    myvel_his_angle_y_inout(1.57f, 0.08f, 0.08f);
-    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
-    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_9, 0.0f);
-    return 0.0f;
-}
-
-static float r_esp1_B(void) {
-    ReactionProcVtable* vtable;
-    float damage;
-    int ticks;
-
-    ticks = 0x1E;
-    face_opponent_now();
-    plyr_obj->gravity = 0.0f;
-    plyr_obj->pos_vel.y = 0.0f;
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    random_voice(0xD);
-    wall_eligible_on();
-    myvel_his_angle_y(0.0f, -0.16f, -0.16f);
-    blend_to_ani(his_pdata->reaction_animation_a, 3, 0.1f);
-    ani_to_end();
-    blend_to_ani(his_pdata->reaction_animation_b, 0, 0.1f);
-    while (xz_distance_between_players() > 2.25 && ticks > 0) {
-        ticks--;
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->sleep(vtable);
-    }
-    ani_loop_more_frames(7.0f);
-    blend_to_ani(his_pdata->reaction_animation_c, 3, 0.1f);
-    ani_to_frame_x(19.0f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
-    if (plyr_pdata != 0) {
-        if (aproc->pid == 0x1001) {
-            damage = 0.14f;
-            damage *= 0.8f;
-            if (((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
-                    ->damage_boost_until >
-                (unsigned int)game_tick_ctr) {
-                damage *= ((ReactionDamagePdata*)
-                    g_game_info.plyr1.slot.pdata)->damage_boost;
-            }
-            if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
-                damage *= 1.15f;
-            }
-            adjust_p1_life(-damage);
-            ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
-                ->accumulated_damage += damage;
-        } else {
-            damage = 0.14f;
-            damage *= 0.8f;
-            if (((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
-                    ->damage_boost_until >
-                (unsigned int)game_tick_ctr) {
-                damage *= ((ReactionDamagePdata*)
-                    g_game_info.plyr0.slot.pdata)->damage_boost;
-            }
-            if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
-                damage *= 1.15f;
-            }
-            adjust_p2_life(-damage);
-            ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
-                ->accumulated_damage += damage;
-        }
-    }
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_front_12, 0.0f);
-    return 0.0f;
-}
-
-static float r_scorpion_spear_1(void) {
-    ReactionProcVtable* vtable;
-
-    high_flash_check();
-    face_opponent_now();
-    stop_me();
-    init_air_move();
-    ejb_call(0x31);
-    set_my_state(0x603);
-    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
-    start_blood_particles(0x20, 9, plyr_pdata, plyr_obj);
-    blend_to_ani(his_pdata->scorpion_spear_hit, 3, 0.1f);
-    ani_to_frame_x(83.0f);
-    set_my_state(0x604);
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
-    return 0.0f;
-}
-
-static float r_scorpion_spear_2(void) {
-    ReactionProcVtable* vtable;
-    int ticks;
-
-    blend_to_ani(his_pdata->scorpion_spear_pull, 3, 0.1f);
-    ani_to_end();
-    snd_req(0xD70);
-    myvel_his_angle_y(0.0f, -0.13f, -0.13f);
-    blend_to_ani(his_pdata->scorpion_spear_recover, 0, 0.1f);
-    plyr_anim_pdata->step = 0.75f;
-    ticks = 0;
-    while (xz_distance_between_players() > 1.0f && ticks < 0x50) {
-        _mkproc_sleep_ticks = 1.0f;
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        ticks++;
-        vtable->sleep(vtable);
-    }
-    init_ground_move();
-    stop_me();
-    set_my_state(0x4204);
-    if (his_pdata->character_id != 0x19 &&
-        his_pdata->character_id != 0x1A) {
-        blend_to_ani(his_pdata->reaction_animation, 3, 0.2f);
-    } else {
-        blend_to_ani(his_pdata->reaction_animation_c, 3, 0.2f);
-    }
-    plyr_anim_pdata->step = 1.2f;
-    plyr_pdata->summon_position_x = 20.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_blend_to_fstance_in_x, 0.0f);
-    return 0.0f;
-}
-
-float r_hit_wall(void) {
-    ReactionProcVtable* vtable;
-    ReactionDamagePdata* boost_source;
-    float damage;
-
-    trial_increment_state_value(plyr_pdata->plyr_num, 0x1C, 1);
-    adjust_my_damage_multiplier(0.6f);
-    set_my_state(0x601);
-    init_air_move_no_aniproc();
-    if (plyr_pdata != 0) {
-        if (aproc->pid == 0x1001) {
-            boost_source =
-                (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-            damage = 0.06f;
-            damage *= 0.8f;
-            if (boost_source->damage_boost_until >
-                (unsigned int)game_tick_ctr) {
-                damage *= boost_source->damage_boost;
-            }
-            if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
-                damage *= 1.15f;
-            }
-            adjust_p1_life(-damage);
-            ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
-                ->accumulated_damage += damage;
-        } else {
-            boost_source =
-                (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-            damage = 0.06f;
-            damage *= 0.8f;
-            if (boost_source->damage_boost_until >
-                (unsigned int)game_tick_ctr) {
-                damage *= boost_source->damage_boost;
-            }
-            if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
-                damage *= 1.15f;
-            }
-            adjust_p2_life(-damage);
-            ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
-                ->accumulated_damage += damage;
-        }
-    }
-    plyr_pdata->hit_count++;
-    ((ReactionWallPdata*)plyr_pdata)->wall_hit_count++;
-    ((ReactionWallPdata*)plyr_pdata->his_plyr_pdata)->wall_hit_count = 0;
-    shake_hit_voice(2, 9, 8, 0.02f);
-    blend_to_ani(shared_ani.wall_hit, 3, 0.5f);
-    plyr_anim_pdata->step = 0.8f;
-    ani_to_frame_x(7.0f);
-    plyr_obj->gravity = -0.0075f;
-    if (plyr_pdata->drone_request != 0) {
-        plyr_pdata->script_exit_value_int = (randu0(2) & 0xFFFF) + 1;
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->jump_sleep(wall_dodge, 0.0f);
-        return 0.0f;
-    }
-    while (plyr_anim_pdata->frame < 23.0f) {
-        plyr_pdata->script_exit_value_int = my_joypad_state_5();
-        if (plyr_pdata->script_exit_value_int == 1 ||
-            plyr_pdata->script_exit_value_int == 2) {
-            vtable = (ReactionProcVtable*)aproc->vtbl;
-            vtable->jump_sleep(wall_dodge, 0.0f);
-            return 0.0f;
-        }
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->sleep(vtable);
-    }
-    ani_to_blend_frame(10.0f);
-    plyr_obj->flags_09_bits.wall_restricted = 0;
-    check_for_combo_message();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit_blend_stance, 0.0f);
-    return 0.0f;
-}
-
-#pragma dont_inline reset
-
-/* Soft ceiling: p_image_fader ~99.49% -- r3/r4 scratch roles in the destroy tail. */
-static float p_image_fader(void) {
-    ReactionImageFaderPdata* pdata;
-    ScreenObj* object;
-
-    pdata = (ReactionImageFaderPdata*)apdata;
-    if (pdata == 0) {
-        return -1.0f;
-    }
-
-    if (pdata->delay > 0) {
-        object = pdata->object;
-        if (object != 0) {
-            object = (object->instance == pdata->object_instance)
-                ? object : 0;
-        } else {
-            object = 0;
-        }
-        if (object != 0) {
-            if (pdata->direction == 0) {
-                object->x--;
-                object->y++;
-            } else {
-                object->x++;
-                object->y++;
-            }
-        }
-        pdata->delay--;
-        return 2.0f;
-    }
-
-    if (pdata->alpha > 0) {
-        pdata->alpha -= 8;
-        object = pdata->object;
-        if (object != 0) {
-            object = (object->instance == pdata->object_instance)
-                ? object : 0;
-        } else {
-            object = 0;
-        }
-        if (object != 0) {
-            pfx_2d_obj_set_alpha(object, (unsigned char)pdata->alpha);
-            if (pdata->direction == 0) {
-                object->x--;
-                object->y++;
-            } else {
-                object->x++;
-                object->y++;
-            }
-        }
-        if (pdata->alpha - 8 < 0) {
-            pdata->alpha = 0;
-        }
-        return 2.0f;
-    }
-
-    object = pdata->object;
-    if (object != 0) {
-        object = (object->instance == pdata->object_instance)
-            ? object : 0;
-    } else {
-        object = 0;
-    }
-    if (object != 0 && (unsigned int)object->instance != 0) {
-        object->vtbl->destroy();
-    }
-    return -1.0f;
-}
-
-/* Soft ceiling: fight_fx_blades_clash ~96.80% -- nonvolatile assignment order only. */
-void fight_fx_blades_clash(PlyrPdata* player) {
-    ReactionBladeFighterDefinition* fighter;
-    ReactionBladeTransform* transform;
-    MkObj* blade;
-    MkObj* object;
-    MkPfx* particle;
-    unsigned int effect;
-    int bone;
-    int player_num;
-
-    fighter =
-        (ReactionBladeFighterDefinition*)player->fighter_definition;
-    player_num = player->plyr_num;
-    bone = 0;
-    object = fighter->blade_object;
-    if (object != 0) {
-        object = (object->hdr.instance == fighter->blade_object_instance)
-            ? object : 0;
-    } else {
-        object = 0;
-    }
-    blade = object;
-    if (blade == 0 || blade->hide_flag_bits.hidden == 1) {
-        bone = 0x1C;
-        blade = player->plyr_info->slot.mirror_a;
-    }
-    if (player_num == 0) {
-        effect = fx_by_owner("blade_flash", 1);
-    } else {
-        effect = fx_by_owner("blade_flash", 2);
-    }
-    effect = fx_next_emitter(effect);
-    transform = ((ReactionBladeFighterDefinition*)
-        player->fighter_definition)->blade_root->transform;
-    if (effect != 0) {
-        particle = pfx_from_emitter(effect);
-        pfx_bind_emitter_num_to_obj_bone(
-            particle, blade, bone, emitter_id_from_handle(effect));
-        fx_set_param_v3(
-            effect, 0x202, transform->position.x,
-            transform->position.y, transform->position.z);
-        fx_resume_emit(effect);
-    }
-
-    if (player_num == 0) {
-        effect = fx_by_owner("blade_sparks", 1);
-    } else {
-        effect = fx_by_owner("blade_sparks", 2);
-    }
-    effect = fx_next_emitter(effect);
-    transform = ((ReactionBladeFighterDefinition*)
-        player->fighter_definition)->blade_root->transform;
-    if (effect != 0) {
-        particle = pfx_from_emitter(effect);
-        pfx_bind_emitter_num_to_obj_bone(
-            particle, blade, bone, emitter_id_from_handle(effect));
-        fx_set_param_v3(
-            effect, 0x202, transform->position.x,
-            transform->position.y, transform->position.z);
-        fx_resume_emit(effect);
-    }
-
-    if (player_num == 0) {
-        effect = fx_by_owner("blade_bouncy_sparks", 1);
-    } else {
-        effect = fx_by_owner("blade_bouncy_sparks", 2);
-    }
-    effect = fx_next_emitter(effect);
-    transform = ((ReactionBladeFighterDefinition*)
-        player->fighter_definition)->blade_root->transform;
-    if (effect != 0) {
-        particle = pfx_from_emitter(effect);
-        pfx_bind_emitter_num_to_obj_bone(
-            particle, blade, bone, emitter_id_from_handle(effect));
-        fx_set_param_v3(
-            effect, 0x202, transform->position.x,
-            transform->position.y, transform->position.z);
-        fx_resume_emit(effect);
-    }
-}
-
-#pragma dont_inline on
-
-float r_obstacle_falldown(void) {
-    ReactionProcVtable* vtable;
-
-    init_air_move_no_aniproc();
-    stop_me();
-    face_opponent_now();
-    danger_zone_eligible_on();
-    tightrope_restrictions_off();
-    plyr_obj->flags_09_bits.launched = 0;
-    got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
-    myvel_his_angle_y(0.0f, 0.045f, 0.045f);
-    launch_n_land_ani(
-        shared_ani.falling_back, 0, 0.0f, 0.0f, 24.0f,
-        0.1f, -0.004f, 0.2f);
-    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
-    if (large_ground_fx != 0) {
-        large_ground_fx();
-    }
-    plyr_anim_pdata->step = 2.0f;
-    back_rollup_check();
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_6, 0.0f);
+    vtable->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
@@ -2286,6 +1913,299 @@ static float r_post_surf_throw(void) {
     return 0.0f;
 }
 
+/* Soft ceiling: r_block_hit_projectile ~99.31% -- pool-label noise only. */
+static float r_block_hit_projectile(void) {
+    ReactionProcVtable* vtable;
+
+    stop_me();
+    init_ground_move();
+    blocked_fx(5, 0, 0, 0, 0);
+    force_away(2, 5, 0.25f, 0.4f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_block_common_reaction, 0.0f);
+    return 0.0f;
+}
+
+/*
+ * Soft ceiling: r_combo_broken_part2 ~96.53% -- stack-slot assignment order
+ * for the Vec locals and template-copy scheduling.
+ */
+static float r_combo_broken_part2(void) {
+    ReactionProcVtable* vtable;
+    ReactionImageFaderPdata* fader;
+    ReactionImageSource* source;
+    ScreenObj* image;
+    MkObj* object;
+    unsigned int effect;
+    int index;
+    int half_width;
+
+    {
+        Vec hit_position;
+
+        object = plyr_obj;
+        if (plyr_pdata->plyr_num == 0) {
+            effect = fx_by_owner("breaker_hit_fx", 1);
+        } else {
+            effect = fx_by_owner("breaker_hit_fx", 2);
+        }
+        effect = fx_next_emitter(effect);
+        get_bone_world_pos(object, 0, &hit_position);
+        hit_position.y = 1.7f + g_game_info.field_34;
+        mk_chess_launch_fx_at_pos_with_obj_emit_based(
+            effect, hit_position.x, hit_position.y, hit_position.z);
+    }
+
+    {
+        Vec world_position;
+        Vec bone_offset = {0.0f, 0.0f, 0.0f};
+        ReactionScreenPos screen_position;
+
+        source = (ReactionImageSource*)plyr_pdata->plyr_info;
+        image = load_named_2d_pfxobj(
+            0x10005, 0xC021, "BREAKER", 0, 0x2F);
+        get_bone_offset_world_pos(
+            source->object, 9, &bone_offset, &world_position);
+        world_position.y = 1.7f + g_game_info.field_34;
+        camera_get_screen_pos_from_world_pos(
+            &world_position, &screen_position);
+        half_width = image->pfx2d->tex_w / 2;
+        image->x = (int)screen_position.x - half_width;
+        image->y = (int)screen_position.y;
+    }
+
+    if (_create_mkproc_generic_nostack(
+            0xC02A, 0x1F, p_image_fader,
+            sizeof(ReactionImageFaderPdata),
+            (MkHdr**)&fader) != 0) {
+        fader->object = image;
+        fader->object_instance = image->instance;
+        fader->delay = 60;
+        fader->alpha = 0xFF;
+        fader->direction = source->hdr.instance;
+    }
+    if (image != 0 && his_pdata->breaker_strength == 0) {
+        for (index = 0; index < 4; index++) {
+            image->pfx2d->verts[index].r = 0x80;
+            image->pfx2d->verts[index].g = 0;
+            image->pfx2d->verts[index].b = 0;
+            image->pfx2d->verts[index].a = 0xFF;
+        }
+    }
+    snd_req(0xDC4);
+    face_opponent_now();
+    wall_eligible_on();
+    start_blood_particles_scripts(0x39, 0x10);
+    got_hit_fx(0, 2, 4, 1, 0, 0, 0.0f);
+    force_away(0x14, 8, 0.025f, 0.9f);
+    blend_to_ani(shared_ani.combo_broken_launch, 3, 0.5f);
+    set_ani_speed(0.6f);
+    ani_to_frame_x(13.0f);
+    got_hit_fx(4, 8, 0, 0, 0, 0, 0.0f);
+    back_rollup_check();
+    ani_x_more_frames(5.0f);
+    blend_to_ani(shared_ani.combo_broken_recover, 3, 0.1f);
+    plyr_anim_pdata->step = 0.75f;
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+static float r_combo_broken_part1(void) {
+    ReactionProcVtable* vtable;
+
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    _mkproc_sleep_ticks = 40.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    blend_to_stance(0.05f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+static float r_combo_breaker(void) {
+    ReactionProcVtable* vtable;
+
+    trial_increment_state_value(plyr_pdata->plyr_num, 0x20, 0);
+    adjust_my_damage_multiplier(0.75f);
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    plyr_anim_pdata->weight = 1.3f;
+    plyr_anim_pdata->step = 0.7f;
+    face_opponent_now();
+    got_hit_fx(2, 5, 2, 0, 0, 0, 0.0f);
+    reaction_xfer_him(0x79, 0.0f, 2);
+    _mkproc_sleep_ticks = 10.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    plyr_obj->flags_09_bits.bit6 = 1;
+    blend_to_ani_frame(shared_ani.combo_breaker, 3, 0.33f, 7.0f);
+    set_ani_speed(1.0f);
+    ani_to_frame_x(11.0f);
+    reaction_xfer_him(0x7A, 0.0f, 2);
+    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    set_ani_speed(0.5f);
+    ani_to_frame_x(25.0f);
+    ani_to_blend_frame(3.0f);
+    blend_to_stance(0.05f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+/* Soft ceiling: r_block_hit_p5 ~99.31% -- pool-label noise only. */
+static float r_block_hit_p5(void) {
+    ReactionProcVtable* vtable;
+
+    stop_me();
+    init_ground_move();
+    blocked_fx(0xB, 5, 0, 0, 0);
+    force_away(3, 8, 0.2f, 0.85f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_block_common_reaction, 0.0f);
+    return 0.0f;
+}
+
+/* Soft ceiling: r_block_hit_p3 ~99.31% -- pool-label noise only. */
+static float r_block_hit_p3(void) {
+    ReactionProcVtable* vtable;
+
+    stop_me();
+    init_ground_move();
+    blocked_fx(0xA, 0, 0, 0, 0);
+    force_away(2, 5, 0.25f, 0.4f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_block_common_reaction, 0.0f);
+    return 0.0f;
+}
+
+/* Soft ceiling: r_block_hit_p1 ~99.35% -- pool-label noise only. */
+static float r_block_hit_p1(void) {
+    ReactionProcVtable* vtable;
+
+    stop_me();
+    init_ground_move();
+    blocked_fx(0xA, 0, 0, 0, 0);
+    force_away(2, 4, 0.15f, 0.5f);
+    disable_my_attacks(6);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_block_common_reaction, 0.0f);
+    return 0.0f;
+}
+
+/* Soft ceiling: r_block_hit_p0 ~99.35% -- pool-label noise only. */
+static float r_block_hit_p0(void) {
+    ReactionProcVtable* vtable;
+
+    stop_me();
+    init_ground_move();
+    blocked_fx(0xA, 0, 0, 0, 0);
+    force_away(2, 5, 0.25f, 0.4f);
+    disable_my_attacks(6);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_block_common_reaction, 0.0f);
+    return 0.0f;
+}
+
+static float j_block_common_reaction(void) {
+    ReactionProcVtable* vtable;
+
+    if (!(plyr_pdata->previous_state & 0x800) &&
+        plyr_pdata->drone_request == 1) {
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(x_block, 0.0f);
+        return 0.0f;
+    }
+    if (plyr_pdata->previous_state & 0x100) {
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x12, 0);
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x13, 0);
+        init_ground_move();
+        set_my_state(0xF00);
+        force_away(2, 8, 0.15f, 0.85f);
+        if (should_i_weapon_block() != 0) {
+            xfer_proc(plyr_anim_proc, p_anim_idle);
+            blend_to_ani(
+                plyr_pdata->fighter_definition->weapon_block_reaction,
+                3, 0.2f);
+            plyr_anim_pdata->step = 1.0f;
+            ani_to_end();
+            xfer_proc(plyr_anim_proc, p_animate);
+        } else {
+            xfer_proc(plyr_anim_proc, p_anim_idle);
+            blend_to_ani(shared_ani.standing_weapon_block, 3, 0.2f);
+            plyr_anim_pdata->step = 1.0f;
+            ani_to_end();
+            xfer_proc(plyr_anim_proc, p_animate);
+        }
+    } else {
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x12, 0);
+        trial_increment_state_value(plyr_pdata->plyr_num, 0x14, 0);
+        if (should_i_weapon_block() == 0) {
+            if (plyr_pdata->previous_state == 0xA00 ||
+                !(plyr_pdata->previous_state & 0x800)) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA00);
+                blend_to_ani(shared_ani.standing_block_a, 0, 0.5f);
+            }
+            if (plyr_pdata->previous_state == 0xA01) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA01);
+                blend_to_ani(shared_ani.standing_block_b, 0, 0.5f);
+            }
+            if (plyr_pdata->previous_state == 0xA02) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA02);
+                blend_to_ani(shared_ani.standing_block_c, 0, 0.5f);
+            }
+            if (plyr_pdata->previous_state == 0xA03) {
+                plyr_pdata->his_attack_counter = get_his_attack_counter();
+                set_my_state(0xA03);
+                blend_to_ani(shared_ani.standing_block_d, 0, 0.5f);
+            }
+        } else {
+            set_my_state(0xA00);
+            blend_to_ani(
+                plyr_pdata->fighter_definition->weapon_block_animation,
+                3, 0.1f);
+            plyr_anim_pdata->step = 1.0f;
+        }
+    }
+    if (am_i_duck_blocking() != 0) {
+        if (should_i_weapon_block() != 0) {
+            blend_to_ani(
+                plyr_pdata->fighter_definition->duck_block_animation,
+                0, 0.2f);
+        } else {
+            blend_to_ani(shared_ani.duck_block, 0, 0.2f);
+        }
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(j_duck_block_loop, 0.0f);
+        return 0.0f;
+    }
+    if (am_i_blocking() != 0) {
+        if (plyr_pdata->state & 0x100) {
+            plyr_pdata->his_attack_counter = get_his_attack_counter();
+            set_my_state(0xA00);
+            blend_to_ani(shared_ani.standing_block_a, 0, 0.1f);
+        }
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(j_block_loop, 0.0f);
+        return 0.0f;
+    }
+    blend_to_stance(0.1f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
 static float r_nightwolf_lightning(void) {
     ReactionProcVtable* vtable;
 
@@ -2308,6 +2228,49 @@ static float r_nightwolf_lightning(void) {
     ani_to_end();
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
+static float r_mileena_hit(void) {
+    ReactionProcVtable* vtable;
+    ReactionDamagePdata* boost_source;
+    float damage;
+
+    if (plyr_pdata != 0) {
+        if (aproc->pid == 0x1001) {
+            boost_source =
+                (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
+            damage = 0.12f;
+            damage *= 0.8f;
+            if (boost_source->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= boost_source->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p1_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
+                ->accumulated_damage += damage;
+        } else {
+            boost_source =
+                (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
+            damage = 0.12f;
+            damage *= 0.8f;
+            if (boost_source->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= boost_source->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p2_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
+                ->accumulated_damage += damage;
+        }
+    }
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(r_face3_onback, 0.0f);
     return 0.0f;
 }
 
@@ -2448,6 +2411,132 @@ static float r_head3_onback(void) {
     return 0.0f;
 }
 
+static void r_top_of_head_slam(void) {
+    high_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 5, 1, 0, 0, 0, 0.05f);
+    random_hit(3);
+    blend_to_ani(shared_ani.top_of_head_slam, 3, 0.5f);
+    plyr_anim_pdata->step = 1.5f;
+    ani_to_frame_x(9.0f);
+    plyr_anim_pdata->step = 2.5f;
+    ani_to_blend_frame(4.0f);
+}
+
+float r_jump_slambounce_final_hit(void) {
+    ReactionProcVtable* vtable;
+
+    high_flash_check();
+    face_opponent_now();
+    stop_me();
+    init_air_move();
+    special_move_cam_setup(
+        0xA, 0x3C, 0, 1.47f, 4.1f, 1.0f, -1.75f, -0.15f);
+    reaction_xfer_him(0xDB, 0.0f, 2);
+    got_hit_fx(0, 2, 1, 1, 0, 0, 0.05f);
+    blend_to_ani(shared_ani.jump_slambounce, 3, 0.2f);
+    set_ani_speed(0.7f);
+    ani_to_frame_x(6.0f);
+    init_ground_move();
+    ani_to_frame_x(50.0f);
+    got_hit_fx(4, 0, 1, 0, 0, 1, 0.0f);
+    ani_to_end();
+    check_for_combo_message();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
+float r_jump_chin3_final_hit(void) {
+    ReactionProcVtable* vtable;
+
+    special_move_cam_setup(
+        0xA, 0x3C, 0, 1.47f, 4.1f, 1.0f, -1.75f, -0.15f);
+    reaction_xfer_him(0xDC, 0.0f, 2);
+    face_opponent_now();
+    plyr_pdata->blocking_disabled = 0;
+    plyr_pdata->blocking_disabled_2 = 0;
+    plyr_obj->pos_y = his_obj->pos_y;
+    stop_me();
+    init_air_move();
+    plyr_obj->flags_09_bits.launched = 0;
+    shake_hit_voice(2, 4, 3, 0.02f);
+    start_blood_particles_scripts(0x39, 0x10);
+    start_blood_particles(0x39, 0x10, plyr_pdata, plyr_obj);
+    set_my_state(0x605);
+    blend_to_ani(shared_ani.jump_chin, 3, 0.2f);
+    set_ani_speed(0.7f);
+    ani_to_frame_x(43.0f);
+    plyr_obj->gravity = -0.1f;
+    wait_to_land();
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    got_hit_fx(4, 0, 1, 0, 0, 1, 0.0f);
+    set_my_state(0x600);
+    back_rollup_check();
+    ani_to_frame_x(60.0f);
+    set_ani_speed(2.0f);
+    init_ground_move();
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
+static float r_slamdown_final_hitter(void) {
+    ReactionProcVtable* vtable;
+
+    head_tracking_on();
+    face_opponent_now();
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    set_ani_speed(0.25f);
+    ani_to_blend_frame(3.0f);
+    xfer_proc(plyr_anim_proc, p_animate);
+    blend_to_stance(0.05f);
+    _mkproc_sleep_ticks = 6.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+static float r_popup_final_hitter(void) {
+    ReactionProcVtable* vtable;
+    int ticks;
+
+    head_tracking_on();
+    face_opponent_now();
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    if (xz_distance_between_players() < 1.0f) {
+        force_away(9, 8, 0.1f, 0.9f);
+    }
+    xfer_proc(plyr_anim_proc, p_animate);
+    set_ani_speed(0.33f);
+    _mkproc_sleep_ticks = 30.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    blend_to_fstance(0.05f);
+    ticks = 0x28;
+    while (is_he_airborn() == 1 && ticks > 0) {
+        _mkproc_sleep_ticks = 1.0f;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->sleep(vtable);
+        ticks--;
+    }
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
 float r_enough_air_already(void) {
     ReactionProcVtable* vtable;
 
@@ -2531,6 +2620,40 @@ static float r_hit_airborn1(void) {
     return 0.0f;
 }
 
+static float r_corner_repell_ani(void) {
+    ReactionProcVtable* vtable;
+
+    face_opponent_now();
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    force_away(0x12, 8, 0.15f, 0.9f);
+    ani_to_blend_frame(2.0f);
+    blend_to_stance(0.05f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+static float r_corner_repell(void) {
+    ReactionProcVtable* vtable;
+
+    face_opponent_now();
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    force_away(9, 8, 0.1f, 0.9f);
+    _mkproc_sleep_ticks = 20.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    blend_to_stance(0.05f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
 static float r_sidehead3_dive_opposite(void) {
     ReactionProcVtable* vtable;
 
@@ -2574,6 +2697,153 @@ static float r_sidehead3_dive(void) {
     ani_to_end();
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->jump_sleep(j_getup_back_3, 0.0f);
+    return 0.0f;
+}
+
+/* Soft ceiling: r_sidehead3_spin ~98.49% -- float-guard branch layout (bne+b vs inverted beq). */
+static float r_sidehead3_spin(void) {
+    ReactionProcVtable* vtable;
+    float flight_ticks;
+
+    high_flash_check();
+    face_opponent_now();
+    got_hit_fx(0, 2, 1, 3, 0, 0, 0.05f);
+    tightrope_restrictions_off();
+    plyr_obj->flags_09_bits.launched = 0;
+    myvel_his_angle_y(-0.71f, 0.03f, 0.03f);
+    plyr_anim_pdata->step = 0.7f;
+    blend_to_ani(shared_ani.side_head_spin, 3, 0.33f);
+    launch_me_up(0.06f, -0.003f);
+    flight_ticks = 2.0f * (plyr_obj->pos_vel.y / plyr_obj->gravity);
+    if (flight_ticks >= 0.0f) {
+        /* Flight time is already positive. */
+    } else {
+        flight_ticks = -flight_ticks;
+    }
+    plyr_anim_pdata->step = 27.0f / flight_ticks;
+    ani_to_frame_x(27.0f);
+    wait_to_land();
+    tightrope_restrictions_on();
+    shake_camera(3, 0.03f);
+    ani_to_end();
+    blend_to_stance(0.1f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(p_joy_loop, 0.0f);
+    return 0.0f;
+}
+
+static float r_feet3_sweptout_rev(void) {
+    ReactionProcVtable* vtable;
+
+    low_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    blend_to_ani_INOUT(
+        shared_ani.swept_reverse, shared_ani.swept_in,
+        0.2f, 1.0f, 0.8f);
+    myvel_his_angle_y_inout(-1.57f, 0.08f, 0.08f);
+    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
+    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_9, 0.0f);
+    return 0.0f;
+}
+
+static float r_feet3_swept_in(void) {
+    ReactionProcVtable* vtable;
+
+    low_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    blend_to_ani_INOUT(
+        shared_ani.swept_in, shared_ani.swept_out,
+        0.2f, 0.8f, 1.0f);
+    myvel_his_angle_y_inout(1.57f, 0.08f, 0.08f);
+    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
+    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
+    if (large_ground_fx != 0) {
+        large_ground_fx();
+    }
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_9, 0.0f);
+    return 0.0f;
+}
+
+static float r_feet3_swept_out(void) {
+    ReactionProcVtable* vtable;
+
+    low_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    blend_to_ani_INOUT(
+        shared_ani.swept_out, shared_ani.swept_in,
+        0.2f, 1.0f, 0.8f);
+    myvel_his_angle_y_inout(-1.57f, 0.08f, 0.08f);
+    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
+    if (large_ground_fx != 0) {
+        large_ground_fx();
+    }
+    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
+    back_rollup_check();
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_9, 0.0f);
+    return 0.0f;
+}
+
+static float r_feet3_sweptin_rev(void) {
+    ReactionProcVtable* vtable;
+
+    low_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 7, 0, 0, 0, 0x10, 0.0f);
+    tightrope_restrictions_off();
+    blend_to_ani_INOUT(
+        shared_ani.swept_reverse, shared_ani.swept_in,
+        0.2f, 1.0f, 0.8f);
+    myvel_his_angle_y_inout(1.57f, 0.08f, 0.08f);
+    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
+    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_9, 0.0f);
+    return 0.0f;
+}
+
+static float r_feet1a(void) {
+    ReactionProcVtable* vtable;
+
+    low_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
+    force_away(3, 8, 0.1f, 0.9f);
+    blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
+    ani_to_blend_frame(10.0f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
+    return 0.0f;
+}
+
+static float r_feet1_stay_close(void) {
+    ReactionProcVtable* vtable;
+
+    low_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
+    force_away(3, 8, 0.04f, 0.9f);
+    blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
+    ani_to_blend_frame(10.0f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
     return 0.0f;
 }
 
@@ -2638,119 +2908,36 @@ static float r_gut3_onbutt(void) {
     return 0.0f;
 }
 
-static float r_throw(void) {
+static float r_jax_piston_hi(void) {
     ReactionProcVtable* vtable;
 
     high_flash_check();
     face_opponent_now();
-    blend_to_ani(shared_ani.throw_fall, 3, 0.2f);
-    plyr_anim_pdata->step = 1.0f;
-    ani_to_frame_x(39.0f);
-    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
-    ani_to_end();
-    plyr_obj->ang.y += 3.14f;
-    set_anim_script(plyr_anim_pdata, shared_ani.throw_getup, 3);
+    got_hit_fx(0, 1, 5, 4, 0, 0, 0.025f);
+    blend_to_ani(shared_ani.jax_piston_high, 3, 0.33f);
+    plyr_anim_pdata->weight = 0.0f;
+    ani_to_blend_frame(10.0f);
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_12, 0.0f);
+    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
     return 0.0f;
 }
 
-static float r_raiden_shocker_fall(void) {
+static float r_jax_piston_lo(void) {
     ReactionProcVtable* vtable;
 
-    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
-    plyr_anim_pdata->step = 1.0f;
-    xfer_proc(plyr_anim_proc, p_animate);
-    _mkproc_sleep_ticks = 60.0f;
+    low_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 4, 5, 0, 0, 0, 0.0f);
+    adjust_my_damage_multiplier(0.75f);
+    blend_to_ani(shared_ani.jax_piston_low, 3, 0.2f);
+    plyr_anim_pdata->weight = 0.0f;
+    ani_to_frame_x(20.0f);
+    plyr_pdata->summon_position_x = 15.0f;
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    init_ground_move();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit_blend_stance, 0.0f);
+    vtable->jump_sleep(j_blend_to_stance_in_x, 0.0f);
     return 0.0f;
 }
 
-#pragma dont_inline reset
-
-/* Soft ceiling: r_ZZZZZZZ ~97.50% -- pool-label noise only. */
-static float r_ZZZZZZZ(void) {
-    return 1.0f;
-}
-
-/* Retail TU-local; referenced by remaining split reaction code. */
-static void same_xz(void) {
-    plyr_obj->pos_x = his_obj->pos_x;
-    plyr_obj->pos_z = his_obj->pos_z;
-}
-
-/* Soft ceiling: r_block_hit_projectile ~99.31% -- pool-label noise only. */
-static float r_block_hit_projectile(void) {
-    ReactionProcVtable* vtable;
-
-    stop_me();
-    init_ground_move();
-    blocked_fx(5, 0, 0, 0, 0);
-    force_away(2, 5, 0.25f, 0.4f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_block_common_reaction, 0.0f);
-    return 0.0f;
-}
-
-/* Soft ceiling: r_block_hit_p5 ~99.31% -- pool-label noise only. */
-static float r_block_hit_p5(void) {
-    ReactionProcVtable* vtable;
-
-    stop_me();
-    init_ground_move();
-    blocked_fx(0xB, 5, 0, 0, 0);
-    force_away(3, 8, 0.2f, 0.85f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_block_common_reaction, 0.0f);
-    return 0.0f;
-}
-
-/* Soft ceiling: r_block_hit_p3 ~99.31% -- pool-label noise only. */
-static float r_block_hit_p3(void) {
-    ReactionProcVtable* vtable;
-
-    stop_me();
-    init_ground_move();
-    blocked_fx(0xA, 0, 0, 0, 0);
-    force_away(2, 5, 0.25f, 0.4f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_block_common_reaction, 0.0f);
-    return 0.0f;
-}
-
-/* Soft ceiling: r_block_hit_p1 ~99.35% -- pool-label noise only. */
-static float r_block_hit_p1(void) {
-    ReactionProcVtable* vtable;
-
-    stop_me();
-    init_ground_move();
-    blocked_fx(0xA, 0, 0, 0, 0);
-    force_away(2, 4, 0.15f, 0.5f);
-    disable_my_attacks(6);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_block_common_reaction, 0.0f);
-    return 0.0f;
-}
-
-/* Soft ceiling: r_block_hit_p0 ~99.35% -- pool-label noise only. */
-static float r_block_hit_p0(void) {
-    ReactionProcVtable* vtable;
-
-    stop_me();
-    init_ground_move();
-    blocked_fx(0xA, 0, 0, 0, 0);
-    force_away(2, 5, 0.25f, 0.4f);
-    disable_my_attacks(6);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_block_common_reaction, 0.0f);
-    return 0.0f;
-}
-
-#pragma dont_inline on
 /* Soft ceiling: r_chest2_stumble_shake ~99.31% -- pool-label noise only. */
 static float r_chest2_stumble_shake(void) {
     ReactionProcVtable* vtable;
@@ -2775,7 +2962,111 @@ float r_chest2_stumble(void) {
     vtable->jump_sleep(chest_stumble_both, 0.0f);
     return 0.0f;
 }
-#pragma dont_inline reset
+
+static float chest_stumble_both(void) {
+    ReactionProcVtable* vtable;
+
+    medium_flash_check();
+    add_facial_damage(0.025f);
+    face_opponent_now();
+    wall_eligible_on();
+    adjust_my_damage_multiplier(0.75f);
+    plyr_obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    plyr_anim_pdata->weight = 1.3f;
+    plyr_anim_pdata->step = 0.7f;
+    blend_to_ani_frame(shared_ani.chest_stumble, 3, 0.33f, 7.0f);
+    set_anim_hiframe(47.0f);
+    ani_to_blend_frame(15.0f);
+    blend_to_stance(0.1f);
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+static float r_esp1_B(void) {
+    ReactionProcVtable* vtable;
+    float damage;
+    int ticks;
+
+    ticks = 0x1E;
+    face_opponent_now();
+    plyr_obj->gravity = 0.0f;
+    plyr_obj->pos_vel.y = 0.0f;
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    random_voice(0xD);
+    wall_eligible_on();
+    myvel_his_angle_y(0.0f, -0.16f, -0.16f);
+    blend_to_ani(his_pdata->reaction_animation_a, 3, 0.1f);
+    ani_to_end();
+    blend_to_ani(his_pdata->reaction_animation_b, 0, 0.1f);
+    while (xz_distance_between_players() > 2.25 && ticks > 0) {
+        ticks--;
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->sleep(vtable);
+    }
+    ani_loop_more_frames(7.0f);
+    blend_to_ani(his_pdata->reaction_animation_c, 3, 0.1f);
+    ani_to_frame_x(19.0f);
+    got_hit_fx(4, 9, 1, 0, 0, 0, 0.0f);
+    if (plyr_pdata != 0) {
+        if (aproc->pid == 0x1001) {
+            damage = 0.14f;
+            damage *= 0.8f;
+            if (((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
+                    ->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= ((ReactionDamagePdata*)
+                    g_game_info.plyr1.slot.pdata)->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p1_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
+                ->accumulated_damage += damage;
+        } else {
+            damage = 0.14f;
+            damage *= 0.8f;
+            if (((ReactionDamagePdata*)g_game_info.plyr0.slot.pdata)
+                    ->damage_boost_until >
+                (unsigned int)game_tick_ctr) {
+                damage *= ((ReactionDamagePdata*)
+                    g_game_info.plyr0.slot.pdata)->damage_boost;
+            }
+            if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
+                damage *= 1.15f;
+            }
+            adjust_p2_life(-damage);
+            ((ReactionDamagePdata*)g_game_info.plyr1.slot.pdata)
+                ->accumulated_damage += damage;
+        }
+    }
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_front_12, 0.0f);
+    return 0.0f;
+}
+
+static float r_esp1_A(void) {
+    ReactionProcVtable* vtable;
+
+    high_flash_check();
+    face_opponent_now();
+    got_hit_fx(2, 4, 0, 0, 0, 2, 0.0f);
+    blend_to_ani(his_pdata->esp1_reaction_animation, 3, 0.1f);
+    plyr_obj->gravity = -0.0075f;
+    plyr_anim_pdata->step = 0.8f;
+    ani_to_blend_frame(10.0f);
+    plyr_pdata->summon_position_x = 10.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_blend_to_stance_in_x, 0.0f);
+    return 0.0f;
+}
 
 static float r_summon_flames(void) {
     low_flash_check();
@@ -2880,76 +3171,73 @@ static float r_subzero_iceball(void) {
     return 0.0f;
 }
 
-#pragma dont_inline on
-
-static float r_chest2_separate(void) {
+/*
+ * Soft ceiling: these terminal reaction leaves are opcode-identical to retail;
+ * objdiff only distinguishes their TU-local float-pool labels.
+ */
+static float r_iceball_reversal(void) {
     ReactionProcVtable* vtable;
 
-    medium_flash_check();
     face_opponent_now();
-    wall_eligible_on();
-    got_hit_fx(2, 4, 0, 0xA, 0, 0, 0.025f);
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    force_away(9, 8, 0.1f, 0.9f);
-    plyr_anim_pdata->weight = 1.0f;
-    plyr_anim_pdata->step = 0.7f;
-    glitch_to_ani(shared_ani.chest_stumble, 3);
-    set_anim_hiframe(47.0f);
-    ani_to_blend_frame(15.0f);
+    set_my_state(0xC600);
+    plyr_pdata->blocking_disabled = 1;
+    plyr_pdata->blocking_disabled_2 = 1;
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    freeze_player();
+    _mkproc_sleep_ticks = 180.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
+    unfreeze_player();
+    set_my_state(0);
+    plyr_pdata->summon_position_x = 25.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_blend_to_fstance_in_x, 0.0f);
+    return 0.0f;
+}
+
+static float r_null(void) {
+    ReactionProcVtable* vtable;
+
+    _mkproc_sleep_ticks = 8.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->sleep(vtable);
     blend_to_stance(0.1f);
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
-static float r_cyrus_stomp(void) {
+static float r_throw(void) {
     ReactionProcVtable* vtable;
 
+    high_flash_check();
     face_opponent_now();
-    disable_both_repel_flags();
-    got_hit_fx(2, 5, 1, 0xA, 0, 0, 0.05f);
-    blend_to_ani(shared_ani.cyrus_stomp, 3, 0.2f);
-    ani_to_frame_x_call(same_xz, 8.0f);
-    got_hit_fx(4, 8, 1, 0, 0, 0, 0.0f);
-    init_ground_move();
+    blend_to_ani(shared_ani.throw_fall, 3, 0.2f);
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_frame_x(39.0f);
+    land_chores(0xD7F, 0xCB8, 3.0f, 0.03f);
     ani_to_end();
-    _mkproc_sleep_ticks = 20.0f;
+    plyr_obj->ang.y += 3.14f;
+    set_anim_script(plyr_anim_pdata, shared_ani.throw_getup, 3);
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_front_12, 0.0f);
+    vtable->jump_sleep(j_getup_back_12, 0.0f);
     return 0.0f;
 }
 
-static float r_complete_ermac_slam(void) {
+float r_hit_wall(void) {
     ReactionProcVtable* vtable;
     ReactionDamagePdata* boost_source;
     float damage;
 
-    _mkproc_sleep_ticks = 50.0f * inverse_game_speed;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    plyr_obj->gravity = -0.1f;
-    if (his_pdata->character_id == 0x19 ||
-        his_pdata->character_id == 0x1A) {
-        snd_req(0x307);
-    } else {
-        snd_req(0x254);
-    }
-    blend_to_ani(shared_ani.ermac_slam, 3, 0.2f);
-    plyr_anim_pdata->step = 1.0f;
-    ani_to_frame_x(6.0f);
-    wait_to_land();
-    snd_req(0x255);
-    snd_req(0x1D7);
+    trial_increment_state_value(plyr_pdata->plyr_num, 0x1C, 1);
+    adjust_my_damage_multiplier(0.6f);
+    set_my_state(0x601);
+    init_air_move_no_aniproc();
     if (plyr_pdata != 0) {
         if (aproc->pid == 0x1001) {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr1.slot.pdata;
-            damage = 0.07f;
+            damage = 0.06f;
             damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
@@ -2964,7 +3252,7 @@ static float r_complete_ermac_slam(void) {
         } else {
             boost_source =
                 (ReactionDamagePdata*)g_game_info.plyr0.slot.pdata;
-            damage = 0.07f;
+            damage = 0.06f;
             damage *= 0.8f;
             if (boost_source->damage_boost_until >
                 (unsigned int)game_tick_ctr) {
@@ -2978,424 +3266,117 @@ static float r_complete_ermac_slam(void) {
                 ->accumulated_damage += damage;
         }
     }
-    adjust_my_damage_multiplier(0.6f);
-    set_my_state(0x3203);
-    init_air_move();
-    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
-    plyr_anim_pdata->step = 0.6f;
-    launch_me_up(0.08f, -0.003f);
-    myvel_my_angle_y(3.1428f, -0.04f, -0.04f);
-    ani_to_frame_x(34.0f);
-    set_my_state(0x600);
-    got_hit_fx(4, 9, 1, 0, 0, 2, 0.0f);
-    random_hit(9);
-    bulvan_function(0);
-    init_ground_move();
-    stop_me();
-    ani_to_end();
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_6, 0.0f);
-    return 0.0f;
-}
-
-static float r_shujinko_slam(void) {
-    ReactionProcVtable* vtable;
-
-    got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
-    init_air_move();
-    face_opponent_now();
-    stop_me();
-    plyr_obj->gravity = 0.0018f;
-    xfer_proc(plyr_anim_proc, p_animate);
-    blend_to_ani(his_pdata->reaction_animation_a, 0, 0.1f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(r_complete_ermac_slam, 0.0f);
-    return 0.0f;
-}
-
-static float r_ermac_slam(void) {
-    ReactionProcVtable* vtable;
-
-    got_hit_fx(2, 0xD, 4, 0, 0, 2, 0.0f);
-    init_air_move();
-    face_opponent_now();
-    stop_me();
-    plyr_obj->gravity = 0.0018f;
-    xfer_proc(plyr_anim_proc, p_animate);
-    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(r_complete_ermac_slam, 0.0f);
-    return 0.0f;
-}
-
-/*
- * Soft ceiling: r_combo_broken_part2 ~96.53% -- stack-slot assignment order
- * for the Vec locals and template-copy scheduling.
- */
-static float r_combo_broken_part2(void) {
-    ReactionProcVtable* vtable;
-    ReactionImageFaderPdata* fader;
-    ReactionImageSource* source;
-    ScreenObj* image;
-    MkObj* object;
-    unsigned int effect;
-    int index;
-    int half_width;
-
-    {
-        Vec hit_position;
-
-        object = plyr_obj;
-        if (plyr_pdata->plyr_num == 0) {
-            effect = fx_by_owner("breaker_hit_fx", 1);
-        } else {
-            effect = fx_by_owner("breaker_hit_fx", 2);
+    plyr_pdata->hit_count++;
+    ((ReactionWallPdata*)plyr_pdata)->wall_hit_count++;
+    ((ReactionWallPdata*)plyr_pdata->his_plyr_pdata)->wall_hit_count = 0;
+    shake_hit_voice(2, 9, 8, 0.02f);
+    blend_to_ani(shared_ani.wall_hit, 3, 0.5f);
+    plyr_anim_pdata->step = 0.8f;
+    ani_to_frame_x(7.0f);
+    plyr_obj->gravity = -0.0075f;
+    if (plyr_pdata->drone_request != 0) {
+        plyr_pdata->script_exit_value_int = (randu0(2) & 0xFFFF) + 1;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->jump_sleep(wall_dodge, 0.0f);
+        return 0.0f;
+    }
+    while (plyr_anim_pdata->frame < 23.0f) {
+        plyr_pdata->script_exit_value_int = my_joypad_state_5();
+        if (plyr_pdata->script_exit_value_int == 1 ||
+            plyr_pdata->script_exit_value_int == 2) {
+            vtable = (ReactionProcVtable*)aproc->vtbl;
+            vtable->jump_sleep(wall_dodge, 0.0f);
+            return 0.0f;
         }
-        effect = fx_next_emitter(effect);
-        get_bone_world_pos(object, 0, &hit_position);
-        hit_position.y = 1.7f + g_game_info.field_34;
-        mk_chess_launch_fx_at_pos_with_obj_emit_based(
-            effect, hit_position.x, hit_position.y, hit_position.z);
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        vtable->sleep(vtable);
     }
-
-    {
-        Vec world_position;
-        Vec bone_offset = {0.0f, 0.0f, 0.0f};
-        ReactionScreenPos screen_position;
-
-        source = (ReactionImageSource*)plyr_pdata->plyr_info;
-        image = load_named_2d_pfxobj(
-            0x10005, 0xC021, "BREAKER", 0, 0x2F);
-        get_bone_offset_world_pos(
-            source->object, 9, &bone_offset, &world_position);
-        world_position.y = 1.7f + g_game_info.field_34;
-        camera_get_screen_pos_from_world_pos(
-            &world_position, &screen_position);
-        half_width = image->pfx2d->tex_w / 2;
-        image->x = (int)screen_position.x - half_width;
-        image->y = (int)screen_position.y;
-    }
-
-    if (_create_mkproc_generic_nostack(
-            0xC02A, 0x1F, p_image_fader,
-            sizeof(ReactionImageFaderPdata),
-            (MkHdr**)&fader) != 0) {
-        fader->object = image;
-        fader->object_instance = image->instance;
-        fader->delay = 60;
-        fader->alpha = 0xFF;
-        fader->direction = source->hdr.instance;
-    }
-    if (image != 0 && his_pdata->breaker_strength == 0) {
-        for (index = 0; index < 4; index++) {
-            image->pfx2d->verts[index].r = 0x80;
-            image->pfx2d->verts[index].g = 0;
-            image->pfx2d->verts[index].b = 0;
-            image->pfx2d->verts[index].a = 0xFF;
-        }
-    }
-    snd_req(0xDC4);
-    face_opponent_now();
-    wall_eligible_on();
-    start_blood_particles_scripts(0x39, 0x10);
-    got_hit_fx(0, 2, 4, 1, 0, 0, 0.0f);
-    force_away(0x14, 8, 0.025f, 0.9f);
-    blend_to_ani(shared_ani.combo_broken_launch, 3, 0.5f);
-    set_ani_speed(0.6f);
-    ani_to_frame_x(13.0f);
-    got_hit_fx(4, 8, 0, 0, 0, 0, 0.0f);
-    back_rollup_check();
-    ani_x_more_frames(5.0f);
-    blend_to_ani(shared_ani.combo_broken_recover, 3, 0.1f);
-    plyr_anim_pdata->step = 0.75f;
     ani_to_blend_frame(10.0f);
-    blend_to_stance(0.05f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float j_block_common_reaction(void) {
-    ReactionProcVtable* vtable;
-
-    if (!(plyr_pdata->previous_state & 0x800) &&
-        plyr_pdata->drone_request == 1) {
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->jump_sleep(x_block, 0.0f);
-        return 0.0f;
-    }
-    if (plyr_pdata->previous_state & 0x100) {
-        trial_increment_state_value(plyr_pdata->plyr_num, 0x12, 0);
-        trial_increment_state_value(plyr_pdata->plyr_num, 0x13, 0);
-        init_ground_move();
-        set_my_state(0xF00);
-        force_away(2, 8, 0.15f, 0.85f);
-        if (should_i_weapon_block() != 0) {
-            xfer_proc(plyr_anim_proc, p_anim_idle);
-            blend_to_ani(
-                plyr_pdata->fighter_definition->weapon_block_reaction,
-                3, 0.2f);
-            plyr_anim_pdata->step = 1.0f;
-            ani_to_end();
-            xfer_proc(plyr_anim_proc, p_animate);
-        } else {
-            xfer_proc(plyr_anim_proc, p_anim_idle);
-            blend_to_ani(shared_ani.standing_weapon_block, 3, 0.2f);
-            plyr_anim_pdata->step = 1.0f;
-            ani_to_end();
-            xfer_proc(plyr_anim_proc, p_animate);
-        }
-    } else {
-        trial_increment_state_value(plyr_pdata->plyr_num, 0x12, 0);
-        trial_increment_state_value(plyr_pdata->plyr_num, 0x14, 0);
-        if (should_i_weapon_block() == 0) {
-            if (plyr_pdata->previous_state == 0xA00 ||
-                !(plyr_pdata->previous_state & 0x800)) {
-                plyr_pdata->his_attack_counter = get_his_attack_counter();
-                set_my_state(0xA00);
-                blend_to_ani(shared_ani.standing_block_a, 0, 0.5f);
-            }
-            if (plyr_pdata->previous_state == 0xA01) {
-                plyr_pdata->his_attack_counter = get_his_attack_counter();
-                set_my_state(0xA01);
-                blend_to_ani(shared_ani.standing_block_b, 0, 0.5f);
-            }
-            if (plyr_pdata->previous_state == 0xA02) {
-                plyr_pdata->his_attack_counter = get_his_attack_counter();
-                set_my_state(0xA02);
-                blend_to_ani(shared_ani.standing_block_c, 0, 0.5f);
-            }
-            if (plyr_pdata->previous_state == 0xA03) {
-                plyr_pdata->his_attack_counter = get_his_attack_counter();
-                set_my_state(0xA03);
-                blend_to_ani(shared_ani.standing_block_d, 0, 0.5f);
-            }
-        } else {
-            set_my_state(0xA00);
-            blend_to_ani(
-                plyr_pdata->fighter_definition->weapon_block_animation,
-                3, 0.1f);
-            plyr_anim_pdata->step = 1.0f;
-        }
-    }
-    if (am_i_duck_blocking() != 0) {
-        if (should_i_weapon_block() != 0) {
-            blend_to_ani(
-                plyr_pdata->fighter_definition->duck_block_animation,
-                0, 0.2f);
-        } else {
-            blend_to_ani(shared_ani.duck_block, 0, 0.2f);
-        }
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->jump_sleep(j_duck_block_loop, 0.0f);
-        return 0.0f;
-    }
-    if (am_i_blocking() != 0) {
-        if (plyr_pdata->state & 0x100) {
-            plyr_pdata->his_attack_counter = get_his_attack_counter();
-            set_my_state(0xA00);
-            blend_to_ani(shared_ani.standing_block_a, 0, 0.1f);
-        }
-        vtable = (ReactionProcVtable*)aproc->vtbl;
-        vtable->jump_sleep(j_block_loop, 0.0f);
-        return 0.0f;
-    }
-    blend_to_stance(0.1f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float r_combo_broken_part1(void) {
-    ReactionProcVtable* vtable;
-
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    _mkproc_sleep_ticks = 40.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    blend_to_stance(0.05f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-float r_jump_slambounce_final_hit(void) {
-    ReactionProcVtable* vtable;
-
-    high_flash_check();
-    face_opponent_now();
-    stop_me();
-    init_air_move();
-    special_move_cam_setup(
-        0xA, 0x3C, 0, 1.47f, 4.1f, 1.0f, -1.75f, -0.15f);
-    reaction_xfer_him(0xDB, 0.0f, 2);
-    got_hit_fx(0, 2, 1, 1, 0, 0, 0.05f);
-    blend_to_ani(shared_ani.jump_slambounce, 3, 0.2f);
-    set_ani_speed(0.7f);
-    ani_to_frame_x(6.0f);
-    init_ground_move();
-    ani_to_frame_x(50.0f);
-    got_hit_fx(4, 0, 1, 0, 0, 1, 0.0f);
-    ani_to_end();
+    plyr_obj->flags_09_bits.wall_restricted = 0;
     check_for_combo_message();
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_getup_back_6, 0.0f);
+    vtable->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
 }
 
-static float r_slamdown_final_hitter(void) {
+static float r_scorpion_spear_2(void) {
+    ReactionProcVtable* vtable;
+    int ticks;
+
+    blend_to_ani(his_pdata->scorpion_spear_pull, 3, 0.1f);
+    ani_to_end();
+    snd_req(0xD70);
+    myvel_his_angle_y(0.0f, -0.13f, -0.13f);
+    blend_to_ani(his_pdata->scorpion_spear_recover, 0, 0.1f);
+    plyr_anim_pdata->step = 0.75f;
+    ticks = 0;
+    while (xz_distance_between_players() > 1.0f && ticks < 0x50) {
+        _mkproc_sleep_ticks = 1.0f;
+        vtable = (ReactionProcVtable*)aproc->vtbl;
+        ticks++;
+        vtable->sleep(vtable);
+    }
+    init_ground_move();
+    stop_me();
+    set_my_state(0x4204);
+    if (his_pdata->character_id != 0x19 &&
+        his_pdata->character_id != 0x1A) {
+        blend_to_ani(his_pdata->reaction_animation, 3, 0.2f);
+    } else {
+        blend_to_ani(his_pdata->reaction_animation_c, 3, 0.2f);
+    }
+    plyr_anim_pdata->step = 1.2f;
+    plyr_pdata->summon_position_x = 20.0f;
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_blend_to_fstance_in_x, 0.0f);
+    return 0.0f;
+}
+
+static float r_scorpion_spear_1(void) {
     ReactionProcVtable* vtable;
 
-    head_tracking_on();
+    high_flash_check();
     face_opponent_now();
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    set_ani_speed(0.25f);
-    ani_to_blend_frame(3.0f);
+    stop_me();
+    init_air_move();
+    ejb_call(0x31);
+    set_my_state(0x603);
+    got_hit_fx(2, 5, 1, 0, 0, 0, 0.0f);
+    start_blood_particles(0x20, 9, plyr_pdata, plyr_obj);
+    blend_to_ani(his_pdata->scorpion_spear_hit, 3, 0.1f);
+    ani_to_frame_x(83.0f);
+    set_my_state(0x604);
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
+    return 0.0f;
+}
+
+static float r_judo_throw1(void) {
+    ReactionProcVtable* vtable;
+    ReactionFighterDefinitionView* fighter;
+
+    fighter = (ReactionFighterDefinitionView*)his_pdata->fighter_definition;
+    glitch_to_ani(fighter->judo_throw_reaction, 3);
+    ani_to_end();
+    vtable = (ReactionProcVtable*)aproc->vtbl;
+    vtable->jump_sleep(j_getup_back_12, 0.0f);
+    return 0.0f;
+}
+
+static float r_raiden_shocker_fall(void) {
+    ReactionProcVtable* vtable;
+
+    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
+    plyr_anim_pdata->step = 1.0f;
     xfer_proc(plyr_anim_proc, p_animate);
-    blend_to_stance(0.05f);
-    _mkproc_sleep_ticks = 6.0f;
+    _mkproc_sleep_ticks = 60.0f;
     vtable = (ReactionProcVtable*)aproc->vtbl;
     vtable->sleep(vtable);
+    init_ground_move();
     vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
+    vtable->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
 }
-
-static float r_corner_repell_ani(void) {
-    ReactionProcVtable* vtable;
-
-    face_opponent_now();
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    force_away(0x12, 8, 0.15f, 0.9f);
-    ani_to_blend_frame(2.0f);
-    blend_to_stance(0.05f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float r_corner_repell(void) {
-    ReactionProcVtable* vtable;
-
-    face_opponent_now();
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    force_away(9, 8, 0.1f, 0.9f);
-    _mkproc_sleep_ticks = 20.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->sleep(vtable);
-    blend_to_stance(0.05f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float r_feet1a(void) {
-    ReactionProcVtable* vtable;
-
-    low_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
-    force_away(3, 8, 0.1f, 0.9f);
-    blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
-    ani_to_blend_frame(10.0f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
-    return 0.0f;
-}
-
-static float r_feet1_stay_close(void) {
-    ReactionProcVtable* vtable;
-
-    low_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 4, 0, 0, 0, 0x10, 0.0f);
-    force_away(3, 8, 0.04f, 0.9f);
-    blend_to_ani(shared_ani.feet_hit, 3, 0.33f);
-    ani_to_blend_frame(10.0f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
-    return 0.0f;
-}
-
-static float r_jax_piston_hi(void) {
-    ReactionProcVtable* vtable;
-
-    high_flash_check();
-    face_opponent_now();
-    got_hit_fx(0, 1, 5, 4, 0, 0, 0.025f);
-    blend_to_ani(shared_ani.jax_piston_high, 3, 0.33f);
-    plyr_anim_pdata->weight = 0.0f;
-    ani_to_blend_frame(10.0f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep((MkProcEntryFn)p_blend_to_stance_in_10, 0.0f);
-    return 0.0f;
-}
-
-static float r_jax_piston_lo(void) {
-    ReactionProcVtable* vtable;
-
-    low_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 4, 5, 0, 0, 0, 0.0f);
-    adjust_my_damage_multiplier(0.75f);
-    blend_to_ani(shared_ani.jax_piston_low, 3, 0.2f);
-    plyr_anim_pdata->weight = 0.0f;
-    ani_to_frame_x(20.0f);
-    plyr_pdata->summon_position_x = 15.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_blend_to_stance_in_x, 0.0f);
-    return 0.0f;
-}
-
-static float chest_stumble_both(void) {
-    ReactionProcVtable* vtable;
-
-    medium_flash_check();
-    add_facial_damage(0.025f);
-    face_opponent_now();
-    wall_eligible_on();
-    adjust_my_damage_multiplier(0.75f);
-    plyr_obj->flags_09_bits.launched = 1;
-    update_bone_hierarchy(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    plyr_anim_pdata->weight = 1.3f;
-    plyr_anim_pdata->step = 0.7f;
-    blend_to_ani_frame(shared_ani.chest_stumble, 3, 0.33f, 7.0f);
-    set_anim_hiframe(47.0f);
-    ani_to_blend_frame(15.0f);
-    blend_to_stance(0.1f);
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float r_esp1_A(void) {
-    ReactionProcVtable* vtable;
-
-    high_flash_check();
-    face_opponent_now();
-    got_hit_fx(2, 4, 0, 0, 0, 2, 0.0f);
-    blend_to_ani(his_pdata->esp1_reaction_animation, 3, 0.1f);
-    plyr_obj->gravity = -0.0075f;
-    plyr_anim_pdata->step = 0.8f;
-    ani_to_blend_frame(10.0f);
-    plyr_pdata->summon_position_x = 10.0f;
-    vtable = (ReactionProcVtable*)aproc->vtbl;
-    vtable->jump_sleep(j_blend_to_stance_in_x, 0.0f);
-    return 0.0f;
-}
-
-#pragma dont_inline reset

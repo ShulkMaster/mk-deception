@@ -413,7 +413,7 @@ AnimState* get_mkpdata_anim(void) {
     return anim;
 }
 
-static void create_anim_process(
+static MkProc* create_anim_process(
     int priority,
     int pid,
     MkProcEntryFn entry,
@@ -437,26 +437,27 @@ static void create_anim_process(
             anim->auxiliary_track = 1;
         }
     }
+    return proc;
 }
 
-void create_mkproc_anim(
+MkProc* create_mkproc_anim(
     int pid, MkProcEntryFn entry, AnimState** out_anim) {
-    create_anim_process(0xB, pid, entry, out_anim, 0);
+    return create_anim_process(0xB, pid, entry, out_anim, 0);
 }
 
-void create_mkproc_anim2(
+MkProc* create_mkproc_anim2(
     int pid, MkProcEntryFn entry, AnimState** out_anim) {
-    create_anim_process(0xC, pid, entry, out_anim, 0);
+    return create_anim_process(0xC, pid, entry, out_anim, 0);
 }
 
-void create_mkproc_face_anim(
+MkProc* create_mkproc_face_anim(
     int pid, MkProcEntryFn entry, AnimState** out_anim) {
-    create_anim_process(0xD, pid, entry, out_anim, 1);
+    return create_anim_process(0xD, pid, entry, out_anim, 1);
 }
 
-void create_mkproc_hand_anim(
+MkProc* create_mkproc_hand_anim(
     int pid, MkProcEntryFn entry, AnimState** out_anim) {
-    create_anim_process(0xD, pid, entry, out_anim, 1);
+    return create_anim_process(0xD, pid, entry, out_anim, 1);
 }
 
 int advance_anim(AnimState* anim) {

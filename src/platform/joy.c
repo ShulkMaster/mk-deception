@@ -1,8 +1,13 @@
 #include "platform/joy.h"
 
+#include "game/ai.h"
+#include "game/ejb.h"
 #include "game/game_info.h"
+#include "game/moves.h"
+#include "game/switch.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
+#include "runtime/anims.h"
 #include "runtime/plyr_anim_pdata.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
@@ -17,50 +22,18 @@ typedef struct JoyProcVtable {
 /* ABI boundary: MkProc exposes its generic runtime vtable type. */
 #define JOY_PROC_VTABLE(proc) ((JoyProcVtable*)(proc)->vtbl)
 
-extern float which_way_is_towards(void);
-extern void jump_away_opponent(void);
-extern void jump_towards_opponent(void);
-extern float j_exit_blend_stance(void);
-extern float j_exit(void);
-extern void blend_to_ani(AniData* animation, int flags, float blend_time);
-extern void set_my_state(int state);
 extern void trial_clear_provision(void);
 extern PlyrPdata* his_pdata;
-extern int is_this_move_disabled_exec(int move);
-extern float xz_distance_between_players(void);
 extern void trial_increment_state_value(int player, int state, int value);
 extern void snd_req(int sound);
 extern MkProc* plyr_anim_proc;
-extern float p_animate(void);
 extern int round_winner;
 extern int f_fatality_available;
 extern int my_next_duck_state;
 extern unsigned int game_tick_ctr;
-extern void init_ground_move(PlyrPdata* pdata, PlyrAnimPdata* anim_pdata);
-extern void back_to_normal(void);
-extern void rotate_towards_him(float blend_time);
-extern void head_tracking_on(void);
-extern int check_for_dead_movement(void);
 extern int check_switch(SwitchData* switches, int button);
 extern int exec_tick_ctr;
 extern int g_drone_blocking_in_reaction;
-extern void drone_ai_finished_request(void);
-extern int am_i_blocking(void);
-extern int should_i_weapon_block();
-extern float j_duck_block_loop(void);
-extern float x_block(void);
-extern float drone_start(void);
-extern void disable_this_move_exec(int move, int duration);
-extern void enable_this_move_exec(int move);
-extern void end_of_round_check(void);
-extern void angle_jump_scan_after_move(void);
-extern float get_my_angle_y_error(void);
-extern int am_i_flipped_or_turned(void);
-extern void blend_to_stance(float blend_time);
-extern float step_backward(void);
-extern float step_forward(void);
-extern float step_left(void);
-extern float step_right(void);
 extern MkObj* plyr_obj;
 
 typedef struct JoySharedAnimations {
@@ -80,8 +53,8 @@ void dodge_3d_scan(void) {
         is_this_move_disabled_exec(0x6004) == 0 &&
         xz_distance_between_players() < 9.0f) {
         trial_increment_state_value(plyr_pdata->plyr_num, 0x15, 0);
-        plyr_anim_pdata->playback_rate = 1.75f;
-        plyr_anim_pdata->field_64 = 1.2f;
+        plyr_anim_pdata->step = 1.75f;
+        plyr_anim_pdata->weight = 1.2f;
         if (plyr_pdata->dodge_sound_played == 0) {
             snd_req(0xDC3);
             plyr_pdata->dodge_sound_played = 1;
@@ -112,12 +85,12 @@ float joy_duck_loop(void) {
         return 0.0f;
     }
 
-    xfer_proc(plyr_anim_proc, p_animate);
+    xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
     plyr_pdata->duck_loop_counter = 10;
     if (plyr_pdata->state != 0x101) {
         plyr_pdata->duck_loop_counter = 0;
         set_my_state(0x100);
-        if (plyr_anim_pdata->current_animation !=
+        if (plyr_anim_pdata->animation !=
             plyr_pdata->fighter_definition->duck_animation) {
             plyr_anim_pdata->flags |= 0x40;
             blend_to_ani(plyr_pdata->fighter_definition->duck_animation, 0,
@@ -140,23 +113,23 @@ float joy_duck_loop(void) {
                 } else {
                     blend_to_ani(shared_ani.duck_block_animation, 0, 0.1f);
                 }
-                plyr_anim_pdata->playback_rate = 1.0f;
-                jump_to(j_duck_block_loop);
+                plyr_anim_pdata->step = 1.0f;
+                jump_to((MkProcEntryFn)j_duck_block_loop);
                 return 0.0f;
             }
         } else if (plyr_pdata->field_728 == 2) {
             plyr_pdata->state = 0x900;
             plyr_pdata->block_start_tick = exec_tick_ctr;
             g_drone_blocking_in_reaction = 0;
-            if (should_i_weapon_block(plyr_pdata, exec_tick_ctr) != 0) {
+        if (should_i_weapon_block() != 0) {
                 blend_to_ani(
                     plyr_pdata->fighter_definition->duck_block_animation, 0,
                     0.1f);
             } else {
                 blend_to_ani(shared_ani.duck_block_animation, 0, 0.1f);
             }
-            plyr_anim_pdata->playback_rate = 1.0f;
-            jump_to(j_duck_block_loop);
+            plyr_anim_pdata->step = 1.0f;
+            jump_to((MkProcEntryFn)j_duck_block_loop);
             return 0.0f;
         } else if (plyr_pdata->field_728 == 3) {
             plyr_pdata->state = 0xA00;
@@ -202,12 +175,12 @@ float joy_duck_remote_end(void) {
 }
 
 float joy_duck_remote_start(void) {
-    xfer_proc(plyr_anim_proc, p_animate);
+    xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
     plyr_pdata->duck_loop_counter = 10;
     if (plyr_pdata->state != 0x101) {
         plyr_pdata->duck_loop_counter = 0;
         set_my_state(0x100);
-        if (plyr_anim_pdata->current_animation !=
+        if (plyr_anim_pdata->animation !=
             plyr_pdata->fighter_definition->duck_animation) {
             plyr_anim_pdata->flags |= 0x40;
             blend_to_ani(plyr_pdata->fighter_definition->duck_animation, 0,
@@ -327,7 +300,7 @@ float p_joy_loop(void) {
     }
 
     if (!g_game_info.feature_flags.bits.high_bit &&
-        plyr_anim_pdata->current_animation ==
+        plyr_anim_pdata->animation ==
             plyr_pdata->fighter_definition->duck_animation) {
         set_my_state(0);
         blend_to_stance(0.1f);
@@ -353,18 +326,18 @@ float p_joy_loop(void) {
 }
 
 float p_joy_entry(void) {
-    float playback_rate = plyr_anim_pdata->playback_rate;
+    float playback_rate = plyr_anim_pdata->step;
     int saved_state = plyr_pdata->state;
     float field_80 = plyr_anim_pdata->field_80;
-    float field_AC = plyr_anim_pdata->field_AC;
+    float field_AC = plyr_anim_pdata->transition_step;
     int waited = 0;
 
-    init_ground_move(plyr_pdata, plyr_anim_pdata);
+    init_ground_move();
     back_to_normal();
-    xfer_proc(plyr_anim_proc, p_animate);
-    plyr_anim_pdata->playback_rate = playback_rate;
+    xfer_proc(plyr_anim_proc, (MkProcEntryFn)p_animate);
+    plyr_anim_pdata->step = playback_rate;
     plyr_anim_pdata->field_80 = field_80;
-    plyr_anim_pdata->field_AC = field_AC;
+    plyr_anim_pdata->transition_step = field_AC;
     rotate_towards_him(0.2f);
     while (plyr_pdata->action_lock_a > game_tick_ctr) {
         waited++;

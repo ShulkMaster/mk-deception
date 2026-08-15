@@ -8,7 +8,6 @@
 
 typedef struct BgndAppendTextureEntry BgndAppendTextureEntry;
 typedef struct BgndSwapTextureEntry BgndSwapTextureEntry;
-typedef struct PlyrPdata PlyrPdata;
 typedef void (*BgndScriptEntryFn)(void);
 
 void* memset(void* dst, int c, unsigned long n);
@@ -436,8 +435,8 @@ void bgnd_set_active_sobj(void) {}
 void bgnd_sobj_cam_frustum_test_into_transparent(void) {}
 void obj_sobj_cam_frustum_test_into_transparent(void) {}
 void bgnd_sobj_cam_volume_test_steer_over(void) {}
-void bgnd_clear_danger_zone_callback(int zone) {
-    (void)zone;
+void bgnd_clear_danger_zone_callback(PlyrPdata* pdata) {
+    (void)pdata;
 }
 void bgnd_register_danger_zone_callback(void) {}
 void bgnd_rx_notify(void) {}

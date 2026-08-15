@@ -11,6 +11,7 @@
 #include "runtime/section.h"
 #include "runtime/cam.h"
 #include "game/game_info.h"
+#include "game/plyr.h"
 #include "platform/display.h"
 #include "platform/main.h"
 #include "math/gxMath.h"
@@ -477,12 +478,9 @@ extern MkObj* plyr_obj;
 extern MkObj* his_obj;
 
 void plyr_aux_weapon_grab(PlyrPdata* player, MkObj* item);
-unsigned int create_mkproc_anim2(
-    int proc_id, MkProcEntryFn entry, AnimPdata** pdata_out);
 void insert_ground_me_mkobj(void* object);
 void set_root_and_obj_movement_weights(
     float root_weight, float object_weight, void* animation);
-void set_anim_script(AnimPdata* animation, void* script, int transition);
 void set_my_state(int state);
 unsigned int fx_by_owner(const char* name, unsigned int owner);
 void fx_transfer(unsigned int handle, unsigned int owner);
@@ -492,8 +490,6 @@ unsigned int fx_next_emitter(unsigned int handle);
 void fx_resume_emit(unsigned int handle);
 MkPfx* pfx_from_emitter(unsigned int handle);
 int emitter_id_from_handle(unsigned int handle);
-void advance_anim(AnimPdata* animation);
-void pose_anim(AnimPdata* animation, int update_object);
 int am_i_on_the_left2(MkObj* opponent, MkObj* me);
 int get_bid_with_flip(MkObj* object, unsigned int bone_id);
 int is_plyr_airborn(MkObj* object, PlyrPdata* player);
@@ -571,7 +567,7 @@ void spawn_bld_splat(
 void obj_create_sobjs(MkObj* object);
 void sobj_set_priority(void* object, int priority);
 MslSoundHandle plyr_snd_req(int sound);
-void random_voice(int sound);
+MslSoundHandle random_voice(int sound);
 
 static inline NcsSpearEffect* ncs_get_spear_effect(void) {
     NcsSpearEffect* effect;
@@ -3416,14 +3412,14 @@ NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
 
 MkProc* plyr_spawn_his_anim_limb(
     NcsLimbOwner* player, int limb, int include_children,
-    void* animation_script, int transition, MkProcEntryFn entry,
+    AniData* animation_script, int transition, MkProcEntryFn entry,
     float animation_step) {
     AnimPdata* animation;
     MkProc* proc;
     MkObj* severed;
 
     animation = 0;
-    proc = (MkProc*)create_mkproc_anim2(0x9012, entry, &animation);
+    proc = create_mkproc_anim2(0x9012, entry, &animation);
     if (proc == 0) {
         return 0;
     }
@@ -3747,22 +3743,26 @@ void mkscripts_destroy_gusher(NcsDestroyable* gusher) {
     }
 }
 
-void play_his_snd_req(int sound) {
+MslSoundHandle play_his_snd_req(int sound) {
     PlyrPdata* player;
+    MslSoundHandle handle;
 
     player = plyr_pdata;
     plyr_pdata = player->his_plyr_pdata;
-    plyr_snd_req(sound);
+    handle = plyr_snd_req(sound);
     plyr_pdata = plyr_pdata->his_plyr_pdata;
+    return handle;
 }
 
-void play_his_random_voice(int sound) {
+MslSoundHandle play_his_random_voice(int sound) {
     PlyrPdata* player;
+    MslSoundHandle handle;
 
     player = plyr_pdata;
     plyr_pdata = player->his_plyr_pdata;
-    random_voice(sound);
+    handle = random_voice(sound);
     plyr_pdata = plyr_pdata->his_plyr_pdata;
+    return handle;
 }
 
 int pfx_plyr_bankowner(const PfxPlayerBankOwner* player) {

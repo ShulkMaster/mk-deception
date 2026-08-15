@@ -5,6 +5,7 @@
  * RenderWare assigns those extension offsets at runtime. Everything behind an
  * extension is represented by a typed retail-layout view.
  */
+#include "game/specular.h"
 #include "rw/alphapass.h"
 #include "rw/dltextur.h"
 #include "rw/dltoken.h"
@@ -390,8 +391,8 @@ int SpecularCreatePipelines(void) {
     return created;
 }
 
-void SetupShadowPlayerPipeline(RpGeometry* geometry) {
-    (void)geometry;
+void SetupShadowPlayerPipeline(RpClump* clump) {
+    (void)clump;
 }
 
 static inline SpecSkinData* prepare_skin_render(

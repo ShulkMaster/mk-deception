@@ -695,7 +695,7 @@ ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name) {
     return cmdscript_loadfile_language(language, section);
 }
 
-ScriptSlot* cmdscript_loadfile_by_name(int language, char* name) {
+ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name) {
     MkFileInfo* section;
 
     section = find_section_by_name(name);

@@ -125,14 +125,6 @@ AnimPdata* animate_obj(
     int start_frame,
     void* ground_collisions,
     int active);
-void set_anim_script(
-    AnimPdata* animation, AnimScript* script, unsigned int flags);
-int set_anim_script_frame(
-    float frame,
-    AnimPdata* animation,
-    AnimScript* script,
-    unsigned int flags);
-
 static int ladder_data_tbl_offset = -1;
 static int curr_ladder_pos;
 int curr_ladder_char;
@@ -631,11 +623,11 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
             set_anim_script_frame(
                 60.0f,
                 animation,
-                bgnd_animations.defeated_piece,
+                (AniData*)bgnd_animations.defeated_piece,
                 0x20);
         } else {
             set_anim_script(
-                animation, bgnd_animations.defeated_piece, 0x20);
+                animation, (AniData*)bgnd_animations.defeated_piece, 0x20);
         }
         animation->step = 1.0f;
     }
