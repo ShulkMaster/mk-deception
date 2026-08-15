@@ -333,7 +333,6 @@ config.libs = [
             Object(NonMatching, "script_functions.o", source="runtime/script_functions.c"),
             Object(NonMatching, "mk_hwfile.o", source="runtime/mk_hwfile.c",
                    extra_cflags=["-inline off", "-use_lmw_stmw on", "-O4,s"]),
-            # Huge .rodata/.data (file tables + path pool); NonMatching = ASM still linked
             Object(NonMatching, "mk_fileinfo.o", source="runtime/mk_fileinfo.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "pakfile.o", source="runtime/pakfile.c"),
@@ -344,7 +343,6 @@ config.libs = [
                 source="runtime/mk_plugins.c",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
-            # gxVectAngleZX not fully matched yet; keep split until fixed
             Object(NonMatching, "gxVect.o", source="math/gxVect.c"),
             Object(NonMatching, "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(
@@ -353,9 +351,7 @@ config.libs = [
                 source="math/gxMat.c",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
-            # Trig polynomials + GXMathSqrtTable .data; NonMatching = ASM linked
             Object(NonMatching, "gxMath.o", source="math/gxMath.c"),
-            # Midway V3/XZ/quat/MKMATRIX core; Wave C scaffold
             Object(NonMatching, "mk_math.o", source="math/mk_math.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "MovieSubtitle_GC.o", source="movie/MovieSubtitle_GC.cpp",
@@ -378,7 +374,6 @@ config.libs = [
             Object(Matching, "gprofile_gcn.o", source="platform/gprofile_gcn.c"),
             Object(Matching, "mwMemNewDelete.o", source="mw/mwMemNewDelete.cpp"),
             Object(Matching, "mwFileGlue.o", source="mw/mwFileGlue.cpp"),
-            # ProcessFrame register scheduling not matched yet
             Object(
                 Matching,
                 "MovieManagerGC_RW_Disp.o",
@@ -445,7 +440,6 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
             Object(NonMatching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
-            # SEC decode (process_art_section_data / load_tga); NonMatching = ASM linked
             Object(NonMatching, "asset.o", source="runtime/asset.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "bgnd_nbc.o", source="game/bgnd_nbc.c"),
@@ -466,7 +460,6 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "mcardmsg.o", source="game/mcardmsg.c"),
-            # B20 Wave B: game memcard (profile callees); CARD I/O is gcmcard
             Object(NonMatching, "memcard.o", source="game/memcard.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "sound.o", source="game/sound.c",
@@ -480,14 +473,12 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "fonts.o", source="runtime/fonts.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            # Readable TGA writer; codegen not matched (removed retail-asm dump)
             Object(NonMatching, "tga.o", source="runtime/tga.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str", "reuse,pool,readonly"]),
             Object(NonMatching, "instance.o", source="runtime/instance.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "light.o", source="runtime/light.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "gcInit.o", source="platform/gcInit.c"),
-            # Boot -> loading screen (gcdisplay owns loading_image / tile / native display)
             Object(NonMatching, "gcdisplay.o", source="platform/gcdisplay.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "main.o", source="platform/main.c",
@@ -552,7 +543,6 @@ config.libs = [
             Object(NonMatching, "gcmcicon.o", source="platform/gcmcicon.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
-            # B20 Wave C: Midway GC memcard facade (CARD*); card.a out
             # -str pool,readonly: retail pools "" / "MKD" into @stringBase0 in
             # .rodata (far lis/addi); plain -str reuse emits @sda21 loads.
             Object(NonMatching, "gcmcard.o", source="platform/gcmcard.c",
@@ -570,7 +560,6 @@ config.libs = [
             Object(NonMatching, "attract.o", source="game/attract.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "menu.o", source="game/menu.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
-            # B19 Wave A: character select entry (p_pselect*); rest stays ASM
             Object(NonMatching, "pselect.o", source="game/pselect.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "cloth.o", source="game/cloth.c",
@@ -581,7 +570,6 @@ config.libs = [
             Object(NonMatching, "ladder.o", source="game/ladder.c",
                    extra_cflags=["-O4,s"]),
             Object(NonMatching, "ending.o", source="game/ending.c"),
-            # B15 P0: MAIN_MENU C APIs; rest of ~61KB Glue stays ASM (NonMatching)
             Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off"]),
             Object(NonMatching, "plyrprofile.o", source="game/plyrprofile.c",
@@ -824,8 +812,7 @@ config.libs = [
             ),
         ],
     },
-    # Midway mwScreenEngine (NOT Criterion RW). B15: smallest Screen* C++ TUs.
-    # Split names must match config/GQNE5D/splits.txt exactly. -lang=c++ auto for .cpp.
+    # Midway mwScreenEngine, distinct from Criterion RenderWare.
     {
         "lib": "mwScreenEngine",
         "mw_version": game_mw_version,
@@ -892,7 +879,6 @@ config.libs = [
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenResourceLibrary.o",
                 source="mwScreenEngine/ScreenResourceLibrary.cpp",
             ),
-            # B16 P1: ScreenMgr wave for boot / MAIN_MENU.
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenUtil.o",
@@ -927,14 +913,12 @@ config.libs = [
                 source="mwScreenEngine/ScreenMgr.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
-            # Wave A: action stack (CreateAction via ScreenUtil).
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenActionStack.o",
                 source="mwScreenEngine/ScreenActionStack.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
-            # B19 / mode-select Wave B chrome deps: base node + action.
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenNode.o",
@@ -962,7 +946,6 @@ config.libs = [
                     "-str reuse,pool,readonly",
                 ],
             ),
-            # B18d Wave C / B19: Open/Close/Insert/Replace/Exit/Transition.
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenScreenAction.o",
@@ -971,7 +954,6 @@ config.libs = [
                 # Link ceiling: duplicate ScreenBaseScreenAction weak dtor/vtable
                 # changes 42 DOL bytes despite aggregate 100% objdiff.
             ),
-            # B18d Wave C / B19: SetFocus, UserConfirm, Visible, Enable, Else/Question.
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenMiscAction.o",
@@ -979,7 +961,6 @@ config.libs = [
                 # -inline off: keep bl ScreenIntegerCompare from Question Update.
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
-            # Wave A: RegisterGameVariables (+ dispatcher Register).
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/GameVariables.o",
@@ -994,7 +975,6 @@ config.libs = [
                 # -inline off: keep recursive _RefreshData as bl (else MWCC inlines).
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
             ),
-            # Wave A: CloseScreen / CloseObject for wait_for_screen_close.
             Object(
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenInstancer.o",
@@ -1008,8 +988,7 @@ config.libs = [
             ),
         ],
     },
-    # Midway libmkparticle (NOT Criterion RW). B12: 2D/font path for boot->PRESS START.
-    # Split names must match config/GQNE5D/splits.txt exactly. Defer VM/emitter/gc_render.
+    # Midway libmkparticle, distinct from Criterion RenderWare.
     {
         "lib": "libmkparticle",
         "mw_version": game_mw_version,
@@ -1128,7 +1107,6 @@ config.libs = [
                 # Scheduling and peephole settings are uniform; no-inline remains local.
                 extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole"],
             ),
-            # Thin pfxsystem_* frame helpers; VM/emitter stubs (whole-TU NonMatching).
             Object(
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/particle.o",
