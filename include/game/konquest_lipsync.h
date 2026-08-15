@@ -3,11 +3,10 @@
 
 #include "game/konquest.h"
 #include "runtime/image.h"
+#include "runtime/anim_pdata.h"
 #include "runtime/mk_proc.h"
 
-typedef struct AnimPdata AnimPdata;
 typedef struct AnimScript AnimScript;
-typedef struct KonquestAnimPdata KonquestAnimPdata;
 typedef struct KonquestNpc KonquestNpc;
 
 typedef struct KonquestLipSyncPdata {
@@ -16,7 +15,7 @@ typedef struct KonquestLipSyncPdata {
     KonquestNpc* npc;
     union {
         AniTextureControl* texture;
-        KonquestAnimPdata* animation;
+        AnimPdata* animation;
         AnimPdata* player_animation;
     };
     union {

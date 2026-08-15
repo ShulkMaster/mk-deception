@@ -8,15 +8,14 @@
 #include "game/pfxscript.h"
 #include "game/projectile.h"
 #include "game/konquest.h"
+#include "game/ejb.h"
+#include "game/plyr.h"
 #include "math/gxVect.h"
 #include "runtime/limb.h"
-#define PLYR_PDATA_TYPES_ONLY
-#include "runtime/plyr_pdata.h"
-
+#include "runtime/mk_vtbl.h"
 extern unsigned char* current_args;
 extern unsigned char* active_cmdscript;
 extern unsigned char exit_table_340[];
-extern unsigned char* plyr_pdata;
 extern unsigned char* plyr_obj;
 extern unsigned char* plyr_anim_pdata;
 extern unsigned int pz_fighter_state;
@@ -35,20 +34,6 @@ typedef struct PlyrInfo PlyrInfo;
 typedef struct SObj SObj;
 typedef struct BgndAppendTextureEntry BgndAppendTextureEntry;
 typedef struct BgndSwapTextureEntry BgndSwapTextureEntry;
-
-typedef struct ScriptSleepVtable {
-    void (*fn0)(void);
-    void (*fn1)(void);
-    void (*fn2)(void);
-    void (*fn3)(void);
-    void (*fn4)(void);
-    void (*fn5)(void);
-    void (*sleep)(void);
-} ScriptSleepVtable;
-
-typedef struct ScriptProc {
-    ScriptSleepVtable* vtbl;
-} ScriptProc;
 
 typedef struct ScriptFlagWordView {
     MkHdr hdr;
@@ -613,7 +598,7 @@ typedef struct ScriptExitView {
     char pad00[0x20];
     int state;
     char pad24[0x188];
-    ScriptEntryFn exit;
+    ScriptProcEntryFn exit;
 } ScriptExitView;
 
 typedef struct ScriptExitArgs {
@@ -663,7 +648,7 @@ typedef struct ScriptActiveState {
 
 typedef struct ScriptOpponentProcLatch {
     char pad00[0x5C];
-    MkHdr* proc;
+    MkProc* proc;
     unsigned int proc_instance;
 } ScriptOpponentProcLatch;
 
@@ -824,14 +809,11 @@ typedef union PlayerPdataRef {
 
 typedef union ExitTableRef {
     unsigned char* bytes;
-    ScriptEntryFn* entries;
+    ScriptProcEntryFn* entries;
 } ExitTableRef;
 
 extern float _mkproc_sleep_ticks;
 extern float inverse_game_speed;
-extern ScriptProc* aproc;
-void j_exit_6(void);
-void j_exit_react(void);
 void update_bone_hierarchy(void* object);
 void ground_me(void* object);
 void nis_init(int state, int arg0, int arg1);
@@ -848,8 +830,7 @@ void stop_usec_timer(int timer);
 void start_usec_timer(int timer);
 int printf(const char* format, ...);
 void obj_setup_for_animation(void* object, void* anim, int frame, int flags);
-void xfer_proc(void* proc, void* entry);
-void* pdata_of_proc(void* proc);
+void xfer_proc(MkProc* proc, MkProcEntryFn entry);
 void update_mkobj(void* object);
 void* get_mkobj_frame(int id, int frame);
 void setup_screen_for_fatality(void);
@@ -872,20 +853,16 @@ void glitch_to_ani_frame(void* animation, int flags,
 void blend_to_ani_frame(void* animation, int flags,
                         ScriptAnimationArgs* args, float frame, float blend);
 void glitch_to_ani(void* animation, int flags);
-void blend_to_ani(void* animation, int flags, ScriptAnimationArgs* args,
-                  float blend);
 void reaction_xfer_him_nohit(void* entry);
 void camera_set_lookat_focus(void* object);
 void set_anim_hiframe(void* script_args, float frame);
 int was_button_pressed(int button);
 int am_i_airborn(void);
-int am_i_blocking(void);
 int is_his_chest_to_screen(void);
 int is_my_chest_to_screen(void);
 int am_i_on_the_left2(void* me, void* him);
 int am_i_on_the_left(void);
 int is_he_flipped(void);
-int am_i_flipped_or_turned(void);
 int am_i_flipped(void);
 int is_fast_getup(void);
 int disable_impale_check(void);
@@ -1079,27 +1056,6 @@ void obj_get_ang_vel(void* out, void* object);
 void obj_set_ang_vel(void* object, void* value);
 void obj_set_pos_vel(void* object, void* value);
 void obj_get_pos_vel(void* out, void* object);
-int plyr_pdata_is_alt_costume(PlyrInfo* pdata);
-int plyr_pdata_get_previous_state(void* pdata);
-int plyr_pdata_get_state(void* pdata);
-int plyr_pdata_get_pchr(void* pdata);
-int plyr_pdata_sidekick_active(void* pdata);
-int plyr_pdata_get_plyr_num(void* pdata);
-void* plyr_pdata_get_cmo(void* pdata);
-void* plyr_pdata_get_sidekick_obj(void* pdata);
-void* plyr_pdata_get_his_obj(void* pdata);
-void* plyr_pdata_get_plyr_obj(void* pdata);
-void* plyr_pdata_get_his_plyr_pdata(void* pdata);
-void* plyr_pdata_get_plyr_info(void* pdata);
-float plyr_anim_get_frame(void* anim);
-void* get_my_plyr_anim_pdata(void);
-void* get_my_plyr_pdata(void);
-void* get_his_plyr_pdata(void);
-int get_plyr_obj_plyr_num(void* object);
-void* get_my_sidekick_obj(void);
-void* get_my_plyr_obj(void);
-void* get_his_plyr_obj(void);
-void* get_plyr_info(void);
 void* obj_find_sobj_by_id(void* object, unsigned int id);
 void obj_set_light_flag(void* object, int flag);
 void sobj_get_ang(void* out, void* sobj);
@@ -1239,7 +1195,6 @@ void* limb_sever_find_existing_update_proc(int a, int b, int c);
 void limb_sever_update_slide_end_coeff(int a, float b);
 void* proc_of_anim_pdata(void* anim);
 void set_pdata_anim_step(void* anim, float step);
-void puzzle_fighter_scale(void* object, float scale);
 void plyr_turn_on_shadowbox(int a);
 void plyr_turn_off_shadowbox(PlyrInfo* player);
 void plyr_turn_on_mirrorguy(int a);
@@ -1457,8 +1412,6 @@ void resume_effect_at_plyr_num_bid(int player, int bone_id, int effect_handle,
                                    int bind_mode, int blood_required);
 
 /* Typed declarations used by imported script wrappers. */
-int active_sidekick_swap_from_behind(int);
-int active_sidekick_swap_from_sky(int);
 int add_facial_damage(void *, float);
 int add_npc_list_to_world(int);
 int add_trigger_list_to_world(void);
@@ -1475,7 +1428,6 @@ int ani_x_more_frames(void *, float);
 int auto_ani_on(void);
 int back_rollup_check(void);
 int back_rollup_check_reverse(void);
-int back_to_normal(void);
 int bgnd_active_sobj_no_ztest(void);
 int bgnd_active_sobj_no_zwrite(void);
 int bgnd_add_wall_to_hide(int);
@@ -1542,7 +1494,6 @@ int bgnd_unhide_sobj_and_children(int);
 int bgnd_update_active_mksobj(void);
 int bgnd_xfer_attacker(int);
 int blast_effect_at_plyr(void);
-int blend_to_stance(void *, float);
 int bulvan_function(int);
 int cam_recalc_midpoint(void);
 int camera_idle(void);
@@ -1581,7 +1532,6 @@ int damage_him(void *, float);
 int damage_me(void *, float);
 int danger_zone_eligible_on(void);
 int destroy_kabal_smoke(void);
-int destroy_mkprocs_pid(int);
 int destroy_sobj_ctrl_proc(void);
 int disable_attack5(int);
 int disable_blocking(void);
@@ -1626,7 +1576,6 @@ int get_projectile_script_velocity(int);
 int give_reward_to_player(int);
 int gusher_destroy_list(void);
 int head_tracking_off(void);
-int head_tracking_on(void);
 int hero_handle_conversation(void);
 int hero_stop_moving(void);
 int hero_turn_to_face_position(int);
@@ -1643,7 +1592,6 @@ int init_3d_move_no_aniproc(void);
 int init_3d_move_no_face(void);
 int init_air_move(void);
 int init_air_move_no_aniproc(void);
-int init_ground_move(void);
 int init_ground_move_no_aniproc(void);
 int init_move(void);
 int init_scripted_camera(void);
@@ -1679,7 +1627,6 @@ int konquest_show_hud(void);
 int konquest_start_npc_interaction(void);
 int konquest_start_npc_nis(void);
 int konquest_transition_to_fight(int);
-int load_aux_weapon(int);
 int load_tile_objects(int);
 int low_flash_check(void);
 int match_my_ypos_with_his(void);
@@ -1809,8 +1756,7 @@ int pz_fighter_wipe_blood_off_hands(void);
 int random_dk_foot(void);
 int random_voice_him(int);
 int register_baraka_cb_functions(void);
-int release_both_players(void);
-int release_other_player(void);
+void release_both_players(void);
 int remove_collision_volume_on_object(void);
 int remove_impaled_projectiles(void);
 int remove_npc_list(int);
@@ -1819,7 +1765,6 @@ int restore_collision_volume_on_object(void);
 int restore_hero_grounding(void);
 int resume_hero_state_process(void);
 int retract_spear_from_camera(int);
-int rotate_towards_him(void *, float);
 int scorpion_teleport_position(void);
 int set_active_projectile_2d_track(void);
 int set_active_projectile_3d_track(void);
@@ -1827,7 +1772,6 @@ int set_active_projectile_continue_thru_hit(void);
 int set_age_progression(int);
 int set_ani_speed(void *, float);
 int set_ani_weight(void *, float);
-int set_attack_type(int);
 int set_attackers_attack_region(int);
 int set_block_requirement(int);
 int set_both_face_opponent_flags(void);
@@ -1848,7 +1792,6 @@ int set_monk_age(int);
 int set_movement_npc(int);
 int set_my_float_1(void *, float);
 int set_my_secondary_state(int);
-int set_my_state(int);
 int set_reference_pui(int);
 int setup_for_flip_ani(void);
 int setup_interior_fighting_arena(void);
@@ -1929,7 +1872,6 @@ int weapon_trail_on(void);
 int whoosh_fx(int);
 
 /* Typed declarations used by imported script wrappers. */
-int active_sidekick_swap_change_style(int);
 int add_days_to_time(int, int);
 int add_hours_to_time(int, int);
 int add_months_to_time(int, int);
@@ -2058,7 +2000,6 @@ int cloth_change_ground_plane_for(void *, float);
 int damage_player(int, void *, float);
 int delete_obstacle_from_background_by_id(int);
 int disable_konquest_object_zwrite_by_uid(int);
-int disable_this_move_exec(int, int);
 int dk_voice_call(int, int);
 int drone_apply_damage(int, void *, float);
 int drone_change_to_style(int, int);
@@ -2376,7 +2317,6 @@ int get_monk_age(void);
 int get_my_particle_player_bank_num(void);
 int get_my_plyr_num(void);
 int get_pickup_object(void);
-int get_plyr_pdata_plyr_num(int);
 int get_previous_konquest_region_number(void);
 int get_projectile_his_plyr_num(void);
 int get_projectile_script_plyr_num(void);
@@ -2399,7 +2339,6 @@ int is_mini_mission_active(int);
 int is_mini_mission_completed(int);
 int is_mini_mission_started(int);
 int is_reaction_xfer_him_allowed(void);
-int is_sidekick_active(int);
 float jump_towards_opponent_bgnd_transition(void);
 int konquest_passed_last_mission(void);
 int load_krypt_character(void);
@@ -2445,7 +2384,6 @@ int spawn_dynamic_pui_critical(int);
 float throw_spear(void);
 int trial_get_background_root(void);
 int trial_invisible_callback(int);
-float xz_distance_between_players(void);
 
 /* Typed declarations used by imported script wrappers. */
 float bgnd_blood_control(int, int, void *, float);
@@ -2459,7 +2397,6 @@ int fire_spear_at_camera(int, int);
 float get_adjusted_speed(void *, float, float);
 int get_konq_profile_value(int, int);
 int is_character_unlocked_in_profile(int, int);
-int is_special_move_available(int, int);
 int jab_attach_point_light_to_obj_bone(int, int, int);
 int jab_spawn_point_light_at_world_pos(int, int);
 int konquest_start_damashi(void *, float, float, float);
@@ -2481,7 +2418,6 @@ int snd_req_vol(int, void *, float);
 float spad_get_pos(int, int);
 float spad_xz_cos_two_vectors(int, int);
 float spad_xz_dot_xz(int, int);
-int taunt_increase_life(void *, float, float);
 
 /* Typed declarations used by imported script wrappers. */
 int bgnd_launch_fx_at_plyr_pos_and_y(void *, float);
@@ -2581,7 +2517,6 @@ int set_camera_target_angle(int *);
 
 /* Typed declarations used by imported script wrappers. */
 int credits_add_text(char*, int);
-int set_anim_script(int, void*, int);
 int trial_add_required_sequence(char*);
 int trial_set_move_message(char*);
 
@@ -2682,11 +2617,14 @@ void _two_player_animation_blend(void) {
 
 void _set_anim_script(void) {
     ScriptArgsRef args;
-    int temp_r31_239;
+    AnimPdata* animation;
 
     args.bytes = current_args;
-    temp_r31_239 = args.raw->slots[0].i;
-    set_anim_script(temp_r31_239, get_animation(args.raw->slots[1].i), args.raw->slots[2].i);
+    animation = (AnimPdata*)args.raw->slots[0].pointer;
+    set_anim_script(
+        animation,
+        (AniData*)get_animation(args.raw->slots[1].i),
+        args.raw->slots[2].i);
 }
 
 void _anim_pdata_for_proc(void) {
@@ -2973,7 +2911,7 @@ void _my_attack_hit(void) {
     ScriptResultRef script;
     PlayerPdataRef player;
 
-    player.bytes = plyr_pdata;
+    player.bytes = (unsigned char*)plyr_pdata;
     if (player.player->collision_result == 1) {
         script.bytes = active_cmdscript;
         script.integer->value = 1;
@@ -3108,7 +3046,7 @@ void _exit_attack_with(void) {
 
     args.bytes = current_args;
     result.bytes = active_cmdscript;
-    player.bytes = plyr_pdata;
+    player.bytes = (unsigned char*)plyr_pdata;
     player.player->script_exit_value_int = args.exit_args->exit_value;
     player.player->script_exit_args[0] = args.exit_args->exit_arg0;
     player.player->input_unlock_tick = args.exit_args->input_unlock_tick;
@@ -3470,21 +3408,21 @@ void _glitch_him_to_ani(void) {
     ScriptResultRef script;
     PlayerPdataRef player;
     ScriptOpponentProcLatch* opponent;
-    MkHdr* proc;
-    void* pdata;
+    MkProc* proc;
+    AnimPdata* pdata;
 
     args.bytes = current_args;
     script.bytes = active_cmdscript;
     script.command->animation = get_animation(args.raw->slots[0].i);
-    player.bytes = plyr_pdata;
+    player.bytes = (unsigned char*)plyr_pdata;
     opponent = (ScriptOpponentProcLatch*)player.player->his_plyr_pdata;
     proc = opponent->proc;
     if (proc != 0 && proc->instance != opponent->proc_instance) {
         proc = 0;
     }
     if (proc != 0) {
-        pdata = pdata_of_proc(proc);
-        set_anim_script((int)pdata, script.command->animation,
+        pdata = (AnimPdata*)pdata_of_proc(proc);
+        set_anim_script(pdata, (AniData*)script.command->animation,
                         args.raw->slots[1].i);
     }
 }
@@ -3626,8 +3564,10 @@ void _blend_to_ani(void) {
     script.command->animation = animation;
     args.bytes = current_args;
     script.bytes = active_cmdscript;
-    blend_to_ani(script.command->animation, args.animation->flags,
-                 args.animation, args.animation->frame);
+    blend_to_ani(
+        (AniData*)script.command->animation,
+        args.animation->flags,
+        args.animation->frame);
 }
 
 void _exit_react(void) {
@@ -3637,7 +3577,7 @@ void _exit_react(void) {
 
     args.bytes = current_args;
     result.bytes = active_cmdscript;
-    player.bytes = plyr_pdata;
+    player.bytes = (unsigned char*)plyr_pdata;
     player.player->script_exit_value_int = args.exit_args->exit_value;
     player.player->script_exit_args[0] = args.exit_args->exit_arg0;
     player.player->input_unlock_tick = args.exit_args->input_unlock_tick;
@@ -3667,7 +3607,7 @@ void _exit_float_int(void) {
 
     args.bytes = current_args;
     script.bytes = active_cmdscript;
-    player.bytes = plyr_pdata;
+    player.bytes = (unsigned char*)plyr_pdata;
     exits.bytes = exit_table_340;
 
     script.exit->exit = exits.entries[args.exit_float_int->exit_index];
@@ -9053,7 +8993,7 @@ void _load_aux_weapon(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    load_aux_weapon(args.raw->slots[0].i);
+    load_aux_weapon(args.raw->slots[0].pointer);
 }
 
 void _ani_loop_more_frames(void) {
@@ -9482,35 +9422,38 @@ void _active_sidekick_swap_from_behind(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    active_sidekick_swap_from_behind(args.raw->slots[0].i);
+    active_sidekick_swap_from_behind(args.plyr_pdata->player);
 }
 
 void _active_sidekick_swap_from_sky(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    active_sidekick_swap_from_sky(args.raw->slots[0].i);
+    active_sidekick_swap_from_sky(args.plyr_pdata->player);
 }
 
 void _active_sidekick_swap_change_style(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    active_sidekick_swap_change_style(args.raw->slots[0].i);
+    active_sidekick_swap_change_style(args.plyr_pdata->player);
 }
 
 void _is_sidekick_active(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = is_sidekick_active(args.raw->slots[0].i);
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        is_sidekick_active((PlyrInfo*)args.raw->slots[0].pointer);
 }
 
 void _taunt_increase_life(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = taunt_increase_life(current_args, args.raw->slots[0].f, args.raw->slots[1].f);
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        taunt_increase_life(
+            args.raw->slots[0].f, args.raw->slots[1].f);
 }
 
 void _get_collision_result(void) {
@@ -9694,14 +9637,18 @@ void _get_plyr_pdata_plyr_num(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = get_plyr_pdata_plyr_num(args.raw->slots[0].i);
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        get_plyr_pdata_plyr_num(args.raw->slots[0].i);
 }
 
 void _is_special_move_available(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = is_special_move_available(args.raw->slots[0].i, args.raw->slots[1].i);
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        is_special_move_available(
+            (PlyrPdata*)args.raw->slots[0].pointer,
+            args.raw->slots[1].i);
 }
 
 void _retract_spear_from_camera(void) {
@@ -12621,7 +12568,7 @@ void _rotate_towards_him(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    rotate_towards_him(current_args, args.raw->slots[0].f);
+    rotate_towards_him(args.raw->slots[0].f);
 }
 
 void _disable_both_repel_flags(void) {
@@ -13097,5 +13044,5 @@ void _blend_to_stance(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    blend_to_stance(current_args, args.raw->slots[0].f);
+    blend_to_stance(args.raw->slots[0].f);
 }

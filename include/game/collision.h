@@ -3,6 +3,7 @@
 
 #include "math/gxVect.h"
 #include "runtime/mk_struct.h"
+#include "runtime/plyr_info.h"
 
 typedef struct CollisionPaddedVec {
     Vec value;
@@ -101,5 +102,6 @@ void build_col_shape_vertical_box(
     float depth, float angle);
 int is_point_inside_shape(const CollisionShape* shape, const Vec* point);
 void update_collision_obj_pos(CollisionObj* object, const Vec* position);
+void init_player_collision(PlyrInfo* player);
 
 #endif
