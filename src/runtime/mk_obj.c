@@ -768,7 +768,7 @@ static float p_headtracking_die(void) {
     return -1.0f;
 }
 
-void create_mkproc_headtracking(int pid, void* obj, void* target) {
+MkProc* create_mkproc_headtracking(int pid, MkObj* obj, void* target) {
     HeadTrackingPdata* pdata;
     MkProc* proc;
 
@@ -778,13 +778,14 @@ void create_mkproc_headtracking(int pid, void* obj, void* target) {
     if (proc != 0) {
         proc->pre_destroy = trackhead_prewake;
         proc->destroy_cb = trackhead_postsleep;
-        pdata->obj = (MkObj*)obj;
+        pdata->obj = obj;
         pdata->target = target;
-        ((MkObj*)obj)->flags_09 |= 2;
+        obj->flags_09 |= 2;
         pdata->angle_x = 0.0f;
         pdata->angle_y = 0.0f;
         pdata->angle_z = 0.0f;
     }
+    return proc;
 }
 
 static float p_plyr_head_tracking(void) {

@@ -531,7 +531,7 @@ void dead_liukang_snd_chain_check(
     PlyrPdata* player, int sound_chain, int minimum, int maximum);
 void transition_to_anim_script(
     AnimPdata* anim, AniData* animation, int transition, float blend_rate);
-void sidekick_cool_vanish(PlyrPdata* player);
+float sidekick_cool_vanish(PlyrPdata* player);
 void init_air_move_no_aniproc(void);
 void set_jump_towards_velocities(void);
 void jump_towards_opponent(void);
@@ -620,7 +620,7 @@ void dizzy_kill_pfx(
     MkObj* opponent, int unused, PlyrPdata* player, int enabled);
 int was_button_pressed(int button);
 int drone_ai_check_next_block_state(unsigned int tick);
-void active_sidekick_swap(PlyrPdata* player, int moveset);
+float active_sidekick_swap(PlyrPdata* player, int moveset);
 void tightrope_restrictions_off(void);
 float sqrtf(float value);
 
