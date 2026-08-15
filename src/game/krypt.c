@@ -446,14 +446,7 @@ void create_fullscreen_gallery_image_list(int* out, int count) {
     }
 }
 
-static int kontent_gallery_movie_tapout(void) {
-    scan_switches();
-    if (check_switch_edge(kontent_pdata->player_port, 0xB) != 0 ||
-        check_switch_edge(kontent_pdata->player_port, 6) != 0) {
-        return 1;
-    }
-    return 0;
-}
+static int kontent_gallery_movie_tapout(void);
 
 void start_loading_kontent_image(void) {
     int coffin;
@@ -507,6 +500,16 @@ void start_loading_kontent_image(void) {
         fire_screen_studio_event(0x1FEA, 1);
     }
 }
+
+static int kontent_gallery_movie_tapout(void) {
+    scan_switches();
+    if (check_switch_edge(kontent_pdata->player_port, 0xB) != 0 ||
+        check_switch_edge(kontent_pdata->player_port, 6) != 0) {
+        return 1;
+    }
+    return 0;
+}
+
 void kontent_set_current_selection(int selection) {
     kontent_pdata->current_selection = selection;
 }
