@@ -4,6 +4,8 @@
 #include "runtime/mk_proc.h"
 
 typedef struct AnimScript AnimScript;
+typedef struct AnimEntryName AnimEntryName;
+typedef struct AniData AniData;
 typedef struct MkObj MkObj;
 typedef struct PlyrPdata PlyrPdata;
 typedef struct MkProc MkProc;
@@ -26,7 +28,11 @@ typedef struct AnimPdata {
         unsigned int last_update_tick; /* +0x24 - pose_anim update latch */
     };
     char pad28[4];
-    unsigned int script_word; /* +0x2C - preserved by player proc teardown */
+    union {
+        unsigned int script_word; /* preserved by player proc teardown */
+        AnimEntryName* script_entry;
+        AniData* animation;
+    }; /* +0x2C */
     unsigned int flags; /* +0x30 */
     char pad34[4];
     float frame;      /* +0x38 */
@@ -36,14 +42,17 @@ typedef struct AnimPdata {
     char pad48[0x1C];
     float weight;     /* +0x64 */
     float weight_velocity; /* +0x68 */
-    char pad6C[0x3C];
+    char pad6C[4];
+    unsigned int old_flags; /* +0x70 - previous animation flags */
+    char pad74[0x34];
     float transition_weight; /* +0xA8 */
     float transition_step; /* +0xAC */
     float transition_accel; /* +0xB0 */
     float hand_transition; /* +0xB4 */
     float transition_target; /* +0xB8 */
     char padBC[4];
-    char padC0[0x10];
+    char padC0[0x0C];
+    unsigned char* bone_remap; /* +0xCC - auxiliary bone index remapping */
     MkProcEntryFn hand_script; /* +0xD0 */
     char padD4[0x20];
     int rest_ticks;   /* +0xF4 - weapon rest-loop countdown */

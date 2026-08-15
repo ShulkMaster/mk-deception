@@ -74,7 +74,8 @@ typedef struct GamePauseFlags {
     unsigned char fatality_window : 1; /* bit7 */
     unsigned char pad_bit6 : 1;
     unsigned char ladder_complete : 1; /* bit5 */
-    unsigned char pad_4_3 : 2;
+    unsigned char pad_bit4 : 1;
+    unsigned char shared_hand_anims_loaded : 1;
     unsigned char controller_disable_guard : 1; /* bit2 */
     unsigned char controllers_disabled : 1;     /* bit1 */
     unsigned char paused : 1;                   /* bit0 */

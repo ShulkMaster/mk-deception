@@ -129,7 +129,7 @@ int vdestroy_cmdscript(CmdScript* script);
 void unload_script(int slot_index);
 ScriptSlot* cmdscript_loadfile_language_by_name_async(int language, char* name);
 ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name);
-ScriptSlot* cmdscript_loadfile_by_name(int language, char* name);
+ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name);
 ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_info);
 ScriptSlot* cmdscript_loadfile_language(int language, MkFileInfo* file_info);
 ScriptSlot* cmdscript_loadfile(int slot_index, MkFileInfo* file_info);

@@ -8,7 +8,10 @@ typedef struct MkObj MkObj;
 typedef struct LoadBgndCtx {
     int art_id;
     MkObj* bgnd_obj;
-    int pad;
+    union {
+        void* field_08;
+        int pad;
+    };
 } LoadBgndCtx;
 
 #ifdef __cplusplus
