@@ -5,7 +5,7 @@ void snd_req(int sound_id);
 int random_snd_req(int group);
 int pan_vol_pitch_random_snd_req(int group, float pan, float volume, float pitch);
 void set_snd_vol(int handle, int sound_id, float volume);
-void init_sounds(void);
+int init_sounds(void);
 void setup_sound_banks(int load_mode);
 void wait_for_sound_banks_to_load(void);
 void start_tunes(void);

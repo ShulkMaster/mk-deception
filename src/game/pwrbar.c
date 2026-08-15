@@ -150,6 +150,18 @@ static inline ScreenObj* screen_latch_object(ScreenLatch* latch) {
     return object;
 }
 
+static inline ScreenObj* validated_screen_latch_object(ScreenLatch* latch) {
+    ScreenObj* object = latch->object;
+
+    if (object != 0) {
+        if ((unsigned int)object->instance == latch->instance) {
+            return object;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 static inline FightingLightState* fighting_light_state(PlyrInfo* player) {
     return &player->fighting_lights;
 }
@@ -997,33 +1009,14 @@ static float p_power_bar_proc(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: 98.58% -- latch branch direction and pool labels only. */
 static void update_power_bar_verts(void) {
     ScreenObj* player1;
     ScreenObj* player2;
     float life;
     float fill;
 
-    player1 = p1_pbar_item.object;
-    if (player1 != 0) {
-        if ((unsigned int)player1->instance == p1_pbar_item.instance) {
-            /* Keep the live object. */
-        } else {
-            player1 = 0;
-        }
-    } else {
-        player1 = 0;
-    }
-    player2 = p2_pbar_item.object;
-    if (player2 != 0) {
-        if ((unsigned int)player2->instance == p2_pbar_item.instance) {
-            /* Keep the live object. */
-        } else {
-            player2 = 0;
-        }
-    } else {
-        player2 = 0;
-    }
+    player1 = validated_screen_latch_object(&p1_pbar_item);
+    player2 = validated_screen_latch_object(&p2_pbar_item);
     if (player1 == 0 || player2 == 0) {
         return;
     }

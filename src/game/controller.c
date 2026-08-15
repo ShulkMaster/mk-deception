@@ -791,7 +791,6 @@ void init_player_switch_maps(void) {
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
 
-/* Soft ceiling: get_player_for_port ~98.82% - one unreachable retail branch. */
 PlyrInfo* get_player_for_port(int port) {
     PlyrInfo* player;
     int i;
@@ -829,15 +828,18 @@ PlyrInfo* get_player_for_port(int port) {
     if (found != 0) {
         player = g_game_info.pads[i].player;
         if (player == &g_game_info.plyr0) {
-            return &g_game_info.plyr1;
+            player = &g_game_info.plyr1;
+        } else {
+            player = &g_game_info.plyr0;
         }
-        return &g_game_info.plyr0;
+    } else {
+        if (port == 0 || port == 2) {
+            player = &g_game_info.plyr0;
+        } else {
+            player = &g_game_info.plyr1;
+        }
     }
-
-    if (port == 0 || port == 2) {
-        return &g_game_info.plyr0;
-    }
-    return &g_game_info.plyr1;
+    return player;
 }
 
 #pragma opt_unroll_loops off

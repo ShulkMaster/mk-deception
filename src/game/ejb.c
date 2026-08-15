@@ -1923,9 +1923,8 @@ void animpdata_ani_1_frame(AnimPdata* anim) {
 }
 
 void ani_1_frame(void) {
-    AnimPdata* anim;
+    AnimPdata* anim = plyr_anim_pdata;
 
-    anim = plyr_anim_pdata;
     advance_anim(anim);
     pose_anim(anim, 1);
 }
@@ -2333,7 +2332,7 @@ void ejb_release_other_player(int reaction) {
     release_other_player();
     his_obj->flags_09_bits.face_opponent = 0;
     plyr_obj->flags_09_bits.face_opponent = 0;
-    reaction_xfer_him(reaction, 2.0f, 0);
+    reaction_xfer_him(reaction, 2.0f, 2);
 }
 
 void ejb_too_close_repell(void) {
@@ -4412,10 +4411,10 @@ int disable_impale_check(void) {
         return 1;
     }
     previous_state = plyr_pdata->previous_state;
-    if (previous_state == (unsigned int)-0x39FE) {
+    if (previous_state == 0xC602U) {
         return 1;
     }
-    if (previous_state == (unsigned int)-0x3A00) {
+    if (previous_state == 0xC600U) {
         return 1;
     }
     return previous_state == 0x4206U;

@@ -370,7 +370,7 @@ void set_active_projectile_upward_attack(const Vec* target) {
 }
 
 int get_bid_with_flip(MkObj* object, unsigned int bone_id) {
-    if ((object->hide_flags & 0x40) != 0) {
+    if (object->hide_flag_bits.bit6) {
         ProjectileFlippedBoneMap* flipped =
             (ProjectileFlippedBoneMap*)object->flipped_bone_map;
 

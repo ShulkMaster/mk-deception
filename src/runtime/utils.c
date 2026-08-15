@@ -394,7 +394,7 @@ void get_point_on_circle(float* center, float radius, float angle, float* out) {
 void award_koins_to_player(int player, int amount, int koin_type) {
 }
 
-void show_koin_award(int player, int amount) {
+void show_koin_award(int player, int amount, int koin_type, int y) {
 }
 
 void sobj_set_bounding_sphere_radius(void* sobj, float radius) {
@@ -985,7 +985,7 @@ void pfx_2d_obj_set_alpha_by_id(int id, int alpha) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-void pfx_2d_obj_set_alpha(ScreenObj* obj, int alpha) {
+void pfx_2d_obj_set_alpha(ScreenObj* obj, unsigned char alpha) {
     int i;
 
     for (i = 0; i < 4; i++) {

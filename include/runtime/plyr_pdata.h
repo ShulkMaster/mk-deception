@@ -127,7 +127,8 @@ typedef struct PlyrStateFlagBits {
     unsigned char frozen : 1; /* bit6 - freeze-light lifetime */
     unsigned char pad_bit5 : 1;
     unsigned char dizzy : 1; /* bit4 - held in the puzzle dizzy state */
-    unsigned char pad_bits3_2 : 2;
+    unsigned char bit3 : 1;
+    unsigned char pad_bit2 : 1;
     unsigned char projectile_invulnerable : 1; /* bit1 */
     unsigned char projectile_request : 1; /* bit0 - sidekick projectile request */
 } PlyrStateFlagBits;

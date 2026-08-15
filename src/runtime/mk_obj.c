@@ -2277,30 +2277,30 @@ void* sobj_find_material_by_id(void* sobj, int id) {
     return 0;
 }
 
-void* sobj_find_material_with_texture(void* sobj, void* tex) {
+RpMaterial* sobj_find_material_with_texture(
+    MkSobj* sobj, const char* texture_name) {
     MaterialTextureFind find;
-    MkSobj* mksobj = (MkSobj*)sobj;
 
-    find.name = (const char*)tex;
-    find.material = 0;
+    find.name = texture_name;
     find.texture = 0;
-    if (mksobj->atomic != 0) {
+    find.material = 0;
+    if (sobj->atomic != 0) {
         RpGeometryForAllMaterials(
-            mksobj->atomic->geometry, material_find_texture_callback, &find);
+            sobj->atomic->geometry, material_find_texture_callback, &find);
     }
     return find.material;
 }
 
-void* obj_find_material_with_texture(void* obj, void* tex) {
+RpMaterial* obj_find_material_with_texture(
+    MkObj* obj, const char* texture_name) {
     MaterialTextureFind find;
-    MkObj* mkobj = (MkObj*)obj;
 
-    find.name = (const char*)tex;
-    find.material = 0;
+    find.name = texture_name;
     find.texture = 0;
-    if (mkobj->clump != 0) {
+    find.material = 0;
+    if (obj->clump != 0) {
         RpClumpForAllAtomics(
-            mkobj->clump, atomic_find_texture_callback, &find);
+            obj->clump, atomic_find_texture_callback, &find);
     }
     return find.material;
 }
@@ -2859,26 +2859,26 @@ void material_set_texture_pointer(
 static RpMaterial* material_null_texture_pointer(
     RpMaterial* material, void* data) {
     int effect;
-    RpMatFXEnvMapData* env;
+    RpMatFXDualData* dual;
     RpMatFXBumpMapData* bump;
 
     material->texture = 0;
     effect = RpMatFXMaterialGetEffects(material);
     if (effect != rpMATFXEFFECTNULL) {
-        if (effect == rpMATFXEFFECTENVMAP) {
-            env = (RpMatFXEnvMapData*)MatFXGetData(
-                material, rpMATFXEFFECTENVMAP);
-            env->texture = 0;
+        if (effect == rpMATFXEFFECTDUAL) {
+            dual = (RpMatFXDualData*)MatFXGetData(
+                material, rpMATFXEFFECTDUAL);
+            dual->texture = 0;
         } else if (effect == rpMATFXEFFECTBUMPMAP) {
             bump = (RpMatFXBumpMapData*)MatFXGetData(
                 material, rpMATFXEFFECTBUMPMAP);
             bump->bumped_texture = 0;
             bump->coefficient = 1.0f;
-        } else if (effect != rpMATFXEFFECTDUAL &&
-                   effect == rpMATFXEFFECTBUMPENVMAP) {
-            env = (RpMatFXEnvMapData*)MatFXGetData(
-                material, rpMATFXEFFECTENVMAP);
-            env->texture = 0;
+        } else if (effect != rpMATFXEFFECTUVTRANSFORM &&
+                   effect == rpMATFXEFFECTDUALUVTRANSFORM) {
+            dual = (RpMatFXDualData*)MatFXGetData(
+                material, rpMATFXEFFECTDUAL);
+            dual->texture = 0;
         }
     }
     return material;

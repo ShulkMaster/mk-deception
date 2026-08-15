@@ -1208,8 +1208,8 @@ int is_weapon_style(int a);
 int am_i_female(int a);
 float sobj_set_bounding_sphere_radius(void* sobj, float value);
 float sobj_get_bounding_sphere_radius(void* sobj);
-int play_his_snd_req(int a);
-int play_his_random_voice(int a);
+unsigned long play_his_snd_req(int a);
+unsigned long play_his_random_voice(int a);
 void obj_unhide_material_by_id(void* object, int id);
 void obj_hide_material_by_id(void* object, int id);
 void bm_force_fake_child_bid(int a, int b);
@@ -1417,7 +1417,7 @@ int bgnd_get_int(int value_id);
 void mks_start_fatality_iceball(int player);
 void mks_debug_display_cloth_ontop(int enabled);
 void start_bow(int player, float strength);
-int get_bid_with_flip(MkObj* object, int bone_id);
+int get_bid_with_flip(MkObj* object, unsigned int bone_id);
 void start_plyr_attack(float radius);
 void set_active_projectile_upward_attack(const Vec* velocity);
 void set_active_add_ang_y(float angle);
@@ -2298,7 +2298,7 @@ int trial_set_round_health_restoration(void *, float);
 void trial_start_countdown(int, float, float);
 void trial_state_collision_check(int, int);
 int trigger_set_time_for_enable(int, int, int, int);
-int uv_my_angle_y(int, void *, float);
+void uv_my_angle_y(void* direction, float angle_offset);
 int xfer_player_proc_to_script(int, int);
 
 /* Typed declarations used by imported script wrappers. */
@@ -9535,7 +9535,8 @@ void _uv_my_angle_y(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    uv_my_angle_y(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
+    uv_my_angle_y(
+        args.raw->slots[0].pointer, args.raw->slots[1].f);
 }
 
 void _obj_set_flipped_bones(void) {

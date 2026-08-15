@@ -571,7 +571,7 @@ void spawn_bld_splat(
 void obj_create_sobjs(MkObj* object);
 void sobj_set_priority(void* object, int priority);
 MslSoundHandle plyr_snd_req(int sound);
-void random_voice(int sound);
+MslSoundHandle random_voice(int sound);
 
 static inline NcsSpearEffect* ncs_get_spear_effect(void) {
     NcsSpearEffect* effect;
@@ -3747,22 +3747,26 @@ void mkscripts_destroy_gusher(NcsDestroyable* gusher) {
     }
 }
 
-void play_his_snd_req(int sound) {
+MslSoundHandle play_his_snd_req(int sound) {
     PlyrPdata* player;
+    MslSoundHandle handle;
 
     player = plyr_pdata;
     plyr_pdata = player->his_plyr_pdata;
-    plyr_snd_req(sound);
+    handle = plyr_snd_req(sound);
     plyr_pdata = plyr_pdata->his_plyr_pdata;
+    return handle;
 }
 
-void play_his_random_voice(int sound) {
+MslSoundHandle play_his_random_voice(int sound) {
     PlyrPdata* player;
+    MslSoundHandle handle;
 
     player = plyr_pdata;
     plyr_pdata = player->his_plyr_pdata;
-    random_voice(sound);
+    handle = random_voice(sound);
     plyr_pdata = plyr_pdata->his_plyr_pdata;
+    return handle;
 }
 
 int pfx_plyr_bankowner(const PfxPlayerBankOwner* player) {

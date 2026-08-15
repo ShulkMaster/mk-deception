@@ -72,7 +72,9 @@ typedef struct GcPadSlot {
 
 typedef struct GamePauseFlags {
     unsigned char fatality_window : 1; /* bit7 */
-    unsigned char pad_6_3 : 4;
+    unsigned char pad_bit6 : 1;
+    unsigned char ladder_complete : 1; /* bit5 */
+    unsigned char pad_4_3 : 2;
     unsigned char controller_disable_guard : 1; /* bit2 */
     unsigned char controllers_disabled : 1;     /* bit1 */
     unsigned char paused : 1;                   /* bit0 */
@@ -102,7 +104,8 @@ typedef struct GameInfoFlags {
     unsigned char high_res_path : 1; /* bit7 */
     unsigned char pad_bit6 : 1;
     unsigned char lens_flare_enabled : 1; /* bit5 */
-    unsigned char pad_bits4_3 : 2;
+    unsigned char pad_bit4 : 1;
+    unsigned char pad_bit3 : 1;
     unsigned char level_fatality_done : 1; /* bit2 */
     unsigned char pad_bit1 : 1;
     unsigned char field_bit0 : 1;
@@ -120,7 +123,7 @@ typedef struct GameInfoFlags {
  * init_bet_info_struct @ 0x80028884 and pselect_init @ 0x8008A688.
  */
 typedef struct GameInfoPselectTail {
-    int field_1d0; /* +0x1D0 - zeroed by pselect_init / init_bet_info_struct */
+    unsigned int field_1d0; /* +0x1D0 - wager-active flag */
     int field_1d4; /* +0x1D4 */
     int field_1d8; /* +0x1D8 - wager amount (>0 on cancel refund path) */
     int field_1dc; /* +0x1DC */

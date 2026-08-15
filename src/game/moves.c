@@ -472,7 +472,7 @@ void ground_me(MkHdr* object);
 void player_feet_land_chores(void);
 void ani_to_frame_x(float frame);
 void ani_to_end(void);
-void ani_1_frame(int update);
+void ani_1_frame(void);
 void got_hit_fx(int type, int sound_group, int blood, int arg3, int arg4,
                 int arg5, float rate);
 int trial_show_standard_fight_messages(void);
@@ -5332,7 +5332,7 @@ void big_boss_end_of_round(void) {
             ticks = 30;
             while (--ticks > 0) {
                 force_midpoint_calculation_update = 1;
-                ani_1_frame(1);
+                ani_1_frame();
                 moves_sleep(1.0f);
             }
             blend_to_ani(animations->walk_animation, 3, 0.1f);
@@ -5340,7 +5340,7 @@ void big_boss_end_of_round(void) {
             ticks = 30;
             while (--ticks > 0) {
                 force_midpoint_calculation_update = 1;
-                ani_1_frame(1);
+                ani_1_frame();
                 moves_sleep(1.0f);
             }
             ani_to_blend_frame(40.0f);
@@ -5353,7 +5353,7 @@ void big_boss_end_of_round(void) {
         ticks = 30;
         while (--ticks > 0) {
             force_midpoint_calculation_update = 1;
-            ani_1_frame(1);
+            ani_1_frame();
             moves_sleep(1.0f);
         }
         camera_idle();
@@ -5372,7 +5372,7 @@ void big_boss_end_of_round(void) {
             ticks = 30;
             while (--ticks > 0) {
                 force_midpoint_calculation_update = 1;
-                ani_1_frame(1);
+                ani_1_frame();
                 moves_sleep(1.0f);
             }
             ani_to_blend_frame(40.0f);
@@ -5635,7 +5635,7 @@ static float j_flying_kick2_early(void) {
     start_plyr_attack(0.0f);
 
     while (plyr_anim_pdata->frame < 12.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_pdata->collision_result == -1 && collision_2(8) != 0) {
             stop_me();
             set_collision_made_flag();
@@ -5651,7 +5651,7 @@ static float j_flying_kick2_early(void) {
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
 
@@ -5707,7 +5707,7 @@ float j_flying_kick2(void) {
     random_hit(7);
 
     while (plyr_anim_pdata->frame < 8.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_obj->gravity != 0.0f) {
             moves_sleep(1.0f);
         }
@@ -5715,7 +5715,7 @@ float j_flying_kick2(void) {
     start_plyr_attack(0.0f);
 
     while (plyr_anim_pdata->frame < 11.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_pdata->collision_result == -1 && collision_2(8) != 0) {
             stop_me();
             set_collision_made_flag();
@@ -5733,13 +5733,13 @@ float j_flying_kick2(void) {
     while (plyr_anim_pdata->frame < 14.0f &&
            plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
            plyr_obj->flags_08_bits.moving) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
 
@@ -5799,7 +5799,7 @@ static float j_flying_kick1_early(void) {
     ani_to_frame_x(10.0f);
     start_plyr_attack(0.0f);
     while (plyr_anim_pdata->frame < 12.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_pdata->collision_result == -1 && collision_2(0xD) != 0) {
             stop_me();
             set_collision_made_flag();
@@ -5814,7 +5814,7 @@ static float j_flying_kick1_early(void) {
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
     player_feet_land_chores();
@@ -5867,14 +5867,14 @@ float j_flying_kick(void) {
     random_voice(0);
     random_hit(8);
     while (plyr_anim_pdata->frame < 7.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_obj->gravity != 0.0f) {
             moves_sleep(1.0f);
         }
     }
     start_plyr_attack(0.0f);
     while (plyr_anim_pdata->frame < 10.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_pdata->collision_result == -1 && collision_2(0xD) != 0) {
             stop_me();
             set_collision_made_flag();
@@ -5892,7 +5892,7 @@ float j_flying_kick(void) {
     while (plyr_anim_pdata->frame < 13.0f &&
            plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
            plyr_obj->flags_08_bits.moving) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
     plyr_obj->flags_08_bits.moving = 1;
@@ -5900,7 +5900,7 @@ float j_flying_kick(void) {
     plyr_anim_pdata->step = 1.0f;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
     player_feet_land_chores();
@@ -5959,7 +5959,7 @@ static float j_flying_punch_early(void) {
     ani_to_frame_x(8.0f);
     start_plyr_attack(0.0f);
     while (plyr_anim_pdata->frame < 11.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_pdata->collision_result == -1 && collision_2(7) != 0) {
             stop_me();
             set_collision_made_flag();
@@ -5974,7 +5974,7 @@ static float j_flying_punch_early(void) {
     plyr_obj->flags_08_bits.moving = 1;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
     player_feet_land_chores();
@@ -6027,14 +6027,14 @@ static float j_flying_punch(void) {
     random_voice(0);
     random_hit(7);
     while (plyr_anim_pdata->frame < 7.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_obj->gravity != 0.0f) {
             moves_sleep(1.0f);
         }
     }
     start_plyr_attack(0.0f);
     while (plyr_anim_pdata->frame < 10.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         if (plyr_pdata->collision_result == -1 && collision_2(7) != 0) {
             stop_me();
             set_collision_made_flag();
@@ -6058,7 +6058,7 @@ static float j_flying_punch(void) {
             while (plyr_anim_pdata->frame < 13.0f &&
                    plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
                    plyr_obj->flags_08_bits.moving) {
-                ani_1_frame(1);
+                ani_1_frame();
                 moves_sleep(1.0f);
             }
         }
@@ -6067,7 +6067,7 @@ static float j_flying_punch(void) {
     plyr_anim_pdata->step = 1.0f;
     while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
-        ani_1_frame(1);
+        ani_1_frame();
         moves_sleep(1.0f);
     }
     player_feet_land_chores();

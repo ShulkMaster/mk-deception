@@ -120,7 +120,8 @@ void _rwObjectHasFrameSetFrame(void* object, void* frame);
 void YXZ_angles_to_MKMATRIX(const float* angles, RwMatrix* matrix);
 void* load_model_from_slot_transl(int slot_hi, int slot_lo, int flags);
 void insert_fgnd_mkobj(void* model);
-RpMaterial* obj_find_material_with_texture(void* model, const char* name);
+RpMaterial* obj_find_material_with_texture(
+    ShadowboxObject* model, const char* name);
 void obj_create_sobjs(void* model);
 void* obj_first_sobj(void* model);
 void sobj_set_priority(void* sobj, int priority);

@@ -165,8 +165,8 @@ void mslBankUnLoad(mslLoadedBank* bank);
 float mslGetVol(_mslSystem* system);
 void mslSetVol(_mslSystem* system, float volume);
 void mslStopAll(_mslSystem* system);
-_mslSystem* mslInit(void* init, MslSystemInit* system_init);
-void mslSetWavePath(_mslSystem* system, char* path);
+_mslSystem* mslInit(MslInitParam* init, MslSystemInit* system_init);
+void mslSetWavePath(_mslSystem* system, const char* path);
 unsigned int ARAM_MSL_GetBase(void);
 unsigned int ARAM_MSL_GetSize(void);
 char* strcat(char* dest, const char* src);
@@ -2007,7 +2007,7 @@ MslSoundHandle random_hit(int group) {
 
 #pragma optimization_level 4
 
-/* Soft ceiling: init_sounds ~95.5% - global-base GPR coloring and string pooling. */
+/* Soft ceiling: init_sounds ~99.97% - pooled-string relocation label only. */
 int init_sounds(void) {
     current_sound_shuffle_state = 0;
     current_konq_sound_shuffle_state = 0;

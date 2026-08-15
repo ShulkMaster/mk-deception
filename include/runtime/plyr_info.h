@@ -132,13 +132,15 @@ typedef struct FighterMirror {
 } FighterMirror;
 
 struct FighterRuntimeData {
-    char pad00[0xAC];
+    char pad00[0x6C];
+    int win_sound_id; /* +0x6C */
+    char pad70[0x3C];
     Vec* half_sever_velocities; /* +0xAC */
 };
 
 /* global_player_data[] stride 0x10 (movelist_get_character_name). */
 typedef struct GlobalPlayerEntry {
-    void* name; /* +0x00 */
+    char* name; /* +0x00 */
     char pad04[0xC];
 } GlobalPlayerEntry; /* 0x10 */
 
