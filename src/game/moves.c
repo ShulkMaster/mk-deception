@@ -8,6 +8,8 @@
 #include "runtime/utils.h"
 #include "game/game_info.h"
 #include "game/moveset.h"
+#include "game/moves.h"
+#include "game/plyr.h"
 #include "game/trial.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
@@ -463,8 +465,6 @@ void set_my_secondary_state(int state);
 void ani_x_more_frames(float frames);
 void random_voice(int group);
 void ani_to_blend_frame(float frames);
-void advance_anim(AnimPdata* animation);
-void set_anim_script(AnimPdata* anim, AniData* animation, int transition);
 int do_i_have_life_left(void);
 void stop_me(void);
 void update_bone_hierarchy(MkHdr* object);
@@ -620,7 +620,6 @@ void dizzy_kill_pfx(
     MkObj* opponent, int unused, PlyrPdata* player, int enabled);
 int was_button_pressed(int button);
 int drone_ai_check_next_block_state(unsigned int tick);
-float active_sidekick_swap(PlyrPdata* player, int moveset);
 void tightrope_restrictions_off(void);
 float sqrtf(float value);
 

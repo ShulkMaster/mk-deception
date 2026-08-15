@@ -122,7 +122,7 @@ typedef struct ReactionSharedAnimations {
     char pad1EC[0x2C];
     int post_surf_getup;         /* +0x218 */
     char pad21C[0x0C];
-    int throw_getup;             /* +0x228 */
+    AniData* throw_getup;        /* +0x228 */
     char pad22C[0x60];
     void* throw_fall;            /* +0x28C */
     char pad290[0x1C];
@@ -360,7 +360,6 @@ void myvel_his_angle_y(float y, float x, float z);
 void newani_to_frame_x(
     void* animation, int flags, float frame, float x, float z, float blend);
 void player_feet_land_chores(void);
-void set_anim_script(AnimPdata* animation, int script, int transition);
 void shake_camera(int ticks, float strength);
 void shake_hit_voice(
     int shake_ticks, int hit_voice, int fighter_voice, float rumble_scale);

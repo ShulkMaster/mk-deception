@@ -362,7 +362,7 @@ typedef struct KonquestTrigger {
     KonquestTriggerData* data; /* +0x08 */
 } KonquestTrigger;
 
-typedef struct AnimState AnimState;
+typedef AnimPdata AnimState;
 typedef struct GroundCollTable {
     int bone;
     Vec offset;
@@ -431,19 +431,7 @@ typedef struct KonquestNpcProcessPdata {
     KonquestNpc* npc; /* +0x24 */
 } KonquestNpcProcessPdata;
 
-typedef struct KonquestAnimPdata {
-    MkHdr hdr;
-    char pad08[0x24];
-    AniData* animation; /* +0x2C */
-    unsigned int flags; /* +0x30 */
-    char pad34[4];
-    float frame; /* +0x38 */
-    float low_frame; /* +0x3C */
-    float high_frame; /* +0x40 */
-    float step; /* +0x44 */
-    char pad48[8];
-    Vec root_offset; /* +0x50 */
-} KonquestAnimPdata;
+typedef AnimPdata KonquestAnimPdata;
 
 typedef struct KonquestNpcProcSleepVtable {
     char pad00[0x18];
@@ -624,8 +612,6 @@ AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object);
 void* get_data_table_by_name(const char* name);
 void transition_to_anim_script(
     KonquestAnimPdata* animation, AniData* script, int flags, float blend);
-void set_anim_script(
-    KonquestAnimPdata* animation, AniData* script, int flags);
 float anim_script_lastframe(AniData* script);
 void npc_travel_path(int path_id, int path_arg, int travel_mode);
 KonquestTileOrigin* get_nth_tile_struct(int index);
@@ -690,14 +676,10 @@ void obj_create_sobjs(MkObj* object);
 void insert_ground_me_mkobj(MkObj* object);
 CollisionObj* add_shape_to_global_collision_list(
     const CollisionShape* shape, unsigned int flags);
-void set_anim_script_frame(
-    AnimPdata* animation, AniData* script, int flags, float frame);
 void sobj_swap_material_texture(
     MkSobj* sobj, unsigned int material_id, RwTexture* texture);
 void sobj_use_material_color(void* sobj);
 void remove_fgnd_mkobj(void* object);
-int advance_anim(AnimState* animation);
-int pose_anim(AnimState* animation, int update_object);
 void konquest_open_door_sobj(KonquestDoor* door, int remain_open);
 void remove_npc(KonquestNpcData* data);
 void get_visible_tile_set(int tile_set);
@@ -7290,8 +7272,8 @@ static void load_model_for_npc(KonquestNpc* npc) {
                 get_animation(npc->data->idle_animation), 0);
         } else {
             set_anim_script_frame(
-                animation, npc->queued_animation,
-                npc->animation_flags, npc->queued_animation_frame);
+                npc->queued_animation_frame, animation,
+                npc->queued_animation, npc->animation_flags);
             if (npc->queued_animation_frame > animation->high_frame) {
                 npc->queued_animation_frame = animation->high_frame;
             }

@@ -2,6 +2,7 @@
 #include "game/bgnd.h"
 #include "game/cloth.h"
 #include "game/moveset.h"
+#include "game/plyr.h"
 #include "game/specular.h"
 #include "math/mk_math.h"
 #include "platform/main.h"
@@ -14,6 +15,8 @@
 #include "runtime/section.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/anims.h"
+#include "runtime/cstring.h"
+#include "runtime/sound.h"
 #include "runtime/asset.h"
 #include "runtime/image.h"
 #include "runtime/plyr_pdata.h"
@@ -21,8 +24,6 @@
 
 #define LOAD_PLYR_MODEL_PID 0x9032
 
-typedef AnimPdata PlyrAnimPdata;
-typedef struct WeaponDefinition WeaponDefinition;
 typedef struct ShadowObject ShadowObject;
 
 typedef union LoadPlyrFlags {
@@ -77,37 +78,26 @@ MkObj* his_obj;
 MkObj* plyr_obj;
 PlyrPdata* plyr_pdata;
 PlyrPdata* free_mkpdata_plyrs;
-void* memset(void* destination, int value, unsigned long size);
 
 static float p_load_plyr_model_async(void);
 static float p_animate_weapon_rest_lp(void);
 static void load_player_anim_files(PlyrPdata* pdata);
 static void create_sidekick(int player_index, PlyrInfo* player);
-void puzzle_fighter_scale(MkObj* object, float scale);
-extern GlobalPlayerEntry global_player_data[44];
 extern MkVtable5 vtbl_mkpdata_plyr;
 extern MkVtable5 vtbl_mkobj;
 extern MslSoundHandle plyr_snd_req(int sound);
 extern void snd_stop(MslSoundHandle handle);
 static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context);
-void destroy_mkpdata_plyr(PlyrPdata* pdata);
 extern AnimPdata* anim_pdata;
-extern void pose_anim(AnimPdata* animation, int update_object);
-extern MkProc* create_mkproc_anim2(
-    int proc_id, MkProcEntryFn entry, AnimPdata** pdata_out);
-extern MkProc* create_mkproc_anim(
-    int proc_id, MkProcEntryFn entry, AnimPdata** pdata_out);
-extern MkProc* create_mkproc_hand_anim(
-    int proc_id, MkProcEntryFn entry, AnimPdata** pdata_out);
-extern MkProc* create_mkproc_face_anim(
-    int proc_id, MkProcEntryFn entry, AnimPdata** pdata_out);
 extern void* get_bone_with_tag(MkObj* object, int tag);
 static float p_baraka_jaw_controller(void);
+static inline int set_plyr_anim_script_frame(
+    AnimPdata* animation, AniData* script,
+    unsigned int flags, float frame) {
+    return set_anim_script_frame(frame, animation, script, flags);
+}
 extern float p_baraka_blades_controller(void);
-extern void set_constrain_last_pos(int player, const Vec* position);
-extern void set_constrain_last_pos_pdata(const Vec* position);
-extern void bgnd_clear_danger_zone_callback(PlyrPdata* pdata);
 extern int get_current_bgnd(void);
 extern void clear_my_face_opponent_flag(void);
 extern int is_weapon_style(PlyrFighterDefinition* style);
@@ -125,24 +115,18 @@ extern MkObj* load_weapon_reflection(
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void generate_ai_table_moveset(void* moveset);
 extern void obj_create_sobjs(MkObj* object);
-extern void sobj_set_priority(void* subobject, int priority);
 extern char p1_profile[];
 extern char p2_profile[];
 extern int is_mark_as_unlocked(void* profile, int mark);
 extern int is_load_meter_active(void);
-extern void snd_req(int sound);
-extern int damage_p1(float damage);
-extern int damage_p2(float damage);
+extern void damage_p1(float damage);
+extern void damage_p2(float damage);
 extern void drone_ai_watcher(void);
 extern void setup_sound_banks(int bank);
-extern void create_player(int player, PlyrInfo* info);
 extern float p_plyr_start(void);
 extern MkObj* load_weapon(
     WeaponDefinition* definition, MkObj* player_object);
 extern void plyr_aux_weapon_grab(PlyrPdata* pdata, MkObj* weapon);
-extern void set_anim_script(
-    AnimPdata* animation, MkProcEntryFn script, unsigned int flags);
-extern unsigned int randu0(unsigned int range);
 extern int is_char_locked(int character, int alternate);
 extern void resolve_alternate_palettes(PlyrInfo* player);
 extern MkHdr* start_bone_matcher(
@@ -150,20 +134,15 @@ extern MkHdr* start_bone_matcher(
     float weight);
 extern void set_root_and_obj_movement_weights(
     float root_weight, float object_weight, AnimPdata* animation);
-extern int set_anim_script_frame(
-    AnimPdata* animation, AniData* script, unsigned int flags, float frame);
 extern void select_fighter_voice_in_bank(int player, int alternate_voice);
 extern int is_local_plyr(void);
 extern void advance_active_moveset(PlyrPdata* pdata);
 extern void load_player_fstyle_signs(PlyrPdata* pdata);
-extern unsigned char goro_hand_to_hand2_remapping[0x56];
 extern MkFileEntry misc_anims_list_file_table[5];
 extern MkFileInfo cmo_script_reactions;
-extern int has_sidekick(PlyrPdata* pdata);
 extern void generate_ai_table_player(FighterMirror* player);
 extern int build_bones_tbl(MkObj* object, const int* tags);
 extern void limb_sever_hide_z_meat_chunks_all(void* object);
-extern void init_player_collision(PlyrInfo* player);
 extern void plyr_obj_load_bld_data(
     FighterMirror* pdata, void* blood_data, MkObj* object,
     const char* path_name);
@@ -172,7 +151,6 @@ extern void start_constrain_proc(void);
 extern void init_debug_variables(void);
 extern int init_shadow_system(void);
 extern int init_shadow(ShadowObject* controller, MkObj* shadow);
-extern void SetupShadowPlayerPipeline(RpClump* clump);
 extern void pull_bone_hierarchy_mkobj(void* object);
 extern void create_shadow_proc(
     int pid, void* controller, void* source, void* shadow);
@@ -315,7 +293,6 @@ unsigned char goro_hand_to_hand2_remapping[0x56] = {
     0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
     0x50, 0x51, 0x52, 0x53, 0x54, 0x55,
 };
-float active_sidekick_swap(PlyrPdata* pdata, int mode);
 extern float r_call_script_function(void);
 extern void fxbanks_unload_by_owner(int owner);
 extern void TearDownShadow(PlyrPdata* pdata);
@@ -334,7 +311,6 @@ extern void update_bone_hierarchy(MkHdr* object);
 extern void ground_me(MkHdr* object);
 extern MslSoundHandle random_foot(int group);
 extern float p_anim_idle(void);
-extern float p_animate(void);
 
 typedef struct JawMovement {
     float delta;
@@ -667,11 +643,11 @@ PlyrInfo* plyr_pdata_get_plyr_info(PlyrPdata* pdata) {
     return pdata->plyr_info;
 }
 
-float plyr_anim_get_frame(PlyrAnimPdata* pdata) {
+float plyr_anim_get_frame(AnimPdata* pdata) {
     return pdata->frame;
 }
 
-PlyrAnimPdata* get_my_plyr_anim_pdata(void) {
+AnimPdata* get_my_plyr_anim_pdata(void) {
     return plyr_anim_pdata;
 }
 
@@ -1843,7 +1819,7 @@ float p_plyr_start(void) {
     set_root_and_obj_movement_weights(0.0f, 1.0f, plyr_anim_pdata);
     set_anim_script(
         plyr_anim_pdata,
-        (MkProcEntryFn)plyr_pdata->fighter_definition->duck_exit_animation,
+        plyr_pdata->fighter_definition->duck_exit_animation,
         0x20);
 
     if (g_game_info.field_08 != 0 &&
@@ -2763,7 +2739,7 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
         transition_to_anim_script(
             animation, pdata->fighter_definition->duck_exit_animation,
             0, 0.1f);
-        xfer_proc(animation_proc, p_animate);
+        xfer_proc(animation_proc, (MkProcEntryFn)p_animate);
         object->flags_09_bits.bit6 = 1;
         object->flags_09_bits.launched = 1;
         update_bone_hierarchy(
@@ -3015,11 +2991,11 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
         player->slot.mirror_a->hide_flag_bits.bit6;
 
     if ((player_animation->flags & 8) != 0) {
-        set_anim_script_frame(
+        set_plyr_anim_script_frame(
             sidekick_animation, player_animation->animation,
             0xB, player_animation->frame);
     } else {
-        set_anim_script_frame(
+        set_plyr_anim_script_frame(
             sidekick_animation, player_animation->animation,
             3, player_animation->frame);
     }
@@ -3043,10 +3019,10 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
 
     player->slot.mirror_a->hide_flag_bits.bit6 = saved_hide_bit;
     if ((saved_animation_flags & 8) != 0) {
-        set_anim_script_frame(
+        set_plyr_anim_script_frame(
             player_animation, saved_animation, 8, saved_frame);
     } else {
-        set_anim_script_frame(
+        set_plyr_anim_script_frame(
             player_animation, saved_animation, 0, saved_frame);
     }
     player_animation->step = saved_step;
@@ -3520,7 +3496,7 @@ void load_aux_weapon(WeaponDefinition* definition) {
 }
 
 float p_animate_weapon_rest(void) {
-    set_anim_script(anim_pdata, anim_pdata->hand_script, 0x40);
+    set_anim_script(anim_pdata, anim_pdata->hand_animation, 0x40);
     anim_pdata->rest_ticks = 10;
     ((PlyrProcVtable*)aproc->vtbl)
         ->jump_sleep(p_animate_weapon_rest_lp, 1.0f);
@@ -3663,7 +3639,7 @@ static inline void set_object_flip(
     }
 }
 
-void plyr_grab_other_flip_states(
+MkHdr* plyr_grab_other_flip_states(
     int player_flip, int opponent_flip) {
     MkObj* opponent = plyr_pdata->his_obj;
     AnimPdata* opponent_animation = 0;
@@ -3693,7 +3669,7 @@ void plyr_grab_other_flip_states(
         hold_proc = 0;
     }
     if (held != 0 || hold_proc != 0) {
-        return;
+        return 0;
     }
 
     if (opponent_flip != 0) {
@@ -3741,6 +3717,7 @@ void plyr_grab_other_flip_states(
         plyr_pdata->hold_proc = (MkProc*)matcher;
         plyr_pdata->hold_proc_instance = matcher->hdr.instance;
     }
+    return (MkHdr*)matcher;
 }
 
 #undef DESTROY_PLYR_REF

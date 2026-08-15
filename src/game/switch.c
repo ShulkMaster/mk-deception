@@ -1,3 +1,4 @@
+#include "game/switch.h"
 #include "game/controller.h"
 #include "game/game_info.h"
 #include "runtime/mk_proc.h"
