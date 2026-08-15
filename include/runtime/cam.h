@@ -44,6 +44,11 @@ typedef struct CameraItem {
     unsigned int instance;   /* +0x04 */
 } CameraItem;
 
+typedef struct CameraPdataFlags {
+    unsigned char bit7 : 1;
+    unsigned char pad : 7;
+} CameraPdataFlags;
+
 typedef CameraItem CameraItemList;
 
 /*
@@ -69,7 +74,10 @@ typedef struct CameraPdata {
     unsigned int bone_instance;
     void* anim_path;
     void* aux_data;
-    unsigned char flags; /* +0x6C */
+    union {
+        unsigned char flags; /* +0x6C */
+        CameraPdataFlags flags_bits;
+    };
     char pad_6d[3];
     float pause_ticks; /* +0x70 */
     void* intro_path; /* +0x74 */

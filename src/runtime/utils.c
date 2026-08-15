@@ -691,7 +691,7 @@ void service_game_timers(void) {
 
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
-    int ticks, int acceleration_interval, void* context) {
+    int ticks, int acceleration_interval) {
     char text[40];
     int target = start + change;
     int step = change < 0 ? -1 : 1;

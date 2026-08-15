@@ -408,7 +408,7 @@ MkHdr* konquest_set_dialog_text(
 void calc_print_speed_for_nis_dialog(void* dialog, unsigned int ticks);
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
-    int ticks, int acceleration_interval, void* context);
+    int ticks, int acceleration_interval);
 void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
 void pfx_2d_obj_set_alpha(ScreenObj* object, int alpha);
 void duck_sounds(float volume);
@@ -1772,8 +1772,7 @@ void trial_start_countdown(int countdown, float x, float y) {
             mission_state->countdown_string = string;
             mission_state->countdown_string_instance = string->instance;
             display_numerical_change(
-                string, 1, countdown, change, 60, 0x98967F,
-                mission_state);
+                string, 1, countdown, change, 60, 0x98967F);
         }
 
         if (_create_mkproc_generic_tinystack(
