@@ -42,7 +42,6 @@ void reset_storage_device_status_structure(int device);
 void storage_status_change_calculations(int device);
 int create_new_mk5_profile_file(int device);
 void summarize_unlocked_items(void);
-void check_new_mu_for_in_use_profiles(int device);
 void insert_mu(int device, int arg1, int arg2);
 void remove_mu(int device, int arg1, int arg2);
 void reset_ppwls_timeout(void);

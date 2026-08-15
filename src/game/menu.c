@@ -69,11 +69,6 @@ typedef struct SoundtrackScreenPdata {
     int current;     /* +0x24C */
 } SoundtrackScreenPdata;
 
-typedef struct GpSoundtrackUnlock {
-    char pad_00[0x18];
-    unsigned int soundtrack_bits; /* +0x18 */
-} GpSoundtrackUnlock;
-
 typedef struct ControllerWatcherPdata {
     char pad_00[0x8];
     int last_num_controllers; /* +0x8 */
@@ -152,7 +147,6 @@ extern int p1_use_temp_switch_map;
 extern int p2_use_temp_switch_map;
 extern const char* mk6_version_string;
 extern const char* number_strings[];
-extern GpSoundtrackUnlock gp_data;
 extern MenuSwitchPdata* switch_pdata;
 extern unsigned long display_off;
 extern int screen_width;
@@ -557,7 +551,7 @@ float p_soundtrack(void) {
 
     pdata->title_count = 0;
     for (track = 0; track < 21; track++) {
-        if ((gp_data.soundtrack_bits & (1 << track)) != 0) {
+        if ((gp_data.cat5 & (1 << track)) != 0) {
             pdata->sound_ids[pdata->title_count] = track_list[track];
             pdata->titles[pdata->title_count].meta =
                 number_strings[pdata->title_count + 1];

@@ -14,11 +14,8 @@ void* memset(void* d, int c, unsigned long n);
 char* strcpy(char* d, const char* s);
 unsigned long strlen(const char* s);
 const char* nbc_find_text(int a, int b);
-void set_profile_to_default(PlayerProfile* profile);
-void summarize_unlocked_items(void);
 int init_gc_memcard(void);
 int update_storage_status(int flag);
-int find_device_display_status(int device);
 MkProc* find_mkproc_pid(int pid);
 void destroy_mkprocs_pid(int pid);
 const char* get_device_reference_name(int device);
@@ -56,12 +53,8 @@ int check_save_region_data_result(int* result, int device, int mode);
 int bad_save_region_data_result_resolution(int* result, int device);
 int save_gsettings(int device);
 void update_storage_status_for_one_device(int device);
-void check_new_mu_for_in_use_profiles(int device);
-float format_or_recreate_a_device(int device);
 int sprintf(char* dest, const char* fmt, ...);
 RwTexture* load_named_tga_from_slot(int slot, const char* name);
-
-extern char* ppwls_icon[];
 
 extern MkProc* aproc;
 extern float _mkproc_sleep_ticks;
@@ -85,7 +78,7 @@ static const int states_when_device_error[4] = {3, 4, 6, 7};
 /* Local BSS working buffers (retail sizes). */
 static char right_full_card_space_string[0x32];
 static char left_full_card_space_string[0x32];
-char gp_data[0x40];
+ProfileUnlockSummary gp_data;
 StorageDevice storage_status[STORAGE_MAX_DEVICES];
 
 /* .sdata */
@@ -216,7 +209,7 @@ void create_right_mc_icon_list(McIconListArg* arg) {
     }
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
         icon = DEVICE_AT(device)->profiles[i].icon;
-        out[i] = load_named_tga_from_slot(PPWLS_SCREEN_SLOT, ppwls_icon[icon * 2]);
+        out[i] = load_named_tga_from_slot(PPWLS_SCREEN_SLOT, ppwls_icon[icon].color);
     }
 }
 
@@ -236,7 +229,7 @@ void create_left_mc_icon_list(McIconListArg* arg) {
     }
     for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
         icon = DEVICE_AT(device)->profiles[i].icon;
-        out[i] = load_named_tga_from_slot(PPWLS_SCREEN_SLOT, ppwls_icon[icon * 2]);
+        out[i] = load_named_tga_from_slot(PPWLS_SCREEN_SLOT, ppwls_icon[icon].color);
     }
 }
 

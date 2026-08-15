@@ -1540,8 +1540,7 @@ void mcard_msg_mu_removed(const char* nameOrNull, int device) {
     sleep_aproc(1.0f);
 }
 
-void mcard_msg_delete_failed_generic(int device) {
-    (void)device;
+void mcard_msg_delete_failed_generic(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x23, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_SPACE);
@@ -1553,8 +1552,7 @@ void mcard_msg_delete_failed_generic(int device) {
     sleep_aproc(90.0f);
 }
 
-void mcard_msg_delete_successful_generic(int device) {
-    (void)device;
+void mcard_msg_delete_successful_generic(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x20, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_SPACE);

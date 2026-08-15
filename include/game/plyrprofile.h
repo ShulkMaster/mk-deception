@@ -1,6 +1,9 @@
 #ifndef GAME_PLYRPROFILE_H
 #define GAME_PLYRPROFILE_H
 
+#include "mwScreenEngine/TextureCollection.h"
+
+#include "game/profile_unlock.h"
 #include "runtime/mk_proc.h"
 
 typedef struct StorageProfileSlot StorageProfileSlot;
@@ -46,16 +49,16 @@ typedef struct PlayerProfile {
     unsigned char pad1A[0x104 - 0x1A]; /* +0x1A .. +0x103 */
     int rumble; /* +0x104 */
     int switch_map[PROFILE_SWITCHMAP_COUNT]; /* +0x108 -- word0 of each default entry */
-    unsigned int unlock_cat1[2]; /* +0x148 */
-    unsigned int unlock_cat2[2]; /* +0x150 */
+    ProfileUnlockBits64 unlock_cat1; /* +0x148 */
+    ProfileUnlockBits64 unlock_cat2; /* +0x150 */
     unsigned int unlock_cat3; /* +0x158 */
     unsigned int pad15C; /* +0x15C */
-    unsigned int unlock_cat6[2]; /* +0x160 */
-    unsigned int unlock_cat4; /* +0x168 */
-    unsigned int unlock_cat5; /* +0x16C -- mark category 5 */
-    unsigned int unlock_cat7[2]; /* +0x170/+0x174 -- mark category 7 (hi/lo) */
-    unsigned int unlock_cat8[2]; /* +0x178 */
-    unsigned int unlock_cat9[2]; /* +0x180 */
+    ProfileUnlockBits64 unlock_cat4; /* +0x160 */
+    unsigned int unlock_cat5; /* +0x168 */
+    unsigned int unlock_cat6; /* +0x16C, indexed from bit 10 */
+    ProfileUnlockBits64 unlock_cat7; /* +0x170 */
+    ProfileUnlockBits64 unlock_cat8; /* +0x178 */
+    ProfileUnlockBits64 unlock_cat9; /* +0x180 */
     unsigned int unlock_cat10; /* +0x188 */
     unsigned int pad18C; /* +0x18C */
     unsigned char konquest[PROFILE_KONQUEST_SIZE]; /* +0x190 */
@@ -85,10 +88,14 @@ typedef struct PplListPdata {
 
 #define PPWLS_FADE_FRAMES 10
 
-extern char* ppwls_icon[];
+typedef struct ProfileIconNames {
+    const char* color;
+    const char* alpha;
+} ProfileIconNames;
+
+extern ProfileIconNames ppwls_icon[];
 
 float p_player_profile_boot_screen_entry_point(void);
-float p_player_profile_whats_loaded_screen(void);
 float p_reset_ppwls_timeout(void);
 void reset_ppwls_timeout(void);
 void set_ppwls_input_done(void);
@@ -111,8 +118,7 @@ float p_create_profile(void);
 float p_view_profile(void);
 float p_delete_profile(void);
 void erase_player_profile(int device, int slot);
-void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot, int* outCount,
-                                          int* outPosition);
+void check_new_mu_for_in_use_profiles(int device);
 void ppc_set_button_answer(int answer);
 void ppc_set_current_icon_selection(unsigned char icon);
 int ppc_get_code_state(void);
@@ -122,6 +128,7 @@ void pp_name_entry_proces_char_entry(const char* key_name);
 char* get_current_create_a_profile_name(void);
 
 void set_profile_to_default(PlayerProfile* profile);
+void summarize_unlocked_items(void);
 int get_coffin_bit(const unsigned char* bits, unsigned int index);
 void set_coffin_bit(unsigned char* bits, unsigned int index, int value);
 
@@ -135,17 +142,18 @@ int validate_konq_load_location(int player);
 void quit_from_konquest(void);
 
 int find_device_display_status(int device);
+void format_or_recreate_a_device(int device);
 int does_name_already_exist(const char* name);
 int ppl_get_multi_profile_count(int player);
 int ppl_get_multi_profile_names_p1(char** out);
 int ppl_get_multi_profile_names_p2(char** out);
-void ppl_get_multi_profile_icon_p1(int* out, int count);
-void ppl_get_multi_profile_icon_p2(int* out, int count);
+void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count);
+void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count);
 
 void ppv_get_current_profile_koins(char* dest, int index);
 void ppv_get_current_profile_arcade_finishes(char* dest);
 struct McIconListArg;
-void ppv_view_profile_icon_list(struct McIconListArg* arg);
+void ppv_view_profile_icon_list(GVTexturePair out);
 void ppv_update_profile_cursor(int delta);
 void get_profile_stats(char** outs);
 void format_value_to_display(char* dest, unsigned int value);
