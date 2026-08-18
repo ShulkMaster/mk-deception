@@ -369,11 +369,6 @@ typedef struct GroundCollTable {
     float radius;
 } GroundCollTable;
 
-typedef struct KonquestFlippedBoneMap {
-    int count;
-    int* bones;
-} KonquestFlippedBoneMap;
-
 typedef struct KonquestReactionPdata {
     MkHdr hdr;
     char pad08[4];
@@ -546,7 +541,7 @@ int konquest_human_bones[17] = {
 int _flipped_konquest_human_bones[16] = {
     0, 2, 1, 3, 5, 4, 6, 8, 7, 11, 10, 9, 13, 12, 15, 14
 };
-KonquestFlippedBoneMap flipped_konquest_human_bones = {
+MkFlippedBoneMap flipped_konquest_human_bones = {
     16, _flipped_konquest_human_bones
 };
 GroundCollTable npc_ground_colls[3] = {

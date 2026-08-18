@@ -2298,12 +2298,7 @@ typedef union PlyrProcCreateFlags {
     } bits;
 } PlyrProcCreateFlags;
 
-typedef struct FlippedBoneMap {
-    unsigned int count;
-    const unsigned int* bone_indices;
-} FlippedBoneMap;
-
-extern FlippedBoneMap flipped_human_bones;
+extern MkFlippedBoneMap flipped_human_bones;
 
 static inline MkObj* loaded_model_as_mkobj(void* model) {
     MkObj* object;

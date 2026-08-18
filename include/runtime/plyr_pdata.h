@@ -86,7 +86,10 @@ typedef struct PlyrMirrorObjLatch {
 typedef struct PlyrWeaponMirrorSlot {
     PlyrMirrorObjLatch primary;
     PlyrMirrorObjLatch mirror; /* +0x08 */
-    PlyrMirrorObjLatch secondary; /* +0x10 */
+    union {
+        PlyrMirrorObjLatch secondary;
+        MkHdrLatch secondary_hdr;
+    }; /* +0x10 */
 } PlyrWeaponMirrorSlot; /* 0x18 */
 
 typedef struct PlyrMirrorSlots {
@@ -245,17 +248,38 @@ typedef struct PlyrPdata {
     PlyrMirrorObjLatch held_opponent_latch; /* +0x38 */
     PlyrMirrorObjLatch aux_weapon_latch; /* +0x40 */
     PlyrMirrorObjLatch mirror_obj; /* +0x48 */
-    struct MkProc* hold_proc; /* +0x50 */
-    unsigned int hold_proc_instance; /* +0x54 */
+    union {
+        struct {
+            struct MkProc* hold_proc;
+            unsigned int hold_proc_instance;
+        };
+        PlyrProcLatch hold_proc_latch;
+        MkHdrLatch hold_hdr_latch;
+    }; /* +0x50 */
     MkPtr* item_links; /* +0x58 - item attachment/link records */
     struct MkProc* anim_proc; /* +0x5C */
     unsigned int anim_proc_instance; /* +0x60 */
-    struct MkProc* left_hand_anim_proc; /* +0x64 */
-    unsigned int left_hand_anim_instance; /* +0x68 */
-    struct MkProc* right_hand_anim_proc; /* +0x6C */
-    unsigned int right_hand_anim_instance; /* +0x70 */
-    struct MkProc* face_anim_proc; /* +0x74 */
-    unsigned int face_anim_proc_instance; /* +0x78 */
+    union {
+        struct {
+            struct MkProc* left_hand_anim_proc;
+            unsigned int left_hand_anim_instance;
+        };
+        PlyrProcLatch left_hand_anim_latch;
+    }; /* +0x64 */
+    union {
+        struct {
+            struct MkProc* right_hand_anim_proc;
+            unsigned int right_hand_anim_instance;
+        };
+        PlyrProcLatch right_hand_anim_latch;
+    }; /* +0x6C */
+    union {
+        struct {
+            struct MkProc* face_anim_proc;
+            unsigned int face_anim_proc_instance;
+        };
+        PlyrProcLatch face_anim_latch;
+    }; /* +0x74 */
     PlyrProcLatch field_7C;
     PlyrProcLatch field_84;
     PlyrProcLatch field_8C;

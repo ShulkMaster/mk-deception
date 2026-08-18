@@ -2330,9 +2330,9 @@ static RpMaterial* material_find_texture_callback(
     return material;
 }
 
-void* obj_get_1st_atomic(void* obj) {
+RpAtomic* obj_get_1st_atomic(MkObj* obj) {
     RpClumpForAllAtomics(
-        ((MkObj*)obj)->clump, obj_get_1st_atomic_callback, 0);
+        obj->clump, obj_get_1st_atomic_callback, 0);
     return atomic1;
 }
 
@@ -3626,8 +3626,8 @@ void pull_bone_hierarchy_mkobj(void* obj) {
     mk_pull_discard((MkHdr*)obj, &bone_hierarchy_mkobj_list);
 }
 
-void insert_bone_hierarchy_mkobj(void* obj) {
-    mk_insert((MkHdr*)obj, &bone_hierarchy_mkobj_list);
+void insert_bone_hierarchy_mkobj(MkObj* obj) {
+    mk_insert(&obj->hdr, &bone_hierarchy_mkobj_list);
 }
 
 void insert_particle_mkobj(void* obj) {

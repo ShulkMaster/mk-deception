@@ -112,11 +112,6 @@ typedef union ProjectileFloatBits {
     unsigned int u;
 } ProjectileFloatBits;
 
-typedef struct ProjectileFlippedBoneMap {
-    unsigned int count;
-    unsigned int* bone_ids;
-} ProjectileFlippedBoneMap;
-
 typedef struct ProjectileBoneMatcher {
     MkHdr hdr;
     unsigned char flags_08;
@@ -371,8 +366,7 @@ void set_active_projectile_upward_attack(const Vec* target) {
 
 int get_bid_with_flip(MkObj* object, unsigned int bone_id) {
     if (object->hide_flag_bits.bit6) {
-        ProjectileFlippedBoneMap* flipped =
-            (ProjectileFlippedBoneMap*)object->flipped_bone_map;
+        MkFlippedBoneMap* flipped = object->flipped_bone_map;
 
         if (bone_id < flipped->count) {
             bone_id = flipped->bone_ids[bone_id];

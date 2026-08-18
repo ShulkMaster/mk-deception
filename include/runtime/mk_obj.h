@@ -12,17 +12,32 @@ typedef struct MkBoneFlags55 {
     unsigned char collision_disabled : 1; /* bit7 */
     unsigned char collision_deferred : 1; /* bit6 */
     unsigned char scale_controlled : 1; /* bit5 - blade/controller scale */
-    unsigned char pad_low : 5;
+    unsigned char pad_bit4 : 1;
+    unsigned char pad_bit3 : 1;
+    unsigned char reparent_toggle : 1; /* bit2 */
+    unsigned char pad_bit1 : 1;
+    unsigned char pad_bit0 : 1;
 } MkBoneFlags55;
+
+typedef struct MkFlippedBoneMap {
+    int count;
+    union {
+        int* bones;
+        unsigned int* bone_indices;
+        unsigned int* bone_ids;
+        int* bone_tags;
+    };
+} MkFlippedBoneMap;
 
 typedef struct MkBoneFlags54 {
     unsigned char transform_parented : 1; /* bit7 */
-    unsigned char pad_bit6 : 1;
+    unsigned char tag_1000 : 1; /* bit6 - copied from bone tag */
     unsigned char cloth_candidate : 1; /* bit5 */
     unsigned char calculation_locked : 1; /* bit4 */
     unsigned char field_bit3 : 1;
     unsigned char hierarchy_driven : 1; /* bit2 */
-    unsigned char pad_1_0 : 2;
+    unsigned char pose_matrix_applied : 1; /* bit1 */
+    unsigned char has_children : 1; /* bit0 */
 } MkBoneFlags54;
 
 typedef struct MkBone {
@@ -232,7 +247,11 @@ typedef struct MksobjPluginData {
 } MksobjPluginData;
 
 typedef struct MkObjFlags0C {
-    unsigned char pad_high : 5;
+    unsigned char pad_bit7 : 1;
+    unsigned char tag_flag_40 : 1; /* bit6 */
+    unsigned char tag_flag_20 : 1; /* bit5 */
+    unsigned char tag_flag_10 : 1; /* bit4 */
+    unsigned char tag_flag_08 : 1; /* bit3 */
     unsigned char cloth_update : 1; /* bit2 */
     unsigned char pad_low : 2;
 } MkObjFlags0C;
@@ -260,9 +279,10 @@ typedef struct MkObjFlags08 {
 } MkObjFlags08;
 
 typedef struct MkObjFlags0B {
-    unsigned char pad_bit7 : 1;
+    unsigned char root_transform_pending : 1; /* bit7 */
     unsigned char bit6 : 1;
-    unsigned char pad_5_2 : 4;
+    unsigned char force_anim_speed : 1; /* bit5 */
+    unsigned char pad_4_2 : 3;
     unsigned char special_texture : 1; /* bit1 */
     unsigned char pad_low : 1;
 } MkObjFlags0B;
@@ -370,7 +390,7 @@ typedef struct MkObj {
     MkPtr* list_88;   /* +0x88 - owned list */
     union {
         int flipped_bones;
-        void* flipped_bone_map;
+        MkFlippedBoneMap* flipped_bone_map;
     }; /* +0x8C */
     Vec ground_restore_pos; /* +0x90 */
     char pad9C[4];
@@ -430,6 +450,8 @@ void unhide_sobj_by_sobj_id(void* obj, unsigned int id);
 void hide_obj(void* obj);
 void unhide_obj(void* obj);
 void* obj_first_sobj(void* obj);
+RpAtomic* obj_get_1st_atomic(MkObj* obj);
+void insert_bone_hierarchy_mkobj(MkObj* obj);
 RwTexture* material_get_texture_pointer(
     RpMaterial* material, int use_matfx);
 void material_set_texture_pointer(

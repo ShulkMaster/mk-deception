@@ -25,6 +25,11 @@ struct MkHdr {
     unsigned int instance;
 };
 
+typedef struct MkHdrLatch {
+    MkHdr* hdr;
+    unsigned int instance;
+} MkHdrLatch;
+
 /*
  * Tinystack / fog / character-anim pdata latch (size 0x10).
  * obj is live iff obj != 0 && obj->instance == obj_instance.
