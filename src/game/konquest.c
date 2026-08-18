@@ -682,12 +682,8 @@ extern KonquestCharacterBits default_char_bits;
 extern KonquestCharacterBits default_alt_char_bits;
 extern int konq_nis_anims[0x14];
 extern MkPtr* nis_participants;
-typedef struct KonquestFlippedBoneMap {
-    int count;
-    int* bones;
-} KonquestFlippedBoneMap;
 extern int konquest_human_bones[17];
-extern KonquestFlippedBoneMap flipped_konquest_human_bones;
+extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern void* g_pui_events;
 extern int f_writing_konquest_profile;
 extern int in_exit_meditation;

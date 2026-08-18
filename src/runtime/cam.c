@@ -1010,7 +1010,7 @@ void move_to_end_point(void) {
 void look_at_target(void) {
 }
 
-void set_camera_focal_length(void) {
+void set_camera_focal_length(float focal_length) {
 }
 
 void set_camera_velocity(void) {

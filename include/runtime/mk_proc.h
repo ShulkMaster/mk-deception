@@ -15,6 +15,20 @@ typedef struct MkProcStackFrame {
 
 typedef float (*MkProcEntryFn)(void);
 typedef void (*MkProcCallbackFn)(void);
+typedef int (*MkProcEntrySleepFn)(MkProcEntryFn entry, float ticks);
+
+typedef struct MkProcEntryVtable {
+    void* functions[6];
+    MkProcEntrySleepFn sleep;
+    void* stack_ops[2];
+    MkProcEntrySleepFn jump_sleep;
+} MkProcEntryVtable;
+
+typedef struct MkProcCreateFlagBits {
+    unsigned char has_pdata : 1;
+    unsigned char animation_pdata : 1;
+    unsigned char pad : 6;
+} MkProcCreateFlagBits;
 
 struct MkProc {
     union {

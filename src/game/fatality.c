@@ -408,11 +408,6 @@ typedef struct FatalityBgndScriptView {
     unsigned int function;
 } FatalityBgndScriptView;
 
-typedef struct FatalityFlippedBoneMap {
-    int count;
-    int* bones;
-} FatalityFlippedBoneMap;
-
 int veil_bones[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 int _veil_flipped_bones[9] = {6, 7, 8, 3, 4, 5, 0, 1, 2};
 static float raiden_lighning_scaler1[3] = {0.5f, 0.5f, 1.0f};
@@ -471,7 +466,7 @@ Vec sz_ice_chunk_pos_fix[15] = {
     {0.05f, 0.01f, 0.0f},
     {-0.35f, -0.025f, -0.025f}
 };
-FatalityFlippedBoneMap veil_flipped_bones = {
+MkFlippedBoneMap veil_flipped_bones = {
     9, _veil_flipped_bones
 };
 float raiden_lightning_speed1[2] = {1.0f, 0.03f};

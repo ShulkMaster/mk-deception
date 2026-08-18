@@ -136,10 +136,6 @@ typedef struct KryptCharacterMonitorPdata {
     int elapsed_ticks;
 } KryptCharacterMonitorPdata; /* 0x10 */
 
-typedef struct KryptBoneFlipMap {
-    int* bone_tags;
-} KryptBoneFlipMap; /* 0x08 */
-
 extern int menu_player;
 extern unsigned long mode_of_play;
 extern PlayerProfile p1_profile;
@@ -151,7 +147,7 @@ extern void* p2_profile_konquest;
 extern AnimScript* bgnd_animations[];
 extern MkFileEntry kon_unique_npcs_file_table[];
 extern int konquest_human_bones[];
-extern KryptBoneFlipMap flipped_konquest_human_bones;
+extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern char monk_ground_colls[];
 extern void* point_light_list;
 extern float _mkproc_sleep_ticks;
