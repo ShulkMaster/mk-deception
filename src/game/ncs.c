@@ -522,8 +522,8 @@ void random_hit(int hit);
 void calc_bone_world_mat(MkObj* object, int bone);
 MKMATRIX* force_calc_bone_world_mat(MkObj* object, int bone);
 void init_plyr_severed_limb_list(PlyrInfo* player);
-void obj_set_ang_vel(MkObj* object, const Vec* velocity);
-void obj_set_pos_vel(MkObj* object, const Vec* velocity);
+void obj_set_ang_vel(MkObj* object, void* velocity);
+void obj_set_pos_vel(MkObj* object, void* velocity);
 MkObj* load_model_from_slot(int handle, unsigned int art_oid, int heap_id);
 MkObj* load_light(LightDef* definition, MkPtr** list, MkObj* parent);
 void spawn_decal_emitter(

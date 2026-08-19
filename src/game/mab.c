@@ -90,7 +90,7 @@ static float p_lightning_strike_effect(void) {
     if (bolt != 0) {
         snd_req(0x2B3);
         insert_fgnd_mkobj(bolt);
-        obj_set_pos(bolt, (const Vec*)&pdata->pos_x);
+        obj_set_pos(bolt, (Vec*)&pdata->pos_x);
         sobj = (MkSobj*)obj_create_sobjs_by_id(bolt, 1);
         sobj->flags09_bits.bit7 = 1;
         sobj_set_priority(sobj, 0x13);

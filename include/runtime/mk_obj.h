@@ -86,8 +86,13 @@ typedef struct MkBone {
     };
     Vec scale; /* +0xB0 */
     char padBC[4];
-    Vec delta; /* +0xC0 */
-    char padCC[4];
+    union {
+        struct {
+            Vec delta; /* +0xC0 */
+            unsigned int delta_pad;
+        };
+        RwMatrixPosition delta_row;
+    };
     union {
         struct {
             union {
@@ -95,8 +100,13 @@ typedef struct MkBone {
                 RtQuat rt_rotation;
             }; /* +0xD0 */
             Quat rotation_e0; /* +0xE0 */
-            Vec velocity; /* +0xF0 */
-            char padFC[4];
+            union {
+                struct {
+                    Vec velocity; /* +0xF0 */
+                    unsigned int velocity_pad;
+                };
+                RwMatrixPosition velocity_row;
+            };
             Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
             char pad10C[4];
         };
@@ -253,7 +263,8 @@ typedef struct MkObjFlags0C {
     unsigned char tag_flag_10 : 1; /* bit4 */
     unsigned char tag_flag_08 : 1; /* bit3 */
     unsigned char cloth_update : 1; /* bit2 */
-    unsigned char pad_low : 2;
+    unsigned char parented : 1; /* bit1 */
+    unsigned char bit0 : 1;
 } MkObjFlags0C;
 
 typedef struct MkObjFlags09 {
@@ -282,7 +293,9 @@ typedef struct MkObjFlags0B {
     unsigned char root_transform_pending : 1; /* bit7 */
     unsigned char bit6 : 1;
     unsigned char force_anim_speed : 1; /* bit5 */
-    unsigned char pad_4_2 : 3;
+    unsigned char bit4 : 1;
+    unsigned char bit3 : 1;
+    unsigned char pivot_enabled : 1; /* bit2 */
     unsigned char special_texture : 1; /* bit1 */
     unsigned char pad_low : 1;
 } MkObjFlags0B;
@@ -291,7 +304,8 @@ typedef struct MkObjHideFlags {
     unsigned char still_move : 1; /* bit7 */
     unsigned char bit6 : 1;
     unsigned char hidden : 1;     /* bit5 */
-    unsigned char pad_4_3 : 2;
+    unsigned char bit4 : 1;
+    unsigned char bit3 : 1;
     unsigned char weapon_effect : 1; /* bit2 - weapon/cloth auxiliary */
     unsigned char pin_animation : 1; /* bit1 */
     unsigned char bit0 : 1;
@@ -339,10 +353,15 @@ typedef struct MkObj {
         };
     };
     union {
-        unsigned char flags_0C;
-        MkObjFlags0C flags_0C_bits;
-    }; /* +0x0C */
-    char pad0D[3];
+        unsigned int flags_word_0C;
+        struct {
+            union {
+                unsigned char flags_0C;
+                MkObjFlags0C flags_0C_bits;
+            }; /* +0x0C */
+            char pad0D[3];
+        };
+    };
     unsigned int oid;       /* +0x10 - object id / destroy mask */
     int clump_count;        /* +0x14 - populated inline clump slots */
     union {
@@ -371,7 +390,7 @@ typedef struct MkObj {
         void* field_5C;
         MkObjItemAttachData* item_attach_data;
     }; /* +0x5C - cleared during destruction / item attachment data */
-    char pad60[4];
+    unsigned int field_60;
     float bone_angle_64;
     float bone_angle_68;
     void* ground_colls;     /* +0x6C */
@@ -395,32 +414,58 @@ typedef struct MkObj {
     Vec ground_restore_pos; /* +0x90 */
     char pad9C[4];
     union {
-        Vec pos; /* +0xA0 */
         struct {
-            float pos_x;
-            float pos_y;
-            float pos_z;
+            union {
+                Vec pos; /* +0xA0 */
+                struct {
+                    float pos_x;
+                    float pos_y;
+                    float pos_z;
+                };
+            };
+            unsigned int pos_pad;
         };
+        RwMatrixPosition pos_row;
     };
-    char padAC[4];
-    Vec pos_vel; /* +0xB0 */
-    char padBC[4];
+    union {
+        struct {
+            Vec pos_vel; /* +0xB0 */
+            unsigned int pos_vel_pad;
+        };
+        RwMatrixPosition pos_vel_row;
+    };
     Vec pivot; /* +0xC0 - alternate-position matrix offset */
     char padCC[4];
     union {
         struct {
             union {
-                Vec ang; /* +0xD0 */
                 struct {
-                    float dir_x; /* light direction */
-                    float dir_y;
-                    float dir_z;
+                    union {
+                        Vec ang; /* +0xD0 */
+                        struct {
+                            float dir_x; /* light direction */
+                            float dir_y;
+                            float dir_z;
+                        };
+                    };
+                    unsigned int ang_pad;
                 };
+                RwMatrixPosition ang_row;
             };
-            char padDC[4];
-            Vec ang_vel; /* +0xE0 */
-            char padEC[4];
-            Vec scale;   /* +0xF0 */
+            union {
+                struct {
+                    Vec ang_vel; /* +0xE0 */
+                    unsigned int ang_vel_pad;
+                };
+                RwMatrixPosition ang_vel_row;
+            };
+            union {
+                struct {
+                    Vec scale;   /* +0xF0 */
+                    unsigned int scale_pad;
+                };
+                RwMatrixPosition scale_row;
+            };
         };
         struct {
             Quat orientation_quat; /* +0xD0 */
@@ -431,22 +476,22 @@ typedef struct MkObj {
 } MkObj;
 
 /* Critical krypt APIs */
-void* obj_find_sobj_by_id(void* obj, unsigned int id);
+MkSobj* obj_find_sobj_by_id(MkObj* obj, unsigned int id);
 void sobj_set_priority(void* sobj, int priority);
 void hide_sobj(void* sobj);
 void unhide_sobj(void* sobj);
 
 /* Frequently called siblings */
-void* obj_create_sobjs_by_id(void* obj, int id);
+MkSobj* obj_create_sobjs_by_id(MkObj* obj, int id);
 void insert_fgnd_mkobj(void* obj);
 void update_mkobj(void* obj);
-void update_obj_pos(void* obj);
-void obj_set_pos(MkObj* obj, const Vec* pos);
+void update_obj_pos(MkObj* obj);
+void obj_set_pos(MkObj* obj, Vec* pos);
 void obj_get_pos(MkObj* obj, Vec* out);
-void obj_set_sobj_alpha(void* obj, int sobj_index, int alpha);
-void obj_set_sobj_priority(void* obj, int id, int priority);
-void hide_sobj_by_sobj_id(void* obj, unsigned int id);
-void unhide_sobj_by_sobj_id(void* obj, unsigned int id);
+void obj_set_sobj_alpha(MkObj* obj, int sobj_index, int alpha);
+void obj_set_sobj_priority(MkObj* obj, int id, int priority);
+MkSobj* hide_sobj_by_sobj_id(void* obj, unsigned int id);
+MkSobj* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
 void hide_obj(void* obj);
 void unhide_obj(void* obj);
 void* obj_first_sobj(void* obj);
@@ -457,7 +502,7 @@ RwTexture* material_get_texture_pointer(
 void material_set_texture_pointer(
     RpMaterial* material, RwTexture* texture, int use_matfx);
 void* get_mkx_mem(void* allocation);
-void* get_mkobj(int type, void* clump);
+MkObj* get_mkobj(int type, RpClump* clump);
 void destroy_mkobj(void* obj);
 
 #endif

@@ -140,7 +140,7 @@ struct FighterRuntimeData {
     const int* primary_bone_tags;
     void* primary_mirror_bone_map; /* +0x14 */
     void* primary_ground_collision; /* +0x18 */
-    char pad1C[4];
+    float primary_mirror_offset; /* +0x1C */
     unsigned int primary_start_script; /* +0x20 */
     char pad24[4];
     const char* alternate_art_section;
@@ -149,7 +149,7 @@ struct FighterRuntimeData {
     const int* alternate_bone_tags;
     void* alternate_mirror_bone_map; /* +0x38 */
     void* alternate_ground_collision; /* +0x3C */
-    char pad40[4];
+    float alternate_mirror_offset; /* +0x40 */
     unsigned int alternate_start_script; /* +0x44 */
     char pad48[4];
     const char* palette_art_section;
@@ -204,7 +204,7 @@ typedef struct FighterSlot {
         struct PlyrPdata* pdata;
     };                      /* +0x00 */
     MkObj* mirror_a;        /* +0x04 */
-    MirrorObj* mirror_b;    /* +0x08 */
+    MkObj* mirror_b;        /* +0x08 - loaded REFLECT object */
 } FighterSlot; /* 0x0C */
 
 typedef struct PlyrInfoFlags14 {

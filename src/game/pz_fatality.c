@@ -627,7 +627,7 @@ void got_hit_fx(
     float scale);
 void hide_obj(PuzzleFighterRenderObject* object);
 void insert_fgnd_mkobj(PuzzleFighterRenderObject* object);
-void obj_set_pos(PuzzleFighterRenderObject* object, const Vec* position);
+void obj_set_pos(PuzzleFighterRenderObject* object, Vec* position);
 void update_mkobj(PuzzleFighterRenderObject* object);
 static void pz_fighter_set_objects_falling_obj(
     PuzzleFighterRenderObject* object1,
