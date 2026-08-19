@@ -4,8 +4,12 @@
 #include "runtime/mk_struct.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
+#include "game/cloth.h"
+#include "game/specular.h"
+#include "runtime/asset.h"
 #include "math/gxMat.h"
 #include "math/gxMath.h"
 #include "math/gxQuat.h"
@@ -92,25 +96,28 @@ typedef struct LimbSet {
     unsigned int moved_bones; /* +0x780 */
 } LimbSet;
 
-typedef struct LimbController {
-    MkHdr hdr;
-    char pad08[0x0C];
-    signed char effect_bank; /* +0x14 */
-    char pad15[0x3F];
-    int type;                /* +0x54 */
-    LimbRuntime* runtime;    /* +0x58 */
-    MkObj* limb_obj;         /* +0x5C */
-} LimbController;
-
 typedef struct HeadTrackingPdata {
     MkHdr hdr;
     MkObj* obj;
-    void* target;
+    PlyrPdata* target;
     float angle_x;
     float angle_y;
     float field_18;
-    float angle_z;
+    float blend_weight;
 } HeadTrackingPdata;
+
+struct ClothInitEntry {
+    int bone_tag;
+    float stiffness;
+    float segment_length;
+    float force;
+    float field_10;
+    float damping;
+    float initial_x;
+    float initial_z;
+    float table_scale;
+    int field_24;
+};
 
 typedef struct ShadowBonePair {
     int source_bone;
@@ -153,7 +160,7 @@ typedef struct ShadowPdata {
     MkObj* shadow;
     unsigned int shadow_instance;
     char pad18[4];
-    ShadowController* controller;
+    PlyrPdata* controller;
 } ShadowPdata;
 
 static float p_fade_material(void);
@@ -165,8 +172,8 @@ static float p_shadow_obj(void);
 static void trackhead_postsleep(void);
 static void trackhead_prewake(void);
 void mks_start_goro_xtra_weapons(void);
-void limb_sever_show_z_meat_chunks_all(void* obj);
-void limb_sever_hide_z_meat_chunks_all(void* obj);
+void limb_sever_show_z_meat_chunks_all(MkObj* obj);
+void limb_sever_hide_z_meat_chunks_all(MkObj* obj);
 int get_player_number(void* obj);
 
 extern int limb_meat_chunk_list[];
@@ -176,20 +183,20 @@ extern int* limb_children_table[];
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry, RpMaterialCallBack callback, void* data);
 void* memcpy(void* dst, const void* src, unsigned int size);
 int RpClumpDestroy(RpClump* clump);
-void set_atomic_material_alpha(RpAtomic* atomic, int alpha);
+RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
 void pull_clump_from_world(RpClump* clump);
 void mkobj_destroy_bones(MkObj* obj);
 void free_mem(void* ptr);
 int stricmp(const char* lhs, const char* rhs);
-int vdestroy_mkx_rplight(void* light);
+void vdestroy_mkx_rplight(MkxRpLight* light);
 extern MkObj* plyr_obj;
 extern MkVtable5 vtbl_mkx_mem;
 extern MkVtable5 vtbl_mkx_rplight;
 extern MkVtable5 vtbl_mkobj;
 extern _mwMemHeap* mkobj_heap;
 extern RpWorld* World;
-static void* pdata_headtracking;
+static HeadTrackingPdata* pdata_headtracking;
 static MkPtr* limb_bone_list;
 unsigned int uploaded_light_state;
 int skip_light_setup;
@@ -247,6 +254,12 @@ typedef struct GoroArmsFixupEntry {
     int target_bone;
 } GoroArmsFixupEntry;
 
+typedef struct GroundCollisionEntry {
+    int bone;
+    Vec offset;
+    float radius;
+} GroundCollisionEntry;
+
 GoroArmsFixupEntry goro_arms_fixup_map[12] = {
     {0x0C, 0x43}, {0x0F, 0x44}, {0x12, 0x45}, {0x14, 0x46},
     {0x16, 0x47}, {0x18, 0x48}, {0x0E, 0x50}, {0x11, 0x51},
@@ -258,6 +271,11 @@ extern int mode_of_play;
 extern int limb_root_bids[15];
 
 void update_camera_facing_matrix(void);
+int build_bones_tbl(MkObj* obj, const int* tags);
+void* ft_fake_bone_matcher(
+    MkObj* parent, MkObj* child, int child_bone,
+    const Vec* parent_offset, const Vec* child_offset,
+    const Vec* rotation, int mode, float blend);
 
 static float p_obj(void);
 static float p_bone_hierarchy(void);
@@ -267,10 +285,10 @@ void set_bone_world_pos(void* obj, int bone, void* pos);
 
 void update_bone_hierarchy(void* obj);
 void ground_me(void* obj);
-void atomic_set_transl_flag(void* atomic);
+void atomic_set_transl_flag(RpAtomic* atomic);
 void render_mkobj(void* obj);
-void get_bone_world_pos(void* obj, int bone, void* out);
-void* get_mkobj_frame(int type, void* frame);
+void get_bone_world_pos(MkObj* obj, int bone, Vec* out);
+MkObj* get_mkobj_frame(int type, RwFrame* frame);
 MkBone* alloc_bone(void);
 void mkbone_remove(MkBone* bone);
 void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent);
@@ -282,13 +300,13 @@ void pfx_spawn_at_bid(const char* name, void* obj, int bone);
 void bone_make_parents_my_children(MkBone* bone);
 
 static void rwframe_set_true_clip_flag_on_objects_and_children(
-    RwFrame* frame, unsigned char flag);
+    RwFrame* frame, int flag);
 static RwObject* rwobject_set_true_clip_flag(RwObject* object, unsigned char flag);
 static RpAtomic* atomic_create_sobj_callback(
     RpAtomic* atomic, void* data);
 static void* AtomicFaceCamera(void* atomic, void* data);
-static void* rwframe_find_child_sobj_by_id(
-    void* frame, unsigned int id, int depth);
+static MkSobj* rwframe_find_child_sobj_by_id(
+    RwFrame* frame, unsigned int id, int depth);
 
 static float normalize_obj_angle(float angle) {
     int fixed;
@@ -308,7 +326,7 @@ void* obj_find_child_sobj_by_id(void* obj, unsigned int id, int depth) {
     frame = ((MkObj*)obj)->frame->child;
     while (frame != 0) {
         next = frame->next;
-        result = (MkSobj*)rwframe_find_child_sobj_by_id(frame, id, depth);
+        result = rwframe_find_child_sobj_by_id(frame, id, depth);
         if (result != 0) {
             return result;
         }
@@ -317,17 +335,17 @@ void* obj_find_child_sobj_by_id(void* obj, unsigned int id, int depth) {
     return 0;
 }
 
-static void* rwframe_find_child_sobj_by_id(void* frame_arg, unsigned int id,
-                                           int depth) {
-    RwFrame* frame;
+#pragma inline_depth(2)
+static MkSobj* rwframe_find_child_sobj_by_id(RwFrame* frame, unsigned int id,
+                                             int depth) {
     RwLLLink* link;
     RwObject* object;
     MksobjPluginData* plugin;
     MkSobj* sobj;
     RwFrame* child;
     RwFrame* next;
+    int child_depth;
 
-    frame = (RwFrame*)frame_arg;
     link = frame->objectList.link.next;
     while (link != &frame->objectList.link) {
         object = RW_OBJECT_FROM_FRAME_LINK(link);
@@ -340,50 +358,47 @@ static void* rwframe_find_child_sobj_by_id(void* frame_arg, unsigned int id,
             }
         }
     }
-    depth--;
-    if (depth == 0) {
-        return 0;
-    }
-    child = frame->child;
-    while (child != 0) {
-        next = child->next;
-        sobj = (MkSobj*)rwframe_find_child_sobj_by_id(child, id, depth);
-        if (sobj != 0) {
-            return sobj;
+    if (depth - 1 != 0) {
+        child_depth = depth - 1;
+        child = frame->child;
+        while (child != 0) {
+            next = child->next;
+            sobj = rwframe_find_child_sobj_by_id(child, id, child_depth);
+            if (sobj != 0) {
+                return sobj;
+            }
+            child = next;
         }
-        child = next;
     }
     return 0;
 }
+#pragma inline_depth reset
 
-int sobj_does_atomic_have_children(void* sobj) {
-    return ((MkSobj*)sobj)->frame->child != 0;
+int sobj_does_atomic_have_children(MkSobj* sobj) {
+    return sobj->frame->child != 0;
 }
 
-void set_true_clip_flag_on_sobj_and_children(void* sobj, int flag) {
-    MkSobj* mksobj;
+void set_true_clip_flag_on_sobj_and_children(MkSobj* sobj, int flag) {
     RwFrame* frame;
     RwFrame* next;
 
-    mksobj = (MkSobj*)sobj;
-    mksobj->flags09 =
-        (unsigned char)((mksobj->flags09 & ~4) | ((flag & 1) << 2));
-    frame = mksobj->frame->child;
+    sobj->flags09_bits.bit2 = flag;
+    frame = sobj->frame;
+    frame = frame->child;
     while (frame != 0) {
         next = frame->next;
         rwframe_set_true_clip_flag_on_objects_and_children(
-            frame, (unsigned char)flag);
+            frame, flag);
         frame = next;
     }
 }
 
 static void rwframe_set_true_clip_flag_on_objects_and_children(
-    RwFrame* frame, unsigned char flag) {
+    RwFrame* frame, int flag) {
     RwLLLink* link;
     RwLLLink* next_link;
     RwLLLink* end;
     RwObject* object;
-    MksobjPluginData* plugin;
     MkSobj* sobj;
     RwFrame* child;
     RwFrame* next_child;
@@ -397,11 +412,9 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
     while (link != end) {
         object = RW_OBJECT_FROM_FRAME_LINK(link);
         if (object->type == 1) {
-            plugin = MK_ATOMIC_PLUGIN((RpAtomic*)object);
-            sobj = plugin->sobj;
+            sobj = MK_ATOMIC_PLUGIN((RpAtomic*)object)->sobj;
             if (sobj != 0) {
-                sobj->flags09 = (unsigned char)(
-                    (sobj->flags09 & ~4) | ((flag << 2) & 4));
+                sobj->flags09_bits.bit2 = flag;
             }
         }
         link = link->next;
@@ -415,11 +428,9 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
             next_link = link->next;
             object = RW_OBJECT_FROM_FRAME_LINK(link);
             if (object->type == 1) {
-                plugin = MK_ATOMIC_PLUGIN((RpAtomic*)object);
-                sobj = plugin->sobj;
+                sobj = MK_ATOMIC_PLUGIN((RpAtomic*)object)->sobj;
                 if (sobj != 0) {
-                    sobj->flags09 = (unsigned char)(
-                        (sobj->flags09 & ~4) | ((flag << 2) & 4));
+                    sobj->flags09_bits.bit2 = flag;
                 }
             }
             link = next_link;
@@ -463,52 +474,48 @@ static RwObject* rwobject_set_true_clip_flag(RwObject* object, unsigned char fla
     return object;
 }
 
-void obj_set_sobj_alpha(void* obj, int sobj_index, int alpha) {
-    MkObj* mkobj = (MkObj*)obj;
+static inline MkSobj* find_sobj_by_id_inline(MkObj* obj, unsigned int id) {
     MkPtr* ptr;
     MkSobj* sobj;
 
-    if (mkobj != 0) {
-        ptr = first_mkptr(&mkobj->sobj_list);
-        while (ptr != 0) {
-            sobj = (MkSobj*)ptr->hdr;
-            if ((sobj->id_flags & 0xFFF) == (unsigned int)sobj_index) {
-                break;
-            }
-            ptr = next_mkptr(ptr);
+    ptr = first_mkptr(&obj->sobj_list);
+    while (ptr != 0) {
+        sobj = (MkSobj*)ptr->hdr;
+        if ((sobj->id_flags & 0xFFFu) == id) {
+            return sobj;
         }
-        if (ptr == 0) {
-            sobj = 0;
-        }
+        ptr = next_mkptr(ptr);
+    }
+    return 0;
+}
+
+void obj_set_sobj_alpha(MkObj* obj, int sobj_index, int alpha) {
+    MkSobj* sobj;
+
+    if (obj != 0) {
+        sobj = find_sobj_by_id_inline(obj, (unsigned int)sobj_index);
         if (sobj != 0) {
             set_atomic_material_alpha(sobj->atomic, alpha);
         }
     }
 }
 
-void obj_turn_gravity_off(void* obj) {
-    MkObj* mkobj = (MkObj*)obj;
-
-    if (mkobj != 0) {
-        mkobj->flags_08 &= ~1u;
+void obj_turn_gravity_off(MkObj* obj) {
+    if (obj != 0) {
+        obj->flags_08_bits.moving = 0;
     }
 }
 
-void obj_enable_grounding(void* obj) {
-    MkObj* mkobj;
-
-    mkobj = (MkObj*)obj;
-    mkobj->flags_09 |= 0x80;
-    update_bone_hierarchy(obj);
-    ground_me(obj);
+void obj_enable_grounding(MkObj* obj) {
+    obj->flags_09_bits.launched = 1;
+    update_bone_hierarchy(obj != 0 ? as_mkhdr(&obj->hdr) : 0);
+    ground_me(obj != 0 ? as_mkhdr(&obj->hdr) : 0);
 }
 
-void obj_set_gravity(void* obj, float gravity) {
-    MkObj* mkobj = (MkObj*)obj;
-
-    if (mkobj != 0) {
-        mkobj->flags_08 |= 1;
-        mkobj->gravity = gravity;
+void obj_set_gravity(MkObj* obj, float gravity) {
+    if (obj != 0) {
+        obj->flags_08_bits.moving = 1;
+        obj->gravity = gravity;
     }
 }
 
@@ -526,11 +533,10 @@ Quat* obj_get_bone_rot_quat(void* obj, int bone) {
     return &mkbone->rotation;
 }
 
-void obj_get_ang_vel(void* obj, void* out) {
-    MkObj* mkobj = (MkObj*)obj;
-    Vec* value = (Vec*)out;
-
-    *value = mkobj->ang_vel;
+void obj_get_ang_vel(MkObj* obj, Vec* out) {
+    out->x = obj->ang_vel.x;
+    out->y = obj->ang_vel.y;
+    out->z = obj->ang_vel.z;
 }
 
 void mks_set_flipped_bones(int flag) {
@@ -545,22 +551,28 @@ void obj_set_light_flag(void* obj, int flag) {
     ((MkObj*)obj)->light_flags = flag;
 }
 
-void obj_set_ang_vel(void* obj, void* vel) {
-    MkObj* mkobj = (MkObj*)obj;
+void obj_set_ang_vel(MkObj* obj, void* velocity) {
+    Vec* vel = (Vec*)velocity;
 
-    mkobj->flags_08 |= 4;
-    mkobj->ang_vel = *(Vec*)vel;
+    obj->flags_08_bits.rotation_enabled = 1;
+    obj->ang_vel.x = vel->x;
+    obj->ang_vel.y = vel->y;
+    obj->ang_vel.z = vel->z;
 }
 
-void obj_get_pos_vel(void* obj, void* out) {
-    *(Vec*)out = ((MkObj*)obj)->pos_vel;
+void obj_get_pos_vel(MkObj* obj, Vec* out) {
+    out->x = obj->pos_vel.x;
+    out->y = obj->pos_vel.y;
+    out->z = obj->pos_vel.z;
 }
 
-void obj_set_pos_vel(void* obj, void* vel) {
-    MkObj* mkobj = (MkObj*)obj;
+void obj_set_pos_vel(MkObj* obj, void* velocity) {
+    Vec* vel = (Vec*)velocity;
 
-    mkobj->flags_08 |= 0x20;
-    mkobj->pos_vel = *(Vec*)vel;
+    obj->flags_08_bits.gravity_enabled = 1;
+    obj->pos_vel.x = vel->x;
+    obj->pos_vel.y = vel->y;
+    obj->pos_vel.z = vel->z;
 }
 
 void obj_get_ang(void* obj, void* out) {
@@ -587,27 +599,29 @@ void obj_get_pos(MkObj* obj, Vec* out) {
     out->z = obj->pos_z;
 }
 
-void obj_set_pos(MkObj* obj, const Vec* pos) {
+void obj_set_pos(MkObj* obj, Vec* pos) {
     obj->pos_x = pos->x;
     obj->pos_y = pos->y;
     obj->pos_z = pos->z;
-    obj->flags_08 |= 0x40;
+    obj->flags_08_bits.airborne = 1;
 }
 
-void obj_get_scale(void* obj, void* out) {
-    MkObj* mkobj = (MkObj*)obj;
-
-    if (mkobj != 0) {
-        *(Vec*)out = mkobj->scale;
+void obj_get_scale(MkObj* obj, Vec* out) {
+    if (obj != 0) {
+        out->x = obj->scale.x;
+        out->y = obj->scale.y;
+        out->z = obj->scale.z;
     }
 }
 
-void obj_set_scale(void* obj, void* scale) {
-    MkObj* mkobj = (MkObj*)obj;
+void obj_set_scale(MkObj* obj, void* value) {
+    Vec* scale = (Vec*)value;
 
-    if (mkobj != 0) {
-        mkobj->flags_08 |= 2;
-        mkobj->scale = *(Vec*)scale;
+    if (obj != 0) {
+        obj->flags_08_bits.scale_active = 1;
+        obj->scale.x = scale->x;
+        obj->scale.y = scale->y;
+        obj->scale.z = scale->z;
     }
 }
 
@@ -619,49 +633,65 @@ void obj_set_ground_colls(void* obj, void* colls) {
     ((MkObj*)obj)->ground_colls = colls;
 }
 
-void sobj_get_ang_vel(void* sobj, void* out) {
-    *(Vec*)out = ((MkSobj*)sobj)->ang_vel;
+void sobj_get_ang_vel(MkSobj* sobj, Vec* out) {
+    out->x = sobj->ang_vel.x;
+    out->y = sobj->ang_vel.y;
+    out->z = sobj->ang_vel.z;
 }
 
-void sobj_set_ang_vel(void* sobj, void* vel) {
-    MkSobj* mksobj = (MkSobj*)sobj;
+void sobj_set_ang_vel(MkSobj* sobj, void* velocity) {
+    Vec* vel = (Vec*)velocity;
 
-    mksobj->flags_08 |= 4;
-    mksobj->ang_vel = *(Vec*)vel;
+    sobj->flags_08_bits.angular_velocity_enabled = 1;
+    sobj->ang_vel.x = vel->x;
+    sobj->ang_vel.y = vel->y;
+    sobj->ang_vel.z = vel->z;
 }
 
-void sobj_get_pos_vel(void* sobj, void* out) {
-    *(Vec*)out = ((MkSobj*)sobj)->pos_vel;
+void sobj_get_pos_vel(MkSobj* sobj, Vec* out) {
+    out->x = sobj->pos_vel.x;
+    out->y = sobj->pos_vel.y;
+    out->z = sobj->pos_vel.z;
 }
 
-void sobj_set_pos_vel(void* sobj, void* vel) {
-    MkSobj* mksobj = (MkSobj*)sobj;
+void sobj_set_pos_vel(MkSobj* mksobj, void* vel) {
+    Vec* velocity = (Vec*)vel;
 
-    mksobj->flags_08 |= 0x40;
-    mksobj->flags_08 |= 0x20;
-    mksobj->pos_vel = *(Vec*)vel;
+    mksobj->flags_08_bits.bit6 = 1;
+    mksobj->flags_08_bits.bit5 = 1;
+    mksobj->pos_vel.x = velocity->x;
+    mksobj->pos_vel.y = velocity->y;
+    mksobj->pos_vel.z = velocity->z;
 }
 
-void sobj_get_ang(void* sobj, void* out) {
-    *(Vec*)out = ((MkSobj*)sobj)->ang;
+void sobj_get_ang(MkSobj* sobj, Vec* out) {
+    out->x = sobj->ang.x;
+    out->y = sobj->ang.y;
+    out->z = sobj->ang.z;
 }
 
-void sobj_set_ang(void* sobj, void* ang) {
-    MkSobj* mksobj = (MkSobj*)sobj;
+void sobj_set_ang(MkSobj* sobj, void* value) {
+    Vec* ang = (Vec*)value;
 
-    mksobj->flags_08 |= 0x10;
-    mksobj->ang = *(Vec*)ang;
+    sobj->flags_08_bits.bit4 = 1;
+    sobj->ang.x = ang->x;
+    sobj->ang.y = ang->y;
+    sobj->ang.z = ang->z;
 }
 
-void sobj_get_pos(void* sobj, void* out) {
-    *(Vec*)out = ((MkSobj*)sobj)->pos;
+void sobj_get_pos(MkSobj* sobj, Vec* out) {
+    out->x = sobj->pos.x;
+    out->y = sobj->pos.y;
+    out->z = sobj->pos.z;
 }
 
-void sobj_set_pos(void* sobj, void* pos) {
-    MkSobj* mksobj = (MkSobj*)sobj;
+void sobj_set_pos(MkSobj* sobj, void* value) {
+    Vec* pos = (Vec*)value;
 
-    mksobj->flags_08 |= 0x80;
-    mksobj->pos = *(Vec*)pos;
+    sobj->flags_08_bits.bit7 = 1;
+    sobj->pos.x = pos->x;
+    sobj->pos.y = pos->y;
+    sobj->pos.z = pos->z;
 }
 
 Vec* sobj_get_world_pos(void* sobj) {
@@ -688,13 +718,15 @@ static RwObject* rwobject_unhide_my_object(RwObject* object, void* data);
 static RwFrame* rwframe_hide_objects_and_children(RwFrame* frame, void* data);
 static RwObject* rwobject_hide_my_object(RwObject* object, void* data);
 
-void unhide_sobj_and_children(void* sobj) {
-    MkSobj* mksobj;
+void unhide_sobj_and_children(MkSobj* sobj) {
+    RwFrame* frame;
+    RpAtomic* atomic;
 
-    mksobj = (MkSobj*)sobj;
-    mksobj->atomic->object.flags = 4;
+    frame = sobj->frame;
+    atomic = sobj->atomic;
+    atomic->object.flags = 4;
     RwFrameForAllChildren(
-        mksobj->frame, rwframe_unhide_objects_and_children, 0);
+        frame, rwframe_unhide_objects_and_children, 0);
 }
 
 static RwFrame* rwframe_unhide_objects_and_children(RwFrame* frame, void* data) {
@@ -710,13 +742,15 @@ static RwObject* rwobject_unhide_my_object(RwObject* object, void* data) {
     return object;
 }
 
-void hide_sobj_and_children(void* sobj) {
-    MkSobj* mksobj;
+void hide_sobj_and_children(MkSobj* sobj) {
+    RpAtomic* atomic;
+    RwFrame* frame;
 
-    mksobj = (MkSobj*)sobj;
-    mksobj->atomic->object.flags &= ~4u;
+    atomic = sobj->atomic;
+    frame = sobj->frame;
+    atomic->object.flags &= ~4u;
     RwFrameForAllChildren(
-        mksobj->frame, rwframe_hide_objects_and_children, 0);
+        frame, rwframe_hide_objects_and_children, 0);
 }
 
 static RwFrame* rwframe_hide_objects_and_children(RwFrame* frame, void* data) {
@@ -732,24 +766,26 @@ static RwObject* rwobject_hide_my_object(RwObject* object, void* data) {
     return object;
 }
 
-void kill_head_tracking(void* obj) {
-    MkPtr* ptr;
+void kill_head_tracking(void) {
     MkPtr* next;
+    MkPtr* ptr;
     MkProc* proc;
 
-    ptr = active_proc_list;
-    while (ptr != 0) {
-        proc = (MkProc*)ptr->hdr;
-        if (ptr->instance != proc->instance) {
-            next = ptr->next;
-            ptr->hdr = 0;
-            destroy_mkptr(ptr);
-            ptr = next;
-        } else {
-            if (proc->pid == 0x6005) {
-                xfer_proc(proc, p_headtracking_die);
+    if (&active_proc_list != 0) {
+        ptr = active_proc_list;
+        while (ptr != 0) {
+            proc = (MkProc*)ptr->hdr;
+            if (ptr->instance != proc->instance) {
+                next = ptr->next;
+                ptr->hdr = 0;
+                destroy_mkptr(ptr);
+                ptr = next;
+            } else {
+                if (proc->pid == 0x6005) {
+                    xfer_proc(proc, p_headtracking_die);
+                }
+                ptr = ptr->next;
             }
-            ptr = ptr->next;
         }
     }
 }
@@ -760,15 +796,15 @@ static float p_headtracking_die(void) {
 
     pdata = (HeadTrackingPdata*)pdata_headtracking;
     if (pdata->obj != 0) {
-        bone = pdata->obj->bones[0];
-        if (bone->parent_matrix != 0) {
-            bone->flags_54 &= ~2;
+        bone = pdata->obj->bones[16];
+        if (bone != 0) {
+            bone->flags_54_bits.pose_matrix_applied = 0;
         }
     }
     return -1.0f;
 }
 
-MkProc* create_mkproc_headtracking(int pid, MkObj* obj, void* target) {
+MkProc* create_mkproc_headtracking(int pid, MkObj* obj, PlyrPdata* target) {
     HeadTrackingPdata* pdata;
     MkProc* proc;
 
@@ -780,15 +816,247 @@ MkProc* create_mkproc_headtracking(int pid, MkObj* obj, void* target) {
         proc->destroy_cb = trackhead_postsleep;
         pdata->obj = obj;
         pdata->target = target;
-        obj->flags_09 |= 2;
+        obj->flags_09_bits.head_tracking = 1;
         pdata->angle_x = 0.0f;
         pdata->angle_y = 0.0f;
-        pdata->angle_z = 0.0f;
+        pdata->blend_weight = 0.0f;
     }
     return proc;
 }
 
+static inline int head_tracking_should_fade(MkObj* obj, PlyrPdata* target,
+                                            int* special_camera) {
+    int state;
+
+    if (g_game_info.plyr0.slot.mirror_a == obj ||
+        g_game_info.plyr1.slot.mirror_a == obj) {
+        state = target->state;
+        if (state < 0x6200) {
+            if (state < 0x6004 && state >= 0x6000) {
+                return 1;
+            }
+        } else if (state < 0x6202) {
+            return 1;
+        }
+        if (mode_of_play == 6) {
+            if ((state & 0x400) != 0) {
+                return 1;
+            }
+        } else if ((state & 0x600) != 0) {
+            return 1;
+        }
+    }
+    if (aproc->pid == 0x6006) {
+        *special_camera = 1;
+    }
+    return obj->flags_09_bits.head_tracking == 0;
+}
+
 static float p_plyr_head_tracking(void) {
+    PlyrPdata* target;
+    MkObj* obj;
+    MkObj* target_obj;
+    MkBone* head;
+    MkBone* neck;
+    RwMatrix* camera_matrix;
+    Vec object_pos;
+    Vec target_pos;
+    Vec target_low_pos;
+    Vec direction;
+    Vec target_angles;
+    Vec neck_angles;
+    Vec camera_angles;
+    Quat desired_rotation;
+    Quat local_rotation;
+    Vec camera_offset;
+    int special_camera;
+    int saved_fallback_bone;
+
+    special_camera = 0;
+    obj = pdata_headtracking->obj;
+    head = obj->bones[16];
+    if (head != 0) {
+        target = pdata_headtracking->target;
+        target_obj = target->his_obj;
+        if (target_obj != 0 && (int)target_obj->oid == 0) {
+            return 1.0f;
+        }
+        if (head->flags_55_bits.collision_disabled != 0 ||
+            head->parent_matrix == 0 ||
+            head->transform_parent->parent_matrix == 0 ||
+            target->fighter_definition->fighter_id == 0x33) {
+            head->flags_54_bits.pose_matrix_applied = 0;
+            return 1.0f;
+        }
+
+        if (head_tracking_should_fade(obj, target, &special_camera)) {
+            pdata_headtracking->blend_weight -= 0.06f;
+            if (special_camera != 0 &&
+                pdata_headtracking->blend_weight <= 0.4f) {
+                pdata_headtracking->blend_weight = 0.4f;
+            } else if (pdata_headtracking->blend_weight <= 0.0f) {
+                pdata_headtracking->blend_weight = 0.0f;
+                head->flags_54_bits.pose_matrix_applied = 0;
+                return 1.0f;
+            }
+        } else {
+            pdata_headtracking->blend_weight += 0.06f;
+            if (pdata_headtracking->blend_weight > 1.0f) {
+                pdata_headtracking->blend_weight = 1.0f;
+            }
+        }
+
+        head->flags_54_bits.pose_matrix_applied = 1;
+        target_obj = pdata_headtracking->target->his_obj;
+        if (target_obj == 0 && aproc->pid != 0x6006) {
+            return -1.0f;
+        }
+        neck = obj->bones[9];
+        if (neck != 0) {
+            camera_matrix = RwFrameGetLTM(obj->frame);
+            gxMatV3MatAddV3_Check(
+                (Vec*)&head->parent_matrix->pos, &head->translation,
+                (Mat33*)head->transform_parent->parent_matrix,
+                (Vec*)&head->transform_parent->parent_matrix->pos);
+
+            if ((int)obj->bone_count <= 16) {
+                object_pos = obj->pos;
+            } else {
+                MkBone* root = obj->bones[16];
+                if (root == 0 || root->parent_matrix == 0) {
+                    object_pos.x = obj->pos.x;
+                    object_pos.y = obj->pos.y;
+                    object_pos.z = obj->pos.z;
+                } else {
+                    v3_x_mat_add_v3(&object_pos,
+                                    (Vec*)&root->parent_matrix->pos,
+                                    (MKMATRIX*)obj->field_24, &obj->pos);
+                }
+            }
+
+            if (special_camera != 0) {
+                PSVECScale((Vec*)&camera_matrix->up, &camera_offset, 0.1f);
+                PSVECAdd((Vec*)&camera_matrix->at, &camera_offset, &target_pos);
+                PSVECSubtract(&target_pos, (Vec*)&camera_matrix->right,
+                              &target_pos);
+                PSVECNormalize(&target_pos, &target_pos);
+                v3_to_xy_ang(&target_angles, &target_pos);
+            } else {
+                if ((int)target_obj->bone_count <= 16) {
+                    target_pos = target_obj->pos;
+                } else {
+                    MkBone* target_bone = target_obj->bones[16];
+                    if (target_bone == 0 || target_bone->parent_matrix == 0) {
+                        target_pos.x = target_obj->pos.x;
+                        target_pos.y = target_obj->pos.y;
+                        target_pos.z = target_obj->pos.z;
+                    } else {
+                        v3_x_mat_add_v3(
+                            &target_pos, (Vec*)&target_bone->parent_matrix->pos,
+                            (MKMATRIX*)target_obj->field_24, &target_obj->pos);
+                    }
+                }
+                if ((int)target_obj->bone_count <= 9) {
+                    target_low_pos = target_obj->pos;
+                } else {
+                    MkBone* target_bone = target_obj->bones[9];
+                    if (target_bone == 0 || target_bone->parent_matrix == 0) {
+                        target_low_pos.x = target_obj->pos.x;
+                        target_low_pos.y = target_obj->pos.y;
+                        target_low_pos.z = target_obj->pos.z;
+                    } else {
+                        v3_x_mat_add_v3(&target_low_pos,
+                                        (Vec*)&target_bone->parent_matrix->pos,
+                                        (MKMATRIX*)target_obj->field_24,
+                                        &target_obj->pos);
+                    }
+                }
+                if (target_pos.y > target_low_pos.y) {
+                    PSVECSubtract(&target_pos, &object_pos, &direction);
+                    PSVECNormalize(&direction, &direction);
+                } else {
+                    PSVECSubtract(&target_low_pos, &object_pos, &direction);
+                    PSVECNormalize(&direction, &direction);
+                }
+                v3_to_xy_ang(&target_angles, &direction);
+                v3_to_xy_ang(&camera_angles, (Vec*)&camera_matrix->at);
+                target_angles.x -= camera_angles.x;
+                target_angles.y -= camera_angles.y;
+                target_angles.z = 0.0f;
+                v3_to_xy_ang(&neck_angles, (Vec*)&neck->parent_matrix->at);
+                target_angles.y -= neck_angles.y;
+                if (target_angles.y > 3.1415927f) {
+                    target_angles.y -= 6.2831855f;
+                } else if (target_angles.y < -3.1415927f) {
+                    target_angles.y += 6.2831855f;
+                }
+                if (target_angles.y > 1.0f) {
+                    target_angles.y = 1.0f;
+                } else if (target_angles.y < -1.0f) {
+                    target_angles.y = -1.0f;
+                }
+                target_angles.y += neck_angles.y;
+                if (target_angles.y < pdata_headtracking->angle_y) {
+                    if (pdata_headtracking->angle_y - target_angles.y > 0.2f) {
+                        target_angles.y = pdata_headtracking->angle_y - 0.2f;
+                    }
+                } else if (target_angles.y - pdata_headtracking->angle_y >
+                           0.2f) {
+                    target_angles.y = pdata_headtracking->angle_y + 0.2f;
+                }
+                if (target_angles.x > neck_angles.x + 1.0f) {
+                    target_angles.x = neck_angles.x + 1.0f;
+                } else if (target_angles.x < neck_angles.x - 1.0f) {
+                    target_angles.x = neck_angles.x - 1.0f;
+                }
+                if (target_angles.x < pdata_headtracking->angle_x) {
+                    if (pdata_headtracking->angle_x - target_angles.x >
+                        0.035f) {
+                        target_angles.x = pdata_headtracking->angle_x - 0.035f;
+                    }
+                } else if (target_angles.x - pdata_headtracking->angle_x >
+                           0.035f) {
+                    target_angles.x = pdata_headtracking->angle_x + 0.035f;
+                }
+                pdata_headtracking->angle_x = target_angles.x;
+                pdata_headtracking->angle_y = target_angles.y;
+            }
+            if (special_camera != 0 ||
+                pdata_headtracking->blend_weight >= 1.0f) {
+                YXZ_angles_to_MKMATRIX(&target_angles,
+                                       (MKMATRIX*)head->parent_matrix);
+                RtQuatConvertFromMatrix((RtQuat*)&head->rotation_90,
+                                        head->parent_matrix);
+            } else {
+                YXZ_angles_to_quat(&target_angles, &desired_rotation);
+                gxQuatMul(&local_rotation, &head->rotation,
+                          &obj->bones[13]->rotation_90);
+                gxQuatInterpQuat(&head->rotation_90, &desired_rotation,
+                                 &local_rotation,
+                                 pdata_headtracking->blend_weight);
+                gxQuatQuatToMat((Mat33*)head->parent_matrix,
+                                &head->rotation_90);
+            }
+            if (head->flags_55_bits.scale_controlled != 0) {
+                gxMatScaledByV3((Mat33*)head->parent_matrix,
+                                (Mat33*)head->parent_matrix, &head->scale);
+            }
+            if (head->flags_54_bits.calculation_locked != 0) {
+                gxMat33x33_Check((Mat33*)&head->matrix,
+                                 (Mat33*)head->parent_matrix,
+                                 (Mat33*)camera_matrix);
+                gxMatV3MatAddV3(
+                    (Vec*)&head->matrix.pos, (Vec*)&head->parent_matrix->pos,
+                    (Mat33*)camera_matrix, (Vec*)&camera_matrix->pos);
+            }
+            if (head->tree_child != 0) {
+                saved_fallback_bone = obj->fallback_bone_index;
+                obj->fallback_bone_index = head->bone_index;
+                update_bone_hierarchy(obj != 0 ? as_mkhdr(&obj->hdr) : 0);
+                obj->fallback_bone_index = saved_fallback_bone;
+            }
+        }
+    }
     return 1.0f;
 }
 
@@ -800,13 +1068,13 @@ static void trackhead_prewake(void) {
     if (aproc->pid != 0x6005 && aproc->pid != 0x6006) {
         mkproc_die();
     }
-    pdata_headtracking = apdata;
+    pdata_headtracking = (HeadTrackingPdata*)apdata;
     if (pdata_headtracking == 0) {
         mkproc_die();
     }
 }
 
-void mks_start_goro_arms_fixup(void* mks) {
+void mks_start_goro_arms_fixup(void) {
     MkProc* proc;
 
     proc = _create_mkproc_generic_nostack(
@@ -825,23 +1093,24 @@ static float p_goro_arms_fixup(void) {
     int i;
 
     obj = (MkObj*)apdata;
-    if (obj != 0) {
-        entry = goro_arms_fixup_map;
-        for (i = 0; i < 12; i++, entry++) {
-            if (entry->source_bone < (int)obj->bone_count &&
-                entry->target_bone < (int)obj->bone_count) {
-                source = obj->bones[entry->source_bone];
-                if (source != 0) {
-                    target = obj->bones[entry->target_bone];
-                    if (target != 0 &&
-                        target->update_tick != (unsigned int)exec_tick_ctr) {
-                        gxQuatInterpQuat(
-                            &target->rotation, &target->rotation,
-                            &source->rotation, 0.5f);
-                        target->flags_55 |= 2;
-                        gxQuatCopy(
-                            &target->rotation_e0, &target->rotation);
-                    }
+    if (obj == 0) {
+        return 1.0f;
+    }
+    for (i = 0; i < 12; i++) {
+        entry = &goro_arms_fixup_map[i];
+        if (entry->source_bone < (int)obj->bone_count &&
+            entry->target_bone < (int)obj->bone_count) {
+            source = obj->bones[entry->source_bone];
+            if (source != 0) {
+                target = obj->bones[entry->target_bone];
+                if (target != 0 &&
+                    target->update_tick != (unsigned int)exec_tick_ctr) {
+                    gxQuatInterpQuat(
+                        &target->rotation, &target->rotation,
+                        &source->rotation, 0.9f);
+                    target->flags_55_bits.pad_bit1 = 1;
+                    gxQuatCopy(
+                        &target->rotation_e0, &target->rotation);
                 }
             }
         }
@@ -849,58 +1118,59 @@ static float p_goro_arms_fixup(void) {
     return 1.0f;
 }
 
-void mirror_guy(void* source_arg, void* mirror_arg, void* pdata_arg) {
-    MkObj* source;
-    MkObj* mirror;
-    PlyrPdata* pdata;
+void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     PlyrMirrorBoneMap* map;
     PlyrMirrorObjLatch* latch;
     MkObj* linked_obj;
     MkBone* bone;
     RwMatrix* matrix;
     Vec angles;
-    float player_offset;
     int i;
 
-    source = (MkObj*)source_arg;
-    mirror = (MkObj*)mirror_arg;
-    pdata = (PlyrPdata*)pdata_arg;
     map = pdata->mirror_bone_map;
-    angles = source->ang;
+    angles.x = source->ang.x;
+    angles.y = source->ang.y;
+    angles.z = source->ang.z;
 
     if (mirror != 0) {
         for (i = 0; i < map->count; i++) {
             bone = mirror->bones[map->entries[i].bone_index];
             if (bone != 0 && bone->parent_matrix != 0) {
                 matrix = bone->parent_matrix;
+                matrix->pos.y = -matrix->pos.y;
+                matrix->at.y = -matrix->at.y;
                 matrix->right.y = -matrix->right.y;
                 matrix->up.y = -matrix->up.y;
-                matrix->at.y = -matrix->at.y;
-                matrix->pos.y = -matrix->pos.y;
             }
         }
         matrix = mirror->field_24;
         YXZ_angles_to_MKMATRIX(&angles, (MKMATRIX*)matrix);
-        if (*(signed char*)((char*)pdata->plyr_info + 0x14) < 0) {
-            player_offset =
-                *(float*)((char*)pdata->status_flags + 0x40);
+        if (pdata->plyr_info->flags_14_bits.alternate_costume) {
+            matrix->pos.y =
+                -(g_game_info.misc->mirror_plane_offset +
+                  (pdata->runtime_data->alternate_mirror_offset +
+                   (source->pos_y - g_game_info.field_34)));
+            matrix->pos.y += g_game_info.field_34;
         } else {
-            player_offset =
-                *(float*)((char*)pdata->status_flags + 0x1C);
+            matrix->pos.y =
+                -(g_game_info.misc->mirror_plane_offset +
+                  (pdata->runtime_data->primary_mirror_offset +
+                   (source->pos_y - g_game_info.field_34)));
+            matrix->pos.y += g_game_info.field_34;
         }
-        matrix->pos.y =
-            -(g_game_info.misc->mirror_plane_offset + player_offset +
-              (source->pos_y - g_game_info.field_34));
-        matrix->pos.y += g_game_info.field_34;
         RwFrameUpdateObjects(mirror->frame);
     }
 
     latch = &pdata->mirror_slots->weapon[0].mirror;
     linked_obj = latch->obj;
-    if (linked_obj == 0 || linked_obj->hdr.instance != latch->instance) {
+    if (linked_obj != 0) {
+        if (linked_obj->hdr.instance != latch->instance) {
+            linked_obj = 0;
+        }
+    } else {
         linked_obj = 0;
     }
-    if (linked_obj != 0 && (linked_obj->hide_flags & 0x20) == 0) {
+    if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
         matrix->at.y = -matrix->at.y;
@@ -913,10 +1183,14 @@ void mirror_guy(void* source_arg, void* mirror_arg, void* pdata_arg) {
 
     latch = &pdata->mirror_slots->weapon[1].mirror;
     linked_obj = latch->obj;
-    if (linked_obj == 0 || linked_obj->hdr.instance != latch->instance) {
+    if (linked_obj != 0) {
+        if (linked_obj->hdr.instance != latch->instance) {
+            linked_obj = 0;
+        }
+    } else {
         linked_obj = 0;
     }
-    if (linked_obj != 0 && (linked_obj->hide_flags & 0x20) == 0) {
+    if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
         matrix->at.y = -matrix->at.y;
@@ -929,10 +1203,14 @@ void mirror_guy(void* source_arg, void* mirror_arg, void* pdata_arg) {
 
     latch = &pdata->mirror_obj;
     linked_obj = latch->obj;
-    if (linked_obj == 0 || linked_obj->hdr.instance != latch->instance) {
+    if (linked_obj != 0) {
+        if (linked_obj->hdr.instance != latch->instance) {
+            linked_obj = 0;
+        }
+    } else {
         linked_obj = 0;
     }
-    if (linked_obj != 0 && (linked_obj->hide_flags & 0x20) == 0) {
+    if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
         matrix->at.y = -matrix->at.y;
@@ -944,38 +1222,50 @@ void mirror_guy(void* source_arg, void* mirror_arg, void* pdata_arg) {
     }
 }
 
-void create_shadow_proc(int pid, void* controller_arg, void* source_arg,
-                        void* shadow_arg) {
-    ShadowController* controller;
+void create_shadow_proc(int pid, PlyrPdata* controller, MkObj* source,
+                        MkObj* shadow) {
     ShadowPdata* pdata;
     MkProc* proc;
 
-    controller = (ShadowController*)controller_arg;
     proc = _create_mkproc_generic_nostack(
         pid, 0x2A, p_shadow_obj, sizeof(ShadowPdata), (MkHdr**)&pdata);
     if (proc != 0) {
-        pdata->source = (MkObj*)source_arg;
-        pdata->source_instance = ((MkObj*)source_arg)->hdr.instance;
-        pdata->shadow = (MkObj*)shadow_arg;
-        pdata->shadow_instance = ((MkObj*)shadow_arg)->hdr.instance;
+        pdata->source = source;
+        pdata->source_instance = source->hdr.instance;
+        pdata->shadow = shadow;
+        pdata->shadow_instance = shadow->hdr.instance;
         pdata->controller = controller;
-        controller->proc = proc;
-        proc->flags |= MKPROC_FLAG_SKIP_IF_PAUSED;
+        controller->shadow_proc = proc;
+        proc->flags_bits.skip_if_paused = 1;
     } else {
-        controller->proc = 0;
+        controller->shadow_proc = 0;
     }
 }
 
 static void shadow_update_pair(ShadowObjPair* pair) {
+    MkObj* raw_source;
+    MkObj* raw_shadow;
     MkObj* source;
     MkObj* shadow;
 
-    source = pair->source;
-    if (source == 0 || source->hdr.instance != pair->source_instance) {
+    raw_source = pair->source;
+    if (raw_source != 0) {
+        if (raw_source->hdr.instance == pair->source_instance) {
+            source = raw_source;
+        } else {
+            source = 0;
+        }
+    } else {
         source = 0;
     }
-    shadow = pair->shadow;
-    if (shadow == 0 || shadow->hdr.instance != pair->shadow_instance) {
+    raw_shadow = pair->shadow;
+    if (raw_shadow != 0) {
+        if (raw_shadow->hdr.instance == pair->shadow_instance) {
+            shadow = raw_shadow;
+        } else {
+            shadow = 0;
+        }
+    } else {
         shadow = 0;
     }
     if (source != 0 && shadow != 0) {
@@ -988,11 +1278,21 @@ static void shadow_update_pair(ShadowObjPair* pair) {
     }
 }
 
+static inline MkObj* shadow_validate_obj(MkObj* raw,
+                                         unsigned int expected_instance) {
+    if (raw != 0) {
+        if (raw->hdr.instance == expected_instance) {
+            return raw;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 static float p_shadow_obj(void) {
     ShadowPdata* pdata;
-    ShadowController* controller;
-    ShadowBoneMap* map;
-    ShadowBonePair* pair;
+    PlyrMirrorBoneMap* map;
+    PlyrMirrorBoneMapEntry* pair;
     MkObj* source;
     MkObj* shadow;
     MkBone* source_bone;
@@ -1000,30 +1300,23 @@ static float p_shadow_obj(void) {
     int i;
 
     pdata = (ShadowPdata*)apdata;
-    source = pdata->source;
-    if (source == 0 || source->hdr.instance != pdata->source_instance) {
-        source = 0;
-    }
+    source = shadow_validate_obj(pdata->source, pdata->source_instance);
     if (source == 0) {
         return -1.0f;
     }
-    shadow = pdata->shadow;
-    if (shadow == 0 || shadow->hdr.instance != pdata->shadow_instance) {
-        shadow = 0;
-    }
+    shadow = shadow_validate_obj(pdata->shadow, pdata->shadow_instance);
     if (shadow == 0) {
         return -1.0f;
     }
 
-    controller = pdata->controller;
-    map = controller->bone_map;
-    pair = map->pairs;
-    for (i = 0; i < map->count; i++, pair++) {
-        if (pair->source_bone < (int)source->bone_count &&
-            pair->shadow_bone < (int)shadow->bone_count) {
-            shadow_bone = shadow->bones[pair->shadow_bone];
+    map = pdata->controller->mirror_bone_map;
+    for (i = 0; i < map->count; i++) {
+        pair = &map->entries[i];
+        if (pair->field_00 < (int)source->bone_count &&
+            pair->bone_index < (int)shadow->bone_count) {
+            shadow_bone = shadow->bones[pair->bone_index];
             if (shadow_bone != 0) {
-                source_bone = source->bones[pair->source_bone];
+                source_bone = source->bones[pair->field_00];
                 if (source_bone != 0 &&
                     shadow_bone->parent_matrix != 0 &&
                     source_bone->parent_matrix != 0) {
@@ -1036,21 +1329,24 @@ static float p_shadow_obj(void) {
     memcpy(shadow->field_24, source->field_24, sizeof(RwMatrix));
     RwFrameUpdateObjects(shadow->frame);
 
-    shadow_update_pair(&controller->extras->first);
-    shadow_update_pair(&controller->extras->second);
-    shadow_update_pair(&controller->third);
+    shadow_update_pair((ShadowObjPair*)&pdata->controller->mirror_slots
+                           ->weapon[0].primary);
+    shadow_update_pair((ShadowObjPair*)&pdata->controller->mirror_slots
+                           ->weapon[1].primary);
+    shadow_update_pair((ShadowObjPair*)&pdata->controller->aux_weapon_latch);
     return 1.0f;
 }
 
 void start_bone_hierarchy_proc(void) {
-    int flags;
+    int flags[2];
     MkProc* proc;
 
-    flags = 0;
+    flags[1] = 0;
     bone_hierarchy_mkobj_list = 0;
     limb_bone_list = 0;
     ground_me_mkobj_list = 0;
-    proc = get_mkproc_nostack(&flags);
+    flags[0] = flags[1];
+    proc = get_mkproc_nostack(&flags[0]);
     create_mkproc(0x13, proc, 0x5006, p_bone_hierarchy, 0);
 }
 
@@ -1066,14 +1362,14 @@ static float p_bone_hierarchy(void) {
     return 1.0f;
 }
 
-void auto_calc_limbobj_bone_world_pos(void* obj, int bone) {
+void auto_calc_limbobj_bone_world_pos(MkObj* obj, int bone) {
     LimbBonePdata* pdata;
 
     pdata = (LimbBonePdata*)get_mkpdata_generic(
         sizeof(LimbBonePdata));
     if (pdata != 0) {
-        pdata->obj = (MkObj*)obj;
-        pdata->obj_instance = ((MkObj*)obj)->hdr.instance;
+        pdata->obj = obj;
+        pdata->obj_instance = obj->hdr.instance;
         pdata->bone = bone;
         mk_insert(&pdata->hdr, &limb_bone_list);
     }
@@ -1083,40 +1379,71 @@ static void limb_bone_calc_world_pos(MkHdr* data) {
     LimbBonePdata* pdata;
     MkObj* obj;
     MkBone* bone;
+    RwMatrix* parent;
+    Vec* out;
+    int bone_index;
 
     pdata = (LimbBonePdata*)data;
     obj = pdata->obj;
-    if (obj == 0 || obj->hdr.instance != pdata->obj_instance) {
-        if (pdata->hdr.instance != 0) {
-            ((void (*)(MkHdr*))pdata->hdr.vtbl->destroy)(&pdata->hdr);
+    if (obj != 0) {
+        if (obj->hdr.instance != pdata->obj_instance) {
+            obj = 0;
         }
+    } else {
+        obj = 0;
+    }
+    if (obj != 0) {
+        bone_index = pdata->bone;
+        bone = obj->bones[bone_index];
+        out = (Vec*)&bone->matrix.pos;
+        if (bone_index >= (int)obj->bone_count) {
+            *out = obj->pos;
+            return;
+        }
+        if (bone_index == -1) {
+            *out = obj->pos;
+            return;
+        }
+        if (bone == 0 || (parent = bone->parent_matrix) == 0) {
+            out->x = obj->pos.x;
+            out->y = obj->pos.y;
+            out->z = obj->pos.z;
+            return;
+        }
+        v3_x_mat_add_v3(
+            out, (Vec*)&parent->pos, (MKMATRIX*)obj->field_24,
+            &obj->pos);
         return;
     }
-    bone = obj->bones[pdata->bone];
-    get_bone_world_pos(
-        obj, pdata->bone, &bone->matrix.pos);
+    if (pdata->hdr.instance != 0) {
+        ((void (*)(MkHdr*))pdata->hdr.vtbl->destroy)(&pdata->hdr);
+    }
 }
 
-/* Soft ceiling: ground_me ~53.91% - matrix scheduling differs; stop. */
 void ground_me(void* obj) {
     MkObj* mkobj;
-    int* collision;
+    GroundCollisionEntry* collision;
     MkBone* bone;
     RwMatrix* parent;
     RwMatrix* matrix;
     RwFrame* frame;
     MkSobj* sobj;
+    RwMatrix* matrices;
     float min_height;
     float height;
     int bone_index;
     int i;
 
     mkobj = (MkObj*)obj;
-    if ((mkobj->flags_09 & 0x80) == 0 || mkobj->ground_colls == 0) {
+    if (mkobj->flags_09_bits.launched == 0) {
+        return;
+    }
+    collision = (GroundCollisionEntry*)mkobj->ground_colls;
+    if (collision == 0) {
         return;
     }
     matrix = mkobj->field_24;
-    if ((mkobj->hide_flags & 2) != 0) {
+    if (mkobj->hide_flag_bits.pin_animation != 0) {
         if (mode_of_play == 7) {
             set_bone_world_pos_xz(
                 mkobj, mkobj->ground_bone, &mkobj->ground_restore_pos);
@@ -1125,171 +1452,181 @@ void ground_me(void* obj) {
                 mkobj, mkobj->ground_bone, &mkobj->ground_restore_pos);
         }
     }
-    mkobj->flags_0C &= (unsigned char)~0x10;
-    min_height = 1000.0f;
-    if ((mkobj->flags_0C & 8) != 0) {
-        mkobj->flags_0C &= (unsigned char)~8;
-        mkobj->hide_flags &= (unsigned char)~2;
+    mkobj->flags_0C_bits.tag_flag_10 = 0;
+    if (mkobj->flags_0C_bits.tag_flag_08 != 0) {
+        mkobj->flags_0C_bits.tag_flag_08 = 0;
+        mkobj->hide_flag_bits.pin_animation = 0;
     }
+    min_height = 1000.0f;
 
-    collision = (int*)mkobj->ground_colls;
-    while (collision[0] >= 0) {
-        bone_index = collision[0];
-        if ((mode_of_play != 6 || bone_index < 0x16 ||
-             bone_index > 0x2F) &&
-            bone_index < (int)mkobj->bone_count) {
+    while (collision->bone >= 0) {
+        bone_index = collision->bone;
+        if (mode_of_play != 6 || bone_index < 0x16 ||
+            bone_index > 0x2F) {
             bone = mkobj->bones[bone_index];
-            if (bone != 0 && bone->parent_matrix != 0) {
+            if (bone != 0 && bone->parent_matrix != 0 &&
+                bone_index < (int)mkobj->bone_count) {
                 parent = bone->parent_matrix;
-                if ((bone->flags_54 & 0x10) == 0) {
+                if (bone->flags_54_bits.calculation_locked == 0) {
                     bone->matrix.right.x =
-                        parent->at.x * matrix->at.x +
+                        parent->up.x * matrix->up.x +
                         parent->right.x * matrix->right.x +
-                        parent->up.x * matrix->up.x;
+                        parent->at.x * matrix->at.x;
                     bone->matrix.right.y =
-                        parent->at.x * matrix->at.y +
+                        parent->up.x * matrix->up.y +
                         parent->right.x * matrix->right.y +
-                        parent->up.x * matrix->up.y;
+                        parent->at.x * matrix->at.y;
                     bone->matrix.right.z =
-                        parent->at.x * matrix->at.z +
+                        parent->up.x * matrix->up.z +
                         parent->right.x * matrix->right.z +
-                        parent->up.x * matrix->up.z;
+                        parent->at.x * matrix->at.z;
                     bone->matrix.up.x =
-                        parent->at.y * matrix->at.x +
+                        parent->up.y * matrix->up.x +
                         parent->right.y * matrix->right.x +
-                        parent->up.y * matrix->up.x;
+                        parent->at.y * matrix->at.x;
                     bone->matrix.up.y =
-                        parent->at.y * matrix->at.y +
+                        parent->up.y * matrix->up.y +
                         parent->right.y * matrix->right.y +
-                        parent->up.y * matrix->up.y;
+                        parent->at.y * matrix->at.y;
                     bone->matrix.up.z =
-                        parent->at.y * matrix->at.z +
+                        parent->up.y * matrix->up.z +
                         parent->right.y * matrix->right.z +
-                        parent->up.y * matrix->up.z;
+                        parent->at.y * matrix->at.z;
                     bone->matrix.at.x =
-                        parent->at.z * matrix->at.x +
+                        parent->up.z * matrix->up.x +
                         parent->right.z * matrix->right.x +
-                        parent->up.z * matrix->up.x;
+                        parent->at.z * matrix->at.x;
                     bone->matrix.at.y =
-                        parent->at.z * matrix->at.y +
+                        parent->up.z * matrix->up.y +
                         parent->right.z * matrix->right.y +
-                        parent->up.z * matrix->up.y;
+                        parent->at.z * matrix->at.y;
                     bone->matrix.at.z =
-                        parent->at.z * matrix->at.z +
+                        parent->up.z * matrix->up.z +
                         parent->right.z * matrix->right.z +
-                        parent->up.z * matrix->up.z;
+                        parent->at.z * matrix->at.z;
                     bone->matrix.flags =
                         parent->flags & matrix->flags;
                     bone->matrix.pos.x =
-                        mkobj->pos_x + parent->pos.z * matrix->at.x +
+                        parent->pos.y * matrix->up.x +
                         parent->pos.x * matrix->right.x +
-                        parent->pos.y * matrix->up.x;
+                        parent->pos.z * matrix->at.x + mkobj->pos_x;
                     bone->matrix.pos.y =
-                        mkobj->pos_y + parent->pos.z * matrix->at.y +
+                        parent->pos.y * matrix->up.y +
                         parent->pos.x * matrix->right.y +
-                        parent->pos.y * matrix->up.y;
+                        parent->pos.z * matrix->at.y + mkobj->pos_y;
                     bone->matrix.pos.z =
-                        mkobj->pos_z + parent->pos.z * matrix->at.z +
+                        parent->pos.y * matrix->up.z +
                         parent->pos.x * matrix->right.z +
-                        parent->pos.y * matrix->up.z;
+                        parent->pos.z * matrix->at.z + mkobj->pos_z;
                 }
-                height =
-                    bone->matrix.pos.y +
-                    (float)collision[3] * bone->matrix.at.y +
-                    (float)collision[1] * bone->matrix.right.y +
-                    (float)collision[2] * bone->matrix.up.y -
-                    (float)collision[4];
+                height = collision->offset.y * bone->matrix.up.y +
+                         collision->offset.x * bone->matrix.right.y +
+                         collision->offset.z * bone->matrix.at.y +
+                         bone->matrix.pos.y - collision->radius;
                 if (height < min_height) {
                     min_height = height;
                 }
             }
         }
-        collision += 5;
+        collision++;
     }
 
     if (min_height != 1000.0f) {
-        if (mkobj->ground_colls_y > min_height ||
-            (mkobj->flags_09 & 0x40) != 0) {
+        if (min_height < mkobj->ground_colls_y) {
             mkobj->pos_y -= min_height - mkobj->ground_colls_y;
-            matrix->pos.x = mkobj->pos_x;
-            matrix->pos.y = mkobj->pos_y;
-            matrix->pos.z = mkobj->pos_z;
+            *(Vec*)&matrix->pos = mkobj->pos;
             matrix->flags &= ~0x20000;
             if ((mkobj->hide_flags & 0x10) == 0) {
                 RwFrameUpdateObjects(mkobj->frame);
                 for (i = 1; i < mkobj->clump_count; i++) {
-                    frame = (&mkobj->clump)[i]->object.parent;
-                    frame->ltm.pos = matrix->pos;
+                    frame = mkobj->clumps[i]->object.parent;
+                    frame->modelling.pos = matrix->pos;
                     RwFrameUpdateObjects(frame);
                 }
             }
             if (mkobj->matrix_count > 1) {
                 sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
                 if (sobj != 0 && sobj->matrices != 0) {
+                    matrices = sobj->matrices;
                     for (i = 1; i < (int)mkobj->matrix_count; i++) {
-                        sobj->matrices[mkobj->matrix_indices[i]].pos =
-                            matrix->pos;
+                        matrices[mkobj->matrix_indices[i]].pos = matrix->pos;
                     }
                 }
             }
-            if (mkobj->ground_colls_y > min_height &&
-                ((mkobj->flags_08 & 0x20) == 0 ||
-                 mkobj->pos_vel.y <= 0.0f)) {
+            if (mkobj->flags_08_bits.gravity_enabled == 0 ||
+                !(mkobj->pos_vel.y > 0.0f)) {
                 mkobj->pos_vel.y = 0.0f;
-                mkobj->flags_08 &= (unsigned char)~1;
+                mkobj->flags_08_bits.moving = 0;
+            }
+        } else if (mkobj->flags_09_bits.bit6 != 0) {
+            mkobj->pos_y -= min_height - mkobj->ground_colls_y;
+            *(Vec*)&matrix->pos = mkobj->pos;
+            matrix->flags &= ~0x20000;
+            if ((mkobj->hide_flags & 0x10) == 0) {
+                RwFrameUpdateObjects(mkobj->frame);
+                for (i = 1; i < mkobj->clump_count; i++) {
+                    frame = mkobj->clumps[i]->object.parent;
+                    frame->modelling.pos = matrix->pos;
+                    RwFrameUpdateObjects(frame);
+                }
+            }
+            if (mkobj->matrix_count > 1) {
+                sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
+                if (sobj != 0 && sobj->matrices != 0) {
+                    matrices = sobj->matrices;
+                    for (i = 1; i < (int)mkobj->matrix_count; i++) {
+                        matrices[mkobj->matrix_indices[i]].pos = matrix->pos;
+                    }
+                }
             }
         }
-        mkobj->flags_0C &= (unsigned char)~0x40;
-        if ((mkobj->flags_0C & 0x20) != 0) {
-            mkobj->flags_0C &= (unsigned char)~0x20;
-            mkobj->flags_09 &= (unsigned char)~0x40;
+        mkobj->flags_0C_bits.tag_flag_40 = 0;
+        if (mkobj->flags_0C_bits.tag_flag_20 != 0) {
+            mkobj->flags_0C_bits.tag_flag_20 = 0;
+            mkobj->flags_09_bits.bit6 = 0;
         }
     }
 }
 
-void obj_clear_bone_collapse_flag(void* obj, int bone) {
+void obj_clear_bone_collapse_flag(MkObj* obj, int bone) {
     MkBone* mkbone;
 
-    mkbone = ((MkObj*)obj)->bones[bone];
+    mkbone = obj->bones[bone];
     if (mkbone != 0) {
-        mkbone->flags_55 &= ~0x80;
+        mkbone->flags_55_bits.collision_disabled = 0;
     }
 }
 
-void obj_set_bone_collapse_flag(void* obj, int bone) {
+void obj_set_bone_collapse_flag(MkObj* obj, int bone) {
     MkBone* mkbone;
 
-    mkbone = ((MkObj*)obj)->bones[bone];
+    mkbone = obj->bones[bone];
     if (mkbone != 0) {
-        mkbone->flags_55 =
-            (unsigned char)((mkbone->flags_55 & ~0x80) | 0x80);
+        mkbone->flags_55_bits.collision_disabled = 1;
     }
 }
 
-void obj_set_bone_calc_world_mat_flag(void* obj, int bone) {
+void obj_set_bone_calc_world_mat_flag(MkObj* obj, int bone) {
     MkBone* mkbone;
 
-    mkbone = ((MkObj*)obj)->bones[bone];
+    mkbone = obj->bones[bone];
     if (mkbone != 0) {
-        mkbone->flags_54 =
-            (unsigned char)((mkbone->flags_54 & ~0x10) | 0x10);
+        mkbone->flags_54_bits.calculation_locked = 1;
     }
 }
 
-void* force_calc_bone_world_mat(void* obj, int bone) {
-    MkObj* mkobj;
-    MkBone* mkbone;
+MkBone* force_calc_bone_world_mat(MkObj* obj, int bone) {
     RwMatrix* objectMatrix;
+    MkBone* mkbone;
 
-    mkobj = (MkObj*)obj;
-    if ((unsigned int)bone >= mkobj->bone_count) {
+    if (bone >= (int)obj->bone_count) {
         return 0;
     }
-    mkbone = mkobj->bones[bone];
+    mkbone = obj->bones[bone];
     if (mkbone == 0 || mkbone->parent_matrix == 0) {
         return 0;
     }
-    objectMatrix = mkobj->field_24;
+    objectMatrix = obj->field_24;
     gxMat33x33(
         (Mat33*)&mkbone->matrix, (Mat33*)mkbone->parent_matrix,
         (Mat33*)objectMatrix);
@@ -1299,88 +1636,187 @@ void* force_calc_bone_world_mat(void* obj, int bone) {
     return mkbone;
 }
 
-void calc_bone_world_mat(void* obj, int bone) {
-    MkObj* mkobj;
-    MkBone* mkbone;
+void calc_bone_world_mat(MkObj* obj, int bone) {
     RwMatrix* objectMatrix;
+    MkBone* mkbone;
 
-    mkobj = (MkObj*)obj;
-    if ((unsigned int)bone >= mkobj->bone_count) {
-        return;
+    if (bone < (int)obj->bone_count) {
+        mkbone = obj->bones[bone];
+        if (mkbone == 0) {
+            return;
+        }
+        if (mkbone->parent_matrix != 0) {
+            if (mkbone->flags_54_bits.calculation_locked != 0) {
+                return;
+            }
+            objectMatrix = obj->field_24;
+            gxMat33x33(
+                (Mat33*)&mkbone->matrix, (Mat33*)mkbone->parent_matrix,
+                (Mat33*)objectMatrix);
+            gxMatV3MatAddV3(
+                (Vec*)&mkbone->matrix.pos, (Vec*)&mkbone->parent_matrix->pos,
+                (Mat33*)objectMatrix, (Vec*)&objectMatrix->pos);
+        }
     }
-    mkbone = mkobj->bones[bone];
-    if (mkbone == 0 || mkbone->parent_matrix == 0 ||
-        (mkbone->flags_54 & 0x10) != 0) {
-        return;
-    }
-    objectMatrix = mkobj->field_24;
-    gxMat33x33(
-        (Mat33*)&mkbone->matrix, (Mat33*)mkbone->parent_matrix,
-        (Mat33*)objectMatrix);
-    gxMatV3MatAddV3(
-        (Vec*)&mkbone->matrix.pos, (Vec*)&mkbone->parent_matrix->pos,
-        (Mat33*)objectMatrix, (Vec*)&objectMatrix->pos);
 }
 
 void get_bone_offset_world_pos(
-    void* obj, int bone, void* offset, void* out) {
-    MkObj* mkobj;
+    MkObj* obj, int bone, const Vec* offset, Vec* out) {
     MkBone* mkbone;
+    RwMatrix* object_matrix;
+    int bone_count;
 
-    mkobj = (MkObj*)obj;
-    if (bone >= (int)mkobj->bone_count) {
-        *(Vec*)out = mkobj->pos;
+    bone_count = (int)obj->bone_count;
+    if (bone >= bone_count) {
+        *out = obj->pos;
         return;
     }
-    if (bone == -1) {
+    mkbone = obj->bones[bone];
+    if (bone == -1 || mkbone == 0 ||
+        mkbone->parent_matrix == 0) {
+        object_matrix = obj->field_24;
         v3_x_mat_add_v3(
-            (Vec*)out, (Vec*)offset, (MKMATRIX*)mkobj->field_24,
-            (Vec*)&mkobj->field_24->pos);
+            out, offset, (MKMATRIX*)object_matrix,
+            (Vec*)&object_matrix->pos);
         return;
     }
-    mkbone = mkobj->bones[bone];
-    if (mkbone == 0 || mkbone->parent_matrix == 0) {
-        v3_x_mat_add_v3(
-            (Vec*)out, (Vec*)offset, (MKMATRIX*)mkobj->field_24,
-            (Vec*)&mkobj->field_24->pos);
-        return;
+    if (bone < bone_count && mkbone != 0 && mkbone->parent_matrix != 0 &&
+        mkbone->flags_54_bits.calculation_locked == 0) {
+        object_matrix = obj->field_24;
+        gxMat33x33(
+            (Mat33*)&mkbone->matrix, (Mat33*)mkbone->parent_matrix,
+            (Mat33*)object_matrix);
+        gxMatV3MatAddV3(
+            (Vec*)&mkbone->matrix.pos, (Vec*)&mkbone->parent_matrix->pos,
+            (Mat33*)object_matrix, (Vec*)&object_matrix->pos);
     }
-    calc_bone_world_mat(obj, bone);
-    v3_x_mat_add_v3(
-        (Vec*)out, (Vec*)offset, (MKMATRIX*)&mkbone->matrix,
-        (Vec*)&mkbone->matrix.pos);
+    out->x = offset->y * mkbone->matrix.up.x +
+             offset->x * mkbone->matrix.right.x +
+             offset->z * mkbone->matrix.at.x + mkbone->matrix.pos.x;
+    out->y = offset->y * mkbone->matrix.up.y +
+             offset->x * mkbone->matrix.right.y +
+             offset->z * mkbone->matrix.at.y + mkbone->matrix.pos.y;
+    out->z = offset->y * mkbone->matrix.up.z +
+             offset->x * mkbone->matrix.right.z +
+             offset->z * mkbone->matrix.at.z + mkbone->matrix.pos.z;
 }
 
 static void set_bone_world_pos_xz(
     void* obj, int bone, void* pos) {
     MkObj* mkobj;
+    MkBone* mkbone;
+    RwMatrix* parent;
+    RwMatrix* matrix;
+    RwFrame* frame;
+    RwMatrix* frame_matrix;
+    MkSobj* sobj;
     Vec current;
     Vec* target;
+    int i;
+    int matrix_index;
 
     mkobj = (MkObj*)obj;
     target = (Vec*)pos;
-    get_bone_world_pos(obj, bone, &current);
+    if (bone >= (int)mkobj->bone_count) {
+        current = mkobj->pos;
+    } else if (bone == -1) {
+        current = mkobj->pos;
+    } else {
+        mkbone = mkobj->bones[bone];
+        if (mkbone == 0 || (parent = mkbone->parent_matrix) == 0) {
+            current.x = mkobj->pos.x;
+            current.y = mkobj->pos.y;
+            current.z = mkobj->pos.z;
+        } else {
+            v3_x_mat_add_v3(
+                &current, (Vec*)&parent->pos,
+                (MKMATRIX*)mkobj->field_24, &mkobj->pos);
+        }
+    }
     mkobj->pos.x += target->x - current.x;
     mkobj->pos.z += target->z - current.z;
-    mkobj->flags_08 =
-        (unsigned char)((mkobj->flags_08 & ~0x80) | 0x80);
-    update_obj_pos(obj);
+    mkobj->flags_08_bits.bit7 = 1;
+
+    matrix = mkobj->field_24;
+    matrix->pos = *(RwV3d*)&mkobj->pos;
+    matrix->flags &= ~0x20000;
+    if ((mkobj->hide_flags & 0x10) == 0) {
+        RwFrameUpdateObjects(mkobj->frame);
+        for (i = 1; i < mkobj->clump_count; i++) {
+            frame = (RwFrame*)mkobj->clumps[i]->object.parent;
+            frame_matrix = (RwMatrix*)((char*)frame + 0x10);
+            frame_matrix->pos = matrix->pos;
+            RwFrameUpdateObjects(frame);
+        }
+    }
+    if (mkobj->matrix_count > 1) {
+        sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
+        if (sobj != 0 && sobj->matrices != 0) {
+            for (i = 1; i < (int)mkobj->matrix_count; i++) {
+                matrix_index = mkobj->matrix_indices[i];
+                sobj->matrices[matrix_index].pos = matrix->pos;
+            }
+        }
+    }
 }
 
 void set_bone_world_pos(void* obj, int bone, void* pos) {
     MkObj* mkobj;
+    MkBone* mkbone;
+    RwMatrix* parent;
+    RwMatrix* matrix;
+    RwFrame* frame;
+    RwMatrix* frame_matrix;
+    MkSobj* sobj;
     Vec current;
     Vec* target;
+    int i;
+    int matrix_index;
 
     mkobj = (MkObj*)obj;
     target = (Vec*)pos;
-    get_bone_world_pos(obj, bone, &current);
+    if (bone >= (int)mkobj->bone_count) {
+        current = mkobj->pos;
+    } else if (bone == -1) {
+        current = mkobj->pos;
+    } else {
+        mkbone = mkobj->bones[bone];
+        if (mkbone == 0 || (parent = mkbone->parent_matrix) == 0) {
+            current.x = mkobj->pos.x;
+            current.y = mkobj->pos.y;
+            current.z = mkobj->pos.z;
+        } else {
+            v3_x_mat_add_v3(
+                &current, (Vec*)&parent->pos,
+                (MKMATRIX*)mkobj->field_24, &mkobj->pos);
+        }
+    }
     mkobj->pos.x += target->x - current.x;
     mkobj->pos.y += target->y - current.y;
     mkobj->pos.z += target->z - current.z;
-    mkobj->flags_08 =
-        (unsigned char)((mkobj->flags_08 & ~0x80) | 0x80);
-    update_obj_pos(obj);
+    mkobj->flags_08_bits.bit7 = 1;
+
+    matrix = mkobj->field_24;
+    matrix->pos = *(RwV3d*)&mkobj->pos;
+    matrix->flags &= ~0x20000;
+    if ((mkobj->hide_flags & 0x10) == 0) {
+        RwFrameUpdateObjects(mkobj->frame);
+        for (i = 1; i < mkobj->clump_count; i++) {
+            frame = (RwFrame*)mkobj->clumps[i]->object.parent;
+            frame_matrix = (RwMatrix*)((char*)frame + 0x10);
+            frame_matrix->pos = matrix->pos;
+            RwFrameUpdateObjects(frame);
+        }
+    }
+    if (mkobj->matrix_count > 1) {
+        sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
+        if (sobj != 0 && sobj->matrices != 0) {
+            for (i = 1; i < (int)mkobj->matrix_count; i++) {
+                matrix_index = mkobj->matrix_indices[i];
+                sobj->matrices[matrix_index].pos = matrix->pos;
+            }
+        }
+    }
 }
 
 void* get_bone_with_tag(void* obj, int tag) {
@@ -1398,40 +1834,50 @@ void* get_bone_with_tag(void* obj, int tag) {
     return 0;
 }
 
-void get_bone_relative_pos(void* obj, int bone, void* out) {
-    MkObj* mkobj;
+void get_bone_relative_pos(MkObj* obj, int bone, Vec* out) {
     MkBone* mkbone;
 
-    mkobj = (MkObj*)obj;
-    if (bone >= (int)mkobj->bone_count || bone == -1) {
-        *(Vec*)out = mkobj->pos;
+    if (bone >= (int)obj->bone_count) {
+        *out = obj->pos;
         return;
     }
-    mkbone = mkobj->bones[bone];
-    if (mkbone != 0 && mkbone->parent_matrix != 0) {
-        *(Vec*)out = *(Vec*)&mkbone->parent_matrix->pos;
+    if (bone == -1) {
+        *out = obj->pos;
+        return;
+    }
+    mkbone = obj->bones[bone];
+    if (mkbone == 0 || mkbone->parent_matrix == 0) {
+        out->x = obj->pos.x;
+        out->y = obj->pos.y;
+        out->z = obj->pos.z;
     } else {
-        *(Vec*)out = mkobj->pos;
+        out->x = mkbone->parent_matrix->pos.x;
+        out->y = mkbone->parent_matrix->pos.y;
+        out->z = mkbone->parent_matrix->pos.z;
     }
 }
 
-void get_bone_world_pos(void* obj, int bone, void* out) {
-    MkObj* mkobj;
+void get_bone_world_pos(MkObj* obj, int bone, Vec* out) {
     MkBone* mkbone;
 
-    mkobj = (MkObj*)obj;
-    if (bone >= (int)mkobj->bone_count || bone == -1) {
-        *(Vec*)out = mkobj->pos;
+    if (bone >= (int)obj->bone_count) {
+        *out = obj->pos;
         return;
     }
-    mkbone = mkobj->bones[bone];
+    if (bone == -1) {
+        *out = obj->pos;
+        return;
+    }
+    mkbone = obj->bones[bone];
     if (mkbone == 0 || mkbone->parent_matrix == 0) {
-        *(Vec*)out = mkobj->pos;
+        out->x = obj->pos.x;
+        out->y = obj->pos.y;
+        out->z = obj->pos.z;
         return;
     }
     v3_x_mat_add_v3(
-        (Vec*)out, (Vec*)&mkbone->parent_matrix->pos,
-        (MKMATRIX*)mkobj->field_24, &mkobj->pos);
+        out, (Vec*)&mkbone->parent_matrix->pos,
+        (MKMATRIX*)obj->field_24, (Vec*)&obj->pos);
 }
 
 void update_bone_hierarchy(void* obj) {
@@ -1441,29 +1887,29 @@ void update_bone_hierarchy(void* obj) {
     MkBone* bone;
     MkBone* walk;
     MkBone* parent;
+    Quat* rotation;
     RwMatrix* matrix;
-    Vec saved_pos;
+    RwMatrixPosition saved_pos;
     Vec impulse;
     unsigned int read_index;
     unsigned int count;
-    int collapsed;
 
     mkobj = (MkObj*)obj;
-    saved_pos.x = 0.0f;
-    saved_pos.y = 0.0f;
-    saved_pos.z = 0.0f;
-    root = mkobj->bones[mkobj->fallback_bone_index];
-
-    if ((mkobj->hide_flags & 1) != 0) {
-        mkobj->hide_flags &= (unsigned char)~1;
-        mkobj->flags_0B |= 0x80;
-        mkobj->bone_angle_64 = quat_extract_ang_y(&root->rotation);
-        mkobj->bone_angle_68 = mkobj->bone_angle_64;
+    saved_pos.value.x = 0.0f;
+    saved_pos.value.y = 0.0f;
+    saved_pos.value.z = 0.0f;
+    bone = mkobj->bones[mkobj->fallback_bone_index];
+    if (mkobj->hide_flag_bits.bit0 != 0) {
+        mkobj->hide_flag_bits.bit0 = 0;
+        mkobj->flags_0B_bits.root_transform_pending = 1;
+        mkobj->bone_angle_68 = mkobj->bone_angle_64 =
+            quat_extract_ang_y(&bone->rotation);
     }
 
+    root = mkobj->bones[mkobj->fallback_bone_index];
     read_index = 0;
     count = 1;
-    queue[0] = root;
+    queue[read_index] = root;
     walk = root->root_next;
     while (walk != 0) {
         queue[count] = walk;
@@ -1484,97 +1930,98 @@ void update_bone_hierarchy(void* obj) {
             walk = walk->tree_next;
         }
 
-        if (bone->clone_source != 0 &&
-            bone->clone_source->parent_matrix != 0) {
-            bone->delta = bone->clone_source->delta;
-            bone->velocity = bone->clone_source->velocity;
-            gxQuatCopy(&bone->rotation_90, &bone->clone_source->rotation_90);
-            memcpy(&bone->matrix, &bone->clone_source->matrix,
-                   sizeof(RwMatrix));
-            if (bone->parent_matrix != bone->clone_source->parent_matrix) {
-                memcpy(bone->parent_matrix,
-                       bone->clone_source->parent_matrix, sizeof(RwMatrix));
+        walk = bone->clone_source;
+        if (walk != 0 && walk->parent_matrix != 0) {
+            bone->delta_row = walk->delta_row;
+            bone->velocity_row = walk->velocity_row;
+            gxQuatCopy(&bone->rotation_90, &walk->rotation_90);
+            memcpy(&bone->matrix, &walk->matrix, sizeof(RwMatrix));
+            if (bone->parent_matrix != walk->parent_matrix) {
+                memcpy(bone->parent_matrix, walk->parent_matrix,
+                       sizeof(RwMatrix));
             }
             continue;
         }
+        rotation = &bone->rotation_90;
 
-        if ((bone->flags_54 & 8) != 0) {
-            saved_pos.x = bone->matrix.pos.x;
-            saved_pos.y = bone->matrix.pos.y;
-            saved_pos.z = bone->matrix.pos.z;
+        if (bone->flags_54_bits.field_bit3 != 0) {
+            saved_pos = bone->matrix.pos_row;
         }
 
         parent = bone->transform_parent;
         if (parent != 0 && parent->parent_matrix == 0) {
             parent = 0;
         }
-        if (parent == 0) {
-            bone->flags_55 &= (unsigned char)~0x40;
+        if (parent != 0) {
+            bone->flags_55_bits.collision_deferred =
+                bone->flags_55_bits.collision_disabled |
+                parent->flags_55_bits.collision_deferred;
         } else {
-            bone->flags_55 =
-                (unsigned char)((bone->flags_55 & ~0x40) |
-                                ((parent->flags_55 & 0x80) >> 1));
+            bone->flags_55_bits.collision_deferred =
+                bone->flags_55_bits.collision_disabled;
         }
-        collapsed = (bone->flags_55 & 0x40) != 0;
-
-        if (collapsed || ((bone->flags_54 & 4) == 0 &&
-                          (bone->flags_54 & 2) == 0)) {
+        if (bone->flags_55_bits.collision_deferred == 0 &&
+            bone->flags_54_bits.hierarchy_driven != 0) {
+            continue;
+        }
+        if (bone->flags_55_bits.collision_deferred != 0 ||
+            bone->flags_54_bits.pose_matrix_applied == 0) {
             matrix = bone->parent_matrix;
-            if (parent == 0) {
-                gxQuatCopy(&bone->rotation_90, &bone->rotation);
-                matrix->pos.x = bone->translation.x;
-                matrix->pos.y = bone->translation.y;
-                matrix->pos.z = bone->translation.z;
-            } else if (!collapsed) {
-                gxQuatMul(&bone->rotation_90, &parent->rotation_90,
-                          &bone->rotation);
-                gxMatV3MatAddV3(
-                    (Vec*)&matrix->pos, &bone->translation,
-                    (Mat33*)parent->parent_matrix,
-                    (Vec*)&parent->parent_matrix->pos);
+            if (parent != 0) {
+                if (bone->flags_55_bits.collision_deferred != 0) {
+                    gxQuatSetZero(rotation);
+                    rotation->w = 0.0f;
+                    matrix->pos_row = parent->parent_matrix->pos_row;
+                } else {
+                    gxQuatMul(rotation, &parent->rotation_90,
+                              &bone->rotation);
+                    gxMatV3MatAddV3(
+                        (Vec*)&matrix->pos, &bone->translation,
+                        (Mat33*)parent->parent_matrix,
+                        (Vec*)&parent->parent_matrix->pos);
+                }
             } else {
-                gxQuatSetZero(&bone->rotation_90);
-                bone->rotation_90.w = 1.0f;
-                matrix->pos.x = parent->parent_matrix->pos.x;
-                matrix->pos.y = parent->parent_matrix->pos.y;
-                matrix->pos.z = parent->parent_matrix->pos.z;
+                gxQuatCopy(rotation, &bone->rotation);
+                matrix->pos_row = bone->translation_row;
             }
 
-            if (!collapsed) {
-                if (bone->rotation_90.x == bone->rotation_90.y &&
-                    bone->rotation_90.y == bone->rotation_90.z &&
-                    bone->rotation_90.z == bone->rotation_90.w) {
-                    bone->rotation_90.w = 1.0f;
+            if (bone->flags_55_bits.collision_deferred != 0) {
+                matrix->at.z = 0.0f;
+                matrix->at.y = 0.0f;
+                matrix->at.x = 0.0f;
+                matrix->up.z = 0.0f;
+                matrix->up.y = 0.0f;
+                matrix->up.x = 0.0f;
+                matrix->right.z = 0.0f;
+                matrix->right.y = 0.0f;
+                matrix->right.x = 0.0f;
+                matrix->flags = 0;
+            } else {
+                if (rotation->x == rotation->y &&
+                    rotation->y == rotation->z &&
+                    rotation->z == rotation->w) {
+                    rotation->w = 1.0f;
                 }
-                gxQuatQuatToMat(RW_MATRIX_MAT33(matrix), &bone->rotation_90);
-                if ((bone->flags_55 & 0x20) != 0) {
+                gxQuatQuatToMat(RW_MATRIX_MAT33(matrix), rotation);
+                if (bone->flags_55_bits.scale_controlled != 0) {
                     mat_scaled_by_v3(
                         (MKMATRIX*)matrix, (MKMATRIX*)matrix, &bone->scale);
                 }
-            } else {
-                matrix->right.x = 0.0f;
-                matrix->right.y = 0.0f;
-                matrix->right.z = 0.0f;
-                matrix->up.x = 0.0f;
-                matrix->up.y = 0.0f;
-                matrix->up.z = 0.0f;
-                matrix->at.x = 0.0f;
-                matrix->at.y = 0.0f;
-                matrix->at.z = 0.0f;
-                matrix->flags = 0;
             }
         }
 
-        if ((bone->flags_54 & 0x10) != 0) {
+        if (bone->flags_54_bits.calculation_locked != 0) {
+            matrix = mkobj->field_24;
             gxMat33x33(
                 (Mat33*)&bone->matrix, (Mat33*)bone->parent_matrix,
-                (Mat33*)mkobj->field_24);
+                (Mat33*)matrix);
             gxMatV3MatAddV3(
                 (Vec*)&bone->matrix.pos, (Vec*)&bone->parent_matrix->pos,
-                (Mat33*)mkobj->field_24, (Vec*)&mkobj->field_24->pos);
+                (Mat33*)matrix, (Vec*)&matrix->pos);
         }
-        if ((bone->flags_54 & 8) != 0) {
-            PSVECSubtract((Vec*)&bone->matrix.pos, &saved_pos, &bone->delta);
+        if (bone->flags_54_bits.field_bit3 != 0) {
+            PSVECSubtract((Vec*)&bone->matrix.pos, &saved_pos.value,
+                          &bone->delta);
             PSVECScale(&bone->velocity, &bone->velocity, 0.8f);
             PSVECScale(&bone->delta, &impulse, 0.2f);
             PSVECAdd(&bone->velocity, &impulse, &bone->velocity);
@@ -1582,17 +2029,14 @@ void update_bone_hierarchy(void* obj) {
     }
 }
 
-void mkobj_bones_dest_mat_no_update(void* obj) {
-    MkObj* mkobj;
+void mkobj_bones_dest_mat_no_update(MkObj* obj) {
     MkBone* bone;
     unsigned int i;
 
-    mkobj = (MkObj*)obj;
-    for (i = 0; i < mkobj->bone_count; i++) {
-        bone = mkobj->bones[i];
+    for (i = 0; i < obj->bone_count; i++) {
+        bone = obj->bones[i];
         if (bone != 0) {
-            bone->flags_54 =
-                (unsigned char)((bone->flags_54 & ~2) | 2);
+            bone->flags_54_bits.pose_matrix_applied = 1;
         }
     }
 }
@@ -1600,7 +2044,6 @@ void mkobj_bones_dest_mat_no_update(void* obj) {
 void mkobj_zero_bone_rots(void* obj) {
     MkObj* mkobj;
     MkBone* bone;
-    RwMatrix* matrix;
     unsigned int i;
 
     mkobj = (MkObj*)obj;
@@ -1610,73 +2053,63 @@ void mkobj_zero_bone_rots(void* obj) {
             gxQuatSetZero(&bone->rotation);
             gxQuatSetZero(&bone->rotation_e0);
             gxQuatSetZero(&bone->rotation_90);
-            matrix = bone->parent_matrix;
-            if (matrix != 0) {
-                matrix->right.x = 1.0f;
-                matrix->right.y = 0.0f;
-                matrix->right.z = 0.0f;
-                matrix->up.x = 0.0f;
-                matrix->up.y = 1.0f;
-                matrix->up.z = 0.0f;
-                matrix->at.x = 0.0f;
-                matrix->at.y = 0.0f;
-                matrix->at.z = 1.0f;
-                matrix->pos.x = 0.0f;
-                matrix->pos.y = 0.0f;
-                matrix->pos.z = 0.0f;
-                matrix->flags |= 0x20003;
+            if (bone->parent_matrix != 0) {
+                bone->parent_matrix->at.z = 1.0f;
+                bone->parent_matrix->up.y = 1.0f;
+                bone->parent_matrix->right.x = 1.0f;
+                bone->parent_matrix->up.x = 0.0f;
+                bone->parent_matrix->right.z = 0.0f;
+                bone->parent_matrix->right.y = 0.0f;
+                bone->parent_matrix->at.y = 0.0f;
+                bone->parent_matrix->at.x = 0.0f;
+                bone->parent_matrix->up.z = 0.0f;
+                bone->parent_matrix->pos.z = 0.0f;
+                bone->parent_matrix->pos.y = 0.0f;
+                bone->parent_matrix->pos.x = 0.0f;
+                bone->parent_matrix->flags |= 0x20003;
             }
-            bone->flags_54 &= ~2;
+            bone->flags_54_bits.pose_matrix_applied = 0;
         }
     }
-    update_mkobj(obj);
+    update_mkobj(obj != 0 ? as_mkhdr(&mkobj->hdr) : 0);
 }
 
-MkProc* fade_material(float delta, void* obj, unsigned int sobj_id,
+static inline RpMaterial* find_geometry_material_by_id(
+    RpGeometry* geometry, unsigned int id) {
+    RpMaterial* material;
+    unsigned int count;
+    unsigned int i;
+    unsigned int offset;
+
+    count = geometry->matList.numMaterials;
+    offset = 0;
+    for (i = 0; i < count; i++) {
+        material =
+            *(RpMaterial**)((char*)geometry->matList.materials + offset);
+        if ((MK_MATERIAL_PLUGIN(material)->flags & 0xFFF) == id) {
+            return material;
+        }
+        offset += sizeof(material);
+    }
+    return 0;
+}
+
+MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
                       unsigned int material_id, int frames) {
-    MkObj* mkobj;
-    MkPtr* ptr;
     MkSobj* sobj;
     RpGeometry* geometry;
     RpMaterial* material;
-    MkmaterialPluginData* mkmat;
     FadeMaterialPdata* pdata;
     MkProc* proc;
-    unsigned int offset;
-    int i;
 
-    mkobj = (MkObj*)obj;
     material = 0;
-    ptr = first_mkptr(&mkobj->sobj_list);
-    while (ptr != 0) {
-        sobj = (MkSobj*)ptr->hdr;
-        if ((sobj->id_flags & 0xFFF) == sobj_id) {
-            break;
-        }
-        ptr = next_mkptr(ptr);
-    }
-    if (ptr == 0) {
-        sobj = 0;
-    }
+    sobj = find_sobj_by_id_inline(obj, sobj_id);
     if (sobj == 0) {
         return 0;
     }
 
     geometry = sobj->atomic->geometry;
-    offset = 0;
-    for (i = 0; i < geometry->matList.numMaterials; i++) {
-        material =
-            *(RpMaterial**)((char*)geometry->matList.materials + offset);
-        mkmat = (MkmaterialPluginData*)((char*)material +
-                                        MkmaterialLocalOffset);
-        if ((mkmat->flags & 0xFFF) == material_id) {
-            break;
-        }
-        offset += 4;
-    }
-    if (i == geometry->matList.numMaterials) {
-        material = 0;
-    }
+    material = find_geometry_material_by_id(geometry, material_id);
     if (material == 0) {
         return 0;
     }
@@ -1685,8 +2118,8 @@ MkProc* fade_material(float delta, void* obj, unsigned int sobj_id,
         0x5010, 0x20, p_fade_material, sizeof(FadeMaterialPdata),
         (MkHdr**)&pdata);
     if (pdata != 0) {
-        pdata->obj = mkobj;
-        pdata->obj_instance = mkobj->hdr.instance;
+        pdata->obj = obj;
+        pdata->obj_instance = obj->hdr.instance;
         pdata->delta = delta;
         pdata->frames = frames;
         pdata->material = material;
@@ -1696,20 +2129,23 @@ MkProc* fade_material(float delta, void* obj, unsigned int sobj_id,
 }
 
 static float p_fade_material(void) {
-    FadeMaterialPdata* pdata;
     MkObj* obj;
-    unsigned char* color;
+    FadeMaterialPdata* pdata;
+    RpMaterialColor* color;
     float accumulated;
     int amount;
     int value;
-    int i;
 
     pdata = (FadeMaterialPdata*)apdata;
     if (aproc->pid != 0x5010 || pdata == 0) {
         mkproc_die();
     }
     obj = pdata->obj;
-    if (obj == 0 || obj->hdr.instance != pdata->obj_instance) {
+    if (obj != 0) {
+        if (obj->hdr.instance != pdata->obj_instance) {
+            obj = 0;
+        }
+    } else {
         obj = 0;
     }
     if (obj == 0) {
@@ -1719,19 +2155,41 @@ static float p_fade_material(void) {
     accumulated = pdata->accumulator + pdata->delta;
     amount = (int)accumulated;
     pdata->accumulator = accumulated - (float)amount;
-    color = (unsigned char*)pdata->material + 4;
-    for (i = 0; i < 4; i++) {
-        value = color[i] + amount;
-        if (value < 0) {
-            value = 0;
-        }
-        if (value > 255) {
-            value = 255;
-        }
-        color[i] = (unsigned char)value;
+    color = &pdata->material->color;
+    value = color->red + amount;
+    if (value < 0) {
+        value = 0;
     }
-    if (color[0] == 0 && color[1] == 0 && color[2] == 0) {
-        obj->hide_flags |= 0x20;
+    if (value > 255) {
+        value = 255;
+    }
+    color->red = (unsigned char)value;
+    value = color->green + amount;
+    if (value < 0) {
+        value = 0;
+    }
+    if (value > 255) {
+        value = 255;
+    }
+    color->green = (unsigned char)value;
+    value = color->blue + amount;
+    if (value < 0) {
+        value = 0;
+    }
+    if (value > 255) {
+        value = 255;
+    }
+    color->blue = (unsigned char)value;
+    value = color->alpha + amount;
+    if (value < 0) {
+        value = 0;
+    }
+    if (value > 255) {
+        value = 255;
+    }
+    color->alpha = (unsigned char)value;
+    if (color->red == 0 && color->green == 0 && color->blue == 0) {
+        obj->hide_flag_bits.hidden = 1;
         mkproc_die();
     }
     pdata->frames--;
@@ -1741,56 +2199,43 @@ static float p_fade_material(void) {
     return 1.0f;
 }
 
-void obj_for_all_atomics_set_material_alpha(void* obj, int alpha) {
-    MkObj* mkobj;
-    RpClump** clumps;
+void obj_for_all_atomics_set_material_alpha(MkObj* obj, int alpha) {
+    RpClump* clump;
     int i;
 
-    mkobj = (MkObj*)obj;
-    clumps = &mkobj->clump;
-    for (i = 0; i < mkobj->clump_count; i++) {
-        if (clumps[i] != 0) {
+    for (i = 0; i < obj->clump_count; i++) {
+        clump = obj->clumps[i];
+        if (clump != 0) {
             RpClumpForAllAtomics(
-                clumps[i], force_atomic_material_alpha, (void*)alpha);
+                clump, force_atomic_material_alpha, (void*)alpha);
         }
     }
 }
 
-void obj_set_material_fade(void* obj, unsigned int id, int alpha) {
-    MkObj* mkobj;
+void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpGeometry* geometry;
     RpMaterial* material;
-    MkmaterialPluginData* mkmat;
-    unsigned int packedAlpha;
-    int i;
+    RpMaterialColor color;
 
-    mkobj = (MkObj*)obj;
     material = 0;
-    ptr = first_mkptr(&mkobj->sobj_list);
+    ptr = first_mkptr(&obj->sobj_list);
     while (ptr != 0) {
         sobj = (MkSobj*)ptr->hdr;
         geometry = sobj->atomic->geometry;
-        for (i = 0; i < geometry->matList.numMaterials; i++) {
-            material = geometry->matList.materials[i];
-            mkmat = (MkmaterialPluginData*)((char*)material +
-                                            MkmaterialLocalOffset);
-            if ((mkmat->flags & 0xFFF) == id) {
-                break;
-            }
-            material = 0;
-        }
+        material = find_geometry_material_by_id(geometry, id);
         if (material != 0) {
             break;
         }
         ptr = next_mkptr(ptr);
     }
     if (material != 0) {
-        packedAlpha = (unsigned int)(alpha & 0xFF);
-        packedAlpha |= packedAlpha << 8;
-        packedAlpha |= packedAlpha << 16;
-        material->color.packed = packedAlpha;
+        color.red = alpha;
+        color.green = alpha;
+        color.blue = alpha;
+        color.alpha = alpha;
+        material->color = color;
     }
 }
 
@@ -1803,7 +2248,6 @@ void sobj_use_material_color(void* sobj) {
 
 void obj_set_z_offsets(float offset, void* obj) {
     MkObj* mkobj;
-    RpClump** clumps;
     SobjCreateData data;
     MkPtr* ptr;
     MkSobj* sobj;
@@ -1814,14 +2258,12 @@ void obj_set_z_offsets(float offset, void* obj) {
         data.obj = mkobj;
         data.id = 0;
         data.mask = 0;
-        data.result = 0;
-        data.set_priority = 0;
         data.priority = 0x10;
-        clumps = &mkobj->clump;
+        data.set_priority = 0;
         for (i = 0; i < mkobj->clump_count; i++) {
-            if (clumps[i] != 0) {
+            if (mkobj->clumps[i] != 0) {
                 RpClumpForAllAtomics(
-                    clumps[i], atomic_create_sobj_callback, &data);
+                    mkobj->clumps[i], atomic_create_sobj_callback, &data);
             }
         }
     }
@@ -1839,34 +2281,41 @@ void* obj_first_sobj(void* obj) {
     return first_mkhdr(&((MkObj*)obj)->sobj_list);
 }
 
-#pragma dont_inline on
-void update_mksobj(void* sobj) {
+void update_mksobj(MkSobj* sobj) {
     MkSobj* mksobj;
     RwMatrix* matrix;
+    RwFrame* face_frame;
+    RwMatrix* face_matrix;
+    RwMatrix* camera_matrix;
     int changed;
 
-    mksobj = (MkSobj*)sobj;
+    mksobj = sobj;
     matrix = (RwMatrix*)((char*)mksobj->frame + 0x10);
     changed = 0;
 
-    if ((mksobj->flags_08 & 0x20) != 0) {
+    if (mksobj->flags_08_bits.bit5 != 0) {
         mksobj->pos.x += mksobj->pos_vel.x * obj_game_speed;
         mksobj->pos.y += mksobj->pos_vel.y * obj_game_speed;
         mksobj->pos.z += mksobj->pos_vel.z * obj_game_speed;
     }
-    if ((mksobj->flags_08 & 0xE0) != 0) {
+    if (mksobj->flags_08_bits.bit5 != 0 ||
+        mksobj->flags_08_bits.bit6 != 0 ||
+        mksobj->flags_08_bits.bit7 != 0) {
         changed = 1;
-        mksobj->flags_08 &= ~0x80;
+        mksobj->flags_08_bits.bit7 = 0;
         matrix->pos = *(RwV3d*)&mksobj->pos;
     }
 
-    if ((mksobj->flags_08 & 4) != 0) {
+    if (mksobj->flags_08_bits.angular_velocity_enabled != 0) {
         mksobj->ang.x += mksobj->ang_vel.x * obj_game_speed;
         mksobj->ang.y += mksobj->ang_vel.y * obj_game_speed;
         mksobj->ang.z += mksobj->ang_vel.z * obj_game_speed;
     }
-    if ((mksobj->flags_08 & 0x1E) != 0) {
-        mksobj->flags_08 &= ~0x10;
+    if (mksobj->flags_08_bits.angular_velocity_enabled != 0 ||
+        mksobj->flags_08_bits.bit3 != 0 ||
+        mksobj->flags_08_bits.bit4 != 0 ||
+        mksobj->flags_08_bits.scale_dirty != 0) {
+        mksobj->flags_08_bits.bit4 = 0;
         mksobj->ang.x = normalize_obj_angle(mksobj->ang.x);
         mksobj->ang.y = normalize_obj_angle(mksobj->ang.y);
         mksobj->ang.z = normalize_obj_angle(mksobj->ang.z);
@@ -1874,11 +2323,21 @@ void update_mksobj(void* sobj) {
             &mksobj->ang, (MKMATRIX*)matrix);
         changed = 1;
     }
-    if ((mksobj->flags09 & 0x20) != 0 &&
-        mksobj->atomic != 0) {
-        AtomicFaceCamera(mksobj->atomic, 0);
+    if (mksobj->flags09_bits.bit5 != 0) {
+        if (mksobj->atomic != 0) {
+            face_frame = (RwFrame*)mksobj->atomic->object.parent;
+            if (face_frame != 0) {
+                face_frame->object.privateFlags |= 0x20;
+                face_matrix = (RwMatrix*)((char*)face_frame + 0x10);
+                camera_matrix = (RwMatrix*)camera_facing_matrix_ay;
+                face_matrix->right = camera_matrix->right;
+                face_matrix->up = camera_matrix->up;
+                face_matrix->at = camera_matrix->at;
+                RwFrameUpdateObjects(face_frame);
+            }
+        }
     }
-    if ((mksobj->flags_08 & 2) != 0) {
+    if (mksobj->flags_08_bits.scale_dirty != 0) {
         mat_scaled_by_v3(
             (MKMATRIX*)matrix, (MKMATRIX*)matrix, &mksobj->scale);
         changed = 1;
@@ -1888,21 +2347,30 @@ void update_mksobj(void* sobj) {
         RwFrameUpdateObjects(mksobj->frame);
     }
 }
-#pragma dont_inline reset
 
 static void update_mkhdr_sobj(MkHdr* hdr) {
-    update_mksobj(hdr);
+    update_mksobj((MkSobj*)hdr);
 }
 
-int vdestroy_mksobj(void* sobj) {
+void vdestroy_mksobj(MkSobj* sobj) {
     MkSobj* mksobj;
+    MkHdr* raw_bound;
     MkHdr* bound;
 
-    mksobj = (MkSobj*)sobj;
+    mksobj = sobj;
     mksobj->hdr.instance = 0;
-    bound = mksobj->bound_hdr;
-    if (bound != 0 &&
-        bound->instance == mksobj->bound_instance) {
+    raw_bound = mksobj->bound_hdr;
+    if (raw_bound != 0) {
+        if (raw_bound->instance == mksobj->bound_instance) {
+            bound = raw_bound;
+        } else {
+            bound = 0;
+        }
+    } else {
+        bound = 0;
+    }
+    if (bound != 0) {
+        bound = mksobj->bound_hdr;
         if (bound->instance != 0) {
             ((void (*)(MkHdr*))bound->vtbl->destroy)(bound);
         }
@@ -1915,36 +2383,23 @@ int vdestroy_mksobj(void* sobj) {
     _mwMemFree(mksobj, 0, 0);
 }
 
-void obj_set_sobj_pos(void* obj, int id, void* pos) {
-    MkObj* mkobj;
-    MkPtr* ptr;
+void obj_set_sobj_pos(MkObj* obj, unsigned int id, const Vec* pos) {
     MkSobj* sobj;
 
-    mkobj = (MkObj*)obj;
-    ptr = first_mkptr(&mkobj->sobj_list);
-    while (ptr != 0) {
-        sobj = (MkSobj*)ptr->hdr;
-        if ((sobj->id_flags & 0xFFF) == (unsigned int)id) {
-            break;
-        }
-        ptr = next_mkptr(ptr);
-    }
-    if (ptr == 0) {
-        sobj = 0;
-    }
+    sobj = find_sobj_by_id_inline(obj, id);
     if (sobj != 0) {
-        sobj->pos = *(Vec*)pos;
-        sobj->flags_08 =
-            (unsigned char)((sobj->flags_08 & ~0x80) | 0x80);
+        sobj->pos.x = pos->x;
+        sobj->pos.y = pos->y;
+        sobj->pos.z = pos->z;
+        sobj->flags_08_bits.bit7 = 1;
     }
 }
 
-void* obj_find_sobj_by_id(void* obj, unsigned int id) {
-    MkObj* mkobj = (MkObj*)obj;
+MkSobj* obj_find_sobj_by_id(MkObj* obj, unsigned int id) {
     MkPtr* ptr;
     MkSobj* sobj;
 
-    ptr = first_mkptr(&mkobj->sobj_list);
+    ptr = first_mkptr(&obj->sobj_list);
     while (ptr != 0) {
         sobj = (MkSobj*)ptr->hdr;
         if ((sobj->id_flags & 0xFFFu) == id) {
@@ -1955,48 +2410,41 @@ void* obj_find_sobj_by_id(void* obj, unsigned int id) {
     return 0;
 }
 
-void obj_force_culling_off(void* obj) {
+void obj_force_culling_off(MkObj* obj) {
     MkObj* mkobj;
-    RpClump** clumps;
     SobjCreateData data;
     MkPtr* ptr;
     MkSobj* sobj;
     int i;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     data.obj = mkobj;
     data.id = 0;
     data.mask = 0;
-    data.result = 0;
-    data.set_priority = 0;
     data.priority = 0x10;
-    clumps = &mkobj->clump;
+    data.set_priority = 0;
     for (i = 0; i < mkobj->clump_count; i++) {
-        if (clumps[i] != 0) {
+        if (mkobj->clumps[i] != 0) {
             RpClumpForAllAtomics(
-                clumps[i], atomic_create_sobj_callback, &data);
+                mkobj->clumps[i], atomic_create_sobj_callback, &data);
         }
     }
     ptr = first_mkptr(&mkobj->sobj_list);
     while (ptr != 0) {
         sobj = (MkSobj*)ptr->hdr;
         if (sobj != 0) {
-            sobj->flags09 =
-                (unsigned char)((sobj->flags09 & ~0x10) | 0x10);
+            sobj->flags09_bits.bit4 = 1;
         }
         ptr = next_mkptr(ptr);
     }
 }
 
-void obj_apply_to_sobj_with_id(void* obj, unsigned int id, void* fn, void* data) {
-    MkObj* mkobj;
+void obj_apply_to_sobj_with_id(
+    MkObj* obj, unsigned int id, void (*callback)(MkSobj*)) {
     MkPtr* ptr;
     MkSobj* sobj;
-    void (*callback)(MkSobj*);
 
-    mkobj = (MkObj*)obj;
-    callback = (void (*)(MkSobj*))fn;
-    ptr = first_mkptr(&mkobj->sobj_list);
+    ptr = first_mkptr(&obj->sobj_list);
     while (ptr != 0) {
         sobj = (MkSobj*)ptr->hdr;
         if (id == 0 || (sobj->id_flags & 0xFFF) == id) {
@@ -2052,69 +2500,59 @@ static RpMaterial* material_set_texture(RpMaterial* material, void* data) {
     return 0;
 }
 
-void obj_set_all_sobjs_priority(void* obj, int priority) {
-    MkObj* mkobj;
-    RpClump** clumps;
-    struct SobjCreateData data;
+void obj_set_all_sobjs_priority(MkObj* obj, int priority) {
+    RpClump* clump;
+    SobjCreateData data;
     int i;
 
-    mkobj = (MkObj*)obj;
-    data.obj = mkobj;
+    data.obj = obj;
     data.id = 0;
     data.mask = 0;
-    data.result = 0;
-    data.set_priority = 1;
     data.priority = priority;
-    clumps = &mkobj->clump;
-    for (i = 0; i < mkobj->clump_count; i++) {
-        if (clumps[i] != 0) {
+    data.set_priority = 1;
+    for (i = 0; i < obj->clump_count; i++) {
+        clump = obj->clumps[i];
+        if (clump != 0) {
             RpClumpForAllAtomics(
-                clumps[i], atomic_create_sobj_callback, &data);
+                clump, atomic_create_sobj_callback, &data);
         }
     }
 }
 
-void* obj_create_sobjs_by_id(void* obj, int id) {
-    MkObj* mkobj;
-    RpClump** clumps;
+MkSobj* obj_create_sobjs_by_id(MkObj* obj, int id) {
     struct SobjCreateData data;
     int i;
 
-    mkobj = (MkObj*)obj;
-    data.obj = mkobj;
+    data.result = 0;
+    data.obj = obj;
     data.id = (unsigned int)id;
     data.mask = 0xFFF;
-    data.result = 0;
-    data.set_priority = 0;
     data.priority = 0x10;
-    clumps = &mkobj->clump;
-    for (i = 0; i < mkobj->clump_count; i++) {
-        if (clumps[i] != 0) {
+    data.set_priority = 0;
+    for (i = 0; i < obj->clump_count; i++) {
+        if (obj->clumps[i] != 0) {
             RpClumpForAllAtomics(
-                clumps[i], atomic_create_sobj_callback, &data);
+                obj->clumps[i], atomic_create_sobj_callback, &data);
         }
     }
     return data.result;
 }
 
-void obj_create_sobjs(void* obj) {
-    MkObj* mkobj;
-    RpClump** clumps;
-    struct SobjCreateData data;
+void obj_create_sobjs(MkObj* obj) {
+    RpClump* clump;
+    SobjCreateData data;
     int i;
 
-    mkobj = (MkObj*)obj;
-    data.obj = mkobj;
+    data.obj = obj;
     data.id = 0;
     data.mask = 0;
-    data.result = 0;
-    data.set_priority = 0;
     data.priority = 0x10;
-    clumps = &mkobj->clump;
-    for (i = 0; i < mkobj->clump_count; i++) {
-        if (clumps[i] != 0) {
+    data.set_priority = 0;
+    for (i = 0; i < obj->clump_count; i++) {
+        clump = obj->clumps[i];
+        if (clump != 0) {
             RpClumpForAllAtomics(
-                clumps[i], atomic_create_sobj_callback, &data);
+                clump, atomic_create_sobj_callback, &data);
         }
     }
 }
@@ -2122,14 +2560,15 @@ void obj_create_sobjs(void* obj) {
 static RpAtomic* atomic_create_sobj_callback(
     RpAtomic* atomic, void* dataArg) {
     struct SobjCreateData* data;
-    MksobjPluginData* plugin;
+    MkObj* owner;
     MkSobj* sobj;
+    MkSobj* new_sobj;
     unsigned int flags;
+    RwFrame* frame;
     RwMatrix* frameMatrix;
 
     data = (struct SobjCreateData*)dataArg;
-    plugin = (MksobjPluginData*)((char*)atomic + MksobjLocalOffset);
-    flags = plugin->flags;
+    flags = MK_ATOMIC_PLUGIN(atomic)->flags;
     if (data->mask != 0) {
         if (data->id == 0) {
             if ((flags & data->mask) == 0) {
@@ -2140,39 +2579,47 @@ static RpAtomic* atomic_create_sobj_callback(
             return atomic;
         }
     }
-    sobj = plugin->sobj;
+    sobj = MK_ATOMIC_PLUGIN(atomic)->sobj;
     if (sobj == 0) {
-        sobj = (MkSobj*)_mwMemMalloc(
+        owner = data->obj;
+        frame = (RwFrame*)atomic->object.parent;
+        new_sobj = (MkSobj*)_mwMemMalloc(
             mksobj_heap, 0x90, 0x80, 0, 0, 0);
-        if (sobj != 0) {
-            sobj->hdr.vtbl = (MkVtable5*)&vtbl_mksobj;
-            mk_set_instance(&sobj->hdr.instance);
-            sobj->bound_hdr = 0;
-            sobj->bound_instance = 0;
-            sobj->id_flags = flags;
-            sobj->priority =
-                (flags & 0x80000000) == 0 ? 0x10 : 0x12;
-            sobj->frame = (RwFrame*)atomic->object.parent;
-            sobj->flags_08 = 0x81;
-            sobj->render_flags = 0;
-            frameMatrix = (RwMatrix*)((char*)sobj->frame + 0x10);
-            sobj->pos = *(Vec*)&frameMatrix->pos;
-            sobj->pos_vel.x = 0.0f;
-            sobj->pos_vel.y = 0.0f;
-            sobj->pos_vel.z = 0.0f;
-            sobj->ang.x = 0.0f;
-            sobj->ang.y = 0.0f;
-            sobj->ang.z = 0.0f;
-            sobj->ang_vel.x = 0.0f;
-            sobj->ang_vel.y = 0.0f;
-            sobj->ang_vel.z = 0.0f;
-            sobj->z_offset = 0.0f;
-            sobj->matrices = 0;
+        if (new_sobj != 0) {
+            new_sobj->hdr.vtbl = (MkVtable5*)&vtbl_mksobj;
+            mk_set_instance(&new_sobj->hdr.instance);
+            new_sobj->bound_hdr = 0;
+            new_sobj->bound_instance = 0;
+            new_sobj->id_flags = flags;
+            if ((flags & 0x80000000) != 0) {
+                new_sobj->priority = 0x12;
+            } else {
+                new_sobj->priority = 0x10;
+            }
+            new_sobj->frame = frame;
+            new_sobj->flags_08 = 0;
+            new_sobj->flags_08_bits.bit7 = 1;
+            new_sobj->flags_08_bits.bit0 = 1;
+            new_sobj->render_flags = 0;
+            frameMatrix = &frame->modelling;
+            new_sobj->pos = *(Vec*)&frameMatrix->pos;
+            new_sobj->pos_vel.z = 0.0f;
+            new_sobj->pos_vel.y = 0.0f;
+            new_sobj->pos_vel.x = 0.0f;
+            new_sobj->ang.z = 0.0f;
+            new_sobj->ang.y = 0.0f;
+            new_sobj->ang.x = 0.0f;
+            new_sobj->ang_vel.z = 0.0f;
+            new_sobj->ang_vel.y = 0.0f;
+            new_sobj->ang_vel.x = 0.0f;
+            new_sobj->z_offset = 0.0f;
+            new_sobj->matrices = 0;
         }
-        sobj->atomic = atomic;
-        mk_insert(&sobj->hdr, &data->obj->sobj_list);
-        sobj->owner = data->obj;
-        plugin->sobj = sobj;
+        new_sobj->atomic = atomic;
+        sobj = new_sobj;
+        mk_insert(&new_sobj->hdr, &owner->sobj_list);
+        new_sobj->owner = owner;
+        MK_ATOMIC_PLUGIN(atomic)->sobj = new_sobj;
     }
     if (data->set_priority != 0) {
         sobj_set_priority(sobj, data->priority);
@@ -2218,36 +2665,19 @@ void material_set_zbias(void* material, float zbias) {
     spec->gloss = zbias;
 }
 
-void* obj_find_material_by_id(void* obj, int id) {
+RpMaterial* obj_find_material_by_id(MkObj* obj, int id) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpGeometry* geometry;
     RpMaterial* material;
-    MkmaterialPluginData* mkmat;
-    int offset;
-    unsigned int count;
 
     material = 0;
-    ptr = first_mkptr(&((MkObj*)obj)->sobj_list);
+    ptr = first_mkptr(&obj->sobj_list);
     while (ptr != 0) {
         sobj = (MkSobj*)ptr->hdr;
         geometry = sobj->atomic->geometry;
-        offset = 0;
-        count = geometry->matList.numMaterials;
-        while (count != 0) {
-            material =
-                *(RpMaterial**)((char*)geometry->matList.materials + offset);
-            mkmat = (MkmaterialPluginData*)((char*)material +
-                                            MkmaterialLocalOffset);
-            if ((mkmat->flags & 0xFFF) == (unsigned int)id) {
-                break;
-            }
-            offset += 4;
-            count--;
-        }
-        if (count == 0) {
-            material = 0;
-        }
+        material = find_geometry_material_by_id(
+            geometry, (unsigned int)id);
         if (material != 0) {
             break;
         }
@@ -2256,26 +2686,8 @@ void* obj_find_material_by_id(void* obj, int id) {
     return material;
 }
 
-void* sobj_find_material_by_id(void* sobj, int id) {
-    RpGeometry* geometry;
-    RpMaterial* material;
-    MkmaterialPluginData* mkmat;
-    int offset;
-    unsigned int count;
-
-    geometry = ((MkSobj*)sobj)->atomic->geometry;
-    offset = 0;
-    count = geometry->matList.numMaterials;
-    while (count != 0) {
-        material = *(RpMaterial**)((char*)geometry->matList.materials + offset);
-        mkmat = (MkmaterialPluginData*)((char*)material + MkmaterialLocalOffset);
-        if ((mkmat->flags & 0xFFF) == (unsigned int)id) {
-            return material;
-        }
-        offset += 4;
-        count--;
-    }
-    return 0;
+RpMaterial* sobj_find_material_by_id(MkSobj* sobj, unsigned int id) {
+    return find_geometry_material_by_id(sobj->atomic->geometry, id);
 }
 
 RpMaterial* sobj_find_material_with_texture(
@@ -2307,8 +2719,9 @@ RpMaterial* obj_find_material_with_texture(
 }
 
 static RpAtomic* atomic_find_texture_callback(RpAtomic* atomic, void* data) {
-    MaterialTextureFind* find = (MaterialTextureFind*)data;
+    MaterialTextureFind* find;
 
+    find = (MaterialTextureFind*)data;
     RpGeometryForAllMaterials(
         atomic->geometry, material_find_texture_callback, find);
     if (find->texture != 0) {
@@ -2319,8 +2732,9 @@ static RpAtomic* atomic_find_texture_callback(RpAtomic* atomic, void* data) {
 
 static RpMaterial* material_find_texture_callback(
     RpMaterial* material, void* data) {
-    MaterialTextureFind* find = (MaterialTextureFind*)data;
+    MaterialTextureFind* find;
 
+    find = (MaterialTextureFind*)data;
     if (material->texture != 0 &&
         stricmp(material->texture->name, find->name) == 0) {
         find->material = material;
@@ -2350,7 +2764,6 @@ void destroy_mkobjs_oid(int oid) {
 
 static void _destroy_mkobj_oid_mask(MkHdr* obj) {
     MkObj* mkobj = (MkObj*)obj;
-    RpClump** clumps;
     RpClump* clump;
     int i;
 
@@ -2359,7 +2772,7 @@ static void _destroy_mkobj_oid_mask(MkHdr* obj) {
     }
 
     mkobj->hdr.instance = 0;
-    if ((mkobj->hide_flags & 8) != 0) {
+    if (mkobj->hide_flag_bits.bit3 != 0) {
         RwFrameDestroy(mkobj->frame);
     }
     destroy_list(&mkobj->list_88);
@@ -2369,15 +2782,14 @@ static void _destroy_mkobj_oid_mask(MkHdr* obj) {
     destroy_list(&mkobj->list_7C);
     destroy_list(&mkobj->list_80);
 
-    clumps = &mkobj->clump;
     for (i = 0; i < mkobj->clump_count; i++) {
-        clump = clumps[i];
+        clump = mkobj->clumps[i];
         if (clump != 0) {
             pull_clump_from_world(clump);
             RpClumpForAllAtomics(
                 clump, atomic_null_texture_pointers, 0);
             RpClumpDestroy(clump);
-            clumps[i] = 0;
+            mkobj->clumps[i] = 0;
         }
     }
     if (mkobj->bones != 0) {
@@ -2394,9 +2806,10 @@ static void _destroy_mkobj_oid_mask(MkHdr* obj) {
 }
 
 void start_obj_proc(void) {
-    int flags;
+    int flags[2];
     MkProc* proc;
 
+    flags[1] = 0;
     fgnd_mkobj_list = 0;
     particle_mkobj_list = 0;
     bgnd_light_list = 0;
@@ -2414,8 +2827,8 @@ void start_obj_proc(void) {
     hol_plight_list = 0;
     pfx_render_list = 0;
     pfx_clone_render_list = 0;
-    flags = 0;
-    proc = get_mkproc_nostack(&flags);
+    flags[0] = flags[1];
+    proc = get_mkproc_nostack(&flags[0]);
     create_mkproc(0xF, proc, 0x5001, p_obj, 0);
 }
 
@@ -2434,9 +2847,7 @@ static float p_obj(void) {
     return 1.0f;
 }
 
-void obj_match_pos_ang_to_src_obj(void* dst, void* src) {
-    MkObj* dst_obj = (MkObj*)dst;
-    MkObj* src_obj = (MkObj*)src;
+void obj_match_pos_ang_to_src_obj(MkObj* dst_obj, MkObj* src_obj) {
     MkHdr* hdr;
 
     dst_obj->pos = src_obj->pos;
@@ -2445,23 +2856,23 @@ void obj_match_pos_ang_to_src_obj(void* dst, void* src) {
     dst_obj->ang_vel = src_obj->ang_vel;
     dst_obj->scale = src_obj->scale;
     dst_obj->flags_word_08 = src_obj->flags_word_08;
-    dst_obj->flags_08 &= ~0x20;
-    dst_obj->flags_08 &= ~4;
-    dst_obj->flags_08 |= 0x80;
-    dst_obj->flags_08 |= 0x10;
-    if (dst_obj == 0) {
-        hdr = 0;
-    } else {
+    dst_obj->flags_08_bits.gravity_enabled = 0;
+    dst_obj->flags_08_bits.rotation_enabled = 0;
+    dst_obj->flags_08_bits.bit7 = 1;
+    dst_obj->flags_08_bits.transform_dirty = 1;
+    if (dst_obj != 0) {
         hdr = as_mkhdr(&dst_obj->hdr);
+    } else {
+        hdr = 0;
     }
     update_mkobj(hdr);
     dst_obj->flags_word_08 = src_obj->flags_word_08;
     dst_obj->light_flags = src_obj->light_flags;
 }
 
-void update_obj_pos(void* obj) {
-    MkObj* mkobj = (MkObj*)obj;
+void update_obj_pos(MkObj* mkobj) {
     RwMatrix* matrix;
+    RwMatrix* matrices;
     RwFrame* frame;
     RwMatrix* frame_matrix;
     MkSobj* sobj;
@@ -2471,10 +2882,10 @@ void update_obj_pos(void* obj) {
     matrix = mkobj->field_24;
     matrix->pos = *(RwV3d*)&mkobj->pos;
     matrix->flags &= ~0x20000;
-    if ((mkobj->hide_flags & 0x10) == 0) {
+    if (mkobj->hide_flag_bits.bit4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
-            frame = (RwFrame*)((&mkobj->clump)[i]->object.parent);
+            frame = (RwFrame*)mkobj->clumps[i]->object.parent;
             frame_matrix = (RwMatrix*)((char*)frame + 0x10);
             frame_matrix->pos = matrix->pos;
             RwFrameUpdateObjects(frame);
@@ -2484,9 +2895,10 @@ void update_obj_pos(void* obj) {
     if (mkobj->matrix_count > 1) {
         sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
         if (sobj != 0 && sobj->matrices != 0) {
+            matrices = sobj->matrices;
             for (i = 1; i < (int)mkobj->matrix_count; i++) {
                 matrix_index = mkobj->matrix_indices[i];
-                sobj->matrices[matrix_index].pos = matrix->pos;
+                matrices[matrix_index].pos = matrix->pos;
             }
         }
     }
@@ -2497,30 +2909,34 @@ void update_mkobj(void* obj) {
     RwMatrix* matrix;
     RwFrame* frame;
     RwMatrix* frameMatrix;
+    RwMatrix* matrices;
     MkSobj* sobj;
-    Vec scaled;
     Vec pivot;
+    Vec scaled_ang;
+    Vec scaled_pos;
     int changed;
     int i;
     int matrixIndex;
 
     mkobj = (MkObj*)obj;
+    changed = 0;
     apply_to_mklist(update_mkhdr_sobj, &mkobj->sobj_list);
-    obj_game_speed = game_speed;
-    if ((mkobj->flags_0B & 0x20) != 0) {
+    if (mkobj->flags_0B_bits.force_anim_speed != 0) {
         obj_game_speed = 1.0f;
+    } else {
+        obj_game_speed = game_speed;
     }
     matrix = mkobj->field_24;
-    changed = 0;
 
-    if ((mkobj->flags_08 & 4) != 0) {
-        PSVECScale(&mkobj->ang_vel, &scaled, obj_game_speed);
-        mkobj->ang.x += scaled.x;
-        mkobj->ang.y += scaled.y;
-        mkobj->ang.z += scaled.z;
+    if (mkobj->flags_08_bits.rotation_enabled != 0) {
+        PSVECScale(&mkobj->ang_vel, &scaled_ang, obj_game_speed);
+        PSVECAdd(&mkobj->ang, &scaled_ang, &mkobj->ang);
     }
-    if ((mkobj->flags_08 & 0x1E) != 0) {
-        mkobj->flags_08 &= ~0x10;
+    if (mkobj->flags_08_bits.rotation_enabled != 0 ||
+        mkobj->flags_08_bits.angular_velocity_enabled != 0 ||
+        mkobj->flags_08_bits.transform_dirty != 0 ||
+        mkobj->flags_08_bits.scale_active != 0) {
+        mkobj->flags_08_bits.transform_dirty = 0;
         mkobj->ang.x = normalize_obj_angle(mkobj->ang.x);
         mkobj->ang.y = normalize_obj_angle(mkobj->ang.y);
         mkobj->ang.z = normalize_obj_angle(mkobj->ang.z);
@@ -2528,34 +2944,31 @@ void update_mkobj(void* obj) {
             &mkobj->ang, (MKMATRIX*)matrix);
         changed = 1;
     }
-    if ((mkobj->flags_09 & 1) != 0 && mkobj->clump != 0) {
+    if (mkobj->flags_09_bits.bit0 != 0 && mkobj->clump != 0) {
         RpClumpForAllAtomics(
             mkobj->clump, (RpAtomicCallBack)AtomicFaceCamera, 0);
     }
-    if ((mkobj->flags_08 & 1) != 0) {
-        mkobj->flags_08 =
-            (unsigned char)((mkobj->flags_08 & ~0x20) | 0x20);
+    if (mkobj->flags_08_bits.moving != 0) {
+        mkobj->flags_08_bits.gravity_enabled = 1;
         mkobj->pos_vel.y += mkobj->gravity * obj_game_speed;
     }
-    if ((mkobj->flags_08 & 0x20) != 0) {
-        PSVECScale(&mkobj->pos_vel, &scaled, obj_game_speed);
-        mkobj->pos.x += scaled.x;
-        mkobj->pos.y += scaled.y;
-        mkobj->pos.z += scaled.z;
+    if (mkobj->flags_08_bits.gravity_enabled != 0) {
+        PSVECScale(&mkobj->pos_vel, &scaled_pos, obj_game_speed);
+        PSVECAdd(&mkobj->pos, &scaled_pos, &mkobj->pos);
     }
-    if ((mkobj->flags_0B & 4) == 0) {
-        if ((mkobj->flags_08 & 0xE0) != 0) {
-            changed = 1;
-            mkobj->flags_08 &= ~0x80;
-            matrix->pos = *(RwV3d*)&mkobj->pos;
-        }
-    } else {
+    if (mkobj->flags_0B_bits.pivot_enabled != 0) {
         gxMat33Tx31(
             &pivot, &mkobj->pivot, (Mat33*)matrix);
         PSVECSubtract(&mkobj->pos, &pivot, (Vec*)&matrix->pos);
         changed = 1;
+    } else if (mkobj->flags_08_bits.gravity_enabled != 0 ||
+               mkobj->flags_08_bits.airborne != 0 ||
+               mkobj->flags_08_bits.bit7 != 0) {
+        changed = 1;
+        mkobj->flags_08_bits.bit7 = 0;
+        matrix->pos = *(RwV3d*)&mkobj->pos;
     }
-    if ((mkobj->flags_08 & 2) != 0) {
+    if (mkobj->flags_08_bits.scale_active != 0) {
         gxMatScaledByV3(
             (Mat33*)matrix, (Mat33*)matrix, &mkobj->scale);
         changed = 1;
@@ -2563,12 +2976,12 @@ void update_mkobj(void* obj) {
 
     if (changed != 0) {
         matrix->flags &= ~0x20000;
-        if ((mkobj->hide_flags & 0x10) == 0) {
+        if (mkobj->hide_flag_bits.bit4 == 0) {
             RwFrameUpdateObjects(mkobj->frame);
             for (i = 1; i < mkobj->clump_count; i++) {
-                frame = (RwFrame*)((&mkobj->clump)[i]->object.parent);
-                frameMatrix = (RwMatrix*)((char*)frame + 0x10);
-                *frameMatrix = *matrix;
+                frame = (RwFrame*)mkobj->clumps[i]->object.parent;
+                frameMatrix = &frame->modelling;
+                memcpy(frameMatrix, matrix, sizeof(RwMatrix));
                 RwFrameUpdateObjects(frame);
             }
         }
@@ -2576,9 +2989,12 @@ void update_mkobj(void* obj) {
     if (mkobj->matrix_count != 0) {
         sobj = (MkSobj*)first_mkhdr(&mkobj->sobj_list);
         if (sobj != 0 && sobj->matrices != 0) {
+            matrices = sobj->matrices;
             for (i = 1; i < (int)mkobj->matrix_count; i++) {
                 matrixIndex = mkobj->matrix_indices[i];
-                sobj->matrices[matrixIndex] = *matrix;
+                memcpy(
+                    &matrices[matrixIndex], matrix,
+                    sizeof(RwMatrix));
             }
         }
     }
@@ -2613,19 +3029,28 @@ void delete_light_lists(void) {
 void* find_mkx_rplight_in_obj(void* obj, void* light) {
     MkObj* mkobj = (MkObj*)obj;
     MkPtr* ptr;
+    int matches_type;
     MkxRpLight* link;
+    MkxRpLight* candidate;
 
     if (mkobj->child_list != 0) {
         ptr = first_mkptr(&mkobj->child_list);
         while (ptr != 0) {
             link = (MkxRpLight*)ptr->hdr;
-            if (link == 0 ||
-                link->hdr.vtbl->destroy !=
-                    (MkVtblFn)vdestroy_mkx_rplight) {
-                link = 0;
-            }
+            matches_type = 0;
             if (link != 0) {
-                return link;
+                if (link->hdr.vtbl->destroy ==
+                    (MkVtblFn)vdestroy_mkx_rplight) {
+                    matches_type = 1;
+                }
+            }
+            if (matches_type != 0) {
+                candidate = link;
+            } else {
+                candidate = 0;
+            }
+            if (candidate != 0) {
+                return candidate;
             }
             ptr = next_mkptr(ptr);
         }
@@ -2643,14 +3068,15 @@ void bind_rplight_to_obj(void* light, void* obj) {
         link->light = light;
         link->obj = 0;
         link->obj_instance = 0;
+    }
+    if (link != 0) {
         mk_insert(&link->hdr, &mkobj->child_list);
         link->obj = mkobj;
         link->obj_instance = mkobj->hdr.instance;
     }
 }
 
-int vdestroy_mkx_rplight(void* light) {
-    MkxRpLight* link = (MkxRpLight*)light;
+void vdestroy_mkx_rplight(MkxRpLight* link) {
     MkObj* obj;
     RwFrame* frame;
 
@@ -2665,11 +3091,16 @@ int vdestroy_mkx_rplight(void* light) {
     RpLightDestroy(link->light);
 
     obj = link->obj;
-    if (obj == 0 || obj->hdr.instance != link->obj_instance) {
+    if (obj != 0) {
+        if (obj->hdr.instance == link->obj_instance) {
+        } else {
+            obj = 0;
+        }
+    } else {
         obj = 0;
     }
     if (obj != 0 && obj->hdr.instance != 0) {
-        ((int (*)(void*))obj->hdr.vtbl->destroy)(obj);
+        ((void (*)(MkHdr*))obj->hdr.vtbl->destroy)(&obj->hdr);
     }
     link->hdr.instance = 0;
     mkhdr_memfree(&link->hdr);
@@ -2708,12 +3139,11 @@ void* get_mkx_mem(void* allocation) {
 
 int vdestroy_mkobj(void* obj) {
     MkObj* mkobj = (MkObj*)obj;
-    RpClump** clumps;
     RpClump* clump;
     int i;
 
     mkobj->hdr.instance = 0;
-    if ((mkobj->hide_flags & 8) != 0) {
+    if (mkobj->hide_flag_bits.bit3 != 0) {
         RwFrameDestroy(mkobj->frame);
     }
     destroy_list(&mkobj->list_88);
@@ -2723,15 +3153,14 @@ int vdestroy_mkobj(void* obj) {
     destroy_list(&mkobj->list_7C);
     destroy_list(&mkobj->list_80);
 
-    clumps = &mkobj->clump;
     for (i = 0; i < mkobj->clump_count; i++) {
-        clump = clumps[i];
+        clump = mkobj->clumps[i];
         if (clump != 0) {
             pull_clump_from_world(clump);
             RpClumpForAllAtomics(
                 clump, atomic_null_texture_pointers, 0);
             RpClumpDestroy(clump);
-            clumps[i] = 0;
+            mkobj->clumps[i] = 0;
         }
     }
     if (mkobj->bones != 0) {
@@ -2749,12 +3178,11 @@ int vdestroy_mkobj(void* obj) {
 
 void destroy_mkobj(void* obj) {
     MkObj* mkobj = (MkObj*)obj;
-    RpClump** clumps;
     RpClump* clump;
     int i;
 
     mkobj->hdr.instance = 0;
-    if ((mkobj->hide_flags & 8) != 0) {
+    if (mkobj->hide_flag_bits.bit3 != 0) {
         RwFrameDestroy(mkobj->frame);
     }
     destroy_list(&mkobj->list_88);
@@ -2764,15 +3192,14 @@ void destroy_mkobj(void* obj) {
     destroy_list(&mkobj->list_7C);
     destroy_list(&mkobj->list_80);
 
-    clumps = &mkobj->clump;
     for (i = 0; i < mkobj->clump_count; i++) {
-        clump = clumps[i];
+        clump = mkobj->clumps[i];
         if (clump != 0) {
             pull_clump_from_world(clump);
             RpClumpForAllAtomics(
                 clump, atomic_null_texture_pointers, 0);
             RpClumpDestroy(clump);
-            clumps[i] = 0;
+            mkobj->clumps[i] = 0;
         }
     }
     if (mkobj->bones != 0) {
@@ -2803,7 +3230,7 @@ static RpAtomic* atomic_null_texture_pointers(
 }
 
 RwTexture* material_get_texture_pointer(RpMaterial* material, int use_matfx) {
-    int effect;
+    RpMatFXMaterialFlags effect;
 
     if (use_matfx == 0) {
         return material->texture;
@@ -2811,18 +3238,19 @@ RwTexture* material_get_texture_pointer(RpMaterial* material, int use_matfx) {
 
     effect = RpMatFXMaterialGetEffects(material);
     switch (effect) {
-    case rpMATFXEFFECTENVMAP:
-        return ((RpMatFXEnvMapData*)MatFXGetData(
-                    material, rpMATFXEFFECTENVMAP))
+    case rpMATFXEFFECTDUAL:
+        return ((RpMatFXDualData*)MatFXGetData(
+                    material, rpMATFXEFFECTDUAL))
             ->texture;
-    case rpMATFXEFFECTBUMPENVMAP:
-        return ((RpMatFXEnvMapData*)MatFXGetData(
-                    material, rpMATFXEFFECTENVMAP))
+    case rpMATFXEFFECTDUALUVTRANSFORM:
+        return ((RpMatFXDualData*)MatFXGetData(
+                    material, rpMATFXEFFECTDUAL))
             ->texture;
     case rpMATFXEFFECTBUMPMAP:
         return ((RpMatFXBumpMapData*)MatFXGetData(
                     material, rpMATFXEFFECTBUMPMAP))
             ->texture;
+    case rpMATFXEFFECTNULL:
     default:
         return 0;
     }
@@ -2830,7 +3258,7 @@ RwTexture* material_get_texture_pointer(RpMaterial* material, int use_matfx) {
 
 void material_set_texture_pointer(
     RpMaterial* material, RwTexture* texture, int use_matfx) {
-    int effect;
+    RpMatFXMaterialFlags effect;
 
     if (use_matfx == 0) {
         material->texture = texture;
@@ -2839,21 +3267,24 @@ void material_set_texture_pointer(
 
     effect = RpMatFXMaterialGetEffects(material);
     switch (effect) {
-    case rpMATFXEFFECTENVMAP:
-        ((RpMatFXEnvMapData*)MatFXGetData(
-             material, rpMATFXEFFECTENVMAP))
+    case rpMATFXEFFECTDUAL:
+        ((RpMatFXDualData*)MatFXGetData(
+             material, rpMATFXEFFECTDUAL))
             ->texture = texture;
-        break;
-    case rpMATFXEFFECTBUMPENVMAP:
-        ((RpMatFXEnvMapData*)MatFXGetData(
-             material, rpMATFXEFFECTENVMAP))
+        return;
+    case rpMATFXEFFECTDUALUVTRANSFORM:
+        ((RpMatFXDualData*)MatFXGetData(
+             material, rpMATFXEFFECTDUAL))
             ->texture = texture;
-        break;
+        return;
     case rpMATFXEFFECTBUMPMAP:
         ((RpMatFXBumpMapData*)MatFXGetData(
              material, rpMATFXEFFECTBUMPMAP))
             ->texture = texture;
-        break;
+        return;
+    case rpMATFXEFFECTNULL:
+    default:
+        return;
     }
 }
 
@@ -2895,12 +3326,23 @@ void* start_scale_proc(void* obj, void* script) {
         pdata->obj_instance = ((MkObj*)obj)->hdr.instance;
         pdata->script = (ScaleScriptEntry*)script;
         pdata->script_start = (ScaleScriptEntry*)script;
-        pdata->prior_scale.x = 1.0f;
-        pdata->prior_scale.y = 1.0f;
         pdata->prior_scale.z = 1.0f;
+        pdata->prior_scale.y = 1.0f;
+        pdata->prior_scale.x = 1.0f;
         pdata->elapsed = 0.0f;
     }
     return pdata;
+}
+
+static inline MkObj* scale_validate_obj(MkObj* obj,
+                                        unsigned int expected_instance) {
+    if (obj != 0) {
+        if (obj->hdr.instance == expected_instance) {
+            return obj;
+        }
+        return 0;
+    }
+    return 0;
 }
 
 static float p_scale(void) {
@@ -2908,16 +3350,14 @@ static float p_scale(void) {
     MkObj* obj;
     ScaleScriptEntry* script;
     unsigned int flags;
+    float elapsed;
     float t;
 
     pdata = (ScalePdata*)apdata;
     if (aproc->pid != 0x5022 || pdata == 0) {
         return -1.0f;
     }
-    obj = pdata->obj;
-    if (obj == 0 || obj->hdr.instance != pdata->obj_instance) {
-        obj = 0;
-    }
+    obj = scale_validate_obj(pdata->obj, pdata->obj_instance);
     if (obj == 0) {
         return -1.0f;
     }
@@ -2927,11 +3367,12 @@ static float p_scale(void) {
     if ((flags & 0x10000) != 0) {
         return -1.0f;
     }
-    pdata->elapsed += game_speed;
-    if (pdata->elapsed > script->duration) {
+    elapsed = pdata->elapsed + game_speed;
+    pdata->elapsed = elapsed;
+    if (elapsed > script->duration) {
         t = 1.0f;
     } else {
-        t = pdata->elapsed / script->duration;
+        t = elapsed / script->duration;
         if ((flags & 0x400000) != 0) {
             t = gxMathSin(1.5707964f * t);
         } else if ((flags & 0x800000) != 0) {
@@ -2939,17 +3380,17 @@ static float p_scale(void) {
         }
     }
     if ((flags & 0x40000) != 0) {
-        obj->flags_08 |= 2;
+        obj->flags_08_bits.scale_active = 1;
         interp_v3(&obj->scale, &script->scale, &pdata->prior_scale, t);
-        if (obj->scale.x == obj->scale.y &&
-            obj->scale.z == (float)(obj->scale.x == obj->scale.y)) {
-            obj->flags_08 &= ~2;
+        if ((float)((float)(obj->scale.x == obj->scale.y) ==
+                    obj->scale.z) == 1.0f) {
+            obj->flags_08_bits.scale_active = 0;
         }
     }
     if (pdata->elapsed >= script->duration) {
         pdata->elapsed -= script->duration;
         pdata->prior_scale = script->scale;
-        pdata->script++;
+        pdata->script = script + 1;
     }
     return 1.0f;
 }
@@ -2970,10 +3411,9 @@ void* limb_sever_find_limbset(void* obj, int id) {
     return result;
 }
 
-void limb_sever_reset_limbs(void* obj) {
-    LimbController* controller;
-    LimbRuntime* runtime;
-    LimbProcLatch* latch;
+void limb_sever_reset_limbs(PlyrInfo* player) {
+    FighterMirror* fighter;
+    FighterObjectRef* ref;
     MkObj* limb;
     MkSobj* sobj;
     LimbSet* limb_set;
@@ -2982,82 +3422,95 @@ void limb_sever_reset_limbs(void* obj) {
     MkPtr* walk;
     MkPtr* next;
     void* effect;
-    unsigned int i;
+    int i;
 
-    controller = (LimbController*)obj;
-    runtime = controller->runtime;
-    limb = controller->limb_obj;
     limb_set = 0;
-    if (limb != 0) {
-        sobj = (MkSobj*)first_mkhdr(&limb->sobj_list);
+    fighter = player->slot.fighter;
+    if (player->slot.mirror_a != 0) {
+        sobj = (MkSobj*)first_mkhdr(&player->slot.mirror_a->sobj_list);
         if (sobj != 0) {
             limb_set = (LimbSet*)sobj->matrices;
         }
     }
 
-    for (i = 0; i < limb->bone_count; i++) {
+    limb = player->slot.mirror_a;
+    for (i = 0; i < (int)limb->bone_count; i++) {
         bone = limb->bones[i];
         bone->parent_matrix = bone->original_parent_matrix;
     }
 
     for (i = 0; i < 15; i++) {
-        latch = &runtime->bone_procs[i];
-        hdr = latch->hdr;
-        if (hdr == 0 || hdr->instance != latch->instance) {
+        ref = &fighter->severed_limbs[i];
+        hdr = &ref->object->hdr;
+        if (hdr != 0) {
+            if (hdr->instance != ref->instance) {
+                hdr = 0;
+            }
+        } else {
             hdr = 0;
         }
         if (hdr != 0 && hdr->instance != 0) {
-            ((void (*)(MkHdr*))hdr->vtbl->destroy)(hdr);
+            hdr->typed_vtbl->destroy(hdr);
         }
-        latch->hdr = 0;
-        latch->instance = 0;
+        ref->object = 0;
+        ref->instance = 0;
         if (limb_set != 0) {
             limb_set->moved_bones &= ~(1U << i);
         }
     }
 
-    latch = &runtime->controller_proc;
-    hdr = latch->hdr;
-    if (hdr == 0 || hdr->instance != latch->instance) {
+    hdr = (MkHdr*)fighter->limb_update_proc;
+    if (hdr != 0) {
+        if (hdr->instance != fighter->limb_update_proc_instance) {
+            hdr = 0;
+        }
+    } else {
         hdr = 0;
     }
     if (hdr != 0 && hdr != (MkHdr*)aproc && hdr->instance != 0) {
-        ((void (*)(MkHdr*))hdr->vtbl->destroy)(hdr);
+        hdr->typed_vtbl->destroy(hdr);
     }
-    latch->hdr = 0;
-    latch->instance = 0;
+    fighter->limb_update_proc = 0;
+    fighter->limb_update_proc_instance = 0;
 
-    walk = runtime->proc_list;
-    while (walk != 0) {
-        hdr = walk->hdr;
-        if (walk->instance == hdr->instance) {
-            if (hdr != 0 && hdr != (MkHdr*)aproc && hdr->instance != 0) {
-                ((void (*)(MkHdr*))hdr->vtbl->destroy)(hdr);
+    if (&fighter->attach_proc_list != 0) {
+        walk = fighter->attach_proc_list;
+        while (walk != 0) {
+            hdr = walk->hdr;
+            if (walk->instance != hdr->instance) {
+                next = walk->next;
+                walk->hdr = 0;
+                destroy_mkptr(walk);
+                walk = next;
+            } else {
+                if (hdr != 0 && hdr != (MkHdr*)aproc &&
+                    hdr->instance != 0) {
+                    hdr->typed_vtbl->destroy(hdr);
+                }
+                walk = walk->next;
             }
-            walk = walk->next;
-        } else {
-            next = walk->next;
-            walk->hdr = 0;
-            destroy_mkptr(walk);
-            walk = next;
         }
     }
-    runtime->proc_list = 0;
+    fighter->attach_proc_list = 0;
 
-    limb_sever_hide_z_meat_chunks_all(limb);
-    if (controller->type == 6 && controller->effect_bank >= 0) {
+    limb_sever_hide_z_meat_chunks_all(player->slot.mirror_a);
+    if (player->player_index == 6 &&
+        player->flags_14_bits.alternate_costume == 0) {
         effect = find_pfx_by_name_by_bankowner(
-            "eyelt", 1U << controller->hdr.instance);
+            "eyelt\0eyert\0ARMCHAIN", 1U << player->field_04);
         if (effect != 0) {
             reset_effect_ppfx(effect);
         }
-        pfx_spawn_at_bid("eyelt", limb, 0x10);
+        pfx_spawn_at_bid(
+            "eyelt\0eyert\0ARMCHAIN", player->slot.mirror_a, 0x10);
         effect = find_pfx_by_name_by_bankowner(
-            "eyert", 1U << controller->hdr.instance);
+            "eyelt\0eyert\0ARMCHAIN" + 6, 1U << player->field_04);
         if (effect != 0) {
             reset_effect_ppfx(effect);
         }
-        pfx_spawn_at_bid("eyert", limb, 0x10);
+        pfx_spawn_at_bid(
+            "eyelt\0eyert\0ARMCHAIN" + 6,
+            player->slot.mirror_a, 0x10);
     }
 }
 
@@ -3069,60 +3522,44 @@ void limb_sever_show_z_meat_chunks_all_plyr_num(int plyr) {
     }
 }
 
-void limb_sever_show_z_meat_chunks_all(void* obj) {
-    MkObj* mkobj;
+static inline unsigned int limb_material_bank_base(MkObj* obj) {
+    unsigned int base;
+
+    base = 0;
+    if (get_player_number(obj) == 0) {
+        if (g_game_info.plyr0.slot.fighter->limb_material_bank != 0) {
+            base = 0x400;
+        }
+    } else if (g_game_info.plyr1.slot.fighter->limb_material_bank != 0) {
+        base = 0x400;
+    }
+    return base;
+}
+
+void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpGeometry* geometry;
     RpMaterial* material;
-    MkmaterialPluginData* mkmat;
     unsigned int material_id_base;
     unsigned int material_id;
     unsigned int chunk_offset;
-    unsigned int material_offset;
-    unsigned int material_count;
     int chunk_id;
 
-    mkobj = (MkObj*)obj;
-    if (get_player_number(obj) == 0) {
-        if (g_game_info.plyr0.slot.fighter->limb_material_bank != 0) {
-            material_id_base = 0x400;
-        } else {
-            material_id_base = 0;
-        }
-    } else {
-        if (g_game_info.plyr1.slot.fighter->limb_material_bank != 0) {
-            material_id_base = 0x400;
-        } else {
-            material_id_base = 0;
-        }
-    }
+    material_id_base = limb_material_bank_base(obj);
 
     chunk_offset = 0;
-    while (*(int*)((char*)limb_meat_chunk_list + chunk_offset) > -1) {
-        chunk_id = *(int*)((char*)limb_meat_chunk_list + chunk_offset);
+    while (limb_meat_chunk_list[
+               chunk_offset / sizeof(*limb_meat_chunk_list)] > -1) {
+        chunk_id = limb_meat_chunk_list[
+            chunk_offset / sizeof(*limb_meat_chunk_list)];
         material_id = material_id_base + (unsigned int)chunk_id;
         material = 0;
-        ptr = first_mkptr(&mkobj->sobj_list);
+        ptr = first_mkptr(&obj->sobj_list);
         while (ptr != 0) {
             sobj = (MkSobj*)ptr->hdr;
             geometry = sobj->atomic->geometry;
-            material_offset = 0;
-            material_count = geometry->matList.numMaterials;
-            while (material_count != 0) {
-                material = *(RpMaterial**)((char*)geometry->matList.materials +
-                                           material_offset);
-                mkmat = (MkmaterialPluginData*)((char*)material +
-                                                MkmaterialLocalOffset);
-                if ((mkmat->flags & 0xFFF) == material_id) {
-                    break;
-                }
-                material_offset += 4;
-                material_count--;
-            }
-            if (material_count == 0) {
-                material = 0;
-            }
+            material = find_geometry_material_by_id(geometry, material_id);
             if (material != 0) {
                 break;
             }
@@ -3135,35 +3572,21 @@ void limb_sever_show_z_meat_chunks_all(void* obj) {
     }
 }
 
-void limb_sever_show_z_meat_chunks(void* obj, int limb, int show_all) {
+void limb_sever_show_z_meat_chunks(
+    MkObj* obj, int limb, int include_children) {
     MkObj* mkobj;
     MkPtr* ptr;
     MkSobj* sobj;
     RpGeometry* geometry;
     RpMaterial* material;
-    MkmaterialPluginData* mkmat;
     unsigned int material_id_base;
     unsigned int material_id;
-    unsigned int material_offset;
-    unsigned int material_count;
     int* material_ids;
     int shown;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     shown = 0;
-    if (get_player_number(obj) == 0) {
-        if (g_game_info.plyr0.slot.fighter->limb_material_bank != 0) {
-            material_id_base = 0x400;
-        } else {
-            material_id_base = 0;
-        }
-    } else {
-        if (g_game_info.plyr1.slot.fighter->limb_material_bank != 0) {
-            material_id_base = 0x400;
-        } else {
-            material_id_base = 0;
-        }
-    }
+    material_id_base = limb_material_bank_base(obj);
 
     material_ids = limb_meats_mat_id_tbl[limb];
     while (*material_ids != -1) {
@@ -3173,22 +3596,7 @@ void limb_sever_show_z_meat_chunks(void* obj, int limb, int show_all) {
         while (ptr != 0) {
             sobj = (MkSobj*)ptr->hdr;
             geometry = sobj->atomic->geometry;
-            material_offset = 0;
-            material_count = geometry->matList.numMaterials;
-            while (material_count != 0) {
-                material = *(RpMaterial**)((char*)geometry->matList.materials +
-                                           material_offset);
-                mkmat = (MkmaterialPluginData*)((char*)material +
-                                                MkmaterialLocalOffset);
-                if ((mkmat->flags & 0xFFF) == material_id) {
-                    break;
-                }
-                material_offset += 4;
-                material_count--;
-            }
-            if (material_count == 0) {
-                material = 0;
-            }
+            material = find_geometry_material_by_id(geometry, material_id);
             if (material != 0) {
                 break;
             }
@@ -3198,67 +3606,37 @@ void limb_sever_show_z_meat_chunks(void* obj, int limb, int show_all) {
             show_material(material);
         }
         material_ids++;
-        if (shown != 0 && show_all == 0) {
+        if (shown != 0 && include_children == 0) {
             break;
         }
         shown++;
     }
 }
 
-void limb_sever_hide_z_meat_chunks_all(void* obj) {
-    MkObj* mkobj;
+void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpGeometry* geometry;
     RpMaterial* material;
-    MkmaterialPluginData* mkmat;
     unsigned int material_id_base;
     unsigned int material_id;
     unsigned int chunk_offset;
-    unsigned int material_offset;
-    unsigned int material_count;
     int chunk_id;
 
-    mkobj = (MkObj*)obj;
-    if (get_player_number(obj) == 0) {
-        if (g_game_info.plyr0.slot.fighter->limb_material_bank != 0) {
-            material_id_base = 0x400;
-        } else {
-            material_id_base = 0;
-        }
-    } else {
-        if (g_game_info.plyr1.slot.fighter->limb_material_bank != 0) {
-            material_id_base = 0x400;
-        } else {
-            material_id_base = 0;
-        }
-    }
+    material_id_base = limb_material_bank_base(obj);
 
     chunk_offset = 0;
-    while (*(int*)((char*)limb_meat_chunk_list + chunk_offset) > -1) {
-        chunk_id = *(int*)((char*)limb_meat_chunk_list + chunk_offset);
+    while (limb_meat_chunk_list[
+               chunk_offset / sizeof(*limb_meat_chunk_list)] > -1) {
+        chunk_id = limb_meat_chunk_list[
+            chunk_offset / sizeof(*limb_meat_chunk_list)];
         material_id = material_id_base + (unsigned int)chunk_id;
         material = 0;
-        ptr = first_mkptr(&mkobj->sobj_list);
+        ptr = first_mkptr(&obj->sobj_list);
         while (ptr != 0) {
             sobj = (MkSobj*)ptr->hdr;
             geometry = sobj->atomic->geometry;
-            material_offset = 0;
-            material_count = geometry->matList.numMaterials;
-            while (material_count != 0) {
-                material = *(RpMaterial**)((char*)geometry->matList.materials +
-                                           material_offset);
-                mkmat = (MkmaterialPluginData*)((char*)material +
-                                                MkmaterialLocalOffset);
-                if ((mkmat->flags & 0xFFF) == material_id) {
-                    break;
-                }
-                material_offset += 4;
-                material_count--;
-            }
-            if (material_count == 0) {
-                material = 0;
-            }
+            material = find_geometry_material_by_id(geometry, material_id);
             if (material != 0) {
                 break;
             }
@@ -3272,44 +3650,64 @@ void limb_sever_hide_z_meat_chunks_all(void* obj) {
 }
 
 static void _move_bones_from_obj_to_limbobj(
-    void* source_arg, void* limb_arg, int bone_index, int include_children);
+    MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children);
 
-/* Soft ceiling: obj_sever_limb ~37.46% - fighter chain FX remain; stop. */
-void* obj_sever_limb(
-    void* obj, int limb, Vec* limb_velocities, int include_children) {
+MkObj* obj_sever_limb(
+    MkObj* obj, int limb, Vec* limb_velocities, int include_children) {
     MkObj* source;
+    LimbSet* limb_set;
     MkObj* severed;
+    int severed_type;
+    PlyrInfo* player;
     MkSobj* sobj;
     MkBone* root;
+    MkBone* source_bone;
+    MkBone* chain_bone;
     MkPtr* sobj_ref;
-    Vec saved_pos;
-    Vec transformed;
-    Vec correction;
+    ClothBone* source_cloth;
+    ClothBone* chain_cloth_bone;
+    MkObj* chain;
+    RwMatrix* source_matrix;
+    Vec* limb_velocity;
+    void* effect;
+    Vec root_offset;
+    RwMatrixPosition correction;
+    RwMatrixPosition saved_pos;
+    RwMatrixPosition transformed;
     int root_index;
     int saved_fallback;
+    int chain_count;
     unsigned int i;
 
-    source = (MkObj*)obj;
+    source = obj;
+    player = 0;
+    if ((int)source->oid == 0x1001) {
+        player = &g_game_info.plyr0;
+        severed_type = 0x1005;
+    } else if ((int)source->oid == 0x1002) {
+        player = &g_game_info.plyr1;
+        severed_type = 0x1006;
+    } else {
+        severed_type = 0x1007;
+    }
     sobj = (MkSobj*)first_mkhdr(&source->sobj_list);
     if (sobj == 0) {
         return 0;
     }
-    sobj->flags09 = (unsigned char)((sobj->flags09 & ~0x10) | 0x10);
-    if (sobj->matrices == 0) {
+    sobj->flags09_bits.bit4 = 1;
+    limb_set = (LimbSet*)sobj->matrices;
+    if (limb_set == 0) {
         return 0;
     }
 
-    severed = (MkObj*)get_mkobj_frame(
-        source->oid == 0x1001 ? 0x1005 :
-        source->oid == 0x1002 ? 0x1006 : 0x1007, 0);
+    severed = (MkObj*)get_mkobj_frame(severed_type, 0);
     if (severed == 0) {
         return 0;
     }
     severed->parent_hdr = &source->hdr;
     severed->parent_inst = source->hdr.instance;
-    severed->flags_0C = (unsigned char)((severed->flags_0C & ~2) | 2);
-    severed->hide_flags =
-        (unsigned char)((severed->hide_flags & ~0x20) | 0x20);
+    severed->flags_0C_bits.parented = 1;
+    severed->hide_flag_bits.hidden = 1;
     severed->hide_flags =
         (unsigned char)((severed->hide_flags & ~0x40) |
                         (source->hide_flags & 0x40));
@@ -3336,14 +3734,14 @@ void* obj_sever_limb(
         severed->bones[i] = 0;
     }
 
-    severed->field_24 = &sobj->matrices[limb];
+    severed->field_24 = &((RwMatrix*)limb_set)[limb];
     _move_bones_from_obj_to_limbobj(
         source, severed, limb, include_children);
-    severed->pos = source->pos;
-    severed->pos_vel = source->pos_vel;
-    severed->ang = source->ang;
-    severed->ang_vel = source->ang_vel;
-    severed->scale = source->scale;
+    severed->pos_row = source->pos_row;
+    severed->pos_vel_row = source->pos_vel_row;
+    severed->ang_row = source->ang_row;
+    severed->ang_vel_row = source->ang_vel_row;
+    severed->scale_row = source->scale_row;
     memcpy(severed->field_24, source->field_24, sizeof(RwMatrix));
 
     root_index = limb_root_bids[limb];
@@ -3352,69 +3750,268 @@ void* obj_sever_limb(
     if (root != 0 && root->parent_matrix != 0) {
         bone_make_parents_my_children(root);
         v3_x_mat(
-            &transformed, (Vec*)&root->parent_matrix->pos,
+            &root_offset, (Vec*)&root->parent_matrix->pos,
             (MKMATRIX*)severed->field_24);
-        severed->pos.x += transformed.x;
-        severed->pos.y += transformed.y;
-        severed->pos.z += transformed.z;
-        root->translation.x = 0.0f;
-        root->translation.y = 0.0f;
+        severed->pos.x += root_offset.x;
+        severed->pos.y += root_offset.y;
+        severed->pos.z += root_offset.z;
         root->translation.z = 0.0f;
+        root->translation.y = 0.0f;
+        root->translation.x = 0.0f;
         RtQuatConvertFromMatrix(
             (RtQuat*)&root->rotation, root->parent_matrix);
-        update_mkobj(as_mkhdr(&severed->hdr));
+        update_mkobj(severed != 0 ? as_mkhdr(&severed->hdr) : 0);
         saved_fallback = severed->fallback_bone_index;
         severed->fallback_bone_index = root->bone_index;
-        update_bone_hierarchy(as_mkhdr(&severed->hdr));
+        update_bone_hierarchy(
+            severed != 0 ? as_mkhdr(&severed->hdr) : 0);
         severed->fallback_bone_index = saved_fallback;
     }
 
     if (limb_velocities != 0) {
+        source_matrix = severed->field_24;
         if ((severed->flags_0B & 4) == 0) {
-            saved_pos = severed->pos;
+            saved_pos = severed->pos_row;
         } else {
             gxMat33Tx31(
-                &transformed, &severed->pivot,
-                (Mat33*)severed->field_24);
-            PSVECSubtract(&severed->pos, &transformed, &saved_pos);
+                &transformed.value, &severed->pivot,
+                (Mat33*)source_matrix);
+            PSVECSubtract(
+                &severed->pos, &transformed.value, &saved_pos.value);
         }
-        severed->pivot = limb_velocities[limb];
-        severed->flags_0B =
-            (unsigned char)((severed->flags_0B & ~4) | 4);
+        limb_velocity = &limb_velocities[limb];
+        severed->pivot.x = limb_velocity->x;
+        severed->pivot.y = limb_velocity->y;
+        severed->pivot.z = limb_velocity->z;
+        severed->flags_0B_bits.pivot_enabled = 1;
         gxMat33Tx31(
-            &transformed, &severed->pivot,
-            (Mat33*)severed->field_24);
-        PSVECSubtract(&severed->pos, &transformed, &correction);
-        PSVECSubtract(&correction, &saved_pos, &transformed);
-        PSVECSubtract(&severed->pos, &transformed, &severed->pos);
+            &transformed.value, &severed->pivot,
+            (Mat33*)source_matrix);
+        PSVECSubtract(
+            &severed->pos, &transformed.value, &correction.value);
+        PSVECSubtract(
+            &correction.value, &saved_pos.value, &transformed.value);
+        PSVECSubtract(
+            &severed->pos, &transformed.value, &severed->pos);
     }
     mk_insert(&severed->hdr, &fgnd_mkobj_list);
-    severed->flags_08 =
-        (unsigned char)((severed->flags_08 & ~0x40) | 0x40);
+    severed->flags_08_bits.airborne = 1;
     mk_insert(&severed->hdr, &bone_hierarchy_mkobj_list);
+
+    if (player != 0) {
+        if (player->player_index == 6) {
+            if (limb == 0) {
+                effect = find_pfx_by_name_by_bankowner(
+                    "eyelt\0eyert\0ARMCHAIN", 1U << player->field_04);
+                if (effect != 0) {
+                    reset_effect_ppfx(effect);
+                }
+                effect = find_pfx_by_name_by_bankowner(
+                    "eyelt\0eyert\0ARMCHAIN" + 6,
+                    1U << player->field_04);
+                if (effect != 0) {
+                    reset_effect_ppfx(effect);
+                }
+            }
+        } else if (player->player_index == 0x10 &&
+                   player->flags_14_bits.alternate_costume == 0 &&
+                   (severed->matrix_count > 1 || limb == 5 || limb == 2)) {
+            chain_count = 0;
+            if (severed->bones[113] != 0) {
+                obj_set_bone_collapse_flag(severed, 113);
+                chain_count = 1;
+            }
+            if (severed->bones[96] != 0) {
+                obj_set_bone_collapse_flag(severed, 96);
+                chain_count++;
+            }
+
+            while (chain_count != 0) {
+                chain = (MkObj*)load_named_model_for_player(
+                    "eyelt\0eyert\0ARMCHAIN" + 12, player->field_04,
+                    severed_type, 0);
+                if (chain != 0) {
+                    int chain_bones[7] = {
+                        0x16, 0x2001, 0x2002, 0x2003,
+                        0x2004, 0x2005, 0x2006
+                    };
+                    ClothInitEntry chain_cloth[6] = {
+                        {0x0C, 0.25f, 0.5f, 0.7f, 0.0f, 0.0f, 0.0f, 0.0f,
+                         0.0f, 0},
+                        {0x0D, 0.22f, 0.5f, 0.7f, 0.0f, 0.0f, 0.0f, 0.0f,
+                         0.0f, 0},
+                        {0x0E, 0.19f, 0.5f, 0.7f, 0.0f, 0.0f, 0.0f, 0.0f,
+                         0.0f, 0},
+                        {0x0F, 0.16f, 0.5f, 0.7f, 0.0f, 0.0f, 0.0f, 0.0f,
+                         0.0f, 0},
+                        {0x10, 0.13f, 0.5f, 0.7f, 0.0f, 0.0f, 0.0f, 0.0f,
+                         0.0f, 0},
+                        {0x11, 0.1f, 0.5f, 0.7f, 0.0f, 0.0f, 0.0f, 0.0f,
+                         0.0f, 0}
+                    };
+
+                    mk_insert(&chain->hdr, &fgnd_mkobj_list);
+                    specskin_initialize_clump(chain->clump);
+                    chain->light_flags = source->light_flags;
+                    mk_insert(&chain->hdr, &source->child_list);
+                    update_mkobj(chain);
+                    build_bones_tbl(chain, chain_bones);
+                    start_cloth_bones(chain);
+                    cloth_bones_init_by_tbl(chain, chain_cloth, 6);
+
+                    if (chain_count <= 1 && severed->bones[22] != 0) {
+                        source_matrix = source->field_24;
+                        if (source->bones[22] != 0) {
+                            source_matrix = &source->bones[22]->matrix;
+                        }
+                        memcpy(chain->field_24, source_matrix,
+                               sizeof(RwMatrix));
+                        RwMatrixUpdate(chain->field_24);
+                        RwFrameUpdateObjects(chain->frame);
+                        ft_fake_bone_matcher(
+                            chain, severed, 0x16, 0, 0, 0, 1, 0.0f);
+                        if (severed->bones[113] != 0) {
+                          for (i = 0; i < 6; i++) {
+                            source_bone = source->bones[113 + i];
+                            chain_bone = chain->bones[i + 1];
+                            memcpy(&chain_bone->matrix, &source_bone->matrix,
+                                   sizeof(RwMatrix));
+                            memcpy(chain_bone->parent_matrix,
+                                   source_bone->original_parent_matrix,
+                                   sizeof(RwMatrix));
+                            chain_cloth_bone = chain_bone->cloth_link;
+                            source_cloth = severed->bones[113 + i]->cloth_link;
+                            chain_cloth_bone->world_target.x =
+                                source_cloth->world_target.x;
+                            chain_cloth_bone->world_target.y =
+                                source_cloth->world_target.y;
+                            chain_cloth_bone->world_target.z =
+                                source_cloth->world_target.z;
+                            chain_cloth_bone->force_position.x =
+                                source_cloth->force_position.x;
+                            chain_cloth_bone->force_position.y =
+                                source_cloth->force_position.y;
+                            chain_cloth_bone->force_position.z =
+                                source_cloth->force_position.z;
+                            chain_cloth_bone->velocity.x =
+                                source_cloth->velocity.x;
+                            chain_cloth_bone->velocity.y =
+                                source_cloth->velocity.y;
+                            chain_cloth_bone->velocity.z =
+                                source_cloth->velocity.z;
+                          }
+                        }
+                    } else if (severed->bones[23] != 0) {
+                      source_matrix = source->field_24;
+                      if (source->bones[23] != 0) {
+                        source_matrix = &source->bones[23]->matrix;
+                      }
+                      memcpy(chain->field_24, source_matrix, sizeof(RwMatrix));
+                      RwMatrixUpdate(chain->field_24);
+                      RwFrameUpdateObjects(chain->frame);
+                      ft_fake_bone_matcher(chain, severed, 0x17, 0, 0, 0, 1,
+                                           0.0f);
+                      if (severed->bones[96] != 0) {
+                        for (i = 0; i < 6; i++) {
+                          source_bone = source->bones[96 + i];
+                          chain_bone = chain->bones[i + 1];
+                          memcpy(&chain_bone->matrix, &source_bone->matrix,
+                                 sizeof(RwMatrix));
+                          memcpy(chain_bone->parent_matrix,
+                                 source_bone->original_parent_matrix,
+                                 sizeof(RwMatrix));
+                          chain_cloth_bone = chain_bone->cloth_link;
+                          source_cloth = severed->bones[96 + i]->cloth_link;
+                          chain_cloth_bone->world_target.x =
+                              source_cloth->world_target.x;
+                          chain_cloth_bone->world_target.y =
+                              source_cloth->world_target.y;
+                          chain_cloth_bone->world_target.z =
+                              source_cloth->world_target.z;
+                          chain_cloth_bone->force_position.x =
+                              source_cloth->force_position.x;
+                          chain_cloth_bone->force_position.y =
+                              source_cloth->force_position.y;
+                          chain_cloth_bone->force_position.z =
+                              source_cloth->force_position.z;
+                          chain_cloth_bone->velocity.x =
+                              source_cloth->velocity.x;
+                          chain_cloth_bone->velocity.y =
+                              source_cloth->velocity.y;
+                          chain_cloth_bone->velocity.z =
+                              source_cloth->velocity.z;
+                        }
+                      }
+                    }
+                }
+                chain_count--;
+            }
+        }
+    }
     return severed;
 }
 
-static void xfer_bone_tree_from_obj_to_limb_obj(
-    int bone_index, MkBone* parent, void* source_obj, void* limb_obj);
-static void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(
-    void* source_arg, void* limb_arg, int limb_id);
+static void xfer_bone_tree_from_obj_to_limb_obj(int bone_index, MkBone *parent,
+                                                MkObj *source_obj,
+                                                MkObj *limb_obj);
+static void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(MkObj *source_arg,
+                                                             MkObj *limb_arg,
+                                                             int limb_id);
+
+#pragma inline_depth(2)
+static inline void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(
+    MkObj* source_arg, MkObj* limb_arg, int limb_id) {
+    MkObj* source;
+    MkBone* queue[150];
+    MkBone* bone;
+    unsigned int read_index;
+    unsigned int count;
+
+    source = source_arg;
+    read_index = 0;
+    count = 1;
+    queue[0] = source->bones[source->fallback_bone_index];
+    bone = queue[0]->root_next;
+    while (bone != 0) {
+        queue[count++] = bone;
+        bone = bone->root_next;
+    }
+
+    while (read_index < count) {
+        bone = queue[read_index++];
+        if (bone->parent_matrix != 0) {
+            if (bone->limb_id == limb_id) {
+                xfer_bone_tree_from_obj_to_limb_obj(
+                    bone->bone_index, 0, source_arg, limb_arg);
+                break;
+            }
+            bone = bone->tree_child;
+            while (bone != 0) {
+                queue[count++] = bone;
+                bone = bone->tree_next;
+            }
+        }
+    }
+}
 
 static void _move_bones_from_obj_to_limbobj(
-    void* source_arg, void* limb_arg, int bone_index, int include_children) {
+    MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children) {
     MkObj* source;
     MkObj* limb;
     MkSobj* sobj;
     LimbSet* limb_set;
     int* child;
 
-    source = (MkObj*)source_arg;
-    limb = (MkObj*)limb_arg;
-    sobj = (MkSobj*)first_mkhdr(&source->sobj_list);
-    if (sobj == 0 || sobj->matrices == 0) {
+    source = source_arg;
+    limb = limb_arg;
+    sobj = (MkSobj*)obj_first_sobj(source);
+    if (sobj == 0) {
         return;
     }
     limb_set = (LimbSet*)sobj->matrices;
+    if (limb_set == 0) {
+        return;
+    }
     limb->matrix_indices[limb->matrix_count] = bone_index;
     limb->matrix_count++;
     limb_set->moved_bones |= 1U << bone_index;
@@ -3430,47 +4027,10 @@ static void _move_bones_from_obj_to_limbobj(
         }
     }
 }
-
-static void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(
-    void* source_arg, void* limb_arg, int limb_id) {
-    MkObj* source;
-    MkBone* queue[150];
-    MkBone* bone;
-    unsigned int read_index;
-    unsigned int count;
-
-    source = (MkObj*)source_arg;
-    read_index = 0;
-    count = 1;
-    queue[0] = source->bones[source->fallback_bone_index];
-    bone = queue[0]->root_next;
-    while (bone != 0) {
-        queue[count] = bone;
-        count++;
-        bone = bone->root_next;
-    }
-
-    while (read_index < count) {
-        bone = queue[read_index];
-        read_index++;
-        if (bone->parent_matrix != 0) {
-            if (bone->limb_id == limb_id) {
-                xfer_bone_tree_from_obj_to_limb_obj(
-                    bone->bone_index, 0, source_arg, limb_arg);
-                break;
-            }
-            bone = bone->tree_child;
-            while (bone != 0) {
-                queue[count] = bone;
-                count++;
-                bone = bone->tree_next;
-            }
-        }
-    }
-}
+#pragma inline_depth reset
 
 static void xfer_bone_tree_from_obj_to_limb_obj(
-    int bone_index, MkBone* parent, void* source_arg, void* limb_arg) {
+    int bone_index, MkBone* parent, MkObj* source_arg, MkObj* limb_arg) {
     MkObj* source;
     MkObj* limb;
     MkBone* source_bone;
@@ -3478,23 +4038,19 @@ static void xfer_bone_tree_from_obj_to_limb_obj(
     MkBone* new_bone;
     int destination_index;
 
-    source = (MkObj*)source_arg;
-    limb = (MkObj*)limb_arg;
+    source = source_arg;
+    limb = limb_arg;
     while (1) {
         source_bone = source->bones[bone_index];
         if (source_bone != 0 && source_bone->parent_matrix != 0) {
             clone_parent = 0;
-            if (source_bone->clone_source == 0) {
-                destination_index = bone_index;
-                if (limb->bones[bone_index] != 0) {
-                    return;
-                }
-            } else {
-                destination_index = source_bone->clone_source->bone_index;
-                clone_parent = limb->bones[destination_index];
-                if (clone_parent == 0 && limb->bones[bone_index] != 0) {
-                    return;
-                }
+            if (!((source_bone->clone_source != 0 &&
+                   (destination_index =
+                        source_bone->clone_source->bone_index,
+                    clone_parent = limb->bones[destination_index]) == 0) ||
+                  (destination_index = bone_index,
+                   limb->bones[destination_index] == 0))) {
+                return;
             }
 
             new_bone = alloc_bone();
@@ -3504,27 +4060,27 @@ static void xfer_bone_tree_from_obj_to_limb_obj(
             }
             memcpy(new_bone, source_bone, 0x110);
             new_bone->bone_index = destination_index;
-            new_bone->field_60 = 1.0f;
-            new_bone->field_64 = 1.0f;
+            new_bone->field_60 = 0.0f;
+            new_bone->field_64 = 0.0f;
             new_bone->update_tick = (unsigned int)(exec_tick_ctr - 1);
             new_bone->transform_parent = 0;
             new_bone->tree_next = 0;
             new_bone->tree_child = 0;
             new_bone->root_next = 0;
             new_bone->clone_source = 0;
+            new_bone->flags_54_bits.pose_matrix_applied = 0;
+            new_bone->flags_54_bits.hierarchy_driven = 0;
             new_bone->list_80 = 0;
-            new_bone->flags_54 &= (unsigned char)~2;
-            new_bone->flags_54 &= (unsigned char)~4;
             if (clone_parent != 0) {
                 mkbone_insert_child_of_clone_parent(new_bone, clone_parent);
             }
             new_bone->tag = source_bone->tag;
             new_bone->limb_id = source_bone->limb_id;
             new_bone->parent_matrix = source_bone->parent_matrix;
-            if (parent == 0) {
-                limb->fallback_bone_index = destination_index;
-            } else {
+            if (parent != 0) {
                 mkbone_insert_child_of_parent(new_bone, parent);
+            } else {
+                limb->fallback_bone_index = destination_index;
             }
             mkbone_remove(source_bone);
             if (source_bone->tree_child != 0) {
@@ -3533,88 +4089,91 @@ static void xfer_bone_tree_from_obj_to_limb_obj(
                     source_arg, limb_arg);
             }
         }
-        if (parent == 0 || source_bone->tree_next == 0) {
+        if (parent == 0) {
+            return;
+        }
+        if (source_bone->tree_next == 0) {
             return;
         }
         bone_index = source_bone->tree_next->bone_index;
     }
 }
 
-void* get_mkobj(int type, void* clump) {
+MkObj* get_mkobj(int type, RpClump* clump) {
     MkObj* obj;
 
-    obj = (MkObj*)get_mkobj_frame(
-        type, ((RpClump*)clump)->object.parent);
+    obj = get_mkobj_frame(type, (RwFrame*)clump->object.parent);
     if (obj != 0) {
         obj->clump_count = 1;
-        obj->clump = (RpClump*)clump;
+        obj->clump = clump;
     }
     return obj;
 }
 
-void* get_mkobj_frame(int type, void* frame) {
+MkObj* get_mkobj_frame(int type, RwFrame* frame) {
     MkObj* obj;
     RwMatrix* matrix;
 
     obj = (MkObj*)_mwMemMalloc(
         mkobj_heap, 0x100, 4, 0, 0, 0);
-    if (obj == 0) {
-        return 0;
-    }
-    obj->hdr.vtbl = &vtbl_mkobj;
-    mk_set_instance(&obj->hdr.instance);
-    obj->flags_word_08 = 0;
-    obj->flags_0C = 0;
-    if (frame == 0) {
-        frame = RwFrameCreate();
+    if (obj != 0) {
+        obj->hdr.vtbl = &vtbl_mkobj;
+        mk_set_instance(&obj->hdr.instance);
+        obj->flags_word_08 = 0;
+        obj->flags_word_0C = 0;
         if (frame == 0) {
-            obj->hdr.instance = 0;
-            _mwMemFree(obj, 0, 0);
-            return 0;
+            frame = RwFrameCreate();
+            if (frame == 0) {
+                obj->hdr.instance = 0;
+                _mwMemFree(obj, 0, 0);
+                obj = 0;
+            } else {
+                obj->hide_flag_bits.bit3 = 1;
+                obj->hide_flag_bits.bit4 = 1;
+            }
         }
-        obj->hide_flags =
-            (unsigned char)((obj->hide_flags & ~8) | 8);
-        obj->hide_flags =
-            (unsigned char)((obj->hide_flags & ~0x10) | 0x10);
+        if (frame != 0) {
+            mk_insert(&obj->hdr, &master_clean_up_list);
+            obj->child_list = 0;
+            obj->sobj_list = 0;
+            obj->parent_hdr = 0;
+            obj->parent_inst = 0;
+            obj->list_44 = 0;
+            obj->list_88 = 0;
+            obj->oid = (unsigned int)type;
+            obj->clump_count = 0;
+            obj->frame = frame;
+            obj->field_24 = &frame->modelling;
+            obj->bones = 0;
+            obj->bone_count = 0;
+            obj->fallback_bone_index = 0;
+            obj->matrix_indices = 0;
+            obj->matrix_count = 0;
+            obj->flags_08_bits.bit7 = 1;
+            obj->flags_08_bits.transform_dirty = 1;
+            matrix = obj->field_24;
+            obj->pos = *(Vec*)&matrix->pos;
+            obj->pos_vel.z = 0.0f;
+            obj->pos_vel.y = 0.0f;
+            obj->pos_vel.x = 0.0f;
+            obj->ang.z = 0.0f;
+            obj->ang.y = 0.0f;
+            obj->ang.x = 0.0f;
+            obj->ang_vel.z = 0.0f;
+            obj->ang_vel.y = 0.0f;
+            obj->ang_vel.x = 0.0f;
+            obj->gravity = 0.0f;
+            obj->ground_colls = 0;
+            obj->ground_colls_y = 0.0f;
+            obj->field_5C = 0;
+            obj->field_60 = 0;
+            obj->allocation_74 = 0;
+            obj->cloth_bone_count = 0;
+            obj->list_7C = 0;
+            obj->list_80 = 0;
+            obj->flipped_bones = 0;
+        }
     }
-    mk_insert(&obj->hdr, &master_clean_up_list);
-    obj->child_list = 0;
-    obj->sobj_list = 0;
-    obj->parent_hdr = 0;
-    obj->parent_inst = 0;
-    obj->list_44 = 0;
-    obj->list_88 = 0;
-    obj->oid = (unsigned int)type;
-    obj->clump_count = 0;
-    obj->frame = (RwFrame*)frame;
-    obj->field_24 = (RwMatrix*)((char*)frame + 0x10);
-    obj->bones = 0;
-    obj->bone_count = 0;
-    obj->fallback_bone_index = 0;
-    obj->matrix_indices = 0;
-    obj->matrix_count = 0;
-    obj->flags_08 =
-        (unsigned char)((obj->flags_08 & ~0x80) | 0x80);
-    obj->flags_08 &= ~0x10;
-    matrix = obj->field_24;
-    obj->pos = *(Vec*)&matrix->pos;
-    obj->pos_vel.x = 0.0f;
-    obj->pos_vel.y = 0.0f;
-    obj->pos_vel.z = 0.0f;
-    obj->ang.x = 0.0f;
-    obj->ang.y = 0.0f;
-    obj->ang.z = 0.0f;
-    obj->ang_vel.x = 0.0f;
-    obj->ang_vel.y = 0.0f;
-    obj->ang_vel.z = 0.0f;
-    obj->gravity = 0.0f;
-    obj->ground_colls = 0;
-    obj->ground_colls_y = 0.0f;
-    obj->field_5C = 0;
-    obj->allocation_74 = 0;
-    obj->list_7C = 0;
-    obj->list_80 = 0;
-    obj->flipped_bones = 0;
     return obj;
 }
 
@@ -3646,17 +4205,21 @@ void render_fgnd_mkobjs(void) {
     apply_to_mklist((MkListApplyFn)render_mkobj, &fgnd_mkobj_list);
 }
 
-void obj_set_rw_lights(void* obj) {
-    MkObj* mkobj;
+void obj_set_rw_lights(MkObj* obj) {
+    int i;
+    unsigned int flags;
     LightMkList* entry;
+    int active;
+    MkPtr* next;
     MkPtr* ptr;
     MkxRpLight* wrapper;
-    unsigned int flags;
-    int active;
-    int i;
+    RpLight* light;
 
-    mkobj = (MkObj*)obj;
-    flags = mkobj == 0 ? 0 : mkobj->light_flags;
+    if (obj != 0) {
+        flags = obj->light_flags;
+    } else {
+        flags = 0;
+    }
     skip_light_setup = 0;
     if (last_obj_light_flags == flags) {
         skip_light_setup = 1;
@@ -3664,50 +4227,62 @@ void obj_set_rw_lights(void* obj) {
     }
     entry = light_mklists;
     for (i = 0; i < 13; i++, entry++) {
-        if (entry->state == 1) {
-            if ((flags & entry->mask) != 0) {
-                continue;
-            }
-            active = 0;
-            entry->state = 0;
-        } else if (entry->state == 0) {
+        switch (entry->state) {
+        case 0:
             if ((flags & entry->mask) == 0) {
                 continue;
             }
             active = 1;
             entry->state = 1;
-        } else {
-            active = (flags & entry->mask) != 0;
-            entry->state = active;
+            break;
+        case 1:
+            if ((flags & entry->mask) != 0) {
+                continue;
+            }
+            active = 0;
+            entry->state = 0;
+            break;
+        default:
+            if ((flags & entry->mask) != 0) {
+                active = 1;
+                entry->state = 1;
+            } else {
+                active = 0;
+                entry->state = 0;
+            }
+            break;
         }
         if (entry->list != 0) {
-            ptr = first_mkptr(entry->list);
+            ptr = *entry->list;
             while (ptr != 0) {
                 wrapper = (MkxRpLight*)ptr->hdr;
-                if (active != 0) {
-                    wrapper->light->object.object.flags |= 3;
-                } else {
-                    wrapper->light->object.object.flags &= ~3u;
+                if (ptr->instance != wrapper->hdr.instance) {
+                    next = ptr->next;
+                    ptr->hdr = 0;
+                    destroy_mkptr(ptr);
+                    ptr = next;
+                    continue;
                 }
-                ptr = next_mkptr(ptr);
+                light = wrapper->light;
+                if (active != 0) {
+                    light->object.object.flags |= 3;
+                } else {
+                    light->object.object.flags &= ~3u;
+                }
+                ptr = ptr->next;
             }
         }
     }
-    uploaded_light_state = 0;
     last_obj_light_flags = flags;
+    uploaded_light_state = 0;
 }
 
 void force_rw_lights(void) {
-    LightMkList* entry;
-    int count;
+    int i;
 
-    entry = light_mklists;
-    count = 13;
-    do {
-        entry->state = 2;
-        entry++;
-        count--;
-    } while (count != 0);
+    for (i = 0; i < 13; i++) {
+        light_mklists[i].state = 2;
+    }
     last_obj_light_flags = 0xFFFFFFFF;
     uploaded_light_state = 0;
 }
@@ -3751,27 +4326,25 @@ void sobj_set_priority(void* sobj_arg, int priority) {
 }
 #pragma dont_inline reset
 
-void obj_set_sobj_priority(void* obj, int id, int priority) {
+void obj_set_sobj_priority(MkObj* obj, int id, int priority) {
     MkObj* mkobj;
-    RpClump** clumps;
     SobjCreateData data;
     int i;
 
     if (obj == 0) {
         return;
     }
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
+    data.result = 0;
     data.obj = mkobj;
     data.id = (unsigned int)id;
     data.mask = 0xFFF;
-    data.result = 0;
-    data.set_priority = 0;
     data.priority = 0x10;
-    clumps = &mkobj->clump;
+    data.set_priority = 0;
     for (i = 0; i < mkobj->clump_count; i++) {
-        if (clumps[i] != 0) {
+        if (mkobj->clumps[i] != 0) {
             RpClumpForAllAtomics(
-                clumps[i], atomic_create_sobj_callback, &data);
+                mkobj->clumps[i], atomic_create_sobj_callback, &data);
         }
     }
     if (data.result != 0) {
@@ -3783,86 +4356,56 @@ void sobj_set_alpha(void* sobj, int alpha) {
     set_atomic_material_alpha(((MkSobj*)sobj)->atomic, alpha);
 }
 
-void sobj_no_zwrite(void* sobj, int flag) {
-    ((MkSobj*)sobj)->flags09 |= 0x80;
+void sobj_no_zwrite(MkSobj* sobj) {
+    sobj->flags09_bits.bit7 = 1;
 }
 
 void sobj_disable_blending(void* sobj) {
     ((MkSobj*)sobj)->render_flags = 0x20001;
 }
 
-void sobj_set_transl_flag(void* sobj) {
+void sobj_set_transl_flag(MkSobj* sobj) {
     RpAtomic* atomic;
-    MksobjPluginData* plugin;
     MkSobj* linked;
 
-    atomic = ((MkSobj*)sobj)->atomic;
-    plugin = (MksobjPluginData*)((char*)atomic + MksobjLocalOffset);
-    plugin->flags |= 0x80000000;
-    linked = plugin->sobj;
+    atomic = sobj->atomic;
+    MK_ATOMIC_PLUGIN(atomic)->flags |= 0x80000000;
+    linked = MK_ATOMIC_PLUGIN(atomic)->sobj;
     if (linked != 0) {
         linked->id_flags |= 0x80000000;
         linked->priority = 0x12;
     }
 }
 
-void atomic_set_transl_flag(void* atomic) {
-    RpAtomic* rpAtomic;
-    MksobjPluginData* plugin;
+void atomic_set_transl_flag(RpAtomic* atomic) {
     MkSobj* sobj;
 
-    rpAtomic = (RpAtomic*)atomic;
-    plugin = (MksobjPluginData*)((char*)rpAtomic + MksobjLocalOffset);
-    plugin->flags |= 0x80000000;
-    sobj = plugin->sobj;
+    MK_ATOMIC_PLUGIN(atomic)->flags |= 0x80000000;
+    sobj = MK_ATOMIC_PLUGIN(atomic)->sobj;
     if (sobj != 0) {
         sobj->id_flags |= 0x80000000;
         sobj->priority = 0x12;
     }
 }
 
-void unhide_sobj_by_sobj_id(void* obj, unsigned int id) {
-    MkObj* mkobj;
-    MkPtr* ptr;
+MkSobj* unhide_sobj_by_sobj_id(void* obj, unsigned int id) {
     MkSobj* sobj;
 
-    mkobj = (MkObj*)obj;
-    ptr = first_mkptr(&mkobj->sobj_list);
-    while (ptr != 0) {
-        sobj = (MkSobj*)ptr->hdr;
-        if ((sobj->id_flags & 0xFFF) == id) {
-            break;
-        }
-        ptr = next_mkptr(ptr);
-    }
-    if (ptr == 0) {
-        sobj = 0;
-    }
+    sobj = obj_find_sobj_by_id((MkObj*)obj, id);
     if (sobj != 0) {
         sobj->atomic->object.flags = 4;
     }
+    return sobj;
 }
 
-void hide_sobj_by_sobj_id(void* obj, unsigned int id) {
-    MkObj* mkobj;
-    MkPtr* ptr;
+MkSobj* hide_sobj_by_sobj_id(void* obj, unsigned int id) {
     MkSobj* sobj;
 
-    mkobj = (MkObj*)obj;
-    ptr = first_mkptr(&mkobj->sobj_list);
-    while (ptr != 0) {
-        sobj = (MkSobj*)ptr->hdr;
-        if ((sobj->id_flags & 0xFFF) == id) {
-            break;
-        }
-        ptr = next_mkptr(ptr);
-    }
-    if (ptr == 0) {
-        sobj = 0;
-    }
+    sobj = obj_find_sobj_by_id((MkObj*)obj, id);
     if (sobj != 0) {
         sobj->atomic->object.flags &= ~4u;
     }
+    return sobj;
 }
 
 void unhide_sobj(void* sobj_arg) {
@@ -3877,12 +4420,16 @@ void hide_sobj(void* sobj_arg) {
     sobj->atomic->object.flags = (unsigned char)(sobj->atomic->object.flags & ~0x4u);
 }
 
-void unhide_obj(void* obj) {
-    ((MkObj*)obj)->hide_flags &= ~0x20u;
+void unhide_obj(void* obj_arg) {
+    MkObj* obj = (MkObj*)obj_arg;
+
+    obj->hide_flag_bits.hidden = 0;
 }
 
-void hide_obj(void* obj) {
-    ((MkObj*)obj)->hide_flags |= 0x20;
+void hide_obj(void* obj_arg) {
+    MkObj* obj = (MkObj*)obj_arg;
+
+    obj->hide_flag_bits.hidden = 1;
 }
 
 void mkobj_get_matrix_pos(void* obj, void* out) {

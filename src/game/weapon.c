@@ -163,9 +163,10 @@ void obj_force_culling_off(MkObj* object);
 void start_cloth_bones(MkObj* object);
 static void start_weapon_trail(MkObj* weapon, MkObj* trail_model);
 RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
-RpMaterial* sobj_find_material_by_id(MkSobj* sobj, int material_id);
+RpMaterial* sobj_find_material_by_id(MkSobj* sobj, unsigned int material_id);
 void sobj_use_material_color(MkSobj* sobj);
-void obj_set_material_fade(MkObj* object, unsigned int material_id, int alpha);
+void obj_set_material_fade(
+    MkObj* object, unsigned int material_id, signed char alpha);
 void material_set_zbias(RpMaterial* material, float bias);
 void* memcpy(void* destination, const void* source, unsigned int size);
 MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,

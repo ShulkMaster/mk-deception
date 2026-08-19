@@ -69,8 +69,7 @@ extern void mkpfx_camera_begin(void);
 extern void mkpfx_camera_end(void);
 extern void render_collision_regions(void);
 extern void UpdateShadow(void);
-extern void mirror_guy(MkObj* mirror_object, MirrorObj* mirror_data,
-                       FighterMirror* fighter);
+extern void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata);
 extern void plyr_turn_off_mirrorguy(PlyrInfo* player);
 extern void del_string_obj_by_id(int id);
 static const char display_text[] =                                             \
@@ -501,12 +500,13 @@ void Render(void) {
                     if (shadow_obj == 0 ||
                         shadow_obj->hdr.instance != fighter->shadow_obj_instance) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr0);
-                    } else if (g_game_info.plyr0.slot.mirror_b->field04 != 0 &&
+                    } else if (g_game_info.plyr0.slot.mirror_b->hdr.instance != 0 &&
                                !(fighter->flag_obj->hide_flags & 0x20)) {
                         UpdateShadow();
                         if (g_game_info.section->flags70 & 8) {
                             mirror_guy(g_game_info.plyr0.slot.mirror_a,
-                                       g_game_info.plyr0.slot.mirror_b, fighter);
+                                       g_game_info.plyr0.slot.mirror_b,
+                                       g_game_info.plyr0.slot.pdata);
                         }
                     }
                 }
@@ -518,12 +518,13 @@ void Render(void) {
                     if (shadow_obj == 0 ||
                         shadow_obj->hdr.instance != fighter->shadow_obj_instance) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr1);
-                    } else if (g_game_info.plyr1.slot.mirror_b->field04 != 0 &&
+                    } else if (g_game_info.plyr1.slot.mirror_b->hdr.instance != 0 &&
                                !(fighter->flag_obj->hide_flags & 0x20)) {
                         UpdateShadow();
                         if (g_game_info.section->flags70 & 8) {
                             mirror_guy(g_game_info.plyr1.slot.mirror_a,
-                                       g_game_info.plyr1.slot.mirror_b, fighter);
+                                       g_game_info.plyr1.slot.mirror_b,
+                                       g_game_info.plyr1.slot.pdata);
                         }
                     }
                 }

@@ -142,7 +142,7 @@ extern MkFileEntry misc_anims_list_file_table[5];
 extern MkFileInfo cmo_script_reactions;
 extern void generate_ai_table_player(FighterMirror* player);
 extern int build_bones_tbl(MkObj* object, const int* tags);
-extern void limb_sever_hide_z_meat_chunks_all(void* object);
+extern void limb_sever_hide_z_meat_chunks_all(MkObj* object);
 extern void plyr_obj_load_bld_data(
     FighterMirror* pdata, void* blood_data, MkObj* object,
     const char* path_name);
@@ -153,7 +153,7 @@ extern int init_shadow_system(void);
 extern int init_shadow(ShadowObject* controller, MkObj* shadow);
 extern void pull_bone_hierarchy_mkobj(void* object);
 extern void create_shadow_proc(
-    int pid, void* controller, void* source, void* shadow);
+    int pid, PlyrPdata* controller, MkObj* source, MkObj* shadow);
 extern MkProc* create_mkproc_headtracking(
     int pid, MkObj* object, PlyrPdata* target);
 extern void player_initialize_chores(void);
@@ -1853,9 +1853,9 @@ float p_plyr_start(void) {
         }
     }
     if (aproc->pid == 0x1001) {
-        g_game_info.plyr0.slot.mirror_b = (MirrorObj*)shadow;
+        g_game_info.plyr0.slot.mirror_b = shadow;
     } else {
-        g_game_info.plyr1.slot.mirror_b = (MirrorObj*)shadow;
+        g_game_info.plyr1.slot.mirror_b = shadow;
     }
 
     if (plyr_pdata->plyr_info->flags_14_bits.alternate_costume) {

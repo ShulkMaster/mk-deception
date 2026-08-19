@@ -5,7 +5,9 @@
 #define MK_VTABLE5_TYPE
 typedef int (*MkVtblFn)(void);
 struct MkProc;
+struct MkSobj;
 typedef void (*MkProcDestroyFn)(struct MkProc* proc);
+typedef void (*MkSobjFn)(struct MkSobj* sobj);
 typedef void (*MkProcFn)(void);
 typedef void (*MkProcJumpFn)(int return_address);
 
@@ -36,8 +38,8 @@ typedef struct MkVtableMksobj {
     MkVtblFn fn1;
     MkVtblFn fn2;
     MkVtblFn fn3;
-    MkVtblFn destroy;
-    MkVtblFn update;
+    MkSobjFn destroy;
+    MkSobjFn update;
 } MkVtableMksobj;
 
 int not_mkmaterial(void);

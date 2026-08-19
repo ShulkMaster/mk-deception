@@ -97,7 +97,7 @@ typedef struct PlyrMirrorSlots {
 } PlyrMirrorSlots; /* 0x60 */
 
 typedef struct PlyrFighterDefinition {
-    char pad00[4];
+    int fighter_id; /* +0x00 */
     PlyrMoveBlendData* move_blend_data; /* +0x04 */
     ScriptSlot* cmo; /* +0x08 */
     PlyrMirrorSlots mirror_slots; /* +0x0C - default weapon-trail slots */
@@ -454,7 +454,7 @@ typedef struct PlyrPdata {
     };
     AnimScript* face_animations[37]; /* +0x3DC */
     MkObj* shadowbox; /* +0x470 */
-    char pad474[4];
+    struct MkProc* shadow_proc; /* +0x474 */
     ScriptSlot* cmo; /* +0x478 */
     unsigned char large_blood_spawn_state[0x10]; /* +0x47C */
     void* blood_model_data; /* +0x48C - enables per-player blood emitters */

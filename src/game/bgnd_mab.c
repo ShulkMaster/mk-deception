@@ -235,7 +235,7 @@ MkObj* obj_sever_limb(
     MkObj* object, int limb, Vec* limb_velocities, int include_children);
 void limb_sever_show_z_meat_chunks(
     MkObj* object, int limb, int include_children);
-void limb_sever_show_z_meat_chunks_all(void* object);
+void limb_sever_show_z_meat_chunks_all(MkObj* object);
 void bgnd_hide_mirror_guys(void);
 float p_anim_idle(void);
 void mkobj_zero_bone_rots(MkObj* object);
