@@ -30,6 +30,7 @@ typedef struct ScriptAnimPdataView {
 typedef struct FenceSection FenceSection;
 typedef struct LightDef LightDef;
 typedef struct MkProc MkProc;
+typedef struct MkSobj MkSobj;
 typedef struct PlyrInfo PlyrInfo;
 typedef struct SObj SObj;
 typedef struct BgndAppendTextureEntry BgndAppendTextureEntry;
@@ -1046,26 +1047,26 @@ void* mkobj_get_matrix(void* object);
 int plyr_in_spin_react(void* pdata);
 void* force_calc_bone_world_mat(void* object, int bone);
 void obj_set_sobj_pos(void* object, int sobj, void* value);
-void get_bone_relative_pos(void* out, void* object, int bone);
-void get_bone_offset_world_pos(void* out, void* object, int bone, void* offset);
-void get_bone_world_pos(void* out, void* object, int bone);
+void get_bone_relative_pos(void* object, int bone, void* out);
+void get_bone_offset_world_pos(void* object, int bone, void* offset, void* out);
+void get_bone_world_pos(void* object, int bone, void* out);
 void bone_matcher_child_set_offset(void* matcher, void* offset);
 void bone_matcher_parent_set_offset(void* matcher, void* offset);
 void* start_bone_matcher(void* a, void* b, int c, int d, float e);
 void obj_get_ang_vel(void* out, void* object);
-void obj_set_ang_vel(void* object, void* value);
-void obj_set_pos_vel(void* object, void* value);
+void obj_set_ang_vel(MkObj* object, void* value);
+void obj_set_pos_vel(MkObj* object, void* value);
 void obj_get_pos_vel(void* out, void* object);
-void* obj_find_sobj_by_id(void* object, unsigned int id);
+MkSobj* obj_find_sobj_by_id(MkObj* object, unsigned int id);
 void obj_set_light_flag(void* object, int flag);
 void sobj_get_ang(void* out, void* sobj);
 void sobj_get_ang_vel(void* out, void* sobj);
-void sobj_set_ang_vel(void* sobj, void* value);
-void sobj_set_ang(void* sobj, void* value);
+void sobj_set_ang_vel(MkSobj* sobj, void* value);
+void sobj_set_ang(MkSobj* sobj, void* value);
 void sobj_get_pos_vel(void* out, void* sobj);
-void sobj_set_pos_vel(void* sobj, void* value);
+void sobj_set_pos_vel(MkSobj* sobj, void* value);
 void sobj_get_pos(void* out, void* sobj);
-void sobj_set_pos(void* sobj, void* value);
+void sobj_set_pos(MkSobj* sobj, void* value);
 void obj_get_ang(void* out, void* object);
 void obj_set_ang(void* object, void* value);
 void obj_set_ground_colls_y(void* object, float value);
@@ -1132,8 +1133,8 @@ unsigned int pfxhandle_spawn_at_bid_next(
 void pfx_spawn_at_bid(char* name, int a, int b);
 void* limb_sever_throw_away(int a, int b, int c);
 void auto_calc_limbobj_bone_world_pos(void* a, void* b);
-void limb_sever_show_z_meat_chunks(int a, int b, int c);
-void limb_sever_show_z_meat_chunks_all(int a);
+void limb_sever_show_z_meat_chunks(MkObj* obj, int limb, int show_all);
+void limb_sever_show_z_meat_chunks_all(MkObj* obj);
 void limb_sever_show_z_meat_chunks_all_plyr_num(int a);
 void limb_sever_explode_apart_plyr_num(int a, float b, float c, float d, int e);
 void reset_blood_decals(void);
@@ -1219,9 +1220,9 @@ void start_obj_scalar_proc(int a, int b, int c, int d);
 void* insert_particle_mkobj(int a);
 float mkobj_pos_pos_dot_normal_xz(int a, int b, int c);
 int obj_get_bid_for_tid(int a, int b);
-void* obj_create_sobjs_by_id(void* object, int id);
-void* unhide_sobj_by_sobj_id(int a, int b);
-void* hide_sobj_by_sobj_id(int a, int b);
+MkSobj* obj_create_sobjs_by_id(MkObj* object, int id);
+void* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
+void* hide_sobj_by_sobj_id(void* obj, unsigned int id);
 void sobj_set_priority(int a, int b);
 void unhide_sobj(int a);
 void hide_sobj(int a);
@@ -1674,7 +1675,7 @@ int mks_npc_start_cloth_bones(int);
 int mks_plyr_stop(int);
 int mks_set_cb1_target_bone_cb2(void);
 int mks_set_flipped_bones(int);
-int mks_start_goro_arms_fixup(void);
+void mks_start_goro_arms_fixup(void);
 int nis_clear_event_list(void);
 int nis_remove_non_participants(void);
 int noob_victory_entrance(void);
@@ -1807,7 +1808,7 @@ int slow_ani_end(void *, float);
 int smoke_victory_entrance(void);
 int snd_major_hit_voice(void);
 int snd_stop(int);
-int sobj_no_zwrite(int);
+void sobj_no_zwrite(void* sobj);
 int spad_norm_vector(int);
 int special_move_cam_end(void);
 int start_baraka_blades_monitor(void);
@@ -2157,7 +2158,7 @@ int npc_travel_to_world_position(int, int);
 int obj_get_scale(int, int);
 int obj_scale_over_time(int, int, void *, float);
 int obj_set_flipped_bones(int, int);
-int obj_set_scale(int, int);
+void obj_set_scale(MkObj*, void*);
 int obj_set_z_offsets(int, void *, float);
 int obj_sobj_cam_frustum_test_into_transparent(int, int, void *, float, float);
 int open_chest_and_give_item_to_player(int, int);
@@ -4385,21 +4386,21 @@ void _obj_set_sobj_pos(void) {
 
 void _get_bone_relative_pos(void) {
     get_bone_relative_pos(((ScriptRawArgs*)current_args)->slots[0].pointer,
-                          ((ScriptRawArgs*)current_args)->slots[1].pointer,
-                          ((ScriptRawArgs*)current_args)->slots[2].i);
+                          ((ScriptRawArgs*)current_args)->slots[1].i,
+                          ((ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
 void _get_bone_offset_world_pos(void) {
     get_bone_offset_world_pos(((ScriptRawArgs*)current_args)->slots[0].pointer,
-                              ((ScriptRawArgs*)current_args)->slots[1].pointer,
-                              ((ScriptRawArgs*)current_args)->slots[2].i,
+                              ((ScriptRawArgs*)current_args)->slots[1].i,
+                              ((ScriptRawArgs*)current_args)->slots[2].pointer,
                               ((ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
 void _get_bone_world_pos(void) {
     get_bone_world_pos(((ScriptRawArgs*)current_args)->slots[0].pointer,
-                       ((ScriptRawArgs*)current_args)->slots[1].pointer,
-                       ((ScriptRawArgs*)current_args)->slots[2].i);
+                       ((ScriptRawArgs*)current_args)->slots[1].i,
+                       ((ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
 void _bone_matcher_child_set_offset(void) {
@@ -4675,12 +4676,12 @@ void _limb_sever_throw_away(void) {
 }
 
 void _limb_sever_show_z_meat_chunks(void) {
-    limb_sever_show_z_meat_chunks(((ScriptRawArgs*)current_args)->slots[0].i,
+    limb_sever_show_z_meat_chunks(((ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((ScriptRawArgs*)current_args)->slots[1].i,
                                   ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _limb_sever_show_z_meat_chunks_all(void) { limb_sever_show_z_meat_chunks_all(((ScriptRawArgs*)current_args)->slots[0].i); }
+void _limb_sever_show_z_meat_chunks_all(void) { limb_sever_show_z_meat_chunks_all(((ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 void _limb_sever_show_z_meat_chunks_all_plyr_num(void) { limb_sever_show_z_meat_chunks_all_plyr_num(((ScriptRawArgs*)current_args)->slots[0].i); }
 
@@ -5096,12 +5097,16 @@ void _obj_create_sobjs_by_id(void) {
 
 void _unhide_sobj_by_sobj_id(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
-        unhide_sobj_by_sobj_id(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i);
+        unhide_sobj_by_sobj_id(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer,
+            ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
 void _hide_sobj_by_sobj_id(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
-        hide_sobj_by_sobj_id(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i);
+        hide_sobj_by_sobj_id(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer,
+            ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
 void _sobj_set_priority(void) { sobj_set_priority(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i); }
@@ -8873,7 +8878,7 @@ void _obj_set_scale(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    obj_set_scale(args.raw->slots[0].i, args.raw->slots[1].i);
+    obj_set_scale(args.raw->slots[0].pointer, args.raw->slots[1].pointer);
 }
 
 void _bgnd_sobj_set_ani_framerate(void) {
@@ -9109,7 +9114,7 @@ void _sobj_no_zwrite(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    sobj_no_zwrite(args.raw->slots[0].i);
+    sobj_no_zwrite(args.raw->slots[0].pointer);
 }
 
 void _register_baraka_cb_functions(void) {

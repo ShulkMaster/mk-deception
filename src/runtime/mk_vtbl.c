@@ -6,8 +6,8 @@
  * declarations private until those owning headers are imported.
  */
 int vdestroy_mkx_mem(void);
-int vdestroy_mkx_rplight(void);
-int vdestroy_mksobj(void);
+void vdestroy_mkx_rplight(void* light);
+void vdestroy_mksobj(struct MkSobj* sobj);
 int vdestroy_mkobj(void);
 int vdestroy_screen_obj(void);
 int vdestroy_string_obj(void);
@@ -46,7 +46,7 @@ void system_stack_bigstack(void);
 void local_stack_bigstack(void);
 void jump_sleep_bigstack(int return_address);
 
-int update_mksobj(void);
+void update_mksobj(struct MkSobj* sobj);
 
 int not_mkmaterial(void) {
     return 0;
@@ -91,7 +91,7 @@ MkVtable5 vtbl_mkx_rplight = {
     not_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    vdestroy_mkx_rplight,
+    (MkVtblFn)vdestroy_mkx_rplight,
 };
 
 MkVtableMkproc vtbl_mkproc_nostack = {
