@@ -801,7 +801,6 @@ static float kick_camera(void) {
 
 static float generic_victory_camera(void);
 
-#pragma optimize_for_size on
 void do_victory_camera(VictoryCameraConfig* config) {
     MkProc* camera_proc;
     CameraPdata* pdata;
@@ -824,7 +823,6 @@ void do_victory_camera(VictoryCameraConfig* config) {
         xfer_proc(camera_proc, generic_victory_camera);
     }
 }
-#pragma optimize_for_size reset
 
 static float generic_victory_camera(void) {
     CameraPdata* pdata = camera_info.pdata;
@@ -1494,7 +1492,6 @@ void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen) {
     screen->y = output_y;
 }
 
-#pragma optimize_for_size on
 void remove_widescreen_bars(void) {
     ScreenObj* upper;
     ScreenObj* lower;
@@ -1694,7 +1691,6 @@ void add_widescreen_bars(float height) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 void cam_set_intro_cam_speed(float speed) {
     camera_info.pdata->speed = speed;
@@ -1745,15 +1741,11 @@ void camera_set_animation_mirror_plane(int mode) {
 }
 
 /* Retail keeps these three component stores in source order. */
-#pragma scheduling off
-void camera_set_animation_parent_position(const CamVec3* position) {
-    CameraPdata** pdata = &camera_info.pdata;
-
-    (*pdata)->mat_parent.pos.x = position->x;
-    (*pdata)->mat_parent.pos.y = position->y;
-    (*pdata)->mat_parent.pos.z = position->z;
+void camera_set_animation_parent_position(CamVec3* position) {
+    camera_info.pdata->mat_parent.pos.x = position->x;
+    camera_info.pdata->mat_parent.pos.y = position->y;
+    camera_info.pdata->mat_parent.pos.z = position->z;
 }
-#pragma scheduling reset
 
 void camera_set_animation_parent_angle(const CamVec3* angle, int relative) {
     camera_info.pdata->flags_bits.parent_relative = relative;
@@ -2291,7 +2283,6 @@ int keep_camera_out_of_danger_zones(Vec* position) {
     return adjusted;
 }
 
-#pragma optimize_for_size on
 BackgroundDangerZone* add_background_danger_zone(RpAtomic* atomic, int type,
                                                   int mode) {
     BackgroundDangerZone* zone;
@@ -2330,7 +2321,6 @@ BackgroundDangerZone* add_background_danger_zone(RpAtomic* atomic, int type,
     number_of_danger_zones++;
     return zone;
 }
-#pragma optimize_for_size reset
 
 void hide_sobj_if_camera_is_in_rectangle(MkSobj* object, const Vec* center, float min_x,
                                          float min_z, float max_x,
@@ -2374,7 +2364,6 @@ void set_danger_zone_properties(BackgroundDangerZone* zone, float scale,
     zone->shape.sphere_center.y += y_offset;
 }
 
-#pragma optimize_for_size on
 void render_background_danger_areas(void) {
     int index;
 
@@ -2386,7 +2375,6 @@ void render_background_danger_areas(void) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 void initialize_background_danger_zones(void) {
     number_of_danger_zones = 0;
@@ -2881,7 +2869,6 @@ float p_konquest_camera_proc(void) {
     return kZero;
 }
 
-#pragma optimize_for_size on
 void run_interaction_camera_script(void* owner, void* script) {
     MkProc* process;
     MkHdr* process_data_header;
@@ -2911,7 +2898,6 @@ void run_interaction_camera_script(void* owner, void* script) {
         ((InteractionCameraProcData*)process_data_header)->script = script;
     }
 }
-#pragma optimize_for_size reset
 
 /* Soft ceiling: validated-latch branch peephole and register coloring only. */
 static float p_run_interaction_camera(void) {
@@ -2927,7 +2913,6 @@ static float p_run_interaction_camera(void) {
     return kNegOne;
 }
 
-#pragma optimize_for_size on
 /* Soft ceiling: two validated-latch branch peepholes and register coloring. */
 void interaction_cam_set_target_info(int duration, float angle_a,
                                      float field_14, float field_18,
@@ -2985,7 +2970,6 @@ void interaction_cam_set_target_info(int duration, float angle_a,
         xfer_proc(camera_info.proc, p_interaction_cam);
     }
 }
-#pragma optimize_for_size reset
 
 /* Soft ceiling: inline orbit stack placement, latch peepholes, and FPR coloring. */
 static float p_interaction_cam(void) {
@@ -3194,7 +3178,6 @@ static float p_interaction_cam(void) {
     }
 }
 
-#pragma optimize_for_size on
 /* Soft ceiling: camera-latch lowering and inline inverse-sqrt FPU scheduling. */
 static void look_at_interaction_target(const Vec* target, int snap_angles) {
     CameraObj* camera;
@@ -3246,7 +3229,6 @@ static void look_at_interaction_target(const Vec* target, int snap_angles) {
         camera->ang_z = kMoveScale * delta_z + camera->ang_z;
     }
 }
-#pragma optimize_for_size reset
 
 /* Soft ceiling: six inline invsqrt stack/FPR layouts and latch peepholes. */
 static void check_reverse_interaction_cam_targets(void) {
@@ -3506,7 +3488,6 @@ void special_move_cam_end(void) {
     xfer_camera_impl(p_camera_proc, 1);
 }
 
-#pragma optimize_for_size on
 /* Soft ceiling: folded GameInfo base load, register timing, constant labels. */
 void special_move_cam_setup2(int ease_ticks, int total_ticks, int unused,
                              MkObj* target, MkObj* reference_object,
@@ -3530,9 +3511,7 @@ void special_move_cam_setup2(int ease_ticks, int total_ticks, int unused,
         xfer_camera_impl(p_special_move_cam, 1);
     }
 }
-#pragma optimize_for_size reset
 
-#pragma optimize_for_size on
 /* Soft ceiling: folded GameInfo base load, register timing, constant labels. */
 void special_move_cam_setup(int ease_ticks, int total_ticks, int unused,
                             float orbit_yaw_offset, float orbit_radius,
@@ -3555,7 +3534,6 @@ void special_move_cam_setup(int ease_ticks, int total_ticks, int unused,
         xfer_camera_impl(p_special_move_cam, 1);
     }
 }
-#pragma optimize_for_size reset
 
 /* Soft ceiling: validated-latch branches, offset-base folding, FPR coloring. */
 static float p_special_move_cam(void) {
@@ -3807,7 +3785,6 @@ void camera_exit_script(void) {
     destroy_mkprocs_pid(0x9006);
 }
 
-#pragma optimize_for_size on
 void run_camera_script(int script, int argument, int flags) {
     MkHdr* pdata_hdr;
     MkProc* monitor = camera_script_monitor_item.node;
@@ -3863,7 +3840,6 @@ void run_camera_script(int script, int argument, int flags) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 static float p_run_camera_script(void) {
     cmdscript_setup_execution(((CameraScriptPdata*)apdata)->script,
@@ -4664,9 +4640,6 @@ void camera_set_radial_movement(int enabled) {
     scripted_camera_data.radial_movement = enabled;
 }
 
-/* This retail leaf uses the compiler's scheduling-off lowering. */
-/* Retail keeps both target Vec stores and the flag update unscheduled. */
-#pragma scheduling off
 /* Soft ceiling: only the global-base addi schedules one instruction early. */
 void camera_set_center_of_rotation(const CamVec3* center) {
     Vec* rotation_center = &scripted_camera_data.center_of_rotation;
@@ -4675,7 +4648,6 @@ void camera_set_center_of_rotation(const CamVec3* center) {
     rotation_center->y = center->y;
     rotation_center->z = center->z;
 }
-#pragma scheduling reset
 
 void camera_set_travel_time(float time) {
     scripted_camera_data.travel_time = time;
@@ -4748,7 +4720,6 @@ float camera_wait_for_pos_move_done(void) {
     return kZero;
 }
 
-#pragma optimize_for_size on
 int camera_is_ang_move_done(void) {
     return scripted_camera_data.ang_move_done != 0;
 }
@@ -4756,7 +4727,6 @@ int camera_is_ang_move_done(void) {
 int camera_is_pos_move_done(void) {
     return scripted_camera_data.pos_move_done != 0;
 }
-#pragma optimize_for_size reset
 
 void camera_reset_ang_done_flag(void) {
     scripted_camera_data.ang_move_done = 0;
@@ -5342,13 +5312,10 @@ void get_target_movement_vector(const Vec* current_position,
     }
 }
 
-#pragma scheduling off
-void set_camera_target_angle(const CamVec3* angle) {
-    CameraPdata** pdata = &camera_info.pdata;
-
-    (*pdata)->target_ang_x = angle->x;
-    (*pdata)->target_ang_y = angle->y;
-    (*pdata)->target_ang_z = angle->z;
+void set_camera_target_angle(CamVec3* angle) {
+    camera_info.pdata->target_ang_x = angle->x;
+    camera_info.pdata->target_ang_y = angle->y;
+    camera_info.pdata->target_ang_z = angle->z;
 }
 
 void set_camera_destination(const CamVec3* position) {
@@ -5360,7 +5327,6 @@ void set_camera_destination(const CamVec3* position) {
     (*pdata)->target_pos_z = position->z;
     (*pdata)->flags_bits.pos_done = pos_done;
 }
-#pragma scheduling reset
 
 void skip_camera_intro(void) {
     CameraObj* camera;
@@ -5904,7 +5870,6 @@ void shake_camera_y(int count, float strength) {
     }
 }
 
-#pragma optimize_for_size on
 static float p_shake_camera_y(void) {
     int index;
     CameraShakePdata* shake = (CameraShakePdata*)apdata;
@@ -5919,7 +5884,6 @@ static float p_shake_camera_y(void) {
     }
     return kNegOne;
 }
-#pragma optimize_for_size reset
 
 void shake_camera(int count, void* script_args, float strength) {
     MkHdr* pdata;
@@ -5931,7 +5895,6 @@ void shake_camera(int count, void* script_args, float strength) {
     }
 }
 
-#pragma optimize_for_size on
 static float p_shake_camera(void) {
     int index;
     CameraShakePdata* shake = (CameraShakePdata*)apdata;
@@ -5946,9 +5909,7 @@ static float p_shake_camera(void) {
     }
     return kNegOne;
 }
-#pragma optimize_for_size reset
 
-#pragma optimize_for_size on
 void CameraDestroy(RwCamera* camera) {
     {
         CameraObj* object;
@@ -6000,10 +5961,8 @@ void CameraDestroy(RwCamera* camera) {
         RwCameraDestroy(camera);
     }
 }
-#pragma optimize_for_size reset
 
 /* Soft ceiling: CameraSize ~99.91% -- pooled int-to-double relocation label only. */
-#pragma optimize_for_size on
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio) {
     RwV2d view;
     RwVideoMode video_mode;
@@ -6051,7 +6010,6 @@ void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_
         }
     }
 }
-#pragma optimize_for_size reset
 
 void vdestroy_mkpdata_camera(MkHdr* pdata) {
     pdata->instance = 0;

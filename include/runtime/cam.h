@@ -178,7 +178,7 @@ void turn_camera_on(void);
 void turn_camera_off(void);
 void camera_idle(void);
 void set_camera_destination(const CamVec3* position);
-void set_camera_target_angle(const CamVec3* angle);
+void set_camera_target_angle(CamVec3* angle);
 void set_camera_velocity(const CamVec3* velocity);
 void get_camera_velocity(CamVec3* velocity);
 void look_at_target(const Vec* target);
@@ -228,7 +228,7 @@ void camera_run_animation_start_end(float start_frame, float end_frame,
                                     int wait_flag, int use_frame_range);
 void camera_set_anim_aux_data(CameraAnimEvent* data);
 void camera_set_animation_mirror_plane(int mode);
-void camera_set_animation_parent_position(const CamVec3* position);
+void camera_set_animation_parent_position(CamVec3* position);
 void camera_set_animation_parent_angle(const CamVec3* angle, int relative);
 void* get_intro_camera_path(void);
 void set_intro_camera_path(void* path);

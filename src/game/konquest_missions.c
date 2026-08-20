@@ -1264,8 +1264,8 @@ void trial_restart_round(void) {
     stop_tunes();
     bgnd_music_ptr1 = snd_req(
         g_game_info.section->music_id_round_0_1);
-    set_camera_destination((const CamVec3*)&camera_obj->pos_x);
-    set_camera_target_angle((const CamVec3*)&camera_obj->ang_x);
+    set_camera_destination(&camera_obj->pos);
+    set_camera_target_angle(&camera_obj->ang);
     force_midpoint_calculation_update = 0;
     xfer_camera(p_camera_proc, 1);
     monk = get_mission_monk();

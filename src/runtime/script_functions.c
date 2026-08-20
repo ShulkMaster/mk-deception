@@ -656,7 +656,7 @@ typedef struct ScriptOpponentProcLatch {
 /* Partial external MkObj view: retail accesses its position at +0xA0 here. */
 typedef struct ScriptNpcCameraObjectView {
     char pad00[0xA0];
-    float center[3];
+    Vec pos;
 } ScriptNpcCameraObjectView;
 
 typedef struct ScriptNpcBody {
@@ -3008,8 +3008,7 @@ void _camera_setup_for_custom_orbit_to_relative_point(void) {
         camera_set_final_speed(args->final_speed);
         camera_set_rotation_direction(args->rotation_direction);
         camera_set_travel_time(args->travel_time);
-        camera_set_center_of_rotation(
-            (const CamVec3*)body->camera_object->center);
+        camera_set_center_of_rotation(&body->camera_object->pos);
         camera_set_radial_movement(1);
         camera_set_custom_camera_movement_flag(1);
     }
@@ -11990,7 +11989,7 @@ void _camera_set_animation_parent_position(void) {
 
     args.bytes = current_args;
     camera_set_animation_parent_position(
-        (const Vec*)args.raw->slots[0].pointer);
+        (Vec*)args.raw->slots[0].pointer);
 }
 
 void _camera_set_animation_parent_angle(void) {
