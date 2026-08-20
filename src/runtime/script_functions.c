@@ -1403,14 +1403,15 @@ void run_reaction_cleanup_function(PlyrPdata* player);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void mks_set_cb1_wind_normal(float x, float y, float z);
 void mks_bgnd_start_wind(float x, float y, float z);
-void mks_npc_build_bones_tbl(int model_id, int flags);
+void mks_npc_build_bones_tbl(int model_id, const int* bone_tags);
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player);
 void mks_xfer_collision_info_plyr_to_bgnd_script(PlyrPdata* player,
                                                   ScriptEntryFn entry);
 void mks_xfer_collision_info_plyr_to_script(ScriptEntryFn entry, int player);
-void resume_effect_at_plyr_num_bid(int player, int bone_id, int effect_handle,
-                                   int bind_mode, int blood_required);
+void resume_effect_at_plyr_num_bid(
+    int player, int bone_id, unsigned int effect_handle,
+    int bind_mode, int blood_required);
 
 /* Typed declarations used by imported script wrappers. */
 int add_facial_damage(void *, float);
@@ -1532,7 +1533,7 @@ int courtyard_start_lensflare(void);
 int damage_him(void *, float);
 int damage_me(void *, float);
 int danger_zone_eligible_on(void);
-int destroy_kabal_smoke(void);
+void destroy_kabal_smoke(void);
 int destroy_sobj_ctrl_proc(void);
 int disable_attack5(int);
 int disable_blocking(void);
@@ -1604,7 +1605,7 @@ int jab_destroy_drink_obj_in_hand(void);
 int jab_release_jade_boomerang(int);
 int jab_setup_kiss_emitter_obj(int);
 int jab_stop_dragon_king_shake(void);
-int kabal_collision_control_victim(int);
+void kabal_collision_control_victim(int);
 int kenshi_teleport_position(void);
 int kick_the_camera(void);
 int kill_dynamic_pui(int);
@@ -1817,7 +1818,7 @@ int start_bl_beetles_live_top_floor(void);
 int start_chunk_launch_monitor(void);
 int start_constrain_proc(void);
 int start_hero_collisions(void);
-int start_kabal_smoke(void *, float);
+void start_kabal_smoke(void *, float);
 int start_konquest_ambient_sounds(void);
 int start_mini_mission(int);
 int start_rope_proc(void);
@@ -2109,7 +2110,7 @@ int mks_set_plyr_to_center_ang_offset(int, void *, float);
 int mks_set_update_delay(int, int);
 int mks_shadow_scale(int, int, void *, float, float);
 int mks_start_axis_indicator_p_axis_track_bone_world_mat(int, void *, float);
-int mks_victim_bleed(int, int);
+void mks_victim_bleed(int, int);
 int move_player(int, int, int);
 int move_player_no_constrain_update(int, int, int);
 int myvel_his_angle_y(void *, float, float, float);
@@ -2186,7 +2187,7 @@ int rd_set_impact_vector(void *, float);
 int release_kamidogu(int, int);
 int remove_collision_volume_on_object_with_uid(int);
 int restore_collision_volume_on_object_with_uid(int);
-int resume_effect_at_obj_bid(int, int, int, int, int);
+void resume_effect_at_obj_bid(MkObj*, int, unsigned int, int, int);
 int run_camera_script(int, int, int);
 int save_hero_position_and_angle_prior_to_fight(void *, float);
 int set_active_projectile_block_script(int);
@@ -2229,7 +2230,7 @@ int start_character_separation_process(void *, float);
 int start_cliff_watcher(void *, float);
 int start_konquest_interior(int, int, int, int, int, int, int);
 int start_scorpion_teleport_scale(void *, float, float);
-int start_subzero_decoy(void *, float);
+void start_subzero_decoy(void*, float);
 int transition_hero_to_anim_script(int, int, void *, float, float);
 int transition_to_krypt_character_anim_script(int, int, int);
 int trial_add_success_condition(int, int, int);
@@ -6223,7 +6224,8 @@ void _mks_npc_build_bones_tbl(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_npc_build_bones_tbl(args.two_int->first, args.two_int->second);
+    mks_npc_build_bones_tbl(
+        args.raw->slots[0].i, args.raw->slots[1].pointer);
 }
 
 void _mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(void) {
@@ -6264,7 +6266,10 @@ void _resume_effect_at_obj_bid(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    resume_effect_at_obj_bid(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i);
+    resume_effect_at_obj_bid(
+        args.raw->slots[0].pointer, args.raw->slots[1].i,
+        args.raw->slots[2].u, args.raw->slots[3].i,
+        args.raw->slots[4].i);
 }
 
 void _mks_start_gusher(void) {

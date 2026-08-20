@@ -176,7 +176,7 @@ static float p_projectile_handler(void);
 static float p_projectile_continue(void);
 static float p_ground_target(void);
 static float p_ground_target_collide(void);
-int check_for_throw(ProjectilePdata* pdata);
+int check_for_throw(PlyrPdata* player);
 static float p_projectile_launch_upward(void);
 static float p_projectile_downward(void);
 static float p_projectile_impaled(void);
@@ -1484,8 +1484,8 @@ static float p_ground_target_collide(void) {
     return 1.0f;
 }
 
-int check_for_throw(ProjectilePdata* pdata) {
-    PlyrPdata* target = pdata->impaled_target;
+int check_for_throw(PlyrPdata* player) {
+    PlyrPdata* target = player->his_plyr_pdata;
     MkProc* hold_proc = target->hold_proc;
 
     if (hold_proc != 0) {
@@ -1498,10 +1498,10 @@ int check_for_throw(ProjectilePdata* pdata) {
     } else {
         hold_proc = 0;
     }
-    if (hold_proc != 0) {
-        return 1;
+    if (hold_proc == 0) {
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 static float p_projectile_launch_upward(void) {
