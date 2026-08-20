@@ -13,11 +13,17 @@ typedef struct RwFrame RwFrame;
 typedef struct RwCamera RwCamera;
 typedef struct CameraAnimEvent CameraAnimEvent;
 
-typedef struct CamVec3 {
-    float x;
-    float y;
-    float z;
-} CamVec3;
+typedef struct VictoryCameraConfig {
+    float radius;
+    float side_angle;
+    float forward_offset;
+    float camera_angle;
+    float look_height;
+    int rotation_ticks;
+    float travel_time;
+} VictoryCameraConfig;
+
+typedef Vec CamVec3;
 
 typedef struct CameraObjFlags {
     unsigned char pad7 : 1;
@@ -59,9 +65,9 @@ typedef struct CameraObj {
     };
     char pad0C[0x14];
     union {
-        RwFrame* frame;   /* +0x20 - owning RenderWare frame */
-        RwMatrix* matrix; /* legacy view of frame transform users */
-    };
+        RwFrame* frame;
+        RwMatrix* matrix;
+    }; /* +0x20 - frame or transform view, both evidenced by callers */
     RwMatrix* field_24; /* +0x24 - active camera transform */
     MkPtr* child_list; /* +0x28 */
     char pad2C[0x44];
@@ -105,8 +111,6 @@ typedef struct CameraPdataFlags {
     unsigned char pad1_0 : 2;
 } CameraPdataFlags;
 
-typedef CameraItem CameraItemList;
-
 /*
  * camera_info.pdata: targets @ 0x0C/0x18, speed @ 0x50, flags @ 0x6C,
  * pause @ 0x70, parent/mirror mats @ 0x80/0xC0.
@@ -135,7 +139,7 @@ typedef struct CameraPdata {
     MkObj* attacker; /* +0x40 */
     MkObj* victim;   /* +0x44 */
     char pad48[4];
-    void* victory_camera_config; /* +0x4C */
+    VictoryCameraConfig* victory_camera_config; /* +0x4C */
     float speed; /* +0x50 */
     AnimPdata* anim_pdata;
     unsigned int anim_instance;
@@ -164,8 +168,9 @@ typedef struct CameraInfo {
 /* Krypt / setup camera path */
 float p_krypt_camera_loop(void);
 float p_krypt_camera_proc(void);
-void set_camera_angle(CamVec3* ang);
-void set_camera_position(CamVec3* pos);
+float p_konquest_camera_proc(void);
+void set_camera_angle(const CamVec3* ang);
+void set_camera_position(const CamVec3* pos);
 void get_camera_angle(CamVec3* ang);
 void get_camera_position(CamVec3* pos);
 void xfer_camera(MkProcEntryFn entry, int reset_projection);
@@ -177,14 +182,18 @@ void set_camera_target_angle(const CamVec3* angle);
 void set_camera_velocity(const CamVec3* velocity);
 void get_camera_velocity(CamVec3* velocity);
 void look_at_target(const Vec* target);
-void go_to_camera_cut_with_angle(CamVec3* position, CamVec3* angle);
-void go_to_camera_cut(CamVec3* position, const Vec* target);
+void go_to_camera_cut_with_angle(const CamVec3* position,
+                                 const CamVec3* angle);
+void go_to_camera_cut(const CamVec3* position, const Vec* target);
 void add_widescreen_bars(float height);
 float p_hold_camera_in_place(void);
 void remove_camera_offsets(void);
 void add_camera_offsets(void);
 int init_camera(void);
 void skip_camera_intro(void);
+void do_victory_camera(VictoryCameraConfig* config);
+void camera_exit_script(void);
+float get_pan_value(const Vec* position);
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration);
@@ -252,6 +261,8 @@ void camera_set_movement_rate(float rate);
 void camera_set_check_konquest_collisions_flag(int enabled);
 void camera_set_glitch_flag(void);
 void camera_set_lookat_offset_explicit(float x, float y, float z);
+void camera_set_lookat_offset(Vec* offset, void* script_args);
+void camera_set_lookat_offset_obj_rel(const Vec* offset, void* script_args);
 void camera_set_custom_camera_movement_flag(int enabled);
 void camera_set_radial_movement(int enabled);
 void camera_set_center_of_rotation(const CamVec3* center);
@@ -260,12 +271,26 @@ void camera_set_rotation_direction(int direction);
 void camera_set_final_speed(float speed);
 void camera_set_initial_speed(float speed);
 void camera_set_movement_offset_explicit(float x, float y, float z);
+void camera_set_movement_offset(Vec* offset, void* script_args);
+void camera_set_movement_offset_obj_rel(const Vec* offset, void* script_args);
 void camera_set_look_mode(int mode);
 void camera_set_movement_mode(int mode);
 int camera_is_ang_move_done(void);
 int camera_is_pos_move_done(void);
 void camera_reset_ang_done_flag(void);
 void camera_reset_pos_done_flag(void);
+void camera_special_function(int mode);
+void camera_setup_simple_rotation(int ticks, float rotation);
+void camera_setup_tightrope_angle_offset(void* script_args, float height,
+                                         float angle);
+void camera_setup_radial_position(void* script_args, float distance,
+                                  float angle, float height);
+void camera_setup_radial_sweep(void* script_args, float travel_time,
+                               float rotation_step, float initial_speed,
+                               float final_speed, float radial_step,
+                               float radial_distance, float center_x,
+                               float center_y, float start_angle);
+void find_best_conversation_camera_position(void);
 
 extern CameraInfo camera_info;
 extern CameraItem camera_item;

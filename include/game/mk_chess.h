@@ -242,9 +242,12 @@ typedef struct ChessManagerInfo {
     char pad10[4];
     ChessPiece* active_piece_by_side[2]; /* +0x14 */
     ChessGameEventData event_data; /* +0x1C */
-    char pad24[0x9C];
+    char pad24[0x5C];
+    ScreenObj* hud_cursor; /* +0x80 */
+    unsigned int hud_cursor_instance; /* +0x84 */
+    char pad88[0x38];
     ChessSpellState* spell; /* +0xC0 */
-    char padC4[4];
+    int* directional_actions; /* +0xC4 */
     int clock; /* +0xC8 */
 } ChessManagerInfo;
 
@@ -280,20 +283,7 @@ typedef struct ChessModeState {
     ChessCursor cursors[MK_CHESS_CURSOR_COUNT]; /* +0x14 */
     ChessBoardRow* board; /* +0x38 */
     ChessSideState* sides[2]; /* +0x3C */
-    union {
-        ChessManagerInfo manager; /* +0x44 */
-        struct {
-            char manager_pad44[0xC0];
-            ChessSpellState* spell; /* +0x104 */
-            int* directional_actions; /* +0x108 */
-            int clock; /* +0x10C */
-        };
-        struct {
-            char hud_pad44[0x80];
-            ScreenObj* hud_cursor; /* +0xC4 */
-            unsigned int hud_cursor_instance; /* +0xC8 */
-        };
-    };
+    ChessManagerInfo manager; /* +0x44 */
     char pad110[4];
     int spell_completion_clock; /* +0x114 */
     char pad118[0x10];
