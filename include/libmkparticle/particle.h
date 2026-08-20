@@ -52,6 +52,12 @@ typedef struct PfxEmitterView {
     char bytes[0x2EC];
 } PfxEmitterView;
 
+typedef struct PfxEmitterFlagsView {
+    char pad00[0x1C];
+    unsigned char high_bit : 1;
+    unsigned char : 7;
+} PfxEmitterFlagsView;
+
 typedef struct PfxEmitterTableView {
     char pad00[0x1C0];
     int emitter_count; /* +0x1C0 */

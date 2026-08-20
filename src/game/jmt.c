@@ -1481,7 +1481,7 @@ void mks_bgnd_pfx_bind_to_sobj(
     MkSobj* sobj;
     void* effect;
     MkPfx* pfx;
-    PfxEmitterView* emitter;
+    PfxEmitterFlagsView* emitter;
 
     sobj = (MkSobj*)obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
     if (sobj != 0) {
@@ -1490,9 +1490,9 @@ void mks_bgnd_pfx_bind_to_sobj(
             restart_effect_ppfx(effect);
             pfx = (MkPfx*)effect;
             pfx_bind_emitter_to_sobj(pfx, sobj, 0);
-            emitter = pfx_get_emitter(
+            emitter = (PfxEmitterFlagsView*)pfx_get_emitter(
                 (PfxEmitterTableView*)pfx->matrix, 0);
-            emitter->flags_bits.high_bit = 0;
+            emitter->high_bit = 0;
         }
     }
 }

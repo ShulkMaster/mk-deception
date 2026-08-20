@@ -21,6 +21,11 @@ typedef struct JdnEmitterObject {
     Vec position;
 } JdnEmitterObject;
 
+typedef struct JdnGlassEmitterView {
+    char pad00[0xC];
+    float pending_spawn_count;
+} JdnGlassEmitterView;
+
 static float pfx_glass_break_run(void);
 static void mkpfx_spawnupdate_glass_break(PfxVm* vm);
 
@@ -116,8 +121,9 @@ MkPfx* start_pfx_glass_shards(
         pfx_texture_animate((PfxVm*)glass->pfx.matrix, 5.0f,
                             0x100, 0x40, 0x40, 0x10);
     }
-    *(float*)&pfx_get_emitter((PfxEmitterTableView*)glass->pfx.matrix, 0)
-                   ->bytes[0xC] = (float)spawn_count;
+    ((JdnGlassEmitterView*)pfx_get_emitter(
+         (PfxEmitterTableView*)glass->pfx.matrix, 0))->pending_spawn_count =
+        (float)spawn_count;
     glass->pfx.emitter_enabled = 1;
     glass->pfx.name_dst = (char*)stringBase0 + 0x11;
     return &glass->pfx;
@@ -241,8 +247,10 @@ static float pfx_glass_break_run(void) {
     }
 
     {
-        float* pending = (float*)&pfx_get_emitter(
-            (PfxEmitterTableView*)vm, 0)->bytes[0xC];
+        JdnGlassEmitterView* emitter =
+            (JdnGlassEmitterView*)pfx_get_emitter(
+                (PfxEmitterTableView*)vm, 0);
+        float* pending = &emitter->pending_spawn_count;
         if (*pending != 0.0f) {
             int count = (int)*pending;
             PfxColor color = {0x80, 0x80, 0x80, 0xFF};
