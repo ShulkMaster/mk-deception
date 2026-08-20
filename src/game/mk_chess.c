@@ -309,7 +309,6 @@ float bgnd_pebble_fetch_current_info(int field);
 void bgnd_pebble_set_current_info(int field, float value);
 void bgnd_pebble_set_current_pebble(int group, int pebble);
 void mk_chess_camera_init(void);
-void look_at_target(Vec* target, float distance);
 void update_mkobj(void* object);
 void bgnd_make_mkobj_transl(MkObj* object);
 void obj_create_sobjs(MkObj* object);
@@ -1071,9 +1070,9 @@ void mk_chess_handle_turn_timeout_scenerios(unsigned int side) {
     mk_chess_pdata->turn_timeout = timeout;
     if (timeout == 0) {
         if (mk_chess_pdata->manager.input_state == 9 &&
-            mk_chess_pdata->spell != 0 &&
-            mk_chess_pdata->spell->state >= 0x13 &&
-            mk_chess_pdata->spell->state < 0x18) {
+            mk_chess_pdata->manager.spell != 0 &&
+            mk_chess_pdata->manager.spell->state >= 0x13 &&
+            mk_chess_pdata->manager.spell->state < 0x18) {
             mk_chess_pdata->turn_timeout = 1;
             return;
         }
@@ -1506,10 +1505,10 @@ static inline float mk_chess_direction_input(
     side = mk_chess_pdata->manager.active_side;
     switch (mk_chess_pdata->manager.input_state) {
     case 10:
-        mk_chess_pdata->directional_actions[input->side + 10] = action;
+        mk_chess_pdata->manager.directional_actions[input->side + 10] = action;
         break;
     case 9:
-        mk_chess_pdata->spell->input_state = spell_input;
+        mk_chess_pdata->manager.spell->input_state = spell_input;
         break;
     case 0:
         if (diagonal) {
@@ -1678,7 +1677,7 @@ void mk_chess_camera_init_for_place_traps(void) {
     target.x = 0.0f;
     target.y = 0.0f;
     target.z = 0.0f;
-    look_at_target(&target, 24.8f);
+    look_at_target(&target);
     update_mkobj((MkHdr*)camera);
     mk_chess_pdata->camera.viewing_quadrant = 3;
 }
@@ -1982,20 +1981,20 @@ void mk_chess_on_pwr_cell_2_bonus_slid_into_place_cb(void) {
 }
 
 void mk_chess_spell_has_completed_but_wait_for_fight(void) {
-    mk_chess_pdata->spell->state = MK_CHESS_SPELL_WAITING_FOR_FIGHT;
+    mk_chess_pdata->manager.spell->state = MK_CHESS_SPELL_WAITING_FOR_FIGHT;
 }
 
 void mk_chess_spell_has_completed(void) {
-    mk_chess_pdata->spell_completion_clock = mk_chess_pdata->clock;
-    if (mk_chess_pdata->spell->state !=
+    mk_chess_pdata->spell_completion_clock = mk_chess_pdata->manager.clock;
+    if (mk_chess_pdata->manager.spell->state !=
         MK_CHESS_SPELL_WAITING_FOR_COMPLETION) {
         return;
     }
-    mk_chess_pdata->spell->state = MK_CHESS_SPELL_COMPLETE;
+    mk_chess_pdata->manager.spell->state = MK_CHESS_SPELL_COMPLETE;
 }
 
 void mk_chess_spell_rescue_current_target(void) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     ChessSideState* side = mk_chess_pdata->sides[spell->side];
     unsigned int x = spell->target_x[1];
     unsigned int y = spell->target_y[1];
@@ -2014,7 +2013,7 @@ void mk_chess_spell_rescue_current_target(void) {
 void mk_chess_spell_target_add_access_restrictions(unsigned int target,
                                                    unsigned int restriction,
                                                    int duration, int reset) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int x = (unsigned char)spell->target_x[target];
     unsigned int y = (unsigned char)spell->target_y[target];
     ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
@@ -2028,15 +2027,15 @@ void mk_chess_spell_target_add_access_restrictions(unsigned int target,
         expires = &piece->access_restrictions[0];
     }
 
-    if ((*expires > (unsigned int)mk_chess_pdata->clock) && (reset == 0)) {
+    if ((*expires > (unsigned int)mk_chess_pdata->manager.clock) && (reset == 0)) {
         *expires += duration;
         return;
     }
-    *expires = mk_chess_pdata->clock + duration;
+    *expires = mk_chess_pdata->manager.clock + duration;
 }
 
 void mk_chess_spell_force_fight(void) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int x = (unsigned char)spell->target_x[0];
     unsigned int y = (unsigned char)spell->target_y[0];
     ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
@@ -2049,7 +2048,7 @@ void mk_chess_spell_force_fight(void) {
 
 /* Soft ceiling: mk_chess_spell_is_this_a_forced_fight ~90.61% - typed board indexing. */
 int mk_chess_spell_is_this_a_forced_fight(void) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int x0 = (unsigned char)spell->target_x[0];
     unsigned int y0 = (unsigned char)spell->target_y[0];
     unsigned int x1 = (unsigned char)spell->target_x[1];
@@ -2064,7 +2063,7 @@ int mk_chess_spell_is_this_a_forced_fight(void) {
 }
 
 void mk_chess_spell_kill_target(unsigned int target) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
 
     mk_chess_remove_piece_at_cell_into_deadpool(
         (unsigned char)spell->target_x[target],
@@ -2072,7 +2071,7 @@ void mk_chess_spell_kill_target(unsigned int target) {
 }
 
 void mk_chess_spell_move_target_from_temp_area_to(unsigned int target) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     ChessPiece* piece = spell->temporary_piece;
     ChessCell* old_cell =
         &mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y];
@@ -2099,7 +2098,7 @@ void mk_chess_spell_move_target_from_temp_area_to(unsigned int target) {
 }
 
 void mk_chess_spell_move_target_to_temp_area(unsigned int target) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int x = (unsigned char)spell->target_x[target];
     unsigned int y = (unsigned char)spell->target_y[target];
     ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
@@ -2110,7 +2109,7 @@ void mk_chess_spell_move_target_to_temp_area(unsigned int target) {
 
 void mk_chess_spell_move_target_to_target(unsigned int source_target,
                                           unsigned int destination_target) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int source_x =
         (unsigned char)spell->target_x[source_target];
     unsigned int source_y =
@@ -2143,7 +2142,7 @@ void mk_chess_spell_move_target_to_target(unsigned int source_target,
 }
 
 float mk_chess_spell_get_target_health(unsigned int target) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int x = (unsigned char)spell->target_x[target];
     unsigned int y = (unsigned char)spell->target_y[target];
 
@@ -2183,7 +2182,7 @@ void mk_chess_count_p1_power_squares(unsigned int x, unsigned int y) {
 }
 
 float mk_chess_spell_get_target_max_health(unsigned int target) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int x = (unsigned char)spell->target_x[target];
     unsigned int y = (unsigned char)spell->target_y[target];
     ChessPiece* piece = mk_chess_pdata->board[x].cells[y].piece;
@@ -2192,7 +2191,7 @@ float mk_chess_spell_get_target_max_health(unsigned int target) {
 }
 
 void mk_chess_spell_show_target_portrait(unsigned int target) {
-    ChessSpellState* spell = mk_chess_pdata->spell;
+    ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int x = (unsigned char)spell->target_x[target];
     unsigned int y = (unsigned char)spell->target_y[target];
 
@@ -2316,7 +2315,7 @@ void mk_chess_queue_up_piece_event(int event, int delay) {
     }
     g_active_piece->flags.event_pending = 1;
     g_active_piece->runtime.fields.queued_event = event;
-    g_active_piece->runtime.fields.event_time = mk_chess_pdata->clock + delay;
+    g_active_piece->runtime.fields.event_time = mk_chess_pdata->manager.clock + delay;
 }
 
 int mk_chess_handle_buffered_events_cb(ChessPiece* piece) {
@@ -2789,7 +2788,7 @@ float x_chess_2(void) {
         mk_chess_set_game_mode(0);
         break;
     case 9:
-        state->spell->input_state = 10;
+        state->manager.spell->input_state = 10;
         break;
     }
 
@@ -3156,10 +3155,10 @@ static void mk_chess_spell_hud_handle_names_slide_out(
     names->page = 4;
     turn_controllers_on();
 
-    cursor = mk_chess_pdata->hud_cursor;
+    cursor = mk_chess_pdata->manager.hud_cursor;
     if (cursor != 0 &&
         (unsigned int)cursor->instance !=
-            mk_chess_pdata->hud_cursor_instance) {
+            mk_chess_pdata->manager.hud_cursor_instance) {
         cursor = 0;
     }
     if (mk_chess_place_spell_hud_cursor_at_open_slot(

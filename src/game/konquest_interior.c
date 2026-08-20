@@ -2,6 +2,7 @@
 #include "math/gxVect.h"
 #include "math/mk_math.h"
 #include "runtime/asset.h"
+#include "runtime/cam.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
@@ -13,13 +14,6 @@ typedef struct KonquestInteriorProcVtable {
     void* reserved2[2];
     void (*jump_sleep)(MkProcEntryFn entry, float ticks); /* +0x24 */
 } KonquestInteriorProcVtable;
-
-typedef struct KonquestCameraPdata {
-    MkHdr hdr;
-    char pad08[4];
-    Vec position;
-    Vec angle;
-} KonquestCameraPdata;
 
 typedef struct KonquestRoomObjectTexture {
     unsigned int material_id; /* +0x00 */
@@ -88,11 +82,6 @@ typedef struct KonquestInteriorPdata {
     float camera_offset_y; /* +0x190 */
     float camera_offset_z; /* +0x194 */
 } KonquestInteriorPdata;
-
-typedef struct KonquestCameraItem {
-    MkHdr* node;           /* +0x00 */
-    unsigned int instance; /* +0x04 */
-} KonquestCameraItem;
 
 typedef struct KonquestEnumerationEntry {
     int partner_index;
@@ -269,7 +258,6 @@ void* find_konquest_object_struct_by_uid(int uid);
 KonquestChildObject* find_child_subobject_by_enumeration(
     void* object, int enumeration);
 KonquestChildObject* find_door_partner_sobj(KonquestChildObject* door);
-KonquestCameraPdata* get_pdata_of_camera(void);
 KonquestTrigger* find_trigger_by_id(int id);
 void obj_create_sobjs(MkObj* object);
 void sobj_swap_material_texture(
@@ -283,8 +271,6 @@ void stop_time_passing(void);
 void pause_weather_effects(void);
 void konquest_hide_hud(int mode);
 void load_lights(void* defs, MkPtr** list);
-void get_camera_position(Vec* position);
-void get_camera_angle(Vec* angle);
 KonquestTile* get_nth_tile_struct(int index);
 void add_temporary_trigger(
     int id, int a, int b, int c, int function, float x, float y, float z,
@@ -309,8 +295,6 @@ void set_monk_position(
 void destroy_list(MkPtr** list);
 void remove_fgnd_mkobj(void* object);
 void xfer_camera(MkProcEntryFn entry, int immediate);
-void set_camera_position(const Vec* position);
-void set_camera_angle(const Vec* angle);
 void resume_weather_effects(KonquestInteriorSaveData* save);
 unsigned int get_row_count_for_table_by_pointer(
     ScriptSlot* script, void* table);
@@ -332,7 +316,6 @@ float konquest_camera_loop(void);
 
 extern MkPtr* bgnd_light_list;
 extern MkPtr* special_light_list;
-extern KonquestCameraItem camera_item;
 
 int is_pui_in_current_interior(const void* pui) {
     const void** items;
@@ -810,7 +793,7 @@ void interior_exit_button_script(void) {
 static float p_konq_interior_exit_point(void) {
     MkObj* hero;
     MkObj* interior_object;
-    KonquestCameraPdata* camera;
+    CameraPdata* camera;
     int* npc_data;
     unsigned int npc_count;
     unsigned int index;
@@ -878,12 +861,12 @@ static float p_konq_interior_exit_point(void) {
     set_camera_position(
         &konq_interior_save_data.exterior_camera_position);
     set_camera_angle(&konq_interior_save_data.exterior_camera_angle);
-    camera->position.x = konq_interior_save_data.exterior_camera_position.x;
-    camera->position.y = konq_interior_save_data.exterior_camera_position.y;
-    camera->position.z = konq_interior_save_data.exterior_camera_position.z;
-    camera->angle.x = konq_interior_save_data.exterior_camera_angle.x;
-    camera->angle.y = konq_interior_save_data.exterior_camera_angle.y;
-    camera->angle.z = konq_interior_save_data.exterior_camera_angle.z;
+    camera->target_pos.x = konq_interior_save_data.exterior_camera_position.x;
+    camera->target_pos.y = konq_interior_save_data.exterior_camera_position.y;
+    camera->target_pos.z = konq_interior_save_data.exterior_camera_position.z;
+    camera->target_ang.x = konq_interior_save_data.exterior_camera_angle.x;
+    camera->target_ang.y = konq_interior_save_data.exterior_camera_angle.y;
+    camera->target_ang.z = konq_interior_save_data.exterior_camera_angle.z;
     resume_weather_effects(&konq_interior_save_data);
 
     npc_data = konq_interior_save_data.current_interior->npc_data;
@@ -973,7 +956,7 @@ void set_interior_cam_pos_and_ang(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
     Vec angle = {0.0f, 0.0f, 0.0f};
     Vec angle_offset = {0.0f, 0.0f, 0.0f};
-    MkHdr* camera;
+    CameraObj* camera;
 
     camera = camera_item.node;
     if (camera != 0) {
@@ -1004,7 +987,7 @@ void set_interior_cam_pos_and_ang(void) {
     if (camera == 0) {
         return;
     }
-    update_mkobj(camera != 0 ? as_mkhdr(camera) : 0);
+        update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
 }
 
 /*
@@ -1140,7 +1123,7 @@ static float p_konq_interior_entry_point(void) {
         Vec camera_angle_base = {0.0f, 0.0f, 0.0f};
         Vec camera_angle = {0.0f, 0.0f, 0.0f};
         Vec camera_position = {0.0f, 0.0f, 0.0f};
-        MkHdr* camera = camera_item.node;
+        CameraObj* camera = camera_item.node;
 
         if (camera != 0) {
             camera = (camera->instance == camera_item.instance) ? camera : 0;
@@ -1171,7 +1154,7 @@ static float p_konq_interior_entry_point(void) {
             set_camera_angle(&camera_angle);
         }
         if (camera != 0) {
-            update_mkobj(camera != 0 ? as_mkhdr(camera) : 0);
+            update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
         }
     }
 

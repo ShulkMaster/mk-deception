@@ -556,7 +556,6 @@ MkObj* load_named_model_from_slot(
     int slot, const char* name, int flags, int arg);
 void* find_uv_scroll_control_for_obj(MkObj* object);
 void update_mkobj_pdata(MkObj* object, MkHdr* pdata);
-void camera_set_animation_mirror_plane(int mode);
 int build_bones_tbl(MkObj* object, const int* tags);
 void bone_matcher_parent_set_offset(
     FatalityBoneMatcher* matcher, const Vec* offset);

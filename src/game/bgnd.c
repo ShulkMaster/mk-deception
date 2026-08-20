@@ -1,6 +1,7 @@
 #include "game/bgnd.h"
 #include "game/game_info.h"
 #include "runtime/mk_cmdscript.h"
+#include "runtime/cam.h"
 #include "runtime/mk_obj.h"
 #include "rw/rwcamera_internal.h"
 
@@ -40,7 +41,6 @@ typedef struct BgndUnlockData {
 
 extern BgndUnlockData gp_data;
 
-void cam_set_intro_cam_pause_ticks(float ticks);
 void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
 void load_art_section_by_name(int art_id, char* name);

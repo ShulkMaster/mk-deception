@@ -106,11 +106,6 @@ typedef struct KonquestTransitionPdata {
     int flags;    /* +0x10 */
 } KonquestTransitionPdata;
 
-typedef union KonquestTransitionPdataRef {
-    MkHdr* hdr;
-    KonquestTransitionPdata* transition;
-} KonquestTransitionPdataRef;
-
 typedef struct KonquestFadePdata {
     MkHdr hdr;
     int to_black; /* +0x08 */
@@ -131,11 +126,6 @@ typedef struct KonquestCameraScriptPdata {
     void* script; /* +0x0C */
 } KonquestCameraScriptPdata;
 
-typedef union KonquestCameraScriptPdataRef {
-    MkHdr* hdr;
-    KonquestCameraScriptPdata* camera;
-} KonquestCameraScriptPdataRef;
-
 typedef struct KonquestDialogPdata {
     MkHdr hdr;
     char pad08[0x20];
@@ -145,11 +135,6 @@ typedef struct KonquestDialogPdata {
     char pad548[4];
     unsigned int print_ticks; /* +0x54C */
 } KonquestDialogPdata;
-
-typedef union KonquestDialogPdataRef {
-    MkHdr* hdr;
-    KonquestDialogPdata* dialog;
-} KonquestDialogPdataRef;
 
 typedef struct KonquestNpcSpatial {
     char pad00[0x4C];
@@ -408,11 +393,6 @@ typedef struct KonquestUidObject {
     int uid; /* +0x08 */
 } KonquestUidObject;
 
-typedef union KonquestUidObjectRef {
-    MkHdr* hdr;
-    KonquestUidObject* object;
-} KonquestUidObjectRef;
-
 typedef union KonquestArtIdRef {
     unsigned int id;
     char* name;
@@ -622,22 +602,12 @@ typedef struct KonquestDoorPdata {
     int transition_ticks;
 } KonquestDoorPdata;
 
-typedef union KonquestRemoveCollisionPdataRef {
-    void* raw;
-    KonquestRemoveCollisionPdata* remove_collision;
-} KonquestRemoveCollisionPdataRef;
-
 typedef struct KonquestAttachedSound {
     MkHdr hdr;
     char pad08[0x24];
     int enabled; /* +0x2C */
     int uid; /* +0x30 */
 } KonquestAttachedSound;
-
-typedef union KonquestAttachedSoundRef {
-    MkHdr* hdr;
-    KonquestAttachedSound* sound;
-} KonquestAttachedSoundRef;
 
 typedef struct KonquestTile {
     char pad00[4];
@@ -1091,15 +1061,12 @@ void pui_set_color(unsigned int id, int red, int green, int blue, int alpha) {
 }
 
 void update_tile_grid(void);
-float p_konquest_camera_proc(void);
 float p_collide_monk(void);
 MkHdr* konquest_display_award_tga(int award, int arg, int mode);
 int get_game_state(void);
 void set_interior_cam_pos_and_ang(void);
-void camera_exit_script(void);
 MslSoundHandle snd_req(int sound);
 void snd_stop(MslSoundHandle sound);
-float get_pan_value(const Vec* position);
 MslSoundHandle pan_vol_snd_req(int sound, float pan, float volume);
 void* get_data_table(void* owner, int index);
 float p_display_konquest_title(void);
@@ -1110,8 +1077,6 @@ void p_konquest_mode(void);
 void p_gamelogic(void);
 void RwResourcesSetArenaSize(int size);
 char* get_string_by_id(int id);
-void camera_set_lookat_focus(void* object);
-void camera_set_movement_focus_obj(void* object);
 void hide_sobj_and_children(void* object);
 void set_true_clip_flag_on_sobj_and_children(void* object, int value);
 void hide_tile_objects(void* tile);
@@ -3680,14 +3645,14 @@ static void destroy_award_art(KonquestAwardArtPdata* pdata) {
 }
 
 void remove_collision_volume_on_object(void) {
-    KonquestRemoveCollisionPdataRef pdata;
+    KonquestRemoveCollisionPdata* pdata;
     KonquestCollisionOwner* owner;
     KonquestCollisionVolume* volume;
 
-    pdata.raw = pdata_of_proc(aproc);
-    owner = pdata.remove_collision->owner;
+    pdata = (KonquestRemoveCollisionPdata*)pdata_of_proc(aproc);
+    owner = pdata->owner;
     if (owner != 0 &&
-        owner->hdr.instance != pdata.remove_collision->owner_instance) {
+        owner->hdr.instance != pdata->owner_instance) {
         owner = 0;
     }
 
@@ -3701,13 +3666,13 @@ void remove_collision_volume_on_object(void) {
 }
 
 void enable_attached_sound_by_uid(int uid, int enabled) {
-    KonquestAttachedSoundRef sound;
+    KonquestAttachedSound* sound;
     MkPtr* link;
 
     link = konquest_pdata->attached_sounds;
     while (link != 0) {
-        sound.hdr = link->hdr;
-        if (sound.hdr->instance != link->instance) {
+        sound = (KonquestAttachedSound*)link->hdr;
+        if (sound->hdr.instance != link->instance) {
             MkPtr* next;
 
             next = link->next;
@@ -3715,8 +3680,8 @@ void enable_attached_sound_by_uid(int uid, int enabled) {
             destroy_mkptr(link);
             link = next;
         } else {
-            if (sound.sound->uid == uid) {
-                sound.sound->enabled = enabled;
+            if (sound->uid == uid) {
+                sound->enabled = enabled;
             }
             link = link->next;
         }
@@ -4187,14 +4152,12 @@ void* get_visible_tile_set(int index) {
 }
 
 float p_konquest_transition_to_state(void) {
-    KonquestTransitionPdataRef pdata;
+    KonquestTransitionPdata* pdata;
 
-    pdata.hdr = pdata_of_proc(aproc);
-    if (pdata.hdr != 0) {
+    pdata = (KonquestTransitionPdata*)pdata_of_proc(aproc);
+    if (pdata != 0) {
         object_transition_to_state(
-            pdata.transition->object,
-            pdata.transition->state,
-            pdata.transition->flags);
+            pdata->object, pdata->state, pdata->flags);
     }
     return -1.0f;
 }
@@ -4213,7 +4176,7 @@ int is_button_pressed(char* button) {
 int konquest_is_save_allowed(void) {
     void* intro_script;
     MkProc* proc;
-    KonquestCameraScriptPdataRef pdata;
+    KonquestCameraScriptPdata* pdata;
     int count;
     int index;
 
@@ -4221,8 +4184,8 @@ int konquest_is_save_allowed(void) {
         konquest_pdata->script_owner, "fight_intro_cam_1");
     proc = find_mkproc_pid(0x9006);
     if (proc != 0) {
-        pdata.hdr = pdata_of_proc(proc);
-        if (pdata.hdr != 0 && pdata.camera->script == intro_script) {
+        pdata = (KonquestCameraScriptPdata*)pdata_of_proc(proc);
+        if (pdata != 0 && pdata->script == intro_script) {
             return 0;
         }
     }
@@ -4433,13 +4396,13 @@ int player_has_item(void* item) {
 }
 
 void calc_print_speed_for_nis_dialog(void* unused, unsigned int ticks) {
-    KonquestDialogPdataRef pdata;
+    KonquestDialogPdata* pdata;
     unsigned int speed;
     unsigned int length;
 
-    pdata.hdr = pdata_of_proc(aproc);
+    pdata = (KonquestDialogPdata*)pdata_of_proc(aproc);
     speed = 3;
-    length = strlen(pdata.dialog->text);
+    length = strlen(pdata->text);
     if ((int)length > 0) {
         speed = ticks / length;
     }
@@ -4451,9 +4414,9 @@ void calc_print_speed_for_nis_dialog(void* unused, unsigned int ticks) {
     } else if ((int)speed >= 10) {
         speed = 10;
     }
-    pdata.dialog->print_speed = speed;
-    pdata.dialog->print_ticks = ticks;
-    pdata.dialog->active = 1;
+    pdata->print_speed = speed;
+    pdata->print_ticks = ticks;
+    pdata->active = 1;
 }
 
 int get_tile_from_position(const float* position) {
@@ -4488,12 +4451,12 @@ void* find_konquest_object_struct_by_uid(int uid) {
         tile = &konquest_pdata->tile_structs[tile_index];
         link = tile->objects;
         while (link != 0) {
-            KonquestUidObjectRef object;
+            KonquestUidObject* object;
 
-            object.hdr = link->hdr;
-            if (link->instance == object.hdr->instance) {
-                if (object.object->uid == uid) {
-                    return object.object;
+            object = (KonquestUidObject*)link->hdr;
+            if (link->instance == object->hdr.instance) {
+                if (object->uid == uid) {
+                    return object;
                 }
                 link = link->next;
             } else {

@@ -5,6 +5,7 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/asset.h"
+#include "runtime/cam.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
 #include "game/constrain.h"
@@ -551,7 +552,6 @@ void start_plyr_attack(float radius);
 int does_he_have_life_left(void);
 void random_dk_foot(void);
 unsigned int randu0(unsigned int maximum);
-void camera_idle(void);
 void xfer_camera(MkProcEntryFn entry, int transition);
 void set_ani_speed(float speed);
 int am_i_flipped(void);

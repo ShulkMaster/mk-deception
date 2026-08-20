@@ -17,6 +17,8 @@ typedef struct MovesetDefinition {
     int style_sign_width;           /* +0x10 */
     const char* style_section_name; /* +0x14 */
     const char* animation_section_name; /* +0x18 */
+    char pad1C[0x60];
+    float camera_distance_offset; /* +0x7C - tightrope camera framing */
 } MovesetDefinition;
 
 typedef struct GlobalMoveset {
@@ -33,7 +35,8 @@ typedef struct GlobalMoveset {
     char pad2C[0x40];
     ScreenObj* style_sign;          /* +0x6C */
     unsigned int style_sign_instance; /* +0x70 */
-    char pad74[0x138];
+    unsigned int standing_animation_script; /* +0x74 */
+    char pad78[0x134];
 } GlobalMoveset; /* 0x1AC */
 
 #define GLOBAL_MOVESET_COUNT 8

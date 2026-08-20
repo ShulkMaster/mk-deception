@@ -101,6 +101,9 @@ void build_col_shape_vertical_box(
     CollisionShape* shape, const Vec* center, float width, float height,
     float depth, float angle);
 int is_point_inside_shape(const CollisionShape* shape, const Vec* point);
+int collide_segment_against_global_collision_list(
+    const Vec* start, const Vec* end, Vec* hit_point,
+    unsigned int ignored_flags);
 void update_collision_obj_pos(CollisionObj* object, const Vec* position);
 void init_player_collision(PlyrInfo* player);
 

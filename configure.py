@@ -541,7 +541,7 @@ config.libs = [
                    source="game/konquest_time.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "cam.o", source="runtime/cam.c",
-                   extra_cflags=["-use_lmw_stmw on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "krypt.o", source="game/krypt.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),

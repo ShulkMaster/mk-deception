@@ -15,6 +15,7 @@
 #include "game/plyr.h"
 #include "math/gxVect.h"
 #include "runtime/limb.h"
+#include "runtime/cam.h"
 #include "runtime/mk_vtbl.h"
 extern unsigned char* current_args;
 extern unsigned char* active_cmdscript;
@@ -34,6 +35,7 @@ typedef struct FenceSection FenceSection;
 typedef struct LightDef LightDef;
 typedef struct MkProc MkProc;
 typedef struct MkSobj MkSobj;
+typedef struct CameraAnimEvent CameraAnimEvent;
 typedef struct PlyrInfo PlyrInfo;
 typedef struct SObj SObj;
 typedef struct BgndAppendTextureEntry BgndAppendTextureEntry;
@@ -461,8 +463,8 @@ typedef struct ScriptCircleArgs {
 
 typedef struct ScriptCameraRectangleArgs {
     unsigned int header;
-    SObj* object;
-    int mode;
+    MkSobj* object;
+    const Vec* center;
     float min_x;
     float min_z;
     float max_x;
@@ -471,8 +473,8 @@ typedef struct ScriptCameraRectangleArgs {
 
 typedef struct ScriptCameraCylinderArgs {
     unsigned int header;
-    SObj* object;
-    int mode;
+    MkSobj* object;
+    const Vec* center;
     float radius;
     float height;
 } ScriptCameraCylinderArgs;
@@ -630,11 +632,6 @@ typedef struct ScriptGroundObjView {
     unsigned char flags09;
 } ScriptGroundObjView;
 
-typedef union ScriptPlayerObjectRef {
-    unsigned char* bytes;
-    ScriptGroundObjView* object;
-} ScriptPlayerObjectRef;
-
 typedef void (*ScriptDestroyFn)(MkVtable5* vtable);
 
 typedef struct ScriptDestroyVtable {
@@ -656,14 +653,15 @@ typedef struct ScriptOpponentProcLatch {
     unsigned int proc_instance;
 } ScriptOpponentProcLatch;
 
-typedef struct ScriptNpcCameraObject {
+/* Partial external MkObj view: retail accesses its position at +0xA0 here. */
+typedef struct ScriptNpcCameraObjectView {
     char pad00[0xA0];
-    float center[3];
-} ScriptNpcCameraObject;
+    Vec pos;
+} ScriptNpcCameraObjectView;
 
 typedef struct ScriptNpcBody {
     char pad00[0x0C];
-    ScriptNpcCameraObject* camera_object;
+    ScriptNpcCameraObjectView* camera_object;
 } ScriptNpcBody;
 
 typedef struct ScriptNpcHandle {
@@ -806,23 +804,12 @@ typedef union ScriptResultRef {
     ScriptExitView* exit;
 } ScriptResultRef;
 
-typedef union PlayerPdataRef {
-    unsigned char* bytes;
-    PlyrPdata* player;
-} PlayerPdataRef;
-
-typedef union ExitTableRef {
-    unsigned char* bytes;
-    ScriptProcEntryFn* entries;
-} ExitTableRef;
-
 extern float _mkproc_sleep_ticks;
 extern float inverse_game_speed;
 void update_bone_hierarchy(void* object);
 void ground_me(void* object);
 void nis_init(int state, int arg0, int arg1);
 ScriptNpcHandle* find_npc_by_data(int npc_id, void* args, float value);
-void camera_setup_simple_rotation(int direction, float speed);
 void nb_place_slave_in_bgnd(int slave, int owner, const char* name,
                             int placement_mode, float value0, float value1,
                             float value2, float value3, float value4,
@@ -858,7 +845,6 @@ void blend_to_ani_frame(void* animation, int flags,
                         ScriptAnimationArgs* args, float frame, float blend);
 void glitch_to_ani(void* animation, int flags);
 void reaction_xfer_him_nohit(void* entry);
-void camera_set_lookat_focus(void* object);
 void set_anim_hiframe(void* script_args, float frame);
 int was_button_pressed(int button);
 int am_i_airborn(void);
@@ -1254,7 +1240,6 @@ int are_death_traps_on(void);
 char* get_string_by_id(unsigned int id);
 void ending_show_text(int script_index, int duration);
 void ending_show_image(int image);
-void cam_set_intro_cam_speed(float speed);
 void midpoint_v3(Vec* out, const Vec* first, const Vec* second);
 Vec* sobj_get_world_pos(SObj* object);
 void get_point_on_circle(float* center, float radius, float angle, float* out);
@@ -1266,16 +1251,6 @@ int get_offset_of_closest_fence_section(const Vec* point,
 MkProc* find_mkproc_pid(int pid);
 void start_fish_attack(MkHdr* player, int direction, int flags);
 int is_timer_off(void);
-void hide_sobj_if_camera_is_in_rectangle(void* object, int mode, float min_x,
-                                         float min_z, float max_x,
-                                         float max_z);
-void hide_sobj_if_camera_is_in_cylinder(void* object, int mode, float radius,
-                                        float height);
-void turn_off_sobj_if_camera_is_in_rectangle(void* object, int mode,
-                                             float min_x, float min_z,
-                                             float max_x, float max_z);
-void turn_off_sobj_if_camera_is_in_cylinder(void* object, int mode,
-                                            float radius, float height);
 void debug_create_axis_indicator(MkHdr* player, int axis);
 void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
@@ -1286,7 +1261,7 @@ void obj_set_sobj_alpha(MkObj* object, int sobj_index, int alpha);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 float get_volume_from_distance(const Vec* position, float far_distance,
                                float near_distance);
-float get_pan_value(float* position);
+float get_pan_value(const Vec* position);
 void mab_test(void);
 void player_body_explode(MkHdr* player, const Vec* position, float velocity);
 void bgnd_clear_danger_zone_callback(int zone);
@@ -1498,27 +1473,6 @@ int bgnd_update_active_mksobj(void);
 int bgnd_xfer_attacker(int);
 int blast_effect_at_plyr(void);
 int bulvan_function(int);
-int cam_recalc_midpoint(void);
-int camera_idle(void);
-int camera_pause_player(void);
-int camera_reset_ang_done_flag(void);
-int camera_reset_pos_done_flag(void);
-int camera_run_animation(int);
-int camera_set_anim_aux_data(int);
-int camera_set_attacker(int);
-int camera_set_center_of_rotation(int);
-int camera_set_glitch_flag(void);
-int camera_set_look_mode(int);
-int camera_set_movement_focus_obj(int);
-int camera_set_movement_mode(int);
-int camera_set_radial_movement(int);
-int camera_set_rotation_direction(int);
-int camera_set_victim(int);
-int camera_special_function(int);
-int camera_unpause_player(void);
-int camera_wait_for_ang_move_done(void);
-int camera_wait_for_pos_and_ang_move_done(void);
-int camera_wait_for_pos_move_done(void);
 int change_monk_age(int);
 int check_for_combo_message(void);
 int clear_both_face_opponent_flags(void);
@@ -1543,7 +1497,6 @@ int disable_my_attacks(int);
 int display_konquest_title(void);
 int display_time_progression_images(int);
 int dk_taunt_at_screen(void);
-int do_victory_camera(int);
 int dont_fence_plyr_in(int);
 int drone_ai_increase_big_boss_stage(int);
 int drone_dispatch_switches(int);
@@ -1560,16 +1513,12 @@ int face_bleed_me(int);
 int face_opponent_180(void);
 int face_opponent_now(void);
 int fade_fatality_screen(void);
-int find_best_conversation_camera_position(void);
 int fire_trigger(int);
 int flash_hit_at_bid(int);
 int force_ai_style(int);
 int forced_step_forward(void);
 int freeze_player(void);
 int front_rollup_check(void);
-int get_camera_angle(int);
-int get_camera_position(int);
-int get_camera_velocity(int);
 int get_projectile_script_last_pos(int);
 int get_projectile_script_velocity(int);
 int give_reward_to_player(int);
@@ -1603,7 +1552,7 @@ int jab_setup_kiss_emitter_obj(int);
 int jab_stop_dragon_king_shake(void);
 void kabal_collision_control_victim(int);
 int kenshi_teleport_position(void);
-int kick_the_camera(void);
+void kick_the_camera(void);
 int kill_dynamic_pui(int);
 int kill_konquest_dialog_procs(void);
 int kill_lip_sync_procs(void);
@@ -1767,10 +1716,6 @@ int set_ani_weight(void *, float);
 int set_attackers_attack_region(int);
 int set_block_requirement(int);
 int set_both_face_opponent_flags(void);
-int set_camera_angle();
-int set_camera_position();
-int set_camera_to_look_at_hero(void);
-int set_camera_velocity(int);
 int set_cliff_watcher_round(int);
 int set_current_time(int);
 int set_hero_position_relative_to_chest(void);
@@ -1800,7 +1745,7 @@ int snd_major_hit_voice(void);
 int snd_stop(int);
 void sobj_no_zwrite(void* sobj);
 int spad_norm_vector(int);
-int special_move_cam_end(void);
+void special_move_cam_end(void);
 int start_baraka_blades_monitor(void);
 int start_baraka_jaw_monitor(void);
 int start_bl_beetles_live_top_floor(void);
@@ -1845,8 +1790,6 @@ int trial_set_tick_function(int);
 int trial_set_type(int);
 void trial_setup_nis_scene(int);
 int trial_show_monk(int);
-int turn_camera_off(void);
-int turn_camera_on(void);
 int turn_into_energy_player(void);
 int turn_me_pi(void);
 int turn_to_face_exterior_door(void);
@@ -1868,7 +1811,7 @@ int add_hours_to_time(int, int);
 int add_months_to_time(int, int);
 int add_object_to_tile(int, int, int, void *, float, float, float, float);
 int add_to_konq_profile_value(int, int);
-int add_widescreen_bars(void *, float);
+void add_widescreen_bars(float);
 int add_years_to_time(int, int);
 int adjust_his_damage_multiplier(void *, float);
 int adjust_my_damage_multiplier(void *, float);
@@ -1969,23 +1912,6 @@ int bgnd_start_preload_sobj_uv_scroll(int, int, void *, float, float, float, flo
 int bgnd_start_script_in_proc(int, int);
 int bgnd_start_script_in_proc_bigstack(int, int);
 int bgnd_start_timer(int, int, int);
-int cam_set_ground_plane(void *, float);
-int cam_set_intro_cam_pause_ticks(void *, float);
-int camera_check_reverse_move_offset(int, int);
-int camera_set_animation_parent_angle(int, int);
-int camera_set_animation_parent_position(int);
-int camera_set_check_konquest_collisions_flag(int);
-int camera_set_custom_camera_movement_flag(int);
-int camera_set_final_speed(void *, float);
-int camera_set_initial_speed(void *, float);
-int camera_set_lookat_offset_explicit(void *, float, float, float);
-int camera_set_movement_offset_explicit(void *, float, float, float);
-int camera_set_movement_rate(void *, float);
-int camera_set_rotation_rate(void *, float);
-int camera_set_speed_scalar(void *, float);
-int camera_set_travel_time(void *, float);
-int camera_setup_radial_position(void *, float, float, float);
-int camera_setup_tightrope_angle_offset(void *, float, float);
 int close_exterior_doors(int, int);
 int cloth_change_ground_plane_for(void *, float);
 int damage_player(int, void *, float);
@@ -2196,7 +2122,7 @@ int set_pui_status(int, int);
 int set_snd_vol(int, int, void *, float);
 int set_tile_grid_size(int, int);
 int set_tile_visibility(int, int);
-int shake_camera(int, void *, float);
+void shake_camera(int, void *, float);
 int share_my_attack_info(void *, float, float);
 int slow_ani_x(void *, float, float);
 int slow_ani_x_if_miss(void *, float, float, float);
@@ -2256,12 +2182,6 @@ float bgnd_sobj_get_x_pos(int);
 float bgnd_sobj_get_y_pos(int);
 float bgnd_sobj_get_z_pos(int);
 int bgnd_timer_get_tick_count(int);
-int camera_get_attacker(void);
-int camera_get_mirror_flag(void);
-float camera_get_pos(int);
-int camera_get_victim(void);
-int camera_is_ang_move_done(void);
-int camera_is_pos_move_done(void);
 int can_fallingcliff_fall(void);
 int current_player_is_drone(void);
 float degrees_to_rad(void *, float);
@@ -2283,7 +2203,6 @@ int get_general_pebble_data(int);
 int get_hero_state(void);
 int get_his_previous_state(void);
 int get_his_secondary_state(void);
-int get_intro_camera_path(void);
 float get_ir_cam_ang_x(int);
 float get_ir_cam_ang_y(int);
 float get_ir_cam_ang_z(int);
@@ -2432,12 +2351,6 @@ int bgnd_set_sobj_uv_scroll_abs_values(int, float, float, float, float);
 int bgnd_set_sobj_uv_scroll_rate_values(int, float, float, float, float);
 int bgnd_start_sobj_uv_scroll(int, int, float, float, float, float);
 int bgnd_start_sobj_uv_scroll_w_control(int, int, int, float, float, float, float);
-int camera_init_animation(int *);
-int camera_set_lookat_offset(float *, void *);
-int camera_set_lookat_offset_obj_rel(float *, void *);
-int camera_set_movement_offset(float *, void *);
-int camera_set_movement_offset_obj_rel(float *, void *);
-int camera_setup_radial_sweep(void *, float, float, float, float, float, float, float, float);
 int display_konquest_text(int, int, float, float, float);
 typedef struct AnimScript AnimScript;
 void drone_blend_to_ani(AnimScript*, int, float);
@@ -2445,7 +2358,7 @@ int force_away(int, int, float, float);
 int force_forward(int, int, float, float);
 int got_hit_fx(int, int, int, int, int, int, float);
 int hero_start_fx_at_position(int);
-int interaction_cam_set_target_info(int, float, float, float, float, float, float);
+void interaction_cam_set_target_info(int, float, float, float, float, float, float);
 int konquest_setup_pui_particle(int);
 int konquest_use_portal(int, int, int, float, float, float);
 int limb_sever_set_motion(int, int, int, int, int, int, int, int, float, float, float);
@@ -2472,8 +2385,9 @@ void show_text(int, unsigned int, unsigned int, unsigned int, int, float, float,
 int sidekick_switch_style_swap(int, float);
 int single_frame_collision_check(int, int, int, void *, float, float, float);
 int special_move_cam_him(int, int, int, float, float, float, float, float);
-int special_move_cam_setup(int, int, int, float, float, float, float, float);
-int special_move_cam_setup2(int, int, int, int, int, float, float, float, float, float);
+void special_move_cam_setup(int, int, int, float, float, float, float, float);
+void special_move_cam_setup2(int, int, int, MkObj*, MkObj*, float, float,
+                             float, float, float);
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, const Vec* velocity,
@@ -2488,11 +2402,7 @@ void trial_show_text_window(int, int, int, float, float, float);
 float two_player_animation_blend(int, int, float, float);
 
 /* Data used by imported script wrappers. */
-extern int p_animated_intro_done;
-
-/* Typed declarations used by imported script wrappers. */
-int set_camera_destination(int *);
-int set_camera_target_angle(int *);
+float p_animated_intro_done(void);
 
 /* Typed declarations used by imported script wrappers. */
 int credits_add_text(char*, int);
@@ -2787,21 +2697,19 @@ void _drone_blend_to_ani(void) {
 }
 
 void _camera_set_target(void) {
-    int sp10;
-    int spC;
-    int sp8;
+    Vec angle;
 
-    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B, &sp8, &spC, &sp10);
-    set_camera_target_angle(&sp8);
+    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
+               &angle.x, &angle.y, &angle.z);
+    set_camera_target_angle(&angle);
 }
 
 void _camera_set_destination(void) {
-    int sp10;
-    int spC;
-    int sp8;
+    Vec position;
 
-    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B, &sp8, &spC, &sp10);
-    set_camera_destination(&sp8);
+    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
+               &position.x, &position.y, &position.z);
+    set_camera_destination(&position);
 }
 
 void _trial_add_required_attack_nohit(void) {
@@ -2835,29 +2743,29 @@ void _set_background_color(void) {
 }
 
 void _camera_init_animation(void) {
-    int sp8;
+    int animation_id;
+    AniData* animation;
 
-    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1F, &sp8);
-    get_animation(sp8);
-    camera_init_animation(&p_animated_intro_done);
+    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1F,
+               &animation_id);
+    animation = (AniData*)get_animation(animation_id);
+    camera_init_animation(animation, p_animated_intro_done);
 }
 
 void _camera_set_angle(void) {
-    int sp10;
-    int spC;
-    int sp8;
+    Vec angle;
 
-    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B, &sp8, &spC, &sp10);
-    set_camera_angle(&sp8);
+    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
+               &angle.x, &angle.y, &angle.z);
+    set_camera_angle(&angle);
 }
 
 void _camera_set_position(void) {
-    int sp10;
-    int spC;
-    int sp8;
+    Vec position;
 
-    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B, &sp8, &spC, &sp10);
-    set_camera_position(&sp8);
+    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
+               &position.x, &position.y, &position.z);
+    set_camera_position(&position);
 }
 
 void _set_move_pz_attributes_to(void) {
@@ -2888,10 +2796,10 @@ void _randu0(void) {
 
 void _my_attack_hit(void) {
     ScriptResultRef script;
-    PlayerPdataRef player;
+    PlyrPdata* player;
 
-    player.bytes = (unsigned char*)plyr_pdata;
-    if (player.player->collision_result == 1) {
+    player = (PlyrPdata*)plyr_pdata;
+    if (player->collision_result == 1) {
         script.bytes = active_cmdscript;
         script.integer->value = 1;
         return;
@@ -3021,17 +2929,17 @@ void _pz_fighter_attack(void) {
 void _exit_attack_with(void) {
     ScriptArgsRef args;
     ScriptResultRef result;
-    PlayerPdataRef player;
+    PlyrPdata* player;
 
     args.bytes = current_args;
     result.bytes = active_cmdscript;
-    player.bytes = (unsigned char*)plyr_pdata;
-    player.player->script_exit_value_int = args.exit_args->exit_value;
-    player.player->script_exit_args[0] = args.exit_args->exit_arg0;
-    player.player->input_unlock_tick = args.exit_args->input_unlock_tick;
-    player.player->blocking_disable_tick_1 = args.exit_args->blocking_tick;
-    player.player->script_exit_args[1] = args.exit_args->exit_arg1;
-    player.player->script_exit_args[2] = args.exit_args->exit_arg2;
+    player = (PlyrPdata*)plyr_pdata;
+    player->script_exit_value_int = args.exit_args->exit_value;
+    player->script_exit_args[0] = args.exit_args->exit_arg0;
+    player->input_unlock_tick = args.exit_args->input_unlock_tick;
+    player->blocking_disable_tick_1 = args.exit_args->blocking_tick;
+    player->script_exit_args[1] = args.exit_args->exit_arg1;
+    player->script_exit_args[2] = args.exit_args->exit_arg2;
     result.exit->exit = j_exit_6;
     result.exit->state = 2;
 }
@@ -3077,30 +2985,30 @@ void _camera_setup_for_custom_orbit_to_relative_point(void) {
     ScriptNpcCameraArgs* args;
     ScriptNpcHandle* npc;
     ScriptNpcBody* body;
-    float movement[3];
-    float lookat[3];
+    Vec movement;
+    Vec lookat;
 
     args = (ScriptNpcCameraArgs*)current_args;
-    movement[0] = args->movement_x;
-    movement[1] = args->movement_y;
-    movement[2] = args->movement_z;
-    lookat[0] = 0.0f;
-    lookat[1] = args->lookat_y;
-    lookat[2] = 0.0f;
+    movement.x = args->movement_x;
+    movement.y = args->movement_y;
+    movement.z = args->movement_z;
+    lookat.x = 0.0f;
+    lookat.y = args->lookat_y;
+    lookat.z = 0.0f;
     npc = find_npc_by_data(args->npc_id, current_args, args->movement_z);
     body = npc->body;
     if (body != 0) {
-        camera_set_movement_focus_obj((int)body->camera_object);
-        camera_set_lookat_focus(body->camera_object);
+        camera_set_movement_focus_obj((MkObj*)body->camera_object);
+        camera_set_lookat_focus((MkObj*)body->camera_object);
         camera_set_look_mode(8);
         camera_set_movement_mode(args->movement_mode);
-        camera_set_movement_offset(movement, current_args);
-        camera_set_lookat_offset(lookat, current_args);
-        camera_set_initial_speed(current_args, args->initial_speed);
-        camera_set_final_speed(current_args, args->final_speed);
+        camera_set_movement_offset(&movement, current_args);
+        camera_set_lookat_offset(&lookat, current_args);
+        camera_set_initial_speed(args->initial_speed);
+        camera_set_final_speed(args->final_speed);
         camera_set_rotation_direction(args->rotation_direction);
-        camera_set_travel_time(current_args, args->travel_time);
-        camera_set_center_of_rotation((int)body->camera_object->center);
+        camera_set_travel_time(args->travel_time);
+        camera_set_center_of_rotation(&body->camera_object->pos);
         camera_set_radial_movement(1);
         camera_set_custom_camera_movement_flag(1);
     }
@@ -3110,25 +3018,25 @@ void _camera_set_position_relative_to_npc(void) {
     ScriptNpcCameraArgs* args;
     ScriptNpcHandle* npc;
     ScriptNpcBody* body;
-    float movement[3];
-    float lookat[3];
+    Vec movement;
+    Vec lookat;
 
     args = (ScriptNpcCameraArgs*)current_args;
-    movement[0] = args->movement_x;
-    movement[1] = args->movement_y;
-    movement[2] = args->movement_z;
-    lookat[0] = 0.0f;
-    lookat[1] = args->lookat_y;
-    lookat[2] = 0.0f;
+    movement.x = args->movement_x;
+    movement.y = args->movement_y;
+    movement.z = args->movement_z;
+    lookat.x = 0.0f;
+    lookat.y = args->lookat_y;
+    lookat.z = 0.0f;
     npc = find_npc_by_data(args->npc_id, current_args, args->movement_z);
     body = npc->body;
     if (body != 0) {
-        camera_set_movement_focus_obj((int)body->camera_object);
-        camera_set_lookat_focus(body->camera_object);
+        camera_set_movement_focus_obj((MkObj*)body->camera_object);
+        camera_set_lookat_focus((MkObj*)body->camera_object);
         camera_set_look_mode(9);
         camera_set_movement_mode(args->position_mode);
-        camera_set_movement_offset(movement, current_args);
-        camera_set_lookat_offset(lookat, current_args);
+        camera_set_movement_offset(&movement, current_args);
+        camera_set_lookat_offset(&lookat, current_args);
         camera_set_glitch_flag();
     }
 }
@@ -3137,26 +3045,26 @@ void _camera_setup_for_tracking_npc(void) {
     ScriptNpcCameraArgs* args;
     ScriptNpcHandle* npc;
     ScriptNpcBody* body;
-    float movement[3];
-    float lookat[3];
+    Vec movement;
+    Vec lookat;
 
     args = (ScriptNpcCameraArgs*)current_args;
-    movement[0] = args->movement_x;
-    movement[1] = args->movement_y;
-    movement[2] = args->movement_z;
-    lookat[0] = 0.0f;
-    lookat[1] = args->lookat_y;
-    lookat[2] = 0.0f;
+    movement.x = args->movement_x;
+    movement.y = args->movement_y;
+    movement.z = args->movement_z;
+    lookat.x = 0.0f;
+    lookat.y = args->lookat_y;
+    lookat.z = 0.0f;
     npc = find_npc_by_data(args->npc_id, current_args, args->movement_z);
     body = npc->body;
     if (body != 0) {
-        camera_set_movement_focus_obj((int)body->camera_object);
-        camera_set_lookat_focus(body->camera_object);
+        camera_set_movement_focus_obj((MkObj*)body->camera_object);
+        camera_set_lookat_focus((MkObj*)body->camera_object);
         camera_set_look_mode(0);
         camera_set_movement_mode(2);
-        camera_set_movement_offset(movement, current_args);
-        camera_set_lookat_offset(lookat, current_args);
-        camera_set_movement_rate(current_args, 0.1f);
+        camera_set_movement_offset(&movement, current_args);
+        camera_set_lookat_offset(&lookat, current_args);
+        camera_set_movement_rate(0.1f);
     }
 }
 
@@ -3164,85 +3072,78 @@ void _camera_setup_for_orbiting_npc(void) {
     ScriptNpcCameraArgs* args;
     ScriptNpcHandle* npc;
     ScriptNpcBody* body;
-    float movement[3];
-    float lookat[3];
+    Vec movement;
+    Vec lookat;
 
     args = (ScriptNpcCameraArgs*)current_args;
-    movement[0] = 0.0f;
-    movement[1] = args->movement_z;
-    movement[2] = 0.0f;
-    lookat[0] = 0.0f;
-    lookat[1] = args->lookat_y;
-    lookat[2] = 0.0f;
+    movement.x = 0.0f;
+    movement.y = args->movement_z;
+    movement.z = 0.0f;
+    lookat.x = 0.0f;
+    lookat.y = args->lookat_y;
+    lookat.z = 0.0f;
     npc = find_npc_by_data(args->npc_id, current_args, 0.0f);
     body = npc->body;
     if (body != 0) {
-        camera_set_movement_focus_obj((int)body->camera_object);
-        camera_set_lookat_focus(body->camera_object);
+        camera_set_movement_focus_obj((MkObj*)body->camera_object);
+        camera_set_lookat_focus((MkObj*)body->camera_object);
         camera_setup_simple_rotation(args->orbit_direction,
                                      args->orbit_speed);
         camera_set_look_mode(8);
         camera_set_movement_mode(7);
-        camera_set_movement_offset(movement, current_args);
-        camera_set_lookat_offset(lookat, current_args);
-        camera_set_movement_rate(current_args, 0.1f);
+        camera_set_movement_offset(&movement, current_args);
+        camera_set_lookat_offset(&lookat, current_args);
+        camera_set_movement_rate(0.1f);
     }
 }
 
 void _camera_set_lookat_focus_obj(void) {
-    camera_set_lookat_focus(((ScriptRawArgs*)current_args)->slots[0].pointer);
+    camera_set_lookat_focus(
+        (MkObj*)((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 void _camera_set_lookat_offset_obj_rel(void) {
     ScriptArgsRef args;
-    float sp10;
-    float spC;
-    float sp8;
+    Vec offset;
 
     args.bytes = current_args;
-    sp8 = args.raw->slots[0].f;
-    spC = args.raw->slots[1].f;
-    sp10 = args.raw->slots[2].f;
-    camera_set_lookat_offset_obj_rel(&sp8, current_args);
+    offset.x = args.raw->slots[0].f;
+    offset.y = args.raw->slots[1].f;
+    offset.z = args.raw->slots[2].f;
+    camera_set_lookat_offset_obj_rel(&offset, current_args);
 }
 
 void _camera_set_lookat_offset(void) {
     ScriptArgsRef args;
-    float sp10;
-    float spC;
-    float sp8;
+    Vec offset;
 
     args.bytes = current_args;
-    sp8 = args.raw->slots[0].f;
-    spC = args.raw->slots[1].f;
-    sp10 = args.raw->slots[2].f;
-    camera_set_lookat_offset(&sp8, current_args);
+    offset.x = args.raw->slots[0].f;
+    offset.y = args.raw->slots[1].f;
+    offset.z = args.raw->slots[2].f;
+    camera_set_lookat_offset(&offset, current_args);
 }
 
 void _camera_set_movement_offset_obj_rel(void) {
     ScriptArgsRef args;
-    float sp10;
-    float spC;
-    float sp8;
+    Vec offset;
 
     args.bytes = current_args;
-    sp8 = args.raw->slots[0].f;
-    spC = args.raw->slots[1].f;
-    sp10 = args.raw->slots[2].f;
-    camera_set_movement_offset_obj_rel(&sp8, current_args);
+    offset.x = args.raw->slots[0].f;
+    offset.y = args.raw->slots[1].f;
+    offset.z = args.raw->slots[2].f;
+    camera_set_movement_offset_obj_rel(&offset, current_args);
 }
 
 void _camera_set_movement_offset(void) {
     ScriptArgsRef args;
-    float sp10;
-    float spC;
-    float sp8;
+    Vec offset;
 
     args.bytes = current_args;
-    sp8 = args.raw->slots[0].f;
-    spC = args.raw->slots[1].f;
-    sp10 = args.raw->slots[2].f;
-    camera_set_movement_offset(&sp8, current_args);
+    offset.x = args.raw->slots[0].f;
+    offset.y = args.raw->slots[1].f;
+    offset.z = args.raw->slots[2].f;
+    camera_set_movement_offset(&offset, current_args);
 }
 
 void _branch_next_style(void) {
@@ -3385,7 +3286,7 @@ void _blend_to_ani_frame(void) {
 void _glitch_him_to_ani(void) {
     ScriptArgsRef args;
     ScriptResultRef script;
-    PlayerPdataRef player;
+    PlyrPdata* player;
     ScriptOpponentProcLatch* opponent;
     MkProc* proc;
     AnimPdata* pdata;
@@ -3393,8 +3294,8 @@ void _glitch_him_to_ani(void) {
     args.bytes = current_args;
     script.bytes = active_cmdscript;
     script.command->animation = get_animation(args.raw->slots[0].i);
-    player.bytes = (unsigned char*)plyr_pdata;
-    opponent = (ScriptOpponentProcLatch*)player.player->his_plyr_pdata;
+    player = (PlyrPdata*)plyr_pdata;
+    opponent = (ScriptOpponentProcLatch*)player->his_plyr_pdata;
     proc = opponent->proc;
     if (proc != 0 && proc->instance != opponent->proc_instance) {
         proc = 0;
@@ -3421,15 +3322,15 @@ void _glitch_to_ani(void) {
 }
 
 void _enable_grounding(void) {
-    ScriptPlayerObjectRef player;
+    ScriptGroundObjView* player;
     MkHdr* object;
 
-    player.bytes = plyr_obj;
-    player.object->flags09 |= 0x80;
-    object = player.object != 0 ? as_mkhdr((MkHdr*)player.object) : 0;
+    player = (ScriptGroundObjView*)plyr_obj;
+    player->flags09 |= 0x80;
+    object = player != 0 ? as_mkhdr((MkHdr*)player) : 0;
     update_bone_hierarchy(object);
-    player.bytes = plyr_obj;
-    object = player.object != 0 ? as_mkhdr((MkHdr*)player.object) : 0;
+    player = (ScriptGroundObjView*)plyr_obj;
+    object = player != 0 ? as_mkhdr((MkHdr*)player) : 0;
     ground_me(object);
 }
 
@@ -3552,17 +3453,17 @@ void _blend_to_ani(void) {
 void _exit_react(void) {
     ScriptArgsRef args;
     ScriptResultRef result;
-    PlayerPdataRef player;
+    PlyrPdata* player;
 
     args.bytes = current_args;
     result.bytes = active_cmdscript;
-    player.bytes = (unsigned char*)plyr_pdata;
-    player.player->script_exit_value_int = args.exit_args->exit_value;
-    player.player->script_exit_args[0] = args.exit_args->exit_arg0;
-    player.player->input_unlock_tick = args.exit_args->input_unlock_tick;
-    player.player->blocking_disable_tick_2 = args.exit_args->blocking_tick;
-    player.player->script_exit_args[1] = args.exit_args->exit_arg1;
-    player.player->script_exit_args[2] = args.exit_args->exit_arg2;
+    player = (PlyrPdata*)plyr_pdata;
+    player->script_exit_value_int = args.exit_args->exit_value;
+    player->script_exit_args[0] = args.exit_args->exit_arg0;
+    player->input_unlock_tick = args.exit_args->input_unlock_tick;
+    player->blocking_disable_tick_2 = args.exit_args->blocking_tick;
+    player->script_exit_args[1] = args.exit_args->exit_arg1;
+    player->script_exit_args[2] = args.exit_args->exit_arg2;
     result.exit->exit = j_exit_react;
     result.exit->state = 2;
 }
@@ -3581,17 +3482,17 @@ void _exit_6(void) {
 void _exit_float_int(void) {
     ScriptArgsRef args;
     ScriptResultRef script;
-    PlayerPdataRef player;
-    ExitTableRef exits;
+    PlyrPdata* player;
+    ScriptProcEntryFn* exits;
 
     args.bytes = current_args;
     script.bytes = active_cmdscript;
-    player.bytes = (unsigned char*)plyr_pdata;
-    exits.bytes = exit_table_340;
+    player = (PlyrPdata*)plyr_pdata;
+    exits = (ScriptProcEntryFn*)exit_table_340;
 
-    script.exit->exit = exits.entries[args.exit_float_int->exit_index];
-    player.player->summon_position_x = args.exit_float_int->float_value;
-    player.player->script_exit_value_int = args.exit_float_int->int_value;
+    script.exit->exit = exits[args.exit_float_int->exit_index];
+    player->summon_position_x = args.exit_float_int->float_value;
+    player->script_exit_value_int = args.exit_float_int->int_value;
     script.exit->state = 2;
 }
 
@@ -5269,7 +5170,7 @@ void _hide_sobj_if_camera_is_in_rectangle(void) {
 
     args.bytes = current_args;
     hide_sobj_if_camera_is_in_rectangle(
-        args.camera_rectangle->object, args.camera_rectangle->mode,
+        args.camera_rectangle->object, args.camera_rectangle->center,
         args.camera_rectangle->min_x, args.camera_rectangle->min_z,
         args.camera_rectangle->max_x, args.camera_rectangle->max_z);
 }
@@ -5279,7 +5180,7 @@ void _hide_sobj_if_camera_is_in_cylinder(void) {
 
     args.bytes = current_args;
     hide_sobj_if_camera_is_in_cylinder(
-        args.camera_cylinder->object, args.camera_cylinder->mode,
+        args.camera_cylinder->object, args.camera_cylinder->center,
         args.camera_cylinder->radius, args.camera_cylinder->height);
 }
 
@@ -5288,7 +5189,7 @@ void _turn_off_sobj_if_camera_is_in_rectangle(void) {
 
     args.bytes = current_args;
     turn_off_sobj_if_camera_is_in_rectangle(
-        args.camera_rectangle->object, args.camera_rectangle->mode,
+        args.camera_rectangle->object, args.camera_rectangle->center,
         args.camera_rectangle->min_x, args.camera_rectangle->min_z,
         args.camera_rectangle->max_x, args.camera_rectangle->max_z);
 }
@@ -5298,7 +5199,7 @@ void _turn_off_sobj_if_camera_is_in_cylinder(void) {
 
     args.bytes = current_args;
     turn_off_sobj_if_camera_is_in_cylinder(
-        args.camera_cylinder->object, args.camera_cylinder->mode,
+        args.camera_cylinder->object, args.camera_cylinder->center,
         args.camera_cylinder->radius, args.camera_cylinder->height);
 }
 
@@ -5370,7 +5271,7 @@ void _get_pan_value(void) {
     float pan;
 
     args.bytes = current_args;
-    pan = get_pan_value(args.float_pointer->value);
+    pan = get_pan_value((const Vec*)args.float_pointer->value);
     result.bytes = active_cmdscript;
     result.floating->value = pan;
 }
@@ -7701,7 +7602,7 @@ void _cam_set_intro_cam_pause_ticks(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    cam_set_intro_cam_pause_ticks(current_args, args.raw->slots[0].f);
+    cam_set_intro_cam_pause_ticks(args.raw->slots[0].f);
 }
 
 void _bgnd_collision_if_monitor_col_as(void) {
@@ -8356,7 +8257,7 @@ void _camera_set_movement_offset_explicit(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_movement_offset_explicit(current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
+    camera_set_movement_offset_explicit(args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
 }
 
 void _bgnd_force_ground_to(void) {
@@ -8370,7 +8271,7 @@ void _camera_set_lookat_offset_explicit(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_lookat_offset_explicit(current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
+    camera_set_lookat_offset_explicit(args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
 }
 
 void _bgnd_run_camera_script(void) {
@@ -9354,7 +9255,7 @@ void _do_victory_camera(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    do_victory_camera(args.raw->slots[0].i);
+    do_victory_camera((VictoryCameraConfig*)args.raw->slots[0].pointer);
 }
 
 void _unfreeze_player(void) {
@@ -9616,7 +9517,13 @@ void _special_move_cam_setup2(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    special_move_cam_setup2(args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[8].i, args.raw->slots[9].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    special_move_cam_setup2(args.raw->slots[5].i, args.raw->slots[6].i,
+                            args.raw->slots[7].i,
+                            (MkObj*)args.raw->slots[8].pointer,
+                            (MkObj*)args.raw->slots[9].pointer,
+                            args.raw->slots[0].f,
+                            args.raw->slots[1].f, args.raw->slots[2].f,
+                            args.raw->slots[3].f, args.raw->slots[4].f);
 }
 
 void _rd_set_impact_vector(void) {
@@ -10173,7 +10080,8 @@ void _camera_set_anim_aux_data(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_anim_aux_data(args.raw->slots[0].i);
+    camera_set_anim_aux_data(
+        (CameraAnimEvent*)args.raw->slots[0].pointer);
 }
 
 void _trial_mirror_anims_if_needed(void) {
@@ -11478,7 +11386,7 @@ void _add_widescreen_bars(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    add_widescreen_bars(current_args, args.raw->slots[0].f);
+    add_widescreen_bars(args.raw->slots[0].f);
 }
 
 void _npc_take_control_of_him(void) {
@@ -12038,7 +11946,10 @@ void _special_move_cam_setup(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    special_move_cam_setup(args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[7].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    special_move_cam_setup(args.raw->slots[5].i, args.raw->slots[6].i,
+                           args.raw->slots[7].i, args.raw->slots[0].f,
+                           args.raw->slots[1].f, args.raw->slots[2].f,
+                           args.raw->slots[3].f, args.raw->slots[4].f);
 }
 
 void _whoosh_fx(void) {
@@ -12077,63 +11988,65 @@ void _camera_set_animation_parent_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_animation_parent_position(args.raw->slots[0].i);
+    camera_set_animation_parent_position(
+        (Vec*)args.raw->slots[0].pointer);
 }
 
 void _camera_set_animation_parent_angle(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_animation_parent_angle(args.raw->slots[0].i, args.raw->slots[1].i);
+    camera_set_animation_parent_angle(
+        (const Vec*)args.raw->slots[0].pointer, args.raw->slots[1].i);
 }
 
 void _cam_set_ground_plane(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    cam_set_ground_plane(current_args, args.raw->slots[0].f);
+    cam_set_ground_plane(args.raw->slots[0].f);
 }
 
 void _set_camera_velocity(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_camera_velocity(args.raw->slots[0].i);
+    set_camera_velocity((const Vec*)args.raw->slots[0].pointer);
 }
 
 void _get_camera_velocity(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    get_camera_velocity(args.raw->slots[0].i);
+    get_camera_velocity((Vec*)args.raw->slots[0].pointer);
 }
 
 void _set_camera_angle(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_camera_angle(args.raw->slots[0].i);
+    set_camera_angle((Vec*)args.raw->slots[0].pointer);
 }
 
 void _get_camera_angle(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    get_camera_angle(args.raw->slots[0].i);
+    get_camera_angle((Vec*)args.raw->slots[0].pointer);
 }
 
 void _set_camera_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_camera_position(args.raw->slots[0].i);
+    set_camera_position((Vec*)args.raw->slots[0].pointer);
 }
 
 void _get_camera_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    get_camera_position(args.raw->slots[0].i);
+    get_camera_position((Vec*)args.raw->slots[0].pointer);
 }
 
 void _fade_from_white(void) {
@@ -12183,29 +12096,29 @@ void _camera_set_speed_scalar(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_speed_scalar(current_args, args.raw->slots[0].f);
+    camera_set_speed_scalar(args.raw->slots[0].f);
 }
 
 void _camera_get_victim(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i = camera_get_victim();
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = camera_get_victim();
 }
 
 void _camera_set_victim(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_victim(args.raw->slots[0].i);
+    camera_set_victim((MkObj*)args.raw->slots[0].pointer);
 }
 
 void _camera_get_attacker(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i = camera_get_attacker();
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = camera_get_attacker();
 }
 
 void _camera_set_attacker(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_attacker(args.raw->slots[0].i);
+    camera_set_attacker((MkObj*)args.raw->slots[0].pointer);
 }
 
 void _camera_special_function(void) {
@@ -12243,14 +12156,14 @@ void _camera_setup_radial_sweep(void) {
 
     args.bytes = current_args;
     sp8 = args.raw->slots[8].f;
-    camera_setup_radial_sweep(current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f);
+    camera_setup_radial_sweep(current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f, sp8);
 }
 
 void _camera_set_movement_focus_obj(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_movement_focus_obj(args.raw->slots[0].i);
+    camera_set_movement_focus_obj((MkObj*)args.raw->slots[0].i);
 }
 
 void _camera_set_custom_camera_movement_flag(void) {
@@ -12271,14 +12184,15 @@ void _camera_set_center_of_rotation(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_center_of_rotation(args.raw->slots[0].i);
+    camera_set_center_of_rotation(
+        (const CamVec3*)args.raw->slots[0].pointer);
 }
 
 void _camera_set_travel_time(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_travel_time(current_args, args.raw->slots[0].f);
+    camera_set_travel_time(args.raw->slots[0].f);
 }
 
 void _camera_set_rotation_direction(void) {
@@ -12292,28 +12206,28 @@ void _camera_set_final_speed(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_final_speed(current_args, args.raw->slots[0].f);
+    camera_set_final_speed(args.raw->slots[0].f);
 }
 
 void _camera_set_initial_speed(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_initial_speed(current_args, args.raw->slots[0].f);
+    camera_set_initial_speed(args.raw->slots[0].f);
 }
 
 void _camera_set_rotation_rate(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_rotation_rate(current_args, args.raw->slots[0].f);
+    camera_set_rotation_rate(args.raw->slots[0].f);
 }
 
 void _camera_set_movement_rate(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    camera_set_movement_rate(current_args, args.raw->slots[0].f);
+    camera_set_movement_rate(args.raw->slots[0].f);
 }
 
 void _camera_get_mirror_flag(void) {
@@ -12389,7 +12303,7 @@ void _init_scripted_camera(void) {
 }
 
 void _get_intro_camera_path(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i = get_intro_camera_path();
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_intro_camera_path();
 }
 
 void _ani_to_frame_x_col(void) {
