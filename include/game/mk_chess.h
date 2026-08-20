@@ -260,12 +260,14 @@ typedef struct ChessCameraInfo {
     int viewing_quadrant; /* +0x00 */
     Vec current_look_at; /* +0x04 */
     float (*completion)(void); /* +0x10 */
-    char pad14[4];
-    struct CameraObj* zoom_camera; /* +0x18 */
-    struct CameraObj* viewing_camera; /* +0x1C */
+    float (*look_at_completion)(void); /* +0x14 */
+    ChessPiece* zoom_camera; /* +0x18 */
+    ChessPiece* viewing_camera; /* +0x1C */
     char pad20[0x18];
     Vec desired_look_at; /* +0x38 */
-    char pad44[0x10];
+    int look_at_ticks; /* +0x44 */
+    int zoom_sound_enabled; /* +0x48 */
+    char pad4C[8];
 } ChessCameraInfo; /* 0x54 */
 
 typedef struct ChessCameraSoundState {
@@ -346,6 +348,7 @@ void mk_chess_piece_match_y_ang_to_anim(void);
 int mk_chess_input_possibile(void);
 int mk_chess_return_active_pad(void);
 int mk_chess_allow_cam_control(void);
+int mk_chess_fake_demo_cam(float* camera_speed);
 void mk_chess_glitch_to_ani_frame(int animation, int flags, float speed,
                                   float frame);
 void mk_chess_blend_to_ani_frame(int animation, int flags, float blend,
@@ -369,6 +372,8 @@ int mk_chess_fetch_current_side_based_on_ones(unsigned int side);
 ChessManagerInfo* mk_chess_fetch_manager_info(void);
 ChessCameraInfo* mk_chess_fetch_camera_info(void);
 int mk_chess_allow_setting_of_viewing_quadrant(void);
+void mk_chess_set_viewing_quadrant(struct CameraObj* camera);
+void mk_chess_enable_cam_zoom_sound(int enabled);
 void mk_chess_cleanup(void);
 void mk_chess_in_fight_setup(void);
 float p_board_switch_4(void);

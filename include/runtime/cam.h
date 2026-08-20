@@ -5,12 +5,30 @@
 #include "rw/rtquat.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
+#include "runtime/anim_types.h"
+
+typedef struct MkSobj MkSobj;
+typedef struct MkObj MkObj;
+typedef struct RwFrame RwFrame;
+typedef struct RwCamera RwCamera;
+typedef struct CameraAnimEvent CameraAnimEvent;
 
 typedef struct CamVec3 {
     float x;
     float y;
     float z;
 } CamVec3;
+
+typedef struct CameraObjFlags {
+    unsigned char pad7 : 1;
+    unsigned char pad6 : 1;
+    unsigned char bit20 : 1;
+    unsigned char pad4 : 1;
+    unsigned char pad3 : 1;
+    unsigned char bit04 : 1;
+    unsigned char pad1 : 1;
+    unsigned char pad0 : 1;
+} CameraObjFlags;
 
 /*
  * Camera mkobj body (cam / display / bgnd_nbc agree):
@@ -22,20 +40,54 @@ typedef struct CamVec3 {
  *   [display.h; soft ceiling ~73%]. Fighter/skin/MatFX Matching out of scope.
  */
 typedef struct CameraObj {
-    char pad00[4];
-    unsigned int instance; /* +0x04 - matched to CameraItem.instance */
-    unsigned char flags;   /* +0x08 - CamObjFlags bitfield overlay */
-    char pad09[0x17];
-    RwMatrix* matrix; /* +0x20 - camera world matrix */
+    union {
+        MkHdr hdr;
+        struct {
+            MkVtable5* vtbl;
+            unsigned int instance; /* +0x04 - matched to CameraItem.instance */
+        };
+    };
+    union {
+        unsigned int flags_word;
+        struct {
+            union {
+                unsigned char flags;
+                CameraObjFlags flags_bits;
+            }; /* +0x08 */
+            unsigned char pad09[3];
+        };
+    };
+    char pad0C[0x14];
+    union {
+        RwFrame* frame;   /* +0x20 - owning RenderWare frame */
+        RwMatrix* matrix; /* legacy view of frame transform users */
+    };
     RwMatrix* field_24; /* +0x24 - active camera transform */
-    char pad28[0x78];
-    float pos_x; /* +0xA0 */
-    float pos_y;
-    float pos_z;
-    char padAC[0x24];
-    float ang_x; /* +0xD0 */
-    float ang_y;
-    float ang_z;
+    MkPtr* child_list; /* +0x28 */
+    char pad2C[0x44];
+    float ground_plane; /* +0x70 */
+    char pad74[0x2C];
+    union {
+        Vec pos; /* +0xA0 */
+        struct {
+            float pos_x;
+            float pos_y;
+            float pos_z;
+        };
+    };
+    char padAC[4];
+    Vec velocity; /* +0xB0 */
+    char padBC[0x14];
+    union {
+        Vec ang; /* +0xD0 */
+        struct {
+            float ang_x;
+            float ang_y;
+            float ang_z;
+        };
+    };
+    char padDC[4];
+    Vec ang_velocity; /* +0xE0 */
 } CameraObj;
 
 /* Validated camera_item latch: node live iff node && node->instance == instance. */
@@ -45,8 +97,12 @@ typedef struct CameraItem {
 } CameraItem;
 
 typedef struct CameraPdataFlags {
-    unsigned char bit7 : 1;
-    unsigned char pad : 7;
+    unsigned char pos_done : 1;
+    unsigned char konquest_mode : 1;
+    unsigned char animation_mirror : 1;
+    unsigned char pad4_3 : 2;
+    unsigned char parent_relative : 1;
+    unsigned char pad1_0 : 2;
 } CameraPdataFlags;
 
 typedef CameraItem CameraItemList;
@@ -56,24 +112,37 @@ typedef CameraItem CameraItemList;
  * pause @ 0x70, parent/mirror mats @ 0x80/0xC0.
  */
 typedef struct CameraPdata {
-    char pad0[0x0C];
-    float target_pos_x; /* +0x0C */
-    float target_pos_y;
-    float target_pos_z;
-    float target_ang_x; /* +0x18 */
-    float target_ang_y;
-    float target_ang_z;
-    char pad1[0x1C];
-    void* attacker; /* +0x40 */
-    void* victim;   /* +0x44 */
-    char pad48[8];
+    MkHdr hdr;
+    RwCamera* camera; /* +0x08 */
+    union {
+        Vec target_pos; /* +0x0C */
+        struct {
+            float target_pos_x;
+            float target_pos_y;
+            float target_pos_z;
+        };
+    };
+    union {
+        Vec target_ang; /* +0x18 */
+        struct {
+            float target_ang_x;
+            float target_ang_y;
+            float target_ang_z;
+        };
+    };
+    char pad24[0x18];
+    MkObj* movement_focus; /* +0x3C */
+    MkObj* attacker; /* +0x40 */
+    MkObj* victim;   /* +0x44 */
+    char pad48[4];
+    void* victory_camera_config; /* +0x4C */
     float speed; /* +0x50 */
-    void* anim_pdata;
+    AnimPdata* anim_pdata;
     unsigned int anim_instance;
-    void* bone_obj;
+    MkObj* bone_obj;
     unsigned int bone_instance;
-    void* anim_path;
-    void* aux_data;
+    AniData* anim_path;
+    struct CameraAnimEvent* aux_data;
     union {
         unsigned char flags; /* +0x6C */
         CameraPdataFlags flags_bits;
@@ -84,6 +153,7 @@ typedef struct CameraPdata {
     char pad_78[8];
     RwMatrix mat_parent; /* +0x80 */
     RwMatrix mat_mirror; /* +0xC0 */
+    RwMatrix mat_offset; /* +0x100 - per-frame camera offsets */
 } CameraPdata;
 
 typedef struct CameraInfo {
@@ -102,38 +172,76 @@ void xfer_camera(MkProcEntryFn entry, int reset_projection);
 void turn_camera_on(void);
 void turn_camera_off(void);
 void camera_idle(void);
+void set_camera_destination(const CamVec3* position);
+void set_camera_target_angle(const CamVec3* angle);
+void set_camera_velocity(const CamVec3* velocity);
+void get_camera_velocity(CamVec3* velocity);
+void look_at_target(const Vec* target);
+void go_to_camera_cut_with_angle(CamVec3* position, CamVec3* angle);
+void go_to_camera_cut(CamVec3* position, const Vec* target);
+void add_widescreen_bars(float height);
+float p_hold_camera_in_place(void);
+void remove_camera_offsets(void);
+void add_camera_offsets(void);
+int init_camera(void);
+void skip_camera_intro(void);
+void get_target_movement_vector(const Vec* current_position,
+                                const Vec* target_position, Vec* movement,
+                                float duration);
+void interaction_cam_set_target_info(int duration, float angle_a,
+                                     float field_14, float field_18,
+                                     float angle_b, float field_20,
+                                     float field_24);
+void special_move_cam_setup2(int ease_ticks, int total_ticks, int unused,
+                             MkObj* target, MkObj* reference_object,
+                             float orbit_yaw_offset, float orbit_radius,
+                             float camera_height, float look_yaw_offset,
+                             float look_pitch);
+void special_move_cam_setup(int ease_ticks, int total_ticks, int unused,
+                            float orbit_yaw_offset, float orbit_radius,
+                            float camera_height, float look_yaw_offset,
+                            float look_pitch);
+void cam_set_ground_plane(float ground_plane);
+float camera_get_pos(unsigned int axis);
+float camera_wait_for_pos_and_ang_move_done(void);
+float camera_wait_for_ang_move_done(void);
+float camera_wait_for_pos_move_done(void);
 MkProc* get_camera_proc(void);
 CameraPdata* get_pdata_of_camera(void);
 
 /* Intro / background anim path used by p_setup_krypt */
 void cam_set_intro_cam_speed(float speed);
 void cam_set_intro_cam_pause_ticks(float ticks);
-void camera_init_animation(void* anim_path, MkProcEntryFn override_entry);
+void camera_init_animation(AniData* anim_path, MkProcEntryFn override_entry);
 void camera_run_animation(int wait_flag);
 void camera_wait_for_animation_completion(void);
-void camera_set_anim_aux_data(void* data);
+void camera_run_animation_start_end(float start_frame, float end_frame,
+                                    int wait_flag, int use_frame_range);
+void camera_set_anim_aux_data(CameraAnimEvent* data);
+void camera_set_animation_mirror_plane(int mode);
 void camera_set_animation_parent_position(const CamVec3* position);
 void camera_set_animation_parent_angle(const CamVec3* angle, int relative);
 void* get_intro_camera_path(void);
 void set_intro_camera_path(void* path);
-void* camera_get_victim(void);
-void camera_set_victim(void* object);
-void* camera_get_attacker(void);
-void camera_set_attacker(void* object);
+MkObj* camera_get_victim(void);
+void camera_set_victim(MkObj* object);
+MkObj* camera_get_attacker(void);
+void camera_set_attacker(MkObj* object);
 void camera_unpause_player(void);
 void camera_pause_player(void);
-void camera_set_lookat_focus(void* object);
-void camera_set_movement_focus_obj(void* object);
+void camera_set_lookat_focus(MkObj* object);
+void camera_set_movement_focus_obj(MkObj* object);
+void camera_check_reverse_move_offset(int expected_mask, int skip_mask);
 int camera_get_mirror_flag(void);
-void hide_sobj_if_camera_is_in_rectangle(void* object, int mode, float min_x,
+void hide_sobj_if_camera_is_in_rectangle(MkSobj* object, const Vec* center, float min_x,
                                          float min_z, float max_x,
                                          float max_z);
-void hide_sobj_if_camera_is_in_cylinder(void* object, int mode, float radius,
+void hide_sobj_if_camera_is_in_cylinder(MkSobj* object, const Vec* center, float radius,
                                         float height);
-void turn_off_sobj_if_camera_is_in_rectangle(void* object, int mode,
+void turn_off_sobj_if_camera_is_in_rectangle(MkSobj* object, const Vec* center,
                                              float min_x, float min_z,
                                              float max_x, float max_z);
-void turn_off_sobj_if_camera_is_in_cylinder(void* object, int mode,
+void turn_off_sobj_if_camera_is_in_cylinder(MkSobj* object, const Vec* center,
                                             float radius, float height);
 float get_volume_from_distance(const Vec* position, float far_distance,
                                float near_distance);

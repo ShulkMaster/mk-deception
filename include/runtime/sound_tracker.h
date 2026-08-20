@@ -2,6 +2,7 @@
 #define MKD_SOUND_TRACKER_H
 
 #include "msl/msl_types.h"
+#include "math/gxVect.h"
 #include "runtime/mk_struct.h"
 
 /*
@@ -13,9 +14,14 @@ typedef struct TrackedSound {
     MkHdr hdr;             /* +0x00 */
     MslSoundHandle sound_handle; /* +0x08 - MSL list-pool ID */
     int sound_id;          /* +0x0C */
-    float pos_x;           /* +0x10 */
-    float pos_y;           /* +0x14 */
-    float pos_z;           /* +0x18 */
+    union {
+        Vec pos;           /* +0x10 */
+        struct {
+            float pos_x;
+            float pos_y;
+            float pos_z;
+        };
+    };
     float max_dist;        /* +0x1C */
     float min_dist;        /* +0x20 */
     int out_of_range;      /* +0x24 - sound was stopped outside max_dist */
