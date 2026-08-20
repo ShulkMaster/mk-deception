@@ -8,6 +8,7 @@
 typedef void (*PfxInitCb)(void* vm);
 typedef void (*PfxTransformCb)(void);
 typedef struct FighterMirror FighterMirror;
+typedef struct PfxColor PfxColor;
 
 /* Build-info blob passed to new_pfx_create_raw_userdata (retail static empty_build_info$522). */
 typedef struct PfxBuildInfo {
@@ -156,10 +157,14 @@ struct MkPfx {
     float field_2A0;
     float field_2A4;
     float field_2A8;
-    char pad2AC[0x0C];
+    union {
+        char pad2AC[0x0C];
+        Vec glass_center;
+    };
     union {
         int field_2B8;
         FighterMirror* decal_owner;
+        PfxColor* glass_alphas;
     };                            /* +0x2B8 */
     int field_2BC;                /* +0x2BC -- end of 0x2C0 base */
 };

@@ -4,6 +4,7 @@
 #include "game/ai.h"
 #include "game/ejb.h"
 #include "game/game_info.h"
+#include "game/jmt.h"
 #include "game/plyr.h"
 #include "game/trial.h"
 #include "msl/msl_types.h"
@@ -190,7 +191,6 @@ void transition_to_anim_script_frame(
 void set_plyr_attack_region(
     int use_body, float radius, float extension);
 void start_plyr_attack(float scale);
-void online_combo_adjust(float* horizontal, float* vertical);
 void online_combo_record(void);
 int collide_plyr_vs_plyr(void);
 void trial_state_collision_check(int collision_result, int player);
@@ -372,7 +372,7 @@ void mk_chess_set_breaker_value(void);
 static float ani_with_new_angle_y(
     AniData* animation, int transition, float frame,
     float step, float blend);
-int rotate_towards_sync(void);
+int rotate_towards_sync(float angle);
 void toggle_obj_and_ani_flips(AnimPdata* anim);
 int is_blind(PlyrPdata* pdata);
 float front_rollup(void);
@@ -1433,7 +1433,7 @@ void rotate_towards_him(float max_step) {
         his_obj->pos.x - plyr_obj->pos.x,
         his_obj->pos.z - plyr_obj->pos.z);
     difference = ang_sub_ang(desired, plyr_obj->ang.y);
-    if (rotate_towards_sync() == 1) {
+    if (rotate_towards_sync(difference) == 1) {
         set_my_state(0x201);
         xfer_proc(plyr_anim_proc, p_anim_idle);
         transition_to_anim_script(

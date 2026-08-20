@@ -9,6 +9,9 @@
 #include "game/projectile.h"
 #include "game/konquest.h"
 #include "game/ejb.h"
+#include "game/constrain.h"
+#include "game/jdn.h"
+#include "game/jmt.h"
 #include "game/plyr.h"
 #include "math/gxVect.h"
 #include "runtime/limb.h"
@@ -1403,21 +1406,20 @@ void run_reaction_cleanup_function(PlyrPdata* player);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void mks_set_cb1_wind_normal(float x, float y, float z);
 void mks_bgnd_start_wind(float x, float y, float z);
-void mks_npc_build_bones_tbl(int model_id, int flags);
+void mks_npc_build_bones_tbl(int model_id, const int* bone_tags);
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player);
 void mks_xfer_collision_info_plyr_to_bgnd_script(PlyrPdata* player,
                                                   ScriptEntryFn entry);
 void mks_xfer_collision_info_plyr_to_script(ScriptEntryFn entry, int player);
-void resume_effect_at_plyr_num_bid(int player, int bone_id, int effect_handle,
-                                   int bind_mode, int blood_required);
+void resume_effect_at_plyr_num_bid(
+    int player, int bone_id, unsigned int effect_handle,
+    int bind_mode, int blood_required);
 
 /* Typed declarations used by imported script wrappers. */
 int add_facial_damage(void *, float);
 int add_npc_list_to_world(int);
 int add_trigger_list_to_world(void);
-int adjust_kabal_position(void);
-int allow_shard_pfx_now(void);
 int ani_1_frame(void);
 int ani_no_pos(void);
 int ani_through_end(void);
@@ -1521,10 +1523,8 @@ int change_monk_age(int);
 int check_for_combo_message(void);
 int clear_both_face_opponent_flags(void);
 int clear_cliff_data(void);
-int clear_collision_result(void);
 int clear_his_f_constrained(void);
 int clear_my_face_opponent_flag(void);
-int collision_result_dont_care(void);
 int configure_iceball(int);
 int conversation_init(int);
 int conversation_term(void);
@@ -1532,7 +1532,7 @@ int courtyard_start_lensflare(void);
 int damage_him(void *, float);
 int damage_me(void *, float);
 int danger_zone_eligible_on(void);
-int destroy_kabal_smoke(void);
+void destroy_kabal_smoke(void);
 int destroy_sobj_ctrl_proc(void);
 int disable_attack5(int);
 int disable_blocking(void);
@@ -1555,8 +1555,6 @@ int ejb_release_other_player(int);
 int ejb_too_close_repell(void);
 int enable_all_my_blocking(void);
 int enable_his_blocking(void);
-int enable_no_adjustment_f(int);
-int enable_no_sync_anim_f(int);
 int end_air_move(void);
 int face_bleed_me(int);
 int face_opponent_180(void);
@@ -1587,7 +1585,6 @@ int idle_hero_anim_proc(void);
 int idle_his_anim_proc(void);
 int if_collision_autoface_him(void);
 int if_collision_autoface_me(void);
-int increment_taunts_performed(void);
 int init_3d_move(void);
 int init_3d_move_no_aniproc(void);
 int init_3d_move_no_face(void);
@@ -1604,16 +1601,13 @@ int jab_destroy_drink_obj_in_hand(void);
 int jab_release_jade_boomerang(int);
 int jab_setup_kiss_emitter_obj(int);
 int jab_stop_dragon_king_shake(void);
-int kabal_collision_control_victim(int);
+void kabal_collision_control_victim(int);
 int kenshi_teleport_position(void);
 int kick_the_camera(void);
 int kill_dynamic_pui(int);
-int kill_ermac_eyes(void);
 int kill_konquest_dialog_procs(void);
 int kill_lip_sync_procs(void);
-int kill_plyr_life(int);
 int kill_pui(int);
-int kill_shard_pfx_now(void);
 int kobra_teleport_position(void);
 int konquest_camera_return_to_normal(void);
 int konquest_end_npc_interaction(void);
@@ -1672,7 +1666,6 @@ int mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void);
 int mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void);
 int mks_ccp1_insert_cb1(void);
 int mks_npc_start_cloth_bones(int);
-int mks_plyr_stop(int);
 int mks_set_cb1_target_bone_cb2(void);
 int mks_set_flipped_bones(int);
 void mks_start_goro_arms_fixup(void);
@@ -1725,7 +1718,6 @@ int npc_turn_and_face_player(int);
 int npc_wait_for_state_change(void);
 int npc_wait_for_wake_up(void);
 int obj_enable_grounding(int);
-int online_sync_reset(void);
 int pickup_dynamic_pui(int);
 int pickup_pui(int);
 int play_background_music(int);
@@ -1759,7 +1751,6 @@ int random_voice_him(int);
 int register_baraka_cb_functions(void);
 void release_both_players(void);
 int remove_collision_volume_on_object(void);
-int remove_impaled_projectiles(void);
 int remove_npc_list(int);
 int remove_widescreen_bars(void);
 int restore_collision_volume_on_object(void);
@@ -1781,7 +1772,6 @@ int set_camera_position();
 int set_camera_to_look_at_hero(void);
 int set_camera_velocity(int);
 int set_cliff_watcher_round(int);
-int set_constrain_last_pos_pdata(int);
 int set_current_time(int);
 int set_hero_position_relative_to_chest(void);
 int set_interaction_camera_script(int);
@@ -1817,7 +1807,7 @@ int start_bl_beetles_live_top_floor(void);
 int start_chunk_launch_monitor(void);
 int start_constrain_proc(void);
 int start_hero_collisions(void);
-int start_kabal_smoke(void *, float);
+void start_kabal_smoke(void *, float);
 int start_konquest_ambient_sounds(void);
 int start_mini_mission(int);
 int start_rope_proc(void);
@@ -2037,7 +2027,6 @@ int jab_face_obj(int, int);
 int jab_flash_screen(int, void *, float, float);
 int jab_shake_dragon_king(void *, float, float);
 int jab_start_jade_boomerang_throw(int, int, void *, float);
-int jmt_debug_script(int, int, void *, float);
 int konquest_fade_from_black(int, int);
 int konquest_fade_to_black(int, int);
 int konquest_open_door(int, int);
@@ -2079,7 +2068,6 @@ int mk_chess_spell_set_target_health(int, void *, float);
 int mk_chess_spell_show_target_portrait(int);
 int mk_chess_spell_target_add_access_restrictions(int, int, int, int);
 int mks_away_vel_update_by_group(int, int, void *, float, float, float);
-int mks_bgnd_cam_offset_away(void *, float, float);
 int mks_bgnd_obj_enable_cloth_update(int, int);
 int mks_blend_start_update_by_group(int, int);
 int mks_cb1_add_coll_pt(void *, float, float, float);
@@ -2105,11 +2093,10 @@ int mks_npc_set_target(int, int, int);
 int mks_obj_enable_update_cloth(int, int);
 int mks_removehide_by_group(int, int);
 int mks_set_ground_y_all_cloth_bones(void *, float);
-int mks_set_plyr_to_center_ang_offset(int, void *, float);
 int mks_set_update_delay(int, int);
 int mks_shadow_scale(int, int, void *, float, float);
 int mks_start_axis_indicator_p_axis_track_bone_world_mat(int, void *, float);
-int mks_victim_bleed(int, int);
+void mks_victim_bleed(int, int);
 int move_player(int, int, int);
 int move_player_no_constrain_update(int, int, int);
 int myvel_his_angle_y(void *, float, float, float);
@@ -2186,7 +2173,7 @@ int rd_set_impact_vector(void *, float);
 int release_kamidogu(int, int);
 int remove_collision_volume_on_object_with_uid(int);
 int restore_collision_volume_on_object_with_uid(int);
-int resume_effect_at_obj_bid(int, int, int, int, int);
+void resume_effect_at_obj_bid(MkObj*, int, unsigned int, int, int);
 int run_camera_script(int, int, int);
 int save_hero_position_and_angle_prior_to_fight(void *, float);
 int set_active_projectile_block_script(int);
@@ -2229,7 +2216,7 @@ int start_character_separation_process(void *, float);
 int start_cliff_watcher(void *, float);
 int start_konquest_interior(int, int, int, int, int, int, int);
 int start_scorpion_teleport_scale(void *, float, float);
-int start_subzero_decoy(void *, float);
+void start_subzero_decoy(void*, float);
 int transition_hero_to_anim_script(int, int, void *, float, float);
 int transition_to_krypt_character_anim_script(int, int, int);
 int trial_add_success_condition(int, int, int);
@@ -2249,7 +2236,6 @@ int plyr_invulnerable_to_projectiles(int, int);
 /* Typed declarations used by imported script wrappers. */
 int advance_my_sidekick_from_behind_with_moveset(void);
 int am_i_airborn_check_in_reaction(void);
-float animpdata_get_anim_hiframe(int);
 int bgnd_add_fx_to_hide(void);
 float bgnd_current_rx_get_info(int);
 int bgnd_fx_get_binded_obj(int);
@@ -2270,7 +2256,6 @@ float bgnd_sobj_get_x_pos(int);
 float bgnd_sobj_get_y_pos(int);
 float bgnd_sobj_get_z_pos(int);
 int bgnd_timer_get_tick_count(int);
-int build_sine_table_for_scripts(void);
 int camera_get_attacker(void);
 int camera_get_mirror_flag(void);
 float camera_get_pos(int);
@@ -2278,7 +2263,6 @@ int camera_get_victim(void);
 int camera_is_ang_move_done(void);
 int camera_is_pos_move_done(void);
 int can_fallingcliff_fall(void);
-int check_for_online_condition(int);
 int current_player_is_drone(void);
 float degrees_to_rad(void *, float);
 int do_i_have_life_left(void);
@@ -2324,7 +2308,6 @@ int get_projectile_script_plyr_num(void);
 int get_projectile_script_plyr_pdata(void);
 int get_pui_status(int);
 int get_sobj_pebble_obj(int);
-float get_soul_sine(int);
 int get_taunts_performed(void);
 int get_tile_sobj_by_id(int);
 int get_victory_flip_flags(void);
@@ -2395,7 +2378,6 @@ float bgnd_process_active_sobj_info(int, void *, float, float);
 float bgnd_process_collision_info(int, void *, float, float, float, float, float, float, float, float);
 int build_bones_tbl(int, int);
 int fire_spear_at_camera(int, int);
-float get_adjusted_speed(void *, float, float);
 int get_konq_profile_value(int, int);
 int is_character_unlocked_in_profile(int, int);
 int jab_attach_point_light_to_obj_bone(int, int, int);
@@ -2407,7 +2389,6 @@ int mk_chess_fetch_bp_num_based_on_pchr_num(int);
 int mk_chess_piece_test_and_set_timer(int, int);
 int mk_chess_request_piece_script_for_action(int);
 int mk_chess_xfer_piece_from_scripts(int, int, int);
-int mks_start_gusher(int, int, void *, float, float, float, float, float, float);
 int ncs_create_pebble_monitor_proc(int, int, int, int);
 int ncs_create_pebbles_with_sobj(int, int);
 int npc_get_his_flag_state(int, int);
@@ -2460,7 +2441,6 @@ int camera_setup_radial_sweep(void *, float, float, float, float, float, float, 
 int display_konquest_text(int, int, float, float, float);
 typedef struct AnimScript AnimScript;
 void drone_blend_to_ani(AnimScript*, int, float);
-int flying_collision(int, int, int, void *, float, float, float, float, float, float, float);
 int force_away(int, int, float, float);
 int force_forward(int, int, float, float);
 int got_hit_fx(int, int, int, int, int, int, float);
@@ -2475,7 +2455,6 @@ int mk_chess_launch_n_land_ani_with_xz(int, int, int, float, float, float, float
 int mk_chess_place_special_cell_at(int, int, int, int, float, float, float, float);
 int mk_chess_put_active_piece_at_cell(int, float, float);
 int mk_chess_rotate_towards_cell(int, void *, float, float, float, float);
-int mks_bgnd_pfx_bind_to_sobj(int);
 int mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, int, int, int, void *, float, float, float, float);
 int mks_set_rotate_update_by_group(int, int, int, float, float, float);
 int mks_set_sin_update_by_group(int, int, int, int, float, float, float, float, float, float);
@@ -2486,7 +2465,6 @@ int npc_set_anim_proc(ScriptProcEntryFn);
 int plyr_spawn_his_anim_limb(
     int, int, int, void*, int, ScriptProcEntryFn, unsigned char*, float);
 int player_area_collision_check(int, int, float, float, float);
-int player_area_collision_ticks(int, int, void *, float, float, float, float);
 float pz_fighter_inline_force_away_with_ani(int, int, float, float);
 int set_active_projectile_collision_info(int, void *, float, float, float);
 int shake_hit_voice(int, int, int, float);
@@ -6223,7 +6201,8 @@ void _mks_npc_build_bones_tbl(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_npc_build_bones_tbl(args.two_int->first, args.two_int->second);
+    mks_npc_build_bones_tbl(
+        args.raw->slots[0].i, args.raw->slots[1].pointer);
 }
 
 void _mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(void) {
@@ -6264,14 +6243,22 @@ void _resume_effect_at_obj_bid(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    resume_effect_at_obj_bid(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i);
+    resume_effect_at_obj_bid(
+        args.raw->slots[0].pointer, args.raw->slots[1].i,
+        args.raw->slots[2].u, args.raw->slots[3].i,
+        args.raw->slots[4].i);
 }
 
 void _mks_start_gusher(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = mks_start_gusher(args.raw->slots[0].i, args.raw->slots[1].i, current_args, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f, args.raw->slots[7].f);
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        mks_start_gusher(
+            args.raw->slots[0].i, args.raw->slots[1].i, current_args,
+            args.raw->slots[2].f, args.raw->slots[3].f,
+            args.raw->slots[4].f, args.raw->slots[5].f,
+            args.raw->slots[6].f, args.raw->slots[7].f);
 }
 
 void _mks_victim_bleed(void) {
@@ -6303,11 +6290,9 @@ void _mks_bgnd_cam_offset_away(void) {
 }
 
 void _mks_bgnd_pfx_bind_to_sobj(void) {
-    ScriptArgsRef args;
-
-    args.bytes = current_args;
-    get_script_string_arg(1);
-    mks_bgnd_pfx_bind_to_sobj(args.raw->slots[1].i);
+    mks_bgnd_pfx_bind_to_sobj(
+        get_script_string_arg(1),
+        ((ScriptRawArgs*)current_args)->slots[1].u);
 }
 
 void _mks_set_update_delay(void) {
@@ -6631,7 +6616,8 @@ void _animpdata_get_anim_hiframe(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.f = animpdata_get_anim_hiframe(args.raw->slots[0].i);
+    ((ScriptRawResult*)active_cmdscript)->value.f =
+        animpdata_get_anim_hiframe(args.raw->slots[0].pointer);
 }
 
 void _plyr_get_anim_hiframe(void) {
@@ -6898,7 +6884,7 @@ void _set_constrain_last_pos_pdata(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_constrain_last_pos_pdata(args.raw->slots[0].i);
+    set_constrain_last_pos_pdata(args.raw->slots[0].pointer);
 }
 
 void _get_current_bgnd(void) {
@@ -6930,7 +6916,8 @@ void _get_adjusted_speed(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.f = get_adjusted_speed(current_args, args.raw->slots[0].f, args.raw->slots[1].f);
+    ((ScriptRawResult*)active_cmdscript)->value.f =
+        get_adjusted_speed(args.raw->slots[0].f, args.raw->slots[1].f);
 }
 
 void _adjust_kabal_position(void) {
@@ -6965,7 +6952,8 @@ void _check_for_online_condition(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = check_for_online_condition(args.raw->slots[0].i);
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        check_for_online_condition(args.raw->slots[0].pointer);
 }
 
 void _increment_taunts_performed(void) {
