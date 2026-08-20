@@ -1,10 +1,13 @@
 #include "game/game_info.h"
+#include "game/jmt.h"
 #include "game/constrain.h"
 #include "game/pfxscript.h"
+#include "libmkparticle/particle.h"
 #include "math/gxMath.h"
 #include "runtime/asset.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/cam.h"
+#include "runtime/cstring.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_particle.h"
@@ -114,45 +117,13 @@ typedef struct JmtKabalAnimations {
     void* collide_recover;
 } JmtKabalAnimations;
 
-typedef struct JmtBloodTypeList {
-    char pad00[0x2C];
-    int minimum_level;
-} JmtBloodTypeList;
-
-typedef struct JmtPfxEffectView {
-    char pad00[0x40];
-    char emitter_vm[1];
-} JmtPfxEffectView;
-
-typedef struct JmtPfxEmitterView {
-    char pad00[0x1C];
-    union {
-        unsigned char flags;
-        struct {
-            unsigned char high_bit : 1;
-            unsigned char remaining_bits : 7;
-        } flags_bits;
-    };
-} JmtPfxEmitterView;
-
-typedef struct JmtDestroyable JmtDestroyable;
-typedef struct JmtDestroyVtable {
-    void* reserved[4];
-    int (*destroy)(JmtDestroyable* object);
-} JmtDestroyVtable;
-
-struct JmtDestroyable {
-    JmtDestroyVtable* vtbl;
-    unsigned int instance;
-};
-
 extern AnimPdata* plyr_anim_pdata;
 extern MkObj* plyr_obj;
 extern MkObj* his_obj;
 extern PlyrPdata* his_pdata;
 extern JmtSharedAnimations shared_ani;
 extern MkObj* g_bgnd_preloaded_models[];
-extern JmtBloodTypeList blood_type_list;
+extern int blood_type_list[12];
 extern MkPtr* gusher_list;
 extern int heart_beat;
 extern int mode_of_play;
@@ -181,7 +152,6 @@ unsigned int pfxhandle_spawn_at_bid_next(
     unsigned int effect, MkObj* object, int bone);
 void RwFrameUpdateObjects(RwFrame* frame);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, unsigned int alpha);
-void* memcpy(void* destination, const void* source, unsigned int size);
 MkPfx* find_pfx_by_handle(unsigned int handle);
 int check_for_throw(PlyrPdata* player);
 int collide_cylinder_vs_plyr(
@@ -226,7 +196,6 @@ static float p_bow_ctrl(void);
 static float p_bow_retract(void);
 static float kabal_collide_victim(void);
 float j_getup_back_6(void);
-void* pfx_get_emitter(void* vm, int index);
 void* find_pfx_by_name(const char* name);
 void restart_effect_ppfx(void* effect);
 static float kabal_collide_victim_falldown(void);
@@ -327,7 +296,7 @@ int is_drone(void) {
 void adjust_kabal_position(void) {
 }
 
-float get_adjusted_speed(MkObj* object, float speed, float adjustment) {
+float get_adjusted_speed(float speed, float adjustment) {
     return speed;
 }
 
@@ -421,7 +390,8 @@ void kill_ermac_eyes(void) {
     }
 }
 
-void dizzy_kill_pfx(void) {
+void dizzy_kill_pfx(
+    MkObj* opponent, int unused, PlyrPdata* player, int enabled) {
     if (plyr_pdata != 0) {
         switch (plyr_pdata->character_id) {
         case 6:
@@ -691,7 +661,7 @@ void destroy_kabal_smoke(void) {
         drone_ai_clear_avoidance_area_duration(0);
     }
     if (proc->instance != 0) {
-        ((JmtDestroyable*)proc)->vtbl->destroy((JmtDestroyable*)proc);
+        ((MkHdr*)proc)->typed_vtbl->destroy((MkHdr*)proc);
     }
 }
 
@@ -770,7 +740,7 @@ void start_subzero_decoy(void* script_args, float duration) {
     }
     if (build_bones_tbl(decoy, clone_bones) == 0) {
         if (decoy->hdr.instance != 0) {
-            ((JmtDestroyable*)decoy)->vtbl->destroy((JmtDestroyable*)decoy);
+            ((MkHdr*)decoy)->typed_vtbl->destroy((MkHdr*)decoy);
         }
         return;
     }
@@ -797,7 +767,7 @@ void start_subzero_decoy(void* script_args, float duration) {
     }
     if (proc == 0) {
         if (decoy->hdr.instance != 0) {
-            ((JmtDestroyable*)decoy)->vtbl->destroy((JmtDestroyable*)decoy);
+            ((MkHdr*)decoy)->typed_vtbl->destroy((MkHdr*)decoy);
         }
         return;
     }
@@ -854,7 +824,7 @@ void destroy_subzero_decoy(void) {
     }
     if (object == 0) {
         if (proc->instance != 0) {
-            ((JmtDestroyable*)proc)->vtbl->destroy((JmtDestroyable*)proc);
+            ((MkHdr*)proc)->typed_vtbl->destroy((MkHdr*)proc);
         }
         return;
     }
@@ -1122,7 +1092,7 @@ void start_bow(int bone, float duration) {
         0xB009, 0x1F, p_bow_ctrl, sizeof(*pdata), (MkHdr**)&pdata);
     if (proc == 0) {
         if (bow->hdr.instance != 0) {
-            ((JmtDestroyable*)bow)->vtbl->destroy((JmtDestroyable*)bow);
+            ((MkHdr*)bow)->typed_vtbl->destroy((MkHdr*)bow);
         }
         return;
     }
@@ -1323,7 +1293,7 @@ void resume_effect_at_plyr_num_bid(
     if (player_num == g_game_info.plyr0.slot.pdata->plyr_num) {
         object = g_game_info.plyr0.slot.mirror_a;
         if ((requires_blood != 1 ||
-             get_blood_level() >= blood_type_list.minimum_level) &&
+             get_blood_level() >= blood_type_list[11]) &&
             (effect = find_pfx_by_handle(handle)) != 0) {
             if (bind_mode == 1) {
                 get_bone_world_pos(object, bone, &position);
@@ -1340,7 +1310,7 @@ void resume_effect_at_plyr_num_bid(
     } else {
         object = g_game_info.plyr1.slot.mirror_a;
         if ((requires_blood != 1 ||
-             get_blood_level() >= blood_type_list.minimum_level) &&
+             get_blood_level() >= blood_type_list[11]) &&
             (effect = find_pfx_by_handle(handle)) != 0) {
             if (bind_mode == 1) {
                 get_bone_world_pos(object, bone, &position);
@@ -1364,7 +1334,7 @@ void resume_effect_at_obj_bid(
     Vec position;
 
     if ((requires_blood != 1 ||
-         get_blood_level() >= blood_type_list.minimum_level) &&
+         get_blood_level() >= blood_type_list[11]) &&
         (effect = find_pfx_by_handle(handle)) != 0) {
         if (bind_mode == 1) {
             get_bone_world_pos(object, bone, &position);
@@ -1390,7 +1360,7 @@ MkHdr* mks_start_gusher(
     Vec velocity;
 
     (void)script_args;
-    if (get_blood_level() < blood_type_list.minimum_level) {
+    if (get_blood_level() < blood_type_list[11]) {
         return 0;
     }
 
@@ -1510,18 +1480,18 @@ void mks_bgnd_pfx_bind_to_sobj(
     const char* effect_name, unsigned int sobj_id) {
     MkSobj* sobj;
     void* effect;
-    JmtPfxEffectView* effect_view;
-    JmtPfxEmitterView* emitter;
+    MkPfx* pfx;
+    PfxEmitterView* emitter;
 
     sobj = (MkSobj*)obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
     if (sobj != 0) {
         effect = find_pfx_by_name(effect_name);
         if (effect != 0) {
             restart_effect_ppfx(effect);
-            pfx_bind_emitter_to_sobj((MkPfx*)effect, sobj, 0);
-            effect_view = (JmtPfxEffectView*)effect;
-            emitter = (JmtPfxEmitterView*)pfx_get_emitter(
-                effect_view->emitter_vm, 0);
+            pfx = (MkPfx*)effect;
+            pfx_bind_emitter_to_sobj(pfx, sobj, 0);
+            emitter = pfx_get_emitter(
+                (PfxEmitterTableView*)pfx->matrix, 0);
             emitter->flags_bits.high_bit = 0;
         }
     }
@@ -1548,8 +1518,7 @@ void check_bgnd_effect(void) {
         cmdscript_execute(g_game_info.cmdscript);
         active_cmdscript = saved_script;
         if (script->instance != 0) {
-            ((JmtDestroyable*)script)->vtbl->destroy(
-                (JmtDestroyable*)script);
+            ((MkHdr*)script)->typed_vtbl->destroy((MkHdr*)script);
         }
     }
 }
@@ -1586,25 +1555,25 @@ void online_combo_record(void) {
     }
 }
 
-void online_combo_adjust(void) {
+void online_combo_adjust(float* horizontal, float* vertical) {
     if (g_game_info.feature_flags.bits.high_bit != 0) {
         return;
     }
 }
 
-void enable_no_sync_anim_f(void) {
+void enable_no_sync_anim_f(int enabled) {
     if (g_game_info.feature_flags.bits.high_bit != 0) {
         return;
     }
 }
 
-void enable_no_adjustment_f(void) {
+void enable_no_adjustment_f(int enabled) {
     if (g_game_info.feature_flags.bits.high_bit != 0) {
         return;
     }
 }
 
-void kill_plyr_life(void) {
+void kill_plyr_life(int player) {
     adjust_player_life(-1.0f);
 }
 

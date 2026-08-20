@@ -7,6 +7,8 @@
 #include "runtime/asset.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
+#include "game/constrain.h"
+#include "game/jmt.h"
 #include "game/moveset.h"
 #include "game/moves.h"
 #include "game/plyr.h"
@@ -493,7 +495,6 @@ void attack_to_frame_x(unsigned int animation, unsigned int voice_event,
                        float blend_rate, float step, float weight);
 void ani_to_frame_x_col(int region, int reaction, unsigned int collision_ticks,
                         float frame, float x, float y, float z);
-void clear_collision_result(void);
 int whoosh_fx(int sound);
 float p_sc_spear_retract(void);
 float p_sc_spear_kill(void);
@@ -597,7 +598,6 @@ int plyr_start_script_in_plyr_pdata_proc(
     PlyrPdata* player, int pid, int function);
 void obj_set_gravity(MkObj* object, float gravity);
 void shake_camera(int strength, float duration);
-void set_constrain_last_pos_pdata(Vec* position);
 void clear_my_face_opponent_flag(void);
 void bgnd_clear_danger_zone_callback(PlyrPdata* player);
 void move_player(MkObj* fighter, const Vec* position, const Vec* angle);
@@ -616,8 +616,6 @@ void ani_to_frame_x_call(void (*callback)(void), float frame);
 void init_3d_move_no_aniproc(void);
 void dodge_3d_scan(void);
 int is_local_plyr(void);
-void dizzy_kill_pfx(
-    MkObj* opponent, int unused, PlyrPdata* player, int enabled);
 int was_button_pressed(int button);
 int drone_ai_check_next_block_state(unsigned int tick);
 void tightrope_restrictions_off(void);

@@ -4,6 +4,7 @@
 #include "game/ai.h"
 #include "game/ejb.h"
 #include "game/game_info.h"
+#include "game/jmt.h"
 #include "game/plyr.h"
 #include "game/trial.h"
 #include "msl/msl_types.h"
@@ -190,7 +191,6 @@ void transition_to_anim_script_frame(
 void set_plyr_attack_region(
     int use_body, float radius, float extension);
 void start_plyr_attack(float scale);
-void online_combo_adjust(float* horizontal, float* vertical);
 void online_combo_record(void);
 int collide_plyr_vs_plyr(void);
 void trial_state_collision_check(int collision_result, int player);

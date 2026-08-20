@@ -1,5 +1,6 @@
 #include "game/game_info.h"
 #include "game/projectile.h"
+#include "game/jmt.h"
 #include "math/gxVect.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
@@ -214,7 +215,6 @@ extern MkObj* get_mkobj_frame(int type, void* frame);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 extern void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* out);
-extern float get_adjusted_speed(float speed, float scale);
 
 static const Vec projectile_ground_collision_angles = {
     -1.57079637f, 0.0f, 0.0f

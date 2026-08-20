@@ -1,320 +1,345 @@
+#include "game/game_info.h"
+#include "game/jdn.h"
 #include "libmkparticle/color.h"
+#include "libmkparticle/particle.h"
+#include "libmkparticle/vm.h"
+#include "math/gxVect.h"
+#include "runtime/mk_particle.h"
+#include "runtime/cstring.h"
 
-typedef struct Vec3 {
-    float x;
-    float y;
-    float z;
-} Vec3;
+typedef struct JdnGlassPfx {
+    MkPfx pfx;
+} JdnGlassPfx;
 
-typedef struct PfxSpawnResult {
-    void* pfx;
-    void* emitter;
-} PfxSpawnResult;
-
-typedef struct JdnDestroyVtable {
-    void* reserved[4];
-    void (*destroy)(void* object);
-} JdnDestroyVtable;
-
-typedef struct JdnDestroyable {
-    JdnDestroyVtable* vtable;
-    unsigned int instance;
-} JdnDestroyable;
-
-typedef struct GlassEmitterObject {
-    char pad00[8];
-    unsigned char flags;
+typedef struct JdnEmitterObject {
+    MkHdr hdr;
+    union {
+        unsigned char flags;
+        MkObjFlags08 flags_bits;
+    };
     char pad09[0x97];
-    Vec3 position;
-} GlassEmitterObject;
+    Vec position;
+} JdnEmitterObject;
 
-typedef struct GlassEmitter {
-    char pad000[0x28];
-    float vertical_speed;
-    char pad02C[0x14];
-    char texture_state;
-    char pad041[0x181];
-    short active;
-    char pad1C4[0x98];
-    const char* effect_name;
-    char pad260[0x28];
-    unsigned long owner;
-    unsigned long lifetime;
-    unsigned long enabled;
-    unsigned long shard_count;
-    float mode_scale_a;
-    float mode_scale_b;
-    char pad2A4[8];
-    Vec3 center;
-    PfxColor* alphas;
-} GlassEmitter;
+static float pfx_glass_break_run(void);
+static void mkpfx_spawnupdate_glass_break(PfxVm* vm);
 
+const unsigned int noch_pfx_table[] = {
+    5, 0x272, 3, 0, 0xBB03126F, 0, 0x3E4CCCCD, 0x42F00000,
+    0x42F00000, 0x42C80000, 0x437F0000, 0x96, 0x64, 0, 0, 0x100,
+    0x40, 0x55, 0xC, 0x40000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    (unsigned int)mkpfx_spawnupdate_glass_break,
+};
 static const char stringBase0[] = "C - glass shards\0C.glass_shard";
 
-static void mkpfx_spawnupdate_glass_break(void* vm);
-void pfx_glass_break_run(void);
-
-static const unsigned long noch_pfx_table[] = {
-    0x00000005, 0x00000272, 0x00000003, 0x00000000, 0xBB03126F, 0x00000000, 0x3E4CCCCD,
-    0x42F00000, 0x42F00000, 0x42C80000, 0x437F0000, 0x00000096, 0x00000064, 0x00000000,
-    0x00000000, 0x00000100, 0x00000040, 0x00000055, 0x0000000C, 0x40000000, 0x00000001,
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-    0x00000000, 0x00000000, (unsigned long)mkpfx_spawnupdate_glass_break,
-};
-
 static PfxColor glass_fragment_alphas[0xB5];
-static float soul_sine[0x400];
-static unsigned long table_defined_242;
-static unsigned long g_kill_shard_fx;
+float soul_sine[0x400];
+unsigned int g_kill_shard_fx;
+static unsigned int table_defined_242;
 
-static const float kNeg50 = -50.0f;
-static const float k01 = 0.1f;
-static const float k05 = 0.5f;
-static const float k015 = 0.15f;
-static const float k005 = 0.05f;
-static const float k02 = 0.2f;
-static const float k016 = 0.16f;
-static const float k003 = 0.03f;
-static const float k90 = 90.0f;
-static const float k130 = 130.0f;
-static const float k255 = 255.0f;
-static const float k181 = 181.0f;
-static const float k135 = 1.35f;
-static const float k3 = 3.0f;
-static const float k5 = 5.0f;
-static const double kIeeeBase = 4503599627370496.0;
-static const double kPowA = 0.99;
-static const double kPowB = 0.975;
-static const float kGravity = 0.003f;
-static const float kZero = 0.0f;
-static const float kNegHalf = -0.5f;
-static const float k08 = 0.8f;
-static const float k001 = 0.01f;
-static const float k15 = 15.0f;
-static const float k004 = 0.04f;
-static const float k007 = 0.07f;
-static const float kTwoPi = 6.2831855f;
-static const float kNeg1 = -1.0f;
-static const float k1 = 1.0f;
-static const double kIeeeBase2 = 4503601774854144.0;
-static const float k128 = 128.0f;
-static const float kPi = 3.1415927f;
-static const float kInv1024 = 0.0009765625f;
-
-extern void* apfx;
-extern void* apfx_emitter_obj;
 extern float game_speed;
-extern unsigned long reseed_rnd_tbl;
+extern unsigned int reseed_rnd_tbl;
 
-void* create_pfx(int id, void* runFn, void* out, void* table, const char* name);
-void* pfx_get_emitter_obj(void* pfx, int index);
-void as_mkhdr(void* obj);
-void update_mkobj(void* obj);
-void set_pfx_texture(void* texState, int texId, int artId);
-void pfx_texture_animate(void* texState, int a, float b, int c, int d, int e);
-void* pfx_get_emitter(void* vm, int index);
-void* pfx_get_field(void* vm, int sign, int field);
-void pfxvm_require_field(void* vm, int field);
-void memcpy(void* dst, const void* src, unsigned long n);
-double pow(double x, double y);
-float frand(float scale);
-float sfrand(float scale);
-unsigned long randu0(unsigned long max);
-unsigned long __cvt_fp2unsigned(float val);
+MkPfx* create_pfx(int, int, float (*)(void), JdnGlassPfx**,
+                  const unsigned int*, const char*);
+void* pfx_get_field(PfxVm*, int, int);
+void pfxvm_require_field(PfxVm*, int);
+float frand(float);
+float sfrand(float);
+unsigned int randu0(unsigned int);
 void reload_rnd_tbl(void);
-float gxMathSin(float angle);
+double pow(double, double);
+float gxMathSin(float);
 
-static float glass_alpha_for_index(int idx) {
-    double v;
+MkPfx* start_pfx_glass_shards(
+    int art_id, const Vec* position, const Vec* center, int bounce_limit,
+    unsigned int spawn_count, unsigned int scale_mode, int motion_mode) {
+    JdnGlassPfx* glass = 0;
+    MkPfx* pfx;
+    JdnEmitterObject* emitter_object;
+    int index;
 
-    v = (double)idx;
-    v = v + kIeeeBase2;
-    v = v - kIeeeBase2;
-    v = k255 * v;
-    v = v / k181;
-    return (float)(k255 - v);
-}
-
-void* start_pfx_glass_shards(Vec3* pos, int artId, Vec3* center, void* owner, int shardMode,
-                             int shardCount) {
-    PfxSpawnResult spawn;
-    GlassEmitterObject* emitterObj;
-    JdnDestroyable* pfx;
-    GlassEmitter* emitter;
-    float modeScaleA;
-    float modeScaleB;
-    int i;
-
-    spawn.pfx = 0;
-    spawn.emitter = 0;
-    pfx = (JdnDestroyable*)create_pfx(
-        -0x7FDD, pfx_glass_break_run, &spawn, (void*)noch_pfx_table, stringBase0);
-    if (pfx == 0 || spawn.emitter == 0) {
+    pfx = create_pfx(0x8023, 0x8023, pfx_glass_break_run, &glass,
+                     noch_pfx_table, stringBase0);
+    if (pfx == 0 || glass == 0) {
         return 0;
     }
-    emitterObj = (GlassEmitterObject*)pfx_get_emitter_obj(pfx, 0);
-    if (emitterObj == 0) {
-        if (pfx->instance != 0) {
-            if (pfx->vtable->destroy != 0) {
-                pfx->vtable->destroy(pfx);
+    emitter_object = (JdnEmitterObject*)pfx_get_emitter_obj(pfx, 0);
+    if (emitter_object == 0) {
+        if (pfx->hdr.instance != 0) {
+            pfx->hdr.typed_vtbl->destroy(&pfx->hdr);
+        }
+        return 0;
+    }
+
+    emitter_object->position = *position;
+    emitter_object->flags_bits.airborne = 1;
+    as_mkhdr(&emitter_object->hdr);
+    update_mkobj(&emitter_object->hdr);
+
+    glass->pfx.field_28 = -50.0f;
+    glass->pfx.glass_center = *center;
+    glass->pfx.effect_state = bounce_limit;
+    glass->pfx.field_29C = 0.1f;
+    glass->pfx.field_28C = 0xB4;
+    glass->pfx.glass_alphas = glass_fragment_alphas;
+    glass->pfx.field_290 = 1;
+    glass->pfx.field_298 = 0.5f;
+    glass->pfx.field_294 = motion_mode;
+
+    switch (scale_mode) {
+    case 0: glass->pfx.field_2A0 = glass->pfx.field_29C = 0.15f; break;
+    case 1: glass->pfx.field_2A0 = glass->pfx.field_29C = 0.1f; break;
+    case 2: glass->pfx.field_2A0 = glass->pfx.field_29C = 0.05f; break;
+    case 3: glass->pfx.field_2A0 = glass->pfx.field_29C = 0.2f; break;
+    case 4:
+        glass->pfx.field_2A0 = 0.16f;
+        glass->pfx.field_29C = 0.03f;
+        break;
+    }
+
+    set_pfx_texture(
+        (PfxVm*)glass->pfx.matrix, (void*)0x2001E, (void*)art_id);
+    if ((unsigned int)(art_id - 0x013D0000) == 8) {
+        for (index = 0; index <= 0xB4; index++) {
+            pfx_native_set_rgba(&glass_fragment_alphas[index], 90.0f, 130.0f,
+                90.0f, 255.0f - 255.0f * (float)index / 181.0f);
+        }
+        glass->pfx.field_2A0 *= 1.35f;
+        glass->pfx.field_29C *= 1.35f;
+        pfx_texture_animate((PfxVm*)glass->pfx.matrix, 3.0f,
+                            0x80, 0x20, 0x20, 0x10);
+    } else if ((unsigned int)(art_id - 0x013D0000) == 9) {
+        pfx_texture_animate((PfxVm*)glass->pfx.matrix, 5.0f,
+                            0x80, 0x20, 0x20, 0x10);
+    } else {
+        pfx_texture_animate((PfxVm*)glass->pfx.matrix, 5.0f,
+                            0x100, 0x40, 0x40, 0x10);
+    }
+    *(float*)&pfx_get_emitter((PfxEmitterTableView*)glass->pfx.matrix, 0)
+                   ->bytes[0xC] = (float)spawn_count;
+    glass->pfx.emitter_enabled = 1;
+    glass->pfx.name_dst = (char*)stringBase0 + 0x11;
+    return &glass->pfx;
+}
+
+static float pfx_glass_break_run(void) {
+    JdnGlassPfx* glass = (JdnGlassPfx*)apfx;
+    PfxVm* vm = (PfxVm*)glass->pfx.matrix;
+    float* dst_scale = pfx_get_field(vm, -2, 0x102);
+    float* src_scale = pfx_get_field(vm, -1, 0x102);
+    float* src_time = pfx_get_field(vm, -1, 0x301);
+    float* dst_time = pfx_get_field(vm, -2, 0x301);
+    Vec* dst_pos = pfx_get_field(vm, -2, 0x100);
+    Vec* src_pos = pfx_get_field(vm, -1, 0x100);
+    Vec* src_vel = pfx_get_field(vm, -1, 0x300);
+    Vec* dst_vel = pfx_get_field(vm, -2, 0x300);
+    PfxColor* dst_color = pfx_get_field(vm, -2, 0x101);
+    int* src_state = pfx_get_field(vm, -1, 0x307);
+    int* dst_state = pfx_get_field(vm, -2, 0x307);
+    float* src_life = pfx_get_field(vm, -1, 0x305);
+    float* dst_life = pfx_get_field(vm, -2, 0x305);
+    float* dst_angle = pfx_get_field(vm, -2, 0x103);
+    float* src_angle = pfx_get_field(vm, -1, 0x103);
+    int fstride = vm->transforms[0].particle_field_stride;
+    int vstride = vm->particle_vector_stride;
+    int last = vm->particle_cursor - 1;
+    Vec* last_pos = (Vec*)((unsigned char*)src_pos + fstride * last);
+    Vec* last_vel = (Vec*)((unsigned char*)src_vel + vstride * last);
+    float* last_time = (float*)((unsigned char*)src_time + vstride * last);
+    float* last_scale = (float*)((unsigned char*)src_scale + fstride * last);
+    float* last_angle = (float*)((unsigned char*)src_angle + fstride * last);
+    float* last_life = (float*)((unsigned char*)src_life + vstride * last);
+    int* last_state = (int*)((unsigned char*)src_state + vstride * last);
+    float moving_damping = (float)pow(0.99, game_speed);
+    float resting_damping = (float)pow(0.975, game_speed);
+    float gravity = 0.003f * game_speed;
+    int index = 0;
+
+    while (index < vm->particle_cursor) {
+        if (*src_life == (float)(glass->pfx.field_28C - 1)) {
+            vm->particle_cursor--;
+            if (index != vm->particle_cursor) {
+                memcpy(src_pos, last_pos, fstride);
+                memcpy(dst_vel, last_vel, vstride);
+                *src_time = *last_time;
+                *src_scale = *last_scale;
+                *src_angle = *last_angle;
+                *src_life = *last_life;
+                *src_state = *last_state;
+                index--;
+                last_pos = (Vec*)((unsigned char*)last_pos - fstride);
+                last_scale = (float*)((unsigned char*)last_scale - fstride);
+                last_angle = (float*)((unsigned char*)last_angle - fstride);
+                last_vel = (Vec*)((unsigned char*)last_vel - vstride);
+                last_time = (float*)((unsigned char*)last_time - vstride);
+                last_life = (float*)((unsigned char*)last_life - vstride);
+                last_state = (int*)((unsigned char*)last_state - vstride);
             }
+        } else {
+            float old_y;
+            *dst_vel = *src_vel;
+            *dst_life = *src_life;
+            *dst_time = *src_time;
+            if (src_pos->y < 0.5f * *src_scale + g_game_info.field_34 &&
+                src_vel->y != 0.0f && src_vel->y < 0.0f) {
+                *dst_state = *src_state + 1;
+                dst_vel->y *= -0.5f;
+            } else {
+                *dst_state = *src_state;
+            }
+            if (*dst_state >= glass->pfx.effect_state && *dst_life == 0.0f) {
+                dst_vel->y = 0.0f;
+            }
+            if (glass->pfx.field_294 == 6 || *dst_state < glass->pfx.effect_state) {
+                dst_vel->x *= moving_damping;
+                dst_vel->z *= moving_damping;
+                old_y = dst_vel->y;
+                dst_vel->y = old_y - gravity;
+                dst_pos->x = src_pos->x + dst_vel->x * game_speed;
+                dst_pos->y = src_pos->y + old_y * game_speed;
+                dst_pos->z = src_pos->z + dst_vel->z * game_speed;
+                if (glass->pfx.field_294 == 6) {
+                    *dst_time = *src_time + game_speed;
+                }
+            } else {
+                dst_vel->x *= resting_damping;
+                dst_vel->z *= resting_damping;
+                dst_pos->x = src_pos->x + dst_vel->x * game_speed;
+                dst_pos->y = src_pos->y + dst_vel->y * game_speed;
+                dst_pos->z = src_pos->z + dst_vel->z * game_speed;
+            }
+            *dst_scale = *src_scale;
+            *dst_angle = *src_angle;
+            *dst_color = glass->pfx.glass_alphas[(int)*src_life];
+            if (*dst_state < glass->pfx.effect_state) {
+                *dst_time = *src_time + game_speed;
+            } else {
+                if (((unsigned int)(*src_time / game_speed) & 0xF) != 9) {
+                    *dst_time = *src_time + game_speed;
+                }
+                if (glass->pfx.field_290 != 0) {
+                    float life = *src_life + game_speed;
+                    if ((float)glass->pfx.field_28C <= life) {
+                        life = (float)glass->pfx.field_28C;
+                    }
+                    *dst_life = life;
+                }
+            }
+#define ADVANCE(ptr, stride) \
+            ((ptr) = (void*)((unsigned char*)(ptr) + (stride)))
+            ADVANCE(dst_time, vstride); ADVANCE(src_time, vstride);
+            ADVANCE(dst_pos, fstride); ADVANCE(src_pos, fstride);
+            ADVANCE(dst_angle, fstride); ADVANCE(dst_scale, fstride);
+            ADVANCE(src_scale, fstride); ADVANCE(dst_vel, vstride);
+            ADVANCE(src_vel, vstride); ADVANCE(dst_color, fstride);
+            ADVANCE(dst_state, vstride); ADVANCE(src_state, vstride);
+            ADVANCE(dst_life, vstride); ADVANCE(src_life, vstride);
+            ADVANCE(src_angle, fstride);
         }
-        return 0;
+        index++;
     }
-    emitterObj->position = *pos;
-    emitterObj->flags = (emitterObj->flags & 0xDF) | 0x40;
-    if (emitterObj->flags & 0x40) {
-        as_mkhdr(emitterObj);
-    }
-    update_mkobj(emitterObj);
-    emitter = (GlassEmitter*)spawn.emitter;
-    emitter->vertical_speed = kNeg50;
-    emitter->center = *center;
-    emitter->owner = (unsigned long)owner;
-    emitter->mode_scale_b = k05;
-    emitter->lifetime = 0xB4;
-    emitter->alphas = glass_fragment_alphas;
-    emitter->enabled = 1;
-    emitter->mode_scale_a = k015;
-    emitter->shard_count = (unsigned long)shardCount;
-    modeScaleA = k015;
-    modeScaleB = k05;
-    if (shardMode == 0) {
-        modeScaleA = k015;
-        modeScaleB = k015;
-    } else if (shardMode == 1) {
-        modeScaleA = k05;
-        modeScaleB = k05;
-    } else if (shardMode == 2) {
-        modeScaleA = k005;
-        modeScaleB = k005;
-    } else if (shardMode == 3) {
-        modeScaleA = k02;
-        modeScaleB = k02;
-    } else if (shardMode == 4) {
-        modeScaleA = k016;
-        modeScaleB = k003;
-    }
-    emitter->mode_scale_a = modeScaleA;
-    emitter->mode_scale_b = modeScaleB;
-    set_pfx_texture(&emitter->texture_state, 0x21E, artId);
-    if ((unsigned long)(artId - 0x13D) <= 8U) {
-        for (i = 0; i <= 0xB4; i++) {
-            float a = glass_alpha_for_index(i);
-            pfx_native_set_rgba(&glass_fragment_alphas[i], k90, k130, k90, a);
-        }
-        emitter->mode_scale_a *= k135;
-        emitter->mode_scale_b *= k135;
-        pfx_texture_animate(&emitter->texture_state, 0x80, k3, 0x20, 0x20, 0x10);
-    } else if ((unsigned long)(artId - 0x13D) == 9U) {
-        pfx_texture_animate(&emitter->texture_state, 0x80, k5, 0x20, 0x20, 0x10);
-    } else {
-        pfx_texture_animate(&emitter->texture_state, 0x100, k5, 0x40, 0x40, 0x10);
-    }
+
     {
-        float* emitterTime = pfx_get_emitter(&emitter->texture_state, 0);
-        emitterTime[3] = (float)((double)(unsigned long)owner - kIeeeBase);
+        float* pending = (float*)&pfx_get_emitter(
+            (PfxEmitterTableView*)vm, 0)->bytes[0xC];
+        if (*pending != 0.0f) {
+            int count = (int)*pending;
+            PfxColor color = {0x80, 0x80, 0x80, 0xFF};
+            vm->particle_cursor += count;
+            for (index = 0; index < vm->particle_cursor; index++) {
+                if (reseed_rnd_tbl != 0) reload_rnd_tbl();
+                *dst_life = 0.0f;
+                if (glass->pfx.field_294 == 9) {
+                    dst_pos->x = apfx_emitter_obj->pos.x + frand(0.8f);
+                    dst_pos->y = apfx_emitter_obj->pos.y + glass->pfx.field_298 + sfrand(0.5f);
+                    dst_pos->z = apfx_emitter_obj->pos.z + frand(0.8f);
+                } else {
+                    dst_pos->x = apfx_emitter_obj->pos.x - 0.1f + frand(0.2f);
+                    dst_pos->y = apfx_emitter_obj->pos.y + glass->pfx.field_298 + sfrand(0.5f);
+                    dst_pos->z = apfx_emitter_obj->pos.z - 0.1f + frand(0.2f);
+                }
+                switch (glass->pfx.field_294) {
+                case 0:
+                    dst_vel->x = glass->pfx.glass_center.x - 0.05f + frand(0.1f);
+                    dst_vel->y = glass->pfx.glass_center.y - 0.05f + frand(0.15f);
+                    dst_vel->z = glass->pfx.glass_center.z - 0.05f + frand(0.1f);
+                    break;
+                case 1:
+                    dst_vel->x = glass->pfx.glass_center.x + sfrand(0.05f);
+                    dst_vel->y = glass->pfx.glass_center.y + sfrand(0.01f);
+                    dst_vel->z = glass->pfx.glass_center.z + sfrand(0.05f);
+                    break;
+                case 6:
+                    dst_vel->x = glass->pfx.glass_center.x + sfrand(0.1f);
+                    dst_vel->y = glass->pfx.glass_center.y + sfrand(0.05f);
+                    dst_vel->z = glass->pfx.glass_center.z + sfrand(0.1f);
+                    *dst_life = 15.0f * game_speed;
+                    break;
+                case 9:
+                    dst_vel->x = sfrand(0.1f);
+                    dst_vel->y = glass->pfx.glass_center.y + sfrand(0.04f);
+                    dst_vel->z = sfrand(0.1f);
+                    break;
+                default:
+                    dst_vel->x = glass->pfx.glass_center.x + sfrand(0.05f);
+                    dst_vel->y = glass->pfx.glass_center.y + frand(0.07f);
+                    dst_vel->z = glass->pfx.glass_center.z + sfrand(0.05f);
+                    break;
+                }
+                *dst_time = (float)randu0(0x14);
+                *dst_scale = glass->pfx.field_29C + frand(3.0f * glass->pfx.field_2A0);
+                *dst_color = color;
+                *dst_state = 0;
+                *dst_angle = frand(6.2831855f);
+                ADVANCE(dst_time, vstride); ADVANCE(dst_pos, fstride);
+                ADVANCE(dst_scale, fstride); ADVANCE(dst_vel, vstride);
+                ADVANCE(dst_color, fstride); ADVANCE(dst_state, vstride);
+                ADVANCE(dst_life, vstride); ADVANCE(dst_angle, fstride);
+            }
+            *pending = 0.0f;
+        }
     }
-    emitter->active = 1;
-    emitter->effect_name = stringBase0 + 0x11;
-    return spawn.emitter;
+#undef ADVANCE
+    if (g_kill_shard_fx == 1 || vm->particle_cursor == 0) return -1.0f;
+    return 1.0f;
 }
 
-void pfx_glass_break_run(void) {
-    void* vm;
-    void* emitterBase;
-    float powA;
-    float powB;
-    float gravityStep;
-    int particleCount;
-    int particleStride;
-    int i;
-    float returnVal;
-
-    vm = apfx;
-    powA = (float)pow((double)game_speed, kPowA);
-    powB = (float)pow((double)game_speed, kPowB);
-    gravityStep = kGravity * game_speed;
-    emitterBase = (char*)vm + 0x40;
-    particleCount = ((int*)emitterBase)[0x15];
-    particleStride = ((int*)emitterBase)[0x2D];
-    for (i = 0; i < particleCount; i++) {
-        float* life = (float*)pfx_get_field(emitterBase, -2, 0x305);
-        float* posX = (float*)pfx_get_field(emitterBase, -1, 0x100);
-        float* vel = (float*)pfx_get_field(emitterBase, -2, 0x103);
-        float* alpha = (float*)pfx_get_field(emitterBase, -1, 0x307);
-        (void)life;
-        (void)posX;
-        (void)vel;
-        (void)alpha;
-        (void)powA;
-        (void)powB;
-        (void)gravityStep;
-    }
-    returnVal = kZero;
-    if (g_kill_shard_fx == 1) {
-        returnVal = kNeg1;
-    } else if (((int*)emitterBase)[0x15] == 0) {
-        returnVal = kNeg1;
-    } else {
-        returnVal = k1;
-    }
-    {
-        float* emitterTime = pfx_get_emitter(emitterBase, 0);
-        emitterTime[3] = returnVal;
-    }
-}
-
-static void mkpfx_spawnupdate_glass_break(void* vm) {
-    PfxColor* color;
-    int i;
-
-    color = glass_fragment_alphas;
-    for (i = 0; i <= 0xB4; i++, color++) {
-        pfx_native_set_rgba(color, k128, k128, k128,
-                            k255 - ((k255 * (float)i) / k181));
+static void mkpfx_spawnupdate_glass_break(PfxVm* vm) {
+    int index;
+    for (index = 0; index <= 0xB4; index++) {
+        pfx_native_set_rgba(&glass_fragment_alphas[index], 128.0f, 128.0f,
+            128.0f, 255.0f - 255.0f * (float)index / 181.0f);
     }
     pfxvm_require_field(vm, 0x307);
     pfxvm_require_field(vm, 0x305);
 }
 
-void allow_shard_pfx_now(void) {
-    g_kill_shard_fx = 0;
-}
-
-void kill_shard_pfx_now(void) {
-    g_kill_shard_fx = 1;
-}
-
-float get_soul_sine(int index) {
-    return soul_sine[index];
-}
-
-static void fill_sine_table(void) {
-    int i;
-    int angle;
-
-    if (table_defined_242 != 0) {
-        return;
-    }
-    soul_sine[0] = gxMathSin(kZero);
-    for (i = 1, angle = 2; i < 0x400; i++, angle += 2) {
-        double v = (double)angle + kIeeeBase;
-        float rad;
-
-        v = v - kIeeeBase;
-        v = v * kPi;
-        rad = (float)(v * kInv1024);
-        soul_sine[i] = gxMathSin(rad);
-    }
-    table_defined_242 = 1;
-}
+void allow_shard_pfx_now(void) { g_kill_shard_fx = 0; }
+void kill_shard_pfx_now(void) { g_kill_shard_fx = 1; }
+float get_soul_sine(int index) { return soul_sine[index]; }
 
 int build_sine_table_for_scripts(void) {
-    fill_sine_table();
+    int index;
+    int angle;
+    if (table_defined_242 == 0) {
+        soul_sine[0] = gxMathSin(0.0f);
+        for (index = 1, angle = 2; index < 0x400; index++, angle += 2) {
+            soul_sine[index] = gxMathSin(3.1415927f * (float)angle * 0.0009765625f);
+        }
+        table_defined_242 = 1;
+    }
     return 0x400;
 }
 
 void build_sine_table(void) {
-    fill_sine_table();
+    int index;
+    int angle;
+    if (table_defined_242 == 0) {
+        soul_sine[0] = gxMathSin(0.0f);
+        for (index = 1, angle = 2; index < 0x400; index++, angle += 2) {
+            soul_sine[index] = gxMathSin(3.1415927f * (float)angle * 0.0009765625f);
+        }
+        table_defined_242 = 1;
+    }
 }
