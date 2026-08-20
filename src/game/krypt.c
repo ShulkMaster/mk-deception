@@ -1887,7 +1887,7 @@ static float p_move_camera_and_open_coffin(void) {
     camera->target_ang_x = camera_angles.x;
     camera->target_ang_y = camera_angles.y;
     camera->target_ang_z = camera_angles.z;
-    camera->flags_bits.bit7 = 0;
+    camera->flags_bits.pos_done = 0;
     _mkproc_sleep_ticks = 1.0f;
     mkproc_sleep();
 

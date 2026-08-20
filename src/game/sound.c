@@ -127,7 +127,7 @@ extern RandomSoundRequest random_sound_request[];
 
 int can_big_boss_make_special_vo_call(unsigned int cooldown_ticks);
 int snd_calculate_volume(SoundRequest* request);
-float get_pan_value(float* position);
+float get_pan_value(const Vec* position);
 
 MslSoundHandle mslBankPlayVol(
     mslLoadedBank* bank, int sound, int field_0c, int priority, float volume,
@@ -291,7 +291,7 @@ float p_track_sound(void) {
                     sound->out_of_range = 0;
                 }
                 if (sound->positional_pan != 0) {
-                    pan = get_pan_value(&sound->pos_x);
+                    pan = get_pan_value(&sound->pos);
                 } else {
                     pan = 0.0f;
                 }

@@ -485,8 +485,6 @@ void move_plyrs_to_round_start(void);
 void start_constrain_proc(void);
 void skip_camera_intro(void);
 void stop_tunes(void);
-void set_camera_destination(float* position, CameraObj* camera);
-void set_camera_target_angle(float* angle);
 float p_camera_proc(void);
 float p_anim_idle(void);
 int transition_to_anim_script_frame(
@@ -1267,8 +1265,8 @@ void trial_restart_round(void) {
     stop_tunes();
     bgnd_music_ptr1 = snd_req(
         g_game_info.section->music_id_round_0_1);
-    set_camera_destination(&camera_obj->pos_x, camera_obj);
-    set_camera_target_angle(&camera_obj->ang_x);
+    set_camera_destination((const CamVec3*)&camera_obj->pos_x);
+    set_camera_target_angle((const CamVec3*)&camera_obj->ang_x);
     force_midpoint_calculation_update = 0;
     xfer_camera(p_camera_proc, 1);
     monk = get_mission_monk();
