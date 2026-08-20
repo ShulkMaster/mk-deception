@@ -1,6 +1,7 @@
 #include "math/gxVect.h"
 #include "math/mk_math.h"
 #include "game/pz_fatality.h"
+#include "runtime/cam_api.h"
 #include "rw/rwframe.h"
 
 typedef void (*PuzzleFatalityFn)();
@@ -505,7 +506,6 @@ void slow_ani_x(float speed, float frame);
 void obj_set_bone_collapse_flag(
     PuzzleFighterRenderObject* object, int bone);
 void calc_bone_world_mat(PuzzleFighterRenderObject* object, int bone);
-void get_camera_position(Vec* position);
 void pz_fighter_clear_out_external_forces(void);
 void random_voice(int group);
 void* bgnd_launch_fx_at_bid_of_mkobj(

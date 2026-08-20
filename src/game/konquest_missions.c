@@ -375,7 +375,6 @@ extern int winner;
 extern int f_fatality_finished;
 int text_window_state;
 
-void camera_set_animation_mirror_plane(int mode);
 int adjust_p1_life(float amount);
 int adjust_p2_life(float amount);
 MslSoundHandle snd_req(int sound);
