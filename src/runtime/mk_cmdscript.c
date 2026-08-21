@@ -869,10 +869,35 @@ void activate_cmdscript(void) {
 /* ---- 0x80015344 (krypt-critical) ---- */
 
 void set_process_as_scriptable(MkProc* proc) {
+    MkPtr* next;
+    MkPtr* ptr;
+    MkHdr* hdr;
     CmdScript* cs;
+    int found;
 
-    cs = find_cmdscript_in_list(&proc->pdata_list);
-    if (cs == 0) {
+    found = 0;
+    if (proc != (MkProc*)-0xc0) {
+        ptr = proc->pdata_list;
+        while (ptr != 0) {
+            hdr = ptr->hdr;
+            if (ptr->instance != hdr->instance) {
+                next = ptr->next;
+                ptr->hdr = 0;
+                destroy_mkptr(ptr);
+                ptr = next;
+            } else {
+                if (hdr->vtbl != &vtbl_cmdscript) {
+                    hdr = 0;
+                }
+                if (hdr != 0) {
+                    found = 1;
+                    break;
+                }
+                ptr = ptr->next;
+            }
+        }
+    }
+    if (found == 0) {
         cs = (CmdScript*)get_mkhdr(&vtbl_cmdscript, 0x1b0);
         if (cs == 0) {
             cs = 0;
@@ -881,7 +906,7 @@ void set_process_as_scriptable(MkProc* proc) {
         }
         if (cs != 0) {
             mk_append((MkHdr*)cs, &proc->pdata_list);
-            proc->flags = (proc->flags & ~MKPROC_FLAG_GAME_INFO_BIT) | MKPROC_FLAG_GAME_INFO_BIT;
+            proc->flags_bits.game_info = 1;
         }
     }
 }

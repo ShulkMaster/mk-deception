@@ -79,12 +79,12 @@ const char* practice_font_offset_tbl[16] = {
     io_text + 0x23, io_text + 0x25, io_text + 0x27, io_text + 0x29
 };
 
-extern SwitchLogEntry p1_switch_log[30];
-extern SwitchLogEntry p2_switch_log[30];
-extern SwitchLogEntry p1_pad_switch_log[30];
-extern SwitchLogEntry p2_pad_switch_log[30];
-extern int practice_p1_list[5];
-extern int practice_p2_list[5];
+SwitchLogEntry p1_switch_log[30];
+SwitchLogEntry p2_switch_log[30];
+SwitchLogEntry p1_pad_switch_log[30];
+SwitchLogEntry p2_pad_switch_log[30];
+int practice_p1_list[5];
+int practice_p2_list[5];
 
 unsigned char stick_dead_zone = 0x20;
 int p1_log_index = -1;
@@ -710,10 +710,3 @@ void vdebug_print_message(const char* format, ...) {
     va_start(args, format);
     vsprintf(buf, format, args);
 }
-
-SwitchLogEntry p1_switch_log[30];
-SwitchLogEntry p2_switch_log[30];
-SwitchLogEntry p1_pad_switch_log[30];
-SwitchLogEntry p2_pad_switch_log[30];
-int practice_p1_list[5];
-int practice_p2_list[5];
