@@ -3326,11 +3326,11 @@ void mk_chess_disarmed_msg(void) {
 }
 
 void mk_chess_set_viewing_quadrant(CameraObj* camera) {
-    RwMatrix* matrix = camera->matrix;
-    float camera_x = matrix->pos.x;
-    float camera_z = matrix->pos.z;
-    float facing_x = -matrix->up.x;
-    float facing_z = -matrix->up.z;
+    RwFrame* frame = camera->frame;
+    float camera_x = frame->modelling.at.x;
+    float camera_z = frame->modelling.at.z;
+    float facing_x = -frame->modelling.right.x;
+    float facing_z = -frame->modelling.right.z;
     float left = -camera_z;
 
     if (left > 0.0f) {

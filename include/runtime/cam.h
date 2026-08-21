@@ -41,10 +41,7 @@ typedef struct CameraObj {
     CameraObjFlags flags; /* +0x08 */
     unsigned char pad09[3];
     char pad0C[0x14];
-    union {
-        RwFrame* frame;
-        RwMatrix* matrix;
-    }; /* +0x20 - frame or transform view, both evidenced by callers */
+    RwFrame* frame; /* +0x20 */
     RwMatrix* field_24; /* +0x24 - active camera transform */
     MkPtr* child_list; /* +0x28 */
     char pad2C[0x44];
