@@ -74,7 +74,7 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     request->allocationSize = allocation_size;
     request->alignmentPadding = heap->blockPrefixSize;
     request->allocationFlags = flags;
-    request->originHeap = heap;
+    request->allocationHeap = heap;
     request->prefixSize = 0;
     request->userSize = aligned_size;
     return mwMemByteAddress(header, heap->blockPrefixSize);
