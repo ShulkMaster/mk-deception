@@ -594,15 +594,15 @@ void obj_set_ang(void* obj, void* ang) {
 }
 
 void obj_get_pos(MkObj* obj, Vec* out) {
-    out->x = obj->pos_x;
-    out->y = obj->pos_y;
-    out->z = obj->pos_z;
+    out->x = obj->pos.x;
+    out->y = obj->pos.y;
+    out->z = obj->pos.z;
 }
 
 void obj_set_pos(MkObj* obj, Vec* pos) {
-    obj->pos_x = pos->x;
-    obj->pos_y = pos->y;
-    obj->pos_z = pos->z;
+    obj->pos.x = pos->x;
+    obj->pos.y = pos->y;
+    obj->pos.z = pos->z;
     obj->flags_08_bits.airborne = 1;
 }
 
@@ -1149,13 +1149,13 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
             matrix->pos.y =
                 -(g_game_info.misc->mirror_plane_offset +
                   (pdata->runtime_data->alternate_mirror_offset +
-                   (source->pos_y - g_game_info.field_34)));
+                   (source->pos.y - g_game_info.field_34)));
             matrix->pos.y += g_game_info.field_34;
         } else {
             matrix->pos.y =
                 -(g_game_info.misc->mirror_plane_offset +
                   (pdata->runtime_data->primary_mirror_offset +
-                   (source->pos_y - g_game_info.field_34)));
+                   (source->pos.y - g_game_info.field_34)));
             matrix->pos.y += g_game_info.field_34;
         }
         RwFrameUpdateObjects(mirror->frame);
@@ -1509,15 +1509,15 @@ void ground_me(void* obj) {
                     bone->matrix.pos.x =
                         parent->pos.y * matrix->up.x +
                         parent->pos.x * matrix->right.x +
-                        parent->pos.z * matrix->at.x + mkobj->pos_x;
+                        parent->pos.z * matrix->at.x + mkobj->pos.x;
                     bone->matrix.pos.y =
                         parent->pos.y * matrix->up.y +
                         parent->pos.x * matrix->right.y +
-                        parent->pos.z * matrix->at.y + mkobj->pos_y;
+                        parent->pos.z * matrix->at.y + mkobj->pos.y;
                     bone->matrix.pos.z =
                         parent->pos.y * matrix->up.z +
                         parent->pos.x * matrix->right.z +
-                        parent->pos.z * matrix->at.z + mkobj->pos_z;
+                        parent->pos.z * matrix->at.z + mkobj->pos.z;
                 }
                 height = collision->offset.y * bone->matrix.up.y +
                          collision->offset.x * bone->matrix.right.y +
@@ -1533,7 +1533,7 @@ void ground_me(void* obj) {
 
     if (min_height != 1000.0f) {
         if (min_height < mkobj->ground_colls_y) {
-            mkobj->pos_y -= min_height - mkobj->ground_colls_y;
+            mkobj->pos.y -= min_height - mkobj->ground_colls_y;
             *(Vec*)&matrix->pos = mkobj->pos;
             matrix->flags &= ~0x20000;
             if ((mkobj->hide_flags & 0x10) == 0) {
@@ -1559,7 +1559,7 @@ void ground_me(void* obj) {
                 mkobj->flags_08_bits.moving = 0;
             }
         } else if (mkobj->flags_09_bits.bit6 != 0) {
-            mkobj->pos_y -= min_height - mkobj->ground_colls_y;
+            mkobj->pos.y -= min_height - mkobj->ground_colls_y;
             *(Vec*)&matrix->pos = mkobj->pos;
             matrix->flags &= ~0x20000;
             if ((mkobj->hide_flags & 0x10) == 0) {

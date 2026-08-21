@@ -213,9 +213,9 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     pdata = (KamidoguDropPdata*)pdata_storage;
     set_mat(mat_buf, owner->field_24);
     zero_val = flt_361;
-    owner->pos_x = mat_buf[0xC];
-    owner->pos_y = mat_buf[0xD];
-    owner->pos_z = mat_buf[0xE];
+    owner->pos.x = mat_buf[0xC];
+    owner->pos.y = mat_buf[0xD];
+    owner->pos.z = mat_buf[0xE];
     mat_buf[0xC] = zero_val;
     mat_buf[0xD] = zero_val;
     mat_buf[0xE] = zero_val;
@@ -251,12 +251,12 @@ static float p_drop_kamidogu(void) {
     }
     interp_quat(pdata->quat, identity_quat, pdata->quat, flt_375);
     quat_to_mat(live->field_24, pdata->quat);
-    y_pos = live->pos_y;
+    y_pos = live->pos.y;
     if (y_pos >= flt_376) {
         new_y = y_pos - flt_377;
-        live->pos_y = new_y;
-        if (live->pos_y < flt_376) {
-            live->pos_y = flt_376;
+        live->pos.y = new_y;
+        if (live->pos.y < flt_376) {
+            live->pos.y = flt_376;
         }
     }
     return flt_349;
