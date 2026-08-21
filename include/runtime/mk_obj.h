@@ -21,12 +21,7 @@ typedef struct MkBoneFlags55 {
 
 typedef struct MkFlippedBoneMap {
     int count;
-    union {
-        int* bones;
-        unsigned int* bone_indices;
-        unsigned int* bone_ids;
-        int* bone_tags;
-    };
+    int* bone_indices;
 } MkFlippedBoneMap;
 
 typedef struct MkBoneFlags54 {
@@ -49,10 +44,7 @@ typedef struct MkBone {
     int bone_index; /* +0x50 - index used by limb transfer */
     union {
         struct {
-            union {
-                unsigned char flags_54; /* +0x54 */
-                MkBoneFlags54 flags_54_bits;
-            };
+            MkBoneFlags54 flags_54_bits; /* +0x54 */
             union {
                 unsigned char flags_55; /* +0x55 - bit7 collapsed */
                 MkBoneFlags55 flags_55_bits;

@@ -2132,7 +2132,7 @@ int attach_gore2_obj(
         if (attach_bone == 0) {
             return -1;
         }
-        attach_bone->flags_54 |= 0x10;
+        attach_bone->flags_54_bits.calculation_locked = 1;
     }
 
     pool = mkpdata_pbl_gore2_update->pools[type];

@@ -1490,7 +1490,7 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
         }
 
         segment->bone = bone;
-        bone->flags_54 |= 0x10;
+        bone->flags_54_bits.calculation_locked = 1;
         gxMat33x33(
             (Mat33*)&bone->matrix, (Mat33*)bone->parent_matrix,
             (Mat33*)model->frame);
@@ -1504,7 +1504,7 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
             RwMatrix child_matrix;
 
             child = bone->transform_parent;
-            child->flags_54 |= 0x10;
+            child->flags_54_bits.calculation_locked = 1;
             gxMat33x33(
                 (Mat33*)&child->matrix, (Mat33*)child->parent_matrix,
                 (Mat33*)model->frame);
@@ -1513,7 +1513,7 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
                 (Vec*)&child->parent_matrix->pos, (Mat33*)model->frame,
                 (Vec*)&model->frame->modelling.pos);
 
-            if ((bone->flags_54 & 0x10) != 0) {
+            if (bone->flags_54_bits.calculation_locked) {
                 bone_matrix = bone->matrix;
             } else {
                 gxMat33x33(
@@ -1525,7 +1525,7 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
                     (Mat33*)model->frame,
                     (Vec*)&model->frame->modelling.pos);
             }
-            if ((child->flags_54 & 0x10) != 0) {
+            if (child->flags_54_bits.calculation_locked) {
                 child_matrix = child->matrix;
             } else {
                 gxMat33x33(

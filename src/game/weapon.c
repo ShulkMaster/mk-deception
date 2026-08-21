@@ -260,8 +260,8 @@ static inline MkObj* load_goro_weapon_inline(
         for (bone_index = 0; bone_index < weapon->bone_count; bone_index++) {
             MkBone* bone = weapon->bones[bone_index];
 
-            if (bone != 0 && (bone->flags_54 & 0x20) == 0) {
-                bone->flags_54 |= 0x10;
+            if (bone != 0 && !bone->flags_54_bits.cloth_candidate) {
+                bone->flags_54_bits.calculation_locked = 1;
             }
         }
         specskin_initialize_clump(weapon->clump);
@@ -1390,8 +1390,8 @@ MkObj* load_weapon(
             MkBone* bone;
 
             bone = weapon->bones[bone_index];
-            if (bone != 0 && (bone->flags_54 & 0x20) == 0) {
-                bone->flags_54 |= 0x10;
+            if (bone != 0 && !bone->flags_54_bits.cloth_candidate) {
+                bone->flags_54_bits.calculation_locked = 1;
             }
         }
         specskin_initialize_clump(weapon->clump);
@@ -1517,8 +1517,8 @@ MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot) {
             MkBone* bone;
 
             bone = weapon->bones[bone_index];
-            if (bone != 0 && (bone->flags_54 & 0x20) == 0) {
-                bone->flags_54 |= 0x10;
+            if (bone != 0 && !bone->flags_54_bits.cloth_candidate) {
+                bone->flags_54_bits.calculation_locked = 1;
             }
         }
         specskin_initialize_clump(weapon->clump);

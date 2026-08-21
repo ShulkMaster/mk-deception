@@ -369,7 +369,7 @@ int get_bid_with_flip(MkObj* object, unsigned int bone_id) {
         MkFlippedBoneMap* flipped = object->flipped_bone_map;
 
         if (bone_id < flipped->count) {
-            bone_id = flipped->bone_ids[bone_id];
+            bone_id = flipped->bone_indices[bone_id];
         }
     }
     return bone_id;
@@ -1043,7 +1043,7 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
         return;
     }
 
-    victim_bone->flags_54 |= 2;
+    victim_bone->flags_54_bits.pose_matrix_applied = 1;
     if (pdata->setup_bits.random_rotation_set) {
         random_x = frand(pdata->random_rotation.x) -
                    0.5f * pdata->random_rotation.x;
