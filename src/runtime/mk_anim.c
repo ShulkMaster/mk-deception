@@ -3648,9 +3648,9 @@ MkBone* alloc_bone(void) {
         bone->delta.value.z = 0.0f;
         bone->delta.value.y = 0.0f;
         bone->delta.value.x = 0.0f;
-        bone->velocity.z = 0.0f;
-        bone->velocity.y = 0.0f;
-        bone->velocity.x = 0.0f;
+        bone->velocity.value.z = 0.0f;
+        bone->velocity.value.y = 0.0f;
+        bone->velocity.value.x = 0.0f;
         bone->field_60 = 0.0f;
         bone->field_64 = 0.0f;
         bone->update_tick = exec_tick_ctr - 1;

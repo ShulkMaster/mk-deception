@@ -69,18 +69,9 @@ typedef struct MkBone {
     RwMatrixPosition delta; /* +0xC0 */
     union {
         struct {
-            union {
-                Quat rotation;
-                RtQuat rt_rotation;
-            }; /* +0xD0 */
+            Quat rotation; /* +0xD0 - x, y, z, w */
             Quat rotation_e0; /* +0xE0 */
-            union {
-                struct {
-                    Vec velocity; /* +0xF0 */
-                    unsigned int velocity_pad;
-                };
-                RwMatrixPosition velocity_row;
-            };
+            RwMatrixPosition velocity; /* +0xF0 */
             Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
             char pad10C[4];
         };
