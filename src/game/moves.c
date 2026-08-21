@@ -766,9 +766,9 @@ void blast_effect_at_plyr(void) {
     if (blast == 0) {
         return;
     }
-    blast->pos.x = plyr_obj->pos.x;
-    blast->pos.z = plyr_obj->pos.z;
-    blast->pos.y = g_game_info.field_34;
+    blast->pos.value.x = plyr_obj->pos.value.x;
+    blast->pos.value.z = plyr_obj->pos.value.z;
+    blast->pos.value.y = g_game_info.field_34;
     blast->flags_08_bits.scale_active = 1;
     blast->scale.x = 0.2f;
     blast->scale.y = 0.2f;
@@ -799,17 +799,17 @@ void kobra_teleport_position(void) {
     float inverse_distance;
 
     inverse_distance = 0.0f;
-    delta_z = plyr_obj->pos.z - his_obj->pos.z;
-    delta_x = plyr_obj->pos.x - his_obj->pos.x;
+    delta_z = plyr_obj->pos.value.z - his_obj->pos.value.z;
+    delta_x = plyr_obj->pos.value.x - his_obj->pos.value.x;
     distance_squared = delta_z * delta_z + delta_x * delta_x;
     inverse_distance = moves_inverse_sqrt(distance_squared);
 
-    plyr_obj->pos.x =
-        his_obj->pos.x + delta_x * inverse_distance * -2.0f;
-    plyr_obj->pos.z =
-        his_obj->pos.z + delta_z * inverse_distance * -2.0f;
+    plyr_obj->pos.value.x =
+        his_obj->pos.value.x + delta_x * inverse_distance * -2.0f;
+    plyr_obj->pos.value.z =
+        his_obj->pos.value.z + delta_z * inverse_distance * -2.0f;
     if (((MovesGameStateView*)&g_game_info)->state != 2) {
-        set_constrain_last_pos_pdata(&his_obj->pos);
+        set_constrain_last_pos_pdata(&his_obj->pos.value);
     }
     clear_my_face_opponent_flag();
     bgnd_clear_danger_zone_callback(plyr_pdata);
@@ -822,16 +822,16 @@ void mileena_sky_set_position(void) {
     float inverse_distance;
 
     inverse_distance = 0.0f;
-    delta_z = plyr_obj->pos.z - his_obj->pos.z;
-    delta_x = plyr_obj->pos.x - his_obj->pos.x;
+    delta_z = plyr_obj->pos.value.z - his_obj->pos.value.z;
+    delta_x = plyr_obj->pos.value.x - his_obj->pos.value.x;
     distance_squared = delta_z * delta_z + delta_x * delta_x;
     inverse_distance = moves_inverse_sqrt(distance_squared);
 
-    plyr_obj->pos.x =
-        his_obj->pos.x + delta_x * inverse_distance * 3.0f;
-    plyr_obj->pos.z =
-        his_obj->pos.z + delta_z * inverse_distance * 3.0f;
-    plyr_obj->pos.y = g_game_info.field_34 + 4.0f;
+    plyr_obj->pos.value.x =
+        his_obj->pos.value.x + delta_x * inverse_distance * 3.0f;
+    plyr_obj->pos.value.z =
+        his_obj->pos.value.z + delta_z * inverse_distance * 3.0f;
+    plyr_obj->pos.value.y = g_game_info.field_34 + 4.0f;
 }
 
 void switch_plyr_positions(void) {
@@ -840,25 +840,25 @@ void switch_plyr_positions(void) {
     float player0_y;
     float player1_y;
 
-    player0_position.x = g_game_info.plyr0.slot.mirror_a->pos.x;
-    player0_position.y = g_game_info.plyr0.slot.mirror_a->pos.y;
-    player0_position.z = g_game_info.plyr0.slot.mirror_a->pos.z;
-    player0_y = g_game_info.plyr0.slot.mirror_a->pos.y;
+    player0_position.x = g_game_info.plyr0.slot.mirror_a->pos.value.x;
+    player0_position.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
+    player0_position.z = g_game_info.plyr0.slot.mirror_a->pos.value.z;
+    player0_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
     player_angle.x = g_game_info.plyr0.slot.mirror_a->ang.x;
     player_angle.y = g_game_info.plyr0.slot.mirror_a->ang.y;
     player_angle.z = g_game_info.plyr0.slot.mirror_a->ang.z;
 
     move_player(g_game_info.plyr0.slot.mirror_a,
-                &g_game_info.plyr1.slot.mirror_a->pos, &player_angle);
-    g_game_info.plyr0.slot.mirror_a->pos.y = player0_y;
+                &g_game_info.plyr1.slot.mirror_a->pos.value, &player_angle);
+    g_game_info.plyr0.slot.mirror_a->pos.value.y = player0_y;
 
     player_angle.x = g_game_info.plyr1.slot.mirror_a->ang.x;
     player_angle.y = g_game_info.plyr1.slot.mirror_a->ang.y;
     player_angle.z = g_game_info.plyr1.slot.mirror_a->ang.z;
-    player1_y = g_game_info.plyr1.slot.mirror_a->pos.y;
+    player1_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
     move_player(g_game_info.plyr1.slot.mirror_a, &player0_position,
                 &player_angle);
-    g_game_info.plyr1.slot.mirror_a->pos.y = player1_y;
+    g_game_info.plyr1.slot.mirror_a->pos.value.y = player1_y;
 }
 
 /*
@@ -956,17 +956,17 @@ void kenshi_teleport_position(void) {
     float inverse_distance;
 
     inverse_distance = 0.0f;
-    delta_z = plyr_obj->pos.z - his_obj->pos.z;
-    delta_x = plyr_obj->pos.x - his_obj->pos.x;
+    delta_z = plyr_obj->pos.value.z - his_obj->pos.value.z;
+    delta_x = plyr_obj->pos.value.x - his_obj->pos.value.x;
     distance_squared = delta_z * delta_z + delta_x * delta_x;
     inverse_distance = moves_inverse_sqrt(distance_squared);
 
-    plyr_obj->pos.x =
-        his_obj->pos.x + delta_x * inverse_distance * 1.25f;
-    plyr_obj->pos.z =
-        his_obj->pos.z + delta_z * inverse_distance * 1.25f;
+    plyr_obj->pos.value.x =
+        his_obj->pos.value.x + delta_x * inverse_distance * 1.25f;
+    plyr_obj->pos.value.z =
+        his_obj->pos.value.z + delta_z * inverse_distance * 1.25f;
     if (((MovesGameStateView*)&g_game_info)->state != 2) {
-        set_constrain_last_pos_pdata(&his_obj->pos);
+        set_constrain_last_pos_pdata(&his_obj->pos.value);
     }
 }
 
@@ -979,19 +979,19 @@ void scorpion_teleport_position(void) {
     float normal_z;
 
     inverse_distance = 0.0f;
-    delta_z = plyr_obj->pos.z - his_obj->pos.z;
-    delta_x = plyr_obj->pos.x - his_obj->pos.x;
+    delta_z = plyr_obj->pos.value.z - his_obj->pos.value.z;
+    delta_x = plyr_obj->pos.value.x - his_obj->pos.value.x;
     distance_squared = delta_x * delta_x + delta_z * delta_z;
     inverse_distance = moves_inverse_sqrt(distance_squared);
     normal_x = delta_x * inverse_distance;
     normal_z = delta_z * inverse_distance;
-    plyr_obj->pos.x = his_obj->pos.x + normal_x * -3.0f;
-    plyr_obj->pos.z = his_obj->pos.z + normal_z * -3.0f;
+    plyr_obj->pos.value.x = his_obj->pos.value.x + normal_x * -3.0f;
+    plyr_obj->pos.value.z = his_obj->pos.value.z + normal_z * -3.0f;
     bgnd_clear_danger_zone_callback(plyr_pdata);
     if (((MovesGameStateView*)&g_game_info)->state != 2) {
-        set_constrain_last_pos_pdata(&his_obj->pos);
+        set_constrain_last_pos_pdata(&his_obj->pos.value);
     }
-    plyr_obj->pos.y = g_game_info.field_34 + 2.2f;
+    plyr_obj->pos.value.y = g_game_info.field_34 + 2.2f;
 }
 
 void configure_iceball(MkObj* iceball) {
@@ -1328,9 +1328,9 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
     if (pickup->primary_object != 0) {
         pickup->primary_object->flags_08_bits.angular_velocity_enabled = 1;
         pickup->primary_object->flags_08_bits.airborne = 1;
-        pickup->primary_object->pos.x = pickup->primary_position.x;
-        pickup->primary_object->pos.y = pickup->primary_position.y;
-        pickup->primary_object->pos.z = pickup->primary_position.z;
+        pickup->primary_object->pos.value.x = pickup->primary_position.x;
+        pickup->primary_object->pos.value.y = pickup->primary_position.y;
+        pickup->primary_object->pos.value.z = pickup->primary_position.z;
         pickup->primary_object->ang.x = pickup->primary_angle.x;
         pickup->primary_object->ang.y = pickup->primary_angle.y;
         pickup->primary_object->ang.z = pickup->primary_angle.z;
@@ -1353,9 +1353,9 @@ void drop_active_weapon_to_original_position(PlyrPdata* player) {
     if (pickup->secondary_object != 0) {
         pickup->secondary_object->flags_08_bits.angular_velocity_enabled = 1;
         pickup->secondary_object->flags_08_bits.airborne = 1;
-        pickup->secondary_object->pos.x = pickup->secondary_position.x;
-        pickup->secondary_object->pos.y = pickup->secondary_position.y;
-        pickup->secondary_object->pos.z = pickup->secondary_position.z;
+        pickup->secondary_object->pos.value.x = pickup->secondary_position.x;
+        pickup->secondary_object->pos.value.y = pickup->secondary_position.y;
+        pickup->secondary_object->pos.value.z = pickup->secondary_position.z;
         pickup->secondary_object->ang.x = pickup->secondary_angle.x;
         pickup->secondary_object->ang.y = pickup->secondary_angle.y;
         pickup->secondary_object->ang.z = pickup->secondary_angle.z;
@@ -1405,9 +1405,9 @@ static inline int moves_find_nearby_pickup(
             if (transform == 0) {
                 transform = pickup->transform_b;
             }
-            offset->x = object->pos.x - transform->position.x;
-            offset->y = object->pos.y - transform->position.y;
-            offset->z = object->pos.z - transform->position.z;
+            offset->x = object->pos.value.x - transform->position.x;
+            offset->y = object->pos.value.y - transform->position.y;
+            offset->z = object->pos.value.z - transform->position.z;
             if (offset->x * offset->x + offset->z * offset->z < 2.9f) {
                 vertical_distance = offset->y;
                 vertical_distance = vertical_distance >= 0.0f
@@ -3096,9 +3096,9 @@ static float p_plyr_sidekick_intro(void) {
         sidekick, player->player_info->slot.pdata->sidekick_active);
     main_object = player->player_info->slot.mirror_a;
     opponent_object = player->opponent_obj;
-    direction.x = main_object->pos.x - opponent_object->pos.x;
+    direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
-    direction.z = main_object->pos.z - opponent_object->pos.z;
+    direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
     angle_x = main_object->ang.x;
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
@@ -3129,15 +3129,15 @@ static float p_plyr_sidekick_intro(void) {
     } else {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.55f);
     }
-    position_x = main_object->pos.x + offset.x;
+    position_x = main_object->pos.value.x + offset.x;
     position_y = g_game_info.field_34;
-    position_z = main_object->pos.z + offset.z;
+    position_z = main_object->pos.value.z + offset.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(0.0f, 0.5f, anim);
-    sidekick->pos.x = position_x;
-    sidekick->pos.y = position_y;
-    sidekick->pos.z = position_z;
+    sidekick->pos.value.x = position_x;
+    sidekick->pos.value.y = position_y;
+    sidekick->pos.value.z = position_z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -3303,9 +3303,9 @@ static float p_plyr_smoke_entrance(void) {
         sidekick, player->player_info->slot.pdata->sidekick_active);
     main_object = player->player_info->slot.mirror_a;
     opponent_object = player->opponent_obj;
-    direction.x = main_object->pos.x - opponent_object->pos.x;
+    direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
-    direction.z = main_object->pos.z - opponent_object->pos.z;
+    direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
     angle_x = main_object->ang.x;
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
@@ -3338,8 +3338,8 @@ static float p_plyr_smoke_entrance(void) {
         v3_add_v3_scaled(&offset, &offset, &lateral, 0.7f);
         transition = 8;
     }
-    position_x = main_object->pos.x + offset.x;
-    position_z = main_object->pos.z + offset.z;
+    position_x = main_object->pos.value.x + offset.x;
+    position_z = main_object->pos.value.z + offset.z;
     position_y = g_game_info.field_34 - 2.5f;
 
     sidekick->flags_09_bits.bit6 = 0;
@@ -3348,9 +3348,9 @@ static float p_plyr_smoke_entrance(void) {
     velocity.y = 0.06f;
     sidekick->pos_vel = velocity;
     set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
-    sidekick->pos.x = position_x;
-    sidekick->pos.y = position_y;
-    sidekick->pos.z = position_z;
+    sidekick->pos.value.x = position_x;
+    sidekick->pos.value.y = position_y;
+    sidekick->pos.value.z = position_z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -3367,7 +3367,7 @@ static float p_plyr_smoke_entrance(void) {
     moves_sleep(1.0f);
     unhide_obj(sidekick);
     anim->step = 1.0f;
-    while (sidekick->pos.y < g_game_info.field_34 + 1.3f) {
+    while (sidekick->pos.value.y < g_game_info.field_34 + 1.3f) {
         moves_sleep(1.0f);
     }
     obj_set_gravity(sidekick, -0.006f);
@@ -3541,20 +3541,20 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     stop_me();
     tightrope_restrictions_off();
 
-    delta_z = plyr_obj->pos.z - his_obj->pos.z;
-    delta_x = plyr_obj->pos.x - his_obj->pos.x;
-    position_y = plyr_obj->pos.y;
+    delta_z = plyr_obj->pos.value.z - his_obj->pos.value.z;
+    delta_x = plyr_obj->pos.value.x - his_obj->pos.value.x;
+    position_y = plyr_obj->pos.value.y;
     inverse_distance =
         moves_inverse_sqrt(delta_x * delta_x + delta_z * delta_z);
     normalized_x = delta_x * inverse_distance;
     normalized_z = delta_z * inverse_distance;
     position_x = -2.0f * normalized_x;
     position_z = -2.0f * normalized_z;
-    position_x += his_obj->pos.x;
-    position_z += his_obj->pos.z;
-    sidekick->pos.x = position_x;
-    sidekick->pos.y = position_y;
-    sidekick->pos.z = position_z;
+    position_x += his_obj->pos.value.x;
+    position_z += his_obj->pos.value.z;
+    sidekick->pos.value.x = position_x;
+    sidekick->pos.value.y = position_y;
+    sidekick->pos.value.z = position_z;
     update_mkobj(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     unhide_obj(sidekick);
     active_sidekick_swap(plyr_pdata, 0);
@@ -3579,9 +3579,9 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     }
 
     set_root_and_obj_movement_weights(0.0f, 1.0f, plyr_anim_pdata);
-    plyr_obj->pos.x = position_x;
-    plyr_obj->pos.y = position_y;
-    plyr_obj->pos.z = position_z;
+    plyr_obj->pos.value.x = position_x;
+    plyr_obj->pos.value.y = position_y;
+    plyr_obj->pos.value.z = position_z;
     face_opponent_now();
     update_mkobj(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     glitch_to_ani(plyr_pdata->fighter_definition->walk_forward_loop, 0);
@@ -3652,10 +3652,10 @@ static float p_plyr_sidekick_switch(void) {
     tag_team_activate_player(
         sidekick, player->player_info->slot.pdata->sidekick_active);
 
-    direction.x = main_object->pos.x - player->opponent_obj->pos.x;
+    direction.x = main_object->pos.value.x - player->opponent_obj->pos.value.x;
     direction.y = 0.0f;
-    direction.z = main_object->pos.z - player->opponent_obj->pos.z;
-    position_y = main_object->pos.y;
+    direction.z = main_object->pos.value.z - player->opponent_obj->pos.value.z;
+    position_y = main_object->pos.value.y;
     angle_x = main_object->ang.x;
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
@@ -3679,11 +3679,11 @@ static float p_plyr_sidekick_switch(void) {
 
     set_root_and_obj_movement_weights(
         0.0f, object_weight, sidekick_anim);
-    sidekick->pos.x =
-        main_object->pos.x + direction.x * inverse_length * 2.5f;
-    sidekick->pos.y = position_y;
-    sidekick->pos.z =
-        main_object->pos.z + direction.z * inverse_length * 2.5f;
+    sidekick->pos.value.x =
+        main_object->pos.value.x + direction.x * inverse_length * 2.5f;
+    sidekick->pos.value.y = position_y;
+    sidekick->pos.value.z =
+        main_object->pos.value.z + direction.z * inverse_length * 2.5f;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -3781,9 +3781,9 @@ static float p_plyr_sidekick_projectile(void) {
     main_object = player->player_info->slot.mirror_a;
     opponent_object = player->opponent_obj;
 
-    direction.x = main_object->pos.x - opponent_object->pos.x;
+    direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
-    direction.z = main_object->pos.z - opponent_object->pos.z;
+    direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
     length_sq =
         direction.x * direction.x + direction.z * direction.z;
     distance = 0.0f;
@@ -3831,17 +3831,17 @@ static float p_plyr_sidekick_projectile(void) {
     direction.x *= inverse_length;
     direction.z *= inverse_length;
     placement_scale = distance < 3.2f ? 1.2f : 1.5f;
-    position_x = main_object->pos.x + direction.x * placement_scale;
+    position_x = main_object->pos.value.x + direction.x * placement_scale;
     position_y = g_game_info.field_34;
-    position_z = main_object->pos.z + direction.z * placement_scale;
+    position_z = main_object->pos.value.z + direction.z * placement_scale;
     angle_x = main_object->ang.x;
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(0.0f, object_weight, anim);
-    sidekick->pos.x = position_x;
-    sidekick->pos.y = position_y;
-    sidekick->pos.z = position_z;
+    sidekick->pos.value.x = position_x;
+    sidekick->pos.value.y = position_y;
+    sidekick->pos.value.z = position_z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -3959,9 +3959,9 @@ static float p_plyr_noob_entrance(void) {
         sidekick, player->player_info->slot.pdata->sidekick_active);
     main_object = player->player_info->slot.mirror_a;
     opponent_object = player->opponent_obj;
-    direction.x = main_object->pos.x - opponent_object->pos.x;
+    direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
-    direction.z = main_object->pos.z - opponent_object->pos.z;
+    direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
     angle_x = main_object->ang.x;
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
@@ -3996,17 +3996,17 @@ static float p_plyr_noob_entrance(void) {
         v3_add_v3_scaled(&offset, &offset, &lateral, 0.7f);
         transition = 8;
     }
-    position_x = main_object->pos.x + offset.x;
-    position_z = main_object->pos.z + offset.z;
+    position_x = main_object->pos.value.x + offset.x;
+    position_z = main_object->pos.value.z + offset.z;
     position_y = g_game_info.field_34 + 6.535f;
 
     sidekick->flags_09_bits.bit6 = 0;
     sidekick->flags_09_bits.launched = 0;
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
-    sidekick->pos.x = position_x;
-    sidekick->pos.y = position_y;
-    sidekick->pos.z = position_z;
+    sidekick->pos.value.x = position_x;
+    sidekick->pos.value.y = position_y;
+    sidekick->pos.value.z = position_z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -4103,9 +4103,9 @@ static float p_plyr_sidekick_charge(void) {
         sidekick, player->player_info->slot.pdata->sidekick_active);
     main_object = player->player_info->slot.mirror_a;
     opponent_object = player->opponent_obj;
-    direction.x = main_object->pos.x - opponent_object->pos.x;
+    direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
-    direction.z = main_object->pos.z - opponent_object->pos.z;
+    direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
     angle_x = main_object->ang.x;
     angle_y = main_object->ang.y;
     angle_z = main_object->ang.z;
@@ -4140,15 +4140,15 @@ static float p_plyr_sidekick_charge(void) {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.45f);
         transition = 8;
     }
-    position_x = main_object->pos.x + offset.x;
+    position_x = main_object->pos.value.x + offset.x;
     position_y = g_game_info.field_34;
-    position_z = main_object->pos.z + offset.z;
+    position_z = main_object->pos.value.z + offset.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(0.0f, 1.0f, anim);
-    sidekick->pos.x = position_x;
-    sidekick->pos.y = position_y;
-    sidekick->pos.z = position_z;
+    sidekick->pos.value.x = position_x;
+    sidekick->pos.value.y = position_y;
+    sidekick->pos.value.z = position_z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -5063,9 +5063,9 @@ static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
             if (transform == 0) {
                 transform = pickup->transform_b;
             }
-            delta_z = object->pos.z - transform->position.z;
-            delta_x = object->pos.x - transform->position.x;
-            delta_y = object->pos.y - transform->position.y;
+            delta_z = object->pos.value.z - transform->position.z;
+            delta_x = object->pos.value.x - transform->position.x;
+            delta_y = object->pos.value.y - transform->position.y;
             if (delta_x * delta_x + delta_z * delta_z < 2.9f) {
                 delta_y = delta_y >= 0.0f ? delta_y : -delta_y;
                 if (delta_y < 1.5f) {
@@ -5646,7 +5646,7 @@ static float j_flying_kick2_early(void) {
     }
     plyr_anim_pdata->step = 0.5f;
     plyr_obj->flags_08_bits.moving = 1;
-    while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame();
         moves_sleep(1.0f);
@@ -5718,7 +5718,7 @@ float j_flying_kick2(void) {
             set_collision_made_flag();
             reaction_xfer_him(0x36, 0.1f, 0);
         }
-        if (plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+        if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
             plyr_obj->flags_08_bits.moving) {
             moves_sleep(1.0f);
         }
@@ -5728,13 +5728,13 @@ float j_flying_kick2(void) {
         air_collision_pause(5, 12.0f, -0.02f);
     }
     while (plyr_anim_pdata->frame < 14.0f &&
-           plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+           plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
            plyr_obj->flags_08_bits.moving) {
         ani_1_frame();
         moves_sleep(1.0f);
     }
     plyr_obj->flags_08_bits.moving = 1;
-    while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame();
         moves_sleep(1.0f);
@@ -5809,7 +5809,7 @@ static float j_flying_kick1_early(void) {
     }
     plyr_anim_pdata->step = 0.5f;
     plyr_obj->flags_08_bits.moving = 1;
-    while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame();
         moves_sleep(1.0f);
@@ -5877,7 +5877,7 @@ float j_flying_kick(void) {
             set_collision_made_flag();
             reaction_xfer_him(0x32, 0.1f, 0);
         }
-        if (plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+        if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
             plyr_obj->flags_08_bits.moving) {
             moves_sleep(1.0f);
         }
@@ -5887,7 +5887,7 @@ float j_flying_kick(void) {
     }
     plyr_anim_pdata->step = 0.5f;
     while (plyr_anim_pdata->frame < 13.0f &&
-           plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+           plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
            plyr_obj->flags_08_bits.moving) {
         ani_1_frame();
         moves_sleep(1.0f);
@@ -5895,7 +5895,7 @@ float j_flying_kick(void) {
     plyr_obj->flags_08_bits.moving = 1;
     plyr_anim_pdata->high_frame = 20.0f;
     plyr_anim_pdata->step = 1.0f;
-    while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame();
         moves_sleep(1.0f);
@@ -5969,7 +5969,7 @@ static float j_flying_punch_early(void) {
     }
     plyr_anim_pdata->step = 0.5f;
     plyr_obj->flags_08_bits.moving = 1;
-    while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame();
         moves_sleep(1.0f);
@@ -6037,7 +6037,7 @@ static float j_flying_punch(void) {
             set_collision_made_flag();
             reaction_xfer_him(0x2B, 0.1f, 0);
         }
-        if (plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+        if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
             plyr_obj->flags_08_bits.moving) {
             moves_sleep(1.0f);
         }
@@ -6046,14 +6046,14 @@ static float j_flying_punch(void) {
         air_collision_pause(5, 12.0f, -0.01f);
     }
     plyr_anim_pdata->step = 0.5f;
-    if (plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+    if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
         plyr_obj->flags_08_bits.moving) {
         moves_sleep(1.0f);
-        if (plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+        if (plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
             plyr_obj->flags_08_bits.moving) {
             moves_sleep(1.0f);
             while (plyr_anim_pdata->frame < 13.0f &&
-                   plyr_obj->pos_y >= plyr_obj->ground_colls_y + 1.0f &&
+                   plyr_obj->pos.value.y >= plyr_obj->ground_colls_y + 1.0f &&
                    plyr_obj->flags_08_bits.moving) {
                 ani_1_frame();
                 moves_sleep(1.0f);
@@ -6062,7 +6062,7 @@ static float j_flying_punch(void) {
     }
     plyr_obj->flags_08_bits.moving = 1;
     plyr_anim_pdata->step = 1.0f;
-    while (plyr_obj->pos_y > plyr_obj->ground_colls_y + 1.0f &&
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 1.0f &&
            (plyr_obj->flags_08 & 1) == 1 && plyr_obj->gravity != 0.0f) {
         ani_1_frame();
         moves_sleep(1.0f);
@@ -6098,8 +6098,8 @@ float throw_spear(void) {
     set_my_secondary_state(0x101);
     trial_increment_state_value(plyr_pdata->plyr_num, 6, 0);
     plyr_pdata->block_requirement = 0;
-    plyr_pdata->saved_position_x = plyr_obj->pos.x;
-    plyr_pdata->saved_position_z = plyr_obj->pos.z;
+    plyr_pdata->saved_position_x = plyr_obj->pos.value.x;
+    plyr_pdata->saved_position_z = plyr_obj->pos.value.z;
     plyr_pdata->duck_reaction_active = 1;
     trial_register_attack(get_player_number(plyr_obj), 3, 0x33);
 

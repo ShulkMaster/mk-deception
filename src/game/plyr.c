@@ -734,12 +734,12 @@ void cleanup_player_globals(void) {
 }
 
 float plyr_get_pos(unsigned int axis) {
-    float position = plyr_obj->pos.x;
+    float position = plyr_obj->pos.value.x;
 
     if (axis == 1) {
-        position = plyr_obj->pos.y;
+        position = plyr_obj->pos.value.y;
     } else if (axis == 2) {
-        position = plyr_obj->pos.z;
+        position = plyr_obj->pos.value.z;
     }
     return position;
 }
@@ -1431,10 +1431,10 @@ void move_player(
     const Vec* angles) {
     Vec translation;
 
-    v3_sub_v3(&translation, position, &object->pos);
-    object->pos.x = position->x;
-    object->pos.y = position->y;
-    object->pos.z = position->z;
+    v3_sub_v3(&translation, position, &object->pos.value);
+    object->pos.value.x = position->x;
+    object->pos.value.y = position->y;
+    object->pos.value.z = position->z;
     object->ang.x = angles->x;
     object->ang.y = angles->y;
     object->ang.z = angles->z;
@@ -1454,10 +1454,10 @@ void move_player_no_constrain_update(
     const Vec* angles) {
     Vec translation;
 
-    v3_sub_v3(&translation, position, &object->pos);
-    object->pos.x = position->x;
-    object->pos.y = position->y;
-    object->pos.z = position->z;
+    v3_sub_v3(&translation, position, &object->pos.value);
+    object->pos.value.x = position->x;
+    object->pos.value.y = position->y;
+    object->pos.value.z = position->z;
     object->ang.x = angles->x;
     object->ang.y = angles->y;
     object->ang.z = angles->z;
@@ -2537,9 +2537,9 @@ void create_player(int player_index, PlyrInfo* player) {
     insert_fgnd_mkobj(player->slot.mirror_a);
     start_cloth_bones(player->slot.mirror_a);
     limb_sever_hide_z_meat_chunks_all(player->slot.mirror_a);
-    player->slot.mirror_a->pos.x = -1.0f;
-    player->slot.mirror_a->pos.y = 1.05f;
-    player->slot.mirror_a->pos.z = 0.0f;
+    player->slot.mirror_a->pos.value.x = -1.0f;
+    player->slot.mirror_a->pos.value.y = 1.05f;
+    player->slot.mirror_a->pos.value.z = 0.0f;
     player->slot.mirror_a->flags_09_bits.launched = 1;
     ground_me((MkHdr*)player->slot.mirror_a);
     player->slot.mirror_a->flags_09_bits.launched = 0;
@@ -2707,11 +2707,11 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
     insert_fgnd_mkobj(object);
     start_cloth_bones(object);
     limb_sever_hide_z_meat_chunks_all(object);
-    object->pos.x = -1.0f;
-    object->pos.y = 1.05f;
-    object->pos.z = 0.0f;
+    object->pos.value.x = -1.0f;
+    object->pos.value.y = 1.05f;
+    object->pos.value.z = 0.0f;
     if (player_index == 1) {
-        object->pos.x = 1.0f;
+        object->pos.value.x = 1.0f;
     }
     object->flags_09_bits.launched = 1;
     ground_me((MkHdr*)object);
@@ -2791,10 +2791,10 @@ float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     }
     player = plyr_obj;
     opponent = his_obj;
-    opponent_z = opponent->pos.z;
-    dz = player->pos.z - opponent_z;
-    opponent_x = opponent->pos.x;
-    dx = player->pos.x - opponent_x;
+    opponent_z = opponent->pos.value.z;
+    dz = player->pos.value.z - opponent_z;
+    opponent_x = opponent->pos.value.x;
+    dx = player->pos.value.x - opponent_x;
     inverse_distance = plyr_inverse_sqrt(dx * dx + dz * dz);
     dx *= inverse_distance;
     dz *= inverse_distance;
@@ -2804,12 +2804,12 @@ float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     dz += opponent_z;
     active_sidekick_swap(pdata, 1);
     hide_obj(sidekick);
-    plyr_obj->pos.x = dx;
-    plyr_obj->pos.y = g_game_info.field_34;
-    plyr_obj->pos.z = dz;
+    plyr_obj->pos.value.x = dx;
+    plyr_obj->pos.value.y = g_game_info.field_34;
+    plyr_obj->pos.value.z = dz;
     bgnd_clear_danger_zone_callback(plyr_pdata);
     if (get_current_bgnd() != 2) {
-        set_constrain_last_pos_pdata(&his_obj->pos);
+        set_constrain_last_pos_pdata(&his_obj->pos.value);
     }
     clear_my_face_opponent_flag();
     return 0.0f;
@@ -2831,10 +2831,10 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
     }
     player = plyr_obj;
     opponent = his_obj;
-    opponent_z = opponent->pos.z;
-    dz = player->pos.z - opponent_z;
-    opponent_x = opponent->pos.x;
-    dx = player->pos.x - opponent_x;
+    opponent_z = opponent->pos.value.z;
+    dz = player->pos.value.z - opponent_z;
+    opponent_x = opponent->pos.value.x;
+    dx = player->pos.value.x - opponent_x;
     inverse_distance = plyr_inverse_sqrt(dx * dx + dz * dz);
     dx *= inverse_distance;
     dz *= inverse_distance;
@@ -2843,9 +2843,9 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
     dx += opponent_x;
     dz += opponent_z;
     active_sidekick_swap(pdata, 1);
-    plyr_obj->pos.x = dx;
-    plyr_obj->pos.z = dz;
-    plyr_obj->pos.y = g_game_info.field_34 + 4.0f;
+    plyr_obj->pos.value.x = dx;
+    plyr_obj->pos.value.z = dz;
+    plyr_obj->pos.value.y = g_game_info.field_34 + 4.0f;
     return 0.0f;
 }
 
@@ -2932,7 +2932,7 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     sidekick->pos_vel.y = 0.0f;
     sidekick->pos_vel.x = 0.0f;
     sidekick->gravity = 0.0f;
-    sidekick->pos.y = g_game_info.field_34;
+    sidekick->pos.value.y = g_game_info.field_34;
     if (plyr_pdata->status_data->reaction_cleanup != 0) {
         saved_interpreter = active_cmdscript;
         active_cmdscript = &global_script_interpreter;
@@ -2955,21 +2955,21 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
         player->slot.mirror_a, pdata->sidekick_active == 0);
     tag_team_activate_player(sidekick, pdata->sidekick_active);
 
-    pos_x = sidekick->pos.x;
-    pos_y = sidekick->pos.y;
-    pos_z = sidekick->pos.z;
+    pos_x = sidekick->pos.value.x;
+    pos_y = sidekick->pos.value.y;
+    pos_z = sidekick->pos.value.z;
     ang_x = sidekick->ang.x;
     ang_y = sidekick->ang.y;
     ang_z = sidekick->ang.z;
-    sidekick->pos.x = player->slot.mirror_a->pos.x;
-    sidekick->pos.y = player->slot.mirror_a->pos.y;
-    sidekick->pos.z = player->slot.mirror_a->pos.z;
+    sidekick->pos.value.x = player->slot.mirror_a->pos.value.x;
+    sidekick->pos.value.y = player->slot.mirror_a->pos.value.y;
+    sidekick->pos.value.z = player->slot.mirror_a->pos.value.z;
     sidekick->ang.x = player->slot.mirror_a->ang.x;
     sidekick->ang.y = player->slot.mirror_a->ang.y;
     sidekick->ang.z = player->slot.mirror_a->ang.z;
-    player->slot.mirror_a->pos.x = pos_x;
-    player->slot.mirror_a->pos.y = pos_y;
-    player->slot.mirror_a->pos.z = pos_z;
+    player->slot.mirror_a->pos.value.x = pos_x;
+    player->slot.mirror_a->pos.value.y = pos_y;
+    player->slot.mirror_a->pos.value.z = pos_z;
     player->slot.mirror_a->ang.x = ang_x;
     player->slot.mirror_a->ang.y = ang_y;
     player->slot.mirror_a->ang.z = ang_z;

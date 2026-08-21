@@ -2057,12 +2057,12 @@ void set_monk_position(float x, float y, float z, float angle) {
 
     if (hero != 0) {
         hero->hide_flags &= ~2;
-        hero->pos.x = x;
-        hero->pos.y = y;
-        hero->pos.z = z;
+        hero->pos.value.x = x;
+        hero->pos.value.y = y;
+        hero->pos.value.z = z;
         hero->ang.y = angle;
         update_mkobj(as_mkhdr(&hero->hdr));
-        old_hero_position = hero->pos;
+        old_hero_position = hero->pos.value;
     }
     if (camera != 0) {
         camera->target_ang.y = angle;
@@ -2183,9 +2183,9 @@ void konquest_setup_pui_particle(void* owner, int shared_render_object) {
                 effect, (void*)0xA00E, emitter);
         }
         object->flags_08 |= 0x40;
-        object->pos.z = 0.0f;
-        object->pos.x = 0.0f;
-        object->pos.y = -1000.0f;
+        object->pos.value.z = 0.0f;
+        object->pos.value.x = 0.0f;
+        object->pos.value.y = -1000.0f;
         update_mkobj(object);
     }
 }
@@ -2743,9 +2743,9 @@ int load_hero_model(int animation_script) {
     }
 
     obj_create_sobjs(hero);
-    hero->pos.z = 0.0f;
-    hero->pos.y = 0.0f;
-    hero->pos.x = 0.0f;
+    hero->pos.value.z = 0.0f;
+    hero->pos.value.y = 0.0f;
+    hero->pos.value.x = 0.0f;
     hero->ang.y = 3.1415927f;
     hero->flags_08 |= 0x20;
     hero->flags_08 |= 4;
@@ -3088,7 +3088,7 @@ void get_konquest_pui_object_pos(Vec* position, MkSobj* sobj) {
         object = 0;
     }
     if (position != 0) {
-        *position = object->pos;
+        *position = object->pos.value;
     }
 }
 
@@ -3253,9 +3253,9 @@ static int check_additional_trigger_fire_requirements(
     result = 0;
     switch (requirement->type) {
     case 3:
-        delta_z = requirement->position.z - hero->pos.z;
+        delta_z = requirement->position.z - hero->pos.value.z;
         inverse_length = 0.0f;
-        delta_x = requirement->position.x - hero->pos.x;
+        delta_x = requirement->position.x - hero->pos.value.x;
         length_squared = delta_x * delta_x + delta_z * delta_z;
         if (length_squared > 0.0f) {
             estimate.value = length_squared;
@@ -3297,9 +3297,9 @@ static int check_additional_trigger_fire_requirements(
         break;
     case 2:
         if (requirement->orientation != 0) {
-            delta_z = requirement->position.z - hero->pos.z;
+            delta_z = requirement->position.z - hero->pos.value.z;
             inverse_length = 0.0f;
-            delta_x = requirement->position.x - hero->pos.x;
+            delta_x = requirement->position.x - hero->pos.value.x;
             length_squared = delta_x * delta_x + delta_z * delta_z;
             if (length_squared > 0.0f) {
                 estimate.value = length_squared;
@@ -3341,10 +3341,10 @@ static int check_additional_trigger_fire_requirements(
             if (facing_angle < 0.7853982f) {
                 angle = requirement->orientation->angle;
                 sine = gxMathSin(angle->angle);
-                if ((requirement->position.z - hero->pos.z) *
+                if ((requirement->position.z - hero->pos.value.z) *
                             gxMathCos(angle->angle) +
-                        (requirement->position.x - hero->pos.x) * sine +
-                        (requirement->position.y - hero->pos.y) * 0.0f <
+                        (requirement->position.x - hero->pos.value.x) * sine +
+                        (requirement->position.y - hero->pos.value.y) * 0.0f <
                     0.0f) {
                     result = 1;
                 }
@@ -4217,9 +4217,9 @@ void hero_start_fx_at_position(void* owner, const float* offset) {
         hero = 0;
     }
     effect = fx_by_owner(owner, 4);
-    position[0] = hero->pos.x + offset[0];
-    position[1] = hero->pos.y + offset[1];
-    position[2] = hero->pos.z + offset[2];
+    position[0] = hero->pos.value.x + offset[0];
+    position[1] = hero->pos.value.y + offset[1];
+    position[2] = hero->pos.value.z + offset[2];
     fx_set_param_v3(
         effect, 0x202, position[0], position[1], position[2]);
     fx_restart_emit(effect);
@@ -4236,9 +4236,9 @@ void attach_pfx_to_object(
     effect = fx_by_owner(effect_owner, 4);
     emitter = fx_next_emitter(effect);
     if (object != 0) {
-        x = object->pos.x + offset->x;
-        y = object->pos.y + offset->y;
-        z = object->pos.z + offset->z;
+        x = object->pos.value.x + offset->x;
+        y = object->pos.value.y + offset->y;
+        z = object->pos.value.z + offset->z;
         if (emitter != 0) {
             fx_set_param_v3(emitter, 0x202, x, y, z);
             fx_restart_emit(emitter);

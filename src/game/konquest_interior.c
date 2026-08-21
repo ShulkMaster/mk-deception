@@ -377,8 +377,8 @@ void turn_to_face_interior_door(void) {
         return;
     }
 
-    delta.x = trigger->data->position.x - hero->pos.x;
-    delta.z = trigger->data->position.z - hero->pos.z;
+    delta.x = trigger->data->position.x - hero->pos.value.x;
+    delta.z = trigger->data->position.z - hero->pos.value.z;
     xx = delta.x * delta.x;
     yy = delta.y * delta.y;
     zz = delta.z * delta.z;
@@ -1061,9 +1061,9 @@ static float p_konq_interior_entry_point(void) {
                 konq_interior_save_data.interior_object_instance =
                     model->hdr.instance;
                 obj_create_sobjs(model);
-                model->pos.x = konquest_pdata->camera_offset_x;
-                model->pos.y = konquest_pdata->camera_offset_y;
-                model->pos.z = konquest_pdata->camera_offset_z;
+                model->pos.value.x = konquest_pdata->camera_offset_x;
+                model->pos.value.y = konquest_pdata->camera_offset_y;
+                model->pos.value.z = konquest_pdata->camera_offset_z;
                 entry = room_sobj_list;
                 if (model != 0) {
                     for (; entry->id != 0; entry++) {
@@ -1087,7 +1087,7 @@ static float p_konq_interior_entry_point(void) {
             konq_interior_save_data.trigger_position.y;
         konq_interior_save_data.hero_position.z =
             konq_interior_save_data.trigger_position.z;
-        konq_interior_save_data.hero_position.y = hero->pos.y;
+        konq_interior_save_data.hero_position.y = hero->pos.value.y;
         konq_interior_save_data.hero_angle.x = hero->ang.x;
         konq_interior_save_data.hero_angle.y = hero->ang.y;
         konq_interior_save_data.hero_angle.z = hero->ang.z;

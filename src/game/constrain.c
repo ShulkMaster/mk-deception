@@ -406,7 +406,7 @@ float dist_behind_me(void) {
 
     uv_from_angle_y(&direction, object->ang.y + 3.1415927f);
     distance =
-        dist_from_plyr_pos_to_arena_edge(&object->pos, &direction);
+        dist_from_plyr_pos_to_arena_edge(&object->pos.value, &direction);
     if (distance < 0.0f) {
         distance = -1.0f * distance;
     }
@@ -629,9 +629,9 @@ static float p_constrain_players(void) {
 
     if (CONSTRAIN_P1_OBJECT != 0 && CONSTRAIN_P2_OBJECT != 0) {
         delta_x =
-            CONSTRAIN_P2_OBJECT->pos.x - CONSTRAIN_P1_OBJECT->pos.x;
+            CONSTRAIN_P2_OBJECT->pos.value.x - CONSTRAIN_P1_OBJECT->pos.value.x;
         delta_z =
-            CONSTRAIN_P2_OBJECT->pos.z - CONSTRAIN_P1_OBJECT->pos.z;
+            CONSTRAIN_P2_OBJECT->pos.value.z - CONSTRAIN_P1_OBJECT->pos.value.z;
         if (CONSTRAIN_P1_OBJECT->flags_09_bits.face_opponent) {
             CONSTRAIN_P1_OBJECT->ang.y =
                 gxMathArcTanYX(delta_x, delta_z);
@@ -660,21 +660,21 @@ static float p_constrain_players(void) {
     repel_players();
 
     if (CONSTRAIN_P1_OBJECT != 0) {
-        constrain_state.player[0].position.x = CONSTRAIN_P1_OBJECT->pos.x;
-        constrain_state.player[0].position.y = CONSTRAIN_P1_OBJECT->pos.y;
-        constrain_state.player[0].position.z = CONSTRAIN_P1_OBJECT->pos.z;
+        constrain_state.player[0].position.x = CONSTRAIN_P1_OBJECT->pos.value.x;
+        constrain_state.player[0].position.y = CONSTRAIN_P1_OBJECT->pos.value.y;
+        constrain_state.player[0].position.z = CONSTRAIN_P1_OBJECT->pos.value.z;
         constrain_state.player[0].projection =
-            CONSTRAIN_P1_OBJECT->pos.x * tightrope_uv.x +
-            CONSTRAIN_P1_OBJECT->pos.z * tightrope_uv.z;
+            CONSTRAIN_P1_OBJECT->pos.value.x * tightrope_uv.x +
+            CONSTRAIN_P1_OBJECT->pos.value.z * tightrope_uv.z;
     }
 
     if (CONSTRAIN_P2_OBJECT != 0) {
-        constrain_state.player[1].position.x = CONSTRAIN_P2_OBJECT->pos.x;
-        constrain_state.player[1].position.y = CONSTRAIN_P2_OBJECT->pos.y;
-        constrain_state.player[1].position.z = CONSTRAIN_P2_OBJECT->pos.z;
+        constrain_state.player[1].position.x = CONSTRAIN_P2_OBJECT->pos.value.x;
+        constrain_state.player[1].position.y = CONSTRAIN_P2_OBJECT->pos.value.y;
+        constrain_state.player[1].position.z = CONSTRAIN_P2_OBJECT->pos.value.z;
         constrain_state.player[1].projection =
-            CONSTRAIN_P2_OBJECT->pos.x * tightrope_uv.x +
-            CONSTRAIN_P2_OBJECT->pos.z * tightrope_uv.z;
+            CONSTRAIN_P2_OBJECT->pos.value.x * tightrope_uv.x +
+            CONSTRAIN_P2_OBJECT->pos.value.z * tightrope_uv.z;
     }
 
     return 1.0f;
@@ -706,28 +706,28 @@ static void repel_players(void) {
 
     repel_distance = repel_check_plyrs();
     if (repel_distance != 0.0f) {
-        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos);
-        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos);
+        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos.value);
+        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value);
         if (projection_1 > projection_2) {
             if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
-                    &CONSTRAIN_P1_OBJECT->pos, &tightrope_uv,
+                    &CONSTRAIN_P1_OBJECT->pos.value, &tightrope_uv,
                     0.75f * (repel_distance * repel_distance));
             }
             if (object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
                 xz_x_v_add_xz(
-                    &CONSTRAIN_P2_OBJECT->pos, &tightrope_uv,
+                    &CONSTRAIN_P2_OBJECT->pos.value, &tightrope_uv,
                     -0.75f * (repel_distance * repel_distance));
             }
         } else {
             if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
-                    &CONSTRAIN_P1_OBJECT->pos, &tightrope_uv,
+                    &CONSTRAIN_P1_OBJECT->pos.value, &tightrope_uv,
                     -0.75f * (repel_distance * repel_distance));
             }
             if (object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
                 xz_x_v_add_xz(
-                    &CONSTRAIN_P2_OBJECT->pos, &tightrope_uv,
+                    &CONSTRAIN_P2_OBJECT->pos.value, &tightrope_uv,
                     0.75f * (repel_distance * repel_distance));
             }
         }
@@ -735,8 +735,8 @@ static void repel_players(void) {
 
     if (!object_ignores_wall_limits(CONSTRAIN_P1_OBJECT) &&
         !object_ignores_wall_limits(CONSTRAIN_P2_OBJECT)) {
-        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos);
-        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos);
+        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos.value);
+        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value);
         distance = projection_1 - projection_2;
         if (distance >= 0.0f) {
             /* Keep the positive distance. */
@@ -816,12 +816,12 @@ static void repel_players(void) {
             object_can_be_repelled(CONSTRAIN_P2_OBJECT)) {
             if (push_1 > 0.0f) {
                 xz_x_v_add_xz(
-                    &CONSTRAIN_P1_OBJECT->pos, &tightrope_uv,
+                    &CONSTRAIN_P1_OBJECT->pos.value, &tightrope_uv,
                     direction_1 * push_1);
             }
             if (push_2 > 0.0f) {
                 xz_x_v_add_xz(
-                    &CONSTRAIN_P2_OBJECT->pos, &tightrope_uv,
+                    &CONSTRAIN_P2_OBJECT->pos.value, &tightrope_uv,
                     direction_2 * push_2);
             }
         }
@@ -831,34 +831,34 @@ static void repel_players(void) {
         g_game_info.plyr0.collision_data != 0) {
         bgnd_clear_danger_zone_callback(CONSTRAIN_P1_PDATA);
         movement_1.x =
-            CONSTRAIN_P1_OBJECT->pos.x -
+            CONSTRAIN_P1_OBJECT->pos.value.x -
             constrain_state.player[0].position.x;
         movement_1.y =
-            CONSTRAIN_P1_OBJECT->pos.y -
+            CONSTRAIN_P1_OBJECT->pos.value.y -
             constrain_state.player[0].position.y;
         movement_1.z =
-            CONSTRAIN_P1_OBJECT->pos.z -
+            CONSTRAIN_P1_OBJECT->pos.value.z -
             constrain_state.player[0].position.z;
         repel_against_obstacle_list(
             &g_game_info.plyr0, &constrain_state.player[0].position,
-            &movement_1, &CONSTRAIN_P1_OBJECT->pos, &constrain_info);
+            &movement_1, &CONSTRAIN_P1_OBJECT->pos.value, &constrain_info);
     }
 
     if (!player_ignores_obstacles(CONSTRAIN_P2_PDATA) &&
         g_game_info.plyr1.collision_data != 0) {
         bgnd_clear_danger_zone_callback(CONSTRAIN_P2_PDATA);
         movement_2.x =
-            CONSTRAIN_P2_OBJECT->pos.x -
+            CONSTRAIN_P2_OBJECT->pos.value.x -
             constrain_state.player[1].position.x;
         movement_2.y =
-            CONSTRAIN_P2_OBJECT->pos.y -
+            CONSTRAIN_P2_OBJECT->pos.value.y -
             constrain_state.player[1].position.y;
         movement_2.z =
-            CONSTRAIN_P2_OBJECT->pos.z -
+            CONSTRAIN_P2_OBJECT->pos.value.z -
             constrain_state.player[1].position.z;
         repel_against_obstacle_list(
             &g_game_info.plyr1, &constrain_state.player[1].position,
-            &movement_2, &CONSTRAIN_P2_OBJECT->pos, &constrain_info);
+            &movement_2, &CONSTRAIN_P2_OBJECT->pos.value, &constrain_info);
     }
 }
 
@@ -883,7 +883,7 @@ static void keep_players_on_tightrope(void) {
         !player_2->flags_09_bits.tightrope_restricted ||
         !tightrope_set || update_tr_due_to_arena_edge) {
         if (xz_unit_vector_recip(
-                &direction, &player_1->pos, &player_2->pos) != 0.0f) {
+                &direction, &player_1->pos.value, &player_2->pos.value) != 0.0f) {
             if (tightrope_set &&
                 direction.x * tightrope_uv.x +
                     direction.z * tightrope_uv.z <
@@ -899,9 +899,9 @@ static void keep_players_on_tightrope(void) {
             tightrope_perp_uv.z = -direction.x;
             if (!g_game_info.feature_flags.bits.high_bit) {
                 tightrope_dist =
-                    player_1->pos.y * tightrope_perp_uv.y +
-                    player_1->pos.x * tightrope_perp_uv.x +
-                    player_1->pos.z * tightrope_perp_uv.z;
+                    player_1->pos.value.y * tightrope_perp_uv.y +
+                    player_1->pos.value.x * tightrope_perp_uv.x +
+                    player_1->pos.value.z * tightrope_perp_uv.z;
             }
             tightrope_set = 1;
             tightrope_set_this_tick = 1;
@@ -911,24 +911,24 @@ static void keep_players_on_tightrope(void) {
     }
 
     offset =
-        xz_dot_xz(&player_1->pos, &tightrope_perp_uv) - tightrope_dist;
+        xz_dot_xz(&player_1->pos.value, &tightrope_perp_uv) - tightrope_dist;
     if (offset < -0.1f) {
         xz_x_v_add_xz(
-            &player_1->pos, &tightrope_perp_uv, -(0.1f + offset));
+            &player_1->pos.value, &tightrope_perp_uv, -(0.1f + offset));
     } else if (offset > 0.1f) {
         xz_x_v_add_xz(
-            &player_1->pos, &tightrope_perp_uv, 0.1f - offset);
+            &player_1->pos.value, &tightrope_perp_uv, 0.1f - offset);
     }
 
     player_2 = constrain_player_object(&g_game_info.plyr1);
     offset =
-        xz_dot_xz(&player_2->pos, &tightrope_perp_uv) - tightrope_dist;
+        xz_dot_xz(&player_2->pos.value, &tightrope_perp_uv) - tightrope_dist;
     if (offset < -0.1f) {
         xz_x_v_add_xz(
-            &player_2->pos, &tightrope_perp_uv, -(0.1f + offset));
+            &player_2->pos.value, &tightrope_perp_uv, -(0.1f + offset));
     } else if (offset > 0.1f) {
         xz_x_v_add_xz(
-            &player_2->pos, &tightrope_perp_uv, 0.1f - offset);
+            &player_2->pos.value, &tightrope_perp_uv, 0.1f - offset);
     }
 }
 

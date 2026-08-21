@@ -1081,7 +1081,7 @@ void move_plyrs_to_round_start(void) {
         player1_angles.x = starts->player1_angles.x;
         player1_angles.y = starts->player1_angles.y;
         player1_angles.z = starts->player1_angles.z;
-        starts->player1_position.y = g_game_info.plyr0.slot.mirror_a->pos.y;
+        starts->player1_position.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
         move_player(
             g_game_info.plyr0.slot.mirror_a,
             &starts->player1_position,
@@ -1094,7 +1094,7 @@ void move_plyrs_to_round_start(void) {
         player2_angles.x = starts->player2_angles.x;
         player2_angles.y = starts->player2_angles.y;
         player2_angles.z = starts->player2_angles.z;
-        starts->player2_position.y = g_game_info.plyr1.slot.mirror_a->pos.y;
+        starts->player2_position.y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
         move_player(
             g_game_info.plyr1.slot.mirror_a,
             &starts->player2_position,
@@ -1441,15 +1441,15 @@ void reset_fight(int death_trap) {
         }
         bgnd_swap_level(0);
 
-        g_game_info.plyr0.slot.mirror_a->pos.y = g_game_info.field_34;
-        g_game_info.plyr1.slot.mirror_a->pos.y = g_game_info.field_34;
+        g_game_info.plyr0.slot.mirror_a->pos.value.y = g_game_info.field_34;
+        g_game_info.plyr1.slot.mirror_a->pos.value.y = g_game_info.field_34;
         if (g_game_info.plyr0.slot.mirror_a != 0) {
             RoundStartPositions* starts = (RoundStartPositions*)g_game_info.misc;
 
             player1_angles.x = starts->player1_angles.x;
             player1_angles.y = starts->player1_angles.y;
             player1_angles.z = starts->player1_angles.z;
-            starts->player1_position.y = g_game_info.plyr0.slot.mirror_a->pos.y;
+            starts->player1_position.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr0.slot.mirror_a,
                 &starts->player1_position,
@@ -1461,7 +1461,7 @@ void reset_fight(int death_trap) {
             player2_angles.x = starts->player2_angles.x;
             player2_angles.y = starts->player2_angles.y;
             player2_angles.z = starts->player2_angles.z;
-            starts->player2_position.y = g_game_info.plyr1.slot.mirror_a->pos.y;
+            starts->player2_position.y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr1.slot.mirror_a,
                 &starts->player2_position,
@@ -1940,7 +1940,7 @@ void round_init(void) {
             player1_angles.y = starts->player1_angles.y;
             player1_angles.z = starts->player1_angles.z;
             starts->player1_position.y =
-                g_game_info.plyr0.slot.mirror_a->pos.y;
+                g_game_info.plyr0.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr0.slot.mirror_a,
                 &starts->player1_position,
@@ -1953,7 +1953,7 @@ void round_init(void) {
             player2_angles.y = starts->player2_angles.y;
             player2_angles.z = starts->player2_angles.z;
             starts->player2_position.y =
-                g_game_info.plyr1.slot.mirror_a->pos.y;
+                g_game_info.plyr1.slot.mirror_a->pos.value.y;
             move_player(
                 g_game_info.plyr1.slot.mirror_a,
                 &starts->player2_position,

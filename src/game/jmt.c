@@ -342,7 +342,7 @@ void flying_collision(
     (void)script_args;
     plyr_pdata->collision_result = -1;
     start_plyr_attack(0.0f);
-    object_y = plyr_obj->pos.y;
+    object_y = plyr_obj->pos.value.y;
     ground_y = g_game_info.field_34;
     elapsed = 0.0f;
     while (object_y > ground_y + exit_height &&
@@ -352,7 +352,7 @@ void flying_collision(
         proc_vtbl->sleep(proc_vtbl);
         ani_1_frame();
         ground_y = g_game_info.field_34;
-        object_y = plyr_obj->pos.y;
+        object_y = plyr_obj->pos.value.y;
 
         if (object_y > ground_y + collision_height &&
             plyr_anim_pdata->frame < max_frame) {
@@ -532,15 +532,15 @@ void start_kabal_smoke(void* script_args, float duration) {
     pdata->his_obj = plyr_pdata->his_obj;
     pdata->owner = plyr_obj;
     pdata->duration = duration;
-    pdata->origin.x = plyr_obj->pos.x;
-    pdata->origin.y = plyr_obj->pos.y;
-    pdata->origin.z = plyr_obj->pos.z;
+    pdata->origin.x = plyr_obj->pos.value.x;
+    pdata->origin.y = plyr_obj->pos.value.y;
+    pdata->origin.z = plyr_obj->pos.value.z;
     emitter = pdata->emitters;
     for (index = 0; index < 10; index++) {
         *emitter++ = 0;
     }
     start_kabal_smoke_pfx(pdata);
-    drone_ai_set_avoidance_area(&plyr_obj->pos.x, duration);
+    drone_ai_set_avoidance_area(&plyr_obj->pos.value.x, duration);
 }
 
 static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
@@ -746,9 +746,9 @@ void start_subzero_decoy(void* script_args, float duration) {
     }
 
     pull_bone_hierarchy_mkobj(decoy);
-    decoy->pos.x = plyr_obj->pos.x;
-    decoy->pos.y = plyr_obj->pos.y;
-    decoy->pos.z = plyr_obj->pos.z;
+    decoy->pos.value.x = plyr_obj->pos.value.x;
+    decoy->pos.value.y = plyr_obj->pos.value.y;
+    decoy->pos.value.z = plyr_obj->pos.value.z;
     decoy->ang.x = plyr_obj->ang.x;
     decoy->ang.y = plyr_obj->ang.y;
     decoy->ang.z = plyr_obj->ang.z;
@@ -788,7 +788,7 @@ void start_subzero_decoy(void* script_args, float duration) {
     pdata->flash_count = 22;
     pdata->bone_copy_count = 20;
     pdata->bone_map = subzero_clone_bones;
-    drone_ai_set_avoidance_area(&plyr_obj->pos.x, duration);
+    drone_ai_set_avoidance_area(&plyr_obj->pos.value.x, duration);
 }
 
 void destroy_subzero_decoy(void) {
@@ -1004,9 +1004,9 @@ static float p_decoy(void) {
         return 1.0f;
     }
     if (g_game_info.feature_flags.bits.high_bit == 0) {
-        center.x = decoy->pos.x;
-        center.y = decoy->pos.y;
-        center.z = decoy->pos.z;
+        center.x = decoy->pos.value.x;
+        center.y = decoy->pos.value.y;
+        center.z = decoy->pos.value.z;
         center.y -= 1.0f;
         if (collide_cylinder_vs_plyr(
                 player, &center, &angles, 0.25f, 1.75f) != 0) {
@@ -1103,9 +1103,9 @@ void start_bow(int bone, float duration) {
     pdata->bone = bone;
     pdata->duration = duration;
     get_bone_world_pos(pdata->owner, pdata->bone, &position);
-    bow->pos.x = position.x;
-    bow->pos.y = position.y;
-    bow->pos.z = position.z;
+    bow->pos.value.x = position.x;
+    bow->pos.value.y = position.y;
+    bow->pos.value.z = position.z;
     bow->ang.y = pdata->owner->ang.y;
     pdata->scale = 0.0f;
 
@@ -1152,9 +1152,9 @@ static float p_bow_ctrl(void) {
         return 0.0f;
     }
     get_bone_world_pos(pdata->owner, pdata->bone, &position);
-    bow->pos.x = position.x;
-    bow->pos.y = position.y;
-    bow->pos.z = position.z;
+    bow->pos.value.x = position.x;
+    bow->pos.value.y = position.y;
+    bow->pos.value.z = position.z;
     bow->ang.y = pdata->owner->ang.y;
     pdata->scale += 0.1f;
     if (pdata->scale > 1.0f) {
@@ -1186,9 +1186,9 @@ static float p_bow_retract(void) {
         return -1.0f;
     }
     get_bone_world_pos(pdata->owner, pdata->bone, &position);
-    bow->pos.x = position.x;
-    bow->pos.y = position.y;
-    bow->pos.z = position.z;
+    bow->pos.value.x = position.x;
+    bow->pos.value.y = position.y;
+    bow->pos.value.z = position.z;
     bow->ang.y = pdata->owner->ang.y;
     pdata->scale -= 0.2f;
     if (pdata->scale < 0.0f) {
@@ -1267,12 +1267,12 @@ float mks_get_victim_to_tr_dot(int player) {
         target = g_game_info.plyr1.slot.mirror_a;
     }
     if (victim != 0 && target != 0) {
-        victim_x = victim->pos.x;
-        victim_z = victim->pos.z;
+        victim_x = victim->pos.value.x;
+        victim_z = victim->pos.value.z;
         victim_inverse_length =
             jmt_fast_inverse_sqrt(victim_x * victim_x + victim_z * victim_z);
-        target_z = target->pos.z - victim_z;
-        target_x = target->pos.x - victim_x;
+        target_z = target->pos.value.z - victim_z;
+        target_x = target->pos.value.x - victim_x;
         target_inverse_length =
             jmt_fast_inverse_sqrt(target_x * target_x + target_z * target_z);
         result = (target_x * target_inverse_length) *
@@ -1431,16 +1431,16 @@ void mks_set_plyr_to_center_ang_offset(
     }
 
     length = jmt_fast_sqrt(
-        object->pos.x * object->pos.x +
-        object->pos.z * object->pos.z);
+        object->pos.value.x * object->pos.value.x +
+        object->pos.value.z * object->pos.value.z);
     if (length <= 0.0f) {
         inverse_length = length;
     } else {
         inverse_length = 1.0f / length;
     }
     if (length != 0.0f) {
-        normalized_x = -object->pos.x * inverse_length;
-        normalized_z = -object->pos.z * inverse_length;
+        normalized_x = -object->pos.value.x * inverse_length;
+        normalized_z = -object->pos.value.z * inverse_length;
         angle_bits = (int)(166886.1f *
             (angle_offset + gxMathArcTanYX(normalized_x, normalized_z)));
         angle_bits &= 0xFFFFF;
@@ -1461,8 +1461,8 @@ void mks_bgnd_cam_offset_away(
     }
 
     length = jmt_fast_sqrt(
-        victim->pos.x * victim->pos.x +
-        victim->pos.z * victim->pos.z);
+        victim->pos.value.x * victim->pos.value.x +
+        victim->pos.value.z * victim->pos.value.z);
     if (length <= 0.0f) {
         inverse_length = length;
     } else {
@@ -1470,9 +1470,9 @@ void mks_bgnd_cam_offset_away(
     }
     if (length != 0.0f) {
         camera_set_movement_offset_explicit(
-            victim->pos.x * inverse_length * distance,
+            victim->pos.value.x * inverse_length * distance,
             height,
-            victim->pos.z * inverse_length * distance);
+            victim->pos.value.z * inverse_length * distance);
     }
 }
 

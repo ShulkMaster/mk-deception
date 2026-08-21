@@ -982,18 +982,18 @@ MkObj* subzero_start_iceman(void) {
     obj_set_all_sobjs_priority(iceman, 0x13);
     iceman->light_flags = fatality_state.attacker_object->light_flags;
     mkobj_get_matrix_right(fatality_state.attacker_object, &right);
-    iceman->pos.y = g_game_info.field_34 - 0.075f;
+    iceman->pos.value.y = g_game_info.field_34 - 0.075f;
     iceman->ang.y = fatality_state.attacker_object->ang.y;
     if (fatality_state.mirror_camera != 0) {
-        iceman->pos.x = fatality_state.attacker_object->pos.x +
+        iceman->pos.value.x = fatality_state.attacker_object->pos.value.x +
             0.05f * right.x;
-        iceman->pos.z = fatality_state.attacker_object->pos.z +
+        iceman->pos.value.z = fatality_state.attacker_object->pos.value.z +
             0.05f * right.z;
         iceman->ang.y -= 1.5707964f;
     } else {
-        iceman->pos.x = fatality_state.attacker_object->pos.x -
+        iceman->pos.value.x = fatality_state.attacker_object->pos.value.x -
             0.05f * right.x;
-        iceman->pos.z = fatality_state.attacker_object->pos.z -
+        iceman->pos.value.z = fatality_state.attacker_object->pos.value.z -
             0.05f * right.z;
         iceman->ang.y += 1.5707964f;
     }
@@ -1083,7 +1083,7 @@ MkObj* subzero_start_iceblock(void) {
         obj_set_color_for_all_materials(iceblock, (int*)&color);
         obj_set_all_sobjs_priority(iceblock, 0x13);
         iceblock->light_flags = fatality_state.victim_object->light_flags;
-        iceblock->pos = fatality_state.victim_object->pos;
+        iceblock->pos.value = fatality_state.victim_object->pos.value;
         mkobj_get_matrix_at(fatality_state.victim_object, &at);
         mkobj_get_matrix_right(fatality_state.victim_object, &right);
         if (fatality_state.mirror_camera != 0) {
@@ -1095,7 +1095,7 @@ MkObj* subzero_start_iceblock(void) {
             right.y *= -0.1f;
             right.z *= -0.1f;
         }
-        iceblock->pos.y = g_game_info.field_34;
+        iceblock->pos.value.y = g_game_info.field_34;
         if (fatality_state.opponent->character_id == 0xA) {
             forward = 0.25f;
             maximum = 1.0f;
@@ -1105,10 +1105,10 @@ MkObj* subzero_start_iceblock(void) {
             maximum = 0.8f;
             step = 0.01f;
         }
-        iceblock->pos.x -= at.x * forward;
-        iceblock->pos.z -= at.z * forward;
-        iceblock->pos.x += right.x;
-        iceblock->pos.z += right.z;
+        iceblock->pos.value.x -= at.x * forward;
+        iceblock->pos.value.z -= at.z * forward;
+        iceblock->pos.value.x += right.x;
+        iceblock->pos.value.z += right.z;
         iceblock->flags_08 |= 0x02;
         iceblock->scale.x = 1.0f;
         iceblock->scale.y = 0.05f;
@@ -1257,8 +1257,8 @@ static float p_3d_distance_handler(void) {
         if (object != 0) {
             data->max_ticks -= 1.0f;
             if (simple_3d_projectile_collision(
-                    &data->retarget_source->retarget_object->pos,
-                    &data->retarget_object->pos, &object->pos, 0, 0.2f,
+                    &data->retarget_source->retarget_object->pos.value,
+                    &data->retarget_object->pos.value, &object->pos.value, 0, 0.2f,
                     225.0f, 0.0f) != 2 &&
                 data->max_ticks >= 0.0f) {
                 return 1.0f;
@@ -1361,9 +1361,9 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
                 wave->flags_08 |= 0x40;
                 wave->flags_08 |= 0x08;
                 wave->flags_08 |= 0x02;
-                wave->pos.x = 0.0f;
-                wave->pos.y = -10000.0f;
-                wave->pos.z = 0.0f;
+                wave->pos.value.x = 0.0f;
+                wave->pos.value.y = -10000.0f;
+                wave->pos.value.z = 0.0f;
                 wave->ang.x = 0.0f;
                 wave->ang.y = plyr_obj->ang.y;
                 wave->ang_vel.x = 0.0f;
@@ -1568,7 +1568,7 @@ static float p_sd_sonic_waves(void) {
             if (data->wave_progress[index] >= 20.0f) {
                 data->wave_progress[index] = 0.0f;
                 pebble->matrices[index].pos.y = -10000.0f;
-                wave->pos.y = -10000.0f;
+                wave->pos.value.y = -10000.0f;
                 continue;
             }
 
@@ -1586,11 +1586,11 @@ static float p_sd_sonic_waves(void) {
                     data->velocity.y * distance;
                 data->wave_positions[index].z +=
                     data->velocity.z * distance;
-                wave->pos.x = data->origin.x +
+                wave->pos.value.x = data->origin.x +
                     data->wave_positions[index].x;
-                wave->pos.y = data->origin.y +
+                wave->pos.value.y = data->origin.y +
                     data->wave_positions[index].y;
-                wave->pos.z = data->origin.z +
+                wave->pos.value.z = data->origin.z +
                     data->wave_positions[index].z;
                 data->wave_offsets[index].z += 3.0f * scale_step;
             } else {
@@ -1612,11 +1612,11 @@ static float p_sd_sonic_waves(void) {
                     data->velocity.y * distance;
                 data->wave_positions[index].z +=
                     data->velocity.z * distance;
-                wave->pos.x = data->origin.x +
+                wave->pos.value.x = data->origin.x +
                     data->wave_positions[index].x;
-                wave->pos.y = data->origin.y +
+                wave->pos.value.y = data->origin.y +
                     data->wave_positions[index].y;
-                wave->pos.z = data->origin.z +
+                wave->pos.value.z = data->origin.z +
                     data->wave_positions[index].z;
             }
             wave->scale = data->wave_offsets[index];
@@ -1639,9 +1639,9 @@ static float p_sd_sonic_waves(void) {
             mat_scaled_by_v3(
                 &pebble->matrices[index], &pebble->matrices[index],
                 &matrix_scale);
-            pebble->matrices[index].pos.x = wave->pos.x;
-            pebble->matrices[index].pos.y = wave->pos.y;
-            pebble->matrices[index].pos.z = wave->pos.z;
+            pebble->matrices[index].pos.x = wave->pos.value.x;
+            pebble->matrices[index].pos.y = wave->pos.value.y;
+            pebble->matrices[index].pos.z = wave->pos.value.z;
             if ((index & 1) != 0) {
                 pebble->matrices[index].pos.y += 0.1f * index;
             } else {
@@ -1945,7 +1945,7 @@ static float p_raiden_summon_lightning_bolt(void) {
             return -1.0f;
         }
 
-        get_bone_world_pos(bolt, data->bone_id, &bolt->pos);
+        get_bone_world_pos(bolt, data->bone_id, &bolt->pos.value);
         get_camera_angle(&camera_angle);
         bolt->ang.y = camera_angle.y;
         switch (data->orientation) {
@@ -1958,11 +1958,11 @@ static float p_raiden_summon_lightning_bolt(void) {
             break;
         case 2:
             bolt->ang.z += 3.1415927f;
-            bolt->pos.y += y_offset;
+            bolt->pos.value.y += y_offset;
             break;
         case 3:
             bolt->ang.y += 3.1415927f;
-            bolt->pos.y += y_offset;
+            bolt->pos.value.y += y_offset;
             data->orientation = -1;
             break;
         default:
@@ -2041,7 +2041,7 @@ void ft_mileena_start_veil_ripoff(void) {
             fatality_state.attacker_object, 7);
         get_bone_offset_world_pos(
             fatality_state.attacker_object, bone_id,
-            &veil_offset, &veil->pos);
+            &veil_offset, &veil->pos.value);
         veil->flags_09 &= ~0x80;
         veil->flags_09 &= ~0x40;
     }
@@ -2325,9 +2325,9 @@ void start_bodyslam_bodysplat(
         data->object = object;
         data->object_instance = object->hdr.instance;
         insert_fgnd_mkobj(object);
-        object->pos.x = x;
-        object->pos.y = g_game_info.field_34 + 0.001f;
-        object->pos.z = z;
+        object->pos.value.x = x;
+        object->pos.value.y = g_game_info.field_34 + 0.001f;
+        object->pos.value.z = z;
         object->flags_08 |= 2;
         object->scale.x = 1.0f;
         object->scale.y = 1.0f;
@@ -2546,9 +2546,9 @@ float p_fatality_cam(void) {
     angle.y = camera_obj->ang.y - 1.5707964f;
     angle.z = 0.0f;
     camera_set_animation_parent_angle(&angle, 0);
-    position.x = fatality_state.attacker_object->pos.x;
+    position.x = fatality_state.attacker_object->pos.value.x;
     position.y = camera_obj->pos.y;
-    position.z = fatality_state.attacker_object->pos.z;
+    position.z = fatality_state.attacker_object->pos.value.z;
     camera_set_animation_parent_position(&position);
     if (fatality_state.mirror_camera != 0) {
         camera_set_animation_mirror_plane(2);
@@ -2636,16 +2636,16 @@ static float p_face_obj(void) {
         get_bone_world_pos(
             source, data->source_bone, &source_position);
     } else {
-        source_position.x = source->pos.x;
-        source_position.y = source->pos.y;
-        source_position.z = source->pos.z;
+        source_position.x = source->pos.value.x;
+        source_position.y = source->pos.value.y;
+        source_position.z = source->pos.value.z;
     }
     if ((unsigned int)(data->target_bone + 0xC0000000) != 0) {
         get_bone_world_pos(target, data->target_bone, &direction);
     } else {
-        direction.x = target->pos.x;
-        direction.y = target->pos.y;
-        direction.z = target->pos.z;
+        direction.x = target->pos.value.x;
+        direction.y = target->pos.value.y;
+        direction.z = target->pos.value.z;
     }
     direction.x = source_position.x - direction.x;
     direction.y = source_position.y - direction.y;
@@ -2770,9 +2770,9 @@ FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     if (blend != 0.0f) {
         matcher->blend = blend;
         matcher->blend_target = blend;
-        matcher->parent_position.x = parent->pos.x;
-        matcher->parent_position.y = parent->pos.y;
-        matcher->parent_position.z = parent->pos.z;
+        matcher->parent_position.x = parent->pos.value.x;
+        matcher->parent_position.y = parent->pos.value.y;
+        matcher->parent_position.z = parent->pos.value.z;
     }
     mk_insert(&parent->hdr, &process->pdata_list);
     return matcher;
@@ -2938,7 +2938,7 @@ float p_obj_grnd_bounce(void) {
         return -1.0f;
     }
     if (object->pos_vel.y != 0.0f &&
-        object->pos.y <= g_game_info.field_34 + data->ground_offset) {
+        object->pos.value.y <= g_game_info.field_34 + data->ground_offset) {
         if (data->bounce_count != 0) {
             switch (data->bounce_count) {
             case 0:
@@ -2970,7 +2970,7 @@ float p_obj_grnd_bounce(void) {
             object->flags_08_bits.moving = 0;
             object->flags_09_bits.launched = 1;
             object->flags_09_bits.bit6 = 1;
-            object->pos.y =
+            object->pos.value.y =
                 g_game_info.field_34 + data->ground_offset;
             return -1.0f;
         }
@@ -3132,9 +3132,9 @@ void obj_match_obj_pos(
         data->destination = destination;
         data->destination_instance = destination->hdr.instance;
         if (snap) {
-            destination->pos.x = source->pos.x;
-            destination->pos.y = source->pos.y;
-            destination->pos.z = source->pos.z;
+            destination->pos.value.x = source->pos.value.x;
+            destination->pos.value.y = source->pos.value.y;
+            destination->pos.value.z = source->pos.value.z;
         }
         destination->flags_08 |= 0x40;
         data->blend = blend;
@@ -3163,14 +3163,14 @@ float p_obj_pos_matcher(void) {
     }
     blend = data->blend;
     if (blend == 1.0f) {
-        destination->pos = source->pos;
+        destination->pos.value = source->pos.value;
     } else {
-        destination->pos.x +=
-            (source->pos.x - destination->pos.x) * blend;
-        destination->pos.y +=
-            (source->pos.y - destination->pos.y) * blend;
-        destination->pos.z +=
-            (source->pos.z - destination->pos.z) * blend;
+        destination->pos.value.x +=
+            (source->pos.value.x - destination->pos.value.x) * blend;
+        destination->pos.value.y +=
+            (source->pos.value.y - destination->pos.value.y) * blend;
+        destination->pos.value.z +=
+            (source->pos.value.z - destination->pos.value.z) * blend;
     }
     return 1.0f;
 }
@@ -3476,13 +3476,13 @@ int fat_bgnd_char_setup_radius_check(
     float z;
 
     attacker_delta.x =
-        fatality_state.attacker_object->pos.x - check->center_x;
+        fatality_state.attacker_object->pos.value.x - check->center_x;
     attacker_delta.z =
-        fatality_state.attacker_object->pos.z - check->center_z;
+        fatality_state.attacker_object->pos.value.z - check->center_z;
     victim_delta.x =
-        fatality_state.victim_object->pos.x - check->center_x;
+        fatality_state.victim_object->pos.value.x - check->center_x;
     victim_delta.z =
-        fatality_state.victim_object->pos.z - check->center_z;
+        fatality_state.victim_object->pos.value.z - check->center_z;
     attacker_distance_sq =
         attacker_delta.x * attacker_delta.x +
         attacker_delta.z * attacker_delta.z;
@@ -3541,10 +3541,10 @@ int fat_bgnd_char_setup_radius_check(
         0.65f * (check->radius * inverse.value) - 1.0f;
     x = selected->x * correction;
     z = selected->z * correction;
-    fatality_state.attacker_object->pos.x += x;
-    fatality_state.attacker_object->pos.z += z;
-    fatality_state.victim_object->pos.x += x;
-    fatality_state.victim_object->pos.z += z;
+    fatality_state.attacker_object->pos.value.x += x;
+    fatality_state.attacker_object->pos.value.z += z;
+    fatality_state.victim_object->pos.value.x += x;
+    fatality_state.victim_object->pos.value.z += z;
     camera = camera_item.node;
     if (camera != 0 &&
         camera->hdr.instance != camera_item.instance) {
@@ -3615,13 +3615,13 @@ void set_victim_v3_units_away(float x, float z) {
     Vec offset;
     float original_y;
 
-    original_y = his_obj->pos.y;
+    original_y = his_obj->pos.value.y;
     offset.x = x;
     offset.y = 0.0f;
     offset.z = z;
-    v3_x_mat_add_v3(&his_obj->pos, &offset, plyr_obj->field_24,
-                    &plyr_obj->pos);
-    his_obj->pos.y = original_y;
+    v3_x_mat_add_v3(&his_obj->pos.value, &offset, plyr_obj->field_24,
+                    &plyr_obj->pos.value);
+    his_obj->pos.value.y = original_y;
 }
 
 void fade_fatality_screen(void) {

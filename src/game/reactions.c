@@ -1657,8 +1657,8 @@ static float r_cyrus_stomp(void) {
 
 /* Retail TU-local; referenced by remaining split reaction code. */
 static void same_xz(void) {
-    plyr_obj->pos.x = his_obj->pos.x;
-    plyr_obj->pos.z = his_obj->pos.z;
+    plyr_obj->pos.value.x = his_obj->pos.value.x;
+    plyr_obj->pos.value.z = his_obj->pos.value.z;
 }
 
 float r_obstacle_falldown(void) {
@@ -2350,8 +2350,8 @@ static float r_cyrax_blade(void) {
         (float)(((int)(166886.1f * his_obj->ang.y)) & 0xFFFFF);
     sine = gxMathSin(angle);
     cosine = gxMathCos(angle);
-    plyr_obj->pos.x = his_obj->pos.x + 2.0f * sine;
-    plyr_obj->pos.z = his_obj->pos.z + 2.0f * cosine;
+    plyr_obj->pos.value.x = his_obj->pos.value.x + 2.0f * sine;
+    plyr_obj->pos.value.z = his_obj->pos.value.z + 2.0f * cosine;
     plyr_obj->pos_vel.x = 0.0f;
     plyr_obj->pos_vel.z = 0.0f;
     plyr_obj->gravity = -0.0075f;
@@ -2456,7 +2456,7 @@ float r_jump_chin3_final_hit(void) {
     face_opponent_now();
     plyr_pdata->blocking_disabled = 0;
     plyr_pdata->blocking_disabled_2 = 0;
-    plyr_obj->pos.y = his_obj->pos.y;
+    plyr_obj->pos.value.y = his_obj->pos.value.y;
     stop_me();
     init_air_move();
     plyr_obj->flags_09_bits.launched = 0;
@@ -3129,13 +3129,13 @@ static float r_subzero_iceball(void) {
         set_my_state(0);
         got_hit_fx(4, 8, 1, 0, 0, 0, 0.0f);
         face_opponent_now();
-        plyr_pdata->summon_position_x = plyr_obj->pos.x;
-        plyr_pdata->summon_position_z = plyr_obj->pos.z;
+        plyr_pdata->summon_position_x = plyr_obj->pos.value.x;
+        plyr_pdata->summon_position_z = plyr_obj->pos.value.z;
         glitch_to_ani(shared_ani.falling_back_id, 3);
         plyr_anim_pdata->frame = 23.0f;
         ani_1_frame();
-        plyr_obj->pos.x = plyr_pdata->summon_position_x;
-        plyr_obj->pos.z = plyr_pdata->summon_position_z;
+        plyr_obj->pos.value.x = plyr_pdata->summon_position_x;
+        plyr_obj->pos.value.z = plyr_pdata->summon_position_z;
         back_rollup_check();
         ani_to_end();
         vtable = (ReactionProcVtable*)aproc->vtbl;

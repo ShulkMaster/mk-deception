@@ -259,13 +259,13 @@ static float pfx_glass_break_run(void) {
                 if (reseed_rnd_tbl != 0) reload_rnd_tbl();
                 *dst_life = 0.0f;
                 if (glass->pfx.field_294 == 9) {
-                    dst_pos->x = apfx_emitter_obj->pos.x + frand(0.8f);
-                    dst_pos->y = apfx_emitter_obj->pos.y + glass->pfx.field_298 + sfrand(0.5f);
-                    dst_pos->z = apfx_emitter_obj->pos.z + frand(0.8f);
+                    dst_pos->x = apfx_emitter_obj->pos.value.x + frand(0.8f);
+                    dst_pos->y = apfx_emitter_obj->pos.value.y + glass->pfx.field_298 + sfrand(0.5f);
+                    dst_pos->z = apfx_emitter_obj->pos.value.z + frand(0.8f);
                 } else {
-                    dst_pos->x = apfx_emitter_obj->pos.x - 0.1f + frand(0.2f);
-                    dst_pos->y = apfx_emitter_obj->pos.y + glass->pfx.field_298 + sfrand(0.5f);
-                    dst_pos->z = apfx_emitter_obj->pos.z - 0.1f + frand(0.2f);
+                    dst_pos->x = apfx_emitter_obj->pos.value.x - 0.1f + frand(0.2f);
+                    dst_pos->y = apfx_emitter_obj->pos.value.y + glass->pfx.field_298 + sfrand(0.5f);
+                    dst_pos->z = apfx_emitter_obj->pos.value.z - 0.1f + frand(0.2f);
                 }
                 switch (glass->pfx.field_294) {
                 case 0:

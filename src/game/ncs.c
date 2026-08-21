@@ -724,10 +724,10 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
 
     weapon->flags_08_bits.gravity_enabled = 0;
     target = player->plyr_info->slot.mirror_a;
-    weapon->pos_vel.x = (target->pos.x - camera->pos.x) * inverse_ticks;
+    weapon->pos_vel.x = (target->pos.value.x - camera->pos.x) * inverse_ticks;
     weapon->pos_vel.y =
-        ((target->pos.y - camera->pos.y) + 0.8f) * inverse_ticks;
-    weapon->pos_vel.z = (target->pos.z - camera->pos.z) * inverse_ticks;
+        ((target->pos.value.y - camera->pos.y) + 0.8f) * inverse_ticks;
+    weapon->pos_vel.z = (target->pos.value.z - camera->pos.z) * inverse_ticks;
     proc->pre_destroy = sc_spear_prewake;
     proc->destroy_cb = sc_spear_postsleep;
     proc->sleep_ticks = 2.0f;
@@ -924,12 +924,12 @@ static float p_sc_spear2(void) {
         return 0.0f;
     }
 
-    owner->saved_position_x = sc_spear_obj->pos.x;
-    owner->saved_position_z = sc_spear_obj->pos.z;
+    owner->saved_position_x = sc_spear_obj->pos.value.x;
+    owner->saved_position_z = sc_spear_obj->pos.value.z;
     owner->duck_reaction_active = 1;
     collision = simple_3d_projectile_collision(
-        &target->pos, &pdata_sc_spear->opponent_object->pos,
-        &sc_spear_obj->pos, 0, 0.2f, 200.0f, 0.25f);
+        &target->pos.value, &pdata_sc_spear->opponent_object->pos.value,
+        &sc_spear_obj->pos.value, 0, 0.2f, 200.0f, 0.25f);
     outcome = 0;
     switch (collision) {
     case 0:
@@ -1047,8 +1047,8 @@ static float p_sc_spear2_victory(void) {
         return 1.0f;
     }
 
-    dx = camera->pos.x - sc_spear_obj->pos.x;
-    dz = camera->pos.z - sc_spear_obj->pos.z;
+    dx = camera->pos.x - sc_spear_obj->pos.value.x;
+    dz = camera->pos.z - sc_spear_obj->pos.value.z;
     squared = dx * dx + dz * dz;
     bits.f = squared;
     root = 0.0f;
@@ -1075,7 +1075,7 @@ static float p_sc_spear2_victory(void) {
 static float p_sc_spear2_getup(void) {
     NcsSpearEffect* effect;
 
-    if (sc_spear_obj->pos.y > g_game_info.field_34 + 4.0f &&
+    if (sc_spear_obj->pos.value.y > g_game_info.field_34 + 4.0f &&
         sc_spear_obj->pos_vel.y != 0.0f) {
         sc_spear_obj->pos_vel.x = 0.0f;
         sc_spear_obj->pos_vel.y = 0.0f;
@@ -1149,11 +1149,11 @@ float p_sc_spear_retract(void) {
 
             get_bone_world_pos(owner_object, bone, &target);
             sc_spear_obj->pos_vel.x =
-                (target.x - sc_spear_obj->pos.x) * 0.065f;
+                (target.x - sc_spear_obj->pos.value.x) * 0.065f;
             sc_spear_obj->pos_vel.y =
-                (target.y - sc_spear_obj->pos.y) * 0.065f;
+                (target.y - sc_spear_obj->pos.value.y) * 0.065f;
             sc_spear_obj->pos_vel.z =
-                (target.z - sc_spear_obj->pos.z) * 0.065f;
+                (target.z - sc_spear_obj->pos.value.z) * 0.065f;
             ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
                 p_sc_spear4_getup, 1.0f);
             return 1.0f;
@@ -1161,8 +1161,8 @@ float p_sc_spear_retract(void) {
         sc_spear_obj->pos_vel.x *= -2.25f;
         sc_spear_obj->pos_vel.y = 0.0f;
         sc_spear_obj->pos_vel.z *= -2.25f;
-        if (sc_spear_obj->pos.y < 1.0f) {
-            sc_spear_obj->pos.y = 1.0f;
+        if (sc_spear_obj->pos.value.y < 1.0f) {
+            sc_spear_obj->pos.value.y = 1.0f;
         }
     }
     sc_spear_obj->flags_08_bits.gravity_enabled = 1;
@@ -1194,11 +1194,11 @@ float p_sc_spear_retract_victory(void) {
         get_bone_world_pos(owner_object, 0x19, &target);
     }
     sc_spear_obj->pos_vel.x =
-        (target.x - sc_spear_obj->pos.x) * 0.035f;
+        (target.x - sc_spear_obj->pos.value.x) * 0.035f;
     sc_spear_obj->pos_vel.y =
-        (target.y - sc_spear_obj->pos.y) * 0.035f;
+        (target.y - sc_spear_obj->pos.value.y) * 0.035f;
     sc_spear_obj->pos_vel.z =
-        (target.z - sc_spear_obj->pos.z) * 0.035f;
+        (target.z - sc_spear_obj->pos.value.z) * 0.035f;
     sc_spear_obj->flags_08_bits.gravity_enabled = 1;
     ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
         p_sc_spear4_victory, 1.0f);
@@ -1245,7 +1245,7 @@ static float p_sc_spear4(void) {
         return 0.0f;
     }
     collision = simple_3d_projectile_collision(
-        &target->pos, &target->pos, &sc_spear_obj->pos,
+        &target->pos.value, &target->pos.value, &sc_spear_obj->pos.value,
         1, 1.5f, 200.0f, 0.25f);
     if (collision == 0) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
@@ -1300,8 +1300,8 @@ static float p_sc_spear4_victory(void) {
     }
     get_bone_world_pos(
         target_object, get_bid_with_flip(target_object, 0x19), &target);
-    dx = target.x - sc_spear_obj->pos.x;
-    dz = target.z - sc_spear_obj->pos.z;
+    dx = target.x - sc_spear_obj->pos.value.x;
+    dz = target.z - sc_spear_obj->pos.value.z;
     squared = dx * dx + dz * dz;
     distance = 0.0f;
     if (squared > 0.0f) {
@@ -1332,9 +1332,9 @@ static float p_sc_spear4_victory(void) {
             (bits.f * (3.0f - (bits.f * bits.f) / speed_squared));
     }
 
-    sc_spear_obj->pos_vel.x = target.x - sc_spear_obj->pos.x;
-    sc_spear_obj->pos_vel.y = target.y - sc_spear_obj->pos.y;
-    sc_spear_obj->pos_vel.z = target.z - sc_spear_obj->pos.z;
+    sc_spear_obj->pos_vel.x = target.x - sc_spear_obj->pos.value.x;
+    sc_spear_obj->pos_vel.y = target.y - sc_spear_obj->pos.value.y;
+    sc_spear_obj->pos_vel.z = target.z - sc_spear_obj->pos.value.z;
     direction_squared =
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
@@ -1385,7 +1385,7 @@ static float p_sc_spear4_getup(void) {
     }
     get_bone_world_pos(
         target_object, get_bid_with_flip(target_object, 0x19), &target);
-    if (target.y > sc_spear_obj->pos.y) {
+    if (target.y > sc_spear_obj->pos.value.y) {
         ((NcsProcVtable*)aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
         return 0.0f;
@@ -1405,9 +1405,9 @@ static float p_sc_spear4_getup(void) {
             (bits.f * (3.0f - (bits.f * bits.f) / speed_squared));
     }
 
-    sc_spear_obj->pos_vel.x = target.x - sc_spear_obj->pos.x;
-    sc_spear_obj->pos_vel.y = target.y - sc_spear_obj->pos.y;
-    sc_spear_obj->pos_vel.z = target.z - sc_spear_obj->pos.z;
+    sc_spear_obj->pos_vel.x = target.x - sc_spear_obj->pos.value.x;
+    sc_spear_obj->pos_vel.y = target.y - sc_spear_obj->pos.value.y;
+    sc_spear_obj->pos_vel.z = target.z - sc_spear_obj->pos.value.z;
     direction_squared =
         sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
         sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
@@ -1517,7 +1517,7 @@ static float p_pfx_sc_spear(void) {
     particle_position = (Vec*)pfx_get_field(&effect->vm, -2, 0x100);
     emitter_object = apfx_emitter_obj;
     get_bone_world_pos(target, effect->bone, &target_position);
-    v3_sub_v3(&direction, &emitter_object->pos, &target_position);
+    v3_sub_v3(&direction, &emitter_object->pos.value, &target_position);
     length = normalize_v3_length(&direction);
 
     if (effect->field_298 > 0.0f) {
@@ -1570,21 +1570,21 @@ static float p_pfx_sc_spear(void) {
         }
         distance += step;
         particle_position->x =
-            emitter_object->pos.x - direction.x * distance;
+            emitter_object->pos.value.x - direction.x * distance;
         particle_position->z =
-            emitter_object->pos.z - direction.z * distance;
+            emitter_object->pos.value.z - direction.z * distance;
         if ((spear_pdata->flags & 0x80) == 0) {
             if (effect->field_298 > 0.01f) {
                 particle_position->y =
-                    emitter_object->pos.y + amplitude * gxMathSin(phase);
+                    emitter_object->pos.value.y + amplitude * gxMathSin(phase);
             } else {
-                particle_position->y = emitter_object->pos.y;
+                particle_position->y = emitter_object->pos.value.y;
             }
             particle_position->y -=
                 distance * (particle_position->y - target_position.y) /
                 length;
         } else {
-            particle_position->y = emitter_object->pos.y;
+            particle_position->y = emitter_object->pos.value.y;
         }
         particle_position = (Vec*)((unsigned char*)particle_position + stride);
         particle_count++;
@@ -1748,9 +1748,9 @@ PrisonGrabPdata* start_prison_grab_proc(
     } else {
         pdata->target_angle = angle;
     }
-    pdata->current_x = object->pos.x;
-    pdata->current_y = object->pos.y;
-    pdata->current_z = object->pos.z;
+    pdata->current_x = object->pos.value.x;
+    pdata->current_y = object->pos.value.y;
+    pdata->current_z = object->pos.value.z;
     plyr_pdata->blocking_disabled_2 = 1;
     plyr_pdata->blocking_disabled = 0;
     set_my_state(0x600);
@@ -1857,8 +1857,8 @@ static float p_prison_grab(void) {
         }
     }
 
-    object->pos.x = pdata->current_x;
-    object->pos.z = pdata->current_z;
+    object->pos.value.x = pdata->current_x;
+    object->pos.value.z = pdata->current_z;
     return 1.0f;
 }
 
@@ -2302,9 +2302,9 @@ void start_gore2_update(void) {
                         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
                         insert_fgnd_mkobj(object);
                         object->light_flags = 0x800;
-                        object->pos.x = 0.0f;
-                        object->pos.y = 0.0f;
-                        object->pos.z = 0.0f;
+                        object->pos.value.x = 0.0f;
+                        object->pos.value.y = 0.0f;
+                        object->pos.value.z = 0.0f;
                         object->ang.x = 0.0f;
                         object->ang.y = 0.0f;
                         object->ang.z = 0.0f;
@@ -2667,7 +2667,7 @@ static void trigger_blood_glops(
                 glop->flags_08_bits.airborne = 1;
                 glop->flags_08_bits.gravity_enabled = 1;
                 glop->flags_08_bits.moving = 1;
-                get_bone_world_pos(source, bone, &glop->pos);
+                get_bone_world_pos(source, bone, &glop->pos.value);
                 mkobj_get_matrix_at(source, &bone_at);
                 if (mode_of_play != 6 && player->f_constrained == 0 &&
                     (blood_type & 0x40) == 0) {
@@ -2677,15 +2677,15 @@ static void trigger_blood_glops(
                         (source->flags_08 & 1) != 0 ||
                         (blood_type & 0x80) != 0) {
                         offset = -0.2f;
-                        glop->pos.x += offset * bone_at.x;
-                        glop->pos.y += offset * bone_at.y;
-                        glop->pos.z += offset * bone_at.z;
-                        glop->pos.y += 0.3f;
+                        glop->pos.value.x += offset * bone_at.x;
+                        glop->pos.value.y += offset * bone_at.y;
+                        glop->pos.value.z += offset * bone_at.z;
+                        glop->pos.value.y += 0.3f;
                     } else {
                         offset = -0.7f;
-                        glop->pos.x += offset * bone_at.x;
-                        glop->pos.y += offset * bone_at.y;
-                        glop->pos.z += offset * bone_at.z;
+                        glop->pos.value.x += offset * bone_at.x;
+                        glop->pos.value.y += offset * bone_at.y;
+                        glop->pos.value.z += offset * bone_at.z;
                     }
                 }
                 mkobj_get_matrix_right(source, &bone_right);
@@ -2746,11 +2746,11 @@ static float p_watch_obj_for_gnd_coll(void) {
         }
         if (object != 0) {
             active_count++;
-            if (object->pos.y <= g_game_info.field_34) {
+            if (object->pos.value.y <= g_game_info.field_34) {
                 fx_reset_emit(pdata->emitters[index]);
-                object->pos.y = g_game_info.field_34 + 0.001f;
+                object->pos.value.y = g_game_info.field_34 + 0.001f;
                 spawn_bld_splat(
-                    "bltrsh", pdata->blood_owner, &object->pos);
+                    "bltrsh", pdata->blood_owner, &object->pos.value);
                 ref->object = 0;
                 ref->instance = 0;
                 if (object->hdr.instance != 0) {
@@ -2789,13 +2789,13 @@ void mks_spawn_blood_pool_at_bid(
         }
     } else {
         if (object != 0) {
-            position.x = object->pos.x;
-            position.y = object->pos.y;
-            position.z = object->pos.z;
+            position.x = object->pos.value.x;
+            position.y = object->pos.value.y;
+            position.z = object->pos.value.z;
         } else {
-            position.x = source->bone_owner->pos.x;
-            position.y = source->bone_owner->pos.y;
-            position.z = source->bone_owner->pos.z;
+            position.x = source->bone_owner->pos.value.x;
+            position.y = source->bone_owner->pos.value.y;
+            position.z = source->bone_owner->pos.value.z;
         }
     }
     position.y = g_game_info.field_34 + 0.01f;
@@ -2846,9 +2846,9 @@ void limb_sever_throw_away(
     object = obj_sever_limb(
         player->object, bone, 0, include_children);
     if (object != 0) {
-        object->pos.x = -1000000.0f;
-        object->pos.y = -1000000.0f;
-        object->pos.z = -1000000.0f;
+        object->pos.value.x = -1000000.0f;
+        object->pos.value.y = -1000000.0f;
+        object->pos.value.z = -1000000.0f;
     }
 }
 
@@ -3538,10 +3538,10 @@ static float p_limb_sever_attach(void) {
     offset.y = pdata->offset.y - source_position.y;
     offset.z = pdata->offset.z - source_position.z;
     v3_x_mat_add_v3(
-        &severed->pos, &offset, target_matrix, &source_position);
-    severed_matrix->pos.x = severed->pos.x;
-    severed_matrix->pos.y = severed->pos.y;
-    severed_matrix->pos.z = severed->pos.z;
+        &severed->pos.value, &offset, target_matrix, &source_position);
+    severed_matrix->pos.x = severed->pos.value.x;
+    severed_matrix->pos.y = severed->pos.value.y;
+    severed_matrix->pos.z = severed->pos.value.z;
     update_mkobj(severed);
     pdata->expire_tick--;
     return 1.0f;
@@ -3583,9 +3583,9 @@ static float p_limb_sever_update(void) {
             }
             if ((pdata->x_collision_mask & bit) != 0 &&
                 ((object->pos_vel.x >= 0.0f &&
-                  object->pos.x > pdata->x_collision_limit[limb]) ||
+                  object->pos.value.x > pdata->x_collision_limit[limb]) ||
                  (object->pos_vel.x < 0.0f &&
-                  object->pos.x < pdata->x_collision_limit[limb]))) {
+                  object->pos.value.x < pdata->x_collision_limit[limb]))) {
                 object->pos_vel.x *= -1.0f;
                 pdata->x_collision_mask &= ~bit;
                 if ((pdata->damp_bounce_mask & bit) != 0) {
@@ -3595,9 +3595,9 @@ static float p_limb_sever_update(void) {
             }
             if ((pdata->z_collision_mask & bit) != 0 &&
                 ((object->pos_vel.z >= 0.0f &&
-                  object->pos.z > pdata->z_collision_limit[limb]) ||
+                  object->pos.value.z > pdata->z_collision_limit[limb]) ||
                  (object->pos_vel.z < 0.0f &&
-                  object->pos.z < pdata->z_collision_limit[limb]))) {
+                  object->pos.value.z < pdata->z_collision_limit[limb]))) {
                 object->pos_vel.z *= -1.0f;
                 pdata->z_collision_mask &= ~bit;
                 if ((pdata->damp_bounce_mask & bit) != 0) {
@@ -3607,7 +3607,7 @@ static float p_limb_sever_update(void) {
             }
 
             if ((pdata->ground_mask & bit) == 0 ||
-                object->pos.y > pdata->ground_height[limb]) {
+                object->pos.value.y > pdata->ground_height[limb]) {
                 object->pos_vel.x *= pdata->slide_end_coefficient;
                 object->pos_vel.z *= pdata->slide_end_coefficient;
             } else if (pdata->ground_value[limb] != 0) {
@@ -3627,7 +3627,7 @@ static float p_limb_sever_update(void) {
             } else {
                 int make_splat = 1;
 
-                object->pos.y = pdata->ground_height[limb];
+                object->pos.value.y = pdata->ground_height[limb];
                 object->pos_vel.y = 0.0f;
                 object->flags_08_bits.rotation_enabled = 0;
                 object->flags_08_bits.moving = 0;
@@ -3669,9 +3669,9 @@ static float p_limb_sever_update(void) {
                 if (make_splat != 0) {
                     Vec position;
 
-                    position.x = object->pos.x;
+                    position.x = object->pos.value.x;
                     position.y = g_game_info.field_34 + 0.0005f;
-                    position.z = object->pos.z;
+                    position.z = object->pos.value.z;
                     spawn_bld_splat("blpuddle", pdata->fighter, &position);
                     if ((unsigned int)g_game_info.field_218 <
                             (unsigned int)exec_tick_ctr &&
@@ -3817,8 +3817,8 @@ float mkobj_pos_pos_dot_normal_xz(
     float correction;
     float inverse_length;
 
-    dx = to->pos.x - from->pos.x;
-    dz = to->pos.z - from->pos.z;
+    dx = to->pos.value.x - from->pos.value.x;
+    dz = to->pos.value.z - from->pos.value.z;
     squared = dx * dx + dz * dz;
     /*
      * Soft ceiling: retail retains an empty zero-length branch as a separate
