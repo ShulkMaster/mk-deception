@@ -1674,7 +1674,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             continue;
                         }
                     } else if (
-                        (bone->flags_55 & 2) != 0 &&
+                        bone->flags_55_bits.preserve_rotation != 0 &&
                         transition_weight < 1.0f &&
                         bone->field_60 < 0.0001f) {
                         bone->rotation = bone->rotation_e0;

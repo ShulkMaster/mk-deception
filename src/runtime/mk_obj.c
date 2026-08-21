@@ -1108,7 +1108,7 @@ static float p_goro_arms_fixup(void) {
                     gxQuatInterpQuat(
                         &target->rotation, &target->rotation,
                         &source->rotation, 0.9f);
-                    target->flags_55_bits.pad_bit1 = 1;
+                    target->flags_55_bits.preserve_rotation = 1;
                     gxQuatCopy(
                         &target->rotation_e0, &target->rotation);
                 }

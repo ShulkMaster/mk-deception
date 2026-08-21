@@ -8,14 +8,14 @@
 #include "runtime/limb.h"
 #include "runtime/mk_struct.h"
 
-typedef struct MkBoneFlags55 {
+typedef struct  {
     unsigned char collision_disabled : 1; /* bit7 */
     unsigned char collision_deferred : 1; /* bit6 */
     unsigned char scale_controlled : 1; /* bit5 - blade/controller scale */
     unsigned char pad_bit4 : 1;
     unsigned char pad_bit3 : 1;
     unsigned char reparent_toggle : 1; /* bit2 */
-    unsigned char pad_bit1 : 1;
+    unsigned char preserve_rotation : 1;
     unsigned char pad_bit0 : 1;
 } MkBoneFlags55;
 
@@ -45,10 +45,7 @@ typedef struct MkBone {
     union {
         struct {
             MkBoneFlags54 flags_54_bits; /* +0x54 */
-            union {
-                unsigned char flags_55; /* +0x55 - bit7 collapsed */
-                MkBoneFlags55 flags_55_bits;
-            };
+            MkBoneFlags55 flags_55_bits; /* +0x55 */
             char pad56[2];
         };
         unsigned int flags_word_54;
