@@ -60,12 +60,17 @@ void mwMemUserConfigInitMemSystem(void) {
     mwMemHeapInit();
 }
 
-int mwMemUserConfigAssert(void) { return 1; }
+int mwMemUserConfigAssert(const char* expression, const char* file, u32 line) {
+    (void)expression;
+    (void)file;
+    (void)line;
+    return 1;
+}
 
 void mwMemUserConfigPrintf(const char* format, ...) {}
 
-static void* movie_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32 flags,
-                            void* context, void* file, void* line) {
+static void* movie_strategy(u32 size, _mwMemHeap* source, u32 flags,
+                            MwMemMallocRequest* request, void* file, void* line) {
     void* block;
     _mwMemHeap* system_overflow;
 
@@ -73,13 +78,13 @@ static void* movie_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32
     (void)line;
 
     system_overflow = mwMemSystemGetHeap(1);
-    block = mwMemHeapStrategyCallback(request, wave_heap, flags, context);
+    block = mwMemHeapStrategyCallback(size, wave_heap, flags, request);
     if (block == 0) {
-        block = mwMemHeapStrategyCallback(request, permanent_heap, flags, context);
+        block = mwMemHeapStrategyCallback(size, permanent_heap, flags, request);
         if (block == 0) {
-            block = mwMemHeapStrategyCallback(request, section_heap, flags, context);
+            block = mwMemHeapStrategyCallback(size, section_heap, flags, request);
             if (block == 0) {
-                block = mwMemHeapStrategyCallback(request, system_overflow, flags, context);
+                block = mwMemHeapStrategyCallback(size, system_overflow, flags, request);
             }
         }
     }
@@ -91,29 +96,29 @@ static void* movie_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32
     return block;
 }
 
-static void* fixed1024_strategy(MwMemMallocRequest* request, _mwMemHeap* source, u32 flags,
-                                void* context, void* file, void* line) {
+static void* fixed1024_strategy(u32 size, _mwMemHeap* source, u32 flags,
+                                MwMemMallocRequest* request, void* file, void* line) {
     void* block;
 
     (void)file;
     (void)line;
-    block = mwMemHeapStrategyCallback(request, fixed_block_1024_heap, flags, context);
-    if (block == 0) block = mwMemHeapStrategyCallback(request, wave_heap, flags, context);
+    block = mwMemHeapStrategyCallback(size, fixed_block_1024_heap, flags, request);
+    if (block == 0) block = mwMemHeapStrategyCallback(size, wave_heap, flags, request);
     return block;
 }
 
 #define DEFINE_FIXED_STRATEGY(name, own_heap, next_heap, message)                              \
-    static void* name(MwMemMallocRequest* request, _mwMemHeap* source, u32 flags,              \
-                      void* context, void* file, void* line) {                                 \
+    static void* name(u32 size, _mwMemHeap* source, u32 flags,                                \
+                      MwMemMallocRequest* request, void* file, void* line) {                    \
         void* block;                                                                           \
                                                                                                \
         (void)file;                                                                            \
         (void)line;                                                                            \
-        block = mwMemHeapStrategyCallback(request, own_heap, flags, context);                   \
+        block = mwMemHeapStrategyCallback(size, own_heap, flags, request);                     \
         if (block == 0) {                                                                       \
             MEMPRINT(message);                                                                  \
-            block = mwMemHeapStrategyCallback(request, next_heap, flags, context);              \
-            if (block == 0) block = mwMemHeapStrategyCallback(request, wave_heap, flags, context); \
+            block = mwMemHeapStrategyCallback(size, next_heap, flags, request);                \
+            if (block == 0) block = mwMemHeapStrategyCallback(size, wave_heap, flags, request); \
         }                                                                                       \
         return block;                                                                           \
     }

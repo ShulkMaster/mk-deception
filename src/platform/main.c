@@ -65,7 +65,7 @@ float game_speed;
 void* empty_pdata;
 void* mab_generic_pdata;
 int jmp_where_id;
-unsigned long mode_of_play;
+int mode_of_play;
 float msecs_per_tick;
 int game_tick_ctr;
 int exec_tick_ctr;

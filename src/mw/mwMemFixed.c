@@ -101,7 +101,7 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
         request->allocationSize = header->allocationSize;
         request->alignmentPadding = header->alignmentPadding;
         request->allocationFlags = flags;
-        request->originHeap = heap;
+        request->allocationHeap = heap;
         request->prefixSize = 0;
         request->userSize = aligned_size;
         block[-1] = request->alignmentPadding;

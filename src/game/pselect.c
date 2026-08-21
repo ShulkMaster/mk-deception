@@ -2646,7 +2646,7 @@ static void pselect_init(void) {
     psel_p2_handicap = 100;
     load_lights(pselect_light_list, &bgnd_light_list);
 
-    camera_obj->pos_z = 7.0f;
+    camera_obj->pos.z = 7.0f;
     camera_obj->ang_y = 3.1415927f;
 
     g_game_info.bgnd_id = 0x23;

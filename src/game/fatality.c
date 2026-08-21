@@ -2547,7 +2547,7 @@ float p_fatality_cam(void) {
     angle.z = 0.0f;
     camera_set_animation_parent_angle(&angle, 0);
     position.x = fatality_state.attacker_object->pos.x;
-    position.y = camera_obj->pos_y;
+    position.y = camera_obj->pos.y;
     position.z = fatality_state.attacker_object->pos.z;
     camera_set_animation_parent_position(&position);
     if (fatality_state.mirror_camera != 0) {
@@ -3551,8 +3551,8 @@ int fat_bgnd_char_setup_radius_check(
         camera = 0;
     }
     if (camera != 0) {
-        camera->pos_x += x;
-        camera->pos_z += z;
+        camera->pos.x += x;
+        camera->pos.z += z;
     }
     return 1;
 }

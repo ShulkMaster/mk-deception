@@ -1112,7 +1112,7 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     camera_direction.z =
         ((RwFrame*)Camera->object.object.parent)->modelling.at.z;
     ray_cyl_intersection(
-        (Vec*)&camera_obj->pos_x, &camera_direction,
+        &camera_obj->pos, &camera_direction,
         &cylinder_position, &cylinder_axis,
         29.0f + sfrand(2.0f), &intersection_a, &intersection_b);
     intersection = intersection_a;
@@ -1120,9 +1120,9 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
         intersection = intersection_b;
     }
 
-    camera_position.x = camera_obj->pos_x;
+    camera_position.x = camera_obj->pos.x;
     camera_position.y = 0.0f;
-    camera_position.z = camera_obj->pos_z;
+    camera_position.z = camera_obj->pos.z;
     scale_xz(&jump_position, &camera_direction, intersection);
     v3_add_v3(&jump_position, &jump_position, &camera_position);
     uv_v3_to_v3(
@@ -1481,7 +1481,7 @@ static float p_cam_bounce_monitor(void) {
     }
 
     distance = dist_v3_to_v3(
-        (Vec*)&camera_obj->pos_x, &object->pos);
+        &camera_obj->pos, &object->pos);
     while (fabs(distance) > pdata->trigger_distance) {
         object = pdata->object;
         if (object != 0 && object->hdr.instance != pdata->object_instance) {
@@ -1491,7 +1491,7 @@ static float p_cam_bounce_monitor(void) {
             return -1.0f;
         }
         distance = dist_v3_to_v3(
-            (Vec*)&camera_obj->pos_x, &object->pos);
+            &camera_obj->pos, &object->pos);
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
@@ -1635,10 +1635,10 @@ void skytemple_player_explode(
 
             camera = camera_obj;
             if (camera != 0 && bounce_object != 0) {
-                camera_delta_y = camera->pos_y - bounce_object->pos.y;
-                camera_delta_z = camera->pos_z - bounce_object->pos.z;
+                camera_delta_y = camera->pos.y - bounce_object->pos.y;
+                camera_delta_z = camera->pos.z - bounce_object->pos.z;
                 bounce_object->pos_vel.x =
-                    (camera->pos_x - bounce_object->pos.x) * 0.025f;
+                    (camera->pos.x - bounce_object->pos.x) * 0.025f;
                 bounce_object->pos_vel.y = camera_delta_y * 0.025f;
                 bounce_object->pos_vel.z = camera_delta_z * 0.025f;
                 if (_create_mkproc_generic_tinystack(

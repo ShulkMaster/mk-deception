@@ -66,8 +66,8 @@ unsigned char mwFileIsCommandCompleted(mwFileCommand* command,
 mwFileAsyncResult mwFileWaitForCompletion(mwFileCommand* command);
 void mwFileAbortCommand(mwFileCommand* command);
 void mwFileFreeCommand(mwFileCommand* command);
-mwFileAsyncResult mwFileTell(_mwFile* file);
-mwFileAsyncResult mwFileSeek(_mwFile* file, long long offset, int origin);
+long long mwFileTell(_mwFile* file);
+long long mwFileSeek(_mwFile* file, long long offset, int origin);
 long long mwFileGetSize(_mwFile* file);
 int mwFileOpenModeToFlags(const char* mode);
 

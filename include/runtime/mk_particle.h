@@ -9,6 +9,7 @@ typedef void (*PfxInitCb)(void* vm);
 typedef void (*PfxTransformCb)(void);
 typedef struct FighterMirror FighterMirror;
 typedef struct PfxColor PfxColor;
+typedef struct PfxMetrics PfxMetrics;
 
 /* Build-info blob passed to new_pfx_create_raw_userdata (retail static empty_build_info$522). */
 typedef struct PfxBuildInfo {
@@ -134,7 +135,7 @@ struct MkPfx {
     char pad258[4];
     char* name_dst;               /* +0x25C -- set from VM during create */
     char pad260[4];
-    void* metrics_handle;         /* +0x264 */
+    PfxMetrics* metrics_handle;   /* +0x264 */
     float scale;                  /* +0x268 */
     char pad26C[0x14];
     union {

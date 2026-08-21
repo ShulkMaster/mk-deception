@@ -358,7 +358,7 @@ static float lensflare_proc2(void) {
     } else {
         camera = 0;
     }
-    uv_v3_to_v3(&direction, (const Vec*)&camera->pos_x, &sun);
+    uv_v3_to_v3(&direction, &camera->pos, &sun);
     v3_to_xy_ang(&angles, &direction);
     angles.x -= camera->ang_x;
     angles.y -= camera->ang_y;
@@ -386,12 +386,12 @@ static float lensflare_proc2(void) {
             if (camera != 0) {
                 uv_v3_to_v3(
                     &obstruction_direction,
-                    (const Vec*)&camera->pos_x, &sun);
+                    &camera->pos, &sun);
                 for (index = 0;
                      index < pdata->obstruction_count;
                      index++) {
                     if (rayintersection(
-                            (const Vec*)&camera->pos_x,
+                            &camera->pos,
                             &obstruction_direction,
                             &pdata->obstructions[index])) {
                         blocked = 1;

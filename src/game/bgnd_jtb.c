@@ -639,10 +639,10 @@ static int nb_npc_hurt_player(
             camera = 0;
         }
 
-        camera_to_npc_x = camera->pos_x - hit->object->pos.x;
-        camera_to_npc_z = camera->pos_z - hit->object->pos.z;
-        camera_to_player_x = camera->pos_x - current_object->pos.x;
-        camera_to_player_z = camera->pos_z - current_object->pos.z;
+        camera_to_npc_x = camera->pos.x - hit->object->pos.x;
+        camera_to_npc_z = camera->pos.z - hit->object->pos.z;
+        camera_to_player_x = camera->pos.x - current_object->pos.x;
+        camera_to_player_z = camera->pos.z - current_object->pos.z;
         use_left_reaction = 0;
         if (camera_to_npc_x * camera_to_npc_x +
                 camera_to_npc_z * camera_to_npc_z >

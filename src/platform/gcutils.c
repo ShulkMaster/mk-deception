@@ -190,7 +190,7 @@ void gc_start_reset_watch(void) {
                        &reset_handler_stack[0x800], 0x800, 0, 1);
         OSCreateAlarm(&reset_watch_alarm);
         bus_clock = OS_BUS_CLOCK >> 2;
-        OSSetPeriodicAlarm(&reset_watch_alarm, bus_clock,
+        OSSetPeriodicAlarm(&reset_watch_alarm, 0,
                            (bus_clock / 1000) * 16, reset_watch);
         reset_watch_is_running = 1;
     }

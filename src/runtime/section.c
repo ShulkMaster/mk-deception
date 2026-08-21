@@ -395,7 +395,7 @@ void init_section_system(void) {
     MwMemHeapInfo info;
     memset(&sec_sys_state, 0, sizeof(sec_sys_state));
     mwMemHeapGetInfo(section_heap, &info);
-    sec_sys_state.total_memory = info.totalSize;
+    sec_sys_state.total_memory = info.arenaSize;
     set_section_memory_scheme(0);
     init_ssf_system();
     init_sec_slot_files();

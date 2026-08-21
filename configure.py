@@ -438,7 +438,7 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "io.o", source="platform/io.c",
-                   extra_cflags=["-O4,s"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "shadow.o", source="runtime/shadow.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "hashtable.o", source="runtime/hashtable.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),

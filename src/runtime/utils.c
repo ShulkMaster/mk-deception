@@ -1,6 +1,7 @@
 #include "runtime/utils.h"
 
 #include "game/game_info.h"
+#include "game/controller.h"
 #include "game/memcard.h"
 #include "game/nbc.h"
 #include "game/plyrprofile.h"
@@ -29,7 +30,7 @@ int get_platform_language_setting(void);
 int ck_eat_online_switches(void);
 
 /* mode_of_play lives in main.o sbss (also referenced from display.c). */
-extern unsigned long mode_of_play;
+extern int mode_of_play;
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern int p1_profile_device;
@@ -89,6 +90,7 @@ static const float kMinGameVol = 0.0f;
 #define PROFILE_LOAD_NOT_FOUND 1
 #define PROFILE_LOAD_OK 2
 #define PROFILE_LOAD_ERROR 3
+#define MKPTR_LIST_AVAILABLE(list) ((list) != 0)
 
 /*
  * utils.o @stringBase0 (0x802FF2A4). Offsets used by play_movie / fade_screen.
@@ -484,6 +486,14 @@ void load_and_set_refl_on_weapon(void* weapon) {
 }
 
 void pause_procs(int flag) {
+    g_game_info.pause_flag_bits.controller_disable_guard = (unsigned char)flag;
+    if (flag != 0 && !g_game_info.pause_flag_bits.rumble_stopped_for_pause) {
+        turn_all_rumble_motors_off();
+        g_game_info.pause_flag_bits.rumble_stopped_for_pause = 1;
+    }
+    if (flag == 0) {
+        g_game_info.pause_flag_bits.rumble_stopped_for_pause = 0;
+    }
 }
 
 int get_level_fatality_done_flag_state(void) {
@@ -511,7 +521,7 @@ void* find_obj_by_id(int id) {
     return 0;
 }
 
-void* proc_create(void* proc_fn, int proc_id) {
+MkProc* proc_create(MkProcEntryFn proc_fn, int proc_id) {
     return 0;
 }
 
@@ -795,7 +805,7 @@ int save_profile(int player, int mode) {
     int device;
     int slot;
 
-    if ((int)mode_of_play == 8) {
+    if (mode_of_play == 8) {
         return 0;
     }
 
@@ -805,7 +815,7 @@ int save_profile(int player, int mode) {
         return 0;
     }
 
-    if ((int)mode_of_play == 7 && (mode == 2 || mode == 8)) {
+    if (mode_of_play == 7 && (mode == 2 || mode == 8)) {
         if (validate_konq_save_location(player) == 0) {
             f_writing_to_memcard = 0;
             return 0;
@@ -1423,8 +1433,7 @@ void* find_uv_scroll_control_for_obj(MkObj* object) {
     MkPtr* next;
     UvScrollControl* ctrl;
     MkObj* owner;
-    /* Retail: if (&list != 0) emits li/cmplwi on SDA offset (see image ATC walks). */
-    if (&uv_scroll_control_list != 0) {
+    if (MKPTR_LIST_AVAILABLE(&uv_scroll_control_list)) {
         node = uv_scroll_control_list;
         while (node != 0) {
             ctrl = (UvScrollControl*)node->hdr;
@@ -1458,7 +1467,7 @@ static float p_process_uvscrolling(void) {
     UvScrollControl* ctrl;
     MkObj* owner;
     RpClump* clump;
-    if (&uv_scroll_control_list != 0) {
+    if (MKPTR_LIST_AVAILABLE(&uv_scroll_control_list)) {
         node = uv_scroll_control_list;
         while (node != 0) {
             ctrl = (UvScrollControl*)node->hdr;
@@ -1718,7 +1727,7 @@ int get_mode_of_play(void) {
 }
 
 void set_mode_of_play(int mode) {
-    mode_of_play = (unsigned long)mode;
+    mode_of_play = mode;
 }
 
 int player_control_allowed(void) {

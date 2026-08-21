@@ -321,7 +321,7 @@ void plyr_spawn_anim(void* animation);
 extern int f_fatality_was_done;
 extern int g_drone_blocking_in_reaction;
 extern int g_drone_faked_out;
-extern unsigned long mode_of_play;
+extern int mode_of_play;
 static float r_complete_ermac_slam(void);
 static float r_face3_onback(void);
 void set_ani_speed(float speed);

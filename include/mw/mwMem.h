@@ -9,9 +9,8 @@ typedef struct MwMemFixedParams MwMemFixedParams;
 typedef struct MwMemHeaderlessParams MwMemHeaderlessParams;
 typedef struct MwMemMallocRequest MwMemMallocRequest;
 typedef struct MwMemOverflowInfo MwMemOverflowInfo;
-typedef void *(*MwMemStrategyCallback)(MwMemMallocRequest *request,
-                                      _mwMemHeap *heap, u32 flags,
-                                      void *context, void *file,
+typedef void *(*MwMemStrategyCallback)(u32 size, _mwMemHeap *heap, u32 flags,
+                                      MwMemMallocRequest *request, void *file,
                                       void *line);
 
 /** Normal/fixed allocation header. Retail layout: 0x10 bytes. */
@@ -99,7 +98,7 @@ typedef struct MwMemHeapInfo {
   u32 blockSize;             /**< Retail offset 0x40. */
 } MwMemHeapInfo;
 
-/** Internal allocation request passed to heap strategies. Retail layout: 0x40 bytes. */
+/** Internal allocation request passed to heap strategies. Retail layout: 0x30 bytes. */
 struct MwMemMallocRequest {
   u32 allocationSize;      /**< Retail offset 0x00; allocator result size. */
   u32 userSize;            /**< Retail offset 0x04; aligned user size. */
@@ -109,7 +108,7 @@ struct MwMemMallocRequest {
   };                       /**< Retail offset 0x08. */
   u8 alignmentPadding;     /**< Retail offset 0x0C; bytes before user data. */
   u8 pad0D[3];           /**< Retail offsets 0x0D-0x0F; alignment padding. */
-  _mwMemHeap *originHeap; /**< Retail offset 0x10. */
+  _mwMemHeap *allocationHeap; /**< Retail offset 0x10; allocator-selected heap. */
   _mwMemHeap *heap;      /**< Retail offset 0x14. */
   union {
     u32 field_0x18;
@@ -120,10 +119,6 @@ struct MwMemMallocRequest {
   const char *function;   /**< Retail offset 0x24; allocation source function. */
   u32 line;               /**< Retail offset 0x28; allocation source line. */
   u32 flags;             /**< Retail offset 0x2C. */
-  u32 field_0x30;          /**< Retail offset 0x30; purpose unknown. */
-  void *systemParams;    /**< Retail offset 0x34. */
-  u32 field_0x38;          /**< Retail offset 0x38; purpose unknown. */
-  u32 field_0x3C;          /**< Retail offset 0x3C; purpose unknown. */
 };
 
 /** Allocation failure/overflow callback payload. Retail layout: 0x44 bytes. */
@@ -139,7 +134,7 @@ struct MwMemOverflowInfo {
   u32 field_0x20;                /**< Retail offset 0x20; purpose unknown. */
   u32 field_0x24;                /**< Retail offset 0x24; purpose unknown. */
   u32 field_0x28;                /**< Retail offset 0x28; purpose unknown. */
-  void *systemParams;            /**< Retail offset 0x2C. */
+  u32 systemParam;               /**< Retail offset 0x2C; copied system parameter. */
   u32 heapDiagnostic;            /**< Retail offset 0x30; copied from heap +0x40. */
   u32 field_0x34;                /**< Retail offset 0x34; purpose unknown. */
   const char *sourceFunction;    /**< Retail offset 0x38; allocation source function. */
@@ -203,12 +198,14 @@ struct _mwMemHeap {
   u32 field_0x68;               /**< Retail offset 0x68; purpose unknown. */
   u8 overflowEnable;          /**< Retail offset 0x6C. */
   u8 dirty;                   /**< Retail offset 0x6D. */
-  u8 pad6E[2];                /**< Retail offsets 0x6E-0x6F; alignment padding. */
+  u8 ownsBuffer;              /**< Retail offset 0x6E; heap releases its backing buffer. */
+  u8 pad6F;                   /**< Retail offset 0x6F; alignment padding. */
   u32 virtAllocCount;         /**< Retail offset 0x70. */
   u32 flags;                  /**< Retail offset 0x74. */
   u8 arenaAlignmentPadding;   /**< Retail offset 0x78. */
   u8 blockPrefixSize;         /**< Retail offset 0x79. */
-  u8 pad7A[6];                /**< Retail offsets 0x7A-0x7F. */
+  u8 pad7A[2];                /**< Retail offsets 0x7A-0x7B. */
+  void *originalBuffer;       /**< Retail offset 0x7C; unaligned backing allocation. */
 };
 
 #ifdef __cplusplus
@@ -232,12 +229,13 @@ void *_mwMemCalloc(_mwMemHeap *heap, u32 nmemb, u32 size, u32 flags,
                    const char *file, const char *function, u32 line);
 
 _mwMemHeap *_mwMemHeapCreate(MwMemHeapCreateParams *create,
-                             MwMemHeapParams *defaults, u32 a, u32 b);
+                             MwMemHeapParams *defaults,
+                             const char *function, u32 line);
 
-void mwMemHeapGetMaxFreeBlock(_mwMemHeap *heap, u32 *outCount, u32 *outSize);
+void mwMemHeapGetMaxFreeBlock(_mwMemHeap *heap, u32 *outSize, u32 *outCount);
 
-void *mwMemHeapStrategyCallback(MwMemMallocRequest *request, _mwMemHeap *heap,
-                                u32 flags, void *context);
+void *mwMemHeapStrategyCallback(u32 size, _mwMemHeap *heap, u32 flags,
+                                MwMemMallocRequest *request);
 
 void mwMemHeapGetInfo(_mwMemHeap *heap, MwMemHeapInfo *info);
 
@@ -252,7 +250,7 @@ int mwMemHeapGetParams(_mwMemHeap *heap, MwMemHeapParams *params);
 int mwMemHeapSetParams(_mwMemHeap *heap, MwMemHeapParams *params);
 
 _mwMemHeap *mwMemSystemGetHeap(u32 which);
-int mwMemSystemSetHeap(u32 which, _mwMemHeap *heap);
+int mwMemSystemSetHeap(int which, _mwMemHeap *heap);
 int mwMemHeapWipe(_mwMemHeap *heap);
 int mwMemHeapDestroy(_mwMemHeap *heap);
 u32 mwMemVirtualHeapGetHeapSize(_mwMemHeap *heap);

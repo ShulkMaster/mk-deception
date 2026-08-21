@@ -724,10 +724,10 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
 
     weapon->flags_08_bits.gravity_enabled = 0;
     target = player->plyr_info->slot.mirror_a;
-    weapon->pos_vel.x = (target->pos.x - camera->pos_x) * inverse_ticks;
+    weapon->pos_vel.x = (target->pos.x - camera->pos.x) * inverse_ticks;
     weapon->pos_vel.y =
-        ((target->pos.y - camera->pos_y) + 0.8f) * inverse_ticks;
-    weapon->pos_vel.z = (target->pos.z - camera->pos_z) * inverse_ticks;
+        ((target->pos.y - camera->pos.y) + 0.8f) * inverse_ticks;
+    weapon->pos_vel.z = (target->pos.z - camera->pos.z) * inverse_ticks;
     proc->pre_destroy = sc_spear_prewake;
     proc->destroy_cb = sc_spear_postsleep;
     proc->sleep_ticks = 2.0f;
@@ -1047,8 +1047,8 @@ static float p_sc_spear2_victory(void) {
         return 1.0f;
     }
 
-    dx = camera->pos_x - sc_spear_obj->pos.x;
-    dz = camera->pos_z - sc_spear_obj->pos.z;
+    dx = camera->pos.x - sc_spear_obj->pos.x;
+    dz = camera->pos.z - sc_spear_obj->pos.z;
     squared = dx * dx + dz * dz;
     bits.f = squared;
     root = 0.0f;

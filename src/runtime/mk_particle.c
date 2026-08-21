@@ -1,6 +1,7 @@
 #include "runtime/mk_particle.h"
 
 #include "game/game_info.h"
+#include "libmkparticle/metrics.h"
 #include "runtime/mk_mem.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
@@ -53,8 +54,6 @@ void pfx_set_texture(void* pfx, void* texture);
 void pfx_set_renderstate(void* vm);
 void particle_render(void* vm);
 void pfx_reset_renderstate(void* vm);
-void pfxmetrics_event(void* handle, int event);
-void pfxmetrics_set_interface(void* iface);
 /* Retail usec timers return elapsed u64 in r3:r4. */
 unsigned long long stop_usec_timer(int id);
 void start_usec_timer(int id);
@@ -85,7 +84,7 @@ MkPtr* pfx_render_list;
 MkPtr* pfx_clone_render_list;
 
 static void apfx_set_transform_matrix(void);
-static unsigned int pfxmetrics_stop_timer(int id);
+static int pfxmetrics_stop_timer(int id);
 static void pfxmetrics_start_timer(int id);
 
 static const float kZero = 0.0f;
@@ -1023,19 +1022,16 @@ void pfx_pre_wake(void) {
 }
 
 int mkpfx_init(void) {
-    void* iface[6];
+    static const PfxMetricsInterface interface = {
+        0, 0, 0, 0, pfxmetrics_start_timer, pfxmetrics_stop_timer,
+    };
+    PfxMetricsInterface interface_copy = interface;
 
-    iface[0] = 0;
-    iface[1] = 0;
-    iface[2] = 0;
-    iface[3] = 0;
-    iface[4] = (void*)pfxmetrics_start_timer;
-    iface[5] = (void*)pfxmetrics_stop_timer;
-    pfxmetrics_set_interface(iface);
+    pfxmetrics_set_interface(&interface_copy);
     return 1;
 }
 
-static unsigned int pfxmetrics_stop_timer(int id) {
+static int pfxmetrics_stop_timer(int id) {
     return stop_usec_timer(id + 5);
 }
 

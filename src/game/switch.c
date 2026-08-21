@@ -47,7 +47,7 @@ extern f32 x_angle_jump_right(void);
 
 int get_game_state(void);
 int ok_to_join_in(void);
-void* proc_create(void* proc_fn, int proc_id);
+MkProc* proc_create(MkProcEntryFn proc_fn, int proc_id);
 f32 do_join_in(void);
 f32 p_pause_menu_switch(void);
 f32 p_switch_proc_start(void);

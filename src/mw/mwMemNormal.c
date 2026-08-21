@@ -312,7 +312,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     request->allocationSize = used->allocationSize;
     request->alignmentPadding = used->alignmentPadding;
     request->allocationFlags = flags;
-    request->originHeap = heap;
+    request->allocationHeap = heap;
     request->prefixSize = used->prefixSize;
     request->userSize = user_size;
     block[-1] = used->alignmentPadding;

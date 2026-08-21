@@ -62,6 +62,7 @@ int get_num_controllers(void) {
     return count;
 }
 
+/* Soft ceiling: retail keeps pad and flag-subobject bases in separate GPRs. */
 void scan_switches(void) {
     PADStatus statuses[4];
     int channel;

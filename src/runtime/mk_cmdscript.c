@@ -141,31 +141,28 @@ static void* resolve_table_row(ScriptSlot* slot, unsigned int table_id) {
     return (void*)def->data_index;
 }
 
-static CmdScript* find_cmdscript_on_proc(MkProc* proc) {
+static inline CmdScript* find_cmdscript_in_list(MkPtr** list) {
     MkPtr* ptr;
     MkHdr* hdr;
-    CmdScript* found;
 
-    found = 0;
-    if (proc != (MkProc*)-0xc0) {
-        ptr = proc->pdata_list;
+    if (list != 0) {
+        ptr = *list;
         while (ptr != 0) {
             hdr = ptr->hdr;
-            if (ptr->instance == hdr->instance) {
-                if (hdr->vtbl == &vtbl_cmdscript) {
-                    found = (CmdScript*)hdr;
-                    break;
-                }
-                ptr = ptr->next;
-            } else {
+            if (ptr->instance != hdr->instance) {
                 MkPtr* next = ptr->next;
                 ptr->hdr = 0;
                 destroy_mkptr(ptr);
                 ptr = next;
+            } else {
+                if (hdr->vtbl == &vtbl_cmdscript) {
+                    return (CmdScript*)hdr;
+                }
+                ptr = ptr->next;
             }
         }
     }
-    return found;
+    return 0;
 }
 
 static void init_cmdscript_fields(CmdScript* cs) {
@@ -830,8 +827,9 @@ ScriptSlot* cmdscript_finish_load(int slot_index) {
             slot->string_reloc =
                 (int)(slot->table_defs + slot->max_table);
             slot->string_base = slot->string_reloc + slot->pad48;
-            slot->pad80 = slot->string_base + slot->string_limit;
-            slot->table_data = (unsigned int*)(slot->pad80 + slot->pad50);
+            slot->table_schema_base = slot->string_base + slot->string_limit;
+            slot->table_data =
+                (unsigned int*)(slot->table_schema_base + slot->pad50);
             slot->bytecode = slot->table_data + slot->data_words;
             slot->pad8c = (unsigned int)slot->bytecode + slot->hdr_word0;
 
@@ -865,7 +863,7 @@ void deactivate_cmdscript(void) {
 }
 
 void activate_cmdscript(void) {
-    active_cmdscript = find_cmdscript_on_proc(aproc);
+    active_cmdscript = find_cmdscript_in_list(&aproc->pdata_list);
 }
 
 /* ---- 0x80015344 (krypt-critical) ---- */
@@ -908,13 +906,13 @@ void set_process_as_scriptable(MkProc* proc) {
         }
         if (cs != 0) {
             mk_append((MkHdr*)cs, &proc->pdata_list);
-            proc->flags = (proc->flags & ~MKPROC_FLAG_GAME_INFO_BIT) | MKPROC_FLAG_GAME_INFO_BIT;
+            proc->flags_bits.game_info = 1;
         }
     }
 }
 
 CmdScript* get_cmdscript_for_proc(MkProc* proc) {
-    return find_cmdscript_on_proc(proc);
+    return find_cmdscript_in_list(&proc->pdata_list);
 }
 
 CmdScript* alloc_cmdscript(void) {
@@ -928,21 +926,102 @@ CmdScript* alloc_cmdscript(void) {
     return cs;
 }
 
+/* Soft ceiling: exact retail size/CFG; residual is GPR coloring and scheduling. */
 void fixup_data_tables(ScriptSlot* slot) {
-    unsigned int i;
-    ScriptTableDef* def;
-    void* found;
+    unsigned int table_index;
 
-    for (i = 0; i < slot->max_table; i++) {
-        def = &slot->table_defs[i];
+    if (slot->tables_fixed_up != 0) {
+        return;
+    }
+
+    for (table_index = 0; table_index < slot->max_table; table_index++) {
+        ScriptTableDef* def = &slot->table_defs[table_index];
+
+        if (def->is_internal == 0) {
+            const char* name = def->name + slot->string_reloc - 1;
+            void* table = hashtable_get(&c_table_list, name);
+
+            if (table == 0) {
+                unsigned int slot_index;
+
+                for (slot_index = 0; slot_index < SCRIPT_SLOT_COUNT; slot_index++) {
+                    ScriptSlotEntry* candidate_entry = slot_entry_at((int)slot_index);
+                    ScriptSlot* candidate;
+                    unsigned int candidate_index;
+
+                    if (candidate_entry->state != 2) {
+                        continue;
+                    }
+                    candidate = &candidate_entry->body;
+                    for (candidate_index = 0;
+                         candidate_index < candidate->max_table;
+                         candidate_index++) {
+                        ScriptTableDef* candidate_def =
+                            &candidate->table_defs[candidate_index];
+
+                        if (candidate_def->is_internal != 0 &&
+                            strcmp(name, candidate_def->name +
+                                             candidate->string_reloc - 1) == 0) {
+                            table = candidate->table_data + candidate_def->data_index;
+                            break;
+                        }
+                    }
+                    if (table != 0) {
+                        break;
+                    }
+                }
+            }
+            def->data_index = (int)table;
+        }
+    }
+
+    for (table_index = 0; table_index < slot->max_table; table_index++) {
+        ScriptTableDef* def = &slot->table_defs[table_index];
+
         if (def->is_internal != 0) {
-            found = hashtable_get(&c_table_list, def->name + slot->string_reloc - 1);
-            if (found != 0) {
-                /* bind external C table */
-                (void)found;
+            const unsigned char* schema =
+                (const unsigned char*)(slot->table_schema_base + def->is_internal);
+            unsigned int column_count = schema[3];
+            unsigned int* value = slot->table_data + def->data_index;
+            unsigned int row;
+
+            for (row = 0; row < def->row_count; row++) {
+                const unsigned char* column_type = schema + 4;
+                unsigned int column;
+
+                for (column = 0; column < column_count; column++) {
+                    switch (column_type[column]) {
+                    case 4:
+                        if (*value != 0) {
+                            *value += slot->string_base - 1;
+                        }
+                        break;
+                    case 0x85:
+                        if (*value != 0) {
+                            ScriptTableDef* referenced = &slot->table_defs[*value - 1];
+
+                            if (referenced->is_internal != 0) {
+                                *value = (unsigned int)(slot->table_data +
+                                                        referenced->data_index);
+                            } else {
+                                *value = (unsigned int)def->data_index;
+                            }
+                        }
+                        break;
+                    case 6:
+                        if (*value != 0) {
+                            *value = (unsigned int)script_callable_function_table[*value - 1];
+                        }
+                        break;
+                    default:
+                        break;
+                    }
+                    value++;
+                }
             }
         }
     }
+    slot->tables_fixed_up = 1;
 }
 
 void script_system_reset(void) {

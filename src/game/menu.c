@@ -24,7 +24,7 @@
  *
  * Soft ceilings (this pass):
  *   p_main_menu (~92.7%) -- profile-pointer/string-pool scheduling; stop.
- *   get_pause_menu_name (~55%) -- per-branch @stringBase0; stop.
+ *   get_pause_menu_name (100%) -- explicit switch + TU string-pool offsets.
  *   cconfig_assign_button (~96.5%) / controller_setup_save_to_profile
  *     (~98.5%) -- NV register coloring only; stop.
  *   get_pause_menu_ssh (~99.7%) -- jump-table relocation label only; stop.
@@ -1125,11 +1125,12 @@ float p_pause_menu(void) {
 }
 
 const char* get_pause_menu_name(void) {
-    /* Soft ceiling: ~55% -- retail per-branch @stringBase0 reload; stop. */
-    if (mode_of_play == 7) {
-        return "konquest/popups/k_pause_menu";
+    switch (mode_of_play) {
+    case 7:
+        return &stringBase0[0x49E];
+    default:
+        return &stringBase0[0x4BB];
     }
-    return "pause_menu/pause_menu";
 }
 
 int get_pause_menu_ssh(void) {

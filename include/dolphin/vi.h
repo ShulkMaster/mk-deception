@@ -13,7 +13,7 @@ int VIGetTvFormat(void);
 void VIConfigure(GXRenderModeObj* mode);
 void VIFlush(void);
 void VIWaitForRetrace(void);
-int VIGetDTVStatus(void);
+unsigned int VIGetDTVStatus(void);
 int VIGetNextField(void);
 void VISetNextFrameBuffer(void* framebuffer);
 extern GXRenderModeObj GXNtsc480IntDf;
