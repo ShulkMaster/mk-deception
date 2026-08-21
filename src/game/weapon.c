@@ -1172,7 +1172,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
             }
             parent_bone = trail_bone->transform_parent;
             v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
-                            &trail_bone->translation,
+                            &trail_bone->translation.value,
                             &parent_bone->matrix,
                             &parent_bone->matrix.pos_vec);
             v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
@@ -1214,7 +1214,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
 
                 parent_bone = trail_bone->transform_parent;
                 v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
-                                &trail_bone->translation,
+                                &trail_bone->translation.value,
                                 &parent_bone->matrix,
                                 &parent_bone->matrix.pos_vec);
                 v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
@@ -1324,7 +1324,7 @@ static void start_weapon_trail(MkObj* weapon, MkObj* trail_model) {
                     weapon_bone->flags_54_bits.calculation_locked = 1;
                     trail_bone->transform_parent = weapon_bone;
                     trail_bone->flags_54_bits.transform_parented = 1;
-                    trail_bone->translation = map->offset;
+                    trail_bone->translation.value = map->offset;
                     continue;
                 }
             }

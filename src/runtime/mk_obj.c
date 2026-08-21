@@ -915,7 +915,7 @@ static float p_plyr_head_tracking(void) {
         if (neck != 0) {
             camera_matrix = RwFrameGetLTM(obj->frame);
             gxMatV3MatAddV3_Check(
-                (Vec*)&head->parent_matrix->pos, &head->translation,
+                (Vec*)&head->parent_matrix->pos, &head->translation.value,
                 (Mat33*)head->transform_parent->parent_matrix,
                 (Vec*)&head->transform_parent->parent_matrix->pos);
 
@@ -1976,13 +1976,13 @@ void update_bone_hierarchy(void* obj) {
                     gxQuatMul(rotation, &parent->rotation_90,
                               &bone->rotation);
                     gxMatV3MatAddV3(
-                        (Vec*)&matrix->pos, &bone->translation,
+                        (Vec*)&matrix->pos, &bone->translation.value,
                         (Mat33*)parent->parent_matrix,
                         (Vec*)&parent->parent_matrix->pos);
                 }
             } else {
                 gxQuatCopy(rotation, &bone->rotation);
-                matrix->pos_row = bone->translation_row;
+                matrix->pos_row = bone->translation;
             }
 
             if (bone->flags_55_bits.collision_deferred != 0) {
@@ -3755,9 +3755,9 @@ MkObj* obj_sever_limb(
         severed->pos.x += root_offset.x;
         severed->pos.y += root_offset.y;
         severed->pos.z += root_offset.z;
-        root->translation.z = 0.0f;
-        root->translation.y = 0.0f;
-        root->translation.x = 0.0f;
+        root->translation.value.z = 0.0f;
+        root->translation.value.y = 0.0f;
+        root->translation.value.x = 0.0f;
         RtQuatConvertFromMatrix(
             (RtQuat*)&root->rotation, root->parent_matrix);
         update_mkobj(severed != 0 ? as_mkhdr(&severed->hdr) : 0);

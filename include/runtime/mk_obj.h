@@ -54,10 +54,7 @@ typedef struct MkBone {
     float field_5C;
     float field_60;
     float field_64;
-    union {
-        unsigned int update_tick; /* +0x68 - last hierarchy update tick */
-        float root_angle_y;
-    };
+    unsigned int update_tick; /* +0x68 - last hierarchy update tick */
     struct MkBone* transform_parent;  /* +0x6C */
     struct MkBone* tree_next;      /* +0x70 */
     struct MkBone* tree_child;     /* +0x74 */
@@ -66,13 +63,7 @@ typedef struct MkBone {
     MkPtr* list_80;                /* +0x80 - owned auxiliary bone list */
     char pad84[0x0C];
     Quat rotation_90; /* +0x90 */
-    union {
-        struct {
-            Vec translation; /* +0xA0 */
-            unsigned int translation_pad;
-        };
-        RwMatrixPosition translation_row;
-    };
+    RwMatrixPosition translation; /* +0xA0 */
     Vec scale; /* +0xB0 */
     char padBC[4];
     union {

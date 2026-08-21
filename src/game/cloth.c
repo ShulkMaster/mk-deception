@@ -1983,7 +1983,7 @@ void start_cloth_bones(MkObj* obj) {
                 bone->flags_30 = 0;
                 bone->flags_30_bits.use_ground_y = 1;
                 bone->ground_y = 0.1f;
-                bone->local_cloth_position = render_bone->translation;
+                bone->local_cloth_position = render_bone->translation.value;
                 rest_length = PSVECMag(&bone->local_cloth_position);
                 bone->rest_length = rest_length;
                 bone->current_length = rest_length;

@@ -1729,7 +1729,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             (float)((AnimVecFrame*)mka_next_fp)->z;
                         if (bone->field_64 == 0.0f) {
                             interp_v3(
-                                &bone->translation,
+                                &bone->translation.value,
                                 &previous_vec,
                                 &next_vec,
                                 previous_weight);
@@ -1744,7 +1744,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                                 }
                                 apply_anim_offset(
                                     contribution, anim, channel_obj,
-                                    &bone->translation,
+                                    &bone->translation.value,
                                     transition_pass, update_object);
                             }
                             bone->field_64 = contribution;
@@ -1773,8 +1773,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             combined_weight =
                                 bone->field_64 + contribution;
                             interp_v3(
-                                &bone->translation,
-                                &bone->translation,
+                                &bone->translation.value,
+                                &bone->translation.value,
                                 &previous_vec,
                                 bone->field_64 / combined_weight);
                             bone->field_64 = combined_weight;
@@ -1801,7 +1801,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             (float)((AnimVecFrame*)mka_next_fp)->z;
                         if (bone->field_64 == 0.0f) {
                             interp_v3(
-                                &bone->translation,
+                                &bone->translation.value,
                                 &previous_vec,
                                 &next_vec,
                                 previous_weight);
@@ -1816,7 +1816,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                                 }
                                 apply_anim_offset(
                                     contribution, anim, channel_obj,
-                                    &bone->translation,
+                                    &bone->translation.value,
                                     transition_pass, update_object);
                             }
                             bone->field_64 = contribution;
@@ -1845,8 +1845,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             combined_weight =
                                 bone->field_64 + contribution;
                             interp_v3(
-                                &bone->translation,
-                                &bone->translation,
+                                &bone->translation.value,
+                                &bone->translation.value,
                                 &previous_vec,
                                 bone->field_64 / combined_weight);
                             bone->field_64 = combined_weight;
@@ -2163,12 +2163,12 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         float contribution = channel_weight;
 
                         if (bone->field_64 == 0.0f) {
-                            bone->translation.x = flip_factor *
+                            bone->translation.value.x = flip_factor *
                                 (translation_scale_1 *
                                  (float)((AnimVecFrame*)sample)->x);
-                            bone->translation.y = translation_scale_1 *
+                            bone->translation.value.y = translation_scale_1 *
                                 (float)((AnimVecFrame*)sample)->y;
-                            bone->translation.z = translation_scale_1 *
+                            bone->translation.value.z = translation_scale_1 *
                                 (float)((AnimVecFrame*)sample)->z;
                             if (unmirrored_bone_index ==
                                     channel_obj->fallback_bone_index ||
@@ -2181,7 +2181,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                                 }
                                 apply_anim_offset(
                                     contribution, anim, channel_obj,
-                                    &bone->translation,
+                                    &bone->translation.value,
                                     transition_pass, update_object);
                             }
                             bone->field_64 = contribution;
@@ -2212,8 +2212,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             combined_weight =
                                 bone->field_64 + contribution;
                             interp_v3(
-                                &bone->translation,
-                                &bone->translation,
+                                &bone->translation.value,
+                                &bone->translation.value,
                                 &previous_vec,
                                 bone->field_64 / combined_weight);
                             bone->field_64 = combined_weight;
@@ -2225,12 +2225,12 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         float contribution = channel_weight;
 
                         if (bone->field_64 == 0.0f) {
-                            bone->translation.x = flip_factor *
+                            bone->translation.value.x = flip_factor *
                                 (translation_scale_9 *
                                  (float)((AnimVecFrame*)sample)->x);
-                            bone->translation.y = translation_scale_9 *
+                            bone->translation.value.y = translation_scale_9 *
                                 (float)((AnimVecFrame*)sample)->y;
-                            bone->translation.z = translation_scale_9 *
+                            bone->translation.value.z = translation_scale_9 *
                                 (float)((AnimVecFrame*)sample)->z;
                             if (unmirrored_bone_index ==
                                     channel_obj->fallback_bone_index ||
@@ -2243,7 +2243,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                                 }
                                 apply_anim_offset(
                                     contribution, anim, channel_obj,
-                                    &bone->translation,
+                                    &bone->translation.value,
                                     transition_pass, update_object);
                             }
                             bone->field_64 = contribution;
@@ -2274,8 +2274,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             combined_weight =
                                 bone->field_64 + contribution;
                             interp_v3(
-                                &bone->translation,
-                                &bone->translation,
+                                &bone->translation.value,
+                                &bone->translation.value,
                                 &previous_vec,
                                 bone->field_64 / combined_weight);
                             bone->field_64 = combined_weight;
@@ -3064,7 +3064,7 @@ int transition_to_anim_script_frame(
                     y_angle_to_MKMATRIX(&yaw_matrix, root_yaw);
                     v3_x_mat_sub_v3(
                         &adjusted_position,
-                        &root->translation,
+                        &root->translation.value,
                         &yaw_matrix,
                         &obj->pos);
                     scale_v3(
@@ -3302,7 +3302,7 @@ int set_anim_script_frame(
                     y_angle_to_MKMATRIX(&yaw_matrix, root_yaw);
                     v3_x_mat_sub_v3(
                         &adjusted_position,
-                        &root->translation,
+                        &root->translation.value,
                         &yaw_matrix,
                         &obj->pos);
                     scale_v3(
@@ -3819,13 +3819,13 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
         if (parent != 0) {
             MkBone* tail;
 
-            bone->translation.x =
+            bone->translation.value.x =
                 bone->bind_offset.x - parent->bind_offset.x;
-            bone->translation.y =
+            bone->translation.value.y =
                 bone->bind_offset.y - parent->bind_offset.y;
-            bone->translation.z =
+            bone->translation.value.z =
                 bone->bind_offset.z - parent->bind_offset.z;
-            bone->field_5C = 1.0f / length_v3(&bone->translation);
+            bone->field_5C = 1.0f / length_v3(&bone->translation.value);
             if (bone->tree_next == 0) {
                 parent->flags_54_bits.has_children = 1;
                 tail = parent->tree_child;
@@ -3840,9 +3840,9 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
                 bone->transform_parent = parent;
             }
         } else {
-            bone->translation.x = 0.0f;
-            bone->translation.y = 0.0f;
-            bone->translation.z = 0.0f;
+            bone->translation.value.x = 0.0f;
+            bone->translation.value.y = 0.0f;
+            bone->translation.value.z = 0.0f;
             bone->field_5C = 0.0f;
             bone->transform_parent = 0;
         }
@@ -3872,7 +3872,7 @@ void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent) {
 
 void bone_make_parents_my_children(MkBone* bone) {
     _bone_make_parents_my_children(bone);
-    bone->translation_row = bone->parent_matrix->pos_row;
+    bone->translation = bone->parent_matrix->pos_row;
     RtQuatConvertFromMatrix(&bone->rt_rotation, bone->parent_matrix);
 }
 
@@ -3968,7 +3968,7 @@ static void _bone_make_parents_my_children(MkBone* bone) {
     inverse_rotation = bone->rotation_90;
     inverse_rotation.w *= -1.0f;
     quat_to_normalized_matrix(&tmp_matrix, &inverse_rotation);
-    v3_x_mat(&parent->translation, &displacement, &tmp_matrix);
+    v3_x_mat(&parent->translation.value, &displacement, &tmp_matrix);
     parent->flags_55_bits.reparent_toggle =
         1 - parent->flags_55_bits.reparent_toggle;
 }
