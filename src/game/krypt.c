@@ -1884,9 +1884,9 @@ static float p_move_camera_and_open_coffin(void) {
     camera->target_pos.x = coffin_position.x + camera_offset.x;
     camera->target_pos.y = coffin_position.y + camera_offset.y;
     camera->target_pos.z = coffin_position.z + camera_offset.z;
-    camera->target_ang_x = camera_angles.x;
-    camera->target_ang_y = camera_angles.y;
-    camera->target_ang_z = camera_angles.z;
+    camera->target_ang.x = camera_angles.x;
+    camera->target_ang.y = camera_angles.y;
+    camera->target_ang.z = camera_angles.z;
     camera->flags_bits.pos_done = 0;
     _mkproc_sleep_ticks = 1.0f;
     mkproc_sleep();
@@ -2010,8 +2010,8 @@ static float p_move_camera_and_open_coffin(void) {
     camera->target_pos.z = coffin_position.z;
     camera->target_pos.y = 4.4f;
     camera->target_pos.z += 5.0f;
-    camera->target_ang_x = 0.42f;
-    camera->target_ang_y = 3.1415927f;
+    camera->target_ang.x = 0.42f;
+    camera->target_ang.y = 3.1415927f;
     camera->speed = 1.0f;
     shake_camera(8, 0.0075f);
     {

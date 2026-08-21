@@ -2065,7 +2065,7 @@ void set_monk_position(float x, float y, float z, float angle) {
         old_hero_position = hero->pos;
     }
     if (camera != 0) {
-        camera->target_ang_y = angle;
+        camera->target_ang.y = angle;
     }
     update_tile_grid();
 }
@@ -2083,34 +2083,34 @@ void correct_camera_angle(MkObj* hero, int snap) {
         return;
     }
 
-    camera->target_ang_x = 0.17f;
+    camera->target_ang.x = 0.17f;
     if (snap != 0) {
         margin = 0.0f;
     }
 
     hero_angle = hero->ang.y;
-    difference = hero_angle - camera->target_ang_y;
+    difference = hero_angle - camera->target_ang.y;
     magnitude = difference >= 0.0f ? difference : -difference;
     if (magnitude <= 0.01f) {
-        camera->target_ang_y = hero_angle;
+        camera->target_ang.y = hero_angle;
     } else if (difference < 0.0f) {
         if (difference <= -3.1415927f - margin) {
-            camera->target_ang_y +=
+            camera->target_ang.y +=
                 (0.075f * (6.2831855f + difference)) / 3.1415927f;
         } else if (difference > -3.1415927f + margin) {
-            camera->target_ang_y -=
+            camera->target_ang.y -=
                 (-0.075f * difference) / 3.1415927f;
         }
     } else {
         if (difference >= 3.1415927f + margin) {
-            camera->target_ang_y -=
+            camera->target_ang.y -=
                 (0.075f * (6.2831855f - difference)) / 3.1415927f;
         } else if (difference < 3.1415927f - margin) {
-            camera->target_ang_y +=
+            camera->target_ang.y +=
                 (0.075f * difference) / 3.1415927f;
         }
     }
-    camera->target_ang_y = norm_angle(camera->target_ang_y);
+    camera->target_ang.y = norm_angle(camera->target_ang.y);
 }
 
 float ramp_game_speed(void) {

@@ -79,14 +79,7 @@ typedef struct CameraPdata {
     MkHdr hdr;
     RwCamera* camera; /* +0x08 */
     Vec target_pos; /* +0x0C */
-    union {
-        Vec target_ang; /* +0x18 */
-        struct {
-            float target_ang_x;
-            float target_ang_y;
-            float target_ang_z;
-        };
-    };
+    Vec target_ang; /* +0x18 */
     char pad24[0x18];
     MkObj* movement_focus; /* +0x3C */
     MkObj* attacker; /* +0x40 */

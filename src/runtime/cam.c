@@ -1870,9 +1870,9 @@ float p_animated_intro_done(void) {
     camera_info.pdata->target_pos.z = camera->pos.z;
     camera_info.pdata->flags_bits.pos_done = 0;
     camera = camera_obj;
-    camera_info.pdata->target_ang_x = camera->ang.x;
-    camera_info.pdata->target_ang_y = camera->ang.y;
-    camera_info.pdata->target_ang_z = camera->ang.z;
+    camera_info.pdata->target_ang.x = camera->ang.x;
+    camera_info.pdata->target_ang.y = camera->ang.y;
+    camera_info.pdata->target_ang.z = camera->ang.z;
 
     while (1) {
         _mkproc_sleep_ticks = 60.0f;
@@ -2432,9 +2432,9 @@ float p_krypt_camera_loop(void) {
     pdata->target_pos.x = default_pos.values[0];
     pdata->target_pos.y = default_pos.values[1];
     pdata->target_pos.z = default_pos.values[2];
-    pdata->target_ang_x = default_ang.values[0];
-    pdata->target_ang_y = default_ang.values[1];
-    pdata->target_ang_z = default_ang.values[2];
+    pdata->target_ang.x = default_ang.values[0];
+    pdata->target_ang.y = default_ang.values[1];
+    pdata->target_ang.z = default_ang.values[2];
 
     for (;;) {
         speed_scale = kMoveScale * pdata->speed;
@@ -2486,14 +2486,14 @@ float p_krypt_camera_loop(void) {
         speed_scale = kMoveScale * pdata->speed;
         RESOLVE_CAMERA_OBJ(cam);
 
-        d_ang_x = pdata->target_ang_x - cam->ang.x;
+        d_ang_x = pdata->target_ang.x - cam->ang.x;
         if (d_ang_x > kPi) {
             d_ang_x = d_ang_x - kTwoPi;
         } else if (d_ang_x < kNegPi) {
             d_ang_x = d_ang_x + kTwoPi;
         }
 
-        d_ang_y = pdata->target_ang_y - cam->ang.y;
+        d_ang_y = pdata->target_ang.y - cam->ang.y;
         if (d_ang_y > kPi) {
             d_ang_y = d_ang_y - kTwoPi;
         } else if (d_ang_y < kNegPi) {
@@ -2503,9 +2503,9 @@ float p_krypt_camera_loop(void) {
         ang_err_sq = d_ang_x * d_ang_x + d_ang_y * d_ang_y;
 
         if (ang_err_sq < kAngEpsSq) {
-            cam->ang.x = pdata->target_ang_x;
-            cam->ang.y = pdata->target_ang_y;
-            cam->ang.z = pdata->target_ang_z;
+            cam->ang.x = pdata->target_ang.x;
+            cam->ang.y = pdata->target_ang.y;
+            cam->ang.z = pdata->target_ang.z;
         } else {
             d_ang_x *= speed_scale;
             d_ang_y *= speed_scale;
@@ -2675,9 +2675,9 @@ float konquest_camera_loop(void) {
     focus_position.x = focus->pos_x;
     focus_position.y = focus->pos_y;
     focus_position.z = focus->pos_z;
-    camera_info.pdata->target_ang_z = kZero;
+    camera_info.pdata->target_ang.z = kZero;
     rotate_xz(&camera_info.pdata->target_pos, &forward,
-              camera_info.pdata->target_ang_y);
+              camera_info.pdata->target_ang.y);
     camera_info.pdata->target_pos.x *= orbit_vector.z;
     camera_info.pdata->target_pos.y *= orbit_vector.z;
     camera_info.pdata->target_pos.z *= orbit_vector.z;
@@ -2699,9 +2699,9 @@ float konquest_camera_loop(void) {
         camera->pos.y = camera_info.pdata->target_pos.y;
         camera->pos.z = camera_info.pdata->target_pos.z;
         RESOLVE_CAMERA_OBJ(camera);
-        camera->ang.x = camera_info.pdata->target_ang_x;
-        camera->ang.y = camera_info.pdata->target_ang_y;
-        camera->ang.z = camera_info.pdata->target_ang_z;
+        camera->ang.x = camera_info.pdata->target_ang.x;
+        camera->ang.y = camera_info.pdata->target_ang.y;
+        camera->ang.z = camera_info.pdata->target_ang.z;
         update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
         camera_info.pdata->flags_bits.konquest_mode = 0;
     }
@@ -2722,7 +2722,7 @@ float konquest_camera_loop(void) {
         }
 
         rotate_xz(&camera_info.pdata->target_pos, &forward,
-                  camera_info.pdata->target_ang_y);
+                  camera_info.pdata->target_ang.y);
         camera_info.pdata->target_pos.x *= orbit_vector.z;
         camera_info.pdata->target_pos.y *= orbit_vector.z;
         camera_info.pdata->target_pos.z *= orbit_vector.z;
@@ -2773,13 +2773,13 @@ float konquest_camera_loop(void) {
 
             speed = kMoveScale * camera_info.pdata->speed;
             RESOLVE_CAMERA_OBJ(camera);
-            pitch_delta = camera_info.pdata->target_ang_x - camera->ang.x;
+            pitch_delta = camera_info.pdata->target_ang.x - camera->ang.x;
             if (pitch_delta > kPi) {
                 pitch_delta -= kTwoPi;
             } else if (pitch_delta < kNegPi) {
                 pitch_delta += kTwoPi;
             }
-            yaw_delta = camera_info.pdata->target_ang_y - camera->ang.y;
+            yaw_delta = camera_info.pdata->target_ang.y - camera->ang.y;
             if (yaw_delta > kPi) {
                 yaw_delta -= kTwoPi;
             } else if (yaw_delta < kNegPi) {
@@ -2816,13 +2816,13 @@ float konquest_camera_loop(void) {
             camera_info.pdata->flags_bits.pos_done = 0;
 
             RESOLVE_CAMERA_OBJ(camera);
-            pitch_delta = camera_info.pdata->target_ang_x - camera->ang.x;
+            pitch_delta = camera_info.pdata->target_ang.x - camera->ang.x;
             if (pitch_delta > kPi) {
                 pitch_delta -= kTwoPi;
             } else if (pitch_delta < kNegPi) {
                 pitch_delta += kTwoPi;
             }
-            yaw_delta = camera_info.pdata->target_ang_y - camera->ang.y;
+            yaw_delta = camera_info.pdata->target_ang.y - camera->ang.y;
             if (yaw_delta > kPi) {
                 yaw_delta -= kTwoPi;
             } else if (yaw_delta < kNegPi) {
@@ -2862,7 +2862,7 @@ float p_konquest_camera_proc(void) {
     if (camera_info.pdata == 0) {
         return kNegOne;
     }
-    camera_info.pdata->target_ang_x = 0.17f;
+    camera_info.pdata->target_ang.x = 0.17f;
     camera_info.pdata->speed = kOne;
     camera_info.pdata->flags_bits.konquest_mode = 1;
     mkproc_jump_sleep(konquest_camera_loop);
@@ -5313,9 +5313,9 @@ void get_target_movement_vector(const Vec* current_position,
 }
 
 void set_camera_target_angle(CamVec3* angle) {
-    camera_info.pdata->target_ang_x = angle->x;
-    camera_info.pdata->target_ang_y = angle->y;
-    camera_info.pdata->target_ang_z = angle->z;
+    camera_info.pdata->target_ang.x = angle->x;
+    camera_info.pdata->target_ang.y = angle->y;
+    camera_info.pdata->target_ang.z = angle->z;
 }
 
 void set_camera_destination(const CamVec3* position) {
@@ -6115,7 +6115,7 @@ void adj_cam_pos(void) {
             cam_unit_vector.y = -tightrope_perp_uv.y;
             cam_unit_vector.z = -tightrope_perp_uv.z;
             v3_to_xy_ang(&camera_info.pdata->target_ang, &cam_unit_vector);
-            camera_info.pdata->target_ang_y += kPi;
+            camera_info.pdata->target_ang.y += kPi;
 
             desired_distance =
                 1.03f * (0.75f + half_span) * field_of_view_ratio;
@@ -6149,12 +6149,12 @@ void adj_cam_pos(void) {
                 camera_midpoint.z + midpoint_to_cam_vector.z;
 
             if (desired_distance < 3.9f) {
-                camera_info.pdata->target_ang_x = 0.1f;
+                camera_info.pdata->target_ang.x = 0.1f;
                 camera_info.pdata->target_pos.y =
                     1.55f + camera->ground_plane;
             } else {
                 t = (desired_distance - 3.9f) / 3.6000001f;
-                camera_info.pdata->target_ang_x =
+                camera_info.pdata->target_ang.x =
                     0.1f * (3.0f * t + kOne);
                 camera_info.pdata->target_pos.y =
                     1.55f * (1.5f * t + kOne) + camera->ground_plane;
@@ -6181,7 +6181,7 @@ void adj_cam_pos(void) {
                 camera_info.pdata->target_pos.x = candidate.x;
                 camera_info.pdata->target_pos.y = candidate.y;
                 camera_info.pdata->target_pos.z = candidate.z;
-                camera_info.pdata->target_ang_y += kPi;
+                camera_info.pdata->target_ang.y += kPi;
             }
         }
     }
@@ -6202,7 +6202,7 @@ void adj_cam_pos(void) {
         midpoint_to_cam_vector.z *= inverse_length;
         v3_to_xy_ang_high_freq(&camera_info.pdata->target_ang,
                                &midpoint_to_cam_vector);
-        camera_info.pdata->target_ang_y += kPi;
+        camera_info.pdata->target_ang.y += kPi;
     }
 
     rate = 0.1f / (last_camera_distance / 2.6f);
@@ -6217,13 +6217,13 @@ void adj_cam_pos(void) {
                                  &camera_midpoint, rate);
 
     RESOLVE_CAMERA_OBJ(camera);
-    pitch_delta = camera_info.pdata->target_ang_x - camera->ang.x;
+    pitch_delta = camera_info.pdata->target_ang.x - camera->ang.x;
     if (pitch_delta > kPi) {
         pitch_delta -= kTwoPi;
     } else if (pitch_delta < kNegPi) {
         pitch_delta += kTwoPi;
     }
-    yaw_delta = camera_info.pdata->target_ang_y - camera->ang.y;
+    yaw_delta = camera_info.pdata->target_ang.y - camera->ang.y;
     if (yaw_delta > kPi) {
         yaw_delta -= kTwoPi;
     } else if (yaw_delta < kNegPi) {
