@@ -670,7 +670,7 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
     float inverse_ticks;
 
     camera = camera_item.node;
-    if (camera != 0 && camera->instance != camera_item.instance) {
+    if (camera != 0 && camera->hdr.instance != camera_item.instance) {
         camera = 0;
     }
     if (camera == 0) {
@@ -1040,7 +1040,7 @@ static float p_sc_spear2_victory(void) {
     float root;
 
     camera = camera_item.node;
-    if (camera != 0 && camera->instance != camera_item.instance) {
+    if (camera != 0 && camera->hdr.instance != camera_item.instance) {
         camera = 0;
     }
     if (camera == 0) {

@@ -260,7 +260,7 @@ float p_track_sound(void) {
     }
 
     camera = camera_item.node;
-    if (camera == 0 || camera->instance != camera_item.instance) {
+    if (camera == 0 || camera->hdr.instance != camera_item.instance) {
         return -1.0f;
     }
     camera_frame = ((CameraSoundObj*)camera)->frame;

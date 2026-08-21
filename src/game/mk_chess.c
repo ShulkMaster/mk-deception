@@ -1668,7 +1668,7 @@ void mk_chess_camera_init_for_place_traps(void) {
 
     mk_chess_camera_init();
     camera = camera_item.node;
-    if (camera != 0 && camera->instance != camera_item.instance) {
+    if (camera != 0 && camera->hdr.instance != camera_item.instance) {
         camera = 0;
     }
     camera->pos.x = -38.45f;
@@ -2729,7 +2729,7 @@ float mk_chess_zoom_return_completed(void) {
     CameraObj* camera = camera_item.node;
 
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -2755,7 +2755,7 @@ float mk_chess_zoom_completed(void) {
     CameraObj* camera = camera_item.node;
 
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {

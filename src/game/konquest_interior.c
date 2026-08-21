@@ -960,7 +960,7 @@ void set_interior_cam_pos_and_ang(void) {
 
     camera = camera_item.node;
     if (camera != 0) {
-        camera = (camera->instance == camera_item.instance) ? camera : 0;
+        camera = (camera->hdr.instance == camera_item.instance) ? camera : 0;
     } else {
         camera = 0;
     }
@@ -1126,7 +1126,7 @@ static float p_konq_interior_entry_point(void) {
         CameraObj* camera = camera_item.node;
 
         if (camera != 0) {
-            camera = (camera->instance == camera_item.instance) ? camera : 0;
+            camera = (camera->hdr.instance == camera_item.instance) ? camera : 0;
         } else {
             camera = 0;
         }

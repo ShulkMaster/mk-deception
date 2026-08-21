@@ -3547,7 +3547,7 @@ int fat_bgnd_char_setup_radius_check(
     fatality_state.victim_object->pos.z += z;
     camera = camera_item.node;
     if (camera != 0 &&
-        camera->instance != camera_item.instance) {
+        camera->hdr.instance != camera_item.instance) {
         camera = 0;
     }
     if (camera != 0) {

@@ -340,7 +340,7 @@ static float lensflare_proc2(void) {
     pdata = (LensflarePdata*)apdata;
     camera = camera_item.node;
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -352,7 +352,7 @@ static float lensflare_proc2(void) {
 
     camera = camera_item.node;
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -377,7 +377,7 @@ static float lensflare_proc2(void) {
         if (pdata->obstruction_count != 0 && pdata->obstructions != 0) {
             camera = camera_item.node;
             if (camera != 0) {
-                if (camera->instance != camera_item.instance) {
+                if (camera->hdr.instance != camera_item.instance) {
                     camera = 0;
                 }
             } else {

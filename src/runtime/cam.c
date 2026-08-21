@@ -302,7 +302,7 @@ static inline void chess_camera_look_at(const Vec* target) {
     float inverse_length;
 
     camera = camera_item.node;
-    if (camera != 0 && camera->instance != camera_item.instance) {
+    if (camera != 0 && camera->hdr.instance != camera_item.instance) {
         camera = 0;
     }
     direction.x = target->x - camera->pos.x;
@@ -523,7 +523,7 @@ typedef struct CameraAnimEvent {
     do {                                                                                       \
         (cam_) = camera_item.node;                                                             \
         if ((cam_) != 0) {                                                                     \
-            if ((cam_)->instance != camera_item.instance) {                                    \
+            if ((cam_)->hdr.instance != camera_item.instance) {                                \
                 (cam_) = 0;                                                                    \
             }                                                                                  \
         } else {                                                                               \
@@ -899,7 +899,7 @@ static float generic_victory_camera(void) {
     camera_node = camera_item.node;
     camera = 0;
     if (camera_node != 0) {
-        if (camera_node->instance == camera_item.instance) {
+        if (camera_node->hdr.instance == camera_item.instance) {
             camera = camera_node;
         }
     }
@@ -912,7 +912,7 @@ static float generic_victory_camera(void) {
     }
 
     if (camera_node != 0) {
-        if (camera_node->instance != camera_item.instance) {
+        if (camera_node->hdr.instance != camera_item.instance) {
             camera_node = 0;
         }
     }
@@ -1962,7 +1962,7 @@ static float p_animate_camera_move(void) {
 
         active_camera = camera_item.node;
         if (active_camera != 0 &&
-            active_camera->instance != camera_item.instance) {
+            active_camera->hdr.instance != camera_item.instance) {
             active_camera = 0;
         }
         old_cam_ang_offset.x = cam_ang_offset.x;
@@ -3004,7 +3004,7 @@ static float p_interaction_cam(void) {
     g_ic_data.created_process = 0;
     snap_angles = g_ic_data.ticks == 1;
     if (entry_camera != 0) {
-        if (entry_camera->instance != camera_item.instance) {
+        if (entry_camera->hdr.instance != camera_item.instance) {
             entry_camera = 0;
         }
     } else {
@@ -5916,7 +5916,7 @@ void CameraDestroy(RwCamera* camera) {
 
         RESOLVE_CAMERA_OBJ(object);
         if (object != 0) {
-            if (camera_item.node->instance != 0) {
+            if (camera_item.node->hdr.instance != 0) {
                 camera_item.node->hdr.typed_vtbl->destroy(&camera_item.node->hdr);
             }
             camera_item.node = 0;
@@ -6556,7 +6556,7 @@ int init_camera(void) {
         (CameraObj*)get_mkobj_frame(0x1003, RwCameraGetFrame(Camera));
     if (camera_obj != 0) {
         camera_item.node = camera_obj;
-        camera_item.instance = camera_obj->instance;
+        camera_item.instance = camera_obj->hdr.instance;
         camera_mat = camera_obj->field_24;
         insert_fgnd_mkobj(camera_obj);
         camera_obj->flags_bits.bit04 = 1;

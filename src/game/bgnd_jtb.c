@@ -635,7 +635,7 @@ static int nb_npc_hurt_player(
         plyr_anim_pdata = &fighter_view->anim_pdata;
 
         camera = camera_item.node;
-        if (camera != 0 && camera->instance != camera_item.instance) {
+        if (camera != 0 && camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
 

@@ -3067,7 +3067,7 @@ float p_fog_follow_camera(void) {
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
     camera = camera_item.node;
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -3096,7 +3096,7 @@ static float p_follow_camera(void) {
 
     camera = camera_item.node;
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {

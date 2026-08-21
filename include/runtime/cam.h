@@ -36,23 +36,8 @@ typedef struct CameraObjFlags {
     unsigned char pad0 : 1;
 } CameraObjFlags;
 
-/*
- * Camera mkobj body (cam / display / bgnd_nbc agree):
- * instance @ +0x04, flags @ +0x08, position @ +0xA0, angles @ +0xD0.
- *
- * Retail: p_main_menu calls turn_camera_on() (Matching 100%):
- *   if Camera: RpWorldAddCamera(World, Camera) when unbound; turn_display_on().
- * Optional 3D after menu 2D: add_clump_to_world(World, clump) then Render()
- *   [display.h; soft ceiling ~73%]. Fighter/skin/MatFX Matching out of scope.
- */
 typedef struct CameraObj {
-    union {
-        MkHdr hdr;
-        struct {
-            MkVtable5* vtbl;
-            unsigned int instance; /* +0x04 - matched to CameraItem.instance */
-        };
-    };
+    MkHdr hdr; /* +0x00 - instance @ +0x04, matched to CameraItem.instance */
     union {
         unsigned int flags_word;
         struct {
