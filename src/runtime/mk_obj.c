@@ -1025,7 +1025,7 @@ static float p_plyr_head_tracking(void) {
                 pdata_headtracking->blend_weight >= 1.0f) {
                 YXZ_angles_to_MKMATRIX(&target_angles,
                                        (MKMATRIX*)head->parent_matrix);
-                RtQuatConvertFromMatrix((RtQuat*)&head->rotation_90,
+                RtQuatConvertFromMatrix(&head->rotation_90,
                                         head->parent_matrix);
             } else {
                 YXZ_angles_to_quat(&target_angles, &desired_rotation);
@@ -3758,8 +3758,7 @@ MkObj* obj_sever_limb(
         root->translation.value.z = 0.0f;
         root->translation.value.y = 0.0f;
         root->translation.value.x = 0.0f;
-        RtQuatConvertFromMatrix(
-            (RtQuat*)&root->rotation, root->parent_matrix);
+        RtQuatConvertFromMatrix(&root->rotation, root->parent_matrix);
         update_mkobj(severed != 0 ? as_mkhdr(&severed->hdr) : 0);
         saved_fallback = severed->fallback_bone_index;
         severed->fallback_bone_index = root->bone_index;

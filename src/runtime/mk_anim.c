@@ -3076,8 +3076,7 @@ int transition_to_anim_script_frame(
                         &yaw_matrix,
                         obj->bone_angle_64 - root_yaw);
                     if (RtQuatConvertFromMatrix(
-                            (RtQuat*)&correction,
-                            &yaw_matrix)) {
+                            &correction, &yaw_matrix)) {
                         gxQuatCopy(&old_rotation, root_rotation);
                         gxQuatMul(
                             root_rotation, &correction, &old_rotation);
@@ -3314,8 +3313,7 @@ int set_anim_script_frame(
                         &yaw_matrix,
                         obj->bone_angle_64 - root_yaw);
                     if (RtQuatConvertFromMatrix(
-                            (RtQuat*)&correction,
-                            &yaw_matrix)) {
+                            &correction, &yaw_matrix)) {
                         gxQuatCopy(&old_rotation, root_rotation);
                         gxQuatMul(
                             root_rotation, &correction, &old_rotation);
@@ -3873,7 +3871,7 @@ void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent) {
 void bone_make_parents_my_children(MkBone* bone) {
     _bone_make_parents_my_children(bone);
     bone->translation = bone->parent_matrix->pos_row;
-    RtQuatConvertFromMatrix(&bone->rt_rotation, bone->parent_matrix);
+    RtQuatConvertFromMatrix(&bone->rotation, bone->parent_matrix);
 }
 
 static inline void quat_to_normalized_matrix(

@@ -25,10 +25,10 @@ static float HAnimSinApprox(float x)
 void RpHAnimKeyFrameApply(void *matrix, void *voidFrame) {
     RwMatrix *m = matrix;
     RpHAnimKeyFrame *frame = voidFrame;
-    const float x = frame->q.imag.x;
-    const float y = frame->q.imag.y;
-    const float z = frame->q.imag.z;
-    const float w = frame->q.real;
+    const float x = frame->q.x;
+    const float y = frame->q.y;
+    const float z = frame->q.z;
+    const float w = frame->q.w;
     RwV3d square;
     RwV3d cross;
     RwV3d wimag;
@@ -68,18 +68,18 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, float time,
     out->t.y = a->t.y + alpha * (b->t.y - a->t.y);
     out->t.z = a->t.z + alpha * (b->t.z - a->t.z);
     {
-        float cosTheta = a->q.imag.x * b->q.imag.x +
-                          a->q.imag.y * b->q.imag.y +
-                          a->q.imag.z * b->q.imag.z +
-                          a->q.real * b->q.real;
+        float cosTheta = a->q.x * b->q.x +
+                          a->q.y * b->q.y +
+                          a->q.z * b->q.z +
+                          a->q.w * b->q.w;
         float beta = 1.0f - alpha;
 
         if (cosTheta < 0.0f) {
             cosTheta = -cosTheta;
-            b->q.imag.x = -b->q.imag.x;
-            b->q.imag.y = -b->q.imag.y;
-            b->q.imag.z = -b->q.imag.z;
-            b->q.real = -b->q.real;
+            b->q.x = -b->q.x;
+            b->q.y = -b->q.y;
+            b->q.z = -b->q.z;
+            b->q.w = -b->q.w;
         }
         if (cosTheta <= 0.999f) {
             float theta;
@@ -120,10 +120,10 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, float time,
                 alpha = HAnimSinApprox(alpha * theta) * reciprocal;
             }
         }
-        out->q.imag.x = beta * a->q.imag.x + alpha * b->q.imag.x;
-        out->q.imag.y = beta * a->q.imag.y + alpha * b->q.imag.y;
-        out->q.imag.z = beta * a->q.imag.z + alpha * b->q.imag.z;
-        out->q.real = beta * a->q.real + alpha * b->q.real;
+        out->q.x = beta * a->q.x + alpha * b->q.x;
+        out->q.y = beta * a->q.y + alpha * b->q.y;
+        out->q.z = beta * a->q.z + alpha * b->q.z;
+        out->q.w = beta * a->q.w + alpha * b->q.w;
     }
 }
 
@@ -135,18 +135,18 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, float alpha) {
     out->t.y = a->t.y + alpha * (b->t.y - a->t.y);
     out->t.z = a->t.z + alpha * (b->t.z - a->t.z);
     {
-        float cosTheta = a->q.imag.x * b->q.imag.x +
-                          a->q.imag.y * b->q.imag.y +
-                          a->q.imag.z * b->q.imag.z +
-                          a->q.real * b->q.real;
+        float cosTheta = a->q.x * b->q.x +
+                          a->q.y * b->q.y +
+                          a->q.z * b->q.z +
+                          a->q.w * b->q.w;
         float beta = 1.0f - alpha;
 
         if (cosTheta < 0.0f) {
             cosTheta = -cosTheta;
-            b->q.imag.x = -b->q.imag.x;
-            b->q.imag.y = -b->q.imag.y;
-            b->q.imag.z = -b->q.imag.z;
-            b->q.real = -b->q.real;
+            b->q.x = -b->q.x;
+            b->q.y = -b->q.y;
+            b->q.z = -b->q.z;
+            b->q.w = -b->q.w;
         }
         if (cosTheta <= 0.999f) {
             float theta;
@@ -187,10 +187,10 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, float alpha) {
                 alpha = HAnimSinApprox(alpha * theta) * reciprocal;
             }
         }
-        out->q.imag.x = beta * a->q.imag.x + alpha * b->q.imag.x;
-        out->q.imag.y = beta * a->q.imag.y + alpha * b->q.imag.y;
-        out->q.imag.z = beta * a->q.imag.z + alpha * b->q.imag.z;
-        out->q.real = beta * a->q.real + alpha * b->q.real;
+        out->q.x = beta * a->q.x + alpha * b->q.x;
+        out->q.y = beta * a->q.y + alpha * b->q.y;
+        out->q.z = beta * a->q.z + alpha * b->q.z;
+        out->q.w = beta * a->q.w + alpha * b->q.w;
     }
 }
 
@@ -234,24 +234,24 @@ int RpHAnimKeyFrameStreamGetSize(RtAnimAnimation *animation) {
 void RpHAnimKeyFrameMulRecip(void *vf, void *vs) {
     RpHAnimKeyFrame *f = vf;
     RpHAnimKeyFrame *s = vs;
-    RtQuat q = f->q, inv;
-    float n = s->q.real * s->q.real + s->q.imag.x * s->q.imag.x +
-               s->q.imag.y * s->q.imag.y + s->q.imag.z * s->q.imag.z;
+    Quat q = f->q, inv;
+    float n = s->q.w * s->q.w + s->q.x * s->q.x +
+               s->q.y * s->q.y + s->q.z * s->q.z;
     if (n > 0) {
         n = 1.0f / n;
-        inv.real = s->q.real * n;
-        inv.imag.x = -s->q.imag.x * n;
-        inv.imag.y = -s->q.imag.y * n;
-        inv.imag.z = -s->q.imag.z * n;
+        inv.w = s->q.w * n;
+        inv.x = -s->q.x * n;
+        inv.y = -s->q.y * n;
+        inv.z = -s->q.z * n;
     }
-    f->q.real = inv.real * q.real - inv.imag.x * q.imag.x -
-                inv.imag.y * q.imag.y - inv.imag.z * q.imag.z;
-    f->q.imag.x = inv.imag.y * q.imag.z - inv.imag.z * q.imag.y +
-                  q.imag.x * inv.real + inv.imag.x * q.real;
-    f->q.imag.y = inv.imag.z * q.imag.x - inv.imag.x * q.imag.z +
-                  q.imag.y * inv.real + inv.imag.y * q.real;
-    f->q.imag.z = inv.imag.x * q.imag.y - inv.imag.y * q.imag.x +
-                  q.imag.z * inv.real + inv.imag.z * q.real;
+    f->q.w = inv.w * q.w - inv.x * q.x -
+                inv.y * q.y - inv.z * q.z;
+    f->q.x = inv.y * q.z - inv.z * q.y +
+                  q.x * inv.w + inv.x * q.w;
+    f->q.y = inv.z * q.x - inv.x * q.z +
+                  q.y * inv.w + inv.y * q.w;
+    f->q.z = inv.x * q.y - inv.y * q.x +
+                  q.z * inv.w + inv.z * q.w;
     f->t.x -= s->t.x;
     f->t.y -= s->t.y;
     f->t.z -= s->t.z;
@@ -260,17 +260,17 @@ void RpHAnimKeyFrameAdd(void *vo, void *va, void *vb) {
     RpHAnimKeyFrame *o = vo;
     RpHAnimKeyFrame *a = va;
     RpHAnimKeyFrame *b = vb;
-    o->q.real = a->q.real * b->q.real - a->q.imag.x * b->q.imag.x -
-                a->q.imag.y * b->q.imag.y - a->q.imag.z * b->q.imag.z;
-    o->q.imag.x = a->q.imag.y * b->q.imag.z -
-                  a->q.imag.z * b->q.imag.y +
-                  b->q.imag.x * a->q.real + a->q.imag.x * b->q.real;
-    o->q.imag.y = a->q.imag.z * b->q.imag.x -
-                  a->q.imag.x * b->q.imag.z +
-                  b->q.imag.y * a->q.real + a->q.imag.y * b->q.real;
-    o->q.imag.z = a->q.imag.x * b->q.imag.y -
-                  a->q.imag.y * b->q.imag.x +
-                  b->q.imag.z * a->q.real + a->q.imag.z * b->q.real;
+    o->q.w = a->q.w * b->q.w - a->q.x * b->q.x -
+                a->q.y * b->q.y - a->q.z * b->q.z;
+    o->q.x = a->q.y * b->q.z -
+                  a->q.z * b->q.y +
+                  b->q.x * a->q.w + a->q.x * b->q.w;
+    o->q.y = a->q.z * b->q.x -
+                  a->q.x * b->q.z +
+                  b->q.y * a->q.w + a->q.y * b->q.w;
+    o->q.z = a->q.x * b->q.y -
+                  a->q.y * b->q.x +
+                  b->q.z * a->q.w + a->q.z * b->q.w;
     o->t.x = a->t.x + b->t.x;
     o->t.y = a->t.y + b->t.y;
     o->t.z = a->t.z + b->t.z;

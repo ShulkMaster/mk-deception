@@ -803,7 +803,7 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     bone_matrix->pos.y = 0.0f;
     bone_matrix->pos.x = 0.0f;
     ZYX_angles_to_MKMATRIX(rotation, bone_matrix);
-    RtQuatConvertFromMatrix(&bone->rt_rotation, bone_matrix);
+    RtQuatConvertFromMatrix(&bone->rotation, bone_matrix);
 
     if (insert_at_head) {
         mk_insert(&item->hdr, &player_object->list_44);

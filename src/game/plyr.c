@@ -1151,7 +1151,7 @@ static float p_baraka_jaw_controller(void) {
             matrix.at.y +=
                 pdata->active_movement[pdata->movement_index].delta;
             normalize_v3((Vec*)&matrix.at);
-            if (RtQuatConvertFromMatrix((RtQuat*)&rotation, &matrix) != 0) {
+            if (RtQuatConvertFromMatrix(&rotation, &matrix) != 0) {
                 gxQuatCopy(&pdata->jaw_bone->rotation, &rotation);
                 gxQuatNorm(&pdata->jaw_bone->rotation);
             }
