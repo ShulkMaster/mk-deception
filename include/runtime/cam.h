@@ -78,14 +78,7 @@ typedef struct CameraPdataFlags {
 typedef struct CameraPdata {
     MkHdr hdr;
     RwCamera* camera; /* +0x08 */
-    union {
-        Vec target_pos; /* +0x0C */
-        struct {
-            float target_pos_x;
-            float target_pos_y;
-            float target_pos_z;
-        };
-    };
+    Vec target_pos; /* +0x0C */
     union {
         Vec target_ang; /* +0x18 */
         struct {

@@ -1881,9 +1881,9 @@ static float p_move_camera_and_open_coffin(void) {
         }
     }
 
-    camera->target_pos_x = coffin_position.x + camera_offset.x;
-    camera->target_pos_y = coffin_position.y + camera_offset.y;
-    camera->target_pos_z = coffin_position.z + camera_offset.z;
+    camera->target_pos.x = coffin_position.x + camera_offset.x;
+    camera->target_pos.y = coffin_position.y + camera_offset.y;
+    camera->target_pos.z = coffin_position.z + camera_offset.z;
     camera->target_ang_x = camera_angles.x;
     camera->target_ang_y = camera_angles.y;
     camera->target_ang_z = camera_angles.z;
@@ -2005,11 +2005,11 @@ static float p_move_camera_and_open_coffin(void) {
         snd_req(0x3BF);
     }
 
-    camera->target_pos_x = coffin_position.x;
-    camera->target_pos_y = coffin_position.y;
-    camera->target_pos_z = coffin_position.z;
-    camera->target_pos_y = 4.4f;
-    camera->target_pos_z += 5.0f;
+    camera->target_pos.x = coffin_position.x;
+    camera->target_pos.y = coffin_position.y;
+    camera->target_pos.z = coffin_position.z;
+    camera->target_pos.y = 4.4f;
+    camera->target_pos.z += 5.0f;
     camera->target_ang_x = 0.42f;
     camera->target_ang_y = 3.1415927f;
     camera->speed = 1.0f;
@@ -2193,8 +2193,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
         return;
     }
     if (direction == 0) {
-        if (camera->target_pos_x < 28.5f) {
-            camera->target_pos_x += 3.0f;
+        if (camera->target_pos.x < 28.5f) {
+            camera->target_pos.x += 3.0f;
             krypt_pdata->current_column++;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2203,8 +2203,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
             return;
         }
     } else if (direction == 1) {
-        if (camera->target_pos_x > -28.5f) {
-            camera->target_pos_x -= 3.0f;
+        if (camera->target_pos.x > -28.5f) {
+            camera->target_pos.x -= 3.0f;
             krypt_pdata->current_column--;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2213,8 +2213,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
             return;
         }
     } else if (direction == 2) {
-        if (camera->target_pos_z > -40.0f) {
-            camera->target_pos_z -= 5.0f;
+        if (camera->target_pos.z > -40.0f) {
+            camera->target_pos.z -= 5.0f;
             krypt_pdata->current_row++;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2223,8 +2223,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
             return;
         }
     } else {
-        if (camera->target_pos_z < 55.0f) {
-            camera->target_pos_z += 5.0f;
+        if (camera->target_pos.z < 55.0f) {
+            camera->target_pos.z += 5.0f;
             krypt_pdata->current_row--;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2558,9 +2558,9 @@ static float handle_controller_input(void) {
         column = krypt_pdata->available_key_coffin % 20;
         if (row != krypt_pdata->current_row || column != krypt_pdata->current_column) {
             snd_req(0x3C1);
-            camera->target_pos_x = 3.0f * column - 28.5f;
-            camera->target_pos_y = 4.4f;
-            camera->target_pos_z = 55.0f - 5.0f * row;
+            camera->target_pos.x = 3.0f * column - 28.5f;
+            camera->target_pos.y = 4.4f;
+            camera->target_pos.z = 55.0f - 5.0f * row;
             krypt_pdata->current_row = row;
             krypt_pdata->current_column = column;
             krypt_pdata->layout_dirty = 1;
