@@ -1103,9 +1103,9 @@ void repel_against_obstacle_list(
         object = 0;
     }
     if (object != 0) {
-        object->pos.x += position->x - original_position.x;
-        object->pos.y += position->y - original_position.y;
-        object->pos.z += position->z - original_position.z;
+        object->pos.value.x += position->x - original_position.x;
+        object->pos.value.y += position->y - original_position.y;
+        object->pos.value.z += position->z - original_position.z;
     }
 }
 
@@ -4485,9 +4485,9 @@ static void update_player_collision_nodes(PlayerCollisionData* collision) {
         storage->render_recorded = 0;
     }
     if (storage->object != 0) {
-        storage->body_shape.sphere_center.x = storage->object->pos.x;
-        storage->body_shape.sphere_center.y = storage->object->pos.y;
-        storage->body_shape.sphere_center.z = storage->object->pos.z;
+        storage->body_shape.sphere_center.x = storage->object->pos.value.x;
+        storage->body_shape.sphere_center.y = storage->object->pos.value.y;
+        storage->body_shape.sphere_center.z = storage->object->pos.value.z;
         storage->body_shape.sphere_center.y -= 1.0f;
     }
 }

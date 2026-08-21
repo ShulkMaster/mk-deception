@@ -785,9 +785,9 @@ void set_krypt_character_pos(const Vec* position) {
         }
         if (obj != 0) {
             obj->hide_flag_bits.pin_animation = 0;
-            obj->pos.x = position->x;
-            obj->pos.y = position->y;
-            obj->pos.z = position->z;
+            obj->pos.value.x = position->x;
+            obj->pos.value.y = position->y;
+            obj->pos.value.z = position->z;
             update_mkobj(obj);
         }
     }
@@ -920,10 +920,10 @@ static float p_krypt_animate(void) {
                 } else {
                     object = 0;
                 }
-                volume = get_volume_from_distance(&object->pos, 40.0f, 10.0f);
+                volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
                 if (volume != 0.0f) {
                     pan_vol_pitch_random_snd_req(
-                        0x2B, get_pan_value(&object->pos), volume, 1.0f);
+                        0x2B, get_pan_value(&object->pos.value), volume, 1.0f);
                 }
             }
             krypt_pdata->footstep_frame_index++;
@@ -945,10 +945,10 @@ static float p_krypt_animate(void) {
                 } else {
                     object = 0;
                 }
-                volume = get_volume_from_distance(&object->pos, 40.0f, 10.0f);
+                volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
                 if (volume != 0.0f) {
                     pan_vol_pitch_random_snd_req(
-                        0x2A, get_pan_value(&object->pos), volume, 1.0f);
+                        0x2A, get_pan_value(&object->pos.value), volume, 1.0f);
                 }
             }
             krypt_pdata->footstep_frame_index++;
@@ -1881,12 +1881,12 @@ static float p_move_camera_and_open_coffin(void) {
         }
     }
 
-    camera->target_pos_x = coffin_position.x + camera_offset.x;
-    camera->target_pos_y = coffin_position.y + camera_offset.y;
-    camera->target_pos_z = coffin_position.z + camera_offset.z;
-    camera->target_ang_x = camera_angles.x;
-    camera->target_ang_y = camera_angles.y;
-    camera->target_ang_z = camera_angles.z;
+    camera->target_pos.x = coffin_position.x + camera_offset.x;
+    camera->target_pos.y = coffin_position.y + camera_offset.y;
+    camera->target_pos.z = coffin_position.z + camera_offset.z;
+    camera->target_ang.x = camera_angles.x;
+    camera->target_ang.y = camera_angles.y;
+    camera->target_ang.z = camera_angles.z;
     camera->flags_bits.pos_done = 0;
     _mkproc_sleep_ticks = 1.0f;
     mkproc_sleep();
@@ -2005,13 +2005,13 @@ static float p_move_camera_and_open_coffin(void) {
         snd_req(0x3BF);
     }
 
-    camera->target_pos_x = coffin_position.x;
-    camera->target_pos_y = coffin_position.y;
-    camera->target_pos_z = coffin_position.z;
-    camera->target_pos_y = 4.4f;
-    camera->target_pos_z += 5.0f;
-    camera->target_ang_x = 0.42f;
-    camera->target_ang_y = 3.1415927f;
+    camera->target_pos.x = coffin_position.x;
+    camera->target_pos.y = coffin_position.y;
+    camera->target_pos.z = coffin_position.z;
+    camera->target_pos.y = 4.4f;
+    camera->target_pos.z += 5.0f;
+    camera->target_ang.x = 0.42f;
+    camera->target_ang.y = 3.1415927f;
     camera->speed = 1.0f;
     shake_camera(8, 0.0075f);
     {
@@ -2160,9 +2160,9 @@ static void start_opening_coffin_effects(const Vec* origin) {
     for (i = 0; i < 5; i++) {
         object = get_mkobj_frame(0x8311, 0);
         if (object != 0) {
-            object->pos.x = origin->x + object_offsets[i].x;
-            object->pos.y = origin->y + object_offsets[i].y;
-            object->pos.z = origin->z + object_offsets[i].z;
+            object->pos.value.x = origin->x + object_offsets[i].x;
+            object->pos.value.y = origin->y + object_offsets[i].y;
+            object->pos.value.z = origin->z + object_offsets[i].z;
             object->ang.y = object_angles[i];
             insert_particle_mkobj(object);
             update_mkobj(as_mkhdr(&object->hdr));
@@ -2193,8 +2193,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
         return;
     }
     if (direction == 0) {
-        if (camera->target_pos_x < 28.5f) {
-            camera->target_pos_x += 3.0f;
+        if (camera->target_pos.x < 28.5f) {
+            camera->target_pos.x += 3.0f;
             krypt_pdata->current_column++;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2203,8 +2203,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
             return;
         }
     } else if (direction == 1) {
-        if (camera->target_pos_x > -28.5f) {
-            camera->target_pos_x -= 3.0f;
+        if (camera->target_pos.x > -28.5f) {
+            camera->target_pos.x -= 3.0f;
             krypt_pdata->current_column--;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2213,8 +2213,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
             return;
         }
     } else if (direction == 2) {
-        if (camera->target_pos_z > -40.0f) {
-            camera->target_pos_z -= 5.0f;
+        if (camera->target_pos.z > -40.0f) {
+            camera->target_pos.z -= 5.0f;
             krypt_pdata->current_row++;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2223,8 +2223,8 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
             return;
         }
     } else {
-        if (camera->target_pos_z < 55.0f) {
-            camera->target_pos_z += 5.0f;
+        if (camera->target_pos.z < 55.0f) {
+            camera->target_pos.z += 5.0f;
             krypt_pdata->current_row--;
             krypt_pdata->layout_dirty = 1;
             krypt_pdata->field_0x108 = 0;
@@ -2558,9 +2558,9 @@ static float handle_controller_input(void) {
         column = krypt_pdata->available_key_coffin % 20;
         if (row != krypt_pdata->current_row || column != krypt_pdata->current_column) {
             snd_req(0x3C1);
-            camera->target_pos_x = 3.0f * column - 28.5f;
-            camera->target_pos_y = 4.4f;
-            camera->target_pos_z = 55.0f - 5.0f * row;
+            camera->target_pos.x = 3.0f * column - 28.5f;
+            camera->target_pos.y = 4.4f;
+            camera->target_pos.z = 55.0f - 5.0f * row;
             krypt_pdata->current_row = row;
             krypt_pdata->current_column = column;
             krypt_pdata->layout_dirty = 1;
@@ -3067,7 +3067,7 @@ float p_fog_follow_camera(void) {
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
     camera = camera_item.node;
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -3096,7 +3096,7 @@ static float p_follow_camera(void) {
 
     camera = camera_item.node;
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -3121,9 +3121,9 @@ static float p_follow_camera(void) {
     }
 
     if (pdata != 0 && obj != 0 && camera != 0) {
-        obj->pos_x = camera->pos.x;
-        obj->pos_y = camera->pos.y;
-        obj->pos_z = camera->pos.z;
+        obj->pos.value.x = camera->pos.x;
+        obj->pos.value.y = camera->pos.y;
+        obj->pos.value.z = camera->pos.z;
 
         if (krypt_pdata->pfx_koins != 0) {
             krypt_pdata->pfx_koins->mat_e = camera->pos.x;

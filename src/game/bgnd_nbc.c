@@ -41,7 +41,7 @@ float bgnd_get_camera_z_pos(void) {
 
     raw = camera_item.node;
     if (raw != 0) {
-        if (raw->instance != camera_item.instance) {
+        if (raw->hdr.instance != camera_item.instance) {
             cam = 0;
         } else {
             cam = raw;
@@ -61,7 +61,7 @@ float bgnd_get_camera_y_angle(void) {
 
     raw = camera_item.node;
     if (raw != 0) {
-        if (raw->instance != camera_item.instance) {
+        if (raw->hdr.instance != camera_item.instance) {
             cam = 0;
         } else {
             cam = raw;
@@ -70,7 +70,7 @@ float bgnd_get_camera_y_angle(void) {
         cam = 0;
     }
     if (cam != 0) {
-        return cam->ang_y;
+        return cam->ang.y;
     }
     return zero;
 }

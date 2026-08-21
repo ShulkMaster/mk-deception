@@ -1335,15 +1335,15 @@ void make_damashi_npc(MkObj* object) {
         npc->name = "damashi_npc";
         konquest_pdata->hero_npc = npc;
         konquest_pdata->hero_npc_instance = npc->hdr.instance;
-        npc->data->position.x = object->pos.x;
-        npc->data->position.y = object->pos.y;
-        npc->data->position.z = object->pos.z;
-        npc->tile_index = get_tile_from_position(&object->pos);
+        npc->data->position.x = object->pos.value.x;
+        npc->data->position.y = object->pos.value.y;
+        npc->data->position.z = object->pos.value.z;
+        npc->tile_index = get_tile_from_position(&object->pos.value);
         if (npc_event_has_active_animation(npc) != 0) {
             npc->animation->object->flags_09_bits.bit6 = 0;
-            npc->animation->object->pos.x = object->pos.x;
-            npc->animation->object->pos.y = object->pos.y;
-            npc->animation->object->pos.z = object->pos.z;
+            npc->animation->object->pos.value.x = object->pos.value.x;
+            npc->animation->object->pos.value.y = object->pos.value.y;
+            npc->animation->object->pos.value.z = object->pos.value.z;
         }
         npc->data->angle_y = 0.0f;
         npc->flags_1C |= 0x10;
@@ -1626,11 +1626,11 @@ void npc_start_blood_fall(void) {
         object->flags_08_bits.airborne = 1;
         object->flags_08_bits.gravity_enabled = 1;
         get_bone_world_pos(
-            g_active_npc->animation->object, 10, &object->pos);
+            g_active_npc->animation->object, 10, &object->pos.value);
         object->pos_vel.x =
-            g_active_npc->animation->object->pos.x - monk->pos.x;
+            g_active_npc->animation->object->pos.value.x - monk->pos.value.x;
         object->pos_vel.z =
-            g_active_npc->animation->object->pos.z - monk->pos.z;
+            g_active_npc->animation->object->pos.value.z - monk->pos.value.z;
         rotate_xz(
             &object->pos_vel, &object->pos_vel,
             sfrand(0.7853982f));
@@ -1682,12 +1682,12 @@ static float p_blood_fall_control(void) {
         }
         if (object != 0) {
             no_objects = 0;
-            if (object->pos.y > pdata->ground_y) {
+            if (object->pos.value.y > pdata->ground_y) {
                 object->pos_vel.y -= 0.003f;
             } else {
                 unsigned int splat_effect;
 
-                object->pos.y = pdata->ground_y;
+                object->pos.value.y = pdata->ground_y;
                 splat_effect = fx_by_owner("blood_splat", 4);
                 if (splat_effect != 0) {
                     MkPfx* particle = pfx_from_emitter(splat_effect);
@@ -1702,9 +1702,9 @@ static float p_blood_fall_control(void) {
                     y_angle_to_MKMATRIX(
                         &splat->frame->modelling,
                         frand(6.2831855f));
-                    splat->pos.x = object->pos.x;
-                    splat->pos.y = object->pos.y;
-                    splat->pos.z = object->pos.z;
+                    splat->pos.value.x = object->pos.value.x;
+                    splat->pos.value.y = object->pos.value.y;
+                    splat->pos.value.z = object->pos.value.z;
                     update_mkobj(
                         splat != 0 ? as_mkhdr(&splat->hdr) : 0);
                     fx_restart_emit(splat_effect);
@@ -2167,15 +2167,15 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
 
     konquest_pdata->monk_npc = npc;
     konquest_pdata->monk_npc_instance = npc->hdr.instance;
-    npc->data->position.x = monk->pos.x;
-    npc->data->position.y = monk->pos.y;
-    npc->data->position.z = monk->pos.z;
+    npc->data->position.x = monk->pos.value.x;
+    npc->data->position.y = monk->pos.value.y;
+    npc->data->position.z = monk->pos.value.z;
     npc->tile_index = get_tile_from_position(&npc->data->position);
     if (npc_event_has_active_animation(npc) != 0) {
         npc->animation->object->flags_09_bits.bit6 = 0;
-        npc->animation->object->pos.x = npc->data->position.x;
-        npc->animation->object->pos.y = npc->data->position.y;
-        npc->animation->object->pos.z = npc->data->position.z;
+        npc->animation->object->pos.value.x = npc->data->position.x;
+        npc->animation->object->pos.value.y = npc->data->position.y;
+        npc->animation->object->pos.value.z = npc->data->position.z;
     }
     npc->data->angle_y = monk->ang.y;
     npc->flags_1C |= 0x10;
@@ -3227,9 +3227,9 @@ void npc_set_his_world_pos(
     }
     if (has_active_animation != 0) {
         state->object->hide_flags &= ~2;
-        npc->animation->object->pos.x = position.x;
-        npc->animation->object->pos.y = position.y;
-        npc->animation->object->pos.z = position.z;
+        npc->animation->object->pos.value.x = position.x;
+        npc->animation->object->pos.value.y = position.y;
+        npc->animation->object->pos.value.z = position.z;
     }
 }
 
@@ -3261,9 +3261,9 @@ void npc_set_my_world_pos(float x, float y, float z) {
     }
     if (has_active_animation != 0) {
         state->object->hide_flag_bits.pin_animation = 0;
-        npc->animation->object->pos.x = position.x;
-        npc->animation->object->pos.y = position.y;
-        npc->animation->object->pos.z = position.z;
+        npc->animation->object->pos.value.x = position.x;
+        npc->animation->object->pos.value.y = position.y;
+        npc->animation->object->pos.value.z = position.z;
     }
 }
 
@@ -3296,9 +3296,9 @@ void npc_set_my_pos(float x, float y, float z) {
         MkObj* object = state->object;
 
         object->hide_flag_bits.pin_animation = 0;
-        npc->animation->object->pos.x = position.x;
-        npc->animation->object->pos.y = position.y;
-        npc->animation->object->pos.z = position.z;
+        npc->animation->object->pos.value.x = position.x;
+        npc->animation->object->pos.value.y = position.y;
+        npc->animation->object->pos.value.z = position.z;
     }
 }
 
@@ -3552,8 +3552,8 @@ static void npc_update_current_direction(
                     path->waypoints[path->target_waypoint].position.z;
             }
         }
-        delta_x = target_x - npc->animation->object->pos.x;
-        delta_z = target_z - npc->animation->object->pos.z;
+        delta_x = target_x - npc->animation->object->pos.value.x;
+        delta_z = target_z - npc->animation->object->pos.value.z;
         distance = npc_fast_sqrt(delta_x * delta_x + delta_z * delta_z);
         inverse_distance = distance > 0.0f ? 1.0f / distance : distance;
         target_angle = gxMathArcTanYX(
@@ -3671,11 +3671,11 @@ void npc_travel_path(
                 if (monk != 0 && g_active_npc->animation != 0 &&
                     g_active_npc->animation->object != 0) {
                     float delta_x =
-                        monk->pos.x -
-                        g_active_npc->animation->object->pos.x;
+                        monk->pos.value.x -
+                        g_active_npc->animation->object->pos.value.x;
                     float delta_z =
-                        monk->pos.z -
-                        g_active_npc->animation->object->pos.z;
+                        monk->pos.value.z -
+                        g_active_npc->animation->object->pos.value.z;
                     float distance_squared =
                         delta_x * delta_x + delta_z * delta_z;
 
@@ -4308,11 +4308,11 @@ void npc_blend_to_ani_with_offset(
         transition_to_anim_script(
             animation, get_animation(animation_id), flags, blend);
         object = g_active_npc->animation->object;
-        object->pos.x += animation->root_offset.x;
+        object->pos.value.x += animation->root_offset.x;
         object = g_active_npc->animation->object;
-        object->pos.y += animation->root_offset.y;
+        object->pos.value.y += animation->root_offset.y;
         object = g_active_npc->animation->object;
-        object->pos.z += animation->root_offset.z;
+        object->pos.value.z += animation->root_offset.z;
 
         state = g_active_npc->animation;
         if (state == 0) {
@@ -4445,8 +4445,8 @@ static float p_turn_and_face(void) {
             target_x = pdata->target.npc->data->position.x;
             target_z = pdata->target.npc->data->position.z;
         } else {
-            target_x = target_object->pos.x;
-            target_z = target_object->pos.z;
+            target_x = target_object->pos.value.x;
+            target_z = target_object->pos.value.z;
         }
         target_angle = gxMathArcTanYX(
             destination_x - target_x, destination_z - target_z);
@@ -4619,8 +4619,8 @@ void hero_turn_to_face_position(const Vec* position) {
     if (hero != 0) {
         float angle;
 
-        direction.x = position->x - hero->pos.x;
-        direction.z = position->z - hero->pos.z;
+        direction.x = position->x - hero->pos.value.x;
+        direction.z = position->z - hero->pos.value.z;
         angle = gxMathArcTanYX(direction.x, direction.z);
         if (_create_mkproc_generic_nostack(
                 0xA01E, 0x1F, p_hero_turn_and_face,
@@ -4782,9 +4782,9 @@ void npc_turn_and_face_player(int turn_player) {
                 g_active_npc->animation->object->hide_flag_bits
                     .pin_animation = 0;
                 pdata->use_angle = 0;
-                pdata->position.x = monk->pos.x;
-                pdata->position.y = monk->pos.y;
-                pdata->position.z = monk->pos.z;
+                pdata->position.x = monk->pos.value.x;
+                pdata->position.y = monk->pos.value.y;
+                pdata->position.z = monk->pos.value.z;
                 g_active_npc->turn_proc = turn_proc;
                 g_active_npc->turn_proc_instance = turn_proc->instance;
             }
@@ -4802,11 +4802,11 @@ void npc_turn_and_face_player(int turn_player) {
                 pdata->target_kind = 0x9003;
                 pdata->use_angle = 0;
                 pdata->position.x =
-                    g_active_npc->animation->object->pos.x;
+                    g_active_npc->animation->object->pos.value.x;
                 pdata->position.y =
-                    g_active_npc->animation->object->pos.y;
+                    g_active_npc->animation->object->pos.value.y;
                 pdata->position.z =
-                    g_active_npc->animation->object->pos.z;
+                    g_active_npc->animation->object->pos.value.z;
             }
         }
 
@@ -4847,9 +4847,9 @@ int npc_get_collision_direction_in_script(void) {
             Vec angles = {0.0f, 0.0f, 0.0f};
 
             if (hero != 0 && object != 0) {
-                delta.x = hero->pos.x - object->pos.x;
-                delta.y = hero->pos.y - object->pos.y;
-                delta.z = hero->pos.z - object->pos.z;
+                delta.x = hero->pos.value.x - object->pos.value.x;
+                delta.y = hero->pos.value.y - object->pos.value.y;
+                delta.z = hero->pos.value.z - object->pos.value.z;
                 v3_to_xy_ang(&angles, &delta);
                 direction = (int)(norm_angle(
                     0.7853982f +
@@ -4964,7 +4964,7 @@ void npc_run_punch_animation(
                 }
                 _mkproc_sleep_ticks = 1.0f;
                 ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
-                reaction->object->pos.y = animation_pdata->root_offset.y;
+                reaction->object->pos.value.y = animation_pdata->root_offset.y;
                 reaction->object->gravity = gravity;
 
                 while (animation_pdata->frame < final_frame) {
@@ -4998,8 +4998,8 @@ void npc_snap_to_face_monk(void) {
     }
     if (monk != 0 && reaction != 0 && reaction->object != 0) {
         reaction->object->ang.y = gxMathArcTanYX(
-            monk->pos.x - reaction->object->pos.x,
-            monk->pos.z - reaction->object->pos.z);
+            monk->pos.value.x - reaction->object->pos.value.x,
+            monk->pos.value.z - reaction->object->pos.value.z);
     }
 }
 
@@ -5204,14 +5204,14 @@ static void npc_post_sleep(void) {
             if ((g_active_npc->flags_1D & 4) != 0) {
                 Vec movement;
 
-                movement.x = animation->object->pos.x - data->position.x;
-                movement.y = animation->object->pos.y - data->position.y;
-                movement.z = animation->object->pos.z - data->position.z;
+                movement.x = animation->object->pos.value.x - data->position.x;
+                movement.y = animation->object->pos.value.y - data->position.y;
+                movement.z = animation->object->pos.value.z - data->position.z;
                 if (npc_repel_against_global_collision_list(
                         &data->position, &movement, &collision_position,
                         0x10000) != 0) {
-                    animation->object->pos.x = collision_position.x;
-                    animation->object->pos.z = collision_position.z;
+                    animation->object->pos.value.x = collision_position.x;
+                    animation->object->pos.value.z = collision_position.z;
                     animation->object->hide_flag_bits.pin_animation = 0;
                 }
             }
@@ -5222,12 +5222,12 @@ static void npc_post_sleep(void) {
                 Vec hit_point;
                 KonquestNpc* monk;
 
-                segment_end.x = animation->object->pos.x;
-                segment_end.y = animation->object->pos.y;
-                segment_end.z = animation->object->pos.z;
-                segment_start.x = animation->object->pos.x;
-                segment_start.y = animation->object->pos.y;
-                segment_start.z = animation->object->pos.z;
+                segment_end.x = animation->object->pos.value.x;
+                segment_end.y = animation->object->pos.value.y;
+                segment_end.z = animation->object->pos.value.z;
+                segment_start.x = animation->object->pos.value.x;
+                segment_start.y = animation->object->pos.value.y;
+                segment_start.z = animation->object->pos.value.z;
                 segment_end.y = -50.0f;
                 segment_start.y = 50.0f;
                 if (animation->object->oid != 0xFFFF9010) {
@@ -5251,7 +5251,7 @@ static void npc_post_sleep(void) {
                             animation->object->ground_colls_y = hit_point.y;
                         } else {
                             if (animation->object->ground_colls_y != 0.0f) {
-                                animation->object->pos.y = 0.0f;
+                                animation->object->pos.value.y = 0.0f;
                             }
                             animation->object->flags_08_bits.moving = 0;
                             animation->object->ground_colls_y = 0.0f;
@@ -5265,9 +5265,9 @@ static void npc_post_sleep(void) {
         } else {
             animation->object->flags_09_bits.launched = 1;
         }
-        data->position.x = animation->object->pos.x;
-        data->position.y = animation->object->pos.y;
-        data->position.z = animation->object->pos.z;
+        data->position.x = animation->object->pos.value.x;
+        data->position.y = animation->object->pos.value.y;
+        data->position.z = animation->object->pos.value.z;
         data->angle_y = animation->object->ang.y;
     }
     g_active_npc = 0;
@@ -5836,15 +5836,15 @@ int npc_hit_by_punch(
         return 0;
     }
     object = state->object;
-    if (dist_xz_to_xz(&object->pos, &monk->pos) >
+    if (dist_xz_to_xz(&object->pos.value, &monk->pos.value) >
         maximum_distance) {
         return 0;
     }
     delta = (Vec){0.0f, 0.0f, 0.0f};
     angles = (Vec){0.0f, 0.0f, 0.0f};
-    delta.x = object->pos.x - monk->pos.x;
-    delta.y = object->pos.y - monk->pos.y;
-    delta.z = object->pos.z - monk->pos.z;
+    delta.x = object->pos.value.x - monk->pos.value.x;
+    delta.y = object->pos.value.y - monk->pos.value.y;
+    delta.z = object->pos.value.z - monk->pos.value.z;
     v3_to_xy_ang(&angles, &delta);
     difference = ang_sub_ang(
         norm_angle(monk->ang.y), norm_angle(angles.y));
@@ -5933,7 +5933,7 @@ static int plyr_leave_area_check(float distance) {
     if (monk == 0) {
         is_near = 0;
     } else if (dist_xz_to_xz(
-                   &npc->data->position, &monk->pos) < distance) {
+                   &npc->data->position, &monk->pos.value) < distance) {
         is_near = 1;
     } else {
         is_near = 0;
@@ -5961,7 +5961,7 @@ static int plyr_near_check(float distance) {
     if (monk == 0) {
         is_near = 0;
     } else if (dist_xz_to_xz(
-                   &npc->data->position, &monk->pos) < distance) {
+                   &npc->data->position, &monk->pos.value) < distance) {
         is_near = 1;
     } else {
         is_near = 0;
@@ -6715,24 +6715,24 @@ void npc_shadow_update(void) {
                                 _rpAtomicResyncInterpolatedSphere(
                                     ((MkSobj*)obj_first_sobj(shadow))->atomic);
                             }
-                            projected_x = object->pos.x *
+                            projected_x = object->pos.value.x *
                                 npc_shadows.projection.right.x +
                                 1.4f * npc_shadows.projection.up.x;
-                            projected_x = object->pos.z *
+                            projected_x = object->pos.value.z *
                                 npc_shadows.projection.at.x + projected_x;
-                            projected_x = object->pos.x - projected_x;
-                            projected_y = object->pos.x *
+                            projected_x = object->pos.value.x - projected_x;
+                            projected_y = object->pos.value.x *
                                 npc_shadows.projection.right.y +
                                 1.4f * npc_shadows.projection.up.y;
-                            projected_y = object->pos.z *
+                            projected_y = object->pos.value.z *
                                 npc_shadows.projection.at.y + projected_y;
                             projected_y = 0.0f - projected_y;
-                            projected_z = object->pos.x *
+                            projected_z = object->pos.value.x *
                                 npc_shadows.projection.right.z +
                                 1.4f * npc_shadows.projection.up.z;
-                            projected_z = object->pos.z *
+                            projected_z = object->pos.value.z *
                                 npc_shadows.projection.at.z + projected_z;
-                            projected_z = object->pos.z - projected_z;
+                            projected_z = object->pos.value.z - projected_z;
                             radius = npc_fast_sqrt(
                                 projected_z * projected_z +
                                 (projected_x * projected_x +
@@ -6740,9 +6740,9 @@ void npc_shadow_update(void) {
                             ((MkSobj*)obj_first_sobj(shadow))
                                 ->atomic->boundingSphere.radius = radius;
                             {
-                                float delta_x = camera_x - object->pos.x;
+                                float delta_x = camera_x - object->pos.value.x;
                                 float delta_y = 0.0f;
-                                float delta_z = camera_z - object->pos.z;
+                                float delta_z = camera_z - object->pos.value.z;
 
                                 distance_squared = delta_z * delta_z +
                                     (delta_x * delta_x + delta_y * delta_y);
@@ -6760,9 +6760,9 @@ void npc_shadow_update(void) {
                             }
                             current_npc_count++;
                             shadow->hide_flag_bits.hidden = 0;
-                            shadow->pos.x = object->pos.x;
-                            shadow->pos.y = object->pos.y;
-                            shadow->pos.z = object->pos.z;
+                            shadow->pos.value.x = object->pos.value.x;
+                            shadow->pos.value.y = object->pos.value.y;
+                            shadow->pos.value.z = object->pos.value.z;
                             shadow->flags_08_bits.bit7 = 1;
                             if (shadow_scale > 3.0f) {
                                 shadow_scale = 3.0f;
@@ -7157,9 +7157,9 @@ static void npc_set_path(
         npc->tile_index = get_tile_from_position(&current->position);
         if (npc_event_has_active_animation(npc) != 0) {
             npc->animation->object->flags_09_bits.bit6 = 0;
-            npc->animation->object->pos.x = current->position.x;
-            npc->animation->object->pos.y = current->position.y;
-            npc->animation->object->pos.z = current->position.z;
+            npc->animation->object->pos.value.x = current->position.x;
+            npc->animation->object->pos.value.y = current->position.y;
+            npc->animation->object->pos.value.z = current->position.z;
         }
         if (current->script_function != 0) {
             KonquestWaypointScriptPdata* pdata = 0;
@@ -7181,9 +7181,9 @@ static void npc_set_path(
         npc->tile_index = get_tile_from_position(&npc->initial_position);
         if (npc_event_has_active_animation(npc) != 0) {
             npc->animation->object->flags_09_bits.bit6 = 0;
-            npc->animation->object->pos.x = npc->initial_position.x;
-            npc->animation->object->pos.y = npc->initial_position.y;
-            npc->animation->object->pos.z = npc->initial_position.z;
+            npc->animation->object->pos.value.x = npc->initial_position.x;
+            npc->animation->object->pos.value.y = npc->initial_position.y;
+            npc->animation->object->pos.value.z = npc->initial_position.z;
         }
     }
 }
@@ -7236,9 +7236,9 @@ static void load_model_for_npc(KonquestNpc* npc) {
         npc->animation->object->flags_0C = 0;
         npc->saved_object_flags = npc->animation->object->flags_word_08;
         npc->animation->object->ang.y = npc->data->angle_y;
-        npc->animation->object->pos.x = npc->data->position.x;
-        npc->animation->object->pos.y = npc->data->position.y;
-        npc->animation->object->pos.z = npc->data->position.z;
+        npc->animation->object->pos.value.x = npc->data->position.x;
+        npc->animation->object->pos.value.y = npc->data->position.y;
+        npc->animation->object->pos.value.z = npc->data->position.z;
         if (npc->animation->object != 0) {
             object_header = as_mkhdr(&npc->animation->object->hdr);
         } else {
@@ -7282,9 +7282,9 @@ static void load_model_for_npc(KonquestNpc* npc) {
             CollisionShape shape __attribute__((aligned(16)));
             Vec center;
 
-            center.x = npc->animation->object->pos.x;
-            center.y = npc->animation->object->pos.y;
-            center.z = npc->animation->object->pos.z;
+            center.x = npc->animation->object->pos.value.x;
+            center.y = npc->animation->object->pos.value.y;
+            center.z = npc->animation->object->pos.value.z;
             center.y += -1.0f;
             build_col_shape_vertical_cylinder(&shape, &center, 0.3f, 3.0f);
             npc->animation->editor_object =
@@ -7328,15 +7328,15 @@ void npc_make_invisible(KonquestNpc* npc) {
         MkObj* object = npc->animation->object;
 
         if (object != 0) {
-            npc->data->position.x = object->pos.x;
-            npc->data->position.y = object->pos.y;
-            npc->data->position.z = object->pos.z;
-            npc->tile_index = get_tile_from_position(&object->pos);
+            npc->data->position.x = object->pos.value.x;
+            npc->data->position.y = object->pos.value.y;
+            npc->data->position.z = object->pos.value.z;
+            npc->tile_index = get_tile_from_position(&object->pos.value);
             if (npc_event_has_active_animation(npc) != 0) {
                 object->flags_09_bits.bit6 = 0;
-                npc->animation->object->pos.x = object->pos.x;
-                npc->animation->object->pos.y = object->pos.y;
-                npc->animation->object->pos.z = object->pos.z;
+                npc->animation->object->pos.value.x = object->pos.value.x;
+                npc->animation->object->pos.value.y = object->pos.value.y;
+                npc->animation->object->pos.value.z = object->pos.value.z;
             }
             npc->data->angle_y = npc->animation->object->ang.y;
         }

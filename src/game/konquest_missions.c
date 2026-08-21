@@ -717,7 +717,7 @@ static inline void start_transform_particle_set(
     particle = pfx_from_emitter(emitter);
     effect_object = pfx_bind_emitter_num_to_new_obj(
         particle, (void*)0x6015, 0);
-    get_bone_world_pos(hero, 0x10, &effect_object->pos);
+    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
     effect_object->flags_08_bits.airborne = 1;
     update_mkobj(
         effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
@@ -1236,9 +1236,9 @@ void trial_setup_nis_scene(int setup) {
 
         if (monk != 0) {
             monk->hide_flag_bits.pin_animation = 0;
-            monk->pos.x = monk_position.x;
-            monk->pos.y = monk_position.y;
-            monk->pos.z = monk_position.z;
+            monk->pos.value.x = monk_position.x;
+            monk->pos.value.y = monk_position.y;
+            monk->pos.value.z = monk_position.z;
             monk->ang.x = monk_angle.x;
             monk->ang.y = monk_angle.y;
             monk->ang.z = monk_angle.z;
@@ -2027,7 +2027,7 @@ void drone_face_monk(void) {
     MkObj* monk = get_mission_monk();
 
     if (monk != 0) {
-        rotate_towards_position(&monk->pos, 0.05f);
+        rotate_towards_position(&monk->pos.value, 0.05f);
     }
 }
 
@@ -3949,9 +3949,9 @@ static float p_finish_transform_player(void) {
     set_anim_script_frame(
         63.0f, animation,
         (AniData*)bgnd_animations.transform_animation, 0x43);
-    plyr_obj->pos.x = monk->pos.x;
-    plyr_obj->pos.y = monk->pos.y;
-    plyr_obj->pos.z = monk->pos.z;
+    plyr_obj->pos.value.x = monk->pos.value.x;
+    plyr_obj->pos.value.y = monk->pos.value.y;
+    plyr_obj->pos.value.z = monk->pos.value.z;
     update_mkobj(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     start_hero_transform_effect(plyr_obj);
@@ -4038,9 +4038,9 @@ static float p_finish_transform_monk(void) {
     set_anim_script_frame(
         32.0f, animation,
         (AniData*)bgnd_animations.monk_transform_animation, 0x43);
-    monk->pos.x = player_object->pos.x;
-    monk->pos.y = player_object->pos.y;
-    monk->pos.z = player_object->pos.z;
+    monk->pos.value.x = player_object->pos.value.x;
+    monk->pos.value.y = player_object->pos.value.y;
+    monk->pos.value.z = player_object->pos.value.z;
     monk->ang.x = player_object->ang.x;
     monk->ang.y = player_object->ang.y;
     monk->ang.z = player_object->ang.z;
@@ -4058,9 +4058,9 @@ static float p_finish_transform_monk(void) {
     hide_player(mission_state->fight->pdata, 1);
     move_player(player_object, &position, &angles);
     if (sidekick != 0) {
-        sidekick->pos.x = position.x;
-        sidekick->pos.y = position.y;
-        sidekick->pos.z = position.z;
+        sidekick->pos.value.x = position.x;
+        sidekick->pos.value.y = position.y;
+        sidekick->pos.value.z = position.z;
     }
     monk->hide_flag_bits.hidden = 0;
     while (animation->frame > 0.0f) {
@@ -4128,9 +4128,9 @@ static void trial_load_monk(void) {
         }
         if (monk != 0) {
             monk->light_flags = player_object->light_flags;
-            monk->pos.x = position->x;
-            monk->pos.y = position->y;
-            monk->pos.z = position->z;
+            monk->pos.value.x = position->x;
+            monk->pos.value.y = position->y;
+            monk->pos.value.z = position->z;
             monk->ang.x = angles->x;
             monk->ang.y = angles->y;
             monk->ang.z = angles->z;

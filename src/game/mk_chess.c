@@ -1668,7 +1668,7 @@ void mk_chess_camera_init_for_place_traps(void) {
 
     mk_chess_camera_init();
     camera = camera_item.node;
-    if (camera != 0 && camera->instance != camera_item.instance) {
+    if (camera != 0 && camera->hdr.instance != camera_item.instance) {
         camera = 0;
     }
     camera->pos.x = -38.45f;
@@ -2086,9 +2086,9 @@ void mk_chess_spell_move_target_from_temp_area_to(unsigned int target) {
     piece->cell_x = x;
     piece->cell_y = y;
     piece->object->hide_flags &= ~0x02;
-    piece->object->pos.x =
+    piece->object->pos.value.x =
         cell->position.x + piece->runtime.fields.cell_offset.x;
-    piece->object->pos.z =
+    piece->object->pos.value.z =
         cell->position.z + piece->runtime.fields.cell_offset.z;
     update_obj_pos(piece->object);
 
@@ -2130,9 +2130,9 @@ void mk_chess_spell_move_target_to_target(unsigned int source_target,
     piece->cell_x = x;
     piece->cell_y = y;
     piece->object->hide_flags &= ~0x02;
-    piece->object->pos.x =
+    piece->object->pos.value.x =
         cell->position.x + piece->runtime.fields.cell_offset.x;
-    piece->object->pos.z =
+    piece->object->pos.value.z =
         cell->position.z + piece->runtime.fields.cell_offset.z;
     update_obj_pos(piece->object);
 
@@ -2220,14 +2220,14 @@ void mk_chess_set_piece_info(int info, float value) {
 
 float mk_chess_get_piece_info(int info) {
     if (info == MK_CHESS_PIECE_INFO_Z) {
-        return g_active_piece->object->pos.z;
+        return g_active_piece->object->pos.value.z;
     }
     if (info < MK_CHESS_PIECE_INFO_Z) {
         if (info == MK_CHESS_PIECE_INFO_X) {
-            return g_active_piece->object->pos.x;
+            return g_active_piece->object->pos.value.x;
         }
         if (info >= MK_CHESS_PIECE_INFO_X) {
-            return g_active_piece->object->pos.y;
+            return g_active_piece->object->pos.value.y;
         }
     } else if (info < 4) {
         return g_active_piece->object->ang.y;
@@ -2378,8 +2378,8 @@ void mk_chess_snap_to_my_cell_now(void) {
     g_active_piece->object->hide_flags &= ~0x02;
     cell = &mk_chess_pdata->board[g_active_piece->cell_x]
                 .cells[g_active_piece->cell_y];
-    g_active_piece->object->pos.x = cell->position.x;
-    g_active_piece->object->pos.z = cell->position.z;
+    g_active_piece->object->pos.value.x = cell->position.x;
+    g_active_piece->object->pos.value.z = cell->position.z;
     update_obj_pos(g_active_piece->object);
 }
 
@@ -2431,8 +2431,8 @@ int mk_chess_active_piece_near_edge(void) {
     float x;
     float z;
 
-    x = (float)__fabs(g_active_piece->object->pos.x);
-    z = (float)__fabs(g_active_piece->object->pos.z);
+    x = (float)__fabs(g_active_piece->object->pos.value.x);
+    z = (float)__fabs(g_active_piece->object->pos.value.z);
     if (x >= 8.0f || z >= 8.0f) {
         return 1;
     }
@@ -2729,7 +2729,7 @@ float mk_chess_zoom_return_completed(void) {
     CameraObj* camera = camera_item.node;
 
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -2755,7 +2755,7 @@ float mk_chess_zoom_completed(void) {
     CameraObj* camera = camera_item.node;
 
     if (camera != 0) {
-        if (camera->instance != camera_item.instance) {
+        if (camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
     } else {
@@ -3269,8 +3269,8 @@ void update_y_cursor_position(
 void mk_chess_launch_fx_at_active_piece_with_offset(
     float x_offset, float y, float z_offset) {
     MkObj* object = g_active_piece->object;
-    float x = object->pos.x + x_offset;
-    float z = object->pos.z + z_offset;
+    float x = object->pos.value.x + x_offset;
+    float z = object->pos.value.z + z_offset;
     unsigned int effect = fx_by_owner(4, object);
 
     fx_set_param_v3(0x202, x, y, z);
@@ -3326,11 +3326,11 @@ void mk_chess_disarmed_msg(void) {
 }
 
 void mk_chess_set_viewing_quadrant(CameraObj* camera) {
-    RwMatrix* matrix = camera->matrix;
-    float camera_x = matrix->pos.x;
-    float camera_z = matrix->pos.z;
-    float facing_x = -matrix->up.x;
-    float facing_z = -matrix->up.z;
+    RwFrame* frame = camera->frame;
+    float camera_x = frame->modelling.at.x;
+    float camera_z = frame->modelling.at.z;
+    float facing_x = -frame->modelling.right.x;
+    float facing_z = -frame->modelling.right.z;
     float left = -camera_z;
 
     if (left > 0.0f) {
@@ -3466,9 +3466,9 @@ MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
         return 0;
     }
     object->flags_08 |= 0x40;
-    object->pos.x = x;
-    object->pos.y = y;
-    object->pos.z = z;
+    object->pos.value.x = x;
+    object->pos.value.y = y;
+    object->pos.value.z = z;
     update_mkobj(object);
     fx_resume_emit(effect);
     return object;
@@ -3492,9 +3492,9 @@ MkObj* launch_fx_at_pos_with_obj(
         return 0;
     }
     object->flags_08 |= 0x40;
-    object->pos.x = x;
-    object->pos.y = y;
-    object->pos.z = z;
+    object->pos.value.x = x;
+    object->pos.value.y = y;
+    object->pos.value.z = z;
     update_mkobj(object);
     fx_resume_emit(effect);
     return object;

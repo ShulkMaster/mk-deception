@@ -688,7 +688,7 @@ void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     gxMathCosSin(&cy, &sy, angles->y);
     gxMathCosSin(&cz, &sz, angles->z);
 
-    /* Same YXZ rotation matrix as YXZ_angles_to_MKMATRIX, then RtQuat. */
+    /* Same YXZ rotation matrix as YXZ_angles_to_MKMATRIX, then Quat. */
     m.right.x = sx * sy * sz + cy * cz;
     m.right.y = cx * sz;
     m.right.z = cy * sz * sx - cz * sy;
@@ -702,11 +702,11 @@ void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     m.pos.x = kZero;
     m.pos.y = kZero;
     m.pos.z = kZero;
-    RtQuatConvertFromMatrix((RtQuat*)out, &m);
+    RtQuatConvertFromMatrix(out, &m);
 }
 
 void mat_to_quat(Quat* out, const MKMATRIX* m) {
-    RtQuatConvertFromMatrix((RtQuat*)out, m);
+    RtQuatConvertFromMatrix(out, m);
 }
 
 void XYZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {

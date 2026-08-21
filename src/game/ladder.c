@@ -540,28 +540,28 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
     }
 
     placement = &ladder_data->small_positions[position];
-    object->pos.x = placement->position.x;
-    object->pos.y = placement->position.y;
-    object->pos.z = placement->position.z;
+    object->pos.value.x = placement->position.x;
+    object->pos.value.y = placement->position.y;
+    object->pos.value.z = placement->position.z;
     object->ang.y = placement->angle_y;
     if (alternate_model != 0) {
-        object->pos.x = 1.437f;
+        object->pos.value.x = 1.437f;
         object->ang.y = -0.5f;
     }
 
     if (curr_ladder_pos > position) {
         defeated_placement =
             &ladder_data->defeated_positions[position];
-        object->pos.x = defeated_placement->position.x;
-        object->pos.y = defeated_placement->position.y;
-        object->pos.z = defeated_placement->position.z;
-        if (object->pos.x < 0.0f) {
+        object->pos.value.x = defeated_placement->position.x;
+        object->pos.value.y = defeated_placement->position.y;
+        object->pos.value.z = defeated_placement->position.z;
+        if (object->pos.value.x < 0.0f) {
             object->ang.y = -0.4053982f;
         } else {
             object->ang.y = 0.784f;
         }
         if (alternate_model != 0) {
-            object->pos.x = 1.437f;
+            object->pos.value.x = 1.437f;
             object->ang.y = 0.6f;
         }
     }

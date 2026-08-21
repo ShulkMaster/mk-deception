@@ -616,10 +616,10 @@ static float p_lookat_cam(void) {
         offset_x = gxMathSin(angle) * data->distance;
         offset_z = gxMathCos(angle) * data->distance;
         do {
-            camera->position.x = target->pos.x + offset_x;
-            camera->position.y = target->pos.y + data->depth;
-            camera->position.z = target->pos.z + offset_z;
-            look_target = target->pos;
+            camera->position.x = target->pos.value.x + offset_x;
+            camera->position.y = target->pos.value.y + data->depth;
+            camera->position.z = target->pos.value.z + offset_z;
+            look_target = target->pos.value;
             look_target.y += data->height;
             look_at_target(&look_target);
             AI_SLEEP(1.0f);
@@ -655,14 +655,14 @@ static float ai_side_clearance(int right) {
     direction = right ? 1.0f : -1.0f;
     sine = gxMathSin(plyr_obj->ang.y);
     cosine = gxMathCos(plyr_obj->ang.y);
-    end = plyr_obj->pos;
+    end = plyr_obj->pos.value;
     end.x += direction * 100.0f * cosine;
     end.z -= direction * 100.0f * sine;
     if (!segment_against_obstacle_list(
-            &plyr_obj->pos, &end, &hit, &constrain_info)) {
+            &plyr_obj->pos.value, &end, &hit, &constrain_info)) {
         return 100.0f;
     }
-    return dist_v3_to_v3(&hit, &plyr_obj->pos);
+    return dist_v3_to_v3(&hit, &plyr_obj->pos.value);
 }
 
 static float ai_backward_clearance(void) {
@@ -672,14 +672,14 @@ static float ai_backward_clearance(void) {
     if (plyr_obj == 0) {
         return -1.0f;
     }
-    end = plyr_obj->pos;
+    end = plyr_obj->pos.value;
     end.x -= 100.0f * gxMathSin(plyr_obj->ang.y);
     end.z -= 100.0f * gxMathCos(plyr_obj->ang.y);
     if (!segment_against_obstacle_list(
-            &plyr_obj->pos, &end, &hit, &constrain_info)) {
+            &plyr_obj->pos.value, &end, &hit, &constrain_info)) {
         return 100.0f;
     }
-    return dist_v3_to_v3(&hit, &plyr_obj->pos);
+    return dist_v3_to_v3(&hit, &plyr_obj->pos.value);
 }
 
 static void* ai_pick_special_move(
@@ -3263,8 +3263,8 @@ void drone_ai_check_external_request_breakouts(DroneAI* request) {
 
     if (request->avoid_position_request == 1 &&
         request->avoid_position_ready == 0) {
-        dx = request->avoid_position_target.x - plyr_obj->pos_x;
-        dz = request->avoid_position_target.z - plyr_obj->pos_z;
+        dx = request->avoid_position_target.x - plyr_obj->pos.value.x;
+        dz = request->avoid_position_target.z - plyr_obj->pos.value.z;
         if (dx * dx + dz * dz < 1.5f) {
             request->avoid_position_ready = 1;
             if (request->request_active == 1) {
@@ -3296,7 +3296,7 @@ int drone_ai_opponent_inair_watcher(void) {
         (action->state & 0x200) != 0 ||
         am_i_airborn() == 1 ||
         is_he_airborn() == 0 ||
-        his_obj->pos_y < 1.0668f) {
+        his_obj->pos.value.y < 1.0668f) {
         return 0;
     }
 
@@ -4495,19 +4495,19 @@ void drone_ai_victim_avoid(void) {
     if (drone->avoidance_area_duration > 0.0f &&
         his_obj != 0 && plyr_obj != 0) {
         target.x = drone->avoidance_position[0];
-        target.y = plyr_obj->pos.y;
+        target.y = plyr_obj->pos.value.y;
         target.z = drone->avoidance_position[2];
-        target_distance = dist_v3_to_v3(&target, &plyr_obj->pos);
-        enemy_distance = dist_v3_to_v3(&his_obj->pos, &plyr_obj->pos);
+        target_distance = dist_v3_to_v3(&target, &plyr_obj->pos.value);
+        enemy_distance = dist_v3_to_v3(&his_obj->pos.value, &plyr_obj->pos.value);
         if (target_distance == 0.0f || enemy_distance == 0.0f) {
             return;
         }
         if (enemy_distance >= target_distance - 1.0f) {
             uv_v3_to_v3_dist(
-                &enemy_direction, &plyr_obj->pos, &his_obj->pos);
+                &enemy_direction, &plyr_obj->pos.value, &his_obj->pos.value);
             cross =
-                (target.x - plyr_obj->pos.x) * enemy_direction.z -
-                (target.z - plyr_obj->pos.z) * enemy_direction.x;
+                (target.x - plyr_obj->pos.value.x) * enemy_direction.z -
+                (target.z - plyr_obj->pos.value.z) * enemy_direction.x;
             if (cross < 0.0f) {
                 cross = -cross;
             }

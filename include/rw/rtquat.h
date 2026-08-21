@@ -1,7 +1,7 @@
 #ifndef RW_RTQUAT_H
 #define RW_RTQUAT_H
 
-#include "math/gxVect.h"
+#include "math/gxQuat.h"
 #include "rw/rwplcore.h"
 
 typedef struct RwMatrixPosition {
@@ -29,16 +29,11 @@ typedef struct RwMatrix {
     };
 } RwMatrix;
 
-typedef struct RtQuat {
-    RwV3d imag;
-    float real;
-} RtQuat;
-
 typedef int RwOpCombineType;
 
 float _rwSqrt(float num);
 
-int RtQuatConvertFromMatrix(RtQuat* qpQuat, const RwMatrix* mpMatrix);
+int RtQuatConvertFromMatrix(Quat* qpQuat, const RwMatrix* mpMatrix);
 
 RwMatrix* RwMatrixTranslate(RwMatrix* matrix, const RwV3d* translation,
                             RwOpCombineType combineOp);

@@ -8,25 +8,20 @@
 #include "runtime/limb.h"
 #include "runtime/mk_struct.h"
 
-typedef struct MkBoneFlags55 {
+typedef struct  {
     unsigned char collision_disabled : 1; /* bit7 */
     unsigned char collision_deferred : 1; /* bit6 */
     unsigned char scale_controlled : 1; /* bit5 - blade/controller scale */
     unsigned char pad_bit4 : 1;
     unsigned char pad_bit3 : 1;
     unsigned char reparent_toggle : 1; /* bit2 */
-    unsigned char pad_bit1 : 1;
+    unsigned char preserve_rotation : 1;
     unsigned char pad_bit0 : 1;
 } MkBoneFlags55;
 
 typedef struct MkFlippedBoneMap {
     int count;
-    union {
-        int* bones;
-        unsigned int* bone_indices;
-        unsigned int* bone_ids;
-        int* bone_tags;
-    };
+    int* bone_indices;
 } MkFlippedBoneMap;
 
 typedef struct MkBoneFlags54 {
@@ -49,14 +44,8 @@ typedef struct MkBone {
     int bone_index; /* +0x50 - index used by limb transfer */
     union {
         struct {
-            union {
-                unsigned char flags_54; /* +0x54 */
-                MkBoneFlags54 flags_54_bits;
-            };
-            union {
-                unsigned char flags_55; /* +0x55 - bit7 collapsed */
-                MkBoneFlags55 flags_55_bits;
-            };
+            MkBoneFlags54 flags_54_bits; /* +0x54 */
+            MkBoneFlags55 flags_55_bits; /* +0x55 */
             char pad56[2];
         };
         unsigned int flags_word_54;
@@ -65,10 +54,7 @@ typedef struct MkBone {
     float field_5C;
     float field_60;
     float field_64;
-    union {
-        unsigned int update_tick; /* +0x68 - last hierarchy update tick */
-        float root_angle_y;
-    };
+    unsigned int update_tick; /* +0x68 - last hierarchy update tick */
     struct MkBone* transform_parent;  /* +0x6C */
     struct MkBone* tree_next;      /* +0x70 */
     struct MkBone* tree_child;     /* +0x74 */
@@ -77,41 +63,16 @@ typedef struct MkBone {
     MkPtr* list_80;                /* +0x80 - owned auxiliary bone list */
     char pad84[0x0C];
     Quat rotation_90; /* +0x90 */
-    union {
-        struct {
-            Vec translation; /* +0xA0 */
-            unsigned int translation_pad;
-        };
-        RwMatrixPosition translation_row;
-    };
+    RwMatrixPosition translation; /* +0xA0 */
     Vec scale; /* +0xB0 */
     char padBC[4];
-    union {
-        struct {
-            Vec delta; /* +0xC0 */
-            unsigned int delta_pad;
-        };
-        RwMatrixPosition delta_row;
-    };
-    union {
-        struct {
-            union {
-                Quat rotation;
-                RtQuat rt_rotation;
-            }; /* +0xD0 */
-            Quat rotation_e0; /* +0xE0 */
-            union {
-                struct {
-                    Vec velocity; /* +0xF0 */
-                    unsigned int velocity_pad;
-                };
-                RwMatrixPosition velocity_row;
-            };
-            Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
-            char pad10C[4];
-        };
-        Quat rotations[2];
-        RwMatrix trail_matrix; /* +0xD0 - weapon-trail chain scratch transform */
+    RwMatrixPosition delta; /* +0xC0 */
+    struct {
+        Quat rotation; /* +0xD0 - x, y, z, w */
+        Quat rotation_e0; /* +0xE0 */
+        RwMatrixPosition velocity; /* +0xF0 */
+        Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
+        char pad10C[4];
     };
 } MkBone;
 
@@ -203,7 +164,6 @@ typedef struct MkSobjFlags08 {
     unsigned char bit0 : 1;
 } MkSobjFlags08;
 
-/* mk_obj.o - NonMatching scaffold (krypt Wave 2). */
 
 /*
  * Midway mksobj (partial) -- pebble/render/hide agree on atomic @ +0x14.
@@ -395,38 +355,16 @@ typedef struct MkObj {
     float bone_angle_68;
     void* ground_colls;     /* +0x6C */
     float ground_colls_y;   /* +0x70 */
-    union {
-        void* allocation_74;
-        ClothBone* cloth_bones;
-    }; /* +0x74 - owned cloth-bone allocation */
-    union {
-        char pad78[4];
-        unsigned int cloth_bone_count;
-    }; /* +0x78 */
+    ClothBone* cloth_bones; /* +0x74 - owned cloth-bone allocation */
+    unsigned int cloth_bone_count; /* +0x78 */
     MkPtr* list_7C;         /* +0x7C - owned list */
     MkPtr* list_80;         /* +0x80 - owned list */
     MkPtr* sobj_list; /* +0x84 */
     MkPtr* list_88;   /* +0x88 - owned list */
-    union {
-        int flipped_bones;
-        MkFlippedBoneMap* flipped_bone_map;
-    }; /* +0x8C */
+    MkFlippedBoneMap* flipped_bone_map; /* +0x8C */
     Vec ground_restore_pos; /* +0x90 */
     char pad9C[4];
-    union {
-        struct {
-            union {
-                Vec pos; /* +0xA0 */
-                struct {
-                    float pos_x;
-                    float pos_y;
-                    float pos_z;
-                };
-            };
-            unsigned int pos_pad;
-        };
-        RwMatrixPosition pos_row;
-    };
+    RwMatrixPosition pos; /* +0xA0 */
     union {
         struct {
             Vec pos_vel; /* +0xB0 */

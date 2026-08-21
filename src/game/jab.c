@@ -332,9 +332,9 @@ MkObj* jab_spawn_point_light_at_world_pos(
 
     light = load_light(definition, &point_light_list, 0);
     if (light != 0) {
-        light->pos.x = position->x;
-        light->pos.y = position->y;
-        light->pos.z = position->z;
+        light->pos.value.x = position->x;
+        light->pos.value.y = position->y;
+        light->pos.value.z = position->z;
         if (light != 0) {
             light_hdr = as_mkhdr(&light->hdr);
         } else {
@@ -396,9 +396,9 @@ float p_jab_point_light_tracker(void) {
     }
 
     get_bone_world_pos(tracked_object, pdata->bone, &position);
-    light->pos.x = position.x;
-    light->pos.y = position.y;
-    light->pos.z = position.z;
+    light->pos.value.x = position.x;
+    light->pos.value.y = position.y;
+    light->pos.value.z = position.z;
     update_obj_pos(light);
     return 1.0f;
 }
@@ -487,7 +487,7 @@ void jab_shake_dragon_king(float distance, float speed) {
         zero_pdata_payload(sizeof(DragonKingShakePdata), &pdata->hdr);
         pdata->object = object;
         pdata->object_instance = object->hdr.instance;
-        pdata->base_y = object->pos_y;
+        pdata->base_y = object->pos.value.y;
         pdata->distance = distance;
         pdata->speed = speed;
         object->flags_08_bits.airborne = 1;
@@ -522,13 +522,13 @@ float p_dk_death_shake(void) {
     }
 
     if (moving_up != 0) {
-        object->pos.y += pdata->speed;
-        if (object->pos.y - pdata->base_y > pdata->distance) {
+        object->pos.value.y += pdata->speed;
+        if (object->pos.value.y - pdata->base_y > pdata->distance) {
             moving_up = 0;
         }
     } else {
-        object->pos.y -= pdata->speed;
-        if (object->pos.y - pdata->base_y < 0.0f) {
+        object->pos.value.y -= pdata->speed;
+        if (object->pos.value.y - pdata->base_y < 0.0f) {
             moving_up = 1;
         }
     }
@@ -795,7 +795,7 @@ float p_bind_obj_to_obj_bone(void) {
         return -1.0f;
     }
 
-    get_bone_world_pos(parent, pdata->parent_bone, &child->pos);
+    get_bone_world_pos(parent, pdata->parent_bone, &child->pos.value);
     update_mkobj(child != 0 ? as_mkhdr(&child->hdr) : 0);
     return 1.0f;
 }
@@ -1031,8 +1031,8 @@ void jab_kira_projectile_hand_explode(void) {
     }
     effect_object->flags_08_bits.airborne = 1;
     matrix = effect_object->field_24;
-    direction.x = opponent->pos.x - plyr_obj->pos.x;
-    direction.z = opponent->pos.z - plyr_obj->pos.z;
+    direction.x = opponent->pos.value.x - plyr_obj->pos.value.x;
+    direction.z = opponent->pos.value.z - plyr_obj->pos.value.z;
     length_sq = direction.x * direction.x + direction.z * direction.z;
     inverse_length = 0.0f;
     if (length_sq > 0.0f) {
@@ -1339,9 +1339,9 @@ void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
         effect->field_28 = -50.0f;
         effect->field_2B8 = chunk_type;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
-        emitter_object->pos.x = position->x;
-        emitter_object->pos.y = position->y;
-        emitter_object->pos.z = position->z;
+        emitter_object->pos.value.x = position->x;
+        emitter_object->pos.value.y = position->y;
+        emitter_object->pos.value.z = position->z;
         p_grinder_crush_chunks_pfx = effect;
     }
 }
@@ -1399,9 +1399,9 @@ void sh_spawn_grinder_crush_blood(void) {
 
         index = 0;
         while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
-            positions->x = emitter_object->pos.x + sfrand(0.5f);
-            positions->y = emitter_object->pos.y + sfrand(0.5f);
-            positions->z = emitter_object->pos.z + sfrand(0.3f);
+            positions->x = emitter_object->pos.value.x + sfrand(0.5f);
+            positions->y = emitter_object->pos.value.y + sfrand(0.5f);
+            positions->z = emitter_object->pos.value.z + sfrand(0.3f);
 
             velocities->x = sfrand(1.0f);
             velocities->y = 0.7f + sfrand(0.7f);
@@ -1608,9 +1608,9 @@ void sh_start_grinder_crush_blood(const Vec* position) {
         effect->field_90 = 0x12C;
         effect->field_28 = -50.0f;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
-        emitter_object->pos.x = position->x;
-        emitter_object->pos.y = position->y;
-        emitter_object->pos.z = position->z;
+        emitter_object->pos.value.x = position->x;
+        emitter_object->pos.value.y = position->y;
+        emitter_object->pos.value.z = position->z;
         p_grinder_crush_blood_pfx = effect;
     }
 }
@@ -1634,9 +1634,9 @@ void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
         effect->field_298 = 120.0f;
         effect->field_2B8 = chunk_type;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
-        emitter_object->pos.x = position->x;
-        emitter_object->pos.y = position->y;
-        emitter_object->pos.z = position->z;
+        emitter_object->pos.value.x = position->x;
+        emitter_object->pos.value.y = position->y;
+        emitter_object->pos.value.z = position->z;
     }
 }
 
@@ -1808,11 +1808,11 @@ float pfx_sh_grinder_meat_spew(void) {
             index = 0;
             while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
                 destination_positions->x =
-                    emitter_object->pos.x + sfrand(0.5f);
+                    emitter_object->pos.value.x + sfrand(0.5f);
                 destination_positions->y =
-                    emitter_object->pos.y + sfrand(1.0f);
+                    emitter_object->pos.value.y + sfrand(1.0f);
                 destination_positions->z =
-                    emitter_object->pos.z + sfrand(0.5f);
+                    emitter_object->pos.value.z + sfrand(0.5f);
 
                 destination_velocities->x = 0.0f;
                 destination_velocities->y = 0.0f;
@@ -1896,9 +1896,9 @@ void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
         effect->field_298 = 120.0f;
         effect->field_2B8 = chunk_type;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
-        emitter_object->pos.x = position->x;
-        emitter_object->pos.y = position->y;
-        emitter_object->pos.z = position->z;
+        emitter_object->pos.value.x = position->x;
+        emitter_object->pos.value.y = position->y;
+        emitter_object->pos.value.z = position->z;
     }
 }
 
@@ -2321,11 +2321,11 @@ float pfx_kenshi_lift_smoke(void) {
                     start.z + sfrand(skeleton_radius_table[bone_index]);
 
                 destination_velocities->x =
-                    destination_positions->x - emitter_object->pos.x;
+                    destination_positions->x - emitter_object->pos.value.x;
                 destination_velocities->y =
-                    destination_positions->y - emitter_object->pos.y;
+                    destination_positions->y - emitter_object->pos.value.y;
                 destination_velocities->z =
-                    destination_positions->z - emitter_object->pos.z;
+                    destination_positions->z - emitter_object->pos.value.z;
                 length_sq =
                     destination_velocities->x * destination_velocities->x +
                     destination_velocities->y * destination_velocities->y +

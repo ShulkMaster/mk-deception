@@ -260,8 +260,8 @@ static inline MkObj* load_goro_weapon_inline(
         for (bone_index = 0; bone_index < weapon->bone_count; bone_index++) {
             MkBone* bone = weapon->bones[bone_index];
 
-            if (bone != 0 && (bone->flags_54 & 0x20) == 0) {
-                bone->flags_54 |= 0x10;
+            if (bone != 0 && !bone->flags_54_bits.cloth_candidate) {
+                bone->flags_54_bits.calculation_locked = 1;
             }
         }
         specskin_initialize_clump(weapon->clump);
@@ -803,7 +803,7 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     bone_matrix->pos.y = 0.0f;
     bone_matrix->pos.x = 0.0f;
     ZYX_angles_to_MKMATRIX(rotation, bone_matrix);
-    RtQuatConvertFromMatrix(&bone->rt_rotation, bone_matrix);
+    RtQuatConvertFromMatrix(&bone->rotation, bone_matrix);
 
     if (insert_at_head) {
         mk_insert(&item->hdr, &player_object->list_44);
@@ -1172,7 +1172,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
             }
             parent_bone = trail_bone->transform_parent;
             v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
-                            &trail_bone->translation,
+                            &trail_bone->translation.value,
                             &parent_bone->matrix,
                             &parent_bone->matrix.pos_vec);
             v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
@@ -1198,23 +1198,24 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
                 do {
                     child_bone = trail_bone;
                     trail_bone = trail_bone->transform_parent;
+                    /* Weapon trails reuse the contiguous +0xD0 block as a matrix. */
                     memcpy(child_bone->parent_matrix,
-                           &trail_bone->trail_matrix,
+                           &trail_bone->rotation,
                            sizeof(*child_bone->parent_matrix));
                     child_bone->parent_matrix->pos.x -= displacement.x;
                     child_bone->parent_matrix->pos.y -= displacement.y;
                     child_bone->parent_matrix->pos.z -= displacement.z;
-                    memcpy(&trail_bone->trail_matrix,
+                    memcpy(&trail_bone->rotation,
                            trail_bone->parent_matrix,
-                           sizeof(trail_bone->trail_matrix));
-                    trail_bone->trail_matrix.pos.x -= displacement.x;
-                    trail_bone->trail_matrix.pos.y -= displacement.y;
-                    trail_bone->trail_matrix.pos.z -= displacement.z;
+                           sizeof(RwMatrix));
+                    trail_bone->bind_offset.x -= displacement.x;
+                    trail_bone->bind_offset.y -= displacement.y;
+                    trail_bone->bind_offset.z -= displacement.z;
                 } while (!trail_bone->flags_54_bits.transform_parented);
 
                 parent_bone = trail_bone->transform_parent;
                 v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
-                                &trail_bone->translation,
+                                &trail_bone->translation.value,
                                 &parent_bone->matrix,
                                 &parent_bone->matrix.pos_vec);
                 v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
@@ -1324,7 +1325,7 @@ static void start_weapon_trail(MkObj* weapon, MkObj* trail_model) {
                     weapon_bone->flags_54_bits.calculation_locked = 1;
                     trail_bone->transform_parent = weapon_bone;
                     trail_bone->flags_54_bits.transform_parented = 1;
-                    trail_bone->translation = map->offset;
+                    trail_bone->translation.value = map->offset;
                     continue;
                 }
             }
@@ -1390,8 +1391,8 @@ MkObj* load_weapon(
             MkBone* bone;
 
             bone = weapon->bones[bone_index];
-            if (bone != 0 && (bone->flags_54 & 0x20) == 0) {
-                bone->flags_54 |= 0x10;
+            if (bone != 0 && !bone->flags_54_bits.cloth_candidate) {
+                bone->flags_54_bits.calculation_locked = 1;
             }
         }
         specskin_initialize_clump(weapon->clump);
@@ -1517,8 +1518,8 @@ MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot) {
             MkBone* bone;
 
             bone = weapon->bones[bone_index];
-            if (bone != 0 && (bone->flags_54 & 0x20) == 0) {
-                bone->flags_54 |= 0x10;
+            if (bone != 0 && !bone->flags_54_bits.cloth_candidate) {
+                bone->flags_54_bits.calculation_locked = 1;
             }
         }
         specskin_initialize_clump(weapon->clump);

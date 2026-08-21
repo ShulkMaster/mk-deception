@@ -234,7 +234,7 @@ void lower_mines_ani_to_point(
 
     radicand = vertical_velocity * vertical_velocity -
         (2.0f * gravity) *
-            ((plyr_obj->pos.y - 0.19f) - plyr_obj->ground_colls_y);
+            ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y);
     root = 0.001f;
     if (radicand >= root) {
         root = radicand;
@@ -257,9 +257,9 @@ void lower_mines_ani_to_point(
     inverse_frames = 1.0f / frames;
     plyr_anim_pdata->step = (end_frame - start_frame) / frames;
     plyr_obj->pos_vel.x =
-        (target->x - plyr_obj->pos.x) * inverse_frames;
+        (target->x - plyr_obj->pos.value.x) * inverse_frames;
     plyr_obj->pos_vel.z =
-        (target->z - plyr_obj->pos.z) * inverse_frames;
+        (target->z - plyr_obj->pos.value.z) * inverse_frames;
     ani_to_frame_x(end_frame);
 
     plyr_obj->flags_09_bits.launched = 1;
@@ -308,7 +308,7 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     player_index = spad_get_pos(0, 0);
     spad_set_vector(0, 0x15);
     spad_set_vector_setting(
-        1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
+        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
     spad_sub_vectors(0, 1, 0);
     if (spad_get_pos(0, 1) > 1.8f) {
         return;
@@ -334,15 +334,15 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     if (speed < 0.03f) {
         spad_set_vector(0, 0x15);
         spad_set_vector_setting(
-            1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
+            1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
         spad_sub_vectors(2, 1, 0);
         separation = spad_xz_length_vector(2);
         spad_norm_vector(2);
         if (separation < 0.35f) {
             spad_scale_vector(3, 2, -(0.45f - separation));
             spad_sub_vectors(1, 1, 3);
-            npc->object->pos.x = spad_get_pos(1, 0);
-            npc->object->pos.z = spad_get_pos(1, 2);
+            npc->object->pos.value.x = spad_get_pos(1, 0);
+            npc->object->pos.value.z = spad_get_pos(1, 2);
         }
         if (npc->swing_angle != 0.0f || randu0(100) < 80) {
             npc->swing_angle = 0.035f + frand(0.03f);
@@ -365,7 +365,7 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
 
     spad_set_vector(0, 0x15);
     spad_set_vector_setting(
-        1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
+        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
     spad_sub_vectors(0, 0, 1);
     spad_set_vector_y(0, 0.0f);
     spad_norm_vector(0);
@@ -375,7 +375,7 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     if (spad_xz_dot_xz(0, 1) < -0.1f) {
         spad_set_vector(0, 0x15);
         spad_set_vector_setting(
-            1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
+            1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
         spad_sub_vectors(2, 1, 0);
         if (spad_xz_length_vector(2) < 0.35f) {
             npc->momentum.x *= 1.1f;
@@ -417,13 +417,13 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
     side.z = -facing.x;
     spad_set_vector(0, 0x15);
     spad_set_vector_setting(
-        1, npc->object->pos.x, npc->object->pos.y, npc->object->pos.z);
+        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
     spad_sub_vectors(0, 0, 1);
     spad_set_vector_setting(1, facing.x, facing.y, facing.z);
     alignment = spad_xz_dot_xz(0, 1);
     if (alignment > -0.4f && alignment < 0.4f) {
-        if (side.x * npc->object->pos.x +
-                side.z * npc->object->pos.z <
+        if (side.x * npc->object->pos.value.x +
+                side.z * npc->object->pos.value.z <
             0.0f) {
             side.x = -side.x;
             side.z = -side.z;
@@ -635,14 +635,14 @@ static int nb_npc_hurt_player(
         plyr_anim_pdata = &fighter_view->anim_pdata;
 
         camera = camera_item.node;
-        if (camera != 0 && camera->instance != camera_item.instance) {
+        if (camera != 0 && camera->hdr.instance != camera_item.instance) {
             camera = 0;
         }
 
-        camera_to_npc_x = camera->pos.x - hit->object->pos.x;
-        camera_to_npc_z = camera->pos.z - hit->object->pos.z;
-        camera_to_player_x = camera->pos.x - current_object->pos.x;
-        camera_to_player_z = camera->pos.z - current_object->pos.z;
+        camera_to_npc_x = camera->pos.x - hit->object->pos.value.x;
+        camera_to_npc_z = camera->pos.z - hit->object->pos.value.z;
+        camera_to_player_x = camera->pos.x - current_object->pos.value.x;
+        camera_to_player_z = camera->pos.z - current_object->pos.value.z;
         use_left_reaction = 0;
         if (camera_to_npc_x * camera_to_npc_x +
                 camera_to_npc_z * camera_to_npc_z >
@@ -705,9 +705,9 @@ static float p_npc_on_pendulum_rope(void) {
         npc->swing_ticks++;
         npc->phase += 0.018f;
 
-        displacement.x = object->pos.x - npc->anchor.x;
-        displacement.y = object->pos.y - npc->anchor.y;
-        displacement.z = object->pos.z - npc->anchor.z;
+        displacement.x = object->pos.value.x - npc->anchor.x;
+        displacement.y = object->pos.value.y - npc->anchor.y;
+        displacement.z = object->pos.value.z - npc->anchor.z;
         distance = nb_sqrt(
             displacement.x * displacement.x +
             displacement.y * displacement.y +
@@ -748,9 +748,9 @@ static float p_npc_on_pendulum_rope(void) {
                 displacement.x *= inverse_length * npc->rope_length;
                 displacement.y *= inverse_length * npc->rope_length;
                 displacement.z *= inverse_length * npc->rope_length;
-                object->pos.x = npc->anchor.x + displacement.x;
-                object->pos.y = npc->anchor.y + displacement.y;
-                object->pos.z = npc->anchor.z + displacement.z;
+                object->pos.value.x = npc->anchor.x + displacement.x;
+                object->pos.value.y = npc->anchor.y + displacement.y;
+                object->pos.value.z = npc->anchor.z + displacement.z;
             }
 
             acceleration.x = 0.0f;
@@ -828,12 +828,12 @@ static float p_npc_on_pendulum_rope(void) {
             }
         }
 
-        object->pos.x += npc->momentum.x;
-        object->pos.y += npc->momentum.y;
-        object->pos.z += npc->momentum.z;
+        object->pos.value.x += npc->momentum.x;
+        object->pos.value.y += npc->momentum.y;
+        object->pos.value.z += npc->momentum.z;
         bgnd_pebble_set_current_pebble(8, npc->npc_id - 1);
-        bgnd_pebble_set_current_info(9, object, object->pos.x);
-        bgnd_pebble_set_current_info(0xB, object, object->pos.z);
+        bgnd_pebble_set_current_info(9, object, object->pos.value.x);
+        bgnd_pebble_set_current_info(0xB, object, object->pos.value.z);
 
         if (npc->swing_angle != 0.0f) {
             npc->swing_angle *= 0.995f;
@@ -1027,7 +1027,7 @@ void nb_place_slave_in_bgnd(
     npc->object->ang.y = object_angle_y;
     npc->object->ang.z = object_angle_z;
 
-    object_position = &npc->object->pos;
+    object_position = &npc->object->pos.value;
     local_angles.x = local_angle_x;
     local_angles.y = local_angle_y;
     local_angles.z = local_angle_z;
@@ -1051,11 +1051,11 @@ void rd_set_impact_vector(float scale) {
     float inverse_length;
 
     impact.x =
-        g_game_info.player_objects[1]->pos.x -
-        g_game_info.player_objects[0]->pos.x;
+        g_game_info.player_objects[1]->pos.value.x -
+        g_game_info.player_objects[0]->pos.value.x;
     impact.z =
-        g_game_info.player_objects[1]->pos.z -
-        g_game_info.player_objects[0]->pos.z;
+        g_game_info.player_objects[1]->pos.value.z -
+        g_game_info.player_objects[0]->pos.value.z;
 
     squared_length = impact.x * impact.x + impact.z * impact.z;
     inverse_length = nb_fast_inverse_sqrt(squared_length);

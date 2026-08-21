@@ -34,7 +34,7 @@ typedef struct RpHAnimHierarchy {
 typedef struct RpHAnimKeyFrame {
     struct RpHAnimKeyFrame *prevFrame;
     float time;
-    RtQuat q;
+    Quat q;
     RwV3d t;
 } RpHAnimKeyFrame;
 

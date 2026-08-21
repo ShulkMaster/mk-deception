@@ -756,10 +756,10 @@ int is_my_chest_to_screen(void) {
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
     cross =
-        ((plyr_obj->pos.x - camera_x) *
-         -(his_obj->pos.z - camera_z)) -
-        ((his_obj->pos.x - camera_x) *
-         -(plyr_obj->pos.z - camera_z));
+        ((plyr_obj->pos.value.x - camera_x) *
+         -(his_obj->pos.value.z - camera_z)) -
+        ((his_obj->pos.value.x - camera_x) *
+         -(plyr_obj->pos.value.z - camera_z));
 
     if (cross < 0.0f) {
         flipped = 0;
@@ -792,8 +792,8 @@ int am_i_on_the_left2(MkObj* opponent, MkObj* me) {
     float camera_z = camera_obj->pos.z;
     float camera_x = camera_obj->pos.x;
     float cross =
-        ((opponent->pos.x - camera_x) * -(me->pos.z - camera_z)) -
-        ((me->pos.x - camera_x) * -(opponent->pos.z - camera_z));
+        ((opponent->pos.value.x - camera_x) * -(me->pos.value.z - camera_z)) -
+        ((me->pos.value.x - camera_x) * -(opponent->pos.value.z - camera_z));
 
     return cross < 0.0f;
 }
@@ -806,10 +806,10 @@ int am_i_on_the_left(void) {
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
     cross =
-        ((plyr_obj->pos.x - camera_x) *
-         -(his_obj->pos.z - camera_z)) -
-        ((his_obj->pos.x - camera_x) *
-         -(plyr_obj->pos.z - camera_z));
+        ((plyr_obj->pos.value.x - camera_x) *
+         -(his_obj->pos.value.z - camera_z)) -
+        ((his_obj->pos.value.x - camera_x) *
+         -(plyr_obj->pos.value.z - camera_z));
     return cross < 0.0f;
 }
 
@@ -863,10 +863,10 @@ int am_i_flipped_or_turned(void) {
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
     cross =
-        ((plyr_obj->pos.x - camera_x) *
-         -(his_obj->pos.z - camera_z)) -
-        ((his_obj->pos.x - camera_x) *
-         -(plyr_obj->pos.z - camera_z));
+        ((plyr_obj->pos.value.x - camera_x) *
+         -(his_obj->pos.value.z - camera_z)) -
+        ((his_obj->pos.value.x - camera_x) *
+         -(plyr_obj->pos.value.z - camera_z));
     if (cross > 0.0f) {
         flipped ^= 1;
     }
@@ -1247,7 +1247,7 @@ void launch_n_land_ani(
     plyr_obj->flags_09 |= 0x80;
     discriminant = velocity_y * velocity_y -
         2.0f * gravity *
-        ((plyr_obj->pos.y - 0.19f) - plyr_obj->ground_colls_y);
+        ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y);
     if (discriminant < 0.001f) {
         discriminant = 0.001f;
     }
@@ -1312,8 +1312,8 @@ void nudge_towards_him(float max_step) {
     }
 
     desired_angle = gxMathArcTanYX(
-        his_obj->pos.x - plyr_obj->pos.x,
-        his_obj->pos.z - plyr_obj->pos.z);
+        his_obj->pos.value.x - plyr_obj->pos.value.x,
+        his_obj->pos.value.z - plyr_obj->pos.value.z);
     error = ang_sub_ang(desired_angle, plyr_obj->ang.y);
     if (error >= 0.0f) {
         absolute_error = error;
@@ -1342,8 +1342,8 @@ void rotate_towards_position(Vec* target, float max_step) {
         return;
     }
     desired = gxMathArcTanYX(
-        target->x - plyr_obj->pos.x,
-        target->z - plyr_obj->pos.z);
+        target->x - plyr_obj->pos.value.x,
+        target->z - plyr_obj->pos.value.z);
     difference = ang_sub_ang(desired, plyr_obj->ang.y);
     if (difference >= 0.0f) {
         absolute_difference = difference;
@@ -1404,8 +1404,8 @@ void rotate_towards_position(Vec* target, float max_step) {
             }
             ejb_sleep_ticks(1.0f);
             desired = gxMathArcTanYX(
-                target->x - plyr_obj->pos.x,
-                target->z - plyr_obj->pos.z);
+                target->x - plyr_obj->pos.value.x,
+                target->z - plyr_obj->pos.value.z);
             difference = ang_sub_ang(desired, plyr_obj->ang.y);
             if (difference >= 0.0f) {
                 absolute_difference = difference;
@@ -1430,8 +1430,8 @@ void rotate_towards_him(float max_step) {
     }
 
     desired = gxMathArcTanYX(
-        his_obj->pos.x - plyr_obj->pos.x,
-        his_obj->pos.z - plyr_obj->pos.z);
+        his_obj->pos.value.x - plyr_obj->pos.value.x,
+        his_obj->pos.value.z - plyr_obj->pos.value.z);
     difference = ang_sub_ang(desired, plyr_obj->ang.y);
     if (rotate_towards_sync(difference) == 1) {
         set_my_state(0x201);
@@ -1473,8 +1473,8 @@ void rotate_towards_him(float max_step) {
             }
             ejb_sleep_ticks(1.0f);
             desired = gxMathArcTanYX(
-                his_obj->pos.x - plyr_obj->pos.x,
-                his_obj->pos.z - plyr_obj->pos.z);
+                his_obj->pos.value.x - plyr_obj->pos.value.x,
+                his_obj->pos.value.z - plyr_obj->pos.value.z);
             difference = ang_sub_ang(desired, plyr_obj->ang.y);
             absolute_difference =
                 difference >= 0.0f ? difference : -difference;
@@ -1503,13 +1503,13 @@ static float ani_with_new_angle_y(
     }
     EJB_ADVANCE_TO_FRAME(anim, target_frame);
 
-    old_x = plyr_obj->pos.x;
-    old_z = plyr_obj->pos.z;
+    old_x = plyr_obj->pos.value.x;
+    old_z = plyr_obj->pos.value.z;
     plyr_obj->ang.y += 3.1428f;
     plyr_anim_pdata->frame = frame + 1.0f;
     pose_anim(plyr_anim_pdata, 1);
-    plyr_obj->pos.x = old_x;
-    plyr_obj->pos.z = old_z;
+    plyr_obj->pos.value.x = old_x;
+    plyr_obj->pos.value.z = old_z;
     ejb_sleep_ticks(1.0f);
     return 0.0f;
 }
@@ -1518,8 +1518,8 @@ float get_my_angle_y_error(void) {
     float angle;
 
     angle = gxMathArcTanYX(
-        his_obj->pos.x - plyr_obj->pos.x,
-        his_obj->pos.z - plyr_obj->pos.z);
+        his_obj->pos.value.x - plyr_obj->pos.value.x,
+        his_obj->pos.value.z - plyr_obj->pos.value.z);
     return ang_sub_ang(angle, plyr_obj->ang.y);
 }
 
@@ -1529,8 +1529,8 @@ void face_opponent_180(void) {
 
 void face_position_now(Vec* position) {
     plyr_obj->ang.y = gxMathArcTanYX(
-        position->x - plyr_obj->pos.x,
-        position->z - plyr_obj->pos.z);
+        position->x - plyr_obj->pos.value.x,
+        position->z - plyr_obj->pos.value.z);
 }
 
 void face_opponent_now(void) {
@@ -1540,8 +1540,8 @@ void face_opponent_now(void) {
         angle = 0.0f;
     } else {
         angle = gxMathArcTanYX(
-            his_obj->pos.x - plyr_obj->pos.x,
-            his_obj->pos.z - plyr_obj->pos.z);
+            his_obj->pos.value.x - plyr_obj->pos.value.x,
+            his_obj->pos.value.z - plyr_obj->pos.value.z);
     }
     plyr_obj->ang.y = angle;
 }
@@ -1551,8 +1551,8 @@ void face_ang_from_pos_to_him(
     float delta_x;
     float delta_z;
 
-    delta_x = opponent->pos.x - position->x;
-    delta_z = opponent->pos.z - position->z;
+    delta_x = opponent->pos.value.x - position->x;
+    delta_z = opponent->pos.value.z - position->z;
     angle->x = 0.0f;
     angle->y = gxMathArcTanYX(delta_x, delta_z);
     angle->z = 0.0f;
@@ -1560,7 +1560,7 @@ void face_ang_from_pos_to_him(
 
 void face_point(float x, float y, float z) {
     plyr_obj->ang.y =
-        gxMathArcTanYX(x - plyr_obj->pos.x, z - plyr_obj->pos.z);
+        gxMathArcTanYX(x - plyr_obj->pos.value.x, z - plyr_obj->pos.value.z);
 }
 
 void tightrope_restrictions_off(void) {
@@ -2597,8 +2597,8 @@ void ejb_too_close_repell(void) {
 
     player_one = g_game_info.plyr0.slot.mirror_a;
     player_two = g_game_info.plyr1.slot.mirror_a;
-    delta_z = player_one->pos.z - player_two->pos.z;
-    delta_x = player_one->pos.x - player_two->pos.x;
+    delta_z = player_one->pos.value.z - player_two->pos.value.z;
+    delta_x = player_one->pos.value.x - player_two->pos.value.x;
     if (delta_x * delta_x + delta_z * delta_z < 1.0f) {
         reaction_xfer_him(0x135, 2.0f, 0);
     }
@@ -3384,8 +3384,8 @@ static inline int joypad_state_5_impl(PlyrPdata* pdata) {
         float camera_z = camera_obj->pos.z;
         float camera_x = camera_obj->pos.x;
         float direction =
-            (object->pos_x - camera_x) * -(opponent->pos_z - camera_z) -
-            (opponent->pos_x - camera_x) * -(object->pos_z - camera_z);
+            (object->pos.value.x - camera_x) * -(opponent->pos.value.z - camera_z) -
+            (opponent->pos.value.x - camera_x) * -(object->pos.value.z - camera_z);
 
         return direction < 0.0f ? 3 : 4;
     }
@@ -3395,8 +3395,8 @@ static inline int joypad_state_5_impl(PlyrPdata* pdata) {
         float camera_z = camera_obj->pos.z;
         float camera_x = camera_obj->pos.x;
         float direction =
-            (object->pos_x - camera_x) * -(opponent->pos_z - camera_z) -
-            (opponent->pos_x - camera_x) * -(object->pos_z - camera_z);
+            (object->pos.value.x - camera_x) * -(opponent->pos.value.z - camera_z) -
+            (opponent->pos.value.x - camera_x) * -(object->pos.value.z - camera_z);
 
         return direction > 0.0f ? 3 : 4;
     }
@@ -3439,10 +3439,10 @@ float which_way_is_towards(void) {
 
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
-    return ((plyr_obj->pos_x - camera_x) *
-            -(his_obj->pos_z - camera_z)) -
-           ((his_obj->pos_x - camera_x) *
-            -(plyr_obj->pos_z - camera_z));
+    return ((plyr_obj->pos.value.x - camera_x) *
+            -(his_obj->pos.value.z - camera_z)) -
+           ((his_obj->pos.value.x - camera_x) *
+            -(plyr_obj->pos.value.z - camera_z));
 }
 
 void play_sound_1(int sound) {
@@ -3643,8 +3643,8 @@ float xz_distance_between_players(void) {
 
     player_one = g_game_info.plyr0.slot.mirror_a;
     player_two = g_game_info.plyr1.slot.mirror_a;
-    delta_z = player_one->pos.z - player_two->pos.z;
-    delta_x = player_one->pos.x - player_two->pos.x;
+    delta_z = player_one->pos.value.z - player_two->pos.value.z;
+    delta_x = player_one->pos.value.x - player_two->pos.value.x;
     return delta_x * delta_x + delta_z * delta_z;
 }
 
@@ -3660,20 +3660,20 @@ void myvel_his_angle_y_inout(
     if (is_his_chest_to_screen() != 0) {
         camera_z = camera_obj->pos.z;
         camera_x = camera_obj->pos.x;
-        cross = ((plyr_obj->pos.x - camera_x) *
-                 -(his_obj->pos.z - camera_z)) -
-                ((his_obj->pos.x - camera_x) *
-                 -(plyr_obj->pos.z - camera_z));
+        cross = ((plyr_obj->pos.value.x - camera_x) *
+                 -(his_obj->pos.value.z - camera_z)) -
+                ((his_obj->pos.value.x - camera_x) *
+                 -(plyr_obj->pos.value.z - camera_z));
         if (cross < 0.0f) {
             angle_offset *= -1.0f;
         }
     } else {
         camera_z = camera_obj->pos.z;
         camera_x = camera_obj->pos.x;
-        cross = ((plyr_obj->pos.x - camera_x) *
-                 -(his_obj->pos.z - camera_z)) -
-                ((his_obj->pos.x - camera_x) *
-                 -(plyr_obj->pos.z - camera_z));
+        cross = ((plyr_obj->pos.value.x - camera_x) *
+                 -(his_obj->pos.value.z - camera_z)) -
+                ((his_obj->pos.value.x - camera_x) *
+                 -(plyr_obj->pos.value.z - camera_z));
         if (!(cross < 0.0f)) {
             angle_offset *= -1.0f;
         }
@@ -4673,7 +4673,7 @@ int player_area_collision_check(
     }
     if (collide_cylinder_vs_plyr(
             plyr_pdata->his_plyr_pdata->plyr_info,
-            &plyr_obj->pos, &plyr_obj->ang, radius, height) != 0) {
+            &plyr_obj->pos.value, &plyr_obj->ang, radius, height) != 0) {
         trial_state_collision_check(
             1, plyr_pdata == g_game_info.plyr0.slot.pdata);
         if (is_plyr_blocking(his_pdata) != 0) {
@@ -4693,8 +4693,8 @@ void scorpion_summon_collide(void) {
     float distance_x;
     float distance_z;
 
-    delta_x = his_obj->pos_x - plyr_pdata->summon_position_x;
-    delta_z = his_obj->pos_z - plyr_pdata->summon_position_z;
+    delta_x = his_obj->pos.value.x - plyr_pdata->summon_position_x;
+    delta_z = his_obj->pos.value.z - plyr_pdata->summon_position_z;
     distance_x = delta_x * delta_x;
     distance_z = delta_z * delta_z;
     if ((his_pdata->state_flags.raw & 0x02) != 0x02) {
@@ -4709,8 +4709,8 @@ void scorpion_summon_collide(void) {
 }
 
 void scorpion_summon_read(void) {
-    plyr_pdata->summon_position_x = his_obj->pos_x;
-    plyr_pdata->summon_position_z = his_obj->pos_z;
+    plyr_pdata->summon_position_x = his_obj->pos.value.x;
+    plyr_pdata->summon_position_z = his_obj->pos.value.z;
 }
 
 /*
@@ -4868,7 +4868,7 @@ void avoid_double_ani(void) {
 }
 
 void match_my_ypos_with_his(void) {
-    plyr_obj->pos_y = his_obj->pos_y;
+    plyr_obj->pos.value.y = his_obj->pos.value.y;
 }
 
 float slamdown_reaction_max_hit_rules(void) {
@@ -4915,10 +4915,10 @@ int is_fast_getup(void) {
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
     cross =
-        ((plyr_obj->pos.x - camera_x) *
-         -(his_obj->pos.z - camera_z)) -
-        ((his_obj->pos.x - camera_x) *
-         -(plyr_obj->pos.z - camera_z));
+        ((plyr_obj->pos.value.x - camera_x) *
+         -(his_obj->pos.value.z - camera_z)) -
+        ((his_obj->pos.value.x - camera_x) *
+         -(plyr_obj->pos.value.z - camera_z));
     if (cross < 0.0f) {
         direction_pressed = check_switch(plyr_pdata->switch_data, 0xF);
     } else {
@@ -4942,8 +4942,8 @@ static inline void face_opponent_for_reverse_roll(void) {
         angle = 0.0f;
     } else {
         angle = gxMathArcTanYX(
-            his_obj->pos.x - plyr_obj->pos.x,
-            his_obj->pos.z - plyr_obj->pos.z);
+            his_obj->pos.value.x - plyr_obj->pos.value.x,
+            his_obj->pos.value.z - plyr_obj->pos.value.z);
     }
     plyr_obj->ang.y = angle;
     init_ground_move();
@@ -4983,10 +4983,10 @@ float front_rollup_check(void) {
     }
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
-    if (((plyr_obj->pos.x - camera_x) *
-         -(his_obj->pos.z - camera_z)) -
-        ((his_obj->pos.x - camera_x) *
-         -(plyr_obj->pos.z - camera_z)) < 0.0f) {
+    if (((plyr_obj->pos.value.x - camera_x) *
+         -(his_obj->pos.value.z - camera_z)) -
+        ((his_obj->pos.value.x - camera_x) *
+         -(plyr_obj->pos.value.z - camera_z)) < 0.0f) {
         direction_pressed = check_switch(plyr_pdata->switch_data, 0xF);
     } else {
         direction_pressed = check_switch(plyr_pdata->switch_data, 0xD);
@@ -5038,10 +5038,10 @@ float back_rollup_check_reverse(void) {
     }
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
-    if (((plyr_obj->pos.x - camera_x) *
-         -(his_obj->pos.z - camera_z)) -
-        ((his_obj->pos.x - camera_x) *
-         -(plyr_obj->pos.z - camera_z)) < 0.0f) {
+    if (((plyr_obj->pos.value.x - camera_x) *
+         -(his_obj->pos.value.z - camera_z)) -
+        ((his_obj->pos.value.x - camera_x) *
+         -(plyr_obj->pos.value.z - camera_z)) < 0.0f) {
         direction_pressed = check_switch(plyr_pdata->switch_data, 0xF);
     } else {
         direction_pressed = check_switch(plyr_pdata->switch_data, 0xD);
@@ -5100,10 +5100,10 @@ float back_rollup_check(void) {
     }
     camera_z = camera_obj->pos.z;
     camera_x = camera_obj->pos.x;
-    if (((plyr_obj->pos.x - camera_x) *
-         -(his_obj->pos.z - camera_z)) -
-        ((his_obj->pos.x - camera_x) *
-         -(plyr_obj->pos.z - camera_z)) < 0.0f) {
+    if (((plyr_obj->pos.value.x - camera_x) *
+         -(his_obj->pos.value.z - camera_z)) -
+        ((his_obj->pos.value.x - camera_x) *
+         -(plyr_obj->pos.value.z - camera_z)) < 0.0f) {
         direction_pressed = check_switch(plyr_pdata->switch_data, 0xF);
     } else {
         direction_pressed = check_switch(plyr_pdata->switch_data, 0xD);

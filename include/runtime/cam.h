@@ -36,38 +36,12 @@ typedef struct CameraObjFlags {
     unsigned char pad0 : 1;
 } CameraObjFlags;
 
-/*
- * Camera mkobj body (cam / display / bgnd_nbc agree):
- * instance @ +0x04, flags @ +0x08, position @ +0xA0, angles @ +0xD0.
- *
- * Retail: p_main_menu calls turn_camera_on() (Matching 100%):
- *   if Camera: RpWorldAddCamera(World, Camera) when unbound; turn_display_on().
- * Optional 3D after menu 2D: add_clump_to_world(World, clump) then Render()
- *   [display.h; soft ceiling ~73%]. Fighter/skin/MatFX Matching out of scope.
- */
 typedef struct CameraObj {
-    union {
-        MkHdr hdr;
-        struct {
-            MkVtable5* vtbl;
-            unsigned int instance; /* +0x04 - matched to CameraItem.instance */
-        };
-    };
-    union {
-        unsigned int flags_word;
-        struct {
-            union {
-                unsigned char flags;
-                CameraObjFlags flags_bits;
-            }; /* +0x08 */
-            unsigned char pad09[3];
-        };
-    };
+    MkHdr hdr;
+    CameraObjFlags flags; /* +0x08 */
+    unsigned char pad09[3];
     char pad0C[0x14];
-    union {
-        RwFrame* frame;
-        RwMatrix* matrix;
-    }; /* +0x20 - frame or transform view, both evidenced by callers */
+    RwFrame* frame; /* +0x20 */
     RwMatrix* field_24; /* +0x24 - active camera transform */
     MkPtr* child_list; /* +0x28 */
     char pad2C[0x44];
@@ -77,14 +51,7 @@ typedef struct CameraObj {
     char padAC[4];
     Vec velocity; /* +0xB0 */
     char padBC[0x14];
-    union {
-        Vec ang; /* +0xD0 */
-        struct {
-            float ang_x;
-            float ang_y;
-            float ang_z;
-        };
-    };
+    Vec ang; /* +0xD0 */
     char padDC[4];
     Vec ang_velocity; /* +0xE0 */
 } CameraObj;
@@ -111,22 +78,8 @@ typedef struct CameraPdataFlags {
 typedef struct CameraPdata {
     MkHdr hdr;
     RwCamera* camera; /* +0x08 */
-    union {
-        Vec target_pos; /* +0x0C */
-        struct {
-            float target_pos_x;
-            float target_pos_y;
-            float target_pos_z;
-        };
-    };
-    union {
-        Vec target_ang; /* +0x18 */
-        struct {
-            float target_ang_x;
-            float target_ang_y;
-            float target_ang_z;
-        };
-    };
+    Vec target_pos; /* +0x0C */
+    Vec target_ang; /* +0x18 */
     char pad24[0x18];
     MkObj* movement_focus; /* +0x3C */
     MkObj* attacker; /* +0x40 */

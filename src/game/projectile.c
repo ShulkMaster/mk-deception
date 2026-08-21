@@ -339,9 +339,9 @@ static inline MkProc* projectile_start_script_snapshot(
         object = 0;
     }
     if (script_data != 0 && object != 0) {
-        script_data->last_position.x = object->pos.x;
-        script_data->last_position.y = object->pos.y;
-        script_data->last_position.z = object->pos.z;
+        script_data->last_position.x = object->pos.value.x;
+        script_data->last_position.y = object->pos.value.y;
+        script_data->last_position.z = object->pos.value.z;
         script_data->velocity.x = object->pos_vel.x;
         script_data->velocity.y = object->pos_vel.y;
         script_data->velocity.z = object->pos_vel.z;
@@ -369,7 +369,7 @@ int get_bid_with_flip(MkObj* object, unsigned int bone_id) {
         MkFlippedBoneMap* flipped = object->flipped_bone_map;
 
         if (bone_id < flipped->count) {
-            bone_id = flipped->bone_ids[bone_id];
+            bone_id = flipped->bone_indices[bone_id];
         }
     }
     return bone_id;
@@ -431,7 +431,7 @@ void set_active_projectile_velocity_to_hit_gnd(float ticks) {
         object->pos_vel.z * object->pos_vel.z);
     target_x = object->pos_vel.x * horizontal_inverse_length * ticks;
     target_z = object->pos_vel.z * horizontal_inverse_length * ticks;
-    target_y = g_game_info.field_34 - object->pos.y;
+    target_y = g_game_info.field_34 - object->pos.value.y;
     if (target_y > 0.0f) {
         target_y = 0.0f;
     }
@@ -701,9 +701,9 @@ static float p_point_light_follower(void) {
                 light = 0;
             }
             if (light != 0) {
-                light->pos.x = object->pos.x;
-                light->pos.y = object->pos.y;
-                light->pos.z = object->pos.z;
+                light->pos.value.x = object->pos.value.x;
+                light->pos.value.y = object->pos.value.y;
+                light->pos.value.z = object->pos.value.z;
                 update_obj_pos(light);
                 return 1.0f;
             }
@@ -803,9 +803,9 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     }
     get_bone_offset_world_pos(
         launch_object, bone_id, bone_offset, &position);
-    object->pos.x = position.x;
-    object->pos.y = position.y;
-    object->pos.z = position.z;
+    object->pos.value.x = position.x;
+    object->pos.value.y = position.y;
+    object->pos.value.z = position.z;
     projectile_set_velocity_angy_tol(
         object, get_adjusted_speed(speed, 0.8f), tolerance);
     if (object->pos_vel.x == 0.0f && object->pos_vel.y == 0.0f) {
@@ -917,8 +917,8 @@ void retarget_projectile(ProjectilePdata* pdata) {
         object->pos_vel.x * object->pos_vel.x +
         object->pos_vel.y * object->pos_vel.y +
         object->pos_vel.z * object->pos_vel.z);
-    dx = pdata->retarget_object->pos.x - object->pos.x;
-    dz = pdata->retarget_object->pos.z - object->pos.z;
+    dx = pdata->retarget_object->pos.value.x - object->pos.value.x;
+    dz = pdata->retarget_object->pos.value.z - object->pos.value.z;
     inverse_length = projectile_fast_inverse_sqrt(dx * dx + dz * dz);
     object->pos_vel.x = dx * inverse_length;
     object->pos_vel.z = dz * inverse_length;
@@ -957,8 +957,8 @@ static void projectile_set_velocity_angy_tol(
     float cone_sin;
 
     cone_cos = gxMathCos((3.1415f * tolerance) / 360.0f);
-    dx = his_obj->pos.x - object->pos.x;
-    dz = his_obj->pos.z - object->pos.z;
+    dx = his_obj->pos.value.x - object->pos.value.x;
+    dz = his_obj->pos.value.z - object->pos.value.z;
     inverse_length = projectile_fast_inverse_sqrt(dx * dx + dz * dz);
     direction_x = dx * inverse_length;
     direction_z = dz * inverse_length;
@@ -1043,7 +1043,7 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
         return;
     }
 
-    victim_bone->flags_54 |= 2;
+    victim_bone->flags_54_bits.pose_matrix_applied = 1;
     if (pdata->setup_bits.random_rotation_set) {
         random_x = frand(pdata->random_rotation.x) -
                    0.5f * pdata->random_rotation.x;
@@ -1106,14 +1106,14 @@ static float p_projectile_handler(void) {
     if (projectile->behavior_bits.track_2d) {
         get_bone_world_pos(
             projectile->retarget_object, 0x10, &bone_position);
-        dx = projectile->retarget_object->pos.x - object->pos.x;
-        dz = projectile->retarget_object->pos.z - object->pos.z;
+        dx = projectile->retarget_object->pos.value.x - object->pos.value.x;
+        dz = projectile->retarget_object->pos.value.z - object->pos.value.z;
         if (dx * dx + dz * dz < 3.0f) {
             speed = projectile_fast_sqrt(
                 object->pos_vel.x * object->pos_vel.x +
                 object->pos_vel.y * object->pos_vel.y +
                 object->pos_vel.z * object->pos_vel.z);
-            object->pos_vel.y = (bone_position.y - object->pos.y) / 5.0f;
+            object->pos_vel.y = (bone_position.y - object->pos.value.y) / 5.0f;
             inverse_length = projectile_fast_inverse_sqrt(
                 object->pos_vel.x * object->pos_vel.x +
                 object->pos_vel.y * object->pos_vel.y +
@@ -1129,8 +1129,8 @@ static float p_projectile_handler(void) {
     if (projectile->behavior_bits.track_3d) {
         get_bone_world_pos(
             projectile->retarget_object, 0x10, &bone_position);
-        dx = projectile->retarget_object->pos.x - object->pos.x;
-        dz = projectile->retarget_object->pos.z - object->pos.z;
+        dx = projectile->retarget_object->pos.value.x - object->pos.value.x;
+        dz = projectile->retarget_object->pos.value.z - object->pos.value.z;
         distance_squared = dx * dx + dz * dz;
         if (distance_squared < 0.25f) {
             projectile->behavior_bits.track_3d = 0;
@@ -1158,17 +1158,17 @@ static float p_projectile_handler(void) {
     victim = owner->his_plyr_pdata;
     target = owner->his_obj;
     collision = simple_3d_projectile_collision(
-        &target->pos, &projectile->retarget_object->pos, &object->pos,
+        &target->pos.value, &projectile->retarget_object->pos.value, &object->pos.value,
         projectile->setup_bits.collision_info_set != 0,
         projectile->collision_radius, projectile->collision_depth,
         projectile->collision_height);
     victim->duck_reaction_active = 1;
-    victim->saved_position_x = object->pos.x;
-    victim->saved_position_y = object->pos.y;
-    victim->saved_position_z = object->pos.z;
+    victim->saved_position_x = object->pos.value.x;
+    victim->saved_position_y = object->pos.value.y;
+    victim->saved_position_z = object->pos.value.z;
     player = target == g_game_info.plyr0.slot.mirror_a;
 
-    if (object->pos.y < 0.2f + g_game_info.field_34) {
+    if (object->pos.value.y < 0.2f + g_game_info.field_34) {
         trial_state_collision_check(0, player);
         victim->duck_reaction_active = 0;
         if (projectile->sound_handle != 0) {
@@ -1197,7 +1197,7 @@ static float p_projectile_handler(void) {
         collision = 1;
     } else if (collision == 0 &&
                collide_sphere_vs_plyr(
-                   owner->plyr_info, &object->pos,
+                   owner->plyr_info, &object->pos.value,
                    projectile->collision_radius) == 0) {
         collision = 4;
     }
@@ -1304,8 +1304,8 @@ static float p_projectile_continue(void) {
     if (object != 0) {
         target = proj_pdata->impaled_target->his_obj;
         collision = simple_3d_projectile_collision(
-            &target->pos, &proj_pdata->retarget_object->pos,
-            &object->pos,
+            &target->pos.value, &proj_pdata->retarget_object->pos.value,
+            &object->pos.value,
             proj_pdata->setup_bits.collision_info_set != 0,
             proj_pdata->collision_radius,
             proj_pdata->collision_depth,
@@ -1358,10 +1358,10 @@ static float p_ground_target(void) {
 
     target = projectile->impaled_target->his_plyr_pdata;
     target->duck_reaction_active = 1;
-    target->saved_position_x = object->pos.x;
-    target->saved_position_y = object->pos.y;
-    target->saved_position_z = object->pos.z;
-    if (object->pos.y >= g_game_info.field_34) {
+    target->saved_position_x = object->pos.value.x;
+    target->saved_position_y = object->pos.value.y;
+    target->saved_position_z = object->pos.value.z;
+    if (object->pos.value.y >= g_game_info.field_34) {
         return 1.0f;
     }
 
@@ -1400,9 +1400,9 @@ static float p_ground_target(void) {
             object = 0;
         }
         if (script_data != 0 && object != 0) {
-            script_data->last_position.x = object->pos.x;
-            script_data->last_position.y = object->pos.y;
-            script_data->last_position.z = object->pos.z;
+            script_data->last_position.x = object->pos.value.x;
+            script_data->last_position.y = object->pos.value.y;
+            script_data->last_position.z = object->pos.value.z;
             script_data->velocity.x = object->pos_vel.x;
             script_data->velocity.y = object->pos_vel.y;
             script_data->velocity.z = object->pos_vel.z;
@@ -1441,9 +1441,9 @@ static float p_ground_target_collide(void) {
 
     target = proj_pdata->impaled_target->his_plyr_pdata;
     target->duck_reaction_active = 1;
-    target->saved_position_x = object->pos.x;
-    target->saved_position_y = object->pos.y;
-    target->saved_position_z = object->pos.z;
+    target->saved_position_x = object->pos.value.x;
+    target->saved_position_y = object->pos.value.y;
+    target->saved_position_z = object->pos.value.z;
     player_info = &g_game_info.plyr1;
     if (proj_pdata->impaled_target == g_game_info.plyr0.slot.pdata) {
         player_info = &g_game_info.plyr0;
@@ -1465,7 +1465,7 @@ static float p_ground_target_collide(void) {
         return 1.0f;
     }
     if (collide_cylinder_vs_plyr(
-            player_info, &object->pos,
+            player_info, &object->pos.value,
             &projectile_ground_collision_angles,
             proj_pdata->collision_radius, 0.3f) != 0) {
         if (proj_pdata->reaction != -1 &&
@@ -1518,8 +1518,8 @@ static float p_projectile_launch_upward(void) {
 
     proj_pdata->max_ticks -= game_speed;
     if (proj_pdata->max_ticks < 0.0f) {
-        object->pos.x = proj_pdata->target_position.x;
-        object->pos.z = proj_pdata->target_position.z;
+        object->pos.value.x = proj_pdata->target_position.x;
+        object->pos.value.z = proj_pdata->target_position.z;
         object->pos_vel.x = -object->pos_vel.x;
         object->pos_vel.y = -object->pos_vel.y;
         object->pos_vel.z = -object->pos_vel.z;
@@ -1562,9 +1562,9 @@ static float p_projectile_downward(void) {
     victim = projectile->impaled_target;
     victim_state = victim->his_plyr_pdata;
     victim_state->duck_reaction_active = 1;
-    victim_state->saved_position_x = object->pos.x;
-    victim_state->saved_position_y = object->pos.y;
-    victim_state->saved_position_z = object->pos.z;
+    victim_state->saved_position_x = object->pos.value.x;
+    victim_state->saved_position_y = object->pos.value.y;
+    victim_state->saved_position_z = object->pos.value.z;
     projectile->max_ticks -= game_speed;
     if (projectile->max_ticks < 0.0f ||
         projectile->ground_height != g_game_info.field_34) {
@@ -1573,7 +1573,7 @@ static float p_projectile_downward(void) {
         return 0.0f;
     }
 
-    if (object->pos.y < (float)(0.2 + (double)g_game_info.field_34)) {
+    if (object->pos.value.y < (float)(0.2 + (double)g_game_info.field_34)) {
         trial_state_collision_check(0, victim->plyr_num);
         victim_state->duck_reaction_active = 0;
         if (projectile->sound_handle != 0) {
@@ -1606,9 +1606,9 @@ static float p_projectile_downward(void) {
                 object = 0;
             }
             if (script_data != 0 && object != 0) {
-                script_data->last_position.x = object->pos.x;
-                script_data->last_position.y = object->pos.y;
-                script_data->last_position.z = object->pos.z;
+                script_data->last_position.x = object->pos.value.x;
+                script_data->last_position.y = object->pos.value.y;
+                script_data->last_position.z = object->pos.value.z;
                 script_data->velocity.x = object->pos_vel.x;
                 script_data->velocity.y = object->pos_vel.y;
                 script_data->velocity.z = object->pos_vel.z;
@@ -1624,9 +1624,9 @@ static float p_projectile_downward(void) {
 
     get_bone_world_pos(
         projectile->retarget_object, 0x10, &target_position);
-    dx = target_position.x - object->pos.x;
-    dy = target_position.y - object->pos.y;
-    dz = target_position.z - object->pos.z;
+    dx = target_position.x - object->pos.value.x;
+    dy = target_position.y - object->pos.value.y;
+    dz = target_position.z - object->pos.value.z;
     if ((double)(dx * dx + dy * dy + dz * dz) < 0.2 &&
         !victim->state_flags.bits.projectile_invulnerable &&
         victim->state != 0x1222 && projectile->reaction != -1) {
@@ -1661,9 +1661,9 @@ static float p_projectile_downward(void) {
                 object = 0;
             }
             if (script_data != 0 && object != 0) {
-                script_data->last_position.x = object->pos.x;
-                script_data->last_position.y = object->pos.y;
-                script_data->last_position.z = object->pos.z;
+                script_data->last_position.x = object->pos.value.x;
+                script_data->last_position.y = object->pos.value.y;
+                script_data->last_position.z = object->pos.value.z;
                 script_data->velocity.x = object->pos_vel.x;
                 script_data->velocity.y = object->pos_vel.y;
                 script_data->velocity.z = object->pos_vel.z;
@@ -1745,9 +1745,9 @@ float p_projectile_die(void) {
             object = 0;
         }
         if (script_data != 0 && object != 0) {
-            script_data->last_position.x = object->pos.x;
-            script_data->last_position.y = object->pos.y;
-            script_data->last_position.z = object->pos.z;
+            script_data->last_position.x = object->pos.value.x;
+            script_data->last_position.y = object->pos.value.y;
+            script_data->last_position.z = object->pos.value.z;
             script_data->velocity.x = object->ang.x;
             script_data->velocity.y = object->ang.y;
             script_data->velocity.z = object->ang.z;
