@@ -633,9 +633,9 @@ static inline void xfer_camera_impl(MkProcEntryFn entry, int reset_projection) {
         RwCameraSetProjection(Camera, 1);
     }
     if (camera_obj != 0) {
-        flags = &camera_obj->flags_bits;
+        flags = &camera_obj->flags;
         flags->bit04 = 1;
-        flags = &camera_obj->flags_bits;
+        flags = &camera_obj->flags;
         flags->bit20 = 1;
     }
 }
@@ -1837,7 +1837,7 @@ void camera_init_animation(AniData* anim_path, MkProcEntryFn override_entry) {
 }
 
 float p_animate_and_freeze(void) {
-    camera_obj->flags_word = 0;
+    ((MkObj*)camera_obj)->flags_word_08 = 0;
     while (1) {
         _mkproc_sleep_ticks = 60.0f;
         mkproc_sleep();
@@ -1918,11 +1918,11 @@ static float p_animate_camera_move(void) {
     bone->pos = camera_obj->pos;
     bone->ang = camera_obj->ang;
     animation->frame = kZero;
-    saved_flags = camera_obj->flags_word;
-    camera_obj->flags_bits.pad3 = 0;
-    camera_obj->flags_bits.bit04 = 0;
-    camera_obj->flags_bits.pad6 = 0;
-    camera_obj->flags_bits.bit20 = 0;
+    saved_flags = ((MkObj*)camera_obj)->flags_word_08;
+    camera_obj->flags.pad3 = 0;
+    camera_obj->flags.bit04 = 0;
+    camera_obj->flags.pad6 = 0;
+    camera_obj->flags.bit20 = 0;
     pause_ticks = info->pdata->pause_ticks;
     info->pdata->pause_ticks = kZero;
 
@@ -2037,7 +2037,7 @@ static float p_animate_camera_move(void) {
         }
     }
 
-    camera_obj->flags_word = saved_flags;
+    ((MkObj*)camera_obj)->flags_word_08 = saved_flags;
     mkproc_jump_sleep(old_camera_function);
     return kZero;
 }
@@ -3778,8 +3778,8 @@ void camera_exit_script(void) {
             RwCameraSetProjection(Camera, 1);
         }
         if (camera_obj != 0) {
-            camera_obj->flags_bits.bit04 = 1;
-            camera_obj->flags_bits.bit20 = 1;
+            camera_obj->flags.bit04 = 1;
+            camera_obj->flags.bit20 = 1;
         }
     }
     destroy_mkprocs_pid(0x9006);
@@ -3834,8 +3834,8 @@ void run_camera_script(int script, int argument, int flags) {
                 RwCameraSetProjection(Camera, 1);
             }
             if (camera_obj != 0) {
-                camera_obj->flags_bits.bit04 = 1;
-                camera_obj->flags_bits.bit20 = 1;
+                camera_obj->flags.bit04 = 1;
+                camera_obj->flags.bit20 = 1;
             }
         }
     }
@@ -3871,8 +3871,8 @@ static float p_run_camera_script(void) {
                 RwCameraSetProjection(Camera, 1);
             }
             if (camera_obj != 0) {
-                camera_obj->flags_bits.bit04 = 1;
-                camera_obj->flags_bits.bit20 = 1;
+                camera_obj->flags.bit04 = 1;
+                camera_obj->flags.bit20 = 1;
             }
         }
         camera_script_monitor_item.node = 0;
@@ -5805,7 +5805,7 @@ void set_camera_velocity(const CamVec3* velocity) {
     CameraObj* camera;
 
     RESOLVE_CAMERA_OBJ(camera);
-    camera->flags_bits.bit20 = 1;
+    camera->flags.bit20 = 1;
     camera->velocity.x = velocity->x;
     camera->velocity.y = velocity->y;
     camera->velocity.z = velocity->z;
@@ -6549,8 +6549,8 @@ int init_camera(void) {
     }
 
     if (camera_obj != 0) {
-        camera_obj->flags_bits.bit04 = 1;
-        camera_obj->flags_bits.bit20 = 1;
+        camera_obj->flags.bit04 = 1;
+        camera_obj->flags.bit20 = 1;
     }
     camera_obj =
         (CameraObj*)get_mkobj_frame(0x1003, RwCameraGetFrame(Camera));
@@ -6559,8 +6559,8 @@ int init_camera(void) {
         camera_item.instance = camera_obj->hdr.instance;
         camera_mat = camera_obj->field_24;
         insert_fgnd_mkobj(camera_obj);
-        camera_obj->flags_bits.bit04 = 1;
-        camera_obj->flags_bits.bit20 = 1;
+        camera_obj->flags.bit04 = 1;
+        camera_obj->flags.bit20 = 1;
         update_mkobj(camera_obj);
     }
 

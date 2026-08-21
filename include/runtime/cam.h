@@ -37,17 +37,9 @@ typedef struct CameraObjFlags {
 } CameraObjFlags;
 
 typedef struct CameraObj {
-    MkHdr hdr; /* +0x00 - instance @ +0x04, matched to CameraItem.instance */
-    union {
-        unsigned int flags_word;
-        struct {
-            union {
-                unsigned char flags;
-                CameraObjFlags flags_bits;
-            }; /* +0x08 */
-            unsigned char pad09[3];
-        };
-    };
+    MkHdr hdr;
+    CameraObjFlags flags; /* +0x08 */
+    unsigned char pad09[3];
     char pad0C[0x14];
     union {
         RwFrame* frame;
