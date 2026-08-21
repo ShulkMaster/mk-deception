@@ -600,11 +600,6 @@ MkPtr* get_mkptr_owns_mkhdr(MkHdr* hdr) {
 
 void init_free_mkptrs(void) {
     int count;
-    MkHdr* z0;
-    MkPtr* z1;
-    MkPtr* z2;
-    MkPtr** z3;
-    unsigned int z4;
     int i;
     MkPtr* ptr;
     MkPtr* previous_head;
@@ -615,18 +610,13 @@ void init_free_mkptrs(void) {
      * Direct typed indexed clears reproduce retail's repeated global-base
      * loads and indexed stores; do not replace them with a cached element.
      */
-    z0 = 0;
-    z1 = 0;
-    z2 = 0;
-    z3 = 0;
-    z4 = 0;
     count = get_mkptr_count();
     for (i = 0; i < count; i++) {
-        mkptr_list[i].hdr = z0;
-        mkptr_list[i].next = z1;
-        mkptr_list[i].prev = z2;
-        mkptr_list[i].list = z3;
-        mkptr_list[i].instance = z4;
+        mkptr_list[i].hdr = 0;
+        mkptr_list[i].next = 0;
+        mkptr_list[i].prev = 0;
+        mkptr_list[i].list = 0;
+        mkptr_list[i].instance = 0;
     }
     free_mkptrs = 0;
     for (i = 0; i < count; i++) {

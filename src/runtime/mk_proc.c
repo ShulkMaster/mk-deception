@@ -10,6 +10,10 @@
 static void _destroy_proc_pid_mask(MkHdr* hdr);
 static void dispatch_proc_list(MkPtr** list);
 
+static inline int proc_list_available(MkPtr** list) {
+    return list != 0;
+}
+
 void activate_cmdscript(void);
 void deactivate_cmdscript(void);
 
@@ -120,9 +124,7 @@ void system_stack_bigstack(void) {
 }
 
 void local_stack_bigstack(void) {
-    MkProcStackWord* local_sp = _local_sp_save;
     _local_sp_save = 0;
-    (void)local_sp;
 }
 
 void mkproc_dispatch(void) {
@@ -132,14 +134,16 @@ void mkproc_dispatch(void) {
 }
 
 static void dispatch_proc_list(MkPtr** list) {
-    MkPtr* link;
+    /* The indirect dispatcher may swap process context; keep traversal state in memory. */
+    MkPtr* volatile link;
+    int* volatile paused = &_paused;
 
     if (list == 0) {
         return;
     }
-    _paused = 0;
+    *paused = 0;
     if (g_game_info.pause_flag_bits.controller_disable_guard || network_pause_procs != 0) {
-        _paused = 1;
+        *paused = 1;
     }
     link = *list;
     while (link != 0) {
@@ -153,42 +157,43 @@ static void dispatch_proc_list(MkPtr** list) {
         }
         aproc_nodestroy = 0;
         aproc = current;
-        if (aproc != 0 && (_paused == 0 || aproc->flags_bits.skip_if_paused)) {
+        if (aproc != 0 && (*paused == 0 || aproc->flags_bits.skip_if_paused)) {
             if (aproc->flags_bits.use_game_speed) {
                 aproc->sleep_ticks -= game_speed;
             } else {
                 aproc->sleep_ticks -= 1.0f;
             }
             if (aproc->sleep_ticks <= 0.0f) {
-                aproc_mkptr = first_mkptr(&aproc->pdata_list);
-                if (aproc_mkptr == 0) {
-                    if (aproc->flags_bits.one_shot) {
-                        if (aproc->instance != 0) {
-                            aproc->vtbl->destroy(aproc);
+                do {
+                    aproc_mkptr = first_mkptr(&aproc->pdata_list);
+                    if (aproc_mkptr == 0) {
+                        if (aproc->flags_bits.one_shot) {
+                            if (aproc->instance != 0) {
+                                aproc->vtbl->destroy(aproc);
+                            }
+                            break;
                         }
-                        link = link->next;
-                        continue;
-                    }
-                    apdata = 0;
-                } else {
-                    apdata = aproc_mkptr->hdr;
-                    if (apdata == 0) {
-                        if (aproc->instance != 0) {
-                            aproc->vtbl->destroy(aproc);
+                        apdata = 0;
+                    } else {
+                        apdata = aproc_mkptr->hdr;
+                        if (apdata == 0) {
+                            if (aproc->instance != 0) {
+                                aproc->vtbl->destroy(aproc);
+                            }
+                            break;
                         }
-                        link = link->next;
-                        continue;
                     }
-                }
-                aproc_nodestroy = 0;
-                if (aproc->pre_destroy == 0 || (aproc->pre_destroy(), aproc->instance != 0)) {
-                    aproc_nodestroy = aproc;
-                    if (aproc->flags_bits.game_info) {
-                        activate_cmdscript();
+                    aproc_nodestroy = 0;
+                    if (aproc->pre_destroy == 0 ||
+                        (aproc->pre_destroy(), aproc->instance != 0)) {
+                        aproc_nodestroy = aproc;
+                        if (aproc->flags_bits.game_info) {
+                            activate_cmdscript();
+                        }
+                        aproc->vtbl->dispatch();
+                        deactivate_cmdscript();
                     }
-                    aproc->vtbl->dispatch();
-                    deactivate_cmdscript();
-                }
+                } while (0);
             }
         }
         link = link->next;
@@ -229,8 +234,10 @@ MkProc* get_mkproc_bigstack(int* flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        proc->vtbl = &vtbl_mkproc_bigstack;
-        proc->flags = *flags;
+        int proc_flags = *flags;
+        MkVtableMkproc* vtbl = &vtbl_mkproc_bigstack;
+        proc->vtbl = vtbl;
+        proc->flags = proc_flags;
         stack = _mwMemMalloc(bigstack_heap, 0x4000, 0x80, 0, 0, 0);
         if (stack != 0) {
             stack += 0x3FE8;
@@ -261,8 +268,10 @@ MkProc* get_mkproc_tinystack(int* flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        proc->vtbl = &vtbl_mkproc_tinystack;
-        proc->flags = *flags;
+        int proc_flags = *flags;
+        MkVtableMkproc* vtbl = &vtbl_mkproc_tinystack;
+        proc->vtbl = vtbl;
+        proc->flags = proc_flags;
         stack = _mwMemMalloc(tinystack_heap, 0x200, 0x80, 0, 0, 0);
         if (stack != 0) {
             stack += 0x200;
@@ -292,8 +301,10 @@ MkProc* get_mkproc_nostack(int* flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        proc->vtbl = &vtbl_mkproc_nostack;
-        proc->flags = *flags;
+        MkVtableMkproc* vtbl = &vtbl_mkproc_nostack;
+        int proc_flags = *flags;
+        proc->vtbl = vtbl;
+        proc->flags = proc_flags;
         proc->stack_top = 0;
         proc->stack_ptr = proc->stack_top;
     }
@@ -307,11 +318,10 @@ void xfer_proc(MkProc* proc, MkProcEntryFn entry) {
 }
 
 MkProc* find_mkproc_pid(int pid) {
-    MkPtr** list = &active_proc_list;
     MkPtr* link;
 
-    if (list != 0) {
-        link = *list;
+    if (proc_list_available(&active_proc_list)) {
+        link = active_proc_list;
         while (link != 0) {
             MkProc* proc = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != (unsigned int)proc->instance) {
@@ -361,7 +371,7 @@ void destroy_all_mkprocs(void) {
     MkPtr* link;
 
     aproc_nodestroy = 0;
-    if (&active_proc_list != 0) {
+    if (proc_list_available(&active_proc_list)) {
         link = active_proc_list;
         while (link != 0) {
             MkProc* proc = MKPROC_FROM_HDR(link->hdr);
@@ -457,16 +467,18 @@ MkProc* create_mkproc(int priority, MkProc* proc, int pid, MkProcEntryFn entry, 
 }
 
 void mkproc_change_priority(MkProc* proc, int priority) {
+    int new_priority;
     MkPtr* insert;
-    MkPtr* previous = 0;
-    MkPtr** list = &active_proc_list;
+    MkPtr* previous;
     MkPtr* link;
 
     mk_pull_discard(&proc->hdr, &active_proc_list);
     proc->priority = priority;
+    new_priority = proc->priority;
     insert = get_mkptr_owns_mkhdr(&proc->hdr);
-    if (list != 0) {
-        link = *list;
+    previous = 0;
+    if (proc_list_available(&active_proc_list)) {
+        link = active_proc_list;
         while (link != 0) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != (unsigned int)current->instance) {
@@ -475,7 +487,7 @@ void mkproc_change_priority(MkProc* proc, int priority) {
                 destroy_mkptr(link);
                 link = next;
             } else {
-                if (priority < current->priority) {
+                if (new_priority < current->priority) {
                     insert_mkptr_before(insert, link);
                     return;
                 }
@@ -493,13 +505,12 @@ void mkproc_change_priority(MkProc* proc, int priority) {
 
 void insert_new_mkproc(MkProc* proc) {
     int priority = proc->priority;
-    MkPtr* previous = 0;
     MkPtr* insert = get_mkptr_owns_mkhdr(&proc->hdr);
-    MkPtr** list = &active_proc_list;
+    MkPtr* previous = 0;
     MkPtr* link;
 
-    if (list != 0) {
-        link = *list;
+    if (proc_list_available(&active_proc_list)) {
+        link = active_proc_list;
         while (link != 0) {
             MkProc* current = MKPROC_FROM_HDR(link->hdr);
             if (link->instance != (unsigned int)current->instance) {
