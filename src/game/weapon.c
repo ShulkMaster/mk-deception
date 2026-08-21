@@ -1198,18 +1198,19 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
                 do {
                     child_bone = trail_bone;
                     trail_bone = trail_bone->transform_parent;
+                    /* Weapon trails reuse the contiguous +0xD0 block as a matrix. */
                     memcpy(child_bone->parent_matrix,
-                           &trail_bone->trail_matrix,
+                           &trail_bone->rotation,
                            sizeof(*child_bone->parent_matrix));
                     child_bone->parent_matrix->pos.x -= displacement.x;
                     child_bone->parent_matrix->pos.y -= displacement.y;
                     child_bone->parent_matrix->pos.z -= displacement.z;
-                    memcpy(&trail_bone->trail_matrix,
+                    memcpy(&trail_bone->rotation,
                            trail_bone->parent_matrix,
-                           sizeof(trail_bone->trail_matrix));
-                    trail_bone->trail_matrix.pos.x -= displacement.x;
-                    trail_bone->trail_matrix.pos.y -= displacement.y;
-                    trail_bone->trail_matrix.pos.z -= displacement.z;
+                           sizeof(RwMatrix));
+                    trail_bone->bind_offset.x -= displacement.x;
+                    trail_bone->bind_offset.y -= displacement.y;
+                    trail_bone->bind_offset.z -= displacement.z;
                 } while (!trail_bone->flags_54_bits.transform_parented);
 
                 parent_bone = trail_bone->transform_parent;

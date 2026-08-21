@@ -3658,7 +3658,7 @@ MkBone* alloc_bone(void) {
         bone->rotation_90.y = 0.0f;
         bone->rotation_90.z = 0.0f;
         bone->rotation_90.w = 1.0f;
-        rotation = bone->rotations;
+        rotation = &bone->rotation;
         count = 2;
         do {
             rotation->x = 0.0f;
