@@ -50,7 +50,7 @@ float bgnd_get_camera_z_pos(void) {
         cam = 0;
     }
     if (cam != 0) {
-        return cam->pos_z;
+        return cam->pos.z;
     }
     return zero;
 }

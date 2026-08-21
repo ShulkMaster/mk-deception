@@ -753,8 +753,8 @@ int is_my_chest_to_screen(void) {
     float cross;
     int flipped;
 
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     cross =
         ((plyr_obj->pos.x - camera_x) *
          -(his_obj->pos.z - camera_z)) -
@@ -789,8 +789,8 @@ int is_my_chest_to_screen(void) {
 }
 
 int am_i_on_the_left2(MkObj* opponent, MkObj* me) {
-    float camera_z = camera_obj->pos_z;
-    float camera_x = camera_obj->pos_x;
+    float camera_z = camera_obj->pos.z;
+    float camera_x = camera_obj->pos.x;
     float cross =
         ((opponent->pos.x - camera_x) * -(me->pos.z - camera_z)) -
         ((me->pos.x - camera_x) * -(opponent->pos.z - camera_z));
@@ -803,8 +803,8 @@ int am_i_on_the_left(void) {
     float camera_x;
     float cross;
 
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     cross =
         ((plyr_obj->pos.x - camera_x) *
          -(his_obj->pos.z - camera_z)) -
@@ -860,8 +860,8 @@ int am_i_flipped_or_turned(void) {
         flipped ^= 1;
     }
 
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     cross =
         ((plyr_obj->pos.x - camera_x) *
          -(his_obj->pos.z - camera_z)) -
@@ -3381,8 +3381,8 @@ static inline int joypad_state_5_impl(PlyrPdata* pdata) {
     if (check_switch(pdata->switch_data, 0xD) != 0) {
         MkObj* object = pdata->plyr_info->slot.mirror_a;
         MkObj* opponent = pdata->his_plyr_pdata->plyr_info->slot.mirror_a;
-        float camera_z = camera_obj->pos_z;
-        float camera_x = camera_obj->pos_x;
+        float camera_z = camera_obj->pos.z;
+        float camera_x = camera_obj->pos.x;
         float direction =
             (object->pos_x - camera_x) * -(opponent->pos_z - camera_z) -
             (opponent->pos_x - camera_x) * -(object->pos_z - camera_z);
@@ -3392,8 +3392,8 @@ static inline int joypad_state_5_impl(PlyrPdata* pdata) {
     if (check_switch(pdata->switch_data, 0xF) != 0) {
         MkObj* object = pdata->plyr_info->slot.mirror_a;
         MkObj* opponent = pdata->his_plyr_pdata->plyr_info->slot.mirror_a;
-        float camera_z = camera_obj->pos_z;
-        float camera_x = camera_obj->pos_x;
+        float camera_z = camera_obj->pos.z;
+        float camera_x = camera_obj->pos.x;
         float direction =
             (object->pos_x - camera_x) * -(opponent->pos_z - camera_z) -
             (opponent->pos_x - camera_x) * -(object->pos_z - camera_z);
@@ -3437,8 +3437,8 @@ float which_way_is_towards(void) {
     float camera_z;
     float camera_x;
 
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     return ((plyr_obj->pos_x - camera_x) *
             -(his_obj->pos_z - camera_z)) -
            ((his_obj->pos_x - camera_x) *
@@ -3658,8 +3658,8 @@ void myvel_his_angle_y_inout(
     float cosine;
 
     if (is_his_chest_to_screen() != 0) {
-        camera_z = camera_obj->pos_z;
-        camera_x = camera_obj->pos_x;
+        camera_z = camera_obj->pos.z;
+        camera_x = camera_obj->pos.x;
         cross = ((plyr_obj->pos.x - camera_x) *
                  -(his_obj->pos.z - camera_z)) -
                 ((his_obj->pos.x - camera_x) *
@@ -3668,8 +3668,8 @@ void myvel_his_angle_y_inout(
             angle_offset *= -1.0f;
         }
     } else {
-        camera_z = camera_obj->pos_z;
-        camera_x = camera_obj->pos_x;
+        camera_z = camera_obj->pos.z;
+        camera_x = camera_obj->pos.x;
         cross = ((plyr_obj->pos.x - camera_x) *
                  -(his_obj->pos.z - camera_z)) -
                 ((his_obj->pos.x - camera_x) *
@@ -4912,8 +4912,8 @@ int is_fast_getup(void) {
         return drone_ai_should_roll(0) == 1;
     }
 
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     cross =
         ((plyr_obj->pos.x - camera_x) *
          -(his_obj->pos.z - camera_z)) -
@@ -4981,8 +4981,8 @@ float front_rollup_check(void) {
             return transfer_roll(j_front_roll_right);
         }
     }
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     if (((plyr_obj->pos.x - camera_x) *
          -(his_obj->pos.z - camera_z)) -
         ((his_obj->pos.x - camera_x) *
@@ -5036,8 +5036,8 @@ float back_rollup_check_reverse(void) {
             return transfer_roll(j_back_rollup_OUT);
         }
     }
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     if (((plyr_obj->pos.x - camera_x) *
          -(his_obj->pos.z - camera_z)) -
         ((his_obj->pos.x - camera_x) *
@@ -5098,8 +5098,8 @@ float back_rollup_check(void) {
         }
         return transfer_roll(j_back_rollup_OUT);
     }
-    camera_z = camera_obj->pos_z;
-    camera_x = camera_obj->pos_x;
+    camera_z = camera_obj->pos.z;
+    camera_x = camera_obj->pos.x;
     if (((plyr_obj->pos.x - camera_x) *
          -(his_obj->pos.z - camera_z)) -
         ((his_obj->pos.x - camera_x) *

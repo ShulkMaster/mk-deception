@@ -3084,7 +3084,7 @@ float p_fog_follow_camera(void) {
             fog = 0;
         }
         if (fog != 0) {
-            fog->camera_z = camera->pos_z;
+            fog->camera_z = camera->pos.z;
         }
     }
     return 1.0f;
@@ -3121,24 +3121,24 @@ static float p_follow_camera(void) {
     }
 
     if (pdata != 0 && obj != 0 && camera != 0) {
-        obj->pos_x = camera->pos_x;
-        obj->pos_y = camera->pos_y;
-        obj->pos_z = camera->pos_z;
+        obj->pos_x = camera->pos.x;
+        obj->pos_y = camera->pos.y;
+        obj->pos_z = camera->pos.z;
 
         if (krypt_pdata->pfx_koins != 0) {
-            krypt_pdata->pfx_koins->mat_e = camera->pos_x;
+            krypt_pdata->pfx_koins->mat_e = camera->pos.x;
             krypt_pdata->pfx_koins->mat_f = 2.0f;
-            krypt_pdata->pfx_koins->mat_g = camera->pos_z - 3.0f;
+            krypt_pdata->pfx_koins->mat_g = camera->pos.z - 3.0f;
         }
         if (krypt_pdata->pfx_numbers != 0) {
-            krypt_pdata->pfx_numbers->mat_e = camera->pos_x;
+            krypt_pdata->pfx_numbers->mat_e = camera->pos.x;
             krypt_pdata->pfx_numbers->mat_f = 2.0f;
-            krypt_pdata->pfx_numbers->mat_g = camera->pos_z - 3.0f;
+            krypt_pdata->pfx_numbers->mat_g = camera->pos.z - 3.0f;
         }
         if (krypt_pdata->pfx_letters != 0) {
-            krypt_pdata->pfx_letters->mat_e = camera->pos_x;
+            krypt_pdata->pfx_letters->mat_e = camera->pos.x;
             krypt_pdata->pfx_letters->mat_f = 2.0f;
-            krypt_pdata->pfx_letters->mat_g = camera->pos_z - 3.0f;
+            krypt_pdata->pfx_letters->mat_g = camera->pos.z - 3.0f;
         }
     }
     return 1.0f;

@@ -7884,9 +7884,9 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     if (npc->reaction_active) {
         KonquestNpcData* data = npc->data;
         CameraObj* camera = camera_obj;
-        float delta_x = data->position.x - camera->pos_x;
-        float delta_y = data->position.y - camera->pos_y;
-        float delta_z = data->position.z - camera->pos_z;
+        float delta_x = data->position.x - camera->pos.x;
+        float delta_y = data->position.y - camera->pos.y;
+        float delta_z = data->position.z - camera->pos.z;
         npc->camera_distance_squared =
             delta_z * delta_z +
             (delta_x * delta_x + delta_y * delta_y);
@@ -7957,9 +7957,9 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     {
         KonquestNpcData* data = npc->data;
         CameraObj* camera = camera_obj;
-        float delta_x = data->position.x - camera->pos_x;
-        float delta_y = data->position.y - camera->pos_y;
-        float delta_z = data->position.z - camera->pos_z;
+        float delta_x = data->position.x - camera->pos.x;
+        float delta_y = data->position.y - camera->pos.y;
+        float delta_z = data->position.z - camera->pos.z;
         float distance_squared =
             delta_z * delta_z +
             (delta_x * delta_x + delta_y * delta_y);

@@ -645,7 +645,7 @@ void mk_chess_register_name_and_portrait_in_team(
 
 /* Soft ceiling: mk_chess_fake_demo_cam ~99.09% - constant-pool label only. */
 int mk_chess_fake_demo_cam(float* camera_speed) {
-    if (camera_obj->pos_z > 20.3f) {
+    if (camera_obj->pos.z > 20.3f) {
         return 0;
     }
     *camera_speed = 0.1f;
@@ -1671,9 +1671,9 @@ void mk_chess_camera_init_for_place_traps(void) {
     if (camera != 0 && camera->instance != camera_item.instance) {
         camera = 0;
     }
-    camera->pos_x = -38.45f;
-    camera->pos_y = 24.8f;
-    camera->pos_z = 0.0f;
+    camera->pos.x = -38.45f;
+    camera->pos.y = 24.8f;
+    camera->pos.z = 0.0f;
     target.x = 0.0f;
     target.y = 0.0f;
     target.z = 0.0f;
