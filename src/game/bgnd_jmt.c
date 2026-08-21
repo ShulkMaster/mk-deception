@@ -453,8 +453,8 @@ static float p_watch_shadow(void) {
     angles.y = 0.0f;
     angles.z = 0.0f;
     height = 0.5f *
-        (g_game_info.plyr0.slot.mirror_a->pos.z +
-         g_game_info.plyr1.slot.mirror_a->pos.z);
+        (g_game_info.plyr0.slot.mirror_a->pos.value.z +
+         g_game_info.plyr1.slot.mirror_a->pos.value.z);
     if (height < 0.0f) {
         height = 0.0f;
     }
@@ -1767,9 +1767,9 @@ static void rope_controller_update(MkHdr* pdata) {
             gxMat33Tx31(
                 &local_position, &attached_position,
                 (Mat33*)&inverse_model_matrix);
-            local_position.x += model->pos.x;
-            local_position.y += model->pos.y;
-            local_position.z += model->pos.z;
+            local_position.x += model->pos.value.x;
+            local_position.y += model->pos.value.y;
+            local_position.z += model->pos.value.z;
             bone->parent_matrix->pos.x = local_position.x;
             bone->parent_matrix->pos.y = local_position.y;
             bone->parent_matrix->pos.z = local_position.z;

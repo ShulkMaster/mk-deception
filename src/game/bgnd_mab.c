@@ -543,9 +543,9 @@ void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
     }
 
     if (object != 0) {
-        object->pos.x = position->x;
-        object->pos.z = position->z;
-        object->pos.y = position->y;
+        object->pos.value.x = position->x;
+        object->pos.value.z = position->z;
+        object->pos.value.y = position->y;
         object->flags_08_bits.bit7 = 1;
     }
 }
@@ -565,13 +565,13 @@ static float p_fish_attack_bloodsplat(void) {
         0x2001E, "BODYSPLAT", 0x2094, 0);
     if (object != 0) {
         insert_fgnd_mkobj(object);
-        object->pos.x = pdata->position.x;
-        object->pos.y = pdata->position.y;
-        object->pos.z = pdata->position.z;
+        object->pos.value.x = pdata->position.x;
+        object->pos.value.y = pdata->position.y;
+        object->pos.value.z = pdata->position.z;
         object->flags_08_bits.scale_active = 1;
         object->scale.x = 0.5f;
         object->scale.z = 0.5f;
-        uv_v3_to_v3(&direction, &effect_origin, &object->pos);
+        uv_v3_to_v3(&direction, &effect_origin, &object->pos.value);
         v3_to_xy_ang(&object->ang, &direction);
         object_instance = object->hdr.instance;
     }
@@ -649,9 +649,9 @@ float p_fish_attack(void) {
         }
 
         get_bone_world_pos(target, fish_data->target_bone, &target_position);
-        fish->pos.x = target_position.x + 0.5f * sfrand(0.75f);
-        fish->pos.y = -0.15f;
-        fish->pos.z = target_position.z + 0.5f * sfrand(0.75f);
+        fish->pos.value.x = target_position.x + 0.5f * sfrand(0.75f);
+        fish->pos.value.y = -0.15f;
+        fish->pos.value.z = target_position.z + 0.5f * sfrand(0.75f);
         pdata->active = 0;
         pdata->lifetime = fish_data->lifetime;
         pdata->state = 0;
@@ -671,7 +671,7 @@ float p_fish_attack(void) {
         get_bone_world_pos(
             target, fish_data->target_bone, &target_position);
         distance = uv_v3_to_v3_dist(
-            &direction, &fish->pos, &target_position);
+            &direction, &fish->pos.value, &target_position);
         scale_v3(
             &direction, &direction, distance / 15.0f);
         fish->pos_vel = direction;
@@ -702,7 +702,7 @@ float p_fish_attack(void) {
                 get_bone_world_pos(
                     target, fish_data->target_bone, &target_position);
                 distance = uv_v3_to_v3_dist(
-                    &direction, &fish->pos, &target_position);
+                    &direction, &fish->pos.value, &target_position);
                 scale_v3(
                     &direction, &direction, distance / 10.0f);
                 fish->pos_vel = direction;
@@ -721,7 +721,7 @@ float p_fish_attack(void) {
                 get_bone_world_pos(
                     target, fish_data->target_bone, &target_position);
                 distance = uv_v3_to_v3_dist(
-                    &direction, &fish->pos, &target_position);
+                    &direction, &fish->pos.value, &target_position);
                 pdata->state_ticks = 10;
                 scale_v3(&direction, &direction,
                          distance / (float)pdata->state_ticks);
@@ -753,7 +753,7 @@ float p_fish_attack(void) {
                 continue;
             case 5:
                 distance = uv_v3_to_v3_dist(
-                    &direction, &arena_center, &target->pos);
+                    &direction, &arena_center, &target->pos.value);
                 pdata->state_ticks = 110;
                 pdata->lifetime = pdata->state_ticks + 2;
                 scale_v3(&direction, &direction,
@@ -780,7 +780,7 @@ float p_fish_attack(void) {
             case 4:
                 get_bone_world_pos(
                     target, fish_data->target_bone, &target_position);
-                uv_v3_to_v3(&direction, &fish->pos, &target_position);
+                uv_v3_to_v3(&direction, &fish->pos.value, &target_position);
                 v3_to_xy_ang(&fish->ang, &direction);
                 pdata->state_ticks--;
                 break;
@@ -788,8 +788,8 @@ float p_fish_attack(void) {
                 get_bone_world_pos(
                     target, fish_data->target_bone, &target_position);
                 fish->ang.x = 0.0f;
-                if (fish->pos.y > -0.05f) {
-                    fish->pos.y -= 0.05f;
+                if (fish->pos.value.y > -0.05f) {
+                    fish->pos.value.y -= 0.05f;
                 }
                 direction.x = -fish->pos_vel.x;
                 direction.y = -fish->pos_vel.y;
@@ -817,7 +817,7 @@ float p_fish_attack(void) {
                 RESOLVE_MAB_OBJECT(
                     severed_object, severed->object, severed->instance);
                 if (severed_object != 0 && pdata->state_ticks < 20) {
-                    fish->pos.y -= 0.1f;
+                    fish->pos.value.y -= 0.1f;
                 }
                 pdata->state_ticks--;
                 break;
@@ -909,9 +909,9 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     snd_req(0x154);
     if (blood_proc != 0) {
         blood_pdata = (MabGenericPositionPdata*)mab_generic_pdata;
-        blood_pdata->position.x = target->pos.x;
+        blood_pdata->position.x = target->pos.value.x;
         blood_pdata->position.y = -0.185f;
-        blood_pdata->position.z = target->pos.z;
+        blood_pdata->position.z = target->pos.value.z;
     }
 
     if (_create_mkproc_generic_tinystack(
@@ -1145,9 +1145,9 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
         random_angles.z += sfrand(0.06f);
         current = &fish[index];
 
-        current->good_fish->pos.x = jump_position.x;
-        current->good_fish->pos.y = -1.25f;
-        current->good_fish->pos.z = jump_position.z;
+        current->good_fish->pos.value.x = jump_position.x;
+        current->good_fish->pos.value.y = -1.25f;
+        current->good_fish->pos.value.z = jump_position.z;
         angle = 0.63f + (1.57f + xz_to_y_ang(&jump_direction));
         index++;
         wrapped_angle = (int)(166886.1f * angle) & 0xFFFFF;
@@ -1158,7 +1158,7 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
 
         current->active_fish->field_38 = 0.0f;
         current->active_fish->flags |= 3;
-        current->bad_fish->pos = current->good_fish->pos;
+        current->bad_fish->pos.value = current->good_fish->pos.value;
         current->bad_fish->ang = current->good_fish->ang;
         bad_hidden = current->bad_fish->hide_flags & 0x20;
         current->bad_fish->flags_word_08 =
@@ -1353,10 +1353,10 @@ static float p_xpd_obj_monitor(void) {
                 float ground_y;
 
                 ground_y = g_game_info.field_34 + 0.35f;
-                if (object->pos.y < ground_y) {
+                if (object->pos.value.y < ground_y) {
                     float reflection;
 
-                    object->pos.y = ground_y;
+                    object->pos.value.y = ground_y;
                     reflection = 2.0f *
                         (object->pos_vel.x * ground_normal.x +
                          object->pos_vel.y * ground_normal.y +
@@ -1435,9 +1435,9 @@ float p_skytemple_bodysplat(void) {
     if (loaded_object != 0) {
         insert_fgnd_mkobj(loaded_object);
         object = loaded_object;
-        object->pos.x = pdata->position.x;
-        object->pos.y = pdata->position.y;
-        object->pos.z = pdata->position.z;
+        object->pos.value.x = pdata->position.x;
+        object->pos.value.y = pdata->position.y;
+        object->pos.value.z = pdata->position.z;
         object->flags_08_bits.scale_active = 1;
         object->scale.x = 1.0f;
         object->scale.y = 1.0f;
@@ -1482,7 +1482,7 @@ static float p_cam_bounce_monitor(void) {
     }
 
     distance = dist_v3_to_v3(
-        &camera_obj->pos, &object->pos);
+        &camera_obj->pos, &object->pos.value);
     while (fabs(distance) > pdata->trigger_distance) {
         object = pdata->object;
         if (object != 0 && object->hdr.instance != pdata->object_instance) {
@@ -1492,7 +1492,7 @@ static float p_cam_bounce_monitor(void) {
             return -1.0f;
         }
         distance = dist_v3_to_v3(
-            &camera_obj->pos, &object->pos);
+            &camera_obj->pos, &object->pos.value);
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
@@ -1525,7 +1525,7 @@ static float p_cam_bounce_monitor(void) {
     object->pos_vel.x -= camera_normal->x * reflection;
     object->pos_vel.y -= camera_normal->y * reflection;
     object->pos_vel.z -= camera_normal->z * reflection;
-    v3_add_v3(&object->pos, &object->pos, &object->pos_vel);
+    v3_add_v3(&object->pos.value, &object->pos.value, &object->pos_vel);
     scale_v3(
         &object->pos_vel, &object->pos_vel, pdata->velocity_scale);
     return -1.0f;
@@ -1553,9 +1553,9 @@ void skytemple_player_explode(
     }
 
     player->slot.mirror_a->flags_09_bits.head_tracking = 0;
-    player->slot.mirror_a->pos.x = x;
-    player->slot.mirror_a->pos.y = y;
-    player->slot.mirror_a->pos.z = z;
+    player->slot.mirror_a->pos.value.x = x;
+    player->slot.mirror_a->pos.value.y = y;
+    player->slot.mirror_a->pos.value.z = z;
     bgnd_launch_fx_at_position("meat_chunk_explode", x, y, z);
     bgnd_hide_mirror_guys();
 
@@ -1604,9 +1604,9 @@ void skytemple_player_explode(
             continue;
         }
 
-        limb->pos.x = x;
-        limb->pos.y = y + 0.35f;
-        limb->pos.z = z;
+        limb->pos.value.x = x;
+        limb->pos.value.y = y + 0.35f;
+        limb->pos.value.z = z;
         limb->flags_08_bits.gravity_enabled = 1;
         limb->flags_08_bits.angular_velocity_enabled = 1;
         limb->flags_08_bits.rotation_enabled = 1;
@@ -1636,10 +1636,10 @@ void skytemple_player_explode(
 
             camera = camera_obj;
             if (camera != 0 && bounce_object != 0) {
-                camera_delta_y = camera->pos.y - bounce_object->pos.y;
-                camera_delta_z = camera->pos.z - bounce_object->pos.z;
+                camera_delta_y = camera->pos.y - bounce_object->pos.value.y;
+                camera_delta_z = camera->pos.z - bounce_object->pos.value.z;
                 bounce_object->pos_vel.x =
-                    (camera->pos.x - bounce_object->pos.x) * 0.025f;
+                    (camera->pos.x - bounce_object->pos.value.x) * 0.025f;
                 bounce_object->pos_vel.y = camera_delta_y * 0.025f;
                 bounce_object->pos_vel.z = camera_delta_z * 0.025f;
                 if (_create_mkproc_generic_tinystack(

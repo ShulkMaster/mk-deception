@@ -364,20 +364,7 @@ typedef struct MkObj {
     MkFlippedBoneMap* flipped_bone_map; /* +0x8C */
     Vec ground_restore_pos; /* +0x90 */
     char pad9C[4];
-    union {
-        struct {
-            union {
-                Vec pos; /* +0xA0 */
-                struct {
-                    float pos_x;
-                    float pos_y;
-                    float pos_z;
-                };
-            };
-            unsigned int pos_pad;
-        };
-        RwMatrixPosition pos_row;
-    };
+    RwMatrixPosition pos; /* +0xA0 */
     union {
         struct {
             Vec pos_vel; /* +0xB0 */

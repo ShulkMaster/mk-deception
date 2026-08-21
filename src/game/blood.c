@@ -1696,22 +1696,22 @@ void spawn_bld_fall(
                     object->flags_08_bits.gravity_enabled = 1;
 
                     if (bone != 0) {
-                        object->pos.x = bone->matrix.pos.x +
+                        object->pos.value.x = bone->matrix.pos.x +
                             position->x * bone->matrix.right.x +
                             position->y * bone->matrix.up.x +
                             position->z * bone->matrix.at.x;
-                        object->pos.y = bone->matrix.pos.y +
+                        object->pos.value.y = bone->matrix.pos.y +
                             position->x * bone->matrix.right.y +
                             position->y * bone->matrix.up.y +
                             position->z * bone->matrix.at.y;
-                        object->pos.z = bone->matrix.pos.z +
+                        object->pos.value.z = bone->matrix.pos.z +
                             position->x * bone->matrix.right.z +
                             position->y * bone->matrix.up.z +
                             position->z * bone->matrix.at.z;
                     } else {
-                        object->pos.x = position->x;
-                        object->pos.y = position->y;
-                        object->pos.z = position->z;
+                        object->pos.value.x = position->x;
+                        object->pos.value.y = position->y;
+                        object->pos.value.z = position->z;
                     }
 
                     object->pos_vel.x =
@@ -1740,11 +1740,11 @@ void spawn_bld_fall(
                         float z;
 
                         x = ncs_blood_splat_list[index].position.x -
-                            object->pos.x;
+                            object->pos.value.x;
                         y = ncs_blood_splat_list[index].position.y -
-                            object->pos.y;
+                            object->pos.value.y;
                         z = ncs_blood_splat_list[index].position.z -
-                            object->pos.z;
+                            object->pos.value.z;
                         if (blood_sqrt(x * x + y * y + z * z) <
                             nearby_radius) {
                             nearby_index = index;
@@ -1771,9 +1771,9 @@ void spawn_bld_fall(
                         splat = &ncs_blood_splat_list[oldest_index];
                         splat->reuse_count = 0;
                         splat->splat_count = 0;
-                        splat->position.x = object->pos.x;
-                        splat->position.y = object->pos.y;
-                        splat->position.z = object->pos.z;
+                        splat->position.x = object->pos.value.x;
+                        splat->position.y = object->pos.value.y;
+                        splat->position.z = object->pos.value.z;
                         splat->expiry_tick =
                             (unsigned int)exec_tick_ctr + 180;
                         splat->splat_count++;
@@ -1788,9 +1788,9 @@ void spawn_bld_fall(
                             splat->reuse_count++;
                             if (splat->reuse_count < 3) {
                                 splat->splat_count = 0;
-                                splat->position.x = object->pos.x;
-                                splat->position.y = object->pos.y;
-                                splat->position.z = object->pos.z;
+                                splat->position.x = object->pos.value.x;
+                                splat->position.y = object->pos.value.y;
+                                splat->position.z = object->pos.value.z;
                                 splat->expiry_tick =
                                     (unsigned int)exec_tick_ctr + 180;
                                 splat->splat_count++;
@@ -1836,18 +1836,18 @@ static float p_watch_bleed_obj_for_gnd_coll(void) {
         object = 0;
     }
     if (object != 0) {
-        if (object->pos.y > g_game_info.field_34) {
+        if (object->pos.value.y > g_game_info.field_34) {
             object->pos_vel.y -= 0.0015f * game_speed;
             object->pos_vel.x *= 0.99f;
             object->pos_vel.y *= 0.99f;
             object->pos_vel.z *= 0.99f;
             return 1.0f;
         }
-        if (object->pos.y >= g_game_info.field_34 - 1.0f &&
+        if (object->pos.value.y >= g_game_info.field_34 - 1.0f &&
             (pdata->flags & 0xC0) != 0) {
-            object->pos.y = g_game_info.field_34 + 0.01f;
+            object->pos.value.y = g_game_info.field_34 + 0.01f;
             spawn_decal_emitter(
-                "blsplat", pdata->decal_owner, &object->pos, 0, 0.0f);
+                "blsplat", pdata->decal_owner, &object->pos.value, 0, 0.0f);
         }
         if (object->hdr.instance != 0) {
             object->hdr.typed_vtbl->destroy((MkHdr*)object);

@@ -397,8 +397,8 @@ void mks_start_axis_indicator_p_axis_track_bone_world_mat(
         return;
     }
 
-    axis->pos_z = 0.0f;
-    axis->pos_y = 0.025f;
+    axis->pos.value.z = 0.0f;
+    axis->pos.value.y = 0.025f;
     axis->flags_08 |= 0x80;
     axis->hide_flags |= 0x20;
     axis->light_flags = 4;
@@ -1906,14 +1906,14 @@ void start_cloth_bones(MkObj* obj) {
     unsigned int cloth_index;
     float rest_length;
 
-    if (obj->pos.x != obj->pos.x) {
-        obj->pos.x = 0.0f;
+    if (obj->pos.value.x != obj->pos.value.x) {
+        obj->pos.value.x = 0.0f;
     }
-    if (obj->pos.y != obj->pos.y) {
-        obj->pos.y = 0.0f;
+    if (obj->pos.value.y != obj->pos.value.y) {
+        obj->pos.value.y = 0.0f;
     }
-    if (obj->pos.z != obj->pos.z) {
-        obj->pos.z = 0.0f;
+    if (obj->pos.value.z != obj->pos.value.z) {
+        obj->pos.value.z = 0.0f;
     }
 
     cloth_count = 0;
