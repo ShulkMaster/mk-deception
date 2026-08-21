@@ -140,9 +140,9 @@ void start_first_pass_render(void) {
         camera_object = 0;
     }
     if (camera_object != 0) {
-        camera_object->pos.x = 0.0f;
-        camera_object->pos.y = 0.0f;
-        camera_object->pos.z = -50.0f;
+        camera_object->pos.value.x = 0.0f;
+        camera_object->pos.value.y = 0.0f;
+        camera_object->pos.value.z = -50.0f;
         camera_object->ang.x = 0.0f;
         camera_object->ang.y = 0.0f;
         camera_object->ang.z = 0.0f;

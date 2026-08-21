@@ -199,9 +199,9 @@ RpLight* create_spot_light(MkObj* parent, LightDef* def) {
     mkobj_or_flag(parent, 0x10);
     mkobj_or_flag(parent, 0x80);
     parent->light_flags = def->flags;
-    parent->pos.x = def->field1C;
-    parent->pos.y = def->field20;
-    parent->pos.z = def->field24;
+    parent->pos.value.x = def->field1C;
+    parent->pos.value.y = def->field20;
+    parent->pos.value.z = def->field24;
     parent->dir_x = def->field28;
     parent->dir_y = def->field2C;
     parent->dir_z = def->field30;
@@ -492,9 +492,9 @@ static RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     mkobj_or_flag(mkobj, 0x10);
     mkobj_or_flag(mkobj, 0x80);
     mkobj->light_flags = def->flags;
-    mkobj->pos.x = def->field1C;
-    mkobj->pos.y = def->field20;
-    mkobj->pos.z = def->field24;
+    mkobj->pos.value.x = def->field1C;
+    mkobj->pos.value.y = def->field20;
+    mkobj->pos.value.z = def->field24;
     mkobj->dir_x = def->field28;
     mkobj->dir_y = def->field2C;
     mkobj->dir_z = def->field30;
@@ -593,9 +593,9 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         mkobj->light_flags = def->flags;
         mkobj_or_flag(mkobj, 0x40);
         if (parent == 0) {
-            mkobj->pos.x = def->field20;
-            mkobj->pos.y = def->field24;
-            mkobj->pos.z = def->field28;
+            mkobj->pos.value.x = def->field20;
+            mkobj->pos.value.y = def->field24;
+            mkobj->pos.value.z = def->field28;
             insert_fgnd_mkobj(mkobj);
             update_mkobj(mkobj);
         }

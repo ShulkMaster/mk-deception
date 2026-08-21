@@ -235,7 +235,7 @@ int init_shadow(ShadowObject* shadow, MkObj* object) {
             shadow->sphere_w = atomic->boundingSphere.radius;
             shadow->ground_w = shadow->sphere_w;
             RwV3dTransformPoints(
-                &shadow->ground_point, (const RwV3d*)&object->pos, 1,
+                &shadow->ground_point, (const RwV3d*)&object->pos.value, 1,
                 &object->frame->modelling);
         }
     }
@@ -300,7 +300,7 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
     }
     gc_enable_alpha_writes(1);
     RwV3dTransformPoints(
-        &shadow->ground_point, (const RwV3d*)&object->pos, 1,
+        &shadow->ground_point, (const RwV3d*)&object->pos.value, 1,
         &object->frame->modelling);
     camera = ShadowCamera;
     dir_matrix = &ShadowDirectionMatrix;

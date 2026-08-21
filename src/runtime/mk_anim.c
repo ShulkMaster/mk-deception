@@ -1128,18 +1128,18 @@ static float p_bone_matcher(void) {
         child_delta_x = correction_x * child_weight;
         child_delta_y = correction_y * child_weight;
         child_delta_z = correction_z * child_weight;
-        parent_obj->pos.x += parent_delta_x;
-        parent_obj->pos.y += parent_delta_y;
-        parent_obj->pos.z += parent_delta_z;
-        child_obj->pos.x += child_delta_x;
-        child_obj->pos.y += child_delta_y;
-        child_obj->pos.z += child_delta_z;
+        parent_obj->pos.value.x += parent_delta_x;
+        parent_obj->pos.value.y += parent_delta_y;
+        parent_obj->pos.value.z += parent_delta_z;
+        child_obj->pos.value.x += child_delta_x;
+        child_obj->pos.value.y += child_delta_y;
+        child_obj->pos.value.z += child_delta_z;
         update_obj_pos(child_obj);
         update_obj_pos(parent_obj);
     } else {
-        child_obj->pos.x += correction_x;
-        child_obj->pos.y += correction_y;
-        child_obj->pos.z += correction_z;
+        child_obj->pos.value.x += correction_x;
+        child_obj->pos.value.y += correction_y;
+        child_obj->pos.value.z += correction_z;
         update_obj_pos(child_obj);
     }
     update_bone_hierarchy(
@@ -2661,9 +2661,9 @@ static void apply_anim_offset(
         world_delta.x *= object_scale;
         world_delta.y *= object_scale;
         world_delta.z *= object_scale;
-        obj->pos.x += world_delta.x;
-        obj->pos.y += world_delta.y;
-        obj->pos.z += world_delta.z;
+        obj->pos.value.x += world_delta.x;
+        obj->pos.value.y += world_delta.y;
+        obj->pos.value.z += world_delta.z;
     }
 }
 
@@ -2693,9 +2693,9 @@ void set_root_and_obj_movement_weights(
     root_matrix->pos.y += local_delta.y;
     root_matrix->pos.z += local_delta.z;
     v3_x_mat(&world_delta, &local_delta, obj->field_24);
-    obj->pos.x -= world_delta.x;
-    obj->pos.y -= world_delta.y;
-    obj->pos.z -= world_delta.z;
+    obj->pos.value.x -= world_delta.x;
+    obj->pos.value.y -= world_delta.y;
+    obj->pos.value.z -= world_delta.z;
 }
 
 static unsigned short* find_frame(unsigned short* current) {
@@ -3066,9 +3066,9 @@ int transition_to_anim_script_frame(
                         &adjusted_position,
                         &root->translation.value,
                         &yaw_matrix,
-                        &obj->pos);
+                        &obj->pos.value);
                     scale_v3(
-                        &obj->pos,
+                        &obj->pos.value,
                         &adjusted_position,
                         -1.0f);
                     obj->bone_angle_68 = root_yaw;
@@ -3303,9 +3303,9 @@ int set_anim_script_frame(
                         &adjusted_position,
                         &root->translation.value,
                         &yaw_matrix,
-                        &obj->pos);
+                        &obj->pos.value);
                     scale_v3(
-                        &obj->pos,
+                        &obj->pos.value,
                         &adjusted_position,
                         -1.0f);
                     obj->bone_angle_68 = root_yaw;

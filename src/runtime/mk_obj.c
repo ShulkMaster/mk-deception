@@ -594,15 +594,15 @@ void obj_set_ang(void* obj, void* ang) {
 }
 
 void obj_get_pos(MkObj* obj, Vec* out) {
-    out->x = obj->pos.x;
-    out->y = obj->pos.y;
-    out->z = obj->pos.z;
+    out->x = obj->pos.value.x;
+    out->y = obj->pos.value.y;
+    out->z = obj->pos.value.z;
 }
 
 void obj_set_pos(MkObj* obj, Vec* pos) {
-    obj->pos.x = pos->x;
-    obj->pos.y = pos->y;
-    obj->pos.z = pos->z;
+    obj->pos.value.x = pos->x;
+    obj->pos.value.y = pos->y;
+    obj->pos.value.z = pos->z;
     obj->flags_08_bits.airborne = 1;
 }
 
@@ -920,17 +920,17 @@ static float p_plyr_head_tracking(void) {
                 (Vec*)&head->transform_parent->parent_matrix->pos);
 
             if ((int)obj->bone_count <= 16) {
-                object_pos = obj->pos;
+                object_pos = obj->pos.value;
             } else {
                 MkBone* root = obj->bones[16];
                 if (root == 0 || root->parent_matrix == 0) {
-                    object_pos.x = obj->pos.x;
-                    object_pos.y = obj->pos.y;
-                    object_pos.z = obj->pos.z;
+                    object_pos.x = obj->pos.value.x;
+                    object_pos.y = obj->pos.value.y;
+                    object_pos.z = obj->pos.value.z;
                 } else {
                     v3_x_mat_add_v3(&object_pos,
                                     (Vec*)&root->parent_matrix->pos,
-                                    (MKMATRIX*)obj->field_24, &obj->pos);
+                                    (MKMATRIX*)obj->field_24, &obj->pos.value);
                 }
             }
 
@@ -943,32 +943,32 @@ static float p_plyr_head_tracking(void) {
                 v3_to_xy_ang(&target_angles, &target_pos);
             } else {
                 if ((int)target_obj->bone_count <= 16) {
-                    target_pos = target_obj->pos;
+                    target_pos = target_obj->pos.value;
                 } else {
                     MkBone* target_bone = target_obj->bones[16];
                     if (target_bone == 0 || target_bone->parent_matrix == 0) {
-                        target_pos.x = target_obj->pos.x;
-                        target_pos.y = target_obj->pos.y;
-                        target_pos.z = target_obj->pos.z;
+                        target_pos.x = target_obj->pos.value.x;
+                        target_pos.y = target_obj->pos.value.y;
+                        target_pos.z = target_obj->pos.value.z;
                     } else {
                         v3_x_mat_add_v3(
                             &target_pos, (Vec*)&target_bone->parent_matrix->pos,
-                            (MKMATRIX*)target_obj->field_24, &target_obj->pos);
+                            (MKMATRIX*)target_obj->field_24, &target_obj->pos.value);
                     }
                 }
                 if ((int)target_obj->bone_count <= 9) {
-                    target_low_pos = target_obj->pos;
+                    target_low_pos = target_obj->pos.value;
                 } else {
                     MkBone* target_bone = target_obj->bones[9];
                     if (target_bone == 0 || target_bone->parent_matrix == 0) {
-                        target_low_pos.x = target_obj->pos.x;
-                        target_low_pos.y = target_obj->pos.y;
-                        target_low_pos.z = target_obj->pos.z;
+                        target_low_pos.x = target_obj->pos.value.x;
+                        target_low_pos.y = target_obj->pos.value.y;
+                        target_low_pos.z = target_obj->pos.value.z;
                     } else {
                         v3_x_mat_add_v3(&target_low_pos,
                                         (Vec*)&target_bone->parent_matrix->pos,
                                         (MKMATRIX*)target_obj->field_24,
-                                        &target_obj->pos);
+                                        &target_obj->pos.value);
                     }
                 }
                 if (target_pos.y > target_low_pos.y) {
@@ -1149,13 +1149,13 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
             matrix->pos.y =
                 -(g_game_info.misc->mirror_plane_offset +
                   (pdata->runtime_data->alternate_mirror_offset +
-                   (source->pos.y - g_game_info.field_34)));
+                   (source->pos.value.y - g_game_info.field_34)));
             matrix->pos.y += g_game_info.field_34;
         } else {
             matrix->pos.y =
                 -(g_game_info.misc->mirror_plane_offset +
                   (pdata->runtime_data->primary_mirror_offset +
-                   (source->pos.y - g_game_info.field_34)));
+                   (source->pos.value.y - g_game_info.field_34)));
             matrix->pos.y += g_game_info.field_34;
         }
         RwFrameUpdateObjects(mirror->frame);
@@ -1397,22 +1397,22 @@ static void limb_bone_calc_world_pos(MkHdr* data) {
         bone = obj->bones[bone_index];
         out = (Vec*)&bone->matrix.pos;
         if (bone_index >= (int)obj->bone_count) {
-            *out = obj->pos;
+            *out = obj->pos.value;
             return;
         }
         if (bone_index == -1) {
-            *out = obj->pos;
+            *out = obj->pos.value;
             return;
         }
         if (bone == 0 || (parent = bone->parent_matrix) == 0) {
-            out->x = obj->pos.x;
-            out->y = obj->pos.y;
-            out->z = obj->pos.z;
+            out->x = obj->pos.value.x;
+            out->y = obj->pos.value.y;
+            out->z = obj->pos.value.z;
             return;
         }
         v3_x_mat_add_v3(
             out, (Vec*)&parent->pos, (MKMATRIX*)obj->field_24,
-            &obj->pos);
+            &obj->pos.value);
         return;
     }
     if (pdata->hdr.instance != 0) {
@@ -1509,15 +1509,15 @@ void ground_me(void* obj) {
                     bone->matrix.pos.x =
                         parent->pos.y * matrix->up.x +
                         parent->pos.x * matrix->right.x +
-                        parent->pos.z * matrix->at.x + mkobj->pos.x;
+                        parent->pos.z * matrix->at.x + mkobj->pos.value.x;
                     bone->matrix.pos.y =
                         parent->pos.y * matrix->up.y +
                         parent->pos.x * matrix->right.y +
-                        parent->pos.z * matrix->at.y + mkobj->pos.y;
+                        parent->pos.z * matrix->at.y + mkobj->pos.value.y;
                     bone->matrix.pos.z =
                         parent->pos.y * matrix->up.z +
                         parent->pos.x * matrix->right.z +
-                        parent->pos.z * matrix->at.z + mkobj->pos.z;
+                        parent->pos.z * matrix->at.z + mkobj->pos.value.z;
                 }
                 height = collision->offset.y * bone->matrix.up.y +
                          collision->offset.x * bone->matrix.right.y +
@@ -1533,8 +1533,8 @@ void ground_me(void* obj) {
 
     if (min_height != 1000.0f) {
         if (min_height < mkobj->ground_colls_y) {
-            mkobj->pos.y -= min_height - mkobj->ground_colls_y;
-            *(Vec*)&matrix->pos = mkobj->pos;
+            mkobj->pos.value.y -= min_height - mkobj->ground_colls_y;
+            *(Vec*)&matrix->pos = mkobj->pos.value;
             matrix->flags &= ~0x20000;
             if ((mkobj->hide_flags & 0x10) == 0) {
                 RwFrameUpdateObjects(mkobj->frame);
@@ -1559,8 +1559,8 @@ void ground_me(void* obj) {
                 mkobj->flags_08_bits.moving = 0;
             }
         } else if (mkobj->flags_09_bits.bit6 != 0) {
-            mkobj->pos.y -= min_height - mkobj->ground_colls_y;
-            *(Vec*)&matrix->pos = mkobj->pos;
+            mkobj->pos.value.y -= min_height - mkobj->ground_colls_y;
+            *(Vec*)&matrix->pos = mkobj->pos.value;
             matrix->flags &= ~0x20000;
             if ((mkobj->hide_flags & 0x10) == 0) {
                 RwFrameUpdateObjects(mkobj->frame);
@@ -1668,7 +1668,7 @@ void get_bone_offset_world_pos(
 
     bone_count = (int)obj->bone_count;
     if (bone >= bone_count) {
-        *out = obj->pos;
+        *out = obj->pos.value;
         return;
     }
     mkbone = obj->bones[bone];
@@ -1718,27 +1718,27 @@ static void set_bone_world_pos_xz(
     mkobj = (MkObj*)obj;
     target = (Vec*)pos;
     if (bone >= (int)mkobj->bone_count) {
-        current = mkobj->pos;
+        current = mkobj->pos.value;
     } else if (bone == -1) {
-        current = mkobj->pos;
+        current = mkobj->pos.value;
     } else {
         mkbone = mkobj->bones[bone];
         if (mkbone == 0 || (parent = mkbone->parent_matrix) == 0) {
-            current.x = mkobj->pos.x;
-            current.y = mkobj->pos.y;
-            current.z = mkobj->pos.z;
+            current.x = mkobj->pos.value.x;
+            current.y = mkobj->pos.value.y;
+            current.z = mkobj->pos.value.z;
         } else {
             v3_x_mat_add_v3(
                 &current, (Vec*)&parent->pos,
-                (MKMATRIX*)mkobj->field_24, &mkobj->pos);
+                (MKMATRIX*)mkobj->field_24, &mkobj->pos.value);
         }
     }
-    mkobj->pos.x += target->x - current.x;
-    mkobj->pos.z += target->z - current.z;
+    mkobj->pos.value.x += target->x - current.x;
+    mkobj->pos.value.z += target->z - current.z;
     mkobj->flags_08_bits.bit7 = 1;
 
     matrix = mkobj->field_24;
-    matrix->pos = *(RwV3d*)&mkobj->pos;
+    matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
     if ((mkobj->hide_flags & 0x10) == 0) {
         RwFrameUpdateObjects(mkobj->frame);
@@ -1776,28 +1776,28 @@ void set_bone_world_pos(void* obj, int bone, void* pos) {
     mkobj = (MkObj*)obj;
     target = (Vec*)pos;
     if (bone >= (int)mkobj->bone_count) {
-        current = mkobj->pos;
+        current = mkobj->pos.value;
     } else if (bone == -1) {
-        current = mkobj->pos;
+        current = mkobj->pos.value;
     } else {
         mkbone = mkobj->bones[bone];
         if (mkbone == 0 || (parent = mkbone->parent_matrix) == 0) {
-            current.x = mkobj->pos.x;
-            current.y = mkobj->pos.y;
-            current.z = mkobj->pos.z;
+            current.x = mkobj->pos.value.x;
+            current.y = mkobj->pos.value.y;
+            current.z = mkobj->pos.value.z;
         } else {
             v3_x_mat_add_v3(
                 &current, (Vec*)&parent->pos,
-                (MKMATRIX*)mkobj->field_24, &mkobj->pos);
+                (MKMATRIX*)mkobj->field_24, &mkobj->pos.value);
         }
     }
-    mkobj->pos.x += target->x - current.x;
-    mkobj->pos.y += target->y - current.y;
-    mkobj->pos.z += target->z - current.z;
+    mkobj->pos.value.x += target->x - current.x;
+    mkobj->pos.value.y += target->y - current.y;
+    mkobj->pos.value.z += target->z - current.z;
     mkobj->flags_08_bits.bit7 = 1;
 
     matrix = mkobj->field_24;
-    matrix->pos = *(RwV3d*)&mkobj->pos;
+    matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
     if ((mkobj->hide_flags & 0x10) == 0) {
         RwFrameUpdateObjects(mkobj->frame);
@@ -1838,18 +1838,18 @@ void get_bone_relative_pos(MkObj* obj, int bone, Vec* out) {
     MkBone* mkbone;
 
     if (bone >= (int)obj->bone_count) {
-        *out = obj->pos;
+        *out = obj->pos.value;
         return;
     }
     if (bone == -1) {
-        *out = obj->pos;
+        *out = obj->pos.value;
         return;
     }
     mkbone = obj->bones[bone];
     if (mkbone == 0 || mkbone->parent_matrix == 0) {
-        out->x = obj->pos.x;
-        out->y = obj->pos.y;
-        out->z = obj->pos.z;
+        out->x = obj->pos.value.x;
+        out->y = obj->pos.value.y;
+        out->z = obj->pos.value.z;
     } else {
         out->x = mkbone->parent_matrix->pos.x;
         out->y = mkbone->parent_matrix->pos.y;
@@ -1861,23 +1861,23 @@ void get_bone_world_pos(MkObj* obj, int bone, Vec* out) {
     MkBone* mkbone;
 
     if (bone >= (int)obj->bone_count) {
-        *out = obj->pos;
+        *out = obj->pos.value;
         return;
     }
     if (bone == -1) {
-        *out = obj->pos;
+        *out = obj->pos.value;
         return;
     }
     mkbone = obj->bones[bone];
     if (mkbone == 0 || mkbone->parent_matrix == 0) {
-        out->x = obj->pos.x;
-        out->y = obj->pos.y;
-        out->z = obj->pos.z;
+        out->x = obj->pos.value.x;
+        out->y = obj->pos.value.y;
+        out->z = obj->pos.value.z;
         return;
     }
     v3_x_mat_add_v3(
         out, (Vec*)&mkbone->parent_matrix->pos,
-        (MKMATRIX*)obj->field_24, (Vec*)&obj->pos);
+        (MKMATRIX*)obj->field_24, (Vec*)&obj->pos.value);
 }
 
 void update_bone_hierarchy(void* obj) {
@@ -2852,7 +2852,7 @@ static float p_obj(void) {
 void obj_match_pos_ang_to_src_obj(MkObj* dst_obj, MkObj* src_obj) {
     MkHdr* hdr;
 
-    dst_obj->pos = src_obj->pos;
+    dst_obj->pos.value = src_obj->pos.value;
     dst_obj->pos_vel = src_obj->pos_vel;
     dst_obj->ang = src_obj->ang;
     dst_obj->ang_vel = src_obj->ang_vel;
@@ -2882,7 +2882,7 @@ void update_obj_pos(MkObj* mkobj) {
     int matrix_index;
 
     matrix = mkobj->field_24;
-    matrix->pos = *(RwV3d*)&mkobj->pos;
+    matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
     if (mkobj->hide_flag_bits.bit4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
@@ -2956,19 +2956,19 @@ void update_mkobj(void* obj) {
     }
     if (mkobj->flags_08_bits.gravity_enabled != 0) {
         PSVECScale(&mkobj->pos_vel, &scaled_pos, obj_game_speed);
-        PSVECAdd(&mkobj->pos, &scaled_pos, &mkobj->pos);
+        PSVECAdd(&mkobj->pos.value, &scaled_pos, &mkobj->pos.value);
     }
     if (mkobj->flags_0B_bits.pivot_enabled != 0) {
         gxMat33Tx31(
             &pivot, &mkobj->pivot, (Mat33*)matrix);
-        PSVECSubtract(&mkobj->pos, &pivot, (Vec*)&matrix->pos);
+        PSVECSubtract(&mkobj->pos.value, &pivot, (Vec*)&matrix->pos);
         changed = 1;
     } else if (mkobj->flags_08_bits.gravity_enabled != 0 ||
                mkobj->flags_08_bits.airborne != 0 ||
                mkobj->flags_08_bits.bit7 != 0) {
         changed = 1;
         mkobj->flags_08_bits.bit7 = 0;
-        matrix->pos = *(RwV3d*)&mkobj->pos;
+        matrix->pos = *(RwV3d*)&mkobj->pos.value;
     }
     if (mkobj->flags_08_bits.scale_active != 0) {
         gxMatScaledByV3(
@@ -3739,7 +3739,7 @@ MkObj* obj_sever_limb(
     severed->field_24 = &((RwMatrix*)limb_set)[limb];
     _move_bones_from_obj_to_limbobj(
         source, severed, limb, include_children);
-    severed->pos_row = source->pos_row;
+    severed->pos = source->pos;
     severed->pos_vel_row = source->pos_vel_row;
     severed->ang_row = source->ang_row;
     severed->ang_vel_row = source->ang_vel_row;
@@ -3754,9 +3754,9 @@ MkObj* obj_sever_limb(
         v3_x_mat(
             &root_offset, (Vec*)&root->parent_matrix->pos,
             (MKMATRIX*)severed->field_24);
-        severed->pos.x += root_offset.x;
-        severed->pos.y += root_offset.y;
-        severed->pos.z += root_offset.z;
+        severed->pos.value.x += root_offset.x;
+        severed->pos.value.y += root_offset.y;
+        severed->pos.value.z += root_offset.z;
         root->translation.value.z = 0.0f;
         root->translation.value.y = 0.0f;
         root->translation.value.x = 0.0f;
@@ -3772,13 +3772,13 @@ MkObj* obj_sever_limb(
     if (limb_velocities != 0) {
         source_matrix = severed->field_24;
         if ((severed->flags_0B & 4) == 0) {
-            saved_pos = severed->pos_row;
+            saved_pos = severed->pos;
         } else {
             gxMat33Tx31(
                 &transformed.value, &severed->pivot,
                 (Mat33*)source_matrix);
             PSVECSubtract(
-                &severed->pos, &transformed.value, &saved_pos.value);
+                &severed->pos.value, &transformed.value, &saved_pos.value);
         }
         limb_velocity = &limb_velocities[limb];
         severed->pivot.x = limb_velocity->x;
@@ -3789,11 +3789,11 @@ MkObj* obj_sever_limb(
             &transformed.value, &severed->pivot,
             (Mat33*)source_matrix);
         PSVECSubtract(
-            &severed->pos, &transformed.value, &correction.value);
+            &severed->pos.value, &transformed.value, &correction.value);
         PSVECSubtract(
             &correction.value, &saved_pos.value, &transformed.value);
         PSVECSubtract(
-            &severed->pos, &transformed.value, &severed->pos);
+            &severed->pos.value, &transformed.value, &severed->pos.value);
     }
     mk_insert(&severed->hdr, &fgnd_mkobj_list);
     severed->flags_08_bits.airborne = 1;
@@ -4153,7 +4153,7 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame) {
             obj->flags_08_bits.bit7 = 1;
             obj->flags_08_bits.transform_dirty = 1;
             matrix = obj->field_24;
-            obj->pos = *(Vec*)&matrix->pos;
+            obj->pos.value = *(Vec*)&matrix->pos;
             obj->pos_vel.z = 0.0f;
             obj->pos_vel.y = 0.0f;
             obj->pos_vel.x = 0.0f;
