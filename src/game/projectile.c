@@ -207,7 +207,7 @@ extern int reaction_xfer_him(
 extern int collide_sphere_vs_plyr(
     PlyrInfo* player, const Vec* center, float radius);
 extern void pz_fighter_reaction_xfer_him(int reaction);
-extern unsigned long mode_of_play;
+extern int mode_of_play;
 extern ProjectileBoneMatcher* start_bone_matcher(
     float blend_ticks, MkObj* parent, int parent_bone,
     MkObj* child, int child_bone);

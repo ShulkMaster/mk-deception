@@ -4,6 +4,7 @@
 /* Misc gameplay / screen utilities (utils.o). */
 
 #include "runtime/plyr_pdata.h"
+#include "runtime/mk_proc.h"
 
 typedef struct MkObj MkObj;
 typedef struct MkSobj MkSobj;
@@ -37,7 +38,7 @@ void pos_cam_for_current_level(void);
 void reset_severed_limbs(int player);
 void set_far_clip_plane(float dist);
 void* find_obj_by_id(int id);
-void* proc_create(void* proc_fn, int proc_id);
+MkProc* proc_create(MkProcEntryFn proc_fn, int proc_id);
 int get_language(void);
 void set_language(int language);
 void initialize_language_settings(void);

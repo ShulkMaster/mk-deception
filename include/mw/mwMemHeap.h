@@ -49,7 +49,7 @@ extern _mwMemHeap* fixed_block_1024_heap;
 void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info);
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info);
 void mwMemUserConfigInitMemSystem(void);
-int mwMemUserConfigAssert(void);
+int mwMemUserConfigAssert(const char* expression, const char* file, u32 line);
 void mwMemUserConfigPrintf(const char* format, ...);
 void mwMemDestroyFixedBlockHeaps(void);
 void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config);

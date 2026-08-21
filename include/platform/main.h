@@ -24,7 +24,7 @@ extern float game_speed;
 extern void* empty_pdata;
 extern void* mab_generic_pdata;
 extern int jmp_where_id;
-extern unsigned long mode_of_play;
+extern int mode_of_play;
 extern float msecs_per_tick;
 extern int game_tick_ctr;
 extern int exec_tick_ctr;

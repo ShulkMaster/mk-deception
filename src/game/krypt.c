@@ -137,7 +137,7 @@ typedef struct KryptCharacterMonitorPdata {
 } KryptCharacterMonitorPdata; /* 0x10 */
 
 extern int menu_player;
-extern unsigned long mode_of_play;
+extern int mode_of_play;
 extern PlayerProfile p1_profile;
 extern PlayerProfile p2_profile;
 extern ProfileCommon* p1_profile_common;

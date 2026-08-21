@@ -793,7 +793,6 @@ void setup_sound_bank_list_by_mode(int mode, int transition_mode) {
 
 #undef UNLOAD_BANK_LIST
 
-/* Soft ceiling: setup_sound_banks ~95% - nested range-branch emission. */
 void setup_sound_banks(int mode) {
     int transition_mode;
 
@@ -802,11 +801,10 @@ void setup_sound_banks(int mode) {
     }
 
     transition_mode = bank_load_table[mode].transition_mode;
-    if (transition_mode >= 0) {
-        if (transition_mode < 3) {
-            setup_sound_bank_list_by_mode(mode, transition_mode);
-        }
+    if (transition_mode < 0 || transition_mode >= 3) {
+        return;
     }
+    setup_sound_bank_list_by_mode(mode, transition_mode);
 }
 
 /* Soft ceiling: load_banks_on_list_async ~76% - loop GPR allocation. */

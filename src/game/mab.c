@@ -56,10 +56,10 @@ extern float _mkproc_sleep_ticks;
 void* load_named_model_from_slot(int slot, const char* name, int arg2, int arg3);
 void snd_req(int sound_id);
 void shake_camera(float amount, int frames);
-void proc_create(void* proc_fn, int proc_id);
+MkProc* proc_create(MkProcEntryFn proc_fn, int proc_id);
 void kill_all_fstyle_signs(void);
 void del_string_obj_by_id(int id);
-extern void p_move_pbars_off_screen(void);
+extern float p_move_pbars_off_screen(void);
 
 static inline void mkproc_sleep(void) {
     ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();

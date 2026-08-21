@@ -241,13 +241,14 @@ void update_pause_menu_controller_state(void) {
 }
 
 int is_controller_removed(void) {
-    if (find_mkproc_pid(0x2065) != 0) {
-        return 1;
+    int removed;
+
+    if (find_mkproc_pid(0x2065) != 0 || find_mkproc_pid(0x2066) != 0) {
+        removed = 1;
+    } else {
+        removed = 0;
     }
-    if (find_mkproc_pid(0x2066) != 0) {
-        return 1;
-    }
-    return 0;
+    return removed;
 }
 
 void update_cnt_removed_controller_state(void) {
