@@ -87,7 +87,7 @@ void VIConfigure(GXRenderModeObj* mode);
 void VISetBlack(int black);
 void VIFlush(void);
 void VIWaitForRetrace(void);
-int VIGetDTVStatus(void);
+unsigned int VIGetDTVStatus(void);
 int VIGetNextField(void);
 void VISetNextFrameBuffer(void* fb);
 
@@ -520,7 +520,6 @@ void gc_native_display_render_movie(void* ctx) {
     GXColor clearColor;
     GXColor fogColor;
 
-    (void)ctx;
     memcpy(posMtx.m, s_identityPosMtx, sizeof(s_identityPosMtx));
     clearColor = Black;
 
@@ -784,8 +783,6 @@ static void render_image(void* unused) {
     int w;
     int h;
 
-    (void)unused;
-
     save_projection_matrix();
     set_2d_projection();
 
@@ -838,10 +835,8 @@ void gc_native_display_pass_to_RW(void) {
         pal_565 = 0;
     }
     /*
-     * Soft ceiling: ~98.67% -- r3-kill on Copy load unreproducible in C (Q5).
-     * Retail: base r3; lwz Disp@8, fifo@4, Copy@0xC(r3); stw Disp, Copy, fifo.
-     * Tried: Copy-last-use, direct fields, unsigned word walk (r3 base but scrambled
-     * load/store -match%), early Disp store. Keep typed Disp/fifo/Copy locals.
+     * Soft ceiling: 98.25% -- operations, field offsets, and store order match;
+     * only the base and loaded-value register allocation differs.
      */
     d = &gc_native_display;
     xfbDisp = d->xfbDisp;
@@ -852,6 +847,10 @@ void gc_native_display_pass_to_RW(void) {
     _RwDlDefaultFifo = fifo;
 }
 
+/*
+ * Soft ceiling: 98.61% -- the retail TV-format selection has one additional
+ * equivalent branch; the remaining differences are truncation/load scheduling.
+ */
 void gc_native_display_init(void) {
     int tvFormat;
     GXRenderModeObj* mode;
@@ -868,7 +867,6 @@ void gc_native_display_init(void) {
     gc_grab_renderpipe();
     VIInit();
     tvFormat = VIGetTvFormat();
-    /* Soft ceiling: ~92.8% -- TV-format beq/bge shape leftover; stop. */
     if (tvFormat == 1 || tvFormat < 1 || tvFormat >= 3) {
         gc_native_display.rmode = &GXNtsc480IntDf;
     } else {
@@ -886,7 +884,7 @@ void gc_native_display_init(void) {
     gc_native_display.fifo = fifo;
     DCInvalidateRange(fifo, _RwDlFifoSize);
 
-    xfb1 = (void*)((unsigned char*)fifo + _RwDlFifoSize);
+    xfb1 = (void*)((unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize);
     xfb2 = (void*)((unsigned char*)xfb1 + xfbHalf);
     _RwGCXFBDisp = xfb1;
     _RwGCXFB1 = xfb1;
@@ -895,7 +893,7 @@ void gc_native_display_init(void) {
     gc_native_display.xfbCopy = xfb2;
     _RwGCXFBCopy = xfb2;
     DCFlushRange(xfb1, (unsigned long)xfbHalf);
-    DCFlushRange(xfb2, (unsigned long)xfbHalf);
+    DCFlushRange(gc_native_display.xfbCopy, (unsigned long)xfbHalf);
 
     VISetBlack(1);
     VIFlush();
@@ -907,6 +905,7 @@ void gc_native_display_init(void) {
 
     mode = gc_native_display.rmode;
     GXSetScissor(0, 0, mode->fbWidth, mode->efbHeight);
+    mode = gc_native_display.rmode;
     GXSetDispCopySrc(0, 0, mode->fbWidth, mode->efbHeight);
 
     mode = gc_native_display.rmode;
@@ -1430,7 +1429,7 @@ void tile_image(unsigned char* dest) {
     int x;
     int y;
 
-    /* Soft ceiling: ~92.5% -- signed /% tile index vs retail rotlwi/addze; stop. */
+    /* Retail's signed /% lowering matches; only register coloring/scheduling remains. */
     tmp = _mwMemMalloc(wave_heap, 0x10000, 5, 0, 0, 0);
     for (tile = 0; tile < 0x800; tile++) {
         tx = tile % 32;

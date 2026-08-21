@@ -9,6 +9,7 @@
 #include "platform/gcutils.h"
 #include "platform/main.h"
 #include "runtime/image.h"
+#include "runtime/cstdio.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_plugins.h"
@@ -458,18 +459,18 @@ void turn_display_off(void) {
 void Render(void) {
     MkProc* capture_proc;
     MkProc* halt_proc;
-    char tick_text[64];
+    char tick_text[80];
 
     gc_setup_render_mode(mode_of_play == 7);
-    if (pal50_video_frame_dropping != 0 &&
-        ++display_render__pal50_frame_ctr > 5) {
+    if (pal50_video_frame_dropping && ++display_render__pal50_frame_ctr > 5) {
         display_render__pal50_frame_ctr = 0;
         pfxsystem_frame_begin();
         pfxsystem_skip_render_frame();
-        if (!(g_game_info.flags & 0x80) && __mini_game_display_ctrl != 0) {
+        if (!g_game_info.flag_bits.high_res_path &&
+            __mini_game_display_ctrl != 0) {
             render_minigame_list();
         }
-    } else if (display_off != 0) {
+    } else if ((int)display_off != 0) {
         pfxsystem_frame_begin();
         if (Camera != 0) {
             RwCameraClear(Camera, &load_meter_bgnd_color, 7);
@@ -487,7 +488,7 @@ void Render(void) {
         last_pipeline_used = 0;
         curr_pipeline_used = 0;
         uploaded_light_state = 0;
-        if (!(g_game_info.flags & 0x80)) {
+        if (!g_game_info.flag_bits.high_res_path) {
             if (mode_of_play == 7 || mode_of_play == 8) {
                 render_konquest_shadows();
             }
@@ -497,11 +498,18 @@ void Render(void) {
                     g_game_info.plyr0.slot.mirror_b != 0 &&
                     fighter->flag_obj != 0) {
                     MkObj* shadow_obj = fighter->shadow_obj;
-                    if (shadow_obj == 0 ||
-                        shadow_obj->hdr.instance != fighter->shadow_obj_instance) {
+                    if (shadow_obj != 0) {
+                        if (shadow_obj->hdr.instance !=
+                            fighter->shadow_obj_instance) {
+                            shadow_obj = 0;
+                        }
+                    } else {
+                        shadow_obj = 0;
+                    }
+                    if (shadow_obj == 0) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr0);
                     } else if (g_game_info.plyr0.slot.mirror_b->hdr.instance != 0 &&
-                               !(fighter->flag_obj->hide_flags & 0x20)) {
+                               !fighter->flag_obj->hide_flag_bits.hidden) {
                         UpdateShadow();
                         if (g_game_info.section->flags70 & 8) {
                             mirror_guy(g_game_info.plyr0.slot.mirror_a,
@@ -515,11 +523,18 @@ void Render(void) {
                     g_game_info.plyr1.slot.mirror_b != 0 &&
                     fighter->flag_obj != 0) {
                     MkObj* shadow_obj = fighter->shadow_obj;
-                    if (shadow_obj == 0 ||
-                        shadow_obj->hdr.instance != fighter->shadow_obj_instance) {
+                    if (shadow_obj != 0) {
+                        if (shadow_obj->hdr.instance !=
+                            fighter->shadow_obj_instance) {
+                            shadow_obj = 0;
+                        }
+                    } else {
+                        shadow_obj = 0;
+                    }
+                    if (shadow_obj == 0) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr1);
                     } else if (g_game_info.plyr1.slot.mirror_b->hdr.instance != 0 &&
-                               !(fighter->flag_obj->hide_flags & 0x20)) {
+                               !fighter->flag_obj->hide_flag_bits.hidden) {
                         UpdateShadow();
                         if (g_game_info.section->flags70 & 8) {
                             mirror_guy(g_game_info.plyr1.slot.mirror_a,
@@ -534,13 +549,13 @@ void Render(void) {
             uploaded_light_state = 0;
         }
         GXSetAlphaUpdate(1);
-        if (g_game_info.flags & 0x80) {
+        if (g_game_info.flag_bits.high_res_path) {
             RwCameraClear(Camera, &load_meter_bgnd_color, 7);
         } else {
             RwCameraClear(Camera, &background_color, 7);
         }
         GXSetAlphaUpdate(0);
-        if (!(g_game_info.flags & 0x80) && g_game_info.sky != 0) {
+        if (!g_game_info.flag_bits.high_res_path && g_game_info.sky != 0) {
             if (mode_of_play == 7) {
                 render_konquest_sky();
             } else {
@@ -551,7 +566,7 @@ void Render(void) {
         setup_default_render_state();
         render_startup();
         mkpfx_camera_begin();
-        if (!(g_game_info.flags & 0x80)) {
+        if (!g_game_info.flag_bits.high_res_path) {
             if (__mini_game_display_ctrl != 0) {
                 render_2d_objs(1);
                 render_minigame_list();
@@ -563,7 +578,8 @@ void Render(void) {
         }
         RwEngineInstance->render_state_set(0xE, 0, RwEngineInstance);
         render_post_3D_effect();
-        if (!(g_game_info.flags & 0x80) && fading_screen.fade_active == 0) {
+        if (!g_game_info.flag_bits.high_res_path &&
+            fading_screen.fade_active == 0) {
             render_collision_regions();
             if (show_ticks != 0) {
                 sprintf(tick_text, display_text + 0x14, exec_tick_ctr);
@@ -585,10 +601,10 @@ void Render(void) {
                 capture_proc = _create_mkproc_generic_bigstack(
                     0x7005, 0x1F, _print_screen_to_tga, 0, 0);
                 if (capture_proc != 0) {
-                    capture_proc->flags |= MKPROC_FLAG_SKIP_IF_PAUSED;
+                    capture_proc->flags_bits.skip_if_paused = 1;
                     halt_proc = proc_create(halt_during_screen_save, 0x208A);
                     if (halt_proc != 0) {
-                        halt_proc->flags |= MKPROC_FLAG_SKIP_IF_PAUSED;
+                        halt_proc->flags_bits.skip_if_paused = 1;
                     }
                 }
             }
