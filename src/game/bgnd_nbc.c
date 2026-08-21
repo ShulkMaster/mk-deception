@@ -70,7 +70,7 @@ float bgnd_get_camera_y_angle(void) {
         cam = 0;
     }
     if (cam != 0) {
-        return cam->ang_y;
+        return cam->ang.y;
     }
     return zero;
 }

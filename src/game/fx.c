@@ -360,9 +360,9 @@ static float lensflare_proc2(void) {
     }
     uv_v3_to_v3(&direction, &camera->pos, &sun);
     v3_to_xy_ang(&angles, &direction);
-    angles.x -= camera->ang_x;
-    angles.y -= camera->ang_y;
-    angles.z -= camera->ang_z;
+    angles.x -= camera->ang.x;
+    angles.y -= camera->ang.y;
+    angles.z -= camera->ang.z;
     norm_angles_v3(&angles);
     if (angles.x > 3.1415927f) {
         angles.x -= 6.2831855f;
@@ -1237,8 +1237,8 @@ static float p_freeze_light(void) {
     }
 
     if (camera_obj != 0) {
-        light->ang.x = camera_obj->ang_x;
-        light->ang.y = camera_obj->ang_y;
+        light->ang.x = camera_obj->ang.x;
+        light->ang.y = camera_obj->ang.y;
     }
     return 1.0f;
 }

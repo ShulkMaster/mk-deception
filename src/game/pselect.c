@@ -2647,7 +2647,7 @@ static void pselect_init(void) {
     load_lights(pselect_light_list, &bgnd_light_list);
 
     camera_obj->pos.z = 7.0f;
-    camera_obj->ang_y = 3.1415927f;
+    camera_obj->ang.y = 3.1415927f;
 
     g_game_info.bgnd_id = 0x23;
     /* Retail zero order: 1d4, 1d8, 1dc, then 1d0. */

@@ -2543,7 +2543,7 @@ float p_fatality_cam(void) {
     CamVec3 position;
 
     angle.x = 0.0f;
-    angle.y = camera_obj->ang_y - 1.5707964f;
+    angle.y = camera_obj->ang.y - 1.5707964f;
     angle.z = 0.0f;
     camera_set_animation_parent_angle(&angle, 0);
     position.x = fatality_state.attacker_object->pos.x;

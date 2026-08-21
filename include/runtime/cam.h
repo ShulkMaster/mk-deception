@@ -77,14 +77,7 @@ typedef struct CameraObj {
     char padAC[4];
     Vec velocity; /* +0xB0 */
     char padBC[0x14];
-    union {
-        Vec ang; /* +0xD0 */
-        struct {
-            float ang_x;
-            float ang_y;
-            float ang_z;
-        };
-    };
+    Vec ang; /* +0xD0 */
     char padDC[4];
     Vec ang_velocity; /* +0xE0 */
 } CameraObj;
