@@ -25,6 +25,7 @@ extern unsigned char* plyr_anim_pdata;
 extern unsigned int pz_fighter_state;
 
 typedef struct FakeBoneMatcher FakeBoneMatcher;
+typedef struct MkFlippedBoneMap MkFlippedBoneMap;
 typedef struct ScriptAnimPdataView {
     char pad00[0x44];
     float step;
@@ -820,7 +821,9 @@ void nb_place_slave_in_bgnd(int slave, int owner, const char* name,
 void stop_usec_timer(int timer);
 void start_usec_timer(int timer);
 int printf(const char* format, ...);
-void obj_setup_for_animation(void* object, void* anim, int frame, int flags);
+void obj_setup_for_animation(
+    MkObj* object, const int* tags, MkFlippedBoneMap* flipped_bone_map,
+    void* ground_colls);
 void xfer_proc(MkProc* proc, MkProcEntryFn entry);
 void update_mkobj(void* object);
 void* get_mkobj_frame(int id, int frame);
@@ -1616,7 +1619,7 @@ int mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void);
 int mks_ccp1_insert_cb1(void);
 int mks_npc_start_cloth_bones(int);
 int mks_set_cb1_target_bone_cb2(void);
-int mks_set_flipped_bones(int);
+void mks_set_flipped_bones(MkFlippedBoneMap* bone_map);
 void mks_start_goro_arms_fixup(void);
 int nis_clear_event_list(void);
 int nis_remove_non_participants(void);
@@ -2070,7 +2073,7 @@ int npc_travel_path_anim_override(int, int, int, int);
 int npc_travel_to_world_position(int, int);
 int obj_get_scale(int, int);
 int obj_scale_over_time(int, int, void *, float);
-int obj_set_flipped_bones(int, int);
+void obj_set_flipped_bones(MkObj* object, MkFlippedBoneMap* bone_map);
 void obj_set_scale(MkObj*, void*);
 int obj_set_z_offsets(int, void *, float);
 int obj_sobj_cam_frustum_test_into_transparent(int, int, void *, float, float);
@@ -2438,8 +2441,8 @@ void _start_usec_timer(void) {
 void _obj_setup_for_animation(void) {
     obj_setup_for_animation(((ScriptRawArgs*)current_args)->slots[0].pointer,
                             ((ScriptRawArgs*)current_args)->slots[1].pointer,
-                            ((ScriptRawArgs*)current_args)->slots[2].i,
-                            ((ScriptRawArgs*)current_args)->slots[3].i);
+                            ((ScriptRawArgs*)current_args)->slots[2].pointer,
+                            ((ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
 /* Soft ceiling: _npc_set_anim_proc ~96.25% -- pooled-string relocation labels only. */
@@ -9380,7 +9383,8 @@ void _obj_set_flipped_bones(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    obj_set_flipped_bones(args.raw->slots[0].i, args.raw->slots[1].i);
+    obj_set_flipped_bones(
+        args.raw->slots[0].pointer, args.raw->slots[1].pointer);
 }
 
 void _run_camera_script(void) {
@@ -11917,7 +11921,7 @@ void _mks_set_flipped_bones(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mks_set_flipped_bones(args.raw->slots[0].i);
+    mks_set_flipped_bones(args.raw->slots[0].pointer);
 }
 
 void _is_he_blocking(void) {

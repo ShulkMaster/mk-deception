@@ -355,22 +355,13 @@ typedef struct MkObj {
     float bone_angle_68;
     void* ground_colls;     /* +0x6C */
     float ground_colls_y;   /* +0x70 */
-    union {
-        void* allocation_74;
-        ClothBone* cloth_bones;
-    }; /* +0x74 - owned cloth-bone allocation */
-    union {
-        char pad78[4];
-        unsigned int cloth_bone_count;
-    }; /* +0x78 */
+    ClothBone* cloth_bones; /* +0x74 - owned cloth-bone allocation */
+    unsigned int cloth_bone_count; /* +0x78 */
     MkPtr* list_7C;         /* +0x7C - owned list */
     MkPtr* list_80;         /* +0x80 - owned list */
     MkPtr* sobj_list; /* +0x84 */
     MkPtr* list_88;   /* +0x88 - owned list */
-    union {
-        int flipped_bones;
-        MkFlippedBoneMap* flipped_bone_map;
-    }; /* +0x8C */
+    MkFlippedBoneMap* flipped_bone_map; /* +0x8C */
     Vec ground_restore_pos; /* +0x90 */
     char pad9C[4];
     union {

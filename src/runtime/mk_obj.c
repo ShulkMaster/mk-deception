@@ -539,12 +539,12 @@ void obj_get_ang_vel(MkObj* obj, Vec* out) {
     out->z = obj->ang_vel.z;
 }
 
-void mks_set_flipped_bones(int flag) {
-    plyr_obj->flipped_bones = flag;
+void mks_set_flipped_bones(MkFlippedBoneMap* bone_map) {
+    plyr_obj->flipped_bone_map = bone_map;
 }
 
-void obj_set_flipped_bones(void* obj, int flag) {
-    ((MkObj*)obj)->flipped_bones = flag;
+void obj_set_flipped_bones(MkObj* obj, MkFlippedBoneMap* bone_map) {
+    obj->flipped_bone_map = bone_map;
 }
 
 void obj_set_light_flag(void* obj, int flag) {
@@ -2797,8 +2797,8 @@ static void _destroy_mkobj_oid_mask(MkHdr* obj) {
     if (mkobj->bones != 0) {
         mkobj_destroy_bones(mkobj);
     }
-    if (mkobj->allocation_74 != 0) {
-        free_mem(mkobj->allocation_74);
+    if (mkobj->cloth_bones != 0) {
+        free_mem(mkobj->cloth_bones);
     }
     if (mkobj->matrix_indices != 0) {
         free_mem(mkobj->matrix_indices);
@@ -3168,8 +3168,8 @@ int vdestroy_mkobj(void* obj) {
     if (mkobj->bones != 0) {
         mkobj_destroy_bones(mkobj);
     }
-    if (mkobj->allocation_74 != 0) {
-        free_mem(mkobj->allocation_74);
+    if (mkobj->cloth_bones != 0) {
+        free_mem(mkobj->cloth_bones);
     }
     if (mkobj->matrix_indices != 0) {
         free_mem(mkobj->matrix_indices);
@@ -3207,8 +3207,8 @@ void destroy_mkobj(void* obj) {
     if (mkobj->bones != 0) {
         mkobj_destroy_bones(mkobj);
     }
-    if (mkobj->allocation_74 != 0) {
-        free_mem(mkobj->allocation_74);
+    if (mkobj->cloth_bones != 0) {
+        free_mem(mkobj->cloth_bones);
     }
     if (mkobj->matrix_indices != 0) {
         free_mem(mkobj->matrix_indices);
@@ -3723,7 +3723,7 @@ MkObj* obj_sever_limb(
         }
         return 0;
     }
-    severed->flipped_bones = source->flipped_bones;
+    severed->flipped_bone_map = source->flipped_bone_map;
     severed->bone_count = source->bone_count;
     severed->bones = (MkBone**)get_mem(severed->bone_count * 4);
     if (severed->bones == 0) {
@@ -4168,11 +4168,11 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame) {
             obj->ground_colls_y = 0.0f;
             obj->field_5C = 0;
             obj->field_60 = 0;
-            obj->allocation_74 = 0;
+            obj->cloth_bones = 0;
             obj->cloth_bone_count = 0;
             obj->list_7C = 0;
             obj->list_80 = 0;
-            obj->flipped_bones = 0;
+            obj->flipped_bone_map = 0;
         }
     }
     return obj;

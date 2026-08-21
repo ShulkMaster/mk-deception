@@ -1079,11 +1079,12 @@ void yinyang_set_good_fish_hide_flag(
 }
 
 void obj_setup_for_animation(
-    MkObj* object, const int* tags, int flipped_bones, void* ground_colls) {
+    MkObj* object, const int* tags, MkFlippedBoneMap* flipped_bone_map,
+    void* ground_colls) {
     if (tags != 0) {
         build_bones_tbl(object, tags);
     }
-    object->flipped_bones = flipped_bones;
+    object->flipped_bone_map = flipped_bone_map;
     object->ground_colls = ground_colls;
 }
 
