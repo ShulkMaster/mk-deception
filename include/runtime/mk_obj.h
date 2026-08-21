@@ -66,13 +66,7 @@ typedef struct MkBone {
     RwMatrixPosition translation; /* +0xA0 */
     Vec scale; /* +0xB0 */
     char padBC[4];
-    union {
-        struct {
-            Vec delta; /* +0xC0 */
-            unsigned int delta_pad;
-        };
-        RwMatrixPosition delta_row;
-    };
+    RwMatrixPosition delta; /* +0xC0 */
     union {
         struct {
             union {
@@ -183,7 +177,6 @@ typedef struct MkSobjFlags08 {
     unsigned char bit0 : 1;
 } MkSobjFlags08;
 
-/* mk_obj.o - NonMatching scaffold (krypt Wave 2). */
 
 /*
  * Midway mksobj (partial) -- pebble/render/hide agree on atomic @ +0x14.

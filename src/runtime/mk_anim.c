@@ -3647,9 +3647,9 @@ MkBone* alloc_bone(void) {
         bone->matrix.pos.x = 0.0f;
         bone->matrix.flags |= 0x20003;
         bone->matrix.flags = 3;
-        bone->delta.z = 0.0f;
-        bone->delta.y = 0.0f;
-        bone->delta.x = 0.0f;
+        bone->delta.value.z = 0.0f;
+        bone->delta.value.y = 0.0f;
+        bone->delta.value.x = 0.0f;
         bone->velocity.z = 0.0f;
         bone->velocity.y = 0.0f;
         bone->velocity.x = 0.0f;

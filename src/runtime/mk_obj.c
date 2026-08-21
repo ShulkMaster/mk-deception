@@ -1932,7 +1932,7 @@ void update_bone_hierarchy(void* obj) {
 
         walk = bone->clone_source;
         if (walk != 0 && walk->parent_matrix != 0) {
-            bone->delta_row = walk->delta_row;
+            bone->delta = walk->delta;
             bone->velocity_row = walk->velocity_row;
             gxQuatCopy(&bone->rotation_90, &walk->rotation_90);
             memcpy(&bone->matrix, &walk->matrix, sizeof(RwMatrix));
@@ -2021,9 +2021,9 @@ void update_bone_hierarchy(void* obj) {
         }
         if (bone->flags_54_bits.field_bit3 != 0) {
             PSVECSubtract((Vec*)&bone->matrix.pos, &saved_pos.value,
-                          &bone->delta);
+                          &bone->delta.value);
             PSVECScale(&bone->velocity, &bone->velocity, 0.8f);
-            PSVECScale(&bone->delta, &impulse, 0.2f);
+            PSVECScale(&bone->delta.value, &impulse, 0.2f);
             PSVECAdd(&bone->velocity, &impulse, &bone->velocity);
         }
     }

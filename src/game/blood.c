@@ -2829,21 +2829,21 @@ static void do_pfx_bleed(MkHdr* hdr) {
                                 destination->position.y *
                                     old_bone->matrix.up.x +
                                 destination->position.z *
-                                    old_bone->matrix.at.x + old_bone->delta.x;
+                                    old_bone->matrix.at.x + old_bone->delta.value.x;
                             world_position.y =
                                 destination->position.x *
                                     old_bone->matrix.right.y +
                                 destination->position.y *
                                     old_bone->matrix.up.y +
                                 destination->position.z *
-                                    old_bone->matrix.at.y + old_bone->delta.y;
+                                    old_bone->matrix.at.y + old_bone->delta.value.y;
                             world_position.z =
                                 destination->position.x *
                                     old_bone->matrix.right.z +
                                 destination->position.y *
                                     old_bone->matrix.up.z +
                                 destination->position.z *
-                                    old_bone->matrix.at.z + old_bone->delta.z;
+                                    old_bone->matrix.at.z + old_bone->delta.value.z;
                             fall_velocity.x = world_position.x * 0.5f;
                             fall_velocity.y = world_position.y * 0.5f - 0.002f;
                             fall_velocity.z = world_position.z * 0.5f;
