@@ -70,12 +70,9 @@ int mwMemUserConfigAssert(const char* expression, const char* file, u32 line) {
 void mwMemUserConfigPrintf(const char* format, ...) {}
 
 static void* movie_strategy(u32 size, _mwMemHeap* source, u32 flags,
-                            MwMemMallocRequest* request, void* file, void* line) {
+                            MwMemMallocRequest* request) {
     void* block;
     _mwMemHeap* system_overflow;
-
-    (void)file;
-    (void)line;
 
     system_overflow = mwMemSystemGetHeap(1);
     block = mwMemHeapStrategyCallback(size, wave_heap, flags, request);
@@ -97,11 +94,9 @@ static void* movie_strategy(u32 size, _mwMemHeap* source, u32 flags,
 }
 
 static void* fixed1024_strategy(u32 size, _mwMemHeap* source, u32 flags,
-                                MwMemMallocRequest* request, void* file, void* line) {
+                                MwMemMallocRequest* request) {
     void* block;
 
-    (void)file;
-    (void)line;
     block = mwMemHeapStrategyCallback(size, fixed_block_1024_heap, flags, request);
     if (block == 0) block = mwMemHeapStrategyCallback(size, wave_heap, flags, request);
     return block;
@@ -109,11 +104,9 @@ static void* fixed1024_strategy(u32 size, _mwMemHeap* source, u32 flags,
 
 #define DEFINE_FIXED_STRATEGY(name, own_heap, next_heap, message)                              \
     static void* name(u32 size, _mwMemHeap* source, u32 flags,                                \
-                      MwMemMallocRequest* request, void* file, void* line) {                    \
+                      MwMemMallocRequest* request) {                                            \
         void* block;                                                                           \
                                                                                                \
-        (void)file;                                                                            \
-        (void)line;                                                                            \
         block = mwMemHeapStrategyCallback(size, own_heap, flags, request);                     \
         if (block == 0) {                                                                       \
             MEMPRINT(message);                                                                  \

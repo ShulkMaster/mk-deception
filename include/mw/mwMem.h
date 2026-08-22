@@ -10,8 +10,7 @@ typedef struct MwMemHeaderlessParams MwMemHeaderlessParams;
 typedef struct MwMemMallocRequest MwMemMallocRequest;
 typedef struct MwMemOverflowInfo MwMemOverflowInfo;
 typedef void *(*MwMemStrategyCallback)(u32 size, _mwMemHeap *heap, u32 flags,
-                                      MwMemMallocRequest *request, void *file,
-                                      void *line);
+                                      MwMemMallocRequest *request);
 
 /** Normal/fixed allocation header. Retail layout: 0x10 bytes. */
 typedef struct MwMemUsedHeader {
@@ -25,7 +24,7 @@ typedef struct MwMemUsedHeader {
 } MwMemUsedHeader;
 
 #define MW_MEM_HEAP_MAGIC_VALID 0xBEABBEAB
-#define MW_MEM_HEAP_MAGIC_FREED 0xDDDDBDDD
+#define MW_MEM_HEAP_MAGIC_FREED 0xDDDDDDDD
 
 #define MW_MEM_STRATEGY_NORMAL 0
 #define MW_MEM_STRATEGY_VIRTUAL 1
@@ -157,7 +156,7 @@ struct _mwMemHeap {
   MwMemUsedHeader *usedList;  /**< Retail offset 0x08. */
   MwMemUsedHeader *freeList;  /**< Retail offset 0x0C. */
   MwMemUsedHeader *freeTail;  /**< Retail offset 0x10. */
-  u32 strategy;               /**< Retail offset 0x14. */
+  int strategy;               /**< Retail offset 0x14. */
   MwMemStrategyCallback strategyCallback; /**< Retail offset 0x18. */
   u32 magic;                  /**< Retail offset 0x1C. */
   _mwMemHeap *hierPrev;       /**< Retail offset 0x20. */

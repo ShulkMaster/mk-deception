@@ -17,7 +17,7 @@ void privSetBitFromBitFlag(u8* bit_flags, int bit);
 u32 privGetBitFromBitFlag(const u8* bit_flags, int bit);
 void privSetAlignInBitFlag(u8* bit_flags, int alignment);
 void privClearBitFlag(u8* bit_flags);
-u32 privGetLoadHighFromFlags(u32 flags);
+int privGetLoadHighFromFlags(u32 flags);
 int privGetAlignFromMwMemFlags(u32 flags);
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header);
 MwMemUsedHeader* privGetUsedHdrFromBlock(void* block);

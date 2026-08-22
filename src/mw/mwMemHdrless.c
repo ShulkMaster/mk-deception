@@ -2,7 +2,7 @@
 
 #include "mw/mwMemPriv.h"
 
-/* Near match: the six differing instructions are leaf-register coloring only. */
+/* Soft ceiling: identical six-instruction leaf sequence with GPR coloring only. */
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* header;
     u32 block_prefix;
@@ -36,14 +36,13 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     }
 }
 
-/* Near match: exact-size allocation algorithm; residue is local coloring and a
- * five-instruction address/store scheduling island. */
 void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     int requested_alignment;
+    MwMemUsedHeader* header;
+    u32 allocation_size;
     u32 aligned_size;
     u32 block_size;
-    u32 allocation_size;
-    MwMemUsedHeader* header;
+    void* result;
 
     if (size == 0) {
         size = 0x10;
@@ -70,22 +69,24 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     if (header == 0) {
         return 0;
     }
+    result = mwMemByteAddress(header, heap->blockPrefixSize);
     request->allocationSize = allocation_size;
     request->alignmentPadding = heap->blockPrefixSize;
     request->allocationFlags = flags;
     request->allocationHeap = heap;
     request->prefixSize = 0;
     request->userSize = aligned_size;
-    return mwMemByteAddress(header, heap->blockPrefixSize);
+    return result;
 }
 
-/* Near match: the free-list construction agrees; retail is eight bytes shorter
- * and uses different loop-local coloring/scheduling. */
+/* Soft ceiling: identical free-list CFG and memory operations; loop-local GPR
+ * coloring plus one separately materialized zero leave one extra instruction. */
 void hdrlessHeapResetHeap(_mwMemHeap* heap) {
     u32 alignment_mask;
     u32 alignment_inverse;
     u32 block_stride;
     u32 block_count;
+    u32 available_size;
     u32 index;
     u32 header_size;
     u8* arena_start;
@@ -106,10 +107,12 @@ void hdrlessHeapResetHeap(_mwMemHeap* heap) {
         heap->freeList = 0;
         heap->freeTail = 0;
         arena_start = heap->heapStart;
+        available_size =
+            heap->heapEnd - arena_start - heap->arenaAlignmentPadding;
         header = mwMemHeaderAt(arena_start, heap->arenaAlignmentPadding);
         block_stride = heap->blockSize + heap->blockPrefixSize;
         header->next = 0;
-        block_count = (heap->heapEnd - arena_start - heap->arenaAlignmentPadding) / block_stride;
+        block_count = available_size / block_stride;
         header->previous = 0;
         header_size = block_stride - sizeof(MwMemUsedHeader);
         while (index < block_count) {
@@ -148,7 +151,7 @@ void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params) 
     hdrlessHeapResetHeap(heap);
 }
 
-/* Near match: identical arithmetic with equivalent destination-GPR reuse. */
+/* Soft ceiling: identical arithmetic with equivalent destination-GPR reuse. */
 u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params) {
     u32 alignment;
     u32 alignment_mask;

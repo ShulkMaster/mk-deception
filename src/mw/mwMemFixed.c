@@ -44,6 +44,8 @@ void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block) {
     }
 }
 
+/* Soft ceiling: the allocation algorithm and memory operations are identical;
+ * one four-instruction block-address scheduling island remains. */
 void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     int requested_alignment;
     u32 allocation_size;
@@ -104,6 +106,8 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
     return block;
 }
 
+/* Soft ceiling: identical reset CFG and memory operations; header/alignment GPR
+ * coloring and commutative address scheduling remain. */
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     u32 alignment_mask;
     u32 base_block_size;
@@ -174,6 +178,8 @@ void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     }
 }
 
+/* Soft ceiling: identical loads, stores, compare, and call with only the
+ * block-size and flags destination GPRs exchanged. */
 void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params) {
     u32 block_size;
     u32 threshold;
@@ -190,6 +196,8 @@ void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params) {
     fixedBlockHeapResetHeap(heap, 0);
 }
 
+/* Soft ceiling: identical heap-size arithmetic; MWCC fuses the padding sub/add
+ * pair and reuses equivalent destination GPRs. */
 u32 mwMemFixedBlockHeapGetHeapSize(const MwMemFixedParams* params) {
     u32 alignment;
     u32 alignment_mask;

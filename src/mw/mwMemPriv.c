@@ -31,12 +31,12 @@ void privClearBitFlag(u8* bit_flags) {
     *bit_flags = 0;
 }
 
-u32 privGetLoadHighFromFlags(u32 flags) {
+int privGetLoadHighFromFlags(u32 flags) {
     return (flags >> 5) & 1;
 }
 
-/* Near match: switch values and returns agree; retail retains one redundant
- * range branch and colors the masked selector in a different GPR. */
+/* Soft ceiling: 96.59091% - switch values, branches, and returns agree except
+ * for one redundant retail range branch and masked-selector GPR coloring. */
 int privGetAlignFromMwMemFlags(u32 flags) {
     int alignment_flags;
 
@@ -66,17 +66,18 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     }
 }
 
-/* Near match: identical header/flag/alignment operations with a different
- * add association and leaf-register allocation. */
+/* Soft ceiling: 94.166664% - identical header, flag, alignment, and pointer
+ * operations; only leaf-register allocation differs. */
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
-    MwMemBlockFlags flags;
-    u32 alignment_mask;
     u8* block;
+    u32 alignment_mask;
+    MwMemBlockFlags flags;
 
     block = (u8*)(header + 1);
     flags.value = header->flags;
     alignment_mask = (1 << flags.bits.alignment) - 1;
-    return (void*)(((u32)block + alignment_mask) & ~alignment_mask);
+    block += alignment_mask;
+    return (void*)((u32)block & ~alignment_mask);
 }
 
 MwMemUsedHeader* privGetUsedHdrFromBlock(void* block) {
@@ -91,7 +92,8 @@ u32 privGetStatSizeFromUsed(const MwMemUsedHeader* header) {
     return 0;
 }
 
-/* Near match: all ten operations and branches agree; only GPR coloring differs. */
+/* Soft ceiling: 94.5% - all ten operations and branches agree; only GPR
+ * coloring differs. */
 u32 privGetUserSizeFromUsed(const MwMemUsedHeader* header) {
     u32 size = 0;
     if (header != 0) {
