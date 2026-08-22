@@ -24,14 +24,6 @@ typedef struct MwMemUsedHeader {
   u8 alignmentPadding;              /**< Retail offset 0x0F; byte before user block. */
 } MwMemUsedHeader;
 
-typedef MwMemUsedHeader MwMemUsedHdr;
-
-/** Partial heap identity view. Known retail extent: 0x2D bytes. */
-typedef struct MwMemHeapIdentity {
-  u8 pad00[0x2C]; /**< Retail offsets 0x00-0x2B; fields unknown. */
-  u8 heapIndex;   /**< Retail offset 0x2C. */
-} MwMemHeapIdentity;
-
 #define MW_MEM_HEAP_MAGIC_VALID 0xBEABBEAB
 #define MW_MEM_HEAP_MAGIC_FREED 0xDDDDBDDD
 
@@ -67,8 +59,8 @@ typedef struct MwMemHeapParams {
   u8 field_0x08;            /**< Retail offset 0x08; purpose unknown. */
   u8 field_0x09;            /**< Retail offset 0x09; purpose unknown. */
   u8 overflowEnable;      /**< Retail offset 0x0A. */
-  u32 currentUsedSize;      /**< Retail offset 0x0C. */
-  u32 peakUsedSize;         /**< Retail offset 0x10. */
+  u32 diagnosticValue;      /**< Retail offset 0x0C; maps to heap offset 0x40. */
+  u32 field_0x10;           /**< Retail offset 0x10; maps to heap offset 0x44. */
 } MwMemHeapParams;
 
 /** Memory-system configuration words. Retail layout: 0x08 bytes. */
@@ -102,18 +94,12 @@ typedef struct MwMemHeapInfo {
 struct MwMemMallocRequest {
   u32 allocationSize;      /**< Retail offset 0x00; allocator result size. */
   u32 userSize;            /**< Retail offset 0x04; aligned user size. */
-  union {
-    u32 field_0x08;
-    u32 allocationFlags;
-  };                       /**< Retail offset 0x08. */
+  u32 allocationFlags;     /**< Retail offset 0x08; allocator result flags. */
   u8 alignmentPadding;     /**< Retail offset 0x0C; bytes before user data. */
   u8 pad0D[3];           /**< Retail offsets 0x0D-0x0F; alignment padding. */
   _mwMemHeap *allocationHeap; /**< Retail offset 0x10; allocator-selected heap. */
   _mwMemHeap *heap;      /**< Retail offset 0x14. */
-  union {
-    u32 field_0x18;
-    u32 prefixSize;
-  };                       /**< Retail offset 0x18. */
+  u32 prefixSize;          /**< Retail offset 0x18; allocator prefix size. */
   u32 size;              /**< Retail offset 0x1C. */
   const char *file;       /**< Retail offset 0x20; allocation source file. */
   const char *function;   /**< Retail offset 0x24; allocation source function. */
@@ -237,7 +223,7 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap *heap, u32 *outSize, u32 *outCount);
 void *mwMemHeapStrategyCallback(u32 size, _mwMemHeap *heap, u32 flags,
                                 MwMemMallocRequest *request);
 
-void mwMemHeapGetInfo(_mwMemHeap *heap, MwMemHeapInfo *info);
+int mwMemHeapGetInfo(_mwMemHeap *heap, MwMemHeapInfo *info);
 
 int mwMemSystemGetDefaultParams(MwMemSystemParams *params);
 
