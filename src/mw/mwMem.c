@@ -1,5 +1,11 @@
 #include "mw/mwMem.h"
+#include "mw/mwMemFixed.h"
+#include "mw/mwMemHdrless.h"
+#include "mw/mwMemHeap.h"
+#include "mw/mwMemNormal.h"
+#include "mw/mwMemPlatform.h"
 #include "mw/mwMemPriv.h"
+#include "mw/mwMem_MultiThread.h"
 #include "runtime/cstring.h"
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
@@ -14,7 +20,6 @@ static const char stringBase0[] =
 /* MWCC emits .sbss in reverse declaration order. */
 u32 gap_08_80510ECC_sbss;
 MwMemSystemParams systemParams;
-u32 StrategyAllocationActive;
 int SystemInitialize;
 u32 heapCount;
 _mwMemHeap* mwMemSystemOverflowHeap;
@@ -30,58 +35,19 @@ _mwMemHeap** SystemHeapTable[3] = {
     &newWrapperDefaultHeap,
 };
 
-const char* heapName = &stringBase0[10];
-
-extern OSHeapHandle GameCubeSystemHeap;
-
-void priv_mwMem_CritSecEnter(void);
-void priv_mwMem_CritSecExit(void);
-int privGetAlignFromMwMemFlags(u32 flags);
-
-void normHeapResetHeap(_mwMemHeap* heap, int param);
-void normHeapInitHeap(_mwMemHeap* heap, void* params);
-void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request);
-void normHeapFreeMemFromBlock(void* block);
-
-void fixedBlockHeapResetHeap(_mwMemHeap* heap, int param);
-void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params);
-void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request);
-void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block);
-u32 mwMemFixedBlockHeapGetHeapSize(const MwMemFixedParams* params);
-
-void hdrlessHeapResetHeap(_mwMemHeap* heap);
-void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params);
-void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request);
-void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block);
-u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params);
-
-void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info);
-void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info);
-int mwMemUserConfigAssert(const char* expression, const char* file, u32 line);
-
-u8* privGetOSMemory(u32 size);
-int privConsoleMemSystemInit(void);
-
 static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line);
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request);
 static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap,
                                       const char* name);
 static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char* name);
 
-static int mwMemHeapHasValidMagic(_mwMemHeap* heap) {
-    if (heap == 0) {
-        return 0;
-    }
-    return heap->magic + 0x41550000 == 0xBEAB;
-}
-
-static void mwMemResetHeapByStrategy(_mwMemHeap* heap, int wipeMode) {
+static inline void mwMemResetHeapByStrategy(_mwMemHeap* heap, int wipeMode) {
     switch (heap->strategy) {
-    case MW_MEM_STRATEGY_HDRLESS:
-        hdrlessHeapResetHeap(heap);
-        break;
     case MW_MEM_STRATEGY_FIXED:
         fixedBlockHeapResetHeap(heap, wipeMode);
+        break;
+    case MW_MEM_STRATEGY_HDRLESS:
+        hdrlessHeapResetHeap(heap);
         break;
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
@@ -94,31 +60,34 @@ static void mwMemResetHeapByStrategy(_mwMemHeap* heap, int wipeMode) {
     }
 }
 
-static void mwMemInitHeapByStrategy(_mwMemHeap* heap, MwMemHeapCreateParams* create) {
+static inline void mwMemInitHeapByStrategy(_mwMemHeap* heap, MwMemHeapCreateParams* create) {
     switch (heap->strategy) {
-    case MW_MEM_STRATEGY_HDRLESS:
-        hdrlessHeapInitHeap(heap, create->headerlessInitParams);
-        break;
     case MW_MEM_STRATEGY_FIXED:
         fixedBlockHeapInitHeap(heap, create->fixedInitParams);
         break;
+    case MW_MEM_STRATEGY_HDRLESS:
+        hdrlessHeapInitHeap(heap, create->headerlessInitParams);
+        break;
+    case MW_MEM_STRATEGY_NORMAL:
+    case MW_MEM_STRATEGY_VIRTUAL:
+    case 3: /* unnamed retail normal-block strategy */
+    case MW_MEM_STRATEGY_OVERFLOW:
+        normHeapInitHeap(heap);
+        break;
     default:
-        if ((int)heap->strategy >= 0) {
-            normHeapInitHeap(heap, 0);
-        }
         break;
     }
 }
 
-static int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
-    MwMemUsedHdr* usedHdr;
+static inline int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
+    MwMemUsedHeader* usedHdr;
     int size;
 
     switch (heap->strategy) {
     case MW_MEM_STRATEGY_HDRLESS:
         return heap->blockSize + heap->blockPrefixSize;
     case MW_MEM_STRATEGY_FIXED:
-        return heap->blockSize + 0x10 + heap->blockPrefixSize;
+        return heap->blockSize + (heap->blockPrefixSize + 0x10);
     case MW_MEM_STRATEGY_NORMAL:
     case MW_MEM_STRATEGY_VIRTUAL:
     case 3:
@@ -131,112 +100,45 @@ static int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
     }
 }
 
-static void mwMemFreeBlockByStrategy(_mwMemHeap* heap, void* block) {
-    switch (heap->strategy) {
-    case MW_MEM_STRATEGY_HDRLESS:
-        hdrlessHeapFreeBlock(heap, block);
-        break;
-    case MW_MEM_STRATEGY_FIXED:
-        fixedBlockHeapFreeBlock(heap, block);
-        break;
-    case MW_MEM_STRATEGY_NORMAL:
-    case MW_MEM_STRATEGY_VIRTUAL:
-    case 3:
-    case MW_MEM_STRATEGY_OVERFLOW:
-        normHeapFreeMemFromBlock(block);
-        break;
-    default:
-        break;
-    }
-}
-
-static void* mwMemAllocByStrategy(MwMemMallocRequest* request, _mwMemHeap* heap, u32 flags) {
-    switch (heap->strategy) {
-    case MW_MEM_STRATEGY_HDRLESS:
-        return hdrlessHeapAlloc(request->size, heap, flags, request);
-    case MW_MEM_STRATEGY_FIXED:
-        return fixedBlockHeapAlloc(request->size, heap, flags, request);
-    case MW_MEM_STRATEGY_NORMAL:
-    case MW_MEM_STRATEGY_VIRTUAL:
-    case 3: /* unnamed retail normal-block strategy */
-    case MW_MEM_STRATEGY_OVERFLOW:
-        return normHeapMallocMem(request->size, heap, flags, request);
-    default:
-        return 0;
-    }
-}
-
-static _mwMemHeap* mwMemFindHeapForPointer(u8* ptr) {
-    _mwMemHeap* heap;
-    _mwMemHeap* child;
-    _mwMemHeap* owner = 0;
-
-    heap = *SystemHeapTable[0];
-    do {
-        if (ptr >= heap->heapStart && ptr < heap->heapEnd) {
-            owner = heap;
-            child = heap->hierFirstChild;
-            if (child == 0) {
-                break;
-            }
-            heap = child;
-        } else {
-            heap = heap->hierNext;
-        }
-    } while (heap != 0);
-    return owner;
-}
-
-static u8 mwMemAllocateHeapIndex(void) {
-    u8 index = 0;
-    u8* base = heapIndexArray;
-    u8* slot = base;
-    u32 remaining;
-
-    for (remaining = 0; remaining < 0x100; remaining++) {
-        if (*slot == 0) {
-            base[index] = 1;
-            break;
-        }
-        index++;
-        slot++;
-    }
-    return index;
-}
-
 static void privWipeHeap(_mwMemHeap* heap) {
-    MwMemUsedHdr* usedHdr;
-    MwMemUsedHdr* nextHdr;
+    MwMemUsedHeader* usedHdr;
+    _mwMemHeap* firstChild;
+    int keepBlock;
     _mwMemHeap* sibling;
     void* block;
-    int keepBlock;
+    int strategy;
 
     if (heap != 0 && heap->magic + 0x41550000 == 0xBEAB) {
         usedHdr = heap->usedList;
         while (usedHdr != 0) {
             block = privGetBlockFromUsedHdr(usedHdr);
             keepBlock = 1;
-            for (sibling = heap->hierFirstChild; sibling != 0; sibling = sibling->hierNext) {
-                if (block == sibling) {
-                    keepBlock = 0;
-                    break;
+            firstChild = heap->hierFirstChild;
+            if (firstChild != 0) {
+                sibling = firstChild;
+                while (sibling != 0) {
+                    if (block == sibling) {
+                        keepBlock = 0;
+                        break;
+                    }
+                    sibling = sibling->hierNext;
                 }
             }
             if (keepBlock) {
-                _mwMemFreeVirtual(block, &stringBase0[0x16], 0x1625);
+                _mwMemFreeVirtual(block, "mwMem.c", 0x1625);
                 usedHdr = heap->usedList;
             } else {
-                nextHdr = usedHdr->next;
-                usedHdr = nextHdr;
+                usedHdr = usedHdr->next;
             }
         }
 
-        switch (heap->strategy) {
-        case MW_MEM_STRATEGY_HDRLESS:
-            hdrlessHeapResetHeap(heap);
-            break;
+        strategy = (int)heap->strategy;
+        switch (strategy) {
         case MW_MEM_STRATEGY_FIXED:
             fixedBlockHeapResetHeap(heap, 1);
+            break;
+        case MW_MEM_STRATEGY_HDRLESS:
+            hdrlessHeapResetHeap(heap);
             break;
         case MW_MEM_STRATEGY_NORMAL:
         case MW_MEM_STRATEGY_VIRTUAL:
@@ -254,19 +156,21 @@ static void privWipeHeap(_mwMemHeap* heap) {
 #pragma dont_inline on
 static void privWipeVirtual(_mwMemHeap* virtualHeap) {
     _mwMemHeap* heap;
-    MwMemUsedHdr* usedHdr;
-    MwMemUsedHdr* nextHdr;
+    MwMemUsedHeader* usedHdr;
+    MwMemUsedHeader* nextHdr;
+    const char* strings;
     void* block;
 
     if (virtualHeap != 0 && virtualHeap->magic + 0x41550000 == 0xBEAB) {
         for (heap = HeapList; heap != 0; heap = heap->listPrev) {
             if (heap->virtAllocCount != 0) {
+                strings = stringBase0;
                 usedHdr = heap->usedList;
                 while (usedHdr != 0) {
                     nextHdr = usedHdr->next;
                     if (usedHdr->heapIndex == virtualHeap->heapIndex) {
                         block = privGetBlockFromUsedHdr(usedHdr);
-                        _mwMemFreeVirtual(block, &stringBase0[0x16], 0x15CA);
+                        _mwMemFreeVirtual(block, strings + 0x16, 0x15CA);
                         heap->virtAllocCount--;
                     }
                     usedHdr = nextHdr;
@@ -283,7 +187,7 @@ static void privWipeHeapHierarchy(_mwMemHeap* heap) {
     _mwMemHeap* cursor;
     _mwMemHeap* child;
 
-    if (heap == 0 || !mwMemHeapHasValidMagic(heap)) {
+    if (heap == 0 || heap->magic + 0x41550000 != 0xBEAB) {
         return;
     }
 
@@ -462,6 +366,9 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
                               _mwMemHeap** outHeap, const char* name) {
     _mwMemHeap* heap;
     MwMemHeapParams defaultParams;
+    u32 index = 0;
+    u8* indexSlot;
+    u32 remaining;
 
     heap = (_mwMemHeap*)(((unsigned long)buffer + 0xF) & ~0xFUL);
     heap->field_0x60 = 0;
@@ -473,10 +380,19 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     if (heap != 0) {
         heap->heapStart = (u8*)heap + 0x80;
         heap->heapEnd = heap->heapStart + arenaSize;
-        heap->magic = MW_MEM_HEAP_MAGIC_VALID;
-        heap->heapIndex = mwMemAllocateHeapIndex();
-        heapCount++;
         heap->name = name;
+        indexSlot = heapIndexArray;
+        heap->magic = MW_MEM_HEAP_MAGIC_VALID;
+        heapCount++;
+        for (remaining = 0; remaining < 0x100; remaining++) {
+            if (*indexSlot == 0) {
+                heapIndexArray[index] = 1;
+                break;
+            }
+            index++;
+            indexSlot++;
+        }
+        heap->heapIndex = index;
         heap->arenaSize = arenaSize;
         heap->overflowFlag = 0;
         heap->strategy = MW_MEM_STRATEGY_NORMAL;
@@ -494,8 +410,8 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     defaultParams.field_0x08 = 0xAB;
     defaultParams.field_0x09 = 0xDC;
     defaultParams.overflowEnable = 1;
-    defaultParams.currentUsedSize = 0;
-    defaultParams.peakUsedSize = 0;
+    defaultParams.diagnosticValue = 0;
+    defaultParams.field_0x10 = 0;
     mwMemHeapSetParams(heap, &defaultParams);
 
     if (mwMemSystemOverflowHeap == 0) {
@@ -585,9 +501,9 @@ void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
 }
 
 static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
-    _mwMemHeap* heap;
     _mwMemHeap* cursor;
-    MwMemUsedHdr* usedHdr;
+    _mwMemHeap* heap;
+    MwMemUsedHeader* usedHdr;
     int statSize;
 
     priv_mwMem_CritSecEnter();
@@ -647,10 +563,9 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
 }
 
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
-    _mwMemHeap* heap;
-    _mwMemHeap* originHeap;
-    _mwMemHeap* overflowHeap;
+    static u32 StrategyAllocationActive;
     void* result;
+    _mwMemHeap* heap;
     MwMemOverflowInfo overflowInfo;
     u32 statSize;
 
@@ -673,15 +588,32 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         result = heap->strategyCallback(request->size, heap, request->flags, request, 0, 0);
         StrategyAllocationActive = 0;
     } else {
-        result = mwMemAllocByStrategy(request, heap, request->flags);
+        switch (heap->strategy) {
+        case MW_MEM_STRATEGY_FIXED:
+            result = fixedBlockHeapAlloc(request->size, heap, request->flags, request);
+            break;
+        case MW_MEM_STRATEGY_HDRLESS:
+            result = hdrlessHeapAlloc(request->size, heap, request->flags, request);
+            break;
+        case MW_MEM_STRATEGY_NORMAL:
+        case MW_MEM_STRATEGY_VIRTUAL:
+        case 3: /* unnamed retail normal-block strategy */
+        case MW_MEM_STRATEGY_OVERFLOW:
+            result = normHeapMallocMem(request->size, heap, request->flags, request);
+            break;
+        default:
+            result = 0;
+            break;
+        }
     }
 
     if (result == 0 && heap->overflowEnable != 0) {
+        _mwMemHeap* overflowHeap;
+
         overflowInfo.reason = 0;
         overflowInfo.ptr = 0;
         overflowInfo.originHeap = request->heap;
-        overflowHeap = mwMemSystemOverflowHeap;
-        overflowInfo.destHeap = overflowHeap;
+        overflowInfo.destHeap = mwMemSystemOverflowHeap;
         overflowInfo.field_0x10 = 0;
         overflowInfo.size = request->size;
         overflowInfo.field_0x24 = 0;
@@ -697,13 +629,15 @@ static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
         overflowInfo.file = request->file;
         mwMemUserConfigAttemptingOverflowHeapCallback(&overflowInfo);
         heap->overflowFlag = 1;
+        overflowHeap = mwMemSystemOverflowHeap;
         if (overflowHeap->magic == MW_MEM_HEAP_MAGIC_VALID) {
             result = normHeapMallocMem(request->size, overflowHeap, request->flags, request);
         }
     }
 
     if (result != 0) {
-        originHeap = request->allocationHeap;
+        _mwMemHeap* originHeap = request->allocationHeap;
+
         statSize = mwMemAllocStatSize(originHeap, result);
         privUpdateStatsAddMemory(originHeap, statSize);
     }
@@ -721,28 +655,37 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     _mwMemHeap* parent;
     _mwMemHeap* heap;
     MwMemStrategyCallback savedCallback;
+    const char* name;
     u8 savedOverflow;
+    u8 index;
+    u8* indexSlot;
     u32 arenaSize;
     u32 allocSize;
+    u32 remaining;
+    u32 strategy;
 
-    if (heapCount > 0x100 || create == 0) {
+    if (heapCount > 0x100) {
+        return 0;
+    }
+    if (create == 0) {
         return 0;
     }
 
     parent = create->parentHeap;
+    arenaSize = create->arenaSize;
+    strategy = create->strategyType;
+    name = create->name;
     if (parent->strategy == MW_MEM_STRATEGY_VIRTUAL) {
         return 0;
     }
 
-    switch (create->strategyType) {
+    switch (strategy) {
     case MW_MEM_STRATEGY_FIXED:
-        arenaSize = create->arenaSize;
         if (create->fixedInitParams != 0) {
             arenaSize = mwMemFixedBlockHeapGetHeapSize(create->fixedInitParams);
         }
         break;
     case MW_MEM_STRATEGY_HDRLESS:
-        arenaSize = create->arenaSize;
         if (create->headerlessInitParams != 0) {
             arenaSize = mwMemHeaderlessFixedBlockGetHeapSize(create->headerlessInitParams);
         }
@@ -751,7 +694,6 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     case MW_MEM_STRATEGY_VIRTUAL:
     case 3: /* unnamed retail normal-block strategy */
     case MW_MEM_STRATEGY_OVERFLOW:
-        arenaSize = create->arenaSize;
         if (arenaSize != 0) {
             arenaSize += create->extraSizeShift << 4;
         }
@@ -766,25 +708,35 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     }
 
     savedCallback = parent->strategyCallback;
-    savedOverflow = parent->overflowEnable;
     parent->strategyCallback = 0;
-    parent->overflowEnable = 0;
     arenaSize = (arenaSize - 0x80) & ~0xFU;
+    savedOverflow = parent->overflowEnable;
+    parent->overflowEnable = 0;
     allocSize = (arenaSize + 0x8F) & ~0xFU;
-    heap = (_mwMemHeap*)_mwMemMalloc(parent, allocSize, 0x10, create->name, function, line);
+    heap = (_mwMemHeap*)_mwMemMalloc(parent, allocSize, 0x10, name, function, line);
     parent->strategyCallback = savedCallback;
     parent->overflowEnable = savedOverflow;
 
     if (heap != 0) {
         heap->heapStart = (u8*)(heap + 1);
         heap->heapEnd = heap->heapStart + arenaSize;
+        index = 0;
+        heap->name = name;
+        indexSlot = heapIndexArray;
         heap->magic = MW_MEM_HEAP_MAGIC_VALID;
-        heap->heapIndex = mwMemAllocateHeapIndex();
         heapCount++;
-        heap->name = create->name;
+        for (remaining = 0; remaining < 0x100; remaining++) {
+            if (*indexSlot == 0) {
+                heapIndexArray[index] = 1;
+                break;
+            }
+            index++;
+            indexSlot++;
+        }
+        heap->heapIndex = index;
         heap->arenaSize = arenaSize;
         heap->overflowFlag = 0;
-        heap->strategy = create->strategyType;
+        heap->strategy = strategy;
         heap->strategyCallback = 0;
         heap->peakUsedSize = 0;
         heap->peakAllocationCount = 0;
@@ -854,7 +806,7 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
             owner->strategy == MW_MEM_STRATEGY_FIXED) {
             oldSize = owner->blockSize;
         } else {
-            oldSize = (u32)privGetUserSizeFromUsed(
+            oldSize = privGetUserSizeFromUsed(
                 privGetUsedHdrFromBlock(ptr));
         }
 
@@ -979,7 +931,7 @@ void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, const char* file,
     return result;
 }
 
-void mwMemHeapGetInfo(_mwMemHeap* heap, MwMemHeapInfo* info) {
+int mwMemHeapGetInfo(_mwMemHeap* heap, MwMemHeapInfo* info) {
     info->name = heap->name;
     info->heapStart = heap->heapStart;
     info->heapEnd = heap->heapEnd;
@@ -997,6 +949,7 @@ void mwMemHeapGetInfo(_mwMemHeap* heap, MwMemHeapInfo* info) {
     info->peakAllocationCount = heap->peakAllocationCount;
     info->totalSize = heap->currentFreeSize;
     info->blockSize = heap->blockSize;
+    return 1;
 }
 
 int mwMemSystemGetDefaultParams(MwMemSystemParams* params) {
@@ -1005,21 +958,23 @@ int mwMemSystemGetDefaultParams(MwMemSystemParams* params) {
     return 1;
 }
 
-/* Retail keeps this public setter out-of-line. */
-#pragma dont_inline on
+#pragma inline_depth(2)
 int mwMemSystemSetParams(MwMemSystemParams* params) {
     MwMemSystemParams defaults;
 
     if (params != 0) {
-        systemParams.field_0x00 = params->field_0x00;
-        systemParams.field_0x04 = params->field_0x04;
+        u32 field_0x04 = params->field_0x04;
+        u32 field_0x00 = params->field_0x00;
+
+        systemParams.field_0x00 = field_0x00;
+        systemParams.field_0x04 = field_0x04;
     } else {
         mwMemSystemGetDefaultParams(&defaults);
         mwMemSystemSetParams(&defaults);
     }
     return 1;
 }
-#pragma dont_inline reset
+#pragma inline_depth reset
 
 int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
     params->strategyCallback = 0;
@@ -1027,8 +982,8 @@ int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
     params->field_0x08 = 0xAB;
     params->field_0x09 = 0xDC;
     params->overflowEnable = 1;
-    params->currentUsedSize = 0;
-    params->peakUsedSize = 0;
+    params->diagnosticValue = 0;
+    params->field_0x10 = 0;
     return 1;
 }
 
@@ -1038,13 +993,12 @@ int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     params->field_0x08 = heap->pad2E;
     params->field_0x09 = heap->pad2F;
     params->overflowEnable = heap->overflowEnable;
-    params->currentUsedSize = heap->currentUsedSize;
-    params->peakUsedSize = heap->peakUsedSize;
+    params->diagnosticValue = heap->diagnosticValue;
+    params->field_0x10 = heap->field_0x44;
     return 1;
 }
 
-/* Retail keeps this public setter out-of-line. */
-#pragma dont_inline on
+#pragma inline_depth(2)
 int mwMemHeapSetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     MwMemHeapParams defaults;
 
@@ -1054,15 +1008,16 @@ int mwMemHeapSetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
         heap->pad2E = params->field_0x08;
         heap->pad2F = params->field_0x09;
         heap->overflowEnable = params->overflowEnable;
-        heap->currentUsedSize = params->currentUsedSize;
-        heap->peakUsedSize = params->peakUsedSize;
-    } else {
-        mwMemHeapGetDefaultParams(&defaults);
-        mwMemHeapSetParams(heap, &defaults);
+        heap->diagnosticValue = params->diagnosticValue;
+        heap->field_0x44 = params->field_0x10;
+        return 1;
     }
+
+    mwMemHeapGetDefaultParams(&defaults);
+    mwMemHeapSetParams(heap, &defaults);
     return 1;
 }
-#pragma dont_inline reset
+#pragma inline_depth reset
 
 _mwMemHeap* mwMemSystemGetHeap(u32 which) {
     return *SystemHeapTable[which];
@@ -1174,6 +1129,7 @@ static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char*
 
 int mwMemSystemCreateSystemHeap(void* buffer, u32 size, MwMemSystemParams* params) {
     /* Retail differs only in stmw/lmw selection and the local heap-name label. */
+    static const char* const heapName = &stringBase0[10];
     _mwMemHeap* heap;
     int result;
 

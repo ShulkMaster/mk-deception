@@ -410,7 +410,7 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
             Object(Matching, "mwMem_MultiThread.o", source="mw/mwMem_MultiThread.c"),
-            Object(NonMatching, "mwMemPlatform.o", source="mw/mwMemPlatform.c",
+            Object(Matching, "mwMemPlatform.o", source="mw/mwMemPlatform.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mwMemPriv.o", source="mw/mwMemPriv.c",
                    extra_cflags=["-opt", "off", "-O4,s"]),
