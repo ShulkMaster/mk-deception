@@ -11,10 +11,6 @@
 #include "platform/display_metrics.h"
 #include "runtime/cstring.h"
 
-typedef enum _GXTexMapID {
-    GX_TEXMAP0 = 0,
-    GX_TEXMAP1 = 1
-} GXTexMapID;
 typedef struct CameraVectors {
     Vec up;
     Vec position;
