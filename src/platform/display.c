@@ -1,5 +1,6 @@
 #include "platform/display.h"
 
+#include "dolphin/gx.h"
 #include "game/game_info.h"
 #include "libmkparticle/pfxfont.h"
 #include "libmkparticle/particle.h"
@@ -59,7 +60,6 @@ extern int curr_pipeline_used;
 extern int last_pipeline_used;
 extern int uploaded_light_state;
 extern int reseed_rnd_tbl;
-extern void GXSetAlphaUpdate(unsigned char enable);
 extern void force_rw_lights(void);
 extern int get_bgnd_flags(void);
 extern void render_konquest_shadows(void);

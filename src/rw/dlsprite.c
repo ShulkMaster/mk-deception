@@ -18,8 +18,6 @@ extern int _RwDlCurPixelFormat;
 extern void* memset(void* destination, int value, unsigned int size);
 extern RwRGBA* RwRGBASetFromPixel(RwRGBA* color, unsigned int pixel,
                                   int format);
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix);
 static void GXEnd(void);
 static void GXTexCoord2f32(float s, float t);
 static void GXPosition2s16(short x, short y);
@@ -510,12 +508,6 @@ int _rwDlSetRasterContext(void* out, void* inOut, int in)
     return 1;
 }
 
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix)
-{
-    GXSetTexCoordGen2(destination, function, source, matrix, 0, 0x7D);
-}
-
 static void GXEnd(void)
 {
 }
@@ -523,19 +515,19 @@ static void GXEnd(void)
 
 static void GXTexCoord2f32(float s, float t)
 {
-    *(volatile float*)0xCC008000 = s;
-    *(volatile float*)0xCC008000 = t;
+    *(volatile float*)GXFIFO_ADDR = s;
+    *(volatile float*)GXFIFO_ADDR = t;
 }
 
 static void GXPosition2s16(short x, short y)
 {
-    *(volatile short*)0xCC008000 = x;
-    *(volatile short*)0xCC008000 = y;
+    *(volatile short*)GXFIFO_ADDR = x;
+    *(volatile short*)GXFIFO_ADDR = y;
 }
 
 static void GXPosition3f32(float x, float y, float z)
 {
-    *(volatile float*)0xCC008000 = x;
-    *(volatile float*)0xCC008000 = y;
-    *(volatile float*)0xCC008000 = z;
+    *(volatile float*)GXFIFO_ADDR = x;
+    *(volatile float*)GXFIFO_ADDR = y;
+    *(volatile float*)GXFIFO_ADDR = z;
 }

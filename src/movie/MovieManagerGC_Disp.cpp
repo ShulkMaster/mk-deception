@@ -11,10 +11,6 @@
 #include "platform/display_metrics.h"
 #include "runtime/cstring.h"
 
-typedef enum _GXTexMapID {
-    GX_TEXMAP0 = 0,
-    GX_TEXMAP1 = 1
-} GXTexMapID;
 typedef struct CameraVectors {
     Vec up;
     Vec position;
@@ -81,8 +77,8 @@ static const char stringBase0[] = "can't allocate tex buf.\n";
 
 static GXColor copy_clear_color;
 
-#define WGPIPE_S16 (*(volatile short*)0xCC008000)
-#define WGPIPE_F32 (*(volatile float*)0xCC008000)
+#define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
+#define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
 static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
     GXColorS10 local_s10;
@@ -166,8 +162,8 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
                  half_width, flt_532, flt_533);
     GXSetProjection(proj, 0);
     C_MTXLookAt((MtxPtr)cam, &vectors.position, &vectors.up, &vectors.target);
-    GXLoadTexObj(&tex->tex0, 0);
-    GXLoadTexObj(&tex->tex1, 1);
+    GXLoadTexObj(&tex->tex0, GX_TEXMAP0);
+    GXLoadTexObj(&tex->tex1, GX_TEXMAP1);
     setTevPrm(GX_TEXMAP0, GX_TEXMAP1);
     GXSetBlendMode(1, 1, 0, 0);
     GXSetCullMode(0);

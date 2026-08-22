@@ -16,7 +16,6 @@ RwTexture* _RwDlTexture;
 RwRaster* _RwDlRasterWhite;
 
 extern void* memset(void* destination, int value, unsigned int size);
-extern void GXSetCurrentMtx(unsigned int matrix);
 extern void _rwDlTextureCacheInit(void);
 static int _rwDlRenderStateFogColor(unsigned int color);
 static int _rwDlRenderStateFogType(int type);

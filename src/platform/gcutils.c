@@ -1,15 +1,11 @@
 #include "platform/gcutils.h"
 
+#include "dolphin/gx.h"
+#include "dolphin/vi.h"
 #include "platform/display.h"
 #include "platform/os_types.h"
 
 #define OS_BUS_CLOCK (*(unsigned int*)0x800000F8)
-
-typedef struct GcRenderMode {
-    unsigned char field_0x00[0x0A];
-    short vi_x_origin;
-    short vi_y_origin;
-} GcRenderMode;
 
 #pragma options align=packed
 typedef union GcFilter {
@@ -22,8 +18,6 @@ typedef union GcFilter {
 } GcFilter;
 #pragma options align=reset
 
-extern void GXSetAlphaUpdate(unsigned char enable);
-extern void GXSetPixelFmt(int pixel_format, int z_format, int count);
 extern void pokeFilter(GcFilter* filter);
 extern void setup_post_effect_buffers(void);
 extern void feedback_effect(void);
@@ -44,8 +38,6 @@ extern void OSYieldThread(void);
 extern int OSGetResetButtonState(void);
 extern void OSLockMutex(OSMutex* mutex);
 extern void OSUnlockMutex(OSMutex* mutex);
-extern void GXDrawDone(void);
-extern void GXAbortFrame(void);
 extern void VISetBlack(int black);
 extern void VIFlush(void);
 extern void VIWaitForRetrace(void);
@@ -54,13 +46,12 @@ extern void turn_rumble_off(int port);
 extern void OSResetSystem(int reset, int reset_code, int force_menu);
 extern int is_progressive_scan_mode(void);
 extern int VIGetTvFormat(void);
-extern void VIConfigure(GcRenderMode* mode);
 extern char* strcpy(char* destination, const char* source);
 extern char* strcat(char* destination, const char* source);
 extern long long OSGetTime(void);
 
 extern int _RwDlPixelFormat;
-extern GcRenderMode* _RwDlRenderMode;
+extern GXRenderModeObj* _RwDlRenderMode;
 extern int f_writing_to_memcard;
 extern int f_writing_konquest_profile;
 extern char pathname_buffer[];
@@ -121,7 +112,7 @@ void gc_setup_render_mode(unsigned int pixel_format) {
     pixel_format = pixel_format != 0;
     _RwDlPixelFormat = pixel_format;
     pixel_format_count = ~count;
-    GXSetPixelFmt(pixel_format, 0, count);
+    GXSetPixelFmt(pixel_format, 0);
     fill_gamma_filter(&filter);
     pokeFilter(&filter);
 }
@@ -312,9 +303,9 @@ void adjust_display_offset(int x, int y, int reset) {
         if (format == 1 || format == 5) {
             x_origin = 30;
         }
-        _RwDlRenderMode->vi_x_origin = x_origin + display_offset_x;
+        _RwDlRenderMode->viXOrigin = x_origin + display_offset_x;
         if (_RwDlRenderMode != 0) {
-            _RwDlRenderMode->vi_y_origin = display_offset_y;
+            _RwDlRenderMode->viYOrigin = display_offset_y;
             VIConfigure(_RwDlRenderMode);
             VIFlush();
             VIWaitForRetrace();

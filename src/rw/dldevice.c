@@ -1,4 +1,5 @@
 #include "dolphin/gx.h"
+#include "dolphin/os.h"
 #include "dolphin/vi.h"
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
@@ -22,15 +23,6 @@ typedef struct RwGCFrameQueueEntry {
     void* xfb;
     void* breakPoint;
 } RwGCFrameQueueEntry;
-
-typedef struct OSThreadQueue {
-    void* head;
-    void* tail;
-} OSThreadQueue;
-
-typedef struct GXFifoObj {
-    unsigned char data[0x80];
-} GXFifoObj;
 
 typedef struct RwDlGlobals {
     RwCamera* camera;
@@ -90,31 +82,11 @@ extern void MWY_GCN_RW_RestartFromGxBreakPtCurrent(void);
 extern void MWY_GCN_RW_InsertRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_NoteRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_SetGxBreakPtCallback(void (*callback)(void));
-extern int OSDisableInterrupts(void);
-extern void OSRestoreInterrupts(int enabled);
-extern void OSInitThreadQueue(OSThreadQueue* queue);
-extern void OSSleepThread(OSThreadQueue* queue);
-extern void OSWakeupThread(OSThreadQueue* queue);
 extern void DCInvalidateRange(void* memory, unsigned int size);
-extern GXFifoObj* GXGetCPUFifo(void);
-extern void GXGetFifoPtrs(GXFifoObj* fifo, void** readPtr,
-                          void** writePtr);
-extern void GXInitFifoBase(GXFifoObj* fifo, void* base, unsigned int size);
-extern void GXSetCPUFifo(GXFifoObj* fifo);
-extern void GXSetGPFifo(GXFifoObj* fifo);
-extern void GXSetCurrentGXThread(void);
-extern void GXSetDrawSync(unsigned short token);
-extern void GXSetCopyClamp(int clamp);
-extern void GXSetDispCopyGamma(int gamma);
-extern void GXInvalidateTexRegion(void* region);
-extern void GXLoadNrmMtxImm(Mtx matrix, unsigned int id);
 extern void VISetPreRetraceCallback(void (*callback)(void));
 extern void VISetPostRetraceCallback(void (*callback)(void));
 extern void* memcpy(void* destination, const void* source,
                     unsigned long size);
-extern GXRenderModeObj GXNtsc480IntDf;
-extern GXRenderModeObj GXPal528IntDf;
-extern GXRenderModeObj GXMpal480IntDf;
 
 extern int _rwDlRGBToPixel(void*, void*, int);
 extern int _rwDlPixelToRGB(void*, void*, int);

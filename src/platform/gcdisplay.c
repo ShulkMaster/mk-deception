@@ -1,5 +1,9 @@
 #include "platform/gcdisplay.h"
 
+#include "dolphin/cache.h"
+#include "dolphin/gx.h"
+#include "dolphin/os.h"
+#include "dolphin/vi.h"
 #include "mw/mwMemHeap.h"
 #include "platform/gcutils.h"
 #include "runtime/mk_proc.h"
@@ -11,42 +15,6 @@
  * coloring, display_image rlwimi, tile_image /%; 480p UI / feedback omitted.
  * Function order matches retail ASM.
  */
-
-typedef struct GXColor {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} GXColor;
-
-typedef struct GXTexObj {
-    unsigned char data[0x20];
-} GXTexObj;
-
-typedef struct GXTlutObj {
-    unsigned char data[0xC];
-} GXTlutObj;
-
-typedef struct Mtx {
-    float m[3][4];
-} Mtx;
-
-/* Dolphin GXRenderModeObj - field/aa bytes @ +0x18/+0x19 (retail). */
-typedef struct GXRenderModeObj {
-    int viTVmode;
-    unsigned short fbWidth;    /* +0x04 */
-    unsigned short efbHeight;  /* +0x06 */
-    unsigned short xfbHeight;  /* +0x08 */
-    unsigned short viXOrigin;  /* +0x0A */
-    unsigned short viYOrigin;  /* +0x0C */
-    unsigned short viWidth;    /* +0x0E */
-    unsigned short viHeight;   /* +0x10 */
-    unsigned long xFBmode;     /* +0x14 */
-    unsigned char field_rendering; /* +0x18 */
-    unsigned char aa;          /* +0x19 */
-    unsigned char sample_pattern[12][2]; /* +0x1A */
-    unsigned char vfilter[7];  /* +0x32 */
-} GXRenderModeObj;
 
 typedef struct GcNativeDisplay {
     GXRenderModeObj* rmode; /* +0x00 */
@@ -81,93 +49,9 @@ typedef struct RwEngineInstanceType {
 void* memcpy(void* dest, const void* src, unsigned long n);
 unsigned long strlen(const char* s);
 
-void VIInit(void);
-int VIGetTvFormat(void);
-void VIConfigure(GXRenderModeObj* mode);
-void VISetBlack(int black);
-void VIFlush(void);
-void VIWaitForRetrace(void);
-unsigned int VIGetDTVStatus(void);
-int VIGetNextField(void);
-void VISetNextFrameBuffer(void* fb);
 
-void* GXInit(void* base, unsigned long size);
-void GXDrawDone(void);
-void GXSetScissor(int left, int top, int width, int height);
-void GXSetDispCopySrc(int left, int top, int width, int height);
-float GXGetYScaleFactor(unsigned short efbHeight, unsigned short xfbHeight);
-unsigned short GXSetDispCopyYScale(float yscale);
-void GXSetDispCopyDst(unsigned short width, unsigned short height);
-void GXSetCopyFilter(unsigned char aa, unsigned char sample_pattern[12][2], unsigned char vf,
-                     unsigned char* vfilter);
-void GXSetPixelFmt(int fmt, int zfmt);
-void GXSetFieldMode(unsigned char field_mode, unsigned char half_aspect);
-void GXSetNumChans(int n);
-void GXSetChanCtrl(int chan, int enable, int ambSrc, int matSrc, int lightMask, int diffFn,
-                   int attnFn);
-void GXSetChanMatColor(int chan, GXColor* color);
-void GXSetChanAmbColor(int chan, GXColor* color);
-void GXSetNumTexGens(int n);
-void GXSetNumTevStages(int n);
-void GXSetTevOrder(int stage, int coord, int map, int color);
-void GXSetTevOp(int stage, int mode);
-void GXSetTevColorIn(int stage, int a, int b, int c, int d);
-void GXSetTevColorOp(int stage, int op, int bias, int scale, int clamp, int outReg);
-void GXSetTevAlphaIn(int stage, int a, int b, int c, int d);
-void GXSetTevAlphaOp(int stage, int op, int bias, int scale, int clamp, int outReg);
-void GXSetTexCoordGen2(int dst, int func, int src, int mtx, int normalize, int postMtx);
-void GXClearVtxDesc(void);
-void GXSetVtxDesc(int attr, int type);
-void GXSetVtxAttrFmt(int vtxfmt, int attr, int cnt, int type, int frac);
-void GXBegin(int primitive, int vtxfmt, int nverts);
-void GXInitTlutObj(GXTlutObj* obj, void* data, int format, unsigned short nEntries);
-void GXLoadTlut(GXTlutObj* obj, unsigned long id);
-void GXInitTexObjCI(GXTexObj* obj, void* image, unsigned short width, unsigned short height,
-                    int format, int wrapS, int wrapT, int mipmap, unsigned long tlut);
-void GXInitTexObj(GXTexObj* obj, void* image, unsigned short width, unsigned short height,
-                  int format, int wrapS, int wrapT, int mipmap);
-void GXInitTexObjLOD(GXTexObj* obj, int minFilt, int magFilt, float minLod, float maxLod,
-                     float lodBias, int biasClamp, int edgeLod, int maxAniso);
-void GXLoadTexObj(GXTexObj* obj, int id);
-void GXLoadTexMtxImm(Mtx* m, int id, int type);
-void GXLoadPosMtxImm(Mtx* m, int id);
-void GXSetCoPlanar(int enable);
-void GXSetCullMode(int mode);
-void GXSetClipMode(int mode);
-void GXSetScissorBoxOffset(int x, int y);
-void GXSetNumIndStages(int n);
-void GXSetFog(int type, float start, float end, float near, float far, GXColor* color);
-void GXSetFogRangeAdj(int enable, unsigned short center, void* table);
-void GXSetBlendMode(int type, int src, int dst, int op);
-void GXSetColorUpdate(int enable);
-void GXSetAlphaUpdate(int enable);
-void GXSetZMode(int compare, int func, int update);
-void GXSetZCompLoc(int beforeTex);
-void GXSetDither(int enable);
-void GXSetDstAlpha(int enable, unsigned char alpha);
-void GXSetCopyClear(GXColor* color, unsigned long z);
-void GXSetViewport(float left, float top, float width, float height, float near, float far);
-void GXSetViewportJitter(float left, float top, float width, float height, float near,
-                         float far, unsigned long field);
-void GXCopyDisp(void* dest, unsigned char clear);
-
-void PSMTXScale(Mtx* m, float x, float y, float z);
-void DCInvalidateRange(void* addr, unsigned long n);
-void DCFlushRange(void* addr, unsigned long n);
 void RwGameCubeGetXFBs(void** disp, void** copy);
-void GXSetTexCopySrc(int left, int top, unsigned short width, unsigned short height);
-void GXSetTexCopyDst(unsigned short width, unsigned short height, int format, int mipmap);
-void GXCopyTex(void* dest, unsigned char clear);
 
-void OSPanic(const char* file, int line, const char* msg, ...);
-unsigned short OSGetFontEncode(void);
-int OSInitFont(void* fontData);
-char* OSGetFontWidth(char* str, int* width);
-char* OSGetFontTexture(char* str, void** image, int* x, int* y, int* width);
-unsigned long long OSGetTime(void);
-unsigned int OSGetResetCode(void);
-unsigned int OSGetProgressiveMode(void);
-void OSSetProgressiveMode(unsigned int mode);
 
 void save_projection_matrix(void);
 void set_2d_projection(void);
@@ -212,8 +96,6 @@ extern void* _RwGCXFBCopy;
 extern void* _RwGCXFBDisp;
 extern int _RwDlPixelFormat;
 
-extern GXRenderModeObj GXNtsc480IntDf;
-extern GXRenderModeObj GXMpal480IntDf;
 
 /* ASM-backed .data while NonMatching. */
 extern unsigned short loading_palette[0x100];
@@ -237,7 +119,7 @@ static const float s_identityPosMtx[12] = {
     1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f,
 };
 
-static volatile unsigned short* const wgPipe = (volatile unsigned short*)0xCC008000;
+static volatile unsigned short* const wgPipe = (volatile unsigned short*)GXFIFO_ADDR;
 
 static void gc_native_display_render(NativeRenderCb cb, void* arg);
 static void render_text(void* text);
@@ -318,7 +200,7 @@ void feedback_effect(void) {
     short w;
     short h;
 
-    memcpy(posMtx.m, s_identityPosMtx, sizeof(s_identityPosMtx));
+    memcpy(posMtx, s_identityPosMtx, sizeof(s_identityPosMtx));
     color.r = 0xC4;
     color.g = 0xC4;
     color.b = 0xC4;
@@ -331,19 +213,19 @@ void feedback_effect(void) {
 
     save_projection_matrix();
     set_2d_projection();
-    GXLoadPosMtxImm(&posMtx, 0);
+    GXLoadPosMtxImm(posMtx, 0);
     GXLoadTexObj(&feedbackTex, 4);
-    PSMTXScale(&texMtx, 1.0f / (float)screen_width, 1.0f / (float)screen_height, 0.0f);
-    GXLoadTexMtxImm(&texMtx, 0x21, 1);
+    PSMTXScale(texMtx, 1.0f / (float)screen_width, 1.0f / (float)screen_height, 0.0f);
+    GXLoadTexMtxImm(texMtx, 0x21, 1);
     GXSetNumTexGens(1);
     GXSetNumTevStages(1);
     GXSetNumChans(1);
 
     amb = color;
-    GXSetChanAmbColor(4, &amb);
+    GXSetChanAmbColor(4, amb);
     color.a = (unsigned char)feedback_blendrate;
     mat = color;
-    GXSetChanMatColor(4, &mat);
+    GXSetChanMatColor(4, mat);
     GXSetChanCtrl(4, 0, 0, 0, 0, 0, 2);
     GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);
     GXSetTevOrder(0, 0, 4, 4);
@@ -450,8 +332,8 @@ int romfont_puts(short x, int y, char* text) {
             GXLoadTexObj(&texObj, 0);
             invW = 1.0f / (float)font->sheetWidth;
             invH = 1.0f / (float)font->sheetHeight;
-            PSMTXScale(&texMtx, invW, invH, 1.0f);
-            GXLoadTexMtxImm(&texMtx, 0x1E, 1);
+            PSMTXScale(texMtx, invW, invH, 1.0f);
+            GXLoadTexMtxImm(texMtx, 0x1E, 1);
             GXSetNumTexGens(1);
             GXSetTexCoordGen2(0, 1, 4, 0x1E, 0, 0x7D);
         }
@@ -520,7 +402,7 @@ void gc_native_display_render_movie(void* ctx) {
     GXColor clearColor;
     GXColor fogColor;
 
-    memcpy(posMtx.m, s_identityPosMtx, sizeof(s_identityPosMtx));
+    memcpy(posMtx, s_identityPosMtx, sizeof(s_identityPosMtx));
     clearColor = Black;
 
     GXSetCoPlanar(0);
@@ -530,7 +412,7 @@ void gc_native_display_render_movie(void* ctx) {
     GXSetScissorBoxOffset(0, 0);
     GXSetNumIndStages(0);
     fogColor = clearColor;
-    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, &fogColor);
+    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, fogColor);
     GXSetFogRangeAdj(0, 0, 0);
     GXSetBlendMode(0, 4, 5, 0);
     GXSetColorUpdate(1);
@@ -540,9 +422,9 @@ void gc_native_display_render_movie(void* ctx) {
     GXSetDither(1);
     GXSetDstAlpha(0, 0);
     GXSetPixelFmt(0, 0);
-    GXLoadPosMtxImm(&posMtx, 0);
+    GXLoadPosMtxImm(posMtx, 0);
     clearColor = Black;
-    GXSetCopyClear(&clearColor, 0x00FFFFFFu);
+    GXSetCopyClear(clearColor, 0x00FFFFFFu);
     GProfile_GCN_GxDrawDone();
     VIWaitForRetrace();
     VIFlush();
@@ -569,7 +451,7 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     /* Retail: spill Black (@681) then mtctr dword-pair copy of @682 into posMtx. */
     clearColor = Black;
     src = (const unsigned int*)s_identityPosMtx;
-    dst = (unsigned int*)posMtx.m;
+    dst = (unsigned int*)posMtx;
     n = 6;
     do {
         dst[0] = src[0];
@@ -597,7 +479,7 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     GXSetNumIndStages(0);
 
     fogColor = clearColor;
-    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, &fogColor);
+    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, fogColor);
     GXSetFogRangeAdj(0, 0, 0);
     GXSetBlendMode(0, 4, 5, 0);
     GXSetColorUpdate(1);
@@ -607,12 +489,12 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     GXSetDither(1);
     GXSetDstAlpha(0, 0);
     GXSetPixelFmt(0, 0);
-    GXLoadPosMtxImm(&posMtx, 0);
+    GXLoadPosMtxImm(posMtx, 0);
     VISetBlack(0);
     VIFlush();
 
     clearColor = Black;
-    GXSetCopyClear(&clearColor, 0x00FFFFFFu);
+    GXSetCopyClear(clearColor, 0x00FFFFFFu);
 
     curXfb = xfbA;
     for (i = 0; i < uFrameBlastCount; i++) {
@@ -677,9 +559,9 @@ static void render_text(void* text) {
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
     mat = black;
-    GXSetChanMatColor(0, &mat);
+    GXSetChanMatColor(0, mat);
     amb = black;
-    GXSetChanAmbColor(0, &amb);
+    GXSetChanAmbColor(0, amb);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);
@@ -765,8 +647,8 @@ static void render_text_without_clear(char* text, int x, int y) {
     GXSetNumTevStages(1);
     GXSetNumTexGens(1);
     GXSetTexCoordGen2(0, 1, 4, 0x3C, 0, 0x7D);
-    GXSetChanMatColor(0, &color);
-    GXSetChanAmbColor(0, &color);
+    GXSetChanMatColor(0, color);
+    GXSetChanAmbColor(0, color);
     GXSetTevOrder(0, 0, 0, 4);
     GXSetTevColorIn(0, 0xF, 0xA, 8, 0xF);
     GXSetTevColorOp(0, 0, 0, 0, 1, 0);
@@ -794,9 +676,9 @@ static void render_image(void* unused) {
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
     mat = black;
-    GXSetChanMatColor(0, &mat);
+    GXSetChanMatColor(0, mat);
     amb = black;
-    GXSetChanAmbColor(0, &amb);
+    GXSetChanAmbColor(0, amb);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);
@@ -848,8 +730,8 @@ void gc_native_display_pass_to_RW(void) {
 }
 
 /*
- * Soft ceiling: 98.61% -- the retail TV-format selection has one additional
- * equivalent branch; the remaining differences are truncation/load scheduling.
+ * Soft ceiling: 97.01% -- the retail TV-format selection has one additional
+ * equivalent branch; centralized GX widths also alter truncation/load scheduling.
  */
 void gc_native_display_init(void) {
     int tvFormat;
@@ -1275,8 +1157,8 @@ void display_dragon_with_text(DragonTextPrompt* prompt) {
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    GXSetChanMatColor(0, &black);
-    GXSetChanAmbColor(0, &black);
+    GXSetChanMatColor(0, black);
+    GXSetChanAmbColor(0, black);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);
@@ -1385,8 +1267,8 @@ void display_image(void) {
     GXInitTexObjCI(&tex, loading_image, 0x100, 0x100, 9, 0, 0, 0, 0);
     GXInitTexObjLOD(&tex, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
     GXLoadTexObj(&tex, 1);
-    PSMTXScale(&texMtx, 0.00390625f, 0.00390625f, 1.0f);
-    GXLoadTexMtxImm(&texMtx, 0x21, 1);
+    PSMTXScale(texMtx, 0.00390625f, 0.00390625f, 1.0f);
+    GXLoadTexMtxImm(texMtx, 0x21, 1);
     GXSetNumTexGens(1);
     GXSetNumTevStages(1);
     GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);

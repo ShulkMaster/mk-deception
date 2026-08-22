@@ -18,18 +18,6 @@ enum {
   rwRASTERFORMATMIPMAP = 0x8000,
 };
 
-enum {
-  GX_TF_I4 = 0,
-  GX_TF_I8 = 1,
-  GX_TF_RGB565 = 4,
-  GX_TF_RGB5A3 = 5,
-  GX_TF_RGBA8 = 6,
-  GX_TF_C4 = 8,
-  GX_TF_C8 = 9,
-  GX_TL_RGB565 = 1,
-  GX_TL_RGB5A3 = 2,
-};
-
 extern int _rwDlFindMSB(int value);
 extern RwTexture *_RwDlTexture;
 extern GXRenderModeObj *_RwDlRenderMode;

@@ -1,3 +1,4 @@
+#include "dolphin/gx.h"
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
@@ -7,8 +8,6 @@
 
 extern void* memset(void* destination, int value, unsigned int size);
 extern void DCFlushRange(void* start, unsigned int length);
-extern void GXInvalidateVtxCache(void);
-
 
 static RwGameCubeVertexDescriptor VtxDesc;
 
