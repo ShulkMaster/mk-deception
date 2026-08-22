@@ -236,7 +236,6 @@ float get_game_speed(void) {
     return game_speed;
 }
 
-/* Soft ceiling: MWCC collapses retail's equivalent two-branch nonpositive-speed diamond. */
 void set_game_speed(float speed) {
     MainFloatBits estimate;
     MainFloatBits input;
@@ -253,7 +252,7 @@ void set_game_speed(float speed) {
         }
         sqrt_game_speed = square_root;
     } else {
-        sqrt_game_speed = square_root;
         inverse_game_speed = 1.0e9f;
+        sqrt_game_speed = square_root;
     }
 }
