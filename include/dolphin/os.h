@@ -8,14 +8,38 @@ extern "C" {
 #endif
 
 typedef signed long long OSTime;
+typedef unsigned long OSTick;
 typedef struct OSThread OSThread;
 typedef struct OSResetFunctionInfo OSResetFunctionInfo;
+typedef struct OSContext OSContext;
+typedef void (*OSAlarmHandler)(OSAlarm* alarm, OSContext* context);
+typedef struct OSSramEx {
+    unsigned char flashID[2][12];
+    unsigned long wirelessKeyboardID;
+    unsigned short wirelessPadID[4];
+    unsigned char dvdErrorCode;
+    unsigned char padding0;
+    unsigned char flashIDCheckSum[2];
+    unsigned short gbs;
+    unsigned char padding1[2];
+} OSSramEx;
+typedef struct OSSram {
+    unsigned short checkSum;
+    unsigned short checkSumInv;
+    unsigned long ead0;
+    unsigned long ead1;
+    unsigned long counterBias;
+    signed char displayOffsetH;
+    unsigned char ntd;
+    unsigned char language;
+    unsigned char flags;
+} OSSram;
 typedef struct OSThreadQueue {
     void* head;
     void* tail;
 } OSThreadQueue;
 typedef signed short __OSInterrupt;
-typedef struct OSContext {
+struct OSContext {
     unsigned long gpr[32];
     unsigned long cr, lr, ctr, xer;
     double fpr[32];
@@ -24,7 +48,7 @@ typedef struct OSContext {
     unsigned long gqr[8];
     unsigned long psf_pad;
     double psf[32];
-} OSContext;
+};
 typedef void (*__OSInterruptHandler)(__OSInterrupt, OSContext*);
 typedef int (*OSResetFunction)(int final);
 struct OSResetFunctionInfo {
@@ -45,7 +69,8 @@ unsigned short OSGetFontEncode(void);
 int OSInitFont(void* font_data);
 char* OSGetFontWidth(char* string, int* width);
 char* OSGetFontTexture(char* string, void** image, int* x, int* y, int* width);
-unsigned long long OSGetTime(void);
+OSTime OSGetTime(void);
+OSTick OSGetTick(void);
 void OSRegisterVersion(const char* version);
 void OSRegisterResetFunction(OSResetFunctionInfo* info);
 #define OSPhysicalToUncached(address) ((void*)((unsigned long)(address) + 0xC0000000UL))
@@ -68,11 +93,19 @@ void OSSetProgressiveMode(unsigned int mode);
 unsigned char OSGetLanguage(void);
 void OSCreateAlarm(OSAlarm* alarm);
 void OSCancelAlarm(OSAlarm* alarm);
+void OSInitAlarm(void);
+void OSSetAlarm(OSAlarm* alarm, OSTime tick, OSAlarmHandler handler);
 void OSSetPeriodicAlarm(OSAlarm* alarm, unsigned long long start,
                         unsigned long long period,
                         void (*handler)(OSAlarm*, void*));
 int OSGetResetButtonState(void);
 void OSResetSystem(int reset, int reset_code, int force_menu);
+OSSramEx* __OSLockSramEx(void);
+int __OSUnlockSramEx(int commit);
+OSSram* __OSLockSram(void);
+int __OSUnlockSram(int commit);
+#define OSRoundUp32B(value) (((unsigned long)(value) + 31) & ~31)
+#define OSCachedToPhysical(address) ((unsigned long)(address) - 0x80000000UL)
 
 #ifdef __cplusplus
 }

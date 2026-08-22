@@ -26,6 +26,11 @@ typedef struct RwGameCubeRasterExt {
     unsigned char lockedMipLevel;
 } RwGameCubeRasterExt;
 
+typedef char RwGameCubeTextureExtSizeCheck[
+    sizeof(RwGameCubeTextureExt) == 0x24 ? 1 : -1];
+typedef char RwGameCubeRasterExtSizeCheck[
+    sizeof(RwGameCubeRasterExt) == 0x34 ? 1 : -1];
+
 int _rwDlTextureSetRaster(void* texture, void* raster, int unused);
 
 static inline RwGameCubeTextureExt* RwGameCubeTextureExtension(

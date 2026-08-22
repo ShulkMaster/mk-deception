@@ -90,38 +90,92 @@ void GXLoadLightObjImm(const GXLightObj* light, GXLightID id) {
 }
 
 void GXSetChanAmbColor(GXChannelID channel, GXColor color) {
-    u32 reg, rgb, index;
+    u32 reg;
+    u32 rgb;
+    u32 index;
+
     switch (channel) {
     case GX_COLOR0:
-        index=0; reg=__GXData->ambColor[0]; rgb=GXCOLOR_AS_U32(color)>>8;
-        SET_REG_FIELD(0,reg,24,8,rgb); break;
+        reg = __GXData->ambColor[GX_COLOR0];
+        rgb = GXCOLOR_AS_U32(color) >> 8;
+        SET_REG_FIELD(0, reg, 24, 8, rgb);
+        index = 0;
+        break;
     case GX_COLOR1:
-        index=1; reg=__GXData->ambColor[1]; rgb=GXCOLOR_AS_U32(color)>>8;
-        SET_REG_FIELD(0,reg,24,8,rgb); break;
-    case GX_ALPHA0: index=0; reg=__GXData->ambColor[0]; SET_REG_FIELD(0,reg,8,0,color.a); break;
-    case GX_ALPHA1: index=1; reg=__GXData->ambColor[1]; SET_REG_FIELD(0,reg,8,0,color.a); break;
-    case GX_COLOR0A0: index=0; reg=GXCOLOR_AS_U32(color); break;
-    case GX_COLOR1A1: index=1; reg=GXCOLOR_AS_U32(color); break;
-    default: return;
+        reg = __GXData->ambColor[GX_COLOR1];
+        rgb = GXCOLOR_AS_U32(color) >> 8;
+        SET_REG_FIELD(0, reg, 24, 8, rgb);
+        index = 1;
+        break;
+    case GX_ALPHA0:
+        reg = __GXData->ambColor[GX_COLOR0];
+        SET_REG_FIELD(0, reg, 8, 0, color.a);
+        index = 0;
+        break;
+    case GX_ALPHA1:
+        reg = __GXData->ambColor[GX_COLOR1];
+        SET_REG_FIELD(0, reg, 8, 0, color.a);
+        index = 1;
+        break;
+    case GX_COLOR0A0:
+        reg = GXCOLOR_AS_U32(color);
+        index = 0;
+        break;
+    case GX_COLOR1A1:
+        reg = GXCOLOR_AS_U32(color);
+        index = 1;
+        break;
+    default:
+        return;
     }
-    GX_WRITE_XF_REG(index+10,reg); __GXData->bpSentNot=1; __GXData->ambColor[index]=reg;
+
+    GX_WRITE_XF_REG(index + 10, reg);
+    __GXData->bpSentNot = 1;
+    __GXData->ambColor[index] = reg;
 }
 void GXSetChanMatColor(GXChannelID channel, GXColor color) {
-    u32 reg, rgb, index;
+    u32 reg;
+    u32 rgb;
+    u32 index;
+
     switch (channel) {
     case GX_COLOR0:
-        index=0; reg=__GXData->matColor[0]; rgb=GXCOLOR_AS_U32(color)>>8;
-        SET_REG_FIELD(0,reg,24,8,rgb); break;
+        reg = __GXData->matColor[GX_COLOR0];
+        rgb = GXCOLOR_AS_U32(color) >> 8;
+        SET_REG_FIELD(0, reg, 24, 8, rgb);
+        index = 0;
+        break;
     case GX_COLOR1:
-        index=1; reg=__GXData->matColor[1]; rgb=GXCOLOR_AS_U32(color)>>8;
-        SET_REG_FIELD(0,reg,24,8,rgb); break;
-    case GX_ALPHA0: index=0; reg=__GXData->matColor[0]; SET_REG_FIELD(0,reg,8,0,color.a); break;
-    case GX_ALPHA1: index=1; reg=__GXData->matColor[1]; SET_REG_FIELD(0,reg,8,0,color.a); break;
-    case GX_COLOR0A0: index=0; reg=GXCOLOR_AS_U32(color); break;
-    case GX_COLOR1A1: index=1; reg=GXCOLOR_AS_U32(color); break;
-    default: return;
+        reg = __GXData->matColor[GX_COLOR1];
+        rgb = GXCOLOR_AS_U32(color) >> 8;
+        SET_REG_FIELD(0, reg, 24, 8, rgb);
+        index = 1;
+        break;
+    case GX_ALPHA0:
+        reg = __GXData->matColor[GX_COLOR0];
+        SET_REG_FIELD(0, reg, 8, 0, color.a);
+        index = 0;
+        break;
+    case GX_ALPHA1:
+        reg = __GXData->matColor[GX_COLOR1];
+        SET_REG_FIELD(0, reg, 8, 0, color.a);
+        index = 1;
+        break;
+    case GX_COLOR0A0:
+        reg = GXCOLOR_AS_U32(color);
+        index = 0;
+        break;
+    case GX_COLOR1A1:
+        reg = GXCOLOR_AS_U32(color);
+        index = 1;
+        break;
+    default:
+        return;
     }
-    GX_WRITE_XF_REG(index+12,reg); __GXData->bpSentNot=1; __GXData->matColor[index]=reg;
+
+    GX_WRITE_XF_REG(index + 12, reg);
+    __GXData->bpSentNot = 1;
+    __GXData->matColor[index] = reg;
 }
 void GXSetNumChans(u8 count) {
     SET_REG_FIELD(0,__GXData->genMode,3,4,count); GX_WRITE_XF_REG(9,count); __GXData->dirtyState|=4;
