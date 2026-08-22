@@ -1127,6 +1127,10 @@ config.libs = [
     DolphinLib(
         "os",
         [
+            Object(NonMatching, "os.a/OSAlloc.o", source="dolphin/os/OSAlloc.c"),
+            Object(Matching, "os.a/OSArena.o", source="dolphin/os/OSArena.c"),
+            Object(NonMatching, "os.a/OSCache.o", source="dolphin/os/OSCache.c"),
+            Object(NonMatching, "os.a/OSMemory.o", source="dolphin/os/OSMemory.c"),
             Object(NonMatching, "os.a/__start.o", source="dolphin/__start.c"),
             Object(
                 NonMatching,

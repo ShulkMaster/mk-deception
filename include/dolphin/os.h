@@ -9,9 +9,11 @@ extern "C" {
 
 typedef signed long long OSTime;
 typedef unsigned long OSTick;
-typedef struct OSThread OSThread;
 typedef struct OSResetFunctionInfo OSResetFunctionInfo;
 typedef struct OSContext OSContext;
+typedef unsigned char __OSException;
+typedef unsigned short OSError;
+typedef unsigned long OSInterruptMask;
 typedef void (*OSAlarmHandler)(OSAlarm* alarm, OSContext* context);
 typedef struct OSSramEx {
     unsigned char flashID[2][12];
@@ -50,6 +52,7 @@ struct OSContext {
     double psf[32];
 };
 typedef void (*__OSInterruptHandler)(__OSInterrupt, OSContext*);
+typedef void (*OSErrorHandler)(OSError error, OSContext* context, ...);
 typedef int (*OSResetFunction)(int final);
 struct OSResetFunctionInfo {
     OSResetFunction func;
@@ -77,6 +80,7 @@ void OSRegisterResetFunction(OSResetFunctionInfo* info);
 #define OSPhysicalToCached(address) ((void*)((unsigned long)(address) + 0x80000000UL))
 #define OSUncachedToPhysical(address) ((unsigned long)(address) - 0xC0000000UL)
 void OSClearContext(OSContext* context);
+void OSDumpContext(OSContext* context);
 void OSSetCurrentContext(OSContext* context);
 void OSInitThreadQueue(OSThreadQueue* queue);
 void OSWakeupThread(OSThreadQueue* queue);
@@ -86,7 +90,12 @@ int OSSuspendThread(OSThread* thread);
 int OSResumeThread(OSThread* thread);
 __OSInterruptHandler __OSSetInterruptHandler(__OSInterrupt interrupt,
                                              __OSInterruptHandler handler);
-unsigned long __OSUnmaskInterrupts(unsigned long mask);
+OSInterruptMask __OSMaskInterrupts(OSInterruptMask mask);
+OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask mask);
+OSErrorHandler OSSetErrorHandler(OSError error, OSErrorHandler handler);
+void __OSUnhandledException(__OSException exception, OSContext* context,
+                            unsigned long cause, unsigned long address);
+extern OSErrorHandler __OSErrorTable[17];
 unsigned int OSGetResetCode(void);
 unsigned int OSGetProgressiveMode(void);
 void OSSetProgressiveMode(unsigned int mode);

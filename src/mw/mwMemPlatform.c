@@ -29,8 +29,8 @@ unsigned long mwMemSystemGetAvailSize(void) {
     char* arena_high;
 
     OSInit();
-    arena_high = OSGetArenaHi();
-    return (unsigned long)(arena_high - OSGetArenaLo()) - 0x140;
+    arena_high = (char*)OSGetArenaHi();
+    return (unsigned long)(arena_high - (char*)OSGetArenaLo()) - 0x140;
 }
 
 unsigned char* privGetOSMemory(unsigned long size) {

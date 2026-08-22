@@ -4,8 +4,6 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 
-typedef int OSHeapHandle;
-
 static const char stringBase0[] =
     "1.5 rev 1\0"
     "System Heap\0"
