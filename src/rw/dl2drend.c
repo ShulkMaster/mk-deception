@@ -26,10 +26,8 @@ extern int _RwDlFSAATop;
 extern int _RwDlHalfHeight;
 
 extern void _rwDlTextureRasterFlush(void);
-extern void GXSetCurrentMtx(unsigned int matrix);
+extern void GXSetCurrentMtx(unsigned long matrix);
 
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix);
 static void GXEnd(void);
 static void GXTexCoord2f32(float s, float t);
 static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
@@ -382,12 +380,6 @@ int _rwDlIm2DRenderIndexedPrimitive(
     GXEnd();
     _rw2DRenderPrimativeTerm();
     return 1;
-}
-
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix)
-{
-    GXSetTexCoordGen2(destination, function, source, matrix, 0, 0x7D);
 }
 
 static void GXEnd(void)

@@ -74,8 +74,6 @@ static RpGameCubeVtxFmt* GeometryVertexFormat(const RpGeometry* geometry)
     return *(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
 }
 
-static void GXSetTexCoordGen(int dst, int func, int src,
-                             unsigned int matrix);
 
 static void _rxGCChannelLightingSetup(
     const RxGameCubeAtomicAllInOneInstanceData* data)
@@ -719,10 +717,4 @@ static void MKMeshRenderUVAnimDual(
     if (specular->shininess != 0.0f)
         ApplySpecularityToDualPass(material, &texCoord, &tevStage);
     FinishDualPass(displayList, tevStage, texCoord, firstSwap, secondSwap);
-}
-
-static void GXSetTexCoordGen(
-    int dst, int func, int src, unsigned int matrix)
-{
-    GXSetTexCoordGen2(dst, func, src, matrix, 0, 0x7D);
 }

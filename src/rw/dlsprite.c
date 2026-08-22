@@ -18,8 +18,6 @@ extern int _RwDlCurPixelFormat;
 extern void* memset(void* destination, int value, unsigned int size);
 extern RwRGBA* RwRGBASetFromPixel(RwRGBA* color, unsigned int pixel,
                                   int format);
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix);
 static void GXEnd(void);
 static void GXTexCoord2f32(float s, float t);
 static void GXPosition2s16(short x, short y);
@@ -508,12 +506,6 @@ int _rwDlSetRasterContext(void* out, void* inOut, int in)
     RwRaster* raster = inOut;
     _RwDlRasterTarget = raster;
     return 1;
-}
-
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix)
-{
-    GXSetTexCoordGen2(destination, function, source, matrix, 0, 0x7D);
 }
 
 static void GXEnd(void)

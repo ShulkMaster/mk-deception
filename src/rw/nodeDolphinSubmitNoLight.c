@@ -15,8 +15,6 @@ static int _rwDlPrimConvTbl[7] = {
     0, 0xA8, 0xB0, 0x90, 0x98, 0xA0, 0xB8
 };
 
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix);
 static void GXEnd(void);
 static void GXTexCoord2f32(float s, float t);
 static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
@@ -155,12 +153,6 @@ static RxNodeDefinition nodeDlSubmitNoLightCSL = {
 RxNodeDefinition* RxNodeDefinitionGetGameCubeSubmitNoLight(void)
 {
     return &nodeDlSubmitNoLightCSL;
-}
-
-static void GXSetTexCoordGen(int destination, int function,
-                             int source, int matrix)
-{
-    GXSetTexCoordGen2(destination, function, source, matrix, 0, 0x7D);
 }
 
 static void GXEnd(void)
