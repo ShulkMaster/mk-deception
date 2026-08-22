@@ -1,4 +1,5 @@
 #include "dolphin/cache.h"
+#include "dolphin/gx.h"
 #include "libmkparticle/rw_engine.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
@@ -8,8 +9,6 @@
 #include "rw/rwresources.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
-
-extern void GXInvalidateVtxCache(void);
 
 static void _rpNativePointer2Offset(GameCubeNativeMeshHeader* native,
                                     GameCubeNativeMesh* meshes,

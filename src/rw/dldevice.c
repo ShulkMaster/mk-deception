@@ -83,16 +83,10 @@ extern void MWY_GCN_RW_InsertRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_NoteRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_SetGxBreakPtCallback(void (*callback)(void));
 extern void DCInvalidateRange(void* memory, unsigned int size);
-extern void GXSetCopyClamp(int clamp);
-extern void GXSetDispCopyGamma(int gamma);
-extern void GXLoadNrmMtxImm(const Mtx matrix, unsigned long id);
 extern void VISetPreRetraceCallback(void (*callback)(void));
 extern void VISetPostRetraceCallback(void (*callback)(void));
 extern void* memcpy(void* destination, const void* source,
                     unsigned long size);
-extern GXRenderModeObj GXNtsc480IntDf;
-extern GXRenderModeObj GXPal528IntDf;
-extern GXRenderModeObj GXMpal480IntDf;
 
 extern int _rwDlRGBToPixel(void*, void*, int);
 extern int _rwDlPixelToRGB(void*, void*, int);

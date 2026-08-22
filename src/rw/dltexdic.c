@@ -12,8 +12,6 @@ extern unsigned int _rwDlRasterGetSize(RwRaster* raster);
 extern int _rwDlTextureRasterCreate(RwRaster* raster,
                                        unsigned char numLevels);
 extern void DCFlushRange(void* address, unsigned int length);
-extern void GXInvalidateTexAll(void);
-
 int _rwDlNativeTextureGetSize(unsigned int* size, void* object, int unused)
 {
     unsigned int result;

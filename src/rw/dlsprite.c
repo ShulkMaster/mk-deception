@@ -515,19 +515,19 @@ static void GXEnd(void)
 
 static void GXTexCoord2f32(float s, float t)
 {
-    *(volatile float*)0xCC008000 = s;
-    *(volatile float*)0xCC008000 = t;
+    *(volatile float*)GXFIFO_ADDR = s;
+    *(volatile float*)GXFIFO_ADDR = t;
 }
 
 static void GXPosition2s16(short x, short y)
 {
-    *(volatile short*)0xCC008000 = x;
-    *(volatile short*)0xCC008000 = y;
+    *(volatile short*)GXFIFO_ADDR = x;
+    *(volatile short*)GXFIFO_ADDR = y;
 }
 
 static void GXPosition3f32(float x, float y, float z)
 {
-    *(volatile float*)0xCC008000 = x;
-    *(volatile float*)0xCC008000 = y;
-    *(volatile float*)0xCC008000 = z;
+    *(volatile float*)GXFIFO_ADDR = x;
+    *(volatile float*)GXFIFO_ADDR = y;
+    *(volatile float*)GXFIFO_ADDR = z;
 }
