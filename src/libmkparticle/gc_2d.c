@@ -7,9 +7,9 @@
 #include "runtime/cstring.h"
 
 /* WGPIPE at 0xCC008000 -- mixed short/word/float FIFO writes. */
-#define WGPIPE_U16 (*(volatile unsigned short*)0xCC008000)
-#define WGPIPE_U32 (*(volatile unsigned int*)0xCC008000)
-#define WGPIPE_F32 (*(volatile float*)0xCC008000)
+#define WGPIPE_U16 (*(volatile unsigned short*)GXFIFO_ADDR)
+#define WGPIPE_U32 (*(volatile unsigned int*)GXFIFO_ADDR)
+#define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
 int native2d_init(int pool_size) {
     (void)pool_size;

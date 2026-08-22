@@ -26,8 +26,6 @@ extern int _RwDlFSAATop;
 extern int _RwDlHalfHeight;
 
 extern void _rwDlTextureRasterFlush(void);
-extern void GXSetCurrentMtx(unsigned long matrix);
-
 static void GXEnd(void);
 static void GXTexCoord2f32(float s, float t);
 static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
@@ -389,22 +387,22 @@ static void GXEnd(void)
 
 static void GXTexCoord2f32(float s, float t)
 {
-    *(volatile float*)0xCC008000 = s;
-    *(volatile float*)0xCC008000 = t;
+    *(volatile float*)GXFIFO_ADDR = s;
+    *(volatile float*)GXFIFO_ADDR = t;
 }
 
 static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blue,
                        unsigned char alpha)
 {
-    *(volatile unsigned char*)0xCC008000 = red;
-    *(volatile unsigned char*)0xCC008000 = green;
-    *(volatile unsigned char*)0xCC008000 = blue;
-    *(volatile unsigned char*)0xCC008000 = alpha;
+    *(volatile unsigned char*)GXFIFO_ADDR = red;
+    *(volatile unsigned char*)GXFIFO_ADDR = green;
+    *(volatile unsigned char*)GXFIFO_ADDR = blue;
+    *(volatile unsigned char*)GXFIFO_ADDR = alpha;
 }
 
 static void GXPosition3f32(float x, float y, float z)
 {
-    *(volatile float*)0xCC008000 = x;
-    *(volatile float*)0xCC008000 = y;
-    *(volatile float*)0xCC008000 = z;
+    *(volatile float*)GXFIFO_ADDR = x;
+    *(volatile float*)GXFIFO_ADDR = y;
+    *(volatile float*)GXFIFO_ADDR = z;
 }

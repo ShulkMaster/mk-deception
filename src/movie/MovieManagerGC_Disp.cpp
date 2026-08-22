@@ -77,8 +77,8 @@ static const char stringBase0[] = "can't allocate tex buf.\n";
 
 static GXColor copy_clear_color;
 
-#define WGPIPE_S16 (*(volatile short*)0xCC008000)
-#define WGPIPE_F32 (*(volatile float*)0xCC008000)
+#define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
+#define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
 static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
     GXColorS10 local_s10;

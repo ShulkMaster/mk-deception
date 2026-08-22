@@ -1,6 +1,8 @@
 #ifndef DOLPHIN_GX_FIFO_H
 #define DOLPHIN_GX_FIFO_H
 
+#define GXFIFO_ADDR 0xCC008000
+
 typedef struct GXFifoObj {
     unsigned char data[0x80];
 } GXFifoObj;

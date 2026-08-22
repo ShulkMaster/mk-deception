@@ -1,7 +1,9 @@
 #include "platform/gcinstance.h"
+#include "dolphin/gx.h"
 #include "rw/dltextur.h"
 #include "rw/dltoken.h"
 #include "rw/gamecube_globals.h"
+#include "rw/gamecube_texture.h"
 #include "rw/native_internal.h"
 #include "rw/rpskin.h"
 #include "rw/rwresentry.h"
@@ -12,16 +14,6 @@ typedef struct GcInstanceEngine {
     unsigned char pad_0x138[0x0C];
     void* (*free_list_allocate)(void* free_list, unsigned int hint);
 } GcInstanceEngine;
-
-typedef struct GameCubeRasterExtView {
-    unsigned char pad_0x00[0x0C];
-    int tileMode;
-    int paletteFormat;
-    int hasAlpha;
-    unsigned char pad_0x18[4];
-    unsigned char* imageData;
-    unsigned char* paletteData;
-} GameCubeRasterExtView;
 
 extern GcInstanceEngine* RwEngineInstance;
 extern void _rxGCResEntryWaitDone(RwResEntry* entry);
@@ -37,10 +29,6 @@ extern int PadSize32(unsigned int value);
 extern int _rwerror(int code, ...);
 extern void RwErrorSet(int* error);
 extern void DCFlushRange(void* address, unsigned int length);
-extern void GXInvalidateVtxCache(void);
-extern void GXInvalidateTexAll(void);
-extern void GXInitTlutObj(GameCubeRasterExtView* extension, void* palette,
-                          int palette_format, unsigned short entries);
 extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
 extern void* memset(void* destination, int value, unsigned int size);
 
@@ -254,7 +242,7 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     unsigned int raster_format_bit;
     unsigned char* stream_data;
     RwRaster* raster;
-    GameCubeRasterExtView* extension;
+    RwGameCubeRasterExt* extension;
     RwTexture* result;
 
     if (!RwStreamFindChunk(stream, 1, &chunk_length, &version)) {
@@ -280,9 +268,8 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     if (raster == 0) {
         return 0;
     }
-    extension = (GameCubeRasterExtView*)((unsigned char*)raster +
-                                         _RwGameCubeRasterExtOffset);
-    extension->tileMode = raster_header.tileMode;
+    extension = RwGameCubeRasterExtension(raster);
+    extension->format = raster_header.tileMode;
     extension->paletteFormat = raster_header.paletteFormat;
     extension->hasAlpha = raster_header.hasAlpha != 0;
 
@@ -305,7 +292,7 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
         RwStreamSkip(stream, (1 << raster->depth) * 2);
         extension->paletteData = stream_data;
         DCFlushRange(extension->paletteData, (1 << raster->depth) * 2);
-        GXInitTlutObj(extension, extension->paletteData,
+        GXInitTlutObj(&extension->tlut, extension->paletteData,
                       extension->paletteFormat,
                       (unsigned short)(1 << raster->depth));
     }

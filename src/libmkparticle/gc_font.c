@@ -8,8 +8,8 @@
 extern int screen_height;
 
 /* WGPIPE at 0xCC008000 -- s16 POS (1 frac bit) + f32 TEX0. */
-#define WGPIPE_S16 (*(volatile short*)0xCC008000)
-#define WGPIPE_F32 (*(volatile float*)0xCC008000)
+#define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
+#define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
 __declspec(section ".sdata2") static unsigned int alignment_mask = 0xFFFFFFE0u;
 

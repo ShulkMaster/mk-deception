@@ -4,7 +4,6 @@
 #include "dolphin/gx.h"
 #include "dolphin/gx_fifo.h"
 
-#define GXFIFO_ADDR 0xCC008000
 #define GX_MT_XF_FLUSH 1
 #define GX_MT_DL_SAVE_CONTEXT 2
 #define GX_MT_ABORT_WAIT_COPYOUT 3
@@ -87,10 +86,10 @@ typedef int BOOL;
 #define TRUE 1
 #endif
 
-#define GX_WRITE_U8(value) (*(volatile u8*)0xCC008000 = (u8)(value))
-#define GX_WRITE_U16(value) (*(volatile u16*)0xCC008000 = (u16)(value))
-#define GX_WRITE_U32(value) (*(volatile u32*)0xCC008000 = (u32)(value))
-#define GX_WRITE_F32(value) (*(volatile f32*)0xCC008000 = (f32)(value))
+#define GX_WRITE_U8(value) (*(volatile u8*)GXFIFO_ADDR = (u8)(value))
+#define GX_WRITE_U16(value) (*(volatile u16*)GXFIFO_ADDR = (u16)(value))
+#define GX_WRITE_U32(value) (*(volatile u32*)GXFIFO_ADDR = (u32)(value))
+#define GX_WRITE_F32(value) (*(volatile f32*)GXFIFO_ADDR = (f32)(value))
 
 #define GX_WRITE_RAS_REG(value) \
     do { \
@@ -119,7 +118,6 @@ typedef int GXTevAlphaArg;
 typedef int GXTevOp;
 typedef int GXTevBias;
 typedef int GXTevScale;
-typedef u8 GXBool;
 #define GX_FALSE ((GXBool)0)
 #define GX_TRUE ((GXBool)1)
 typedef int GXTevRegID;
@@ -143,7 +141,6 @@ typedef int GXTevColorChan;
 typedef int GXCompare;
 typedef int GXAlphaOp;
 typedef int GXZTexOp;
-typedef int GXChannelID;
 typedef int GXFogType;
 typedef int GXBlendMode;
 typedef int GXBlendFactor;
@@ -173,29 +170,6 @@ typedef int GXClipMode;
 #define GX_MTX3x4 0
 #define GX_MTX2x4 1
 #define GX_PTTEXMTX0 64
-#define GX_TF_RGB5A3 5
-#define GX_TF_RGB565 4
-#define GX_TF_RGBA8 6
-#define GX_TF_CMPR 14
-#define GX_CTF_R4 0x20
-#define GX_CTF_RA4 0x22
-#define GX_CTF_RA8 0x23
-#define GX_CTF_A8 0x27
-#define GX_CTF_R8 0x28
-#define GX_CTF_G8 0x29
-#define GX_CTF_B8 0x2A
-#define GX_CTF_RG8 0x2B
-#define GX_CTF_GB8 0x2C
-#define GX_TF_A8 GX_CTF_A8
-#define GX_TF_Z8 0x11
-#define GX_TF_Z24X8 0x16
-#define GX_CTF_Z4 0x30
-#define GX_CTF_Z8M 0x39
-#define GX_CTF_Z8L 0x3A
-#define GX_CTF_Z16L 0x3C
-#define GX_TF_C4 8
-#define GX_TF_C8 9
-#define GX_TF_C14X2 10
 #define GX_NEAR 0
 #define GX_LINEAR 1
 #define GX_NEAR_MIP_NEAR 2
@@ -274,9 +248,6 @@ typedef enum GXPerf1 {
 
 #define GX_TEVSTAGE0 0
 #define GX_PASSCLR 4
-#define GX_TF_Z8 0x11
-#define GX_TF_Z16 0x13
-#define GX_TF_Z24X8 0x16
 #define GX_TEX_DISABLE 0x100
 #define GX_MAX_TEXMAP 8
 #define GX_MAX_TEXCOORD 8
@@ -300,11 +271,6 @@ typedef enum GXPerf1 {
 #define GX_ITBA_OFF 0
 #define GX_CLAMP_TOP 1
 #define GX_CLAMP_BOTTOM 2
-#define GX_TF_I4 0
-#define GX_TF_I8 1
-#define GX_TF_IA4 2
-#define GX_TF_IA8 3
-#define GX_CTF_YUVA8 0x26
 #define _GX_TF_ZTF 0x10
 
 typedef struct __GXFifoObj {

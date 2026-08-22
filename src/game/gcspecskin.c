@@ -6,6 +6,7 @@
  * extension is represented by a typed retail-layout view.
  */
 #include "game/specular.h"
+#include "dolphin/gx.h"
 #include "rw/alphapass.h"
 #include "rw/dltextur.h"
 #include "rw/dltoken.h"
@@ -20,17 +21,6 @@
 #include "math/gxMath.h"
 #include "game/gcspecskin.h"
 #include "runtime/mk_plugins.h"
-
-typedef struct GXColor {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
-} GXColor;
-
-typedef struct GXLightObj {
-    unsigned char data[0x40];
-} GXLightObj;
 
 typedef struct SpecularGeometryData {
     void* field_00;
@@ -167,32 +157,6 @@ void _rwDlTransformSetup(const RwMatrix*, int);
 void _rwDlObjectRenderSetup(unsigned int, unsigned int, unsigned int, int);
 void _rwDlRenderStateSetZCompLoc(int);
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
-
-void GXSetTevColor(int, GXColor);
-void GXSetNumTexGens();
-void GXSetTexCoordGen2();
-void GXSetTevOrder();
-void GXSetTevSwapMode();
-void GXSetTevSwapModeTable();
-void GXSetNumTevStages();
-void GXSetTevColorIn();
-void GXSetTevColorOp();
-void GXSetTevAlphaIn();
-void GXSetTevAlphaOp();
-void GXSetCullMode();
-void GXSetVtxDesc();
-void GXCallDisplayList();
-void GXSetBlendMode();
-void GXSetChanAmbColor(int, GXColor);
-void GXSetChanMatColor(int, GXColor);
-void GXLoadTexMtxImm();
-void GXGetViewportv();
-void GXSetViewport();
-void GXInitLightAttn(
-    GXLightObj*, float, float, float, float, float, float);
-void GXInitLightPos(GXLightObj*, float, float, float);
-void GXInitLightColor(GXLightObj*, GXColor);
-void GXLoadLightObjImm(GXLightObj*, unsigned int);
 
 RxPipeline* SpecSkinAtomicPipeline;
 RxPipeline* SpecSkinMaterialPipeline;
