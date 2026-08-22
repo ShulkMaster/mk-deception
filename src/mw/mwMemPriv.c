@@ -1,5 +1,7 @@
 #include "mw/mwMemPriv.h"
 
+/* The bitfield view is intentional: retail spills this byte and extracts the
+ * low alignment nibble through MWCC's bitfield lowering. */
 typedef union MwMemBlockFlags {
     u8 value;
     struct {
@@ -16,7 +18,7 @@ void privSetBitFromBitFlag(u8* bit_flags, int bit) {
     *bit_flags |= (u8)(1 << bit);
 }
 
-int privGetBitFromBitFlag(const u8* bit_flags, int bit) {
+u32 privGetBitFromBitFlag(const u8* bit_flags, int bit) {
     return (*bit_flags >> bit) & 1;
 }
 
@@ -29,11 +31,12 @@ void privClearBitFlag(u8* bit_flags) {
     *bit_flags = 0;
 }
 
-int privGetLoadHighFromFlags(u32 flags) {
+u32 privGetLoadHighFromFlags(u32 flags) {
     return (flags >> 5) & 1;
 }
 
-/* Soft ceiling: ~96.59% -- one redundant default-range branch differs. */
+/* Near match: switch values and returns agree; retail retains one redundant
+ * range branch and colors the masked selector in a different GPR. */
 int privGetAlignFromMwMemFlags(u32 flags) {
     int alignment_flags;
 
@@ -63,14 +66,17 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     }
 }
 
-/* Soft ceiling: ~77.50% -- equivalent leaf-register coloring remains. */
+/* Near match: identical header/flag/alignment operations with a different
+ * add association and leaf-register allocation. */
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
     MwMemBlockFlags flags;
     u32 alignment_mask;
+    u8* block;
 
+    block = (u8*)(header + 1);
     flags.value = header->flags;
     alignment_mask = (1 << flags.bits.alignment) - 1;
-    return (void*)(((u32)header + sizeof(MwMemUsedHeader) + alignment_mask) & ~alignment_mask);
+    return (void*)(((u32)block + alignment_mask) & ~alignment_mask);
 }
 
 MwMemUsedHeader* privGetUsedHdrFromBlock(void* block) {
@@ -85,9 +91,9 @@ u32 privGetStatSizeFromUsed(const MwMemUsedHeader* header) {
     return 0;
 }
 
-/* Soft ceiling: ~94.50% -- return-expression GPR coloring only. */
-int privGetUserSizeFromUsed(const MwMemUsedHeader* header) {
-    int size = 0;
+/* Near match: all ten operations and branches agree; only GPR coloring differs. */
+u32 privGetUserSizeFromUsed(const MwMemUsedHeader* header) {
+    u32 size = 0;
     if (header != 0) {
         size = header->allocationSize - header->prefixSize - header->alignmentPadding;
     }

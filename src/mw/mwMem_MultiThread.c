@@ -1,3 +1,5 @@
+#include "mw/mwMem_MultiThread.h"
+
 #include "platform/os_types.h"
 #include "dolphin/mutex.h"
 
