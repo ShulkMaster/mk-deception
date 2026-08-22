@@ -1187,7 +1187,7 @@ int mwMemHeapDestroy(_mwMemHeap* heap) {
     return 1;
 }
 
-u32 mwMemVirtualHeapGetHeapSize(_mwMemHeap* heap) {
+u32 mwMemVirtualHeapGetHeapSize(void) {
     return 0x9F;
 }
 

@@ -238,7 +238,7 @@ _mwMemHeap *mwMemSystemGetHeap(u32 which);
 int mwMemSystemSetHeap(int which, _mwMemHeap *heap);
 int mwMemHeapWipe(_mwMemHeap *heap);
 int mwMemHeapDestroy(_mwMemHeap *heap);
-u32 mwMemVirtualHeapGetHeapSize(_mwMemHeap *heap);
+u32 mwMemVirtualHeapGetHeapSize(void);
 int mwMemSystemCreateSystemHeap(void *buffer, u32 size,
                                 MwMemSystemParams *params);
 _mwMemHeap *mwMemExtSystemHeapCreate(_mwMemHeap *parent, void *buffer, u32 size,

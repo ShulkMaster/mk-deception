@@ -48,6 +48,6 @@ static const char stringBase0[] =
 
 const unsigned int gap_04_80315534_rodata = 0;
 
-void memDebugHeap(void) {
+void memDebugHeap(_mwMemHeap* heap) {
     MEMPRINT(&stringBase0[0x713]);
 }
