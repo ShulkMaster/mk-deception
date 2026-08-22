@@ -2,9 +2,7 @@
 
 #include "mw/mwMemPriv.h"
 
-#define ALIGN_UP_16(value) (((value) + 0xF) & ~0xFU)
-
-/* Soft ceiling: ~99.13% -- initial leaf-register coloring only. */
+/* Near match: the six differing instructions are leaf-register coloring only. */
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* header;
     u32 block_prefix;
@@ -38,7 +36,8 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     }
 }
 
-/* Soft ceiling: ~91.27% -- allocation-local coloring and store scheduling. */
+/* Near match: exact-size allocation algorithm; residue is local coloring and a
+ * five-instruction address/store scheduling island. */
 void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     int requested_alignment;
     u32 aligned_size;
@@ -56,7 +55,7 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     if (requested_alignment > privGetAlignFromMwMemFlags(heap->flags)) {
         return 0;
     }
-    aligned_size = ALIGN_UP_16(size);
+    aligned_size = MW_MEM_ALIGN_UP_16(size);
     block_size = heap->blockSize;
     if (aligned_size > block_size) {
         return 0;
@@ -80,7 +79,8 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
     return mwMemByteAddress(header, heap->blockPrefixSize);
 }
 
-/* Soft ceiling: ~87.45% -- loop/local coloring around free-list construction. */
+/* Near match: the free-list construction agrees; retail is eight bytes shorter
+ * and uses different loop-local coloring/scheduling. */
 void hdrlessHeapResetHeap(_mwMemHeap* heap) {
     u32 alignment_mask;
     u32 alignment_inverse;
@@ -143,12 +143,12 @@ void hdrlessHeapResetHeap(_mwMemHeap* heap) {
 
 void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params) {
     heap->flags = params->flags;
-    heap->blockSize = ALIGN_UP_16(params->blockSize);
+    heap->blockSize = MW_MEM_ALIGN_UP_16(params->blockSize);
     heap->field_0x60 = 0;
     hdrlessHeapResetHeap(heap);
 }
 
-/* Soft ceiling: ~97.71% -- equivalent arithmetic GPR assignment. */
+/* Near match: identical arithmetic with equivalent destination-GPR reuse. */
 u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params) {
     u32 alignment;
     u32 alignment_mask;
@@ -157,7 +157,7 @@ u32 mwMemHeaderlessFixedBlockGetHeapSize(const MwMemHeaderlessParams* params) {
     alignment = 1 << privGetAlignFromMwMemFlags(params->flags);
     alignment_mask = alignment - 1;
     block_size =
-        (ALIGN_UP_16(params->blockSize) + alignment_mask) & ~alignment_mask;
+        (MW_MEM_ALIGN_UP_16(params->blockSize) + alignment_mask) & ~alignment_mask;
     block_size *= params->blockCount;
     block_size += alignment;
     return block_size + 0x70;
