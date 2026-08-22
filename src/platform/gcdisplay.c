@@ -730,8 +730,8 @@ void gc_native_display_pass_to_RW(void) {
 }
 
 /*
- * Soft ceiling: 98.61% -- the retail TV-format selection has one additional
- * equivalent branch; the remaining differences are truncation/load scheduling.
+ * Soft ceiling: 97.01% -- the retail TV-format selection has one additional
+ * equivalent branch; centralized GX widths also alter truncation/load scheduling.
  */
 void gc_native_display_init(void) {
     int tvFormat;

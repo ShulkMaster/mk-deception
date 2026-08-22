@@ -289,7 +289,7 @@ void ProcessSpecularity(
     GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
 }
 
-/* Soft ceiling: 73.44% -- boolean scheduling changes only the frame and NV homes. */
+/* Soft ceiling: 71.08% -- GXBool narrowing also changes the frame and NV homes. */
 void CleanupSpecularity(
     RpMaterial* material, int has_texture, unsigned int has_specularity) {
     SpecularMaterialPluginData* specular;

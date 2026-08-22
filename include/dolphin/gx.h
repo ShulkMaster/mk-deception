@@ -130,10 +130,18 @@ typedef int GXCITexFmt;
 typedef int GXTexWrapMode;
 typedef int GXTexFilter;
 typedef int GXAnisotropy;
+#ifdef __cplusplus
+typedef enum _GXTexMapID {
+       GX_TEXMAP0, GX_TEXMAP1, GX_TEXMAP2, GX_TEXMAP3,
+       GX_TEXMAP4, GX_TEXMAP5, GX_TEXMAP6, GX_TEXMAP7,
+       GX_MAX_TEXMAP, GX_TEXMAP_NULL = 0xFF
+} GXTexMapID;
+#else
 typedef int GXTexMapID;
 enum { GX_TEXMAP0, GX_TEXMAP1, GX_TEXMAP2, GX_TEXMAP3,
        GX_TEXMAP4, GX_TEXMAP5, GX_TEXMAP6, GX_TEXMAP7,
        GX_MAX_TEXMAP, GX_TEXMAP_NULL = 0xFF };
+#endif
 typedef int GXTlutFmt;
 enum { GX_TL_IA8 = 0, GX_TL_RGB565 = 1, GX_TL_RGB5A3 = 2 };
 typedef int GXTexCacheSize;

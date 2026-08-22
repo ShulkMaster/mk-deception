@@ -268,7 +268,8 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
     if (raster == 0) {
         return 0;
     }
-    extension = RwGameCubeRasterExtension(raster);
+    extension = (RwGameCubeRasterExt*)((unsigned char*)raster +
+                                       _RwGameCubeRasterExtOffset);
     extension->format = raster_header.tileMode;
     extension->paletteFormat = raster_header.paletteFormat;
     extension->hasAlpha = raster_header.hasAlpha != 0;
@@ -292,7 +293,9 @@ int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture) {
         RwStreamSkip(stream, (1 << raster->depth) * 2);
         extension->paletteData = stream_data;
         DCFlushRange(extension->paletteData, (1 << raster->depth) * 2);
-        GXInitTlutObj(&extension->tlut, extension->paletteData,
+        /* The TLUT object is the extension's first member and retail passes
+         * the extension base directly here. */
+        GXInitTlutObj((GXTlutObj*)extension, extension->paletteData,
                       extension->paletteFormat,
                       (unsigned short)(1 << raster->depth));
     }

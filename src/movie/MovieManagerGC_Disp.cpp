@@ -162,8 +162,8 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
                  half_width, flt_532, flt_533);
     GXSetProjection(proj, 0);
     C_MTXLookAt((MtxPtr)cam, &vectors.position, &vectors.up, &vectors.target);
-    GXLoadTexObj(&tex->tex0, 0);
-    GXLoadTexObj(&tex->tex1, 1);
+    GXLoadTexObj(&tex->tex0, GX_TEXMAP0);
+    GXLoadTexObj(&tex->tex1, GX_TEXMAP1);
     setTevPrm(GX_TEXMAP0, GX_TEXMAP1);
     GXSetBlendMode(1, 1, 0, 0);
     GXSetCullMode(0);
