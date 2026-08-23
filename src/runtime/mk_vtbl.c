@@ -24,7 +24,7 @@ int vdestroy_cloth_coll_plane(void);
 int vdestroy_cloth_coll_volume(void);
 int vdestroy_cmdscript(void);
 int vdestroy_screen_engine(void);
-int vdestroy_mkpdata_generic(void);
+void vdestroy_mkpdata_generic(void* pdata);
 int vdestroy_mkhdr_generic(void);
 
 void vdestroy_mkproc_nostack(struct MkProc* proc);
@@ -34,17 +34,17 @@ void dispatch_nostack(void);
 void sleep_nostack(void);
 void system_stack_nostack(void);
 void local_stack_nostack(void);
-void jump_sleep_nostack(int return_address);
+void jump_sleep_nostack(float (*entry)(void), float ticks);
 void dispatch_tinystack(void);
 void sleep_tinystack(void);
 void system_stack_tinystack(void);
 void local_stack_tinystack(void);
-void jump_sleep_tinystack(int return_address);
+void jump_sleep_tinystack(float (*entry)(void), float ticks);
 void dispatch_bigstack(void);
 void sleep_bigstack(void);
 void system_stack_bigstack(void);
 void local_stack_bigstack(void);
-void jump_sleep_bigstack(int return_address);
+void jump_sleep_bigstack(float (*entry)(void), float ticks);
 
 void update_mksobj(struct MkSobj* sobj);
 
@@ -275,7 +275,7 @@ MkVtable5 vtbl_mkpdata_generic = {
     is_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    vdestroy_mkpdata_generic,
+    (MkVtblFn)vdestroy_mkpdata_generic,
 };
 
 MkVtable5 vtbl_mkhdr_generic = {

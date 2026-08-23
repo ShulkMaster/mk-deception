@@ -17,13 +17,30 @@ static inline int proc_list_available(MkPtr** list) {
 void activate_cmdscript(void);
 void deactivate_cmdscript(void);
 
-void mkproc_die(void) {
-    MkProc* proc = aproc;
+static float zero_float = 0.0f;
+int _paused = 0;
+static MkProcStackWord* _local_sp_save = 0;
+static MkProcStackWord* _slpx_sp = 0;
+static MkProcStackWord* _slpx_pc = 0;
+static int pid_to_kill_mask = 0;
+static int pid_to_kill = 0;
+static MkPtr* aproc_mkptr = 0;
+MkHdr* apdata = 0;
+MkProc* aproc_nodestroy = 0;
+MkProc* aproc = 0;
+float _mkproc_sleep_ticks = 0.0f;
+MkPtr* active_proc_list = 0;
+int network_pause_procs = 0;
 
-    if (proc->destroy_cb == 0 || (proc->destroy_cb(), aproc->instance != 0)) {
-        aproc_nodestroy = 0;
-        proc->vtbl->destroy(proc);
+void mkproc_die(void) {
+    if (aproc->destroy_cb != 0) {
+        aproc->destroy_cb();
+        if (aproc->instance == 0) {
+            return;
+        }
     }
+    aproc_nodestroy = 0;
+    aproc->vtbl->destroy(aproc);
 }
 
 void dispatch_nostack(void) {
@@ -35,11 +52,28 @@ void dispatch_nostack(void) {
         proc = aproc;
     } while (sleep_ticks == zero_float);
     proc->sleep_ticks = sleep_ticks;
-    if ((proc->destroy_cb == 0 || (proc->destroy_cb(), aproc->instance != 0)) &&
-        proc->sleep_ticks < zero_float) {
+    if (proc->destroy_cb != 0) {
+        proc->destroy_cb();
+        proc = aproc;
+        if (proc->instance == 0) {
+            return;
+        }
+    }
+    if (proc->sleep_ticks < zero_float) {
         aproc_nodestroy = 0;
         proc->vtbl->destroy(proc);
     }
+}
+
+void sleep_nostack(void) {}
+
+void system_stack_nostack(void) {}
+
+void local_stack_nostack(void) {}
+
+void jump_sleep_nostack(MkProcEntryFn entry, float ticks) {
+    /* ticks remains live in f1 for the non-local scheduler handoff. */
+    aproc->entry = entry;
 }
 
 /*
@@ -58,8 +92,14 @@ void dispatch_tinystack(void) {
         proc->stack_ptr = proc->stack_top;
     } while (sleep_ticks == zero_float);
     proc->sleep_ticks = sleep_ticks;
-    if ((proc->destroy_cb == 0 || (proc->destroy_cb(), aproc->instance != 0)) &&
-        proc->sleep_ticks < zero_float) {
+    if (proc->destroy_cb != 0) {
+        proc->destroy_cb();
+        proc = aproc;
+        if (proc->instance == 0) {
+            return;
+        }
+    }
+    if (proc->sleep_ticks < zero_float) {
         aproc_nodestroy = 0;
         proc->vtbl->destroy(proc);
     }
@@ -72,6 +112,15 @@ void sleep_tinystack(void) {
     }
 }
 
+void system_stack_tinystack(void) {}
+
+void local_stack_tinystack(void) {}
+
+void jump_sleep_tinystack(MkProcEntryFn entry, float ticks) {
+    /* ticks remains live in f1 for the non-local scheduler handoff. */
+    aproc->entry = entry;
+}
+
 void dispatch_bigstack(void) {
     MkProc* proc = aproc;
     float sleep_ticks;
@@ -82,8 +131,14 @@ void dispatch_bigstack(void) {
         proc->stack_ptr = proc->stack_top;
     } while (sleep_ticks == zero_float);
     proc->sleep_ticks = sleep_ticks;
-    if ((proc->destroy_cb == 0 || (proc->destroy_cb(), aproc->instance != 0)) &&
-        proc->sleep_ticks < zero_float) {
+    if (proc->destroy_cb != 0) {
+        proc->destroy_cb();
+        proc = aproc;
+        if (proc->instance == 0) {
+            return;
+        }
+    }
+    if (proc->sleep_ticks < zero_float) {
         aproc_nodestroy = 0;
         proc->vtbl->destroy(proc);
     }
@@ -96,28 +151,6 @@ void sleep_bigstack(void) {
     }
 }
 
-void sleep_nostack(void) {}
-
-void system_stack_nostack(void) {}
-
-void local_stack_nostack(void) {}
-
-void jump_sleep_nostack(int return_address) {
-    aproc->continuation_pc = return_address;
-}
-
-void system_stack_tinystack(void) {}
-
-void local_stack_tinystack(void) {}
-
-void jump_sleep_tinystack(int return_address) {
-    aproc->continuation_pc = return_address;
-}
-
-void jump_sleep_bigstack(int return_address) {
-    aproc->continuation_pc = return_address;
-}
-
 void system_stack_bigstack(void) {
     /* Logical handoff; retail additionally moves the hardware stack pointer. */
     _local_sp_save = _slpx_sp;
@@ -125,6 +158,11 @@ void system_stack_bigstack(void) {
 
 void local_stack_bigstack(void) {
     _local_sp_save = 0;
+}
+
+void jump_sleep_bigstack(MkProcEntryFn entry, float ticks) {
+    /* ticks remains live in f1 for the non-local scheduler handoff. */
+    aproc->entry = entry;
 }
 
 void mkproc_dispatch(void) {
@@ -219,6 +257,7 @@ MkHdr* next_apdata(void) {
     return apdata;
 }
 
+/* Soft ceiling: 99.67742% -- four operand-register coloring records only. */
 MkProc* get_mkproc_bigstack(int* flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), 0x80, 0, 0, 0);
     unsigned char* stack;
@@ -253,6 +292,7 @@ MkProc* get_mkproc_bigstack(int* flags) {
     return proc;
 }
 
+/* Soft ceiling: 99.67742% -- four operand-register coloring records only. */
 MkProc* get_mkproc_tinystack(int* flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), 0x80, 0, 0, 0);
     unsigned char* stack;
@@ -287,6 +327,7 @@ MkProc* get_mkproc_tinystack(int* flags) {
     return proc;
 }
 
+/* Soft ceiling: 99.30232% -- five operand-register coloring records only. */
 MkProc* get_mkproc_nostack(int* flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), 0x80, 0, 0, 0);
 
@@ -340,6 +381,18 @@ MkProc* find_mkproc_pid(int pid) {
     return 0;
 }
 
+void destroy_mkprocs_pid_from_list(int pid, MkPtr** list) {
+    pid_to_kill = pid;
+    pid_to_kill_mask = -1;
+    apply_to_mklist(_destroy_proc_pid_mask, list);
+}
+
+void destroy_mkprocs_pid(int pid) {
+    pid_to_kill = pid;
+    pid_to_kill_mask = -1;
+    apply_to_mklist(_destroy_proc_pid_mask, &active_proc_list);
+}
+
 static void _destroy_proc_pid_mask(MkHdr* hdr) {
     MkProc* proc;
 
@@ -353,50 +406,6 @@ static void _destroy_proc_pid_mask(MkHdr* hdr) {
         proc->instance != 0) {
         proc->vtbl->destroy(proc);
     }
-}
-
-void destroy_mkprocs_pid_from_list(int pid, MkPtr** list) {
-    pid_to_kill = pid;
-    pid_to_kill_mask = -1;
-    apply_to_mklist(_destroy_proc_pid_mask, list);
-}
-
-void destroy_mkprocs_pid(int pid) {
-    pid_to_kill = pid;
-    pid_to_kill_mask = -1;
-    apply_to_mklist(_destroy_proc_pid_mask, &active_proc_list);
-}
-
-void destroy_all_mkprocs(void) {
-    MkPtr* link;
-
-    aproc_nodestroy = 0;
-    if (proc_list_available(&active_proc_list)) {
-        link = active_proc_list;
-        while (link != 0) {
-            MkProc* proc = MKPROC_FROM_HDR(link->hdr);
-            if (link->instance != (unsigned int)proc->instance) {
-                MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
-                link = next;
-            } else {
-                proc->flags_bits.no_destroy = 0;
-                if (proc->instance != 0) {
-                    proc->vtbl->destroy(proc);
-                }
-                link = link->next;
-            }
-        }
-    }
-}
-
-void init_mkproc(void) {
-    init_mkpdata_plyrs();
-    _local_sp_save = 0;
-    active_proc_list = 0;
-    pause_procs(0);
-    network_pause_procs = 0;
 }
 
 void vdestroy_mkproc_bigstack(MkProc* proc) {
@@ -441,6 +450,39 @@ void destroy_mkproc_nostack(MkProc* proc) {
     }
 }
 
+/* Soft ceiling: 98.57143% -- nine cursor/owner GPR-coloring records only. */
+void destroy_all_mkprocs(void) {
+    MkPtr* link;
+
+    aproc_nodestroy = 0;
+    if (proc_list_available(&active_proc_list)) {
+        link = active_proc_list;
+        while (link != 0) {
+            MkProc* proc = MKPROC_FROM_HDR(link->hdr);
+            if (link->instance != (unsigned int)proc->instance) {
+                MkPtr* next = link->next;
+                link->hdr = 0;
+                destroy_mkptr(link);
+                link = next;
+            } else {
+                proc->flags_bits.no_destroy = 0;
+                if (proc->instance != 0) {
+                    proc->vtbl->destroy(proc);
+                }
+                link = link->next;
+            }
+        }
+    }
+}
+
+void init_mkproc(void) {
+    init_mkpdata_plyrs();
+    _local_sp_save = 0;
+    active_proc_list = 0;
+    pause_procs(0);
+    network_pause_procs = 0;
+}
+
 MkProc* create_mkproc(int priority, MkProc* proc, int pid, MkProcEntryFn entry, MkHdr* pdata) {
     if (proc != 0) {
         if (proc->flags_bits.defer_run) {
@@ -466,6 +508,10 @@ MkProc* create_mkproc(int priority, MkProc* proc, int pid, MkProcEntryFn entry, 
     return proc;
 }
 
+/*
+ * Soft ceiling: 98.181816% -- stable ordering and stale-link CFG agree;
+ * residue is eight GPR operands plus one equivalent branch encoding.
+ */
 void mkproc_change_priority(MkProc* proc, int priority) {
     int new_priority;
     MkPtr* insert;
@@ -503,6 +549,10 @@ void mkproc_change_priority(MkProc* proc, int priority) {
     }
 }
 
+/*
+ * Soft ceiling: 97.95918% -- stable ordering and stale-link CFG agree;
+ * residue is eight GPR operands plus one equivalent branch encoding.
+ */
 void insert_new_mkproc(MkProc* proc) {
     int priority = proc->priority;
     MkPtr* insert = get_mkptr_owns_mkhdr(&proc->hdr);

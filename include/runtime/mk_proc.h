@@ -16,12 +16,13 @@ typedef struct MkProcStackFrame {
 typedef float (*MkProcEntryFn)(void);
 typedef void (*MkProcCallbackFn)(void);
 typedef int (*MkProcEntrySleepFn)(MkProcEntryFn entry, float ticks);
+typedef void (*MkProcJumpSleepFn)(MkProcEntryFn entry, float ticks);
 
 typedef struct MkProcEntryVtable {
     void* functions[6];
     MkProcEntrySleepFn sleep;
     void* stack_ops[2];
-    MkProcEntrySleepFn jump_sleep;
+    MkProcJumpSleepFn jump_sleep;
 } MkProcEntryVtable;
 
 typedef struct MkProcCreateFlagBits {
@@ -98,10 +99,7 @@ struct MkProc {
     int priority;
     MkProcCallbackFn pre_destroy;
     MkProcCallbackFn destroy_cb;
-    union {
-        MkProcEntryFn entry;
-        int continuation_pc;
-    };
+    MkProcEntryFn entry;
     int saved_lr;
     MkPtr* pdata_list;
     MkPtr* pdata_list_b;
@@ -118,14 +116,7 @@ struct MkProc {
 #define MKPROC_FLAG_DEFER_RUN      0x00000040
 #define MKPROC_FLAG_ONE_SHOT       0x00000080
 
-extern float zero_float;
 extern int _paused;
-extern MkProcStackWord* _local_sp_save;
-extern MkProcStackWord* _slpx_sp;
-extern MkProcStackWord* _slpx_pc;
-extern int pid_to_kill_mask;
-extern int pid_to_kill;
-extern MkPtr* aproc_mkptr;
 extern MkHdr* apdata;
 extern MkProc* aproc_nodestroy;
 extern MkProc* aproc;
@@ -138,17 +129,17 @@ void dispatch_nostack(void);
 void sleep_nostack(void);
 void system_stack_nostack(void);
 void local_stack_nostack(void);
-void jump_sleep_nostack(int return_address);
+void jump_sleep_nostack(MkProcEntryFn entry, float ticks);
 void dispatch_tinystack(void);
 void sleep_tinystack(void);
 void system_stack_tinystack(void);
 void local_stack_tinystack(void);
-void jump_sleep_tinystack(int return_address);
+void jump_sleep_tinystack(MkProcEntryFn entry, float ticks);
 void dispatch_bigstack(void);
 void sleep_bigstack(void);
 void system_stack_bigstack(void);
 void local_stack_bigstack(void);
-void jump_sleep_bigstack(int return_address);
+void jump_sleep_bigstack(MkProcEntryFn entry, float ticks);
 void mkproc_dispatch(void);
 MkHdr* pdata_of_proc(MkProc* proc);
 MkHdr* next_apdata(void);
