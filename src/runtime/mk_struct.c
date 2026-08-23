@@ -59,12 +59,12 @@ extern int force_bgnd_num;
 extern GameInfoInitView g_game_info;
 extern GameSettingsInitView game_settings;
 
-MkPtr* mkptr_list;
-MkPtr* free_mkptrs;
-MkPtr* master_clean_up_list;
-static int net_override_instance;
-static int net_instance_value;
-int global_instance_ctr;
+MkPtr* mkptr_list = 0;
+MkPtr* free_mkptrs = 0;
+MkPtr* master_clean_up_list = 0;
+static int net_override_instance = 0;
+static int net_instance_value = 0;
+int global_instance_ctr = 0;
 
 static void discard_mkptr(MkPtr* ptr);
 
