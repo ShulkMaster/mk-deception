@@ -925,9 +925,6 @@ extern int* pz_ai_move_lateral_tbl[6];
 extern int* pz_ai_move_rotate_tbl[6];
 extern int* pz_ai_move_down_tbl[6];
 extern int chain_sound_burst_table[5];
-#pragma section data_type ".data" ".bss" data_mode=far_abs
-__declspec(section ".data") static unsigned int gap_06_803B4464_bss;
-#pragma section data_type
 char temp_80_char[0x50];
 static PuzzleStartMessage __pz_start_msg;
 static PuzzleFeedRandomMessage __pz_feed_rand_msg;
@@ -1250,9 +1247,6 @@ PuzzleSuperMoveEntry pz_super_move_table[19] = {
 };
 int chain_sound_burst_table[5] = {0x1B18,0x1B19,0x1B1A,0x1B1B,0x1B1C};
 unsigned int g_old_warmup = 10000;
-#pragma section sdata_type ".sdata" ".sdata" data_mode=sda_rel
-__declspec(section ".sdata") static unsigned int gap_07_8050FADC_sdata = 0;
-#pragma section sdata_type
 const PuzzlePfx2dElements pfx_2d_elements_tbl = {
     0, 0x202, 3, {0, 0, 0}, 27.0f,
     {255.0f, 255.0f, 255.0f, 255.0f},
@@ -1269,21 +1263,25 @@ PuzzleAiLayoutColumn ai_layout_column_scheme[4][4] = {
 static Vec puzzle_cam_start_pos = {0.0f, 1.9f, 2.85f};
 static Vec puzzle_cam_start_ang = {0.1f, 3.1415927f, 0.0f};
 
-/* Near-miss helper family: all six command callbacks and the super callback
- * have exact retail size and operations. MWCC lays out this equivalent
- * player-selection branch island in the opposite order; their action and
- * return tails match. */
+/* Recovery in progress: a default player-zero pointer with nested player-one
+ * overrides best recovers retail's shared selection island. The seven inlined
+ * callbacks remain two instructions larger; their action and return tails
+ * match retail. */
 static inline PuzzlePlayerState*
 puzzle_switch_select_player(PlyrPdata* fighter_pdata) {
+    PuzzlePlayerState* player;
+
+    player = puzzle_ctrl->players[0];
     if (fighter_pdata->plyr_num != 0) {
-        if (puzzle_mode_net == 0) {
-            return puzzle_ctrl->players[1];
+        if (puzzle_mode_net == 0 || is_pz_net_master == 0) {
+            player = puzzle_ctrl->players[1];
+        }
+    } else {
+        if (puzzle_mode_net != 0 && is_pz_net_master == 0) {
+            player = puzzle_ctrl->players[1];
         }
     }
-    if (puzzle_mode_net != 0 && is_pz_net_master == 0) {
-        return puzzle_ctrl->players[1];
-    }
-    return puzzle_ctrl->players[0];
+    return player;
 }
 
 static inline float puzzle_switch_set_command(int command) {
@@ -1561,7 +1559,6 @@ static inline void puzzle_rotation_fallback_down(PuzzlePlayerState* player) {
     } else {
         player->rotation_state = 0;
     }
-    return player->active_cell;
 }
 
 static inline void puzzle_rotation_fallback_up(PuzzlePlayerState* player) {
@@ -1702,9 +1699,11 @@ float puzzle_fighter_get_super_bar_level(unsigned int player) {
     return level;
 }
 
-/* Near miss: retail startup behavior, layouts, art loads, and bit writes are
- * recovered. Remaining differences are loop-local zero register lifetimes and
- * repeated g_game_info address formation around the art/render tail. */
+/* Emission-only near match (92.81%, retail 0x470/current 0x454). Retail startup
+ * behavior, layouts, art loads, random-character retries, and bit writes are
+ * recovered. Remaining differences are loop-local register lifetimes and
+ * repeated g_game_info address formation around the art/render tail; declaring
+ * the randu0 result u16 worsens both size and allocation. */
 float p_puzzle_fighter(void) {
     PuzzleMainGameView* game;
     PuzzleScriptView* script;
@@ -2800,11 +2799,12 @@ static void pz_update_plyr_profile_status(void) {
     puzzle_profile_update_maxima(stats, player);
 }
 
-/* Near miss: exact size with signed sequence validation and the invalid-value
- * exits recovered. Remaining differences are BSS relocation-base selection
- * and the resulting register allocation. */
+/* Emission-only near match (93.53%, retail 0x1FC/current 0x204). The network
+ * message owns the selected sequence, matching retail's stored-pointer reloads;
+ * signed sentinel and invalid-value exits agree. The remaining two-instruction
+ * excess is loop-exit scheduling, BSS relocation selection, and register
+ * allocation. */
 static float pz_init_network_array(void) {
-    int* sequence;
     int sequence_length;
     int value;
 
@@ -2824,12 +2824,12 @@ static float pz_init_network_array(void) {
     }
     puzzle_ctrl->piece_sequence = 0;
 
-    sequence =
-        puzzle_array_table_local[__pz_feed_rand_msg.array_index].sequence;
-    if (sequence != 0) {
-        __pz_feed_rand_msg.sequence = sequence;
+    if (puzzle_array_table_local[__pz_feed_rand_msg.array_index].sequence !=
+        0) {
+        __pz_feed_rand_msg.sequence =
+            puzzle_array_table_local[__pz_feed_rand_msg.array_index].sequence;
         sequence_length = 0;
-        while ((value = sequence[sequence_length]) >= 0) {
+        while ((value = __pz_feed_rand_msg.sequence[sequence_length]) >= 0) {
             if (value == 0) {
                 ((PuzzleProcVtable*)aproc->vtbl)
                     ->transfer(p_pz_mode_exit, 0.0f);
@@ -2971,13 +2971,14 @@ float p_puzzle_switch_left(void) {
     return puzzle_switch_set_command(1);
 }
 
-/* Near miss: retail reevaluates the signed AI-input guard for each
+/* Recovery in progress: retail reevaluates the signed AI-input guard for each
  * switch query, its zero-result path clears quick_drop_repeat for AI players,
  * and both collision tests reuse one two-phase pair scan. Those behaviors are
  * recovered, including the AI quick-drop exit (83.66%, retail 0x868/current
  * 0x87C). The remaining 0x14 is the irreducible shared left/right repeat-tail
  * layout and its register-color cascade; a typed-helper attempt duplicated the
- * tail four times and was rejected at the bounded clean-C limit. */
+ * tail four times and was rejected at the bounded clean-C limit. This remains
+ * structural, not an emission-only near miss. */
 static int
 puzzle_fighter_mode_play__drop_sequence(PuzzlePlayerState* player,
                                         PuzzlePlayerState* opponent) {
@@ -3929,9 +3930,11 @@ static int pzsm_ai_antibreakers(PuzzlePlayerState* player,
     }
     return 1;
 }
-/* Near miss: m2c and every state-table access confirm the horizontal,
- * rotation, timed-drop, pause, and sequence-reset algorithms. The 24-byte
- * residue is shared command-tail layout plus cascading register allocation. */
+/* Emission-only near match (91.93%, retail 0x47C/current 0x48C). m2c and every
+ * state-table access confirm the horizontal, rotation, timed-drop, pause, and
+ * sequence-reset algorithms. The four-instruction residue is duplicated
+ * command-tail layout plus cascading register allocation; extracting the
+ * typed common tail reaches retail size but worsens both expansions. */
 static int pz_ai_decide_move(PuzzlePlayerState* player) {
     unsigned short random_direction;
     int sequence_value;
@@ -4711,9 +4714,10 @@ static int pz_ai_match_precalc(PuzzlePlayerState* player,
     return minimum_row;
 }
 
-/* Near miss: both recursive neighbor algorithms, visited-state accesses, and
- * match counts agree with retail. Structured boundary-loop exhaustion emits
- * two post-loop pointer tests, accounting for the 40-byte size residue. */
+/* Recovery in progress: both recursive neighbor algorithms, visited-state
+ * accesses, and match counts agree with retail. Structured boundary-loop
+ * exhaustion emits two post-loop pointer tests, accounting for the 40-byte
+ * structural CFG residue; this is not an emission-only near miss. */
 static int puzzle_fighter_match_left_right__ai(PuzzleMatchContext* context) {
     PuzzleMatchContext next;
     PuzzleBoardCell* boundary;
@@ -4819,9 +4823,11 @@ static int puzzle_fighter_match_above_below__ai(
     return matched;
 }
 
-/* Near miss: m2c and retail CFG confirm all candidate tables, breaker cases,
- * neighbor priorities, rotations, and column updates. Remaining emission is
- * duplicated outcome tails and the vertical-scan pointer lifetime. */
+/* Emission-only near match (92.38%, retail 0x708/current 0x748). m2c and retail
+ * CFG confirm all candidate tables, signed scans, breaker cases, candidate-
+ * relative neighbor priorities, rotations, and column updates. Remaining
+ * emission is duplicated outcome-tail layout and vertical-scan pointer/register
+ * lifetime; a typed outcome helper inlines to the identical object. */
 static void pz_ai_decide_quick_drop_tower(PuzzlePlayerState* player) {
     PuzzleAiData data;
     int move0_columns[] = {3, 4, 2, 5, -1};
@@ -5460,10 +5466,10 @@ static int pzsm_raise_up(PuzzlePlayerState* player,
 }
 
 /*
- * Near match: pzsm_rain_dance 94.16%, retail 0x860/current 0x878. Retail
- * behavior and access widths are recovered, including staging new rain pieces
- * in board row 12. Remaining differences are the effect-handle register
- * lifetime and structured two-level placement-loop exit scheduling.
+ * Recovery in progress: pzsm_rain_dance 94.16%, retail 0x860/current 0x878.
+ * Retail behavior and access widths are recovered, including staging new rain
+ * pieces in board row 12. The effect-handle lifetime is nonalgorithmic, but the
+ * two-level placement-loop exit remains structural rather than emission-only.
  */
 static int pzsm_rain_dance(PuzzlePlayerState* player,
                            PuzzlePlayerState* opponent) {
@@ -5996,9 +6002,10 @@ static int pzsm_freeze(PuzzlePlayerState* player,
     return 0;
 }
 
-/* Near miss: the reverse board scans, packed marker, selection cap, and
- * completion state match retail. Structured loop exits repeat the two stop
- * comparisons, cascading into induction-register coloring and 12 extra bytes. */
+/* Recovery in progress: the reverse board scans, packed marker, selection cap,
+ * and completion state match retail. Structured loop exits repeat the two stop
+ * comparisons, cascading into induction-register coloring and 12 extra bytes.
+ * This remains structural, not an emission-only near miss. */
 static int pzsm_float(PuzzlePlayerState* player,
                       PuzzlePlayerState* opponent) {
     PuzzleBoardCell* cell;
@@ -6548,9 +6555,10 @@ static int pzsm_klear_kore(PuzzlePlayerState* player, unsigned int color) {
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
 
-/* Near miss: phase traversal, candidate exchange, and delays agree with retail.
- * The remaining 20 bytes are structured candidate-search postchecks; an inline
- * early-return helper changes the hot search layout and compiles worse. */
+/* Recovery in progress: phase traversal, candidate exchange, and delays agree
+ * with retail. The remaining 20 bytes are structured candidate-search
+ * postchecks; clean loop and helper forms compile worse. This remains
+ * structural, not an emission-only near miss. */
 static int pzsm_arrange(PuzzlePlayerState* player,
                         PuzzlePlayerState* opponent) {
     int start_row = 0;
@@ -6854,7 +6862,8 @@ static void puzzle_fighter_calc_center_weight(PuzzlePlayerState* player) {
     }
 }
 
-/* Near miss: exact code size and operations; registers differ only. */
+/* Emission-only near match (94.96%, exact retail 0xC4 size). Both 8x14 board
+ * scans and output stores agree; only induction-register coloring differs. */
 void puzzle_fighter_get_num_blocks_on_screen(unsigned int* player1_blocks,
                                              unsigned int* player2_blocks) {
     PuzzlePlayerState* player;
@@ -7195,10 +7204,12 @@ static void puzzle_fighter_display_floor_msg(PuzzlePlayerState* player,
     pdata->acceleration = -1;
 }
 
-/* Near miss: the valid callback path, ownership checks, animation, and cleanup
- * agree with retail. Retail preserves three match-side validation branches and
- * also dereferences null pdata on the invalid callback path; portable C keeps
- * the equivalent validation concise and returns before that invalid access. */
+/* Constrained structural mismatch (92.56%, retail 0x298/current 0x278). The
+ * valid callback path, ownership checks, animation, and cleanup agree. Retail
+ * preserves three redundant match-side validation branches and dereferences
+ * null pdata on the invalid path; portable C merges those branches and returns
+ * before the invalid access. Typed validators regress, so this is not labeled
+ * an emission-only near miss. */
 static float p_puzzle_fighter_chain_msg(void) {
     PuzzleMessagePdata* pdata = (PuzzleMessagePdata*)apdata;
     StringObj* text;
@@ -7535,9 +7546,10 @@ static int puzzle_fighter_find_match(PuzzlePlayerState* player) {
 
 #pragma dont_inline on
 #pragma optimize_for_size on
-/* Near miss: the search and complete found-cell algorithm agree with retail.
- * Structured nested-loop breaks emit three extra post-search instructions;
- * moving the large found body into the loop changes hot-block placement. */
+/* Recovery in progress: the search and complete found-cell algorithm agree
+ * with retail. Structured nested-loop breaks emit three extra post-search
+ * instructions; moving the large found body into the loop changes hot-block
+ * placement. This remains structural, not an emission-only near miss. */
 static int puzzle_fighter_find_superbreaker(PuzzlePlayerState* player) {
     PuzzleBoardCell* cell;
     PuzzleBoardCell* superbreaker;
@@ -7640,9 +7652,10 @@ static int puzzle_fighter_find_superbreaker(PuzzlePlayerState* player) {
 #pragma optimize_for_size reset
 #pragma dont_inline reset
 
-/* Near miss: the recursive match algorithm and boundary scans agree with
- * retail. Each structured scan emits one redundant post-break comparison;
- * retail threads the equality branch directly around the neighbor block. */
+/* Recovery in progress: the recursive match algorithm and boundary scans
+ * agree with retail. Each structured scan emits one redundant post-break
+ * comparison; retail threads the equality branch directly around the neighbor
+ * block. This structural CFG residue is not an emission-only near miss. */
 static int puzzle_fighter_match_left_right(PuzzleMatchContext* context) {
     PuzzleMatchContext next;
     PuzzleBoardCell* boundary;
@@ -7773,9 +7786,13 @@ static int puzzle_fighter_match_above_below(PuzzleMatchContext* context) {
 }
 
 /* Recovery in progress: all four rotation-state algorithms and shared up/down
- * fallback ownership agree with retail (67.46%, retail 0x434/current 0x45C).
- * The remaining 40-byte excess and four extra physical returns are structural
- * shared-block differences, not an emission-only near miss. */
+ * fallback ownership agree with retail. Falling through from the two case-2
+ * collision failures to one shared fallback restores the exact 0x434-byte
+ * retail size at 72.36803%. Retail's kicked retry enters after the initial
+ * column-bound test; a structured loop repeats that test at its header. A
+ * semantic retry state grew the body to 0x458 at 70.45725%, while a clean
+ * unroll grew it to 0x588 at 56.74350%. This one irreducible retry entry remains
+ * a structural CFG ceiling. */
 static PuzzleBoardCell*
 puzzle_fighter_rotate_drop_pieces(int direction, PuzzlePlayerState* player) {
     PuzzleBoardCell* candidate;
@@ -7822,73 +7839,58 @@ puzzle_fighter_rotate_drop_pieces(int direction, PuzzlePlayerState* player) {
         break;
 
     case 2:
-        do {
-            candidate = player->active_cell;
-            if (direction == 4) {
-                for (;;) {
-                    if (player->active_column == 0 ||
-                        (player->active_cell - 1)->type != 0) {
-                        candidate = player->active_cell + 1;
-                        if (player->active_column >= 7 ||
-                            candidate->type != 0) {
-                            candidate = 0;
-                            break;
-                        }
-                        player->active_cell = candidate;
-                        player->active_column++;
+        if (direction == 4) {
+            for (;;) {
+                if (player->active_column == 0 ||
+                    (player->active_cell - 1)->type != 0) {
+                    if (player->active_column >= 7 ||
+                        (player->active_cell + 1)->type != 0) {
+                        break;
                     }
-
-                    if (player->flags2_rotation_bits.rotation_kicked != 0) {
-                        player->flags2_rotation_bits.rotation_kicked = 0;
-                        if (player->active_row != 0 &&
-                            player->active_cell >= player->board + 8) {
-                            player->active_cell -= 8;
-                            player->active_row--;
-                            continue;
-                        }
-                    }
-                    break;
+                    player->active_cell++;
+                    player->active_column++;
                 }
-                if (candidate == 0) {
-                    break;
+                if (player->flags2_rotation_bits.rotation_kicked != 0) {
+                    player->flags2_rotation_bits.rotation_kicked = 0;
+                    if (player->active_row != 0 &&
+                        player->active_cell >= player->board + 8) {
+                        player->active_cell -= 8;
+                        player->active_row--;
+                        continue;
+                    }
                 }
                 player->rotation_state = 3;
                 player->rotation_angle = -1.5707964f;
-            } else {
-                for (;;) {
-                    if (player->active_column >= 7 ||
-                        (player->active_cell + 1)->type != 0) {
-                        candidate = player->active_cell - 1;
-                        if (player->active_column == 0 ||
-                            candidate < player->board ||
-                            candidate->type != 0) {
-                            candidate = 0;
-                            break;
-                        }
-                        player->active_cell = candidate;
-                        player->active_column--;
+                return player->active_cell;
+            }
+        } else {
+            for (;;) {
+                if (player->active_column >= 7 ||
+                    (player->active_cell + 1)->type != 0) {
+                    if (player->active_column == 0 ||
+                        player->active_cell - 1 < player->board ||
+                        (player->active_cell - 1)->type != 0) {
+                        break;
                     }
-
-                    if (player->flags2_rotation_bits.rotation_kicked != 0) {
-                        player->flags2_rotation_bits.rotation_kicked = 0;
-                        if (player->active_row != 0 &&
-                            player->active_cell >= player->board + 8) {
-                            player->active_cell -= 8;
-                            player->active_row--;
-                            continue;
-                        }
-                    }
-                    break;
+                    player->active_cell--;
+                    player->active_column--;
                 }
-                if (candidate == 0) {
-                    break;
+                if (player->flags2_rotation_bits.rotation_kicked != 0) {
+                    player->flags2_rotation_bits.rotation_kicked = 0;
+                    if (player->active_row != 0 &&
+                        player->active_cell >= player->board + 8) {
+                        player->active_cell -= 8;
+                        player->active_row--;
+                        continue;
+                    }
                 }
                 player->rotation_state = 1;
                 player->rotation_angle = 1.5707964f;
+                return player->active_cell;
             }
-            return player->active_cell;
-        } while (0);
-        return puzzle_rotation_fallback_down(player);
+        }
+        puzzle_rotation_fallback_down(player);
+        break;
 
     case 0:
         do {
@@ -7905,15 +7907,14 @@ puzzle_fighter_rotate_drop_pieces(int direction, PuzzlePlayerState* player) {
                 player->rotation_state = 1;
                 player->rotation_angle = -1.5707964f;
             } else {
-                candidate = player->active_cell - 1;
-                if (player->active_column == 0 || candidate->type != 0) {
-                    candidate = player->active_cell + 1;
+                if (player->active_column == 0 ||
+                    (player->active_cell - 1)->type != 0) {
                     if (player->active_column >= 7 ||
-                        candidate > player->board_end ||
-                        candidate->type != 0) {
+                        player->active_cell + 1 > player->board_end ||
+                        (player->active_cell + 1)->type != 0) {
                         break;
                     }
-                    player->active_cell = candidate;
+                    player->active_cell++;
                     player->active_column++;
                 }
                 player->rotation_state = 3;
@@ -7921,16 +7922,18 @@ puzzle_fighter_rotate_drop_pieces(int direction, PuzzlePlayerState* player) {
             }
             return player->active_cell;
         } while (0);
-        return puzzle_rotation_fallback_up(player);
+        puzzle_rotation_fallback_up(player);
+        break;
     }
 
     return player->active_cell;
 }
 
 #pragma optimize_for_size on
-/* Near miss: the scan, unsigned-short result, and spawn test are exact. The
- * eight-byte excess is a redundant post-scan test that retail branch-threads
- * from the loop break; an exhaustion guard emits a larger compare sequence. */
+/* Emission-only near match (94.87%, retail 0x1C8/current 0x1D0). The pair
+ * ownership swap, u16 sequence/result values, spawn scan, resets, and
+ * superbreaker injection agree. The eight-byte excess is a post-scan test that
+ * retail branch-threads from the loop break; exhaustion guards compile larger. */
 static int puzzle_fighter_get_new_playpieces(PuzzlePlayerState* player) {
     PuzzleBoardCell* saved_pair;
     PuzzleBoardCell* cell;
@@ -8209,9 +8212,10 @@ static int init_pz_pfx_2d(void) {
     return 1;
 }
 
-/* Near miss: field ownership and copy order agree with retail. The validity
- * latch costs 28 bytes; direct error returns duplicate the tail instead of
- * merging to retail's shared error block under this compiler. */
+/* Structural mismatch (92.37%, retail 0x184/current 0x1A0): field ownership,
+ * calls, and copy order agree, but the validity latch costs 28 bytes. Typed
+ * acquisition/error helpers inline cleanly yet do not reproduce retail's
+ * shared error tail, so this is not classified as an emission-only near miss. */
 static float p_pzpfx_copy_iceblock_data(void) {
     int fields_valid = 1;
 
@@ -8451,9 +8455,10 @@ static void pzpfx_copy_playpieces(PuzzlePlayerState* player) {
     }
 }
 
-/* Near miss: retail types, placement lifetime, particle algorithm, and common
- * advancement are recovered. The 24-byte excess is one six-instruction
- * condition recheck imposed by the clean structured rejection paths. */
+/* Recovery in progress: retail types, placement lifetime, particle algorithm,
+ * and common advancement are recovered. The 24-byte excess is one
+ * six-instruction condition recheck imposed by the clean structured rejection
+ * paths, so this is not an emission-only near miss. */
 static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player) {
     const PuzzleArtPlacement* placement;
     const int* origin_x;
@@ -8588,10 +8593,10 @@ static void pzpfx_copy_puzzleblocks(PuzzlePlayerState* player) {
     }
 }
 
-/* Near miss: exact code size and instructions; only the shared int-to-double
- * conversion constant's relocation label differs. */
-/* Recovered retail round reset, preserved state, and AI setup. Remaining
- * bounded work is the loss-adjustment loop shape and register allocation. */
+/* Emission-only near match (95.00%, retail 0x780/current 0x79C). The complete
+ * round reset, preserved state, object cleanup, and AI setup agree. Computing
+ * the unsigned loss quotient before its threshold matches retail's lifetime;
+ * remaining differences are shared AI-move tail layout and register coloring. */
 static void puzzle_fighter_mode_clear(void) {
     PuzzlePlayerState* ai_player = 0;
     PuzzlePlayerState* player0 = puzzle_ctrl->players[0];
@@ -8736,8 +8741,8 @@ static void puzzle_fighter_mode_clear(void) {
         if (ai_player != 0) {
             ai_player->ai_no_pause_band = get_ladder_position();
             if (game_settings.puzzle_difficulty <= 2) {
+                loss_adjustments = pz_loss_in_a_row / 5;
                 if (pz_loss_in_a_row >= 5) {
-                    loss_adjustments = pz_loss_in_a_row / 5;
                     do {
                         if (ai_player->ai_no_pause_band != 0) {
                             ai_player->ai_no_pause_band--;
@@ -9025,25 +9030,31 @@ static void minigame_puzzlefighter_destroy(void) {
 }
 
 /*
- * Recovery in progress: minigame_puzzlefighter_setup 87.44%, retail 0x980/current
- * 0xA1C. Allocation order, layouts, art loads, localized placements, sequence
- * validation, and all consumers agree with retail. Retail branches directly
- * from five nested resource loops to one failure tail. The final wiff loop now
- * branches directly to the abort path; four clean typed inline status helpers
- * still emit the remaining 0x9C of repeated status/exit control flow. Bounded
+ * Recovery in progress: minigame_puzzlefighter_setup 89.91%, retail 0x980/current
+ * 0x9F0. Allocation order, layouts, art loads, localized placements, sequence
+ * validation, and all consumers agree with retail. The static-art terminator
+ * now distinguishes normal completion from a failure break without a status
+ * flag, recovering retail's exact r24-r31 save range. Retail branches directly
+ * from five nested resource loops to one failure tail. The victory and
+ * super-bar phases share one typed index-returning helper, so the one-round
+ * victory exit falls naturally into super-bar setup. UI and wiff setup share a
+ * second typed count-returning helper; background setup returns its completed
+ * induction count into the same failure condition. The remaining helper exits emit
+ * repeated status/exit control flow. Bounded
  * UI, super-bar, and victory-loop open-coding attempts either regressed
- * alignment or grew the body, so their helpers are retained. This is too large
- * and structural to classify as an emission-only near miss.
+ * alignment or grew the body; open-coding all four helpers together grew the
+ * body by 0x10 and fell to 83.73%, while directly aborting from the static-art
+ * loop grew it by 0x14 and fell to 86.85%. The helpers are therefore retained.
+ * This is too large and structural to classify as an
+ * emission-only near miss.
  */
 static void minigame_puzzlefighter_setup(void) {
     PuzzleLocalizedImagePlacement* localized;
     PuzzleArtPlacement* placement;
-    PuzzleWiffResource* wiff;
     ScreenObj* object;
     int* sequence;
     int sequence_length;
     int localized_index;
-    int setup_failed;
     int pfx_ok;
     int value;
     int index;
@@ -9156,10 +9167,8 @@ static void minigame_puzzlefighter_setup(void) {
     puzzle_ctrl->piece_sequence_length = __pz_feed_rand_msg.sequence_length;
     puzzle_ctrl->piece_sequence = __pz_feed_rand_msg.sequence;
 
-    setup_failed = 0;
-    for (index = 0;
-         art_puzzle_fighter_static_tbl.placements[index].image_id != 0;
-         index++) {
+    index = 0;
+    while (art_puzzle_fighter_static_tbl.placements[index].image_id != 0) {
         placement = &art_puzzle_fighter_static_tbl.placements[index];
         localized = 0;
         localized_index = -1;
@@ -9172,13 +9181,13 @@ static void minigame_puzzlefighter_setup(void) {
             localized = &pzlang_image_table[localized_index]
                              .language[get_language()];
             if (placement->x == -2 && localized->player2_x < 0) {
+                index++;
                 continue;
             }
         }
         object = load_2d_pfxobj(0x70033, 0x601A,
                                 (char*)placement->image_id, 0, 0x3D);
         if (object == 0) {
-            setup_failed = 1;
             break;
         }
         object->flag_bits.bit2 = 1;
@@ -9195,43 +9204,21 @@ static void minigame_puzzlefighter_setup(void) {
         }
         puzzle_ctrl->round_objects[index] = object;
         if (index >= 13) {
-            setup_failed = 1;
             break;
         }
+        index++;
     }
-    if (setup_failed != 0) {
+    if (art_puzzle_fighter_static_tbl.placements[index].image_id != 0) {
         break;
     }
 
-    if (puzzle_fighter_setup_victory_objects() == 0) {
+    if (art_puzzle_fighter_super_bar_tbl[
+            puzzle_fighter_setup_victory_and_super_bar_objects()].image_id !=
+            0 ||
+        puzzle_fighter_setup_background_objects() != 2 ||
+        puzzle_fighter_setup_ui_and_wiff_objects() !=
+            puzzle_ctrl->block_visual_count) {
         break;
-    }
-
-    if (puzzle_fighter_setup_super_bar_objects() == 0) {
-        break;
-    }
-
-    if (puzzle_fighter_setup_background_objects() == 0) {
-        break;
-    }
-
-    if (puzzle_fighter_setup_ui_objects() == 0) {
-        break;
-    }
-
-    for (index = 0; index < puzzle_ctrl->block_visual_count; index++) {
-        wiff = &art_puzzle_fighter_wiff_tbl[index];
-        puzzle_ctrl->breaker_objects[index] = load_wiff_screen_pfxobj(
-            0x70033, wiff->image_id, 0x601F,
-            &puzzle_ctrl->block_animations[index], 0, 0);
-        if (puzzle_ctrl->breaker_objects[index] == 0) {
-            puzzle_fighter_setup_abort();
-            return;
-        }
-        set_ani_texture_framerate(puzzle_ctrl->block_animations[index],
-                                  wiff->frame_rate);
-        pull_screen_obj(puzzle_ctrl->breaker_objects[index]);
-        pull_ani_texture_control(puzzle_ctrl->block_animations[index]);
     }
 
     if (g_game_info.plyr0.field_48 != 0) {
@@ -9325,14 +9312,12 @@ void render_minigame_list(void) {
     }
 }
 
-#pragma section const_type ".rodata" data_mode=far_abs
 __declspec(section ".rodata") const char puzzle_strings[] =
     PUZZLE_STRING_DATA;
-static const unsigned char gap_05_80306F37_rodata = 0;
-#pragma section const_type
 
-/* Near miss: complete typed 14x8 wiff renderer; remaining differences are the
- * structured inner-table exit and register allocation (16-byte size delta). */
+/* Recovery in progress: complete typed 14x8 wiff renderer. The structured
+ * inner-table exit leaves the current body 16 bytes smaller and changes
+ * register allocation; this remains structural, not emission-only. */
 static void render_wiffs(PuzzlePlayerState* player) {
     int board_moving = 1;
     int match_active = 1;
@@ -9410,8 +9395,10 @@ static void render_wiffs(PuzzlePlayerState* player) {
     }
 }
 
-/* Near miss: typed UI table and placement accesses; remaining differences are
- * placement-base CSE across render calls and the resulting register coloring. */
+/* Emission-only near match (93.16%, retail 0x220/current 0x214). The typed UI
+ * table, placements, branches, and render calls agree. The three-instruction
+ * deficit is placement-base CSE and resulting register coloring; distinct
+ * scoped aliases and retail-ordered final assignments compile identically. */
 static void render_UI(PuzzlePlayerState* player) {
     int placement_index = player->event_player + 1;
     PuzzleArtPlacement* placement;
@@ -9474,5 +9461,3 @@ static void render_UI(PuzzlePlayerState* player) {
     pfx2d_render(object->pfx2d);
     pfx2d_end_render();
 }
-
-static const unsigned int gap_09_80512ECC_sdata2 = 0;
