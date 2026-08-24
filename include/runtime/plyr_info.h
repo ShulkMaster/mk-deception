@@ -166,7 +166,7 @@ struct FighterRuntimeData {
     char pad9C[4];
     const char* const* effect_banks;
     const char* const* alternate_effect_banks;
-    char padA8[4];
+    int puzzle_supermove_index; /* +0xA8 */
     Vec* half_sever_velocities; /* +0xAC */
 };
 
