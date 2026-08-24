@@ -16,28 +16,20 @@
 
 typedef float (*PuzzleMoveEntry)(void);
 typedef float (*PuzzleProcessTransfer)(PuzzleMoveEntry entry, float delay);
-typedef float (*PuzzleProcessTransferWithExit)(
-    PuzzleMoveEntry entry, int exit_value, float delay);
 typedef float (*PuzzleProcessSleep)(void);
 typedef float (*PuzzleFighterFunction)(void);
 typedef struct ScriptSlot ScriptSlot;
 
 typedef struct PuzzleCmdScript {
     char pad00[0x28];
-    union {
-        int shared_function;
-        int reaction_function;
-    }; /* +0x28 */
+    int function; /* +0x28 */
 } PuzzleCmdScript;
 
 typedef struct PuzzleProcessVtable {
     char pad00[0x18];
     PuzzleProcessSleep sleep; /* +0x18 */
     char pad1C[8];
-    union {
-        PuzzleProcessTransfer transfer; /* +0x24 */
-        PuzzleProcessTransferWithExit transfer_with_exit;
-    };
+    PuzzleProcessTransfer transfer; /* +0x24 */
 } PuzzleProcessVtable;
 
 typedef struct PuzzleProcess {
@@ -153,7 +145,7 @@ typedef struct PuzzleFighterObject {
             unsigned char pad_low : 1;
         } presentation_flags;
         struct {
-            unsigned char pad_bit7 : 1;
+            unsigned char launched : 1;
             unsigned char pad_bit6 : 1;
             unsigned char tightrope_restricted : 1;
             unsigned char pad_bit4 : 1;
@@ -524,7 +516,7 @@ void slow_ani_x(float speed, float frame);
 void ani_to_end(void);
 void pz_fighter_check_breakout(void);
 float xz_distance_between_players(void);
-int pz_fighter_close_enough_to_super_move(int player);
+int pz_fighter_close_enough_to_super_move(unsigned int player);
 int pz_fighter_is_winning_big(unsigned int player);
 int pz_fighter_is_losing_big(unsigned int player);
 PuzzleProcess* get_player_proc(PuzzleFighterObject* fighter);
@@ -545,7 +537,6 @@ static float p_present_control(void);
 static float p_pz_fighter_projectile_launcher(void);
 static float pz_fighter_scorpion_attack_start(void);
 static float pz_fighter_jax_attack_start(void);
-static float r_call_character_cmo_function(void);
 static float pz_fighter_r_null(void);
 static float r_pz_ermac_slam(void);
 static float r_pz_fighter_spear_tug(void);
@@ -707,20 +698,21 @@ static inline void pz_fighter_create_projectile(
 }
 
 static inline int select_scripted_move(
-    const PuzzleCharacterMoveTable* table,
+    unsigned int move_index,
     int distance_class,
     unsigned short roll) {
-    unsigned int count = table->count;
+    const PuzzleCharacterMoveTable* table =
+        &g_pz_fighter_tables.characters[move_index];
     unsigned int index;
 
-    for (index = 0; index < count; index++) {
+    for (index = 0; index < table->count; index++) {
         if (roll < table->moves[index].chance &&
             (table->moves[index].conditions & distance_class) != 0) {
             return table->moves[index].script_move;
         }
     }
 
-    for (index = 0; index < count; index++) {
+    for (index = 0; index < table->count; index++) {
         if ((table->moves[index].conditions & 1) != 0) {
             return table->moves[index].script_move;
         }
@@ -728,9 +720,7 @@ static inline int select_scripted_move(
     return table->moves[0].script_move;
 }
 
-int pz_fighter_should_handle_special_move(void* fighter, unsigned int move) {
-    (void)fighter;
-
+int pz_fighter_should_handle_special_move(unsigned int player, unsigned int move) {
     if (move == 4) {
         g_pz_fighters_engine.flag_bits.special_move_4 = 1;
     } else if (move == 5) {
@@ -752,7 +742,7 @@ float pz_fighter_perform_special_move(void) {
         break;
     case 12:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x12;
+            active_cmdscript->function = 0x12;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
@@ -765,63 +755,63 @@ float pz_fighter_perform_special_move(void) {
         break;
     case 8:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x11;
+            active_cmdscript->function = 0x11;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 4:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x0F;
+            active_cmdscript->function = 0x0F;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 5:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x17;
+            active_cmdscript->function = 0x17;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 10:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x0F;
+            active_cmdscript->function = 0x0F;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 1:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x0D;
+            active_cmdscript->function = 0x0D;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 3:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x13;
+            active_cmdscript->function = 0x13;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 23:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x18;
+            active_cmdscript->function = 0x18;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 21:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x16;
+            active_cmdscript->function = 0x16;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 29:
         if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->shared_function = 0x14;
+            active_cmdscript->function = 0x14;
             aproc->vtbl->transfer(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
@@ -848,10 +838,10 @@ float pz_finish_him_request(void) {
     if (xz_distance_between_players() > 2.0f) {
         aproc->vtbl->transfer(pz_fighter_far_propell, 0.0f);
     } else {
-        active_cmdscript->shared_function = 0x2B;
+        active_cmdscript->function = 0x2B;
         cmdscript_reset_stack();
         cmdscript_setup_execution(
-            pz_shared_cmo, active_cmdscript->shared_function);
+            pz_shared_cmo, active_cmdscript->function);
         call_player_script_function(pz_shared_cmo);
         aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
     }
@@ -938,10 +928,10 @@ static float pz_fighter_scorpion_attack_start(void) {
     ani_to_blend_frame(10.0f);
     blend_to_fstance(0.1f);
     toggle_obj_and_ani_flips(plyr_anim_pdata);
-    active_cmdscript->shared_function = 0x2B;
+    active_cmdscript->function = 0x2B;
     cmdscript_reset_stack();
     cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->shared_function);
+        pz_shared_cmo, active_cmdscript->function);
     call_player_script_function(pz_shared_cmo);
     aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
     return 0.0f;
@@ -1053,42 +1043,45 @@ float pz_fighters_react_to_bomb_explosion(void) {
     if (pz_fighter_fetch_plyr_to_home_post_distance(
             ((PlyrPdata*)plyr_pdata)->plyr_num) >
         6.5f) {
-        active_cmdscript->shared_function = 0x44;
+        active_cmdscript->function = 0x44;
     } else {
-        active_cmdscript->shared_function = 0x45;
+        active_cmdscript->function = 0x45;
     }
     aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_perform_ohyeah_move ~90.47% - NV coloring. */
 float pz_fighter_perform_ohyeah_move(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 50) {
         aproc->vtbl->transfer(pz_fighter_one_arm_swing, 0.0f);
+        return 0.0f;
     } else if (choice < 70) {
         aproc->vtbl->transfer(pz_fighter_big_time_happy, 0.0f);
+        return 0.0f;
     } else {
         aproc->vtbl->transfer(pz_fighter_gaydance, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_perform_super_move_just_enabled ~90.64% - NV coloring. */
 float pz_fighter_perform_super_move_just_enabled(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 50) {
         aproc->vtbl->transfer(pz_fighter_go_get_him, 0.0f);
+        return 0.0f;
     } else if (choice < 60) {
         aproc->vtbl->transfer(pz_fighter_one_arm_swing, 0.0f);
+        return 0.0f;
     } else if (choice < 75) {
         aproc->vtbl->transfer(pz_fighter_big_time_happy, 0.0f);
+        return 0.0f;
     } else {
         aproc->vtbl->transfer(pz_fighter_gaydance, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
 float pz_fighter_perform_other_guy_super_move_just_enabled(void) {
@@ -1101,30 +1094,33 @@ float pz_fighter_perform_ohno_move(void) {
 
     if (choice < 30) {
         aproc->vtbl->transfer(pz_fighter_WTF, 0.0f);
+        return 0.0f;
     } else if (choice < 70) {
         aproc->vtbl->transfer(pz_fighter_WTF2, 0.0f);
+        return 0.0f;
     } else if (
         choice < 88 &&
         pz_fighter_is_losing_big(plyr_pdata->plyr_num) != 0) {
         aproc->vtbl->transfer(pz_fighter_beg, 0.0f);
+        return 0.0f;
     } else {
         xfer_proc(
             get_player_proc(his_obj), pz_fighter_execute_distracts_and_hit);
         aproc->vtbl->transfer(
             pz_fighter_execute_point_reaction_no_space, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
-/* Soft ceiling: center_pos_minor_adjustement ~90.91% - branch scheduling. */
 float pz_fighter_perform_center_pos_minor_adjustement(void) {
     if (xz_distance_between_players() > 1.2f) {
         aproc->vtbl->transfer(pz_fighter_light_propell, 0.0f);
+        return 0.0f;
     } else {
-        active_cmdscript->shared_function = 8;
+        active_cmdscript->function = 8;
         aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
 float pz_fighter_perform_center_pos_single_close_move(void) {
@@ -1154,9 +1150,9 @@ float pz_fighter_smart_flippy(void) {
         return 0.0f;
     }
     if (distance < 0.9f) {
-        active_cmdscript->shared_function = 4;
+        active_cmdscript->function = 4;
     } else {
-        active_cmdscript->shared_function = 3;
+        active_cmdscript->function = 3;
     }
     aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
     return 0.0f;
@@ -1168,41 +1164,41 @@ float pz_fighter_perform_center_pos_single_range_move(void) {
         return 0.0f;
     }
 
-    active_cmdscript->shared_function = 3;
+    active_cmdscript->function = 3;
     aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
-/* Soft ceiling: center_pos_range_attack ~91.09% - NV coloring. */
 float pz_fighter_perform_center_pos_range_attack(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 40) {
         aproc->vtbl->transfer(pz_fighter_superman_move, 0.0f);
+        return 0.0f;
     } else if (choice < 55) {
         aproc->vtbl->transfer(pz_fighter_propell, 0.0f);
+        return 0.0f;
     } else {
-        active_cmdscript->shared_function = 1;
+        active_cmdscript->function = 1;
         aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
 float pz_fighter_perform_dist_attack(void) {
     unsigned short choice = randu0(100);
 
     if (choice < 20) {
-        active_cmdscript->shared_function = 2;
+        active_cmdscript->function = 2;
     } else if (choice < 60) {
-        active_cmdscript->shared_function = 6;
+        active_cmdscript->function = 6;
     } else {
-        active_cmdscript->shared_function = 7;
+        active_cmdscript->function = 7;
     }
     aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
-/* Soft ceiling: off_wall_attack ~90.70% - MWCC branch scheduling. */
 float pz_fighter_perform_off_wall_attack(void) {
     unsigned short choice = randu0(100);
 
@@ -1210,26 +1206,28 @@ float pz_fighter_perform_off_wall_attack(void) {
         aproc->vtbl->transfer(pz_fighter_superman_move, 0.0f);
         return 0.0f;
     }
-    active_cmdscript->shared_function = 2;
     if (choice < 80) {
-        active_cmdscript->shared_function = 1;
+        active_cmdscript->function = 1;
+    } else {
+        active_cmdscript->function = 2;
     }
     aproc->vtbl->transfer(r_pz_call_script_function, 0.0f);
     return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_random_taunt ~90.47% - broad policy pass. */
 float pz_fighter_random_taunt(void) {
     unsigned short roll = randu0(100);
 
     if (roll < 30) {
         aproc->vtbl->transfer(pz_fighter_select_taunt_1, 0.0f);
+        return 0.0f;
     } else if (roll < 60) {
         aproc->vtbl->transfer(pz_fighter_select_taunt_2, 0.0f);
+        return 0.0f;
     } else {
         aproc->vtbl->transfer(pz_fighter_select_taunt_3, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
 float pz_fighter_perform_other_guy_ohno(void) {
@@ -1252,25 +1250,25 @@ float pz_fighter_perform_holding_onto_super_move(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_perform_peak_move ~90.32% - broad policy pass. */
 float pz_fighter_perform_peak_move(void) {
     if ((unsigned short)randu0(100) < 65) {
         aproc->vtbl->transfer(pz_fighter_peak, 0.0f);
+        return 0.0f;
     } else {
         aproc->vtbl->transfer(pz_fighter_fast_look, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_perform_relief_move ~91.67% - broad policy pass. */
 float pz_fighter_perform_relief_move(void) {
     if ((unsigned short)randu0(100) < 65 &&
         pz_fighter_is_winning_big(plyr_pdata->plyr_num)) {
         aproc->vtbl->transfer(pz_fighter_big_time_happy, 0.0f);
+        return 0.0f;
     } else {
         aproc->vtbl->transfer(pz_fighter_round_whew, 0.0f);
+        return 0.0f;
     }
-    return 0.0f;
 }
 
 float pz_fighter_dummy_propell(void) {
@@ -1290,7 +1288,7 @@ float pz_fighter_dummy_propell(void) {
     for (ticks = 0; ticks < 20; ticks++) {
         if (xz_distance_between_players() <= 0.65f) {
             plyr_pdata->collision_result = 1;
-            stop_me(plyr_pdata);
+            stop_me();
             break;
         }
         _mkproc_sleep_ticks = 1.0f;
@@ -1396,18 +1394,22 @@ static float pz_fighter_far_propell(void) {
     return 0.0f;
 }
 
+/*
+ * Soft ceiling: 98.88% at exact retail size. Both selection loops and the
+ * script-transfer tail agree instruction-for-instruction; all remaining
+ * objdiff entries are GPR allocation differences.
+ */
 float pz_fighter_perform_scripted_move(void) {
     PuzzleFighterMove* move = pz_get_fighter_move();
     int distance_class = move->distance_class;
     unsigned int move_index = move->script_move;
     unsigned short roll = randu0(100);
-    PuzzleCharacterMoveTable* table =
-        &g_pz_fighter_tables.characters[move_index];
-    int script_move = select_scripted_move(table, distance_class, roll);
-    active_cmdscript->shared_function = script_move;
+    int script_move =
+        select_scripted_move(move_index, distance_class, roll);
+    active_cmdscript->function = script_move;
     cmdscript_reset_stack();
     cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->shared_function);
+        pz_shared_cmo, active_cmdscript->function);
     call_player_script_function(pz_shared_cmo);
     aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
     return 0.0f;
@@ -2103,7 +2105,13 @@ static float pz_fighter_workthecrowd(void) {
     return 0.0f;
 }
 
-/* Soft ceilings: looped celebrations 92.43% - NV coloring/scheduling only. */
+/*
+ * Near-match looped-celebration family: retail 0x114/current 0x110 and
+ * 92.72% each. m2c confirms identical animation, loop, gravity and transfer
+ * operations; the four-byte residue is the final bitfield-value lifetime and
+ * equivalent epilogue scheduling. A separate loop-only flags snapshot was
+ * semantically valid but MWCC coalesced it completely, so it was removed.
+ */
 static float pz_fighter_beg(void) {
     int flags = 3;
     unsigned int loop;
@@ -2152,6 +2160,7 @@ float pz_fighter_laugh_small(void) {
     return 0.0f;
 }
 
+/* See the looped-celebration near-match note on pz_fighter_beg. */
 float pz_fighter_laugh(void) {
     int flags = 3;
     unsigned int loop;
@@ -2178,6 +2187,7 @@ float pz_fighter_laugh(void) {
     return 0.0f;
 }
 
+/* See the looped-celebration near-match note on pz_fighter_beg. */
 float pz_fighter_big_time_happy(void) {
     int flags = 3;
     unsigned int loop;
@@ -2287,10 +2297,9 @@ float pz_fighter_round_victory(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 91.27% - equivalent typed table address formation. */
+/* Exact match: direct table indexing preserves retail's updating base load. */
 void pz_fighter_register_move(
     int move, int table, int parameter1, int parameter2, int character) {
-    PuzzleCharacterMoveTable* character_table;
     unsigned int index;
 
     switch (table) {
@@ -2302,15 +2311,17 @@ void pz_fighter_register_move(
         }
         return;
     case 1:
-        character_table = &g_pz_fighter_tables.characters[character];
-        index = character_table->count;
+        index = g_pz_fighter_tables.characters[character].count;
         if (index < 15) {
-            character_table->moves[index].script_move = move;
-            character_table->moves[character_table->count].chance =
-                parameter1;
-            character_table->moves[character_table->count].conditions =
-                parameter2;
-            character_table->count++;
+            g_pz_fighter_tables.characters[character]
+                .moves[index].script_move = move;
+            g_pz_fighter_tables.characters[character]
+                .moves[g_pz_fighter_tables.characters[character].count]
+                .chance = parameter1;
+            g_pz_fighter_tables.characters[character]
+                .moves[g_pz_fighter_tables.characters[character].count]
+                .conditions = parameter2;
+            g_pz_fighter_tables.characters[character].count++;
         }
         return;
     }
@@ -2329,10 +2340,10 @@ float pz_fighter_give_present(void) {
         pdata->reaction = 0x2D;
         pdata->saved_pdata = apdata;
     }
-    active_cmdscript->shared_function = 0x37;
+    active_cmdscript->function = 0x37;
     cmdscript_reset_stack();
     cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->shared_function);
+        pz_shared_cmo, active_cmdscript->function);
     call_player_script_function(pz_shared_cmo);
     aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
@@ -2407,10 +2418,10 @@ int pz_fighter_distance_check(void) {
 
 #define PZ_RUN_SHARED_FIGHTER_SCRIPT(script_index)                              \
     do {                                                                        \
-        active_cmdscript->shared_function = (script_index);                     \
+        active_cmdscript->function = (script_index);                     \
         cmdscript_reset_stack();                                                \
         cmdscript_setup_execution(pz_shared_cmo,                                \
-                                  active_cmdscript->shared_function);            \
+                                  active_cmdscript->function);            \
         call_player_script_function(pz_shared_cmo);                             \
         aproc->vtbl->transfer(pz_fighter_exit, 0.0f);                           \
     } while (0)
@@ -2486,7 +2497,8 @@ void pz_fighter_release_other_player(int reaction) {
     pz_fighter_reaction_xfer_him(reaction);
 }
 
-float pz_fighter_step_throw_into_check(void) {
+/* Near match: retail has no return value; only constant-pool labels differ. */
+void pz_fighter_step_throw_into_check(void) {
     init_ground_move();
     random_voice(9);
     random_hit(0xE);
@@ -2496,7 +2508,6 @@ float pz_fighter_step_throw_into_check(void) {
     ani_to_frame_x(8.0f);
     pz_fighter_ani_attack(0x12, 2, 10.0f, 9.0f, 1.0f);
     set_both_face_opponent_flags();
-    return 0.0f;
 }
 
 /* Near match: 96.56% - table-symbol address formation and relocations. */
@@ -2718,13 +2729,13 @@ static float pz_fighter_uppercut_brush_back(void) {
 }
 
 float pz_fighter_superman_move(void) {
-    int reached = 0;
     int ticks;
+    int reached = 0;
     void* object;
 
     init_air_move_no_aniproc();
     head_tracking_off();
-    plyr_obj->flags_09 &= ~0x80;
+    plyr_obj->movement_flags.launched = 0;
     blend_to_ani(pz_shared_ani.superman, 3, 0.2f);
     set_ani_speed(0.6f);
     ani_to_frame_x(17.0f);
@@ -2743,7 +2754,7 @@ float pz_fighter_superman_move(void) {
         pz_fighter_reaction_xfer_him(0x27);
     }
     ani_to_frame_x(37.0f);
-    plyr_obj->flags_09 |= 0x80;
+    plyr_obj->movement_flags.launched = 1;
     object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
     update_bone_hierarchy(object);
     object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
@@ -2757,11 +2768,11 @@ float pz_fighter_exit(void) {
     plyr_pdata->script_exit_value_int = 10;
     plyr_pdata->script_exit_args[0] = 0;
     plyr_pdata->script_exit_args[1] = 0;
-    plyr_pdata->script_exit_args[2] = 0;
+    plyr_pdata->script_exit_arg_2 = 0;
     plyr_pdata->input_unlock_tick = 0;
     plyr_pdata->blocking_disable_tick_1 = 0;
     plyr_pdata->blocking_disable_tick_2 = 0;
-    aproc->vtbl->transfer_with_exit(j_exit_6, 10, 0.0f);
+    aproc->vtbl->transfer(j_exit_6, 0.0f);
     return 0.0f;
 }
 
@@ -2769,11 +2780,11 @@ float pz_fighter_long_exit(void) {
     plyr_pdata->script_exit_value_int = 20;
     plyr_pdata->script_exit_args[0] = 0;
     plyr_pdata->script_exit_args[1] = 0;
-    plyr_pdata->script_exit_args[2] = 0;
+    plyr_pdata->script_exit_arg_2 = 0;
     plyr_pdata->input_unlock_tick = 0;
     plyr_pdata->blocking_disable_tick_1 = 0;
     plyr_pdata->blocking_disable_tick_2 = 0;
-    aproc->vtbl->transfer_with_exit(j_exit_6, 20, 0.0f);
+    aproc->vtbl->transfer(j_exit_6, 0.0f);
     return 0.0f;
 }
 
@@ -2804,11 +2815,21 @@ static float p_force_reaction(void) {
     return -1.0f;
 }
 
-/* Near match: 92.92% - register allocation and table relocation emission. */
+/*
+ * Near match: 93.61%, retail 0x2C0/current 0x2AC. The table layout, separately
+ * validated opponent/hold process handles, cleanup/movement flags and all five
+ * dispatch cases agree with m2c. Preserving the reaction opponent across hold
+ * cleanup recovers retail behavior and its final-dispatch lifetime. An explicit
+ * switch recovered retail semantics but regressed to 84.60%; this structured
+ * chain retains the best clean emission. Remaining differences are case-island
+ * layout, register allocation and table labels. Separating the dispatch and
+ * movement table-pointer lifetimes compiled identically and was removed.
+ */
 void pz_fighter_reaction_xfer_him(int reaction) {
     const PuzzleReactionTransferEntry* transfer;
     PuzzleReactionTransferData* reaction_data = apdata;
     PuzzleProcess* opponent_proc;
+    PuzzleProcess* hold_proc;
     PuzzleCmdScript* script;
     PuzzleReactionDispatch dispatch;
     unsigned int transfer_offset;
@@ -2840,15 +2861,15 @@ void pz_fighter_reaction_xfer_him(int reaction) {
         plyr_pdata->scream_sound_handle = 0;
     }
 
-    opponent_proc = (PuzzleProcess*)plyr_pdata->hold_proc;
-    if (opponent_proc != 0) {
-        if (opponent_proc->instance != plyr_pdata->hold_proc_instance) {
-            opponent_proc = 0;
+    hold_proc = (PuzzleProcess*)plyr_pdata->hold_proc;
+    if (hold_proc != 0) {
+        if (hold_proc->instance != plyr_pdata->hold_proc_instance) {
+            hold_proc = 0;
         }
     } else {
-        opponent_proc = 0;
+        hold_proc = 0;
     }
-    if (opponent_proc != 0) {
+    if (hold_proc != 0) {
         release_other_player();
         if (plyr_pdata == (PlyrPdata*)g_game_info.plyr0.slot.fighter) {
             xfer_player_proc(
@@ -2888,16 +2909,16 @@ void pz_fighter_reaction_xfer_him(int reaction) {
     swap_active_plyr_proc();
 
     if (dispatch.call_type == 4) {
-        script->reaction_function = (int)dispatch.entry;
+        script->function = (int)dispatch.entry;
         xfer_player_proc(opponent_proc, r_pz_call_script_function);
     } else if (dispatch.call_type == 0) {
-        script->reaction_function = (int)dispatch.entry;
+        script->function = (int)dispatch.entry;
         xfer_player_proc(opponent_proc, r_call_player_script_function);
     } else if (dispatch.call_type == 2) {
-        script->reaction_function = (int)dispatch.entry;
+        script->function = (int)dispatch.entry;
         xfer_player_proc(opponent_proc, r_call_character_cmo_function);
     } else if (dispatch.call_type == 3) {
-        script->reaction_function = (int)dispatch.entry;
+        script->function = (int)dispatch.entry;
         xfer_player_proc(
             opponent_proc, r_call_other_pz_player_char_script_function);
     } else {
@@ -3374,7 +3395,7 @@ void pz_fighter_clear_out_all_external_forces(
 static float r_call_other_pz_player_char_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(plyr_pdata->his_plyr_pdata->cmo,
-                              active_cmdscript->shared_function);
+                              active_cmdscript->function);
     call_player_script_function(plyr_pdata->his_plyr_pdata->cmo);
     return 0.0f;
 }
@@ -3382,7 +3403,7 @@ static float r_call_other_pz_player_char_script_function(void) {
 static float r_call_character_cmo_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(plyr_pdata->cmo,
-                              active_cmdscript->shared_function);
+                              active_cmdscript->function);
     call_player_script_function(plyr_pdata->cmo);
     return 0.0f;
 }
@@ -3390,7 +3411,7 @@ static float r_call_character_cmo_function(void) {
 static float r_call_player_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(plyr_pdata->fighter_definition->cmo,
-                              active_cmdscript->shared_function);
+                              active_cmdscript->function);
     call_player_script_function(plyr_pdata->fighter_definition->cmo);
     return 0.0f;
 }
@@ -3398,7 +3419,7 @@ static float r_call_player_script_function(void) {
 float r_pz_call_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(pz_shared_cmo,
-                              active_cmdscript->shared_function);
+                              active_cmdscript->function);
     call_player_script_function(pz_shared_cmo);
     return 0.0f;
 }

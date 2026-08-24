@@ -12,7 +12,7 @@ MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryF
                                          int pdata_size, MkHdr** pdata_out);
 MkProc* _create_mkproc_generic_nostack(int proc_id, int priority, MkProcEntryFn proc_fn,
                                        int pdata_size, MkHdr** pdata_out);
-int vdestroy_mkpdata_generic(MkHdr* pdata);
+void vdestroy_mkpdata_generic(MkHdr* pdata);
 void destroy_mkpdata_generic(MkHdr* pdata);
 MkHdr* get_mkpdata_generic(int size);
 

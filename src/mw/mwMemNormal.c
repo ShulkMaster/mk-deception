@@ -29,7 +29,7 @@
 
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block);
 
-/* Near match: exact-size coalescing CFG; residue is GPR coloring and three
+/* Soft ceiling: exact-size coalescing CFG; residue is GPR coloring and three
  * localized unlink scheduling choices. */
 static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
                                                             MwMemUsedHeader* block) {
@@ -80,7 +80,7 @@ static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
     return result;
 }
 
-/* Near match: exact-size ownership traversal and unlink CFG; residue is GPR
+/* Soft ceiling: exact-size ownership traversal and unlink CFG; residue is GPR
  * coloring plus a localized branch/load schedule. */
 static void privFreeMemFromUsed(MwMemUsedHeader* block) {
     _mwMemHeap* heap;
@@ -143,8 +143,8 @@ static void privFreeMemFromUsed(MwMemUsedHeader* block) {
     }
 }
 
-/* Near match: retail retains an unreachable two-instruction loop tail; the
- * reachable list insertion differs only in null-local allocation and layout. */
+/* Soft ceiling: reachable list insertion differs only by li-zero versus mr from
+ * an already-zero local; retail also retains an unreachable loop tail. */
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block) {
     MwMemUsedHeader* current = heap->freeList;
     MwMemUsedHeader* next;
@@ -202,8 +202,9 @@ void normHeapFreeMemFromBlock(void* block) {
     privFreeMemFromUsed(privGetUsedHdrFromBlock(block));
 }
 
-/* Near match: best/first-fit algorithms, boundary tags, and list updates agree;
- * residue is allocator-wide GPR coloring and localized instruction scheduling. */
+/* Soft ceiling: best/first-fit algorithms, boundary tags, and list updates
+ * agree; residue is allocator-wide GPR coloring and localized address/add
+ * scheduling. */
 void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     u32 requested_size = size == 0 ? 0x10 : size;
     int alignment = privGetAlignFromMwMemFlags(flags);
@@ -216,7 +217,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     MwMemUsedHeader* next_block;
     u32 used_size;
     u32 candidate_size;
-    u32 load_high = 0;
+    int load_high = 0;
     u8* block;
     u32 alignment_mask;
 
@@ -309,7 +310,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
         }
         remainder->allocationSize = candidate_size - (needed_size + sizeof(MwMemUsedHeader));
         remainder->prefixSize = 0;
-    remainder->heapIndex = candidate->heapIndex;
+        remainder->heapIndex = candidate->heapIndex;
         remainder->flags = candidate->flags;
         remainder->alignmentPadding = candidate->alignmentPadding;
         privClearBitFlag(&remainder->flags);

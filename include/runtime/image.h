@@ -28,7 +28,8 @@ typedef struct ScreenObjFlags {
     unsigned char pad0 : 3;
     unsigned char hidden : 1;
     unsigned char scaled : 1;
-    unsigned char pad1 : 3;
+    unsigned char bit2 : 1;
+    unsigned char pad1 : 2;
 } ScreenObjFlags;
 
 typedef struct ScreenObjDrawFlags {

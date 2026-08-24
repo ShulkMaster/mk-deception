@@ -64,10 +64,11 @@ MkProc* _create_mkproc_generic_bigstack(int proc_id, int priority, MkProcEntryFn
     if (pdata_out != 0) {
         pdata = get_mkhdr(&vtbl_mkpdata_generic, pdata_size);
         *pdata_out = pdata;
-        create_mkproc(priority, mkproc, proc_id, proc_fn, *pdata_out);
+        mkproc = create_mkproc(priority, mkproc, proc_id, proc_fn, *pdata_out);
     } else {
-        create_mkproc(priority, mkproc, proc_id, proc_fn, 0);
+        mkproc = create_mkproc(priority, mkproc, proc_id, proc_fn, 0);
     }
+    return mkproc;
 }
 
 MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
@@ -88,10 +89,11 @@ MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryF
     if (pdata_out != 0) {
         pdata = get_mkhdr(&vtbl_mkpdata_generic, pdata_size);
         *pdata_out = pdata;
-        create_mkproc(priority, mkproc, proc_id, proc_fn, *pdata_out);
+        mkproc = create_mkproc(priority, mkproc, proc_id, proc_fn, *pdata_out);
     } else {
-        create_mkproc(priority, mkproc, proc_id, proc_fn, 0);
+        mkproc = create_mkproc(priority, mkproc, proc_id, proc_fn, 0);
     }
+    return mkproc;
 }
 
 MkProc* _create_mkproc_generic_nostack(int proc_id, int priority, MkProcEntryFn proc_fn,
@@ -112,13 +114,14 @@ MkProc* _create_mkproc_generic_nostack(int proc_id, int priority, MkProcEntryFn 
     if (pdata_out != 0) {
         pdata = get_mkhdr(&vtbl_mkpdata_generic, pdata_size);
         *pdata_out = pdata;
-        create_mkproc(priority, mkproc, proc_id, proc_fn, *pdata_out);
+        mkproc = create_mkproc(priority, mkproc, proc_id, proc_fn, *pdata_out);
     } else {
-        create_mkproc(priority, mkproc, proc_id, proc_fn, 0);
+        mkproc = create_mkproc(priority, mkproc, proc_id, proc_fn, 0);
     }
+    return mkproc;
 }
 
-int vdestroy_mkpdata_generic(MkHdr* pdata) {
+void vdestroy_mkpdata_generic(MkHdr* pdata) {
     pdata->instance = 0;
     mkhdr_memfree(pdata);
 }

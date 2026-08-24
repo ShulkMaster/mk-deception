@@ -9,7 +9,7 @@ struct MkSobj;
 typedef void (*MkProcDestroyFn)(struct MkProc* proc);
 typedef void (*MkSobjFn)(struct MkSobj* sobj);
 typedef void (*MkProcFn)(void);
-typedef void (*MkProcJumpFn)(int return_address);
+typedef void (*MkProcJumpFn)(float (*entry)(void), float ticks);
 
 typedef struct MkVtable5 {
     MkVtblFn fn0;

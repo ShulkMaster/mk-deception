@@ -6,6 +6,7 @@
  */
 
 #include "game/pfxscript.h"
+#include "game/pz_fatality.h"
 #include "game/projectile.h"
 #include "game/konquest.h"
 #include "game/ejb.h"
@@ -26,6 +27,7 @@ extern unsigned int pz_fighter_state;
 
 typedef struct FakeBoneMatcher FakeBoneMatcher;
 typedef struct MkFlippedBoneMap MkFlippedBoneMap;
+typedef struct MovesAttackInfo MovesAttackInfo;
 typedef struct ScriptAnimPdataView {
     char pad00[0x44];
     float step;
@@ -435,7 +437,10 @@ typedef struct PzConstrainArgs {
 typedef struct ScriptAttackArgs {
     unsigned int header;
     int animation_id;
-    int arg2;
+    union {
+        PuzzleAttackParameters* puzzle;
+        MovesAttackInfo* standard;
+    } parameters;
     int arg3;
 } ScriptAttackArgs;
 
@@ -836,8 +841,10 @@ unsigned short randu0(unsigned short limit);
 void* get_animation(int animation_id);
 void pz_fighter_set_y_constrain(unsigned char* player_obj, int mode,
                                 PzConstrainArgs* args, float value);
-void pz_fighter_attack(void* animation, int arg2, int arg3);
-void attack_opponent_with(void* animation, int arg2, int arg3);
+void pz_fighter_attack(
+    void* animation, PuzzleAttackParameters* attack, int reaction);
+void attack_opponent_with(
+    void* animation, MovesAttackInfo* attack, int reaction);
 void advance_my_moveset(void);
 void j_call_player_script_function(void);
 int was_i_hit_x_times(int hit_count);
@@ -1680,24 +1687,24 @@ int plyr_rotate_obj_y180(void);
 int plyr_set_gravity(void *, float);
 int popup_reaction_max_hit_rules(void);
 int pz_fighter_allow_continuation(void);
-int pz_fighter_allow_easy_continuation(void);
-int pz_fighter_check_breakout(void);
-int pz_fighter_create_space_between_fighters(void);
-int pz_fighter_create_space_between_fighters_for_special_moves(void);
+void pz_fighter_allow_easy_continuation(void);
+void pz_fighter_check_breakout(void);
+void pz_fighter_create_space_between_fighters(void);
+void pz_fighter_create_space_between_fighters_for_special_moves(void);
 int pz_fighter_distance_check_wo_super_check(void);
-int pz_fighter_disallow_continuation(void);
-int pz_fighter_dont_fudge_desired_distance(void);
-int pz_fighter_exit(void);
+void pz_fighter_disallow_continuation(void);
+void pz_fighter_dont_fudge_desired_distance(void);
+float pz_fighter_exit(void);
 int pz_fighter_force_repel_during_attack(void);
-int pz_fighter_function(int);
-int pz_fighter_long_exit(void);
+void pz_fighter_function(unsigned int);
+float pz_fighter_long_exit(void);
 void pz_fighter_move_into_fighting_position(void);
-int pz_fighter_reaction_xfer_him(int);
-int pz_fighter_release_other_player(int);
-int pz_fighter_reset_continuation(void);
-int pz_fighter_shaking(void);
-int pz_fighter_step_throw_into_check(void);
-int pz_fighter_wipe_blood_off_hands(void);
+void pz_fighter_reaction_xfer_him(int);
+void pz_fighter_release_other_player(int);
+void pz_fighter_reset_continuation(void);
+void pz_fighter_shaking(void);
+void pz_fighter_step_throw_into_check(void);
+void pz_fighter_wipe_blood_off_hands(void);
 int random_dk_foot(void);
 int random_voice_him(int);
 int register_baraka_cb_functions(void);
@@ -2925,7 +2932,8 @@ void _pz_fighter_attack(void) {
     script.command->animation = animation;
     args.bytes = current_args;
     script.bytes = active_cmdscript;
-    pz_fighter_attack(script.command->animation, args.attack->arg2,
+    pz_fighter_attack(script.command->animation,
+                      args.attack->parameters.puzzle,
                       args.attack->arg3);
 }
 
@@ -2958,7 +2966,8 @@ void _attack_opponent_with(void) {
     script.command->animation = animation;
     args.bytes = current_args;
     script.bytes = active_cmdscript;
-    attack_opponent_with(script.command->animation, args.attack->arg2,
+    attack_opponent_with(script.command->animation,
+                         args.attack->parameters.standard,
                          args.attack->arg3);
 }
 

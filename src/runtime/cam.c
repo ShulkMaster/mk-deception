@@ -7,6 +7,9 @@
 #include "runtime/sound.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/asset.h"
+#include "runtime/cmath.h"
+#include "runtime/cstring.h"
+#include "runtime/mk_cmdscript.h"
 
 #include "math/gxMath.h"
 #include "math/gxQuat.h"
@@ -18,6 +21,7 @@
 #include "platform/display.h"
 #include "platform/display_metrics.h"
 #include "platform/io.h"
+#include "platform/main.h"
 #include "rw/rwcore_types.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwdevice.h"
@@ -45,17 +49,8 @@ typedef struct ScriptedCameraData {
     int check_collisions;    /* +0x50 */
     int custom_movement;     /* +0x54 */
     Vec center_of_rotation;  /* +0x58 */
-    union {
-        struct {
-            float travel_time; /* +0x64 */
-            union {
-                int rotation_direction;
-                float rotation_step;
-            };                 /* +0x68 */
-            float initial_speed; /* +0x6C */
-        };
-        Vec radial_vector;    /* +0x64 */
-    };
+    /* y stores either a float step or the raw integer rotation direction. */
+    Vec radial_vector;       /* +0x64 */
     float final_speed;       /* +0x70 */
     union {
         int radial_movement;
@@ -64,14 +59,14 @@ typedef struct ScriptedCameraData {
     float radial_distance;   /* +0x78 */
 } ScriptedCameraData;
 
-typedef struct FadeBoxItem FadeBoxItem;
+typedef struct FadeBoxItem {
+    ScreenObj* node;
+    unsigned int instance;
+} FadeBoxItem;
 
 extern CameraObj* camera_obj;
 extern float DEFAULT_FIELD_OF_VIEW;
 extern float DEFAULT_ASPECTRATIO;
-extern float _mkproc_sleep_ticks;
-extern float inverse_game_speed;
-extern float game_speed;
 extern float cam_fov;
 extern float camera_speed;
 extern float cam_rot_speed;
@@ -79,7 +74,6 @@ extern RwMatrix* camera_mat;
 extern float field_of_view_ratio;
 extern int end_round_cam_done;
 extern int camera_mode;
-extern int mode_of_play;
 extern MkObj* plyr_obj;
 extern Vec tightrope_uv;
 extern Vec tightrope_perp_uv;
@@ -91,20 +85,15 @@ extern FadeBoxItem lower_fade_box_item;
 extern FadeBoxItem upper_fade_box_item;
 /* Saved camera entry while intro anim runs (cam.o .sbss). */
 extern MkProcEntryFn old_camera_function;
-void reset_game_speed(void);
 void adj_cam_pos(void);
 float get_constrain_player_distance(void);
-void* memset(void* destination, int value, unsigned long size);
 int get_game_state(void);
 int get_konquest_game_mode(void);
-void set_process_as_scriptable(MkProc* proc);
 void atomic_set_transl_flag(RpAtomic* atomic);
 void render_col_shape(const CollisionShape* shape, const unsigned int* color);
 extern unsigned int rgba_red;
 extern unsigned int rgba_green;
-extern unsigned short GXMathSqrtTable[];
 extern int MksobjLocalOffset;
-double atan2(double y, double x);
 void hide_atomic(void* atomic);
 void unhide_atomic(void* atomic);
 float frand(float maximum);
@@ -134,8 +123,7 @@ static Vec cam_right_uv;
 static Vec midpoint_to_cam_vector;
 static float last_camera_distance = 2.6f;
 
-float gxMathTan(float x);
-RwRaster* RwRasterSubRaster(RwRaster* sub_raster, RwRaster* raster, RwRect* rect);
+RwRaster* RwRasterSubRaster(RwRaster* raster, RwRaster* parent, RwRect* rect);
 /* Must stay external so xfer_camera emits bl (local stub was inlined away). */
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);
 void CameraDestroy(RwCamera* camera);
@@ -143,8 +131,6 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame);
 float xz_ray_circle_intersection_dist(const Vec* ray_origin,
                                       const Vec* ray_direction,
                                       float radius);
-void xz_unit_vector(Vec* out, const Vec* from, const Vec* to);
-void normalize_v3(Vec* value);
 float p_camera_proc(void);
 float p_attract_camera(void);
 float p_idle_camera(void);
@@ -154,14 +140,12 @@ static float p_run_interaction_camera(void);
 static float p_interaction_cam(void);
 static float p_special_move_cam(void);
 static float p_move_widescreen_bars(void);
-float p_hold_camera_in_place(void);
 static void look_at_interaction_target(const Vec* target, int snap_angles);
 static void check_reverse_interaction_cam_targets(void);
 void get_play_camera_position(Vec* position);
-float get_game_speed(void);
 int player_is_stationary(PlyrPdata* player);
 int am_i_on_the_left(void);
-int am_i_on_the_left2(MkObj* target, MkObj* reference_object);
+int am_i_on_the_left2(MkObj* opponent, MkObj* me);
 int move_to_end_point(const Vec* endpoint, float* initial_speed,
                       float* final_speed, int reset, float time);
 int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
@@ -350,8 +334,8 @@ typedef struct InteractionCameraData {
 
 typedef struct InteractionCameraProcData {
     MkHdr hdr;
-    void* owner;
-    void* script;
+    ScriptSlot* script_slot;
+    unsigned int function_index;
     int field_10;
 } InteractionCameraProcData;
 
@@ -372,7 +356,7 @@ typedef struct ActiveNpcCameraView {
     unsigned char field_1D;
 } ActiveNpcCameraView;
 
-typedef struct KonquestCameraView {
+typedef struct KonquestCameraPdataView {
     char pad00[0x24];
     void* camera_script;
     char pad28[0x1C];
@@ -385,12 +369,7 @@ typedef struct KonquestCameraView {
     unsigned int movement_npc_instance;
     char pad200[0x0C];
     int conversation_mode_b;
-} KonquestCameraView;
-
-struct FadeBoxItem {
-    ScreenObj* node;
-    unsigned int instance;
-};
+} KonquestCameraPdataView;
 
 typedef struct WidescreenBarPdata {
     MkHdr hdr;
@@ -462,8 +441,8 @@ typedef struct CameraShakePdata {
 
 typedef struct CameraScriptPdata {
     MkHdr hdr;
-    int script;
-    int argument;
+    ScriptSlot* script_slot;
+    unsigned int function_index;
     int flags;
 } CameraScriptPdata;
 
@@ -471,11 +450,6 @@ typedef struct CameraScriptMonitorItem {
     MkProc* node;
     unsigned int instance;
 } CameraScriptMonitorItem;
-
-typedef struct CameraCmdScriptView {
-    char pad00[0x20];
-    int active;
-} CameraCmdScriptView;
 
 typedef struct DangerZoneAtomicView {
     char pad00[0x18];
@@ -493,10 +467,7 @@ static SpecialMoveCameraData smc_data;
 int force_midpoint_calculation_update;
 extern CameraScriptMonitorItem camera_script_monitor_item;
 extern ActiveNpcCameraView* g_active_npc;
-extern KonquestCameraView* konquest_pdata;
-void cmdscript_setup_execution(int script, int argument);
-void cmdscript_execute(int script);
-CameraCmdScriptView* get_cmdscript_for_proc(MkProc* proc);
+extern KonquestCameraPdataView* konquest_pdata;
 
 typedef union CameraVecBits {
     float values[3];
@@ -2883,7 +2854,8 @@ void run_interaction_camera_script(void* owner, void* script) {
     if (process != 0) {
         g_ic_data.created_process = 0;
         process_data_header = pdata_of_proc(process);
-        ((InteractionCameraProcData*)process_data_header)->script = script;
+        ((InteractionCameraProcData*)process_data_header)->function_index =
+            (unsigned int)script;
         xfer_proc(process, p_run_interaction_camera);
         return;
     }
@@ -2894,8 +2866,10 @@ void run_interaction_camera_script(void* owner, void* script) {
         sizeof(InteractionCameraProcData), &process_data_header);
     if (process != 0) {
         set_process_as_scriptable(process);
-        ((InteractionCameraProcData*)process_data_header)->owner = owner;
-        ((InteractionCameraProcData*)process_data_header)->script = script;
+        ((InteractionCameraProcData*)process_data_header)->script_slot =
+            (ScriptSlot*)owner;
+        ((InteractionCameraProcData*)process_data_header)->function_index =
+            (unsigned int)script;
     }
 }
 
@@ -2904,8 +2878,8 @@ static float p_run_interaction_camera(void) {
     InteractionCameraProcData* data;
 
     data = (InteractionCameraProcData*)pdata_of_proc(aproc);
-    cmdscript_setup_execution((int)data->owner, (int)data->script);
-    cmdscript_execute((int)data->owner);
+    cmdscript_setup_execution(data->script_slot, data->function_index);
+    cmdscript_execute(data->script_slot);
     while (get_konquest_movement_npc() != 0) {
         _mkproc_sleep_ticks = kOne;
         mkproc_sleep();
@@ -3808,8 +3782,9 @@ void run_camera_script(int script, int argument, int flags) {
     if (process != 0) {
         camera_script_monitor_item.node = process;
         camera_script_monitor_item.instance = process->instance;
-        ((CameraScriptPdata*)pdata_hdr)->script = script;
-        ((CameraScriptPdata*)pdata_hdr)->argument = argument;
+        ((CameraScriptPdata*)pdata_hdr)->script_slot = (ScriptSlot*)script;
+        ((CameraScriptPdata*)pdata_hdr)->function_index =
+            (unsigned int)argument;
         ((CameraScriptPdata*)pdata_hdr)->flags = flags;
         old_camera_function = camera_info.proc->entry;
         set_process_as_scriptable(process);
@@ -3842,9 +3817,9 @@ void run_camera_script(int script, int argument, int flags) {
 }
 
 static float p_run_camera_script(void) {
-    cmdscript_setup_execution(((CameraScriptPdata*)apdata)->script,
-                              ((CameraScriptPdata*)apdata)->argument);
-    cmdscript_execute(((CameraScriptPdata*)apdata)->script);
+    cmdscript_setup_execution(((CameraScriptPdata*)apdata)->script_slot,
+                              ((CameraScriptPdata*)apdata)->function_index);
+    cmdscript_execute(((CameraScriptPdata*)apdata)->script_slot);
     if (((CameraScriptPdata*)apdata)->flags == 0) {
         memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
         {
@@ -3857,7 +3832,7 @@ static float p_run_camera_script(void) {
             orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
                                         1, kZero);
         }
-        while (get_cmdscript_for_proc(aproc)->active != 0) {
+        while (get_cmdscript_for_proc(aproc)->state != 0) {
             _mkproc_sleep_ticks = kOne;
             mkproc_sleep();
         }
@@ -4041,16 +4016,16 @@ float p_scripted_camera(void) {
                             orbit_position_to_end_point(
                                 &scripted_camera_data.center_of_rotation,
                                 &target_position,
-                                &scripted_camera_data.initial_speed,
+                                &scripted_camera_data.radial_vector.z,
                                 &scripted_camera_data.final_speed,
-                                scripted_camera_data.rotation_direction, 0,
-                                scripted_camera_data.travel_time);
+                                *(int*)&scripted_camera_data.radial_vector.y, 0,
+                                scripted_camera_data.radial_vector.x);
                     } else {
                         scripted_camera_data.pos_move_done = move_to_end_point(
                             &target_position,
-                            &scripted_camera_data.initial_speed,
+                            &scripted_camera_data.radial_vector.z,
                             &scripted_camera_data.final_speed, 0,
-                            scripted_camera_data.travel_time);
+                            scripted_camera_data.radial_vector.x);
                     }
                 } else {
                     rate = scripted_camera_data.movement_rate;
@@ -4415,11 +4390,11 @@ void camera_setup_radial_sweep(void* script_args, float travel_time,
     } else {
         scripted_camera_data.center_of_rotation.z = camera_obj->ang.y;
     }
-    scripted_camera_data.initial_speed = initial_speed;
+    scripted_camera_data.radial_vector.z = initial_speed;
     scripted_camera_data.center_of_rotation.x = center_x;
-    scripted_camera_data.rotation_step = rotation_step;
+    scripted_camera_data.radial_vector.y = rotation_step;
     scripted_camera_data.radial_distance = radial_distance;
-    scripted_camera_data.travel_time = travel_time;
+    scripted_camera_data.radial_vector.x = travel_time;
     scripted_camera_data.radial_step = radial_step;
     scripted_camera_data.final_speed = final_speed;
     scripted_camera_data.center_of_rotation.y = center_y;
@@ -4650,11 +4625,11 @@ void camera_set_center_of_rotation(const CamVec3* center) {
 }
 
 void camera_set_travel_time(float time) {
-    scripted_camera_data.travel_time = time;
+    scripted_camera_data.radial_vector.x = time;
 }
 
 void camera_set_rotation_direction(int direction) {
-    scripted_camera_data.rotation_direction = direction;
+    *(int*)&scripted_camera_data.radial_vector.y = direction;
 }
 
 void camera_set_final_speed(float speed) {
@@ -4662,7 +4637,7 @@ void camera_set_final_speed(float speed) {
 }
 
 void camera_set_initial_speed(float speed) {
-    scripted_camera_data.initial_speed = speed;
+    scripted_camera_data.radial_vector.z = speed;
 }
 
 void camera_set_movement_offset_explicit(float x, float y, float z) {
@@ -5858,7 +5833,6 @@ void set_camera_position(const CamVec3* pos) {
 }
 
 static float p_shake_camera_y(void);
-static float p_shake_camera(void);
 
 void shake_camera_y(int count, float strength) {
     MkHdr* pdata;

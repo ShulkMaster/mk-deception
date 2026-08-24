@@ -96,7 +96,16 @@ typedef struct PfxClone {
  */
 struct MkPfx {
     MkHdr hdr;                    /* +0x00 */
-    unsigned char flags;          /* +0x08 -- bit7 destroyed, bit6 owns bind, bit4 visible */
+    union {
+        unsigned char flags;
+        struct {
+            unsigned char destroyed : 1;
+            unsigned char owns_bind : 1;
+            unsigned char flags_bit5 : 1;
+            unsigned char visible : 1;
+            unsigned char flags_low : 4;
+        } flag_bits;
+    };                            /* +0x08 */
     unsigned char pad09[3];
     MkHdr* proc;                  /* +0x0C */
     unsigned int proc_inst;       /* +0x10 */
