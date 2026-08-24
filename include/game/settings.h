@@ -9,7 +9,10 @@ typedef struct GameSettings {
     float volume[6];           /* +0x00 */
     int kombat_difficulty;     /* +0x18 */
     int arcade_difficulty;     /* +0x1C */
-    int rounds_to_win;         /* +0x20 */
+    union {
+        int rounds_to_win;
+        int puzzle_difficulty; /* +0x20 */
+    };
     int round_time;            /* +0x24 */
     int blood_level;           /* +0x28 - retail get_puzzle_rounds_to_win */
     union {
