@@ -1450,6 +1450,54 @@ static inline int puzzle_ai_select_best_piece(
            placements[1][best[1]].match_score;
 }
 
+static inline void puzzle_ai_choose_fallback(
+    PuzzlePlayerState* player, int minimum_row,
+    unsigned int piece0_type, unsigned int piece1_type) {
+    PuzzleAiLayoutColumn* layout;
+    PuzzleBoardCell* cell;
+    int column;
+    int row;
+
+    if (minimum_row > 3 && minimum_row < 14) {
+        player->ai_target_column = -1;
+        row = 0;
+        do {
+            for (column = 0; column < 8; column++) {
+                cell = &player->board_rows[row][column];
+                if (cell->type == 0 || cell->state != 0) {
+                    player->ai_target_column = column;
+                    if (column > 0 && (cell - 1)->type == 0) {
+                        player->ai_target_rotation = 3;
+                        break;
+                    }
+                    if (column < 7 && (cell + 1)->type == 0) {
+                        player->ai_target_rotation = 1;
+                        break;
+                    }
+                    player->ai_target_rotation = 0;
+                }
+            }
+            if (player->ai_target_column >= 0) {
+                break;
+            }
+            row++;
+        } while (row < 12);
+        if (player->ai_target_column < 0) {
+            player->ai_target_column = 3;
+        }
+    } else {
+        if (player->event_player != 0) {
+            piece0_type = 3 - piece0_type;
+            piece1_type = 3 - piece1_type;
+        }
+        layout = &ai_layout_column_scheme[piece0_type][piece1_type];
+        player->ai_target_rotation = layout->rotation;
+        player->ai_target_column = layout->column;
+        player->ai_secondary_rotation = 1;
+        player->ai_secondary_column = 4;
+    }
+}
+
 static inline int puzzle_ai_find_superbomb_column(
     PuzzlePlayerState* player, const PuzzleAiColorCount colors[4]) {
     PuzzleBoardCell* cell;
@@ -1502,8 +1550,7 @@ static inline void pzsm_release_rain_dance_resources(void) {
     pzsm_raindance_data.splash_object = 0;
 }
 
-static inline PuzzleBoardCell*
-puzzle_rotation_fallback_down(PuzzlePlayerState* player) {
+static inline void puzzle_rotation_fallback_down(PuzzlePlayerState* player) {
     PuzzleBoardCell* candidate = player->active_cell + 8;
     unsigned int saved_type;
 
@@ -1517,8 +1564,7 @@ puzzle_rotation_fallback_down(PuzzlePlayerState* player) {
     return player->active_cell;
 }
 
-static inline PuzzleBoardCell*
-puzzle_rotation_fallback_up(PuzzlePlayerState* player) {
+static inline void puzzle_rotation_fallback_up(PuzzlePlayerState* player) {
     PuzzleBoardCell* candidate = player->active_cell - 8;
     unsigned int saved_type;
 
@@ -1529,14 +1575,14 @@ puzzle_rotation_fallback_up(PuzzlePlayerState* player) {
     } else {
         player->rotation_state = 2;
     }
-    return player->active_cell;
 }
 
 static inline void puzzle_fighter_setup_abort(void) {
     xfer_proc(puzzle_ctrl->mode_proc, p_pz_mode_exit);
 }
 
-static inline int puzzle_fighter_setup_ui_objects(void) {
+static inline int puzzle_fighter_setup_ui_and_wiff_objects(void) {
+    PuzzleWiffResource* wiff;
     int index;
 
     for (index = 0; index < puzzle_ctrl->ui_object_count; index++) {
@@ -1548,32 +1594,47 @@ static inline int puzzle_fighter_setup_ui_objects(void) {
         }
         pull_screen_obj(puzzle_ctrl->ui_objects[index]);
     }
-    return 1;
+
+    for (index = 0; index < puzzle_ctrl->block_visual_count; index++) {
+        wiff = &art_puzzle_fighter_wiff_tbl[index];
+        puzzle_ctrl->breaker_objects[index] = load_wiff_screen_pfxobj(
+            0x70033, wiff->image_id, 0x601F,
+            &puzzle_ctrl->block_animations[index], 0, 0);
+        if (puzzle_ctrl->breaker_objects[index] == 0) {
+            break;
+        }
+        set_ani_texture_framerate(puzzle_ctrl->block_animations[index],
+                                  wiff->frame_rate);
+        pull_screen_obj(puzzle_ctrl->breaker_objects[index]);
+        pull_ani_texture_control(puzzle_ctrl->block_animations[index]);
+    }
+    return index;
 }
 
-static inline int puzzle_fighter_setup_super_bar_objects(void) {
-    PuzzleArtPlacement* placement;
-    ScreenObj* object;
+static inline int puzzle_fighter_setup_background_objects(void) {
+    int background = __pz_start_msg.background;
     int index;
 
-    for (index = 0; art_puzzle_fighter_super_bar_tbl[index].image_id != 0;
-         index++) {
-        placement = &art_puzzle_fighter_super_bar_tbl[index];
-        object = load_2d_pfxobj(0x70033, 0x601E,
-                                (char*)placement->image_id, 0, 0x3C);
-        if (object == 0) {
-            return 0;
+    load_art_section(0x70037, pz_bgnd_ss_tbl[background]);
+    for (index = 0; index < 2; index++) {
+        puzzle_ctrl->supermove_fade_objects[index] = load_2d_pfxobj(
+            0x70037, 0x601C,
+            (char*)art_puzzle_fighter_bgnd_tbl[background * 2 + index], 0,
+            0x3F);
+        if (puzzle_ctrl->supermove_fade_objects == 0) {
+            break;
         }
-        pull_screen_obj(object);
-        puzzle_ctrl->hud_objects[index] = object;
-        if (index >= 3) {
-            return 0;
+        puzzle_ctrl->supermove_fade_objects[index]->flag_bits.bit2 = 1;
+        puzzle_ctrl->supermove_fade_objects[index]->x = -0x40;
+        if (index != 0) {
+            puzzle_ctrl->supermove_fade_objects[index]->x += 0x200;
         }
+        puzzle_ctrl->supermove_fade_objects[index]->y = -0x10;
     }
-    return 1;
+    return index;
 }
 
-static inline int puzzle_fighter_setup_victory_objects(void) {
+static inline int puzzle_fighter_setup_victory_and_super_bar_objects(void) {
     PuzzleArtPlacement* placement;
     ScreenObj* object;
     int index;
@@ -1597,30 +1658,22 @@ static inline int puzzle_fighter_setup_victory_objects(void) {
             return 0;
         }
     }
-    return 1;
-}
 
-static inline int puzzle_fighter_setup_background_objects(void) {
-    int background = __pz_start_msg.background;
-    int index;
-
-    load_art_section(0x70037, pz_bgnd_ss_tbl[background]);
-    for (index = 0; index < 2; index++) {
-        puzzle_ctrl->supermove_fade_objects[index] = load_2d_pfxobj(
-            0x70037, 0x601C,
-            (char*)art_puzzle_fighter_bgnd_tbl[background * 2 + index], 0,
-            0x3F);
-        if (puzzle_ctrl->supermove_fade_objects == 0) {
-            return 0;
+    for (index = 0; art_puzzle_fighter_super_bar_tbl[index].image_id != 0;
+         index++) {
+        placement = &art_puzzle_fighter_super_bar_tbl[index];
+        object = load_2d_pfxobj(0x70033, 0x601E,
+                                (char*)placement->image_id, 0, 0x3C);
+        if (object == 0) {
+            break;
         }
-        puzzle_ctrl->supermove_fade_objects[index]->flag_bits.bit2 = 1;
-        puzzle_ctrl->supermove_fade_objects[index]->x = -0x40;
-        if (index != 0) {
-            puzzle_ctrl->supermove_fade_objects[index]->x += 0x200;
+        pull_screen_obj(object);
+        puzzle_ctrl->hud_objects[index] = object;
+        if (index >= 3) {
+            break;
         }
-        puzzle_ctrl->supermove_fade_objects[index]->y = -0x10;
     }
-    return 1;
+    return index;
 }
 
 void minigame_event(void) {
@@ -4113,14 +4166,28 @@ static int pz_ai_check_no_pause(PuzzlePlayerState* player) {
  * an interior candidate. Keeping its four distinct invalidation leaves and
  * early equal-color value restores retail's major block ownership. Direct
  * adjacent matches now feed duplicated score expressions, allowing MWCC to
- * recover retail's backward scoring join without a synthetic boolean (63.74%,
- * retail 0xB70/current 0xBBC). The remaining fallback-entry lowering is still
- * structural and is not classified as a near miss.
+ * recover retail's backward scoring join without a synthetic boolean. Scoping
+ * the initial score scan independently removes one false cross-region
+ * lifetime. Retaining the selected piece's placement-row base through all four
+ * invalidation leaves removes repeated address reconstruction. Vertical and
+ * adjacent bonus matches now converge on retail's single score block. A typed
+ * fallback helper plus a single selection loop restores retail's one fallback
+ * body and backward unsafe-equal-color join. Selection now occurs after the
+ * fallback guard, matching retail block ownership. Dispatch uses the published
+ * target column rather than carrying the pre-publication selection through the
+ * remaining branches, restoring retail's per-arm reloads and index formation
+ * (87.05%, retail 0xB70/current 0xB7C). The stack frame and r21-r31 save range
+ * are exact. The remaining 12-byte excess is structural and is not classified
+ * as a near miss.
  */
 static void pz_ai_decide_match(PuzzlePlayerState* player) {
+    enum {
+        PUZZLE_AI_SELECTION_FALLBACK = -1,
+        PUZZLE_AI_SELECTION_DISPATCH = 0,
+        PUZZLE_AI_SELECTION_RETRY = 2
+    };
     PuzzleAiPlacement placements[2][8];
     PuzzleAiPlacement* placement;
-    PuzzleAiLayoutColumn* layout;
     PuzzleBoardCell* cell;
     int best[2];
     int lowest[2];
@@ -4141,8 +4208,6 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
     int selected_column;
     int selected_row;
     int other_piece;
-    int best_score;
-    int lowest_score;
     int maximum_row;
     int scan_row;
     int rotation;
@@ -4169,46 +4234,64 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
         memset(best, -1, sizeof(best));
         memset(lowest, 1000, sizeof(lowest));
 
-        for (piece = 0; piece < 2; piece++) {
-            best_score = -1;
-            lowest_score = 1000;
-            raw_type = player->current_pair[piece].type;
-            piece_breaker =
-                raw_type >= 4 && raw_type != PUZZLE_BLOCK_WILDCARD
-                    ? raw_type
-                    : 0;
+        {
+            PuzzleAiPlacement* scan_placement;
+            PuzzleBoardCell* scan_cell;
+            unsigned int scan_raw_type;
+            unsigned int scan_piece_breaker;
+            unsigned int scan_landing_breaker;
+            unsigned int scan_cell_type;
+            int scan_best_score;
+            int scan_lowest_score;
+            int scan_piece;
+            int scan_column;
 
-            for (column = 0; column < 8; column++) {
-                placement = &placements[piece][column];
-                if (placement->match_score < 0) {
-                    continue;
-                }
-                cell = &player->board_rows[placement->row][column];
-                scan_type = cell->type;
-                landing_breaker =
-                    scan_type >= 4 && scan_type != PUZZLE_BLOCK_WILDCARD
-                        ? scan_type
+            for (scan_piece = 0; scan_piece < 2; scan_piece++) {
+                scan_best_score = -1;
+                scan_lowest_score = 1000;
+                scan_raw_type = player->current_pair[scan_piece].type;
+                scan_piece_breaker =
+                    scan_raw_type >= 4 &&
+                            scan_raw_type != PUZZLE_BLOCK_WILDCARD
+                        ? scan_raw_type
                         : 0;
 
-                if (placement->row < 11 || piece_breaker != 0 ||
-                    landing_breaker != 0) {
-                    if (breaker_retry != 0 &&
-                        (piece_breaker != 0 ||
-                         landing_breaker != 0)) {
-                        placement->match_score += 200;
+                for (scan_column = 0; scan_column < 8; scan_column++) {
+                    scan_placement = &placements[scan_piece][scan_column];
+                    if (scan_placement->match_score < 0) {
+                        continue;
                     }
-                    if (placement->match_score >= best_score) {
-                        if (placement->match_score > best_score ||
-                            placement->row <
-                                placements[piece][best[piece]].row) {
-                            best_score = placement->match_score;
-                            best[piece] = column;
+                    scan_cell = &player->board_rows[scan_placement->row]
+                                                      [scan_column];
+                    scan_cell_type = scan_cell->type;
+                    scan_landing_breaker =
+                        scan_cell_type >= 4 &&
+                                scan_cell_type != PUZZLE_BLOCK_WILDCARD
+                            ? scan_cell_type
+                            : 0;
+
+                    if (scan_placement->row < 11 ||
+                        scan_piece_breaker != 0 ||
+                        scan_landing_breaker != 0) {
+                        if (breaker_retry != 0 &&
+                            (scan_piece_breaker != 0 ||
+                             scan_landing_breaker != 0)) {
+                            scan_placement->match_score += 200;
+                        }
+                        if (scan_placement->match_score >= scan_best_score) {
+                            if (scan_placement->match_score > scan_best_score ||
+                                scan_placement->row <
+                                    placements[scan_piece][best[scan_piece]]
+                                        .row) {
+                                scan_best_score = scan_placement->match_score;
+                                best[scan_piece] = scan_column;
+                            }
                         }
                     }
-                }
-                if (placement->match_score < lowest_score) {
-                    lowest_score = placement->match_score;
-                    lowest[piece] = column;
+                    if (scan_placement->match_score < scan_lowest_score) {
+                        scan_lowest_score = scan_placement->match_score;
+                        lowest[scan_piece] = scan_column;
+                    }
                 }
             }
         }
@@ -4216,29 +4299,29 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
         if (player->ai_no_pause_band >= 2 &&
             (best[0] >= 0 || best[1] >= 0)) {
             if (player->ai_plan_bits.ai_match_bonus_pending == 0) {
-            selected_piece = puzzle_ai_select_best_piece(placements, best);
-            if (placements[selected_piece][best[selected_piece]].row <= 9) {
-                rotation = 0;
-                player->ai_target_column = best[selected_piece];
-                if (selected_piece != 0) {
-                    rotation = 2;
+                selected_piece = puzzle_ai_select_best_piece(placements, best);
+                if (placements[selected_piece][best[selected_piece]].row <= 9) {
+                    rotation = 0;
+                    player->ai_target_column = best[selected_piece];
+                    if (selected_piece != 0) {
+                        rotation = 2;
+                    }
+                    player->ai_target_rotation = rotation;
+                    break;
                 }
-                player->ai_target_rotation = rotation;
-                break;
-            }
             } else if (minimum_row < 10) {
-            for (piece = 0; piece < 2; piece++) {
-                piece_type = player->current_pair[piece].type;
-                piece_breaker =
-                    piece_type >= 4 && piece_type != PUZZLE_BLOCK_WILDCARD
-                        ? piece_type
-                        : 0;
-                other_piece = 1 - piece;
-                other_type = player->current_pair[other_piece].type;
-                other_breaker =
-                    other_type >= 4 && other_type != PUZZLE_BLOCK_WILDCARD
-                        ? other_type
-                        : 0;
+                for (piece = 0; piece < 2; piece++) {
+                    piece_type = player->current_pair[piece].type;
+                    piece_breaker =
+                        piece_type >= 4 && piece_type != PUZZLE_BLOCK_WILDCARD
+                            ? piece_type
+                            : 0;
+                    other_piece = 1 - piece;
+                    other_type = player->current_pair[other_piece].type;
+                    other_breaker =
+                        other_type >= 4 && other_type != PUZZLE_BLOCK_WILDCARD
+                            ? other_type
+                            : 0;
 
                 if (piece_type >= 4) {
                     if (piece_type != PUZZLE_BLOCK_WILDCARD) {
@@ -4309,8 +4392,6 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                         if (scan_row < 0 || scan_type == piece_type) {
                             continue;
                         }
-                        placement->match_score +=
-                            placement->row > maximum_row ? 10 : 300;
                     } else {
                         scan_row++;
                         if (column != 0) {
@@ -4324,37 +4405,37 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                                         scan_type = 0;
                                     }
                                 }
-                                if (scan_type == other_type) {
-                                    placement->match_score +=
-                                        placement->row > maximum_row ? 10 : 300;
-                                    continue;
-                                }
                             }
                         }
-                        if (column < 7) {
+                        if (column == 0 || scan_type != other_type) {
+                            if (column >= 7) {
+                                continue;
+                            }
                             scan_type =
                                 player->board_rows[scan_row][column + 1].type;
-                            if (scan_type != 0) {
-                                if (scan_type >= 4) {
-                                    if (scan_type != PUZZLE_BLOCK_WILDCARD) {
-                                        scan_type -= 4;
-                                    } else {
-                                        scan_type = 0;
-                                    }
+                            if (scan_type == 0) {
+                                continue;
+                            }
+                            if (scan_type >= 4) {
+                                if (scan_type != PUZZLE_BLOCK_WILDCARD) {
+                                    scan_type -= 4;
+                                } else {
+                                    scan_type = 0;
                                 }
-                                if (scan_type == other_type) {
-                                    placement->match_score +=
-                                        placement->row > maximum_row ? 10 : 300;
-                                }
+                            }
+                            if (scan_type != other_type) {
+                                continue;
                             }
                         }
                     }
+                    placement->match_score +=
+                        placement->row > maximum_row ? 10 : 300;
                 }
-            }
-            if (player->ai_plan_bits.ai_match_bonus_pending != 0) {
-                player->ai_plan_bits.ai_match_bonus_pending = 0;
-                continue;
-            }
+                }
+                if (player->ai_plan_bits.ai_match_bonus_pending != 0) {
+                    player->ai_plan_bits.ai_match_bonus_pending = 0;
+                    continue;
+                }
             }
         }
 
@@ -4374,11 +4455,20 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                 piece1_type = 0;
             }
         }
-        if (best[0] >= 0 || best[1] >= 0) {
+        selected_piece = PUZZLE_AI_SELECTION_DISPATCH;
+        for (;;) {
+            if (selected_piece == PUZZLE_AI_SELECTION_FALLBACK ||
+                (best[0] < 0 && best[1] < 0)) {
+                puzzle_ai_choose_fallback(
+                    player, minimum_row, piece0_type, piece1_type);
+                player->ai_secondary_rotation = 0;
+                return;
+            }
+
             selected_piece = puzzle_ai_select_best_piece(placements, best);
+            placement = placements[selected_piece];
             selected_column = best[selected_piece];
-            placement = &placements[selected_piece][selected_column];
-            selected_row = placement->row;
+            selected_row = placement[selected_column].row;
             raw_type = player->current_pair[0].type;
             piece0_breaker =
                 raw_type >= 4 && raw_type != PUZZLE_BLOCK_WILDCARD
@@ -4389,8 +4479,7 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                 raw_type >= 4 && raw_type != PUZZLE_BLOCK_WILDCARD
                     ? raw_type
                     : 0;
-            scan_type =
-                player->board_rows[selected_row][selected_column].type;
+            scan_type = player->board_rows[selected_row][selected_column].type;
             landing_breaker =
                 scan_type >= 4 && scan_type != PUZZLE_BLOCK_WILDCARD
                     ? scan_type
@@ -4399,24 +4488,34 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
             if (breaker_retry == 0 && selected_row >= 9 &&
                 (piece0_breaker != 0 || piece1_breaker != 0)) {
                 breaker_retry = 1;
-                continue;
+                selected_piece = PUZZLE_AI_SELECTION_RETRY;
+                break;
             }
 
             player->ai_target_column = selected_column;
             player->ai_secondary_column = lowest[0];
-            if (piece0_type == piece1_type) {
-                if (placements[selected_piece][player->ai_target_column].row <
-                        10 ||
-                    piece0_breaker != 0 || piece1_breaker != 0 ||
-                    landing_breaker != 0) {
-                    player->ai_target_rotation = 0;
-                    break;
-                }
-            } else if (selected_piece != 0) {
-                if (selected_column < 7) {
+            if (piece0_type != piece1_type) {
+                break;
+            }
+            if (placement[player->ai_target_column].row < 10 ||
+                piece0_breaker != 0 || piece1_breaker != 0 ||
+                landing_breaker != 0) {
+                player->ai_target_rotation = 0;
+                player->ai_secondary_rotation = 0;
+                return;
+            }
+            selected_piece = PUZZLE_AI_SELECTION_FALLBACK;
+        }
+        if (selected_piece == PUZZLE_AI_SELECTION_RETRY) {
+            continue;
+        }
+
+        if (selected_piece != 0) {
+            if (player->ai_target_column < 7) {
                     for (row = player->active_row; row >= 0; row--) {
-                        if (player->board_rows[row][selected_column + 1].type !=
-                            0) {
+                        if (player->board_rows[row]
+                                              [player->ai_target_column + 1]
+                                                  .type != 0) {
                             break;
                         }
                     }
@@ -4429,18 +4528,17 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                         player->ai_target_rotation = 2;
                         break;
                     }
-                    if (selected_column <= 0) {
-                        placements[selected_piece][selected_column]
-                            .match_score = -1;
-                        placements[selected_piece][player->ai_target_column]
-                            .row = -1;
+                    if (player->ai_target_column <= 0) {
+                        placement[player->ai_target_column].match_score = -1;
+                        placement[player->ai_target_column].row = -1;
                         continue;
                     }
-                }
-                if (selected_column > 0) {
+            }
+            if (player->ai_target_column > 0) {
                     for (row = player->active_row; row >= 0; row--) {
-                        if (player->board_rows[row][selected_column - 1].type !=
-                            0) {
+                        if (player->board_rows[row]
+                                              [player->ai_target_column - 1]
+                                                  .type != 0) {
                             break;
                         }
                     }
@@ -4453,17 +4551,16 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                         player->ai_target_rotation = 2;
                         break;
                     }
-                    placements[selected_piece][selected_column].match_score =
-                        -1;
-                    placements[selected_piece][player->ai_target_column].row =
-                        -1;
+                    placement[player->ai_target_column].match_score = -1;
+                    placement[player->ai_target_column].row = -1;
                     continue;
-                }
-            } else {
-                if (selected_column > 0) {
+            }
+        } else {
+            if (player->ai_target_column > 0) {
                     for (row = player->active_row; row >= 0; row--) {
-                        if (player->board_rows[row][selected_column - 1].type !=
-                            0) {
+                        if (player->board_rows[row]
+                                              [player->ai_target_column - 1]
+                                                  .type != 0) {
                             break;
                         }
                     }
@@ -4475,18 +4572,17 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                         player->ai_target_rotation = 0;
                         break;
                     }
-                    if (selected_column >= 7) {
-                        placements[selected_piece][selected_column]
-                            .match_score = -1;
-                        placements[selected_piece][player->ai_target_column]
-                            .row = -1;
+                    if (player->ai_target_column >= 7) {
+                        placement[player->ai_target_column].match_score = -1;
+                        placement[player->ai_target_column].row = -1;
                         continue;
                     }
-                }
-                if (selected_column < 7) {
+            }
+            if (player->ai_target_column < 7) {
                     for (row = player->active_row; row >= 0; row--) {
-                        if (player->board_rows[row][selected_column + 1].type !=
-                            0) {
+                        if (player->board_rows[row]
+                                              [player->ai_target_column + 1]
+                                                  .type != 0) {
                             break;
                         }
                     }
@@ -4498,55 +4594,10 @@ static void pz_ai_decide_match(PuzzlePlayerState* player) {
                         player->ai_target_rotation = 0;
                         break;
                     }
-                    placements[selected_piece][selected_column].match_score =
-                        -1;
-                    placements[selected_piece][player->ai_target_column].row =
-                        -1;
+                    placement[player->ai_target_column].match_score = -1;
+                    placement[player->ai_target_column].row = -1;
                     continue;
-                }
             }
-        }
-
-        {
-            if (minimum_row > 3 && minimum_row < 14) {
-                player->ai_target_column = -1;
-                row = 0;
-                do {
-                    for (column = 0; column < 8; column++) {
-                        cell = &player->board_rows[row][column];
-                        if (cell->type == 0 || cell->state != 0) {
-                            player->ai_target_column = column;
-                            if (column > 0 && (cell - 1)->type == 0) {
-                                player->ai_target_rotation = 3;
-                                break;
-                            }
-                            if (column < 7 && (cell + 1)->type == 0) {
-                                player->ai_target_rotation = 1;
-                                break;
-                            }
-                            player->ai_target_rotation = 0;
-                        }
-                    }
-                    if (player->ai_target_column >= 0) {
-                        break;
-                    }
-                    row++;
-                } while (row < 12);
-                if (player->ai_target_column < 0) {
-                    player->ai_target_column = 3;
-                }
-            } else {
-                if (player->event_player != 0) {
-                    piece0_type = 3 - piece0_type;
-                    piece1_type = 3 - piece1_type;
-                }
-                layout = &ai_layout_column_scheme[piece0_type][piece1_type];
-                player->ai_target_rotation = layout->rotation;
-                player->ai_target_column = layout->column;
-                player->ai_secondary_rotation = 1;
-                player->ai_secondary_column = 4;
-            }
-            break;
         }
     }
 
