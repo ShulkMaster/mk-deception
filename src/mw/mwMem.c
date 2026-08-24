@@ -100,10 +100,8 @@ static inline int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
     }
 }
 
-/* Soft ceiling: allocation traversal, child exclusion, restart semantics, and
- * reset dispatch match retail.  The canonical pooled file-name relocation makes
- * this compiler retain its address across the loop; retail rematerializes it at
- * the call, with the remaining differences limited to GPRs and switch lowering. */
+/* The allocation traversal, child exclusion, restart semantics, and reset
+ * dispatch match retail. Remaining differences are GPRs and switch lowering. */
 static void privWipeHeap(_mwMemHeap* heap) {
     MwMemUsedHeader* usedHdr;
     _mwMemHeap* firstChild;
@@ -129,7 +127,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
                 }
             }
             if (keepBlock) {
-                _mwMemFreeVirtual(block, &stringBase0[0x16], 0x1625);
+                _mwMemFreeVirtual(block, "mwMem.c", 0x1625);
                 usedHdr = heap->usedList;
             } else {
                 usedHdr = usedHdr->next;
