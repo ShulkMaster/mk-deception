@@ -242,9 +242,9 @@ int OSCheckHeap(OSHeapHandle heap) {
 }
 
 /* Retail retained OSDumpHeap's pooled strings after discarding its code. */
-static char OSDumpHeapString0[0x14] = "\nOSDumpHeap(%d):\n";
-static char OSDumpHeapString1[0x14] = "--------Inactive\n";
-static char OSDumpHeapString2[0x1C] = "addr\tsize\t\tend\tprev\tnext\n";
-static char OSDumpHeapString3[0x14] = "--------Allocated\n";
-static char OSDumpHeapString4[0x10] = "%x\t%d\t%x\t%x\t%x\n";
-static char OSDumpHeapString5[0x14] = "--------Free\n";
+static char OSDumpHeapString0[] = "\nOSDumpHeap(%d):\n";
+static char OSDumpHeapString1[] = "--------Inactive\n";
+static char OSDumpHeapString2[] = "addr\tsize\t\tend\tprev\tnext\n";
+static char OSDumpHeapString3[] = "--------Allocated\n";
+static char OSDumpHeapString4[] = "%x\t%d\t%x\t%x\t%x\n";
+static char OSDumpHeapString5[] = "--------Free\n";

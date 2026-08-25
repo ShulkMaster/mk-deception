@@ -14,8 +14,6 @@ void DCEnable(void) {
 }
 
 void DCInvalidateRange(void* addr, unsigned long nBytes) {
-    (void)addr;
-    (void)nBytes;
     privilegedCacheTodo();
 }
 
@@ -60,8 +58,6 @@ void DCFlushRangeNoSync(void* addr, unsigned long nBytes) {
 }
 
 void ICInvalidateRange(void* addr, unsigned long nBytes) {
-    (void)addr;
-    (void)nBytes;
     privilegedCacheTodo();
 }
 
