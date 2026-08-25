@@ -200,8 +200,8 @@ static s32 DummyLen(void)
     return length;
 }
 
-static void InitCallback(void* taskInfo);
-static void DoneCallback(void* taskInfo);
+static void InitCallback(DSPTaskInfo* taskInfo);
+static void DoneCallback(DSPTaskInfo* taskInfo);
 
 s32 __CARDUnlock(s32 chan, u8 flashID[12])
 {
@@ -326,7 +326,7 @@ s32 __CARDUnlock(s32 chan, u8 flashID[12])
     return CARD_RESULT_READY;
 }
 
-static void InitCallback(void* taskInfo)
+static void InitCallback(DSPTaskInfo* taskInfo)
 {
     s32 chan;
     CARDControl* card;
@@ -352,7 +352,7 @@ static void InitCallback(void* taskInfo)
     }
 }
 
-static void DoneCallback(void* taskInfo)
+static void DoneCallback(DSPTaskInfo* taskInfo)
 {
     u8 readBuffer[64];
     u32 data;

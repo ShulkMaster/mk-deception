@@ -11,9 +11,10 @@ s32 __CARDSeek(CARDFileInfo* fileInfo, s32 length, s32 offset,
                CARDControl** cardOut)
 {
     CARDControl* card;
+    CARDDir* dir;
     CARDDir* entry;
-    u16* fat;
     s32 result;
+    u16* fat;
 
     result = __CARDGetControlBlock(fileInfo->chan, &card);
     if (result < 0) {
@@ -24,7 +25,8 @@ s32 __CARDSeek(CARDFileInfo* fileInfo, s32 length, s32 offset,
         return __CARDPutControlBlock(card, CARD_RESULT_FATAL_ERROR);
     }
 
-    entry = &__CARDGetDirBlock(card)[fileInfo->fileNo];
+    dir = __CARDGetDirBlock(card);
+    entry = &dir[fileInfo->fileNo];
     if (entry->length * card->sectorSize <= offset ||
         entry->length * card->sectorSize < offset + length) {
         return __CARDPutControlBlock(card, CARD_RESULT_LIMIT);

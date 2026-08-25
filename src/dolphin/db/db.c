@@ -1,31 +1,36 @@
-/* TODO: Missing implementation for retail unit db.c. */
+#include "dolphin/base/PPCArch.h"
+#include "dolphin/db.h"
 
-void *DBInit(void)
+DBInterface* __DBInterface;
+int DBVerbose;
+
+void DBInit(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    __DBInterface = (DBInterface*)OSPhysicalToCached(0x40);
+    __DBInterface->exception_destination =
+        (void (*)(void))OSCachedToPhysical(__DBExceptionDestination);
+    DBVerbose = 1;
 }
 
-void *__DBExceptionDestinationAux(void)
+void __DBExceptionDestinationAux(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    unsigned long* context_address = (unsigned long*)0xC0;
+    OSContext* context = (OSContext*)OSPhysicalToCached(*context_address);
+
+    OSReport("DBExceptionDestination\n");
+    OSDumpContext(context);
+    PPCHalt();
 }
 
-void *__DBExceptionDestination(void)
+/* __DBExceptionDestination is a retail MSR-control assembly boundary. */
+
+int __DBIsExceptionMarked(__OSException exception)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    unsigned long mask = 1 << exception;
+
+    return __DBInterface->exception_mask & mask;
 }
 
-void *__DBIsExceptionMarked(void)
+void DBPrintf(char* format, ...)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBPrintf(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
