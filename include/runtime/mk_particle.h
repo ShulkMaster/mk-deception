@@ -4,30 +4,14 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
+#include "libmkparticle/pfx_memory.h"
+#include "libmkparticle/vm.h"
 
 typedef void (*PfxInitCb)(void* vm);
 typedef void (*PfxTransformCb)(void);
 typedef struct FighterMirror FighterMirror;
 typedef struct PfxColor PfxColor;
 typedef struct PfxMetrics PfxMetrics;
-
-/* Build-info blob passed to new_pfx_create_raw_userdata (retail static empty_build_info$522). */
-typedef struct PfxBuildInfo {
-    int field_00;
-    int field_04;
-    int flag;           /* +0x08: set to 1 by pfx_create_raw_userdata */
-    int field_0C;
-    int field_10;
-    void* userdata;     /* +0x14 */
-    char* name;         /* +0x18 */
-} PfxBuildInfo;
-
-/* Output of pfx_estimate_size (0x50 scratch). */
-typedef struct PfxEstimate {
-    char pad00[0x40];
-    int size; /* +0x40 */
-    char pad44[0x0C];
-} PfxEstimate;
 
 /* PFX VM name object - scale written during create @ +0x354. */
 typedef struct PfxNameObj {
@@ -49,19 +33,6 @@ typedef struct PfxSlotMat {
     char pad40[4];
     int particle_stride; /* +0x44 */
 } PfxSlotMat;
-
-/* View of MkPfx.matrix / VM base used by pfx_* callees.
- * Offsets alias MkPfx at +0x40: active_slot = MkPfx+0x98, mats = MkPfx+0xB0. */
-#ifndef LIBMKPARTICLE_VM_H
-typedef struct PfxVm {
-    char pad00[0x58];
-    int active_slot;                     /* +0x58 */
-    char pad5C[0x14];
-    PfxSlotMat mats[1];                  /* +0x70 -- indexed; stride 0x48 */
-    char pad_mats[0x148 - 0x70 - 0x48];
-    PfxNameObj* name_obj;                /* +0x148 */
-} PfxVm;
-#endif
 
 /* Emitter VM blob (stack/scratch size 0x2EC); transform @ +0x2E8. */
 typedef struct PfxEmitter {

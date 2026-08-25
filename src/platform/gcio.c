@@ -1,31 +1,9 @@
 #include "platform/gcio.h"
 
+#include "dolphin/dvd.h"
+#include "dolphin/pad.h"
+#include "dolphin/si.h"
 #include "game/game_info.h"
-
-typedef struct PADStatus {
-    unsigned short button;
-    signed char stick_x;
-    signed char stick_y;
-    signed char substick_x;
-    signed char substick_y;
-    unsigned char trigger_l;
-    unsigned char trigger_r;
-    unsigned char analog_a;
-    unsigned char analog_b;
-    signed char error;
-    unsigned char padding;
-} PADStatus;
-
-typedef char PADStatusSizeCheck[sizeof(PADStatus) == 0x0c ? 1 : -1];
-
-extern int PADRead(PADStatus* status);
-extern void PADClampCircle(PADStatus* status);
-extern int PADInit(void);
-extern void PADReset(unsigned int channels);
-extern void PADControlMotor(int channel, unsigned int command);
-extern unsigned int SIProbe(int channel);
-extern void SISetSamplingRate(unsigned int rate);
-extern int DVDCheckDisk(void);
 
 extern void handle_reset_switch(void);
 extern void dispatch_pad_sticks(int channel);
@@ -74,7 +52,7 @@ void scan_switches(void) {
     for (channel = 0; channel < 2; channel++) {
         PADStatus* status = &statuses[channel];
 
-        if (status->error == 0) {
+        if (status->err == 0) {
             GcPadSlot* pad = &g_game_info.pads[channel];
             GcPadFlags* flags = &pad->flag_bits;
             int switch_index;
@@ -132,11 +110,11 @@ void scan_switches(void) {
             if (pad->edge != 0 && pad->player == 0) {
                 assign_player(channel);
             }
-            pad->stick_pack = status->stick_x + 0x7f;
-            pad->stick_pack |= (unsigned int)(~status->stick_y + 0x7f) << 8;
-            pad->stick_pack |= (unsigned int)(status->substick_x + 0x7f) << 16;
-            pad->stick_pack |= (unsigned int)(~status->substick_y + 0x7f) << 24;
-        } else if (status->error == -1) {
+            pad->stick_pack = status->stickX + 0x7f;
+            pad->stick_pack |= (unsigned int)(~status->stickY + 0x7f) << 8;
+            pad->stick_pack |= (unsigned int)(status->substickX + 0x7f) << 16;
+            pad->stick_pack |= (unsigned int)(~status->substickY + 0x7f) << 24;
+        } else if (status->err == -1) {
             GcPadSlot* pad = &g_game_info.pads[channel];
             GcPadFlags* flags = &pad->flag_bits;
 
@@ -172,7 +150,7 @@ void scan_switches(void) {
                 flags->connected = 0;
                 PADReset(pad_channels[channel]);
             }
-        } else if (status->error == -3) {
+        } else if (status->err == -3) {
             GcPadSlot* pad = &g_game_info.pads[channel];
 
             pad->buttons = 0;

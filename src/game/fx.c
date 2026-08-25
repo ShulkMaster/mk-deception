@@ -173,7 +173,8 @@ typedef struct FxPfxVmView {
     char pad151[0x31];
     short texture_enabled;
     char pad184[0x30];
-    float color[4];
+    PfxColor color;
+    float particle_size;
 } FxPfxVmView;
 
 
@@ -204,8 +205,6 @@ extern PlyrPdata* his_pdata;
 extern int snd_req(int sound_id);
 extern PfxEmitter* pfx_get_emitter(PfxVm* vm, int index);
 extern void* pfx_get_field(PfxVm* vm, int emitter_index, int field);
-extern void pfx_native_set_rgba(
-    void* color, float red, float green, float blue, float alpha);
 extern void pfx_texture_animate(
     PfxVm* vm, int width, int height, int frame_width, float speed);
 extern void* pfx_behavior(PfxVm* vm, int emitter_index);
@@ -1548,13 +1547,13 @@ MkPfx* create_pfx(
     origin->z = definition->origin.z;
     if ((definition->field_04 & 0x20) == 0) {
         vm->flag_bits.sized = 1;
-        vm->color[1] = definition->particle_size;
+        vm->particle_size = definition->particle_size;
     } else {
         vm->flag_bits.sized = 0;
     }
     vm->flag_bits.enabled = 1;
     pfx_native_set_rgba(
-        vm->color, definition->red, definition->green,
+        &vm->color, definition->red, definition->green,
         definition->blue, definition->alpha);
 
     emitter = pfx_get_emitter((PfxVm*)vm, 0);

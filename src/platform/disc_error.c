@@ -1,6 +1,9 @@
 #include "platform/disc_error.h"
 
 #include "libmkparticle/pfxfont.h"
+#include "dolphin/dvd.h"
+#include "dolphin/os.h"
+#include "dolphin/vi.h"
 #include "platform/display.h"
 #include "runtime/fonts.h"
 #include "rw/rwcamera_internal.h"
@@ -12,10 +15,6 @@ typedef struct DiscErrorMapEntry {
     int message;
 } DiscErrorMapEntry;
 
-extern void OSYieldThread(void);
-extern int DVDGetDriveStatus(void);
-extern void VISetBlack(int black);
-extern void VIFlush(void);
 extern void pause_all_game_sounds(void);
 extern void unpause_all_game_sounds(void);
 extern void turn_all_rumble_motors_off(void);

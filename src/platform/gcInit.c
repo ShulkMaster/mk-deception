@@ -1,10 +1,10 @@
 #include "platform/gcInit.h"
 
+#include "dolphin/dvd.h"
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
 #include "platform/display.h"
 
-extern void DVDInit(void);
 extern void init_debug_timers(void);
 
 extern RwMemoryFunctions mem_funcs;
