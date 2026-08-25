@@ -1,7 +1,7 @@
 #ifndef DOLPHIN_ARQ_H
 #define DOLPHIN_ARQ_H
 
-typedef void (*ARQCallback)(unsigned long request_address);
+#include "dolphin/ar.h"
 
 #ifdef __cplusplus
 extern "C" {

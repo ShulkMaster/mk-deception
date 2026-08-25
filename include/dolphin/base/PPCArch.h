@@ -13,6 +13,9 @@ unsigned long PPCMfhid2(void);
 void PPCMthid2(unsigned long value);
 unsigned long PPCMfwpar(void);
 void PPCMtwpar(unsigned long value);
+unsigned long PPCMffpscr(void);
+void PPCMtfpscr(unsigned long value);
+void PPCMtdec(unsigned long value);
 void PPCSync(void);
 void PPCHalt(void);
 
