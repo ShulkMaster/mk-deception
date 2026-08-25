@@ -1,6 +1,7 @@
 #include "platform/gcutils.h"
 
 #include "dolphin/gx.h"
+#include "dolphin/os.h"
 #include "dolphin/vi.h"
 #include "platform/display.h"
 #include "platform/os_types.h"
@@ -21,34 +22,11 @@ typedef union GcFilter {
 extern void pokeFilter(GcFilter* filter);
 extern void setup_post_effect_buffers(void);
 extern void feedback_effect(void);
-extern unsigned char OSGetLanguage(void);
-extern void OSCancelAlarm(OSAlarm* alarm);
-extern void OSCancelThread(OSThread* thread);
-extern void OSInitMutex(OSMutex* mutex);
-extern OSThread* OSGetCurrentThread(void);
-extern int OSCreateThread(OSThread* thread, void (*entry)(void*), void* argument,
-                          void* stack_top, unsigned int stack_size,
-                          int priority, unsigned short attributes);
-extern void OSCreateAlarm(OSAlarm* alarm);
-extern void OSSetPeriodicAlarm(OSAlarm* alarm, unsigned long long start,
-                               unsigned long long period,
-                               void (*handler)(OSAlarm*, void*));
-extern void OSResumeThread(OSThread* thread);
-extern void OSYieldThread(void);
-extern int OSGetResetButtonState(void);
-extern void OSLockMutex(OSMutex* mutex);
-extern void OSUnlockMutex(OSMutex* mutex);
-extern void VISetBlack(int black);
-extern void VIFlush(void);
-extern void VIWaitForRetrace(void);
 extern void VMQuit(void);
 extern void turn_rumble_off(int port);
-extern void OSResetSystem(int reset, int reset_code, int force_menu);
 extern int is_progressive_scan_mode(void);
-extern int VIGetTvFormat(void);
 extern char* strcpy(char* destination, const char* source);
 extern char* strcat(char* destination, const char* source);
-extern long long OSGetTime(void);
 
 extern int _RwDlPixelFormat;
 extern GXRenderModeObj* _RwDlRenderMode;
@@ -168,8 +146,8 @@ void gc_stop_reset_watch(void) {
     }
 }
 
-static void do_gamecube_reset(void* argument);
-static void reset_watch(OSAlarm* alarm, void* context);
+static void* do_gamecube_reset(void* argument);
+static void reset_watch(OSAlarm* alarm, OSContext* context);
 
 void gc_start_reset_watch(void) {
     if (reset_watch_is_running == 0) {
@@ -195,7 +173,7 @@ void gc_grab_renderpipe(void) {
     OSLockMutex(&gp_mutex);
 }
 
-static void reset_watch(OSAlarm* alarm, void* context) {
+static void reset_watch(OSAlarm* alarm, OSContext* context) {
     int reset_pressed;
 
     (void)alarm;
@@ -258,7 +236,7 @@ void gc_movie_start(void) {
     }
 }
 
-static void do_gamecube_reset(void* argument) {
+static void* do_gamecube_reset(void* argument) {
     (void)argument;
     OSLockMutex(&gp_mutex);
     if (game_main_thread != 0) {
@@ -280,6 +258,7 @@ static void do_gamecube_reset(void* argument) {
     turn_rumble_off(2);
     turn_rumble_off(3);
     OSResetSystem(0, is_progressive_scan_mode(), 0);
+    return 0;
 }
 
 void adjust_display_offset(int x, int y, int reset) {

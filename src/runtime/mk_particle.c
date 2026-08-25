@@ -849,7 +849,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
                 aligned = (char*)aligned + pad_raw + pad_extra;
             }
             pfx_set_memory(vm, aligned, &est_buf);
-            name_obj = ((PfxVm*)vm)->name_obj;
+            name_obj = (PfxNameObj*)((PfxVm*)vm)->name_obj;
             if (name_obj != 0) {
                 name_obj->scale = pfx->scale;
             }
@@ -924,8 +924,8 @@ static void apfx_set_transform_matrix(void) {
     if (vm == 0) {
         return;
     }
-    slot = vm->active_slot;
-    dst = vm->mats[slot].m;
+    slot = vm->active_transform;
+    dst = vm->transforms[slot].matrix.elements;
     src = pfx->bone_mat;
     if (src == 0) {
         return;

@@ -1,5 +1,6 @@
 #include "platform/gcmcicon.h"
 
+#include "dolphin/card.h"
 #include "mw/mwMem.h"
 #include "runtime/mk_fileinfo.h"
 
@@ -8,9 +9,6 @@ extern _mwMemHeap* wave_heap;
 extern void* memset(void* destination, int value, unsigned long size);
 extern void* memcpy(void* destination, const void* source, unsigned long size);
 extern char* strcpy(char* destination, const char* source);
-
-extern int CARDGetStatus(long chan, long file_no, CARDStat* status);
-extern int CARDSetStatus(long chan, long file_no, CARDStat* status);
 
 extern MkFileEntry nameentryart_file_table[];
 extern MkFileInfo sec_title;
