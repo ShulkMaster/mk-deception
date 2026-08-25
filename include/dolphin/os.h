@@ -30,7 +30,7 @@ typedef struct OSFontHeader {
     unsigned short width;
     unsigned short leading;
     unsigned short cellWidth;
-    unsigned short cellHeight;
+    signed short cellHeight;
     unsigned long sheetSize;
     unsigned short sheetFormat;
     unsigned short sheetColumn;

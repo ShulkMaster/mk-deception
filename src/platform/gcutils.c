@@ -146,7 +146,7 @@ void gc_stop_reset_watch(void) {
     }
 }
 
-static void* do_gamecube_reset(void* argument);
+void* do_gamecube_reset(void* argument);
 static void reset_watch(OSAlarm* alarm, OSContext* context);
 
 void gc_start_reset_watch(void) {
@@ -236,10 +236,14 @@ void gc_movie_start(void) {
     }
 }
 
-static void* do_gamecube_reset(void* argument) {
+#define GC_THREAD_OWNER_IS_LIVE(owner) ((owner) != 0 && *(owner) != 0)
+
+void* do_gamecube_reset(void* argument) {
+    int progressive;
+
     (void)argument;
     OSLockMutex(&gp_mutex);
-    if (game_main_thread != 0) {
+    if (GC_THREAD_OWNER_IS_LIVE(&game_main_thread)) {
         OSCancelThread(game_main_thread);
         game_main_thread = 0;
     }
@@ -257,9 +261,12 @@ static void* do_gamecube_reset(void* argument) {
     turn_rumble_off(1);
     turn_rumble_off(2);
     turn_rumble_off(3);
-    OSResetSystem(0, is_progressive_scan_mode(), 0);
-    return 0;
+    progressive = is_progressive_scan_mode();
+    /* A successful console reset is operationally non-returning. */
+    OSResetSystem(0, progressive, 0);
 }
+
+#undef GC_THREAD_OWNER_IS_LIVE
 
 void adjust_display_offset(int x, int y, int reset) {
     int x_origin;
@@ -294,7 +301,7 @@ void adjust_display_offset(int x, int y, int reset) {
 }
 
 int refresh_rate(void) {
-    return VIGetTvFormat() == 1 ? 50 : 60;
+    return (int)VIGetTvFormat() == 1 ? 50 : 60;
 }
 
 int is_pal_mode(void) {

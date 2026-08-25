@@ -190,9 +190,8 @@ static void _rwDlBreakPtCallback(void)
 
 static void _rwDlVIPreRetraceCallback(unsigned long retrace_count)
 {
+#pragma unused(retrace_count)
     short frameToken;
-
-    (void)retrace_count;
 
     _RwDlRetraceCount++;
     frameToken = _RwDlFrameSwap[_RwDlFrameTokenCurrent];
@@ -217,7 +216,7 @@ static void _rwDlVIPreRetraceCallback(unsigned long retrace_count)
 
 static void _rwDlVIPostRetraceCallback(unsigned long retrace_count)
 {
-    (void)retrace_count;
+#pragma unused(retrace_count)
     if (_RwDlFrameWait != 0 && _RwDlFrameGo != 0) {
         _rwDlBreakNext();
         _RwDlFrameWait = 0;
