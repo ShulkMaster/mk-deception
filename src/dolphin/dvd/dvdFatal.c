@@ -1,7 +1,8 @@
-/* TODO: Missing implementation for retail unit dvdFatal.c. */
+static void (*FatalFunc)(void);
 
-void *__DVDPrintFatalMessage(void)
+void __DVDPrintFatalMessage(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (FatalFunc != 0) {
+        FatalFunc();
+    }
 }
