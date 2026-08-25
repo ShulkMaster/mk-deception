@@ -23,22 +23,6 @@ typedef struct GcNativeDisplay {
     void* xfbCopy;          /* +0x0C */
 } GcNativeDisplay;
 
-/* Partial OSFontHeader - offsets used by romfont / dragon text. */
-typedef struct OSFontHeader {
-    char pad00[8];
-    unsigned short ascent;  /* +0x08 */
-    unsigned short descent; /* +0x0A */
-    char pad0C[2];
-    unsigned short leading; /* +0x0E */
-    unsigned short width;   /* +0x10 */
-    short maxCharWidth;     /* +0x12 */
-    char pad14[4];
-    unsigned short format; /* +0x18 */
-    char pad1A[4];
-    unsigned short sheetWidth;  /* +0x1E */
-    unsigned short sheetHeight; /* +0x20 */
-} OSFontHeader;
-
 typedef void (*NativeRenderCb)(void* arg);
 
 typedef struct RwEngineInstanceType {
@@ -162,7 +146,7 @@ static int font_string_width(char* s) {
             lineW = 0;
         }
         s = OSGetFontWidth(s, &charW);
-        lineW += FontSpace + (FontSize * charW) / (int)font->width;
+        lineW += FontSpace + (FontSize * charW) / (int)font->cellWidth;
     }
     if (maxW < lineW) {
         maxW = lineW;
@@ -184,7 +168,7 @@ static int font_string_height(char* s) {
             lines++;
         }
     }
-    return (lines * ((int)font->leading * (int)FontSize) / (int)font->width + 0xF) >> 4;
+    return (lines * ((int)font->leading * (int)FontSize) / (int)font->cellWidth + 0xF) >> 4;
 }
 
 /* ========================================================================= */
@@ -319,14 +303,14 @@ int romfont_puts(short x, int y, char* text) {
         if (*text == '\n') {
             penX = 0;
             text++;
-            y += ((int)font->leading * (int)FontSize) / (int)font->width;
+            y += ((int)font->leading * (int)FontSize) / (int)font->cellWidth;
             continue;
         }
 
         text = OSGetFontTexture(text, &sheet, &sheetX, &sheetY, &charW);
         if (LastSheet != sheet) {
             LastSheet = sheet;
-            GXInitTexObj(&texObj, sheet, font->sheetWidth, font->sheetHeight, font->format, 0, 0,
+            GXInitTexObj(&texObj, sheet, font->sheetWidth, font->sheetHeight, font->sheetFormat, 0, 0,
                          0);
             GXInitTexObjLOD(&texObj, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
             GXLoadTexObj(&texObj, 0);
@@ -338,13 +322,13 @@ int romfont_puts(short x, int y, char* text) {
             GXSetTexCoordGen2(0, 1, 4, 0x1E, 0, 0x7D);
         }
 
-        cellW = font->width;
+        cellW = font->cellWidth;
         x0 = (short)(x * 0x10 + penX);
         x1 = (short)(x0 + FontSize);
         u0 = (short)sheetX;
         u1 = (short)(sheetX + (short)cellW);
         v0 = (short)sheetY;
-        v1 = (short)(sheetY + font->maxCharWidth);
+        v1 = (short)(sheetY + font->cellHeight);
         y0 = (short)(y - ((int)font->ascent * (int)FontSize) / (int)cellW);
         y1 = (short)(y + ((int)font->descent * (int)FontSize) / (int)cellW);
 
@@ -366,7 +350,7 @@ int romfont_puts(short x, int y, char* text) {
         wgPipe[0] = (unsigned short)u0;
         wgPipe[0] = (unsigned short)v1;
 
-        penX += FontSpace + (FontSize * charW) / (int)font->width;
+        penX += FontSpace + (FontSize * charW) / (int)font->cellWidth;
     }
 
     return (penX + 0xF) >> 4;
@@ -384,7 +368,7 @@ void gc_native_display_render_text(char* text) {
     if (OSInitFont(FontData) == 0) {
         OSPanic("gcdisplay.c", 0x511, "ROM font is available in boot ROM ver 0.8 or later.");
     }
-    FontSize = (short)(FontData->width << 4);
+    FontSize = (short)(FontData->cellWidth << 4);
     FontSpace = -0x10;
     gc_native_display_render(render_text, text);
     if (FontData != 0) {
@@ -600,7 +584,7 @@ static void render_text(void* text) {
                 lineW = 0;
             }
             walk = OSGetFontWidth(walk, &charW);
-            lineW += FontSpace + (FontSize * charW) / (int)font->width;
+            lineW += FontSpace + (FontSize * charW) / (int)font->cellWidth;
         }
         if (maxW < lineW) {
             maxW = lineW;
@@ -619,7 +603,7 @@ static void render_text(void* text) {
                 lines++;
             }
         }
-        msgH = (lines * ((int)font->leading * (int)FontSize) / (int)font->width + 0xF) >> 4;
+        msgH = (lines * ((int)font->leading * (int)FontSize) / (int)font->cellWidth + 0xF) >> 4;
     }
     y = (screen_height - msgH) >> 1;
     romfont_puts((short)x, y, s);
@@ -1196,7 +1180,7 @@ void display_dragon_with_text(DragonTextPrompt* prompt) {
         OSPanic("gcdisplay.c", 0x511, "ROM font is available in boot ROM ver 0.8 or later.");
     }
 
-    FontSize = (short)(FontData->width << 4);
+    FontSize = (short)(FontData->cellWidth << 4);
     FontSpace = -0x10;
 
     msgW = font_string_width(prompt->message);

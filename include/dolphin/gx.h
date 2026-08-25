@@ -146,7 +146,7 @@ typedef int GXTlutFmt;
 enum { GX_TL_IA8 = 0, GX_TL_RGB565 = 1, GX_TL_RGB5A3 = 2 };
 typedef int GXTexCacheSize;
 typedef int GXTlutSize;
-typedef GXTexRegion* (*GXTexRegionCallback)(GXTexObj*, GXTexMapID);
+typedef GXTexRegion* (*GXTexRegionCallback)(const GXTexObj*, GXTexMapID);
 typedef GXTlutRegion* (*GXTlutRegionCallback)(unsigned long);
 
 typedef struct GXLightObj {

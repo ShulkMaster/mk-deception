@@ -344,7 +344,7 @@ typedef struct GXData {
     GXTexRegion TexRegions1[8];
     GXTexRegion TexRegions2[8];
     GXTlutRegion TlutRegions[20];
-    GXTexRegion* (*texRegionCallback)(GXTexObj*, int);
+    GXTexRegion* (*texRegionCallback)(const GXTexObj*, int);
     GXTlutRegion* (*tlutRegionCallback)(u32);
     int nrmType;
     u8 hasNrms;

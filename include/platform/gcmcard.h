@@ -1,24 +1,12 @@
 #ifndef PLATFORM_GCMCARD_H
 #define PLATFORM_GCMCARD_H
 
-/*
- * Dolphin CARDFileInfo (retail open/create/write work object).
- * First two words overlay McCardParams (chan / fileNo).
- */
-typedef struct CARDFileInfo {
-    long chan; /* +0x00 */
-    long fileNo; /* +0x04 */
-    long offset; /* +0x08 */
-    long length; /* +0x0C */
-    unsigned short iBlock; /* +0x10 */
-    unsigned short padding; /* +0x12 */
-    unsigned char pad14[0x20 - 0x14]; /* +0x14 .. +0x1F */
-} CARDFileInfo; /* 0x20 */
+#include "dolphin/card.h"
 
 /*
  * gcmcard.o - Midway GC memcard facade (B20 + B21 PPWLS).
  * Campaign history: docs/campaigns/index.md (B20-B22)
- * Nintendo card.a Matching is out of campaign.
+ * Uses the canonical Dolphin CARDFileInfo shared with card.a.
  */
 
 int init_gc_memcard(void);

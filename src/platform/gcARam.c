@@ -1,11 +1,7 @@
 #include "platform/gcARam.h"
 
+#include "dolphin/ar.h"
 #include "mw/mwMem.h"
-
-extern unsigned long ARInit(unsigned long* stack_index_addr, unsigned long num_entries);
-extern unsigned long ARGetSize(void);
-extern unsigned long ARGetBaseAddress(void);
-extern unsigned long ARAlloc(unsigned long length);
 
 extern void VMInit(unsigned long virtual_memory_size, unsigned long aram_base,
                    unsigned long aram_size);

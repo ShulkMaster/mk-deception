@@ -6,10 +6,6 @@
 
 #define CARDFreq EXI_FREQ_16M
 
-#define OS_TIMER_CLOCK (__OSBusClock / 4)
-#define OSMillisecondsToTicks(msec) ((msec) * (OS_TIMER_CLOCK / 1000))
-#define OSSecondsToTicks(sec) ((sec) * OS_TIMER_CLOCK)
-
 const char* __CARDVersion =
     "<< Dolphin SDK - CARD\trelease build: Apr  5 2004 04:15:35 (0x2301) >>";
 

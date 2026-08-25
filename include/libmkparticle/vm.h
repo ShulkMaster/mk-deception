@@ -40,7 +40,8 @@ typedef struct PfxVm {
     char pad064[8];
     int particle_vector_stride;        /* +0x06C */
     PfxTransform transforms[3];        /* +0x070 */
-    char pad148[8];
+    void* name_obj;                      /* +0x148 */
+    char pad14C[4];
     union {
         unsigned char flags150;
         struct {

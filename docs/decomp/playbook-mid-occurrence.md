@@ -33,6 +33,7 @@ source-shape change per rebuild.
 | 24 | If a helper's local lifetime begins after an inline region, eager initializer → declare early but assign after that region | Retail first-use point is clear | Saved-register count and inline-body coloring | M/H/M |
 | 25 | If retail derives a boolean from a registration result before publishing that result to a global, separate local assignment and comparison → compare the value of the global assignment expression directly | The call result is both the published value and the compared value; no intervening side effects are present | Result-test/store scheduling around plugin registration | L/H/M |
 | 26 | If retail keeps a top-of-loop exit test but MWCC rotates a clean `while (field == 0)` into an initial branch to the latch, rewrite it as `for (;;) { if (field != 0) break; body; }` | The loop is otherwise identical, the exit condition has no side effects, and both forms preserve the zero-iteration case | Loop rotation, branch placement, and downstream instruction alignment | M/H/H |
+| 27 | If an ABI-correct callback gains only an unused-parameter stack spill in an authentic `-O0` object, replace `(void)param` with MWCC `#pragma unused(param)` inside the function | Registration and dispatcher calls prove the parameter; retail does not consume its incoming GPR; the spill is the only mismatch | Preserves the real callback prototype while suppressing `-O0` parameter homes | L/H/H |
 
 ## Mid-tier stop rule
 

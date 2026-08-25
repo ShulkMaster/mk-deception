@@ -15,23 +15,7 @@
 #pragma use_lmw_stmw on
 #endif
 
-long CARDInit(void);
-long CARDProbeEx(long chan, long* memSize, long* sectorSize);
-long CARDMount(long chan, void* workArea, void (*detach)(long, long));
-long CARDCheck(long chan);
 long CARDFreeBlocks(long chan, long* byteNotUsed, long* filesNotUsed);
-long CARDOpen(long chan, char* fileName, void* fileInfo);
-long CARDClose(void* fileInfo);
-long CARDUnmount(long chan);
-long CARDFormat(long chan);
-long CARDCreate(long chan, char* fileName, unsigned long size, void* fileInfo);
-long CARDWrite(void* fileInfo, void* buf, long length, long offset);
-long CARDRead(void* fileInfo, void* buf, long length, long offset);
-long CARDDelete(long chan, const char* fileName);
-long CARDSetAttributes(long chan, long fileNo, unsigned char attr);
-long CARDGetSerialNo(long chan, unsigned long long* serialNo);
-
-long CARDGetStatus(long chan, long fileNo, CARDStat* stat);
 
 void* memcpy(void* d, const void* s, unsigned long n);
 void* memset(void* d, int c, unsigned long n);

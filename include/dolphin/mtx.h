@@ -5,7 +5,10 @@ typedef float Mtx[3][4];
 typedef float Mtx44[4][4];
 typedef float (*MtxPtr)[4];
 
-typedef struct Vec Vec;
+#include "math/gxVect.h"
+
+typedef Vec Point3d;
+typedef struct Quat Quat;
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,6 +23,8 @@ void PSMTXIdentity(Mtx matrix);
 void PSMTXTrans(Mtx matrix, float x, float y, float z);
 void PSMTXScale(Mtx matrix, float x, float y, float z);
 void PSMTXConcat(Mtx a, Mtx b, Mtx output);
+void PSMTXQuat(Mtx matrix, const Quat* quaternion);
+void PSMTXMultVec(const Mtx matrix, const Vec* source, Vec* destination);
 
 #ifdef __cplusplus
 }

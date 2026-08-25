@@ -1,3 +1,5 @@
+#include "dolphin/base/PPCArch.h"
+
 typedef void (*Ctor)(void);
 
 extern Ctor _ctors[];
@@ -17,10 +19,7 @@ static void __init_cpp(void) {
     }
 }
 
-#if 0
-void *_ExitProcess(void)
+void _ExitProcess(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    PPCHalt();
 }
-#endif

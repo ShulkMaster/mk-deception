@@ -153,24 +153,29 @@ typedef struct NcsSpearEffect {
     char pad09[0x1F];
     float field_28;
     char pad2C[0x14];
-    PfxVm vm; /* +0x40 */
-    char pad18C[4];
-    unsigned char render_flags; /* +0x190 */
-    char pad191[0x67];
-    float field_1F8;
-    char pad1FC[0x8C];
-    int active; /* +0x288 */
-    int bone;   /* +0x28C */
-    int field_290;
-    char pad294[4];
-    float field_298;
-    float field_29C;
-    float field_2A0;
-    float field_2A4;
-    float field_2A8;
-    char pad2AC[0x0C];
-    SpearProcPdata* spear_pdata; /* +0x2B8 */
-    unsigned int spear_pdata_instance; /* +0x2BC */
+    union {
+        PfxVm vm; /* +0x40: particle VM overlay */
+        struct {
+            char pad_vm[0x14C];
+            char pad18C[4];
+            unsigned char render_flags; /* +0x190 */
+            char pad191[0x67];
+            float field_1F8;
+            char pad1FC[0x8C];
+            int active; /* +0x288 */
+            int bone;   /* +0x28C */
+            int field_290;
+            char pad294[4];
+            float field_298;
+            float field_29C;
+            float field_2A0;
+            float field_2A4;
+            float field_2A8;
+            char pad2AC[0x0C];
+            SpearProcPdata* spear_pdata; /* +0x2B8 */
+            unsigned int spear_pdata_instance; /* +0x2BC */
+        };
+    };
 } NcsSpearEffect;
 
 typedef union SpearProcPdataRef {

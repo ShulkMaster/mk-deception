@@ -1,7 +1,5 @@
-/* TODO: Missing implementation for retail unit dsp_debug.c. */
+#include "dolphin/dsp.h"
 
-void *__DSP_debug_printf(void)
+void __DSP_debug_printf(const char* format, ...)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }

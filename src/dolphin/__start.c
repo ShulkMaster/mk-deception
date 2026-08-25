@@ -4,6 +4,8 @@ typedef unsigned int u32;
 
 typedef void (*InitFunc)(void);
 
+#include "dolphin/db.h"
+
 #pragma section code_type ".init"
 
 typedef struct RomCopyInfo {
@@ -31,7 +33,6 @@ void __init_registers(void);
 void __init_hardware(void);
 void __init_data(void);
 void __flush_cache(void* address, u32 size);
-void DBInit(void);
 void OSInit(void);
 void __init_user(void);
 int main(int argc, char** argv);

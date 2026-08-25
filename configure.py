@@ -1127,10 +1127,41 @@ config.libs = [
     DolphinLib(
         "os",
         [
-            Object(NonMatching, "os.a/OSAlloc.o", source="dolphin/os/OSAlloc.c"),
+            Object(NonMatching, "os.a/OS.o", source="dolphin/os/OS.c"),
+            Object(Matching, "os.a/OSAlloc.o", source="dolphin/os/OSAlloc.c"),
+            Object(NonMatching, "os.a/OSError.o", source="dolphin/os/OSError.c"),
+            Object(NonMatching, "os.a/OSAlarm.o", source="dolphin/os/OSAlarm.c"),
+            Object(NonMatching, "os.a/OSInterrupt.o", source="dolphin/os/OSInterrupt.c"),
+            Object(NonMatching, "os.a/OSContext.o", source="dolphin/os/OSContext.c"),
+            Object(NonMatching, "os.a/OSExec.o", source="dolphin/os/OSExec.c"),
+            Object(NonMatching, "os.a/OSFont.o", source="dolphin/os/OSFont.c"),
+            Object(NonMatching, "os.a/OSRtc.o", source="dolphin/os/OSRtc.c"),
+            Object(NonMatching, "os.a/OSThread.o", source="dolphin/os/OSThread.c"),
             Object(Matching, "os.a/OSArena.o", source="dolphin/os/OSArena.c"),
             Object(NonMatching, "os.a/OSCache.o", source="dolphin/os/OSCache.c"),
+            Object(
+                NonMatching,
+                "os.a/OSAudioSystem.o",
+                source="dolphin/os/OSAudioSystem.c",
+            ),
+            Object(
+                Matching,
+                "os.a/OSLink.o",
+                source="dolphin/os/OSLink.c",
+            ),
+            Object(NonMatching, "os.a/OSSync.o", source="dolphin/os/OSSync.c"),
+            Object(Matching, "os.a/OSReboot.o", source="dolphin/os/OSReboot.c"),
+            Object(
+                NonMatching,
+                "os.a/OSTime.o",
+                source="dolphin/os/OSTime.c",
+                extra_cflags=["-schedule off"],
+            ),
             Object(NonMatching, "os.a/OSMemory.o", source="dolphin/os/OSMemory.c"),
+            Object(Matching, "os.a/OSMessage.o", source="dolphin/os/OSMessage.c"),
+            Object(NonMatching, "os.a/OSResetSW.o", source="dolphin/os/OSResetSW.c"),
+            Object(NonMatching, "os.a/OSReset.o", source="dolphin/os/OSReset.c"),
+            Object(NonMatching, "os.a/OSMutex.o", source="dolphin/os/OSMutex.c"),
             Object(NonMatching, "os.a/__start.o", source="dolphin/__start.c"),
             Object(
                 NonMatching,
@@ -1144,6 +1175,156 @@ config.libs = [
         "sp",
         [
             Object(Matching, "sp.a/sp.o", source="dolphin/sp.c"),
+        ],
+    ),
+    DolphinLib(
+        "odenotstub",
+        [
+            Object(NonMatching, "dvd.a/dvdfs.o", source="dolphin/dvd/dvdfs.c"),
+            Object(
+                Matching,
+                "odenotstub.a/odenotstub.o",
+                source="dolphin/odenotstub/odenotstub.c",
+            ),
+        ],
+    ),
+    DolphinLib(
+        "amcstubs",
+        [
+            Object(
+                Matching,
+                "amcstubs.a/AmcExi2Stubs.o",
+                source="dolphin/amcstubs/AmcExi2Stubs.c",
+            ),
+        ],
+    ),
+    DolphinLib(
+        "dvd",
+        [
+            Object(NonMatching, "dvd.a/dvd.o", source="dolphin/dvd/dvd.c"),
+            Object(NonMatching, "dvd.a/dvdlow.o", source="dolphin/dvd/dvdlow.c"),
+            Object(
+                Matching,
+                "dvd.a/dvdFatal.o",
+                source="dolphin/dvd/dvdFatal.c",
+                extra_cflags=["-char signed"],
+            ),
+            Object(
+                Matching,
+                "dvd.a/dvdidutils.o",
+                source="dolphin/dvd/dvdidutils.c",
+                extra_cflags=["-char signed"],
+            ),
+            Object(Matching, "dvd.a/dvderror.o", source="dolphin/dvd/dvderror.c"),
+            Object(Matching, "dvd.a/dvdqueue.o", source="dolphin/dvd/dvdqueue.c"),
+            Object(
+                NonMatching,
+                "dvd.a/fstload.o",
+                source="dolphin/dvd/fstload.c",
+                extra_cflags=["-char signed"],
+            ),
+        ],
+    ),
+    DolphinLib(
+        "dsp",
+        [
+            Object(Matching, "dsp.a/dsp.o", source="dolphin/dsp/dsp.c"),
+            Object(NonMatching, "dsp.a/dsp_task.o", source="dolphin/dsp/dsp_task.c"),
+            Object(
+                Matching,
+                "dsp.a/dsp_debug.o",
+                source="dolphin/dsp/dsp_debug.c",
+            ),
+        ],
+    ),
+    DolphinLib(
+        "db",
+        [
+            Object(NonMatching, "db.a/db.o", source="dolphin/db/db.c"),
+        ],
+    ),
+    DolphinLib(
+        "exi",
+        [
+            Object(
+                NonMatching,
+                "exi.a/EXIBios.o",
+                source="dolphin/exi/EXIBios.c",
+            ),
+            Object(
+                NonMatching,
+                "exi.a/EXIUart.o",
+                source="dolphin/exi/EXIUart.c",
+            ),
+        ],
+    ),
+    DolphinLib(
+        "vi",
+        [
+            Object(NonMatching, "vi.a/vi.o", source="dolphin/vi/vi.c"),
+        ],
+    ),
+    DolphinLib(
+        "pad",
+        [
+            Object(
+                NonMatching,
+                "pad.a/Pad.o",
+                source="dolphin/pad/Pad.c",
+            ),
+            Object(
+                Matching,
+                "pad.a/Padclamp.o",
+                source="dolphin/pad/Padclamp.c",
+                extra_cflags=["-fp_contract off"],
+            ),
+        ],
+    ),
+    DolphinLib(
+        "ar",
+        [
+            Object(NonMatching, "ar.a/ar.o", source="dolphin/ar/ar.c"),
+            Object(NonMatching, "ar.a/arq.o", source="dolphin/ar/arq.c"),
+        ],
+    ),
+    DolphinLib(
+        "ai",
+        [
+            Object(NonMatching, "ai.a/ai.o", source="dolphin/ai/ai.c"),
+        ],
+    ),
+    DolphinLib(
+        "si",
+        [
+            Object(
+                NonMatching,
+                "si.a/SIBios.o",
+                source="dolphin/si/SIBios.c",
+            ),
+            Object(
+                Matching,
+                "si.a/SISamplingRate.o",
+                source="dolphin/si/SISamplingRate.c",
+            ),
+        ],
+    ),
+    DolphinLib(
+        "mtx",
+        [
+            Object(
+                NonMatching,
+                "mtx.a/mtxvec.o",
+                source="dolphin/mtx/mtxvec.c",
+            ),
+            Object(NonMatching, "mtx.a/quat.o", source="dolphin/mtx/quat.c"),
+            Object(Matching, "mtx.a/mtx44.o", source="dolphin/mtx/mtx44.c"),
+            Object(NonMatching, "mtx.a/vec.o", source="dolphin/mtx/vec.c"),
+            Object(
+                NonMatching,
+                "mtx.a/mtx.o",
+                source="dolphin/mtx/mtx.c",
+                extra_cflags=["-fp_contract off"],
+            ),
         ],
     ),
     {
@@ -1160,7 +1341,7 @@ config.libs = [
             Object(Matching, "card.a/CARDCheck.o", source="dolphin/card/CARDCheck.c"),
             Object(Matching, "card.a/CARDFormat.o", source="dolphin/card/CARDFormat.c"),
             Object(Matching, "card.a/CARDMount.o", source="dolphin/card/CARDMount.c"),
-            Object(NonMatching, "card.a/CARDRead.o", source="dolphin/card/CARDRead.c"),
+            Object(Matching, "card.a/CARDRead.o", source="dolphin/card/CARDRead.c"),
             Object(NonMatching, "card.a/CARDWrite.o", source="dolphin/card/CARDWrite.c"),
             Object(Matching, "card.a/CARDCreate.o", source="dolphin/card/CARDCreate.c"),
             Object(Matching, "card.a/CARDOpen.o", source="dolphin/card/CARDOpen.c",

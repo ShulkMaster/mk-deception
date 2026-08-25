@@ -50,8 +50,8 @@ typedef struct RwStandardEntry {
 
 static void _rwDlBreakNext(void);
 static void _rwDlBreakPtCallback(void);
-static void _rwDlVIPreRetraceCallback(void);
-static void _rwDlVIPostRetraceCallback(void);
+static void _rwDlVIPreRetraceCallback(unsigned long retrace_count);
+static void _rwDlVIPostRetraceCallback(unsigned long retrace_count);
 static int _rwDlNullStandard(void* out, void* inOut, int in);
 static int _rwDlDeviceSystemStandards(RwStandardFunc* standards,
                                           int numStandards);
@@ -83,8 +83,6 @@ extern void MWY_GCN_RW_InsertRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_NoteRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_SetGxBreakPtCallback(void (*callback)(void));
 extern void DCInvalidateRange(void* memory, unsigned int size);
-extern void VISetPreRetraceCallback(void (*callback)(void));
-extern void VISetPostRetraceCallback(void (*callback)(void));
 extern void* memcpy(void* destination, const void* source,
                     unsigned long size);
 
@@ -190,8 +188,9 @@ static void _rwDlBreakPtCallback(void)
         _RwDlFrameWait = 1;
 }
 
-static void _rwDlVIPreRetraceCallback(void)
+static void _rwDlVIPreRetraceCallback(unsigned long retrace_count)
 {
+#pragma unused(retrace_count)
     short frameToken;
 
     _RwDlRetraceCount++;
@@ -215,8 +214,9 @@ static void _rwDlVIPreRetraceCallback(void)
     }
 }
 
-static void _rwDlVIPostRetraceCallback(void)
+static void _rwDlVIPostRetraceCallback(unsigned long retrace_count)
 {
+#pragma unused(retrace_count)
     if (_RwDlFrameWait != 0 && _RwDlFrameGo != 0) {
         _rwDlBreakNext();
         _RwDlFrameWait = 0;

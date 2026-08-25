@@ -1,49 +1,38 @@
-/* TODO: Missing implementation for retail unit AmcExi2Stubs.c. */
+#include "dolphin/amc_exi2.h"
 
-void *EXI2_Init(void)
+void EXI2_Init(volatile unsigned char** inputPendingPtrRef,
+               EXICallback monitorCallback)
 {
-    /* TODO: Missing canonical function implementation. */
+}
+
+void EXI2_EnableInterrupts(void)
+{
+}
+
+int EXI2_Poll(void)
+{
     return 0;
 }
 
-void *EXI2_EnableInterrupts(void)
+AmcExiError EXI2_ReadN(void* bytes, unsigned long length)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return AMC_EXI_NO_ERROR;
 }
 
-void *EXI2_Poll(void)
+AmcExiError EXI2_WriteN(const void* bytes, unsigned long length)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return AMC_EXI_NO_ERROR;
 }
 
-void *EXI2_ReadN(void)
+void EXI2_Reserve(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *EXI2_WriteN(void)
+void EXI2_Unreserve(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *EXI2_Reserve(void)
+int AMC_IsStub(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *EXI2_Unreserve(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *AMC_IsStub(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return 1;
 }

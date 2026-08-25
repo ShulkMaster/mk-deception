@@ -3,6 +3,7 @@
 
 #include "dolphin/os.h"
 #include "dolphin/dvd.h"
+#include "dolphin/dsp.h"
 
 typedef signed char s8;
 typedef unsigned char u8;
@@ -129,30 +130,6 @@ typedef struct CARDID {
 } CARDID;
 
 #define CARDGetDirCheck(dir) ((CARDDirCheck*)&(dir)[CARD_MAX_FILE])
-
-typedef void (*DSPCallback)(void* task);
-
-typedef struct DSPTaskInfo {
-    volatile u32 state;
-    volatile u32 priority;
-    volatile u32 flags;
-    u16* iramMemoryAddress;
-    u32 iramLength;
-    u32 iramAddress;
-    u16* dramMemoryAddress;
-    u32 dramLength;
-    u32 dramAddress;
-    u16 initVector;
-    u16 resumeVector;
-    DSPCallback initCallback;
-    DSPCallback resumeCallback;
-    DSPCallback doneCallback;
-    DSPCallback requestCallback;
-    struct DSPTaskInfo* next;
-    struct DSPTaskInfo* previous;
-    OSTime contextTime;
-    OSTime taskTime;
-} DSPTaskInfo;
 
 typedef struct CARDControl {
     BOOL attached;

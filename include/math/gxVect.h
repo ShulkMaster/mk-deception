@@ -7,6 +7,7 @@ typedef struct Vec {
     float z;
 } Vec;
 
+void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
 void PSVECSubtract(const Vec* a, const Vec* b, Vec* dst);
 void PSVECNormalize(const Vec* src, Vec* dst);
 void PSVECScale(const Vec* src, Vec* dst, float scale);

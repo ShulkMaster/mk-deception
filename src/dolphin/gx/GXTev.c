@@ -3,7 +3,7 @@
 
 #include "__gx.h"
 
-static struct {
+typedef struct GXTevColorOpEntry {
     u32 rid : 8;
     u32 dest : 2;
     u32 shift : 2;
@@ -14,7 +14,24 @@ static struct {
     u32 selb : 4;
     u32 selc : 4;
     u32 seld : 4;
-} TEVCOpTableST0[5] = {
+} GXTevColorOpEntry;
+
+typedef struct GXTevAlphaOpEntry {
+    u32 rid : 8;
+    u32 dest : 2;
+    u32 shift : 2;
+    u32 clamp : 1;
+    u32 sub : 1;
+    u32 bias : 2;
+    u32 sela : 3;
+    u32 selb : 3;
+    u32 selc : 3;
+    u32 seld : 3;
+    u32 swap : 2;
+    u32 mode : 2;
+} GXTevAlphaOpEntry;
+
+static GXTevColorOpEntry TEVCOpTableST0[5] = {
     {192, 0, 0, 1, 0, 0, 15, 8, 10, 15},   // modulate
     {192, 0, 0, 1, 0, 0, 10, 8, 9, 15},    // decal
     {192, 0, 0, 1, 0, 0, 10, 12, 8, 15},   // blend
@@ -22,18 +39,7 @@ static struct {
     {192, 0, 0, 1, 0, 0, 15, 15, 15, 10},  // passclr
 };
 
-static struct {
-    u32 rid : 8;
-    u32 dest : 2;
-    u32 shift : 2;
-    u32 clamp : 1;
-    u32 sub : 1;
-    u32 bias : 2;
-    u32 sela : 4;
-    u32 selb : 4;
-    u32 selc : 4;
-    u32 seld : 4;
-} TEVCOpTableST1[5] = {
+static GXTevColorOpEntry TEVCOpTableST1[5] = {
     {192, 0, 0, 1, 0, 0, 15, 8, 0, 15},   // modulate
     {192, 0, 0, 1, 0, 0, 0, 8, 9, 15},    // decal
     {192, 0, 0, 1, 0, 0, 0, 12, 8, 15},   // blend
@@ -41,20 +47,7 @@ static struct {
     {192, 0, 0, 1, 0, 0, 15, 15, 15, 0},  // passclr
 };
 
-static struct {
-    u32 rid : 8;
-    u32 dest : 2;
-    u32 shift : 2;
-    u32 clamp : 1;
-    u32 sub : 1;
-    u32 bias : 2;
-    u32 sela : 3;
-    u32 selb : 3;
-    u32 selc : 3;
-    u32 seld : 3;
-    u32 swap : 2;
-    u32 mode : 2;
-} TEVAOpTableST0[5] = {
+static GXTevAlphaOpEntry TEVAOpTableST0[5] = {
     {193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0},  // modulate
     {193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0},  // decal
     {193, 0, 0, 1, 0, 0, 7, 4, 5, 7, 0, 0},  // blend
@@ -62,20 +55,7 @@ static struct {
     {193, 0, 0, 1, 0, 0, 7, 7, 7, 5, 0, 0},  // passclr
 };
 
-static struct {
-    u32 rid : 8;
-    u32 dest : 2;
-    u32 shift : 2;
-    u32 clamp : 1;
-    u32 sub : 1;
-    u32 bias : 2;
-    u32 sela : 3;
-    u32 selb : 3;
-    u32 selc : 3;
-    u32 seld : 3;
-    u32 swap : 2;
-    u32 mode : 2;
-} TEVAOpTableST1[5] = {
+static GXTevAlphaOpEntry TEVAOpTableST1[5] = {
     {193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0},  // modulate
     {193, 0, 0, 1, 0, 0, 7, 7, 7, 0, 0, 0},  // decal
     {193, 0, 0, 1, 0, 0, 7, 4, 0, 7, 0, 0},  // blend

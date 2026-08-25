@@ -31,21 +31,24 @@ static inline unsigned long OSGetConsoleSimulatedMemSize(void) {
 }
 
 static int OnReset(int final) {
+    volatile unsigned short* memRegs = __MEMRegs;
+
     if (final != FALSE) {
-        __MEMRegs[8] = 0xFF;
+        memRegs[8] = 0xFF;
         __OSMaskInterrupts(0xF0000000);
     }
     return TRUE;
 }
 
 static void MEMIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
+    volatile unsigned short* memRegs = __MEMRegs;
     unsigned long addr;
     unsigned long cause;
 
     (void)interrupt;
-    cause = __MEMRegs[0xF];
-    addr = ((unsigned long)(__MEMRegs[0x12] & 0x3FF) << 16) | __MEMRegs[0x11];
-    __MEMRegs[0x10] = 0;
+    cause = memRegs[0xF];
+    addr = ((unsigned long)(memRegs[0x12] & 0x3FF) << 16) | memRegs[0x11];
+    memRegs[0x10] = 0;
 
     if (__OSErrorTable[__OS_EXCEPTION_MEMORY_PROTECTION]) {
         __OSErrorTable[__OS_EXCEPTION_MEMORY_PROTECTION](
@@ -72,12 +75,10 @@ static void RealMode(unsigned long address) {
 }
 
 void __OSInitMemoryProtection(void) {
-    unsigned long padding[9];
     unsigned long temp;
     int enabled;
     unsigned long size;
 
-    (void)padding;
     size = OSGetConsoleSimulatedMemSize();
     enabled = OSDisableInterrupts();
 

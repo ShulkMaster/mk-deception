@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit odenotstub.c. */
+__declspec(weak) int Hu_IsStub(void);
 
-void *Hu_IsStub(void)
+int Hu_IsStub(void)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
