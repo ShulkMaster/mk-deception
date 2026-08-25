@@ -1,43 +1,67 @@
-/* TODO: Missing implementation for retail unit vec.c. */
+#include "math/gxVect.h"
 
-void *PSVECAdd(void)
+extern float sqrtf(float value);
+
+/*
+ * Soft ceiling: retail implements this complete TU with paired-single leaves.
+ * These typed scalar forms preserve the public algorithms and alias behavior.
+ */
+void PSVECAdd(const Vec* a, const Vec* b, Vec* sum)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    sum->x = a->x + b->x;
+    sum->y = a->y + b->y;
+    sum->z = a->z + b->z;
 }
 
-void *PSVECSubtract(void)
+void PSVECSubtract(const Vec* a, const Vec* b, Vec* difference)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    difference->x = a->x - b->x;
+    difference->y = a->y - b->y;
+    difference->z = a->z - b->z;
 }
 
-void *PSVECScale(void)
+void PSVECScale(const Vec* source, Vec* scaled, float scale)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    scaled->x = source->x * scale;
+    scaled->y = source->y * scale;
+    scaled->z = source->z * scale;
 }
 
-void *PSVECNormalize(void)
+void PSVECNormalize(const Vec* source, Vec* unit)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    float magnitude_squared;
+    float inverse_magnitude;
+
+    magnitude_squared = source->x * source->x + source->y * source->y +
+                        source->z * source->z;
+    inverse_magnitude = 1.0f / sqrtf(magnitude_squared);
+    unit->x = source->x * inverse_magnitude;
+    unit->y = source->y * inverse_magnitude;
+    unit->z = source->z * inverse_magnitude;
 }
 
-void *PSVECMag(void)
+float PSVECMag(const Vec* vector)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    float magnitude_squared = vector->x * vector->x + vector->y * vector->y +
+                              vector->z * vector->z;
+
+    if (magnitude_squared == 0.0f) {
+        return 0.0f;
+    }
+    return sqrtf(magnitude_squared);
 }
 
-void *PSVECDotProduct(void)
+float PSVECDotProduct(const Vec* a, const Vec* b)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return a->x * b->x + a->y * b->y + a->z * b->z;
 }
 
-void *PSVECCrossProduct(void)
+void PSVECCrossProduct(const Vec* a, const Vec* b, Vec* product)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    Vec result;
+
+    result.x = a->y * b->z - a->z * b->y;
+    result.y = a->z * b->x - a->x * b->z;
+    result.z = a->x * b->y - a->y * b->x;
+    *product = result;
 }
