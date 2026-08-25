@@ -19,8 +19,8 @@ do { \
 #endif
 
 void GXSetTevIndirect(GXTevStageID tev_stage, GXIndTexStageID ind_stage, GXIndTexFormat format, GXIndTexBiasSel bias_sel, GXIndTexMtxID matrix_sel, GXIndTexWrap wrap_s, GXIndTexWrap wrap_t, GXBool add_prev, GXBool utc_lod, GXIndTexAlphaSel alpha_sel) {
-    GXData* gx = __GXData;
     u32 reg;
+    GXData* gx = __GXData;
 
     CHECK_GXBEGIN(146, "GXInitIndTexture");
     reg = 0;
