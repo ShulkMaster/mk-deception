@@ -1,13 +1,26 @@
-/* TODO: Missing implementation for retail unit OSReboot.c. */
+#include "dolphin/os.h"
+#include "dolphin/os_alloc.h"
 
-void *__OSReboot(void)
+static void* SaveStart;
+static void* SaveEnd;
+
+void __OSReboot(unsigned long reset_code, unsigned long boot_dol)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    OSContext context;
+    char* argv;
+
+    OSDisableInterrupts();
+    OSSetArenaLo((void*)0x81280000);
+    OSSetArenaHi((void*)0x812f0000);
+    OSClearContext(&context);
+    OSSetCurrentContext(&context);
+
+    argv = 0;
+    __OSBootDol(boot_dol, reset_code | 0x80000000, &argv);
 }
 
-void *OSGetSaveRegion(void)
+void OSGetSaveRegion(void** start, void** end)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    *start = SaveStart;
+    *end = SaveEnd;
 }

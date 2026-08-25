@@ -1,25 +1,34 @@
-/* TODO: Missing implementation for retail unit OSTime.c. */
+#include "dolphin/os.h"
 
-void *OSGetTime(void)
+#define __OSSystemTime ((OSTime*)0x800030D8)
+
+/*
+ * OSGetTime and OSGetTick are authentic no-frame time-base-register leaves in
+ * retail.  Their ABI is declared in dolphin/os.h; portable C does not define a
+ * truthful portable replacement for its mftbu/mftb instruction sequence.
+ */
+
+OSTime __OSGetSystemTime(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    int enabled;
+    OSTime* time_adjust;
+    OSTime result;
+
+    time_adjust = __OSSystemTime;
+    enabled = OSDisableInterrupts();
+    result = OSGetTime() + *time_adjust;
+    OSRestoreInterrupts(enabled);
+    return result;
 }
 
-void *OSGetTick(void)
+OSTime __OSTimeToSystemTime(OSTime time)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+    int enabled;
+    OSTime* time_adjust = __OSSystemTime;
+    OSTime result;
 
-void *__OSGetSystemTime(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__OSTimeToSystemTime(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    enabled = OSDisableInterrupts();
+    result = *time_adjust + time;
+    OSRestoreInterrupts(enabled);
+    return result;
 }

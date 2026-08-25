@@ -1,7 +1,13 @@
-/* TODO: Missing implementation for retail unit OSLink.c. */
+typedef struct OSModuleQueue {
+    void* head;
+    void* tail;
+} OSModuleQueue;
 
-void *__OSModuleInit(void)
+extern OSModuleQueue __OSModuleInfoList : 0x800030C8;
+extern const void* __OSStringTable : 0x800030D0;
+
+void __OSModuleInit(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    __OSModuleInfoList.head = __OSModuleInfoList.tail = 0;
+    __OSStringTable = 0;
 }
