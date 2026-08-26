@@ -738,39 +738,29 @@ void bgnd_level_transition_start(void) {
     g_game_info.plyr0.slot.pdata->collision_disabled = 1;
     g_game_info.plyr1.slot.pdata->collision_disabled = 1;
 }
-static inline int bgnd_unlock_bit_is_clear(
-    unsigned int high, unsigned int low, int bgnd_id) {
+int is_bgnd_locked(int bgnd_id) {
+    unsigned long long unlocked;
     unsigned long long mask;
 
+    if (bgnd_id < 0 || bgnd_id > 0x23) {
+        return 1;
+    }
+
     mask = 1ULL << bgnd_id;
-    return ((((unsigned long long)high << 32) | low) & mask) == 0;
-}
-
-/* Clean-C near match: 47.14%, retail/local 288/280. Both range guards, play
- * mode selection, attract override, 64-bit masks, and bit polarity agree. The
- * eight-byte gap and low alignment score come from helper argument scheduling
- * and nonvolatile allocation around MWCC's 64-bit shift lowering. */
-int is_bgnd_locked(int bgnd_id) {
-    if (bgnd_id < 0) {
-        return 1;
-    }
-    if (bgnd_id > 0x23) {
-        return 1;
-    }
-
     if (mode_of_play == 6) {
-        return bgnd_unlock_bit_is_clear(
-            gp_data.puzzle_bgnds[0] | default_pz_bgnd_bits[0],
-            gp_data.puzzle_bgnds[1] | default_pz_bgnd_bits[1], bgnd_id);
+        unlocked =
+            ((unsigned long long)(gp_data.puzzle_bgnds[0] | default_pz_bgnd_bits[0]) << 32) |
+            (gp_data.puzzle_bgnds[1] | default_pz_bgnd_bits[1]);
+        return (unlocked & mask) == 0;
     }
 
     if ((g_game_info.field_04 & 0x80) != 0 && (g_game_info.field_04 & 0x40) == 0) {
         return 0;
     }
 
-    return bgnd_unlock_bit_is_clear(
-        gp_data.bgnds[0] | default_bgnd_bits[0],
-        gp_data.bgnds[1] | default_bgnd_bits[1], bgnd_id);
+    unlocked = ((unsigned long long)(gp_data.bgnds[0] | default_bgnd_bits[0]) << 32) |
+               (gp_data.bgnds[1] | default_bgnd_bits[1]);
+    return (unlocked & mask) == 0;
 }
 static int bgnd_cycle_tbl[22] = {
     0, 0x13, 0x12, 0xF, 6, 0xB, 0xC, 0xE, 7, 1, 8,
@@ -784,6 +774,7 @@ static int bgnd_cycle_tbl[22] = {
 int get_next_bgnd(void) {
     int play_mode = mode_of_play;
     unsigned int puzzle_high = gp_data.puzzle_bgnds[0];
+    int background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
     unsigned int puzzle_low = gp_data.puzzle_bgnds[1];
     unsigned int default_puzzle_high = default_pz_bgnd_bits[0];
     unsigned int default_puzzle_low = default_pz_bgnd_bits[1];
@@ -791,7 +782,6 @@ int get_next_bgnd(void) {
     unsigned int unlocked_low = gp_data.bgnds[1];
     unsigned int default_high = default_bgnd_bits[0];
     unsigned int default_low = default_bgnd_bits[1];
-    int background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
 
     for (;;) {
         int locked;
@@ -8217,8 +8207,7 @@ void bgnd_create_pebbles(
  * null-normalization branches that MWCC folds from the typed selection logic.
  */
 void bgnd_set_material_color(int model_index, unsigned int object_id,
-                             unsigned char red, unsigned char green,
-                             unsigned char blue, unsigned char alpha) {
+                             int red, int green, int blue, int alpha) {
     MkObj* model;
     MkSobj* object;
     RwRGBA color;

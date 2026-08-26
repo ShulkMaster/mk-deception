@@ -37,14 +37,9 @@ typedef struct ScriptAnimPdataView {
     float weight;
 } ScriptAnimPdataView;
 typedef struct FenceSection FenceSection;
-typedef struct LightDef LightDef;
 typedef struct MkProc MkProc;
-typedef struct MkSobj MkSobj;
 typedef struct CameraAnimEvent CameraAnimEvent;
-typedef struct PlyrInfo PlyrInfo;
 typedef struct SObj SObj;
-typedef struct BgndAppendTextureEntry BgndAppendTextureEntry;
-typedef struct BgndSwapTextureEntry BgndSwapTextureEntry;
 
 typedef struct ScriptFlagWordView {
     MkHdr hdr;
@@ -1881,8 +1876,6 @@ void bgnd_set_kill_plane_for_launched_sobj(int);
 void bgnd_set_launch_velocity_based_on_sobj_pos(
     int velocity_index, unsigned int source_id, unsigned int target_id,
     void* script, float horizontal_velocity, float vertical_velocity);
-void bgnd_set_material_color(int, unsigned int, unsigned char, unsigned char,
-                             unsigned char, unsigned char);
 void bgnd_set_player_shadow_ground_plane(int, float);
 void bgnd_set_plyr_gravity(void *, float);
 void bgnd_set_sobj_launch_params(int, int, unsigned int, void *, float, float,

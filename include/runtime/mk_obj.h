@@ -449,4 +449,6 @@ void* get_mkx_mem(void* allocation);
 MkObj* get_mkobj(int type, RpClump* clump);
 void destroy_mkobj(void* obj);
 
+extern MkPtr* fgnd_mkobj_list;
+
 #endif

@@ -1352,12 +1352,9 @@ void do_yinyang_statue_explosion(MkHdr* statue) {
             locals.config.thresholds.min_pos.y.value,
             locals.config.thresholds.min_pos.x.value,
             locals.config.velocity_scale) != 0) {
-        MkHdr* target;
-
         locals.pdata->velocity_scale = locals.config.velocity_scale;
-        target = locals.config.target;
-        locals.pdata->target = target;
-        locals.pdata->target_instance = target->instance;
+        locals.pdata->target = locals.config.target;
+        locals.pdata->target_instance = locals.config.target->instance;
         locals.pdata->thresholds.min_pos = locals.config.thresholds.min_pos;
         locals.pdata->thresholds.min_vel = locals.config.thresholds.min_vel;
         locals.pdata->vertical_step = locals.config.vertical_step;

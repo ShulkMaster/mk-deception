@@ -8,8 +8,6 @@ typedef struct MkHdr MkHdr;
 typedef struct MkSobj MkSobj;
 typedef struct PlyrPdata PlyrPdata;
 typedef struct PlyrInfo PlyrInfo;
-typedef struct Vec Vec;
-typedef struct LightDef LightDef;
 
 typedef struct BgndUvScrollEntry {
     unsigned int object_id;
@@ -86,6 +84,9 @@ void bgnd_append_texture_to_material(int sobj_id, int material_id,
                                      char* texture_name, int texture_slot);
 void bgnd_append_texture_to_material_tbl(
     const BgndAppendTextureEntry* entries);
+void bgnd_set_material_color(
+    int model_index, unsigned int object_id, int red, int green,
+    int blue, int alpha);
 void bgnd_fade_object(int object_id, void* script, float fade_step);
 void bgnd_replace_tex_with_wiff_and_ani(
     int object_id, const char* wiff_name, float frame_rate,

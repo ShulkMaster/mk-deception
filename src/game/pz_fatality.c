@@ -29,6 +29,7 @@ typedef struct PuzzleFighterRenderObject PuzzleFighterRenderObject;
 typedef struct PuzzleObjectVtable PuzzleObjectVtable;
 typedef struct RpMaterial RpMaterial;
 typedef struct RwTexture RwTexture;
+typedef struct AniTextureControl AniTextureControl;
 typedef struct PuzzleObjectFlags {
     unsigned char bit7 : 1;
     unsigned char airborne : 1;
@@ -562,11 +563,11 @@ PuzzleFighterRenderObject* load_model_from_slot(
     int handle, unsigned int art_object, int player);
 PuzzleFighterRenderObject* load_named_model_from_slot(
     int handle, const char* name, int flags, int player);
-void* replace_sobj_texture_with_named_wiff(
+AniTextureControl* replace_sobj_texture_with_named_wiff(
     PuzzleFatalityHazardObject* object, int handle, const char* texture,
     const char* wiff);
-void set_ani_texture_framerate(void* texture, float rate);
-void set_ani_texture_frame(void* texture, int frame);
+void set_ani_texture_framerate(AniTextureControl* texture, float rate);
+void set_ani_texture_frame(AniTextureControl* texture, int frame);
 void fx_set_param_v3(
     void* effect, int parameter, float x, float y, float z);
 void fx_set_render_priority(void* effect, int priority);
@@ -1940,7 +1941,7 @@ static float pz_fighter_lightning_strike_victim_1(void) {
     PuzzleParticleEffect* particle;
     PuzzleParticleEmitter* emitter;
     PuzzleFighterRenderObject* bolt;
-    void* texture;
+    AniTextureControl* texture;
     void* spark = fx_by_owner("pz_spark", 4);
     void* head_zap = fx_by_owner("pz_headzap", 4);
     void* burning_smoke = fx_by_owner("pz_burningsmoke", 4);
@@ -2245,7 +2246,7 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
     PuzzleParticleEffect* lightning_smoke;
     PuzzleParticleEffect* spark;
     PuzzleParticleEffect* burning_smoke;
-    void* texture;
+    AniTextureControl* texture;
     unsigned int bolt_instance;
 
     bolt = load_named_model_from_slot(

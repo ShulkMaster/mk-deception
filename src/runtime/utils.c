@@ -13,11 +13,13 @@
 #include "platform/display.h"
 #include "runtime/fonts.h"
 #include "runtime/image.h"
+#include "runtime/asset.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/plyr_pdata.h"
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
@@ -519,6 +521,20 @@ void set_far_clip_plane(float dist) {
 }
 
 MkObj* find_obj_by_id(int id) {
+    MkPtr* link;
+
+    link = first_mkptr(&fgnd_mkobj_list);
+    while (link != 0) {
+        MkObj* object = (MkObj*)link->hdr;
+
+        if (object->hdr.vtbl != &vtbl_mkobj) {
+            object = 0;
+        }
+        if (object != 0 && object->oid == id) {
+            return object;
+        }
+        link = next_mkptr(link);
+    }
     return 0;
 }
 
@@ -779,14 +795,26 @@ void hide_material(RpMaterial* material) {
     }
 }
 
-void material_set_color(RpMaterial* material, const RpMaterialColor* color) {
+RpMaterial* material_set_color(
+    RpMaterial* material, const RpMaterialColor* color) {
     material->color = *color;
+    return material;
 }
 
 void set_atomic_material_color_by_id(void* atomic, int id, int* color) {
 }
 
-void set_atomic_material_color(void* atomic, const RwRGBA* color) {
+RpAtomic* set_atomic_material_color(
+    RpAtomic* atomic, const RwRGBA* color) {
+    RpGeometry* geometry;
+
+    geometry = atomic->geometry;
+    if (geometry != 0) {
+        geometry->flags |= 0x40;
+        RpGeometryForAllMaterials(
+            geometry, (RpMaterialCallBack)material_set_color, (void*)color);
+    }
+    return atomic;
 }
 
 void obj_set_color_for_material_by_id(
@@ -1629,7 +1657,12 @@ UvScrollControl* start_sobj_uv_scroll(
 
 AniTextureControl* replace_sobj_texture_with_named_wiff(
     MkSobj* sobj, int handle, const char* texture, const char* wiff) {
-    return NULL;
+    if (get_artid_of_named_item_in_slot(handle, (char*)texture, 1) != 0 &&
+        sobj != 0) {
+        return attach_wiff_to_atomic_material(
+            handle, (char*)wiff, sobj->atomic, (char*)texture);
+    }
+    return 0;
 }
 
 /* Soft ceiling: sfrand_ab ~92.16% -- float branch shape and coloring. */
