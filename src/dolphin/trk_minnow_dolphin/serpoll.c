@@ -1,14 +1,4 @@
-typedef unsigned char u8;
-typedef unsigned long u32;
-typedef int DSError;
-typedef int MessageBufferID;
-typedef struct MessageBuffer MessageBuffer;
-
-typedef struct TRKEvent {
-    int event_type;
-    u32 event_id;
-    int message_buffer_id;
-} TRKEvent;
+#include "dolphin/trk.h"
 
 typedef struct TRKFramingState {
     int message_buffer_id;
@@ -38,16 +28,8 @@ static const char invalid_header[] = "TestForPacket : Invalid size of packet hdr
 static const char invalid_packet[] = "TestForPacket : Invalid size of packet\n";
 static const char packet_result[] = "TestForPacket returning %ld\n";
 
-extern void MWTRACE(int level, const char* format, ...);
 extern int TRKPollUART(void);
-extern DSError TRKGetFreeBuffer(int* buffer_id, MessageBuffer** buffer);
-extern MessageBuffer* TRKGetBuffer(int buffer_id);
-extern void TRKSetBufferPosition(MessageBuffer* buffer, u32 position);
 extern DSError TRKReadUARTN(void* data, u32 length);
-extern DSError TRKAppendBuffer_ui8(MessageBuffer* buffer, const void* data, u32 length);
-extern void TRKReleaseBuffer(int buffer_id);
-extern void TRKConstructEvent(TRKEvent* event, int event_type);
-extern DSError TRKPostEvent(TRKEvent* event);
 
 MessageBufferID TRKTestForPacket(void)
 {

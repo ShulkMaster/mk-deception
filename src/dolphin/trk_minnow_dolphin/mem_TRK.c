@@ -1,5 +1,4 @@
-typedef unsigned char u8;
-typedef unsigned long u32;
+#include "dolphin/trk.h"
 typedef unsigned long size_t;
 
 static void TRK_fill_mem(void* destination, int value, size_t size);

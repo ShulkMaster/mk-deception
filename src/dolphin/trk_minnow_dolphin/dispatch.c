@@ -1,17 +1,5 @@
-typedef unsigned char u8;
-typedef unsigned long u32;
-typedef int DSError;
+#include "dolphin/trk.h"
 
-typedef struct MessageBuffer {
-    u32 unknown;
-    int is_in_use;
-    u32 length;
-    u32 position;
-    u8 data[0x880];
-} MessageBuffer;
-
-extern void TRKSetBufferPosition(MessageBuffer* message, u32 position);
-extern void MWTRACE(int level, const char* format, ...);
 extern DSError TRKDoConnect(MessageBuffer* message);
 extern DSError TRKDoDisconnect(MessageBuffer* message);
 extern DSError TRKDoReset(MessageBuffer* message);

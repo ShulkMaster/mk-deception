@@ -1,12 +1,4 @@
-typedef unsigned long u32;
-typedef int BOOL;
-typedef int DSError;
-
-typedef struct TRKEvent {
-    int event_type;
-    u32 event_id;
-    int message_buffer_id;
-} TRKEvent;
+#include "dolphin/trk.h"
 
 typedef struct TRKEventQueue {
     u32 mutex;
@@ -18,11 +10,7 @@ typedef struct TRKEventQueue {
 
 TRKEventQueue gTRKEventQueue;
 
-extern void TRKInitializeMutex(void* mutex);
-extern void TRKAcquireMutex(void* mutex);
-extern void TRKReleaseMutex(void* mutex);
 extern void* TRK_memcpy(void* destination, const void* source, u32 size);
-extern void TRKReleaseBuffer(int buffer_id);
 
 DSError TRKInitializeEventQueue(void)
 {

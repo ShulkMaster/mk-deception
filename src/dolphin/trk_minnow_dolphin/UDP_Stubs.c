@@ -1,4 +1,4 @@
-typedef unsigned char u8;
+#include "dolphin/trk.h"
 typedef void (*InterruptHandler)(int interrupt, void* context);
 
 __declspec(weak) int udp_cc_initialize(void* flag_out, InterruptHandler handler)

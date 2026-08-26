@@ -1,7 +1,4 @@
-typedef unsigned char u8;
-typedef unsigned long u32;
-typedef int BOOL;
-typedef int DSError;
+#include "dolphin/trk.h"
 
 typedef union EndianTest {
     u8 bytes[4];
@@ -15,20 +12,12 @@ enum {
 };
 
 extern void TRK_board_display(const char* message);
-extern void MWTRACE(int level, const char* format, ...);
-extern void usr_put_initialize(void);
-extern DSError TRKInitializeEventQueue(void);
 extern DSError TRKInitializeMessageBuffers(void);
-extern DSError TRKInitializeDispatcher(void);
 extern DSError InitializeProgramEndTrap(void);
-extern DSError TRKInitializeSerialHandler(void);
-extern DSError TRKTerminateSerialHandler(void);
 extern DSError TRKInitializeTarget(void);
 extern DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
                                          volatile u8** input_pending_ptr);
 extern void TRKTargetSetInputPendingPtr(volatile u8* input_pending_ptr);
-
-extern volatile u8* gTRKInputPendingPtr;
 
 BOOL gTRKBigEndian;
 

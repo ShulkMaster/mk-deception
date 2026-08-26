@@ -1,5 +1,4 @@
-typedef unsigned char u8;
-typedef unsigned long u32;
+#include "dolphin/trk.h"
 
 typedef struct CircleBuffer {
     u8* read;

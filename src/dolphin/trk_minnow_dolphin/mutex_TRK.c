@@ -1,4 +1,4 @@
-typedef int DSError;
+#include "dolphin/trk.h"
 
 DSError TRKInitializeMutex(void* mutex)
 {

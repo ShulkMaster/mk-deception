@@ -1,5 +1,4 @@
-typedef unsigned long u32;
-typedef int BOOL;
+#include "dolphin/trk.h"
 
 extern void SetTRKConnected(u32 connected);
 extern u32 GetTRKConnected(void);

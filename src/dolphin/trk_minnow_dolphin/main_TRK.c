@@ -1,10 +1,4 @@
-typedef int DSError;
-
-extern void MWTRACE(int level, const char* format, ...);
-extern DSError TRKInitializeNub(void);
-extern void TRKNubWelcome(void);
-extern void TRKNubMainLoop(void);
-extern DSError TRKTerminateNub(void);
+#include "dolphin/trk.h"
 
 static DSError TRK_mainError;
 

@@ -1,25 +1,13 @@
-typedef unsigned char u8;
+#include "dolphin/trk.h"
 
-typedef struct TRKEvent {
-    int event_type;
-    int event_id;
-    int message_buffer_id;
-} TRKEvent;
-
-extern int TRKGetNextEvent(TRKEvent* event);
-extern void* TRKGetBuffer(int buffer_id);
-extern void TRKDispatchMessage(void* message);
 extern void TRKTargetInterrupt(TRKEvent* event);
 extern void TRKTargetSupportRequest(void);
-extern void TRKDestructEvent(TRKEvent* event);
-extern void TRKGetInput(void);
 extern int TRKTargetStopped(void);
 extern int TRKTargetContinue(void);
-extern u8* gTRKInputPendingPtr;
 
 void TRKNubMainLoop(void)
 {
-    void* message;
+    MessageBuffer* message;
     TRKEvent event;
     int shutdown_requested;
     int new_input;

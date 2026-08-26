@@ -1,4 +1,4 @@
-typedef int DSError;
+#include "dolphin/trk.h"
 
 extern void TRKTargetSetStopped(int stopped);
 extern void UnreserveEXI2Port(void);

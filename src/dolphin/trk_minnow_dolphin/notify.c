@@ -1,13 +1,9 @@
-typedef int DSError;
-typedef int MessageCommandID;
-typedef struct MessageBuffer MessageBuffer;
+#include "dolphin/trk.h"
 
-extern DSError TRKGetFreeBuffer(int* buffer_id, MessageBuffer** buffer);
 extern void TRKTargetAddStopInfo(MessageBuffer* buffer);
 extern void TRKTargetAddExceptionInfo(MessageBuffer* buffer);
 extern DSError TRKRequestSend(MessageBuffer* buffer, int* request_id, int retries,
                               int timeout, int blocking);
-extern void TRKReleaseBuffer(int buffer_id);
 
 DSError TRKDoNotifyStopped(MessageCommandID command)
 {

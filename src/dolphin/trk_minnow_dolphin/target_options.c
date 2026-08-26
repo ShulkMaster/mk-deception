@@ -1,4 +1,4 @@
-typedef unsigned char u8;
+#include "dolphin/trk.h"
 
 static u8 bUseSerialIO;
 
