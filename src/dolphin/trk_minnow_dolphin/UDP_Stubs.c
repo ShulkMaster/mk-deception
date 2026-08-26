@@ -1,55 +1,53 @@
-/* TODO: Missing implementation for retail unit UDP_Stubs.c. */
+typedef unsigned char u8;
+typedef void (*InterruptHandler)(int interrupt, void* context);
 
-void *udp_cc_post_stop(void)
+__declspec(weak) int udp_cc_initialize(void* flag_out, InterruptHandler handler)
 {
-    /* TODO: Missing canonical function implementation. */
+    (void)flag_out;
+    (void)handler;
+    return -1;
+}
+
+__declspec(weak) int udp_cc_shutdown(void)
+{
+    return -1;
+}
+
+__declspec(weak) int udp_cc_open(void)
+{
+    return -1;
+}
+
+__declspec(weak) int udp_cc_close(void)
+{
+    return -1;
+}
+
+__declspec(weak) int udp_cc_read(u8* destination, int size)
+{
+    (void)destination;
+    (void)size;
     return 0;
 }
 
-void *udp_cc_pre_continue(void)
+__declspec(weak) int udp_cc_write(const u8* source, int size)
 {
-    /* TODO: Missing canonical function implementation. */
+    (void)source;
+    (void)size;
     return 0;
 }
 
-void *udp_cc_peek(void)
+__declspec(weak) int udp_cc_peek(void)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *udp_cc_write(void)
+__declspec(weak) int udp_cc_pre_continue(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return -1;
 }
 
-void *udp_cc_read(void)
+__declspec(weak) int udp_cc_post_stop(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *udp_cc_close(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *udp_cc_open(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *udp_cc_shutdown(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *udp_cc_initialize(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return -1;
 }
