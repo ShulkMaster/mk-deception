@@ -1854,7 +1854,7 @@ void bgnd_create_pebbles(
     unsigned int count);
 int bgnd_current_rx_set_info(int, void *, float);
 int bgnd_destroy_sobj_uv_scroll_w_control(int);
-int bgnd_enable_danger_zone(int, int);
+void bgnd_enable_danger_zone(unsigned int, int);
 void bgnd_enable_obj_pos_and_ang_setting(
     MkObj* object, Vec* position, Vec* angles);
 int bgnd_fade_object(int, void *, float);
@@ -1907,11 +1907,11 @@ void bgnd_set_active_sobj_scale(void *, float, float, float);
 void bgnd_set_active_sobj_zoffset(void *, float);
 void bgnd_set_collision_plane_for_launched_sobj(int, unsigned int,
                                                  unsigned int);
-int bgnd_set_danger_zone_center_position(void *, float, float, float);
-int bgnd_set_danger_zone_depth(void *, float);
-int bgnd_set_danger_zone_radius(void *, float);
-int bgnd_set_danger_zone_width(void *, float);
-int bgnd_set_danger_zone_y_angle(void *, float);
+void bgnd_set_danger_zone_center_position(float, float, float);
+void bgnd_set_danger_zone_depth(float);
+void bgnd_set_danger_zone_radius(float);
+void bgnd_set_danger_zone_width(float);
+void bgnd_set_danger_zone_y_angle(float);
 void bgnd_set_kill_plane_for_launched_sobj(int);
 void bgnd_set_launch_velocity_based_on_sobj_pos(
     int velocity_index, unsigned int source_id, unsigned int target_id,
@@ -2139,8 +2139,8 @@ int save_hero_position_and_angle_prior_to_fight(void *, float);
 int set_active_projectile_block_script(int);
 int set_active_projectile_velocity_to_hit_gnd(void *, float);
 int set_ani_speed_miss_hit(void *, float, float);
-int set_background_obstacle_disable_flag(int, int);
-int set_background_obstacle_repel_flag(int, int);
+void set_background_obstacle_disable_flag(int, int);
+void set_background_obstacle_repel_flag(int, int);
 int set_hero_punched_ground_collisions(int);
 int set_his_damage_multiplier(void *, float);
 int set_konq_profile_value(int, int, int);
@@ -2371,7 +2371,8 @@ AnimPdata* animate_obj(
 extern int heart_beat;
 int attach_sound_to_object_by_uid(int, int, int, int, float, float);
 int attach_wiff_to_konquest_object_by_uid(int, char*, void*, float);
-int bgnd_create_danger_zone(int, int, int, int, float);
+void bgnd_create_danger_zone(int, unsigned int, unsigned int,
+                             unsigned int, float);
 void bgnd_launch_fx_at_plyr_bid(const char*, int);
 void bgnd_launch_fx_to_sobj(const char*, int);
 void bgnd_launch_plyr_up_and_forward(int, int, float, float, float, float,
@@ -9224,7 +9225,7 @@ void _bgnd_set_danger_zone_radius(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_danger_zone_radius(current_args, args.raw->slots[0].f);
+    bgnd_set_danger_zone_radius(args.raw->slots[0].f);
 }
 
 void _bgnd_set_viewing_of_danger_zones(void) {
@@ -9238,28 +9239,28 @@ void _bgnd_set_danger_zone_y_angle(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_danger_zone_y_angle(current_args, args.raw->slots[0].f);
+    bgnd_set_danger_zone_y_angle(args.raw->slots[0].f);
 }
 
 void _bgnd_set_danger_zone_depth(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_danger_zone_depth(current_args, args.raw->slots[0].f);
+    bgnd_set_danger_zone_depth(args.raw->slots[0].f);
 }
 
 void _bgnd_set_danger_zone_width(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_danger_zone_width(current_args, args.raw->slots[0].f);
+    bgnd_set_danger_zone_width(args.raw->slots[0].f);
 }
 
 void _bgnd_set_danger_zone_center_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_danger_zone_center_position(current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
+    bgnd_set_danger_zone_center_position(args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
 }
 
 void _bgnd_enable_danger_zone(void) {

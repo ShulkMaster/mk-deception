@@ -513,7 +513,7 @@ config.libs = [
             Object(NonMatching, "mk_particle.o", source="runtime/mk_particle.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "bgnd.o", source="game/bgnd.c",
-                   extra_cflags=["-use_lmw_stmw on"]),
+                   extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "bgnd_mab.o", source="game/bgnd_mab.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),

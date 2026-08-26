@@ -96,16 +96,14 @@ typedef struct NbFighterHurtView {
 static float p_npc_on_pendulum_rope(void);
 static void nb_get_desired_acceleration(
     NbPendulumState* state, Vec* acceleration, const Vec* surface_normal);
-int bgnd_preload_named_model(
-    const char* model_name, const char* instance_name, int flags,
-    float scale, const Vec* rotation);
+int bgnd_preload_named_model(const char* model_name, int slot);
 void bgnd_set_active_sobj_in_obj(int model_index, int object_id);
 void bgnd_unhide_preload_obj(int model_index);
 void bgnd_unhide_active_sobj(void);
 void bgnd_set_active_sobj_pos(float x, float y, float z);
 void bgnd_preload_obj_attach_rope(int model_index);
 void bgnd_create_named_npc_in_slot(
-    int npc_id, int model_slot, int model_id, int flags);
+    int npc_id, const char* model_name, int model_id, int flags);
 void bgnd_add_brains_to_npc(int npc_id, MkProcEntryFn brains);
 MkObj* bgnd_fetch_obj(int object_id);
 NbNpcState* bgnd_fetch_npc(int npc_id);
@@ -123,8 +121,8 @@ void xfer_player_proc_to_script_manual_messaging(
 void get_player_proc(MkObj* object);
 void xfer_player_proc(void* script);
 int is_my_chest_to_screen(void);
-int bgnd_collision_if_disable_col(int list_id, int collision_id);
-int bgnd_collision_if_enable_col(int list_id, int collision_id);
+void bgnd_collision_if_disable_col(int list_id, unsigned int collision_id);
+void bgnd_collision_if_enable_col(int list_id, unsigned int collision_id);
 int spad_set_vector(int index, int source);
 float spad_get_pos(int index, int component);
 int spad_sub_vectors(int lhs, int rhs, int out);
@@ -141,7 +139,7 @@ int is_pX_airborn(int player_index);
 float frand(float range);
 unsigned short randu0(unsigned int maximum);
 unsigned long snd_req(int sound_id);
-void* bgnd_launch_fx_at_bid_of_mkobj(
+void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect_name, MkObj* object, int bone);
 int bgnd_pebble_set_current_pebble(int pebble, int index);
 int bgnd_pebble_set_current_info(int info, void* object, float value);
@@ -280,16 +278,21 @@ void lower_mines_ani_to_point(
 
 static const Vec nb_collision_x_axis = {1.0f, 0.0f, 0.0f};
 static const Vec nb_collision_z_axis = {0.0f, 0.0f, 1.0f};
+static const Vec nb_impact_zero = {0.0f, 0.0f, 0.0f};
+static const Vec nb_rope_preload_rotation = {1.0f, 0.0f, 0.0f};
+static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
+static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
+static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
 /*
- * Soft ceiling: 88.52% -- all calls/branches and the XZ basis algorithm agree;
- * remaining differences are aggregate stack layout and FPR/store scheduling.
+ * Recovery checkpoint: all retail calls and major branches agree, but aggregate
+ * stack lifetimes and FPR allocation still produce a broad mismatch.
  */
 void nb_npc_slave_plyr_process_collision(int npc_id) {
     static unsigned int last_sound_time;
     NbNpcState* npc;
     Vec facing;
-    Vec side = {0.0f, 0.0f, 0.0f};
+    Vec side = nb_collision_zero;
     float player_index;
     float speed;
     float separation;
@@ -471,7 +474,7 @@ void nb_npc_slave_plyr_process_collision(int npc_id) {
 /* Soft ceiling: 93.70% -- weighted-vector FPR scheduling and NV coloring. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     NbNpcState* npc;
-    Vec target = {0.0f, 0.0f, 0.0f};
+    Vec target = nb_hit_zero;
     Vec delta;
     float player_side;
     float previous_hit;
@@ -674,21 +677,17 @@ static int nb_npc_hurt_player(
     return 0;
 }
 
-/*
- * Soft ceiling: 76.49% -- the full rope simulation and call sequence agree;
- * remaining differences are inlined Vec scratch lifetimes and FPR scheduling.
- */
+/* Recovery checkpoint: retail vector scratch lifetimes still need reconstruction. */
 static float p_npc_on_pendulum_rope(void) {
-    static const Vec world_up_init = {0.0f, 1.0f, 0.0f};
     MkObj* object;
     NbNpcState* npc = ((NbNpcProcPdata*)apdata)->npc;
-    Vec world_up;
-    Vec displacement;
-    Vec normal;
     Vec acceleration;
+    Vec normal;
+    Vec angle_vector;
+    Vec world_up = nb_world_up;
+    Vec displacement;
     Vec velocity_direction;
     Vec tangent;
-    Vec angle_vector;
     float distance;
     float inverse_length;
     float speed;
@@ -696,7 +695,6 @@ static float p_npc_on_pendulum_rope(void) {
     float response;
 
     object = npc->object;
-    world_up = world_up_init;
     npc->momentum.x = 0.0f;
     npc->momentum.y = 0.0f;
     npc->momentum.z = 0.0f;
@@ -790,19 +788,19 @@ static float p_npc_on_pendulum_rope(void) {
                 velocity_direction.z = npc->momentum.z * inverse_length;
 
                 tangent.x =
-                    (velocity_direction.x * normal.y -
-                     velocity_direction.y * normal.x) *
-                        normal.y -
-                    (velocity_direction.y * normal.z -
-                     velocity_direction.z * normal.y) *
-                        normal.z;
-                tangent.y =
                     (velocity_direction.z * normal.x -
                      velocity_direction.x * normal.z) *
                         normal.z -
                     (velocity_direction.x * normal.y -
                      velocity_direction.y * normal.x) *
-                        normal.x;
+                        normal.y;
+                tangent.y =
+                    (velocity_direction.x * normal.y -
+                     velocity_direction.y * normal.x) *
+                        normal.x -
+                    (velocity_direction.y * normal.z -
+                     velocity_direction.z * normal.y) *
+                        normal.z;
                 tangent.z =
                     (velocity_direction.y * normal.z -
                      velocity_direction.z * normal.y) *
@@ -851,11 +849,11 @@ static float p_npc_on_pendulum_rope(void) {
         velocity_direction.y = 0.0f;
         velocity_direction.z = displacement.z * inverse_length;
         angle_vector.x =
-            velocity_direction.z * world_up.x -
-            velocity_direction.x * world_up.z;
-        angle_vector.y =
             velocity_direction.y * world_up.z -
             velocity_direction.z * world_up.y;
+        angle_vector.y =
+            velocity_direction.z * world_up.x -
+            velocity_direction.x * world_up.z;
         angle_vector.z =
             velocity_direction.x * world_up.y -
             velocity_direction.y * world_up.x;
@@ -878,12 +876,12 @@ static float p_npc_on_pendulum_rope(void) {
         angle_vector.z *= angle;
         rotate_xz(&angle_vector, &angle_vector, -object->ang.y);
 
-        if (angle_vector.y < 0.0f && object->ang.x > 3.1415927f) {
-            angle_vector.y =
+        if (angle_vector.x < 0.0f && object->ang.x > 3.1415927f) {
+            angle_vector.x =
                 0.000005992112f *
-                (float)((int)(166886.1f * angle_vector.y) & 0xFFFFF);
+                (float)((int)(166886.1f * angle_vector.x) & 0xFFFFF);
         }
-        if (angle_vector.y > 0.0f && angle_vector.y < 3.1415927f &&
+        if (angle_vector.x >= 0.0f && angle_vector.x < 3.1415927f &&
             object->ang.x > 3.1415927f) {
             object->ang.x -= 6.2831855f;
         }
@@ -892,13 +890,13 @@ static float p_npc_on_pendulum_rope(void) {
                 0.000005992112f *
                 (float)((int)(166886.1f * angle_vector.z) & 0xFFFFF);
         }
-        if (angle_vector.z > 0.0f && angle_vector.z < 3.1415927f &&
+        if (angle_vector.z >= 0.0f && angle_vector.z < 3.1415927f &&
             object->ang.z > 3.1415927f) {
             object->ang.z -= 6.2831855f;
         }
 
         response = (npc->active & 1) != 0 ? 60.0f : 4.0f;
-        object->ang.x -= (object->ang.x - angle_vector.y) / response;
+        object->ang.x -= (object->ang.x - angle_vector.x) / response;
         object->ang.z -= (object->ang.z - angle_vector.z) / response;
         _mkproc_sleep_ticks = 1.0f;
         ((BgndJtbProcVtable*)aproc->vtbl)->sleep();
@@ -970,34 +968,32 @@ static void nb_get_desired_acceleration(
 }
 
 /*
- * Soft ceiling: retail aligns the local matrix to 16 bytes. Portable C leaves
- * that frame-offset residue plus string-pool placement and NV lifetimes.
+ * Soft ceiling: 97.77% -- integer-to-float conversion setup, zero-register
+ * coloring, and matrix-call scheduling only.
  */
 void nb_place_slave_in_bgnd(
-    int npc_id, int rope_model_index, int model_slot, int model_id,
+    int npc_id, int rope_model_index, const char* model_name, int model_id,
     float anchor_x, float anchor_y, float anchor_z, float rope_length,
     float local_angle_x, float local_angle_y, float local_angle_z,
     float object_angle_x, float object_angle_y, float object_angle_z,
     float acceleration_divisor, float acceleration_scale, float field_8C) {
-    static const Vec zero_vector = {0.0f, 0.0f, 0.0f};
     NbNpcState* npc;
     MkObj* preload_object;
     Vec* object_position;
     Vec local_angles;
     Vec rope_offset;
-    MKMATRIX rotation;
+    MKMATRIX rotation __attribute__((aligned(16)));
     float collision_offset_z;
 
-    rope_offset = zero_vector;
-    bgnd_preload_named_model(
-        "ROPE", "slave_blood_burst", 0, 0.0f, &zero_vector);
+    rope_offset = nb_rope_preload_rotation;
+    bgnd_preload_named_model("ROPE", rope_model_index);
     bgnd_set_active_sobj_in_obj(rope_model_index, 0);
     bgnd_unhide_preload_obj(rope_model_index);
     bgnd_unhide_active_sobj();
     bgnd_set_active_sobj_pos(anchor_x, anchor_y, anchor_z);
     bgnd_preload_obj_attach_rope(rope_model_index);
 
-    bgnd_create_named_npc_in_slot(npc_id, model_slot, model_id, 0);
+    bgnd_create_named_npc_in_slot(npc_id, model_name, model_id, 0);
     bgnd_add_brains_to_npc(npc_id, p_npc_on_pendulum_rope);
     preload_object = bgnd_fetch_obj(npc_id);
     preload_object->light_flags = 4;
@@ -1044,9 +1040,9 @@ void nb_place_slave_in_bgnd(
         collision_offset_z);
 }
 
-/* Soft ceiling: 92.90% -- normalized-vector FPR scheduling only. */
+/* Soft ceiling: 95.43% -- normalized-vector FPR scheduling only. */
 void rd_set_impact_vector(float scale) {
-    Vec impact = {0.0f, 0.0f, 0.0f};
+    Vec impact = nb_impact_zero;
     float squared_length;
     float inverse_length;
 
