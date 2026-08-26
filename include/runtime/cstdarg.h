@@ -2,9 +2,9 @@
 #define MKD_RUNTIME_CSTDARG_H
 
 typedef struct MkVaListState {
-    unsigned char gpr;
-    unsigned char fpr;
-    unsigned char reserved[2];
+    signed char gpr;
+    signed char fpr;
+    unsigned short reserved;
     char* input_arg_area;
     char* reg_save_area;
 } __va_list[1];
