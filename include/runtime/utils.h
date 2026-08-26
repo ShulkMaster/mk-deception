@@ -8,6 +8,10 @@
 
 typedef struct MkObj MkObj;
 typedef struct MkSobj MkSobj;
+typedef struct RwRGBA RwRGBA;
+typedef struct RpAtomic RpAtomic;
+typedef struct RpMaterial RpMaterial;
+typedef struct AniTextureControl AniTextureControl;
 
 typedef int (*MovieTapoutFn)(void);
 
@@ -37,7 +41,7 @@ void set_level_fatality_done_flag_state(int state);
 void pos_cam_for_current_level(void);
 void reset_severed_limbs(int player);
 void set_far_clip_plane(float dist);
-void* find_obj_by_id(int id);
+MkObj* find_obj_by_id(int id);
 MkProc* proc_create(MkProcEntryFn proc_fn, int proc_id);
 int get_language(void);
 void set_language(int language);
@@ -51,9 +55,11 @@ void display_numerical_change(
     int ticks, int acceleration_interval);
 void show_material(RpMaterial* material);
 void hide_material(RpMaterial* material);
-void material_set_color(RpMaterial* material, const RpMaterialColor* color);
+RpMaterial* material_set_color(
+    RpMaterial* material, const RpMaterialColor* color);
 void set_atomic_material_color_by_id(void* atomic, int id, int* color);
-void set_atomic_material_color(void* atomic, int* color);
+RpAtomic* set_atomic_material_color(
+    RpAtomic* atomic, const RwRGBA* color);
 void obj_set_color_for_material_by_id(
     MkObj* obj, int id, const RpMaterialColor* color);
 void obj_set_color_for_all_materials(void* obj, int* color);
@@ -72,15 +78,37 @@ void fade_to_black(int frames, int flag);
 void fade_to_white(int frames, int flag);
 void set_string_obj_alpha(void* obj, float alpha);
 void set_screen_obj_alpha(void* obj, float alpha);
-void* find_uv_scroll_control_for_obj(MkObj* owner);
-void* material_start_uv_scroll(MkObj* owner, RpMaterial* material, float u1, float v1, float u2,
-                               float v2);
-void* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1, float v1, float u2,
-                           float v2);
-void* start_sobj_uv_scroll(MkObj* owner, int sobj_id, float u1, float v1, float u2,
-                           float v2);
-void* replace_sobj_texture_with_named_wiff(
-    void* sobj, int handle, const char* texture, const char* wiff);
+typedef struct UvScrollControl {
+    MkHdr hdr;                    /* +0x00 */
+    MkObj* owner;                 /* +0x08 */
+    unsigned int owner_instance; /* +0x0C */
+    union {
+        void* target;
+        RpAtomic* atomic;
+        RpMaterial* material;
+    };                            /* +0x10 */
+    int target_is_atomic;         /* +0x14 */
+    unsigned int pass_flags;      /* +0x18 */
+    float rateU1;                 /* +0x1C */
+    float rateV1;                 /* +0x20 */
+    float rateU2;                 /* +0x24 */
+    float rateV2;                 /* +0x28 */
+    unsigned int pad2c;
+    float mtx1[16];               /* +0x30 */
+    float mtx2[16];               /* +0x70 */
+} UvScrollControl; /* 0xB0 */
+
+UvScrollControl* find_uv_scroll_control_for_obj(MkObj* owner);
+UvScrollControl* material_start_uv_scroll(
+    MkObj* owner, RpMaterial* material, float u1, float v1, float u2,
+    float v2);
+UvScrollControl* sobj_start_uv_scroll(
+    MkObj* owner, MkSobj* subobject, float u1, float v1, float u2,
+    float v2);
+UvScrollControl* start_sobj_uv_scroll(
+    MkObj* owner, int sobj_id, float u1, float v1, float u2, float v2);
+AniTextureControl* replace_sobj_texture_with_named_wiff(
+    MkSobj* sobj, int handle, const char* texture, const char* wiff);
 float sfrand_ab(float a, float b);
 int random_percent(float percent);
 float sfrand(float max);

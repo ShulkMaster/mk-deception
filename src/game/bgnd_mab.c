@@ -123,6 +123,21 @@ typedef struct GusherStep {
         }                                                                \
     } while (0)
 
+#define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance)     \
+    do {                                                                  \
+        (result) = (object);                                              \
+        (result) = (result) != 0                                         \
+            ? ((result)->hdr.instance == (expected_instance)             \
+                ? (result) : 0)                                          \
+            : 0;                                                         \
+    } while (0)
+
+static inline void mab_copy_vec_components(Vec* destination, const Vec* source) {
+    destination->x = source->x;
+    destination->y = source->y;
+    destination->z = source->z;
+}
+
 double fabs(double value);
 
 typedef struct FenceSection {
@@ -254,7 +269,6 @@ float p_fish_attack(void);
 static float p_fish_attack_bloodsplat(void);
 static float p_cam_bounce_monitor(void);
 extern CameraObj* camera_obj;
-Vec* sobj_get_world_pos(void* object);
 void bgnd_launch_fx_at_position(
     const char* effect, float x, float y, float z);
 void obj_change_to_skinned_obj_light_list(MkObj* object, LightDef* light);
@@ -440,43 +454,46 @@ MkObj* cut_player_in_half(MkObj* player_object) {
     severed = obj_sever_limb(
         player_object, 0xE,
         player->slot.fighter->runtime_data->half_sever_velocities, 1);
-    if (severed == 0) {
-        return 0;
+    if (severed != 0) {
+        limb_sever_show_z_meat_chunks(player_object, 0xE, 1);
+        severed->flags_08_bits.airborne = 1;
+        severed->flags_08_bits.gravity_enabled = 1;
+        severed->flags_08_bits.angular_velocity_enabled = 1;
+        severed->flags_08_bits.rotation_enabled = 1;
+        player->slot.fighter->severed_half_obj = severed;
+        player->slot.fighter->severed_half_instance = severed->hdr.instance;
+        return severed;
     }
-
-    limb_sever_show_z_meat_chunks(player_object, 0xE, 1);
-    severed->flags_08 |= 0x40;
-    severed->flags_08 |= 0x20;
-    severed->flags_08 |= 8;
-    severed->flags_08 |= 4;
-    player->slot.fighter->severed_half_obj = severed;
-    player->slot.fighter->severed_half_instance = severed->hdr.instance;
-    return severed;
+    return 0;
 }
 
 int get_offset_of_closest_fence_section(
-    const Vec* point, const FenceSection* sections, int offset,
+    Vec* point, FenceSection* sections, int offset,
     int apply_offset) {
-    Vec direction;
     Vec fence_position;
+    Vec direction;
     float distance;
     float closest_distance;
     int closest;
+    int section_index;
 
+    section_index = offset;
     closest_distance = 200.0f;
     closest = -1;
 
-    while (sections[offset].marker != 0) {
-        fence_position.x = sections[offset].x;
+    while (sections[section_index].marker != 0) {
+        fence_position.x = sections[section_index].x;
         fence_position.y = g_game_info.field_34;
-        fence_position.z = sections[offset].z;
+        fence_position.z = sections[section_index].z;
 
         if (apply_offset != 0) {
-            if (sections[offset].offset_x != 0.0f) {
-                fence_position.x += 1.2f;
+            fence_position.x = sections[section_index].x;
+            if (sections[section_index].offset_x != 0.0f) {
+                fence_position.x = 1.2f + sections[section_index].x;
             }
-            if (sections[offset].offset_z != 0.0f) {
-                fence_position.z += 1.2f;
+            fence_position.z = sections[section_index].z;
+            if (sections[section_index].offset_z != 0.0f) {
+                fence_position.z = 1.2f + sections[section_index].z;
             }
         }
 
@@ -484,9 +501,9 @@ int get_offset_of_closest_fence_section(
             uv_v3_to_v3_dist(&direction, &fence_position, point);
         if (distance < closest_distance) {
             closest_distance = distance;
-            closest = offset;
+            closest = section_index;
         }
-        offset++;
+        section_index++;
     }
 
     return closest;
@@ -552,160 +569,175 @@ void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
 
 static float p_fish_attack_bloodsplat(void) {
     Vec effect_origin = {0.0f, 1.6f, 0.0f};
-    MabGenericPositionPdata* pdata;
     MkObj* object;
     unsigned int object_instance;
+    MkObj* loaded_object;
+    MabGenericPositionPdata* pdata;
     Vec direction;
     float scale;
 
-    pdata = (MabGenericPositionPdata*)apdata;
     object = 0;
     object_instance = 0;
-    object = load_named_model_from_slot(
-        0x2001E, "BODYSPLAT", 0x2094, 0);
-    if (object != 0) {
-        insert_fgnd_mkobj(object);
-        object->pos.value.x = pdata->position.x;
-        object->pos.value.y = pdata->position.y;
-        object->pos.value.z = pdata->position.z;
-        object->flags_08_bits.scale_active = 1;
-        object->scale.x = 0.5f;
-        object->scale.z = 0.5f;
-        uv_v3_to_v3(&direction, &effect_origin, &object->pos.value);
-        v3_to_xy_ang(&object->ang, &direction);
-        object_instance = object->hdr.instance;
-    }
-
     scale = 0.5f;
-    while (scale < 0.75f) {
-        MkObj* live_object;
-
-        live_object = object;
-        if (live_object != 0) {
-            if (live_object->hdr.instance == object_instance) {
-                /* Keep the validated object. */
-            } else {
-                live_object = 0;
-            }
-        } else {
-            live_object = 0;
-        }
-        if (live_object != 0) {
-            live_object->scale.x = scale;
-            live_object->scale.z = scale;
-            scale += 0.05f;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
+    pdata = (MabGenericPositionPdata*)apdata;
+    loaded_object = load_named_model_from_slot(
+        0x2001E, "BODYSPLAT", 0x2094, 0);
+    if (loaded_object != 0) {
+        insert_fgnd_mkobj(loaded_object);
+        loaded_object->pos.value.x = pdata->position.x;
+        loaded_object->pos.value.y = pdata->position.y;
+        loaded_object->pos.value.z = pdata->position.z;
+        loaded_object->flags_08_bits.scale_active = 1;
+        loaded_object->scale.x = 0.5f;
+        loaded_object->scale.z = 0.5f;
+        uv_v3_to_v3(&direction, &effect_origin, &loaded_object->pos.value);
+        v3_to_xy_ang(&loaded_object->ang, &direction);
+        object_instance = loaded_object->hdr.instance;
+        object = loaded_object;
     }
-    return -1.0f;
+
+    for (;;) {
+        while (scale < 0.75f) {
+            MkObj* live_object;
+
+            live_object = object != 0
+                              ? (object->hdr.instance == object_instance ? object : 0)
+                              : 0;
+            if (live_object != 0) {
+                live_object->scale.x = scale;
+                live_object->scale.z = scale;
+                scale += 0.05f;
+            }
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+        return -1.0f;
+    }
 }
 
+/*
+ * Soft ceiling: 97.62%, exact retail size and recovered state machine.
+ * Remaining differences are validated-latch branch lowering, register
+ * allocation, and equivalent float scheduling.
+ */
 float p_fish_attack(void) {
-    const Vec arena_center = {0.0f, 0.0f, 0.0f};
     FishAttackPdata* pdata;
-    FishAttackData* fish_data;
-    PlyrInfo* player;
-    MkObj* target;
     MkObj* fish;
+    MkObj* target;
     Vec target_position;
     Vec direction;
+    const Vec arena_center = {0.0f, 0.0f, 0.0f};
+    Vec reverse_direction;
     float distance;
+    int fish_index;
 
     pdata = (FishAttackPdata*)apdata;
-    fish_data = &fish_data_tbl[pdata->fish_index];
+    fish_index = pdata->fish_index;
 
     if (pdata->active == 1) {
         if (pdata->use_good_fish != 0) {
-            fish = load_named_model_from_slot(
+            pdata->models[fish_index].good_fish =
+                load_named_model_from_slot(
                 0x2001E, "YY_BAD_FISH", 0x2097, 0);
-            pdata->models[pdata->fish_index].good_fish = fish;
+            fish = pdata->models[fish_index].good_fish;
         } else {
-            fish = load_named_model_from_slot(
+            pdata->models[fish_index].bad_fish =
+                load_named_model_from_slot(
                 0x2001E, "YY_GOOD_FISH", 0x2096, 0);
-            pdata->models[pdata->fish_index].bad_fish = fish;
+            fish = pdata->models[fish_index].bad_fish;
         }
-        if (fish == 0) {
-            return -1.0f;
-        }
-
-        pdata->fish = fish;
-        pdata->fish_instance = fish->hdr.instance;
-        obj_change_to_skinned_obj_light_list(
-            fish, (LightDef*)&skinned_obj_light_def);
-        if (build_bones_tbl(fish, fish_bones) == 0) {
-            if (fish->hdr.instance != 0) {
-                fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
+        if (fish != 0) {
+            pdata->fish = fish;
+            pdata->fish_instance = fish->hdr.instance;
+            obj_change_to_skinned_obj_light_list(
+                fish, (LightDef*)&skinned_obj_light_def);
+            if (build_bones_tbl(fish, fish_bones) != 0) {
+                insert_fgnd_mkobj(fish);
+            } else {
+                if (fish->hdr.instance != 0) {
+                    fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
+                }
+                return -1.0f;
             }
+        } else {
             return -1.0f;
         }
-        insert_fgnd_mkobj(fish);
 
-        RESOLVE_MAB_OBJECT(
+        RESOLVE_MAB_OBJECT_IN_PLACE(
             target, pdata->target, pdata->target_instance);
         plyr_obj = target;
         if (target == 0) {
             return -1.0f;
         }
 
-        get_bone_world_pos(target, fish_data->target_bone, &target_position);
+        get_bone_world_pos(
+            target, fish_data_tbl[fish_index].target_bone, &target_position);
         fish->pos.value.x = target_position.x + 0.5f * sfrand(0.75f);
         fish->pos.value.y = -0.15f;
         fish->pos.value.z = target_position.z + 0.5f * sfrand(0.75f);
         pdata->active = 0;
-        pdata->lifetime = fish_data->lifetime;
+        pdata->lifetime = fish_data_tbl[fish_index].lifetime;
         pdata->state = 0;
         pdata->state_ticks = 15;
         pdata->turn_step = 0;
-        pdata->turn_limit = (int)randu0(10) + 5;
+        pdata->turn_limit = (unsigned short)randu0(10) + 5;
         pdata->turning_left = 1;
 
-        RESOLVE_MAB_OBJECT(
+        RESOLVE_MAB_OBJECT_IN_PLACE(
             target, pdata->target, pdata->target_instance);
         plyr_obj = target;
-        RESOLVE_MAB_OBJECT(
+        RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
         if (target == 0 || fish == 0) {
             return -1.0f;
         }
         get_bone_world_pos(
-            target, fish_data->target_bone, &target_position);
+            target, fish_data_tbl[fish_index].target_bone, &target_position);
         distance = uv_v3_to_v3_dist(
             &direction, &fish->pos.value, &target_position);
         scale_v3(
             &direction, &direction, distance / 15.0f);
-        fish->pos_vel = direction;
+        mab_copy_vec_components(&fish->pos_vel, &direction);
         fish->flags_08_bits.gravity_enabled = 1;
         fish->flags_08_bits.angular_velocity_enabled = 1;
     }
 
     while (pdata->lifetime > 0) {
-        FighterObjectRef* severed;
+        PlyrInfo* player;
         MkObj* severed_object;
 
-        RESOLVE_MAB_OBJECT(
+        RESOLVE_MAB_OBJECT_IN_PLACE(
             target, pdata->target, pdata->target_instance);
         plyr_obj = target;
-        RESOLVE_MAB_OBJECT(
+        RESOLVE_MAB_OBJECT_IN_PLACE(
             fish, pdata->fish, pdata->fish_instance);
         if (target == 0 || fish == 0) {
             return -1.0f;
         }
 
         pdata->lifetime--;
-        player = target == g_game_info.player_objects[0]
+        player = plyr_obj == g_game_info.plyr0.slot.mirror_a
             ? &g_game_info.plyr0 : &g_game_info.plyr1;
 
         if (pdata->state_ticks <= 0) {
             if (pdata->lifetime < 15 && pdata->state < 4) {
                 pdata->state = 4;
+                RESOLVE_MAB_OBJECT_IN_PLACE(
+                    target, pdata->target, pdata->target_instance);
+                plyr_obj = target;
+                RESOLVE_MAB_OBJECT_IN_PLACE(
+                    fish, pdata->fish, pdata->fish_instance);
+                if (target == 0 || fish == 0) {
+                    return -1.0f;
+                }
                 get_bone_world_pos(
-                    target, fish_data->target_bone, &target_position);
+                    target, fish_data_tbl[fish_index].target_bone,
+                    &target_position);
                 distance = uv_v3_to_v3_dist(
                     &direction, &fish->pos.value, &target_position);
                 scale_v3(
                     &direction, &direction, distance / 10.0f);
-                fish->pos_vel = direction;
+                mab_copy_vec_components(&fish->pos_vel, &direction);
                 pdata->state_ticks = 10;
                 pdata->lifetime = 12;
                 return 1.0f;
@@ -719,20 +751,24 @@ float p_fish_attack(void) {
                 continue;
             case 2:
                 get_bone_world_pos(
-                    target, fish_data->target_bone, &target_position);
+                    target, fish_data_tbl[fish_index].target_bone,
+                    &target_position);
                 distance = uv_v3_to_v3_dist(
                     &direction, &fish->pos.value, &target_position);
                 pdata->state_ticks = 10;
                 scale_v3(&direction, &direction,
                          distance / (float)pdata->state_ticks);
-                fish->pos_vel = direction;
+                mab_copy_vec_components(&fish->pos_vel, &direction);
                 pdata->state = 0;
                 continue;
             case 4:
-                RESOLVE_MAB_OBJECT(
+            {
+                Vec* forward;
+
+                RESOLVE_MAB_OBJECT_IN_PLACE(
                     target, pdata->target, pdata->target_instance);
                 plyr_obj = target;
-                RESOLVE_MAB_OBJECT(
+                RESOLVE_MAB_OBJECT_IN_PLACE(
                     fish, pdata->fish, pdata->fish_instance);
                 if (target == 0 || fish == 0) {
                     return -1.0f;
@@ -740,17 +776,16 @@ float p_fish_attack(void) {
                 pdata->state_ticks = 8;
                 pdata->lifetime = pdata->state_ticks + 2;
                 fish->ang.x = 0.0f;
-                direction.x = fish->frame->modelling.at.x;
-                direction.y = fish->frame->modelling.at.y;
-                direction.z = fish->frame->modelling.at.z;
-                normalize_v3(&direction);
+                forward = (Vec*)&fish->frame->modelling.at;
+                normalize_v3(forward);
                 scale_v3(
-                    &direction, &direction,
+                    forward, forward,
                     -(1.0f / (float)pdata->state_ticks));
-                fish->pos_vel = direction;
+                mab_copy_vec_components(&fish->pos_vel, forward);
                 fish->pos_vel.y = 0.0f;
                 pdata->state = 5;
                 continue;
+            }
             case 5:
                 distance = uv_v3_to_v3_dist(
                     &direction, &arena_center, &target->pos.value);
@@ -758,7 +793,7 @@ float p_fish_attack(void) {
                 pdata->lifetime = pdata->state_ticks + 2;
                 scale_v3(&direction, &direction,
                          distance / (float)pdata->state_ticks);
-                fish->pos_vel = direction;
+                mab_copy_vec_components(&fish->pos_vel, &direction);
                 pdata->state = 6;
                 continue;
             case 6:
@@ -766,10 +801,10 @@ float p_fish_attack(void) {
                 continue;
             }
         } else {
-            RESOLVE_MAB_OBJECT(
+            RESOLVE_MAB_OBJECT_IN_PLACE(
                 target, pdata->target, pdata->target_instance);
             plyr_obj = target;
-            RESOLVE_MAB_OBJECT(
+            RESOLVE_MAB_OBJECT_IN_PLACE(
                 fish, pdata->fish, pdata->fish_instance);
             if (target == 0 || fish == 0) {
                 return -1.0f;
@@ -779,22 +814,24 @@ float p_fish_attack(void) {
             case 2:
             case 4:
                 get_bone_world_pos(
-                    target, fish_data->target_bone, &target_position);
+                    target, fish_data_tbl[fish_index].target_bone,
+                    &target_position);
                 uv_v3_to_v3(&direction, &fish->pos.value, &target_position);
                 v3_to_xy_ang(&fish->ang, &direction);
                 pdata->state_ticks--;
                 break;
             case 5:
                 get_bone_world_pos(
-                    target, fish_data->target_bone, &target_position);
+                    target, fish_data_tbl[fish_index].target_bone,
+                    &target_position);
                 fish->ang.x = 0.0f;
                 if (fish->pos.value.y > -0.05f) {
                     fish->pos.value.y -= 0.05f;
                 }
-                direction.x = -fish->pos_vel.x;
-                direction.y = -fish->pos_vel.y;
-                direction.z = -fish->pos_vel.z;
-                v3_to_xy_ang(&fish->ang, &direction);
+                reverse_direction.x = -1.0f * fish->pos_vel.x;
+                reverse_direction.y = -1.0f * fish->pos_vel.y;
+                reverse_direction.z = -1.0f * fish->pos_vel.z;
+                v3_to_xy_ang(&fish->ang, &reverse_direction);
                 pdata->state_ticks--;
                 break;
             case 6:
@@ -812,10 +849,18 @@ float p_fish_attack(void) {
                     }
                 }
                 v3_to_xy_ang(&fish->ang, &fish->pos_vel);
-                severed = &player->slot.fighter->
-                    severed_limbs[pdata->fish_index];
-                RESOLVE_MAB_OBJECT(
-                    severed_object, severed->object, severed->instance);
+                severed_object = player->slot.fighter->
+                    severed_limbs[fish_index].object;
+                if (severed_object != 0) {
+                    if (severed_object->hdr.instance == player->slot.fighter->
+                            severed_limbs[fish_index].instance) {
+                        /* Keep the validated severed limb. */
+                    } else {
+                        severed_object = 0;
+                    }
+                } else {
+                    severed_object = 0;
+                }
                 if (severed_object != 0 && pdata->state_ticks < 20) {
                     fish->pos.value.y -= 0.1f;
                 }
@@ -826,7 +871,7 @@ float p_fish_attack(void) {
         }
     }
 
-    RESOLVE_MAB_OBJECT(
+    RESOLVE_MAB_OBJECT_IN_PLACE(
         fish, pdata->fish, pdata->fish_instance);
     if (fish != 0 && fish->hdr.instance != 0) {
         fish->hdr.typed_vtbl->destroy((MkHdr*)fish);
@@ -860,8 +905,11 @@ float p_fish_attack_sounds(void) {
     if (_create_mkproc_generic_tinystack(
             0x209A, 0x1F, p_fish_attack_scream_sounds, 0x28,
             (MkHdr**)&scream_pdata) != 0) {
-        scream_pdata->player_index =
-            plyr_obj == g_game_info.plyr0.slot.mirror_a ? 0 : 1;
+        if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+            scream_pdata->player_index = 0;
+        } else {
+            scream_pdata->player_index = 1;
+        }
     }
 
     snd_req(0x14E);
@@ -872,9 +920,9 @@ float p_fish_attack_sounds(void) {
     while (elapsed_ticks < 180) {
         int delay;
 
-        delay = (int)randu0(10) + 15;
+        delay = (unsigned short)randu0(10) + 15;
         elapsed_ticks += delay;
-        if (randu0(2) == 0) {
+        if ((unsigned short)randu0(2) == 0) {
             snd_req(0x14D);
         } else {
             snd_req(0x14E);
@@ -888,7 +936,6 @@ float p_fish_attack_sounds(void) {
 void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     FishAttackPdata* fish_pdata;
     FishScreamPdata* scream_pdata;
-    MabGenericPositionPdata* blood_pdata;
     void* blood_proc;
     int fish_index;
 
@@ -908,73 +955,87 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     blood_proc = proc_create(p_fish_attack_bloodsplat, 0x209C);
     snd_req(0x154);
     if (blood_proc != 0) {
-        blood_pdata = (MabGenericPositionPdata*)mab_generic_pdata;
-        blood_pdata->position.x = target->pos.value.x;
-        blood_pdata->position.y = -0.185f;
-        blood_pdata->position.z = target->pos.value.z;
+        ((MabGenericPositionPdata*)mab_generic_pdata)->position.x =
+            target->pos.value.x;
+        ((MabGenericPositionPdata*)mab_generic_pdata)->position.y = -0.185f;
+        ((MabGenericPositionPdata*)mab_generic_pdata)->position.z =
+            target->pos.value.z;
     }
 
     if (_create_mkproc_generic_tinystack(
             0x209A, 0x1F, p_fish_attack_sounds, 0x28,
             (MkHdr**)&scream_pdata) != 0) {
-        scream_pdata->player_index =
-            target == g_game_info.plyr0.slot.mirror_a ? 0 : 1;
+        if (target == g_game_info.plyr0.slot.mirror_a) {
+            scream_pdata->player_index = 0;
+        } else {
+            scream_pdata->player_index = 1;
+        }
     }
 }
 
+/*
+ * Soft ceiling: 97.81%, exact retail size and recovered algorithm. Remaining
+ * differences are validated-latch branch lowering and register allocation,
+ * including one equivalent loop-offset initializer.
+ */
 static float p_player_body_explode(void) {
-    PlayerBodyExplodePdata* pdata;
     PlyrInfo* player;
-    FighterMirror* fighter;
-    MkObj* player_object;
+    PlayerBodyExplodePdata* pdata;
     MkProc* anim_proc;
+    MkObj* object;
     int limb;
+    int body_part;
 
     pdata = (PlayerBodyExplodePdata*)apdata;
     player = pdata->player;
-    fighter = player->slot.fighter;
-    player_object = player->slot.mirror_a;
 
-    player_object->flags_09_bits.head_tracking = 0;
+    player->slot.mirror_a->flags_09_bits.head_tracking = 0;
     bgnd_hide_mirror_guys();
 
     for (limb = 0; limb < 15; limb++) {
-        FighterObjectRef* severed;
-        MkObj* object;
+        FighterMirror* fighter;
 
-        severed = &fighter->severed_limbs[limb];
-        object = severed->object;
-        if (object != 0 && object->hdr.instance != severed->instance) {
-            object = 0;
-        }
+        fighter = player->slot.fighter;
+        object = fighter->severed_limbs[limb].object;
+        object = object != 0
+            ? (object->hdr.instance == fighter->severed_limbs[limb].instance
+                ? object : 0)
+            : 0;
         if (object == 0) {
             object = obj_sever_limb(
-                player_object, limb,
+                player->slot.mirror_a, limb,
                 fighter->runtime_data->half_sever_velocities, 1);
             if (object != 0) {
-                severed->object = object;
-                severed->instance = object->hdr.instance;
+                player->slot.fighter->severed_limbs[limb].object = object;
+                player->slot.fighter->severed_limbs[limb].instance =
+                    object->hdr.instance;
             }
         }
     }
 
-    limb_sever_show_z_meat_chunks_all(player_object);
-    anim_proc = fighter->anim_proc;
-    if (anim_proc != 0 &&
-        anim_proc->instance != fighter->anim_proc_instance) {
+    limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
+    anim_proc = player->slot.fighter->anim_proc;
+    if (anim_proc != 0) {
+        if (anim_proc->instance == player->slot.fighter->anim_proc_instance) {
+            /* Keep the validated animation process. */
+        } else {
+            anim_proc = 0;
+        }
+    } else {
         anim_proc = 0;
     }
     xfer_proc(anim_proc, p_anim_idle);
 
-    for (limb = 0; limb < 15; limb++) {
-        FighterObjectRef* severed;
-        MkObj* object;
+    for (body_part = 0; body_part < 15; body_part++) {
+        FighterMirror* fighter;
 
-        severed = &fighter->severed_limbs[limb];
-        object = severed->object;
-        if (object != 0 && object->hdr.instance != severed->instance) {
-            object = 0;
-        }
+        fighter = player->slot.fighter;
+        object = fighter->severed_limbs[body_part].object;
+        object = object != 0
+            ? (object->hdr.instance ==
+                    fighter->severed_limbs[body_part].instance
+                ? object : 0)
+            : 0;
         if (object != 0) {
             object->flags_08_bits.gravity_enabled = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
@@ -995,7 +1056,7 @@ static float p_player_body_explode(void) {
 }
 
 void player_body_explode(
-    PlyrInfo* player, const Vec* direction, float scale) {
+    PlyrInfo* player, Vec* direction, float scale) {
     PlayerBodyExplodePdata* pdata;
 
     if (_create_mkproc_generic_nostack(
@@ -1095,7 +1156,7 @@ void obj_setup_for_animation(
  */
 void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
     Vec cylinder_position = {0.0f, 0.0f, 0.0f};
-    Vec cylinder_axis = {0.0f, 0.0f, 1.0f};
+    Vec cylinder_axis = {0.0f, 1.0f, 0.0f};
     Vec camera_direction;
     Vec jump_direction;
     Vec camera_position;
@@ -1170,8 +1231,10 @@ void yinyang_make_fish_jump(YinyangFishPair* fish, int count) {
 }
 
 /*
- * Soft ceiling: standard fabs emits six calls in this MWCC configuration;
- * keep the portable library operation rather than a compiler intrinsic.
+ * Soft ceiling: 90.32%, exact retail size and recovered monitor algorithm.
+ * Standard fabs emits six calls in this TU configuration where retail folds
+ * floating absolute instructions; keep the portable library operation rather
+ * than an intrinsic. Remaining differences are scheduling and register color.
  */
 static float p_monitor_objs_sobjs(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
@@ -1182,16 +1245,10 @@ static float p_monitor_objs_sobjs(void) {
 
     pdata = (ObjectMonitorPdata*)apdata;
     all_settled = 1;
-    target = (MkObj*)pdata->target;
-    if (target != 0) {
-        if (target->hdr.instance == pdata->target_instance) {
-            /* Keep the validated target. */
-        } else {
-            target = 0;
-        }
-    } else {
-        target = 0;
-    }
+    target = pdata->target != 0
+                 ? (pdata->target->instance == pdata->target_instance
+                        ? (MkObj*)pdata->target : 0)
+                 : 0;
 
     if (target != 0) {
         iterator = first_mkptr(&target->sobj_list);
@@ -1264,6 +1321,11 @@ static float p_monitor_objs_sobjs(void) {
     return 1.0f;
 }
 
+/*
+ * Soft ceiling: 82.75%, exact retail size and recovered spawn/configuration
+ * algorithm. Differences are confined to scheduling and register allocation
+ * in the post-create target latch and six-word aggregate copy.
+ */
 void do_yinyang_statue_explosion(MkHdr* statue) {
     ObjectMonitorSpawnLocals locals;
 
@@ -1303,37 +1365,38 @@ void do_yinyang_statue_explosion(MkHdr* statue) {
 
 void p_statue_xpd_callback(MkSobj* object) {
     Vec* position;
-    unsigned int statue_index;
 
     position = sobj_get_world_pos(object);
     hide_sobj(object);
     zero_v3(&object->pos_vel);
-    object->flags_08 &= (unsigned char)~0x40;
-    object->flags_08 &= (unsigned char)~0x20;
+    object->flags_08_bits.bit6 = 0;
+    object->flags_08_bits.bit5 = 0;
     zero_v3(&object->ang_vel);
-    object->flags_08 &= (unsigned char)~0x08;
-    object->flags_08 &= (unsigned char)~0x04;
+    object->flags_08_bits.bit3 = 0;
+    object->flags_08_bits.angular_velocity_enabled = 0;
 
-    statue_index = object->id_flags;
-    if (statue_index < 7 && statue_index != 0) {
+    if (object->id_flags < 7 && object->id_flags != 0) {
         bgnd_launch_fx_at_position(
-            rock_xpd_effects[statue_index - 1],
+            rock_xpd_effects[object->id_flags - 1],
             position->x, position->y, position->z);
         bgnd_launch_fx_at_position(
-            rock_dust_effects[statue_index - 1],
+            rock_dust_effects[object->id_flags - 1],
             position->x, position->y, position->z);
     }
 }
 
+/*
+ * Soft ceiling: 88.87%, exact retail size and recovered limb monitor. The
+ * remaining differences are reflection scheduling, loop register coloring,
+ * and a portable fabs call where retail folds a floating absolute opcode.
+ */
 static float p_xpd_obj_monitor(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
-    PlayerBodyExplodePdata* pdata;
-    FighterMirror* fighter;
     int frame;
     int sound_delay;
+    SkyTempleExplodeMonitorPdata* pdata;
 
-    pdata = (PlayerBodyExplodePdata*)apdata;
-    fighter = pdata->player->slot.fighter;
+    pdata = (SkyTempleExplodeMonitorPdata*)apdata;
     frame = 0;
     sound_delay = 0;
 
@@ -1344,9 +1407,15 @@ static float p_xpd_obj_monitor(void) {
             FighterObjectRef* severed;
             MkObj* object;
 
-            severed = &fighter->severed_limbs[limb];
+            severed = &pdata->player->slot.fighter->severed_limbs[limb];
             object = severed->object;
-            if (object != 0 && object->hdr.instance != severed->instance) {
+            if (object != 0) {
+                if (object->hdr.instance == severed->instance) {
+                    /* Keep the validated limb. */
+                } else {
+                    object = 0;
+                }
+            } else {
                 object = 0;
             }
             if (object != 0) {
@@ -1394,7 +1463,7 @@ static float p_xpd_obj_monitor(void) {
         if (frame > 10 && frame < 100) {
             sound_delay--;
             if (sound_delay < 0) {
-                unsigned int sound;
+                unsigned short sound;
 
                 sound_delay = (int)randu0(30);
                 sound = randu0(4);
@@ -1418,20 +1487,22 @@ static float p_xpd_obj_monitor(void) {
 }
 
 /*
- * Soft ceiling: retail emits a three-instruction explicit null-normalization
- * tail for the object-instance latch. Clean typed C folds that equivalent
- * join; the remaining differences are allocation, scheduling, and pool
- * relocations, so no redundant branch is added to force the retail shape.
+ * Soft ceiling: 90.00%, exact retail size and recovered scale loop. The
+ * remaining differences are initialization scheduling and constant-pool
+ * relocations; the validated object-instance latch now matches structurally.
  */
 float p_skytemple_bodysplat(void) {
-    MkObj* object = 0;
-    SkyTempleBodysplatPdata* pdata = (SkyTempleBodysplatPdata*)apdata;
-    unsigned int object_instance = 0;
+    MkObj* object;
+    unsigned int object_instance;
     MkObj* loaded_object;
+    SkyTempleBodysplatPdata* pdata;
     float scale;
 
+    object = 0;
+    pdata = (SkyTempleBodysplatPdata*)apdata;
+    object_instance = 0;
     loaded_object =
-        load_named_model_from_slot(0x2001E, "ST_BLOODSPLAT", 0x2094, 0);
+        load_named_model_from_slot(0x2001E, "BODYSPLAT", 0x2094, 0);
     if (loaded_object != 0) {
         insert_fgnd_mkobj(loaded_object);
         object = loaded_object;
@@ -1447,11 +1518,11 @@ float p_skytemple_bodysplat(void) {
 
     scale = 1.0f;
     while (scale < 2.5f) {
-        MkObj* live_object = 0;
+        MkObj* live_object;
 
-        if (object != 0 && object->hdr.instance == object_instance) {
-            live_object = object;
-        }
+        live_object = object != 0
+                          ? (object->hdr.instance == object_instance ? object : 0)
+                          : 0;
         if (live_object != 0) {
             live_object->scale.x = scale;
             live_object->scale.z = scale;
@@ -1463,6 +1534,13 @@ float p_skytemple_bodysplat(void) {
     return -1.0f;
 }
 
+/*
+ * Soft ceiling: 94.01%, exact retail size and recovered bounce algorithm.
+ * Remaining differences are validated-object register coloring, equivalent
+ * reflection scheduling, and the external fabs call versus retail's folded
+ * floating absolute instruction. The TU's authentic prototype is retained
+ * because changing it regresses an existing exact function.
+ */
 static float p_cam_bounce_monitor(void) {
     CameraBouncePdata* pdata;
     MkObj* object;
@@ -1473,10 +1551,10 @@ static float p_cam_bounce_monitor(void) {
     float reflection;
 
     pdata = (CameraBouncePdata*)apdata;
-    object = pdata->object;
-    if (object != 0 && object->hdr.instance != pdata->object_instance) {
-        object = 0;
-    }
+    object = pdata->object != 0
+                 ? (pdata->object->hdr.instance == pdata->object_instance
+                        ? pdata->object : 0)
+                 : 0;
     if (camera_obj == 0 || object == 0) {
         return -1.0f;
     }
@@ -1484,10 +1562,10 @@ static float p_cam_bounce_monitor(void) {
     distance = dist_v3_to_v3(
         &camera_obj->pos, &object->pos.value);
     while (fabs(distance) > pdata->trigger_distance) {
-        object = pdata->object;
-        if (object != 0 && object->hdr.instance != pdata->object_instance) {
-            object = 0;
-        }
+        object = pdata->object != 0
+                     ? (pdata->object->hdr.instance == pdata->object_instance
+                            ? pdata->object : 0)
+                     : 0;
         if (object == 0) {
             return -1.0f;
         }
@@ -1497,10 +1575,10 @@ static float p_cam_bounce_monitor(void) {
         aproc->vtbl->sleep();
     }
 
-    object = pdata->object;
-    if (object != 0 && object->hdr.instance != pdata->object_instance) {
-        object = 0;
-    }
+    object = pdata->object != 0
+                 ? (pdata->object->hdr.instance == pdata->object_instance
+                        ? pdata->object : 0)
+                 : 0;
     if (object == 0) {
         return -1.0f;
     }

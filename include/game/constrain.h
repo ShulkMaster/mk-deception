@@ -3,6 +3,8 @@
 
 #include "runtime/mk_struct.h"
 
+extern Vec tightrope_perp_uv;
+
 typedef int (*ArenaObstacleCallback)(void);
 
 typedef struct ConstrainInfo {
@@ -45,7 +47,16 @@ typedef struct ArenaObstacle {
     MkPtr* shapes; /* +0x18 */
 } ArenaObstacle; /* 0x1C */
 
+struct CollisionShape;
+
 void set_constrain_last_pos(int player, const Vec* position);
 void set_constrain_last_pos_pdata(const Vec* position);
+ArenaObstacle* add_shape_to_background_obstacle_list(
+    const struct CollisionShape* shape, unsigned int obstacle_id);
+void set_background_obstacle_disable_flag(
+    int obstacle_id, int disabled);
+void set_background_obstacle_repel_flag(
+    int obstacle_id, int repel_disabled);
+int get_obstacle_type_from_id(unsigned int obstacle_id);
 
 #endif

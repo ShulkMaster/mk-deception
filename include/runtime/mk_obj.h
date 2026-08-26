@@ -415,9 +415,13 @@ typedef struct MkObj {
 
 /* Critical krypt APIs */
 MkSobj* obj_find_sobj_by_id(MkObj* obj, unsigned int id);
+RpMaterial* sobj_find_material_by_id(MkSobj* sobj,
+                                     unsigned int material_id);
 void sobj_set_priority(void* sobj, int priority);
 void hide_sobj(void* sobj);
 void unhide_sobj(void* sobj);
+void hide_sobj_and_children(MkSobj* sobj);
+void unhide_sobj_and_children(MkSobj* sobj);
 
 /* Frequently called siblings */
 MkSobj* obj_create_sobjs_by_id(MkObj* obj, int id);
@@ -432,7 +436,9 @@ MkSobj* hide_sobj_by_sobj_id(void* obj, unsigned int id);
 MkSobj* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
 void hide_obj(void* obj);
 void unhide_obj(void* obj);
-void* obj_first_sobj(void* obj);
+MkSobj* obj_first_sobj(MkObj* obj);
+void sobj_set_transl_flag(MkSobj* sobj);
+Vec* sobj_get_world_pos(MkSobj* sobj);
 RpAtomic* obj_get_1st_atomic(MkObj* obj);
 void insert_bone_hierarchy_mkobj(MkObj* obj);
 RwTexture* material_get_texture_pointer(
@@ -442,5 +448,7 @@ void material_set_texture_pointer(
 void* get_mkx_mem(void* allocation);
 MkObj* get_mkobj(int type, RpClump* clump);
 void destroy_mkobj(void* obj);
+
+extern MkPtr* fgnd_mkobj_list;
 
 #endif

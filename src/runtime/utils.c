@@ -13,11 +13,13 @@
 #include "platform/display.h"
 #include "runtime/fonts.h"
 #include "runtime/image.h"
+#include "runtime/asset.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/plyr_pdata.h"
 #include "rw/rpmatfx.h"
 #include "rw/rpskin.h"
@@ -229,6 +231,7 @@ int is_widescreen_mode(void);
 int strncmp(const char* a, const char* b, unsigned long n);
 int sprintf(char* dest, const char* fmt, ...);
 int snprintf(char* dest, unsigned long n, const char* fmt, ...);
+int printf(const char* fmt, ...);
 const char* pathname_create(const char* path, int flag);
 void* mwFileOpen(const char* path, int mode);
 void mwFileClose(void);
@@ -517,7 +520,21 @@ void set_far_clip_plane(float dist) {
     }
 }
 
-void* find_obj_by_id(int id) {
+MkObj* find_obj_by_id(int id) {
+    MkPtr* link;
+
+    link = first_mkptr(&fgnd_mkobj_list);
+    while (link != 0) {
+        MkObj* object = (MkObj*)link->hdr;
+
+        if (object->hdr.vtbl != &vtbl_mkobj) {
+            object = 0;
+        }
+        if (object != 0 && object->oid == id) {
+            return object;
+        }
+        link = next_mkptr(link);
+    }
     return 0;
 }
 
@@ -778,14 +795,26 @@ void hide_material(RpMaterial* material) {
     }
 }
 
-void material_set_color(RpMaterial* material, const RpMaterialColor* color) {
+RpMaterial* material_set_color(
+    RpMaterial* material, const RpMaterialColor* color) {
     material->color = *color;
+    return material;
 }
 
 void set_atomic_material_color_by_id(void* atomic, int id, int* color) {
 }
 
-void set_atomic_material_color(void* atomic, int* color) {
+RpAtomic* set_atomic_material_color(
+    RpAtomic* atomic, const RwRGBA* color) {
+    RpGeometry* geometry;
+
+    geometry = atomic->geometry;
+    if (geometry != 0) {
+        geometry->flags |= 0x40;
+        RpGeometryForAllMaterials(
+            geometry, (RpMaterialCallBack)material_set_color, (void*)color);
+    }
+    return atomic;
 }
 
 void obj_set_color_for_material_by_id(
@@ -1221,26 +1250,6 @@ extern void MKMatrixSetIdentity(void* m);
  * Mode-select 2D cloud polys use ScreenAnim UV keys, not this path.
  * Soft ceiling: dual/pass/matrix emit vs open-code; p_process coloring; stop.
  */
-typedef struct UvScrollControl {
-    MkHdr hdr;             /* +0x00 */
-    MkObj* owner;          /* +0x08 */
-    unsigned int owner_instance; /* +0x0C */
-    union {
-        void* target;
-        RpAtomic* atomic;
-        RpMaterial* material;
-    };                     /* +0x10 */
-    int target_is_atomic;  /* +0x14 */
-    unsigned int pass_flags; /* +0x18 */
-    float rateU1;          /* +0x1C */
-    float rateV1;          /* +0x20 */
-    float rateU2;          /* +0x24 */
-    float rateV2;          /* +0x28 */
-    unsigned int pad2c;    /* +0x2C -- keep mtx1 at +0x30 */
-    float mtx1[16];        /* +0x30 */
-    float mtx2[16];        /* +0x70 */
-} UvScrollControl; /* 0xB0 */
-
 enum {
     kUvPass1 = 1,
     kUvPass2 = 2,
@@ -1428,7 +1437,7 @@ static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
     return atomic;
 }
 
-void* find_uv_scroll_control_for_obj(MkObj* object) {
+UvScrollControl* find_uv_scroll_control_for_obj(MkObj* object) {
     MkPtr* node;
     MkPtr* next;
     UvScrollControl* ctrl;
@@ -1504,8 +1513,9 @@ static float p_process_uvscrolling(void) {
     return 1.0f;
 }
 
-void* material_start_uv_scroll(MkObj* owner, RpMaterial* material, float u1, float v1, float u2,
-                               float v2) {
+UvScrollControl* material_start_uv_scroll(
+    MkObj* owner, RpMaterial* material, float u1, float v1, float u2,
+    float v2) {
     UvScrollControl* ctrl;
     if (material == 0) {
         return 0;
@@ -1550,8 +1560,9 @@ void* material_start_uv_scroll(MkObj* owner, RpMaterial* material, float u1, flo
     return ctrl;
 }
 
-void* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1, float v1, float u2,
-                           float v2) {
+UvScrollControl* sobj_start_uv_scroll(
+    MkObj* owner, MkSobj* subobject, float u1, float v1, float u2,
+    float v2) {
     UvScrollControl* ctrl;
     RpAtomic* atomic;
     RpGeometry* geom;
@@ -1630,8 +1641,8 @@ void* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1, float v1, 
     return ctrl;
 }
 
-void* start_sobj_uv_scroll(MkObj* owner, int sobj_id, float u1, float v1, float u2,
-                          float v2) {
+UvScrollControl* start_sobj_uv_scroll(
+    MkObj* owner, int sobj_id, float u1, float v1, float u2, float v2) {
     MkSobj* subobject;
     void* result;
 
@@ -1644,9 +1655,14 @@ void* start_sobj_uv_scroll(MkObj* owner, int sobj_id, float u1, float v1, float 
     return result;
 }
 
-void* replace_sobj_texture_with_named_wiff(
-    void* sobj, int handle, const char* texture, const char* wiff) {
-    return NULL;
+AniTextureControl* replace_sobj_texture_with_named_wiff(
+    MkSobj* sobj, int handle, const char* texture, const char* wiff) {
+    if (get_artid_of_named_item_in_slot(handle, (char*)texture, 1) != 0 &&
+        sobj != 0) {
+        return attach_wiff_to_atomic_material(
+            handle, (char*)wiff, sobj->atomic, (char*)texture);
+    }
+    return 0;
 }
 
 /* Soft ceiling: sfrand_ab ~92.16% -- float branch shape and coloring. */
@@ -1714,8 +1730,37 @@ float signrand(void) {
     return 0.0f;
 }
 
+/*
+ * Exact 16-bit random scaling and validation; 93.64%, retail/local 180/172.
+ * Residue is pooled diagnostic-string addressing and multiply-result coloring.
+ */
 unsigned int randu0(unsigned int max) {
-    return 0;
+    char message[80];
+    unsigned int first_random;
+    unsigned int limit;
+    unsigned int random_value;
+    unsigned int result;
+
+    first_random = genlrand();
+    random_value = (unsigned char)first_random |
+                   ((unsigned char)genlrand() << 8);
+    limit = (unsigned short)max;
+    result = limit * random_value;
+    result >>= 16;
+    if (limit != 0) {
+        if (result >= limit) {
+            sprintf(message, "Randu0 Error 02: Input: %d  Output: %d", limit,
+                    result);
+            printf(message);
+            result = 0;
+        }
+    } else if (result != limit) {
+        sprintf(message, "Randu0 Error 04: Input: %d  Output: %d", limit,
+                result);
+        printf(message);
+        result = 0;
+    }
+    return (unsigned short)result;
 }
 
 unsigned int random(void) {

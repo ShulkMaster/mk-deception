@@ -149,6 +149,7 @@ typedef struct PlyrStateFlagBits {
 
 typedef union PlyrStateFlags {
     unsigned char raw;
+    unsigned int raw_word;
     PlyrStateFlagBits bits;
 } PlyrStateFlags;
 
@@ -233,7 +234,6 @@ typedef struct PlyrPdata {
     MkObj* his_obj;                   /* +0x14 */
     PlyrInfo* plyr_info;              /* +0x18 - GameInfo plyr0/plyr1 */
     PlyrStateFlags state_flags; /* +0x1C */
-    char pad1D[3];
     struct MkProc* own_player_proc; /* +0x20 */
     unsigned int own_player_proc_instance; /* +0x24 */
     struct MkProc* aux_player_proc; /* +0x28 */

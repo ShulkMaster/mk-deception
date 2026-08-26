@@ -13,6 +13,7 @@
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
+#include "game/bgnd.h"
 #include "game/game_info.h"
 #include "math/gxMath.h"
 #include "platform/main.h"
@@ -302,8 +303,6 @@ int drone_ai_check_block_at_reactions();
 void drone_ai_hit();
 void drone_ai_reset_ai_cmd();
 int drone_ai_check_combo_breaker();
-void bgnd_clear_danger_zone_callback();
-void bgnd_rx_notify();
 void enable_bgnd_obj_repel();
 void exit_plyr_proc();
 int my_joypad_state_5(void);

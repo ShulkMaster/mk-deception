@@ -103,7 +103,7 @@ static void destroy_owned_mkobj(MkObj* mkobj, MkObj* parent) {
     ((MkObjDestroyFn)mkobj->hdr.vtbl->destroy)(mkobj);
 }
 
-int adjust_point_light_associated_with_obj_radius(float delta, MkObj* obj) {
+int adjust_point_light_associated_with_obj_radius(MkObj* obj, float delta) {
     MkxRpLight* found;
     MkxRpLight* entry;
     RpLight* light;

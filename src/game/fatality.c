@@ -554,7 +554,6 @@ MkObj* load_weapon_reflection(int player, int weapon_id);
 void obj_create_sobjs(MkObj* object);
 MkObj* load_named_model_from_slot(
     int slot, const char* name, int flags, int arg);
-void* find_uv_scroll_control_for_obj(MkObj* object);
 void update_mkobj_pdata(MkObj* object, MkHdr* pdata);
 int build_bones_tbl(MkObj* object, const int* tags);
 void bone_matcher_parent_set_offset(

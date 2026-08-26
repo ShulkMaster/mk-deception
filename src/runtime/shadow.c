@@ -123,7 +123,7 @@ void insert_fgnd_mkobj(void* model);
 RpMaterial* obj_find_material_with_texture(
     ShadowboxObject* model, const char* name);
 void obj_create_sobjs(void* model);
-void* obj_first_sobj(void* model);
+MkSobj* obj_first_sobj(MkObj* model);
 void sobj_set_priority(void* sobj, int priority);
 void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
 
@@ -616,7 +616,7 @@ int SetupShadow(void* shadow_ptr) {
         }
     }
     obj_create_sobjs(box);
-    sobj = obj_first_sobj(box);
+    sobj = (ShadowSobj*)obj_first_sobj((MkObj*)box);
     if (sobj != NULL) {
         flags = sobj->flags09;
         flags = (flags & ~(1 << 7)) | (1 << 7);

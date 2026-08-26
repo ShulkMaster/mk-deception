@@ -11,7 +11,14 @@ typedef struct MkSobj MkSobj;
 typedef struct MkObj MkObj;
 typedef struct RwFrame RwFrame;
 typedef struct RwCamera RwCamera;
+typedef struct RpAtomic RpAtomic;
 typedef struct CameraAnimEvent CameraAnimEvent;
+typedef struct BackgroundDangerZone BackgroundDangerZone;
+
+BackgroundDangerZone* add_background_danger_zone(
+    RpAtomic* atomic, int type, int mode);
+void set_danger_zone_properties(
+    BackgroundDangerZone* zone, float scale, float y_offset);
 
 typedef struct VictoryCameraConfig {
     float radius;
@@ -240,5 +247,6 @@ void find_best_conversation_camera_position(void);
 
 extern CameraInfo camera_info;
 extern CameraItem camera_item;
+extern CameraObj* camera_obj;
 
 #endif

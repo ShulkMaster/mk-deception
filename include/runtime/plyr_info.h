@@ -15,6 +15,8 @@ typedef struct FighterRuntimeData FighterRuntimeData;
 typedef struct MkProc MkProc;
 typedef struct MkPtr MkPtr;
 typedef struct MkFileEntry MkFileEntry;
+typedef struct ShadowObject ShadowObject;
+typedef struct ShadowboxObject ShadowboxObject;
 
 typedef struct LinkedNode {
     void* data;
@@ -110,7 +112,9 @@ typedef struct FighterMirror {
             unsigned int severed_half_instance; /* +0x1B8 */
         };
     };
-    char pad1BC[0x10C];
+    char pad1BC[0x88];
+    int active; /* +0x244 - nonzero while fighter object is active */
+    char pad248[0x80];
     int field_2C8; /* +0x2C8 - set when a trial changes drone player state */
     char pad2CC[0x30];
     FighterStyleObj* style_objs[3]; /* +0x2FC - movelist style pfx parents */
@@ -200,11 +204,20 @@ typedef struct FighterAiTableContainer {
 
 typedef struct FighterSlot {
     union {
-        FighterMirror* fighter;
-        struct PlyrPdata* pdata;
-    };                      /* +0x00 */
-    MkObj* mirror_a;        /* +0x04 */
-    MkObj* mirror_b;        /* +0x08 - loaded REFLECT object */
+        struct {
+            union {
+                FighterMirror* fighter;
+                struct PlyrPdata* pdata;
+            };                  /* +0x00 */
+            MkObj* mirror_a;    /* +0x04 */
+            MkObj* mirror_b;    /* +0x08 - loaded REFLECT object */
+        };
+        struct {
+            ShadowObject* shadow;          /* +0x00 */
+            MkObj* shadow_object;          /* +0x04 */
+            ShadowboxObject* shadow_ground; /* +0x08 */
+        };
+    };
 } FighterSlot; /* 0x0C */
 
 typedef struct PlyrInfoFlags14 {

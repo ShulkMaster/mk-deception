@@ -150,7 +150,7 @@ static inline float bgnd_inv_sqrt(float value) {
     float product;
     float correction;
 
-    if (!(value > 0.0f)) {
+    if (value <= 0.0f) {
         return 0.0f;
     }
     guess.f = value;
@@ -168,7 +168,7 @@ static inline float bgnd_sqrt(float value) {
     } input, guess;
     float refined;
 
-    if (!(value > 0.0f)) {
+    if (value <= 0.0f) {
         return 0.0f;
     }
     input.f = value;
@@ -218,7 +218,10 @@ void start_cliff_watcher(float wait_ticks) {
 
     proc = _create_mkproc_generic_tinystack(
         0xB010, 0x1F, p_watch_cliffs, 0x38, &pdata.hdr);
-    if (proc == 0 || pdata.hdr == 0) {
+    if (proc == 0) {
+        return;
+    }
+    if (pdata.hdr == 0) {
         return;
     }
 
@@ -474,6 +477,11 @@ void mks_set_update_delay(int ticks, int random_ticks) {
     g_ticks_delay = ticks;
 }
 
+static inline int bgnd_list_is_valid(MkPtr** list) {
+    return list != 0;
+}
+
+/* Soft ceiling: 97.76% -- validated-process latch branch layout only. */
 void mks_removehide_by_group(int group_id, int remove_hide) {
     MkProc* proc;
     MkPtr** list;
@@ -496,10 +504,10 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     }
 
     list = &proc->pdata_list;
-    if (list == 0) {
+    if (!bgnd_list_is_valid(list)) {
         return;
     }
-    link = *list;
+    link = proc->pdata_list;
     while (link != 0) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
@@ -516,6 +524,7 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     }
 }
 
+/* Soft ceiling: 97.11% -- validation-latch and list-loop GPR coloring only. */
 void mks_shadow_scale(int group_id, int blend_ticks,
                       float start_scale, float end_scale) {
     MkProc* proc;
@@ -524,7 +533,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     MkPtr* next;
     BgndUpdateData* update;
     BgndUpdateCommandBlock* command;
-    BgndUpdateSlot* previous;
+    BgndUpdateCommandBlock* previous;
     int slot_index;
     int previous_index;
 
@@ -543,10 +552,10 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (list == 0) {
+    if (!bgnd_list_is_valid(list)) {
         return;
     }
-    link = *list;
+    link = proc->pdata_list;
     while (link != 0) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
@@ -562,7 +571,8 @@ void mks_shadow_scale(int group_id, int blend_ticks,
                 command->slot.blend_numerator = blend_ticks;
                 command->slot.blend_divisor = blend_ticks;
                 command->delay = g_ticks_delay +
-                                 randu0((unsigned short)(g_delay_rnd + 1));
+                    (unsigned short)randu0(
+                        (unsigned short)(g_delay_rnd + 1));
                 command->slot.field_34 = 0.0f;
                 command->slot.update_fn = update_func_shadow_scale;
                 command->slot_index = slot_index;
@@ -575,17 +585,19 @@ void mks_shadow_scale(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = &update->slots[previous_index];
-                previous->shadow_scale = start_scale;
-                previous->start_value = start_scale;
-                previous->end_value = end_scale;
-                previous->enabled = 1;
+                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
+                                                     previous_index * 0x50);
+                previous->slot.shadow_scale = start_scale;
+                previous->slot.start_value = start_scale;
+                previous->slot.end_value = end_scale;
+                previous->slot.enabled = 1;
             }
             link = link->next;
         }
     }
 }
 
+/* Soft ceiling: 96.51% -- validation-latch and list-loop GPR coloring only. */
 void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     MkProc* proc;
     MkPtr** list;
@@ -610,10 +622,10 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     }
 
     list = &proc->pdata_list;
-    if (list == 0) {
+    if (!bgnd_list_is_valid(list)) {
         return;
     }
-    link = *list;
+    link = proc->pdata_list;
     while (link != 0) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
@@ -629,7 +641,8 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
                 command->slot.blend_numerator = blend_ticks;
                 command->slot.blend_divisor = blend_ticks;
                 command->delay = g_ticks_delay +
-                                 randu0((unsigned short)(g_delay_rnd + 1));
+                    (unsigned short)randu0(
+                        (unsigned short)(g_delay_rnd + 1));
                 command->slot.field_34 = 0.0f;
                 command->slot.update_fn = update_func_blend_start;
                 command->slot_index = slot_index;
@@ -644,6 +657,7 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     }
 }
 
+/* Soft ceiling: 97.41% -- validation-latch and list-loop GPR coloring only. */
 void mks_gravity_update_by_group(int group_id, int blend_ticks,
                                  float velocity_x, float velocity_y,
                                  float velocity_z, float gravity) {
@@ -653,7 +667,7 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
     MkPtr* next;
     BgndUpdateData* update;
     BgndUpdateCommandBlock* command;
-    BgndUpdateSlot* previous;
+    BgndUpdateCommandBlock* previous;
     int slot_index;
     int previous_index;
 
@@ -672,10 +686,10 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (list == 0) {
+    if (!bgnd_list_is_valid(list)) {
         return;
     }
-    link = *list;
+    link = proc->pdata_list;
     while (link != 0) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
@@ -691,7 +705,8 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
                 command->slot.blend_numerator = blend_ticks;
                 command->slot.blend_divisor = blend_ticks;
                 command->delay = g_ticks_delay +
-                                 randu0((unsigned short)(g_delay_rnd + 1));
+                    (unsigned short)randu0(
+                        (unsigned short)(g_delay_rnd + 1));
                 command->slot.field_34 = 0.0f;
                 command->slot.update_fn = update_func_fall;
                 command->slot_index = slot_index;
@@ -704,17 +719,19 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = &update->slots[previous_index];
-                previous->fall_acceleration = gravity;
-                previous->direction.x = velocity_x;
-                previous->direction.y = velocity_y;
-                previous->direction.z = velocity_z;
+                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
+                                                     previous_index * 0x50);
+                previous->slot.fall_acceleration = gravity;
+                previous->slot.direction.x = velocity_x;
+                previous->slot.direction.y = velocity_y;
+                previous->slot.direction.z = velocity_z;
             }
             link = link->next;
         }
     }
 }
 
+/* Soft ceiling: 97.86% -- validated-process latch and GPR coloring only. */
 void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                                   float speed, float speed_param,
                                   float random_range) {
@@ -724,10 +741,13 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     MkPtr* next;
     BgndUpdateData* update;
     BgndUpdateCommandBlock* command;
-    BgndUpdateSlot* previous;
+    BgndUpdateCommandBlock* previous;
     MkSobj* object;
     float inverse_length;
     float varied_speed;
+    float position_x;
+    float position_y;
+    float position_z;
     int slot_index;
     int previous_index;
 
@@ -746,10 +766,10 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (list == 0) {
+    if (!bgnd_list_is_valid(list)) {
         return;
     }
-    link = *list;
+    link = proc->pdata_list;
     while (link != 0) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
@@ -765,7 +785,8 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                 command->slot.blend_numerator = blend_ticks;
                 command->slot.blend_divisor = blend_ticks;
                 command->delay = g_ticks_delay +
-                                 randu0((unsigned short)(g_delay_rnd + 1));
+                    (unsigned short)randu0(
+                        (unsigned short)(g_delay_rnd + 1));
                 command->slot.field_34 = 0.0f;
                 command->slot.update_fn = update_func_awayxz;
                 command->slot_index = slot_index;
@@ -778,21 +799,24 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = &update->slots[previous_index];
+                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
+                                                     previous_index * 0x50);
                 varied_speed = speed +
                                (frand(random_range) - 0.5f * random_range);
-                previous->speed = varied_speed;
-                previous->initial_speed = varied_speed;
-                previous->speed_param = speed_param;
+                previous->slot.speed = varied_speed;
+                previous->slot.initial_speed = varied_speed;
+                previous->slot.speed_param = speed_param;
 
                 object = update->object;
+                position_y = object->pos.y;
+                position_x = object->pos.x;
+                position_z = object->pos.z;
                 inverse_length = bgnd_inv_sqrt(
-                    object->pos.x * object->pos.x +
-                    object->pos.y * object->pos.y +
-                    object->pos.z * object->pos.z);
-                previous->direction.x = object->pos.x * inverse_length;
-                previous->direction.y = object->pos.y * inverse_length;
-                previous->direction.z = object->pos.z * inverse_length;
+                    position_z * position_z +
+                    (position_x * position_x + position_y * position_y));
+                previous->slot.direction.x = position_x * inverse_length;
+                previous->slot.direction.y = position_y * inverse_length;
+                previous->slot.direction.z = position_z * inverse_length;
             }
             link = link->next;
         }
@@ -802,6 +826,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
 void mks_set_rotate_update_by_group(void) {
 }
 
+/* Soft ceiling: 96.83% -- validation-latch and list-loop GPR coloring only. */
 void mks_set_sin_update_by_group(int group_id, int blend_ticks,
                                  int update_flags, int extra_flags,
                                  float start_value, float end_value,
@@ -813,7 +838,7 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
     MkPtr* next;
     BgndUpdateData* update;
     BgndUpdateCommandBlock* command;
-    BgndUpdateSlot* previous;
+    BgndUpdateCommandBlock* previous;
     int slot_index;
     int previous_index;
 
@@ -832,10 +857,10 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
     }
 
     list = &proc->pdata_list;
-    if (list == 0) {
+    if (!bgnd_list_is_valid(list)) {
         return;
     }
-    link = *list;
+    link = proc->pdata_list;
     while (link != 0) {
         update = (BgndUpdateData*)link->hdr;
         if (link->instance != update->instance) {
@@ -851,7 +876,8 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
                 command->slot.blend_numerator = blend_ticks;
                 command->slot.blend_divisor = blend_ticks;
                 command->delay = g_ticks_delay +
-                                 randu0((unsigned short)(g_delay_rnd + 1));
+                    (unsigned short)randu0(
+                        (unsigned short)(g_delay_rnd + 1));
                 command->slot.field_34 = 0.0f;
                 command->slot.update_fn = update_func_sin;
                 command->slot_index = slot_index;
@@ -864,17 +890,18 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
                 if (previous_index < 0) {
                     previous_index = 1;
                 }
-                previous = &update->slots[previous_index];
-                previous->shadow_scale = start_value;
-                previous->start_value = start_value;
-                previous->end_value = end_value;
-                previous->speed = start_speed;
-                previous->initial_speed = start_speed;
-                previous->speed_param = speed_param;
-                previous->sin_rate = sin_rate;
-                previous->sin_phase = sin_phase;
-                previous->enabled = update_flags;
-                previous->enabled |= extra_flags;
+                previous = (BgndUpdateCommandBlock*)((unsigned char*)update +
+                                                     previous_index * 0x50);
+                previous->slot.shadow_scale = start_value;
+                previous->slot.start_value = start_value;
+                previous->slot.end_value = end_value;
+                previous->slot.speed = start_speed;
+                previous->slot.initial_speed = start_speed;
+                previous->slot.speed_param = speed_param;
+                previous->slot.sin_rate = sin_rate;
+                previous->slot.sin_phase = sin_phase;
+                previous->slot.enabled = update_flags;
+                previous->slot.enabled |= extra_flags;
             }
             link = link->next;
         }
@@ -949,6 +976,10 @@ void bgnd_insert_obj_ctrl_section(int object_id, int section) {
     }
 }
 
+/*
+ * Soft ceiling: 93.43% -- validated-process latch and equivalent inline
+ * square-root lookup/temporary scheduling only.
+ */
 static void insert_obj_ctrl_section(MkSobj* object, int section) {
     MkProc* proc;
     MkHdr* pdata;
@@ -984,14 +1015,15 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
     update = (BgndUpdateData*)pdata;
     update->object = object;
     update->group_id = section;
-    object->flags_08 |= 0x40;
+    object->flags_08_bits.bit6 = 1;
     update->origin.x = object->pos.x;
     update->origin.y = object->pos.y;
     update->origin.z = object->pos.z;
-    length_squared = update->origin.x * update->origin.x +
-                     update->origin.y * update->origin.y +
-                     update->origin.z * update->origin.z;
-    update->origin_length = bgnd_sqrt(length_squared);
+    length_squared = update->origin.z * update->origin.z +
+                     (update->origin.x * update->origin.x +
+                      update->origin.y * update->origin.y);
+    update->origin_length = length_squared;
+    update->origin_length = bgnd_sqrt(update->origin_length);
     update->remove_hide = -1;
     update->active_slot = 0;
 
@@ -1016,6 +1048,7 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
     }
 }
 
+/* Soft ceiling: 99.12% -- GPR coloring and li-zero versus mr-zero only. */
 static float p_obj_ctrl(void) {
     BgndUpdateData* update;
     BgndUpdateCommandBlock* command;
@@ -1112,6 +1145,7 @@ static void update_func_shadow_scale(BgndUpdateData* update, int index) {
     object->scale.z = shadow_scale;
 }
 
+/* Soft ceiling: 91.42% -- equivalent blend-expression scheduling/FPR coloring. */
 static void update_func_blend_start(BgndUpdateData* update, int index) {
     BgndUpdateSlot* slot;
     MkSobj* object;
@@ -1174,9 +1208,8 @@ static void update_func_fall(BgndUpdateData* update, int index) {
         update_seconds_per_frame * command->slot.fall_acceleration;
 }
 
+/* Soft ceiling: 98.91% -- FPR coloring and float-pool labels only. */
 static void update_func_sin(BgndUpdateData* update, int index) {
-    BgndUpdateCommandBlock* command;
-    BgndUpdateSlot* slot;
     MkSobj* object;
     float frame_time;
     float base_angle;
@@ -1189,45 +1222,35 @@ static void update_func_sin(BgndUpdateData* update, int index) {
         return;
     }
 
-    command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-    slot = &command->slot;
-    frame_time = (float)(slot->blend_divisor - slot->blend_numerator) / 60.0f;
+    frame_time = (float)(update->slots[index].blend_divisor -
+                         update->slots[index].blend_numerator) / 60.0f;
 
-    if ((slot->enabled & 4) != 0) {
-        random_offset = frand(slot->sin_phase);
-        command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-        slot = &command->slot;
+    if ((update->slots[index].enabled & 4) != 0) {
+        random_offset = frand(update->slots[index].sin_phase);
         base_angle = update->origin_length *
-                     (slot->sin_rate + random_offset);
-    } else if ((slot->enabled & 8) != 0) {
-        random_offset = frand(slot->sin_phase);
-        command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-        slot = &command->slot;
+                     (update->slots[index].sin_rate + random_offset);
+    } else if ((update->slots[index].enabled & 8) != 0) {
+        random_offset = frand(update->slots[index].sin_phase);
         base_angle = object->pos.x *
-                     (slot->sin_rate + random_offset);
-    } else if ((slot->enabled & 0x20) != 0) {
+                     (update->slots[index].sin_rate + random_offset);
+    } else if ((update->slots[index].enabled & 0x20) != 0) {
         base_angle = gxMathArcTanYX(update->origin.x, update->origin.z);
-        command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-        random_offset = frand(command->slot.sin_phase);
-        command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-        base_angle *= command->slot.sin_rate + random_offset;
+        random_offset = frand(update->slots[index].sin_phase);
+        base_angle *= update->slots[index].sin_rate + random_offset;
     } else {
-        random_offset = frand(slot->sin_phase);
-        command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-        slot = &command->slot;
+        random_offset = frand(update->slots[index].sin_phase);
         base_angle = object->pos.x *
-                     (slot->sin_rate + random_offset);
+                     (update->slots[index].sin_rate + random_offset);
     }
 
-    command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-    sine = gxMathSin(6.28f * command->slot.speed * frame_time + base_angle);
-    command = (BgndUpdateCommandBlock*)((unsigned char*)update + index * 0x50);
-    slot = &command->slot;
-    value = slot->shadow_scale * sine;
-    object->pos.y += value - slot->field_34;
-    slot->field_34 = value;
+    sine = gxMathSin(
+        6.28f * update->slots[index].speed * frame_time + base_angle);
+    value = update->slots[index].shadow_scale * sine;
+    object->pos.y += value - update->slots[index].field_34;
+    update->slots[index].field_34 = value;
 }
 
+/* Soft ceiling: 94.51% -- validated-process latch and list-loop branch layout. */
 void bgnd_detach_rope(int model_index) {
     MkObj* model;
     MkProc* proc;
@@ -1280,6 +1303,7 @@ void bgnd_detach_rope(int model_index) {
     }
 }
 
+/* Soft ceiling: 96.06% -- validated-process latch and list-loop branch layout. */
 void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) {
     MkObj* model;
     MkProc* proc;
@@ -1340,10 +1364,14 @@ void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) 
     }
 }
 
+/*
+ * Soft ceiling: 93.55% -- defensive-guard, validation-latch, and loop keep-edge
+ * branch layout only.
+ */
 void bgnd_attach_rope_to_bgnd_obj(
     int rope_model_index, int target_model_index, int object_id) {
-    MkObj* rope_model;
     MkObj* target_model;
+    MkObj* rope_model;
     MkProc* proc;
     RopeControllerData* rope;
 
@@ -1353,6 +1381,9 @@ void bgnd_attach_rope_to_bgnd_obj(
     }
     target_model = g_bgnd_preloaded_models[target_model_index];
     if (target_model == 0) {
+        return;
+    }
+    if (rope_model == 0 || target_model == 0) {
         return;
     }
 
@@ -1396,6 +1427,7 @@ void bgnd_attach_rope_to_bgnd_obj(
     }
 }
 
+/* Soft ceiling: 94.08% -- validated-process latch branch/GPR coloring only. */
 void bgnd_preload_obj_attach_rope(int model_index) {
     MkHdr* rope_pdata;
     MkObj* model;
@@ -1407,8 +1439,13 @@ void bgnd_preload_obj_attach_rope(int model_index) {
     }
 
     rope_proc = rope_proc_item.proc;
-    if (rope_proc != 0 &&
-        rope_proc->instance != rope_proc_item.instance) {
+    if (rope_proc != 0) {
+        if (rope_proc->instance == rope_proc_item.instance) {
+            /* Keep the validated process. */
+        } else {
+            rope_proc = 0;
+        }
+    } else {
         rope_proc = 0;
     }
     if (rope_proc == 0) {
@@ -1452,8 +1489,14 @@ static float p_rope(void) {
     return 1.0f;
 }
 
+/*
+ * Soft ceiling: 90.23% -- aligned-matrix call scheduling and register
+ * allocation only; operations, accesses, loop, and frame alignment agree.
+ */
 static void rope_controller_init(MkHdr* pdata, MkObj* model) {
     RopeControllerData* rope;
+    RopeInfo* info_base;
+    int segment_count;
     int i;
 
     rope = (RopeControllerData*)pdata;
@@ -1461,9 +1504,11 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
     rope->attached_model = 0;
     rope->attached_object_id = 0;
     build_bones_tbl(model, rope_bones);
+    segment_count = n_rope_info;
+    info_base = g_rope_info;
     update_bone_hierarchy(model != 0 ? as_mkhdr(&model->hdr) : 0);
 
-    rope->segment_count = n_rope_info;
+    rope->segment_count = segment_count;
     rope->damping = 0.975f;
     for (i = 0; i < rope->segment_count; i++) {
         RopeSegment* segment;
@@ -1471,7 +1516,7 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
         MkBone* bone;
 
         segment = &rope->segments[i];
-        info = &g_rope_info[i];
+        info = &info_base[i];
         segment->velocity.x = 0.0f;
         segment->velocity.y = 0.0f;
         segment->velocity.z = 0.0f;
@@ -1500,8 +1545,8 @@ static void rope_controller_init(MkHdr* pdata, MkObj* model) {
 
         if (bone->transform_parent != 0) {
             MkBone* child;
-            RwMatrix bone_matrix;
-            RwMatrix child_matrix;
+            RwMatrix bone_matrix __attribute__((aligned(16)));
+            RwMatrix child_matrix __attribute__((aligned(16)));
 
             child = bone->transform_parent;
             child->flags_54_bits.calculation_locked = 1;

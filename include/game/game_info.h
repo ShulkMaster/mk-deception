@@ -21,9 +21,11 @@
 #include "game/bgnd_types.h"
 #include "math/gxVect.h"
 #include "runtime/plyr_info.h"
+#include "runtime/mk_struct.h"
 
 typedef struct MkObj MkObj;
 typedef struct MkProc MkProc;
+typedef struct PlyrPdata PlyrPdata;
 typedef struct ScriptSlot ScriptSlot;
 
 typedef struct SkyMkobj {
@@ -84,7 +86,7 @@ typedef struct GamePauseFlags {
 typedef struct GameSwitchInputFlags {
     unsigned char pad_7_6 : 2;
     unsigned char field_bit5 : 1;
-    unsigned char pad_4 : 1;
+    unsigned char view_danger_zones : 1; /* bit4 */
     unsigned char eat_switches : 1; /* bit3 - pause/online input suppression */
     unsigned char pad_2_0 : 3;
 } GameSwitchInputFlags;
@@ -101,12 +103,14 @@ typedef union GameFeatureFlags {
     GameFeatureFlagBits bits;
 } GameFeatureFlags;
 
+typedef struct BgndWallHiderRuntime BgndWallHiderRuntime;
+
 typedef struct GameInfoFlags {
     unsigned char high_res_path : 1; /* bit7 */
-    unsigned char pad_bit6 : 1;
+    unsigned char field_bit6 : 1;
     unsigned char lens_flare_enabled : 1; /* bit5 */
-    unsigned char pad_bit4 : 1;
-    unsigned char pad_bit3 : 1;
+    unsigned char level_transition_active : 1; /* bit4 */
+    unsigned char level_fatality_active : 1;   /* bit3 */
     unsigned char level_fatality_done : 1; /* bit2 */
     unsigned char pad_bit1 : 1;
     unsigned char field_bit0 : 1;
@@ -136,6 +140,27 @@ typedef struct GameInfoPselectTail {
     int field_1f4; /* +0x1F4 - round index (do_fight_effect lwz) */
 } GameInfoPselectTail; /* 0x28 */
 
+typedef struct BgndWallHiderData {
+    MkHdr hdr; /* +0x00 */
+    MkPtr* walls; /* +0x08 */
+    float hide_distance; /* +0x0C */
+    union {
+        unsigned int flags; /* +0x10 */
+        struct {
+            union {
+                unsigned char flags_byte;
+                struct {
+                    unsigned char disabled : 1; /* bit7 */
+                    unsigned char kill_process : 1; /* bit6 */
+                    unsigned char pad_low : 6;
+                } flag_bits;
+            };
+            char pad11[3];
+        };
+    };
+    BgndWallHiderRuntime* runtime; /* +0x14 */
+} BgndWallHiderData;
+
 typedef struct GameInfo {
     union {
         unsigned char flags;
@@ -159,24 +184,44 @@ typedef struct GameInfo {
     int bgnd_id; /* +0x18 */
     int active_level; /* +0x1C - current multi-level arena index */
     ScriptSlot* cmdscript; /* +0x20 - loaded MKO body from cmdscript_loadfile_* */
-    char pad24[8];
+    int bgnd_cycle_index; /* +0x24 */
+    char pad28[4];
     MkObj* bgnd_obj; /* +0x2C */
     MkObj* sky;      /* +0x30 */
     float field_34;  /* +0x34 - fade / particle / mab */
     Vec impact_vector; /* +0x38 - normalized/scaled death-trap impact */
     PlyrInfo* active_player; /* +0x44 - current fight player */
-    char pad48[4];
+    PlyrInfo* collision_player_info; /* +0x48 */
     MkObj* player_objects[2]; /* +0x4C */
-    char pad54[0x0C];
-    int field_60; /* +0x60 */
-    int field_64; /* +0x64 */
-    int field_68; /* +0x68 */
+    int collision_player_side; /* +0x54 */
+    PlyrPdata* collision_player_pdata; /* +0x58 */
+    int collision_event_id; /* +0x5C */
+    MkPtr* displayed_items; /* +0x60 - BgndDisplayedItem list */
+    MkPtr* field_64; /* +0x64 - owned background list */
+    BgndWallHiderData* wall_hider; /* +0x68 */
     MkProc* camera_proc; /* +0x6C */
     unsigned int camera_proc_instance; /* +0x70 */
-    int field_74; /* +0x74 */
-    char pad78[0x1C];
-    int field_94; /* +0x94 */
-    char pad98[0xC];
+    union {
+        int field_74;
+        struct {
+            unsigned char clean_floor : 1; /* bit7 */
+            unsigned char field_74_bit6 : 1;
+            unsigned char field_74_pad_bits : 6;
+            unsigned char field_75_77[3];
+        } floor_flags;
+        struct {
+            unsigned char blood_pad_high : 2;
+            unsigned char blood_enabled : 1; /* bit5 */
+            unsigned char blood_pad_low : 5;
+            unsigned char blood_pad_75_77[3];
+        } blood_flags;
+    }; /* +0x74 */
+    int field_78; /* +0x78 */
+    int bgnd_timer_ticks[3]; /* +0x7C */
+    int bgnd_timer_limits[3]; /* +0x88 */
+    MkPtr* npc_list; /* +0x94 - background NPC records */
+    float crack_count; /* +0x98 - reset with crack pool, increments on placement */
+    char pad9C[8];
     PlyrInfo plyr0; /* +0xA4 */
     PlyrInfo plyr1; /* +0x110 -- ends 0x17C */
     union {

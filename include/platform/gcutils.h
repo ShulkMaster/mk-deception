@@ -5,7 +5,8 @@
 extern "C" {
 #endif
 
-void set_texture_mipmap_KL_manual(void);
+typedef struct RwTexture RwTexture;
+void set_texture_mipmap_KL_manual(RwTexture* texture, int k, float l);
 void clear_alpha_channel(void);
 void gc_enable_alpha_writes(unsigned char enable);
 void gc_setup_render_mode(unsigned int pixel_format);

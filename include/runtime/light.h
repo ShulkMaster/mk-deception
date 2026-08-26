@@ -45,7 +45,7 @@ struct MkxRpLight {
 #define MKX_RPLIGHT_FROM_HDR(hdr_) ((MkxRpLight*)(hdr_))
 #define LIGHT_PDATA_FROM_HDR(hdr_) ((LightPdata*)(hdr_))
 
-int adjust_point_light_associated_with_obj_radius(float delta, MkObj* obj);
+int adjust_point_light_associated_with_obj_radius(MkObj* obj, float delta);
 void obj_add_to_skinned_obj_light_list_with_ambient(MkObj* obj, LightDef* def);
 void obj_change_to_bgnd_obj_light_list(MkObj* obj, LightDef* def);
 void obj_change_to_skinned_obj_light_list(MkObj* obj, LightDef* def);
@@ -58,8 +58,10 @@ void load_back_in_lights(LightDef** defs, MkPtr** list);
 void clear_all_lights_in(MkPtr** list);
 void load_lights(LightDef** defs, MkPtr** list);
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent);
+MkxRpLight* find_mkx_rplight_in_obj(MkObj* obj);
 
 extern MkObj* light_obj;
 extern LightPdata* light_pdata;
+extern MkPtr* point_light_list;
 
 #endif

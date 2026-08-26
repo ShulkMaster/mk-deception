@@ -1007,7 +1007,7 @@ hflags = &obj->flag_bits;
  * coloring; plus float pool label diffs. */
 AniTextureControl* append_texture_by_name_to_atomic_material_id(int slot, char* name,
                                                                  RpAtomic* atomic,
-                                                                 unsigned short material_id,
+                                                                 int material_id,
                                                                  int flag) {
     RpClump* clump;
     ImageClumpExt* clump_ext;
@@ -1017,6 +1017,7 @@ AniTextureControl* append_texture_by_name_to_atomic_material_id(int slot, char* 
     int levels;
     int pot;
     AtcFlagBits* fbits;
+
 
     clump = atomic->clump;
     if (clump == 0) {

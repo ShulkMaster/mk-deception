@@ -270,7 +270,7 @@ JabBoneMatcherState* start_bone_matcher(
 void bone_matcher_parent_set_offset(
     JabBoneMatcherState* matcher, const float* offset);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
-void pfxhandle_bgnd_spawn_at_position(
+unsigned int pfxhandle_bgnd_spawn_at_position(
     const char* effect_name, float x, float y, float z);
 static void sh_spawn_grinder_crush_blood(void);
 int am_i_flipped(void);

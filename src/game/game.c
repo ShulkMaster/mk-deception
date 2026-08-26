@@ -838,7 +838,7 @@ int check_for_winner(void) {
             }
         }
     } else {
-        if (!g_game_info.flag_bits.pad_bit3) {
+        if (!g_game_info.flag_bits.level_fatality_active) {
             if (g_game_info.plyr0.field_0C == 0.0f &&
                 g_game_info.plyr1.field_0C == 0.0f) {
                 if ((randu0(2) & 0xFFFF) == 0) {
@@ -1586,7 +1586,7 @@ int round_over(void) {
         return trial_end_round() == 0;
     }
 
-    g_game_info.flag_bits.pad_bit6 = 0;
+    g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.flag_bits.field_bit0 = 1;
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
@@ -1686,7 +1686,7 @@ int round_over(void) {
         break;
     default:
         do_win_effect();
-        while (g_game_info.flag_bits.pad_bit3) {
+        while (g_game_info.flag_bits.level_fatality_active) {
             _mkproc_sleep_ticks = 1.0f;
             ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
         }
@@ -1900,7 +1900,7 @@ void round_init(void) {
     }
 
     g_game_info.flag_bits.field_bit0 = 0;
-    g_game_info.flag_bits.pad_bit6 = 1;
+    g_game_info.flag_bits.field_bit6 = 1;
     round_winner = 0;
     g_game_info.flag_bits.lens_flare_enabled = 0;
     f_fatality_finished = 0;
@@ -2008,7 +2008,7 @@ void game_init(void) {
     g_game_info.plyr1.field_40 = 0;
     winner = -1;
     g_game_info.pselect.field_1f4 = 1;
-    g_game_info.flag_bits.pad_bit6 = 0;
+    g_game_info.flag_bits.field_bit6 = 0;
     f_fatality_available = 0;
     set_level_fatality_done_flag_state(0);
 
@@ -2075,9 +2075,9 @@ int update_game_timer(void) {
         timer_active = 0;
     } else if (g_game_info.flag_bits.level_fatality_done) {
         timer_active = 0;
-    } else if (g_game_info.flag_bits.pad_bit3) {
+    } else if (g_game_info.flag_bits.level_fatality_active) {
         timer_active = 0;
-    } else if (g_game_info.flag_bits.pad_bit4) {
+    } else if (g_game_info.flag_bits.level_transition_active) {
         timer_active = 0;
     } else {
         timer_active = 1;
@@ -2824,8 +2824,8 @@ float p_game_loop(void) {
     }
 
     timeout = 420;
-    while (g_game_info.flag_bits.pad_bit3 ||
-           g_game_info.flag_bits.pad_bit4) {
+    while (g_game_info.flag_bits.level_fatality_active ||
+           g_game_info.flag_bits.level_transition_active) {
         timeout--;
         if (timeout < 0) {
             break;
@@ -2958,7 +2958,7 @@ float p_gamelogic(void) {
     tables = (char*)plyr_ending_timings;
     turn_controllers_off();
     start_time = (unsigned int)debug_get_msec_timer();
-    g_game_info.flag_bits.pad_bit6 = 0;
+    g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.pause_flag_bits.fatality_window = 0;
     f_fatality_was_done = 0;
     round_winner = 0;
