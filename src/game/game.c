@@ -838,7 +838,7 @@ int check_for_winner(void) {
             }
         }
     } else {
-        if (!g_game_info.flag_bits.pad_bit3) {
+        if (!g_game_info.flag_bits.level_fatality_active) {
             if (g_game_info.plyr0.field_0C == 0.0f &&
                 g_game_info.plyr1.field_0C == 0.0f) {
                 if ((randu0(2) & 0xFFFF) == 0) {
@@ -1686,7 +1686,7 @@ int round_over(void) {
         break;
     default:
         do_win_effect();
-        while (g_game_info.flag_bits.pad_bit3) {
+        while (g_game_info.flag_bits.level_fatality_active) {
             _mkproc_sleep_ticks = 1.0f;
             ((GameProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
         }
@@ -2075,9 +2075,9 @@ int update_game_timer(void) {
         timer_active = 0;
     } else if (g_game_info.flag_bits.level_fatality_done) {
         timer_active = 0;
-    } else if (g_game_info.flag_bits.pad_bit3) {
+    } else if (g_game_info.flag_bits.level_fatality_active) {
         timer_active = 0;
-    } else if (g_game_info.flag_bits.pad_bit4) {
+    } else if (g_game_info.flag_bits.level_transition_active) {
         timer_active = 0;
     } else {
         timer_active = 1;
@@ -2824,8 +2824,8 @@ float p_game_loop(void) {
     }
 
     timeout = 420;
-    while (g_game_info.flag_bits.pad_bit3 ||
-           g_game_info.flag_bits.pad_bit4) {
+    while (g_game_info.flag_bits.level_fatality_active ||
+           g_game_info.flag_bits.level_transition_active) {
         timeout--;
         if (timeout < 0) {
             break;

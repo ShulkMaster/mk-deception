@@ -31,21 +31,16 @@ extern void p_gamelogic(void);
 void nbc_script_debug_point(void) {}
 
 /*
- * Soft ceiling: Q28's two-variable latch restores retail's initial r5 load
- * and improves both helpers, but MWCC keeps the live pointer in r3 and emits
- * a keep-arm move where retail coalesces it into r5.
+ * Soft ceiling: both camera getters are 93.333336%. The resolved camera is
+ * carried in r3 after one mr; retail coalesces the same value into r5.
  */
 float bgnd_get_camera_z_pos(void) {
-    CameraObj* raw;
     CameraObj* cam;
+    CameraObj* raw;
 
     raw = camera_item.node;
     if (raw != 0) {
-        if (raw->hdr.instance != camera_item.instance) {
-            cam = 0;
-        } else {
-            cam = raw;
-        }
+        cam = (raw->hdr.instance == camera_item.instance) ? raw : 0;
     } else {
         cam = 0;
     }
@@ -56,16 +51,12 @@ float bgnd_get_camera_z_pos(void) {
 }
 
 float bgnd_get_camera_y_angle(void) {
-    CameraObj* raw;
     CameraObj* cam;
+    CameraObj* raw;
 
     raw = camera_item.node;
     if (raw != 0) {
-        if (raw->hdr.instance != camera_item.instance) {
-            cam = 0;
-        } else {
-            cam = raw;
-        }
+        cam = (raw->hdr.instance == camera_item.instance) ? raw : 0;
     } else {
         cam = 0;
     }
