@@ -1,12 +1,6 @@
 #include "dolphin/ax.h"
+#include "dolphin/ax_internal.h"
 #include "dolphin/os.h"
-
-#define AX_PRIORITY_STACKS 32
-
-extern void __AXSetPBDefault(AXVPB* voice);
-AXVPB* __AXPopCallbackStack(void);
-void __AXRemoveFromStack(AXVPB* voice);
-void __AXPushFreeStack(AXVPB* voice);
 
 static AXVPB* __AXStackHead[AX_PRIORITY_STACKS];
 static AXVPB* __AXStackTail[AX_PRIORITY_STACKS];
@@ -54,7 +48,7 @@ static AXVPB* __AXPopFreeStack(void)
 {
     AXVPB* voice;
 
-    voice = (void*)(unsigned long)&__AXStackHead[0]->next;
+    voice = __AXStackHead[0];
     if (voice) {
         __AXStackHead[0] = voice->next;
     }

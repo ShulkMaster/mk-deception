@@ -1,7 +1,5 @@
 #include "dolphin/ax.h"
 
-typedef unsigned short u16;
-
 #define ATTRIBUTE_ALIGN(n) __attribute__((aligned(n)))
 
 u16 axDspSlaveLength = (AX_DSP_SLAVE_LENGTH * 2);

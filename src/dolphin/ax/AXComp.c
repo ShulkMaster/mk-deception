@@ -1,4 +1,4 @@
-typedef unsigned short u16;
+#include "dolphin/types.h"
 
 u16 __AXCompressorTable[3360] = {
     0x7FA1, 0x7F43, 0x7EE6, 0x7E88, 0x7E2B, 0x7DCE,

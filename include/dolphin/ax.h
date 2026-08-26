@@ -1,7 +1,7 @@
 #ifndef DOLPHIN_AX_H
 #define DOLPHIN_AX_H
 
-#include "dolphin/sp.h"
+#include "dolphin/types.h"
 
 typedef struct AXPBMIX {
     unsigned short vL, vDeltaL, vR, vDeltaR;
@@ -73,6 +73,7 @@ typedef struct AXPB {
     AXPBSRC src;
     AXPBADPCMLOOP adpcmLoop;
     AXPBLPF lpf;
+    /* Reserved DSP parameter-block words, confirmed by the retail 0xF4 size. */
     unsigned short pad[25];
 } AXPB;
 
@@ -127,6 +128,11 @@ typedef void (*AXCallback)(void);
 #define AX_MAX_VOICES 64
 #define AX_PRIORITY_STACKS 32
 #define AX_DSP_SLAVE_LENGTH 0xF80
+#define AX_SRC_TYPE_NONE 0
+#define AX_SRC_TYPE_LINEAR 1
+#define AX_SRC_TYPE_4TAP_8K 2
+#define AX_SRC_TYPE_4TAP_12K 3
+#define AX_SRC_TYPE_4TAP_16K 4
 #define AX_SYNC_FLAG_COPYALL       (1UL << 31)
 #define AX_SYNC_FLAG_COPYADPCMLOOP (1UL << 20)
 #define AX_SYNC_FLAG_COPYRATIO     (1UL << 19)
@@ -158,9 +164,11 @@ AXVPB* AXAcquireVoice(unsigned long priority, AXVoiceCallback callback,
                       unsigned long user_context);
 void AXFreeVoice(AXVPB* voice);
 void AXSetVoicePriority(AXVPB* voice, unsigned long priority);
+void AXSetVoiceSrcType(AXVPB* voice, unsigned long type);
 void AXSetVoiceSrc(AXVPB* voice, AXPBSRC* source);
 void AXSetVoiceAdpcm(AXVPB* voice, AXPBADPCM* adpcm);
 void AXSetVoiceState(AXVPB* voice, unsigned short state);
+void AXSetVoiceAddr(AXVPB* voice, AXPBADDR* address);
 void AXInitEx(unsigned long output_buffer_mode);
 void AXSetMode(unsigned long mode);
 AXCallback AXRegisterCallback(AXCallback callback);

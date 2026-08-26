@@ -1,19 +1,6 @@
 #include "dolphin/ax.h"
+#include "dolphin/ax_internal.h"
 #include "dolphin/cache.h"
-
-extern unsigned short __AXCompressorTable[3360];
-extern unsigned long __AXGetStudio(void);
-extern AXPB* __AXGetPBs(void);
-extern void __AXGetAuxAInput(unsigned long* address);
-extern void __AXGetAuxAInputDpl2(unsigned long* address);
-extern void __AXGetAuxAOutput(unsigned long* address);
-extern void __AXGetAuxAOutputDpl2R(unsigned long* address);
-extern void __AXGetAuxAOutputDpl2Ls(unsigned long* address);
-extern void __AXGetAuxAOutputDpl2Rs(unsigned long* address);
-extern void __AXGetAuxBInput(unsigned long* address);
-extern void __AXGetAuxBOutput(unsigned long* address);
-extern void __AXGetAuxBForDPL2(unsigned long* address);
-extern void __AXGetAuxBOutputDPL2(unsigned long* address);
 
 static unsigned short __AXCommandList[2][384];
 static unsigned long __AXCommandListPosition;

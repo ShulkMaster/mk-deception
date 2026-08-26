@@ -1,29 +1,11 @@
 #include "dolphin/ai.h"
 #include "dolphin/ax.h"
+#include "dolphin/ax_internal.h"
 #include "dolphin/cache.h"
 #include "dolphin/dsp.h"
 #include "dolphin/os.h"
 
-typedef unsigned char u8;
-typedef signed short s16;
-typedef unsigned short u16;
-typedef signed long s32;
-typedef unsigned long u32;
-typedef int BOOL;
-
 #define ASSERTLINE(line, condition) ((void)0)
-#define NULL 0
-
-extern unsigned short axDspSlave[];
-extern unsigned short axDspSlaveLength;
-extern void __AXSyncPBs(unsigned long lessDspCycles);
-extern void __AXPrintStudio(void);
-extern unsigned long __AXGetCommandListAddress(void);
-extern void __AXServiceCallbackStack(void);
-extern void __AXProcessAux(void);
-extern void __AXNextFrame(void* sbuffer, void* buffer);
-extern unsigned long __AXGetNumVoices(void);
-extern AXPROFILE* __AXGetCurrentProfile(void);
 
 static s16 __AXOutBuffer[3][320];
 static s32 __AXOutSBuffer[160];
@@ -31,12 +13,13 @@ static u16 __AXDramImage[8192];
 static DSPTaskInfo __AXDSPTask;
 AXPROFILE __AXLocalProfile;
 
-volatile static u32 __AXOutFrame;
-volatile static u32 __AXAiDmaFrame;
-volatile static u32 __AXOutDspReady;
-volatile static OSTime __AXOsTime;
-static void (*__AXUserFrameCallback)();
-volatile static int __AXDSPInitFlag;
+/* Shared by the AI interrupt callback and DSP task callbacks. */
+static volatile u32 __AXOutFrame;
+static volatile u32 __AXAiDmaFrame;
+static volatile u32 __AXOutDspReady;
+static volatile OSTime __AXOsTime;
+static AXCallback __AXUserFrameCallback;
+static volatile int __AXDSPInitFlag;
 static int __AXDSPDoneFlag;
 
 static volatile u32 __AXDebugSteppingMode;
@@ -89,7 +72,7 @@ void __AXOutNewFrame(u32 lessDspCycles) {
 
     __AXLocalProfile.axFrameEnd = OSGetTime();
     __AXLocalProfile.axNumVoices = __AXGetNumVoices();
-    profile = (void*)__AXGetCurrentProfile();
+    profile = __AXGetCurrentProfile();
 
     if (profile) {
         i = 56;
@@ -172,7 +155,7 @@ void __AXOutInitDSP(void) {
     __AXDSPTask.initCallback = __AXDSPInitCallback;
     __AXDSPTask.resumeCallback = __AXDSPResumeCallback;
     __AXDSPTask.doneCallback = __AXDSPDoneCallback;
-    __AXDSPTask.requestCallback = NULL;
+    __AXDSPTask.requestCallback = 0;
     __AXDSPTask.priority = 0;
     __AXDSPInitFlag = 0;
     __AXDSPDoneFlag = 0;
@@ -216,7 +199,7 @@ void __AXOutInit(u32 outputBufferMode) {
     }
 
     __AXOutDspReady = 1;
-    __AXUserFrameCallback = NULL;
+    __AXUserFrameCallback = 0;
 
     if (__AXOutputBufferMode == 1) {
         AIInitDMA((u32)&__AXOutBuffer[__AXAiDmaFrame][0], sizeof(__AXOutBuffer[0]));

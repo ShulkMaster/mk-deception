@@ -1,27 +1,12 @@
 #include "dolphin/ax.h"
+#include "dolphin/ax_internal.h"
 #include "dolphin/cache.h"
 #include "dolphin/os.h"
 
-typedef unsigned short u16;
-typedef signed short s16;
-typedef unsigned long u32;
-typedef int BOOL;
-
 #define ATTRIBUTE_ALIGN(n) __attribute__((aligned(n)))
-#define AX_SRC_TYPE_NONE 0
-#define AX_SRC_TYPE_LINEAR 1
-#define AX_SRC_TYPE_4TAP_8K 2
-#define AX_SRC_TYPE_4TAP_12K 3
-#define AX_SRC_TYPE_4TAP_16K 4
 #define ASSERTLINE(line, condition) ((void)0)
 #define ASSERTMSGLINE(line, condition, message) ((void)0)
 #define OS_BUS_CLOCK (*(unsigned long*)0x800000F8)
-
-extern unsigned long __AXGetCommandListCycles(void);
-extern AXVPB* __AXGetStackHead(unsigned long priority);
-extern void __AXDepopVoice(AXPB* pb);
-extern void __AXPushCallbackStack(AXVPB* voice);
-extern void __AXPushFreeStack(AXVPB* voice);
 
 static u32 __AXSrcCycles[5] = {
     0x00000DF8,
@@ -410,7 +395,7 @@ static __inline void __AXDumpVPB(AXVPB* pvpb) {
     __AXPushCallbackStack(pvpb);
 }
 
-void __AXSyncPBs(u32 lessDlpfycles) {
+void __AXSyncPBs(u32 lessDspCycles) {
     u32 cycles;
     u32 i;
     AXVPB* pvpb;
@@ -418,7 +403,7 @@ void __AXSyncPBs(u32 lessDlpfycles) {
     __AXNumVoices = 0;
     DCInvalidateRange(__AXPB, sizeof(__AXPB));
     DCInvalidateRange(__AXITD, sizeof(__AXITD));
-    cycles = (__AXGetCommandListCycles() + 0x10000) - 0x55F0 + lessDlpfycles;
+    cycles = (__AXGetCommandListCycles() + 0x10000) - 0x55F0 + lessDspCycles;
 
     for (i = 31; i; i--) {
         for (pvpb = __AXGetStackHead(i); pvpb; pvpb = pvpb->next) {

@@ -1,7 +1,6 @@
 #include "dolphin/ax.h"
+#include "dolphin/ax_internal.h"
 #include "dolphin/cache.h"
-
-extern unsigned long __AXClMode;
 
 static signed long __AXBufferAuxA[3][480] __attribute__((aligned(32)));
 static signed long __AXBufferAuxB[3][480] __attribute__((aligned(32)));
@@ -35,8 +34,8 @@ void __AXAuxInit(void)
     __AXAuxDspReadPositionDpl2 = 1;
     __AXAuxCpuReadWritePosition = 2;
 
-    pA = (signed long*)&__AXBufferAuxA;
-    pB = (signed long*)&__AXBufferAuxB;
+    pA = &__AXBufferAuxA[0][0];
+    pB = &__AXBufferAuxB[0][0];
     for (i = 0; i < 480; i++) {
         *pA = 0;
         pA++;

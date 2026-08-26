@@ -14,8 +14,6 @@
 #include "mw/mwMemNewDelete.h"
 #include "runtime/cmath.h"
 
-typedef unsigned long BOOL;
-
 struct _mslBank {
     unsigned char pad00[0x3C];
     _mwFile* stream_context;      /* +0x3C */
@@ -281,11 +279,6 @@ static inline SBPlayableStreamLayout* StreamState(
     return (SBPlayableStreamLayout*)stream;
 }
 
-struct AXVoiceCallbackData {
-    unsigned char pad00[0x14];
-    SoundBuffer_Playable* owner;   /* +0x14 */
-};
-
 static const unsigned char SurroundPanTable[] = {
     0x40, 0x10, 0x10, 0x40, 0x08, 0x78,
     0x20, 0x7C, 0x40, 0x7C, 0x60, 0x7C,
@@ -531,10 +524,10 @@ static inline void SetVoiceSource(
     source.last_samples[2] = 0;
     source.last_samples[3] = 0;
     AXSetVoiceSrc(voice, &source);
-    AXSetVoiceAdpcm(voice, (AXPBADPCM*)sound->adpcm);
+    AXSetVoiceAdpcm(voice, &sound->adpcm->adpcm);
 
     sync = voice->sync;
-    voice->depop = 0;
+    voice->pb.type = 0;
     sync |= 8;
     voice->sync = sync;
     current =
@@ -544,12 +537,12 @@ static inline void SetVoiceSource(
     sync = voice->sync;
     voice->pb.addr.loopFlag = loop;
     voice->pb.addr.format = 0;
-    voice->pb.addr.currentAddressHi = current >> 16;
-    voice->pb.addr.currentAddressLo = current;
+    voice->pb.addr.loopAddressHi = current >> 16;
+    voice->pb.addr.loopAddressLo = current;
     voice->pb.addr.endAddressHi = end >> 16;
     voice->pb.addr.endAddressLo = end;
-    voice->pb.addr.loopAddressHi = loop_address >> 16;
-    voice->pb.addr.loopAddressLo = loop_address;
+    voice->pb.addr.currentAddressHi = loop_address >> 16;
+    voice->pb.addr.currentAddressLo = loop_address;
     voice->sync = (sync & 0xFFFE1FFF) | 0x1000;
 }
 
@@ -1011,9 +1004,11 @@ void SoundBuffer_Playable::LostVoice(_AXVPB* voice) {
 }
 
 void SoundBuffer_Playable::AcquireVoiceCallback(void* voice) {
-    AXVoiceCallbackData* callback = (AXVoiceCallbackData*)voice;
-    ((SoundBufferPlayableInterface*)callback->owner)
-        ->LostVoice((_AXVPB*)voice);
+    AXVPB* callback_voice = (AXVPB*)voice;
+    SoundBuffer_Playable* owner =
+        (SoundBuffer_Playable*)callback_voice->user_context;
+
+    ((SoundBufferPlayableInterface*)owner)->LostVoice(callback_voice);
 }
 
 int SoundBuffer_Data::GetNumChannels(void) {
@@ -1452,9 +1447,9 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 self->primary_voice, primary_sound,
                 self->frequency, use_stream_loop);
             if (use_loop_address) {
-                self->primary_voice->pb.addr.currentAddressHi =
+                self->primary_voice->pb.addr.loopAddressHi =
                     primary_sound->loop_address >> 16;
-                self->primary_voice->pb.addr.currentAddressLo =
+                self->primary_voice->pb.addr.loopAddressLo =
                     primary_sound->loop_address;
             }
             if (self->file_entry->secondary_sound_table != 0) {
@@ -1465,9 +1460,9 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 self->secondary_voice, secondary_sound,
                 self->frequency, use_stream_loop);
             if (use_loop_address) {
-                self->secondary_voice->pb.addr.currentAddressHi =
+                self->secondary_voice->pb.addr.loopAddressHi =
                     secondary_sound->loop_address >> 16;
-                self->secondary_voice->pb.addr.currentAddressLo =
+                self->secondary_voice->pb.addr.loopAddressLo =
                     secondary_sound->loop_address;
             }
             MIXInitChannel(
@@ -1485,9 +1480,9 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 self->primary_voice, primary_sound,
                 self->frequency, use_stream_loop);
             if (use_loop_address) {
-                self->primary_voice->pb.addr.currentAddressHi =
+                self->primary_voice->pb.addr.loopAddressHi =
                     primary_sound->loop_address >> 16;
-                self->primary_voice->pb.addr.currentAddressLo =
+                self->primary_voice->pb.addr.loopAddressLo =
                     primary_sound->loop_address;
             }
             MIXInitChannel(
@@ -1516,20 +1511,20 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 unsigned long base =
                     (&stream->cache_buffer0)[channel] << 1;
                 unsigned long loop =
-                    ((unsigned long)voice->pb.addr.loopAddressHi << 16) |
-                    voice->pb.addr.loopAddressLo;
+                    ((unsigned long)voice->pb.addr.currentAddressHi << 16) |
+                    voice->pb.addr.currentAddressLo;
                 unsigned long end =
                     ((unsigned long)voice->pb.addr.endAddressHi << 16) |
                     voice->pb.addr.endAddressLo;
                 unsigned long current =
-                    ((unsigned long)voice->pb.addr.currentAddressHi << 16) |
-                    voice->pb.addr.currentAddressLo;
+                    ((unsigned long)voice->pb.addr.loopAddressHi << 16) |
+                    voice->pb.addr.loopAddressLo;
                 unsigned long sync;
 
                 loop += base;
                 sync = voice->sync | 0x10000;
-                voice->pb.addr.loopAddressLo = loop;
-                voice->pb.addr.loopAddressHi = loop >> 16;
+                voice->pb.addr.currentAddressLo = loop;
+                voice->pb.addr.currentAddressHi = loop >> 16;
                 if ((sync & 0x1000) == 0) {
                     voice->sync = sync;
                 }
@@ -1545,8 +1540,8 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 if (use_loop_address) {
                     current += base;
                     sync = voice->sync | 0x4000;
-                    voice->pb.addr.currentAddressLo = current;
-                    voice->pb.addr.currentAddressHi = current >> 16;
+                    voice->pb.addr.loopAddressLo = current;
+                    voice->pb.addr.loopAddressHi = current >> 16;
                     if ((sync & 0x1000) == 0) {
                         voice->sync = sync;
                     }
@@ -1571,8 +1566,8 @@ int SBPlayable_Stream::iPlayPrepped(void) {
 
                 address = base + 2;
                 sync = voice->sync | 0x10000;
-                voice->pb.addr.loopAddressLo = address;
-                voice->pb.addr.loopAddressHi = address >> 16;
+                voice->pb.addr.currentAddressLo = address;
+                voice->pb.addr.currentAddressHi = address >> 16;
                 if ((sync & 0x1000) == 0) {
                     voice->sync = sync;
                 }
@@ -1587,8 +1582,8 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 }
 
                 sync = voice->sync | 0x4000;
-                voice->pb.addr.currentAddressHi = zero >> 16;
-                voice->pb.addr.currentAddressLo = zero;
+                voice->pb.addr.loopAddressHi = zero >> 16;
+                voice->pb.addr.loopAddressLo = zero;
                 if ((sync & 0x1000) == 0) {
                     voice->sync = sync;
                 }
@@ -1596,7 +1591,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 voice->pb.adpcmLoop.loop_yn1 = 0;
                 voice->pb.adpcmLoop.loop_yn2 = 0;
                 voice->sync |= 0x100000;
-                voice->depop = 0;
+                voice->pb.type = 0;
                 voice->sync |= 8;
                 voice->pb.addr.loopFlag = 0;
                 sync = voice->sync | 0x2000;
@@ -1872,8 +1867,8 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     sync = voice->sync;
     address = g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
     sync |= 0x4000;
-    voice->pb.addr.currentAddressLo = address;
-    voice->pb.addr.currentAddressHi = address >> 16;
+    voice->pb.addr.loopAddressLo = address;
+    voice->pb.addr.loopAddressHi = address >> 16;
     if ((sync & 0x1000) == 0) {
         voice->sync = sync;
     }
@@ -1884,7 +1879,7 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     voice->pb.adpcmLoop.loop_yn2 = 0;
     voice->sync = sync;
     sync = voice->sync;
-    voice->depop = 0;
+    voice->pb.type = 0;
     sync |= 8;
     voice->sync = sync;
     sync = voice->sync;
@@ -1910,8 +1905,8 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     sync = voice->sync;
     address = g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
     sync |= 0x4000;
-    voice->pb.addr.currentAddressLo = address;
-    voice->pb.addr.currentAddressHi = address >> 16;
+    voice->pb.addr.loopAddressLo = address;
+    voice->pb.addr.loopAddressHi = address >> 16;
     if ((sync & 0x1000) == 0) {
         voice->sync = sync;
     }
@@ -1922,7 +1917,7 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     voice->pb.adpcmLoop.loop_yn2 = 0;
     voice->sync = sync;
     sync = voice->sync;
-    voice->depop = 0;
+    voice->pb.type = 0;
     sync |= 8;
     voice->sync = sync;
     sync = voice->sync;
@@ -1948,8 +1943,8 @@ inline int SBPlayable_Stream::iAX_GetVoiceBlock(
     SBPlayableStreamLayout* stream =
         StreamState(this);
     unsigned long address =
-        ((unsigned long)voice->pb.addr.loopAddressHi << 16) +
-        voice->pb.addr.loopAddressLo;
+        ((unsigned long)voice->pb.addr.currentAddressHi << 16) +
+        voice->pb.addr.currentAddressLo;
     int block;
 
     if (address >= g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start &&
@@ -2052,8 +2047,8 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                      (stream->segment_shift + 1)) +
                     2 + (stream->cache_buffer0 << 1);
                 sync |= 0x10000;
-                primary->pb.addr.loopAddressLo = address;
-                primary->pb.addr.loopAddressHi = address >> 16;
+                primary->pb.addr.currentAddressLo = address;
+                primary->pb.addr.currentAddressHi = address >> 16;
                 if ((sync & 0x1000) == 0) {
                     primary->sync = sync;
                 }
@@ -2072,8 +2067,8 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                          (stream->segment_shift + 1)) +
                         2 + (stream->cache_buffer1 << 1);
                     sync |= 0x10000;
-                    secondary->pb.addr.loopAddressLo = address;
-                    secondary->pb.addr.loopAddressHi = address >> 16;
+                    secondary->pb.addr.currentAddressLo = address;
+                    secondary->pb.addr.currentAddressHi = address >> 16;
                     if ((sync & 0x1000) == 0) {
                         secondary->sync = sync;
                     }
@@ -2126,8 +2121,8 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                 (next_block << (stream->segment_shift + 1)) +
                 2 + (stream->cache_buffer0 << 1);
             sync |= 0x4000;
-            primary->pb.addr.currentAddressLo = address;
-            primary->pb.addr.currentAddressHi = address >> 16;
+            primary->pb.addr.loopAddressLo = address;
+            primary->pb.addr.loopAddressHi = address >> 16;
             if ((sync & 0x1000) == 0) {
                 primary->sync = sync;
             }
@@ -2140,10 +2135,10 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
             primary->sync = sync;
             if (stream->stream_end_block ==
                 stream->ax_end_block) {
-                primary->depop = 0;
+                primary->pb.type = 0;
                 primary->sync |= 8;
             } else {
-                primary->depop = 1;
+                primary->pb.type = 1;
                 primary->sync |= 8;
             }
             sync = primary->sync;
@@ -2161,8 +2156,8 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                      (stream->segment_shift + 1)) +
                     2 + (stream->cache_buffer1 << 1);
                 sync |= 0x4000;
-                secondary->pb.addr.currentAddressLo = address;
-                secondary->pb.addr.currentAddressHi = address >> 16;
+                secondary->pb.addr.loopAddressLo = address;
+                secondary->pb.addr.loopAddressHi = address >> 16;
                 if ((sync & 0x1000) == 0) {
                     secondary->sync = sync;
                 }
@@ -2175,10 +2170,10 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                 secondary->sync = sync;
                 if (stream->stream_end_block ==
                     stream->ax_end_block) {
-                    secondary->depop = 0;
+                    secondary->pb.type = 0;
                     secondary->sync |= 8;
                 } else {
-                    secondary->depop = 1;
+                    secondary->pb.type = 1;
                     secondary->sync |= 8;
                 }
                 sync = secondary->sync;

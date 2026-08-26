@@ -1,10 +1,11 @@
 #ifndef DOLPHIN_SP_H
 #define DOLPHIN_SP_H
 
-typedef unsigned long u32;
+#include "dolphin/ax.h"
 
 typedef struct SPADPCM {
-    unsigned char state[0x2E];
+    AXPBADPCM adpcm;
+    AXPBADPCMLOOP adpcm_loop;
 } SPADPCM;
 
 typedef struct SPSoundEntry {
