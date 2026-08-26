@@ -1446,7 +1446,15 @@ config.libs = [
         "ax",
         [
             Object(Matching, "ax.a/AX.o", source="dolphin/ax/AX.c"),
+            Object(Matching, "ax.a/AXAlloc.o", source="dolphin/ax/AXAlloc.c"),
+            Object(Matching, "ax.a/AXAux.o", source="dolphin/ax/AXAux.c"),
+            Object(Matching, "ax.a/AXCL.o", source="dolphin/ax/AXCL.c"),
+            Object(Matching, "ax.a/AXOut.o", source="dolphin/ax/AXOut.c"),
+            Object(Matching, "ax.a/AXSPB.o", source="dolphin/ax/AXSPB.c"),
+            Object(Matching, "ax.a/AXVPB.o", source="dolphin/ax/AXVPB.c"),
             Object(Matching, "ax.a/AXProf.o", source="dolphin/ax/AXProf.c"),
+            Object(Matching, "ax.a/AXComp.o", source="dolphin/ax/AXComp.c"),
+            Object(Matching, "ax.a/DSPCode.o", source="dolphin/ax/DSPCode.c"),
         ],
     ),
     DolphinLib(

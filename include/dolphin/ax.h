@@ -3,85 +3,177 @@
 
 #include "dolphin/sp.h"
 
-/*
- * Game-used AX voice parameter block fields. The opaque regions are owned by
- * the Dolphin AX library; only fields accessed by the MSL playback layer are
- * exposed here.
- */
+typedef struct AXPBMIX {
+    unsigned short vL, vDeltaL, vR, vDeltaR;
+    unsigned short vAuxAL, vDeltaAuxAL, vAuxAR, vDeltaAuxAR;
+    unsigned short vAuxBL, vDeltaAuxBL, vAuxBR, vDeltaAuxBR;
+    unsigned short vAuxBS, vDeltaAuxBS, vS, vDeltaS;
+    unsigned short vAuxAS, vDeltaAuxAS;
+} AXPBMIX;
+
+typedef struct AXPBITD {
+    unsigned short flag, bufferHi, bufferLo, shiftL, shiftR;
+    unsigned short targetShiftL, targetShiftR;
+} AXPBITD;
+
+typedef struct AXPBUPDATE {
+    unsigned short updNum[5];
+    unsigned short dataHi, dataLo;
+} AXPBUPDATE;
+
+typedef struct AXPBDPOP {
+    short aL, aAuxAL, aAuxBL, aR, aAuxAR, aAuxBR, aS, aAuxAS, aAuxBS;
+} AXPBDPOP;
+
+typedef struct AXPBVE {
+    unsigned short currentVolume;
+    short currentDelta;
+} AXPBVE;
+
+typedef struct AXPBFIR {
+    unsigned short numCoefs, coefsHi, coefsLo;
+} AXPBFIR;
+
+typedef struct AXPBADDR {
+    unsigned short loopFlag, format;
+    unsigned short loopAddressHi, loopAddressLo;
+    unsigned short endAddressHi, endAddressLo;
+    unsigned short currentAddressHi, currentAddressLo;
+} AXPBADDR;
+
+typedef struct AXPBADPCM {
+    unsigned short a[8][2];
+    unsigned short gain, pred_scale, yn1, yn2;
+} AXPBADPCM;
+
+typedef struct AXPBSRC {
+    unsigned short ratioHi, ratioLo, currentAddressFrac;
+    unsigned short last_samples[4];
+} AXPBSRC;
+
+typedef struct AXPBADPCMLOOP {
+    unsigned short loop_pred_scale, loop_yn1, loop_yn2;
+} AXPBADPCMLOOP;
+
+typedef struct AXPBLPF {
+    unsigned short on, yn1, a0, b0;
+} AXPBLPF;
+
+typedef struct AXPB {
+    unsigned short nextHi, nextLo, currHi, currLo;
+    unsigned short srcSelect, coefSelect, mixerCtrl, state, type;
+    AXPBMIX mix;
+    AXPBITD itd;
+    AXPBUPDATE update;
+    AXPBDPOP dpop;
+    AXPBVE ve;
+    AXPBFIR fir;
+    AXPBADDR addr;
+    AXPBADPCM adpcm;
+    AXPBSRC src;
+    AXPBADPCMLOOP adpcmLoop;
+    AXPBLPF lpf;
+    unsigned short pad[25];
+} AXPB;
+
 typedef struct _AXVPB {
-    unsigned char pad00[0x1C];
-    unsigned long sync;           /* +0x01C */
-    unsigned char pad20[0x126];
-    unsigned short state;         /* +0x146 -- bit 0 is active */
-    unsigned short depop;         /* +0x148 */
-    unsigned char pad14A[0x5C];
-    unsigned short loop;          /* +0x1A6 */
-    unsigned short format;        /* +0x1A8 */
-    unsigned short current_hi;    /* +0x1AA */
-    unsigned short current_lo;    /* +0x1AC */
-    unsigned short end_hi;        /* +0x1AE */
-    unsigned short end_lo;        /* +0x1B0 */
-    unsigned short loop_hi;       /* +0x1B2 */
-    unsigned short loop_lo;       /* +0x1B4 */
-    unsigned char pad1B6[0x28];
-    unsigned short ratio_hi;      /* +0x1DE */
-    unsigned short ratio_lo;      /* +0x1E0 */
-    unsigned char pad1E2[0x0A];
-    unsigned short adpcm_loop_pred_scale; /* +0x1EC */
-    unsigned short adpcm_loop_yn1;        /* +0x1EE */
-    unsigned short adpcm_loop_yn2;        /* +0x1F0 */
-} _AXVPB;
+    struct _AXVPB* next;
+    struct _AXVPB* prev;
+    struct _AXVPB* next1;
+    unsigned long priority;
+    void (*callback)(void*);
+    unsigned long user_context;
+    unsigned long index, sync, depop;
+    unsigned long updateMS, updateCounter, updateTotal;
+    unsigned short* updateWrite;
+    unsigned short updateData[128];
+    void* itdBuffer;
+    AXPB pb;
+} AXVPB;
 
-typedef char AXVPBLayoutSize[
-    sizeof(_AXVPB) == 0x1F4 ? 1 : -1];
+typedef struct AXPBITDBUFFER { short data[32]; } AXPBITDBUFFER;
+typedef struct AXPBU { unsigned short data[128]; } AXPBU;
 
-typedef struct AXVoiceSrc {
-    unsigned short ratio_hi;
-    unsigned short ratio_lo;
-    unsigned short current_fraction;
-    short last_samples[4];
-} AXVoiceSrc;
+typedef struct AXSPB {
+    unsigned short dpopLHi, dpopLLo; short dpopLDelta;
+    unsigned short dpopRHi, dpopRLo; short dpopRDelta;
+    unsigned short dpopSHi, dpopSLo; short dpopSDelta;
+    unsigned short dpopALHi, dpopALLo; short dpopALDelta;
+    unsigned short dpopARHi, dpopARLo; short dpopARDelta;
+    unsigned short dpopASHi, dpopASLo; short dpopASDelta;
+    unsigned short dpopBLHi, dpopBLLo; short dpopBLDelta;
+    unsigned short dpopBRHi, dpopBRLo; short dpopBRDelta;
+    unsigned short dpopBSHi, dpopBSLo; short dpopBSDelta;
+} AXSPB;
+
+typedef char AXVPBLayoutSize[sizeof(AXVPB) == 0x22C ? 1 : -1];
+typedef char AXPBLayoutSize[sizeof(AXPB) == 0xF4 ? 1 : -1];
+
+typedef AXPBSRC AXVoiceSrc;
 
 typedef struct _AXPROFILE {
-    unsigned long long axFrameStart;
-    unsigned long long auxProcessingStart;
-    unsigned long long auxProcessingEnd;
-    unsigned long long userCallbackStart;
-    unsigned long long userCallbackEnd;
-    unsigned long long axFrameEnd;
+    unsigned long long axFrameStart, auxProcessingStart, auxProcessingEnd;
+    unsigned long long userCallbackStart, userCallbackEnd, axFrameEnd;
     unsigned long axNumVoices;
 } AXPROFILE;
 
-typedef char AXPROFILELayoutSize[
-    sizeof(AXPROFILE) == 0x38 ? 1 : -1];
+typedef struct AX_AUX_DATA { signed long* l; signed long* r; signed long* s; } AX_AUX_DATA;
+typedef struct AX_AUX_DATA_DPL2 { signed long* l; signed long* r; signed long* ls; signed long* rs; } AX_AUX_DATA_DPL2;
+typedef char AXPROFILELayoutSize[sizeof(AXPROFILE) == 0x38 ? 1 : -1];
 
 typedef void (*AXVoiceCallback)(void* callback_data);
+typedef void (*AXCallback)(void);
+
+#define AX_MAX_VOICES 64
+#define AX_PRIORITY_STACKS 32
+#define AX_DSP_SLAVE_LENGTH 0xF80
+#define AX_SYNC_FLAG_COPYALL       (1UL << 31)
+#define AX_SYNC_FLAG_COPYADPCMLOOP (1UL << 20)
+#define AX_SYNC_FLAG_COPYRATIO     (1UL << 19)
+#define AX_SYNC_FLAG_COPYSRC       (1UL << 18)
+#define AX_SYNC_FLAG_COPYADPCM     (1UL << 17)
+#define AX_SYNC_FLAG_COPYCURADDR   (1UL << 16)
+#define AX_SYNC_FLAG_COPYENDADDR   (1UL << 15)
+#define AX_SYNC_FLAG_COPYLOOPADDR  (1UL << 14)
+#define AX_SYNC_FLAG_COPYLOOP      (1UL << 13)
+#define AX_SYNC_FLAG_COPYADDR      (1UL << 12)
+#define AX_SYNC_FLAG_COPYFIR       (1UL << 11)
+#define AX_SYNC_FLAG_SWAPVOL       (1UL << 10)
+#define AX_SYNC_FLAG_COPYVOL       (1UL << 9)
+#define AX_SYNC_FLAG_COPYDPOP      (1UL << 8)
+#define AX_SYNC_FLAG_COPYUPDATE    (1UL << 7)
+#define AX_SYNC_FLAG_COPYTSHIFT    (1UL << 6)
+#define AX_SYNC_FLAG_COPYITD       (1UL << 5)
+#define AX_SYNC_FLAG_COPYAXPBMIX   (1UL << 4)
+#define AX_SYNC_FLAG_COPYTYPE      (1UL << 3)
+#define AX_SYNC_FLAG_COPYSTATE     (1UL << 2)
+#define AX_SYNC_FLAG_COPYMXRCTRL   (1UL << 1)
+#define AX_SYNC_FLAG_COPYSELECT    (1UL << 0)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-_AXVPB* AXAcquireVoice(unsigned long priority, AXVoiceCallback callback,
-                       void* callback_data);
-void AXFreeVoice(_AXVPB* voice);
-void AXSetVoicePriority(_AXVPB* voice, unsigned long priority);
-void AXSetVoiceSrc(_AXVPB* voice, AXVoiceSrc* source);
-void AXSetVoiceAdpcm(_AXVPB* voice, SPADPCM* adpcm);
-void AXSetVoiceState(_AXVPB* voice, unsigned short state);
+AXVPB* AXAcquireVoice(unsigned long priority, AXVoiceCallback callback,
+                      unsigned long user_context);
+void AXFreeVoice(AXVPB* voice);
+void AXSetVoicePriority(AXVPB* voice, unsigned long priority);
+void AXSetVoiceSrc(AXVPB* voice, AXPBSRC* source);
+void AXSetVoiceAdpcm(AXVPB* voice, AXPBADPCM* adpcm);
+void AXSetVoiceState(AXVPB* voice, unsigned short state);
 void AXInitEx(unsigned long output_buffer_mode);
-void AXSetMode(int mode);
-void AXRegisterCallback(void (*callback)(void));
+void AXSetMode(unsigned long mode);
+AXCallback AXRegisterCallback(AXCallback callback);
 
 void MIXInit(void);
 int MIXGetSoundMode(void);
 void MIXUpdateSettings(void);
-void MIXInitChannel(_AXVPB* voice, int mode, int aux_a, int aux_b, int aux_c,
-                    unsigned char pan, unsigned char surround_pan,
-                    unsigned long fader);
-void MIXSetPan(_AXVPB* voice, unsigned char pan);
-void MIXSetSPan(_AXVPB* voice, unsigned char pan);
-void MIXSetFader(_AXVPB* voice, long volume);
-void MIXReleaseChannel(_AXVPB* voice);
+void MIXInitChannel(AXVPB* voice, int mode, int aux_a, int aux_b, int aux_c,
+                    unsigned char pan, unsigned char surround_pan, unsigned long fader);
+void MIXSetPan(AXVPB* voice, unsigned char pan);
+void MIXSetSPan(AXVPB* voice, unsigned char pan);
+void MIXSetFader(AXVPB* voice, long volume);
+void MIXReleaseChannel(AXVPB* voice);
 
 #ifdef __cplusplus
 }
