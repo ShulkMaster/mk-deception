@@ -1,19 +1,13 @@
-/* TODO: Missing implementation for retail unit critical_regions.gamecube.c. */
-
-void *__end_critical_region(void)
+void __end_critical_region(int region)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    (void)region;
 }
 
-void *__begin_critical_region(void)
+void __begin_critical_region(int region)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    (void)region;
 }
 
-void *__kill_critical_regions(void)
+void __kill_critical_regions(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
