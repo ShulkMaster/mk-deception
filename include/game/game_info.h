@@ -151,7 +151,8 @@ typedef struct BgndWallHiderData {
                 unsigned char flags_byte;
                 struct {
                     unsigned char disabled : 1; /* bit7 */
-                    unsigned char pad_low : 7;
+                    unsigned char kill_process : 1; /* bit6 */
+                    unsigned char pad_low : 6;
                 } flag_bits;
             };
             char pad11[3];
@@ -183,7 +184,8 @@ typedef struct GameInfo {
     int bgnd_id; /* +0x18 */
     int active_level; /* +0x1C - current multi-level arena index */
     ScriptSlot* cmdscript; /* +0x20 - loaded MKO body from cmdscript_loadfile_* */
-    char pad24[8];
+    int bgnd_cycle_index; /* +0x24 */
+    char pad28[4];
     MkObj* bgnd_obj; /* +0x2C */
     MkObj* sky;      /* +0x30 */
     float field_34;  /* +0x34 - fade / particle / mab */
@@ -195,7 +197,7 @@ typedef struct GameInfo {
     PlyrPdata* collision_player_pdata; /* +0x58 */
     int collision_event_id; /* +0x5C */
     MkPtr* displayed_items; /* +0x60 - BgndDisplayedItem list */
-    int field_64; /* +0x64 */
+    MkPtr* field_64; /* +0x64 - owned background list */
     BgndWallHiderData* wall_hider; /* +0x68 */
     MkProc* camera_proc; /* +0x6C */
     unsigned int camera_proc_instance; /* +0x70 */
@@ -203,7 +205,8 @@ typedef struct GameInfo {
         int field_74;
         struct {
             unsigned char clean_floor : 1; /* bit7 */
-            unsigned char field_74_pad_bits : 7;
+            unsigned char field_74_bit6 : 1;
+            unsigned char field_74_pad_bits : 6;
             unsigned char field_75_77[3];
         } floor_flags;
         struct {

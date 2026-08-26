@@ -10,6 +10,7 @@
 #include "runtime/asset.h"
 #include "runtime/anim_types.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/plyr_anim_pdata.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_pebble.h"
 #include "runtime/mk_particle.h"
@@ -31,13 +32,45 @@
 #include "platform/gcutils.h"
 #include "rw/rpmatfx.h"
 #include "rw/rwcamera_internal.h"
+#include "rw/rwframe.h"
 
 #pragma use_lmw_stmw on
 
 typedef struct SlaughterhouseData {
     MkHdr hdr;
-    MkHdrLatch lower_level_pebbles[3]; /* +0x08 */
+    MkHdrLatch lower_level_pebbles[5]; /* +0x08 */
+    MkHdrLatch blood_fall_pebbles[3]; /* +0x30 */
+    MslSoundHandle upper_ambient_sound; /* +0x48 */
+    MslSoundHandle lower_ambient_sound_1; /* +0x4C */
+    MslSoundHandle lower_ambient_sound_2; /* +0x50 */
 } SlaughterhouseData;
+
+typedef struct ShBloodFallProcessData {
+    MkHdr hdr;
+    char pad08[0x0C];
+    Vec origin;        /* +0x14 */
+    float gravity;     /* +0x20 */
+    int active_splats; /* +0x24 */
+} ShBloodFallProcessData; /* 0x28 */
+
+typedef struct ShFatalityBodyPartsProcessData {
+    MkHdr hdr;
+    PlyrPdata* player; /* +0x08 */
+    float delay; /* +0x0C */
+} ShFatalityBodyPartsProcessData; /* 0x10 */
+
+typedef struct ShBloodPebbleControl {
+    Vec position;         /* +0x00 */
+    Vec angles;           /* +0x0C */
+    Vec velocity;         /* +0x18 */
+    Vec scale;            /* +0x24 */
+    float lifetime;       /* +0x30 */
+    float angle_degrees;  /* +0x34 */
+    float angle_step;     /* +0x38 */
+    int state;            /* +0x3C */
+} ShBloodPebbleControl; /* 0x40 */
+typedef char ShBloodPebbleControlSize[
+    (sizeof(ShBloodPebbleControl) == 0x40) ? 1 : -1];
 typedef struct BgndObstacleEventData BgndObstacleEventData;
 typedef int (*BgndArenaObstacleCallback)(BgndObstacleEventData* event);
 typedef struct MorphScript {
@@ -59,13 +92,38 @@ typedef struct BgndDangerZone {
 typedef char BgndDangerZoneSize[(sizeof(BgndDangerZone) == 0x2C) ? 1 : -1];
 
 typedef struct BgndDisplayedItem {
-    MkHdr hdr;                 /* +0x00 */
-    int id;                    /* +0x08 */
-    char pad0C[0x74];
-    ArenaObstacle* obstacle;   /* +0x80 */
+    MkHdr hdr;                   /* +0x00 */
+    int type;                    /* +0x08 */
+    MkObj* primary_object;       /* +0x0C */
+    MkObj* secondary_object;     /* +0x10 */
+    MkSobj* display_sobj;        /* +0x14 */
+    MkSobj* secondary_sobj;      /* +0x18 */
+    int object_id;               /* +0x1C */
+    int field_20;                /* +0x20 */
+    int sobj_id;                 /* +0x24 */
+    int field_28;                /* +0x28 */
+    int source_sobj_id;          /* +0x2C */
+    int field_30;                /* +0x30 */
+    Vec position;                /* +0x34 */
+    Vec angles;                  /* +0x40 */
+    Vec field_4C;                /* +0x4C */
+    Vec field_58;                /* +0x58 */
+    Vec collision_center;        /* +0x64 */
+    float collision_radius;      /* +0x70 */
+    float collision_height;      /* +0x74 */
+    float field_78;               /* +0x78 */
+    int flags;                    /* +0x7C */
+    ArenaObstacle* obstacle;     /* +0x80 */
+    union {
+        unsigned int placement_flags; /* +0x84 */
+        struct {
+            unsigned int placement_id : 31;
+            unsigned int flag_0 : 1;
+        };
+    };
 } BgndDisplayedItem;
 typedef char BgndDisplayedItemSize[
-    (sizeof(BgndDisplayedItem) == 0x84) ? 1 : -1];
+    (sizeof(BgndDisplayedItem) == 0x88) ? 1 : -1];
 
 typedef struct BgndUvScrollControlItem {
     UvScrollControl* control;
@@ -181,6 +239,11 @@ static void bl_process_beetle_transition_personality(
     BlBeetleControl* beetle);
 static void bl_process_beetle_chilling(BlBeetleControl* beetle);
 static void bl_process_beetle_track_plyr(BlBeetleControl* beetle);
+static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle);
+static void bl_process_general_movement(
+    BlBeetleControl* beetle, const Vec* target, int heading_ticks,
+    int surface, float distance_limit_sq, float heading_offset,
+    float heading_divisor, float movement_scale_a, float movement_scale_b);
 static inline void set_subobject_transl(MkSobj* object) {
     RpAtomic* atomic;
     RpGeometry* geometry;
@@ -398,6 +461,16 @@ void drone_ai_dont_think(void);
 void turn_controllers_off(void);
 void turn_controllers_on(void);
 void plyr_weapon_trail_hide(PlyrMirrorSlots* slots);
+void face_opponent_now(void);
+void danger_zone_eligible_on(void);
+void init_air_move_no_aniproc(void);
+void launch_me_up(float vertical_velocity, float gravity);
+void high_flash_check(void);
+void ani_loop_more_frames(float frames);
+void damage_me(float amount);
+void damage_player(PlyrPdata* player, float amount);
+void toggle_danger_zone(int enabled);
+void fx_hide(unsigned int handle, int hidden);
 static int bgnd_collision_to_script_interface(BgndObstacleEventData* event);
 static float p_bgnd_launch_sobj_monitor(void);
 static float p_bgnd_launch_chunk_monitor(void);
@@ -406,6 +479,7 @@ static float p_pebble_burst_monitor(void);
 static float p_pebble_path_monitor(void);
 static float p_crack_placer(void);
 static float p_bgnd_timer_monitor(void);
+static float p_bgnd_script_in_proc(void);
 static void bgnd_pebble_burst_at(int player, const Vec* position,
                                  unsigned int first, unsigned int end);
 int fx_by_owner(const char* name, int owner);
@@ -422,11 +496,16 @@ void reset_effect(const char* name);
 MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
     unsigned int effect, float x, float y, float z);
 void fx_reset(unsigned int effect);
+void fx_set_param_v3(
+    unsigned int effect, int parameter, float x, float y, float z);
 void start_blood_particles(int effect, int bone_id, PlyrPdata* player,
                            void* limb);
 int get_first_shape_center_for_obstacle_id(unsigned int obstacle_id,
                                            Vec* center);
 void set_collision_render_state(int enabled);
+void shake_camera(int amplitude, float duration);
+int snd_req_vol(int sound_id, float volume);
+double pow(double base, double exponent);
 MkPfx* find_pfx_by_name(const char* name);
 void move_player(MkObj* object, const Vec* position, const Vec* angles);
 MkProc* get_player_proc(void* object);
@@ -500,8 +579,26 @@ extern BgndSobjLaunchMonitor* g_sobj_launch_monitor_pdata;
 extern BgndChunkLaunchMonitor* g_chunk_launch_monitor_pdata;
 extern PebbleData* g_bgnd_cracks;
 extern unsigned int g_bgnd_last_crack_overwritten;
+extern int force_midpoint_calculation_update;
 extern void* obj_start_morph(MkObj* object, int sobj_id,
                              MorphScript* script, unsigned int flags);
+float bgnd_process_collision_info(
+    unsigned int operation, float value1, float value2, float value3,
+    float value4, float value5, float value6, float value7, float value8);
+extern void sh_set_grinder_speed(float speed);
+extern void sh_spawn_grinder_crush_pfx(void);
+extern void sh_start_grinder_crush_blood(Vec* position, PlyrPdata* player,
+                                         MkObj* object);
+extern void sh_start_grinder_crush_chunks(Vec* position, PlyrPdata* player);
+extern void sh_start_grinder_meat_spew(Vec* position, PlyrPdata* player);
+extern void sh_start_grinder_chunk_spew(Vec* position, PlyrPdata* player);
+extern void hide_player(PlyrPdata* player, int hide_weapons);
+extern void obj_set_pos_vel(MkObj* object, void* velocity);
+extern void set_ani_speed(float speed);
+extern int random_voice(int group);
+extern void random_hit(int group);
+extern MkProc* plyr_anim_proc;
+extern unsigned char shared_ani[];
 extern void delete_obstacle_from_background_by_id(int obstacle_id);
 extern MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot);
 extern void load_bgnd_fstyle_sign(int player);
@@ -584,6 +681,10 @@ void init_misc_bgnd_data(void);
 void load_background_anims(void* anims, int bgnd_id);
 void init_weapon_trail_light_list(void);
 void insert_fgnd_mkobj(void* bgnd_obj);
+MkObj* load_model_from_slot(int slot, unsigned int model_id, int heap_id);
+int mslSoundIsValid(MslSoundHandle sound);
+void snd_stop(MslSoundHandle sound);
+extern MkVtable5 vtbl_slaughterhouse_pdata;
 void set_background_color(int r, int g, int b, int a);
 void turn_fog_on(void);
 void turn_fog_off(void);
@@ -637,31 +738,99 @@ void bgnd_level_transition_start(void) {
     g_game_info.plyr0.slot.pdata->collision_disabled = 1;
     g_game_info.plyr1.slot.pdata->collision_disabled = 1;
 }
-int is_bgnd_locked(int bgnd_id) {
-    unsigned long long unlocked;
+static inline int bgnd_unlock_bit_is_clear(
+    unsigned int high, unsigned int low, int bgnd_id) {
     unsigned long long mask;
 
-    if (bgnd_id < 0 || bgnd_id > 0x23) {
+    mask = 1ULL << bgnd_id;
+    return ((((unsigned long long)high << 32) | low) & mask) == 0;
+}
+
+/* Clean-C near match: 47.14%, retail/local 288/280. Both range guards, play
+ * mode selection, attract override, 64-bit masks, and bit polarity agree. The
+ * eight-byte gap and low alignment score come from helper argument scheduling
+ * and nonvolatile allocation around MWCC's 64-bit shift lowering. */
+int is_bgnd_locked(int bgnd_id) {
+    if (bgnd_id < 0) {
+        return 1;
+    }
+    if (bgnd_id > 0x23) {
         return 1;
     }
 
-    mask = 1ULL << bgnd_id;
     if (mode_of_play == 6) {
-        unlocked =
-            ((unsigned long long)(gp_data.puzzle_bgnds[0] | default_pz_bgnd_bits[0]) << 32) |
-            (gp_data.puzzle_bgnds[1] | default_pz_bgnd_bits[1]);
-        return (unlocked & mask) == 0;
+        return bgnd_unlock_bit_is_clear(
+            gp_data.puzzle_bgnds[0] | default_pz_bgnd_bits[0],
+            gp_data.puzzle_bgnds[1] | default_pz_bgnd_bits[1], bgnd_id);
     }
 
     if ((g_game_info.field_04 & 0x80) != 0 && (g_game_info.field_04 & 0x40) == 0) {
         return 0;
     }
 
-    unlocked = ((unsigned long long)(gp_data.bgnds[0] | default_bgnd_bits[0]) << 32) |
-               (gp_data.bgnds[1] | default_bgnd_bits[1]);
-    return (unlocked & mask) == 0;
+    return bgnd_unlock_bit_is_clear(
+        gp_data.bgnds[0] | default_bgnd_bits[0],
+        gp_data.bgnds[1] | default_bgnd_bits[1], bgnd_id);
 }
-int get_next_bgnd(void) { return 0; }
+static int bgnd_cycle_tbl[22] = {
+    0, 0x13, 0x12, 0xF, 6, 0xB, 0xC, 0xE, 7, 1, 8,
+    0x10, 0x14, 0x11, 9, 0x15, 2, 5, 3, 0xD, 0xA, -1
+};
+
+/* Clean-C near match: retail/local 420/412. The exact cycle table, unlock-bit
+ * selection, attract override, wrap/fallback behavior, and returned arena
+ * agree. Objdiff alignment is defeated by wholesale nonvolatile-register
+ * recoloring (retail r18-r31 versus local r24-r31) and precomputed bitwise ORs. */
+int get_next_bgnd(void) {
+    int play_mode = mode_of_play;
+    unsigned int puzzle_high = gp_data.puzzle_bgnds[0];
+    unsigned int puzzle_low = gp_data.puzzle_bgnds[1];
+    unsigned int default_puzzle_high = default_pz_bgnd_bits[0];
+    unsigned int default_puzzle_low = default_pz_bgnd_bits[1];
+    unsigned int unlocked_high = gp_data.bgnds[0];
+    unsigned int unlocked_low = gp_data.bgnds[1];
+    unsigned int default_high = default_bgnd_bits[0];
+    unsigned int default_low = default_bgnd_bits[1];
+    int background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
+
+    for (;;) {
+        int locked;
+
+        if (background < 0 || background > 0x23) {
+            locked = 1;
+        } else if (play_mode == 6) {
+            unsigned long long mask = 1ULL << background;
+            unsigned long long unlocked =
+                ((unsigned long long)(puzzle_high | default_puzzle_high) << 32) |
+                (puzzle_low | default_puzzle_low);
+            locked = (unlocked & mask) == 0;
+        } else if ((g_game_info.field_04 & 0x80) != 0 &&
+                   (g_game_info.field_04 & 0x40) == 0) {
+            locked = 0;
+        } else {
+            unsigned long long mask = 1ULL << background;
+            unsigned long long unlocked =
+                ((unsigned long long)(unlocked_high | default_high) << 32) |
+                (unlocked_low | default_low);
+            locked = (unlocked & mask) == 0;
+        }
+        if (!locked) {
+            g_game_info.bgnd_cycle_index++;
+            if (bgnd_cycle_tbl[g_game_info.bgnd_cycle_index] == -1) {
+                g_game_info.bgnd_cycle_index = 0;
+            }
+            return background;
+        }
+        g_game_info.bgnd_cycle_index++;
+        if (bgnd_cycle_tbl[g_game_info.bgnd_cycle_index] == -1) {
+            g_game_info.bgnd_cycle_index = 0;
+        }
+        background = bgnd_cycle_tbl[g_game_info.bgnd_cycle_index];
+        if ((unsigned int)background > 0x23) {
+            return 0x12;
+        }
+    }
+}
 /*
  * Exact material selection and stores; 82.98%, retail/local 160/164 bytes.
  * Retail lowers the all-material loop through CTR while local MWCC retains an
@@ -842,7 +1011,233 @@ void skytemple_set_fence_pebble_vel(
         pebbles[index].gravity = -0.002f;
     }
 }
-static void p_sh_fatality_body_parts(void) {}
+static void sh_update_fatality_body_part(MkObj* object);
+extern void spawn_bld_splat(const char* name, int owner, Vec* position);
+
+static inline MkHdr* sh_get_latched_object(MkHdrLatch* latch) {
+    MkHdr* object = latch->hdr;
+
+    if (object != 0) {
+        if (object->instance != latch->instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline void sh_normalize_blood_xz(Vec* vector) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    float correction;
+    float inverse_length;
+    float product;
+    float squared;
+    float x;
+
+    x = vector->x;
+    squared = x * x + vector->z * vector->z;
+    if (squared <= 0.0f) {
+        inverse_length = 0.0f;
+    } else {
+        input.f = squared;
+        estimate.u = 0x5F375A00U - (input.u >> 1);
+        product = estimate.f * (squared * estimate.f);
+        correction = 3.0f - product;
+        inverse_length = 0.0625f * estimate.f * correction *
+            -(correction * (product * correction) - 12.0f);
+    }
+    vector->x = x * inverse_length;
+    vector->z *= inverse_length;
+}
+
+/* Clean-C near match: 80.85%, retail/local 1904/1752. Both model updates, the
+ * complete three-state small-fragment loop, camera-directed large fragment,
+ * timers, splat calls, and matrix updates agree. Residue is latch merge/CSE
+ * and equivalent stack-vector scheduling in the repeated impact paths. */
+static float p_sh_fatality_body_parts(void) {
+    ShFatalityBodyPartsProcessData* data;
+    PebbleData* pebble_data;
+    ShBloodPebbleControl* controls;
+    MkObj* object;
+    int index;
+
+    data = (ShFatalityBodyPartsProcessData*)pdata_of_proc(aproc);
+    if (data == 0 || g_slaughterhouse_pdata == 0) {
+        return -1.0f;
+    }
+    if (data->delay > 0.0f) {
+        data->delay -= game_speed;
+        return 1.0f;
+    }
+
+    object = (MkObj*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->lower_level_pebbles[3]);
+    if (object != 0) {
+        sh_update_fatality_body_part(object);
+    }
+    object = (MkObj*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->lower_level_pebbles[4]);
+    if (object != 0) {
+        sh_update_fatality_body_part(object);
+    }
+
+    pebble_data = (PebbleData*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->blood_fall_pebbles[0]);
+    if (pebble_data != 0) {
+        controls = (ShBloodPebbleControl*)pebble_data->user_data;
+        index = 0;
+        while (index < pebble_data->count) {
+            ShBloodPebbleControl* control = &controls[index];
+
+            control->lifetime -= game_speed;
+            if (control->lifetime <= 0.0f) {
+                control->lifetime = 0.0f;
+                switch (control->state) {
+                case 0: {
+                    Vec step;
+
+                    step.x = game_speed * control->velocity.x;
+                    step.y = game_speed * control->velocity.y;
+                    step.z = game_speed * control->velocity.z;
+                    control->position.x += step.x;
+                    control->position.y += step.y;
+                    control->position.z += step.z;
+                    control->velocity.y -= 0.004f;
+                    control->angle_degrees += control->angle_step;
+                    if (control->angle_degrees > 360.0f) {
+                        control->angle_degrees = 0.0f;
+                    }
+                    if (control->position.z > 21.65f) {
+                        control->position.z = 21.65f;
+                        control->velocity.x *= 0.2f;
+                        control->velocity.z *= -0.2f;
+                        if (randu0(10) <= 2) {
+                            Vec splat_position = control->position;
+
+                            splat_position.z = 21.65f;
+                            spawn_bld_splat(
+                                "sh_bloodsplat", 0, &splat_position);
+                            control->state = 2;
+                            control->position.z = 21.6f;
+                            control->velocity.x = 0.0f;
+                            control->velocity.y = 0.0f;
+                            control->velocity.z = 0.0f;
+                            control->velocity.y = -0.001f;
+                            control->angle_step = 90.0f;
+                        }
+                    }
+                    if (control->position.y <= -15.5f) {
+                        control->state = 1;
+                        control->position.y = -15.5f;
+                        control->velocity.y = 0.015f + frand(0.07f);
+                        control->angles.x = sfrand(1.0f);
+                        control->angles.y = sfrand(1.0f);
+                        control->angles.z = sfrand(1.0f);
+                        control->angle_degrees = frand(360.0f);
+                    }
+                    break;
+                }
+                case 1:
+                    control->velocity.x *= 0.97f;
+                    if (control->position.y < -15.5f) {
+                        control->position.y = -15.5f;
+                        if (control->velocity.y < 0.0f) {
+                            control->velocity.y *= -0.2f;
+                        }
+                    } else if (control->position.y > -15.3f) {
+                        if (control->velocity.y > 0.0f) {
+                            control->velocity.y *= -0.3f;
+                        }
+                    }
+                    if (control->velocity.z > -0.01f) {
+                        control->velocity.z -= 0.0002f;
+                    } else {
+                        control->velocity.z *= 0.97f;
+                    }
+                    control->position.x += control->velocity.x;
+                    control->position.y += control->velocity.y;
+                    control->position.z += control->velocity.z;
+                    if (control->lifetime < 90.0f) {
+                        control->position.y -= 0.002f;
+                    }
+                    break;
+                case 2:
+                    control->position.y += game_speed * control->velocity.y;
+                    control->angle_step -= 1.0f;
+                    if (control->angle_step <= 0.0f) {
+                        Vec splat_position = control->position;
+
+                        control->angle_step = 90.0f;
+                        splat_position.z = 21.65f;
+                        spawn_bld_splat("sh_bloodsplat", 0, &splat_position);
+                    }
+                    if (control->velocity.y > -0.003f) {
+                        control->velocity.y -= 0.0001f;
+                    }
+                    if (control->position.y < -15.4f) {
+                        control->state = 1;
+                    }
+                    break;
+                }
+            }
+            MKMatrixRotateScaleTranslate(
+                &pebble_data->pebbles[index].matrix, &control->angles,
+                control->angle_degrees, &control->scale, &control->position);
+            index++;
+        }
+    }
+
+    pebble_data = (PebbleData*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->blood_fall_pebbles[2]);
+    if (pebble_data != 0) {
+        ShBloodPebbleControl* control =
+            (ShBloodPebbleControl*)pebble_data->user_data;
+
+        control->lifetime -= game_speed;
+        if (control->lifetime <= 0.0f) {
+            Vec step;
+
+            control->lifetime = 0.0f;
+            step.x = control->velocity.x * game_speed;
+            step.y = control->velocity.y * game_speed;
+            step.z = control->velocity.z * game_speed;
+            control->position.x += step.x;
+            control->position.y += step.y;
+            control->position.z += step.z;
+            if (control->state == 0) {
+                control->velocity.y -= 0.004f;
+                control->angle_degrees += control->angle_step;
+                if (control->angle_degrees > 360.0f) {
+                    control->angle_degrees = 0.0f;
+                }
+                if (control->position.z > 21.65f) {
+                    control->position.z = 21.65f;
+                    control->velocity.x = camera_obj->pos.x - control->position.x;
+                    control->velocity.z = camera_obj->pos.z - control->position.z;
+                    sh_normalize_blood_xz(&control->velocity);
+                    control->velocity.x *= 0.07f;
+                    control->velocity.z *= 0.07f;
+                    control->velocity.y = -0.002f;
+                    control->state = 1;
+                }
+            } else {
+                control->velocity.y -= 0.001f;
+                control->angle_degrees += control->angle_step;
+                if (control->angle_degrees > 360.0f) {
+                    control->angle_degrees = 0.0f;
+                }
+            }
+            MKMatrixRotateScaleTranslate(
+                &pebble_data->pebbles[0].matrix, &control->angles,
+                control->angle_degrees, &control->scale, &control->position);
+        }
+    }
+    return 1.0f;
+}
 /*
  * Near match: exact 464-byte instruction stream; all remaining differences
  * are float-pool relocation labels.
@@ -890,11 +1285,849 @@ static void sh_update_fatality_body_part(MkObj* object) {
         }
     }
 }
-static void sh_start_fatality_body_parts(void) {}
-void p_sh_throw_plyr_in_grinder(void) {}
-static void p_sh_bottom_floor_blood_fall(void) {}
-static void sh_update_blood_fall_pebbles(void) {}
-static void sh_init_bottom_floor_blood_fall_pebbles(void) {}
+static inline void sh_normalize_fatality_vector(Vec* vector) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    float correction;
+    float inverse_length;
+    float product;
+    float squared;
+    float x;
+
+    x = vector->x;
+    squared = vector->z * vector->z +
+        (x * x + vector->y * vector->y);
+    if (squared <= 0.0f) {
+        inverse_length = 0.0f;
+    } else {
+        input.f = squared;
+        estimate.u = 0x5F375A00U - (input.u >> 1);
+        product = estimate.f * (squared * estimate.f);
+        correction = 3.0f - product;
+        inverse_length = 0.0625f * estimate.f * correction *
+            -(correction * (product * correction) - 12.0f);
+    }
+    vector->x = x * inverse_length;
+    vector->y *= inverse_length;
+    vector->z *= inverse_length;
+}
+
+/* Clean-C near match: 78.97%, retail/local 2416/2280. Process ownership,
+ * source-object validation, both launched body models, every RNG call, small
+ * and large fragment initialization, scales, matrices, and delay agree.
+ * Residue is repeated latch-merge/CSE and aggregate-copy scheduling. */
+static void sh_start_fatality_body_parts(PlyrPdata* player) {
+    ShFatalityBodyPartsProcessData* process_data;
+    MkObj* source;
+    MkObj* object;
+    PebbleData* pebble_data;
+    ShBloodPebbleControl* controls;
+    MkProc* process;
+
+    process_data = 0;
+    process = _create_mkproc_generic_nostack(
+        0xA011, 0x1F, p_sh_fatality_body_parts,
+        sizeof(ShFatalityBodyPartsProcessData), (MkHdr**)&process_data);
+    if (process == 0) {
+        return;
+    }
+
+    source = player->tracked_obj;
+    if (source != 0 && source->hdr.instance != player->tracked_obj_instance) {
+        source = 0;
+    }
+
+    object = (MkObj*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->lower_level_pebbles[3]);
+    if (object != 0) {
+        float speed = 0.2f + frand(0.2f);
+
+        object->pos.value = source->pos.value;
+        object->flags_08 &= (unsigned char)~(0x40 | 0x20 | 8 | 4);
+        object->pos_vel.x = sfrand(0.2f);
+        object->pos_vel.y = 0.25f + sfrand(0.4f);
+        object->pos_vel.z = 1.0f + frand(0.5f);
+        sh_normalize_fatality_vector(&object->pos_vel);
+        object->pos_vel.x *= speed;
+        object->pos_vel.y *= speed;
+        object->pos_vel.z *= speed;
+        object->ang_vel.x = sfrand(0.05f);
+        object->ang_vel.y = sfrand(0.05f);
+        object->ang_vel.z = sfrand(0.05f);
+        object->flags_08 |= 1;
+        object->gravity = -0.003f;
+        unhide_obj(object);
+    }
+
+    object = (MkObj*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->lower_level_pebbles[4]);
+    if (object != 0) {
+        float speed = 0.2f + frand(0.2f);
+
+        object->pos.value = source->pos.value;
+        object->flags_08 &= (unsigned char)~(0x40 | 0x20 | 8 | 4);
+        object->pos_vel.x = sfrand(0.2f);
+        object->pos_vel.y = 0.25f + sfrand(0.4f);
+        object->pos_vel.z = 1.0f + frand(0.5f);
+        sh_normalize_fatality_vector(&object->pos_vel);
+        object->pos_vel.x *= speed;
+        object->pos_vel.y *= speed;
+        object->pos_vel.z *= speed;
+        object->ang_vel.x = sfrand(0.05f);
+        object->ang_vel.y = sfrand(0.05f);
+        object->ang_vel.z = sfrand(0.05f);
+        object->flags_08 |= 1;
+        object->gravity = -0.003f;
+        unhide_obj(object);
+    }
+
+    object = (MkObj*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->lower_level_pebbles[0]);
+    if (object != 0) {
+        unhide_obj(object);
+    }
+    pebble_data = (PebbleData*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->blood_fall_pebbles[0]);
+    if (pebble_data != 0) {
+        int index;
+
+        controls = (ShBloodPebbleControl*)pebble_data->user_data;
+        index = 0;
+        while (index < pebble_data->count) {
+            ShBloodPebbleControl* control = &controls[index];
+            float speed = 0.2f + frand(0.2f);
+            float scale_value = 1.0f + frand(0.8f);
+            Vec scale = {0.5f, 0.5f, 0.5f};
+
+            scale.x *= scale_value;
+            scale.y *= scale_value;
+            scale.z *= scale_value;
+            control->position = source->pos.value;
+            control->velocity.x = sfrand(0.5f);
+            control->velocity.y = 0.5f + sfrand(0.8f);
+            control->velocity.z = 1.0f + frand(0.5f);
+            sh_normalize_fatality_vector(&control->velocity);
+            control->velocity.x *= speed;
+            control->velocity.y *= speed;
+            control->velocity.z *= speed;
+            control->angles.x = sfrand(0.8f);
+            control->angles.y = sfrand(0.8f);
+            control->angles.z = sfrand(0.8f);
+            control->state = 0;
+            control->angle_degrees = frand(360.0f);
+            control->angle_step = 3.0f + frand(2.0f);
+            control->scale = scale;
+            MKMatrixScale(&pebble_data->pebbles[index].matrix, &scale, 0);
+            control->lifetime = frand(60.0f);
+            index++;
+        }
+    }
+
+    object = (MkObj*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->lower_level_pebbles[2]);
+    if (object != 0) {
+        unhide_obj(object);
+    }
+    pebble_data = (PebbleData*)sh_get_latched_object(
+        &g_slaughterhouse_pdata->blood_fall_pebbles[2]);
+    if (pebble_data != 0) {
+        ShBloodPebbleControl* control;
+        float speed;
+        Vec scale = {1.5f, 1.5f, 1.5f};
+
+        speed = 0.2f + frand(0.2f);
+        pebble_data->count = 1;
+        control = (ShBloodPebbleControl*)pebble_data->user_data;
+        control->position = source->pos.value;
+        control->velocity.x = sfrand(0.3f);
+        control->velocity.y = 0.5f + sfrand(0.5f);
+        control->velocity.z = 1.0f + frand(0.5f);
+        sh_normalize_fatality_vector(&control->velocity);
+        control->velocity.x *= speed;
+        control->velocity.y *= speed;
+        control->velocity.z *= speed;
+        control->angles.x = sfrand(0.8f);
+        control->angles.y = sfrand(0.8f);
+        control->angles.z = sfrand(0.8f);
+        control->state = 0;
+        control->angle_degrees = frand(360.0f);
+        control->angle_step = 3.0f + frand(2.0f);
+        control->scale = scale;
+        MKMatrixScale(&pebble_data->pebbles[0].matrix, &scale, 0);
+        control->lifetime = 0.0f;
+    }
+    process_data->delay = 30.0f + frand(60.0f);
+    process_data->player = player;
+}
+/* Clean-C near match: 90.31%, retail/local 1724/1704. Fatality state, both
+ * collision-dispatch calls, player launch/arrival loop, grinder timing, all
+ * sound/effect phases, body-part launch, cleanup, and process exit agree.
+ * Residue is stack-vector and short-circuit scheduling. */
+static float p_sh_throw_plyr_in_grinder(void) {
+    Vec target;
+    Vec zero_velocity = {0.0f, 0.0f, 0.0f};
+    MkSobj* first;
+    MkSobj* second;
+    float distance;
+    int voice;
+
+    drone_ai_dont_think();
+    turn_controllers_off();
+    g_game_info.flag_bits.level_fatality_active = 1;
+    g_game_info.flag_bits.level_transition_active = 0;
+    plyr_weapon_trail_hide(g_game_info.plyr0.slot.pdata->mirror_slots);
+    plyr_weapon_trail_hide(g_game_info.plyr1.slot.pdata->mirror_slots);
+    g_game_info.plyr0.slot.pdata->collision_disabled = 1;
+    g_game_info.plyr1.slot.pdata->collision_disabled = 1;
+    g_game_info.field_200 = 0x18;
+    bgnd_process_collision_info(9, 0.0f, 0.0f, 0.0f,
+                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    bgnd_process_collision_info(7, 0.0f, 0.0f, 0.0f,
+                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    obj_set_pos_vel(g_game_info.player_objects[1], &zero_velocity);
+    destroy_mkprocs_pid(0xA005);
+    destroy_mkprocs_pid(0xA00D);
+    destroy_mkprocs_pid(0xA00F);
+    destroy_mkprocs_pid(0xA00E);
+    destroy_mkprocs_pid(0xA010);
+    destroy_mkprocs_pid(0xA011);
+    hide_sobj(obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x14));
+    hide_sobj(obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x15));
+
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+    sh_set_grinder_speed(0.15f);
+    plyr_pdata->state_flags.bits.bit3 = 1;
+    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags_09_bits.bit6 = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags_0B_bits.bit6 = 1;
+    plyr_obj->flags_0B_bits.bit3 = 1;
+
+    first = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
+    target = first->pos;
+    second = obj_find_sobj_by_id(g_game_info.bgnd_obj, 2);
+    target.x = 0.5f * (target.x - second->pos.x) + second->pos.x;
+    target.z = 0.5f * (target.z - second->pos.z) + second->pos.z;
+    plyr_obj->pos_vel.x = target.x - plyr_obj->pos.value.x;
+    plyr_obj->pos_vel.z = target.z - plyr_obj->pos.value.z;
+    sh_normalize_blood_xz(&plyr_obj->pos_vel);
+    plyr_obj->pos_vel.x *= 0.16f;
+    plyr_obj->pos_vel.z *= 0.16f;
+    plyr_obj->pos_vel.y =
+        0.2f * (1.0f / dist_xz_to_xz(&plyr_obj->pos.value, &target));
+    plyr_obj->flags_08_bits.moving = 0;
+    xfer_proc(plyr_anim_proc, p_animate);
+    blend_to_ani(*(AniData**)&shared_ani[0x44], 0, 1.0f);
+    run_camera_script(g_game_info.cmdscript, 0x1F, 0);
+    random_hit(4);
+    do {
+        distance = dist_xz_to_xz(&plyr_obj->pos.value, &target);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    } while (distance > 0.21f && plyr_obj->pos.value.z < target.z);
+
+    plyr_obj->gravity = 0.0f;
+    plyr_obj->pos_vel.x = 0.0f;
+    plyr_obj->pos_vel.y = 0.0f;
+    plyr_obj->pos_vel.z = 0.0f;
+    plyr_obj->pos.value.x = target.x;
+    plyr_obj->pos.value.z = target.z;
+    target.y = plyr_obj->pos.value.y;
+    sh_start_grinder_crush_blood(&target, plyr_pdata, plyr_obj);
+    sh_start_grinder_crush_chunks(&target, plyr_pdata);
+    if (g_slaughterhouse_pdata->lower_ambient_sound_2 != 0) {
+        snd_stop(g_slaughterhouse_pdata->lower_ambient_sound_2);
+        g_slaughterhouse_pdata->lower_ambient_sound_2 = 0;
+    }
+    sh_set_grinder_speed(-0.002f);
+    random_voice(3);
+    snd_req(0x146);
+    snd_req(0x149);
+    random_hit(5);
+    set_ani_speed(0.1f);
+    sh_spawn_grinder_crush_pfx();
+    _mkproc_sleep_ticks = 80.0f;
+    aproc->vtbl->sleep();
+    sh_set_grinder_speed(0.2f);
+    set_ani_speed(2.5f);
+    _mkproc_sleep_ticks = 5.0f;
+    aproc->vtbl->sleep();
+    sh_set_grinder_speed(-0.002f);
+    voice = random_voice(0xE);
+    snd_req(0x147);
+    snd_req(0x149);
+    random_hit(5);
+    sh_spawn_grinder_crush_pfx();
+    _mkproc_sleep_ticks = 80.0f;
+    aproc->vtbl->sleep();
+    sh_set_grinder_speed(0.22f);
+    sh_start_grinder_meat_spew(&target, plyr_pdata);
+    sh_start_grinder_chunk_spew(&target, plyr_pdata);
+    sh_start_fatality_body_parts(plyr_pdata);
+    snd_req(0x145);
+    snd_stop(voice);
+    snd_req(0x146);
+    random_hit(5);
+    hide_player(plyr_pdata, 1);
+    if (g_slaughterhouse_pdata->lower_ambient_sound_2 == 0) {
+        g_slaughterhouse_pdata->lower_ambient_sound_2 = snd_req(0x148);
+    }
+    _mkproc_sleep_ticks = 240.0f;
+    aproc->vtbl->sleep();
+    kill_plyr_life(plyr_pdata->plyr_num);
+    set_level_fatality_done_flag_state(1);
+    reset_collision_system();
+    g_game_info.flag_bits.level_fatality_active = 0;
+    g_game_info.flag_bits.level_transition_active = 0;
+    g_game_info.plyr0.slot.pdata->collision_disabled = 0;
+    g_game_info.plyr1.slot.pdata->collision_disabled = 0;
+    drone_ai_ok_to_think();
+    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+static inline void sh_normalize_blood_direction(Vec* direction) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    float correction;
+    float inverse_length;
+    float product;
+    float squared;
+    float x;
+    float x_squared;
+    float y_squared;
+    float z_squared;
+
+    x = direction->x;
+    x_squared = x * x;
+    y_squared = direction->y * direction->y;
+    z_squared = direction->z * direction->z;
+    squared = z_squared + (x_squared + y_squared);
+    if (squared <= 0.0f) {
+        inverse_length = 0.0f;
+    } else {
+        input.f = squared;
+        estimate.u = 0x5F375A00U - (input.u >> 1);
+        product = estimate.f * (squared * estimate.f);
+        correction = 3.0f - product;
+        inverse_length = 0.0625f * estimate.f * correction *
+            -(correction * (product * correction) - 12.0f);
+    }
+    direction->x = x * inverse_length;
+    direction->y *= inverse_length;
+    direction->z *= inverse_length;
+}
+
+/* Clean-C near match: 82.09%, retail/local 2936/2912. The complete three-state
+ * update, RNG/call order, five inlined normalizations, impact lifetime, splat
+ * emission, and matrix updates agree. The remaining six instructions are
+ * merge-branch emission around duplicated respawn paths. */
+static void sh_update_blood_fall_pebbles(
+    PebbleData* pebble_data, int* active_splats, const Vec* origin,
+    float gravity);
+static inline void sh_normalize_blood_direction(Vec* direction);
+extern void spawn_bld_splat(const char* name, int owner, Vec* position);
+
+/* Clean-C near match: 95.00%, retail/local 272/260. Process data, call order,
+ * latch offsets, argument registers, early exits, and return values agree.
+ * MWCC removes one redundant success-to-merge branch from each of the three
+ * structurally identical latch validations. */
+static float p_sh_bottom_floor_blood_fall(void) {
+    ShBloodFallProcessData* data;
+    PebbleData* pebbles;
+
+    data = (ShBloodFallProcessData*)pdata_of_proc(aproc);
+    if (data == 0) {
+        return -1.0f;
+    }
+    if (g_slaughterhouse_pdata == 0) {
+        return -1.0f;
+    }
+
+    pebbles = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr;
+    if (pebbles != 0) {
+        if (pebbles->hdr.instance ==
+            g_slaughterhouse_pdata->blood_fall_pebbles[1].instance) {
+            /* The latched pebble collection is still live. */
+        } else {
+            pebbles = 0;
+        }
+    } else {
+        pebbles = 0;
+    }
+    sh_update_blood_fall_pebbles(
+        pebbles, &data->active_splats, &data->origin, data->gravity);
+
+    pebbles = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr;
+    if (pebbles != 0) {
+        if (pebbles->hdr.instance ==
+            g_slaughterhouse_pdata->blood_fall_pebbles[0].instance) {
+            /* The latched pebble collection is still live. */
+        } else {
+            pebbles = 0;
+        }
+    } else {
+        pebbles = 0;
+    }
+    sh_update_blood_fall_pebbles(
+        pebbles, &data->active_splats, &data->origin, data->gravity);
+
+    pebbles = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr;
+    if (pebbles != 0) {
+        if (pebbles->hdr.instance ==
+            g_slaughterhouse_pdata->blood_fall_pebbles[2].instance) {
+            /* The latched pebble collection is still live. */
+        } else {
+            pebbles = 0;
+        }
+    } else {
+        pebbles = 0;
+    }
+    sh_update_blood_fall_pebbles(
+        pebbles, &data->active_splats, &data->origin, data->gravity);
+    return 1.0f;
+}
+static void sh_update_blood_fall_pebbles(
+    PebbleData* pebble_data, int* active_splats, const Vec* origin,
+    float gravity) {
+    ShBloodPebbleControl* controls;
+    int index;
+
+    if (pebble_data == 0) {
+        return;
+    }
+
+    controls = (ShBloodPebbleControl*)pebble_data->user_data;
+    index = 0;
+    while (index < pebble_data->count) {
+        ShBloodPebbleControl* control = &controls[index];
+
+        switch (control->state) {
+        case 0:
+            control->position.y += game_speed * control->velocity.y;
+            control->velocity.y += gravity;
+            control->angle_degrees += control->angle_step;
+            if (control->angle_degrees > 360.0f) {
+                control->angle_degrees = 0.0f;
+            }
+            if (control->position.y < origin->y - 9.15f) {
+                unsigned short roll = randu0(100);
+
+                if (roll < 50) {
+                    control->state = 1;
+                    control->position.y = origin->y - 9.5f - frand(1.0f);
+                    control->velocity.x = control->position.x - origin->x;
+                    control->velocity.y = 0.0f;
+                    control->velocity.z = control->position.z - origin->z;
+                    sh_normalize_blood_direction(&control->velocity);
+                    if (control->velocity.z >= 0.0f) {
+                        /* Preserve the magnitude before directing it inward. */
+                    } else {
+                        control->velocity.z = -control->velocity.z;
+                    }
+                    control->velocity.z = -control->velocity.z;
+                    control->velocity.x *= 0.1f;
+                    control->velocity.y *= 0.1f;
+                    control->velocity.z *= 0.1f;
+                    control->velocity.y += frand(0.07f);
+                    control->lifetime = 240.0f + frand(240.0f);
+                    control->angles.x = sfrand(1.0f);
+                    control->angles.y = sfrand(1.0f);
+                    control->angles.z = sfrand(1.0f);
+                    control->angle_degrees = frand(360.0f);
+                } else if (roll == 99 && *active_splats < 3) {
+                    Vec direction = {0.0f, 0.0f, 1.0f};
+                    Vec rotated_direction;
+                    float angle;
+                    float distance;
+
+                    control->state = 2;
+                    (*active_splats)++;
+                    sh_normalize_blood_direction(&direction);
+                    direction.x *= 0.795f;
+                    direction.y *= 0.795f;
+                    direction.z *= 0.795f;
+                    angle = sfrand(3.1415927f);
+                    rotate_xz(&rotated_direction, &direction, angle);
+                    if (angle >= 0.0f) {
+                        /* Use the positive rotation magnitude. */
+                    } else {
+                        angle = -angle;
+                    }
+                    distance = angle / 3.1415927f + frand(1.5f);
+                    rotated_direction.x *= distance;
+                    rotated_direction.y *= distance;
+                    rotated_direction.z *= distance;
+                    control->position.x = origin->x + rotated_direction.x;
+                    control->position.y = origin->y;
+                    control->position.z = origin->z + rotated_direction.z;
+                    control->position.y += 9.15f;
+
+                    control->velocity.x = -control->position.x;
+                    control->velocity.y = 0.0f;
+                    control->velocity.z = 1.0f;
+                    sh_normalize_blood_direction(&control->velocity);
+                    control->velocity.x *= 0.06f;
+                    control->velocity.z *= 0.06f;
+                    control->velocity.y = -frand(0.05f) - 0.05f;
+                    control->angle_degrees = frand(360.0f);
+                    control->angle_step = 3.0f + frand(5.0f);
+                    control->lifetime = 3.0f;
+                    control->scale.x = 1.2f;
+                    control->scale.y = 1.2f;
+                    control->scale.z = 1.2f;
+                } else {
+                    Vec direction = {0.0f, 0.0f, 1.0f};
+                    Vec rotated_direction;
+                    float angle;
+                    float distance;
+
+                    sh_normalize_blood_direction(&direction);
+                    direction.x *= 0.795f;
+                    direction.y *= 0.795f;
+                    direction.z *= 0.795f;
+                    angle = sfrand(3.1415927f);
+                    rotate_xz(&rotated_direction, &direction, angle);
+                    if (angle >= 0.0f) {
+                        /* Use the positive rotation magnitude. */
+                    } else {
+                        angle = -angle;
+                    }
+                    distance = angle / 3.1415927f + frand(1.5f);
+                    rotated_direction.x *= distance;
+                    rotated_direction.y *= distance;
+                    rotated_direction.z *= distance;
+                    control->position.x = origin->x + rotated_direction.x;
+                    control->position.y = origin->y;
+                    control->position.z = origin->z + rotated_direction.z;
+                    control->position.y += 9.15f;
+                    control->velocity.y = -frand(0.05f) - 0.05f;
+                    control->angle_degrees = frand(360.0f);
+                    control->angle_step = 3.0f + frand(5.0f);
+                }
+            }
+            MKMatrixRotateScaleTranslate(
+                &pebble_data->pebbles[index].matrix, &control->angles,
+                control->angle_degrees, &control->scale, &control->position);
+            break;
+
+        case 1:
+            control->velocity.x *= 0.97f;
+            control->lifetime -= 1.0f;
+            if (control->lifetime <= 0.0f) {
+                Vec direction = {0.0f, 0.0f, 1.0f};
+                Vec rotated_direction;
+                float angle;
+                float distance;
+
+                control->state = 0;
+                sh_normalize_blood_direction(&direction);
+                direction.x *= 0.795f;
+                direction.y *= 0.795f;
+                direction.z *= 0.795f;
+                angle = sfrand(3.1415927f);
+                rotate_xz(&rotated_direction, &direction, angle);
+                if (angle >= 0.0f) {
+                    /* Use the positive rotation magnitude. */
+                } else {
+                    angle = -angle;
+                }
+                distance = angle / 3.1415927f + frand(1.5f);
+                rotated_direction.x *= distance;
+                rotated_direction.y *= distance;
+                rotated_direction.z *= distance;
+                control->position.x = origin->x + rotated_direction.x;
+                control->position.y = origin->y;
+                control->position.z = origin->z + rotated_direction.z;
+                control->position.y += 9.15f;
+                control->velocity.y = -frand(0.05f) - 0.05f;
+                control->angle_degrees = frand(360.0f);
+                control->angle_step = 3.0f + frand(5.0f);
+            }
+            if (control->position.y < origin->y - 9.1f) {
+                if (control->velocity.y < 0.0f) {
+                    control->velocity.y *= -0.4f;
+                }
+            } else if (control->position.y > origin->y - 8.9f) {
+                if (control->velocity.y > 0.0f) {
+                    control->velocity.y *= -0.4f;
+                }
+            }
+            if (control->velocity.z > -0.01f) {
+                control->velocity.z -= 0.0002f;
+            } else {
+                control->velocity.z *= 0.97f;
+            }
+            control->position.x += control->velocity.x;
+            control->position.y += control->velocity.y;
+            control->position.z += control->velocity.z;
+            if (control->lifetime < 90.0f) {
+                control->position.y -= 0.002f;
+            }
+            MKMatrixRotateScaleTranslate(
+                &pebble_data->pebbles[index].matrix, &control->angles,
+                control->angle_degrees, &control->scale, &control->position);
+            break;
+
+        case 2:
+            control->position.x += control->velocity.x;
+            control->position.y += control->velocity.y;
+            control->position.z += control->velocity.z;
+            control->angle_degrees += control->angle_step;
+            if (control->angle_degrees > 360.0f) {
+                control->angle_degrees = 0.0f;
+            }
+            if (control->lifetime <= 0.0f) {
+                control->velocity.x = 0.0f;
+                control->velocity.y = 0.0f;
+                control->velocity.z = 0.0f;
+                control->position.y = g_game_info.field_34 + 0.15f;
+                control->angle_step = 0.0f;
+            } else if (control->position.y < g_game_info.field_34 + 0.15f) {
+                control->velocity.y += -0.008f;
+                if (control->velocity.y < 0.0f) {
+                    Vec splat_position;
+
+                    control->lifetime -= 1.0f;
+                    control->velocity.y *= -0.4f;
+                    splat_position = control->position;
+                    splat_position.y = g_game_info.field_34;
+                    spawn_bld_splat("sh_bloodsplat", 0, &splat_position);
+                }
+            } else {
+                control->velocity.y += -0.008f;
+            }
+            MKMatrixRotateScaleTranslate(
+                &pebble_data->pebbles[index].matrix, &control->angles,
+                control->angle_degrees, &control->scale, &control->position);
+            break;
+        }
+        index++;
+    }
+}
+
+/* Clean-C near match: 91.50%, retail/local 2236/2184. All three collection
+ * loops agree in latch order, bounds, RNG order, vector normalization and
+ * rotation, scale ranges, control stores, and matrix updates. Residue is six
+ * redundant success-to-merge branches plus repeated constant/pool-base loads
+ * that this compiler invocation hoists across the open-coded loops. */
+static void sh_init_bottom_floor_blood_fall_pebbles(
+    ShBloodFallProcessData* data) {
+    PebbleData* large;
+    PebbleData* small;
+    PebbleData* largest;
+
+    large = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr;
+    if (large != 0) {
+        if (large->hdr.instance ==
+            g_slaughterhouse_pdata->blood_fall_pebbles[1].instance) {
+            /* The latched pebble collection is still live. */
+        } else {
+            large = 0;
+        }
+    } else {
+        large = 0;
+    }
+    small = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr;
+    if (small != 0) {
+        if (small->hdr.instance ==
+            g_slaughterhouse_pdata->blood_fall_pebbles[0].instance) {
+            /* The latched pebble collection is still live. */
+        } else {
+            small = 0;
+        }
+    } else {
+        small = 0;
+    }
+    largest = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr;
+    if (largest != 0) {
+        if (largest->hdr.instance ==
+            g_slaughterhouse_pdata->blood_fall_pebbles[2].instance) {
+            /* The latched pebble collection is still live. */
+        } else {
+            largest = 0;
+        }
+    } else {
+        largest = 0;
+    }
+
+    if (large != 0) {
+        ShBloodPebbleControl* controls;
+        int index;
+
+        controls = (ShBloodPebbleControl*)large->user_data;
+        index = 0;
+        while (index < large->count) {
+            float local_scale = 1.5f + frand(1.0f);
+            ShBloodPebbleControl* control;
+            Vec direction = {0.0f, 0.0f, 1.0f};
+            Vec rotated_direction;
+            Vec scale;
+            float angle;
+            float distance;
+
+            scale.x = scale.y = scale.z = local_scale;
+            sh_normalize_blood_direction(&direction);
+            direction.x *= 0.795f;
+            direction.y *= 0.795f;
+            direction.z *= 0.795f;
+            angle = sfrand(3.1415927f);
+            rotate_xz(&rotated_direction, &direction, angle);
+            if (angle >= 0.0f) {
+                /* Use the positive rotation magnitude. */
+            } else {
+                angle = -angle;
+            }
+            control = &controls[index];
+            distance = angle / 3.1415927f + frand(1.5f);
+            rotated_direction.x *= distance;
+            rotated_direction.y *= distance;
+            rotated_direction.z *= distance;
+            control->position.x = data->origin.x + rotated_direction.x;
+            control->position.y = data->origin.y;
+            control->position.z = data->origin.z + rotated_direction.z;
+            control->position.y += sfrand(9.15f);
+            control->velocity.x = 0.0f;
+            control->velocity.y = 0.0f;
+            control->velocity.z = 0.0f;
+            control->velocity.y = -0.01f - frand(0.01f);
+            control->angle_degrees = frand(360.0f);
+            control->angle_step = 3.0f + frand(2.0f);
+            control->angles.x = control->position.x;
+            control->angles.y = control->position.y;
+            control->angles.z = control->position.z;
+            control->angles.y = 0.0f;
+            control->angles.x *= -1.0f;
+            control->angles.y *= -1.0f;
+            control->angles.z *= -1.0f;
+            control->state = 0;
+            control->scale.x = scale.x;
+            control->scale.y = scale.y;
+            control->scale.z = scale.z;
+            MKMatrixScale(&large->pebbles[index].matrix, &scale, 0);
+            index++;
+        }
+    }
+    if (small != 0) {
+        ShBloodPebbleControl* controls;
+        int index;
+
+        controls = (ShBloodPebbleControl*)small->user_data;
+        index = 0;
+        while (index < small->count) {
+            float local_scale = 0.5f + frand(1.5f);
+            ShBloodPebbleControl* control;
+            Vec direction = {0.0f, 0.0f, 1.0f};
+            Vec rotated_direction;
+            Vec scale;
+            float angle;
+            float distance;
+
+            scale.x = scale.y = scale.z = local_scale;
+            sh_normalize_blood_direction(&direction);
+            direction.x *= 0.795f;
+            direction.y *= 0.795f;
+            direction.z *= 0.795f;
+            angle = sfrand(3.1415927f);
+            rotate_xz(&rotated_direction, &direction, angle);
+            if (angle >= 0.0f) {
+                /* Use the positive rotation magnitude. */
+            } else {
+                angle = -angle;
+            }
+            control = &controls[index];
+            distance = angle / 3.1415927f + frand(1.5f);
+            rotated_direction.x *= distance;
+            rotated_direction.y *= distance;
+            rotated_direction.z *= distance;
+            control->position.x = data->origin.x + rotated_direction.x;
+            control->position.y = data->origin.y;
+            control->position.z = data->origin.z + rotated_direction.z;
+            control->position.y += sfrand(9.15f);
+            control->velocity.x = 0.0f;
+            control->velocity.y = 0.0f;
+            control->velocity.z = 0.0f;
+            control->velocity.y = -0.01f - frand(0.01f);
+            control->angle_degrees = frand(360.0f);
+            control->angle_step = 3.0f + frand(5.0f);
+            control->angles.x = control->position.x;
+            control->angles.y = control->position.y;
+            control->angles.z = control->position.z;
+            control->angles.y = 0.0f;
+            control->angles.x *= -1.0f;
+            control->angles.y *= -1.0f;
+            control->angles.z *= -1.0f;
+            control->state = 0;
+            control->scale.x = scale.x;
+            control->scale.y = scale.y;
+            control->scale.z = scale.z;
+            MKMatrixScale(&small->pebbles[index].matrix, &scale, 0);
+            index++;
+        }
+    }
+    if (largest != 0) {
+        ShBloodPebbleControl* controls;
+        int index;
+
+        controls = (ShBloodPebbleControl*)largest->user_data;
+        index = 0;
+        while (index < largest->count) {
+            float local_scale = 2.5f + frand(0.5f);
+            ShBloodPebbleControl* control;
+            Vec direction = {0.0f, 0.0f, 1.0f};
+            Vec rotated_direction;
+            Vec scale;
+            float angle;
+            float distance;
+
+            scale.x = scale.y = scale.z = local_scale;
+            sh_normalize_blood_direction(&direction);
+            direction.x *= 0.795f;
+            direction.y *= 0.795f;
+            direction.z *= 0.795f;
+            angle = sfrand(3.1415927f);
+            rotate_xz(&rotated_direction, &direction, angle);
+            if (angle >= 0.0f) {
+                /* Use the positive rotation magnitude. */
+            } else {
+                angle = -angle;
+            }
+            control = &controls[index];
+            distance = angle / 3.1415927f + frand(1.5f);
+            rotated_direction.x *= distance;
+            rotated_direction.y *= distance;
+            rotated_direction.z *= distance;
+            control->position.x = data->origin.x + rotated_direction.x;
+            control->position.y = data->origin.y;
+            control->position.z = data->origin.z + rotated_direction.z;
+            control->position.y += sfrand(9.15f);
+            control->velocity.x = 0.0f;
+            control->velocity.y = 0.0f;
+            control->velocity.z = 0.0f;
+            control->velocity.y = -0.01f - frand(0.01f);
+            control->angle_degrees = frand(360.0f);
+            control->angle_step = 3.0f + frand(2.0f);
+            control->angles.x = control->position.x;
+            control->angles.y = control->position.y;
+            control->angles.z = control->position.z;
+            control->angles.y = 0.0f;
+            control->angles.x *= -1.0f;
+            control->angles.y *= -1.0f;
+            control->angles.z *= -1.0f;
+            control->state = 0;
+            control->scale.x = scale.x;
+            control->scale.y = scale.y;
+            control->scale.z = scale.z;
+            MKMatrixScale(&largest->pebbles[index].matrix, &scale, 0);
+            index++;
+        }
+    }
+}
 /*
  * Clean-C near miss: exact three-latch validation/unhide algorithm; retail
  * retains three redundant success/merge branches (216 versus 180 bytes).
@@ -968,9 +2201,318 @@ void sh_lower_level_pebble_hide(void) {
         }
     }
 }
-static void sh_load_objs(void) {}
-void bgnd_sh_level_2(void) {}
-void bgnd_sh_level_1(void) {}
+/* Clean-C near match: 88.98%, retail/local 952/900. The five model latches,
+ * load IDs/heaps, object setup, three sobj selections, pebble counts, and
+ * destination latches agree. Residue is validated-latch merge branching. */
+static void sh_load_objs(void) {
+    SlaughterhouseData* data;
+    MkObj* object;
+    MkSobj* sobj;
+    PebbleData* pebbles;
+
+    data = g_slaughterhouse_pdata;
+    if (data == 0) {
+        return;
+    }
+
+    object = (MkObj*)data->lower_level_pebbles[0].hdr;
+    if (object != 0) {
+        if (object->hdr.instance != data->lower_level_pebbles[0].instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object == 0) {
+        object = load_model_from_slot(0x2001E, 0x013F000C, 0xA01D);
+        if (object != 0) {
+            data->lower_level_pebbles[0].hdr = &object->hdr;
+            data->lower_level_pebbles[0].instance = object->hdr.instance;
+            object->light_flags = 4;
+            object->flags_08 |= 0x40;
+            obj_create_sobjs(object);
+            insert_fgnd_mkobj(object);
+            hide_obj(object);
+            sobj = obj_find_sobj_by_id(object, 7);
+            sobj->flags09 |= 0x10;
+            pebbles = create_pebble_userdata(sobj, 20, 0x40);
+            if (pebbles != 0) {
+                data->blood_fall_pebbles[0].hdr = &pebbles->hdr;
+                data->blood_fall_pebbles[0].instance = pebbles->hdr.instance;
+            }
+        }
+    }
+
+    data = g_slaughterhouse_pdata;
+    object = (MkObj*)data->lower_level_pebbles[1].hdr;
+    if (object != 0) {
+        if (object->hdr.instance != data->lower_level_pebbles[1].instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object == 0) {
+        object = load_model_from_slot(0x2001E, 0x013F000A, 0xA01D);
+        if (object != 0) {
+            data->lower_level_pebbles[1].hdr = &object->hdr;
+            data->lower_level_pebbles[1].instance = object->hdr.instance;
+            object->light_flags = 4;
+            object->flags_08 |= 0x40;
+            obj_create_sobjs(object);
+            insert_fgnd_mkobj(object);
+            hide_obj(object);
+            sobj = obj_find_sobj_by_id(object, 0);
+            sobj->flags09 |= 0x10;
+            pebbles = create_pebble_userdata(sobj, 10, 0x40);
+            if (pebbles != 0) {
+                data->blood_fall_pebbles[1].hdr = &pebbles->hdr;
+                data->blood_fall_pebbles[1].instance = pebbles->hdr.instance;
+            }
+        }
+    }
+
+    data = g_slaughterhouse_pdata;
+    object = (MkObj*)data->lower_level_pebbles[2].hdr;
+    if (object != 0) {
+        if (object->hdr.instance != data->lower_level_pebbles[2].instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object == 0) {
+        object = load_model_from_slot(0x2001E, 0x013F0009, 0xA01D);
+        if (object != 0) {
+            data->lower_level_pebbles[2].hdr = &object->hdr;
+            data->lower_level_pebbles[2].instance = object->hdr.instance;
+            object->light_flags = 4;
+            object->flags_08 |= 0x40;
+            obj_create_sobjs(object);
+            insert_fgnd_mkobj(object);
+            hide_obj(object);
+            sobj = obj_find_sobj_by_id(object, 0);
+            sobj->flags09 |= 0x10;
+            pebbles = create_pebble_userdata(sobj, 10, 0x40);
+            if (pebbles != 0) {
+                data->blood_fall_pebbles[2].hdr = &pebbles->hdr;
+                data->blood_fall_pebbles[2].instance = pebbles->hdr.instance;
+            }
+        }
+    }
+
+    object = (MkObj*)g_slaughterhouse_pdata->lower_level_pebbles[3].hdr;
+    if (object != 0) {
+        if (object->hdr.instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[3].instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object == 0) {
+        object = load_model_from_slot(0x2001E, 0x013F000B, 0xA01E);
+        g_slaughterhouse_pdata->lower_level_pebbles[3].hdr = &object->hdr;
+        g_slaughterhouse_pdata->lower_level_pebbles[3].instance =
+            object->hdr.instance;
+        object->light_flags = 4;
+        object->flags_08 |= 0x40;
+        insert_fgnd_mkobj(object);
+        hide_obj(object);
+    }
+
+    object = (MkObj*)g_slaughterhouse_pdata->lower_level_pebbles[4].hdr;
+    if (object != 0) {
+        if (object->hdr.instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[4].instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object == 0) {
+        object = load_model_from_slot(0x10005, 0x20006, 0xA01F);
+        g_slaughterhouse_pdata->lower_level_pebbles[4].hdr = &object->hdr;
+        g_slaughterhouse_pdata->lower_level_pebbles[4].instance =
+            object->hdr.instance;
+        object->light_flags = 4;
+        object->flags_08 |= 0x40;
+        insert_fgnd_mkobj(object);
+        hide_obj(object);
+    }
+}
+
+static inline void sh_hide_latched_object(MkHdrLatch* latch) {
+    MkHdr* object;
+
+    object = latch->hdr;
+    if (object != 0) {
+        if (object->instance != latch->instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object != 0) {
+        hide_obj(object);
+    }
+}
+
+/* Clean-C near match: 82.42%, retail/local 732/644. Floor visibility, four
+ * animated sobjs, blood-fall process setup, sound transitions, and all three
+ * pebble-model unhides agree; residue is validated-pointer merge branching. */
+void bgnd_sh_level_2(void) {
+    ShBloodFallProcessData* process_data;
+    SlaughterhouseData* data;
+    MkSobj* sobj;
+    MkProc* process;
+    RwMatrix* matrix;
+    MkHdr* object;
+
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x28);
+    if (g_game_info.bgnd_obj != 0) {
+        sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x28);
+        if (sobj != 0) {
+            hide_sobj_and_children(sobj);
+        }
+    }
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x1E);
+    if (g_game_info.bgnd_obj != 0) {
+        sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x1E);
+        if (sobj != 0) {
+            unhide_sobj_and_children(sobj);
+        }
+    }
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
+    sobj->flags_08 |= 4;
+    sobj->ang_vel.x = 0.05f;
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 2);
+    sobj->flags_08 |= 4;
+    sobj->ang_vel.x = -0.05f;
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 10);
+    sobj->flags_08 |= 4;
+    sobj->ang_vel.y = -0.03f;
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 11);
+    sobj->flags_08 |= 4;
+    sobj->ang_vel.y = 0.03f;
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 6);
+    process_data = 0;
+    if (sobj != 0 && g_slaughterhouse_pdata != 0) {
+        matrix = RwFrameGetLTM(sobj->frame);
+        process = _create_mkproc_generic_tinystack(
+            0xA005, 0x2E, p_sh_bottom_floor_blood_fall,
+            sizeof(ShBloodFallProcessData), (MkHdr**)&process_data);
+        if (process != 0) {
+            process_data->active_splats = 0;
+            process_data->gravity = -0.001f;
+            process_data->origin.x = matrix->pos.x;
+            process_data->origin.y = matrix->pos.y;
+            process_data->origin.z = matrix->pos.z;
+            sh_init_bottom_floor_blood_fall_pebbles(process_data);
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+
+    data = g_slaughterhouse_pdata;
+    if (data != 0) {
+        if (mslSoundIsValid(data->upper_ambient_sound)) {
+            snd_stop(data->upper_ambient_sound);
+            data->upper_ambient_sound = 0;
+        }
+        if (!mslSoundIsValid(data->lower_ambient_sound_1)) {
+            data->lower_ambient_sound_1 = snd_req(0x13D);
+        }
+        if (!mslSoundIsValid(data->lower_ambient_sound_2)) {
+            data->lower_ambient_sound_2 = snd_req(0x13E);
+        }
+
+        object = data->lower_level_pebbles[0].hdr;
+        if (object != 0 && object->instance !=
+                data->lower_level_pebbles[0].instance) {
+            object = 0;
+        }
+        unhide_obj(object);
+        object = data->lower_level_pebbles[1].hdr;
+        if (object != 0 && object->instance !=
+                data->lower_level_pebbles[1].instance) {
+            object = 0;
+        }
+        unhide_obj(object);
+        object = data->lower_level_pebbles[2].hdr;
+        if (object != 0 && object->instance !=
+                data->lower_level_pebbles[2].instance) {
+            object = 0;
+        }
+        unhide_obj(object);
+    }
+}
+/* Clean-C near match: 88.02%, retail/local 748/692. Level visibility, five
+ * validated model hides, process teardown, pdata allocation/ownership, model
+ * loading, and ambient-sound transition agree; residue is merge branching. */
+void bgnd_sh_level_1(void) {
+    SlaughterhouseData* data;
+
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x28);
+    if (g_game_info.bgnd_obj != 0) {
+        MkSobj* sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x28);
+        if (sobj != 0) {
+            unhide_sobj_and_children(sobj);
+        }
+    }
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x1E);
+    if (g_game_info.bgnd_obj != 0) {
+        MkSobj* sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x1E);
+        if (sobj != 0) {
+            hide_sobj_and_children(sobj);
+        }
+    }
+
+    data = g_slaughterhouse_pdata;
+    if (data != 0) {
+        sh_hide_latched_object(&data->lower_level_pebbles[3]);
+        sh_hide_latched_object(&data->lower_level_pebbles[4]);
+        sh_hide_latched_object(&data->lower_level_pebbles[0]);
+        sh_hide_latched_object(&data->lower_level_pebbles[1]);
+        sh_hide_latched_object(&data->lower_level_pebbles[2]);
+    }
+
+    destroy_mkprocs_pid(0xA005);
+    destroy_mkprocs_pid(0xA00D);
+    destroy_mkprocs_pid(0xA00F);
+    destroy_mkprocs_pid(0xA00E);
+    destroy_mkprocs_pid(0xA010);
+    destroy_mkprocs_pid(0xA011);
+    hide_sobj(obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x14));
+    hide_sobj(obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x15));
+
+    if (g_slaughterhouse_pdata == 0) {
+        data = (SlaughterhouseData*)get_mkhdr(
+            &vtbl_slaughterhouse_pdata, sizeof(SlaughterhouseData));
+        if (data != 0) {
+            zero_pdata_payload(sizeof(SlaughterhouseData), &data->hdr);
+        }
+        g_slaughterhouse_pdata = data;
+        if (data != 0) {
+            mk_insert(&data->hdr, &g_game_info.bgnd_obj->child_list);
+            sh_load_objs();
+        }
+    }
+    data = g_slaughterhouse_pdata;
+    if (data != 0) {
+        if (mslSoundIsValid(data->lower_ambient_sound_2)) {
+            snd_stop(data->lower_ambient_sound_2);
+            data->lower_ambient_sound_2 = 0;
+        }
+        if (mslSoundIsValid(data->lower_ambient_sound_1)) {
+            snd_stop(data->lower_ambient_sound_1);
+            data->lower_ambient_sound_1 = 0;
+        }
+        if (!mslSoundIsValid(data->upper_ambient_sound)) {
+            data->upper_ambient_sound = snd_req(0x13C);
+        }
+    }
+}
 /* Near match: 99.39%, exact 132-byte instruction stream; float-pool labels
  * differ because this imported TU has a different constant-pool history. */
 void bgnd_start_sh_fx(void) {
@@ -990,8 +2532,42 @@ static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata);
 void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
     destroy_slaughterhouse_pdata(pdata);
 }
+static inline void sh_destroy_latched_object(MkHdrLatch* latch) {
+    MkHdr* object;
+
+    object = latch->hdr;
+    if (object != 0) {
+        if (object->instance != latch->instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object != 0) {
+        object = latch->hdr;
+        if (object->instance != 0) {
+            object->typed_vtbl->destroy(object);
+        }
+        latch->hdr = 0;
+        latch->instance = 0;
+    }
+}
+
+/* Clean-C near match: 86.54%, retail/local 832/800. All eight typed latches
+ * validate, destroy, and clear in retail order; the only size residue is one
+ * redundant success-to-merge branch removed from each validation. */
 static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
-    (void)pdata;
+    sh_destroy_latched_object(&pdata->blood_fall_pebbles[0]);
+    sh_destroy_latched_object(&pdata->blood_fall_pebbles[1]);
+    sh_destroy_latched_object(&pdata->blood_fall_pebbles[2]);
+    sh_destroy_latched_object(&pdata->lower_level_pebbles[0]);
+    sh_destroy_latched_object(&pdata->lower_level_pebbles[1]);
+    sh_destroy_latched_object(&pdata->lower_level_pebbles[2]);
+    sh_destroy_latched_object(&pdata->lower_level_pebbles[3]);
+    sh_destroy_latched_object(&pdata->lower_level_pebbles[4]);
+    pdata->hdr.instance = 0;
+    mkhdr_memfree(&pdata->hdr);
+    g_slaughterhouse_pdata = 0;
 }
 /* Near match: size-identical 204-byte stream; only the 50.0f pool label differs. */
 void start_bl_beetles_live_top_floor(void) {
@@ -1017,7 +2593,205 @@ void start_bl_beetles_live_top_floor(void) {
         }
     }
 }
-static float p_bl_beetle_brains(void) { return 0.0f; }
+static float bl_bounce_fast_amount = 0.008f;
+static int bl_bounce_fast_ticks = 3;
+static float bl_bounce_calm_amount = 0.005f;
+static int bl_bounce_calm_ticks = 3;
+static unsigned int next_beetle_exec_tick_counter;
+
+extern void spawn_bld_splat(const char* name, int owner, Vec* position);
+
+/*
+ * Near match 95.34%, retail/local 1380/1376 bytes. All dispatcher targets,
+ * movement/transform calls, bounce state, and loop strides agree. The four-byte
+ * gap is retail's string-base addi for "beetlesplat"; the imported TU emits a
+ * direct pooled-string relocation. Other residue is register allocation and
+ * pool-label identity.
+ */
+static float p_bl_beetle_brains(void) {
+    BlBeetlePdata* pdata;
+    PebbleData* pebble_data;
+    BlBeetleControl* beetles;
+    BlBeetleControl* beetle;
+    PlyrInfo* squashing_player;
+    Vec x_axis;
+    Vec z_axis;
+    Vec y_axis;
+    unsigned int index;
+
+    pdata = (BlBeetlePdata*)pdata_of_proc(aproc);
+    pebble_data = pdata->pebble_data;
+    beetles = (BlBeetleControl*)pebble_data->user_data;
+    x_axis = (Vec){1.0f, 0.0f, 0.0f};
+    z_axis = (Vec){0.0f, 0.0f, 1.0f};
+    y_axis = (Vec){0.0f, 1.0f, 0.0f};
+    if (g_bl_beetles == 0) {
+        return -1.0f;
+    }
+    if (g_game_info.plyr0.slot.mirror_a == 0 ||
+        g_game_info.plyr1.slot.mirror_a == 0) {
+        return 1.0f;
+    }
+
+    for (index = 0; index < (unsigned int)pdata->pebble_data->count; index++) {
+        beetle = &beetles[index];
+
+        switch (beetle->personality) {
+        case 0:
+            bl_process_beetle_runaway_personality(beetle);
+            break;
+        case 1:
+            bl_process_beetle_under_glass_traveller_personality(beetle);
+            break;
+        case 3:
+            bl_process_beetle_follow_plyr_personality(beetle);
+            break;
+        case 4:
+            bl_process_beetle_under_glass_personality(beetle);
+            break;
+        case 5:
+            bl_process_beetle_transition_personality(beetle);
+            break;
+        case 6:
+            MKMatrixTranslate(
+                &pebble_data->pebbles[index].matrix, &beetle->position, 2);
+            continue;
+        }
+
+        if (beetle_squashed(beetle, &squashing_player) == 1) {
+            beetle->position.y += 0.005f;
+            spawn_bld_splat("beetlesplat", 0, &beetle->position);
+            if (exec_tick_ctr >= next_beetle_exec_tick_counter) {
+                snd_req(0x94);
+                next_beetle_exec_tick_counter = exec_tick_ctr + 10;
+            }
+            beetle->personality = 6;
+            beetle->position.y = 1000.0f;
+            MKMatrixTranslate(
+                &pebble_data->pebbles[index].matrix, &beetle->position, 2);
+            continue;
+        }
+
+        switch (beetle->movement_state) {
+        case 0:
+            bl_process_beetle_chilling(beetle);
+            break;
+        case 1: {
+            float movement_scale = -0.05f * beetle->speed_scale;
+            bl_process_general_movement(
+                beetle, &g_game_info.misc->beetle_target, 20,
+                beetle->surface, 100.0f, 0.0f, 20.0f,
+                movement_scale, movement_scale);
+            break;
+        }
+        case 2:
+        case 3:
+            bl_process_beetle_track_plyr(beetle);
+            break;
+        case 4:
+            bl_process_beetle_climb_a_wall(beetle);
+            break;
+        case 5:
+            beetle->fast_motion = 0;
+            bl_process_general_movement(
+                beetle, &beetle->movement_target, 25, beetle->surface,
+                beetle->distance_limit_sq, -1.5707964f, 25.0f,
+                -0.02f, 0.02f);
+            break;
+        case 6: {
+            float movement_scale;
+            if (beetle->speed_scale > 0.7f) {
+                beetle->fast_motion = 1;
+            } else {
+                beetle->fast_motion = 0;
+            }
+            movement_scale = -0.05f * beetle->speed_scale;
+            bl_process_general_movement(
+                beetle, &beetle->movement_target, 20, beetle->surface,
+                beetle->distance_limit_sq, 0.0f, 20.0f,
+                movement_scale, movement_scale);
+            break;
+        }
+        case 7:
+            beetle->fast_motion = 0;
+            if (beetle->surface == 3) {
+                bl_process_general_movement(
+                    beetle, &beetle->movement_target, 25, beetle->surface,
+                    beetle->distance_limit_sq, 1.5707964f, 25.0f,
+                    0.02f, -0.02f);
+            } else {
+                bl_process_general_movement(
+                    beetle, &beetle->movement_target, 25, beetle->surface,
+                    beetle->distance_limit_sq, 0.0f, 25.0f,
+                    0.02f, -0.02f);
+            }
+            break;
+        }
+
+        switch (beetle->surface) {
+        case 1:
+            MKMatrixRotate(&pebble_data->pebbles[index].matrix, &y_axis,
+                beetle->heading_degrees, 0);
+            MKMatrixRotate(
+                &pebble_data->pebbles[index].matrix, &x_axis, 90.0f, 2);
+            MKMatrixRotate(
+                &pebble_data->pebbles[index].matrix, &z_axis, 180.0f, 1);
+            break;
+        case 3:
+            MKMatrixRotate(&pebble_data->pebbles[index].matrix, &x_axis,
+                beetle->heading_degrees, 0);
+            MKMatrixRotate(
+                &pebble_data->pebbles[index].matrix, &z_axis, 90.0f, 1);
+            MKMatrixRotate(
+                &pebble_data->pebbles[index].matrix, &y_axis, 0.0f, 2);
+            break;
+        case 4:
+            MKMatrixRotate(&pebble_data->pebbles[index].matrix, &x_axis,
+                beetle->heading_degrees, 0);
+            MKMatrixRotate(
+                &pebble_data->pebbles[index].matrix, &z_axis, 90.0f, 1);
+            MKMatrixRotate(
+                &pebble_data->pebbles[index].matrix, &y_axis, 180.0f, 2);
+            break;
+        default:
+            MKMatrixRotate(&pebble_data->pebbles[index].matrix, &y_axis,
+                beetle->heading_degrees, 0);
+            break;
+        }
+
+        if (beetle->movement_state != 0 && beetle->surface == 0) {
+            if (--beetle->bounce_ticks < 0) {
+                float bounce_amount;
+                int bounce_ticks;
+                if (beetle->fast_motion == 1) {
+                    bounce_amount = bl_bounce_fast_amount;
+                    bounce_ticks = bl_bounce_fast_ticks;
+                } else {
+                    bounce_amount = bl_bounce_calm_amount;
+                    bounce_ticks = bl_bounce_calm_ticks;
+                }
+                if (beetle->vertical_velocity < 0.0f) {
+                    beetle->vertical_velocity = bounce_amount;
+                } else {
+                    beetle->vertical_velocity = -bounce_amount;
+                }
+                beetle->bounce_ticks = bounce_ticks;
+            }
+            beetle->position.y += beetle->vertical_velocity;
+            if (beetle->position.y < g_game_info.field_34 - 0.01f ||
+                beetle->position.y > 0.03f) {
+                beetle->position.y = g_game_info.field_34;
+                beetle->vertical_velocity = -1.0f;
+                beetle->bounce_ticks = 0;
+            }
+        }
+        MKMatrixScale(
+            &pebble_data->pebbles[index].matrix, &beetle->scale, 2);
+        MKMatrixTranslate(
+            &pebble_data->pebbles[index].matrix, &beetle->position, 2);
+    }
+    return 1.0f;
+}
 extern int is_load_meter_active(void);
 extern void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 
@@ -1315,9 +3089,7 @@ static void bl_process_beetle_transition_personality(
             beetle->personality_ticks =
                 (unsigned short)randu0(180) + 180;
         } else {
-            beetle->movement_target.x = g_game_info.misc->field_3C;
-            beetle->movement_target.y = g_game_info.misc->field_40;
-            beetle->movement_target.z = g_game_info.misc->field_44;
+            beetle->movement_target = g_game_info.misc->beetle_target;
             beetle->distance_limit_sq = 100.0f;
             beetle->personality = 2;
             beetle->movement_state = 6;
@@ -1521,9 +3293,482 @@ static void bl_process_beetle_track_plyr(BlBeetleControl* beetle) {
     beetle->position.x += beetle->movement_delta_a;
     beetle->position.z += beetle->movement_delta_b;
 }
-static void bl_process_beetle_climb_a_wall(void) {}
-static void bl_process_general_movement(void) {}
-static void bl_init_beetle_pebbles_second_floor(void) {}
+static inline void bl_move_beetle_on_surface(
+    BlBeetleControl* beetle, float movement_scale_a,
+    float movement_scale_b) {
+    int surface;
+    float heading;
+    float motion_scale;
+
+    surface = beetle->surface;
+    beetle->heading_degrees += beetle->heading_step;
+    heading = (3.1415927f * beetle->heading_degrees) / 180.0f;
+    motion_scale = 1.0f + frand(0.5f);
+    beetle->movement_delta_a =
+        movement_scale_a * (motion_scale * gxMathSin(heading));
+    beetle->movement_delta_b =
+        movement_scale_b * (motion_scale * gxMathCos(heading));
+
+    switch (surface) {
+    case 4:
+        beetle->position.y += beetle->movement_delta_a;
+        beetle->position.z -= beetle->movement_delta_b;
+        break;
+    case 3:
+        beetle->position.y += beetle->movement_delta_a;
+        beetle->position.z += beetle->movement_delta_b;
+        break;
+    case 1:
+        beetle->position.x += beetle->movement_delta_a;
+        beetle->position.y += beetle->movement_delta_b;
+        break;
+    default:
+        beetle->position.x += beetle->movement_delta_a;
+        beetle->position.z += beetle->movement_delta_b;
+        break;
+    }
+}
+
+/*
+ * Exact-size 98.97% near match. Retail and local agree on all wall-state CFG,
+ * calls, stores, thresholds, and surface movement. Residue is float-register
+ * coloring, constant-pool labels, and equivalent final-call load scheduling.
+ */
+static void bl_process_beetle_climb_a_wall(BlBeetleControl* beetle) {
+    float heading_step;
+    float x;
+    float y;
+    float z;
+
+    beetle->fast_motion = 0;
+    switch (beetle->wall_state) {
+    case 0:
+        beetle->fast_motion = 1;
+        x = beetle->position.x - beetle->wall_target.x;
+        y = 0.0f;
+        z = beetle->position.z - beetle->wall_target.z;
+        beetle->heading_step =
+            (180.0f * gxMathArcTanYX(x, z)) / 3.1415927f -
+            beetle->heading_degrees;
+        if (x * x + y * y + z * z < 0.1f ||
+            beetle->position.z > beetle->wall_target.z) {
+            beetle->position.x = beetle->wall_target.x;
+            beetle->position.z = beetle->wall_target.z;
+            beetle->wall_state = 1;
+            beetle->heading_degrees = 0.0f;
+            beetle->position.y = 0.05f;
+            beetle->heading_ticks = 15;
+            beetle->surface = 1;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->movement_target.x = 0.0f;
+            beetle->movement_target.y = 4.5f;
+            beetle->distance_limit_sq = 10.0f;
+            beetle->wall_ticks = (unsigned short)randu0(240) + 300;
+            return;
+        }
+        bl_move_beetle_on_surface(beetle, -0.06f, -0.06f);
+        break;
+    case 3:
+        beetle->fast_motion = 1;
+        x = beetle->position.x - beetle->wall_target.x;
+        y = 0.0f;
+        z = beetle->position.z - beetle->wall_target.z;
+        beetle->heading_step =
+            (180.0f * gxMathArcTanYX(x, z)) / 3.1415927f -
+            beetle->heading_degrees;
+        if (x * x + y * y + z * z < 0.03f ||
+            beetle->position.z < beetle->wall_target.z) {
+            beetle->movement_state = 0;
+            beetle->heading_ticks = 0;
+            return;
+        }
+        bl_move_beetle_on_surface(beetle, -0.04f, -0.04f);
+        break;
+    case 2:
+        x = beetle->wall_target.x - beetle->position.x;
+        y = beetle->wall_target.y - beetle->position.y;
+        z = 0.0f;
+        beetle->heading_step =
+            (180.0f * (gxMathArcTanYX(y, x) - 1.5707964f)) /
+                3.1415927f -
+            beetle->heading_degrees;
+        heading_step = beetle->heading_step;
+        if (heading_step > 360.0f) {
+            heading_step -= 360.0f;
+        } else if (heading_step < -360.0f) {
+            heading_step += 360.0f;
+        }
+        if (heading_step > 360.0f) {
+            heading_step -= 360.0f;
+        } else if (heading_step < -360.0f) {
+            heading_step += 360.0f;
+        }
+        beetle->heading_step = heading_step;
+        beetle->heading_step /= 40.0f;
+        if (x * x + y * y + z * z < 0.03f || beetle->position.y < 0.0f) {
+            beetle->position.y = 0.0f;
+            beetle->surface = 0;
+            beetle->wall_state = 3;
+            beetle->movement_target.x = -1.0f + sfrand(0.8f);
+            beetle->movement_target.z = 1.99f + sfrand(0.8f);
+            beetle->wall_target.x = beetle->movement_target.x;
+            beetle->wall_target.y = beetle->movement_target.y;
+            beetle->wall_target.z = beetle->movement_target.z;
+            beetle->distance_limit_sq = 1.0f;
+            return;
+        }
+        bl_move_beetle_on_surface(beetle, -0.03f, 0.03f);
+        break;
+    case 1:
+        if (--beetle->wall_ticks <= 0 &&
+            !g_game_info.floor_flags.field_74_bit6) {
+            beetle->wall_state = 2;
+            return;
+        }
+        bl_process_general_movement(
+            beetle, &beetle->movement_target, 25, beetle->surface,
+            beetle->distance_limit_sq, -1.5707964f, 25.0f,
+            -0.02f, 0.02f);
+        break;
+    }
+}
+/*
+ * Exact-size 99.36% near match. Calls, switch lowering, coordinate projection,
+ * arithmetic, and access widths match retail; residue is constant-pool
+ * relocation identity in the partially imported translation unit.
+ */
+static void bl_process_general_movement(
+    BlBeetleControl* beetle, const Vec* target, int heading_ticks,
+    int surface, float distance_limit_sq, float heading_offset,
+    float heading_divisor, float movement_scale_a, float movement_scale_b) {
+    unsigned int direction_roll;
+    float heading;
+    float heading_step;
+    float motion_scale;
+    float x;
+    float y;
+    float z;
+
+    direction_roll = (unsigned short)randu0(100);
+    if (--beetle->heading_ticks <= 0) {
+        if (surface != 0) {
+            x = target->x - beetle->position.x;
+            y = target->y - beetle->position.y;
+            z = target->z - beetle->position.z;
+        } else {
+            x = beetle->position.x - target->x;
+            y = beetle->position.y - target->y;
+            z = beetle->position.z - target->z;
+        }
+
+        switch (surface) {
+        case 3:
+        case 4:
+            x = 0.0f;
+            break;
+        case 1:
+            z = 0.0f;
+            break;
+        default:
+            y = 0.0f;
+            break;
+        }
+
+        if (x * x + y * y + z * z > distance_limit_sq) {
+            switch (surface) {
+            case 4:
+                heading = heading_offset + gxMathArcTanYX(y, z);
+                break;
+            case 3:
+                heading = heading_offset + gxMathArcTanYX(z, y);
+                break;
+            case 1:
+                heading = heading_offset + gxMathArcTanYX(y, x);
+                break;
+            default:
+                heading = heading_offset + gxMathArcTanYX(x, z);
+                break;
+            }
+            beetle->heading_step =
+                (180.0f * heading) / 3.1415927f - beetle->heading_degrees;
+            heading_step = beetle->heading_step;
+            if (heading_step > 360.0f) {
+                heading_step -= 360.0f;
+            } else if (heading_step < -360.0f) {
+                heading_step += 360.0f;
+            }
+            if (heading_step > 360.0f) {
+                heading_step -= 360.0f;
+            } else if (heading_step < -360.0f) {
+                heading_step += 360.0f;
+            }
+            beetle->heading_step = heading_step;
+            beetle->heading_step /= heading_divisor;
+            beetle->heading_ticks = heading_ticks;
+        } else {
+            if (direction_roll < 50) {
+                beetle->heading_step = 3.0f + frand(2.0f);
+                if (direction_roll < 25) {
+                    beetle->heading_step *= -1.0f;
+                }
+            } else {
+                beetle->heading_step = frand(2.0f);
+                if (direction_roll < 75) {
+                    beetle->heading_step *= -1.0f;
+                }
+            }
+            beetle->heading_ticks = (unsigned short)randu0(20) + 15;
+        }
+    }
+
+    beetle->heading_degrees += beetle->heading_step;
+    heading = (3.1415927f * beetle->heading_degrees) / 180.0f;
+    motion_scale = 1.0f + frand(0.5f);
+    beetle->movement_delta_a =
+        movement_scale_a * (motion_scale * gxMathSin(heading));
+    beetle->movement_delta_b =
+        movement_scale_b * (motion_scale * gxMathCos(heading));
+
+    switch (surface) {
+    case 4:
+        beetle->position.y += beetle->movement_delta_a;
+        beetle->position.z -= beetle->movement_delta_b;
+        break;
+    case 3:
+        beetle->position.y += beetle->movement_delta_a;
+        beetle->position.z += beetle->movement_delta_b;
+        break;
+    case 1:
+        beetle->position.x += beetle->movement_delta_a;
+        beetle->position.y += beetle->movement_delta_b;
+        break;
+    default:
+        beetle->position.x += beetle->movement_delta_a;
+        beetle->position.z += beetle->movement_delta_b;
+        break;
+    }
+}
+static inline void bl_init_beetle(
+    BlBeetleControl* beetle, Pebble* pebble,
+    const Vec* position, float local_scale, int personality,
+    int movement_state, int personality_ticks, float distance_limit_sq,
+    int transition_ticks, int surface) {
+    Vec y_axis = {0.0f, 1.0f, 0.0f};
+    Vec scale;
+    scale.x = scale.y = scale.z = local_scale;
+    beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
+    beetle->position.x = position->x;
+    beetle->position.y = position->y;
+    beetle->position.z = position->z;
+    beetle->movement_target.x = beetle->position.x;
+    beetle->movement_target.y = beetle->position.y;
+    beetle->movement_target.z = beetle->position.z;
+    beetle->distance_limit_sq = distance_limit_sq;
+    beetle->personality = personality;
+    beetle->movement_state = movement_state;
+    beetle->personality_ticks = personality_ticks;
+    beetle->heading_degrees = (float)(unsigned short)randu0(360);
+    beetle->heading_step = 0.0f;
+    beetle->wall_ticks = (unsigned short)randu0(60);
+    beetle->heading_ticks = 0;
+    beetle->bounce_ticks = 0;
+    beetle->field_68 = 3;
+    beetle->vertical_velocity = -0.003f;
+    beetle->fast_motion = 0;
+    beetle->transition_ticks = transition_ticks;
+    beetle->surface = surface;
+    beetle->scale.x = scale.x;
+    beetle->scale.y = scale.y;
+    beetle->scale.z = scale.z;
+    MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
+                                 beetle->heading_degrees, &scale,
+                                 &beetle->position);
+}
+
+/* Exact-size 97.18% near match. All twelve ranges have retail-identical loop
+ * bounds, RNG call order, constants, field stores, matrix calls, post-target
+ * overrides, and final count. The opcode multiset is identical; residue is
+ * beetle/pebble register coloring and pooled constant relocation identity. */
+static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
+    BlBeetleControl* beetles;
+    BlBeetleControl* beetle;
+    Vec position;
+    int random_ticks;
+    int index;
+
+    beetles = (BlBeetleControl*)data->pebble_data->user_data;
+    index = 0;
+    for (; index < 5; index++) {
+        float local_scale = 1.7f + frand(0.25f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 37.0f + sfrand(1.4f);
+        position.x = 0.2f + sfrand(1.4f);
+        position.y = -10.0f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 5, 0,
+                       random_ticks, 1.0f, 0x136, 0);
+    }
+    for (; index < 7; index++) {
+        float local_scale = 1.0f + frand(0.25f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 40.0f + sfrand(0.25f);
+        position.x = 0.2f + sfrand(0.85f);
+        position.y = -9.9f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 0,
+                       random_ticks, 0.5f, 0, 0);
+    }
+    for (; index < 10; index++) {
+        float local_scale = 1.35f + frand(0.15f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 34.25f + sfrand(0.45f);
+        position.x = -0.03f + sfrand(0.05f);
+        position.y = -10.0f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 0,
+                       random_ticks, 0.5f, 0, 0);
+    }
+    for (; index < 12; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.y = -7.0f + sfrand(1.5f);
+        position.x = sfrand(2.5f);
+        position.z = 47.9f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
+                       random_ticks, 2.0f, 0, 1);
+        beetle->movement_target.x = sfrand(0.5f);
+        beetle->movement_target.y = -7.0f + sfrand(1.0f);
+        beetle->movement_target.z = 47.9f;
+    }
+    for (; index < 14; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.y = -7.0f + sfrand(1.5f);
+        position.x = 7.6f + sfrand(2.5f);
+        position.z = 47.7f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
+                       random_ticks, 4.0f, 0, 1);
+        beetle->movement_target.x = 7.6f + sfrand(1.0f);
+        beetle->movement_target.y = -7.0f + sfrand(1.0f);
+        beetle->movement_target.z = 47.7f;
+    }
+    for (; index < 16; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.y = -7.0f + sfrand(1.5f);
+        position.x = -7.6f + sfrand(2.5f);
+        position.z = 47.7f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
+                       random_ticks, 4.0f, 0, 1);
+        beetle->movement_target.x = -7.6f + sfrand(1.0f);
+        beetle->movement_target.y = -7.0f + sfrand(1.0f);
+        beetle->movement_target.z = 47.7f;
+    }
+    for (; index < 19; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 21.5f + sfrand(0.85f);
+        position.x = 8.25f + sfrand(0.85f);
+        position.y = -10.0f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 6,
+                       random_ticks, 1.5f, 0, 0);
+        beetle->speed_scale = 0.5f + frand(0.25f);
+    }
+    for (; index < 21; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 44.0f + sfrand(1.5f);
+        position.y = -7.0f + sfrand(2.5f);
+        position.x = 14.3f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
+                       random_ticks, 4.0f, 0, 3);
+        beetle->movement_target.x = 14.3f;
+        beetle->movement_target.y = -7.0f;
+        beetle->movement_target.z = 44.0f;
+    }
+    for (; index < 22; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 44.0f + sfrand(1.5f);
+        position.y = -7.0f + sfrand(2.5f);
+        position.x = -14.0f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
+                       random_ticks, 4.0f, 0, 4);
+        beetle->movement_target.x = -14.0f;
+        beetle->movement_target.y = -7.0f;
+        beetle->movement_target.z = 44.0f;
+    }
+    for (; index < 24; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 23.0f + sfrand(1.5f);
+        position.y = -7.0f + sfrand(2.5f);
+        position.x = 14.3f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
+                       random_ticks, 4.0f, 0, 3);
+        beetle->movement_target.x = 14.3f;
+        beetle->movement_target.y = -7.0f;
+        beetle->movement_target.z = 23.0f;
+    }
+    for (; index < 25; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 23.0f + sfrand(1.5f);
+        position.y = -7.0f + sfrand(2.5f);
+        position.x = -14.0f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
+                       random_ticks, 4.0f, 0, 4);
+        beetle->movement_target.x = -14.0f;
+        beetle->movement_target.y = -7.0f;
+        beetle->movement_target.z = 23.0f;
+    }
+    for (; index < 28; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        position.z = 21.5f + sfrand(0.85f);
+        position.x = -8.25f + sfrand(0.85f);
+        position.y = -10.0f;
+        pebble = &data->pebble_data->pebbles[index];
+        beetle = &beetles[index];
+        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 6,
+                       random_ticks, 1.5f, 0, 0);
+        beetle->speed_scale = 0.5f + frand(0.25f);
+    }
+    data->pebble_data->count = 28;
+}
 /*
  * Clean-C ceiling: 94.88%, retail/local 2468/2428 bytes. All initialization
  * ranges, calls, access widths, and field offsets agree. Residue is register
@@ -1799,32 +4044,1989 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     data->pebble_data->count = 31;
 }
 void bgnd_clean_beetlelair(void) { g_bl_beetles = 0; }
+typedef struct BlDangerObjectRef {
+    char pad00[0x5C];
+    MkObj* object;
+} BlDangerObjectRef;
+typedef struct BlDangerSource {
+    char pad00[0x18];
+    BlDangerObjectRef* object_ref;
+} BlDangerSource;
+typedef struct BlDangerEvent {
+    char pad00[0x10];
+    BlDangerSource* source;
+    char pad14[4];
+    BlDangerObjectRef* target;
+} BlDangerEvent;
+typedef struct BlColumnBreakData {
+    MkHdr hdr;
+    PlyrPdata* player;
+    int side;
+    Vec direction;
+    int use_camera;
+} BlColumnBreakData;
+static int beetle_lair_react_to_wall_danger_zone_cb(BlDangerEvent* event);
+static float p_beetle_lair_column_breaking(void);
 static int beetle_lair_collision_cb(BgndObstacleEventData* event);
 void bgnd_reg_col_cb_for_beetle_lair(void) {
     set_arena_obstacle_callback(beetle_lair_collision_cb);
     set_background_obstacle_repel_flag(0x41, 0);
     set_background_obstacle_repel_flag(0x42, 0);
 }
+/* Clean-C near match: 83.66%, retail/local 2516/2496. Every switch edge,
+ * call, state mutation, access width, vector calculation, and return agrees.
+ * The 20-byte residue is stack-slot allocation and temporary scheduling; its
+ * early insertions amplify objdiff alignment across this otherwise recovered
+ * 2.5 KiB callback. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
-    (void)event;
-    return 0;
+    BlColumnBreakData* column_data;
+    BgndScriptProcData* script_data;
+    MkProc* process;
+    MkObj* player_object;
+    MkObj* opponent_object;
+    MkPfx* effect;
+    Vec direction;
+    float inverse_length;
+    float length;
+    float player_length;
+    float separation_x;
+    float separation_z;
+    float player_x;
+    float player_z;
+    float reaction_flag;
+    unsigned int handle;
+    int eligible;
+    int aligned;
+
+    eligible = 0;
+    reaction_flag = (float)(g_current_reaction_info.flags & 0x100);
+    if (g_game_info.plyr0.field_0C == 0.0f ||
+        g_game_info.plyr1.field_0C == 0.0f) {
+        return 0;
+    }
+    if (event->player_pdata != 0 &&
+        (((reaction_flag > 0.0f) &&
+          (event->player_pdata->state & 0x400) != 0) ||
+         (event->player_pdata->state & 0x1000) != 0)) {
+        eligible = 1;
+    }
+
+    switch (event->field_04) {
+    case 7:
+        if (event->event_id == 0x12C) {
+            if (beetle_lair_react_to_wall_danger_zone_cb(
+                    (BlDangerEvent*)event)) {
+                event->player_pdata->online_sync_index = 0x131;
+                if (event->player_pdata->plyr_num == 0) {
+                    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
+                } else {
+                    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
+                }
+            }
+        } else if (event->event_id == 0x12D && event->player_pdata != 0) {
+            Vec wall_target = {-0.9854f, 0.0f, 1.855f};
+            union {
+                float f;
+                unsigned int u;
+            } estimate1, input1, estimate2, input2;
+            float squared;
+            aligned = 0;
+            if (event->player_pdata->his_plyr_pdata != 0) {
+                player_object =
+                    event->player_pdata->his_plyr_pdata->plyr_info->slot.mirror_a;
+                opponent_object =
+                    event->player_pdata->plyr_info->slot.mirror_a;
+                player_z = player_object->pos.value.z - wall_target.z;
+                player_x = player_object->pos.value.x - wall_target.x;
+                separation_z = player_z -
+                    (opponent_object->pos.value.z - wall_target.z);
+                separation_x = player_x -
+                    (opponent_object->pos.value.x - wall_target.x);
+                squared = separation_x * separation_x +
+                    separation_z * separation_z;
+                input1.f = squared;
+                if (squared <= 0.0f) {
+                    length = 0.0f;
+                } else {
+                    estimate1.u = (unsigned int)GXMathSqrtTable[
+                        (input1.u >> 10) & 0x3FFE] << 8;
+                    estimate1.u |=
+                        (((input1.u & 0x7F800000U) + 0x3F800000U) >> 1) &
+                        0x7F800000U;
+                    length = 0.5f * estimate1.f *
+                        (3.0f - (estimate1.f * estimate1.f) / squared);
+                }
+                squared = player_x * player_x + player_z * player_z;
+                input2.f = squared;
+                if (squared <= 0.0f) {
+                    player_length = 0.0f;
+                } else {
+                    estimate2.u = (unsigned int)GXMathSqrtTable[
+                        (input2.u >> 10) & 0x3FFE] << 8;
+                    estimate2.u |=
+                        (((input2.u & 0x7F800000U) + 0x3F800000U) >> 1) &
+                        0x7F800000U;
+                    player_length = 0.5f * estimate2.f *
+                        (3.0f - (estimate2.f * estimate2.f) / squared);
+                }
+                if ((separation_x * player_x + separation_z * player_z) /
+                        (length * player_length) >
+                    0.9f) {
+                    aligned = 1;
+                }
+            }
+            if (aligned) {
+                event->player_pdata->online_sync_index = 0xE3;
+                if (event->player_pdata->plyr_num == 0) {
+                    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
+                } else {
+                    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
+                }
+            }
+        }
+        return 0;
+
+    case 5:
+        if ((event->event_id == 0x97 || event->event_id == 0x40) &&
+            eligible != 0 && !g_game_info.floor_flags.field_74_bit6) {
+            Vec smoke_position = {0.0f, 0.0f, 0.0f};
+            if (event->flag_bits.player_side == 1) {
+                if (event->player_pdata->state != 0x609) {
+                    return 0;
+                }
+                event->player_pdata = event->player_pdata->his_plyr_pdata;
+                damage_player(event->player_pdata->his_plyr_pdata, 0.04f);
+            }
+
+            direction.x = event->impact_vector->x;
+            direction.y = event->impact_vector->y;
+            direction.z = event->impact_vector->z;
+            inverse_length = 0.0f;
+            length = direction.x * direction.x +
+                direction.y * direction.y + direction.z * direction.z;
+            if (!(length <= 0.0f)) {
+                union {
+                    float f;
+                    unsigned int u;
+                } estimate, input;
+                float product;
+                float correction;
+
+                input.f = length;
+                estimate.u = 0x5F375A00U - (input.u >> 1);
+                product = estimate.f * (length * estimate.f);
+                correction = 3.0f - product;
+                inverse_length = 0.0625f * estimate.f * correction *
+                    -(correction * (product * correction) - 12.0f);
+            }
+            event->impact_vector->x = 0.045f * direction.x * inverse_length;
+            event->impact_vector->y = 0.045f * direction.y * inverse_length;
+            event->impact_vector->z = 0.045f * direction.z * inverse_length;
+
+            player_object = bgnd_get_live_tracked_obj(event->player_pdata);
+            opponent_object = bgnd_get_live_tracked_obj(
+                event->player_pdata->his_plyr_pdata);
+            if (player_object != 0 && opponent_object != 0) {
+                g_game_info.collision_player_info =
+                    event->player_pdata->plyr_info;
+                g_game_info.active_player =
+                    event->player_pdata->his_plyr_pdata->plyr_info;
+                g_game_info.impact_vector.x = event->impact_vector->x;
+                g_game_info.impact_vector.y = event->impact_vector->y;
+                g_game_info.impact_vector.z = event->impact_vector->z;
+                g_game_info.player_objects[0] = opponent_object;
+                g_game_info.player_objects[1] = player_object;
+                g_game_info.collision_player_pdata = event->player_pdata;
+                g_game_info.collision_player_side =
+                    event->flag_bits.player_side;
+                g_game_info.collision_event_id = event->event_id;
+            }
+
+            script_data = 0;
+            process = _create_mkproc_generic_tinystack(
+                0xC012, 0x1F, p_bgnd_script_in_proc,
+                sizeof(BgndScriptProcData), (MkHdr**)&script_data);
+            if (process != 0 && script_data != 0) {
+                script_data->script_index = 7;
+                set_process_as_scriptable(process);
+            }
+
+            smoke_position.x = 0.35f * event->impact_vector->x;
+            smoke_position.y = 0.0f;
+            smoke_position.z = 0.35f * event->impact_vector->z;
+            handle = fx_by_owner("smoke_wall", 4);
+            if (handle != 0) {
+                fx_reset(handle);
+                effect = pfx_from_handle(handle);
+                if (effect != 0) {
+                    g_latest_obj_pfx =
+                        (MkObj*)pfx_get_emitter_obj(effect, 0);
+                    if (g_latest_obj_pfx == 0) {
+                        g_latest_obj_pfx =
+                            pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    }
+                    if (g_latest_obj_pfx != 0) {
+                        g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                        g_latest_obj_pfx->pos.value.x = -1.0f;
+                        g_latest_obj_pfx->pos.value.y = 0.2f;
+                        g_latest_obj_pfx->pos.value.z = 1.9f;
+                        update_mkobj(g_latest_obj_pfx);
+                        resume_effect("smoke_wall");
+                    }
+                }
+            }
+            handle = fx_by_owner("smoke_wall", 4);
+            fx_set_param_v3(
+                handle, 0x201, smoke_position.x,
+                smoke_position.y, smoke_position.z);
+            g_game_info.floor_flags.field_74_bit6 = 1;
+            if (bgnd_danger_zones[1].obstacle != 0) {
+                delete_obstacle_from_background_by_id(
+                    bgnd_danger_zones[1].obstacle_id);
+                bgnd_danger_zones[1].obstacle = 0;
+            }
+            return 1;
+        }
+
+        if (event->event_id == 0x3E && eligible != 0) {
+            if (event->flag_bits.player_side == 1) {
+                if ((event->player_pdata->state & 0x1000) != 0) {
+                    event->flag_bits.player_side = 0;
+                } else {
+                    event->player_pdata =
+                        event->player_pdata->his_plyr_pdata;
+                    damage_player(event->player_pdata->his_plyr_pdata, 0.04f);
+                }
+            }
+            column_data = 0;
+            process = _create_mkproc_generic_bigstack(
+                0xC01A, 0x1F, p_beetle_lair_column_breaking,
+                sizeof(BlColumnBreakData), (MkHdr**)&column_data);
+            if (process != 0 && column_data != 0) {
+                column_data->player = event->player_pdata;
+                if (event->impact_vector != 0) {
+                    column_data->direction.x = event->impact_vector->x;
+                    column_data->direction.y = event->impact_vector->y;
+                    column_data->direction.z = event->impact_vector->z;
+                } else {
+                    column_data->direction.x = 0.0f;
+                    column_data->direction.y = 0.0f;
+                    column_data->direction.z = 0.075f;
+                }
+                column_data->direction.x *= 1.5f;
+                column_data->direction.y *= 1.5f;
+                column_data->direction.z *= 1.5f;
+                column_data->side = 0;
+                column_data->use_camera = event->flag_bits.player_side;
+                if (g_game_info.bgnd_obj != 0) {
+                    mk_insert(&process->hdr,
+                              &g_game_info.bgnd_obj->child_list);
+                }
+            }
+            toggle_danger_zone(1);
+            return 1;
+        }
+        if (event->event_id == 0x3F && eligible != 0) {
+            if (event->flag_bits.player_side == 1) {
+                if ((event->player_pdata->state & 0x1000) != 0) {
+                    event->flag_bits.player_side = 0;
+                } else {
+                    event->player_pdata =
+                        event->player_pdata->his_plyr_pdata;
+                    damage_player(event->player_pdata->his_plyr_pdata, 0.04f);
+                }
+            }
+            column_data = 0;
+            process = _create_mkproc_generic_bigstack(
+                0xC01A, 0x1F, p_beetle_lair_column_breaking,
+                sizeof(BlColumnBreakData), (MkHdr**)&column_data);
+            if (process != 0 && column_data != 0) {
+                column_data->player = event->player_pdata;
+                if (event->impact_vector != 0) {
+                    column_data->direction.x = event->impact_vector->x;
+                    column_data->direction.y = event->impact_vector->y;
+                    column_data->direction.z = event->impact_vector->z;
+                } else {
+                    column_data->direction.x = 0.0f;
+                    column_data->direction.y = 0.0f;
+                    column_data->direction.z = 0.075f;
+                }
+                column_data->direction.x *= 1.5f;
+                column_data->direction.y *= 1.5f;
+                column_data->direction.z *= 1.5f;
+                column_data->side = 1;
+                column_data->use_camera = event->flag_bits.player_side;
+                if (g_game_info.bgnd_obj != 0) {
+                    mk_insert(&process->hdr,
+                              &g_game_info.bgnd_obj->child_list);
+                }
+            }
+            toggle_danger_zone(0);
+            return 1;
+        }
+        if ((event->event_id == 0x40 || event->event_id == 0x97) &&
+            g_game_info.floor_flags.field_74_bit6) {
+            return 1;
+        }
+        return 0;
+    default:
+        return 0;
+    }
 }
-void r_beetle_lair_transition(void) {}
-static void beetle_lair_react_to_wall_danger_zone_cb(void) {}
-static void p_beetle_lair_wall_breaking_controller(void) {}
-static void p_beetle_lair_watch_remaining_fall_scene(void) {}
-static void winner_watching_him_fall(void) {}
-static void victim_fall_down_a_level(void) {}
-static void p_beetle_lair_front_wall_breaking(void) {}
-static void p_beetle_lair_downstairs_wall_break_cam_control(void) {}
-static void p_beetle_lair_column_breaking(void) {}
-static void p_launch_final_column_piece(void) {}
-static void p_launch_column_piece(void) {}
-static void p_bl_flip_column_piece(void) {}
+typedef struct BlWallBreakCameraData {
+    MkHdr hdr;
+    PlyrPdata* player;
+} BlWallBreakCameraData;
+
+typedef struct BlWallBreakControllerData {
+    MkHdr hdr;
+    PlyrPdata* player;
+    int initial_delay;
+    int remaining_scene_ticks;
+} BlWallBreakControllerData;
+
+static float p_beetle_lair_front_wall_breaking(void);
+static float p_beetle_lair_wall_breaking_controller(void);
+extern void tightrope_restrictions_off(void);
+
+/* Clean-C near match: 96.23%, retail/local 1092/1080 bytes. The complete
+ * transition, launch normalization, process ownership, and player-state
+ * updates agree; residue is register coloring and merged flag-update loads. */
+float r_beetle_lair_transition(void) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    BlWallBreakCameraData* camera_data;
+    BlWallBreakControllerData* controller_data;
+    MkProc* process;
+    PlyrPdata* player;
+    Vec velocity;
+    float correction;
+    float inverse_length;
+    float product;
+    float squared;
+    float x;
+    float z;
+    int launched;
+
+    launched = 0;
+    drone_ai_dont_think();
+    turn_controllers_off();
+    g_game_info.flag_bits.level_transition_active = 1;
+    g_game_info.flag_bits.level_fatality_active = 0;
+    plyr_weapon_trail_hide(g_game_info.plyr0.slot.pdata->mirror_slots);
+    plyr_weapon_trail_hide(g_game_info.plyr1.slot.pdata->mirror_slots);
+    g_game_info.plyr0.slot.pdata->collision_disabled = 1;
+    g_game_info.plyr1.slot.pdata->collision_disabled = 1;
+    high_flash_check();
+    face_opponent_now();
+    danger_zone_eligible_on();
+    bgnd_process_collision_info(
+        9, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    bgnd_process_collision_info(
+        7, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+
+    velocity.x = 0.0f;
+    velocity.y = 0.0f;
+    velocity.z = 0.0f;
+    obj_set_pos_vel(g_game_info.player_objects[1], &velocity);
+    stop_me();
+    init_air_move_no_aniproc();
+    random_hit(1);
+    random_hit(4);
+    random_voice(0x13);
+
+    inverse_length = 0.0f;
+    z = g_game_info.player_objects[0]->pos.value.z -
+        g_game_info.player_objects[1]->pos.value.z;
+    x = g_game_info.player_objects[0]->pos.value.x -
+        g_game_info.player_objects[1]->pos.value.x;
+    squared = x * x + z * z;
+    if (!(squared <= 0.0f)) {
+        input.f = squared;
+        estimate.u = 0x5F375A00U - (input.u >> 1);
+        product = estimate.f * (squared * estimate.f);
+        correction = 3.0f - product;
+        inverse_length = 0.0625f * estimate.f * correction *
+            -(correction * (product * correction) - 12.0f);
+    }
+    velocity.z = 0.23f;
+    velocity.x = 0.23f * (x * inverse_length);
+    if (plyr_obj->pos.value.x > 2.5f ||
+        plyr_obj->pos.value.x < -2.5f) {
+        velocity.z = 0.23f;
+        velocity.x *= 0.5f;
+    }
+    obj_set_pos_vel(plyr_obj, &velocity);
+    tightrope_restrictions_off();
+    plyr_obj->flags_0B_bits.bit6 = 1;
+    special_move_cam_setup(1, 0xC8, 0, 0.35f, 4.0f, 2.0f, -2.67f, 0.2f);
+    launch_me_up(0.025f, 0.0f);
+    blend_to_ani(*(AniData**)&shared_ani[0x194], 0, 0.1f);
+    set_ani_speed(1.0f);
+    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
+    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
+
+    while (launched == 0) {
+        ani_loop_more_frames(1.0f);
+        if (plyr_obj->pos.value.z > 14.9f) {
+            launched = 1;
+        }
+    }
+    damage_me(0.05f);
+    ck_rumble_controller(get_my_plyr_num(), 8, 0x19);
+
+    camera_data = 0;
+    player = plyr_pdata;
+    process = _create_mkproc_generic_tinystack(
+        0xC01A, 0x1F, p_beetle_lair_front_wall_breaking,
+        sizeof(BlWallBreakCameraData), (MkHdr**)&camera_data);
+    if (process != 0 && camera_data != 0) {
+        camera_data->player = player;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+    delete_obstacle_from_background_by_id(0x42);
+    player->online_sync_index = -1;
+    if (player->player_slot == 0) {
+        g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
+    } else {
+        g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
+    }
+
+    controller_data = 0;
+    player = plyr_pdata;
+    process = _create_mkproc_generic_bigstack(
+        0xC01A, 0x1F, p_beetle_lair_wall_breaking_controller,
+        sizeof(BlWallBreakControllerData), (MkHdr**)&controller_data);
+    if (process != 0 && controller_data != 0) {
+        controller_data->player = player;
+        controller_data->initial_delay = 0x28;
+        controller_data->remaining_scene_ticks = 0x348;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+    ani_loop_more_frames(1000.0f);
+    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+static int beetle_lair_react_to_wall_danger_zone_cb(BlDangerEvent* event) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    MkObj* source;
+    MkObj* target;
+    Vec wall_normal = {0.0f, 0.0f, 1.0f};
+    float correction;
+    float dot;
+    float inverse_length;
+    float product;
+    float squared;
+    float x;
+    float y;
+    float z;
+    int result;
+
+    inverse_length = 0.0f;
+    target = event->target->object;
+    source = event->source->object_ref->object;
+    y = target->pos.value.y - source->pos.value.y;
+    x = target->pos.value.x - source->pos.value.x;
+    z = target->pos.value.z - source->pos.value.z;
+    squared = z * z + (x * x + y * y);
+    if (!(squared <= 0.0f)) {
+        input.f = squared;
+        estimate.u = 0x5F375A00U - (input.u >> 1);
+        product = estimate.f * (squared * estimate.f);
+        correction = 3.0f - product;
+        inverse_length = 0.0625f * estimate.f * correction *
+            -(correction * (product * correction) - 12.0f);
+    }
+    x *= inverse_length;
+    y *= inverse_length;
+    z *= inverse_length;
+    dot = wall_normal.x * x + wall_normal.y * y + wall_normal.z * z;
+    if (target->pos.value.z < 10.0f) {
+        if (dot > 0.7f) {
+            result = 1;
+        } else {
+            result = 0;
+        }
+    } else if (dot > 0.3f) {
+        result = 1;
+    } else {
+        result = 0;
+    }
+    return result;
+}
+static float p_beetle_lair_watch_remaining_fall_scene(void);
+static float winner_watching_him_fall(void);
+static float victim_fall_down_a_level(void);
+static int g_go_back_to_fight_position;
+
+static float p_beetle_lair_downstairs_wall_break_cam_control(void);
+static float plyr_is_prone(void);
+void bgnd_swap_level(int level);
+float bgnd_launch_chunk(
+    MkSobj* object, const Vec* position, const Vec* velocity,
+    const Vec* angular_velocity, const Vec* angles, unsigned int end_mode,
+    const Vec* scale, int field_0C, float vertical_accel, int field_10);
+
+extern unsigned int fx(const char* name);
+extern void fx_set_param_v3(
+    unsigned int effect, int parameter, float x, float y, float z);
+extern void shake_camera_y(int count, float strength);
+
+static inline void bl_front_wall_effect_at(
+    const char* name, float x, float y, float z) {
+    MkPfx* effect;
+    unsigned int handle;
+
+    handle = fx_by_owner(name, 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = x;
+                g_latest_obj_pfx->pos.value.y = y;
+                g_latest_obj_pfx->pos.value.z = z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect(name);
+            }
+        }
+    }
+}
+
+/* Clean-C near match: 82.15%, retail/local 2472/2384. Calls, launch
+ * parameters, ownership, access widths, and control flow agree. The 88-byte
+ * residue is escaped-Vec stack-slot selection and redundant aggregate
+ * initialization/copy traffic across this 2.4 KiB controller. */
+static float p_beetle_lair_wall_breaking_controller(void) {
+    Vec camera_start = {2.166f, -9.5f, 42.734f};
+    Vec camera_end = {0.4512f, -0.5f, 18.8713f};
+    Vec scale = {1.0f, 1.0f, 1.0f};
+    BlWallBreakControllerData* data;
+    BlWallBreakCameraData* camera_data;
+    MkPfx* effect;
+    MkProc* process;
+    MkObj* player_object;
+    MkObj* opponent_object;
+    MkSobj* chunk;
+    Vec position0;
+    Vec position1;
+    Vec position2;
+    Vec position3;
+    Vec position4;
+    Vec velocity;
+    Vec angular_velocity;
+    Vec angles0;
+    Vec angles1;
+    Vec angles2;
+    Vec angles3;
+    Vec angles4;
+    float camera_dx;
+    float camera_dz;
+
+    data = (BlWallBreakControllerData*)apdata;
+    _mkproc_sleep_ticks = (float)data->initial_delay;
+    aproc->vtbl->sleep();
+    g_go_back_to_fight_position = 0;
+
+    player_object = data->player->plyr_info->slot.mirror_a;
+    opponent_object =
+        data->player->his_plyr_pdata->plyr_info->slot.mirror_a;
+    xfer_proc(get_player_proc(player_object), plyr_is_prone);
+    xfer_proc(get_player_proc(opponent_object), plyr_is_prone);
+
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x32);
+    if (g_game_info.bgnd_obj != 0) {
+        chunk = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x32);
+        if (chunk != 0) {
+            unhide_sobj_and_children(chunk);
+        }
+    }
+
+    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.launched = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit6 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.head_tracking = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit3 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 0;
+    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.launched = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit6 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.head_tracking = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit3 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
+
+    camera_data = 0;
+    process = _create_mkproc_generic_tinystack(
+        0xC01C, 0x1F, p_beetle_lair_downstairs_wall_break_cam_control,
+        sizeof(BlWallBreakCameraData), (MkHdr**)&camera_data);
+    if (process != 0 && camera_data != 0) {
+        camera_data->player = data->player;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+    bgnd_swap_level(1);
+    hide_obj(g_bgnd_preloaded_models[5]);
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x28);
+    if (g_game_info.bgnd_obj != 0) {
+        chunk = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x28);
+        if (chunk != 0) {
+            hide_sobj_and_children(chunk);
+        }
+    }
+
+    _mkproc_sleep_ticks = 19.0f;
+    aproc->vtbl->sleep();
+    if (g_bl_beetles != 0) {
+        bl_init_beetle_pebbles_second_floor(g_bl_beetles_pdata);
+    }
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+    shake_camera_y(2, 0.01f);
+    snd_req(0x8F);
+    bl_front_wall_effect_at("smoke_wall", -0.2512f, 0.0f, 18.8613f);
+    effect = find_pfx_by_name("smoke_wall");
+    if (effect != 0) {
+        effect->field_28 = -50.0f;
+    }
+
+    camera_dx = camera_start.x - camera_end.x;
+    camera_dz = camera_start.z - camera_end.z;
+
+    position0.x = 0.4512f;
+    position0.y = 0.8f;
+    position0.z = 18.2113f;
+    velocity.x = 0.05f + camera_dx / 100.0f;
+    velocity.y = camera_dz / 100.0f;
+    velocity.z = 0.05f;
+    angular_velocity.x = 0.05f;
+    angular_velocity.y = 0.0f;
+    angular_velocity.z = 0.0f;
+    angles0.x = 3.1415927f;
+    angles0.y = 0.0f;
+    angles0.z = 0.0f;
+    chunk = obj_first_sobj(g_bgnd_preloaded_models[0]);
+    bgnd_launch_chunk(
+        chunk, &position0, &velocity, &angular_velocity, &angles0, 0,
+        &scale, 1, -0.003f, 1);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    position1.x = 0.0f;
+    position1.y = 1.1f;
+    position1.z = 18.2113f;
+    velocity.x = 0.0f;
+    velocity.y = 0.105f;
+    velocity.z = -0.01f;
+    angular_velocity.x = 0.043f;
+    angular_velocity.y = -0.07f;
+    angular_velocity.z = 0.0f;
+    angles1.x = 3.1415927f;
+    angles1.y = 0.0f;
+    angles1.z = 1.0471976f;
+    chunk = obj_first_sobj(g_bgnd_preloaded_models[1]);
+    bgnd_launch_chunk(
+        chunk, &position1, &velocity, &angular_velocity, &angles1, 0,
+        &scale, 1, -0.004f, 1);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    position2.x = 0.6f;
+    position2.y = 1.3f;
+    position2.z = 18.2113f;
+    velocity.x = camera_dx / 110.0f - 0.11f;
+    velocity.y = camera_dz / 110.0f;
+    velocity.z = 0.03f;
+    angular_velocity.x = 0.05f;
+    angular_velocity.y = 0.0f;
+    angular_velocity.z = 0.18f;
+    angles2.x = 3.1415927f;
+    angles2.y = 0.0f;
+    angles2.z = 0.0f;
+    chunk = obj_first_sobj(g_bgnd_preloaded_models[2]);
+    bgnd_launch_chunk(
+        chunk, &position2, &velocity, &angular_velocity, &angles2, 0,
+        &scale, 1, -0.004f, 1);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    position3.x = -0.8512f;
+    position3.y = 1.3f;
+    position3.z = 18.2113f;
+    velocity.x = camera_dx / 300.0f - 0.05f;
+    velocity.y = camera_dz / 200.0f;
+    velocity.z = 0.2f;
+    angular_velocity.x = 0.2f;
+    angular_velocity.y = 0.0f;
+    angular_velocity.z = 0.15f;
+    angles3.x = 3.1415927f;
+    angles3.y = 0.0f;
+    angles3.z = 0.0f;
+    chunk = obj_first_sobj(g_bgnd_preloaded_models[3]);
+    bgnd_launch_chunk(
+        chunk, &position3, &velocity, &angular_velocity, &angles3, 0,
+        &scale, 1, -0.003f, 1);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    position4.x = -0.6f;
+    position4.y = 0.6f;
+    position4.z = 18.4313f;
+    velocity.x = camera_dx / 110.0f;
+    velocity.y = camera_dz / 110.0f;
+    velocity.z = 0.03f;
+    angular_velocity.x = 0.01f;
+    angular_velocity.y = 0.1f;
+    angular_velocity.z = 0.0f;
+    angles4.x = 3.1415927f;
+    angles4.y = 3.1415927f;
+    angles4.z = 0.0f;
+    chunk = obj_first_sobj(g_bgnd_preloaded_models[4]);
+    bgnd_launch_chunk(
+        chunk, &position4, &velocity, &angular_velocity, &angles4, 0,
+        &scale, 1, -0.004f, 1);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0x70);
+    if (g_game_info.bgnd_obj != 0) {
+        chunk = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x70);
+        if (chunk != 0) {
+            unhide_sobj(chunk);
+        }
+    }
+    bl_front_wall_effect_at("bw_explosion", -0.2512f, 0.8f, 18.2113f);
+
+    _mkproc_sleep_ticks = 8.0f;
+    aproc->vtbl->sleep();
+    player_object = data->player->plyr_info->slot.mirror_a;
+    opponent_object =
+        data->player->his_plyr_pdata->plyr_info->slot.mirror_a;
+    xfer_proc(get_player_proc(player_object), victim_fall_down_a_level);
+    xfer_proc(get_player_proc(opponent_object), winner_watching_him_fall);
+    _mkproc_sleep_ticks = 75.0f;
+    aproc->vtbl->sleep();
+    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(
+        p_beetle_lair_watch_remaining_fall_scene, 0.0f);
+    return 0.0f;
+}
+
+extern void cam_recalc_midpoint(void);
+
+/* Exact-size 99.93% near match. Counter control, camera handoff, player-state
+ * restoration, wall-hider state, controller enable, and AI restart agree;
+ * remaining residue is TU-local relocation labeling. */
+static float p_beetle_lair_watch_remaining_fall_scene(void) {
+    BlWallBreakControllerData* data;
+
+    data = (BlWallBreakControllerData*)apdata;
+    if (--data->remaining_scene_ticks != 0 &&
+        g_go_back_to_fight_position == 0) {
+        return 1.0f;
+    }
+
+    cam_recalc_midpoint();
+    _mkproc_sleep_ticks = 50.0f;
+    aproc->vtbl->sleep();
+    g_bl_beetles_pdata->pebble_data->count = 0x1C;
+    if (g_game_info.wall_hider != 0) {
+        g_game_info.wall_hider->flag_bits.disabled = 0;
+    }
+
+    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.launched = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit6 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.head_tracking = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit3 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 1;
+
+    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.launched = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit6 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.head_tracking = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit3 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 1;
+
+    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
+    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 0;
+    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
+    turn_controllers_on();
+    g_game_info.flag_bits.level_transition_active = 0;
+    g_game_info.flag_bits.level_fatality_active = 0;
+    g_game_info.plyr0.slot.pdata->collision_disabled = 0;
+    g_game_info.plyr1.slot.pdata->collision_disabled = 0;
+    drone_ai_ok_to_think();
+    return -1.0f;
+}
+
+extern MkProc* plyr_anim_proc;
+extern unsigned char shared_ani[];
+extern float p_anim_idle(void);
+extern void face_opponent_now(void);
+extern void avoid_double_ani(void);
+extern void init_air_move(void);
+extern void launch_n_land_ani(
+    AniData* animation, int landing_animation, float launch_frame,
+    float launch_step, float landing_frame, float velocity_y, float gravity,
+    float blend);
+extern void shake_hit_voice(
+    int shake_ticks, int hit_voice, int fighter_voice, float rumble_scale);
+extern void set_ani_speed(float speed);
+extern void ani_to_frame_x(float frame);
+extern void face_position_now(Vec* position);
+extern void bulvan_function(int command);
+extern void force_away(int duration, int interval, float velocity,
+                       float damping);
+extern void plyr_bleed_mouth(PlyrPdata* player);
+extern void glitch_to_ani(AniData* animation, int flags);
+extern void ani_loop_more_frames(float frames);
+extern void plyr_snd_req(int sound);
+extern void ani_1_frame(void);
+extern void random_hit(int group);
+extern void damage_me(float amount);
+extern int random_voice(int group);
+extern void head_tracking_off(void);
+extern void ani_to_end(void);
+extern int do_i_have_life_left(void);
+extern float j_getup_back_6(void);
+extern void tightrope_restrictions_off(void);
+extern void init_ground_move_no_aniproc(void);
+extern void ani_to_blend_frame(float frame);
+extern float p_blend_to_stance_in_10(void);
+
+/* Exact-size 98.17% near match. Player placement and animation, both attached
+ * debris objects, bone/ground positioning, effects, and final animation handoff
+ * agree. Residue is FPR/GPR coloring and pooled relocation identity. */
+static float winner_watching_him_fall(void) {
+    Vec bone_position;
+    AniData* animation;
+    MkSobj* debris_piece;
+    float effect_x;
+    float effect_y;
+    float effect_z;
+
+    plyr_obj->pos.value.x = 0.0f;
+    plyr_obj->pos.value.y = 0.0f;
+    plyr_obj->pos.value.z = 18.8713f;
+    update_mkobj(plyr_obj);
+    face_opponent_now();
+    _mkproc_sleep_ticks = 2.0f;
+    aproc->vtbl->sleep();
+    face_opponent_now();
+    _mkproc_sleep_ticks = 98.0f;
+    aproc->vtbl->sleep();
+    face_opponent_now();
+    avoid_double_ani();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    set_my_state(0x3202);
+    init_air_move();
+    force_forward(0x78, 0x14, 0.1325f, 0.9f);
+    animation = *(AniData**)&shared_ani[0x3C];
+    launch_n_land_ani(
+        animation, 0, 0.0f, 0.0f, 28.0f, 0.12f, -0.0035f, 0.2f);
+
+    get_bone_world_pos(plyr_obj, 0xA, &bone_position);
+    bone_position.y = g_game_info.field_34 + 0.015f;
+    g_bgnd_preloaded_models[5]->pos.value.x = bone_position.x;
+    g_bgnd_preloaded_models[5]->pos.value.y = bone_position.y;
+    g_bgnd_preloaded_models[5]->pos.value.z = bone_position.z;
+    g_bgnd_preloaded_models[5]->flags_08_bits.airborne = 1;
+    g_bgnd_preloaded_models[5]->flags_08_bits.scale_active = 1;
+    g_bgnd_preloaded_models[5]->flags_08_bits.angular_velocity_enabled = 1;
+    g_bgnd_preloaded_models[5]->ang.x = 1.5707964f;
+    g_bgnd_preloaded_models[5]->ang.y = 0.0f;
+    g_bgnd_preloaded_models[5]->ang.z = 0.0f;
+    g_bgnd_preloaded_models[5]->scale.x = 1.25f;
+    g_bgnd_preloaded_models[5]->scale.y = 1.0f;
+    g_bgnd_preloaded_models[5]->scale.z = 1.25f;
+    debris_piece = obj_first_sobj(g_bgnd_preloaded_models[5]);
+    debris_piece->z_offset = -50.0f;
+    update_mkobj(g_bgnd_preloaded_models[5]);
+    unhide_obj(g_bgnd_preloaded_models[5]);
+
+    get_bone_world_pos(plyr_obj, 0xB, &bone_position);
+    bone_position.y = g_game_info.field_34 + 0.03f;
+    g_bgnd_preloaded_models[7]->pos.value.x = bone_position.x;
+    g_bgnd_preloaded_models[7]->pos.value.y = bone_position.y;
+    g_bgnd_preloaded_models[7]->pos.value.z = bone_position.z;
+    g_bgnd_preloaded_models[7]->flags_08_bits.airborne = 1;
+    g_bgnd_preloaded_models[7]->flags_08_bits.scale_active = 1;
+    g_bgnd_preloaded_models[7]->flags_08_bits.angular_velocity_enabled = 1;
+    g_bgnd_preloaded_models[7]->ang.x = 1.5707964f;
+    g_bgnd_preloaded_models[7]->ang.y = 0.0f;
+    g_bgnd_preloaded_models[7]->ang.z = 0.0f;
+    g_bgnd_preloaded_models[7]->scale.x = 1.25f;
+    g_bgnd_preloaded_models[7]->scale.y = 1.0f;
+    g_bgnd_preloaded_models[7]->scale.z = 1.25f;
+    debris_piece = obj_first_sobj(g_bgnd_preloaded_models[7]);
+    debris_piece->z_offset = -40.0f;
+    update_mkobj(g_bgnd_preloaded_models[7]);
+    unhide_obj(g_bgnd_preloaded_models[7]);
+
+    init_ground_move();
+    shake_hit_voice(3, -1, 7, 0.03f);
+    snd_req(0x90);
+    effect_z = plyr_obj->pos.value.z;
+    effect_y = g_game_info.field_34 + 0.01f;
+    effect_x = plyr_obj->pos.value.x;
+    bl_front_wall_effect_at(
+        "dust_aland_gnd_pnd", effect_x, effect_y, effect_z);
+    effect_z = plyr_obj->pos.value.z;
+    effect_y = g_game_info.field_34 + 0.01f;
+    effect_x = plyr_obj->pos.value.x;
+    bl_front_wall_effect_at("wall_debris_1", effect_x, effect_y, effect_z);
+    set_ani_speed(0.5f);
+    ani_to_frame_x(50.0f);
+    blend_to_stance(0.2f);
+    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+/* Exact-size 99.49% near match. Fall, impact, debris, damage, death/recovery
+ * branches, animation transitions, and controller handoff agree. The repeated
+ * preload-table accesses are intentional; residue is pooled relocation identity
+ * and small register/scheduling differences in the two inlined effects. */
+static float victim_fall_down_a_level(void) {
+    Vec face_target = {0.0f, 0.0f, 0.0f};
+    Vec target_position = {0.4512f, -0.5f, 18.8713f};
+    Vec move_position = {0.0f, 0.0f, 0.0f};
+    Vec follower_position;
+    Vec bone_position;
+    MkSobj* debris_piece;
+    float effect_x;
+    float effect_y;
+    float effect_z;
+
+    stop_me();
+    bulvan_function(1);
+    move_position.z = target_position.z;
+    move_player(plyr_obj, &move_position, &plyr_obj->ang);
+    face_target.y = plyr_obj->pos.value.y;
+    face_position_now(&face_target);
+    plyr_obj->pos_vel.y = 0.05f;
+    force_away(0x50, 0x1E, 0.22f, 0.9f);
+
+    get_bone_world_pos(plyr_obj, 0, &follower_position);
+    bl_front_wall_effect_at(
+        "debris_follower_fx", follower_position.x, follower_position.y,
+        follower_position.z);
+    plyr_bleed_mouth(plyr_pdata);
+    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->flags_09_bits.launched = 0;
+    glitch_to_ani(*(AniData**)&shared_ani[0x198], 0);
+    set_ani_speed(1.3f);
+    ani_loop_more_frames(3.0f);
+    plyr_snd_req(0x45);
+    ani_loop_more_frames(22.0f);
+
+    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->gravity = -0.009f;
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 0.1f) {
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
+    get_bone_world_pos(plyr_obj, 0, &bone_position);
+    bone_position.y = g_game_info.field_34 + 0.015f;
+    g_bgnd_preloaded_models[8]->pos.value.x = bone_position.x;
+    g_bgnd_preloaded_models[8]->pos.value.y = bone_position.y;
+    g_bgnd_preloaded_models[8]->pos.value.z = bone_position.z;
+    g_bgnd_preloaded_models[8]->flags_08_bits.airborne = 1;
+    g_bgnd_preloaded_models[8]->flags_08_bits.scale_active = 1;
+    g_bgnd_preloaded_models[8]->flags_08_bits.angular_velocity_enabled = 1;
+    g_bgnd_preloaded_models[8]->ang.x = 1.5707964f;
+    g_bgnd_preloaded_models[8]->ang.y = 0.0f;
+    g_bgnd_preloaded_models[8]->ang.z = 0.0f;
+    g_bgnd_preloaded_models[8]->scale.x = 1.25f;
+    g_bgnd_preloaded_models[8]->scale.y = 1.0f;
+    g_bgnd_preloaded_models[8]->scale.z = 1.25f;
+    debris_piece = obj_first_sobj(g_bgnd_preloaded_models[8]);
+    update_mkobj(g_bgnd_preloaded_models[8]);
+    g_bgnd_preloaded_models[8]->flags_08_bits.scale_active = 1;
+    g_bgnd_preloaded_models[8]->scale.x = 2.0f;
+    g_bgnd_preloaded_models[8]->scale.y = 2.0f;
+    g_bgnd_preloaded_models[8]->scale.z = 2.0f;
+    sobj_set_priority(debris_piece, 9);
+    debris_piece->flags09_bits.bit6 = 1;
+    debris_piece->flags09_bits.bit7 = 1;
+    unhide_obj(g_bgnd_preloaded_models[8]);
+
+    shake_camera(3, 0.03f);
+    effect_z = plyr_obj->pos.value.z;
+    effect_y = g_game_info.field_34 + 0.01f;
+    effect_x = plyr_obj->pos.value.x;
+    bl_front_wall_effect_at(
+        "dust_aland_gnd_pnd", effect_x, effect_y, effect_z);
+    effect_z = plyr_obj->pos.value.z;
+    effect_y = g_game_info.field_34 + 0.01f;
+    effect_x = plyr_obj->pos.value.x;
+    bl_front_wall_effect_at("wall_debris_1", effect_x, effect_y, effect_z);
+    random_hit(9);
+    random_hit(5);
+    damage_me(0.05f);
+    ck_rumble_controller(get_my_plyr_num(), 8, 0x19);
+    random_voice(8);
+    init_ground_move();
+    head_tracking_off();
+    blend_to_ani(*(AniData**)&shared_ani[0x60], 3, 0.1f);
+    set_ani_speed(0.75f);
+    ani_to_end();
+    set_ani_speed(0.5f);
+    blend_to_ani(*(AniData**)&shared_ani[0x64], 0, 0.2f);
+    ani_loop_more_frames(10.0f);
+
+    if (do_i_have_life_left() == 0) {
+        while (g_game_info.flag_bits.level_transition_active) {
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_getup_back_6, 0.0f);
+        return 0.0f;
+    } else {
+        plyr_pdata->death_type = 1;
+        back_to_normal();
+        plyr_obj->flags_09_bits.head_tracking = 0;
+        tightrope_restrictions_off();
+        init_ground_move_no_aniproc();
+        plyr_anim_pdata->step = 0.6f;
+        plyr_anim_pdata->transition_weight = 0.5f;
+        transition_to_anim_script(
+            plyr_anim_pdata, *(AnimScript**)&shared_ani[0x338], 3, 0.05f);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        ani_to_frame_x(2.0f);
+        plyr_obj->flags_09_bits.launched = 0;
+        plyr_anim_pdata->step = 0.7f;
+        ani_to_frame_x(30.0f);
+        ani_to_blend_frame(10.0f);
+        init_ground_move();
+        back_to_normal();
+        rotate_towards_him(0.1f);
+        while (do_i_have_life_left() == 0) {
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+        xfer_proc(plyr_anim_proc, p_animate);
+        turn_controllers_on();
+        plyr_anim_pdata->step = 1.2f;
+        ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(
+            p_blend_to_stance_in_10, 0.0f);
+        return 0.0f;
+    }
+}
+
+/* Retail/local: 0x4A4/0x490, raw 92.87%. All calls, effect names and positions,
+ * wall flags/scales, camera-latch validation, sleeps, and camera-directed
+ * velocity math agree. Residue is nonvolatile-register coloring, pooled-label
+ * identity, the equivalent latch branch, and MWCC eliminating retail's fully
+ * initialized local camera-vector stores before that vector is overwritten. */
+static float p_beetle_lair_front_wall_breaking(void) {
+    Vec camera_velocity = {0.0f, 0.0f, -0.05f};
+    Vec effect_position = {0.0f, 0.0f, 0.0f};
+    Vec effect_offset = {0.0f, 0.0f, 0.6f};
+    Vec wall_offset = {1.5f, 0.75f, 0.0f};
+    BlWallBreakCameraData* data;
+    CameraObj* camera;
+    MkObj* player_object;
+    MkSobj* wall;
+
+    camera = camera_item.node;
+    if (camera != 0) {
+        if (camera->hdr.instance == camera_item.instance) {
+            /* The camera latch is live. */
+        } else {
+            camera = 0;
+        }
+    } else {
+        camera = 0;
+    }
+
+    _mkproc_sleep_ticks = 3.0f;
+    data = (BlWallBreakCameraData*)apdata;
+    aproc->vtbl->sleep();
+    snd_req(0x8A);
+    shake_camera_y(3, 0.03f);
+
+    wall = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xBE);
+    player_object = data->player->plyr_info->slot.mirror_a;
+    wall->pos.x = player_object->pos.value.x + wall_offset.x;
+    wall->pos.y = player_object->pos.value.y + wall_offset.y;
+    wall->pos.z = 13.1f;
+    effect_position.x = wall->pos.x;
+    effect_position.y = wall->pos.y;
+    effect_position.z = player_object->pos.value.z + wall_offset.z;
+    wall->flags_08_bits.bit6 = 1;
+    wall->flags_08_bits.scale_dirty = 1;
+    wall->scale.x = 2.0f;
+    wall->scale.y = 3.0f;
+    wall->scale.z = 3.0f;
+    effect_position.z = 13.1f;
+    unhide_sobj(wall);
+
+    player_object = data->player->plyr_info->slot.mirror_a;
+    effect_position.x = player_object->pos.value.x + effect_offset.x;
+    effect_position.y = player_object->pos.value.y + effect_offset.y;
+    effect_position.z = player_object->pos.value.z + effect_offset.z;
+    effect_position.y += 0.1f;
+    effect_position.z = 15.0f;
+    bl_front_wall_effect_at(
+        "fw_explosion", effect_position.x, effect_position.y,
+        effect_position.z);
+    bl_front_wall_effect_at(
+        "smoke_front_wall", effect_position.x, effect_position.y + 0.5f,
+        effect_position.z);
+
+    _mkproc_sleep_ticks = 10.0f;
+    aproc->vtbl->sleep();
+    camera_velocity.x = (camera->pos.x - effect_position.x) / 40.0f;
+    camera_velocity.y =
+        (camera->pos.y - effect_position.y + 0.2f) / 40.0f;
+    camera_velocity.z = (camera->pos.z - effect_position.z) / 40.0f;
+    bl_front_wall_effect_at(
+        "at_cam_explosion", effect_position.x, effect_position.y,
+        effect_position.z);
+    fx_set_param_v3(
+        fx("at_cam_explosion"), 0x201, camera_velocity.x,
+        camera_velocity.y, camera_velocity.z);
+    return -1.0f;
+}
+
+extern float p_idle_camera(void);
+extern int move_to_end_point(const Vec* endpoint, float* initial_speed,
+                             float* final_speed, int reset, float time);
+extern void get_current_target(Vec* target);
+
+/* Retail/local: 0x3F8/0x3F4, raw 96.84%. The camera choreography,
+ * process-data ownership, validated camera latch, target-object chains,
+ * movement calls, loop bounds, and angle math agree with retail. Remaining
+ * differences are register coloring, pooled-constant labels, the equivalent
+ * latch branch direction, and MWCC coalescing retail's zero-constant fmr. */
+static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
+    Vec cut_position = {4.996f, 2.0f, 27.5f};
+    Vec fixed_position = {1.166f, -9.5f, 43.734f};
+    Vec endpoint = {3.0f, -8.4543f, 35.572f};
+    Vec target = {0.4512f, -0.5f, 18.8713f};
+    Vec cut_target = {0.0f, 0.0f, 18.8713f};
+    BlWallBreakCameraData* data;
+    CameraObj* camera;
+    MkObj* opponent;
+    Vec current_target;
+    Vec movement;
+    Vec look_target;
+    float initial_speed;
+    float final_speed;
+    float delta_x;
+    float delta_y;
+    float delta_z;
+    float pitch;
+    float angle_offset;
+    int follow_ticks;
+    int move_ticks;
+    unsigned int elapsed;
+
+    angle_offset = 0.0f;
+    elapsed = 0;
+    follow_ticks = (int)(120.0f * inverse_game_speed);
+    move_ticks = (int)(100.0f * inverse_game_speed);
+    data = (BlWallBreakCameraData*)apdata;
+    initial_speed = 0.0f;
+    final_speed = 0.0f;
+
+    go_to_camera_cut(&cut_position, &cut_target);
+    _mkproc_sleep_ticks = 37.0f;
+    aproc->vtbl->sleep();
+    xfer_camera(p_idle_camera, 1);
+
+    camera = camera_item.node;
+    if (camera != 0) {
+        if (camera->hdr.instance == camera_item.instance) {
+            /* The camera latch is live. */
+        } else {
+            camera = 0;
+        }
+    } else {
+        camera = 0;
+    }
+
+    get_current_target(&look_target);
+    current_target.x = look_target.x;
+    current_target.y = look_target.y;
+    current_target.z = look_target.z;
+    get_target_movement_vector(&look_target, &target, &movement, 2.0f);
+    remove_camera_offsets();
+    while (--follow_ticks > 0) {
+        MkObj* player_object = data->player->plyr_info->slot.mirror_a;
+        current_target.x = player_object->pos.value.x;
+        current_target.y = player_object->pos.value.y;
+        current_target.z = player_object->pos.value.z;
+        look_at_target(&current_target);
+        add_camera_offsets();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        remove_camera_offsets();
+    }
+
+    add_camera_offsets();
+    set_camera_position(&fixed_position);
+    look_at_target(&target);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    get_current_target(&look_target);
+    current_target.x = look_target.x;
+    current_target.y = look_target.y;
+    current_target.z = look_target.z;
+    target.x = 1.427625f;
+    target.y = -8.6525f;
+    target.z = 35.45204f;
+    remove_camera_offsets();
+    move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 2.0f);
+    final_speed = 0.07f;
+    initial_speed = 0.01f;
+
+    while (move_to_end_point(
+               &endpoint, &initial_speed, &final_speed, 0, 3.1f) == 0 &&
+           --move_ticks > 0) {
+        Vec angle = {-0.33f, 3.1415927f, 0.0f};
+        opponent = data->player->his_plyr_pdata->plyr_info->slot.mirror_a;
+        delta_z = camera->pos.z - opponent->pos.value.z;
+        delta_y = camera->pos.y - opponent->pos.value.y;
+        delta_x = camera->pos.x - opponent->pos.value.x;
+        angle.y = 3.1415927f + gxMathArcTanYX(delta_x, delta_z);
+        pitch = gxMathArcTanYX(delta_y, delta_z);
+        if (pitch > -0.33f) {
+            angle.x = pitch;
+        }
+        if (pitch > 0.0f) {
+            angle.x = 0.0f;
+        }
+        ++elapsed;
+        if (elapsed > 42) {
+            angle_offset += 0.008f;
+            angle.y += angle_offset;
+        }
+        set_camera_angle(&angle);
+        add_camera_offsets();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        remove_camera_offsets();
+    }
+
+    g_go_back_to_fight_position = 1;
+    return -1.0f;
+}
+
+typedef struct BlFinalColumnPieceData {
+    MkHdr hdr;
+    Vec launch_position; /* +0x08 - retained by the controller */
+    MkSobj* piece;       /* +0x14 */
+    float gravity;       /* +0x18 */
+    int mode;            /* +0x1C */
+} BlFinalColumnPieceData;
+
+typedef struct BlColumnPieceData {
+    MkHdr hdr;
+    int replacement_sobj_id; /* +0x08 */
+    Vec rotation_source;     /* +0x0C */
+    MkSobj* piece;           /* +0x18 */
+} BlColumnPieceData;
+
+static float p_launch_final_column_piece(void);
+static float p_launch_column_piece(void);
+static float p_bl_flip_column_piece(void);
+
+static inline void bl_column_effect_at(const char* name, float x, float y,
+                                       float z) {
+    MkPfx* effect;
+    unsigned int handle;
+
+    handle = fx_by_owner(name, 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = x;
+                g_latest_obj_pfx->pos.value.y = y;
+                g_latest_obj_pfx->pos.value.z = z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect(name);
+            }
+        }
+    }
+}
+
+static inline void bl_set_column_piece_motion(MkSobj* piece,
+                                               const Vec* axis,
+                                               float angular_scale) {
+    piece->ang_vel.x = piece->pos_vel.y * axis->z -
+        piece->pos_vel.z * axis->y;
+    piece->ang_vel.y = piece->pos_vel.z * axis->x -
+        piece->pos_vel.x * axis->z;
+    piece->ang_vel.z = piece->pos_vel.x * axis->y -
+        piece->pos_vel.y * axis->x;
+    piece->ang_vel.x = angular_scale * piece->ang_vel.x;
+    piece->ang_vel.y = angular_scale * piece->ang_vel.y;
+    piece->ang_vel.z = angular_scale * piece->ang_vel.z;
+}
+
+static inline void bl_enable_column_piece_motion(MkSobj* piece) {
+    piece->flags_08_bits.bit6 = 1;
+    piece->flags_08_bits.bit5 = 1;
+    piece->flags_08_bits.angular_velocity_enabled = 1;
+}
+
+static inline float bl_column_vector_length(const Vec* vector) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    float squared;
+
+    squared = vector->x * vector->x + vector->y * vector->y +
+        vector->z * vector->z;
+    input.f = squared;
+    if (squared <= 0.0f) {
+        return 0.0f;
+    }
+    estimate.u =
+        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
+    estimate.u |=
+        (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
+    return 0.5f *
+        (estimate.f * (3.0f - (estimate.f * estimate.f) / squared));
+}
+
+static inline void bl_column_normalize_vector(Vec* vector) {
+    union {
+        float f;
+        unsigned int u;
+    } estimate, input;
+    float correction;
+    float inverse_length;
+    float product;
+    float squared;
+    float x;
+
+    x = vector->x;
+    squared = vector->z * vector->z +
+        (x * x + vector->y * vector->y);
+    inverse_length = 0.0f;
+    if (!(squared <= 0.0f)) {
+        input.f = squared;
+        estimate.u = 0x5F375A00U - (input.u >> 1);
+        product = estimate.f * (squared * estimate.f);
+        correction = 3.0f - product;
+        inverse_length = 0.0625f * estimate.f * correction *
+            -(correction * (product * correction) - 12.0f);
+    }
+    vector->x = x * inverse_length;
+    vector->y *= inverse_length;
+    vector->z *= inverse_length;
+}
+
+/* Retail/local are 3016/3012 bytes. Calls, child-process layouts, object IDs,
+ * table indexing, access widths, motion math, and effect order agree. The
+ * residue is CSE/scheduling across the two inlined length helpers, register
+ * coloring in the repeated launch blocks, and one equivalent latch branch. */
+static float p_beetle_lair_column_breaking(void) {
+    Vec axis = {0.0f, 1.0f, 0.0f};
+    BlColumnBreakData* data;
+    BlColumnPieceData* flip_data;
+    BlFinalColumnPieceData* launch_data;
+    MkObj* target;
+    MkObj* reference;
+    MkPfx* effect;
+    MkProc* process;
+    MkSobj* piece;
+    unsigned int first_piece_id;
+    unsigned int object_id;
+    float blast_y;
+    float effect_x;
+    float effect_z;
+    float flip_x;
+    float flip_y;
+    float flip_z;
+    float length;
+    float random_x;
+    float random_z;
+    float scale;
+    float speed;
+
+    data = (BlColumnBreakData*)apdata;
+    _mkproc_sleep_ticks = 3.0f;
+    aproc->vtbl->sleep();
+
+    target = data->player->tracked_obj;
+    if (target != 0) {
+        if (target->hdr.instance == data->player->tracked_obj_instance) {
+            /* The tracked-object latch is live. */
+        } else {
+            target = 0;
+        }
+    } else {
+        target = 0;
+    }
+    if (target == 0) {
+        return -1.0f;
+    }
+    reference = data->player->his_plyr_pdata->tracked_obj;
+    if (reference != 0) {
+        if (reference->hdr.instance ==
+            data->player->his_plyr_pdata->tracked_obj_instance) {
+            /* The opponent's tracked-object latch is live. */
+        } else {
+            reference = 0;
+        }
+    } else {
+        reference = 0;
+    }
+    if (reference == 0) {
+        return -1.0f;
+    }
+
+    length = bl_column_vector_length(&data->direction);
+    speed = (2.0f * length) / 5.0f;
+    bl_column_normalize_vector(&data->direction);
+
+    if (speed < 0.04) {
+        scale = 0.04f;
+    } else if (speed > 0.06f) {
+        scale = 0.06f;
+    } else {
+        scale = speed;
+    }
+    data->direction.x *= scale;
+    data->direction.y *= scale;
+    data->direction.z *= scale;
+
+    if (data->use_camera != 0) {
+        special_move_cam_setup2(30, 100, 0, target, reference,
+                                2.2f, 2.6f, 2.0f, -0.5f, 0.2f);
+    }
+
+    if (data->side == 0) {
+        obj_create_sobjs_by_id(g_game_info.bgnd_obj, 13);
+        if (g_game_info.bgnd_obj != 0) {
+            piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, 13);
+            if (piece != 0) {
+                hide_sobj(piece);
+            }
+        }
+        effect_x = 4.6f;
+        first_piece_id = 0x82;
+        effect_z = 1.85f;
+        blast_y = 1.3f;
+    } else {
+        obj_create_sobjs_by_id(g_game_info.bgnd_obj, 12);
+        if (g_game_info.bgnd_obj != 0) {
+            piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, 12);
+            if (piece != 0) {
+                hide_sobj(piece);
+            }
+        }
+        effect_x = -6.3f;
+        first_piece_id = 0x78;
+        effect_z = 1.85f;
+        blast_y = 1.3f;
+    }
+
+    for (object_id = first_piece_id; object_id < first_piece_id + 6;
+         ++object_id) {
+        obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+        if (g_game_info.bgnd_obj != 0) {
+            piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (piece != 0) {
+                unhide_sobj(piece);
+            }
+        }
+    }
+
+    snd_req(0x8F);
+    bl_column_effect_at("dust", effect_x, 0.8f, effect_z);
+    effect = find_pfx_by_name("dust");
+    if (effect != 0) {
+        effect->field_28 = 50.0f;
+    }
+
+    piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 4);
+    piece->flags_08_bits.bit6 = 1;
+    flip_x = 0.15f * data->direction.x;
+    flip_y = 0.15f * data->direction.y;
+    flip_z = 0.15f * data->direction.z;
+    flip_data = 0;
+    process = _create_mkproc_generic_tinystack(
+        0x8105, 0x1F, p_bl_flip_column_piece,
+        sizeof(BlColumnPieceData), (MkHdr**)&flip_data);
+    if (process != 0 && flip_data != 0) {
+        flip_data->piece = piece;
+        flip_data->replacement_sobj_id = first_piece_id;
+        flip_data->rotation_source.x = flip_x;
+        flip_data->rotation_source.y = flip_y;
+        flip_data->rotation_source.z = flip_z;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+
+    bl_column_effect_at("blast_col_fx", effect_x, blast_y, effect_z);
+    bl_column_effect_at("blast2_col_fx", effect_x, blast_y, effect_z);
+
+    piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 1);
+    bl_enable_column_piece_motion(piece);
+    piece->pos_vel.x = 0.55f * data->direction.x;
+    piece->pos_vel.y = 0.02f;
+    piece->pos_vel.z = 0.55f * data->direction.z;
+    bl_set_column_piece_motion(piece, &axis, -0.5f);
+    launch_data = 0;
+    process = _create_mkproc_generic_tinystack(
+        0x8105, 0x1F, p_launch_column_piece,
+        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
+    if (process != 0 && launch_data != 0) {
+        launch_data->piece = piece;
+        launch_data->launch_position.x = data->direction.x;
+        launch_data->launch_position.y = data->direction.y;
+        launch_data->launch_position.z = data->direction.z;
+        launch_data->gravity = 0.002f;
+        launch_data->mode = 1;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+
+    piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 2);
+    bl_enable_column_piece_motion(piece);
+    random_x = 1.05f * data->direction.x + sfrand(0.01f);
+    random_z = 1.05f * data->direction.z + sfrand(0.01f);
+    piece->pos_vel.x = random_x;
+    piece->pos_vel.y = 0.08f;
+    piece->pos_vel.z = random_z;
+    bl_set_column_piece_motion(piece, &axis, -0.18f);
+    rotate_xz(&piece->pos_vel, &piece->pos_vel, -0.7853982f);
+    launch_data = 0;
+    process = _create_mkproc_generic_tinystack(
+        0x8105, 0x1F, p_launch_column_piece,
+        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
+    if (process != 0 && launch_data != 0) {
+        launch_data->piece = piece;
+        launch_data->launch_position.x = data->direction.x;
+        launch_data->launch_position.y = data->direction.y;
+        launch_data->launch_position.z = data->direction.z;
+        launch_data->gravity = 0.003f;
+        launch_data->mode = 0;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+
+    piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 3);
+    bl_enable_column_piece_motion(piece);
+    piece->pos_vel.x = 1.05f * data->direction.x;
+    piece->pos_vel.y = 0.1f;
+    piece->pos_vel.z = 1.05f * data->direction.z;
+    bl_set_column_piece_motion(piece, &axis, -1.8f);
+    rotate_xz(&piece->pos_vel, &piece->pos_vel, 0.5235988f);
+    launch_data = 0;
+    process = _create_mkproc_generic_tinystack(
+        0x8105, 0x1F, p_launch_column_piece,
+        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
+    if (process != 0 && launch_data != 0) {
+        launch_data->piece = piece;
+        launch_data->launch_position.x = data->direction.x;
+        launch_data->launch_position.y = data->direction.y;
+        launch_data->launch_position.z = data->direction.z;
+        launch_data->gravity = 0.0025f;
+        launch_data->mode = 0;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+
+    piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 5);
+    bl_enable_column_piece_motion(piece);
+    piece->pos_vel.x = 0.35f * data->direction.x;
+    piece->pos_vel.y = 0.02f;
+    piece->pos_vel.z = 0.35f * data->direction.z;
+    piece->ang_vel.x = 0.0f;
+    piece->ang_vel.y = 0.0f;
+    piece->ang_vel.z = 0.01f;
+    rotate_xz(&piece->pos_vel, &piece->pos_vel, -1.5707964f);
+    launch_data = 0;
+    process = _create_mkproc_generic_tinystack(
+        0x8105, 0x1F, p_launch_final_column_piece,
+        sizeof(BlFinalColumnPieceData), (MkHdr**)&launch_data);
+    if (process != 0 && launch_data != 0) {
+        launch_data->piece = piece;
+        launch_data->launch_position.x = data->direction.x;
+        launch_data->launch_position.y = data->direction.y;
+        launch_data->launch_position.z = data->direction.z;
+        launch_data->gravity = 0.002f;
+        if (g_game_info.bgnd_obj != 0) {
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+    return -1.0f;
+}
+
+/* Exact-size 99.50% near match. Remaining differences are the x/y FPR pair in
+ * the first effect, r30/r31 coloring in the second, and local pool labels. */
+static float p_launch_final_column_piece(void) {
+    BlFinalColumnPieceData* data;
+    MkPfx* effect;
+    MkSobj* piece;
+    unsigned int handle;
+    int ticks;
+    float damping;
+    float final_z;
+    float final_x;
+    float final_y;
+    float dust_x;
+    float dust_y;
+    float dust_z;
+
+    ticks = 200;
+    damping = (float)pow(0.992, game_speed);
+    data = (BlFinalColumnPieceData*)apdata;
+    if (data == 0) {
+        return -1.0f;
+    }
+
+    piece = data->piece;
+    while (piece->pos.y > 0.1f && --ticks != 0) {
+        piece->pos_vel.y -= data->gravity * game_speed;
+        piece->pos_vel.x *= damping;
+        piece->pos_vel.z *= damping;
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
+    hide_sobj(piece);
+    snd_req_vol(0x8C, 1.0f);
+
+    final_z = piece->pos.z;
+    final_x = piece->pos.x;
+    final_y = piece->pos.y;
+    handle = fx_by_owner("final_col_fx", 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = final_x;
+                g_latest_obj_pfx->pos.value.y = final_y;
+                g_latest_obj_pfx->pos.value.z = final_z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect("final_col_fx");
+            }
+        }
+    }
+
+    dust_z = piece->pos.z;
+    dust_y = piece->pos.y;
+    dust_x = piece->pos.x;
+    handle = fx_by_owner("dust_small_gnd_pnd", 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = dust_x;
+                g_latest_obj_pfx->pos.value.y = dust_y;
+                g_latest_obj_pfx->pos.value.z = dust_z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect("dust_small_gnd_pnd");
+            }
+        }
+    }
+    return -1.0f;
+}
+
+static unsigned int bl_column_dust_number;
+
+static inline void bl_launch_column_dust(const char* name, MkSobj* piece) {
+    MkPfx* effect;
+    MkPfx* first_dust;
+    unsigned int handle;
+    float x;
+    float y;
+    float z;
+
+    z = piece->pos.z;
+    y = piece->pos.y;
+    x = piece->pos.x;
+    handle = fx_by_owner(name, 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = x;
+                g_latest_obj_pfx->pos.value.y = y;
+                g_latest_obj_pfx->pos.value.z = z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect(name);
+            }
+        }
+    }
+
+    first_dust = find_pfx_by_name("dust_small_1");
+    if (first_dust != 0) {
+        first_dust->field_28 = 50.0f;
+    }
+}
+
+/* Exact-size 98.81% near match. The launch algorithm and three dust branches
+ * agree; residue is dust-helper FPR/GPR coloring plus local pool labels. */
+static float p_launch_column_piece(void) {
+    int ticks;
+    BlFinalColumnPieceData* data;
+    MkPfx* effect;
+    MkObj* emitter_object;
+    MkSobj* piece;
+    unsigned int handle;
+    float damping;
+    float misc_z;
+    float misc_x;
+    float misc_y;
+
+    ticks = 200;
+    damping = (float)pow(0.992, game_speed);
+    data = (BlFinalColumnPieceData*)apdata;
+    if (data == 0) {
+        return -1.0f;
+    }
+
+    piece = data->piece;
+    while (piece->pos.y > 0.1f && --ticks != 0) {
+        piece->pos_vel.y -= data->gravity * game_speed;
+        piece->pos_vel.x *= damping;
+        piece->pos_vel.z *= damping;
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
+    snd_req_vol(0x8C, 1.0f);
+    hide_sobj(piece);
+
+    misc_z = piece->pos.z;
+    misc_y = piece->pos.y;
+    misc_x = piece->pos.x;
+    handle = fx_by_owner("misc_col_fx", 4);
+    if (handle != 0) {
+        handle = fx_next_emitter(handle);
+        if (handle != 0) {
+            fx_resume_emit(handle);
+            effect = pfx_from_emitter(handle);
+            if (effect != 0) {
+                emitter_object = pfx_bind_emitter_num_to_new_obj(
+                    effect, (void*)0x6015, emitter_id_from_handle(handle));
+                if (emitter_object != 0) {
+                    emitter_object->flags_08_bits.airborne = 1;
+                    emitter_object->pos.value.x = misc_x;
+                    emitter_object->pos.value.y = misc_y;
+                    emitter_object->pos.value.z = misc_z;
+                    update_mkobj(emitter_object);
+                }
+            }
+        }
+    }
+
+    if (bl_column_dust_number == 0) {
+        bl_launch_column_dust("dust_small_1", piece);
+    } else if (bl_column_dust_number == 1) {
+        bl_launch_column_dust("dust_small_2", piece);
+    } else if (bl_column_dust_number == 2) {
+        bl_launch_column_dust("dust_small_3", piece);
+    } else {
+        return -1.0f;
+    }
+
+    ++bl_column_dust_number;
+    if (bl_column_dust_number > 2) {
+        bl_column_dust_number = 0;
+    }
+    return -1.0f;
+}
+/* Exact-size 99.64% near match. The instruction stream agrees with retail;
+ * objdiff residue is limited to TU-local constant and string-pool labels. */
+static float p_bl_flip_column_piece(void) {
+    Vec rotation_axis = {0.0f, 1.0f, 0.0f};
+    BlColumnPieceData* data;
+    MkPfx* effect;
+    MkSobj* piece;
+    MkSobj* replacement;
+    unsigned int handle;
+    int replacement_sobj_id;
+    float dust_x;
+    float dust_y;
+    float dust_z;
+    float flip_x;
+    float flip_y;
+    float flip_z;
+
+    data = (BlColumnPieceData*)apdata;
+    if (data == 0) {
+        return -1.0f;
+    }
+
+    piece = data->piece;
+    piece->flags_08_bits.bit5 = 1;
+    piece->flags_08_bits.angular_velocity_enabled = 1;
+    piece->pos_vel.x = data->rotation_source.x;
+    piece->pos_vel.y = data->rotation_source.y;
+    piece->pos_vel.z = data->rotation_source.z;
+    piece->ang_vel.x = piece->pos_vel.y * rotation_axis.z -
+        piece->pos_vel.z * rotation_axis.y;
+    piece->ang_vel.y = piece->pos_vel.z * rotation_axis.x -
+        piece->pos_vel.x * rotation_axis.z;
+    piece->ang_vel.z = piece->pos_vel.x * rotation_axis.y -
+        piece->pos_vel.y * rotation_axis.x;
+    piece->ang_vel.x = 2.0f * piece->ang_vel.x;
+    piece->ang_vel.y = 2.0f * piece->ang_vel.y;
+    piece->ang_vel.z = 2.0f * piece->ang_vel.z;
+    piece->pos_vel.y = 0.05f;
+
+    while (piece->pos.y > 0.75f) {
+        piece->pos_vel.y -= 0.004f * game_speed;
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    piece->pos.y = 0.2f;
+
+    flip_z = piece->pos.z;
+    flip_y = piece->pos.y;
+    flip_x = piece->pos.x;
+    handle = fx_by_owner("flip_col_fx", 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = flip_x;
+                g_latest_obj_pfx->pos.value.y = flip_y;
+                g_latest_obj_pfx->pos.value.z = flip_z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect("flip_col_fx");
+            }
+        }
+    }
+
+    snd_req(0x8B);
+    dust_z = piece->pos.z;
+    dust_y = piece->pos.y;
+    dust_x = piece->pos.x;
+    handle = fx_by_owner("dust_small_gnd_pnd_2", 4);
+    if (handle != 0) {
+        fx_reset(handle);
+        effect = pfx_from_handle(handle);
+        if (effect != 0) {
+            g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
+            if (g_latest_obj_pfx == 0) {
+                g_latest_obj_pfx =
+                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+            }
+            if (g_latest_obj_pfx != 0) {
+                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->pos.value.x = dust_x;
+                g_latest_obj_pfx->pos.value.y = dust_y;
+                g_latest_obj_pfx->pos.value.z = dust_z;
+                update_mkobj(g_latest_obj_pfx);
+                resume_effect("dust_small_gnd_pnd_2");
+            }
+        }
+    }
+
+    shake_camera(3, 0.03f);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    replacement_sobj_id = data->replacement_sobj_id;
+    obj_create_sobjs_by_id(g_game_info.bgnd_obj, replacement_sobj_id);
+    if (g_game_info.bgnd_obj != 0) {
+        replacement = obj_find_sobj_by_id(
+            g_game_info.bgnd_obj, replacement_sobj_id);
+        if (replacement != 0) {
+            hide_sobj(replacement);
+        }
+    }
+    hide_sobj(piece);
+    piece->pos_vel.z = 0.0f;
+    piece->pos_vel.y = 0.0f;
+    piece->pos_vel.x = 0.0f;
+    piece->ang_vel.z = 0.0f;
+    piece->ang_vel.y = 0.0f;
+    piece->ang_vel.x = 0.0f;
+    return -1.0f;
+}
 void bgnd_set_viewing_of_danger_zones(int enabled) {
     g_game_info.switch_input_flags.view_danger_zones = enabled;
     set_collision_render_state(enabled);
 }
+/* Clean-C near match: 66.03%, retail/local 488/460. Shape dispatch, aligned
+ * builders, obstacle replacement, flags, repel state, and disable call agree;
+ * MWCC removes retail's redundant post-create null-normalization branches. */
 void bgnd_set_danger_zone_y_angle(float y_angle) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
@@ -1880,6 +6082,9 @@ void bgnd_set_danger_zone_y_angle(float y_angle) {
         bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
     }
 }
+/* Clean-C near match: 66.12%, retail/local 488/460. This is the same evidenced
+ * rebuild sequence as the y-angle setter; residue is the four folded
+ * null-normalization branches and resulting instruction alignment. */
 void bgnd_set_danger_zone_depth(float depth) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
@@ -1944,6 +6149,9 @@ void bgnd_set_danger_zone_radius(float radius) {
         bgnd_set_danger_zone_width(radius);
     }
 }
+/* Clean-C near match: 72.47%, retail/local 476/448. Deletion, all three shape
+ * paths, flags, ownership, repel state, and enable state agree; only redundant
+ * post-create null normalization is absent from local compiler emission. */
 void bgnd_set_danger_zone_width(float width) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
@@ -1995,6 +6203,9 @@ void bgnd_set_danger_zone_width(float width) {
     set_background_obstacle_repel_flag(zone->obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
 }
+/* Clean-C near match: 66.39%, retail/local 456/436. Center stores and the full
+ * rebuild/ownership sequence agree; residue is folded null normalization and
+ * the consequent scheduling/alignment shift. */
 void bgnd_set_danger_zone_center_position(float x, float y, float z) {
     ArenaObstacle* obstacle;
     BgndDangerZone* zone;
@@ -2122,6 +6333,10 @@ void bgnd_set_active_danger_zone(unsigned int zone) {
         g_active_bgnd_danger_zone = zone;
     }
 }
+/* Clean-C near match: 68.69%, retail/local 584/568. Validation, typed zone
+ * initialization, three shape builders, obstacle flags, collision-script
+ * registration, and disabled initial state agree; residue is folded redundant
+ * null normalization after obstacle creation. */
 void bgnd_create_danger_zone(
     int shape_type, unsigned int zone_index, unsigned int obstacle_id,
     float height, unsigned int collision_script_function) {
@@ -4581,7 +8796,86 @@ void bgnd_place_crack_when_plyr_hits_ground(unsigned int player_index) {
         mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
     }
 }
-static float p_crack_placer(void) { return 0.0f; }
+/* Clean-C near match: 87.73%, retail/local 676/696. Bone order and floor
+ * thresholds, delay, free-slot/overwrite policy, counter update, matrix store,
+ * sound, and process returns agree; residue is bounded-loop induction. */
+static float p_crack_placer(void) {
+    BgndCrackPlacer* placer;
+    BgndCrack* cracks;
+    Vec position = {0.0f, 0.0f, 0.0f};
+    unsigned int crack_index;
+    int place_crack;
+
+    placer = (BgndCrackPlacer*)pdata_of_proc(aproc);
+    cracks = (BgndCrack*)placer->crack_pool->user_data;
+    if (g_bgnd_cracks == 0) {
+        return -1.0f;
+    }
+    if (g_game_info.plyr0.slot.mirror_a == 0 ||
+            g_game_info.plyr1.slot.mirror_a == 0) {
+        return 1.0f;
+    }
+
+    place_crack = 0;
+    if (placer->delay != 0) {
+        placer->delay--;
+    } else {
+        get_bone_world_pos(placer->player->slot.mirror_a, 10, &position);
+        if (position.y <= g_game_info.field_34 + 0.2f) {
+            place_crack = 1;
+        } else {
+            get_bone_world_pos(placer->player->slot.mirror_a, 11, &position);
+            if (position.y <= g_game_info.field_34 + 0.2f) {
+                place_crack = 1;
+            }
+        }
+    }
+    if (place_crack == 0) {
+        get_bone_world_pos(placer->player->slot.mirror_a, 0, &position);
+        if (position.y <= g_game_info.field_34 + 0.27f) {
+            place_crack = 1;
+        } else {
+            get_bone_world_pos(placer->player->slot.mirror_a, 16, &position);
+            if (position.y <= g_game_info.field_34 + 0.27f) {
+                place_crack = 1;
+            } else {
+                get_bone_world_pos(placer->player->slot.mirror_a, 3, &position);
+                if (position.y <= g_game_info.field_34 + 0.27f) {
+                    place_crack = 1;
+                }
+            }
+        }
+    }
+    if (place_crack == 1) {
+        int found_unused = 0;
+
+        crack_index = 0;
+        while (crack_index < 10) {
+            if (cracks[crack_index].active == 0) {
+                found_unused = 1;
+                break;
+            }
+            crack_index++;
+        }
+        g_game_info.crack_count += 1.0f;
+        if (!found_unused) {
+            crack_index = g_bgnd_last_crack_overwritten;
+            g_bgnd_last_crack_overwritten++;
+            if (g_bgnd_last_crack_overwritten >= 10) {
+                g_bgnd_last_crack_overwritten = 0;
+            }
+        }
+        cracks[crack_index].active = 1;
+        cracks[crack_index].position = position;
+        cracks[crack_index].position.y = g_game_info.field_34;
+        MKMatrixTranslate(
+            &placer->crack_pool->pebbles[crack_index].matrix,
+            &cracks[crack_index].position, 0);
+        snd_req(0x11B);
+        return -1.0f;
+    }
+    return 1.0f;
+}
 void bgnd_kill_fx(const char* name) {
     unsigned int effect;
 
@@ -5304,8 +9598,139 @@ static int bgnd_collision_to_script_interface(BgndObstacleEventData* event) {
     }
     return 0;
 }
-void bgnd_swap_level(void) {}
-void bgnd_move_plyrs_to_initial_pos(void) {}
+void bgnd_swap_level(int level) {
+    CmdScript* script;
+    CmdScript* previous_script;
+    BgndWallHiderData* hider;
+    float ground_plane;
+
+    script = alloc_cmdscript();
+    previous_script = active_cmdscript;
+    active_cmdscript = script;
+    if ((unsigned int)level <
+        get_row_count_for_table_by_pointer(
+            g_game_info.cmdscript, g_game_info.section->misc) - 1) {
+        if (g_game_info.wall_hider != 0) {
+            g_game_info.wall_hider->flag_bits.disabled = 1;
+        }
+        g_game_info.section = (BgndDataTable*)get_data_table(
+            g_game_info.cmdscript, g_game_info.cmdscript->table_count);
+        g_game_info.misc = g_game_info.section->misc + level;
+
+        if (g_game_info.misc->lights_bgnd != 0) {
+            load_back_in_lights(
+                g_game_info.misc->lights_bgnd, &bgnd_light_list);
+        } else {
+            g_game_info.bgnd_obj->light_flags = 0;
+            clear_all_lights_in(&bgnd_light_list);
+        }
+        if (g_game_info.misc->lights_spec != 0) {
+            load_back_in_lights(
+                g_game_info.misc->lights_spec, &bgnd_spec_light_list);
+        }
+        if (g_game_info.misc->lights_plyr != 0) {
+            load_back_in_lights(
+                g_game_info.misc->lights_plyr, &plyr_light_list);
+        } else {
+            clear_all_lights_in(&plyr_light_list);
+        }
+        if (g_game_info.misc->lights_bgnd != 0) {
+            g_game_info.bgnd_obj->light_flags = 0x1009;
+        } else {
+            g_game_info.bgnd_obj->light_flags = 0;
+        }
+        if ((g_game_info.section->flags70 & 1) != 0) {
+            UpdateShadowCameraLightSource(
+                g_game_info.misc->shadow_cam_light);
+        }
+        ShadowStrength = g_game_info.misc->shadow_strength;
+        ground_plane = g_game_info.misc->ground_plane;
+        if (g_game_info.bgnd_id >= 0) {
+            g_game_info.field_34 = ground_plane;
+        }
+        cloth_change_ground_plane_for(ground_plane);
+        if (g_game_info.plyr0.slot.shadow_object != 0) {
+            g_game_info.plyr0.slot.shadow_object->ground_colls_y = ground_plane;
+            shadow_set_new_ground_plane(
+                g_game_info.plyr0.slot.shadow,
+                g_game_info.plyr0.slot.shadow_ground, ground_plane);
+        }
+        if (g_game_info.plyr1.slot.shadow_object != 0) {
+            g_game_info.plyr1.slot.shadow_object->ground_colls_y = ground_plane;
+            shadow_set_new_ground_plane(
+                g_game_info.plyr1.slot.shadow,
+                g_game_info.plyr1.slot.shadow_ground, ground_plane);
+        }
+        cam_set_ground_plane(ground_plane);
+        if (g_game_info.misc->enter_script != 0) {
+            cmdscript_setup_execution(
+                g_game_info.cmdscript,
+                (unsigned int)g_game_info.misc->enter_script);
+            cmdscript_execute(g_game_info.cmdscript);
+        }
+
+        hider = g_game_info.wall_hider;
+        g_game_info.active_level = level;
+        if (hider != 0) {
+            hider->flag_bits.disabled = 1;
+        }
+        if (hider != 0) {
+            destroy_list(&hider->walls);
+        }
+        if (g_game_info.misc->script != 0) {
+            cmdscript_setup_execution(
+                g_game_info.cmdscript,
+                (unsigned int)g_game_info.misc->script);
+            cmdscript_execute(g_game_info.cmdscript);
+        }
+        if (hider != 0) {
+            hider->flag_bits.disabled = 0;
+        }
+        if (g_game_info.wall_hider != 0) {
+            g_game_info.wall_hider->flag_bits.disabled = 0;
+        }
+        active_cmdscript = previous_script;
+        if (script->instance != 0) {
+            ((int (*)(CmdScript*))script->vtbl->destroy)(script);
+        }
+    }
+}
+/* Clean-C near match: 96.25%, exact 368-byte size. Retail preserves the same
+ * complete state words, scoped start vectors, calls, sleep, and restoration;
+ * residue is temporary-register selection while copying the two angle vectors. */
+float bgnd_move_plyrs_to_initial_pos(void) {
+    unsigned int player0_state =
+        g_game_info.plyr0.slot.pdata->state_flags.raw_word;
+    unsigned int player1_state =
+        g_game_info.plyr1.slot.pdata->state_flags.raw_word;
+
+    g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
+    g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 1;
+    if (g_game_info.plyr0.slot.mirror_a != 0) {
+        Vec player0_angles = {0.0f, 1.5707964f, 0.0f};
+        Vec* player0_start = &g_game_info.misc->player0_start;
+        player0_start->y = g_game_info.field_34;
+        move_player(g_game_info.plyr0.slot.mirror_a,
+                    player0_start, &player0_angles);
+    }
+    if (g_game_info.plyr1.slot.mirror_a != 0) {
+        Vec player1_angles = {0.0f, -1.5707964f, 0.0f};
+        Vec* player1_start = &g_game_info.misc->player1_start;
+        player1_start->y = g_game_info.field_34;
+        move_player(g_game_info.plyr1.slot.mirror_a,
+                    player1_start, &player1_angles);
+    }
+    force_midpoint_calculation_update = 1;
+    _mkproc_sleep_ticks = 4.0f;
+    aproc->vtbl->sleep();
+    g_game_info.plyr0.slot.pdata->state_flags.raw_word = player0_state;
+    g_game_info.plyr1.slot.pdata->state_flags.raw_word = player1_state;
+    return 0.0f;
+}
 void bgnd_set_new_ground_plane(void* script, float ground_y) {
     (void)script;
     if (g_game_info.bgnd_id >= 0) {
@@ -5506,9 +9931,457 @@ void bgnd_remove_wall_from_hider(unsigned int object_id) {
         }
     }
 }
-static float p_hide_walls(void) { return 0.0f; }
-void bgnd_place_object_at_position(void) {}
-void bgnd_place_weapon_at_position(void) {}
+/* Clean-C near match: 96.91%, retail/local 964/944 bytes. Traversal,
+ * stale-link removal, both duplicated activation edges, object/effect loops,
+ * and thresholds agree; residue is loop induction and register allocation. */
+static float p_hide_walls(void) {
+    BgndWallHiderData* hider;
+    BgndWallHiderRuntime* runtime;
+    CameraObj* camera;
+    MkPtr* link;
+    MkPtr* next;
+    Vec forward = {0.0f, 0.0f, 1.0f};
+    float camera_radius_squared;
+    float hide_distance;
+    unsigned int index;
+
+    camera = camera_item.node;
+    if (camera != 0) {
+        if (camera->hdr.instance == camera_item.instance) {
+            camera = camera;
+        } else {
+            camera = 0;
+        }
+    } else {
+        camera = 0;
+    }
+    if (camera == 0) {
+        return -1.0f;
+    }
+
+    hider = (BgndWallHiderData*)apdata;
+    if (hider == 0 || g_game_info.bgnd_obj == 0 ||
+        hider->flag_bits.kill_process) {
+        return -1.0f;
+    }
+    if (hider->flag_bits.disabled) {
+        return 1.0f;
+    }
+
+    camera_radius_squared =
+        camera->pos.x * camera->pos.x +
+        camera->pos.y * camera->pos.y +
+        camera->pos.z * camera->pos.z;
+    hide_distance = hider->hide_distance;
+    rotate_xz(&forward, &forward, camera->ang.y);
+
+    if (&hider->walls != 0) {
+        link = hider->walls;
+        while (link != 0) {
+            runtime = (BgndWallHiderRuntime*)link->hdr;
+            if (link->instance != runtime->hdr.instance) {
+                next = link->next;
+                link->hdr = 0;
+                destroy_mkptr(link);
+                link = next;
+            } else {
+                if (camera_radius_squared >= hide_distance) {
+                    if (runtime->normal.x * forward.x +
+                            runtime->normal.y * forward.y +
+                            runtime->normal.z * forward.z >=
+                        runtime->normal_distance) {
+                        if (runtime->normal_flags == 0) {
+                            runtime->normal_flags = 1;
+                            for (index = 0; index < runtime->hide_count;
+                                 index++) {
+                                hide_sobj(obj_find_sobj_by_id(
+                                    g_game_info.bgnd_obj,
+                                    runtime->walls_to_hide[index]));
+                            }
+                            for (index = 0; index < runtime->unhide_count;
+                                 index++) {
+                                unhide_sobj(obj_find_sobj_by_id(
+                                    g_game_info.bgnd_obj,
+                                    runtime->walls_to_unhide[index]));
+                            }
+                            for (index = 0;
+                                 index < runtime->hidden_effect_count;
+                                 index++) {
+                                fx_hide(runtime->hidden_effects[index], 1);
+                            }
+                        }
+                    } else if (runtime->normal_flags != 0) {
+                        runtime->normal_flags = 0;
+                        for (index = 0; index < runtime->hide_count; index++) {
+                            unhide_sobj(obj_find_sobj_by_id(
+                                g_game_info.bgnd_obj,
+                                runtime->walls_to_hide[index]));
+                        }
+                        for (index = 0; index < runtime->unhide_count;
+                             index++) {
+                            hide_sobj(obj_find_sobj_by_id(
+                                g_game_info.bgnd_obj,
+                                runtime->walls_to_unhide[index]));
+                        }
+                        for (index = 0; index < runtime->hidden_effect_count;
+                             index++) {
+                            fx_hide(runtime->hidden_effects[index], 0);
+                        }
+                    }
+                } else if (runtime->normal_flags != 0) {
+                    runtime->normal_flags = 0;
+                    for (index = 0; index < runtime->hide_count; index++) {
+                        unhide_sobj(obj_find_sobj_by_id(
+                            g_game_info.bgnd_obj,
+                            runtime->walls_to_hide[index]));
+                    }
+                    for (index = 0; index < runtime->unhide_count; index++) {
+                        hide_sobj(obj_find_sobj_by_id(
+                            g_game_info.bgnd_obj,
+                            runtime->walls_to_unhide[index]));
+                    }
+                    for (index = 0; index < runtime->hidden_effect_count;
+                         index++) {
+                        fx_hide(runtime->hidden_effects[index], 0);
+                    }
+                }
+                link = link->next;
+            }
+        }
+    }
+    return 1.0f;
+}
+/* Clean-C near match: 90.83%, retail/local 764/740 bytes. The six missing
+ * instructions are redundant source-vector reloads that MWCC CSEs locally;
+ * the remaining differences are initialization order and FPR scheduling. */
+void bgnd_place_object_at_position(
+    int object_id, int sobj_id, const Vec* position, const Vec* angles,
+    int flags) {
+    BgndDisplayedItem* item;
+    CollisionShape shape __attribute__((aligned(16)));
+    Vec center;
+
+    item = (BgndDisplayedItem*)get_mkhdr_generic(sizeof(BgndDisplayedItem));
+    item->type = 0;
+    item->primary_object = 0;
+    item->secondary_object = 0;
+    item->display_sobj = 0;
+    item->secondary_sobj = 0;
+    item->object_id = 0;
+    item->field_20 = 0;
+    item->sobj_id = 0;
+    item->field_28 = 0;
+    item->source_sobj_id = 0;
+    item->field_30 = 0;
+    item->position.z = item->position.y = item->position.x = 0.0f;
+    item->angles.z = item->angles.y = item->angles.x = 0.0f;
+    item->field_4C.z = item->field_4C.y = item->field_4C.x = 0.0f;
+    item->field_58.z = item->field_58.y = item->field_58.x = 0.0f;
+    item->collision_center.z = item->collision_center.y =
+        item->collision_center.x = 0.0f;
+    item->collision_radius = 0.0f;
+    item->collision_height = 0.0f;
+    item->field_78 = 0.0f;
+    item->flags = 0;
+    item->placement_flags = 0;
+    item->flag_0 = 0;
+    item->placement_id = g_game_info.field_78++;
+
+    if (item != 0) {
+        center.x = position->x;
+        center.z = position->z;
+        center.y = g_game_info.field_34;
+        item->type = 2;
+        item->primary_object = 0;
+        item->object_id = object_id;
+        item->display_sobj =
+            obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
+        item->primary_object = 0;
+        item->display_sobj->flags_08_bits.bit6 = 1;
+        item->position.x = position->x;
+        item->position.y = position->y;
+        item->position.z = position->z;
+        item->display_sobj->pos.x = position->x;
+        item->display_sobj->pos.y = position->y;
+        item->display_sobj->pos.z = position->z;
+        item->display_sobj->flags_08_bits.bit3 = 1;
+        item->angles.x = angles->x;
+        item->angles.y = angles->y;
+        item->angles.z = angles->z;
+        item->display_sobj->ang.x = angles->x;
+        item->display_sobj->ang.y = angles->y;
+        item->display_sobj->ang.z = angles->z;
+        update_mksobj(item->display_sobj);
+        item->source_sobj_id = sobj_id;
+        item->sobj_id = 0;
+        item->collision_radius = 0.4f;
+        item->collision_height = 3.0f;
+        item->flags = flags;
+        item->collision_center.x = center.x;
+        item->collision_center.y = center.y;
+        item->collision_center.z = center.z;
+        build_col_shape_vertical_cylinder(&shape, &center, 0.4f, 3.0f);
+        item->obstacle = add_shape_to_background_obstacle_list(
+            &shape, object_id + 0x100);
+
+        if (item != 0) {
+            if (item->obstacle != 0 &&
+                !g_game_info.feature_flags.bits.high_bit) {
+                item->obstacle->flags.bits.disabled = 0;
+            }
+            mk_insert(&item->hdr, &g_game_info.field_64);
+            if (item->primary_object != 0) {
+                insert_fgnd_mkobj(item->primary_object);
+                update_mkobj(item->primary_object);
+                hide_obj(item->primary_object);
+            }
+            if (item->secondary_object != 0) {
+                insert_fgnd_mkobj(item->secondary_object);
+                update_mkobj(item->secondary_object);
+                hide_obj(item->secondary_object);
+            }
+            if (item->display_sobj != 0) {
+                update_mksobj(item->display_sobj);
+                unhide_sobj(item->display_sobj);
+            }
+            if (item->secondary_sobj != 0) {
+                update_mksobj(item->secondary_sobj);
+                unhide_sobj(item->secondary_sobj);
+            }
+        }
+    }
+}
+/* Clean-C near match: 98.59%, retail/local 1964/1944 bytes. All retail calls,
+ * branches, latches, transforms, collision setup, and list ownership agree.
+ * The paired path intentionally preserves retail's overwrite of +0x0C before
+ * its later +0x10 access; the residue is branch merging/register coloring. */
+void bgnd_place_weapon_at_position(
+    int primary_object_id, int secondary_object_id, int primary_sobj_id,
+    int secondary_sobj_id, int paired, int pickup_sobj_id, int permanent,
+    float primary_x, float primary_y, float primary_z,
+    float primary_angle_x, float primary_angle_y, float primary_angle_z,
+    float secondary_x, float secondary_y, float secondary_z,
+    float secondary_angle_x, float secondary_angle_y,
+    float secondary_angle_z, float radius, float height,
+    float collision_x, float collision_y, float collision_z) {
+    BgndDisplayedItem* item;
+    CollisionShape shape __attribute__((aligned(16)));
+    Vec center;
+    MkObj* object;
+
+    item = (BgndDisplayedItem*)get_mkhdr_generic(sizeof(BgndDisplayedItem));
+    item->type = 0;
+    item->primary_object = 0;
+    item->secondary_object = 0;
+    item->display_sobj = 0;
+    item->secondary_sobj = 0;
+    item->object_id = 0;
+    item->field_20 = 0;
+    item->sobj_id = 0;
+    item->field_28 = 0;
+    item->source_sobj_id = 0;
+    item->field_30 = 0;
+    item->position.z = item->position.y = item->position.x = 0.0f;
+    item->angles.z = item->angles.y = item->angles.x = 0.0f;
+    item->field_4C.z = item->field_4C.y = item->field_4C.x = 0.0f;
+    item->field_58.z = item->field_58.y = item->field_58.x = 0.0f;
+    item->collision_center.z = item->collision_center.y =
+        item->collision_center.x = 0.0f;
+    item->collision_radius = 0.0f;
+    item->collision_height = 0.0f;
+    item->field_78 = 0.0f;
+    item->flags = 0;
+    item->placement_flags = 0;
+    item->flag_0 = 0;
+    item->placement_id = g_game_info.field_78++;
+
+    if (item != 0) {
+        if (paired == 0) {
+            item->type = 0;
+            object = global_movesets[6].primary_weapon;
+            if (object != 0) {
+                if (object->hdr.instance !=
+                    global_movesets[6].primary_weapon_instance) {
+                    object = 0;
+                }
+            } else {
+                object = 0;
+            }
+            item->primary_object = object;
+            item->object_id = primary_object_id;
+            item->display_sobj = obj_find_sobj_by_id(
+                g_game_info.bgnd_obj, primary_sobj_id);
+            item->primary_object->flags_08_bits.airborne = 1;
+            item->display_sobj->flags_08_bits.bit6 = 1;
+            item->primary_object->pos.value.x = primary_x;
+            item->primary_object->pos.value.y = primary_y;
+            item->primary_object->pos.value.z = primary_z;
+            item->position.x = primary_x;
+            item->position.y = primary_y;
+            item->position.z = primary_z;
+            item->display_sobj->pos.x = primary_x;
+            item->display_sobj->pos.y = primary_y;
+            item->display_sobj->pos.z = primary_z;
+            item->primary_object->flags_08_bits.angular_velocity_enabled = 1;
+            item->display_sobj->flags_08_bits.bit3 = 1;
+            item->primary_object->ang.x = primary_angle_x;
+            item->primary_object->ang.y = primary_angle_y;
+            item->primary_object->ang.z = primary_angle_z;
+            item->angles.x = primary_angle_x;
+            item->angles.y = primary_angle_y;
+            item->angles.z = primary_angle_z;
+            item->display_sobj->ang.x = primary_angle_x;
+            item->display_sobj->ang.y = primary_angle_y;
+            item->display_sobj->ang.z = primary_angle_z;
+            update_mkobj(item->primary_object);
+            update_mksobj(item->display_sobj);
+            item->source_sobj_id = primary_sobj_id;
+        } else {
+            item->type = 1;
+            object = global_movesets[6].primary_weapon;
+            if (object != 0) {
+                if (object->hdr.instance !=
+                    global_movesets[6].primary_weapon_instance) {
+                    object = 0;
+                }
+            } else {
+                object = 0;
+            }
+            item->primary_object = object;
+            object = global_movesets[6].secondary_weapon;
+            if (object != 0) {
+                if (object->hdr.instance !=
+                    global_movesets[6].secondary_weapon_instance) {
+                    object = 0;
+                }
+            } else {
+                object = 0;
+            }
+            item->primary_object = object;
+            item->object_id = primary_object_id;
+            item->field_20 = secondary_object_id;
+            item->display_sobj = obj_find_sobj_by_id(
+                g_game_info.bgnd_obj, primary_sobj_id);
+            item->secondary_sobj = obj_find_sobj_by_id(
+                g_game_info.bgnd_obj, secondary_sobj_id);
+            item->primary_object->flags_08_bits.airborne = 1;
+            item->display_sobj->flags_08_bits.bit6 = 1;
+            item->primary_object->pos.value.x = primary_x;
+            item->primary_object->pos.value.y = primary_y;
+            item->primary_object->pos.value.z = primary_z;
+            item->position.x = primary_x;
+            item->position.y = primary_y;
+            item->position.z = primary_z;
+            item->display_sobj->pos.x = primary_x;
+            item->display_sobj->pos.y = primary_y;
+            item->display_sobj->pos.z = primary_z;
+            item->primary_object->flags_08_bits.angular_velocity_enabled = 1;
+            item->display_sobj->flags_08_bits.bit3 = 1;
+            item->primary_object->ang.x = primary_angle_x;
+            item->primary_object->ang.y = primary_angle_y;
+            item->primary_object->ang.z = primary_angle_z;
+            item->angles.x = primary_angle_x;
+            item->angles.y = primary_angle_y;
+            item->angles.z = primary_angle_z;
+            item->display_sobj->ang.x = primary_angle_x;
+            item->display_sobj->ang.y = primary_angle_y;
+            item->display_sobj->ang.z = primary_angle_z;
+            item->secondary_object->flags_08_bits.airborne = 1;
+            item->secondary_sobj->flags_08_bits.bit6 = 1;
+            item->secondary_object->pos.value.x = secondary_x;
+            item->secondary_object->pos.value.y = secondary_y;
+            item->secondary_object->pos.value.z = secondary_z;
+            item->field_4C.x = secondary_x;
+            item->field_4C.y = secondary_y;
+            item->field_4C.z = secondary_z;
+            item->secondary_sobj->pos.x = secondary_x;
+            item->secondary_sobj->pos.y = secondary_y;
+            item->secondary_sobj->pos.z = secondary_z;
+            item->secondary_object->flags_08_bits.angular_velocity_enabled = 1;
+            item->secondary_sobj->flags_08_bits.bit3 = 1;
+            item->secondary_object->ang.x = secondary_angle_x;
+            item->secondary_object->ang.y = secondary_angle_y;
+            item->secondary_object->ang.z = secondary_angle_z;
+            item->field_58.x = secondary_angle_x;
+            item->field_58.y = secondary_angle_y;
+            item->field_58.z = secondary_angle_z;
+            item->secondary_sobj->ang.x = secondary_angle_x;
+            item->secondary_sobj->ang.y = secondary_angle_y;
+            item->secondary_sobj->ang.z = secondary_angle_z;
+            update_mkobj(item->primary_object);
+            update_mksobj(item->display_sobj);
+            update_mkobj(item->secondary_object);
+            update_mksobj(item->secondary_sobj);
+            item->source_sobj_id = primary_sobj_id;
+            item->field_30 = primary_sobj_id;
+        }
+
+        item->sobj_id = pickup_sobj_id;
+        item->collision_radius = radius;
+        item->collision_height = height;
+        center.x = collision_x;
+        center.y = collision_y;
+        center.z = collision_z;
+        item->collision_center.x = collision_x;
+        item->collision_center.y = collision_y;
+        item->collision_center.z = collision_z;
+        build_col_shape_vertical_cylinder(&shape, &center, radius, height);
+        item->obstacle = add_shape_to_background_obstacle_list(
+            &shape, primary_object_id + 0x100);
+
+        if (permanent != 0) {
+            if (item != 0) {
+                if (item->obstacle != 0 &&
+                    !g_game_info.feature_flags.bits.high_bit) {
+                    item->obstacle->flags.bits.disabled = 0;
+                }
+                mk_insert(&item->hdr, &g_game_info.field_64);
+                if (item->primary_object != 0) {
+                    insert_fgnd_mkobj(item->primary_object);
+                    update_mkobj(item->primary_object);
+                    hide_obj(item->primary_object);
+                }
+                if (item->secondary_object != 0) {
+                    insert_fgnd_mkobj(item->secondary_object);
+                    update_mkobj(item->secondary_object);
+                    hide_obj(item->secondary_object);
+                }
+                if (item->display_sobj != 0) {
+                    update_mksobj(item->display_sobj);
+                    unhide_sobj(item->display_sobj);
+                }
+                if (item->secondary_sobj != 0) {
+                    update_mksobj(item->secondary_sobj);
+                    unhide_sobj(item->secondary_sobj);
+                }
+            }
+        } else {
+            if (item->obstacle != 0 &&
+                !g_game_info.feature_flags.bits.high_bit) {
+                item->obstacle->flags.bits.disabled = 1;
+            }
+            mk_insert(&item->hdr, &g_game_info.displayed_items);
+            if (item->primary_object != 0) {
+                insert_fgnd_mkobj(item->primary_object);
+                update_mkobj(item->primary_object);
+                hide_obj(item->primary_object);
+            }
+            if (item->secondary_object != 0) {
+                insert_fgnd_mkobj(item->secondary_object);
+                update_mkobj(item->secondary_object);
+                hide_obj(item->secondary_object);
+            }
+            if (item->display_sobj != 0) {
+                update_mksobj(item->display_sobj);
+                unhide_sobj(item->display_sobj);
+            }
+            if (item->secondary_sobj != 0) {
+                update_mksobj(item->secondary_sobj);
+                unhide_sobj(item->secondary_sobj);
+            }
+        }
+    }
+}
 BgndDisplayedItem* bgnd_get_item_from_displayed_list(int item_id) {
     BgndDisplayedItem* item;
     MkPtr** list;
@@ -5526,7 +10399,7 @@ BgndDisplayedItem* bgnd_get_item_from_displayed_list(int item_id) {
                 destroy_mkptr(link);
                 link = next;
             } else {
-                if (item->id == item_id) {
+                if (item->type == item_id) {
                     return item;
                 }
                 link = link->next;
@@ -5688,7 +10561,114 @@ float spad_xz_dot_xz(int first, int second) {
     b = &g_bgnd_scratch_pad_vectors[second];
     return a->z * b->z + (a->x * b->x + a->y * b->y);
 }
-void spad_set_vector(void) {}
+/* Clean-C near match: 87.39%, retail/local 980/872. All jump-table sources,
+ * partial/full vector writes, player/event ownership chains, and integer-to-
+ * float conversions agree. Residue is repeated typed-pointer CSE. */
+void spad_set_vector(int index, unsigned int source) {
+    Vec* output = &g_bgnd_scratch_pad_vectors[index];
+
+    switch (source) {
+    case 1:
+        output->x = g_game_info.player_objects[1]->pos.value.x;
+        output->y = g_game_info.player_objects[1]->pos.value.y;
+        output->z = g_game_info.player_objects[1]->pos.value.z;
+        output->y = 0.0f;
+        break;
+    case 2:
+        output->x = g_active_sobj->pos.x;
+        output->y = g_active_sobj->pos.y;
+        output->z = g_active_sobj->pos.z;
+        break;
+    case 0x17:
+        output->x = g_active_sobj->ang.x;
+        output->y = g_active_sobj->ang.y;
+        output->z = g_active_sobj->ang.z;
+        break;
+    case 0xC:
+        output->x = plyr_obj->pos.value.x;
+        output->y = plyr_obj->pos.value.y;
+        output->z = plyr_obj->pos.value.z;
+        break;
+    case 0xB:
+        output->x = g_active_sobj->pos.x - plyr_obj->pos.value.x;
+        output->z = g_active_sobj->pos.z - plyr_obj->pos.value.z;
+        break;
+    case 0x10:
+        output->x = g_game_info.player_objects[0]->pos.value.x;
+        output->y = g_game_info.player_objects[0]->pos.value.y;
+        output->z = g_game_info.player_objects[0]->pos.value.z;
+        break;
+    case 0x31:
+        output->x = g_game_info.player_objects[1]->pos.value.x;
+        output->y = g_game_info.player_objects[1]->pos.value.y;
+        output->z = g_game_info.player_objects[1]->pos.value.z;
+        break;
+    case 0x11:
+        output->x = g_game_info.player_objects[0]->ang.x;
+        output->y = g_game_info.player_objects[0]->ang.y;
+        output->z = g_game_info.player_objects[0]->ang.z;
+        break;
+    case 0x36:
+        output->x = g_game_info.player_objects[1]->ang.x;
+        output->y = g_game_info.player_objects[1]->ang.y;
+        output->z = g_game_info.player_objects[1]->ang.z;
+        break;
+    case 0x12:
+        output->x = g_current_reaction_info.player_info->slot.mirror_a->pos.value.x;
+        output->y = g_current_reaction_info.player_info->slot.mirror_a->pos.value.y;
+        output->z = g_current_reaction_info.player_info->slot.mirror_a->pos.value.z;
+        break;
+    case 0x13: {
+        MkObj* object = g_current_reaction_info.player_info->slot.pdata->
+            his_plyr_pdata->plyr_info->slot.mirror_a;
+        output->x = object->pos.value.x;
+        output->y = object->pos.value.y;
+        output->z = object->pos.value.z;
+        break;
+    }
+    case 0x15: {
+        MkObj* object = g_active_obstacle_event_data->player_pdata->
+            plyr_info->slot.mirror_a;
+        output->x = object->pos.value.x;
+        output->y = object->pos.value.y;
+        output->z = object->pos.value.z;
+        break;
+    }
+    case 0x14: {
+        MkObj* object = g_active_obstacle_event_data->player_pdata->
+            his_plyr_pdata->plyr_info->slot.mirror_a;
+        output->x = object->pos.value.x;
+        output->y = object->pos.value.y;
+        output->z = object->pos.value.z;
+        break;
+    }
+    case 0x1E: {
+        MkObj* object = g_active_obstacle_event_data->player_pdata->
+            plyr_info->slot.mirror_a;
+        output->x = object->ang.x;
+        output->y = object->ang.y;
+        output->z = object->ang.z;
+        break;
+    }
+    case 0x1A:
+        output->x = (float)g_active_obstacle_event_data->player_pdata->plyr_num;
+        break;
+    case 0x1B:
+        output->x = (float)g_active_obstacle_event_data->player_pdata->attack_counter;
+        break;
+    case 0x1C:
+        output->x = (float)g_active_obstacle_event_data->player_pdata->state;
+        break;
+    case 0x19:
+        output->x = g_active_obstacle_event_data->impact_vector->x;
+        output->y = g_active_obstacle_event_data->impact_vector->y;
+        output->z = g_active_obstacle_event_data->impact_vector->z;
+        break;
+    case 0x1D:
+        output->x = (float)g_active_obstacle_event_data->flags;
+        break;
+    }
+}
 /* Exact-size 99.34% near miss; only pooled constants/relocation labels differ. */
 float spad_xz_length_vector(int index) {
     union {
@@ -5844,7 +10824,278 @@ void bgnd_xfer_attacker(int script_function) {
     script->unk28 = script_function;
     xfer_player_proc(process, bgnd_call_script_function);
 }
-void bgnd_process_collision_info(void) {}
+/* Clean-C near match: 90.95%, retail/local 2800/2712. All 61 dispatch slots,
+ * return/store operations, player-state mutations, camera setup ABI, vector
+ * math, reaction transfer, and event/player ownership paths agree. Residue is
+ * shared typed subexpression folding, validation merges, and switch scheduling. */
+float bgnd_process_collision_info(
+    unsigned int operation, float value1, float value2, float value3,
+    float value4, float value5, float value6, float value7, float value8) {
+    float result = 0.0f;
+
+    switch (operation) {
+    case 0xA:
+        return value1 * (g_game_info.player_objects[0]->pos.value.y -
+                         g_game_info.player_objects[1]->pos.value.y) +
+            g_game_info.player_objects[1]->pos.value.y;
+    case 0xE:
+        return g_game_info.player_objects[0]->pos.value.y;
+    case 0x18:
+        return g_game_info.player_objects[0]->pos.value.x;
+    case 0x20:
+        return g_game_info.player_objects[0]->pos.value.z;
+    case 0x32:
+        return g_game_info.player_objects[1]->pos.value.x;
+    case 0xF:
+        return g_game_info.player_objects[1]->pos.value.y;
+    case 0x38:
+        return g_game_info.player_objects[1]->pos.value.z;
+
+    case 0:
+        sh_normalize_fatality_vector(&g_game_info.impact_vector);
+        g_game_info.impact_vector.x *= value1;
+        g_game_info.impact_vector.z *= value1;
+        g_game_info.impact_vector.y = 0.0f;
+        break;
+
+    case 3: {
+        Vec up = {0.0f, 1.0f, 0.0f};
+        Vec* output = &g_bgnd_scratch_pad_vectors[(unsigned int)value3];
+        MkSobj* object = obj_find_sobj_by_id(
+            g_game_info.bgnd_obj, (unsigned int)value2);
+        Vec scaled;
+
+        scaled.x = g_game_info.impact_vector.x * value1;
+        scaled.y = g_game_info.impact_vector.y * value1;
+        scaled.z = g_game_info.impact_vector.z * value1;
+        output->x = scaled.z * up.y - scaled.y * up.z;
+        output->y = scaled.x * up.z - scaled.z * up.x;
+        output->z = scaled.y * up.x - scaled.x * up.y;
+        rotate_xz(output, output, object->ang.y);
+        break;
+    }
+    case 4:
+        if (g_game_info.collision_player_side != 0) {
+            special_move_cam_setup2(
+                (int)value6, (int)value7, (int)value8,
+                g_game_info.player_objects[1], g_game_info.player_objects[0],
+                value1, value2, value3, value4, value5);
+        }
+        break;
+    case 0x3C:
+        if (g_active_obstacle_event_data->flag_bits.player_side) {
+            special_move_cam_setup2(
+                (int)value6, (int)value7, (int)value8,
+                g_game_info.player_objects[1], g_game_info.player_objects[0],
+                value1, value2, value3, value4, value5);
+        }
+        break;
+    case 0x28:
+        special_move_cam_setup2(
+            (int)value6, (int)value7, (int)value8,
+            g_game_info.player_objects[1], g_game_info.player_objects[0],
+            value1, value2, value3, value4, value5);
+        break;
+
+    case 5:
+        g_game_info.collision_player_pdata->online_sync_index = -1;
+        if (g_game_info.collision_player_pdata->plyr_num == 0) {
+            g_game_info.plyr0.fighting_lights.green_trigger = 0;
+        } else {
+            g_game_info.plyr1.fighting_lights.green_trigger = 0;
+        }
+        break;
+
+    case 7: {
+        PlyrPdata* player = g_game_info.collision_player_pdata;
+        PlyrInfo* info = player->plyr_info;
+
+        info->slot.pdata->state_flags.bits.bit3 = 1;
+        info->slot.mirror_a->flags_09_bits.launched = 0;
+        info->slot.mirror_a->flags_09_bits.bit6 = 0;
+        info->slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+        info->slot.mirror_a->flags_09_bits.head_tracking = 0;
+        info->slot.mirror_a->flags_0B_bits.bit6 = 1;
+        info->slot.mirror_a->flags_0B_bits.bit3 = 1;
+        info->slot.mirror_a->flags_09_bits.face_opponent = 0;
+        result = (float)player->plyr_num;
+        break;
+    }
+    case 8: {
+        PlyrPdata* player = g_game_info.collision_player_pdata->his_plyr_pdata;
+        PlyrInfo* info = player->plyr_info;
+
+        info->slot.pdata->state_flags.bits.bit3 = 1;
+        info->slot.mirror_a->flags_09_bits.launched = 0;
+        info->slot.mirror_a->flags_09_bits.bit6 = 0;
+        info->slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+        info->slot.mirror_a->flags_09_bits.head_tracking = 0;
+        info->slot.mirror_a->flags_0B_bits.bit6 = 1;
+        info->slot.mirror_a->flags_0B_bits.bit3 = 1;
+        info->slot.mirror_a->flags_09_bits.face_opponent = 0;
+        result = (float)player->plyr_num;
+        break;
+    }
+    case 0x21:
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.pdata->state_flags.bits.bit3 = 0;
+        break;
+    case 0x22:
+        g_game_info.collision_player_pdata->plyr_info->slot.pdata->
+            state_flags.bits.bit3 = 0;
+        break;
+
+    case 9: {
+        MkProc* process = get_player_proc(g_game_info.player_objects[1]);
+        CmdScript* script = get_cmdscript_for_proc(process);
+
+        run_reaction_cleanup_function(
+            g_game_info.collision_player_info->slot.pdata);
+        script->unk28 = 0x8E;
+        xfer_player_proc(process, r_call_script_function);
+        break;
+    }
+
+    case 0xD: {
+        CameraObj* camera = camera_item.node;
+        Vec target;
+        Vec direction;
+
+        if (camera != 0) {
+            if (camera->hdr.instance != camera_item.instance) {
+                camera = 0;
+            }
+        } else {
+            camera = 0;
+        }
+        get_current_target(&target);
+        direction.x = target.x - camera->pos.x;
+        direction.y = target.y;
+        direction.z = target.z - camera->pos.z;
+        sh_normalize_blood_xz(&direction);
+        if ((plyr_obj->pos.value.x - camera->pos.x) * direction.z +
+                (plyr_obj->pos.value.z - camera->pos.z) * -direction.x > 0.0f) {
+            result = 1.0f;
+        }
+        break;
+    }
+
+    case 0x16: {
+        MkObj* first = g_active_obstacle_event_data->player_pdata->
+            plyr_info->slot.mirror_a;
+        MkObj* second = g_active_obstacle_event_data->player_pdata->
+            his_plyr_pdata->plyr_info->slot.mirror_a;
+        Vec direction;
+
+        direction.x = second->pos.value.x - first->pos.value.x;
+        direction.y = second->pos.value.y - first->pos.value.y;
+        direction.z = second->pos.value.z - first->pos.value.z;
+        sh_normalize_fatality_vector(&direction);
+        result = value3 * direction.z +
+            (value1 * direction.x + value2 * direction.y);
+        break;
+    }
+    case 0x3A: {
+        MkObj* first = g_active_obstacle_event_data->player_pdata->
+            plyr_info->slot.mirror_a;
+        MkObj* second = g_active_obstacle_event_data->player_pdata->
+            his_plyr_pdata->plyr_info->slot.mirror_a;
+        Vec direction = {0.0f, 0.0f, 0.0f};
+
+        direction.x = second->pos.value.x - first->pos.value.x;
+        direction.z = second->pos.value.z - first->pos.value.z;
+        result = value3 * direction.z +
+            (value1 * direction.x + value2 * direction.y);
+        break;
+    }
+
+    case 0x1F: {
+        MkObj* object = g_game_info.collision_player_pdata->his_plyr_pdata->
+            plyr_info->slot.mirror_a;
+        object->pos_vel.x = value1;
+        object->pos_vel.z = value2;
+        break;
+    }
+    case 0x3B:
+        return g_active_obstacle_event_data->player_pdata->plyr_info->
+            slot.mirror_a->pos.value.z;
+    case 0x30:
+        result = (float)g_active_obstacle_event_data->event_id;
+        break;
+    case 0x27:
+        result = (float)g_game_info.collision_event_id;
+        break;
+    case 0x29:
+        g_game_info.player_objects[0]->pos.value.y = value1;
+        break;
+    case 0x39:
+        g_game_info.player_objects[0]->pos.value.z = value1;
+        break;
+    case 0x35:
+        g_game_info.player_objects[1]->pos.value.y = value1;
+        break;
+    case 0x24:
+        g_game_info.player_objects[0]->pos.value.x = value1;
+        g_game_info.player_objects[0]->pos.value.y = value2;
+        g_game_info.player_objects[0]->pos.value.z = value3;
+        break;
+    case 0x25:
+        g_game_info.player_objects[0]->ang.x = value1;
+        g_game_info.player_objects[0]->ang.y = value2;
+        g_game_info.player_objects[0]->ang.z = value3;
+        break;
+    case 0x26:
+        g_game_info.player_objects[0]->pos_vel.x = 0.0f;
+        g_game_info.player_objects[0]->pos_vel.y = 0.0f;
+        g_game_info.player_objects[0]->pos_vel.z = 0.0f;
+        g_game_info.player_objects[0]->ang_vel.x = 0.0f;
+        g_game_info.player_objects[0]->ang_vel.y = 0.0f;
+        g_game_info.player_objects[0]->ang_vel.z = 0.0f;
+        break;
+    case 0x37:
+        g_game_info.player_objects[1]->pos_vel.x = 0.0f;
+        g_game_info.player_objects[1]->pos_vel.y = 0.0f;
+        g_game_info.player_objects[1]->pos_vel.z = 0.0f;
+        g_game_info.player_objects[1]->ang_vel.x = 0.0f;
+        g_game_info.player_objects[1]->ang_vel.y = 0.0f;
+        g_game_info.player_objects[1]->ang_vel.z = 0.0f;
+        break;
+    case 0x23:
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.mirror_a->ang.y = value1;
+        break;
+    case 0x2A:
+        g_game_info.player_objects[1]->ang.y = value1;
+        break;
+    case 0x2B:
+        g_game_info.player_objects[1]->pos.value.x = value1;
+        g_game_info.player_objects[1]->pos.value.y = value2;
+        g_game_info.player_objects[1]->pos.value.z = value3;
+        break;
+    case 0x2F:
+        g_game_info.collision_player_pdata->his_plyr_pdata->plyr_info->
+            slot.mirror_a->pos_vel.y = value1;
+        break;
+    case 0x2C:
+        return g_game_info.player_objects[0]->pos_vel.x;
+    case 0x2D:
+        return g_game_info.player_objects[0]->pos_vel.y;
+    case 0x34:
+        g_game_info.player_objects[0]->pos_vel.y = value1;
+        break;
+    case 0x2E:
+        return g_game_info.player_objects[0]->pos_vel.z;
+    case 0x33: {
+        MkObj* object = g_game_info.collision_player_pdata->his_plyr_pdata->
+            plyr_info->slot.mirror_a;
+        object->ang.x += value1;
+        object->ang.y += value2;
+        object->ang.z += value3;
+        return 0.0f;
+    }
+    }
+    return result;
+}
 /* Near match: exact 136-byte operations and ABI; only the successful process
  * instance-latch path uses the opposite equivalent conditional branch. */
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
@@ -5912,7 +11163,57 @@ int bgnd_get_first_shape_center_for_obstacle_id(int obstacle_id,
     return get_first_shape_center_for_obstacle_id(
         obstacle_id, &g_bgnd_scratch_pad_vectors[scratch_index]);
 }
-void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(void) {}
+#pragma dont_inline on
+/* Near match: 98.82%, exact 356-byte size. Retail keeps the displayed-list
+ * lookup out of line; the narrow pragma preserves that evidenced call without
+ * changing the TU's authentic auto-inline policy. Residue is one branch edge. */
+void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
+    BgndDisplayedItem* item;
+    MkPtr** displayed_list;
+    MkPtr* link;
+    Vec* active_position;
+
+    active_position = &g_active_sobj->pos;
+    item = bgnd_get_item_from_displayed_list(item_id);
+    if (item != 0 && active_position != 0 && item->display_sobj != 0) {
+        item->position.x = active_position->x;
+        item->position.y = active_position->y;
+        item->position.z = active_position->z;
+        item->display_sobj->pos.x = item->position.x;
+        item->display_sobj->pos.y = item->position.y;
+        item->display_sobj->pos.z = item->position.z;
+        update_mksobj(item->display_sobj);
+    }
+
+    displayed_list = &g_game_info.displayed_items;
+    if (displayed_list != 0) {
+        link = *displayed_list;
+        while (link != 0) {
+            item = (BgndDisplayedItem*)link->hdr;
+            if (link->instance != item->hdr.instance) {
+                MkPtr* next = link->next;
+                link->hdr = 0;
+                destroy_mkptr(link);
+                link = next;
+            } else if (item->type == item_id) {
+                mk_pull_discard(&item->hdr, displayed_list);
+                if (item->obstacle != 0 &&
+                        !g_game_info.feature_flags.bits.high_bit) {
+                    item->obstacle->flags.bits.disabled = 0;
+                }
+                mk_insert(&item->hdr, &g_game_info.field_64);
+                if (item->sobj_id != 0) {
+                    unhide_sobj(obj_create_sobjs_by_id(
+                        g_game_info.bgnd_obj, item->sobj_id));
+                }
+                break;
+            } else {
+                link = link->next;
+            }
+        }
+    }
+}
+#pragma dont_inline reset
 void bgnd_rotate_xz_about_orgin_active_sobj(float angle) {
     g_active_sobj->flags_08_bits.bit6 = 1;
     g_active_sobj->flags_08_bits.bit3 = 1;
@@ -6003,25 +11304,31 @@ void bgnd_active_sobj_no_zwrite(void) {
     g_active_sobj->flags09_bits.bit7 = 1;
 }
 /*
- * Clean-C ceiling: 50.02%, retail/local 176/152 bytes. As in bgnd_fetch_sobj,
+ * Clean-C ceiling: 58.18%, retail/local 176/164 bytes. As in bgnd_fetch_sobj,
  * MWCC folds retail's explicit null-normalization branches from typed C.
  */
 void bgnd_set_active_sobj_in_obj(int model_index, unsigned int object_id) {
-    MkObj* model;
     MkSobj* object;
 
-    if (model_index == (int)0xDDDDEEEE) {
-        object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
-    } else {
-        model = g_bgnd_preloaded_models[model_index];
-        unhide_obj(model);
-        if (model == 0) {
+    if (model_index != (int)0xDDDDEEEE) {
+        unhide_obj(g_bgnd_preloaded_models[model_index]);
+        if (g_bgnd_preloaded_models[model_index] == 0) {
             object = 0;
         } else {
-            object = obj_find_sobj_by_id(model, object_id);
+            object = obj_find_sobj_by_id(
+                g_bgnd_preloaded_models[model_index], object_id);
             if (object == 0) {
-                object = obj_first_sobj(model);
+                object = obj_first_sobj(
+                    g_bgnd_preloaded_models[model_index]);
+                if (object == 0) {
+                    object = 0;
+                }
             }
+        }
+    } else {
+        object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+        if (object == 0) {
+            object = 0;
         }
     }
     g_active_sobj = object;
@@ -7999,7 +13306,98 @@ void ncs_bgnd_nuke_collision_to_script_interface(void) {
 MkObj* retrieve_bgnd_obj(void) {
     return g_game_info.bgnd_obj;
 }
-void destroy_background_extras(void) {}
+static inline void bgnd_destroy_object_latch(
+    MkObj** object_ptr, unsigned int* instance) {
+    MkObj* object = *object_ptr;
+
+    if (object != 0) {
+        if (object->hdr.instance != *instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object != 0) {
+        object = *object_ptr;
+        if (object->hdr.instance != 0) {
+            object->hdr.typed_vtbl->destroy(&object->hdr);
+        }
+        *object_ptr = 0;
+        *instance = 0;
+    }
+}
+
+/* Clean-C near match: 79.07%, retail/local 696/676. Both scripts, eight
+ * collision lists, four moveset weapon latches, three gameplay lists, camera
+ * ownership, all indexed tables, and every active-global reset agree. The
+ * 20-byte residue is latch merge and loop-induction scheduling. */
+void destroy_background_extras(void) {
+    unsigned int index;
+
+    unload_script(0xC);
+    unload_script(0xD);
+    for (index = 0; index < 8; index++) {
+        destroy_list(&g_bgnd_collision_to_script_if[index]);
+    }
+    g_active_obstacle_event_data = 0;
+    g_active_bgnd_col_item = 0;
+
+    for (index = 6; index < 8; index++) {
+        bgnd_destroy_object_latch(
+            &global_movesets[index].primary_weapon,
+            &global_movesets[index].primary_weapon_instance);
+        bgnd_destroy_object_latch(
+            &global_movesets[index].secondary_weapon,
+            &global_movesets[index].secondary_weapon_instance);
+    }
+    if (g_game_info.field_64 != 0) {
+        destroy_list(&g_game_info.field_64);
+    }
+    if (g_game_info.displayed_items != 0) {
+        destroy_list(&g_game_info.displayed_items);
+    }
+    if (g_game_info.npc_list != 0) {
+        destroy_list(&g_game_info.npc_list);
+    }
+    g_game_info.wall_hider = 0;
+    if (g_game_info.camera_proc != 0) {
+        MkProc* process = g_game_info.camera_proc;
+
+        if (process->hdr.instance != g_game_info.camera_proc_instance) {
+            process = 0;
+        }
+        if (process != 0) {
+            if (g_game_info.camera_proc->hdr.instance != 0) {
+                g_game_info.camera_proc->hdr.typed_vtbl->destroy(
+                    &g_game_info.camera_proc->hdr);
+            }
+            g_game_info.camera_proc = 0;
+            g_game_info.camera_proc_instance = 0;
+        }
+    }
+    for (index = 0; index < 24; index++) {
+        bgnd_danger_zones[index].obstacle = 0;
+    }
+    for (index = 0; index < 15; index++) {
+        g_bgnd_preloaded_models[index] = 0;
+    }
+    g_active_sobj = 0;
+    g_latest_obj_pfx = 0;
+    g_active_obstacle_event_data = 0;
+    g_active_bgnd_danger_zone = 0;
+    g_active_bgnd_col_item = 0;
+    g_bgnd_cracks = 0;
+    g_bgnd_last_crack_overwritten = 0;
+    for (index = 0; index < 20; index++) {
+        g_pebbles[index] = 0;
+        g_pebbles_pdata[index] = 0;
+    }
+    g_current_pebble = 0;
+    g_chunk_launch_monitor_pdata = 0;
+    g_active_launched_sobj_pdata = 0;
+    g_launched_sobj_crossing_plane_pdata = 0;
+    g_sobj_launch_monitor_pdata = 0;
+}
 /*
  * Near match: 95.77%, retail/local 104/100 bytes. Retail keeps a redundant
  * success-edge branch in the pointer/instance validation diamond; the typed
@@ -8022,6 +13420,11 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
     }
 }
+/* Clean-C near match: 87.16%, retail/local 1412/1388. The complete ordered
+ * 36-call sequence, mode gates, table ownership, art/anims/lights, camera/fog,
+ * collisions, effect-bank loop, scripts, and final state agree. The 24-byte
+ * residue is redundant pointer normalization and register/scheduling emission
+ * spread across this 1.4 KiB loader. */
 int load_background(int bgnd_id) {
     char* anims;
     char* gbd;
@@ -8069,7 +13472,7 @@ int load_background(int bgnd_id) {
     init_misc_bgnd_data();
 
     zero = 0;
-    g_game_info.field_64 = zero;
+    g_game_info.field_64 = (MkPtr*)zero;
     g_game_info.displayed_items = (MkPtr*)zero;
     g_game_info.npc_list = (MkPtr*)zero;
     react = anims + 0xF0;

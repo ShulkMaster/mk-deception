@@ -1,6 +1,8 @@
 #ifndef MKD_BGND_TYPES_H
 #define MKD_BGND_TYPES_H
 
+#include "math/gxVect.h"
+
 /*
  * Background load / data-table types (get_data_table -> GameInfo.section).
  * Offsets from load_background / bgnd_anim_camera_* (Ghidra + bgnd.c).
@@ -9,10 +11,14 @@
 typedef struct LightDef LightDef;
 
 typedef struct BgndMisc {
-    char pad00[0x3C];
-    float field_3C;
-    float field_40;
-    float field_44;
+    float ground_plane; /* +0x00 */
+    void* enter_script; /* +0x04 */
+    char pad08[4];
+    Vec player0_start; /* +0x0C */
+    char pad18[0x0C];
+    Vec player1_start; /* +0x24 */
+    char pad30[0x0C];
+    Vec beetle_target; /* +0x3C - shared beetle movement target */
     LightDef** lights_bgnd; /* +0x48 */
     LightDef** lights_spec; /* +0x4C */
     LightDef** lights_plyr; /* +0x50 */
