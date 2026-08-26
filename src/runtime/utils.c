@@ -518,7 +518,7 @@ void set_far_clip_plane(float dist) {
     }
 }
 
-void* find_obj_by_id(int id) {
+MkObj* find_obj_by_id(int id) {
     return 0;
 }
 
@@ -1222,26 +1222,6 @@ extern void MKMatrixSetIdentity(void* m);
  * Mode-select 2D cloud polys use ScreenAnim UV keys, not this path.
  * Soft ceiling: dual/pass/matrix emit vs open-code; p_process coloring; stop.
  */
-typedef struct UvScrollControl {
-    MkHdr hdr;             /* +0x00 */
-    MkObj* owner;          /* +0x08 */
-    unsigned int owner_instance; /* +0x0C */
-    union {
-        void* target;
-        RpAtomic* atomic;
-        RpMaterial* material;
-    };                     /* +0x10 */
-    int target_is_atomic;  /* +0x14 */
-    unsigned int pass_flags; /* +0x18 */
-    float rateU1;          /* +0x1C */
-    float rateV1;          /* +0x20 */
-    float rateU2;          /* +0x24 */
-    float rateV2;          /* +0x28 */
-    unsigned int pad2c;    /* +0x2C -- keep mtx1 at +0x30 */
-    float mtx1[16];        /* +0x30 */
-    float mtx2[16];        /* +0x70 */
-} UvScrollControl; /* 0xB0 */
-
 enum {
     kUvPass1 = 1,
     kUvPass2 = 2,
@@ -1429,7 +1409,7 @@ static RpAtomic* atomic_scroll_uvs_callback(RpAtomic* atomic, void* data) {
     return atomic;
 }
 
-void* find_uv_scroll_control_for_obj(MkObj* object) {
+UvScrollControl* find_uv_scroll_control_for_obj(MkObj* object) {
     MkPtr* node;
     MkPtr* next;
     UvScrollControl* ctrl;
@@ -1505,8 +1485,9 @@ static float p_process_uvscrolling(void) {
     return 1.0f;
 }
 
-void* material_start_uv_scroll(MkObj* owner, RpMaterial* material, float u1, float v1, float u2,
-                               float v2) {
+UvScrollControl* material_start_uv_scroll(
+    MkObj* owner, RpMaterial* material, float u1, float v1, float u2,
+    float v2) {
     UvScrollControl* ctrl;
     if (material == 0) {
         return 0;
@@ -1551,8 +1532,9 @@ void* material_start_uv_scroll(MkObj* owner, RpMaterial* material, float u1, flo
     return ctrl;
 }
 
-void* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1, float v1, float u2,
-                           float v2) {
+UvScrollControl* sobj_start_uv_scroll(
+    MkObj* owner, MkSobj* subobject, float u1, float v1, float u2,
+    float v2) {
     UvScrollControl* ctrl;
     RpAtomic* atomic;
     RpGeometry* geom;
@@ -1631,8 +1613,8 @@ void* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1, float v1, 
     return ctrl;
 }
 
-void* start_sobj_uv_scroll(MkObj* owner, int sobj_id, float u1, float v1, float u2,
-                          float v2) {
+UvScrollControl* start_sobj_uv_scroll(
+    MkObj* owner, int sobj_id, float u1, float v1, float u2, float v2) {
     MkSobj* subobject;
     void* result;
 
@@ -1645,8 +1627,8 @@ void* start_sobj_uv_scroll(MkObj* owner, int sobj_id, float u1, float v1, float 
     return result;
 }
 
-void* replace_sobj_texture_with_named_wiff(
-    void* sobj, int handle, const char* texture, const char* wiff) {
+AniTextureControl* replace_sobj_texture_with_named_wiff(
+    MkSobj* sobj, int handle, const char* texture, const char* wiff) {
     return NULL;
 }
 

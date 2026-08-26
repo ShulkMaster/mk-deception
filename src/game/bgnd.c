@@ -2,6 +2,7 @@
 #include "game/ejb.h"
 #include "game/game_info.h"
 #include "game/jdn.h"
+#include "game/moveset.h"
 #include "game/plyr.h"
 #include "game/collision.h"
 #include "game/constrain.h"
@@ -17,10 +18,12 @@
 #include "runtime/cam.h"
 #include "runtime/cstdio.h"
 #include "runtime/image.h"
+#include "runtime/light.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/section.h"
+#include "runtime/shadow.h"
 #include "runtime/sound.h"
 #include "math/mk_math.h"
 #include "math/gxMath.h"
@@ -31,11 +34,11 @@
 
 #pragma use_lmw_stmw on
 
-typedef struct BgndAppendTextureEntry BgndAppendTextureEntry;
-typedef struct BgndSwapTextureEntry BgndSwapTextureEntry;
-typedef struct SlaughterhouseData SlaughterhouseData;
+typedef struct SlaughterhouseData {
+    MkHdr hdr;
+    MkHdrLatch lower_level_pebbles[3]; /* +0x08 */
+} SlaughterhouseData;
 typedef struct BgndObstacleEventData BgndObstacleEventData;
-typedef void (*BgndScriptEntryFn)(void);
 typedef int (*BgndArenaObstacleCallback)(BgndObstacleEventData* event);
 typedef struct MorphScript {
     unsigned int frame_count;
@@ -55,8 +58,144 @@ typedef struct BgndDangerZone {
 } BgndDangerZone;
 typedef char BgndDangerZoneSize[(sizeof(BgndDangerZone) == 0x2C) ? 1 : -1];
 
+typedef struct BgndDisplayedItem {
+    MkHdr hdr;                 /* +0x00 */
+    int id;                    /* +0x08 */
+    char pad0C[0x74];
+    ArenaObstacle* obstacle;   /* +0x80 */
+} BgndDisplayedItem;
+typedef char BgndDisplayedItemSize[
+    (sizeof(BgndDisplayedItem) == 0x84) ? 1 : -1];
+
+typedef struct BgndUvScrollControlItem {
+    UvScrollControl* control;
+    unsigned int instance;
+} BgndUvScrollControlItem;
+
+typedef struct BgndActAtTimeData {
+    MkHdr hdr;
+    int ticks;
+    int script_function;
+    Vec parameters;
+    float ground_plane;
+} BgndActAtTimeData;
+
+typedef struct BgndFadeObjectData {
+    MkHdr hdr;
+    MkSobj* object;
+    char pad0C[0x0C];
+    float fade_step;
+    int complete;
+    char pad20[4];
+    float alpha;
+    unsigned int alpha_int;
+    char pad2C[0x20];
+} BgndFadeObjectData;
+
+typedef struct BgndPulsateData {
+    MkHdr hdr;                 /* +0x00 */
+    MkSobj* object;            /* +0x08 */
+    int field_0C;
+    float field_10;
+    int field_14;
+    float field_18;
+    int field_1C;
+    int field_20;
+    float alpha;               /* +0x24 */
+    unsigned int alpha_int;    /* +0x28 */
+    unsigned int field_2C;
+    unsigned int field_30;
+    float field_34;
+    float field_38;
+    float field_3C;
+    float field_40;
+    float field_44;
+    float field_48;
+} BgndPulsateData; /* 0x4C */
+
+typedef struct BgndPointLightLifeData {
+    MkHdr hdr;
+    int ticks;
+    MkObj* light;
+    float radius_step;
+} BgndPointLightLifeData; /* 0x14 */
+
+typedef struct BlBeetlePdata {
+    MkHdr hdr;
+    PebbleData* pebble_data;
+} BlBeetlePdata; /* 0x0C */
+
+typedef struct BlBeetleControl {
+    Vec position;                 /* +0x00 */
+    Vec scale;                    /* +0x0C */
+    unsigned int personality;     /* +0x18 */
+    int personality_ticks;        /* +0x1C */
+    int movement_state;           /* +0x20 */
+    int wall_state;               /* +0x24 */
+    int wall_ticks;               /* +0x28 */
+    int heading_ticks;            /* +0x2C */
+    int transition_ticks;         /* +0x30 */
+    float speed_scale;            /* +0x34 */
+    float heading_degrees;        /* +0x38 */
+    float heading_step;           /* +0x3C */
+    float movement_delta_a;       /* +0x40 */
+    float movement_delta_b;       /* +0x44 */
+    Vec wall_target;              /* +0x48 */
+    Vec movement_target;          /* +0x54 */
+    float distance_limit_sq;      /* +0x60 */
+    int bounce_ticks;             /* +0x64 */
+    int field_68;                 /* +0x68 */
+    float vertical_velocity;      /* +0x6C */
+    int fast_motion;              /* +0x70 */
+    int surface;                  /* +0x74 */
+} BlBeetleControl; /* 0x78 */
+typedef char BlBeetleControlSize[
+    (sizeof(BlBeetleControl) == 0x78) ? 1 : -1];
+
+static BgndUvScrollControlItem bgnd_uv_scroll_control_item[8];
+
 void bgnd_delete_danger_zone(unsigned int zone_index);
 void bgnd_enable_danger_zone(unsigned int zone_index, int enabled);
+void bgnd_collision_if_monitor_col_as(
+    int list_index, unsigned int collision_id,
+    unsigned int script_function, int monitor_type);
+static float p_hide_walls(void);
+static float p_act_at_time(void);
+static float p_bgnd_fade_object(void);
+static float p_bgnd_pulsate_object(void);
+static float p_pulsate_object(void);
+static float p_bgnd_point_light_life_span(void);
+static float p_bl_beetle_brains(void);
+static int beetle_squashed(
+    BlBeetleControl* beetle, PlyrInfo** squashing_player);
+static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data);
+static void bl_process_beetle_follow_plyr_personality(
+    BlBeetleControl* beetle);
+static void bl_process_beetle_under_glass_personality(
+    BlBeetleControl* beetle);
+static void bl_process_beetle_under_glass_traveller_personality(
+    BlBeetleControl* beetle);
+static void bl_process_beetle_runaway_personality(
+    BlBeetleControl* beetle);
+static void bl_process_beetle_transition_personality(
+    BlBeetleControl* beetle);
+static void bl_process_beetle_chilling(BlBeetleControl* beetle);
+static void bl_process_beetle_track_plyr(BlBeetleControl* beetle);
+static inline void set_subobject_transl(MkSobj* object) {
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+
+    if (object != 0) {
+        atomic = object->atomic;
+        if (atomic != 0) {
+            geometry = atomic->geometry;
+            if (geometry != 0) {
+                geometry->flags |= 0x40;
+            }
+            sobj_set_transl_flag(object);
+        }
+    }
+}
 
 typedef struct BgndNpc {
     MkHdr hdr;          /* +0x00 */
@@ -121,6 +260,19 @@ struct BgndObstacleEventData {
             unsigned char pad_low : 7;
         } flag_bits;
     }; /* +0x10 */
+};
+
+struct BgndWallHiderRuntime {
+    MkHdr hdr;
+    int walls_to_hide[8];       /* +0x08 */
+    unsigned int hide_count;    /* +0x28 */
+    int walls_to_unhide[8];     /* +0x2C */
+    unsigned int unhide_count;  /* +0x4C */
+    unsigned int hidden_effects[4]; /* +0x50 */
+    unsigned int hidden_effect_count; /* +0x60 */
+    Vec normal;                      /* +0x64 */
+    float normal_distance;           /* +0x70 */
+    unsigned int normal_flags;       /* +0x74 */
 };
 
 typedef struct BgndPebbleControl {
@@ -279,6 +431,7 @@ MkPfx* find_pfx_by_name(const char* name);
 void move_player(MkObj* object, const Vec* position, const Vec* angles);
 MkProc* get_player_proc(void* object);
 void xfer_player_proc(MkProc* process, MkProcEntryFn entry);
+void run_reaction_cleanup_function(PlyrPdata* player);
 static float bgnd_call_script_function(void);
 static int launch_sobj_watch_dist_from_orgin(BgndSobjLaunchEntry* entry,
                                               unsigned int distance_squared);
@@ -296,20 +449,32 @@ extern float ShadowStrength;
 extern float fog_density;
 extern float fog_distance;
 extern float fog_color_real[4];
+extern int fog_type;
 extern GlobalBackgroundEntry global_background_data[];
 extern char bgnd_animations[0x84];
-extern int g_current_reaction_info[6]; /* 0x18 bytes; retail clears word at +0x14 */
+typedef struct BgndReactionInfo {
+    PlyrInfo* player_info;
+    int reaction;
+    unsigned int power_level;
+    unsigned int flags;
+    unsigned int handler;
+    int handler_enabled;
+} BgndReactionInfo;
+
+extern BgndReactionInfo g_current_reaction_info;
 extern MkPtr* g_bgnd_collision_to_script_if[8];
 extern BgndObstacleEventData* g_active_obstacle_event_data;
 extern BgndCollisionItem* g_active_bgnd_col_item;
-extern void* bgnd_spec_light_list;
-extern void* plyr_light_list;
-extern void* bgnd_light_list;
-extern void* weapon_trail_light_list;
+extern MkPtr* bgnd_spec_light_list;
+extern MkPtr* plyr_light_list;
+extern MkPtr* bgnd_light_list;
+extern MkPtr* weapon_trail_light_list;
 extern unsigned int default_bgnd_bits[2];
 extern unsigned int default_pz_bgnd_bits[2];
 extern int exec_tick_ctr;
-extern int g_bl_beetles;
+extern PebbleData* g_bl_beetles;
+extern BlBeetlePdata* g_bl_beetles_pdata;
+extern SlaughterhouseData* g_slaughterhouse_pdata;
 extern BgndPebbleControl* g_current_pebble;
 extern MkSobj* g_active_sobj;
 extern unsigned int g_active_bgnd_danger_zone;
@@ -324,6 +489,8 @@ extern MorphScript skytemple_banner_script;
 extern MorphScript kuatan_banner_script;
 extern MkObj* plyr_obj;
 extern void stop_me(void);
+extern float r_call_script_function(void);
+extern int intro_done(void);
 extern PlyrPdata* plyr_pdata;
 extern Vec g_bgnd_scratch_pad_vectors[9];
 extern MkObj* g_latest_obj_pfx;
@@ -336,6 +503,8 @@ extern unsigned int g_bgnd_last_crack_overwritten;
 extern void* obj_start_morph(MkObj* object, int sobj_id,
                              MorphScript* script, unsigned int flags);
 extern void delete_obstacle_from_background_by_id(int obstacle_id);
+extern MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot);
+extern void load_bgnd_fstyle_sign(int player);
 extern void insert_ground_me_mkobj(MkObj* object);
 extern AnimScript** bgnd_animation_table;
 extern void set_root_and_obj_movement_weights(
@@ -414,10 +583,8 @@ void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
 void load_background_anims(void* anims, int bgnd_id);
 void init_weapon_trail_light_list(void);
-void load_lights(void* lights, void* list);
 void insert_fgnd_mkobj(void* bgnd_obj);
 void set_background_color(int r, int g, int b, int a);
-void UpdateShadowCameraLightSource(void* light);
 void turn_fog_on(void);
 void turn_fog_off(void);
 void initialize_bgnd_collisions(void* data);
@@ -595,12 +762,29 @@ void set_obj_pos(MkObj* object, float x, float y, float z) {
         object->flags_08_bits.bit7 = 1;
     }
 }
-void bgnd_sobj_start_morph(int object_id, int start_shape, int end_shape,
-                           int ticks) {
-    (void)object_id;
-    (void)start_shape;
-    (void)end_shape;
-    (void)ticks;
+void bgnd_sobj_start_morph(MkObj* object, int sobj_id, int script_id,
+                           unsigned int flags) {
+    MorphScript* script;
+
+    switch (script_id) {
+    case 0:
+        script = &linear_slow_script;
+        break;
+    case 1:
+        script = &cos_script;
+        break;
+    case 4:
+        script = &cos_fast_script;
+        break;
+    case 6:
+        script = &skytemple_banner_script;
+        break;
+    default:
+        script = &linear_slow_script;
+        break;
+    }
+    obj_start_morph(object, sobj_id, script, flags);
+    object->hide_flag_bits.hidden = 0;
 }
 int bgnd_get_obj_pointer(int player) {
     MkObj* object;
@@ -620,33 +804,187 @@ void scripted_camera_script_exit(void) {
     destroy_mkprocs_pid(0x9006);
     mkproc_die();
 }
-void skytemple_arrange_fence_pebbles_around_pos(int player, int count,
-                                                const Vec* position) {
-    (void)player;
-    (void)count;
-    (void)position;
+/*
+ * Near match: size-identical 180-byte stream. Only the pebble-array base and
+ * loop-index nonvolatile registers are interchanged.
+ */
+void skytemple_arrange_fence_pebbles_around_pos(int player, unsigned int count,
+                                                Vec* position) {
+    BgndPebbleControl* pebbles;
+    unsigned int index;
+
+    pebbles = g_pebbles[player]->pebbles;
+    for (index = 0; index < count; index++) {
+        pebbles[index].position.x = position->x + sfrand(2.0f);
+        pebbles[index].position.y = position->y + sfrand(2.0f);
+        pebbles[index].position.z = position->z + sfrand(2.0f);
+        pebbles[index].velocity.x = sfrand(0.05f);
+        pebbles[index].velocity.z = frand(0.02f);
+    }
 }
-void skytemple_set_fence_pebble_vel(int player, int count, float x, float y,
-                                    float z) {
-    (void)player;
-    (void)count;
-    (void)x;
-    (void)y;
-    (void)z;
+/*
+ * Near match: size-identical 260-byte stream. Only the pebble-array base and
+ * loop-index nonvolatile registers are interchanged.
+ */
+void skytemple_set_fence_pebble_vel(
+    int player, unsigned int count, float x, float y, float z) {
+    BgndPebbleControl* pebbles;
+    unsigned int index;
+
+    pebbles = g_pebbles[player]->pebbles;
+    for (index = 0; index < count; index++) {
+        pebbles[index].velocity.x = x + frand(0.05f);
+        pebbles[index].velocity.y = y + sfrand(0.06f);
+        pebbles[index].velocity.z = z + sfrand(0.05f);
+        pebbles[index].angular_velocity.x = sfrand(15.0f);
+        pebbles[index].angular_velocity.y = sfrand(15.0f);
+        pebbles[index].angular_velocity.z = sfrand(15.0f);
+        pebbles[index].gravity = -0.002f;
+    }
 }
 static void p_sh_fatality_body_parts(void) {}
-static void sh_update_fatality_body_part(void) {}
+/*
+ * Near match: exact 464-byte instruction stream; all remaining differences
+ * are float-pool relocation labels.
+ */
+static void sh_update_fatality_body_part(MkObj* object) {
+    object->flags_08_bits.airborne = 1;
+    object->flags_08_bits.gravity_enabled = 1;
+    object->flags_08_bits.angular_velocity_enabled = 1;
+    object->flags_08_bits.rotation_enabled = 1;
+
+    if (object->flags_08_bits.moving) {
+        if (object->pos.value.z > 21.65f) {
+            object->pos.value.z = 21.65f;
+            object->pos_vel.x *= 0.3f;
+            object->pos_vel.z *= -0.1f;
+            object->ang_vel.x = 0.5f * object->ang_vel.x;
+            object->ang_vel.y = 0.5f * object->ang_vel.y;
+            object->ang_vel.z = 0.5f * object->ang_vel.z;
+        }
+        if (object->pos.value.y <= -15.6f) {
+            object->flags_08_bits.moving = 0;
+            object->ang_vel.z = 0.0f;
+            object->ang_vel.y = 0.0f;
+            object->ang_vel.x = 0.0f;
+            object->pos.value.y = -15.6f;
+            object->pos_vel.y = 0.03f + frand(0.07f);
+            object->ang.x = sfrand(3.1415927f);
+            object->ang.y = sfrand(3.1415927f);
+            object->ang.z = sfrand(3.1415927f);
+        }
+    } else {
+        object->pos_vel.x *= 0.97f;
+        if (object->pos.value.y < -15.6f) {
+            object->pos.value.y = -15.6f;
+            if (object->pos_vel.y < 0.0f) {
+                object->pos_vel.y *= -0.6f;
+            }
+        } else if (object->pos.value.y > -15.3f && object->pos_vel.y > 0.0f) {
+            object->pos_vel.y *= -0.4f;
+        }
+        if (object->pos_vel.z > -0.01f) {
+            object->pos_vel.z -= 0.0002f;
+        } else {
+            object->pos_vel.z *= 0.97f;
+        }
+    }
+}
 static void sh_start_fatality_body_parts(void) {}
 void p_sh_throw_plyr_in_grinder(void) {}
 static void p_sh_bottom_floor_blood_fall(void) {}
 static void sh_update_blood_fall_pebbles(void) {}
 static void sh_init_bottom_floor_blood_fall_pebbles(void) {}
-void sh_lower_level_pebble_unhide(void) {}
-void sh_lower_level_pebble_hide(void) {}
+/*
+ * Clean-C near miss: exact three-latch validation/unhide algorithm; retail
+ * retains three redundant success/merge branches (216 versus 180 bytes).
+ */
+void sh_lower_level_pebble_unhide(void) {
+    MkHdr* object;
+
+    if (g_slaughterhouse_pdata != 0) {
+        object = g_slaughterhouse_pdata->lower_level_pebbles[0].hdr;
+        if (object != 0 && object->instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[0].instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            unhide_obj(object);
+        }
+
+        object = g_slaughterhouse_pdata->lower_level_pebbles[1].hdr;
+        if (object != 0 && object->instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[1].instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            unhide_obj(object);
+        }
+
+        object = g_slaughterhouse_pdata->lower_level_pebbles[2].hdr;
+        if (object != 0 && object->instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[2].instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            unhide_obj(object);
+        }
+    }
+}
+
+/*
+ * Clean-C near miss: exact three-latch validation/hide algorithm; retail
+ * retains three redundant success/merge branches (216 versus 180 bytes).
+ */
+void sh_lower_level_pebble_hide(void) {
+    MkHdr* object;
+
+    if (g_slaughterhouse_pdata != 0) {
+        object = g_slaughterhouse_pdata->lower_level_pebbles[0].hdr;
+        if (object != 0 && object->instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[0].instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            hide_obj(object);
+        }
+
+        object = g_slaughterhouse_pdata->lower_level_pebbles[1].hdr;
+        if (object != 0 && object->instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[1].instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            hide_obj(object);
+        }
+
+        object = g_slaughterhouse_pdata->lower_level_pebbles[2].hdr;
+        if (object != 0 && object->instance !=
+                g_slaughterhouse_pdata->lower_level_pebbles[2].instance) {
+            object = 0;
+        }
+        if (object != 0) {
+            hide_obj(object);
+        }
+    }
+}
 static void sh_load_objs(void) {}
 void bgnd_sh_level_2(void) {}
 void bgnd_sh_level_1(void) {}
-void bgnd_start_sh_fx(void) {}
+/* Near match: 99.39%, exact 132-byte instruction stream; float-pool labels
+ * differ because this imported TU has a different constant-pool history. */
+void bgnd_start_sh_fx(void) {
+    set_background_color(0x78, 0x62, 0x56, 0xFF);
+    fog_color_real[0] = 0.33f;
+    fog_color_real[1] = 0.26f;
+    fog_color_real[2] = 0.19f;
+    fog_color_real[3] = 1.0f;
+    fog_density = 1.0f;
+    fog_distance = -10.0f;
+    fog_type = 1;
+    turn_fog_on();
+    hide_sobj(obj_find_sobj_by_id(g_game_info.bgnd_obj, 9));
+}
 void bgnd_clean_slaughterhouse(void) {}
 static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata);
 void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
@@ -655,25 +993,822 @@ void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
 static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
     (void)pdata;
 }
-void start_bl_beetles_live_top_floor(void) {}
-static void p_bl_beetle_brains(void) {}
-static void beetle_squashed(void) {}
-static void bl_process_beetle_follow_plyr_personality(void) {}
-static void bl_process_beetle_under_glass_personality(void) {}
-static void bl_process_beetle_under_glass_traveller_personality(void) {}
-static void bl_process_beetle_runaway_personality(void) {}
-static void bl_process_beetle_transition_personality(void) {}
-static void bl_process_beetle_chilling(void) {}
-static void bl_process_beetle_track_plyr(void) {}
+/* Near match: size-identical 204-byte stream; only the 50.0f pool label differs. */
+void start_bl_beetles_live_top_floor(void) {
+    BlBeetlePdata* data;
+    MkSobj* object;
+    MkProc* process;
+
+    data = 0;
+    object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xF0);
+    object->z_offset = 50.0f;
+    object->flags09_bits.bit4 = 1;
+    object->flags09_bits.bit3 = 1;
+    g_bl_beetles = create_pebble_userdata(object, 0x1F, 0x78);
+    if (g_bl_beetles != 0) {
+        process = _create_mkproc_generic_tinystack(
+            0xA020, 0x2E, p_bl_beetle_brains,
+            sizeof(BlBeetlePdata), (MkHdr**)&data);
+        if (process != 0) {
+            data->pebble_data = g_bl_beetles;
+            g_bl_beetles_pdata = data;
+            bl_init_beetle_pebbles_first_floor(data);
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+}
+static float p_bl_beetle_brains(void) { return 0.0f; }
+extern int is_load_meter_active(void);
+extern void get_bone_world_pos(MkObj* object, int bone, Vec* position);
+
+static inline int bl_beetle_near_bone(
+    BlBeetleControl* beetle, MkObj* fighter, int bone, float limit_sq) {
+    Vec bone_position;
+    Vec offset = {0.0f, 0.0f, 0.0f};
+
+    get_bone_world_pos(fighter, bone, &bone_position);
+    offset.x = beetle->position.x - bone_position.x;
+    offset.y = beetle->position.y - bone_position.y;
+    offset.z = beetle->position.z - bone_position.z;
+    return offset.x * offset.x + offset.y * offset.y + offset.z * offset.z <
+        limit_sq;
+}
+
+/*
+ * Exact-size 99.22% near match. The inline bone-distance helper reproduces
+ * retail's repeated stack layout and short-circuit CFG; residue is limited to
+ * constant-pool relocation identities in the partially imported TU.
+ */
+static int beetle_squashed(
+    BlBeetleControl* beetle, PlyrInfo** squashing_player) {
+    unsigned int player_index;
+
+    if (is_load_meter_active() != 0) {
+        return 0;
+    }
+
+    for (player_index = 0; player_index < 2; player_index++) {
+        if (player_index == 0) {
+            *squashing_player = &g_game_info.plyr0;
+        } else {
+            *squashing_player = &g_game_info.plyr1;
+        }
+
+        if ((*squashing_player)->slot.fighter->active != 0) {
+            Vec bone_position_0;
+            Vec offset_0 = {0.0f, 0.0f, 0.0f};
+
+            get_bone_world_pos(
+                (*squashing_player)->slot.mirror_a, 0, &bone_position_0);
+            offset_0.x = beetle->position.x - bone_position_0.x;
+            offset_0.z = beetle->position.z - bone_position_0.z;
+            if (offset_0.x * offset_0.x + offset_0.z * offset_0.z < 1.0f) {
+                if (bl_beetle_near_bone(beetle,
+                        (*squashing_player)->slot.mirror_a, 11, 0.08f) ||
+                    bl_beetle_near_bone(beetle,
+                        (*squashing_player)->slot.mirror_a, 10, 0.08f) ||
+                    bl_beetle_near_bone(beetle,
+                        (*squashing_player)->slot.mirror_a, 3, 0.3f) ||
+                    bl_beetle_near_bone(beetle,
+                        (*squashing_player)->slot.mirror_a, 9, 0.3f)) {
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+/* Exact-size 99.75% near miss; only five float-pool relocation labels differ. */
+static void bl_process_beetle_follow_plyr_personality(
+    BlBeetleControl* beetle) {
+    unsigned int personality_roll;
+
+    if (beetle->movement_state == 0) {
+        if (--beetle->personality_ticks == 0) {
+            if ((unsigned short)randu0(100) < 50) {
+                beetle->movement_state = 2;
+            } else {
+                beetle->movement_state = 3;
+            }
+            beetle->personality_ticks =
+                (unsigned short)randu0(300) + 180;
+            beetle->heading_ticks = 0;
+            beetle->speed_scale = 0.95f + frand(0.3f);
+        }
+    } else {
+        if (--beetle->personality_ticks == 0) {
+            personality_roll = (unsigned short)randu0(100);
+            beetle->heading_ticks = 0;
+            if (personality_roll < 3) {
+                beetle->personality = 0;
+                beetle->personality_ticks =
+                    (unsigned short)randu0(300) + 180;
+            } else if (personality_roll < 8) {
+                beetle->personality = 2;
+                beetle->personality_ticks =
+                    (unsigned short)randu0(300) + 180;
+                beetle->speed_scale = 0.6f;
+            } else {
+                beetle->movement_state = 0;
+                beetle->personality_ticks = 120;
+            }
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 1.0f + frand(3.0f);
+            beetle->distance_limit_sq *= 2.0f;
+        } else if (beetle->personality_ticks < 50) {
+            beetle->speed_scale *= 0.97f;
+        } else if (beetle->personality_ticks < 120) {
+            beetle->speed_scale = 0.85f;
+        }
+    }
+}
+/*
+ * Exact algorithm and access widths; 98.08%, retail/local 364/360 bytes.
+ * Retail separately materializes the g_game_info base before the flag-byte
+ * load. The remaining float differences are constant-pool relocation labels.
+ */
+static void bl_process_beetle_under_glass_personality(
+    BlBeetleControl* beetle) {
+    unsigned int personality;
+
+    if (beetle->movement_state == 0) {
+        if (g_game_info.flag_bits.field_bit6 == 1) {
+            beetle->movement_state = 1;
+            beetle->personality_ticks = 300;
+            beetle->heading_ticks = 0;
+            beetle->speed_scale = 1.5f;
+        }
+    } else if (beetle->movement_state == 1) {
+        beetle->fast_motion = 1;
+        if (beetle->personality_ticks > 0) {
+            if (--beetle->personality_ticks == 0) {
+                personality = (unsigned short)randu0(100);
+                if (personality < 30) {
+                    beetle->personality = 0;
+                } else if (personality < 65) {
+                    beetle->personality = 3;
+                } else {
+                    beetle->personality = 2;
+                }
+                beetle->movement_state = 0;
+                beetle->heading_ticks = 0;
+                beetle->personality_ticks =
+                    (unsigned short)randu0(300) + 180;
+                beetle->movement_target.x = beetle->position.x;
+                beetle->movement_target.y = beetle->position.y;
+                beetle->movement_target.z = beetle->position.z;
+                beetle->distance_limit_sq = 1.0f + frand(3.0f);
+                beetle->distance_limit_sq *= 2.0f;
+            } else if (beetle->personality_ticks < 50) {
+                beetle->speed_scale *= 0.97f;
+                beetle->fast_motion = 0;
+            } else if (beetle->personality_ticks < 120) {
+                beetle->speed_scale = 1.0f;
+            }
+        }
+    }
+}
+/*
+ * Exact algorithm/accesses; 98.35%, retail/local 436/432 bytes. Retail emits a
+ * separate g_game_info base add before the flag load; other residue is pool
+ * relocation labeling.
+ */
+static void bl_process_beetle_under_glass_traveller_personality(
+    BlBeetleControl* beetle) {
+    unsigned int personality;
+
+    if (beetle->movement_state == 0) {
+        if (g_game_info.flag_bits.field_bit6 == 1) {
+            beetle->movement_state = 1;
+            beetle->personality_ticks = 300;
+            beetle->heading_ticks = 0;
+            beetle->speed_scale = 1.5f;
+        } else if ((unsigned short)randu0(600) < 1) {
+            beetle->movement_state = 4;
+            beetle->heading_ticks = 0;
+            beetle->wall_state = 0;
+            beetle->wall_target.x = sfrand(4.0f);
+            beetle->wall_target.y = 0.0f;
+            beetle->wall_target.z = 15.17f;
+        }
+    } else if (beetle->movement_state == 1) {
+        beetle->fast_motion = 1;
+        if (beetle->personality_ticks > 0) {
+            if (--beetle->personality_ticks == 0) {
+                personality = (unsigned short)randu0(100);
+                if (personality < 40) {
+                    beetle->personality = 0;
+                } else if (personality < 75) {
+                    beetle->personality = 3;
+                } else {
+                    beetle->personality = 2;
+                }
+                beetle->movement_state = 0;
+                beetle->heading_ticks = 0;
+                beetle->personality_ticks =
+                    (unsigned short)randu0(300) + 180;
+                beetle->movement_target.x = beetle->position.x;
+                beetle->movement_target.y = beetle->position.y;
+                beetle->movement_target.z = beetle->position.z;
+                beetle->distance_limit_sq = 1.0f + frand(3.0f);
+                beetle->distance_limit_sq *= 2.0f;
+            } else if (beetle->personality_ticks < 50) {
+                beetle->speed_scale *= 0.97f;
+                beetle->fast_motion = 0;
+            } else if (beetle->personality_ticks < 120) {
+                beetle->speed_scale = 1.0f;
+            }
+        }
+    }
+}
+/*
+ * Exact-size 97.52% near miss. Residue is float-register coloring and the
+ * equivalent scheduling of the shared 4.0f distance threshold load.
+ */
+static void bl_process_beetle_runaway_personality(
+    BlBeetleControl* beetle) {
+    float x;
+    float y;
+    float z;
+    float distance_sq;
+
+    y = g_game_info.plyr0.slot.mirror_a->pos.value.y - beetle->position.y;
+    x = g_game_info.plyr0.slot.mirror_a->pos.value.x - beetle->position.x;
+    z = g_game_info.plyr0.slot.mirror_a->pos.value.z - beetle->position.z;
+    distance_sq = z * z + (x * x + y * y);
+    if (distance_sq < 4.0f) {
+        beetle->movement_state = 1;
+        beetle->personality_ticks = (unsigned short)randu0(30) + 180;
+        beetle->heading_ticks = 0;
+        beetle->speed_scale = 1.35f + frand(0.2f);
+        beetle->fast_motion = 1;
+    } else {
+        y = g_game_info.plyr1.slot.mirror_a->pos.value.y - beetle->position.y;
+        x = g_game_info.plyr1.slot.mirror_a->pos.value.x - beetle->position.x;
+        z = g_game_info.plyr1.slot.mirror_a->pos.value.z - beetle->position.z;
+        distance_sq = z * z + (x * x + y * y);
+        if (distance_sq < 4.0f) {
+            beetle->movement_state = 1;
+            beetle->personality_ticks =
+                (unsigned short)randu0(30) + 180;
+            beetle->heading_ticks = 0;
+            beetle->speed_scale = 1.35f + frand(0.2f);
+            beetle->fast_motion = 1;
+        } else if (beetle->personality_ticks > 0) {
+            if (--beetle->personality_ticks == 0) {
+                if ((unsigned short)randu0(100) < 3) {
+                    beetle->personality = 3;
+                    beetle->movement_state = 0;
+                    beetle->personality_ticks = 30;
+                } else {
+                    beetle->movement_state = 0;
+                    beetle->heading_ticks = 0;
+                    beetle->movement_target.x = beetle->position.x;
+                    beetle->movement_target.y = beetle->position.y;
+                    beetle->movement_target.z = beetle->position.z;
+                    beetle->distance_limit_sq = 1.0f + frand(3.0f);
+                    beetle->distance_limit_sq *= 2.0f;
+                }
+            } else if (beetle->personality_ticks < 50) {
+                beetle->speed_scale *= 0.96f;
+                beetle->fast_motion = 0;
+            } else {
+                beetle->speed_scale = 1.0f;
+            }
+        }
+    }
+}
+/*
+ * Exact-size 99.30% near miss; remaining differences are float-pool labels and
+ * float-register coloring in the second player-distance calculation.
+ */
+static void bl_process_beetle_transition_personality(
+    BlBeetleControl* beetle) {
+    float x;
+    float y;
+    float z;
+
+    if (--beetle->transition_ticks == 0) {
+        float scale = 1.1f + frand(0.45f);
+        unsigned int personality = (unsigned short)randu0(100);
+
+        beetle->scale.x = scale;
+        beetle->scale.y = scale;
+        beetle->scale.z = scale;
+        beetle->fast_motion = 0;
+        if (personality < 20) {
+            beetle->personality = 2;
+            beetle->movement_state = 0;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 3.0f;
+        } else if (personality < 30) {
+            beetle->personality = 3;
+            beetle->movement_state = 0;
+            beetle->personality_ticks = (unsigned short)randu0(60);
+        } else if (personality < 40) {
+            beetle->personality = 0;
+            beetle->movement_state = 0;
+            beetle->personality_ticks =
+                (unsigned short)randu0(180) + 180;
+        } else {
+            beetle->movement_target.x = g_game_info.misc->field_3C;
+            beetle->movement_target.y = g_game_info.misc->field_40;
+            beetle->movement_target.z = g_game_info.misc->field_44;
+            beetle->distance_limit_sq = 100.0f;
+            beetle->personality = 2;
+            beetle->movement_state = 6;
+            beetle->personality_ticks =
+                (unsigned short)randu0(180) + 180;
+            beetle->speed_scale = 0.5f + frand(0.25f);
+        }
+        beetle->heading_ticks = 0;
+    } else {
+        x = g_game_info.plyr0.slot.mirror_a->pos.value.x -
+            beetle->position.x;
+        y = 0.0f;
+        z = g_game_info.plyr0.slot.mirror_a->pos.value.z -
+            beetle->position.z;
+        if (x * x + y * y + z * z < 7.0f) {
+            beetle->movement_state = 1;
+            beetle->personality_ticks = beetle->transition_ticks + 3;
+            beetle->heading_ticks = 0;
+            beetle->speed_scale = 1.65f + frand(0.4f);
+            beetle->fast_motion = 1;
+        } else {
+            y = g_game_info.plyr1.slot.mirror_a->pos.value.y -
+                beetle->position.y;
+            x = g_game_info.plyr1.slot.mirror_a->pos.value.x -
+                beetle->position.x;
+            z = g_game_info.plyr1.slot.mirror_a->pos.value.z -
+                beetle->position.z;
+            if (z * z + (x * x + y * y) < 7.0f) {
+                beetle->movement_state = 1;
+                beetle->personality_ticks = beetle->transition_ticks + 3;
+                beetle->heading_ticks = 0;
+                beetle->speed_scale = 1.65f + frand(0.4f);
+                beetle->fast_motion = 1;
+            } else if (beetle->personality_ticks > 0) {
+                int ticks = beetle->personality_ticks - 1;
+
+                beetle->personality_ticks = ticks;
+                if (ticks < 30) {
+                    beetle->speed_scale *= 0.96f;
+                    beetle->fast_motion = 0;
+                } else if (beetle->personality_ticks < 100) {
+                    beetle->speed_scale = 1.0f;
+                }
+            }
+        }
+    }
+}
+/* Exact-size 99.54% near miss; all residuals are float-pool relocations. */
+static void bl_process_beetle_chilling(BlBeetleControl* beetle) {
+    int changed;
+
+    changed = 0;
+    if (--beetle->heading_ticks <= 0) {
+        beetle->wall_state = (unsigned short)randu0(3);
+        changed = 1;
+    }
+
+    switch (beetle->wall_state) {
+    case 0:
+        if (changed == 1) {
+            float x = beetle->position.x - beetle->movement_target.x;
+            float y = 0.0f;
+            float z = beetle->position.z - beetle->movement_target.z;
+
+            if (x * x + y * y + z * z >
+                beetle->distance_limit_sq - 0.2f) {
+                float heading_step;
+
+                beetle->heading_step =
+                    (180.0f * gxMathArcTanYX(x, z)) / 3.1415927f -
+                    beetle->heading_degrees;
+                heading_step = beetle->heading_step;
+                if (heading_step > 360.0f) {
+                    heading_step -= 360.0f;
+                } else if (heading_step < -360.0f) {
+                    heading_step += 360.0f;
+                }
+                if (heading_step > 360.0f) {
+                    heading_step -= 360.0f;
+                } else if (heading_step < -360.0f) {
+                    heading_step += 360.0f;
+                }
+                beetle->heading_step = heading_step;
+                beetle->heading_step /= 30.0f;
+                beetle->heading_ticks = 30;
+            } else {
+                beetle->heading_step = sfrand(2.0f);
+                beetle->heading_ticks = 15;
+            }
+        }
+        beetle->heading_degrees += beetle->heading_step;
+        break;
+    case 1:
+        if (changed == 1) {
+            float heading =
+                (3.1415927f * beetle->heading_degrees) / 180.0f;
+
+            beetle->heading_step = -0.004f * gxMathSin(heading);
+            beetle->movement_delta_a = -0.004f * gxMathCos(heading);
+            beetle->heading_ticks = (unsigned short)randu0(6) + 6;
+        }
+        beetle->position.x += beetle->heading_step;
+        beetle->position.z += beetle->movement_delta_a;
+        break;
+    case 2:
+        if (changed == 1) {
+            beetle->heading_ticks = 8;
+        }
+        break;
+    }
+}
+/*
+ * Soft ceiling 99.41%: exact size and instruction flow. The remaining objdiff
+ * entries are local constant-pool relocation labels, not behavioral code.
+ */
+static void bl_process_beetle_track_plyr(BlBeetleControl* beetle) {
+    unsigned int direction_roll;
+    float distance_sq;
+    float heading;
+    float motion_scale;
+    float x;
+    float y;
+    float z;
+
+    direction_roll = (unsigned short)randu0(100);
+    if (--beetle->heading_ticks <= 0) {
+        if (beetle->movement_state == 2) {
+            x = beetle->position.x -
+                g_game_info.plyr0.slot.mirror_a->pos.value.x;
+            z = beetle->position.z -
+                g_game_info.plyr0.slot.mirror_a->pos.value.z;
+        } else {
+            x = beetle->position.x -
+                g_game_info.plyr1.slot.mirror_a->pos.value.x;
+            z = beetle->position.z -
+                g_game_info.plyr1.slot.mirror_a->pos.value.z;
+        }
+        y = 0.0f;
+        distance_sq = x * x + y * y + z * z;
+        if (distance_sq > 4.25f) {
+            beetle->fast_motion = 1;
+        } else {
+            beetle->fast_motion = 0;
+        }
+
+        if (distance_sq > 3.0f) {
+            float heading_step;
+
+            heading = gxMathArcTanYX(x, z);
+            beetle->heading_step =
+                (180.0f * heading) / 3.1415927f + sfrand(30.0f) -
+                beetle->heading_degrees;
+            heading_step = beetle->heading_step;
+            if (heading_step > 360.0f) {
+                heading_step -= 360.0f;
+            } else if (heading_step < -360.0f) {
+                heading_step += 360.0f;
+            }
+            if (heading_step > 360.0f) {
+                heading_step -= 360.0f;
+            } else if (heading_step < -360.0f) {
+                heading_step += 360.0f;
+            }
+            beetle->heading_step = heading_step;
+            heading_step = beetle->heading_step;
+            if (heading_step > 200.0f) {
+                heading_step -= 360.0f;
+            } else if (heading_step < -200.0f) {
+                heading_step = 360.0f + heading_step;
+            }
+            beetle->heading_step = heading_step;
+            beetle->heading_step /= 25.0f;
+            beetle->heading_ticks = 25;
+        } else {
+            if (direction_roll < 50) {
+                beetle->heading_step = 3.0f + frand(2.0f);
+                if (direction_roll < 25) {
+                    beetle->heading_step *= -1.0f;
+                }
+            } else {
+                beetle->heading_step = frand(2.0f);
+                if (direction_roll < 75) {
+                    beetle->heading_step *= -1.0f;
+                }
+            }
+            beetle->heading_ticks = (unsigned short)randu0(20) + 15;
+        }
+    }
+
+    beetle->heading_degrees += beetle->heading_step;
+    heading = (3.1415927f * beetle->heading_degrees) / 180.0f;
+    if (beetle->fast_motion == 1) {
+        motion_scale = 1.0f + frand(0.5f);
+    } else {
+        motion_scale = 0.55f + frand(0.15f);
+    }
+    beetle->movement_delta_a =
+        beetle->speed_scale * (motion_scale * (-0.045f * gxMathSin(heading)));
+    beetle->movement_delta_b =
+        beetle->speed_scale * (motion_scale * (-0.045f * gxMathCos(heading)));
+    beetle->position.x += beetle->movement_delta_a;
+    beetle->position.z += beetle->movement_delta_b;
+}
 static void bl_process_beetle_climb_a_wall(void) {}
 static void bl_process_general_movement(void) {}
 static void bl_init_beetle_pebbles_second_floor(void) {}
-static void bl_init_beetle_pebbles_first_floor(void) {}
-void bgnd_clean_beetlelair(void) {
-    g_bl_beetles = 0;
+/*
+ * Clean-C ceiling: 94.88%, retail/local 2468/2428 bytes. All initialization
+ * ranges, calls, access widths, and field offsets agree. Residue is register
+ * coloring plus ten redundant constant-base/pool reloads at range boundaries
+ * that this compiler invocation carries across the adjacent loops.
+ */
+static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
+    BlBeetleControl* beetles;
+    BlBeetleControl* beetle;
+    unsigned int random_ticks;
+    int index;
+
+    index = 0;
+    beetles = (BlBeetleControl*)data->pebble_data->user_data;
+    for (; index < 6; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        float z;
+        float x;
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        z = 1.99f + sfrand(0.8f);
+        x = -1.0f + sfrand(0.8f);
+        beetle = &beetles[index];
+        pebble = &data->pebble_data->pebbles[index];
+        {
+            Vec y_axis = {0.0f, 1.0f, 0.0f};
+            Vec scale;
+            scale.x = scale.y = scale.z = local_scale;
+            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
+            beetle->position.x = x;
+            beetle->position.y = 0.0f;
+            beetle->position.z = z;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 1.0f;
+            beetle->personality = 1;
+            beetle->movement_state = 0;
+            beetle->personality_ticks = random_ticks;
+            beetle->heading_degrees = (float)(unsigned short)randu0(360);
+            beetle->heading_step = 0.0f;
+            beetle->wall_ticks = (unsigned short)randu0(60);
+            beetle->heading_ticks = 0;
+            beetle->bounce_ticks = 0;
+            beetle->field_68 = 3;
+            beetle->vertical_velocity = -0.003f;
+            beetle->fast_motion = 0;
+            beetle->transition_ticks = 0;
+            beetle->surface = 0;
+            beetle->scale.x = scale.x;
+            beetle->scale.y = scale.y;
+            beetle->scale.z = scale.z;
+            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
+                                         beetle->heading_degrees, &scale,
+                                         &beetle->position);
+        }
+    }
+    for (; index < 9; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        float z;
+        float x;
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        z = 5.0f + sfrand(0.15f);
+        x = -4.0f + sfrand(0.15f);
+        beetle = &beetles[index];
+        pebble = &data->pebble_data->pebbles[index];
+        {
+            Vec y_axis = {0.0f, 1.0f, 0.0f};
+            Vec scale;
+            scale.x = scale.y = scale.z = local_scale;
+            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
+            beetle->position.x = x;
+            beetle->position.y = 0.0f;
+            beetle->position.z = z;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 1.0f;
+            beetle->personality = 0;
+            beetle->movement_state = 0;
+            beetle->personality_ticks = random_ticks;
+            beetle->heading_degrees = (float)(unsigned short)randu0(360);
+            beetle->heading_step = 0.0f;
+            beetle->wall_ticks = (unsigned short)randu0(60);
+            beetle->heading_ticks = 0;
+            beetle->bounce_ticks = 0;
+            beetle->field_68 = 3;
+            beetle->vertical_velocity = -0.003f;
+            beetle->fast_motion = 0;
+            beetle->transition_ticks = 0;
+            beetle->surface = 0;
+            beetle->scale.x = scale.x;
+            beetle->scale.y = scale.y;
+            beetle->scale.z = scale.z;
+            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
+                                         beetle->heading_degrees, &scale,
+                                         &beetle->position);
+        }
+    }
+    for (; index < 21; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        float z;
+        float x;
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        z = 1.99f + sfrand(0.25f);
+        x = -1.0f + sfrand(0.25f);
+        beetle = &beetles[index];
+        pebble = &data->pebble_data->pebbles[index];
+        {
+            Vec y_axis = {0.0f, 1.0f, 0.0f};
+            Vec scale;
+            scale.x = scale.y = scale.z = local_scale;
+            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
+            beetle->position.x = x;
+            beetle->position.y = 0.0f;
+            beetle->position.z = z;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 0.55f;
+            beetle->personality = 4;
+            beetle->movement_state = 0;
+            beetle->personality_ticks = random_ticks;
+            beetle->heading_degrees = (float)(unsigned short)randu0(360);
+            beetle->heading_step = 0.0f;
+            beetle->wall_ticks = (unsigned short)randu0(60);
+            beetle->heading_ticks = 0;
+            beetle->bounce_ticks = 0;
+            beetle->field_68 = 3;
+            beetle->vertical_velocity = -0.003f;
+            beetle->fast_motion = 0;
+            beetle->transition_ticks = 0;
+            beetle->surface = 0;
+            beetle->scale.x = scale.x;
+            beetle->scale.y = scale.y;
+            beetle->scale.z = scale.z;
+            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
+                                         beetle->heading_degrees, &scale,
+                                         &beetle->position);
+        }
+    }
+    for (; index < 23; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        float z;
+        float x;
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        z = sfrand(7.0f);
+        x = sfrand(7.0f);
+        beetle = &beetles[index];
+        pebble = &data->pebble_data->pebbles[index];
+        {
+            Vec y_axis = {0.0f, 1.0f, 0.0f};
+            Vec scale;
+            scale.x = scale.y = scale.z = local_scale;
+            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
+            beetle->position.x = x;
+            beetle->position.y = 0.0f;
+            beetle->position.z = z;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 9.0f;
+            beetle->personality = 2;
+            beetle->movement_state = 0;
+            beetle->personality_ticks = random_ticks;
+            beetle->heading_degrees = (float)(unsigned short)randu0(360);
+            beetle->heading_step = 0.0f;
+            beetle->wall_ticks = (unsigned short)randu0(60);
+            beetle->heading_ticks = 0;
+            beetle->bounce_ticks = 0;
+            beetle->field_68 = 3;
+            beetle->vertical_velocity = -0.003f;
+            beetle->fast_motion = 0;
+            beetle->transition_ticks = 0;
+            beetle->surface = 0;
+            beetle->scale.x = scale.x;
+            beetle->scale.y = scale.y;
+            beetle->scale.z = scale.z;
+            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
+                                         beetle->heading_degrees, &scale,
+                                         &beetle->position);
+        }
+    }
+    for (; index < 27; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        float y;
+        float x;
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(180) + 180;
+        y = 2.0f + sfrand(1.5f);
+        x = sfrand(2.5f);
+        beetle = &beetles[index];
+        pebble = &data->pebble_data->pebbles[index];
+        {
+            Vec y_axis = {0.0f, 1.0f, 0.0f};
+            Vec scale;
+            scale.x = scale.y = scale.z = local_scale;
+            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
+            beetle->position.x = x;
+            beetle->position.y = y;
+            beetle->position.z = 15.17f;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 9.0f;
+            beetle->personality = 2;
+            beetle->movement_state = 5;
+            beetle->personality_ticks = random_ticks;
+            beetle->heading_degrees = (float)(unsigned short)randu0(360);
+            beetle->heading_step = 0.0f;
+            beetle->wall_ticks = (unsigned short)randu0(60);
+            beetle->heading_ticks = 0;
+            beetle->bounce_ticks = 0;
+            beetle->field_68 = 3;
+            beetle->vertical_velocity = -0.003f;
+            beetle->fast_motion = 0;
+            beetle->transition_ticks = 0;
+            beetle->surface = 1;
+            beetle->scale.x = scale.x;
+            beetle->scale.y = scale.y;
+            beetle->scale.z = scale.z;
+            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
+                                         beetle->heading_degrees, &scale,
+                                         &beetle->position);
+        }
+    }
+    for (; index < 31; index++) {
+        float local_scale = 1.0f + frand(0.45f);
+        float z;
+        float x;
+        Pebble* pebble;
+        random_ticks = (unsigned short)randu0(60);
+        z = sfrand(7.0f);
+        x = sfrand(7.0f);
+        beetle = &beetles[index];
+        pebble = &data->pebble_data->pebbles[index];
+        {
+            Vec y_axis = {0.0f, 1.0f, 0.0f};
+            Vec scale;
+            scale.x = scale.y = scale.z = local_scale;
+            beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
+            beetle->position.x = x;
+            beetle->position.y = 0.0f;
+            beetle->position.z = z;
+            beetle->movement_target.x = beetle->position.x;
+            beetle->movement_target.y = beetle->position.y;
+            beetle->movement_target.z = beetle->position.z;
+            beetle->distance_limit_sq = 9.0f;
+            beetle->personality = 3;
+            beetle->movement_state = 0;
+            beetle->personality_ticks = random_ticks;
+            beetle->heading_degrees = (float)(unsigned short)randu0(360);
+            beetle->heading_step = 0.0f;
+            beetle->wall_ticks = (unsigned short)randu0(60);
+            beetle->heading_ticks = 0;
+            beetle->bounce_ticks = 0;
+            beetle->field_68 = 3;
+            beetle->vertical_velocity = -0.003f;
+            beetle->fast_motion = 0;
+            beetle->transition_ticks = 0;
+            beetle->surface = 0;
+            beetle->scale.x = scale.x;
+            beetle->scale.y = scale.y;
+            beetle->scale.z = scale.z;
+            MKMatrixRotateScaleTranslate(&pebble->matrix, &y_axis,
+                                         beetle->heading_degrees, &scale,
+                                         &beetle->position);
+        }
+    }
+    data->pebble_data->count = 31;
 }
-void bgnd_reg_col_cb_for_beetle_lair(void) {}
-static void beetle_lair_collision_cb(void) {}
+void bgnd_clean_beetlelair(void) { g_bl_beetles = 0; }
+static int beetle_lair_collision_cb(BgndObstacleEventData* event);
+void bgnd_reg_col_cb_for_beetle_lair(void) {
+    set_arena_obstacle_callback(beetle_lair_collision_cb);
+    set_background_obstacle_repel_flag(0x41, 0);
+    set_background_obstacle_repel_flag(0x42, 0);
+}
+static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
+    (void)event;
+    return 0;
+}
 void r_beetle_lair_transition(void) {}
 static void beetle_lair_react_to_wall_danger_zone_cb(void) {}
 static void p_beetle_lair_wall_breaking_controller(void) {}
@@ -690,8 +1825,116 @@ void bgnd_set_viewing_of_danger_zones(int enabled) {
     g_game_info.switch_input_flags.view_danger_zones = enabled;
     set_collision_render_state(enabled);
 }
-void bgnd_set_danger_zone_y_angle(void) {}
-void bgnd_set_danger_zone_depth(void) {}
+void bgnd_set_danger_zone_y_angle(float y_angle) {
+    ArenaObstacle* obstacle;
+    BgndDangerZone* zone;
+    CollisionShape box_shape __attribute__((aligned(16)));
+    CollisionShape cylinder_shape __attribute__((aligned(16)));
+    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+
+    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+    if (zone->shape_type == 0) {
+        if (g_active_bgnd_danger_zone <= 24) {
+            zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+            if (zone->obstacle != 0) {
+                delete_obstacle_from_background_by_id(zone->obstacle_id);
+                zone->obstacle = 0;
+            }
+        }
+        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+        zone->y_angle = y_angle;
+        switch (zone->shape_type) {
+        case 0:
+            build_col_shape_vertical_box(
+                &box_shape, &zone->center, zone->width, zone->height,
+                zone->depth, zone->y_angle);
+            obstacle = add_shape_to_background_obstacle_list(
+                &box_shape, zone->obstacle_id);
+            obstacle = obstacle != 0 ? obstacle : 0;
+            obstacle->flags.bits.danger_zone = 1;
+            break;
+        case 1:
+            build_col_shape_vertical_cylinder(
+                &cylinder_shape, &zone->center, zone->width, zone->height);
+            obstacle = add_shape_to_background_obstacle_list(
+                &cylinder_shape, zone->obstacle_id);
+            obstacle = obstacle != 0 ? obstacle : 0;
+            obstacle->flags.bits.danger_zone = 1;
+            break;
+        case 2:
+            build_col_shape_vertical_cylinder(
+                &special_cylinder_shape, &zone->center, zone->width,
+                zone->height);
+            obstacle = add_shape_to_background_obstacle_list(
+                &special_cylinder_shape, zone->obstacle_id);
+            obstacle = obstacle != 0 ? obstacle : 0;
+            obstacle->flags.value |= 0x10;
+            obstacle->flags.bits.danger_zone = 1;
+            break;
+        default:
+            obstacle = 0;
+            break;
+        }
+        zone->obstacle = obstacle;
+        set_background_obstacle_repel_flag(zone->obstacle_id, 0);
+        bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
+    }
+}
+void bgnd_set_danger_zone_depth(float depth) {
+    ArenaObstacle* obstacle;
+    BgndDangerZone* zone;
+    CollisionShape box_shape __attribute__((aligned(16)));
+    CollisionShape cylinder_shape __attribute__((aligned(16)));
+    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+
+    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+    if (zone->shape_type == 0) {
+        if (g_active_bgnd_danger_zone <= 24) {
+            zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+            if (zone->obstacle != 0) {
+                delete_obstacle_from_background_by_id(zone->obstacle_id);
+                zone->obstacle = 0;
+            }
+        }
+        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+        zone->depth = depth;
+        switch (zone->shape_type) {
+        case 0:
+            build_col_shape_vertical_box(
+                &box_shape, &zone->center, zone->width, zone->height,
+                zone->depth, zone->y_angle);
+            obstacle = add_shape_to_background_obstacle_list(
+                &box_shape, zone->obstacle_id);
+            obstacle = obstacle != 0 ? obstacle : 0;
+            obstacle->flags.bits.danger_zone = 1;
+            break;
+        case 1:
+            build_col_shape_vertical_cylinder(
+                &cylinder_shape, &zone->center, zone->width, zone->height);
+            obstacle = add_shape_to_background_obstacle_list(
+                &cylinder_shape, zone->obstacle_id);
+            obstacle = obstacle != 0 ? obstacle : 0;
+            obstacle->flags.bits.danger_zone = 1;
+            break;
+        case 2:
+            build_col_shape_vertical_cylinder(
+                &special_cylinder_shape, &zone->center, zone->width,
+                zone->height);
+            obstacle = add_shape_to_background_obstacle_list(
+                &special_cylinder_shape, zone->obstacle_id);
+            obstacle = obstacle != 0 ? obstacle : 0;
+            obstacle->flags.value |= 0x10;
+            obstacle->flags.bits.danger_zone = 1;
+            break;
+        default:
+            obstacle = 0;
+            break;
+        }
+        zone->obstacle = obstacle;
+        set_background_obstacle_repel_flag(zone->obstacle_id, 0);
+        bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
+    }
+}
 void bgnd_set_danger_zone_width(float width);
 void bgnd_set_danger_zone_radius(float radius) {
     int shape_type;
@@ -752,7 +1995,57 @@ void bgnd_set_danger_zone_width(float width) {
     set_background_obstacle_repel_flag(zone->obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
 }
-void bgnd_set_danger_zone_center_position(void) {}
+void bgnd_set_danger_zone_center_position(float x, float y, float z) {
+    ArenaObstacle* obstacle;
+    BgndDangerZone* zone;
+    CollisionShape box_shape __attribute__((aligned(16)));
+    CollisionShape cylinder_shape __attribute__((aligned(16)));
+    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+
+    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+    zone->center.x = x;
+    zone->center.y = y;
+    zone->center.z = z;
+    if (g_active_bgnd_danger_zone <= 24 && zone->obstacle != 0) {
+        delete_obstacle_from_background_by_id(zone->obstacle_id);
+        zone->obstacle = 0;
+    }
+    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
+    switch (zone->shape_type) {
+    case 0:
+        build_col_shape_vertical_box(
+            &box_shape, &zone->center, zone->width, zone->height,
+            zone->depth, zone->y_angle);
+        obstacle = add_shape_to_background_obstacle_list(
+            &box_shape, zone->obstacle_id);
+        obstacle = obstacle != 0 ? obstacle : 0;
+        obstacle->flags.bits.danger_zone = 1;
+        break;
+    case 1:
+        build_col_shape_vertical_cylinder(
+            &cylinder_shape, &zone->center, zone->width, zone->height);
+        obstacle = add_shape_to_background_obstacle_list(
+            &cylinder_shape, zone->obstacle_id);
+        obstacle = obstacle != 0 ? obstacle : 0;
+        obstacle->flags.bits.danger_zone = 1;
+        break;
+    case 2:
+        build_col_shape_vertical_cylinder(
+            &special_cylinder_shape, &zone->center, zone->width, zone->height);
+        obstacle = add_shape_to_background_obstacle_list(
+            &special_cylinder_shape, zone->obstacle_id);
+        obstacle = obstacle != 0 ? obstacle : 0;
+        obstacle->flags.value |= 0x10;
+        obstacle->flags.bits.danger_zone = 1;
+        break;
+    default:
+        obstacle = 0;
+        break;
+    }
+    zone->obstacle = obstacle;
+    set_background_obstacle_repel_flag(zone->obstacle_id, 0);
+    bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
+}
 /* Soft ceiling 89.78%: exact behavior; retail selects lwzu field induction. */
 void bgnd_delete_danger_zone(unsigned int zone_index) {
     BgndDangerZone* zone;
@@ -829,7 +2122,73 @@ void bgnd_set_active_danger_zone(unsigned int zone) {
         g_active_bgnd_danger_zone = zone;
     }
 }
-void bgnd_create_danger_zone(void) {}
+void bgnd_create_danger_zone(
+    int shape_type, unsigned int zone_index, unsigned int obstacle_id,
+    float height, unsigned int collision_script_function) {
+    ArenaObstacle* obstacle;
+    BgndDangerZone* zone;
+    Vec center = {0.0f, 0.0f, 0.0f};
+    CollisionShape box_shape __attribute__((aligned(16)));
+    CollisionShape cylinder_shape __attribute__((aligned(16)));
+    CollisionShape special_cylinder_shape __attribute__((aligned(16)));
+
+    if (shape_type < 3 && zone_index < 24) {
+        if (get_obstacle_type_from_id(obstacle_id) != 7) {
+            return;
+        }
+        zone = &bgnd_danger_zones[zone_index];
+        if (zone->obstacle == 0) {
+            zone->shape_type = shape_type;
+            zone->obstacle_id = obstacle_id;
+            zone->collision_script_function = collision_script_function;
+            zone->height = height;
+            zone->width = 1.0f;
+            zone->depth = 1.0f;
+            zone->y_angle = 0.0f;
+            zone->center = center;
+            switch (zone->shape_type) {
+            case 0:
+                build_col_shape_vertical_box(
+                    &box_shape, &zone->center, zone->width, zone->height,
+                    zone->depth, zone->y_angle);
+                obstacle = add_shape_to_background_obstacle_list(
+                    &box_shape, zone->obstacle_id);
+                obstacle = obstacle != 0 ? obstacle : 0;
+                obstacle->flags.bits.danger_zone = 1;
+                break;
+            case 1:
+                build_col_shape_vertical_cylinder(
+                    &cylinder_shape, &zone->center, zone->width, zone->height);
+                obstacle = add_shape_to_background_obstacle_list(
+                    &cylinder_shape, zone->obstacle_id);
+                obstacle = obstacle != 0 ? obstacle : 0;
+                obstacle->flags.bits.danger_zone = 1;
+                break;
+            case 2:
+                build_col_shape_vertical_cylinder(
+                    &special_cylinder_shape, &zone->center, zone->width,
+                    zone->height);
+                obstacle = add_shape_to_background_obstacle_list(
+                    &special_cylinder_shape, zone->obstacle_id);
+                obstacle = obstacle != 0 ? obstacle : 0;
+                obstacle->flags.value |= 0x10;
+                obstacle->flags.bits.danger_zone = 1;
+                break;
+            default:
+                obstacle = 0;
+                break;
+            }
+            zone->obstacle = obstacle;
+            if (collision_script_function != 0) {
+                bgnd_collision_if_monitor_col_as(
+                    7, obstacle_id, collision_script_function, 0);
+            }
+            set_background_obstacle_repel_flag(obstacle_id, 0);
+            bgnd_enable_danger_zone(zone_index, 0);
+            g_active_bgnd_danger_zone = zone_index;
+        }
+    }
+}
 static float plyr_is_prone(void) {
     stop_me();
     plyr_obj->pos.value.y = 100.0f;
@@ -1854,12 +3213,16 @@ static float p_bgnd_launch_chunk_monitor(void) {
     }
     return 1.0f;
 }
-/* Retail spells the two invalid cases as separate nulling branches. */
+/* Clean near miss: 91.54%; retail retains one redundant success-edge branch. */
 MkHdr* get_sobj_pebble_obj(MkSobj* object) {
     MkHdr* bound;
 
     bound = object->bound_hdr;
-    if (bound != 0 && bound->instance != object->bound_instance) {
+    if (bound != 0) {
+        if (bound->instance != object->bound_instance) {
+            bound = 0;
+        }
+    } else {
         bound = 0;
     }
     return bound;
@@ -1992,7 +3355,7 @@ void pebble_set_vel(int player, int index, Vec* velocity) {
     pebble->velocity.y = velocity->y;
     pebble->velocity.z = velocity->z;
 }
-/* Exact-size typed copy; residue is indexed first access vs pre-added base. */
+/* Near match: exact 60-byte instruction stream; global relocations differ. */
 void pebble_get_pos(int player, int index, Vec* position) {
     BgndPebbleControl* pebbles;
     BgndPebbleControl* pebble;
@@ -2003,7 +3366,7 @@ void pebble_get_pos(int player, int index, Vec* position) {
     position->y = pebble->position.y;
     position->z = pebble->position.z;
 }
-/* Exact-size typed copy; residue is indexed first access vs pre-added base. */
+/* Near match: exact 60-byte instruction stream; global relocations differ. */
 void pebble_set_pos(int player, int index, Vec* position) {
     BgndPebbleControl* pebbles;
     BgndPebbleControl* pebble;
@@ -2740,15 +4103,53 @@ void bgnd_pebble_rand_scale(int player, void* script, float base,
  * Exact-size typed loop. Retail hoists the userdata base and advances a byte
  * offset; typed indexing reloads the stable base and colors the loop GPRs.
  */
-void bgnd_pebble_gravity(int player, float gravity) {
+void bgnd_pebble_gravity(int player, void* script, float gravity) {
+    BgndPebbleControl* pebbles;
     unsigned int index;
 
+    (void)script;
+    pebbles = g_pebbles[player]->pebbles;
     for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
          index++) {
-        g_pebbles[player]->pebbles[index].gravity = gravity;
+        pebbles[index].gravity = gravity;
     }
 }
-void bgnd_init_pebbles(void) {}
+/* Near match: size-identical 288-byte stream; only the 0.5f pool label differs. */
+void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
+    BgndPebbleControl* pebble;
+    unsigned int index;
+
+    for (index = first; index < end; index++) {
+        pebble = &g_pebbles[player]->pebbles[index];
+        pebble->position.z = 0.0f;
+        pebble->position.y = 0.0f;
+        pebble->position.x = 0.0f;
+        pebble->scale.z = 1.0f;
+        pebble->scale.y = 1.0f;
+        pebble->scale.x = 1.0f;
+        pebble->angles.z = 0.0f;
+        pebble->angles.y = 0.0f;
+        pebble->angles.x = 0.0f;
+        pebble->angular_velocity.z = 0.0f;
+        pebble->angular_velocity.y = 0.0f;
+        pebble->angular_velocity.x = 0.0f;
+        pebble->velocity.z = 0.0f;
+        pebble->velocity.y = 0.0f;
+        pebble->velocity.x = 0.0f;
+        pebble->bounce_flags = 0;
+        pebble->state = 0;
+        pebble->bounce_ticks = 0;
+        pebble->launch_ticks = 0;
+        pebble->gravity = 0.0f;
+        pebble->bounce_velocity.x = 0.0f;
+        pebble->bounce_velocity.z = 0.0f;
+        pebble->bounce_velocity.y = 0.5f;
+        MKMatrixRotatXZYScaleTranslate(
+            &g_pebbles[player]->matrices[index], pebble->angles.x,
+            pebble->angles.z, pebble->angles.y,
+            &pebble->scale, &pebble->position);
+    }
+}
 /*
  * Exact state gating, integration, and matrix update; 94.61%, retail/local
  * 288/280 bytes. Retail uses independent 0x70 control and 0x40 matrix byte
@@ -3661,14 +5062,13 @@ void bgnd_collison_if_to_scripts_activate(void) {
 void bgnd_collison_if_set_return_result(int result) {
     g_active_bgnd_col_item->flags.bits.return_result = result;
 }
-/* Soft ceiling 81.09%: exact dataflow; latch-branch shape and coloring differ. */
-void bgnd_collison_if_set_info(void) {
+static inline void bgnd_apply_collision_info(BgndObstacleEventData* event) {
     MkObj* opponent_object;
     MkObj* player_object;
     PlyrPdata* opponent;
     PlyrPdata* player;
 
-    player = g_active_obstacle_event_data->player_pdata;
+    player = event->player_pdata;
     player_object = bgnd_get_live_tracked_obj(player);
     if (player_object != 0) {
         opponent = player->his_plyr_pdata;
@@ -3676,21 +5076,21 @@ void bgnd_collison_if_set_info(void) {
         if (opponent_object != 0) {
             g_game_info.collision_player_info = player->plyr_info;
             g_game_info.active_player = opponent->plyr_info;
-            g_game_info.impact_vector.x =
-                g_active_obstacle_event_data->impact_vector->x;
-            g_game_info.impact_vector.y =
-                g_active_obstacle_event_data->impact_vector->y;
-            g_game_info.impact_vector.z =
-                g_active_obstacle_event_data->impact_vector->z;
+            g_game_info.impact_vector.x = event->impact_vector->x;
+            g_game_info.impact_vector.y = event->impact_vector->y;
+            g_game_info.impact_vector.z = event->impact_vector->z;
             g_game_info.player_objects[0] = opponent_object;
             g_game_info.player_objects[1] = player_object;
             g_game_info.collision_player_pdata = player;
-            g_game_info.collision_player_side =
-                g_active_obstacle_event_data->flag_bits.player_side;
-            g_game_info.collision_event_id =
-                g_active_obstacle_event_data->event_id;
+            g_game_info.collision_player_side = event->flag_bits.player_side;
+            g_game_info.collision_event_id = event->event_id;
         }
     }
+}
+
+/* Soft ceiling 82.32%: exact dataflow; latch-branch shape and coloring differ. */
+void bgnd_collison_if_set_info(void) {
+    bgnd_apply_collision_info(g_active_obstacle_event_data);
 }
 /* Soft ceiling 90.00%: exact body; GPR save/restore emission differs. */
 void bgnd_collision_if_rx_override(unsigned int collision_id) {
@@ -3906,30 +5306,302 @@ static int bgnd_collision_to_script_interface(BgndObstacleEventData* event) {
 }
 void bgnd_swap_level(void) {}
 void bgnd_move_plyrs_to_initial_pos(void) {}
-void bgnd_set_new_ground_plane(void) {}
-void bgnd_set_player_shadow_ground_plane(void) {}
-void bgnd_enable_wall_hider(void) {}
+void bgnd_set_new_ground_plane(void* script, float ground_y) {
+    (void)script;
+    if (g_game_info.bgnd_id >= 0) {
+        g_game_info.field_34 = ground_y;
+    }
+    cloth_change_ground_plane_for(ground_y);
+    if (g_game_info.plyr0.slot.shadow_object != 0) {
+        g_game_info.plyr0.slot.shadow_object->ground_colls_y = ground_y;
+        shadow_set_new_ground_plane(
+            g_game_info.plyr0.slot.shadow,
+            g_game_info.plyr0.slot.shadow_ground, ground_y);
+    }
+    if (g_game_info.plyr1.slot.shadow_object != 0) {
+        g_game_info.plyr1.slot.shadow_object->ground_colls_y = ground_y;
+        shadow_set_new_ground_plane(
+            g_game_info.plyr1.slot.shadow,
+            g_game_info.plyr1.slot.shadow_ground, ground_y);
+    }
+    cam_set_ground_plane(ground_y);
+}
+void bgnd_set_player_shadow_ground_plane(int player, float ground_y) {
+    if (player == 0 && g_game_info.plyr0.slot.shadow_object != 0) {
+        g_game_info.plyr0.slot.shadow_object->ground_colls_y = ground_y;
+        shadow_set_new_ground_plane(
+            g_game_info.plyr0.slot.shadow,
+            g_game_info.plyr0.slot.shadow_ground, ground_y);
+    }
+    if (player == 1 && g_game_info.plyr1.slot.shadow_object != 0) {
+        g_game_info.plyr1.slot.shadow_object->ground_colls_y = ground_y;
+        shadow_set_new_ground_plane(
+            g_game_info.plyr1.slot.shadow,
+            g_game_info.plyr1.slot.shadow_ground, ground_y);
+    }
+}
+void bgnd_enable_wall_hider(unsigned int enabled) {
+    if (enabled != 0) {
+        if (g_game_info.wall_hider != 0) {
+            g_game_info.wall_hider->flag_bits.disabled = 0;
+        }
+    } else if (g_game_info.wall_hider != 0) {
+        g_game_info.wall_hider->flag_bits.disabled = 1;
+    }
+}
 void bgnd_set_wall_hide_distance(void* script, float distance) {
     (void)script;
     g_game_info.wall_hider->hide_distance = distance;
 }
-void bgnd_add_fx_to_hide(void) {}
-void bgnd_add_wall_to_unhide(void) {}
-void bgnd_add_wall_to_hide(void) {}
-void bgnd_add_new_normal_check_for_hider(void) {}
-void bgnd_start_wall_hider(void) {}
-void bgnd_remove_wall_from_hider(void) {}
-static void p_hide_walls(void) {}
+/* Near match: 98.83%, exact size and flow; the append count/base temporaries
+ * use the opposite pair of volatile registers. */
+void bgnd_add_fx_to_hide(const char* effect_name) {
+    BgndWallHiderRuntime* runtime;
+    unsigned int effect_index;
+    int effect;
+
+    if (g_game_info.wall_hider != 0) {
+        runtime = g_game_info.wall_hider->runtime;
+        if (runtime != 0 && runtime->hidden_effect_count < 4) {
+            effect = fx_by_owner(effect_name, 4);
+            runtime = g_game_info.wall_hider->runtime;
+            effect_index = runtime->hidden_effect_count;
+            runtime->hidden_effect_count = effect_index + 1;
+            runtime->hidden_effects[effect_index] = effect;
+        }
+    }
+}
+/* Near match: 99.33%, exact 208-byte flow; append-index locals differ only in
+ * temporary register allocation. */
+void bgnd_add_wall_to_unhide(int object_id) {
+    BgndWallHiderRuntime* runtime;
+    unsigned int index;
+    MkSobj* object;
+
+    if (g_game_info.wall_hider != 0) {
+        runtime = g_game_info.wall_hider->runtime;
+        if (runtime != 0 && runtime->unhide_count < 8) {
+            obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+            if (g_game_info.bgnd_obj != 0) {
+                object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+                if (object != 0) {
+                    sobj_set_priority(object, 0x14);
+                }
+            }
+            obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+            if (g_game_info.bgnd_obj != 0) {
+                object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+                if (object != 0) {
+                    hide_sobj(object);
+                }
+            }
+            runtime = g_game_info.wall_hider->runtime;
+            index = runtime->unhide_count;
+            runtime->unhide_count = index + 1;
+            runtime->walls_to_unhide[index] = object_id;
+        }
+    }
+}
+/* Near match: 99.13%, exact 160-byte flow; append-index locals differ only in
+ * temporary register allocation. */
+void bgnd_add_wall_to_hide(int object_id) {
+    BgndWallHiderRuntime* runtime;
+    unsigned int index;
+    MkSobj* object;
+
+    if (g_game_info.wall_hider != 0) {
+        runtime = g_game_info.wall_hider->runtime;
+        if (runtime != 0 && runtime->hide_count < 8) {
+            obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+            if (g_game_info.bgnd_obj != 0) {
+                object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+                if (object != 0) {
+                    unhide_sobj(object);
+                }
+            }
+            runtime = g_game_info.wall_hider->runtime;
+            index = runtime->hide_count;
+            runtime->hide_count = index + 1;
+            runtime->walls_to_hide[index] = object_id;
+        }
+    }
+}
+/* Exact retail initialization, typed normal fields, and wall-hider ownership. */
+void bgnd_add_new_normal_check_for_hider(
+    void* script_args, float normal_x, float normal_y, float normal_z,
+    float distance) {
+    BgndWallHiderRuntime* runtime;
+
+    (void)script_args;
+    runtime = (BgndWallHiderRuntime*)get_mkhdr_generic(
+        sizeof(BgndWallHiderRuntime));
+    runtime->normal.z = 0.0f;
+    runtime->normal.y = 0.0f;
+    runtime->normal.x = 0.0f;
+    runtime->normal_distance = 0.0f;
+    runtime->normal_flags = 0;
+    runtime->hide_count = 0;
+    runtime->unhide_count = 0;
+    runtime->hidden_effect_count = 0;
+    if (runtime != 0) {
+        runtime->normal.x = normal_x;
+        runtime->normal.y = normal_y;
+        runtime->normal.z = normal_z;
+        runtime->normal_distance = distance;
+        g_game_info.wall_hider->runtime = runtime;
+        mk_insert(&runtime->hdr, &g_game_info.wall_hider->walls);
+    }
+}
+/* Exact 152-byte instruction stream; the only objdiff residue is the pooled
+ * 100.0f constant's local symbol label. */
+void bgnd_start_wall_hider(int unused) {
+    BgndWallHiderData* hider;
+    MkProc* process;
+
+    (void)unused;
+    hider = 0;
+    process = _create_mkproc_generic_tinystack(
+        0x8107, 0x1F, p_hide_walls, sizeof(BgndWallHiderData),
+        (MkHdr**)&hider);
+    if (process != 0 && hider != 0) {
+        hider->walls = 0;
+        hider->hide_distance = 100.0f;
+        hider->flags = 0;
+        mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        g_game_info.wall_hider = hider;
+    }
+}
+/* Near match: exact 212-byte traversal and removal; only the initial list-head
+ * address is kept in r3 locally instead of recomputed from the hider base. */
+void bgnd_remove_wall_from_hider(unsigned int object_id) {
+    BgndWallHiderRuntime* runtime;
+    MkPtr* link;
+    MkPtr* next;
+    unsigned int index;
+
+    if (&g_game_info.wall_hider->walls != 0) {
+        link = g_game_info.wall_hider->walls;
+        while (link != 0) {
+            runtime = (BgndWallHiderRuntime*)link->hdr;
+            if (link->instance != runtime->hdr.instance) {
+                next = link->next;
+                link->hdr = 0;
+                destroy_mkptr(link);
+                link = next;
+            } else {
+                index = 0;
+                while (index < runtime->hide_count) {
+                    if (runtime->walls_to_hide[index] == object_id) {
+                        runtime->hide_count--;
+                        if (runtime->hide_count != 0) {
+                            runtime->walls_to_hide[index] =
+                                runtime->walls_to_hide[runtime->hide_count];
+                        }
+                        break;
+                    }
+                    index++;
+                }
+                link = link->next;
+            }
+        }
+    }
+}
+static float p_hide_walls(void) { return 0.0f; }
 void bgnd_place_object_at_position(void) {}
 void bgnd_place_weapon_at_position(void) {}
-void bgnd_get_item_from_displayed_list(void) {}
-void disable_bgnd_obj_repel(void) {}
-void enable_bgnd_obj_repel(void) {}
+BgndDisplayedItem* bgnd_get_item_from_displayed_list(int item_id) {
+    BgndDisplayedItem* item;
+    MkPtr** list;
+    MkPtr* link;
+    MkPtr* next;
+
+    list = &g_game_info.displayed_items;
+    if (list != 0) {
+        link = *list;
+        while (link != 0) {
+            item = (BgndDisplayedItem*)link->hdr;
+            if (link->instance != item->hdr.instance) {
+                next = link->next;
+                link->hdr = 0;
+                destroy_mkptr(link);
+                link = next;
+            } else {
+                if (item->id == item_id) {
+                    return item;
+                }
+                link = link->next;
+            }
+        }
+    }
+    return 0;
+}
+void disable_bgnd_obj_repel(BgndDisplayedItem* item) {
+    ArenaObstacle* obstacle;
+
+    obstacle = item->obstacle;
+    if (obstacle != 0 && !g_game_info.feature_flags.bits.high_bit) {
+        obstacle->flags.bits.disabled = 1;
+    }
+}
+void enable_bgnd_obj_repel(BgndDisplayedItem* item) {
+    ArenaObstacle* obstacle;
+
+    obstacle = item->obstacle;
+    if (obstacle != 0 && !g_game_info.feature_flags.bits.high_bit) {
+        obstacle->flags.bits.disabled = 0;
+    }
+}
 int bgnd_get_exec_tick_ctr(void) {
     return exec_tick_ctr;
 }
-void bgnd_act_at_time(void) {}
-static void p_act_at_time(void) {}
+void bgnd_act_at_time(int ticks, int script_function, void* script,
+                      float x, float y, float z) {
+    BgndActAtTimeData* data;
+    MkProc* process;
+
+    (void)script;
+    data = 0;
+    process = _create_mkproc_generic_tinystack(
+        0xC013, 0x2E, p_act_at_time, sizeof(BgndActAtTimeData),
+        (MkHdr**)&data);
+    if (process != 0) {
+        data->ticks = ticks;
+        data->script_function = script_function;
+        data->parameters.x = x;
+        data->parameters.y = y;
+        data->parameters.z = z;
+        data->ground_plane = g_game_info.field_34;
+        mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+    }
+}
+
+/* Exact 168-byte instruction stream; only the pooled -1.0f symbol label
+ * differs in objdiff. */
+static float p_act_at_time(void) {
+    BgndActAtTimeData* data;
+    float y;
+    float z;
+    int ticks;
+
+    data = (BgndActAtTimeData*)pdata_of_proc(aproc);
+    if (data->ground_plane != g_game_info.field_34) {
+        return -1.0f;
+    }
+    ticks = data->ticks - 1;
+    data->ticks = ticks;
+    if (ticks != 0) {
+        return 1.0f;
+    }
+    z = data->parameters.z;
+    y = data->parameters.y;
+    g_bgnd_scratch_pad_vectors[0].x = data->parameters.x;
+    g_bgnd_scratch_pad_vectors[0].y = y;
+    g_bgnd_scratch_pad_vectors[0].z = z;
+    active_cmdscript = &global_script_interpreter;
+    cmdscript_setup_execution(g_game_info.cmdscript, data->script_function);
+    cmdscript_execute(g_game_info.cmdscript);
+    return -1.0f;
+}
 /* Exact calls/arguments; 73.60%, retail/local 100/108 bytes from stmw/lmw. */
 void bgnd_run_camera_script(int argument, int flags) {
     camera_set_attacker(g_game_info.player_objects[1]);
@@ -4162,17 +5834,65 @@ void spad_scale_vector(int destination, unsigned int source, void* script,
     output->y = input->y * scale;
     output->z = input->z * scale;
 }
-void bgnd_xfer_attacker(void) {}
+void bgnd_xfer_attacker(int script_function) {
+    MkProc* process;
+    CmdScript* script;
+
+    process = get_player_proc(g_game_info.player_objects[1]);
+    script = get_cmdscript_for_proc(process);
+    run_reaction_cleanup_function(g_game_info.collision_player_info->slot.pdata);
+    script->unk28 = script_function;
+    xfer_player_proc(process, bgnd_call_script_function);
+}
 void bgnd_process_collision_info(void) {}
+/* Near match: exact 136-byte operations and ABI; only the successful process
+ * instance-latch path uses the opposite equivalent conditional branch. */
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player) {
-    (void)player;
+    CmdScript* script;
+    MkProc* process;
+
+    process = player->own_player_proc;
+    if (process != 0) {
+        if (process->instance != player->own_player_proc_instance) {
+            process = 0;
+        }
+    } else {
+        process = 0;
+    }
+    script = get_cmdscript_for_proc(process);
+    if (process != 0) {
+        run_reaction_cleanup_function(player);
+        script->unk28 = 0x8E;
+        xfer_player_proc(process, r_call_script_function);
+    }
 }
 void dont_fence_plyr_in(int disabled) {
     plyr_obj->flags_0B_bits.bit6 = disabled;
 }
-void bgnd_takeover_plyr(void) {}
-void bgnd_process_active_sobj_info(void) {}
+void bgnd_takeover_plyr(PlyrInfo* player) {
+    player->slot.pdata->state_flags.bits.bit3 = 1;
+    player->slot.mirror_a->flags_09_bits.launched = 0;
+    player->slot.mirror_a->flags_09_bits.bit6 = 0;
+    player->slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+    player->slot.mirror_a->flags_09_bits.head_tracking = 0;
+    player->slot.mirror_a->flags_0B_bits.bit6 = 1;
+    player->slot.mirror_a->flags_0B_bits.bit3 = 1;
+    player->slot.mirror_a->flags_09_bits.face_opponent = 0;
+}
+/* Near match: 96.56%, exact 128-byte operations; retail keeps a redundant
+ * switch-dispatch edge and uses different pool relocation labels. */
+float bgnd_process_active_sobj_info(
+    int info_id, void* script_args, float angle_component, float offset) {
+    (void)script_args;
+    if (info_id == 6) {
+        g_active_sobj->flags_08_bits.bit3 = 1;
+        g_active_sobj->ang.x = g_active_sobj->ang.y =
+            g_active_sobj->ang.z = 0.0f;
+        g_active_sobj->ang.y = offset + gxMathArcCos(angle_component);
+    }
+    return 0.0f;
+}
 void bgnd_move_player(unsigned int player, int position_index,
                       int angle_index) {
     MkObj* object;
@@ -4193,7 +5913,13 @@ int bgnd_get_first_shape_center_for_obstacle_id(int obstacle_id,
         obstacle_id, &g_bgnd_scratch_pad_vectors[scratch_index]);
 }
 void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(void) {}
-void bgnd_rotate_xz_about_orgin_active_sobj(void) {}
+void bgnd_rotate_xz_about_orgin_active_sobj(float angle) {
+    g_active_sobj->flags_08_bits.bit6 = 1;
+    g_active_sobj->flags_08_bits.bit3 = 1;
+    rotate_xz(&g_active_sobj->pos, &g_active_sobj->pos, angle);
+    g_active_sobj->ang.y = angle;
+    update_mksobj(g_active_sobj);
+}
 void bgnd_hide_active_sobj(void) {
     hide_sobj(g_active_sobj);
 }
@@ -4307,9 +6033,39 @@ int bgnd_is_active_sobj_hidden(void) {
 void bgnd_set_active_sobj(int object_id) {
     g_active_sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
 }
-void bgnd_sobj_cam_frustum_test_into_transparent(void) {}
-void obj_sobj_cam_frustum_test_into_transparent(void) {}
-void bgnd_sobj_cam_volume_test_steer_over(void) {}
+void bgnd_sobj_cam_frustum_test_into_transparent(
+    unsigned int sobj_id, float scale, float y_offset) {
+    MkSobj* object;
+    BackgroundDangerZone* zone;
+
+    object = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
+    if (object != 0) {
+        zone = add_background_danger_zone(object->atomic, 1, 1);
+        set_danger_zone_properties(zone, scale, y_offset);
+    }
+}
+void obj_sobj_cam_frustum_test_into_transparent(
+    MkObj* object, unsigned int sobj_id, float scale, float y_offset) {
+    MkSobj* subobject;
+    BackgroundDangerZone* zone;
+
+    subobject = obj_find_sobj_by_id(object, sobj_id);
+    if (subobject != 0) {
+        zone = add_background_danger_zone(subobject->atomic, 1, 1);
+        set_danger_zone_properties(zone, scale, y_offset);
+    }
+}
+void bgnd_sobj_cam_volume_test_steer_over(
+    unsigned int sobj_id, float scale, float y_offset) {
+    MkSobj* object;
+    BackgroundDangerZone* zone;
+
+    object = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
+    if (object != 0) {
+        zone = add_background_danger_zone(object->atomic, 0, 0);
+        set_danger_zone_properties(zone, scale, y_offset);
+    }
+}
 void bgnd_clear_danger_zone_callback(PlyrPdata* pdata) {
     pdata->online_sync_index = -1;
     if (pdata->plyr_num == 0) {
@@ -4326,12 +6082,103 @@ void bgnd_register_danger_zone_callback(PlyrPdata* pdata, int callback) {
     }
     g_game_info.plyr1.fighting_lights.green_trigger = 1;
 }
-void bgnd_rx_notify(void) {}
-void bgnd_current_rx_set_info(void) {}
-void bgnd_current_rx_get_info(void) {}
+void bgnd_rx_notify(
+    PlyrInfo* player_info, int reaction,
+    unsigned int power_level, unsigned int flags) {
+    CmdScript* script;
+    CmdScript* previous_script;
+    GameInfo* info;
+
+    g_current_reaction_info.player_info = player_info;
+    g_current_reaction_info.reaction = reaction;
+    g_current_reaction_info.power_level = power_level;
+    g_current_reaction_info.flags = flags;
+
+    if (g_current_reaction_info.handler_enabled == 1) {
+        script = alloc_cmdscript();
+        previous_script = active_cmdscript;
+        info = &g_game_info;
+        active_cmdscript = script;
+        cmdscript_setup_execution(
+            info->cmdscript, g_current_reaction_info.handler);
+        cmdscript_execute(info->cmdscript);
+        active_cmdscript = previous_script;
+        if (script->instance != 0) {
+            ((MkHdr*)script)->typed_vtbl->destroy((MkHdr*)script);
+        }
+    }
+}
+/*
+ * Clean-C ceiling: 90.09%. Retail expands two validated-latch success edges and
+ * reads the otherwise uninitialized event flags byte. Keep the local event
+ * initialized instead of reproducing undefined behavior.
+ */
+void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
+    PlyrPdata* player;
+
+    (void)script_args;
+    switch (info_id) {
+    case 4:
+        player = g_current_reaction_info.player_info->slot.pdata;
+        player->online_sync_index = (int)value;
+        if (player->plyr_num == 0) {
+            g_game_info.plyr0.fighting_lights.green_trigger = 1;
+        } else {
+            g_game_info.plyr1.fighting_lights.green_trigger = 1;
+        }
+        break;
+    case 5:
+        g_game_info.crack_count = value;
+        break;
+    case 7:
+    {
+        BgndObstacleEventData event;
+        Vec impact = {0.0f, 0.0f, 0.0f};
+
+        event.impact_vector = &impact;
+        event.event_id = g_game_info.collision_event_id;
+        event.player_pdata =
+            g_current_reaction_info.player_info->slot.pdata->his_plyr_pdata;
+        event.flags = 0;
+        bgnd_apply_collision_info(&event);
+        break;
+    }
+    }
+}
+/* Near match: 99.51%, exact 408-byte instruction stream; pool and jump-table
+ * relocation labels differ. */
+float bgnd_current_rx_get_info(int info_id) {
+    PlyrPdata* pdata;
+
+    switch (info_id) {
+    case 9:
+        return g_current_reaction_info.flags & 0x100;
+    case 0:
+        return g_current_reaction_info.flags & 0x80;
+    case 1:
+        return g_current_reaction_info.flags & 0x40;
+    case 2:
+        pdata = g_current_reaction_info.player_info->slot.pdata;
+        return pdata->plyr_num;
+    case 3:
+        return g_current_reaction_info.power_level;
+    case 4:
+        pdata = g_current_reaction_info.player_info->slot.pdata;
+        return pdata->online_sync_index;
+    case 5:
+        return g_game_info.crack_count;
+    case 6:
+        return g_game_info.field_34;
+    case 10:
+        pdata = g_current_reaction_info.player_info->slot.pdata;
+        return pdata->previous_state;
+    default:
+        return 0.0f;
+    }
+}
 void bgnd_setup_rx_handler(int handler) {
-    g_current_reaction_info[5] = 1;
-    g_current_reaction_info[4] = handler;
+    g_current_reaction_info.handler_enabled = 1;
+    g_current_reaction_info.handler = handler;
 }
 void bgnd_anim_camera_ended(void) {
     CmdScript* script;
@@ -4376,29 +6223,583 @@ void bgnd_anim_camera_setup(void) {
     }
 }
 
-void bgnd_fade_object(void) {}
-static void p_bgnd_fade_object(void) {}
-void pulsate_object(void) {}
-void bgnd_pulsate_object(void) {}
-void bgnd_pulsate_object_with_caps_and_scale(void) {}
-void bgnd_pulsate_object_with_caps(void) {}
-static void p_bgnd_pulsate_object(void) {}
-static void p_pulsate_object(void) {}
-static inline void set_subobject_transl(MkSobj* object) {
+/*
+ * Near match: the instruction stream and size match retail. The remaining
+ * differences are the pooled 255.0f relocation label and r28/r29 allocation
+ * for data across three otherwise identical instructions.
+ */
+void bgnd_fade_object(int object_id, void* script, float fade_step) {
+    BgndFadeObjectData* data;
+    MkProc* process;
+    MkSobj* object;
+    MkSobj* found;
+    unsigned int alpha;
     RpAtomic* atomic;
     RpGeometry* geometry;
 
+    (void)script;
+    data = 0;
+    object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
     if (object != 0) {
-        atomic = object->atomic;
-        if (atomic != 0) {
-            geometry = atomic->geometry;
-            if (geometry != 0) {
-                geometry->flags |= 0x40;
+        process = _create_mkproc_generic_tinystack(
+            0xA00D, 0x1F, p_bgnd_fade_object,
+            sizeof(BgndFadeObjectData), (MkHdr**)&data);
+        if (process != 0 && data != 0) {
+            found = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (found != 0) {
+                set_subobject_transl(found);
             }
-            sobj_set_transl_flag(object);
+            data->object = object;
+            data->fade_step = fade_step;
+            data->alpha = 255.0f;
+            data->alpha_int = (unsigned int)data->alpha;
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         }
     }
 }
+
+/* Near match: exact 208-byte instruction stream; only -1.0f pool labels differ. */
+static float p_bgnd_fade_object(void) {
+    MkSobj* object;
+    unsigned int alpha;
+    BgndFadeObjectData* data;
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+
+    data = (BgndFadeObjectData*)apdata;
+    if (g_game_info.bgnd_obj == 0) {
+        return -1.0f;
+    }
+    if (data->alpha > data->fade_step) {
+        data->alpha -= data->fade_step;
+    } else {
+        data->complete = 1;
+        data->alpha = 0.0f;
+    }
+    data->alpha_int = (unsigned int)data->alpha;
+    object = data->object;
+    alpha = data->alpha_int;
+    atomic = object->atomic;
+    geometry = atomic->geometry;
+    geometry->flags |= 0x40;
+    set_atomic_material_alpha(atomic, alpha);
+    set_atomic_material_specular(object->atomic, alpha);
+    if (data->alpha == 0.0f) {
+        hide_sobj(data->object);
+        return -1.0f;
+    }
+    return 1.0f;
+}
+/*
+ * Near match: exact 440-byte stream. Residue is the pooled 255.0f label and
+ * alpha register coloring (retail r30, local r27). The public owner is a
+ * validated MkHdr latch; retail accesses its enclosing MkObj layout here.
+ */
+void pulsate_object(
+    MkHdr* owner, int sobj_id, int max_hold_ticks, int min_hold_ticks,
+    float fade_in_step, float fade_out_step) {
+    BgndPulsateData* data;
+    MkProc* process;
+    MkObj* owner_object;
+    MkSobj* object;
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+    unsigned int alpha;
+
+    data = 0;
+    owner_object = (MkObj*)owner;
+    object = obj_find_sobj_by_id(owner_object, sobj_id);
+    if (object != 0) {
+        process = _create_mkproc_generic_tinystack(
+            0xA00D, 0x1F, p_pulsate_object,
+            sizeof(BgndPulsateData), (MkHdr**)&data);
+        if (process != 0 && data != 0) {
+            set_subobject_transl(object);
+            data->object = object;
+            data->field_0C = max_hold_ticks;
+            data->field_10 = fade_in_step;
+            data->field_14 = min_hold_ticks;
+            data->field_18 = fade_out_step;
+            data->field_20 = 0;
+            data->field_1C = max_hold_ticks;
+            data->alpha = 255.0f;
+            data->field_2C = 0;
+            data->field_30 = 0xFF;
+            data->field_34 = 0.0f;
+            data->field_38 = 0.0f;
+            data->field_44 = 1.0f;
+            data->field_48 = 1.0f;
+            data->field_3C = 1.0f;
+            data->field_40 = 1.0f;
+            data->alpha_int = (unsigned int)data->alpha;
+
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            mk_insert(&process->hdr, &owner_object->child_list);
+        }
+    }
+}
+/*
+ * Near match: exact 492-byte instruction stream; only the pooled -0.2f and
+ * 255.0f relocation labels differ.
+ */
+void bgnd_pulsate_object(
+    int object_id, int max_hold_ticks, int min_hold_ticks, void* script_args,
+    float fade_in_step, float fade_out_step) {
+    BgndPulsateData* data;
+    MkProc* process;
+    MkSobj* object;
+    MkSobj* found;
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+    unsigned int alpha;
+
+    (void)script_args;
+    data = 0;
+    object = obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+    if (object != 0) {
+        process = _create_mkproc_generic_tinystack(
+            0xA00D, 0x1F, p_bgnd_pulsate_object,
+            sizeof(BgndPulsateData), (MkHdr**)&data);
+        if (process != 0 && data != 0) {
+            found = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (found != 0) {
+                set_subobject_transl(found);
+            }
+            sobj_set_priority(object, 0xE);
+            object->z_offset = -0.2f;
+            data->object = object;
+            data->field_0C = max_hold_ticks;
+            data->field_10 = fade_in_step;
+            data->field_14 = min_hold_ticks;
+            data->field_18 = fade_out_step;
+            data->field_20 = 0;
+            data->field_1C = max_hold_ticks;
+            data->alpha = 255.0f;
+            data->field_2C = 0;
+            data->field_30 = 0xFF;
+            data->field_34 = 0.0f;
+            data->field_38 = 0.0f;
+            data->field_44 = 1.0f;
+            data->field_48 = 1.0f;
+            data->field_3C = 1.0f;
+            data->field_40 = 1.0f;
+            data->alpha_int = (unsigned int)data->alpha;
+
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+}
+/* Near match: exact 676-byte stream; only the u32 conversion pool label differs. */
+void bgnd_pulsate_object_with_caps_and_scale(
+    int object_id, int max_hold_ticks, int min_hold_ticks,
+    unsigned int min_alpha, unsigned int max_alpha, void* script_args,
+    float fade_in_step, float fade_out_step,
+    float scale_step_xz, float scale_step_y,
+    float min_scale_xz, float min_scale_y,
+    float max_scale_xz, float max_scale_y) {
+    BgndPulsateData* data;
+    MkProc* process;
+    MkSobj* object;
+    MkSobj* found;
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+    unsigned int alpha;
+
+    (void)script_args;
+    data = 0;
+    object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+    if (object != 0) {
+        build_sine_table();
+        process = _create_mkproc_generic_tinystack(
+            0xA00D, 0x1F, p_bgnd_pulsate_object,
+            sizeof(BgndPulsateData), (MkHdr**)&data);
+        if (process != 0 && data != 0) {
+            found = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (found != 0) {
+                set_subobject_transl(found);
+            }
+            data->object = object;
+            data->field_0C = max_hold_ticks;
+            data->field_10 = fade_in_step;
+            data->field_14 = min_hold_ticks;
+            data->field_18 = fade_out_step;
+            data->field_20 = 0;
+            data->field_1C = max_hold_ticks;
+            data->alpha = (float)max_alpha;
+            data->field_2C = min_alpha;
+            data->field_30 = max_alpha;
+            data->field_34 = scale_step_xz;
+            data->field_38 = scale_step_y;
+            data->object->scale.x = 1.0f;
+            data->object->scale.y = 1.0f;
+            data->object->scale.z = 1.0f;
+            data->field_44 = max_scale_xz;
+            data->field_48 = max_scale_y;
+            data->field_3C = min_scale_xz;
+            data->field_40 = min_scale_y;
+            data->object->flags_08_bits.scale_dirty = 1;
+            data->alpha_int = (unsigned int)data->alpha;
+
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+}
+/* Near match: exact 496-byte stream; only the u32 conversion pool label differs. */
+void bgnd_pulsate_object_with_caps(
+    int object_id, int max_hold_ticks, int min_hold_ticks,
+    unsigned int min_alpha, unsigned int max_alpha,
+    float fade_in_step, float fade_out_step) {
+    BgndPulsateData* data;
+    MkProc* process;
+    MkSobj* object;
+    MkSobj* found;
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+    unsigned int alpha;
+
+    data = 0;
+    object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+    if (object != 0) {
+        process = _create_mkproc_generic_tinystack(
+            0xA00D, 0x1F, p_bgnd_pulsate_object,
+            sizeof(BgndPulsateData), (MkHdr**)&data);
+        if (process != 0 && data != 0) {
+            found = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (found != 0) {
+                set_subobject_transl(found);
+            }
+            data->object = object;
+            data->field_0C = max_hold_ticks;
+            data->field_10 = fade_in_step;
+            data->field_14 = min_hold_ticks;
+            data->field_18 = fade_out_step;
+            data->field_20 = 0;
+            data->field_1C = max_hold_ticks;
+            data->alpha = (float)max_alpha;
+            data->field_34 = 0.0f;
+            data->field_38 = 0.0f;
+            data->field_44 = 1.0f;
+            data->field_48 = 1.0f;
+            data->field_3C = 1.0f;
+            data->field_40 = 1.0f;
+            data->field_2C = min_alpha;
+            data->field_30 = max_alpha;
+            data->alpha_int = (unsigned int)data->alpha;
+
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        }
+    }
+}
+/*
+ * Near match: size-identical 1280-byte instruction stream. The remaining
+ * differences are only the -1.0f and unsigned-conversion pool labels.
+ */
+static float p_bgnd_pulsate_object(void) {
+    BgndPulsateData* data;
+    MkSobj* object;
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+    unsigned int alpha;
+    unsigned int sine_index;
+
+    data = (BgndPulsateData*)apdata;
+    if (g_game_info.bgnd_obj == 0) {
+        return -1.0f;
+    }
+
+    object = data->object;
+    if ((object->atomic->object.flags & 4) == 0) {
+        data->field_20 = 2;
+        data->field_1C = 1;
+        data->alpha = 0.0f;
+        data->alpha_int = (unsigned int)data->alpha;
+        object = data->object;
+        alpha = data->alpha_int;
+        atomic = object->atomic;
+        geometry = atomic->geometry;
+        geometry->flags |= 0x40;
+        set_atomic_material_alpha(atomic, alpha);
+        set_atomic_material_specular(object->atomic, alpha);
+        return 1.0f;
+    }
+
+    if (--data->field_1C != 0) {
+        switch (data->field_20) {
+        case 1:
+            if (data->alpha > (float)data->field_2C + data->field_18) {
+                data->alpha -= data->field_18;
+            } else {
+                data->field_1C = 1;
+                data->alpha = (float)data->field_2C;
+            }
+
+            if (data->alpha > (float)data->field_2C) {
+                sine_index = (unsigned int)(
+                    (data->alpha - (float)data->field_2C) *
+                    (float)(0x100U / (data->field_30 - data->field_2C)));
+                if (data->object->scale.x > data->field_3C) {
+                    data->object->scale.x =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                    data->object->scale.z =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                }
+                if (data->object->scale.y > data->field_40) {
+                    data->object->scale.y =
+                        soul_sine[sine_index] *
+                        (data->field_48 - data->field_40) + data->field_40;
+                }
+            }
+            data->alpha_int = (unsigned int)data->alpha;
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            break;
+        case 3:
+            data->alpha += data->field_10;
+            if (data->alpha < (float)data->field_2C) {
+                data->alpha += data->field_10;
+            }
+            if (data->alpha >= (float)data->field_30) {
+                data->field_1C = 1;
+                data->alpha = (float)data->field_30;
+            }
+
+            if (data->alpha >= (float)data->field_2C &&
+                data->alpha < (float)data->field_30) {
+                sine_index = (unsigned int)(
+                    (data->alpha - (float)data->field_2C) *
+                    (float)(0x100U / (data->field_30 - data->field_2C)));
+                if (data->object->scale.x < data->field_44) {
+                    data->object->scale.x =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                    data->object->scale.z =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                }
+                if (data->object->scale.y < data->field_48) {
+                    data->object->scale.y =
+                        soul_sine[sine_index] *
+                        (data->field_48 - data->field_40) + data->field_40;
+                }
+            } else if (data->alpha < (float)data->field_2C) {
+                data->object->scale.x = data->field_3C;
+                data->object->scale.z = data->field_3C;
+            }
+            data->alpha_int = (unsigned int)data->alpha;
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            break;
+        default:
+            break;
+        }
+        return 1.0f;
+    } else {
+        switch (data->field_20) {
+        case 0:
+            data->field_20 = 1;
+            data->field_1C = 1000;
+            break;
+        case 1:
+            data->field_20 = 2;
+            data->field_1C = data->field_14;
+            break;
+        case 2:
+            data->field_20 = 3;
+            data->field_1C = 1000;
+            break;
+        case 3:
+            data->field_20 = 0;
+            data->field_1C = data->field_0C;
+            break;
+        default:
+            break;
+        }
+    }
+    return 1.0f;
+}
+
+/*
+ * Near match: size-identical 1252-byte instruction stream. The remaining
+ * differences are only unsigned-conversion pool labels.
+ */
+static float p_pulsate_object(void) {
+    BgndPulsateData* data;
+    MkSobj* object;
+    RpAtomic* atomic;
+    RpGeometry* geometry;
+    unsigned int alpha;
+    unsigned int sine_index;
+
+    data = (BgndPulsateData*)apdata;
+    object = data->object;
+    if ((object->atomic->object.flags & 4) == 0) {
+        data->field_20 = 2;
+        data->field_1C = 1;
+        data->alpha = 0.0f;
+        data->alpha_int = (unsigned int)data->alpha;
+        object = data->object;
+        alpha = data->alpha_int;
+        atomic = object->atomic;
+        geometry = atomic->geometry;
+        geometry->flags |= 0x40;
+        set_atomic_material_alpha(atomic, alpha);
+        set_atomic_material_specular(object->atomic, alpha);
+        return 1.0f;
+    }
+
+    if (--data->field_1C != 0) {
+        switch (data->field_20) {
+        case 1:
+            if (data->alpha > (float)data->field_2C + data->field_18) {
+                data->alpha -= data->field_18;
+            } else {
+                data->field_1C = 1;
+                data->alpha = (float)data->field_2C;
+            }
+
+            if (data->alpha > (float)data->field_2C) {
+                sine_index = (unsigned int)(
+                    (data->alpha - (float)data->field_2C) *
+                    (float)(0x100U / (data->field_30 - data->field_2C)));
+                if (data->object->scale.x > data->field_3C) {
+                    data->object->scale.x =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                    data->object->scale.z =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                }
+                if (data->object->scale.y > data->field_40) {
+                    data->object->scale.y =
+                        soul_sine[sine_index] *
+                        (data->field_48 - data->field_40) + data->field_40;
+                }
+            }
+            data->alpha_int = (unsigned int)data->alpha;
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            break;
+        case 3:
+            data->alpha += data->field_10;
+            if (data->alpha < (float)data->field_2C) {
+                data->alpha += data->field_10;
+            }
+            if (data->alpha >= (float)data->field_30) {
+                data->field_1C = 1;
+                data->alpha = (float)data->field_30;
+            }
+
+            if (data->alpha >= (float)data->field_2C &&
+                data->alpha < (float)data->field_30) {
+                sine_index = (unsigned int)(
+                    (data->alpha - (float)data->field_2C) *
+                    (float)(0x100U / (data->field_30 - data->field_2C)));
+                if (data->object->scale.x < data->field_44) {
+                    data->object->scale.x =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                    data->object->scale.z =
+                        soul_sine[sine_index] *
+                        (data->field_44 - data->field_3C) + data->field_3C;
+                }
+                if (data->object->scale.y < data->field_48) {
+                    data->object->scale.y =
+                        soul_sine[sine_index] *
+                        (data->field_48 - data->field_40) + data->field_40;
+                }
+            } else if (data->alpha < (float)data->field_2C) {
+                data->object->scale.x = data->field_3C;
+                data->object->scale.z = data->field_3C;
+            }
+            data->alpha_int = (unsigned int)data->alpha;
+            object = data->object;
+            alpha = data->alpha_int;
+            atomic = object->atomic;
+            geometry = atomic->geometry;
+            geometry->flags |= 0x40;
+            set_atomic_material_alpha(atomic, alpha);
+            set_atomic_material_specular(object->atomic, alpha);
+            break;
+        default:
+            break;
+        }
+        return 1.0f;
+    } else {
+        switch (data->field_20) {
+        case 0:
+            data->field_20 = 1;
+            data->field_1C = 1000;
+            break;
+        case 1:
+            data->field_20 = 2;
+            data->field_1C = data->field_14;
+            break;
+        case 2:
+            data->field_20 = 3;
+            data->field_1C = 1000;
+            break;
+        case 3:
+            data->field_20 = 0;
+            data->field_1C = data->field_0C;
+            break;
+        default:
+            break;
+        }
+    }
+    return 1.0f;
+}
+
 
 void bgnd_make_mkobj_transl(MkObj* object) {
     set_subobject_transl(obj_first_sobj(object));
@@ -4416,15 +6817,64 @@ void bgnd_make_object_transl(unsigned int object_id) {
         set_subobject_transl(object);
     }
 }
+/* Near match: exact 128-byte operations and ABI; MWCC folds the successful
+ * instance-latch path to the opposite conditional branch shape. */
 void mks_xfer_collision_info_plyr_to_bgnd_script(
-    PlyrPdata* player, BgndScriptEntryFn entry) {
-    (void)player;
-    (void)entry;
+    PlyrPdata* player, int script_function) {
+    CmdScript* script;
+    MkProc* process;
+
+    process = player->own_player_proc;
+    if (process != 0) {
+        if (process->instance != player->own_player_proc_instance) {
+            process = 0;
+        }
+    } else {
+        process = 0;
+    }
+    if (process != 0) {
+        script = get_cmdscript_for_proc(process);
+        if (script != 0) {
+            script->unk28 = script_function;
+            xfer_player_proc(process, bgnd_call_script_function);
+        }
+    }
 }
-void mks_xfer_collision_info_plyr_to_script(BgndScriptEntryFn entry,
+/* Near match: exact 192-byte operations and ABI; the two instance-latch
+ * validations differ only by equivalent beq/bne branch emission. */
+void mks_xfer_collision_info_plyr_to_script(int script_function,
                                              int player) {
-    (void)entry;
-    (void)player;
+    CmdScript* script;
+    PlyrPdata* pdata;
+    MkProc* candidate;
+    MkProc* process;
+
+    if (player == 1) {
+        pdata = g_active_obstacle_event_data->player_pdata;
+        candidate = pdata->player_proc;
+        if (candidate != 0) {
+            if (candidate->instance != pdata->player_proc_instance) {
+                candidate = 0;
+            }
+        } else {
+            candidate = 0;
+        }
+        process = candidate;
+    } else {
+        pdata = g_active_obstacle_event_data->player_pdata;
+        candidate = pdata->own_player_proc;
+        if (candidate != 0) {
+            if (candidate->instance != pdata->own_player_proc_instance) {
+                candidate = 0;
+            }
+        } else {
+            candidate = 0;
+        }
+        process = candidate;
+    }
+    script = get_cmdscript_for_proc(process);
+    script->unk28 = script_function;
+    xfer_player_proc(process, bgnd_call_script_function);
 }
 /*
  * Clean-C emission ceiling: MWCC uses paired stw/lwz saves locally while
@@ -4452,25 +6902,127 @@ static float bgnd_call_script_function(void) {
     call_player_script_function(g_game_info.cmdscript);
     return 0.0f;
 }
+/* Clean-C near match: 95.88%, retail/local 204/196 bytes. Retail addresses the
+ * diagnostic through @stringBase0 plus an offset and retains a redundant final
+ * compare of the append result; calls, arguments, branches, and data accesses
+ * otherwise match exactly. */
 void bgnd_append_texture_to_material(int sobj_id, int material_id,
                                      char* texture_name, int texture_slot) {
-    (void)sobj_id;
-    (void)material_id;
-    (void)texture_name;
-    (void)texture_slot;
+    char message[180];
+    MkSobj* object;
+
+    if (g_game_info.bgnd_obj != 0) {
+        object = obj_create_sobjs_by_id(g_game_info.bgnd_obj, sobj_id);
+        if (object == 0) {
+            sprintf(message,
+                    "sobj %d was not found. Error in bgnd_append_texture_to_material",
+                    sobj_id);
+            return;
+        }
+        if (g_game_info.bgnd_id == 0x16) {
+            append_texture_by_name_to_atomic_material_id(
+                0x18006D, texture_name, object->atomic,
+                material_id, texture_slot);
+        } else {
+            append_texture_by_name_to_atomic_material_id(
+                0x2001E, texture_name, object->atomic,
+                material_id, texture_slot);
+        }
+    }
 }
+/* Exact behavior; 98.0%, retail/local 220/216 bytes. The sole difference is
+ * retail's @stringBase0-plus-offset form for the diagnostic string. */
 void bgnd_append_texture_to_material_tbl(
     const BgndAppendTextureEntry* entries) {
-    (void)entries;
+    char message[180];
+    MkSobj* object;
+    unsigned int index;
+    unsigned int sobj_id;
+    int material_id;
+    char* texture_name;
+    int texture_slot;
+
+    index = 0;
+    while ((sobj_id = entries[index].sobj_id) != 0) {
+        material_id = entries[index].material_id;
+        texture_name = entries[index].texture_name;
+        texture_slot = entries[index].texture_slot;
+        if (g_game_info.bgnd_obj != 0) {
+            object = obj_create_sobjs_by_id(g_game_info.bgnd_obj, sobj_id);
+            if (object == 0) {
+                sprintf(message,
+                        "sobj %d was not found. Error in bgnd_append_texture_to_material",
+                        sobj_id);
+            } else if (g_game_info.bgnd_id == 0x16) {
+                append_texture_by_name_to_atomic_material_id(
+                    0x18006D, texture_name, object->atomic,
+                    material_id, texture_slot);
+            } else {
+                append_texture_by_name_to_atomic_material_id(
+                    0x2001E, texture_name, object->atomic,
+                    material_id, texture_slot);
+            }
+        }
+        index++;
+    }
 }
-void bgnd_swap_textures(int sobj_id, int material_id, int frame) {
-    (void)sobj_id;
-    (void)material_id;
-    (void)frame;
+/* Exact behavior and 180-byte size; residue is string-pool relocation shape:
+ * retail addresses both diagnostics through @stringBase0 plus offsets. */
+void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
+    char sobj_error[80];
+    char material_error[80];
+    AniTextureControl* control;
+    MkSobj* object;
+
+    object = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
+    if (object == 0) {
+        sprintf(sobj_error,
+                "bgnd_swap_textures: sobj_id = %d not found", sobj_id);
+        return;
+    }
+    if (frame <= 1) {
+        control = find_atc_for_atomic_material_id(object->atomic, material_id);
+        if (control != 0) {
+            set_ani_texture_frame(control, frame);
+            return;
+        }
+        sprintf(material_error,
+                "Material ID not found. sobj_id = %d, mat_id = %d",
+                sobj_id, material_id);
+    }
 }
-void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame) {
-    (void)entries;
-    (void)frame;
+/* Exact 208-byte behavior; residue is r27/r29 coloring for frame/material and
+ * the same @stringBase0 relocation shape as bgnd_swap_textures. */
+void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries,
+                            unsigned int frame) {
+    char material_error[80];
+    char sobj_error[80];
+    AniTextureControl* control;
+    MkSobj* object;
+    unsigned int index;
+    unsigned int sobj_id;
+    int material_id;
+
+    index = 0;
+    while ((sobj_id = entries[index].sobj_id) != 0) {
+        material_id = entries[index].material_id;
+        object = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
+        if (object == 0) {
+            sprintf(sobj_error,
+                    "bgnd_swap_textures: sobj_id = %d not found", sobj_id);
+        } else if (frame <= 1) {
+            control = find_atc_for_atomic_material_id(
+                object->atomic, material_id);
+            if (control != 0) {
+                set_ani_texture_frame(control, frame);
+            } else {
+                sprintf(material_error,
+                        "Material ID not found. sobj_id = %d, mat_id = %d",
+                        sobj_id, material_id);
+            }
+        }
+        index++;
+    }
 }
 /* Exact operations; 49.29%, retail/local 112/120 from FPR helper selection. */
 void bgnd_rotate_sobj(unsigned int object_id, void* script, float x, float y,
@@ -4486,7 +7038,64 @@ void bgnd_rotate_sobj(unsigned int object_id, void* script, float x, float y,
         object->ang_vel.z = z;
     }
 }
-void bgnd_replace_tex_with_wiff_and_ani(void) {}
+/*
+ * Near match: exact 476-byte instruction stream. Remaining differences are
+ * jump-table and stringBase offsets caused by still-missing earlier TU data.
+ */
+void bgnd_replace_tex_with_wiff_and_ani(
+    int object_id, const char* wiff_name, float frame_rate,
+    int first_frame, int texture_type) {
+    AniTextureControl* control;
+    MkSobj* object;
+    int handle;
+
+    object = obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+    control = 0;
+    if (object != 0) {
+        switch (texture_type) {
+        case 0:
+            control = replace_sobj_texture_with_named_wiff(
+                object, 0x10005, "SINGLEFIRE", wiff_name);
+            break;
+        case 1:
+            control = replace_sobj_texture_with_named_wiff(
+                object, 0x10005, "SINGLEFIRE", wiff_name);
+            break;
+        case 2:
+            control = replace_sobj_texture_with_named_wiff(
+                object, 0x2001E, "ST_THUNDER", wiff_name);
+            break;
+        case 5:
+            control = replace_sobj_texture_with_named_wiff(
+                object, 0x2001E, "LM_PINCONES1", wiff_name);
+            break;
+        case 6:
+            control = replace_sobj_texture_with_named_wiff(
+                object, 0x2001E, "LM_LIONSHADOW1", wiff_name);
+            break;
+        case 4:
+            control = replace_sobj_texture_with_named_wiff(
+                object, 0x140064, "KRYPT_SINGLEFIRE", wiff_name);
+            break;
+        case 7:
+            control = replace_sobj_texture_with_named_wiff(
+                object, 0x2001E, "GREEN_FIRE_WIF", wiff_name);
+            break;
+        case 3:
+            handle = 0x8003D;
+            if (mode_of_play != 9 && mode_of_play != 10) {
+                handle = 0x2001E;
+            }
+            control = replace_sobj_texture_with_named_wiff(
+                object, handle, "PT_BOLT", wiff_name);
+            break;
+        }
+        if (control != 0) {
+            set_ani_texture_framerate(control, frame_rate);
+            set_ani_texture_frame(control, first_frame);
+        }
+    }
+}
 float bgnd_blood_control(int player, int enabled, void* script, float value) {
     (void)script;
     (void)value;
@@ -4577,11 +7186,146 @@ void bgnd_sobj_set_priority(unsigned int object_id, int priority) {
         }
     }
 }
-void bgnd_set_sobj_uv_scroll_abs_values(void) {}
-void bgnd_set_sobj_uv_scroll_rate_values(void) {}
-void bgnd_init_all_uv_scroll_w_control(void) {}
-void bgnd_destroy_sobj_uv_scroll_w_control(void) {}
-void bgnd_start_sobj_uv_scroll_w_control(void) {}
+/*
+ * Near match: 95.42%, retail/local 96/92 bytes. Retail retains one redundant
+ * success-edge branch in the validated control latch; all accesses are exact.
+ */
+void bgnd_set_sobj_uv_scroll_abs_values(
+    float u1, float v1, float u2, float v2, unsigned int index) {
+    UvScrollControl* control;
+    BgndUvScrollControlItem* item;
+
+    if (index < 8) {
+        item = &bgnd_uv_scroll_control_item[index];
+        control = item->control;
+        if (control != 0) {
+            if (control->hdr.instance != item->instance) {
+                control = 0;
+            }
+        } else {
+            control = 0;
+        }
+        if (control != 0) {
+            control->mtx1[12] = u1;
+            control->mtx1[13] = v1;
+            control->mtx2[12] = u2;
+            control->mtx2[13] = v2;
+        }
+    }
+}
+/* Same clean-C validated-latch branch ceiling as the absolute-value setter. */
+void bgnd_set_sobj_uv_scroll_rate_values(
+    float u1, float v1, float u2, float v2, unsigned int index) {
+    UvScrollControl* control;
+    BgndUvScrollControlItem* item;
+
+    if (index < 8) {
+        item = &bgnd_uv_scroll_control_item[index];
+        control = item->control;
+        if (control != 0) {
+            if (control->hdr.instance != item->instance) {
+                control = 0;
+            }
+        } else {
+            control = 0;
+        }
+        if (control != 0) {
+            control->rateU1 = u1;
+            control->rateV1 = v1;
+            control->rateU2 = u2;
+            control->rateV2 = v2;
+        }
+    }
+}
+static inline void bgnd_clear_uv_scroll_control(unsigned int index) {
+    BgndUvScrollControlItem* item;
+    UvScrollControl* control;
+
+    if (index < 8) {
+        item = &bgnd_uv_scroll_control_item[index];
+        control = item->control;
+        if (control != 0) {
+            control = control->hdr.instance == item->instance ? control : 0;
+        } else {
+            control = 0;
+        }
+        if (control != 0 && control->hdr.instance != 0) {
+            control->hdr.typed_vtbl->destroy(&control->hdr);
+        }
+        item->control = 0;
+        item->instance = 0;
+    }
+}
+
+/*
+ * Near match: 98.60%, exact 172-byte size. The shared clear helper reproduces
+ * retail behavior; residue is loop induction/register allocation only.
+ */
+void bgnd_init_all_uv_scroll_w_control(void) {
+    unsigned int index;
+
+    for (index = 0; index < 8; index++) {
+        bgnd_clear_uv_scroll_control(index);
+    }
+}
+void bgnd_destroy_sobj_uv_scroll_w_control(unsigned int index) {
+    bgnd_clear_uv_scroll_control(index);
+}
+static inline int bgnd_uv_scroll_control_slot_available(unsigned int index) {
+    BgndUvScrollControlItem* item;
+    UvScrollControl* control;
+
+    if (index >= 8) {
+        return 0;
+    }
+    item = &bgnd_uv_scroll_control_item[index];
+    control = item->control;
+    if (control != 0) {
+        control = control->hdr.instance == item->instance ? control : 0;
+    } else {
+        control = 0;
+    }
+    if (control != 0) {
+        return 0;
+    }
+    item->control = 0;
+    item->instance = 0;
+    return 1;
+}
+
+/*
+ * Near match: 98.38%, exact 284-byte size and instruction flow. The inlined
+ * slot validation differs only in register allocation and an equivalent
+ * signed/unsigned zero comparison.
+ */
+int bgnd_start_sobj_uv_scroll_w_control(
+    int sobj_id, float u1, float v1, float u2, float v2,
+    unsigned int translucent, unsigned int index) {
+    UvScrollControl* control;
+    BgndUvScrollControlItem* item;
+    MkSobj* object;
+    int result;
+
+    result = 0;
+    if (bgnd_uv_scroll_control_slot_available(index) &&
+        g_game_info.bgnd_obj != 0) {
+        control = start_sobj_uv_scroll(
+            g_game_info.bgnd_obj, sobj_id, u1, v1, u2, v2);
+        if (translucent == 1) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
+            if (object != 0) {
+                object->flags09_bits.bit5 = translucent;
+            }
+        }
+        if (control != 0) {
+            result = 1;
+            item = &bgnd_uv_scroll_control_item[index];
+            item->control = control;
+            item->instance = control->hdr.instance;
+        }
+    }
+    return result;
+}
 void bgnd_restore_player(void) {
     back_to_normal();
     plyr_obj->flags_09_bits.tightrope_restricted = 0;
@@ -4695,8 +7439,51 @@ void bgnd_unhide_sobj(unsigned int object_id) {
         }
     }
 }
-void bgnd_unhide_sobj_list(int list_id) {
-    (void)list_id;
+/* Exact-size 98.75% near miss; the remaining differences are a permutation of
+ * the three nonvolatile registers holding g_game_info, object_id, and next_id. */
+void bgnd_unhide_sobj_list(unsigned int* object_ids) {
+    unsigned int* next_id;
+    unsigned int object_id;
+    MkSobj* object;
+
+    next_id = object_ids + 1;
+    object_id = *object_ids;
+    while (object_id != 0) {
+        if (object_id == 0x63) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCA);
+            if (object != 0 && is_sobj_hidden(object) != 0) {
+                break;
+            }
+        }
+        if (object_id == 0x65) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCA);
+            if (object != 0 && is_sobj_hidden(object) != 0) {
+                break;
+            }
+        }
+        if (object_id == 0x64) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCB);
+            if (object != 0 && is_sobj_hidden(object) != 0) {
+                break;
+            }
+        }
+        if (object_id == 0x66) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0xCB);
+            if (object != 0 && is_sobj_hidden(object) != 0) {
+                break;
+            }
+        }
+
+        obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+        if (g_game_info.bgnd_obj != 0) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (object != 0) {
+                unhide_sobj(object);
+            }
+        }
+        object_id = *next_id;
+        next_id++;
+    }
 }
 /* Exact operations; 80.00%, retail/local 92/100 bytes from stmw/lmw selection. */
 void bgnd_hide_sobj(unsigned int object_id) {
@@ -4710,8 +7497,26 @@ void bgnd_hide_sobj(unsigned int object_id) {
         }
     }
 }
-void bgnd_hide_sobj_list(int list_id) {
-    (void)list_id;
+/* Near match: 97.72%, exact algorithm and size; two loop locals are colored
+ * into the opposite nonvolatile registers. */
+void bgnd_hide_sobj_list(unsigned int* object_ids) {
+    unsigned int* next_id;
+    unsigned int object_id;
+    MkSobj* object;
+
+    next_id = object_ids + 1;
+    object_id = *object_ids;
+    while (object_id != 0) {
+        obj_create_sobjs_by_id(g_game_info.bgnd_obj, object_id);
+        if (g_game_info.bgnd_obj != 0) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (object != 0) {
+                hide_sobj(object);
+            }
+        }
+        object_id = *next_id;
+        next_id++;
+    }
 }
 void bgnd_sobj_get_ang(unsigned int object_id, Vec* angles) {
     MkSobj* object;
@@ -4804,13 +7609,76 @@ float bgnd_get_sobj_ang_y(int object_id) {
     }
     return object->ang.y;
 }
-void bgnd_start_sobj_uv_scroll(void) {}
-void bgnd_start_sobj_uv_scroll_tbl(void) {}
+void bgnd_start_sobj_uv_scroll(
+    int object_id, float u1, float v1, float u2, float v2,
+    unsigned int translucent) {
+    MkSobj* object;
+
+    if (g_game_info.bgnd_obj != 0) {
+        start_sobj_uv_scroll(
+            g_game_info.bgnd_obj, object_id, u1, v1, u2, v2);
+        if (translucent == 1) {
+            object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
+            if (object != 0) {
+                object->flags09_bits.bit5 = translucent;
+            }
+        }
+    }
+}
+void bgnd_start_sobj_uv_scroll_tbl(BgndUvScrollEntry* entries) {
+    BgndUvScrollEntry* entry;
+    MkSobj* object;
+    int index;
+    unsigned int object_id;
+    unsigned int translucent;
+    float u1;
+    float v1;
+    float u2;
+    float v2;
+
+    index = 0;
+    while ((object_id = entries[index].object_id) != 0) {
+        entry = &entries[index];
+        u1 = entry->u1;
+        v1 = entry->v1;
+        u2 = entry->u2;
+        v2 = entry->v2;
+        translucent = entry->translucent;
+        if (g_game_info.bgnd_obj != 0) {
+            start_sobj_uv_scroll(
+                g_game_info.bgnd_obj, object_id,
+                u1, v1, u2, v2);
+            if (translucent == 1) {
+                object = obj_find_sobj_by_id(
+                    g_game_info.bgnd_obj, object_id);
+                if (object != 0) {
+                    object->flags09_bits.bit5 = translucent;
+                }
+            }
+        }
+        index++;
+    }
+}
 void bgnd_light_set_color(int light_id, float red, float green, float blue) {
-    (void)light_id;
-    (void)red;
-    (void)green;
-    (void)blue;
+    MkObj* object;
+    MkxRpLight* wrapper;
+    RpLight* light;
+    RwRGBAReal color;
+
+    object = find_obj_by_id(light_id);
+    if (object != 0) {
+        wrapper = find_mkx_rplight_in_obj(object);
+        if (wrapper != 0) {
+            light = wrapper->light;
+            if (light != 0) {
+                color.red = red;
+                color.green = green;
+                color.blue = blue;
+                color.alpha = 0.0f;
+                RpLightSetColor(light, &color);
+            }
+        }
+    }
 }
 void bgnd_sobj_set_ani_framerate(unsigned int object_id,
                                  unsigned int material_id, void* script,
@@ -4879,14 +7747,102 @@ void bgnd_clear_face_opponent_flags(void) {
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
 }
 int bgnd_get_int(int value_id) {
-    (void)value_id;
-    return 0;
+    switch (value_id) {
+    case 1:
+        return g_game_info.active_level;
+    case 2:
+        return g_game_info.flag_bits.field_bit6;
+    case 3:
+        return g_game_info.flag_bits.high_res_path;
+    case 0:
+        return 1;
+    case 4:
+        return g_game_info.flag_bits.lens_flare_enabled;
+    case 5:
+        return intro_done();
+    default:
+        return 0;
+    }
 }
 void bgnd_create_sobjs(void) {
     obj_create_sobjs_by_id(g_game_info.bgnd_obj, 0);
 }
-void bgnd_place_point_light_for_ticks(void) {}
-static void p_bgnd_point_light_life_span(void) {}
+/*
+ * Near match: exact light placement, lifetime-process creation, and ABI;
+ * retail/local are 292/296 bytes. Residue is x/z float-register coloring and
+ * one equivalent tightrope-vector address setup instruction.
+ */
+MkObj* bgnd_place_point_light_for_ticks(
+    LightDef* light_def, int ticks, int offset_from_tightrope,
+    float radius_step) {
+    BgndPointLightLifeData* data;
+    MkObj* light;
+    MkProc* process;
+    float perpendicular_x;
+    float perpendicular_z;
+    float light_x;
+    float half_width;
+
+    data = 0;
+    if ((offset_from_tightrope & 1) != 0) {
+        perpendicular_x = tightrope_perp_uv.x;
+        perpendicular_z = tightrope_perp_uv.z;
+        light_x = light_def->field20;
+        if (perpendicular_x * (light_x - camera_obj->pos.x) +
+                perpendicular_z *
+                    (light_def->field28 - camera_obj->pos.z) >
+            0.0f) {
+            perpendicular_x *= -1.0f;
+            perpendicular_z *= -1.0f;
+        }
+        half_width = light_def->field1C * 0.5f;
+        perpendicular_x *= half_width;
+        perpendicular_z *= half_width;
+        light_def->field20 = light_x + perpendicular_x;
+        light_def->field28 += perpendicular_z;
+    }
+
+    light = load_light(light_def, &point_light_list, 0);
+    if (light == 0) {
+        return 0;
+    }
+    process = _create_mkproc_generic_tinystack(
+        0xA00D, 0x1F, p_bgnd_point_light_life_span,
+        sizeof(BgndPointLightLifeData), (MkHdr**)&data);
+    if (process != 0 && data != 0) {
+        data->light = light;
+        data->ticks = ticks;
+        data->radius_step = radius_step;
+    }
+    return light;
+}
+/*
+ * Near match: size-identical 212-byte instruction stream. The only remaining
+ * differences are the two -1.0f constant-pool labels.
+ */
+static float p_bgnd_point_light_life_span(void) {
+    BgndPointLightLifeData* data;
+
+    data = (BgndPointLightLifeData*)apdata;
+    if (g_game_info.bgnd_obj == 0) {
+        return -1.0f;
+    }
+    if (--data->ticks != 0) {
+        return 1.0f;
+    }
+
+    if (data->radius_step != 0.0f) {
+        while (adjust_point_light_associated_with_obj_radius(
+                   data->light, data->radius_step) == 0) {
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+    }
+    if (data->light->hdr.instance != 0) {
+        data->light->hdr.typed_vtbl->destroy(&data->light->hdr);
+    }
+    return -1.0f;
+}
 /* Exact code bytes apart from float-pool relocation identities. */
 float degrees_to_rad(void* script, float degrees) {
     (void)script;
@@ -4903,16 +7859,169 @@ int float_to_int(void* script, float value) {
     (void)script;
     return (int)value;
 }
-void obj_sobj_set_material(void) {}
-int force_atomic_material_alpha(void) { return 0; }
-void p_track_cam_ang_y_light(void) {}
-void load_bgnd_style(void) {}
-void ncs_bgnd_nuke_collision_to_script_interface(void) {}
+void obj_sobj_set_material(MkSobj* object, unsigned int alpha) {
+    RpAtomic* atomic;
+
+    atomic = object->atomic;
+    atomic->geometry->flags |= 0x40;
+    set_atomic_material_alpha(atomic, alpha);
+    set_atomic_material_specular(object->atomic, alpha);
+}
+RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha) {
+    atomic->geometry->flags |= 0x40;
+    set_atomic_material_alpha(atomic, (unsigned int)alpha);
+    return atomic;
+}
+/*
+ * Near match: size-identical 184-byte instruction stream. The only remaining
+ * differences are the two float-pool labels for -1.0f and pi.
+ */
+float p_track_cam_ang_y_light(void) {
+    float initial_yaw;
+
+    if (light_obj != 0) {
+        initial_yaw = light_obj->ang.y;
+    } else {
+        return -1.0f;
+    }
+
+    for (;;) {
+        if (light_obj != 0) {
+            light_obj->ang.y =
+                camera_obj->ang.y - 3.1415927f + initial_yaw;
+            update_mkobj(light_obj);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        } else {
+            break;
+        }
+    }
+    return -1.0f;
+}
+/*
+ * Near match: retail/local 476/448 bytes. The remaining differences are two
+ * redundant success-edge branches in instance-validation diamonds and CSE of
+ * the final global_movesets animation-palette address into r31.
+ */
+void load_bgnd_style(int player, const char* script_name, void* script_args) {
+    GlobalMoveset* moveset;
+    MkFileInfo* animation_section;
+    MkObj* weapon;
+
+    (void)script_args;
+    if (player < 2) {
+        moveset = &global_movesets[player + 6];
+        moveset->script =
+            cmdscript_loadfile_by_name(player + 12, script_name);
+        if (moveset->script != 0) {
+            if (moveset->script->table_count != 0) {
+                moveset->definition = (MovesetDefinition*)get_data_table(
+                    moveset->script, moveset->script->table_count);
+                moveset->animation_header =
+                    moveset->definition->animation_header;
+            }
+            if (moveset->definition->primary_weapon != 0) {
+                weapon = moveset->primary_weapon;
+                if (weapon != 0) {
+                    if (weapon->hdr.instance !=
+                        moveset->primary_weapon_instance) {
+                        weapon = 0;
+                    }
+                } else {
+                    weapon = 0;
+                }
+                if (weapon != 0) {
+                    return;
+                }
+                weapon = load_weapon_from_slot(
+                    moveset->definition->primary_weapon, 0x2001E);
+                if (weapon != 0) {
+                    moveset->primary_weapon = weapon;
+                    moveset->primary_weapon_instance = weapon->hdr.instance;
+                    mk_insert((MkHdr*)weapon, &moveset->script->pdata_list);
+                    mk_insert((MkHdr*)weapon,
+                              &g_game_info.bgnd_obj->child_list);
+                }
+            }
+            if (moveset->definition->secondary_weapon != 0) {
+                weapon = moveset->secondary_weapon;
+                if (weapon != 0) {
+                    if (weapon->hdr.instance !=
+                        moveset->secondary_weapon_instance) {
+                        weapon = 0;
+                    }
+                } else {
+                    weapon = 0;
+                }
+                if (weapon != 0) {
+                    return;
+                }
+                weapon = load_weapon_from_slot(
+                    moveset->definition->secondary_weapon, 0x2001E);
+                if (weapon != 0) {
+                    moveset->secondary_weapon = weapon;
+                    moveset->secondary_weapon_instance = weapon->hdr.instance;
+                    mk_insert((MkHdr*)weapon, &moveset->script->pdata_list);
+                    mk_insert((MkHdr*)weapon,
+                              &g_game_info.bgnd_obj->child_list);
+                }
+            }
+            animation_section = find_section_by_name(
+                moveset->definition->animation_section_name);
+            add_anim_section_async_pal(
+                0x2001E, animation_section,
+                &global_movesets[player + 6].standing_animation_script,
+                0, 1);
+            wait_for_slot_load(0x2001E);
+            load_bgnd_fstyle_sign(player);
+        }
+    }
+}
+/* Near match: exact 168-byte teardown; only the first loop's zero-offset
+ * register initialization differs (li versus move-from-zero). */
+void ncs_bgnd_nuke_collision_to_script_interface(void) {
+    unsigned int index;
+
+    for (index = 0; index < 8; index++) {
+        destroy_list(&g_bgnd_collision_to_script_if[index]);
+    }
+    g_active_obstacle_event_data = 0;
+    g_active_bgnd_col_item = 0;
+    for (index = 0; index < 8; index++) {
+        g_bgnd_collision_to_script_if[index] = 0;
+    }
+    g_active_obstacle_event_data = 0;
+    g_active_bgnd_col_item = 0;
+    for (index = 0; index < 24; index++) {
+        bgnd_danger_zones[index].obstacle = 0;
+    }
+}
 MkObj* retrieve_bgnd_obj(void) {
     return g_game_info.bgnd_obj;
 }
 void destroy_background_extras(void) {}
-static void add_mkx_light_obj_to_bgnd_cleanup_list(void* obj) { (void)obj; }
+/*
+ * Near match: 95.77%, retail/local 104/100 bytes. Retail keeps a redundant
+ * success-edge branch in the pointer/instance validation diamond; the typed
+ * clean-C form falls through with otherwise identical accesses and calls.
+ */
+static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
+    MkxRpLight* light;
+    MkObj* object;
+
+    light = MKX_RPLIGHT_FROM_HDR(header);
+    object = light->obj;
+    if (object != 0) {
+        if (object->hdr.instance != light->obj_instance) {
+            object = 0;
+        }
+    } else {
+        object = 0;
+    }
+    if (object != 0) {
+        mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
+    }
+}
 int load_background(int bgnd_id) {
     char* anims;
     char* gbd;
@@ -4961,7 +8070,7 @@ int load_background(int bgnd_id) {
 
     zero = 0;
     g_game_info.field_64 = zero;
-    g_game_info.field_60 = zero;
+    g_game_info.displayed_items = (MkPtr*)zero;
     g_game_info.npc_list = (MkPtr*)zero;
     react = anims + 0xF0;
     col = anims + 0x588;
@@ -5067,16 +8176,16 @@ int load_background(int bgnd_id) {
         mk_insert((MkHdr*)g_game_info.sky, &g_game_info.bgnd_obj->child_list);
     }
 
-    apply_to_mklist((MkListApplyFn)add_mkx_light_obj_to_bgnd_cleanup_list,
-                    (MkPtr**)&weapon_trail_light_list);
-    apply_to_mklist((MkListApplyFn)add_mkx_light_obj_to_bgnd_cleanup_list,
-                    (MkPtr**)&bgnd_light_list);
-    apply_to_mklist((MkListApplyFn)add_mkx_light_obj_to_bgnd_cleanup_list,
-                    (MkPtr**)&plyr_light_list);
+    apply_to_mklist(add_mkx_light_obj_to_bgnd_cleanup_list,
+                    &weapon_trail_light_list);
+    apply_to_mklist(add_mkx_light_obj_to_bgnd_cleanup_list,
+                    &bgnd_light_list);
+    apply_to_mklist(add_mkx_light_obj_to_bgnd_cleanup_list,
+                    &plyr_light_list);
 
     data_table = g_game_info.section;
     if ((data_table->flags70 & 1) != 0) {
-        UpdateShadowCameraLightSource(&misc->shadow_cam_light);
+        UpdateShadowCameraLightSource(misc->shadow_cam_light);
     }
 
     misc = g_game_info.misc;
