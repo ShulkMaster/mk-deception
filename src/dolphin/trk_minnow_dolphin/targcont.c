@@ -1,7 +1,15 @@
-/* TODO: Missing implementation for retail unit targcont.c. */
+#include "dolphin/trk.h"
 
-void *TRKTargetContinue(void)
+extern void TRKTargetSetStopped(int stopped);
+extern void UnreserveEXI2Port(void);
+extern void TRKSwapAndGo(void);
+extern void ReserveEXI2Port(void);
+
+DSError TRKTargetContinue(void)
 {
-    /* TODO: Missing canonical function implementation. */
+    TRKTargetSetStopped(0);
+    UnreserveEXI2Port();
+    TRKSwapAndGo();
+    ReserveEXI2Port();
     return 0;
 }

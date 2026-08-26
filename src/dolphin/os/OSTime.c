@@ -5,7 +5,7 @@
 /*
  * OSGetTime and OSGetTick are authentic no-frame time-base-register leaves in
  * retail.  Their ABI is declared in dolphin/os.h; portable C does not define a
- * truthful portable replacement for its mftbu/mftb instruction sequence.
+ * truthful portable replacement for the mftbu/mftb instruction sequence.
  */
 
 OSTime __OSGetSystemTime(void)
@@ -16,7 +16,7 @@ OSTime __OSGetSystemTime(void)
 
     time_adjust = __OSSystemTime;
     enabled = OSDisableInterrupts();
-    result = OSGetTime() + *time_adjust;
+    result = *time_adjust + OSGetTime();
     OSRestoreInterrupts(enabled);
     return result;
 }

@@ -322,6 +322,324 @@ config.warn_missing_config = False
 config.warn_missing_source = False
 config.libs = [
     {
+        "lib": "Runtime.PPCEABI.H",
+        "mw_version": game_mw_version,
+        "cflags": cflags_runtime,
+        "progress_category": "sdk",
+        "objects": [
+            Object(
+                Matching,
+                "Runtime.PPCEABI.H.a/__mem.o",
+                source="runtime/__mem.c",
+            ),
+            Object(
+                Matching,
+                "Runtime.PPCEABI.H.a/__va_arg.o",
+                source="runtime/__va_arg.c",
+            ),
+            Object(
+                Matching,
+                "Runtime.PPCEABI.H.a/global_destructor_chain.o",
+                source="runtime/global_destructor_chain.c",
+            ),
+        ],
+    },
+    {
+        "lib": "TRK_MINNOW_DOLPHIN",
+        "mw_version": game_mw_version,
+        "cflags": [*cflags_runtime, "-inline deferred", "-sdata 0", "-sdata2 0"],
+        "progress_category": "sdk",
+        "objects": [
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/usr_put.o",
+                source="dolphin/trk_minnow_dolphin/usr_put.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/dispatch.o",
+                source="dolphin/trk_minnow_dolphin/dispatch.c",
+                extra_cflags=["-str reuse,readonly"],
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/nubevent.o",
+                source="dolphin/trk_minnow_dolphin/nubevent.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/nubinit.o",
+                source="dolphin/trk_minnow_dolphin/nubinit.c",
+                extra_cflags=["-str reuse,readonly"],
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/serpoll.o",
+                source="dolphin/trk_minnow_dolphin/serpoll.c",
+                extra_cflags=["-sdata 8", "-str reuse,readonly"],
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/utils/common/CircleBuffer.o",
+                source="dolphin/trk_minnow_dolphin/CircleBuffer.c",
+            ),
+            Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/mem_TRK.o",
+                source="dolphin/trk_minnow_dolphin/mem_TRK.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/mainloop.o",
+                source="dolphin/trk_minnow_dolphin/mainloop.c",
+                extra_cflags=["-enum min"],
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/notify.o",
+                source="dolphin/trk_minnow_dolphin/notify.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/main_TRK.o",
+                source="dolphin/trk_minnow_dolphin/main_TRK.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/UDP_Stubs.o",
+                source="dolphin/trk_minnow_dolphin/UDP_Stubs.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/msg.o",
+                source="dolphin/trk_minnow_dolphin/msg.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/targcont.o",
+                source="dolphin/trk_minnow_dolphin/targcont.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/target_options.o",
+                source="dolphin/trk_minnow_dolphin/target_options.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/mutex_TRK.o",
+                source="dolphin/trk_minnow_dolphin/mutex_TRK.c",
+            ),
+        ],
+    },
+    {
+        "lib": "MSL_C.PPCEABI.bare.H",
+        "mw_version": game_mw_version,
+        "cflags": cflags_runtime,
+        "progress_category": "sdk",
+        "objects": [
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/FILE_POS.o",
+                source="runtime/FILE_POS.C",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/buffer_io.o",
+                source="runtime/buffer_io.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_rem_pio2.o",
+                source="runtime/e_rem_pio2.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/ansi_files.o",
+                source="runtime/ansi_files.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_fmod.o",
+                source="runtime/e_fmod.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/mbstring.o",
+                source="runtime/mbstring.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_log.o",
+                source="runtime/e_log.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/mem_funcs.o",
+                source="runtime/mem_funcs.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_atan2.o",
+                source="runtime/e_atan2.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/PPC_EABI/SRC/math_ppc.o",
+                source="runtime/math_ppc.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_sqrt.o",
+                source="runtime/e_sqrt.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_atan.o",
+                source="runtime/s_atan.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_ldexp.o",
+                source="runtime/s_ldexp.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/abort_exit.o",
+                source="runtime/abort_exit.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_floor.o",
+                source="runtime/s_floor.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/mem.o",
+                source="runtime/mem.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/qsort.o",
+                source="runtime/qsort.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_modf.o",
+                source="runtime/s_modf.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_ceil.o",
+                source="runtime/s_ceil.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/extras.o",
+                source="runtime/extras.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_log10.o",
+                source="runtime/e_log10.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/PPC_EABI/SRC/uart_console_io_gcn.o",
+                source="runtime/uart_console_io_gcn.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/k_cos.o",
+                source="runtime/k_cos.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_sin.o",
+                source="runtime/s_sin.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_cos.o",
+                source="runtime/s_cos.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/wchar_io.o",
+                source="runtime/wchar_io.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/signal.o",
+                source="runtime/signal.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/k_sin.o",
+                source="runtime/k_sin.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/w_pow.o",
+                source="runtime/w_pow.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_frexp.o",
+                source="runtime/s_frexp.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/w_sqrt.o",
+                source="runtime/w_sqrt.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/w_atan2.o",
+                source="runtime/w_atan2.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/w_log10.o",
+                source="runtime/w_log10.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/w_log.o",
+                source="runtime/w_log.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/w_fmod.o",
+                source="runtime/w_fmod.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_copysign.o",
+                source="runtime/s_copysign.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/ctype.o",
+                source="runtime/ctype.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/rand.o",
+                source="runtime/rand.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/misc_io.o",
+                source="runtime/misc_io.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/PPC_EABI/SRC/critical_regions.gamecube.o",
+                source="runtime/critical_regions.gamecube.c",
+            ),
+        ],
+    },
+    {
         "lib": "game",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
@@ -1125,6 +1443,13 @@ config.libs = [
         ],
     },
     DolphinLib(
+        "ax",
+        [
+            Object(Matching, "ax.a/AX.o", source="dolphin/ax/AX.c"),
+            Object(Matching, "ax.a/AXProf.o", source="dolphin/ax/AXProf.c"),
+        ],
+    ),
+    DolphinLib(
         "os",
         [
             Object(NonMatching, "os.a/OS.o", source="dolphin/os/OS.c"),
@@ -1155,7 +1480,7 @@ config.libs = [
                 NonMatching,
                 "os.a/OSTime.o",
                 source="dolphin/os/OSTime.c",
-                extra_cflags=["-schedule off"],
+                extra_cflags=["-opt nopeephole"],
             ),
             Object(NonMatching, "os.a/OSMemory.o", source="dolphin/os/OSMemory.c"),
             Object(Matching, "os.a/OSMessage.o", source="dolphin/os/OSMessage.c"),

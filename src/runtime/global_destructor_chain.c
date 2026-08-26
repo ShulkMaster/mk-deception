@@ -1,13 +1,28 @@
-/* TODO: Missing implementation for retail unit global_destructor_chain.c. */
+typedef void (*Destructor)(void* object, int complete);
 
-void *__destroy_global_chain(void)
+typedef struct DestructorChain {
+    struct DestructorChain* next;
+    Destructor destructor;
+    void* object;
+} DestructorChain;
+
+DestructorChain* __global_destructor_chain;
+
+void __destroy_global_chain(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    DestructorChain* current;
+
+    while ((current = __global_destructor_chain) != 0) {
+        __global_destructor_chain = current->next;
+        current->destructor(current->object, -1);
+    }
 }
 
-void *__register_global_object(void)
+void* __register_global_object(void* object, Destructor destructor, DestructorChain* registration)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    registration->next = __global_destructor_chain;
+    registration->destructor = destructor;
+    registration->object = object;
+    __global_destructor_chain = registration;
+    return object;
 }

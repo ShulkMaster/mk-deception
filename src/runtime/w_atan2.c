@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit w_atan2.c. */
+#include "fdlibm.h"
 
-void *atan2(void)
+double atan2(double y, double x)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return __ieee754_atan2(y, x);
 }

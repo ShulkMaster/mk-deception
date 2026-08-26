@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit w_sqrt.c. */
+#include "fdlibm.h"
 
-void *sqrt(void)
+double sqrt(double x)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return __ieee754_sqrt(x);
 }

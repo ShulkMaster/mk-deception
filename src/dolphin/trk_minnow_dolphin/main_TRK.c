@@ -1,7 +1,15 @@
-/* TODO: Missing implementation for retail unit main_TRK.c. */
+#include "dolphin/trk.h"
 
-void *TRK_main(void)
+static DSError TRK_mainError;
+
+DSError TRK_main(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    MWTRACE(1, "TRK_Main \n");
+    TRK_mainError = TRKInitializeNub();
+    if (TRK_mainError == 0) {
+        TRKNubWelcome();
+        TRKNubMainLoop();
+    }
+    TRK_mainError = TRKTerminateNub();
+    return TRK_mainError;
 }

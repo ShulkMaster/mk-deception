@@ -1,19 +1,19 @@
-/* TODO: Missing implementation for retail unit mutex_TRK.c. */
+#include "dolphin/trk.h"
 
-void *TRKReleaseMutex(void)
+DSError TRKInitializeMutex(void* mutex)
 {
-    /* TODO: Missing canonical function implementation. */
+    (void)mutex;
     return 0;
 }
 
-void *TRKAcquireMutex(void)
+DSError TRKAcquireMutex(void* mutex)
 {
-    /* TODO: Missing canonical function implementation. */
+    (void)mutex;
     return 0;
 }
 
-void *TRKInitializeMutex(void)
+DSError TRKReleaseMutex(void* mutex)
 {
-    /* TODO: Missing canonical function implementation. */
+    (void)mutex;
     return 0;
 }

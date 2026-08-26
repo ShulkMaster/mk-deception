@@ -1,13 +1,13 @@
-/* TODO: Missing implementation for retail unit target_options.c. */
+#include "dolphin/trk.h"
 
-void *GetUseSerialIO(void)
+static u8 bUseSerialIO;
+
+void SetUseSerialIO(u8 serial_io)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    bUseSerialIO = serial_io;
 }
 
-void *SetUseSerialIO(void)
+u8 GetUseSerialIO(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return bUseSerialIO;
 }

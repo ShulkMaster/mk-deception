@@ -1,19 +1,21 @@
-/* TODO: Missing implementation for retail unit misc_io.c. */
+#include "runtime/cfile.h"
 
-void *__stdio_atexit(void)
+extern void (*__stdio_exit)(void);
+
+void __close_all(void);
+
+void __stdio_atexit(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    __stdio_exit = __close_all;
 }
 
-void *feof(void)
+int feof(FILE* file)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return file->state.eof;
 }
 
-void *clearerr(void)
+void clearerr(FILE* file)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    file->state.eof = 0;
+    file->state.error = 0;
 }

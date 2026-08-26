@@ -85,7 +85,7 @@ void __OSEnableBarnacle(signed long chan, unsigned long dev)
     }
 }
 
-int InitializeUART(void)
+int InitializeUART(unsigned long baudRate)
 {
     if (BarnacleEnabled == 0xA5FF005A) {
         return 0;
