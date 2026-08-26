@@ -149,7 +149,6 @@ extern MkFileEntry kon_unique_npcs_file_table[];
 extern int konquest_human_bones[];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern char monk_ground_colls[];
-extern void* point_light_list;
 extern float _mkproc_sleep_ticks;
 extern CmdScript* active_cmdscript;
 extern GlobalPlayerEntry global_player_data[];

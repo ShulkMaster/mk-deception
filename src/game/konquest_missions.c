@@ -3066,7 +3066,7 @@ int trial_end_round(void) {
     int i = 0x168;
     unsigned char alpha;
 
-    g_game_info.flag_bits.pad_bit6 = 0;
+    g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.flag_bits.field_bit0 = 1;
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;

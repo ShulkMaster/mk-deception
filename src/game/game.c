@@ -1586,7 +1586,7 @@ int round_over(void) {
         return trial_end_round() == 0;
     }
 
-    g_game_info.flag_bits.pad_bit6 = 0;
+    g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.flag_bits.field_bit0 = 1;
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
@@ -1900,7 +1900,7 @@ void round_init(void) {
     }
 
     g_game_info.flag_bits.field_bit0 = 0;
-    g_game_info.flag_bits.pad_bit6 = 1;
+    g_game_info.flag_bits.field_bit6 = 1;
     round_winner = 0;
     g_game_info.flag_bits.lens_flare_enabled = 0;
     f_fatality_finished = 0;
@@ -2008,7 +2008,7 @@ void game_init(void) {
     g_game_info.plyr1.field_40 = 0;
     winner = -1;
     g_game_info.pselect.field_1f4 = 1;
-    g_game_info.flag_bits.pad_bit6 = 0;
+    g_game_info.flag_bits.field_bit6 = 0;
     f_fatality_available = 0;
     set_level_fatality_done_flag_state(0);
 
@@ -2958,7 +2958,7 @@ float p_gamelogic(void) {
     tables = (char*)plyr_ending_timings;
     turn_controllers_off();
     start_time = (unsigned int)debug_get_msec_timer();
-    g_game_info.flag_bits.pad_bit6 = 0;
+    g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.pause_flag_bits.fatality_window = 0;
     f_fatality_was_done = 0;
     round_winner = 0;
