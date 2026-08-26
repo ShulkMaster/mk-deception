@@ -11,6 +11,7 @@ MkPfx* start_pfx_glass_shards(
 void allow_shard_pfx_now(void);
 void kill_shard_pfx_now(void);
 float get_soul_sine(int index);
+extern float soul_sine[0x400];
 int build_sine_table_for_scripts(void);
 void build_sine_table(void);
 

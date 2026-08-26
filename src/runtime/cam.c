@@ -304,7 +304,7 @@ static inline void chess_camera_look_at(const Vec* target) {
     camera->ang.z = angles.z;
 }
 
-typedef struct BackgroundDangerZone {
+struct BackgroundDangerZone {
     CollisionShape shape;
     RpAtomic* object;
     int action;
@@ -312,7 +312,7 @@ typedef struct BackgroundDangerZone {
     int cooldown;
     int enabled; /* +0xA0 */
     char padA4[0x0C];
-} BackgroundDangerZone;
+};
 
 typedef struct InteractionCameraData {
     MkObj* hero;

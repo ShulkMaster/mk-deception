@@ -3,6 +3,8 @@
 
 #include "runtime/mk_struct.h"
 
+extern Vec tightrope_perp_uv;
+
 typedef int (*ArenaObstacleCallback)(void);
 
 typedef struct ConstrainInfo {
@@ -55,5 +57,6 @@ void set_background_obstacle_disable_flag(
     int obstacle_id, int disabled);
 void set_background_obstacle_repel_flag(
     int obstacle_id, int repel_disabled);
+int get_obstacle_type_from_id(unsigned int obstacle_id);
 
 #endif

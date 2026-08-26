@@ -3028,15 +3028,14 @@ void delete_light_lists(void) {
     skip_light_setup = 0;
 }
 
-void* find_mkx_rplight_in_obj(void* obj, void* light) {
-    MkObj* mkobj = (MkObj*)obj;
+MkxRpLight* find_mkx_rplight_in_obj(MkObj* obj) {
     MkPtr* ptr;
     int matches_type;
     MkxRpLight* link;
     MkxRpLight* candidate;
 
-    if (mkobj->child_list != 0) {
-        ptr = first_mkptr(&mkobj->child_list);
+    if (obj->child_list != 0) {
+        ptr = first_mkptr(&obj->child_list);
         while (ptr != 0) {
             link = (MkxRpLight*)ptr->hdr;
             matches_type = 0;

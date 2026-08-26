@@ -11,6 +11,7 @@
 #include "game/konquest.h"
 #include "game/ejb.h"
 #include "game/constrain.h"
+#include "game/bgnd.h"
 #include "game/jdn.h"
 #include "game/jmt.h"
 #include "game/plyr.h"
@@ -164,10 +165,10 @@ typedef struct ScriptThreeIntArgs {
 
 typedef struct ScriptMorphArgs {
     unsigned int header;
-    int object_id;
-    int start_shape;
-    int end_shape;
-    int ticks;
+    MkObj* object;
+    int sobj_id;
+    int script_id;
+    unsigned int flags;
 } ScriptMorphArgs;
 
 typedef struct ScriptObjectArgs {
@@ -293,14 +294,14 @@ typedef struct ScriptSkytempleExplodeArgs {
 typedef struct ScriptPebbleArrangeArgs {
     unsigned int header;
     int player;
-    int count;
-    const Vec* position;
+    unsigned int count;
+    Vec* position;
 } ScriptPebbleArrangeArgs;
 
 typedef struct ScriptPebbleVelocityArgs {
     unsigned int header;
     int player;
-    int count;
+    unsigned int count;
     float x;
     float y;
     float z;
@@ -395,12 +396,12 @@ typedef struct ScriptPlyrPdataArgs {
 typedef struct ScriptPlyrEntryArgs {
     unsigned int header;
     PlyrPdata* player;
-    ScriptEntryFn entry;
+    int entry;
 } ScriptPlyrEntryArgs;
 
 typedef struct ScriptEntryPlayerArgs {
     unsigned int header;
-    ScriptEntryFn entry;
+    int entry;
     int player;
 } ScriptEntryPlayerArgs;
 
@@ -878,9 +879,6 @@ void bgnd_sobj_set_texture_kl_values(
     unsigned int object_id, unsigned int material_id, int dual_texture,
     float l, int k);
 char* get_script_string_arg(int argument);
-void bgnd_replace_tex_with_wiff_and_ani(
-    int object, const char* texture, float frame_rate, int first_frame,
-    int last_frame);
 void jab_attach_wiff_to_sobj(
     int object, int sobj, const char* wiff, const char* animation,
     int flags, int mode, float scale);
@@ -1240,7 +1238,7 @@ void ck_rumble_controller(int a, int b, int c);
 int check_for_green_light(int a);
 int check_for_red_light(int a);
 void ck_put_weapon_away(int a);
-void* find_obj_by_id(int a);
+MkObj* find_obj_by_id(int a);
 void yinyang_reset_music_index(void);
 void yinyang_play_evil_tune(void);
 void yinyang_play_good_tune(void);
@@ -1307,7 +1305,6 @@ void pebble_set_ang_vel(int player, int index, const Vec* velocity);
 void pebble_set_ang(int player, int index, const Vec* angles);
 void pebble_set_scale(int player, int index, const Vec* scale);
 void pebble_set_vel(int player, int index, const Vec* velocity);
-void pebble_set_pos(int player, int index, const Vec* position);
 void destroy_mkobj(void* object);
 void obj_turn_gravity_off(void* object);
 void obj_set_gravity(void* object, float gravity);
@@ -1321,11 +1318,7 @@ float script_fabs(float value);
 void set_obj_light_flags(MkObj* object, int flags);
 void set_obj_ang(MkObj* object, float x, float y, float z);
 void set_obj_pos(MkObj* object, float x, float y, float z);
-void bgnd_unhide_sobj_list(int list_id);
-void bgnd_hide_sobj_list(int list_id);
 int random_percent(float percent);
-void bgnd_sobj_start_morph(int object_id, int start_shape, int end_shape,
-                           int ticks);
 void delete_screen_obj_oid(int oid);
 void reset_collision_system(void);
 void pos_cam_for_current_level(void);
@@ -1339,10 +1332,6 @@ void turn_controllers_on(void);
 void turn_controllers_off(void);
 void bgnd_clear_face_opponent_flags(void);
 void mab_script_trace_func(char* message);
-void skytemple_arrange_fence_pebbles_around_pos(int player, int count,
-                                                const Vec* position);
-void skytemple_set_fence_pebble_vel(int player, int count, float x, float y,
-                                    float z);
 void scripted_camera_script_exit(void);
 void bgnd_launch_fx_at_sobj_pos(
     const char* name, unsigned int sobj_id, float y_offset);
@@ -1355,13 +1344,6 @@ int misc_data_get_col_obj_id2(void);
 void misc_data_set_col_obj_id(int object_id);
 int misc_data_get_col_obj_id(void);
 MkObj* bgnd_fetch_obj(int model_id);
-void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame);
-void bgnd_swap_textures(int sobj_id, int material_id, int frame);
-void bgnd_append_texture_to_material_tbl(
-    const BgndAppendTextureEntry* entries);
-void bgnd_append_texture_to_material(int sobj_id, int material_id,
-                                     char* texture_name, int texture_slot);
-void bgnd_light_set_color(int light_id, float red, float green, float blue);
 float bgnd_get_float(int value_id);
 unsigned int bgnd_get_u32(int value_id);
 int bgnd_get_int(int value_id);
@@ -1402,8 +1384,8 @@ void mks_npc_build_bones_tbl(int model_id, const int* bone_tags);
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player);
 void mks_xfer_collision_info_plyr_to_bgnd_script(PlyrPdata* player,
-                                                  ScriptEntryFn entry);
-void mks_xfer_collision_info_plyr_to_script(ScriptEntryFn entry, int player);
+                                                  int script_function);
+void mks_xfer_collision_info_plyr_to_script(int script_function, int player);
 void resume_effect_at_plyr_num_bid(
     int player, int bone_id, unsigned int effect_handle,
     int bind_mode, int blood_required);
@@ -1425,8 +1407,6 @@ int back_rollup_check(void);
 int back_rollup_check_reverse(void);
 void bgnd_active_sobj_no_ztest(void);
 void bgnd_active_sobj_no_zwrite(void);
-int bgnd_add_wall_to_hide(int);
-int bgnd_add_wall_to_unhide(int);
 int bgnd_allow_dirty_floor(void);
 void bgnd_always_face_y(unsigned int);
 int bgnd_clean_beetlelair(void);
@@ -1439,7 +1419,7 @@ int bgnd_create_sobjs(void);
 int bgnd_delete_danger_zone(int);
 void bgnd_delete_proc_by_id(int);
 int bgnd_detach_rope(int);
-int bgnd_enable_wall_hider(int);
+void bgnd_enable_wall_hider(unsigned int);
 int bgnd_end_the_game_and_restart(void);
 void bgnd_get_active_sobj_pos(Vec*);
 void bgnd_hide_active_sobj(void);
@@ -1448,7 +1428,7 @@ void bgnd_hide_pebbles(int);
 void bgnd_hide_preload_obj(int);
 void bgnd_hide_sobj(unsigned int);
 void bgnd_hide_sobj_and_children(unsigned int);
-int bgnd_init_all_uv_scroll_w_control(void);
+void bgnd_init_all_uv_scroll_w_control(void);
 int bgnd_init_cracks(void);
 void bgnd_init_timers(int);
 int bgnd_kill_all_launched_sobjs(void);
@@ -1458,7 +1438,6 @@ void bgnd_npc_like_plyr(unsigned int);
 int bgnd_preload_obj_attach_rope(int);
 int bgnd_reg_col_cb_for_beetle_lair(void);
 int bgnd_remove_cracks(void);
-int bgnd_remove_wall_from_hider(int);
 int bgnd_reset_players_animation_height(void);
 void bgnd_reset_sobj(int);
 void bgnd_restore_player(void);
@@ -1473,11 +1452,7 @@ int bgnd_sh_level_1(void);
 int bgnd_sh_level_2(void);
 void bgnd_shadow_control(unsigned int);
 int bgnd_start_cracks(void);
-int bgnd_start_sh_fx(void);
-int bgnd_start_sobj_uv_scroll_tbl(int);
-int bgnd_start_wall_hider(int);
 int bgnd_swap_level(int);
-int bgnd_takeover_plyr(int);
 int bgnd_turn_off_backface_culling(int);
 int bgnd_turn_on_backface_culling(int);
 void bgnd_unhide_active_sobj(void);
@@ -1487,7 +1462,6 @@ void bgnd_unhide_preload_obj(int);
 void bgnd_unhide_sobj(unsigned int);
 void bgnd_unhide_sobj_and_children(unsigned int);
 void bgnd_update_active_mksobj(void);
-int bgnd_xfer_attacker(int);
 int blast_effect_at_plyr(void);
 int bulvan_function(int);
 int change_monk_age(int);
@@ -1749,8 +1723,6 @@ int set_reference_pui(int);
 int setup_for_flip_ani(void);
 int setup_interior_fighting_arena(void);
 int setup_vomit_slip_sound(void);
-int sh_lower_level_pebble_hide(void);
-int sh_lower_level_pebble_unhide(void);
 int show_fight_message(int);
 int show_objective_arrow_and_beam(void);
 int show_player(int);
@@ -1765,7 +1737,6 @@ void spad_norm_vector(int);
 void special_move_cam_end(void);
 int start_baraka_blades_monitor(void);
 int start_baraka_jaw_monitor(void);
-int start_bl_beetles_live_top_floor(void);
 void start_chunk_launch_monitor(void);
 int start_constrain_proc(void);
 int start_hero_collisions(void);
@@ -1837,8 +1808,6 @@ int ani_loop_more_frames(void *, float);
 int ani_to_frame_x_aniproc(void *, float);
 int assign_obj_to_trigger(int, int);
 int attach_pfx_to_object(int, char*, int);
-int bgnd_act_at_time(int, int, void *, float, float, float);
-int bgnd_add_new_normal_check_for_hider(void *, float, float, float, float);
 void bgnd_add_scripted_brains_to_npc(unsigned int, unsigned int);
 void bgnd_apply_active_sobj_pos_vel_drag(void *, float, float, float);
 void bgnd_apply_zoffset(unsigned int, void *, float);
@@ -1852,15 +1821,12 @@ void bgnd_collison_if_set_return_result(int);
 void bgnd_create_pebbles(
     int model_index, unsigned int object_id, unsigned int player, int mode,
     unsigned int count);
-int bgnd_current_rx_set_info(int, void *, float);
-int bgnd_destroy_sobj_uv_scroll_w_control(int);
+void bgnd_destroy_sobj_uv_scroll_w_control(unsigned int);
 void bgnd_enable_danger_zone(unsigned int, int);
 void bgnd_enable_obj_pos_and_ang_setting(
     MkObj* object, Vec* position, Vec* angles);
-int bgnd_fade_object(int, void *, float);
 void bgnd_force_ground_to(void *, float);
 void bgnd_force_plyr_ground_plane(unsigned int, void *, float);
-int bgnd_init_pebbles(int, int, int);
 int bgnd_insert_obj_ctrl_section(int, int);
 int bgnd_jtb_debug_info(void *, float, float, float);
 void bgnd_launch_plyr_blood_fx(int, int);
@@ -1888,7 +1854,6 @@ void bgnd_pebble_burst_set_value(int, unsigned int, unsigned int, int, void *,
 void bgnd_pebble_burst_set_value_min_max(int, unsigned int, unsigned int, int,
                                          void *, float, float);
 void bgnd_pebble_change_current_end_behavior(int);
-int bgnd_pebble_gravity(int, void *, float);
 void bgnd_pebble_rand_scale(int, void *, float, float);
 void bgnd_pebble_set_current_info(unsigned int, void *, float);
 void bgnd_pebble_set_current_pebble(int, int);
@@ -1897,7 +1862,7 @@ int bgnd_place_crack_when_plyr_hits_ground(int);
 int bgnd_place_object_at_position(int, int, int, int, int);
 void bgnd_register_danger_zone_callback(PlyrPdata*, int);
 void bgnd_rotate_sobj(unsigned int, void*, float, float, float);
-int bgnd_rotate_xz_about_orgin_active_sobj(void *, float);
+void bgnd_rotate_xz_about_orgin_active_sobj(float);
 void bgnd_run_camera_script(int, int);
 void bgnd_set_active_sobj_ang(void *, float, float, float);
 void bgnd_set_active_sobj_in_obj(int, unsigned int);
@@ -1918,8 +1883,7 @@ void bgnd_set_launch_velocity_based_on_sobj_pos(
     void* script, float horizontal_velocity, float vertical_velocity);
 void bgnd_set_material_color(int, unsigned int, unsigned char, unsigned char,
                              unsigned char, unsigned char);
-int bgnd_set_new_ground_plane(void *, float);
-int bgnd_set_player_shadow_ground_plane(int, void *, float);
+void bgnd_set_player_shadow_ground_plane(int, float);
 void bgnd_set_plyr_gravity(void *, float);
 void bgnd_set_sobj_launch_params(int, int, unsigned int, void *, float, float,
                                  float, float, float, float, float);
@@ -1928,8 +1892,9 @@ void bgnd_set_sobj_launch_params_exact(
     float angle_x, float angle_y, float angle_z, float vertical_velocity,
     float heading);
 void bgnd_set_wall_hide_distance(void *, float);
-int bgnd_sobj_cam_frustum_test_into_transparent(int, void *, float, float);
-int bgnd_sobj_cam_volume_test_steer_over(int, void *, float, float);
+void bgnd_sobj_cam_frustum_test_into_transparent(
+    unsigned int, float, float);
+void bgnd_sobj_cam_volume_test_steer_over(unsigned int, float, float);
 void bgnd_sobj_get_ang(unsigned int, Vec *);
 void bgnd_sobj_set_alpha(unsigned int, unsigned int);
 void bgnd_sobj_set_ang(unsigned int, void *, float, float, float);
@@ -1995,7 +1960,6 @@ int konquest_teleport_hero_to_location(int);
 int konquest_transition_object_to_state(int, int, int);
 int land_chores(int, int, void *, float, float);
 int launch_me_up(void *, float, float);
-int load_bgnd_style(int, char*, void*);
 int load_script_as_reaction(int, int);
 int mk_chess_add_movement_skill(int, int, int, int);
 int mk_chess_ani_loop_more_frames(void *, float);
@@ -2107,11 +2071,11 @@ int obj_scale_over_time(int, int, void *, float);
 void obj_set_flipped_bones(MkObj* object, MkFlippedBoneMap* bone_map);
 void obj_set_scale(MkObj*, void*);
 int obj_set_z_offsets(int, void *, float);
-int obj_sobj_cam_frustum_test_into_transparent(int, int, void *, float, float);
+void obj_sobj_cam_frustum_test_into_transparent(
+    MkObj*, unsigned int, float, float);
 int open_chest_and_give_item_to_player(int, int);
 int open_chest_and_unlock_kontent(int, int);
 int pan_vol_pitch_snd_req(int, void *, float, float, float);
-int pebble_get_pos(int, int, int);
 int play_sound_2(int, int);
 int player_impale(int, int);
 int player_remove_item_from_inventory(int);
@@ -2197,8 +2161,6 @@ int plyr_invulnerable_to_projectiles(int, int);
 /* Typed declarations used by imported script wrappers. */
 int advance_my_sidekick_from_behind_with_moveset(void);
 int am_i_airborn_check_in_reaction(void);
-int bgnd_add_fx_to_hide(void);
-float bgnd_current_rx_get_info(int);
 MkObj* bgnd_fx_get_binded_obj(unsigned int);
 float bgnd_get_camera_y_angle(void);
 float bgnd_get_camera_z_pos(void);
@@ -2261,7 +2223,6 @@ int get_projectile_his_plyr_num(void);
 int get_projectile_script_plyr_num(void);
 int get_projectile_script_plyr_pdata(void);
 int get_pui_status(int);
-MkHdr* get_sobj_pebble_obj(MkSobj*);
 int get_taunts_performed(void);
 int get_tile_sobj_by_id(int);
 int get_victory_flip_flags(void);
@@ -2328,7 +2289,6 @@ float bgnd_blood_control(int, int, void *, float);
 int bgnd_create_pebbles_with_sobj(int, int, int, int);
 float bgnd_get_anim_info(int, int, void *, float);
 int bgnd_npc_get_aux_int_data(unsigned int, unsigned int);
-float bgnd_process_active_sobj_info(int, void *, float, float);
 float bgnd_process_collision_info(int, void *, float, float, float, float, float, float, float, float);
 int build_bones_tbl(int, int);
 int fire_spear_at_camera(int, int);
@@ -2372,7 +2332,7 @@ extern int heart_beat;
 int attach_sound_to_object_by_uid(int, int, int, int, float, float);
 int attach_wiff_to_konquest_object_by_uid(int, char*, void*, float);
 void bgnd_create_danger_zone(int, unsigned int, unsigned int,
-                             unsigned int, float);
+                             float, unsigned int);
 void bgnd_launch_fx_at_plyr_bid(const char*, int);
 void bgnd_launch_fx_to_sobj(const char*, int);
 void bgnd_launch_plyr_up_and_forward(int, int, float, float, float, float,
@@ -2386,16 +2346,14 @@ void bgnd_pebble_change_current_behavior_to_bounce(
 void bgnd_pebble_launch_at_time(int, int, unsigned int, int, float, float,
                                 float, float, float, float, float, float,
                                 float);
-int bgnd_place_point_light_for_ticks(int, int, int, float);
 int bgnd_place_weapon_at_position(int, int, int, int, int, int, int, float, float, float, float, float, float, float, float);
 MkObj* bgnd_preload_named_model(const char*, unsigned int);
-int bgnd_pulsate_object(int, int, int, void *, float, float);
-int bgnd_pulsate_object_with_caps(int, int, int, int, int, float, float);
-int bgnd_pulsate_object_with_caps_and_scale(int, int, int, int, int, void *, float, float, float, float, float, float, float, float);
-int bgnd_set_sobj_uv_scroll_abs_values(int, float, float, float, float);
-int bgnd_set_sobj_uv_scroll_rate_values(int, float, float, float, float);
-int bgnd_start_sobj_uv_scroll(int, int, float, float, float, float);
-int bgnd_start_sobj_uv_scroll_w_control(int, int, int, float, float, float, float);
+void bgnd_set_sobj_uv_scroll_abs_values(
+    float, float, float, float, unsigned int);
+void bgnd_set_sobj_uv_scroll_rate_values(
+    float, float, float, float, unsigned int);
+int bgnd_start_sobj_uv_scroll_w_control(
+    int, float, float, float, float, unsigned int, unsigned int);
 int display_konquest_text(int, int, float, float, float);
 typedef struct AnimScript AnimScript;
 void drone_blend_to_ani(AnimScript*, int, float);
@@ -5535,7 +5493,7 @@ void _pebble_set_pos(void) {
 
     args.bytes = current_args;
     pebble_set_pos(args.pebble_vec->player, args.pebble_vec->index,
-                   args.pebble_vec->value);
+                   (Vec*)args.pebble_vec->value);
 }
 
 void _destroy_mkobj(void) {
@@ -5648,14 +5606,14 @@ void _bgnd_unhide_sobj_list(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_unhide_sobj_list(args.single_int->value);
+    bgnd_unhide_sobj_list((unsigned int*)args.single_int->value);
 }
 
 void _bgnd_hide_sobj_list(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_hide_sobj_list(args.single_int->value);
+    bgnd_hide_sobj_list((unsigned int*)args.single_int->value);
 }
 
 void _random_percent(void) {
@@ -5673,8 +5631,8 @@ void _bgnd_sobj_start_morph(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_sobj_start_morph(args.morph->object_id, args.morph->start_shape,
-                          args.morph->end_shape, args.morph->ticks);
+    bgnd_sobj_start_morph(args.morph->object, args.morph->sobj_id,
+                          args.morph->script_id, args.morph->flags);
 }
 
 void _delete_screen_obj_oid(void) {
@@ -7292,8 +7250,7 @@ void _mk_chess_set_ani_speed(void) {
 }
 
 void _bgnd_add_fx_to_hide(void) {
-    get_script_string_arg(1);
-    bgnd_add_fx_to_hide();
+    bgnd_add_fx_to_hide(get_script_string_arg(1));
 }
 
 void _mk_chess_place_special_cell_at(void) {
@@ -8470,7 +8427,7 @@ void _bgnd_takeover_plyr(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_takeover_plyr(args.raw->slots[0].i);
+    bgnd_takeover_plyr((PlyrInfo*)args.raw->slots[0].pointer);
 }
 
 void _spad_norm_vector(void) {
@@ -8540,7 +8497,7 @@ void _bgnd_rotate_xz_about_orgin_active_sobj(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_rotate_xz_about_orgin_active_sobj(current_args, args.raw->slots[0].f);
+    bgnd_rotate_xz_about_orgin_active_sobj(args.raw->slots[0].f);
 }
 
 void _bgnd_hide_active_sobj(void) {
@@ -8683,21 +8640,25 @@ void _bgnd_sobj_cam_frustum_test_into_transparent(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_sobj_cam_frustum_test_into_transparent(args.raw->slots[0].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f);
+    bgnd_sobj_cam_frustum_test_into_transparent(
+        args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].f);
 }
 
 void _obj_sobj_cam_frustum_test_into_transparent(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    obj_sobj_cam_frustum_test_into_transparent(args.raw->slots[0].i, args.raw->slots[1].i, current_args, args.raw->slots[2].f, args.raw->slots[3].f);
+    obj_sobj_cam_frustum_test_into_transparent(
+        (MkObj*)args.raw->slots[0].i, args.raw->slots[1].i,
+        args.raw->slots[2].f, args.raw->slots[3].f);
 }
 
 void _bgnd_sobj_cam_volume_test_steer_over(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_sobj_cam_volume_test_steer_over(args.raw->slots[0].i, current_args, args.raw->slots[1].f, args.raw->slots[2].f);
+    bgnd_sobj_cam_volume_test_steer_over(
+        args.raw->slots[0].i, args.raw->slots[1].f, args.raw->slots[2].f);
 }
 
 void _bgnd_rotate_sobj(void) {
@@ -9055,7 +9016,11 @@ void _bgnd_start_sobj_uv_scroll(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_start_sobj_uv_scroll(args.raw->slots[0].i, args.raw->slots[5].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    bgnd_start_sobj_uv_scroll(
+        args.raw->slots[0].i,
+        args.raw->slots[1].f, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f,
+        args.raw->slots[5].i);
 }
 
 void _bgnd_create_sobjs(void) {
@@ -9204,7 +9169,10 @@ void _bgnd_place_point_light_for_ticks(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = bgnd_place_point_light_for_ticks(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[3].i, args.raw->slots[2].f);
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        (int)bgnd_place_point_light_for_ticks(
+            (LightDef*)args.raw->slots[0].i, args.raw->slots[1].i,
+            args.raw->slots[3].i, args.raw->slots[2].f);
 }
 
 void _bgnd_delete_danger_zone(void) {
@@ -9274,7 +9242,9 @@ void _bgnd_create_danger_zone(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_create_danger_zone(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[4].i, args.raw->slots[3].f);
+    bgnd_create_danger_zone(args.raw->slots[0].i, args.raw->slots[1].i,
+                            args.raw->slots[2].i, args.raw->slots[3].f,
+                            args.raw->slots[4].i);
 }
 
 void _bgnd_place_object_at_position(void) {
@@ -9500,7 +9470,8 @@ void _pebble_get_pos(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pebble_get_pos(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i);
+    pebble_get_pos(args.raw->slots[0].i, args.raw->slots[1].i,
+                   (Vec*)args.raw->slots[2].i);
 }
 
 void _is_big_boss(void) {
@@ -9812,7 +9783,8 @@ void _bgnd_set_player_shadow_ground_plane(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_player_shadow_ground_plane(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
+    bgnd_set_player_shadow_ground_plane(
+        args.raw->slots[0].i, args.raw->slots[1].f);
 }
 
 void _bgnd_end_the_game_and_restart(void) {
@@ -9852,14 +9824,20 @@ void _bgnd_set_sobj_uv_scroll_abs_values(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_sobj_uv_scroll_abs_values(args.raw->slots[4].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f);
+    bgnd_set_sobj_uv_scroll_abs_values(
+        args.raw->slots[0].f, args.raw->slots[1].f,
+        args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].i);
 }
 
 void _bgnd_set_sobj_uv_scroll_rate_values(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_set_sobj_uv_scroll_rate_values(args.raw->slots[4].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f);
+    bgnd_set_sobj_uv_scroll_rate_values(
+        args.raw->slots[0].f, args.raw->slots[1].f,
+        args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].i);
 }
 
 void _bgnd_init_all_uv_scroll_w_control(void) {
@@ -9877,7 +9855,12 @@ void _bgnd_start_sobj_uv_scroll_w_control(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = bgnd_start_sobj_uv_scroll_w_control(args.raw->slots[0].i, args.raw->slots[5].i, args.raw->slots[6].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        bgnd_start_sobj_uv_scroll_w_control(
+            args.raw->slots[0].i, args.raw->slots[1].f,
+            args.raw->slots[2].f, args.raw->slots[3].f,
+            args.raw->slots[4].f, args.raw->slots[5].i,
+            args.raw->slots[6].i);
 }
 
 void _sh_lower_level_pebble_unhide(void) {
@@ -11522,7 +11505,8 @@ void _bgnd_start_sobj_uv_scroll_tbl(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    bgnd_start_sobj_uv_scroll_tbl(args.raw->slots[0].i);
+    bgnd_start_sobj_uv_scroll_tbl(
+        (BgndUvScrollEntry*)args.raw->slots[0].i);
 }
 
 void _npc_set_snap_to_ground(void) {

@@ -21,6 +21,7 @@
 #include "game/bgnd_types.h"
 #include "math/gxVect.h"
 #include "runtime/plyr_info.h"
+#include "runtime/mk_struct.h"
 
 typedef struct MkObj MkObj;
 typedef struct MkProc MkProc;
@@ -102,9 +103,11 @@ typedef union GameFeatureFlags {
     GameFeatureFlagBits bits;
 } GameFeatureFlags;
 
+typedef struct BgndWallHiderRuntime BgndWallHiderRuntime;
+
 typedef struct GameInfoFlags {
     unsigned char high_res_path : 1; /* bit7 */
-    unsigned char pad_bit6 : 1;
+    unsigned char field_bit6 : 1;
     unsigned char lens_flare_enabled : 1; /* bit5 */
     unsigned char level_transition_active : 1; /* bit4 */
     unsigned char level_fatality_active : 1;   /* bit3 */
@@ -138,8 +141,23 @@ typedef struct GameInfoPselectTail {
 } GameInfoPselectTail; /* 0x28 */
 
 typedef struct BgndWallHiderData {
-    char pad00[0x0C];
+    MkHdr hdr; /* +0x00 */
+    MkPtr* walls; /* +0x08 */
     float hide_distance; /* +0x0C */
+    union {
+        unsigned int flags; /* +0x10 */
+        struct {
+            union {
+                unsigned char flags_byte;
+                struct {
+                    unsigned char disabled : 1; /* bit7 */
+                    unsigned char pad_low : 7;
+                } flag_bits;
+            };
+            char pad11[3];
+        };
+    };
+    BgndWallHiderRuntime* runtime; /* +0x14 */
 } BgndWallHiderData;
 
 typedef struct GameInfo {
@@ -176,7 +194,7 @@ typedef struct GameInfo {
     int collision_player_side; /* +0x54 */
     PlyrPdata* collision_player_pdata; /* +0x58 */
     int collision_event_id; /* +0x5C */
-    int field_60; /* +0x60 */
+    MkPtr* displayed_items; /* +0x60 - BgndDisplayedItem list */
     int field_64; /* +0x64 */
     BgndWallHiderData* wall_hider; /* +0x68 */
     MkProc* camera_proc; /* +0x6C */

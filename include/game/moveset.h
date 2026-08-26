@@ -4,6 +4,8 @@
 typedef struct ScreenObj ScreenObj;
 typedef struct MkObj MkObj;
 typedef struct MkPtr MkPtr;
+typedef struct ScriptSlot ScriptSlot;
+typedef struct WeaponDefinition WeaponDefinition;
 
 typedef struct MovesetReflectionOwner {
     char pad00[0x94];
@@ -12,7 +14,8 @@ typedef struct MovesetReflectionOwner {
 
 typedef struct MovesetDefinition {
     unsigned int animation_header; /* +0x00 - copied into runtime style */
-    char pad04[8];
+    WeaponDefinition* primary_weapon; /* +0x04 */
+    WeaponDefinition* secondary_weapon; /* +0x08 */
     const char* style_sign_name;    /* +0x0C */
     int style_sign_width;           /* +0x10 */
     const char* style_section_name; /* +0x14 */
@@ -24,7 +27,10 @@ typedef struct MovesetDefinition {
 typedef struct GlobalMoveset {
     unsigned int animation_header;
     MovesetDefinition* definition; /* +0x04 */
-    MovesetReflectionOwner* reflection_owner; /* +0x08 */
+    union {
+        ScriptSlot* script;
+        MovesetReflectionOwner* reflection_owner;
+    }; /* +0x08 */
     MkObj* primary_weapon; /* +0x0C */
     unsigned int primary_weapon_instance; /* +0x10 */
     MkObj* reflection_weapon; /* +0x14 */
@@ -35,7 +41,7 @@ typedef struct GlobalMoveset {
     char pad2C[0x40];
     ScreenObj* style_sign;          /* +0x6C */
     unsigned int style_sign_instance; /* +0x70 */
-    unsigned int standing_animation_script; /* +0x74 */
+    int standing_animation_script; /* +0x74 - animation palette/table head */
     char pad78[0x134];
 } GlobalMoveset; /* 0x1AC */
 

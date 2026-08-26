@@ -6,16 +6,22 @@
  * Offsets from load_background / bgnd_anim_camera_* (Ghidra + bgnd.c).
  */
 
+typedef struct LightDef LightDef;
+
 typedef struct BgndMisc {
-    char pad00[0x48];
-    void* lights_bgnd;     /* +0x48 */
-    void* lights_spec;     /* +0x4C */
-    void* lights_plyr;     /* +0x50 */
+    char pad00[0x3C];
+    float field_3C;
+    float field_40;
+    float field_44;
+    LightDef** lights_bgnd; /* +0x48 */
+    LightDef** lights_spec; /* +0x4C */
+    LightDef** lights_plyr; /* +0x50 */
     float shadow_strength; /* +0x54 */
     float shadow_cam_light[3]; /* +0x58 */
     void* script; /* +0x64 */
     float mirror_plane_offset; /* +0x68 */
 } BgndMisc;
+typedef char BgndMiscSizeCheck[(sizeof(BgndMisc) == 0x6C) ? 1 : -1];
 
 typedef struct BgndObstacleData BgndObstacleData;
 
