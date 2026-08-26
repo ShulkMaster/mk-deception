@@ -468,7 +468,7 @@ void obj_set_bone_collapse_flag(
 void calc_bone_world_mat(PuzzleFighterRenderObject* object, int bone);
 void pz_fighter_clear_out_external_forces(void);
 void random_voice(int group);
-void* bgnd_launch_fx_at_bid_of_mkobj(
+void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect, PuzzleFighterRenderObject* object, int bone);
 void resume_effect_at_obj_bid(
     PuzzleFighterRenderObject* object, int bone, void* effect, int active,

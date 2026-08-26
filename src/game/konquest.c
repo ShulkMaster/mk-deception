@@ -613,7 +613,7 @@ typedef struct KonquestTile {
     char pad00[4];
     int visible; /* +0x04 */
     char pad08[0x0C];
-    void* scene; /* +0x14 */
+    MkSobj* scene; /* +0x14 */
     MkPtr* objects; /* +0x18 */
 } KonquestTile;
 
@@ -1077,7 +1077,6 @@ void p_konquest_mode(void);
 void p_gamelogic(void);
 void RwResourcesSetArenaSize(int size);
 char* get_string_by_id(int id);
-void hide_sobj_and_children(void* object);
 void set_true_clip_flag_on_sobj_and_children(void* object, int value);
 void hide_tile_objects(void* tile);
 void remove_collisions_from_tile_and_tile_objects(void* tile);

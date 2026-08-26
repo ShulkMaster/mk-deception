@@ -105,6 +105,8 @@ int collide_segment_against_global_collision_list(
     const Vec* start, const Vec* end, Vec* hit_point,
     unsigned int ignored_flags);
 void update_collision_obj_pos(CollisionObj* object, const Vec* position);
+void collision_obj_set_shape(
+    CollisionObj* object, const CollisionShape* shape);
 void init_player_collision(PlyrInfo* player);
 
 #endif

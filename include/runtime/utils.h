@@ -8,6 +8,7 @@
 
 typedef struct MkObj MkObj;
 typedef struct MkSobj MkSobj;
+typedef struct RwRGBA RwRGBA;
 
 typedef int (*MovieTapoutFn)(void);
 
@@ -53,7 +54,7 @@ void show_material(RpMaterial* material);
 void hide_material(RpMaterial* material);
 void material_set_color(RpMaterial* material, const RpMaterialColor* color);
 void set_atomic_material_color_by_id(void* atomic, int id, int* color);
-void set_atomic_material_color(void* atomic, int* color);
+void set_atomic_material_color(void* atomic, const RwRGBA* color);
 void obj_set_color_for_material_by_id(
     MkObj* obj, int id, const RpMaterialColor* color);
 void obj_set_color_for_all_materials(void* obj, int* color);

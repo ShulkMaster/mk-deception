@@ -62,7 +62,11 @@ int gap_08_8051032C_sbss;
 
 static const GcFilter default_filter;
 
-void set_texture_mipmap_KL_manual(void) {}
+void set_texture_mipmap_KL_manual(RwTexture* texture, int k, float l) {
+    (void)texture;
+    (void)k;
+    (void)l;
+}
 
 void clear_alpha_channel(void) {}
 

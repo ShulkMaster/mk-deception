@@ -24,6 +24,7 @@
 
 typedef struct MkObj MkObj;
 typedef struct MkProc MkProc;
+typedef struct PlyrPdata PlyrPdata;
 typedef struct ScriptSlot ScriptSlot;
 
 typedef struct SkyMkobj {
@@ -84,7 +85,7 @@ typedef struct GamePauseFlags {
 typedef struct GameSwitchInputFlags {
     unsigned char pad_7_6 : 2;
     unsigned char field_bit5 : 1;
-    unsigned char pad_4 : 1;
+    unsigned char view_danger_zones : 1; /* bit4 */
     unsigned char eat_switches : 1; /* bit3 - pause/online input suppression */
     unsigned char pad_2_0 : 3;
 } GameSwitchInputFlags;
@@ -105,8 +106,8 @@ typedef struct GameInfoFlags {
     unsigned char high_res_path : 1; /* bit7 */
     unsigned char pad_bit6 : 1;
     unsigned char lens_flare_enabled : 1; /* bit5 */
-    unsigned char pad_bit4 : 1;
-    unsigned char pad_bit3 : 1;
+    unsigned char level_transition_active : 1; /* bit4 */
+    unsigned char level_fatality_active : 1;   /* bit3 */
     unsigned char level_fatality_done : 1; /* bit2 */
     unsigned char pad_bit1 : 1;
     unsigned char field_bit0 : 1;
@@ -135,6 +136,11 @@ typedef struct GameInfoPselectTail {
     int field_1f0; /* +0x1F0 - set 1 in pselect_init */
     int field_1f4; /* +0x1F4 - round index (do_fight_effect lwz) */
 } GameInfoPselectTail; /* 0x28 */
+
+typedef struct BgndWallHiderData {
+    char pad00[0x0C];
+    float hide_distance; /* +0x0C */
+} BgndWallHiderData;
 
 typedef struct GameInfo {
     union {
@@ -165,18 +171,36 @@ typedef struct GameInfo {
     float field_34;  /* +0x34 - fade / particle / mab */
     Vec impact_vector; /* +0x38 - normalized/scaled death-trap impact */
     PlyrInfo* active_player; /* +0x44 - current fight player */
-    char pad48[4];
+    PlyrInfo* collision_player_info; /* +0x48 */
     MkObj* player_objects[2]; /* +0x4C */
-    char pad54[0x0C];
+    int collision_player_side; /* +0x54 */
+    PlyrPdata* collision_player_pdata; /* +0x58 */
+    int collision_event_id; /* +0x5C */
     int field_60; /* +0x60 */
     int field_64; /* +0x64 */
-    int field_68; /* +0x68 */
+    BgndWallHiderData* wall_hider; /* +0x68 */
     MkProc* camera_proc; /* +0x6C */
     unsigned int camera_proc_instance; /* +0x70 */
-    int field_74; /* +0x74 */
-    char pad78[0x1C];
-    int field_94; /* +0x94 */
-    char pad98[0xC];
+    union {
+        int field_74;
+        struct {
+            unsigned char clean_floor : 1; /* bit7 */
+            unsigned char field_74_pad_bits : 7;
+            unsigned char field_75_77[3];
+        } floor_flags;
+        struct {
+            unsigned char blood_pad_high : 2;
+            unsigned char blood_enabled : 1; /* bit5 */
+            unsigned char blood_pad_low : 5;
+            unsigned char blood_pad_75_77[3];
+        } blood_flags;
+    }; /* +0x74 */
+    int field_78; /* +0x78 */
+    int bgnd_timer_ticks[3]; /* +0x7C */
+    int bgnd_timer_limits[3]; /* +0x88 */
+    MkPtr* npc_list; /* +0x94 - background NPC records */
+    float crack_count; /* +0x98 - reset with crack pool, increments on placement */
+    char pad9C[8];
     PlyrInfo plyr0; /* +0xA4 */
     PlyrInfo plyr1; /* +0x110 -- ends 0x17C */
     union {
