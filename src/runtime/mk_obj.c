@@ -694,10 +694,10 @@ void sobj_set_pos(MkSobj* sobj, void* value) {
     sobj->pos.z = pos->z;
 }
 
-Vec* sobj_get_world_pos(void* sobj) {
+Vec* sobj_get_world_pos(MkSobj* sobj) {
     RwMatrix* matrix;
 
-    matrix = (RwMatrix*)RwFrameGetLTM(((MkSobj*)sobj)->frame);
+    matrix = (RwMatrix*)RwFrameGetLTM(sobj->frame);
     return (Vec*)&matrix->pos;
 }
 
@@ -2279,8 +2279,8 @@ void obj_set_z_offsets(float offset, void* obj) {
     }
 }
 
-void* obj_first_sobj(void* obj) {
-    return first_mkhdr(&((MkObj*)obj)->sobj_list);
+MkSobj* obj_first_sobj(MkObj* obj) {
+    return (MkSobj*)first_mkhdr(&obj->sobj_list);
 }
 
 void update_mksobj(MkSobj* sobj) {

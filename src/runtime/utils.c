@@ -229,6 +229,7 @@ int is_widescreen_mode(void);
 int strncmp(const char* a, const char* b, unsigned long n);
 int sprintf(char* dest, const char* fmt, ...);
 int snprintf(char* dest, unsigned long n, const char* fmt, ...);
+int printf(const char* fmt, ...);
 const char* pathname_create(const char* path, int flag);
 void* mwFileOpen(const char* path, int mode);
 void mwFileClose(void);
@@ -785,7 +786,7 @@ void material_set_color(RpMaterial* material, const RpMaterialColor* color) {
 void set_atomic_material_color_by_id(void* atomic, int id, int* color) {
 }
 
-void set_atomic_material_color(void* atomic, int* color) {
+void set_atomic_material_color(void* atomic, const RwRGBA* color) {
 }
 
 void obj_set_color_for_material_by_id(
@@ -1714,8 +1715,37 @@ float signrand(void) {
     return 0.0f;
 }
 
+/*
+ * Exact 16-bit random scaling and validation; 93.64%, retail/local 180/172.
+ * Residue is pooled diagnostic-string addressing and multiply-result coloring.
+ */
 unsigned int randu0(unsigned int max) {
-    return 0;
+    char message[80];
+    unsigned int first_random;
+    unsigned int limit;
+    unsigned int random_value;
+    unsigned int result;
+
+    first_random = genlrand();
+    random_value = (unsigned char)first_random |
+                   ((unsigned char)genlrand() << 8);
+    limit = (unsigned short)max;
+    result = limit * random_value;
+    result >>= 16;
+    if (limit != 0) {
+        if (result >= limit) {
+            sprintf(message, "Randu0 Error 02: Input: %d  Output: %d", limit,
+                    result);
+            printf(message);
+            result = 0;
+        }
+    } else if (result != limit) {
+        sprintf(message, "Randu0 Error 04: Input: %d  Output: %d", limit,
+                result);
+        printf(message);
+        result = 0;
+    }
+    return (unsigned short)result;
 }
 
 unsigned int random(void) {
