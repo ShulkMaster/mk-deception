@@ -2,8 +2,6 @@
 
 typedef unsigned long size_t;
 typedef unsigned short wchar_t;
-typedef unsigned short u16;
-
 static int is_utf8_complete(const char* s, size_t n);
 
 inline static int unicode_to_UTF8(char* s, wchar_t wchar)
@@ -67,44 +65,64 @@ size_t wcstombs(char* s, const wchar_t* pwcs, size_t n)
     return chars_written;
 }
 
-int mbtowc(wchar_t* pwc, const char* s, size_t n)
+inline static int mbstowcs_one(wchar_t* pwc, const char* s, size_t n)
 {
-    int number_of_bytes;
+    unsigned int result_chr;
+    int number_of_bytes = 0;
     int is_utf8;
     char* source;
-    u16 result_chr = 0;
 
-    if (!s)
-        return 0;
-    if (n <= 0)
-        return -1;
-    number_of_bytes = is_utf8_complete(s, n);
-    if (number_of_bytes < 0)
-        return -1;
-    source = (char*)s;
-    switch (number_of_bytes) {
-    case 3:
-        result_chr |= *source++ & 0x0f;
-        result_chr <<= 6;
-    case 2:
-        result_chr |= *source++ & 0x3f;
-        result_chr <<= 6;
-    case 1:
-        result_chr |= *source++ & 0x7f;
+    if (!s) {
+        number_of_bytes = 0;
+        return number_of_bytes;
     }
-    if (result_chr == 0)
-        is_utf8 = 0;
+    if (n <= 0) {
+        number_of_bytes = -1;
+        return number_of_bytes;
+    }
+    is_utf8 = is_utf8_complete(s, n);
+    if (is_utf8 < 0) {
+        number_of_bytes = -1;
+        return number_of_bytes;
+    }
+    source = (char*)s;
+    switch (is_utf8) {
+    case 3:
+        result_chr = *source & 0x1f;
+        source++;
+        number_of_bytes = (result_chr << 6) & 0x3c0;
+    case 2:
+        result_chr = number_of_bytes | (*source & 0x3f);
+        source++;
+        number_of_bytes = (result_chr << 6) & 0xffc0;
+    case 1:
+        result_chr = number_of_bytes | (*source & 0x7f);
+        source++;
+        number_of_bytes = result_chr & 0xffff;
+    }
+
+    result_chr = number_of_bytes & 0xffff;
+    if (!result_chr)
+        result_chr = 0;
     else if (result_chr < 0x80)
-        is_utf8 = 1;
+        result_chr = 1;
     else if (result_chr < 0x800)
-        is_utf8 = 2;
+        result_chr = 2;
     else
-        is_utf8 = 3;
-    if (is_utf8 != number_of_bytes)
-        return -1;
+        result_chr = 3;
+
+    if ((int)result_chr != is_utf8) {
+        number_of_bytes = -1;
+        return number_of_bytes;
+    }
     if (pwc)
-        *pwc = result_chr;
-    return number_of_bytes;
+        *pwc = number_of_bytes;
+    return is_utf8;
+}
+
+int mbtowc(wchar_t* pwc, const char* s, size_t n)
+{
+    return mbstowcs_one(pwc, s, n);
 }
 
 static int is_utf8_complete(const char* s, size_t n)
