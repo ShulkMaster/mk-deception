@@ -1,4 +1,4 @@
-double __ieee754_pow(double x, double y);
+#include "fdlibm.h"
 
 double pow(double x, double y)
 {

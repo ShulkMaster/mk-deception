@@ -57,7 +57,6 @@ void __copy_longs_rev_unaligned(void* dst, const void* src, size_t n) {
 
     return;
 }
-
 void __copy_longs_unaligned(void* dst, const void* src, size_t n) {
     unsigned long i, v1, v2;
     unsigned int src_offset, left_shift, right_shift;
@@ -215,4 +214,3 @@ void __copy_longs_aligned(void* dst, const void* src, size_t n) {
 
     return;
 }
-

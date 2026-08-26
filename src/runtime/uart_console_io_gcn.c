@@ -3,7 +3,7 @@
 typedef void (*IdleProc)(void);
 
 int InitializeUART(unsigned long baudRate);
-int WriteUARTN(const void* buffer, unsigned long length);
+int WriteUARTN(void* buffer, unsigned long length);
 int __TRK_write_console(unsigned long file, unsigned char* buffer,
                         unsigned long* count, IdleProc idleProc);
 

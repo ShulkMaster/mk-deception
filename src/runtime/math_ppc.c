@@ -5,7 +5,7 @@ typedef union FloatRepresentation {
     unsigned long bits;
 } FloatRepresentation;
 
-extern FloatRepresentation __float_nan[];
+extern unsigned long __float_nan[];
 extern double __frsqrte(double x);
 
 static inline int classify_float(float value)
@@ -41,10 +41,10 @@ __declspec(weak) float sqrtf(float x)
     }
 
     if (x < 0.0)
-        return __float_nan[0].value;
+        return ((FloatRepresentation*)__float_nan)[0].value;
 
     if (classify_float(x) == 1)
-        x = __float_nan[0].value;
+        x = ((FloatRepresentation*)__float_nan)[0].value;
     return x;
 }
 
