@@ -9,10 +9,10 @@ extern int raise(int signal);
 extern ExitFunction _dtors[];
 
 ExitFunction __atexit_funcs[64];
-int __aborting;
-int __atexit_curr_func;
-ExitFunction __stdio_exit;
 ExitFunction __console_exit;
+ExitFunction __stdio_exit;
+int __atexit_curr_func;
+int __aborting;
 
 void exit(int status)
 {

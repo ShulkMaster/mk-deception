@@ -1,7 +1,7 @@
-/* TODO: Missing implementation for retail unit rand.c. */
+static unsigned long next = 1;
 
-void *rand(void)
+int rand(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    next = next * 1103515245 + 12345;
+    return (next >> 16) & 0x7FFF;
 }
