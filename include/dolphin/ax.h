@@ -8,7 +8,7 @@
  * the Dolphin AX library; only fields accessed by the MSL playback layer are
  * exposed here.
  */
-struct _AXVPB {
+typedef struct _AXVPB {
     unsigned char pad00[0x1C];
     unsigned long sync;           /* +0x01C */
     unsigned char pad20[0x126];
@@ -30,7 +30,7 @@ struct _AXVPB {
     unsigned short adpcm_loop_pred_scale; /* +0x1EC */
     unsigned short adpcm_loop_yn1;        /* +0x1EE */
     unsigned short adpcm_loop_yn2;        /* +0x1F0 */
-};
+} _AXVPB;
 
 typedef char AXVPBLayoutSize[
     sizeof(_AXVPB) == 0x1F4 ? 1 : -1];
@@ -41,6 +41,19 @@ typedef struct AXVoiceSrc {
     unsigned short current_fraction;
     short last_samples[4];
 } AXVoiceSrc;
+
+typedef struct _AXPROFILE {
+    unsigned long long axFrameStart;
+    unsigned long long auxProcessingStart;
+    unsigned long long auxProcessingEnd;
+    unsigned long long userCallbackStart;
+    unsigned long long userCallbackEnd;
+    unsigned long long axFrameEnd;
+    unsigned long axNumVoices;
+} AXPROFILE;
+
+typedef char AXPROFILELayoutSize[
+    sizeof(AXPROFILE) == 0x38 ? 1 : -1];
 
 typedef void (*AXVoiceCallback)(void* callback_data);
 
@@ -55,7 +68,7 @@ void AXSetVoicePriority(_AXVPB* voice, unsigned long priority);
 void AXSetVoiceSrc(_AXVPB* voice, AXVoiceSrc* source);
 void AXSetVoiceAdpcm(_AXVPB* voice, SPADPCM* adpcm);
 void AXSetVoiceState(_AXVPB* voice, unsigned short state);
-void AXInitEx(int mode);
+void AXInitEx(unsigned long output_buffer_mode);
 void AXSetMode(int mode);
 void AXRegisterCallback(void (*callback)(void));
 
