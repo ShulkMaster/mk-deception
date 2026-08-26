@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit w_fmod.c. */
+#include "fdlibm.h"
 
-void *fmod(void)
+double fmod(double x, double y)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return __ieee754_fmod(x, y);
 }

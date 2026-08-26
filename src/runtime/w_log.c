@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit w_log.c. */
+#include "fdlibm.h"
 
-void *log(void)
+double log(double x)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return __ieee754_log(x);
 }

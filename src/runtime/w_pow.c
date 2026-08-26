@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit w_pow.c. */
+double __ieee754_pow(double x, double y);
 
-void *pow(void)
+double pow(double x, double y)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return __ieee754_pow(x, y);
 }
