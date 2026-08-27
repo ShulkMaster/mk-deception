@@ -1,13 +1,17 @@
-/* TODO: Missing implementation for retail unit uty_ppc.c. */
+#include "dolphin/types.h"
 
-void *UTY_PopGqr(void)
+/*
+ * Retail restores GQR2 through GQR7 from saved[2..7].  Those special-purpose
+ * register writes have no portable C representation.
+ */
+void UTY_PopGqr(u32 saved[8])
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *UTY_PushGqr(void)
+/*
+ * Retail saves GQR2 through GQR7 into saved[2..7].  Those special-purpose
+ * register reads have no portable C representation.
+ */
+void UTY_PushGqr(u32 saved[8])
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }

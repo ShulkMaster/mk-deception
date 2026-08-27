@@ -22,6 +22,10 @@ static int _msbitpos(unsigned int value) {
 static void _repartition(unsigned char* first, unsigned char* last,
                          unsigned int entrySize, unsigned int keyOffset,
                          unsigned int bit) {
+    /*
+     * Retail uses the same partition stack, scans, swaps, and five-entry
+     * cutoff. The remaining -O0 delta is stack-home and GPR allocation.
+     */
     RxSortPartition stack[32];
     RxSortPartition* stackTop = stack;
 
@@ -44,7 +48,7 @@ static void _repartition(unsigned char* first, unsigned char* last,
             originalFirst = first;
             originalLast = last;
 
-                while (first <= last) {
+            while (first <= last) {
                 while (first <= last &&
                        (bit & *(unsigned int*)(first + keyOffset)) == 0) {
                     first += entrySize;
@@ -59,9 +63,9 @@ static void _repartition(unsigned char* first, unsigned char* last,
                     unsigned int remaining = entrySize;
 
                     while (remaining >= sizeof(unsigned int)) {
-                        unsigned int value = *(unsigned int*)leftWord;
-                        *(unsigned int*)leftWord = *(unsigned int*)rightWord;
-                        *(unsigned int*)rightWord = value;
+                        unsigned int value = *(unsigned int*)rightWord;
+                        *(unsigned int*)rightWord = *(unsigned int*)leftWord;
+                        *(unsigned int*)leftWord = value;
                         leftWord += sizeof(unsigned int);
                         rightWord += sizeof(unsigned int);
                         remaining -= sizeof(unsigned int);
@@ -95,6 +99,7 @@ static void _repartition(unsigned char* first, unsigned char* last,
 
 static void _insertionsort(unsigned char* base, unsigned int numEntries,
                            unsigned int entrySize, unsigned int keyOffset) {
+    /* Retail differs only in unsigned-comparison lowering and GPR coloring. */
     while (base += entrySize, --numEntries) {
         unsigned int currentKey = *(unsigned int*)(base + keyOffset);
         unsigned char* previous = base;
@@ -106,9 +111,9 @@ static void _insertionsort(unsigned char* base, unsigned int numEntries,
             unsigned int remaining = entrySize;
 
             while (remaining >= sizeof(unsigned int)) {
-                unsigned int value = *(unsigned int*)leftWord;
-                *(unsigned int*)leftWord = *(unsigned int*)rightWord;
-                *(unsigned int*)rightWord = value;
+                unsigned int value = *(unsigned int*)rightWord;
+                *(unsigned int*)rightWord = *(unsigned int*)leftWord;
+                *(unsigned int*)leftWord = value;
                 leftWord += sizeof(unsigned int);
                 rightWord += sizeof(unsigned int);
                 remaining -= sizeof(unsigned int);
@@ -161,9 +166,9 @@ void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
             unsigned int remaining = entrySize;
 
             while (remaining >= sizeof(unsigned int)) {
-                unsigned int value = *(unsigned int*)leftWord;
-                *(unsigned int*)leftWord = *(unsigned int*)rightWord;
-                *(unsigned int*)rightWord = value;
+                unsigned int value = *(unsigned int*)rightWord;
+                *(unsigned int*)rightWord = *(unsigned int*)leftWord;
+                *(unsigned int*)leftWord = value;
                 leftWord += sizeof(unsigned int);
                 rightWord += sizeof(unsigned int);
                 remaining -= sizeof(unsigned int);

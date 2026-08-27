@@ -82,7 +82,7 @@ MkPfx* start_pfx_glass_shards(
     as_mkhdr(&emitter_object->hdr);
     update_mkobj(&emitter_object->hdr);
 
-    glass->pfx.field_28 = -50.0f;
+    glass->pfx.depth_bias = -50.0f;
     glass->pfx.glass_center = *center;
     glass->pfx.effect_state = bounce_limit;
     glass->pfx.field_29C = 0.1f;

@@ -1,26 +1,89 @@
 #include "rw/rphanim.h"
 #include "rw/rwstream.h"
 
-static float HAnimAcosNumerator(float z)
-{
-    return z * (z * (z * (z * (z * (0.00003479331f * z + 0.000791535f) -
-        0.040055536f) + 0.20121253f) - 0.32556581f) + 0.16666667f);
-}
+#define HANIM_ACOS_NUMERATOR(z)                                             \
+    ((z) * (0.16666667f + (z) * (-0.32556581f + (z) *                     \
+        (0.20121253f + (z) * (-0.040055536f + (z) *                       \
+        (0.000791535f + (z) * 0.00003479331f))))))
+#define HANIM_ACOS_DENOMINATOR(z)                                           \
+    (1.0f + (z) * (-2.403395f + (z) * (2.0209458f + (z) *                 \
+        (-0.688284f + (z) * 0.077038154f))))
 
-static float HAnimAcosDenominator(float z)
-{
-    return z * (z * (z * (0.077038154f * z - 0.688284f) + 2.0209458f) -
-        2.403395f) + 1.0f;
-}
+typedef union HAnimIEEEFloatShape {
+    float value;
+    unsigned int word;
+} HAnimIEEEFloatShape;
 
-static float HAnimSinApprox(float x)
-{
-    float square = x * x;
-    return x + square * x * (-0.16666667f + square *
-        (0.008333334f + square * (-0.0001984127f + square *
-        (0.0000027557314f + square * (-2.505076e-8f +
-        square * 1.589691e-10f)))));
-}
+#define HANIM_GET_FLOAT_WORD(wordOut, realValue)                            \
+    do {                                                                    \
+        HAnimIEEEFloatShape shape;                                          \
+        shape.value = (realValue);                                          \
+        (wordOut) = shape.word;                                             \
+    } while (0)
+
+#define HANIM_SET_FLOAT_WORD(realOut, wordValue)                            \
+    do {                                                                    \
+        HAnimIEEEFloatShape shape;                                          \
+        shape.word = (unsigned int)(wordValue);                             \
+        (realOut) = shape.value;                                            \
+    } while (0)
+
+#define HANIM_SIN(result, x)                                                \
+    do {                                                                    \
+        const float z = (x) * (x);                                          \
+        const float v = z * (x);                                            \
+        const float r = 0.008333334f + z * (-0.0001984127f + z *           \
+            (0.0000027557314f + z * (-2.505076e-8f +                       \
+            z * 1.589691e-10f)));                                           \
+        (result) = (x) + v * (-0.16666667f + z * r);                        \
+    } while (0)
+
+#define HANIM_ACOS(result, x)                                               \
+    do {                                                                    \
+        float z, p, q, r, w, s, c, df;                                      \
+        int hx, ix;                                                         \
+        HANIM_GET_FLOAT_WORD(hx, (x));                                      \
+        ix = hx & 0x7fffffff;                                                \
+        if (ix >= 0x3f800000) {                                              \
+            if (hx > 0) {                                                   \
+                (result) = 0.0f;                                            \
+            } else {                                                        \
+                (result) = 3.1415925f + 2.0f * 7.5497894e-8f;              \
+            }                                                               \
+        } else if (ix < 0x3f000000) {                                       \
+            if (ix <= 0x23000000) {                                         \
+                (result) = 1.5707964f;                                      \
+            } else {                                                        \
+                z = (x) * (x);                                              \
+                p = HANIM_ACOS_NUMERATOR(z);                                \
+                q = HANIM_ACOS_DENOMINATOR(z);                              \
+                r = p / q;                                                  \
+                (result) = 1.5707963f -                                     \
+                    ((x) - (7.5497894e-8f - (x) * r));                      \
+            }                                                               \
+        } else if (hx < 0) {                                                \
+            z = 0.5f * (1.0f + (x));                                        \
+            s = _rwSqrt(z);                                                 \
+            p = HANIM_ACOS_NUMERATOR(z);                                    \
+            q = HANIM_ACOS_DENOMINATOR(z);                                  \
+            r = p / q;                                                      \
+            w = r * s - 7.5497894e-8f;                                     \
+            (result) = 3.1415925f - 2.0f * (s + w);                         \
+        } else {                                                            \
+            int idf;                                                        \
+            z = 0.5f * (1.0f - (x));                                        \
+            s = _rwSqrt(z);                                                 \
+            df = s;                                                         \
+            HANIM_GET_FLOAT_WORD(idf, df);                                  \
+            HANIM_SET_FLOAT_WORD(df, idf & 0xfffff000);                     \
+            c = (z - df * df) / (s + df);                                   \
+            p = HANIM_ACOS_NUMERATOR(z);                                    \
+            q = HANIM_ACOS_DENOMINATOR(z);                                  \
+            r = p / q;                                                      \
+            w = r * s + c;                                                  \
+            (result) = 2.0f * (df + w);                                     \
+        }                                                                   \
+    } while (0)
 
 void RpHAnimKeyFrameApply(void *matrix, void *voidFrame) {
     RwMatrix *m = matrix;
@@ -63,135 +126,95 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, float time,
     RpHAnimKeyFrame *out = vout;
     RpHAnimKeyFrame *a = va;
     RpHAnimKeyFrame *b = vb;
+    float cosTheta = a->q.w * b->q.w +
+                     (a->q.z * b->q.z +
+                      (a->q.x * b->q.x + a->q.y * b->q.y));
     float alpha = (time - a->time) / (b->time - a->time);
+    float beta;
+    int negate;
+    int nearlyOne;
+
     out->t.x = a->t.x + alpha * (b->t.x - a->t.x);
     out->t.y = a->t.y + alpha * (b->t.y - a->t.y);
     out->t.z = a->t.z + alpha * (b->t.z - a->t.z);
-    {
-        float cosTheta = a->q.x * b->q.x +
-                          a->q.y * b->q.y +
-                          a->q.z * b->q.z +
-                          a->q.w * b->q.w;
-        float beta = 1.0f - alpha;
 
-        if (cosTheta < 0.0f) {
-            cosTheta = -cosTheta;
-            b->q.x = -b->q.x;
-            b->q.y = -b->q.y;
-            b->q.z = -b->q.z;
-            b->q.w = -b->q.w;
-        }
-        if (cosTheta <= 0.999f) {
-            float theta;
-            float z;
-
-            if (cosTheta < 0.5f) {
-                RwSplitBits bits;
-                bits.nReal = cosTheta;
-                if ((bits.nInt & 0x7fffffff) <= 0x23000000) {
-                    theta = 1.5707964f;
-                } else {
-                    float ratio;
-                    z = cosTheta * cosTheta;
-                    ratio = HAnimAcosNumerator(z) /
-                            HAnimAcosDenominator(z);
-                    theta = 1.5707963f -
-                            (cosTheta - (7.5497894e-8f - cosTheta * ratio));
-                }
-            } else {
-                RwSplitBits truncated;
-                float root;
-                float high;
-                float correction;
-                float ratio;
-                z = 0.5f * (1.0f - cosTheta);
-                root = _rwSqrt(z);
-                truncated.nReal = root;
-                truncated.nInt &= 0xfffff000;
-                high = truncated.nReal;
-                correction = (z - high * high) / (root + high);
-                ratio = HAnimAcosNumerator(z) /
-                        HAnimAcosDenominator(z);
-                theta = 2.0f * (high + ratio * root + correction);
-            }
-            {
-                float reciprocal = 1.0f / HAnimSinApprox(theta);
-                beta = HAnimSinApprox(beta * theta) * reciprocal;
-                alpha = HAnimSinApprox(alpha * theta) * reciprocal;
-            }
-        }
-        out->q.x = beta * a->q.x + alpha * b->q.x;
-        out->q.y = beta * a->q.y + alpha * b->q.y;
-        out->q.z = beta * a->q.z + alpha * b->q.z;
-        out->q.w = beta * a->q.w + alpha * b->q.w;
+    negate = cosTheta < 0.0f;
+    if (negate) {
+        cosTheta = -cosTheta;
+        b->q.x = -b->q.x;
+        b->q.y = -b->q.y;
+        b->q.z = -b->q.z;
+        b->q.w = -b->q.w;
     }
+    beta = 1.0f - alpha;
+    nearlyOne = cosTheta >= 0.999f;
+    if (!nearlyOne) {
+        float theta;
+        float sine;
+        HANIM_ACOS(theta, cosTheta);
+        {
+            float reciprocal;
+            HANIM_SIN(sine, theta);
+            reciprocal = 1.0f / sine;
+            sine = beta * theta;
+            HANIM_SIN(beta, sine);
+            beta *= reciprocal;
+            sine = alpha * theta;
+            HANIM_SIN(alpha, sine);
+            alpha *= reciprocal;
+        }
+    }
+    out->q.x = beta * a->q.x + alpha * b->q.x;
+    out->q.y = beta * a->q.y + alpha * b->q.y;
+    out->q.z = beta * a->q.z + alpha * b->q.z;
+    out->q.w = beta * a->q.w + alpha * b->q.w;
 }
 
 void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, float alpha) {
     RpHAnimKeyFrame *out = vout;
     RpHAnimKeyFrame *a = va;
     RpHAnimKeyFrame *b = vb;
+    float cosTheta = a->q.w * b->q.w +
+                     (a->q.z * b->q.z +
+                      (a->q.x * b->q.x + a->q.y * b->q.y));
+    float beta;
+    int negate;
+    int nearlyOne;
+
     out->t.x = a->t.x + alpha * (b->t.x - a->t.x);
     out->t.y = a->t.y + alpha * (b->t.y - a->t.y);
     out->t.z = a->t.z + alpha * (b->t.z - a->t.z);
-    {
-        float cosTheta = a->q.x * b->q.x +
-                          a->q.y * b->q.y +
-                          a->q.z * b->q.z +
-                          a->q.w * b->q.w;
-        float beta = 1.0f - alpha;
 
-        if (cosTheta < 0.0f) {
-            cosTheta = -cosTheta;
-            b->q.x = -b->q.x;
-            b->q.y = -b->q.y;
-            b->q.z = -b->q.z;
-            b->q.w = -b->q.w;
-        }
-        if (cosTheta <= 0.999f) {
-            float theta;
-            float z;
-
-            if (cosTheta < 0.5f) {
-                RwSplitBits bits;
-                bits.nReal = cosTheta;
-                if ((bits.nInt & 0x7fffffff) <= 0x23000000) {
-                    theta = 1.5707964f;
-                } else {
-                    float ratio;
-                    z = cosTheta * cosTheta;
-                    ratio = HAnimAcosNumerator(z) /
-                            HAnimAcosDenominator(z);
-                    theta = 1.5707963f -
-                            (cosTheta - (7.5497894e-8f - cosTheta * ratio));
-                }
-            } else {
-                RwSplitBits truncated;
-                float root;
-                float high;
-                float correction;
-                float ratio;
-                z = 0.5f * (1.0f - cosTheta);
-                root = _rwSqrt(z);
-                truncated.nReal = root;
-                truncated.nInt &= 0xfffff000;
-                high = truncated.nReal;
-                correction = (z - high * high) / (root + high);
-                ratio = HAnimAcosNumerator(z) /
-                        HAnimAcosDenominator(z);
-                theta = 2.0f * (high + ratio * root + correction);
-            }
-            {
-                float reciprocal = 1.0f / HAnimSinApprox(theta);
-                beta = HAnimSinApprox(beta * theta) * reciprocal;
-                alpha = HAnimSinApprox(alpha * theta) * reciprocal;
-            }
-        }
-        out->q.x = beta * a->q.x + alpha * b->q.x;
-        out->q.y = beta * a->q.y + alpha * b->q.y;
-        out->q.z = beta * a->q.z + alpha * b->q.z;
-        out->q.w = beta * a->q.w + alpha * b->q.w;
+    negate = cosTheta < 0.0f;
+    if (negate) {
+        cosTheta = -cosTheta;
+        b->q.x = -b->q.x;
+        b->q.y = -b->q.y;
+        b->q.z = -b->q.z;
+        b->q.w = -b->q.w;
     }
+    beta = 1.0f - alpha;
+    nearlyOne = cosTheta >= 0.999f;
+    if (!nearlyOne) {
+        float theta;
+        float sine;
+        HANIM_ACOS(theta, cosTheta);
+        {
+            float reciprocal;
+            HANIM_SIN(sine, theta);
+            reciprocal = 1.0f / sine;
+            sine = beta * theta;
+            HANIM_SIN(beta, sine);
+            beta *= reciprocal;
+            sine = alpha * theta;
+            HANIM_SIN(alpha, sine);
+            alpha *= reciprocal;
+        }
+    }
+    out->q.x = beta * a->q.x + alpha * b->q.x;
+    out->q.y = beta * a->q.y + alpha * b->q.y;
+    out->q.z = beta * a->q.z + alpha * b->q.z;
+    out->q.w = beta * a->q.w + alpha * b->q.w;
 }
 
 RtAnimAnimation *RpHAnimKeyFrameStreamRead(RwStream *stream,
@@ -235,8 +258,9 @@ void RpHAnimKeyFrameMulRecip(void *vf, void *vs) {
     RpHAnimKeyFrame *f = vf;
     RpHAnimKeyFrame *s = vs;
     Quat q = f->q, inv;
-    float n = s->q.w * s->q.w + s->q.x * s->q.x +
-               s->q.y * s->q.y + s->q.z * s->q.z;
+    float n = s->q.w * s->q.w +
+              (s->q.z * s->q.z +
+               (s->q.x * s->q.x + s->q.y * s->q.y));
     if (n > 0) {
         n = 1.0f / n;
         inv.w = s->q.w * n;
@@ -244,14 +268,17 @@ void RpHAnimKeyFrameMulRecip(void *vf, void *vs) {
         inv.y = -s->q.y * n;
         inv.z = -s->q.z * n;
     }
-    f->q.w = inv.w * q.w - inv.x * q.x -
-                inv.y * q.y - inv.z * q.z;
-    f->q.x = inv.y * q.z - inv.z * q.y +
-                  q.x * inv.w + inv.x * q.w;
-    f->q.y = inv.z * q.x - inv.x * q.z +
-                  q.y * inv.w + inv.y * q.w;
-    f->q.z = inv.x * q.y - inv.y * q.x +
-                  q.z * inv.w + inv.z * q.w;
+    f->q.w = inv.w * q.w -
+             (inv.z * q.z + (inv.x * q.x + inv.y * q.y));
+    f->q.x = inv.y * q.z - inv.z * q.y;
+    f->q.y = inv.z * q.x - inv.x * q.z;
+    f->q.z = inv.x * q.y - inv.y * q.x;
+    f->q.x += q.x * inv.w;
+    f->q.y += q.y * inv.w;
+    f->q.z += q.z * inv.w;
+    f->q.x += inv.x * q.w;
+    f->q.y += inv.y * q.w;
+    f->q.z += inv.z * q.w;
     f->t.x -= s->t.x;
     f->t.y -= s->t.y;
     f->t.z -= s->t.z;
@@ -260,17 +287,18 @@ void RpHAnimKeyFrameAdd(void *vo, void *va, void *vb) {
     RpHAnimKeyFrame *o = vo;
     RpHAnimKeyFrame *a = va;
     RpHAnimKeyFrame *b = vb;
-    o->q.w = a->q.w * b->q.w - a->q.x * b->q.x -
-                a->q.y * b->q.y - a->q.z * b->q.z;
-    o->q.x = a->q.y * b->q.z -
-                  a->q.z * b->q.y +
-                  b->q.x * a->q.w + a->q.x * b->q.w;
-    o->q.y = a->q.z * b->q.x -
-                  a->q.x * b->q.z +
-                  b->q.y * a->q.w + a->q.y * b->q.w;
-    o->q.z = a->q.x * b->q.y -
-                  a->q.y * b->q.x +
-                  b->q.z * a->q.w + a->q.z * b->q.w;
+    o->q.w = a->q.w * b->q.w -
+             (a->q.z * b->q.z +
+              (a->q.x * b->q.x + a->q.y * b->q.y));
+    o->q.x = a->q.y * b->q.z - a->q.z * b->q.y;
+    o->q.y = a->q.z * b->q.x - a->q.x * b->q.z;
+    o->q.z = a->q.x * b->q.y - a->q.y * b->q.x;
+    o->q.x += b->q.x * a->q.w;
+    o->q.y += b->q.y * a->q.w;
+    o->q.z += b->q.z * a->q.w;
+    o->q.x += a->q.x * b->q.w;
+    o->q.y += a->q.y * b->q.w;
+    o->q.z += a->q.z * b->q.w;
     o->t.x = a->t.x + b->t.x;
     o->t.y = a->t.y + b->t.y;
     o->t.z = a->t.z + b->t.z;

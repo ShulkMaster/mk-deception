@@ -193,23 +193,23 @@ void _rwGCNVertexDescSetNumIndexedAttr(
 unsigned int _rwGCNVertexBufferHeaderGetSize(
     const RwGameCubeVertexDescriptor* descriptor);
 unsigned int _rwGCNVtxFmtInstPos3D(void* destination, const RwV3d* source,
-                               unsigned int type, unsigned int count,
+                               int type, int count,
                                unsigned int stride, const RwV3d* origin,
                                float scale);
 unsigned int _rwGCNVtxFmtInstNrm(void* destination, const RwV3d* source,
-                             unsigned int type, unsigned int count, unsigned int stride);
-unsigned int _rwGCNVtxFmtInstNrmCmp(void* destination, const void* source,
-                                unsigned int type, unsigned int count,
+                             int type, int count, unsigned int stride);
+unsigned int _rwGCNVtxFmtInstNrmCmp(void* destination, const char* source,
+                                int type, int count,
                                 unsigned int stride);
 unsigned int _rwGCNVtxFmtInstNBT(void* destination, const RwV3d* source,
-                             unsigned int type, unsigned int count, unsigned int stride);
-unsigned int _rwGCNVtxFmtInstNBTCmp(void* destination, const void* source,
-                                unsigned int type, unsigned int count,
+                             int type, int count, unsigned int stride);
+unsigned int _rwGCNVtxFmtInstNBTCmp(void* destination, const char* source,
+                                int type, int count,
                                 unsigned int stride);
 unsigned int _rwGCNVtxFmtInstClr(void* destination, const RwRGBA* source,
-                             unsigned int type, unsigned int count, unsigned int stride);
+                             int type, int count, unsigned int stride);
 unsigned int _rwGCNVtxFmtInstTex(void* destination, const RwTexCoords* source,
-                             unsigned int type, unsigned int count, unsigned int stride,
+                             int type, int count, unsigned int stride,
                              float scale);
 unsigned int _rwGCNVertexBufferGetSize(
     const RwGameCubeVertexDescriptor* descriptor,

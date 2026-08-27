@@ -982,7 +982,7 @@ void create_y_mirror_effect(int field_28) {
         clone = pfx_create_clone(environment->source_effect);
         render_object = (PfxMirrorRenderObject*)
             pfx_clone_bind_render_to_new_obj(clone, (void*)0xFF00);
-        clone->field_28 = field_28;
+        clone->priority = field_28;
         render_object->scale.x = 1.0f;
         render_object->scale.y = -1.0f;
         render_object->scale.z = 1.0f;

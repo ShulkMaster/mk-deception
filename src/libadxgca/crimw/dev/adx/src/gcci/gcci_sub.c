@@ -1,7 +1,8 @@
-/* TODO: Missing implementation for retail unit gcci_sub.c. */
+/* Explicit aggregate initialization preserves retail .data placement. */
+int gcg_ci_rdmode[1] = {0};
+char gcg_ci_root_dir[256];
 
-void *gcCiSetRdMode(void)
+void gcCiSetRdMode(int unused0, int unused1, int unused2, int mode)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    gcg_ci_rdmode[0] = mode;
 }

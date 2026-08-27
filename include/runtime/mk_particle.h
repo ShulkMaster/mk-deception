@@ -27,13 +27,6 @@ typedef struct PfxSlot {
     unsigned char pad09[3];
 } PfxSlot;
 
-/* Per-slot transform matrix block -- stride 0x48 from MkPfx.mats. */
-typedef struct PfxSlotMat {
-    float m[16];      /* +0x00 */
-    char pad40[4];
-    int particle_stride; /* +0x44 */
-} PfxSlotMat;
-
 /* Emitter VM blob (stack/scratch size 0x2EC); transform @ +0x2E8. */
 typedef struct PfxEmitter {
     Vec position; /* +0x00 */
@@ -57,8 +50,8 @@ typedef struct PfxClone {
     unsigned int bind_inst; /* +0x18 */
     MkHdr* bind2_hdr;       /* +0x1C */
     unsigned int bind2_inst;/* +0x20 */
-    float field_24;         /* +0x24 */
-    int field_28;           /* +0x28 = 0x12 */
+    float depth_bias;       /* +0x24 */
+    int priority;           /* +0x28 = 0x12 */
 } PfxClone;
 
 /*
@@ -74,7 +67,8 @@ struct MkPfx {
             unsigned char owns_bind : 1;
             unsigned char flags_bit5 : 1;
             unsigned char visible : 1;
-            unsigned char flags_low : 4;
+            unsigned char skip_translucent_sort : 1;
+            unsigned char flags_low : 3;
         } flag_bits;
     };                            /* +0x08 */
     unsigned char pad09[3];
@@ -85,8 +79,8 @@ struct MkPfx {
     unsigned int bind_inst;       /* +0x1C */
     PfxSlot* slot_table;          /* +0x20 */
     MkObj* bound_obj;             /* +0x24 */
-    float field_28;               /* +0x28 */
-    int field_2C;                 /* +0x2C = 0x12 */
+    float depth_bias;             /* +0x28 */
+    int priority;                 /* +0x2C = 0x12 */
     int tick;                     /* +0x30 */
     float accum_34;               /* +0x34 */
     float accum_38;               /* +0x38 */
@@ -100,8 +94,8 @@ struct MkPfx {
     char pad9C[4];
     int field_A0;                 /* +0xA0 */
     char padA4[0x0C];
-    PfxSlotMat mats[1];           /* +0xB0 -- indexed; stride 0x48 */
-    char padF8[0xCA];
+    PfxTransform transforms[3];   /* +0xB0 -- indexed; stride 0x48 */
+    char pad188[0x3A];
     unsigned short emitter_enabled; /* +0x1C2 */
     char pad1C4[0x3C];
     int slot_count;               /* +0x200 */
@@ -156,7 +150,7 @@ typedef struct RwFrameModelling {
     float modelling[16]; /* +0x10 */
 } RwFrameModelling;
 
-void mkpfx_get_origin(MkPfx* pfx, float* origin);
+void mkpfx_get_origin(MkPfx* pfx, float origin[3]);
 void mkpfx_camera_end(void);
 void mkpfx_camera_begin(void);
 void mkpfx_set_environment(void);

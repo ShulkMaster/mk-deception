@@ -1,15 +1,14 @@
 #ifndef DOLPHIN_TRK_H
 #define DOLPHIN_TRK_H
 
-typedef unsigned char u8;
-typedef unsigned long u32;
-typedef int BOOL;
+#include "dolphin/types.h"
+
 typedef int DSError;
 typedef int MessageBufferID;
 typedef int MessageCommandID;
 
 typedef struct MessageBuffer {
-    u32 field_0x0;
+    u32 mutex;
     BOOL is_in_use;
     u32 length;
     u32 position;
@@ -25,6 +24,8 @@ typedef struct TRKEvent {
 typedef char MessageBufferSizeCheck[sizeof(MessageBuffer) == 0x890 ? 1 : -1];
 typedef char TRKEventSizeCheck[sizeof(TRKEvent) == 0xC ? 1 : -1];
 
+extern BOOL gTRKBigEndian;
+
 void MWTRACE(int level, const char* format, ...);
 
 DSError TRKInitializeMutex(void* mutex);
@@ -38,10 +39,21 @@ void TRKConstructEvent(TRKEvent* event, int event_type);
 void TRKDestructEvent(TRKEvent* event);
 
 DSError TRKGetFreeBuffer(MessageBufferID* buffer_id, MessageBuffer** buffer);
-void* TRKGetBuffer(MessageBufferID buffer_id);
+MessageBuffer* TRKGetBuffer(MessageBufferID buffer_id);
 void TRKReleaseBuffer(MessageBufferID buffer_id);
+void* TRK_memcpy(void* destination, const void* source, u32 size);
+void* TRK_memset(void* destination, int value, u32 size);
+DSError TRKInitializeMessageBuffers(void);
+void TRKResetBuffer(MessageBuffer* buffer, BOOL keep_data);
 DSError TRKSetBufferPosition(MessageBuffer* buffer, u32 position);
-DSError TRKAppendBuffer_ui8(MessageBuffer* buffer, const void* data, u32 length);
+DSError TRKAppendBuffer(MessageBuffer* buffer, const void* data, u32 length);
+DSError TRKReadBuffer(MessageBuffer* buffer, void* data, u32 length);
+DSError TRKAppendBuffer_ui8(MessageBuffer* buffer, const u8* data, int count);
+DSError TRKAppendBuffer_ui32(MessageBuffer* buffer, const u32* data, int count);
+DSError TRKAppendBuffer1_ui64(MessageBuffer* buffer, u64 value);
+DSError TRKReadBuffer_ui8(MessageBuffer* buffer, u8* data, int count);
+DSError TRKReadBuffer_ui32(MessageBuffer* buffer, u32* data, int count);
+DSError TRKReadBuffer1_ui64(MessageBuffer* buffer, u64* value);
 DSError TRKMessageSend(MessageBuffer* message);
 
 DSError TRKInitializeDispatcher(void);

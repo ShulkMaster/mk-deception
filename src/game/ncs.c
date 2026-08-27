@@ -1518,7 +1518,7 @@ static float p_pfx_sc_spear(void) {
     }
 
     pfx = (MkPfx*)effect;
-    stride = pfx->mats[0].particle_stride;
+    stride = pfx->transforms[0].particle_field_stride;
     particle_position = (Vec*)pfx_get_field(&effect->vm, -2, 0x100);
     emitter_object = apfx_emitter_obj;
     get_bone_world_pos(target, effect->bone, &target_position);

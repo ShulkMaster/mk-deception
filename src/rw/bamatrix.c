@@ -156,29 +156,21 @@ static RwMatrix *MatrixOrthoNormalize(RwMatrix *dst, const RwMatrix *src) {
 
 static RwMatrix *MatrixInvertOrthoNormalized(RwMatrix *dst,
                                              const RwMatrix *src) {
-  RwV3d inverseRight;
-  RwV3d inverseUp;
-  RwV3d inverseAt;
-
-  inverseRight.x = src->right.x;
-  inverseRight.y = src->up.x;
-  inverseRight.z = src->at.x;
-  inverseUp.x = src->right.y;
-  inverseUp.y = src->up.y;
-  inverseUp.z = src->at.y;
-  inverseAt.x = src->right.z;
-  inverseAt.y = src->up.z;
-  inverseAt.z = src->at.z;
-
-  dst->right = inverseRight;
-  dst->up = inverseUp;
-  dst->at = inverseAt;
-  dst->pos.x = -(src->pos.x * inverseRight.x + src->pos.y * inverseUp.x +
-                 src->pos.z * inverseAt.x);
-  dst->pos.y = -(src->pos.x * inverseRight.y + src->pos.y * inverseUp.y +
-                 src->pos.z * inverseAt.y);
-  dst->pos.z = -(src->pos.x * inverseRight.z + src->pos.y * inverseUp.z +
-                 src->pos.z * inverseAt.z);
+  dst->right.x = src->right.x;
+  dst->right.y = src->up.x;
+  dst->right.z = src->at.x;
+  dst->up.x = src->right.y;
+  dst->up.y = src->up.y;
+  dst->up.z = src->at.y;
+  dst->at.x = src->right.z;
+  dst->at.y = src->up.z;
+  dst->at.z = src->at.z;
+  dst->pos.x = -(src->pos.x * dst->right.x + src->pos.y * dst->up.x +
+                 src->pos.z * dst->at.x);
+  dst->pos.y = -(src->pos.x * dst->right.y + src->pos.y * dst->up.y +
+                 src->pos.z * dst->at.y);
+  dst->pos.z = -(src->pos.x * dst->right.z + src->pos.y * dst->up.z +
+                 src->pos.z * dst->at.z);
   dst->flags = 3;
   return dst;
 }
@@ -234,59 +226,74 @@ int _rwMatrixSetOptimizations(int optimizeFlags) {
   return 1;
 }
 
-#pragma scheduling on
+#pragma optimization_level 0
 float _rwMatrixDeterminant(const RwMatrix *matrix) {
+  const RwV3d *right = &matrix->right;
+  const RwV3d *up = &matrix->up;
+  const RwV3d *at = &matrix->at;
   RwV3d cross;
-  cross.x = matrix->up.y * matrix->at.z - matrix->up.z * matrix->at.y;
-  cross.y = matrix->up.z * matrix->at.x - matrix->up.x * matrix->at.z;
-  cross.z = matrix->up.x * matrix->at.y - matrix->up.y * matrix->at.x;
-  return cross.x * matrix->right.x + cross.y * matrix->right.y +
-         cross.z * matrix->right.z;
+  float determinant;
+  cross.x = up->y * at->z - up->z * at->y;
+  cross.y = up->z * at->x - up->x * at->z;
+  cross.z = up->x * at->y - up->y * at->x;
+  determinant =
+      cross.x * right->x + cross.y * right->y + cross.z * right->z;
+  return determinant;
 }
-#pragma scheduling off
+#pragma optimization_level 4
 
-#pragma scheduling on
+#pragma optimization_level 0
 float _rwMatrixOrthogonalError(const RwMatrix *matrix) {
+  const RwV3d *right = &matrix->right;
+  const RwV3d *up = &matrix->up;
+  const RwV3d *at = &matrix->at;
   RwV3d dot;
-  dot.x = matrix->up.x * matrix->at.x + matrix->up.y * matrix->at.y +
-          matrix->up.z * matrix->at.z;
-  dot.y = matrix->at.x * matrix->right.x + matrix->at.y * matrix->right.y +
-          matrix->at.z * matrix->right.z;
-  dot.z = matrix->right.x * matrix->up.x + matrix->right.y * matrix->up.y +
-          matrix->right.z * matrix->up.z;
-  return dot.x * dot.x + dot.y * dot.y + dot.z * dot.z;
+  float error;
+  dot.x = up->x * at->x + up->y * at->y + up->z * at->z;
+  dot.y = at->x * right->x + at->y * right->y + at->z * right->z;
+  dot.z = right->x * up->x + right->y * up->y + right->z * up->z;
+  error = dot.x * dot.x + dot.y * dot.y + dot.z * dot.z;
+  return error;
 }
-#pragma scheduling off
+#pragma optimization_level 4
 
-static float MatrixVectorDot(const RwV3d *left, const RwV3d *right) {
-  return left->x * right->x + left->y * right->y + left->z * right->z;
-}
+#define MATRIX_VECTOR_DOT(left, right)                                      \
+  ((left)->z * (right)->z +                                                 \
+   ((left)->x * (right)->x + (left)->y * (right)->y))
 
+#pragma optimization_level 0
 float _rwMatrixNormalError(const RwMatrix *matrix) {
+  const RwV3d *right = &matrix->right;
+  const RwV3d *up = &matrix->up;
+  const RwV3d *at = &matrix->at;
   RwV3d error;
-  error.x = MatrixVectorDot(&matrix->right, &matrix->right) - 1.0f;
-  error.y = MatrixVectorDot(&matrix->up, &matrix->up) - 1.0f;
-  error.z = MatrixVectorDot(&matrix->at, &matrix->at) - 1.0f;
-  return MatrixVectorDot(&error, &error);
+  float totalError;
+  error.x = MATRIX_VECTOR_DOT(right, right) - 1.0f;
+  error.y = MATRIX_VECTOR_DOT(up, up) - 1.0f;
+  error.z = MATRIX_VECTOR_DOT(at, at) - 1.0f;
+  totalError = MATRIX_VECTOR_DOT(&error, &error);
+  return totalError;
 }
+#pragma optimization_level 4
 
-#pragma scheduling on
+#pragma optimization_level 0
 float _rwMatrixIdentityError(const RwMatrix *matrix) {
-  float rightX = matrix->right.x - 1.0f;
-  float upY = matrix->up.y - 1.0f;
-  float atZ = matrix->at.z - 1.0f;
-  float rightError = rightX * rightX + matrix->right.y * matrix->right.y +
-                      matrix->right.z * matrix->right.z;
-  float upError =
-      matrix->up.x * matrix->up.x + upY * upY + matrix->up.z * matrix->up.z;
-  float atError =
-      matrix->at.x * matrix->at.x + matrix->at.y * matrix->at.y + atZ * atZ;
-  float posError = matrix->pos.x * matrix->pos.x +
-                    matrix->pos.y * matrix->pos.y +
-                    matrix->pos.z * matrix->pos.z;
-  return rightError + upError + atError + posError;
+  const RwV3d *right = &matrix->right;
+  const RwV3d *up = &matrix->up;
+  const RwV3d *at = &matrix->at;
+  const RwV3d *pos = &matrix->pos;
+  float rightX = right->x - 1.0f;
+  float upY = up->y - 1.0f;
+  float atZ = at->z - 1.0f;
+  float totalError =
+      pos->z * pos->z + (pos->x * pos->x + pos->y * pos->y) +
+      (atZ * atZ + (at->x * at->x + at->y * at->y)) +
+      ((right->z * right->z +
+        (rightX * rightX + right->y * right->y)) +
+       (up->z * up->z + (up->x * up->x + upY * upY)));
+  return totalError;
 }
-#pragma scheduling off
+#pragma optimization_level 4
 
 void *_rwMatrixClose(void *instance, int offset, int size) {
   if (*(RwFreeList **)((unsigned char *)RwEngineInstance +
@@ -310,7 +317,7 @@ void *_rwMatrixOpen(void *instance, int offset, int size) {
   matrixModule.globalsOffset = offset;
   globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance + offset);
   globals->matrixFreeList = RwFreeListCreateAndPreallocateSpace(
-      sizeof(RwMatrix), _rwMatrixFreeListBlockSize, 16,
+      sizeof(RwMatrix), _rwMatrixFreeListBlockSize, 4,
       _rwMatrixFreeListPreallocBlocks, &_rwMatrixFreeList, 0x40000 | 0x0D);
   if (globals->matrixFreeList == 0) {
     instance = 0;
@@ -390,22 +397,38 @@ RwMatrix *RwMatrixRotateOneMinusCosineSine(RwMatrix *matrix,
                                            RwOpCombineType combineOp) {
   RwMatrix rotation;
   RwMatrix result;
-  float xy = unitAxis->x * unitAxis->y * oneMinusCosine;
-  float yz = unitAxis->y * unitAxis->z * oneMinusCosine;
-  float zx = unitAxis->z * unitAxis->x * oneMinusCosine;
-  float xSine = unitAxis->x * sine;
-  float ySine = unitAxis->y * sine;
-  float zSine = unitAxis->z * sine;
+  float xx = 1.0f - unitAxis->x * unitAxis->x;
+  float yy = 1.0f - unitAxis->y * unitAxis->y;
+  float zz = 1.0f - unitAxis->z * unitAxis->z;
+  float xy;
+  float yz;
+  float zx;
+  float xSine;
+  float ySine;
+  float zSine;
 
-  rotation.right.x = 1.0f - (1.0f - unitAxis->x * unitAxis->x) * oneMinusCosine;
+  xx *= oneMinusCosine;
+  yy *= oneMinusCosine;
+  zz *= oneMinusCosine;
+  xy = unitAxis->x * unitAxis->y;
+  yz = unitAxis->y * unitAxis->z;
+  zx = unitAxis->z * unitAxis->x;
+  xy *= oneMinusCosine;
+  yz *= oneMinusCosine;
+  zx *= oneMinusCosine;
+  xSine = unitAxis->x * sine;
+  ySine = unitAxis->y * sine;
+  zSine = unitAxis->z * sine;
+
+  rotation.right.x = 1.0f - xx;
   rotation.right.y = xy + zSine;
   rotation.right.z = zx - ySine;
   rotation.up.x = xy - zSine;
-  rotation.up.y = 1.0f - (1.0f - unitAxis->y * unitAxis->y) * oneMinusCosine;
+  rotation.up.y = 1.0f - yy;
   rotation.up.z = yz + xSine;
   rotation.at.x = zx + ySine;
   rotation.at.y = yz - xSine;
-  rotation.at.z = 1.0f - (1.0f - unitAxis->z * unitAxis->z) * oneMinusCosine;
+  rotation.at.z = 1.0f - zz;
   rotation.pos.x = 0.0f;
   rotation.pos.y = 0.0f;
   rotation.pos.z = 0.0f;
@@ -578,20 +601,22 @@ RwMatrix *RwMatrixTranslate(RwMatrix *matrix, const RwV3d *translation,
 
 RwMatrix *RwMatrixTransform(RwMatrix *matrix, const RwMatrix *transform,
                             RwOpCombineType combineOp) {
-  RwMatrix result;
-
   switch (combineOp) {
   case 0:
     *matrix = *transform;
     break;
-  case 1:
+  case 1: {
+    RwMatrix result;
     RwMatrixMultiply(&result, transform, matrix);
     *matrix = result;
     break;
-  case 2:
+  }
+  case 2: {
+    RwMatrix result;
     RwMatrixMultiply(&result, matrix, transform);
     *matrix = result;
     break;
+  }
   default: {
     RwError error;
     error.pluginID = 1;

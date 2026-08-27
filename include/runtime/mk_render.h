@@ -6,8 +6,8 @@
 void render_transl_atomics(void);
 RpAtomic* set_transl_callback(RpAtomic* atomic, void* data);
 void init_mk_render(void);
-void InsertPFXCloneInTranslTree(void* clone);
-void InsertPFXInTranslTree(void* pfx);
+void InsertPFXCloneInTranslTree(MkHdr* clone);
+void InsertPFXInTranslTree(MkHdr* pfx);
 void render_mkatomic(RpAtomic* atomic);
 void render_mkobj(MkObj* object);
 

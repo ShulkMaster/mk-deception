@@ -8169,7 +8169,7 @@ static int init_pz_pfx_2d(void) {
     emitter = (PfxEmitter*)pfx_get_emitter(
         (PfxEmitterTableView*)puzzle_effect->matrix, 0);
     emitter->lifetime = emitter_lifetime;
-    puzzle_effect->field_28 = 50.0f;
+    puzzle_effect->depth_bias = 50.0f;
     puzzle_effect->effect_state = 0;
     puzzle_ctrl->puzzle_pfx = (PuzzlePfxView*)puzzle_effect->matrix;
     puzzle_ctrl->puzzle_particle_capacity =
@@ -8200,7 +8200,7 @@ static int init_pz_pfx_2d(void) {
     emitter = (PfxEmitter*)pfx_get_emitter(
         (PfxEmitterTableView*)ice_effect->matrix, 0);
     emitter->lifetime = emitter_lifetime;
-    ice_effect->field_28 = 40.0f;
+    ice_effect->depth_bias = 40.0f;
     ice_effect->effect_state = 0;
     puzzle_ctrl->ice_pfx = (PuzzlePfxView*)ice_effect->matrix;
     puzzle_ctrl->ice_particle_capacity =

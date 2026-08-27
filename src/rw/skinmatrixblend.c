@@ -7,10 +7,6 @@ void _rpSkinMatrixBlendUpdateASM(RwMatrix* destination,
                                  const unsigned char* usedBoneList,
                                  unsigned int numUsedBones)
 {
-
-
-
-
     unsigned int i;
 
     for (i = 0; i < numUsedBones; i++) {

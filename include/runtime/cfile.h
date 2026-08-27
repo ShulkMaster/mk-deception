@@ -1,13 +1,12 @@
 #ifndef MKD_RUNTIME_CFILE_H
 #define MKD_RUNTIME_CFILE_H
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned long u32;
+#include "dolphin/types.h"
+
 typedef unsigned long size_t;
 
-typedef unsigned long file_handle;
-typedef unsigned long file_position;
+typedef u32 file_handle;
+typedef u32 file_position;
 
 typedef struct FileMode {
     u32 open_mode : 2;
@@ -66,10 +65,8 @@ typedef char MSLFileSizeCheck[sizeof(FILE) == 0x50 ? 1 : -1];
 
 FILE* fopen(const char* name, const char* mode);
 int fclose(FILE* file);
-unsigned int fread(void* address, unsigned int size, unsigned int count,
-                   FILE* file);
-unsigned int fwrite(const void* address, unsigned int size,
-                    unsigned int count, FILE* file);
+size_t fread(void* address, size_t size, size_t count, FILE* file);
+size_t fwrite(const void* address, size_t size, size_t count, FILE* file);
 char* fgets(char* buffer, int maxLength, FILE* file);
 int fputs(const char* buffer, FILE* file);
 int feof(FILE* file);

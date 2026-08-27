@@ -1,13 +1,9 @@
-/* TODO: Missing implementation for retail unit adx_sfa.c. */
+static int sfa_init_cnt;
 
-void *SFA_Finish(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void SFA_Finish(void) {
+    sfa_init_cnt--;
 }
 
-void *SFA_Init(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void SFA_Init(void) {
+    sfa_init_cnt++;
 }
