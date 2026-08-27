@@ -32,7 +32,7 @@ typedef struct TgaHeaderValues {
   int color_map_length;
   int color_map_depth;
   int origin_x;
-  int origin_y;
+  unsigned int origin_y;
   int width;
   int height;
   int pixel_depth;
@@ -43,14 +43,16 @@ typedef struct TgaHeaderValues {
  * Retail builds the packed 18-byte header from this word-sized description.
  * Keeping both forms also preserves its unsigned 16-bit width/height clamp.
  * Soft ceiling: ImageWriteTGA is 96.20%; the remaining differences are
- * register allocation in the otherwise equivalent pixel conversion loop.
+ * register allocation plus scheduling of one equivalent header-byte extract.
  */
 
 extern MkHwFileRequest *debug_file_open(const char *path, const char *mode);
 extern int debug_file_write(MkHwFileRequest *file, void *buffer, int length);
 extern void debug_file_close(MkHwFileRequest *file);
 
-const int gap_04_8030366C_rodata = 0;
+/* Retail owns these bytes here, in this order, with the word at .rodata+4. */
+__declspec(section ".rodata") static const char tga_write_mode[] = "w";
+__declspec(section ".rodata") const int gap_04_8030366C_rodata = 0;
 
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   MkHwFileRequest *file;
@@ -63,7 +65,7 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   int row;
   int rows;
 
-  file = debug_file_open(path, "w");
+  file = debug_file_open(path, tga_write_mode);
   if (file != 0) {
     values.id_length = 0;
     values.color_map_type = 0;

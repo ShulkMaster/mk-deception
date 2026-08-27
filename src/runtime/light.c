@@ -35,8 +35,8 @@ void bind_rplight_to_obj(RpLight* light, MkObj* obj);
 MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
                                          int pdata_size, LightPdata** pdata_out);
 
-MkObj* light_obj;
 LightPdata* light_pdata;
+MkObj* light_obj;
 
 static int main_plyr_light_created;
 
@@ -52,7 +52,7 @@ static void pre_light(void);
 static void post_light(void);
 static MkxRpLight* fetch_light(MkPtr** list, unsigned int type, unsigned int index);
 
-static MkxRpLight* probe_mkx(MkHdr* hdr) {
+static inline MkxRpLight* probe_mkx(MkHdr* hdr) {
     int ok;
 
     ok = 0;
@@ -67,7 +67,7 @@ static MkxRpLight* probe_mkx(MkHdr* hdr) {
     return MKX_RPLIGHT_FROM_HDR(hdr);
 }
 
-static MkObj* valid_linked_obj(MkxRpLight* mkx) {
+static inline MkObj* valid_linked_obj(MkxRpLight* mkx) {
     MkObj* obj;
 
     obj = mkx->obj;
@@ -80,20 +80,20 @@ static MkObj* valid_linked_obj(MkxRpLight* mkx) {
     return obj;
 }
 
-static unsigned char rp_light_type(RpLight* light) {
+static inline unsigned char rp_light_type(RpLight* light) {
     return light->object.object.subType;
 }
 
-static void mkobj_or_flag(MkObj* obj, unsigned char bit) {
+static inline void mkobj_or_flag(MkObj* obj, unsigned char bit) {
     obj->flags_08 = (unsigned char)(obj->flags_08 | bit);
 }
 
-static void clear_light_low_flags(RpLight* light) {
+static inline void clear_light_low_flags(RpLight* light) {
     light->object.object.flags =
         (unsigned char)(light->object.object.flags & 0xFC);
 }
 
-static void destroy_owned_mkobj(MkObj* mkobj, MkObj* parent) {
+static inline void destroy_owned_mkobj(MkObj* mkobj, MkObj* parent) {
     if (mkobj == 0 || parent != 0) {
         return;
     }
@@ -211,7 +211,7 @@ RpLight* create_spot_light(MkObj* parent, LightDef* def) {
     return light;
 }
 
-static RpLight* find_specular_light(MkPtr** list, LightDef* def) {
+static inline RpLight* find_specular_light(MkPtr** list, LightDef* def) {
     MkPtr* node;
     MkxRpLight* mkx;
     RpLight* light;
@@ -463,7 +463,7 @@ void load_lights(LightDef** defs, MkPtr** list) {
     }
 }
 
-static RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
+static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     RpLight* light;
     RwFrame* frame;
     MkObj* mkobj;

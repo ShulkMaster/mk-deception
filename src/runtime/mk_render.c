@@ -94,19 +94,19 @@ void mkpfx_get_origin(PfxSortView* pfx, RwV3d* origin);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 
 static TranslSortNode transl_sort_nodes[250];
-static int in_batch;
-static int num_transl_callbacks;
-static int num_render_nodes;
 static TranslSortNode* BTREE_ROOT;
+static int num_render_nodes;
+static int num_transl_callbacks;
+static int in_batch;
 
-static void BTreeInsert(TranslSortNode* node, int node_offset);
+static void BTreeInsert(TranslSortNode* node);
 static void btree_render(TranslSortNode* node);
 
-static int node_precedes(const TranslSortNode* a, const TranslSortNode* b) {
+static inline int node_precedes(const TranslSortNode* a, const TranslSortNode* b) {
     return a->priority > b->priority || (a->priority == b->priority && a->depth >= b->depth);
 }
 
-static void rotate_left(TranslSortNode* node) {
+static inline void rotate_left(TranslSortNode* node) {
     TranslSortNode* right = node->right;
     node->right = right->left;
     if (right->left != 0) {
@@ -124,7 +124,7 @@ static void rotate_left(TranslSortNode* node) {
     node->parent = right;
 }
 
-static void rotate_right(TranslSortNode* node) {
+static inline void rotate_right(TranslSortNode* node) {
     TranslSortNode* left = node->left;
     node->left = left->right;
     if (left->right != 0) {
@@ -199,8 +199,8 @@ void init_mk_render(void) {
     BTREE_ROOT = 0;
 }
 
-void InsertPFXCloneInTranslTree(void* clone_ptr) {
-    PfxCloneSortView* clone = (PfxCloneSortView*)clone_ptr;
+void InsertPFXCloneInTranslTree(MkHdr* clone_hdr) {
+    PfxCloneSortView* clone = (PfxCloneSortView*)clone_hdr;
     PfxSortView* candidate;
     PfxSortView* valid_pfx;
     PfxSortRuntimeView* runtime;
@@ -211,7 +211,6 @@ void InsertPFXCloneInTranslTree(void* clone_ptr) {
     float depth;
     int index;
     int node_index;
-    int node_offset;
     if (clone == 0) {
         return;
     }
@@ -245,25 +244,23 @@ void InsertPFXCloneInTranslTree(void* clone_ptr) {
     if (node_index >= 250) {
         return;
     }
-    node_offset = node_index * sizeof(TranslSortNode);
     num_render_nodes = node_index + 1;
     node = &transl_sort_nodes[node_index];
     node->flags = flags_pair[0];
     node->payload = clone;
     node->priority = clone->priority;
     node->depth = depth;
-    BTreeInsert(node, node_offset);
+    BTreeInsert(node);
 }
 
-void InsertPFXInTranslTree(void* pfx_ptr) {
-    PfxSortView* pfx = (PfxSortView*)pfx_ptr;
+void InsertPFXInTranslTree(MkHdr* pfx_hdr) {
+    PfxSortView* pfx = (PfxSortView*)pfx_hdr;
     TranslSortNode* node;
     TranslNodeFlags flags_pair[2];
     RwV3d origin;
     RwMatrix* camera_matrix;
     float depth;
     int node_index;
-    int node_offset;
     int priority;
     if (pfx != 0 && !pfx->flags_08_bits.skip_translucent_sort && pfx->runtime.active != 0) {
         mkpfx_get_origin(pfx, &origin);
@@ -278,19 +275,18 @@ void InsertPFXInTranslTree(void* pfx_ptr) {
         node_index = num_render_nodes;
         priority = pfx->priority;
         if (node_index < 250) {
-            node_offset = node_index * sizeof(TranslSortNode);
             num_render_nodes = node_index + 1;
             node = &transl_sort_nodes[node_index];
             node->flags = flags_pair[0];
             node->payload = pfx;
             node->priority = priority;
             node->depth = depth;
-            BTreeInsert(node, node_offset);
+            BTreeInsert(node);
         }
     }
 }
 
-static void BTreeInsert(TranslSortNode* node, int node_offset) {
+static void BTreeInsert(TranslSortNode* node) {
     TranslSortNode* parent = 0;
     TranslSortNode* current = BTREE_ROOT;
     TranslSortNode* uncle;
@@ -415,7 +411,6 @@ void render_mkobj(MkObj* object) {
     int clump_index;
     int priority;
     int node_index;
-    int node_offset;
     float depth_bias;
     float depth;
     RwMatrix* camera_matrix;
@@ -456,14 +451,13 @@ void render_mkobj(MkObj* object) {
                         flags_pair[1] = flags_pair[0];
                         node_index = num_render_nodes;
                         if (node_index < 250) {
-                            node_offset = node_index * sizeof(TranslSortNode);
                             num_render_nodes = node_index + 1;
                             node = &transl_sort_nodes[node_index];
                             node->flags = flags_pair[1];
                             node->payload = atomic;
                             node->priority = priority;
                             node->depth = depth;
-                            BTreeInsert(node, node_offset);
+                            BTreeInsert(node);
                         }
                     }
                     link = link->next;
