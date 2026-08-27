@@ -18,4 +18,16 @@ void CircleBufferInitialize(CircleBuffer* buffer, u8* storage, u32 size);
 int CircleBufferWriteBytes(CircleBuffer* buffer, const u8* source, u32 size);
 int CircleBufferReadBytes(CircleBuffer* buffer, u8* destination, u32 size);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void MWInitializeCriticalSection(u32* section);
+void MWEnterCriticalSection(u32* section);
+void MWExitCriticalSection(u32* section);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

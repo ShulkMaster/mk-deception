@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+extern volatile OSHeapHandle __OSCurrHeap;
+
 void* OSGetArenaHi(void);
 void* OSGetArenaLo(void);
 void* OSInitAlloc(void* arena_start, void* arena_end, int max_heaps);
