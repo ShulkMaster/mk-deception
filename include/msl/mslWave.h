@@ -27,10 +27,10 @@ void UnCopyStreamWave(_mslSystem* system, mslRuntimeWave* wave);
 
 mslRuntimeWave* CopyStaticWave(
     _mslSystem* system, mslLoadedBank* bank,
-    mslRuntimeWave* source, int create_playable);
+    const mslRuntimeWave* source, int create_playable);
 mslRuntimeWave* CopyStreamWave(
     _mslSystem* system, mslLoadedBank* bank,
-    const char* name, mslRuntimeWave* source, int create_playable);
+    const char* name, const mslRuntimeWave* source, int create_playable);
 mslRuntimeWave* LoadStaticWaveFile(
     _mslSystem* system, mslLoadedBank* bank,
     const char* name, unsigned long create_playable);

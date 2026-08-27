@@ -128,7 +128,14 @@ static inline void closeKnownRequest(qNode* node, asyncRequest* request) {
     qRemove(node);
 }
 
-static inline bool qAppendToTail(void* data) {
+static inline qNode* qNext(qNode* node) {
+    if (node != 0) {
+        return node->next;
+    }
+    return 0;
+}
+
+static inline bool qAppendToTail(asyncRequest* request) {
     bool success;
     bool empty;
     qNode* node;
@@ -136,7 +143,7 @@ static inline bool qAppendToTail(void* data) {
     node = qNodeAlloc();
     if (node != 0) {
         empty = false;
-        node->request = (asyncRequest*)data;
+        node->request = request;
         node->next = 0;
         node->previous = qTail;
         if (qHead == 0 && qTail == 0) {
@@ -194,9 +201,6 @@ static inline void issueHeadRequest(void) {
         request->system, request->flags, request->filename, request->response);
 }
 
-/* Soft ceiling: mslBankLoadAsyncInternalCallback ~99.85% -- pool bases and
- * cached next node use a rotated GPR assignment; stop.
- */
 void mslBankLoadAsyncInternalCallback(_mslAsyncResponse* response) {
     char filename[0x100];
     asyncRequest* request;
@@ -221,13 +225,8 @@ void mslBankLoadAsyncInternalCallback(_mslAsyncResponse* response) {
 
         node = qHead;
         while (node != 0) {
-            qNode* next;
+            qNode* next = qNext(node);
 
-            if (node != 0) {
-                next = node->next;
-            } else {
-                next = 0;
-            }
             request = node->request;
             if (request != 0 && strcmp(filename, request->filename) == 0) {
                 if (completed_state == 2 &&

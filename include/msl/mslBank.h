@@ -119,7 +119,7 @@ struct mslAsyncBank {
     _mslAsyncResponse* response;  /* +0x110 */
     _mslSystem* system;           /* +0x114 */
     unsigned long asset_version;  /* +0x118 */
-    unsigned long entry_count;    /* +0x11C */
+    long entry_count;             /* +0x11C; retail loop bounds are signed */
     unsigned long asset_info_size;/* +0x120 */
     unsigned long string_offset;  /* +0x124 */
     unsigned long wave_offset;    /* +0x128 */

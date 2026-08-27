@@ -7,11 +7,29 @@
 extern unsigned char g_listPoolAdjust[];
 mslRuntimeSound* currentUpdateSound;
 
-static const char stringBase0[] =
-    "NULL Callback: %s(%s)\n\0"
-    "Unregistered Callback: %s(%s)\n\0"
-    "mslcore.cpp\0"
-    "mslDoPlay: Sound %x had NULL wave (mi->mw), ignored\n";
+extern "C" void mslDoCallback(
+    _mslSystem* system, const char* name, const char* argument) {
+    system->sound_list_guard = 0;
+    if (name != 0) {
+        mslCallback* callback = system->callbacks;
+
+        while (callback != 0 &&
+               stricmp(name, callback->name) != 0) {
+            callback = callback->next;
+        }
+        if (callback != 0) {
+            if (callback->function != 0)
+                callback->function(argument);
+            else
+                mslDebugPrintf(
+                    "NULL Callback: %s(%s)\n", name, argument);
+        } else {
+            mslDebugPrintf(
+                "Unregistered Callback: %s(%s)\n", name, argument);
+        }
+    }
+    system->sound_list_guard = 1;
+}
 
 extern "C" float mslGetVol(_mslSystem* system) {
     return system->volume;
@@ -74,6 +92,12 @@ extern "C" void mslStopAll(_mslSystem* system) {
     system->sound_list_guard = 1;
 }
 
+/*
+ * Near miss: command dispatch is recovered through the callback search and
+ * loop-marker scan at exact retail size (~93.62%). The remaining opcode delta
+ * is the source-equivalent marker-loop exit branch; other differences are GPR
+ * allocation, instruction scheduling, and pooled-string addressing.
+ */
 _ListNode* mslUpdateSound(
     _mslSystem* system, _ListNode* node, float now);
 /* Soft ceiling: mslUpdateAdjust ~99.28% -- float register scheduling; stop. */
@@ -82,6 +106,7 @@ _ListNode* mslUpdateAdjust(
 struct _mslCmdItem;
 int mslDoAdjust(
     _mslSound* sound, _mslCmdItem* command, float now);
+void mslDoPlay(_mslSound* sound, mslCmdItem* command);
 
 static inline void updateWaveValues(
     _mslSystem* system, mslRuntimeSound* sound, mslRuntimeWave* wave) {
@@ -121,7 +146,22 @@ static inline void updateWaveValues(
     mslWaveSetPitch(wave, pitch);
 }
 
-/* Soft ceiling: mslUpdate ~97.03% -- iterator GPR coloring; stop. */
+static inline int FindPreviousMarker(
+    mslCmdItem* commands, int search_index) {
+    int marker_index = search_index - 1;
+
+    while (marker_index >= 0) {
+        mslCmdItem* marker = commands + marker_index;
+
+        if (marker->type == 5) {
+            break;
+        }
+        marker_index--;
+    }
+    return marker_index;
+}
+
+/* Soft ceiling: mslUpdate ~97.15% -- iterator GPR coloring; stop. */
 extern "C" int mslUpdate(_mslSystem* system) {
     float now = mslGetTime();
     _ListNode* node;
@@ -176,12 +216,11 @@ _ListNode* mslUpdateSound(
     currentUpdateSound = sound;
 
     if (sound->update_time == 0.0f && sound->callback_data != 0) {
-        if (!mslSoundIsReady((_mslSound*)sound))
-            sound->end_time = now + 0.01f;
-        else {
+        if (mslSoundIsReady((_mslSound*)sound)) {
             sound->end_time = now;
             sound->callback_data = 0;
-        }
+        } else
+            sound->end_time = now + 0.01f;
     }
 
     while (sound->current_command != 0 &&
@@ -192,9 +231,12 @@ _ListNode* mslUpdateSound(
         switch (command->type) {
         case 1:
             if (command->attached_wave == 0) {
-                mslDebugPrintf(&stringBase0[0x42], sound);
+                mslDebugPrintf(
+                    "mslDoPlay: Sound %x had NULL wave (mi->mw), ignored\n",
+                    sound);
             } else {
                 mslRuntimeWave* wave = command->attached_wave;
+
                 wave->volume = command->unknown20;
                 wave->pan = command->unknown24;
                 wave->pitch = command->unknown28;
@@ -232,14 +274,16 @@ _ListNode* mslUpdateSound(
                      callback != 0; callback = callback->next) {
                     if (stricmp(name, callback->name) == 0) {
                         if (callback->function == 0)
-                            mslDebugPrintf(&stringBase0[0], name, argument);
+                            mslDebugPrintf(
+                                "NULL Callback: %s(%s)\n", name, argument);
                         else
                             callback->function(argument);
                         break;
                     }
                 }
                 if (callback == 0)
-                    mslDebugPrintf(&stringBase0[0x18], name, argument);
+                        mslDebugPrintf(
+                            "Unregistered Callback: %s(%s)\n", name, argument);
             }
             system->sound_list_guard = 1;
             break;
@@ -251,46 +295,34 @@ _ListNode* mslUpdateSound(
                     sound->current_command -
                     sound->definition->commands;
 
-                for (;;) {
-                    int marker_index = search_index - 1;
+                while ((search_index = FindPreviousMarker(
+                            sound->definition->commands,
+                            search_index)) >= 0) {
+                    int marker_index = search_index;
                     mslCmdItem* marker =
                         sound->definition->commands + marker_index;
-
-                    while (marker_index >= 0 &&
-                           marker->type != 5) {
-                        marker_index--;
-                        marker--;
-                        search_index--;
-                    }
-                    if (marker_index < 0) {
-                        command->command_state = 0;
-                        break;
-                    }
 
                     {
                         unsigned long marker_name =
                             marker->source.offset;
                         unsigned long command_name =
                             sound->current_command->source.offset;
-                        int same_name;
+                        int same_name = 0;
 
-                        if (marker_name == 0 ||
-                            command_name == 0) {
-                            same_name = 0;
-                        } else if (
-                            (marker_name & 0xF0000000) ==
-                                0x20000000 ||
-                            (command_name & 0xF0000000) ==
-                                0x20000000) {
-                            same_name = marker_name ==
-                                command_name;
-                        } else {
-                            same_name = stricmp(
-                                (const char*)marker_name,
-                                (const char*)command_name) == 0;
+                        if (marker_name != 0 && command_name != 0) {
+                            if ((marker_name & 0xF0000000) ==
+                                    0x20000000 ||
+                                (command_name & 0xF0000000) ==
+                                    0x20000000) {
+                                if (marker_name == command_name)
+                                    same_name = 1;
+                            } else if (stricmp(
+                                           (const char*)marker_name,
+                                           (const char*)command_name) == 0) {
+                                same_name = 1;
+                            }
                         }
 
-                        search_index = marker_index;
                         if (same_name) {
                             if (sound->current_command->value <=
                                     0.0f &&
@@ -312,6 +344,7 @@ _ListNode* mslUpdateSound(
                         }
                     }
                 }
+                sound->current_command->command_state = 0;
             } else {
                 command->command_state = 0;
             }
@@ -320,12 +353,14 @@ _ListNode* mslUpdateSound(
             system->sound_list_guard = 0;
             sound->current_command = 0;
             mslSoundEnd((_mslSound*)sound);
-            sound = 0;
             system->sound_list_guard = 1;
+            sound = 0;
             break;
         }
-        if (sound == 0 || currentUpdateSound == 0)
-            return next;
+        if (sound == 0)
+            break;
+        if (currentUpdateSound == 0)
+            break;
         if (sound->current_command != 0) {
             sound->current_command++;
             if (sound->current_command >=
@@ -333,10 +368,10 @@ _ListNode* mslUpdateSound(
                 sound->definition->command_count)
                 sound->current_command = 0;
             else if (!(sound->current_command->type & 0x80)) {
-                if (sound->current_command->value >= 0.0f)
-                    sound->end_time += sound->current_command->value;
-                else
+                if (sound->current_command->value < 0.0f)
                     sound->end_time = 9999999.0f;
+                else
+                    sound->end_time += sound->current_command->value;
             }
         }
         if (skip_wait)
@@ -473,3 +508,30 @@ int mslDoAdjust(
     adjustment->end_pitch = command->unknown28;
     return 0;
 }
+
+void mslDoPlay(_mslSound* sound_view, mslCmdItem* command) {
+    mslRuntimeSound* sound = (mslRuntimeSound*)sound_view;
+
+    if (command->attached_wave == 0) {
+        mslDebugPrintf(
+            "mslDoPlay: Sound %x had NULL wave (mi->mw), ignored\n",
+            sound);
+    } else {
+        mslRuntimeWave* wave = command->attached_wave;
+
+        wave->volume = command->unknown20;
+        wave->pan = command->unknown24;
+        wave->pitch = command->unknown28;
+        wave->unknown34 = command->command_state;
+        wave->command_value = command->wave_value;
+        if (command->wave_value != 1)
+            wave->flags |= 1;
+        if (command->pad09 & 1)
+            wave->flags |= 4;
+        mslWavePlay(
+            sound->system, sound, wave, command->unknown0C);
+    }
+}
+
+/* Retail ELF: named 4-byte zero gap after mslUpdateSound's jump table. */
+__declspec(section ".data") unsigned int gap_05_803A9324_data[1] = {0};

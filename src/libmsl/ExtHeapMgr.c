@@ -3,11 +3,9 @@
 
 /*
  * Retail MSL external-heap owner.
- * Soft ceilings: ExternalHeap_AlignAlloc ~59.64% and ExternalHeap_Create
- * ~51.18%. Their descriptor split/rollback, aligned allocation, accounting,
- * pool initialization, tree publication, and failure cleanup algorithms are
- * complete; the large remaining diffs are structured-C scheduling and the
- * retail compiler's duplicated/inlined initialization cleanup.
+ * Soft ceiling: ExternalHeap_AlignAlloc ~96.78%. Its descriptor split,
+ * rollback, accounting, and loop CFG match retail; the remaining two
+ * redundant candidate-node loads and GPR coloring are compiler emission.
  * CompareBlocksBySizeThenAddress is exact.
  */
 
@@ -37,6 +35,16 @@ ExternalHeapMutexRoutine fn_ExtHeapMgr_MutexExit =
     ExternalHeap_MutexNullFunc;
 ExternalHeapMallocRoutine fn_ExtHeapMgr_SystemMalloc;
 ExternalHeapFreeRoutine fn_ExtHeapMgr_SystemFree;
+
+static inline ExternalHeapBlock* ExternalHeap_PopFreeBlock(
+    ExternalHeap* heap) {
+    ExternalHeapBlock* block = heap->free_blocks;
+
+    if (block != 0) {
+        heap->free_blocks = block->link.next_free;
+    }
+    return block;
+}
 
 void ExternalHeap_Free(
     ExternalHeap* heap, unsigned long address) {
@@ -117,13 +125,21 @@ unsigned long ExternalHeap_Alloc(
 
 unsigned long ExternalHeap_AlignAlloc(
     ExternalHeap* heap, unsigned long size, int alignment) {
-    unsigned long result = 0;
+    ExternalHeapBlock* candidate;
+    ExternalHeapBlock* prefix_block;
     unsigned long mask;
+    unsigned long inverse_mask;
     unsigned long aligned_size;
+    unsigned long result = 0;
+    unsigned long prefix;
+    ExternalHeapBlock* split_block;
+    ExternalHeapBlock* suffix;
+    unsigned long aligned_address;
+    unsigned long usable;
     RedBlackNode* previous;
     RedBlackNode* candidate_node;
 
-    if (size == 0) {
+    if ((long)size <= 0) {
         return 0;
     }
     if (heap->mutex != 0) {
@@ -136,20 +152,17 @@ unsigned long ExternalHeap_AlignAlloc(
         alignment = 24;
     }
     mask = (1UL << alignment) - 1;
-    aligned_size = (size + mask) & ~mask;
+    inverse_mask = ~mask;
+    aligned_size = (size + mask) & inverse_mask;
     RBTK_GetPrevNextToKey(
         &heap->size_tree, (const void*)size,
         &previous, &candidate_node);
-
+    prefix_block = 0;
     while (result == 0 && candidate_node != 0) {
-        ExternalHeapBlock* candidate =
-            BLOCK_FROM_SIZE_NODE(candidate_node);
-        ExternalHeapBlock* prefix_block = 0;
-        ExternalHeapBlock* allocated;
-        unsigned long aligned_address =
-            (candidate->link.address + mask) & ~mask;
-        unsigned long prefix;
-        unsigned long usable;
+        aligned_address =
+            (BLOCK_FROM_SIZE_NODE(candidate_node)->link.address + mask) &
+            inverse_mask;
+        candidate = BLOCK_FROM_SIZE_NODE(candidate_node);
 
         if (aligned_address <
             candidate->link.address + candidate->size) {
@@ -160,76 +173,87 @@ unsigned long ExternalHeap_AlignAlloc(
             usable = 0;
         }
 
-        if (usable < aligned_size) {
-            candidate_node = RBN_GetNextNode(candidate_node);
-            continue;
-        }
+        if (aligned_size <= usable &&
+            (prefix == 0 || prefix_block == 0)) {
 
-        RBT_RemoveNode(&heap->size_tree, &candidate->size_node);
-        allocated = candidate;
-        if (prefix != 0) {
-            allocated = heap->free_blocks;
-            if (allocated == 0) {
-                RBT_InsertNode(
-                    &heap->size_tree, &candidate->size_node);
-                break;
-            }
+            RBT_RemoveNode(&heap->size_tree, &candidate->size_node);
+            if (prefix != 0) {
+                split_block = ExternalHeap_PopFreeBlock(heap);
 
-            heap->free_blocks = allocated->link.next_free;
-            allocated->link.address = aligned_address;
-            allocated->size = candidate->size - prefix;
-            allocated->state.is_free = 1;
-            RBT_InsertNode(
-                &heap->address_tree, &allocated->address_node);
-            candidate->size = prefix;
-            RBT_InsertNode(
-                &heap->size_tree, &candidate->size_node);
-            prefix_block = candidate;
-        }
-
-        if (aligned_size < usable) {
-            ExternalHeapBlock* suffix = heap->free_blocks;
-
-            if (suffix == 0) {
-                if (prefix_block == 0) {
+                if (split_block != 0) {
+                    split_block->link.address = aligned_address;
+                    split_block->size = candidate->size - prefix;
+                    split_block->state.is_free = 1;
                     RBT_InsertNode(
-                        &heap->size_tree, &allocated->size_node);
+                        &heap->address_tree, &split_block->address_node);
+                    candidate->size = prefix;
+                    prefix_block = candidate;
+                    RBT_InsertNode(
+                        &heap->size_tree, &candidate->size_node);
+                    candidate = split_block;
+                } else {
+                    RBT_InsertNode(
+                        &heap->size_tree, &candidate->size_node);
                     break;
                 }
-
-                RBT_RemoveNode(
-                    &heap->size_tree, &prefix_block->size_node);
-                RBT_RemoveNode(
-                    &heap->address_tree, &allocated->address_node);
-                prefix_block->size += allocated->size;
-                RBT_InsertNode(
-                    &heap->size_tree, &prefix_block->size_node);
-                allocated->link.next_free = heap->free_blocks;
-                heap->free_blocks = allocated;
-                candidate_node =
-                    RBN_GetNextNode(&prefix_block->size_node);
-                continue;
             }
 
-            heap->free_blocks = suffix->link.next_free;
-            suffix->link.address =
-                allocated->link.address + aligned_size;
-            suffix->size = allocated->size - aligned_size;
-            suffix->state.is_free = 1;
-            RBT_InsertNode(
-                &heap->address_tree, &suffix->address_node);
-            RBT_InsertNode(&heap->size_tree, &suffix->size_node);
-            allocated->size = aligned_size;
-        }
+            if (aligned_size < usable) {
+                suffix = ExternalHeap_PopFreeBlock(heap);
 
-        allocated->state.is_free = 0;
-        result = allocated->link.address;
-        candidate_node = 0;
-        heap->allocation_count++;
-        heap->free_bytes -= aligned_size;
-        heap->used_bytes += aligned_size;
-        if (heap->peak_used < heap->used_bytes) {
-            heap->peak_used = heap->used_bytes;
+                if (suffix != 0) {
+                    suffix->link.address =
+                        candidate->link.address + aligned_size;
+                    suffix->size = candidate->size - aligned_size;
+                    suffix->state.is_free = 1;
+                    RBT_InsertNode(
+                        &heap->address_tree, &suffix->address_node);
+                    RBT_InsertNode(
+                        &heap->size_tree, &suffix->size_node);
+                    candidate->size = aligned_size;
+                    candidate->state.is_free = 0;
+                    result = candidate->link.address;
+                    candidate_node = 0;
+                    heap->allocation_count++;
+                    heap->free_bytes -= aligned_size;
+                    heap->used_bytes += aligned_size;
+                    if ((long)heap->peak_used < (long)heap->used_bytes) {
+                        heap->peak_used = heap->used_bytes;
+                    }
+                } else {
+                    if (prefix != 0) {
+                        RBT_RemoveNode(
+                            &heap->size_tree, &prefix_block->size_node);
+                        RBT_RemoveNode(
+                            &heap->address_tree, &candidate->address_node);
+                        prefix_block->size += candidate->size;
+                        RBT_InsertNode(
+                            &heap->size_tree, &prefix_block->size_node);
+                        /* Non-null state records a rolled-back candidate. */
+                        prefix_block =
+                            (ExternalHeapBlock*)sizeof(RedBlackNode);
+                        candidate->link.next_free = heap->free_blocks;
+                        heap->free_blocks = candidate;
+                        candidate_node = RBN_GetNextNode(candidate_node);
+                    } else {
+                        RBT_InsertNode(
+                            &heap->size_tree, &candidate->size_node);
+                        break;
+                    }
+                }
+            } else {
+                candidate->state.is_free = 0;
+                result = candidate->link.address;
+                candidate_node = 0;
+                heap->allocation_count++;
+                heap->free_bytes -= aligned_size;
+                heap->used_bytes += aligned_size;
+                if ((long)heap->peak_used < (long)heap->used_bytes) {
+                    heap->peak_used = heap->used_bytes;
+                }
+            }
+        } else {
+            candidate_node = RBN_GetNextNode(candidate_node);
         }
     }
 
@@ -243,40 +267,50 @@ void ExternalHeap_SetMutex(ExternalHeap* heap, void* mutex) {
     heap->mutex = mutex;
 }
 
+static inline void* ExternalHeap_SystemAlloc(unsigned int size) {
+    void* allocation = fn_ExtHeapMgr_SystemMalloc(size);
+
+    if (allocation != 0) {
+        memset(allocation, 0, size);
+    }
+    return allocation;
+}
+
 static inline void ExternalHeap_Init(ExternalHeap* heap) {
     ExternalHeapBlock* blocks = heap->blocks;
     int i;
+    int last_block;
 
-    if (blocks == 0) {
+    if (blocks != 0) {
+        last_block = heap->block_count - 1;
+        for (i = 1; i < last_block; i++) {
+            blocks[i].link.next_free = &blocks[i + 1];
+        }
+        blocks[last_block].link.next_free = 0;
+        heap->free_blocks = &blocks[1];
+
+        blocks[0].link.address = heap->base;
+        blocks[0].size = heap->size;
+        blocks[0].state.is_free = 1;
+
+        heap->address_tree.root = 0;
+        heap->address_tree.compare_nodes = CompareBlocksByAddress;
+        heap->address_tree.compare_key = KeyCompareBlocksByAddress;
+        RBT_InsertNode(&heap->address_tree, &blocks[0].address_node);
+
+        heap->size_tree.root = 0;
+        heap->size_tree.compare_nodes = CompareBlocksBySizeThenAddress;
+        heap->size_tree.compare_key = KeyCompareBlocksBySize;
+        RBT_InsertNode(&heap->size_tree, &blocks[0].size_node);
+
+        heap->allocation_count = 0;
+        heap->free_count = 0;
+        heap->free_bytes = heap->size;
+        heap->used_bytes = 0;
+        heap->peak_used = 0;
+    } else {
         memset(heap, 0, sizeof(ExternalHeap));
-        return;
     }
-
-    for (i = 1; i < heap->block_count - 1; i++) {
-        blocks[i].link.next_free = &blocks[i + 1];
-    }
-    blocks[heap->block_count - 1].link.next_free = 0;
-    heap->free_blocks = &blocks[1];
-
-    blocks[0].link.address = heap->base;
-    blocks[0].size = heap->size;
-    blocks[0].state.is_free = 1;
-
-    heap->address_tree.root = 0;
-    heap->address_tree.compare_nodes = CompareBlocksByAddress;
-    heap->address_tree.compare_key = KeyCompareBlocksByAddress;
-    RBT_InsertNode(&heap->address_tree, &blocks[0].address_node);
-
-    heap->size_tree.root = 0;
-    heap->size_tree.compare_nodes = CompareBlocksBySizeThenAddress;
-    heap->size_tree.compare_key = KeyCompareBlocksBySize;
-    RBT_InsertNode(&heap->size_tree, &blocks[0].size_node);
-
-    heap->allocation_count = 0;
-    heap->free_count = 0;
-    heap->free_bytes = heap->size;
-    heap->used_bytes = 0;
-    heap->peak_used = 0;
 }
 
 static inline void ExternalHeap_Destroy(ExternalHeap* heap) {
@@ -294,35 +328,28 @@ ExternalHeap* ExternalHeap_Create(
     unsigned long base, unsigned long size,
     unsigned long alignment, int block_count) {
     ExternalHeap* heap =
-        (ExternalHeap*)fn_ExtHeapMgr_SystemMalloc(
-            sizeof(ExternalHeap));
+        (ExternalHeap*)ExternalHeap_SystemAlloc(sizeof(ExternalHeap));
 
     if (heap != 0) {
         ExternalHeapBlock* blocks;
+        unsigned int blocks_size;
 
-        memset(heap, 0, sizeof(ExternalHeap));
         if (block_count < 4) {
             block_count = 4;
         }
 
-        blocks = (ExternalHeapBlock*)
-            fn_ExtHeapMgr_SystemMalloc(
-                block_count * sizeof(ExternalHeapBlock));
-        if (blocks != 0) {
-            memset(
-                blocks, 0,
-                block_count * sizeof(ExternalHeapBlock));
-        }
+        blocks_size = block_count * sizeof(ExternalHeapBlock);
+        blocks = (ExternalHeapBlock*)ExternalHeap_SystemAlloc(blocks_size);
         heap->blocks = blocks;
-        if (blocks == 0) {
-            ExternalHeap_Destroy(heap);
-            heap = 0;
-        } else {
+        if (heap->blocks != 0) {
             heap->base = base;
             heap->size = size;
             heap->alignment = alignment;
             heap->block_count = block_count;
             ExternalHeap_Init(heap);
+        } else {
+            ExternalHeap_Destroy(heap);
+            heap = 0;
         }
     }
     return heap;
