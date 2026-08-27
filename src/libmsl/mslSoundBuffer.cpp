@@ -14,6 +14,11 @@
 #include "mw/mwMemNewDelete.h"
 #include "runtime/cmath.h"
 
+/*
+ * Retail C++ symbols name these as _mslBank and _GameCubeFileEntry. They are
+ * narrow SoundBuffer ABI views, not aliases: merging them with mslLoadedBank
+ * and mslAssetWave changes MWCC alias analysis in otherwise exact callers.
+ */
 struct _mslBank {
     unsigned char pad00[0x3C];
     _mwFile* stream_context;      /* +0x3C */
@@ -41,7 +46,7 @@ class SoundBuffer_Playable;
 
 class SoundBufferPlayableInterface {
 public:
-    virtual void Destroy(short flags);       /* +0x08 */
+    virtual SoundBuffer_Playable* Destroy(short flags); /* +0x08 */
     virtual void FreeObject(void);           /* +0x0C */
     virtual void FreeResources(void);        /* +0x10 */
     virtual void Slot14(void);
@@ -172,6 +177,7 @@ public:
 };
 
 typedef void (*SoundBufferMethod)(SoundBuffer_Playable*);
+typedef int (*SoundBufferIntMethod)(SoundBuffer_Playable*);
 typedef void (*SoundBufferLostVoiceMethod)(
     SoundBuffer_Playable*, _AXVPB*);
 typedef int (*SoundBufferLongMethod)(
@@ -192,7 +198,7 @@ struct SoundBufferPlayableVTable {
     SoundBufferByteMethod SetPan; /* +0x34 */
     SoundBufferByteMethod SetSurroundPan; /* +0x38 */
     unsigned char pad3C[8];
-    SoundBufferMethod Stop;       /* +0x44 */
+    SoundBufferIntMethod Stop;    /* +0x44 */
     unsigned char pad48[0x0C];
     SoundBufferLostVoiceMethod LostVoice; /* +0x54 */
     unsigned char pad58[8];
@@ -254,7 +260,7 @@ struct SBPlayableStreamLayout {
     long ring_play_block;
     long pending_ax_block;         /* +0x94 */
     long ax_end_block;             /* +0x98 */
-    unsigned long end_pass_count;  /* +0x9C */
+    long end_pass_count;           /* +0x9C */
     long stream_end_block;         /* +0xA0 */
     unsigned long initial_position;/* +0xA4 */
     long ring_scan_stop_block;     /* +0xA8 */
@@ -286,7 +292,7 @@ static const unsigned char SurroundPanTable[] = {
 };
 
 static const char stringBase0[] =
-    "SBPlayable_Stream\0SoundBuffer_Playable";
+    "SBPlayable_Stream\0SoundBuffer_Playable\0SoundBuffer_Data";
 
 extern void* MWSOUND_HEAP;
 SoundBufferUpdateList ms_UpdateList__20SoundBuffer_Playable = {0, 0};
@@ -546,12 +552,78 @@ static inline void SetVoiceSource(
     voice->sync = (sync & 0xFFFE1FFF) | 0x1000;
 }
 
+static inline void SetStreamVoiceSource(
+    _AXVPB* voice, SPSoundEntry* sound, unsigned long frequency,
+    int stream_loop, int use_loop_address) {
+    AXVoiceSrc source;
+    unsigned long end;
+    unsigned long current;
+    unsigned long sync;
+    unsigned short loop_flag;
+    unsigned short loop_address_hi;
+    unsigned short loop_address_lo;
+
+    if (frequency == 0) {
+        frequency = sound->sample_rate;
+    }
+    if (frequency < 63) {
+        frequency = 63;
+    } else if (frequency > 128000) {
+        frequency = 128000;
+    }
+
+    source.ratioHi = frequency / 32000;
+    source.ratioLo = (frequency << 8) / 125;
+    source.currentAddressFrac = 0;
+    source.last_samples[0] = 0;
+    source.last_samples[1] = 0;
+    source.last_samples[2] = 0;
+    source.last_samples[3] = 0;
+    AXSetVoiceSrc(voice, &source);
+    AXSetVoiceAdpcm(voice, &sound->adpcm->adpcm);
+
+    if (stream_loop != 0) {
+        sync = voice->sync;
+        voice->pb.type = 1;
+        sync |= 8;
+        voice->sync = sync;
+    } else {
+        sync = voice->sync;
+        voice->pb.type = 0;
+        sync |= 8;
+        voice->sync = sync;
+    }
+    if (use_loop_address != 0) {
+        loop_flag = 1;
+        loop_address_hi = sound->current_address >> 16;
+        loop_address_lo = sound->current_address;
+    } else {
+        loop_flag = 0;
+        loop_address_hi = sound->loop_address >> 16;
+        loop_address_lo = sound->loop_address;
+    }
+    end = sound->end_address;
+    current = sound->current_address;
+    sync = voice->sync;
+    voice->pb.addr.loopFlag = loop_flag;
+    voice->pb.addr.format = 0;
+    voice->pb.addr.loopAddressHi = loop_address_hi;
+    voice->pb.addr.loopAddressLo = loop_address_lo;
+    voice->pb.addr.endAddressHi = end >> 16;
+    voice->pb.addr.endAddressLo = end;
+    voice->pb.addr.currentAddressHi = current >> 16;
+    voice->pb.addr.currentAddressLo = current;
+    voice->sync = (sync | 0x1000) & 0xFFFE1FFF;
+}
+
 /*
- * Soft ceiling: iPlay ~91.26% with the exact retail 0x450-byte size.
+ * Soft ceiling: iPlay ~91.26%; current size 0x430, retail size 0x450.
  * The AX voice, priority, mono/stereo source, mixer, loop, and state setup
  * are recovered. Hoisting both sound-entry declarations to the shared play
- * region restores retail's six-register save range; remaining differences
- * are register coloring and inlined source-address scheduling. The paused
+ * region restores retail's six-register save range. The eight-instruction
+ * size residue is moves and inlined source-address scheduling, with one
+ * shifted zero-materialization opcode; the remaining aligned operations are
+ * register coloring. The paused
  * resume path intentionally returns -1 when neither voice exists.
  */
 int SoundBuffer_Playable::iPlay(
@@ -590,8 +662,7 @@ int SoundBuffer_Playable::iPlay(
                 return -1;
             }
             if (active_priority != acquire_priority) {
-                AXSetVoicePriority(
-                    self->secondary_voice, active_priority);
+                AXSetVoicePriority(self->secondary_voice, active_priority);
             }
         }
 
@@ -1391,6 +1462,11 @@ int SBPlayable_Stream::Play(unsigned long flags) {
     return result;
 }
 
+/*
+ * Near miss: iPlayPrepped 97.15%, retail 0x804 versus current 0x818.
+ * The five extra instructions are one eager secondary-entry zero and separate
+ * voice/cache loop-induction updates; the other differences are GPR coloring.
+ */
 int SBPlayable_Stream::iPlayPrepped(void) {
     SBPlayableStreamLayout* stream =
         StreamState(this);
@@ -1405,7 +1481,6 @@ int SBPlayable_Stream::iPlayPrepped(void) {
     if (self->primary_voice == 0) {
         int use_stream_loop;
         int use_loop_address;
-        SPSoundEntry* primary_sound = 0;
 
         stream->ring_play_block = 0;
         stream->at_zero_buffer = 0;
@@ -1434,37 +1509,25 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 return result;
             }
             AXSetVoicePriority(self->secondary_voice, 0x19);
-        }
-
-        if (self->file_entry->has_secondary != 0) {
+            SPSoundEntry* primary_sound = 0;
             SPSoundEntry* secondary_sound = 0;
 
             if (self->file_entry->sound_table != 0) {
                 primary_sound = SPGetSoundEntry(
                     self->file_entry->sound_table, 0);
             }
-            SetVoiceSource(
+            SetStreamVoiceSource(
                 self->primary_voice, primary_sound,
-                self->frequency, use_stream_loop);
-            if (use_loop_address) {
-                self->primary_voice->pb.addr.loopAddressHi =
-                    primary_sound->loop_address >> 16;
-                self->primary_voice->pb.addr.loopAddressLo =
-                    primary_sound->loop_address;
-            }
+                self->frequency, use_stream_loop,
+                use_loop_address);
             if (self->file_entry->secondary_sound_table != 0) {
                 secondary_sound = SPGetSoundEntry(
                     self->file_entry->secondary_sound_table, 0);
             }
-            SetVoiceSource(
+            SetStreamVoiceSource(
                 self->secondary_voice, secondary_sound,
-                self->frequency, use_stream_loop);
-            if (use_loop_address) {
-                self->secondary_voice->pb.addr.loopAddressHi =
-                    secondary_sound->loop_address >> 16;
-                self->secondary_voice->pb.addr.loopAddressLo =
-                    secondary_sound->loop_address;
-            }
+                self->frequency, use_stream_loop,
+                use_loop_address);
             MIXInitChannel(
                 self->primary_voice, 0, 0, -960, -960,
                 0, 0x7F, self->mix_fader);
@@ -1472,19 +1535,16 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 self->secondary_voice, 0, 0, -960, -960,
                 0x7F, 0x7F, self->mix_fader);
         } else {
+            SPSoundEntry* primary_sound = 0;
+
             if (self->file_entry->sound_table != 0) {
                 primary_sound = SPGetSoundEntry(
                     self->file_entry->sound_table, 0);
             }
-            SetVoiceSource(
+            SetStreamVoiceSource(
                 self->primary_voice, primary_sound,
-                self->frequency, use_stream_loop);
-            if (use_loop_address) {
-                self->primary_voice->pb.addr.loopAddressHi =
-                    primary_sound->loop_address >> 16;
-                self->primary_voice->pb.addr.loopAddressLo =
-                    primary_sound->loop_address;
-            }
+                self->frequency, use_stream_loop,
+                use_loop_address);
             MIXInitChannel(
                 self->primary_voice, 0, 0, -960, -960,
                 self->pan, self->volume, self->mix_fader);
@@ -1492,56 +1552,60 @@ int SBPlayable_Stream::iPlayPrepped(void) {
 
         if (stream->source_blocks_remaining == -1) {
             int channel;
-            int channel_count = GetNumChannels();
 
             stream->ring_play_block = 0;
-            if (stream->ring_write_block == 0) {
-                stream->ax_end_block =
-                    stream->ring_block_count - 1;
-            } else {
+            if (stream->ring_write_block != 0) {
                 stream->ax_end_block =
                     stream->ring_write_block - 1;
+            } else {
+                stream->ax_end_block =
+                    stream->ring_block_count - 1;
             }
-            stream->pending_ax_block =
-                use_loop_address ? 0 : -1;
+            if (use_loop_address != 0) {
+                stream->pending_ax_block = 0;
+            } else {
+                stream->pending_ax_block = -1;
+            }
 
-            for (channel = 0; channel < channel_count; channel++) {
+            for (channel = 0;
+                 channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
                     (&self->primary_voice)[channel];
                 unsigned long base =
                     (&stream->cache_buffer0)[channel] << 1;
-                unsigned long loop =
-                    ((unsigned long)voice->pb.addr.currentAddressHi << 16) |
-                    voice->pb.addr.currentAddressLo;
-                unsigned long end =
-                    ((unsigned long)voice->pb.addr.endAddressHi << 16) |
-                    voice->pb.addr.endAddressLo;
-                unsigned long current =
-                    ((unsigned long)voice->pb.addr.loopAddressHi << 16) |
-                    voice->pb.addr.loopAddressLo;
+                unsigned long address;
                 unsigned long sync;
 
-                loop += base;
+                address =
+                    ((unsigned long)voice->pb.addr.currentAddressHi << 16) +
+                    voice->pb.addr.currentAddressLo;
+                address += base;
                 sync = voice->sync | 0x10000;
-                voice->pb.addr.currentAddressLo = loop;
-                voice->pb.addr.currentAddressHi = loop >> 16;
+                voice->pb.addr.currentAddressLo = address;
+                voice->pb.addr.currentAddressHi = address >> 16;
                 if ((sync & 0x1000) == 0) {
                     voice->sync = sync;
                 }
 
-                end += base;
+                address =
+                    ((unsigned long)voice->pb.addr.endAddressHi << 16) +
+                    voice->pb.addr.endAddressLo;
+                address += base;
                 sync = voice->sync | 0x8000;
-                voice->pb.addr.endAddressLo = end;
-                voice->pb.addr.endAddressHi = end >> 16;
+                voice->pb.addr.endAddressLo = address;
+                voice->pb.addr.endAddressHi = address >> 16;
                 if ((sync & 0x1000) == 0) {
                     voice->sync = sync;
                 }
 
                 if (use_loop_address) {
-                    current += base;
+                    address =
+                        ((unsigned long)voice->pb.addr.loopAddressHi << 16) +
+                        voice->pb.addr.loopAddressLo;
+                    address += base;
                     sync = voice->sync | 0x4000;
-                    voice->pb.addr.loopAddressLo = current;
-                    voice->pb.addr.loopAddressHi = current >> 16;
+                    voice->pb.addr.loopAddressLo = address;
+                    voice->pb.addr.loopAddressHi = address >> 16;
                     if ((sync & 0x1000) == 0) {
                         voice->sync = sync;
                     }
@@ -1549,18 +1613,17 @@ int SBPlayable_Stream::iPlayPrepped(void) {
             }
         } else {
             int channel;
-            int channel_count = GetNumChannels();
 
             stream->ax_end_block =
                 stream->ring_play_block;
             stream->pending_ax_block = -1;
-            for (channel = 0; channel < channel_count; channel++) {
+            for (channel = 0;
+                 channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
                     (&self->primary_voice)[channel];
                 unsigned long base =
                     (&stream->cache_buffer0)[channel] << 1;
-                unsigned long zero =
-                    g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
+                unsigned long zero;
                 unsigned long address;
                 unsigned long sync;
 
@@ -1581,20 +1644,27 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                     voice->sync = sync;
                 }
 
-                sync = voice->sync | 0x4000;
-                voice->pb.addr.loopAddressHi = zero >> 16;
+                sync = voice->sync;
+                zero = g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
+                sync |= 0x4000;
                 voice->pb.addr.loopAddressLo = zero;
+                voice->pb.addr.loopAddressHi = zero >> 16;
                 if ((sync & 0x1000) == 0) {
                     voice->sync = sync;
                 }
+                sync = voice->sync;
                 voice->pb.adpcmLoop.loop_pred_scale = 0;
+                sync |= 0x100000;
                 voice->pb.adpcmLoop.loop_yn1 = 0;
                 voice->pb.adpcmLoop.loop_yn2 = 0;
-                voice->sync |= 0x100000;
+                voice->sync = sync;
+                sync = voice->sync;
                 voice->pb.type = 0;
-                voice->sync |= 8;
+                sync |= 8;
+                voice->sync = sync;
+                sync = voice->sync;
+                sync |= 0x2000;
                 voice->pb.addr.loopFlag = 0;
-                sync = voice->sync | 0x2000;
                 if ((sync & 0x1000) == 0) {
                     voice->sync = sync;
                 }
@@ -1928,14 +1998,7 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     }
 }
 
-/*
- * Soft ceiling: iUpdate_AXUser ~75.87% -- the full retail dual-voice stream
- * ring/AX transition algorithm is recovered; current size is 0x5AC versus
- * retail 0x5B4. The typed inline voice-block helper restores the retail
- * optional raw-address stores and delayed per-channel cache load. MWCC 2.7
- * crashes at optimization levels 2 and 4; level 3 is the highest stable
- * scoped setting and retains readable structured C.
- */
+/* Typed stream-voice block lookup with the retail optional raw-address out. */
 inline int SBPlayable_Stream::iAX_GetVoiceBlock(
     _AXVPB* voice,
     int channel,
@@ -1951,7 +2014,7 @@ inline int SBPlayable_Stream::iAX_GetVoiceBlock(
         address <= g_MSL_GCN_ARAM_ZeroBase_ADPCM_End) {
         block = -1;
     } else {
-        address = (address >> 1) -
+        address = ((long)address >> 1) -
             (channel == 0 ? stream->cache_buffer0 :
                             stream->cache_buffer1);
         block = (long)address >> stream->segment_shift;
@@ -1965,20 +2028,21 @@ inline int SBPlayable_Stream::iAX_GetVoiceBlock(
     return block;
 }
 
+/*
+ * Soft ceiling: iUpdate_AXUser 92.90%, retail 0x5B4 versus current 0x5B0.
+ * The ring transitions and both AX publication paths are structurally
+ * recovered. The residual is broad GPR coloring plus one loop-address
+ * high-half scheduling replacement; stop rather than force allocation.
+ */
 void SBPlayable_Stream::iUpdate_AXUser(void) {
     SBPlayableStreamLayout* stream =
         StreamState(this);
-    _AXVPB* primary;
-    _AXVPB* secondary;
-    unsigned long address;
-    unsigned long sync;
     int primary_block;
     int secondary_block;
     int channels;
     int next_block;
     int crossed_scan_stop;
     unsigned long primary_raw_address;
-    unsigned long secondary_raw_address;
 
     if (stream->voices_started == 0) {
         return;
@@ -1987,15 +2051,17 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
         return;
     }
 
-    primary = stream->playable.primary_voice;
     primary_block = iAX_GetVoiceBlock(
-        primary, 0, &primary_raw_address);
+        stream->playable.primary_voice, 0,
+        &primary_raw_address);
 
     if (stream->playable.file_entry->has_secondary != 0) {
+        unsigned long secondary_raw_address;
+
         channels = 2;
-        secondary = stream->playable.secondary_voice;
         secondary_block = iAX_GetVoiceBlock(
-            secondary, 1, &secondary_raw_address);
+            stream->playable.secondary_voice, 1,
+            &secondary_raw_address);
     } else {
         channels = 1;
     }
@@ -2041,45 +2107,62 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                     }
                 }
 
-                sync = primary->sync;
-                address =
-                    (next_block <<
-                     (stream->segment_shift + 1)) +
-                    2 + (stream->cache_buffer0 << 1);
-                sync |= 0x10000;
-                primary->pb.addr.currentAddressLo = address;
-                primary->pb.addr.currentAddressHi = address >> 16;
-                if ((sync & 0x1000) == 0) {
-                    primary->sync = sync;
+                unsigned long block_address =
+                    (stream->ring_play_block <<
+                     (stream->segment_shift + 1)) + 2;
+
+                {
+                    _AXVPB* voice =
+                        stream->playable.primary_voice;
+                    unsigned long address;
+                    unsigned long sync;
+
+                    sync = voice->sync;
+                    address =
+                        block_address +
+                        (stream->cache_buffer0 << 1);
+                    sync |= 0x10000;
+                    voice->pb.addr.currentAddressLo = address;
+                    voice->pb.addr.currentAddressHi = address >> 16;
+                    if ((sync & 0x1000) == 0) {
+                        voice->sync = sync;
+                    }
+                    sync = voice->sync;
+                    voice->pb.adpcmLoop.loop_pred_scale =
+                        stream->block_headers[0]
+                            [stream->ring_play_block];
+                    sync |= 0x20000;
+                    voice->pb.adpcmLoop.loop_yn1 = 0;
+                    voice->pb.adpcmLoop.loop_yn2 = 0;
+                    voice->sync = sync;
                 }
-                primary->pb.adpcmLoop.loop_pred_scale =
-                    stream->block_headers[0][next_block];
-                primary->pb.adpcmLoop.loop_yn1 = 0;
-                primary->pb.adpcmLoop.loop_yn2 = 0;
-                primary->sync |= 0x20000;
 
                 if (stream->playable.secondary_voice != 0) {
-                    secondary =
+                    _AXVPB* voice =
                         stream->playable.secondary_voice;
-                    sync = secondary->sync;
+                    unsigned long address;
+                    unsigned long sync;
+                    sync = voice->sync;
                     address =
-                        (next_block <<
-                         (stream->segment_shift + 1)) +
-                        2 + (stream->cache_buffer1 << 1);
+                        block_address +
+                        (stream->cache_buffer1 << 1);
                     sync |= 0x10000;
-                    secondary->pb.addr.currentAddressLo = address;
-                    secondary->pb.addr.currentAddressHi = address >> 16;
+                    voice->pb.addr.currentAddressLo = address;
+                    voice->pb.addr.currentAddressHi = address >> 16;
                     if ((sync & 0x1000) == 0) {
-                        secondary->sync = sync;
+                        voice->sync = sync;
                     }
-                    secondary->pb.adpcmLoop.loop_pred_scale =
-                        stream->block_headers[1][next_block];
-                    secondary->pb.adpcmLoop.loop_yn1 = 0;
-                    secondary->pb.adpcmLoop.loop_yn2 = 0;
-                    secondary->sync |= 0x20000;
+                    sync = voice->sync;
+                    voice->pb.adpcmLoop.loop_pred_scale =
+                        stream->block_headers[1]
+                            [stream->ring_play_block];
+                    sync |= 0x20000;
+                    voice->pb.adpcmLoop.loop_yn1 = 0;
+                    voice->pb.adpcmLoop.loop_yn2 = 0;
+                    voice->sync = sync;
                 }
 
-                iAX_FindNewEndBlock(primary_block);
+                iAX_FindNewEndBlock(next_block);
                 AXSetVoiceState(
                     stream->playable.primary_voice, 1);
                 if (stream->playable.secondary_voice != 0) {
@@ -2115,78 +2198,102 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
             }
             stream->pending_ax_block = next_block;
 
-            primary = stream->playable.primary_voice;
-            sync = primary->sync;
+            unsigned long block_address =
+                (next_block <<
+                 (stream->segment_shift + 1)) + 2;
+            unsigned char block_header;
+            _AXVPB* voice =
+                stream->playable.primary_voice;
+            unsigned long address;
+            unsigned long sync;
+            bool at_stream_end =
+                stream->ax_end_block ==
+                stream->stream_end_block;
+
             address =
-                (next_block << (stream->segment_shift + 1)) +
-                2 + (stream->cache_buffer0 << 1);
+                block_address +
+                (stream->cache_buffer0 << 1);
+            sync = voice->sync;
             sync |= 0x4000;
-            primary->pb.addr.loopAddressLo = address;
-            primary->pb.addr.loopAddressHi = address >> 16;
-            if ((sync & 0x1000) == 0) {
-                primary->sync = sync;
-            }
-            sync = primary->sync;
-            primary->pb.adpcmLoop.loop_pred_scale =
+            block_header =
                 stream->block_headers[0][next_block];
-            sync |= 0x100000;
-            primary->pb.adpcmLoop.loop_yn1 = 0;
-            primary->pb.adpcmLoop.loop_yn2 = 0;
-            primary->sync = sync;
-            if (stream->stream_end_block ==
-                stream->ax_end_block) {
-                primary->pb.type = 0;
-                primary->sync |= 8;
-            } else {
-                primary->pb.type = 1;
-                primary->sync |= 8;
-            }
-            sync = primary->sync;
-            sync |= 0x2000;
-            primary->pb.addr.loopFlag = 1;
+            voice->pb.addr.loopAddressLo = address;
+            voice->pb.addr.loopAddressHi = address >> 16;
             if ((sync & 0x1000) == 0) {
-                primary->sync = sync;
+                voice->sync = sync;
+            }
+            sync = voice->sync;
+            voice->pb.adpcmLoop.loop_pred_scale =
+                block_header;
+            sync |= 0x100000;
+            voice->pb.adpcmLoop.loop_yn1 = 0;
+            voice->pb.adpcmLoop.loop_yn2 = 0;
+            voice->sync = sync;
+            if (at_stream_end != 0) {
+                sync = voice->sync;
+                voice->pb.type = 0;
+                sync |= 8;
+                voice->sync = sync;
+            } else {
+                sync = voice->sync;
+                voice->pb.type = 1;
+                sync |= 8;
+                voice->sync = sync;
+            }
+            sync = voice->sync;
+            sync |= 0x2000;
+            voice->pb.addr.loopFlag = 1;
+            if ((sync & 0x1000) == 0) {
+                voice->sync = sync;
             }
 
-            secondary = stream->playable.secondary_voice;
-            if (secondary != 0) {
-                sync = secondary->sync;
+            voice = stream->playable.secondary_voice;
+            if (voice != 0) {
+                at_stream_end =
+                    stream->ax_end_block ==
+                    stream->stream_end_block;
+
                 address =
-                    (next_block <<
-                     (stream->segment_shift + 1)) +
-                    2 + (stream->cache_buffer1 << 1);
+                    block_address +
+                    (stream->cache_buffer1 << 1);
+                sync = voice->sync;
                 sync |= 0x4000;
-                secondary->pb.addr.loopAddressLo = address;
-                secondary->pb.addr.loopAddressHi = address >> 16;
-                if ((sync & 0x1000) == 0) {
-                    secondary->sync = sync;
-                }
-                sync = secondary->sync;
-                secondary->pb.adpcmLoop.loop_pred_scale =
+                block_header =
                     stream->block_headers[1][next_block];
-                sync |= 0x100000;
-                secondary->pb.adpcmLoop.loop_yn1 = 0;
-                secondary->pb.adpcmLoop.loop_yn2 = 0;
-                secondary->sync = sync;
-                if (stream->stream_end_block ==
-                    stream->ax_end_block) {
-                    secondary->pb.type = 0;
-                    secondary->sync |= 8;
-                } else {
-                    secondary->pb.type = 1;
-                    secondary->sync |= 8;
-                }
-                sync = secondary->sync;
-                sync |= 0x2000;
-                secondary->pb.addr.loopFlag = 1;
+                voice->pb.addr.loopAddressLo = address;
+                voice->pb.addr.loopAddressHi = address >> 16;
                 if ((sync & 0x1000) == 0) {
-                    secondary->sync = sync;
+                    voice->sync = sync;
+                }
+                sync = voice->sync;
+                voice->pb.adpcmLoop.loop_pred_scale =
+                    block_header;
+                sync |= 0x100000;
+                voice->pb.adpcmLoop.loop_yn1 = 0;
+                voice->pb.adpcmLoop.loop_yn2 = 0;
+                voice->sync = sync;
+                if (at_stream_end != 0) {
+                    sync = voice->sync;
+                    voice->pb.type = 0;
+                    sync |= 8;
+                    voice->sync = sync;
+                } else {
+                    sync = voice->sync;
+                    voice->pb.type = 1;
+                    sync |= 8;
+                    voice->sync = sync;
+                }
+                sync = voice->sync;
+                sync |= 0x2000;
+                voice->pb.addr.loopFlag = 1;
+                if ((sync & 0x1000) == 0) {
+                    voice->sync = sync;
                 }
             }
         }
     }
 
-    if (primary_block < stream->ring_write_block ||
+    if (primary_block < stream->ring_play_block ||
         primary_block > stream->ax_end_block) {
         if (stream->ax_end_block ==
             stream->stream_end_block) {

@@ -1,7 +1,10 @@
 #include "msl/mslBankLoadAsyncQueue.h"
 #include "msl/mslsupport.h"
+#include "runtime/cstdarg.h"
 #include "runtime/cstring.h"
+#include "runtime/cstdio.h"
 extern unsigned int mslGCN_AXCallback_Ticks;
+extern "C" int printf(const char* format, ...);
 
 void mslAsyncComplete(
     _mslAsyncResponse* response, bool succeeded, void* result,
@@ -72,9 +75,11 @@ extern "C" float mslGetTime(void) {
     return 0.005f * mslGCN_AXCallback_Ticks;
 }
 
-/*
- * Honest blocker: retail formats through PPC EABI variadic state into a
- * 256-byte buffer and then calls printf. The project cstdarg header implements
- * va_start solely through MWCC's __va_start compiler intrinsic; the only
- * alternative is hand-authored PPC EABI state. Both are intentionally avoided.
- */
+extern "C" void mslDebugPrintf(const char* format, ...) {
+    char buffer[256];
+    __va_list args;
+
+    __builtin_va_info(&args);
+    vsprintf(buffer, format, args);
+    printf(buffer);
+}

@@ -17,8 +17,8 @@ unsigned long __AXGetStudio(void)
     return (unsigned long)&__AXStudio;
 }
 
-static void __AXDepopFade(signed long* host_sum, signed long* dsp_volume,
-                          short* dsp_delta)
+static inline void __AXDepopFade(signed long* host_sum,
+                                 signed long* dsp_volume, short* dsp_delta)
 {
     int frames = *host_sum / 160;
 

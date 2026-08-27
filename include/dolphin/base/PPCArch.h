@@ -7,6 +7,7 @@
 unsigned long PPCMfmsr(void);
 void PPCMtmsr(unsigned long value);
 unsigned long PPCMfhid0(void);
+void PPCMthid0(unsigned long value);
 unsigned long PPCMfl2cr(void);
 void PPCMtl2cr(unsigned long value);
 unsigned long PPCMfhid2(void);

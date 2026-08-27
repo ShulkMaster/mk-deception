@@ -2,10 +2,14 @@
  * Dynamic stream-file reader. Retail owns five 0x4000-byte buffers, five
  * in-flight read records, and 32 generation-tagged pending requests.
  *
- * Soft ceiling: 85.54% .text after a 10+10 matching round. The interrupt
- * return wrapper and all data layouts are exact; the remaining differences
- * are callback/scheduler expansion depth, register allocation, and final
- * instruction scheduling.
+ * Current reconstruction: 93.28% .text. The interrupt return wrapper and all
+ * data layouts are exact. Initialize differs only by a preceding-symbol branch
+ * label; ReturnBuffer and ServiceNextRead have exact retail operations and
+ * narrow temporary/list-link scheduling residue. CancelRequest and QueueRequest
+ * retain one short-circuit branch and allocator/string lifetime differences.
+ * CancelRead (~89.76%) and FileReadCompletionCallback (~87.03%) retain exact
+ * ownership, calls, and algorithms; their residue is list-reload scheduling
+ * and register allocation, with no opcode mismatch.
  */
 #include "msl/mslBank.h"
 #include "msl/mslStreamFile.h"
@@ -112,16 +116,19 @@ static void mslDSB_FileReadCompletionCallback(
 static void mslStreamFile_ReturnBuffer_CB(void*);
 
 static inline int mslDSB_ReturnBuffer(void* buffer) {
+    int result;
     int difference = (u8*)buffer - &g_DSB_Buffers[0][0];
     int index;
 
-    if (difference < 0 ||
-        (index = difference / 0x4000) >= 5) {
+    if (difference >= 0 &&
+        (index = difference / 0x4000) < 5) {
+        result = 1;
+        g_DSB_BufferFree[index] = 1;
+    } else {
         mslDebugPrintf(STREAM_STRING(0));
-        return 0;
+        result = 0;
     }
-    g_DSB_BufferFree[index] = 1;
-    return 1;
+    return result;
 }
 
 extern "C" void mslStreamFile_CancelRequest(void* handle) {
@@ -131,13 +138,10 @@ extern "C" void mslStreamFile_CancelRequest(void* handle) {
 
     value.value = mslDSB_HandleFromOpaque(handle);
     index = value.parts.index;
-    if (index >= 1 && index <= 32) {
-        request = &DSB_PAR_Pool[index - 1];
-        if (value.value != request->handle.value ||
-            request->in_use == 0) {
-            request = 0;
-        }
-    } else {
+    if (!(index >= 1 && index <= 32 &&
+          (request = &DSB_PAR_Pool[index - 1],
+           value.value == request->handle.value) &&
+          request->in_use != 0)) {
         request = 0;
     }
     if (request != 0) {
@@ -146,8 +150,8 @@ extern "C" void mslStreamFile_CancelRequest(void* handle) {
 }
 
 extern "C" void mslStreamFile_Initialize(void) {
-    mslDSB_PendingAsyncRead* requests;
     int i;
+    mslDSB_PendingAsyncRead* requests;
 
     DSB_PAR_Queue.first = 0;
     DSB_PAR_Queue.last_link = &DSB_PAR_Queue.first;
@@ -175,15 +179,10 @@ extern "C" void mslStreamFile_Initialize(void) {
     DSB_PAR_Pool[31].next = 0;
 
     DSB_FILEREAD_FreeList = DSB_FILEREAD_Pool;
-    g_DSB_BufferFree[0] = 1;
-    DSB_FILEREAD_Pool[0].next = &DSB_FILEREAD_Pool[1];
-    g_DSB_BufferFree[1] = 1;
-    DSB_FILEREAD_Pool[1].next = &DSB_FILEREAD_Pool[2];
-    g_DSB_BufferFree[2] = 1;
-    DSB_FILEREAD_Pool[2].next = &DSB_FILEREAD_Pool[3];
-    g_DSB_BufferFree[3] = 1;
-    DSB_FILEREAD_Pool[3].next = &DSB_FILEREAD_Pool[4];
-    g_DSB_BufferFree[4] = 1;
+    for (i = 0; i < 5; i++) {
+        g_DSB_BufferFree[i] = 1;
+        DSB_FILEREAD_Pool[i].next = &DSB_FILEREAD_Pool[i + 1];
+    }
     DSB_FILEREAD_Pool[4].next = 0;
 }
 
@@ -216,17 +215,17 @@ static void mslStreamFile_ReturnBuffer_CB(void* buffer) {
 }
 
 extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
-    int result;
+    unsigned long enabled;
     int service;
+    int result;
 
     if (buffer == 0) {
-        return 0;
-    }
-    service = 0;
-    {
-        unsigned long enabled = OSDisableInterrupts();
+        result = 0;
+    } else {
         mslDSB_PendingAsyncRead* queued;
 
+        service = 0;
+        enabled = OSDisableInterrupts();
         result = mslDSB_ReturnBuffer(buffer);
         {
             unsigned long inner = OSDisableInterrupts();
@@ -237,9 +236,9 @@ extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
             service = 1;
         }
         OSRestoreInterrupts(enabled);
-    }
-    if (service) {
-        mslDSB_ServiceNextRead();
+        if (service) {
+            mslDSB_ServiceNextRead();
+        }
     }
     return result;
 }
@@ -270,9 +269,12 @@ extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     mslDSB_PendingAsyncRead* request = 0;
 
     if (size != 0) {
+        const char* retry_strings;
+
         request = mslDSB_AllocPending();
+        retry_strings = stringBase0;
         while (request == 0) {
-            mslDebugPrintf(STREAM_STRING(0x85));
+            mslDebugPrintf(&retry_strings[0x85]);
             request = mslDSB_AllocPending();
         }
         {
@@ -341,6 +343,13 @@ static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
     OSRestoreInterrupts(enabled);
 }
 
+/*
+ * Near miss: 89.76%, exact retail/current size 0x318. The abort, unlink,
+ * buffer return, queue removal, callback, and pool-release CFG agrees with
+ * retail and m2c. Residue is the inlined list-update schedule/GPR coloring,
+ * one tail-load placement, and one pooled-string relocation; no algorithmic
+ * opcode mismatch remains.
+ */
 static void mslDSB_CancelRead(
     mslDSB_PendingAsyncRead* request, int invoke_callback) {
     if (request != 0) {
@@ -441,6 +450,22 @@ static inline mslDSB_FileRead* mslDSB_AllocFileRead(void) {
     return read;
 }
 
+static inline mslDSB_PendingAsyncRead* mslDSB_DequeuePending(void) {
+    mslDSB_PendingAsyncRead* request = DSB_PAR_Queue.first;
+
+    if (request != 0) {
+        mslDSB_PendingAsyncRead* next = request->next;
+
+        request->next = 0;
+        DSB_PAR_Queue.first = next;
+        if (next == 0) {
+            DSB_PAR_Queue.last_link = &DSB_PAR_Queue.first;
+        }
+        request->queued = 0;
+    }
+    return request;
+}
+
 void mslDSB_ServiceNextRead(void) {
     mslDSB_PendingAsyncRead* request = 0;
     mslDSB_FileRead* read = 0;
@@ -457,15 +482,7 @@ void mslDSB_ServiceNextRead(void) {
         buffer = mslDSB_AllocBuffer();
         if (buffer != 0) {
             read = mslDSB_AllocFileRead();
-            {
-                mslDSB_PendingAsyncRead* next = request->next;
-                request->next = 0;
-                DSB_PAR_Queue.first = next;
-                if (next == 0) {
-                    DSB_PAR_Queue.last_link = &DSB_PAR_Queue.first;
-                }
-                request->queued = 0;
-            }
+            request = mslDSB_DequeuePending();
             request->active_reads++;
             started = 1;
         } else {
@@ -476,6 +493,7 @@ void mslDSB_ServiceNextRead(void) {
 
     if (started) {
         while (read != 0) {
+            u32 offset;
             u32 size;
             unsigned long inner = OSDisableInterrupts();
 
@@ -483,6 +501,7 @@ void mslDSB_ServiceNextRead(void) {
             if (size > 0x4000) {
                 size = 0x4000;
             }
+            offset = request->next_offset;
             read->owner = request;
             read->previous = request->last_read;
             if (request->last_read != 0) {
@@ -493,13 +512,13 @@ void mslDSB_ServiceNextRead(void) {
             request->last_read = read;
             read->next = 0;
             read->buffer = buffer;
-            read->offset = request->next_offset;
+            read->offset = offset;
             read->size = size;
-            read->callback_offset = request->next_offset;
+            read->callback_offset = offset;
             read->callback_size = size;
             read->callback_buffer = buffer;
-            request->remaining -= size;
-            request->next_offset += size;
+            request->remaining -= read->callback_size;
+            request->next_offset += read->callback_size;
             if (request->remaining == 0) {
                 request->final_issued = 1;
             }
@@ -522,6 +541,12 @@ void mslDSB_ServiceNextRead(void) {
     }
 }
 
+/*
+ * Near miss: 87.03%, exact retail/current size 0x2c4. The owner unlink,
+ * callback/error contract, requeue decision, buffer return, and pool release
+ * agree with retail and m2c. All residual rows are GPR arguments or
+ * insertion/deletion scheduling; there are no opcode replacements.
+ */
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslDSB_FileRead* read = (mslDSB_FileRead*)callback_data;

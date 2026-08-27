@@ -29,7 +29,7 @@ static void mslBankLoadAsyncFailed(mslAsyncBank* bank, _mslError_e error);
 mslAsyncBank g_BP_Load_Async;
 int g_BP_Load_Async_InUse;
 
-/* Soft ceiling: ~96.76% -- shared string-base relocation in partial TU. */
+/* Soft ceiling: ~98.44% -- one pooled-string address instruction remains. */
 extern "C" mslAssetWave* mslBankFileEntryFind(
     mslLoadedBank* bank, const char* name) {
     mslAssetWave* wave;
@@ -89,8 +89,8 @@ extern "C" mslBankWaveEntry* mslBankWavesFind(
  * Tear down a live bank in retail ownership order: unlink it from the MSL
  * system, stop its active sounds, unload constructed bank sounds, release
  * asset/file/ARAM storage, then free the bank itself.
- * Soft ceiling: ~97.37% -- exact retail size and control flow; remaining
- * differences are string-pool relocation and pure GPR coloring.
+ * Soft ceiling: ~98.47% -- exact retail size and control flow; remaining
+ * differences are one scheduled instruction and pure GPR coloring.
  */
 extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     if (bank == 0) {
@@ -162,9 +162,12 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
 /*
  * Convert the v11 bank body's ILP32 offsets into live pointers, publish each
  * sound definition's command list, then relocate command string references.
- * Recovery status: ~86.87%. The remaining size gap includes a retail
- * count-driven block whose body is optimized away in this configuration;
- * keep it unresolved rather than adding an artificial empty loop.
+ * Near miss: ~86.93%. The operations, layouts, and relocation loops are
+ * recovered. The sole caller rejects banks whose flags do not mark sound names
+ * as omitted, corroborating that the retail count-driven sound-name loop had
+ * its MSL_SKIP_SOUND_NAMES body compiled out while MWCC retained its unrolled
+ * trip-count shell. Preserve clean C rather than adding that empty loop; the
+ * other residue is GPR coloring and scheduling.
  */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     mslBankSoundDefinition* definition;
@@ -251,7 +254,7 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
  * Complete a resident-wave upload. The callback ABI supplies an opaque
  * payload, but it is the same typed async-bank state used by the surrounding
  * file callbacks.
- * Soft ceiling: ~95.28% -- retail shared-string addressing adds one
+ * Soft ceiling: ~97.43% -- retail shared-string addressing adds one
  * instruction; the remaining differences are nested-loop GPR coloring.
  */
 static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
@@ -381,9 +384,12 @@ static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
  * resident upload is pending.
  *
  * The successful path and the mslBankUse failure rollback are recovered.
- * Soft ceiling: ~85.30% -- the remaining string-base/register allocation
- * depends on restoring the earlier functions in this partial translation
- * unit, beginning with mslBankUnLoad.
+ * Near miss: 92.60%, retail/current size 0x3d8/0x3cc. The entry count is
+ * signed (retail uses cmpw in all three serialized-wave loops), the resident
+ * ARAM offsets retain their assignment results, and rollback reloads the bank
+ * system. The remaining two aligned opcode replacements are the reversed
+ * initialization order of a zero index and wave pointer; the rest is GPR
+ * coloring plus seven deletes/four inserts of reload scheduling.
  */
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -448,22 +454,28 @@ static void mslBankReadAssetHeaderComplete(
     wave = asset_info->waves + 1;
     for (i = 1; i < async_bank->entry_count; i++, wave++) {
         if (wave->resident != 0) {
+            unsigned long primary_aram_offset;
+
             wave->sound_table =
                 (SPSoundTable*)asset_info->At(
                     (unsigned long)wave->sound_table);
-            wave->primary_aram_offset += resident_base;
+            primary_aram_offset =
+                (wave->primary_aram_offset += resident_base);
             SPInitSoundTable(
-                wave->sound_table, wave->primary_aram_offset,
+                wave->sound_table, primary_aram_offset,
                 g_MSL_GCN_ARAM_ZeroBase);
 
             if (wave->has_secondary != 0) {
+                unsigned long secondary_aram_offset;
+
                 wave->secondary_sound_table =
                     (SPSoundTable*)asset_info->At(
                         (unsigned long)wave->secondary_sound_table);
-                wave->secondary_aram_offset += resident_base;
+                secondary_aram_offset =
+                    (wave->secondary_aram_offset += resident_base);
                 SPInitSoundTable(
                     wave->secondary_sound_table,
-                    wave->secondary_aram_offset,
+                    secondary_aram_offset,
                     g_MSL_GCN_ARAM_ZeroBase);
             }
         } else {
@@ -489,13 +501,12 @@ static void mslBankReadAssetHeaderComplete(
 
         if (mslBankUse(async_bank->system, bank) != 0) {
             if (bank != 0 && bank->system != 0) {
-                _mslSystem* system = bank->system;
-                int saved_guard = system->sound_list_guard;
+                int saved_guard = bank->system->sound_list_guard;
                 _ListNode* node;
                 mslBankSoundEntry* sound_entry;
 
-                system->sound_list_guard = 0;
-                node = system->active_sounds;
+                bank->system->sound_list_guard = 0;
+                node = bank->system->active_sounds;
                 while (node != 0) {
                     _mslSound* sound = (_mslSound*)ListNodeData(0, node);
                     unsigned long sound_id =
@@ -509,7 +520,7 @@ static void mslBankReadAssetHeaderComplete(
                         _mslSoundStop(sound);
                     }
                 }
-                system->sound_list_guard = saved_guard;
+                bank->system->sound_list_guard = saved_guard;
 
                 sound_entry = bank->sounds.pointer;
                 for (i = 0; i < bank->sound_count; i++, sound_entry++) {
@@ -540,9 +551,8 @@ static void mslBankReadAssetHeaderComplete(
     }
 }
 
-/* Soft ceiling: mslBankReadWavesComplete ~81.05% -- the partial TU pins its
- * small string pool in an extra NV register; full @stringBase0 restores the
- * retail r31/r30 allocation.
+/* Soft ceiling: mslBankReadWavesComplete ~99.71% -- four relocation-label
+ * argument differences remain; operations and control flow are exact.
  */
 static void mslBankReadWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -587,8 +597,8 @@ static void mslBankReadWavesComplete(
  * Sound-bank read completion: close the .msg handle, launch the 0x1c-byte
  * asset-header read from .mbg, publish the waves handle into the loaded bank,
  * then validate and relocate the v11 bank body.
- * Soft ceiling: ~79.66% -- complete callback contract; partial-TU string
- * layout and joined error scheduling leave a smaller source body.
+ * Soft ceiling: ~99.62% -- the complete callback contract is recovered; only
+ * eight pooled-string relocation arguments remain.
  */
 static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -646,8 +656,8 @@ static void mslBankReadSoundsComplete(
     }
 }
 
-/* Soft ceiling: mslBankOpenWavesComplete ~94.27% -- diagnostic literals use
- * standalone symbols until the preceding callbacks restore @stringBase0.
+/* Soft ceiling: mslBankOpenWavesComplete ~99.75% -- two diagnostic-string
+ * relocation arguments remain.
  */
 void mslBankOpenWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -673,9 +683,8 @@ void mslBankOpenWavesComplete(
     }
 }
 
-/* Soft ceiling: mslBankOpenSoundsComplete ~82.06% -- the partial TU pins its
- * small string pool in an extra NV register; full @stringBase0 restores the
- * retail r31/r30 allocation.
+/* Soft ceiling: mslBankOpenSoundsComplete ~99.67% -- six pooled-string
+ * relocation arguments remain; operations and control flow are exact.
  */
 void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
@@ -711,7 +720,7 @@ void mslBankOpenSoundsComplete(
             } else {
                 mslFileNameNoExt(bank->filename, filename);
                 strcpy(bank->filename, filename);
-                strcat(bank->filename, ".mbg");
+                strcat(bank->filename, ".msg");
                 if (mwFileOpenAsync(
                         bank->filename, 1, mslBankOpenWavesComplete, bank) ==
                     0) {
@@ -738,8 +747,8 @@ void mslBankOpenSoundsComplete(
     }
 }
 
-/* Soft ceiling: mslBankLoadAsyncInternal ~94.86% -- this partial TU emits
- * standalone literals until the preceding callbacks restore @stringBase0.
+/* Soft ceiling: mslBankLoadAsyncInternal ~99.83% -- two pooled-string
+ * relocation arguments remain.
  */
 void mslBankLoadAsyncInternal(
     _mslSystem* system, unsigned long flags, char* filename,
@@ -761,7 +770,7 @@ void mslBankLoadAsyncInternal(
     }
 
     mslFileNameNoExt(path, bank->filename);
-    strcat(bank->filename, ".msg");
+    strcat(bank->filename, ".mbg");
     if (mwFileOpenAsync(
             bank->filename, 1, mslBankOpenSoundsComplete, bank) == 0) {
         mslDebugPrintf(
@@ -771,7 +780,7 @@ void mslBankLoadAsyncInternal(
     }
 }
 
-/* Soft ceiling: ~98.99% -- diagnostic literal is outside @stringBase0. */
+/* Soft ceiling: ~99.94% -- one diagnostic relocation argument remains. */
 static void mslBankLoadAsyncFailed(
     mslAsyncBank* async_bank, _mslError_e error) {
     _mslAsyncResponse* response;
@@ -835,6 +844,30 @@ static void mslBankLoadAsyncFailed(
 
     g_BP_Load_Async_InUse = 0;
     mslAsyncComplete(response, false, 0, (void*)error);
+}
+
+static inline mslBankSoundEntry* mslBankFindID(
+    mslLoadedBank* bank, int sound_id) {
+    if (bank == 0) {
+        mslDebugPrintf("mslBankFindID NULL bank\n");
+        return 0;
+    }
+
+    if (sound_id < 0 || sound_id >= bank->sound_id_count) {
+        mslDebugPrintf(
+            "mslBankFindID ID %d out of range (%d).\n", sound_id,
+            bank->sound_id_count);
+        return 0;
+    }
+
+    int sound_index = bank->sound_ids.pointer[sound_id] - 1;
+    if (sound_index < 0 || sound_index >= bank->sound_count) {
+        mslDebugPrintf(
+            "mslBankFindID ID %d doesn't exist (index==%d)\n",
+            sound_id, sound_index);
+        return 0;
+    }
+    return &bank->sounds.pointer[sound_index];
 }
 
 static inline char* mslBankSoundGetNameInline(
@@ -909,6 +942,7 @@ static inline int mslBankSoundUnUseInline(
     }
 
     sound->bank_ref_count--;
+    sound = (mslRuntimeSound*)bank_sound->sound;
     if (sound->bank_ref_count > 0) {
         return unloaded;
     }
@@ -925,80 +959,68 @@ static inline int mslBankSoundUnUseInline(
     return 1;
 }
 
-static inline unsigned long mslBankFinishPlayInline(
-    bool loaded, _ListNode* node, mslBankSoundEntry* bank_sound,
-    unsigned long handle) {
+static inline void mslBankFinishPlayInline(
+    bool loaded, _ListNode* node, mslBankSoundEntry* bank_sound) {
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
-    mslRuntimeSound* source =
-        (mslRuntimeSound*)bank_sound->sound;
     unsigned long error_id =
         ListNodeID((ListPool*)g_listPoolSound, node);
 
-    if (!loaded) {
-        mslSoundUnCopy(node);
-        return handle;
-    }
+    if (loaded) {
+        if ((copy->flags & 0x10) != 0) {
+            mslRuntimeSound* source =
+                (mslRuntimeSound*)bank_sound->sound;
+            mslCmdItem* command = source->definition->commands;
 
-    if ((copy->flags & 0x10) != 0) {
-        mslCmdItem* command = source->definition->commands;
-
-        while (command->type != 7) {
-            if (command->attached_wave != 0) {
-                command->attached_wave->flags |= 0x80;
+            while (command->type != 7) {
+                if (command->attached_wave != 0) {
+                    command->attached_wave->flags |= 0x80;
+                }
+                command++;
             }
-            command++;
         }
-    }
 
-    if (mslSoundAttach(copy, bank_sound) == 0) {
-        copy->owner_bank = source->owner_bank;
-        loaded = mslSoundPlayNow(node) != 0;
-        if (loaded) {
-            return handle;
+        if (mslSoundAttach(copy, bank_sound) == 0) {
+            copy->owner_bank =
+                ((mslRuntimeSound*)bank_sound->sound)->owner_bank;
+            loaded = mslSoundPlayNow(node) != 0;
+            if (loaded) {
+                return;
+            }
         }
-    }
 
-    mslDebugPrintf(
-        "Error: async sound did not play.  ID = %d\n", error_id);
-    mslSoundUnCopy(node);
-    mslBankSoundUnUseInline(bank_sound);
-    return handle;
+        mslDebugPrintf(
+            "Error: async sound did not play.  ID = %d\n", error_id);
+        mslSoundUnCopy(node);
+        mslBankSoundUnUseInline(bank_sound);
+    } else {
+        mslSoundUnCopy(node);
+    }
 }
 
 /*
  * Resolve the facade's bank-local ID through the serialized +1 index table,
  * acquire a live sound node, lazily construct LOD sounds, attach the command
  * graph, and start playback. This is the vertical shell-FX contract; the
- * retail function inlines the use/unuse helpers below.
+ * retail function inlines the ID lookup and use/unuse helpers below. Near
+ * miss: ~97.84%, retail/current size 0x6a4/0x6a0, with exact operations and
+ * control flow.
+ * Remaining differences are pooled-string address instructions, GPR coloring,
+ * and two scheduled instructions.
  */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
-    mslBankSoundEntry* bank_sound = 0;
+    mslBankSoundEntry* bank_sound;
     _ListNode* node;
     unsigned long handle;
-    int sound_index;
 
     if (bank == 0) {
         mslDebugPrintf("mslBankPlayVol: NULL bank pointer.\n");
         return 0;
     }
 
-    if (sound_id < 0 || sound_id >= bank->sound_id_count) {
-        mslDebugPrintf(
-            "mslBankFindID ID %d out of range (%d).\n", sound_id,
-            bank->sound_id_count);
-    } else {
-        sound_index = bank->sound_ids.pointer[sound_id] - 1;
-        if (sound_index < 0 || sound_index >= bank->sound_count) {
-            mslDebugPrintf(
-                "mslBankFindID ID %d doesn't exist (index==%d)\n",
-                sound_id, sound_index);
-        } else {
-            bank_sound = &bank->sounds.pointer[sound_index];
-        }
-    }
+    bank_sound = mslBankFindID(bank, sound_id);
 
     if (bank_sound != 0) {
         node = mslBankSoundUseInline(bank_sound, gMsi);
@@ -1013,21 +1035,24 @@ extern "C" unsigned long mslBankPlayVol(
             copy->volume = volume;
 
             if (bank_sound->sound != 0) {
-                return mslBankFinishPlayInline(
-                    true, node, bank_sound, handle);
+                mslBankFinishPlayInline(true, node, bank_sound);
+                return handle;
             } else {
-                bank_sound->sound = mslSoundLoad(
+                _mslSound* loaded_sound = mslSoundLoad(
                     gMsi, bank, bank_sound->definition, bank_sound->flags);
-                if (bank_sound->sound == 0) {
-                    mslDebugPrintf("Unable to load async sound.\n");
-                } else {
+                if (loaded_sound != 0) {
                     mslRuntimeSound* runtime =
-                        (mslRuntimeSound*)bank_sound->sound;
+                        (mslRuntimeSound*)loaded_sound;
+
+                    bank_sound->sound = loaded_sound;
                     runtime->bank_ref_count = 1;
                     runtime->owner_bank = bank;
+                } else {
+                    mslDebugPrintf("Unable to load async sound.\n");
                 }
-                return mslBankFinishPlayInline(
-                    bank_sound->sound != 0, node, bank_sound, handle);
+                mslBankFinishPlayInline(
+                    bank_sound->sound != 0, node, bank_sound);
+                return handle;
             }
         }
     }
@@ -1038,39 +1063,26 @@ extern "C" unsigned long mslBankPlayVol(
 
 /*
  * Resolve and play a bank sound with the full runtime volume, pan, and pitch
- * overlay. Retail inlines the bank-sound use/unuse helpers into this path.
- * Soft ceiling: ~90.64% -- retail loaded-first region order and direct
- * sound ownership are recovered; partial-TU string bases, register allocation,
- * and large inlined helper lifetimes remain.
+ * overlay. Retail inlines the ID lookup and bank-sound use/unuse helpers into
+ * this path. Near miss: ~97.88%, retail/current size 0x6c4/0x6c0. Retail
+ * loaded-first order, sound publication, inlined helper CFG, and all
+ * operations are exact; pooled-string addressing, GPR coloring, and two
+ * scheduled instructions remain.
  */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,
     unsigned long play_flags) {
-    mslBankSoundEntry* bank_sound = 0;
+    mslBankSoundEntry* bank_sound;
     _ListNode* node;
     unsigned long handle;
-    int sound_index;
 
     if (bank == 0) {
         mslDebugPrintf("mslBankPlayVol: NULL bank pointer.\n");
         return 0;
     }
 
-    if (sound_id < 0 || sound_id >= bank->sound_id_count) {
-        mslDebugPrintf(
-            "mslBankFindID ID %d out of range (%d).\n", sound_id,
-            bank->sound_id_count);
-    } else {
-        sound_index = bank->sound_ids.pointer[sound_id] - 1;
-        if (sound_index < 0 || sound_index >= bank->sound_count) {
-            mslDebugPrintf(
-                "mslBankFindID ID %d doesn't exist (index==%d)\n",
-                sound_id, sound_index);
-        } else {
-            bank_sound = &bank->sounds.pointer[sound_index];
-        }
-    }
+    bank_sound = mslBankFindID(bank, sound_id);
 
     if (bank_sound != 0) {
         node = mslBankSoundUseInline(bank_sound, gMsi);
@@ -1087,21 +1099,24 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
             copy->pitch = pitch;
 
             if (bank_sound->sound != 0) {
-                return mslBankFinishPlayInline(
-                    true, node, bank_sound, handle);
+                mslBankFinishPlayInline(true, node, bank_sound);
+                return handle;
             } else {
-                bank_sound->sound = mslSoundLoad(
+                _mslSound* loaded_sound = mslSoundLoad(
                     gMsi, bank, bank_sound->definition, bank_sound->flags);
-                if (bank_sound->sound == 0) {
-                    mslDebugPrintf("Unable to load async sound.\n");
-                } else {
+                if (loaded_sound != 0) {
                     mslRuntimeSound* runtime =
-                        (mslRuntimeSound*)bank_sound->sound;
+                        (mslRuntimeSound*)loaded_sound;
+
+                    bank_sound->sound = loaded_sound;
                     runtime->bank_ref_count = 1;
                     runtime->owner_bank = bank;
+                } else {
+                    mslDebugPrintf("Unable to load async sound.\n");
                 }
-                return mslBankFinishPlayInline(
-                    bank_sound->sound != 0, node, bank_sound, handle);
+                mslBankFinishPlayInline(
+                    bank_sound->sound != 0, node, bank_sound);
+                return handle;
             }
         }
     }
@@ -1114,8 +1129,8 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
 /*
  * Release one bank-owned reference. LOD sounds (flag 0x2) are unloaded when
  * their last live copy goes away; ordinary resident sounds remain cached.
- * Soft ceiling: ~99.61% -- opcodes and registers are exact; only five
- * @stringBase0 offsets remain short because earlier retail APIs are absent.
+ * Soft ceiling: ~98.14% -- one pooled-string address instruction and six
+ * relocation/register arguments remain.
  */
 int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     int unloaded = 0;
@@ -1194,8 +1209,8 @@ _ListNode* mslBankSoundUse(
 }
 
 /*
- * Soft ceiling: mslBankUse ~98.95% -- typed inlined wave lookup and saved
- * register allocation are exact; one pooled diagnostic literal remains.
+ * Soft ceiling: mslBankUse ~99.94% -- typed inlined wave lookup and saved
+ * register allocation are exact; one pooled diagnostic relocation remains.
  */
 extern "C" int mslBankUse(
     _mslSystem* system, mslLoadedBank* bank) {
@@ -1254,21 +1269,20 @@ extern "C" int mslBankUse(
 
 /*
  * Recovered callback ownership path.
- * Soft ceiling: ~98.13% -- the runtime command owner and inlined bank
- * reference release are exact; only one zero-argument scheduling swap and
- * incomplete @stringBase0 offsets remain.
+ * The runtime command owner and inlined bank reference release are recovered;
+ * retain field reloads at their retail ownership sites.
  */
 void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
-    mslRuntimeSound* source =
-        (mslRuntimeSound*)bank_sound->sound;
     unsigned long error_id =
         ListNodeID((ListPool*)g_listPoolSound, node);
 
     if (loaded) {
         if ((copy->flags & 0x10) != 0) {
+            mslRuntimeSound* source =
+                (mslRuntimeSound*)bank_sound->sound;
             mslCmdItem* command = source->definition->commands;
 
             while (command->type != 7) {
@@ -1280,7 +1294,8 @@ void callbackPlay(
         }
 
         if (mslSoundAttach(copy, bank_sound) == 0) {
-            copy->owner_bank = source->owner_bank;
+            copy->owner_bank =
+                ((mslRuntimeSound*)bank_sound->sound)->owner_bank;
             loaded = mslSoundPlayNow(node) != 0;
             if (loaded) {
                 return;
@@ -1296,7 +1311,9 @@ void callbackPlay(
     }
 }
 
-/* Soft ceiling: asyncLoadSound ~98.0% -- diagnostic string relocation only. */
+/* Soft ceiling: asyncLoadSound ~96.25% -- two pooled-string address
+ * instructions and one relocation argument remain.
+ */
 void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,

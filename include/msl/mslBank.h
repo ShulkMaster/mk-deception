@@ -37,6 +37,7 @@ struct mslSysInitParam {
 
 struct mslARQRequest {
     unsigned char request[0x20];  /* +0x00 -- Nintendo ARQRequest */
+    /* +0x20 is the free-list link before checkout and the DMA buffer after. */
     union {
         void* stream_buffer;
         mslARQRequest* next_free;
@@ -49,6 +50,7 @@ typedef char MslARQRequestSize[
 
 template <class T>
 union mslRelocPtr {
+    /* Serialized offsets/tokens are rewritten in place to runtime pointers. */
     unsigned long offset;
     long token;
     T* pointer;
@@ -96,7 +98,6 @@ extern "C" {
 
 _mslSystem* mslInit(
     mslInitParam* init, mslSysInitParam* system_init);
-int mslTick(void);
 int mslSetWavePath(_mslSystem* system, const char* path);
 void mslTickCallBack_Queue(
     void (*callback)(void*), void* callback_data);
@@ -119,7 +120,7 @@ struct mslAsyncBank {
     _mslAsyncResponse* response;  /* +0x110 */
     _mslSystem* system;           /* +0x114 */
     unsigned long asset_version;  /* +0x118 */
-    unsigned long entry_count;    /* +0x11C */
+    long entry_count;             /* +0x11C; retail loop bounds are signed */
     unsigned long asset_info_size;/* +0x120 */
     unsigned long string_offset;  /* +0x124 */
     unsigned long wave_offset;    /* +0x128 */

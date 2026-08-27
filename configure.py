@@ -342,6 +342,12 @@ config.libs = [
                 "Runtime.PPCEABI.H.a/global_destructor_chain.o",
                 source="runtime/global_destructor_chain.c",
             ),
+            Object(
+                Matching,
+                "Runtime.PPCEABI.H.a/GCN_mem_alloc.o",
+                source="runtime/GCN_mem_alloc.c",
+                extra_cflags=["-str reuse,nopool,readonly"],
+            ),
         ],
     },
     {
@@ -382,6 +388,28 @@ config.libs = [
                 Matching,
                 "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/utils/common/CircleBuffer.o",
                 source="dolphin/trk_minnow_dolphin/CircleBuffer.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/utils/common/MWTrace.o",
+                source="dolphin/trk_minnow_dolphin/MWTrace.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/utils/gc/MWCriticalSection_gc.o",
+                source="dolphin/trk_minnow_dolphin/MWCriticalSection_gc.cpp",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/cc/exi2/GCN/EXI2_DDH_GCN/main.o",
+                source="dolphin/trk_minnow_dolphin/EXI2_DDH_GCN/main.c",
+                extra_cflags=["-sdata 8", "-str reuse,nopool,readonly"],
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/cc/exi2/GCN/EXI2_GDEV_GCN/main.o",
+                source="dolphin/trk_minnow_dolphin/EXI2_GDEV_GCN/main.c",
+                extra_cflags=["-sdata 8", "-str reuse,nopool,readonly"],
             ),
             Object(
                 NonMatching,
@@ -1037,7 +1065,7 @@ config.libs = [
                 source="libmsl/mslstub.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslsupport.o",
                 source="libmsl/mslsupport.cpp",
             ),
@@ -1050,7 +1078,9 @@ config.libs = [
                 NonMatching,
                 "libmsl.a/mslcore.o",
                 source="libmsl/mslcore.cpp",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=[
+                    "-use_lmw_stmw on", "-str", "reuse,pool,readonly"
+                ],
             ),
             Object(
                 Matching,
@@ -1066,7 +1096,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslBankLoadAsyncQueue.o",
                 source="libmsl/mslBankLoadAsyncQueue.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -1078,7 +1108,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslWave.o",
                 source="libmsl/mslWave.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -1103,7 +1133,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslGCN_ARamBlock.o",
                 source="libmsl/mslGCN_ARamBlock.cpp",
                 extra_cflags=[

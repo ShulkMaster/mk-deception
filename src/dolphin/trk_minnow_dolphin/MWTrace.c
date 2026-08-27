@@ -1,7 +1,5 @@
-/* TODO: Missing implementation for retail unit MWTrace.c. */
+#include "dolphin/trk.h"
 
-void *MWTRACE(void)
+void MWTRACE(int level, const char* format, ...)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }

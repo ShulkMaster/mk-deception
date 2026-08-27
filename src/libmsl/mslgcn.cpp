@@ -20,6 +20,7 @@ struct _GameCubeFileEntry;
 
 typedef int (*mslPlayablePlay)(
     mslGCNPlayable* playable, int loop);
+/* Static Stop returns int while stream Stop returns void; callers discard it. */
 typedef void (*mslPlayableStop)(mslGCNPlayable* playable);
 typedef int (*mslPlayablePause)(mslGCNPlayable* playable);
 typedef void (*mslPlayableFreeObject)(mslGCNPlayable* playable);
@@ -84,7 +85,7 @@ int SoundBufferCountStatic;
 unsigned long mslGCN_AXCallback_Ticks;
 ExternalHeap* g_MSL_GCN_ARAM_Heap;
 unsigned long g_MSL_GCN_ARAM_ZeroBase;
-int g_MSL_volatile_flag;
+unsigned long g_MSL_volatile_flag;
 unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
 unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
 int debugger_mbo1;
@@ -208,7 +209,7 @@ extern "C" void UnCopyStreamWave(
  */
 extern "C" mslRuntimeWave* CopyStreamWave(
     _mslSystem* system, mslLoadedBank* bank, const char* name,
-    mslRuntimeWave* source, int create_playable) {
+    const mslRuntimeWave* source, int create_playable) {
     mslPlayable* playable = 0;
     mslRuntimeWave* copy =
         (mslRuntimeWave*)_mwMemMalloc(
@@ -366,7 +367,7 @@ extern "C" void UnCopyStaticWave(
 
 extern "C" mslRuntimeWave* CopyStaticWave(
     _mslSystem* system, mslLoadedBank* bank,
-    mslRuntimeWave* source, int create_playable) {
+    const mslRuntimeWave* source, int create_playable) {
     mslPlayable* playable = 0;
     mslRuntimeWave* copy =
         (mslRuntimeWave*)_mwMemMalloc(
@@ -529,6 +530,11 @@ extern "C" _mslSystem* mslInit(
     _mslSystem* system;
     unsigned long i;
     int mode;
+    int sound_mode;
+
+    /* Soft ceiling: mslInit ~99.24% -- clean nested-loop failure handling
+     * retains one redundant post-loop count guard; the remaining arithmetic
+     * delta is commutative mullw operand order. */
 
     if (gMsi != 0) {
         mslDebugPrintf(
@@ -570,24 +576,24 @@ extern "C" _mslSystem* mslInit(
     mslCreateLogTable();
     mslDebugPrintf("MSL version %s\n", "1.8.8");
 
-    system = (_mslSystem*)_mwMemMalloc(
-        MWSOUND_HEAP, sizeof(_mslSystem), 3, 0, 0, 0);
-    if (system == 0) {
-        mslDebugPrintf(
-            "mslInit: Out of memory allocating mslSystem.\n");
-        return 0;
-    }
-
-    ListPoolAttach(
-        &g_listPoolSound, g_listMemSound, 0x708, 0x54);
-    ListPoolAttach(
-        &g_listPoolAdjust, g_listMemAdjust, 0x40, 0x34);
-
-    gMsi = system;
-    system->flags = init->flags | system_init->flags;
-    system->bank_path[0] = '\0';
-
     do {
+        system = (_mslSystem*)_mwMemMalloc(
+            MWSOUND_HEAP, sizeof(_mslSystem), 3, 0, 0, 0);
+        if (system == 0) {
+            mslDebugPrintf(
+                "mslInit: Out of memory allocating mslSystem.\n");
+            break;
+        }
+
+        ListPoolAttach(
+            &g_listPoolSound, g_listMemSound, 0x708, 0x54);
+        ListPoolAttach(
+            &g_listPoolAdjust, g_listMemAdjust, 0x40, 0x34);
+
+        gMsi = system;
+        system->flags = init->flags | system_init->flags;
+        system->bank_path[0] = '\0';
+
         AIInit(0);
         ARQInit();
         AXInitEx(1);
@@ -596,21 +602,27 @@ extern "C" _mslSystem* mslInit(
         AXRegisterCallback(MSL_GCN_AXUserCallback);
 
         mode = MIXGetSoundMode();
-        if (mode == 0) {
-            system->sound_mode = 0;
-        } else if (mode >= 2 && mode <= 3) {
-            system->sound_mode = 3;
-        } else {
-            system->sound_mode = 1;
+        switch (mode) {
+        case 0:
+            sound_mode = 0;
+            break;
+        case 2:
+        case 3:
+            sound_mode = 3;
+            break;
+        default:
+            sound_mode = 1;
+            break;
         }
+        system->sound_mode = sound_mode;
 
         if (g_MSL_GCN_ARAM_Heap == 0) {
             unsigned char request[0x20];
-            unsigned char zero_storage[0x43F];
+            unsigned char zero_storage[0x420];
             void* zero_buffer = (void*)(
                 ((unsigned long)zero_storage + 0x1F) & ~0x1FUL);
-            unsigned long cache_size;
-            unsigned long cache_total;
+            int cache_size;
+            int cache_total;
             unsigned long heap_base;
             unsigned long heap_size;
 
@@ -620,7 +632,7 @@ extern "C" _mslSystem* mslInit(
             g_MSL_GCN_ARAM_ZeroBase_ADPCM_End =
                 (g_MSL_GCN_ARAM_ZeroBase + 0x400) * 2 - 1;
             g_MSL_volatile_flag = 1;
-            memset(zero_buffer, 0, 0x420);
+            memset(zero_storage, 0, 0x420);
             ARQPostRequest(
                 request, 0, 0, 1, (unsigned long)zero_buffer,
                 g_MSL_GCN_ARAM_ZeroBase, 0x400,
@@ -711,8 +723,8 @@ extern "C" void MSL_ClearVolatileFlag(unsigned long request_address) {
 }
 
 /*
- * Soft ceiling: mslTickCallBack_Queue ~83.73% -- the retail overflow path is
- * restored; remaining differences are diagnostic string-base codegen.
+ * Soft ceiling: mslTickCallBack_Queue ~99.91% -- the retail overflow path is
+ * exact; only one diagnostic relocation argument differs.
  */
 extern "C" void mslTickCallBack_Queue(
     void (*callback)(void*), void* callback_data) {

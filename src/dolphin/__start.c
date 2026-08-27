@@ -5,6 +5,8 @@ typedef unsigned int u32;
 typedef void (*InitFunc)(void);
 
 #include "dolphin/db.h"
+#include "dolphin/os.h"
+#include "runtime/cstring.h"
 
 #pragma section code_type ".init"
 
@@ -31,27 +33,41 @@ extern BssInitInfo _bss_init_info[];
 
 void __init_registers(void);
 void __init_hardware(void);
-void __init_data(void);
+static void __init_data(void);
 void __flush_cache(void* address, u32 size);
-void OSInit(void);
 void __init_user(void);
 int main(int argc, char** argv);
 void exit(int status);
-void* memcpy(void* destination, const void* source, u32 size);
-void* memset(void* destination, int value, u32 size);
 
-/* Hardware/debug boundaries intentionally retained as calls. */
-void __check_pad3(void);
-void __set_debug_bba(void);
-u8 __get_debug_bba(void);
 void InitMetroTRK(void);
 void InitMetroTRK_BBA(void);
 
-static volatile u32* const kArenaLo = (volatile u32*)0x80000034;
+static u8 Debug_BBA;
+
+static volatile u32* const kArenaHi = (volatile u32*)0x80000034;
 static volatile u32* const kDebuggerPresent = (volatile u32*)0x80000044;
 static BootInfo2* volatile* const kBootInfo2 = (BootInfo2* volatile*)0x800000F4;
 static volatile u16* const kConsoleType = (volatile u16*)0x800030E6;
 static volatile u32* const kFallbackDebugFlag = (volatile u32*)0x800030E8;
+
+static void __check_pad3(void)
+{
+    volatile u16* pad3_button = (volatile u16*)0x800030E4;
+
+    if ((*pad3_button & 0xEEF) == 0xEEF) {
+        OSResetSystem(0, 0, 0);
+    }
+}
+
+static void __set_debug_bba(void)
+{
+    Debug_BBA = 1;
+}
+
+static u8 __get_debug_bba(void)
+{
+    return Debug_BBA;
+}
 
 /*
  * Retail 0x80003154.
@@ -80,7 +96,7 @@ void __start(void) {
 
     if (boot_info != 0) {
         debug_flag = boot_info->debug_flag;
-    } else if (*kArenaLo != 0) {
+    } else if (*kArenaHi != 0) {
         debug_flag = *kFallbackDebugFlag;
     } else {
         debug_flag = 0;
@@ -100,7 +116,7 @@ void __start(void) {
         for (i = 0; i < argc; i++) {
             argv[i] = (char*)boot_info + (u32)argv[i];
         }
-        *kArenaLo = (u32)argv & ~31U;
+        *kArenaHi = (u32)argv & ~31U;
     } else {
         argc = 0;
         argv = 0;
@@ -124,21 +140,41 @@ void __start(void) {
  * Retail 0x80003340. Copy initialized DOL sections to RAM, flush copied
  * executable ranges, then clear every BSS range.
  */
-void __init_data(void) {
+static inline void __copy_rom_section(
+    void* destination, const void* source, u32 size)
+{
+    if (size != 0 && destination != source) {
+        memcpy(destination, source, size);
+        __flush_cache(destination, size);
+    }
+}
+
+static inline void __init_bss_section(void* destination, u32 size)
+{
+    if (size != 0) {
+        memset(destination, 0, size);
+    }
+}
+
+static void __init_data(void) {
     RomCopyInfo* copy;
     BssInitInfo* bss;
 
-    /* Soft ceiling: __init_data ~53.83% - SDK loop/branch emission. */
-    for (copy = _rom_copy_info; copy->size != 0; copy++) {
-        if (copy->rom != 0 && copy->address != copy->rom) {
-            memcpy(copy->address, copy->rom, copy->size);
-            __flush_cache(copy->address, copy->size);
+    copy = _rom_copy_info;
+    while (1) {
+        if (copy->size == 0) {
+            break;
         }
+        __copy_rom_section(copy->address, copy->rom, copy->size);
+        copy++;
     }
 
-    for (bss = _bss_init_info; bss->size != 0; bss++) {
-        if (bss->address != 0) {
-            memset(bss->address, 0, bss->size);
+    bss = _bss_init_info;
+    while (1) {
+        if (bss->size == 0) {
+            break;
         }
+        __init_bss_section(bss->address, bss->size);
+        bss++;
     }
 }

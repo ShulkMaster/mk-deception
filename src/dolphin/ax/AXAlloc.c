@@ -44,7 +44,7 @@ void __AXPushFreeStack(AXVPB* voice)
     voice->priority = 0;
 }
 
-static AXVPB* __AXPopFreeStack(void)
+static inline AXVPB* __AXPopFreeStack(void)
 {
     AXVPB* voice;
 
@@ -97,7 +97,7 @@ void __AXRemoveFromStack(AXVPB* voice)
     tail->prev = head;
 }
 
-static void __AXPushStackHead(AXVPB* voice, unsigned long priority)
+static inline void __AXPushStackHead(AXVPB* voice, unsigned long priority)
 {
     voice->next = __AXStackHead[priority];
     voice->prev = 0;
@@ -111,7 +111,7 @@ static void __AXPushStackHead(AXVPB* voice, unsigned long priority)
     voice->priority = priority;
 }
 
-static AXVPB* __AXPopStackFromBottom(unsigned long priority)
+static inline AXVPB* __AXPopStackFromBottom(unsigned long priority)
 {
     AXVPB* voice = 0;
 

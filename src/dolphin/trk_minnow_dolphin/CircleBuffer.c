@@ -1,19 +1,7 @@
+#include "dolphin/circle_buffer.h"
 #include "dolphin/trk.h"
+#include "runtime/cstring.h"
 
-typedef struct CircleBuffer {
-    u8* read;
-    u8* write;
-    u8* start;
-    u32 size;
-    u32 bytes_to_read;
-    u32 bytes_to_write;
-    u32 critical_section;
-} CircleBuffer;
-
-extern void* memcpy(void* destination, const void* source, u32 size);
-extern void MWInitializeCriticalSection(void* section);
-extern void MWEnterCriticalSection(void* section);
-extern void MWExitCriticalSection(void* section);
 
 u32 CBGetBytesAvailableForRead(CircleBuffer* buffer)
 {

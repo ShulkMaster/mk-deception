@@ -25,7 +25,7 @@ static unsigned char ErrorCode2Num(unsigned long error_code)
     return 29;
 }
 
-static unsigned char ConvertError(unsigned long error)
+static inline unsigned char ConvertError(unsigned long error)
 {
     unsigned long status_code;
     unsigned long error_code;

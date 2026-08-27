@@ -263,8 +263,9 @@ void _mslSoundPause(_mslSound* sound) {
 }
 
 /*
- * Soft ceiling: mslSoundPlayNow ~93.90% -- exact retail size and behavior;
- * remaining differences are track-scan NV coloring and partial string pools.
+ * Soft ceiling: mslSoundPlayNow ~96.59% -- exact retail size, operations, and
+ * control flow; remaining differences are track-scan GPR coloring, result
+ * scheduling, and two pooled-string address instructions.
  */
 extern "C" int mslSoundPlayNow(_ListNode* node) {
     mslRuntimeSound* sound =
@@ -289,35 +290,38 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
         } else {
             track_result = sound->track;
         }
-    } else if ((unsigned long)sound->track >=
-               sound->system->track_count) {
+    } else if (sound->system->track_count <=
+               (unsigned long)sound->track) {
         mslDebugPrintf(
             "sound->track larger than number of tracks in mslInit: "
             "%d > %d\n",
             sound->track, sound->system->track_count);
         track_result = -1;
     } else {
-        int replace_result = 0;
-
         if ((play_flags & 8) == 0) {
+            int replace_result;
             mslRuntimeSound* current =
                 (mslRuntimeSound*)sound->system->tracks[
                     sound->track].sound;
 
-            if (current == 0) {
-                replace_result = 0;
-            } else if (sound->priority < current->priority) {
-                replace_result = -1;
+            if (current != 0) {
+                if (current->priority > sound->priority) {
+                    replace_result = -1;
+                } else {
+                    mslSoundDeactivate(
+                        (_mslSound*)current, current->flags & 1);
+                    sound->system->tracks[sound->track].sound = 0;
+                    replace_result = 1;
+                }
             } else {
-                mslSoundDeactivate(
-                    (_mslSound*)current, current->flags & 1);
-                sound->system->tracks[sound->track].sound = 0;
-                replace_result = 1;
+                replace_result = 0;
             }
-        }
 
-        if (replace_result < 0) {
-            track_result = -1;
+            if (replace_result < 0) {
+                track_result = -1;
+            } else {
+                track_result = sound->track;
+            }
         } else {
             track_result = sound->track;
         }
@@ -529,7 +533,7 @@ extern "C" void mslSoundUncommit(_mslSound* sound) {
 }
 
 /*
- * Soft ceiling: mslSoundUnCopy ~96.89% -- exact retail size and operations;
+ * Soft ceiling: mslSoundUnCopy ~99.24% -- exact retail size and operations;
  * remaining differences are pure NV register coloring.
  */
 extern "C" void mslSoundUnCopy(_ListNode* node) {
@@ -544,8 +548,8 @@ extern "C" void mslSoundUnCopy(_ListNode* node) {
     }
 
     if (sound->definition != 0) {
-        command = sound->definition->commands;
-        if (command != 0) {
+        if (sound->definition->commands != 0) {
+            command = sound->definition->commands;
             for (i = 0; i < sound->definition->command_count;
                  i++, command++) {
                 if (command->type == 1 &&
@@ -702,11 +706,13 @@ static inline void mslSoundInit(_ListNode* node, _mslSystem* system) {
  * Resolve every wave command against the owning bank, lazily load its base
  * wave, create the per-command runtime copy, and unwind all prior copies on
  * any failure.
- * Soft ceiling: ~94.62%, exact retail size. Reconstructing the contiguous
- * string-pool tail, preserving the rollback flag diamond, ordering the large
- * load-success region before failure cleanup, and aligning loop declarations
- * closed the structural mismatch. Remaining differences are inlined rollback
- * GPR coloring, two load-order islands, and substring relocation naming.
+ * Soft ceiling: ~94.72%, retail/current size 0x48c/0x474. Reconstructing the
+ * contiguous string-pool tail, preserving the rollback flag diamond, ordering
+ * the large load-success region before failure cleanup, and aligning loop
+ * declarations closed the structural mismatch. Remaining differences are
+ * inlined rollback GPR coloring, two load-order islands, and four objdiff
+ * replacements whose instructions are identical `addi` operations but whose
+ * operands name substring symbols instead of retail `stringBase0` addends.
  */
 extern "C" int mslCmdsLoad(
     _mslSystem* system, mslLoadedBank* bank,
@@ -788,9 +794,8 @@ extern "C" int mslCmdsLoad(
  * Allocate and initialize a live sound node. Retail defaults are:
  * track=-1 (from the zeroed pool/list state), unit volume/pitch scales,
  * centered pan offsets, and no bank references or callback payload.
- * Soft ceiling: ~98.17% -- the remaining redundant post-error null recheck
- * crashes MWCC 2.7 in its natural source shape; literals are partial-TU
- * relocations.
+ * Soft ceiling: ~99.76% -- the retail diagnostic-then-inline null recheck is
+ * exact; remaining differences are partial-TU branch and literal relocations.
  */
 extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
     _ListNode* node = ListNodeAlloc((ListPool*)g_listPoolSound);
@@ -799,18 +804,17 @@ extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
         mslDebugPrintf(
             "Error!  Out of sound resources (MSL_MAX_SOUNDS=%d).\n",
             0x708);
-    } else {
-        mslSoundInit(node, system);
     }
+    mslSoundInit(node, system);
     return node;
 }
 
 /*
  * Publish a reusable bank sound only after every wave command has loaded and
  * received its private runtime copy. Retail embeds mslSoundNew here.
- * Soft ceiling: ~98.36% -- exact retail size and early-return scheduling;
- * remaining differences are the inlined allocator's redundant null recheck,
- * partial-TU string relocation, and dependent register coloring.
+ * Soft ceiling: ~99.48% -- the embedded allocator and null recheck are exact;
+ * remaining differences are partial-TU relocations and one member-load
+ * scratch-register choice.
  */
 extern "C" _mslSound* mslSoundLoad(
     _mslSystem* system, mslLoadedBank* bank,

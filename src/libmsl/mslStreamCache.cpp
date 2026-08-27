@@ -2,10 +2,9 @@
  * Retail stream-cache ownership: 32 fixed 0x20000-byte ARAM buffers move
  * between free, LOD-cache, and active-stream intrusive lists.
  *
- * Current reconstruction: 95.40% .text. GetStreamBuffer and ReleaseBuffer
- * are exact, Initialize_A is 80.70%, and both getters
- * plus all data are exact. Remaining differences are list-link scheduling and
- * initialization register allocation, not missing state transitions.
+ * Current reconstruction: 97.99% .text. GetStreamBuffer and ReleaseBuffer
+ * are exact, Initialize_A is 91.57%, and both getters plus all data are exact.
+ * The remaining differences are initialization register allocation only.
  */
 
 #include "dolphin/os.h"
@@ -34,6 +33,20 @@ struct StreamCacheList {
     StreamCacheBuffer* first;
     StreamCacheBuffer* last;
 };
+
+static inline void StreamCacheList_LinkTail(
+    StreamCacheList* list, StreamCacheBuffer* buffer) {
+    StreamCacheBuffer* previous = list->last;
+
+    buffer->previous = previous;
+    if (previous != 0) {
+        list->last->next = buffer;
+    } else {
+        list->first = buffer;
+    }
+    list->last = buffer;
+    buffer->next = 0;
+}
 
 StreamCacheBuffer s_StreamCache_ArrayBuffers[32];
 StreamCacheList SCB_List_Free = {0, 0};
@@ -158,30 +171,27 @@ extern "C" void mslStreamCache_ReleaseBuffer(int address) {
     OSRestoreInterrupts(enabled);
 }
 
+/*
+ * Soft ceiling: mslStreamCache_Initialize_A ~91.57% -- retail and this build
+ * have identical calls, control flow, memory operations, and size; only the
+ * six nonvolatile register homes and zero materialization differ.
+ */
 extern "C" void mslStreamCache_Initialize_A(int base_address) {
     if (s_StreamCache_pBuffers == 0) {
-        int i;
-        StreamCacheBuffer* buffer = s_StreamCache_ArrayBuffers;
-        u8 free_state = 0;
-        StreamCacheBuffer* no_next = 0;
+        int i = 0;
+        StreamCacheBuffer* buffer;
 
         s_StreamCache_pBuffers = s_StreamCache_ArrayBuffers;
+        buffer = s_StreamCache_pBuffers;
         s_StreamCache_BaseAddress = base_address;
         s_StreamCache_NumBuffers = 32;
         s_StreamCache_SizeBuffers = 0x20000;
 
-        for (i = 0; i < 32; i++, buffer++) {
+        for (; i < 32; i++, buffer++) {
             memset(buffer, 0, sizeof(StreamCacheBuffer));
-            buffer->state = free_state;
+            buffer->state = 0;
             buffer->address = base_address;
-            buffer->previous = SCB_List_Free.last;
-            if (SCB_List_Free.last != 0) {
-                SCB_List_Free.last->next = buffer;
-            } else {
-                SCB_List_Free.first = buffer;
-            }
-            SCB_List_Free.last = buffer;
-            buffer->next = no_next;
+            StreamCacheList_LinkTail(&SCB_List_Free, buffer);
             base_address += 0x20000;
         }
     }

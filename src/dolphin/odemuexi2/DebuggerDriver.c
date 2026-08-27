@@ -1,45 +1,45 @@
 /* TODO: Missing implementation for retail unit DebuggerDriver.c. */
 
-void *DBClose(void)
+#include "dolphin/debugger_driver.h"
+
+void DBClose(void)
+{
+    /* TODO: Missing canonical function implementation. */
+}
+
+void DBOpen(void)
+{
+    /* TODO: Missing canonical function implementation. */
+}
+
+int DBWrite(const void* bytes, int length)
 {
     /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *DBOpen(void)
+int DBRead(void* bytes, u32 length)
 {
     /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *DBWrite(void)
+int DBQueryData(void)
 {
     /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *DBRead(void)
+void DBInitInterrupts(void)
 {
     /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *DBQueryData(void)
+void DBInitComm(
+    volatile u8** input_pending,
+    EXICallback monitor_callback)
 {
     /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBInitInterrupts(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBInitComm(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
 void *DBGHandler(void)

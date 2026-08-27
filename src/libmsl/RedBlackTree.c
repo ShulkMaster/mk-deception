@@ -2,39 +2,40 @@
 
 /*
  * Retail red-black tree owner used by the MSL external heap.
- * Soft ceilings: key find 91.18%, remove 53.74%, insert 66.38%, and insert
- * fixup 68.05%. Key bounds and next/previous are exact.
- * All search, splice, sentinel, mirrored rotation, recolor, and root-black
- * algorithms are reconstructed; remaining differences are structured-C
- * scheduling and register allocation.
+ * RBT_InsertNode, key bounds, and next/previous are exact. Key find remains a
+ * bounded loop-emission near miss at 91.18%.
+ * Soft ceilings: RBT_RemoveNode 98.87% and _RBT_InsertFixup 98.62%; both are
+ * size-exact with only GPR-coloring differences in otherwise identical code.
  */
 
 #define RBT_REPLACE_PARENT(tree, old_node, new_node) \
     do { \
-        (new_node)->parent = (old_node)->parent; \
-        if ((old_node)->parent == 0) { \
-            (tree)->root = (new_node); \
-        } else if ((old_node) == (old_node)->parent->left) { \
-            (old_node)->parent->left = (new_node); \
+        if (((new_node)->parent = (old_node)->parent) != 0) { \
+            if ((old_node) == (old_node)->parent->left) { \
+                (old_node)->parent->left = (new_node); \
+            } else { \
+                (old_node)->parent->right = (new_node); \
+            } \
+            (old_node)->parent = 0; \
         } else { \
-            (old_node)->parent->right = (new_node); \
+            (tree)->root = (new_node); \
         } \
     } while (0)
 
 #define RBT_ROTATE_LEFT(tree, node) \
     do { \
         RedBlackNode* rbt_pivot = (node)->right; \
-        (node)->right = rbt_pivot->left; \
-        if ((node)->right != 0) { \
+        if (((node)->right = rbt_pivot->left) != 0) { \
             (node)->right->parent = (node); \
         } \
-        rbt_pivot->parent = (node)->parent; \
-        if ((node)->parent == 0) { \
-            (tree)->root = rbt_pivot; \
-        } else if ((node) == (node)->parent->left) { \
-            (node)->parent->left = rbt_pivot; \
+        if ((rbt_pivot->parent = (node)->parent) != 0) { \
+            if ((node) == (node)->parent->left) { \
+                (node)->parent->left = rbt_pivot; \
+            } else { \
+                (node)->parent->right = rbt_pivot; \
+            } \
         } else { \
-            (node)->parent->right = rbt_pivot; \
+            (tree)->root = rbt_pivot; \
         } \
         rbt_pivot->left = (node); \
         (node)->parent = rbt_pivot; \
@@ -43,17 +44,17 @@
 #define RBT_ROTATE_RIGHT(tree, node) \
     do { \
         RedBlackNode* rbt_pivot = (node)->left; \
-        (node)->left = rbt_pivot->right; \
-        if ((node)->left != 0) { \
+        if (((node)->left = rbt_pivot->right) != 0) { \
             (node)->left->parent = (node); \
         } \
-        rbt_pivot->parent = (node)->parent; \
-        if ((node)->parent == 0) { \
-            (tree)->root = rbt_pivot; \
-        } else if ((node) == (node)->parent->left) { \
-            (node)->parent->left = rbt_pivot; \
+        if ((rbt_pivot->parent = (node)->parent) != 0) { \
+            if ((node) == (node)->parent->left) { \
+                (node)->parent->left = rbt_pivot; \
+            } else { \
+                (node)->parent->right = rbt_pivot; \
+            } \
         } else { \
-            (node)->parent->right = rbt_pivot; \
+            (tree)->root = rbt_pivot; \
         } \
         rbt_pivot->right = (node); \
         (node)->parent = rbt_pivot; \
@@ -107,144 +108,146 @@ RedBlackNode* RBTK_FindQuickNodeEqualToKey(
 
 RedBlackNode* RBT_RemoveNode(
     RedBlackTree* tree, RedBlackNode* removed) {
-    RedBlackNode* fixup = removed;
+    RedBlackNode* fixup;
 
     if (removed->parent == 0 && tree->root != removed) {
         return 0;
     }
 
-    if (removed->left == 0) {
-        if (removed->right != 0) {
-            RedBlackNode* child = removed->right;
+    {
+        RedBlackNode* child = removed->left;
 
-            child->black = 1;
-            child->parent = removed->parent;
-            if (removed->parent == 0) {
-                tree->root = child;
+        if (child != 0) {
+            RedBlackNode* right = removed->right;
+
+            if (right != 0) {
+                RedBlackNode* successor = right;
+
+                while (successor->left != 0) {
+                    successor = successor->left;
+                }
+
+                if (successor->right != 0) {
+                    RedBlackNode* successor_child = successor->right;
+
+                    successor_child->black = 1;
+                    successor->right->parent = successor->parent;
+                    if (successor == removed->right) {
+                        successor->parent->right = successor->right;
+                    } else {
+                        successor->parent->left = successor->right;
+                    }
+
+                    RBT_REPLACE_PARENT(tree, removed, successor);
+                    successor->left = removed->left;
+                    successor->left->parent = successor;
+                    successor->right = removed->right;
+                    successor->right->parent = successor;
+                    successor->black = removed->black;
+                    return removed;
+                }
+
+                if (successor->black == 0) {
+                    if (successor != removed->right) {
+                        successor->parent->left = 0;
+                    }
+
+                    RBT_REPLACE_PARENT(tree, removed, successor);
+                    successor->left = removed->left;
+                    successor->left->parent = successor;
+                    if (successor == removed->right) {
+                        successor->right = 0;
+                    } else {
+                        successor->right = removed->right;
+                        successor->right->parent = successor;
+                    }
+                    successor->black = removed->black;
+                    return removed;
+                }
+
+                {
+                    RedBlackNode* successor_parent;
+
+                    successor->black = removed->black;
+                    removed->black = 1;
+                    successor->left = removed->left;
+                    successor->left->parent = successor;
+                    successor_parent = successor->parent;
+
+                    if (removed->right == successor) {
+                        successor->right = removed;
+                    } else {
+                        successor_parent->left = removed;
+                        successor->right = removed->right;
+                        successor->right->parent = successor;
+                    }
+
+                    removed->right = 0;
+                    removed->left = 0;
+                    if ((successor->parent = removed->parent) != 0) {
+                        if (removed == removed->parent->left) {
+                            removed->parent->left = successor;
+                        } else {
+                            removed->parent->right = successor;
+                        }
+                    } else {
+                        tree->root = successor;
+                    }
+
+                    if (removed == successor_parent) {
+                        removed->parent = successor;
+                    } else {
+                        removed->parent = successor_parent;
+                    }
+                }
             } else {
-                if (removed == removed->parent->left) {
-                    removed->parent->left = child;
+                child->black = 1;
+                if ((removed->left->parent = removed->parent) != 0) {
+                    if (removed == removed->parent->left) {
+                        removed->parent->left = removed->left;
+                    } else {
+                        removed->parent->right = removed->left;
+                    }
+                    removed->parent = 0;
                 } else {
-                    removed->parent->right = child;
+                    tree->root = removed->left;
+                }
+                return removed;
+            }
+        } else {
+            child = removed->right;
+
+            if (child != 0) {
+                child->black = 1;
+                if ((removed->right->parent = removed->parent) != 0) {
+                    if (removed == removed->parent->left) {
+                        removed->parent->left = removed->right;
+                    } else {
+                        removed->parent->right = removed->right;
+                    }
+                    removed->parent = 0;
+                } else {
+                    tree->root = removed->right;
+                }
+                return removed;
+            }
+            if (removed->parent == 0) {
+                tree->root = 0;
+                return removed;
+            }
+            if (removed->black == 0) {
+                if (removed == removed->parent->left) {
+                    removed->parent->left = 0;
+                } else {
+                    removed->parent->right = 0;
                 }
                 removed->parent = 0;
-            }
-            return removed;
-        }
-        if (removed->parent == 0) {
-            tree->root = 0;
-            return removed;
-        }
-        if (removed->black == 0) {
-            if (removed == removed->parent->left) {
-                removed->parent->left = 0;
-            } else {
-                removed->parent->right = 0;
-            }
-            removed->parent = 0;
-            return removed;
-        }
-    } else {
-        RedBlackNode* successor = removed->right;
-
-        if (successor == 0) {
-            RedBlackNode* child = removed->left;
-
-            child->black = 1;
-            child->parent = removed->parent;
-            if (removed->parent == 0) {
-                tree->root = child;
-            } else {
-                if (removed == removed->parent->left) {
-                    removed->parent->left = child;
-                } else {
-                    removed->parent->right = child;
-                }
-                removed->parent = 0;
-            }
-            return removed;
-        }
-
-        while (successor->left != 0) {
-            successor = successor->left;
-        }
-
-        if (successor->right != 0) {
-            RedBlackNode* child = successor->right;
-
-            child->black = 1;
-            child->parent = successor->parent;
-            if (successor == removed->right) {
-                successor->parent->right = child;
-            } else {
-                successor->parent->left = child;
-            }
-
-            RBT_REPLACE_PARENT(tree, removed, successor);
-            removed->parent = 0;
-            successor->left = removed->left;
-            successor->left->parent = successor;
-            successor->right = removed->right;
-            successor->right->parent = successor;
-            successor->black = removed->black;
-            return removed;
-        }
-
-        if (successor->black == 0) {
-            if (successor != removed->right) {
-                successor->parent->left = 0;
-            }
-
-            RBT_REPLACE_PARENT(tree, removed, successor);
-            removed->parent = 0;
-            successor->left = removed->left;
-            successor->left->parent = successor;
-            if (successor == removed->right) {
-                successor->right = 0;
-            } else {
-                successor->right = removed->right;
-                successor->right->parent = successor;
-            }
-            successor->black = removed->black;
-            return removed;
-        }
-
-        {
-            RedBlackNode* successor_parent = successor->parent;
-            RedBlackNode* removed_parent = removed->parent;
-
-            successor->black = removed->black;
-            removed->black = 1;
-            successor->left = removed->left;
-            successor->left->parent = successor;
-
-            if (removed->right == successor) {
-                successor->right = removed;
-            } else {
-                successor_parent->left = removed;
-                successor->right = removed->right;
-                successor->right->parent = successor;
-            }
-
-            removed->right = 0;
-            removed->left = 0;
-            successor->parent = removed_parent;
-            if (removed_parent == 0) {
-                tree->root = successor;
-            } else if (removed == removed_parent->left) {
-                removed_parent->left = successor;
-            } else {
-                removed_parent->right = successor;
-            }
-
-            if (removed == successor_parent) {
-                removed->parent = successor;
-            } else {
-                removed->parent = successor_parent;
+                return removed;
             }
         }
     }
 
+    fixup = removed;
     do {
         RedBlackNode* parent = fixup->parent;
         RedBlackNode* sibling;
@@ -253,7 +256,8 @@ RedBlackNode* RBT_RemoveNode(
             sibling = parent->right;
             if (sibling->black == 0) {
                 sibling->black = 1;
-                parent->black = 0;
+                fixup->parent->black = 0;
+                parent = fixup->parent;
                 RBT_ROTATE_LEFT(tree, parent);
                 sibling = fixup->parent->right;
             }
@@ -265,26 +269,27 @@ RedBlackNode* RBT_RemoveNode(
                 sibling->left->black = 1;
                 sibling->black = 0;
                 RBT_ROTATE_RIGHT(tree, sibling);
-                sibling = fixup->parent->right;
+                sibling = sibling->parent;
             }
 
-            if (sibling->right == 0 ||
-                sibling->right->black != 0) {
-                sibling->black = 0;
-                fixup = fixup->parent;
-            } else {
+            if (sibling->right != 0 &&
+                sibling->right->black == 0) {
                 sibling->black = fixup->parent->black;
                 fixup->parent->black = 1;
                 sibling->right->black = 1;
                 parent = fixup->parent;
                 RBT_ROTATE_LEFT(tree, parent);
                 fixup = tree->root;
+            } else {
+                sibling->black = 0;
+                fixup = fixup->parent;
             }
         } else {
             sibling = parent->left;
             if (sibling->black == 0) {
                 sibling->black = 1;
-                parent->black = 0;
+                fixup->parent->black = 0;
+                parent = fixup->parent;
                 RBT_ROTATE_RIGHT(tree, parent);
                 sibling = fixup->parent->left;
             }
@@ -296,20 +301,20 @@ RedBlackNode* RBT_RemoveNode(
                 sibling->right->black = 1;
                 sibling->black = 0;
                 RBT_ROTATE_LEFT(tree, sibling);
-                sibling = fixup->parent->left;
+                sibling = sibling->parent;
             }
 
-            if (sibling->left == 0 ||
-                sibling->left->black != 0) {
-                sibling->black = 0;
-                fixup = fixup->parent;
-            } else {
+            if (sibling->left != 0 &&
+                sibling->left->black == 0) {
                 sibling->black = fixup->parent->black;
                 fixup->parent->black = 1;
                 sibling->left->black = 1;
                 parent = fixup->parent;
                 RBT_ROTATE_RIGHT(tree, parent);
                 fixup = tree->root;
+            } else {
+                sibling->black = 0;
+                fixup = fixup->parent;
             }
         }
     } while (fixup->black == 1 && fixup->parent != 0);
@@ -330,31 +335,31 @@ void RBT_InsertNode(RedBlackTree* tree, RedBlackNode* node) {
     node->left = 0;
     node->right = 0;
     current = tree->root;
-    if (current == 0) {
-        node->parent = 0;
-        node->black = 1;
-        tree->root = node;
-    } else {
+    if (current != 0) {
         do {
-            if (tree->compare_nodes(node, current) <= 0) {
-                if (current->left == 0) {
-                    node->parent = current;
-                    current->left = node;
-                    current = 0;
+            if (tree->compare_nodes(node, current) > 0) {
+                if (current->right != 0) {
+                    current = current->right;
                 } else {
-                    current = current->left;
-                }
-            } else {
-                if (current->right == 0) {
                     node->parent = current;
                     current->right = node;
                     current = 0;
+                }
+            } else {
+                if (current->left != 0) {
+                    current = current->left;
                 } else {
-                    current = current->right;
+                    node->parent = current;
+                    current->left = node;
+                    current = 0;
                 }
             }
         } while (current != 0);
         _RBT_InsertFixup(tree, node);
+    } else {
+        node->parent = 0;
+        node->black = 1;
+        tree->root = node;
     }
 }
 
@@ -370,110 +375,68 @@ void _RBT_InsertFixup(
 
             if (uncle != 0 && uncle->black == 0) {
                 uncle->black = 1;
-                parent->black = 1;
-                node = grandparent;
+                node->parent->black = 1;
+                node = node->parent->parent;
                 node->black = 0;
             } else {
                 if (node == parent->right) {
                     RedBlackNode* pivot = parent->right;
 
-                    parent->right = pivot->left;
-                    if (parent->right != 0) {
+                    node = parent;
+                    if ((parent->right = pivot->left) != 0) {
                         parent->right->parent = parent;
                     }
-                    pivot->parent = parent->parent;
-                    if (parent->parent == 0) {
-                        tree->root = pivot;
-                    } else if (
-                        parent == parent->parent->left) {
-                        parent->parent->left = pivot;
+                    if ((pivot->parent = parent->parent) != 0) {
+                        if (parent == parent->parent->left) {
+                            parent->parent->left = pivot;
+                        } else {
+                            parent->parent->right = pivot;
+                        }
                     } else {
-                        parent->parent->right = pivot;
+                        tree->root = pivot;
                     }
                     pivot->left = parent;
                     parent->parent = pivot;
-                    node = parent;
-                    parent = node->parent;
-                    grandparent = parent->parent;
                 }
 
-                parent->black = 1;
-                grandparent->black = 0;
-                {
-                    RedBlackNode* pivot = grandparent->left;
-
-                    grandparent->left = pivot->right;
-                    if (grandparent->left != 0) {
-                        grandparent->left->parent = grandparent;
-                    }
-                    pivot->parent = grandparent->parent;
-                    if (grandparent->parent == 0) {
-                        tree->root = pivot;
-                    } else if (
-                        grandparent ==
-                        grandparent->parent->left) {
-                        grandparent->parent->left = pivot;
-                    } else {
-                        grandparent->parent->right = pivot;
-                    }
-                    pivot->right = grandparent;
-                    grandparent->parent = pivot;
-                }
+                node->parent->black = 1;
+                node->parent->parent->black = 0;
+                grandparent = node->parent->parent;
+                RBT_ROTATE_RIGHT(tree, grandparent);
             }
         } else {
             RedBlackNode* uncle = grandparent->left;
 
             if (uncle != 0 && uncle->black == 0) {
                 uncle->black = 1;
-                parent->black = 1;
-                node = grandparent;
+                node->parent->black = 1;
+                node = node->parent->parent;
                 node->black = 0;
             } else {
                 if (node == parent->left) {
                     RedBlackNode* pivot = parent->left;
 
-                    parent->left = pivot->right;
-                    if (parent->left != 0) {
+                    node = parent;
+                    if ((parent->left = pivot->right) != 0) {
                         parent->left->parent = parent;
                     }
-                    pivot->parent = parent->parent;
-                    if (parent->parent == 0) {
-                        tree->root = pivot;
-                    } else if (
-                        parent == parent->parent->left) {
-                        parent->parent->left = pivot;
+                    if ((pivot->parent = parent->parent) != 0) {
+                        if (parent == parent->parent->left) {
+                            parent->parent->left = pivot;
+                        } else {
+                            parent->parent->right = pivot;
+                        }
                     } else {
-                        parent->parent->right = pivot;
+                        tree->root = pivot;
                     }
                     pivot->right = parent;
                     parent->parent = pivot;
-                    node = parent;
-                    parent = node->parent;
-                    grandparent = parent->parent;
                 }
 
-                parent->black = 1;
-                grandparent->black = 0;
-                {
-                    RedBlackNode* pivot = grandparent->right;
-
-                    grandparent->right = pivot->left;
-                    if (grandparent->right != 0) {
-                        grandparent->right->parent = grandparent;
-                    }
-                    pivot->parent = grandparent->parent;
-                    if (grandparent->parent == 0) {
-                        tree->root = pivot;
-                    } else if (
-                        grandparent ==
-                        grandparent->parent->left) {
-                        grandparent->parent->left = pivot;
-                    } else {
-                        grandparent->parent->right = pivot;
-                    }
-                    pivot->left = grandparent;
-                    grandparent->parent = pivot;
-                }
+                node->parent->black = 1;
+                node->parent->parent->black = 0;
+                grandparent = node->parent->parent;
+                RBT_ROTATE_LEFT(tree, grandparent);
             }
         }
     }
