@@ -40,8 +40,14 @@ void TRKDestructEvent(TRKEvent* event);
 DSError TRKGetFreeBuffer(MessageBufferID* buffer_id, MessageBuffer** buffer);
 void* TRKGetBuffer(MessageBufferID buffer_id);
 void TRKReleaseBuffer(MessageBufferID buffer_id);
+void TRKResetBuffer(MessageBuffer* buffer, BOOL keep_data);
 DSError TRKSetBufferPosition(MessageBuffer* buffer, u32 position);
-DSError TRKAppendBuffer_ui8(MessageBuffer* buffer, const void* data, u32 length);
+DSError TRKAppendBuffer(MessageBuffer* buffer, const void* data, u32 length);
+DSError TRKReadBuffer(MessageBuffer* buffer, void* data, u32 length);
+DSError TRKAppendBuffer_ui8(MessageBuffer* buffer, const u8* data, int count);
+DSError TRKAppendBuffer_ui32(MessageBuffer* buffer, const u32* data, int count);
+DSError TRKReadBuffer_ui8(MessageBuffer* buffer, u8* data, int count);
+DSError TRKReadBuffer_ui32(MessageBuffer* buffer, u32* data, int count);
 DSError TRKMessageSend(MessageBuffer* message);
 
 DSError TRKInitializeDispatcher(void);
