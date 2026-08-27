@@ -1,13 +1,30 @@
-/* TODO: Missing implementation for retail unit sfd_tmr.c. */
+typedef struct SfdTimerSummary {
+    long long total;
+    long long minimum;
+    long long maximum;
+    int count;
+} SfdTimerSummary;
 
-void *SFTMR_AddTsum(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void SFTMR_AddTsum(SfdTimerSummary* summary, long long elapsed) {
+    long long minimum;
+    long long maximum;
+    summary->total += elapsed;
+    minimum = summary->minimum;
+    if (elapsed < minimum) {
+        minimum = elapsed;
+    }
+    summary->minimum = minimum;
+    maximum = summary->maximum;
+    if (maximum >= elapsed) {
+        elapsed = maximum;
+    }
+    summary->maximum = elapsed;
+    summary->count++;
 }
 
-void *SFTMR_InitTsum(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void SFTMR_InitTsum(SfdTimerSummary* summary) {
+    summary->total = 0;
+    summary->minimum = 0x7FFFFFFFFFFFFFFFLL;
+    summary->maximum = 0;
+    summary->count = 0;
 }
