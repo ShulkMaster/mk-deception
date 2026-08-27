@@ -1,7 +1,5 @@
 #include "dolphin/trk.h"
 
-typedef unsigned long long u64;
-
 enum {
     DS_NoError = 0,
     DS_NoMessageBufferAvailable = 0x300,
@@ -9,20 +7,11 @@ enum {
     DS_MessageBufferReadError = 0x302,
 };
 
-extern BOOL gTRKBigEndian;
-void* TRK_memcpy(void*, const void*, u32);
-void* TRK_memset(void*, int, u32);
-
 MessageBuffer gTRKMsgBufs[3];
 
 static inline void TRKSetBufferUsed(MessageBuffer* message, BOOL used) {
     message->is_in_use = used;
 }
-
-static inline DSError TRKReadBuffer1_ui8(MessageBuffer* message, u8* value);
-static inline DSError TRKReadBuffer1_ui32(MessageBuffer* message, u32* value);
-static inline DSError TRKAppendBuffer1_ui8(MessageBuffer* message, u8 value);
-static inline DSError TRKAppendBuffer1_ui32(MessageBuffer* message, u32 value);
 
 DSError TRKInitializeMessageBuffers(void) {
     int index;
@@ -60,7 +49,7 @@ DSError TRKGetFreeBuffer(MessageBufferID* buffer_id, MessageBuffer** output) {
     return error;
 }
 
-void* TRKGetBuffer(MessageBufferID buffer_id) {
+MessageBuffer* TRKGetBuffer(MessageBufferID buffer_id) {
     MessageBuffer* message = 0;
     if (buffer_id >= 0 && buffer_id < 3) {
         message = &gTRKMsgBufs[buffer_id];
@@ -208,7 +197,7 @@ DSError TRKAppendBuffer_ui32(MessageBuffer* message, const u32* data, int count)
 }
 
 static inline DSError TRKReadBuffer1_ui8(MessageBuffer* message, u8* value) {
-    return TRKReadBuffer(message, (void*)value, 1);
+    return TRKReadBuffer(message, value, 1);
 }
 
 static inline DSError TRKReadBuffer1_ui32(MessageBuffer* message, u32* value) {
@@ -222,7 +211,7 @@ static inline DSError TRKReadBuffer1_ui32(MessageBuffer* message, u32* value) {
     } else {
         big_endian_data = swap_buffer;
     }
-    error = TRKReadBuffer(message, (void*)big_endian_data, sizeof(*value));
+    error = TRKReadBuffer(message, big_endian_data, sizeof(*value));
     if (!gTRKBigEndian && error == DS_NoError) {
         byte_data = (u8*)value;
         byte_data[0] = big_endian_data[3];
@@ -244,7 +233,7 @@ DSError TRKReadBuffer1_ui64(MessageBuffer* message, u64* value) {
     } else {
         big_endian_data = swap_buffer;
     }
-    error = TRKReadBuffer(message, (void*)big_endian_data, sizeof(*value));
+    error = TRKReadBuffer(message, big_endian_data, sizeof(*value));
     if (!gTRKBigEndian && error == DS_NoError) {
         byte_data = (u8*)value;
         byte_data[0] = big_endian_data[7];

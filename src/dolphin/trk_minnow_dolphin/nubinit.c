@@ -12,7 +12,6 @@ enum {
 };
 
 extern void TRK_board_display(const char* message);
-extern DSError TRKInitializeMessageBuffers(void);
 extern DSError InitializeProgramEndTrap(void);
 extern DSError TRKInitializeTarget(void);
 extern DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,

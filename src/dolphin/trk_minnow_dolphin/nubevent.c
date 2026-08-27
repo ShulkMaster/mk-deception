@@ -10,8 +10,6 @@ typedef struct TRKEventQueue {
 
 TRKEventQueue gTRKEventQueue;
 
-extern void* TRK_memcpy(void* destination, const void* source, u32 size);
-
 DSError TRKInitializeEventQueue(void)
 {
     TRKInitializeMutex(&gTRKEventQueue);
