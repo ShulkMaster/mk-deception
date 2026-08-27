@@ -155,154 +155,96 @@ unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor *descriptor,
 
 
 unsigned int _rwGCNVtxFmtInstPos3D(void *destination, const RwV3d *source,
-                               unsigned int type, unsigned int count, unsigned int stride,
+                               int type, int count, unsigned int stride,
                                const RwV3d *origin, float scale) {
-  const RwV3d *current = source;
-  const RwV3d *positionOrigin = origin;
-  unsigned int outputStride = stride;
-  unsigned int format = type;
   float offsetX;
   float offsetY;
   float offsetZ;
   unsigned int result = 0;
 
-  if (positionOrigin != 0) {
-    offsetX = positionOrigin->x - fmodf(positionOrigin->x, 1.0f / scale);
-    offsetY = positionOrigin->y - fmodf(positionOrigin->y, 1.0f / scale);
-    offsetZ = positionOrigin->z - fmodf(positionOrigin->z, 1.0f / scale);
+  if (origin != 0) {
+    offsetX = origin->x - fmodf(origin->x, 1.0f / scale);
+    offsetY = origin->y - fmodf(origin->y, 1.0f / scale);
+    offsetZ = origin->z - fmodf(origin->z, 1.0f / scale);
   } else {
     offsetX = 0.0f;
     offsetY = 0.0f;
     offsetZ = 0.0f;
   }
 
-  switch (format) {
-  case 0: {
-    unsigned char *output = destination;
-    unsigned int index;
-    if (outputStride == 0)
-      outputStride = 3;
-    for (index = 0; index < count; index++) {
-      output[0] = (unsigned char)(int)(scale * (current->x - offsetX));
-      output[1] = (unsigned char)(int)(scale * (current->y - offsetY));
-      output[2] = (unsigned char)(int)(scale * (current->z - offsetZ));
-      current++;
-      output += outputStride;
-    }
-    result = count * 3;
-    break;
-  }
-  case 1: {
-    char *output = destination;
-    unsigned int index;
-    if (outputStride == 0)
-      outputStride = 3;
-    for (index = 0; index < count; index++) {
-      output[0] = (char)(scale * (current->x - offsetX));
-      output[1] = (char)(scale * (current->y - offsetY));
-      output[2] = (char)(scale * (current->z - offsetZ));
-      current++;
-      output += outputStride;
-    }
-    result = count * 3;
-    break;
-  }
-  case 2: {
-    unsigned short *output = destination;
-    unsigned int index;
-    if (outputStride == 0)
-      outputStride = 6;
-    for (index = 0; index < count; index++) {
-      output[0] = (unsigned short)(int)(scale * (current->x - offsetX));
-      output[1] = (unsigned short)(int)(scale * (current->y - offsetY));
-      output[2] = (unsigned short)(int)(scale * (current->z - offsetZ));
-      current++;
-      output = (unsigned short *)((unsigned char *)output + outputStride);
-    }
-    result = count * 6;
-    break;
-  }
-  case 3: {
-    short *output = destination;
-    unsigned int index;
-    if (outputStride == 0)
-      outputStride = 6;
-    for (index = 0; index < count; index++) {
-      output[0] = (short)(scale * (current->x - offsetX));
-      output[1] = (short)(scale * (current->y - offsetY));
-      output[2] = (short)(scale * (current->z - offsetZ));
-      current++;
-      output = (short *)((unsigned char *)output + outputStride);
-    }
-    result = count * 6;
-    break;
-  }
-  case 4: {
-    RwV3d *output = destination;
-    unsigned int index;
-    if (outputStride == 0)
-      outputStride = sizeof(RwV3d);
-    for (index = 0; index < count; index++) {
-      *output = *current++;
-      output = (RwV3d *)((unsigned char *)output + outputStride);
-    }
-    result = count * sizeof(RwV3d);
-    break;
-  }
-  default:
-    break;
-  }
-  return result;
-}
-
-unsigned int _rwGCNVtxFmtInstNrm(void *destination, const RwV3d *source,
-                             unsigned int type, unsigned int count, unsigned int stride) {
-  const RwV3d *current = source;
-  float byteScale = 64.0f;
-  float shortScale = 16384.0f;
-  unsigned int result = 0;
-
   switch (type) {
-  case 0:
-  case 2:
-    break;
-  case 1: {
-    char *output = destination;
-    unsigned int index;
+  case 0: {
+    unsigned char *output;
+    int index;
     if (stride == 0)
       stride = 3;
+    output = destination;
     for (index = 0; index < count; index++) {
-      output[0] = (char)(current->x * byteScale);
-      output[1] = (char)(current->y * byteScale);
-      output[2] = (char)(current->z * byteScale);
-      current++;
+      output[0] = (unsigned char)(int)(scale * (source->x - offsetX));
+      output[1] = (unsigned char)(int)(scale * (source->y - offsetY));
+      output[2] = (unsigned char)(int)(scale * (source->z - offsetZ));
+      source++;
       output += stride;
     }
     result = count * 3;
     break;
   }
-  case 3: {
-    short *output = destination;
-    unsigned int index;
+  case 1: {
+    char *output;
+    int index;
+    if (stride == 0)
+      stride = 3;
+    output = destination;
+    for (index = 0; index < count; index++) {
+      output[0] = (char)(int)(scale * (source->x - offsetX));
+      output[1] = (char)(int)(scale * (source->y - offsetY));
+      output[2] = (char)(int)(scale * (source->z - offsetZ));
+      source++;
+      output += stride;
+    }
+    result = count * 3;
+    break;
+  }
+  case 2: {
+    unsigned short *output;
+    int index;
     if (stride == 0)
       stride = 6;
+    output = destination;
     for (index = 0; index < count; index++) {
-      output[0] = (short)(current->x * shortScale);
-      output[1] = (short)(current->y * shortScale);
-      output[2] = (short)(current->z * shortScale);
-      current++;
+      output[0] = (unsigned short)(int)(scale * (source->x - offsetX));
+      output[1] = (unsigned short)(int)(scale * (source->y - offsetY));
+      output[2] = (unsigned short)(int)(scale * (source->z - offsetZ));
+      source++;
+      output = (unsigned short *)((unsigned char *)output + stride);
+    }
+    result = count * 6;
+    break;
+  }
+  case 3: {
+    short *output;
+    int index;
+    if (stride == 0)
+      stride = 6;
+    output = destination;
+    for (index = 0; index < count; index++) {
+      output[0] = (short)(int)(scale * (source->x - offsetX));
+      output[1] = (short)(int)(scale * (source->y - offsetY));
+      output[2] = (short)(int)(scale * (source->z - offsetZ));
+      source++;
       output = (short *)((unsigned char *)output + stride);
     }
     result = count * 6;
     break;
   }
   case 4: {
-    RwV3d *output = destination;
-    unsigned int index;
+    RwV3d *output;
+    int index;
     if (stride == 0)
       stride = sizeof(RwV3d);
+    output = destination;
     for (index = 0; index < count; index++) {
-      *output = *current++;
+      *output = *source++;
       output = (RwV3d *)((unsigned char *)output + stride);
     }
     result = count * sizeof(RwV3d);
@@ -314,10 +256,8 @@ unsigned int _rwGCNVtxFmtInstNrm(void *destination, const RwV3d *source,
   return result;
 }
 
-unsigned int _rwGCNVtxFmtInstNrmCmp(void *destination, const void *source,
-                                unsigned int type, unsigned int count,
-                                unsigned int stride) {
-  const char *input = source;
+unsigned int _rwGCNVtxFmtInstNrm(void *destination, const RwV3d *source,
+                             int type, int count, unsigned int stride) {
   float byteScale = 64.0f;
   float shortScale = 16384.0f;
   unsigned int result = 0;
@@ -327,55 +267,120 @@ unsigned int _rwGCNVtxFmtInstNrmCmp(void *destination, const void *source,
   case 2:
     break;
   case 1: {
-    char *output = destination;
-    unsigned int index;
+    char *output;
+    int index;
     if (stride == 0)
       stride = 3;
+    output = destination;
     for (index = 0; index < count; index++) {
-      RwV3d normal;
-      normal.x = input[0] * 0.0078125f;
-      normal.y = input[1] * 0.0078125f;
-      normal.z = input[2] * 0.0078125f;
-      output[0] = (char)(normal.x * byteScale);
-      output[1] = (char)(normal.y * byteScale);
-      output[2] = (char)(normal.z * byteScale);
-      input += 4;
+      output[0] = (char)(int)(source->x * byteScale);
+      output[1] = (char)(int)(source->y * byteScale);
+      output[2] = (char)(int)(source->z * byteScale);
+      source++;
       output += stride;
     }
     result = count * 3;
     break;
   }
   case 3: {
-    short *output = destination;
-    unsigned int index;
+    short *output;
+    int index;
     if (stride == 0)
       stride = 6;
+    output = destination;
     for (index = 0; index < count; index++) {
-      RwV3d normal;
-      normal.x = input[0] * 0.0078125f;
-      normal.y = input[1] * 0.0078125f;
-      normal.z = input[2] * 0.0078125f;
-      output[0] = (short)(normal.x * shortScale);
-      output[1] = (short)(normal.y * shortScale);
-      output[2] = (short)(normal.z * shortScale);
-      input += 4;
+      output[0] = (short)(int)(source->x * shortScale);
+      output[1] = (short)(int)(source->y * shortScale);
+      output[2] = (short)(int)(source->z * shortScale);
+      source++;
       output = (short *)((unsigned char *)output + stride);
     }
     result = count * 6;
     break;
   }
   case 4: {
-    RwV3d *output = destination;
-    unsigned int index;
+    RwV3d *output;
+    int index;
     if (stride == 0)
       stride = sizeof(RwV3d);
+    output = destination;
+    for (index = 0; index < count; index++) {
+      *output = *source++;
+      output = (RwV3d *)((unsigned char *)output + stride);
+    }
+    result = count * sizeof(RwV3d);
+    break;
+  }
+  default:
+    break;
+  }
+  return result;
+}
+
+unsigned int _rwGCNVtxFmtInstNrmCmp(void *destination, const char *source,
+                                int type, int count,
+                                unsigned int stride) {
+  float byteScale = 64.0f;
+  float shortScale = 16384.0f;
+  unsigned int result = 0;
+
+  switch (type) {
+  case 0:
+  case 2:
+    break;
+  case 1: {
+    char *output;
+    int index;
+    if (stride == 0)
+      stride = 3;
+    output = destination;
     for (index = 0; index < count; index++) {
       RwV3d normal;
-      normal.x = input[0] * 0.0078125f;
-      normal.y = input[1] * 0.0078125f;
-      normal.z = input[2] * 0.0078125f;
+      normal.x = source[0] * 0.0078125f;
+      normal.y = source[1] * 0.0078125f;
+      normal.z = source[2] * 0.0078125f;
+      output[0] = (char)(int)(normal.x * byteScale);
+      output[1] = (char)(int)(normal.y * byteScale);
+      output[2] = (char)(int)(normal.z * byteScale);
+      source += 4;
+      output += stride;
+    }
+    result = count * 3;
+    break;
+  }
+  case 3: {
+    short *output;
+    int index;
+    if (stride == 0)
+      stride = 6;
+    output = destination;
+    for (index = 0; index < count; index++) {
+      RwV3d normal;
+      normal.x = source[0] * 0.0078125f;
+      normal.y = source[1] * 0.0078125f;
+      normal.z = source[2] * 0.0078125f;
+      output[0] = (short)(int)(normal.x * shortScale);
+      output[1] = (short)(int)(normal.y * shortScale);
+      output[2] = (short)(int)(normal.z * shortScale);
+      source += 4;
+      output = (short *)((unsigned char *)output + stride);
+    }
+    result = count * 6;
+    break;
+  }
+  case 4: {
+    RwV3d *output;
+    int index;
+    if (stride == 0)
+      stride = sizeof(RwV3d);
+    output = destination;
+    for (index = 0; index < count; index++) {
+      RwV3d normal;
+      normal.x = source[0] * 0.0078125f;
+      normal.y = source[1] * 0.0078125f;
+      normal.z = source[2] * 0.0078125f;
       *output = normal;
-      input += 4;
+      source += 4;
       output = (RwV3d *)((unsigned char *)output + stride);
     }
     result = count * sizeof(RwV3d);
@@ -388,8 +393,7 @@ unsigned int _rwGCNVtxFmtInstNrmCmp(void *destination, const void *source,
 }
 
 unsigned int _rwGCNVtxFmtInstNBT(void *destination, const RwV3d *source,
-                             unsigned int type, unsigned int count, unsigned int stride) {
-  const RwV3d *current = source;
+                             int type, int count, unsigned int stride) {
   float byteScale = 64.0f;
   float shortScale = 16384.0f;
   unsigned int result = 0;
@@ -399,42 +403,45 @@ unsigned int _rwGCNVtxFmtInstNBT(void *destination, const RwV3d *source,
   case 2:
     break;
   case 1: {
-    char *output = destination;
-    unsigned int index;
+    char *output;
+    int index;
     if (stride == 0)
       stride = 3;
+    output = destination;
     for (index = 0; index < count; index++) {
-      output[0] = (char)(current->x * byteScale);
-      output[1] = (char)(current->y * byteScale);
-      output[2] = (char)(current->z * byteScale);
-      current++;
+      output[0] = (char)(int)(source->x * byteScale);
+      output[1] = (char)(int)(source->y * byteScale);
+      output[2] = (char)(int)(source->z * byteScale);
+      source++;
       output += stride;
     }
     result = count * 3;
     break;
   }
   case 3: {
-    short *output = destination;
-    unsigned int index;
+    short *output;
+    int index;
     if (stride == 0)
       stride = 6;
+    output = destination;
     for (index = 0; index < count; index++) {
-      output[0] = (short)(current->x * shortScale);
-      output[1] = (short)(current->y * shortScale);
-      output[2] = (short)(current->z * shortScale);
-      current++;
+      output[0] = (short)(int)(source->x * shortScale);
+      output[1] = (short)(int)(source->y * shortScale);
+      output[2] = (short)(int)(source->z * shortScale);
+      source++;
       output = (short *)((unsigned char *)output + stride);
     }
     result = count * 6;
     break;
   }
   case 4: {
-    RwV3d *output = destination;
-    unsigned int index;
+    RwV3d *output;
+    int index;
     if (stride == 0)
       stride = sizeof(RwV3d);
+    output = destination;
     for (index = 0; index < count; index++) {
-      *output = *current++;
+      *output = *source++;
       output = (RwV3d *)((unsigned char *)output + stride);
     }
     result = count * 36;
@@ -446,10 +453,9 @@ unsigned int _rwGCNVtxFmtInstNBT(void *destination, const RwV3d *source,
   return result;
 }
 
-unsigned int _rwGCNVtxFmtInstNBTCmp(void *destination, const void *source,
-                                unsigned int type, unsigned int count,
+unsigned int _rwGCNVtxFmtInstNBTCmp(void *destination, const char *source,
+                                int type, int count,
                                 unsigned int stride) {
-  const char *input = source;
   float byteScale = 64.0f;
   float shortScale = 16384.0f;
   unsigned int result = 0;
@@ -459,55 +465,58 @@ unsigned int _rwGCNVtxFmtInstNBTCmp(void *destination, const void *source,
   case 2:
     break;
   case 1: {
-    char *output = destination;
-    unsigned int index;
+    char *output;
+    int index;
     if (stride == 0)
       stride = 3;
+    output = destination;
     for (index = 0; index < count; index++) {
       RwV3d normal;
-      normal.x = input[0] * 0.0078125f;
-      normal.y = input[1] * 0.0078125f;
-      normal.z = input[2] * 0.0078125f;
-      output[0] = (char)(normal.x * byteScale);
-      output[1] = (char)(normal.y * byteScale);
-      output[2] = (char)(normal.z * byteScale);
-      input += 4;
+      normal.x = source[0] * 0.0078125f;
+      normal.y = source[1] * 0.0078125f;
+      normal.z = source[2] * 0.0078125f;
+      output[0] = (char)(int)(normal.x * byteScale);
+      output[1] = (char)(int)(normal.y * byteScale);
+      output[2] = (char)(int)(normal.z * byteScale);
+      source += 4;
       output += stride;
     }
     result = count * 3;
     break;
   }
   case 3: {
-    short *output = destination;
-    unsigned int index;
+    short *output;
+    int index;
     if (stride == 0)
       stride = 6;
+    output = destination;
     for (index = 0; index < count; index++) {
       RwV3d normal;
-      normal.x = input[0] * 0.0078125f;
-      normal.y = input[1] * 0.0078125f;
-      normal.z = input[2] * 0.0078125f;
-      output[0] = (short)(normal.x * shortScale);
-      output[1] = (short)(normal.y * shortScale);
-      output[2] = (short)(normal.z * shortScale);
-      input += 4;
+      normal.x = source[0] * 0.0078125f;
+      normal.y = source[1] * 0.0078125f;
+      normal.z = source[2] * 0.0078125f;
+      output[0] = (short)(int)(normal.x * shortScale);
+      output[1] = (short)(int)(normal.y * shortScale);
+      output[2] = (short)(int)(normal.z * shortScale);
+      source += 4;
       output = (short *)((unsigned char *)output + stride);
     }
     result = count * 6;
     break;
   }
   case 4: {
-    RwV3d *output = destination;
-    unsigned int index;
+    RwV3d *output;
+    int index;
     if (stride == 0)
       stride = sizeof(RwV3d);
+    output = destination;
     for (index = 0; index < count; index++) {
       RwV3d normal;
-      normal.x = input[0] * 0.0078125f;
-      normal.y = input[1] * 0.0078125f;
-      normal.z = input[2] * 0.0078125f;
+      normal.x = source[0] * 0.0078125f;
+      normal.y = source[1] * 0.0078125f;
+      normal.z = source[2] * 0.0078125f;
       *output = normal;
-      input += 4;
+      source += 4;
       output = (RwV3d *)((unsigned char *)output + stride);
     }
     result = count * 36;
@@ -520,15 +529,16 @@ unsigned int _rwGCNVtxFmtInstNBTCmp(void *destination, const void *source,
 }
 
 unsigned int _rwGCNVtxFmtInstClr(void *destination, const RwRGBA *source,
-                             unsigned int type, unsigned int count, unsigned int stride) {
+                             int type, int count, unsigned int stride) {
   unsigned int result = 0;
 
   switch (type) {
   case 0: {
-    unsigned char *output = destination;
-    unsigned int index;
+    unsigned char *output;
+    int index;
     if (stride == 0)
       stride = 2;
+    output = destination;
     for (index = 0; index < count; index++) {
       *(unsigned short *)output =
           (unsigned short)((((unsigned short)source->blue >> 3) & 0x1F) |
@@ -541,10 +551,11 @@ unsigned int _rwGCNVtxFmtInstClr(void *destination, const RwRGBA *source,
     break;
   }
   case 1: {
-    unsigned char *output = destination;
-    unsigned int index;
+    unsigned char *output;
+    int index;
     if (stride == 0)
       stride = 3;
+    output = destination;
     for (index = 0; index < count; index++) {
       output[0] = source->red;
       output[1] = source->green;
@@ -556,10 +567,11 @@ unsigned int _rwGCNVtxFmtInstClr(void *destination, const RwRGBA *source,
     break;
   }
   case 3: {
-    unsigned char *output = destination;
-    unsigned int index;
+    unsigned char *output;
+    int index;
     if (stride == 0)
       stride = 2;
+    output = destination;
     for (index = 0; index < count; index++) {
       *(unsigned short *)output =
           (unsigned short)((((unsigned short)source->alpha >> 4) & 0xF) |
@@ -573,17 +585,15 @@ unsigned int _rwGCNVtxFmtInstClr(void *destination, const RwRGBA *source,
     break;
   }
   case 4: {
-    unsigned char *output = destination;
-    unsigned int index;
+    unsigned char *output;
+    int index;
     if (stride == 0)
       stride = 3;
+    output = destination;
     for (index = 0; index < count; index++) {
-      output[0] =
-          (unsigned char)((source->red & 0xFC) | (((unsigned char)source->green >> 6) & 3));
-      output[1] = (unsigned char)(((source->green * 4) & 0xF0) |
-                            (((unsigned char)source->blue >> 4) & 0xF));
-      output[2] = (unsigned char)(((source->blue * 0x10) & 0xC0) |
-                            (((unsigned char)source->alpha >> 2) & 0x3F));
+      output[0] = (source->red & 0xFC) | (source->green >> 6);
+      output[1] = (source->green << 2) | (source->blue >> 4);
+      output[2] = (source->blue << 4) | (source->alpha >> 2);
       source++;
       output += stride;
     }
@@ -592,10 +602,11 @@ unsigned int _rwGCNVtxFmtInstClr(void *destination, const RwRGBA *source,
   }
   case 2:
   case 5: {
-    unsigned char *output = destination;
-    unsigned int index;
+    unsigned char *output;
+    int index;
     if (stride == 0)
       stride = 4;
+    output = destination;
     for (index = 0; index < count; index++) {
       output[0] = source->red;
       output[1] = source->green;
@@ -614,16 +625,17 @@ unsigned int _rwGCNVtxFmtInstClr(void *destination, const RwRGBA *source,
 }
 
 unsigned int _rwGCNVtxFmtInstTex(void *destination, const RwTexCoords *source,
-                             unsigned int type, unsigned int count, unsigned int stride,
+                             int type, int count, unsigned int stride,
                              float scale) {
   unsigned int result = 0;
 
   switch (type) {
   case 0: {
-    unsigned char *output = destination;
-    unsigned int index;
+    unsigned char *output;
+    int index;
     if (stride == 0)
       stride = 2;
+    output = destination;
     for (index = 0; index < count; index++) {
       output[0] = (unsigned char)(int)(source->u * scale);
       output[1] = (unsigned char)(int)(source->v * scale);
@@ -634,13 +646,14 @@ unsigned int _rwGCNVtxFmtInstTex(void *destination, const RwTexCoords *source,
     break;
   }
   case 1: {
-    char *output = destination;
-    unsigned int index;
+    char *output;
+    int index;
     if (stride == 0)
       stride = 2;
+    output = destination;
     for (index = 0; index < count; index++) {
-      output[0] = (char)(source->u * scale);
-      output[1] = (char)(source->v * scale);
+      output[0] = (char)(int)(source->u * scale);
+      output[1] = (char)(int)(source->v * scale);
       source++;
       output += stride;
     }
@@ -648,10 +661,11 @@ unsigned int _rwGCNVtxFmtInstTex(void *destination, const RwTexCoords *source,
     break;
   }
   case 2: {
-    unsigned short *output = destination;
-    unsigned int index;
+    unsigned short *output;
+    int index;
     if (stride == 0)
       stride = 4;
+    output = destination;
     for (index = 0; index < count; index++) {
       output[0] = (unsigned short)(int)(source->u * scale);
       output[1] = (unsigned short)(int)(source->v * scale);
@@ -662,13 +676,14 @@ unsigned int _rwGCNVtxFmtInstTex(void *destination, const RwTexCoords *source,
     break;
   }
   case 3: {
-    short *output = destination;
-    unsigned int index;
+    short *output;
+    int index;
     if (stride == 0)
       stride = 4;
+    output = destination;
     for (index = 0; index < count; index++) {
-      output[0] = (short)(source->u * scale);
-      output[1] = (short)(source->v * scale);
+      output[0] = (short)(int)(source->u * scale);
+      output[1] = (short)(int)(source->v * scale);
       source++;
       output = (short *)((unsigned char *)output + stride);
     }
@@ -676,10 +691,11 @@ unsigned int _rwGCNVtxFmtInstTex(void *destination, const RwTexCoords *source,
     break;
   }
   case 4: {
-    RwTexCoords *output = destination;
-    unsigned int index;
+    RwTexCoords *output;
+    int index;
     if (stride == 0)
       stride = sizeof(RwTexCoords);
+    output = destination;
     for (index = 0; index < count; index++) {
       *output = *source++;
       output = (RwTexCoords *)((unsigned char *)output + stride);

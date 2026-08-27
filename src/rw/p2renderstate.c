@@ -2,13 +2,18 @@
 #include "rw/rwerror.h"
 #include "rw/rxpipeline.h"
 
+/* Retail open-codes this plugin offset in the authentic -inline off TU. */
+#define RX_PIPELINE_GLOBALS()                                                \
+    ((RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance +         \
+                                  _rxPipelineGlobalsOffset))
+
 RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(
     RxRenderStateVector* renderState) {
     if (renderState != 0) {
         if (RwEngineInstance->engineStatus == 3) {
-            *renderState = RxPipelineGlobals()->defaultRenderState;
+            *renderState = RX_PIPELINE_GLOBALS()->defaultRenderState;
         } else {
-            if (renderState != &RxPipelineGlobals()->defaultRenderState) {
+            if (renderState != &RX_PIPELINE_GLOBALS()->defaultRenderState) {
                 RwError error;
                 error.pluginID = 1;
                 error.errorCode = _rwerror(0x80000018);
@@ -40,3 +45,5 @@ RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(
     }
     return 0;
 }
+
+#undef RX_PIPELINE_GLOBALS

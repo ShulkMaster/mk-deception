@@ -31,8 +31,10 @@ static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
     RwRGBAReal* lightColor;
     GXColor color;
 
-    RwV3dTransformVector(&direction, &RwFrameGetLTM(RpLightGetFrame(light))->at,
-                         &_RwDlInvCamLTM);
+    RwV3dTransformVector(
+        &direction,
+        &RwFrameGetLTM((RwFrame*)light->object.object.parent)->at,
+        &_RwDlInvCamLTM);
     extension =
         (RwGameCubeLightExt*)((unsigned char*)light + _RwDlLightExtOffset);
     if (extension->useAttenuation == 0) {
@@ -47,9 +49,9 @@ static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
                    -1048576.0f * direction.y,
                    -1048576.0f * -direction.z);
     lightColor = &light->color;
-    color.r = (signed char)(255.0f * lightColor->red);
-    color.g = (signed char)(255.0f * lightColor->green);
-    color.b = (signed char)(255.0f * lightColor->blue);
+    color.r = 255.0f * lightColor->red;
+    color.g = 255.0f * lightColor->green;
+    color.b = 255.0f * lightColor->blue;
     color.a = 0;
     GXInitLightColor(&_RwGCLightObjs[index], color);
     GXLoadLightObjImm(&_RwGCLightObjs[index], 1U << index);
@@ -69,7 +71,7 @@ void _rwGCLightsGlobalEnable(int flags, RwGameCubeLightingData* lighting)
 
         if (light != 0 &&
             (light->object.object.flags & (unsigned char)flags) != 0) {
-            if ((int)RpLightGetType(light) == rpLIGHTDIRECTIONAL) {
+            if ((int)light->object.object.subType == rpLIGHTDIRECTIONAL) {
                 _rpGCHWLightingApplyDirectionalLight(light,
                                                       lighting->lightIndex);
                 lighting->lightMask |= 1U << lighting->lightIndex;
@@ -101,19 +103,20 @@ void _rwGCLightsLocalEnable(RpLight* light,
         GXColor color;
 
         lightColor = &light->color;
-        color.r = (signed char)(255.0f * lightColor->red);
-        color.g = (signed char)(255.0f * lightColor->green);
-        color.b = (signed char)(255.0f * lightColor->blue);
+        color.r = 255.0f * lightColor->red;
+        color.g = 255.0f * lightColor->green;
+        color.b = 255.0f * lightColor->blue;
         color.a = 0;
         GXInitLightColor(&_RwGCLightObjs[lighting->lightIndex], color);
-        lightLTM = RwFrameGetLTM(RpLightGetFrame(light));
+        lightLTM =
+            RwFrameGetLTM((RwFrame*)light->object.object.parent);
         RwV3dTransformPoint(&position, &lightLTM->pos, &_RwDlInvCamLTM);
         GXInitLightPos(&_RwGCLightObjs[lighting->lightIndex], -position.x,
                        position.y, -position.z);
         extension =
             (RwGameCubeLightExt*)((unsigned char*)light + _RwDlLightExtOffset);
 
-        switch (RpLightGetType(light)) {
+        switch (light->object.object.subType) {
         case rpLIGHTPOINT:
             if (extension->useAttenuation == 0) {
                 GXInitLightAttnA(&_RwGCLightObjs[lighting->lightIndex], 1.0f,

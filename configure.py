@@ -457,6 +457,11 @@ config.libs = [
                 "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/mutex_TRK.o",
                 source="dolphin/trk_minnow_dolphin/mutex_TRK.c",
             ),
+            Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/msgbuf.o",
+                source="dolphin/trk_minnow_dolphin/msgbuf.c",
+            ),
         ],
     },
     {
@@ -514,6 +519,16 @@ config.libs = [
                 Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/PPC_EABI/SRC/math_ppc.o",
                 source="runtime/math_ppc.c",
+            ),
+            Object(
+                NonMatching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_pow.o",
+                source="runtime/e_pow.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/k_rem_pio2.o",
+                source="runtime/k_rem_pio2.c",
             ),
             Object(
                 Matching,
@@ -589,6 +604,27 @@ config.libs = [
                 Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/s_cos.o",
                 source="runtime/s_cos.c",
+            ),
+            Object(
+                NonMatching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/char_io.o",
+                source="runtime/char_io.c",
+            ),
+            Object(
+                NonMatching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/direct_io.o",
+                source="runtime/direct_io.c",
+            ),
+            Object(
+                NonMatching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/string.o",
+                source="runtime/string.c",
+            ),
+            Object(
+                NonMatching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/alloc.o",
+                source="runtime/alloc.c",
+                extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly"],
             ),
             Object(
                 Matching,
@@ -943,6 +979,38 @@ config.libs = [
         ],
     },
     {
+        "lib": "libadxgca",
+        "mw_version": game_mw_version,
+        "cflags": cflags_base,
+        "progress_category": "sofdec",
+        "objects": [
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/gcci/gcci_sub.o",
+                source="libadxgca/crimw/dev/adx/src/gcci/gcci_sub.c",
+                extra_cflags=["-O1", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_sfa.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_sfa.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_bahx.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_bahx.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_dcd5.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_dcd5.c",
+                extra_cflags=["-O2,p", "-sdata", "0", "-use_lmw_stmw", "on"],
+            ),
+        ],
+    },
+    {
         "lib": "libmwsfdg",
         "mw_version": softdec_mw_version,
         "cflags": cflags_base,
@@ -992,10 +1060,50 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsee.c",
             ),
             Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/cft/srcgc/cftcoladj.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/cft/srcgc/cftcoladj.c",
+                extra_cflags=["-sdata 0", "-sdata2 0"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.c",
+                extra_cflags=["-sdata 0", "-sdata2 0", "-inline noauto"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_mc.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_mc.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_mcy.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_mcy.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.c",
+                extra_cflags=["-inline noauto", "-use_lmw_stmw", "on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpvabdec.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpvabdec.c",
+                extra_cflags=["-sdata 0", "-sdata2 0"],
+            ),
+            Object(
                 Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/dct/dct_ver.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/dct/dct_ver.c",
                 extra_cflags=["-sdata 0"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/dct/dct_ac.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/dct/dct_ac.c",
+                extra_cflags=["-sdata 0", "-sdata2", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
                 Matching,
@@ -1003,9 +1111,35 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/memcpy/mcp_not.c",
             ),
             Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_deli.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_deli.c",
+            ),
+            Object(
                 Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_m2v.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_m2v.c",
+            ),
+            Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mps/mps_del.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mps/mps_del.c",
+            ),
+            Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_sud.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_sud.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tmr.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tmr.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/memcpyd.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/memcpyd.c",
+                extra_cflags=["-O2,p"],
             ),
             Object(
                 NonMatching,
@@ -1017,6 +1151,23 @@ config.libs = [
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/memsetd.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/memsetd.c",
                 extra_cflags=["-O2,p"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/cmptime.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/cmptime.c",
+                extra_cflags=["-O1"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/uty_tmr.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/uty_tmr.c",
+                extra_cflags=["-sdata", "0"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/uty_ppc.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/uty_ppc.c",
             ),
         ],
     },
@@ -1365,10 +1516,10 @@ config.libs = [
                 extra_cflags=["-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfxmath.o",
                 source="libmkparticle/pfxmath.c",
-                extra_cflags=["-O4,s"],
+                extra_cflags=["-O4,s", "-schedule off", "-fp_contract off"],
             ),
             Object(
                 Matching,
@@ -1398,6 +1549,12 @@ config.libs = [
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/geometry.o",
                 source="libmkparticle/geometry.c",
                 extra_cflags=["-O4,s", "-schedule off", "-fp_contract off", "-opt nopeephole"],
+            ),
+            Object(
+                NonMatching,
+                "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/random.o",
+                source="libmkparticle/random.c",
+                extra_cflags=["-O4,s", "-schedule off", "-fp_contract off"],
             ),
             Object(
                 NonMatching,
@@ -1793,7 +1950,8 @@ config.libs = [
             Object(NonMatching, "rwcore.a/bafsys.obj", source="rw/bafsys.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/bamatrix.obj", source="rw/bamatrix.c",
-                   extra_cflags=["-inline", "off", "-schedule", "off"]),
+                   extra_cflags=["-O4,s", "-inline", "off", "-schedule", "off",
+                                 "-fp_contract", "on"]),
             Object(NonMatching, "rwcore.a/basync.obj", source="rw/basync.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/bavector.obj", source="rw/bavector.c",
@@ -1969,8 +2127,7 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rpskin.a/skinstream.obj", source="rw/skinstream.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
-            Object(NonMatching, "rpskin.a/skinmatrixblend.obj", source="rw/skinmatrixblend.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+            Object(NonMatching, "rpskin.a/skinmatrixblend.obj", source="rw/skinmatrixblend.c"),
             Object(NonMatching, "rpskin.a/skingcnasm.obj", source="rw/skingcnasm.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/skingcn.obj", source="rw/skingcn.c",
@@ -1989,7 +2146,8 @@ config.libs = [
         "rphanim",
         [
             Object(NonMatching, "rphanim.a/stdkey.obj", source="rw/stdkey.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+                   extra_cflags=["-opt", "off", "-O0", "-inline", "off",
+                                 "-fp_contract", "on"]),
             Object(NonMatching, "rphanim.a/rphanim.obj", source="rw/rphanim.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
         ],

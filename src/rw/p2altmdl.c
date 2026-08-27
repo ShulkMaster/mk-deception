@@ -4,9 +4,11 @@ extern RxHeap* _rxHeapGlobal;
 
 RxExecutionContext _rxExecCtxGlobal;
 
+/* Soft ceiling: _rxPacketDestroy ~94.17% -- null-compare instruction selection
+ * and countdown-result register coloring; memory operations and CFG match. */
 void _rxPacketDestroy(RxPacket* packet) {
-    unsigned int numClusters;
     RxPipeline* pipeline;
+    unsigned int numClusters;
     RxCluster* cluster;
 
     pipeline = packet->pipeline;
