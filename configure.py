@@ -342,6 +342,12 @@ config.libs = [
                 "Runtime.PPCEABI.H.a/global_destructor_chain.o",
                 source="runtime/global_destructor_chain.c",
             ),
+            Object(
+                Matching,
+                "Runtime.PPCEABI.H.a/GCN_mem_alloc.o",
+                source="runtime/GCN_mem_alloc.c",
+                extra_cflags=["-str reuse,nopool,readonly"],
+            ),
         ],
     },
     {
@@ -382,6 +388,28 @@ config.libs = [
                 Matching,
                 "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/utils/common/CircleBuffer.o",
                 source="dolphin/trk_minnow_dolphin/CircleBuffer.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/utils/common/MWTrace.o",
+                source="dolphin/trk_minnow_dolphin/MWTrace.c",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/utils/gc/MWCriticalSection_gc.o",
+                source="dolphin/trk_minnow_dolphin/MWCriticalSection_gc.cpp",
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/cc/exi2/GCN/EXI2_DDH_GCN/main.o",
+                source="dolphin/trk_minnow_dolphin/EXI2_DDH_GCN/main.c",
+                extra_cflags=["-sdata 8", "-str reuse,nopool,readonly"],
+            ),
+            Object(
+                Matching,
+                "TRK_MINNOW_DOLPHIN.a/runtime_libs/gamedev/cust_connection/cc/exi2/GCN/EXI2_GDEV_GCN/main.o",
+                source="dolphin/trk_minnow_dolphin/EXI2_GDEV_GCN/main.c",
+                extra_cflags=["-sdata 8", "-str reuse,nopool,readonly"],
             ),
             Object(
                 NonMatching,

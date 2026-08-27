@@ -1,7 +1,5 @@
-/* TODO: Missing implementation for retail unit MWTrace.c. */
+#include "dolphin/types.h"
 
-void *MWTRACE(void)
+void MWTRACE(u8 level, char* format, ...)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }

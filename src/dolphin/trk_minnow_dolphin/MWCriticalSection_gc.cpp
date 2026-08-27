@@ -1,19 +1,20 @@
-/* TODO: Missing implementation for retail unit MWCriticalSection_gc.cpp. */
+#include "dolphin/os.h"
+#include "dolphin/types.h"
 
-void *MWExitCriticalSection(void)
+extern "C" {
+
+void MWInitializeCriticalSection(u32* section)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *MWEnterCriticalSection(void)
+void MWEnterCriticalSection(u32* section)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    *section = OSDisableInterrupts();
 }
 
-void *MWInitializeCriticalSection(void)
+void MWExitCriticalSection(u32* section)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    OSRestoreInterrupts(*section);
+}
+
 }

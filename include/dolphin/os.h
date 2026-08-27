@@ -235,6 +235,7 @@ int __OSUnlockSramEx(int commit);
 OSSram* __OSLockSram(void);
 int __OSUnlockSram(int commit);
 #define OSRoundUp32B(value) (((unsigned long)(value) + 31) & ~31)
+#define OSRoundDown32B(value) ((unsigned long)(value) & ~31)
 #define OSCachedToPhysical(address) ((unsigned long)(address) - 0x80000000UL)
 
 #ifdef __cplusplus
