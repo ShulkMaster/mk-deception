@@ -14,6 +14,11 @@
 #include "mw/mwMemNewDelete.h"
 #include "runtime/cmath.h"
 
+/*
+ * Retail C++ symbols name these as _mslBank and _GameCubeFileEntry. They are
+ * narrow SoundBuffer ABI views, not aliases: merging them with mslLoadedBank
+ * and mslAssetWave changes MWCC alias analysis in otherwise exact callers.
+ */
 struct _mslBank {
     unsigned char pad00[0x3C];
     _mwFile* stream_context;      /* +0x3C */
@@ -41,7 +46,7 @@ class SoundBuffer_Playable;
 
 class SoundBufferPlayableInterface {
 public:
-    virtual void Destroy(short flags);       /* +0x08 */
+    virtual SoundBuffer_Playable* Destroy(short flags); /* +0x08 */
     virtual void FreeObject(void);           /* +0x0C */
     virtual void FreeResources(void);        /* +0x10 */
     virtual void Slot14(void);
@@ -172,6 +177,7 @@ public:
 };
 
 typedef void (*SoundBufferMethod)(SoundBuffer_Playable*);
+typedef int (*SoundBufferIntMethod)(SoundBuffer_Playable*);
 typedef void (*SoundBufferLostVoiceMethod)(
     SoundBuffer_Playable*, _AXVPB*);
 typedef int (*SoundBufferLongMethod)(
@@ -192,7 +198,7 @@ struct SoundBufferPlayableVTable {
     SoundBufferByteMethod SetPan; /* +0x34 */
     SoundBufferByteMethod SetSurroundPan; /* +0x38 */
     unsigned char pad3C[8];
-    SoundBufferMethod Stop;       /* +0x44 */
+    SoundBufferIntMethod Stop;    /* +0x44 */
     unsigned char pad48[0x0C];
     SoundBufferLostVoiceMethod LostVoice; /* +0x54 */
     unsigned char pad58[8];

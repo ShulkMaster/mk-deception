@@ -6,6 +6,7 @@ typedef void (*InitFunc)(void);
 
 #include "dolphin/db.h"
 #include "dolphin/os.h"
+#include "runtime/cstring.h"
 
 #pragma section code_type ".init"
 
@@ -34,12 +35,9 @@ void __init_registers(void);
 void __init_hardware(void);
 static void __init_data(void);
 void __flush_cache(void* address, u32 size);
-void OSInit(void);
 void __init_user(void);
 int main(int argc, char** argv);
 void exit(int status);
-void* memcpy(void* destination, const void* source, u32 size);
-void* memset(void* destination, int value, u32 size);
 
 void InitMetroTRK(void);
 void InitMetroTRK_BBA(void);
@@ -142,7 +140,8 @@ void __start(void) {
  * Retail 0x80003340. Copy initialized DOL sections to RAM, flush copied
  * executable ranges, then clear every BSS range.
  */
-static void __copy_rom_section(void* destination, const void* source, u32 size)
+static inline void __copy_rom_section(
+    void* destination, const void* source, u32 size)
 {
     if (size != 0 && destination != source) {
         memcpy(destination, source, size);
@@ -150,7 +149,7 @@ static void __copy_rom_section(void* destination, const void* source, u32 size)
     }
 }
 
-static void __init_bss_section(void* destination, u32 size)
+static inline void __init_bss_section(void* destination, u32 size)
 {
     if (size != 0) {
         memset(destination, 0, size);

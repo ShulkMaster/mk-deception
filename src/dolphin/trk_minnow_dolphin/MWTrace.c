@@ -1,5 +1,5 @@
-#include "dolphin/types.h"
+#include "dolphin/trk.h"
 
-void MWTRACE(u8 level, char* format, ...)
+void MWTRACE(int level, const char* format, ...)
 {
 }

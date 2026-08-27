@@ -1,8 +1,6 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 
-extern volatile OSHeapHandle __OSCurrHeap;
-
 static inline void InitDefaultHeap(void)
 {
     void* arena_lo;

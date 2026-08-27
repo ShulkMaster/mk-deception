@@ -5,6 +5,7 @@
 #include "game/plyrprofile.h"
 #include "game/settings.h"
 #include "libmkparticle/particle.h"
+#include "msl/mslcore.h"
 #include "platform/display.h"
 #include "platform/gcARam.h"
 #include "platform/gcInit.h"
@@ -81,8 +82,6 @@ extern void unstack_switches(void);
 extern void mkpfx_set_environment(void);
 
 extern void mwFileTick(void);
-
-extern void mslTick(void);
 
 extern void Render(void);
 

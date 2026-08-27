@@ -20,6 +20,7 @@ struct _GameCubeFileEntry;
 
 typedef int (*mslPlayablePlay)(
     mslGCNPlayable* playable, int loop);
+/* Static Stop returns int while stream Stop returns void; callers discard it. */
 typedef void (*mslPlayableStop)(mslGCNPlayable* playable);
 typedef int (*mslPlayablePause)(mslGCNPlayable* playable);
 typedef void (*mslPlayableFreeObject)(mslGCNPlayable* playable);

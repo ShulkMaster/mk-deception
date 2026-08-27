@@ -1,7 +1,5 @@
+#include "dolphin/circle_buffer.h"
 #include "dolphin/os.h"
-#include "dolphin/types.h"
-
-extern "C" {
 
 void MWInitializeCriticalSection(u32* section)
 {
@@ -15,6 +13,4 @@ void MWEnterCriticalSection(u32* section)
 void MWExitCriticalSection(u32* section)
 {
     OSRestoreInterrupts(*section);
-}
-
 }

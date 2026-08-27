@@ -1,10 +1,7 @@
 #include "dolphin/circle_buffer.h"
 #include "dolphin/trk.h"
+#include "runtime/cstring.h"
 
-extern void* memcpy(void* destination, const void* source, u32 size);
-extern void MWInitializeCriticalSection(u32* section);
-extern void MWEnterCriticalSection(u32* section);
-extern void MWExitCriticalSection(u32* section);
 
 u32 CBGetBytesAvailableForRead(CircleBuffer* buffer)
 {
