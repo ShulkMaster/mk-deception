@@ -1,7 +1,4 @@
-typedef unsigned char u8;
-typedef signed int s32;
-typedef unsigned int u32;
-typedef unsigned long long u64;
+#include "dolphin/types.h"
 
 typedef struct CFTYcc420Planar {
     const u8* y;

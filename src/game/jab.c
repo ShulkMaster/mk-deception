@@ -900,7 +900,7 @@ void bulvan_function(int command) {
             pfx_bind_emitter_to_obj_bone(effect, tracked_object, 9);
             pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 8.0f;
             effect->field_90 = 0x1EF;
-            effect->field_28 = -50.0f;
+            effect->depth_bias = -50.0f;
             effect->field_298 = 100.0f;
             effect->field_29C = 80.0f;
             effect->field_2A4 = 1.0f;
@@ -922,7 +922,7 @@ void bulvan_function(int command) {
             effect->emitter_enabled = 0;
             pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 24.0f;
             effect->field_90 = 0xA8;
-            effect->field_28 = -50.0f;
+            effect->depth_bias = -50.0f;
             effect->field_298 = 50.0f;
             effect->field_29C = 7.0f;
             effect->field_2A0 = 0.0f;
@@ -1336,7 +1336,7 @@ void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 5.0f;
         effect->field_90 = 0x12C;
-        effect->field_28 = -50.0f;
+        effect->depth_bias = -50.0f;
         effect->field_2B8 = chunk_type;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
         emitter_object->pos.value.x = position->x;
@@ -1606,7 +1606,7 @@ void sh_start_grinder_crush_blood(const Vec* position) {
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 15.0f;
         effect->field_90 = 0x12C;
-        effect->field_28 = -50.0f;
+        effect->depth_bias = -50.0f;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
         emitter_object->pos.value.x = position->x;
         emitter_object->pos.value.y = position->y;
@@ -1630,7 +1630,7 @@ void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
         effect->field_90 = 0x82;
-        effect->field_28 = -50.0f;
+        effect->depth_bias = -50.0f;
         effect->field_298 = 120.0f;
         effect->field_2B8 = chunk_type;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
@@ -1892,7 +1892,7 @@ void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
         effect->emitter_enabled = 1;
         pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
         effect->field_90 = 0x82;
-        effect->field_28 = -50.0f;
+        effect->depth_bias = -50.0f;
         effect->field_298 = 120.0f;
         effect->field_2B8 = chunk_type;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);

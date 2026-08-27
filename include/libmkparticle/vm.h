@@ -11,7 +11,14 @@ typedef struct PfxVec3 {
 } PfxVec3;
 
 typedef struct PfxTransform {
-    PfxMatrix matrix;
+    union {
+        PfxMatrix matrix;
+        struct {
+            char pad00[0x30];
+            PfxVec3 position;
+            char pad3C[4];
+        };
+    };
     char pad40[4];
     int particle_field_stride; /* +0x44 */
 } PfxTransform;

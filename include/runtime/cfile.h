@@ -1,13 +1,12 @@
 #ifndef MKD_RUNTIME_CFILE_H
 #define MKD_RUNTIME_CFILE_H
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned long u32;
+#include "dolphin/types.h"
+
 typedef unsigned long size_t;
 
-typedef unsigned long file_handle;
-typedef unsigned long file_position;
+typedef u32 file_handle;
+typedef u32 file_position;
 
 typedef struct FileMode {
     u32 open_mode : 2;

@@ -4699,7 +4699,7 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     bl_front_wall_effect_at("smoke_wall", -0.2512f, 0.0f, 18.8613f);
     effect = find_pfx_by_name("smoke_wall");
     if (effect != 0) {
-        effect->field_28 = -50.0f;
+        effect->depth_bias = -50.0f;
     }
 
     camera_dx = camera_start.x - camera_end.x;
@@ -5574,7 +5574,7 @@ static float p_beetle_lair_column_breaking(void) {
     bl_column_effect_at("dust", effect_x, 0.8f, effect_z);
     effect = find_pfx_by_name("dust");
     if (effect != 0) {
-        effect->field_28 = 50.0f;
+        effect->depth_bias = 50.0f;
     }
 
     piece = obj_find_sobj_by_id(g_game_info.bgnd_obj, first_piece_id + 4);
@@ -5817,7 +5817,7 @@ static inline void bl_launch_column_dust(const char* name, MkSobj* piece) {
 
     first_dust = find_pfx_by_name("dust_small_1");
     if (first_dust != 0) {
-        first_dust->field_28 = 50.0f;
+        first_dust->depth_bias = 50.0f;
     }
 }
 
@@ -8878,7 +8878,7 @@ void bgnd_set_fx_z_offset(const char* name, float z_offset) {
 
     effect = find_pfx_by_name(name);
     if (effect != 0) {
-        effect->field_28 = z_offset;
+        effect->depth_bias = z_offset;
     }
 }
 void bgnd_set_fx_ang_y(void* script, float angle) {
