@@ -1,31 +1,53 @@
-/* TODO: Missing implementation for retail unit uty_tmr.c. */
+typedef unsigned int u32;
+typedef unsigned long long u64;
+typedef signed int s32;
 
-void *UTY_GetTmrUnit(void)
+#define UTY_BUS_CLOCK (*(u32*)0x800000F8)
+
+extern u64 OSGetTime(void);
+
+u64 utytmr_unit;
+s32 utytmr_init_cnt;
+s32 utytmr_ch;
+
+u64 UTY_GetTmrUnit(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return utytmr_unit;
 }
 
-void *UTY_IsTmrVoid(void)
+s32 UTY_IsTmrVoid(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (utytmr_init_cnt > 0 && utytmr_ch != -1) {
+        (void)OSGetTime();
+    }
+    return utytmr_unit == 1;
 }
 
-void *UTY_GetTmr(void)
+u64 UTY_GetTmr(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (utytmr_init_cnt <= 0 || utytmr_ch == -1) {
+        return 0;
+    }
+    return OSGetTime();
 }
 
-void *UTY_FinishTmr(void)
+void UTY_FinishTmr(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    utytmr_init_cnt--;
+    if (utytmr_init_cnt < 0) {
+        utytmr_init_cnt = 0;
+    }
 }
 
-void *UTY_InitTmr(void)
+void UTY_InitTmr(s32 channel)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    utytmr_init_cnt++;
+    if (utytmr_init_cnt <= 1 || utytmr_ch != channel) {
+        utytmr_ch = channel;
+        if (channel == -1) {
+            utytmr_unit = 1;
+        } else {
+            utytmr_unit = UTY_BUS_CLOCK >> 2;
+        }
+    }
 }

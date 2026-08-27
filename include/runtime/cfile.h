@@ -66,10 +66,8 @@ typedef char MSLFileSizeCheck[sizeof(FILE) == 0x50 ? 1 : -1];
 
 FILE* fopen(const char* name, const char* mode);
 int fclose(FILE* file);
-unsigned int fread(void* address, unsigned int size, unsigned int count,
-                   FILE* file);
-unsigned int fwrite(const void* address, unsigned int size,
-                    unsigned int count, FILE* file);
+size_t fread(void* address, size_t size, size_t count, FILE* file);
+size_t fwrite(const void* address, size_t size, size_t count, FILE* file);
 char* fgets(char* buffer, int maxLength, FILE* file);
 int fputs(const char* buffer, FILE* file);
 int feof(FILE* file);
