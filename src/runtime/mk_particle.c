@@ -3,6 +3,7 @@
 #include "game/game_info.h"
 #include "libmkparticle/metrics.h"
 #include "runtime/mk_mem.h"
+#include "runtime/mk_render.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 
@@ -57,9 +58,6 @@ void pfx_reset_renderstate(void* vm);
 /* Retail usec timers return elapsed u64 in r3:r4. */
 unsigned long long stop_usec_timer(int id);
 void start_usec_timer(int id);
-
-void InsertPFXInTranslTree(MkHdr* hdr);
-void InsertPFXCloneInTranslTree(MkHdr* hdr);
 
 /* ---- file-local / BSS ---- */
 
@@ -148,7 +146,7 @@ static PfxVm* pfx_vm(MkPfx* pfx) {
 /* Retail function order                                                     */
 /* ======================================================================== */
 
-void mkpfx_get_origin(MkPfx* pfx, float* origin) {
+void mkpfx_get_origin(MkPfx* pfx, float origin[3]) {
     int slot;
     PfxSlot* slot_base;
     MkHdr* bound;
@@ -160,7 +158,7 @@ void mkpfx_get_origin(MkPfx* pfx, float* origin) {
 
     slot = pfx->active_slot;
     slot_base = pfx->slot_table;
-    mat = pfx->mats[slot].m;
+    mat = pfx->transforms[slot].matrix.elements;
     bound = slot_base->hdr;
     if (bound != 0) {
         if (bound->instance != slot_base->instance) {
@@ -315,7 +313,7 @@ void render_pfx_clone(PfxClone* clone) {
     }
 
     pfx = clone->parent;
-    mat = pfx->mats[pfx->active_slot].m;
+    mat = pfx->transforms[pfx->active_slot].matrix.elements;
     memcpy(save, mat, 0x40);
     memcpy(mat, clone->matrix_copy, 0x40);
 
@@ -726,8 +724,8 @@ PfxClone* pfx_create_clone(MkPfx* pfx) {
     clone->bind2_hdr = 0;
     clone->bind2_inst = 0;
     *(unsigned int*)&clone->flags = 0;
-    clone->field_24 = zero;
-    clone->field_28 = 0x12;
+    clone->depth_bias = zero;
+    clone->priority = 0x12;
     mk_insert(&clone->hdr, &pfx_clone_render_list);
     return clone;
 }
@@ -786,8 +784,8 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     pfx->bind_hdr = 0;
     pfx->bind_inst = 0;
     pfx->slot_table = 0;
-    pfx->field_28 = zero;
-    pfx->field_2C = 0x12;
+    pfx->depth_bias = zero;
+    pfx->priority = 0x12;
     pfx->accum_34 = zero;
     pfx->accum_38 = zero;
     pfx->mem = 0;

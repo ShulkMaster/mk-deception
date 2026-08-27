@@ -1,6 +1,5 @@
 #include "dolphin/os.h"
-
-typedef void (*IdleProc)(void);
+#include "runtime/cfile.h"
 
 int InitializeUART(unsigned long baudRate);
 int WriteUARTN(void* buffer, unsigned long length);

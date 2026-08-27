@@ -2,7 +2,6 @@
 
 extern void __begin_critical_region(int region);
 extern void __end_critical_region(int region);
-extern int fflush(FILE* file);
 extern void free(void* allocation);
 extern void* malloc(size_t size);
 

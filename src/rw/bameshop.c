@@ -10,13 +10,13 @@ RpMeshHeader *RpBuildMeshGenerateDefaultTriStrip(RpBuildMesh *, void *);
 extern void qsort(void *, unsigned int, unsigned int,
                   int (*)(const void *, const void *));
 
-#define MeshReportAllocationFailure(value)                                     \
-    do {                                                                       \
-        RwError error;                                                         \
-        error.pluginID = 2;                                                    \
-        error.errorCode = _rwerror(0x80000013, (value));                       \
-        RwErrorSet(&error);                                                    \
-    } while (0)
+static void MeshReportAllocationFailure(int value)
+{
+    RwError error;
+    error.pluginID = 2;
+    error.errorCode = _rwerror(0x80000013, value);
+    RwErrorSet(&error);
+}
 
 typedef struct TriStripListEntry {
     unsigned short *strip;
@@ -66,7 +66,13 @@ typedef struct RpMeshopStatic {
     void *data;
 } RpMeshopStatic;
 
-#define MeshGlobals()                                                          \
+static RpMeshGlobals *MeshGlobals(void)
+{
+    return (RpMeshGlobals *)((unsigned char *)RwEngineInstance +
+                             meshModule.globalsOffset);
+}
+
+#define MeshGlobalsInline()                                                    \
     ((RpMeshGlobals *)((unsigned char *)RwEngineInstance +                     \
                        meshModule.globalsOffset))
 
@@ -506,9 +512,9 @@ static int TriStripStripTris(RpBuildMeshTriangle *triList, unsigned int numTris,
         entries[i]->prev = 0;
     }
 
-    forward = RwEngineInstance->fpFreeListAlloc(MeshGlobals()->triStripListEntryFreeList,
+    forward = RwEngineInstance->fpFreeListAlloc(MeshGlobalsInline()->triStripListEntryFreeList,
                               0x10000 | 0x502);
-    reverse = RwEngineInstance->fpFreeListAlloc(MeshGlobals()->triStripListEntryFreeList,
+    reverse = RwEngineInstance->fpFreeListAlloc(MeshGlobalsInline()->triStripListEntryFreeList,
                               0x10000 | 0x502);
     forward->stripSize = reverse->stripSize = numTris * 2 + 2;
     forward->stripLen = reverse->stripLen = 0;
@@ -527,7 +533,7 @@ static int TriStripStripTris(RpBuildMeshTriangle *triList, unsigned int numTris,
             TriBinEntry *isolated = bins[0].head;
             RpBuildMeshTriangle *triangle = &triList[isolated->tri];
 
-            output = RwEngineInstance->fpFreeListAlloc(MeshGlobals()->triStripListEntryFreeList,
+            output = RwEngineInstance->fpFreeListAlloc(MeshGlobalsInline()->triStripListEntryFreeList,
                                      0x30000 | 0x502);
             output->next = stripList->head;
             stripList->head = output;
@@ -649,7 +655,7 @@ static int TriStripStripTris(RpBuildMeshTriangle *triList, unsigned int numTris,
                         continue;
 
                     output = RwEngineInstance->fpFreeListAlloc(
-                        MeshGlobals()->triStripListEntryFreeList,
+                        MeshGlobalsInline()->triStripListEntryFreeList,
                         0x30000 | 0x502);
                     output->next = stripList->head;
                     stripList->head = output;
@@ -675,7 +681,7 @@ static int TriStripStripTris(RpBuildMeshTriangle *triList, unsigned int numTris,
                         continue;
 
                     output = RwEngineInstance->fpFreeListAlloc(
-                        MeshGlobals()->triStripListEntryFreeList,
+                        MeshGlobalsInline()->triStripListEntryFreeList,
                         0x30000 | 0x502);
                     output->next = stripList->head;
                     stripList->head = output;
@@ -691,9 +697,9 @@ static int TriStripStripTris(RpBuildMeshTriangle *triList, unsigned int numTris,
     }
 
     RwEngineInstance->fpFree(reverse->strip);
-    RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, reverse);
+    RwEngineInstance->fpFreeListFree(MeshGlobalsInline()->triStripListEntryFreeList, reverse);
     RwEngineInstance->fpFree(forward->strip);
-    RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, forward);
+    RwEngineInstance->fpFreeListFree(MeshGlobalsInline()->triStripListEntryFreeList, forward);
     TriStripBinEntryArrayDestroy(numTris, &freeLists, edgeList, entries);
     return 1;
 }
@@ -708,7 +714,7 @@ static int TriStripJoin(TriStripList *stripList, int maintainWinding) {
     }
 
     joined = RwEngineInstance->fpFreeListAlloc(
-        MeshGlobals()->triStripListEntryFreeList,
+        MeshGlobalsInline()->triStripListEntryFreeList,
         0x30000 | 0x502);
     joined->stripLen = 0;
     joined->stripSize = 0;
@@ -728,7 +734,7 @@ static int TriStripJoin(TriStripList *stripList, int maintainWinding) {
     remaining->strip = 0;
     {
         TriStripListEntry *next = remaining->next;
-        RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, remaining);
+        RwEngineInstance->fpFreeListFree(MeshGlobalsInline()->triStripListEntryFreeList, remaining);
         remaining = next;
     }
 
@@ -785,7 +791,7 @@ static int TriStripJoin(TriStripList *stripList, int maintainWinding) {
         if (remaining == selected) {
             remaining = selected->next;
             RwEngineInstance->fpFreeListFree(
-                MeshGlobals()->triStripListEntryFreeList, selected);
+                MeshGlobalsInline()->triStripListEntryFreeList, selected);
         } else {
             previous = remaining;
             while (previous->next != selected) {
@@ -793,7 +799,7 @@ static int TriStripJoin(TriStripList *stripList, int maintainWinding) {
             }
             previous->next = selected->next;
             RwEngineInstance->fpFreeListFree(
-                MeshGlobals()->triStripListEntryFreeList, selected);
+                MeshGlobalsInline()->triStripListEntryFreeList, selected);
         }
     }
 
@@ -862,7 +868,7 @@ static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, int preprocess,
     materialRuns[runCount - 1].numIndices =
         mesh->numTriangles - materialRuns[runCount - 1].numIndices;
 
-    MeshGlobals()->triStripListEntryFreeList = RwFreeListCreate(
+    MeshGlobalsInline()->triStripListEntryFreeList = RwFreeListCreate(
         sizeof(TriStripListEntry), (mesh->numTriangles / 10) + 5,
         sizeof(unsigned int), 0x10000 | 0x502);
 
@@ -903,13 +909,13 @@ static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, int preprocess,
             entry = strips.head;
             strips.head = entry->next;
             RwEngineInstance->fpFree(entry->strip);
-            RwEngineInstance->fpFreeListFree(MeshGlobals()->triStripListEntryFreeList, entry);
+            RwEngineInstance->fpFreeListFree(MeshGlobalsInline()->triStripListEntryFreeList, entry);
         }
         RwEngineInstance->fpFree(triangles);
     }
 
-    RwFreeListDestroy(MeshGlobals()->triStripListEntryFreeList);
-    MeshGlobals()->triStripListEntryFreeList = 0;
+    RwFreeListDestroy(MeshGlobalsInline()->triStripListEntryFreeList);
+    MeshGlobalsInline()->triStripListEntryFreeList = 0;
 
     for (i = 0; i < generatedCount; i++) {
         headerSize += sizeof(RpMesh) +
@@ -920,7 +926,7 @@ static RpMeshHeader *TriStripMeshGenerate(RpBuildMesh *mesh, int preprocess,
     header = _rpMeshHeaderCreate(headerSize);
     header->flags = 1;
     header->numMeshes = generatedCount;
-    header->serialNum = MeshGlobals()->nextSerialNum++;
+    header->serialNum = MeshGlobalsInline()->nextSerialNum++;
     header->firstMeshOffset = 0;
     header->totalIndices = totalIndices;
 
@@ -1008,8 +1014,7 @@ RpMeshHeader *_rpTriListMeshGenerate(RpBuildMesh *buildMesh,
     outputMesh->numIndices = 0;
     outputMesh->material = triPointers[0]->material;
 
-    i = 0;
-    do {
+    for (i = 0; i < buildMesh->numTriangles; i++) {
         RpBuildMeshTriangle *triangle = triPointers[i];
         if (triangle->material != outputMesh->material) {
             outputMesh++;
@@ -1022,8 +1027,7 @@ RpMeshHeader *_rpTriListMeshGenerate(RpBuildMesh *buildMesh,
         *outputIndex++ = triangle->vertIndex[1];
         *outputIndex++ = triangle->vertIndex[2];
         outputMesh->numIndices += 3;
-        i++;
-    } while (i < buildMesh->numTriangles);
+    }
 
     _rpMeshHeaderForAllMeshes(header, SortPolygonsInTriListMesh, 0);
     RwEngineInstance->fpFree(triPointers);

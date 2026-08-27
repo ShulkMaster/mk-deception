@@ -1,6 +1,8 @@
 #include "runtime/mk_render.h"
 
 #include "platform/display.h"
+#include "libmkparticle/rw_engine.h"
+#include "runtime/mk_particle.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_vtbl.h"
 #include "rw/rwframe.h"
@@ -27,70 +29,14 @@ typedef struct TranslSortNode {
     void* payload;
 } TranslSortNode; /* 0x1C */
 
-typedef struct PfxSortTransformView {
-    char pad00[0x30];
-    RwV3d position;
-    char pad3C[0x0C];
-} PfxSortTransformView; /* 0x48 */
-
-typedef struct PfxSortRuntimeView {
-    char pad00[0x54];
-    int active;          /* +0x54 / PfxSortView +0x94 */
-    int transform_index; /* +0x58 / PfxSortView +0x98 */
-    char pad5C[0x14];
-    PfxSortTransformView transforms[1]; /* +0x70 */
-} PfxSortRuntimeView;
-
-typedef struct PfxSortView {
-    char pad00[8];
-    union {
-        unsigned char flags_08;
-        struct {
-            unsigned char bit7 : 1;
-            unsigned char bit6 : 1;
-            unsigned char bit5 : 1;
-            unsigned char bit4 : 1;
-            unsigned char skip_translucent_sort : 1;
-            unsigned char pad_low : 3;
-        } flags_08_bits;
-    };
-    char pad09[0x1F];
-    float depth_bias; /* +0x28 */
-    int priority;     /* +0x2C */
-    char pad30[0x10];
-    PfxSortRuntimeView runtime; /* +0x40 */
-} PfxSortView;
-
-typedef struct PfxCloneSortView {
-    MkVtable5* vtbl;
-    unsigned int instance;
-    char pad08[4];
-    PfxSortView* pfx; /* +0x0C */
-    char pad10[0x14];
-    float depth_bias; /* +0x24 */
-    int priority;     /* +0x28 */
-} PfxCloneSortView;
-
-typedef struct RenderEngineView {
-    char pad00[0x20];
-    int (*render_state_set)(int state, int value, void* engine);
-    void (*render_state_get)(int state, void* out, void* engine);
-} RenderEngineView;
-
 extern RwCamera* Camera;
 extern RwMatrix* camera_mat;
 extern int curr_pipeline_used;
 extern int last_pipeline_used;
 extern unsigned long f_render_all_atomics;
-extern RenderEngineView* RwEngineInstance;
 
 void atomic_set_transl_flag(RpAtomic* atomic);
 void obj_set_rw_lights(MkObj* object);
-void pfx_start_batch(void);
-void pfx_end_batch(void);
-void render_pfx(void* pfx);
-void render_pfx_clone(void* clone);
-void mkpfx_get_origin(PfxSortView* pfx, RwV3d* origin);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
 
 static TranslSortNode transl_sort_nodes[250];
@@ -200,13 +146,16 @@ void init_mk_render(void) {
 }
 
 void InsertPFXCloneInTranslTree(MkHdr* clone_hdr) {
-    PfxCloneSortView* clone = (PfxCloneSortView*)clone_hdr;
-    PfxSortView* candidate;
-    PfxSortView* valid_pfx;
-    PfxSortRuntimeView* runtime;
+    PfxClone* clone = (PfxClone*)clone_hdr;
+    MkPfx* candidate;
+    MkPfx* valid_pfx;
+    PfxVm* runtime;
     TranslSortNode* node;
-    TranslNodeFlags flags_pair[2];
-    RwV3d* position;
+    struct {
+        TranslNodeFlags copy;
+        TranslNodeFlags source;
+    } flags;
+    PfxVec3* position;
     RwMatrix* camera_matrix;
     float depth;
     int index;
@@ -214,31 +163,31 @@ void InsertPFXCloneInTranslTree(MkHdr* clone_hdr) {
     if (clone == 0) {
         return;
     }
-    candidate = clone->pfx;
-    if (*(MkVtable5**)candidate == &vtbl_pfx) {
+    candidate = clone->parent;
+    if (candidate->hdr.vtbl == &vtbl_pfx) {
         valid_pfx = candidate;
     } else {
         valid_pfx = 0;
     }
     if (valid_pfx == 0) {
-        if (clone->instance != 0) {
-            ((int (*)(PfxCloneSortView*))clone->vtbl->destroy)(clone);
+        if (clone->hdr.instance != 0) {
+            clone->hdr.typed_vtbl->destroy(&clone->hdr);
         }
         return;
     }
-    runtime = &candidate->runtime;
-    if (runtime->active == 0) {
+    runtime = (PfxVm*)candidate->matrix;
+    if (runtime->particle_cursor == 0) {
         return;
     }
-    index = runtime->transform_index;
+    index = runtime->active_transform;
     position = &runtime->transforms[index].position;
     camera_matrix = camera_mat;
-    flags_pair[1].word = 0;
-    flags_pair[1].bits.pfx_clone = 1;
+    flags.source.word = 0;
+    flags.source.bits.pfx_clone = 1;
     depth = (position->z - camera_matrix->pos.z) * camera_matrix->at.z +
             ((position->x - camera_matrix->pos.x) * camera_matrix->at.x +
              (position->y - camera_matrix->pos.y) * camera_matrix->at.y);
-    flags_pair[0] = flags_pair[1];
+    flags.copy = flags.source;
     depth += clone->depth_bias;
     node_index = num_render_nodes;
     if (node_index >= 250) {
@@ -246,7 +195,7 @@ void InsertPFXCloneInTranslTree(MkHdr* clone_hdr) {
     }
     num_render_nodes = node_index + 1;
     node = &transl_sort_nodes[node_index];
-    node->flags = flags_pair[0];
+    node->flags = flags.copy;
     node->payload = clone;
     node->priority = clone->priority;
     node->depth = depth;
@@ -254,7 +203,7 @@ void InsertPFXCloneInTranslTree(MkHdr* clone_hdr) {
 }
 
 void InsertPFXInTranslTree(MkHdr* pfx_hdr) {
-    PfxSortView* pfx = (PfxSortView*)pfx_hdr;
+    MkPfx* pfx = (MkPfx*)pfx_hdr;
     TranslSortNode* node;
     TranslNodeFlags flags_pair[2];
     RwV3d origin;
@@ -262,8 +211,8 @@ void InsertPFXInTranslTree(MkHdr* pfx_hdr) {
     float depth;
     int node_index;
     int priority;
-    if (pfx != 0 && !pfx->flags_08_bits.skip_translucent_sort && pfx->runtime.active != 0) {
-        mkpfx_get_origin(pfx, &origin);
+    if (pfx != 0 && !pfx->flag_bits.skip_translucent_sort && pfx->field_94 != 0) {
+        mkpfx_get_origin(pfx, &origin.x);
         camera_matrix = camera_mat;
         flags_pair[1].word = 0;
         flags_pair[1].bits.pfx = 1;
@@ -372,8 +321,8 @@ void render_mkatomic(RpAtomic* atomic) {
             set_render_state(0xB, (unsigned short)sobj->render_flags);
         }
         if (sobj->flags09_bits.bit0) {
-            RwEngineInstance->render_state_get(0xE, &saved_state, RwEngineInstance);
-            RwEngineInstance->render_state_set(0xE, 0, RwEngineInstance);
+            RwEngineInstance->fpRenderStateGet(0xE, &saved_state);
+            RwEngineInstance->fpRenderStateSet(0xE, 0);
         }
         if ((sobj->id_flags & 0x20000000) != 0 || sobj->owner->oid == 0x5004) {
             set_render_state(0x14, 1);
@@ -402,7 +351,7 @@ void render_mkatomic(RpAtomic* atomic) {
             set_render_state(0xB, 6);
         }
         if (sobj->flags09_bits.bit0)
-            RwEngineInstance->render_state_set(0xE, saved_state, RwEngineInstance);
+            RwEngineInstance->fpRenderStateSet(0xE, saved_state);
     }
 }
 

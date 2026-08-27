@@ -28,8 +28,6 @@ extern int __read_console(file_handle, u8 *, size_t *, IdleProc);
 extern int __write_console(file_handle, u8 *, size_t *, IdleProc);
 extern int __close_console(file_handle);
 
-extern int fflush(FILE *);
-extern int fclose(FILE *);
 extern int setvbuf(FILE *, char *, int, size_t);
 extern void __begin_critical_region(int);
 extern void __end_critical_region(int);
