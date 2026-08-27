@@ -39,7 +39,7 @@ void DSPSendMailToDSP(unsigned long mail)
     DSP_REGISTERS[1] = mail & 0xFFFF;
 }
 
-void DSPAssertInt(void)
+inline void DSPAssertInt(void)
 {
     int enabled;
     unsigned short control;

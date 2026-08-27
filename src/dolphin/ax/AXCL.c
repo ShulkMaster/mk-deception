@@ -25,7 +25,7 @@ unsigned long __AXGetCommandListAddress(void)
     return address;
 }
 
-static void __AXWriteToCommandList(unsigned short data)
+static inline void __AXWriteToCommandList(unsigned short data)
 {
     *__AXClWrite = data;
     __AXClWrite++;

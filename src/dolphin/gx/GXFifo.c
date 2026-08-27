@@ -32,7 +32,7 @@ static void __GXWriteFifoIntReset(u8 hiWatermarkClr, u8 loWatermarkClr);
 static char __data_0[] = "[GXOverflowHandler]";
 #endif
 
-static void GXOverflowHandler(__OSInterrupt interrupt, OSContext* context) {
+static inline void GXOverflowHandler(__OSInterrupt interrupt, OSContext* context) {
 #if DEBUG
     if (__gxVerif->verifyLevel > GX_WARN_SEVERE) {
         OSReport(__data_0);
@@ -53,7 +53,7 @@ static void GXOverflowHandler(__OSInterrupt interrupt, OSContext* context) {
     OSSuspendThread(__GXCurrentThread);
 }
 
-static void GXUnderflowHandler(s16 interrupt, OSContext* context) {
+static inline void GXUnderflowHandler(s16 interrupt, OSContext* context) {
 #if DEBUG
     if (__gxVerif->verifyLevel > GX_WARN_SEVERE) {
         OSReport("[GXUnderflowHandler]");
@@ -72,7 +72,7 @@ static void GXUnderflowHandler(s16 interrupt, OSContext* context) {
 		(reg) = (u32)__rlwimi((u32)(reg), (val), (shift), (32 - (shift) - (size)), (31 - (shift))); \
 	} while (0);
 
-static void GXBreakPointHandler(__OSInterrupt interrupt, OSContext* context) {
+static inline void GXBreakPointHandler(__OSInterrupt interrupt, OSContext* context) {
     OSContext exceptionContext;
 
     INSERT_REG_FIELD(__GXData->cpEnable, 1, 5, 0);
@@ -315,7 +315,7 @@ void __GXSaveCPUFifoAux(__GXFifoObj* realFifo) {
     OSRestoreInterrupts(enabled);
 }
 
-void GXSaveGPFifo(GXFifoObj* fifo) {
+inline void GXSaveGPFifo(GXFifoObj* fifo) {
     __GXFifoObj* realFifo = (__GXFifoObj*)fifo;
 #if SDK_REVISION < 2
     u32 cpStatus;
@@ -342,7 +342,7 @@ void GXSaveGPFifo(GXFifoObj* fifo) {
 #endif
 }
 
-void GXGetGPStatus(GXBool* overhi, GXBool* underlow, GXBool* readIdle, GXBool* cmdIdle, GXBool* brkpt) {
+inline void GXGetGPStatus(GXBool* overhi, GXBool* underlow, GXBool* readIdle, GXBool* cmdIdle, GXBool* brkpt) {
     __GXData->cpStatus = GX_GET_CP_REG(0);
     *overhi   = GET_REG_FIELD(__GXData->cpStatus, 1, 0);
     *underlow = (int)GET_REG_FIELD(__GXData->cpStatus, 1, 1);
@@ -351,7 +351,7 @@ void GXGetGPStatus(GXBool* overhi, GXBool* underlow, GXBool* readIdle, GXBool* c
     *brkpt    = (int)GET_REG_FIELD(__GXData->cpStatus, 1, 4);
 }
 
-void GXGetFifoStatus(GXFifoObj* fifo, GXBool* overhi, GXBool* underflow, u32* fifoCount, GXBool* cpuWrite, GXBool* gpRead, GXBool* fifowrap) {
+inline void GXGetFifoStatus(GXFifoObj* fifo, GXBool* overhi, GXBool* underflow, u32* fifoCount, GXBool* cpuWrite, GXBool* gpRead, GXBool* fifowrap) {
     __GXFifoObj* realFifo = (__GXFifoObj*)fifo;
 
     *underflow = GX_FALSE;
@@ -398,19 +398,19 @@ void GXGetFifoPtrs(GXFifoObj* fifo, void** readPtr, void** writePtr) {
     *writePtr = realFifo->wrPtr;
 }
 
-void* GXGetFifoBase(const GXFifoObj* fifo) {
+inline void* GXGetFifoBase(const GXFifoObj* fifo) {
     __GXFifoObj* realFifo = (__GXFifoObj*)fifo;
 
     return realFifo->base;
 }
 
-u32 GXGetFifoSize(const GXFifoObj* fifo) {
+inline u32 GXGetFifoSize(const GXFifoObj* fifo) {
     __GXFifoObj* realFifo = (__GXFifoObj*)fifo;
 
     return realFifo->size;
 }
 
-void GXGetFifoLimits(const GXFifoObj* fifo, u32* hi, u32* lo) {
+inline void GXGetFifoLimits(const GXFifoObj* fifo, u32* hi, u32* lo) {
     __GXFifoObj* realFifo = (__GXFifoObj*)fifo;
 
     *hi = realFifo->hiWatermark;
@@ -492,7 +492,7 @@ static void __GXWriteFifoIntReset(u8 hiWatermarkClr, u8 loWatermarkClr) {
     GX_SET_CP_REG(2, __GXData->cpClr);
 }
 
-void __GXInsaneWatermark(void) {
+inline void __GXInsaneWatermark(void) {
     __GXFifoObj* realFifo = GPFifo;
 
     realFifo->hiWatermark = realFifo->loWatermark + 512;
@@ -538,7 +538,7 @@ OSThread* GXSetCurrentGXThread(void) {
     return prev;
 }
 
-OSThread* GXGetCurrentGXThread(void) {
+inline OSThread* GXGetCurrentGXThread(void) {
     return __GXCurrentThread;
 }
 

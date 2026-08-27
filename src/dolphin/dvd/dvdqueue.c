@@ -33,7 +33,7 @@ int __DVDPushWaitingQueue(int priority, DVDCommandBlock* block)
     return 1;
 }
 
-static DVDCommandBlock* PopWaitingQueuePriority(int priority)
+static inline DVDCommandBlock* PopWaitingQueuePriority(int priority)
 {
     DVDCommandBlock* block;
     int enabled;
