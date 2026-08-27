@@ -3,11 +3,11 @@
 
 void mat_set_identity(PfxMatrix* matrix) {
     int i;
-    float* row;
+    float (*elements)[4];
 
     memset(matrix, 0, sizeof(*matrix));
-    row = matrix->elements;
-    for (i = 0; i < 4; i++, row += 4) {
-        row[i] = 1.0f;
+    elements = (float (*)[4])matrix->elements;
+    for (i = 0; i < 4; i++) {
+        elements[i][i] = 1.0f;
     }
 }
