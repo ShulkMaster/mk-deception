@@ -1,22 +1,6 @@
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
+#include "sofdec/mpv_mc.h"
 
-typedef struct MPVMC08Context {
-    void (*functions08[4])(struct MPVMC08Context* context);
-    u8 padding_10[8];
-    u8* destination;
-    u32 padding_1c;
-    u32 reference_stride;
-    u8* reference0;
-    u8* reference1;
-    u8 padding_2c[8];
-    void (*functions16[4])(struct MPVMC08Context* context);
-} MPVMC08Context;
-
-typedef void (*MPVMC08Function)(MPVMC08Context* context);
-
-static const MPVMC08Function mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
+static const MPVMCFunction mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
 
 static inline u32 mpvmc_pack_avg4(const u8* reference0, const u8* reference1)
 {
@@ -81,12 +65,12 @@ static inline void mpvmc_copy_shift3_row(const u8* reference, u8* destination)
     ((u32*)destination)[1] = (words[1] << 24) | (words[2] >> 8);
 }
 
-void MPVMC08_OneRef4p_TuneC(MPVMC08Context* context)
+void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
 {
     int row;
     u32 stride = context->reference_stride;
-    u8* reference0 = context->reference0;
-    u8* reference1 = context->reference1;
+    const u8* reference0 = context->reference0;
+    const u8* reference1 = context->reference1;
     u8* destination = context->destination;
 
     for (row = 0; row < 8; row++) {
@@ -98,7 +82,7 @@ void MPVMC08_OneRef4p_TuneC(MPVMC08Context* context)
     }
 }
 
-void MPVMC08_OneRefH2_TuneC(MPVMC08Context* context)
+void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
 {
     int row;
     int alignment = (u32)context->reference0 & 3;
@@ -153,7 +137,7 @@ void MPVMC08_OneRefH2_TuneC(MPVMC08Context* context)
     }
 }
 
-void MPVMC08_OneRefV2_TuneC(MPVMC08Context* context)
+void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
 {
     int row;
     int alignment = (u32)context->reference0 & 3;
@@ -228,7 +212,7 @@ void MPVMC08_OneRefV2_TuneC(MPVMC08Context* context)
     }
 }
 
-void MPVMC08_OneRef1p_TuneC(MPVMC08Context* context)
+void MPVMC08_OneRef1p_TuneC(MPVMCContext* context)
 {
     int row;
     int alignment = (u32)context->reference0 & 7;
@@ -319,7 +303,7 @@ void MPVMC08_OneRef1p_TuneC(MPVMC08Context* context)
     }
 }
 
-void MPVMC08_Init(MPVMC08Function functions[4])
+void MPVMC08_Init(MPVMCFunction functions[4])
 {
     functions[0] = mpvmc_oneref1p_func_table[0];
     functions[1] = mpvmc_oneref1p_func_table[1];

@@ -1,24 +1,6 @@
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef signed int s32;
+#include "sofdec/mpv_mc.h"
 
-typedef struct MPVMC16Context MPVMC16Context;
-typedef void (*MPVMC16Function)(MPVMC16Context* context);
-
-struct MPVMC16Context {
-    MPVMC16Function functions08[4];
-    u8 field_10[8];
-    u8* destination;
-    u32 field_1c;
-    s32 reference_stride;
-    const u8* reference0;
-    const u8* reference1;
-    u8 field_2c[8];
-    MPVMC16Function functions16[4];
-};
-
-static const MPVMC16Function mpvmc16_oneref1p_func_table[4] = {0, 0, 0, 0};
+static const MPVMCFunction mpvmc16_oneref1p_func_table[4] = {0, 0, 0, 0};
 
 static inline u32 mpvmc16_pack_avg4(const u8* reference0,
                                     const u8* reference1)
@@ -48,7 +30,7 @@ static inline u32 mpvmc16_avg_words(u32 left, u32 right)
            (different & 0x01010101);
 }
 
-void MPVMC16_OneRef4p_TuneC(MPVMC16Context* context)
+void MPVMC16_OneRef4p_TuneC(MPVMCContext* context)
 {
     s32 row;
     const u8* reference0 = context->reference0;
@@ -71,7 +53,7 @@ void MPVMC16_OneRef4p_TuneC(MPVMC16Context* context)
     }
 }
 
-void MPVMC16_OneRefH2_TuneC(MPVMC16Context* context)
+void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
 {
     s32 row;
     const u8* reference = context->reference0;
@@ -167,7 +149,7 @@ void MPVMC16_OneRefH2_TuneC(MPVMC16Context* context)
     }
 }
 
-void MPVMC16_OneRefV2_TuneC(MPVMC16Context* context)
+void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
 {
     s32 row;
     const u8* reference0 = context->reference0;
@@ -275,7 +257,7 @@ void MPVMC16_OneRefV2_TuneC(MPVMC16Context* context)
     }
 }
 
-void MPVMC16_OneRef1p_TuneC(MPVMC16Context* context)
+void MPVMC16_OneRef1p_TuneC(MPVMCContext* context)
 {
     s32 row;
     const u8* reference = context->reference0;
@@ -397,7 +379,7 @@ void MPVMC16_OneRef1p_TuneC(MPVMC16Context* context)
     }
 }
 
-void MPVMC16_Init(MPVMC16Context* context)
+void MPVMC16_Init(MPVMCContext* context)
 {
     context->functions16[0] = mpvmc16_oneref1p_func_table[0];
     context->functions16[1] = mpvmc16_oneref1p_func_table[1];

@@ -1,6 +1,4 @@
-typedef unsigned int u32;
-typedef unsigned long long u64;
-typedef signed int s32;
+#include "dolphin/types.h"
 
 #define UTY_BUS_CLOCK (*(u32*)0x800000F8)
 

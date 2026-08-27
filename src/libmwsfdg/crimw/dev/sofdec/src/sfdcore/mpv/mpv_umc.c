@@ -1,23 +1,4 @@
-typedef unsigned char u8;
-typedef unsigned long long u64;
-typedef unsigned int u32;
-typedef signed short s16;
-typedef signed int s32;
-
-typedef struct MPVMCContext MPVMCContext;
-typedef void (*MPVMCFunction)(MPVMCContext*);
-
-struct MPVMCContext {
-    MPVMCFunction functions08[4];
-    u8 field_10[8];
-    u8* destination;
-    s32 field_1C;
-    s32 reference_stride;
-    const u8* reference0;
-    const u8* reference1;
-    u8 field_2C[8];
-    MPVMCFunction functions16[4];
-};
+#include "sofdec/mpv_mc.h"
 
 typedef struct MPVPlaneSet {
     u8* planes[3];
@@ -93,15 +74,6 @@ struct MPVContext {
     u8 field_34C[0x34];
     float intra_blocks[6][64];
 };
-
-void MPVMC08_OneRef1p_TuneC(MPVMCContext*);
-void MPVMC08_OneRefH2_TuneC(MPVMCContext*);
-void MPVMC08_OneRefV2_TuneC(MPVMCContext*);
-void MPVMC08_OneRef4p_TuneC(MPVMCContext*);
-void MPVMC16_OneRef1p_TuneC(MPVMCContext*);
-void MPVMC16_OneRefH2_TuneC(MPVMCContext*);
-void MPVMC16_OneRefV2_TuneC(MPVMCContext*);
-void MPVMC16_OneRef4p_TuneC(MPVMCContext*);
 
 static MPVMCFunction mpvumc_oneref_y[8];
 static MPVMCFunction mpvumc_oneref[8];

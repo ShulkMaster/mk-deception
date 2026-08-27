@@ -1,4 +1,4 @@
-typedef unsigned int u32;
+#include "dolphin/types.h"
 
 /*
  * Retail restores GQR2 through GQR7 from saved[2..7].  Those special-purpose
