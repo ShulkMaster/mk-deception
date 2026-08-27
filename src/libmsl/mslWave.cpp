@@ -31,7 +31,7 @@ extern int SoundBufferCount;
 extern int SoundBufferCountStream;
 extern int SoundBufferCountStatic;
 int DBMap[101];
-/* Retail has an unresolved four-byte .bss gap after DBMap. */
+/* DBMap's section alignment reproduces retail's four trailing .bss bytes. */
 
 /*
  * Start one runtime wave and link it into the owning sound. Stream and

@@ -1065,7 +1065,7 @@ config.libs = [
                 source="libmsl/mslstub.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslsupport.o",
                 source="libmsl/mslsupport.cpp",
             ),
@@ -1078,7 +1078,9 @@ config.libs = [
                 NonMatching,
                 "libmsl.a/mslcore.o",
                 source="libmsl/mslcore.cpp",
-                extra_cflags=["-use_lmw_stmw on"],
+                extra_cflags=[
+                    "-use_lmw_stmw on", "-str", "reuse,pool,readonly"
+                ],
             ),
             Object(
                 Matching,
@@ -1094,7 +1096,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslBankLoadAsyncQueue.o",
                 source="libmsl/mslBankLoadAsyncQueue.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -1106,7 +1108,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslWave.o",
                 source="libmsl/mslWave.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -1131,7 +1133,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslGCN_ARamBlock.o",
                 source="libmsl/mslGCN_ARamBlock.cpp",
                 extra_cflags=[
