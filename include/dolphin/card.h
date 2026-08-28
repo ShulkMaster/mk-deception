@@ -214,6 +214,7 @@ s32 CARDSetStatusAsync(s32 chan, s32 fileNo, CARDStat* stat,
 s32 CARDSetStatus(s32 chan, s32 fileNo, CARDStat* stat);
 s32 CARDCheckExAsync(s32 chan, s32* xferBytes, CARDCallback callback);
 s32 CARDCheck(s32 chan);
+s32 CARDFreeBlocks(s32 chan, s32* byteNotUsed, s32* filesNotUsed);
 s32 CARDFormat(s32 chan);
 s32 CARDProbeEx(s32 chan, s32* memSize, s32* sectorSize);
 s32 CARDMountAsync(s32 chan, void* workArea, CARDCallback detachCallback,

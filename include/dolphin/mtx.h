@@ -23,7 +23,7 @@ void C_MTXLookAt(Mtx matrix, const Point3d* camera_position,
 void PSMTXIdentity(Mtx matrix);
 void PSMTXTrans(Mtx matrix, float x, float y, float z);
 void PSMTXScale(Mtx matrix, float x, float y, float z);
-void PSMTXConcat(Mtx a, Mtx b, Mtx output);
+void PSMTXConcat(const Mtx a, const Mtx b, Mtx output);
 void PSMTXQuat(Mtx matrix, const Quat* quaternion);
 void PSMTXMultVec(const Mtx matrix, const Vec* source, Vec* destination);
 

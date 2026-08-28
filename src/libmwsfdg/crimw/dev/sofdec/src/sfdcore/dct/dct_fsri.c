@@ -1,4 +1,4 @@
-extern void* memset(void* destination, int value, unsigned long size);
+#include "runtime/cstring.h"
 
 const char* DCT_GetVerStr(void);
 void DCT_AcInit(void);

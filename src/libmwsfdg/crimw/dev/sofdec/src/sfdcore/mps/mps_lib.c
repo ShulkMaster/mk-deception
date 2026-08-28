@@ -1,10 +1,6 @@
 #include "cri/mps.h"
 
 void UTY_MemsetDword(unsigned int* destination, unsigned int value, unsigned int count);
-int MPSDEC_DecHdMpeg1(MpsHandle* handle, const unsigned char* data, int size,
-                      int* consumed, int* header_flags);
-void MPSDEC_Finish(void);
-void MPSDEC_Init(void);
 
 static int gap_06_80497E9C_bss;
 MpsLibWork* MPSLIB_libwork;
@@ -66,7 +62,7 @@ MpsHandle* MPS_Create(void) {
 
     UTY_MemsetDword((unsigned int*)handle, 0, 0x40);
     handle->state = 2;
-    handle->format = 2;
+    handle->packet_length_bytes = 2;
     for (i = 0; i < 46; i++) {
         handle->payload.decoder_words[i] = -1;
     }
@@ -75,8 +71,8 @@ MpsHandle* MPS_Create(void) {
     handle->field_D8 = 0;
     handle->field_DC = 0;
     handle->field_E0 = 0;
-    handle->field_E4 = 0;
-    handle->field_E8 = 0;
+    handle->system_callback = 0;
+    handle->system_object = 0;
     return handle;
 }
 
@@ -121,24 +117,29 @@ void MPS_Finish(void) {
 }
 
 int MPS_Init(int handle_count, MpsLibWork* work) {
-    static const unsigned char test_wrok[4] = {1, 2, 3, 4};
+    static const unsigned int test_wrok = 0x01020304;
+    MpsLibWork* libwork;
+    unsigned int work_size;
     int i;
 
     cri_verstr_ptr = MPSLIB_version_str;
     if (*(const unsigned char*)&test_wrok != 1) {
         for (;;) {
+            ((void (*)(void))-1)();
         }
     }
 
     MPSLIB_libwork = work;
-    UTY_MemsetDword((unsigned int*)work, 0,
-                    (((handle_count - 1) << 8) + 0x110) >> 2);
-    work->error_callback = 0;
-    work->error_object = 0;
-    work->error = 0;
-    work->handle_count = handle_count;
+    work_size = (handle_count - 1) << 8;
+    UTY_MemsetDword((unsigned int*)work, 0, (work_size + 0x110) >> 2);
+    libwork = MPSLIB_libwork;
+    libwork->error_callback = 0;
+    libwork->error_object = 0;
+    libwork->error = 0;
+    MPSLIB_libwork->handle_count = handle_count;
+    libwork = MPSLIB_libwork;
     for (i = 0; i < handle_count; i++) {
-        work->handles[i].state = 1;
+        libwork->handles[i].state = 1;
     }
     MPSDEC_Init();
     MPSGET_Init();
