@@ -14,13 +14,13 @@ typedef void (*ChessPieceEventScript)(void);
 typedef struct AniScript AniScript;
 typedef struct ScreenObj ScreenObj;
 
-typedef struct AniData {
+typedef struct ChessAnimPdata {
     char pad00[0x38];
     float frame; /* +0x38 */
     char pad3C[4];
     float end_frame; /* +0x40 */
     float speed; /* +0x44 */
-} AniData;
+} ChessAnimPdata;
 
 typedef struct ChessClassFlags {
     unsigned char spellcaster : 1; /* bit7 */
@@ -100,7 +100,7 @@ typedef struct ChessPiece {
     AniScript* normal_stance_script; /* +0x50 */
     AniScript* initial_stance_script; /* +0x54 - piece definition default */
     AniScript* requested_script; /* +0x58 */
-    AniData* animation; /* +0x5C */
+    ChessAnimPdata* animation; /* +0x5C */
     int proc_state; /* +0x60 */
     char pad64[4];
     ChessPieceMovement* movement; /* +0x68 */

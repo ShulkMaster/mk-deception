@@ -6,6 +6,8 @@
 #include "runtime/mk_obj.h"
 #include "runtime/image.h"
 #include "runtime/plyr_pdata.h"
+#include "runtime/asset.h"
+#include "runtime/cstring.h"
 
 #define PZ_FIGHTER_DISTANCE_FIXED 0x04
 
@@ -307,7 +309,6 @@ void set_process_as_scriptable(PuzzleProcess* proc);
 ScriptSlot* cmdscript_loadfile_by_name(int language, char* name);
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int function_index);
 void cmdscript_execute(ScriptSlot* slot);
-MkObj* load_model_from_slot(int handle, unsigned int art_oid, int heap_id);
 void obj_create_sobjs(MkObj* object);
 void load_effect_bank_with_context(
     char* name, PuzzleEffectBankContext* context);
@@ -441,7 +442,6 @@ void pz_fighters_fatality_preround_event(void);
 void pz_fighter_load_place_fatality_elements(unsigned int fatality);
 void pz_fighter_kill_present(void);
 void pz_fighter_kill_global_projectile(void);
-void* memcpy(void* destination, const void* source, unsigned long size);
 void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float* player1_distance, float* player2_distance,
     float* player1_absolute, float* player2_absolute);

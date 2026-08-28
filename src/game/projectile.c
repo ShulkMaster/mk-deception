@@ -756,7 +756,7 @@ static MkObj* start_projectile_from_specific_plyr_bone(
         if (model_name == 0) {
             object = get_mkobj_frame(0xD000, 0);
         } else {
-            object = (MkObj*)load_named_model_for_player(
+            object = load_named_model_for_player(
                 model_name, player, 0xD000, 0);
         }
         if (object != 0) {

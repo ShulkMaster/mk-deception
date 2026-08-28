@@ -295,6 +295,7 @@ typedef struct RpClump {
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
 void _rpAtomicResyncInterpolatedSphere(RpAtomic* atomic);
 RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
+RpWorld* RpAtomicGetWorld(const RpAtomic* atomic);
 RpClump* RpClumpRender(RpClump* clump);
 RpAtomic* RpAtomicCreate(void);
 RpAtomic* RpAtomicSetGeometry(RpAtomic*, RpGeometry*, unsigned int);

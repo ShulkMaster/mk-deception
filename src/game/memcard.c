@@ -1,7 +1,12 @@
 #include "game/memcard.h"
 
+#include "game/nbc.h"
 #include "game/plyrprofile.h"
+#include "platform/gcmcard.h"
+#include "runtime/cstdio.h"
+#include "runtime/cstring.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_vtbl.h"
 
 /*
  * memcard.o - Midway game memcard (B20 APIs + B21 PPWLS chrome).
@@ -10,15 +15,8 @@
 
 #pragma use_lmw_stmw on
 
-void* memset(void* d, int c, unsigned long n);
-char* strcpy(char* d, const char* s);
-unsigned long strlen(const char* s);
-const char* nbc_find_text(int a, int b);
-int init_gc_memcard(void);
-int update_storage_status(int flag);
 MkProc* find_mkproc_pid(int pid);
 void destroy_mkprocs_pid(int pid);
-const char* get_device_reference_name(int device);
 void pause_all_game_sounds(void);
 void unpause_all_game_sounds(void);
 void fire_screen_studio_event(int id, int arg);
@@ -38,23 +36,8 @@ void mcard_msg_delete_successful_generic(void);
 void mcard_msg_delete_failed_generic(void);
 void mcard_msg_profile_reset_confirmation(void);
 void mcard_msg_cant_enter_konquest(int device, const char* profileName);
-int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char* unusedStr,
-                       const char* fileName, void* buffer, int size, const char* unusedCardName,
-                       int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
-                       int* checksumFailOut);
-int save_to_memcard2(int device, int a, unsigned int offset, int b, const char* strA,
-                     const char* strB, void* data, int size, unsigned int* freeBlocks,
-                     int* freeBytes, int p10, int p11, int mode, int p13);
-int check_load_profile_result(int* result, int device);
-int check_load_region_data_result(int* result, int device, int scratch, int flag);
-int bad_load_region_data_result_resolution(int* result, int device);
-int check_save_profile_result(int* result, int device, int flag);
-int check_save_region_data_result(int* result, int device, int mode);
-int bad_save_region_data_result_resolution(int* result, int device);
 int save_gsettings(int device);
 void update_storage_status_for_one_device(int device);
-int sprintf(char* dest, const char* fmt, ...);
-RwTexture* load_named_tga_from_slot(int slot, const char* name);
 
 extern MkProc* aproc;
 extern float _mkproc_sleep_ticks;
@@ -103,16 +86,6 @@ static const float kThree = 3.0f;
 #define SAVE_PROFILE_STRIDE 0xFAA0 /* 0x10000 - 0x560 */
 #define SAVE_EVENT_PROGRESS 0x1FBB
 
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(void*);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-} MkVtableMkprocLocal;
-
 void get_storage_device_name_list(char** out) {
     int i;
     char* name;
@@ -136,7 +109,7 @@ void check_format_or_recreate(void) {
     int device;
     int flag;
     int status;
-    MkVtableMkprocLocal* vtbl;
+    MkVtableMkproc* vtbl;
 
     for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
         flag = 0;
@@ -156,7 +129,7 @@ void check_format_or_recreate(void) {
                 format_request_flag[device] = 0;
             }
             _mkproc_sleep_ticks = kOne;
-            vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+            vtbl = (MkVtableMkproc*)aproc->vtbl;
             vtbl->sleep();
             fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
         } else {
@@ -531,7 +504,7 @@ int create_new_mk5_profile_file(int device) {
     return ok;
 }
 
-int compare_checksums(char* a, char* b) {
+int compare_checksums(const char* a, const char* b) {
     int i;
 
     for (i = 0; i < 4; i++) {
@@ -746,7 +719,7 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
             }
 
             _mkproc_sleep_ticks = kThree;
-            ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+            ((MkVtableMkproc*)aproc->vtbl)->sleep();
 
             tries = 2;
             while (tries-- != 0 && result != 0) {
@@ -781,7 +754,7 @@ int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, cons
 int save_settings_to_memcard_w_error(int device, int mode, const char* title,
                                      GameSettings* settings, int flag,
                                      unsigned int* freeBlocks, int* freeBytes) {
-    MkVtableMkprocLocal* vtbl;
+    MkVtableMkproc* vtbl;
     int result;
     int resolved;
     int tries;
@@ -815,7 +788,7 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
         }
 
         _mkproc_sleep_ticks = kThree;
-        vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+        vtbl = (MkVtableMkproc*)aproc->vtbl;
         vtbl->sleep();
 
         tries = 2;
@@ -861,7 +834,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
     int chunkOff;
     int progressBase;
     char* strs;
-    MkVtableMkprocLocal* vtbl;
+    MkVtableMkproc* vtbl;
 
     dev = DEVICE_AT(device);
     deviceFreeBytes = &dev->freeBytes;
@@ -877,7 +850,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
             mu_access_progress = 0;
             fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
             _mkproc_sleep_ticks = kThree;
-            vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+            vtbl = (MkVtableMkproc*)aproc->vtbl;
             vtbl->sleep();
         }
         while (cont == 0) {
@@ -905,14 +878,14 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 break;
             }
             _mkproc_sleep_ticks = kOne;
-            vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+            vtbl = (MkVtableMkproc*)aproc->vtbl;
             vtbl->sleep();
 
             if (mode == 3) {
                 mu_access_progress = 9;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                 _mkproc_sleep_ticks = kThree;
-                vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+                vtbl = (MkVtableMkproc*)aproc->vtbl;
                 vtbl->sleep();
                 strs = (char*)stringBase0;
                 tries = 2;
@@ -926,7 +899,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 mu_access_progress = 0x12;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                 _mkproc_sleep_ticks = kThree;
-                vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+                vtbl = (MkVtableMkproc*)aproc->vtbl;
                 vtbl->sleep();
                 if (result == 0) {
                     memset(konq_region_data_buffer, 0, SAVE_CHUNK_SIZE);
@@ -952,7 +925,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                         mu_access_progress = (chunk + progressBase) + 0x13;
                         fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                         _mkproc_sleep_ticks = kThree;
-                        vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+                        vtbl = (MkVtableMkproc*)aproc->vtbl;
                         vtbl->sleep();
                         profile += 1;
                         progressBase += 7;
@@ -976,7 +949,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 mu_access_progress = 100;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                 _mkproc_sleep_ticks = kThree;
-                vtbl = (MkVtableMkprocLocal*)aproc->vtbl;
+                vtbl = (MkVtableMkproc*)aproc->vtbl;
                 vtbl->sleep();
             }
 
