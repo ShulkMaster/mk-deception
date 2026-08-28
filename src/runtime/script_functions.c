@@ -6,6 +6,8 @@
  */
 
 #include "game/pfxscript.h"
+#include "game/blood.h"
+#include "game/weapon.h"
 #include "game/pz_fatality.h"
 #include "game/projectile.h"
 #include "game/konquest.h"
@@ -19,6 +21,7 @@
 #include "runtime/limb.h"
 #include "runtime/cam.h"
 #include "runtime/mk_vtbl.h"
+#include "runtime/asset.h"
 extern unsigned char* current_args;
 extern unsigned char* active_cmdscript;
 extern unsigned char exit_table_340[];
@@ -1156,8 +1159,6 @@ void* weapon_bm_ignore(int a, int b);
 void* regrab_weapon(int a, int b, int c, int d, int e, int f, int g);
 void weapon_reflection_show_hide(int a, int b, int c);
 void* show_single_weapon(int a, int b);
-void* clone_my_weapon(int a, int b);
-void clone_weapon_to_secondary(int a, int b);
 void advance_to_weapon_style(int a);
 int is_weapon_style(int a);
 int am_i_female(int a);
@@ -1305,10 +1306,6 @@ void obj_turn_gravity_off(void* object);
 void obj_set_gravity(void* object, float gravity);
 void insert_fgnd_mkobj(void* object);
 int get_player_number(void* object);
-MkObj* load_named_model_for_player(const char* name, int player, int object_type,
-                                   int flags);
-MkObj* load_named_model_from_slot(int slot, const char* name, int flags,
-                                  int user_data);
 float script_fabs(float value);
 void set_obj_light_flags(MkObj* object, int flags);
 void set_obj_ang(MkObj* object, float x, float y, float z);
@@ -2321,7 +2318,6 @@ AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
     MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
     float frame);
-extern int heart_beat;
 int attach_sound_to_object_by_uid(int, int, int, int, float, float);
 int attach_wiff_to_konquest_object_by_uid(int, char*, void*, float);
 void bgnd_create_danger_zone(int, unsigned int, unsigned int,
@@ -2393,7 +2389,6 @@ void start_gore2_pebbles(
     const Vec* rotation, const Vec* scale,
     const Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count);
-int start_gusher(int *, int, int, int, int, int);
 int transition_to_anim_script_frame(int, void*, int, void*, float, float);
 void trial_do_dialog(int, int, float, float, float, unsigned int, int);
 void trial_show_spoken_text_window(int, float, float, float, int, int, int, int, int);
@@ -2470,7 +2465,11 @@ void _start_gusher(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = start_gusher(&heart_beat, args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i);
+    ((ScriptRawResult*)active_cmdscript)->value.i = (int)start_gusher(
+        heart_beat, (FighterMirror*)args.raw->slots[0].i,
+        (MkObj*)args.raw->slots[1].i, args.raw->slots[2].i,
+        (const Vec*)args.raw->slots[3].i,
+        (const Vec*)args.raw->slots[4].i);
 }
 
 /* Soft ceiling: _plyr_spawn_his_anim_limb ~82.12% -- typed call ABI scheduling. */
@@ -4713,10 +4712,16 @@ void _show_single_weapon(void) {
 
 void _clone_my_weapon(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
-        clone_my_weapon(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i);
+        clone_my_weapon(
+            (WeaponDefinition*)((ScriptRawArgs*)current_args)->slots[0].i,
+            (FatalityWeaponSource*)((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _clone_weapon_to_secondary(void) { clone_weapon_to_secondary(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i); }
+void _clone_weapon_to_secondary(void) {
+    clone_weapon_to_secondary(
+        (WeaponDefinition*)((ScriptRawArgs*)current_args)->slots[0].i,
+        (FatalityWeaponSource*)((ScriptRawArgs*)current_args)->slots[1].i);
+}
 
 void _advance_to_weapon_style(void) { advance_to_weapon_style(((ScriptRawArgs*)current_args)->slots[0].i); }
 

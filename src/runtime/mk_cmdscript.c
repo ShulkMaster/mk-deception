@@ -1,5 +1,6 @@
 #include "runtime/mk_cmdscript.h"
 
+#include "runtime/cstring.h"
 #include "runtime/hashtable.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_struct.h"
@@ -15,10 +16,6 @@ typedef struct {
 #define va_start(list, last_arg) __va_start(list, last_arg)
 #define va_end(list) ((void)0)
 
-void* memset(void* dst, int val, unsigned long n);
-void* memcpy(void* dst, const void* src, unsigned long n);
-char* strcpy(char* dst, const char* src);
-int strcmp(const char* a, const char* b);
 void* __va_arg(__va_list ap, int type);
 int get_language(void);
 void mk_hwfile_cancel(void* req);
@@ -604,7 +601,58 @@ void* get_data_table(ScriptSlot* slot, unsigned int index) {
 /* ---- execute / setup ---- */
 
 void cmdscript_execute(ScriptSlot* slot) {
-    execute_cmdscript(slot);
+    CmdScript* cs;
+    CmdScriptStackFrame* stack_base;
+    unsigned int instruction;
+    unsigned int header;
+    ScriptBuiltinFn builtin;
+    int stop;
+
+    cs = active_cmdscript;
+    if (cs == 0) {
+        return;
+    }
+    cs->mko = slot;
+    cs->state = 1;
+    cs->unk28 = 0;
+    stack_base = cs->stack_mem;
+    stop = 0;
+
+    while (cs->pc != (unsigned int*)slot->pad8c && stop == 0) {
+        instruction = *cs->pc;
+        while (instruction == 0 && cs->stack_sp != stack_base) {
+            cs->stack_end = cs->stack_sp;
+            cs->stack_sp--;
+            if ((unsigned int)cs->stack_sp < (unsigned int)stack_base) {
+                cs->state = 2;
+            }
+            cs->prev_pc = cs->stack_sp->saved_prev_pc;
+            cs->pc = cs->stack_sp->return_pc;
+            if (cs->stack_sp->keep_alive == 0) {
+                stop = 1;
+                break;
+            }
+            instruction = *cs->pc;
+        }
+        if (instruction == 0 || cs->state == 2 || stop != 0) {
+            break;
+        }
+
+        cs->prev_pc = cs->pc;
+        builtin = *(ScriptBuiltinFn*)cs->pc;
+        cs->pc++;
+        current_args = cs->pc;
+        cs->pc = current_args + 1;
+        cs->arg_header = current_args;
+        header = *current_args;
+        cs->arg_word_count = header >> 16;
+        cs->pc += header & 0xffff;
+        builtin();
+    }
+
+    cs->stack_sp = stack_base;
+    cs->stack_end = stack_base + 1;
+    cs->state = 0;
 }
 
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
@@ -1456,24 +1504,32 @@ void _combine_int_int(void) {
 
 void _copy_register_to_address(void) {
     CmdScript* cs;
-    void* dst;
-    unsigned int value;
-    unsigned int size;
+    void* destination;
 
     cs = active_cmdscript;
-    dst = (void*)cs->regs[current_args[1]];
-    value = cs->regs[current_args[2]];
-    size = current_args[3];
-    memcpy(dst, &value, size);
+    destination = (void*)cs->regs[current_args[1]];
+    memcpy(destination, &cs->regs[current_args[2]], current_args[3]);
 }
 
 void _copy_column_address_to_register(void) {
+    unsigned int* args;
+    CmdScript* script;
     unsigned int table;
+    unsigned int row;
+    unsigned int destination;
+    unsigned int offset;
+    unsigned int stride;
 
-    table = active_cmdscript->regs[current_args[2]];
-    if (table != 0)
-        active_cmdscript->regs[current_args[1]] =
-            table + active_cmdscript->regs[current_args[3]] * current_args[5] + current_args[4];
+    args = current_args;
+    script = active_cmdscript;
+    table = script->regs[args[2]];
+    row = script->regs[args[3]];
+    destination = args[1];
+    offset = args[4];
+    stride = args[5];
+    if (table != 0) {
+        script->regs[destination] = table + row * stride + offset;
+    }
 }
 
 void _copy_column_to_register(void) {

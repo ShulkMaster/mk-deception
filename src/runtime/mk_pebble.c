@@ -1,5 +1,6 @@
 #include "runtime/mk_pebble.h"
 
+#include "runtime/cstring.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
@@ -8,13 +9,8 @@
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 
-void* memcpy(void* dest, const void* src, unsigned int size);
-
 extern int MksobjLocalOffset;
 extern RwCamera* Camera;
-
-RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
-RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
 
 static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic);
 static RpAtomic* pebble_render_callback(RpAtomic* atomic);

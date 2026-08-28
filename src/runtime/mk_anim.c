@@ -1,4 +1,6 @@
 #include "runtime/mk_obj.h"
+#include "runtime/anim_api.h"
+#include "runtime/cstring.h"
 #include "runtime/anim_types.h"
 #include "runtime/cam_api.h"
 #include "runtime/cstdio.h"
@@ -253,7 +255,6 @@ AnimMergedChannelHeader* mka_merge_channel_hdr;
 AnimChannelHeader* mka_channel_hdr;
 unsigned short* mka_hdr;
 
-void* memcpy(void* dst, const void* src, unsigned int size);
 void get_bone_world_pos(MkObj* obj, int bone, Vec* out);
 void get_bone_offset_world_pos(
     MkObj* obj, int bone, const Vec* offset, Vec* out);

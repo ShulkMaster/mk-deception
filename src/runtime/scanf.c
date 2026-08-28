@@ -1,12 +1,14 @@
 /* TODO: Missing implementation for retail unit scanf.c. */
 
+#include "runtime/cstdio.h"
+
 void *sscanf(void)
 {
     /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *__StringRead(void)
+int __StringRead(void* context, int character, int action)
 {
     /* TODO: Missing canonical function implementation. */
     return 0;

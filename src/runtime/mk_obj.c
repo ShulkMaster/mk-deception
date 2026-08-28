@@ -10,6 +10,7 @@
 #include "game/cloth.h"
 #include "game/specular.h"
 #include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "math/gxMat.h"
 #include "math/gxMath.h"
 #include "math/gxQuat.h"
@@ -181,7 +182,6 @@ extern int* limb_meats_mat_id_tbl[];
 extern int* limb_children_table[];
 
 RpGeometry* RpGeometryForAllMaterials(RpGeometry* geometry, RpMaterialCallBack callback, void* data);
-void* memcpy(void* dst, const void* src, unsigned int size);
 int RpClumpDestroy(RpClump* clump);
 RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
@@ -3827,7 +3827,7 @@ MkObj* obj_sever_limb(
             }
 
             while (chain_count != 0) {
-                chain = (MkObj*)load_named_model_for_player(
+                chain = load_named_model_for_player(
                     "eyelt\0eyert\0ARMCHAIN" + 12, player->field_04,
                     severed_type, 0);
                 if (chain != 0) {
