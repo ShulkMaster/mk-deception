@@ -12,6 +12,10 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_particle.h"
 #include "runtime/plyr_pdata.h"
+#include "runtime/asset.h"
+#include "runtime/cstring.h"
+#include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "game/pfxscript.h"
 
 typedef int (*ChessProcVtableFn)(void);
@@ -244,7 +248,6 @@ void mk_chess_cursor_go_to_new_track(
 extern void* mk_chess_piece_ground_colls;
 extern void* mk_chess_piece_bones;
 
-void* memset(void* destination, int value, unsigned long size);
 double __fabs(double value);
 double sqrt(double value);
 void mk_chess_remove_piece_at_cell_into_deadpool(unsigned int x,
@@ -272,15 +275,10 @@ void mk_chess_hud_set_piece_portrait(ChessPiece* piece);
 void mk_chess_remove_piece_from_team(ChessPiece* piece, int keep_active);
 void mk_chess_activate_piece_properties(ChessPiece* piece);
 void fx_set(unsigned int effect, int parameter, float value);
+int transition_to_anim_script_frame(
+    float transition_frames, float frame, AnimPdata* animation,
+    AniData* script, unsigned int flags);
 void fx_pause_emit(unsigned int effect);
-void advance_anim(AniData* animation);
-void pose_anim(AniData* animation, int update_object);
-void set_anim_script_frame(AniData* animation, AniScript* script, int flags,
-                           float frame);
-void transition_to_anim_script_frame(AniData* animation, AniScript* script,
-                                     int flags, float blend, float frame);
-void set_root_and_obj_movement_weights(AniData* animation, float root_weight,
-                                       float object_weight);
 int ck_eat_online_switches(void);
 int is_plyr_controller_enabled(PlyrInfo* player);
 void mk_chess_set_game_mode(int mode);
@@ -318,7 +316,6 @@ void build_bones_tbl(
     MkObj* object, void* table, unsigned int side, unsigned int flags,
     MkObj* owner, int enabled, float angle, float scale);
 void insert_ground_me_mkobj(MkObj* object);
-MkObj* load_model_from_slot(int slot, unsigned int model, int heap);
 void pbar_force_pb_setting_with_offset(unsigned int player, float offset);
 float p_mk_chess_cam_control(void);
 float p_mk_chess_cam_chase_cursor(void);
@@ -1379,12 +1376,12 @@ void mk_chess_ani_idle(void) {
 }
 
 void mk_chess_ani_loop_more_frames(float frames) {
-    AniData* animation;
+    ChessAnimPdata* animation;
 
     animation = g_active_piece->animation;
     while (frames > 0.0f) {
-        advance_anim(animation);
-        pose_anim(animation, 1);
+        advance_anim((AnimPdata*)animation);
+        pose_anim((AnimPdata*)animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
         frames -= 1.0f;
@@ -1392,12 +1389,12 @@ void mk_chess_ani_loop_more_frames(float frames) {
 }
 
 void mk_chess_ani_to_frame_x(float target) {
-    AniData* animation;
+    ChessAnimPdata* animation;
 
     animation = g_active_piece->animation;
     while (animation->frame + animation->speed * game_speed <= target) {
-        advance_anim(animation);
-        pose_anim(animation, 1);
+        advance_anim((AnimPdata*)animation);
+        pose_anim((AnimPdata*)animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
     }
@@ -1626,8 +1623,8 @@ void mk_chess_wait_until_attack_cam_closes_in(void) {
 
     timeout = 0x4AF;
     do {
-        advance_anim(g_active_piece->animation);
-        pose_anim(g_active_piece->animation, 1);
+        advance_anim((AnimPdata*)g_active_piece->animation);
+        pose_anim((AnimPdata*)g_active_piece->animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         ((ChessProcVtable*)aproc->vtbl)->sleep();
         timeout--;
@@ -2258,10 +2255,10 @@ float p_mk_chess_piece_proc(void) {
 }
 
 void mk_chess_ani_1_frame(void) {
-    AniData* animation = g_active_piece->animation;
+    ChessAnimPdata* animation = g_active_piece->animation;
 
-    advance_anim(animation);
-    pose_anim(animation, 1);
+    advance_anim((AnimPdata*)animation);
+    pose_anim((AnimPdata*)animation, 1);
 }
 
 void mk_chess_piece_match_y_ang_to_anim(void) {
@@ -2270,22 +2267,25 @@ void mk_chess_piece_match_y_ang_to_anim(void) {
 
 void mk_chess_glitch_to_ani_frame(int animation, int flags, float speed,
                                   float frame) {
-    AniData* anim = g_active_piece->animation;
+    ChessAnimPdata* anim = g_active_piece->animation;
 
     g_active_piece->flags.glitch_into_stance = 0;
     g_active_piece->object->hide_flags &= ~0x02;
     anim->speed = speed;
-    set_anim_script_frame(anim, mkc_animations[animation], flags, frame);
+    set_anim_script_frame(
+        frame, (AnimPdata*)anim, (AniData*)mkc_animations[animation],
+        flags);
 }
 
 void mk_chess_blend_to_ani_frame(int animation, int flags, float blend,
                                  float speed, float frame) {
-    AniData* anim = g_active_piece->animation;
+    ChessAnimPdata* anim = g_active_piece->animation;
 
     g_active_piece->object->hide_flags &= ~0x02;
     anim->speed = speed;
     transition_to_anim_script_frame(
-        anim, mkc_animations[animation], flags, blend, frame);
+        blend, frame, (AnimPdata*)anim,
+        (AniData*)mkc_animations[animation], flags);
     _mkproc_sleep_ticks = 1.0f;
     ((ChessProcVtable*)aproc->vtbl)->sleep();
 }
@@ -2302,7 +2302,7 @@ void mk_chess_set_ani_speed(float speed) {
 /* Soft ceiling: mk_chess_set_obj_move_weight ~99.58% - zero-pool label only. */
 void mk_chess_set_obj_move_weight(float weight) {
     set_root_and_obj_movement_weights(
-        g_active_piece->animation, 0.0f, weight);
+        0.0f, weight, (AnimPdata*)g_active_piece->animation);
 }
 
 void mk_chess_blend_to_desired_cell_position_setting(float blend) {

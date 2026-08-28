@@ -5,9 +5,11 @@
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
 #include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "runtime/section.h"
 #include "game/pfxscript.h"
 #include "game/game_info.h"
+#include "game/blood.h"
 #include "libmkparticle/color.h"
 #include "math/mk_math.h"
 #include "math/gxMath.h"
@@ -62,16 +64,10 @@ typedef struct BloodFxUserdata {
     };
 } BloodFxUserdata;
 
-typedef struct GusherStep {
-    const char* blood_type;
-    float velocity_scale;
-    float interval;
-} GusherStep;
-
 typedef struct GusherPdata {
     MkHdr hdr;
     GusherStep* steps;
-    FighterMirror* owner;
+    void* owner;
     MkObj* object;
     unsigned int object_instance;
     int bone;
@@ -1343,7 +1339,6 @@ extern float game_speed;
 extern int exec_tick_ctr;
 extern BloodDecalArrayView mkpfx_ncs_decal_array;
 
-void* memset(void* destination, int value, unsigned long size);
 unsigned int fx_by_owner(const char* name, int owner);
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, const Vec* position,
@@ -1557,7 +1552,7 @@ void kill_gusher(MkProc* proc) {
 }
 
 GusherPdata* start_gusher(
-    GusherStep* steps, FighterMirror* owner, MkObj* object, int bone,
+    GusherStep* steps, void* owner, MkObj* object, int bone,
     const Vec* position, const Vec* direction) {
     GusherPdata* pdata;
 
@@ -1640,7 +1635,7 @@ static float p_gusher(void) {
         velocity.z *= velocity_scale;
         spawn_bld_fall(
             pdata->current_step->blood_type, bone, &pdata->position,
-            &velocity, pdata->owner);
+            &velocity, (FighterMirror*)pdata->owner);
         pdata->current_step++;
         time += pdata->current_step->interval;
     }

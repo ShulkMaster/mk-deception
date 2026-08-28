@@ -1,5 +1,6 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_struct.h"
 #include "runtime/plyr_pdata.h"
@@ -589,8 +590,6 @@ CmdScript* get_cmdscript_for_proc(MkProc* proc);
 void tag_team_activate_player(MkObj* sidekick, int active);
 void select_fighter_voice_in_bank(int player, int alternate_voice);
 void show_fighting_style(GlobalMoveset* moveset, int player);
-void set_root_and_obj_movement_weights(
-    float root_weight, float object_weight, AnimPdata* animation);
 void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
 float r_call_script_function(void);
 int am_i_on_the_left2(MkObj* player, MkObj* opponent);
@@ -760,7 +759,7 @@ void blast_effect_at_plyr(void) {
     MkObj* blast;
     MkProc* proc;
 
-    blast = (MkObj*)load_named_model_for_player(
+    blast = load_named_model_for_player(
         "BLAST", ((MovesPlayerIdentityView*)plyr_pdata)->character_id,
         0x600A, 0);
     if (blast == 0) {

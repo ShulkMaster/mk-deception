@@ -1,4 +1,5 @@
 #include "game/collision.h"
+#include "game/blood.h"
 #include "game/game_info.h"
 #include "platform/display.h"
 #include "math/mk_math.h"
@@ -9,6 +10,8 @@
 #include "runtime/image.h"
 #include "runtime/cam.h"
 #include "runtime/utils.h"
+#include "runtime/asset.h"
+#include "runtime/cstdio.h"
 
 typedef struct LightDef LightDef;
 
@@ -101,12 +104,6 @@ typedef struct SkyTempleExplodeMonitorPdata {
     MkHdr hdr;
     PlyrInfo* player;
 } SkyTempleExplodeMonitorPdata;
-
-typedef struct GusherStep {
-    const char* blood_type;
-    float velocity_scale;
-    float interval;
-} GusherStep;
 
 #define RESOLVE_MAB_OBJECT(result, object, expected_instance)              \
     do {                                                                  \
@@ -235,15 +232,11 @@ MslSoundHandle snd_req(int sound_id);
 void snd_stop(MslSoundHandle handle);
 MslSoundHandle plyr_snd_req(int sound_id);
 void init_collision_system(void);
-int sprintf(char* dest, const char* format, ...);
 int is_weapon_style(int style);
 void advance_active_moveset(FighterMirror* fighter);
 static float p_player_body_explode(void);
 static float p_xpd_obj_monitor(void);
 int build_bones_tbl(MkObj* object, const int* tags);
-MkObj* load_model_from_slot(int slot, unsigned int model_id, int heap_id);
-MkObj* load_named_model_from_slot(
-    int slot, const char* name, int object_id, int flags);
 MslSoundHandle plyr_snd_req_no_plyr_proc(
     FighterMirror* fighter, int sound_id);
 MkObj* obj_sever_limb(
@@ -256,10 +249,6 @@ float p_anim_idle(void);
 void mkobj_zero_bone_rots(MkObj* object);
 void add_facial_damage(FighterMirror* fighter, float amount);
 void shake_camera(int strength, MkHdr* pdata, float duration);
-void* start_gusher(
-    GusherStep* steps, FighterMirror* owner, MkObj* object, int bone,
-    const Vec* position, const Vec* direction);
-extern GusherStep heart_beat[];
 extern MkPtr* gusher_list;
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to);
 static float p_monitor_objs_sobjs(void);

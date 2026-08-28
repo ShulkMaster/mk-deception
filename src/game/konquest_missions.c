@@ -1,4 +1,5 @@
 #include "game/game_info.h"
+#include "game/blood.h"
 #include "game/controller.h"
 #include "game/konquest.h"
 #include "game/konquest_items.h"
@@ -11,6 +12,7 @@
 #include "runtime/asset.h"
 #include "runtime/cam.h"
 #include "runtime/cstring.h"
+#include "runtime/cstdio.h"
 #include "runtime/fonts.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_obj.h"
@@ -396,7 +398,6 @@ void blend_to_stance(float blend);
 static float p_run_special_move(void);
 static float call_mission_script(void);
 void move_player(MkObj* object, const Vec* position, Vec* angle);
-int sprintf(char* destination, const char* format, ...);
 int is_a_to_the_right_of_b(MkObj* a, MkObj* b);
 int is_weapon_style(PlyrFighterDefinition* fighter);
 int is_timer_off(void);
@@ -499,11 +500,6 @@ void pre_switchp(void);
 void post_switchp(void);
 static void start_hero_transform_effect(MkObj* object);
 static float p_blood_rush(void);
-typedef struct GusherStep GusherStep;
-extern GusherStep heart_beat[];
-MkHdr* start_gusher(
-    GusherStep* definition, MkObj* fighter, MkObj* mirror, int bone,
-    const Vec* velocity, const Vec* acceleration);
 
 static inline ScreenObj* get_screen_latch(KonquestScreenLatch* latch) {
     ScreenObj* raw = latch->object;

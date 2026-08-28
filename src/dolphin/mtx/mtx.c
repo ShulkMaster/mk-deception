@@ -17,7 +17,7 @@ void PSMTXIdentity(Mtx matrix)
     matrix[2][3] = 0.0f;
 }
 
-void PSMTXConcat(Mtx a, Mtx b, Mtx output)
+void PSMTXConcat(const Mtx a, const Mtx b, Mtx output)
 {
     Mtx temporary;
     MtxPtr result = output;

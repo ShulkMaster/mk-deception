@@ -1,4 +1,5 @@
 #include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/image.h"
@@ -484,8 +485,6 @@ extern MkObj* his_obj;
 
 void plyr_aux_weapon_grab(PlyrPdata* player, MkObj* item);
 void insert_ground_me_mkobj(void* object);
-void set_root_and_obj_movement_weights(
-    float root_weight, float object_weight, void* animation);
 void set_my_state(int state);
 unsigned int fx_by_owner(const char* name, unsigned int owner);
 void fx_transfer(unsigned int handle, unsigned int owner);
@@ -529,7 +528,6 @@ MKMATRIX* force_calc_bone_world_mat(MkObj* object, int bone);
 void init_plyr_severed_limb_list(PlyrInfo* player);
 void obj_set_ang_vel(MkObj* object, void* velocity);
 void obj_set_pos_vel(MkObj* object, void* velocity);
-MkObj* load_model_from_slot(int handle, unsigned int art_oid, int heap_id);
 MkObj* load_light(LightDef* definition, MkPtr** list, MkObj* parent);
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, const Vec* position,

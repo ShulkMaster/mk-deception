@@ -10,6 +10,7 @@
 #include "runtime/asset.h"
 #include "runtime/anim_types.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "runtime/plyr_anim_pdata.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_pebble.h"
@@ -18,6 +19,7 @@
 #include "runtime/utils.h"
 #include "runtime/cam.h"
 #include "runtime/cstdio.h"
+#include "runtime/cstring.h"
 #include "runtime/image.h"
 #include "runtime/light.h"
 #include "runtime/mk_obj.h"
@@ -449,7 +451,6 @@ typedef struct BgndCollisionItem {
 } BgndCollisionItem;
 
 float p_animate(void);
-void* memset(void* dst, int c, unsigned long n);
 void obj_create_sobjs(MkObj* object);
 void destroy_mkprocs_pid(int pid);
 int is_sobj_hidden(void* sobj);
@@ -604,8 +605,6 @@ extern MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot);
 extern void load_bgnd_fstyle_sign(int player);
 extern void insert_ground_me_mkobj(MkObj* object);
 extern AnimScript** bgnd_animation_table;
-extern void set_root_and_obj_movement_weights(
-    float root_weight, float object_weight, AnimPdata* animation);
 extern int build_bones_tbl(MkObj* object, const int* bone_tags);
 extern void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags,
@@ -681,7 +680,6 @@ void init_misc_bgnd_data(void);
 void load_background_anims(void* anims, int bgnd_id);
 void init_weapon_trail_light_list(void);
 void insert_fgnd_mkobj(void* bgnd_obj);
-MkObj* load_model_from_slot(int slot, unsigned int model_id, int heap_id);
 int mslSoundIsValid(MslSoundHandle sound);
 void snd_stop(MslSoundHandle sound);
 extern MkVtable5 vtbl_slaughterhouse_pdata;

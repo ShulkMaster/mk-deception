@@ -11,6 +11,7 @@
 #include "game/plyr.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/image.h"
+#include "runtime/asset.h"
 #include "runtime/light.h"
 #include "runtime/utils.h"
 #include "platform/main.h"
@@ -274,8 +275,6 @@ unsigned int pfxhandle_bgnd_spawn_at_position(
     const char* effect_name, float x, float y, float z);
 static void sh_spawn_grinder_crush_blood(void);
 int am_i_flipped(void);
-void* load_named_model_for_player(
-    char* name, int player, int object_type, int flags);
 void fx_reset_emit(unsigned int effect);
 int snd_req(int sound_id);
 MkPfx* create_pfx(

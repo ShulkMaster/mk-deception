@@ -9,6 +9,8 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
+#include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
 
@@ -129,8 +131,6 @@ static void cloth_coll_point_cyl_abs(void);
 static void cloth_coll_point_cyl_inside(void);
 static void cloth_coll_point_cyl_rel(void);
 int obj_get_bid_for_tid(MkObj* obj, int tag);
-MkObj* load_model_from_slot(int slot, int model_id, int heap_id);
-void* memcpy(void* destination, const void* source, unsigned int size);
 void PSVECAdd(const Vec* first, const Vec* second, Vec* output);
 
 typedef struct ClothWindPdata {
