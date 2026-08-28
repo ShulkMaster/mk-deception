@@ -1,6 +1,7 @@
 #include "runtime/asset.h"
 
 #include "platform/gcinstance.h"
+#include "runtime/cstring.h"
 #include "runtime/section.h"
 #include "runtime/section_slot_file.h"
 #include "runtime/image.h"
@@ -50,9 +51,6 @@ RwTexDictionary* RwTexDictionaryForAllTextures(
 RpClump* inplaceClumpStreamRead(RwStream* stream);
 void destroy_clump(RpClump* clump);
 void specular_condition_clump(RpClump* clump);
-int strcmp(const char* a, const char* b);
-char* strncpy(char* dst, const char* src, unsigned long n);
-
 unsigned int plyr1_ss_tbl[2] = {0x0003000A, 0x0003000B};
 unsigned int plyr2_ss_tbl[2] = {0x0004000A, 0x0004000B};
 
@@ -601,7 +599,8 @@ RwTexture* load_tga(int handle, unsigned int art_oid) {
     return tex;
 }
 
-MkObj* load_model_from_slot(int handle, unsigned int art_oid, int player) {
+MkObj* load_model_from_slot(int handle, unsigned int art_oid,
+                            int object_type) {
     unsigned int section_id;
     unsigned int member_index;
     SecSlotFileEntry* entry;
@@ -617,7 +616,7 @@ MkObj* load_model_from_slot(int handle, unsigned int art_oid, int player) {
     clump = LoadDffFromSecInMemory(
         entry, (unsigned int)entry->members[member_index].data_or_texture);
     if (clump != NULL) {
-        object = get_mkobj(player, clump);
+        object = get_mkobj(object_type, clump);
         if (object == NULL) {
             destroy_clump(clump);
         } else {
@@ -840,8 +839,9 @@ void process_art_section_data(SecSlotFileEntry* entry) {
     }
 }
 
-MkObj* load_model_from_slot_transl(int handle, unsigned int art_oid, int player) {
-    MkObj* object = load_model_from_slot(handle, art_oid, player);
+MkObj* load_model_from_slot_transl(int handle, unsigned int art_oid,
+                                   int object_type) {
+    MkObj* object = load_model_from_slot(handle, art_oid, object_type);
     if (object != NULL) {
         RpClumpForAllAtomics(object->clump, set_transl_callback, NULL);
     }
