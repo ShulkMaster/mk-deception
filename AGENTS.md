@@ -105,6 +105,54 @@ Replace generated temporaries, unknown types, casts, and gotos with supported
 project types and structured C. Check every call and store order against the
 retail assembly before treating the reconstruction as source.
 
+## Permute a localized near match
+
+Use local [decomp-permuter](https://github.com/simonlindholm/decomp-permuter)
+only after the algorithm, CFG, ABI, types, and layout agree with retail evidence
+and objdiff classifies the function as a near miss. It complements the ranked
+playbooks for localized scheduling, stack, and register-allocation differences;
+it does not replace m2c, reconstruction, or playbook diagnosis.
+
+Install the external checkout outside version control:
+
+```sh
+git clone https://github.com/simonlindholm/decomp-permuter.git build/decomp-permuter
+python3 -m pip install toml
+```
+
+`tools/decomp_permuter.py` also accepts `--permuter /path/to/checkout` or the
+`DECOMP_PERMUTER_PATH` environment variable. It maps the assembly unit through
+`objdiff.json`, builds its generated context, extracts only the requested retail
+function, recovers the exact Ninja/MWCC command, and creates an isolated scratch
+under `.scratches/permuter/nonmatchings/`.
+
+Prepare a local scratch with the same symbol-plus-assembly shape as m2c:
+
+```sh
+python3 tools/decomp_permuter.py SYMBOL build/GQNE5D/asm/UNIT.s
+```
+
+Run it immediately with four local workers and stop on score zero:
+
+```sh
+python3 tools/decomp_permuter.py SYMBOL build/GQNE5D/asm/UNIT.s --run -- -j 4 --stop-on-zero
+```
+
+Without `--run`, the wrapper prints the upstream command for the prepared
+scratch. Edit only that scratch's `base.c` when adding `PERM_GENERAL`,
+`PERM_LINESWAP`, or `PERM_RANDOMIZE`; never put `PERM_*` macros in `src/`.
+Random mode is most useful for a clean near miss. Manual macros are appropriate
+when two or more evidence-backed source forms interact and would be tedious to
+enumerate.
+
+Treat every generated candidate as a hypothesis. Reject undefined behavior,
+fake `volatile`, invented lifetimes, incorrect types, or reordered side effects.
+Apply only one understandable candidate insight to `src/`, rebuild the affected
+object, and inspect the same symbol with objdiff. A permuter score of zero still
+requires an honest-source review, the full build, and the retail SHA-1 gate. If
+only harmless coloring remains, keep the niche playbook's soft ceiling instead
+of landing permutation residue.
+
 ## Build and inspect the diff
 
 After each coherent source edit, build the affected object when its Ninja path
