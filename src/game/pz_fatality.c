@@ -2,6 +2,8 @@
 #include "math/mk_math.h"
 #include "game/pz_fatality.h"
 #include "runtime/cam_api.h"
+#include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "rw/rwframe.h"
 
 typedef float (*PuzzleFatalityPreroundFn)(void);
@@ -403,8 +405,6 @@ extern PuzzlePlayerData* plyr_pdata;
 extern PuzzlePlayerData* his_pdata;
 extern PuzzleFighterRenderObject* plyr_obj;
 
-void* memset(void* destination, int value, unsigned long size);
-void* memcpy(void* destination, const void* source, unsigned long size);
 double pow(double base, double exponent);
 unsigned int randu0(unsigned int max);
 int random_snd_req(int sound);
@@ -559,10 +559,6 @@ void* _create_mkproc_generic_tinystack(
 void load_art_section(int handle, MkFileInfo* section);
 void load_effect_bank_with_context(
     const char* bank, PuzzleEffectBankContext* context);
-PuzzleFighterRenderObject* load_model_from_slot(
-    int handle, unsigned int art_object, int player);
-PuzzleFighterRenderObject* load_named_model_from_slot(
-    int handle, const char* name, int flags, int player);
 AniTextureControl* replace_sobj_texture_with_named_wiff(
     PuzzleFatalityHazardObject* object, int handle, const char* texture,
     const char* wiff);
@@ -603,7 +599,6 @@ static float p_chomper2_controller(void);
 static float p_chomper_controller(void);
 static float p_snake_controller(void);
 void obj_create_sobjs(PuzzleFighterRenderObject* object);
-void* load_tga(int handle, unsigned int art_object);
 PuzzleFatalityHazardObject* obj_find_sobj_by_id(
     PuzzleFighterRenderObject* object, int id);
 void obj_change_to_skinned_obj_light_list(
@@ -932,8 +927,8 @@ static float pz_fighter_load_and_place_initial_burn(void) {
     g_pz_fighters_engine.fatality_index = 6;
 
     for (i = 0; i < 2; i++) {
-        burners[i] =
-            load_model_from_slot(0x70036, 0x08240000, 0x6021);
+        burners[i] = (PuzzleFighterRenderObject*)load_model_from_slot(
+            0x70036, 0x08240000, 0x6021);
         burners[i]->model_flags = 1;
         burners[i]->x = i != 0 ? 2.25f : -2.25f;
         if (screen_width > 650) {
@@ -1322,8 +1317,8 @@ static float pz_fighter_load_and_place_initial_snake(void) {
     g_pz_fighters_engine.fatality_index = 5;
 
     for (i = 0; i < 2; i++) {
-        snakes[i] =
-            load_model_from_slot(0x70036, 0x08230000, 0x6021);
+        snakes[i] = (PuzzleFighterRenderObject*)load_model_from_slot(
+            0x70036, 0x08230000, 0x6021);
         obj_change_to_skinned_obj_light_list(
             snakes[i], light_def);
         snakes[i]->model_flags = 0x400;
@@ -1966,7 +1961,7 @@ static float pz_fighter_lightning_strike_victim_1(void) {
     head.z = plyr_obj->z;
     get_bone_world_pos(plyr_obj, 0x10, &head);
     head.y += 0.1f;
-    bolt = load_named_model_from_slot(
+    bolt = (PuzzleFighterRenderObject*)load_named_model_from_slot(
         0x70036, "BOLT_OBJECT", 0x2099, 0);
     insert_fgnd_mkobj(bolt);
     obj_set_pos(bolt, &head);
@@ -2249,7 +2244,7 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
     AniTextureControl* texture;
     unsigned int bolt_instance;
 
-    bolt = load_named_model_from_slot(
+    bolt = (PuzzleFighterRenderObject*)load_named_model_from_slot(
         0x70036, "BOLT_OBJECT", 0x2099, 0);
     insert_fgnd_mkobj(bolt);
     obj_set_pos(bolt, position);
@@ -2388,7 +2383,8 @@ static float pz_fighter_load_and_place_initial_objects_falling(void) {
     g_pz_fighters_engine.fatality_index = 3;
 
     for (i = 0; i < 2; i++) {
-        objects[i] = load_model_from_slot(0x70036, 0x08210000, 0x6021);
+        objects[i] = (PuzzleFighterRenderObject*)load_model_from_slot(
+            0x70036, 0x08210000, 0x6021);
         objects[i]->model_flags = 1;
         hide_obj(objects[i]);
         insert_fgnd_mkobj(objects[i]);
@@ -3057,8 +3053,8 @@ static float pz_fighter_load_and_place_initial_chompers2(void) {
     g_pz_fighters_engine.fatality_index = 2;
 
     for (i = 0; i < 2; i++) {
-        columns[i] =
-            load_model_from_slot(0x70036, 0x08200000, 0x6021);
+        columns[i] = (PuzzleFighterRenderObject*)load_model_from_slot(
+            0x70036, 0x08200000, 0x6021);
         columns[i]->model_flags = 1;
         columns[i]->flags_bits.scale_active = 1;
         if (screen_width > 650) {
@@ -3844,8 +3840,8 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
     g_pz_fighters_engine.fatality_index = 1;
 
     for (i = 0; i < 2; i++) {
-        columns[i] =
-            load_model_from_slot(0x70036, 0x081F0000, 0x6021);
+        columns[i] = (PuzzleFighterRenderObject*)load_model_from_slot(
+            0x70036, 0x081F0000, 0x6021);
         columns[i]->model_flags = 1;
         columns[i]->flags_bits.scale_active = 1;
         if (screen_width > 650) {
@@ -4615,8 +4611,8 @@ static float pz_fighter_load_and_place_initial_grinders(void) {
     g_pz_fighters_engine.fatality_index = 0;
 
     for (i = 0; i < 2; i++) {
-        grinders[i] =
-            load_model_from_slot(0x70036, 0x081E0000, 0x6021);
+        grinders[i] = (PuzzleFighterRenderObject*)load_model_from_slot(
+            0x70036, 0x081E0000, 0x6021);
         grinders[i]->model_flags = 1;
         grinders[i]->x = i != 0 ? 2.2f : -2.2f;
         if (screen_width > 650) {

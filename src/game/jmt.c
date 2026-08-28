@@ -1,5 +1,6 @@
 #include "game/game_info.h"
 #include "game/jmt.h"
+#include "game/blood.h"
 #include "game/constrain.h"
 #include "game/pfxscript.h"
 #include "libmkparticle/particle.h"
@@ -125,7 +126,6 @@ extern JmtSharedAnimations shared_ani;
 extern MkObj* g_bgnd_preloaded_models[];
 extern int blood_type_list[12];
 extern MkPtr* gusher_list;
-extern int heart_beat;
 extern int mode_of_play;
 extern float game_speed;
 extern void check_release_other_player(void);
@@ -188,9 +188,6 @@ float j_exit(void);
 void idle_victim(void);
 void xfer_player_proc(MkProc* proc, MkProcEntryFn entry);
 int get_blood_level(void);
-MkHdr* start_gusher(
-    int* heartbeat, void* player, MkObj* object, int bone,
-    const Vec* direction, const Vec* velocity);
 static float p_decoy_shrink(void);
 static float p_bow_ctrl(void);
 static float p_bow_retract(void);
@@ -1075,7 +1072,7 @@ void start_bow(int bone, float duration) {
     Vec position;
 
     pdata = 0;
-    bow = (MkObj*)load_named_model_for_player(
+    bow = load_named_model_for_player(
         jmt_effect_names.bow_model, plyr_pdata->plyr_num, 0xD002, 0);
     if (bow == 0) {
         return;
@@ -1375,8 +1372,8 @@ MkHdr* mks_start_gusher(
     } else {
         info = &g_game_info.plyr0;
     }
-    gusher = start_gusher(
-        &heart_beat, info->slot.fighter, info->slot.mirror_a, bone,
+    gusher = (MkHdr*)start_gusher(
+        heart_beat, info->slot.fighter, info->slot.mirror_a, bone,
         &direction, &velocity);
     if (gusher != 0) {
         mk_insert(gusher, &gusher_list);

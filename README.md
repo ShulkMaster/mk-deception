@@ -18,8 +18,8 @@ This repository does **not** contain any game assets or assembly. An existing co
 
 Coding agents should read [AGENTS.md](AGENTS.md) before modifying the project. It
 covers repository rules, initialization, the ranked decomp books, m2c recovery,
-objdiff inspection, DTK and compiler tools, and the required self-validation
-checks.
+source permutation, objdiff inspection, DTK and compiler tools, and the required
+self-validation checks.
 
 Supported versions:
 

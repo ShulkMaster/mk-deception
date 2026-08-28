@@ -110,6 +110,11 @@ typedef struct McIconListArg {
 
 int init_memcard(void);
 int get_mu_access_progress(void);
+void reset_storage_device_status_structure(int device);
+void storage_status_change_calculations(int device);
+int create_new_mk5_profile_file(int device);
+void region_data_corruption_message_handler(void);
+int compare_checksums(const char* left, const char* right);
 
 /*
  * Load/save with Midway UI + retry. Call sites:

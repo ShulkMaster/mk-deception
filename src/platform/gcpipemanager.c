@@ -436,7 +436,7 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     case 0x305:
     case 0x306:
         if (!has_uv_scroll && atomic_effects == 0) {
-            atomic->pipeline = RxPipelineGlobals()->defaultAtomicPipeline;
+            atomic->pipeline = RxPipelineGlobals()->currentAtomicPipeline;
         }
         RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_generic);
         break;

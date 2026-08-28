@@ -15,6 +15,8 @@
 #include "runtime/plyr_info.h"
 #include "runtime/section.h"
 #include "runtime/utils.h"
+#include "runtime/cstring.h"
+#include "runtime/cstdio.h"
 
 /*
  * plyrprofile.o - profiles + boot PPWLS (B21) + menu create/view/delete (B22).
@@ -23,10 +25,6 @@
 
 #pragma use_lmw_stmw on
 
-void* memset(void* d, int c, unsigned long n);
-void* memcpy(void* d, const void* s, unsigned long n);
-int memcmp(const void* a, const void* b, unsigned long n);
-char* strcpy(char* d, const char* s);
 char* nbc_find_text(int a, int b);
 void load_screen(const char* path, int slot, int a, int b);
 int update_storage_status(int flag);
@@ -44,14 +42,12 @@ void turn_all_ports_on(void);
 void disable_all_ports_but_me(int port);
 void ck_for_controller_removed(void);
 void switch_map_unload_player_profile(PlyrInfo* plyr);
-void storage_status_change_calculations(int device);
 void reset_sg_status(StorageDevice* device, int slot);
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
                                            unsigned int region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes);
 int format_card_and_create_mkda_file(int device);
 int gc_delete_file(int device, const char* fileName);
-int create_new_mk5_profile_file(int device);
 int is_device_unformatted(int device);
 int is_device_present(int device);
 int is_device_error(int device);
@@ -75,7 +71,6 @@ void format_value_to_display(char* dest, unsigned int value);
 int does_name_already_exist(const char* name);
 RwTexture* load_named_tga_from_slot(int slot, const char* name);
 unsigned long strlen(const char* s);
-int sprintf(char* buf, const char* fmt, ...);
 char* strcat(char* dest, const char* src);
 char* strncat(char* dest, const char* src, unsigned long n);
 int strcmp(const char* a, const char* b);

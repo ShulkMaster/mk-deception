@@ -1,9 +1,12 @@
 #include "game/game_info.h"
+#include "game/blood.h"
+#include "game/weapon.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_struct.h"
 #include "runtime/mk_proc.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "game/specular.h"
 #include "math/mk_math.h"
 #include "rw/rwframe.h"
@@ -24,7 +27,7 @@ typedef struct WeaponImpaleData {
     Vec gusher_direction;
 } WeaponImpaleData; /* 0x38 */
 
-typedef struct WeaponDefinition {
+struct WeaponDefinition {
     const char* model_name;       /* +0x00 */
     const int* bone_tags;         /* +0x04 */
     int attachment_bone;
@@ -45,7 +48,7 @@ typedef struct WeaponDefinition {
     int field_5c;
     Vec field_60;
     WeaponImpaleData* impale_data; /* +0x6C */
-} WeaponDefinition;
+};
 
 typedef struct ImpaleSecondaryObject {
     MkHdr hdr;
@@ -102,12 +105,6 @@ typedef struct WeaponBoneMatcherState {
     Vec mirrored_parent_translation; /* +0xFC */
     char pad108[8];
 } WeaponBoneMatcherState; /* 0x110 */
-
-typedef struct GusherStep {
-    int blood_type;
-    float velocity_scale;
-    float interval;
-} GusherStep;
 
 typedef struct WeaponCollisionDef {
     float radius;
@@ -168,23 +165,14 @@ void sobj_use_material_color(MkSobj* sobj);
 void obj_set_material_fade(
     MkObj* object, unsigned int material_id, signed char alpha);
 void material_set_zbias(RpMaterial* material, float bias);
-void* memcpy(void* destination, const void* source, unsigned int size);
 MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,
                       unsigned int material_id, int frames);
 void advance_my_moveset(void);
 void update_bone_hierarchy(MkHdr* object);
-void* start_gusher(GusherStep* steps, int owner, MkObj* object, int bone,
-                   const Vec* position, const Vec* direction);
-extern GusherStep heart_beat[];
 WeaponBoneMatcherState* start_bone_matcher(
     float blend_ticks, MkObj* parent, int parent_bone, MkObj* child,
     int child_bone);
 void mkobj_bones_dest_mat_no_update(MkObj* object);
-MkObj* load_weapon(
-    WeaponDefinition* definition, MkObj* player_object);
-MkObj* load_weapon_reflection(
-    WeaponDefinition* definition, MkObj* player_object);
-
 static Vec trail_p_to_c_uv = {1.0f, 0.0f, 0.0f};
 
 WeaponTrailMap goro_gauntlets_trail_anchors[3] = {
@@ -227,13 +215,13 @@ static inline MkObj* load_goro_weapon_inline(
 
     trail_model = 0;
     player_number = get_player_number(player_object);
-    weapon = (MkObj*)load_named_model_for_player(
+    weapon = load_named_model_for_player(
         definition->model_name, player_number, 0x1008, 1);
     if (weapon == 0) {
         return 0;
     }
     if (definition->secondary_model_name != 0) {
-        trail_model = (MkObj*)load_named_model_for_player(
+        trail_model = load_named_model_for_player(
             definition->secondary_model_name, player_number, 0x5004, 1);
         if (trail_model == 0) {
             return 0;
@@ -285,7 +273,7 @@ static inline MkObj* load_goro_reflection_inline(
     if (definition->reflection_model_name == 0) {
         return 0;
     }
-    reflection = (MkObj*)load_named_model_for_player(
+    reflection = load_named_model_for_player(
         definition->reflection_model_name,
         get_player_number(player_object), 0x5013, 0);
     if (reflection == 0) {
@@ -465,7 +453,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                     attachment->strength = 5.0f;
                 }
                 start_gusher(
-                    heart_beat, (int)victim, victim_object,
+                    heart_beat, victim, victim_object,
                     impale->bone_index, &impale->position,
                     &impale->gusher_direction);
             }
@@ -497,7 +485,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                         attachment->strength = 5.0f;
                     }
                     start_gusher(
-                        heart_beat, (int)victim, victim_object,
+                        heart_beat, victim, victim_object,
                         impale->bone_index, &impale->position,
                         &impale->gusher_direction);
                 }
@@ -1356,13 +1344,13 @@ MkObj* load_weapon(
 
     trail_model = 0;
     player_number = get_player_number(player_object);
-    weapon = (MkObj*)load_named_model_for_player(
+    weapon = load_named_model_for_player(
         definition->model_name, player_number, 0x1008, 1);
     if (weapon == 0) {
         return 0;
     }
     if (definition->secondary_model_name != 0) {
-        trail_model = (MkObj*)load_named_model_for_player(
+        trail_model = load_named_model_for_player(
             definition->secondary_model_name,
             player_number, 0x5004, 1);
         if (trail_model == 0) {
@@ -1416,7 +1404,7 @@ MkObj* load_weapon_reflection(
     if (definition->reflection_model_name == 0) {
         return 0;
     }
-    reflection = (MkObj*)load_named_model_for_player(
+    reflection = load_named_model_for_player(
         definition->reflection_model_name,
         get_player_number(player_object), 0x5013, 0);
     if (reflection == 0) {

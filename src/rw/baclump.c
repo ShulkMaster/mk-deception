@@ -5,11 +5,13 @@
 #include "rw/rwfreelist.h"
 #include "rw/rwframe.h"
 #include "rw/rwplcore.h"
+#include "rw/rwresources.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 #include "rw/rxpipeline.h"
+#include "rw/rtquat.h"
 
 typedef struct RpClumpGlobals {
     RwFreeList* atomicFreeList;
@@ -40,11 +42,6 @@ static RpClumpGlobals* ClumpGlobals(void)
     return (RpClumpGlobals*)((unsigned char*)RwEngineInstance +
                              clumpModule.globalsOffset);
 }
-
-extern void RwResourcesFreeResEntry(RwResEntry*);
-extern RpWorld* RpAtomicGetWorld(RpAtomic*);
-extern float _rwSqrt(float);
-
 
 static void ClumpTidyDestroyClump(void* clump, void* data)
 {
@@ -103,7 +100,7 @@ RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic)
 {
     RxPipeline* pipeline = atomic->pipeline;
     if (pipeline == 0)
-        pipeline = RxPipelineGlobals()->defaultAtomicPipeline;
+        pipeline = RxPipelineGlobals()->currentAtomicPipeline;
     if (RxPipelineExecute(pipeline, atomic, 1) != 0)
         return atomic;
     return 0;

@@ -1,3 +1,5 @@
+#include "cri/mps.h"
+
 int MPS_CheckDelim(const unsigned char* data) {
     unsigned int code;
 

@@ -1,43 +1,147 @@
-/* TODO: Missing implementation for retail unit mps_lib.c. */
+#include "cri/mps.h"
 
-void *MPS_Destroy(void)
-{
-    /* TODO: Missing canonical function implementation. */
+void UTY_MemsetDword(unsigned int* destination, unsigned int value, unsigned int count);
+
+static int gap_06_80497E9C_bss;
+MpsLibWork* MPSLIB_libwork;
+static const char* cri_verstr_ptr;
+static MpsHandle* mpslib_hn_last;
+
+const char MPSLIB_version_str[] =
+    "\nCRI MPS/GC Ver.1.924 Build:Sep  3 2004 11:38:25\n\0"
+    "Append: MW2407 GC20Apr2004Patch1\n";
+
+static inline int mpslib_check_handle(MpsHandle* handle) {
+    mpslib_hn_last = handle;
+    if (handle == 0 || handle->state == 1) {
+        return -1;
+    }
     return 0;
 }
 
-void *MPS_Create(void)
-{
-    /* TODO: Missing canonical function implementation. */
+static inline int mpslib_set_error(MpsHandle* handle, int error) {
+    if (handle == 0) {
+        MPSLIB_libwork->error = error;
+        if (error != 0 && MPSLIB_libwork->error_callback != 0) {
+            MPSLIB_libwork->error_callback(MPSLIB_libwork->error_object);
+        }
+    } else {
+        handle->error = error;
+        if (error != 0 && handle->error_callback != 0) {
+            handle->error_callback(handle->error_object);
+        }
+    }
+    return error;
+}
+
+int MPS_Destroy(MpsHandle* handle) {
+    if (mpslib_check_handle(handle) != 0) {
+        return mpslib_set_error(0, 0xFF020103);
+    }
+    handle->state = 1;
     return 0;
 }
 
-void *MPSLIB_CheckHn(void)
-{
-    /* TODO: Missing canonical function implementation. */
+MpsHandle* MPS_Create(void) {
+    MpsHandle* handle;
+    int i;
+    int remaining;
+
+    handle = MPSLIB_libwork->handles;
+    remaining = MPSLIB_libwork->handle_count;
+    while (remaining > 0) {
+        if (handle->state == 1) {
+            break;
+        }
+        handle++;
+        remaining--;
+    }
+    if (remaining <= 0) {
+        return 0;
+    }
+
+    UTY_MemsetDword((unsigned int*)handle, 0, 0x40);
+    handle->state = 2;
+    handle->packet_length_bytes = 2;
+    for (i = 0; i < 46; i++) {
+        handle->payload.decoder_words[i] = -1;
+    }
+    handle->field_D0 = 0;
+    handle->decode_header = MPSDEC_DecHdMpeg1;
+    handle->field_D8 = 0;
+    handle->field_DC = 0;
+    handle->field_E0 = 0;
+    handle->system_callback = 0;
+    handle->system_object = 0;
+    return handle;
+}
+
+int MPSLIB_CheckHn(MpsHandle* handle) {
+    mpslib_hn_last = handle;
+    if (handle == 0) {
+        return -1;
+    }
+    return -(handle->state == 1);
+}
+
+int MPS_SetErrFn(MpsHandle* handle, MpsErrorCallback callback, int object) {
+    if (handle == 0) {
+        MPSLIB_libwork->error_callback = callback;
+        MPSLIB_libwork->error_object = object;
+    } else {
+        if (mpslib_check_handle(handle) != 0) {
+            return mpslib_set_error(0, 0xFF020101);
+        }
+        handle->error_callback = callback;
+        handle->error_object = object;
+    }
     return 0;
 }
 
-void *MPS_SetErrFn(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+int MPSLIB_SetErr(MpsHandle* handle, int error) {
+    return mpslib_set_error(handle, error);
 }
 
-void *MPSLIB_SetErr(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void MPS_Finish(void) {
+    int i;
+    MpsHandle* handle;
+
+    handle = MPSLIB_libwork->handles;
+    for (i = 0; i < MPSLIB_libwork->handle_count; i++, handle++) {
+        if (handle->state != 1) {
+            MPS_Destroy(handle);
+        }
+    }
+    MPSDEC_Finish();
+    MPSGET_Finish();
 }
 
-void *MPS_Finish(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+int MPS_Init(int handle_count, MpsLibWork* work) {
+    static const unsigned int test_wrok = 0x01020304;
+    MpsLibWork* libwork;
+    unsigned int work_size;
+    int i;
 
-void *MPS_Init(void)
-{
-    /* TODO: Missing canonical function implementation. */
+    cri_verstr_ptr = MPSLIB_version_str;
+    if (*(const unsigned char*)&test_wrok != 1) {
+        for (;;) {
+            ((void (*)(void))-1)();
+        }
+    }
+
+    MPSLIB_libwork = work;
+    work_size = (handle_count - 1) << 8;
+    UTY_MemsetDword((unsigned int*)work, 0, (work_size + 0x110) >> 2);
+    libwork = MPSLIB_libwork;
+    libwork->error_callback = 0;
+    libwork->error_object = 0;
+    libwork->error = 0;
+    MPSLIB_libwork->handle_count = handle_count;
+    libwork = MPSLIB_libwork;
+    for (i = 0; i < handle_count; i++) {
+        libwork->handles[i].state = 1;
+    }
+    MPSDEC_Init();
+    MPSGET_Init();
     return 0;
 }

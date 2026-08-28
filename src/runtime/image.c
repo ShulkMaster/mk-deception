@@ -1,5 +1,8 @@
 #include "runtime/image.h"
 
+#include "runtime/asset.h"
+#include "runtime/cmath.h"
+#include "runtime/cstring.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
@@ -12,14 +15,6 @@ extern MkVtable5 vtbl_screen_engine;
 static void update_atc_block(AniTextureControl* atc);
 static void _destroy_screen_obj_oid_mask(ScreenObj* obj);
 
-void* memset(void* dst, int c, unsigned long n);
-int stricmp(const char* a, const char* b);
-double fmod(double x, double y);
-
-RwTexture* load_named_tga_from_slot(int slot, const char* name);
-RwTexture* load_tga(int slot, char* name);
-AniTextureControl* load_named_wiff_from_slot(int slot, char* name);
-AniTextureControl* get_wiff_atc_block(int a, int b);
 RwTexture* material_get_texture_pointer(RpMaterial* mat, int flag);
 void material_set_texture_pointer(RpMaterial* mat, RwTexture* tex, int flag);
 int RwRasterGetNumLevels(RwRaster* raster);
@@ -330,7 +325,7 @@ ScreenObj* load_2d_pfxobj(int slot, int oid, char* name, int flags, int priority
     saved_oid = oid;
     saved_flags = flags;
     saved_pri = priority;
-    tex = load_tga(slot, name);
+    tex = load_tga(slot, (unsigned int)name);
     if (tex != 0) {
         obj = load_2d_pfxobj_with_texture(saved_oid, tex, saved_flags, saved_pri);
     } else {

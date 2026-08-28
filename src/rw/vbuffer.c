@@ -21,27 +21,28 @@ unsigned int _rwGCNVertexBufferGetSize(
     while (attribute < 21) {
         switch (attribute) {
         case 9:
-            descriptorType = descriptor->vcdLo & 0x600U;
-            descriptorType >>= 9;
+            descriptorType = (descriptor->vcdLo & 0x600U) >> 9;
             if (descriptorType == 2 || descriptorType == 3) {
-                unsigned int bytes =
-                    vertexCounts[attribute] * rwGCNPosGetSize(descriptor);
-                size += (bytes + 31U) & ~31U;
+                size +=
+                    (vertexCounts[attribute] * rwGCNPosGetSize(descriptor) +
+                     31U) &
+                    ~31U;
             }
             break;
         case 10:
-            descriptorType = descriptor->vcdLo & 0x1800U;
-            descriptorType >>= 11;
+            descriptorType = (descriptor->vcdLo & 0x1800U) >> 11;
             if (descriptorType == 2 || descriptorType == 3) {
                 hasNBT = (descriptor->vatA >> 9) & 1;
                 if (hasNBT == 1) {
-                    unsigned int bytes = vertexCounts[attribute] *
-                                     rwGCNNrmGetSize(descriptor) * 3;
-                    size += (bytes + 31U) & ~31U;
+                    size +=
+                        (vertexCounts[10] * rwGCNNrmGetSize(descriptor) * 3 +
+                         31U) &
+                        ~31U;
                 } else {
-                    unsigned int bytes = vertexCounts[attribute] *
-                                     rwGCNNrmGetSize(descriptor);
-                    size += (bytes + 31U) & ~31U;
+                    size +=
+                        (vertexCounts[10] * rwGCNNrmGetSize(descriptor) +
+                         31U) &
+                        ~31U;
                 }
             }
             break;
@@ -50,18 +51,100 @@ unsigned int _rwGCNVertexBufferGetSize(
             descriptorType =
                 (descriptor->vcdLo >> (13 + (attribute - 11) * 2)) & 3;
             if (descriptorType == 2 || descriptorType == 3) {
-                unsigned int bytes = vertexCounts[attribute] *
-                    rwGCNClrGetSize(descriptor, (unsigned char)(attribute - 11));
-                size += (bytes + 31U) & ~31U;
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNClrGetSize(
+                             descriptor, (unsigned char)(attribute - 11)) +
+                     31U) &
+                    ~31U;
             }
             break;
-        default:
-            descriptorType =
-                (descriptor->vcdHi >> ((attribute - 13) * 2)) & 3;
+        case 13:
+            descriptorType = descriptor->vcdHi & 3;
             if (descriptorType == 2 || descriptorType == 3) {
-                unsigned int bytes = vertexCounts[attribute] *
-                    rwGCNTexGetSize(descriptor, (unsigned char)(attribute - 13));
-                size += (bytes + 31U) & ~31U;
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
+            }
+            break;
+        case 14:
+            descriptorType = (descriptor->vcdHi & 0xCU) >> 2;
+            if (descriptorType == 2 || descriptorType == 3) {
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
+            }
+            break;
+        case 15:
+            descriptorType = (descriptor->vcdHi & 0x30U) >> 4;
+            if (descriptorType == 2 || descriptorType == 3) {
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
+            }
+            break;
+        case 16:
+            descriptorType = (descriptor->vcdHi & 0xC0U) >> 6;
+            if (descriptorType == 2 || descriptorType == 3) {
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
+            }
+            break;
+        case 17:
+            descriptorType = (descriptor->vcdHi & 0x300U) >> 8;
+            if (descriptorType == 2 || descriptorType == 3) {
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
+            }
+            break;
+        case 18:
+            descriptorType = (descriptor->vcdHi & 0xC00U) >> 10;
+            if (descriptorType == 2 || descriptorType == 3) {
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
+            }
+            break;
+        case 19:
+            descriptorType = (descriptor->vcdHi & 0x3000U) >> 12;
+            if (descriptorType == 2 || descriptorType == 3) {
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
+            }
+            break;
+        case 20:
+            descriptorType = (descriptor->vcdHi & 0xC000U) >> 14;
+            if (descriptorType == 2 || descriptorType == 3) {
+                size +=
+                    (vertexCounts[attribute] *
+                         rwGCNTexGetSize(
+                             descriptor, (unsigned char)(attribute - 13)) +
+                     31U) &
+                    ~31U;
             }
             break;
         }
@@ -89,8 +172,7 @@ void _rwGCNVertexBufferInitialize(
 
         switch (attribute) {
         case 9:
-            descriptorType = descriptor->vcdLo & 0x600U;
-            descriptorType >>= 9;
+            descriptorType = (descriptor->vcdLo & 0x600U) >> 9;
             if (descriptorType == 2 || descriptorType == 3) {
                 stride = rwGCNPosGetSize(descriptor);
                 vertexBuffer->arrays[numArrays].data = currentData;
@@ -104,8 +186,7 @@ void _rwGCNVertexBufferInitialize(
             }
             break;
         case 10:
-            descriptorType = descriptor->vcdLo & 0x1800U;
-            descriptorType >>= 11;
+            descriptorType = (descriptor->vcdLo & 0x1800U) >> 11;
             if (descriptorType == 2 || descriptorType == 3) {
                 hasNBT = (descriptor->vatA >> 9) & 1;
                 if (hasNBT == 1) {
@@ -117,8 +198,7 @@ void _rwGCNVertexBufferInitialize(
                     vertexBuffer->arrays[numArrays].descriptor =
                         (unsigned char)descriptorType;
                     dataSize +=
-                        (stride * vertexCounts[attribute] + 31U) & ~31U;
-                    numArrays++;
+                        (stride * vertexCounts[10] + 31U) & ~31U;
                 } else {
                     stride = rwGCNNrmGetSize(descriptor);
                     vertexBuffer->arrays[numArrays].data = currentData;
@@ -128,9 +208,9 @@ void _rwGCNVertexBufferInitialize(
                     vertexBuffer->arrays[numArrays].descriptor =
                         (unsigned char)descriptorType;
                     dataSize +=
-                        (stride * vertexCounts[attribute] + 31U) & ~31U;
-                    numArrays++;
+                        (stride * vertexCounts[10] + 31U) & ~31U;
                 }
+                numArrays++;
             }
             break;
         case 11:
@@ -149,9 +229,113 @@ void _rwGCNVertexBufferInitialize(
                 numArrays++;
             }
             break;
-        default:
-            descriptorType =
-                (descriptor->vcdHi >> ((attribute - 13) * 2)) & 3;
+        case 13:
+            descriptorType = descriptor->vcdHi & 3;
+            if (descriptorType == 2 || descriptorType == 3) {
+                stride = rwGCNTexGetSize(
+                    descriptor, (unsigned char)(attribute - 13));
+                vertexBuffer->arrays[numArrays].data = currentData;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
+                vertexBuffer->arrays[numArrays].descriptor =
+                    (unsigned char)descriptorType;
+                dataSize +=
+                    (stride * vertexCounts[attribute] + 31U) & ~31U;
+                numArrays++;
+            }
+            break;
+        case 14:
+            descriptorType = (descriptor->vcdHi & 0xCU) >> 2;
+            if (descriptorType == 2 || descriptorType == 3) {
+                stride = rwGCNTexGetSize(
+                    descriptor, (unsigned char)(attribute - 13));
+                vertexBuffer->arrays[numArrays].data = currentData;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
+                vertexBuffer->arrays[numArrays].descriptor =
+                    (unsigned char)descriptorType;
+                dataSize +=
+                    (stride * vertexCounts[attribute] + 31U) & ~31U;
+                numArrays++;
+            }
+            break;
+        case 15:
+            descriptorType = (descriptor->vcdHi & 0x30U) >> 4;
+            if (descriptorType == 2 || descriptorType == 3) {
+                stride = rwGCNTexGetSize(
+                    descriptor, (unsigned char)(attribute - 13));
+                vertexBuffer->arrays[numArrays].data = currentData;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
+                vertexBuffer->arrays[numArrays].descriptor =
+                    (unsigned char)descriptorType;
+                dataSize +=
+                    (stride * vertexCounts[attribute] + 31U) & ~31U;
+                numArrays++;
+            }
+            break;
+        case 16:
+            descriptorType = (descriptor->vcdHi & 0xC0U) >> 6;
+            if (descriptorType == 2 || descriptorType == 3) {
+                stride = rwGCNTexGetSize(
+                    descriptor, (unsigned char)(attribute - 13));
+                vertexBuffer->arrays[numArrays].data = currentData;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
+                vertexBuffer->arrays[numArrays].descriptor =
+                    (unsigned char)descriptorType;
+                dataSize +=
+                    (stride * vertexCounts[attribute] + 31U) & ~31U;
+                numArrays++;
+            }
+            break;
+        case 17:
+            descriptorType = (descriptor->vcdHi & 0x300U) >> 8;
+            if (descriptorType == 2 || descriptorType == 3) {
+                stride = rwGCNTexGetSize(
+                    descriptor, (unsigned char)(attribute - 13));
+                vertexBuffer->arrays[numArrays].data = currentData;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
+                vertexBuffer->arrays[numArrays].descriptor =
+                    (unsigned char)descriptorType;
+                dataSize +=
+                    (stride * vertexCounts[attribute] + 31U) & ~31U;
+                numArrays++;
+            }
+            break;
+        case 18:
+            descriptorType = (descriptor->vcdHi & 0xC00U) >> 10;
+            if (descriptorType == 2 || descriptorType == 3) {
+                stride = rwGCNTexGetSize(
+                    descriptor, (unsigned char)(attribute - 13));
+                vertexBuffer->arrays[numArrays].data = currentData;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
+                vertexBuffer->arrays[numArrays].descriptor =
+                    (unsigned char)descriptorType;
+                dataSize +=
+                    (stride * vertexCounts[attribute] + 31U) & ~31U;
+                numArrays++;
+            }
+            break;
+        case 19:
+            descriptorType = (descriptor->vcdHi & 0x3000U) >> 12;
+            if (descriptorType == 2 || descriptorType == 3) {
+                stride = rwGCNTexGetSize(
+                    descriptor, (unsigned char)(attribute - 13));
+                vertexBuffer->arrays[numArrays].data = currentData;
+                vertexBuffer->arrays[numArrays].attribute = (unsigned char)attribute;
+                vertexBuffer->arrays[numArrays].stride = (unsigned char)stride;
+                vertexBuffer->arrays[numArrays].descriptor =
+                    (unsigned char)descriptorType;
+                dataSize +=
+                    (stride * vertexCounts[attribute] + 31U) & ~31U;
+                numArrays++;
+            }
+            break;
+        case 20:
+            descriptorType = (descriptor->vcdHi & 0xC000U) >> 14;
             if (descriptorType == 2 || descriptorType == 3) {
                 stride = rwGCNTexGetSize(
                     descriptor, (unsigned char)(attribute - 13));

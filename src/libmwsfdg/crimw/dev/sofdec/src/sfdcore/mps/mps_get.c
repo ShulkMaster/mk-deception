@@ -1,37 +1,39 @@
-/* TODO: Missing implementation for retail unit mps_get.c. */
+#include "cri/mps.h"
 
-void *MPS_GetPketHd(void)
-{
-    /* TODO: Missing canonical function implementation. */
+int MPS_GetPketHd(MpsHandle* handle, MpsPacketHeader* out) {
+    if (MPSLIB_CheckHn(handle) != 0) {
+        return MPSLIB_SetErr(0, 0xFF020203);
+    }
+    *out = handle->payload.headers.packet_header;
     return 0;
 }
 
-void *MPS_GetLastSysHd(void)
-{
-    /* TODO: Missing canonical function implementation. */
+int MPS_GetLastSysHd(MpsHandle* handle, MpsSystemHeader* out) {
+    if (MPSLIB_CheckHn(handle) != 0) {
+        return MPSLIB_SetErr(0, 0xFF020202);
+    }
+    *out = handle->payload.headers.last_system_header;
     return 0;
 }
 
-void *MPS_GetSysHd(void)
-{
-    /* TODO: Missing canonical function implementation. */
+int MPS_GetSysHd(MpsHandle* handle, MpsSystemHeader* out, int index) {
+    if (MPSLIB_CheckHn(handle) != 0) {
+        return MPSLIB_SetErr(0, 0xFF020202);
+    }
+    *out = handle->payload.headers.system_headers[index];
     return 0;
 }
 
-void *MPS_GetPackHd(void)
-{
-    /* TODO: Missing canonical function implementation. */
+int MPS_GetPackHd(MpsHandle* handle, MpsPackHeader* out) {
+    if (MPSLIB_CheckHn(handle) != 0) {
+        return MPSLIB_SetErr(0, 0xFF020201);
+    }
+    *out = handle->payload.headers.pack_header;
     return 0;
 }
 
-void *MPSGET_Finish(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void MPSGET_Finish(void) {
 }
 
-void *MPSGET_Init(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void MPSGET_Init(void) {
 }

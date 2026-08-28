@@ -18,11 +18,12 @@ void C_MTXFrustum(Mtx44 matrix, float top, float bottom, float left,
                   float right, float near_plane, float far_plane);
 void C_MTXOrtho(Mtx44 matrix, float top, float bottom, float left,
                 float right, float near_plane, float far_plane);
-void C_MTXLookAt(Mtx matrix, Vec* camera_position, Vec* up, Vec* target);
+void C_MTXLookAt(Mtx matrix, const Point3d* camera_position,
+                 const Vec* camera_up, const Point3d* target);
 void PSMTXIdentity(Mtx matrix);
 void PSMTXTrans(Mtx matrix, float x, float y, float z);
 void PSMTXScale(Mtx matrix, float x, float y, float z);
-void PSMTXConcat(Mtx a, Mtx b, Mtx output);
+void PSMTXConcat(const Mtx a, const Mtx b, Mtx output);
 void PSMTXQuat(Mtx matrix, const Quat* quaternion);
 void PSMTXMultVec(const Mtx matrix, const Vec* source, Vec* destination);
 

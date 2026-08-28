@@ -1,5 +1,6 @@
 #include "runtime/mk_cmdscript.h"
 
+#include "runtime/cstring.h"
 #include "runtime/hashtable.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_struct.h"
@@ -15,10 +16,6 @@ typedef struct {
 #define va_start(list, last_arg) __va_start(list, last_arg)
 #define va_end(list) ((void)0)
 
-void* memset(void* dst, int val, unsigned long n);
-void* memcpy(void* dst, const void* src, unsigned long n);
-char* strcpy(char* dst, const char* src);
-int strcmp(const char* a, const char* b);
 void* __va_arg(__va_list ap, int type);
 int get_language(void);
 void mk_hwfile_cancel(void* req);
@@ -27,10 +24,7 @@ void mk_hwfile_wait_for_completion(void* req);
 void* _mwMemMalloc(void* heap, unsigned long size, int flags, void* a, void* b, void* c);
 void _mwMemFree(void* ptr, int a, int b);
 void trial_register_script_function(unsigned int func_index);
-
-/* Matching mk_pdata returns void; retail leaves MkProc* in r3. */
-static MkProc* cmdscript_create_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                          int pdata_size, MkHdr** pdata_out);
+float j_exit(void);
 
 extern _mwMemHeap* SystemSwappableHeap;
 extern void** script_callable_function_table;
@@ -43,7 +37,7 @@ typedef struct CmdScriptProcVtable {
     void* prefix[6];
     void (*sleep)(void);
     void* stack_ops[2];
-    void (*jump_sleep)(void);
+    MkProcJumpSleepFn jump_sleep;
 } CmdScriptProcVtable;
 
 #define CMDSCRIPT_PROC_VTBL(proc_) ((CmdScriptProcVtable*)(proc_)->vtbl)
@@ -113,22 +107,20 @@ static const int gap_09_805118D4_sdata2 = 0;
 
 enum { SCRIPT_SLOT_COUNT = 20 };
 
-static MkProc* cmdscript_create_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                          int pdata_size, MkHdr** pdata_out) {
-    _create_mkproc_generic_tinystack(proc_id, priority, proc_fn, pdata_size, pdata_out);
-    /* r3 from create_mkproc; approximate for NonMatching builds */
-    return aproc;
+static inline MkProc* cmdscript_create_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
+                                                 int pdata_size, MkHdr** pdata_out) {
+    return _create_mkproc_generic_tinystack(proc_id, priority, proc_fn, pdata_size, pdata_out);
 }
 
-static ScriptSlotEntry* slot_entry_at(int index) {
+static inline ScriptSlotEntry* slot_entry_at(int index) {
     return &script_slot_list[index];
 }
 
-static ScriptSlot* slot_at(int index) {
+static inline ScriptSlot* slot_at(int index) {
     return &script_slot_list[index].body;
 }
 
-static void* resolve_table_row(ScriptSlot* slot, unsigned int table_id) {
+static inline void* resolve_table_row(ScriptSlot* slot, unsigned int table_id) {
     ScriptTableDef* def;
 
     if (table_id > slot->max_table || table_id == 0) {
@@ -165,7 +157,7 @@ static inline CmdScript* find_cmdscript_in_list(MkPtr** list) {
     return 0;
 }
 
-static void init_cmdscript_fields(CmdScript* cs) {
+static inline void init_cmdscript_fields(CmdScript* cs) {
     cs->func_name = 0;
     cs->mko = 0;
     cs->pc = 0;
@@ -175,9 +167,64 @@ static void init_cmdscript_fields(CmdScript* cs) {
     cs->stack_sp = cs->stack_mem;
     cs->stack_end = cs->stack_sp + 1;
     cs->arg_header = 0;
-    cs->call_flags = 0;
+    cs->continuation = 0;
     memset(cs->stack_mem, 0, sizeof(cs->stack_mem));
     memset(cs->regs, 0, sizeof(cs->regs));
+}
+
+static inline void execute_cmdscript(ScriptSlot* slot) {
+    CmdScript* cs;
+    CmdScriptStackFrame* stack_base;
+    unsigned int instruction;
+    unsigned int header;
+    ScriptBuiltinFn builtin;
+    int stop;
+
+    cs = active_cmdscript;
+    if (cs == 0) {
+        return;
+    }
+    cs->mko = slot;
+    cs->state = 1;
+    cs->unk28 = 0;
+    stack_base = cs->stack_mem;
+    stop = 0;
+
+    while (cs->pc != (unsigned int*)slot->pad8c && stop == 0) {
+        instruction = *cs->pc;
+        while (instruction == 0 && cs->stack_sp != stack_base) {
+            cs->stack_end = cs->stack_sp;
+            cs->stack_sp--;
+            if ((unsigned int)cs->stack_sp < (unsigned int)stack_base) {
+                cs->state = 2;
+            }
+            cs->prev_pc = cs->stack_sp->saved_prev_pc;
+            cs->pc = cs->stack_sp->return_pc;
+            if (cs->stack_sp->keep_alive == 0) {
+                stop = 1;
+                break;
+            }
+            instruction = *cs->pc;
+        }
+        if (instruction == 0 || cs->state == 2 || stop != 0) {
+            break;
+        }
+
+        cs->prev_pc = cs->pc;
+        builtin = *(ScriptBuiltinFn*)cs->pc;
+        cs->pc++;
+        current_args = cs->pc;
+        cs->pc = current_args + 1;
+        cs->arg_header = current_args;
+        header = *current_args;
+        cs->arg_word_count = header >> 16;
+        cs->pc += header & 0xffff;
+        builtin();
+    }
+
+    cs->stack_sp = stack_base;
+    cs->stack_end = stack_base + 1;
+    cs->state = 0;
 }
 
 /* ---- 0x8001394C ---- */
@@ -215,9 +262,8 @@ float p_run_one_shot_script(void) {
         return kNegOne;
     }
     cmdscript_setup_execution(pdata->script, pdata->func_index);
-    /* Retail falls through into execution; the structured C calls it directly. */
-    cmdscript_execute(pdata->script);
-    return kZero;
+    execute_cmdscript(pdata->script);
+    return kNegOne;
 }
 
 /* ---- 0x80013BD8 / 0x80013C00 (krypt-critical) ---- */
@@ -295,24 +341,22 @@ unsigned int get_script_stack_depth(void) {
     CmdScript* cs;
 
     cs = active_cmdscript;
-    return (unsigned int)(cs->stack_sp - cs->stack_mem);
+    return ((unsigned int)cs->stack_sp - (unsigned int)cs->stack_mem) /
+           sizeof(CmdScriptStackFrame);
+}
+
+static inline void push_script_stack_frame_inline(int keep_alive) {
+    active_cmdscript->stack_sp->return_pc = active_cmdscript->pc;
+    active_cmdscript->stack_sp->keep_alive = keep_alive;
+    active_cmdscript->stack_sp->saved_prev_pc = active_cmdscript->prev_pc;
+    active_cmdscript->stack_sp = active_cmdscript->stack_end;
+    active_cmdscript->stack_end++;
+    if (active_cmdscript->stack_sp >= (CmdScriptStackFrame*)&active_cmdscript->stack_sp)
+        active_cmdscript->state = 2;
 }
 
 void push_script_stack_frame(int keep_alive) {
-    CmdScript* cs;
-    CmdScriptStackFrame* frame;
-
-    cs = active_cmdscript;
-    frame = cs->stack_sp;
-    frame->return_pc = cs->pc;
-    frame->keep_alive = keep_alive;
-    frame->saved_prev_pc = cs->prev_pc;
-    cs->stack_sp = cs->stack_end;
-    cs->stack_end = cs->stack_end + 1;
-    if ((unsigned int)cs->stack_sp < (unsigned int)&cs->stack_sp) {
-        return;
-    }
-    cs->state = 2;
+    push_script_stack_frame_inline(keep_alive);
 }
 
 void register_c_table(const char* name, void* table) {
@@ -323,22 +367,28 @@ void register_c_table(const char* name, void* table) {
 
 void parse_args(const char* fmt, ...) {
     __va_list ap;
-    int arg_i;
+    unsigned int arg_offset;
     char c;
-    int** out;
     unsigned int val;
     unsigned int base;
     unsigned int limit;
     ScriptSlot* mko;
 
     va_start(ap, fmt);
-    arg_i = 1;
+    arg_offset = sizeof(unsigned int);
     while ((c = *fmt) != '\0') {
-        out = (int**)__va_arg(ap, 1);
-        if (c == 'i' || c == 'u' || c == 'f' || c == 'v') {
-            **out = (int)current_args[arg_i];
+        if (c == 'i') {
+            int* out = *(int**)__va_arg(ap, 1);
+            *out = *(int*)((unsigned char*)current_args + arg_offset);
+        } else if (c == 'u') {
+            unsigned int* out = *(unsigned int**)__va_arg(ap, 1);
+            *out = *(unsigned int*)((unsigned char*)current_args + arg_offset);
+        } else if (c == 'f') {
+            float* out = *(float**)__va_arg(ap, 1);
+            *out = *(float*)((unsigned char*)current_args + arg_offset);
         } else if (c == 's') {
-            val = current_args[arg_i];
+            char** out = *(char***)__va_arg(ap, 1);
+            val = *(unsigned int*)((unsigned char*)current_args + arg_offset);
             if (val != 0) {
                 mko = active_cmdscript->mko;
                 base = mko->string_base;
@@ -347,11 +397,21 @@ void parse_args(const char* fmt, ...) {
                     val = base + (val - 1);
                 }
             }
-            **out = (int)val;
+            *out = (char*)val;
+        } else if (c == 'v') {
+            void** out = *(void***)__va_arg(ap, 1);
+            *out = (void*)*(unsigned int*)((unsigned char*)current_args + arg_offset);
         } else if (c == 'c') {
-            **out = (int)current_args[arg_i];
+            ScriptBuiltinFn* out = *(ScriptBuiltinFn**)__va_arg(ap, 1);
+            val = *(unsigned int*)((unsigned char*)current_args + arg_offset);
+            if (val == 0)
+                *out = 0;
+            else if (val < (unsigned int)number_of_script_functions)
+                *out = (ScriptBuiltinFn)script_callable_function_table[val - 1];
+            else
+                *out = (ScriptBuiltinFn)val;
         }
-        arg_i++;
+        arg_offset += sizeof(unsigned int);
         fmt++;
     }
     va_end(ap);
@@ -369,14 +429,11 @@ char* get_script_string_arg(int index) {
     }
     mko = active_cmdscript->mko;
     base = mko->string_base;
-    if (val >= base) {
-        return (char*)val;
-    }
     limit = mko->string_limit;
-    if (val >= limit) {
-        return (char*)val;
+    if (val < base && val < limit) {
+        return (char*)(base + (val - 1));
     }
-    return (char*)(base + (val - 1));
+    return (char*)val;
 }
 
 void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
@@ -423,20 +480,37 @@ void* get_data_table_by_name(const char* name) {
 int get_script_function_by_name(ScriptSlot* slot, const char* name) {
     unsigned int i;
     ScriptFuncDef* def;
-    int cmp;
+    char* function_name;
 
-    for (i = 0; i < slot->func_count; i++) {
-        def = &slot->func_defs[i];
-        cmp = strcmp(name, (char*)(def->name_offset + slot->string_reloc - 1));
-        if (cmp == 0) {
+    i = 0;
+    def = slot->func_defs;
+    while (i < slot->func_count) {
+        function_name = (char*)(def->name_offset + slot->string_reloc);
+        if (strcmp(name, function_name - 1) == 0) {
             return (int)i + 1;
         }
+        i++;
+        def++;
     }
     return 0;
 }
 
 int check_script_function_exists(ScriptSlot* slot, const char* name) {
-    return get_script_function_by_name(slot, name);
+    unsigned int i;
+    ScriptFuncDef* def;
+    char* function_name;
+
+    i = 0;
+    def = slot->func_defs;
+    while (i < slot->func_count) {
+        function_name = (char*)(def->name_offset + slot->string_reloc);
+        if (strcmp(name, function_name - 1) == 0) {
+            return (int)i + 1;
+        }
+        i++;
+        def++;
+    }
+    return 0;
 }
 
 char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table) {
@@ -463,10 +537,14 @@ char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table) {
 }
 
 char* get_name_of_table(ScriptSlot* slot, unsigned int index) {
-    if (index <= slot->max_table && index != 0) {
-        return slot->table_defs[index - 1].name + slot->string_reloc - 1;
+    char* table_name;
+
+    if (index > slot->max_table || index == 0) {
+        return 0;
     }
-    return 0;
+    table_name = slot->table_defs[index - 1].name + slot->string_reloc;
+    table_name--;
+    return table_name;
 }
 
 unsigned int get_table_index_by_pointer(ScriptSlot* slot, void* table) {
@@ -510,10 +588,10 @@ unsigned int get_row_count_for_table_by_pointer(ScriptSlot* slot, void* table) {
 }
 
 unsigned int get_row_count_for_table(ScriptSlot* slot, unsigned int index) {
-    if (index <= slot->max_table && index != 0) {
-        return slot->table_defs[index - 1].row_count;
+    if (index > slot->max_table || index == 0) {
+        return 0;
     }
-    return 0;
+    return slot->table_defs[index - 1].row_count;
 }
 
 void* get_data_table(ScriptSlot* slot, unsigned int index) {
@@ -578,20 +656,23 @@ void cmdscript_execute(ScriptSlot* slot) {
 }
 
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
-    CmdScript* cs;
     ScriptFuncDef* def;
 
-    cs = active_cmdscript;
-    if (cs != 0 && func_index <= slot->func_count && func_index != 0) {
-        cs->mko = slot;
-        cs->stack_end = cs->stack_sp + 1;
+    if (active_cmdscript != 0 && func_index <= slot->func_count) {
+        if (func_index == 0) {
+            return;
+        }
+        active_cmdscript->mko = slot;
+        active_cmdscript->stack_end = active_cmdscript->stack_sp + 1;
         def = &slot->func_defs[func_index - 1];
-        cs->attrs_table = resolve_table_row(slot, def->attrs_id);
+        active_cmdscript->attrs_table = resolve_table_row(slot, def->attrs_id);
         trial_register_script_function(func_index);
-        cs->func_name = (char*)(def->name_offset + slot->string_reloc - 1);
-        cs->call_flags = 0;
-        cs->pc = slot->bytecode + def->code_offset;
-        cs->prev_pc = cs->pc;
+        def = &slot->func_defs[func_index - 1];
+        active_cmdscript->func_name =
+            (char*)(def->name_offset + slot->string_reloc - 1);
+        active_cmdscript->continuation = 0;
+        active_cmdscript->pc = slot->bytecode + def->code_offset;
+        active_cmdscript->prev_pc = active_cmdscript->pc;
     }
 }
 
@@ -611,11 +692,11 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
 }
 
 float call_player_script_function(ScriptSlot* slot) {
-    cmdscript_execute(slot);
-    if (active_cmdscript->call_flags == 0) {
-        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep();
+    execute_cmdscript(slot);
+    if (active_cmdscript->continuation != 0) {
+        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(active_cmdscript->continuation, kZero);
     } else {
-        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep();
+        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(j_exit, kZero);
     }
     return kZero;
 }
@@ -1026,11 +1107,14 @@ void fixup_data_tables(ScriptSlot* slot) {
 
 void script_system_reset(void) {
     int i;
+    ScriptSlotEntry* entry;
 
-    for (i = 0; i < SCRIPT_SLOT_COUNT; i++) {
+    for (i = 1; i < SCRIPT_SLOT_COUNT; i++) {
+        entry = slot_entry_at(i);
         unload_script(i);
+        entry->state = 0;
     }
-    memset(script_slot_list, 0, sizeof(script_slot_list));
+    init_cmdscript_fields(&global_script_interpreter);
 }
 
 void init_cmdscript_system(void) {
@@ -1086,8 +1170,20 @@ void _copy_stream_to_address(void) {
 }
 
 void _call_script_function(void) {
-    /* pushes frame and redirects pc - simplified */
-    push_script_stack_frame(1);
+    unsigned int* args;
+    unsigned int func_index;
+    ScriptSlot* slot;
+    ScriptFuncDef* function;
+
+    args = current_args;
+    func_index = args[1];
+    push_script_stack_frame_inline(1);
+    memcpy(active_cmdscript->stack_sp->args, &args[2],
+           ((unsigned short)args[0] - 1) * sizeof(unsigned int));
+    slot = active_cmdscript->mko;
+    function = &slot->func_defs[func_index - 1];
+    active_cmdscript->pc = slot->bytecode + function->code_offset;
+    active_cmdscript->func_name = (char*)(function->name_offset + slot->string_reloc - 1);
 }
 
 void _load_table_address(void) {
@@ -1131,31 +1227,46 @@ void _conditional_branch(void) {
 }
 
 void _compare_float_float(void) {
+    unsigned int* args;
     CmdScript* cs;
     float a;
     float b;
     int op;
     int result;
 
-    cs = active_cmdscript;
-    a = *(float*)&cs->regs[current_args[2]];
-    b = *(float*)&cs->regs[current_args[3]];
-    op = current_args[4];
+    args = current_args;
     result = 0;
-    if (op == 0) {
-        result = a == b;
-    } else if (op == 1) {
-        result = a != b;
-    } else if (op == 2) {
-        result = a < b;
-    } else if (op == 3) {
-        result = a <= b;
-    } else if (op == 4) {
-        result = a > b;
-    } else if (op == 5) {
-        result = a >= b;
+    cs = active_cmdscript;
+    a = *(float*)&cs->regs[args[1]];
+    b = *(float*)&cs->regs[args[2]];
+    op = args[3];
+    switch (op) {
+    case 18:
+        if (a < b)
+            result = 1;
+        break;
+    case 15:
+        if (a == b)
+            result = 1;
+        break;
+    case 16:
+        if (a > b)
+            result = 1;
+        break;
+    case 14:
+        if (a != b)
+            result = 1;
+        break;
+    case 19:
+        if (a <= b)
+            result = 1;
+        break;
+    case 17:
+        if (a >= b)
+            result = 1;
+        break;
     }
-    cs->regs[current_args[1]] = (unsigned int)result;
+    cs->regs[args[1]] = (unsigned int)result;
 }
 
 void _compare_uint_uint(void) {
@@ -1218,175 +1329,257 @@ void _compare_uint_uint(void) {
 }
 
 void _compare_int_int(void) {
+    unsigned int* args;
     CmdScript* cs;
     int a;
     int b;
     int op;
     int result;
 
-    cs = active_cmdscript;
-    a = (int)cs->regs[current_args[2]];
-    b = (int)cs->regs[current_args[3]];
-    op = current_args[4];
+    args = current_args;
     result = 0;
-    if (op == 0) {
-        result = a == b;
-    } else if (op == 1) {
-        result = a != b;
-    } else if (op == 2) {
-        result = a < b;
-    } else if (op == 3) {
-        result = a <= b;
-    } else if (op == 4) {
-        result = a > b;
-    } else if (op == 5) {
-        result = a >= b;
+    op = args[3];
+    cs = active_cmdscript;
+    a = (int)cs->regs[args[1]];
+    b = (int)cs->regs[args[2]];
+    switch (op) {
+    case 18:
+        if (a < b)
+            result = 1;
+        break;
+    case 15:
+        if (a == b)
+            result = 1;
+        break;
+    case 16:
+        if (a > b)
+            result = 1;
+        break;
+    case 14:
+        if (a != b)
+            result = 1;
+        break;
+    case 19:
+        if (a <= b)
+            result = 1;
+        break;
+    case 17:
+        if (a >= b)
+            result = 1;
+        break;
+    case 13:
+        if (a != 0 || b != 0)
+            result = 1;
+        break;
+    case 12:
+        if (a != 0 && b != 0)
+            result = 1;
+        break;
     }
-    cs->regs[current_args[1]] = (unsigned int)result;
+    cs->regs[args[1]] = (unsigned int)result;
 }
 
 void _combine_float_float(void) {
+    unsigned int* args;
     CmdScript* cs;
     float a;
     float b;
     int op;
     float result;
 
-    cs = active_cmdscript;
-    a = *(float*)&cs->regs[current_args[2]];
-    b = *(float*)&cs->regs[current_args[3]];
-    op = current_args[4];
+    args = current_args;
     result = 0.0f;
-    if (op == 0) {
+    op = args[3];
+    cs = active_cmdscript;
+    a = *(float*)&cs->regs[args[1]];
+    b = *(float*)&cs->regs[args[2]];
+    switch (op) {
+    case 0:
         result = a + b;
-    } else if (op == 1) {
+        break;
+    case 1:
         result = a - b;
-    } else if (op == 2) {
+        break;
+    case 2:
         result = a * b;
-    } else if (op == 3) {
+        break;
+    case 3:
         result = a / b;
+        break;
     }
-    *(float*)&cs->regs[current_args[1]] = result;
+    *(float*)&cs->regs[args[1]] = result;
 }
 
 void _combine_uint_uint(void) {
+    unsigned int* args;
     CmdScript* cs;
     unsigned int a;
     unsigned int b;
     int op;
     unsigned int result;
 
-    cs = active_cmdscript;
-    a = cs->regs[current_args[2]];
-    b = cs->regs[current_args[3]];
-    op = current_args[4];
+    args = current_args;
     result = 0;
-    if (op == 0) {
+    op = args[3];
+    cs = active_cmdscript;
+    a = cs->regs[args[1]];
+    b = cs->regs[args[2]];
+    switch (op) {
+    case 0:
         result = a + b;
-    } else if (op == 1) {
+        break;
+    case 1:
         result = a - b;
-    } else if (op == 2) {
+        break;
+    case 2:
         result = a * b;
-    } else if (op == 3) {
+        break;
+    case 3:
         result = a / b;
-    } else if (op == 4) {
+        break;
+    case 4:
         result = a % b;
-    } else if (op == 5) {
+        break;
+    case 5:
         result = a & b;
-    } else if (op == 6) {
+        break;
+    case 6:
         result = a | b;
-    } else if (op == 7) {
-        result = a ^ b;
+        break;
+    case 7:
+        result = a << b;
+        break;
+    case 8:
+        result = a >> b;
+        break;
     }
-    cs->regs[current_args[1]] = result;
+    cs->regs[args[1]] = result;
 }
 
 void _combine_int_int(void) {
+    unsigned int* args;
     CmdScript* cs;
     int a;
     int b;
     int op;
     int result;
 
-    cs = active_cmdscript;
-    a = (int)cs->regs[current_args[2]];
-    b = (int)cs->regs[current_args[3]];
-    op = current_args[4];
+    args = current_args;
     result = 0;
-    if (op == 0) {
+    op = args[3];
+    cs = active_cmdscript;
+    a = (int)cs->regs[args[1]];
+    b = (int)cs->regs[args[2]];
+    switch (op) {
+    case 0:
         result = a + b;
-    } else if (op == 1) {
+        break;
+    case 1:
         result = a - b;
-    } else if (op == 2) {
+        break;
+    case 2:
         result = a * b;
-    } else if (op == 3) {
+        break;
+    case 3:
         result = a / b;
-    } else if (op == 4) {
+        break;
+    case 4:
         result = a % b;
-    } else if (op == 5) {
+        break;
+    case 5:
         result = a & b;
-    } else if (op == 6) {
+        break;
+    case 6:
         result = a | b;
-    } else if (op == 7) {
-        result = a ^ b;
+        break;
+    case 7:
+        result = a << b;
+        break;
+    case 8:
+        result = a >> b;
+        break;
     }
-    cs->regs[current_args[1]] = (unsigned int)result;
+    cs->regs[args[1]] = (unsigned int)result;
 }
 
 void _copy_register_to_address(void) {
     CmdScript* cs;
-    void* dst;
-    unsigned int size;
+    void* destination;
 
     cs = active_cmdscript;
-    dst = (void*)cs->regs[current_args[1]];
-    size = current_args[3];
-    memcpy(dst, &cs->regs[current_args[2]], size);
+    destination = (void*)cs->regs[current_args[1]];
+    memcpy(destination, &cs->regs[current_args[2]], current_args[3]);
 }
 
 void _copy_column_address_to_register(void) {
-    CmdScript* cs;
-    unsigned int* table;
-    int col;
+    unsigned int* args;
+    CmdScript* script;
+    unsigned int table;
+    unsigned int row;
+    unsigned int destination;
+    unsigned int offset;
+    unsigned int stride;
 
-    cs = active_cmdscript;
-    table = (unsigned int*)cs->regs[current_args[2]];
-    col = (int)current_args[3];
-    cs->regs[current_args[1]] = (unsigned int)&table[col];
+    args = current_args;
+    script = active_cmdscript;
+    table = script->regs[args[2]];
+    row = script->regs[args[3]];
+    destination = args[1];
+    offset = args[4];
+    stride = args[5];
+    if (table != 0) {
+        script->regs[destination] = table + row * stride + offset;
+    }
 }
 
 void _copy_column_to_register(void) {
-    CmdScript* cs;
-    unsigned int* table;
-    int col;
-    unsigned int size;
+    unsigned int value;
+    unsigned int dest_reg;
+    unsigned int table;
 
-    cs = active_cmdscript;
-    table = (unsigned int*)cs->regs[current_args[2]];
-    col = (int)current_args[3];
-    size = current_args[4];
-    memcpy(&cs->regs[current_args[1]], &table[col], size);
+    value = 0;
+    dest_reg = current_args[1];
+    table = active_cmdscript->regs[current_args[2]];
+    if (table != 0) {
+        memcpy(&value,
+               (void*)(table + active_cmdscript->regs[current_args[3]] * current_args[5] +
+                       current_args[4]),
+               current_args[6]);
+        active_cmdscript->regs[dest_reg] = value;
+    }
 }
 
 void _copy_constant_to_variable(void) {
+    unsigned int* args;
     CmdScript* cs;
+    unsigned int* stack_words;
 
+    args = current_args;
     cs = active_cmdscript;
-    *(unsigned int*)cs->regs[current_args[1]] = current_args[2];
+    stack_words = (unsigned int*)cs->stack_sp;
+    stack_words[args[1]] = args[2];
 }
 
 void _copy_register_to_variable(void) {
+    unsigned int* args;
     CmdScript* cs;
+    unsigned int* stack_words;
 
+    args = current_args;
     cs = active_cmdscript;
-    *(unsigned int*)cs->regs[current_args[1]] = cs->regs[current_args[2]];
+    stack_words = (unsigned int*)cs->stack_sp;
+    stack_words[args[1]] = cs->regs[args[2]];
 }
 
 void _copy_variable_to_register(void) {
+    unsigned int* args;
     CmdScript* cs;
+    unsigned int* stack_words;
 
+    args = current_args;
     cs = active_cmdscript;
-    cs->regs[current_args[1]] = *(unsigned int*)cs->regs[current_args[2]];
+    stack_words = (unsigned int*)cs->stack_sp;
+    cs->regs[args[1]] = stack_words[args[2]];
 }
 
 void _copy_register_to_register(void) {
@@ -1404,8 +1597,10 @@ void _copy_constant_to_register(void) {
 }
 
 void _copy_register_to_instruction(void) {
+    unsigned int* args;
     CmdScript* cs;
 
+    args = current_args;
     cs = active_cmdscript;
-    *(unsigned int*)cs->pc = cs->regs[current_args[1]];
+    cs->pc[args[2]] = cs->regs[args[1]];
 }

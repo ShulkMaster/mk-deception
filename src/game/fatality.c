@@ -1,8 +1,12 @@
 #include "runtime/mk_obj.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_particle.h"
+#include "runtime/mk_pebble.h"
+#include "runtime/asset.h"
+#include "runtime/cstring.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/plyr_pdata.h"
@@ -14,6 +18,7 @@
 #include "game/plyr.h"
 #include "game/cloth.h"
 #include "game/specular.h"
+#include "game/weapon.h"
 #include "math/mk_math.h"
 #include "platform/display.h"
 #include "platform/fog.h"
@@ -293,11 +298,11 @@ typedef struct FatalityLightningScaling {
     const float* z;
 } FatalityLightningScaling;
 
-typedef struct FatalityWeaponSource {
+struct FatalityWeaponSource {
     char pad00[0x58];
     PlyrPdata* owner;
-    int weapon_id;
-} FatalityWeaponSource;
+    MkObj* player_object;
+};
 
 typedef struct FatalityWeaponReflectionSet {
     char pad00[0x14];
@@ -547,13 +552,7 @@ static float p_raiden_summon_lightning_bolt(void);
 static float p_sd_sonic_waves(void);
 static void sindel_load_projectile_obj_for_sonic_waves(
     FatalitySonicWavePdata* data);
-void set_root_and_obj_movement_weights(
-    void* animation, float root_weight, float object_weight);
-MkObj* load_weapon();
-MkObj* load_weapon_reflection(int player, int weapon_id);
 void obj_create_sobjs(MkObj* object);
-MkObj* load_named_model_from_slot(
-    int slot, const char* name, int flags, int arg);
 void update_mkobj_pdata(MkObj* object, MkHdr* pdata);
 int build_bones_tbl(MkObj* object, const int* tags);
 void bone_matcher_parent_set_offset(
@@ -606,12 +605,7 @@ static float p_subzero_iceblock_alpha(void);
 float p_sz2_iceblock_scalar(void);
 float sz_kill_myself(void);
 float subzero_rx_freeze(void);
-MkObj* load_named_model_for_player(
-    const char* name, int player, int flags, int arg);
-void* create_pebble_userdata(MkSobj* object, int pebble_id, int arg);
 void material_set_zbias(RpMaterial* material, float bias);
-void* memcpy(void* destination, const void* source, unsigned long size);
-void* memset(void* destination, int value, unsigned long size);
 
 typedef int FatalityEffectHandle;
 extern FatalityEffectHandle fx_by_owner(
@@ -818,7 +812,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
                     obj_find_sobj_by_id(
                         model, sz_hk_icechunk_map[index].subobject_id);
                 if (subobject != 0) {
-                    chunk = create_pebble_userdata(
+                    chunk = (FatalityIceChunkPebble*)create_pebble_userdata(
                         (MkSobj*)subobject,
                         sz_hk_icechunk_map[index].pebble_id, 0);
                     if (chunk != 0) {
@@ -1461,7 +1455,7 @@ static void sindel_load_projectile_obj_for_sonic_waves(
         obj_create_sobjs(projectile);
         subobject = (MkSobj*)obj_first_sobj(projectile);
         if (subobject != 0) {
-            data->pebble = create_pebble_userdata(subobject, 5, 0);
+            data->pebble = (MkHdr*)create_pebble_userdata(subobject, 5, 0);
             if (data->pebble != 0) {
                 insert_fgnd_mkobj(projectile);
                 data->projectile = projectile;
@@ -2031,7 +2025,7 @@ void ft_mileena_start_veil_ripoff(void) {
         insert_fgnd_mkobj(veil);
         animation->obj = veil;
         animation->obj_instance = veil->hdr.instance;
-        set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
+        set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
         set_anim_script(
             animation, plyr_pdata->mileena_veil_animation, 3);
         obj_match_pos_ang_to_src_obj(
@@ -2064,7 +2058,7 @@ void fat_goro_fold_arms(
             animation, player->goro_fold_animation, transition);
         animation->step = speed;
         set_root_and_obj_movement_weights(
-            animation, 0.0f, 1.0f);
+            0.0f, 1.0f, animation);
     }
 }
 
@@ -3409,18 +3403,20 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
     return weapon;
 }
 
-void clone_my_weapon(FatalityWeaponSource* source) {
+MkObj* clone_my_weapon(
+    WeaponDefinition* definition, FatalityWeaponSource* source) {
     MkObj* weapon;
 
-    weapon = load_weapon(source->weapon_id);
+    weapon = load_weapon(definition, source->player_object);
     if (weapon != 0) {
         obj_create_sobjs(weapon);
         sobj_set_priority(obj_first_sobj(weapon), 6);
     }
+    return weapon;
 }
 
 void clone_weapon_to_secondary(
-    int player, FatalityWeaponSource* source) {
+    WeaponDefinition* definition, FatalityWeaponSource* source) {
     PlyrWeaponStyle* style;
     PlyrMirrorObjLatch* weapon_latch;
     PlyrMirrorObjLatch* reflection_latch;
@@ -3430,14 +3426,14 @@ void clone_weapon_to_secondary(
     style = source->owner->weapon_styles[2];
     weapon_latch = &style->mirror_slots.weapon[1].primary;
     reflection_latch = &style->mirror_slots.weapon[1].mirror;
-    weapon = load_weapon(source->weapon_id, source->owner);
+    weapon = load_weapon(definition, source->player_object);
     if (weapon == 0) {
         return;
     }
     weapon_latch->obj = weapon;
     weapon_latch->instance = weapon->hdr.instance;
     mk_insert(&weapon->hdr, &style->object_list);
-    reflection = load_weapon_reflection(player, source->weapon_id);
+    reflection = load_weapon_reflection(definition, source->player_object);
     if (reflection != 0) {
         reflection_latch->obj = reflection;
         reflection_latch->instance = reflection->hdr.instance;

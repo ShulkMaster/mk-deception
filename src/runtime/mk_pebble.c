@@ -1,5 +1,6 @@
 #include "runtime/mk_pebble.h"
 
+#include "runtime/cstring.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
@@ -8,13 +9,8 @@
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 
-void* memcpy(void* dest, const void* src, unsigned int size);
-
 extern int MksobjLocalOffset;
 extern RwCamera* Camera;
-
-RwSphere* RpAtomicGetWorldBoundingSphere(RpAtomic* atomic);
-RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
 
 static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic);
 static RpAtomic* pebble_render_callback(RpAtomic* atomic);
@@ -93,11 +89,15 @@ static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic) {
     return 0;
 }
 
-/* Soft ceiling: pebble_render_callback ~92.24% -- remaining register coloring and stack-slot placement. */
+/* Soft ceiling: pebble_render_callback ~98.28% -- the remaining differences are
+ * a folded validation edge, aggregate stack placement, and register scheduling. */
 static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
-    RwFrame* frame;
-    MkSobj* sobj;
+    int visible_count;
+    int i;
+    RwCamera* camera;
     PebbleData* pebble_data;
+    MkSobj* sobj;
+    RwFrame* frame;
     RwMatrix saved_matrix;
     RwSphere render_sphere;
     RwSphere saved_sphere;
@@ -106,9 +106,6 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     RwSphere* atomic_sphere;
     RwMatrix* atomic_ltm;
     RwMatrix* cull_ltm;
-    RwCamera* camera;
-    int visible_count;
-    int i;
 
     if (atomic == 0) {
         return atomic;
@@ -144,17 +141,19 @@ static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     }
     if (!sobj->flags09_bits.bit3) {
         camera = Camera;
-        visible_count = 0;
         cull_ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
+        visible_count = 0;
         atomic_sphere = RpAtomicGetWorldBoundingSphere(atomic);
         sphere_offset.x = atomic_sphere->center.x - cull_ltm->pos.x;
         sphere_offset.y = atomic_sphere->center.y - cull_ltm->pos.y;
         sphere_offset.z = atomic_sphere->center.z - cull_ltm->pos.z;
         test_sphere.radius = atomic_sphere->radius + PSVECMag(&sphere_offset);
         for (i = 0; i < pebble_data->count; i++) {
-            test_sphere.center.x = pebble_data->pebbles[i].matrix.pos.x;
-            test_sphere.center.y = pebble_data->pebbles[i].matrix.pos.y;
-            test_sphere.center.z = pebble_data->pebbles[i].matrix.pos.z;
+            RwV3d* position = &pebble_data->pebbles[i].matrix.pos;
+
+            test_sphere.center.x = position->x;
+            test_sphere.center.y = position->y;
+            test_sphere.center.z = position->z;
             pebble_data->flags[i].bits.visible = 1;
             switch (RwCameraFrustumTestSphere(camera, &test_sphere)) {
             case 0:

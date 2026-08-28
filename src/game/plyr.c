@@ -4,6 +4,7 @@
 #include "game/moveset.h"
 #include "game/plyr.h"
 #include "game/specular.h"
+#include "game/weapon.h"
 #include "math/mk_math.h"
 #include "platform/main.h"
 #include "runtime/plyr_info.h"
@@ -14,6 +15,7 @@
 #include "runtime/mk_fileinfo.h"
 #include "runtime/section.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "runtime/anims.h"
 #include "runtime/cstring.h"
 #include "runtime/sound.h"
@@ -110,8 +112,6 @@ extern MkObj* plyr_weapon2_release(PlyrPdata* player);
 extern void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 extern void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
 extern MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition);
-extern MkObj* load_weapon_reflection(
-    WeaponDefinition* definition, MkObj* player_object);
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void generate_ai_table_moveset(void* moveset);
 extern void obj_create_sobjs(MkObj* object);
@@ -124,16 +124,12 @@ extern void damage_p2(float damage);
 extern void drone_ai_watcher(void);
 extern void setup_sound_banks(int bank);
 extern float p_plyr_start(void);
-extern MkObj* load_weapon(
-    WeaponDefinition* definition, MkObj* player_object);
 extern void plyr_aux_weapon_grab(PlyrPdata* pdata, MkObj* weapon);
 extern int is_char_locked(int character, int alternate);
 extern void resolve_alternate_palettes(PlyrInfo* player);
 extern MkHdr* start_bone_matcher(
     MkObj* source, int source_bone, MkObj* target, int target_bone,
     float weight);
-extern void set_root_and_obj_movement_weights(
-    float root_weight, float object_weight, AnimPdata* animation);
 extern void select_fighter_voice_in_bank(int player, int alternate_voice);
 extern int is_local_plyr(void);
 extern void advance_active_moveset(PlyrPdata* pdata);

@@ -1,6 +1,8 @@
 #ifndef MOVIE_SFX_SET_H
 #define MOVIE_SFX_SET_H
 
+#include "cri/sj.h"
+
 typedef struct SfxEffect SfxEffect;
 
 typedef struct SfxTagInfo {
@@ -22,10 +24,7 @@ typedef struct SfxTagInfo {
     int color_adjustment;
 } SfxTagInfo;
 
-typedef struct SfxDataRange {
-    void* data;
-    int size;
-} SfxDataRange;
+typedef SJCK SfxDataRange;
 
 void SFXZ_SetTagInf(SfxEffect* effect, void* data, int size);
 

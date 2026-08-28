@@ -84,7 +84,7 @@ typedef struct CmdScript {
     CmdScriptStackFrame stack_mem[4]; /* +0x64 .. +0x1A3 */
     CmdScriptStackFrame* stack_sp;  /* +0x1A4 */
     CmdScriptStackFrame* stack_end; /* +0x1A8 */
-    int call_flags;                 /* +0x1AC */
+    MkProcEntryFn continuation;     /* +0x1AC process entry after script execution */
 } CmdScript; /* 0x1B0 */
 
 /* One-shot tinystack pdata (0x10). */

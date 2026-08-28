@@ -1,4 +1,5 @@
 #include "runtime/anim_pdata.h"
+#include "runtime/anim_api.h"
 #include "runtime/asset.h"
 #include "game/konquest.h"
 #include "game/konquest_lipsync.h"
@@ -588,8 +589,6 @@ MkVtable5 vtbl_path_data_struct = {
 KonquestTrigger* find_trigger_by_id(void);
 void execute_trigger(KonquestTrigger* trigger);
 void destroy_mkproc_nostack(MkProc* proc);
-void set_root_and_obj_movement_weights(
-    float root_weight, float object_weight, AnimState* animation);
 void npc_play_dialog_and_anim_sequence(int dialog, int animation);
 void npc_wait_for_dialog(void);
 int konquest_set_dialog_text(
@@ -621,7 +620,6 @@ MkProc* create_mkproc_anim(
     int pid, MkProcEntryFn entry, AnimPdata** animation);
 void npc_ani_1_frame(void);
 void add_npc(KonquestNpcData* data);
-void* memcpy(void* dst, const void* src, unsigned long size);
 int check_skip_conversation_flag(void);
 void snd_stop(unsigned int sound_handle);
 unsigned int snd_req(int sound_id);
@@ -666,7 +664,6 @@ void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void build_bones_tbl(MkObj* object, int* bones, int flags);
-MkObj* load_model_from_slot(int slot, unsigned int model_id, int heap_id);
 void obj_create_sobjs(MkObj* object);
 void insert_ground_me_mkobj(MkObj* object);
 CollisionObj* add_shape_to_global_collision_list(

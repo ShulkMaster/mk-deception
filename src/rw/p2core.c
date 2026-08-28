@@ -6,6 +6,8 @@
 
 extern RxExecutionContext _rxExecCtxGlobal;
 
+#define RxHeapReset(heap) ((!(heap)->dirty) ? 1 : _rxHeapReset(heap))
+
 static RwFreeList _rxPipesFreeList;
 unsigned int _rxHeapInitialSize = 0x1000;
 unsigned int _rxPipelineMaxNodes = 0x40;
@@ -17,8 +19,8 @@ int RxPipelineInstanced;
 int _rxPipelineClose(void)
 {
     if (RxPipelineInstanced) {
-        RwFreeListDestroy(RxPipelineGlobals()->pipelines);
-        RxPipelineGlobals()->pipelines = 0;
+        RwFreeListDestroy(RXPIPELINEGLOBAL(pipesFreeList));
+        RXPIPELINEGLOBAL(pipesFreeList) = 0;
         RxHeapDestroy(_rxHeapGlobal);
         _rxHeapGlobal = 0;
         RxPipelineInstanced = 0;
@@ -34,20 +36,20 @@ int _rxPipelineOpen(void)
             return 0;
         }
 
-        RxPipelineGlobals()->pipelines = RwFreeListCreateAndPreallocateSpace(
+        RXPIPELINEGLOBAL(pipesFreeList) = RwFreeListCreateAndPreallocateSpace(
             sizeof(RxPipeline), _rxPipesFreeListBlockSize, 4,
             _rxPipesFreeListPreallocBlocks, &_rxPipesFreeList, 0x40409);
-        if (RxPipelineGlobals()->pipelines == 0) {
+        if (RXPIPELINEGLOBAL(pipesFreeList) == 0) {
             RxHeapDestroy(_rxHeapGlobal);
             _rxHeapGlobal = 0;
             return 0;
         }
 
-        RxPipelineGlobals()->maxNodes = _rxPipelineMaxNodes;
+        RXPIPELINEGLOBAL(maxNodesPerPipe) = _rxPipelineMaxNodes;
         RxRenderStateVectorSetDefaultRenderStateVector(
-            &RxPipelineGlobals()->defaultRenderState);
-        RxPipelineGlobals()->currentNode = 0;
-        RxPipelineGlobals()->currentPipeline = 0;
+            &RXPIPELINEGLOBAL(defaultRenderState));
+        RXPIPELINEGLOBAL(allPipelines).link.prev = 0;
+        RXPIPELINEGLOBAL(allPipelines).link.next = 0;
         RxPipelineInstanced = 1;
         return 1;
     }
@@ -94,26 +96,26 @@ RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
 
         nodeIndex = node - pipeline->nodes;
         if (nodeIndex < pipeline->numNodes - 1) {
-            unsigned char* output;
-            unsigned char* nextOutput;
+            unsigned int* output;
+            unsigned int* nextOutput;
             RxPipelineNodeTopSortData* topSort;
             RxPipelineNodeTopSortData* nextTopSort;
             unsigned int i;
 
-            output = (unsigned char*)pipeline->nodes +
-                     RxPipelineGlobals()->maxNodes * sizeof(*node);
-            output += nodeIndex * 0x80;
-            nextOutput = output + 0x80;
+            output = (unsigned int*)&pipeline->nodes[
+                RXPIPELINEGLOBAL(maxNodesPerPipe)];
+            output += 0x20 * nodeIndex;
+            nextOutput = output + 0x20;
             for (i = nodeIndex; i < pipeline->numNodes - 1; ++i) {
                 memcpy(output, nextOutput, 0x80);
                 output = nextOutput;
-                nextOutput += 0x80;
+                nextOutput += 0x20;
             }
 
-            topSort = (RxPipelineNodeTopSortData*)((unsigned char*)pipeline->nodes +
-                      RxPipelineGlobals()->maxNodes * sizeof(*node));
-            topSort = (RxPipelineNodeTopSortData*)((unsigned char*)topSort +
-                      RxPipelineGlobals()->maxNodes * 0x80);
+            output = (unsigned int*)&pipeline->nodes[
+                RXPIPELINEGLOBAL(maxNodesPerPipe)];
+            topSort = (RxPipelineNodeTopSortData*)&output[
+                0x20 * RXPIPELINEGLOBAL(maxNodesPerPipe)];
             nextTopSort = topSort + 1;
             for (i = nodeIndex; i < pipeline->numNodes - 1; ++i) {
                 memcpy(topSort, nextTopSort, sizeof(*topSort));
@@ -123,8 +125,7 @@ RxPipelineNode* PipelineNodeDestroy(RxPipelineNode* node,
             for (i = nodeIndex; i < pipeline->numNodes - 1; ++i) {
                 memcpy(&pipeline->nodes[i], &pipeline->nodes[i + 1],
                        sizeof(*node));
-                pipeline->nodes[i].outputs =
-                    (unsigned int*)((unsigned char*)pipeline->nodes[i].outputs - 0x80);
+                pipeline->nodes[i].outputs -= 0x20;
                 --pipeline->nodes[i].topSortData;
             }
             for (i = 0; i < pipeline->numNodes - 1; ++i) {
@@ -157,14 +158,14 @@ RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
                               int heapReset)
 {
     RxPipelineNode* node;
+    unsigned int result;
     RxNodeDefinition* nodeDef;
-    int result;
 
-    if (heapReset && _rxHeapGlobal->dirty) {
-        _rxHeapReset(_rxHeapGlobal);
+    if (heapReset) {
+        RxHeapReset(_rxHeapGlobal);
     }
 
-    _rxExecCtxGlobal.executionStatus = 1;
+    _rxExecCtxGlobal.exitCode = 1;
     _rxExecCtxGlobal.pipeline = pipeline;
     _rxExecCtxGlobal.params.dataParam = data;
     _rxExecCtxGlobal.params.heap = RxHeapGetGlobalHeap();
@@ -174,7 +175,7 @@ RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
     nodeDef = node->nodeDef;
     result = nodeDef->nodeMethods.nodeBody(node, &_rxExecCtxGlobal.params);
     if (!result) {
-        _rxExecCtxGlobal.executionStatus = 0;
+        _rxExecCtxGlobal.exitCode = result;
     }
     if (pipeline->embeddedPacketState > 1) {
         pipeline->embeddedPacketState = 2;
@@ -184,7 +185,7 @@ RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
     _rxExecCtxGlobal.pipeline = 0;
     _rxExecCtxGlobal.params.dataParam = 0;
     _rxExecCtxGlobal.params.heap = 0;
-    if (_rxExecCtxGlobal.executionStatus) {
+    if (_rxExecCtxGlobal.exitCode) {
         return pipeline;
     }
     return 0;
@@ -193,7 +194,7 @@ RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
 RxPipeline* RxPipelineCreate(void)
 {
     RxPipeline* pipeline = RwEngineInstance->fpFreeListAlloc(
-        RxPipelineGlobals()->pipelines, 0x30409);
+        RXPIPELINEGLOBAL(pipesFreeList), 0x30409);
 
     if (pipeline != 0) {
         memset(pipeline, 0, sizeof(*pipeline));
@@ -232,6 +233,6 @@ void _rxPipelineDestroy(RxPipeline* pipeline)
             pipeline->superBlock = 0;
             pipeline->superBlockSize = 0;
         }
-        RwEngineInstance->fpFreeListFree(RxPipelineGlobals()->pipelines, pipeline);
+        RwEngineInstance->fpFreeListFree(RXPIPELINEGLOBAL(pipesFreeList), pipeline);
     }
 }
