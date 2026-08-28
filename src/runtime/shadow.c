@@ -1,9 +1,12 @@
 #include "runtime/shadow.h"
 
 #include "math/gxQuat.h"
+#include "math/mk_math.h"
 #include "math/gxVect.h"
+#include "platform/display.h"
 #include "platform/gcutils.h"
 #include "runtime/mk_obj.h"
+#include "runtime/asset.h"
 #include "runtime/mk_struct.h"
 #include "rw/gamecube.h"
 #include "rw/rpworld_types.h"
@@ -11,33 +14,25 @@
 #include "rw/rwframe.h"
 #include "rw/rwvector.h"
 
-typedef struct RwEngineInstanceType {
-    char pad[0x1C];
-    float field_1C;
-    char pad2[0x10];
-    void (*fpIm2DRenderIndexedPrimitive)(int primType, void* vertices, int numVertices);
-} RwEngineInstanceType;
-
-typedef struct FighterState FighterState;
+typedef struct ShadowFighterObject ShadowFighterObject;
 
 typedef struct ShadowLightPair {
-    FighterState* primary;         /* +0x00 */
+    ShadowFighterObject* primary;  /* +0x00 */
     unsigned int primary_id;       /* +0x04 */
-    FighterState* secondary;       /* +0x08 */
+    ShadowFighterObject* secondary; /* +0x08 */
     unsigned int secondary_id;     /* +0x0C */
-    FighterState* tertiary;        /* +0x10 */
-    unsigned int tertiary_id;      /* +0x14 */
-    FighterState* pair_c;          /* +0x18 */
+    unsigned char unknown_10[8];   /* +0x10 */
+    ShadowFighterObject* pair_c;   /* +0x18 */
     unsigned int pair_c_id;        /* +0x1C */
-    FighterState* pair_d;          /* +0x20 */
+    ShadowFighterObject* pair_d;   /* +0x20 */
     unsigned int pair_d_id;        /* +0x24 */
 } ShadowLightPair;
 
 typedef struct ShadowObject {
     char pad_00[0x40];
-    FighterState* fighter_a; /* +0x40 */
+    ShadowFighterObject* fighter_a; /* +0x40 */
     unsigned int fighter_a_id;
-    FighterState* fighter_b;
+    ShadowFighterObject* fighter_b;
     unsigned int fighter_b_id;
     char pad_50[0x17C]; /* +0x50 -> +0x1CC */
     int mode; /* +0x1CC */
@@ -58,74 +53,14 @@ typedef struct ShadowObject {
 } ShadowObject;
 
 typedef struct ShadowboxObject {
-    MkHdr hdr; /* +0x00 */
-    unsigned char flags; /* +0x08 */
-    char pad9;
-    unsigned char sobj_flags;
-    char padB[0x21];
-    int sobj_priority;
-    char pad30[0x18];
-    void* clump;
-    char pad4C[0x54]; /* +0x4C -> +0xA0 */
-    union {
-        Vec position;
-        struct {
-            float pos_x;
-            float ground_y;
-            float pos_z;
-        };
-    }; /* +0xA0 */
-    char padAC[0x28];
-    float field_D4;
-    char padD8[0x18];
-    float field_F0;
-    float field_F4;
-    float field_F8;
+    MkObj object;
 } ShadowboxObject;
 
-typedef struct ShadowboxVtable {
-    void* field_00;
-    void* field_04;
-    void* field_08;
-    void* field_0C;
-    void (*destroy)(void* self);
-} ShadowboxVtable;
-
-struct FighterState {
-    MkHdr hdr; /* +0x00 */
-    char pad08[2];
-    unsigned char hide_flags; /* +0x0A */
-    char pad0B[0x0D];
-    void* clump; /* +0x18 -- ShadowCameraUpdate arg */
-    char pad1C[0x54];
-    float field_70;
-    char pad74[0x2C];
-    Vec position; /* +0xA0 */
-    char padAC[0x120];
+struct ShadowFighterObject {
+    MkObj object; /* +0x00 */
+    char field_100[0xCC];
     int mode; /* +0x1CC */
 };
-
-/* Sobj flags09 @ +0x09, field @ +0x2C (SetupShadow). */
-typedef struct ShadowSobj {
-    char pad[0x09];
-    unsigned char flags09; /* +0x09 */
-    char pad0A[0x22];
-    int field_2C; /* +0x2C */
-} ShadowSobj;
-
-void set_render_state(int state, int value);
-RwCamera* RwCameraSetViewWindow(RwCamera* camera,
-                                const RwV2d* viewWindow);
-void _rwObjectHasFrameSetFrame(void* object, void* frame);
-void YXZ_angles_to_MKMATRIX(const float* angles, RwMatrix* matrix);
-void* load_model_from_slot_transl(int slot_hi, int slot_lo, int flags);
-void insert_fgnd_mkobj(void* model);
-RpMaterial* obj_find_material_with_texture(
-    ShadowboxObject* model, const char* name);
-void obj_create_sobjs(void* model);
-MkSobj* obj_first_sobj(MkObj* model);
-void sobj_set_priority(void* sobj, int priority);
-void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
 
 extern RwEngineInstanceType* RwEngineInstance;
 
@@ -164,11 +99,12 @@ unsigned int save_res_for_shadowbox;
 float ShadowStrength;
 
 static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out);
-static void Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3, float p4, float depth, float p6,
-                           float p7);
-static FighterState* shadow_validate_fighter(FighterState* fighter, unsigned int expected_id);
-static int shadow_fighter_visible(FighterState* fighter);
-static void shadow_destroy_shadowbox(ShadowboxObject** box_ptr);
+static int Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3,
+                          float p4, float depth, float p6, float p7);
+static inline ShadowFighterObject* shadow_validate_fighter(
+    ShadowFighterObject* fighter, unsigned int expected_id);
+static inline int shadow_fighter_visible(ShadowFighterObject* fighter);
+static inline void shadow_destroy_shadowbox(ShadowboxObject** box_ptr);
 
 typedef struct Im2DVertex {
     float u;
@@ -180,67 +116,60 @@ typedef struct Im2DVertex {
     unsigned char a;
     float x;
     float y;
-    float w;
 } Im2DVertex;
 
-static FighterState* shadow_validate_fighter(FighterState* fighter, unsigned int expected_id) {
+static inline ShadowFighterObject* shadow_validate_fighter(
+    ShadowFighterObject* fighter, unsigned int expected_id) {
     if (fighter == NULL) {
         return NULL;
     }
-    if (fighter->hdr.instance != expected_id) {
+    if (fighter->object.hdr.instance != expected_id) {
         return NULL;
     }
     return fighter;
 }
 
-static int shadow_fighter_visible(FighterState* fighter) {
+static inline int shadow_fighter_visible(ShadowFighterObject* fighter) {
     if (fighter == NULL) {
         return 0;
     }
-    if ((fighter->hide_flags >> 1) & 1) {
+    if (fighter->object.hide_flag_bits.hidden) {
         return 0;
     }
     return 1;
 }
 
-static void shadow_destroy_shadowbox(ShadowboxObject** box_ptr) {
+static inline void shadow_destroy_shadowbox(ShadowboxObject** box_ptr) {
     ShadowboxObject* box;
-    ShadowboxVtable* vtable;
 
     box = *box_ptr;
     if (box == NULL) {
         return;
     }
-    if (box->hdr.instance != 0) {
-        vtable = (ShadowboxVtable*)box->hdr.vtbl;
-        vtable->destroy(box);
+    if (box->object.hdr.instance != 0) {
+        box->object.hdr.typed_vtbl->destroy((MkHdr*)box);
     }
     *box_ptr = NULL;
 }
 
-int init_shadow(ShadowObject* shadow, MkObj* object) {
+void init_shadow(ShadowObject* shadow, MkObj* object) {
     RpAtomic* atomic;
-    int result;
 
-    if (object != NULL) {
-        atomic = NULL;
+    if (shadow != NULL) {
         RpClumpForAllAtomics(object->clump, shadow_getFirstAtomic, &atomic);
-        if (atomic != NULL) {
-            if (atomic->interpolator.flags & 2) {
-                _rpAtomicResyncInterpolatedSphere(atomic);
-            }
-            shadow->sphere_x = atomic->boundingSphere.center.x;
-            shadow->sphere_y = atomic->boundingSphere.center.y;
-            shadow->sphere_z = atomic->boundingSphere.center.z;
-            shadow->sphere_w = atomic->boundingSphere.radius;
-            shadow->ground_w = shadow->sphere_w;
-            RwV3dTransformPoints(
-                &shadow->ground_point, (const RwV3d*)&object->pos.value, 1,
-                &object->frame->modelling);
+        if (atomic->interpolator.flags & 2) {
+            _rpAtomicResyncInterpolatedSphere(atomic);
         }
+        shadow->sphere_x = atomic->boundingSphere.center.x;
+        shadow->sphere_y = atomic->boundingSphere.center.y;
+        shadow->sphere_z = atomic->boundingSphere.center.z;
+        shadow->sphere_w = atomic->boundingSphere.radius;
+        shadow->ground_w = shadow->sphere_w;
+        RwV3dTransformPoints(
+            &shadow->ground_point, (const RwV3d*)&object->pos.value, 1,
+            &object->frame->modelling);
     }
-    result = SetupShadow(shadow);
-    if (result == 0) {
+    if (SetupShadow(shadow) == 0) {
         if (shadow->shadow_raster != NULL) {
             RwRasterDestroy(shadow->shadow_raster);
             shadow->shadow_raster = NULL;
@@ -252,15 +181,15 @@ int init_shadow(ShadowObject* shadow, MkObj* object) {
         }
         shadow_destroy_shadowbox(&shadow->shadowbox);
     }
-    return result;
 }
 
-void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
+void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
+    ShadowFighterObject* fighter;
     RwCamera* camera;
     RwMatrix* frame_matrix;
     RwMatrix* dir_matrix;
     ShadowLightPair* lights;
-    FighterState* validated;
+    ShadowFighterObject* validated;
     float shadow_scale;
     RwV2d view_window;
     RwCamera* ip_camera;
@@ -294,6 +223,7 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
     float aspect;
     float inv_height;
 
+    fighter = (ShadowFighterObject*)fighter_object;
     shadow_scale = kShadowScaleDefault;
     if (fighter->mode == 0x1D) {
         shadow_scale = kShadowScaleAlt;
@@ -316,11 +246,11 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
     view_window.y = shadow_scale;
     RwCameraSetViewWindow(camera, &view_window);
     frame_matrix = &RwCameraGetFrame(camera)->modelling;
-    frame_matrix->pos.x = fighter->position.x;
-    frame_matrix->pos.y = fighter->position.y;
-    frame_matrix->pos.z = fighter->position.z;
+    frame_matrix->pos.x = fighter->object.pos.value.x;
+    frame_matrix->pos.y = fighter->object.pos.value.y;
+    frame_matrix->pos.z = fighter->object.pos.value.z;
     frame_matrix->pos.x = frame_matrix->pos.x + frame_matrix->at.x * (kViewWindowBias * camera->farPlane);
-    frame_matrix->pos.y = frame_matrix->pos.y + frame_matrix->up.y * (kViewWindowBias * camera->farPlane);
+    frame_matrix->pos.y = frame_matrix->pos.y + frame_matrix->at.y * (kViewWindowBias * camera->farPlane);
     frame_matrix->pos.z = frame_matrix->pos.z + frame_matrix->at.z * (kViewWindowBias * camera->farPlane);
     RwMatrixUpdate(frame_matrix);
     RwFrameUpdateObjects(RwCameraGetFrame(camera));
@@ -332,14 +262,14 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
         if (validated != NULL && shadow_fighter_visible(validated)) {
             validated = shadow_validate_fighter(lights->secondary, lights->secondary_id);
             if (validated != NULL) {
-                ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
+                ShadowCameraUpdate(ShadowCamera, validated->object.clump, 0);
             }
         }
         validated = shadow_validate_fighter(lights->pair_c, lights->pair_c_id);
         if (validated != NULL && shadow_fighter_visible(validated)) {
             validated = shadow_validate_fighter(lights->pair_d, lights->pair_d_id);
             if (validated != NULL) {
-                ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
+                ShadowCameraUpdate(ShadowCamera, validated->object.clump, 0);
             }
         }
     }
@@ -347,7 +277,7 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
     if (validated != NULL && shadow_fighter_visible(validated)) {
         validated = shadow_validate_fighter(shadow->fighter_b, shadow->fighter_b_id);
         if (validated != NULL) {
-            ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
+            ShadowCameraUpdate(ShadowCamera, validated->object.clump, 0);
         }
     }
     clear_flags = ShadowAA;
@@ -369,7 +299,7 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
             set_render_state(0x9, 2);
             set_render_state(1, (int)ShadowCameraRaster);
             Im2DRenderQuad(0xFF, kZero, kZero, inv_height, inv_height,
-                           RwEngineInstance->field_1C, aspect, kHalf / inv_height);
+                           RwEngineInstance->im2d_depth, aspect, kHalf / inv_height);
             set_render_state(0x6, 1);
             set_render_state(0xA, 5);
             set_render_state(0xB, 6);
@@ -382,18 +312,19 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
         shadow->blur_raster = ShadowCameraRaster;
     }
     if (ShadowBlur != 0) {
-        ShadowRasterBlur(shadow->shadow_raster, shadow->blur_raster, ShadowIPCamera);
+        ShadowRasterBlur(shadow->shadow_raster, shadow->blur_raster,
+                         ShadowIPCamera, ShadowBlur);
     }
     dir_matrix = &ShadowDirectionMatrix;
     plane_normal.x = kZero;
     plane_normal.y = kOne;
     plane_normal.z = kZero;
     plane_point.x = kZero;
-    plane_point.y = fighter->field_70;
+    plane_point.y = fighter->object.ground_colls_y;
     plane_point.z = kZero;
-    light_pos.x = fighter->position.x;
-    light_pos.y = fighter->position.y;
-    light_pos.z = fighter->position.z;
+    light_pos.x = fighter->object.pos.value.x;
+    light_pos.y = fighter->object.pos.value.y;
+    light_pos.z = fighter->object.pos.value.z;
     light_dir.x = dir_matrix->at.x;
     light_dir.y = dir_matrix->at.y;
     light_dir.z = dir_matrix->at.z;
@@ -407,9 +338,9 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
     work_a.z = angle * light_dir.z;
     PSVECAdd(&light_pos, &work_a, &work_b);
     box = shadow->shadowbox;
-    box->pos_x = work_b.x;
-    box->pos_z = work_b.z;
-    box->field_D4 = gxVectAngleZX(&light_dir) - kPi;
+    box->object.pos.value.x = work_b.x;
+    box->object.pos.value.z = work_b.z;
+    box->object.ang.y = gxVectAngleZX(&light_dir) - kPi;
     work_c.x = (dir_matrix->up.x - dir_matrix->right.x) * shadow_scale;
     work_c.y = (dir_matrix->up.y - dir_matrix->right.y) * shadow_scale;
     work_c.z = (dir_matrix->up.z - dir_matrix->right.z) * shadow_scale;
@@ -440,18 +371,18 @@ void UpdateShadow(FighterState* fighter, ShadowObject* shadow, MkObj* object) {
     PSVECSubtract(&corner_b, &offset, &work_a);
     PSVECSubtract(&corner_c, &offset, &work_b);
     mag_a = PSVECMag(&work_a);
-    box->field_F0 = mag_a;
+    box->object.scale.x = mag_a;
     mag_b = PSVECMag(&work_b);
-    box->field_F8 = kHalf * mag_b;
+    box->object.scale.z = kHalf * mag_b;
     gc_enable_alpha_writes(0);
 }
 
 int UpdateShadowCameraLightSource(const float* angles) {
-    YXZ_angles_to_MKMATRIX(angles, &ShadowDirectionMatrix);
+    YXZ_angles_to_MKMATRIX((const Vec*)angles, &ShadowDirectionMatrix);
     return 1;
 }
 
-static void shadow_destroy_camera(RwCamera** camera_ptr) {
+static inline void shadow_destroy_camera(RwCamera** camera_ptr) {
     RwCamera* camera;
     void* frame;
 
@@ -475,7 +406,7 @@ static void shadow_destroy_camera(RwCamera** camera_ptr) {
     *camera_ptr = NULL;
 }
 
-static RwCamera* shadow_create_camera(int resolution) {
+static inline RwCamera* shadow_create_camera(int resolution) {
     RwCamera* camera;
     void* frame;
     RwRaster* raster;
@@ -525,7 +456,6 @@ void destroy_shadow_system(void) {
 
 void TearDownShadow(ShadowObject* shadow) {
     ShadowboxObject* box;
-    ShadowboxVtable* vtable;
 
     if (shadow->shadow_raster != 0) {
         RwRasterDestroy(shadow->shadow_raster);
@@ -538,9 +468,8 @@ void TearDownShadow(ShadowObject* shadow) {
     }
     box = shadow->shadowbox;
     if (box != 0) {
-        if (box->hdr.instance != 0) {
-            vtable = (ShadowboxVtable*)box->hdr.vtbl;
-            vtable->destroy(box);
+        if (box->object.hdr.instance != 0) {
+            box->object.hdr.typed_vtbl->destroy((MkHdr*)box);
         }
         shadow->shadowbox = 0;
     }
@@ -552,55 +481,58 @@ void shadow_set_new_ground_plane(ShadowObject* shadow, ShadowboxObject* ground,
 
     box = shadow->shadowbox;
     if (box != 0) {
-        box->ground_y = kGroundOffset + y;
+        box->object.pos.value.y = kGroundOffset + y;
     }
     if (ground == 0) {
         return;
     }
-    ground->ground_y = y;
+    ground->object.pos.value.y = y;
 }
 
-int SetupShadow(void* shadow_ptr) {
-    ShadowObject* shadow;
+int SetupShadow(ShadowObject* shadow) {
     RpMaterial* material;
     RwTexture* texture;
-    ShadowSobj* sobj;
+    MkSobj* sobj;
     unsigned int filter;
     unsigned int flags;
     ShadowboxObject* box;
 
-    shadow = shadow_ptr;
-    shadow->shadow_raster = RwRasterCreate(save_res_for_shadowbox, 0x20, 0, 0x505);
+    shadow->shadow_raster = RwRasterCreate(save_res_for_shadowbox,
+                                            save_res_for_shadowbox, 0x20,
+                                            0x505);
     if (shadow->shadow_raster == NULL) {
         return 0;
     }
     if (shadow->mode == 0x1D) {
         if (shadow->alt_shadowbox == 0) {
-            shadow->shadowbox = load_model_from_slot_transl(0x0003000B, 0x008F0002, 0x5012);
+            shadow->shadowbox = (ShadowboxObject*)load_model_from_slot_transl(
+                0x0003000B, 0x008F0002, 0x5012);
         } else {
-            shadow->shadowbox = load_model_from_slot_transl(0x0004000B, 0x008F0002, 0x5012);
+            shadow->shadowbox = (ShadowboxObject*)load_model_from_slot_transl(
+                0x0004000B, 0x008F0002, 0x5012);
         }
     } else {
-        shadow->shadowbox = load_model_from_slot_transl(0, 0x0001000A, 0x5012);
+        shadow->shadowbox = (ShadowboxObject*)load_model_from_slot_transl(
+            0, 0x0001000A, 0x5012);
     }
     if (shadow->shadowbox == NULL) {
         return 0;
     }
     box = shadow->shadowbox;
-    flags = box->flags;
+    flags = box->object.flags_08;
     flags = (flags & ~(1 << 6)) | (1 << 6);
-    box->flags = (unsigned char)flags;
-    flags = box->flags;
+    box->object.flags_08 = (unsigned char)flags;
+    flags = box->object.flags_08;
     flags = (flags & ~(1 << 3)) | (1 << 3);
-    box->flags = (unsigned char)flags;
-    flags = box->flags;
+    box->object.flags_08 = (unsigned char)flags;
+    flags = box->object.flags_08;
     flags = (flags & ~(1 << 1)) | (1 << 1);
-    box->flags = (unsigned char)flags;
+    box->object.flags_08 = (unsigned char)flags;
     insert_fgnd_mkobj(box);
     if (shadow->mode == 0x1D) {
-        material = obj_find_material_with_texture(box, stringBase0);
+        material = obj_find_material_with_texture((MkObj*)box, stringBase0);
     } else {
-        material = obj_find_material_with_texture(box, stringBase0 + 8);
+        material = obj_find_material_with_texture((MkObj*)box, stringBase0 + 8);
     }
     if (material != NULL) {
         texture = RwTextureCreate(shadow->shadow_raster);
@@ -610,22 +542,22 @@ int SetupShadow(void* shadow_ptr) {
             filter = (filter & ~0xFF) | 2;
             texture->filter_flags = filter;
             filter = texture->filter_flags;
-            filter = (filter & 0xFF00FFFF) | 0x330000;
+            filter = (filter & 0xFFFF00FF) | 0x3300;
             texture->filter_flags = filter;
             shadow->shadow_texture = material->texture;
         }
     }
-    obj_create_sobjs(box);
-    sobj = (ShadowSobj*)obj_first_sobj((MkObj*)box);
+    obj_create_sobjs((MkObj*)box);
+    sobj = obj_first_sobj((MkObj*)box);
     if (sobj != NULL) {
         flags = sobj->flags09;
         flags = (flags & ~(1 << 7)) | (1 << 7);
         sobj->flags09 = (unsigned char)flags;
-        sobj->field_2C = 0x10006;
+        sobj->render_flags = 0x10006;
         sobj_set_priority(sobj, 0xC);
     }
-    box->ground_y = kGroundOffset;
-    box->field_F4 = kOne;
+    box->object.pos.value.y = kGroundOffset;
+    box->object.scale.y = kOne;
     return 1;
 }
 
@@ -684,24 +616,26 @@ static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out) {
     return 0;
 }
 
-void ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
-                      RwCamera* ip_camera) {
+int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
+                     RwCamera* ip_camera, unsigned int pass_count) {
     int pass;
     int last_pass;
     union {
         double d;
         int i[2];
     } conv;
+    float raster_height;
     float inv_height;
-    float aspect;
+    float inv_far;
     int alpha;
 
     conv.i[0] = 0x43300000;
     conv.i[1] = src_raster->height ^ 0x80000000;
-    inv_height = (float)(conv.d - kFloatConvBias);
-    aspect = kOne / inv_height;
-    last_pass = ShadowBlur - 1;
-    for (pass = 0; pass < ShadowBlur; pass++) {
+    raster_height = (float)(conv.d - kFloatConvBias);
+    inv_height = kOne / raster_height;
+    inv_far = kOne / ip_camera->farPlane;
+    last_pass = pass_count - 1;
+    for (pass = 0; pass < pass_count; pass++) {
         ip_camera->frameBuffer = dst_raster;
         RwCameraClear(ip_camera, &clear_color_white, 3);
         if (RwCameraBeginUpdate(ip_camera) != 0) {
@@ -711,7 +645,9 @@ void ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
             set_render_state(0x9, 2);
             set_render_state(0x2, 3);
             set_render_state(1, (int)src_raster);
-            Im2DRenderQuad(0xFF, kZero, kZero, aspect, aspect, RwEngineInstance->field_1C, kOne, kOne);
+            Im2DRenderQuad(0xFF, kZero, kZero, raster_height,
+                           raster_height, RwEngineInstance->im2d_depth, inv_far,
+                           inv_height);
             RwCameraEndUpdate(ip_camera);
             RwGameCubeCameraTextureFlush(ip_camera->frameBuffer, 0);
         }
@@ -720,11 +656,14 @@ void ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
         if (RwCameraBeginUpdate(ip_camera) != 0) {
             set_render_state(1, (int)dst_raster);
             if (pass < last_pass) {
-                Im2DRenderQuad(0xFF, kZero, kZero, aspect, aspect, RwEngineInstance->field_1C, kOne, kOne);
+                Im2DRenderQuad(0xFF, kZero, kZero, raster_height,
+                               raster_height, RwEngineInstance->im2d_depth,
+                               inv_far, kZero);
             } else {
                 alpha = (int)(kAlphaScale * ShadowStrength);
-                Im2DRenderQuad((unsigned char)alpha, kZero, kZero, aspect, aspect, RwEngineInstance->field_1C, kOne,
-                               kOne);
+                Im2DRenderQuad((unsigned char)alpha, kZero, kZero,
+                               raster_height, raster_height,
+                               RwEngineInstance->im2d_depth, inv_far, kZero);
             }
             set_render_state(0x6, 1);
             set_render_state(0xA, 5);
@@ -734,6 +673,7 @@ void ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
         }
     }
     ip_camera->frameBuffer = NULL;
+    return 1;
 }
 
 void ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
@@ -778,8 +718,8 @@ void ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
     RwGameCubeCameraTextureFlush(camera->frameBuffer, 0);
 }
 
-static void Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3, float p4, float depth, float p6,
-                           float p7) {
+static int Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3,
+                          float p4, float depth, float p6, float p7) {
     Im2DVertex vertices[4];
     float v_top;
 
@@ -791,38 +731,35 @@ static void Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3, fl
     vertices[0].g = colorgray;
     vertices[0].b = colorgray;
     vertices[0].a = alpha;
-    vertices[0].x = p3;
-    vertices[0].y = p4;
-    vertices[0].w = p7;
+    vertices[0].x = p7;
+    vertices[0].y = p7;
     vertices[1].u = p1;
-    vertices[1].v = v_top;
+    vertices[1].v = p4;
     vertices[1].z = depth;
     vertices[1].r = colorgray;
     vertices[1].g = colorgray;
     vertices[1].b = colorgray;
     vertices[1].a = alpha;
-    vertices[1].x = p3;
-    vertices[1].y = p6;
-    vertices[1].w = p7;
-    vertices[2].u = p6;
+    vertices[1].x = p7;
+    vertices[1].y = v_top;
+    vertices[2].u = p3;
     vertices[2].v = p2;
     vertices[2].z = depth;
     vertices[2].r = colorgray;
     vertices[2].g = colorgray;
     vertices[2].b = colorgray;
     vertices[2].a = alpha;
-    vertices[2].x = p4;
-    vertices[2].y = p4;
-    vertices[2].w = p7;
-    vertices[3].u = p6;
-    vertices[3].v = v_top;
+    vertices[2].x = v_top;
+    vertices[2].y = p7;
+    vertices[3].u = p3;
+    vertices[3].v = p4;
     vertices[3].z = depth;
     vertices[3].r = colorgray;
     vertices[3].g = colorgray;
     vertices[3].b = colorgray;
     vertices[3].a = alpha;
-    vertices[3].x = p4;
-    vertices[3].y = p6;
-    vertices[3].w = p7;
+    vertices[3].x = v_top;
+    vertices[3].y = v_top;
     RwEngineInstance->fpIm2DRenderIndexedPrimitive(4, vertices, 4);
+    return 1;
 }
