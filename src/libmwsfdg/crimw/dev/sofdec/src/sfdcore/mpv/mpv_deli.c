@@ -1,6 +1,7 @@
-int MPV_CheckDelim(const unsigned char* data);
+#include "cri/mpv.h"
 
-void* MPV_SearchDelim(const unsigned char* data, int length, int mask) {
+const unsigned char* MPV_SearchDelim(const unsigned char* data, int length,
+                                     int mask) {
     const unsigned char* current = data;
     const unsigned char* end = data + length;
     int state = 0;

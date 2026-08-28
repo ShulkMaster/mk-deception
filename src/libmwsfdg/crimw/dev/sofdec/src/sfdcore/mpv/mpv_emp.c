@@ -1,7 +1,5 @@
+#include "cri/mpv.h"
 #include "dolphin/types.h"
-
-extern const u8* MPV_SearchDelim(const u8* data, int length, int mask);
-extern int MPV_CheckDelim(const u8* data);
 
 static s16 mpvemp_mbai[36] = {
     0,      0x0101, 0x0303, 0x0203, 0x0304, 0x0204,
