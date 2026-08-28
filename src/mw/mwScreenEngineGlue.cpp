@@ -3784,7 +3784,8 @@ extern void load_effect_bank_with_context(char* name, void* ctx);
 extern int fx_by_id(char* name, int flags);
 extern void* find_pfx_by_handle(int handle);
 extern void fx_set_param_v3(int handle, int param, float x, float y, float z);
-extern void* load_named_model_from_slot(int slot, const char* name, int flags, int unk);
+extern MkObj* load_named_model_from_slot(int slot, const char* name, int flags,
+                                         int unk);
 extern void* obj_create_sobjs(void* obj);
 extern void render_mkobj(void* mkobj);
 extern void render_transl_atomics(void);
@@ -4762,8 +4763,8 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
             model->modelInstance = 0;
             model->visible = 1;
         }
-        mkobj = (MkObj*)load_named_model_from_slot(screen_engine_client.slot, modelName,
-                                                   0x9011, 1);
+        mkobj = load_named_model_from_slot(screen_engine_client.slot, modelName,
+                                           0x9011, 1);
         model->model = mkobj;
         model->modelInstance = mkobj->hdr.instance;
         mkobj->light_flags = 1;

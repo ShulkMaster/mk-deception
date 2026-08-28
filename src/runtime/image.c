@@ -17,9 +17,9 @@ int stricmp(const char* a, const char* b);
 double fmod(double x, double y);
 
 RwTexture* load_named_tga_from_slot(int slot, const char* name);
-RwTexture* load_tga(int slot, char* name);
-AniTextureControl* load_named_wiff_from_slot(int slot, char* name);
-AniTextureControl* get_wiff_atc_block(int a, int b);
+RwTexture* load_tga(int slot, unsigned int art_oid);
+AniTextureControl* load_named_wiff_from_slot(int slot, const char* name);
+AniTextureControl* get_wiff_atc_block(int slot, unsigned int art_oid);
 RwTexture* material_get_texture_pointer(RpMaterial* mat, int flag);
 void material_set_texture_pointer(RpMaterial* mat, RwTexture* tex, int flag);
 int RwRasterGetNumLevels(RwRaster* raster);
@@ -330,7 +330,7 @@ ScreenObj* load_2d_pfxobj(int slot, int oid, char* name, int flags, int priority
     saved_oid = oid;
     saved_flags = flags;
     saved_pri = priority;
-    tex = load_tga(slot, name);
+    tex = load_tga(slot, (unsigned int)name);
     if (tex != 0) {
         obj = load_2d_pfxobj_with_texture(saved_oid, tex, saved_flags, saved_pri);
     } else {

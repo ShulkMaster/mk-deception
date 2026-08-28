@@ -8,6 +8,8 @@ extern "C" {
 #endif
 
 typedef struct RwTexture RwTexture;
+typedef struct AniTextureControl AniTextureControl;
+typedef struct MkObj MkObj;
 
 /*
  * SEC art decode (asset.o). Header/member layouts live in section_types.h.
@@ -37,45 +39,45 @@ typedef struct RwTexture RwTexture;
  *     ScreenInstancer::LoadSetData(set, screenBlob, size, 0)
  *   Or scan all files in slot: load_named_binary_block(slot, "SCREEN", &size)
  *   Packed oid: load_binary_block(slot, (section_id << 16) | member_index, &size)
- * Soft ceiling: load_named_tga ~84%, load_named_alpha ~84%, load_tga ~78%,
- *   load_binary_block ~74%, get_nav/cdf_data ~69%, process_art ~96%,
- *   named binary ~87-92%, get_artid ~86%, named cdf/bloodpath ~92%
- *   (dead beq after type==ART) -- stop Matching grind.
  */
 
 void annihilate_art_section_data(SecSlotFileEntry* entry);
 void process_anim_section_data(SecSlotFileEntry* entry);
 void process_art_section_data(SecSlotFileEntry* entry);
-void* load_named_model_for_player(const char* name, int player, int object_type,
+MkObj* load_named_model_for_player(const char* name, int player,
+                                   int object_type, int transl);
+MkObj* load_named_model_for_bgnd(const char* name, int object_type, int transl);
+MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,
                                   int transl);
-void* load_named_model_for_bgnd(const char* name, int object_type, int transl);
-void* load_named_model_from_slot(int slot, const char* name, int object_type,
-                                 int transl);
+MkObj* load_model_from_slot(int handle, unsigned int art_oid, int object_type);
+MkObj* load_model_from_slot_transl(int handle, unsigned int art_oid,
+                                   int object_type);
 
 /* Packed art oid: (section_id << 16) | member_index. Callers often cast the
  * literal through char* (see load_2d_pfxobj_xy(..., (char*)0x017E0000, ...)). */
 RwTexture* load_tga(int handle, unsigned int art_oid);
 RwTexture* load_named_tga_from_slot(int handle, const char* name);
 /* Color+alpha pair: returns texture on member after first name match. */
-RwTexture* load_named_alpha_texture_from_slot(int handle, char* name);
+RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name);
 /* Name -> packed oid for load_tga / load_binary_block. */
 unsigned int get_artid_of_named_item_in_slot(
-    int handle, char* name, int unused);
+    int handle, const char* name, int unused);
 
 /*
  * Named binary SEC members (STRINGS / SCREEN / etc.).
  * Returns pointer into the loaded SEC buffer; *out_size = member size.
  * file_index is 1-based (add_art_section_async return value).
  */
-void* load_named_binary_block_from_file(int handle, int file_index, char* name,
-                                        int* out_size);
-void* load_named_binary_block(int handle, char* name, int* out_size);
+void* load_named_binary_block_from_file(int handle, int file_index,
+                                        const char* name, int* out_size);
+void* load_named_binary_block(int handle, const char* name, int* out_size);
 void* load_binary_block(int handle, unsigned int art_oid, int* out_size);
+void* get_nav_data(int handle, unsigned int art_oid);
 void* get_cdf_data(int handle, unsigned int art_oid);
-void* load_named_cdf_data_from_slot(int handle, char* name);
-void* load_named_bloodpath_data_from_slot(int handle, char* name);
-void* load_named_wiff_from_slot(int handle, char* name);
-void* get_wiff_atc_block(int handle, unsigned int art_oid);
+void* load_named_cdf_data_from_slot(int handle, const char* name);
+void* load_named_bloodpath_data_from_slot(int handle, const char* name);
+AniTextureControl* load_named_wiff_from_slot(int handle, const char* name);
+AniTextureControl* get_wiff_atc_block(int handle, unsigned int art_oid);
 
 #ifdef __cplusplus
 }
