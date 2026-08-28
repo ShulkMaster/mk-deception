@@ -115,6 +115,8 @@
 #include "platform/gcutils.h"
 #include "platform/gcio.h"
 #include "runtime/asset.h"
+#include "runtime/cstdio.h"
+#include "runtime/cstring.h"
 #include "runtime/fonts.h"
 #include "runtime/hashtable.h"
 #include "runtime/image.h"
@@ -123,6 +125,7 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/mk_struct.h"
 #include "runtime/plyr_info.h"
 #include "runtime/section.h"
@@ -158,33 +161,9 @@ typedef struct MkProcPauseFlag {
     unsigned char pad1 : 3;
 } MkProcPauseFlag;
 
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-    int (*system_stack)(void);
-    int (*local_stack)(void);
-    float (*jump_sleep)(MkProcEntryFn entry);
-} MkVtableMkprocLocal;
-
-char* strncpy(char* dst, const char* src, unsigned long n);
-char* strchr(const char* s, int c);
-char* strrchr(const char* s, int c);
-char* strupr(char* s);
-char* strcpy(char* dst, const char* src);
-int sprintf(char* buf, const char* fmt, ...);
-int strcmp(const char* a, const char* b);
-int strncmp(const char* a, const char* b, unsigned long n);
-int stricmp(const char* a, const char* b);
-unsigned long strlen(const char* s);
-void* memcpy(void* dst, const void* src, unsigned long n);
-void* memset(void* dst, int value, unsigned long n);
 void* __nw__FUl(unsigned long size);
 void free_mem(void* mem);
+void Free__10ScreenUtilFPv(void* p);
 void __ct__17ScreenMatrixStackFv(void* self);
 void __dt__17ScreenMatrixStackFv(void* self, short del);
 void __dl__FPv(void* p);
@@ -1318,14 +1297,14 @@ void fire_screen_studio_event(int event, int flag) {
 void wait_for_screen_close(void) {
     float sleep;
     int pid_base;
-    MkVtableMkprocLocal* vtbl;
+    MkVtableMkproc* vtbl;
 
     sleep = kSleepOne;
     /* Retail: lis r31,1; subi r3,r31,0x6fef -> 0x9011. */
     pid_base = 0x10000;
     while (find_mkproc_pid(pid_base - 0x6FEF) != 0) {
         _mkproc_sleep_ticks = sleep;
-        vtbl = (MkVtableMkprocLocal*)aproc->hdr.vtbl;
+        vtbl = (MkVtableMkproc*)aproc->hdr.vtbl;
         vtbl->sleep();
     }
 }
@@ -2091,8 +2070,6 @@ void init_screen_engine(void) {
 /* Retail @4397 -- shared 0.0f in Glue .sdata2. */
 static const float kGvFloatZero = 0.0f;
 
-extern void Free__10ScreenUtilFPv(void* p);
-
 void mkGameVariables::FreeTextureCollection(int /*id*/, GMTextureInfo_t* info) {
     if (info->data != 0) {
         Free__10ScreenUtilFPv(info->data);
@@ -2101,7 +2078,6 @@ void mkGameVariables::FreeTextureCollection(int /*id*/, GMTextureInfo_t* info) {
     info->data = 0;
 }
 
-void* memset(void* dst, int value, unsigned long size);
 void create_inventory_image_list(GVTexturePair out, unsigned int count);
 int get_number_items_in_inventory(void);
 int get_num_pselect_body_textures(void);
@@ -2582,8 +2558,6 @@ void konquest_set_current_inventory_item(int item);
 void kontent_set_current_selection(int item);
 void set_current_soundtrack(int index);
 int get_current_soundtrack(void);
-int get_number_items_in_inventory(void);
-
 void mkGameVariables::SetIntArray(int id, int* values, int /*count*/) {
     switch (id) {
     case 3:
@@ -5066,14 +5040,6 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
  * NonMatching: C for objdiff; linked DOL still uses retail ASM.
  */
 
-int GetResourceID__12ScreenParamsFUi(void* params, unsigned int index);
-int GetInt__12ScreenParamsFUi(void* params, unsigned int index);
-int GetBoolean__12ScreenParamsFUi(void* params, unsigned int index);
-float GetFloat__12ScreenParamsFUi(void* params, unsigned int index);
-ScreenNode* GetScreenNode__12ScreenParamsFUi(void* params, unsigned int index);
-char* GetName__12ScreenParamsFUi(void* params, unsigned int index);
-unsigned int GetColor__12ScreenParamsFUi(void* params, unsigned int index);
-
 extern void* m_pGameVariables__13ScreenControl;
 extern void FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
     void* self, unsigned int unused, int id, GMTextureInfo_t* info);
@@ -5131,7 +5097,6 @@ void ProcessParams__8WifImageFP12ScreenParams(WifImage* self, void* params) {
  */
 
 extern void Dispose__13ScreenControlFv(void* self);
-extern void Init__13ScreenControlFv(void* self);
 extern char* GetString__22GameVariableDispatcherFUiUi(void* self, unsigned int unused,
                                                       unsigned int id);
 extern void SetString__22GameVariableDispatcherFUiUiPc(void* self, unsigned int unused,
@@ -5141,10 +5106,6 @@ extern unsigned int IsValidOption__22GameVariableDispatcherFUiUi(void* self,
                                                                   unsigned int id);
 extern void FireEvent__12ScreenObjectFP9ScreenMgriiUi(void* self, void* mgr, int event,
                                                       int a, unsigned int b);
-extern void Free__10ScreenUtilFPv(void* p);
-extern void ProcessSubActions__12ScreenObjectFPC12ScreenActioni(void* self,
-                                                                const void* action,
-                                                                int match);
 extern int HandleAction__13ScreenControlFP9ScreenMgrPC12ScreenAction(
     void* self, void* mgr, const void* action);
 extern void FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
@@ -5730,7 +5691,6 @@ extern int GetInt__22GameVariableDispatcherFi(void* self, int id);
 extern void SetInt__22GameVariableDispatcherFUiUii(void* self, unsigned int context,
                                                    unsigned int id, int value);
 extern void SetString__22GameVariableDispatcherFiPc(void* self, int id, char* value);
-extern int ui_sound_table[];
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern unsigned char p1_profile[0x5c0];
@@ -5738,7 +5698,6 @@ extern unsigned char p2_profile[0x5c0];
 extern void* GetAnimScene__6ScreenFi(void* screen, int index);
 extern void PlayUntilTime__15ScreenAnimSceneFi(void* scene, int time);
 extern void* GetScreenObject__12ScreenParamsFUi(void* params, unsigned int index);
-extern int GetCount__12ScreenParamsCFv(void* params);
 extern unsigned int ScreenIntegerCompare__Fiii(int lhs, int op, int rhs);
 extern void vdebug_print_message(const char* fmt, ...);
 extern void snd_req(int sound_id);
@@ -7076,11 +7035,6 @@ extern void SetInt__22GameVariableDispatcherFUiUii(void* self, unsigned int unus
 extern unsigned int IsValidInt__22GameVariableDispatcherFUiUiUiUii(
     void* self, unsigned int a, unsigned int b, unsigned int c, unsigned int id,
     int value);
-extern unsigned int ScreenIntegerCompare__Fiii(int lhs, int op, int rhs);
-extern void vdebug_print_message(const char* fmt, ...);
-extern void set_snd_vol(int handle, int sound_id, float volume);
-extern void snd_req(int sound_id);
-extern int ui_sound_table[];
 
 /*
  * SpreadSheet nav click -- extraResId indexes ui_sound_table (< 0x3D).
