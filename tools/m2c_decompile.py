@@ -4,13 +4,32 @@
 import argparse
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import List, Optional
 
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def normalize_dtk_jump_tables(source: str) -> str:
+    """Give DTK's quoted local jump tables names recognized by m2c."""
+    objects = re.finditer(
+        r'^\.obj\s+"(?P<name>@[0-9]+)"[^\n]*\n(?P<body>.*?)(?=^\.endobj)',
+        source,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    names = {
+        match.group("name")
+        for match in objects
+        if re.search(r'^\s*\.rel\s+', match.group("body"), re.MULTILINE)
+    }
+    for name in names:
+        source = source.replace(f'"{name}"', f'jtbl_{name[1:]}')
+    return source
 
 
 def find_m2c(explicit: Optional[str]) -> List[str]:
@@ -92,9 +111,20 @@ def main() -> int:
     if args.stack_structs:
         command.append("--stack-structs")
     command += m2c_args
-    command.append(str(asm))
 
-    return subprocess.run(command, cwd=ROOT, check=False).returncode
+    original = asm.read_text(encoding="utf-8")
+    normalized = normalize_dtk_jump_tables(original)
+    if normalized == original:
+        command.append(str(asm))
+        return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+    scratch = ROOT / ".scratches" / "m2c"
+    scratch.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="dtk-jtbl-", dir=scratch) as temp:
+        prepared = Path(temp) / asm.name
+        prepared.write_text(normalized, encoding="utf-8")
+        command.append(str(prepared))
+        return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
 if __name__ == "__main__":
