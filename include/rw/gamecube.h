@@ -221,7 +221,7 @@ void _rwGCNVertexBufferInitialize(
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* descriptor,
                             const RwGameCubeVertexStreams* streams,
                             const RwGameCubeVertexData* vertexData,
-                            int compressedNormals, void* remap);
+                            int compressedNormals, const RwV3d* remap);
 void _rwGCNTriStripGetStats(unsigned short* indices, unsigned int numIndices,
                             unsigned int* numStrips, unsigned int* stripIndices,
                             int optimize);

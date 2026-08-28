@@ -1,6 +1,8 @@
 #include "rw/gamecube.h"
 #include "runtime/cstring.h"
 
+/* Soft ceiling: only the destination register for each mask-before-shift
+ * sequence differs from retail. */
 unsigned int _rwGCNDisplayListGetStride(
     const RwGameCubeVertexDescriptor* format)
 {
@@ -76,11 +78,87 @@ unsigned int _rwGCNDisplayListGetStride(
                 stride += 2;
             }
             break;
-        default:
-            type = (format->vcdHi >> ((attribute - 13) * 2)) & 3;
+        case 13:
+            type = format->vcdHi & 3;
             if (type == 1) {
-                stride += rwGCNTexGetSize(
-                    format, (unsigned int)(attribute - 13));
+                stride += rwGCNTexGetSize(format, 0);
+            } else if (type == 2) {
+                stride += 1;
+            } else if (type == 3) {
+                stride += 2;
+            }
+            break;
+        case 14:
+            type = format->vcdHi & (3U << 2);
+            type >>= 2;
+            if (type == 1) {
+                stride += rwGCNTexGetSize(format, 1);
+            } else if (type == 2) {
+                stride += 1;
+            } else if (type == 3) {
+                stride += 2;
+            }
+            break;
+        case 15:
+            type = format->vcdHi & (3U << 4);
+            type >>= 4;
+            if (type == 1) {
+                stride += rwGCNTexGetSize(format, 2);
+            } else if (type == 2) {
+                stride += 1;
+            } else if (type == 3) {
+                stride += 2;
+            }
+            break;
+        case 16:
+            type = format->vcdHi & (3U << 6);
+            type >>= 6;
+            if (type == 1) {
+                stride += rwGCNTexGetSize(format, 3);
+            } else if (type == 2) {
+                stride += 1;
+            } else if (type == 3) {
+                stride += 2;
+            }
+            break;
+        case 17:
+            type = format->vcdHi & (3U << 8);
+            type >>= 8;
+            if (type == 1) {
+                stride += rwGCNTexGetSize(format, 4);
+            } else if (type == 2) {
+                stride += 1;
+            } else if (type == 3) {
+                stride += 2;
+            }
+            break;
+        case 18:
+            type = format->vcdHi & (3U << 10);
+            type >>= 10;
+            if (type == 1) {
+                stride += rwGCNTexGetSize(format, 5);
+            } else if (type == 2) {
+                stride += 1;
+            } else if (type == 3) {
+                stride += 2;
+            }
+            break;
+        case 19:
+            type = format->vcdHi & (3U << 12);
+            type >>= 12;
+            if (type == 1) {
+                stride += rwGCNTexGetSize(format, 6);
+            } else if (type == 2) {
+                stride += 1;
+            } else if (type == 3) {
+                stride += 2;
+            }
+            break;
+        case 20:
+            type = format->vcdHi & (3U << 14);
+            type >>= 14;
+            if (type == 1) {
+                stride += rwGCNTexGetSize(format, 7);
             } else if (type == 2) {
                 stride += 1;
             } else if (type == 3) {
@@ -92,6 +170,9 @@ unsigned int _rwGCNDisplayListGetStride(
     return stride;
 }
 
+/* Retail also evaluates numIndices == 1 and discards the result, consistent
+ * with a removed RenderWare assertion. Keep the release algorithm free of a
+ * synthetic dead expression. */
 unsigned int _rwGCNDisplayListGetSize(const RwGameCubeVertexDescriptor* format,
                                   unsigned int numIndices,
                                   unsigned int numVertices)
@@ -112,3 +193,6 @@ void _rwGCNDisplayListInitialize(RwGameCubeDisplayList* displayList,
     displayList->size = size;
     memset(data, 0, size);
 }
+
+/* Retail assigns the four-byte .data alignment tail to this object. */
+__declspec(section ".data") unsigned int gap_05_8038BE14_data[1] = {0};

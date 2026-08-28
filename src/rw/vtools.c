@@ -3,7 +3,7 @@
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                             const RwGameCubeVertexStreams* streams,
                             const RwGameCubeVertexData* data,
-                            int compressedNormals, void* remap)
+                            int compressedNormals, const RwV3d* remap)
 {
     unsigned int streamIndex = 0;
     unsigned int attribute = 9;

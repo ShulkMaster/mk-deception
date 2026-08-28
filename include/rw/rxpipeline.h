@@ -186,17 +186,16 @@ struct RxPacket {
 };
 
 typedef struct RxPipelinePlatformGlobals {
-    RwFreeList* pipelines;
+    RwFreeList* pipesFreeList;
     RxRenderStateVector defaultRenderState;
-    RxPipeline* currentPipeline;
-    RxPipelineNode* currentNode;
-    unsigned int maxNodes;
-    RxPipeline* defaultAtomicPipeline;
-    RxPipeline* defaultWorldSectorPipeline;
-    RxPipeline* defaultMaterialPipeline;
-    RxPipeline* field_0x48;
-    RxPipeline* field_0x4C;
-    RxPipeline* field_0x50;
+    RwLinkList allPipelines;
+    unsigned int maxNodesPerPipe;
+    RxPipeline* currentAtomicPipeline;
+    RxPipeline* currentWorldSectorPipeline;
+    RxPipeline* currentMaterialPipeline;
+    RxPipeline* genericAtomicPipeline;
+    RxPipeline* genericWorldSectorPipeline;
+    RxPipeline* genericMaterialPipeline;
     RxPipeline* platformAtomicPipeline;
     RxPipeline* platformWorldSectorPipeline;
     RxPipeline* platformMaterialPipeline;
@@ -204,8 +203,8 @@ typedef struct RxPipelinePlatformGlobals {
 
 typedef struct RxExecutionContext {
     RxPipeline* pipeline;
-    unsigned int field04;
-    int executionStatus;
+    RxPipelineNode* currentNode;
+    int exitCode;
     unsigned int field0C;
     RxPipelineNodeParam params;
 } RxExecutionContext;
@@ -240,6 +239,10 @@ struct RxHeap {
 };
 
 extern int _rxPipelineGlobalsOffset;
+
+#define RXPIPELINEGLOBAL(field)                                                \
+    (((RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance +          \
+                                   _rxPipelineGlobalsOffset))->field)
 
 static inline RxPipelinePlatformGlobals* RxPipelineGlobals(void)
 {
