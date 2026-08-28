@@ -1,7 +1,6 @@
 #include "cri/adx_dcd.h"
 #include "cri/adx_xpnd.h"
-
-extern void* memset(void* destination, int value, unsigned long size);
+#include "runtime/cstring.h"
 extern int ADX_DecodeMono4(const signed char* input, int num_blocks,
                            short* output, short delay[2], short coefficient0,
                            short coefficient1, short* random_state,
