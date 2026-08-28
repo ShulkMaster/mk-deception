@@ -1,9 +1,5 @@
 #include "movie/sfx_set.h"
 
-int SJ_SearchTag(
-    const SfxDataRange* source, const char* tag,
-    const char* terminator, SfxDataRange* result, const char* tag_base);
-
 int SFX_GetColAdj(SfxTagInfo* info) {
     return info->color_adjustment;
 }
@@ -32,13 +28,13 @@ void SFX_SetTagInf(SfxTagInfo* info, void* data, int size) {
     tag = "SFXZ";
     effect = info->effect;
     source.data = data;
-    source.size = size;
+    source.len = size;
     info->tag_data = data;
     info->tag_size = size;
-    if (SJ_SearchTag(&source, tag, "SFXINFE", &result, tag) == 0) {
+    if (SJ_SearchTag(&source, tag, "SFXINFE", &result) == 0) {
         SFXZ_SetTagInf(effect, 0, 0);
     } else {
-        SFXZ_SetTagInf(effect, result.data, result.size);
+        SFXZ_SetTagInf(effect, result.data, result.len);
     }
     info->tag_info_set = 1;
 }
