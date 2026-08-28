@@ -38,13 +38,13 @@ void mcard_msg_delete_successful_generic(void);
 void mcard_msg_delete_failed_generic(void);
 void mcard_msg_profile_reset_confirmation(void);
 void mcard_msg_cant_enter_konquest(int device, const char* profileName);
-int load_from_memcard2(int device, int modeFlag, unsigned int offset, char* unusedStr,
-                       char* fileName, void* buffer, int size, char* unusedCardName,
+int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char* unusedStr,
+                       const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
                        int* checksumFailOut);
-int save_to_memcard2(int device, int a, int offset, int b, const char* strA, const char* strB,
-                     void* data, int size, unsigned int* freeBlocks, int* freeBytes, int p10,
-                     int p11, int mode, int p13);
+int save_to_memcard2(int device, int a, unsigned int offset, int b, const char* strA,
+                     const char* strB, void* data, int size, unsigned int* freeBlocks,
+                     int* freeBytes, int p10, int p11, int mode, int p13);
 int check_load_profile_result(int* result, int device);
 int check_load_region_data_result(int* result, int device, int scratch, int flag);
 int bad_load_region_data_result_resolution(int* result, int device);

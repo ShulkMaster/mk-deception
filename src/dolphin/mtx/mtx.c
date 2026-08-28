@@ -99,7 +99,8 @@ void PSMTXQuat(Mtx matrix, const Quat* quaternion)
     matrix[2][3] = 0.0f;
 }
 
-void C_MTXLookAt(Mtx matrix, Vec* cameraPosition, Vec* cameraUp, Vec* target)
+void C_MTXLookAt(Mtx matrix, const Point3d* cameraPosition,
+                 const Vec* cameraUp, const Point3d* target)
 {
     Vec look;
     Vec right;

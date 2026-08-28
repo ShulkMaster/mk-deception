@@ -17,12 +17,13 @@ int format_card_and_create_mkda_file(int device);
 int gc_format_procedure(int device);
 int gc_delete_file(int device, const char* fileName);
 
-int load_from_memcard2(int device, int modeFlag, unsigned int offset, char* unusedStr,
-                       char* fileName, void* buffer, int size, char* unusedCardName,
+int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char* unusedStr,
+                       const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
                        int* checksumFailOut);
-int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFlag, char* unusedStr,
-                     char* fileName, unsigned char* buffer, int size, unsigned int* freeBlocks,
+int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFlag,
+                     const char* unusedStr, const char* fileName, void* buffer, int size,
+                     unsigned int* freeBlocks,
                      int* freeBytes, int skipChecksum, int unused0, int unusedMode, int unused1);
 
 int check_load_profile_result(int* result, int device);
