@@ -1,13 +1,19 @@
-/* TODO: Missing implementation for retail unit rna_err.c. */
+#include "runtime/cstring.h"
 
-void *RNAERR_CallErrFunc(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+typedef void (*RNAErrCallback)(void* object, const char* message);
+
+RNAErrCallback rnaerr_func;
+void* rnaerr_obj;
+char rnaerr_msg[256];
+
+void RNAERR_CallErrFunc(const char* message) {
+    strncpy(rnaerr_msg, message, 255);
+    if (rnaerr_func != 0) {
+        rnaerr_func(rnaerr_obj, rnaerr_msg);
+    }
 }
 
-void *RNAERR_EntryErrFunc(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+void RNAERR_EntryErrFunc(RNAErrCallback callback, void* object) {
+    rnaerr_func = callback;
+    rnaerr_obj = object;
 }
