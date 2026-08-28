@@ -14,6 +14,7 @@
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_fileinfo.h"
 #include "runtime/section.h"
+#include "runtime/shadow.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/anim_api.h"
 #include "runtime/anims.h"
@@ -25,8 +26,6 @@
 #include "runtime/utils.h"
 
 #define LOAD_PLYR_MODEL_PID 0x9032
-
-typedef struct ShadowObject ShadowObject;
 
 typedef union LoadPlyrFlags {
     unsigned int word;
@@ -145,8 +144,6 @@ extern void plyr_obj_load_bld_data(
 extern int load_effect_bank(char* name);
 extern void start_constrain_proc(void);
 extern void init_debug_variables(void);
-extern int init_shadow_system(void);
-extern int init_shadow(ShadowObject* controller, MkObj* shadow);
 extern void pull_bone_hierarchy_mkobj(void* object);
 extern void create_shadow_proc(
     int pid, PlyrPdata* controller, MkObj* source, MkObj* shadow);
@@ -291,7 +288,6 @@ unsigned char goro_hand_to_hand2_remapping[0x56] = {
 };
 extern float r_call_script_function(void);
 extern void fxbanks_unload_by_owner(int owner);
-extern void TearDownShadow(PlyrPdata* pdata);
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
 extern void term_player_collision(PlyrInfo* player);
 extern void unload_script(int slot);
@@ -2070,7 +2066,7 @@ void delete_player(int player_index) {
                     ((void (*)(MkHdr*))shadow->vtbl->destroy)(shadow);
                 }
                 player->slot.mirror_b = 0;
-                TearDownShadow(player->slot.pdata);
+                TearDownShadow((ShadowObject*)player->slot.pdata);
                 destroy_mkprocs_pid(shadow_pid);
             }
         }
