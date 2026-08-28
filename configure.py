@@ -571,6 +571,16 @@ config.libs = [
                 source="runtime/qsort.c",
             ),
             Object(
+                NonMatching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/printf.o",
+                source="runtime/printf.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/strtold.o",
+                source="runtime/strtold.c",
+            ),
+            Object(
                 Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/strtoul.o",
                 source="runtime/strtoul.c",
@@ -1136,6 +1146,18 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_cmc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_cmc.c",
+            ),
+            Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_bdec.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_bdec.c",
+                extra_cflags=["-sdata 0", "-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_cdec.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_cdec.c",
+                extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
             ),
             Object(
                 NonMatching,

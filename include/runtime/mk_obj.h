@@ -437,6 +437,9 @@ MkSobj* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
 void hide_obj(void* obj);
 void unhide_obj(void* obj);
 MkSobj* obj_first_sobj(MkObj* obj);
+void obj_create_sobjs(MkObj* obj);
+RpMaterial* obj_find_material_with_texture(MkObj* obj,
+                                           const char* texture_name);
 void sobj_set_transl_flag(MkSobj* sobj);
 Vec* sobj_get_world_pos(MkSobj* sobj);
 RpAtomic* obj_get_1st_atomic(MkObj* obj);

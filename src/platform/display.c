@@ -16,6 +16,7 @@
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_struct.h"
+#include "runtime/shadow.h"
 #include "runtime/mtRand2.h"
 #include "runtime/tga.h"
 #include "runtime/mk_vtbl.h"
@@ -40,7 +41,6 @@ extern RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
 extern int RwImageDestroy(RwImage* image);
 extern void create_fade_box(void);
 extern void CameraDestroy(RwCamera* camera);
-extern void destroy_shadow_system(void* item);
 extern int RpWorldDestroy(RpWorld* world);
 extern void render_mkobj(MkObj* object);
 extern void render_transl_atomics(void);
@@ -69,7 +69,6 @@ extern void insert_PFXlist_in_transl_tree(void);
 extern void mkpfx_camera_begin(void);
 extern void mkpfx_camera_end(void);
 extern void render_collision_regions(void);
-extern void UpdateShadow(void);
 extern void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata);
 extern void plyr_turn_off_mirrorguy(PlyrInfo* player);
 extern void del_string_obj_by_id(int id);
@@ -263,7 +262,7 @@ void display_shutdown(void) {
     Camera = 0;
     camera_item.object = 0;
     camera_item.instance = 0;
-    destroy_shadow_system(&camera_item);
+    destroy_shadow_system();
     DeleteCameraSnapShot();
     if (World != 0) {
         RpWorldForAllLights(World, destroy_light, World);
@@ -510,7 +509,9 @@ void Render(void) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr0);
                     } else if (g_game_info.plyr0.slot.mirror_b->hdr.instance != 0 &&
                                !fighter->flag_obj->hide_flag_bits.hidden) {
-                        UpdateShadow();
+                        UpdateShadow(g_game_info.plyr0.slot.mirror_a,
+                                     (ShadowObject*)fighter,
+                                     g_game_info.plyr0.slot.mirror_b);
                         if (g_game_info.section->flags70 & 8) {
                             mirror_guy(g_game_info.plyr0.slot.mirror_a,
                                        g_game_info.plyr0.slot.mirror_b,
@@ -535,7 +536,9 @@ void Render(void) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr1);
                     } else if (g_game_info.plyr1.slot.mirror_b->hdr.instance != 0 &&
                                !fighter->flag_obj->hide_flag_bits.hidden) {
-                        UpdateShadow();
+                        UpdateShadow(g_game_info.plyr1.slot.mirror_a,
+                                     (ShadowObject*)fighter,
+                                     g_game_info.plyr1.slot.mirror_b);
                         if (g_game_info.section->flags70 & 8) {
                             mirror_guy(g_game_info.plyr1.slot.mirror_a,
                                        g_game_info.plyr1.slot.mirror_b,
