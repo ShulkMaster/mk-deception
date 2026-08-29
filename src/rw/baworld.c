@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "runtime/cstring.h"
 #include "rw/rpworld_types.h"
 #include "rw/rplight.h"
@@ -290,8 +290,8 @@ RpWorldSector *_rpSectorDefaultRenderCallBack(RpWorldSector *sector) {
     if (sector->pipeline) {
         pipeline = sector->pipeline;
     } else {
-        if (((RpWorld *)RwEngineInstance->field_0x04)->pipeline) {
-            pipeline = ((RpWorld *)RwEngineInstance->field_0x04)->pipeline;
+        if (((RpWorld *)RwEngineInstance->curWorld)->pipeline) {
+            pipeline = ((RpWorld *)RwEngineInstance->curWorld)->pipeline;
         } else {
             pipeline = *(RxPipeline **)((unsigned char *)RwEngineInstance +
                                         _rxPipelineGlobalsOffset + 0x40);

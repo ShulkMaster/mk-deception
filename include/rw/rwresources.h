@@ -25,14 +25,11 @@ struct RwResHeapBlock {
 
 typedef struct RwGameCubeResEntryHeader {
     RwResEntry entry;
-    union {
-        struct {
-            unsigned short token;
-            unsigned short meshSerialNum;
-        } sync;
-        RwGameCubeVertexBuffer vertexBuffer;
-    } data;
+    RwGameCubeVertexBuffer vertexBuffer;
 } RwGameCubeResEntryHeader;
+
+typedef char RwGameCubeResEntryHeaderSizeCheck[
+    sizeof(RwGameCubeResEntryHeader) == 0x2C ? 1 : -1];
 
 typedef struct RwResourcesGlobals {
     unsigned int arenaSize;

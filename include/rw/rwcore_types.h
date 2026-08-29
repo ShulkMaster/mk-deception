@@ -4,6 +4,10 @@
 #include "rw/rwobject.h"
 #include "rw/rtquat.h"
 
+#define RW_OFFSET_OF(type, member) ((unsigned long)&((type*)0)->member)
+#define RW_CONTAINER_OF(pointer, type, member)                              \
+    ((type*)((unsigned char*)(pointer) - RW_OFFSET_OF(type, member)))
+
 typedef RwObject* (*RwObjectCallBack)(RwObject* object, void* data);
 
 typedef struct RwLLLink {

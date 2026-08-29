@@ -1,8 +1,9 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwmatrix.h"
 #include "rw/rwvector.h"
+#include "runtime/cmath.h"
 
 typedef void (*rwMatrixMultFn)(RwMatrix *, const RwMatrix *, const RwMatrix *);
 
@@ -13,8 +14,8 @@ typedef struct rwMatrixGlobals {
   RwMatrixTolerance tolerance;
 } rwMatrixGlobals;
 
-float sinf(float value);
-float cosf(float value);
+typedef char rwMatrixGlobalsSizeCheck[
+    sizeof(rwMatrixGlobals) == 0x18 ? 1 : -1];
 
 static RwModuleInfo matrixModule;
 

@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rpmesh_internal.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwerror.h"

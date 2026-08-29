@@ -1,6 +1,7 @@
 #include "dolphin/os.h"
+#include "runtime/cstring.h"
 #include "dolphin/gx_fifo.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/dlbrkpt.h"
 
 typedef struct RwGxBreakPtEntry {
@@ -25,8 +26,6 @@ typedef struct RwGxBreakPtQueue {
     int pendingDrawDone;
     RwGxBreakPtEntry* entries;
 } RwGxBreakPtQueue;
-
-extern void* memset(void* destination, int value, unsigned long size);
 
 void MWY_GCN_RW_RestartFromGxBreakPtCurrent(void);
 

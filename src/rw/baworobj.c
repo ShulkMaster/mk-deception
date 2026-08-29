@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "runtime/cstring.h"
 #include "rw/rplight.h"
 #include "rw/native_internal.h"
@@ -257,7 +257,7 @@ WorldCameraSync(RwObjectHasFrame * object)
     world = cameraExt->world;
     if (world != 0) {
         RwStandardFunc hintRenderFrontToBack =
-            RwEngineInstance->fpHintRenderFrontToBack;
+            RWENGINESTANDARD(RwStandardCall, rwSTANDARDHINTRENDERF2B);
         WorldSyncCamera(world, (RwCamera *)object);
         hintRenderFrontToBack(0, 0,
                               world->renderOrder == rpWORLDRENDERFRONT2BACK);

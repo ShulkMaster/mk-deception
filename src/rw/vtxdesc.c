@@ -8,7 +8,7 @@ void _rwVertexDescriptorInit(RwGameCubeVertexDescriptor* descriptor)
     descriptor->vatC = 0;
     descriptor->vcdLo = 0;
     descriptor->vcdHi = 0;
-    descriptor->metadata = 0;
+    descriptor->attributeCounts = 0;
 }
 
 void _rwGCNVertexDescSetVAT(RwGameCubeVertexDescriptor* descriptor,
@@ -144,8 +144,8 @@ void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
         if (type != 0) {
             normalCount = 1;
         }
-        descriptor->metadata &= ~0xCU;
-        descriptor->metadata |= (normalCount << 2) & 0xCU;
+        descriptor->attributeCounts &= ~0xCU;
+        descriptor->attributeCounts |= (normalCount << 2) & 0xCU;
         break;
     }
     case 25: {
@@ -155,8 +155,8 @@ void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
         if (type != 0) {
             nbtCount = 2;
         }
-        descriptor->metadata &= ~0xCU;
-        descriptor->metadata |= (nbtCount << 2) & 0xCU;
+        descriptor->attributeCounts &= ~0xCU;
+        descriptor->attributeCounts |= (nbtCount << 2) & 0xCU;
         break;
     }
     case 11:
@@ -171,8 +171,8 @@ void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
         if ((descriptor->vcdLo & 0x18000U) != 0) {
             colorCount++;
         }
-        descriptor->metadata &= ~3U;
-        descriptor->metadata |= colorCount & 3U;
+        descriptor->attributeCounts &= ~3U;
+        descriptor->attributeCounts |= colorCount & 3U;
         break;
 #define SET_TEXCOORD_DESC(shift)                                            \
     do {                                                                    \
@@ -186,8 +186,8 @@ void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
                 texCoordCount++;                                            \
             }                                                               \
         }                                                                   \
-        descriptor->metadata &= ~0xF0U;                                     \
-        descriptor->metadata |= (texCoordCount << 4) & 0xF0U;               \
+        descriptor->attributeCounts &= ~0xF0U;                              \
+        descriptor->attributeCounts |= (texCoordCount << 4) & 0xF0U;        \
     } while (0)
     case 13:
         SET_TEXCOORD_DESC(0);

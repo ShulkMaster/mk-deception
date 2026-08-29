@@ -1,4 +1,5 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
+#include "runtime/cstring.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/batextur.h"
 #include "rw/rwcolor.h"
@@ -22,8 +23,6 @@
 typedef struct RwSubSystemInfo {
     char name[80];
 } RwSubSystemInfo;
-
-extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 extern RwDevice* _rwDeviceGetHandle(void);
 
@@ -118,6 +117,8 @@ static int _rwDeviceSystemRequest(RwDevice* device, int request,
     return result;
 }
 
+/* Soft ceiling: retail clears oldGlobals after freeing it. That dead store is
+ * not represented solely to force the remaining EngineOpen register mismatch. */
 static int EngineOpen(RwDevice* device, RwEngineOpenParams* params)
 {
     RwEngineInstance =
@@ -125,15 +126,16 @@ static int EngineOpen(RwDevice* device, RwEngineOpenParams* params)
     if (RwEngineInstance != 0) {
         RwGlobals* oldGlobals = RwEngineInstance;
         memcpy(RwEngineInstance, &staticGlobals, sizeof(RwGlobals));
-        _rwDeviceSystemRequest(device, 4, &RwEngineInstance->gammaCorrection,
+        _rwDeviceSystemRequest(device, 4, &RwEngineInstance->dOpenDevice,
                                &RwEngineInstance->fpMalloc, 0);
         if (_rwDeviceSystemRequest(device, 0, 0, params, 0)) {
-            _rwDeviceSystemRequest(device, 11, &device->standard[0], 0, 29);
+            _rwDeviceSystemRequest(device, 11, RwEngineInstance->stdFunc,
+                                   0, rwSTANDARDNUMOFSTANDARD);
             engineInstancesOpened++;
             return 1;
         }
         RwEngineInstance = &staticGlobals;
-        memcpy(&staticGlobals, oldGlobals, sizeof(RwGlobals));
+        memcpy(RwEngineInstance, oldGlobals, sizeof(RwGlobals));
         RwEngineInstance->fpFree(oldGlobals);
         return 0;
     }
@@ -176,7 +178,7 @@ int RwEngineGetPluginOffset(unsigned int pluginID)
 
 RwVideoMode* RwEngineGetVideoModeInfo(RwVideoMode* modeInfo, int mode)
 {
-    if (!_rwDeviceSystemRequest((RwDevice*)&RwEngineInstance->gammaCorrection,
+    if (!_rwDeviceSystemRequest(&RwEngineInstance->dOpenDevice,
                                 6, modeInfo, 0, mode)) {
         modeInfo = 0;
     }
@@ -186,7 +188,7 @@ RwVideoMode* RwEngineGetVideoModeInfo(RwVideoMode* modeInfo, int mode)
 int RwEngineGetCurrentVideoMode(void)
 {
     int mode;
-    if (_rwDeviceSystemRequest((RwDevice*)&RwEngineInstance->gammaCorrection,
+    if (_rwDeviceSystemRequest(&RwEngineInstance->dOpenDevice,
                                10, &mode, 0, 0)) {
         return mode;
     }
@@ -195,10 +197,10 @@ int RwEngineGetCurrentVideoMode(void)
 
 int RwEngineStart(void)
 {
-    RwDevice* device = (RwDevice*)&RwEngineInstance->gammaCorrection;
+    RwDevice* device = &RwEngineInstance->dOpenDevice;
     if (_rwDeviceSystemRequest(device, 2, 0, 0, 0)) {
         if (_rwPluginRegistryInitObject(&engineTKList, RwEngineInstance)) {
-            RwImageSetGamma(RwEngineInstance->gammaCorrection);
+            RwImageSetGamma(RwEngineInstance->dOpenDevice.gammaCorrection);
             _rwDeviceSystemRequest(device, 17, 0, 0, 0);
             RwEngineInstance->engineStatus = 3;
             return 1;
@@ -215,7 +217,7 @@ int RwEngineClose(void)
     int result;
     RwDevice* target;
 
-    target = (RwDevice*)&RwEngineInstance->gammaCorrection;
+    target = &RwEngineInstance->dOpenDevice;
     result = _rwDeviceSystemRequest(target, 1, 0, 0, 0);
     if (result) {
         RwGlobals* instance;

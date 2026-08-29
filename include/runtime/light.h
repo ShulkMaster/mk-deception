@@ -41,6 +41,10 @@ struct MkxRpLight {
     unsigned int obj_instance;  /* +0x10 */
 };
 
+typedef char LightDefSizeCheck[sizeof(LightDef) == 0x3C ? 1 : -1];
+typedef char LightPdataSizeCheck[sizeof(LightPdata) == 0x14 ? 1 : -1];
+typedef char MkxRpLightSizeCheck[sizeof(MkxRpLight) == 0x14 ? 1 : -1];
+
 /* Both wrappers embed MkHdr at offset zero; keep the container conversion local. */
 #define MKX_RPLIGHT_FROM_HDR(hdr_) ((MkxRpLight*)(hdr_))
 #define LIGHT_PDATA_FROM_HDR(hdr_) ((LightPdata*)(hdr_))
@@ -59,9 +63,16 @@ void clear_all_lights_in(MkPtr** list);
 void load_lights(LightDef** defs, MkPtr** list);
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent);
 MkxRpLight* find_mkx_rplight_in_obj(MkObj* obj);
+MkxRpLight* get_mkx_rplight(RpLight* light);
+void bind_rplight_to_obj(RpLight* light, MkObj* obj);
+void vdestroy_mkx_rplight(MkxRpLight* light);
 
 extern MkObj* light_obj;
 extern LightPdata* light_pdata;
 extern MkPtr* point_light_list;
+extern MkPtr* skinned_obj_light_list;
+extern MkPtr* bgnd_light_list;
+extern MkPtr* bgnd_spec_light_list;
+extern MkPtr* plyr_light_list;
 
 #endif

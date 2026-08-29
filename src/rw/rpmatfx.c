@@ -1,4 +1,5 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
+#include "runtime/cstring.h"
 #include "rw/bamateri.h"
 #include "rw/batextur.h"
 #include "rw/rpmatfx.h"
@@ -13,8 +14,6 @@ typedef struct MatFXModuleInfo {
     RwFreeList* materialDataFreeList;
 } MatFXModuleInfo;
 
-extern void* memset(void*, int, unsigned int);
-extern void* memcpy(void*, const void*, unsigned int);
 extern int _rpMatFXPipelinesCreate(void);
 extern int _rpMatFXPipelinesDestroy(void);
 extern RwTexture* _rpMatFXSetupBumpMapTexture(RwTexture*, RwTexture*);

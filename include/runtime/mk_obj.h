@@ -288,12 +288,6 @@ typedef struct MkObj {
     union {
         unsigned int flags_word_08;
         struct {
-            unsigned char flags_08;
-            unsigned char flags_09;
-            unsigned char hide_flags;
-            unsigned char flags_0B;
-        } flag_bytes;
-        struct {
             union {
                 unsigned char flags_08;
                 MkObjFlags08 flags_08_bits;
@@ -310,7 +304,11 @@ typedef struct MkObj {
                 unsigned char flags_0B;
                 MkObjFlags0B flags_0B_bits;
             }; /* +0x0B */
-        };
+        }
+#ifdef __cplusplus
+        flag_bytes
+#endif
+        ;
     };
     union {
         unsigned int flags_word_0C;
@@ -325,10 +323,7 @@ typedef struct MkObj {
     unsigned int oid;       /* +0x10 - object id / destroy mask */
     int clump_count;        /* +0x14 - populated inline clump slots */
     union {
-        struct {
-            RpClump* clump;   /* +0x18 - first clump */
-            RpClump* clump_1; /* +0x1C - second inline clump slot */
-        };
+        RpClump* clump;      /* +0x18 - first clump */
         RpClump* clumps[2];
     };
     RwFrame* frame;         /* +0x20 */
@@ -336,7 +331,7 @@ typedef struct MkObj {
     MkPtr* child_list;        /* +0x28 - mk_insert list head (sky / children) */
     unsigned int light_flags; /* +0x2C - bgnd load 0 / 0x1000 / 0x1009 */
     float gravity;             /* +0x30 */
-    char pad34[4];
+    float field_34;            /* +0x34 - initialized as a float */
     int ground_bone;           /* +0x38 */
     MkHdr* parent_hdr;        /* +0x3C */
     unsigned int parent_inst; /* +0x40 */
@@ -413,6 +408,28 @@ typedef struct MkObj {
     };
 } MkObj;
 
+/* MWCC C++ does not treat sizeof on these C anonymous aggregates as a
+ * constant expression; their C consumers enforce the shared ABI checks. */
+#ifndef __cplusplus
+typedef char MkFlippedBoneMapSizeCheck[
+    sizeof(MkFlippedBoneMap) == 0x08 ? 1 : -1];
+typedef char MkBoneSizeCheck[sizeof(MkBone) == 0x110 ? 1 : -1];
+typedef char ClothCollisionPointSizeCheck[
+    sizeof(ClothCollisionPoint) == 0x10 ? 1 : -1];
+typedef char ClothBoneSizeCheck[sizeof(ClothBone) == 0x130 ? 1 : -1];
+typedef char MkxMemSizeCheck[sizeof(MkxMem) == 0x0C ? 1 : -1];
+typedef char MkSobjSizeCheck[sizeof(MkSobj) == 0x84 ? 1 : -1];
+typedef char MksobjPluginDataSizeCheck[
+    sizeof(MksobjPluginData) == 0x10 ? 1 : -1];
+typedef char MkObjItemAttachDataSizeCheck[
+    sizeof(MkObjItemAttachData) == 0x30 ? 1 : -1];
+typedef char MkObjSizeCheck[sizeof(MkObj) == 0x100 ? 1 : -1];
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Critical krypt APIs */
 MkSobj* obj_find_sobj_by_id(MkObj* obj, unsigned int id);
 RpMaterial* sobj_find_material_by_id(MkSobj* sobj,
@@ -450,8 +467,13 @@ void material_set_texture_pointer(
     RpMaterial* material, RwTexture* texture, int use_matfx);
 void* get_mkx_mem(void* allocation);
 MkObj* get_mkobj(int type, RpClump* clump);
+MkObj* get_mkobj_frame(int type, RwFrame* frame);
 void destroy_mkobj(void* obj);
 
 extern MkPtr* fgnd_mkobj_list;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

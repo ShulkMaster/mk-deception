@@ -1,6 +1,7 @@
 #include "dolphin/gx.h"
+#include "runtime/cstring.h"
 #include "dolphin/vi.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rwcore_types.h"
@@ -15,7 +16,6 @@ extern int _RwDlFSAATop;
 extern int _RwDlHalfHeight;
 extern int _RwDlPixelFormat;
 extern int _RwDlCurPixelFormat;
-extern void* memset(void* destination, int value, unsigned int size);
 extern RwRGBA* RwRGBASetFromPixel(RwRGBA* color, unsigned int pixel,
                                   int format);
 static void GXEnd(void);

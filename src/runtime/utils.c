@@ -48,7 +48,14 @@ extern void fire_screen_studio_event(int event, int arg);
 /* setup_fixed_block_heaps indexes jump_target_mode (.sdata), not mode_of_play. */
 extern int jump_target_mode;
 
-static int current_heap_block_counts[14];
+typedef struct FixedHeapConfigStorage {
+    FixedHeapConfig heaps;
+    unsigned long field_0x34;
+} FixedHeapConfigStorage;
+typedef char FixedHeapConfigStorageSizeCheck[
+    sizeof(FixedHeapConfigStorage) == 0x38 ? 1 : -1];
+
+static FixedHeapConfigStorage current_heap_block_counts;
 static int game_state_stack[8];
 static int game_state_stack_depth = -1;
 static int language_setting;
@@ -410,79 +417,79 @@ float sobj_get_bounding_sphere_radius(void* sobj) {
 }
 
 int get_mkptr_count(void) {
-    return current_heap_block_counts[5];
+    return current_heap_block_counts.heaps.mkptrCount;
 }
 
 void setup_fixed_block_heaps(void) {
     unsigned int mode;
 
-    current_heap_block_counts[0] = 100;
-    current_heap_block_counts[1] = 600;
-    current_heap_block_counts[2] = 0xA0;
-    current_heap_block_counts[3] = 0x19;
-    current_heap_block_counts[4] = 0x87;
-    current_heap_block_counts[5] = 0xC00;
-    current_heap_block_counts[7] = 0x100;
-    current_heap_block_counts[8] = 0x100;
-    current_heap_block_counts[9] = 0x100;
-    current_heap_block_counts[10] = 0x80;
-    current_heap_block_counts[11] = 0x80;
-    current_heap_block_counts[12] = 0x18;
-    current_heap_block_counts[13] = 0;
+    current_heap_block_counts.heaps.mkobjCount = 100;
+    current_heap_block_counts.heaps.mksobjCount = 600;
+    current_heap_block_counts.heaps.mkprocCount = 0xA0;
+    current_heap_block_counts.heaps.bigstackCount = 0x19;
+    current_heap_block_counts.heaps.tinystackCount = 0x87;
+    current_heap_block_counts.heaps.mkptrCount = 0xC00;
+    current_heap_block_counts.heaps.fixed16Count = 0x100;
+    current_heap_block_counts.heaps.fixed32Count = 0x100;
+    current_heap_block_counts.heaps.fixed64Count = 0x100;
+    current_heap_block_counts.heaps.fixed128Count = 0x80;
+    current_heap_block_counts.heaps.fixed512Count = 0x80;
+    current_heap_block_counts.heaps.fixed1024Count = 0x18;
+    current_heap_block_counts.field_0x34 = 0;
 
     /* Retail loads jump_target_mode (.sdata), not mode_of_play. */
     /* Soft ceiling under -O4,s: 99.86% -- jump-table relocation symbol only. */
     mode = (unsigned int)jump_target_mode;
     switch (mode) {
     case 4:
-        current_heap_block_counts[5] = 6000;
-        current_heap_block_counts[0] = 0x15E;
-        current_heap_block_counts[1] = 0x2D0;
-        current_heap_block_counts[7] = 0x200;
-        current_heap_block_counts[8] = 0x1EA;
-        current_heap_block_counts[9] = 0x47E;
-        current_heap_block_counts[10] = 200;
-        current_heap_block_counts[11] = 0xD2;
-        current_heap_block_counts[12] = 5;
+        current_heap_block_counts.heaps.mkptrCount = 6000;
+        current_heap_block_counts.heaps.mkobjCount = 0x15E;
+        current_heap_block_counts.heaps.mksobjCount = 0x2D0;
+        current_heap_block_counts.heaps.fixed16Count = 0x200;
+        current_heap_block_counts.heaps.fixed32Count = 0x1EA;
+        current_heap_block_counts.heaps.fixed64Count = 0x47E;
+        current_heap_block_counts.heaps.fixed128Count = 200;
+        current_heap_block_counts.heaps.fixed512Count = 0xD2;
+        current_heap_block_counts.heaps.fixed1024Count = 5;
         break;
     case 1:
     case 6:
     case 0xB:
-        current_heap_block_counts[0] = 0x10;
-        current_heap_block_counts[1] = 0x10;
-        current_heap_block_counts[7] = 600;
-        current_heap_block_counts[8] = 800;
-        current_heap_block_counts[9] = 500;
-        current_heap_block_counts[10] = 0x80;
-        current_heap_block_counts[12] = 0x20;
+        current_heap_block_counts.heaps.mkobjCount = 0x10;
+        current_heap_block_counts.heaps.mksobjCount = 0x10;
+        current_heap_block_counts.heaps.fixed16Count = 600;
+        current_heap_block_counts.heaps.fixed32Count = 800;
+        current_heap_block_counts.heaps.fixed64Count = 500;
+        current_heap_block_counts.heaps.fixed128Count = 0x80;
+        current_heap_block_counts.heaps.fixed1024Count = 0x20;
         break;
     case 8:
-        current_heap_block_counts[0] = 0x10;
-        current_heap_block_counts[1] = 0x10;
-        current_heap_block_counts[7] = 200;
-        current_heap_block_counts[8] = 400;
-        current_heap_block_counts[9] = 500;
-        current_heap_block_counts[10] = 0x80;
-        current_heap_block_counts[12] = 0x20;
+        current_heap_block_counts.heaps.mkobjCount = 0x10;
+        current_heap_block_counts.heaps.mksobjCount = 0x10;
+        current_heap_block_counts.heaps.fixed16Count = 200;
+        current_heap_block_counts.heaps.fixed32Count = 400;
+        current_heap_block_counts.heaps.fixed64Count = 500;
+        current_heap_block_counts.heaps.fixed128Count = 0x80;
+        current_heap_block_counts.heaps.fixed1024Count = 0x20;
         break;
     case 3:
-        current_heap_block_counts[7] = 200;
-        current_heap_block_counts[8] = 100;
-        current_heap_block_counts[9] = 0x96;
-        current_heap_block_counts[10] = 0x80;
-        current_heap_block_counts[11] = 0xDC;
-        current_heap_block_counts[12] = 1;
+        current_heap_block_counts.heaps.fixed16Count = 200;
+        current_heap_block_counts.heaps.fixed32Count = 100;
+        current_heap_block_counts.heaps.fixed64Count = 0x96;
+        current_heap_block_counts.heaps.fixed128Count = 0x80;
+        current_heap_block_counts.heaps.fixed512Count = 0xDC;
+        current_heap_block_counts.heaps.fixed1024Count = 1;
         break;
     case 2:
-        current_heap_block_counts[11] = 0xAF;
-        current_heap_block_counts[9] = 0x114;
+        current_heap_block_counts.heaps.fixed512Count = 0xAF;
+        current_heap_block_counts.heaps.fixed64Count = 0x114;
         break;
     default:
         break;
     }
 
     mwMemDestroyFixedBlockHeaps();
-    mwMemAllocateFixedBlockHeaps((FixedHeapConfig*)current_heap_block_counts);
+    mwMemAllocateFixedBlockHeaps(&current_heap_block_counts.heaps);
 }
 
 void load_and_set_refl_on_weapon(void* weapon) {
@@ -796,7 +803,7 @@ void hide_material(RpMaterial* material) {
 }
 
 RpMaterial* material_set_color(
-    RpMaterial* material, const RpMaterialColor* color) {
+    RpMaterial* material, const RwRGBA* color) {
     material->color = *color;
     return material;
 }
@@ -818,7 +825,7 @@ RpAtomic* set_atomic_material_color(
 }
 
 void obj_set_color_for_material_by_id(
-    MkObj* obj, int id, const RpMaterialColor* color) {
+    MkObj* obj, int id, const RwRGBA* color) {
 }
 
 void obj_set_color_for_all_materials(void* obj, int* color) {

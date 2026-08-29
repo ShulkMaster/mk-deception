@@ -16,6 +16,7 @@ typedef struct RwFreeList {
     unsigned int flags;
     RwLLLink link;
 } RwFreeList;
+typedef char RwFreeListSizeCheck[sizeof(RwFreeList) == 0x24 ? 1 : -1];
 typedef void (*RwFreeListCallBack)(void*, void*);
 
 void _rwFreeListEnable(int enable);

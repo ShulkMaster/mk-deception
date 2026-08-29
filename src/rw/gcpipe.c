@@ -1,5 +1,5 @@
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/alphapass.h"
 #include "rw/gamecube.h"
 #include "rw/gcspecular.h"
@@ -65,7 +65,7 @@ void* _rxGCDefaultRenderCallback(
     vertexArrays = vertexBuffer->arrays;
     displayList = (RwGameCubeDisplayList*)&vertexArrays[
         vertexBuffer->numArrays];
-    *(unsigned short*)vertexBuffer = _RwDlTokenCurrent;
+    vertexBuffer->displayListToken = _RwDlTokenCurrent;
 
     ltm = RwFrameGetLTM((RwFrame*)((RpAtomic*)object)->object.parent);
     vertexFormat = *(RpGameCubeVtxFmt**)(
@@ -79,7 +79,7 @@ void* _rxGCDefaultRenderCallback(
     }
     materialCallback = _rwDlObjectRenderSetup(
         instanceData->geometryFlags, instanceData->lightMask,
-        instanceData->hasAmbient, vertexBuffer->reserved_0x00[1] & 1);
+        instanceData->hasAmbient, vertexBuffer->flags & 1);
 
     numMeshes = instanceData->meshHeader->numMeshes;
     mesh = (RpMesh*)(instanceData->meshHeader + 1);
@@ -100,9 +100,9 @@ void* _rxGCDefaultRenderCallback(
 
                 if (specular->flags.bits.cullFront != 0) {
                     restoreState = 1;
-                    ((RwRenderStateGetCall)RwEngineInstance->fpRenderStateGet)(
+                    ((RwRenderStateGetCall)RwEngineInstance->dOpenDevice.fpRenderStateGet)(
                         0x14, &oldState, RwEngineInstance);
-                    ((RwRenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                    ((RwRenderStateSetCall)RwEngineInstance->dOpenDevice.fpRenderStateSet)(
                         0x14, 1, RwEngineInstance);
                 }
                 texture = material->texture;
@@ -135,7 +135,7 @@ void* _rxGCDefaultRenderCallback(
                 }
                 _rxGCTevAlphaPassCleanup((RxGCTevAlphaPass*)instanceData);
                 if (restoreState != 0) {
-                    ((RwRenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                    ((RwRenderStateSetCall)RwEngineInstance->dOpenDevice.fpRenderStateSet)(
                         0x14, oldState, RwEngineInstance);
                 }
             }
@@ -156,9 +156,9 @@ void* _rxGCDefaultRenderCallback(
 
                 if (specular->flags.bits.cullFront != 0) {
                     restoreState = 1;
-                    ((RwRenderStateGetCall)RwEngineInstance->fpRenderStateGet)(
+                    ((RwRenderStateGetCall)RwEngineInstance->dOpenDevice.fpRenderStateGet)(
                         0x14, &oldState, RwEngineInstance);
-                    ((RwRenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                    ((RwRenderStateSetCall)RwEngineInstance->dOpenDevice.fpRenderStateSet)(
                         0x14, 1, RwEngineInstance);
                 }
                 if (0 != materialCallback) {
@@ -174,7 +174,7 @@ void* _rxGCDefaultRenderCallback(
                     GXCallDisplayList(displayList->data, displayList->size);
                 }
                 if (restoreState != 0) {
-                    ((RwRenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                    ((RwRenderStateSetCall)RwEngineInstance->dOpenDevice.fpRenderStateSet)(
                         0x14, oldState, RwEngineInstance);
                 }
             }

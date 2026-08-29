@@ -1,12 +1,12 @@
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "runtime/cstring.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
 #include "rw/geomcond.h"
 #include "rw/rwresources.h"
 #include "rw/rxpipeline.h"
 
-extern void* memset(void* destination, int value, unsigned int size);
 extern void DCFlushRange(void* start, unsigned int length);
 
 static RwGameCubeVertexDescriptor VtxDesc;
@@ -324,26 +324,26 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry,
     dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((unsigned short*)vertexBuffer)[1] = geometry->meshHeader->serialNum;
-    vertexBuffer->reserved_0x00[1] = 0;
+    vertexBuffer->displayListToken = _RwDlTokenLastSeen;
+    vertexBuffer->meshSerialNum = geometry->meshHeader->serialNum;
+    vertexBuffer->flags = 0;
     if ((geometry->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
             (unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
         if (format == 0) {
             int vertex;
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
             for (vertex = 0; vertex < geometry->numVertices; vertex++) {
                 if (((const RwRGBA*)geometry->preLitLum)[vertex].alpha <
                     0xFF) {
-                    vertexBuffer->reserved_0x00[1] |= 1;
+                    vertexBuffer->flags |= 1;
                     break;
                 }
             }
         } else if (format->colorType > 2) {
-            vertexBuffer->reserved_0x00[1] |= 1;
+            vertexBuffer->flags |= 1;
         } else {
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
         }
     }
     dataOffset += headerSize;
@@ -389,7 +389,7 @@ RwResEntry* _rwDlGeometryInstanceOptimized(RpGeometry* geometry,
     _rwGCNVertexBufferInitialize(descriptor, vertexBuffer,
                                  vertexData.counts, (void*)dataOffset);
     _rwGCNVertexBufferFill(
-        descriptor, (const RwGameCubeVertexStreams*)vertexBuffer,
+        descriptor, vertexBuffer,
         &vertexData, 0, 0);
     DCFlushRange(vertexBuffer, totalSize);
     GXInvalidateVtxCache();
@@ -576,26 +576,26 @@ RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
     dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((unsigned short*)vertexBuffer)[1] = geometry->meshHeader->serialNum;
-    vertexBuffer->reserved_0x00[1] = 0;
+    vertexBuffer->displayListToken = _RwDlTokenLastSeen;
+    vertexBuffer->meshSerialNum = geometry->meshHeader->serialNum;
+    vertexBuffer->flags = 0;
     if ((geometry->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
             (unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
         if (format == 0) {
             int vertex;
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
             for (vertex = 0; vertex < geometry->numVertices; vertex++) {
                 if (((const RwRGBA*)geometry->preLitLum)[vertex].alpha <
                     0xFF) {
-                    vertexBuffer->reserved_0x00[1] |= 1;
+                    vertexBuffer->flags |= 1;
                     break;
                 }
             }
         } else if (format->colorType > 2) {
-            vertexBuffer->reserved_0x00[1] |= 1;
+            vertexBuffer->flags |= 1;
         } else {
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
         }
     }
     dataOffset += headerSize;
@@ -623,7 +623,7 @@ RwResEntry* _rwDlGeometryInstanceFast(RpGeometry* geometry, void* owner,
     _rwGCNVertexBufferInitialize(descriptor, vertexBuffer,
                                  vertexData.counts, (void*)dataOffset);
     _rwGCNVertexBufferFill(
-        descriptor, (const RwGameCubeVertexStreams*)vertexBuffer,
+        descriptor, vertexBuffer,
         &vertexData, 0, 0);
     DCFlushRange(vertexBuffer, totalSize);
     GXInvalidateVtxCache();

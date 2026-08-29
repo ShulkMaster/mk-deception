@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 
 enum {
     rwRASTERGAMMACORRECTED = 0x01,
@@ -6,7 +6,7 @@ enum {
 };
 
 RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster) {
-    if (RwEngineInstance->fpImageSetFromRaster(image, raster, 0)) {
+    if (RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDIMAGEGETRASTER)(image, raster, 0)) {
         if ((raster->privateFlags & rwRASTERGAMMACORRECTED) != 0) {
             image->flags |= rwIMAGEGAMMACORRECTED;
         }
@@ -16,7 +16,7 @@ RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster) {
 }
 
 RwRaster* RwRasterSetFromImage(RwRaster* raster, RwImage* image) {
-    if (RwEngineInstance->fpRasterSetFromImage(raster, image, 0)) {
+    if (RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDRASTERSETIMAGE)(raster, image, 0)) {
         if ((image->flags & rwIMAGEGAMMACORRECTED) != 0) {
             raster->privateFlags |= rwRASTERGAMMACORRECTED;
         }
@@ -30,7 +30,7 @@ RwImage* RwImageFindRasterFormat(RwImage* image, int rasterType,
                                  int* depth, int* format) {
     RwRaster raster;
 
-    if (!RwEngineInstance->fpImageFindRasterFormat(&raster, image,
+    if (!RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDIMAGEFINDRASTERFORMAT)(&raster, image,
                                                     rasterType)) {
         return 0;
     }

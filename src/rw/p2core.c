@@ -1,12 +1,8 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rxpipeline.h"
 #include "runtime/cstring.h"
-
-extern RxExecutionContext _rxExecCtxGlobal;
-
-#define RxHeapReset(heap) ((!(heap)->dirty) ? 1 : _rxHeapReset(heap))
 
 static RwFreeList _rxPipesFreeList;
 unsigned int _rxHeapInitialSize = 0x1000;

@@ -1,12 +1,12 @@
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "runtime/cstring.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
 #include "rw/geomcond.h"
 #include "rw/rwresources.h"
 #include "rw/rxpipeline.h"
 
-extern void* memset(void* destination, int value, unsigned int size);
 extern void DCFlushRange(void* start, unsigned int length);
 
 static RwGameCubeVertexDescriptor VtxDesc;
@@ -318,26 +318,26 @@ RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
     dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((unsigned short*)vertexBuffer)[1] = sector->mesh->serialNum;
-    vertexBuffer->reserved_0x00[1] = 0;
+    vertexBuffer->displayListToken = _RwDlTokenLastSeen;
+    vertexBuffer->meshSerialNum = sector->mesh->serialNum;
+    vertexBuffer->flags = 0;
     if ((world->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
             (unsigned char*)world + _rpDlWorldVtxFmtOffset);
         if (format == 0) {
             int vertex;
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
             for (vertex = 0; vertex < sector->numVertices; vertex++) {
                 if (sector->preLitLum[vertex].alpha <
                     0xFF) {
-                    vertexBuffer->reserved_0x00[1] |= 1;
+                    vertexBuffer->flags |= 1;
                     break;
                 }
             }
         } else if (format->colorType > 2) {
-            vertexBuffer->reserved_0x00[1] |= 1;
+            vertexBuffer->flags |= 1;
         } else {
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
         }
     }
     dataOffset += headerSize;
@@ -384,7 +384,7 @@ RwResEntry* _rwDlWorldSectorInstanceOptimized(RpWorld* world,
     _rwGCNVertexBufferInitialize(descriptor, vertexBuffer,
                                  vertexData.counts, (void*)dataOffset);
     _rwGCNVertexBufferFill(
-        descriptor, (const RwGameCubeVertexStreams*)vertexBuffer,
+        descriptor, vertexBuffer,
         &vertexData, 1, &sector->tightBoundingBox.inf);
     DCFlushRange(vertexBuffer, totalSize);
     GXInvalidateVtxCache();
@@ -563,26 +563,26 @@ RwResEntry* _rwDlWorldSectorInstanceFast(RpWorld* world,
     dataOffset = (unsigned int)(entry + 1);
     memset((void*)dataOffset, 0, totalSize);
     vertexBuffer = (RwGameCubeVertexBuffer*)dataOffset;
-    ((unsigned short*)vertexBuffer)[0] = _RwDlTokenLastSeen;
-    ((unsigned short*)vertexBuffer)[1] = sector->mesh->serialNum;
-    vertexBuffer->reserved_0x00[1] = 0;
+    vertexBuffer->displayListToken = _RwDlTokenLastSeen;
+    vertexBuffer->meshSerialNum = sector->mesh->serialNum;
+    vertexBuffer->flags = 0;
     if ((world->flags & 8) != 0) {
         format = *(RpGameCubeVtxFmt**)(
             (unsigned char*)world + _rpDlWorldVtxFmtOffset);
         if (format == 0) {
             int vertex;
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
             for (vertex = 0; vertex < sector->numVertices; vertex++) {
                 if (sector->preLitLum[vertex].alpha <
                     0xFF) {
-                    vertexBuffer->reserved_0x00[1] |= 1;
+                    vertexBuffer->flags |= 1;
                     break;
                 }
             }
         } else if (format->colorType > 2) {
-            vertexBuffer->reserved_0x00[1] |= 1;
+            vertexBuffer->flags |= 1;
         } else {
-            vertexBuffer->reserved_0x00[1] &= ~1U;
+            vertexBuffer->flags &= ~1U;
         }
     }
     dataOffset += headerSize;
@@ -611,7 +611,7 @@ RwResEntry* _rwDlWorldSectorInstanceFast(RpWorld* world,
     _rwGCNVertexBufferInitialize(descriptor, vertexBuffer,
                                  vertexData.counts, (void*)dataOffset);
     _rwGCNVertexBufferFill(
-        descriptor, (const RwGameCubeVertexStreams*)vertexBuffer,
+        descriptor, vertexBuffer,
         &vertexData, 1, &sector->tightBoundingBox.inf);
     DCFlushRange(vertexBuffer, totalSize);
     GXInvalidateVtxCache();

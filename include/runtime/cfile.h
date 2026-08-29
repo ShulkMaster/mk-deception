@@ -30,6 +30,10 @@ typedef struct FileState {
     u8 error;
 } FileState;
 
+typedef char FileModeSizeCheck[sizeof(FileMode) == 0x04 ? 1 : -1];
+typedef char FileModeWordSizeCheck[sizeof(FileModeWord) == 0x04 ? 1 : -1];
+typedef char FileStateSizeCheck[sizeof(FileState) == 0x04 ? 1 : -1];
+
 typedef void (*IdleProc)(void);
 typedef int (*PositionProc)(file_handle handle, file_position* position, int mode,
                             IdleProc idle);
@@ -63,6 +67,22 @@ typedef struct FILE {
 
 typedef char MSLFileSizeCheck[sizeof(FILE) == 0x50 ? 1 : -1];
 
+extern FILE __files[4];
+
+void __stdio_atexit(void);
+void __prep_buffer(FILE* file);
+int __flush_buffer(FILE* file, size_t* bytes_flushed);
+int __load_buffer(FILE* file, size_t* bytes_loaded, int alignment_mode);
+int __flush_line_buffered_output_files(void);
+int __flush_all(void);
+void __close_all(void);
+void __init_file(FILE* file, const FileMode* mode, char* buffer,
+                 size_t buffer_size);
+FILE* __find_unopened_file(void);
+int __open_file(const char* name, FileMode* mode, FILE* file);
+int __msl_strnicmp(const char* first, const char* second, int count);
+int __get_file_modes(const char* mode_string, FileMode* mode);
+
 FILE* fopen(const char* name, const char* mode);
 int fclose(FILE* file);
 size_t fread(void* address, size_t size, size_t count, FILE* file);
@@ -73,5 +93,8 @@ int feof(FILE* file);
 int fseek(FILE* file, u32 offset, int origin);
 int fflush(FILE* file);
 long ftell(FILE* file);
+int fwide(FILE* file, int mode);
+int setvbuf(FILE* file, char* buffer, int mode, size_t size);
+void clearerr(FILE* file);
 
 #endif

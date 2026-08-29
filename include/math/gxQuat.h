@@ -1,7 +1,7 @@
 #ifndef GX_QUAT_H
 #define GX_QUAT_H
 
-#include "math/gxVect.h"
+#include "dolphin/mtx.h"
 
 typedef struct Quat {
     float x;
@@ -9,12 +9,10 @@ typedef struct Quat {
     float z;
     float w;
 } Quat;
+typedef char QuatSizeCheck[sizeof(Quat) == 0x10 ? 1 : -1];
 
 typedef struct Mat33 Mat33;
 
-typedef float Mtx[3][4];
-
-void PSMTXQuat(Mtx m, const Quat* q);
 void PSQUATMultiply(const Quat* p, const Quat* q, Quat* dst);
 void PSQUATNormalize(const Quat* src, Quat* dst);
 

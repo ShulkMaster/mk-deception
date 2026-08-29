@@ -1,11 +1,12 @@
 #include "rw/rwcore_types.h"
+#include "runtime/cstring.h"
 #include "rw/batextur.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwimage.h"
 #include "rw/palquant.h"
 #include "rw/rwplcore.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 
 typedef struct RwTextureModuleGlobals {
     RwLLLink dictionaries;
@@ -30,8 +31,6 @@ static RwFreeList _rwTexDictionaryFreeList;
 
 static RwModuleInfo textureModule;
 static RwTexDictionary* dummyTexDict;
-extern void* memcpy(void* destination, const void* source, unsigned int size);
-
 static const char character_25[] = "0123456789abcdef";
 static char emptyTextureName[] = "";
 static char nullMaskName[] = "(null)";
@@ -725,7 +724,7 @@ int RwTextureGetAutoMipmapping(void) {
 
 RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster) {
     if (raster != 0) {
-        if (RwEngineInstance->fpTextureSetRaster(texture, raster, 0) != 0) {
+        if (RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDTEXTURESETRASTER)(texture, raster, 0) != 0) {
             return texture;
         }
         return 0;

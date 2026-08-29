@@ -27,15 +27,8 @@ typedef struct PfxSlot {
     unsigned char pad09[3];
 } PfxSlot;
 
-/* Emitter VM blob (stack/scratch size 0x2EC); transform @ +0x2E8. */
-typedef struct PfxEmitter {
-    Vec position; /* +0x00 */
-    float lifetime; /* +0x0C */
-    char pad10[0x30];
-    int field_40;
-    char pad44[0x2A4];
-    void* transform; /* +0x2E8 -- bone mat / LTM */
-} PfxEmitter;
+/* Game-facing name for the canonical particle-library emitter record. */
+typedef PfxVmEmitter PfxEmitter;
 
 typedef struct MkPfx MkPfx;
 
@@ -112,14 +105,8 @@ struct MkPfx {
     PfxMetrics* metrics_handle;   /* +0x264 */
     float scale;                  /* +0x268 */
     char pad26C[0x14];
-    union {
-        int field_280;
-        MkObj* tracked_object;
-    };                            /* +0x280 */
-    union {
-        int field_284;
-        unsigned int tracked_object_instance;
-    };
+    MkObj* tracked_object;        /* +0x280 */
+    unsigned int tracked_object_instance; /* +0x284 */
     union {
         int field_288;
         int effect_state;
@@ -132,10 +119,7 @@ struct MkPfx {
     float field_2A0;
     float field_2A4;
     float field_2A8;
-    union {
-        char pad2AC[0x0C];
-        Vec glass_center;
-    };
+    Vec effect_center;            /* +0x2AC - glass-fragment center */
     union {
         int field_2B8;
         FighterMirror* decal_owner;
@@ -144,11 +128,13 @@ struct MkPfx {
     int field_2BC;                /* +0x2BC -- end of 0x2C0 base */
 };
 
-/* RwFrame modelling matrix @ +0x10 (stock RW: object + dirty link). */
-typedef struct RwFrameModelling {
-    char pad00[0x10];
-    float modelling[16]; /* +0x10 */
-} RwFrameModelling;
+typedef char PfxNameObjPrefixSizeCheck[
+    sizeof(PfxNameObj) == 0x358 ? 1 : -1];
+typedef char PfxSlotSizeCheck[sizeof(PfxSlot) == 0x0C ? 1 : -1];
+typedef char PfxCloneSizeCheck[sizeof(PfxClone) == 0x2C ? 1 : -1];
+#ifndef __cplusplus
+typedef char MkPfxSizeCheck[sizeof(MkPfx) == 0x2C0 ? 1 : -1];
+#endif
 
 void mkpfx_get_origin(MkPfx* pfx, float origin[3]);
 void mkpfx_camera_end(void);
@@ -164,25 +150,25 @@ void pfx_end_batch(void);
 void pfx_start_batch(void);
 void insert_PFXlist_in_transl_tree(void);
 void set_pfx_texture(PfxVm* vm, void* path, void* name);
-MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, void* frame_src);
+MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, int object_type);
 void pfx_bind_emitter_num_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone, int emitter);
 void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone);
 void pfx_bind_render_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone);
 void pfx_bind_emitter_num_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag, int emitter);
 void pfx_bind_emitter_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag);
 void pfx_bind_render_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag);
-MkObj* pfx_bind_to_new_obj(MkPfx* pfx, void* frame_src);
-MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, void* frame_src, int emitter);
+MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type);
+MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter);
 void pfx_bind_emitter_to_obj(MkPfx* pfx, MkObj* obj, int flag);
 void pfx_bind_emitter_num_to_obj(MkPfx* pfx, MkObj* obj, int flag, int emitter);
 void pfx_bind_render_to_obj(MkPfx* pfx, MkObj* obj, int flag);
 PfxClone* pfx_create_clone(MkPfx* pfx);
 
 /*
- * Thin wrapper: stamps empty_build_info (flag=1, userdata) then calls
+ * Thin wrapper: stamps one emitter and a per-particle user-data stride, then calls
  * new_pfx_create_raw_userdata. Used by krypt tombstone letter/number/koin pfx.
  */
-void* pfx_create_raw_userdata(int extra_size, void* userdata, int field_90,
+void* pfx_create_raw_userdata(int extra_size, int userdata_size, int field_90,
                               int field_214, int field_a0, PfxInitCb init_cb,
                               int pid, MkProcEntryFn entry, void** out_pfx);
 

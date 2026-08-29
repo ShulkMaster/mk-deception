@@ -6,6 +6,7 @@ typedef struct Vec {
     float y;
     float z;
 } Vec;
+typedef char VecSizeCheck[sizeof(Vec) == 0x0C ? 1 : -1];
 
 void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
 void PSVECSubtract(const Vec* a, const Vec* b, Vec* dst);

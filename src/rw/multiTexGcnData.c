@@ -1,4 +1,5 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
+#include "runtime/cstring.h"
 #include "rw/rpmatfx.h"
 #include "rw/rwerror.h"
 #include "rw/rwstream_internal.h"
@@ -87,9 +88,6 @@ typedef struct RpGameCubeMTStreamEntry40 {
     unsigned char value[3];
     signed char field_0x03;
 } RpGameCubeMTStreamEntry40;
-
-extern void* memcpy(void* destination, const void* source, unsigned int size);
-extern void* memset(void* destination, int value, unsigned int size);
 
 static int GameCubeMTEffectStreamGetSize(const RpMTEffect* effect)
 {

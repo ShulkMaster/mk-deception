@@ -1,15 +1,13 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rpmesh_internal.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
+#include "runtime/cstdlib.h"
 
 typedef RpMeshHeader *(*RpTriStripMeshCallBack)(RpBuildMesh *, void *);
 
 RpMeshHeader *RpBuildMeshGenerateDefaultTriStrip(RpBuildMesh *, void *);
-extern void qsort(void *, unsigned int, unsigned int,
-                  int (*)(const void *, const void *));
-
 static void MeshReportAllocationFailure(int value)
 {
     RwError error;
@@ -49,6 +47,7 @@ struct TriBinEntry {
     int used2;
 
     unsigned char adjCount;
+    unsigned char pad21[3]; /* freelist elements are 4-byte aligned */
 };
 
 typedef struct TriBinList {
@@ -65,6 +64,17 @@ typedef struct RpMeshopStatic {
     RpTriStripMeshCallBack meshTristripMethod;
     void *data;
 } RpMeshopStatic;
+
+typedef char TriStripListEntrySizeCheck[
+    sizeof(TriStripListEntry) == 0x10 ? 1 : -1];
+typedef char TriStripListSizeCheck[sizeof(TriStripList) == 0x04 ? 1 : -1];
+typedef char EdgeSizeCheck[sizeof(Edge) == 0x10 ? 1 : -1];
+typedef char TriBinEntrySizeCheck[sizeof(TriBinEntry) == 0x24 ? 1 : -1];
+typedef char TriBinListSizeCheck[sizeof(TriBinList) == 0x04 ? 1 : -1];
+typedef char MeshOpFreeListsSizeCheck[
+    sizeof(MeshOpFreeLists) == 0x08 ? 1 : -1];
+typedef char RpMeshopStaticSizeCheck[
+    sizeof(RpMeshopStatic) == 0x18 ? 1 : -1];
 
 static RpMeshGlobals *MeshGlobals(void)
 {

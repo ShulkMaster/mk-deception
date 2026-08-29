@@ -636,6 +636,16 @@ config.libs = [
                 source="runtime/direct_io.c",
             ),
             Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/file_io.o",
+                source="runtime/file_io.c",
+            ),
+            Object(
+                Matching,
+                "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/locale.o",
+                source="runtime/locale.c",
+            ),
+            Object(
                 NonMatching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/string.o",
                 source="runtime/string.c",
@@ -1668,6 +1678,12 @@ config.libs = [
         "cflags": cflags_base,
         "progress_category": "game",
         "objects": [
+            Object(
+                NonMatching,
+                "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfx_memory.o",
+                source="libmkparticle/pfx_memory.c",
+                extra_cflags=["-schedule off"],
+            ),
             Object(
                 Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/color.o",

@@ -13,5 +13,6 @@ struct RwResEntry {
     RwResEntry** ownerRef;
     RwResEntryDestroyNotify destroyNotify;
 };
+typedef char RwResEntrySizeCheck[sizeof(RwResEntry) == 0x18 ? 1 : -1];
 
 #endif

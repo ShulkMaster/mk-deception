@@ -6,6 +6,9 @@ typedef struct RxSortPartition {
     unsigned int bit;
 } RxSortPartition;
 
+typedef char RxSortPartitionSizeCheck[
+    sizeof(RxSortPartition) == 0x0C ? 1 : -1];
+
 static int _msbitpos(unsigned int value) {
     int position;
 

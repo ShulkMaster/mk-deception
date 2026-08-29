@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "runtime/cstring.h"
 #include "rw/bamateri.h"
 #include "rw/batextur.h"
@@ -10,7 +10,7 @@
 
 typedef struct RpMaterialChunkInfo {
     int flags;
-    RpMaterialColor color;
+    RwRGBA color;
     int unused;
     int textured;
     RpSurfaceProperties surface;
@@ -96,10 +96,12 @@ RpMaterial* RpMaterialCreate(void)
     RwFreeList* freeList = *(RwFreeList**)((unsigned char*)RwEngineInstance +
                                           materialModule.globalsOffset);
     RpMaterial* material;
-    RpMaterialColor color;
+    RwRGBA color;
 
     material = RwEngineInstance->fpFreeListAlloc(freeList, 0x30007);
-    if (material == 0) return 0;
+    if (material == 0) {
+        return 0;
+    }
     material->refCount = 1;
     color.red = 0xFF;
     color.green = 0xFF;
