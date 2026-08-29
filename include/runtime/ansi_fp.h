@@ -76,6 +76,9 @@ typedef struct decform {
     s16 digits;
 } decform;
 
+typedef char DecimalSizeCheck[sizeof(decimal) == 0x2A ? 1 : -1];
+typedef char DecformSizeCheck[sizeof(decform) == 0x04 ? 1 : -1];
+
 void __num2dec(const decform*, f64, decimal*);
 f64 __dec2num(const decimal*);
 
