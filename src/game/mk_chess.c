@@ -3461,7 +3461,7 @@ MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
         return 0;
     }
     object = pfx_bind_emitter_num_to_new_obj(
-        particle, (void*)0x8227, emitter_id_from_handle(effect));
+        particle, 0x8227, emitter_id_from_handle(effect));
     if (object == 0) {
         return 0;
     }
@@ -3486,7 +3486,7 @@ MkObj* launch_fx_at_pos_with_obj(
     }
     object = (MkObj*)pfx_get_emitter_obj(particle, 0);
     if (object == 0) {
-        object = pfx_bind_to_new_obj(particle, (void*)0x8227);
+        object = pfx_bind_to_new_obj(particle, 0x8227);
     }
     if (object == 0) {
         return 0;

@@ -13,6 +13,7 @@
 #include "runtime/mk_proc.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_fileinfo.h"
+#include "runtime/mk_obj.h"
 #include "runtime/section.h"
 #include "runtime/shadow.h"
 #include "runtime/anim_pdata.h"
@@ -113,7 +114,6 @@ extern void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
 extern MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition);
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void generate_ai_table_moveset(void* moveset);
-extern void obj_create_sobjs(MkObj* object);
 extern char p1_profile[];
 extern char p2_profile[];
 extern int is_mark_as_unlocked(void* profile, int mark);

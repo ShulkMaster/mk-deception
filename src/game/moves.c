@@ -703,10 +703,10 @@ static inline float moves_inverse_sqrt(float value) {
  * All other objdiff records are TU-local constant relocation labels.
  */
 static float p_blast(void) {
-    static RpMaterialColor initial_color = {0x64FF64FF};
+    static RwRGBA initial_color = {0x64, 0xFF, 0x64, 0xFF};
     MovesBlastPdata* data;
     MkObj* object;
-    RpMaterialColor color;
+    RwRGBA color;
     float interval;
     float fraction;
 

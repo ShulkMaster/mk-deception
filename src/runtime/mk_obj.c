@@ -1,5 +1,6 @@
 #include "runtime/mk_obj.h"
 #include "runtime/light.h"
+#include "runtime/mk_render.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_struct.h"
 #include "runtime/mk_proc.h"
@@ -189,7 +190,6 @@ void pull_clump_from_world(RpClump* clump);
 void mkobj_destroy_bones(MkObj* obj);
 void free_mem(void* ptr);
 int stricmp(const char* lhs, const char* rhs);
-void vdestroy_mkx_rplight(MkxRpLight* light);
 extern MkObj* plyr_obj;
 extern MkVtable5 vtbl_mkx_mem;
 extern MkVtable5 vtbl_mkx_rplight;
@@ -286,9 +286,7 @@ void set_bone_world_pos(void* obj, int bone, void* pos);
 void update_bone_hierarchy(void* obj);
 void ground_me(void* obj);
 void atomic_set_transl_flag(RpAtomic* atomic);
-void render_mkobj(void* obj);
 void get_bone_world_pos(MkObj* obj, int bone, Vec* out);
-MkObj* get_mkobj_frame(int type, RwFrame* frame);
 MkBone* alloc_bone(void);
 void mkbone_remove(MkBone* bone);
 void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent);
@@ -2133,7 +2131,7 @@ MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
 static float p_fade_material(void) {
     MkObj* obj;
     FadeMaterialPdata* pdata;
-    RpMaterialColor* color;
+    RwRGBA* color;
     float accumulated;
     int amount;
     int value;
@@ -2219,7 +2217,7 @@ void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
     MkSobj* sobj;
     RpGeometry* geometry;
     RpMaterial* material;
-    RpMaterialColor color;
+    RwRGBA color;
 
     material = 0;
     ptr = first_mkptr(&obj->sobj_list);
@@ -3059,9 +3057,8 @@ MkxRpLight* find_mkx_rplight_in_obj(MkObj* obj) {
     return 0;
 }
 
-void bind_rplight_to_obj(void* light, void* obj) {
+void bind_rplight_to_obj(RpLight* light, MkObj* obj) {
     MkxRpLight* link;
-    MkObj* mkobj = (MkObj*)obj;
 
     link = (MkxRpLight*)get_mkhdr(
         &vtbl_mkx_rplight, sizeof(MkxRpLight));
@@ -3071,9 +3068,9 @@ void bind_rplight_to_obj(void* light, void* obj) {
         link->obj_instance = 0;
     }
     if (link != 0) {
-        mk_insert(&link->hdr, &mkobj->child_list);
-        link->obj = mkobj;
-        link->obj_instance = mkobj->hdr.instance;
+        mk_insert(&link->hdr, &obj->child_list);
+        link->obj = obj;
+        link->obj_instance = obj->hdr.instance;
     }
 }
 
@@ -3107,7 +3104,7 @@ void vdestroy_mkx_rplight(MkxRpLight* link) {
     mkhdr_memfree(&link->hdr);
 }
 
-void* get_mkx_rplight(void* light) {
+MkxRpLight* get_mkx_rplight(RpLight* light) {
     MkxRpLight* link;
 
     link = (MkxRpLight*)get_mkhdr(
@@ -4127,52 +4124,52 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame) {
                 obj->hdr.instance = 0;
                 _mwMemFree(obj, 0, 0);
                 obj = 0;
+                return obj;
             } else {
                 obj->hide_flag_bits.bit3 = 1;
                 obj->hide_flag_bits.bit4 = 1;
             }
         }
-        if (frame != 0) {
-            mk_insert(&obj->hdr, &master_clean_up_list);
-            obj->child_list = 0;
-            obj->sobj_list = 0;
-            obj->parent_hdr = 0;
-            obj->parent_inst = 0;
-            obj->list_44 = 0;
-            obj->list_88 = 0;
-            obj->oid = (unsigned int)type;
-            obj->clump_count = 0;
-            obj->frame = frame;
-            obj->field_24 = &frame->modelling;
-            obj->bones = 0;
-            obj->bone_count = 0;
-            obj->fallback_bone_index = 0;
-            obj->matrix_indices = 0;
-            obj->matrix_count = 0;
-            obj->flags_08_bits.bit7 = 1;
-            obj->flags_08_bits.transform_dirty = 1;
-            matrix = obj->field_24;
-            obj->pos.value = *(Vec*)&matrix->pos;
-            obj->pos_vel.z = 0.0f;
-            obj->pos_vel.y = 0.0f;
-            obj->pos_vel.x = 0.0f;
-            obj->ang.z = 0.0f;
-            obj->ang.y = 0.0f;
-            obj->ang.x = 0.0f;
-            obj->ang_vel.z = 0.0f;
-            obj->ang_vel.y = 0.0f;
-            obj->ang_vel.x = 0.0f;
-            obj->gravity = 0.0f;
-            obj->ground_colls = 0;
-            obj->ground_colls_y = 0.0f;
-            obj->field_5C = 0;
-            obj->field_60 = 0;
-            obj->cloth_bones = 0;
-            obj->cloth_bone_count = 0;
-            obj->list_7C = 0;
-            obj->list_80 = 0;
-            obj->flipped_bone_map = 0;
-        }
+        mk_insert(&obj->hdr, &master_clean_up_list);
+        obj->child_list = 0;
+        obj->sobj_list = 0;
+        obj->parent_hdr = 0;
+        obj->parent_inst = 0;
+        obj->list_44 = 0;
+        obj->list_88 = 0;
+        obj->oid = (unsigned int)type;
+        obj->clump_count = 0;
+        obj->frame = frame;
+        obj->field_24 = &frame->modelling;
+        obj->bones = 0;
+        obj->bone_count = 0;
+        obj->fallback_bone_index = 0;
+        obj->matrix_indices = 0;
+        obj->matrix_count = 0;
+        obj->flags_08_bits.bit7 = 1;
+        obj->flags_08_bits.transform_dirty = 1;
+        matrix = obj->field_24;
+        obj->pos.value = *(Vec*)&matrix->pos;
+        obj->pos_vel.z = 0.0f;
+        obj->pos_vel.y = 0.0f;
+        obj->pos_vel.x = 0.0f;
+        obj->ang.z = 0.0f;
+        obj->ang.y = 0.0f;
+        obj->ang.x = 0.0f;
+        obj->ang_vel.z = 0.0f;
+        obj->ang_vel.y = 0.0f;
+        obj->ang_vel.x = 0.0f;
+        obj->gravity = 0.0f;
+        obj->field_34 = 0.0f;
+        obj->ground_colls = 0;
+        obj->ground_colls_y = 0.0f;
+        obj->field_5C = 0;
+        obj->field_60 = 0;
+        obj->cloth_bones = 0;
+        obj->cloth_bone_count = 0;
+        obj->list_7C = 0;
+        obj->list_80 = 0;
+        obj->flipped_bone_map = 0;
     }
     return obj;
 }

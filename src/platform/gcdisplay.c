@@ -8,6 +8,7 @@
 #include "platform/gcutils.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
+#include "rw/rwengine.h"
 
 /*
  * gcdisplay.o - native display + loading dragon image.
@@ -24,11 +25,6 @@ typedef struct GcNativeDisplay {
 } GcNativeDisplay;
 
 typedef void (*NativeRenderCb)(void* arg);
-
-typedef struct RwEngineInstanceType {
-    char pad00[0x20];
-    int (*fpRenderStateSet)(int state, int value); /* +0x20 */
-} RwEngineInstanceType;
 
 void* memcpy(void* dest, const void* src, unsigned long n);
 unsigned long strlen(const char* s);
@@ -61,7 +57,6 @@ typedef struct PADStatus {
     signed char err;
 } PADStatus;
 
-extern RwEngineInstanceType* RwEngineInstance;
 extern int feedback_blendrate;
 extern int use_feedback_effect;
 extern int old_use_feedback_effect;
@@ -190,10 +185,10 @@ void feedback_effect(void) {
     color.b = 0xC4;
     color.a = 0xFF;
 
-    RwEngineInstance->fpRenderStateSet(0x14, 1);
-    RwEngineInstance->fpRenderStateSet(6, 0);
-    RwEngineInstance->fpRenderStateSet(0xA, 5);
-    RwEngineInstance->fpRenderStateSet(0xB, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 0);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xA, 5);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xB, 2);
 
     save_projection_matrix();
     set_2d_projection();
@@ -247,10 +242,10 @@ void feedback_effect(void) {
     GXCopyTex(feedbackTexPixels, 0);
     restore_projection_matrix();
 
-    RwEngineInstance->fpRenderStateSet(6, 1);
-    RwEngineInstance->fpRenderStateSet(0x14, 2);
-    RwEngineInstance->fpRenderStateSet(0xA, 5);
-    RwEngineInstance->fpRenderStateSet(0xB, 6);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xA, 5);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xB, 6);
 }
 
 void gc_setup_feedback_buffer_for_konquest(void) {

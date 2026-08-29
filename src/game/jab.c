@@ -29,7 +29,6 @@
 
 extern MkObj* plyr_obj;
 extern MkPtr* clone_light_list;
-extern MkPtr* point_light_list;
 extern float game_speed;
 
 typedef struct JabPfxDefinition {
@@ -287,7 +286,6 @@ static float pfx_sh_grinder_crush_chunks(void);
 static float pfx_sh_grinder_meat_spew(void);
 static float pfx_kenshi_lift_smoke(void);
 static float pfx_react_falling_attach_smoke_to_bones_proc(void);
-MkObj* get_mkobj_frame(int type, void* frame);
 void pfxhandle_spawn_at_bid(const char* name, MkObj* object, int bone);
 /* Retail call sites use both three- and five-argument local declarations. */
 void spawn_bld_splat();

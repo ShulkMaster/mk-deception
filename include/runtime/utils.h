@@ -56,12 +56,12 @@ void display_numerical_change(
 void show_material(RpMaterial* material);
 void hide_material(RpMaterial* material);
 RpMaterial* material_set_color(
-    RpMaterial* material, const RpMaterialColor* color);
+    RpMaterial* material, const RwRGBA* color);
 void set_atomic_material_color_by_id(void* atomic, int id, int* color);
 RpAtomic* set_atomic_material_color(
     RpAtomic* atomic, const RwRGBA* color);
 void obj_set_color_for_material_by_id(
-    MkObj* obj, int id, const RpMaterialColor* color);
+    MkObj* obj, int id, const RwRGBA* color);
 void obj_set_color_for_all_materials(void* obj, int* color);
 void sobj_set_color_for_all_materials(void* sobj, int* color);
 int save_profile(int player, int mode);

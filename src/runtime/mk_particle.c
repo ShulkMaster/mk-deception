@@ -29,7 +29,6 @@ void memcpy(void* dst, const void* src, int size);
 void memset(void* dst, int c, int size);
 char* strcpy(char* dst, const char* src);
 void* load_tga(void* path, void* name);
-void* get_mkobj_frame(void* src, int unused);
 void insert_particle_mkobj(void* obj);
 void calc_bone_world_mat(void* obj, int bone);
 void obj_set_bone_calc_world_mat_flag(void* obj, int bone);
@@ -43,8 +42,6 @@ void pfxsystem_set_global(int id, float value);
 void pfxvm_init(void* vm);
 void pfx_emitter_scan_for_fields(void* emitter, unsigned int* out_pair);
 int pfx_native_is_supported_type(int type);
-void pfx_estimate_size(void* vm, PfxEstimate* out_est, PfxBuildInfo* build);
-void pfx_set_memory(void* vm, void* mem, PfxEstimate* est);
 int pfx_frame_begin(void* vm);
 void pfx_frame_end(void* vm);
 void pfx_frame_end_check(void* vm);
@@ -456,17 +453,17 @@ void set_pfx_texture(PfxVm* pfx, void* path, void* name) {
     }
 }
 
-MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, void* frame_src) {
+MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, int object_type) {
     MkObj* obj;
     unsigned char flags;
 
-    obj = (MkObj*)get_mkobj_frame(frame_src, 0);
+    obj = get_mkobj_frame(object_type, 0);
     if (obj != 0) {
         flags = clone->flags;
         clone->flags = (unsigned char)((flags & 0xBF) | 0x40);
         clone->bind_hdr = &obj->hdr;
         clone->bind_inst = obj->hdr.instance;
-        clone->matrix_copy = ((RwFrameModelling*)obj->frame)->modelling;
+        clone->matrix_copy = &obj->frame->modelling;
         insert_particle_mkobj(obj);
     }
     return obj;
@@ -585,7 +582,7 @@ void pfx_bind_render_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag) {
     pfx->bone_mat = RwFrameGetLTM(sobj->frame);
 }
 
-MkObj* pfx_bind_to_new_obj(MkPfx* pfx, void* frame_src) {
+MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
     PfxSlot* slot;
     MkHdr* existing;
     MkObj* obj;
@@ -604,7 +601,7 @@ MkObj* pfx_bind_to_new_obj(MkPfx* pfx, void* frame_src) {
         }
     }
 
-    obj = (MkObj*)get_mkobj_frame(frame_src, 0);
+    obj = get_mkobj_frame(object_type, 0);
     if (obj == 0) {
         return 0;
     }
@@ -614,7 +611,7 @@ MkObj* pfx_bind_to_new_obj(MkPfx* pfx, void* frame_src) {
         slot->flags = (unsigned char)((slot->flags & 0x7F) | 0x80);
         slot->hdr = &obj->hdr;
         slot->instance = obj->hdr.instance;
-        ltm = ((RwFrameModelling*)obj->frame)->modelling;
+        ltm = &obj->frame->modelling;
         emitter_vm = (PfxEmitter*)pfx_get_emitter(pfx_vm(pfx), 0);
         emitter_vm->transform = ltm;
     }
@@ -622,7 +619,7 @@ MkObj* pfx_bind_to_new_obj(MkPfx* pfx, void* frame_src) {
     return obj;
 }
 
-MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, void* frame_src, int emitter) {
+MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter) {
     PfxSlot* slot;
     MkHdr* existing;
     MkObj* obj;
@@ -641,7 +638,7 @@ MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, void* frame_src, int emitter)
         }
     }
 
-    obj = (MkObj*)get_mkobj_frame(frame_src, 0);
+    obj = get_mkobj_frame(object_type, 0);
     if (obj == 0) {
         return 0;
     }
@@ -651,7 +648,7 @@ MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, void* frame_src, int emitter)
         slot->flags = (unsigned char)((slot->flags & 0x7F) | 0x80);
         slot->hdr = &obj->hdr;
         slot->instance = obj->hdr.instance;
-        ltm = ((RwFrameModelling*)obj->frame)->modelling;
+        ltm = &obj->frame->modelling;
         emitter_vm = (PfxEmitter*)pfx_get_emitter(pfx_vm(pfx), emitter);
         emitter_vm->transform = ltm;
     }
@@ -673,7 +670,7 @@ void pfx_bind_emitter_to_obj(MkPfx* pfx, MkObj* obj, int flag) {
     slot->flags = (unsigned char)((slot->flags & 0x7F) | ((f & 1) << 7));
     slot->hdr = &obj->hdr;
     slot->instance = obj->hdr.instance;
-    ltm = ((RwFrameModelling*)obj->frame)->modelling;
+    ltm = &obj->frame->modelling;
     emitter_vm = (PfxEmitter*)pfx_get_emitter(pfx_vm(pfx), 0);
     emitter_vm->transform = ltm;
 }
@@ -692,7 +689,7 @@ void pfx_bind_emitter_num_to_obj(MkPfx* pfx, MkObj* obj, int flag, int emitter) 
     slot->flags = (unsigned char)((slot->flags & 0x7F) | ((f & 1) << 7));
     slot->hdr = &obj->hdr;
     slot->instance = obj->hdr.instance;
-    ltm = ((RwFrameModelling*)obj->frame)->modelling;
+    ltm = &obj->frame->modelling;
     emitter_vm = (PfxEmitter*)pfx_get_emitter(pfx_vm(pfx), emitter);
     emitter_vm->transform = ltm;
 }
@@ -705,7 +702,7 @@ void pfx_bind_render_to_obj(MkPfx* pfx, MkObj* obj, int flag) {
     pfx->bind_hdr = &obj->hdr;
     pfx->bind_inst = obj->hdr.instance;
     pfx->transform_cb = apfx_set_transform_matrix;
-    pfx->bone_mat = ((RwFrameModelling*)obj->frame)->modelling;
+    pfx->bone_mat = &obj->frame->modelling;
 }
 
 PfxClone* pfx_create_clone(MkPfx* pfx) {
@@ -730,14 +727,14 @@ PfxClone* pfx_create_clone(MkPfx* pfx) {
     return clone;
 }
 
-void* pfx_create_raw_userdata(int extra_size, void* userdata, int field_90,
+void* pfx_create_raw_userdata(int extra_size, int userdata_size, int field_90,
                               int field_214, int field_a0, PfxInitCb init_cb,
                               int pid, MkProcEntryFn entry, void** out_pfx) {
     /* Retail: .data static empty_build_info$522 (zero-init -> .data, not .bss). */
     static PfxBuildInfo empty_build_info = {0};
 
-    empty_build_info.userdata = userdata;
-    empty_build_info.flag = 1;
+    empty_build_info.particle_user_data_size = userdata_size;
+    empty_build_info.emitter_count = 1;
     return new_pfx_create_raw_userdata(&empty_build_info, extra_size, field_90,
                                        field_214, field_a0, init_cb, pid, entry,
                                        out_pfx);
@@ -797,8 +794,8 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     pfx->field_90 = field_90;
     pfx->field_214 = field_214;
     pfx->field_A0 = field_a0;
-    pfx->field_280 = 0;
-    pfx->field_284 = 0;
+    pfx->tracked_object = 0;
+    pfx->tracked_object_instance = 0;
     pfx->field_288 = 0;
     pfx->field_28C = 0;
     pfx->field_290 = 0;
@@ -830,7 +827,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
         ready = 0;
     } else {
         pfx_estimate_size(vm, &est_buf, build);
-        pad_raw = build->flag * 0xC;
+        pad_raw = build->emitter_count * 0xC;
         pad_align = (pad_raw + 0xF) & ~0xF;
         pad_extra = pad_align - pad_raw;
         est_size = est_buf.size;
@@ -842,7 +839,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
             pfx->mem = mem;
             memset(mem, 0, alloc_size);
             aligned = (void*)(((unsigned int)mem + 0xF) & ~0xFU);
-            if (build->flag != 0) {
+            if (build->emitter_count != 0) {
                 pfx->slot_table = (PfxSlot*)aligned;
                 aligned = (char*)aligned + pad_raw + pad_extra;
             }

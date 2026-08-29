@@ -1,4 +1,5 @@
 #include "platform/gcinstance.h"
+#include "runtime/cstring.h"
 #include "dolphin/gx.h"
 #include "rw/dltextur.h"
 #include "rw/dltoken.h"
@@ -30,8 +31,6 @@ extern int _rwerror(int code, ...);
 extern void RwErrorSet(int* error);
 extern void DCFlushRange(void* address, unsigned int length);
 extern RwTexture* RwTextureSetMaskName(RwTexture* texture, const char* name);
-extern void* memset(void* destination, int value, unsigned int size);
-
 /* RenderWare publishes this plugin at a runtime-selected offset. */
 static unsigned char* AlignPointer4(const void* pointer) {
     return (unsigned char*)(((unsigned int)pointer + 3) & ~3U);

@@ -8125,7 +8125,7 @@ static int init_pz_pfx_2d(void) {
     int ice_count;
 
     memset(&build, 0, sizeof(build));
-    build.flag = 1;
+    build.emitter_count = 1;
     build.name = (char*)(PUZZLE_STRINGS + PUZZLE_BLOCKS_STRING);
     proc = new_pfx_create_raw_userdata(
         &build, 0, pfx_2d_elements_tbl.particle_capacity,

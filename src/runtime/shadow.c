@@ -11,6 +11,7 @@
 #include "rw/gamecube.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwcamera_internal.h"
+#include "rw/rwengine.h"
 #include "rw/rwframe.h"
 #include "rw/rwvector.h"
 
@@ -62,7 +63,15 @@ struct ShadowFighterObject {
     int mode; /* +0x1CC */
 };
 
-extern RwEngineInstanceType* RwEngineInstance;
+/* Shadow state overlays the leading region of the 0x74C player/monk pdata. */
+typedef char ShadowLightPairSizeCheck[
+    sizeof(ShadowLightPair) == 0x28 ? 1 : -1];
+typedef char ShadowObjectPrefixSizeCheck[
+    sizeof(ShadowObject) == 0x474 ? 1 : -1];
+typedef char ShadowFighterObjectPrefixSizeCheck[
+    sizeof(ShadowFighterObject) == 0x1D0 ? 1 : -1];
+typedef char ShadowboxObjectSizeCheck[
+    sizeof(ShadowboxObject) == 0x100 ? 1 : -1];
 
 static const char stringBase0[] = "Shadow2\0SHADOWBOX\0";
 
@@ -299,7 +308,8 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
             set_render_state(0x9, 2);
             set_render_state(1, (int)ShadowCameraRaster);
             Im2DRenderQuad(0xFF, kZero, kZero, inv_height, inv_height,
-                           RwEngineInstance->im2d_depth, aspect, kHalf / inv_height);
+                           RwEngineInstance->dOpenDevice.zBufferFar, aspect,
+                           kHalf / inv_height);
             set_render_state(0x6, 1);
             set_render_state(0xA, 5);
             set_render_state(0xB, 6);
@@ -646,7 +656,8 @@ int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
             set_render_state(0x2, 3);
             set_render_state(1, (int)src_raster);
             Im2DRenderQuad(0xFF, kZero, kZero, raster_height,
-                           raster_height, RwEngineInstance->im2d_depth, inv_far,
+                           raster_height, RwEngineInstance->dOpenDevice.zBufferFar,
+                           inv_far,
                            inv_height);
             RwCameraEndUpdate(ip_camera);
             RwGameCubeCameraTextureFlush(ip_camera->frameBuffer, 0);
@@ -657,13 +668,15 @@ int ShadowRasterBlur(RwRaster* src_raster, RwRaster* dst_raster,
             set_render_state(1, (int)dst_raster);
             if (pass < last_pass) {
                 Im2DRenderQuad(0xFF, kZero, kZero, raster_height,
-                               raster_height, RwEngineInstance->im2d_depth,
+                               raster_height,
+                               RwEngineInstance->dOpenDevice.zBufferFar,
                                inv_far, kZero);
             } else {
                 alpha = (int)(kAlphaScale * ShadowStrength);
                 Im2DRenderQuad((unsigned char)alpha, kZero, kZero,
                                raster_height, raster_height,
-                               RwEngineInstance->im2d_depth, inv_far, kZero);
+                               RwEngineInstance->dOpenDevice.zBufferFar,
+                               inv_far, kZero);
             }
             set_render_state(0x6, 1);
             set_render_state(0xA, 5);
@@ -760,6 +773,6 @@ static int Im2DRenderQuad(unsigned char alpha, float p1, float p2, float p3,
     vertices[3].a = alpha;
     vertices[3].x = v_top;
     vertices[3].y = v_top;
-    RwEngineInstance->fpIm2DRenderIndexedPrimitive(4, vertices, 4);
+    RwEngineInstance->dOpenDevice.fpIm2DRenderPrimitive(4, vertices, 4);
     return 1;
 }

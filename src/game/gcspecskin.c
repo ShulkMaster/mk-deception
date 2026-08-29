@@ -410,9 +410,9 @@ static RpAtomic* MKSpecSkinRenderCallback(
     int old_src_blend;
     int old_dst_blend;
 
-    RwEngineInstance->fpRenderStateSet(0x14, 1);
-    RwEngineInstance->fpRenderStateGet(0x0A, &old_src_blend);
-    RwEngineInstance->fpRenderStateGet(0x0B, &old_dst_blend);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0A, &old_src_blend);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0B, &old_dst_blend);
 
     prepare_skin_render(atomic, resource);
 
@@ -445,10 +445,10 @@ static RpAtomic* MKSpecSkinRenderCallback(
             viewPort[4], viewPort[5]);
     }
 
-    RwEngineInstance->fpRenderStateSet(0x0A, 2);
-    RwEngineInstance->fpRenderStateSet(0x0B, 2);
-    RwEngineInstance->fpRenderStateSet(0x0A, old_src_blend);
-    RwEngineInstance->fpRenderStateSet(0x0B, old_dst_blend);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0A, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0A, old_src_blend);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, old_dst_blend);
     return atomic;
 }
 
@@ -624,8 +624,8 @@ static void SpecSkinProcessMaterialList(
     }
 
     GXSetTevSwapMode(1, 0, 0);
-    RwEngineInstance->fpRenderStateSet(0x14, 1);
-    RwEngineInstance->fpRenderStateSet(0x14, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 2);
 }
 
 static inline void apply_material_z_bias(float bias) {

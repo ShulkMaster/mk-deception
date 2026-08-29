@@ -83,7 +83,7 @@ MkPfx* start_pfx_glass_shards(
     update_mkobj(&emitter_object->hdr);
 
     glass->pfx.depth_bias = -50.0f;
-    glass->pfx.glass_center = *center;
+    glass->pfx.effect_center = *center;
     glass->pfx.effect_state = bounce_limit;
     glass->pfx.field_29C = 0.1f;
     glass->pfx.field_28C = 0xB4;
@@ -269,30 +269,30 @@ static float pfx_glass_break_run(void) {
                 }
                 switch (glass->pfx.field_294) {
                 case 0:
-                    dst_vel->x = glass->pfx.glass_center.x - 0.05f + frand(0.1f);
-                    dst_vel->y = glass->pfx.glass_center.y - 0.05f + frand(0.15f);
-                    dst_vel->z = glass->pfx.glass_center.z - 0.05f + frand(0.1f);
+                    dst_vel->x = glass->pfx.effect_center.x - 0.05f + frand(0.1f);
+                    dst_vel->y = glass->pfx.effect_center.y - 0.05f + frand(0.15f);
+                    dst_vel->z = glass->pfx.effect_center.z - 0.05f + frand(0.1f);
                     break;
                 case 1:
-                    dst_vel->x = glass->pfx.glass_center.x + sfrand(0.05f);
-                    dst_vel->y = glass->pfx.glass_center.y + sfrand(0.01f);
-                    dst_vel->z = glass->pfx.glass_center.z + sfrand(0.05f);
+                    dst_vel->x = glass->pfx.effect_center.x + sfrand(0.05f);
+                    dst_vel->y = glass->pfx.effect_center.y + sfrand(0.01f);
+                    dst_vel->z = glass->pfx.effect_center.z + sfrand(0.05f);
                     break;
                 case 6:
-                    dst_vel->x = glass->pfx.glass_center.x + sfrand(0.1f);
-                    dst_vel->y = glass->pfx.glass_center.y + sfrand(0.05f);
-                    dst_vel->z = glass->pfx.glass_center.z + sfrand(0.1f);
+                    dst_vel->x = glass->pfx.effect_center.x + sfrand(0.1f);
+                    dst_vel->y = glass->pfx.effect_center.y + sfrand(0.05f);
+                    dst_vel->z = glass->pfx.effect_center.z + sfrand(0.1f);
                     *dst_life = 15.0f * game_speed;
                     break;
                 case 9:
                     dst_vel->x = sfrand(0.1f);
-                    dst_vel->y = glass->pfx.glass_center.y + sfrand(0.04f);
+                    dst_vel->y = glass->pfx.effect_center.y + sfrand(0.04f);
                     dst_vel->z = sfrand(0.1f);
                     break;
                 default:
-                    dst_vel->x = glass->pfx.glass_center.x + sfrand(0.05f);
-                    dst_vel->y = glass->pfx.glass_center.y + frand(0.07f);
-                    dst_vel->z = glass->pfx.glass_center.z + sfrand(0.05f);
+                    dst_vel->x = glass->pfx.effect_center.x + sfrand(0.05f);
+                    dst_vel->y = glass->pfx.effect_center.y + frand(0.07f);
+                    dst_vel->z = glass->pfx.effect_center.z + sfrand(0.05f);
                     break;
                 }
                 *dst_time = (float)randu0(0x14);

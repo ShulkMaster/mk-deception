@@ -3,6 +3,7 @@
 #include "math/mk_math.h"
 #include "runtime/asset.h"
 #include "runtime/cam.h"
+#include "runtime/light.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
@@ -38,7 +39,7 @@ typedef struct KonquestInteriorRoom {
     Vec monk_angle;       /* +0x24 */
     Vec camera_position; /* +0x30 */
     Vec camera_angle;    /* +0x3C */
-    void* light_defs;    /* +0x48 */
+    LightDef** light_defs; /* +0x48 */
     int* npc_data;       /* +0x4C */
     int field_50;        /* +0x50 */
     int field_54;        /* +0x54 */
@@ -259,7 +260,6 @@ KonquestChildObject* find_child_subobject_by_enumeration(
     void* object, int enumeration);
 KonquestChildObject* find_door_partner_sobj(KonquestChildObject* door);
 KonquestTrigger* find_trigger_by_id(int id);
-void obj_create_sobjs(MkObj* object);
 void sobj_swap_material_texture(
     MkSobj* sobj, unsigned int material_id, RwTexture* texture);
 void generate_collision_objects(
@@ -270,7 +270,6 @@ void push_game_state(int state);
 void stop_time_passing(void);
 void pause_weather_effects(void);
 void konquest_hide_hud(int mode);
-void load_lights(void* defs, MkPtr** list);
 KonquestTile* get_nth_tile_struct(int index);
 void add_temporary_trigger(
     int id, int a, int b, int c, int function, float x, float y, float z,
@@ -314,7 +313,6 @@ float p_konquest_loop(void);
 float p_idle(void);
 float konquest_camera_loop(void);
 
-extern MkPtr* bgnd_light_list;
 extern MkPtr* special_light_list;
 
 int is_pui_in_current_interior(const void* pui) {

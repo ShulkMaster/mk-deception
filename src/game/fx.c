@@ -1191,7 +1191,7 @@ static RpMaterial* material_set_specular(RpMaterial* material,
 static RpMaterial* material_set_alpha(RpMaterial* material,
                                       void* data) {
     unsigned int alpha = (unsigned int)data;
-    RpMaterialColor color;
+    RwRGBA color;
 
     color.red = material->color.red;
     color.green = material->color.green;
@@ -1519,9 +1519,9 @@ MkPfx* create_pfx(
         definition->kill_plane_y != 0 ||
         definition->kill_plane_z != 0 ||
         definition->lifetime_mode != 0) {
-        build.field_00 = 1;
+        build.behavior_count = 1;
     }
-    build.flag = 1;
+    build.emitter_count = 1;
     effect = (MkPfx*)new_pfx_create_raw_userdata(
         &build, 0, definition->field_90,
         definition->field_04, definition->field_08,
@@ -1532,7 +1532,7 @@ MkPfx* create_pfx(
     }
 
     if ((definition->flags & 1) != 0 &&
-        pfx_bind_to_new_obj(*effect_out, (void*)bind_source) == 0) {
+        pfx_bind_to_new_obj(*effect_out, bind_source) == 0) {
         if (effect->hdr.instance != 0U) {
             effect->hdr.typed_vtbl->destroy(&effect->hdr);
         }

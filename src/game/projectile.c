@@ -192,7 +192,6 @@ static float p_proj_end_run_script(void);
 int snd_req(int sound);
 int build_bones_tbl(MkObj* object, const int* tags);
 extern float game_speed;
-extern MkPtr* point_light_list;
 extern MkObj* plyr_obj;
 extern MkObj* his_obj;
 extern GameInfo g_game_info;
@@ -211,7 +210,6 @@ extern int mode_of_play;
 extern ProjectileBoneMatcher* start_bone_matcher(
     float blend_ticks, MkObj* parent, int parent_bone,
     MkObj* child, int child_bone);
-extern MkObj* get_mkobj_frame(int type, void* frame);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 extern void get_bone_offset_world_pos(
     MkObj* object, int bone, const Vec* offset, Vec* out);
