@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rwerror.h"
 #include "rw/rxpipeline.h"
 
@@ -186,8 +186,10 @@ int _rxHeapReset(RxHeap* heap)
     heap->dirty = 0;
     return 1;
 }
-
-
+/*
+ * Soft ceiling: RxHeapDestroy 95.6579% -- retail assigns heap = 0 after
+ * freeing it; the dead assignment is intentionally omitted.
+ */
 void RxHeapDestroy(RxHeap* heap)
 {
     if (heap != 0) {
@@ -230,7 +232,7 @@ RxHeap* RxHeapCreate(unsigned int size)
             heap->freeBlocksUsed = 0;
             heap->dirty = 1;
 
-            if (_rxHeapReset(heap)) {
+            if (RxHeapReset(heap)) {
                 return heap;
             }
             HeapSuperBlockDestroy(superBlock);

@@ -1,4 +1,5 @@
 #include "rw/rwerror.h"
+#include "runtime/cstring.h"
 #include "rw/rxpipeline.h"
 
 typedef struct rxReqEntry rxReqEntry;
@@ -30,8 +31,6 @@ struct rxScopeTrace {
   rxScopeTrace *next;
   rxScopeTrace *parent;
 };
-
-extern void *memset(void *destination, int value, unsigned long size);
 
 static rxReq *_ReqCreate(RxPipelineNode *node, unsigned int maxEntries) {
   rxReq *req = StalacTiteAlloc(sizeof(*req));

@@ -1,6 +1,6 @@
 #include "dolphin/cache.h"
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
 #include "rw/native_internal.h"

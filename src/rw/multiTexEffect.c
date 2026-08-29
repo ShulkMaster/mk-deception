@@ -1,4 +1,5 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
+#include "runtime/cstring.h"
 #include "rw/rpmatfx.h"
 #include "rw/rwerror.h"
 #include "rw/rwstream_internal.h"
@@ -19,7 +20,6 @@ typedef struct RpMTEffectGlobals {
     char* scratchName;
 } RpMTEffectGlobals;
 
-extern void* memset(void* destination, int value, unsigned int size);
 extern RwModuleInfo _rpMultiTextureModule;
 
 static RpMTEffectGlobals* MultiTextureEffectGlobals(void)

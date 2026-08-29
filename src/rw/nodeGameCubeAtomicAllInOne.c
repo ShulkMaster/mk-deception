@@ -1,6 +1,6 @@
 #include "dolphin/gx.h"
 #include "dolphin/os.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
 #include "rw/nodegamecube.h"
@@ -93,7 +93,7 @@ RpAtomic* _rxGCAtomicDefaultLightingCallback(
     lighting->lightIndex = 0;
 
     if ((atomic->geometry->flags & 0x20) != 0 &&
-        RwEngineInstance->field_0x04 != 0) {
+        RwEngineInstance->curWorld != 0) {
         RwLLLink* sectorLink;
         RwLLLink* sectorEnd;
 
@@ -197,17 +197,17 @@ static void _rxGCDefaultReinstance(
                     (unsigned char*)geometry + _rpDlGeomVtxFmtOffset) == 0) {
                 unsigned int i;
 
-                vertexBuffer->reserved_0x00[1] &= ~1U;
+                vertexBuffer->flags &= ~1U;
                 for (i = 0; i < numVertices; i++) {
                     if (((RwRGBA*)geometry->preLitLum)[i].alpha < 0xFF) {
-                        vertexBuffer->reserved_0x00[1] |= 1;
+                        vertexBuffer->flags |= 1;
                         break;
                     }
                 }
             } else if (format->colorType > 2) {
-                vertexBuffer->reserved_0x00[1] |= 1;
+                vertexBuffer->flags |= 1;
             } else {
-                vertexBuffer->reserved_0x00[1] &= ~1U;
+                vertexBuffer->flags &= ~1U;
             }
             size = _rwGCNVtxFmtInstClr(
                 destination, geometry->preLitLum, format->colorType,
@@ -243,26 +243,28 @@ void* _rxGCAtomicDefaultReinstanceCallback(
     RpGeometry* geometry = atomic->geometry;
     RwGameCubeResEntryHeader* header =
         (RwGameCubeResEntryHeader*)*resourceEntry;
-    RwGameCubeVertexBuffer* vertexBuffer = &header->data.vertexBuffer;
+    RwGameCubeVertexBuffer* vertexBuffer = &header->vertexBuffer;
 
     if (geometry->lockedSinceLastInst != 0) {
-        if (header->data.sync.token == _RwDlTokenCurrent) {
+        if (header->vertexBuffer.displayListToken == _RwDlTokenCurrent) {
             GXSetDrawSync(_RwDlTokenCurrent);
             _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
         }
-        while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
+        while (_rwDlTokenQueryDone(
+                   header->vertexBuffer.displayListToken) == 0) {
         }
         _rxGCDefaultReinstance(geometry, vertexBuffer,
-                               vertexBuffer->reserved_0x00[2]);
+                               vertexBuffer->numArrays);
         geometry->lockedSinceLastInst = 0;
     }
     if (geometry->numMorphTargets != 1 &&
         (atomic->interpolator.flags & 1) != 0) {
-        if (header->data.sync.token == _RwDlTokenCurrent) {
+        if (header->vertexBuffer.displayListToken == _RwDlTokenCurrent) {
             GXSetDrawSync(_RwDlTokenCurrent);
             _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
         }
-        while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
+        while (_rwDlTokenQueryDone(
+                   header->vertexBuffer.displayListToken) == 0) {
         }
         _rxGCInstanceMorphUpdate(geometry, vertexBuffer,
                                  &atomic->interpolator);
@@ -331,7 +333,7 @@ static int _rxGCAtomicAllInOneNode(
 
         if (resourceEntry != 0 &&
             ((RwGameCubeResEntryHeader*)resourceEntry)
-                    ->data.sync.meshSerialNum !=
+                    ->vertexBuffer.meshSerialNum !=
                 meshHeader->serialNum) {
             RwResourcesFreeResEntry(resourceEntry);
             instanceData.resourceEntry = 0;

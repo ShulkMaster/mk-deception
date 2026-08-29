@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/nodegamecube.h"
 #include "rw/rplight.h"
@@ -83,7 +83,7 @@ RpWorldSector* _rxGCSectorDefaultLightingCallback(
     lighting->hasAmbient = 0;
     lighting->lightIndex = 0;
 
-    if ((((RpWorld*)RwEngineInstance->field_0x04)->flags & 0x20) != 0) {
+    if ((((RpWorld*)RwEngineInstance->curWorld)->flags & 0x20) != 0) {
         _rwGCLightsGlobalEnable(2, lighting);
         RwEngineInstance->lightFrame++;
         link = sector->lightsInWorldSector.link.next;
@@ -118,7 +118,7 @@ RpWorldSector* _rxGCSectorDefaultLightingCallback(
 RpWorldSector* _rxGCSectorDefaultInstanceCallback(
     RpWorldSector* sector, RwResEntry** resourceEntry)
 {
-    RpWorld* world = (RpWorld*)RwEngineInstance->field_0x04;
+    RpWorld* world = (RpWorld*)RwEngineInstance->curWorld;
 
     if ((world->flags & 0x02000000) != 0) {
         if (_RwDlPreInstanceOptimize == 1) {
@@ -142,7 +142,7 @@ static int _rxGCWorldSectorAllInOneNode(
     RpWorldSector* sector = (RpWorldSector*)params->dataParam;
     RxGameCubeWorldSectorAllInOnePrivateData* privateData =
         (RxGameCubeWorldSectorAllInOnePrivateData*)self->privateData;
-    RpWorld* world = (RpWorld*)RwEngineInstance->field_0x04;
+    RpWorld* world = (RpWorld*)RwEngineInstance->curWorld;
     RxGameCubeWorldSectorAllInOneInstanceData instanceData;
 
     if ((world->flags & 0x01000000) == 0) {
@@ -169,7 +169,7 @@ static int _rxGCWorldSectorAllInOneNode(
             RwGameCubeResEntryHeader* header =
                 (RwGameCubeResEntryHeader*)resourceEntry;
 
-            if (header->data.sync.meshSerialNum != meshHeader->serialNum) {
+            if (header->vertexBuffer.meshSerialNum != meshHeader->serialNum) {
                 RwResourcesFreeResEntry(resourceEntry);
                 instanceData.resourceEntry = 0;
             }

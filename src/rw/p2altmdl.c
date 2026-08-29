@@ -1,7 +1,5 @@
 #include "rw/rxpipeline.h"
 
-extern RxHeap* _rxHeapGlobal;
-
 RxExecutionContext _rxExecCtxGlobal;
 
 /* Soft ceiling: _rxPacketDestroy ~94.17% -- null-compare instruction selection
