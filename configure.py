@@ -1234,7 +1234,6 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mps/mps_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mps/mps_lib.c",
-                extra_cflags=["-sdata 0", "-sdata2 0"],
             ),
             Object(
                 Matching,
@@ -1245,6 +1244,44 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_alp.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_alp.c",
+            ),
+            Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mem.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mem.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_buf.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_buf.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_trn.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_trn.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_uo.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_uo.c",
+                extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
                 NonMatching,
