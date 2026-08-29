@@ -46,8 +46,6 @@ static const char stringBase0[] =
     "memDebugHeapTag() is unavailable with MEM_DEBUG_BUILD disabled!\n\0"
     "memDebugHeap() is unavailable with MEM_DEBUG_BUILD disabled!\n";
 
-const unsigned int gap_04_80315534_rodata = 0;
-
-void memDebugHeap(_mwMemHeap* heap) {
+void memDebugHeap(struct _mwMemHeap* heap) {
     MEMPRINT(&stringBase0[0x713]);
 }

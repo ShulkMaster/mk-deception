@@ -18,7 +18,6 @@ static const char stringBase0[] =
     "Assertion failure: MEM_ALWAYS_FAIL";
 
 /* MWCC emits .sbss in reverse declaration order. */
-u32 gap_08_80510ECC_sbss;
 MwMemSystemParams systemParams;
 int SystemInitialize;
 u32 heapCount;
@@ -387,7 +386,7 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     u32 remaining;
 
     heap = (_mwMemHeap*)(((unsigned long)buffer + 0xF) & ~0xFUL);
-    heap->field_0x60 = 0;
+    heap->sizeThreshold = 0;
     heap->blockSize = 0;
     heap->flags = 0;
     heap->originalBuffer = buffer;
@@ -422,8 +421,8 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
 
     defaultParams.strategyCallback = 0;
     defaultParams.field_0x04 = 0;
-    defaultParams.field_0x08 = 0xAB;
-    defaultParams.field_0x09 = 0xDC;
+    defaultParams.paramByte0 = 0xAB;
+    defaultParams.paramByte1 = 0xDC;
     defaultParams.overflowEnable = 1;
     defaultParams.diagnosticValue = 0;
     defaultParams.field_0x10 = 0;
@@ -1061,8 +1060,8 @@ int mwMemSystemSetParams(MwMemSystemParams* params) {
 int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
     params->strategyCallback = 0;
     params->field_0x04 = 0;
-    params->field_0x08 = 0xAB;
-    params->field_0x09 = 0xDC;
+    params->paramByte0 = 0xAB;
+    params->paramByte1 = 0xDC;
     params->overflowEnable = 1;
     params->diagnosticValue = 0;
     params->field_0x10 = 0;
@@ -1083,12 +1082,12 @@ int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     strategy_callback = heap->strategyCallback;
     field_0x68 = heap->field_0x68;
     params->strategyCallback = strategy_callback;
-    field_0x2E = heap->pad2E;
+    field_0x2E = heap->paramByte0;
     params->field_0x04 = field_0x68;
-    field_0x2F = heap->pad2F;
-    params->field_0x08 = field_0x2E;
+    field_0x2F = heap->paramByte1;
+    params->paramByte0 = field_0x2E;
     overflow_enable = heap->overflowEnable;
-    params->field_0x09 = field_0x2F;
+    params->paramByte1 = field_0x2F;
     diagnostic_value = heap->diagnosticValue;
     params->overflowEnable = overflow_enable;
     field_0x44 = heap->field_0x44;
@@ -1104,8 +1103,8 @@ int mwMemHeapSetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     if (params != 0) {
         heap->strategyCallback = params->strategyCallback;
         heap->field_0x68 = params->field_0x04;
-        heap->pad2E = params->field_0x08;
-        heap->pad2F = params->field_0x09;
+        heap->paramByte0 = params->paramByte0;
+        heap->paramByte1 = params->paramByte1;
         heap->overflowEnable = params->overflowEnable;
         heap->diagnosticValue = params->diagnosticValue;
         heap->field_0x44 = params->field_0x10;
