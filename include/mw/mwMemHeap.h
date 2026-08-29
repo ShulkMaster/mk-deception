@@ -5,19 +5,22 @@
 
 /** Fixed-block heap sizing configuration. Retail layout: 0x34 bytes. */
 typedef struct FixedHeapConfig {
-    unsigned long mkobjSize;    /**< Retail offset 0x00. */
-    unsigned long mksobjSize;   /**< Retail offset 0x04. */
-    unsigned long mkprocSize;   /**< Retail offset 0x08. */
-    unsigned long bigstackSize; /**< Retail offset 0x0C. */
-    unsigned long tinystackSize; /**< Retail offset 0x10. */
-    char pad14[0x08]; /**< Retail offsets 0x14-0x1B; purpose unknown. */
-    unsigned long fixed16Size;   /**< Retail offset 0x1C. */
-    unsigned long fixed32Size;   /**< Retail offset 0x20. */
-    unsigned long fixed64Size;   /**< Retail offset 0x24. */
-    unsigned long fixed128Size;  /**< Retail offset 0x28. */
-    unsigned long fixed512Size;  /**< Retail offset 0x2C. */
-    unsigned long fixed1024Size; /**< Retail offset 0x30. */
+    unsigned long mkobjCount;     /**< Retail offset 0x00. */
+    unsigned long mksobjCount;    /**< Retail offset 0x04. */
+    unsigned long mkprocCount;    /**< Retail offset 0x08. */
+    unsigned long bigstackCount;  /**< Retail offset 0x0C. */
+    unsigned long tinystackCount; /**< Retail offset 0x10. */
+    unsigned long mkptrCount;     /**< Retail offset 0x14. */
+    unsigned long field_0x18;     /**< Retail offset 0x18; purpose unknown. */
+    unsigned long fixed16Count;   /**< Retail offset 0x1C. */
+    unsigned long fixed32Count;   /**< Retail offset 0x20. */
+    unsigned long fixed64Count;   /**< Retail offset 0x24. */
+    unsigned long fixed128Count;  /**< Retail offset 0x28. */
+    unsigned long fixed512Count;  /**< Retail offset 0x2C. */
+    unsigned long fixed1024Count; /**< Retail offset 0x30. */
 } FixedHeapConfig;
+typedef char FixedHeapConfigSizeCheck[
+    sizeof(FixedHeapConfig) == 0x34 ? 1 : -1];
 
 #ifdef __cplusplus
 extern "C" {
