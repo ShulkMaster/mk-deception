@@ -1,5 +1,6 @@
 #include "runtime/mk_cmdscript.h"
 
+#include "mw/mwMem.h"
 #include "runtime/cstring.h"
 #include "runtime/hashtable.h"
 #include "runtime/mk_pdata.h"
@@ -21,8 +22,6 @@ int get_language(void);
 void mk_hwfile_cancel(void* req);
 void mk_hwfile_free_request(void* req);
 void mk_hwfile_wait_for_completion(void* req);
-void* _mwMemMalloc(void* heap, unsigned long size, int flags, void* a, void* b, void* c);
-void _mwMemFree(void* ptr, int a, int b);
 void trial_register_script_function(unsigned int func_index);
 float j_exit(void);
 
@@ -94,7 +93,6 @@ static ScriptBuiltinFn builtin_script_function_table[22] = {
 static ScriptSlotEntry script_slot_list[20];
 static Hashtable c_table_list;
 CmdScript global_script_interpreter;
-static int gap_06_803AB1FC_bss;
 
 /* Retail .sbss: MWCC reverse decl -> current_args @0, active_cmdscript @4 */
 CmdScript* active_cmdscript;
@@ -103,7 +101,6 @@ unsigned int* current_args;
 static const float kOne = 1.0f;
 static const float kNegOne = -1.0f;
 static const float kZero = 0.0f;
-static const int gap_09_805118D4_sdata2 = 0;
 
 enum { SCRIPT_SLOT_COUNT = 20 };
 

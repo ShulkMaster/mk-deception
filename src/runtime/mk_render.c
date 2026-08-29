@@ -1,7 +1,7 @@
 #include "runtime/mk_render.h"
 
 #include "platform/display.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_vtbl.h"
@@ -321,8 +321,8 @@ void render_mkatomic(RpAtomic* atomic) {
             set_render_state(0xB, (unsigned short)sobj->render_flags);
         }
         if (sobj->flags09_bits.bit0) {
-            RwEngineInstance->fpRenderStateGet(0xE, &saved_state);
-            RwEngineInstance->fpRenderStateSet(0xE, 0);
+            RwEngineInstance->dOpenDevice.fpRenderStateGet(0xE, &saved_state);
+            RwEngineInstance->dOpenDevice.fpRenderStateSet(0xE, 0);
         }
         if ((sobj->id_flags & 0x20000000) != 0 || sobj->owner->oid == 0x5004) {
             set_render_state(0x14, 1);
@@ -351,7 +351,7 @@ void render_mkatomic(RpAtomic* atomic) {
             set_render_state(0xB, 6);
         }
         if (sobj->flags09_bits.bit0)
-            RwEngineInstance->fpRenderStateSet(0xE, saved_state);
+            RwEngineInstance->dOpenDevice.fpRenderStateSet(0xE, saved_state);
     }
 }
 

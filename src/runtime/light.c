@@ -1,6 +1,9 @@
 #include "runtime/light.h"
 #include "runtime/mk_obj.h"
+#include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_struct.h"
+#include "platform/display.h"
 #include "rw/rplight.h"
 #include "rw/rwframe.h"
 
@@ -16,24 +19,6 @@ typedef struct SpecularLightDef {
     float field20;
     float field24;
 } SpecularLightDef;
-
-extern MkPtr* point_light_list;
-extern MkPtr* skinned_obj_light_list;
-extern MkPtr* bgnd_light_list;
-extern MkPtr* bgnd_spec_light_list;
-extern MkPtr* plyr_light_list;
-extern MkPtr* master_clean_up_list;
-extern RpWorld* World;
-
-extern int vdestroy_mkx_rplight(MkxRpLight* light);
-
-MkObj* get_mkobj_frame(int type, RwFrame* frame);
-MkxRpLight* get_mkx_rplight(RpLight* light);
-void bind_rplight_to_obj(RpLight* light, MkObj* obj);
-
-/* Retail leaves create_mkproc's return (mkproc*) in r3. */
-MkProc* _create_mkproc_generic_tinystack(int proc_id, int priority, MkProcEntryFn proc_fn,
-                                         int pdata_size, LightPdata** pdata_out);
 
 LightPdata* light_pdata;
 MkObj* light_obj;
@@ -679,7 +664,8 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     clear_light_low_flags(light);
     if (def->procFn != 0) {
         lp = 0;
-        mkproc = _create_mkproc_generic_tinystack(0x5009, 0x28, def->procFn, 0x14, &lp);
+        mkproc = _create_mkproc_generic_tinystack(
+            0x5009, 0x28, def->procFn, 0x14, (MkHdr**)&lp);
         if (mkproc != 0) {
             lp->light = light;
             mkproc->pre_destroy = pre_light;
