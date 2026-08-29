@@ -307,8 +307,8 @@ int MPSDEC_DecHdMpeg1(MpsHandle* handle, const unsigned char* data, int size,
     int remaining = size;
 
     while (remaining >= 4) {
-        int parse_more = 0;
         int used = 0;
+        int parse_more = 0;
         int delimiter = MPS_CheckDelim(cursor);
 
         switch (delimiter) {

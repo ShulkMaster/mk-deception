@@ -1,8 +1,6 @@
 #include "cri/mps.h"
+#include "sofdec/uty_mem.h"
 
-void UTY_MemsetDword(unsigned int* destination, unsigned int value, unsigned int count);
-
-static int gap_06_80497E9C_bss;
 MpsLibWork* MPSLIB_libwork;
 static const char* cri_verstr_ptr;
 static MpsHandle* mpslib_hn_last;
@@ -10,7 +8,6 @@ static MpsHandle* mpslib_hn_last;
 const char MPSLIB_version_str[] =
     "\nCRI MPS/GC Ver.1.924 Build:Sep  3 2004 11:38:25\n\0"
     "Append: MW2407 GC20Apr2004Patch1\n";
-
 static inline int mpslib_check_handle(MpsHandle* handle) {
     mpslib_hn_last = handle;
     if (handle == 0 || handle->state == 1) {
