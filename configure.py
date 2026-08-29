@@ -1234,6 +1234,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mps/mps_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mps/mps_lib.c",
+                extra_cflags=["-sdata 0", "-sdata2 0"],
             ),
             Object(
                 Matching,
