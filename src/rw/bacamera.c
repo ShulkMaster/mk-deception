@@ -1,4 +1,4 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rwerror.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwfreelist.h"
@@ -60,8 +60,8 @@ static void CameraBuildSidePlane(RwFrustumPlane* frustumPlane,
 
 static void CameraUpdateZShiftScale(RwCamera* camera)
 {
-    float nearScreenZ = RwEngineInstance->zBufferNear;
-    float farScreenZ = RwEngineInstance->zBufferFar;
+    float nearScreenZ = RwEngineInstance->dOpenDevice.zBufferNear;
+    float farScreenZ = RwEngineInstance->dOpenDevice.zBufferFar;
     float nearPlane;
     float farPlane;
     float adjustment;
@@ -354,7 +354,7 @@ static RwObjectHasFrame* CameraSync(RwObjectHasFrame* object)
 
 static RwCamera* CameraEndUpdate(RwCamera* camera)
 {
-    RwCameraDeviceCall endUpdate = RwEngineInstance->fpCameraEndUpdate;
+    RwCameraDeviceCall endUpdate = RWENGINESTANDARD(RwCameraDeviceCall, rwSTANDARDCAMERAENDUPDATE);
 
     if (endUpdate(0, camera, 0)) {
         RwEngineInstance->curCamera = 0;
@@ -369,7 +369,7 @@ static RwCamera* CameraBeginUpdate(RwCamera* camera)
 
     RwEngineInstance->curCamera = camera;
     _rwFrameSyncDirty();
-    beginUpdate = RwEngineInstance->fpCameraBeginUpdate;
+    beginUpdate = RWENGINESTANDARD(RwCameraDeviceCall, rwSTANDARDCAMERABEGINUPDATE);
     if (beginUpdate(0, camera, 0)) {
         _rwPipeInitForCamera(camera);
         return camera;
@@ -472,7 +472,7 @@ int RwCameraFrustumTestSphere(const RwCamera* camera,
 
 RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, int clearMode)
 {
-    RwCameraClearCall clear = RwEngineInstance->fpCameraClear;
+    RwCameraClearCall clear = RWENGINESTANDARD(RwCameraClearCall, rwSTANDARDCAMERACLEAR);
 
     if (clear(camera, color, clearMode)) {
         return camera;

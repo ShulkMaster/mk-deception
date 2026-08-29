@@ -1,7 +1,7 @@
 #include "libmkparticle/pfx2d.h"
 #include "libmkparticle/gc_2d.h"
 #include "libmkparticle/pfx_rw_types.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "platform/fast_rw.h"
 
 /* Retail keeps these explicitly zero-initialized pools in .data. */
@@ -163,7 +163,7 @@ void pfx2d_end_render(void) {
     int* draw_list;
     Pfx2dObj* obj;
 
-    RwEngineInstance->fpRenderStateGet(0x14, &saved_cull);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x14, &saved_cull);
     RwRenderStateSet_rwRENDERSTATEZWRITEENABLE(0);
     RwRenderStateSet_rwRENDERSTATEZTESTENABLE(0);
     RwRenderStateSet_rwRENDERSTATECULLMODE(1);

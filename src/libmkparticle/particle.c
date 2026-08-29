@@ -1,6 +1,6 @@
 #include "libmkparticle/particle.h"
 #include "libmkparticle/metrics.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "libmkparticle/streams.h"
 #include "platform/fast_rw.h"
 #include "runtime/cstring.h"
@@ -180,10 +180,10 @@ void pfx_set_renderstate(PfxRenderView* pfx) {
         pfx->render_z = pfx->source_z;
     }
 
-    RwEngineInstance->fpRenderStateGet(0x14, &cullmode);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x14, &cullmode);
     RwRenderStateSet_rwRENDERSTATECULLMODE(1);
-    RwEngineInstance->fpRenderStateGet(0xA, &srcBlend);
-    RwEngineInstance->fpRenderStateGet(0xB, &dstBlend);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0xA, &srcBlend);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0xB, &dstBlend);
 
     if (pfx->blend_mode == 1) {
         RwRenderStateSet_SRCBLEND_DESTBLEND(5, 2);

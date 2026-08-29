@@ -189,9 +189,9 @@ void fixedBlockHeapInitHeap(_mwMemHeap* heap, const MwMemFixedParams* params) {
     heap->flags = params->flags;
     heap->blockSize = MW_MEM_ALIGN_UP_16(block_size);
     if (block_size > threshold) {
-        heap->field_0x60 = threshold;
+        heap->sizeThreshold = threshold;
     } else {
-        heap->field_0x60 = 0;
+        heap->sizeThreshold = 0;
     }
     fixedBlockHeapResetHeap(heap, 0);
 }

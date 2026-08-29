@@ -11,6 +11,7 @@
 #include "msl/mslStreamFile.h"
 #include "msl/mslARam.h"
 #include "msl/mslgcn.h"
+#include "msl/mslgcn_globals.h"
 #include "mw/mwMemHeap.h"
 #include "runtime/cstring.h"
 
@@ -58,10 +59,6 @@ static void* msl_SystemMalloc(unsigned int);
 static void msl_SystemFree(void*);
 static void msl_SystemEnterMutex(void*);
 static void msl_SystemExitMutex(void*);
-extern unsigned long g_MSL_GCN_ARAM_ZeroBase;
-extern unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
-extern unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
-extern ExternalHeap* g_MSL_GCN_ARAM_Heap;
 extern MslCriticalSection g_MSL_GCN_ARAM_CriticalSection;
 
 class SoundBuffer {

@@ -173,8 +173,8 @@ void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     MwMemHeapParams defaults;
     MwMemFixedParams fixed;
     mwMemHeapGetDefaultParams(&defaults);
-    defaults.field_0x08 = 0xAB;
-    defaults.field_0x09 = 0;
+    defaults.paramByte0 = 0xAB;
+    defaults.paramByte1 = 0;
     defaults.overflowEnable = 1;
     defaults.strategyCallback = 0;
     create.parentHeap = wave_heap;
@@ -187,60 +187,60 @@ void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     fixed.sizeThreshold = 8;
 
     create.name = "MKOBJ fixed block heap";
-    fixed.blockCount = config->mkobjSize;
+    fixed.blockCount = config->mkobjCount;
     fixed.blockSize = 0x100;
     fixed.flags = 4;
     mkobj_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "MKSOBJ fixed block heap";
-    fixed.blockCount = config->mksobjSize;
+    fixed.blockCount = config->mksobjCount;
     fixed.blockSize = 0x90;
     fixed.flags = 4;
     mksobj_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "MKPROC fixed block heap";
-    fixed.blockCount = config->mkprocSize;
+    fixed.blockCount = config->mkprocCount;
     fixed.blockSize = 0xD0;
     fixed.flags = 3;
     mkproc_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 16 heap";
-    fixed.blockCount = config->fixed16Size;
+    fixed.blockCount = config->fixed16Count;
     fixed.blockSize = 0x40;
     fixed.flags = 4;
     defaults.strategyCallback = fixed16_strategy;
     fixed_block_16_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 32 heap";
-    fixed.blockCount = config->fixed32Size;
+    fixed.blockCount = config->fixed32Count;
     fixed.blockSize = 0x80;
     fixed.flags = 4;
     defaults.strategyCallback = fixed32_strategy;
     fixed_block_32_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 64 heap";
-    fixed.blockCount = config->fixed64Size;
+    fixed.blockCount = config->fixed64Count;
     fixed.blockSize = 0x100;
     fixed.flags = 4;
     defaults.strategyCallback = fixed64_strategy;
     fixed_block_64_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 128 heap";
-    fixed.blockCount = config->fixed128Size;
+    fixed.blockCount = config->fixed128Count;
     fixed.blockSize = 0x200;
     fixed.flags = 4;
     defaults.strategyCallback = fixed128_strategy;
     fixed_block_128_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 512 heap";
-    fixed.blockCount = config->fixed512Size;
+    fixed.blockCount = config->fixed512Count;
     fixed.blockSize = 0x800;
     fixed.flags = 4;
     defaults.strategyCallback = fixed512_strategy;
     fixed_block_512_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "fixed block 1024 heap";
-    fixed.blockCount = config->fixed1024Size;
+    fixed.blockCount = config->fixed1024Count;
     fixed.blockSize = 0x1000;
     fixed.flags = 4;
     defaults.strategyCallback = fixed1024_strategy;
@@ -248,14 +248,14 @@ void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
 
     fixed.sizeThreshold = 0;
     create.name = "TINYSTACK fixed block heap";
-    fixed.blockCount = config->tinystackSize;
+    fixed.blockCount = config->tinystackCount;
     fixed.blockSize = 0x200;
     fixed.flags = 3;
     defaults.strategyCallback = 0;
     tinystack_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     create.name = "BIGSTACK fixed block heap";
-    fixed.blockCount = config->bigstackSize;
+    fixed.blockCount = config->bigstackCount;
     fixed.blockSize = 0x4000;
     fixed.flags = 3;
     defaults.strategyCallback = 0;
@@ -308,8 +308,8 @@ static void mwMemHeapInit(void) {
     u32 free_count;
 
     mwMemHeapGetDefaultParams(&defaults);
-    defaults.field_0x08 = 0xAB;
-    defaults.field_0x09 = 0;
+    defaults.paramByte0 = 0xAB;
+    defaults.paramByte1 = 0;
     permanent_heap =
         createNormalHeap(&create, system_heap, 0x562800, "Permanent heap", &defaults);
     section_heap =
@@ -333,8 +333,8 @@ static void mwMemHeapInit(void) {
     movie_heap = _mwMemHeapCreate(&create, &defaults, 0, 0);
 
     mwMemHeapGetDefaultParams(&defaults);
-    defaults.field_0x08 = 0xAB;
-    defaults.field_0x09 = 0;
+    defaults.paramByte0 = 0xAB;
+    defaults.paramByte1 = 0;
     mwMemHeapGetParams(permanent_heap, &section_defaults);
     section_fixed.field_0x00 = 2;
     section_fixed.blockCount = 0x3C;

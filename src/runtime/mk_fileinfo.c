@@ -1,4 +1,5 @@
 #include "runtime/mk_fileinfo.h"
+#include "runtime/cstring.h"
 
 #include "platform/gcutils.h"
 #include "runtime/mk_hwfile.h"
@@ -25,8 +26,6 @@ typedef struct RwFileInterface {
 
 extern RwFileInterface* RwOsGetFileInterface(void);
 extern int strcmp(const char* left, const char* right);
-extern void* memcpy(void* destination, const void* source, unsigned long size);
-extern void* memset(void* destination, int value, unsigned long size);
 static int renderware_fs_not_implemented(void);
 static MkFileEntry* ssf_member_open_async_withcallback(
     MkFileInfo* info, MkFileOpenCallback callback, void* user);
@@ -41,7 +40,6 @@ static MkFileOpenCallback ssf_open_linked_fn_user_callback;
 SsfContext current_ssf;
 SsfContext previous_ssf;
 int num_files_loaded;
-int gap_08_80510394_sbss;
 
 void disable_default_filesystem(void) {
     RwFileInterface* file_interface = RwOsGetFileInterface();

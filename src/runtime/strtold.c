@@ -1,16 +1,11 @@
 #include "runtime/ansi_fp.h"
+#include "runtime/clocale.h"
 #include "runtime/cstdio.h"
 #include "runtime/cstdlib.h"
 #include "fdlibm.h"
 #include "ctype.h"
 #include "math.h"
 
-typedef struct MSL_LConv {
-    char* decimal_point;
-    unsigned char field_0x04[0x34];
-} MSL_LConv;
-
-extern MSL_LConv __lconv;
 extern unsigned long __float_nan[];
 extern unsigned long __double_huge[];
 extern unsigned long __extended_min[];

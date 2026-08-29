@@ -1,4 +1,5 @@
 #include "runtime/section_slot_file.h"
+#include "runtime/cstring.h"
 
 #include "runtime/mk_hwfile.h"
 #include "runtime/mk_proc.h"
@@ -9,7 +10,6 @@ typedef struct SsfReqQueue {
     SsfReqLink* tail;
 } SsfReqQueue;
 
-extern void* memset(void* destination, int value, unsigned long size);
 extern MkProc* saved_aproc;
 
 static void priv_sec_slot_file_read_all(SsfReq* request);

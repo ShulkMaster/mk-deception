@@ -1,8 +1,8 @@
 #ifndef MW_MWMEMDEBUG_H
 #define MW_MWMEMDEBUG_H
 
-typedef struct _mwMemHeap _mwMemHeap;
+struct _mwMemHeap;
 
-void memDebugHeap(_mwMemHeap* heap);
+void memDebugHeap(struct _mwMemHeap* heap);
 
 #endif

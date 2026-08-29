@@ -15,6 +15,10 @@ typedef struct RwSphere {
     RwV3d center;
     float radius;
 } RwSphere;
+typedef char RwV2dSizeCheck[sizeof(RwV2d) == 0x08 ? 1 : -1];
+typedef char RwV3dSizeCheck[sizeof(RwV3d) == 0x0C ? 1 : -1];
+typedef char RwBBoxSizeCheck[sizeof(RwBBox) == 0x18 ? 1 : -1];
+typedef char RwSphereSizeCheck[sizeof(RwSphere) == 0x10 ? 1 : -1];
 typedef struct RwError {
     int pluginID;
     int errorCode;

@@ -1,8 +1,7 @@
 #ifndef MW_MWMEM_H
 #define MW_MWMEM_H
 
-typedef unsigned char u8;
-typedef unsigned long u32;
+#include "dolphin/types.h"
 
 typedef struct _mwMemHeap _mwMemHeap;
 typedef struct MwMemFixedParams MwMemFixedParams;
@@ -55,8 +54,8 @@ typedef struct MwMemHeapCreateParams {
 typedef struct MwMemHeapParams {
   MwMemStrategyCallback strategyCallback; /**< Retail offset 0x00. */
   u32 field_0x04;           /**< Retail offset 0x04; purpose unknown. */
-  u8 field_0x08;            /**< Retail offset 0x08; purpose unknown. */
-  u8 field_0x09;            /**< Retail offset 0x09; purpose unknown. */
+  u8 paramByte0; /**< Retail offset 0x08; defaults to 0xAB; purpose unknown. */
+  u8 paramByte1; /**< Retail offset 0x09; defaults to 0xDC; purpose unknown. */
   u8 overflowEnable;      /**< Retail offset 0x0A. */
   u32 diagnosticValue;      /**< Retail offset 0x0C; maps to heap offset 0x40. */
   u32 field_0x10;           /**< Retail offset 0x10; maps to heap offset 0x44. */
@@ -164,8 +163,8 @@ struct _mwMemHeap {
   _mwMemHeap *hierNext;       /**< Retail offset 0x28. */
   u8 heapIndex;               /**< Retail offset 0x2C. */
   u8 overflowFlag;            /**< Retail offset 0x2D. */
-  u8 pad2E;                   /**< Retail offset 0x2E; unknown/padding. */
-  u8 pad2F;                   /**< Retail offset 0x2F; unknown/padding. */
+  u8 paramByte0;              /**< Retail offset 0x2E; mutable heap parameter. */
+  u8 paramByte1;              /**< Retail offset 0x2F; mutable heap parameter. */
   const char *name;           /**< Retail offset 0x30. */
   u32 arenaSize;              /**< Retail offset 0x34. */
   u8 *heapStart;              /**< Retail offset 0x38. */
@@ -178,7 +177,7 @@ struct _mwMemHeap {
   u32 currentAllocationCount; /**< Retail offset 0x54. */
   u32 peakAllocationCount;    /**< Retail offset 0x58. */
   u32 currentFreeSize;        /**< Retail offset 0x5C. */
-  u32 field_0x60;               /**< Retail offset 0x60; purpose unknown. */
+  u32 sizeThreshold;          /**< Retail offset 0x60; fixed-heap size threshold. */
   u32 blockSize;              /**< Retail offset 0x64. */
   u32 field_0x68;               /**< Retail offset 0x68; purpose unknown. */
   u8 overflowEnable;          /**< Retail offset 0x6C. */
@@ -192,6 +191,22 @@ struct _mwMemHeap {
   u8 pad7A[2];                /**< Retail offsets 0x7A-0x7B. */
   void *originalBuffer;       /**< Retail offset 0x7C; unaligned backing allocation. */
 };
+
+typedef char MwMemUsedHeaderSizeCheck[
+    sizeof(MwMemUsedHeader) == 0x10 ? 1 : -1];
+typedef char MwMemHeapCreateParamsSizeCheck[
+    sizeof(MwMemHeapCreateParams) == 0x1C ? 1 : -1];
+typedef char MwMemHeapParamsSizeCheck[
+    sizeof(MwMemHeapParams) == 0x14 ? 1 : -1];
+typedef char MwMemMallocRequestSizeCheck[
+    sizeof(MwMemMallocRequest) == 0x30 ? 1 : -1];
+typedef char MwMemOverflowInfoSizeCheck[
+    sizeof(MwMemOverflowInfo) == 0x44 ? 1 : -1];
+typedef char MwMemHeaderlessParamsSizeCheck[
+    sizeof(MwMemHeaderlessParams) == 0x10 ? 1 : -1];
+typedef char MwMemFixedParamsSizeCheck[
+    sizeof(MwMemFixedParams) == 0x14 ? 1 : -1];
+typedef char MwMemHeapSizeCheck[sizeof(_mwMemHeap) == 0x80 ? 1 : -1];
 
 #ifdef __cplusplus
 extern "C" {

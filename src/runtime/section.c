@@ -1,4 +1,5 @@
 #include "runtime/section.h"
+#include "runtime/cstring.h"
 
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
@@ -11,7 +12,6 @@
 
 extern _mwMemHeap* SystemSwappableHeap;
 extern SectionSlotDef* section_memory_maps[];
-extern void* memset(void* destination, int value, unsigned long size);
 extern char* strstr(const char* string, const char* substring);
 extern void load_string_bank(int bank, const char* name);
 extern void load_string_bank_async(int bank, const char* name);

@@ -1,1 +1,10 @@
-/* TODO: Missing implementation for retail unit locale.c. */
+#include "runtime/clocale.h"
+
+struct lconv __lconv = {
+    ".", "", "", "", "", "", "", "", "",
+    0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F,
+    "",
+    0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F,
+};
+
+const char* dummy = "C";

@@ -147,7 +147,7 @@ void hdrlessHeapResetHeap(_mwMemHeap* heap) {
 void hdrlessHeapInitHeap(_mwMemHeap* heap, const MwMemHeaderlessParams* params) {
     heap->flags = params->flags;
     heap->blockSize = MW_MEM_ALIGN_UP_16(params->blockSize);
-    heap->field_0x60 = 0;
+    heap->sizeThreshold = 0;
     hdrlessHeapResetHeap(heap);
 }
 

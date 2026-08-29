@@ -1,4 +1,7 @@
 #include "runtime/cfile.h"
+#include "runtime/critical_regions.h"
+#include "runtime/cstdlib.h"
+#include "runtime/cstring.h"
 
 enum FileKind {
     FILE_KIND_CLOSED,
@@ -27,13 +30,6 @@ extern int __close_file(file_handle);
 extern int __read_console(file_handle, u8 *, size_t *, IdleProc);
 extern int __write_console(file_handle, u8 *, size_t *, IdleProc);
 extern int __close_console(file_handle);
-
-extern int setvbuf(FILE *, char *, int, size_t);
-extern void __begin_critical_region(int);
-extern void __end_critical_region(int);
-extern void *malloc(size_t);
-extern void free(void *);
-extern void *memset(void *, int, size_t);
 
 static u8 stdin_buff[0x100];
 static u8 stdout_buff[0x100];

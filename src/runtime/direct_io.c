@@ -1,14 +1,6 @@
 #include "runtime/cfile.h"
-
-extern void __begin_critical_region(int region);
-extern void __end_critical_region(int region);
-extern void __stdio_atexit(void);
-extern void __prep_buffer(FILE* file);
-extern int __flush_buffer(FILE* file, size_t* bytes_flushed);
-extern int __load_buffer(FILE* file, size_t* bytes_loaded, int alignment_mode);
-extern int __flush_line_buffered_output_files(void);
-extern int fwide(FILE* file, int mode);
-extern void* memcpy(void* destination, const void* source, size_t count);
+#include "runtime/critical_regions.h"
+#include "runtime/cstring.h"
 extern void* __memrchr(const void* memory, int character, size_t count);
 
 size_t __fwrite(const void* data, size_t member_size, size_t member_count,

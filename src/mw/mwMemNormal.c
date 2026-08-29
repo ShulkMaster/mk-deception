@@ -384,7 +384,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
         heap->arenaAlignmentPadding = 0;
         heap->blockPrefixSize = 0;
         heap->flags = 0;
-        heap->field_0x60 = 0;
+        heap->sizeThreshold = 0;
         heap->blockSize = 0;
         heap->currentUsedSize = 0;
         heap->totalManagedSize = heap->heapEnd - heap->heapStart;
@@ -402,7 +402,7 @@ void normHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
 
 void normHeapInitHeap(_mwMemHeap* heap) {
     heap->flags = 0;
-    heap->field_0x60 = 0;
+    heap->sizeThreshold = 0;
     heap->blockSize = 0;
     normHeapResetHeap(heap, 0);
 }

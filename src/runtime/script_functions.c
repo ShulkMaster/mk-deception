@@ -16,6 +16,7 @@
 #include "game/bgnd.h"
 #include "game/jdn.h"
 #include "game/jmt.h"
+#include "game/mab.h"
 #include "game/plyr.h"
 #include "math/gxVect.h"
 #include "runtime/limb.h"
@@ -209,7 +210,7 @@ typedef struct ScriptAxisArgs {
 typedef struct ScriptLightningArgs {
     unsigned int header;
     PlyrInfo* owner;
-    const Vec* position;
+    Vec* position;
 } ScriptLightningArgs;
 
 typedef struct ScriptSobjAlphaArgs {
@@ -832,7 +833,6 @@ void obj_setup_for_animation(
 void xfer_proc(MkProc* proc, MkProcEntryFn entry);
 void update_mkobj(void* object);
 void* get_mkobj_frame(int id, int frame);
-void setup_screen_for_fatality(void);
 void trial_add_required_attack(unsigned char attack, unsigned char count,
                                int flags);
 void set_background_color(unsigned char red, unsigned char green,
@@ -1266,7 +1266,6 @@ void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
 void bgnd_level_transition_end(void);
 void bgnd_level_transition_start(void);
-void do_lightning_strike(PlyrInfo* owner, const Vec* position);
 void obj_set_sobj_alpha(MkObj* object, int sobj_index, int alpha);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 float get_volume_from_distance(const Vec* position, float far_distance,

@@ -84,18 +84,6 @@ typedef struct RwGameCubeVertexArray {
     unsigned char reserved_0x07;
 } RwGameCubeVertexArray;
 
-typedef struct RwGameCubeVertexStream {
-    void* data;
-    unsigned char reserved_0x04;
-    unsigned char stride;
-    unsigned char reserved_0x06[2];
-} RwGameCubeVertexStream;
-
-typedef struct RwGameCubeVertexStreams {
-    unsigned char reserved_0x00[0x0C];
-    RwGameCubeVertexStream streams[12];
-} RwGameCubeVertexStreams;
-
 typedef struct RwGameCubeVertexData {
     unsigned int counts[26];
     const void* source[26];
@@ -106,7 +94,9 @@ typedef struct RwGameCubeIndexData {
 } RwGameCubeIndexData;
 
 typedef struct RwGameCubeVertexBuffer {
-    unsigned int reserved_0x00[2];
+    unsigned short displayListToken;
+    unsigned short meshSerialNum;
+    unsigned int flags; /* Bit 0: vertex colors contain alpha. */
     unsigned int numArrays;
     RwGameCubeVertexArray arrays[1];
 } RwGameCubeVertexBuffer;
@@ -118,9 +108,10 @@ typedef struct RwGameCubeVertexDescriptor {
     unsigned int vatC;
     unsigned int vcdLo;
     unsigned int vcdHi;
-    unsigned int metadata;
+    /* Packed counts: colors [1:0], normal/NBT [3:2], texcoords [7:4]. */
+    unsigned int attributeCounts;
     unsigned char numIndexedAttrs;
-    unsigned char reserved_0x1D[3];
+    unsigned char pad_0x1D[3]; /* Four-byte structure alignment. */
 } RwGameCubeVertexDescriptor;
 
 typedef char RwGameCubeVtxFmtSizeCheck[
@@ -131,6 +122,16 @@ typedef char RwGameCubeVertexDescriptorSizeCheck[
     sizeof(RwGameCubeVertexDescriptor) == 0x20 ? 1 : -1];
 typedef char RwGameCubeVertexArraySizeCheck[
     sizeof(RwGameCubeVertexArray) == 8 ? 1 : -1];
+typedef char RwGameCubeDisplayListSizeCheck[
+    sizeof(RwGameCubeDisplayList) == 8 ? 1 : -1];
+typedef char RpGameCubeVtxFmtSetupDataSizeCheck[
+    sizeof(RpGameCubeVtxFmtSetupData) == 0x0C ? 1 : -1];
+typedef char RwGameCubeVertexDataSizeCheck[
+    sizeof(RwGameCubeVertexData) == 0xD0 ? 1 : -1];
+typedef char RwGameCubeIndexDataSizeCheck[
+    sizeof(RwGameCubeIndexData) == 0x54 ? 1 : -1];
+typedef char RwGameCubeVertexBufferSizeCheck[
+    sizeof(RwGameCubeVertexBuffer) == 0x14 ? 1 : -1];
 
 unsigned int rwGCNPosGetSize(
     const RwGameCubeVertexDescriptor* descriptor);
@@ -219,7 +220,7 @@ void _rwGCNVertexBufferInitialize(
     RwGameCubeVertexBuffer* vertexBuffer, const unsigned int* vertexCounts,
     void* data);
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* descriptor,
-                            const RwGameCubeVertexStreams* streams,
+                            const RwGameCubeVertexBuffer* vertexBuffer,
                             const RwGameCubeVertexData* vertexData,
                             int compressedNormals, const RwV3d* remap);
 void _rwGCNTriStripGetStats(unsigned short* indices, unsigned int numIndices,

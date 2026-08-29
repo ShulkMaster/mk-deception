@@ -4,7 +4,6 @@
 #include "msl/mslSound_internal.h"
 #include "runtime/cstring.h"
 
-extern unsigned char g_listPoolAdjust[];
 mslRuntimeSound* currentUpdateSound;
 
 extern "C" void mslDoCallback(
@@ -438,7 +437,7 @@ _ListNode* mslUpdateAdjust(
 
     if (now >= adjustment->end_time) {
         ListNodeFree(
-            (ListPool*)g_listPoolAdjust, ListRemove(&next));
+            &g_listPoolAdjust, ListRemove(&next));
     } else {
         ListNext(&next);
     }
@@ -453,7 +452,7 @@ int mslDoAdjust(
     float start_pan;
     float start_pitch;
     _ListNode* node =
-        ListNodeAlloc((ListPool*)g_listPoolAdjust);
+        ListNodeAlloc(&g_listPoolAdjust);
     if (node == 0)
         return 1;
 
@@ -532,6 +531,3 @@ void mslDoPlay(_mslSound* sound_view, mslCmdItem* command) {
             sound->system, sound, wave, command->unknown0C);
     }
 }
-
-/* Retail ELF: named 4-byte zero gap after mslUpdateSound's jump table. */
-__declspec(section ".data") unsigned int gap_05_803A9324_data[1] = {0};
