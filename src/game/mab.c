@@ -1,4 +1,5 @@
 #include "game/game_info.h"
+#include "game/mab.h"
 
 #include "runtime/asset.h"
 #include "runtime/fonts.h"
@@ -22,8 +23,12 @@ typedef struct LightningPdata {
     PlyrInfo* owner;  /* +0x14 - field_04 selects art slot */
 } LightningPdata;
 
+typedef char LightningAlphaStepSizeCheck[
+    sizeof(LightningAlphaStep) == 0x08 ? 1 : -1];
+typedef char LightningPdataSizeCheck[
+    sizeof(LightningPdata) == 0x18 ? 1 : -1];
+
 static const char STR_BOLT_OBJECT[] = "BOLT_OBJECT";
-__declspec(section ".rodata") const unsigned int gap_04_8031469C_rodata = 0;
 
 static const float kProcSleepTicks = 20.0f;
 static const float kCameraShakeAmount = 0.02f;

@@ -115,7 +115,6 @@ extern LadderBgndAnimations bgnd_animations;
 
 MkObj* load_named_model_from_slot(
     int slot, const char* name, int flags, int unused);
-void obj_create_sobjs(MkObj* object);
 void insert_ground_me_mkobj(MkObj* object);
 AnimPdata* animate_obj(
     MkObj* object,

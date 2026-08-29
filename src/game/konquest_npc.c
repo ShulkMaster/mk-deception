@@ -25,7 +25,7 @@
 #include "platform/main.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rplight.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 
 typedef struct KonquestWaypoint {
     Vec position; /* +0x00 */
@@ -658,13 +658,11 @@ void fx_resume_emit(unsigned int effect);
 void fx_reset_emit(unsigned int effect);
 MkPfx* pfx_from_emitter(unsigned int effect);
 int emitter_id_from_handle(unsigned int effect);
-MkObj* get_mkobj_frame(int type, void* frame);
 void insert_particle_mkobj(MkObj* object);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void build_bones_tbl(MkObj* object, int* bones, int flags);
-void obj_create_sobjs(MkObj* object);
 void insert_ground_me_mkobj(MkObj* object);
 CollisionObj* add_shape_to_global_collision_list(
     const CollisionShape* shape, unsigned int flags);
@@ -1692,8 +1690,8 @@ static float p_blood_fall_control(void) {
                         (MkObj*)pfx_get_emitter_obj(particle, 0);
 
                     if (splat == 0) {
-                        splat = (MkObj*)pfx_bind_emitter_num_to_new_obj(
-                            particle, (void*)0x6015, 0);
+                        splat = pfx_bind_emitter_num_to_new_obj(
+                            particle, 0x6015, 0);
                         splat->flags_08_bits.airborne = 1;
                     }
                     y_angle_to_MKMATRIX(
@@ -6595,11 +6593,11 @@ static RpAtomic* shadow_render_callback(RpAtomic* atomic) {
     if (world != 0) {
         RpWorldAddLight(world, light);
     }
-    RwEngineInstance->fpRenderStateSet(10, 9);
-    RwEngineInstance->fpRenderStateSet(11, 8);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(10, 9);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(11, 8);
     result = npc_shadows.render(atomic, &npc_shadows);
-    RwEngineInstance->fpRenderStateSet(10, 5);
-    RwEngineInstance->fpRenderStateSet(11, 6);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(10, 5);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(11, 6);
     gc_enable_alpha_writes(0);
     if (light != 0) {
         if (world != 0) {
@@ -6620,7 +6618,7 @@ void npc_shadow_set_alpha(int alpha) {
     for (index = 0; index < 15; index++) {
         RpMaterial* material =
             obj_find_material_by_id(npc_shadows.objects[index], 0);
-        RpMaterialColor color = {0xFFFFFFFF};
+        RwRGBA color = {0xFF, 0xFF, 0xFF, 0xFF};
 
         color.red = (unsigned char)shadow_alpha;
         color.blue = (unsigned char)shadow_alpha;
@@ -6639,7 +6637,7 @@ void npc_shadow_set_alpha(int alpha) {
 void npc_shadow_update(void) {
     KonquestCameraPositionView* camera =
         ((KonquestCameraView*)Camera)->position;
-    RpMaterialColor color = {0xFFFFFFFF};
+    RwRGBA color = {0xFF, 0xFF, 0xFF, 0xFF};
     float camera_x;
     float camera_z;
     int index;
@@ -6995,7 +6993,7 @@ void npc_shadow_init(void) {
     for (index = 0; index < 15; index++) {
         RpMaterial* material =
             obj_find_material_by_id(npc_shadows.objects[index], 0);
-        RpMaterialColor color = {0xFFFFFFFF};
+        RwRGBA color = {0xFF, 0xFF, 0xFF, 0xFF};
 
         color.red = 0x7F;
         color.blue = 0x7F;

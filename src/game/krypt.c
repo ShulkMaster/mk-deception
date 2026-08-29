@@ -67,7 +67,6 @@ MkPfx* pfx_from_emitter(unsigned int handle);
 int emitter_id_from_handle(unsigned int handle);
 void fx_restart_emit(unsigned int handle);
 void fx_set_param_v3(unsigned int handle, int parameter, float x, float y, float z);
-MkObj* get_mkobj_frame(int type, void* frame);
 void insert_particle_mkobj(MkObj* object);
 AnimScript* get_animation(int animation_id);
 void transition_to_anim_script(
@@ -75,7 +74,6 @@ void transition_to_anim_script(
 MkProc* create_mkproc_anim(int pid, MkProcEntryFn entry, AnimPdata** out_animation);
 void set_root_and_obj_movement_weights(float root_weight, float obj_weight, AnimPdata* animation);
 void build_bones_tbl(MkObj* object, const int* tags);
-void obj_create_sobjs(MkObj* object);
 void insert_ground_me_mkobj(MkObj* object);
 char* strlwr(char* string);
 void shake_camera(int ticks, float strength);
