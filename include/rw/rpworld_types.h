@@ -19,7 +19,6 @@ typedef struct RwCamera RwCamera;
 typedef struct RpWorld RpWorld;
 typedef struct RpWorldSector RpWorldSector;
 typedef struct RxPipeline RxPipeline;
-typedef struct RwRGBA RwRGBA;
 typedef struct RpMaterial RpMaterial;
 typedef unsigned short RxVertexIndex;
 typedef struct RpBuildMesh RpBuildMesh;
@@ -60,6 +59,7 @@ typedef struct RpMeshHeader {
     unsigned int totalIndices;
     unsigned int firstMeshOffset;
 } RpMeshHeader;
+typedef char RpMeshHeaderSizeCheck[sizeof(RpMeshHeader) == 0x10 ? 1 : -1];
 
 typedef struct RpBuildMeshTriangle {
     RxVertexIndex vertIndex[3];
@@ -81,6 +81,7 @@ struct RpMesh {
     unsigned int numIndices;
     RpMaterial* material;
 };
+typedef char RpMeshSizeCheck[sizeof(RpMesh) == 0x0C ? 1 : -1];
 
 typedef RpMesh* (*RpMeshCallBack)(RpMesh*, RpMeshHeader*, void*);
 typedef RpMaterial* (*RpMaterialCallBack)(RpMaterial*, void*);
@@ -89,16 +90,7 @@ struct RpTriangle {
     unsigned short vertIndex[3];
     unsigned short matIndex;
 };
-
-typedef union RpMaterialColor {
-    unsigned int packed;
-    struct {
-        unsigned char red;
-        unsigned char green;
-        unsigned char blue;
-        unsigned char alpha;
-    };
-} RpMaterialColor;
+typedef char RpTriangleSizeCheck[sizeof(RpTriangle) == 0x08 ? 1 : -1];
 
 typedef struct RpSurfaceProperties {
     float ambient;
@@ -108,12 +100,13 @@ typedef struct RpSurfaceProperties {
 
 typedef struct RpMaterial {
     RwTexture* texture;
-    RpMaterialColor color;
+    RwRGBA color;
     struct RxPipeline* pipeline;
     RpSurfaceProperties surface;
     short refCount;
-    unsigned short reserved_0x1A;
+    short pad;
 } RpMaterial;
+typedef char RpMaterialSizeCheck[sizeof(RpMaterial) == 0x1C ? 1 : -1];
 
 typedef RpAtomic* (*RpAtomicCallBackRender)(RpAtomic* atomic);
 typedef RpAtomic* (*RpAtomicCallBack)(RpAtomic* atomic, void* data);
@@ -156,6 +149,8 @@ typedef struct RpMaterialList {
     int numMaterials;
     int space;
 } RpMaterialList;
+typedef char RpMaterialListSizeCheck[
+    sizeof(RpMaterialList) == 0x0C ? 1 : -1];
 
 RpMaterialList* _rpMaterialListDeinitialize(RpMaterialList* materialList);
 RpMaterialList* _rpMaterialListInitialize(RpMaterialList* materialList);
@@ -225,6 +220,7 @@ struct RpAtomic {
     RwLinkList worldSectorsInAtomic;
     RxPipeline* pipeline;
 };
+typedef char RpAtomicSizeCheck[sizeof(RpAtomic) == 0x70 ? 1 : -1];
 
 static inline RpAtomic* RpAtomicFromClumpLink(RwLLLink* link)
 {
@@ -254,6 +250,7 @@ typedef struct RpGeometry {
     RwResEntry* repEntry;
     struct RpMorphTarget* morphTarget;
 } RpGeometry;
+typedef char RpGeometrySizeCheck[sizeof(RpGeometry) == 0x60 ? 1 : -1];
 
 int RpGeometryAddMorphTargets(RpGeometry* geometry, int count);
 int RpGeometryAddMorphTarget(RpGeometry* geometry);
@@ -282,6 +279,8 @@ typedef struct RpMorphTarget {
     void* verts;
     void* normals;
 } RpMorphTarget;
+typedef char RpMorphTargetSizeCheck[
+    sizeof(RpMorphTarget) == 0x1C ? 1 : -1];
 
 typedef struct RpClump {
     RwObject object;
@@ -291,6 +290,7 @@ typedef struct RpClump {
     RwLLLink inWorldLink;
     RpClumpCallBack callback;
 } RpClump;
+typedef char RpClumpSizeCheck[sizeof(RpClump) == 0x2C ? 1 : -1];
 
 RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic);
 void _rpAtomicResyncInterpolatedSphere(RpAtomic* atomic);
@@ -373,6 +373,10 @@ struct RpWorld {
     RpWorldSectorCallBackRender renderCallBack;
     RxPipeline* pipeline;
 };
+
+typedef char RpWorldDirectionalLightListOffsetCheck[
+    RW_OFFSET_OF(RpWorld, directionalLightList) == 0x3C ? 1 : -1];
+typedef char RpWorldSizeCheck[sizeof(RpWorld) == 0x70 ? 1 : -1];
 
 RpWorld* RpWorldLock(RpWorld* world);
 RpWorld* RpWorldUnlock(RpWorld* world);

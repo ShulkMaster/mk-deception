@@ -8,6 +8,8 @@ typedef struct RwMatrixPosition {
     Vec value;
     unsigned int pad;
 } RwMatrixPosition;
+typedef char RwMatrixPositionSizeCheck[
+    sizeof(RwMatrixPosition) == 0x10 ? 1 : -1];
 
 typedef struct RwMatrix {
     RwV3d right;
@@ -28,6 +30,7 @@ typedef struct RwMatrix {
         RwMatrixPosition pos_row;
     };
 } RwMatrix;
+typedef char RwMatrixSizeCheck[sizeof(RwMatrix) == 0x40 ? 1 : -1];
 
 typedef int RwOpCombineType;
 

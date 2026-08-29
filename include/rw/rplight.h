@@ -23,6 +23,10 @@ typedef struct RpLight {
     unsigned short reserved3E;
 } RpLight;
 
+typedef char RpLightInWorldOffsetCheck[
+    RW_OFFSET_OF(RpLight, inWorld) == 0x34 ? 1 : -1];
+typedef char RpLightSizeCheck[sizeof(RpLight) == 0x40 ? 1 : -1];
+
 static inline int RpLightGetType(const RpLight* light)
 {
     return light->object.object.subType;
