@@ -1247,6 +1247,44 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_alp.c",
             ),
             Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mem.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mem.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_lib.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_buf.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_buf.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_trn.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_trn.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_uo.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_uo.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tmr.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tmr.c",

@@ -1,3 +1,5 @@
+#include "sofdec/uty_mem.h"
+
 static const signed short mpvvlt_run_level_0c[16] = {
     0x1201, 0x1101, 0x1001, 0x0F01, 0x0306, 0x0210, 0x020F, 0x020E,
     0x020D, 0x020C, 0x020B, 0x011F, 0x011E, 0x011D, 0x011C, 0x011B,
@@ -79,9 +81,6 @@ typedef struct MPVVLCWork {
 } MPVVLCWork;
 
 typedef struct MPVContext MPVContext;
-
-void UTY_MemcpyDword(unsigned int* destination, const unsigned int* source,
-                     int dword_count);
 
 static inline void mpvvlc_fill_u8(unsigned char* output, long count,
                                   unsigned char value) {

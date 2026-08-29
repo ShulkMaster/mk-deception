@@ -1,3 +1,5 @@
+#include "sofdec/uty_mem.h"
+
 void UTY_MemcpyDword(unsigned int* destination, const unsigned int* source,
                      unsigned int count) {
     unsigned int remainder = (count & 15) + 1;

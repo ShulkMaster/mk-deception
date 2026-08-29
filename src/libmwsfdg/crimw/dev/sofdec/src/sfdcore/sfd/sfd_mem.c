@@ -1,85 +1,81 @@
-/* TODO: Missing implementation for retail unit sfd_mem.c. */
+#include "sofdec/sfd_transport.h"
 
-void *SFMEM_Seek(void)
+static int SFMEM_Seek(SfdHandle* handle, int parameter, int value)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_AddRead(void)
+static int SFMEM_AddRead(SfdHandle* handle, int parameter, int value)
 {
-    /* TODO: Missing canonical function implementation. */
+    return SFLIB_SetErr(handle, 0xFF000501);
+}
+
+static int SFMEM_GetRead(SfdHandle* handle, void* buffer)
+{
+    return SFLIB_SetErr(handle, 0xFF000501);
+}
+
+static int SFMEM_AddWrite(SfdHandle* handle, int parameter, int value)
+{
+    return SFBUF_RingAddWrite(handle, handle->transports[0].parameter_14,
+                              parameter, value);
+}
+
+static int SFMEM_GetWrite(SfdHandle* handle, void* buffer)
+{
+    return SFBUF_RingGetWrite(handle, handle->transports[0].parameter_14,
+                              buffer);
+}
+
+static int SFMEM_Pause(SfdHandle* handle)
+{
     return 0;
 }
 
-void *SFMEM_GetRead(void)
+static int SFMEM_Stop(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_AddWrite(void)
+static int SFMEM_Start(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_GetWrite(void)
+static int SFMEM_Standby(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_Pause(void)
+static int SFMEM_Destroy(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_Stop(void)
+static int SFMEM_Create(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_Start(void)
+static int SFMEM_ExecServer(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
+    SFBUF_SetPrepFlg(handle, handle->transports[0].parameter_14, 1);
     return 0;
 }
 
-void *SFMEM_Standby(void)
+static int SFMEM_Finish(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_Destroy(void)
+static int SFMEM_Init(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFMEM_Create(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFMEM_ExecServer(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFMEM_Finish(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFMEM_Init(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+const SfdTransportInterface SFD_tr_in_mem = {
+    SFMEM_Init,     SFMEM_Finish,   SFMEM_ExecServer, SFMEM_Create,
+    SFMEM_Destroy,  SFMEM_Standby,  SFMEM_Start,      SFMEM_Stop,
+    SFMEM_Pause,    SFMEM_GetWrite, SFMEM_AddWrite,   SFMEM_GetRead,
+    SFMEM_AddRead,  SFMEM_Seek,
+};

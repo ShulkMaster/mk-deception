@@ -1,9 +1,4 @@
-typedef struct SfdTimerSummary {
-    long long total;
-    long long minimum;
-    long long maximum;
-    int count;
-} SfdTimerSummary;
+#include "sofdec/sfd_timer.h"
 
 void SFTMR_AddTsum(SfdTimerSummary* summary, long long elapsed) {
     long long minimum;

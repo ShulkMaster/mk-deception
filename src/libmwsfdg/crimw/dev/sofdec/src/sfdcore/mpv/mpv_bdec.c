@@ -1,4 +1,5 @@
 #include "dolphin/types.h"
+#include "sofdec/uty_mem.h"
 
 typedef struct MPVBDECVlcDescriptor {
     const s16* table;
@@ -49,7 +50,6 @@ extern s16* mpvvlc_run_level_0b;
 extern s16* mpvvlc_run_level_0c;
 
 extern void DCT_FsriInitScanTbl(const s8 source[64], s8 destination[64]);
-extern void UTY_MemcpyDword(u32* destination, const u32* source, u32 count);
 extern void* memcpy(void* destination, const void* source, unsigned long size);
 
 void MPVBDEC_Init(MPVBDECContextView* context)
@@ -72,11 +72,13 @@ void MPVBDEC_Init(MPVBDECContextView* context)
 
     output_scan = context->scan;
     if (output_scan != 0) {
-        UTY_MemcpyDword((u32*)output_scan, (const u32*)mpvbdec_zigzag, 16);
+        UTY_MemcpyDword((unsigned int*)output_scan,
+                        (const unsigned int*)mpvbdec_zigzag, 16);
     }
     output_masks = context->dc_sign_masks;
     if (output_masks != 0) {
-        UTY_MemcpyDword((u32*)output_masks, (const u32*)mpvbdec_bitmsk, 8);
+        UTY_MemcpyDword((unsigned int*)output_masks,
+                        (const unsigned int*)mpvbdec_bitmsk, 8);
     }
     memcpy(context->vlc_group, group_tbl, sizeof(group_tbl));
 
