@@ -27,6 +27,12 @@ struct ListPool {
     msl_u32 peak_allocated;       /* +0x18 */
 }; /* 0x1C */
 
+typedef char ListNodeSizeCheck[sizeof(_ListNode) == 0x10 ? 1 : -1];
+typedef char ListPoolSizeCheck[sizeof(ListPool) == 0x1C ? 1 : -1];
+
+extern ListPool g_listPoolSound;
+extern ListPool g_listPoolAdjust;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
