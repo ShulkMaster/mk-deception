@@ -1680,7 +1680,7 @@ void spawn_bld_fall(
                 sizeof(BleedGroundWatcherPdata), &watcher->hdr);
             effect = fx_next_emitter(effect);
             if (effect != 0) {
-                object = (MkObj*)get_mkobj_frame((void*)0x6015, 0);
+                object = get_mkobj_frame(0x6015, 0);
                 if (object != 0) {
                     fx_resume_emit(effect);
                     pfx_bind_emitter_num_to_obj(
@@ -3065,7 +3065,7 @@ int obj_spawn_bld(
         }
         if (proc != 0 &&
             pfx_create_raw_userdata(
-                0, (void*)0x34, definition->field_00, 0x102, 0,
+                0, 0x34, definition->field_00, 0x102, 0,
                 (PfxInitCb)bloodfx_init, 0, 0, (void**)&pfx) != 0 &&
             pfx != 0) {
             mk_insert(&pfx->hdr, &proc->pdata_list);

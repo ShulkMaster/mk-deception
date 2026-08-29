@@ -11,15 +11,6 @@ typedef struct FadingScreen {
     int fade_active; float alpha; ScreenObj* fade_obj;
 } FadingScreen;
 typedef struct RpWorld RpWorld; typedef struct RpClump RpClump;
-typedef struct RwEngineInstanceType {
-    char pad00[0x1C];
-    float im2d_depth;
-    int (*fpRenderStateSet)(int, int);
-    char pad24[0x0C];
-    void (*fpIm2DRenderIndexedPrimitive)(int, void*, int);
-    char pad34[0x100];
-    void* (*fpMalloc)(unsigned long, unsigned long); void (*fpFree)(void*);
-} RwEngineInstanceType;
 extern FadingScreen fading_screen;
 extern RwRGBA background_color;
 extern RwRGBA load_meter_bgnd_color;

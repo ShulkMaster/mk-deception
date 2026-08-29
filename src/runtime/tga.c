@@ -39,6 +39,10 @@ typedef struct TgaHeaderValues {
   int descriptor;
 } TgaHeaderValues;
 
+typedef char TgaHeaderSizeCheck[sizeof(TgaHeader) == 0x12 ? 1 : -1];
+typedef char TgaHeaderValuesSizeCheck[
+    sizeof(TgaHeaderValues) == 0x30 ? 1 : -1];
+
 /*
  * Retail builds the packed 18-byte header from this word-sized description.
  * Keeping both forms also preserves its unsigned 16-bit width/height clamp.
@@ -46,13 +50,8 @@ typedef struct TgaHeaderValues {
  * register allocation plus scheduling of one equivalent header-byte extract.
  */
 
-extern MkHwFileRequest *debug_file_open(const char *path, const char *mode);
-extern int debug_file_write(MkHwFileRequest *file, void *buffer, int length);
-extern void debug_file_close(MkHwFileRequest *file);
-
 /* Retail owns these bytes here, in this order, with the word at .rodata+4. */
 __declspec(section ".rodata") static const char tga_write_mode[] = "w";
-__declspec(section ".rodata") const int gap_04_8030366C_rodata = 0;
 
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   MkHwFileRequest *file;

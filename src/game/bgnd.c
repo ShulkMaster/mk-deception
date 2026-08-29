@@ -451,7 +451,6 @@ typedef struct BgndCollisionItem {
 } BgndCollisionItem;
 
 float p_animate(void);
-void obj_create_sobjs(MkObj* object);
 void destroy_mkprocs_pid(int pid);
 int is_sobj_hidden(void* sobj);
 void update_mksobj(MkSobj* sobj);
@@ -491,7 +490,6 @@ MkPfx* pfx_from_handle(unsigned int handle);
 MkPfx* pfx_from_emitter(unsigned int handle);
 MkHdr* pfx_get_emitter_obj(MkPfx* effect, int emitter);
 int emitter_id_from_handle(unsigned int handle);
-MkObj* pfx_bind_to_new_obj(MkPfx* effect, void* frame_source);
 void resume_effect(const char* name);
 void reset_effect(const char* name);
 MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
@@ -545,9 +543,6 @@ extern BgndReactionInfo g_current_reaction_info;
 extern MkPtr* g_bgnd_collision_to_script_if[8];
 extern BgndObstacleEventData* g_active_obstacle_event_data;
 extern BgndCollisionItem* g_active_bgnd_col_item;
-extern MkPtr* bgnd_spec_light_list;
-extern MkPtr* plyr_light_list;
-extern MkPtr* bgnd_light_list;
 extern MkPtr* weapon_trail_light_list;
 extern unsigned int default_bgnd_bits[2];
 extern unsigned int default_pz_bgnd_bits[2];
@@ -4251,7 +4246,7 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
                         (MkObj*)pfx_get_emitter_obj(effect, 0);
                     if (g_latest_obj_pfx == 0) {
                         g_latest_obj_pfx =
-                            pfx_bind_to_new_obj(effect, (void*)0x8227);
+                            pfx_bind_to_new_obj(effect, 0x8227);
                     }
                     if (g_latest_obj_pfx != 0) {
                         g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -4582,7 +4577,7 @@ static inline void bl_front_wall_effect_at(
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -5368,7 +5363,7 @@ static inline void bl_column_effect_at(const char* name, float x, float y,
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -5740,7 +5735,7 @@ static float p_launch_final_column_piece(void) {
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -5764,7 +5759,7 @@ static float p_launch_final_column_piece(void) {
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -5800,7 +5795,7 @@ static inline void bl_launch_column_dust(const char* name, MkSobj* piece) {
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -5863,7 +5858,7 @@ static float p_launch_column_piece(void) {
             effect = pfx_from_emitter(handle);
             if (effect != 0) {
                 emitter_object = pfx_bind_emitter_num_to_new_obj(
-                    effect, (void*)0x6015, emitter_id_from_handle(handle));
+                    effect, 0x6015, emitter_id_from_handle(handle));
                 if (emitter_object != 0) {
                     emitter_object->flags_08_bits.airborne = 1;
                     emitter_object->pos.value.x = misc_x;
@@ -5948,7 +5943,7 @@ static float p_bl_flip_column_piece(void) {
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -5973,7 +5968,7 @@ static float p_bl_flip_column_piece(void) {
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -8903,7 +8898,7 @@ void bgnd_launch_fx_at_active_sobj_pos_with_offset(
         g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
         if (g_latest_obj_pfx == 0) {
             g_latest_obj_pfx =
-                pfx_bind_to_new_obj(effect, (void*)0x8227);
+                pfx_bind_to_new_obj(effect, 0x8227);
         }
         if (g_latest_obj_pfx != 0) {
             g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -8936,7 +8931,7 @@ unsigned int pfxhandle_bgnd_spawn_at_position(
         return 0;
     }
     object = pfx_bind_emitter_num_to_new_obj(
-        effect, (void*)0x6015, emitter_id_from_handle(handle));
+        effect, 0x6015, emitter_id_from_handle(handle));
     if (object == 0) {
         return 0;
     }
@@ -8978,7 +8973,7 @@ void bgnd_launch_fx_at_position(const char* name, float x, float y, float z) {
             g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
             if (g_latest_obj_pfx == 0) {
                 g_latest_obj_pfx =
-                    pfx_bind_to_new_obj(effect, (void*)0x8227);
+                    pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
                 g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -9090,7 +9085,7 @@ void bgnd_launch_fx_at_sobj_pos(
                 g_latest_obj_pfx = (MkObj*)pfx_get_emitter_obj(effect, 0);
                 if (g_latest_obj_pfx == 0) {
                     g_latest_obj_pfx =
-                        pfx_bind_to_new_obj(effect, (void*)0x8227);
+                        pfx_bind_to_new_obj(effect, 0x8227);
                 }
                 if (g_latest_obj_pfx != 0) {
                     g_latest_obj_pfx->flags_08_bits.airborne = 1;
@@ -9115,7 +9110,7 @@ void bgnd_launch_fx_at_plyr_pos_and_y(const char* name, float y) {
     effect = find_pfx_by_name(name);
     if (effect != 0) {
         g_latest_obj_pfx =
-            pfx_bind_to_new_obj(effect, (void*)0x8227);
+            pfx_bind_to_new_obj(effect, 0x8227);
         if (g_latest_obj_pfx != 0) {
             g_latest_obj_pfx->flags_08_bits.airborne = 1;
             g_latest_obj_pfx->pos.value.x = plyr_obj->pos.value.x;

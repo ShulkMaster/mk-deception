@@ -1,7 +1,7 @@
 #ifndef HASHTABLE_H
 #define HASHTABLE_H
 
-typedef struct _mwMemHeap _mwMemHeap;
+struct _mwMemHeap;
 
 typedef struct HashtableEntry {
     union {
@@ -20,7 +20,7 @@ typedef struct Hashtable {
     HashtableEntry* entry_pool;      /* +0x0C */
     int allocation_index;            /* +0x10 */
     int capacity;                    /* +0x14 */
-    _mwMemHeap* heap;                /* +0x18 */
+    struct _mwMemHeap* heap;         /* +0x18 */
     int owns_keys;                   /* +0x1C */
     char* key_storage;               /* +0x20 */
     int key_storage_capacity;        /* +0x24 */
@@ -35,6 +35,7 @@ void* hashtable_get(Hashtable* ht, const char* key);
 HashtableEntry* hashtable_get_bucket(Hashtable* ht, const char* key);
 void hashtable_store(Hashtable* ht, const char* key, void* value);
 void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance);
-int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap* heap);
+int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count,
+                           struct _mwMemHeap* heap);
 
 #endif

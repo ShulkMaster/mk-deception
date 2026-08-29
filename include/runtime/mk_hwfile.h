@@ -32,4 +32,8 @@ void* mk_hwfile_read_async(MkHwFileRequest*, int, void*, int);
 int mk_hwfile_read(MkHwFileRequest*, void*, int);
 MkHwFileRequest* mk_hwfile_open(const char*, const char*);
 void mk_hwfile_init(void);
+
+MkHwFileRequest* debug_file_open(const char* path, const char* mode);
+int debug_file_write(MkHwFileRequest* file, void* buffer, int length);
+void debug_file_close(MkHwFileRequest* file);
 #endif
