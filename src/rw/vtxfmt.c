@@ -1,5 +1,5 @@
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/rwplcore.h"
 #include "rw/rwresentry.h"

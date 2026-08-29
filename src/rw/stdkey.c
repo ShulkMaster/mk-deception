@@ -14,6 +14,10 @@ typedef union HAnimIEEEFloatShape {
     unsigned int word;
 } HAnimIEEEFloatShape;
 
+/* Intentional IEEE-754 bit view used by the retail fdlibm-style acos. */
+typedef char HAnimIEEEFloatShapeSizeCheck[
+    sizeof(HAnimIEEEFloatShape) == 0x04 ? 1 : -1];
+
 #define HANIM_GET_FLOAT_WORD(wordOut, realValue)                            \
     do {                                                                    \
         HAnimIEEEFloatShape shape;                                          \

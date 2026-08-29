@@ -1,6 +1,6 @@
 #include "dolphin/gx.h"
 #include "dolphin/os.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/alphapass.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
@@ -48,11 +48,11 @@ static void _rpSkinMainResEntryCB(RwResEntry* entry)
     owner = (RwObject*)entry->owner;
     ownerFlags = *(unsigned int*)((unsigned char*)owner + 8);
 
-    if (header->data.sync.token == _RwDlTokenCurrent) {
+    if (header->vertexBuffer.displayListToken == _RwDlTokenCurrent) {
         GXSetDrawSync(_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
     }
-    while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
+    while (_rwDlTokenQueryDone(header->vertexBuffer.displayListToken) == 0) {
     }
     if (vertexBuffer->arrays[0].data != 0) {
         RwResourcesFreeResEntry(
@@ -81,11 +81,11 @@ static void _rpSkinResEntryWaitDone(RwResEntry* entry)
 {
     RwGameCubeResEntryHeader* header = (RwGameCubeResEntryHeader*)entry;
 
-    if (header->data.sync.token == _RwDlTokenCurrent) {
+    if (header->vertexBuffer.displayListToken == _RwDlTokenCurrent) {
         GXSetDrawSync(_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;
     }
-    while (_rwDlTokenQueryDone(header->data.sync.token) == 0) {
+    while (_rwDlTokenQueryDone(header->vertexBuffer.displayListToken) == 0) {
     }
 }
 
@@ -126,7 +126,8 @@ int _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
         RwResEntry* oldEntry =
             *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4);
         if (_rwDlTokenQueryDone(
-                ((RwGameCubeResEntryHeader*)oldEntry)->data.sync.token) == 0) {
+                ((RwGameCubeResEntryHeader*)oldEntry)
+                    ->vertexBuffer.displayListToken) == 0) {
             oldEntry->ownerRef = 0;
             vertexBuffer->arrays[0].data = 0;
             if ((geometry->flags & 0x10) != 0)
@@ -176,7 +177,8 @@ int _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
         entry = *(RwResEntry**)((unsigned char*)vertexBuffer->arrays[0].data - 4);
         ActivateResourceEntry(entry);
     }
-    ((RwGameCubeResEntryHeader*)entry)->data.sync.token = _RwDlTokenCurrent;
+    ((RwGameCubeResEntryHeader*)entry)->vertexBuffer.displayListToken =
+        _RwDlTokenCurrent;
     return 1;
 }
 
@@ -520,8 +522,8 @@ void* _rpSkinRenderCallback(
     unsigned int meshCount = instanceData->meshHeader->numMeshes;
     unsigned int meshIndex = 0;
 
-    ((RwGameCubeResEntryHeader*)instanceData->resourceEntry)->data.sync.token =
-        _RwDlTokenCurrent;
+    ((RwGameCubeResEntryHeader*)instanceData->resourceEntry)
+        ->vertexBuffer.displayListToken = _RwDlTokenCurrent;
     _rwDlVtxFmtSetup(format, (RpGameCubeVtxFmtSetupData*)instanceData);
     if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3)
         _rwDlTransformSetup(RwFrameGetLTM(atomic->object.parent),
@@ -532,7 +534,7 @@ void* _rpSkinRenderCallback(
         format = _rpGameCubeVtxFmtGetDefault();
     materialCallback = _rwDlObjectRenderSetup(
         instanceData->geometryFlags, instanceData->lightMask,
-        instanceData->hasAmbient, vertexBuffer->reserved_0x00[1] & 1);
+        instanceData->hasAmbient, vertexBuffer->flags & 1);
     if (skin->maxNumWeights == 1 && skin->splitData.numMeshes == 0) {
         unsigned int i;
         for (i = 0; i < skin->numUsedBones; i++)
