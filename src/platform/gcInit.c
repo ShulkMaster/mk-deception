@@ -1,6 +1,7 @@
 #include "platform/gcInit.h"
 
 #include "dolphin/dvd.h"
+#include "runtime/cstdlib.h"
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
 #include "platform/display.h"

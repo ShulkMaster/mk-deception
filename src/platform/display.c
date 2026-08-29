@@ -12,6 +12,7 @@
 #include "runtime/image.h"
 #include "runtime/cstdio.h"
 #include "runtime/mk_obj.h"
+#include "runtime/mk_render.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_pdata.h"
@@ -42,12 +43,9 @@ extern int RwImageDestroy(RwImage* image);
 extern void create_fade_box(void);
 extern void CameraDestroy(RwCamera* camera);
 extern int RpWorldDestroy(RpWorld* world);
-extern void render_mkobj(MkObj* object);
-extern void render_transl_atomics(void);
 extern void update_fog_render_states(void);
 extern void init_debug_message_handler(void);
 extern int select_display_device(void);
-extern void init_mk_render(void);
 extern int fog_on;
 extern int RpWorldPluginAttach(void);
 extern int RpSkinPluginAttach(void);

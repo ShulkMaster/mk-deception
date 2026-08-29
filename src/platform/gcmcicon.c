@@ -1,4 +1,5 @@
 #include "platform/gcmcicon.h"
+#include "runtime/cstring.h"
 
 #include "dolphin/card.h"
 #include "mw/mwMem.h"
@@ -6,8 +7,6 @@
 
 extern _mwMemHeap* wave_heap;
 
-extern void* memset(void* destination, int value, unsigned long size);
-extern void* memcpy(void* destination, const void* source, unsigned long size);
 extern char* strcpy(char* destination, const char* source);
 
 extern MkFileEntry nameentryart_file_table[];
