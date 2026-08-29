@@ -4,6 +4,8 @@
 typedef float Mtx[3][4];
 typedef float Mtx44[4][4];
 typedef float (*MtxPtr)[4];
+typedef char MtxSizeCheck[sizeof(Mtx) == 0x30 ? 1 : -1];
+typedef char Mtx44SizeCheck[sizeof(Mtx44) == 0x40 ? 1 : -1];
 
 #include "math/gxVect.h"
 
