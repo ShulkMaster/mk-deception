@@ -1,7 +1,7 @@
+#include "runtime/critical_regions.h"
+
 typedef void (*SignalHandler)(int);
 
-extern void __begin_critical_region(int region);
-extern void __end_critical_region(int region);
 extern void exit(int status);
 
 #define SIG_IGN ((SignalHandler)1)

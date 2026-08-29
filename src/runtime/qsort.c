@@ -1,3 +1,5 @@
+#include "runtime/cstdlib.h"
+
 typedef unsigned long size_t;
 
 void qsort(void* base, size_t count, size_t size,

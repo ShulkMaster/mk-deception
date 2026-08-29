@@ -2,6 +2,7 @@
 #include "runtime/cfile.h"
 #include "runtime/cstdarg.h"
 #include "runtime/cstring.h"
+#include "runtime/critical_regions.h"
 #include "ctype.h"
 #include "math.h"
 
@@ -21,11 +22,6 @@ typedef struct __OutStrCtrl {
     size_t MaxCharCount;
     size_t CharsWritten;
 } __OutStrCtrl;
-
-extern FILE __files[4];
-extern int fwide(FILE* file, int mode);
-extern void __begin_critical_region(int region);
-extern void __end_critical_region(int region);
 
 #define stdout (&__files[1])
 #define stdin_access 2
