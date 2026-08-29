@@ -4,6 +4,8 @@
 #include "libmkparticle/color.h"
 #include "libmkparticle/pfxmath.h"
 
+typedef struct PfxMetrics PfxMetrics;
+
 typedef struct PfxVec3 {
     float x;
     float y;
@@ -29,22 +31,32 @@ typedef struct PfxTextureFrame {
 } PfxTextureFrame;
 
 typedef struct PfxVmEmitter {
-    char pad00[0x40];
-    void* field40;
-    char pad44[0x2EC - 0x44];
+    PfxVec3 position;                   /* +0x000 */
+    float lifetime;                     /* +0x00C */
+    char pad010[0x30];
+    int field_40;                       /* +0x040 */
+    char pad44[0x2A4];
+    union {
+        void* user_data;                /* +0x2E8 - memory-placement phase */
+        void* transform;                /* +0x2E8 - bound-render phase */
+    };
 } PfxVmEmitter;
 
 typedef struct PfxVm {
     PfxVec3 basis0;                    /* +0x000 */
     char pad00C[4];
     PfxVec3 basis1;                    /* +0x010 */
-    char pad01C[0x34];
+    char pad01C[0x28];
+    void* runtime_buffer_a;            /* +0x044 */
+    void* runtime_buffer_b;            /* +0x048 */
+    char pad04C[4];
     int particle_capacity;             /* +0x050 */
     int particle_cursor;               /* +0x054 */
     int active_transform;              /* +0x058 */
     char pad05C[4];
     unsigned int flags_0x60;           /* +0x060 */
-    char pad064[8];
+    int particle_user_data_size;       /* +0x064 */
+    void* particle_data;               /* +0x068 */
     int particle_vector_stride;        /* +0x06C */
     PfxTransform transforms[3];        /* +0x070 */
     void* name_obj;                      /* +0x148 */
@@ -85,19 +97,29 @@ typedef struct PfxVm {
     char pad1BC[4];
     int emitter_count;                 /* +0x1C0 */
     PfxVmEmitter* emitters;            /* +0x1C4 */
-    char pad1C8[0x0C];
+    char pad1C8[4];
+    int behavior_count;                /* +0x1CC */
+    void** behaviors;                  /* +0x1D0 */
     int flags_0x1D4;                   /* +0x1D4 */
-    char pad1D8[0x0C];
+    int field_count;                   /* +0x1D8 */
+    void* field_descriptions;          /* +0x1DC */
+    char pad1E0[4];
     float field1E4;
     float field1E8;
     float field1EC;
-    char pad1F0[0x3C];
+    char pad1F0[0x2C];
+    char* name;                        /* +0x21C */
+    char pad220[4];
+    PfxMetrics* metrics;               /* +0x224 */
+    char pad228[4];
     int field_0x22C;
-    char pad230[8];
+    void* emitter_user_data;           /* +0x230 */
+    void* effect_allocations;          /* +0x234 -- linked raw allocations */
     float field238;
     char pad23C[4];
 } PfxVm;
 
-void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align);
+typedef char PfxVmEmitterSizeCheck[(sizeof(PfxVmEmitter) == 0x2EC) ? 1 : -1];
+typedef char PfxVmSizeCheck[(sizeof(PfxVm) == 0x240) ? 1 : -1];
 
 #endif

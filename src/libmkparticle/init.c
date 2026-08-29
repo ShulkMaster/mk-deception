@@ -23,7 +23,7 @@ void pfxvm_init(PfxVm* vm) {
     if (vm->emitters != 0) {
         memset(vm->emitters, 0, vm->emitter_count * sizeof(PfxVmEmitter));
         for (i = 0; i < vm->emitter_count; i++) {
-            vm->emitters[i].field40 = 0;
+            vm->emitters[i].field_40 = 0;
         }
     }
 

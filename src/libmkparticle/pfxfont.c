@@ -3,7 +3,7 @@
 #include "libmkparticle/gc_font.h"
 #include "libmkparticle/particle.h"
 #include "libmkparticle/config.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "platform/fast_rw.h"
 #include "runtime/cstring.h"
 
@@ -390,7 +390,7 @@ void pfxfont_string_render(PfxFontString* ctx, float x, float y) {
 
 #pragma dont_inline on
 static void pfxfont_get_render_state(int state, void* out) {
-    RwEngineInstance->fpRenderStateGet(state, out);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(state, out);
 }
 #pragma dont_inline reset
 

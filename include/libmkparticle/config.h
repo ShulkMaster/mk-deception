@@ -1,7 +1,7 @@
 #ifndef LIBMKPARTICLE_CONFIG_H
 #define LIBMKPARTICLE_CONFIG_H
 
-typedef int (*PfxShaderEstimateSizeFn)(void* shader);
+typedef int (*PfxShaderEstimateSizeFn)(unsigned int render_flags);
 
 /**
  * Particle-system configuration block (`_pfx_config`).

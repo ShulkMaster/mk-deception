@@ -1,10 +1,10 @@
 #include "libmkparticle/texture_bridge.h"
 
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 
 static int pfxaux_set_render_state(int state, int value) {
-    return RwEngineInstance->fpRenderStateSet(state, value);
+    return RwEngineInstance->dOpenDevice.fpRenderStateSet(state, value);
 }
 
 void pfxaux_upload_texture(RwTexture* texture) {

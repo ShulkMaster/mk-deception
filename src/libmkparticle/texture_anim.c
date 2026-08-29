@@ -1,6 +1,7 @@
 #include "libmkparticle/texture_anim.h"
 
 #include "libmkparticle/config.h"
+#include "libmkparticle/pfx_memory.h"
 
 /* Soft ceiling: pfx_texture_animate ~90% -- flag-test and NV register emission. */
 void pfx_texture_animate(PfxVm* vm, float frame_time,
