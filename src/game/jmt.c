@@ -142,7 +142,6 @@ void fx_set_param_v3(
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 int build_bones_tbl(MkObj* object, const int* tags);
 void pull_bone_hierarchy_mkobj(MkObj* object);
-void obj_create_sobjs(MkObj* object);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 int pfx_plyr_bankowner(PlyrInfo* player);
 unsigned int fx_by_owner(const char* name, unsigned int owner);
@@ -942,8 +941,8 @@ static float p_decoy(void) {
     MkObj* decoy;
     PlyrInfo* player;
     Vec center;
-    RpMaterialColor dark_color = {0x8080FFC8};
-    RpMaterialColor light_color = {0xE1E1FFC8};
+    RwRGBA dark_color = {0x80, 0x80, 0xFF, 0xC8};
+    RwRGBA light_color = {0xE1, 0xE1, 0xFF, 0xC8};
 
     player = 0;
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);

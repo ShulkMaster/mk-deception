@@ -15,6 +15,7 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"
+#include "game/mab.h"
 #include "game/plyr.h"
 #include "game/cloth.h"
 #include "game/specular.h"
@@ -350,7 +351,7 @@ typedef struct FatalityIceblockAlphaPdata {
     MkHdr hdr;
     MkObj* object;
     unsigned int object_instance;
-    RpMaterialColor color;
+    RwRGBA color;
     int active_material;
     unsigned char material_alpha[6];
     char pad1E[2];
@@ -552,7 +553,6 @@ static float p_raiden_summon_lightning_bolt(void);
 static float p_sd_sonic_waves(void);
 static void sindel_load_projectile_obj_for_sonic_waves(
     FatalitySonicWavePdata* data);
-void obj_create_sobjs(MkObj* object);
 void update_mkobj_pdata(MkObj* object, MkHdr* pdata);
 int build_bones_tbl(MkObj* object, const int* tags);
 void bone_matcher_parent_set_offset(
@@ -574,7 +574,6 @@ void push_game_state(int state);
 void plyr_turn_off_mirrorguy(PlyrInfo* player);
 void plyr_turn_off_shadowbox(PlyrInfo* player);
 void start_gore2_update(void);
-void setup_screen_for_fatality(void);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void limb_sever_explode_apart(
     PlyrInfo* player, int mode, float strength);
@@ -778,7 +777,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
     MkObj* model;
     FatalityIceSubobject* subobject;
     FatalityIceChunkPebble* chunk;
-    RpMaterialColor color;
+    RwRGBA color;
     int index;
 
     data = 0;
@@ -1053,7 +1052,7 @@ static float p_subzero_iceblock_alpha(void) {
  */
 MkObj* subzero_start_iceblock(void) {
     FatalityScalePdata* scale_data;
-    RpMaterialColor color;
+    RwRGBA color;
     MkObj* iceblock;
     Vec at;
     Vec right;

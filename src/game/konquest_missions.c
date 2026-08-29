@@ -712,7 +712,7 @@ static inline void start_transform_particle_set(
     emitter = fx_next_emitter(emitter);
     particle = pfx_from_emitter(emitter);
     effect_object = pfx_bind_emitter_num_to_new_obj(
-        particle, (void*)0x6015, 0);
+        particle, 0x6015, 0);
     get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
     effect_object->flags_08_bits.airborne = 1;
     update_mkobj(

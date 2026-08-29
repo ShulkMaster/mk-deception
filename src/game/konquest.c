@@ -695,7 +695,6 @@ float p_konquest_interaction(void);
 float p_transition_to_fight(void);
 float p_load_hero_art_section(void);
 int refresh_rate(void);
-void obj_create_sobjs(MkObj* object);
 void insert_ground_me_mkobj(MkObj* object);
 void build_bones_tbl(MkObj* object, void* bones);
 void obj_apply_to_sobj_with_id(
@@ -706,7 +705,6 @@ void generate_door_paths(void);
 void profile_region_change(void);
 int mslSoundIsValid(MslSoundHandle handle);
 void set_snd_vol(MslSoundHandle handle, int sound, float volume);
-void* get_mkobj_frame(int type, void* frame);
 MkPfx* find_pfx_by_handle(unsigned int handle);
 void* get_script_function_by_name(ScriptSlot* owner, const char* name);
 void del_string_obj_by_id(int id);
@@ -1025,7 +1023,7 @@ void pui_set_color(unsigned int id, int red, int green, int blue, int alpha) {
     KonquestPuiListNode* node;
     KonquestPuiDelayView* object;
     MkObj* render_object;
-    RpMaterialColor color;
+    RwRGBA color;
 
     node = (KonquestPuiListNode*)konquest_pdata->pui_list;
     object = 0;
@@ -2175,11 +2173,11 @@ void konquest_setup_pui_particle(void* owner, int shared_render_object) {
 
     for (emitter = 0; emitter < effect->slot_count; emitter++) {
         if (shared_render_object != 0) {
-            object = (MkObj*)get_mkobj_frame(0xA00E, 0);
+            object = get_mkobj_frame(0xA00E, 0);
             pfx_bind_render_to_obj(effect, object, 1);
         } else {
             object = pfx_bind_emitter_num_to_new_obj(
-                effect, (void*)0xA00E, emitter);
+                effect, 0xA00E, emitter);
         }
         object->flags_08 |= 0x40;
         object->pos.value.z = 0.0f;
