@@ -155,7 +155,6 @@ int get_player_number(MkObj* object);
 int build_bones_tbl(MkObj* object, const int* tags);
 void SetupShadowPlayerPipeline(RpClump* clump);
 void pull_bone_hierarchy_mkobj(MkObj* object);
-void obj_create_sobjs(MkObj* object);
 void obj_force_culling_off(MkObj* object);
 void start_cloth_bones(MkObj* object);
 static void start_weapon_trail(MkObj* weapon, MkObj* trail_model);

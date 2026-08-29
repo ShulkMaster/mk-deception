@@ -125,6 +125,7 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_render.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/mk_struct.h"
 #include "runtime/plyr_info.h"
@@ -3745,13 +3746,6 @@ typedef struct ScreenModel {
     int visible; /* +0x18 */
 } ScreenModel;
 
-/* MkObj::hide_flags bit 0x20, expressed as an MSB-first byte bitfield. */
-typedef struct MkObjHideBits {
-    unsigned char pad0 : 2;
-    unsigned char hidden : 1;
-    unsigned char pad1 : 5;
-} MkObjHideBits;
-
 extern void* __vt__14ScreenParticle;
 extern void* __vt__11ScreenModel;
 extern void load_effect_bank_with_context(char* name, void* ctx);
@@ -3760,9 +3754,6 @@ extern void* find_pfx_by_handle(int handle);
 extern void fx_set_param_v3(int handle, int param, float x, float y, float z);
 extern MkObj* load_named_model_from_slot(int slot, const char* name, int flags,
                                          int unk);
-extern void* obj_create_sobjs(void* obj);
-extern void render_mkobj(void* mkobj);
-extern void render_transl_atomics(void);
 extern int curr_pipeline_used;
 extern void* __dt__10ScreenNodeFv(void* node, short del);
 extern void __dl__10ScreenNodeFPv(void* node);
@@ -4742,7 +4733,7 @@ void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv
         model->model = mkobj;
         model->modelInstance = mkobj->hdr.instance;
         mkobj->light_flags = 1;
-        ((MkObjHideBits*)&mkobj->flag_bytes.hide_flags)->hidden = 1;
+        mkobj->flag_bytes.hide_flag_bits.hidden = 1;
         obj_create_sobjs(mkobj);
         if (strcmp(modelName, stringBase0 + 0x331) == 0) {
             sobj_set_priority(obj_find_sobj_by_id(mkobj, 1), 2);

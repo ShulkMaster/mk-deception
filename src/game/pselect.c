@@ -187,7 +187,6 @@ extern unsigned int default_alt_char_bits[2];
 extern unsigned int default_pz_char_bits[2];
 extern CameraObj* camera_obj;
 extern LightDef* pselect_light_list[3];
-extern MkPtr* bgnd_light_list;
 extern PselectCharEntry pselect_char_tbl[];
 extern PselectCharEntry pselect_pz_char_tbl[];
 extern PselectBgndEntry pselect_bgnd_tbl[];

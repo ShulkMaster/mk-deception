@@ -309,7 +309,6 @@ void set_process_as_scriptable(PuzzleProcess* proc);
 ScriptSlot* cmdscript_loadfile_by_name(int language, char* name);
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int function_index);
 void cmdscript_execute(ScriptSlot* slot);
-void obj_create_sobjs(MkObj* object);
 void load_effect_bank_with_context(
     char* name, PuzzleEffectBankContext* context);
 float pz_fighter_exit(void);

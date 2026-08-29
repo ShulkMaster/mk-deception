@@ -574,8 +574,6 @@ void pfx_behavior_scan_fields(
     unsigned int* flags);
 void pfxvm_update_age(PfxBehaviorView* behavior, int field);
 void pfxvm_update_make_last_insn_first(PfxBehaviorView* behavior);
-void pfx_copy_behavior_list(
-    PfxResetRuntimeView* effect, int count, PfxBehaviorView* behaviors);
 void pfx_behaviors_fixup_targets(
     int** targets, PfxBehaviorView** behaviors, int count);
 PfxBehaviorView* pfx_behavior(PfxResetRuntimeView* effect, int index);
@@ -981,7 +979,7 @@ void create_y_mirror_effect(int field_28) {
         environment = active_pfx_environment();
         clone = pfx_create_clone(environment->source_effect);
         render_object = (PfxMirrorRenderObject*)
-            pfx_clone_bind_render_to_new_obj(clone, (void*)0xFF00);
+            pfx_clone_bind_render_to_new_obj(clone, 0xFF00);
         clone->priority = field_28;
         render_object->scale.x = 1.0f;
         render_object->scale.y = -1.0f;
@@ -1543,14 +1541,14 @@ static void build_step_effect(
     if (build.name == 0) {
         build.name = description->effect_name;
     }
-    build.flag = update;
+    build.emitter_count = update;
     if (description->emitter->origin.x != 0.0f ||
         description->emitter->origin.y != 0.0f ||
         description->emitter->origin.z != 0.0f) {
-        build.field_0C = 0x80000000;
+        build.flags = 0x80000000;
     }
     if (g_profile_enabled != 0) {
-        build.field_04 = 0x384;
+        build.metrics_frame_count = 0x384;
     }
 
     environment = active_pfx_environment();
@@ -1580,7 +1578,7 @@ static void build_step_effect(
 
     behavior_count = get_row_count_for_table_by_pointer(
         script, description->behavior_scripts);
-    build.field_00 = behavior_count;
+    build.behavior_count = behavior_count;
     environment = active_pfx_environment();
     environment->kill_percent_field = behavior_count;
     if (behavior_count == 0U) {
@@ -2837,16 +2835,16 @@ static void build_parametric_effect_from_table(
     if (build.name == 0) {
         build.name = description->effect_name;
     }
-    build.flag = update;
+    build.emitter_count = update;
     if (g_profile_enabled != 0) {
-        build.field_04 = 0x384;
+        build.metrics_frame_count = 0x384;
     }
 
     emitter_description = description->emitter;
     if (emitter_description->origin.x != 0.0f ||
         emitter_description->origin.y != 0.0f ||
         emitter_description->origin.z != 0.0f) {
-        build.field_0C = 0x80000000;
+        build.flags = 0x80000000;
     }
 
     create_flags = 2;

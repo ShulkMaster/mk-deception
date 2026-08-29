@@ -449,7 +449,6 @@ static SpearProcPdata* pdata_sc_spear;
 Gore2UpdatePdata* mkpdata_pbl_gore2_update;
 int cur_grab_check;
 int cur_zone_check;
-int gap_08_80510A84_sbss;
 
 typedef struct NcsGroundCollisionWatchPdata {
     MkHdr hdr;
@@ -497,7 +496,6 @@ int emitter_id_from_handle(unsigned int handle);
 int am_i_on_the_left2(MkObj* opponent, MkObj* me);
 int get_bid_with_flip(MkObj* object, unsigned int bone_id);
 int is_plyr_airborn(MkObj* object, PlyrPdata* player);
-MkObj* get_mkobj_frame(int type, void* frame);
 void insert_particle_mkobj(MkObj* object);
 void mkobj_get_matrix_at(MkObj* object, Vec* out);
 void mkobj_get_matrix_right(MkObj* object, Vec* out);
@@ -567,7 +565,6 @@ void limb_sever_explode_apart(PlyrInfo* player);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 void spawn_bld_splat(
     const char* name, void* owner, const Vec* position);
-void obj_create_sobjs(MkObj* object);
 void sobj_set_priority(void* object, int priority);
 MslSoundHandle plyr_snd_req(int sound);
 MslSoundHandle random_voice(int sound);
