@@ -1,4 +1,5 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
+#include "runtime/cstdlib.h"
 #include "runtime/cstring.h"
 #include "rw/rwfreelist.h"
 
@@ -6,11 +7,6 @@ typedef struct RwFreeBlock {
     RwLLLink link;
     unsigned char heap[1];
 } RwFreeBlock;
-
-extern void* malloc(unsigned long);
-extern void free(void*);
-extern void* realloc(void*, unsigned long);
-extern void* calloc(unsigned long, unsigned long);
 
 static RwFreeList _masterFreeList;
 static int FreeListsEnabled = 1;
@@ -53,7 +49,7 @@ static void _rwFreeListModuleClose(void)
     RwLLLink* head = &_freeListList.link;
 
     while (link != head) {
-        RwFreeList* freeList = (RwFreeList*)((unsigned char*)link - 0x1C);
+        RwFreeList* freeList = RW_CONTAINER_OF(link, RwFreeList, link);
         RwFreeListDestroy(freeList);
         link = _freeListList.link.next;
         head = &_freeListList.link;
@@ -346,7 +342,7 @@ int RwFreeListPurgeAllFreeLists(void)
     RwLLLink* link = _freeListList.link.next;
     RwLLLink* head = &_freeListList.link;
     while (link != head) {
-        RwFreeList* freeList = (RwFreeList*)((unsigned char*)link - 0x1C);
+        RwFreeList* freeList = RW_CONTAINER_OF(link, RwFreeList, link);
         int purged = RwFreeListPurge(freeList);
         if (purged > 0)
             total += purged;

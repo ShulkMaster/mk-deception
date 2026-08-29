@@ -1,9 +1,8 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
+#include "runtime/cstring.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwstream.h"
-
-extern void *memcpy(void *, const void *, unsigned int);
 
 static RwFreeList _rwStreamFreeList;
 static int _rwStreamFreeListBlockSize = 0x10;

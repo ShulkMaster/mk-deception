@@ -1,6 +1,6 @@
 #include "dolphin/gx.h"
 #include "dolphin/vi.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rwerror.h"
 #include "rw/rwim3d.h"
 #include "rw/rwcamera_internal.h"

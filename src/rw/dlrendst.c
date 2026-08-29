@@ -1,5 +1,6 @@
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "runtime/cstring.h"
+#include "rw/rwengine.h"
 #include "rw/dltextur.h"
 #include "rw/gamecube.h"
 #include "rw/gamecube_texture.h"
@@ -15,7 +16,6 @@ RwDlStateCache _RwDlStateCache;
 RwTexture* _RwDlTexture;
 RwRaster* _RwDlRasterWhite;
 
-extern void* memset(void* destination, int value, unsigned int size);
 extern void _rwDlTextureCacheInit(void);
 static int _rwDlRenderStateFogColor(unsigned int color);
 static int _rwDlRenderStateFogType(int type);

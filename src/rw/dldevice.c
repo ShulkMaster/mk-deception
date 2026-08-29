@@ -1,7 +1,8 @@
 #include "dolphin/gx.h"
+#include "runtime/cstring.h"
 #include "dolphin/os.h"
 #include "dolphin/vi.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/gamecube.h"
 #include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"
@@ -83,9 +84,6 @@ extern void MWY_GCN_RW_InsertRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_NoteRwGxBreakPt(void* breakPoint);
 extern void MWY_GCN_RW_SetGxBreakPtCallback(void (*callback)(void));
 extern void DCInvalidateRange(void* memory, unsigned int size);
-extern void* memcpy(void* destination, const void* source,
-                    unsigned long size);
-
 extern int _rwDlRGBToPixel(void*, void*, int);
 extern int _rwDlPixelToRGB(void*, void*, int);
 extern int _rwDlRasterSetFromImage(void*, void*, int);

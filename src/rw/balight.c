@@ -1,10 +1,9 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rplight.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwframe.h"
-
-extern float cosf(float);
-extern float _rwSqrt(float value);
+#include "rw/rwvector.h"
+#include "runtime/cmath.h"
 
 static RwPluginRegistry lightTKList = {0x40, 0x40, 0, 0, 0, 0};
 static RwFreeList _rpLightFreeList;
