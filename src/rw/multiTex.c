@@ -1,11 +1,11 @@
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
+#include "runtime/cstring.h"
 #include "rw/bamateri.h"
 #include "rw/rpmatfx.h"
 #include "rw/rwerror.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwstream_internal.h"
 
-extern void* memset(void*, int, unsigned int);
 extern int RwEngineGetVersion(void);
 extern int _rpMatFXStreamSizeTexture(RwTexture*);
 extern RwStream* _rpMatFXStreamWriteTexture(RwStream*, RwTexture*);

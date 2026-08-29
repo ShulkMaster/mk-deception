@@ -1,5 +1,5 @@
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "rw/rplight.h"
 #include "rw/gamecube.h"
 #include "rw/nodegamecube.h"
@@ -61,13 +61,13 @@ static void _rpGCHWLightingApplyDirectionalLight(RpLight* light,
 
 void _rwGCLightsGlobalEnable(int flags, RwGameCubeLightingData* lighting)
 {
-    RpWorld* world = (RpWorld*)RwEngineInstance->field_0x04;
+    RpWorld* world = (RpWorld*)RwEngineInstance->curWorld;
     RwLLLink* link = world->directionalLightList.link.next;
     RwLLLink* end = &world->directionalLightList.link;
 
     while (link != end) {
 
-        RpLight* light = (RpLight*)((unsigned char*)link - 0x34);
+        RpLight* light = RW_CONTAINER_OF(link, RpLight, inWorld);
 
         if (light != 0 &&
             (light->object.object.flags & (unsigned char)flags) != 0) {

@@ -1,12 +1,11 @@
 #include "dolphin/gx.h"
+#include "runtime/cstring.h"
 #include "rw/dltextur.h"
 #include "rw/gamecube.h"
 #include "rw/gamecube_texture.h"
 #include "rw/native_internal.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
-
-extern void* memcpy(void* destination, const void* source, unsigned int size);
 
 extern unsigned int _rwDlRasterGetSize(RwRaster* raster);
 extern int _rwDlTextureRasterCreate(RwRaster* raster,

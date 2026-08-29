@@ -1,5 +1,5 @@
 #include "dolphin/gx.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 #include "platform/gcpipemanager.h"
 #include "rw/alphapass.h"
 #include "rw/dltextur.h"
@@ -186,7 +186,7 @@ static void SetupMaterial(RpMaterial* material,
                           RxGameCubeAtomicAllInOneInstanceData* data)
 {
     RwGameCubeVertexBuffer* vertexBuffer =
-        (RwGameCubeVertexBuffer*)((unsigned char*)data->resourceEntry + 0x18);
+        &((RwGameCubeResEntryHeader*)data->resourceEntry)->vertexBuffer;
     DpMaterialCallback callback;
 
     if (!FXStateCache.lightingSetup) {
@@ -200,7 +200,7 @@ static void SetupMaterial(RpMaterial* material,
     FXStateCache.effectType = 0;
     callback = DPObjectRenderSetup(data->geometryFlags, data->lightMask,
                                    data->hasAmbient,
-                                   vertexBuffer->reserved_0x00[1] & 1);
+                                   vertexBuffer->flags & 1);
     if (callback != 0) {
         callback((RwRGBAReal*)&data->ambient, (GXColor*)&material->color,
                  material, material->surface.ambient);
@@ -404,14 +404,14 @@ void* _rpGCMatFXRenderCallback(
             int oldCullMode;
             if ((specular->flags.raw.value & 4) != 0) {
                 restoreCull = 1;
-                ((RenderStateGetCall)RwEngineInstance->fpRenderStateGet)(
+                ((RenderStateGetCall)RwEngineInstance->dOpenDevice.fpRenderStateGet)(
                     0x14, &oldCullMode, RwEngineInstance);
-                ((RenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                ((RenderStateSetCall)RwEngineInstance->dOpenDevice.fpRenderStateSet)(
                     0x14, 1, RwEngineInstance);
             }
             _rpDlMatFXMeshRender(mesh, displayList, atomic, ltm, data);
             if (restoreCull)
-                ((RenderStateSetCall)RwEngineInstance->fpRenderStateSet)(
+                ((RenderStateSetCall)RwEngineInstance->dOpenDevice.fpRenderStateSet)(
                     0x14, oldCullMode, RwEngineInstance);
         }
         mesh++;
