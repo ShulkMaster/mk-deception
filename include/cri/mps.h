@@ -59,13 +59,20 @@ typedef void (*MpsPsMapCallback)(void);
 typedef int (*MpsDecodeHeaderFn)(struct MpsHandle* handle, const unsigned char* data,
                                  int size, int* consumed, int* header_flags);
 
+typedef struct MpsDecodedHeaders {
+    MpsPackHeader pack_header;
+    MpsSystemHeader last_system_header;
+    MpsSystemHeader system_headers[3];
+    MpsPacketHeader packet_header;
+} MpsDecodedHeaders;
+
+/**
+ * Alternate views of the 0xB8-byte decoded-header storage. `MPS_Create`
+ * initializes all 46 words together; decoder and getter paths use the typed
+ * header view.
+ */
 typedef union MpsHandlePayload {
-    struct {
-        MpsPackHeader pack_header;
-        MpsSystemHeader last_system_header;
-        MpsSystemHeader system_headers[3];
-        MpsPacketHeader packet_header;
-    } headers;
+    MpsDecodedHeaders headers;
     int decoder_words[46];
 } MpsHandlePayload;
 
@@ -98,6 +105,22 @@ typedef struct MpsLibWork {
     int handle_count;
     MpsHandle handles[1];
 } MpsLibWork;
+
+typedef char MpsPackHeaderSizeCheck[sizeof(MpsPackHeader) == 0x10 ? 1 : -1];
+typedef char MpsSystemHeaderSizeCheck[
+    sizeof(MpsSystemHeader) == 0x20 ? 1 : -1];
+typedef char MpsPacketHeaderSizeCheck[
+    sizeof(MpsPacketHeader) == 0x28 ? 1 : -1];
+typedef char MpsSystemStreamSizeCheck[
+    sizeof(MpsSystemStream) == 0x04 ? 1 : -1];
+typedef char MpsSystemCallbackInfoSizeCheck[
+    sizeof(MpsSystemCallbackInfo) == 0xD8 ? 1 : -1];
+typedef char MpsDecodedHeadersSizeCheck[
+    sizeof(MpsDecodedHeaders) == 0xB8 ? 1 : -1];
+typedef char MpsHandlePayloadSizeCheck[
+    sizeof(MpsHandlePayload) == 0xB8 ? 1 : -1];
+typedef char MpsHandleSizeCheck[sizeof(MpsHandle) == 0x100 ? 1 : -1];
+typedef char MpsLibWorkSizeCheck[sizeof(MpsLibWork) == 0x110 ? 1 : -1];
 
 int MPS_GetPketHd(MpsHandle* handle, MpsPacketHeader* out);
 int MPS_GetLastSysHd(MpsHandle* handle, MpsSystemHeader* out);

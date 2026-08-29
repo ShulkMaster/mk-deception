@@ -1,7 +1,7 @@
 #ifndef RW_RXPIPELINE_H
 #define RW_RXPIPELINE_H
 
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 
 typedef int RwTextureAddressMode;
 typedef int RwTextureFilterMode;
@@ -47,6 +47,8 @@ typedef struct RxRenderStateVector {
     RwFogType FogType;
     RwRGBA FogColor;
 } RxRenderStateVector;
+typedef char RxRenderStateVectorSizeCheck[
+    sizeof(RxRenderStateVector) == 0x2C ? 1 : -1];
 
 typedef int RxEmbeddedPacketState;
 
@@ -65,6 +67,7 @@ typedef struct RxCluster {
     RxPipelineCluster* clusterRef;
     unsigned int attributes;
 } RxCluster;
+typedef char RxClusterSizeCheck[sizeof(RxCluster) == 0x1C ? 1 : -1];
 
 typedef struct RxPipeline {
     int locked;
@@ -81,6 +84,7 @@ typedef struct RxPipeline {
     unsigned int pluginId;
     unsigned int pluginData;
 } RxPipeline;
+typedef char RxPipelineSizeCheck[sizeof(RxPipeline) == 0x34 ? 1 : -1];
 
 typedef int RxClusterValidityReq;
 typedef int RxClusterValid;
@@ -91,29 +95,37 @@ struct RxClusterDefinition {
     unsigned int defaultAttributes;
     const char* attributeSet;
 };
+typedef char RxClusterDefinitionSizeCheck[
+    sizeof(RxClusterDefinition) == 0x10 ? 1 : -1];
 
 struct RxOutputSpec {
     char* name;
     RxClusterValid* outputClusters;
     RxClusterValid allOtherClusters;
 };
+typedef char RxOutputSpecSizeCheck[sizeof(RxOutputSpec) == 0x0C ? 1 : -1];
 
 struct RxClusterRef {
     RxClusterDefinition* clusterDef;
     int forcePresent;
     unsigned int reserved;
 };
+typedef char RxClusterRefSizeCheck[sizeof(RxClusterRef) == 0x0C ? 1 : -1];
 
 struct RxPipelineCluster {
     RxClusterDefinition* clusterRef;
     unsigned int creationAttributes;
 };
+typedef char RxPipelineClusterSizeCheck[
+    sizeof(RxPipelineCluster) == 0x08 ? 1 : -1];
 
 struct RxPipelineRequiresCluster {
     RxClusterDefinition* clusterDef;
     RxClusterValidityReq rqdOrOpt;
     unsigned int slotIndex;
 };
+typedef char RxPipelineRequiresClusterSizeCheck[
+    sizeof(RxPipelineRequiresCluster) == 0x0C ? 1 : -1];
 
 typedef struct RxIoSpec {
     unsigned int numClustersOfInterest;
@@ -122,6 +134,7 @@ typedef struct RxIoSpec {
     unsigned int numOutputs;
     RxOutputSpec* outputs;
 } RxIoSpec;
+typedef char RxIoSpecSizeCheck[sizeof(RxIoSpec) == 0x14 ? 1 : -1];
 
 typedef int (*RxNodeBodyFn)(RxPipelineNode*, const RxPipelineNodeParam*);
 typedef int (*RxNodeInitFn)(RxNodeDefinition*);
@@ -141,6 +154,7 @@ typedef struct RxNodeMethods {
     RxPipelineNodeConfigFn pipelineNodeConfig;
     RxConfigMsgHandlerFn configMsgHandler;
 } RxNodeMethods;
+typedef char RxNodeMethodsSizeCheck[sizeof(RxNodeMethods) == 0x1C ? 1 : -1];
 
 struct RxNodeDefinition {
     char* name;
@@ -150,6 +164,8 @@ struct RxNodeDefinition {
     int editable;
     int InputPipesCnt;
 };
+typedef char RxNodeDefinitionSizeCheck[
+    sizeof(RxNodeDefinition) == 0x40 ? 1 : -1];
 
 struct RxPipelineNode {
     RxNodeDefinition* nodeDef;
@@ -163,17 +179,23 @@ struct RxPipelineNode {
     void* initializationData;
     unsigned int initializationDataSize;
 };
+typedef char RxPipelineNodeSizeCheck[
+    sizeof(RxPipelineNode) == 0x28 ? 1 : -1];
 
 struct RxPipelineNodeTopSortData {
     unsigned int numIns;
     unsigned int numInsVisited;
     rxReq* req;
 };
+typedef char RxPipelineNodeTopSortDataSizeCheck[
+    sizeof(RxPipelineNodeTopSortData) == 0x0C ? 1 : -1];
 
 struct RxPipelineNodeParam {
     void* dataParam;
     RxHeap* heap;
 };
+typedef char RxPipelineNodeParamSizeCheck[
+    sizeof(RxPipelineNodeParam) == 0x08 ? 1 : -1];
 
 struct RxPacket {
     unsigned short flags;
@@ -184,6 +206,7 @@ struct RxPacket {
     RxPipelineCluster** slotClusterRefs;
     RxCluster clusters[1];
 };
+typedef char RxPacketSizeCheck[sizeof(RxPacket) == 0x30 ? 1 : -1];
 
 typedef struct RxPipelinePlatformGlobals {
     RwFreeList* pipesFreeList;
@@ -200,33 +223,43 @@ typedef struct RxPipelinePlatformGlobals {
     RxPipeline* platformWorldSectorPipeline;
     RxPipeline* platformMaterialPipeline;
 } RxPipelinePlatformGlobals;
+typedef char RxPipelinePlatformGlobalsSizeCheck[
+    sizeof(RxPipelinePlatformGlobals) == 0x60 ? 1 : -1];
 
 typedef struct RxExecutionContext {
     RxPipeline* pipeline;
     RxPipelineNode* currentNode;
     int exitCode;
-    unsigned int field0C;
+    unsigned int pad; /* +0x0C: canonical alignment padding. */
     RxPipelineNodeParam params;
 } RxExecutionContext;
+typedef char RxExecutionContextSizeCheck[
+    sizeof(RxExecutionContext) == 0x18 ? 1 : -1];
 
 struct RxHeapFreeBlock {
     unsigned int size;
     RxHeapBlock* block;
 };
+typedef char RxHeapFreeBlockSizeCheck[
+    sizeof(RxHeapFreeBlock) == 0x08 ? 1 : -1];
 
 struct RxHeapBlock {
     RxHeapBlock* prev;
     RxHeapBlock* next;
     unsigned int size;
     RxHeapFreeBlock* freeEntry;
-    unsigned int bookkeeping[4];
+    /* +0x10..+0x1F: unused header extent; keeps payload 0x20-byte aligned. */
+    unsigned int padding[4];
 };
+typedef char RxHeapBlockSizeCheck[sizeof(RxHeapBlock) == 0x20 ? 1 : -1];
 
 struct RxHeapSuperBlock {
     RxHeapBlock* start;
     unsigned int size;
     RxHeapSuperBlock* next;
 };
+typedef char RxHeapSuperBlockSizeCheck[
+    sizeof(RxHeapSuperBlock) == 0x0C ? 1 : -1];
 
 struct RxHeap {
     unsigned int superBlockSize;
@@ -237,8 +270,11 @@ struct RxHeap {
     unsigned int freeBlocksUsed;
     int dirty;
 };
+typedef char RxHeapSizeCheck[sizeof(RxHeap) == 0x1C ? 1 : -1];
 
 extern int _rxPipelineGlobalsOffset;
+extern RxExecutionContext _rxExecCtxGlobal;
+extern RxHeap* _rxHeapGlobal;
 
 #define RXPIPELINEGLOBAL(field)                                                \
     (((RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance +          \
@@ -282,6 +318,7 @@ void* StalacMiteAlloc(int size);
 unsigned int PipelineCalcNumUniqueClusters(RxPipeline* pipeline);
 void RxHeapFree(RxHeap* heap, void* block);
 int _rxHeapReset(RxHeap* heap);
+#define RxHeapReset(heap) ((!(heap)->dirty) ? 1 : _rxHeapReset(heap))
 void RxHeapDestroy(RxHeap* heap);
 RxHeap* RxHeapCreate(unsigned int size);
 RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(
