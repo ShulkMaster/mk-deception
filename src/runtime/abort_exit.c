@@ -1,8 +1,7 @@
+#include "runtime/critical_regions.h"
+
 typedef void (*ExitFunction)(void);
 
-extern void __begin_critical_region(int region);
-extern void __end_critical_region(int region);
-extern void __kill_critical_regions(void);
 extern void __destroy_global_chain(void);
 extern void _ExitProcess(void);
 extern int raise(int signal);

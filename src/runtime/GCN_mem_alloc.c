@@ -1,5 +1,6 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
+#include "runtime/cstdlib.h"
 
 static inline void InitDefaultHeap(void)
 {

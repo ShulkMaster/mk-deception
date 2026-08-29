@@ -1,3 +1,5 @@
+#include "runtime/critical_regions.h"
+
 void __end_critical_region(int region)
 {
     (void)region;

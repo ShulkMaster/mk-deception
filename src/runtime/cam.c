@@ -127,7 +127,6 @@ RwRaster* RwRasterSubRaster(RwRaster* raster, RwRaster* parent, RwRect* rect);
 /* Must stay external so xfer_camera emits bl (local stub was inlined away). */
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);
 void CameraDestroy(RwCamera* camera);
-MkObj* get_mkobj_frame(int type, RwFrame* frame);
 float xz_ray_circle_intersection_dist(const Vec* ray_origin,
                                       const Vec* ray_direction,
                                       float radius);

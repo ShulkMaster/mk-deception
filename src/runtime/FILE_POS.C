@@ -1,9 +1,7 @@
 #include "runtime/cfile.h"
+#include "runtime/critical_regions.h"
 
 extern int errno;
-extern void __begin_critical_region(int region);
-extern void __end_critical_region(int region);
-extern int __flush_buffer(FILE* file, size_t* bytes_flushed);
 
 inline static int file_tell(FILE* file)
 {

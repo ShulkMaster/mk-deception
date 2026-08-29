@@ -1,3 +1,7 @@
+#include "runtime/critical_regions.h"
+#include "runtime/cstring.h"
+#include "runtime/cstdlib.h"
+
 #define NULL ((void*)0)
 
 typedef struct Block Block;
@@ -46,14 +50,15 @@ typedef struct __mem_pool {
     void* reserved[14];
 } __mem_pool;
 
-static const unsigned long fix_pool_sizes[] = {4, 12, 20, 36, 52, 68};
+typedef char BlockSizeCheck[sizeof(Block) == 0x10 ? 1 : -1];
+typedef char SubBlockSizeCheck[sizeof(SubBlock) == 0x10 ? 1 : -1];
+typedef char FixBlockSizeCheck[sizeof(FixBlock) == 0x14 ? 1 : -1];
+typedef char FixSubBlockSizeCheck[sizeof(FixSubBlock) == 0x08 ? 1 : -1];
+typedef char FixStartSizeCheck[sizeof(FixStart) == 0x08 ? 1 : -1];
+typedef char MemPoolObjSizeCheck[sizeof(MemPoolObj) == 0x34 ? 1 : -1];
+typedef char MemPoolSizeCheck[sizeof(__mem_pool) == 0x38 ? 1 : -1];
 
-void* __sys_alloc(unsigned long size);
-void __sys_free(void* ptr);
-void* memset(void* dst, int value, unsigned long size);
-void* memcpy(void* dst, const void* src, unsigned long size);
-void __begin_critical_region(int region);
-void __end_critical_region(int region);
+static const unsigned long fix_pool_sizes[] = {4, 12, 20, 36, 52, 68};
 
 void* __pool_alloc(__mem_pool* pool, unsigned long size);
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size);

@@ -1,4 +1,5 @@
 #include "runtime/cfile.h"
+#include "runtime/critical_regions.h"
 
 enum {
     FILE_KIND_CLOSED,
@@ -18,14 +19,6 @@ enum {
     BUFFER_MODE_LINE,
     BUFFER_MODE_UNBUFFERED,
 };
-
-extern void __begin_critical_region(int region);
-extern void __end_critical_region(int region);
-extern void __stdio_atexit(void);
-extern void __prep_buffer(FILE* file);
-extern int __flush_buffer(FILE* file, size_t* bytes_flushed);
-extern int __load_buffer(FILE* file, size_t* bytes_loaded, int alignment_mode);
-extern int fwide(FILE* file, int mode);
 
 int __put_char(int character, FILE* file);
 

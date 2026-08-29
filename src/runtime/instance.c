@@ -1,11 +1,12 @@
 #include "runtime/instance.h"
+#include "runtime/cstring.h"
 #include "platform/gcinstance.h"
 #include "rw/rwplcore.h"
 #include "rw/rwerror.h"
 #include "rw/rpworld_registry.h"
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
-#include "libmkparticle/rw_engine.h"
+#include "rw/rwengine.h"
 
 typedef struct InplaceGeometryChunkInfo {
     unsigned int format;
@@ -35,8 +36,6 @@ typedef struct RpAtomicChunkInfo {
 
 extern int lastSeenExtraData;
 extern unsigned int lastSeenRightsPluginId;
-
-extern void* memset(void* destination, int value, unsigned int length);
 
 extern int _inplaceNativeTextureRead(RwStream* stream, RwTexture** texture);
 
