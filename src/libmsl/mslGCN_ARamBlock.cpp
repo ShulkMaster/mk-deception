@@ -5,13 +5,11 @@
 #include "msl/mslStreamFile.h"
 #include "msl/mslARam.h"
 #include "msl/mslgcn.h"
+#include "msl/mslgcn_globals.h"
 #include "mw/mwMemHeap.h"
 #include "mw/mwMemNewDelete.h"
-extern ExternalHeap* g_MSL_GCN_ARAM_Heap;
-
 mslARQRequest mslARQ_Req_Pool[24];
 mslARQRequest* mslARQ_Req_FreeList;
-int gap_08_8051173C_sbss;
 
 static inline MSLGCN_ARamBlock* allocate_block(void) {
     MSLGCN_ARamBlock* block = (MSLGCN_ARamBlock*)

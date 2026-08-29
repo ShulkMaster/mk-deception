@@ -6,6 +6,7 @@
 #include "msl/mslStreamFile.h"
 #include "msl/mslARam.h"
 #include "msl/mslSound_internal.h"
+#include "msl/mslgcn_globals.h"
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
 #include "msl/mslgcn_break.h"
@@ -14,8 +15,6 @@
 void mslBankLoadResidentWaveChunkDone(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data);
-extern unsigned long g_MSL_GCN_ARAM_ZeroBase;
-extern unsigned char g_listPoolSound[];
 extern _mslSystem* gMsi;
 
 static void mslBankLoadResidentARamUploadComplete(void* callback_data);
@@ -111,7 +110,7 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
         node = bank->system->active_sounds;
         while (node != 0) {
             sound = (_mslSound*)ListNodeData(0, node);
-            sound_id = ListNodeID((ListPool*)g_listPoolSound, node);
+            sound_id = ListNodeID(&g_listPoolSound, node);
 
             ListNext(&node);
             if (sound->owner_bank == bank) {
@@ -276,7 +275,7 @@ static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
             while (node != 0) {
                 _mslSound* sound = (_mslSound*)ListNodeData(0, node);
                 unsigned long sound_id =
-                    ListNodeID((ListPool*)g_listPoolSound, node);
+                    ListNodeID(&g_listPoolSound, node);
 
                 ListNext(&node);
                 if (sound->owner_bank == bank) {
@@ -510,7 +509,7 @@ static void mslBankReadAssetHeaderComplete(
                 while (node != 0) {
                     _mslSound* sound = (_mslSound*)ListNodeData(0, node);
                     unsigned long sound_id =
-                        ListNodeID((ListPool*)g_listPoolSound, node);
+                        ListNodeID(&g_listPoolSound, node);
 
                     ListNext(&node);
                     if (sound->owner_bank == bank) {
@@ -964,7 +963,7 @@ static inline void mslBankFinishPlayInline(
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
     unsigned long error_id =
-        ListNodeID((ListPool*)g_listPoolSound, node);
+        ListNodeID(&g_listPoolSound, node);
 
     if (loaded) {
         if ((copy->flags & 0x10) != 0) {
@@ -1028,7 +1027,7 @@ extern "C" unsigned long mslBankPlayVol(
             mslRuntimeSound* copy =
                 (mslRuntimeSound*)ListNodeData(0, node);
 
-            handle = ListNodeID((ListPool*)g_listPoolSound, node);
+            handle = ListNodeID(&g_listPoolSound, node);
             copy->flags |= play_flags;
             copy->priority = play_arg1;
             copy->track = play_arg0;
@@ -1090,7 +1089,7 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
             mslRuntimeSound* copy =
                 (mslRuntimeSound*)ListNodeData(0, node);
 
-            handle = ListNodeID((ListPool*)g_listPoolSound, node);
+            handle = ListNodeID(&g_listPoolSound, node);
             copy->flags |= play_flags;
             copy->priority = play_arg1;
             copy->track = play_arg0;
@@ -1277,7 +1276,7 @@ void callbackPlay(
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
     unsigned long error_id =
-        ListNodeID((ListPool*)g_listPoolSound, node);
+        ListNodeID(&g_listPoolSound, node);
 
     if (loaded) {
         if ((copy->flags & 0x10) != 0) {

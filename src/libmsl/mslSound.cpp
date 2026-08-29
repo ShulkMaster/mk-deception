@@ -7,8 +7,6 @@
 #include "mw/mwMemHeap.h"
 static void mslSoundDeactivate(_mslSound* sound, int immediate);
 
-extern unsigned char g_listPoolSound[];
-extern unsigned char g_listPoolAdjust[];
 extern mslRuntimeSound* currentUpdateSound;
 
 /* Verified +0x00...+0x278 prefix of the retail mslSound.o @stringBase0 pool. */
@@ -52,16 +50,6 @@ static const char stringBase0[] =
     "mslSoundPause\0"
     /* +0x40D */ "mslSoundStop\0"
     "mslSoundIsPlaying";
-
-struct mslSoundListNodeSlot {
-    unsigned char bytes[0x10];
-};
-
-struct mslSoundListPoolView {
-    unsigned char pad00[8];
-    mslRuntimeSound* sounds;
-    mslSoundListNodeSlot* nodes;
-};
 
 class mslPlayableView {
 public:
@@ -110,7 +98,7 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     adjustment = runtime_sound->adjustments;
     while (adjustment != 0) {
         ListNodeFree(
-            (ListPool*)g_listPoolAdjust, ListRemove(&adjustment));
+            &g_listPoolAdjust, ListRemove(&adjustment));
     }
     runtime_sound->adjustments = 0;
 
@@ -122,11 +110,10 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
         }
 
         {
-            mslSoundListPoolView* pool =
-                (mslSoundListPoolView*)g_listPoolSound;
-            int index = runtime_sound - pool->sounds;
+            ListPool* pool = &g_listPoolSound;
+            int index = runtime_sound - (mslRuntimeSound*)pool->elements;
 
-            sound_node = (_ListNode*)&pool->nodes[index];
+            sound_node = &pool->nodes[index];
             sound_node = ListRemove(&sound_node);
         }
     }
@@ -177,7 +164,7 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
             _ListNode* list = original_node;
 
             ListNodeFree(
-                (ListPool*)g_listPoolSound, ListRemove(&list));
+                &g_listPoolSound, ListRemove(&list));
         }
 
         if (bank_sound != 0) {
@@ -570,7 +557,7 @@ extern "C" void mslSoundUnCopy(_ListNode* node) {
     {
         _ListNode* list = node;
         ListNodeFree(
-            (ListPool*)g_listPoolSound, ListRemove(&list));
+            &g_listPoolSound, ListRemove(&list));
     }
 }
 
@@ -627,14 +614,12 @@ extern "C" int mslSoundUnLoad(_mslSound* sound) {
     }
 
     {
-        mslSoundListPoolView* pool =
-            (mslSoundListPoolView*)g_listPoolSound;
-        int index = runtime_sound - pool->sounds;
-        _ListNode* node =
-            (_ListNode*)&pool->nodes[index];
+        ListPool* pool = &g_listPoolSound;
+        int index = runtime_sound - (mslRuntimeSound*)pool->elements;
+        _ListNode* node = &pool->nodes[index];
 
         ListNodeFree(
-            (ListPool*)g_listPoolSound, ListRemove(&node));
+            &g_listPoolSound, ListRemove(&node));
     }
     return 0;
 }
@@ -798,7 +783,7 @@ extern "C" int mslCmdsLoad(
  * exact; remaining differences are partial-TU branch and literal relocations.
  */
 extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
-    _ListNode* node = ListNodeAlloc((ListPool*)g_listPoolSound);
+    _ListNode* node = ListNodeAlloc(&g_listPoolSound);
 
     if (node == 0) {
         mslDebugPrintf(
@@ -841,7 +826,7 @@ extern "C" _mslSound* mslSoundLoad(
 }
 
 extern "C" int mslSoundIsValid(unsigned long handle) {
-    _ListNode* node = ListNodeFind((ListPool*)g_listPoolSound, handle);
+    _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
         return 0;
@@ -932,7 +917,7 @@ extern "C" void mslUpdateTracks(_mslSystem* system) {
 }
 
 extern "C" void mslSoundSetPan(unsigned long handle, float pan) {
-    _ListNode* node = ListNodeFind((ListPool*)g_listPoolSound, handle);
+    _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
         mslDebugPrintf(
@@ -944,7 +929,7 @@ extern "C" void mslSoundSetPan(unsigned long handle, float pan) {
 }
 
 extern "C" void mslSoundSetVol(unsigned long handle, float volume) {
-    _ListNode* node = ListNodeFind((ListPool*)g_listPoolSound, handle);
+    _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
         mslDebugPrintf(
@@ -956,7 +941,7 @@ extern "C" void mslSoundSetVol(unsigned long handle, float volume) {
 }
 
 extern "C" void mslSoundStop(unsigned long handle) {
-    _ListNode* node = ListNodeFind((ListPool*)g_listPoolSound, handle);
+    _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
         mslDebugPrintf(
