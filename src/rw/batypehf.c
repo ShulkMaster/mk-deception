@@ -6,7 +6,10 @@ void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame) {
 
     if (objectHasFrame->object.parent != 0) {
         objectHasFrame->lFrame.prev->next = objectHasFrame->lFrame.next;
-        objectHasFrame->lFrame.next->prev = objectHasFrame->lFrame.prev;
+        {
+            RwLLLink* previous = objectHasFrame->lFrame.prev;
+            objectHasFrame->lFrame.next->prev = previous;
+        }
     }
 
     ((RwObject*)object)->parent = frame;
@@ -14,7 +17,10 @@ void _rwObjectHasFrameSetFrame(void* object, RwFrame* frame) {
         objectHasFrame->lFrame.next = frame->objectList.link.next;
         objectHasFrame->lFrame.prev = &frame->objectList.link;
         frame->objectList.link.next->prev = &objectHasFrame->lFrame;
-        frame->objectList.link.next = &objectHasFrame->lFrame;
+        {
+            RwLLLink* link = &objectHasFrame->lFrame;
+            frame->objectList.link.next = link;
+        }
         RwFrameUpdateObjects(frame);
     }
 }

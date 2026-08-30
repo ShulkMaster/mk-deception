@@ -6,15 +6,11 @@ static const float _464 = 3.0f;
 static const float _465 = 0.0625f;
 static const float _466 = 12.0f;
 
-/* Soft ceiling: gxVectAngleZX ~97.72% -- ops and branch layout identical;
- * residue is FPR scratch rotation seeded by the first v->x load (retail f0,
- * ours f1); stop. UVV3ToV3 is 100%. */
-
 float gxVectAngleZX(const Vec* v) {
     union {
         float f;
         unsigned int u;
-    } pun;
+    } input, estimate;
     float lenSq;
     float invLen;
     float angle;
@@ -23,6 +19,8 @@ float gxVectAngleZX(const Vec* v) {
     float z;
     float x;
     float x2;
+    /* Integer bits are written through estimate; read its float view here. */
+    float* estimateAsFloat = &estimate.f;
     float zz;
     float t1;
     float t3;
@@ -36,12 +34,13 @@ float gxVectAngleZX(const Vec* v) {
         invLen = _235;
     } else {
         /* Fast inverse sqrt of (x*x + z*z) with one Newton step. */
-        pun.f = lenSq;
-        guessBits = 0x5F375A00U - (pun.u >> 1);
-        pun.u = guessBits;
-        guess = pun.f;
+        input.f = lenSq;
+        guessBits = 0x5F375A00U - (input.u >> 1);
+        estimate.u = guessBits;
+        guess = *estimateAsFloat;
         lenSq = lenSq * guess;
-        t1 = guess * lenSq;
+        invLen = guess * lenSq;
+        t1 = invLen;
         t3 = _464 - t1;
         invLen = _465 * guess;
         invLen = invLen * t3 * (_466 - (t1 * t3 * t3));

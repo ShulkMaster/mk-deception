@@ -526,7 +526,7 @@ config.libs = [
                 source="runtime/math_ppc.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common_Embedded/Math/Double_precision/e_pow.o",
                 source="runtime/e_pow.c",
             ),
@@ -760,7 +760,7 @@ config.libs = [
                 source="runtime/mk_plugins.c",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
-            Object(NonMatching, "gxVect.o", source="math/gxVect.c"),
+            Object(Matching, "gxVect.o", source="math/gxVect.c"),
             Object(NonMatching, "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(
                 NonMatching,
@@ -863,7 +863,7 @@ config.libs = [
             Object(NonMatching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
             Object(NonMatching, "asset.o", source="runtime/asset.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "bgnd_nbc.o", source="game/bgnd_nbc.c"),
+            Object(Matching, "bgnd_nbc.o", source="game/bgnd_nbc.c"),
             Object(NonMatching, "specular.o", source="game/specular.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "minigames.o", source="game/minigames.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
@@ -880,7 +880,7 @@ config.libs = [
             Object(NonMatching, "bgnd_jtb.o", source="game/bgnd_jtb.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
-            Object(NonMatching, "mcardmsg.o", source="game/mcardmsg.c"),
+            Object(Matching, "mcardmsg.o", source="game/mcardmsg.c"),
             Object(NonMatching, "memcard.o", source="game/memcard.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "sound.o", source="game/sound.c",
@@ -1379,7 +1379,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mps/mps_get.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mps/mps_get.c",
             ),
@@ -1926,7 +1926,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-schedule off", "-fp_contract off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/CompileFields.o",
                 source="libmkparticle/CompileFields.c",
                 extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole"],
@@ -2191,7 +2191,7 @@ config.libs = [
     DolphinLib(
         "ar",
         [
-            Object(NonMatching, "ar.a/ar.o", source="dolphin/ar/ar.c"),
+            Object(Matching, "ar.a/ar.o", source="dolphin/ar/ar.c"),
             Object(NonMatching, "ar.a/arq.o", source="dolphin/ar/arq.c"),
         ],
     ),
@@ -2250,7 +2250,7 @@ config.libs = [
             Object(Matching, "card.a/CARDFormat.o", source="dolphin/card/CARDFormat.c"),
             Object(Matching, "card.a/CARDMount.o", source="dolphin/card/CARDMount.c"),
             Object(Matching, "card.a/CARDRead.o", source="dolphin/card/CARDRead.c"),
-            Object(NonMatching, "card.a/CARDWrite.o", source="dolphin/card/CARDWrite.c"),
+            Object(Matching, "card.a/CARDWrite.o", source="dolphin/card/CARDWrite.c"),
             Object(Matching, "card.a/CARDCreate.o", source="dolphin/card/CARDCreate.c"),
             Object(Matching, "card.a/CARDOpen.o", source="dolphin/card/CARDOpen.c",
                    extra_cflags=["-char signed"]),
@@ -2290,7 +2290,7 @@ config.libs = [
         "rwcore",
         [
             Object(Matching, "rwcore.a/bacolor.obj", source="rw/bacolor.c"),
-            Object(NonMatching, "rwcore.a/babinfrm.obj", source="rw/babinfrm.c",
+            Object(Matching, "rwcore.a/babinfrm.obj", source="rw/babinfrm.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/babintex.obj", source="rw/babintex.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
@@ -2333,7 +2333,7 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/bapipe.obj", source="rw/bapipe.c",
                    extra_cflags=["-opt", "off", "-O0"]),
-            Object(NonMatching, "rwcore.a/batypehf.obj", source="rw/batypehf.c",
+            Object(Matching, "rwcore.a/batypehf.obj", source="rw/batypehf.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/bafsys.obj", source="rw/bafsys.c",
                    extra_cflags=["-opt", "off", "-O0"]),
@@ -2432,7 +2432,7 @@ config.libs = [
     RenderWareLib(
         "rpworld",
         [
-            Object(NonMatching, "rpworld.a/babinwor.obj", source="rw/babinwor.c",
+            Object(Matching, "rpworld.a/babinwor.obj", source="rw/babinwor.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rpworld.a/baclump.obj", source="rw/baclump.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
@@ -2473,7 +2473,7 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/ibuffer.obj", source="rw/ibuffer.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
-            Object(NonMatching, "rpworld.a/vtxfmt.obj", source="rw/vtxfmt.c",
+            Object(Matching, "rpworld.a/vtxfmt.obj", source="rw/vtxfmt.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rpworld.a/geomcond.obj", source="rw/geomcond.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
@@ -2544,7 +2544,7 @@ config.libs = [
     RenderWareLib(
         "rtanim",
         [
-            Object(NonMatching, "rtanim.a/rtanim.obj", source="rw/rtanim.c",
+            Object(Matching, "rtanim.a/rtanim.obj", source="rw/rtanim.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
         ],
     ),
