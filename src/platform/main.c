@@ -217,8 +217,8 @@ int main(void) {
 
 void reset_game_speed(void) {
     if (refresh_rate() == 50) {
-        inverse_game_speed = 0.8333333f;
         game_speed = 1.2f;
+        inverse_game_speed = 0.8333333f;
         sqrt_game_speed = main_sqrt(1.2f);
     } else {
         game_speed = 1.0f;
@@ -244,11 +244,21 @@ void set_game_speed(float speed) {
     if (speed != 0.0f) {
         input.value = speed;
         inverse_game_speed = 1.0f / speed;
-        if (!(speed <= 0.0f)) {
-            estimate.bits = (unsigned int) GXMathSqrtTable[(input.bits >> 11) & 0x1fff] << 8;
-            estimate.bits |= (((input.bits & 0x7f800000) + 0x3f800000) >> 1) & 0x7f800000;
-            square_root = 0.5f * (estimate.value * (3.0f - (estimate.value * estimate.value) / speed));
-        }
+        square_root = speed <= 0.0f
+                          ? 0.0f
+                          : (estimate.bits =
+                                 (unsigned int)GXMathSqrtTable[
+                                     (input.bits >> 11) & 0x1fff]
+                                 << 8,
+                             estimate.bits |=
+                                 (((input.bits & 0x7f800000) + 0x3f800000) >>
+                                  1) &
+                                 0x7f800000,
+                             0.5f *
+                                 (estimate.value *
+                                  (3.0f -
+                                   (estimate.value * estimate.value) /
+                                       speed)));
         sqrt_game_speed = square_root;
     } else {
         inverse_game_speed = 1.0e9f;
