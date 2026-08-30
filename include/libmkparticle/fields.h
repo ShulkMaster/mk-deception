@@ -3,6 +3,8 @@
 
 #include "libmkparticle/table.h"
 
+typedef struct PfxVm PfxVm;
+
 typedef struct PfxFieldDefinition {
     unsigned int description;
     unsigned int flag;
@@ -43,5 +45,6 @@ void fill_field_description(PfxFieldDescription* descriptions,
 
 int get_field_offset(PfxTableRegistry* registry, int description);
 int has_field_description(PfxTableRegistry* registry, int description);
+void* pfx_get_field(PfxVm* pfx, int particle, unsigned int description);
 
 #endif

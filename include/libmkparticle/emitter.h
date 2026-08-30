@@ -4,6 +4,7 @@
 #include "libmkparticle/vm.h"
 
 int pfx_emitter_exhausted(PfxVmEmitter* emitter);
+PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);
 int pfx_emitter_unused(PfxVmEmitter* emitter);
 int pfx_emitter_restart_cycle(PfxVmEmitter* emitter);
 void pfx_emitter_reset(PfxVmEmitter* emitter);

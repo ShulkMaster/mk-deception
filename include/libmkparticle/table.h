@@ -3,6 +3,12 @@
 
 typedef struct PfxFieldDescription PfxFieldDescription;
 
+typedef struct PfxSpawnTable {
+    int type;
+    int count;
+    void* values;
+} PfxSpawnTable;
+
 /** Partial particle table/field registry layout recovered from retail users. */
 typedef struct PfxTableRegistry {
     char pad00[0x1D8]; /**< Retail offsets 0x000-0x1D7; fields unknown. */

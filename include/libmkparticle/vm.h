@@ -17,6 +17,26 @@ typedef struct PfxVec3 {
     float z;
 } PfxVec3;
 
+struct PfxParametricState {
+    float texture_curve[64];
+    int texture_curve_count;
+    char pad104[0x0C];
+    float size_curve[64];
+    int size_curve_count;
+    char pad214[0x0C];
+    PfxColor color_curve[64];
+    int color_curve_count;
+    char pad324[0x0C];
+    PfxVec3 acceleration;
+    float vertical_acceleration;
+    float damping;
+    float texture_rate;
+    int particle_capacity;
+    int particle_cursor;
+    float lifetime;
+    float minimum_y;
+}; /* 0x358, followed by parametric particle storage */
+
 typedef struct PfxTransform {
     union {
         PfxMatrix matrix;

@@ -163,6 +163,10 @@ void pfx_bind_emitter_to_obj(MkPfx* pfx, MkObj* obj, int flag);
 void pfx_bind_emitter_num_to_obj(MkPfx* pfx, MkObj* obj, int flag, int emitter);
 void pfx_bind_render_to_obj(MkPfx* pfx, MkObj* obj, int flag);
 PfxClone* pfx_create_clone(MkPfx* pfx);
+MkPfx* pfx_from_handle(unsigned int handle);
+MkPfx* pfx_from_emitter(unsigned int handle);
+MkPfx* find_pfx_by_handle(unsigned int handle);
+MkPfx* find_pfx_by_name_by_bankowner(const char* name, unsigned int owner);
 
 /*
  * Thin wrapper: stamps one emitter and a per-particle user-data stride, then calls

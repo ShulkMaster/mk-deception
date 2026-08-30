@@ -15,26 +15,6 @@ typedef struct PfxParametricParticle {
     PfxColor color;
 } PfxParametricParticle; /* 0x28 */
 
-struct PfxParametricState {
-    float texture_curve[64];
-    int texture_curve_count;
-    char pad104[0x0C];
-    float size_curve[64];
-    int size_curve_count;
-    char pad214[0x0C];
-    PfxColor color_curve[64];
-    int color_curve_count;
-    char pad324[0x0C];
-    PfxVec3 acceleration;
-    float vertical_acceleration;
-    float damping;
-    float texture_rate;
-    int particle_capacity;
-    int particle_cursor;
-    float lifetime;
-    float minimum_y;
-}; /* 0x358, followed by PfxParametricParticle[particle_capacity] */
-
 typedef struct PfxLiveSlot {
     int live;
     char pad04[0x44];
@@ -138,14 +118,13 @@ void pfx_count_end(void);
 void pfx_count_add(PfxVm* pfx);
 void pfx_halt(const char* message);
 void pfx_parametric_spawn(PfxVm* pfx, float frame_time);
-void pfx_parametric_update(PfxVm* pfx);
+void pfx_parametric_update(PfxVm* pfx, float frame_time);
 void pfx_run(PfxVm* pfx, float frame_time);
 void pfx_set_texture(PfxRenderView* pfx, RwTexture* texture);
 void update_live_particles(PfxRuntimeView* pfx);
 void pfx_set_renderstate(PfxRenderView* pfx);
 void pfx_reset_renderstate(void);
 void pfx_render_set_blendmode(PfxRenderView* pfx, int mode);
-PfxEmitterView* pfx_get_emitter(PfxEmitterTableView* pfx, int index);
 int pfx_verify(PfxVerifyView* pfx);
 int pfx_field_get_type(unsigned int field);
 

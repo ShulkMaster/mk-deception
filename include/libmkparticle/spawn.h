@@ -1,13 +1,8 @@
 #ifndef LIBMKPARTICLE_SPAWN_H
 #define LIBMKPARTICLE_SPAWN_H
 
+#include "libmkparticle/table.h"
 #include "libmkparticle/vm.h"
-
-typedef struct PfxSpawnTable {
-    int type;
-    int count;
-    void* values;
-} PfxSpawnTable;
 
 int has_spawncode_for(PfxVmEmitter* emitter, unsigned int field);
 void pfx_spawn_box(PfxVec3* output, float x, float y, float z,
