@@ -11,6 +11,8 @@
 #define MASK_EXI 0x007F8000UL
 #define MASK_PI 0x00007FE0UL
 
+#ifdef __MWERKS__
+#define INTERRUPT_HANDLER_STORAGE ((__OSInterruptHandler*)0x80003040)
 #define GLOBAL_MASK (*(volatile OSInterruptMask*)0x800000C4)
 #define LOCAL_MASK (*(volatile OSInterruptMask*)0x800000C8)
 #define MEM_REGS ((volatile unsigned short*)0xCC004000)
@@ -18,6 +20,25 @@
 #define AI_REGS ((volatile unsigned long*)0xCC006C00)
 #define EXI_REGS ((volatile unsigned long*)0xCC006800)
 #define PI_REGS ((volatile unsigned long*)0xCC003000)
+#else
+static __OSInterruptHandler HostInterruptHandlerTable[32];
+static volatile OSInterruptMask HostGlobalMask;
+static volatile OSInterruptMask HostLocalMask;
+static volatile unsigned short HostMemRegs[64];
+static volatile unsigned short HostDspRegs[32];
+static volatile unsigned long HostAiRegs[1];
+static volatile unsigned long HostExiRegs[15];
+static volatile unsigned long HostPiRegs[12];
+
+#define INTERRUPT_HANDLER_STORAGE HostInterruptHandlerTable
+#define GLOBAL_MASK HostGlobalMask
+#define LOCAL_MASK HostLocalMask
+#define MEM_REGS HostMemRegs
+#define DSP_REGS HostDspRegs
+#define AI_REGS HostAiRegs
+#define EXI_REGS HostExiRegs
+#define PI_REGS HostPiRegs
+#endif
 
 extern void* memset(void* destination, int value, unsigned long size);
 
@@ -72,7 +93,7 @@ __OSInterruptHandler __OSGetInterruptHandler(__OSInterrupt interrupt)
 
 void __OSInterruptInit(void)
 {
-    InterruptHandlerTable = (__OSInterruptHandler*)0x80003040;
+    InterruptHandlerTable = INTERRUPT_HANDLER_STORAGE;
     memset(InterruptHandlerTable, 0, 32 * sizeof(__OSInterruptHandler));
     GLOBAL_MASK = 0;
     LOCAL_MASK = 0;
@@ -85,9 +106,8 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
                                         OSInterruptMask current)
 {
     unsigned long reg;
-    unsigned long interrupt = __cntlzw(mask);
 
-    switch (interrupt) {
+    switch (__cntlzw(mask)) {
     case 0: case 1: case 2: case 3: case 4:
         reg = 0;
         if (!(current & INTERRUPT_MASK(0))) reg |= 0x01;
@@ -99,7 +119,8 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
         mask &= ~MASK_MEM;
         break;
     case 5: case 6: case 7:
-        reg = DSP_REGS[5] & ~0x1F8;
+        reg = DSP_REGS[5];
+        reg &= ~0x1F8;
         if (!(current & INTERRUPT_MASK(5))) reg |= 0x10;
         if (!(current & INTERRUPT_MASK(6))) reg |= 0x40;
         if (!(current & INTERRUPT_MASK(7))) reg |= 0x100;
@@ -107,13 +128,15 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
         mask &= ~MASK_DSP;
         break;
     case 8:
-        reg = AI_REGS[0] & ~0x2C;
+        reg = AI_REGS[0];
+        reg &= ~0x2C;
         if (!(current & INTERRUPT_MASK(8))) reg |= 0x04;
         AI_REGS[0] = reg;
         mask &= ~MASK_AI;
         break;
     case 9: case 10: case 11:
-        reg = EXI_REGS[0] & ~0x2C0F;
+        reg = EXI_REGS[0];
+        reg &= ~0x2C0F;
         if (!(current & INTERRUPT_MASK(9))) reg |= 0x001;
         if (!(current & INTERRUPT_MASK(10))) reg |= 0x004;
         if (!(current & INTERRUPT_MASK(11))) reg |= 0x400;
@@ -121,7 +144,8 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
         mask &= ~MASK_EXI0;
         break;
     case 12: case 13: case 14:
-        reg = EXI_REGS[5] & ~0xC0F;
+        reg = EXI_REGS[5];
+        reg &= ~0xC0F;
         if (!(current & INTERRUPT_MASK(12))) reg |= 0x001;
         if (!(current & INTERRUPT_MASK(13))) reg |= 0x004;
         if (!(current & INTERRUPT_MASK(14))) reg |= 0x400;
@@ -129,7 +153,8 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
         mask &= ~MASK_EXI1;
         break;
     case 15: case 16:
-        reg = EXI_REGS[10] & ~0xF;
+        reg = EXI_REGS[10];
+        reg &= ~0xF;
         if (!(current & INTERRUPT_MASK(15))) reg |= 0x1;
         if (!(current & INTERRUPT_MASK(16))) reg |= 0x4;
         EXI_REGS[10] = reg;
@@ -157,34 +182,40 @@ static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
 
 OSInterruptMask __OSMaskInterrupts(OSInterruptMask global)
 {
+    int enabled;
     OSInterruptMask previous;
     OSInterruptMask local;
     OSInterruptMask mask;
-    int enabled = OSDisableInterrupts();
 
+    enabled = OSDisableInterrupts();
     previous = GLOBAL_MASK;
     local = LOCAL_MASK;
     mask = ~(previous | local) & global;
     global |= previous;
     GLOBAL_MASK = global;
-    while (mask) mask = SetInterruptMask(mask, global | local);
+    while (mask) {
+        mask = SetInterruptMask(mask, global | local);
+    }
     OSRestoreInterrupts(enabled);
     return previous;
 }
 
 OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask global)
 {
+    int enabled;
     OSInterruptMask previous;
     OSInterruptMask local;
     OSInterruptMask mask;
-    int enabled = OSDisableInterrupts();
 
+    enabled = OSDisableInterrupts();
     previous = GLOBAL_MASK;
     local = LOCAL_MASK;
     mask = (previous | local) & global;
     global = previous & ~global;
     GLOBAL_MASK = global;
-    while (mask) mask = SetInterruptMask(mask, global | local);
+    while (mask) {
+        mask = SetInterruptMask(mask, global | local);
+    }
     OSRestoreInterrupts(enabled);
     return previous;
 }
@@ -218,8 +249,9 @@ void __OSDispatchInterrupt(__OSException exception, OSContext* context)
         if (reg & 0x20) cause |= INTERRUPT_MASK(6);
         if (reg & 0x80) cause |= INTERRUPT_MASK(7);
     }
-    if ((interrupt_status & 0x20) && (AI_REGS[0] & 0x08)) {
-        cause |= INTERRUPT_MASK(8);
+    if (interrupt_status & 0x20) {
+        reg = AI_REGS[0];
+        if (reg & 0x08) cause |= INTERRUPT_MASK(8);
     }
     if (interrupt_status & 0x10) {
         reg = EXI_REGS[0];

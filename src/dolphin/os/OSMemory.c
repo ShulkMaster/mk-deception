@@ -1,9 +1,16 @@
 #include "dolphin/cache.h"
 #include "dolphin/os.h"
 
+#ifdef __MWERKS__
+#define OS_MEMORY_AT_ADDRESS(address) : (address)
+volatile unsigned short __MEMRegs[64] OS_MEMORY_AT_ADDRESS(0xCC004000);
+unsigned long __OSPhysicalMemSize OS_MEMORY_AT_ADDRESS(0x80000028);
+unsigned long __OSSimulatedMemSize OS_MEMORY_AT_ADDRESS(0x800000F0);
+#else
 #define __MEMRegs ((volatile unsigned short*)0xCC004000)
-#define __OSPhysicalMemSize (*(volatile unsigned long*)0x80000028)
-#define __OSSimulatedMemSize (*(volatile unsigned long*)0x800000F0)
+#define __OSPhysicalMemSize (*(unsigned long*)0x80000028)
+#define __OSSimulatedMemSize (*(unsigned long*)0x800000F0)
+#endif
 
 #define FALSE 0
 #define TRUE 1
