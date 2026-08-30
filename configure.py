@@ -1142,6 +1142,8 @@ config.libs = [
                     "0",
                     "-sdata2",
                     "0",
+                    "-pooldata",
+                    "off",
                     "-str",
                     "reuse,readonly",
                 ],
