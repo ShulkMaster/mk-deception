@@ -53,7 +53,7 @@ typedef struct MorphState {
     float low_frame;                 /* +0x2C */
     float high_frame;                /* +0x30 */
     float frame_step;
-    void (*frame_callback)(float*);
+    void (*frame_callback)(struct MorphState*, float*);
     MkPtr* field_3C;
 } MorphState;
 typedef char MorphStateSize[(sizeof(MorphState) == 0x40) ? 1 : -1];
@@ -332,7 +332,8 @@ static inline float anim_last_frame(const AnimScript* script) {
     return (float)script->frame_count - 1.0f;
 }
 
-static inline void select_flip_map(AnimPdata* anim, unsigned int flags) {
+static inline void select_flip_map(
+    AnimPdata* anim, const unsigned int* flags) {
     MkObj* obj = anim->obj;
     int flipped;
 
@@ -345,15 +346,15 @@ static inline void select_flip_map(AnimPdata* anim, unsigned int flags) {
     }
     flipped = obj != 0 && obj->hide_flag_bits.bit6 != 0;
 
-    if ((flags & 8) != 0) {
+    if ((*flags & 8) != 0) {
         flipped = 1 - flipped;
     }
-    if (flipped == 0) {
-        flipped_bones = 0;
-        flip_factor = 1.0f;
-    } else {
+    if (flipped != 0) {
         flipped_bones = obj->flipped_bone_map;
         flip_factor = -1.0f;
+    } else {
+        flipped_bones = 0;
+        flip_factor = 1.0f;
     }
 }
 
@@ -361,14 +362,18 @@ static inline void add_script_loop_offset(
     AnimScript* script, Vec* offset, float* angle) {
     const float scale = 0.000030518044f;
     float scaled_x;
+    float scaled_y;
+    float scaled_z;
 
     if (script == 0) {
         return;
     }
     scaled_x = (float)script->loop_offset_x * scale;
     offset->x = flip_factor * scaled_x + offset->x;
-    offset->y = offset->y + (float)script->loop_offset_y * scale;
-    offset->z = offset->z + (float)script->loop_offset_z * scale;
+    scaled_y = (float)script->loop_offset_y * scale;
+    offset->y = offset->y + scaled_y;
+    scaled_z = (float)script->loop_offset_z * scale;
+    offset->z = offset->z + scaled_z;
     *angle = norm_angle(*angle);
 }
 
@@ -376,14 +381,18 @@ static inline void subtract_script_loop_offset(
     AnimScript* script, Vec* offset, float* angle) {
     const float scale = 0.000030518044f;
     float scaled_x;
+    float scaled_y;
+    float scaled_z;
 
     if (script == 0) {
         return;
     }
     scaled_x = (float)script->loop_offset_x * scale;
     offset->x = -(flip_factor * scaled_x - offset->x);
-    offset->y = offset->y - (float)script->loop_offset_y * scale;
-    offset->z = offset->z - (float)script->loop_offset_z * scale;
+    scaled_y = (float)script->loop_offset_y * scale;
+    offset->y = offset->y - scaled_y;
+    scaled_z = (float)script->loop_offset_z * scale;
+    offset->z = offset->z - scaled_z;
     *angle = norm_angle(*angle);
 }
 
@@ -427,6 +436,10 @@ static inline void rebuild_anim_track_table(AnimPdata* anim) {
         (AnimTagFrame*)anim_script_data(script, track->data_offset);
     anim->tag_frame = (AnimTagFrame*)anim_script_data(
         script, script->tag_data_offset);
+}
+
+static inline int mkptr_list_exists(MkPtr** list) {
+    return list != 0;
 }
 
 static inline MkObj* live_anim_object(const PlyrMirrorObjLatch* latch) {
@@ -510,15 +523,15 @@ static void do_morph(MkHdr* hdr) {
 }
 
 int pose_morph(MkHdr* hdr) {
+    int result;
+    int next_target;
     MorphState* morph;
     MorphFrameHeader* frame;
     float position;
+    float previous_position;
     float fraction;
     float span;
-    float previous_position;
     int target;
-    int next_target;
-    int result;
 
     morph = (MorphState*)hdr;
     result = set_morph_frameno(morph);
@@ -527,38 +540,40 @@ int pose_morph(MkHdr* hdr) {
     morph->current_frame =
         morph_find_frame(morph, morph->current_frame);
 
-    if (mka_next_fno == mka_sought_fno) {
-        frame = (MorphFrameHeader*)mka_next_fp;
-        target = frame->target;
-        next_target = frame->next_target;
-        position = frame->position;
-    } else if (mka_prev_fno == mka_sought_fno) {
-        frame = (MorphFrameHeader*)mka_prev_fp;
-        target = frame->target;
-        next_target = frame->next_target;
-        position = frame->position;
-    } else {
-        MorphFrameHeader* next_frame =
-            (MorphFrameHeader*)mka_next_fp;
-        MorphFrameHeader* previous_frame =
-            (MorphFrameHeader*)mka_prev_fp;
-
-        span = mka_next_fno - mka_prev_fno;
-        if (span != 0.0f) {
-            fraction = (mka_next_fno - mka_sought_fno) / span;
+    /* Both exact-frame paths share the same header decode. */
+    do {
+        if (mka_next_fno == mka_sought_fno) {
+            frame = (MorphFrameHeader*)mka_next_fp;
+        } else if (mka_prev_fno == mka_sought_fno) {
+            frame = (MorphFrameHeader*)mka_prev_fp;
         } else {
-            fraction = 0.0f;
+            MorphFrameHeader* previous_frame;
+            MorphFrameHeader* next_frame;
+
+            span = mka_next_fno - mka_prev_fno;
+            if (span != 0.0f) {
+                fraction = (mka_next_fno - mka_sought_fno) / span;
+            } else {
+                fraction = 0.0f;
+            }
+            next_frame = (MorphFrameHeader*)mka_next_fp;
+            previous_frame = (MorphFrameHeader*)mka_prev_fp;
+            next_target = next_frame->next_target;
+            previous_position = previous_frame->position;
+            target = next_frame->target;
+            if (previous_frame->next_target != next_target) {
+                previous_position = 0.0f;
+            }
+            position =
+                previous_position * fraction +
+                next_frame->position * (1.0f - fraction);
+            break;
         }
-        target = next_frame->target;
-        next_target = next_frame->next_target;
-        previous_position = previous_frame->position;
-        if (previous_frame->next_target != next_target) {
-            previous_position = 0.0f;
-        }
-        position =
-            previous_position * fraction +
-            next_frame->position * (1.0f - fraction);
-    }
+
+        target = frame->target;
+        next_target = frame->next_target;
+        position = frame->position;
+    } while (0);
 
     morph->interpolator->position = position;
     morph->interpolator->flags |= 3;
@@ -607,7 +622,7 @@ static int set_morph_frameno(MorphState* morph) {
             break;
         }
         if (morph->frame_callback != 0) {
-            morph->frame_callback(&morph->frame);
+            morph->frame_callback(morph, &morph->frame);
         }
         return 0;
     }
@@ -619,11 +634,11 @@ static int set_morph_frameno(MorphState* morph) {
         if (frame >= end) {
             morph->frame = frame - (end - low);
             if (morph->frame_callback != 0) {
-                morph->frame_callback(&morph->frame);
+                morph->frame_callback(morph, &morph->frame);
             }
             return 0;
         }
-        return 1;
+        break;
     }
     case 2:
         if (frame > morph->high_frame) {
@@ -632,29 +647,30 @@ static int set_morph_frameno(MorphState* morph) {
                 morph->frame_step = -morph->frame_step;
             }
             if (morph->frame_callback != 0) {
-                morph->frame_callback(&morph->frame);
+                morph->frame_callback(morph, &morph->frame);
             }
             return 0;
         }
-        return 1;
+        break;
     case 3:
         if (frame > morph->high_frame) {
             morph->frame = morph->high_frame;
             morph->frame_step = 0.0f;
             if (morph->frame_callback != 0) {
-                morph->frame_callback(&morph->frame);
+                morph->frame_callback(morph, &morph->frame);
             }
             return 0;
         }
-        return 1;
+        break;
     case 4:
         if (morph->frame_callback != 0) {
-            morph->frame_callback(&morph->frame);
+            morph->frame_callback(morph, &morph->frame);
         }
         return 0;
     default:
-        return 1;
+        break;
     }
+    return 1;
 }
 
 static unsigned short* morph_find_frame(
@@ -722,7 +738,10 @@ static unsigned short* morph_find_frame(
 }
 
 MorphState* obj_start_morph(
-    MkObj* obj, int sobj_id, MorphScript* script, unsigned int flags) {
+    MkObj* obj,
+    unsigned int sobj_id,
+    MorphScript* script,
+    unsigned int flags) {
     MorphState* morph = (MorphState*)get_mkpdata_generic(sizeof(MorphState));
     MkSobj* sobj = 0;
 
@@ -736,14 +755,15 @@ MorphState* obj_start_morph(
             if (sobj == 0) {
                 sobj = (MkSobj*)obj_create_sobjs_by_id(obj, sobj_id);
             }
-            if (sobj == 0) {
+            if (sobj != 0) {
+                morph->atomic = sobj->atomic;
+            } else {
                 sprintf(
                     message,
                     morph_not_found_format,
                     sobj_id);
                 return 0;
             }
-            morph->atomic = sobj->atomic;
         }
         if (morph->atomic == 0) {
             morph->atomic = obj_get_1st_atomic(obj);
@@ -793,7 +813,7 @@ BoneMatcherState* start_bone_matcher(
     int parent_bid,
     MkObj* child_obj,
     int child_bid) {
-    BoneMatcherState* matcher = 0;
+    BoneMatcherState* matcher;
     MkBone* parent_bone;
     MkBone* child_bone;
     RwMatrix flip_matrix __attribute__((aligned(16)));
@@ -804,50 +824,49 @@ BoneMatcherState* start_bone_matcher(
         p_bone_matcher,
         sizeof(BoneMatcherState),
         (MkHdr**)&matcher);
-    if (matcher == 0) {
+    if (matcher != 0) {
+        matcher->flags_word_08 = 0;
+        matcher->child_weight = 0.0f;
+        matcher->parent_obj = parent_obj;
+        matcher->parent_instance = parent_obj->hdr.instance;
+        matcher->parent_bid = parent_bid;
+        zero_v3(&matcher->parent_offset);
+
+        parent_bone = parent_obj->bones[parent_bid];
+        if (parent_bone != 0 && parent_bone->parent_matrix != 0) {
+            child_bone = child_obj->bones[child_bid];
+            if (child_bone != 0 && child_bone->parent_matrix != 0) {
+                parent_bone->flags_54_bits.calculation_locked = 1;
+                matcher->child_obj = child_obj;
+                matcher->child_instance = child_obj->hdr.instance;
+                matcher->fake_child_bid = child_bid;
+                zero_v3(&matcher->child_offset);
+                matcher->clone_obj = 0;
+                matcher->clone_instance = 0;
+                matcher->parent_rotation = child_bone->rotation;
+                matcher->mirrored_parent_rotation = matcher->parent_rotation;
+                matcher->mirrored_parent_rotation.y *= -1.0f;
+                matcher->mirrored_parent_rotation.z *= -1.0f;
+                memcpy(
+                    &matcher->child_matrix,
+                    child_bone->parent_matrix,
+                    0x30);
+                YXZ_angles_to_MKMATRIX(&ani_flip_angs, &flip_matrix);
+                mat_x_mat(
+                    &matcher->flipped_child_matrix,
+                    &matcher->child_matrix,
+                    &flip_matrix);
+                matcher->blend_ticks = blend_ticks;
+                return matcher;
+            }
+        }
+
+        if (matcher->hdr.instance != 0) {
+            matcher->hdr.typed_vtbl->destroy(&matcher->hdr);
+        }
         return 0;
     }
-
-    matcher->flags_word_08 = 0;
-    matcher->child_weight = 0.0f;
-    matcher->parent_obj = parent_obj;
-    matcher->parent_instance = parent_obj->hdr.instance;
-    matcher->parent_bid = parent_bid;
-    zero_v3(&matcher->parent_offset);
-
-    parent_bone = parent_obj->bones[parent_bid];
-    if (parent_bone != 0 && parent_bone->parent_matrix != 0) {
-        child_bone = child_obj->bones[child_bid];
-        if (child_bone != 0 && child_bone->parent_matrix != 0) {
-            parent_bone->flags_54_bits.calculation_locked = 1;
-            matcher->child_obj = child_obj;
-            matcher->child_instance = child_obj->hdr.instance;
-            matcher->fake_child_bid = child_bid;
-            zero_v3(&matcher->child_offset);
-            matcher->clone_obj = 0;
-            matcher->clone_instance = 0;
-            matcher->parent_rotation = child_bone->rotation;
-            matcher->mirrored_parent_rotation = matcher->parent_rotation;
-            matcher->mirrored_parent_rotation.y *= -1.0f;
-            matcher->mirrored_parent_rotation.z *= -1.0f;
-            memcpy(
-                &matcher->child_matrix,
-                child_bone->parent_matrix,
-                0x30);
-            YXZ_angles_to_MKMATRIX(&ani_flip_angs, &flip_matrix);
-            mat_x_mat(
-                &matcher->flipped_child_matrix,
-                &matcher->child_matrix,
-                &flip_matrix);
-            matcher->blend_ticks = blend_ticks;
-            return matcher;
-        }
-    }
-
-    if (matcher->hdr.instance != 0) {
-        matcher->hdr.typed_vtbl->destroy(&matcher->hdr);
-    }
-    return 0;
+    return matcher;
 }
 
 static inline void compose_bone_rotation(
@@ -1149,14 +1168,14 @@ static float p_bone_matcher(void) {
 }
 
 void bone_matcher_child_set_offset(
-    BoneMatcherState* matcher, const Vec* offset) {
+    BoneMatcherState* matcher, Vec* offset) {
     matcher->child_offset.x = offset->x;
     matcher->child_offset.y = offset->y;
     matcher->child_offset.z = offset->z;
 }
 
 void bone_matcher_parent_set_offset(
-    BoneMatcherState* matcher, const Vec* offset) {
+    BoneMatcherState* matcher, Vec* offset) {
     matcher->parent_offset.x = offset->x;
     matcher->parent_offset.y = offset->y;
     matcher->parent_offset.z = offset->z;
@@ -1174,8 +1193,6 @@ static float p_anim_reset_weight_idle(void) {
     return 0.0f;
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 static float p_pose_handanim(void) {
     if (anim_pdata->hand_transition > 0.0f) {
         if (anim_pdata->hand_anim_script != 0 &&
@@ -1230,9 +1247,12 @@ static float p_pose_handanim(void) {
     ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(p_anim_idle, 0.0f);
     return 0.0f;
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
+/*
+ * Retail retains a redundant successful-instance join branch here. When this
+ * helper is inlined, the remaining p_animate/advance_anim differences are that
+ * branch and FPR coloring in the two otherwise identical frame clamps.
+ */
 static inline int advance_anim_state(AnimPdata* anim) {
     MkObj* obj;
     float speed;
@@ -2674,7 +2694,7 @@ void set_root_and_obj_movement_weights(
     RwMatrix* root_matrix;
     Vec world_delta;
     Vec local_delta;
-    float weight_delta = root_weight - anim->root_movement_weight;
+    float weight_delta;
 
     if (obj != 0) {
         if (obj->hdr.instance != anim->obj_instance) {
@@ -2684,6 +2704,7 @@ void set_root_and_obj_movement_weights(
         obj = 0;
     }
 
+    weight_delta = root_weight - anim->root_movement_weight;
     anim->root_movement_weight = root_weight;
     anim->obj_movement_weight = obj_weight;
     local_delta.x = anim->anim_offset.x * weight_delta;
@@ -2714,8 +2735,8 @@ static unsigned short* find_frame(unsigned short* current) {
             } else {
                 unsigned short* last = (unsigned short*)(
                     (unsigned char*)mka_hdr +
-                    mka_channel_hdr[1].data_offset -
-                    mka_bytes_per_frame);
+                    (mka_channel_hdr[1].data_offset -
+                     mka_bytes_per_frame));
                 float last_frame = (float)*last;
 
                 if (mka_sought_fno <
@@ -2730,11 +2751,13 @@ static unsigned short* find_frame(unsigned short* current) {
             }
         } else if (delta < 0.0f) {
             if (mka_sought_fno < 0.5f * current_frame) {
-                mka_next_fp = mka_hdr;
+                unsigned short* first = mka_hdr;
+
+                mka_next_fp = first;
+                first = (unsigned short*)((unsigned char*)first +
+                                          mka_channel_hdr->data_offset);
                 mka_next_fno = 0.0f;
-                mka_next_fp = (unsigned short*)(
-                    (unsigned char*)mka_next_fp +
-                    mka_channel_hdr->data_offset);
+                mka_next_fp = first;
             } else {
                 mka_prev_fp = current;
                 mka_prev_fno = current_frame;
@@ -2786,7 +2809,7 @@ static int _set_old_frameno(AnimPdata* anim) {
     if (anim->old_high_frame > last_frame) {
         anim->old_high_frame = last_frame;
     }
-    select_flip_map(anim, anim->old_flags);
+    select_flip_map(anim, &anim->old_flags);
 
     if (anim->old_frame < anim->old_low_frame) {
         switch (anim->old_flags & 7) {
@@ -2885,7 +2908,7 @@ static int _set_frameno(AnimPdata* anim) {
     if (anim->high_frame > last_frame) {
         anim->high_frame = last_frame;
     }
-    select_flip_map(anim, anim->flags);
+    select_flip_map(anim, &anim->flags);
 
     if (anim->frame < anim->low_frame) {
         switch (anim->flags & 7) {
@@ -3096,28 +3119,30 @@ int transition_to_anim_script_frame(
                     bone->rotation_e0.w = bone->rotation.w;
                 }
             }
-            child_link = obj->list_44;
-            while (child_link != 0) {
-                MkObj* child = (MkObj*)child_link->hdr;
+            if (mkptr_list_exists(&obj->list_44)) {
+                child_link = obj->list_44;
+                while (child_link != 0) {
+                    MkObj* child = (MkObj*)child_link->hdr;
 
-                if (child->hdr.instance != child_link->instance) {
-                    MkPtr* next = child_link->next;
+                    if (child->hdr.instance != child_link->instance) {
+                        MkPtr* next = child_link->next;
 
-                    child_link->hdr = 0;
-                    destroy_mkptr(child_link);
-                    child_link = next;
-                } else {
-                    for (i = 0; i < child->bone_count; i++) {
-                        MkBone* bone = child->bones[i];
+                        child_link->hdr = 0;
+                        destroy_mkptr(child_link);
+                        child_link = next;
+                    } else {
+                        for (i = 0; i < child->bone_count; i++) {
+                            MkBone* bone = child->bones[i];
 
-                        if (bone != 0) {
-                            bone->rotation_e0.x = bone->rotation.x;
-                            bone->rotation_e0.y = bone->rotation.y;
-                            bone->rotation_e0.z = bone->rotation.z;
-                            bone->rotation_e0.w = bone->rotation.w;
+                            if (bone != 0) {
+                                bone->rotation_e0.x = bone->rotation.x;
+                                bone->rotation_e0.y = bone->rotation.y;
+                                bone->rotation_e0.z = bone->rotation.z;
+                                bone->rotation_e0.w = bone->rotation.w;
+                            }
                         }
+                        child_link = child_link->next;
                     }
-                    child_link = child_link->next;
                 }
             }
             anim->flags |= 0x100;
@@ -3364,6 +3389,7 @@ void set_anim_script(
 }
 #pragma dont_inline reset
 
+/* Soft ceiling: retail retains one redundant valid-instance join branch. */
 void toggle_obj_and_ani_flips(AnimPdata* anim) {
     MkObj* obj = anim->obj;
 
@@ -3392,6 +3418,7 @@ void anim_set_hiframe(AnimPdata* anim, float frame) {
     anim->high_frame = frame;
 }
 
+/* Soft ceiling: exact-size integer conversion; one constant load is scheduled earlier. */
 float anim_script_lastframe(const AnimScript* script) {
     return (float)(script->frame_count - 1);
 }
@@ -3546,8 +3573,8 @@ int obj_get_bid_for_tid(MkObj* obj, int tag) {
     if ((tag & 0x2000) != 0) {
         for (i = 0; i < obj->cloth_bone_count; i++) {
             bone = obj->cloth_bones[i].bone;
-            if (bone->tag == tag) {
-                return bone->bone_index;
+            if (tag == bone->tag) {
+                return obj->cloth_bones[i].bone->bone_index;
             }
         }
     } else {
@@ -3579,7 +3606,7 @@ void mkobj_destroy_bones(MkObj* obj) {
 
 int build_bones_tbl(MkObj* obj, const int* tags) {
     RpHAnimHierarchy* hierarchy;
-    RwFrame* frame;
+    RpClump* clump;
     int bone_count;
     const int* tag;
 
@@ -3587,10 +3614,12 @@ int build_bones_tbl(MkObj* obj, const int* tags) {
         return 1;
     }
 
+    clump = obj->clump;
     hierarchy = 0;
-    frame = (RwFrame*)obj->clump->object.parent;
     RwFrameForAllChildren(
-        frame, get_child_frame_hierarchy, (void*)&hierarchy);
+        (RwFrame*)clump->object.parent,
+        get_child_frame_hierarchy,
+        (void*)&hierarchy);
     if (hierarchy == 0) {
         return 0;
     }
@@ -3616,7 +3645,6 @@ MkBone* alloc_bone(void) {
     MkBone* bone = (MkBone*)get_mem(sizeof(MkBone));
 
     if (bone != 0) {
-        Quat* rotation;
         int count;
 
         bone->tag = 0;
@@ -3659,15 +3687,12 @@ MkBone* alloc_bone(void) {
         bone->rotation_90.y = 0.0f;
         bone->rotation_90.z = 0.0f;
         bone->rotation_90.w = 1.0f;
-        rotation = &bone->rotation;
-        count = 2;
-        do {
-            rotation->x = 0.0f;
-            rotation->y = 0.0f;
-            rotation->z = 0.0f;
-            rotation->w = 1.0f;
-            rotation++;
-        } while (--count != 0);
+        for (count = 0; count < 2; count++) {
+            bone->rotations[count].x = 0.0f;
+            bone->rotations[count].y = 0.0f;
+            bone->rotations[count].z = 0.0f;
+            bone->rotations[count].w = 1.0f;
+        }
         bone->field_5C = 0.0f;
         bone->scale.x = 1.0f;
         bone->scale.y = 1.0f;
