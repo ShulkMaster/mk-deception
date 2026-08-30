@@ -701,10 +701,17 @@ typedef struct ScriptNpcCameraArgs {
 
 typedef struct ScriptPlaceSlaveArgs {
     unsigned int header;
-    int slave;
-    int owner;
-    int placement_mode;
-    float values[13];
+    int npc_id;
+    int rope_model_index;
+    unsigned int model_name_offset;
+    int model_id;
+    Vec anchor;
+    float rope_length;
+    Vec local_angles;
+    Vec object_angles;
+    float acceleration_divisor;
+    float acceleration_scale;
+    float field_8C;
 } ScriptPlaceSlaveArgs;
 
 
@@ -817,12 +824,12 @@ void update_bone_hierarchy(void* object);
 void ground_me(void* object);
 void nis_init(int state, int arg0, int arg1);
 ScriptNpcHandle* find_npc_by_data(int npc_id, void* args, float value);
-void nb_place_slave_in_bgnd(int slave, int owner, const char* name,
-                            int placement_mode, float value0, float value1,
-                            float value2, float value3, float value4,
-                            float value5, float value6, float value7,
-                            float value8, float value9, float value10,
-                            float value11, float value12);
+void nb_place_slave_in_bgnd(
+    int npc_id, int rope_model_index, const char* model_name, int model_id,
+    float anchor_x, float anchor_y, float anchor_z, float rope_length,
+    float local_angle_x, float local_angle_y, float local_angle_z,
+    float object_angle_x, float object_angle_y, float object_angle_z,
+    float acceleration_divisor, float acceleration_scale, float field_8C);
 
 void stop_usec_timer(int timer);
 void start_usec_timer(int timer);
@@ -7740,11 +7747,11 @@ void _nb_place_slave_in_bgnd(void) {
     args = (ScriptPlaceSlaveArgs*)current_args;
     name = get_script_string_arg(3);
     nb_place_slave_in_bgnd(
-        args->slave, args->owner, name, args->placement_mode,
-        args->values[0], args->values[1], args->values[2], args->values[3],
-        args->values[4], args->values[5], args->values[6], args->values[7],
-        args->values[8], args->values[9], args->values[10], args->values[11],
-        args->values[12]);
+        args->npc_id, args->rope_model_index, name, args->model_id,
+        args->anchor.x, args->anchor.y, args->anchor.z, args->rope_length,
+        args->local_angles.x, args->local_angles.y, args->local_angles.z,
+        args->object_angles.x, args->object_angles.y, args->object_angles.z,
+        args->acceleration_divisor, args->acceleration_scale, args->field_8C);
 }
 
 void _nb_npc_slave_plyr_process_collision(void) {

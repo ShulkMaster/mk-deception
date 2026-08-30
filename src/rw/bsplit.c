@@ -60,7 +60,7 @@ RwStream* _rpSkinSplitDataStreamWrite(RwStream* stream, const RpSkin* skin)
                            sizeof(splitData->rleSize)) == 0) {
         return 0;
     }
-    if (splitData->numMeshes != 0) {
+    if (skin->splitData.numMeshes != 0) {
         unsigned int size = skin->numBones +
                         2 * splitData->numMeshes + 2 * splitData->rleSize;
         if (RwStreamWrite(stream, splitData->remapIndices, size) == 0) {

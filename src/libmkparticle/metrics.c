@@ -5,11 +5,10 @@ static PfxMetricsInterface metrics_interface = {0};
 static int counter_offset[6] = {0, 4, 12, 8, 20, 16};
 static char string_base[] = ".ppd\0PFX Metrics File\x1a";
 
-static PfxMetricsCounters last_frame_data;
 static PfxMetricsCounters current_frame_data;
+static PfxMetricsCounters last_frame_data;
+static PfxMetricsCounters default_buffer;
 
-/* Soft ceiling: metrics.o ~99.96% -- pfxmetrics_get_current is instruction-exact;
- * only its compiler-generated default_buffer relocation suffix differs. */
 void pfxmetrics_set_interface(PfxMetricsInterface* interface) {
     memcpy(&metrics_interface, interface, sizeof(PfxMetricsInterface));
 }
@@ -116,8 +115,6 @@ void pfxmetrics_init(PfxMetrics* metrics, const char* filename) {
 
 #pragma scheduling on
 PfxMetricsCounters* pfxmetrics_get_current(PfxMetrics* metrics) {
-    static PfxMetricsCounters default_buffer;
-
     if (metrics == 0) {
         return &default_buffer;
     }

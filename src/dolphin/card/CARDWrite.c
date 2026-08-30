@@ -14,10 +14,14 @@ static void WriteCallback(s32 chan, s32 result)
     CARDDir* entry;
     u16* fat;
 
-    if (result >= 0) {
+    do {
+        if (result < 0) {
+            break;
+        }
         fileInfo = card->fileInfo;
         if (fileInfo->length < 0) {
             result = CARD_RESULT_CANCELED;
+            break;
         } else {
             fileInfo->length -= card->sectorSize;
             if (fileInfo->length <= 0) {
@@ -32,6 +36,7 @@ static void WriteCallback(s32 chan, s32 result)
                 fileInfo->iBlock = fat[fileInfo->iBlock];
                 if (!CARDIsValidBlockNo(card, fileInfo->iBlock)) {
                     result = CARD_RESULT_BROKEN;
+                    break;
                 } else {
                     result = __CARDEraseSector(
                         chan, card->sectorSize * fileInfo->iBlock,
@@ -42,7 +47,7 @@ static void WriteCallback(s32 chan, s32 result)
         if (result >= 0) {
             return;
         }
-    }
+    } while (0);
 
     callback = card->apiCallback;
     card->apiCallback = NULL;

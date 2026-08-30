@@ -1,33 +1,33 @@
 #include "dolphin/os.h"
 
-static void EnqueueMutex(OSMutexQueue* queue, OSMutex* mutex)
-{
-    OSMutex* previous = queue->tail;
-    if (previous == 0) {
-        queue->head = mutex;
-    } else {
-        previous->link.next = mutex;
-    }
-    mutex->link.prev = previous;
-    mutex->link.next = 0;
-    queue->tail = mutex;
-}
+#define ENQUEUE_MUTEX(mutex, queue)                 \
+    do {                                            \
+        OSMutex* previous = (queue)->tail;          \
+        if (previous == 0) {                        \
+            (queue)->head = (mutex);                \
+        } else {                                    \
+            previous->link.next = (mutex);          \
+        }                                           \
+        (mutex)->link.prev = previous;              \
+        (mutex)->link.next = 0;                     \
+        (queue)->tail = (mutex);                    \
+    } while (0)
 
-static void DequeueMutex(OSMutexQueue* queue, OSMutex* mutex)
-{
-    OSMutex* next = mutex->link.next;
-    OSMutex* previous = mutex->link.prev;
-    if (next == 0) {
-        queue->tail = previous;
-    } else {
-        next->link.prev = previous;
-    }
-    if (previous == 0) {
-        queue->head = next;
-    } else {
-        previous->link.next = next;
-    }
-}
+#define DEQUEUE_MUTEX(mutex, queue)                 \
+    do {                                            \
+        OSMutex* next = (mutex)->link.next;         \
+        OSMutex* previous = (mutex)->link.prev;     \
+        if (next == 0) {                            \
+            (queue)->tail = previous;               \
+        } else {                                    \
+            next->link.prev = previous;             \
+        }                                           \
+        if (previous == 0) {                        \
+            (queue)->head = next;                   \
+        } else {                                    \
+            previous->link.next = next;             \
+        }                                           \
+    } while (0)
 
 void OSInitMutex(OSMutex* mutex)
 {
@@ -46,7 +46,7 @@ void OSLockMutex(OSMutex* mutex)
         if (owner == 0) {
             mutex->thread = current;
             ++mutex->count;
-            EnqueueMutex(&current->queueMutex, mutex);
+            ENQUEUE_MUTEX(mutex, &current->queueMutex);
             break;
         }
         if (owner == current) {
@@ -54,7 +54,7 @@ void OSLockMutex(OSMutex* mutex)
             break;
         }
         current->mutex = mutex;
-        __OSPromoteThread(owner, current->priority);
+        __OSPromoteThread(mutex->thread, current->priority);
         OSSleepThread(&mutex->queue);
         current->mutex = 0;
     }
@@ -67,7 +67,7 @@ void OSUnlockMutex(OSMutex* mutex)
     OSThread* current = OSGetCurrentThread();
 
     if (mutex->thread == current && --mutex->count == 0) {
-        DequeueMutex(&current->queueMutex, mutex);
+        DEQUEUE_MUTEX(mutex, &current->queueMutex);
         mutex->thread = 0;
         if (current->priority < current->base) {
             current->priority = __OSGetEffectivePriority(current);
@@ -103,7 +103,7 @@ int OSTryLockMutex(OSMutex* mutex)
     if (mutex->thread == 0) {
         mutex->thread = current;
         ++mutex->count;
-        EnqueueMutex(&current->queueMutex, mutex);
+        ENQUEUE_MUTEX(mutex, &current->queueMutex);
         locked = 1;
     } else if (mutex->thread == current) {
         ++mutex->count;
@@ -128,7 +128,7 @@ void OSWaitCond(OSCond* condition, OSMutex* mutex)
     if (mutex->thread == current) {
         signed long count = mutex->count;
         mutex->count = 0;
-        DequeueMutex(&current->queueMutex, mutex);
+        DEQUEUE_MUTEX(mutex, &current->queueMutex);
         mutex->thread = 0;
         if (current->priority < current->base) {
             current->priority = __OSGetEffectivePriority(current);

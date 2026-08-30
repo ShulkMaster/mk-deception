@@ -44,6 +44,8 @@ static u8 CardData[352] __attribute__((aligned(32))) = {
 };
 
 static u32 next = 1;
+/* Retail SDK object has a four-byte terminal .sdata layout slot here. */
+u8 gap_07_8050FEF4_sdata[4] = {0, 0, 0, 0};
 
 static inline int CARDRand(void)
 {
@@ -205,6 +207,8 @@ static void DoneCallback(DSPTaskInfo* taskInfo);
 
 s32 __CARDUnlock(s32 chan, u8 flashID[12])
 {
+    /* The SDK reserves this stack slot before the active scalar locals. */
+    u64 stackPadding;
     u32 initValue;
     u32 data;
     s32 dummy;

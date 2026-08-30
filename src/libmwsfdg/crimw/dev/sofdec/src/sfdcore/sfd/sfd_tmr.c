@@ -10,9 +10,7 @@ void SFTMR_AddTsum(SfdTimerSummary* summary, long long elapsed) {
     }
     summary->minimum = minimum;
     maximum = summary->maximum;
-    if (maximum >= elapsed) {
-        elapsed = maximum;
-    }
+    elapsed = maximum < elapsed ? elapsed : maximum;
     summary->maximum = elapsed;
     summary->count++;
 }

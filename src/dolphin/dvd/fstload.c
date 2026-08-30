@@ -38,15 +38,15 @@ static void cb(long result, DVDCommandBlock* block)
 
 void __fstLoad(void)
 {
+    DVDDiskID id_storage[2];
     OSBootInfo* boot_info;
     DVDDiskID* id;
-    unsigned char id_buffer[63];
     int state;
     static DVDCommandBlock block;
 
     OSGetArenaHi();
     boot_info = (OSBootInfo*)OSPhysicalToCached(0);
-    temporary_id = (DVDDiskID*)OSRoundUp32B(id_buffer);
+    temporary_id = (DVDDiskID*)OSRoundUp32B(id_storage);
     bb2 = (DVDBB2*)OSRoundUp32B(bb2Buffer);
 
     DVDReset();
