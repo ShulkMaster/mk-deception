@@ -46,6 +46,8 @@ static void EraseCallback(s32 chan, s32 result)
     CARDControl* card = &__CARDBlock[chan];
     CARDCallback callback;
     CARDDir* dir;
+    /* This SDK build reserves eight unused bytes in the callback's stack frame. */
+    u64 stackPadding;
     u32 address;
 
     if (result >= 0) {
@@ -72,6 +74,8 @@ s32 __CARDUpdateDir(s32 chan, CARDCallback callback)
 {
     CARDControl* card;
     CARDDirCheck* check;
+    /* This SDK build reserves eight unused bytes in the update stack frame. */
+    u64 stackPadding;
     u32 address;
     CARDDir* dir;
 

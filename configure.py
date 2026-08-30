@@ -1257,10 +1257,13 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_set.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sud/sud_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sud/sud_lib.c",
-                extra_cflags=["-sdata", "0", "-use_lmw_stmw", "on"],
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-use_lmw_stmw", "on",
+                ],
             ),
             Object(
                 Matching,
@@ -2245,7 +2248,7 @@ config.libs = [
             Object(NonMatching, "card.a/CARDUnlock.o", source="dolphin/card/CARDUnlock.c"),
             Object(NonMatching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
             Object(Matching, "card.a/CARDRdwr.o", source="dolphin/card/CARDRdwr.c"),
-            Object(NonMatching, "card.a/CARDDir.o", source="dolphin/card/CARDDir.c"),
+            Object(Matching, "card.a/CARDDir.o", source="dolphin/card/CARDDir.c"),
             Object(Matching, "card.a/CARDCheck.o", source="dolphin/card/CARDCheck.c"),
             Object(Matching, "card.a/CARDFormat.o", source="dolphin/card/CARDFormat.c"),
             Object(Matching, "card.a/CARDMount.o", source="dolphin/card/CARDMount.c"),

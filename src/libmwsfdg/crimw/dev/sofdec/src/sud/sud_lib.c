@@ -2,6 +2,10 @@
 
 const char sud_ver_str[] =
     "\nCRI SUD/GC Ver.0.05 Build:Sep  3 2004 11:38:58\n";
+static const char sud_div_type[] = "D";
+static const char sud_ccs_type[] = "C";
+static const char sud_tag_prefix[] = "<";
+static const char sud_tag[] = "<SUDPS_>";
 static int sud_init_cnt;
 static const char* sud_dummy;
 
@@ -24,8 +28,8 @@ void SUD_SearchSudDat(
     }
 
     for (index = 0; index < data_size; cursor++, index++) {
-        if (memcmp(cursor, "<", 1) == 0 &&
-            memcmp(cursor, "<SUDPS_>", 8) == 0) {
+        if (memcmp(cursor, sud_tag_prefix, 1) == 0 &&
+            memcmp(cursor, sud_tag, 8) == 0) {
             *output_header = cursor;
             *output_size = *output_header == 0 ? 0 : 0x23;
         }
@@ -36,14 +40,14 @@ int SUD_AnalyTypeCcs(const char* data, int size) {
     if (data == 0 || size < 0) {
         return 0;
     }
-    return strncmp(&data[0x13], "C", 1) == 0;
+    return strncmp(&data[0x13], sud_ccs_type, 1) == 0;
 }
 
 int SUD_AnalyTypeDivField(const char* data, int size) {
     if (data == 0 || size < 0) {
         return 0;
     }
-    return strncmp(&data[0x12], "D", 1) == 0;
+    return strncmp(&data[0x12], sud_div_type, 1) == 0;
 }
 
 void SUD_Finish(void) {
@@ -54,7 +58,7 @@ void SUD_Finish(void) {
 
 void SUD_Init(void) {
     if (sud_init_cnt < 1) {
-        sud_init_cnt++;
         sud_dummy = sud_ver_str;
+        sud_init_cnt++;
     }
 }
