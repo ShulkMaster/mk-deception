@@ -14,6 +14,21 @@ extern int screen_height;
 extern int screen_width;
 
 static void* _rwDolphinHeapRealloc(void* memory, unsigned long size,
+                                    unsigned int hint);
+static void* _rwDolphinHeapCalloc(unsigned long count, unsigned long size,
+                                  unsigned int hint);
+static void* _rwDolphinHeapAlloc(unsigned long size, unsigned int hint);
+static void _rwDolphinHeapFree(void* memory);
+
+RwMemoryFunctions* setup_memory_functions(void) {
+    mem_funcs.alloc = _rwDolphinHeapAlloc;
+    mem_funcs.calloc = _rwDolphinHeapCalloc;
+    mem_funcs.realloc = _rwDolphinHeapRealloc;
+    mem_funcs.free = _rwDolphinHeapFree;
+    return &mem_funcs;
+}
+
+static void* _rwDolphinHeapRealloc(void* memory, unsigned long size,
                                     unsigned int hint) {
     return _mwMemRealloc(memory, permanent_heap, size, 3, 0, 0, 0);
 }
@@ -29,14 +44,6 @@ static void* _rwDolphinHeapAlloc(unsigned long size, unsigned int hint) {
 
 static void _rwDolphinHeapFree(void* memory) {
     _mwMemFree(memory, 0, 0);
-}
-
-RwMemoryFunctions* setup_memory_functions(void) {
-    mem_funcs.alloc = _rwDolphinHeapAlloc;
-    mem_funcs.calloc = _rwDolphinHeapCalloc;
-    mem_funcs.realloc = _rwDolphinHeapRealloc;
-    mem_funcs.free = _rwDolphinHeapFree;
-    return &mem_funcs;
 }
 
 int select_display_device(void) {

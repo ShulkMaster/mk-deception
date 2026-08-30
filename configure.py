@@ -899,7 +899,7 @@ config.libs = [
             Object(NonMatching, "instance.o", source="runtime/instance.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "light.o", source="runtime/light.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "gcInit.o", source="platform/gcInit.c"),
+            Object(Matching, "gcInit.o", source="platform/gcInit.c"),
             Object(NonMatching, "gcdisplay.o", source="platform/gcdisplay.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "main.o", source="platform/main.c",
@@ -1962,11 +1962,11 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/metrics.o",
                 source="libmkparticle/metrics.c",
                 # Retail pfxmetrics_estimate_size requires peephole optimization off.
-                extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
+                extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole", "-pooldata off"],
             ),
             Object(
                 Matching,
