@@ -401,7 +401,6 @@ static void same_xz(void);
 static void r_top_of_head_slam(void);
 MslSoundHandle snd_req(int sound_id);
 int emitter_id_from_handle(unsigned int handle);
-MkPfx* pfx_from_emitter(unsigned int handle);
 void fx_set_param_v3(
     unsigned int effect, int parameter, float x, float y, float z);
 void fx_resume_emit(unsigned int effect);

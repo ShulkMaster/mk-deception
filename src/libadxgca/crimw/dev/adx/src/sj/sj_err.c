@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit sj_err.c. */
+#include "cri/svm.h"
 
-void *SJERR_CallErr(void)
+void SJERR_CallErr(const char* message)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_CallErr1(message);
 }

@@ -24,6 +24,7 @@
 #include "rw/rwframe.h"
 
 typedef RwFrame* (*RwFrameCallBack)(RwFrame* frame, void* data);
+typedef struct MkPfx MkPfx;
 typedef RwObject* (*RwObjectCallBack)(RwObject* object, void* data);
 typedef RpMaterial* (*RpMaterialCallBack)(RpMaterial* material, void* data);
 typedef RpAtomic* (*RpAtomicCallBack)(RpAtomic* atomic, void* data);
@@ -292,7 +293,8 @@ void mkbone_remove(MkBone* bone);
 void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent);
 void mkbone_insert_child_of_parent(MkBone* bone, MkBone* parent);
 void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
-void* find_pfx_by_name_by_bankowner(const char* name, unsigned int owner);
+MkPfx* find_pfx_by_name_by_bankowner(
+    const char* name, unsigned int owner);
 void reset_effect_ppfx(void* effect);
 void pfx_spawn_at_bid(const char* name, void* obj, int bone);
 void bone_make_parents_my_children(MkBone* bone);

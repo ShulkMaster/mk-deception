@@ -1361,7 +1361,6 @@ void plyr_obj_load_bld_data(
 void obj_set_bone_calc_world_mat_flag(MkObj* object, int bone);
 unsigned int fx_next_emitter(unsigned int emitter);
 void fx_resume_emit(unsigned int emitter);
-MkPfx* pfx_from_emitter(unsigned int emitter);
 int emitter_id_from_handle(unsigned int emitter);
 float gxMathArcTanYX(float y, float x);
 int strcmp(const char* left, const char* right);

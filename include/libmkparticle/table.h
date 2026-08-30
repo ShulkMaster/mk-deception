@@ -1,14 +1,21 @@
 #ifndef LIBMKPARTICLE_TABLE_H
 #define LIBMKPARTICLE_TABLE_H
 
-/**
- * Partial particle table registry layout.
- *
- * Retail proves that the indexed table-pointer region begins at offset 0x20C.
- * The complete object size and original type/member names remain unknown.
- */
+typedef struct PfxFieldDescription PfxFieldDescription;
+
+typedef struct PfxSpawnTable {
+    int type;
+    int count;
+    void* values;
+} PfxSpawnTable;
+
+/** Partial particle table/field registry layout recovered from retail users. */
 typedef struct PfxTableRegistry {
-    char pad00[0x20C]; /**< Retail offsets 0x000-0x20B; fields unknown. */
+    char pad00[0x1D8]; /**< Retail offsets 0x000-0x1D7; fields unknown. */
+    int field_count;                         /**< Retail offset 0x1D8. */
+    PfxFieldDescription* field_descriptions; /**< Retail offset 0x1DC. */
+    char pad1E0[0x1C]; /**< Retail offsets 0x1E0-0x1FB; fields unknown. */
+    unsigned char field_0x1FC[0x10];
     void* tables[1];   /**< Retail offset 0x20C; variable-length pointer region. */
 } PfxTableRegistry;
 

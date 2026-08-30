@@ -12,7 +12,14 @@ typedef int BOOL;
 #define NULL 0
 #define ASSERTLINE(line, condition) ((void)0)
 #define OFFSET(value, alignment) ((u32)(value) & ((alignment) - 1))
+#ifdef __MWERKS__
 #define __EXIRegs ((volatile u32*)0xCC006800)
+#else
+static volatile u32 HostEXIRegs[15];
+static volatile s32 HostProbeTimes[2];
+#define __EXIRegs HostEXIRegs
+#define __gUnknown800030C0 HostProbeTimes
+#endif
 #define __OS_INTERRUPT_PI_DEBUG 25
 #define OS_INTERRUPTMASK(interrupt) (0x80000000UL >> (interrupt))
 #define OS_INTERRUPTMASK_EXI_0_EXI OS_INTERRUPTMASK(9)
@@ -21,7 +28,9 @@ typedef int BOOL;
 #define OS_INTERRUPTMASK_PI_DEBUG OS_INTERRUPTMASK(__OS_INTERRUPT_PI_DEBUG)
 
 extern int __OSInIPL;
+#ifdef __MWERKS__
 volatile s32 __gUnknown800030C0[2] : 0x800030C0;
+#endif
 
 #define REG_MAX 5
 #define REG(chan, idx) (__EXIRegs[((chan) * REG_MAX) + (idx)])

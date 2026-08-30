@@ -486,8 +486,6 @@ int fx_by_owner(const char* name, int owner);
 int fx_next_emitter(int effect);
 void fx_restart_emit(unsigned int effect);
 void fx_resume_emit(unsigned int effect);
-MkPfx* pfx_from_handle(unsigned int handle);
-MkPfx* pfx_from_emitter(unsigned int handle);
 MkHdr* pfx_get_emitter_obj(MkPfx* effect, int emitter);
 int emitter_id_from_handle(unsigned int handle);
 void resume_effect(const char* name);
@@ -576,7 +574,7 @@ extern BgndChunkLaunchMonitor* g_chunk_launch_monitor_pdata;
 extern PebbleData* g_bgnd_cracks;
 extern unsigned int g_bgnd_last_crack_overwritten;
 extern int force_midpoint_calculation_update;
-extern void* obj_start_morph(MkObj* object, int sobj_id,
+extern void* obj_start_morph(MkObj* object, unsigned int sobj_id,
                              MorphScript* script, unsigned int flags);
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,

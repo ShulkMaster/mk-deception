@@ -2,6 +2,7 @@
 #include "game/game_info.h"
 #include "game/moveset.h"
 #include "game/specular.h"
+#include "libmkparticle/compile.h"
 #include "runtime/cam.h"
 #include "runtime/image.h"
 #include "runtime/light.h"
@@ -215,7 +216,6 @@ extern void pfxvm_spawn_line_1f(
     PfxEmitter* emitter, int field, float minimum, float maximum);
 extern void pfxvm_kill_on_greater(
     void* behavior, int field, float value);
-extern void pfxvm_compile(PfxVm* vm);
 extern double fabs(double value);
 static RpMaterial* material_set_specular(RpMaterial* material,
                                          void* data);

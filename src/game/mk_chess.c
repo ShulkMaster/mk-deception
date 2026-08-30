@@ -241,8 +241,6 @@ void fx_set_param_v3(int parameter, float x, float y, float z);
 void fx_resume_emit(unsigned int effect);
 void fx_reset_emit(unsigned int effect);
 int emitter_id_from_handle(unsigned int handle);
-MkPfx* pfx_from_handle(unsigned int handle);
-MkPfx* pfx_from_emitter(unsigned int handle);
 void mk_chess_cursor_go_to_new_track(
     ChessSquareMoveTarget* cursor, int track, unsigned int direction);
 extern void* mk_chess_piece_ground_colls;

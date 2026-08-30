@@ -1,67 +1,77 @@
-/* TODO: Missing implementation for retail unit mwsfdsvm.c. */
+#include "cri/svm.h"
+#include "runtime/cstdio.h"
 
-void *MWSFSVM_GotoIdleBorder(void)
+#undef va_start
+#define va_start(arguments, format) ((void)(format), __builtin_va_info(&(arguments)))
+
+static char errstr[256];
+static int mwg_main_fid;
+static int mwg_idle_fid;
+static int mwg_vsync_fid;
+static int mwg_vbin_fid;
+
+void MWSFSVM_GotoIdleBorder(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_GotoSvrBorder(6);
 }
 
-void *MWSFSVM_Error(void)
+void MWSFSVM_Error(const char* format, ...)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    __va_list arguments;
+
+    memset(errstr, 0, sizeof(errstr));
+    va_start(arguments, format);
+    vsprintf(errstr, format, arguments);
+    SVM_CallErr1(errstr);
+    va_end(arguments);
 }
 
-void *MWSFSVM_TestAndSet(void)
+unsigned int MWSFSVM_TestAndSet(int* value)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return SVM_TestAndSet(value);
 }
 
-void *MWSFSVM_DeleteMainFunc(void)
+void MWSFSVM_DeleteMainFunc(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_DelCbSvr(5, mwg_main_fid);
 }
 
-void *MWSFSVM_EntryMainFunc(void)
+void MWSFSVM_EntryMainFunc(SVMServerFunction function, void* object)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    mwg_main_fid = SVM_SetCbSvr(5, function, object);
 }
 
-void *MWSFSVM_DeleteIdleFunc(void)
+void MWSFSVM_DeleteIdleFunc(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_DelCbSvr(6, mwg_idle_fid);
 }
 
-void *MWSFSVM_EntryIdleFunc(void)
+void MWSFSVM_EntryIdleFunc(SVMServerFunction function, void* object)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    mwg_idle_fid = SVM_SetCbSvr(6, function, object);
 }
 
-void *MWSFSVM_DeleteVfunc(void)
+void MWSFSVM_DeleteVfunc(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_DelCbSvr(2, mwg_vsync_fid);
 }
 
-void *MWSFSVM_EntryIdVfunc(void)
+void MWSFSVM_EntryIdVfunc(int id, SVMServerFunction function, void* object)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_SetCbSvrId(2, id, function, object);
+    mwg_vsync_fid = id;
 }
 
-void *MWSFSVM_Finish(void)
+void MWSFSVM_Finish(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_Finish();
 }
 
-void *MWSFSVM_Init(void)
+void MWSFSVM_Init(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_Init();
+    mwg_vbin_fid = 0;
+    mwg_vsync_fid = 0;
+    mwg_idle_fid = 0;
+    mwg_main_fid = 0;
 }

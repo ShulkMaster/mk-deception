@@ -10,6 +10,9 @@ volatile OSContext* __OSFPUContext : 0x800000D8;
 #define OS_CONTEXT_STATE_FPSAVED 1
 #define OS_CONTEXT_STATE_EXCEPTION 2
 
+extern char _SDA2_BASE_[];
+extern char _SDA_BASE_[];
+
 static void __OSLoadFPUContext(unsigned long exception, OSContext* context)
 {
     /* FPR/PS register restoration is a privileged paired-single leaf. */
@@ -80,22 +83,49 @@ void OSClearContext(OSContext* context)
 void OSInitContext(OSContext* context, unsigned long program_counter,
                    unsigned long stack_pointer)
 {
-    unsigned long index;
-
     context->srr0 = program_counter;
     context->gpr[1] = stack_pointer;
     context->srr1 = 0x00009032;
     context->cr = 0;
     context->xer = 0;
-    for (index = 3; index <= 12; index++) {
-        context->gpr[index] = 0;
-    }
-    for (index = 14; index < 32; index++) {
-        context->gpr[index] = 0;
-    }
-    for (index = 0; index < 8; index++) {
-        context->gqr[index] = 0;
-    }
+    context->gpr[2] = (unsigned long)_SDA2_BASE_;
+    context->gpr[13] = (unsigned long)_SDA_BASE_;
+    context->gpr[3] = 0;
+    context->gpr[4] = 0;
+    context->gpr[5] = 0;
+    context->gpr[6] = 0;
+    context->gpr[7] = 0;
+    context->gpr[8] = 0;
+    context->gpr[9] = 0;
+    context->gpr[10] = 0;
+    context->gpr[11] = 0;
+    context->gpr[12] = 0;
+    context->gpr[14] = 0;
+    context->gpr[15] = 0;
+    context->gpr[16] = 0;
+    context->gpr[17] = 0;
+    context->gpr[18] = 0;
+    context->gpr[19] = 0;
+    context->gpr[20] = 0;
+    context->gpr[21] = 0;
+    context->gpr[22] = 0;
+    context->gpr[23] = 0;
+    context->gpr[24] = 0;
+    context->gpr[25] = 0;
+    context->gpr[26] = 0;
+    context->gpr[27] = 0;
+    context->gpr[28] = 0;
+    context->gpr[29] = 0;
+    context->gpr[30] = 0;
+    context->gpr[31] = 0;
+    context->gqr[0] = 0;
+    context->gqr[1] = 0;
+    context->gqr[2] = 0;
+    context->gqr[3] = 0;
+    context->gqr[4] = 0;
+    context->gqr[5] = 0;
+    context->gqr[6] = 0;
+    context->gqr[7] = 0;
     OSClearContext(context);
 }
 

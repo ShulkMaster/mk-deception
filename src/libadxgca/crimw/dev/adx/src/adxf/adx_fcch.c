@@ -1,7 +1,6 @@
-/* TODO: Missing implementation for retail unit adx_fcch.c. */
+#include "dolphin/cache.h"
 
-void *ADXF_Ocbi(void)
+void ADXF_Ocbi(void* address, unsigned long size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    DCInvalidateRange(address, size);
 }

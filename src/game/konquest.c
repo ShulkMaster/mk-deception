@@ -705,7 +705,6 @@ void generate_door_paths(void);
 void profile_region_change(void);
 int mslSoundIsValid(MslSoundHandle handle);
 void set_snd_vol(MslSoundHandle handle, int sound, float volume);
-MkPfx* find_pfx_by_handle(unsigned int handle);
 void* get_script_function_by_name(ScriptSlot* owner, const char* name);
 void del_string_obj_by_id(int id);
 void sobj_set_priority(void* object, int priority);

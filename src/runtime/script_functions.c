@@ -1051,8 +1051,9 @@ void obj_set_sobj_pos(void* object, int sobj, void* value);
 void get_bone_relative_pos(void* object, int bone, void* out);
 void get_bone_offset_world_pos(void* object, int bone, void* offset, void* out);
 void get_bone_world_pos(void* object, int bone, void* out);
-void bone_matcher_child_set_offset(void* matcher, void* offset);
-void bone_matcher_parent_set_offset(void* matcher, void* offset);
+typedef struct BoneMatcherState BoneMatcherState;
+void bone_matcher_child_set_offset(BoneMatcherState* matcher, Vec* offset);
+void bone_matcher_parent_set_offset(BoneMatcherState* matcher, Vec* offset);
 void* start_bone_matcher(void* a, void* b, int c, int d, float e);
 void obj_get_ang_vel(void* out, void* object);
 void obj_set_ang_vel(MkObj* object, void* value);
@@ -1218,7 +1219,7 @@ void fkbm_obj_face_obj(int a, int b, int c, int d, int e);
 void start_obj_scalar_proc(int a, int b, int c, int d);
 void* insert_particle_mkobj(int a);
 float mkobj_pos_pos_dot_normal_xz(int a, int b, int c);
-int obj_get_bid_for_tid(int a, int b);
+int obj_get_bid_for_tid(MkObj* obj, int tag);
 MkSobj* obj_create_sobjs_by_id(MkObj* object, int id);
 void* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
 void* hide_sobj_by_sobj_id(void* obj, unsigned int id);
@@ -4976,7 +4977,9 @@ void _mkobj_pos_pos_dot_normal_xz(void) {
 
 void _obj_get_bid_for_tid(void) {
     ((ScriptRawResult*)active_cmdscript)->value.i =
-        obj_get_bid_for_tid(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i);
+        obj_get_bid_for_tid(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer,
+            ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
 void _obj_create_sobjs_by_id(void) {

@@ -151,7 +151,6 @@ unsigned int pfxhandle_spawn_at_bid_next(
     unsigned int effect, MkObj* object, int bone);
 void RwFrameUpdateObjects(RwFrame* frame);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, unsigned int alpha);
-MkPfx* find_pfx_by_handle(unsigned int handle);
 int check_for_throw(PlyrPdata* player);
 int collide_cylinder_vs_plyr(
     PlyrInfo* player, const Vec* center, const Vec* angles,

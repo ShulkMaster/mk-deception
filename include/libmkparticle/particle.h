@@ -6,6 +6,15 @@
 typedef struct RwTexture RwTexture;
 typedef struct RwCamera RwCamera;
 
+typedef struct PfxParametricParticle {
+    PfxVec3 position;
+    PfxVec3 velocity;
+    float birth_time;
+    float size;
+    float texture;
+    PfxColor color;
+} PfxParametricParticle; /* 0x28 */
+
 typedef struct PfxLiveSlot {
     int live;
     char pad04[0x44];
@@ -71,11 +80,6 @@ typedef struct PfxVerifyView {
     unsigned int flags; /* +0x1D4 */
 } PfxVerifyView;
 
-/*
- * libmkparticle particle.o - thin frame helpers for boot Render path.
- * VM / emitter body left as NonMatching stubs (see particle.c).
- */
-
 typedef struct PfxSystemGlobals {
     char pad00[0x80];
     union {
@@ -88,7 +92,9 @@ typedef struct PfxSystemGlobals {
             float camera_facing_tail[8];
         };
     };
-    char padC0[0x14];
+    float field_0x500; /* +0xC0 */
+    PfxVec3 field_0x501; /* +0xC4 */
+    float field_0x502; /* +0xD0 */
     int widescreen_x; /* +0xD4 */
     int widescreen_y; /* +0xD8 */
     RwCamera* camera; /* +0xDC */
@@ -104,18 +110,21 @@ void pfxsystem_widescreen_offset(int x, int y);
 void get_pfxsystem_widescreen_offset(int* out_x, int* out_y);
 void pfxsystem_init(void);
 void pfxsystem_set_global(int id, float value);
-int pfx_frame_begin(void* pfx);
-void pfx_frame_end(void* pfx);
-void pfx_frame_end_check(void* pfx);
+int pfx_frame_begin(PfxVm* pfx);
+void pfx_frame_end(PfxVm* pfx);
+void pfx_frame_end_check(PfxVm* pfx);
 void pfx_count_begin(void);
 void pfx_count_end(void);
-void pfx_count_add(void* pfx);
+void pfx_count_add(PfxVm* pfx);
+void pfx_halt(const char* message);
+void pfx_parametric_spawn(PfxVm* pfx, float frame_time);
+void pfx_parametric_update(PfxVm* pfx, float frame_time);
+void pfx_run(PfxVm* pfx, float frame_time);
 void pfx_set_texture(PfxRenderView* pfx, RwTexture* texture);
 void update_live_particles(PfxRuntimeView* pfx);
 void pfx_set_renderstate(PfxRenderView* pfx);
 void pfx_reset_renderstate(void);
 void pfx_render_set_blendmode(PfxRenderView* pfx, int mode);
-PfxEmitterView* pfx_get_emitter(PfxEmitterTableView* pfx, int index);
 int pfx_verify(PfxVerifyView* pfx);
 int pfx_field_get_type(unsigned int field);
 

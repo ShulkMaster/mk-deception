@@ -1,19 +1,19 @@
-/* TODO: Missing implementation for retail unit adx_crs.c. */
+#include "cri/svm.h"
 
-void *ADXCRS_Unlock(void)
+int adxcrs_lvl = 0;
+int adxcrs_msk = 0;
+
+void ADXCRS_Unlock(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_Unlock();
 }
 
-void *ADXCRS_Lock(void)
+void ADXCRS_Lock(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SVM_Lock();
 }
 
-void *ADXCRS_Init(void)
+void ADXCRS_Init(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    adxcrs_lvl = 0;
 }

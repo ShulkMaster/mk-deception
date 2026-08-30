@@ -53,11 +53,11 @@ void __OSPSInit(void)
 
 unsigned long OSGetConsoleType(void)
 {
-    if (BootInfo == 0 || BootInfo->console_type == 0) return 2;
+    if (BootInfo == 0 || BootInfo->console_type == 0) return 0x10000002;
     return BootInfo->console_type;
 }
 
-static void ClearArena(void)
+static inline void ClearArena(void)
 {
     unsigned long lo = (unsigned long)OSGetArenaLo();
     unsigned long hi = (unsigned long)OSGetArenaHi();
@@ -80,10 +80,17 @@ static void ClearArena(void)
 
 static void InquiryCallback(long result, DVDCommandBlock* block)
 {
-    __OSDeviceCode = block->state == 0 ? 0x8000 | DriveInfo.device_code : 1;
+    switch (block->state) {
+    case 0:
+        __OSDeviceCode = 0x8000 | DriveInfo.device_code;
+        break;
+    default:
+        __OSDeviceCode = 1;
+        break;
+    }
 }
 
-static void DisableWriteGatherPipe(void)
+static inline void DisableWriteGatherPipe(void)
 {
     PPCMthid2(PPCMfhid2() & ~0x40000000);
 }

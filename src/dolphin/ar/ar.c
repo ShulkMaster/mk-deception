@@ -13,7 +13,13 @@ typedef int BOOL;
 #define FALSE 0
 #define NULL 0
 #define ASSERTMSGLINE(line, condition, message) ((void)0)
-#define __DSPRegs ((volatile u16*)0xCC005000)
+#ifdef __MWERKS__
+#define AR_AT_ADDRESS(address) : (address)
+#else
+#define AR_AT_ADDRESS(address)
+#endif
+
+volatile u16 __DSPRegs[] AR_AT_ADDRESS(0xCC005000);
 #define DSP_ARAM_DMA_MM_HI 16
 #define DSP_ARAM_DMA_MM_LO 17
 #define DSP_ARAM_DMA_ARAM_HI 18

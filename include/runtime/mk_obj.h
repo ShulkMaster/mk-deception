@@ -67,13 +67,16 @@ typedef struct MkBone {
     Vec scale; /* +0xB0 */
     char padBC[4];
     RwMatrixPosition delta; /* +0xC0 */
-    struct {
-        Quat rotation; /* +0xD0 - x, y, z, w */
-        Quat rotation_e0; /* +0xE0 */
-        RwMatrixPosition velocity; /* +0xF0 */
-        Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
-        char pad10C[4];
+    union {
+        struct {
+            Quat rotation; /* +0xD0 - x, y, z, w */
+            Quat rotation_e0; /* +0xE0 */
+        };
+        Quat rotations[2];
     };
+    RwMatrixPosition velocity; /* +0xF0 */
+    Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
+    char pad10C[4];
 } MkBone;
 
 typedef struct ClothBoneFlags30 {
