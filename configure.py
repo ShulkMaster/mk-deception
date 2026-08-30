@@ -2126,7 +2126,7 @@ config.libs = [
             Object(Matching, "dvd.a/dvderror.o", source="dolphin/dvd/dvderror.c"),
             Object(Matching, "dvd.a/dvdqueue.o", source="dolphin/dvd/dvdqueue.c"),
             Object(
-                NonMatching,
+                Matching,
                 "dvd.a/fstload.o",
                 source="dolphin/dvd/fstload.c",
                 extra_cflags=["-char signed"],
