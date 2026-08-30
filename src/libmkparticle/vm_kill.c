@@ -3,7 +3,6 @@
 #include "runtime/cstring.h"
 
 int rnd_int(unsigned int maximum);
-void* pfx_get_field(PfxVm* pfx, int particle, unsigned int field);
 int pfx_get_struct_size(PfxVm* pfx, unsigned int field);
 
 void move_particle_to_behavior(PfxBehavior* source, int particle,

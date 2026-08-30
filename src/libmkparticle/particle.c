@@ -134,7 +134,7 @@ int pfx_frame_begin(PfxVm* pfx) {
 
     emitter = 0;
     if (pfx->emitter_count != 0) {
-        emitter = (PfxVmEmitter*)pfx_get_emitter((PfxEmitterTableView*)pfx, 0);
+        emitter = pfx_get_emitter(pfx, 0);
     }
     if (emitter != 0) {
         if (emitter->pfx_transform != 0) {
@@ -251,7 +251,7 @@ void update_live_particles(PfxRuntimeView* pfx) {
     pfx->slots[index].live = live;
 }
 
-void* pfx_get_field(PfxVm* pfx, int index, int field) {
+void* pfx_get_field(PfxVm* pfx, int index, unsigned int field) {
     PfxRuntimeBuffer* buffer;
     PfxFieldDescription* description;
     PfxParametricParticle* particle;
@@ -274,7 +274,7 @@ void* pfx_get_field(PfxVm* pfx, int index, int field) {
     case 0x201:
         return &pfx->field_0x1FC;
     case 0x202:
-        return pfx_get_emitter((PfxEmitterTableView*)pfx, 0);
+        return pfx_get_emitter(pfx, 0);
     case 0x203:
         return &pfx->world_position;
     case 0x204:
@@ -431,8 +431,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
 
     for (emitter_index = 0; emitter_index < pfx->emitter_count;
          emitter_index++) {
-        emitter = (PfxVmEmitter*)pfx_get_emitter(
-            (PfxEmitterTableView*)pfx, emitter_index);
+        emitter = pfx_get_emitter(pfx, emitter_index);
         birth_count = _pfx_emitter_get_birthcount(emitter, pfx, frame_time);
         if (birth_count != 0) {
             for (birth = 0; birth < birth_count; birth++) {
@@ -463,7 +462,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     pfxmetrics_event(pfx->metrics, 0x2001);
 }
 
-void pfx_parametric_update(PfxVm* pfx) {
+void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
     PfxParametricParticle* particle;
     PfxVec3* position;
@@ -755,7 +754,7 @@ void pfx_render_set_blendmode(PfxRenderView* pfx, int mode) {
     pfx->blend_mode = mode;
 }
 
-PfxEmitterView* pfx_get_emitter(PfxEmitterTableView* pfx, int index) {
+PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index) {
     if (index < 0 || index >= pfx->emitter_count) {
         return 0;
     }

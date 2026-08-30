@@ -7,7 +7,6 @@
 double ceil(double value);
 double pow(double base, double exponent);
 float rnd_between(float minimum, float maximum);
-void* pfx_get_field(PfxVm* pfx, int particle, unsigned int field);
 int get_field_size(int type);
 
 typedef struct PfxTextureFrameSource {

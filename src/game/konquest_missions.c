@@ -414,7 +414,6 @@ void pfx_2d_obj_set_alpha(ScreenObj* object, int alpha);
 void duck_sounds(float volume);
 unsigned int fx_by_owner(const char* name, unsigned int owner);
 unsigned int fx_next_emitter(unsigned int handle);
-MkPfx* pfx_from_emitter(unsigned int handle);
 void fx_restart_emit(unsigned int handle);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 AnimScript* get_animation(int animation_id);

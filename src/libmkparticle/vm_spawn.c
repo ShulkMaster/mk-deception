@@ -22,7 +22,6 @@ void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
 void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
                            const PfxVec3* end, float minimum_length,
                            float length_range);
-void* pfx_get_field(PfxVm* pfx, int particle, unsigned int field);
 int pfx_get_struct_size(PfxVm* pfx, unsigned int field);
 int pfx_field_get_type(unsigned int field);
 PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int emitter_index);

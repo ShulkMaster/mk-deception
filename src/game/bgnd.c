@@ -486,8 +486,6 @@ int fx_by_owner(const char* name, int owner);
 int fx_next_emitter(int effect);
 void fx_restart_emit(unsigned int effect);
 void fx_resume_emit(unsigned int effect);
-MkPfx* pfx_from_handle(unsigned int handle);
-MkPfx* pfx_from_emitter(unsigned int handle);
 MkHdr* pfx_get_emitter_obj(MkPfx* effect, int emitter);
 int emitter_id_from_handle(unsigned int handle);
 void resume_effect(const char* name);

@@ -65,7 +65,6 @@ void* memcpy(void* destination, const void* source, unsigned long size);
 void* memset(void* destination, int value, unsigned long size);
 unsigned int pan_snd_req(int sound_id, float pan);
 int fx_by_owner(const char* name, int owner);
-void* pfx_from_handle(unsigned int handle);
 unsigned int snd_req(int sound_id);
 void wait_for_a_sound_bank_to_load(int bank);
 int random_snd_req(int group);

@@ -656,7 +656,6 @@ int is_blood_disabled(void);
 unsigned int fx_next_emitter(unsigned int effect);
 void fx_resume_emit(unsigned int effect);
 void fx_reset_emit(unsigned int effect);
-MkPfx* pfx_from_emitter(unsigned int effect);
 int emitter_id_from_handle(unsigned int effect);
 void insert_particle_mkobj(MkObj* object);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);

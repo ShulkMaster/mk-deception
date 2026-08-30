@@ -3,8 +3,6 @@
 #include "libmkparticle/vm.h"
 #include "runtime/cstring.h"
 
-void* pfx_get_field(void* pfx, int index, int type);
-
 PfxFieldDefinition properties[] = {
     {0x300, 0x001, 1},
     {0x303, 0x004, 1},
@@ -131,8 +129,8 @@ int get_field_offset(PfxTableRegistry* registry, int description)
     field_description = description;
     if ((field_description & 0xF00) == 0x200) {
         field_base = registry->field_0x1FC;
-        data = (unsigned char*)pfx_get_field(registry, 0,
-                                             field_description);
+        data = (unsigned char*)pfx_get_field(
+            (PfxVm*)registry, 0, field_description);
         if (data != 0) {
             return data - field_base;
         }

@@ -491,7 +491,6 @@ void fx_reset_emit(unsigned int handle);
 void start_decal_emitter_watcher(void);
 unsigned int fx_next_emitter(unsigned int handle);
 void fx_resume_emit(unsigned int handle);
-MkPfx* pfx_from_emitter(unsigned int handle);
 int emitter_id_from_handle(unsigned int handle);
 int am_i_on_the_left2(MkObj* opponent, MkObj* me);
 int get_bid_with_flip(MkObj* object, unsigned int bone_id);

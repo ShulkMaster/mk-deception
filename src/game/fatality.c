@@ -612,7 +612,6 @@ extern FatalityEffectHandle fx_by_owner(
 extern FatalityEffectHandle fx_next_emitter(
     FatalityEffectHandle effect);
 extern void fx_resume_emit(FatalityEffectHandle handle);
-extern MkPfx* pfx_from_emitter(FatalityEffectHandle handle);
 extern int emitter_id_from_handle(FatalityEffectHandle handle);
 extern MkPfx* find_pfx_by_name(const char* name);
 extern void reset_effect(const char* name);

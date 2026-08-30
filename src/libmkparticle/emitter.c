@@ -3,8 +3,6 @@
 #include "libmkparticle/metrics.h"
 
 float rnd_between(float minimum, float maximum);
-void* pfx_get_field(PfxVm* pfx, int emitter_index,
-                    unsigned int description);
 int pfx_get_struct_size(PfxVm* pfx, unsigned int description);
 PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);
 void _pfxvm_execute_spawn(PfxVm* pfx, int emitter_index);

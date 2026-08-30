@@ -19,6 +19,7 @@ typedef float (*PuzzleProcessTransfer)(PuzzleMoveEntry entry, float delay);
 typedef float (*PuzzleProcessSleep)(void);
 typedef float (*PuzzleFighterFunction)(void);
 typedef struct ScriptSlot ScriptSlot;
+typedef struct MkPfx MkPfx;
 
 typedef struct PuzzleCmdScript {
     char pad00[0x28];
@@ -459,7 +460,7 @@ void hide_obj(PuzzleFighterObject* object);
 void unhide_obj(PuzzleFighterObject* object);
 void update_mkobj(PuzzleFighterObject* object);
 unsigned int fx_by_owner(const char* name, int owner);
-void* pfx_from_handle(unsigned int effect);
+MkPfx* pfx_from_handle(unsigned int effect);
 void pfx_bind_render_to_obj(PuzzleFighterObject* object, int bone);
 void resume_effect(const char* name);
 void swap_active_plyr_proc();
