@@ -1450,7 +1450,7 @@ config.libs = [
                 extra_cflags=["-sdata", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tmr.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tmr.c",
             ),
