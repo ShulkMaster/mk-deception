@@ -8,6 +8,8 @@
 
 const char* __CARDVersion =
     "<< Dolphin SDK - CARD\trelease build: Apr  5 2004 04:15:35 (0x2301) >>";
+/* Retail SDK object has a four-byte terminal .sdata layout slot here. */
+u8 gap_07_8050FEEC_sdata[4] = {0, 0, 0, 0};
 
 CARDControl __CARDBlock[2];
 
@@ -81,23 +83,28 @@ void __CARDExiHandler(s32 chan, OSContext* context)
         return;
     }
 
-    if (!EXILock(chan, 0, NULL)) {
-        result = CARD_RESULT_FATAL_ERROR;
-    } else if ((result = __CARDReadStatus(chan, &status)) < 0 ||
-               (result = __CARDClearStatus(chan)) < 0) {
-        EXIUnlock(chan);
-    } else {
-        result = (status & 0x18) != 0 ? CARD_RESULT_IOERROR
-                                     : CARD_RESULT_READY;
-        if (result == CARD_RESULT_IOERROR && --card->retry > 0) {
-            result = Retry(chan);
-            if (result >= 0) {
-                return;
-            }
-        } else {
-            EXIUnlock(chan);
+    do {
+        if (!EXILock(chan, 0, NULL)) {
+            result = CARD_RESULT_FATAL_ERROR;
+            break;
         }
-    }
+        result = __CARDReadStatus(chan, &status);
+        if (result >= 0) {
+            result = __CARDClearStatus(chan);
+            if (result >= 0) {
+                result = (status & 0x18) != 0 ? CARD_RESULT_IOERROR
+                                             : CARD_RESULT_READY;
+                if (result == CARD_RESULT_IOERROR && --card->retry > 0) {
+                    result = Retry(chan);
+                    if (result >= 0) {
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+        EXIUnlock(chan);
+    } while (FALSE);
 
     callback = card->exiCallback;
     if (callback != NULL) {

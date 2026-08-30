@@ -2244,7 +2244,7 @@ config.libs = [
         "cflags": [*cflags_base, "-i src/dolphin/card"],
         "progress_category": "sdk",
         "objects": [
-            Object(NonMatching, "card.a/CARDBios.o", source="dolphin/card/CARDBios.c"),
+            Object(Matching, "card.a/CARDBios.o", source="dolphin/card/CARDBios.c"),
             Object(Matching, "card.a/CARDUnlock.o", source="dolphin/card/CARDUnlock.c"),
             Object(NonMatching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
             Object(Matching, "card.a/CARDRdwr.o", source="dolphin/card/CARDRdwr.c"),
