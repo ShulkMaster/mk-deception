@@ -576,7 +576,7 @@ extern BgndChunkLaunchMonitor* g_chunk_launch_monitor_pdata;
 extern PebbleData* g_bgnd_cracks;
 extern unsigned int g_bgnd_last_crack_overwritten;
 extern int force_midpoint_calculation_update;
-extern void* obj_start_morph(MkObj* object, int sobj_id,
+extern void* obj_start_morph(MkObj* object, unsigned int sobj_id,
                              MorphScript* script, unsigned int flags);
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,

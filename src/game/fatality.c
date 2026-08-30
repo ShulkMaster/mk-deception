@@ -556,7 +556,7 @@ static void sindel_load_projectile_obj_for_sonic_waves(
 void update_mkobj_pdata(MkObj* object, MkHdr* pdata);
 int build_bones_tbl(MkObj* object, const int* tags);
 void bone_matcher_parent_set_offset(
-    FatalityBoneMatcher* matcher, const Vec* offset);
+    FatalityBoneMatcher* matcher, Vec* offset);
 FatalityBoneMatcher* start_bone_matcher(
     float blend_ticks, MkObj* parent, int parent_bone,
     MkObj* child, int child_bone);
@@ -3196,7 +3196,7 @@ void bone_matcher_reset_dest_mat_rot(MkObj* object, int bone_index) {
 
 void bone_matcher_set_ang_pos(
     FatalityBoneMatcher* matcher, MkObj* object, int bone_index,
-    const Vec* angles, const Vec* offset, int copy_bone_matrix) {
+    const Vec* angles, Vec* offset, int copy_bone_matrix) {
     matcher->flags.bits.copy_bone_matrix = copy_bone_matrix;
     if (angles != 0) {
         YXZ_angles_to_MKMATRIX(

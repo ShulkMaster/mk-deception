@@ -9,6 +9,7 @@
 #include "game/game_info.h"
 #include "libmkparticle/color.h"
 #include "libmkparticle/metrics.h"
+#include "libmkparticle/range.h"
 #include "math/gxVect.h"
 #include "platform/main.h"
 
@@ -390,11 +391,6 @@ struct PfxBank {
     unsigned int* effect_owners; /* +0x24 */
 };
 
-typedef struct PfxFloatRange {
-    float minimum;
-    float maximum;
-} PfxFloatRange;
-
 typedef struct PfxParticleResetRecord {
     unsigned char data[0x28];
 } PfxParticleResetRecord;
@@ -492,6 +488,15 @@ char* strcpy(char* destination, const char* source);
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner);
 void pfxvm_kill_percent(unsigned int field);
+typedef struct PfxBehavior PfxBehavior;
+void pfxvm_initial_divert(PfxBehavior* behavior, unsigned int field,
+                          PfxFloatRange* range);
+void pfxvm_initial_multiply_float_range(PfxBehavior* behavior,
+                                        unsigned int field,
+                                        PfxFloatRange* range);
+void pfxvm_initial_set_float_range(PfxBehavior* behavior,
+                                   unsigned int field,
+                                   PfxFloatRange* range);
 /* Retail builder ABI: script, effect handle/table, then update mode. */
 static void build_step_effect(
     ScriptSlot* script, unsigned int effect, int update);
@@ -506,9 +511,6 @@ static inline void bank_destroy(MkHdr* bank);
 void pfxvm_initial_reflect(unsigned int context, int field);
 void pfxvm_initial_add_v3(
     unsigned int context, int destination, int source);
-void pfxvm_initial_divert(PfxFloatRange* range);
-void pfxvm_initial_multiply_float_range(PfxFloatRange* range);
-void pfxvm_initial_set_float_range(PfxFloatRange* range);
 void pfxvm_kill_roundrobin(unsigned int context, int field);
 void pfxvm_kill_on_greater(unsigned int context, int field);
 void pfxvm_update_roundrobin(unsigned int context, int field);
@@ -1130,9 +1132,11 @@ void initial_multiply_float(int unused, float minimum, float maximum) {
         environment = &pfxscript_environment;
     }
     if (environment->kill_percent_field != 0U) {
-        range.minimum = minimum;
-        range.maximum = maximum;
-        pfxvm_initial_multiply_float_range(&range);
+        range.center = minimum;
+        range.variation = maximum;
+        pfxvm_initial_multiply_float_range(
+            (PfxBehavior*)environment->kill_percent_field,
+            (unsigned int)unused, &range);
     }
 }
 
@@ -1144,9 +1148,11 @@ void initial_set_float(int unused, float minimum, float maximum) {
         environment = &pfxscript_environment;
     }
     if (environment->kill_percent_field != 0U) {
-        range.minimum = minimum;
-        range.maximum = maximum;
-        pfxvm_initial_set_float_range(&range);
+        range.center = minimum;
+        range.variation = maximum;
+        pfxvm_initial_set_float_range(
+            (PfxBehavior*)environment->kill_percent_field,
+            (unsigned int)unused, &range);
     }
 }
 
@@ -1158,9 +1164,11 @@ void initial_divert(int unused, float minimum, float maximum) {
         environment = &pfxscript_environment;
     }
     if (environment->kill_percent_field != 0U) {
-        range.minimum = minimum;
-        range.maximum = maximum;
-        pfxvm_initial_divert(&range);
+        range.center = minimum;
+        range.variation = maximum;
+        pfxvm_initial_divert(
+            (PfxBehavior*)environment->kill_percent_field,
+            (unsigned int)unused, &range);
     }
 }
 

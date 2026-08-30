@@ -268,7 +268,7 @@ JabBoneMatcherState* start_bone_matcher(
     float blend, MkObj* parent, int parent_bone, MkObj* child,
     int child_bone);
 void bone_matcher_parent_set_offset(
-    JabBoneMatcherState* matcher, const float* offset);
+    JabBoneMatcherState* matcher, float* offset);
 void get_bone_world_pos(MkObj* object, int bone, Vec* position);
 unsigned int pfxhandle_bgnd_spawn_at_position(
     const char* effect_name, float x, float y, float z);
@@ -555,7 +555,7 @@ void jab_destroy_drink_obj_in_hand(void) {
 }
 
 void jab_attach_drink_obj_to_hand(
-    MkObj* drink, const float* offset, const Vec* angles) {
+    MkObj* drink, float* offset, const Vec* angles) {
     MkObj* player;
     JabBoneMatcherState* matcher;
 
