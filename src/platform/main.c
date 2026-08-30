@@ -90,17 +90,18 @@ extern unsigned char loading_image[];
 static unsigned char exec_loop_jump_buffer[0x190];
 
 int jump_target_mode = 0xc;
-int gameart_is_loaded;
-float sqrt_game_speed;
-float inverse_game_speed;
-float game_speed;
-void *empty_pdata;
-void *mab_generic_pdata;
-int jmp_where_id;
-int mode_of_play;
-float msecs_per_tick;
-int game_tick_ctr;
+int gap_08_80510234_sbss;
 int exec_tick_ctr;
+int game_tick_ctr;
+float msecs_per_tick;
+int mode_of_play;
+int jmp_where_id;
+void *mab_generic_pdata;
+void *empty_pdata;
+float game_speed;
+float inverse_game_speed;
+float sqrt_game_speed;
+extern int gameart_is_loaded;
 
 void gamelogic_jump(int mode, MainProcEntryFn entry) {
     static MkProc *proc;
@@ -238,6 +239,8 @@ float get_game_speed(void) {
 void set_game_speed(float speed) {
     MainFloatBits estimate;
     MainFloatBits input;
+    float correction;
+    float estimate_squared;
     float square_root = 0.0f;
 
     game_speed = speed;
@@ -254,14 +257,15 @@ void set_game_speed(float speed) {
                                  (((input.bits & 0x7f800000) + 0x3f800000) >>
                                   1) &
                                  0x7f800000,
-                             0.5f *
-                                 (estimate.value *
-                                  (3.0f -
-                                   (estimate.value * estimate.value) /
-                                       speed)));
+                             estimate_squared = estimate.value * estimate.value,
+                             correction = 3.0f - estimate_squared / speed,
+                             0.5f * (estimate.value * correction));
         sqrt_game_speed = square_root;
     } else {
         inverse_game_speed = 1.0e9f;
         sqrt_game_speed = square_root;
     }
 }
+
+int gameart_is_loaded;
+const float gap_09_805117CC_sdata2 = 0.0f;
