@@ -1470,7 +1470,7 @@ config.libs = [
                 extra_cflags=["-O2,p"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/muldiv.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/muldiv.c",
             ),
@@ -2245,7 +2245,7 @@ config.libs = [
         "progress_category": "sdk",
         "objects": [
             Object(NonMatching, "card.a/CARDBios.o", source="dolphin/card/CARDBios.c"),
-            Object(NonMatching, "card.a/CARDUnlock.o", source="dolphin/card/CARDUnlock.c"),
+            Object(Matching, "card.a/CARDUnlock.o", source="dolphin/card/CARDUnlock.c"),
             Object(NonMatching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
             Object(Matching, "card.a/CARDRdwr.o", source="dolphin/card/CARDRdwr.c"),
             Object(Matching, "card.a/CARDDir.o", source="dolphin/card/CARDDir.c"),
@@ -2512,7 +2512,7 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/rpskin.obj", source="rw/rpskin.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
-            Object(NonMatching, "rpskin.a/bsplit.obj", source="rw/bsplit.c",
+            Object(Matching, "rpskin.a/bsplit.obj", source="rw/bsplit.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rpskin.a/skinplatform.obj", source="rw/skinplatform.c",
                    extra_cflags=["-opt", "off", "-O0"]),
