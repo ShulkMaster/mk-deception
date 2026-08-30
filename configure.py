@@ -1917,7 +1917,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/geometry.o",
                 source="libmkparticle/geometry.c",
                 extra_cflags=["-O4,s", "-schedule off", "-fp_contract off", "-opt nopeephole"],
@@ -2072,7 +2072,7 @@ config.libs = [
             Object(Matching, "os.a/OSMessage.o", source="dolphin/os/OSMessage.c"),
             Object(NonMatching, "os.a/OSResetSW.o", source="dolphin/os/OSResetSW.c"),
             Object(NonMatching, "os.a/OSReset.o", source="dolphin/os/OSReset.c"),
-            Object(NonMatching, "os.a/OSMutex.o", source="dolphin/os/OSMutex.c"),
+            Object(Matching, "os.a/OSMutex.o", source="dolphin/os/OSMutex.c"),
             Object(NonMatching, "os.a/__start.o", source="dolphin/__start.c"),
             Object(
                 NonMatching,

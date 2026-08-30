@@ -1,11 +1,10 @@
 #include "libmkparticle/geometry.h"
 #include "libmkparticle/particle.h"
 
-static const float kHalf = 0.5f;
-static const float kZero = 0.0f;
+/* Retail keeps the two literals as distinct .sdata2 objects in this order. */
+static const float kHalf[] = {0.5f};
+static const float kZero[] = {0.0f};
 
-/* Soft ceiling: pfx_get_billboard_vector ~98.84% -- constant-pool relocations
- * and one equivalent fneg scheduling difference. */
 void pfx_get_billboard_vector(PfxVm* vm, PfxVec3* axis0,
                               PfxVec3* axis1) {
     PfxTransform* transform;
@@ -13,7 +12,7 @@ void pfx_get_billboard_vector(PfxVm* vm, PfxVec3* axis0,
     float scale0;
     float scale1;
 
-    factor = kZero;
+    factor = kZero[0];
     if (vm->flag150_02 != 0) {
         axis1->x = vm->billboard_size;
         axis1->y = factor;
@@ -25,10 +24,10 @@ void pfx_get_billboard_vector(PfxVm* vm, PfxVec3* axis0,
     }
 
     if (vm->flag150_40 != 0) {
-        factor = kHalf * vm->billboard_size;
+        factor = kHalf[0] * vm->billboard_size;
     }
     if ((vm->flags_0x1D4 & 0x20) != 0) {
-        factor = kHalf;
+        factor = kHalf[0];
     }
 
     scale0 = factor * vm->geometry_scale0;
@@ -45,18 +44,15 @@ void pfx_get_billboard_vector(PfxVm* vm, PfxVec3* axis0,
 
     transform = &vm->transforms[vm->active_transform];
     if (vm->flag151_80 != 0) {
-        float negative_factor;
-
         axis1->x = pfxsystem_globals.billboard_axis0.x;
         axis1->y = pfxsystem_globals.billboard_axis0.y;
         axis1->z = pfxsystem_globals.billboard_axis0.z;
         axis0->x = pfxsystem_globals.billboard_axis1.x;
         axis0->y = pfxsystem_globals.billboard_axis1.y;
         axis0->z = pfxsystem_globals.billboard_axis1.z;
-        negative_factor = -factor;
-        axis1->x *= negative_factor;
-        axis1->y *= negative_factor;
-        axis1->z *= negative_factor;
+        axis1->x *= -factor;
+        axis1->y *= -factor;
+        axis1->z *= -factor;
         axis0->x *= factor;
         axis0->y *= factor;
         axis0->z *= factor;
