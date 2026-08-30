@@ -895,7 +895,7 @@ void bulvan_function(int command) {
             set_pfx_texture(
                 (PfxVm*)&effect->matrix, (void*)0x10005, (void*)0x2003C);
             pfx_bind_emitter_to_obj_bone(effect, tracked_object, 9);
-            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 8.0f;
+            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 8.0f;
             effect->field_90 = 0x1EF;
             effect->depth_bias = -50.0f;
             effect->field_298 = 100.0f;
@@ -917,7 +917,7 @@ void bulvan_function(int command) {
                 (PfxVm*)&effect->matrix, 4.0f, 0x40, 0x10, 0x10, 0x10);
             pfx_bind_emitter_to_obj_bone(effect, plyr_obj, 0);
             effect->emitter_enabled = 0;
-            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 24.0f;
+            pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 24.0f;
             effect->field_90 = 0xA8;
             effect->depth_bias = -50.0f;
             effect->field_298 = 50.0f;
@@ -1331,7 +1331,7 @@ void sh_start_grinder_crush_chunks(const Vec* position, int chunk_type) {
         pfx_texture_animate(
             (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
         effect->emitter_enabled = 1;
-        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 5.0f;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 5.0f;
         effect->field_90 = 0x12C;
         effect->depth_bias = -50.0f;
         effect->field_2B8 = chunk_type;
@@ -1371,7 +1371,7 @@ void sh_spawn_grinder_crush_blood(void) {
     field_stride = vm->transforms[0].particle_field_stride;
     vector_stride = vm->particle_vector_stride;
     emitter = pfx_get_emitter(vm, 0);
-    if (emitter->lifetime <
+    if (emitter->birth_rate <
         (float)(vm->particle_capacity - vm->particle_cursor + 1)) {
         velocities = (Vec*)pfx_get_field(vm, -2, 0x300);
         positions = (Vec*)pfx_get_field(vm, -2, 0x100);
@@ -1392,10 +1392,10 @@ void sh_spawn_grinder_crush_blood(void) {
                             vector_stride * particle_index);
         zero_fields = (float*)((unsigned char*)zero_fields +
                                vector_stride * particle_index);
-        vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->lifetime;
+        vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->birth_rate;
 
         index = 0;
-        while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+        while ((float)index < pfx_get_emitter(vm, 0)->birth_rate) {
             positions->x = emitter_object->pos.value.x + sfrand(0.5f);
             positions->y = emitter_object->pos.value.y + sfrand(0.5f);
             positions->z = emitter_object->pos.value.z + sfrand(0.3f);
@@ -1601,7 +1601,7 @@ void sh_start_grinder_crush_blood(const Vec* position) {
         pfx_texture_animate(
             (PfxVm*)&effect->matrix, 1.0f, 0x80, 0x2A, 0x40, 6);
         effect->emitter_enabled = 1;
-        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 15.0f;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 15.0f;
         effect->field_90 = 0x12C;
         effect->depth_bias = -50.0f;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
@@ -1625,7 +1625,7 @@ void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
         pfx_texture_animate(
             (PfxVm*)&effect->matrix, 4.0f, 0x100, 0x40, 0x55, 0xC);
         effect->emitter_enabled = 1;
-        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 2.0f;
         effect->field_90 = 0x82;
         effect->depth_bias = -50.0f;
         effect->field_298 = 120.0f;
@@ -1799,11 +1799,11 @@ float pfx_sh_grinder_meat_spew(void) {
 
     if (apfx->field_298 > 0.0f) {
         emitter = pfx_get_emitter(vm, 0);
-        if (emitter->lifetime <
+        if (emitter->birth_rate <
             (float)(vm->particle_capacity - initial_cursor + 1)) {
-            vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->lifetime;
+            vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->birth_rate;
             index = 0;
-            while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+            while ((float)index < pfx_get_emitter(vm, 0)->birth_rate) {
                 destination_positions->x =
                     emitter_object->pos.value.x + sfrand(0.5f);
                 destination_positions->y =
@@ -1887,7 +1887,7 @@ void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
         pfx_texture_animate(
             (PfxVm*)&effect->matrix, 4.0f, 0x80, 0x20, 0x20, 0x10);
         effect->emitter_enabled = 1;
-        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->lifetime = 2.0f;
+        pfx_get_emitter((PfxVm*)&effect->matrix, 0)->birth_rate = 2.0f;
         effect->field_90 = 0x82;
         effect->depth_bias = -50.0f;
         effect->field_298 = 120.0f;
@@ -2030,18 +2030,18 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
 
     if (apfx->field_29C > 0.0f) {
         emitter = pfx_get_emitter(vm, 0);
-        if (emitter->lifetime <
+        if (emitter->birth_rate <
             (float)(vm->particle_capacity - initial_cursor)) {
             int spawn_count;
 
-            spawn_count = (int)pfx_get_emitter(vm, 0)->lifetime;
+            spawn_count = (int)pfx_get_emitter(vm, 0)->birth_rate;
             vm->particle_cursor += spawn_count;
             RESOLVE_JAB_OBJECT(
                 object, apfx->tracked_object,
                 apfx->tracked_object_instance);
 
             index = 0;
-            while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+            while ((float)index < pfx_get_emitter(vm, 0)->birth_rate) {
                 Vec start;
                 Vec end;
                 Vec offset;
@@ -2106,24 +2106,24 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     if (apfx->field_29C == 53.333332f) {
         float lifetime;
 
-        lifetime = pfx_get_emitter(vm, 0)->lifetime;
-        pfx_get_emitter(vm, 0)->lifetime =
+        lifetime = pfx_get_emitter(vm, 0)->birth_rate;
+        pfx_get_emitter(vm, 0)->birth_rate =
             (2.0f * lifetime) / 3.0f;
         apfx->field_2A4 *= 2.0f;
     }
     if (apfx->field_29C == 40.0f) {
         float lifetime;
 
-        lifetime = pfx_get_emitter(vm, 0)->lifetime;
-        pfx_get_emitter(vm, 0)->lifetime =
+        lifetime = pfx_get_emitter(vm, 0)->birth_rate;
+        pfx_get_emitter(vm, 0)->birth_rate =
             (2.0f * lifetime) / 3.0f;
         apfx->field_2A4 *= 2.0f;
     }
     if (apfx->field_29C == 20.0f) {
         float lifetime;
 
-        lifetime = pfx_get_emitter(vm, 0)->lifetime;
-        pfx_get_emitter(vm, 0)->lifetime =
+        lifetime = pfx_get_emitter(vm, 0)->birth_rate;
+        pfx_get_emitter(vm, 0)->birth_rate =
             (2.0f * lifetime) / 3.0f;
         apfx->field_2A4 *= 1.5f;
     }
@@ -2283,15 +2283,15 @@ float pfx_kenshi_lift_smoke(void) {
 
     if (effect->field_29C > 0.0f) {
         emitter = pfx_get_emitter(vm, 0);
-        if (emitter->lifetime <
+        if (emitter->birth_rate <
             (float)(vm->particle_capacity - vm->particle_cursor + 1)) {
-            vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->lifetime;
+            vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->birth_rate;
             RESOLVE_JAB_OBJECT(
                 tracked_object, effect->tracked_object,
                 effect->tracked_object_instance);
 
             index = 0;
-            while ((float)index < pfx_get_emitter(vm, 0)->lifetime) {
+            while ((float)index < pfx_get_emitter(vm, 0)->birth_rate) {
                 bone_index = index % 12;
                 get_bone_world_pos(
                     tracked_object,
