@@ -412,7 +412,7 @@ config.libs = [
                 extra_cflags=["-sdata 8", "-str reuse,nopool,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/mem_TRK.o",
                 source="dolphin/trk_minnow_dolphin/mem_TRK.c",
             ),
