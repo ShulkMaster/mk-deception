@@ -376,6 +376,8 @@ extern "C" _mwMovPlayer* mwMovieCreatePlayer(MwMovieCreateParams* params)
     return player;
 }
 
+#pragma peephole off
+#pragma scheduling off
 extern "C" void mwMovieDestroyPlayer(_mwMovPlayer* player)
 {
     if (player == 0) {
@@ -385,6 +387,8 @@ extern "C" void mwMovieDestroyPlayer(_mwMovPlayer* player)
     memset(player, 0, sizeof(_mwMovPlayer));
     mwMovFree(player);
 }
+#pragma scheduling reset
+#pragma peephole reset
 
 extern "C" void mwMovieStartPlayback(_mwMovPlayer* player, const char* filename)
 {

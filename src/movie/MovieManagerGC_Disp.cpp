@@ -199,6 +199,7 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     int padded_half_width;
     unsigned short chroma_width;
     unsigned short chroma_height;
+    void* y_buffer;
 
     proc = (NativeMovieProcessCtx*)ctx;
     (void)unused;
@@ -224,13 +225,14 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
             GX_TF_I8, 0, 0);
         tex->sizeC = GXGetTexBufferSize(
             chroma_width, chroma_height, GX_TF_IA8, 0, 0);
-        tex->bufY = mwMovMalloc(tex->sizeY);
+        y_buffer = mwMovMalloc(tex->sizeY);
+        tex->bufY = y_buffer;
         tex->bufC = mwMovMalloc(tex->sizeC);
-        if (tex->bufY == 0 || tex->bufC == 0) {
+        if (y_buffer == 0 || tex->bufC == 0) {
             OSReport(allocation_error);
         } else {
-            if (tex->bufY != 0) {
-                memset(tex->bufY, 0, tex->sizeY);
+            if (y_buffer != 0) {
+                memset(y_buffer, 0, tex->sizeY);
                 memset(tex->bufC, 0x80, tex->sizeC);
             }
             GXInitTexObj(&tex->tex0, tex->bufY,
