@@ -30,8 +30,9 @@ static int SFUO_GetWrite(SfdHandle* handle, void* buffer)
     return SFLIB_SetErr(handle, 0xFF000601);
 }
 
-static int SFUO_Pause(SfdHandle* handle)
+static int SFUO_Pause(SfdHandle* handle, int state)
 {
+    (void)state;
     return 0;
 }
 
@@ -70,8 +71,8 @@ static int SFUO_Create(SfdHandle* handle)
     do {
         work->channels[0].stream_joint = 0;
         work->channels[0].object = 0;
-        work->channels[0].state_08 = 0;
-        work->channels[0].state_0C = 0;
+        work->channels[0].handle_callback = 0;
+        work->channels[0].object_callback = 0;
         SFBUF_SetUoch(handle, buffer_index, channel_index,
                       &work->channels[0]);
         channel_index++;
@@ -128,8 +129,8 @@ int SFD_SetUsrSj(SfdHandle* handle, int channel_index, SJ* stream_joint,
 
     work->channels[channel_index].stream_joint = stream_joint;
     work->channels[channel_index].object = object;
-    work->channels[channel_index].state_08 = 0;
-    work->channels[channel_index].state_0C = 0;
+    work->channels[channel_index].handle_callback = 0;
+    work->channels[channel_index].object_callback = 0;
     SFBUF_SetUoch(handle, buffer_index, channel_index,
                   &work->channels[channel_index]);
     return 0;

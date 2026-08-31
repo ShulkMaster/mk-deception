@@ -166,25 +166,25 @@ int SFBUF_GetRingBufSiz(SfdHandle* handle, int buffer_index)
     return handle->buffers[buffer_index].work.ring.buffer_size;
 }
 
-void SFBUF_RingSetDlm(SfdHandle* handle, int buffer_index, int position,
-                      int size)
+void SFBUF_RingSetDlm(SfdHandle* handle, int buffer_index,
+                      unsigned char* position, unsigned char* end_position)
 {
     SfdBufferRingWork* ring = &handle->buffers[buffer_index].work.ring;
     int token;
     SFLIB_LockCs(&token);
     ring->delimiter_position = position;
-    ring->delimiter_size = size;
+    ring->delimiter_end = end_position;
     SFLIB_UnlockCs(&token);
 }
 
-void SFBUF_RingGetDlm(SfdHandle* handle, int buffer_index, int* position,
-                      int* size)
+void SFBUF_RingGetDlm(SfdHandle* handle, int buffer_index,
+                      unsigned char** position, unsigned char** end_position)
 {
     SfdBufferRingWork* ring = &handle->buffers[buffer_index].work.ring;
     int token;
     SFLIB_LockCs(&token);
     *position = ring->delimiter_position;
-    *size = ring->delimiter_size;
+    *end_position = ring->delimiter_end;
     SFLIB_UnlockCs(&token);
 }
 
@@ -225,12 +225,12 @@ int SFBUF_RingAddRead(SfdHandle* handle, int buffer_index, int amount)
             second.len = 0;
         }
         source->interface->unget_chunk(source, 1, &first);
-        if (!((ring->delimiter_position >= (int)first.data &&
-               ring->delimiter_position < (int)(first.data + first.len)) ||
-              (ring->delimiter_position >= (int)second.data &&
-               ring->delimiter_position < (int)(second.data + second.len)))) {
+        if (!((ring->delimiter_position >= first.data &&
+               ring->delimiter_position < first.data + first.len) ||
+              (ring->delimiter_position >= second.data &&
+               ring->delimiter_position < second.data + second.len))) {
             ring->delimiter_position = 0;
-            ring->delimiter_size = 0;
+            ring->delimiter_end = 0;
         }
     }
     if (ring->read_total >= 0) {
@@ -373,7 +373,7 @@ int SFBUF_SetSupplySj(SfdHandle* handle, const SfdBufferSupply* supply)
     ring->field_10 = supply->field_10;
     ring->field_14 = supply->field_14;
     ring->delimiter_position = 0;
-    ring->delimiter_size = 0;
+    ring->delimiter_end = 0;
     ring->write_total = 0;
     ring->read_total = 0;
     SFPTS_InitPtsQue(&ring->pts_queue);
@@ -456,7 +456,7 @@ int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
         buffer->work.ring.field_10 = init.supplies[2].field_10;
         buffer->work.ring.field_14 = init.supplies[2].field_14;
         buffer->work.ring.delimiter_position = 0;
-        buffer->work.ring.delimiter_size = 0;
+        buffer->work.ring.delimiter_end = 0;
         buffer->work.ring.write_total = 0;
         buffer->work.ring.read_total = 0;
         SFPTS_InitPtsQue(&buffer->work.ring.pts_queue);
@@ -502,7 +502,7 @@ int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
         buffer->work.ring.field_10 = init.supplies[1].field_10;
         buffer->work.ring.field_14 = init.supplies[1].field_14;
         buffer->work.ring.delimiter_position = 0;
-        buffer->work.ring.delimiter_size = 0;
+        buffer->work.ring.delimiter_end = 0;
         buffer->work.ring.write_total = 0;
         buffer->work.ring.read_total = 0;
         SFPTS_InitPtsQue(&buffer->work.ring.pts_queue);
@@ -548,7 +548,7 @@ int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
         buffer->work.ring.field_10 = init.supplies[0].field_10;
         buffer->work.ring.field_14 = init.supplies[0].field_14;
         buffer->work.ring.delimiter_position = 0;
-        buffer->work.ring.delimiter_size = 0;
+        buffer->work.ring.delimiter_end = 0;
         buffer->work.ring.write_total = 0;
         buffer->work.ring.read_total = 0;
         SFPTS_InitPtsQue(&buffer->work.ring.pts_queue);

@@ -27,8 +27,9 @@ static int SFMEM_GetWrite(SfdHandle* handle, void* buffer)
                               buffer);
 }
 
-static int SFMEM_Pause(SfdHandle* handle)
+static int SFMEM_Pause(SfdHandle* handle, int state)
 {
+    (void)state;
     return 0;
 }
 

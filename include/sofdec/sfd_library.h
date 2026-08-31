@@ -18,7 +18,7 @@ typedef struct SfdLibraryWork {
     int buffer_work;
     SfdTransportRegistry transport_registry;
     int reset_in_progress;
-    int server_handle_index;
+    void* retained_adxt;
     SfdHandle* handles[8];
 } SfdLibraryWork;
 

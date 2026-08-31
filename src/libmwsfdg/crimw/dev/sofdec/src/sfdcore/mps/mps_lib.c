@@ -20,12 +20,13 @@ static inline int mpslib_set_error(MpsHandle* handle, int error) {
     if (handle == 0) {
         MPSLIB_libwork->error = error;
         if (error != 0 && MPSLIB_libwork->error_callback != 0) {
-            MPSLIB_libwork->error_callback(MPSLIB_libwork->error_object);
+            MPSLIB_libwork->error_callback(MPSLIB_libwork->error_object,
+                                            error);
         }
     } else {
         handle->error = error;
         if (error != 0 && handle->error_callback != 0) {
-            handle->error_callback(handle->error_object);
+            handle->error_callback(handle->error_object, error);
         }
     }
     return error;

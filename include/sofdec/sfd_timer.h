@@ -3,6 +3,8 @@
 
 #include "sofdec/sfd_player_types.h"
 
+extern const int SFTIM_prate[9];
+
 typedef struct SfdTimerSummary {
     long long total;
     long long minimum;
