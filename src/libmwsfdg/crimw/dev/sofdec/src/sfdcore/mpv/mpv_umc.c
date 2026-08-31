@@ -7,20 +7,22 @@ void MPVUMC_BpicSkipped(MPVContext* context, s32 count)
 {
     s32 end = context->macroblock_index;
     s32 amount = count - 1;
-    void (*decode_macroblock)(MPVContext*) = context->decode_macroblock;
+    void (*decode_macroblock)(MPVContext*) = context->motion_skipped;
     s32 zero = 0;
 
     context->cbp_mask = zero;
     context->macroblock_index -= amount;
     context->macroblock_column -= amount;
     while (context->macroblock_column < 0) {
-        context->macroblock_column += context->macroblocks_per_row;
+        context->macroblock_column +=
+            context->condition_state.decoder.picture.macroblocks_per_row;
         context->macroblock_row--;
     }
     while (context->macroblock_index < end) {
         decode_macroblock(context);
         context->macroblock_column++;
-        if (context->macroblock_column >= context->macroblocks_per_row) {
+        if (context->macroblock_column >=
+            context->condition_state.decoder.picture.macroblocks_per_row) {
             context->macroblock_column = zero;
             context->macroblock_row++;
         }
@@ -65,20 +67,23 @@ void MPVUMC_PpicSkipped(MPVContext* context, s32 count)
     context->macroblock_index -= amount;
     context->macroblock_column -= amount;
     while (context->macroblock_column < 0) {
-        context->macroblock_column += context->macroblocks_per_row;
+        context->macroblock_column +=
+            context->condition_state.decoder.picture.macroblocks_per_row;
         context->macroblock_row--;
     }
     while (context->macroblock_index < end) {
         MPVBlockOffsets offsets;
         offsets.chroma = context->macroblock_column * 8 +
                          context->macroblock_row * 8 *
-                             context->forward.chroma_stride;
+                             context->frame_buffers.forward.chroma_stride;
         offsets.luma = context->macroblock_column * 16 +
                        context->macroblock_row * 16 *
-                           context->forward.luma_stride;
-        mpvumc_PpicSkipMb(&offsets, &context->forward, &context->backward);
+                           context->frame_buffers.forward.luma_stride;
+        mpvumc_PpicSkipMb(&offsets, &context->frame_buffers.forward,
+                          &context->frame_buffers.backward);
         context->macroblock_column++;
-        if (context->macroblock_column >= context->macroblocks_per_row) {
+        if (context->macroblock_column >=
+            context->condition_state.decoder.picture.macroblocks_per_row) {
             context->macroblock_column = 0;
             context->macroblock_row++;
         }
@@ -179,19 +184,19 @@ static void mpvumc_OneReadMb(MPVContext* context, u8* destination,
                       context->macroblock_row * 8 * chroma_stride;
     offsets->luma = context->macroblock_column * 16 +
                     context->macroblock_row * 16 * luma_stride;
-    luma_function = mpvumc_oneref_y[context->mc_table * 4 +
+    luma_function = mpvumc_oneref_y[context->condition_state.decoder.mc_table * 4 +
                                     (((u32)vertical << 1) & 2) +
                                     (horizontal & 1)];
     chroma_function =
-        mpvumc_oneref[context->mc_table * 4 +
+        mpvumc_oneref[context->condition_state.decoder.mc_table * 4 +
                       (((u32)chroma_vertical << 1) & 2) +
                       (chroma_horizontal & 1)];
     luma_offset = offsets->luma + (horizontal >> 1) +
                   (vertical >> 1) * luma_stride;
     chroma_offset = offsets->chroma + (chroma_horizontal >> 1) +
                     (chroma_vertical >> 1) * chroma_stride;
-    luma_extra = (horizontal & 1) & context->mc_table;
-    chroma_extra = (chroma_horizontal & 1) & context->mc_table;
+    luma_extra = (horizontal & 1) & context->condition_state.decoder.mc_table;
+    chroma_extra = (chroma_horizontal & 1) & context->condition_state.decoder.mc_table;
 
     mc->reference_stride = chroma_stride;
     mc->destination = destination;
@@ -229,9 +234,9 @@ void MPVUMC_BiDirect(MPVContext* context)
 {
     MPVBlockOffsets offsets;
     mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
-                     &context->forward, &context->forward_motion);
+                     &context->frame_buffers.forward, &context->forward_motion);
     mpvumc_OneReadMb(context, context->sources.prediction1, &offsets,
-                     &context->backward, &context->backward_motion);
+                     &context->frame_buffers.backward, &context->backward_motion);
     mpvumc_SetOutputBlocks(context, &offsets);
     mpvumc_BiMakeMb(&context->sources, &context->output_blocks,
                     context->cbp_mask);
@@ -241,7 +246,7 @@ void MPVUMC_Backward(MPVContext* context)
 {
     MPVBlockOffsets offsets;
     mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
-                     &context->backward, &context->backward_motion);
+                     &context->frame_buffers.backward, &context->backward_motion);
     mpvumc_SetOutputBlocks(context, &offsets);
     mpvumc_OneMakeMb(&context->sources, &context->output_blocks,
                      context->cbp_mask);
@@ -251,7 +256,7 @@ void MPVUMC_Forward(MPVContext* context)
 {
     MPVBlockOffsets offsets;
     mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
-                     &context->forward, &context->forward_motion);
+                     &context->frame_buffers.forward, &context->forward_motion);
     mpvumc_SetOutputBlocks(context, &offsets);
     mpvumc_OneMakeMb(&context->sources, &context->output_blocks,
                      context->cbp_mask);
@@ -290,7 +295,8 @@ void MPVUMC_Intra(MPVContext* context)
     offsets.luma = context->macroblock_column * 16 +
                    context->macroblock_row * 16 * context->output.luma_stride;
     mpvumc_SetOutputBlocks(context, &offsets);
-    mpvumc_OutputIntra6blk(context->intra_blocks, &context->output_blocks);
+    mpvumc_OutputIntra6blk(context->transform.coefficients,
+                           &context->output_blocks);
 }
 
 void MPVUMC_SetGqr(void)
@@ -302,9 +308,9 @@ void MPVUMC_EndOfFrame(void) {}
 
 void MPVUMC_InitOutRfb(MPVContext* context)
 {
-    s32 width_plus = context->width + 15;
-    s32 height_plus = context->height + 15;
-    u8* output_rfb = context->output_rfb;
+    s32 width_plus = context->condition_state.decoder.picture.width + 15;
+    s32 height_plus = context->condition_state.decoder.picture.height + 15;
+    u8* output_rfb = context->frame_buffers.output_rfb;
     s32 rounded_width = (width_plus / 16) * 16;
     s32 luma_stride = ((rounded_width + 31) / 32) << 5;
     s32 chroma_stride = (((rounded_width / 2) + 31) / 32) << 5;

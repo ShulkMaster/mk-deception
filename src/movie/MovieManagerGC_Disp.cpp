@@ -16,8 +16,10 @@ typedef struct CameraVectors {
     Vec position;
     Vec target;
 } CameraVectors;
+
 typedef struct UsrCamObj {
-    char pad[0x70];
+    Mtx view;
+    char field_0x30[0x40];
 } UsrCamObj;
 
 typedef struct UsrTexObj {
@@ -39,51 +41,30 @@ typedef struct SceneCtrl {
 
 typedef struct NativeMovieProcessCtx {
     int handle;
-    int unk4;
+    int field_0x04;
     MwsFrameInfo frame;
 } NativeMovieProcessCtx;
 
+typedef char UsrCamObjSizeCheck[sizeof(UsrCamObj) == 0x70 ? 1 : -1];
+typedef char UsrTexObjSizeCheck[sizeof(UsrTexObj) == 0x58 ? 1 : -1];
+typedef char SceneCtrlSizeCheck[sizeof(SceneCtrl) == 0x120 ? 1 : -1];
+typedef char NativeMovieProcessCtxSizeCheck[
+    sizeof(NativeMovieProcessCtx) == 0x0C ? 1 : -1];
+
 static SceneCtrl scn_ctrl;
-
-/* MWCC emits .sbss in reverse declaration order. */
-int gap_08_805108BC_sbss;
-char init_399;
-char pad_init399[3];
-void* last_tob;
-char is_set_black;
-char pad_is_set_black[3];
-
-int gap_07_8050FA3C_sdata;
-GXRenderModeObj* rmode = &GXNtsc480IntDf;
-
-static const GXColorS10 tev_color_s10 = {0xFF91, 0xFF76, 0x0044, 0x0000};
-static const GXColor tev_kcolor0 = {0x66, 0x00, 0xFF, 0x32};
-static const GXColor tev_kcolor1 = {0x94, 0x00, 0x94, 0x94};
-static const GXColor tev_kcolor2 = {0xCB, 0x00, 0x05, 0xCF};
-static const GXColor tev_kcolor3 = {0x00, 0xFF, 0x00, 0x00};
-static const float flt_490 = 0.0f;
-static const float flt_491 = 1.0f;
-static const float flt_532 = 400.0f;
-static const float flt_533 = 3000.0f;
-static const double dbl_535 = 4503601774854144.0;
-
+static unsigned char is_set_black;
+static GXRenderModeObj* rmode = &GXNtsc480IntDf;
 static const CameraVectors camera_vectors = {
     {0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, 100.0f},
+    {0.0f, 0.0f, 400.0f},
     {0.0f, 0.0f, 0.0f},
 };
-
-static const char stringBase0[] = "can't allocate tex buf.\n";
-
-static GXColor copy_clear_color;
+static const char allocation_error[] = "can't allocate tex buf.\n";
 
 #define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
 #define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
 static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
-    GXColorS10 local_s10;
-    GXColor local_color;
-
     GXSetNumTexGens(2);
     GXSetTexCoordGen2(0, 1, 4, 0x3C, 0, 0x7D);
     GXSetTexCoordGen2(1, 1, 4, 0x3C, 0, 0x7D);
@@ -119,16 +100,16 @@ static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
     GXSetTevAlphaOp(3, 0, 0, 0, 1, 0);
     GXSetTevSwapMode(3, 0, 0);
     GXSetTevKColorSel(3, 0xF);
-    local_s10 = tev_color_s10;
-    GXSetTevColorS10(1, local_s10);
-    local_color = tev_kcolor0;
-    GXSetTevKColor(0, local_color);
-    local_color = tev_kcolor1;
-    GXSetTevKColor(1, local_color);
-    local_color = tev_kcolor2;
-    GXSetTevKColor(2, local_color);
-    local_color = tev_kcolor3;
-    GXSetTevKColor(3, local_color);
+    GXColorS10 color_s10 = {-111, 0, -138, 68};
+    GXSetTevColorS10(1, color_s10);
+    GXColor color0 = {0x66, 0x00, 0xFF, 0x32};
+    GXSetTevKColor(0, color0);
+    GXColor color1 = {0x94, 0x00, 0x94, 0x94};
+    GXSetTevKColor(1, color1);
+    GXColor color2 = {0xCB, 0x00, 0x05, 0xCF};
+    GXSetTevKColor(2, color2);
+    GXColor color3 = {0x00, 0xFF, 0x00, 0x00};
+    GXSetTevKColor(3, color3);
     GXSetTevSwapModeTable(0, 0, 1, 2, 3);
     GXSetTevSwapModeTable(1, 0, 3, 3, 3);
     GXSetTevSwapModeTable(2, 0, 0, 3, 0);
@@ -136,16 +117,18 @@ static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
     GXSetNumIndStages(0);
 }
 
-/* Soft ceiling: drawTex ~80.3% -- local aggregate/register scheduling; stop. */
 static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     Mtx tex_mtx;
     Mtx44 proj;
     Mtx tmp;
     Mtx model;
-    CameraVectors vectors;
-    GXRenderModeObj* mode;
+    Vec up;
+    Vec position;
+    Vec target;
     float half_width;
     float half_height;
+    float tex_zero = 0.0f;
+    float tex_one = 1.0f;
     short halfW;
     short halfH;
     short negW;
@@ -154,14 +137,15 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     if (tex->bufY == 0) {
         return;
     }
-    vectors = camera_vectors;
-    mode = rmode;
-    half_height = (float)((unsigned int)mode->xfbHeight >> 1);
-    half_width = (float)((unsigned int)mode->fbWidth >> 1);
+    up = camera_vectors.up;
+    position = camera_vectors.position;
+    target = camera_vectors.target;
+    half_height = (float)(rmode->xfbHeight >> 1);
+    half_width = (float)(rmode->fbWidth >> 1);
     C_MTXFrustum(proj, half_height, -half_height, -half_width,
-                 half_width, flt_532, flt_533);
+                 half_width, 400.0f, 3000.0f);
     GXSetProjection(proj, 0);
-    C_MTXLookAt((MtxPtr)cam, &vectors.position, &vectors.up, &vectors.target);
+    C_MTXLookAt(cam->view, &position, &up, &target);
     GXLoadTexObj(&tex->tex0, GX_TEXMAP0);
     GXLoadTexObj(&tex->tex1, GX_TEXMAP1);
     setTevPrm(GX_TEXMAP0, GX_TEXMAP1);
@@ -180,50 +164,49 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     halfH = (short)(screen_height / 2);
     negW = (short)-halfW;
     negH = (short)-halfH;
-    PSMTXTrans(model, flt_490, flt_490, flt_490);
-    PSMTXConcat((MtxPtr)cam, model, tmp);
+    PSMTXTrans(model, 0.0f, 0.0f, 0.0f);
+    PSMTXConcat(cam->view, model, tmp);
     GXLoadPosMtxImm(tmp, 0);
     GXBegin(0x80, 0, 4);
     WGPIPE_S16 = halfW;
     WGPIPE_S16 = halfH;
     WGPIPE_S16 = 0;
-    WGPIPE_F32 = flt_491;
-    WGPIPE_F32 = flt_490;
+    WGPIPE_F32 = tex_one;
+    WGPIPE_F32 = tex_zero;
     WGPIPE_S16 = halfW;
     WGPIPE_S16 = negH;
     WGPIPE_S16 = 0;
-    WGPIPE_F32 = flt_491;
-    WGPIPE_F32 = flt_491;
+    WGPIPE_F32 = tex_one;
+    WGPIPE_F32 = tex_one;
     WGPIPE_S16 = negW;
     WGPIPE_S16 = negH;
     WGPIPE_S16 = 0;
-    WGPIPE_F32 = flt_490;
-    WGPIPE_F32 = flt_491;
+    WGPIPE_F32 = tex_zero;
+    WGPIPE_F32 = tex_one;
     WGPIPE_S16 = negW;
     WGPIPE_S16 = halfH;
     WGPIPE_S16 = 0;
-    WGPIPE_F32 = flt_490;
-    WGPIPE_F32 = flt_490;
+    WGPIPE_F32 = tex_zero;
+    WGPIPE_F32 = tex_zero;
     GXSetCullMode(2);
 }
 
 void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int height) {
+    static UsrTexObj* last_tob;
+    static char init;
     NativeMovieProcessCtx* proc;
     UsrTexObj* tex;
-    int alignedW;
-    int alignedH;
-    int halfW;
-    int halfH;
-    void* yBuf;
-    void* cBuf;
+    int padded_half_width;
+    unsigned short chroma_width;
+    unsigned short chroma_height;
+    void* y_buffer;
 
     proc = (NativeMovieProcessCtx*)ctx;
     (void)unused;
-    if (init_399 == 0) {
+    if (init == 0) {
         last_tob = 0;
-        init_399 = 1;
+        init = 1;
     }
-    tex = &scn_ctrl.tob0;
     if (last_tob == &scn_ctrl.tob0) {
         tex = &scn_ctrl.tob1;
     } else {
@@ -231,30 +214,38 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     }
     last_tob = tex;
     if (tex->bufY == 0) {
-        halfW = width >> 1;
-        halfH = height >> 1;
-        alignedW = ((halfW + 0x1F) & ~0x1F) + 0x1F;
-        alignedW &= ~0x3FF;
-        alignedH = halfH & 0xFFFF;
-        tex->width = alignedW;
-        tex->height = alignedH;
-        tex->sizeY = GXGetTexBufferSize(tex->width, tex->height, 3, 0, 0);
-        tex->sizeC = GXGetTexBufferSize(alignedW & 0xFFFF, halfH & 0xFFFF, 3, 0, 0);
-        yBuf = mwMovMalloc(tex->sizeY);
-        tex->bufY = yBuf;
-        cBuf = mwMovMalloc(tex->sizeC);
-        tex->bufC = cBuf;
-        if (yBuf == 0 || cBuf == 0) {
-            OSReport(stringBase0);
+        padded_half_width = width / 2 + 0x1F;
+        chroma_width = (unsigned short)(padded_half_width & 0xFFE0);
+        chroma_height = (unsigned short)(height / 2);
+        tex->width =
+            ((((padded_half_width * 2) & 0x1FFC0) + 0x1F) & 0xFFE0);
+        tex->height = (unsigned short)height;
+        tex->sizeY = GXGetTexBufferSize(
+            (unsigned short)tex->width, (unsigned short)tex->height,
+            GX_TF_I8, 0, 0);
+        tex->sizeC = GXGetTexBufferSize(
+            chroma_width, chroma_height, GX_TF_IA8, 0, 0);
+        y_buffer = mwMovMalloc(tex->sizeY);
+        tex->bufY = y_buffer;
+        tex->bufC = mwMovMalloc(tex->sizeC);
+        if (y_buffer == 0 || tex->bufC == 0) {
+            OSReport(allocation_error);
         } else {
-            if (yBuf != 0) {
-                memset(yBuf, 0, tex->sizeY);
-                memset(cBuf, 0x80, tex->sizeC);
+            if (y_buffer != 0) {
+                memset(y_buffer, 0, tex->sizeY);
+                memset(tex->bufC, 0x80, tex->sizeC);
             }
-            GXInitTexObj(&tex->tex0, tex->bufY, tex->width, tex->height, 3, 0, 0, 1);
-            GXInitTexObj(&tex->tex1, tex->bufC, alignedW & 0xFFFF, halfH & 0xFFFF, 3, 0, 0, 0);
-            GXInitTexObjLOD(&tex->tex0, 0, 0, flt_490, flt_490, flt_490, 0, 0, 0);
-            GXInitTexObjLOD(&tex->tex1, 0, 0, flt_490, flt_490, flt_490, 0, 0, 0);
+            GXInitTexObj(&tex->tex0, tex->bufY,
+                         (unsigned short)tex->width,
+                         (unsigned short)tex->height,
+                         GX_TF_I8, 0, 0, 0);
+            GXInitTexObj(&tex->tex1, tex->bufC,
+                         chroma_width, chroma_height,
+                         GX_TF_IA8, 0, 0, 0);
+            GXInitTexObjLOD(&tex->tex0, 0, 0, 0.0f, 0.0f, 0.0f,
+                            0, 0, 0);
+            GXInitTexObjLOD(&tex->tex1, 0, 0, 0.0f, 0.0f, 0.0f,
+                            0, 0, 0);
         }
     }
     mwPlyFxSetOutBufPitchHeight(proc->handle, tex->width, tex->height);
@@ -273,20 +264,17 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
 void MovieManager_Default_VSync(void) {}
 
 void MovieManager_Default_StopVideo(void) {
-    SceneCtrl* ctrl;
-
-    ctrl = &scn_ctrl;
-    if (ctrl->tob0.bufY != 0) {
-        mwMovFree(ctrl->tob0.bufY);
-        mwMovFree(ctrl->tob0.bufC);
-        ctrl->tob0.bufY = 0;
-        ctrl->tob0.bufC = 0;
+    if (scn_ctrl.tob0.bufY != 0) {
+        mwMovFree(scn_ctrl.tob0.bufY);
+        mwMovFree(scn_ctrl.tob0.bufC);
+        scn_ctrl.tob0.bufY = 0;
+        scn_ctrl.tob0.bufC = 0;
     }
-    if (ctrl->tob1.bufY != 0) {
-        mwMovFree(ctrl->tob1.bufY);
-        mwMovFree(ctrl->tob1.bufC);
-        ctrl->tob1.bufY = 0;
-        ctrl->tob1.bufC = 0;
+    if (scn_ctrl.tob1.bufY != 0) {
+        mwMovFree(scn_ctrl.tob1.bufY);
+        mwMovFree(scn_ctrl.tob1.bufC);
+        scn_ctrl.tob1.bufY = 0;
+        scn_ctrl.tob1.bufC = 0;
     }
     GXSetTevSwapModeTable(0, 0, 1, 2, 3);
     GXSetTevSwapModeTable(1, 0, 1, 2, 3);
@@ -294,44 +282,42 @@ void MovieManager_Default_StopVideo(void) {
 }
 
 void MovieManager_Default_StartVideo(void) {
-    SceneCtrl* ctrl;
+    GXColor copy_clear_color = {0, 0, 0, 0};
     Mtx44 proj;
-    Vec camPos;
     Vec up;
+    Vec position;
     Vec target;
+    float half_height;
+    float half_width;
 
     GXSetCopyClear(copy_clear_color, 0xFFFFFF);
-    ctrl = &scn_ctrl;
-    memset(ctrl, 0, 0x120);
+    memset(&scn_ctrl, 0, sizeof(scn_ctrl));
     GXInvalidateTexAll();
     GXSetTexCoordGen2(0, 1, 4, 0x1E, 0, 0x7D);
     GXSetNumTexGens(1);
-    C_MTXFrustum(proj, (float)(rmode->efbHeight >> 1), (float)(-(rmode->efbHeight >> 1)),
-                 (float)(rmode->fbWidth >> 1), (float)(-(rmode->fbWidth >> 1)), flt_532,
-                 flt_533);
+    up = camera_vectors.up;
+    position = camera_vectors.position;
+    target = camera_vectors.target;
+    half_height = (float)(rmode->efbHeight >> 1);
+    half_width = (float)(rmode->fbWidth >> 1);
+    C_MTXFrustum(proj, half_height, -half_height, -half_width,
+                 half_width, 400.0f, 3000.0f);
     GXSetProjection(proj, 0);
-    camPos.x = camera_vectors.up.x;
-    camPos.y = camera_vectors.up.y;
-    camPos.z = camera_vectors.up.z;
-    up.x = camera_vectors.position.x;
-    up.y = camera_vectors.position.y;
-    up.z = camera_vectors.position.z;
-    target.x = camera_vectors.target.x;
-    target.y = camera_vectors.target.y;
-    target.z = camera_vectors.target.z;
-    C_MTXLookAt((MtxPtr)&scn_ctrl.cam, &camPos, &up, &target);
-    ctrl->tob0.bufY = 0;
-    ctrl->tob0.bufC = 0;
-    ctrl->tob1.bufY = 0;
-    ctrl->tob1.bufC = 0;
+    C_MTXLookAt(scn_ctrl.cam.view, &position, &up, &target);
+    scn_ctrl.tob0.bufY = 0;
+    scn_ctrl.tob0.bufC = 0;
+    scn_ctrl.tob1.bufY = 0;
+    scn_ctrl.tob1.bufC = 0;
     VISetBlack(1);
     is_set_black = 1;
-    if (ctrl->tob0.bufY != 0) {
-        memset(ctrl->tob0.bufY, 0, ctrl->tob0.sizeY);
-        memset(ctrl->tob0.bufC, 0x80, ctrl->tob0.sizeC);
+    if (scn_ctrl.tob0.bufY != 0) {
+        memset(scn_ctrl.tob0.bufY, 0, scn_ctrl.tob0.sizeY);
+        memset(scn_ctrl.tob0.bufC, 0x80, scn_ctrl.tob0.sizeC);
     }
-    if (ctrl->tob1.bufY != 0) {
-        memset(ctrl->tob1.bufY, 0, ctrl->tob1.sizeY);
-        memset(ctrl->tob1.bufC, 0x80, ctrl->tob1.sizeC);
+    if (scn_ctrl.tob1.bufY != 0) {
+        memset(scn_ctrl.tob1.bufY, 0, scn_ctrl.tob1.sizeY);
+        memset(scn_ctrl.tob1.bufC, 0x80, scn_ctrl.tob1.sizeC);
     }
 }
+
+int gap_08_805108BC_sbss;

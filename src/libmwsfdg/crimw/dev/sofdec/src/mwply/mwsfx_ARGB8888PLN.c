@@ -7,7 +7,7 @@ static const char invalid_frame[] =
 
 void mwPlyFxCnvFrmARGB8888(int handle, MwsFrameInfo* frame, void* output) {
     SfxFrameInfo frame_info;
-    int sfx_handle;
+    SFXHandle* sfx_handle;
 
     if (MWSFD_IsEnableHndl(handle) == 0) {
         MWSFSVM_Error(invalid_handle);

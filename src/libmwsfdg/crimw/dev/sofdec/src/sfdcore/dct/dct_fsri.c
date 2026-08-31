@@ -1,24 +1,9 @@
 #include "runtime/cstring.h"
+#include "sofdec/dct_fsri.h"
 
 const char* DCT_GetVerStr(void);
 void DCT_AcInit(void);
 void DCT_AcIdctDouble(const double input[8][8], double output[8][8]);
-
-typedef union DctFsriBlock {
-    signed short samples[64];
-    unsigned int packed[32];
-} DctFsriBlock;
-
-typedef struct DctFsriParams {
-    signed char block_nonzero[6];
-    unsigned char field_06[0x22];
-    int coded_block_pattern;
-    float* coefficients;
-    DctFsriBlock** output_blocks;
-    unsigned char field_34[0x14];
-    float* workspace;
-    unsigned char field_4c[8];
-} DctFsriParams;
 
 static const double scale8[8] = {
     0.3535533905932738,

@@ -1,85 +1,128 @@
-/* TODO: Missing implementation for retail unit sfd_vom.c. */
+#include "sofdec/sfd_player.h"
+#include "sofdec/sfd_timer.h"
+#include "sofdec/sfd_transport.h"
 
-void *SFVOM_Seek(void)
+enum {
+    SFD_VIDEO_OUTPUT_TRANSPORT = 6
+};
+
+static int SFVOM_Seek(SfdHandle* handle, int parameter, int value)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_AddRead(void)
+static int SFVOM_AddRead(SfdHandle* handle, int amount, int value)
 {
-    /* TODO: Missing canonical function implementation. */
+    return SFBUF_VfrmAddRead(
+        handle, handle->transports[SFD_VIDEO_OUTPUT_TRANSPORT].parameter_10,
+        amount);
+}
+
+static int SFVOM_GetRead(SfdHandle* handle, void* output_pointer)
+{
+    SfdFrameTime** output = output_pointer;
+    int result;
+
+    if (handle->playback_state != 3 && handle->playback_state != 4) {
+        *output = 0;
+        return 0;
+    }
+    result = SFBUF_VfrmGetRead(
+        handle, handle->transports[SFD_VIDEO_OUTPUT_TRANSPORT].parameter_10,
+        output);
+    if (result != 0) {
+        return result;
+    }
+    if (SFTIM_IsGetFrmTime(handle, *output) == 0) {
+        *output = 0;
+    }
     return 0;
 }
 
-void *SFVOM_GetRead(void)
+static int SFVOM_AddWrite(SfdHandle* handle, int parameter, int value)
 {
-    /* TODO: Missing canonical function implementation. */
+    return SFLIB_SetErr(handle, 0xFF000701);
+}
+
+static int SFVOM_GetWrite(SfdHandle* handle, void* output)
+{
+    return SFLIB_SetErr(handle, 0xFF000701);
+}
+
+static int SFVOM_Pause(SfdHandle* handle, int state)
+{
     return 0;
 }
 
-void *SFVOM_AddWrite(void)
+static int SFVOM_Stop(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_GetWrite(void)
+static int SFVOM_Start(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_Pause(void)
+static int SFVOM_Standby(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_Stop(void)
+static int SFVOM_Destroy(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_Start(void)
+static int SFVOM_Create(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_Standby(void)
+static int SFVOM_ExecServer(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
+    int video_terminated;
+
+    if (SFSET_GetCond(handle, 5) == 0) {
+        return 0;
+    }
+    if (SFTRN_GetTermFlg(handle, SFD_VIDEO_OUTPUT_TRANSPORT) != 1 &&
+        SFBUF_GetTermFlg(
+            handle,
+            handle->transports[SFD_VIDEO_OUTPUT_TRANSPORT].parameter_10) == 1) {
+        if (SFSET_GetCond(handle, 0x0F) == 0) {
+            video_terminated = 1;
+        } else if (SFTIM_IsVideoTerm(handle) == 0) {
+            video_terminated = 0;
+        } else {
+            video_terminated = 1;
+        }
+        if (video_terminated != 0) {
+            SFTRN_SetTermFlg(handle, SFD_VIDEO_OUTPUT_TRANSPORT, 1);
+        }
+    }
+    if (SFTRN_GetPrepFlg(handle, SFD_VIDEO_OUTPUT_TRANSPORT) != 1 &&
+        SFBUF_GetPrepFlg(
+            handle,
+            handle->transports[SFD_VIDEO_OUTPUT_TRANSPORT].parameter_10) == 1) {
+        SFTRN_SetPrepFlg(handle, SFD_VIDEO_OUTPUT_TRANSPORT, 1);
+    }
     return 0;
 }
 
-void *SFVOM_Destroy(void)
+static int SFVOM_Finish(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_Create(void)
+static int SFVOM_Init(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFVOM_ExecServer(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFVOM_Finish(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFVOM_Init(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+const SfdTransportInterface SFD_tr_vo_manu = {
+    SFVOM_Init,     SFVOM_Finish,   SFVOM_ExecServer, SFVOM_Create,
+    SFVOM_Destroy,  SFVOM_Standby,  SFVOM_Start,      SFVOM_Stop,
+    SFVOM_Pause,    SFVOM_GetWrite, SFVOM_AddWrite,   SFVOM_GetRead,
+    SFVOM_AddRead,  SFVOM_Seek,
+};

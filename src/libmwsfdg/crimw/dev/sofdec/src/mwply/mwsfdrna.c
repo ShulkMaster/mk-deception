@@ -1,25 +1,27 @@
-/* TODO: Missing implementation for retail unit mwsfdrna.c. */
+#include "dolphin/types.h"
+#include "sofdec/sfd_player.h"
 
-void *MWSFRNA_GetOutPan(void)
+typedef struct MwsfdPlayer {
+    u8 reserved_00[0x40];
+    SfdHandle* sfd_handle;
+} MwsfdPlayer;
+
+int MWSFRNA_GetOutPan(MwsfdPlayer* player, int channel)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return SFD_GetOutPan(player->sfd_handle, channel);
 }
 
-void *MWSFRNA_SetOutPan(void)
+void MWSFRNA_SetOutPan(MwsfdPlayer* player, int channel, int pan)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SFD_SetOutPan(player->sfd_handle, channel, pan);
 }
 
-void *MWSFRNA_GetOutVol(void)
+int MWSFRNA_GetOutVol(MwsfdPlayer* player)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return SFD_GetOutVol(player->sfd_handle);
 }
 
-void *MWSFRNA_SetOutVol(void)
+void MWSFRNA_SetOutVol(MwsfdPlayer* player, int volume)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SFD_SetOutVol(player->sfd_handle, volume);
 }

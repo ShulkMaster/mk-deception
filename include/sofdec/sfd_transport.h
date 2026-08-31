@@ -10,16 +10,24 @@
 typedef struct SfdTransportInterface SfdTransportInterface;
 typedef struct SfdTransportSetup SfdTransportSetup;
 typedef struct SfdVideoFrameState SfdVideoFrameState;
+typedef void (*SfdBufferHandleCallback)(SfdHandle* handle, int stream_index);
+typedef void (*SfdBufferObjectCallback)(int object, int stream_index);
 
 typedef struct SfdBufferChannel {
     SJ* stream_joint;
     int object;
-    int state_08;
-    int state_0C;
+    SfdBufferHandleCallback handle_callback;
+    SfdBufferObjectCallback object_callback;
 } SfdBufferChannel;
 
+typedef struct SfdPtsEntry {
+    long long pts;
+    unsigned char* data;
+    int size;
+} SfdPtsEntry;
+
 typedef struct SfdPtsQueue {
-    void* entries;
+    SfdPtsEntry* entries;
     int capacity;
     int count;
     int write_index;
@@ -33,8 +41,8 @@ typedef struct SfdBufferRingWork {
     int buffer_size;
     int field_10;
     int field_14;
-    int delimiter_position;
-    int delimiter_size;
+    unsigned char* delimiter_position;
+    unsigned char* delimiter_end;
     int write_total;
     int read_total;
     SfdPtsQueue pts_queue;
@@ -82,6 +90,7 @@ typedef union SfdBufferWork {
 } SfdBufferWork;
 
 typedef int (*SfdTransportLifecycleFn)(SfdHandle* handle);
+typedef int (*SfdTransportPauseFn)(SfdHandle* handle, int state);
 typedef int (*SfdTransportTransferFn)(SfdHandle* handle, int parameter,
                                       int value);
 typedef int (*SfdTransportBufferFn)(SfdHandle* handle, void* buffer);
@@ -95,7 +104,7 @@ struct SfdTransportInterface {
     SfdTransportLifecycleFn standby;
     SfdTransportLifecycleFn start;
     SfdTransportLifecycleFn stop;
-    SfdTransportLifecycleFn pause;
+    SfdTransportPauseFn pause;
     SfdTransportBufferFn get_write;
     SfdTransportTransferFn add_write;
     SfdTransportBufferFn get_read;
@@ -114,9 +123,28 @@ typedef struct SfdBufferState {
     unsigned char unknown_0054[0x20];
 } SfdBufferState;
 
+typedef struct SfdVideoFrameInfo {
+    int width, height, macroblocks_per_row, macroblock_rows;
+    int picture_type;
+    int display_time_value, display_time_scale;
+    int output_format;
+    void* frame_buffer;
+    int field_24, field_28, picture_order, field_30, field_34;
+    void* picture_user_buffer;
+    int field_3C, field_40, reserved_44, display_mode, reserved_4C;
+    int field_50, field_54, field_58, field_5C, field_60, field_64;
+    short field_68, field_6A;
+    unsigned char fields_6C[0x0F];
+    unsigned char reserved_7B[5];
+} SfdVideoFrameInfo;
+
 struct SfdVideoFrameState {
     int state;
-    unsigned char unknown_0004[0x84];
+    int field_04;
+    union {
+        unsigned char payload[0x80];
+        SfdVideoFrameInfo info;
+    } data;
 };
 
 typedef struct SfdBufferCreateConfig {
@@ -129,7 +157,10 @@ typedef struct SfdBufferCreateConfig {
 
 typedef struct SfdCreateConfig {
     SfdBufferCreateConfig buffer;
-    unsigned char unknown_002C[0x10];
+    int picture_user_buffer_minimum;
+    int maximum_width;
+    int maximum_height;
+    int video_output_format;
     unsigned char* handle_memory;
     int handle_memory_size;
 } SfdCreateConfig;
@@ -160,6 +191,26 @@ typedef struct SfdTransportRegistry {
     const SfdTransportInterface* entries[15];
 } SfdTransportRegistry;
 
+typedef struct SfdAudioOutputCallbacks SfdAudioOutputCallbacks;
+typedef void (*SfdAudioSetPanFn)(SfdHandle*, int, int,
+                                 SfdAudioOutputCallbacks*);
+typedef int (*SfdAudioGetPanFn)(SfdHandle*, int,
+                                SfdAudioOutputCallbacks*);
+typedef void (*SfdAudioSetVolumeFn)(SfdHandle*, int,
+                                    SfdAudioOutputCallbacks*);
+typedef int (*SfdAudioGetVolumeFn)(SfdHandle*, SfdAudioOutputCallbacks*);
+typedef void (*SfdAudioSetSpeedFn)(SfdHandle*, int);
+
+struct SfdAudioOutputCallbacks {
+    int reserved_00;
+    SfdAudioSetPanFn set_pan;
+    SfdAudioGetPanFn get_pan;
+    SfdAudioSetVolumeFn set_volume;
+    SfdAudioGetVolumeFn get_volume;
+    SfdAudioSetSpeedFn set_speed;
+    int reserved_18;
+};
+
 struct SfdHandle {
     SfdCreateConfig create_config;
     int field_0044;
@@ -181,7 +232,12 @@ struct SfdHandle {
     SfdBufferState buffers[8];
     SfdVideoFrameState video_frames[16];
     SfdTransportState transports[9];
-    unsigned char unknown_218C[0x1304];
+    unsigned char unknown_218C[4];
+    unsigned char mps_work_storage[0x168];
+    unsigned char unknown_22F8[0xA8];
+    unsigned char mpv_work_storage[0xF80];
+    unsigned char unknown_3320[0x154];
+    SfdAudioOutputCallbacks audio_output_callbacks;
     SfdUserOutputWork user_output_work;
     int field_34C4;
     SfdSeekState seek_state;
@@ -193,6 +249,7 @@ typedef char SfdTransportInterfaceSizeCheck[
 typedef char SfdBufferChannelSizeCheck[
     sizeof(SfdBufferChannel) == 0x10 ? 1 : -1];
 typedef char SfdPtsQueueSizeCheck[sizeof(SfdPtsQueue) == 0x14 ? 1 : -1];
+typedef char SfdPtsEntrySizeCheck[sizeof(SfdPtsEntry) == 0x10 ? 1 : -1];
 typedef char SfdBufferRingWorkSizeCheck[
     sizeof(SfdBufferRingWork) == 0x3C ? 1 : -1];
 typedef char SfdBufferTransferSizeCheck[
@@ -219,12 +276,20 @@ typedef char SfdCreateConfigSizeCheck[
     sizeof(SfdCreateConfig) == 0x44 ? 1 : -1];
 typedef char SfdTransportRegistrySizeCheck[
     sizeof(SfdTransportRegistry) == 0x3C ? 1 : -1];
+typedef char SfdAudioOutputCallbacksSizeCheck[
+    sizeof(SfdAudioOutputCallbacks) == 0x1C ? 1 : -1];
 typedef char SfdHandleSizeCheck[
     sizeof(SfdHandle) == 0x3598 ? 1 : -1];
 
 void SFPTS_InitPtsQue(SfdPtsQueue* queue);
+int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index);
+int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
+                     unsigned char* position, SfdPtsEntry* output);
+int SFPTS_WritePtsQue(SfdHandle* handle, int buffer_index,
+                      const SfdPtsEntry* entry, int* full);
 void SFSET_SetCond(SfdHandle* handle, int condition, int value);
 int SFBUF_GetTermFlg(SfdHandle* handle, int buffer_index);
+void SFBUF_SetTermFlg(SfdHandle* handle, int buffer_index, int terminated);
 int SFBUF_RingGetDataSiz(SfdHandle* handle, int buffer_index);
 int SFBUF_GetWTot(SfdHandle* handle, int buffer_index);
 int SFBUF_GetRTot(SfdHandle* handle, int buffer_index);
@@ -235,6 +300,18 @@ void SFBUF_SetUoch(SfdHandle* handle, int buffer_index, int channel,
 int SFBUF_RingAddWrite(SfdHandle* handle, int buffer_index, int parameter,
                        int value);
 int SFBUF_RingGetWrite(SfdHandle* handle, int buffer_index, void* buffer);
+int SFBUF_RingAddRead(SfdHandle* handle, int buffer_index, int amount);
+int SFBUF_RingGetRead(SfdHandle* handle, int buffer_index, void* output);
+int SFBUF_RingGetSj(SfdHandle* handle, int buffer_index, SJ** output);
+void SFBUF_RingSetDlm(SfdHandle* handle, int buffer_index,
+                      unsigned char* position, unsigned char* end_position);
+void SFBUF_RingGetDlm(SfdHandle* handle, int buffer_index,
+                      unsigned char** position, unsigned char** end_position);
+void SFBUF_GetFlowCnt(SJ* stream_joint, int* write_count, int* read_count);
+long long SFBUF_UpdateFlowCnt(int count, unsigned int old_position,
+                              unsigned int position);
+void SFBUF_AddRtotSj(SfdHandle* handle, int buffer_index, int amount);
+int SFBUF_GetRingBufSiz(SfdHandle* handle, int buffer_index);
 int SFBUF_InitHn(SfdHandle* handle, SfdBufferState* buffers,
                  const SfdBufferCreateConfig* create);
 void SFBUF_DestroySj(SfdHandle* handle);
@@ -244,6 +321,13 @@ int SFTRN_GetTermFlg(SfdHandle* handle, int transport_index);
 void SFTRN_SetTermFlg(SfdHandle* handle, int transport_index, int terminated);
 int SFTRN_GetPrepFlg(SfdHandle* handle, int transport_index);
 void SFTRN_SetPrepFlg(SfdHandle* handle, int transport_index, int prepared);
+int SFCON_IsVideoEndcodeSkip(SfdHandle* handle);
+int SFCON_IsSystemEndcodeSkip(SfdHandle* handle);
+int SFCON_IsEndcodeSkip(SfdHandle* handle);
+int SFCON_ReadTotSmplQue(SfdHandle* handle, int* samples, int* sample_rate);
+int SFCON_WriteTotSmplQue(SfdHandle* handle, int samples, int sample_rate);
+void SFCON_UpdateConcatTime(SfdHandle* handle, int concat_time);
+int SFD_SetConcatPlay(SfdHandle* handle);
 int SFTRN_IsSetup(SfdHandle* handle, int transport_index);
 int SFTRN_CallTrtTrif(SfdHandle* handle, int transport_index,
                       int callback_index, int parameter, int value);

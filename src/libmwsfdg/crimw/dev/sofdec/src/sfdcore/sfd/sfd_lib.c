@@ -34,7 +34,7 @@ int SFLIB_CheckHn(SfdHandle* handle)
     return handle->playback_state == 0 ? -1 : 0;
 }
 
-static void sflib_CallErrFn(SfdErrorInfo* info, int error)
+static inline void sflib_CallErrFn(SfdErrorInfo* info, int error)
 {
     if (error != 0 && info->callback != 0) {
         info->callback(info->callback_object, error);
@@ -140,7 +140,7 @@ int SFD_Init(const SfdLibraryConfig* config)
     SFTIM_Init(&SFLIB_libwork.timer_work, config->timer_source);
     SFBUF_Init(&SFLIB_libwork.buffer_work);
     SFLIB_libwork.reset_in_progress = 0;
-    SFLIB_libwork.server_handle_index = 0;
+    SFLIB_libwork.retained_adxt = 0;
     for (i = 0; i < 8; i++) {
         SFLIB_libwork.handles[i] = 0;
     }

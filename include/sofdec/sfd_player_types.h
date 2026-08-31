@@ -24,7 +24,17 @@ typedef struct SfdPlaybackRuntime {
     int field_24;
     int field_28;
     int field_2C;
-    long long time_values[12];
+    union {
+        long long time_values[12];
+        struct {
+            long long reserved_time_values[3];
+            struct {
+                int high;
+                unsigned int low;
+            } input_flow;
+            long long remaining_time_values[8];
+        } timing;
+    };
     int tail_values[4];
 } SfdPlaybackRuntime;
 

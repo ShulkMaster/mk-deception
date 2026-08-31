@@ -5,7 +5,7 @@
 
 SfdPlayerRecordFrameFn SFPLY_recordgetfrm;
 int sfply_last_hnctrl_wksiz;
-void (*SFPLY_SetPtsInfo)(void);
+SfdPlayerSetPtsInfoFn SFPLY_SetPtsInfo;
 void (*SFPLY_ResetPtsm)(unsigned int* pts);
 
 const unsigned int SFPLY_cond_dfl[101] = {
@@ -22,13 +22,12 @@ const unsigned int SFPLY_cond_dfl[101] = {
 static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
                                const void* transport_buffer_setup);
 
-void SFD_SetSupplySj(SfdHandle* handle, const SfdBufferSupply* supply)
+int SFD_SetSupplySj(SfdHandle* handle, const SfdBufferSupply* supply)
 {
     if (SFLIB_CheckHn(handle) != 0) {
-        SFLIB_SetErr(0, 0xFF000139);
-        return;
+        return SFLIB_SetErr(0, 0xFF000139);
     }
-    SFBUF_SetSupplySj(handle, supply);
+    return SFBUF_SetSupplySj(handle, supply);
 }
 
 void SFD_RelFrm(SfdHandle* handle, void* frame)

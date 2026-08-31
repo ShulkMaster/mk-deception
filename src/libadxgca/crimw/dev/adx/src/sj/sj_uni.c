@@ -1,13 +1,27 @@
-/* TODO: Missing implementation for retail unit sj_uni.c. */
+#include "runtime/cstring.h"
 
-void *SJUNI_Finish(void)
+extern void SJCRS_Lock(void);
+extern void SJCRS_Unlock(void);
+
+int sjuni_init_cnt;
+unsigned char sjuni_obj[0xC00];
+
+void SJUNI_Finish(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SJCRS_Lock();
+    sjuni_init_cnt--;
+    if (sjuni_init_cnt == 0) {
+        memset(sjuni_obj, 0, sizeof(sjuni_obj));
+    }
+    SJCRS_Unlock();
 }
 
-void *SJUNI_Init(void)
+void SJUNI_Init(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SJCRS_Lock();
+    if (sjuni_init_cnt == 0) {
+        memset(sjuni_obj, 0, sizeof(sjuni_obj));
+    }
+    sjuni_init_cnt++;
+    SJCRS_Unlock();
 }

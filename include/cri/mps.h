@@ -31,7 +31,7 @@ typedef struct MpsPacketHeader {
 
 struct MpsHandle;
 
-typedef void (*MpsErrorCallback)(int object);
+typedef void (*MpsErrorCallback)(int object, int error);
 typedef void (*MpsPesCallback)(int object, unsigned char stream_id);
 
 typedef struct MpsSystemStream {

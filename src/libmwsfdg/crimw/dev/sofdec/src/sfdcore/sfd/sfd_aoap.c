@@ -1,115 +1,180 @@
-/* TODO: Missing implementation for retail unit sfd_aoap.c. */
+#include "sofdec/sfd_error.h"
+#include "sofdec/sfd_player.h"
+#include "sofdec/sfd_transport.h"
 
-void *SFAOAP_Seek(void)
+static int SFAOAP_Seek(SfdHandle* handle, int parameter, int value)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFAOAP_AddRead(void)
+static int SFAOAP_AddRead(SfdHandle* handle, int parameter, int value)
 {
-    /* TODO: Missing canonical function implementation. */
+    return SFLIB_SetErr(handle, 0xFF000A01);
+}
+
+static int SFAOAP_GetRead(SfdHandle* handle, void* output)
+{
+    return SFLIB_SetErr(handle, 0xFF000A01);
+}
+
+static int SFAOAP_AddWrite(SfdHandle* handle, int parameter, int value)
+{
+    return SFLIB_SetErr(handle, 0xFF000A01);
+}
+
+static int SFAOAP_GetWrite(SfdHandle* handle, void* output)
+{
+    return SFLIB_SetErr(handle, 0xFF000A01);
+}
+
+static int sfaoap_CallState(SfdHandle* handle, int callback, int value)
+{
+    int result = 0;
+
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    value = SFTRN_CallTrtTrif(handle, 3, callback, value, 0);
+    if (value != 0) {
+        result = value;
+    }
+    return result;
+}
+
+static int SFAOAP_Pause(SfdHandle* handle, int pause)
+{
+    return sfaoap_CallState(handle, 8, pause);
+}
+
+static int SFAOAP_Stop(SfdHandle* handle)
+{
+    return sfaoap_CallState(handle, 7, 0);
+}
+
+static int SFAOAP_Start(SfdHandle* handle)
+{
+    return sfaoap_CallState(handle, 6, 0);
+}
+
+static int SFAOAP_Standby(SfdHandle* handle)
+{
+    return sfaoap_CallState(handle, 5, 0);
+}
+
+static int SFAOAP_Destroy(SfdHandle* handle)
+{
     return 0;
 }
 
-void *SFAOAP_GetRead(void)
+static int SFAOAP_Create(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
+    if (SFSET_GetCond(handle, 6) != 0) {
+        handle->transports[7].context = &handle->audio_output_callbacks;
+    }
     return 0;
 }
 
-void *SFAOAP_AddWrite(void)
+static int SFAOAP_ExecServer(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
+    int buffer_index;
+
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    buffer_index = handle->transports[7].parameter_10;
+    if (SFTRN_GetPrepFlg(handle, 7) != 1 &&
+        SFBUF_GetPrepFlg(handle, buffer_index) == 1) {
+        SFTRN_SetPrepFlg(handle, 7, 1);
+    }
+    if (SFTRN_GetTermFlg(handle, 7) != 1 &&
+        SFBUF_GetTermFlg(handle, buffer_index) == 1) {
+        SFTRN_SetTermFlg(handle, 7, 1);
+    }
     return 0;
 }
 
-void *SFAOAP_GetWrite(void)
+static int SFAOAP_Finish(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFAOAP_Pause(void)
+static int SFAOAP_Init(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *SFAOAP_Stop(void)
+void SFAOAP_SetSpeed(SfdHandle* handle, int speed)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (SFSET_GetCond(handle, 6) != 0) {
+        SfdAudioOutputCallbacks* callbacks =
+            handle->transports[7].context;
+        if (callbacks->set_speed != 0) {
+            callbacks->set_speed(handle, speed);
+        }
+    }
 }
 
-void *SFAOAP_Start(void)
+int SFD_GetOutVol(SfdHandle* handle)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SfdAudioOutputCallbacks* callbacks;
+
+    if (SFLIB_CheckHn(handle) != 0) {
+        SFLIB_SetErr(0, 0xFF0001A4);
+        return 0;
+    }
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    callbacks = handle->transports[7].context;
+    return callbacks->get_volume(handle, callbacks);
 }
 
-void *SFAOAP_Standby(void)
+void SFD_SetOutVol(SfdHandle* handle, int volume)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SfdAudioOutputCallbacks* callbacks;
+
+    if (SFLIB_CheckHn(handle) != 0) {
+        SFLIB_SetErr(0, 0xFF0001A3);
+        return;
+    }
+    if (SFSET_GetCond(handle, 6) != 0) {
+        callbacks = handle->transports[7].context;
+        callbacks->set_volume(handle, volume, callbacks);
+    }
 }
 
-void *SFAOAP_Destroy(void)
+int SFD_GetOutPan(SfdHandle* handle, int channel)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SfdAudioOutputCallbacks* callbacks;
+
+    if (SFLIB_CheckHn(handle) != 0) {
+        SFLIB_SetErr(0, 0xFF0001A2);
+        return 0;
+    }
+    if (SFSET_GetCond(handle, 6) == 0) {
+        return 0;
+    }
+    callbacks = handle->transports[7].context;
+    return callbacks->get_pan(handle, channel, callbacks);
 }
 
-void *SFAOAP_Create(void)
+void SFD_SetOutPan(SfdHandle* handle, int channel, int pan)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SfdAudioOutputCallbacks* callbacks;
+
+    if (SFLIB_CheckHn(handle) != 0) {
+        SFLIB_SetErr(0, 0xFF0001A1);
+        return;
+    }
+    if (SFSET_GetCond(handle, 6) != 0) {
+        callbacks = handle->transports[7].context;
+        callbacks->set_pan(handle, channel, pan, callbacks);
+    }
 }
 
-void *SFAOAP_ExecServer(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFAOAP_Finish(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFAOAP_Init(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFAOAP_SetSpeed(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFD_GetOutVol(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFD_SetOutVol(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFD_GetOutPan(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SFD_SetOutPan(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+const SfdTransportInterface SFD_tr_ao_auto_p = {
+    SFAOAP_Init,     SFAOAP_Finish,   SFAOAP_ExecServer, SFAOAP_Create,
+    SFAOAP_Destroy,  SFAOAP_Standby,  SFAOAP_Start,      SFAOAP_Stop,
+    SFAOAP_Pause,    SFAOAP_GetWrite, SFAOAP_AddWrite,   SFAOAP_GetRead,
+    SFAOAP_AddRead,  SFAOAP_Seek,
+};
