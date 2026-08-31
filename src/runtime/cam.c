@@ -91,8 +91,6 @@ int get_game_state(void);
 int get_konquest_game_mode(void);
 void atomic_set_transl_flag(RpAtomic* atomic);
 void render_col_shape(const CollisionShape* shape, const unsigned int* color);
-extern unsigned int rgba_red;
-extern unsigned int rgba_green;
 extern int MksobjLocalOffset;
 void hide_atomic(void* atomic);
 void unhide_atomic(void* atomic);

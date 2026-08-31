@@ -91,7 +91,7 @@ static const float kDefaultPfxScale = -10000.0f; /* retail @1400 */
     (((MkSobj* (*)(MkHdr*))(vtbl_)->fn2)(hdr_))
 
 /* Resolve MkHdr* against a stored instance id (retail inline pattern). */
-static MkHdr* resolve_mkptr(MkHdr* hdr, unsigned int expected_instance) {
+static inline MkHdr* resolve_mkptr(MkHdr* hdr, unsigned int expected_instance) {
     if (hdr == 0) {
         return 0;
     }
@@ -101,7 +101,7 @@ static MkHdr* resolve_mkptr(MkHdr* hdr, unsigned int expected_instance) {
     return hdr;
 }
 
-static MkObj* as_mkobj(MkHdr* hdr) {
+static inline MkObj* as_mkobj(MkHdr* hdr) {
     if (hdr == 0) {
         return 0;
     }
@@ -111,7 +111,7 @@ static MkObj* as_mkobj(MkHdr* hdr) {
     return (MkObj*)hdr;
 }
 
-static MkSobj* vtbl_call_get_sobj(MkHdr* hdr) {
+static inline MkSobj* vtbl_call_get_sobj(MkHdr* hdr) {
     MkVtable5* vtbl;
 
     if (hdr == 0) {
@@ -121,7 +121,7 @@ static MkSobj* vtbl_call_get_sobj(MkHdr* hdr) {
     return ((MkSobj* (*)(MkHdr*))vtbl->fn2)(hdr);
 }
 
-static void vtbl_call_destroy(MkHdr* hdr) {
+static inline void vtbl_call_destroy(MkHdr* hdr) {
     MkVtable5* vtbl;
 
     if (hdr == 0 || hdr->instance == 0) {
@@ -131,11 +131,11 @@ static void vtbl_call_destroy(MkHdr* hdr) {
     ((void (*)(MkHdr*))vtbl->destroy)(hdr);
 }
 
-static int flag_msb(unsigned char byte) {
+static inline int flag_msb(unsigned char byte) {
     return (int)((signed char)(byte & 0x80));
 }
 
-static PfxVm* pfx_vm(MkPfx* pfx) {
+static inline PfxVm* pfx_vm(MkPfx* pfx) {
     return (PfxVm*)pfx->matrix;
 }
 
@@ -418,10 +418,7 @@ void render_pfx(MkPfx* pfx) {
 }
 
 void hide_pfx(MkPfx* pfx, int hide) {
-    unsigned char flags;
-
-    flags = pfx->flags80;
-    pfx->flags80 = (unsigned char)((flags & 0x7F) | ((hide & 1) << 7));
+    pfx->f80.hide = hide;
 }
 
 void pfx_end_batch(void) {
@@ -455,12 +452,10 @@ void set_pfx_texture(PfxVm* pfx, void* path, void* name) {
 
 MkObj* pfx_clone_bind_render_to_new_obj(PfxClone* clone, int object_type) {
     MkObj* obj;
-    unsigned char flags;
 
     obj = get_mkobj_frame(object_type, 0);
     if (obj != 0) {
-        flags = clone->flags;
-        clone->flags = (unsigned char)((flags & 0xBF) | 0x40);
+        clone->flag_bits.owns_bind = 1;
         clone->bind_hdr = &obj->hdr;
         clone->bind_inst = obj->hdr.instance;
         clone->matrix_copy = &obj->frame->modelling;
@@ -710,20 +705,19 @@ PfxClone* pfx_create_clone(MkPfx* pfx) {
     float zero;
 
     clone = (PfxClone*)get_mkhdr(&vtbl_pfx_clone, 0x2C);
-    if (clone == 0) {
-        return 0;
+    if (clone != 0) {
+        zero = kZero;
+        clone->parent = pfx;
+        clone->matrix_copy = 0;
+        clone->bind_hdr = 0;
+        clone->bind_inst = 0;
+        clone->bind2_hdr = 0;
+        clone->bind2_inst = 0;
+        *(unsigned int*)&clone->flags = 0;
+        clone->depth_bias = zero;
+        clone->priority = 0x12;
+        mk_insert(&clone->hdr, &pfx_clone_render_list);
     }
-    zero = kZero;
-    clone->parent = pfx;
-    clone->matrix_copy = 0;
-    clone->bind_hdr = 0;
-    clone->bind_inst = 0;
-    clone->bind2_hdr = 0;
-    clone->bind2_inst = 0;
-    *(unsigned int*)&clone->flags = 0;
-    clone->depth_bias = zero;
-    clone->priority = 0x12;
-    mk_insert(&clone->hdr, &pfx_clone_render_list);
     return clone;
 }
 

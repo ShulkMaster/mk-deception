@@ -1119,8 +1119,8 @@ AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, Ima
     return atc;
 }
 
-AniTextureControl* attach_wiff_to_atomic_material(int slot, char* name, RpAtomic* atomic,
-                                                  char* tex_name) {
+AniTextureControl* attach_wiff_to_atomic_material(
+    int slot, unsigned int art_oid, RpAtomic* atomic, char* tex_name) {
     AniTextureControl* atc;
     ImageClumpExt* clump_ext;
     AtcFlagBits* fbits;
@@ -1138,7 +1138,7 @@ AniTextureControl* attach_wiff_to_atomic_material(int slot, char* name, RpAtomic
     if (clump_ext == 0) {
         return 0;
     }
-    atc = get_wiff_atc_block(slot, (int)name);
+    atc = get_wiff_atc_block(slot, art_oid);
     if (atc == 0) {
         return 0;
     }

@@ -35,7 +35,15 @@ typedef struct MkPfx MkPfx;
 /* PFX clone -- size 0x2C (get_mkhdr). */
 typedef struct PfxClone {
     MkHdr hdr;              /* +0x00 */
-    unsigned char flags;    /* +0x08 -- bit7 destroyed, bit6 owns bind, bit5 owns bind2 */
+    union {
+        unsigned char flags;
+        struct {
+            unsigned char destroyed : 1;
+            unsigned char owns_bind : 1;
+            unsigned char owns_bind2 : 1;
+            unsigned char flags_rest : 5;
+        } flag_bits;
+    };                      /* +0x08 -- bit7 destroyed, bit6 owns bind, bit5 owns bind2 */
     unsigned char pad09[3];
     MkPfx* parent;          /* +0x0C */
     void* matrix_copy;      /* +0x10 */
@@ -79,7 +87,15 @@ struct MkPfx {
     float accum_38;               /* +0x38 */
     void* mem;                    /* +0x3C */
     float matrix[16];             /* +0x40 -- also PFX VM base */
-    unsigned char flags80;        /* +0x80 -- bit5 camera-facing, bit7 hide */
+    union {
+        unsigned char flags80;
+        struct {
+            unsigned char hide : 1;
+            unsigned char field_6 : 1;
+            unsigned char camera_facing : 1;
+            unsigned char flags_rest : 5;
+        } f80;
+    };                            /* +0x80 -- bit5 camera-facing, bit7 hide */
     char pad81[0x0F];
     int field_90;                 /* +0x90 */
     int field_94;                 /* +0x94 -- emitter/active gate (mk_render InsertPFX*) */

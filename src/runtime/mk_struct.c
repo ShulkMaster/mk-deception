@@ -29,9 +29,8 @@ typedef char PlyrInfoInitViewSize[(sizeof(PlyrInfoInitView) == 0x6C) ? 1 : -1];
 typedef char GameInfoInitViewSize[(sizeof(GameInfoInitView) == 0x210) ? 1 : -1];
 typedef char GameSettingsInitViewSize[(sizeof(GameSettingsInitView) == 0x54) ? 1 : -1];
 
-/* Retail .rodata: @stringBase0 (0xA) + .2byte pad + gap_04 @0xC. */
+/* Retail .rodata adds two alignment bytes and a four-byte linker gap. */
 static const char stringBase0[0xA] = "get_mkhdr";
-const int gap_04_802FF04C_rodata = 0;
 
 void setup_fixed_block_heaps(void);
 void init_global_vars(void);

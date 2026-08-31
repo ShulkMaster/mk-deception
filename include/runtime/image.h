@@ -176,7 +176,8 @@ AniTextureControl* ck_ani_texture_control_item(AniTextureControlItem* item);
 AniTextureControl* append_texture_by_name_to_atomic_material_id(
     int slot, char* name, RpAtomic* atomic, int material_id, int flag);
 AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, ImageMkSobj* mkobj);
-AniTextureControl* attach_wiff_to_atomic_material(int slot, char* name, RpAtomic* atomic, char* tex_name);
+AniTextureControl* attach_wiff_to_atomic_material(
+    int slot, unsigned int art_oid, RpAtomic* atomic, char* tex_name);
 AniTextureControl* append_wiff_to_clump_material(int slot, char* name, RpClump* clump, char* tex_name);
 AniTextureControl* append_wiff_to_clump_material_id(int slot, char* name, RpClump* clump, unsigned short material_id);
 
