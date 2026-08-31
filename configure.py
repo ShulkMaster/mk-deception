@@ -186,6 +186,75 @@ if args.map:
 # Use for any additional files that should cause a re-configure when modified
 config.reconfig_deps = []
 
+gcdisplay_asset_dir = Path("build") / config.version / "include" / "platform"
+gcdisplay_asset_outputs = [
+    gcdisplay_asset_dir / "gcdisplay_loading_palette.inc",
+    gcdisplay_asset_dir / "gcdisplay_loading_image.inc",
+]
+retail_include_dir = Path("build") / config.version / "include"
+retail_include_outputs = [
+    retail_include_dir / "game" / "nbc_general_text.inc",
+    retail_include_dir / "game" / "nbc_stringBase0.inc",
+    retail_include_dir / "game" / "pselect_stringBase0.inc",
+    retail_include_dir / "runtime" / "fonts_data.inc",
+    retail_include_dir / "src" / "game" / "moves_scan_tables.inc",
+    retail_include_dir / "src" / "game" / "reactions_table.inc",
+    retail_include_dir / "src" / "game" / "reactions_table_prototypes.inc",
+    retail_include_dir / "src" / "game" / "sound_bank_data.inc",
+    retail_include_dir / "src" / "game" / "sound_call_tables.inc",
+    retail_include_dir / "src" / "math" / "gxmath_sqrt_table.inc",
+]
+retail_include_inputs = [
+    Path("build") / config.version / "obj" / name
+    for name in [
+        "fonts.o",
+        "gxMath.o",
+        "moves.o",
+        "nbc.o",
+        "pselect.o",
+        "reactions.o",
+        "sound.o",
+    ]
+]
+config.custom_build_rules = [
+    {
+        "name": "gcdisplay_assets",
+        "command": "$python tools/generate_gcdisplay_assets.py $in $out_dir",
+        "description": "ASSETS gcdisplay",
+        "restat": True,
+    },
+    {
+        "name": "retail_includes",
+        "command": (
+            "$python tools/generate_retail_includes.py "
+            "--object-root $object_root --output-root $output_root"
+        ),
+        "description": "RETAIL INCLUDES",
+        "restat": True,
+    },
+]
+config.custom_build_steps = {
+    "pre-compile": [
+        {
+            "outputs": gcdisplay_asset_outputs,
+            "rule": "gcdisplay_assets",
+            "inputs": Path("build") / config.version / "obj" / "gcdisplay.o",
+            "implicit": [Path("tools/generate_gcdisplay_assets.py")],
+            "variables": {"out_dir": gcdisplay_asset_dir},
+        },
+        {
+            "outputs": retail_include_outputs,
+            "rule": "retail_includes",
+            "inputs": retail_include_inputs,
+            "implicit": [Path("tools/generate_retail_includes.py")],
+            "variables": {
+                "object_root": Path("build") / config.version / "obj",
+                "output_root": retail_include_dir,
+            },
+        },
+    ],
+}
+
 # Optional numeric ID for decomp.me preset
 # Can be overridden in libraries or objects
 # Request preset on decomp.me Discord; see CONTRIBUTING.md
@@ -901,11 +970,13 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "gcInit.o", source="platform/gcInit.c"),
             Object(NonMatching, "gcdisplay.o", source="platform/gcdisplay.c",
-                   extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
+                   extra_cflags=["-use_lmw_stmw on", "-O4,s",
+                                 "-str reuse,pool,readonly"]),
             Object(Matching, "main.o", source="platform/main.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "gcARam.o", source="platform/gcARam.c",
-                   extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt", "nocse"]),
+                   extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt", "nocse",
+                                 "-str reuse,pool,readonly"]),
             Object(NonMatching, "mtRand2.o", source="runtime/mtRand2.c", extra_cflags=["-O4,s"]),
             Object(NonMatching, "utils.o", source="runtime/utils.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
@@ -979,7 +1050,9 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "disc_error.o", source="platform/disc_error.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str", "reuse,pool,readonly"]),
-            Object(NonMatching, "gcutils.o", source="platform/gcutils.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-common off"]),
+            Object(NonMatching, "gcutils.o", source="platform/gcutils.c",
+                   extra_cflags=["-use_lmw_stmw on", "-O4,s", "-common off",
+                                 "-str reuse,pool,readonly"]),
             Object(NonMatching, "settings.o", source="game/settings.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "nis.o", source="game/nis.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "attract.o", source="game/attract.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
