@@ -488,12 +488,6 @@ static inline int collision_point_inside_shape(
         return 0;
     }
 }
-extern unsigned int rgba_white;
-extern unsigned int rgba_yellow;
-extern unsigned int rgba_blue;
-extern unsigned int rgba_red;
-extern unsigned int rgba_green;
-extern unsigned int rgba_cyan;
 /* Runtime-owned scalar; array form preserves its ordinary-data addressing. */
 
 static inline void insert_player_attack_node_unshifted(

@@ -1,17 +1,21 @@
 #include "platform/gcARam.h"
 
 #include "dolphin/ar.h"
+#include "dolphin/vm.h"
 #include "mw/mwMem.h"
 
-extern void VMInit(unsigned long virtual_memory_size, unsigned long aram_base,
-                   unsigned long aram_size);
-extern void VMAlloc(void* virtual_address, unsigned long size);
+extern _mwMemHeap* SystemSwappableHeap;
+extern unsigned long g_ARAM_VM_Start;
+extern unsigned long g_ARAM_VM_Size;
+extern unsigned long g_ARAM_MSL_Start;
+extern unsigned long g_ARAM_MSL_Size;
 
-_mwMemHeap* SystemSwappableHeap;
-unsigned long g_ARAM_VM_Start;
-unsigned long g_ARAM_VM_Size;
-unsigned long g_ARAM_MSL_Start;
-unsigned long g_ARAM_MSL_Size;
+/* MWCC emits tentative definitions in reverse order within these sections. */
+int gap_08_80510E9C_sbss;
+/* This linker-visible four-byte gap is the sole small object retail keeps in .bss. */
+#pragma section data_type ".data" ".bss"
+__declspec(section ".data") unsigned long gap_06_803DEABC_bss;
+#pragma section data_type
 unsigned long g_GC_ARAM_MemBlocks[5];
 
 /*
@@ -30,8 +34,10 @@ void gc_aram_mwmem_heap_setup(void) {
             virtual_base = 0;
         }
         virtual_size = vm_start == 0 ? 0 : g_ARAM_VM_Size;
+        /* The retail pooled name owns two trailing alignment zeroes. */
         SystemSwappableHeap = mwMemExtSystemHeapCreate(
-            mwMemSystemGetHeap(0), virtual_base, virtual_size, "SwappableHeap");
+            mwMemSystemGetHeap(0), virtual_base, virtual_size,
+            "SwappableHeap\0\0");
     }
 }
 
@@ -44,8 +50,8 @@ void gc_aram_init(void) {
     unsigned long vm_start;
     unsigned long vm_size;
     void* vm_base;
-    static unsigned long aramSize;
     static void* aramBase;
+    static unsigned long aramSize;
 
     ARInit(g_GC_ARAM_MemBlocks, 5);
     available_size = ARGetSize() - ARGetBaseAddress();
@@ -75,9 +81,18 @@ unsigned long ARAM_MSL_GetSize(void) {
     return g_ARAM_MSL_Start == 0 ? 0 : g_ARAM_MSL_Size;
 }
 
-void* ARAM_MSL_GetBase(void) {
-    if (g_ARAM_MSL_Start == 0) {
+unsigned long ARAM_MSL_GetBase(void) {
+    void* base = (void*)g_ARAM_MSL_Start;
+
+    if (base == 0) {
         return 0;
     }
-    return (void*)g_ARAM_MSL_Start;
+    return (unsigned long)base;
 }
+
+/* Reverse source order reproduces the retail .sbss symbol order. */
+unsigned long g_ARAM_MSL_Size;
+unsigned long g_ARAM_MSL_Start;
+unsigned long g_ARAM_VM_Size;
+unsigned long g_ARAM_VM_Start;
+_mwMemHeap* SystemSwappableHeap;

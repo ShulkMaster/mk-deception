@@ -15,7 +15,7 @@ typedef struct AniTextureControl AniTextureControl;
 
 typedef int (*MovieTapoutFn)(void);
 
-void display_debug_damage(void);
+void display_debug_damage(PlyrInfo* player, float damage);
 
 /*
  * Dispatch a cinematic from movie_info[movie_id].
@@ -30,11 +30,11 @@ int get_puzzle_rounds_to_win(void);
 void get_point_on_circle(float* center, float radius, float angle, float* out);
 void award_koins_to_player(int player, int amount, int koin_type);
 void show_koin_award(int player, int amount, int koin_type, int y);
-void sobj_set_bounding_sphere_radius(void* sobj, float radius);
-float sobj_get_bounding_sphere_radius(void* sobj);
+float sobj_set_bounding_sphere_radius(MkSobj* sobj, float radius);
+float sobj_get_bounding_sphere_radius(MkSobj* sobj);
 int get_mkptr_count(void);
 void setup_fixed_block_heaps(void);
-void load_and_set_refl_on_weapon(void* weapon);
+void load_and_set_refl_on_weapon(void);
 void pause_procs(int flag);
 int get_level_fatality_done_flag_state(void);
 void set_level_fatality_done_flag_state(int state);
@@ -57,27 +57,26 @@ void show_material(RpMaterial* material);
 void hide_material(RpMaterial* material);
 RpMaterial* material_set_color(
     RpMaterial* material, const RwRGBA* color);
-void set_atomic_material_color_by_id(void* atomic, int id, int* color);
 RpAtomic* set_atomic_material_color(
     RpAtomic* atomic, const RwRGBA* color);
 void obj_set_color_for_material_by_id(
-    MkObj* obj, int id, const RwRGBA* color);
-void obj_set_color_for_all_materials(void* obj, int* color);
-void sobj_set_color_for_all_materials(void* sobj, int* color);
+    MkObj* obj, int id, RwRGBA* color);
+void obj_set_color_for_all_materials(MkObj* obj, const RwRGBA* color);
+void sobj_set_color_for_all_materials(MkSobj* sobj, const RwRGBA* color);
 int save_profile(int player, int mode);
 void save_both_profiles(int unused);
 float p_load_profile(void);
 int load_profile(int player, int port, unsigned char* code);
 void pfx_2d_obj_set_alpha_by_id(int id, int alpha);
-void pfx_2d_obj_set_alpha(ScreenObj* obj, unsigned char alpha);
+void pfx_2d_obj_set_alpha(ScreenObj* obj, int alpha);
 void destroy_fade_box(void);
 void create_fade_box(void);
 void fade_from_black(int frames, int flag);
 void fade_from_white(int frames, int flag);
 void fade_to_black(int frames, int flag);
 void fade_to_white(int frames, int flag);
-void set_string_obj_alpha(void* obj, float alpha);
-void set_screen_obj_alpha(void* obj, float alpha);
+void set_string_obj_alpha(StringObj* obj, float alpha);
+void set_screen_obj_alpha(ScreenObj* obj, float alpha);
 typedef struct UvScrollControl {
     MkHdr hdr;                    /* +0x00 */
     MkObj* owner;                 /* +0x08 */
@@ -113,7 +112,7 @@ float sfrand_ab(float a, float b);
 int random_percent(float percent);
 float sfrand(float max);
 float frand(float max);
-float signrand(void);
+int signrand(unsigned short range);
 unsigned int randu0(unsigned int max);
 unsigned int random(void);
 int get_mode_of_play(void);
@@ -139,7 +138,15 @@ int has_sidekick(PlyrPdata* fighter);
 int am_i_female(PlyrPdata* fighter);
 
 extern char pathname_buffer[];
-extern char usec_timer_data[];
+typedef struct UsecTimerData {
+    int running;
+    int pad04;
+    unsigned long long start;
+    unsigned long long elapsed;
+    char pad18[8];
+} UsecTimerData;
+
+extern UsecTimerData usec_timer_data[9];
 extern int depth_of_field_active;
 
 #endif

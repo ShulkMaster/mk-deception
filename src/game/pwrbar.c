@@ -129,7 +129,7 @@ int is_plyr_airborn(MkObj* object);
 int is_timer_off(void);
 int trial_show_standard_fight_messages(void);
 static float p_power_bar_proc(void);
-void display_debug_damage(PlyrInfo* player);
+void display_debug_damage(PlyrInfo* player, float damage);
 void snd_req(int sound_id);
 void shake_camera(int strength, MkHdr* pdata, float duration);
 static float p_unhide_pbar_items(void);
@@ -1101,7 +1101,7 @@ int adjust_p2_life(float amount) {
         }
     }
     if (mode_of_play == 4) {
-        display_debug_damage(&g_game_info.plyr1);
+        display_debug_damage(&g_game_info.plyr1, amount);
     }
     return depleted;
 }
@@ -1131,7 +1131,7 @@ int adjust_p1_life(float amount) {
         }
     }
     if (mode_of_play == 4) {
-        display_debug_damage(&g_game_info.plyr0);
+        display_debug_damage(&g_game_info.plyr0, amount);
     }
     return depleted;
 }
@@ -1166,7 +1166,7 @@ int adjust_player_life(int player_index, float amount) {
                 }
             }
             if (mode_of_play == 4) {
-                display_debug_damage(&g_game_info.plyr0);
+                display_debug_damage(&g_game_info.plyr0, amount);
             }
         }
         return depleted;
@@ -1197,7 +1197,7 @@ int adjust_player_life(int player_index, float amount) {
                 }
             }
             if (mode_of_play == 4) {
-                display_debug_damage(&g_game_info.plyr1);
+                display_debug_damage(&g_game_info.plyr1, amount);
             }
         }
         return depleted;

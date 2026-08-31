@@ -46,7 +46,10 @@ typedef struct PlayerProfile {
     char name[0xB]; /* +0x08 */
     unsigned char pin[6]; /* +0x13 */
     unsigned char icon; /* +0x19 -- PPWLS index into ppwls_icon[] */
-    unsigned char pad1A[0x104 - 0x1A]; /* +0x1A .. +0x103 */
+    unsigned char pad1A[0x40 - 0x1A];
+    int koins[6]; /* +0x40 */
+    int lifetime_koins[6]; /* +0x58 */
+    unsigned char pad70[0x104 - 0x70];
     int rumble; /* +0x104 */
     int switch_map[PROFILE_SWITCHMAP_COUNT]; /* +0x108 -- word0 of each default entry */
     ProfileUnlockBits64 unlock_cat1; /* +0x148 */

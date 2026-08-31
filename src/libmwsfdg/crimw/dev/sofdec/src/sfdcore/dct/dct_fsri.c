@@ -143,13 +143,15 @@ static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
                         odd_outer -= odd_inner;
                         odd_low = odd_delta_53 - odd_outer;
 
+                        /* Paired-single merges leave each row in the order
+                         * consumed by the column pass. */
                         destination[0] = even_high + odd_high;
-                        destination[1] = even_mid_low + odd_outer;
-                        destination[2] = even_low - odd_low;
-                        destination[3] = even_mid_high - odd_inner;
-                        destination[4] = even_mid_high + odd_inner;
-                        destination[5] = even_low + odd_low;
-                        destination[6] = even_mid_low - odd_outer;
+                        destination[2] = even_mid_low + odd_outer;
+                        destination[4] = even_low - odd_low;
+                        destination[6] = even_mid_high - odd_inner;
+                        destination[1] = even_mid_high + odd_inner;
+                        destination[3] = even_low + odd_low;
+                        destination[5] = even_mid_low - odd_outer;
                         destination[7] = even_high - odd_high;
                     }
                 }
@@ -233,7 +235,7 @@ static void DCT_FsriTransCore(DctFsriParams* params, int coded_block_pattern)
                 }
             }
         }
-        coded_block_pattern *= 2;
+        coded_block_pattern = (int)((unsigned int)coded_block_pattern << 1);
         coefficients += 64;
     }
 }
@@ -265,8 +267,10 @@ void DCT_FsriSetGqr(void)
 #pragma opt_loop_invariants off
 static void initSparseTbl(void)
 {
-    double source[8][8];
-    double destination[8][8];
+    union DctCoefficientMatrix {
+        double matrix[8][8];
+        double coefficients[64];
+    } source, destination;
     int coefficient;
 
     memset(PreIDCT, 0, sizeof(PreIDCT));
@@ -276,17 +280,17 @@ static void initSparseTbl(void)
         int index;
         for (index = 0; index < 64; index++) {
             if (index == coefficient) {
-                source[0][index] = 1.0 / sfsd_scale_tbl[index];
+                source.coefficients[index] = 1.0 / sfsd_scale_tbl[index];
             } else {
-                source[0][index] = 0.0;
+                source.coefficients[index] = 0.0;
             }
         }
 
-        DCT_AcIdctDouble(source, destination);
+        DCT_AcIdctDouble(source.matrix, destination.matrix);
 
         for (index = 0; index < 64; index++) {
             dctFsriStoreSparseCoefficient(coefficient, index,
-                                          &destination[0][index]);
+                                          &destination.coefficients[index]);
         }
     }
 }

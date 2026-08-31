@@ -2,6 +2,7 @@
 
 #include "game/game_info.h"
 #include "math/mk_math.h"
+#include "platform/gcARam.h"
 #include "runtime/cam.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
@@ -167,8 +168,6 @@ void mslSetVol(_mslSystem* system, float volume);
 void mslStopAll(_mslSystem* system);
 _mslSystem* mslInit(MslInitParam* init, MslSystemInit* system_init);
 void mslSetWavePath(_mslSystem* system, const char* path);
-unsigned int ARAM_MSL_GetBase(void);
-unsigned int ARAM_MSL_GetSize(void);
 char* strcat(char* dest, const char* src);
 void mslBankLoadAsync(void* system, int flags, char* name, void* callback);
 void check_and_load_sound_bank_async(int bank, int slot);

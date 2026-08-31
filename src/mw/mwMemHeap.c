@@ -41,10 +41,6 @@ void mwMemUserConfigAttemptingOverflowHeapCallback(MwMemOverflowInfo* info) {
              size_kb, origin_info.name, destination_info.name, info->sourceFunction, info->line);
 }
 
-/*
- * Retail control flow, calls, conversions, widths, and frame size agree.
- * Objdiff's five remaining records are GPR operand coloring only.
- */
 void mwMemUserConfigOutofMemoryCallback(MwMemOverflowInfo* info) {
     MwMemHeapInfo heap_info;
     float size_kb;
@@ -163,11 +159,6 @@ void mwMemDestroyFixedBlockHeaps(void) {
 }
 
 #pragma optimize_for_size on
-/*
- * Retail heap order, parameters, callbacks, access widths, calls, and 920-byte
- * code size agree. The remaining diff has an identical opcode histogram and is
- * confined to GPR allocation and scheduling of independent parameter stores.
- */
 void mwMemAllocateFixedBlockHeaps(FixedHeapConfig* config) {
     MwMemHeapCreateParams create;
     MwMemHeapParams defaults;
@@ -293,10 +284,6 @@ static inline _mwMemHeap* createOptionalNormalHeap(MwMemHeapCreateParams* create
 }
 
 #pragma optimize_for_size on
-/*
- * Retail topology, branch/call sequence, stack layout, and 1024-byte code size
- * agree. Objdiff's remaining records are operand-register coloring only.
- */
 static void mwMemHeapInit(void) {
     _mwMemHeap* system_heap = mwMemSystemGetHeap(0);
     MwMemHeapCreateParams create;
@@ -365,3 +352,5 @@ static void mwMemHeapInit(void) {
     mwMemSystemSetHeap(1, overflow_heap);
 }
 #pragma optimize_for_size reset
+
+const float gap_09_805117E4_sdata2 = 0.0f;

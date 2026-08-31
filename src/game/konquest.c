@@ -2613,33 +2613,33 @@ float p_fade_konquest_hud(void) {
     for (;;) {
         alpha += step;
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[2], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[0], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[1], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[3], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[4], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[3], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[4], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[5], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[6], object);
-        if (object != 0) set_screen_obj_alpha(object, alpha);
+        if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[0], object);
-        if (object != 0) set_string_obj_alpha(object, alpha);
+        if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[1], object);
-        if (object != 0) set_string_obj_alpha(object, alpha);
+        if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[2], object);
-        if (object != 0) set_string_obj_alpha(object, alpha);
+        if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_extra_label, object);
-        if (object != 0) set_string_obj_alpha(object, alpha);
+        if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
         KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[5], object);
-        if (object != 0) set_string_obj_alpha(object, alpha);
+        if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
 
         if (g_fade_hud_in != 0) {
             if (alpha >= 1.0f) {

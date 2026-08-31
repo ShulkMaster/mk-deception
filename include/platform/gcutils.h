@@ -8,7 +8,7 @@ extern "C" {
 typedef struct RwTexture RwTexture;
 void set_texture_mipmap_KL_manual(RwTexture* texture, int k, float l);
 void clear_alpha_channel(void);
-void gc_enable_alpha_writes(unsigned char enable);
+void gc_enable_alpha_writes(unsigned int enable);
 void gc_setup_render_mode(unsigned int pixel_format);
 void adjust_gamma(void);
 void set_gc_display_props(int brightness);

@@ -127,6 +127,8 @@ void set_camera_position(const CamVec3* pos);
 void get_camera_angle(CamVec3* ang);
 void get_camera_position(CamVec3* pos);
 void xfer_camera(MkProcEntryFn entry, int reset_projection);
+float p_camera_proc(void);
+void adj_cam_pos(void);
 void turn_camera_on(void);
 void turn_camera_off(void);
 void camera_idle(void);
@@ -248,5 +250,6 @@ void find_best_conversation_camera_position(void);
 extern CameraInfo camera_info;
 extern CameraItem camera_item;
 extern CameraObj* camera_obj;
+extern int force_midpoint_calculation_update;
 
 #endif

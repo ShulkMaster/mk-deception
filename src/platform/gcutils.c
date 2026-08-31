@@ -43,24 +43,18 @@ RwMemoryFunctions mem_funcs;
 int feedback_blendrate = 0xE0;
 int gc_screen_brightness = 10;
 
-int use_feedback_effect;
+/* These tentative declarations make the internal names visible to early users;
+ * their explicit definitions follow reset_watch in retail parse order. */
 static int reset_watch_is_running;
 static OSThread* game_main_thread;
-static int gc_must_reset;
-static int f_reset_button_pressed;
-static int must_reset;
-static int post_effect_buffers_initialized;
-static int pixel_format_count;
-int old_use_feedback_effect;
-int display_offset_y;
-int display_offset_x;
-static int display_offset_save_y;
-static int display_offset_save_x;
-static unsigned int ticks_per_usec;
-static unsigned int ticks_per_msec;
 int gap_08_8051032C_sbss;
-
-static const GcFilter default_filter;
+static unsigned int ticks_per_msec;
+static unsigned int ticks_per_usec;
+static int display_offset_save_x;
+static int display_offset_save_y;
+int display_offset_x;
+int display_offset_y;
+int old_use_feedback_effect;
 
 void set_texture_mipmap_KL_manual(RwTexture* texture, int k, float l) {
     (void)texture;
@@ -70,11 +64,12 @@ void set_texture_mipmap_KL_manual(RwTexture* texture, int k, float l) {
 
 void clear_alpha_channel(void) {}
 
-void gc_enable_alpha_writes(unsigned char enable) {
+void gc_enable_alpha_writes(unsigned int enable) {
     GXSetAlphaUpdate(enable);
 }
 
 static inline void fill_gamma_filter(GcFilter* filter) {
+    const GcFilter default_filter = {0};
     int low = gc_screen_brightness - 2;
 
     *filter = default_filter;
@@ -88,12 +83,14 @@ static inline void fill_gamma_filter(GcFilter* filter) {
 }
 
 void gc_setup_render_mode(unsigned int pixel_format) {
+    static int count;
     GcFilter filter;
-    int count = pixel_format_count;
+    int old_count;
 
     pixel_format = pixel_format != 0;
     _RwDlPixelFormat = pixel_format;
-    pixel_format_count = ~count;
+    old_count = count;
+    count = ~old_count;
     GXSetPixelFmt(pixel_format, 0);
     fill_gamma_filter(&filter);
     pokeFilter(&filter);
@@ -111,9 +108,11 @@ void set_gc_display_props(int brightness) {
 }
 
 void render_post_3D_effect(void) {
-    if (post_effect_buffers_initialized == 0) {
+    static int bPostEffectBuffersInitialized;
+
+    if (bPostEffectBuffersInitialized == 0) {
         setup_post_effect_buffers();
-        post_effect_buffers_initialized = 1;
+        bPostEffectBuffersInitialized = 1;
     }
     if (use_feedback_effect != 0) {
         feedback_effect();
@@ -129,16 +128,16 @@ void render_startup(void) {}
 
 int get_platform_language_setting(void) {
     switch (OSGetLanguage()) {
+    case 3:
+        return 1;
+    case 1:
+        return 2;
     case 2:
         return 3;
     case 4:
         return 4;
     default:
         return 0;
-    case 3:
-        return 1;
-    case 1:
-        return 2;
     }
 }
 
@@ -178,6 +177,8 @@ void gc_grab_renderpipe(void) {
 }
 
 static void reset_watch(OSAlarm* alarm, OSContext* context) {
+    static int must_reset;
+    static int f_reset_button_pressed;
     int reset_pressed;
 
     (void)alarm;
@@ -196,10 +197,17 @@ static void reset_watch(OSAlarm* alarm, OSContext* context) {
     }
 }
 
+static int gc_must_reset;
+int use_feedback_effect = 0;
+static int reset_watch_is_running = 0;
+static OSThread* game_main_thread = 0;
+
+#define GC_THREAD_OWNER_IS_LIVE(owner) ((owner) != 0 && *(owner) != 0)
+
 void handle_reset_switch(void) {
     if (gc_must_reset != 0) {
         OSLockMutex(&gp_mutex);
-        if (game_main_thread != 0) {
+        if (GC_THREAD_OWNER_IS_LIVE(&game_main_thread)) {
             OSCancelThread(game_main_thread);
             game_main_thread = 0;
         }
@@ -232,15 +240,21 @@ void gc_movie_start(void) {
     display_offset_save_x = display_offset_x;
     display_offset_save_y = display_offset_y;
     format = VIGetTvFormat();
-    pal_mode = format == 1 || format == 5;
+    switch (format) {
+    case 1:
+    case 5:
+        pal_mode = 1;
+        break;
+    default:
+        pal_mode = 0;
+        break;
+    }
     if (pal_mode != 0) {
         adjust_display_offset(30, 0, 1);
     } else {
         adjust_display_offset(0, 0, 1);
     }
 }
-
-#define GC_THREAD_OWNER_IS_LIVE(owner) ((owner) != 0 && *(owner) != 0)
 
 void* do_gamecube_reset(void* argument) {
     int progressive;
@@ -275,6 +289,7 @@ void* do_gamecube_reset(void* argument) {
 void adjust_display_offset(int x, int y, int reset) {
     int x_origin;
     int format;
+    int pal_mode;
 
     if (reset == 0) {
         display_offset_x += x;
@@ -288,53 +303,89 @@ void adjust_display_offset(int x, int y, int reset) {
         display_offset_y = 0;
     }
     if (_RwDlRenderMode != 0) {
-        x_origin = 40;
         format = VIGetTvFormat();
-        if (format == 1 || format == 5) {
+        switch (format) {
+        case 1:
+        case 5:
+            pal_mode = 1;
+            break;
+        default:
+            pal_mode = 0;
+            break;
+        }
+        x_origin = 40;
+        if (pal_mode != 0) {
             x_origin = 30;
         }
         _RwDlRenderMode->viXOrigin = x_origin + display_offset_x;
         if (_RwDlRenderMode != 0) {
             _RwDlRenderMode->viYOrigin = display_offset_y;
-            VIConfigure(_RwDlRenderMode);
-            VIFlush();
-            VIWaitForRetrace();
-            VIWaitForRetrace();
+        } else {
+            return;
         }
+        VIConfigure(_RwDlRenderMode);
+        VIFlush();
+        VIWaitForRetrace();
+        VIWaitForRetrace();
+    } else {
+        return;
     }
 }
 
 int refresh_rate(void) {
-    return (int)VIGetTvFormat() == 1 ? 50 : 60;
+    int format = VIGetTvFormat();
+    int rate;
+
+    switch (format) {
+    case 1:
+        rate = 50;
+        break;
+    default:
+        rate = 60;
+        break;
+    }
+    return rate;
 }
 
 int is_pal_mode(void) {
     int format = VIGetTvFormat();
-    return format == 1 || format == 5;
+    int pal_mode;
+
+    switch (format) {
+    case 1:
+    case 5:
+        pal_mode = 1;
+        break;
+    default:
+        pal_mode = 0;
+        break;
+    }
+    return pal_mode;
 }
 
 char* pathname_create(const char* path, int prepend_art_path) {
+    const char* art_path = "/art/";
     char* cursor;
 
-    if (path == 0) {
-        return 0;
-    }
-    if (prepend_art_path != 0) {
-        strcpy(pathname_buffer, "/art/");
-    }
-    if (prepend_art_path != 0) {
-        strcat(pathname_buffer, path);
-    } else {
-        strcpy(pathname_buffer, path);
-    }
-    cursor = pathname_buffer;
-    while (*cursor != '\0') {
-        if (*cursor == '\\') {
-            *cursor = '/';
+    if (path != 0) {
+        if (prepend_art_path != 0) {
+            strcpy(pathname_buffer, art_path);
         }
-        cursor++;
+        if (prepend_art_path != 0) {
+            strcat(pathname_buffer, path);
+        } else {
+            strcpy(pathname_buffer, path);
+        }
+        cursor = pathname_buffer;
+        while (*cursor != '\0') {
+            if (*cursor == '\\') {
+                *cursor = '/';
+            }
+            cursor++;
+        }
+        return pathname_buffer;
     }
-    return pathname_buffer;
+    return 0;
 }
 
 long long debug_get_usec_timer(void) {
@@ -348,6 +399,6 @@ long long debug_get_msec_timer(void) {
 
 void init_debug_timers(void) {
     unsigned int bus_clock = OS_BUS_CLOCK >> 2;
-    ticks_per_usec = (bus_clock / 125000) >> 3;
     ticks_per_msec = bus_clock / 1000;
+    ticks_per_usec = (bus_clock / 125000) >> 3;
 }
