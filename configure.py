@@ -1033,6 +1033,18 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxf/adx_fini.o",
+                source="libadxgca/crimw/dev/adx/src/adxf/adx_fini.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxf/adx_fs.o",
+                source="libadxgca/crimw/dev/adx/src/adxf/adx_fs.c",
+                extra_cflags=["-O4,p", "-sdata", "0", "-str", "reuse,readonly"],
+            ),
+            Object(
                 Matching,
                 "libadxgca.a//crimw/dev/adx/src/gcci/gcci_sub.o",
                 source="libadxgca/crimw/dev/adx/src/gcci/gcci_sub.c",
@@ -1049,6 +1061,108 @@ config.libs = [
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_bahx.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_bahx.c",
                 extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/srcgc/adx_gc.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/srcgc/adx_gc.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/srcgc/adx_rnaa.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/srcgc/adx_rnaa.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/srcgc/adx_mgc.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/srcgc/adx_mgc.c",
+                extra_cflags=[
+                    "-O2,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly"
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/srcgc/adx_sugc.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/srcgc/adx_sugc.c",
+                extra_cflags=[
+                    "-O2,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly"
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_stmc.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_stmc.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_bsc.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_bsc.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_sje.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_sje.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_sjd.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_sjd.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_tsvr.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_tsvr.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_tlk.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_tlk.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_inis.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_inis.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_fsvr.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_fsvr.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_insh.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_insh.c",
+                extra_cflags=["-O2,p", "-sdata", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
                 Matching,
@@ -1109,6 +1223,18 @@ config.libs = [
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_crs.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_crs.c",
                 extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_errs.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_errs.c",
+                extra_cflags=["-O4,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_amp.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_amp.c",
+                extra_cflags=["-O4,p", "-sdata", "0"],
             ),
             Object(
                 NonMatching,
@@ -1178,9 +1304,72 @@ config.libs = [
             ),
             Object(
                 NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/axrna/ax_rna.o",
+                source="libadxgca/crimw/dev/adx/src/axrna/ax_rna.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/axrna/rna_crs.o",
+                source="libadxgca/crimw/dev/adx/src/axrna/rna_crs.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                NonMatching,
                 "libadxgca.a//crimw/dev/adx/src/lsc/lsc_err.o",
                 source="libadxgca/crimw/dev/adx/src/lsc/lsc_err.c",
                 extra_cflags=["-O4,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/lsc/lsc_crs.o",
+                source="libadxgca/crimw/dev/adx/src/lsc/lsc_crs.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/lsc/lsc_ini.o",
+                source="libadxgca/crimw/dev/adx/src/lsc/lsc_ini.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/lsc/lsc_svr.o",
+                source="libadxgca/crimw/dev/adx/src/lsc/lsc_svr.c",
+                extra_cflags=[
+                    "-sdata", "0", "-str", "reuse,readonly",
+                    "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/lsc/lsc.o",
+                source="libadxgca/crimw/dev/adx/src/lsc/lsc.c",
+                extra_cflags=[
+                    "-sdata", "0", "-str", "reuse,readonly",
+                    "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/mfci/mfci.o",
+                source="libadxgca/crimw/dev/adx/src/mfci/mfci.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/gcci/gcci.o",
+                source="libadxgca/crimw/dev/adx/src/gcci/gcci.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
             ),
             Object(
                 NonMatching,
@@ -1215,6 +1404,35 @@ config.libs = [
                 "libadxgca.a//crimw/dev/adx/src/sj/sj_utl.o",
                 source="libadxgca/crimw/dev/adx/src/sj/sj_utl.c",
                 extra_cflags=["-O2,p", "-sdata", "0", "-use_lmw_stmw", "on"],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/sj/sj_mem.o",
+                source="libadxgca/crimw/dev/adx/src/sj/sj_mem.c",
+                extra_cflags=[
+                    "-O4,p",
+                    "-sdata",
+                    "0",
+                    "-sdata2",
+                    "0",
+                    "-str",
+                    "reuse,readonly",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libadxgca.a//crimw/dev/adx/src/sj/sj_rbf.o",
+                source="libadxgca/crimw/dev/adx/src/sj/sj_rbf.c",
+                extra_cflags=[
+                    "-O4,p", "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/sj/sj_uni.o",
+                source="libadxgca/crimw/dev/adx/src/sj/sj_uni.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
             ),
         ],
     },
@@ -1271,10 +1489,102 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsee.c",
             ),
             Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdrna.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdrna.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsst.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsst.c",
+                extra_cflags=["-sdata", "0", "-use_lmw_stmw", "on"],
+            ),
+            Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwstm.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwstm.c",
+                extra_cflags=["-use_lmw_stmw", "on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsl.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsl.c",
+                extra_cflags=["-sdata", "0", "-str", "reuse,readonly"],
+            ),
+            Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdset.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdset.c",
+                extra_cflags=["-sdata", "0", "-str", "reuse,readonly"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdlib.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdlib.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdfrm.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdfrm.c",
+                extra_cflags=[
+                    "-sdata", "0", "-str", "reuse,readonly",
+                    "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsvr.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsvr.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdsfx.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdsfx.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdply.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdply.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdcre.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdcre.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0",
+                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
+                ],
+            ),
+            Object(
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/cft/srcgc/cftcoladj.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/cft/srcgc/cftcoladj.c",
                 extra_cflags=["-sdata 0", "-sdata2 0"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/cft/srcgc/cftfx.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/cft/srcgc/cftfx.c",
+                extra_cflags=[
+                    "-sdata", "0", "-sdata2", "0", "-inline", "noauto",
+                    "-use_lmw_stmw", "on",
+                ],
             ),
             Object(
                 NonMatching,
@@ -1302,6 +1612,47 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_cmc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_cmc.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.c",
+                extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_err.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_err.c",
+                extra_cflags=["-sdata 0"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_get.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_get.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_frm.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_frm.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_dec.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_dec.c",
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-use_lmw_stmw on",
+                    "-str reuse,readonly"
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_hdec.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_hdec.c",
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-use_lmw_stmw on",
+                    "-str reuse,readonly"
+                ],
             ),
             Object(
                 Matching,
@@ -1409,6 +1760,57 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,readonly"],
             ),
             Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_zmv.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_zmv.c",
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-str reuse,readonly",
+                    "-use_lmw_stmw on",
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_cnv.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_cnv.c",
+                extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,readonly"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_cnv_to_ARGB8888PLN.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_cnv_to_ARGB8888PLN.c",
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-str reuse,readonly",
+                    "-use_lmw_stmw on"
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_cnv_to_Y84C44.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_cnv_to_Y84C44.c",
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-str reuse,readonly",
+                    "-use_lmw_stmw on"
+                ],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_YCC420PLN_to_Y84C44.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_YCC420PLN_to_Y84C44.c",
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-str reuse,readonly",
+                    "-use_lmw_stmw on"
+                ],
+            ),
+            Object(
+                Matching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_YCC420PLN_to_ARGB8888PLN.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_YCC420PLN_to_ARGB8888PLN.c",
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-str reuse,readonly",
+                    "-use_lmw_stmw on"
+                ],
+            ),
+            Object(
                 Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mem.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mem.c",
@@ -1420,6 +1822,65 @@ config.libs = [
             ),
             Object(
                 NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_con.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_con.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_aoap.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_aoap.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_hds.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_hds.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_pl2.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_pl2.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_set.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_set.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_see.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_see.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_vom.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_vom.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_adxt.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_adxt.c",
+                extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mps.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mps.c",
+                extra_cflags=["-use_lmw_stmw on", "-sdata 0"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpvf.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpvf.c",
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpv.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpv.c",
+                extra_cflags=["-use_lmw_stmw on", "-sdata 0", "-sdata2 0"],
+            ),
+            Object(
+                NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_buf.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_buf.c",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -1428,6 +1889,12 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_ply.c",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_pts.o",
+                source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_pts.c",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
@@ -1516,6 +1983,12 @@ config.libs = [
                 source="movie/mwMovie.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
+            Object(
+                NonMatching,
+                "mwMovie_release.a/mk6/mwMovie/build/gc/mwMovie_Data/release/mwMovieGC.o",
+                source="movie/mwMovieGC.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
         ],
     },
     {
@@ -1528,6 +2001,36 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFile.o",
                 source="mw/mwFile.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileCommand.o",
+                source="mw/mwFileCommand.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFilePlugin.o",
+                source="mw/mwFilePlugin.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileHandle.o",
+                source="mw/mwFileHandle.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileXPHandle.o",
+                source="mw/mwFileXPHandle.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileAsync.o",
+                source="mw/mwFileAsync.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
         ],

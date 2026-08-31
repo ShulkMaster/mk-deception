@@ -1,35 +1,7 @@
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
+#include "sofdec/sfx.h"
 
-typedef struct SFXAObject SFXAObject;
-typedef struct SFXZObject SFXZObject;
-typedef void (*SFXErrorCallback)(void* object, const char* message);
-
-typedef struct SFXHandle {
-    s32 active;
-    s32 frame_status;
-    s32 format;
-    s32 field_count;
-    s32 field_10;
-    u8 reserved_14[0x14];
-    SFXZObject* depth;
-    s32 depth_enabled;
-    s32 field_30;
-    SFXAObject* alpha;
-    u8 reserved_38[4];
-    s32 field_3c;
-    void* work_0;
-    void* work_1;
-    void* work_2;
-    void* depth_work;
-    u8 reserved_50[8];
-    void* buffer;
-    s32 buffer_size;
-    u8 reserved_60[8];
-    s32 frame_number;
-    u8 reserved_6c[8];
-    s32 field_74;
-} SFXHandle;
 
 typedef struct SFXLibraryWork {
     s32 active_count;
@@ -125,7 +97,7 @@ SFXHandle* SFX_Create(void* buffer, s32 buffer_size) {
     zero = 0;
     format = 0x11;
     enabled = 1;
-    handle->frame_status = zero;
+    handle->stream_info = zero;
     handle->format = format;
     handle->field_count = zero;
     handle->field_10 = zero;
