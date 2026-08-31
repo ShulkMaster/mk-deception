@@ -121,6 +121,13 @@ static int cached_rs_src_blend;
 int screen_height;
 int screen_width;
 
+const unsigned int rgba_white = 0xFFFFFFFFu;
+const unsigned int rgba_red = 0xFF0000FFu;
+const unsigned int rgba_green = 0x00FF00FFu;
+const unsigned int rgba_blue = 0x0000FFFFu;
+const unsigned int rgba_cyan = 0x00FFFFFFu;
+const unsigned int rgba_yellow = 0xFFFF00FFu;
+
 void end_first_pass_render(void) {
     f_render_all_atomics = 0;
     destroy_fade_box();
@@ -169,46 +176,41 @@ void TakeCameraSnapShot(void) {
     RwCamera* camera;
     RwTexture* texture;
     RwCamera* saved_camera;
+    RpWorld* camera_world;
 
     if (fading_screen.snapshotTex != 0) {
         RwTextureDestroy(fading_screen.snapshotTex);
         fading_screen.snapshotTex = 0;
     }
-    raster = RwRasterCreate(0x100, 0x100, 0x20, 5);
-    if (raster != 0) {
-        z_raster = RwRasterCreate(0x100, 0x100, 0, 1);
-        if (z_raster != 0) {
-            frame = RwFrameCreate();
-            if (frame != 0) {
-                camera = RwCameraCreate();
-                RwFrameTransform(
-                    frame,
-                    &((RwFrame*)Camera->object.object.parent)->ltm, 0);
-                if (camera != 0) {
-                    camera->frameBuffer = raster;
-                    camera->zBuffer = z_raster;
-                    _rwObjectHasFrameSetFrame(camera, frame);
-                    RwCameraSetNearClipPlane(camera, Camera->nearPlane);
-                    RwCameraSetFarClipPlane(camera, Camera->farPlane);
-                    RwCameraSetViewWindow(camera, &Camera->viewWindow);
-                    RpWorldAddCamera(World, camera);
-                } else {
+    do {
+        raster = RwRasterCreate(0x100, 0x100, 0x20, 5);
+        if (raster != 0) {
+            z_raster = RwRasterCreate(0x100, 0x100, 0, 1);
+            if (z_raster != 0) {
+                frame = RwFrameCreate();
+                if (frame != 0) {
+                    camera = RwCameraCreate();
+                    RwFrameTransform(
+                        frame,
+                        &((RwFrame*)Camera->object.object.parent)->modelling, 0);
+                    if (camera != 0) {
+                        camera->frameBuffer = raster;
+                        camera->zBuffer = z_raster;
+                        _rwObjectHasFrameSetFrame(camera, frame);
+                        RwCameraSetNearClipPlane(camera, Camera->nearPlane);
+                        RwCameraSetFarClipPlane(camera, Camera->farPlane);
+                        RwCameraSetViewWindow(camera, &Camera->viewWindow);
+                        RpWorldAddCamera(World, camera);
+                        break;
+                    }
                     RwFrameDestroy(frame);
-                    RwRasterDestroy(z_raster);
-                    RwRasterDestroy(raster);
                 }
-            } else {
                 RwRasterDestroy(z_raster);
-                RwRasterDestroy(raster);
-                camera = 0;
             }
-        } else {
             RwRasterDestroy(raster);
-            camera = 0;
         }
-    } else {
         camera = 0;
-    }
+    } while (0);
     if (camera != 0) {
         texture = RwTextureCreate(camera->frameBuffer);
         if (texture != 0) {
@@ -220,23 +222,26 @@ void TakeCameraSnapShot(void) {
             GProfile_GCN_GxDrawDone();
             Camera = saved_camera;
         }
-        frame = (RwFrame*)camera->object.object.parent;
-        if (frame != 0) {
-            _rwObjectHasFrameSetFrame(camera, 0);
-            RwFrameDestroy(frame);
+        if (camera != 0) {
+            frame = (RwFrame*)camera->object.object.parent;
+            if (frame != 0) {
+                _rwObjectHasFrameSetFrame(camera, 0);
+                RwFrameDestroy(frame);
+            }
+            if (camera->zBuffer != 0) {
+                z_raster = camera->zBuffer;
+                camera->zBuffer = 0;
+                RwRasterDestroy(z_raster);
+            }
+            if (camera->frameBuffer != 0) {
+                camera->frameBuffer = 0;
+            }
+            camera_world = RwCameraGetWorld(camera);
+            if (camera_world != 0) {
+                RpWorldRemoveCamera(camera_world, camera);
+            }
+            RwCameraDestroy(camera);
         }
-        if (camera->zBuffer != 0) {
-            z_raster = camera->zBuffer;
-            camera->zBuffer = 0;
-            RwRasterDestroy(z_raster);
-        }
-        if (camera->frameBuffer != 0) {
-            camera->frameBuffer = 0;
-        }
-        if (RwCameraGetWorld(camera) != 0) {
-            RpWorldRemoveCamera(World, camera);
-        }
-        RwCameraDestroy(camera);
     } else {
         texture = 0;
     }
@@ -292,47 +297,43 @@ static float _print_screen_to_tga(void) {
     RwTexture* texture;
     RwCamera* saved_camera;
     RwImage* image;
+    RpWorld* camera_world;
 
     if (Camera->frameBuffer != 0) {
         width = Camera->frameBuffer->width;
         height = Camera->frameBuffer->height;
         fading_screen.fade_active = 1;
         save_screen = 0;
-        raster = RwRasterCreate(0x280, 0x1E0, 0x20, 5);
-        if (raster != 0) {
-            z_raster = RwRasterCreate(0x280, 0x1E0, 0, 1);
-            if (z_raster != 0) {
-                frame = RwFrameCreate();
-                if (frame != 0) {
-                    camera = RwCameraCreate();
-                    RwFrameTransform(
-                        frame,
-                        &((RwFrame*)Camera->object.object.parent)->ltm, 0);
-                    if (camera != 0) {
-                        camera->frameBuffer = raster;
-                        camera->zBuffer = z_raster;
-                        _rwObjectHasFrameSetFrame(camera, frame);
-                        RwCameraSetNearClipPlane(camera, Camera->nearPlane);
-                        RwCameraSetFarClipPlane(camera, Camera->farPlane);
-                        RwCameraSetViewWindow(camera, &Camera->viewWindow);
-                        RpWorldAddCamera(World, camera);
-                    } else {
+        do {
+            raster = RwRasterCreate(0x280, 0x1E0, 0x20, 5);
+            if (raster != 0) {
+                z_raster = RwRasterCreate(0x280, 0x1E0, 0, 1);
+                if (z_raster != 0) {
+                    frame = RwFrameCreate();
+                    if (frame != 0) {
+                        camera = RwCameraCreate();
+                        RwFrameTransform(
+                            frame,
+                            &((RwFrame*)Camera->object.object.parent)->modelling,
+                            0);
+                        if (camera != 0) {
+                            camera->frameBuffer = raster;
+                            camera->zBuffer = z_raster;
+                            _rwObjectHasFrameSetFrame(camera, frame);
+                            RwCameraSetNearClipPlane(camera, Camera->nearPlane);
+                            RwCameraSetFarClipPlane(camera, Camera->farPlane);
+                            RwCameraSetViewWindow(camera, &Camera->viewWindow);
+                            RpWorldAddCamera(World, camera);
+                            break;
+                        }
                         RwFrameDestroy(frame);
-                        RwRasterDestroy(z_raster);
-                        RwRasterDestroy(raster);
                     }
-                } else {
                     RwRasterDestroy(z_raster);
-                    RwRasterDestroy(raster);
-                    camera = 0;
                 }
-            } else {
                 RwRasterDestroy(raster);
-                camera = 0;
             }
-        } else {
             camera = 0;
-        }
+        } while (0);
         if (camera != 0) {
             texture = RwTextureCreate(camera->frameBuffer);
             if (texture != 0) {
@@ -344,23 +345,26 @@ static float _print_screen_to_tga(void) {
                 GProfile_GCN_GxDrawDone();
                 Camera = saved_camera;
             }
-            frame = (RwFrame*)camera->object.object.parent;
-            if (frame != 0) {
-                _rwObjectHasFrameSetFrame(camera, 0);
-                RwFrameDestroy(frame);
+            if (camera != 0) {
+                frame = (RwFrame*)camera->object.object.parent;
+                if (frame != 0) {
+                    _rwObjectHasFrameSetFrame(camera, 0);
+                    RwFrameDestroy(frame);
+                }
+                if (camera->zBuffer != 0) {
+                    z_raster = camera->zBuffer;
+                    camera->zBuffer = 0;
+                    RwRasterDestroy(z_raster);
+                }
+                if (camera->frameBuffer != 0) {
+                    camera->frameBuffer = 0;
+                }
+                camera_world = RwCameraGetWorld(camera);
+                if (camera_world != 0) {
+                    RpWorldRemoveCamera(camera_world, camera);
+                }
+                RwCameraDestroy(camera);
             }
-            if (camera->zBuffer != 0) {
-                z_raster = camera->zBuffer;
-                camera->zBuffer = 0;
-                RwRasterDestroy(z_raster);
-            }
-            if (camera->frameBuffer != 0) {
-                camera->frameBuffer = 0;
-            }
-            if (RwCameraGetWorld(camera) != 0) {
-                RpWorldRemoveCamera(World, camera);
-            }
-            RwCameraDestroy(camera);
         } else {
             texture = 0;
         }
@@ -679,14 +683,13 @@ int set_render_state(int state, int value) {
     case 10:
         cached_rs_src_blend = value;
         return 1;
+    case 11:
+        return RwRenderStateSet_SRCBLEND_DESTBLEND(cached_rs_src_blend, value);
     case 12:
         RwRenderStateSet_rwRENDERSTATEVERTEXALPHAENABLE(value);
         return 1;
     case 20:
         RwRenderStateSet_rwRENDERSTATECULLMODE(value);
-        return 1;
-    case 11:
-        RwRenderStateSet_SRCBLEND_DESTBLEND(cached_rs_src_blend, value);
         return 1;
     default:
         return RwEngineInstance->render_state_set(state, value,

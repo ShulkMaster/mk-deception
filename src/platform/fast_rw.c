@@ -7,9 +7,9 @@ typedef struct FastRwEngineView {
 
 extern FastRwEngineView* RwEngineInstance;
 
-void RwRenderStateSet_SRCBLEND_DESTBLEND(int srcBlend, int destBlend) {
+int RwRenderStateSet_SRCBLEND_DESTBLEND(int srcBlend, int destBlend) {
     RwEngineInstance->fpRenderStateSet(0xa, srcBlend);
-    RwEngineInstance->fpRenderStateSet(0xb, destBlend);
+    return RwEngineInstance->fpRenderStateSet(0xb, destBlend);
 }
 
 void RwRenderStateSet_rwRENDERSTATEVERTEXALPHAENABLE(int enable) {

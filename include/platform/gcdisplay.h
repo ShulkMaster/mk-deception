@@ -14,14 +14,12 @@ void gc_native_display_render_image(void);
 void gc_native_display_render_text(char* text);
 void gc_native_display_render_movie(void* ctx);
 void gc_native_display_pass_to_RW(void);
-void display_image(void);
-void display_dragon_with_text(DragonTextPrompt* prompt);
 int is_progressive_scan_mode(void);
 void feedback_effect(void);
 void gc_setup_feedback_buffer_for_konquest(void);
 void setup_post_effect_buffers(void);
 void pokeFilter(void* vfilter);
-int romfont_puts(short x, int y, char* text);
+int romfont_puts(int x, int y, char* text);
 
 extern unsigned short loading_palette[0x100];
 extern unsigned char loading_image[0x10000];
