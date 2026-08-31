@@ -216,6 +216,9 @@ retail_include_inputs = [
         "sound.o",
     ]
 ]
+asm_sequence_manifest = Path("config") / config.version / "asm_sequences.json"
+asm_sequence_output = retail_include_dir / "runtime" / "mk_proc_asm_sequences.inc"
+asm_sequence_input = Path("build") / config.version / "asm" / "mk_proc.s"
 config.custom_build_rules = [
     {
         "name": "gcdisplay_assets",
@@ -230,6 +233,15 @@ config.custom_build_rules = [
             "--object-root $object_root --output-root $output_root"
         ),
         "description": "RETAIL INCLUDES",
+        "restat": True,
+    },
+    {
+        "name": "asm_sequences",
+        "command": (
+            "$python tools/generate_asm_sequences.py "
+            "--manifest $manifest --version $version --build-root build"
+        ),
+        "description": "RETAIL ASM SEQUENCES",
         "restat": True,
     },
 ]
@@ -250,6 +262,16 @@ config.custom_build_steps = {
             "variables": {
                 "object_root": Path("build") / config.version / "obj",
                 "output_root": retail_include_dir,
+            },
+        },
+        {
+            "outputs": asm_sequence_output,
+            "rule": "asm_sequences",
+            "inputs": asm_sequence_input,
+            "implicit": [Path("tools/generate_asm_sequences.py"), asm_sequence_manifest],
+            "variables": {
+                "manifest": asm_sequence_manifest,
+                "version": config.version,
             },
         },
     ],

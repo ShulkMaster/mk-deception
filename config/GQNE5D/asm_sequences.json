@@ -1,0 +1,17 @@
+{
+  "version": "GQNE5D",
+  "assembly": "mk_proc.s",
+  "output": "runtime/mk_proc_asm_sequences.inc",
+  "functions": [
+    { "name": "jump_sleep_nostack", "address": "0x80024050", "size": "0x1C" },
+    { "name": "dispatch_tinystack", "address": "0x8002406C", "size": "0x16C" },
+    { "name": "sleep_tinystack", "address": "0x800241D8", "size": "0x110" },
+    { "name": "jump_sleep_tinystack", "address": "0x800242F0", "size": "0x1C" },
+    { "name": "dispatch_bigstack", "address": "0x8002430C", "size": "0x188" },
+    { "name": "sleep_bigstack", "address": "0x80024494", "size": "0xD8" },
+    { "name": "system_stack_bigstack", "address": "0x8002456C", "size": "0xC" },
+    { "name": "local_stack_bigstack", "address": "0x80024578", "size": "0x1C" },
+    { "name": "jump_sleep_bigstack", "address": "0x80024594", "size": "0x1C" },
+    { "name": "mkproc_dispatch", "address": "0x800245B0", "size": "0x1F0" }
+  ]
+}

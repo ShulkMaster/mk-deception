@@ -15,6 +15,11 @@ repository. The supported target is the USA GameCube release, `GQNE5D`.
 - Keep matching source readable and structurally honest. Do not force registers
   with `register`, fake `volatile`, dead sinks, incorrect prototypes, invented
   fields, embedded assembly, or unstructured `goto`.
+- Exception: a function proven to be genuine handwritten assembly may invoke an
+  approved `SEQ_<function>()` macro generated under `build/` from that version's
+  retail-derived assembly. Add it to `config/<version>/asm_sequences.json`; do
+  not commit instruction payloads, synthesize a fallback, or use this path for
+  ordinary compiler-generated functions.
 - Make one coherent matching change at a time, rebuild, and inspect the same
   objdiff mismatch before trying another change.
 - Preserve or explicitly account for the final retail SHA-1 check. A fuzzy
