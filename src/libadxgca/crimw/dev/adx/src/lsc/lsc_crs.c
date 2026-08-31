@@ -1,13 +1,12 @@
-/* TODO: Missing implementation for retail unit lsc_crs.c. */
+extern void SJCRS_Unlock(void);
+extern void SJCRS_Lock(void);
 
-void *LSC_UnlockCrs(void)
+void LSC_UnlockCrs(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SJCRS_Unlock();
 }
 
-void *LSC_LockCrs(void)
+void LSC_LockCrs(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    SJCRS_Lock();
 }
