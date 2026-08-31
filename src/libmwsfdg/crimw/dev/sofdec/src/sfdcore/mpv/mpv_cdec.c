@@ -75,14 +75,14 @@ s32 MPVCDEC_NintraBlocks(MPVCDECContext* context)
     block->quantizer_scale = context->quantizer_scale;
     block->quant_matrix = context->non_intra_quant_matrix;
     context->non_intra_mode = 1;
-    pattern = context->coded_block_pattern << 2;
+    pattern = (s32)((u32)context->coded_block_pattern << 2);
     params->coded_block_pattern = pattern;
     for (index = 0; index < 6; index++) {
         if (pattern < 0) {
             block->coefficients = coefficients;
             *nonzero = context->decode_non_intra(context, block);
         }
-        pattern <<= 1;
+        pattern = (s32)((u32)pattern << 1);
         coefficients++;
         nonzero++;
     }

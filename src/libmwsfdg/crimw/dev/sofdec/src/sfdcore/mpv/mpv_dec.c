@@ -500,7 +500,7 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
             descriptor = mpvvlc_cbp[peek];
             code_length = descriptor;
             bit_offset += code_length;
-            context->cbp_mask = (descriptor << 16) & 0xFFF00000;
+            context->cbp_mask = ((u32)(u16)descriptor << 16) & 0xFFF00000;
             if (bit_offset >= 32) {
                 bit_offset -= 32;
                 bits = next_bits << bit_offset;
@@ -653,7 +653,7 @@ static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
                     bit_offset += motion->r_size;
                     bits <<= motion->r_size;
                 }
-                scaled_code = motion_code << motion->r_size;
+                scaled_code = (s32)((u32)motion_code << motion->r_size);
                 delta = (motion->limit - 1) - residual;
                 if (scaled_code > 0) {
                     motion_code = scaled_code - delta;
@@ -661,7 +661,7 @@ static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
                     motion_code = scaled_code + delta;
                 }
             }
-            *output = (motion_code + *predictor) << motion->shift;
+            *output = (s32)((u32)(motion_code + *predictor) << motion->shift);
             *output >>= motion->shift;
             *predictor = *output;
         }
@@ -885,7 +885,7 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
             descriptor = mpvvlc_cbp[peek];
             code_length = descriptor;
             bit_offset += code_length;
-            context->cbp_mask = (descriptor << 16) & 0xFFF00000;
+            context->cbp_mask = ((u32)(u16)descriptor << 16) & 0xFFF00000;
             if (bit_offset >= 32) {
                 bit_offset -= 32;
                 bits = next_bits << bit_offset;
