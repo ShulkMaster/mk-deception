@@ -3,6 +3,11 @@
 
 const unsigned char* MPV_SearchDelim(const unsigned char* data, int length,
                                      int mask);
+void* MPV_BsearchDelim(const unsigned char* data, int length, int mask);
 int MPV_CheckDelim(const unsigned char* data);
+int MPV_IsEmptyPpic(const unsigned char* data, int length,
+                    int macroblock_count);
+int MPV_IsEmptyBpic(const unsigned char* data, int length,
+                    int macroblock_count);
 
 #endif

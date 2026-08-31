@@ -1,7 +1,14 @@
-/* TODO: Missing implementation for retail unit adx_gc.c. */
+#include "dolphin/types.h"
 
-void *ADXGC_SetAdjsfreqFlg(void)
+typedef struct AdxGcHandle {
+    u8 reserved_00[0x0C];
+    void* rna;
+} AdxGcHandle;
+
+extern void ADXRNA_SetAdjsfreqFlg(void* rna);
+
+void ADXGC_SetAdjsfreqFlg(AdxGcHandle* handle, int enabled)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    (void)enabled;
+    ADXRNA_SetAdjsfreqFlg(handle->rna);
 }
