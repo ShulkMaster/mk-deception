@@ -969,7 +969,7 @@ MkObj* subzero_start_iceman(void) {
     mk_insert(
         &iceman->hdr, &fatality_state.attacker_object->child_list);
     obj_set_color_for_all_materials(
-        iceman, (int*)&alpha_data->color);
+        iceman, &alpha_data->color);
     obj_set_all_sobjs_priority(iceman, 0x13);
     iceman->light_flags = fatality_state.attacker_object->light_flags;
     mkobj_get_matrix_right(fatality_state.attacker_object, &right);
@@ -1071,7 +1071,7 @@ MkObj* subzero_start_iceblock(void) {
         color.green = 0xFF;
         color.blue = 0xFF;
         color.alpha = 0xB4;
-        obj_set_color_for_all_materials(iceblock, (int*)&color);
+        obj_set_color_for_all_materials(iceblock, &color);
         obj_set_all_sobjs_priority(iceblock, 0x13);
         iceblock->light_flags = fatality_state.victim_object->light_flags;
         iceblock->pos.value = fatality_state.victim_object->pos.value;

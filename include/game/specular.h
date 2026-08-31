@@ -1,10 +1,11 @@
 #ifndef SPECULAR_H
 #define SPECULAR_H
 
-void* force_specular_texture_atomic_callback(void* atomic, void* texture);
 typedef struct RpAtomic RpAtomic;
 typedef struct RpClump RpClump;
 
+RpAtomic* force_specular_texture_atomic_callback(RpAtomic* atomic,
+                                                 void* texture);
 RpAtomic* restore_specular_texture_atomic_callback(RpAtomic* atomic,
                                                    void* data);
 RpAtomic* swap_specular_texture_atomic_callback(RpAtomic* atomic,

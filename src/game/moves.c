@@ -742,7 +742,7 @@ static float p_blast(void) {
         color.alpha = (signed char)(data->start_alpha * fraction +
                                     data->end_alpha * (1.0f - fraction));
     }
-    obj_set_color_for_all_materials(object, (int*)&color);
+    obj_set_color_for_all_materials(object, &color);
     data->current_tick--;
     if (data->current_tick < 0) {
         return -1.0f;

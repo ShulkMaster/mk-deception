@@ -982,16 +982,16 @@ static float p_decoy(void) {
         pdata->flash_timer = 1.0f;
         if (pdata->flash_toggle == 0) {
             pdata->flash_toggle = 1;
-            obj_set_color_for_all_materials(decoy, (int*)&dark_color);
+            obj_set_color_for_all_materials(decoy, &dark_color);
             pdata->flash_count--;
         } else if (pdata->flash_toggle == 1) {
             pdata->flash_toggle = 0;
-            obj_set_color_for_all_materials(decoy, (int*)&light_color);
+            obj_set_color_for_all_materials(decoy, &light_color);
             pdata->flash_count--;
         }
         if (pdata->flash_count <= 0) {
             pdata->flash_count = 0;
-            obj_set_color_for_all_materials(decoy, (int*)&dark_color);
+            obj_set_color_for_all_materials(decoy, &dark_color);
         }
     }
 

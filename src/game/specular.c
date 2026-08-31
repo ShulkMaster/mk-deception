@@ -205,7 +205,8 @@ static RpMaterial* swap_specular_texture_material_callback(RpMaterial* material,
     return material;
 }
 
-void* force_specular_texture_atomic_callback(void* atomic, void* texture) {
+RpAtomic* force_specular_texture_atomic_callback(RpAtomic* atomic,
+                                                 void* texture) {
     RpAtomic* atom;
     void* reflection_texture;
     RpGeometry* geometry;
