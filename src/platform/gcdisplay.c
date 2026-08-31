@@ -12,8 +12,6 @@
 
 /*
  * gcdisplay.o - native display + loading dragon image.
- * Soft ceilings (present path): init TV-branch, render mtctr copy, pass_to_RW
- * coloring, display_image rlwimi, tile_image /%; 480p UI / feedback omitted.
  * Function order matches retail ASM.
  */
 
@@ -74,29 +72,30 @@ extern void* _RwGCXFB2;
 extern void* _RwGCXFBCopy;
 extern void* _RwGCXFBDisp;
 extern int _RwDlPixelFormat;
-
-
-/* ASM-backed .data while NonMatching. */
-extern unsigned short loading_palette[0x100];
-extern unsigned char loading_image[0x10000];
+/* Generated under build/ from the user's retail gcdisplay.o; not repository assets. */
+unsigned short loading_palette[0x100] = {
+#include "platform/gcdisplay_loading_palette.inc"
+};
+unsigned char loading_image[0x10000] = {
+#include "platform/gcdisplay_loading_image.inc"
+};
 
 /* .bss / .sdata / .sbss (this TU) */
-static GXTexObj feedbackTex;
+GXTexObj feedbackTex;
 static GcNativeDisplay gc_native_display;
 static GXColor Black = {0, 0, 0, 0xFF};
+static const GXColor kTextWhite = {0xFF, 0xFF, 0xFF, 0xFF};
+static const GXColor kRenderBlack = {0, 0, 0, 0xFF};
+static const GXColor kMovieRenderBlack = {0, 0, 0, 0xFF};
+static const GXColor kFeedbackColor = {0xC4, 0xC4, 0xC4, 0xFF};
 static int uFrameBlastCount = 0xF;
-static int progscan_mode;
-static unsigned short* pal_565;
-void* feedbackTexPixels;
-static short FontSpace;
-static short FontSize;
-static OSFontHeader* FontData;
 static void* LastSheet;
-
-/* Identity-ish pos mtx (retail @682). */
-static const float s_identityPosMtx[12] = {
-    1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f,
-};
+static OSFontHeader* FontData;
+static short FontSize;
+static short FontSpace;
+void* feedbackTexPixels;
+static unsigned short* pal_565;
+static int progscan_mode;
 
 static volatile unsigned short* const wgPipe = (volatile unsigned short*)GXFIFO_ADDR;
 
@@ -108,27 +107,27 @@ static void CheckFor480PMode(void);
 static void displayContinueMessage(PADStatus* pads, char* msg);
 static void gcSetup480P(void);
 static int gc_prompt_for_480P(PADStatus* pads);
+static void display_dragon_with_text(DragonTextPrompt* prompt);
+static void display_image(void);
 
 /* 10s timeout using bus clock / 4 (TB freq) - retail OSGetTime compare. */
-static int timed_out_10s(unsigned long long start) {
-    unsigned long long now;
-    unsigned long long diff;
+static inline int timed_out_10s(OSTime start) {
+    OSTime now;
+    OSTime diff;
     unsigned long limit;
 
     now = OSGetTime();
     diff = now - start;
     limit = ((*(unsigned long*)0x800000F8) >> 2) * 10;
-    return diff > (unsigned long long)limit;
+    return diff > (OSTime)limit;
 }
 
-static int font_string_width(char* s) {
+static inline int font_string_width(char* s) {
     int maxW;
     int lineW;
     int charW;
-    OSFontHeader* font;
 
-    font = FontData;
-    if (font == 0) {
+    if (FontData == 0) {
         return 0;
     }
     maxW = 0;
@@ -141,15 +140,15 @@ static int font_string_width(char* s) {
             lineW = 0;
         }
         s = OSGetFontWidth(s, &charW);
-        lineW += FontSpace + (FontSize * charW) / (int)font->cellWidth;
+        lineW += FontSpace + (FontSize * charW) / (int)FontData->cellWidth;
     }
     if (maxW < lineW) {
         maxW = lineW;
     }
-    return (maxW + 0xF) >> 4;
+    return (maxW + 0xF) / 0x10;
 }
 
-static int font_string_height(char* s) {
+static inline int font_string_height(char* s) {
     int lines;
     OSFontHeader* font;
 
@@ -163,7 +162,8 @@ static int font_string_height(char* s) {
             lines++;
         }
     }
-    return (lines * ((int)font->leading * (int)FontSize) / (int)font->cellWidth + 0xF) >> 4;
+    return (lines * (((int)font->leading * (int)FontSize) / (int)font->cellWidth) + 0xF) /
+           0x10;
 }
 
 /* ========================================================================= */
@@ -171,19 +171,19 @@ static int font_string_height(char* s) {
 /* ========================================================================= */
 
 void feedback_effect(void) {
-    Mtx posMtx;
+    Mtx posMtx = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, -1.0f, 0.0f},
+    };
     Mtx texMtx;
-    GXColor color;
+    GXColor color = kFeedbackColor;
     GXColor amb;
     GXColor mat;
+    int full_w;
+    int full_h;
     short w;
     short h;
-
-    memcpy(posMtx, s_identityPosMtx, sizeof(s_identityPosMtx));
-    color.r = 0xC4;
-    color.g = 0xC4;
-    color.b = 0xC4;
-    color.a = 0xFF;
 
     RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
     RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 0);
@@ -194,7 +194,7 @@ void feedback_effect(void) {
     set_2d_projection();
     GXLoadPosMtxImm(posMtx, 0);
     GXLoadTexObj(&feedbackTex, 4);
-    PSMTXScale(texMtx, 1.0f / (float)screen_width, 1.0f / (float)screen_height, 0.0f);
+    PSMTXScale(texMtx, 1.0f / (float)screen_width, 1.0f / (float)screen_height, 1.0f);
     GXLoadTexMtxImm(texMtx, 0x21, 1);
     GXSetNumTexGens(1);
     GXSetNumTevStages(1);
@@ -211,8 +211,10 @@ void feedback_effect(void) {
     GXSetTevOp(0, 0);
 
     if (old_use_feedback_effect == use_feedback_effect) {
-        w = (short)screen_width;
-        h = (short)screen_height;
+        full_w = screen_width;
+        full_h = screen_height;
+        w = (short)full_w;
+        h = (short)full_h;
         GXClearVtxDesc();
         GXSetVtxDesc(9, 1);
         GXSetVtxDesc(0xD, 1);
@@ -225,16 +227,16 @@ void feedback_effect(void) {
         wgPipe[0] = 0;
         wgPipe[0] = (unsigned short)w;
         wgPipe[0] = 0;
-        wgPipe[0] = (unsigned short)screen_width;
+        wgPipe[0] = (unsigned short)full_w;
         wgPipe[0] = 0;
         wgPipe[0] = (unsigned short)w;
         wgPipe[0] = (unsigned short)h;
-        wgPipe[0] = (unsigned short)screen_width;
-        wgPipe[0] = (unsigned short)screen_height;
+        wgPipe[0] = (unsigned short)full_w;
+        wgPipe[0] = (unsigned short)full_h;
         wgPipe[0] = 0;
         wgPipe[0] = (unsigned short)h;
         wgPipe[0] = 0;
-        wgPipe[0] = (unsigned short)screen_height;
+        wgPipe[0] = (unsigned short)full_h;
     }
 
     GXSetTexCopySrc(0, 0, (unsigned short)screen_width, (unsigned short)screen_height);
@@ -262,22 +264,21 @@ void gc_setup_feedback_buffer_for_konquest(void) {
 void setup_post_effect_buffers(void) {
 }
 
-int romfont_puts(short x, int y, char* text) {
+int romfont_puts(int x, int y, char* text) {
     int penX;
-    int sheetX;
-    int sheetY;
     int charW;
     void* sheet;
+    int sheetX;
+    int sheetY;
     short x0;
     short x1;
     short y0;
     short y1;
-    short u0;
-    short u1;
-    short v0;
+    int u0;
+    int u1;
+    int v0;
     short v1;
     unsigned short cellW;
-    OSFontHeader* font;
     GXTexObj texObj;
     Mtx texMtx;
     float invW;
@@ -290,42 +291,41 @@ int romfont_puts(short x, int y, char* text) {
     GXSetVtxAttrFmt(0, 9, 0, 3, 4);
     GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
 
+    x = (short)(x << 4);
     y <<= 4;
     penX = 0;
-    font = FontData;
-
     while (*text != '\0') {
         if (*text == '\n') {
             penX = 0;
             text++;
-            y += ((int)font->leading * (int)FontSize) / (int)font->cellWidth;
+            y += ((int)FontData->leading * (int)FontSize) / (int)FontData->cellWidth;
             continue;
         }
 
         text = OSGetFontTexture(text, &sheet, &sheetX, &sheetY, &charW);
         if (LastSheet != sheet) {
             LastSheet = sheet;
-            GXInitTexObj(&texObj, sheet, font->sheetWidth, font->sheetHeight, font->sheetFormat, 0, 0,
-                         0);
+            GXInitTexObj(&texObj, sheet, FontData->sheetWidth, FontData->sheetHeight,
+                         FontData->sheetFormat, 0, 0, 0);
             GXInitTexObjLOD(&texObj, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
             GXLoadTexObj(&texObj, 0);
-            invW = 1.0f / (float)font->sheetWidth;
-            invH = 1.0f / (float)font->sheetHeight;
+            invW = 1.0f / (float)FontData->sheetWidth;
+            invH = 1.0f / (float)FontData->sheetHeight;
             PSMTXScale(texMtx, invW, invH, 1.0f);
             GXLoadTexMtxImm(texMtx, 0x1E, 1);
             GXSetNumTexGens(1);
             GXSetTexCoordGen2(0, 1, 4, 0x1E, 0, 0x7D);
         }
 
-        cellW = font->cellWidth;
-        x0 = (short)(x * 0x10 + penX);
+        cellW = FontData->cellWidth;
+        x0 = (short)(x + penX);
         x1 = (short)(x0 + FontSize);
-        u0 = (short)sheetX;
-        u1 = (short)(sheetX + (short)cellW);
-        v0 = (short)sheetY;
-        v1 = (short)(sheetY + font->cellHeight);
-        y0 = (short)(y - ((int)font->ascent * (int)FontSize) / (int)cellW);
-        y1 = (short)(y + ((int)font->descent * (int)FontSize) / (int)cellW);
+        u0 = sheetX;
+        u1 = sheetX + cellW;
+        v0 = sheetY;
+        v1 = (short)(sheetY + FontData->cellHeight);
+        y0 = (short)((short)y - ((int)FontData->ascent * (int)FontSize) / (int)cellW);
+        y1 = (short)((short)y + ((int)FontData->descent * (int)FontSize) / (int)cellW);
 
         GXBegin(0x80, 0, 4);
         wgPipe[0] = (unsigned short)x0;
@@ -345,10 +345,10 @@ int romfont_puts(short x, int y, char* text) {
         wgPipe[0] = (unsigned short)u0;
         wgPipe[0] = (unsigned short)v1;
 
-        penX += FontSpace + (FontSize * charW) / (int)font->cellWidth;
+        penX += FontSpace + (FontSize * charW) / (int)FontData->cellWidth;
     }
 
-    return (penX + 0xF) >> 4;
+    return (penX + 0xF) / 0x10;
 }
 
 void gc_native_display_render_text(char* text) {
@@ -377,12 +377,13 @@ void gc_native_display_render_image(void) {
 }
 
 void gc_native_display_render_movie(void* ctx) {
-    Mtx posMtx;
-    GXColor clearColor;
+    Mtx posMtx = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, -1.0f, 0.0f},
+    };
+    GXColor clearColor = kMovieRenderBlack;
     GXColor fogColor;
-
-    memcpy(posMtx, s_identityPosMtx, sizeof(s_identityPosMtx));
-    clearColor = Black;
 
     GXSetCoPlanar(0);
     GXSetCullMode(0);
@@ -410,12 +411,13 @@ void gc_native_display_render_movie(void* ctx) {
     GXCopyDisp(_RwGCXFBDisp, 1);
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
-/* Soft ceiling: ~92.8% -- retail mtctr lwzu/stwu @682 copy vs dword-pair do/while; stop. */
 static void gc_native_display_render(NativeRenderCb cb, void* arg) {
-    Mtx posMtx;
-    GXColor clearColor;
+    Mtx posMtx = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, -1.0f, 0.0f},
+    };
+    GXColor clearColor = kRenderBlack;
     GXColor fogColor;
     void* xfbA;
     void* xfbB;
@@ -423,23 +425,6 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     int first;
     int i;
     GXRenderModeObj* mode;
-    const unsigned int* src;
-    unsigned int* dst;
-    int n;
-
-    /* Retail: spill Black (@681) then mtctr dword-pair copy of @682 into posMtx. */
-    clearColor = Black;
-    src = (const unsigned int*)s_identityPosMtx;
-    dst = (unsigned int*)posMtx;
-    n = 6;
-    do {
-        dst[0] = src[0];
-        dst[1] = src[1];
-        src += 2;
-        dst += 2;
-        n -= 1;
-    } while (n != 0);
-
     first = 1;
 
     if (gc_native_display.xfbDisp != 0) {
@@ -508,25 +493,16 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
         }
     }
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
-
 static void render_text(void* text) {
     char* s;
-    char* walk;
     GXColor black;
     GXColor mat;
     GXColor amb;
     int w;
-    int maxW;
-    int lineW;
-    int charW;
-    int lines;
     int msgW;
     int msgH;
     int x;
     int y;
-    OSFontHeader* font;
 
     s = text;
     save_projection_matrix();
@@ -564,62 +540,25 @@ static void render_text(void* text) {
     GXSetTevOp(0, 3);
     GXSetTevOrder(0, 0, 0, 0xFF);
 
-    font = FontData;
-    if (font == 0) {
-        msgW = 0;
-    } else {
-        maxW = 0;
-        lineW = 0;
-        walk = s;
-        while (*walk != '\0') {
-            if (*walk == '\n') {
-                if (maxW < lineW) {
-                    maxW = lineW;
-                }
-                lineW = 0;
-            }
-            walk = OSGetFontWidth(walk, &charW);
-            lineW += FontSpace + (FontSize * charW) / (int)font->cellWidth;
-        }
-        if (maxW < lineW) {
-            maxW = lineW;
-        }
-        msgW = (maxW + 0xF) >> 4;
-    }
-    x = (screen_width - msgW) >> 1;
-
-    font = FontData;
-    if (font == 0) {
-        msgH = 0;
-    } else {
-        lines = 1;
-        for (walk = s; *walk != '\0'; walk++) {
-            if (*walk == '\n') {
-                lines++;
-            }
-        }
-        msgH = (lines * ((int)font->leading * (int)FontSize) / (int)font->cellWidth + 0xF) >> 4;
-    }
-    y = (screen_height - msgH) >> 1;
-    romfont_puts((short)x, y, s);
+    msgW = font_string_width(s);
+    x = (screen_width - msgW) / 2;
+    msgH = font_string_height(s);
+    y = (screen_height - msgH) / 2;
+    romfont_puts(x, y, s);
     restore_projection_matrix();
 }
 
+/* Retail keeps this helper out of line while other small helpers in this TU inline. */
 #pragma dont_inline on
 static void render_text_without_clear(char* text, int x, int y) {
     char* walk;
-    GXColor color;
+    GXColor color = kTextWhite;
 
     walk = text;
     if (FontData != 0) {
         for (; *walk != '\0'; walk++) {
         }
     }
-
-    color.r = 0xFF;
-    color.g = 0xFF;
-    color.b = 0xFF;
-    color.a = 0xFF;
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
@@ -633,7 +572,7 @@ static void render_text_without_clear(char* text, int x, int y) {
     GXSetTevColorOp(0, 0, 0, 0, 1, 0);
     GXSetTevAlphaIn(0, 7, 5, 4, 7);
     GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
-    romfont_puts((short)x, y, text);
+    romfont_puts(x, y, text);
 }
 #pragma dont_inline reset
 
@@ -647,7 +586,6 @@ static void render_image(void* unused) {
     save_projection_matrix();
     set_2d_projection();
 
-    /* A1: amb before mat -> mat@0x8 amb@0xc; Black then h@r30 w@r31. */
     black = Black;
     h = screen_height;
     w = screen_width;
@@ -695,10 +633,6 @@ void gc_native_display_pass_to_RW(void) {
         _mwMemFree(pal_565, 0, 0);
         pal_565 = 0;
     }
-    /*
-     * Soft ceiling: 98.25% -- operations, field offsets, and store order match;
-     * only the base and loaded-value register allocation differs.
-     */
     d = &gc_native_display;
     xfbDisp = d->xfbDisp;
     fifo = d->fifo;
@@ -708,10 +642,6 @@ void gc_native_display_pass_to_RW(void) {
     _RwDlDefaultFifo = fifo;
 }
 
-/*
- * Soft ceiling: 97.01% -- the retail TV-format selection has one additional
- * equivalent branch; centralized GX widths also alter truncation/load scheduling.
- */
 void gc_native_display_init(void) {
     int tvFormat;
     GXRenderModeObj* mode;
@@ -809,7 +739,6 @@ static void CheckFor480PMode(void) {
     int done;
     int want480p;
     int i;
-    int ready;
 
     want480p = 0;
     done = 0;
@@ -820,26 +749,18 @@ static void CheckFor480PMode(void) {
     while (done == 0) {
         done = 1;
         PADRead(pads);
-        i = 0;
-        ready = 2;
-        do {
+        for (i = 0; i < 2; i++) {
             if (pads[i].err == -2 || pads[i].err == -3) {
                 done = 0;
             }
-            i++;
-            ready--;
-        } while (ready != 0);
+        }
     }
 
-    i = 0;
-    ready = 2;
-    do {
+    for (i = 0; i < 2; i++) {
         if (pads[i].err == 0 && (pads[i].button & 0x200) == 0x200) {
             want480p = 1;
         }
-        i++;
-        ready--;
-    } while (ready != 0);
+    }
 
     if ((OSGetResetCode() & 1) != 0) {
         want480p = 1;
@@ -848,19 +769,21 @@ static void CheckFor480PMode(void) {
         want480p = 1;
     }
 
-    if (want480p != 0) {
-        if (gc_prompt_for_480P(pads) != 0) {
-            gcSetup480P();
-            displayContinueMessage(
-                pads,
-                "The display mode has been switched to\n            Progressive Scan.\n    Press "
-                "the A Button to continue.");
-        } else {
-            OSSetProgressiveMode(0);
-            displayContinueMessage(
-                pads, "  The display mode has been set to\n            Interlaced  Mode.\n    "
-                      "Press the A Button to continue.");
-        }
+    if (want480p == 0) {
+        uFrameBlastCount = 0xF;
+        return;
+    }
+    if (gc_prompt_for_480P(pads) != 0) {
+        gcSetup480P();
+        displayContinueMessage(
+            pads,
+            "The display mode has been switched to\n            Progressive Scan.\n    Press "
+            "the A Button to continue.");
+    } else {
+        OSSetProgressiveMode(0);
+        displayContinueMessage(
+            pads, "  The display mode has been set to\n            Interlaced  Mode.\n    "
+                  "Press the A Button to continue.");
     }
     uFrameBlastCount = 0xF;
 }
@@ -870,13 +793,14 @@ static void displayContinueMessage(PADStatus* pads, char* msg) {
     char yesBuf[20];
     char noBuf[20];
     PADStatus prev[3];
-    unsigned long long start;
-    int done;
-    int ready;
+    OSTime start;
+    unsigned char done;
+    unsigned char ready;
     int i;
     unsigned short btn;
 
     done = 0;
+    ready = 0;
     strcpy(yesBuf, "");
     strcpy(noBuf, "");
     prompt.message = msg;
@@ -885,41 +809,35 @@ static void displayContinueMessage(PADStatus* pads, char* msg) {
     start = OSGetTime();
 
     while (done == 0) {
-        ready = 0;
         PADReset(0xC0000000);
-        i = 0;
-        do {
+        for (i = 0; i < 3; i++) {
             prev[i] = pads[i];
-            i++;
-        } while (i < 3);
+        }
 
         while (ready == 0) {
             ready = 1;
             PADRead(pads);
-            i = 0;
-            do {
+            for (i = 0; i < 2; i++) {
                 if (pads[i].err == -2 || pads[i].err == -3) {
                     ready = 0;
                 }
-                i++;
-            } while (i < 2);
+            }
         }
+        ready = 0;
 
         handle_reset_switch();
-        i = 0;
-        do {
+        for (i = 0; i < 2; i++) {
             if (pads[i].err == 0) {
                 btn = pads[i].button;
                 if ((btn & 1) == 1 || (btn & 2) == 2) {
                     break;
                 }
-                if ((btn & 0x100 & (prev[i].button ^ btn)) != 0) {
+                if ((unsigned short)(btn & 0x100 & (prev[i].button ^ btn)) != 0) {
                     done = 1;
                     break;
                 }
             }
-            i++;
-        } while (i < 2);
+        }
 
         gc_grab_renderpipe();
         gc_native_display_render((NativeRenderCb)display_dragon_with_text, &prompt);
@@ -932,15 +850,10 @@ static void displayContinueMessage(PADStatus* pads, char* msg) {
 }
 
 static void gcSetup480P(void) {
-    GXRenderModeObj* mode;
     int xfbBytes;
     int xfbHalf;
     void* raw;
-    void* fifo;
-    void* xfb1;
-    void* xfb2;
     float yscale;
-    unsigned short copyHeight;
     int i;
 
     gc_grab_renderpipe();
@@ -960,27 +873,24 @@ static void gcSetup480P(void) {
     }
 
     gc_native_display.rmode = &GXNtsc480ProgSoft;
-    mode = gc_native_display.rmode;
-    xfbBytes = (((int)mode->fbWidth + 0xF) & 0xFFF0) * (int)mode->xfbHeight;
+    xfbBytes = (((int)gc_native_display.rmode->fbWidth + 0xF) & 0xFFF0) *
+               (int)gc_native_display.rmode->xfbHeight;
     xfbHalf = xfbBytes * 2;
     raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (unsigned long)(xfbBytes * 4) + 0x1F, 5, 0,
                        0, 0);
-    fifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
     _RwDl_FIFO_XFB = raw;
-    _RwDlDefaultFifo = fifo;
-    gc_native_display.fifo = fifo;
-    DCInvalidateRange(fifo, _RwDlFifoSize);
+    _RwDlDefaultFifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
+    gc_native_display.fifo = _RwDlDefaultFifo;
+    DCInvalidateRange(_RwDlDefaultFifo, _RwDlFifoSize);
 
-    xfb1 = (void*)((unsigned char*)fifo + _RwDlFifoSize);
-    xfb2 = (void*)((unsigned char*)xfb1 + xfbHalf);
-    _RwGCXFBDisp = xfb1;
-    _RwGCXFB1 = xfb1;
-    gc_native_display.xfbDisp = xfb1;
-    _RwGCXFB2 = xfb2;
-    gc_native_display.xfbCopy = xfb2;
-    _RwGCXFBCopy = xfb2;
-    DCFlushRange(xfb1, (unsigned long)xfbHalf);
-    DCFlushRange(xfb2, (unsigned long)xfbHalf);
+    _RwGCXFBDisp = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
+    _RwGCXFB1 = _RwGCXFBDisp;
+    gc_native_display.xfbDisp = _RwGCXFBDisp;
+    _RwGCXFB2 = (unsigned char*)_RwGCXFBDisp + xfbHalf;
+    gc_native_display.xfbCopy = _RwGCXFB2;
+    _RwGCXFBCopy = _RwGCXFB2;
+    DCFlushRange(_RwGCXFBDisp, (unsigned long)xfbHalf);
+    DCFlushRange(gc_native_display.xfbCopy, (unsigned long)xfbHalf);
 
     VISetBlack(1);
     VIFlush();
@@ -990,32 +900,32 @@ static void gcSetup480P(void) {
     GXInit(gc_native_display.fifo, 0x40000);
     VIConfigure(gc_native_display.rmode);
 
-    mode = gc_native_display.rmode;
-    GXSetScissor(0, 0, mode->fbWidth, mode->efbHeight);
-    GXSetDispCopySrc(0, 0, mode->fbWidth, mode->efbHeight);
-    yscale = GXGetYScaleFactor(mode->efbHeight, mode->xfbHeight);
-    copyHeight = GXSetDispCopyYScale(yscale);
-    mode = gc_native_display.rmode;
-    GXSetDispCopyDst(mode->fbWidth, copyHeight);
-    mode = gc_native_display.rmode;
-    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, mode->vfilter);
+    GXSetScissor(0, 0, gc_native_display.rmode->fbWidth,
+                 gc_native_display.rmode->efbHeight);
+    GXSetDispCopySrc(0, 0, gc_native_display.rmode->fbWidth,
+                     gc_native_display.rmode->efbHeight);
+    yscale = GXGetYScaleFactor(gc_native_display.rmode->efbHeight,
+                              gc_native_display.rmode->xfbHeight);
+    GXSetDispCopyDst(gc_native_display.rmode->fbWidth, GXSetDispCopyYScale(yscale));
+    GXSetCopyFilter(gc_native_display.rmode->aa, gc_native_display.rmode->sample_pattern, 1,
+                    gc_native_display.rmode->vfilter);
 
-    if (gc_native_display.rmode->aa == 0) {
-        GXSetPixelFmt(0, 0);
-    } else {
+    if (gc_native_display.rmode->aa != 0) {
         GXSetPixelFmt(2, 0);
+    } else {
+        GXSetPixelFmt(0, 0);
     }
 
-    mode = gc_native_display.rmode;
-    GXSetFieldMode(mode->field_rendering,
-                   (unsigned char)(((unsigned int)mode->xfbHeight - (unsigned int)mode->viHeight) >>
-                                   31));
+    GXSetFieldMode(
+        gc_native_display.rmode->field_rendering,
+        (unsigned char)(((unsigned int)gc_native_display.rmode->xfbHeight -
+                         (unsigned int)gc_native_display.rmode->viHeight) >>
+                        31));
 
     gc_release_renderpipe();
 
-    mode = gc_native_display.rmode;
-    screen_width = mode->fbWidth;
-    screen_height = mode->efbHeight;
+    screen_width = gc_native_display.rmode->fbWidth;
+    screen_height = gc_native_display.rmode->efbHeight;
 
     VISetBlack(1);
     VIFlush();
@@ -1029,21 +939,29 @@ static void gcSetup480P(void) {
     } while (i < 0xC);
 }
 
+void pokeFilter(void* vfilter) {
+    GXRenderModeObj* mode;
+
+    mode = gc_native_display.rmode;
+    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, (unsigned char*)vfilter);
+}
+
 static int gc_prompt_for_480P(PADStatus* pads) {
     DragonTextPrompt prompt;
     char msgBuf[84];
     char yesBuf[20];
     char noBuf[20];
     PADStatus prev[3];
-    unsigned long long start;
-    int yes;
-    int done;
-    int ready;
+    OSTime start;
+    unsigned char yes;
+    unsigned char done;
+    unsigned char ready;
     int i;
     unsigned short btn;
 
     yes = 1;
     done = 0;
+    ready = 0;
     strcpy(msgBuf, "Do you want to display the game\n    in Progressive Scan mode?");
     strcpy(yesBuf, "YES");
     strcpy(noBuf, "NO");
@@ -1053,29 +971,24 @@ static int gc_prompt_for_480P(PADStatus* pads) {
     start = OSGetTime();
 
     while (done == 0) {
-        ready = 0;
         PADReset(0xC0000000);
-        i = 0;
-        do {
+        for (i = 0; i < 3; i++) {
             prev[i] = pads[i];
-            i++;
-        } while (i < 3);
+        }
 
         while (ready == 0) {
             ready = 1;
             PADRead(pads);
-            i = 0;
-            do {
+            for (i = 0; i < 2; i++) {
                 if (pads[i].err == -2 || pads[i].err == -3) {
                     ready = 0;
                 }
-                i++;
-            } while (i < 2);
+            }
         }
+        ready = 0;
 
         handle_reset_switch();
-        i = 0;
-        do {
+        for (i = 0; i < 2; i++) {
             if (pads[i].err == 0) {
                 btn = pads[i].button;
                 if ((btn & 1) == 1) {
@@ -1086,13 +999,12 @@ static int gc_prompt_for_480P(PADStatus* pads) {
                     yes = 0;
                     break;
                 }
-                if ((btn & 0x100 & (prev[i].button ^ btn)) != 0) {
+                if ((unsigned short)(btn & 0x100 & (prev[i].button ^ btn)) != 0) {
                     done = 1;
                     break;
                 }
             }
-            i++;
-        } while (i < 2);
+        }
 
         prompt.yes_hi = (unsigned char)yes;
         gc_grab_renderpipe();
@@ -1103,21 +1015,13 @@ static int gc_prompt_for_480P(PADStatus* pads) {
             done = 1;
         }
     }
-    return yes;
+    return yes == 0;
 }
 
-void pokeFilter(void* vfilter) {
-    GXRenderModeObj* mode;
-
-    mode = gc_native_display.rmode;
-    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, (unsigned char*)vfilter);
-}
-
-void display_dragon_with_text(DragonTextPrompt* prompt) {
+static void display_dragon_with_text(DragonTextPrompt* prompt) {
     GXColor black;
     int w;
     int h;
-    unsigned long fontSize;
     int msgW;
     int msgH;
     int yesNoH;
@@ -1125,7 +1029,6 @@ void display_dragon_with_text(DragonTextPrompt* prompt) {
     int noW;
     int y;
     unsigned long i;
-    unsigned long len;
 
     save_projection_matrix();
     set_2d_projection();
@@ -1163,11 +1066,10 @@ void display_dragon_with_text(DragonTextPrompt* prompt) {
     display_image();
 
     if (OSGetFontEncode() == 1) {
-        fontSize = 0x120F00;
+        FontData = _mwMemMalloc(wave_heap, 0x120F00, 5, 0, 0, 0);
     } else {
-        fontSize = 0x20120;
+        FontData = _mwMemMalloc(wave_heap, 0x20120, 5, 0, 0, 0);
     }
-    FontData = _mwMemMalloc(wave_heap, fontSize, 5, 0, 0, 0);
     if (FontData == 0) {
         OSPanic("gcdisplay.c", 0x50D, "Ins. memory to load ROM font.");
     }
@@ -1179,36 +1081,32 @@ void display_dragon_with_text(DragonTextPrompt* prompt) {
     FontSpace = -0x10;
 
     msgW = font_string_width(prompt->message);
-    render_text_without_clear(prompt->message, (screen_width - msgW) >> 1, 0x15E);
+    render_text_without_clear(prompt->message, (screen_width - msgW) / 2, 0x15E);
 
-    if (prompt->yes_hi == 0) {
-        len = strlen(prompt->yes_str);
-        for (i = 0; i < len; i++) {
-            prompt->yes_str[i] = (char)(prompt->yes_str[i] | 0x20);
-        }
-        len = strlen(prompt->no_str);
-        for (i = 0; i < len; i++) {
-            prompt->no_str[i] = (char)(prompt->no_str[i] & 0xDF);
-        }
-    } else {
-        len = strlen(prompt->no_str);
-        for (i = 0; i < len; i++) {
+    if (prompt->yes_hi != 0) {
+        for (i = 0; i < strlen(prompt->no_str); i++) {
             prompt->no_str[i] = (char)(prompt->no_str[i] | 0x20);
         }
-        len = strlen(prompt->yes_str);
-        for (i = 0; i < len; i++) {
+        for (i = 0; i < strlen(prompt->yes_str); i++) {
             prompt->yes_str[i] = (char)(prompt->yes_str[i] & 0xDF);
+        }
+    } else {
+        for (i = 0; i < strlen(prompt->yes_str); i++) {
+            prompt->yes_str[i] = (char)(prompt->yes_str[i] | 0x20);
+        }
+        for (i = 0; i < strlen(prompt->no_str); i++) {
+            prompt->no_str[i] = (char)(prompt->no_str[i] & 0xDF);
         }
     }
 
     msgH = font_string_height(prompt->message);
     yesNoH = font_string_height("YESNO");
     yesW = font_string_width(prompt->yes_str);
-    y = msgH + (yesNoH >> 1) + 0x15E;
-    render_text_without_clear(prompt->yes_str, ((screen_width >> 1) - 100) - (yesW >> 1), y);
+    y = msgH + yesNoH / 2 + 0x15E;
+    render_text_without_clear(prompt->yes_str, (screen_width / 2 - 100) - yesW / 2, y);
 
     noW = font_string_width(prompt->no_str);
-    render_text_without_clear(prompt->no_str, ((screen_width >> 1) + 100) - (noW >> 1), y);
+    render_text_without_clear(prompt->no_str, (screen_width / 2 + 100) - noW / 2, y);
 
     if (FontData != 0) {
         _mwMemFree(FontData, 0, 0);
@@ -1217,8 +1115,9 @@ void display_dragon_with_text(DragonTextPrompt* prompt) {
     restore_projection_matrix();
 }
 
-void display_image(void) {
+static void display_image(void) {
     int i;
+    unsigned short* palette;
     unsigned short src;
     unsigned short dst;
     short left;
@@ -1227,10 +1126,11 @@ void display_image(void) {
     Mtx texMtx;
 
     if (pal_565 == 0) {
-        pal_565 = _mwMemMalloc(permanent_heap, 0x200, 5, 0, 0, 0);
-        if (pal_565 == 0) {
+        palette = _mwMemMalloc(permanent_heap, 0x200, 5, 0, 0, 0);
+        if (palette == 0) {
             return;
         }
+        pal_565 = palette;
         for (i = 0; i < 0x100; i++) {
             src = loading_palette[i];
             /* RGB555 -> RGB565 (retail bit pack). */
@@ -1253,8 +1153,7 @@ void display_image(void) {
     GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);
     GXSetTevOrder(0, 0, 1, 0xFF);
 
-    /* Soft ceiling: ~96.3% -- rlwimi pack + WGPIPE sth schedule; stop. */
-    left = (short)((screen_width >> 1) - 0x80);
+    left = (short)((screen_width / 2) - 0x80);
 
     GXClearVtxDesc();
     GXSetVtxDesc(9, 1);
@@ -1283,14 +1182,13 @@ void display_image(void) {
 
 void tile_image(unsigned char* dest) {
     unsigned char* tmp;
-    int tile;
     int pixel;
+    int tile;
     int tx;
     int ty;
     int x;
     int y;
 
-    /* Retail's signed /% lowering matches; only register coloring/scheduling remains. */
     tmp = _mwMemMalloc(wave_heap, 0x10000, 5, 0, 0, 0);
     for (tile = 0; tile < 0x800; tile++) {
         tx = tile % 32;
