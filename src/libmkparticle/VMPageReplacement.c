@@ -1,13 +1,6 @@
 #include "dolphin/os.h"
 #include "dolphin/types.h"
-
-u32 __VMGetNumPagesInMRAM(void);
-u32 VMBASEGetVirtualAddrFromPageInMRAM(u32 physical_page);
-int VMBASEIsPageValid(u32 virtual_address);
-int VMBASEIsPageReferenced(u32 virtual_address);
-int VMBASEIsPageDirty(u32 virtual_address);
-void VMBASESetPageReferenced(u32 virtual_address, int referenced);
-int VMBASEIsPageLocked(u32 physical_page);
+#include "dolphin/vm.h"
 
 u32 __VMPageReplacementLRU(void);
 u32 __VMPageReplacementRandom(void);
@@ -27,7 +20,7 @@ void __VMSetNextPageToSwap(u32 page)
     g_vmNextPageToSwap = page;
 }
 
-void __VMSetFreePagesExist(int free_pages_exist)
+void __VMSetFreePagesExist(BOOL free_pages_exist)
 {
     g_vmFreePagesExist = free_pages_exist;
 }
