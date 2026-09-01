@@ -21,10 +21,39 @@ typedef struct TRKEvent {
     MessageBufferID message_buffer_id;
 } TRKEvent;
 
+typedef struct TRKTargetState {
+    u8 field_0x00[0x8C];
+    u32 saved_msr;
+    u8 field_0x90[8];
+    u32 stopped;
+    u8 input_activated;
+    u8 field_0x9D[3];
+    volatile u8* input_pending;
+} TRKTargetState;
+
+typedef struct TRKCPUState {
+    u8 field_0x00[0x80];
+    u32 pc;
+    u8 field_0x84[0x1B4];
+    u32 extended1_state;
+    u8 field_0x23C[0xBC];
+    u16 exception_id;
+} TRKCPUState;
+
+typedef struct TRKExceptionStatus {
+    u32 pc;
+    u32 field_0x04;
+    u16 exception_id;
+    u8 field_0x0A[6];
+} TRKExceptionStatus;
+
 typedef char MessageBufferSizeCheck[sizeof(MessageBuffer) == 0x890 ? 1 : -1];
 typedef char TRKEventSizeCheck[sizeof(TRKEvent) == 0xC ? 1 : -1];
 
 extern BOOL gTRKBigEndian;
+extern TRKTargetState gTRKState;
+extern TRKCPUState gTRKCPUState;
+extern TRKExceptionStatus gTRKExceptionStatus;
 
 void MWTRACE(int level, const char* format, ...);
 
@@ -66,6 +95,16 @@ void TRKGetInput(void);
 DSError TRKInitializeNub(void);
 DSError TRKTerminateNub(void);
 void TRKNubWelcome(void);
+void TRK_board_display(const char* message);
+void InitializeProgramEndTrap(void);
+int TRKInitializeTarget(void);
+DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
+                                   volatile u8** input_pending_ptr);
+void TRKTargetSetInputPendingPtr(volatile u8* input_pending_ptr);
+
+DSError TRKWriteUARTN(const void* data, u32 length);
+u32 GetTRKConnected(void);
+void SetTRKConnected(u32 connected);
 void TRKNubMainLoop(void);
 DSError TRKTargetContinue(void);
 

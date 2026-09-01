@@ -1,7 +1,5 @@
 #include "dolphin/trk.h"
 
-extern void SetTRKConnected(u32 connected);
-extern u32 GetTRKConnected(void);
 extern void OSReport(const char* message);
 
 BOOL usr_puts_serial(const char* message)

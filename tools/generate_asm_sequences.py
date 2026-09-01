@@ -25,12 +25,14 @@ INSTRUCTION_RE = re.compile(
 )
 SYMBOL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 EXTERNAL_BRANCH_RE = re.compile(r"^(?:b|bl)\s+[A-Za-z_][A-Za-z0-9_]*$")
+ASSEMBLY_SYMBOL = r'(?:[A-Za-z_][A-Za-z0-9_]*|"[^"]+")'
+SYMBOL_RELOCATION_RE = re.compile(rf"^.*{ASSEMBLY_SYMBOL}@(h|ha|l)\b.*$")
 SDA21_BASE_RE = re.compile(
-    r"(?P<symbol>[A-Za-z_][A-Za-z0-9_]*)@sda21\((?P<base>r(?:0|13))\)"
+    rf"(?P<symbol>{ASSEMBLY_SYMBOL})@sda21\((?P<base>r(?:0|13))\)"
 )
-SDA21_IMMEDIATE_RE = re.compile(r"(?P<symbol>[A-Za-z_][A-Za-z0-9_]*)@sda21\b")
+SDA21_IMMEDIATE_RE = re.compile(rf"(?P<symbol>{ASSEMBLY_SYMBOL})@sda21\b")
 SDA21_LI_RE = re.compile(
-    r"^li\s+(?P<dest>r[0-9]+),\s*(?P<symbol>[A-Za-z_][A-Za-z0-9_]*)@sda21$"
+    rf"^li\s+(?P<dest>r[0-9]+),\s*(?P<symbol>{ASSEMBLY_SYMBOL})@sda21$"
 )
 
 
@@ -115,11 +117,15 @@ def load_manifest(path: Path, version: str) -> tuple[Path, Path, list[dict[str, 
     return Path(assembly), Path(output), functions
 
 
-def emit_macro(sequence: Sequence) -> list[str]:
+def emit_macro(sequence: Sequence, sda_symbols: dict[str, str]) -> list[str]:
     lines = [f"#define SEQ_{sequence.name}() \\", "    nofralloc; \\"]
     for index, (word, assembly) in enumerate(sequence.instructions):
         suffix = " \\" if index + 1 < len(sequence.instructions) else ""
         if "@sda21" in assembly:
+            for retail_symbol, source_symbol in sda_symbols.items():
+                assembly = assembly.replace(
+                    f'"{retail_symbol}"@sda21', f"{source_symbol}@sda21"
+                )
             address_load = SDA21_LI_RE.fullmatch(assembly)
             if address_load:
                 assembly = (
@@ -132,7 +138,9 @@ def emit_macro(sequence: Sequence) -> list[str]:
             if "@sda21" in assembly:
                 raise ValueError(f"{sequence.name}: unsupported SDA21 syntax: {assembly}")
             lines.append(f"    {assembly};{suffix}")
-        elif EXTERNAL_BRANCH_RE.fullmatch(assembly):
+        elif EXTERNAL_BRANCH_RE.fullmatch(assembly) or SYMBOL_RELOCATION_RE.fullmatch(
+            assembly
+        ):
             lines.append(f"    {assembly};{suffix}")
         else:
             lines.append(f"    opword 0x{word:08X};{suffix}")
@@ -179,6 +187,18 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
             ) from exc
         address = parse_int(entry.get("address"), f"{name}.address")
         size = parse_int(entry.get("size"), f"{name}.size")
+        raw_sda_symbols = entry.get("sda_symbols", {})
+        if not isinstance(raw_sda_symbols, dict):
+            raise ValueError(f"{name}.sda_symbols: expected an object")
+        sda_symbols: dict[str, str] = {}
+        for retail_symbol, source_symbol in raw_sda_symbols.items():
+            if not isinstance(retail_symbol, str) or not isinstance(source_symbol, str):
+                raise ValueError(f"{name}.sda_symbols: expected string mappings")
+            if not SYMBOL_RE.fullmatch(source_symbol):
+                raise ValueError(
+                    f"{name}.sda_symbols: invalid source symbol {source_symbol!r}"
+                )
+            sda_symbols[retail_symbol] = source_symbol
         if sequence.address != address:
             raise ValueError(
                 f"{name}: retail address 0x{sequence.address:X}, expected 0x{address:X}"
@@ -187,7 +207,7 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
             raise ValueError(
                 f"{name}: retail size 0x{len(sequence.instructions) * 4:X}, expected 0x{size:X}"
             )
-        lines.extend(emit_macro(sequence))
+        lines.extend(emit_macro(sequence, sda_symbols))
         lines.append("")
 
     return build_root / version / "include" / output_relative, "\n".join(lines)

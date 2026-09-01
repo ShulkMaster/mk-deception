@@ -1,43 +1,143 @@
-/* TODO: Missing implementation for retail unit VM.c. */
+#include "dolphin/ar.h"
+#include "dolphin/cache.h"
+#include "dolphin/os.h"
+#include "dolphin/os_alloc.h"
+#include "dolphin/types.h"
+#include "dolphin/vm.h"
 
-void *VMInit(void)
+typedef void (*VMLogStatsCallback)(u32 virtual_address, void* physical_address,
+                                   u32 physical_page, u32 elapsed,
+                                   int wrote_page);
+
+static u32 g_vmBaseVMARAM = 0x4000;
+static u32 g_vmSizeVMMainMemory;
+static void* g_vmBaseVMMainMemory;
+static u32 g_vmSizeVMARAM;
+static u32 g_vmNumPagesInMRAM;
+static VMLogStatsCallback g_cbLogStats;
+static int g_vmInitialized;
+
+void __VMSwapPageIn(u32 virtual_address);
+
+#define VM_TIME_UNITS() \
+    ((u32)((OSGetTime() * 8) / (OS_TIMER_CLOCK / 500000)))
+
+void VMInit(u32 virtual_memory_size, u32 aram_base, u32 aram_size)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    int interrupts;
+
+    if (g_vmInitialized == 0) {
+        interrupts = OSDisableInterrupts();
+        g_vmInitialized = 1;
+        g_vmBaseVMARAM = aram_base;
+        g_vmSizeVMARAM = aram_size;
+        g_vmSizeVMMainMemory = virtual_memory_size;
+        g_vmNumPagesInMRAM = virtual_memory_size >> 12;
+        VMBASEInit(__VMSwapPageIn, __VMSwapPageIn, g_vmNumPagesInMRAM, 1);
+        __VMAllocVirtualToARAMLUT();
+        __VMAllocARAMToVirtualLUT();
+        __VMAllocMRAMSwapSpace();
+        OSRestoreInterrupts(interrupts);
+    }
 }
 
-void *VMQuit(void)
+void VMQuit(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (g_vmInitialized == 1) {
+        VMBASEQuit();
+        __VMSetFreePagesExist(1);
+        __VMSetNextPageToSwap(0);
+        VMSetPageReplacementPolicy(1);
+        g_vmSizeVMMainMemory = 0;
+        g_vmBaseVMMainMemory = 0;
+        g_vmSizeVMARAM = 0;
+        g_vmBaseVMARAM = 0x4000;
+        g_vmNumPagesInMRAM = 0;
+        g_cbLogStats = 0;
+        g_vmInitialized = 0;
+    }
 }
 
-void *__VMGetNumPagesInMRAM(void)
+u32 __VMGetNumPagesInMRAM(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return g_vmNumPagesInMRAM;
 }
 
-void *VMGetARAMSize(void)
+u32 VMGetARAMSize(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return g_vmSizeVMARAM;
 }
 
-void *VMGetARAMBase(void)
+u32 VMGetARAMBase(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return g_vmBaseVMARAM;
 }
 
-void *__VMAllocMRAMSwapSpace(void)
+void __VMAllocMRAMSwapSpace(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    g_vmBaseVMMainMemory = OSGetArenaLo();
+    OSSetArenaLo((char*)g_vmBaseVMMainMemory + g_vmSizeVMMainMemory);
 }
 
-void *__VMSwapPageIn(void)
+void __VMSwapPageIn(u32 virtual_address)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    u32 start_time;
+    u32 fault_address;
+    u32 page_virtual_address;
+    u32 physical_page;
+    void* physical_address;
+    int interrupts;
+    unsigned short ar_interrupt_status;
+    int wrote_page;
+
+    fault_address = virtual_address;
+    start_time = VM_TIME_UNITS();
+    virtual_address &= ~0xFFF;
+    wrote_page = 0;
+    physical_page = __VMGetPageToReplace();
+    physical_address =
+        (char*)g_vmBaseVMMainMemory + (physical_page << 12);
+    page_virtual_address =
+        VMBASEGetVirtualAddrFromPageInMRAM(physical_page);
+    interrupts = OSDisableInterrupts();
+
+    while (ARGetDMAStatus() != 0) {
+    }
+    ar_interrupt_status = __ARGetInterruptStatus();
+
+    if (page_virtual_address != 0) {
+        if (VMBASEIsPageDirty(page_virtual_address)) {
+            __VMSetARAMPageAsDirty(page_virtual_address);
+            wrote_page = 1;
+            DCFlushRange(physical_address, 0x1000);
+            ARStartDMA(0, (u32)physical_address,
+                       __VMTranslateVMPageToARAMPage(page_virtual_address),
+                       0x1000);
+            while (ARGetDMAStatus() != 0) {
+            }
+        }
+        VMBASEClearPageTableEntry(page_virtual_address, physical_page);
+    }
+
+    if (__VMIsARAMPageDirty(virtual_address)) {
+        ARStartDMA(1, (u32)physical_address,
+                   __VMTranslateVMPageToARAMPage(virtual_address), 0x1000);
+        while (ARGetDMAStatus() != 0) {
+        }
+        DCInvalidateRange(physical_address, 0x1000);
+        ICInvalidateRange(physical_address, 0x1000);
+    } else if (!__VMDoesMappingExist(virtual_address)) {
+        __VMMappingErrorAlert(virtual_address);
+    }
+
+    if (ar_interrupt_status == 0) {
+        __ARClearInterrupt();
+    }
+    VMBASESetPageTableEntry(virtual_address, physical_address, physical_page);
+    OSRestoreInterrupts(interrupts);
+
+    if (g_cbLogStats != 0) {
+        g_cbLogStats(fault_address, physical_address, physical_page,
+                     VM_TIME_UNITS() - start_time, wrote_page);
+    }
 }

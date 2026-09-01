@@ -1,103 +1,62 @@
-/* TODO: Missing implementation for retail unit msghndlr.c. */
+#include "dolphin/trk.h"
+#include "runtime/cstring.h"
 
-void *TRKDoSetOption(void)
+typedef struct TRKReplyPacket {
+    u32 length;
+    u8 command;
+    u8 field_0x05[3];
+    u8 error;
+    u8 field_0x09[0x37];
+} TRKReplyPacket;
+
+typedef char TRKReplyPacketSizeCheck[sizeof(TRKReplyPacket) == 0x40 ? 1 : -1];
+
+extern void __TRK_copy_vectors(void);
+
+static BOOL IsTRKConnected;
+
+DSError TRKDoSupportMask(MessageBuffer* message)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *TRKDoStop(void)
+DSError TRKDoVersions(MessageBuffer* message)
 {
-    /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *TRKDoStep(void)
+DSError TRKDoOverride(MessageBuffer* message)
 {
-    /* TODO: Missing canonical function implementation. */
+    TRKReplyPacket reply;
+
+    memset(&reply, 0, sizeof(reply));
+    reply.command = 0x80;
+    reply.length = sizeof(reply);
+    reply.error = 0;
+    TRKWriteUARTN(&reply, sizeof(reply));
+    __TRK_copy_vectors();
     return 0;
 }
 
-void *TRKDoContinue(void)
+DSError TRKDoConnect(MessageBuffer* message)
 {
-    /* TODO: Missing canonical function implementation. */
+    TRKReplyPacket reply;
+
+    IsTRKConnected = 1;
+    memset(&reply, 0, sizeof(reply));
+    reply.command = 0x80;
+    reply.length = sizeof(reply);
+    reply.error = 0;
+    TRKWriteUARTN(&reply, sizeof(reply));
     return 0;
 }
 
-void *TRKDoWriteRegisters(void)
+void SetTRKConnected(u32 connected)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    IsTRKConnected = connected;
 }
 
-void *TRKDoReadRegisters(void)
+u32 GetTRKConnected(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoWriteMemory(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoReadMemory(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoSupportMask(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoVersions(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoOverride(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoReset(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoDisconnect(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKDoConnect(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *SetTRKConnected(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *GetTRKConnected(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *OutputData(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return IsTRKConnected;
 }

@@ -222,8 +222,13 @@ asm_sequence_inputs = [
     Path("build") / config.version / "asm" / path
     for path in [
         "mk_proc.s",
+        "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk.s",
+        "mtx.a/mtx.s",
+        "mtx.a/mtxvec.s",
+        "mtx.a/quat.s",
         "mtx.a/vec.s",
         "os.a/OS.s",
+        "os.a/OSContext.s",
         "os.a/OSMemory.s",
         "os.a/OSReset.s",
     ]
@@ -533,6 +538,22 @@ config.libs = [
                 source="dolphin/trk_minnow_dolphin/main_TRK.c",
             ),
             Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk_glue.o",
+                source="dolphin/trk_minnow_dolphin/dolphin_trk_glue.c",
+                extra_cflags=["-str reuse,readonly"],
+            ),
+            Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk.o",
+                source="dolphin/trk_minnow_dolphin/dolphin_trk.c",
+            ),
+            Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Export/mslsupp.o",
+                source="dolphin/trk_minnow_dolphin/mslsupp.c",
+            ),
+            Object(
                 Matching,
                 "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/UDP_Stubs.o",
                 source="dolphin/trk_minnow_dolphin/UDP_Stubs.c",
@@ -541,6 +562,22 @@ config.libs = [
                 Matching,
                 "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/msg.o",
                 source="dolphin/trk_minnow_dolphin/msg.c",
+            ),
+            Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/support.o",
+                source="dolphin/trk_minnow_dolphin/support.c",
+            ),
+            Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Portable/msghndlr.o",
+                source="dolphin/trk_minnow_dolphin/msghndlr.c",
+            ),
+            Object(
+                NonMatching,
+                "TRK_MINNOW_DOLPHIN.a/MetroTRK/Processor/ppc/Generic/targimpl.o",
+                source="dolphin/trk_minnow_dolphin/targimpl.c",
+                extra_cflags=["-inline off"],
             ),
             Object(
                 Matching,
@@ -564,6 +601,16 @@ config.libs = [
             ),
         ],
     },
+    DolphinLib(
+        "OdemuExi2",
+        [
+            Object(
+                NonMatching,
+                "OdemuExi2.a/OdemuExi2Lib/DebuggerDriver.o",
+                source="dolphin/odemuexi2/DebuggerDriver.c",
+            ),
+        ],
+    ),
     {
         "lib": "MSL_C.PPCEABI.bare.H",
         "mw_version": game_mw_version,
@@ -1724,13 +1771,13 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_err.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_err.c",
                 extra_cflags=["-sdata 0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_get.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_get.c",
             ),
@@ -1879,7 +1926,7 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_cnv_to_ARGB8888PLN.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_cnv_to_ARGB8888PLN.c",
                 extra_cflags=[
@@ -2103,6 +2150,12 @@ config.libs = [
         "objects": [
             Object(
                 NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileServer.o",
+                source="mw/mwFileServer.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFile.o",
                 source="mw/mwFile.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -2135,6 +2188,18 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileAsync.o",
                 source="mw/mwFileAsync.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileMount.o",
+                source="mw/mwFileMount.cpp",
+                extra_cflags=["-use_lmw_stmw on"],
+            ),
+            Object(
+                NonMatching,
+                "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileGCPlatform.o",
+                source="mw/mwFileGCPlatform.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
             ),
         ],
@@ -2516,6 +2581,12 @@ config.libs = [
             ),
             Object(
                 NonMatching,
+                "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/compile.o",
+                source="libmkparticle/compile.c",
+                extra_cflags=["-O4,s", "-inline off", "-schedule off"],
+            ),
+            Object(
+                NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/emitter.o",
                 source="libmkparticle/emitter.c",
                 extra_cflags=[
@@ -2585,6 +2656,11 @@ config.libs = [
                 # -inline off: retail bl apply_single_texture from alphamap (no inline).
                 # -use_lmw_stmw + scheduling off: xoris i2f / thin GX wrappers.
                 extra_cflags=["-use_lmw_stmw on", "-inline off"],
+            ),
+            Object(
+                NonMatching,
+                "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_render.o",
+                source="libmkparticle/gc_render.c",
             ),
             Object(
                 NonMatching,
@@ -2830,18 +2906,54 @@ config.libs = [
         "mtx",
         [
             Object(
-                NonMatching,
+                Matching,
                 "mtx.a/mtxvec.o",
                 source="dolphin/mtx/mtxvec.c",
             ),
-            Object(NonMatching, "mtx.a/quat.o", source="dolphin/mtx/quat.c"),
+            Object(Matching, "mtx.a/quat.o", source="dolphin/mtx/quat.c"),
             Object(Matching, "mtx.a/mtx44.o", source="dolphin/mtx/mtx44.c"),
             Object(NonMatching, "mtx.a/vec.o", source="dolphin/mtx/vec.c"),
             Object(
-                NonMatching,
+                Matching,
                 "mtx.a/mtx.o",
                 source="dolphin/mtx/mtx.c",
                 extra_cflags=["-fp_contract off"],
+            ),
+        ],
+    ),
+    DolphinLib(
+        "mix",
+        [
+            Object(
+                NonMatching,
+                "mix.a/mix.o",
+                source="dolphin/mix/mix.c",
+            ),
+        ],
+    ),
+    DolphinLib(
+        "vm",
+        [
+            Object(NonMatching, "vm.a/VM.o", source="libmkparticle/VM.c"),
+            Object(
+                NonMatching,
+                "vm.a/VMPageReplacement.o",
+                source="libmkparticle/VMPageReplacement.c",
+            ),
+            Object(
+                NonMatching,
+                "vm.a/VMMapping.o",
+                source="libmkparticle/VMMapping.c",
+            ),
+        ],
+    ),
+    DolphinLib(
+        "vmbase",
+        [
+            Object(
+                NonMatching,
+                "vmbase.a/VMBase.o",
+                source="libmkparticle/VMBase.c",
             ),
         ],
     ),

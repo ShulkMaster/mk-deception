@@ -18,6 +18,7 @@
 #include "game/jmt.h"
 #include "game/mab.h"
 #include "game/plyr.h"
+#include "game/game_info.h"
 #include "math/gxVect.h"
 #include "runtime/limb.h"
 #include "runtime/cam.h"
@@ -28,6 +29,7 @@ extern unsigned char* active_cmdscript;
 extern unsigned char exit_table_340[];
 extern unsigned char* plyr_obj;
 extern unsigned char* plyr_anim_pdata;
+extern PlyrPdata* his_pdata;
 extern unsigned int pz_fighter_state;
 
 typedef struct FakeBoneMatcher FakeBoneMatcher;
@@ -574,7 +576,8 @@ typedef struct ScriptCommandView {
     int branch_target;
     int result;
     void* animation;
-    char pad34[0x178];
+    void* secondary_animation;
+    char pad38[0x174];
     ScriptEntryFn exit;
 } ScriptCommandView;
 
@@ -846,6 +849,12 @@ void set_background_color(unsigned char red, unsigned char green,
                           unsigned char blue, unsigned char alpha);
 unsigned short randu0(unsigned short limit);
 void* get_animation(int animation_id);
+extern void** bgnd_animation_table;
+extern void* pz_shared_ani[];
+extern void* npc_fast_anims[];
+extern void* konq_nis_anims[];
+extern void* konquest_animations[];
+extern void* shared_ani[];
 void pz_fighter_set_y_constrain(unsigned char* player_obj, int mode,
                                 PzConstrainArgs* args, float value);
 void pz_fighter_attack(
@@ -853,7 +862,7 @@ void pz_fighter_attack(
 void attack_opponent_with(
     void* animation, MovesAttackInfo* attack, int reaction);
 void advance_my_moveset(void);
-void j_call_player_script_function(void);
+float j_call_player_script_function(void);
 int was_i_hit_x_times(int hit_count);
 int was_button_and_direction(int button, int direction);
 void glitch_to_ani_frame(void* animation, int flags,
@@ -2819,6 +2828,90 @@ void _my_attack_hit(void) {
     script.integer->value = 0;
 }
 
+void _hit_branch(void) {
+    unsigned int function_index;
+
+    if (((PlyrPdata*)plyr_pdata)->collision_result != 1) {
+        return;
+    }
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
+void _check_his_state(void) {
+    unsigned int function_index;
+
+    if (his_pdata->state == ((ScriptRawArgs*)current_args)->slots[0].i) {
+        return;
+    }
+    function_index = ((ScriptRawArgs*)current_args)->slots[1].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
+void _block_branch(void) {
+    unsigned int function_index;
+
+    if (((PlyrPdata*)plyr_pdata)->collision_result != 2) {
+        return;
+    }
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
+void _miss_branch(void) {
+    unsigned int function_index;
+
+    if (((PlyrPdata*)plyr_pdata)->collision_result != 0) {
+        return;
+    }
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
 void _pz_fighter_startup_attack(void) {
     ScriptArgsRef args;
 
@@ -3115,6 +3208,50 @@ void _camera_set_lookat_focus_obj(void) {
         (MkObj*)((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
+void _camera_set_lookat_focus(void) {
+    MkObj* object;
+
+    switch (((ScriptRawArgs*)current_args)->slots[0].i) {
+    case 0:
+        object = g_game_info.plyr0.slot.mirror_a;
+        break;
+    case 1:
+        object = g_game_info.plyr1.slot.mirror_a;
+        break;
+    case 2:
+        object = camera_get_victim();
+        break;
+    case 3:
+        object = camera_get_attacker();
+        break;
+    default:
+        return;
+    }
+    camera_set_lookat_focus(object);
+}
+
+void _camera_set_movement_focus(void) {
+    MkObj* object;
+
+    switch (((ScriptRawArgs*)current_args)->slots[0].i) {
+    case 0:
+        object = g_game_info.plyr0.slot.mirror_a;
+        break;
+    case 1:
+        object = g_game_info.plyr1.slot.mirror_a;
+        break;
+    case 2:
+        object = camera_get_victim();
+        break;
+    case 3:
+        object = camera_get_attacker();
+        break;
+    default:
+        return;
+    }
+    camera_set_movement_focus_obj(object);
+}
+
 void _camera_set_lookat_offset_obj_rel(void) {
     ScriptArgsRef args;
     Vec offset;
@@ -3168,7 +3305,7 @@ void _branch_next_style(void) {
     script.bytes = active_cmdscript;
     script.command->branch_target = args.single_int->value;
     script.bytes = active_cmdscript;
-    script.command->exit = j_call_player_script_function;
+    script.command->exit = (ScriptEntryFn)j_call_player_script_function;
     script.bytes = active_cmdscript;
     script.command->state = 2;
 }
@@ -3184,7 +3321,7 @@ void _true_branch_next_sidekick_style(void) {
     args.bytes = current_args;
     script.command->branch_target = args.single_int->value;
     script.bytes = active_cmdscript;
-    script.command->exit = j_call_player_script_function;
+    script.command->exit = (ScriptEntryFn)j_call_player_script_function;
     script.bytes = active_cmdscript;
     script.command->state = 2;
 }
@@ -3200,10 +3337,73 @@ void _true_branch_next_style(void) {
         script.bytes = active_cmdscript;
         script.command->branch_target = args.single_int->value;
         script.bytes = active_cmdscript;
-        script.command->exit = j_call_player_script_function;
+        script.command->exit = (ScriptEntryFn)j_call_player_script_function;
         script.bytes = active_cmdscript;
         script.command->state = 2;
     }
+}
+
+void _branch(void) {
+    unsigned int function_index;
+
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
+void _true_branch(void) {
+    unsigned int function_index;
+
+    if (((ScriptCommandView*)active_cmdscript)->result == 0) {
+        return;
+    }
+    function_index = ((ScriptRawArgs*)current_args)->slots[0].u;
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
+        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
+    trial_register_script_function(function_index);
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
+void _if_switching_to(void) {
+    PlyrPdata* player;
+    int style;
+    int result;
+
+    player = (PlyrPdata*)plyr_pdata;
+    style = player->player_slot + 1;
+    if (style >= 3 || (player->sidekick_available != 0 && style >= 2)) {
+        style = 0;
+    }
+
+    result = 0;
+    if (((ScriptRawArgs*)current_args)->slots[0].u ==
+        player->weapon_styles[style]->animation_header) {
+        if (player->drone_request != 0) {
+            result = drone_ai_check_switching_to() != 0;
+        } else if (was_button_pressed(2) != 0) {
+            player->round_attack_stage++;
+            result = 1;
+        }
+    }
+    ((ScriptCommandView*)active_cmdscript)->result = result;
 }
 
 void _was_i_hit_x_times(void) {
@@ -3263,6 +3463,19 @@ void _newani_to_frame_x(void) {
     args.bytes = current_args;
     ((ScriptCommandView*)active_cmdscript)->animation = get_animation(args.raw->slots[0].i);
     newani_to_frame_x(((ScriptCommandView*)active_cmdscript)->animation, args.raw->slots[5].i, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+}
+
+void _blend_to_ani_inout(void) {
+    ScriptArgsRef args;
+    ScriptCommandView* script;
+
+    args.bytes = current_args;
+    script = (ScriptCommandView*)active_cmdscript;
+    script->animation = get_animation(args.raw->slots[0].i);
+    script->secondary_animation = get_animation(args.raw->slots[1].i);
+    blend_to_ani_INOUT(
+        script->animation, script->animation, args.raw->slots[2].f,
+        args.raw->slots[3].f, args.raw->slots[4].f);
 }
 
 void _glitch_to_ani_frame(void) {
@@ -3516,6 +3729,23 @@ void _script_exit(void) {
     ((ScriptCommandView*)active_cmdscript)->state = 2;
 }
 
+void _gosub(void) {
+    int function_index;
+
+    parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x12,
+               &function_index);
+    push_script_stack_frame(1);
+    ACTIVE_DISTANCE_SCRIPT->program_counter =
+        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
+        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
+    function_index--;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
+                    .name_offset +
+                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) -
+        1;
+}
+
 void _script_return(void) {
     ((ScriptCommandView*)active_cmdscript)->exit = 0;
     ((ScriptCommandView*)active_cmdscript)->state = 2;
@@ -3554,6 +3784,71 @@ void j_sleep_forever(void) {
         _mkproc_sleep_ticks = 60.0f;
         aproc->vtbl->sleep();
     }
+}
+
+float j_call_player_script_function(void) {
+    ScriptSlot* slot;
+
+    pw_plyr();
+    cmdscript_reset_stack();
+    slot = ((PlyrPdata*)plyr_pdata)->fighter_definition->cmo;
+    cmdscript_setup_execution(
+        slot, ((ScriptCommandView*)active_cmdscript)->branch_target);
+    call_player_script_function(
+        ((PlyrPdata*)plyr_pdata)->fighter_definition->cmo);
+    return 1.0f;
+}
+
+typedef struct ScriptFighterAnimationBanks {
+    unsigned char pad00[0x74];
+    void* primary[57];
+    void* alternate[1];
+} ScriptFighterAnimationBanks;
+
+void* get_animation(int animation_id) {
+    PlyrPdata* player;
+    void** animations;
+
+    if ((unsigned int)(animation_id + 0x60000) == 0x4BFA ||
+        animation_id < 0) {
+        return 0;
+    }
+
+    player = (PlyrPdata*)plyr_pdata;
+    if (animation_id >= 3000) {
+        animations = bgnd_animation_table;
+        animation_id -= 3000;
+    } else if (animation_id >= 2000) {
+        animations = pz_shared_ani;
+        animation_id -= 2000;
+    } else if (animation_id >= 1000) {
+        animations = npc_fast_anims;
+        animation_id -= 1000;
+    } else if (animation_id >= 900) {
+        animations = konq_nis_anims;
+        animation_id -= 900;
+    } else if (animation_id >= 700) {
+        animations = konquest_animations;
+        animation_id -= 700;
+    } else if (animation_id >= 600) {
+        animations = (void**)&his_pdata->reaction_animation;
+        animation_id -= 600;
+    } else if (animation_id >= 500) {
+        animations = ((ScriptFighterAnimationBanks*)
+                          his_pdata->fighter_definition)->alternate;
+        animation_id -= 500;
+    } else if (animation_id >= 400) {
+        animations = (void**)player->animation_data;
+        animation_id -= 400;
+    } else if (animation_id >= 100) {
+        animations = shared_ani;
+        animation_id -= 100;
+    } else {
+        animations = ((ScriptFighterAnimationBanks*)
+                          player->fighter_definition)->primary;
+    }
+
+    return animations[animation_id];
 }
 
 void _tag_team_activate_player(void) {
@@ -4335,6 +4630,108 @@ void _obj_get_pos_vel(void) {
                     ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
+void _plyr_pdata_is_alt_costume(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_is_alt_costume(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_previous_state(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_get_previous_state(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_state(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_get_state(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_pchr(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_pchr(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_sidekick_active(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_sidekick_active(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_plyr_num(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_get_plyr_num(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_cmo(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_cmo(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_sidekick_obj(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        plyr_pdata_get_sidekick_obj(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_his_obj(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_his_obj(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_plyr_obj(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_plyr_obj(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_his_plyr_pdata(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        plyr_pdata_get_his_plyr_pdata(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_pdata_get_plyr_info(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        plyr_pdata_get_plyr_info(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _plyr_anim_get_frame(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.f = plyr_anim_get_frame(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
+void _get_my_plyr_anim_pdata(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        get_my_plyr_anim_pdata();
+}
+
+void _get_my_plyr_pdata(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_my_plyr_pdata();
+}
+
+void _get_his_plyr_pdata(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_his_plyr_pdata();
+}
+
+void _get_plyr_obj_plyr_num(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_plyr_obj_plyr_num(
+        ((ScriptRawArgs*)current_args)->slots[0].i);
+}
+
+void _get_my_sidekick_obj(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_my_sidekick_obj();
+}
+
+void _get_my_plyr_obj(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_my_plyr_obj();
+}
+
+void _get_his_plyr_obj(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_his_plyr_obj();
+}
+
+void _get_plyr_info(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_plyr_info();
+}
+
 void _obj_find_sobj_by_id(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
         obj_find_sobj_by_id(((ScriptRawArgs*)current_args)->slots[0].pointer,
@@ -4345,9 +4742,74 @@ void _obj_set_light_flag(void) {
     obj_set_light_flag(((ScriptRawArgs*)current_args)->slots[0].pointer, ((ScriptRawArgs*)current_args)->slots[1].i);
 }
 
+void _sobj_get_ang(void) {
+    sobj_get_ang(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                 ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _sobj_get_ang_vel(void) {
+    sobj_get_ang_vel(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                     ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _sobj_set_ang_vel(void) {
+    sobj_set_ang_vel(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                     ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _sobj_set_ang(void) {
+    sobj_set_ang(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                 ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _sobj_get_pos_vel(void) {
+    sobj_get_pos_vel(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                     ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _sobj_set_pos_vel(void) {
+    sobj_set_pos_vel(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                     ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _sobj_get_pos(void) {
+    sobj_get_pos(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                 ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _sobj_set_pos(void) {
+    sobj_set_pos(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                 ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _obj_get_ang(void) {
+    obj_get_ang(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _obj_set_ang(void) {
+    obj_set_ang(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _obj_get_pos(void) {
+    obj_get_pos(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _obj_set_pos(void) {
+    obj_set_pos(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
 void _obj_set_ground_colls_y(void) {
     obj_set_ground_colls_y(((ScriptRawArgs*)current_args)->slots[0].pointer,
                            ((ScriptRawArgs*)current_args)->slots[1].f);
+}
+
+void _obj_set_ground_colls(void) {
+    obj_set_ground_colls(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                         ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _konquest_load_interior_art(void) {
@@ -4361,6 +4823,10 @@ void _konquest_start_nis_anims_load(void) {
     second = get_script_string_arg(2);
     first = get_script_string_arg(1);
     konquest_start_nis_anims_load(first, second);
+}
+
+void _konquest_nis_anims_loaded(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = konquest_nis_anims_loaded();
 }
 
 void _konquest_nis_end(void) {
@@ -4392,6 +4858,10 @@ void _nis_show_cancel_message(void) {
     nis_show_cancel_message();
 }
 
+void _nis_scene_done(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = nis_scene_done();
+}
+
 void _nis_end(void) {
     nis_end();
 }
@@ -4404,6 +4874,11 @@ void _nis_signal_event(void) {
     nis_signal_event(((ScriptRawArgs*)current_args)->slots[0].i);
 }
 
+void _get_fatality_state_ptr(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        get_fatality_state_ptr();
+}
+
 void _animpdata_ani_to_frame_x_with_flag_check(void) {
     animpdata_ani_to_frame_x_with_flag_check(((ScriptRawArgs*)current_args)->slots[0].pointer,
                                              ((ScriptRawArgs*)current_args)->slots[1].f,
@@ -4414,6 +4889,12 @@ void _animpdata_ani_to_frame_x_with_flag_check(void) {
 void _mkscripts_set_anim_check_flag(void) {
     mkscripts_set_anim_check_flag(((ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((ScriptRawArgs*)current_args)->slots[1].i);
+}
+
+void _mkscripts_mkobj_insert_mkobj_cleanuplist(void) {
+    mkscripts_mkobj_insert_mkobj_cleanuplist(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer,
+        ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _mkscripts_destroy_gusher(void) {
@@ -4449,6 +4930,18 @@ void _xfer_spearproc_to_retract(void) { xfer_spearproc_to_retract(((ScriptRawArg
 
 void _destroy_spearproc_bonematcher(void) { destroy_spearproc_bonematcher(((ScriptRawArgs*)current_args)->slots[0].pointer); }
 
+void _insert_mkobj_spearproc_parentobjitem(void) {
+    insert_mkobj_spearproc_parentobjitem(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer,
+        ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
+void _get_spearobj_from_spearproc(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        get_spearobj_from_spearproc(
+            ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
+
 void _fire_sc_spear(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
         fire_sc_spear(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i,
@@ -4457,6 +4950,14 @@ void _fire_sc_spear(void) {
 }
 
 void _subzero_start_ice_chunks(void) { subzero_start_ice_chunks(((ScriptRawArgs*)current_args)->slots[0].i); }
+
+void _subzero_start_iceman(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = subzero_start_iceman();
+}
+
+void _subzero_start_iceblock(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = subzero_start_iceblock();
+}
 
 void _sindel_scream_react_sound_start(void) { sindel_scream_react_sound_start(); }
 
@@ -4568,6 +5069,12 @@ void _limb_sever_throw_away(void) {
                               ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
+void _auto_calc_limbobj_bone_world_pos(void) {
+    auto_calc_limbobj_bone_world_pos(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer,
+        ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
+
 void _limb_sever_show_z_meat_chunks(void) {
     limb_sever_show_z_meat_chunks(((ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((ScriptRawArgs*)current_args)->slots[1].i,
@@ -4587,6 +5094,11 @@ void _limb_sever_explode_apart_plyr_num(void) {
 }
 
 void _reset_blood_decals(void) { reset_blood_decals(); }
+
+void _destroy_gore2_obj(void) {
+    destroy_gore2_obj(((ScriptRawArgs*)current_args)->slots[0].pointer,
+                      ((ScriptRawArgs*)current_args)->slots[1].pointer);
+}
 
 void _attach_gore2_obj(void) {
     ((ScriptRawResult*)active_cmdscript)->value.pointer =
@@ -4815,7 +5327,16 @@ void _ft_fake_bone_matcher(void) {
     result.pointer->value = matcher;
 }
 
+void _get_game_state(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = get_game_state();
+}
+
 void _fatality_release_other_player(void) { fatality_release_other_player(); }
+
+void _get_level_fatality_done_flag_state(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        get_level_fatality_done_flag_state();
+}
 
 void _set_level_fatality_done_flag_state(void) { set_level_fatality_done_flag_state(((ScriptRawArgs*)current_args)->slots[0].i); }
 
@@ -4876,6 +5397,11 @@ void _limb_sever_set_motion(void) {
 }
 
 void _limb_sever_update_slide_end_coeff(void) { limb_sever_update_slide_end_coeff(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].f); }
+
+void _proc_of_anim_pdata(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = proc_of_anim_pdata(
+        ((ScriptRawArgs*)current_args)->slots[0].pointer);
+}
 
 void _set_pdata_anim_step(void) { set_pdata_anim_step(((ScriptRawArgs*)current_args)->slots[0].pointer, ((ScriptRawArgs*)current_args)->slots[1].f); }
 
@@ -4943,7 +5469,16 @@ void _ncs_camera_wall_show_hide_alpha(void) {
         ((ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
+void _ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata();
+}
+
 void _ncs_bgnd_nuke_collision_to_script_interface(void) { ncs_bgnd_nuke_collision_to_script_interface(); }
+
+void _retrieve_bgnd_obj(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = retrieve_bgnd_obj();
+}
 
 void _fkbm_obj_face_obj(void) {
     fkbm_obj_face_obj(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i,
@@ -5030,6 +5565,10 @@ void _ncs_script_debug_quickie(void) {
                              ((ScriptRawArgs*)current_args)->slots[2].i);
 }
 
+void _get_inverse_game_speed(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.f = get_inverse_game_speed();
+}
+
 void _ck_rumble_controller(void) {
     ck_rumble_controller(((ScriptRawArgs*)current_args)->slots[0].i, ((ScriptRawArgs*)current_args)->slots[1].i,
                          ((ScriptRawArgs*)current_args)->slots[2].i);
@@ -5069,9 +5608,21 @@ void _fortress_setup_exclusion_zone(void) {
 
 void _set_evil_swap_status(void) { set_evil_swap_status(((ScriptRawArgs*)current_args)->slots[0].i); }
 
+void _ok_to_do_evil_swap(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = ok_to_do_evil_swap();
+}
+
 void _set_evil_condition(void) { set_evil_condition(((ScriptRawArgs*)current_args)->slots[0].i); }
 
+void _yy_is_evil_time_active(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = yy_is_evil_time_active();
+}
+
 void _bgnd_make_object_transl(void) { bgnd_make_object_transl(((ScriptRawArgs*)current_args)->slots[0].i); }
+
+void _are_death_traps_on(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = are_death_traps_on();
+}
 
 void _get_string_by_id(void) {
     ScriptArgsRef args;
@@ -5184,6 +5735,10 @@ void _start_fish_attack(void) {
     args.bytes = current_args;
     start_fish_attack(args.fish_attack->player, args.fish_attack->direction,
                       args.fish_attack->flags);
+}
+
+void _is_timer_off(void) {
+    ((ScriptRawResult*)active_cmdscript)->value.i = is_timer_off();
 }
 
 void _hide_sobj_if_camera_is_in_rectangle(void) {

@@ -1,55 +1,25 @@
-/* TODO: Missing implementation for retail unit gc_render.c. */
+#include "dolphin/gx.h"
+#include "dolphin/types.h"
+#include "libmkparticle/gc_state.h"
 
-void *set_view_matrix(void)
+static void set_vertex_format(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    GXClearVtxDesc();
+    GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
+    GXSetVtxAttrFmt(0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+    GXSetVtxAttrFmt(0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+    GXSetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+    GXSetVtxAttrFmt(0, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
 }
 
-void *build_model_to_view_matrix(void)
+static void gc_set_render_state(BOOL use_alpha_map)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *set_vertex_format(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *gc_set_render_state(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *gc_generic_render(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *rw_set_render_state(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *rw_reset_render_state(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *setup_lights(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *particle_render(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    GXSetNumChans(1);
+    disable_vertex_lights();
+    if (use_alpha_map) {
+        apply_texture_with_alphamap();
+    } else {
+        apply_single_texture();
+    }
 }

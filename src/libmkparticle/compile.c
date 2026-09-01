@@ -2,44 +2,111 @@
 #include "libmkparticle/compile.h"
 #include "libmkparticle/compile_fields.h"
 #include "libmkparticle/emitter.h"
+#include "libmkparticle/particle.h"
+#include "libmkparticle/spawn.h"
 #include "libmkparticle/table.h"
 
-/* TODO: Missing implementations for the remaining retail compile helpers. */
+static char diagnostic_strings[] =
+    "No initial table spawn for FIELD_POS/TABLE_0\0"
+    "Specified both global and per-particle size!\0"
+    "Age initialized to 0 by default\0"
+    "Color initialized to 0 by default";
 
-void *find_table_spawn(PfxVm* pfx)
+static PfxEmitterInstruction* find_table_spawn(PfxVmEmitter* emitter,
+                                                int field_description)
 {
-    /* TODO: Missing canonical function implementation. */
+    int i;
+
+    for (i = 0; i < emitter->instruction_count; i++) {
+        PfxEmitterInstruction* instruction = &emitter->instructions[i];
+
+        if (instruction->opcode == 5 &&
+            instruction->field_description == field_description) {
+            return instruction;
+        }
+    }
     return 0;
 }
 
-void *fixup_table_spawn(PfxVm* pfx)
+static void fixup_table_spawn(PfxVm* pfx, unsigned int field)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    PfxEmitterInstruction* instruction =
+        find_table_spawn(pfx_get_emitter(pfx, 0), field);
+
+    if (instruction == 0) {
+        pfx_halt(diagnostic_strings);
+        return;
+    }
+
+    instruction->field_description = 0x302;
+    instruction->opcode = 7;
+    instruction->spawn.table.field = field;
+    pfxvm_require_field(pfx, 0x302);
 }
 
-void *check_update_code(PfxVm* pfx)
+static void check_update_code(PfxVm* pfx)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    int i;
+
+    for (i = 0;
+         i < pfx_behavior(pfx, 0)->update_instruction_count;
+         i++) {
+        PfxUpdateInstruction* instruction =
+            &pfx_behavior(pfx, 0)->update_instructions[i];
+
+        if (instruction->opcode == 10 &&
+            instruction->argument_0x18 == 0x302) {
+            fixup_table_spawn(pfx, instruction->field.description);
+            pfx->flags_0x60 |= 0x200;
+        }
+    }
 }
 
-void *check_conflicts(PfxVm* pfx)
+static void check_conflicts(PfxVm* pfx)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if ((pfx->flags_0x1D4 & 0x20) && pfx->flag150_40) {
+        pfx->flag150_40 = 0;
+        pfx_halt(diagnostic_strings + 0x2D);
+    }
 }
 
-void *check_for_missing_spawns(PfxVm* pfx)
+static void check_for_missing_spawns(PfxVm* pfx)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    PfxVmEmitter* emitter;
+
+    if (pfx->flags_0x60 & 2) {
+        emitter = pfx_get_emitter(pfx, 0);
+        if (!has_spawncode_for(emitter, 0x301)) {
+            pfxvm_spawn_value(pfx_get_emitter(pfx, 0), 0x301, 0.0f);
+            pfx_halt(diagnostic_strings + 0x5A);
+        }
+    }
+
+    if ((pfx->flags_0x1D4 & 0x10) && pfx->field_0x22C == 0) {
+        emitter = pfx_get_emitter(pfx, 0);
+        if (!has_spawncode_for(emitter, 0x101)) {
+            pfxvm_spawn_point_color(pfx_get_emitter(pfx, 0), 0x101,
+                                    255.0f, 255.0f, 255.0f, 255.0f);
+            pfx_halt(diagnostic_strings + 0x7A);
+        }
+    }
 }
 
-void *check_for_deterministic_spawn(PfxVm* pfx)
+static void check_for_deterministic_spawn(PfxVm* pfx)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    PfxVmEmitter* emitter = pfx_get_emitter(pfx, 0);
+    int i;
+
+    emitter->flags.bits.flag_0x20 = 0;
+    for (i = 0; i < emitter->instruction_count; i++) {
+        PfxEmitterInstruction* instruction = &emitter->instructions[i];
+
+        if (!pfx_emitter_insn_is_static(instruction) &&
+            instruction->opcode != 6) {
+            return;
+        }
+    }
+    emitter->flags.bits.flag_0x20 = 1;
 }
 
 void pfxvm_compile(PfxVm* pfx)

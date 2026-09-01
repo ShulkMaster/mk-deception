@@ -1,175 +1,83 @@
-/* TODO: Missing implementation for retail unit targimpl.c. */
+#include "dolphin/trk.h"
+#include "runtime/cstring.h"
 
-void *__TRK_get_MSR(void)
+typedef struct TRKStopInfoPacket {
+    u32 length;
+    u8 command;
+    u8 field_0x05[3];
+    u32 pc;
+    u32 instruction;
+    u32 exception_id;
+    u8 field_0x14[0x2C];
+} TRKStopInfoPacket;
+
+typedef char TRKStopInfoPacketSizeCheck[
+    sizeof(TRKStopInfoPacket) == 0x40 ? 1 : -1];
+
+extern DSError TRKTargetAccessMemory(void* data, u32 address, u32* length,
+                                    BOOL write, BOOL use_virtual_address);
+extern DSError TRKTargetReadInstruction(u32* instruction, u32 address);
+
+void TRKTargetSetInputPendingPtr(volatile u8* input_pending)
 {
-    /* TODO: Missing canonical function implementation. */
+    gTRKState.input_pending = input_pending;
+}
+
+DSError TRKTargetStop(void)
+{
+    gTRKState.stopped = 1;
     return 0;
 }
 
-void *__TRK_set_MSR(void)
+void TRKTargetSetStopped(BOOL stopped)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    gTRKState.stopped = stopped;
 }
 
-void *TRK_ppc_memcpy(void)
+BOOL TRKTargetStopped(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return gTRKState.stopped;
 }
 
-void *TRKInterruptHandler(void)
+u32 TRKTargetGetPC(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return gTRKCPUState.pc;
 }
 
-void *TRKExceptionHandler(void)
+void TRKTargetAddExceptionInfo(MessageBuffer* message)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    TRKStopInfoPacket packet;
+
+    memset(&packet, 0, sizeof(packet));
+    packet.length = sizeof(packet);
+    packet.command = 0x91;
+    packet.pc = gTRKExceptionStatus.pc;
+    TRKTargetReadInstruction(&packet.instruction, gTRKExceptionStatus.pc);
+    packet.exception_id = gTRKExceptionStatus.exception_id;
+    TRKAppendBuffer_ui8(message, (u8*)&packet, sizeof(packet));
 }
 
-void *TRKSwapAndGo(void)
+void TRKTargetAddStopInfo(MessageBuffer* message)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    TRKStopInfoPacket packet;
+
+    memset(&packet, 0, sizeof(packet));
+    packet.length = sizeof(packet);
+    packet.command = 0x90;
+    packet.pc = gTRKCPUState.pc;
+    TRKTargetReadInstruction(&packet.instruction, gTRKCPUState.pc);
+    packet.exception_id = gTRKCPUState.exception_id;
+    TRKAppendBuffer_ui8(message, (u8*)&packet, sizeof(packet));
 }
 
-void *TRKInterruptHandlerEnableInterrupts(void)
+DSError TRKTargetReadInstruction(u32* instruction, u32 address)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+    u32 length = sizeof(*instruction);
+    DSError error;
 
-void *ReadFPSCR(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *WriteFPSCR(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAccessARAM(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetSetInputPendingPtr(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetStop(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetSetStopped(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetStopped(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetSupportRequest(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetGetPC(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetStepOutOfRange(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetSingleStep(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAddExceptionInfo(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAddStopInfo(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetInterrupt(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKPostInterruptEvent(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAccessExtended2(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAccessExtended1(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAccessFP(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAccessDefault(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetReadInstruction(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetAccessMemory(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKValidMemory32(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    error = TRKTargetAccessMemory(instruction, address, &length, 0, 1);
+    if (error == 0 && length != sizeof(*instruction)) {
+        error = 0x700;
+    }
+    return error;
 }

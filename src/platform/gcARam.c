@@ -5,27 +5,27 @@
 #include "mw/mwMem.h"
 
 extern _mwMemHeap* SystemSwappableHeap;
-extern unsigned long g_ARAM_VM_Start;
-extern unsigned long g_ARAM_VM_Size;
-extern unsigned long g_ARAM_MSL_Start;
-extern unsigned long g_ARAM_MSL_Size;
+extern u32 g_ARAM_VM_Start;
+extern u32 g_ARAM_VM_Size;
+extern u32 g_ARAM_MSL_Start;
+extern u32 g_ARAM_MSL_Size;
 
 /* MWCC emits tentative definitions in reverse order within these sections. */
 int gap_08_80510E9C_sbss;
 /* This linker-visible four-byte gap is the sole small object retail keeps in .bss. */
 #pragma section data_type ".data" ".bss"
-__declspec(section ".data") unsigned long gap_06_803DEABC_bss;
+__declspec(section ".data") u32 gap_06_803DEABC_bss;
 #pragma section data_type
-unsigned long g_GC_ARAM_MemBlocks[5];
+u32 g_GC_ARAM_MemBlocks[5];
 
 /*
  * Soft ceiling: exact retail size and opcode stream; only nonvolatile-register
  * coloring and the compiler's local string relocation label remain.
  */
 void gc_aram_mwmem_heap_setup(void) {
-    unsigned long virtual_size;
+    u32 virtual_size;
     void* virtual_base;
-    unsigned long vm_start = g_ARAM_VM_Start;
+    u32 vm_start = g_ARAM_VM_Start;
 
     if ((vm_start == 0 ? 0 : g_ARAM_VM_Size) != 0 &&
         SystemSwappableHeap == 0) {
@@ -46,12 +46,12 @@ void gc_aram_mwmem_heap_setup(void) {
  * remaining objdiff records are register allocation only.
  */
 void gc_aram_init(void) {
-    unsigned long available_size;
-    unsigned long vm_start;
-    unsigned long vm_size;
+    u32 available_size;
+    u32 vm_start;
+    u32 vm_size;
     void* vm_base;
     static void* aramBase;
-    static unsigned long aramSize;
+    static u32 aramSize;
 
     ARInit(g_GC_ARAM_MemBlocks, 5);
     available_size = ARGetSize() - ARGetBaseAddress();
@@ -77,22 +77,22 @@ void gc_aram_init(void) {
     }
 }
 
-unsigned long ARAM_MSL_GetSize(void) {
+u32 ARAM_MSL_GetSize(void) {
     return g_ARAM_MSL_Start == 0 ? 0 : g_ARAM_MSL_Size;
 }
 
-unsigned long ARAM_MSL_GetBase(void) {
+u32 ARAM_MSL_GetBase(void) {
     void* base = (void*)g_ARAM_MSL_Start;
 
     if (base == 0) {
         return 0;
     }
-    return (unsigned long)base;
+    return (u32)base;
 }
 
 /* Reverse source order reproduces the retail .sbss symbol order. */
-unsigned long g_ARAM_MSL_Size;
-unsigned long g_ARAM_MSL_Start;
-unsigned long g_ARAM_VM_Size;
-unsigned long g_ARAM_VM_Start;
+u32 g_ARAM_MSL_Size;
+u32 g_ARAM_MSL_Start;
+u32 g_ARAM_VM_Size;
+u32 g_ARAM_VM_Start;
 _mwMemHeap* SystemSwappableHeap;

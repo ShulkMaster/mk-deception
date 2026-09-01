@@ -3,6 +3,9 @@
 
 extern float sqrtf(float value);
 
+const float PSVECMagHalf = 0.5f;
+const float PSVECMagThree = 3.0f;
+
 /*
  * Soft ceiling: retail implements this complete TU with paired-single leaves.
  * These typed scalar forms preserve the public algorithms and alias behavior.
@@ -24,28 +27,14 @@ void PSVECScale(const Vec* source, Vec* scaled, float scale)
     scaled->z = source->z * scale;
 }
 
-void PSVECNormalize(const Vec* source, Vec* unit)
+asm void PSVECNormalize(const Vec* source, Vec* unit)
 {
-    float magnitude_squared;
-    float inverse_magnitude;
-
-    magnitude_squared = source->x * source->x + source->y * source->y +
-                        source->z * source->z;
-    inverse_magnitude = 1.0f / sqrtf(magnitude_squared);
-    unit->x = source->x * inverse_magnitude;
-    unit->y = source->y * inverse_magnitude;
-    unit->z = source->z * inverse_magnitude;
+    SEQ_PSVECNormalize();
 }
 
-float PSVECMag(const Vec* vector)
+asm float PSVECMag(const Vec* vector)
 {
-    float magnitude_squared = vector->x * vector->x + vector->y * vector->y +
-                              vector->z * vector->z;
-
-    if (magnitude_squared == 0.0f) {
-        return 0.0f;
-    }
-    return sqrtf(magnitude_squared);
+    SEQ_PSVECMag();
 }
 
 float PSVECDotProduct(const Vec* a, const Vec* b)
@@ -53,12 +42,7 @@ float PSVECDotProduct(const Vec* a, const Vec* b)
     return a->x * b->x + a->y * b->y + a->z * b->z;
 }
 
-void PSVECCrossProduct(const Vec* a, const Vec* b, Vec* product)
+asm void PSVECCrossProduct(const Vec* a, const Vec* b, Vec* product)
 {
-    Vec result;
-
-    result.x = a->y * b->z - a->z * b->y;
-    result.y = a->z * b->x - a->x * b->z;
-    result.z = a->x * b->y - a->y * b->x;
-    *product = result;
+    SEQ_PSVECCrossProduct();
 }
