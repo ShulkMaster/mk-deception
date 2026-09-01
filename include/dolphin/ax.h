@@ -178,8 +178,8 @@ int MIXGetSoundMode(void);
 void MIXUpdateSettings(void);
 void MIXInitChannel(AXVPB* voice, int mode, int aux_a, int aux_b, int aux_c,
                     unsigned char pan, unsigned char surround_pan, unsigned long fader);
-void MIXSetPan(AXVPB* voice, unsigned char pan);
-void MIXSetSPan(AXVPB* voice, unsigned char pan);
+void MIXSetPan(AXVPB* voice, int pan);
+void MIXSetSPan(AXVPB* voice, int pan);
 void MIXSetFader(AXVPB* voice, long volume);
 void MIXReleaseChannel(AXVPB* voice);
 

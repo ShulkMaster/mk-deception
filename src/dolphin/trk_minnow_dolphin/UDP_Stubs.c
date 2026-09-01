@@ -1,7 +1,8 @@
+#include "dolphin/exi.h"
 #include "dolphin/trk.h"
-typedef void (*InterruptHandler)(int interrupt, void* context);
 
-__declspec(weak) int udp_cc_initialize(void* flag_out, InterruptHandler handler)
+__declspec(weak) int udp_cc_initialize(volatile u8** flag_out,
+                                       EXICallback handler)
 {
     (void)flag_out;
     (void)handler;

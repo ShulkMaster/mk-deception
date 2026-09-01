@@ -1,49 +1,31 @@
-/* TODO: Missing implementation for retail unit dolphin_trk.c. */
+#include "dolphin/trk.h"
 
-void *InitMetroTRK(void)
+extern u32 __TRK_get_MSR(void);
+extern void EnableEXI2Interrupts(void);
+
+static u32 lc_base;
+
+int TRKInitializeTarget(void)
 {
-    /* TODO: Missing canonical function implementation. */
+    gTRKState.stopped = 1;
+    gTRKState.saved_msr = __TRK_get_MSR();
+    lc_base = 0xE0000000;
     return 0;
 }
 
-void *InitMetroTRK_BBA(void)
+u32 TRKTargetTranslate(u32 address)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (address >= lc_base && address < lc_base + 0x4000 &&
+        (gTRKCPUState.extended1_state & 3) != 0) {
+        return address;
+    }
+    if (address >= 0x7E000000 && address <= 0x80000000) {
+        return address;
+    }
+    return (address & 0x3FFFFFFF) | 0x80000000;
 }
 
-void *TRK__write_aram(void)
+void EnableMetroTRKInterrupts(void)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRK__read_aram(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKInitializeTarget(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__TRK_copy_vectors(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *TRKTargetTranslate(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *EnableMetroTRKInterrupts(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    EnableEXI2Interrupts();
 }

@@ -1,85 +1,56 @@
-/* TODO: Missing implementation for retail unit DebuggerDriver.c. */
-
 #include "dolphin/debugger_driver.h"
+#include "dolphin/os.h"
+
+static EXICallback MTRCallback;
+static EXICallback DBGCallback;
+static volatile u8* pEXIInputFlag;
+static volatile u8 EXIInputFlag;
+
+static void DBGHandler(__OSInterrupt interrupt, OSContext* context);
+static void MWCallback(signed long channel, OSContext* context);
 
 void DBClose(void)
 {
-    /* TODO: Missing canonical function implementation. */
 }
 
 void DBOpen(void)
 {
-    /* TODO: Missing canonical function implementation. */
-}
-
-int DBWrite(const void* bytes, int length)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-int DBRead(void* bytes, u32 length)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-int DBQueryData(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
 void DBInitInterrupts(void)
 {
-    /* TODO: Missing canonical function implementation. */
+    __OSMaskInterrupts(0x18000);
+    __OSMaskInterrupts(0x40);
+    DBGCallback = MWCallback;
+    __OSSetInterruptHandler(0x19, DBGHandler);
+    __OSUnmaskInterrupts(0x40);
 }
 
-void DBInitComm(
-    volatile u8** input_pending,
-    EXICallback monitor_callback)
+void DBInitComm(volatile u8** input_pending, EXICallback monitor_callback)
 {
-    /* TODO: Missing canonical function implementation. */
+    int enabled;
+
+    enabled = OSDisableInterrupts();
+    pEXIInputFlag = &EXIInputFlag;
+    *input_pending = pEXIInputFlag;
+    MTRCallback = monitor_callback;
+    __OSMaskInterrupts(0x18000);
+    *(volatile u32*)0xCC006828 = 0;
+    OSRestoreInterrupts(enabled);
 }
 
-void *DBGHandler(void)
+static void DBGHandler(__OSInterrupt interrupt, OSContext* context)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    *(volatile u32*)0xCC003000 = 0x1000;
+    if (DBGCallback != 0) {
+        DBGCallback((s16)interrupt, context);
+    }
 }
 
-void *MWCallback(void)
+static void MWCallback(signed long channel, OSContext* context)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBGReadStatus(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBGWrite(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBGRead(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBGReadMailbox(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *DBGEXIImm(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    EXIInputFlag = 1;
+    if (MTRCallback != 0) {
+        MTRCallback(0, context);
+    }
 }

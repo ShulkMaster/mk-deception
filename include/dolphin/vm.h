@@ -8,7 +8,7 @@ extern "C" {
 void VMInit(unsigned long virtual_memory_size, unsigned long aram_base,
             unsigned long aram_size);
 void VMQuit(void);
-void VMAlloc(void* virtual_address, unsigned long size);
+int VMAlloc(void* virtual_address, unsigned long size);
 
 #ifdef __cplusplus
 }
