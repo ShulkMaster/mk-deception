@@ -1,7 +1,7 @@
 {
   "version": "GQNE5D",
   "assembly": "mk_proc.s",
-  "output": "runtime/mk_proc_asm_sequences.inc",
+  "output": "runtime/asm_sequences.inc",
   "functions": [
     { "name": "PSVECAdd", "assembly": "mtx.a/vec.s", "address": "0x801DDEEC", "size": "0x24" },
     { "name": "PSVECSubtract", "assembly": "mtx.a/vec.s", "address": "0x801DDF10", "size": "0x24" },

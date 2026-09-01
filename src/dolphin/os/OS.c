@@ -6,7 +6,7 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 #include "dolphin/si.h"
-#include "runtime/mk_proc_asm_sequences.inc"
+#include "runtime/asm_sequences.inc"
 
 extern void* memset(void*, int, unsigned long);
 extern void* memcpy(void*, const void*, unsigned long);

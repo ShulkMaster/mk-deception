@@ -7,7 +7,7 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
 
-#include "runtime/mk_proc_asm_sequences.inc"
+#include "runtime/asm_sequences.inc"
 
 static void _destroy_proc_pid_mask(MkHdr* hdr);
 static void dispatch_proc_list(MkPtr** list);

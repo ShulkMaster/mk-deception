@@ -2,7 +2,7 @@
 #include "dolphin/os.h"
 #include "dolphin/pad.h"
 #include "runtime/cstring.h"
-#include "runtime/mk_proc_asm_sequences.inc"
+#include "runtime/asm_sequences.inc"
 
 typedef struct OSResetFunctionQueue {
     OSResetFunctionInfo* head;

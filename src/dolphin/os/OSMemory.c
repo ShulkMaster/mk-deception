@@ -1,6 +1,6 @@
 #include "dolphin/cache.h"
 #include "dolphin/os.h"
-#include "runtime/mk_proc_asm_sequences.inc"
+#include "runtime/asm_sequences.inc"
 
 #ifdef __MWERKS__
 #define OS_MEMORY_AT_ADDRESS(address) : (address)

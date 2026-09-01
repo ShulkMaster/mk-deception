@@ -217,7 +217,7 @@ retail_include_inputs = [
     ]
 ]
 asm_sequence_manifest = Path("config") / config.version / "asm_sequences.json"
-asm_sequence_output = retail_include_dir / "runtime" / "mk_proc_asm_sequences.inc"
+asm_sequence_output = retail_include_dir / "runtime" / "asm_sequences.inc"
 asm_sequence_inputs = [
     Path("build") / config.version / "asm" / path
     for path in [

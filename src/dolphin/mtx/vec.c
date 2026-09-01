@@ -1,5 +1,5 @@
 #include "math/gxVect.h"
-#include "runtime/mk_proc_asm_sequences.inc"
+#include "runtime/asm_sequences.inc"
 
 extern float sqrtf(float value);
 
