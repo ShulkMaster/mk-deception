@@ -25,8 +25,23 @@ typedef struct KonquestNavData {
     NavArea** areas;
 } KonquestNavData;
 
+typedef struct NavTile {
+    char pad00[8];
+    float x;
+    char pad0C[4];
+    float z;
+    char pad14[0x20];
+    int navigationAreas[70];
+    int navigationCount;
+} NavTile;
+
 typedef struct KonquestPdata {
-    char pad00[0x3F4];
+    char pad00[0x15C];
+    NavTile* navTiles;
+    char pad160[0x1C];
+    int navTileWidth;
+    int navTileHeight;
+    char pad184[0x270];
     KonquestNavData* navData;
     int* areaVisitOrder;
     int* areaSearchQueue;
@@ -46,7 +61,7 @@ static const float kSqrtHelper = 0.5f;
 void normalize_xz(Vec3* v);
 int get_tile_from_position(Vec3* pos);
 void* get_nav_data(int tile);
-int intersect_xz_lines(float* a0, float* a1, float* b0, float* b1, float* out);
+int intersect_xz_lines(const Vec3* p, const Vec3* dir, Vec3* out, float a, float b);
 int get_artid_of_named_item_in_slot(int slot, const char* name);
 void debug_print_message(const char* msg, ...);
 
@@ -375,5 +390,54 @@ void konquest_nav_init(void) {
 }
 
 void setup_per_tile_navigations(void) {
-    debug_print_message("setup_per_tile_navigations");
+    typedef struct NavBoundary {
+        float x;
+        float z;
+        float line;
+    } NavBoundary;
+    typedef struct NavPolygon {
+        int count;
+        NavBoundary boundaries[1];
+    } NavPolygon;
+    Vec3 intersections[16];
+    Vec3 previous;
+    Vec3 first;
+    KonquestNavData* nav;
+    int areaIndex;
+    int tileIndex;
+    int tileCount;
+
+    nav = konquest_pdata->navData;
+    tileCount = konquest_pdata->navTileWidth * konquest_pdata->navTileHeight;
+    for (areaIndex = 0; areaIndex < nav->areaCount; areaIndex++) {
+        NavPolygon* polygon = (NavPolygon*)nav_get_area(nav, areaIndex);
+        int count = polygon->count;
+
+        if (count <= 15) {
+            NavBoundary* boundary = polygon->boundaries;
+            int i;
+
+            previous.x = first.x = boundary->x;
+            previous.y = first.y = 0.0f;
+            previous.z = first.z = boundary->z;
+            for (i = 1; i < count; i++) {
+                Vec3 current;
+
+                boundary++;
+                current.x = boundary->x;
+                current.y = 0.0f;
+                current.z = boundary->z;
+                intersect_xz_lines(&previous, &current, &intersections[i],
+                                   polygon->boundaries[i - 1].line, boundary->line);
+                previous = current;
+            }
+            intersect_xz_lines(&previous, &first, &intersections[0],
+                               polygon->boundaries[count - 1].line,
+                               polygon->boundaries[0].line);
+        }
+        for (tileIndex = 0; tileIndex < tileCount; tileIndex++) {
+            NavTile* tile = &konquest_pdata->navTiles[tileIndex];
+            (void)tile;
+        }
+    }
 }

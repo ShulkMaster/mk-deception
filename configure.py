@@ -218,7 +218,16 @@ retail_include_inputs = [
 ]
 asm_sequence_manifest = Path("config") / config.version / "asm_sequences.json"
 asm_sequence_output = retail_include_dir / "runtime" / "mk_proc_asm_sequences.inc"
-asm_sequence_input = Path("build") / config.version / "asm" / "mk_proc.s"
+asm_sequence_inputs = [
+    Path("build") / config.version / "asm" / path
+    for path in [
+        "mk_proc.s",
+        "mtx.a/vec.s",
+        "os.a/OS.s",
+        "os.a/OSMemory.s",
+        "os.a/OSReset.s",
+    ]
+]
 config.custom_build_rules = [
     {
         "name": "gcdisplay_assets",
@@ -267,7 +276,7 @@ config.custom_build_steps = {
         {
             "outputs": asm_sequence_output,
             "rule": "asm_sequences",
-            "inputs": asm_sequence_input,
+            "inputs": asm_sequence_inputs,
             "implicit": [Path("tools/generate_asm_sequences.py"), asm_sequence_manifest],
             "variables": {
                 "manifest": asm_sequence_manifest,

@@ -3,6 +3,12 @@
   "assembly": "mk_proc.s",
   "output": "runtime/mk_proc_asm_sequences.inc",
   "functions": [
+    { "name": "PSVECAdd", "assembly": "mtx.a/vec.s", "address": "0x801DDEEC", "size": "0x24" },
+    { "name": "PSVECSubtract", "assembly": "mtx.a/vec.s", "address": "0x801DDF10", "size": "0x24" },
+    { "name": "__OSFPRInit", "assembly": "os.a/OS.s", "address": "0x801D5290", "size": "0x128" },
+    { "name": "Config24MB", "assembly": "os.a/OSMemory.s", "address": "0x801DA6E4", "size": "0x80" },
+    { "name": "Config48MB", "assembly": "os.a/OSMemory.s", "address": "0x801DA764", "size": "0x80" },
+    { "name": "Reset", "assembly": "os.a/OSReset.s", "address": "0x801DAEE0", "size": "0x70" },
     { "name": "jump_sleep_nostack", "address": "0x80024050", "size": "0x1C" },
     { "name": "dispatch_tinystack", "address": "0x8002406C", "size": "0x16C" },
     { "name": "sleep_tinystack", "address": "0x800241D8", "size": "0x110" },

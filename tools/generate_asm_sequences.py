@@ -141,10 +141,15 @@ def emit_macro(sequence: Sequence) -> list[str]:
 
 def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path, str]:
     assembly_relative, output_relative, entries = load_manifest(manifest_path, version)
-    assembly_path = build_root / version / "asm" / assembly_relative
-    if not assembly_path.is_file():
-        raise FileNotFoundError(f"required retail assembly not found: {assembly_path}")
-    available = read_functions(assembly_path)
+    assembly_cache: dict[Path, dict[str, Sequence]] = {}
+
+    def functions_for(relative: Path) -> dict[str, Sequence]:
+        assembly_path = build_root / version / "asm" / relative
+        if not assembly_path.is_file():
+            raise FileNotFoundError(f"required retail assembly not found: {assembly_path}")
+        if relative not in assembly_cache:
+            assembly_cache[relative] = read_functions(assembly_path)
+        return assembly_cache[relative]
 
     lines = [
         "/* Generated from version-specific retail assembly. Do not edit. */",
@@ -161,10 +166,17 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
         if name in seen:
             raise ValueError(f"{manifest_path}: duplicate allowlist entry {name}")
         seen.add(name)
+        entry_assembly = entry.get("assembly", assembly_relative.as_posix())
+        if not isinstance(entry_assembly, str):
+            raise ValueError(f"{name}.assembly: expected a path string")
+        function_assembly = Path(entry_assembly)
+        available = functions_for(function_assembly)
         try:
             sequence = available[name]
         except KeyError as exc:
-            raise ValueError(f"{assembly_path}: allowlisted function {name} not found") from exc
+            raise ValueError(
+                f"{function_assembly}: allowlisted function {name} not found"
+            ) from exc
         address = parse_int(entry.get("address"), f"{name}.address")
         size = parse_int(entry.get("size"), f"{name}.size")
         if sequence.address != address:

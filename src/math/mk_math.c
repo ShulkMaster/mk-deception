@@ -536,20 +536,26 @@ float ang_sub_ang(float a, float b) {
 float quat_extract_ang_y(const Quat* q) {
     float t = -(kTwo * (q->x * q->x + q->y * q->y) - kOne);
     float s = kTwo * (q->z * q->x + q->w * q->y);
-    if (t < kZero) {
-        if (kTiny <= -t) {
-            return kPi + gxMathArcTan(s / t);
+    if (t >= kZero) {
+        if (t < kTiny) {
+            return kNegHalfPi;
         }
-        return kHalfPi;
-    }
-    if (kTiny <= t) {
-        float ang = gxMathArcTan(s / t);
-        if (ang < kZero) {
-            ang = kTwoPi + ang;
+        {
+            float ang = gxMathArcTan(s / t);
+            if (ang < kZero) {
+                ang = kTwoPi + ang;
+            }
+            return ang;
         }
-        return ang;
+    } else {
+        if (-t < kTiny) {
+            return kHalfPi;
+        }
+        {
+            float ang = gxMathArcTan(s / t);
+            return kPi + ang;
+        }
     }
-    return kNegHalfPi;
 }
 
 void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {

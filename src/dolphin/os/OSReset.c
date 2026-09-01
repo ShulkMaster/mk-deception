@@ -2,6 +2,7 @@
 #include "dolphin/os.h"
 #include "dolphin/pad.h"
 #include "runtime/cstring.h"
+#include "runtime/mk_proc_asm_sequences.inc"
 
 typedef struct OSResetFunctionQueue {
     OSResetFunctionInfo* head;
@@ -23,9 +24,9 @@ extern OSRebootParams __OSRebootParams;
 volatile unsigned short __VIRegs[] : 0xCC002000;
 volatile unsigned long __PIRegs[] : 0xCC003000;
 
-static void Reset(unsigned long resetCode)
+static asm void Reset(unsigned long resetCode)
 {
-    /* Retail performs HID0/time-base/PI reset sequencing in privileged code. */
+    SEQ_Reset();
 }
 
 void OSRegisterResetFunction(OSResetFunctionInfo* info)
