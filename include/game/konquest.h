@@ -7,6 +7,7 @@ typedef struct LipSyncKeyframe {
 } LipSyncKeyframe;
 
 void konquest_state_init(void);
+void cleanup_konquest(void);
 void render_konquest_shadows(void);
 void set_camera_to_look_at_hero(void);
 

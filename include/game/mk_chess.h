@@ -1,8 +1,8 @@
 #ifndef MKD_GAME_MK_CHESS_H
 #define MKD_GAME_MK_CHESS_H
 
+#include "math/gxVect.h"
 #include "msl/msl_types.h"
-#include "runtime/mk_obj.h"
 
 #define MK_CHESS_MOVEMENT_SKILL_COUNT 8
 #define MK_CHESS_PIECE_EVENT_COUNT 64
@@ -12,7 +12,12 @@
 
 typedef void (*ChessPieceEventScript)(void);
 typedef struct AniScript AniScript;
+typedef struct MkObj MkObj;
 typedef struct ScreenObj ScreenObj;
+struct CameraObj;
+struct ChessSideController;
+struct MkProc;
+struct ScriptSlot;
 
 typedef struct ChessAnimPdata {
     char pad00[0x38];

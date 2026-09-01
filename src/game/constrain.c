@@ -40,9 +40,9 @@ typedef struct ConstrainObstacleVtable {
     void (*destroy)(ArenaObstacle*);
 } ConstrainObstacleVtable;
 
-int not_mkproc(void);
-int not_mkpdata(void);
-int not_mksobj(void);
+MkHdr* not_mkproc(MkHdr* hdr);
+MkHdr* not_mkpdata(MkHdr* hdr);
+MkHdr* not_mksobj(MkHdr* hdr);
 int not_mkmaterial(void);
 void vdestroy_obstacle(ArenaObstacle* obstacle);
 

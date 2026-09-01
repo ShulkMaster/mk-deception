@@ -12,7 +12,7 @@ public:
 
 typedef union mwFileInitFlagValue {
     float value;
-    unsigned long flags;
+    unsigned int flags;
 } mwFileInitFlagValue;
 
 static const char stringBase0[] =

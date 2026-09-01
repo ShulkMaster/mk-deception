@@ -1006,6 +1006,7 @@ config.libs = [
             Object(NonMatching, "shadow.o", source="runtime/shadow.c", extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "hashtable.o", source="runtime/hashtable.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
+            Object(Matching, "section_config.o", source="runtime/section_config.c"),
             Object(NonMatching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
             Object(NonMatching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
             Object(NonMatching, "asset.o", source="runtime/asset.c",

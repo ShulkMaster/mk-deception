@@ -4,15 +4,15 @@
 #include "movie/MovieManager.h"
 
 #include "mw/mwMemHeap.h"
+#include "runtime/cstring.h"
 
 extern "C" {
 
-void* GetArtSlot__Fv(void);
+int GetArtSlot__Fv(void);
 #include "runtime/asset.h"
 RwTexture* GetScreenPolyTexture__FPv(void* screen_poly);
 void SetScreenPolyTexture__FPvP9RwTexture(void* screen_poly, RwTexture* texture);
 int sprintf(char* dest, const char* fmt, ...);
-void memset(void* dest, int val, int size);
 
 typedef struct RwRaster RwRaster;
 

@@ -1,5 +1,6 @@
 #include "game/memcard.h"
 
+#include "game/konquest_save.h"
 #include "game/nbc.h"
 #include "game/plyrprofile.h"
 #include "platform/gcmcard.h"

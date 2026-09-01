@@ -12,6 +12,7 @@
 #include "runtime/image.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 
 #define RUMBLE_PROC_PID 0x2064
@@ -27,21 +28,6 @@ typedef struct RumblePdata {
     int strength;
     int ticks;
 } RumblePdata;
-
-typedef struct ControllerProcVtable {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-} ControllerProcVtable;
-
-typedef struct ControllerProcPrefix {
-    ControllerProcVtable* vtbl;
-    unsigned int instance;
-} ControllerProcPrefix;
 
 extern int p1_rumble_on;
 extern int p2_rumble_on;
@@ -274,12 +260,10 @@ void update_cnt_removed_controller_state(void) {
 
 void turn_all_rumble_motors_off(void) {
     MkProc* proc;
-    ControllerProcPrefix* prefix;
 
     proc = find_mkproc_pid(RUMBLE_PROC_PID);
-    prefix = (ControllerProcPrefix*)proc;
-    if (prefix != 0 && prefix->instance != 0) {
-        prefix->vtbl->destroy(proc);
+    if (proc != 0 && proc->instance != 0) {
+        proc->vtbl->destroy(proc);
     }
     turn_rumble_off(0);
     turn_rumble_off(1);
@@ -296,7 +280,7 @@ void controller_removed(int port) {
 
     proc = find_mkproc_pid(RUMBLE_PROC_PID);
     if (proc != 0 && proc->instance != 0) {
-        ((ControllerProcVtable*)proc->vtbl)->destroy(proc);
+        proc->vtbl->destroy(proc);
     }
     turn_rumble_off(0);
     turn_rumble_off(1);
@@ -483,7 +467,7 @@ static float p_rumble_controller(void) {
     if (pdata != 0) {
         turn_rumble_on(pdata->port, pdata->strength);
         _mkproc_sleep_ticks = (float)pdata->ticks;
-        ((ControllerProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
         turn_rumble_off(pdata->port);
     }
     return 0.0f;
@@ -566,7 +550,7 @@ static float p_do_controller_removed(void) {
             return -1.0f;
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((ControllerProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     switch (get_game_state()) {
@@ -675,7 +659,7 @@ static float p_do_controller_removed(void) {
             pause_procs(display_off == 0);
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((ControllerProcVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     init_controller();

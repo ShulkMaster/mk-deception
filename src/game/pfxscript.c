@@ -2993,7 +2993,7 @@ static float p_update_effects(void) {
             bank_run_fx(bank);
         }
     }
-    return 0.0f;
+    return 1.0f;
 }
 
 void fxbanks_unload_by_owner(unsigned int owner_flags) {
