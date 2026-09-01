@@ -6,6 +6,7 @@
 #include "game/settings.h"
 #include "libmkparticle/particle.h"
 #include "msl/mslcore.h"
+#include "mw/mwFileGlue.h"
 #include "platform/display.h"
 #include "platform/gcARam.h"
 #include "platform/gcInit.h"
@@ -38,8 +39,6 @@ extern void gc_release_renderpipe(void);
 extern void gc_native_display_pass_to_RW(void);
 
 extern void mwMemUserConfigInitMemSystem(void);
-
-extern void mwfile_init_for_mk(int use_debug_filesystem);
 
 extern void mkpfx_init(void);
 

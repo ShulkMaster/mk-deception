@@ -749,6 +749,7 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     arenaSize = (arenaSize - sizeof(*heap)) & ~0xFU;
     savedOverflow = parent->overflowEnable;
     parent->overflowEnable = 0;
+    /* Preserve the allocator's 16-byte round-up form. */
     allocSize = (arenaSize + sizeof(*heap) + 0xF) & ~0xFU;
     heap = (_mwMemHeap*)_mwMemMalloc(parent, allocSize, 0x10, name, function, line);
     parent->strategyCallback = savedCallback;
@@ -1197,8 +1198,8 @@ static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap
     if (size == 0 || buffer == 0) {
         return 0;
     }
-    /* Retail subtracts 0x81: leave a one-byte boundary guard before
-     * rounding the usable arena down to its required 16-byte alignment. */
+    /* Subtract one before rounding down, so the aligned header-plus-arena
+     * extent is strictly less than size. Retail encodes this as size - 0x81. */
     arenaSize = (size - (sizeof(_mwMemHeap) + 1)) & ~0xFU;
     return privInitSystemHeap(arenaSize, buffer, MW_MEM_STRATEGY_NORMAL, outHeap, name);
 }
