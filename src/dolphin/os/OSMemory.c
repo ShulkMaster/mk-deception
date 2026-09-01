@@ -1,5 +1,6 @@
 #include "dolphin/cache.h"
 #include "dolphin/os.h"
+#include "runtime/asm_sequences.inc"
 
 #ifdef __MWERKS__
 #define OS_MEMORY_AT_ADDRESS(address) : (address)
@@ -62,15 +63,9 @@ static void MEMIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
     __OSUnhandledException(__OS_EXCEPTION_MEMORY_PROTECTION, context, cause, addr);
 }
 
-static void Config24MB(void) {
-    /* TODO: This privileged leaf may have originated as assembly; recover an
-     * intrinsic-based source form that emits the retail BAT/SRR sequence. */
-}
+static asm void Config24MB(void) { SEQ_Config24MB(); }
 
-static void Config48MB(void) {
-    /* TODO: This privileged leaf may have originated as assembly; recover an
-     * intrinsic-based source form that emits the retail BAT/SRR sequence. */
-}
+static asm void Config48MB(void) { SEQ_Config48MB(); }
 
 static void RealMode(unsigned long address) {
     (void)address;

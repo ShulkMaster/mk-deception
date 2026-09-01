@@ -1,4 +1,5 @@
 #include "math/gxVect.h"
+#include "runtime/asm_sequences.inc"
 
 extern float sqrtf(float value);
 
@@ -6,18 +7,14 @@ extern float sqrtf(float value);
  * Soft ceiling: retail implements this complete TU with paired-single leaves.
  * These typed scalar forms preserve the public algorithms and alias behavior.
  */
-void PSVECAdd(const Vec* a, const Vec* b, Vec* sum)
+asm void PSVECAdd(const Vec* a, const Vec* b, Vec* sum)
 {
-    sum->x = a->x + b->x;
-    sum->y = a->y + b->y;
-    sum->z = a->z + b->z;
+    SEQ_PSVECAdd();
 }
 
-void PSVECSubtract(const Vec* a, const Vec* b, Vec* difference)
+asm void PSVECSubtract(const Vec* a, const Vec* b, Vec* difference)
 {
-    difference->x = a->x - b->x;
-    difference->y = a->y - b->y;
-    difference->z = a->z - b->z;
+    SEQ_PSVECSubtract();
 }
 
 void PSVECScale(const Vec* source, Vec* scaled, float scale)

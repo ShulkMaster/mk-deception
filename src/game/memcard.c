@@ -86,6 +86,11 @@ static const float kThree = 3.0f;
 #define SAVE_PROFILE_STRIDE 0xFAA0 /* 0x10000 - 0x560 */
 #define SAVE_EVENT_PROGRESS 0x1FBB
 
+typedef struct KonquestRegionStateView {
+    unsigned char pad00[0x5D];
+    unsigned char field_0x5D;
+} KonquestRegionStateView;
+
 void get_storage_device_name_list(char** out) {
     int i;
     char* name;
@@ -550,6 +555,45 @@ void storage_status_change_calculations(int device) {
 int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* cardName,
     int nameLen, unsigned int* freeBlocks, int* freeBytes) {
+    int result;
+    int scratch;
+    int cont;
+    int attempts;
+    unsigned int offset;
+
+    scratch = 0;
+    result = -100;
+    offset = (region + slot * 8 - 1) * SAVE_CHUNK_SIZE + 0x28B8;
+    do {
+        result = -100;
+        cont = 0;
+        if (region - 1 < 0 || region - 1 >= 8) {
+            return 0;
+        }
+        while (cont == 0) {
+            attempts = 2;
+            if (arg >= 1 && arg < 3) {
+                mcard_msg_read(device);
+            }
+            while (attempts != 0 && result != 0) {
+                attempts--;
+                result = load_from_memcard2(
+                    device, 0, offset, STR_EMPTY_NAME, &stringBase0[9], buffer,
+                    SAVE_CHUNK_SIZE, cardName, nameLen, freeBlocks, freeBytes, &scratch);
+            }
+            if (result == 0 &&
+                validate_region_buffer(
+                    ((KonquestRegionStateView*)p1_profile_konquest)->field_0x5D) == 0) {
+                region_data_corruption_message_handler();
+            }
+            mcard_msg_end();
+            cont = check_load_region_data_result(&result, device, scratch, 0);
+            mcard_msg_end();
+        }
+        if (result == 0) {
+            return 1;
+        }
+    } while (bad_load_region_data_result_resolution(&result, device) == 0);
     return 0;
 }
 

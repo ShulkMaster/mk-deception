@@ -7,6 +7,8 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
 
+#include "runtime/asm_sequences.inc"
+
 static void _destroy_proc_pid_mask(MkHdr* hdr);
 static void dispatch_proc_list(MkPtr** list);
 
@@ -71,104 +73,49 @@ void system_stack_nostack(void) {}
 
 void local_stack_nostack(void) {}
 
-void jump_sleep_nostack(MkProcEntryFn entry, float ticks) {
-    /* ticks remains live in f1 for the non-local scheduler handoff. */
-    aproc->entry = entry;
+asm void jump_sleep_nostack(MkProcEntryFn entry, float ticks) {
+    SEQ_jump_sleep_nostack();
 }
 
-/*
- * The retail tinystack/bigstack paths also transfer the live PPC register and
- * stack context. Those instructions are ABI mechanics rather than MkProc
- * fields; keep the recovered scheduler state here and isolate the remaining
- * match ceiling to these context-switch entry points.
- */
-void dispatch_tinystack(void) {
-    MkProc* proc = aproc;
-    float sleep_ticks;
-
-    do {
-        sleep_ticks = proc->entry();
-        proc = aproc;
-        proc->stack_ptr = proc->stack_top;
-    } while (sleep_ticks == zero_float);
-    proc->sleep_ticks = sleep_ticks;
-    if (proc->destroy_cb != 0) {
-        proc->destroy_cb();
-        proc = aproc;
-        if (proc->instance == 0) {
-            return;
-        }
-    }
-    if (proc->sleep_ticks < zero_float) {
-        aproc_nodestroy = 0;
-        proc->vtbl->destroy(proc);
-    }
+/* Exceptional retail-derived platform context-switch boundaries. */
+asm void dispatch_tinystack(void) {
+    SEQ_dispatch_tinystack();
 }
 
-void sleep_tinystack(void) {
-    aproc->sleep_ticks = _mkproc_sleep_ticks;
-    if (aproc->destroy_cb != 0) {
-        aproc->destroy_cb();
-    }
+asm void sleep_tinystack(void) {
+    SEQ_sleep_tinystack();
 }
 
 void system_stack_tinystack(void) {}
 
 void local_stack_tinystack(void) {}
 
-void jump_sleep_tinystack(MkProcEntryFn entry, float ticks) {
-    /* ticks remains live in f1 for the non-local scheduler handoff. */
-    aproc->entry = entry;
+asm void jump_sleep_tinystack(MkProcEntryFn entry, float ticks) {
+    SEQ_jump_sleep_tinystack();
 }
 
-void dispatch_bigstack(void) {
-    MkProc* proc = aproc;
-    float sleep_ticks;
-
-    do {
-        sleep_ticks = proc->entry();
-        proc = aproc;
-        proc->stack_ptr = proc->stack_top;
-    } while (sleep_ticks == zero_float);
-    proc->sleep_ticks = sleep_ticks;
-    if (proc->destroy_cb != 0) {
-        proc->destroy_cb();
-        proc = aproc;
-        if (proc->instance == 0) {
-            return;
-        }
-    }
-    if (proc->sleep_ticks < zero_float) {
-        aproc_nodestroy = 0;
-        proc->vtbl->destroy(proc);
-    }
+asm void dispatch_bigstack(void) {
+    SEQ_dispatch_bigstack();
 }
 
-void sleep_bigstack(void) {
-    aproc->sleep_ticks = _mkproc_sleep_ticks;
-    if (aproc->destroy_cb != 0) {
-        aproc->destroy_cb();
-    }
+asm void sleep_bigstack(void) {
+    SEQ_sleep_bigstack();
 }
 
-void system_stack_bigstack(void) {
-    /* Logical handoff; retail additionally moves the hardware stack pointer. */
-    _local_sp_save = _slpx_sp;
+asm void system_stack_bigstack(void) {
+    SEQ_system_stack_bigstack();
 }
 
-void local_stack_bigstack(void) {
-    _local_sp_save = 0;
+asm void local_stack_bigstack(void) {
+    SEQ_local_stack_bigstack();
 }
 
-void jump_sleep_bigstack(MkProcEntryFn entry, float ticks) {
-    /* ticks remains live in f1 for the non-local scheduler handoff. */
-    aproc->entry = entry;
+asm void jump_sleep_bigstack(MkProcEntryFn entry, float ticks) {
+    SEQ_jump_sleep_bigstack();
 }
 
-void mkproc_dispatch(void) {
-    dispatch_proc_list(&active_proc_list);
-    aproc = 0;
-    apdata = 0;
+asm void mkproc_dispatch(void) {
+    SEQ_mkproc_dispatch();
 }
 
 static void dispatch_proc_list(MkPtr** list) {

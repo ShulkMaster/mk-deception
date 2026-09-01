@@ -6,6 +6,7 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 #include "dolphin/si.h"
+#include "runtime/asm_sequences.inc"
 
 extern void* memset(void*, int, unsigned long);
 extern void* memcpy(void*, const void*, unsigned long);
@@ -42,7 +43,7 @@ static unsigned long __OSExceptionLocations[OS_EXCEPTION_COUNT] = {
 };
 
 /* Architectural register initialization is not expressible in portable C. */
-void __OSFPRInit(void) {}
+asm void __OSFPRInit(void) { SEQ___OSFPRInit(); }
 
 void __OSPSInit(void)
 {
