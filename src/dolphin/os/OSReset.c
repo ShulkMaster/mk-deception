@@ -24,11 +24,6 @@ extern OSRebootParams __OSRebootParams;
 volatile unsigned short __VIRegs[] : 0xCC002000;
 volatile unsigned long __PIRegs[] : 0xCC003000;
 
-static asm void Reset(unsigned long resetCode)
-{
-    SEQ_Reset();
-}
-
 void OSRegisterResetFunction(OSResetFunctionInfo* info)
 {
     OSResetFunctionInfo* next;
@@ -75,7 +70,15 @@ int __OSCallResetFunctions(int final)
         priority = info->priority;
     }
     error |= !__OSSyncSram();
-    return error == 0;
+    if (error != 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static asm void Reset(unsigned long resetCode)
+{
+    SEQ_Reset();
 }
 
 static void KillThreads(void)
