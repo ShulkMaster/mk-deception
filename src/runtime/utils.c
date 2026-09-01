@@ -2546,8 +2546,8 @@ void start_usec_timer(int id) {
 }
 
 void get_clean_system(void) {
-    MkProc* proc = 0;
-    int proc_status;
+    MkProc* proc;
+    int proc_status[2];
     RwBBox bounds;
 
     reset_game_speed();
@@ -2594,8 +2594,9 @@ void get_clean_system(void) {
     start_ani_texture_control();
 
     uv_scroll_control_list = 0;
-    proc_status = 0;
-    proc = get_mkproc_nostack(&proc_status);
+    proc_status[0] = 0;
+    proc_status[1] = 0;
+    proc = get_mkproc_nostack(&proc_status[1]);
     create_mkproc(
         0x10, proc, 0x2020, p_process_uvscrolling, 0);
 

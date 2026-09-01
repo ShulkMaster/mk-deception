@@ -11,6 +11,8 @@ typedef struct StringObjVisBits {
     unsigned char pad : 6;
 } StringObjVisBits;
 
+struct StringObj;
+
 typedef struct StringObjVtable {
     MkVtblFn fn0;
     MkVtblFn fn1;

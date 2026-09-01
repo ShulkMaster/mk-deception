@@ -18,7 +18,7 @@ int vdestroy_mkpdata_anim(void);
 int vdestroy_ani_texture_control(void);
 int vdestroy_trigger_struct(void);
 int vdestroy_mkpdata_plyr(void);
-int vdestroy_mkpdata_camera(void);
+void vdestroy_mkpdata_camera(struct MkHdr* pdata);
 int vdestroy_cloth_coll(void);
 int vdestroy_cloth_coll_plane(void);
 int vdestroy_cloth_coll_volume(void);
@@ -52,31 +52,26 @@ int not_mkmaterial(void) {
     return 0;
 }
 
-int not_mksobj(void) {
+struct MkHdr* not_mksobj(struct MkHdr* hdr) {
+    (void)hdr;
     return 0;
 }
 
-/*
- * Retail type predicates are one-instruction `blr` leaves. Vtable calls pass a
- * live object in r3, so the `is_*` slots intentionally return that nonzero r3
- * value without materializing another constant.
- */
-int is_mksobj(void) {
-}
+struct MkHdr* is_mksobj(struct MkHdr* hdr) { return hdr; }
 
-int not_mkpdata(void) {
+struct MkHdr* not_mkpdata(struct MkHdr* hdr) {
+    (void)hdr;
     return 0;
 }
 
-int is_mkpdata(void) {
-}
+struct MkHdr* is_mkpdata(struct MkHdr* hdr) { return hdr; }
 
-int not_mkproc(void) {
+struct MkHdr* not_mkproc(struct MkHdr* hdr) {
+    (void)hdr;
     return 0;
 }
 
-int is_mkproc(void) {
-}
+struct MkHdr* is_mkproc(struct MkHdr* hdr) { return hdr; }
 
 MkVtable5 vtbl_mkx_mem = {
     not_mkproc,
@@ -227,7 +222,7 @@ MkVtable5 vtbl_mkpdata_camera = {
     is_mkpdata,
     not_mksobj,
     not_mkmaterial,
-    vdestroy_mkpdata_camera,
+    (MkVtblFn)vdestroy_mkpdata_camera,
 };
 
 MkVtable5 vtbl_cloth_coll = {
