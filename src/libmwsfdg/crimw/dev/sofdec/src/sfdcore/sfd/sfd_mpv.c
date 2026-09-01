@@ -2267,19 +2267,25 @@ static int SFMPV_Finish(SfdHandle* handle)
     return 0;
 }
 
+#pragma optimization_level 1
 static int sfmpv_ChkFatal(void)
 {
-    if (sizeof(MPVPictureInfo) != 0x80) {
+    int picture_info_size = sizeof(MPVPictureInfo);
+    int decoder_info_size = sizeof(SfdMpvDecoderInfo);
+    int integer_size = sizeof(int);
+
+    if (picture_info_size != 0x80) {
         return SFLIB_SetErr(0, 0xFF000F19);
     }
-    if (sizeof(SfdMpvDecoderInfo) > 0x204) {
+    if (decoder_info_size > 0x204) {
         return SFLIB_SetErr(0, 0xFF000F1A);
     }
-    if (sizeof(int) != 4) {
+    if (integer_size != 4) {
         return SFLIB_SetErr(0, 0xFF000F1E);
     }
     return 0;
 }
+#pragma optimization_level 4
 
 static int SFMPV_Init(SfdHandle* handle)
 {

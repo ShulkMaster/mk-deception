@@ -615,6 +615,10 @@ typedef struct KonquestTile {
     char pad08[0x0C];
     MkSobj* scene; /* +0x14 */
     MkPtr* objects; /* +0x18 */
+    char pad1C[8];
+    MkPtr* collisions; /* +0x24 */
+    char pad28[4];
+    int collisions_active; /* +0x2C */
 } KonquestTile;
 
 static RpAtomic* konquest_atomic_from_frame_link(RwLLLink* link) {
@@ -1076,7 +1080,7 @@ void RwResourcesSetArenaSize(int size);
 char* get_string_by_id(int id);
 void set_true_clip_flag_on_sobj_and_children(void* object, int value);
 void hide_tile_objects(void* tile);
-void remove_collisions_from_tile_and_tile_objects(void* tile);
+static void remove_collisions_from_tile_and_tile_objects(KonquestTile* tile);
 void show_konquest_object(MkHdr* object);
 void object_transition_to_state(void* object, int state, int ticks);
 unsigned int fx(const char* name);
@@ -4043,6 +4047,35 @@ void hide_tile(KonquestTile* tile) {
     }
     hide_tile_objects(tile);
     remove_collisions_from_tile_and_tile_objects(tile);
+}
+
+static void remove_collisions_from_tile_and_tile_objects(KonquestTile* tile) {
+    MkPtr* link;
+
+    if (tile->collisions_active == 0) {
+        return;
+    }
+
+    destroy_list(&tile->collisions);
+    tile->collisions = 0;
+
+    link = tile->objects;
+    while (link != 0) {
+        if (link->instance != link->hdr->instance) {
+            MkPtr* next = link->next;
+
+            link->hdr = 0;
+            destroy_mkptr(link);
+            link = next;
+        } else {
+            KonquestTileRecord* object = (KonquestTileRecord*)link->hdr;
+
+            destroy_list(&object->objects);
+            link = link->next;
+        }
+    }
+
+    tile->collisions_active = 0;
 }
 
 AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object) {

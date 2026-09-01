@@ -1,1003 +1,233 @@
-/* TODO: Missing implementation for retail unit mwFileServer.cpp. */
+struct mwFileTypeInfo {
+};
+
+class mwFileCommand;
+class mwFileServer;
+
+class mwFileQueryable {
+public:
+    virtual unsigned char isA(mwFileTypeInfo*, void*&);
+    virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
+};
+
+class mwFileMutex {
+public:
+    mwFileMutex();
+    ~mwFileMutex();
+    void lock();
+    void unlock();
+
+private:
+    unsigned char storage[0x18];
+};
+
+template <class T>
+class mwProducerConsumerQueue {
+public:
+    mwProducerConsumerQueue();
+    ~mwProducerConsumerQueue();
+    void produce(T value);
+    unsigned char consumeNonBlocking(T& value);
+    void resize(unsigned long size);
+
+private:
+    unsigned char storage[0x38];
+};
+
+template <class T, int Alignment>
+class mwFileMemAllocator {
+};
+
+namespace std {
+template <class T, class Allocator>
+class vector {
+public:
+    vector();
+    ~vector();
+    T* begin();
+    T* end();
+    const T* begin() const;
+    const T* end() const;
+    void push_back(const T& value);
+    T* erase(T* position);
+    void reserve(unsigned long size);
+
+private:
+    T* storage;
+    unsigned long size_value;
+    unsigned long capacity;
+};
+}
+
+class mwFileServerManagerMultiThreaded {
+public:
+    void queueCommandCallback(mwFileCommand* command);
+    void notifyServerActivityChange(bool active);
+};
+
+class mwFileCommand {
+public:
+    virtual ~mwFileCommand();
+    virtual unsigned char isCompleted(void*) const = 0;
+    virtual unsigned char isAborted() const = 0;
+    virtual void waitForCompletion() const = 0;
+    virtual int abort() = 0;
+    virtual int service() = 0;
+
+    void serviceCallbackAndPendingDelete();
+
+private:
+    unsigned char field_0x04[0x0C];
+    int reference_count;
+    mwFileServer* server;
+
+    friend class mwFileServerNotQueued;
+};
+
+class mwFileServer {
+public:
+    mwFileServer() : manager(0) {}
+    virtual ~mwFileServer();
+    virtual unsigned char isInitialized() const = 0;
+    virtual int service() = 0;
+    virtual int addCommand(mwFileCommand*, unsigned char) = 0;
+    virtual unsigned char isActive() const = 0;
+    virtual unsigned char queryActive() const = 0;
 
-void *queryActive__18mwFileServerQueuedCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *empty__Q218mwFileServerQueued5QueueCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isActive__18mwFileServerQueuedCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *service__18mwFileServerQueuedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *top__Q218mwFileServerQueued5QueueCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *addCommand__18mwFileServerQueuedFP13mwFileCommandUc(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isInitialized__18mwFileServerQueuedCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *shutdown__18mwFileServerQueuedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q218mwFileServerQueued5QueueFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *initialize__18mwFileServerQueuedFUs(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *reserve__Q218mwFileServerQueued5QueueFUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q218mwFileServerQueued5QueueFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__18mwFileServerQueuedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__18mwFileServerQueuedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *queryActive__21mwFileServerNotQueuedCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isActive__21mwFileServerNotQueuedCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *addCommand__21mwFileServerNotQueuedFP13mwFileCommandUc(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *service__21mwFileServerNotQueuedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isInitialized__21mwFileServerNotQueuedCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *initialize__21mwFileServerNotQueuedFUs(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__21mwFileServerNotQueuedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__21mwFileServerNotQueuedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *queueCommandCallback__32mwFileServerManagerMultiThreadedFP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *notifyServerActivityChange__32mwFileServerManagerMultiThreadedFb(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *serviceCommands__32mwFileServerManagerMultiThreadedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isActive__32mwFileServerManagerMultiThreadedCFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *serviceThread__32mwFileServerManagerMultiThreadedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *service__32mwFileServerManagerMultiThreadedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *initialize__32mwFileServerManagerMultiThreadedFUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__32mwFileServerManagerMultiThreadedFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *removeServer__23mwFileServerManagerBaseFP12mwFileServer(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *addServer__23mwFileServerManagerBaseFP12mwFileServer(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__23mwFileServerManagerBaseFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *notify__12mwFileServerFb(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *notifyCommandActive__12mwFileServerFP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *notifyCommandAdded__12mwFileServerFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *queueCommandCallback__12mwFileServerFP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *_mwFileNoOp__Fe(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isA__15mwFileQueryableCFP14mwFileTypeInfoRPCv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isA__15mwFileQueryableFP14mwFileTypeInfoRPv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__12mwFileServerFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-/* Metrowerks template encodings are not valid source identifiers.
- * Keep exact-name stubs as disabled evidence until their C++ types
- * and declarations are recovered. */
-#if 0
-void *__dt__106reserve_priority_queue<Q218mwFileServerQueued9QueueItem,Q23std41greater<Q218mwFileServerQueued9QueueItem>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q23std204priority_queue<Q218mwFileServerQueued9QueueItem,Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>,Q23std41greater<Q218mwFileServerQueued9QueueItem>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__41mwProducerConsumerQueue<P13mwFileCommand>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__74circular_buffer<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *empty__Q23std204priority_queue<Q218mwFileServerQueued9QueueItem,Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>,Q23std41greater<Q218mwFileServerQueued9QueueItem>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *top__Q23std204priority_queue<Q218mwFileServerQueued9QueueItem,Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>,Q23std41greater<Q218mwFileServerQueued9QueueItem>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *pop__Q23std204priority_queue<Q218mwFileServerQueued9QueueItem,Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>,Q23std41greater<Q218mwFileServerQueued9QueueItem>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push__Q23std204priority_queue<Q218mwFileServerQueued9QueueItem,Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>,Q23std41greater<Q218mwFileServerQueued9QueueItem>>FRCQ218mwFileServerQueued9QueueItem(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std204priority_queue<Q218mwFileServerQueued9QueueItem,Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>,Q23std41greater<Q218mwFileServerQueued9QueueItem>>FRCQ23std41greater<Q218mwFileServerQueued9QueueItem>RCQ23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>FRCQ23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *produce__41mwProducerConsumerQueue<P13mwFileCommand>FP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push__74circular_buffer<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>FP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *full__74circular_buffer<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *consumeNonBlocking__41mwProducerConsumerQueue<P13mwFileCommand>FRP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *pop__74circular_buffer<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *front__74circular_buffer<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__24mwFileMemAllocator<Ul,3>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *resize__41mwProducerConsumerQueue<P13mwFileCommand>FUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *resize__74circular_buffer<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>FUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__41mwProducerConsumerQueue<P13mwFileCommand>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__74circular_buffer<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>F38mwFileMemAllocator<P13mwFileCommand,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct<P13mwFileCommand>__24mwFileMemAllocator<Ul,3>FRC38mwFileMemAllocator<P13mwFileCommand,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__38mwFileMemAllocator<P13mwFileCommand,3>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *front__Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>FRC54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>FRC54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>FRC54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q210Metrowerks76compressed_pair<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q310Metrowerks7details82compressed_pair_imp<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *size__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__vc__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>FUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__vc__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>FUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push_back__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>FRCP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push_back__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>FRCP13mwFileCommand(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push_back__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>FRCUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q210Metrowerks46compressed_pair<24mwFileMemAllocator<Ul,3>,Ul>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q310Metrowerks7details52compressed_pair_imp<24mwFileMemAllocator<Ul,3>,Ul,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *alloc__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *cap__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *resize__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>FUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std65vector<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>>FRC38mwFileMemAllocator<P13mwFileCommand,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std73__vector_imp<P13mwFileCommand,38mwFileMemAllocator<P13mwFileCommand,3>,1>FRC38mwFileMemAllocator<P13mwFileCommand,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>FRC24mwFileMemAllocator<Ul,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std63vector<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std71__vector_imp<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std63vector<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std71__vector_imp<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std63vector<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std71__vector_imp<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>,1>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std63vector<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std71__vector_imp<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>,1>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push_back__Q23std63vector<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>>FRCP12mwFileServer(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push_back__Q23std71__vector_imp<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>,1>FRCP12mwFileServer(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std63vector<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std71__vector_imp<P12mwFileServer,37mwFileMemAllocator<P12mwFileServer,3>,1>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *resize__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>FUlRCUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *erase__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>FPUlPUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *erase__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>FPUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *insert__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>FPUlUlRCUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *capacity__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *max_size__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *alloc__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *reserve__Q23std43__vector_pod<Ul,24mwFileMemAllocator<Ul,3>>FUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *reserve__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>FUl(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *swap__Q23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>FRQ23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *swap<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>__3stdFRQ23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>RQ23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *alloc__Q23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *max_size__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *alloc__Q23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *capacity__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__Q23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *cap__Q23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *pop_back__Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *pop_back__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *end__Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *begin__Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push_back__Q23std97vector<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>FRCQ218mwFileServerQueued9QueueItem(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *push_back__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>FRCQ218mwFileServerQueued9QueueItem(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__ct__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>FRCQ23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *clear__Q23std107__vector_deleter<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *init<PCQ218mwFileServerQueued9QueueItem>__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>FPCQ218mwFileServerQueued9QueueItemPCQ218mwFileServerQueued9QueueItemQ23std20forward_iterator_tag(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *insert__Q23std105__vector_imp<Q218mwFileServerQueued9QueueItem,54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,0>FPQ218mwFileServerQueued9QueueItemUlRCQ218mwFileServerQueued9QueueItem(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *__dt__22mwFileFailCommand<0,0>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isCompleted__22mwFileFailCommand<0,0>CFR18_mwFileAsyncResult(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *isAborted__22mwFileFailCommand<0,0>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *waitForCompletion__22mwFileFailCommand<0,0>CFv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *abort__22mwFileFailCommand<0,0>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
-
-void *service__22mwFileFailCommand<0,0>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+    void notify(bool active);
+    void notifyCommandActive(mwFileCommand* command);
+    void notifyCommandAdded();
+    void queueCommandCallback(mwFileCommand* command);
 
-void *serviceCallback__22mwFileFailCommand<0,0>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+protected:
+    mwFileServerManagerMultiThreaded* manager;
+};
 
-void *close__22mwFileFailCommand<0,0>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+class mwFileServerNotQueued : public mwFileServer {
+public:
+    mwFileServerNotQueued();
+    virtual ~mwFileServerNotQueued();
+    virtual unsigned char isInitialized() const;
+    virtual int service();
+    virtual int addCommand(mwFileCommand*, unsigned char);
+    virtual unsigned char isActive() const;
+    virtual unsigned char queryActive() const;
 
-void *deleteSelf__22mwFileFailCommand<0,0>Fv(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+    int initialize(unsigned short command_count);
 
-void *__ct__106reserve_priority_queue<Q218mwFileServerQueued9QueueItem,Q23std41greater<Q218mwFileServerQueued9QueueItem>>FRC54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+private:
+    typedef mwFileMemAllocator<mwFileCommand*, 3> CommandAllocator;
+    typedef std::vector<mwFileCommand*, CommandAllocator> CommandVector;
 
-void *__ct__Q210Metrowerks76compressed_pair<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul>FRC54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>Ul(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+    mwFileMutex mutex;
+    mwProducerConsumerQueue<mwFileCommand*> pending_commands;
+    CommandVector active_commands;
+    unsigned char initialized;
+    unsigned char servicing;
+};
 
-void *__ct__Q310Metrowerks7details82compressed_pair_imp<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul,1>FRC54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>Ul(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+class mwFileServerQueued : public mwFileServer {
+public:
+    virtual ~mwFileServerQueued();
+    virtual unsigned char isInitialized() const;
+    virtual int service();
+    virtual int addCommand(mwFileCommand*, unsigned char);
+    virtual unsigned char isActive() const;
+    virtual unsigned char queryActive() const;
 
-void *__ct__54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>FRC54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>(void)
-{
-    /* TODO: Missing canonical function implementation. */
-    return 0;
-}
+private:
+    unsigned char field_0x08[0x24];
+    void* queue0;
+    void* queue1;
+};
 
-void *__ct__Q210Metrowerks46compressed_pair<24mwFileMemAllocator<Ul,3>,Ul>FUl(void)
+unsigned char mwFileServerQueued::isActive() const
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return queryActive();
 }
 
-void *__ct__Q310Metrowerks7details52compressed_pair_imp<24mwFileMemAllocator<Ul,3>,Ul,1>FUl(void)
+unsigned char mwFileServerQueued::isInitialized() const
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return queue0 != 0 && queue1 != 0;
 }
 
-void *__ct__Q210Metrowerks46compressed_pair<24mwFileMemAllocator<Ul,3>,Ul>FRC24mwFileMemAllocator<Ul,3>Ul(void)
+mwFileServerNotQueued::mwFileServerNotQueued()
+    : initialized(false), servicing(false)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *__ct__Q310Metrowerks7details52compressed_pair_imp<24mwFileMemAllocator<Ul,3>,Ul,1>FRC24mwFileMemAllocator<Ul,3>Ul(void)
+unsigned char mwFileServerNotQueued::isInitialized() const
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return initialized;
 }
 
-void *__ct__24mwFileMemAllocator<Ul,3>FRC24mwFileMemAllocator<Ul,3>(void)
+int mwFileServerNotQueued::initialize(unsigned short command_count)
 {
-    /* TODO: Missing canonical function implementation. */
+    pending_commands.resize(command_count);
+    active_commands.reserve(command_count);
+    initialized = true;
     return 0;
 }
 
-void *swap<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul>__10MetrowerksFRQ210Metrowerks76compressed_pair<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul>RQ210Metrowerks76compressed_pair<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul>(void)
+unsigned char mwFileServerNotQueued::isActive() const
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    return queryActive();
 }
 
-void *swap__Q210Metrowerks76compressed_pair<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul>FRQ210Metrowerks76compressed_pair<54mwFileMemAllocator<Q218mwFileServerQueued9QueueItem,3>,Ul>(void)
+int mwFileServerNotQueued::addCommand(mwFileCommand* command,
+                                      unsigned char)
 {
-    /* TODO: Missing canonical function implementation. */
+    mutex.lock();
+    command->server = this;
+    pending_commands.produce(command);
+    mutex.unlock();
+    notifyCommandAdded();
     return 0;
 }
 
-void *remove_copy<PP12mwFileServer,PP12mwFileServer,P12mwFileServer>__3stdFPP12mwFileServerPP12mwFileServerPP12mwFileServerRCP12mwFileServer(void)
+mwFileServer::~mwFileServer()
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *push_heap<PQ218mwFileServerQueued9QueueItem,Q23std41greater<Q218mwFileServerQueued9QueueItem>>__3stdFPQ218mwFileServerQueued9QueueItemPQ218mwFileServerQueued9QueueItemQ23std41greater<Q218mwFileServerQueued9QueueItem>(void)
+void mwFileServer::notify(bool active)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    if (active) {
+        manager->notifyServerActivityChange(active);
+    }
 }
 
-void *pop_heap<PQ218mwFileServerQueued9QueueItem,Q23std41greater<Q218mwFileServerQueued9QueueItem>>__3stdFPQ218mwFileServerQueued9QueueItemPQ218mwFileServerQueued9QueueItemQ23std41greater<Q218mwFileServerQueued9QueueItem>(void)
+void mwFileServer::notifyCommandActive(mwFileCommand*)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    notify(isActive());
 }
 
-void *iter_swap<PQ218mwFileServerQueued9QueueItem,PQ218mwFileServerQueued9QueueItem>__3stdFPQ218mwFileServerQueued9QueueItemPQ218mwFileServerQueued9QueueItem(void)
+void mwFileServer::notifyCommandAdded()
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    notify(isActive());
 }
 
-void *make_heap<PQ218mwFileServerQueued9QueueItem,Q23std41greater<Q218mwFileServerQueued9QueueItem>>__3stdFPQ218mwFileServerQueued9QueueItemPQ218mwFileServerQueued9QueueItemQ23std41greater<Q218mwFileServerQueued9QueueItem>(void)
+void mwFileServer::queueCommandCallback(mwFileCommand* command)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    manager->queueCommandCallback(command);
 }
 
-void *copy_backward<Q218mwFileServerQueued9QueueItem>__3stdFPQ218mwFileServerQueued9QueueItemPQ218mwFileServerQueued9QueueItemPQ218mwFileServerQueued9QueueItem(void)
+void _mwFileNoOp(...)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
-void *__insert_heap_down<PQ218mwFileServerQueued9QueueItem,l,Q218mwFileServerQueued9QueueItem,Q23std41greater<Q218mwFileServerQueued9QueueItem>>__3stdFPQ218mwFileServerQueued9QueueItemllRCQ218mwFileServerQueued9QueueItemQ23std41greater<Q218mwFileServerQueued9QueueItem>(void)
+unsigned char mwFileQueryable::isA(mwFileTypeInfo*,
+                                    const void*& object) const
 {
-    /* TODO: Missing canonical function implementation. */
+    object = 0;
     return 0;
 }
 
-void *__cl__Q23std41greater<Q218mwFileServerQueued9QueueItem>CFRCQ218mwFileServerQueued9QueueItemRCQ218mwFileServerQueued9QueueItem(void)
+unsigned char mwFileQueryable::isA(mwFileTypeInfo* type, void*& object)
 {
-    /* TODO: Missing canonical function implementation. */
-    return 0;
+    const void* const_object;
+    if (isA(type, const_object)) {
+        object = const_cast<void*>(const_object);
+        return true;
+    }
+    return false;
 }
-
-#endif
