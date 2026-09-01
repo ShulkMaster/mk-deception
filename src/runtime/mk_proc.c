@@ -46,6 +46,8 @@ void mkproc_die(void) {
 }
 
 void dispatch_nostack(void) {
+    /* Soft ceiling: 72.79412% -- retail saves/restores LR/SP and performs
+     * indirect transfers through LR; clean C uses a frame and CTR. */
     MkProc* proc = aproc;
     float sleep_ticks;
 
