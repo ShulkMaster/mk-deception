@@ -222,10 +222,13 @@ asm_sequence_inputs = [
     Path("build") / config.version / "asm" / path
     for path in [
         "mk_proc.s",
+        "TRK_MINNOW_DOLPHIN.a/MetroTRK/Os/dolphin/dolphin_trk.s",
+        "mtx.a/mtx.s",
         "mtx.a/mtxvec.s",
         "mtx.a/quat.s",
         "mtx.a/vec.s",
         "os.a/OS.s",
+        "os.a/OSContext.s",
         "os.a/OSMemory.s",
         "os.a/OSReset.s",
     ]
@@ -2911,7 +2914,7 @@ config.libs = [
             Object(Matching, "mtx.a/mtx44.o", source="dolphin/mtx/mtx44.c"),
             Object(NonMatching, "mtx.a/vec.o", source="dolphin/mtx/vec.c"),
             Object(
-                NonMatching,
+                Matching,
                 "mtx.a/mtx.o",
                 source="dolphin/mtx/mtx.c",
                 extra_cflags=["-fp_contract off"],

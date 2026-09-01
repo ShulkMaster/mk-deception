@@ -1,9 +1,24 @@
 #include "dolphin/trk.h"
+#include "runtime/asm_sequences.inc"
 
 extern u32 __TRK_get_MSR(void);
 extern void EnableEXI2Interrupts(void);
+extern void TRKSaveExtended1Block(void);
+extern int InitMetroTRKCommTable(int hardware_id);
+extern void TRK_main(void);
+extern char _db_stack_addr[];
 
 static u32 lc_base;
+
+asm void InitMetroTRK(void)
+{
+    SEQ_InitMetroTRK();
+}
+
+asm void InitMetroTRK_BBA(void)
+{
+    SEQ_InitMetroTRK_BBA();
+}
 
 int TRKInitializeTarget(void)
 {

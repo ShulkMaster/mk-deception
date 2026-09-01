@@ -1,5 +1,6 @@
 #include "dolphin/db.h"
 #include "dolphin/os.h"
+#include "runtime/asm_sequences.inc"
 
 volatile OSContext* __OSCurrentContext : 0x800000D4;
 volatile OSContext* __OSFPUContext : 0x800000D8;
@@ -13,12 +14,9 @@ volatile OSContext* __OSFPUContext : 0x800000D8;
 extern char _SDA2_BASE_[];
 extern char _SDA_BASE_[];
 
-static void __OSLoadFPUContext(unsigned long exception, OSContext* context)
+static asm void __OSLoadFPUContext(unsigned long exception, OSContext* context)
 {
-    /* FPR/PS register restoration is a privileged paired-single leaf. */
-    if (!(context->state & OS_CONTEXT_STATE_FPSAVED)) {
-        return;
-    }
+    SEQ___OSLoadFPUContext();
 }
 
 static void __OSSaveFPUContext(unsigned long exception, unsigned long unused,

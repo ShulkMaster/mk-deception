@@ -26,6 +26,7 @@ INSTRUCTION_RE = re.compile(
 SYMBOL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 EXTERNAL_BRANCH_RE = re.compile(r"^(?:b|bl)\s+[A-Za-z_][A-Za-z0-9_]*$")
 ASSEMBLY_SYMBOL = r'(?:[A-Za-z_][A-Za-z0-9_]*|"[^"]+")'
+SYMBOL_RELOCATION_RE = re.compile(rf"^.*{ASSEMBLY_SYMBOL}@(h|ha|l)\b.*$")
 SDA21_BASE_RE = re.compile(
     rf"(?P<symbol>{ASSEMBLY_SYMBOL})@sda21\((?P<base>r(?:0|13))\)"
 )
@@ -137,7 +138,9 @@ def emit_macro(sequence: Sequence, sda_symbols: dict[str, str]) -> list[str]:
             if "@sda21" in assembly:
                 raise ValueError(f"{sequence.name}: unsupported SDA21 syntax: {assembly}")
             lines.append(f"    {assembly};{suffix}")
-        elif EXTERNAL_BRANCH_RE.fullmatch(assembly):
+        elif EXTERNAL_BRANCH_RE.fullmatch(assembly) or SYMBOL_RELOCATION_RE.fullmatch(
+            assembly
+        ):
             lines.append(f"    {assembly};{suffix}")
         else:
             lines.append(f"    opword 0x{word:08X};{suffix}")
