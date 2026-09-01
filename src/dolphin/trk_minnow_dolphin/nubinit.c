@@ -11,13 +11,6 @@ enum {
     DS_NoError = 0,
 };
 
-extern void TRK_board_display(const char* message);
-extern void InitializeProgramEndTrap(void);
-extern DSError TRKInitializeTarget(void);
-extern DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
-                                         volatile u8** input_pending_ptr);
-extern void TRKTargetSetInputPendingPtr(volatile u8* input_pending_ptr);
-
 BOOL gTRKBigEndian;
 
 static const char welcome_message[] = "MetroTRK for GAMECUBE v2.6";

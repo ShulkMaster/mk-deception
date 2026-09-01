@@ -1,6 +1,6 @@
+#include "dolphin/trk.h"
 #include "runtime/cfile.h"
 
-extern u32 GetTRKConnected(void);
 extern u8 GetUseSerialIO(void);
 extern u8 TRKAccessFile(u8 command, file_handle handle, size_t* count, u8* buffer);
 extern u8 TRKOpenFile(u8 command, const char* name, u8 mode, file_handle* handle);

@@ -91,9 +91,9 @@ void ReserveEXI2Port(void)
     gDBCommTable.post_stop();
 }
 
-int TRKWriteUARTN(const u8* source, int size)
+DSError TRKWriteUARTN(const void* source, u32 size)
 {
-    return gDBCommTable.write(source, size) == 0 ? 0 : -1;
+    return gDBCommTable.write((const u8*)source, size) == 0 ? 0 : -1;
 }
 
 int TRKReadUARTN(u8* destination, int size)

@@ -95,6 +95,16 @@ void TRKGetInput(void);
 DSError TRKInitializeNub(void);
 DSError TRKTerminateNub(void);
 void TRKNubWelcome(void);
+void TRK_board_display(const char* message);
+void InitializeProgramEndTrap(void);
+int TRKInitializeTarget(void);
+DSError TRKInitializeIntDrivenUART(u32 address, u32 channel, u32 unused,
+                                   volatile u8** input_pending_ptr);
+void TRKTargetSetInputPendingPtr(volatile u8* input_pending_ptr);
+
+DSError TRKWriteUARTN(const void* data, u32 length);
+u32 GetTRKConnected(void);
+void SetTRKConnected(u32 connected);
 void TRKNubMainLoop(void);
 DSError TRKTargetContinue(void);
 

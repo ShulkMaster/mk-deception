@@ -6,14 +6,14 @@ typedef struct MIXUpdate {
 } MIXUpdate;
 
 typedef struct MIXChannel {
-    void* voice;
-    u32 input;
-    u32 field_0x08;
-    s32 field_0x0C;
-    s32 field_0x10;
-    u32 pan;
-    u32 surround_pan;
-    u32 field_0x1C;
+    AXVPB* voice;
+    u32 mode;
+    s32 input;
+    s32 aux_a;
+    s32 aux_b;
+    s32 pan;
+    s32 surround_pan;
+    s32 fader;
     s32 volumes[6];
     MIXUpdate updates[10];
 } MIXChannel;
@@ -73,11 +73,11 @@ void MIXInit(void)
     channel = __MIXChannel;
     i = 0;
     do {
-        channel->input = 0x50000000;
-        channel->field_0x08 = 0;
-        channel->field_0x0C = -0x3C0;
-        channel->field_0x10 = -0x3C0;
-        channel->field_0x1C = 0;
+        channel->mode = 0x50000000;
+        channel->input = 0;
+        channel->aux_a = -0x3C0;
+        channel->aux_b = -0x3C0;
+        channel->fader = 0;
         channel->pan = 0x40;
         channel->surround_pan = 0x7F;
         channel->updates[9].value = 0;
@@ -104,25 +104,25 @@ int MIXGetSoundMode(void)
     return __MIXSoundMode;
 }
 
-void MIXInitChannel(AXVPB* voice, int mode, int aux_a, int aux_b, int aux_c,
-                    u8 pan, u8 surround_pan, unsigned long fader)
+void MIXInitChannel(AXVPB* voice, u32 mode, int input, int aux_a, int aux_b,
+                    int pan, int surround_pan, int fader)
 {
     MIXChannel* channel = &__MIXChannel[voice->index];
 
     channel->voice = voice;
-    channel->input = mode & 7;
-    channel->field_0x08 = aux_a;
-    channel->field_0x0C = aux_b;
-    channel->field_0x10 = aux_c;
+    channel->mode = mode & 7;
+    channel->input = input;
+    channel->aux_a = aux_a;
+    channel->aux_b = aux_b;
     channel->pan = pan;
     channel->surround_pan = surround_pan;
-    channel->field_0x1C = fader;
+    channel->fader = fader;
     __MIXSetPan(channel);
 
-    if ((channel->input & 4) != 0) {
+    if ((channel->mode & 4) != 0) {
         channel->updates[0].value = 0;
     } else {
-        channel->updates[0].value = __MIXGetVolume(aux_a);
+        channel->updates[0].value = __MIXGetVolume(input);
     }
 
     if (__MIXSoundMode == 0) {
@@ -140,12 +140,12 @@ void MIXReleaseChannel(AXVPB* voice)
     __MIXChannel[voice->index].voice = 0;
 }
 
-void MIXSetInput(AXVPB* voice, u32 input)
+void MIXSetInput(AXVPB* voice, long input)
 {
     MIXChannel* channel = &__MIXChannel[voice->index];
 
-    channel->field_0x08 = input;
-    channel->input |= 0x10000000;
+    channel->input = input;
+    channel->mode |= 0x10000000;
 }
 
 void MIXSetPan(AXVPB* voice, int pan)
@@ -159,7 +159,7 @@ void MIXSetPan(AXVPB* voice, int pan)
     }
     channel->pan = pan;
     __MIXSetPan(channel);
-    channel->input |= 0x40000000;
+    channel->mode |= 0x40000000;
 }
 
 void MIXSetSPan(AXVPB* voice, int pan)
@@ -173,15 +173,15 @@ void MIXSetSPan(AXVPB* voice, int pan)
     }
     channel->surround_pan = pan;
     __MIXSetPan(channel);
-    channel->input |= 0x40000000;
+    channel->mode |= 0x40000000;
 }
 
-void MIXSetFader(AXVPB* voice, long volume)
+void MIXSetFader(AXVPB* voice, int volume)
 {
     MIXChannel* channel = &__MIXChannel[voice->index];
 
-    channel->field_0x1C = volume;
-    channel->input |= 0x40000000;
+    channel->fader = volume;
+    channel->mode |= 0x40000000;
 }
 
 void MIXUpdateSettings(void)
@@ -196,27 +196,27 @@ void MIXUpdateSettings(void)
             continue;
         }
 
-        if ((channel->input & 0x20000000) != 0) {
+        if ((channel->mode & 0x20000000) != 0) {
             channel->updates[0].value = channel->updates[0].delta;
-            channel->input &= ~0x20000000;
+            channel->mode &= ~0x20000000;
         }
 
-        if ((channel->input & 0x10000000) != 0) {
-            if ((channel->input & 4) != 0) {
+        if ((channel->mode & 0x10000000) != 0) {
+            if ((channel->mode & 4) != 0) {
                 channel->updates[0].delta = 0;
             } else {
                 channel->updates[0].delta =
-                    __MIXGetVolume(channel->field_0x08);
+                    __MIXGetVolume(channel->input);
             }
-            channel->input &= ~0x10000000;
-            channel->input |= 0x20000000;
+            channel->mode &= ~0x10000000;
+            channel->mode |= 0x20000000;
         }
 
-        if ((channel->input & 0x80000000) != 0) {
+        if ((channel->mode & 0x80000000) != 0) {
             for (j = 0; j < 10; j++) {
                 channel->updates[j].value = channel->updates[j].delta;
             }
-            channel->input &= ~0x80000000;
+            channel->mode &= ~0x80000000;
         }
     }
 }

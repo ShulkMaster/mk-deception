@@ -11,7 +11,6 @@ typedef struct TRKReplyPacket {
 
 typedef char TRKReplyPacketSizeCheck[sizeof(TRKReplyPacket) == 0x40 ? 1 : -1];
 
-extern DSError TRKWriteUARTN(const void* data, u32 length);
 extern void __TRK_copy_vectors(void);
 
 static BOOL IsTRKConnected;
@@ -52,12 +51,12 @@ DSError TRKDoConnect(MessageBuffer* message)
     return 0;
 }
 
-void SetTRKConnected(BOOL connected)
+void SetTRKConnected(u32 connected)
 {
     IsTRKConnected = connected;
 }
 
-BOOL GetTRKConnected(void)
+u32 GetTRKConnected(void)
 {
     return IsTRKConnected;
 }
