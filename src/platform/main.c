@@ -15,6 +15,7 @@
 #include "runtime/mk_hwfile.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/mk_particle.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 
@@ -39,8 +40,6 @@ extern void gc_release_renderpipe(void);
 extern void gc_native_display_pass_to_RW(void);
 
 extern void mwMemUserConfigInitMemSystem(void);
-
-extern void mkpfx_init(void);
 
 extern int refresh_rate(void);
 
