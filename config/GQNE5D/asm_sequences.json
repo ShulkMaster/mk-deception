@@ -5,7 +5,9 @@
   "functions": [
     { "name": "PSVECAdd", "assembly": "mtx.a/vec.s", "address": "0x801DDEEC", "size": "0x24" },
     { "name": "PSVECSubtract", "assembly": "mtx.a/vec.s", "address": "0x801DDF10", "size": "0x24" },
+    { "name": "PSVECNormalize", "assembly": "mtx.a/vec.s", "address": "0x801DDF50", "size": "0x44", "sda_symbols": { "@118": "PSVECMagHalf", "@119": "PSVECMagThree" } },
     { "name": "PSVECMag", "assembly": "mtx.a/vec.s", "address": "0x801DDF94", "size": "0x44", "sda_symbols": { "@118": "PSVECMagHalf", "@119": "PSVECMagThree" } },
+    { "name": "PSVECCrossProduct", "assembly": "mtx.a/vec.s", "address": "0x801DDFF8", "size": "0x3C" },
     { "name": "PSMTXMultVec", "assembly": "mtx.a/mtxvec.s", "address": "0x801DDD64", "size": "0x54" },
     { "name": "PSQUATMultiply", "assembly": "mtx.a/quat.s", "address": "0x801DE034", "size": "0x5C" },
     { "name": "PSQUATNormalize", "assembly": "mtx.a/quat.s", "address": "0x801DE090", "size": "0x54", "sda_symbols": { "@129": "PSQUATNormalizeEpsilon", "@135": "PSQUATNormalizeHalf", "@136": "PSQUATNormalizeThree" } },
