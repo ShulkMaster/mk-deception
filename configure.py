@@ -1768,13 +1768,13 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_err.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_err.c",
                 extra_cflags=["-sdata 0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_get.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_get.c",
             ),
@@ -1923,7 +1923,7 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_cnv_to_ARGB8888PLN.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_cnv_to_ARGB8888PLN.c",
                 extra_cflags=[
@@ -2903,11 +2903,11 @@ config.libs = [
         "mtx",
         [
             Object(
-                NonMatching,
+                Matching,
                 "mtx.a/mtxvec.o",
                 source="dolphin/mtx/mtxvec.c",
             ),
-            Object(NonMatching, "mtx.a/quat.o", source="dolphin/mtx/quat.c"),
+            Object(Matching, "mtx.a/quat.o", source="dolphin/mtx/quat.c"),
             Object(Matching, "mtx.a/mtx44.o", source="dolphin/mtx/mtx44.c"),
             Object(NonMatching, "mtx.a/vec.o", source="dolphin/mtx/vec.c"),
             Object(
