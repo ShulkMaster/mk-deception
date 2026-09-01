@@ -1,6 +1,7 @@
 #include "dolphin/cache.h"
 #include "dolphin/os.h"
 #include "dolphin/types.h"
+#include "dolphin/vm.h"
 
 typedef struct VMPageTableEntry {
     u32 virtual_page;
@@ -65,10 +66,9 @@ void VMBASEInit(void (*dsi_callback)(u32), void (*isi_callback)(u32),
     }
 }
 
-void *VMBASEQuit(void)
+void VMBASEQuit(void)
 {
     /* TODO: Missing canonical function implementation. */
-    return 0;
 }
 
 void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
@@ -103,20 +103,23 @@ void VMBASEClearPageTableEntry(u32 virtual_address, u32 physical_page)
     OSRestoreInterrupts(interrupts);
 }
 
-void *VMBASEIsPageValid(void)
+BOOL VMBASEIsPageValid(u32 virtual_address)
 {
+    (void)virtual_address;
     /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *VMBASEIsPageReferenced(void)
+BOOL VMBASEIsPageReferenced(u32 virtual_address)
 {
+    (void)virtual_address;
     /* TODO: Missing canonical function implementation. */
     return 0;
 }
 
-void *VMBASEIsPageDirty(void)
+BOOL VMBASEIsPageDirty(u32 virtual_address)
 {
+    (void)virtual_address;
     /* TODO: Missing canonical function implementation. */
     return 0;
 }

@@ -1,17 +1,14 @@
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/os_alloc.h"
 #include "dolphin/types.h"
+#include "dolphin/vm.h"
 
 int sprintf(char* destination, const char* format, ...);
-u32 VMGetARAMBase(void);
-u32 VMGetARAMSize(void);
 
 static u32* g_baseARAMtoVM;
 static u32* g_baseVMtoARAM;
 static u32 g_totalAllocatedVM;
 static u32 g_nextARAMPageToCheck;
-
-void __VMMappingErrorAlert(u32 virtual_address);
 
 int VMAlloc(void* virtual_address, u32 size)
 {
@@ -66,7 +63,7 @@ u32 __VMTranslateVMPageToARAMPage(u32 virtual_address)
     return 0;
 }
 
-int __VMDoesMappingExist(u32 virtual_address)
+BOOL __VMDoesMappingExist(u32 virtual_address)
 {
     return (g_baseVMtoARAM[virtual_address >> 12] & 0x7FFFFFFF) != 0;
 }
@@ -87,7 +84,7 @@ void __VMSetARAMPageAsDirty(u32 virtual_address)
     g_baseVMtoARAM[virtual_address >> 12] |= 0x80000000;
 }
 
-int __VMIsARAMPageDirty(u32 virtual_address)
+BOOL __VMIsARAMPageDirty(u32 virtual_address)
 {
     return g_baseVMtoARAM[virtual_address >> 12] >> 31;
 }

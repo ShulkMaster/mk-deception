@@ -60,8 +60,6 @@ unsigned long RNARES_GetBuf(RNAResource* resource);
 unsigned long RNARES_GetBufSize(RNAResource* resource);
 void RNARES_Init(const char* build);
 void RNARES_Finish(void);
-void MIXSetInput(AXVPB* voice, long volume);
-
 void AXRNA_ExecHndl(AXRNAHandle* handle);
 void axrna_end_flash(unsigned long request_address);
 void axrna_end_trans(unsigned long request_address);

@@ -176,11 +176,12 @@ AXCallback AXRegisterCallback(AXCallback callback);
 void MIXInit(void);
 int MIXGetSoundMode(void);
 void MIXUpdateSettings(void);
-void MIXInitChannel(AXVPB* voice, int mode, int aux_a, int aux_b, int aux_c,
-                    unsigned char pan, unsigned char surround_pan, unsigned long fader);
+void MIXInitChannel(AXVPB* voice, unsigned long mode, int input, int aux_a,
+                    int aux_b, int pan, int surround_pan, int fader);
 void MIXSetPan(AXVPB* voice, int pan);
 void MIXSetSPan(AXVPB* voice, int pan);
-void MIXSetFader(AXVPB* voice, long volume);
+void MIXSetInput(AXVPB* voice, long volume);
+void MIXSetFader(AXVPB* voice, int volume);
 void MIXReleaseChannel(AXVPB* voice);
 
 #ifdef __cplusplus

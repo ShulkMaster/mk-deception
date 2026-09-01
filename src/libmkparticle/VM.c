@@ -3,31 +3,11 @@
 #include "dolphin/os.h"
 #include "dolphin/os_alloc.h"
 #include "dolphin/types.h"
+#include "dolphin/vm.h"
 
 typedef void (*VMLogStatsCallback)(u32 virtual_address, void* physical_address,
                                    u32 physical_page, u32 elapsed,
                                    int wrote_page);
-
-void VMBASEInit(void (*dsi_callback)(u32), void (*isi_callback)(u32),
-                u32 page_count, int enable);
-void VMBASEQuit(void);
-void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
-                             u32 physical_page);
-void VMBASEClearPageTableEntry(u32 virtual_address, u32 physical_page);
-int VMBASEIsPageDirty(u32 virtual_address);
-u32 VMBASEGetVirtualAddrFromPageInMRAM(u32 physical_page);
-void __VMAllocVirtualToARAMLUT(void);
-void __VMAllocARAMToVirtualLUT(void);
-void __VMSetARAMPageAsDirty(u32 virtual_address);
-int __VMIsARAMPageDirty(u32 virtual_address);
-u32 __VMTranslateVMPageToARAMPage(u32 virtual_address);
-int __VMDoesMappingExist(u32 virtual_address);
-void __VMMappingErrorAlert(u32 virtual_address);
-void VMSetPageReplacementPolicy(int policy);
-void __VMSetNextPageToSwap(u32 page);
-void __VMSetFreePagesExist(int free_pages_exist);
-u32 __VMGetPageToReplace(void);
-void __VMAllocMRAMSwapSpace(void);
 
 static u32 g_vmBaseVMARAM = 0x4000;
 static u32 g_vmSizeVMMainMemory;
