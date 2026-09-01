@@ -13,9 +13,7 @@
  * Function order = retail emission.
  */
 
-#if !defined(TARGET_PC)
 #pragma use_lmw_stmw on
-#endif
 
 extern PlayerProfile p1_profile;
 
@@ -490,7 +488,7 @@ int format_card_and_create_mkda_file(int device) {
 static inline int gc_mount_checked(int device) {
     unsigned char* work;
     CARDCallback detach;
-    long rc;
+    s32 rc;
 
     if (device < 0 || device >= 2)
         return -99;
@@ -528,7 +526,7 @@ static inline int gc_mount_checked(int device) {
 }
 
 static inline int gc_unmount_checked(int device) {
-    long rc;
+    s32 rc;
 
     if (device < 0 || device >= 2)
         return -99;
@@ -548,8 +546,8 @@ static inline int gc_unmount_checked(int device) {
 
 int gc_format_procedure(int device) {
     unsigned int mask;
-    long sectorSize;
-    long rc;
+    s32 sectorSize;
+    s32 rc;
     int chan;
     int cardChanged;
     int confirmed;
@@ -711,7 +709,7 @@ int gc_format_procedure(int device) {
 }
 
 int gc_delete_file(int device, const char* fileName) {
-    long rc;
+    s32 rc;
     int mapped;
 
     if (device < 0 || device >= 2) {
@@ -742,7 +740,7 @@ int gc_delete_file(int device, const char* fileName) {
 }
 
 static inline int finish_memcard_load_after_unmount(int device, int result) {
-    long rc;
+    s32 rc;
 
     if (device >= 0 && device < 2) {
         do {
@@ -753,7 +751,7 @@ static inline int finish_memcard_load_after_unmount(int device, int result) {
 }
 
 static inline int finish_memcard_load_after_close(int device, CARDFileInfo* fileInfo, int result) {
-    long rc;
+    s32 rc;
 
     gc_seek_position = 0;
     do {
@@ -766,8 +764,8 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
                        int* checksumFailOut) {
-    long sectorSize;
-    long rc;
+    s32 sectorSize;
+    s32 rc;
     int status;
     int result;
     CARDFileInfo fileInfo;
@@ -823,7 +821,7 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
     }
 
     do {
-        rc = CARDFreeBlocks(device, (long*)freeBlocks, (long*)freeBytes);
+        rc = CARDFreeBlocks(device, (s32*)freeBlocks, (s32*)freeBytes);
     } while (rc == -1);
     if (rc != 0) {
         *freeBlocks = 0;
@@ -936,7 +934,7 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
 }
 
 static inline int finish_memcard_save_after_unmount(int device, int result) {
-    long rc;
+    s32 rc;
 
     if (device >= 0 && device < 2) {
         do {
@@ -948,7 +946,7 @@ static inline int finish_memcard_save_after_unmount(int device, int result) {
 }
 
 static inline int finish_memcard_save_after_close(int device, CARDFileInfo* fileInfo, int result) {
-    long rc;
+    s32 rc;
 
     gc_seek_position = 0;
     do {
@@ -961,8 +959,8 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
                      int* freeBytes, int skipChecksum, int unused0, int unusedMode, int unused1) {
-    long sectorSize;
-    long rc;
+    s32 sectorSize;
+    s32 rc;
     int status;
     int result;
     int i;
@@ -1101,7 +1099,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
 
     *freeBlocks = 0;
     do {
-        rc = CARDFreeBlocks(device, (long*)freeBlocks, (long*)freeBytes);
+        rc = CARDFreeBlocks(device, (s32*)freeBlocks, (s32*)freeBytes);
     } while (rc == -1);
     if (rc != 0) {
         *freeBlocks = 0;
@@ -1212,7 +1210,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
 
     *freeBlocks = 0;
     do {
-        rc = CARDFreeBlocks(device, (long*)freeBlocks, (long*)freeBytes);
+        rc = CARDFreeBlocks(device, (s32*)freeBlocks, (s32*)freeBytes);
     } while (rc == -1);
     if (rc != 0) {
         *freeBlocks = 0;
@@ -1262,9 +1260,9 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
 }
 
 static int gc_get_memcard_serial_number(int device, unsigned int* out) {
-    long rc;
-    long serialRc;
-    unsigned long long serial;
+    s32 rc;
+    s32 serialRc;
+    u64 serial;
     unsigned char* workArea;
     CARDCallback detach;
     int mapped;

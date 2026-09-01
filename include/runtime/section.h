@@ -1,8 +1,9 @@
 #ifndef RUNTIME_SECTION_H
 #define RUNTIME_SECTION_H
 
-#include "runtime/plyr_pdata.h"
 #include "runtime/section_types.h"
+
+typedef struct PlyrPdata PlyrPdata;
 
 #define SECTION_MEMORY_SCHEME_ATTRACT 9
 #define SEC_SLOT_HANDLE_ATTRACT_LEGAL 0x90046

@@ -1,9 +1,8 @@
 #include "runtime/mk_pdata.h"
 
+#include "runtime/cstring.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
-
-void memset(void* dest, int val, int size);
 
 extern MkVtable5 vtbl_mkpdata_generic;
 

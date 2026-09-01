@@ -6,6 +6,7 @@
 #include "game/settings.h"
 #include "libmkparticle/particle.h"
 #include "msl/mslcore.h"
+#include "mw/mwFileGlue.h"
 #include "platform/display.h"
 #include "platform/gcARam.h"
 #include "platform/gcInit.h"
@@ -14,7 +15,9 @@
 #include "runtime/mk_hwfile.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/mk_particle.h"
 #include "runtime/mk_vtbl.h"
+#include "runtime/pakfile.h"
 #include "runtime/utils.h"
 
 extern int __setjmp(void *buffer);
@@ -39,10 +42,6 @@ extern void gc_native_display_pass_to_RW(void);
 
 extern void mwMemUserConfigInitMemSystem(void);
 
-extern void mwfile_init_for_mk(int use_debug_filesystem);
-
-extern void mkpfx_init(void);
-
 extern int refresh_rate(void);
 
 extern void mk_system_init(void);
@@ -51,17 +50,15 @@ extern void init_section_system(void);
 
 extern void init_switch_log(void);
 
-extern void init_pakfile_system(void);
-
 extern int init_sounds(void);
 
 extern void konquest_state_init(void);
 
 extern void setup_sound_banks(int load_mode);
 
-extern void load_systemart_phase_1(void);
+extern int load_systemart_phase_1(void);
 
-extern void load_systemart_phase_2(void);
+extern int load_systemart_phase_2(void);
 
 extern void get_clean_system(void);
 

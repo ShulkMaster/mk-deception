@@ -24,6 +24,7 @@
 #include "runtime/asset.h"
 #include "runtime/image.h"
 #include "runtime/plyr_pdata.h"
+#include "runtime/sound_bank.h"
 #include "runtime/utils.h"
 
 #define LOAD_PLYR_MODEL_PID 0x9032
@@ -287,7 +288,6 @@ unsigned char goro_hand_to_hand2_remapping[0x56] = {
     0x50, 0x51, 0x52, 0x53, 0x54, 0x55,
 };
 extern float r_call_script_function(void);
-extern void fxbanks_unload_by_owner(int owner);
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
 extern void term_player_collision(PlyrInfo* player);
 extern void unload_script(int slot);

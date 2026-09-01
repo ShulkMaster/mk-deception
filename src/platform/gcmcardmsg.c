@@ -29,10 +29,10 @@ int sprintf(char* dest, const char* fmt, ...);
 char* strcpy(char* dest, const char* src);
 char* strcat(char* dest, const char* src);
 unsigned long strlen(const char* s);
-void* get_p1_pad(void);
-void* get_p2_pad(void);
-int check_switch_action(void* pad, int action);
-void eat_switch_action(void* pad, int action);
+int get_p1_pad(void);
+int get_p2_pad(void);
+int check_switch_action(int pad, int action);
+void eat_switch_action(int pad, int action);
 int check_switch_edge(int pad, int action);
 void eat_switch_edge(int pad, int action);
 void snd_req(int id);
@@ -524,7 +524,7 @@ void mcard_msg_confirm_erase(void) {
 }
 
 static void mcard_msg_load_no_card_konq_region_hault_rtn(void) {
-    void* pad;
+    int pad;
 
     if (msg_load_no_card_konq_region_hault_player == 0) {
         pad = get_p1_pad();
@@ -687,7 +687,7 @@ void mcard_msg_cant_enter_konquest(int device, const char* profileName) {
 }
 
 static void mcard_msg_save_no_card_konq_region_hault_rtn(void) {
-    void* pad;
+    int pad;
 
     if (msg_save_no_card_konq_region_hault_player == 0) {
         pad = get_p1_pad();

@@ -393,7 +393,7 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     heap->ownsBuffer = strategyType;
 
     if (heap != 0) {
-        heap->heapEnd = (heap->heapStart = (u8*)heap + 0x80) + arenaSize;
+        heap->heapEnd = (heap->heapStart = (u8*)heap + sizeof(*heap)) + arenaSize;
         heap->name = name;
         indexSlot = heapIndexArray;
         heap->magic = MW_MEM_HEAP_MAGIC_VALID;
@@ -746,10 +746,11 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
 
     savedCallback = parent->strategyCallback;
     parent->strategyCallback = 0;
-    arenaSize = (arenaSize - 0x80) & ~0xFU;
+    arenaSize = (arenaSize - sizeof(*heap)) & ~0xFU;
     savedOverflow = parent->overflowEnable;
     parent->overflowEnable = 0;
-    allocSize = (arenaSize + 0x8F) & ~0xFU;
+    /* Preserve the allocator's 16-byte round-up form. */
+    allocSize = (arenaSize + sizeof(*heap) + 0xF) & ~0xFU;
     heap = (_mwMemHeap*)_mwMemMalloc(parent, allocSize, 0x10, name, function, line);
     parent->strategyCallback = savedCallback;
     parent->overflowEnable = savedOverflow;
@@ -1197,7 +1198,9 @@ static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap
     if (size == 0 || buffer == 0) {
         return 0;
     }
-    arenaSize = (size - 0x81) & ~0xFU;
+    /* Subtract one before rounding down, so the aligned header-plus-arena
+     * extent is strictly less than size. Retail encodes this as size - 0x81. */
+    arenaSize = (size - (sizeof(_mwMemHeap) + 1)) & ~0xFU;
     return privInitSystemHeap(arenaSize, buffer, MW_MEM_STRATEGY_NORMAL, outHeap, name);
 }
 #pragma dont_inline reset
@@ -1223,8 +1226,9 @@ static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char*
     if (!available) {
         return 0;
     }
-    arenaSize = (size - 0x81) & ~0xFU;
-    buffer = privGetOSMemory(arenaSize + 0x80);
+    /* Keep the same strict-boundary rounding used for caller-owned buffers. */
+    arenaSize = (size - (sizeof(_mwMemHeap) + 1)) & ~0xFU;
+    buffer = privGetOSMemory(arenaSize + sizeof(_mwMemHeap));
     return privInitSystemHeap(arenaSize, buffer, 1, outHeap, name);
 }
 #pragma dont_inline reset

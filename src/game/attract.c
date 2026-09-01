@@ -8,6 +8,7 @@
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/plyr_info.h"
 #include "runtime/section.h"
 #include "runtime/utils.h"
@@ -40,19 +41,6 @@ typedef struct MkProcPauseFlag {
     unsigned char skip_if_paused : 1;
     unsigned char pad1 : 3;
 } MkProcPauseFlag;
-
-typedef struct MkVtableMkprocLocal {
-    int (*fn0)(void);
-    int (*fn1)(void);
-    int (*fn2)(void);
-    int (*fn3)(void);
-    int (*destroy)(MkProc* proc);
-    int (*dispatch)(void);
-    int (*sleep)(void);
-    int (*system_stack)(void);
-    int (*local_stack)(void);
-    float (*jump_sleep)(MkProcEntryFn entry, float ticks);
-} MkVtableMkprocLocal;
 
 /* Live MkHdr latch: obj + instance (MkHdr+0x04). */
 typedef struct AtmObjLatch {
@@ -261,11 +249,11 @@ static int check_start_or_a(void);
 static int atm_tapout_scan(void);
 
 static void mkproc_sleep(void) {
-    ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 }
 
 static void mkproc_jump_sleep(MkProcEntryFn entry) {
-    ((MkVtableMkprocLocal*)aproc->vtbl)->jump_sleep(entry, sleep_ticks_zero);
+    aproc->vtbl->jump_sleep(entry, sleep_ticks_zero);
 }
 
 static void set_game_info_flag_bit5(int value) {
@@ -1008,7 +996,7 @@ float p_attract_mode(void) {
         turn_camera_on();
         fade_from_black(8, 1);
         _mkproc_sleep_ticks = sleep_ticks_legal;
-        ((MkVtableMkprocLocal*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
         fade_to_black(8, 1);
         destroy_fade_box();
         turn_camera_off();
@@ -1030,7 +1018,7 @@ float p_attract_mode(void) {
         gamelogic_jump(6, p_player_profile_boot_screen_entry_point);
     }
 
-    ((MkVtableMkprocLocal*)aproc->vtbl)->jump_sleep(p_atm_loop, sleep_ticks_zero);
+    aproc->vtbl->jump_sleep(p_atm_loop, sleep_ticks_zero);
     return sleep_ticks_zero;
 }
 

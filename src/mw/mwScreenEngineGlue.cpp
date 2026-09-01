@@ -125,6 +125,7 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_proc.h"
+#include "runtime/sound_bank.h"
 #include "runtime/mk_render.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/mk_struct.h"
@@ -304,7 +305,6 @@ mkGameVariables* __dt__15mkGameVariablesFv(
 void __register_global_object(
     void* object, void* destructor, void* registration);
 
-void fxbanks_unload_by_owner(int owner);
 int get_stick_pos(int port, int which, float* out_x, float* out_y);
 int check_allow_screen_engine_control__Fv(void);
 void set_player_state(PlyrInfo* plyr, int state);

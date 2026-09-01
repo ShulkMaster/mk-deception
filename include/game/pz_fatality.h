@@ -32,5 +32,6 @@ typedef struct PuzzleFatalityRandomEvent {
 
 float pz_fighter_process_random_fatality_event(
     PuzzleFatalityRandomEvent* event, PuzzleFatalityProcessFn reaction);
+void cleanup_pz_fatality_stuff(void);
 
 #endif

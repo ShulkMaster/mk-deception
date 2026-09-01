@@ -797,7 +797,7 @@ static float fighting_style_sign_proc(void) {
                 skewer = 0;
             }
             if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
-                ((int (*)(MkHdr*))skewer->vtbl->destroy)((MkHdr*)skewer);
+                skewer->typed_vtbl->destroy(skewer);
             }
             skewer = p1_skewer_tip_item.object;
             if (skewer != 0) {
@@ -809,7 +809,7 @@ static float fighting_style_sign_proc(void) {
                 skewer = 0;
             }
             if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
-                ((int (*)(MkHdr*))skewer->vtbl->destroy)((MkHdr*)skewer);
+                skewer->typed_vtbl->destroy(skewer);
             }
             _mkproc_sleep_ticks = 5.0f;
             aproc->vtbl->sleep();
@@ -902,7 +902,7 @@ static float fighting_style_sign_proc(void) {
                 skewer = 0;
             }
             if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
-                ((int (*)(MkHdr*))skewer->vtbl->destroy)((MkHdr*)skewer);
+                skewer->typed_vtbl->destroy(skewer);
             }
             skewer = p2_skewer_tip_item.object;
             if (skewer != 0) {
@@ -914,7 +914,7 @@ static float fighting_style_sign_proc(void) {
                 skewer = 0;
             }
             if (skewer != 0 && (unsigned int)skewer->instance != 0U) {
-                ((int (*)(MkHdr*))skewer->vtbl->destroy)((MkHdr*)skewer);
+                skewer->typed_vtbl->destroy(skewer);
             }
             _mkproc_sleep_ticks = 5.0f;
             aproc->vtbl->sleep();
@@ -1072,7 +1072,7 @@ void kill_all_fstyle_signs(void) {
             }
             if (sign != 0) {
                 if ((unsigned int)sign->instance != 0) {
-                    ((int (*)(MkHdr*))sign->vtbl->destroy)((MkHdr*)sign);
+                    sign->typed_vtbl->destroy(sign);
                 }
                 moveset->style_sign = 0;
                 moveset->style_sign_instance = 0;
@@ -1105,7 +1105,7 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
         }
         if (sign != 0) {
             if ((unsigned int)sign->instance != 0U) {
-                ((int (*)(MkHdr*))sign->vtbl->destroy)((MkHdr*)sign);
+                sign->typed_vtbl->destroy(sign);
             }
             moveset->style_sign = 0;
             moveset->style_sign_instance = 0;
@@ -1122,7 +1122,7 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
             sign = 0;
         }
         if (sign != 0 && (unsigned int)sign->instance != 0U) {
-            ((int (*)(MkHdr*))sign->vtbl->destroy)((MkHdr*)sign);
+            sign->typed_vtbl->destroy(sign);
         }
 
         sign = p1_skewer_tip_item.object;
@@ -1135,7 +1135,7 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
             sign = 0;
         }
         if (sign != 0 && (unsigned int)sign->instance != 0U) {
-            ((int (*)(MkHdr*))sign->vtbl->destroy)((MkHdr*)sign);
+            sign->typed_vtbl->destroy(sign);
         }
     } else {
         sign = p2_skewer_item.object;
@@ -1147,7 +1147,7 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
             sign = 0;
         }
         if (sign != 0 && (unsigned int)sign->instance != 0U) {
-            ((int (*)(MkHdr*))sign->vtbl->destroy)((MkHdr*)sign);
+            sign->typed_vtbl->destroy(sign);
         }
 
         sign = p2_skewer_tip_item.object;
@@ -1160,7 +1160,7 @@ void kill_fstyle_signs_for_plyr(PlyrInfo* player) {
             sign = 0;
         }
         if (sign != 0 && (unsigned int)sign->instance != 0U) {
-            ((int (*)(MkHdr*))sign->vtbl->destroy)((MkHdr*)sign);
+            sign->typed_vtbl->destroy(sign);
         }
     }
     player_fstyle_sign[player->controller_slot] = 0;
@@ -1230,7 +1230,7 @@ static float p_freeze_light(void) {
 
     if (pdata->player->state_flags.bits.frozen == 0) {
         if (light != 0 && light->hdr.instance != 0) {
-            ((int (*)(MkHdr*))light->hdr.vtbl->destroy)(&light->hdr);
+            light->hdr.typed_vtbl->destroy(&light->hdr);
         }
         return -1.0f;
     }

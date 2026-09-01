@@ -1,6 +1,7 @@
 #ifndef MKD_GAME_CONSTRAIN_H
 #define MKD_GAME_CONSTRAIN_H
 
+#include "math/gxVect.h"
 #include "runtime/mk_struct.h"
 
 extern Vec tightrope_perp_uv;

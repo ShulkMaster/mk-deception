@@ -12,6 +12,8 @@ typedef struct RwRGBA RwRGBA;
 typedef struct RpAtomic RpAtomic;
 typedef struct RpMaterial RpMaterial;
 typedef struct AniTextureControl AniTextureControl;
+typedef struct ScreenObj ScreenObj;
+typedef struct StringObj StringObj;
 
 typedef int (*MovieTapoutFn)(void);
 

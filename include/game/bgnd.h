@@ -126,6 +126,7 @@ void bgnd_unhide_sobj_list(unsigned int* object_ids);
 void load_bgnd_style(int player, const char* script_name, void* script_args);
 int is_bgnd_locked(int bgnd_id);
 int load_background(int bgnd_id);
+void destroy_background_extras(void);
 
 #ifdef __cplusplus
 }

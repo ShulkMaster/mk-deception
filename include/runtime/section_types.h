@@ -63,7 +63,7 @@ static inline SecArtMember* sec_file_members(SecFileHeader* header) {
 struct SecSlot {
     int slot_id;
     unsigned char* base;
-    int buffer_size;
+    unsigned int buffer_size;
     int file_count;
     SecSlotFileEntry* files;
 };
@@ -137,7 +137,7 @@ typedef struct SecSysState {
 
 typedef struct SectionPerSlotDef {
     int slot_index;
-    int buffer_size;
+    unsigned int buffer_size;
 } SectionPerSlotDef;
 
 typedef struct SectionSlotDef {

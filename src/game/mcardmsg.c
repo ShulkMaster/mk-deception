@@ -53,9 +53,9 @@ void fire_screen_studio_event(int event, int arg);
 void screen_engine_process_events(void);
 void turn_all_rumble_motors_off(void);
 void pause_procs(int flag);
-int get_controller_disabled_state(void);
+unsigned int get_controller_disabled_state(void);
 void turn_controllers_on(void);
-void reapply_controller_disabled_state(int state);
+void reapply_controller_disabled_state(unsigned int state);
 int is_this_a_hault_message(void);
 int get_game_state(void);
 void pop_game_state(int state);
@@ -150,7 +150,7 @@ void init_memcard_msg_screen(void) {
 }
 
 void mcard_msg_handler(void) {
-    int saved_disabled;
+    unsigned int saved_disabled;
     int msg_id;
 
     msg_id = mcard_msg_active;

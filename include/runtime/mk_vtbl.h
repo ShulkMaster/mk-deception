@@ -4,26 +4,28 @@
 #ifndef MK_VTABLE5_TYPE
 #define MK_VTABLE5_TYPE
 typedef int (*MkVtblFn)(void);
+struct MkHdr;
 struct MkProc;
 struct MkSobj;
+typedef struct MkHdr* (*MkVtableCastFn)(struct MkHdr* hdr);
 typedef void (*MkProcDestroyFn)(struct MkProc* proc);
 typedef void (*MkSobjFn)(struct MkSobj* sobj);
 typedef void (*MkProcFn)(void);
 typedef void (*MkProcJumpFn)(float (*entry)(void), float ticks);
 
 typedef struct MkVtable5 {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
     MkVtblFn fn3;
     MkVtblFn destroy;
 } MkVtable5;
 #endif
 
 typedef struct MkVtableMkproc {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
     MkVtblFn fn3;
     MkProcDestroyFn destroy;
     MkProcFn dispatch;
@@ -34,21 +36,21 @@ typedef struct MkVtableMkproc {
 } MkVtableMkproc;
 
 typedef struct MkVtableMksobj {
-    MkVtblFn fn0;
-    MkVtblFn fn1;
-    MkVtblFn fn2;
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
     MkVtblFn fn3;
     MkSobjFn destroy;
     MkSobjFn update;
 } MkVtableMksobj;
 
 int not_mkmaterial(void);
-int not_mksobj(void);
-int is_mksobj(void);
-int not_mkpdata(void);
-int is_mkpdata(void);
-int not_mkproc(void);
-int is_mkproc(void);
+struct MkHdr* not_mksobj(struct MkHdr* hdr);
+struct MkHdr* is_mksobj(struct MkHdr* hdr);
+struct MkHdr* not_mkpdata(struct MkHdr* hdr);
+struct MkHdr* is_mkpdata(struct MkHdr* hdr);
+struct MkHdr* not_mkproc(struct MkHdr* hdr);
+struct MkHdr* is_mkproc(struct MkHdr* hdr);
 
 extern MkVtable5 vtbl_mkx_mem;
 extern MkVtable5 vtbl_mkx_rplight;

@@ -1,11 +1,10 @@
-typedef struct MemberHashtable {
-    int unk0;
-    char pad[0x28];
-} MemberHashtable;
+#include "runtime/pakfile.h"
 
-static MemberHashtable member_hashtable;
+#include "runtime/hashtable.h"
+
+static Hashtable member_hashtable;
 
 int init_pakfile_system(void) {
-    member_hashtable.unk0 = 0;
+    member_hashtable.initialized = 0;
     return 1;
 }
