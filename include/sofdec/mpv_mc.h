@@ -164,9 +164,29 @@ typedef union MPVDctState {
 } MPVDctState;
 
 typedef union MPVTransformWorkspace {
-    float coefficients[6][64];
+    float coefficients[9][64];
     DctFsriBlock blocks[6];
 } MPVTransformWorkspace;
+
+typedef struct MPVCodingBlock {
+    s32 run;
+    s32 level;
+    s32 sign;
+    u32 code_length;
+    s32 first_scan;
+    s32 current_scan;
+    u8 field_18[4];
+    void* coefficients;
+    const u8* quant_matrix;
+    s32 quantizer_scale;
+    s32* dc_predictor;
+    const u8* dc_size_lut;
+} MPVCodingBlock;
+
+typedef struct MPVCodingWorkspace {
+    MPVCodingBlock block;
+    s32 non_intra_mode;
+} MPVCodingWorkspace;
 
 typedef struct MPVUserStream {
     SJ* stream;
@@ -196,7 +216,7 @@ struct MPVContext {
     void* index_1260;
     void* index_1280;
     u8* clip_base;
-    u8 field_044[0x34];
+    MPVCodingWorkspace coding;
     MPVDctState dct_state;                    /* +0x078 */
     MPVMCContext mc;                         /* +0x0CC */
     MPVMacroblockSources sources;            /* +0x110 */
@@ -244,7 +264,6 @@ struct MPVContext {
     s32 stc_code_2;
     DctFsriBlock* dct_output_blocks[6];
     MPVTransformWorkspace transform;
-    u8 field_980[0x300];
     s8 intra_quant_matrix[64];                 /* +0xC80 */
     s8 nonintra_quant_matrix[64];              /* +0xCC0 */
     u8 field_D00[0x600];
@@ -291,7 +310,9 @@ typedef char MPVDctCountersSizeCheck[
     sizeof(MPVDctCounters) == 0x54 ? 1 : -1];
 typedef char MPVDctStateSizeCheck[sizeof(MPVDctState) == 0x54 ? 1 : -1];
 typedef char MPVTransformWorkspaceSizeCheck[
-    sizeof(MPVTransformWorkspace) == 0x600 ? 1 : -1];
+    sizeof(MPVTransformWorkspace) == 0x900 ? 1 : -1];
+typedef char MPVCodingWorkspaceSizeCheck[
+    sizeof(MPVCodingWorkspace) == 0x34 ? 1 : -1];
 typedef char MPVUserStreamSizeCheck[sizeof(MPVUserStream) == 0x0C ? 1 : -1];
 typedef char MPVPictureUserBufferSizeCheck[
     sizeof(MPVPictureUserBuffer) == 0x0C ? 1 : -1];
@@ -299,6 +320,7 @@ typedef char MPVContextSizeCheck[sizeof(MPVContext) == 0x1380 ? 1 : -1];
 
 int MPV_GetCond(MPVContext* handle, int index, int* value);
 int MPV_SetCond(MPVContext* handle, int index, int value);
+int MPVLIB_CheckHn(MPVContext* handle);
 int MPV_Init(int handle_count, void* work);
 MPVContext* MPV_Create(void);
 int MPV_Destroy(MPVContext* handle);
