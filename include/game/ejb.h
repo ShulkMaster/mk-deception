@@ -3,6 +3,7 @@
 
 typedef struct AniData AniData;
 typedef struct PlyrPdata PlyrPdata;
+typedef struct Vec Vec;
 
 int am_i_blocking(void);
 int am_i_flipped_or_turned(void);
@@ -20,6 +21,7 @@ float j_exit_6(void);
 float j_exit_blend_stance(void);
 float j_exit_react(void);
 void rotate_towards_him(float max_step);
+void rotate_towards_position(Vec* target, float max_step);
 void set_my_state(int state);
 int taunt_increase_life(float scale, float duration);
 float which_way_is_towards(void);
