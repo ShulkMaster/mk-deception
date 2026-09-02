@@ -6,8 +6,9 @@ extern void ADXSTM_BindFileNw(void* stream, const char* path, int offset,
                               int length, int end_position);
 extern void ADXSTM_SetEos(void* stream, int end_position);
 extern void ADXSTM_Destroy(void* stream);
-extern void* ADXSTM_Create(void* source, void* callback);
-extern void ADXSTM_SetBufSize(void* stream);
+extern void* ADXSTM_Create(void* source, int priority);
+extern int ADXSTM_SetBufSize(void* stream, int minimum_size,
+                             int maximum_size);
 
 int MWSTM_GetStat(void* stream)
 {
@@ -43,10 +44,10 @@ void* MWSTM_Create(void* source)
     return ADXSTM_Create(source, 0);
 }
 
-void MWSTM_SetFlowLimit(void* stream)
+void MWSTM_SetFlowLimit(void* stream, int minimum_size, int maximum_size)
 {
     if (stream != 0) {
-        ADXSTM_SetBufSize(stream);
+        ADXSTM_SetBufSize(stream, minimum_size, maximum_size);
     }
 }
 

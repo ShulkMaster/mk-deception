@@ -102,7 +102,7 @@ int MPV_IsEmptyPpic(const u8* data, int length, int macroblock_count)
     const u8* delimiter;
     int delimiter_type;
 
-    aligned = (const u32*)((u32)data & ~3);
+    aligned = (const u32*)((unsigned long)data & ~3UL);
     bit_offset = (data - (const u8*)aligned) * 8;
     second = aligned[1];
     value = aligned[0] << bit_offset;
@@ -202,7 +202,7 @@ int MPV_IsEmptyBpic(const u8* data, int length, int macroblock_count)
     s16 code;
     int macroblock_type;
 
-    aligned = (const u32*)((u32)data & ~3);
+    aligned = (const u32*)((unsigned long)data & ~3UL);
     bit_offset = (data - (const u8*)aligned) * 8;
     second = aligned[1];
     value = aligned[0] << bit_offset;

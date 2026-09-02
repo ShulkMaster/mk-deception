@@ -41,7 +41,8 @@ static inline void sflib_CallErrFn(SfdErrorInfo* info, int error)
     }
 }
 
-int SFD_SetErrFn(SfdHandle* handle, SfdErrorCallback callback, int object)
+int SFD_SetErrFn(SfdHandle* handle, SfdErrorCallback callback,
+                 SfdCallbackObject object)
 {
     if (handle == 0) {
         SFLIB_libwork.error_info.callback = callback;

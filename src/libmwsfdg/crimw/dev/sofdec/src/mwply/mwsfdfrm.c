@@ -43,11 +43,6 @@ typedef struct MwsPlayer {
     int previous_picture_order;
 } MwsPlayer;
 
-typedef struct MwsHeaderCursor {
-    unsigned char player_prefix[0xC4];
-    MwsSfhInfo info;
-} MwsHeaderCursor;
-
 typedef struct MwsFrameOutput {
     void* frame;
     int frame_structure;
@@ -103,7 +98,8 @@ extern void MWSFSVM_Error(const char* message, ...);
 extern SfdHandle* mwPlyGetSfdHn(MwsPlayer* player);
 extern int SFD_GetFrm(SfdHandle* handle, void** frame);
 extern void SFD_RelFrm(SfdHandle* handle, void* frame);
-extern int SFD_SetCond(SfdHandle* handle, int condition, void* value);
+extern int SFD_SetCond(SfdHandle* handle, int condition,
+                       SfdConditionValue value);
 extern void MWSFSFX_SetColAdj(MwsPlayer* player, int adjustment);
 extern void SFD_CalcYccPlane(int width, int height, int format,
                             SfdCalculatedPlane* plane);
@@ -156,6 +152,8 @@ static const char set_sync_invalid[0x34] =
     "E1122629: mwPlySetFrmSync: handle is invalid.";
 #pragma force_active off
 
+/* Soft ceiling: mwsffrm_AnalySofdecHeader ~93.72% -- direct ring indexing
+ * folds the +0xC4 header base that retail applies after the slot offset. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {
@@ -167,7 +165,7 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
     unsigned int source_effect;
     int color_adjustment;
     int effect_type;
-    MwsHeaderCursor* cursor;
+    MwsSfhInfo* info;
 
     player->header_count++;
     if (size < 0x800 || data == 0) {
@@ -219,14 +217,12 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
         }
     }
 
-    /* Retail advances a player-prefix view by one 0x14-byte ring slot. */
-    cursor = (MwsHeaderCursor*)((unsigned char*)player +
-                               player->next_header * sizeof(MwsSfhInfo));
-    cursor->info.header_number = player->header_count - 1;
-    cursor->info.color_adjustment = color_adjustment;
-    cursor->info.maximum_frames = maximum_frames;
-    cursor->info.effect_type = effect_type;
-    cursor->info.valid = 1;
+    info = &player->headers[player->next_header];
+    info->header_number = player->header_count - 1;
+    info->color_adjustment = color_adjustment;
+    info->maximum_frames = maximum_frames;
+    info->effect_type = effect_type;
+    info->valid = 1;
     player->next_header++;
     player->next_header %= 8;
     SFH_Destroy(header);
@@ -240,8 +236,9 @@ void MWSFFRM_SetShfCbFn(MwsPlayer* player)
 {
     SfdHandle* sfd = player->sfd;
 
-    SFD_SetCond(sfd, 0x4B, mwsffrm_AnalySofdecHeader);
-    SFD_SetCond(sfd, 0x4C, player);
+    SFD_SetCond(sfd, 0x4B,
+                (SfdConditionValue)mwsffrm_AnalySofdecHeader);
+    SFD_SetCond(sfd, 0x4C, (SfdConditionValue)player);
 }
 
 void MWSFFRM_InitSfhInfTable(MwsPlayer* player)
@@ -269,14 +266,12 @@ void MWSFFRM_InitSfhInfTable(MwsPlayer* player)
     MWSFSFX_SetColAdj(player, zero);
 }
 
+/* Soft ceiling: mwPlyGetFxType ~93.95% -- direct ring indexing folds the
+ * header base offset into MWCC's indexed address; retail adds the slot first. */
 int mwPlyGetFxType(MwsPlayer* player)
 {
-    /* Use the same sliding prefix view as the header-analysis callback. */
-    MwsHeaderCursor* cursor =
-        (MwsHeaderCursor*)((unsigned char*)player +
-                           (player->current_header % 8) * sizeof(MwsSfhInfo));
-    int type =
-        cursor->info.valid == 0 ? 0x11 : cursor->info.effect_type;
+    MwsSfhInfo* info = &player->headers[player->current_header % 8];
+    int type = info->valid == 0 ? 0x11 : info->effect_type;
 
     if (type == 0x51 || type == 0x61) {
         type = 0x41;

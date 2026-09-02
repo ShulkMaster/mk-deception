@@ -402,7 +402,7 @@ int SFD_CmpTime(int lhs_value, int lhs_scale, int rhs_value, int rhs_scale)
     return UTY_CmpTime(lhs_value, lhs_scale, rhs_value, rhs_scale);
 }
 
-int SFD_SetUsrIsSkipFn(SfdHandle* handle, SfdTimerCallback callback)
+int SFD_SetUsrIsSkipFn(SfdHandle* handle, SfdUserIsSkipFn callback)
 {
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000124);

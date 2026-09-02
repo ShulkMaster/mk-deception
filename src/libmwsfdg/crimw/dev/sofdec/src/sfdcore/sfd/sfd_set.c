@@ -3,7 +3,8 @@
 #include "sofdec/sfd_player.h"
 #include "sofdec/sfd_transport.h"
 
-static inline int sfset_CanSet(SfdHandle* handle, int condition, int value)
+static inline int sfset_CanSet(SfdHandle* handle, int condition,
+                               SfdConditionValue value)
 {
     if (condition == 6 && value == 1 && SFTRN_IsSetup(handle, 3) == 0) {
         return 0;
@@ -30,7 +31,7 @@ int SFD_GetTrHn(SfdHandle* handle, int transport_index, void** output)
     return 0;
 }
 
-int SFSET_GetCond(SfdHandle* handle, int condition)
+SfdConditionValue SFSET_GetCond(SfdHandle* handle, int condition)
 {
     return handle->conditions_primary[condition];
 }
@@ -48,14 +49,15 @@ int SFD_GetCond(SfdHandle* handle, int condition, int* value)
     return 0;
 }
 
-void SFSET_SetCond(SfdHandle* handle, int condition, int value)
+void SFSET_SetCond(SfdHandle* handle, int condition,
+                   SfdConditionValue value)
 {
     if (sfset_CanSet(handle, condition, value) != 0) {
         handle->conditions_primary[condition] = value;
     }
 }
 
-int SFD_SetCond(SfdHandle* handle, int condition, int value)
+int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value)
 {
     int i;
 
@@ -84,5 +86,5 @@ int SFD_GetHnStat(SfdHandle* handle)
     if (SFLIB_CheckHn(handle) != 0) {
         SFLIB_SetErr(0, 0xFF000111);
     }
-    return handle->requested_state;
+    return handle->playback_state;
 }

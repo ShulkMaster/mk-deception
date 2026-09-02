@@ -86,8 +86,7 @@ typedef struct SfdMpvRepeatTimer {
     SfdMpvRepeatEntry entries[64];
 } SfdMpvRepeatTimer;
 
-typedef int (*SfdMpvSkipCallback)(SfdHandle* handle, int picture_type,
-                                  int value, int scale);
+typedef SfdUserIsSkipFn SfdMpvSkipCallback;
 
 typedef struct SfdMpvSkipTimer {
     unsigned char reserved_000[0x18];
@@ -117,8 +116,10 @@ typedef struct SfdMpvSeekCache {
     int header_size;
 } SfdMpvSeekCache;
 
-typedef int (*SfdMpvSizeCallback)(int object, int width, int height);
-typedef void (*SfdMpvHeaderCallback)(int object, const void* data, int size);
+typedef int (*SfdMpvSizeCallback)(SfdCallbackObject object, int width,
+                                  int height);
+typedef void (*SfdMpvHeaderCallback)(SfdCallbackObject object,
+                                     const void* data, int size);
 
 extern const SfdTransportInterface SFD_tr_ad_adxt;
 
@@ -533,7 +534,7 @@ static int SFMPV_Destroy(SfdHandle* handle)
     return 0;
 }
 
-static void sfmpv_ErrFn(int object, int error)
+static void sfmpv_ErrFn(SfdCallbackObject object, int error)
 {
     if (error == -1 || error < -3 || error >= 1) {
         SFLIB_SetErr((SfdHandle*)object, error);
@@ -646,7 +647,8 @@ static int SFMPV_Create(SfdHandle* handle)
     if (decoder == 0) {
         return SFLIB_SetErr(0, 0xFF000F0A);
     }
-    if (MPV_SetErrFunc(decoder, sfmpv_ErrFn, (int)handle) != 0) {
+    if (MPV_SetErrFunc(decoder, sfmpv_ErrFn,
+                       (SfdCallbackObject)handle) != 0) {
         MPV_Destroy(decoder);
         return SFLIB_SetErr(0, 0xFF000F0B);
     }
@@ -976,13 +978,13 @@ static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
         int unavailable;
         switch (picture_type) {
         case 1:
-            unavailable = handle->conditions_primary[0] == 0;
+            unavailable = handle->conditions_primary[2] == 0;
             break;
         case 2:
-            unavailable = handle->conditions_primary[1] == 0;
+            unavailable = handle->conditions_primary[3] == 0;
             break;
         case 3:
-            unavailable = handle->conditions_primary[2] == 0;
+            unavailable = handle->conditions_primary[4] == 0;
             break;
         default:
             unavailable = 1;
@@ -1490,7 +1492,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
         {
             SfdMpvSizeCallback callback =
                 (SfdMpvSizeCallback)SFSET_GetCond(handle, 95);
-            int object = SFSET_GetCond(handle, 95);
+            SfdCallbackObject object = SFSET_GetCond(handle, 95);
 
             if (callback != 0 &&
                 callback(object, attributes->width,
@@ -1531,7 +1533,7 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
     if ((delimiter_type & 0x40) != 0) {
         SfdMpvHeaderCallback callback =
             (SfdMpvHeaderCallback)SFSET_GetCond(handle, 77);
-        int object = SFSET_GetCond(handle, 78);
+        SfdCallbackObject object = SFSET_GetCond(handle, 78);
 
         if (callback != 0) {
             delimiter = MPV_SearchDelim(header->data, header->len, 1);
@@ -2395,10 +2397,17 @@ void SFD_CalcYccPlane(void* buffer, int width, int height,
     sfmpv_CalcYccPlaneSub(buffer, width, height, output);
 }
 
-void SFD_SetMpvParaTbl(const int* parameters, const int* reference_sizes,
-                       const int* table_sizes)
+void SFD_SetMpvParaTbl(const int* parameters,
+                       void* const* reference_buffers,
+                       void* const* frame_buffers, int handle_work_size,
+                       int video_input_buffer_size,
+                       int system_input_buffer_size)
 {
     int i;
+
+    (void)handle_work_size;
+    (void)video_input_buffer_size;
+    (void)system_input_buffer_size;
 
     sfmpv_para[0] = parameters[0];
     sfmpv_para[1] = parameters[1];
@@ -2411,11 +2420,14 @@ void SFD_SetMpvParaTbl(const int* parameters, const int* reference_sizes,
     sfmpv_para[8] = parameters[8];
     sfmpv_para[4] = 0;
     sfmpv_para[8] = 0;
-    sfmpv_rfb_adr_tbl[0] = (reference_sizes[0] + 31) & ~31;
-    sfmpv_rfb_adr_tbl[1] = (reference_sizes[1] + 31) & ~31;
+    sfmpv_rfb_adr_tbl[0] =
+        ((unsigned long)reference_buffers[0] + 31) & ~31UL;
+    sfmpv_rfb_adr_tbl[1] =
+        ((unsigned long)reference_buffers[1] + 31) & ~31UL;
     for (i = 0; i < 16; i++) {
         if (i < parameters[7]) {
-            sfmpv_ta_adr_tbl[i] = (table_sizes[i] + 31) & ~31;
+            sfmpv_ta_adr_tbl[i] =
+                ((unsigned long)frame_buffers[i] + 31) & ~31UL;
         } else {
             sfmpv_ta_adr_tbl[i] = 0;
         }

@@ -1186,7 +1186,7 @@ int mwMemHeapDestroy(_mwMemHeap* heap) {
 }
 
 u32 mwMemVirtualHeapGetHeapSize(void) {
-    return 0x9F;
+    return sizeof(_mwMemHeap) + 0x1F;
 }
 
 /* Retail callers retain this helper boundary; TU-wide noauto changes other functions. */

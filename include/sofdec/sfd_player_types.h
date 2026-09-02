@@ -1,8 +1,14 @@
 #ifndef MKD_SOFDEC_SFD_PLAYER_TYPES_H
 #define MKD_SOFDEC_SFD_PLAYER_TYPES_H
 
+typedef int SfdCallbackObject;
+typedef int SfdConditionValue;
+typedef int SfdTransportValue;
+
 typedef struct SfdHandle SfdHandle;
 typedef void (*SfdTimerCallback)(void);
+typedef int (*SfdUserIsSkipFn)(SfdHandle* handle, int picture_type,
+                               int value, int scale);
 typedef int (*SfdTimeSourceFn)(SfdHandle* handle, int* value, int* scale);
 
 typedef struct SfdPlaybackSettings {
@@ -48,7 +54,7 @@ typedef struct SfdTimerTimeUnit {
 } SfdTimerTimeUnit;
 
 typedef struct SfdTimerSkipState {
-    SfdTimerCallback callback;
+    SfdUserIsSkipFn callback;
     int fields_04[7];
     unsigned short field_20;
     unsigned short field_22;
@@ -96,7 +102,8 @@ typedef struct SfdFrameTime {
     int scale;
 } SfdFrameTime;
 
-typedef int (*SfdExternalClockFn)(int object, int* value, int* scale);
+typedef int (*SfdExternalClockFn)(SfdCallbackObject object, int* value,
+                                  int* scale);
 
 typedef struct SfdTimerState {
     SfdTimeSourceFn time_sources[6];
@@ -141,7 +148,7 @@ typedef struct SfdTimerState {
     int current_clock_sample;
     int clock_sample_scale;
     int external_clock_wrap;
-    int external_clock_object;
+    SfdCallbackObject external_clock_object;
     unsigned char unknown_02EC[0x2C4];
     unsigned int video_pts[3];
     unsigned char unknown_05BC[0x24];

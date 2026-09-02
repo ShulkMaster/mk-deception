@@ -262,7 +262,9 @@ void MPVUMC_Forward(MPVContext* context)
                      context->cbp_mask);
 }
 
-static void mpvumc_OutputIntra6blk(const float blocks[6][64],
+/* Soft ceiling: retail uses GQR3 paired-single quantized loads/stores for the
+ * runtime-proven signed 16-bit DCT blocks; portable scalar C cannot emit it. */
+static void mpvumc_OutputIntra6blk(const DctFsriBlock blocks[6],
                                    MPVOutputBlocks* output)
 {
     s32 block;
@@ -274,11 +276,11 @@ static void mpvumc_OutputIntra6blk(const float blocks[6][64],
         s32 stride = output->blocks[block].stride;
         for (row = 0; row < 8; row++) {
             for (column = 0; column < 8; column++) {
-                float sample = blocks[block][row * 8 + column];
-                if (sample < 0.0f) {
-                    sample = 0.0f;
-                } else if (sample > 255.0f) {
-                    sample = 255.0f;
+                int sample = blocks[block].samples[row * 8 + column];
+                if (sample < 0) {
+                    sample = 0;
+                } else if (sample > 255) {
+                    sample = 255;
                 }
                 destination[column] = (u8)sample;
             }
@@ -295,7 +297,7 @@ void MPVUMC_Intra(MPVContext* context)
     offsets.luma = context->macroblock_column * 16 +
                    context->macroblock_row * 16 * context->output.luma_stride;
     mpvumc_SetOutputBlocks(context, &offsets);
-    mpvumc_OutputIntra6blk(context->transform.coefficients,
+    mpvumc_OutputIntra6blk(context->transform.blocks,
                            &context->output_blocks);
 }
 

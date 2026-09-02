@@ -368,7 +368,8 @@ int MPS_DecHd(MpsHandle* handle, const unsigned char* data, int size,
     return handle->decode_header(handle, data, size, consumed, header_flags);
 }
 
-int MPS_SetPesFn(MpsHandle* handle, MpsPesCallback callback, int object) {
+int MPS_SetPesFn(MpsHandle* handle, MpsPesCallback callback,
+                 MpsCallbackObject object) {
     int result = MPSLIB_CheckHn(handle);
     if (result == 0) {
         handle->pes_callback = callback;
@@ -377,7 +378,8 @@ int MPS_SetPesFn(MpsHandle* handle, MpsPesCallback callback, int object) {
     return result;
 }
 
-int MPS_SetPsMapFn(MpsHandle* handle, MpsPsMapCallback callback, int object) {
+int MPS_SetPsMapFn(MpsHandle* handle, MpsPsMapCallback callback,
+                   MpsCallbackObject object) {
     int result = MPSLIB_CheckHn(handle);
     if (result == 0) {
         handle->ps_map_callback = callback;
@@ -386,7 +388,8 @@ int MPS_SetPsMapFn(MpsHandle* handle, MpsPsMapCallback callback, int object) {
     return result;
 }
 
-int MPS_SetSystemFn(MpsHandle* handle, MpsSystemCallback callback, int object) {
+int MPS_SetSystemFn(MpsHandle* handle, MpsSystemCallback callback,
+                    MpsCallbackObject object) {
     int result = MPSLIB_CheckHn(handle);
     if (result == 0) {
         handle->system_callback = callback;

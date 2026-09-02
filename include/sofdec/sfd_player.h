@@ -26,10 +26,10 @@ typedef struct SfdAdxtParameters {
 typedef char SfdAdxtParametersSizeCheck[
     sizeof(SfdAdxtParameters) == 0x1C ? 1 : -1];
 
-int SFSET_GetCond(SfdHandle* handle, int condition);
+SfdConditionValue SFSET_GetCond(SfdHandle* handle, int condition);
 int SFD_GetTrHn(SfdHandle* handle, int transport_index, void** output);
 int SFD_GetCond(SfdHandle* handle, int condition, int* value);
-int SFD_SetCond(SfdHandle* handle, int condition, int value);
+int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value);
 int SFD_GetHnStat(SfdHandle* handle);
 int SFPL2_Standby(SfdHandle* handle);
 int SFPL2_Pause(SfdHandle* handle, int paused);
@@ -45,12 +45,12 @@ int SFD_SetFileSize(SfdHandle* handle, int file_size);
 int SFD_SetTotTime(SfdHandle* handle, int value, int scale);
 int SFD_SetSeekPos(SfdHandle* handle, int position);
 int SFD_SetUsrTimeFn(SfdHandle* handle, SfdTimeSourceFn callback);
-int SFD_SetUsrIsSkipFn(SfdHandle* handle, SfdTimerCallback callback);
+int SFD_SetUsrIsSkipFn(SfdHandle* handle, SfdUserIsSkipFn callback);
 int SFD_SetExtClockFn(SfdHandle* handle, SfdExternalClockFn callback, int arg0,
                       int arg1);
 int SFD_GetFps(SfdHandle* handle, int* frame_rate);
 int SFD_GetTime(SfdHandle* handle, int* value, int* scale);
-void SFD_SetSpeed(SfdHandle* handle, int speed);
+int SFD_SetSpeed(SfdHandle* handle, int speed);
 void SFD_SetAdxtPara(SfdAdxtParameters* parameters);
 int SFD_GetOutVol(SfdHandle* handle);
 void SFD_SetOutVol(SfdHandle* handle, int volume);

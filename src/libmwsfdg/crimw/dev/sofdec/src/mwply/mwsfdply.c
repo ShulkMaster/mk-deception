@@ -66,7 +66,8 @@ extern int MWSFCRE_ResetSfdHn(MwsPlayer* player);
 extern void MWSFCRE_SetSupplySj(MwsPlayer* player);
 extern int MWSFD_GetPauseBdr(void);
 extern int MWSFD_IsEnableHndl(MwsPlayer* player);
-extern void MWSFD_SetFlowLimit(MwsPlayer* player, int limit);
+extern void MWSFD_SetFlowLimit(MwsPlayer* player, int limit,
+                               int maximum_size);
 extern void MWSFFRM_InitSfhInfTable(MwsPlayer* player);
 extern void* MWSFLIB_GetLibWorkPtr(void);
 extern int MWSFLIB_SetErrCode(int error);
@@ -125,7 +126,7 @@ void MWSFPLY_SetFlowLimit(MwsPlayer* player)
     int flow_limit = player->flow_limit;
     int adjusted_limit = (int)(0.8 * flow_limit);
 
-    MWSFD_SetFlowLimit(player, adjusted_limit);
+    MWSFD_SetFlowLimit(player, adjusted_limit, flow_limit);
 }
 
 #pragma force_active on

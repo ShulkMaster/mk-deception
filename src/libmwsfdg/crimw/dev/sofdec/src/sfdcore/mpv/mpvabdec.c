@@ -1301,10 +1301,10 @@ s32 MPVABDEC_IntraBlockDc11(MPVABDECContext* ctx, MPVABDECBlock* block)
     if (dc_value != 0) {
         shifted = (peek << dc_length);
         dc_length += dc_value;
-        shifted = (shifted >> 1) ^ 0x80000000;
+        shifted = (u32)(((s32)shifted >> 1) ^ (s32)0x80000000);
         dc_value =
-            (s32)(shifted >> 31) +
-            ((s32)shifted >> (31 - dc_value));
+            ((s32)shifted >> (31 - dc_value)) -
+            ((s32)shifted >> 31);
     }
     MPV_CONSUME_BITS(dc_length);
     *block->dc_predictor += dc_value;

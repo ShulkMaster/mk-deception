@@ -58,7 +58,8 @@ MpsHandle* MPS_Create(void) {
         return 0;
     }
 
-    UTY_MemsetDword((unsigned int*)handle, 0, 0x40);
+    UTY_MemsetDword((unsigned int*)handle, 0,
+                    sizeof(*handle) / sizeof(unsigned int));
     handle->state = 2;
     handle->packet_length_bytes = 2;
     for (i = 0; i < 46; i++) {
@@ -82,7 +83,8 @@ int MPSLIB_CheckHn(MpsHandle* handle) {
     return -(handle->state == 1);
 }
 
-int MPS_SetErrFn(MpsHandle* handle, MpsErrorCallback callback, int object) {
+int MPS_SetErrFn(MpsHandle* handle, MpsErrorCallback callback,
+                 MpsCallbackObject object) {
     if (handle == 0) {
         MPSLIB_libwork->error_callback = callback;
         MPSLIB_libwork->error_object = object;
@@ -128,8 +130,10 @@ int MPS_Init(int handle_count, MpsLibWork* work) {
     }
 
     MPSLIB_libwork = work;
-    work_size = (handle_count - 1) << 8;
-    UTY_MemsetDword((unsigned int*)work, 0, (work_size + 0x110) >> 2);
+    work_size = sizeof(MpsLibWork) +
+                (handle_count - 1) * sizeof(MpsHandle);
+    UTY_MemsetDword((unsigned int*)work, 0,
+                    work_size / sizeof(unsigned int));
     libwork = MPSLIB_libwork;
     libwork->error_callback = 0;
     libwork->error_object = 0;

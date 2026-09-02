@@ -20,7 +20,7 @@ static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
 static inline void mpvdec_InitReader(MPVBitReader* reader,
                                      const u8* data, int extra_offset)
 {
-    const u32* aligned = (const u32*)((u32)data & ~3);
+    const u32* aligned = (const u32*)((unsigned long)data & ~3UL);
     int byte_offset = (data - (const u8*)aligned) * 8;
 
     reader->next_bits = aligned[1];
@@ -126,7 +126,7 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((u32)context->header_chunk.data & ~3);
+    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
     next_bits = aligned[1];
     words = aligned + 2;
@@ -257,7 +257,7 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
             aligned =
-                (const u32*)((u32)context->header_chunk.data & ~3);
+                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
             byte_offset =
                 (context->header_chunk.data - (const u8*)aligned) * 8;
             next_bits = aligned[1];
@@ -302,7 +302,7 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((u32)context->header_chunk.data & ~3);
+    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
     bits = aligned[0] << byte_offset;
     next_bits = aligned[1];
@@ -564,7 +564,7 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
             aligned =
-                (const u32*)((u32)context->header_chunk.data & ~3);
+                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
             byte_offset =
                 (context->header_chunk.data - (const u8*)aligned) * 8;
             bits = aligned[0] << byte_offset;
@@ -711,7 +711,7 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((u32)context->header_chunk.data & ~3);
+    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
     bits = aligned[0] << byte_offset;
     next_bits = aligned[1];
@@ -935,7 +935,7 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
             aligned =
-                (const u32*)((u32)context->header_chunk.data & ~3);
+                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
             byte_offset =
                 (context->header_chunk.data - (const u8*)aligned) * 8;
             bits = aligned[0] << byte_offset;
@@ -980,7 +980,7 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((u32)context->header_chunk.data & ~3);
+    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
     next_bits = aligned[1];
     words = aligned + 2;
@@ -1118,7 +1118,7 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
             aligned =
-                (const u32*)((u32)context->header_chunk.data & ~3);
+                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
             byte_offset =
                 (context->header_chunk.data - (const u8*)aligned) * 8;
             next_bits = aligned[1];

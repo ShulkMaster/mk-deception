@@ -11,11 +11,12 @@ typedef struct SfdTransportInterface SfdTransportInterface;
 typedef struct SfdTransportSetup SfdTransportSetup;
 typedef struct SfdVideoFrameState SfdVideoFrameState;
 typedef void (*SfdBufferHandleCallback)(SfdHandle* handle, int stream_index);
-typedef void (*SfdBufferObjectCallback)(int object, int stream_index);
+typedef void (*SfdBufferObjectCallback)(SfdCallbackObject object,
+                                        int stream_index);
 
 typedef struct SfdBufferChannel {
     SJ* stream_joint;
-    int object;
+    SfdCallbackObject object;
     SfdBufferHandleCallback handle_callback;
     SfdBufferObjectCallback object_callback;
 } SfdBufferChannel;
@@ -91,7 +92,8 @@ typedef union SfdBufferWork {
 
 typedef int (*SfdTransportLifecycleFn)(SfdHandle* handle);
 typedef int (*SfdTransportPauseFn)(SfdHandle* handle, int state);
-typedef int (*SfdTransportTransferFn)(SfdHandle* handle, int parameter,
+typedef int (*SfdTransportTransferFn)(SfdHandle* handle,
+                                      SfdTransportValue parameter,
                                       int value);
 typedef int (*SfdTransportBufferFn)(SfdHandle* handle, void* buffer);
 
@@ -225,8 +227,8 @@ struct SfdHandle {
     int field_094C;
     SfdPlaybackRuntime playback_runtime;
     SfdErrorInfo error_info;
-    int conditions_primary[100];
-    int conditions_secondary[100];
+    SfdConditionValue conditions_primary[100];
+    SfdConditionValue conditions_secondary[100];
     int field_0D24;
     SfdTimerState timer_state;
     SfdBufferState buffers[8];
@@ -287,7 +289,9 @@ int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned char* position, SfdPtsEntry* output);
 int SFPTS_WritePtsQue(SfdHandle* handle, int buffer_index,
                       const SfdPtsEntry* entry, int* full);
-void SFSET_SetCond(SfdHandle* handle, int condition, int value);
+void SFSET_SetCond(SfdHandle* handle, int condition,
+                   SfdConditionValue value);
+SfdConditionValue SFSET_GetCond(SfdHandle* handle, int condition);
 int SFBUF_GetTermFlg(SfdHandle* handle, int buffer_index);
 void SFBUF_SetTermFlg(SfdHandle* handle, int buffer_index, int terminated);
 int SFBUF_RingGetDataSiz(SfdHandle* handle, int buffer_index);
@@ -295,8 +299,14 @@ int SFBUF_GetWTot(SfdHandle* handle, int buffer_index);
 int SFBUF_GetRTot(SfdHandle* handle, int buffer_index);
 int SFBUF_GetPrepFlg(SfdHandle* handle, int buffer_index);
 void SFBUF_SetPrepFlg(SfdHandle* handle, int buffer_index, int prepared);
+int SFBUF_VfrmAddRead(SfdHandle* handle, int buffer_index,
+                      SfdTransportValue amount);
+int SFBUF_VfrmGetRead(SfdHandle* handle, int buffer_index, void* output);
+int SFBUF_SetSupplySj(SfdHandle* handle, const SfdBufferSupply* supply);
 void SFBUF_SetUoch(SfdHandle* handle, int buffer_index, int channel,
                    const SfdBufferChannel* config);
+void SFBUF_GetUoch(SfdHandle* handle, int buffer_index, int channel,
+                   SfdBufferChannel* output);
 int SFBUF_RingAddWrite(SfdHandle* handle, int buffer_index, int parameter,
                        int value);
 int SFBUF_RingGetWrite(SfdHandle* handle, int buffer_index, void* buffer);
@@ -330,7 +340,8 @@ void SFCON_UpdateConcatTime(SfdHandle* handle, int concat_time);
 int SFD_SetConcatPlay(SfdHandle* handle);
 int SFTRN_IsSetup(SfdHandle* handle, int transport_index);
 int SFTRN_CallTrtTrif(SfdHandle* handle, int transport_index,
-                      int callback_index, int parameter, int value);
+                      int callback_index, SfdTransportValue parameter,
+                      int value);
 int SFTRN_CallTrSetup(SfdHandle* handle, int callback_index);
 int SFTRN_InitHn(SfdHandle* handle, SfdTransportState* transports,
                  const SfdBufferCreateConfig* create,
@@ -340,7 +351,7 @@ int SFTRN_Init(SfdTransportRegistry* registry,
                const SfdTransportRegistry* source);
 
 int SFD_SetUsrSj(SfdHandle* handle, int channel, SJ* stream_joint,
-                 int object);
+                 SfdCallbackObject object);
 
 extern const SfdTransportInterface SFD_tr_in_mem;
 extern const SfdTransportInterface SFD_tr_uo;

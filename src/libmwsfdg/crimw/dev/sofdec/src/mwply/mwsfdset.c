@@ -1,4 +1,5 @@
 #include "cri/sj.h"
+#include "sofdec/sfd_player_types.h"
 
 typedef struct SfdHandle SfdHandle;
 typedef struct MwsStream MwsStream;
@@ -34,10 +35,12 @@ extern void MWSFRNA_SetOutVol(MwsPlayer* player, int volume);
 extern int MWSST_GetOutVol(MwsSound* sound);
 extern void MWSST_SetOutVol(MwsSound* sound, int volume);
 extern int SFD_GetTime(SfdHandle* handle, int* value, int* scale);
-extern void SFD_SetCond(SfdHandle* handle, int condition, int value);
+extern int SFD_SetCond(SfdHandle* handle, int condition,
+                       SfdConditionValue value);
 extern int SFD_GetHnStat(SfdHandle* handle);
 extern int SFD_SetAudioCh(SfdHandle* handle, int channel);
-extern void MWSTM_SetFlowLimit(MwsStream* stream, int limit);
+extern void MWSTM_SetFlowLimit(MwsStream* stream, int minimum_size,
+                               int maximum_size);
 extern void MWSFLSC_SetFlowLimit(MwsPlayer* player, int limit);
 
 static inline int mwsfd_IsEnabled(MwsPlayer* player)
@@ -195,9 +198,9 @@ int MWSFD_IsEnableHndl(MwsPlayer* player)
     return player->active;
 }
 
-void MWSFD_SetFlowLimit(MwsPlayer* player, int limit)
+void MWSFD_SetFlowLimit(MwsPlayer* player, int limit, int maximum_size)
 {
-    MWSTM_SetFlowLimit(player->stream, limit);
+    MWSTM_SetFlowLimit(player->stream, limit, maximum_size);
     MWSFLSC_SetFlowLimit(player, limit);
 }
 

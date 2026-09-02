@@ -58,7 +58,7 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
     s32 row;
     const u8* reference = context->reference0;
     u8* destination = context->destination;
-    u32 alignment = (u32)reference & 3;
+    u32 alignment = (unsigned long)reference & 3;
 
     reference -= alignment;
     switch (alignment) {
@@ -155,7 +155,7 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
     const u8* reference0 = context->reference0;
     const u8* reference1 = context->reference1;
     u8* destination = context->destination;
-    u32 alignment = (u32)reference0 & 3;
+    u32 alignment = (unsigned long)reference0 & 3;
 
     reference0 -= alignment;
     reference1 -= alignment;
@@ -262,7 +262,7 @@ void MPVMC16_OneRef1p_TuneC(MPVMCContext* context)
     s32 row;
     const u8* reference = context->reference0;
 
-    switch ((u32)reference & 7) {
+    switch ((unsigned long)reference & 7) {
     case 0: {
         const double* source = (const double*)reference;
         double* destination = (double*)context->destination;

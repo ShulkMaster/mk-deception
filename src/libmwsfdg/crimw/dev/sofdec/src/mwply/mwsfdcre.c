@@ -197,7 +197,7 @@ extern const SfdTransportInterface SFD_tr_vo_manu, SFD_tr_ao_auto_p;
 extern const SfdTransportInterface SFD_tr_uo;
 extern MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void);
 extern int MWSFLIB_SetErrCode(int);
-extern void MWSFLIB_SfdErrFunc(int, int);
+extern void MWSFLIB_SfdErrFunc(SfdCallbackObject, int);
 extern void MWSFSVM_Error(const char*, ...);
 extern int MWSFD_GetUsePicUsr(void);
 extern void MWSFPLY_SetFlowLimit(MwsPlayer*);
@@ -223,7 +223,8 @@ extern void LSC_Destroy(LSC*);
 extern void LSC_SetStmHndl(LSC*, void*);
 extern int SFD_SetPicUsrBuf(SfdHandle*, void*, int, int);
 extern int SFD_SetMpvCond(SfdHandle*, int, int);
-extern void SFD_SetMpvParaTbl(const int*, const int*, const int*, int, int, int);
+extern void SFD_SetMpvParaTbl(const int*, void* const*, void* const*, int, int,
+                              int);
 
 extern void mwSfdVsync(void);
 extern int mwSfdExecSvrHndl(MwsPlayer*);
@@ -686,7 +687,8 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
         MWSFSVM_Error(reset_stop_failed);
         return -1;
     }
-    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc, (int)player) != 0) {
+    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc,
+                     (SfdCallbackObject)player) != 0) {
         MWSFLIB_SetErrCode(-0x12F);
         MWSFSVM_Error(reset_error_callback_failed);
         return -1;
@@ -910,8 +912,8 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     create.video_output_format = output_format;
     create.handle_memory = decoder_work;
     create.handle_memory_size = 0x4000;
-    SFD_SetMpvParaTbl(mwsfd_mpvpara, (int*)&references,
-                       (int*)frame_buffers, 0x4000,
+    SFD_SetMpvParaTbl(mwsfd_mpvpara, references.buffers,
+                       frame_buffers, 0x4000,
                        buffers->video_input_buffer_size,
                        buffers->system_input_buffer_size);
     switch (file_type) {
@@ -925,7 +927,8 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         MWSFSVM_Error(sfd_create_error);
         return 0;
     }
-    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc, (int)player) != 0) {
+    if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc,
+                     (SfdCallbackObject)player) != 0) {
         MWSFLIB_SetErrCode(-0x12F);
         MWSFSVM_Error(sfd_error_callback_error);
         return 0;

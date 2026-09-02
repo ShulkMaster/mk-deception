@@ -56,10 +56,13 @@ static int SFUO_Destroy(SfdHandle* handle)
     return 0;
 }
 
+/* Soft ceiling: SFUO_Create ~86.70% -- the runtime-proven channels[] walk
+ * keeps a channel pointer; retail advances a packed owner-prefix cursor. */
 static int SFUO_Create(SfdHandle* handle)
 {
     int channel_index;
     SfdUserOutputWork* work;
+    SfdBufferChannel* channel;
     int buffer_index;
 
     work = &handle->user_output_work;
@@ -68,17 +71,15 @@ static int SFUO_Create(SfdHandle* handle)
     buffer_index =
         handle->transports[SFD_USER_OUTPUT_TRANSPORT].parameter_10;
     work->state = 0;
+    channel = work->channels;
     do {
-        work->channels[0].stream_joint = 0;
-        work->channels[0].object = 0;
-        work->channels[0].handle_callback = 0;
-        work->channels[0].object_callback = 0;
-        SFBUF_SetUoch(handle, buffer_index, channel_index,
-                      &work->channels[0]);
+        channel->stream_joint = 0;
+        channel->object = 0;
+        channel->handle_callback = 0;
+        channel->object_callback = 0;
+        SFBUF_SetUoch(handle, buffer_index, channel_index, channel);
         channel_index++;
-        /* Each packed channel begins one descriptor after the current view. */
-        work = (SfdUserOutputWork*)((unsigned char*)work +
-                                   sizeof(SfdBufferChannel));
+        channel++;
     } while (channel_index < SFD_USER_OUTPUT_CHANNEL_COUNT);
     return 0;
 }
@@ -111,7 +112,7 @@ static int SFUO_Init(SfdHandle* handle)
 }
 
 int SFD_SetUsrSj(SfdHandle* handle, int channel_index, SJ* stream_joint,
-                 int object)
+                 SfdCallbackObject object)
 {
     SfdUserOutputWork* work;
     int buffer_index;

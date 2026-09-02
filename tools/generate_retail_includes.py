@@ -314,6 +314,46 @@ def emit_fonts(elf: Elf32) -> dict[str, str]:
     return {"runtime/fonts_data.inc": "\n".join(lines) + "\n"}
 
 
+def emit_ai(elf: Elf32) -> dict[str, str]:
+    reaction_table = elf.symbol("big_boss_reaction_tbl")
+    state_weights = elf.symbol("g_likelihoodOfPCHRChangingState")
+    rodata = elf.section(".rodata")
+    data = elf.section(".data")
+    if (
+        reaction_table.size != 0x4E4
+        or reaction_table.section_index != rodata.index
+        or state_weights.size != 40 * 0x4C
+        or state_weights.section_index != data.index
+    ):
+        raise ValueError("ai.o: unexpected generated-data symbol layout")
+
+    reaction_values = words(elf.symbol_data(reaction_table.name))
+    reaction_lines = [
+        "/* Generated from retail ai.o big_boss_reaction_tbl. */",
+        u32_initializer(reaction_values),
+    ]
+
+    weight_values = words(elf.symbol_data(state_weights.name))
+    weight_lines = [
+        "/* Generated from retail ai.o g_likelihoodOfPCHRChangingState. */"
+    ]
+    for row in range(40):
+        record = weight_values[row * 19 : (row + 1) * 19]
+        weight_lines.append(f"    {{ 0x{record[0]:08X}, {{")
+        weight_lines.append(
+            "        { " + ", ".join(f"0x{x:08X}" for x in record[1:10]) + " },"
+        )
+        weight_lines.append(
+            "        { " + ", ".join(f"0x{x:08X}" for x in record[10:19]) + " }"
+        )
+        weight_lines.append("    } },")
+
+    return {
+        "src/game/ai_big_boss_reaction_table.inc": "\n".join(reaction_lines) + "\n",
+        "src/game/ai_pchr_state_weights.inc": "\n".join(weight_lines) + "\n",
+    }
+
+
 def emit_moves(elf: Elf32) -> dict[str, str]:
     data_section = elf.section(".data")
     start = elf.symbol("jump_table")
@@ -538,6 +578,7 @@ def atomic_write(path: Path, contents: str) -> None:
 def generate(object_root: Path) -> dict[str, str]:
     outputs: dict[str, str] = {}
     jobs = (
+        ("ai.o", emit_ai),
         ("nbc.o", emit_nbc),
         ("pselect.o", emit_pselect),
         ("fonts.o", emit_fonts),
@@ -554,8 +595,8 @@ def generate(object_root: Path) -> dict[str, str]:
             if relative in outputs:
                 raise ValueError(f"duplicate generated path: {relative}")
             outputs[relative] = contents
-    if len(outputs) != 10:
-        raise AssertionError(f"expected 10 generated includes, got {len(outputs)}")
+    if len(outputs) != 12:
+        raise AssertionError(f"expected 12 generated includes, got {len(outputs)}")
     return outputs
 
 

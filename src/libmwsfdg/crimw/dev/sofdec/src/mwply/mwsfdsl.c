@@ -35,8 +35,8 @@ typedef struct MwsPlayer {
 extern int MWSFD_IsEnableHndl(MwsPlayer* player);
 extern void MWSFSVM_Error(const char* message, ...);
 extern int SFD_SetConcatPlay(SfdHandle* handle);
-extern void LSC_SetFlowLimit(LSC* loader);
-extern int LSC_GetStat(void);
+extern void LSC_SetFlowLimit(LSC* loader, int minimum_buffer_size);
+extern int LSC_GetStat(LSC* loader);
 extern void LSC_Stop(LSC* loader);
 extern int LSC_EntryFname(LSC* loader, const char* filename);
 extern void LSC_SetLpFlg(LSC* loader, int loop);
@@ -105,16 +105,16 @@ void mwPlyLinkStm(MwsPlayer* player, int link)
     player->concat_play = link;
 }
 
-void MWSFLSC_SetFlowLimit(MwsPlayer* player)
+void MWSFLSC_SetFlowLimit(MwsPlayer* player, int minimum_buffer_size)
 {
     if (player->loader != 0) {
-        LSC_SetFlowLimit(player->loader);
+        LSC_SetFlowLimit(player->loader, minimum_buffer_size);
     }
 }
 
-int MWSFLSC_IsFsStatErr(void)
+int MWSFLSC_IsFsStatErr(LSC* loader)
 {
-    return LSC_GetStat() == 3;
+    return LSC_GetStat(loader) == 3;
 }
 
 static inline void mwPlyStartSeamless(MwsPlayer* player)

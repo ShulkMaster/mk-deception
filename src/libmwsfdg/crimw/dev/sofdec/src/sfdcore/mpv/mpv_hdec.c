@@ -98,7 +98,7 @@ static void mpvhdec_DecSlice(MPVContext* context, SJ* stream)
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    words = (const u32*)((u32)context->header_chunk.data & ~3);
+    words = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - (const u8*)words) * 8;
     first_bits = words[0] << bit_offset;
     next_bits = words[1];
@@ -293,7 +293,7 @@ static inline void mpvhdec_ConsumeDelim(MPVContext* context, SJ* stream)
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (u8*)((u32)context->header_chunk.data & ~3);
+    aligned = (u8*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - aligned) * 8;
     consumed = (aligned + ((bit_offset + 7) >> 3) + 4) -
                context->header_chunk.data;
@@ -438,7 +438,7 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
-    aligned = (const u32*)((u32)context->header_chunk.data & ~3);
+    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
     bits = aligned[1];
     if (bit_offset != 0) {
@@ -536,7 +536,7 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
-    aligned = (const u32*)((u32)context->header_chunk.data & ~3);
+    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
     bits = aligned[1];
     if (bit_offset != 0) {
@@ -616,7 +616,7 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
 
-    aligned = (const u32*)((u32)context->header_chunk.data & ~3);
+    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
     bits = aligned[1];
     if (bit_offset != 0) {
@@ -784,7 +784,7 @@ int MPV_DecodePicAtrSj(MPVContext* context, SJ* stream)
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
             mpvhdec_AnalyUd(
                 context, context->header_chunk.data, context->header_chunk.len);
-            aligned = (u8*)((u32)context->header_chunk.data & ~3);
+            aligned = (u8*)((unsigned long)context->header_chunk.data & ~3UL);
             bit_offset = (context->header_chunk.data - aligned) * 8;
             consumed = (aligned + ((bit_offset + 7) >> 3) + 4) -
                        context->header_chunk.data;

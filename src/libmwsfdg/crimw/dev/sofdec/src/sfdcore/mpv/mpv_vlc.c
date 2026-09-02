@@ -311,7 +311,7 @@ static signed short* mpvvlc_InitCbpSub2(signed short* output)
     mpvvlc_fill_s16(output, 4, 0x4907); output += 4;
     mpvvlc_fill_s16(output, 4, 0x4507); output += 4;
     mpvvlc_fill_s16(output, 8, 0xFF06); output += 8;
-    mpvvlc_fill_s16(output, 8, 0xC406); output += 8;
+    mpvvlc_fill_s16(output, 8, 0xC306); output += 8;
     mpvvlc_fill_s16(output, 8, 0x2406); output += 8;
     mpvvlc_fill_s16(output, 8, 0x1806); output += 8;
     mpvvlc_fill_s16(output, 16, 0xBE05); output += 16;

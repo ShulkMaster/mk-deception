@@ -37,7 +37,7 @@ void SFD_RelFrm(SfdHandle* handle, void* frame)
         return;
     }
     handle->playback_runtime.frame_outstanding = 0;
-    SFTRN_CallTrtTrif(handle, 6, 12, (int)frame, 0);
+    SFTRN_CallTrtTrif(handle, 6, 12, (SfdTransportValue)frame, 0);
 }
 
 int SFD_GetFrm(SfdHandle* handle, void** frame)
@@ -48,7 +48,8 @@ int SFD_GetFrm(SfdHandle* handle, void** frame)
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000136);
     }
-    result = SFTRN_CallTrtTrif(handle, 6, 11, (int)frame, 0);
+    result = SFTRN_CallTrtTrif(handle, 6, 11,
+                               (SfdTransportValue)frame, 0);
     if (*frame != 0) {
         handle->playback_runtime.frame_outstanding = 1;
     }
@@ -87,7 +88,7 @@ static int sfply_ResetHn(SfdHandle* handle)
     SfdHandle* new_handle;
     SfdHandle* seek_source;
     SfdMpvSavedConditions saved_conditions;
-    SfdTimerCallback user_is_skip_callback;
+    SfdUserIsSkipFn user_is_skip_callback;
     SfdTimeSourceFn user_time_callback;
     int byte_rate;
     int error;
@@ -115,7 +116,8 @@ static int sfply_ResetHn(SfdHandle* handle)
         if (SFLIB_CheckHn(handle) != 0) {
             SFLIB_SetErr(0, 0xFF000134);
         } else {
-            SFTRN_CallTrtTrif(handle, 0, 9, (int)&supply, 0);
+            SFTRN_CallTrtTrif(handle, 0, 9,
+                              (SfdTransportValue)&supply, 0);
         }
         old_supply_end = supply.field_14;
     }
@@ -170,7 +172,8 @@ static int sfply_ResetHn(SfdHandle* handle)
         if (SFLIB_CheckHn(new_handle) != 0) {
             error = SFLIB_SetErr(0, 0xFF000134);
         } else {
-            error = SFTRN_CallTrtTrif(new_handle, 0, 9, (int)&supply, 0);
+            error = SFTRN_CallTrtTrif(new_handle, 0, 9,
+                                      (SfdTransportValue)&supply, 0);
         }
         if (error != 0) {
             return error;
@@ -363,11 +366,11 @@ static SfdHandle* sfply_InitHn(SfdCreateConfig* create,
     }
     sfply_last_hnctrl_wksiz = work_size;
     UTY_MemsetDword((unsigned int*)work, 0, work_words);
-    handle = (SfdHandle*)(((unsigned int)work + 0x1F) & ~0x1FU);
+    handle = (SfdHandle*)(((unsigned long)work + 0x1F) & ~0x1FUL);
     handle->requested_state = 0;
     handle->playback_state = 0;
     create->buffer.memory = (unsigned char*)
-        (((unsigned int)create->buffer.memory + 0x1F) & ~0x1FU);
+        (((unsigned long)create->buffer.memory + 0x1F) & ~0x1FUL);
     handle->create_config = *create;
     handle->field_0044 = 1;
     handle->field_0050 = 0;

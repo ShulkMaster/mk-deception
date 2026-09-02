@@ -85,7 +85,7 @@ void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
 void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
 {
     int row;
-    int alignment = (u32)context->reference0 & 3;
+    int alignment = (unsigned long)context->reference0 & 3;
     u32 stride = context->reference_stride;
     u8* destination = context->destination;
     const u8* reference = context->reference0;
@@ -140,7 +140,7 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
 void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
 {
     int row;
-    int alignment = (u32)context->reference0 & 3;
+    int alignment = (unsigned long)context->reference0 & 3;
     u32 stride = context->reference_stride;
     u8* destination = context->destination;
     const u8* reference0 = context->reference0 - alignment;
@@ -215,7 +215,7 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext* context)
 void MPVMC08_OneRef1p_TuneC(MPVMCContext* context)
 {
     int row;
-    int alignment = (u32)context->reference0 & 7;
+    int alignment = (unsigned long)context->reference0 & 7;
     u32 stride = context->reference_stride;
     const u8* reference = context->reference0;
     u8* destination = context->destination;

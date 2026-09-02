@@ -64,7 +64,8 @@ typedef struct SfhdsSfhLibraryWork {
     int reserved;
 } SfhdsSfhLibraryWork;
 
-typedef void (*SfhdsHeaderCallback)(int object, const void* data, int size);
+typedef void (*SfhdsHeaderCallback)(SfdCallbackObject object,
+                                    const void* data, int size);
 
 typedef char SfhdsProcessedHeaderSizeCheck[
     sizeof(SfhdsProcessedHeader) == 0x94 ? 1 : -1];
@@ -389,7 +390,7 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
 {
     SfhdsHeaderCallback callback =
         (SfhdsHeaderCallback)SFSET_GetCond(handle, 0x4B);
-    int callback_object = SFSET_GetCond(handle, 0x4C);
+    SfdCallbackObject callback_object = SFSET_GetCond(handle, 0x4C);
     SfhdsHeaderBlock* block;
     SfhdsHeaderBlock* seek_header;
     int copy_size;

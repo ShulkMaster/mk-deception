@@ -63,7 +63,6 @@ typedef char SfdSeeTimingSizeCheck[
     sizeof(SfdSeeTiming) == 0xC0 ? 1 : -1];
 
 extern int SFHDS_GetMuxVerNum(SfdHandle* handle);
-extern int SFSET_GetCond(SfdHandle* handle, int condition);
 
 static inline SfdSeeSeekSource* sfsee_GetSource(SfdHandle* handle)
 {
