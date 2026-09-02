@@ -2,11 +2,11 @@
 #define MKD_SOFDEC_SFD_ERROR_H
 
 #include "sofdec/sfd_player_types.h"
-typedef void (*SfdErrorCallback)(int object, int error);
+typedef void (*SfdErrorCallback)(SfdCallbackObject object, int error);
 
 typedef struct SfdErrorInfo {
     SfdErrorCallback callback;
-    int callback_object;
+    SfdCallbackObject callback_object;
     int first_error;
     int field_0C;
     int field_10;
@@ -18,7 +18,8 @@ typedef char SfdErrorInfoSizeCheck[
 void SFLIB_InitErrInf(SfdErrorInfo* info);
 int SFLIB_CheckHn(SfdHandle* handle);
 int SFLIB_SetErr(SfdHandle* handle, int error);
-int SFD_SetErrFn(SfdHandle* handle, SfdErrorCallback callback, int object);
+int SFD_SetErrFn(SfdHandle* handle, SfdErrorCallback callback,
+                 SfdCallbackObject object);
 void SFLIB_LockCs(int* token);
 void SFLIB_UnlockCs(int* token);
 

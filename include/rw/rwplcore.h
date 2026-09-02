@@ -6,7 +6,9 @@ typedef union RwSplitBits {
     volatile int nInt;
     volatile unsigned int nUInt;
 } RwSplitBits;
+#ifndef NULL
 #define NULL 0
+#endif
 typedef struct RwModuleInfo { int globalsOffset; int numInstances; } RwModuleInfo;
 typedef struct RwV2d { float x; float y; } RwV2d;
 typedef struct RwV3d { float x; float y; float z; } RwV3d;

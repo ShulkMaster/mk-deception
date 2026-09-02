@@ -1799,7 +1799,7 @@ int wall_eligible_off(void);
 int wall_eligible_on(void);
 int weapon_trail_off(void);
 int weapon_trail_on(void);
-int whoosh_fx(int);
+void whoosh_fx(int);
 
 /* Typed declarations used by imported script wrappers. */
 int add_days_to_time(int, int);

@@ -171,7 +171,7 @@ static int SFMPS_Destroy(SfdHandle* handle)
     return 0;
 }
 
-static void sfmps_ErrFn(int object, int error)
+static void sfmps_ErrFn(MpsCallbackObject object, int error)
 {
     SFLIB_SetErr((SfdHandle*)object, error);
 }
@@ -207,7 +207,7 @@ static int SFMPS_Create(SfdHandle* handle)
     if (decoder == 0) {
         return SFLIB_SetErr(0, 0xFF000D08);
     }
-    if (MPS_SetErrFn(decoder, sfmps_ErrFn, (int)handle) != 0) {
+    if (MPS_SetErrFn(decoder, sfmps_ErrFn, (MpsCallbackObject)handle) != 0) {
         MPS_Destroy(decoder);
         return SFLIB_SetErr(0, 0xFF000D09);
     }

@@ -31,7 +31,8 @@ void SFTRN_SetPrepFlg(SfdHandle* handle, int transport_index, int prepared)
 }
 
 int SFTRN_CallTrtTrif(SfdHandle* handle, int transport_index,
-                      int callback_index, int parameter, int value)
+                      int callback_index, SfdTransportValue parameter,
+                      int value)
 {
     const SfdTransportInterface* interface;
     SfdTransportRawCallback callback;

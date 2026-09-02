@@ -95,7 +95,8 @@ void SFBUF_SetPrepFlg(SfdHandle* handle, int buffer_index, int prepared)
     handle->buffers[buffer_index].prepared = prepared;
 }
 
-int SFBUF_VfrmAddRead(SfdHandle* handle, int buffer_index, int amount)
+int SFBUF_VfrmAddRead(SfdHandle* handle, int buffer_index,
+                      SfdTransportValue amount)
 {
     SfdBufferState* buffer = &handle->buffers[buffer_index];
     int result = 0;
@@ -112,7 +113,7 @@ int SFBUF_VfrmGetRead(SfdHandle* handle, int buffer_index, void* output)
     SfdBufferState* buffer = &handle->buffers[buffer_index];
     if (buffer->active == 0) {
         return SFTRN_CallTrtTrif(handle, buffer->input_transport, 11,
-                                (int)output, 0);
+                                (SfdTransportValue)output, 0);
     }
     return 0;
 }

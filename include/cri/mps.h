@@ -1,6 +1,8 @@
 #ifndef CRI_MPS_H
 #define CRI_MPS_H
 
+typedef int MpsCallbackObject;
+
 typedef struct MpsPackHeader {
     long long scr;
     int is_mpeg1;
@@ -31,8 +33,9 @@ typedef struct MpsPacketHeader {
 
 struct MpsHandle;
 
-typedef void (*MpsErrorCallback)(int object, int error);
-typedef void (*MpsPesCallback)(int object, unsigned char stream_id);
+typedef void (*MpsErrorCallback)(MpsCallbackObject object, int error);
+typedef void (*MpsPesCallback)(MpsCallbackObject object,
+                               unsigned char stream_id);
 
 typedef struct MpsSystemStream {
     unsigned char stream_id;
@@ -54,7 +57,8 @@ typedef struct MpsSystemCallbackInfo {
     MpsSystemStream streams[50];
 } MpsSystemCallbackInfo;
 
-typedef void (*MpsSystemCallback)(int object, MpsSystemCallbackInfo* info);
+typedef void (*MpsSystemCallback)(MpsCallbackObject object,
+                                  MpsSystemCallbackInfo* info);
 typedef void (*MpsPsMapCallback)(void);
 typedef int (*MpsDecodeHeaderFn)(struct MpsHandle* handle, const unsigned char* data,
                                  int size, int* consumed, int* header_flags);
@@ -79,7 +83,7 @@ typedef union MpsHandlePayload {
 typedef struct MpsHandle {
     int state;
     MpsErrorCallback error_callback;
-    int error_object;
+    MpsCallbackObject error_object;
     int error;
     int packet_length_bytes;
     int field_14;
@@ -90,17 +94,17 @@ typedef struct MpsHandle {
     int field_DC;
     int field_E0;
     MpsSystemCallback system_callback;
-    int system_object;
+    MpsCallbackObject system_object;
     MpsPsMapCallback ps_map_callback;
-    int ps_map_object;
+    MpsCallbackObject ps_map_object;
     MpsPesCallback pes_callback;
-    int pes_object;
+    MpsCallbackObject pes_object;
     int field_FC;
 } MpsHandle;
 
 typedef struct MpsLibWork {
     MpsErrorCallback error_callback;
-    int error_object;
+    MpsCallbackObject error_object;
     int error;
     int handle_count;
     MpsHandle handles[1];
@@ -139,12 +143,16 @@ int MPSLIB_CheckHn(MpsHandle* handle);
 int MPSLIB_SetErr(MpsHandle* handle, int error);
 int MPS_Destroy(MpsHandle* handle);
 MpsHandle* MPS_Create(void);
-int MPS_SetErrFn(MpsHandle* handle, MpsErrorCallback callback, int object);
+int MPS_SetErrFn(MpsHandle* handle, MpsErrorCallback callback,
+                 MpsCallbackObject object);
 int MPS_DecHd(MpsHandle* handle, const unsigned char* data, int size,
               int* consumed, int* header_flags);
-int MPS_SetPesFn(MpsHandle* handle, MpsPesCallback callback, int object);
-int MPS_SetPsMapFn(MpsHandle* handle, MpsPsMapCallback callback, int object);
-int MPS_SetSystemFn(MpsHandle* handle, MpsSystemCallback callback, int object);
+int MPS_SetPesFn(MpsHandle* handle, MpsPesCallback callback,
+                 MpsCallbackObject object);
+int MPS_SetPsMapFn(MpsHandle* handle, MpsPsMapCallback callback,
+                   MpsCallbackObject object);
+int MPS_SetSystemFn(MpsHandle* handle, MpsSystemCallback callback,
+                    MpsCallbackObject object);
 void MPS_Finish(void);
 int MPS_Init(int handle_count, MpsLibWork* work);
 

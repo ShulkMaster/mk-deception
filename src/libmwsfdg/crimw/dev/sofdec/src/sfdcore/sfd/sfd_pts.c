@@ -115,7 +115,7 @@ int SFD_SetVideoPts(SfdHandle* handle, void* memory, int size)
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000165);
     }
-    aligned = (unsigned char*)(((unsigned int)memory + 7) & ~7);
+    aligned = (unsigned char*)(((unsigned long)memory + 7) & ~7UL);
     aligned_size = size - (aligned - (unsigned char*)memory);
     memset(aligned, 0, aligned_size);
     queue = &handle->buffers[1].work.ring.pts_queue;

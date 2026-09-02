@@ -1,4 +1,5 @@
 #include "sofdec/sfd_error.h"
+#include "sofdec/sfd_player.h"
 #include "sofdec/sfd_timer.h"
 #include "sofdec/sfd_transport.h"
 
