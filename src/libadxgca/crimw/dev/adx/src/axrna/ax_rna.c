@@ -20,10 +20,10 @@ typedef struct AXRNAHandle {
     int play_position;
     AXVPB* voices[AXRNA_MAX_CHANNELS];
     RNAResource* resources[AXRNA_MAX_CHANNELS];
-    unsigned long aram_addresses[AXRNA_MAX_CHANNELS];
+    u32 aram_addresses[AXRNA_MAX_CHANNELS];
     int buffer_size;
     int sample_rate;
-    unsigned long request_owners[AXRNA_MAX_CHANNELS];
+    u32 request_owners[AXRNA_MAX_CHANNELS];
     SJ* inputs[AXRNA_MAX_CHANNELS];
     SJ* buffers[AXRNA_MAX_CHANNELS];
     SJCK input_chunks[AXRNA_MAX_CHANNELS];
@@ -56,8 +56,8 @@ void RNAERR_CallErrFunc(const char* message);
 void RNAERR_EntryErrFunc(RNAErrorCallback callback, void* object);
 RNAResource* RNARES_Create(void);
 void RNARES_Destroy(RNAResource* resource);
-unsigned long RNARES_GetBuf(RNAResource* resource);
-unsigned long RNARES_GetBufSize(RNAResource* resource);
+u32 RNARES_GetBuf(RNAResource* resource);
+u32 RNARES_GetBufSize(RNAResource* resource);
 void RNARES_Init(const char* build);
 void RNARES_Finish(void);
 void AXRNA_ExecHndl(AXRNAHandle* handle);
@@ -86,7 +86,7 @@ int axrna_pan_tbl[31] = {
     68, 72, 76, 81, 85, 89, 93, 98, 102, 106, 110, 115, 119, 123, 127,
 };
 
-unsigned long axrna_init_cnt;
+u32 axrna_init_cnt;
 unsigned char* axrna_zero_dat;
 int axrna_def_adjsfreq_fg;
 int axrna_foo_cnt;
@@ -111,10 +111,10 @@ static inline int axrna_get_transfer_switch(const AXRNAHandle* handle)
     return handle->switches & 1;
 }
 
-static inline unsigned long axrna_get_voice_address(const AXVPB* voice)
+static inline u32 axrna_get_voice_address(const AXVPB* voice)
 {
     /* The SDK ABI stores this 32-bit DSP address as two adjacent halfwords. */
-    return *(const unsigned long*)&voice->pb.addr.currentAddressHi;
+    return *(const u32*)&voice->pb.addr.currentAddressHi;
 }
 
 static inline void axrna_set_source_type(AXRNAHandle* handle, int source_type)
@@ -133,7 +133,7 @@ static inline void axrna_wait(int count)
     }
 }
 
-void AXRNA_SetAdjsfreqFlg(AXRNAHandle* handle, short enabled)
+void AXRNA_SetAdjsfreqFlg(AXRNAHandle* handle, int enabled)
 {
     if (handle != 0) {
         handle->adjust_sample_rate = enabled;
@@ -472,8 +472,8 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
 {
     AXPBADDR address;
     int channel;
-    unsigned long start;
-    unsigned long end;
+    u32 start;
+    u32 end;
 
     if (handle == 0 || enabled == axrna_get_play_switch(handle)) {
         return;

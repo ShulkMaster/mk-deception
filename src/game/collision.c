@@ -3346,12 +3346,13 @@ static int test_collision_vs_obstacles(
     return result;
 }
 
-int get_shape_center_for_collision_obstacle(CollisionObstacle* obstacle) {
+int get_shape_center_for_collision_obstacle(
+    CollisionObj* obstacle, Vec* center) {
     if (obstacle == 0) {
         return 0;
     }
 
-    get_center_for_shape(&obstacle->shape, &obstacle->center);
+    get_center_for_shape(&obstacle->shape, center);
     return 1;
 }
 

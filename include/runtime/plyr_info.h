@@ -188,8 +188,10 @@ typedef struct MoveTableContainer {
 } MoveTableContainer;
 
 typedef struct FighterAiMoveRow {
-    int move_id;
-    char pad04[0x3C];
+    union {
+        int move_id;
+        int commands[16];
+    };
 } FighterAiMoveRow; /* 0x40 */
 
 typedef struct FighterAiTable {

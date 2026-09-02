@@ -1,4 +1,5 @@
 #include "game/game_info.h"
+#include "game/ai.h"
 #include "game/bgnd.h"
 #include "game/cloth.h"
 #include "game/moveset.h"
@@ -114,7 +115,6 @@ extern void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 extern void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
 extern MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition);
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
-extern void generate_ai_table_moveset(void* moveset);
 extern char p1_profile[];
 extern char p2_profile[];
 extern int is_mark_as_unlocked(void* profile, int mark);
@@ -136,7 +136,6 @@ extern void advance_active_moveset(PlyrPdata* pdata);
 extern void load_player_fstyle_signs(PlyrPdata* pdata);
 extern MkFileEntry misc_anims_list_file_table[5];
 extern MkFileInfo cmo_script_reactions;
-extern void generate_ai_table_player(FighterMirror* player);
 extern int build_bones_tbl(MkObj* object, const int* tags);
 extern void limb_sever_hide_z_meat_chunks_all(MkObj* object);
 extern void plyr_obj_load_bld_data(
@@ -2402,7 +2401,7 @@ void create_player(int player_index, PlyrInfo* player) {
             pdata->runtime_data =
                 (FighterRuntimeData*)get_data_table(
                     pdata->cmo, pdata->cmo->table_count);
-            generate_ai_table_player((FighterMirror*)pdata);
+            generate_ai_table_player(pdata);
             loaded = 1;
         }
     }

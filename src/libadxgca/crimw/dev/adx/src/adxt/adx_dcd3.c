@@ -1,1 +1,1 @@
-/* TODO: Missing implementation for retail unit adx_dcd3.c. */
+int adx_decode_output_mono_flag;

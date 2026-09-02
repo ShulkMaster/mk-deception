@@ -63,12 +63,6 @@ typedef struct CollisionShape {
     char data84[0x0C];
 } CollisionShape; /* 0x90 */
 
-typedef struct CollisionObstacle {
-    Vec center; /* +0x00 - cached by get_shape_center_for_collision_obstacle */
-    char pad0C[4];
-    CollisionShape shape; /* +0x10 */
-} CollisionObstacle;
-
 typedef struct CollisionObjList {
     MkHdr hdr;
     MkPtr* objects; /* +0x08 */
@@ -101,6 +95,8 @@ void build_col_shape_vertical_box(
     CollisionShape* shape, const Vec* center, float width, float height,
     float depth, float angle);
 int is_point_inside_shape(const CollisionShape* shape, const Vec* point);
+int get_shape_center_for_collision_obstacle(
+    CollisionObj* obstacle, Vec* center);
 int collide_segment_against_global_collision_list(
     const Vec* start, const Vec* end, Vec* hit_point,
     unsigned int ignored_flags);

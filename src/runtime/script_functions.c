@@ -1497,7 +1497,7 @@ int display_konquest_title(void);
 int display_time_progression_images(int);
 int dk_taunt_at_screen(void);
 void dont_fence_plyr_in(int);
-int drone_ai_increase_big_boss_stage(int);
+void drone_ai_increase_big_boss_stage(PlyrPdata* victim);
 int drone_dispatch_switches(int);
 int drone_face_monk(void);
 int drone_set_difficulty_level(int);
@@ -10017,7 +10017,7 @@ void _drone_ai_increase_big_boss_stage(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    drone_ai_increase_big_boss_stage(args.raw->slots[0].i);
+    drone_ai_increase_big_boss_stage(args.plyr_pdata->player);
 }
 
 void _pz_finish_him_request(void) {

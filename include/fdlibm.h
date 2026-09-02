@@ -38,7 +38,9 @@ extern "C" {
 
 // TODO: should __STDC__ actually be defined?
 //#ifdef __STDC__
+#ifndef __P
 #define __P(p) p
+#endif
 //#else
 //#define __P(p) ()
 //#endif

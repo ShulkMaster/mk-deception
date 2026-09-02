@@ -197,6 +197,8 @@ retail_include_outputs = [
     retail_include_dir / "game" / "nbc_stringBase0.inc",
     retail_include_dir / "game" / "pselect_stringBase0.inc",
     retail_include_dir / "runtime" / "fonts_data.inc",
+    retail_include_dir / "src" / "game" / "ai_big_boss_reaction_table.inc",
+    retail_include_dir / "src" / "game" / "ai_pchr_state_weights.inc",
     retail_include_dir / "src" / "game" / "moves_scan_tables.inc",
     retail_include_dir / "src" / "game" / "reactions_table.inc",
     retail_include_dir / "src" / "game" / "reactions_table_prototypes.inc",
@@ -207,6 +209,7 @@ retail_include_outputs = [
 retail_include_inputs = [
     Path("build") / config.version / "obj" / name
     for name in [
+        "ai.o",
         "fonts.o",
         "gxMath.o",
         "moves.o",
@@ -1087,7 +1090,8 @@ config.libs = [
             Object(NonMatching, "constrain.o", source="game/constrain.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "ai.o", source="game/ai.c",
-                   extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly"]),
+                   extra_cflags=["-use_lmw_stmw on", "-O4,s",
+                                 "-str reuse,pool,readonly"]),
             Object(NonMatching, "jmt.o", source="game/jmt.c",
                    extra_cflags=["-use_lmw_stmw on"]),
             Object(NonMatching, "projectile.o", source="game/projectile.c"),
@@ -1409,6 +1413,12 @@ config.libs = [
                     "-use_lmw_stmw",
                     "on",
                 ],
+            ),
+            Object(
+                Matching,
+                "libadxgca.a//crimw/dev/adx/src/adxt/adx_dcd3.o",
+                source="libadxgca/crimw/dev/adx/src/adxt/adx_dcd3.c",
+                extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
                 NonMatching,

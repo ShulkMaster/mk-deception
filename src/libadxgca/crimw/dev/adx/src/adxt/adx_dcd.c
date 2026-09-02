@@ -1,19 +1,20 @@
 #include "cri/adx_dcd.h"
+#include "dolphin/types.h"
 #include "fdlibm.h"
 #include "runtime/cstring.h"
 
 typedef union AdxFloatRepresentation {
     float value;
-    unsigned long bits;
+    u32 bits;
 } AdxFloatRepresentation;
 
-extern unsigned long __float_nan[];
+extern u32 __float_nan[];
 extern double __frsqrte(double value);
 
 static inline int classify_float(float value)
 {
     AdxFloatRepresentation representation;
-    unsigned long bits;
+    u32 bits;
 
     representation.value = value;
     bits = representation.bits;

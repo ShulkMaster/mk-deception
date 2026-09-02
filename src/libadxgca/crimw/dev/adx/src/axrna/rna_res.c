@@ -1,27 +1,28 @@
 #include "dolphin/ar.h"
+#include "dolphin/types.h"
 #include "runtime/cstring.h"
 
 typedef struct RNAResource {
     int used;
-    unsigned long buffer;
-    unsigned long size;
+    u32 buffer;
+    u32 size;
 } RNAResource;
 
 void RNAERR_CallErrFunc(const char* message);
 
-unsigned long rnares_init_cnt = 0;
-unsigned long rnares_setup_fg = 0;
-unsigned long rnares_nbuf = 0;
-unsigned long rnares_aram_size = 0;
-unsigned long rnares_aram_ptr = 0;
+u32 rnares_init_cnt = 0;
+u32 rnares_setup_fg = 0;
+u32 rnares_nbuf = 0;
+u32 rnares_aram_size = 0;
+u32 rnares_aram_ptr = 0;
 RNAResource rnares_obj[32];
 
-unsigned long RNARES_GetBufSize(RNAResource* resource)
+u32 RNARES_GetBufSize(RNAResource* resource)
 {
     return resource == 0 ? 0 : resource->size;
 }
 
-unsigned long RNARES_GetBuf(RNAResource* resource)
+u32 RNARES_GetBuf(RNAResource* resource)
 {
     return resource == 0 ? 0 : resource->buffer;
 }
@@ -55,7 +56,7 @@ RNAResource* RNARES_Create(void)
 void RNARES_Finish(void)
 {
     int i;
-    unsigned long freed;
+    u32 freed;
 
     rnares_init_cnt--;
     if (rnares_init_cnt == 0) {
@@ -80,11 +81,13 @@ void RNARES_Finish(void)
 
 /* Soft ceiling: RNARES_Init has the retail pool construction and unrolled
  * layout; residue is register allocation plus one retail-only `mr`. */
-void RNARES_Init(void)
+void RNARES_Init(const char* build)
 {
-    unsigned long i;
-    unsigned long offset;
+    u32 i;
+    u32 offset;
     RNAResource* resource;
+
+    (void)build;
 
     if (rnares_init_cnt == 0) {
         if (rnares_setup_fg == 0) {

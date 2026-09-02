@@ -1,4 +1,5 @@
 #include "cri/adx_dcd.h"
+#include "cri/adxt_internal.h"
 #include "cri/sj.h"
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
@@ -22,73 +23,8 @@ enum {
     ADXT_MIN_PLAY_DATA = 0x40
 };
 
-typedef struct AdxSjdHandle AdxSjdHandle;
-typedef struct ADXStream ADXStream;
-typedef struct AXRNAHandle AXRNAHandle;
-typedef struct LSCObject LSCObject;
-typedef struct ADX_AMP ADX_AMP;
-typedef struct ADXTHandle ADXTHandle;
-
 typedef void (*AdxtEndDecodeInfoCallback)(
     ADXTHandle* handle, s32 sample_rate, s32 channels, s32 total_samples);
-
-struct ADXTHandle {
-    s8 used;
-    s8 status;
-    s8 stream_type;
-    s8 maximum_channels;
-    AdxSjdHandle* decoder;
-    ADXStream* stream;
-    AXRNAHandle* rna;
-    SJ* stream_sj;
-    SJ* input_sj;
-    SJ* output_sj[2];
-    u8 reserved_20[0x18];
-    s32 server_frequency;
-    s16 stream_buffer_sectors;
-    s16 minimum_buffer_sectors;
-    s16 output_volume;
-    s16 output_pan[2];
-    s16 field_46;
-    s32 maximum_decode_samples;
-    s32 loop_count;
-    s32 link_data_length;
-    s32 field_54;
-    s32 field_58;
-    s32 field_5C;
-    s16 error_code;
-    u8 reserved_62[2];
-    s32 field_64;
-    s16 field_68;
-    s16 field_6A;
-    s8 stream_loop_enabled;
-    s8 field_6D;
-    u8 reserved_6E[2];
-    s8 suppress_playback;
-    s8 decoder_ready;
-    s8 field_72;
-    u8 reserved_73;
-    ADX_AMP* amplifier;
-    u8 reserved_78[0x10];
-    s32 field_88;
-    s32 eos_sector;
-    s32 loop_sample_count;
-    LSCObject* linked_stream_controller;
-    s8 link_enabled;
-    u8 reserved_99[3];
-    s32 elapsed_vsync;
-    s32 playback_start_vsync;
-    s32 linked_decoded_samples;
-    s8 pending_stream_start;
-    u8 reserved_A9[3];
-    s32 field_AC;
-    const char* pending_filename;
-    void* pending_directory;
-    s32 pending_file_offset;
-    s32 pending_file_sectors;
-};
-
-typedef char ADXTHandleSizeCheck[sizeof(ADXTHandle) == 0xC0 ? 1 : -1];
 
 extern s32 adxt_vsync_cnt;
 
@@ -218,9 +154,9 @@ void ADXT_ExecHndl(ADXTHandle* handle)
             buffer_room <= ADXSJD_GetBlkSmpl(handle->decoder) ||
             ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
             if (handle->suppress_playback == 0) {
-                if (handle->field_72 == 0) {
+                if (handle->paused == 0) {
                     ADXRNA_SetPlaySw(handle->rna, 1);
-                    handle->elapsed_vsync = 0;
+                    handle->playback_time = 0;
                     handle->playback_start_vsync = adxt_vsync_cnt;
                 }
                 handle->status = ADXT_STATUS_PLAYING;
