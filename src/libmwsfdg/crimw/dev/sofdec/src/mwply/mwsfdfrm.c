@@ -101,7 +101,7 @@ extern void SFD_RelFrm(SfdHandle* handle, void* frame);
 extern int SFD_SetCond(SfdHandle* handle, int condition,
                        SfdConditionValue value);
 extern void MWSFSFX_SetColAdj(MwsPlayer* player, int adjustment);
-extern void SFD_CalcYccPlane(int width, int height, int format,
+extern void SFD_CalcYccPlane(void* buffer, int width, int height,
                             SfdCalculatedPlane* plane);
 extern void* SFH_Create(const void* data, int size);
 extern void SFH_Destroy(void* header);
@@ -301,12 +301,12 @@ void mwPlyRelCurFrm(MwsPlayer* player)
     }
 }
 
-void mwPlyCalcYccPlane(int width, int height, int format,
+void mwPlyCalcYccPlane(void* buffer, int width, int height,
                        MwsYccPlane* output)
 {
     SfdCalculatedPlane plane;
 
-    SFD_CalcYccPlane(width, height, format, &plane);
+    SFD_CalcYccPlane(buffer, width, height, &plane);
     output->y = plane.y;
     output->cb = plane.cb;
     output->cr = plane.cr;
