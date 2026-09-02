@@ -1,10 +1,6 @@
+#include "cri/adxt_internal.h"
 #include "cri/sj.h"
 #include "runtime/cstring.h"
-
-typedef struct AdxtHandlePrefix {
-    unsigned char reserved_00[0x14];
-    SJ* stream;
-} AdxtHandlePrefix;
 
 typedef struct AdxSjeHandle AdxSjeHandle;
 
@@ -21,7 +17,7 @@ extern void ADXSJE_ExecServer(void);
 unsigned char adxt_dmybuf[0x40];
 unsigned char adxt_hdbuf[0x400];
 
-void ADXT_InsertHdrSfa(AdxtHandlePrefix* decoder, int channels,
+void ADXT_InsertHdrSfa(ADXTHandle* decoder, int channels,
                        int sample_rate, int sample_count)
 {
     SJCK destination;
@@ -35,7 +31,7 @@ void ADXT_InsertHdrSfa(AdxtHandlePrefix* decoder, int channels,
     header_stream = SJRBF_Create(adxt_hdbuf, sizeof(adxt_hdbuf), 0);
     inputs[0] = SJMEM_Create(adxt_dmybuf, 0x20);
     inputs[1] = SJMEM_Create(adxt_dmybuf + 0x20, 0x20);
-    destination_stream = decoder->stream;
+    destination_stream = decoder->input_sj;
     encoder = ADXSJE_Create(2, inputs, header_stream);
     ADXSJE_SetConfigSfa(encoder, channels, sample_rate, sample_count);
     ADXSJE_Start(encoder);
