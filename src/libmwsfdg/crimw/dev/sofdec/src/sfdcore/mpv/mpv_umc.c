@@ -262,6 +262,8 @@ void MPVUMC_Forward(MPVContext* context)
                      context->cbp_mask);
 }
 
+/* Soft ceiling: retail uses GQR3 paired-single quantized loads/stores for the
+ * runtime-proven signed 16-bit DCT blocks; portable scalar C cannot emit it. */
 static void mpvumc_OutputIntra6blk(const DctFsriBlock blocks[6],
                                    MPVOutputBlocks* output)
 {

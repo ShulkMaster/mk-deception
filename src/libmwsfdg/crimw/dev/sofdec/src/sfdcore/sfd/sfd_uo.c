@@ -56,6 +56,8 @@ static int SFUO_Destroy(SfdHandle* handle)
     return 0;
 }
 
+/* Soft ceiling: SFUO_Create ~86.70% -- the runtime-proven channels[] walk
+ * keeps a channel pointer; retail advances a packed owner-prefix cursor. */
 static int SFUO_Create(SfdHandle* handle)
 {
     int channel_index;

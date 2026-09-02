@@ -152,6 +152,8 @@ static const char set_sync_invalid[0x34] =
     "E1122629: mwPlySetFrmSync: handle is invalid.";
 #pragma force_active off
 
+/* Soft ceiling: mwsffrm_AnalySofdecHeader ~93.72% -- direct ring indexing
+ * folds the +0xC4 header base that retail applies after the slot offset. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {
@@ -264,6 +266,8 @@ void MWSFFRM_InitSfhInfTable(MwsPlayer* player)
     MWSFSFX_SetColAdj(player, zero);
 }
 
+/* Soft ceiling: mwPlyGetFxType ~93.95% -- direct ring indexing folds the
+ * header base offset into MWCC's indexed address; retail adds the slot first. */
 int mwPlyGetFxType(MwsPlayer* player)
 {
     MwsSfhInfo* info = &player->headers[player->current_header % 8];
