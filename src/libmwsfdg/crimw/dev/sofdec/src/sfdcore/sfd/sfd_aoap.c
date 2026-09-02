@@ -2,12 +2,14 @@
 #include "sofdec/sfd_player.h"
 #include "sofdec/sfd_transport.h"
 
-static int SFAOAP_Seek(SfdHandle* handle, int parameter, int value)
+static int SFAOAP_Seek(SfdHandle* handle, SfdTransportValue parameter,
+                       int value)
 {
     return 0;
 }
 
-static int SFAOAP_AddRead(SfdHandle* handle, int parameter, int value)
+static int SFAOAP_AddRead(SfdHandle* handle, SfdTransportValue parameter,
+                          int value)
 {
     return SFLIB_SetErr(handle, 0xFF000A01);
 }
@@ -17,7 +19,8 @@ static int SFAOAP_GetRead(SfdHandle* handle, void* output)
     return SFLIB_SetErr(handle, 0xFF000A01);
 }
 
-static int SFAOAP_AddWrite(SfdHandle* handle, int parameter, int value)
+static int SFAOAP_AddWrite(SfdHandle* handle, SfdTransportValue parameter,
+                           int value)
 {
     return SFLIB_SetErr(handle, 0xFF000A01);
 }

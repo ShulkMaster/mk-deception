@@ -497,7 +497,7 @@ void attack_to_frame_x(unsigned int animation, unsigned int voice_event,
                        float blend_rate, float step, float weight);
 void ani_to_frame_x_col(int region, int reaction, unsigned int collision_ticks,
                         float frame, float x, float y, float z);
-int whoosh_fx(int sound);
+void whoosh_fx(int sound);
 float p_sc_spear_retract(void);
 float p_sc_spear_kill(void);
 static float tug_in_spear(void);
@@ -531,7 +531,8 @@ void init_ground_move(void);
 void nudge_towards_him(float max_step);
 void trial_clear_provision(void);
 void dead_liukang_snd_chain_check(
-    PlyrPdata* player, int sound_chain, int minimum, int maximum);
+    PlyrPdata* player, int base_delay, unsigned short delay_range,
+    unsigned int likelihood);
 void transition_to_anim_script(
     AnimPdata* anim, AniData* animation, int transition, float blend_rate);
 float sidekick_cool_vanish(PlyrPdata* player);

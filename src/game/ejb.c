@@ -196,7 +196,7 @@ int collide_plyr_vs_plyr(void);
 void trial_state_collision_check(int collision_result, int player);
 MslSoundHandle snd_req(int sound_id);
 float p_wall_monitor(void);
-int drone_ai_check_button_press(void);
+int drone_ai_check_button_press(int button);
 void advance_cur_cmd_idx(void);
 /*
  * Soft ceiling: exact retail size and opcode stream. The only objdiff residue
@@ -222,7 +222,8 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone);
 void plyr_bleed_large_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner);
 void dead_liukang_snd_chain_check(
-    PlyrPdata* pdata, int arg1, int arg2, int arg3);
+    PlyrPdata* player, int base_delay, unsigned short delay_range,
+    unsigned int likelihood);
 MslSoundHandle random_foot(int group);
 void check_bgnd_effect(void);
 void anim_set_hiframe(AnimPdata* anim, float frame);
@@ -3898,7 +3899,7 @@ int was_i_hit_x_times(unsigned int hits) {
 
 int was_button_pressed(int button) {
     if (plyr_pdata->drone_request != 0) {
-        if (drone_ai_check_button_press() != 0) {
+        if (drone_ai_check_button_press(button) != 0) {
             advance_cur_cmd_idx();
             return 1;
         }
@@ -3909,7 +3910,7 @@ int was_button_pressed(int button) {
 
 int was_button_and_direction(int button, int direction) {
     if (plyr_pdata->drone_request != 0) {
-        if (drone_ai_check_button_press() != 0 &&
+        if (drone_ai_check_button_press(button) != 0 &&
             drone_ai_check_button_direction(direction) != 0) {
             advance_cur_cmd_idx();
             return 1;

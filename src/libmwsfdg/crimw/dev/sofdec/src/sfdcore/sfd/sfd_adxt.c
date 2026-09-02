@@ -173,10 +173,13 @@ static int SFADXT_GetOutPan(SfdHandle* handle, int channel,
                             SfdAudioOutputCallbacks* callbacks);
 static void SFADXT_SetOutPan(SfdHandle* handle, int channel, int pan,
                              SfdAudioOutputCallbacks* callbacks);
-static int SFADXT_Seek(SfdHandle* handle, int parameter, int value);
-static int SFADXT_AddRead(SfdHandle* handle, int parameter, int value);
+static int SFADXT_Seek(SfdHandle* handle, SfdTransportValue parameter,
+                       int value);
+static int SFADXT_AddRead(SfdHandle* handle, SfdTransportValue parameter,
+                          int value);
 static int SFADXT_GetRead(SfdHandle* handle, void* output);
-static int SFADXT_AddWrite(SfdHandle* handle, int parameter, int value);
+static int SFADXT_AddWrite(SfdHandle* handle, SfdTransportValue parameter,
+                           int value);
 static int SFADXT_GetWrite(SfdHandle* handle, void* output);
 static int SFADXT_Pause(SfdHandle* handle, int state);
 static int SFADXT_Stop(SfdHandle* handle);
@@ -197,7 +200,8 @@ const SfdTransportInterface SFD_tr_ad_adxt = {
 
 static const unsigned char sfadxt_silence[0x12] = {0};
 
-static int SFADXT_Seek(SfdHandle* handle, int parameter, int value)
+static int SFADXT_Seek(SfdHandle* handle, SfdTransportValue parameter,
+                       int value)
 {
     SfdAdxtWork* work = sfadxt_GetWork(handle);
     SfdHandle* source = handle->seek_state.source_handle;
@@ -229,7 +233,8 @@ static int SFADXT_Seek(SfdHandle* handle, int parameter, int value)
     return 0;
 }
 
-static int SFADXT_AddRead(SfdHandle* handle, int parameter, int value)
+static int SFADXT_AddRead(SfdHandle* handle, SfdTransportValue parameter,
+                          int value)
 {
     return SFLIB_SetErr(handle, 0xFF000C03);
 }
@@ -239,7 +244,8 @@ static int SFADXT_GetRead(SfdHandle* handle, void* output)
     return SFLIB_SetErr(handle, 0xFF000C03);
 }
 
-static int SFADXT_AddWrite(SfdHandle* handle, int parameter, int value)
+static int SFADXT_AddWrite(SfdHandle* handle, SfdTransportValue parameter,
+                           int value)
 {
     return SFLIB_SetErr(handle, 0xFF000C03);
 }
@@ -731,16 +737,17 @@ static int sfadxt_ExecServerSub(SfdHandle* handle)
     }
     work = sfadxt_GetWork(handle);
     {
-        SJCK chunk;
+        SfdBufferTransfer transfer;
 
         result = SFBUF_RingGetRead(handle,
                                    handle->transports[3].parameter_10,
-                                   &chunk);
+                                   &transfer);
         if (result == 0) {
             int consumed;
 
-            input_size = chunk.len;
-            work->copy(handle, chunk.data, chunk.len, &consumed);
+            input_size = transfer.chunks[0].len;
+            work->copy(handle, transfer.chunks[0].data,
+                       transfer.chunks[0].len, &consumed);
             result = SFBUF_RingAddRead(handle,
                                        handle->transports[3].parameter_10,
                                        consumed);

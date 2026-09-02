@@ -26,6 +26,8 @@ typedef struct PlyrStyleDefinition {
     WeaponDefinition* secondary_weapon;
     char pad0C[0x0C];
     const char* animation_section_name;
+    char pad1C[0x64];
+    FighterAiTable ai_tables[14]; /* +0x80 */
 } PlyrStyleDefinition;
 
 typedef struct PlyrMoveBlendData {
@@ -56,6 +58,8 @@ typedef struct PlyrMoveBlendData {
     float strafe_start_frame;  /* +0x58 */
     float strafe_start_step;   /* +0x5C */
     float strafe_start_weight; /* +0x60 */
+    char pad64[0x1C];
+    FighterAiTable ai_tables[14]; /* +0x80 */
 } PlyrMoveBlendData;
 
 typedef struct PlyrWeaponImpactData {
@@ -358,7 +362,8 @@ typedef struct PlyrPdata {
     char pad270[4];
     unsigned int last_collision_tick; /* +0x274 */
     int last_back_dash_tick; /* +0x278 - switch double-tap timing */
-    char pad27C[8];
+    char pad27C[4];
+    unsigned int charge_up_disabled_until; /* +0x280 */
     unsigned int damage_boost_until; /* +0x284 */
     char pad288[4];
     float taunt_life_scale; /* +0x28C */
@@ -491,6 +496,7 @@ typedef struct PlyrPdata {
         unsigned int* status_flags;
         PlyrStatusData* status_data;
         FighterRuntimeData* runtime_data;
+        FighterAiTableContainer* ai_tables;
     }; /* +0x6F8 */
     int fatality_shove_active; /* +0x6FC */
     struct MkProc* jaw_monitor;           /* +0x700 */

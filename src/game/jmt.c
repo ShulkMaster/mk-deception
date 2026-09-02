@@ -132,7 +132,7 @@ extern void check_release_other_player(void);
 extern void swap_active_plyr_proc(void);
 extern void adjust_player_life(float amount);
 void plyr_bleed_large_ext(PlyrPdata* player, int type, PlyrPdata* owner);
-void drone_ai_set_avoidance_area(const float* position, float duration);
+void drone_ai_set_avoidance_area(const Vec* position, float duration);
 void drone_ai_clear_avoidance_area_duration(int player);
 unsigned int fx_next_emitter(unsigned int effect);
 void fx_reset_emit(unsigned int effect);
@@ -535,7 +535,7 @@ void start_kabal_smoke(void* script_args, float duration) {
         *emitter++ = 0;
     }
     start_kabal_smoke_pfx(pdata);
-    drone_ai_set_avoidance_area(&plyr_obj->pos.value.x, duration);
+    drone_ai_set_avoidance_area(&plyr_obj->pos.value, duration);
 }
 
 static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
@@ -783,7 +783,7 @@ void start_subzero_decoy(void* script_args, float duration) {
     pdata->flash_count = 22;
     pdata->bone_copy_count = 20;
     pdata->bone_map = subzero_clone_bones;
-    drone_ai_set_avoidance_area(&plyr_obj->pos.value.x, duration);
+    drone_ai_set_avoidance_area(&plyr_obj->pos.value, duration);
 }
 
 void destroy_subzero_decoy(void) {

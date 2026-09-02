@@ -299,7 +299,7 @@ void init_ground_move_no_aniproc();
 void init_3d_move_no_aniproc();
 int check_damage_valid_fc();
 float trial_damage_callback();
-int drone_ai_check_block_at_reactions();
+int drone_ai_check_block_at_reactions(void);
 void drone_ai_hit();
 void drone_ai_reset_ai_cmd();
 int drone_ai_check_combo_breaker();
