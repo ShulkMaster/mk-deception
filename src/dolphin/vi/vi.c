@@ -1,15 +1,9 @@
 #include "dolphin/gx.h"
 #include "dolphin/os.h"
 #include "dolphin/si.h"
+#include "dolphin/types.h"
 #include "dolphin/vi.h"
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned long u32;
-typedef unsigned long long u64;
-typedef signed short s16;
-typedef signed long s32;
-typedef int BOOL;
 typedef void (*VIPositionCallback)(s16 x, s16 y);
 
 #define TRUE 1
@@ -976,11 +970,11 @@ void VISetNextFrameBuffer(void* fb) {
 }
 
 void* VIGetNextFrameBuffer(void) {
-    return *(void**)(&NextBufAddr);
+    return (void*)NextBufAddr;
 }
 
 void* VIGetCurrentFrameBuffer(void) {
-    return *(void**)(&CurrBufAddr);
+    return (void*)CurrBufAddr;
 }
 
 void VISetNextRightFrameBuffer(void* fb) {

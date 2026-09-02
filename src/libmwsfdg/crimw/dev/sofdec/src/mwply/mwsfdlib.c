@@ -1,6 +1,7 @@
 #include "cri/sj.h"
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
+#include "sofdec/sfd_error.h"
 
 typedef struct SfdHandle SfdHandle;
 
@@ -143,11 +144,11 @@ extern int SFD_IsVersionCompatible(const char* version, int handle_size,
                                    int reserved, int enabled, float frame_rate,
                                    float rate_scale);
 extern int SFD_Init(void* parameters);
-extern int SFD_SetErrFn(int type, void (*function)(void*, int), void* object);
 extern void MWSFD_SetCond(void* player, int condition, int value);
 
-void MWSFLIB_SfdErrFunc(void* player, int error)
+void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)
 {
+    void* player = (void*)object;
     if (player != 0) {
         SfdHandle* sfd = mwPlyGetSfdHn(player);
         mwsfd_err_mwsfdhn = player;
