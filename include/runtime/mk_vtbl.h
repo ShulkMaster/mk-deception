@@ -1,6 +1,10 @@
 #ifndef MK_VTBL_H
 #define MK_VTBL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef MK_VTABLE5_TYPE
 #define MK_VTABLE5_TYPE
 typedef int (*MkVtblFn)(void);
@@ -76,5 +80,9 @@ extern MkVtable5 vtbl_cmdscript;
 extern MkVtable5 vtbl_screen_engine;
 extern MkVtable5 vtbl_mkpdata_generic;
 extern MkVtable5 vtbl_mkhdr_generic;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

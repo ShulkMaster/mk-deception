@@ -6,6 +6,7 @@
  */
 
 #include "game/pfxscript.h"
+#include "game/ai.h"
 #include "game/blood.h"
 #include "game/weapon.h"
 #include "game/pz_fatality.h"
@@ -3384,20 +3385,21 @@ void _true_branch(void) {
 
 void _if_switching_to(void) {
     PlyrPdata* player;
+    unsigned int command;
     int style;
     int result;
 
     player = (PlyrPdata*)plyr_pdata;
+    command = ((ScriptRawArgs*)current_args)->slots[0].u;
     style = player->player_slot + 1;
     if (style >= 3 || (player->sidekick_available != 0 && style >= 2)) {
         style = 0;
     }
 
     result = 0;
-    if (((ScriptRawArgs*)current_args)->slots[0].u ==
-        player->weapon_styles[style]->animation_header) {
+    if (command == player->weapon_styles[style]->animation_header) {
         if (player->drone_request != 0) {
-            result = drone_ai_check_switching_to() != 0;
+            result = drone_ai_check_switching_to(command) != 0;
         } else if (was_button_pressed(2) != 0) {
             player->round_attack_stage++;
             result = 1;

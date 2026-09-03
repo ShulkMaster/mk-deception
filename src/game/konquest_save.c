@@ -144,7 +144,7 @@ int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* card_name,
     int name_len, unsigned int* free_blocks, int* free_bytes);
 
-static KonquestRegionBuffer konq_region_data_buffer;
+KonquestRegionBuffer konq_region_data_buffer;
 static const float kPathDefaultFloat = 0.0f;
 
 void profile_region_change(void) {

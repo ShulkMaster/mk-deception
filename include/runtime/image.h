@@ -5,6 +5,10 @@
 #include "libmkparticle/pfx2d.h"
 #include "rw/rpworld_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern MkVtable5 vtbl_ani_texture_control;
 extern MkVtable5 vtbl_mkpdata_screen_obj;
 
@@ -224,5 +228,9 @@ ScreenObj* insert_screen_obj(ScreenObj* obj);
 void unhide_screen_obj(ScreenObj* obj);
 void hide_screen_obj(ScreenObj* obj);
 void init_2d_obj_lists(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,6 +1,10 @@
 #ifndef HASHTABLE_H
 #define HASHTABLE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct _mwMemHeap;
 
 typedef struct HashtableEntry {
@@ -37,5 +41,9 @@ void hashtable_store(Hashtable* ht, const char* key, void* value);
 void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance);
 int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count,
                            struct _mwMemHeap* heap);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

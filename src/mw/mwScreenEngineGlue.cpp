@@ -2090,14 +2090,14 @@ void get_background_select_textures(GVTexturePair out);
 int controller_get_num_adjustable_buttons(void);
 void cconfig_get_button_textures(GVTexturePair out);
 void get_pz_special_move_list(GVTexturePair out, int player);
-void create_left_mc_icon_list(GVTexturePair out, int count);
-void create_right_mc_icon_list(GVTexturePair out, int count);
+void create_left_mc_icon_list(McIconListArg* out);
+void create_right_mc_icon_list(McIconListArg* out);
 int get_number_kontent_items(void);
 void create_gallery_image_list(GVTexturePair out, unsigned int count);
 void create_fullscreen_gallery_image_list(GVTexturePair out, int count);
 int ppl_get_multi_profile_count(int player);
-void ppl_get_multi_profile_icon_p1(GVTexturePair out, unsigned int count);
-void ppl_get_multi_profile_icon_p2(GVTexturePair out, unsigned int count);
+void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count);
+void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count);
 int get_num_modeselect_portraits(void);
 void get_modeselect_portrait_list(GVTexturePair out);
 void ppv_view_profile_icon_list(GVTexturePair out);
@@ -2220,7 +2220,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        create_left_mc_icon_list(pair, 7);
+        create_left_mc_icon_list((McIconListArg*)&pair);
         columnsOut = 1;
         break;
     case 0x1fe3:
@@ -2229,7 +2229,7 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
-        create_right_mc_icon_list(pair, 7);
+        create_right_mc_icon_list((McIconListArg*)&pair);
         columnsOut = 1;
         break;
     case 0x1fe0:
@@ -2604,7 +2604,7 @@ extern int psel_p2_handicap;
 char* get_controller_vibration_string(int player);
 char* pselect_get_player_name(int player);
 int get_konq_profile_value(int type, int index);
-void format_value_to_display(char* dest, int value);
+void format_value_to_display(char* dest, unsigned int value);
 char* locate_inventory_text(int page);
 char* get_heros_name(int which);
 char* movelist_get_character_name(void);

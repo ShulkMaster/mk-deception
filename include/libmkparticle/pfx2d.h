@@ -1,6 +1,10 @@
 #ifndef LIBMKPARTICLE_PFX2D_H
 #define LIBMKPARTICLE_PFX2D_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Midway 2D particle/sprite draw (libmkparticle pfx2d.o).
  * Pool of 500 objects (0xD0 each) used by image.render_2d_objs / ScreenObj.
@@ -74,5 +78,9 @@ void pfx2d_build_default_geometry(Pfx2dObj* obj);
 void pfx2d_begin_render(void);
 void pfx2d_end_render(void);
 void pfx2d_render(Pfx2dObj* obj);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

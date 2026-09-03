@@ -16,6 +16,11 @@ RwImage* RwImageGammaCorrect(RwImage* image);
 RwImage* RwImageMakeMask(RwImage* image);
 RwImage* RwImageApplyMask(RwImage* image, const RwImage* mask);
 int RwImageSetGamma(float gamma);
+RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster);
+RwRaster* RwRasterSetFromImage(RwRaster* raster, RwImage* image);
+RwImage* RwImageFindRasterFormat(RwImage* image, int rasterType,
+                                 int* width, int* height, int* depth,
+                                 int* format);
 
 void* _rwImageOpen(void* instance, int offset, int size);
 void* _rwImageClose(void* instance, int offset, int size);

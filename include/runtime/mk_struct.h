@@ -3,6 +3,10 @@
 
 #include "runtime/mk_vtbl.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern MkVtable5 vtbl_mkhdr_generic;
 
 typedef struct MkHdr MkHdr;
@@ -99,5 +103,9 @@ void mk_set_instance(unsigned int* instance_out);
 void destroy_list(MkPtr** list);
 MkHdr* as_mkhdr(MkHdr* hdr);
 void mkhdr_memfree(MkHdr* hdr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

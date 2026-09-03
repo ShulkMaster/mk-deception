@@ -3,6 +3,10 @@
 
 #include "libmkparticle/color.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Midway pfxfont (libmkparticle pfxfont.o) - PRESS START / legal string path.
  * Called from fonts.c and disc_error.c.
@@ -106,5 +110,9 @@ void pfxfont_string_render(PfxFontString* ctx, float x, float y);
 void pfxfont_begin_render(void);
 void pfxfont_end_render(void);
 void pfxfont_string_cleanup(PfxFontString* ctx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
