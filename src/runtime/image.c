@@ -200,7 +200,7 @@ void init_2d_obj_lists(void) {
 AniTextureControl* get_ani_texture_control(void) {
     AniTextureControl* atc;
 
-    atc = (AniTextureControl*)get_mkhdr(&vtbl_ani_texture_control, 0x198);
+    atc = (AniTextureControl*)get_mkhdr(&vtbl_ani_texture_control, sizeof(*atc));
     if (atc != 0) {
         atc->frame = 0;
         /* Single stw clears flags + flags_hi (adjacent ushorts @ +0x0C). */
@@ -209,12 +209,12 @@ AniTextureControl* get_ani_texture_control(void) {
         atc->numframes = 0;
         atc->framerate = kZero;
         atc->name = 0;
-        memset(atc->materials, 0, 0xc);
+        memset(atc->materials, 0, sizeof(atc->materials));
         atc->atomic = 0;
         atc->screen_obj = 0;
         atc->screen_obj_instance = 0;
-        memset(atc->textures, 0, 0xb0);
-        memset(atc->alpha_textures, 0, 0xb0);
+        memset(atc->textures, 0, sizeof(atc->textures));
+        memset(atc->alpha_textures, 0, sizeof(atc->alpha_textures));
     }
     return atc;
 }
