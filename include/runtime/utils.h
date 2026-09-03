@@ -6,6 +6,10 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/mk_proc.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct MkObj MkObj;
 typedef struct MkSobj MkSobj;
 typedef struct RwRGBA RwRGBA;
@@ -34,7 +38,6 @@ void award_koins_to_player(int player, int amount, int koin_type);
 void show_koin_award(int player, int amount, int koin_type, int y);
 float sobj_set_bounding_sphere_radius(MkSobj* sobj, float radius);
 float sobj_get_bounding_sphere_radius(MkSobj* sobj);
-int get_mkptr_count(void);
 void setup_fixed_block_heaps(void);
 void load_and_set_refl_on_weapon(void);
 void pause_procs(int flag);
@@ -150,5 +153,9 @@ typedef struct UsecTimerData {
 
 extern UsecTimerData usec_timer_data[9];
 extern int depth_of_field_active;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

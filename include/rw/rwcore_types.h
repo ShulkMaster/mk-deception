@@ -131,6 +131,7 @@ RwRaster* RwRasterShowRaster(RwRaster* raster, void* device,
 
 RwTexture* RwTextureCreate(RwRaster* raster);
 int RwTextureDestroy(RwTexture* texture);
+RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster);
 RwTexture* RwTextureSetName(RwTexture* texture, const char* name);
 RwTexture* RwTexDictionaryRemoveTexture(RwTexture* texture);
 

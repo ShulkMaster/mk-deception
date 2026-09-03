@@ -132,7 +132,7 @@ extern void check_release_other_player(void);
 extern void swap_active_plyr_proc(void);
 extern void adjust_player_life(float amount);
 void plyr_bleed_large_ext(PlyrPdata* player, int type, PlyrPdata* owner);
-void drone_ai_set_avoidance_area(const Vec* position, float duration);
+void drone_ai_set_avoidance_area(Vec* position, float duration);
 void drone_ai_clear_avoidance_area_duration(int player);
 unsigned int fx_next_emitter(unsigned int effect);
 void fx_reset_emit(unsigned int effect);

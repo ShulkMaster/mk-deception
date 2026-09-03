@@ -113,11 +113,12 @@ void pfxfont_set_string_color(PfxFontString* dest, unsigned int* color) {
 void pfxfont_string_init(PfxFontString* ctx) {
     float one;
 
-    memset(ctx, 0, 0x90);
+    memset(ctx, 0, sizeof(*ctx));
     pfx_native_set_rgba(&ctx->instance0.native_color, s_255, s_255, s_255, s_255);
 
     /* Align transform into pad at +0x10; identity diagonal via reloaded ptr. */
-    ctx->transform = (PfxFontTransform*)(((unsigned long)ctx + 0x13) & ~0xFul);
+    ctx->transform = (PfxFontTransform*)(((unsigned long)ctx + 0x13) &
+                                         ~(unsigned long)0xFul);
     one = s_one;
     ctx->transform->rx = one;
     ctx->transform->uy = one;
@@ -291,11 +292,11 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
                 if (line_w > s_zero) {
                     if (prev != 0) {
                         nativefont_instance_unlock(prev);
-                        cur = font_memory_alloc(0x30);
+                        cur = font_memory_alloc(sizeof(*cur));
                         if (cur == 0) {
                             return;
                         }
-                        memset(cur, 0, 0x30);
+                        memset(cur, 0, sizeof(*cur));
                         cur->color = prev->color;
                         cur->color_override = prev->color_override;
                         prev->next = cur;

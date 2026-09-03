@@ -41,7 +41,7 @@ typedef struct DroneAI {
         unsigned int big_boss_stage;
         unsigned int handicap_setting;
     }; /* +0x1C */
-    unsigned int initialization_tick; /* +0x20 */
+    unsigned int difficulty_update_tick; /* +0x20 */
     unsigned int charge_cooldown_tick; /* +0x24 */
     unsigned int next_style_change_tick; /* +0x28 */
     float opponent_health; /* +0x2C */
@@ -690,10 +690,10 @@ void advance_sidekick_with_moveset(PlyrPdata* player);
 static AiFightstyleAttack* get_special_move(void);
 static int get_random_fightstyle_index(
     int attack_group, FighterAiTable* table, int selection_mode);
-static void* get_random_fightstyle_attack(
+static AiFightstyleAttack* get_random_fightstyle_attack(
     PlyrFighterDefinition* fighter, int attack_group, int flags);
 int drone_ai_enemy_inair_attack(DroneAI* drone);
-static void* drone_ai_choose_move_from_category(
+static AiFightstyleAttack* drone_ai_choose_move_from_category(
     int category, unsigned int likelihood, int* is_script);
 static float drone_ai_special_attack_now(void);
 int segment_against_obstacle_list(
@@ -833,7 +833,7 @@ static inline float ai_sqrt_table(float squared) {
     exponent =
         (((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000;
     bits.u =
-        (unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8;
+        (unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8;
     bits.u |= exponent;
     return 0.5f * (bits.f * (3.0f - (bits.f * bits.f) / squared));
 }
@@ -1036,8 +1036,8 @@ float big_boss_taunt_cam_cut(void) {
 }
 
 
-/* Soft ceiling: callback ABI/algorithm/layout now match retail; residue is
- * pointer/FP coloring, validation-branch scheduling, and stmw/lmw emission. */
+/* Soft ceiling: exact size, frame, save/restore, calls, layout, and math.
+ * Residue is confined to two validated-pointer selection diamonds. */
 static float p_lookat_cam(void) {
     CameraObj* camera;
     MkObj* target;
@@ -1049,8 +1049,8 @@ static float p_lookat_cam(void) {
     float saved_target_z;
     Vec look_target;
     float angle;
-    float position_y_offset;
     float offset_x;
+    float position_y_offset;
     float offset_z;
     float sine;
     float cosine;
@@ -1144,7 +1144,6 @@ void big_boss_wait_for_intro(void) {
 unsigned int big_boss_reaction_remap(unsigned int reaction) {
     ScreenObj* image;
     int mapped_reaction;
-    int count;
     int i;
 
     if (reaction == 0x7A) {
@@ -1153,15 +1152,12 @@ unsigned int big_boss_reaction_remap(unsigned int reaction) {
         image = display_image_by_plyr(
             0x10005, "BREAKER", his_pdata->plyr_info, 0, 1.7f);
         if (image != 0 && plyr_pdata->breaker_strength == 0) {
-            i = 0;
-            count = 4;
-            do {
+            for (i = 0; i < 4; i++) {
                 image->pfx2d->verts[i].r = 0x80;
                 image->pfx2d->verts[i].g = 0;
                 image->pfx2d->verts[i].b = 0;
                 image->pfx2d->verts[i].a = 0xFF;
-                i++;
-            } while (--count != 0);
+            }
         }
     }
 
@@ -1218,16 +1214,22 @@ float give_some_distance(void) {
 }
 
 
-/* Soft ceiling: retail retains two empty-target switch-dispatch branches that
- * cannot be attributed to a supported case label; the case-4 body matches. */
+/* Soft ceiling: all operations, operands, calls, and switch outcomes match.
+ * Retail retains one redundant branch between the explicit empty case groups. */
 float go_into_twitch_death(void) {
     init_ground_move_no_aniproc();
     switch (plyr_pdata->death_type) {
+    case 0:
+    case 1:
+    case 2:
+        break;
+    case 3:
+        break;
     case 4:
         plyr_obj->flags_09_bits.head_tracking = 0;
         tightrope_restrictions_off();
         plyr_anim_pdata->step = 1.0f;
-        plyr_anim_pdata->transition_accel = 0.5f;
+        plyr_anim_pdata->transition_weight = 0.5f;
         transition_to_anim_script(
             plyr_anim_pdata, shared_ani.twitch_death, 0, 0.05f);
         AI_SLEEP(1.0f);
@@ -1243,20 +1245,20 @@ float go_into_twitch_death(void) {
 }
 
 
-/*
- * Retail selects the opponent idle process before one shared transfer call.
- * The remaining diff is branch and address scheduling around that selection.
- */
+/* Soft ceiling: every case body, call, typed access, and side effect is exact.
+ * Retail retains two redundant branches in the empty/default switch dispatch;
+ * current MWCC folds them, producing the entire eight-byte size difference. */
 float go_into_major_pain(void) {
     back_to_normal();
     plyr_obj->flags_09_bits.head_tracking = 0;
     tightrope_restrictions_off();
     switch (plyr_pdata->death_type) {
     case 4:
-        if (randu0(100) < 75 || (g_game_info.field_04 & 0x80) != 0) {
+        if (randu0(100) < 75 ||
+            g_game_info.feature_flags.bits.high_bit) {
             init_ground_move_no_aniproc();
             plyr_anim_pdata->step = 0.6f;
-            plyr_anim_pdata->transition_accel = 0.5f;
+            plyr_anim_pdata->transition_weight = 0.5f;
             transition_to_anim_script(
                 plyr_anim_pdata, shared_ani.major_pain_a,
                 0, 0.05f);
@@ -1266,7 +1268,7 @@ float go_into_major_pain(void) {
         } else {
             init_ground_move_no_aniproc();
             plyr_anim_pdata->step = 1.0f;
-            plyr_anim_pdata->transition_accel = 0.5f;
+            plyr_anim_pdata->transition_weight = 0.5f;
             plyr_anim_pdata->flags |= 0x40;
             transition_to_anim_script(
                 plyr_anim_pdata, shared_ani.twitch_death,
@@ -1301,7 +1303,7 @@ float go_into_major_pain(void) {
                 random_snd_req(
                     ((AiStatusSoundView*)plyr_pdata->status_flags)->pain_voice);
             }
-            plyr_anim_pdata->transition_accel = 0.5f;
+            plyr_anim_pdata->transition_weight = 0.5f;
             transition_to_anim_script(
                 plyr_anim_pdata, shared_ani.major_pain_b,
                 0, 0.05f);
@@ -1393,7 +1395,7 @@ float getup_from_ground(void) {
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
         if (randu0(100) < 50 ||
-            (g_game_info.field_04 & 0x80) != 0) {
+            g_game_info.feature_flags.bits.high_bit) {
             plyr_anim_pdata->transition_weight = 0.5f;
             transition_to_anim_script(
                 plyr_anim_pdata, shared_ani.field_33C, 3, 0.05f);
@@ -1495,19 +1497,20 @@ float getup_from_ground(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: the algorithm, control flow, access widths, and ABI match.
- * Remaining differences are r29-r31 save form and equivalent load scheduling. */
+/* Soft ceiling: exact behavior, calls, widths, frame, and switch lowering.
+ * Residue is the equivalent region-selection branch polarity, one coalesced
+ * join move, and GPR scheduling at the fighter-data load. */
 void whoosh_fx(int hit_type) {
     AiFighterSoundView* fighter;
     unsigned int move_flags;
     int region;
     int is_dead_liukang;
 
-    if (plyr_pdata->attack_region == 0x10 &&
-        plyr_pdata->weapon_impact != 0) {
-        region = plyr_pdata->weapon_impact->attack_region;
-    } else {
+    if (plyr_pdata->attack_region != 0x10 ||
+        plyr_pdata->weapon_impact == 0) {
         region = plyr_pdata->attack_region;
+    } else {
+        region = plyr_pdata->weapon_impact->attack_region;
     }
     fighter = (AiFighterSoundView*)plyr_pdata->fighter_definition;
     if (fighter->move_data->flags != 0) {
@@ -1993,6 +1996,9 @@ void execute_rumble(int reaction, int flags) {
     }
 }
 
+/* Soft ceiling: material selection, switches, calls, widths, and ABI match.
+ * MWCC folds one equivalent impact-selection join, leaving a four-byte size
+ * difference plus temporary-pointer coloring. */
 void execute_hit_voice_sound(int hit_type, int hit_group, int flags) {
     int material;
     int attack_region;
@@ -2595,36 +2601,33 @@ float drone_ai_watcher(void) {
     return 1.0f;
 }
 
-/*
- * Retail/current calls, CFG, typed accesses, and opcode counts agree except
- * for one additional zero materialization in the current emission.
- */
+/* Soft ceiling: exact size, instructions, calls, and typed accesses. The sole
+ * diff is null-script branching to a later identical 0.0f return block rather
+ * than the earlier invalid-script return block. */
 float drone_ai_ducker(void) {
     DroneAI* drone;
-    AiFightstyleAttackTable* attacks;
     AiFightstyleAttack* script;
-    PlyrPdata* opponent;
     unsigned int attack_index;
     int valid_script;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
-    opponent = drone->player->his_plyr_pdata;
     if (drone->opponent_distance < 2.8103173f &&
-        (opponent->state & 0x1000) != 0 &&
-        opponent->block_requirement == 0 &&
+        (drone->player->his_plyr_pdata->state & 0x1000) != 0 &&
+        drone->player->his_plyr_pdata->block_requirement == 0 &&
         randu0(100) < 70) {
         if ((drone->player->state & 0x100) != 0 || randu0(100) < 10) {
-            script = (AiFightstyleAttack*)get_random_fightstyle_attack(
+            script = get_random_fightstyle_attack(
                 plyr_pdata->fighter_definition, 3, 0);
             if (script != 0) {
-                if (script->opcode == 0) {
-                    attacks = (AiFightstyleAttackTable*)
-                        plyr_pdata->fighter_definition->move_blend_data;
-                    attack_index = script - attacks->attacks;
-                    valid_script = attack_index == 12 ||
-                                   attack_index == 17 ||
-                                   attack_index == 2;
+                if (script->opcode == 0 &&
+                    ((attack_index =
+                          script -
+                          ((AiFightstyleAttackTable*)
+                               plyr_pdata->fighter_definition->move_blend_data)
+                              ->attacks) == 12 ||
+                     attack_index == 17 || attack_index == 2)) {
+                    valid_script = 1;
                 } else {
                     valid_script = 0;
                 }
@@ -2660,9 +2663,9 @@ static inline int ai_has_ranged_move(unsigned int category) {
     return plyr_pdata->ai_tables->tables[category].usable_row_count != 0;
 }
 
-/* Soft ceiling: algorithm, CFG, table widths, boolean normalization, calls,
- * and exact size match. Residue is equivalent category-2 constant folding,
- * FP/GPR scheduling, and local relocation labeling. */
+/* Soft ceiling: exact behavior, calls, table widths, and size. Residue is
+ * category-2 address constant folding, Boolean-normalization placement,
+ * temporary coloring, and merging of identical zero-return tails. */
 float drone_ai_mass_attack(void) {
     DroneAI* drone;
     int ranged_move_available;
@@ -2923,6 +2926,7 @@ int drone_ai_check_external_request_breakouts(DroneAI* request) {
 int drone_ai_check_block_at_reactions(void) {
     DroneAI* drone;
     PlyrPdata* player;
+    unsigned int action_lock_b;
     unsigned int likelihood;
 
     drone = get_player_number(plyr_obj) == 0
@@ -3021,21 +3025,25 @@ int drone_ai_reversal_watcher(void) {
     return 1;
 }
 
+/* Soft ceiling: exact size, CFG, cached action lock, and materialized
+ * probability result. Residue is only r3/r4 coloring for pdata/tick loads. */
 int drone_ai_opponent_inair_watcher(void) {
     DroneAI* drone;
     PlyrPdata* action;
+    unsigned int action_lock_b;
     unsigned short likelihood;
     int can_attack;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
     action = plyr_pdata;
-    if (action->action_lock_b > game_tick_ctr) {
+    action_lock_b = action->action_lock_b;
+    if (action_lock_b > game_tick_ctr) {
         can_attack = 0;
     } else {
         if (action->action_lock_a > game_tick_ctr) {
             can_attack = 0;
-        } else if (action->action_lock_b > game_tick_ctr) {
+        } else if (action_lock_b > game_tick_ctr) {
             can_attack = 0;
         } else if (action->push_blocked != 0 ||
                    (action->state & 0x200) != 0) {
@@ -3054,7 +3062,7 @@ int drone_ai_opponent_inair_watcher(void) {
     }
     if (action->action_lock_a > game_tick_ctr) {
         can_attack = 0;
-    } else if (action->action_lock_b > game_tick_ctr) {
+    } else if (action_lock_b > game_tick_ctr) {
         can_attack = 0;
     } else if (action->push_blocked != 0 ||
                (action->state & 0x200) != 0) {
@@ -3079,8 +3087,8 @@ int drone_ai_opponent_inair_watcher(void) {
     if (drone->big_boss_stage == 0) {
         likelihood = 5;
     }
-    if (randu0(100) < likelihood &&
-        drone_ai_enemy_inair_attack(drone) != 0) {
+    can_attack = randu0(100) < likelihood;
+    if (can_attack != 0 && drone_ai_enemy_inair_attack(drone) != 0) {
         return 1;
     }
     return 0;
@@ -3226,6 +3234,8 @@ static inline int ai_throw_restrictions_allow(void) {
     return allowed;
 }
 
+/* Soft ceiling: exact size, CFG, operations, calls, and memory accesses.
+ * Residue is a whole-lifetime r29/r30 swap for the guard and tick limit. */
 int drone_ai_check_for_throw(DroneAI* drone) {
     unsigned int minimum_ticks;
     int can_throw;
@@ -3286,6 +3296,8 @@ static inline int ai_start_throw(DroneAI* drone) {
     return 1;
 }
 
+/* Soft ceiling: restrictions, calls, stores, and CFG agree. Residue is a
+ * consistent r29/r30 lifetime swap and one retail-preserved constant one. */
 int drone_ai_check_for_extreme_throw(DroneAI* drone) {
     unsigned int minimum_ticks;
     int can_throw;
@@ -3308,6 +3320,10 @@ int drone_ai_check_for_extreme_throw(DroneAI* drone) {
     return 0;
 }
 
+/* Soft ceiling: exact size, CFG, operations, calls, and memory accesses.
+ * The remaining 14 objdiff rows are register operands in the fallback special
+ * move path: MWCC swaps the command-drone and move-list lifetimes and colors
+ * their arithmetic temporaries differently. */
 int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
     DroneAI* command_drone;
     AiExtendedSpecialMoveList* moves;
@@ -3326,7 +3342,7 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
     }
     min_hold_ticks = g_minBlockHeldTime[drone->difficulty_index];
     if (drone->big_boss_stage == 0) {
-        can_throw = 0;
+        should_throw = 0;
     } else {
         can_throw = 1;
         if ((g_DroneOverrideInfo.flags & 0x40) != 0) {
@@ -3353,18 +3369,17 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
                 can_throw = 0;
             }
         }
-    }
-    if (can_throw == 0) {
-        return 0;
-    }
-    if (randu0(100) < 80 &&
-        drone->block_hold_ticks > min_hold_ticks) {
-        should_throw = 1;
-    } else if (randu0(100) <
-               g_likelihoodToAggressiveThrow[drone->difficulty_index]) {
-        should_throw = 1;
-    } else {
-        should_throw = 0;
+        if (can_throw == 0) {
+            should_throw = 0;
+        } else if (randu0(100) < 80 &&
+                   drone->block_hold_ticks > min_hold_ticks) {
+            should_throw = 1;
+        } else if (randu0(100) <
+                   g_likelihoodToAggressiveThrow[drone->difficulty_index]) {
+            should_throw = 1;
+        } else {
+            should_throw = 0;
+        }
     }
     if (should_throw != 0) {
         script = get_random_fightstyle_attack(
@@ -3400,11 +3415,8 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
     return 0;
 }
 
-/*
- * Retail and current code now share the movement-state return contract, byte
- * size, and opcode counts. Remaining differences are GPR allocation and
- * scheduling.
- */
+/* Soft ceiling: exact size, CFG, operations, and cached lock semantics.
+ * Residue is confined to r3/r6 coloring of the lock and tick operands. */
 int drone_ai_attacker_reacting_watcher(void) {
     DroneAI* drone;
     PlyrPdata* action;
@@ -3668,9 +3680,9 @@ int drone_ai_check_for_aggressive_movement(DroneAI* drone) {
     return 0;
 }
 
-/* Soft ceiling: traversal, cleanup, collision math, CFG, calls, and exact size
- * match retail. Residue is FP/GPR coloring and equivalent float-branch
- * lowering; the address guard is compiler-significant original source shape. */
+/* Soft ceiling: exact size, instructions, traversal, stale-node cleanup,
+ * calls, widths, stack Vec slots, and NaN-sensitive inverse-length CFG.
+ * All remaining differences are equivalent iterator and FPR coloring. */
 static int drone_ai_check_obstacles(DroneAI* request) {
     AiFloatBits input;
     AiFloatBits estimate;
@@ -3681,11 +3693,12 @@ static int drone_ai_check_obstacles(DroneAI* request) {
     CollisionObj* shape;
     DroneAI* drone;
     MkProc* player_proc;
-    Vec center;
     Vec to_opponent;
-    float delta_x;
+    Vec center;
     float delta_z;
+    float delta_x;
     float squared_distance;
+    float normalization_squared;
     float inverse_length;
     float estimate_product;
     float correction;
@@ -3724,12 +3737,16 @@ static int drone_ai_check_obstacles(DroneAI* request) {
                     }
                     if (squared_distance <= 5.9457946f) {
                         uv_to_opponent(&to_opponent);
-                        inverse_length = 0.0f;
-                        input.f = delta_x * delta_x + delta_z * delta_z;
-                        if (input.f > 0.0f) {
+                        normalization_squared =
+                            delta_x * delta_x + delta_z * delta_z;
+                        if (normalization_squared <= 0.0f) {
+                            inverse_length = 0.0f;
+                        } else {
+                            input.f = normalization_squared;
                             estimate.u = 0x5F375A00U - (input.u >> 1);
                             estimate_product =
-                                estimate.f * (input.f * estimate.f);
+                                estimate.f *
+                                (normalization_squared * estimate.f);
                             correction = 3.0f - estimate_product;
                             inverse_length =
                                 0.0625f * estimate.f * correction *
@@ -3746,10 +3763,9 @@ static int drone_ai_check_obstacles(DroneAI* request) {
                             if (obstacle->type == 5) {
                                 request->obstacle_target.x = center.x;
                                 request->obstacle_target.z = center.z;
-                                drone = &g_DroneAI2;
-                                if (get_player_number(plyr_obj) == 0) {
-                                    drone = &g_DroneAI1;
-                                }
+                                drone = get_player_number(plyr_obj) == 0
+                                            ? &g_DroneAI1
+                                            : &g_DroneAI2;
                                 if (get_player_number(plyr_obj) == 0) {
                                     player_proc = g_game_info.plyr0.idle_proc;
                                 } else {
@@ -3762,10 +3778,9 @@ static int drone_ai_check_obstacles(DroneAI* request) {
                                 return 1;
                             }
                             if (obstacle->type != 3) {
-                                drone = &g_DroneAI2;
-                                if (get_player_number(plyr_obj) == 0) {
-                                    drone = &g_DroneAI1;
-                                }
+                                drone = get_player_number(plyr_obj) == 0
+                                            ? &g_DroneAI1
+                                            : &g_DroneAI2;
                                 if (get_player_number(plyr_obj) == 0) {
                                     player_proc = g_game_info.plyr0.idle_proc;
                                 } else {
@@ -3843,14 +3858,10 @@ int drone_ai_check_for_knockdown_movement(DroneAI* drone) {
 }
 #pragma dont_inline reset
 
-/*
- * Retail and current behavior/CFG agree after making the cooldown ranges and
- * transfer returns exclusive. Remaining residue is a three-instruction signed
- * count-to-boolean normalization plus downstream GPR scheduling.
- */
 int drone_ai_check_for_ducker_movement(DroneAI* drone) {
     AiSpecialMoveList* moves;
     void* script;
+    int has_special_moves;
     int is_script;
 
     drone->movement_attempt = 0;
@@ -3876,7 +3887,12 @@ int drone_ai_check_for_ducker_movement(DroneAI* drone) {
             drone->charge_cooldown_tick += randu0(3);
         }
         moves = (AiSpecialMoveList*)plyr_pdata->status_flags;
-        if (moves->count > 0 && randu0(10) == 0) {
+        if (moves->count > 0) {
+            has_special_moves = 1;
+        } else {
+            has_special_moves = 0;
+        }
+        if (has_special_moves == 1 && randu0(10) == 0) {
             ai_transfer_active(catch_opponent);
             return 1;
         } else {
@@ -3911,6 +3927,8 @@ int drone_ai_check_for_ducker_movement(DroneAI* drone) {
 }
 
 int drone_ai_check_for_berserker_movement(DroneAI* drone) {
+    int has_special_moves;
+
     drone->movement_attempt = 0;
     if (drone->opponent_distance > 5.9457946f) {
         if (drone->opponent_distance > 14.6f) {
@@ -3918,8 +3936,12 @@ int drone_ai_check_for_berserker_movement(DroneAI* drone) {
         } else if (drone->opponent_distance > 5.9457946f) {
             drone->charge_cooldown_tick += randu0(3);
         }
-        if (((AiSpecialMoveList*)plyr_pdata->status_flags)->count > 0 &&
-            randu0(10) == 0) {
+        if (((AiSpecialMoveList*)plyr_pdata->status_flags)->count > 0) {
+            has_special_moves = 1;
+        } else {
+            has_special_moves = 0;
+        }
+        if (has_special_moves == 1 && randu0(10) == 0) {
             ai_transfer_active(catch_opponent);
             return 1;
         } else {
@@ -4355,6 +4377,8 @@ static inline int ai_count_taunt_moves(void) {
     return count;
 }
 
+/* Soft ceiling: retail/current state stores, taunt count, transfers, and CFG
+ * agree. Residue is scheduling of two constant-one results and one branch. */
 int drone_ai_check_avoid_danger_area(DroneAI* drone) {
     drone->special_reaction_active = 1;
     drone->danger_area_active = 0;
@@ -4758,11 +4782,16 @@ static inline int ai_range_move_count(const DroneAI* drone) {
     return count;
 }
 
+/* Soft ceiling: algorithm, CFG, callers, typed counts, and final Boolean
+ * lifetime match. The sole residue is two equivalent category-2 address
+ * expansions: retail materializes 2 and indexes from +0xBC; current MWCC
+ * folds each to +0xCC. */
 int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
     unsigned short roll;
     int taunt_count;
     int charge_count;
     int range_count;
+    int has_range_moves;
 
     taunt_count = ai_count_taunt_moves();
     charge_count = ai_count_charge_moves();
@@ -4796,7 +4825,12 @@ int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
         return 1;
     }
     range_count = ai_range_move_count(drone);
-    if ((range_count != 0) == 1) {
+    if (range_count != 0) {
+        has_range_moves = 1;
+    } else {
+        has_range_moves = 0;
+    }
+    if (has_range_moves == 1) {
         ai_transfer_active(drone_ai_perform_range_attack);
         return 1;
     }
@@ -5095,21 +5129,25 @@ int drone_ai_check_for_normal_blocking(DroneAI* drone) {
     return 0;
 }
 
+/* Soft ceiling: exact size, CFG, calls, cached action lock, and facing-result
+ * materialization. Residue is only r3/r4 coloring for pdata/tick loads. */
 int drone_ai_attacker_not_facing_watcher(void) {
     DroneAI* drone;
     PlyrPdata* player;
+    unsigned int action_lock_b;
     int likelihood;
     int can_attack;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
     player = plyr_pdata;
-    if (player->action_lock_b > game_tick_ctr) {
+    action_lock_b = player->action_lock_b;
+    if (action_lock_b > game_tick_ctr) {
         can_attack = 0;
     } else {
         if (player->action_lock_a > game_tick_ctr) {
             can_attack = 0;
-        } else if (player->action_lock_b > game_tick_ctr) {
+        } else if (action_lock_b > game_tick_ctr) {
             can_attack = 0;
         } else if (player->push_blocked != 0 ||
                    (player->state & 0x200) != 0) {
@@ -5128,7 +5166,7 @@ int drone_ai_attacker_not_facing_watcher(void) {
     }
     if (player->action_lock_a > game_tick_ctr) {
         can_attack = 0;
-    } else if (player->action_lock_b > game_tick_ctr) {
+    } else if (action_lock_b > game_tick_ctr) {
         can_attack = 0;
     } else if (player->push_blocked != 0 ||
                (player->state & 0x200) != 0) {
@@ -5142,7 +5180,8 @@ int drone_ai_attacker_not_facing_watcher(void) {
     if (am_i_airborn() == 1) {
         return 0;
     }
-    if (!ai_not_facing()) {
+    can_attack = ai_not_facing();
+    if (can_attack == 0) {
         return 0;
     }
     if ((g_DroneOverrideInfo.flags & 0x20) != 0) {
@@ -5184,9 +5223,12 @@ int drone_ai_attacker_not_facing_watcher(void) {
     return drone_ai_attacker_defenseless(drone);
 }
 
+/* Soft ceiling: exact size, opcodes, state tests, and availability logic.
+ * Remaining differences are GPR allocation and load scheduling. */
 int drone_ai_attacker_defenseless_watcher(void) {
     DroneAI* drone;
     PlyrPdata* action;
+    unsigned int action_lock_b;
     int can_attack;
 
     drone = get_player_number(plyr_obj) == 0
@@ -5196,12 +5238,13 @@ int drone_ai_attacker_defenseless_watcher(void) {
         return 0;
     }
     action = plyr_pdata;
-    if (action->action_lock_b > game_tick_ctr) {
+    action_lock_b = action->action_lock_b;
+    if (action_lock_b > game_tick_ctr) {
         can_attack = 0;
     } else {
         if (action->action_lock_a > game_tick_ctr) {
             can_attack = 0;
-        } else if (action->action_lock_b > game_tick_ctr) {
+        } else if (action_lock_b > game_tick_ctr) {
             can_attack = 0;
         } else if (action->push_blocked != 0 ||
                    (action->state & 0x200) != 0) {
@@ -5220,7 +5263,7 @@ int drone_ai_attacker_defenseless_watcher(void) {
     }
     if (action->action_lock_a > game_tick_ctr) {
         can_attack = 0;
-    } else if (action->action_lock_b > game_tick_ctr) {
+    } else if (action_lock_b > game_tick_ctr) {
         can_attack = 0;
     } else if (action->push_blocked != 0 ||
                (action->state & 0x200) != 0) {
@@ -5237,6 +5280,8 @@ int drone_ai_attacker_defenseless_watcher(void) {
     return drone_ai_attacker_defenseless(drone);
 }
 
+/* Soft ceiling: exact size, CFG, operations, and cached lock semantics.
+ * Residue is confined to r3/r5 coloring of the lock and tick operands. */
 int drone_ai_beating_the_snot_out_of_him_watcher(void) {
     DroneAI* drone;
     PlyrPdata* player;
@@ -5290,7 +5335,10 @@ int drone_ai_beating_the_snot_out_of_him_watcher(void) {
     if (drone->opponent_distance > 9.290304f) {
         return 0;
     }
-    can_retreat = ai_backward_clearance() > 2.1336f;
+    if (ai_backward_clearance() > 2.1336f)
+        can_retreat = 1;
+    else
+        can_retreat = 0;
     if (can_retreat == 1) {
         likelihood = (his_pdata->hit_streak - 3) * 10 + 30;
         if (drone->big_boss_stage == 4) {
@@ -5327,6 +5375,8 @@ static inline AiFightstyleAttack* ai_pick_status_special_move(void) {
     return get_special_move();
 }
 
+/* Soft ceiling: retail call/branch structure and table-selection diamonds agree.
+ * The residue is one move-data reload plus nonvolatile GPR coloring. */
 int drone_ai_attacker_defenseless(DroneAI* drone) {
     void* category_move;
     void* script;
@@ -5379,10 +5429,12 @@ int drone_ai_attacker_defenseless(DroneAI* drone) {
              (drone->difficulty_index > 5 && roll < 20))) {
             script = ai_pick_status_special_move();
             drone->script_attack_ready = 1;
-        } else if (plyr_pdata->fighter_definition->move_blend_data != 0 &&
-                   plyr_pdata->fighter_definition->move_blend_data
-                       ->ai_tables[1]
-                           .usable_row_count > 0 &&
+        } else if ((close_count =
+                        plyr_pdata->fighter_definition->move_blend_data != 0
+                            ? plyr_pdata->fighter_definition->move_blend_data
+                                  ->ai_tables[1]
+                                      .usable_row_count
+                            : 0) > 0 &&
                    roll < 10) {
             script = get_random_fightstyle_attack(
                 plyr_pdata->fighter_definition, 1, 1);
@@ -5418,6 +5470,7 @@ int drone_ai_attacker_defenseless(DroneAI* drone) {
             drone->opponent_distance < 4.378056f &&
             his_pdata->state != 0x4203) {
             PlyrFighterDefinition* combo_fighter;
+            void* combo_script;
 
             combo_fighter = plyr_pdata->fighter_definition;
             distant_count = combo_fighter->move_blend_data != 0
@@ -5429,22 +5482,23 @@ int drone_ai_attacker_defenseless(DroneAI* drone) {
                                     .usable_row_count
                               : 0;
             if ((his_pdata->state & 0x100) != 0) {
-                script = get_random_fightstyle_attack(
+                combo_script = get_random_fightstyle_attack(
                     combo_fighter, 3, 1);
             } else if ((unsigned int)close_count > 6U &&
                        xz_distance_between_players() < 7.1883736f &&
                        randu0(100) < 30) {
-                script = get_random_fightstyle_attack(
+                combo_script = get_random_fightstyle_attack(
                     combo_fighter, 0, 1);
             } else if ((unsigned int)distant_count > 6U &&
                        randu0(100) < 30) {
-                script = get_random_fightstyle_attack(
+                combo_script = get_random_fightstyle_attack(
                     combo_fighter, 10, 1);
             } else {
-                script = get_random_fightstyle_attack(
+                combo_script = get_random_fightstyle_attack(
                     combo_fighter, 1, 1);
             }
             drone->command_active = 1;
+            script = combo_script;
             if (script == 0) {
                 return 0;
             }
@@ -5517,13 +5571,13 @@ void drone_ai_watcher_calculate_data(void) {
         ladder_position = 4;
     }
 
-    drone->big_boss_stage = ladder_position;
+    drone->match_stage = ladder_position;
     drone->player = plyr_pdata;
-    drone->charge_cooldown_tick = game_settings.kombat_difficulty;
+    drone->big_boss_stage = game_settings.kombat_difficulty;
     drone->consecutive_losses = g_GameLossesInARow;
     drone->opponent_round_attacks = his_pdata->round_attack_count;
 
-    if (drone->charge_cooldown_tick > 2) {
+    if (drone->big_boss_stage > 2) {
         if (drone->opponent_round_attacks >
             (unsigned int)(((int)drone->match_mode - 1) * 10 + 12 -
                            (int)drone->match_mode * 2)) {
@@ -5539,13 +5593,14 @@ void drone_ai_watcher_calculate_data(void) {
 
     drone->opponent_distance = xz_distance_between_players();
     drone->opponent_out_of_range = 0;
-    if (drone->opponent_distance > 14.6f ||
-        drone->opponent_distance > 5.9457946f) {
+    if (drone->opponent_distance > 14.6f) {
+        drone->opponent_out_of_range = 1;
+    } else if (drone->opponent_distance > 5.9457946f) {
         drone->opponent_out_of_range = 1;
     }
 
-    if (exec_tick_ctr - drone->next_style_change_tick > 60) {
-        drone->next_style_change_tick = exec_tick_ctr;
+    if (exec_tick_ctr - drone->difficulty_update_tick > 60) {
+        drone->difficulty_update_tick = exec_tick_ctr;
         drone->difficulty_index =
             handicap_get_current_difficulty(drone);
         if (get_game_state() == 3) {
@@ -5555,16 +5610,16 @@ void drone_ai_watcher_calculate_data(void) {
             drone->difficulty_index =
                 mk_chess_get_current_difficulty_for_ai(
                     drone->player->plyr_num);
-            drone->charge_cooldown_tick =
+            drone->big_boss_stage =
                 game_settings.arcade_difficulty;
-            if (drone->charge_cooldown_tick < 2) {
-                drone->big_boss_stage = 2;
-            } else if (drone->charge_cooldown_tick == 2) {
-                drone->big_boss_stage = 4;
-            } else if (drone->charge_cooldown_tick == 3) {
-                drone->big_boss_stage = 6;
+            if (drone->big_boss_stage < 2) {
+                drone->match_stage = 2;
+            } else if (drone->big_boss_stage == 2) {
+                drone->match_stage = 4;
+            } else if (drone->big_boss_stage == 3) {
+                drone->match_stage = 6;
             } else {
-                drone->big_boss_stage = 8;
+                drone->match_stage = 8;
             }
         }
     }
@@ -5585,6 +5640,8 @@ void drone_ai_watcher_calculate_data(void) {
     }
 }
 
+/* Soft ceiling: exact behavior, calls, and opcode set except one extra zero
+ * materialization; retail keeps the guard branch but shares the final li. */
 int drone_ai_process_background_states(DroneAI* request) {
     float distance;
 
@@ -5641,17 +5698,20 @@ static inline unsigned int ai_move_table_row_count(
     return ai_table_row_count(move_data->ai_tables, category);
 }
 
+/* Soft ceiling: the scoped propagation mode recovers retail's dynamic indexed
+ * table loads and 104 of the former 108 missing bytes. The remaining four-byte
+ * deficit is one reused move_blend_data pointer in the low-attack override;
+ * other residue is GPR coloring. */
+#pragma opt_propagation off
 int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
-    PlyrFighterDefinition* fighter;
     PlyrMoveBlendData* move_data;
-    void* script;
-    unsigned int fightstyle_count;
+    AiFightstyleAttack* script;
     unsigned int special_count;
+    unsigned int fightstyle_count;
     unsigned int attack_flags;
     unsigned int stage;
     unsigned int elapsed;
     int attack_state;
-    unsigned int category;
     int low_attack;
     int allow_special;
 
@@ -5700,12 +5760,15 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
         return 1;
     }
     if (attack_state == 1) {
+        PlyrFighterDefinition* fighter;
+        unsigned int state1_fightstyle_count;
+
         fighter = plyr_pdata->fighter_definition;
         move_data = fighter->move_blend_data;
-        fightstyle_count = move_data != 0
-                               ? move_data->ai_tables[10]
-                                     .usable_row_count
-                               : 0;
+        state1_fightstyle_count =
+            move_data != 0
+                ? move_data->ai_tables[10].usable_row_count
+                : 0;
         special_count = move_data != 0
                             ? move_data->ai_tables[0].usable_row_count
                             : 0;
@@ -5715,7 +5778,7 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
                    xz_distance_between_players() < 7.1883736f &&
                    randu0(100) < 30) {
             script = get_random_fightstyle_attack(fighter, 0, 1);
-        } else if (fightstyle_count > 6 && randu0(100) < 30) {
+        } else if (state1_fightstyle_count > 6 && randu0(100) < 30) {
             script = get_random_fightstyle_attack(fighter, 10, 1);
         } else {
             script = get_random_fightstyle_attack(fighter, 1, 1);
@@ -5744,128 +5807,138 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
         return 1;
     }
     if (attack_state == 0 || attack_state == 2) {
+        int category;
+
         attack_flags = 0;
-    if (his_pdata->state != 0x600 &&
-        (drone->difficulty_index >= 2 || randu0(100) < 65)) {
-        attack_flags |= 0x100;
-    }
-    if (drone->opponent_distance > 14.6f) {
-        category = 2;
-        attack_flags |= 8;
-        fightstyle_count = 0;
-        special_count = ai_table_row_count(
-            plyr_pdata->ai_tables->tables, category);
-    } else if (drone->opponent_distance > 5.9457946f) {
-        category = 1;
-        attack_flags |= 4;
-        special_count = ai_table_row_count(
-            plyr_pdata->ai_tables->tables, category);
-        move_data = plyr_pdata->fighter_definition->move_blend_data;
-        fightstyle_count = ai_move_table_row_count(move_data, category);
-    } else if (drone->opponent_distance > 2.8103173f) {
-        category = 1;
-        attack_flags |= 2;
-        special_count = ai_table_row_count(
-            plyr_pdata->ai_tables->tables, category);
-        move_data = plyr_pdata->fighter_definition->move_blend_data;
-        fightstyle_count = ai_move_table_row_count(move_data, category);
-        if (drone->opponent_distance < 4.378056f &&
-            low_attack == 1) {
+        if (his_pdata->state != 0x600 &&
+            (drone->difficulty_index >= 2 || randu0(100) < 65)) {
+            attack_flags |= 0x100;
+        }
+        if (drone->opponent_distance > 14.6f) {
+            category = 2;
+            attack_flags |= 8;
+            fightstyle_count = 0;
+            special_count = ai_table_row_count(
+                plyr_pdata->ai_tables->tables, category);
+        } else if (drone->opponent_distance > 5.9457946f) {
+            category = 1;
+            attack_flags |= 4;
+            special_count = ai_table_row_count(
+                plyr_pdata->ai_tables->tables, category);
+            move_data = plyr_pdata->fighter_definition->move_blend_data;
+            fightstyle_count =
+                ai_move_table_row_count(move_data, category);
+        } else if (drone->opponent_distance > 2.8103173f) {
+            category = 1;
+            attack_flags |= 2;
+            special_count = ai_table_row_count(
+                plyr_pdata->ai_tables->tables, category);
+            move_data = plyr_pdata->fighter_definition->move_blend_data;
+            fightstyle_count =
+                ai_move_table_row_count(move_data, category);
+            if (drone->opponent_distance < 4.378056f &&
+                low_attack == 1) {
+                category = 3;
+                attack_flags |= 1;
+                special_count = ai_table_row_count(
+                    plyr_pdata->ai_tables->tables, category);
+                move_data =
+                    plyr_pdata->fighter_definition->move_blend_data;
+                fightstyle_count = ai_move_table_row_count(
+                    move_data, category);
+            }
+        } else if ((his_pdata->state & 0x900) != 0) {
             category = 3;
             attack_flags |= 1;
             special_count = ai_table_row_count(
                 plyr_pdata->ai_tables->tables, category);
-            move_data =
-                plyr_pdata->fighter_definition->move_blend_data;
-            fightstyle_count = ai_move_table_row_count(
-                move_data, category);
-        }
-    } else if ((his_pdata->state & 0x900) != 0) {
-        category = 3;
-        attack_flags |= 1;
-        special_count = ai_table_row_count(
-            plyr_pdata->ai_tables->tables, category);
-        move_data = plyr_pdata->fighter_definition->move_blend_data;
-        fightstyle_count = ai_move_table_row_count(move_data, category);
-    } else if (his_obj->pos.value.y < 0.4f + g_game_info.field_34) {
-        category = 3;
-        attack_flags |= 1;
-        special_count = ai_table_row_count(
-            plyr_pdata->ai_tables->tables, category);
-        move_data = plyr_pdata->fighter_definition->move_blend_data;
-        fightstyle_count = ai_move_table_row_count(move_data, category);
-    } else {
-        attack_flags |= 1;
-        category = 0;
-        if (randu0(100) < 10) {
-            attack_flags |= 2;
-            category = 1;
-        } else if (low_attack == 1 &&
-                   (drone->movement_state == 8 || randu0(100) < 30)) {
-            attack_flags |= 1;
+            move_data = plyr_pdata->fighter_definition->move_blend_data;
+            fightstyle_count =
+                ai_move_table_row_count(move_data, category);
+        } else if (his_obj->pos.value.y < 0.4f + g_game_info.field_34) {
             category = 3;
-        }
-        special_count = ai_table_row_count(
-            plyr_pdata->ai_tables->tables, category);
-        move_data = plyr_pdata->fighter_definition->move_blend_data;
-        fightstyle_count = ai_move_table_row_count(move_data, category);
-    }
-    if (is_he_airborn() && (attack_flags & 3) != 0) {
-        category = 12;
-        special_count = ai_table_row_count(
-            plyr_pdata->ai_tables->tables, category);
-        move_data = plyr_pdata->fighter_definition->move_blend_data;
-        fightstyle_count = ai_move_table_row_count(move_data, category);
-    }
-
-    if (attack_state == 2) {
-        if (special_count != 0) {
-            if (fightstyle_count == 0 && special_count != 0 &&
-                his_pdata->state != 0x600 &&
-                randu0(3) == 0) {
-                allow_special = 0;
-            } else {
-                allow_special = 1;
+            attack_flags |= 1;
+            special_count = ai_table_row_count(
+                plyr_pdata->ai_tables->tables, category);
+            move_data = plyr_pdata->fighter_definition->move_blend_data;
+            fightstyle_count =
+                ai_move_table_row_count(move_data, category);
+        } else {
+            attack_flags |= 1;
+            category = 0;
+            if (randu0(100) < 10) {
+                attack_flags |= 2;
+                category = 1;
+            } else if (low_attack == 1 &&
+                       (drone->movement_state == 8 ||
+                        randu0(100) < 30)) {
+                attack_flags |= 1;
+                category = 3;
             }
-            if (allow_special == 1) {
-                script = ai_pick_special_move(category);
-                if (script != 0) {
-                    drone->script_attack = script;
-                    drone->script_attack_ready = 1;
-                    if (immediate == 1) {
-                        drone_ai_perform_script_attack();
+            special_count = ai_table_row_count(
+                plyr_pdata->ai_tables->tables, category);
+            move_data = plyr_pdata->fighter_definition->move_blend_data;
+            fightstyle_count =
+                ai_move_table_row_count(move_data, category);
+        }
+        if (is_he_airborn() && (attack_flags & 3) != 0) {
+            category = 12;
+            special_count = ai_table_row_count(
+                plyr_pdata->ai_tables->tables, category);
+            move_data = plyr_pdata->fighter_definition->move_blend_data;
+            fightstyle_count =
+                ai_move_table_row_count(move_data, category);
+        }
+
+        if (attack_state == 2) {
+            if (special_count != 0) {
+                if (fightstyle_count == 0 && special_count != 0 &&
+                    his_pdata->state != 0x600 &&
+                    randu0(3) == 0) {
+                    allow_special = 0;
+                } else {
+                    allow_special = 1;
+                }
+                if (allow_special == 1) {
+                    script = ai_pick_special_move(category);
+                    if (script != 0) {
+                        drone->script_attack = script;
+                        drone->script_attack_ready = 1;
+                        if (immediate == 1) {
+                            drone_ai_perform_script_attack();
+                            return 1;
+                        }
+                        ai_transfer_active(drone_ai_perform_script_attack);
                         return 1;
                     }
-                    ai_transfer_active(drone_ai_perform_script_attack);
-                    return 1;
+                } else if (fightstyle_count == 0) {
+                    drone->movement_attempt = 1;
+                    return 0;
                 }
-            } else if (fightstyle_count == 0) {
-                drone->movement_attempt = 1;
-                return 0;
             }
         }
-    }
-    if (fightstyle_count != 0) {
-        script = get_random_fightstyle_attack(
-            plyr_pdata->fighter_definition, category, 0);
-        if (script == 0) {
-            return 0;
-        }
-        drone->script_attack = script;
-        drone->script_attack_ready = 2;
-        if (immediate == 1) {
-            drone_ai_perform_script_attack();
+        if (fightstyle_count != 0) {
+            script = get_random_fightstyle_attack(
+                plyr_pdata->fighter_definition, category, 0);
+            if (script == 0) {
+                return 0;
+            }
+            drone->script_attack = script;
+            drone->script_attack_ready = 2;
+            if (immediate == 1) {
+                drone_ai_perform_script_attack();
+                return 1;
+            }
+            ai_transfer_active(drone_ai_perform_script_attack);
             return 1;
         }
-        ai_transfer_active(drone_ai_perform_script_attack);
-        return 1;
-    }
     } else if (attack_state == 3) {
         drone_ai_perform_jump_attack(drone);
         return 1;
     }
     return 0;
 }
+#pragma opt_propagation reset
 
 float drone_ai_perform_combo_attack(void) {
     DroneAI* drone;
@@ -6006,8 +6079,6 @@ int drone_ai_victim_ducking(void) {
     return 0;
 }
 
-/* Soft ceiling: exact watcher logic, calls, and ABI. The remaining four bytes
- * are equivalent floating-point >= lowering (blt versus cror/bne). */
 int drone_ai_victim_slipping_on_vomit(void) {
     DroneAI* drone;
 
@@ -6020,7 +6091,7 @@ int drone_ai_victim_slipping_on_vomit(void) {
         ai_transfer_active(jump_towards_opponent_with_jexit);
         return 1;
     }
-    if (xz_distance_between_players() >= 1.4864486f) {
+    if (!(xz_distance_between_players() < 1.4864486f)) {
         ai_transfer_active(walk_forward_attackdist_with_jexit);
         return 1;
     }
@@ -6117,8 +6188,9 @@ static int drone_ai_victim_throw_attempt(void) {
     return 0;
 }
 
-/* Soft ceiling: retail/current math, CFG, calls, and non-load opcode counts
- * match; retail retains two additional zero-float loads around ai_sqrt_table. */
+/* Soft ceiling: exact algorithm, CFG, calls, widths, and non-load operations.
+ * Retail reloads player X/Z after the first square root; current MWCC CSE
+ * retains those values, with downstream register/stack-slot coloring only. */
 static int drone_ai_victim_avoid(void) {
     DroneAI* drone;
     float target_x;
@@ -6182,8 +6254,8 @@ static int drone_ai_victim_avoid(void) {
 
 /*
  * Retail supports this function's local O2 mode: using the TU's O4,s mode
- * regresses the diff. Remaining residue is constant-FP folding and unordered
- * comparison branch emission in the fatality-distance test.
+ * regresses the diff. Exact size and CFG now agree; residue is FP constant
+ * folding, register coloring, and scheduling in the distance calculations.
  */
 #pragma optimization_level 2
 int drone_ai_victim_dizzy(void) {
@@ -6219,7 +6291,7 @@ int drone_ai_victim_dizzy(void) {
         }
         break;
     case 4:
-        if (xz_distance_between_players() >= 3.3445094f) {
+        if (!(xz_distance_between_players() < 3.3445094f)) {
             ai_transfer_active(walk_forward_attackdist2_with_jexit);
             return 1;
         } else {
@@ -6230,7 +6302,7 @@ int drone_ai_victim_dizzy(void) {
         if (drone->opponent_distance > 13.378037f) {
             ai_transfer_active(jump_towards_opponent_with_jexit);
             return 1;
-        } else if (xz_distance_between_players() >= 1.4864486f) {
+        } else if (!(xz_distance_between_players() < 1.4864486f)) {
             ai_transfer_active(walk_forward_attackdist_with_jexit);
             return 1;
         } else {
@@ -6270,8 +6342,6 @@ int drone_ai_victim_dizzy(void) {
 #pragma optimization_level 4
 
 
-/* Soft ceiling: retail/current state transitions and opcode counts match
- * except for one extra constant materialization in the current emission. */
 static int drone_ai_im_dizzy(void) {
     DroneAI* drone;
 
@@ -6299,23 +6369,27 @@ static int drone_ai_im_dizzy(void) {
         if (mode_of_play == 10) {
             drone->fatality_decision = 1;
         }
-        return 1;
+        break;
     case 1:
         return 0;
     case 2:
         ai_transfer_active(do_my_suicide);
         return 1;
     default:
-        return 1;
+        break;
     }
+    return 1;
 }
 
+/* Soft ceiling: exact size, CFG, instructions, calls, stores, and selection.
+ * The remaining differences are operand/register coloring only. */
 static int drone_ai_victim_dizzy_3(void) {
     DroneAI* drone;
     DroneAI* command_drone;
     AiSpecialMoveList* moves;
     void* category_script;
     void* script;
+    void* selected_script;
     unsigned int roll_value;
     unsigned short roll;
     int ranged_count;
@@ -6340,7 +6414,7 @@ static int drone_ai_victim_dizzy_3(void) {
         moves = (AiSpecialMoveList*)plyr_pdata->status_flags;
         ranged_count = moves->ranged_count;
         if (ranged_count == 0) {
-            script = 0;
+            selected_script = 0;
         } else {
             command_drone->ai_command =
                 moves->ranged_commands +
@@ -6351,8 +6425,9 @@ static int drone_ai_victim_dizzy_3(void) {
             command_drone->ai_command_flag0 = 0;
             command_drone->ai_command_flag1 = 0;
             command_drone->ai_command_flag2 = 0;
-            script = get_special_move();
+            selected_script = get_special_move();
         }
+        script = selected_script;
         drone->script_attack_ready = 1;
     } else if (category_script != 0 && roll < 80) {
         if (is_script != 0) {
@@ -6398,8 +6473,6 @@ int drone_ai_victim_dizzy_2(void) {
     return 1;
 }
 
-/* Soft ceiling: state signedness, calls, and CFG match. The remaining four
- * bytes are equivalent floating-point >= lowering (blt versus cror/bne). */
 int drone_ai_victim_frozen(void) {
     DroneAI* drone;
     int state;
@@ -6407,7 +6480,7 @@ int drone_ai_victim_frozen(void) {
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
     state = his_pdata->state;
-    if ((unsigned int)state != 0xFFFFC600U &&
+    if (state != 0xC600 &&
         state != 0x202 && state != 0x421A) {
         drone->reaction_watcher = 0;
         return 0;
@@ -6416,7 +6489,7 @@ int drone_ai_victim_frozen(void) {
         ai_transfer_active(jump_towards_opponent_with_jexit);
         return 1;
     }
-    if (xz_distance_between_players() >= 1.4864486f) {
+    if (!(xz_distance_between_players() < 1.4864486f)) {
         ai_transfer_active(walk_forward_attackdist_with_jexit);
         return 1;
     }
@@ -6435,7 +6508,7 @@ int drone_ai_victim_speared_2(void) {
         ai_transfer_active(jump_towards_opponent_with_jexit);
         return 1;
     }
-    if (xz_distance_between_players() >= 1.4864486f) {
+    if (!(xz_distance_between_players() < 1.4864486f)) {
         ai_transfer_active(walk_forward_attackdist_with_jexit);
         return 1;
     }
@@ -6703,7 +6776,7 @@ static float drone_ai_perform_knockdown(void) {
         AI_TRANSFER(j_exit);
         return 0.0f;
     }
-    attack = (AiFightstyleAttack*)get_random_fightstyle_attack(
+    attack = get_random_fightstyle_attack(
         plyr_pdata->fighter_definition, 9, 0);
     if (attack == 0) {
         AI_TRANSFER(j_exit);
@@ -6781,6 +6854,8 @@ static inline int ai_find_charge_style(void) {
     return -1;
 }
 
+/* Soft ceiling: exact size, CFG, helper expansion, calls, and field accesses.
+ * Residue is a whole-lifetime r30/r31 swap between drone and style. */
 float drone_ai_perform_charge_up(void) {
     DroneAI* drone;
     int style;
@@ -6833,6 +6908,8 @@ static inline int ai_find_taunt_style(void) {
     return -1;
 }
 
+/* Soft ceiling: exact size, CFG, helper expansion, calls, and field accesses.
+ * Residue is a whole-lifetime r30/r31 swap between drone and style. */
 float drone_ai_perform_taunt(void) {
     DroneAI* drone;
     int style;
@@ -6855,6 +6932,8 @@ float drone_ai_perform_taunt(void) {
     return 0.0f;
 }
 
+/* Soft ceiling: exact size, CFG, operations, calls, and data accesses.
+ * The four remaining operand differences are temporary-register coloring. */
 static float drone_ai_perform_push(void) {
     DroneAI* drone;
     AiWeaponStyleView* style;
@@ -7049,8 +7128,8 @@ static float step_forward_with_jexit(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: retail operations/CFG match; residue is r29-r31 coloring,
- * scalar saves versus stmw/lmw, and equivalent temporary/load scheduling. */
+/* Soft ceiling: exact size, operations, CFG, calls, widths, and save/restore.
+ * All remaining differences are equivalent r29-r31 operand coloring. */
 static float catch_opponent(void) {
     DroneAI* active_drone;
     AiFightstyleAttack* script;
@@ -7111,7 +7190,7 @@ static float drone_ai_counter_attack_now(void) {
 }
 
 /* Soft ceiling: ABI, guards, bitfield writes, calls, and transfer CFG match.
- * Residue is GPR coloring and equivalent pointer/zero-load scheduling. */
+ * Residue is GPR coloring plus one retail-retained redundant script null test. */
 static float drone_ai_attack_obstacle_now(void) {
     DroneAI* drone;
     PlyrPdata* action;
@@ -7389,8 +7468,8 @@ static float drone_ai_duck_throw_attack(void) {
     return ai_finish_duck_reaction(drone, 1);
 }
 
-/* Soft ceiling: retail/current size and opcode counts match; only GPR operand
- * selection and scheduling remain. */
+/* Soft ceiling: exact size, CFG, calls, and opcodes. The only differences are
+ * the operand order of two commutative adds in randomized tick deadlines. */
 static int drone_ai_check_change_style(DroneAI* drone) {
     MkObj* player_object;
 
@@ -7423,6 +7502,8 @@ static void drone_ai_check_next_AIState(DroneAI* drone) {
     drone->movement_state = drone_ai_fetch_next_AIState(drone);
 }
 
+/* Soft ceiling: exact size, CFG, instructions, calls, and typed command stores.
+ * The remaining differences are GPR operand coloring only. */
 static float drone_ai_perform_range_attack(void) {
     DroneAI* drone;
     void* script;
@@ -7524,7 +7605,7 @@ float drone_ai_perform_attack(void) {
         return 1.0f;
     }
     pre_attack_chores();
-    attack = (AiFightstyleAttack*)get_random_fightstyle_attack(
+    attack = get_random_fightstyle_attack(
         plyr_pdata->fighter_definition, drone->attack_type, 0);
     if (attack == 0) {
         AI_TRANSFER(j_exit);
@@ -7593,9 +7674,9 @@ void drone_ai_finished_request(void) {
 }
 
 /*
- * Retail and current code have identical size and opcode counts, including
- * every typed field store. The residual diff is store scheduling and GPR
- * allocation.
+ * Retail/current have identical size, opcode multiset, CFG, calls, and typed
+ * field-store order. Residue is zero-extension/load/add/immediate scheduling
+ * and one caller-saved GPR in the two randomized tick expressions.
  */
 void drone_ai_initialize(DroneAI* drone) {
     int ladder_position;
@@ -7629,7 +7710,7 @@ void drone_ai_initialize(DroneAI* drone) {
 
     random_ticks = randu0(120);
     drone->next_style_change_tick = exec_tick_ctr + random_ticks + 180;
-    drone->initialization_tick = exec_tick_ctr;
+    drone->difficulty_update_tick = exec_tick_ctr;
     drone->background_attack_active = 1;
     drone->block_subtype = 0;
     drone->script_attack = 0;
@@ -7789,6 +7870,8 @@ float drone_entry(void) {
 #pragma dont_inline reset
 
 
+/* Soft ceiling: exact size, CFG, calls, table indices, and result conversion.
+ * Residue is ordering of the two table loads and one GPR base choice. */
 static float drone_loop(void) {
     DroneAI* drone;
     unsigned int ticks;
@@ -7805,8 +7888,8 @@ static float drone_loop(void) {
         return 1.0f;
     }
     difficulty = drone->difficulty_index;
-    random_ticks = g_randomDecisionBaseWaitTime[difficulty];
     ticks = g_minDecisionBaseWaitTime[difficulty];
+    random_ticks = g_randomDecisionBaseWaitTime[difficulty];
     ticks += randu0((unsigned short)random_ticks);
     return (float)ticks;
 }
@@ -7996,7 +8079,7 @@ int drone_ai_check_next_block_state(void) {
     return 1;
 }
 
-static inline void ai_reset_command_state(void) {
+static inline int ai_reset_command_state(void) {
     DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
@@ -8008,6 +8091,7 @@ static inline void ai_reset_command_state(void) {
     drone->ai_command_flag1 = 0;
     drone->ai_command_flag2 = 0;
     drone->command_active = 0;
+    return 0;
 }
 
 static AiFightstyleAttack* get_special_move(void) {
@@ -8157,10 +8241,10 @@ int drone_ai_check_taunt_restrictions(void) {
     return 1;
 }
 
-/* Soft ceiling: drone_ai_check_throw_restrictions ~99.04% - pointer/state GPR coloring; stop. */
+/* Soft ceiling: exact size, CFG, state tests, widths, and return behavior.
+ * Residue is a consistent r3/r4 swap for the opponent pointer and state. */
 int drone_ai_check_throw_restrictions(void) {
     int allowed = 1;
-    PlyrPdata* opponent;
     int state;
 
     if ((g_DroneOverrideInfo.flags & 0x40) != 0) {
@@ -8172,8 +8256,7 @@ int drone_ai_check_throw_restrictions(void) {
     if (is_he_duck_blocking() != 0) {
         allowed = 0;
     }
-    opponent = his_pdata;
-    state = opponent->state;
+    state = his_pdata->state;
     if (state == 0x101) {
         allowed = 0;
     }
@@ -8186,7 +8269,7 @@ int drone_ai_check_throw_restrictions(void) {
     if (state == 0x901) {
         allowed = 0;
     }
-    if (opponent->throw_restriction == 3) {
+    if (his_pdata->throw_restriction == 3) {
         allowed = 0;
     }
     if ((state & 0x400) != 0) {
@@ -8407,11 +8490,10 @@ static int drone_ai_should_evade_attack(DroneAI* drone) {
     return 0;
 }
 
-/*
- * Retail loads a scalar state weight in each selection branch and indexes the
- * 0x4c-byte character table. Remaining differences are GPR lifetimes, address
- * materialization, and TU-local relocation labeling around that search.
- */
+/* Soft ceiling: state weighting, 0x4C character-row search, sentinel handling,
+ * calls, and later CFG agree. Residue is r6/r8 coloring and MWCC's inline
+ * character-id preheader versus retail's out-of-line rotated preheader; current
+ * code is 12 bytes shorter. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
@@ -8436,9 +8518,11 @@ int drone_ai_fetch_next_AIState(DroneAI* drone) {
     roll = randu0(100);
     for (state = 0; state < 9; state++) {
         int difficulty_group;
+        int character_state_index;
         int weight;
 
         difficulty_group = 0;
+        character_state_index = 0;
         if (drone->match_stage == 0) {
             weight = g_likelihoodOfChangingStateE3FingEasyLevel[state];
         } else if (drone->difficulty_index == 0) {
@@ -8449,12 +8533,9 @@ int drone_ai_fetch_next_AIState(DroneAI* drone) {
                    drone->big_boss_stage == 4) {
             weight = g_likelihoodOfChangingStateMAXLevel[state];
         } else {
-            int character_state_index;
-
             if (drone->difficulty_index > 5) {
                 difficulty_group = 1;
             }
-            character_state_index = 0;
             for (;;) {
                 if (g_likelihoodOfPCHRChangingState[character_state_index]
                         .character_id ==
@@ -8599,8 +8680,6 @@ int drone_ai_should_be_blocking(DroneAI* drone, int reaction) {
     return 0;
 }
 
-/* Soft ceiling: exact algorithm, CFG, and opcodes; current code retains one
- * extra mr after the randomized likelihood update. */
 int drone_ai_should_roll(int aggressive) {
     DroneAI* drone;
     int likelihood;
@@ -8618,9 +8697,15 @@ int drone_ai_should_roll(int aggressive) {
         likelihood += 10;
     }
     if (randu0(100) < 50) {
-        likelihood += randu0(10);
+        unsigned short adjustment;
+
+        adjustment = randu0(10);
+        likelihood += adjustment;
     } else {
-        likelihood -= randu0(20);
+        unsigned short adjustment;
+
+        adjustment = randu0(20);
+        likelihood -= adjustment;
     }
     if (likelihood < 0) {
         likelihood = 0;
@@ -8631,12 +8716,16 @@ int drone_ai_should_roll(int aggressive) {
     return 0;
 }
 
+/* Soft ceiling: exact size, CFG, calls, accesses, and computed attack address.
+ * The sole remaining difference is the final pointer store using r0 instead
+ * of retail's r3. */
 static int drone_ai_process_scripted_cmd(void) {
     DroneAI* drone;
     DroneAI* active_drone;
     MkProc* player_proc;
     CmdScript* script;
     AiFightstyleAttackTable* attacks;
+    AiFightstyleAttack* fightstyle_attacks;
     unsigned int command_kind;
     int command;
     int argument;
@@ -8800,7 +8889,8 @@ static int drone_ai_process_scripted_cmd(void) {
         }
         attacks = (AiFightstyleAttackTable*)
             plyr_pdata->fighter_definition->move_blend_data;
-        drone->script_attack = &attacks->attacks[command];
+        fightstyle_attacks = attacks->attacks;
+        drone->script_attack = &fightstyle_attacks[command];
         active_drone = get_player_number(plyr_obj) == 0
                            ? &g_DroneAI1 : &g_DroneAI2;
         player_proc = get_player_number(plyr_obj) == 0
@@ -8848,7 +8938,6 @@ static float drone_ai_scripted_change_style(void) {
 
 static float drone_ai_scripted_attack(void) {
     DroneAI* drone;
-    AiFightstyleAttackTable* attacks;
     AiFightstyleAttack* attack;
     unsigned int attack_index;
     int is_special_attack;
@@ -8862,16 +8951,14 @@ static float drone_ai_scripted_attack(void) {
     }
     if (am_i_airborn() == 0) {
         pre_attack_chores();
-        if (attack->opcode == 0) {
-            attacks = (AiFightstyleAttackTable*)
-                plyr_pdata->fighter_definition->move_blend_data;
-            attack_index = attack - attacks->attacks;
-            if (attack_index == 12 || attack_index == 17 ||
-                attack_index == 2) {
-                is_special_attack = 1;
-            } else {
-                is_special_attack = 0;
-            }
+        if (attack->opcode == 0 &&
+            ((attack_index =
+                  attack -
+                  ((AiFightstyleAttackTable*)plyr_pdata->fighter_definition
+                       ->move_blend_data)
+                      ->attacks) == 12 ||
+             attack_index == 17 || attack_index == 2)) {
+            is_special_attack = 1;
         } else {
             is_special_attack = 0;
         }
@@ -8958,8 +9045,8 @@ int drone_ai_check_switching_to(int command) {
     } else {
         uv_to_opponent(&opponent_direction);
         uv_from_angle_y(&facing_direction, plyr_obj->ang.y);
-        if (opponent_direction.z * facing_direction.z +
-                opponent_direction.x * facing_direction.x <
+        if (opponent_direction.x * facing_direction.x +
+                opponent_direction.z * facing_direction.z <
             0.86f) {
             should_break_out = 1;
         } else {
@@ -8997,47 +9084,35 @@ int drone_ai_check_switching_to(int command) {
     return 0;
 }
 
-/* Soft ceiling: signed base-5 division, CFG, reset stores, and ABI match.
- * Residue is caller-saved GPR coloring, address materialization, and return-zero
- * scheduling. */
+/* Soft ceiling: signed base-5 division, guards, reset stores, and ABI match.
+ * The typed inline reset result recovers retail's return-register lifetime;
+ * current MWCC retains one extra branch after the second reset expansion. */
 int drone_ai_check_button_direction(int direction) {
     DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
-        ai_reset_command_state();
-        return 0;
+        return ai_reset_command_state();
     }
     if (drone->ai_command != 0 &&
         direction == (int)drone->ai_command[drone->ai_command_arg] % 5) {
         if (drone_ai_check_continue_combo() != 0) {
             return 1;
         }
-        ai_reset_command_state();
+        return ai_reset_command_state();
     }
     return 0;
 }
 
-/* Soft ceiling: switch lowering, signed division, reset stores, and ABI match.
- * Current code is four bytes short; residue is caller-saved GPR coloring,
- * address materialization, and zero-return scheduling. */
+/* Soft ceiling: exact size, switch CFG, signed division, reset stores, and ABI.
+ * Residue is caller-saved GPR coloring plus address/result scheduling. */
 int drone_ai_check_button_press(int button) {
     DroneAI* drone;
     int command_button;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     if (g_game_info.pause_flag_bits.controllers_disabled == 1) {
-        drone =
-            get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
-        drone->ai_command = 0;
-        drone->ai_command_arg = 0;
-        drone->ai_command_target = -1;
-        drone->ai_command_value = 0.0f;
-        drone->ai_command_flag0 = 0;
-        drone->ai_command_flag1 = 0;
-        drone->ai_command_flag2 = 0;
-        drone->command_active = 0;
-        return 0;
+        return ai_reset_command_state();
     }
     if (drone->ai_command != 0) {
         command_button = -2;
@@ -9057,24 +9132,16 @@ int drone_ai_check_button_press(int button) {
         case 3:
             command_button = 20;
             break;
+        default:
+            command_button = -2;
+            break;
         }
         if (command_button ==
             ((int)drone->ai_command[drone->ai_command_arg] / 5) * 5) {
             if (drone_ai_check_continue_combo() != 0) {
                 return 1;
             }
-            drone = get_player_number(plyr_obj) == 0
-                        ? &g_DroneAI1
-                        : &g_DroneAI2;
-            drone->ai_command = 0;
-            drone->ai_command_arg = 0;
-            drone->ai_command_target = -1;
-            drone->ai_command_value = 0.0f;
-            drone->ai_command_flag0 = 0;
-            drone->ai_command_flag1 = 0;
-            drone->ai_command_flag2 = 0;
-            drone->command_active = 0;
-            return 0;
+            return ai_reset_command_state();
         }
     }
     return 0;
@@ -9190,6 +9257,8 @@ void drone_ai_hit(void) {
 }
 
 #pragma dont_inline on
+/* Soft ceiling: exact size, instructions, CFG, and cached action-lock use.
+ * Residue is only r4/r6 coloring for the lock and tick values. */
 int drone_ai_can_push(DroneAI* drone) {
     PlyrPdata* action;
     int can_push;
@@ -9251,14 +9320,16 @@ int drone_ai_can_push(DroneAI* drone) {
 
 
 #pragma dont_inline on
-/* Soft ceiling: retail and current code have identical CFG, operations, and
- * size. The remaining differences are GPR allocation, instruction scheduling,
- * and local constant-pool relocation labels. */
-static void* get_random_fightstyle_attack(
+/* Soft ceiling: algorithm, CFG, calls, widths, ABI, and typed layouts match.
+ * Current MWCC coalesces retail's table-base addi/lwz into lwzu; remaining
+ * differences are base/index scheduling and GPR coloring. */
+static AiFightstyleAttack* get_random_fightstyle_attack(
     PlyrFighterDefinition* fighter, int attack_group, int flags) {
     DroneAI* drone;
+    FighterAiTable* tables;
     FighterAiTable* table;
     FighterAiMoveRow* row;
+    AiFightstyleAttack* attacks;
     unsigned int command_kind;
     int command_index;
     int command_target;
@@ -9269,7 +9340,8 @@ static void* get_random_fightstyle_attack(
 
     command_index = 0;
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
-    table = &fighter->move_blend_data->ai_tables[attack_group];
+    tables = fighter->move_blend_data->ai_tables;
+    table = &tables[attack_group];
     command_target = -1;
     if (table->usable_row_count == 0) {
         return 0;
@@ -9367,9 +9439,10 @@ static void* get_random_fightstyle_attack(
         return 0;
     }
     advance_cur_cmd_idx();
-    return &((AiFightstyleAttackTable*)
-                 plyr_pdata->fighter_definition->move_blend_data)
-                ->attacks[command];
+    attacks = ((AiFightstyleAttackTable*)
+                   plyr_pdata->fighter_definition->move_blend_data)
+                  ->attacks;
+    return &attacks[command];
 }
 
 static int get_random_fightstyle_index(
@@ -9378,16 +9451,16 @@ static int get_random_fightstyle_index(
     float lower_scale;
     float upper_scale;
     unsigned int roll;
-    int upper;
-    unsigned int lower;
     int count;
+    unsigned int lower;
+    int upper;
 
     drone = get_player_number(plyr_obj) == 0
                 ? &g_DroneAI1 : &g_DroneAI2;
-    lower_scale = 0.0f;
-    upper_scale = 1.0f;
     upper = table->usable_row_count;
     lower = 0;
+    lower_scale = 0.0f;
+    upper_scale = 1.0f;
     roll = randu0(100);
     if (drone->match_stage == 0 ||
         drone->big_boss_stage == 0 ||
@@ -9451,7 +9524,7 @@ static int get_random_fightstyle_index(
                 if (upper > count) {
                     upper = count;
                 }
-                if (lower > (unsigned int)count) {
+                if ((int)lower > count) {
                     lower = count;
                 }
             } else if (selection_mode == 2) {
@@ -9472,9 +9545,12 @@ static int get_random_fightstyle_index(
                 }
             }
             if (selection_mode == 3) {
-                upper = table->usable_row_count;
-                if (upper > 1) {
-                    lower = upper - 2;
+                int final_count;
+
+                final_count = table->usable_row_count;
+                upper = final_count;
+                if (final_count > 1) {
+                    lower = final_count - 2;
                 } else {
                     lower = 0;
                 }
@@ -9606,6 +9682,8 @@ int drone_ai_should_passive_state_switch(DroneAI* drone) {
     return 0;
 }
 
+/* Soft ceiling: exact size, CFG, arithmetic, field accesses, and calls.
+ * Residue is one r3/r4 swap between match_stage and its multiplier. */
 static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
     DroneAI* drone) {
     int likelihood;
@@ -9663,6 +9741,8 @@ static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
         (float)likelihood * g_DroneOverrideInfo.likelihood_scale);
 }
 
+/* Soft ceiling: exact size, CFG, arithmetic, field accesses, and calls.
+ * Residue is one r3/r4 swap between match_stage and its multiplier. */
 unsigned int handicap_calc_likelihood_of_blocking(DroneAI* drone) {
     int likelihood;
 
@@ -10013,8 +10093,7 @@ int handicap_get_current_difficulty(DroneAI* drone) {
     if (score < 0) {
         score = 0;
     }
-    difficulty = score;
-    difficulty /= 10;
+    difficulty = score / 10;
     if (difficulty > 8) {
         difficulty = 8;
     }
@@ -10372,9 +10451,7 @@ MkProc* get_player_proc(MkObj* player) {
 void force_ai_style(int style) {
 }
 
-/* Soft ceiling: retail operations/CFG and Vec layout match; only the y/z
- * component loads are scheduled and colored between f0/f1 differently. */
-void drone_ai_set_avoidance_area(const Vec* position, float duration) {
+void drone_ai_set_avoidance_area(Vec* position, float duration) {
     PlyrPdata* opponent;
     DroneAI* drone;
 
@@ -10392,8 +10469,8 @@ void drone_ai_set_avoidance_area(const Vec* position, float duration) {
     }
 }
 
-/* Soft ceiling: same nine instructions; only the zero-float load is scheduled
- * before rather than after the player-dependent address selection. */
+/* Soft ceiling: exact size and the same nine instructions; MWCC schedules the
+ * zero-float load before rather than after the player-pointer selection. */
 void drone_ai_clear_avoidance_area_duration(int player) {
     DroneAI* drone;
 
@@ -10401,23 +10478,23 @@ void drone_ai_clear_avoidance_area_duration(int player) {
     drone->avoidance_area_duration = 0.0f;
 }
 
-/*
- * Retail and current code have identical operations and CFG; retail retains
- * one additional GPR-to-GPR move around the selected result.
- */
-static void* drone_ai_choose_move_from_category(
+/* Soft ceiling: table selection, result join, calls, stores, and CFG agree.
+ * Retail retains one category-preservation move; the remaining differences
+ * are nonvolatile GPR coloring in the row-address calculation. */
+static AiFightstyleAttack* drone_ai_choose_move_from_category(
     int category, unsigned int likelihood, int* is_script) {
     DroneAI* drone;
     FighterAiTable* table;
-    void* script;
-    void* fightstyle_script;
+    AiFightstyleAttack* script;
+    AiFightstyleAttack* selected_script;
+    AiFightstyleAttack* fightstyle_script;
 
     *is_script = 1;
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
     table = plyr_pdata->ai_tables->tables;
     table += category;
     if (table->usable_row_count == 0) {
-        script = 0;
+        selected_script = 0;
     } else {
         drone->ai_command = (unsigned int*)
             &table->rows[randu0((unsigned short)table->usable_row_count)];
@@ -10426,8 +10503,9 @@ static void* drone_ai_choose_move_from_category(
         drone->ai_command_flag0 = 0;
         drone->ai_command_flag1 = 0;
         drone->ai_command_flag2 = 0;
-        script = get_special_move();
+        selected_script = get_special_move();
     }
+    script = selected_script;
     if (script == 0 || randu0(100) < likelihood) {
         fightstyle_script = get_random_fightstyle_attack(
             plyr_pdata->fighter_definition, category, 0);
@@ -10439,15 +10517,15 @@ static void* drone_ai_choose_move_from_category(
     return script;
 }
 
-/* Soft ceiling: both emitted wrappers have retail's operations and CFG; MWCC
- * colors index/rows/cmo differently and saves r28-r31 individually instead
- * of using the retail stmw/lmw pair. */
+/* Soft ceiling: both wrappers have exact size, CFG, operations, calls,
+ * table/index registers, and stmw/lmw. Residue is only an r28/r29 swap
+ * between rows and cmo. */
 static inline void generate_ai_table(
     FighterAiTable* source_table, ScriptSlot* source_cmo) {
-    int index;
-    FighterAiTable* table;
     FighterAiMoveRow* rows;
+    FighterAiTable* table;
     ScriptSlot* cmo;
+    int index;
 
     index = 0;
     table = source_table;

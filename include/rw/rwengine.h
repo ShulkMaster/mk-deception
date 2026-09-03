@@ -89,7 +89,7 @@ typedef struct RwDevice {
     RwSystemCall fpSystem;
     float zBufferNear;
     float zBufferFar;
-    int (*fpRenderStateSet)(int state, int value);
+    int (*fpRenderStateSet)(int state, long value);
     int (*fpRenderStateGet)(int state, void* out);
     RwIm2DRenderLineCall fpIm2DRenderLine;
     RwIm2DRenderTriangleCall fpIm2DRenderTriangle;

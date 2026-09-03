@@ -91,7 +91,8 @@ void nativefont_instance_lock(NativeFontInstance* inst) {
 
     inst->locked = 1;
     /* Align DL start 0x20 past verts base; capacity from verts_bytes. */
-    inst->dl = (void*)(((unsigned long)inst->verts + 0x20u) & ~0x1Fu);
+    inst->dl = (void*)(((unsigned long)inst->verts + 0x20u) &
+                       ~(unsigned long)0x1Fu);
     /* Each step writes inst->size so MWCC cannot fold -0x60+0x1F. */
     inst->size = (unsigned int)inst->verts_bytes - 0x60u;
     inst->size = inst->size + 0x1Fu;

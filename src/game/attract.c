@@ -119,7 +119,7 @@ int gap_08_805107B4_sbss;
 int atm_current_page;
 AtmObjLatch press_start_item;
 AtmObjLatch press_start_proc_item;
-int atm_flash_pdata;
+unsigned long atm_flash_pdata;
 int atm_logo_tapped_out;
 int atm_movie_tapped_out;
 int memcard_boot_screen_displayed;
@@ -784,7 +784,7 @@ static void post_atm_flash(void) {
 }
 
 static void pre_atm_flash(void) {
-    atm_flash_pdata = (int)apdata;
+    atm_flash_pdata = (unsigned long)apdata;
 }
 
 static void atm_demo_puzzle(void) {
