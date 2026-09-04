@@ -6,6 +6,7 @@
 #include "game/pselect.h"
 #include "game/settings.h"
 #include "mw/mwScreenEngineGlue.h"
+#include "platform/io.h"
 #include "platform/main.h"
 #include "platform/gcutils.h"
 #include "runtime/asset.h"
@@ -184,7 +185,6 @@ void set_button_repeat_time(int ticks);
 void set_default_button_repeat_time(void);
 int check_switch_edge(int pad, int button);
 void set_default_switch_map(PlyrInfo* plyr);
-int eat_switch_edge(int pad, int button);
 void flush_controller_switch_buffers(void);
 void set_default_switch_maps(void);
 void set_game_switch_maps(void);

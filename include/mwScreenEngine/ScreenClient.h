@@ -14,7 +14,7 @@ public:
     virtual ScreenMatrixStack* CreateMatrixStack() = 0;
     virtual void DestroyMatrixStack(ScreenMatrixStack*) = 0;
     virtual void* CreateElement(ScreenMgr*, Screen*, ScreenObject*, void*) = 0;
-    virtual void* CreateInstance(ScreenMgr*, int, ScreenParams*) = 0;
+    virtual ScreenObject* CreateInstance(ScreenMgr*, int, ScreenParams*) = 0;
     virtual int LoadScreenSet(ScreenSet*) = 0;
     virtual int DoneLoadingSet(ScreenSet*);
     virtual int LoadScreen(ScreenSet*, Screen*, unsigned int) = 0;

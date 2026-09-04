@@ -6,6 +6,7 @@
 typedef struct AniTextureControl AniTextureControl;
 typedef struct ScreenNode ScreenNode;
 typedef struct ScreenPoly ScreenPoly;
+typedef struct ScreenText ScreenText;
 
 /*
  * C views of ScreenControl ('SCtl') subclasses created by
@@ -119,7 +120,7 @@ typedef struct SpreadSheet_text {
     int hasExtraRes; /* +0x10C -- GetBoolean(9) */
     int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
     int pad114; /* +0x114 */
-    int unk118; /* +0x118 -- init 0 */
+    ScreenText** unk118; /* +0x118 -- cell nodes */
     int unk11C; /* +0x11C -- init 0 */
 } SpreadSheet_text; /* 0x120 */
 
@@ -129,7 +130,7 @@ typedef struct SpreadSheet_image {
     int hasExtraRes; /* +0x10C -- GetBoolean(9) */
     int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
     int pad114; /* +0x114 */
-    int unk118; /* +0x118 -- init 0 */
+    ScreenPoly** unk118; /* +0x118 -- cell nodes */
     int unk11C; /* +0x11C -- init 0 */
     int unk120; /* +0x120 -- init 0 */
 } SpreadSheet_image; /* 0x124 */

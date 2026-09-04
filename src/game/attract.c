@@ -1,6 +1,7 @@
 #include "game/attract.h"
 
 #include "game/game_info.h"
+#include "platform/io.h"
 #include "platform/main_jump.h"
 #include "runtime/fonts.h"
 #include "runtime/image.h"
@@ -119,7 +120,7 @@ int gap_08_805107B4_sbss;
 int atm_current_page;
 AtmObjLatch press_start_item;
 AtmObjLatch press_start_proc_item;
-unsigned long atm_flash_pdata;
+static MkHdr* atm_flash_pdata;
 int atm_logo_tapped_out;
 int atm_movie_tapped_out;
 int memcard_boot_screen_displayed;
@@ -135,7 +136,6 @@ void set_player_state(PlyrInfo* plyr, int state);
 void unassign_player(PlyrInfo* player);
 void one_player_ladder_init(void);
 /* Any-pad Start (0xB) / A (6) edge. Do not Matching-grind gcio. */
-int check_switch_edge_any_pad(int button);
 void scan_switches(void);
 void rnd_plyrs(void);
 void snd_req(int id);
@@ -151,8 +151,6 @@ void turn_camera_off(void);
 int is_widescreen_mode(void);
 void set_mode_of_play(int mode);
 void push_game_state(int state);
-void turn_controllers_on(void);
-void turn_controllers_off(void);
 void pause_procs(int flag);
 unsigned int randu0(unsigned int max);
 void setup_sound_banks(int bank);
@@ -784,7 +782,7 @@ static void post_atm_flash(void) {
 }
 
 static void pre_atm_flash(void) {
-    atm_flash_pdata = (unsigned long)apdata;
+    atm_flash_pdata = apdata;
 }
 
 static void atm_demo_puzzle(void) {

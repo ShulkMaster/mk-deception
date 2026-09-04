@@ -118,7 +118,7 @@ void del_string_obj_by_id(int oid);
 float get_font_height(int font);
 void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text);
 void update_string_obj(StringObj* obj, int font, const char* text);
-double get_string_width_by_font_num(int font, const char* text);
+float get_string_width_by_font_num(int font, const char* text);
 void string_obj_set_valign(StringObj* obj, PfxFontSlot* font, int valign);
 void string_obj_set_halign(StringObj* obj, int halign);
 

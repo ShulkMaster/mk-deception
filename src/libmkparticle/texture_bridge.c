@@ -3,7 +3,7 @@
 #include "rw/rwengine.h"
 #include "rw/gamecube.h"
 
-static int pfxaux_set_render_state(int state, long value) {
+static int pfxaux_set_render_state(int state, int value) {
     return RwEngineInstance->dOpenDevice.fpRenderStateSet(state, value);
 }
 
@@ -19,6 +19,6 @@ void pfxaux_upload_texture(RwTexture* texture) {
     }
 
     pfxaux_set_render_state(2, address_v);
-    pfxaux_set_render_state(1, (long)texture->raster);
+    pfxaux_set_render_state(1, (int)texture->raster);
     _rwDlTextureRasterFlush();
 }
