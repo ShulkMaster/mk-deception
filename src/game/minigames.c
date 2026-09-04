@@ -2090,8 +2090,8 @@ static float p_pz_mode_endofgame(void) {
             destroy_string_obj(puzzle_ctrl->result_text[1]);
         }
         puzzle_ctrl->result_text[1] = 0;
-        pz_event.player = winner_index;
         pz_event.type = 0xA;
+        pz_event.player = winner_index;
         pz_fighter_event(&pz_event);
         timeout = 0x4B0;
         while (--timeout != 0 && pz_fighter_fatality_over() == 0) {

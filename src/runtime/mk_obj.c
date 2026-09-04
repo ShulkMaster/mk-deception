@@ -3769,7 +3769,7 @@ MkObj* obj_sever_limb(
 
     if (limb_velocities != 0) {
         source_matrix = severed->field_24;
-        if ((severed->flags_0B & 4) == 0) {
+        if (severed->flags_0B_bits.pivot_enabled == 0) {
             saved_pos = severed->pos;
         } else {
             gxMat33Tx31(

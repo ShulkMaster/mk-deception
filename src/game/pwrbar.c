@@ -1317,7 +1317,11 @@ void init_pwr_bars(void) {
     ScreenObj* object;
     ScreenObj* back;
     StringObj* name;
-    int p2_flags = 0;
+    /* Screen flags occupy the leading byte of the API's packed flag word. */
+    union {
+        int word;
+        ScreenObjDrawFlags bits;
+    } p2_flags;
     int i;
 
     clear_screen_latch(&p1_name_item);
@@ -1358,6 +1362,7 @@ void init_pwr_bars(void) {
         g_game_info.plyr1.field_0C = g_game_info.plyr1.field_10;
     }
 
+    p2_flags.word = 0;
     object = load_2d_pfxobj(
         0x10005, 0x2017, (char*)0x20012, 0, 0x19);
     if (object != 0) {
@@ -1385,16 +1390,16 @@ void init_pwr_bars(void) {
         p1_pbar_red_item.instance = object->instance;
     }
 
-    p2_flags = (unsigned char)p2_flags | 0x20;
+    p2_flags.bits.flip_u = 1;
     object = load_2d_pfxobj(
-        0x10005, 0x2017, (char*)0x20012, p2_flags, 0x19);
+        0x10005, 0x2017, (char*)0x20012, p2_flags.word, 0x19);
     if (object != 0) {
         p2_pbar_item.object = object;
         p2_pbar_item.instance = object->instance;
         object->draw_flags.on = 0;
     }
     object = load_2d_pfxobj(
-        0x10005, 0x2017, (char*)0x20015, p2_flags, 0x1A);
+        0x10005, 0x2017, (char*)0x20015, p2_flags.word, 0x1A);
     if (object != 0) {
         object->pfx2d->verts[0].x =
             (float)screen_width -
@@ -1436,7 +1441,7 @@ void init_pwr_bars(void) {
     }
 
     back = load_2d_pfxobj(
-        0x10005, 0x2015, (char*)0x20013, p2_flags, 0x18);
+        0x10005, 0x2015, (char*)0x20013, p2_flags.word, 0x18);
     if (back != 0) {
         p2_pbar_back_item.object = back;
         p2_pbar_back_item.instance = back->instance;
@@ -1479,7 +1484,7 @@ void init_pwr_bars(void) {
         p2_name_item.object = (ScreenObj*)name;
         p2_name_item.instance = name->instance;
         object = load_named_2d_pfxobj_xy(
-            0x4000B, 0x2051, "LILHEAD", p2_flags,
+            0x4000B, 0x2051, "LILHEAD", p2_flags.word,
             screen_width - (BAR_BACK_X + 0x8C), 0x184, 0x1C);
         if (object != 0) {
             object->flag_bits.hidden = 0;
@@ -1489,17 +1494,17 @@ void init_pwr_bars(void) {
     }
 
     update_power_bar_verts();
-    if (is_timer_off() || (g_game_info.field_04 & 0x20) != 0 ||
+    if (is_timer_off() || g_game_info.feature_flags.bits.powerbars_locked ||
         mode_of_play == 4) {
         object = load_2d_pfxobj(
             0x10005, 0x204F, (char*)0x20017, 0, 0x15);
         if (object != 0) {
             pull_screen_obj(object);
             insert_screen_obj(object);
-            object->x = PB_CNTR_RING_X;
-            object->y = 0x165;
             pbar_cntr_dragon_item.object = object;
             pbar_cntr_dragon_item.instance = object->instance;
+            object->x = PB_CNTR_RING_X;
+            object->y = 0x165;
         }
     } else {
         object = load_2d_pfxobj_xy(

@@ -1,112 +1,38 @@
-# Decomp playbook: mid occurrence
+# Matching rules: mid occurrence
 
-Use after the high-occurrence playbook leaves a localized mismatch. Entries are
-ranked by combined **occurrence / likelihood / impact**. Apply one evidence-backed
-source-shape change per rebuild.
+Prerequisite: [high protocol](playbook-high-occurrence.md); ABI/CFG/layout understood.
+Select by mismatch, not historical score. Schema: ID | IF | REQUIRE | TRY.
 
-| Rank | If A → then B | Preconditions | Solves | O/L/I |
-|---:|---|---|---|---|
-| 1 | If retail loads a control word before subfield stores, `obj->sync \|= bit` → `u32 sync = obj->sync; sync \|= bit; ...; obj->sync = sync;` | Store order and authoritative field are proven | Load/store scheduling; NV lifetime | M/H/H |
-| 2 | If retail uses `lwzx/stwx` through a runtime plugin offset, cached `Plugin *p` → direct typed access from `object + PluginOffset + field_off` | Dynamic extension mechanism and field offsets are proven | Indexed versus immediate addressing | M/H/H |
-| 3 | If count is at `+0` and ILP32 entries at `+4`, raw byte casts → typed `{ u32 count; u32 refs[1]; }` or one localized byte-offset accessor | Packed layout, stride, and relocation representation are proven | Packed-table address formation and coloring | M/H/H |
-| 4 | If retail emits `stmw/lmw` or a compact counted copy, current object at `-O4,p` → test object-scoped `-O4,s` and, if needed, `-use_lmw_stmw on` | Compiler flags are authentic; verify every exact function in the TU | Frame/save strategy, loop lowering | M/M/H |
-| 5 | If retail loads a float operand pair in a different order, `p * x2 + c` → `x2 * p + c` without changing grouping | Floating semantics tolerate only the proven equivalent order | `fmadds` operand encoding and FPR schedule | M/H/M |
-| 6 | If retail stages related factors before combining, nested expressions → named object-level intermediates, then final element combinations | ASM shows the common values loaded/computed first | FPR scheduling and live ranges | M/H/H |
-| 7 | If compare immediates differ by one, `x > N-1`/`x <= N-1` → `x >= N`/`x < N` | Boundary semantics are exactly equivalent | Compare immediate and branch selection | M/H/M |
-| 8 | If retail implements signed invalid-range without branches, `(x < 0) \|\| (x >= N)` → `(x < 0) \| (x >= N)` | Both operands are pure boolean comparisons and both may be evaluated | `srawi/srwi/subfc/adde/or.` lowering | M/H/H |
-| 9 | If a masked flag emits the wrong rotate/branch, shift/mask expression → typed bitfield access or `(flags & MASK) != 0`; use `(int)(flags & MASK) > 0` only for proven signed `ble` shape | Exact mask, signedness, and access width are known | `extrwi/rlwinm.` choice and branch polarity | M/M/M |
-| 10 | If `(byte & sourceMask) << shift` emits separate mask and shift instructions but retail uses one `rlwinm`, rewrite it as `(byte << shift) & destinationMask` | The masks are algebraically equivalent and the byte load is proven unsigned | Packed-field mask/shift fusion | L/H/M |
-| 10 | If retail retains a byte/halfword result without caller masking, narrow accessor return → full-width `unsigned int` while the stored member remains narrow | Multiple callers prove return ABI | Caller-side `clrlwi` and ABI mismatch | M/H/H |
-| 11 | If retail creates a by-value aggregate argument copy, `f(&value)` → declare `f(T value)` and call `f(value)` | Stack-copy pattern and callee ABI are proven | PPC EABI argument temporary and later stack offsets | M/H/H |
-| 12 | If a 64-bit argument follows an r3 pointer and retail skips r4, `f(p, u32)` → `f(p, u64)` | Callee/callers prove width and signedness | EABI aligned r5:r6 argument pair | M/H/H |
-| 13 | If a four-byte value is stored to stack on both return and use, scalar return → named four-byte POD return | Callee and caller both show aggregate-copy behavior | PPC aggregate return ABI | M/H/H |
-| 14 | If retail builds `va_list` fields inline, library `va_start` call → exact MWCC `__va_list[1]` plus `__builtin_va_info(ap)` (`&ap` in C++) | Confirm EABI layout and variadic callee (`crclr` is evidence) | Varargs prologue/call ABI | M/H/H |
-| 15 | If repeated literals target `@stringBase0`, named static string → repeated literal/macro; if retail owns a distinct symbol, do the inverse | Relocations and object string layout are inspected | String pooling, TOC base, NV pressure | M/M/H |
-| 16 | If retail places zero-filled storage in `.data`, `T a[N];` → `T a[N] = {0};` | Section, size, symbol order, and initialization are proven | `.data` versus `.bss` placement | M/H/H |
-| 17 | If retail stores a loaded mask from `.sdata2` but ours folds an immediate, `static const` → proven writable `__declspec(section ".sdata2")` object | Retail symbol/section exists; never substitute `volatile` | Constant folding versus loaded mask | M/H/H |
-| 18 | If retail advances an index before consuming it, `use(a[i]); i++;` → `use(a[i++]);` | Sequencing and side effects are equivalent | Index-update scheduling and scratch reuse | M/H/M |
-| 19 | If retail advances a list iterator before a virtual call, post-call update → `cur = it; it = it->next; cur->Call();` | Callback may mutate list; retail ordering is clear | Iterator survival across call and NV coloring | M/H/H |
-| 20 | If retail repeats a result test around intervening stores, nested guard → two sequential `if (result != 0)` guards | Value is unchanged; stores must remain between tests | Compare hoisting and store schedule | M/H/M |
-| 21 | If several proven failure edges branch directly to one cleanup block while only fallible async/success arms feed a shared result test and early success return, encode the original label region as one `do { ... if (failed) { result = error; break; } ... if (result >= 0) return; } while (0);` followed by cleanup | Dominator analysis proves the direct failure edges bypass the shared test; the cleanup side effects and callback/owner transfer occur exactly once; a natural guard/epilogue spelling was tested first | Structured no-`goto` recovery of a shared cleanup label; preserves branch targets and failure-edge ordering | M/H/H |
-| 22 | If vtable slots/text ownership differ, local stubs/pure virtuals → declarations matching proven zero slots or externally owned weak defaults | ELF relocations and class slot order are verified | Vtable data, weak ownership, hidden text | M/H/H |
-| 23 | If retail destructor open-codes base teardown but ours calls it, out-of-line empty base dtor → inline class definition while preserving retail standalone ownership | Class hierarchy and vtables are verified | Destructor inlining and vtable rematerialization | M/M/H |
-| 24 | If repeated functions show source-ordered independent ops, default schedule → test object-scoped `-schedule off` once | Whole TU shares the smell; all exact functions are rechecked | Instruction scheduling across independent loads/stores | M/M/H |
-| 25 | If a helper's local lifetime begins after an inline region, eager initializer → declare early but assign after that region | Retail first-use point is clear | Saved-register count and inline-body coloring | M/H/M |
-| 26 | If retail derives a boolean from a registration result before publishing that result to a global, separate local assignment and comparison → compare the value of the global assignment expression directly | The call result is both the published value and the compared value; no intervening side effects are present | Result-test/store scheduling around plugin registration | L/H/M |
-| 27 | If retail keeps a top-of-loop exit test but MWCC rotates a clean `while (field == 0)` into an initial branch to the latch, rewrite it as `for (;;) { if (field != 0) break; body; }` | The loop is otherwise identical, the exit condition has no side effects, and both forms preserve the zero-iteration case | Loop rotation, branch placement, and downstream instruction alignment | M/H/H |
-| 28 | If an ABI-correct callback gains only an unused-parameter stack spill in an authentic `-O0` object, replace `(void)param` with MWCC `#pragma unused(param)` inside the function | Registration and dispatcher calls prove the parameter; retail does not consume its incoming GPR; the spill is the only mismatch | Preserves the real callback prototype while suppressing `-O0` parameter homes | L/H/H |
-| 29 | If retail emits a public helper body but related callers open-code that same body, factor the implementation into a typed `static inline` helper and keep retail-ordered public wrappers around it | Repeated instruction sequences prove one shared implementation; each retail caller lacks a `bl`; standalone symbol and function order are confirmed | Reproduces shared inline logic without macros or duplicated bodies while preserving external ownership | L/H/H |
-| 30 | If stores through one pointer are interleaved with loads through another but local MWCC hoists all loads, verify whether an unsupported `const` pointee qualifier was added; restore the call-site-authentic mutable pointer type | Retail interleaving is exact, callers pass mutable storage, and removing only `const` restores the sequence without changing ABI or behavior | Alias analysis, load hoisting, and FPR live ranges | L/H/H |
-| 31 | If a callee's FPR and GPR assignments are correct but a wrapper loads all floating arguments before the integer/pointer group, recover the source declaration's float/integer interleaving from the wrapper and reorder parameters accordingly | PPC EABI's independent FPR/GPR streams make multiple source orders ABI-identical; every call site must support the recovered order | Wrapper argument evaluation/load order without changing callee register ABI | L/H/H |
-| 32 | If retail pipelines repeated loads from a source object with stores to a destination but ours serializes each load/store through one scratch, mutable source pointee → `const T*` in the declaration, definition, and callers | The function never mutates the source; calls and ABI support the qualifier; the destination is independently owned or otherwise proven non-aliasing | Read-only alias contract; load/store scheduling and scratch allocation | L/H/H |
-| 33 | If one TU already uses a proven macro/inline guard but retail shows the same inlined guard in another TU that calls the underlying helper directly, move the abstraction to its owning shared header and use it in both consumers | Both retail instruction sequences and shared type/API ownership agree; recheck every existing exact consumer | Missing inlined guard; duplicated local ownership; cross-TU source-shape drift | L/H/H |
-| 34 | If retail initializes a scalar result, branches into a value-producing arm with `bne`, then uses an unconditional `b` from the other arm to one joined store, rewrite `result = zero; if (positive) result = expression;` as `result = nonpositive ? zero : expression` | Both arms produce the same typed value; the expression's side effects occur only in the positive arm; retail has one joined consumer/store | Collapsed one-branch guard versus explicit `bne; b` result diamond | L/H/H |
-| 35 | If linked SHA fails despite normalized 100% data and retail SBSS places a file global before function-static objects followed by file globals in source order, define the leading global after the functions and declare the remaining tentative globals in reverse retail order; add only proven terminal gap objects | Raw target/local symbol tables prove every offset and section size; preserve declaration ownership and recheck all SDA relocations plus the linked SHA | MWCC reverse tentative-definition emission around function statics; normalized split gaps hiding non-link-exact small-data order | L/H/H |
-| 36 | If a repeated instance-validity check loads the pointee before its expected instance and omits retail's explicit match-path branch, pass the owning control object to a typed `static inline` resolver instead of passing its preloaded pointee and instance separately | The control layout and pointer-or-null result are proven; retail checks null before loading the pointee instance; no retail `bl` exists | Argument-evaluation load hoisting, pointer/result register choice, and the explicit selection diamond | L/H/H |
-| 37 | If an `-O0` aggregate field assignment stores through `base + field_offset` but retail first adds the field offset and then stores at `+0`, name a typed pointer to that subobject directly from the runtime base plus the proven offset | The aggregate type, runtime module base, field offset, copy size, and access widths are proven; the direct subobject pointer reaches the same object | Aggregate-copy destination base formation and store displacements | L/H/M |
-| 38 | If retail loads a byte into `r0` and then emits `clrlwi` into each call-argument GPR while ours loads unsigned-byte fields directly into those GPRs, verify whether the stored channel type was plain `char` under `-char signed` | Field offsets and byte storage are proven; the callee converts arguments back to the same 8-bit representation; callers using values above `0x7f` remain byte-preserving | Missing caller-side byte normalization and large repeated mismatch islands in packed color/attribute submission | L/H/H |
-| 39 | If a setter's stores match but retail ends with an unused SDA address materialization and saves one extra GPR, restore the canonical setter macro's comma-expression result instead of adding a dead local | The field mask/store and public macro semantics are proven; the final expression denotes the original lvalue/owner; no argument has side effects from repeated macro evaluation | Missing macro-tail evaluation, frame shape, and saved-register range in O0 library code | L/H/H |
-| 40 | If a C++ object is 100% in normalized objdiff but linking it permutes vtable relocations or changes weak destructor sizes, keep the base and derived destructor bodies inline-visible in the class declarations and order related class declarations so MWCC's reverse weak emission matches retail | Retail object symbols prove weak destructor ownership, each destructor's full inlined base teardown, vtable order, and that an earlier TU supplies any duplicate weak base owner; verify the linked SHA because normalized object diffs can hide COMDAT selection | Weak destructor body size; vtable order; link-only C++ COMDAT mismatch | L/H/H |
-| 41 | If `.rodata` bytes and addresses already agree but string symbols are slightly oversized, replace fixed-capacity `const char name[N]` declarations with unsized `const char name[]` and let normal alignment provide inter-string or terminal padding | Retail symbol sizes end at the string terminators, target/local byte dumps prove identical payload and alignment, and no caller depends on the declared capacity | String symbol extents; normalized data completion; avoids synthetic padding arrays | L/H/H |
-| 42 | If MWCC emits a large tentative BSS array before earlier scalar globals but retail keeps the scalars first, explicitly initialize only the scalar globals to zero and leave the array tentative | Retail symbols prove all objects remain in `.bss`, source order is scalar-then-array, and the resulting offsets and section alignment match exactly | BSS symbol order and base-relative offsets without packing unrelated globals into an invented aggregate | L/H/H |
-| 43 | If an otherwise exact function assigns equal-alignment local aggregates to the wrong stack slots, declare them in the reverse of the retail stack order, with arrays and records ordered as whole objects | Retail accesses prove each local's type, size, and slot; no lifetimes overlap incorrectly; rebuilding changes only stack offsets | MWCC's reverse allocation of fixed-size local aggregates without fake padding or opaque stack structs | L/H/M |
-| 44 | If a running size accumulation differs only by the operand order of commutative `add` instructions, group each callee result with its associated constant in one `size += call(...) + constant` expression | The vendor source or repeated chunk format proves the grouping, every addition is unsigned or overflow-equivalent, and call order is unchanged | Add-operand encoding around calls while preserving readable size accounting | L/H/M |
-| 45 | If a reverse array walk has a hand-maintained byte offset and MWCC schedules its decrement on the wrong side of the loop body, use the typed indexed form `while (count-- != 0) use(array[count])` | Element type and stride are proven, retail visits the last element first, and the compiler's strength reduction reproduces the retail induction variable | Rotated reverse-loop latch, induction update scheduling, and register assignment without manual pointer arithmetic | L/H/H |
-| 46 | If a one-supported-value `switch` is short by a redundant range branch before `default`, recover explicit unsupported case labels that share the default body | Retail has both equality and signed range branches, adjacent format-conversion functions establish the switch idiom, and the added labels do not change behavior for any input | MWCC switch dispatch retains source-level case coverage even when several cases share one error body | L/H/H |
-| 47 | If a vendor macro expansion differs in both a pointer-null compare and a counted-loop latch, restore the macro's exact typed-null cast and comma-expression `while (cursor++, --count)` rather than normalizing either form | Vendor source, field type, and retail instructions agree; keep ordinary data-pointer null checks uncast when retail uses an immediate compare | Register-form null comparison, preserved unsigned countdown copy, and cursor/count update order | L/H/H |
-| 48 | If retail owns anonymous short string literals in aligned `.rodata` but the current TU lowers them into mutable small data, preserve direct literals and recover the narrow object-level `-str reuse,readonly -sdata2 0` settings already evidenced by sibling objects; if only nearby stores remain reordered, restore the source-level owner-publication order before constructing call-local ranges | Target symbols are compiler-anonymous literals, bytes and relocations are exact, sibling objects from the same vendor library establish the option family, and call/store side effects permit only the retail order | String mutability plus small-const placement and alias-sensitive store scheduling around a call, without source-level section annotations | L/H/H |
-| 49 | If a generic callback-table slot hides the concrete pointee type and one scratch register remains wrong, recover the implementation's typed pointer parameter and adapt it once at the table boundary; combine adjacent accepted states as an unsigned range and preserve explicit return arms when retail has separate zero-result paths | Callers prove the concrete object passed through the generic slot, the ABI is pointer-identical, target loads/stores prove the pointee type, and the retail CFG has the range check and distinct returns | Callback-boundary type loss, short-lived GPR allocation, and merged-success CFG differences | L/H/H |
-| 50 | If MWCC keeps tentative BSS arrays in first-use order even when declarations are reordered, leave complete `extern` declarations before the users and place the actual tentative definitions after the functions in reverse retail order | Raw target and local symbol tables prove the same section, sizes, alignment, and desired offsets; function relocations and linked SHA are rechecked | BSS symbol order hidden by normalized zero-fill comparison, without initialized-zero data or invented aggregate aliases | L/H/H |
+## Compiler / source lowering
 
-### Single-pass cleanup guardrail
+M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw. TU-wide scheduling discrepancy -> separate schedule test. Keep accepted flags fixed during refinement; no scattered optimization pragmas.
+M02 | Control-word/publication order differs | Retail loads/stores + alias boundaries | Load control word before subfield writes; publish owner at observed point; reload counts after aliasing stores.
+M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name real shared factors. Never reassociate FP to improve fuzzy.
+M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise booleans only if both evaluations required; ternary/guarded assignment for observed join.
+M05 | Integer-to-float scaffold | Proven signedness/precision | Natural cast; remove fake 0x4330 volatile machinery. Retain genuine bit reinterpretation via supported typed union.
+M06 | Leading stack byte updated, whole word passed | GC big-endian layout + callee flags + initialization | Byte-bitfield/word union. init_pwr_bars flip word is 0x20000000, not integer 0x20.
+M07 | Aggregate/packed address differs | Stride/extent/ownership/access width | Typed element/subobject pointer; trailing table at &items[count]; payload after complete header via header+1. Runtime plugin offsets remain localized low-level access.
+M08 | Failure edges bypass shared success test | Dominators + exactly-once cleanup; ordinary guards failed | Structured do/break cleanup region only when each break represents real cleanup edge. No dummy status, goto, forced one-trip for, duplicate effects. Otherwise stop.
+M09 | Repeated tests around stores | Observed tests + intervening effects | Separate guards; nullable-list inline predicate only for proven nullable contract, not direct &global != 0 residue.
 
-For the row above, prefer source shapes in this order: ordinary sequential
-guards plus one epilogue; a typed helper only when retail has the call or MWCC
-inlines it without changing ownership/lifetimes; then the single-pass block when
-the retail branch graph requires failures to bypass a later result test. In
-particular, `break` must mean “take the original shared cleanup edge,” never a
-general register or layout nudge.
+## ABI / abstractions
 
-Use `goto`, duplicated epilogues, status flags, `switch`, and forced one-trip
-`for (;;)` forms only in scratch to identify the lowering. Do not promote them,
-and do not infer a macro merely from the resulting CFG. If the natural form
-differs only in branch destinations and policy rejects the single-pass block,
-keep the natural form at a documented soft ceiling; do not stack dummy state or
-repeat cleanup side effects to recover the percentage.
+M10 | Unexpected masks/pairs/argument copies | All callers + callee storage/return ABI | Recover full-width vs byte ABI, typed conditional arms, aligned u64 pairs, by-value POD, or real POD return. Low r4 return may be low u64 half. Do not narrow accumulator from randu0 alone.
+M11 | Wrapper load order differs with correct registers | PPC independent GPR/FPR streams + callers | Recover float/integer parameter interleaving without changing register ABI. Static/member twin requires mangling/call evidence.
+M12 | Alias analysis changes load/store schedule | Actual mutability/ownership/callers | Restore supported const or remove unsupported const; const alone is not nonalias proof.
+M13 | Canonical macro/inline expansion missing | Definition + repeated retail expansion | Restore typed macro including genuine result/lvalue; shared header only for proven ownership. O0 unused parameter -> pragma unused, not wrong prototype.
+M14 | Varargs setup differs | EABI va_list + variadic callers | Exact MWCC va_list/builtin setup; crclr supports variadic call, not arbitrary prototype guessing.
 
-## Validated near-match refinements
+## Object / link layout
 
-| If A → then B | Required evidence | Verified example |
-|---|---|---|
-| If compact saves, divw, or short boolean conversions repeatedly improve under size mode, first test TU-wide `-O4,s` with existing `-use_lmw_stmw on` in configure.py and remove redundant optimize_for_size pragmas | Capture every function and section before/after; preserve existing exact matches and disclose nonmatching regressions; one function alone does not prove the TU flags | ejb, fatality, konquest, MovieManagerGC_Disp: 16 pragma pairs removed, 34 new report-exact functions, all 235 existing exact functions preserved; see [TU audit](tu-size-optimization-audit.md) |
-| If a conditional argument adds clrlwi despite a correct narrow callee ABI, give both conditional arms that proven narrow type | Values fit the type and all callers confirm the prototype; do not change the prototype to suppress masking | __GXInitGX's GXBool arms |
-| If a process callback ends with a retail f1 load that is absent from a void definition, recover the float return and update its declaration | Callback table, dispatch ABI, and retail epilogue agree; never invent an unused return solely for instruction count | jump_landing_j_exit returns 0.0f |
+M15 | String identity/placement differs | ELF sizes + bytes + relocations | Pooled literals for anonymous pools; named objects for real symbols; unsized arrays for terminators. TU string/readonly/SDA flags require sibling evidence. No synthetic padding strings.
+M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw target/local offsets, alignment, SDA relocations | Recover initialization/definition order. Tentatives may emit reverse/first-use; extern before users + definitions after separates declaration from placement. No fabricated aggregate/padding.
+M17 | Vtables/weak destructors differ, including link-only | ELF relocations, hierarchy, weak owner, sizes/order | Correct declarations/zero slots; inline-visible real destructors; verify reverse weak emission/COMDAT selection with linked SHA.
 
-## Mid-tier stop rule
+## Accept / stop
 
-### Follow-up after a TU-mode correction
-
-Restrict the next pass to measured regressions; keep the accepted TU flags fixed.
-The [six-function size-mode follow-up](six-size-mode-regressions.md) validated:
-
-- If retail reloads a process-global pointer after sleep or a call, recover the
-  typed global accesses instead of keeping a cached pointer across that boundary.
-- If a proven whole-record copy lowers into a paired CTR loop, try the aggregate
-  assignment before reproducing the compiler's loop by hand.
-- If two structured arms converge on the same zero return in retail, preserve
-  that shared epilogue; an early return can instead produce boolean arithmetic.
-- If a palette count is reloaded after an element write, preserve that memory
-  read rather than reusing an earlier last-index calculation.
-
-Check all siblings again, not just the selected six. These are evidence-gated
-source corrections, not reasons to restore function-scoped optimization flags.
-
-After one plausible attempt per matching smell, return to ASM and reclassify the
-cause. Do not stack optimizer flags or local reshuffles. A function-scoped pragma
-is not the default remedy for a TU-level compiler-mode mismatch. Test the build
-configuration first and inspect all siblings. Retain an exception only when
-specific retail evidence supports it and the whole-TU experiment cannot explain
-the emission; the surrounding C must remain the clearest expression of behavior.
-If a score changes dramatically after a small code-generation change, compare
-local-before against local-after as well as each against retail: diff alignment
-can magnify a short mismatch into a misleading deletion/insertion island.
+One lever -> rebuild -> same diff. Failed hypothesis -> revert or retain only
+justified quality correction and disclose delta. Recheck every shared consumer.
+No rule fits -> [niche](playbook-niche.md), not more flags/speculative locals.
+New learning -> amend one rule with precondition + action. No campaign narrative,
+duplicate row, occurrence rating, or unverified recommendation.

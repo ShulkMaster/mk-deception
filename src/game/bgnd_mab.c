@@ -841,10 +841,8 @@ float p_fish_attack(void) {
                 severed_object = player->slot.fighter->
                     severed_limbs[fish_index].object;
                 if (severed_object != 0) {
-                    if (severed_object->hdr.instance == player->slot.fighter->
+                    if (severed_object->hdr.instance != player->slot.fighter->
                             severed_limbs[fish_index].instance) {
-                        /* Keep the validated severed limb. */
-                    } else {
                         severed_object = 0;
                     }
                 } else {

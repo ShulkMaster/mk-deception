@@ -1658,8 +1658,6 @@ static float p_repeat_button_input__Fv(void);
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
     unsigned int bits;
     unsigned int* slotBits;
-    float sx;
-    float sy;
 
     if ((switches & 0x1) != 0) {
         FireEvent__9ScreenMgrFiiUi(screen_manager, SE_EVT_L2, plyr_idx + 1, 0);
@@ -1712,6 +1710,8 @@ void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) 
                            (void*)p_repeat_button_input__Fv);
     }
 
+    float sy;
+    float sx;
     bits = 0;
     if (get_stick_pos(port, 1, &sx, &sy) != 0) {
         if (sx < 0.0f) {

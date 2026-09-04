@@ -129,7 +129,7 @@ typedef struct KonquestEnumerationEntry {
 typedef struct KonquestRegionTable {
     void* region_asset;
     const char* interior_art_name; /* +0x04 */
-    void* map_table; /* +0x08 */
+    const char* map_art_name; /* +0x08 */
     char pad0C[0x0C];
     const char* supplemental_art_name; /* +0x18 */
     const char* effect_bank_name; /* +0x1C */
@@ -3052,8 +3052,8 @@ static float p_hero_use_portal(void) {
     KonquestRenderRecord* record;
     MkObj* hero;
     MkPtr* link;
-    Vec direction;
     Vec position;
+    Vec direction;
     float inverse_length;
     unsigned int effect;
     int tile_index;
@@ -3064,9 +3064,7 @@ static float p_hero_use_portal(void) {
 
     grounding = konquest_pdata->hero_grounding;
     if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
+        if (grounding->hdr.instance != konquest_pdata->grounding_instance) {
             grounding = 0;
         }
     } else {
@@ -3074,9 +3072,7 @@ static float p_hero_use_portal(void) {
     }
     hero = konquest_pdata->hero_object;
     if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
+        if (hero->hdr.instance != konquest_pdata->hero_instance) {
             hero = 0;
         }
     } else {
@@ -5174,85 +5170,62 @@ static MkProc* konquest_display_award_tga(
     }
     return proc;
 }
+static inline ScreenObj* award_screen_object(KryptScreenObjLatch* latch) {
+    ScreenObj* object = latch->obj;
+    if (object != 0) {
+        if (object->instance == latch->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* award_description_object(KonquestStringLatch* latch) {
+    StringObj* object = latch->object;
+    if (object != 0) {
+        if (object->instance == latch->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline void set_award_display_alpha(
     KonquestAwardArtPdata* pdata, float alpha) {
     ScreenObj* screen;
     StringObj* description;
 
-    screen = pdata->art[0].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[0].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[0]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[1].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[1].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[1]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[2].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[2].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[2]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[3].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[3].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[3]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[4].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[4].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[4]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[5].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[5].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[5]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    description = pdata->description.object;
-    if (description != 0) {
-        if (description->instance != pdata->description.instance) {
-            description = 0;
-        }
-    } else {
-        description = 0;
-    }
+    description = award_description_object(&pdata->description);
     if (description != 0) {
         set_string_obj_alpha(description, alpha);
     }
@@ -5260,10 +5233,8 @@ static inline void set_award_display_alpha(
 
 
 /*
- * Near match: all three display modes, asset and string construction, seven
- * typed alpha latches, mode waits, completion signal, fade-out, and cleanup
- * calls agree. The 24-byte residue is equivalent latch/loop block placement,
- * FPR/GPR allocation, scheduling, and pooled relocation labels.
+ * Report-exact: typed alpha latches and the top-tested fade-in loop reproduce
+ * retail. Direct objdiff retains only equal-payload anonymous constant labels.
  */
 static float p_display_award_image(void) {
     KonquestAwardArtPdata* pdata;
@@ -5336,12 +5307,12 @@ static float p_display_award_image(void) {
     case 1:
         load_art_for_inventory_award(pdata);
         snd_req(0x159B);
-        do {
+        while (alpha < 1.0f) {
             alpha += 0.05f;
             set_award_display_alpha(pdata, alpha);
             _mkproc_sleep_ticks = 1.0f;
             ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
-        } while (alpha < 1.0f);
+        }
         break;
     case 2:
         load_art_for_inventory_award(pdata);
@@ -10375,7 +10346,7 @@ static float p_konquest_map_screen(void) {
     load_ssf(konquest_region_data[konquest_pdata->region_index].fight_files);
     load_art_section_by_name(
         0x60027,
-        konquest_region_data[konquest_pdata->region_index].map_art_name);
+        konquest_pdata->region_table->map_art_name);
     load_ssf(konquest_common_file_table);
     add_art_section(0x60027, &sec_konquest_map_common);
     load_font(0xF);
@@ -11031,7 +11002,7 @@ float p_konquest_switch_R1(void) {
             g_game_info.pads[konquest_pdata->input_port].player) {
         return -1.0f;
     }
-    if (konquest_pdata->region_table->map_table == 0) {
+    if (konquest_pdata->region_table->map_art_name == 0) {
         return -1.0f;
     }
     proc = (MkProc*)_create_mkproc_generic_bigstack(
@@ -14801,8 +14772,8 @@ static void p_konquest_open_door(void) {
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     KonquestObjectState* state_data;
-    Vec target_angles;
     Vec target_position;
+    Vec target_angles;
     Vec* angles;
     Vec* base_position;
     float position_x;
@@ -19448,7 +19419,7 @@ float p_setup_konquest_map(void) {
                           1;
 
         while (objective_index >= 0) {
-            objective_row = &objective_table[objective_index];
+            objective_row = &konquest_pdata->objective.table[objective_index];
             if (objective_row->requirement_type == -1 ||
                 get_konq_profile_value(
                     objective_row->requirement_type,
