@@ -445,21 +445,3 @@ int ScreenCloseScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
 
     return 1;
 }
-
-ScreenCloseScreenAction::~ScreenCloseScreenAction() {
-}
-
-ScreenInsertScreenAction::~ScreenInsertScreenAction() {
-}
-
-ScreenTransitionScreenAction::~ScreenTransitionScreenAction() {
-}
-
-ScreenReplaceScreenAction::~ScreenReplaceScreenAction() {
-}
-
-ScreenExitScreenAction::~ScreenExitScreenAction() {
-}
-
-ScreenOpenScreenAction::~ScreenOpenScreenAction() {
-}
