@@ -234,6 +234,7 @@ asm_sequence_inputs = [
         "os.a/OSContext.s",
         "os.a/OSMemory.s",
         "os.a/OSReset.s",
+        "rpskin.a/skingcnasm.s",
     ]
 ]
 config.custom_build_rules = [
@@ -3253,7 +3254,7 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/skinmatrixblend.obj", source="rw/skinmatrixblend.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
-            Object(NonMatching, "rpskin.a/skingcnasm.obj", source="rw/skingcnasm.c",
+            Object(Matching, "rpskin.a/skingcnasm.obj", source="rw/skingcnasm.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/skingcn.obj", source="rw/skingcn.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
