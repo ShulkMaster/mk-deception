@@ -445,6 +445,9 @@ void unhide_sobj_and_children(MkSobj* sobj);
 
 /* Frequently called siblings */
 MkSobj* obj_create_sobjs_by_id(MkObj* obj, int id);
+MkSobj* obj_find_child_sobj_by_id(MkObj* obj, unsigned int id, int depth);
+int sobj_does_atomic_have_children(MkSobj* sobj);
+void set_true_clip_flag_on_sobj_and_children(MkSobj* sobj, int flag);
 void insert_fgnd_mkobj(void* obj);
 void update_mkobj(void* obj);
 void update_obj_pos(MkObj* obj);

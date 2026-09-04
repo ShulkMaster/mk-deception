@@ -183,6 +183,11 @@ static inline int nav_find_area_in_tile(const Vec* position) {
     return -1;
 }
 
+/*
+ * Soft ceiling: nav_get_unit_vector_to_nav_portal ~93.69% -- validation,
+ * portal traversal, side test, normalization, and stores match retail. Residue
+ * is GPR coloring and pointer-versus-offset induction for the portal list.
+ */
 void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int portalId) {
     KonquestPdata* pdata = konquest_pdata;
     KonquestNavData* nav = pdata->navData;
@@ -229,6 +234,11 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     }
 }
 
+/*
+ * Soft ceiling: nav_which_area_is_next ~86.94% -- breadth-first traversal,
+ * predecessor writes, target detection, and backtracking match retail. Residue
+ * is counted-clear lowering, save grouping, and queue/portal register coloring.
+ */
 int nav_which_area_is_next(int fromArea, int toArea) {
     int areaCount;
     int i;
@@ -292,6 +302,11 @@ static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
                                     float* farthestDistance,
                                     Vec* position);
 
+/*
+ * Soft ceiling: nav_get_unit_vector_to_closest_area ~92.91% -- packed-area
+ * traversal, distance selection, blend, normalization, and stores match retail.
+ * Remaining differences are save grouping and local GPR/FPR scheduling.
+ */
 void nav_get_unit_vector_to_closest_area(Vec* out, Vec* pos) {
     KonquestNavData* nav;
     NavArea* area;
@@ -357,6 +372,10 @@ void nav_get_unit_vector_to_closest_area(Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
+/*
+ * Soft ceiling: nav_get_unit_vector_to_area ~99.65% -- operations and control
+ * flow match; only five operands use different GPR/FPR allocation.
+ */
 void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     KonquestNavData* nav;
     NavArea* area;
@@ -396,6 +415,11 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
+/*
+ * Soft ceiling: unit_vector_to_area ~91.67% -- boundary traversal, extrema,
+ * normals, and packed next-area address match retail. Residue is register
+ * coloring plus MWCC's joined return versus retail's split returns.
+ */
 static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
@@ -446,6 +470,11 @@ static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
     return (NavArea*)boundary;
 }
 
+/*
+ * Soft ceiling: nav_what_area_is_point_in ~88.21% -- hint validation,
+ * containment, adjacent search, and tile fallback match retail. Residue comes
+ * from counted-clear and byte-indexed tile-scan lowering and register scheduling.
+ */
 int nav_what_area_is_point_in(Vec* pos, int hintArea) {
     KonquestNavData* nav;
     NavArea* area;
@@ -508,6 +537,12 @@ void konquest_nav_init(void) {
     }
 }
 
+/*
+ * Soft ceiling: setup_per_tile_navigations ~86.18% -- polygon intersections,
+ * tile rejection, containment, edge crossing, and all bounded insertion paths
+ * match retail. Residue is stack-offset versus pointer induction, constant-loop
+ * ctr selection, and cascading register allocation in the geometry loops.
+ */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;
     Vec intersections[15];
@@ -581,6 +616,7 @@ static void setup_per_tile_navigations(void) {
             int allTileCornersInsideArea = 1;
             int boundaryIndex;
             int vertexIndex;
+            NavBoundary* boundary;
 
             tileCorners[0].x = minX;
             tileCorners[0].y = 0.0f;
@@ -618,128 +654,131 @@ static void setup_per_tile_navigations(void) {
                 }
             }
 
-            if (allLeft || allRight || allBelow || allAbove) {
-                tileIndex++;
-                continue;
-            }
-            if (allVerticesInsideTile) {
-                if (tile->navigationCount < 70) {
-                    tile->navigationAreas[tile->navigationCount] = areaIndex;
-                    tile->navigationCount++;
-                    if (tile->navigationCount > most_navigation_per_tile) {
-                        most_navigation_per_tile = tile->navigationCount;
+            if (!(allLeft || allRight || allBelow || allAbove)) {
+                if (allVerticesInsideTile) {
+                    if (tile->navigationCount < 70) {
+                        tile->navigationAreas[tile->navigationCount] = areaIndex;
+                        tile->navigationCount++;
+                        if (tile->navigationCount > most_navigation_per_tile) {
+                            most_navigation_per_tile = tile->navigationCount;
+                        }
                     }
-                }
-                tileIndex++;
-                continue;
-            }
+                } else {
+                    boundary = area->boundaries;
+                    for (boundaryIndex = 0; boundaryIndex < boundaryCount;
+                         boundaryIndex++, boundary++) {
+                        float boundaryX = boundary->x;
+                        float boundaryZ = boundary->z;
+                        float boundaryOffset = boundary->offset;
+                        int allCornersOutside = 1;
+                        int allCornersInside = 1;
+                        int remainingCorners = 4;
+                        Vec* corner = tileCorners;
+                        int* outside = cornerOutside;
 
-            for (boundaryIndex = 0; boundaryIndex < boundaryCount;
-                 boundaryIndex++) {
-                NavBoundary* boundary = &area->boundaries[boundaryIndex];
-                float boundaryX = boundary->x;
-                float boundaryZ = boundary->z;
-                float boundaryOffset = boundary->offset;
-                int allCornersOutside = 1;
-                int allCornersInside = 1;
-                int remainingCorners = 4;
-                Vec* corner = tileCorners;
-                int* outside = cornerOutside;
+                        do {
+                            float planeDistance = boundaryX * corner->x +
+                                                  boundaryZ * corner->z;
 
-                do {
-                    float planeDistance = boundaryX * corner->x +
-                                          boundaryZ * corner->z;
-
-                    if (planeDistance > boundaryOffset) {
-                        *outside = 1;
-                        allCornersInside = 0;
-                        allTileCornersInsideArea = 0;
-                    } else {
-                        *outside = 0;
-                        allCornersOutside = 0;
-                    }
-                    corner++;
-                    outside++;
-                    remainingCorners--;
-                } while (remainingCorners != 0);
-                if (allCornersOutside) {
-                    break;
-                }
-                if (!allCornersInside) {
-                    int previousCorner = 3;
-                    int cornerIndex;
-
-                    for (cornerIndex = 0; cornerIndex < 4; cornerIndex++) {
-                        if (cornerOutside[previousCorner] !=
-                            cornerOutside[cornerIndex]) {
-                            float threshold;
-                            float currentComponent;
-                            float nextComponent;
-                            int crosses;
-
-                            switch (cornerIndex) {
-                            case 0:
-                                threshold = minZ;
-                                currentComponent = intersections[boundaryIndex].z;
-                                nextComponent =
-                                    intersections[(boundaryIndex + 1) %
-                                                  boundaryCount].z;
-                                break;
-                            case 1:
-                                threshold = minX;
-                                currentComponent = intersections[boundaryIndex].x;
-                                nextComponent =
-                                    intersections[(boundaryIndex + 1) %
-                                                  boundaryCount].x;
-                                break;
-                            case 2:
-                                threshold = maxZ;
-                                currentComponent = intersections[boundaryIndex].z;
-                                nextComponent =
-                                    intersections[(boundaryIndex + 1) %
-                                                  boundaryCount].z;
-                                break;
-                            default:
-                                threshold = maxX;
-                                currentComponent = intersections[boundaryIndex].x;
-                                nextComponent =
-                                    intersections[(boundaryIndex + 1) %
-                                                  boundaryCount].x;
-                                break;
+                            if (planeDistance > boundaryOffset) {
+                                *outside = 1;
+                                allCornersInside = 0;
+                                allTileCornersInsideArea = 0;
+                            } else {
+                                *outside = 0;
+                                allCornersOutside = 0;
                             }
-                            crosses = currentComponent > threshold;
-                            if (nextComponent > threshold) {
-                                crosses ^= 1;
-                            }
-                            if (crosses) {
-                                if (tile->navigationCount < 70) {
-                                    tile->navigationAreas[tile->navigationCount] =
-                                        areaIndex;
-                                    tile->navigationCount++;
-                                    if (tile->navigationCount >
-                                        most_navigation_per_tile) {
-                                        most_navigation_per_tile =
-                                            tile->navigationCount;
+                            corner++;
+                            outside++;
+                            remainingCorners--;
+                        } while (remainingCorners != 0);
+                        if (allCornersOutside) {
+                            break;
+                        }
+                        if (!allCornersInside) {
+                            int previousCorner = 3;
+                            int cornerIndex;
+
+                            for (cornerIndex = 0; cornerIndex < 4;
+                                 cornerIndex++) {
+                                if (cornerOutside[previousCorner] !=
+                                    cornerOutside[cornerIndex]) {
+                                    float threshold;
+                                    float currentComponent;
+                                    float nextComponent;
+                                    int crosses;
+
+                                    if (cornerIndex == 0) {
+                                        threshold = minZ;
+                                        currentComponent =
+                                            intersections[boundaryIndex].z;
+                                        nextComponent =
+                                            intersections[(boundaryIndex + 1) %
+                                                          boundaryCount].z;
+                                    } else if (cornerIndex == 1) {
+                                        threshold = minX;
+                                        currentComponent =
+                                            intersections[boundaryIndex].x;
+                                        nextComponent =
+                                            intersections[(boundaryIndex + 1) %
+                                                          boundaryCount].x;
+                                    } else if (cornerIndex == 2) {
+                                        threshold = maxZ;
+                                        currentComponent =
+                                            intersections[boundaryIndex].z;
+                                        nextComponent =
+                                            intersections[(boundaryIndex + 1) %
+                                                          boundaryCount].z;
+                                    } else {
+                                        threshold = maxX;
+                                        currentComponent =
+                                            intersections[boundaryIndex].x;
+                                        nextComponent =
+                                            intersections[(boundaryIndex + 1) %
+                                                          boundaryCount].x;
+                                    }
+                                    crosses = 0;
+                                    if (currentComponent > threshold) {
+                                        crosses = 1;
+                                    }
+                                    if (nextComponent > threshold) {
+                                        crosses ^= 1;
+                                    }
+                                    if (crosses) {
+                                        if (tile->navigationCount < 70) {
+                                            tile->navigationAreas
+                                                [tile->navigationCount] =
+                                                areaIndex;
+                                            tile->navigationCount++;
+                                            if (tile->navigationCount >
+                                                most_navigation_per_tile) {
+                                                most_navigation_per_tile =
+                                                    tile->navigationCount;
+                                            }
+                                        }
+                                        boundaryIndex = boundaryCount;
+                                        break;
                                     }
                                 }
-                                boundaryIndex = boundaryCount;
+                                previousCorner = cornerIndex;
+                            }
+                            if (boundaryIndex >= boundaryCount) {
                                 break;
                             }
                         }
-                        previousCorner = cornerIndex;
                     }
-                    if (boundaryIndex >= boundaryCount) {
-                        break;
-                    }
-                }
-            }
 
-            if (allTileCornersInsideArea) {
-                if (tile->navigationCount < 70) {
-                    tile->navigationAreas[tile->navigationCount] = areaIndex;
-                    tile->navigationCount++;
-                    if (tile->navigationCount > most_navigation_per_tile) {
-                        most_navigation_per_tile = tile->navigationCount;
+                    if (allTileCornersInsideArea) {
+                        if (tile->navigationCount < 70) {
+                            tile->navigationAreas[tile->navigationCount] =
+                                areaIndex;
+                            tile->navigationCount++;
+                            if (tile->navigationCount >
+                                most_navigation_per_tile) {
+                                most_navigation_per_tile =
+                                    tile->navigationCount;
+                            }
+                        }
                     }
                 }
             }

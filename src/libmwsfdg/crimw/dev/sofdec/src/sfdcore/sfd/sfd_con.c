@@ -3,19 +3,21 @@
 
 int SFCON_ReadTotSmplQue(SfdHandle* handle, int* samples, int* sample_rate)
 {
-    SfdTimerSampleWindow* queue = &handle->timer_state.sample_window;
+    SfdTimerState* timer = &handle->timer_state;
     int token;
     int result;
 
     SFLIB_LockCs(&token);
-    if (queue->fields_04[1] - queue->fields_04[2] <= 0) {
+    if (timer->sample_window.fields_04[1] -
+            timer->sample_window.fields_04[2] <= 0) {
         result = 0;
         *samples = -1;
     } else {
         result = 1;
-        *sample_rate = queue->enabled;
-        *samples = queue->samples[queue->fields_04[2] % 32];
-        queue->fields_04[2]++;
+        *sample_rate = timer->sample_window.enabled;
+        *samples = timer->sample_window.samples[
+            timer->sample_window.fields_04[2] % 32];
+        timer->sample_window.fields_04[2]++;
     }
     SFLIB_UnlockCs(&token);
     return result;
@@ -23,18 +25,20 @@ int SFCON_ReadTotSmplQue(SfdHandle* handle, int* samples, int* sample_rate)
 
 int SFCON_WriteTotSmplQue(SfdHandle* handle, int samples, int sample_rate)
 {
-    SfdTimerSampleWindow* queue = &handle->timer_state.sample_window;
+    SfdTimerState* timer = &handle->timer_state;
     int token;
     int result;
 
     SFLIB_LockCs(&token);
-    if (queue->fields_04[1] - queue->fields_04[2] >= 32) {
+    if (timer->sample_window.fields_04[1] -
+            timer->sample_window.fields_04[2] >= 32) {
         result = 0;
     } else {
-        queue->enabled = sample_rate;
+        timer->sample_window.enabled = sample_rate;
         result = 1;
-        queue->samples[queue->fields_04[1] % 32] = samples;
-        queue->fields_04[1]++;
+        timer->sample_window.samples[
+            timer->sample_window.fields_04[1] % 32] = samples;
+        timer->sample_window.fields_04[1]++;
     }
     SFLIB_UnlockCs(&token);
     return result;
@@ -42,17 +46,18 @@ int SFCON_WriteTotSmplQue(SfdHandle* handle, int samples, int sample_rate)
 
 void SFCON_UpdateConcatTime(SfdHandle* handle, int concat_time)
 {
-    SfdTimerSampleHistory* history = &handle->timer_state.sample_history;
+    SfdTimerState* timer = &handle->timer_state;
     int token;
-    int value;
     int write_index;
+    int cumulative_samples;
 
     SFLIB_LockCs(&token);
-    value = history->fields_00[1] + concat_time;
-    write_index = history->fields_00[2] + 1;
-    history->fields_00[1] = value;
-    history->samples[write_index % 32] = value;
-    history->fields_00[2] = write_index;
+    timer->sample_history.fields_00[1] += concat_time;
+    /* Soft ceiling: cumulative sample count/write index register coloring. */
+    write_index = timer->sample_history.fields_00[2] + 1;
+    cumulative_samples = timer->sample_history.fields_00[1];
+    timer->sample_history.samples[write_index % 32] = cumulative_samples;
+    timer->sample_history.fields_00[2] = write_index;
     SFLIB_UnlockCs(&token);
 }
 

@@ -1,4 +1,5 @@
 #include "dolphin/gx.h"
+#include "rw/batextur.h"
 #include "rw/dltextur.h"
 #include "rw/dltoken.h"
 #include "rw/gamecube_texture.h"

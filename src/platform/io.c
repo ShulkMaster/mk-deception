@@ -1,5 +1,6 @@
 #include "platform/io.h"
 
+#include "game/controller.h"
 #include "game/game_info.h"
 #include "platform/main.h"
 #include "runtime/mk_struct.h"
@@ -23,11 +24,7 @@ extern int vsprintf(char* buffer, const char* format, __va_list args);
 
 extern int current_player_is_drone(void);
 extern int get_konquest_drone_switch_state(int player);
-extern int is_plyr_controller_enabled(PlyrInfo* player);
-extern void update_cnt_removed_controller_state(void);
-extern void update_pause_menu_controller_state(void);
 extern int joypad_state_5(void);
-extern int find_bit(SwitchMapEntry* map, unsigned int mask);
 extern SwitchMapEntry default_switch_map[16];
 extern void del_string_obj_by_id(int id);
 extern void string_left_xy(int id, int font, const char* text, int x, int y,

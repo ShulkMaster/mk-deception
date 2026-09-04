@@ -390,8 +390,9 @@ void axrna_update_play(AXRNAHandle* handle)
     AXVPB* voice;
     int current_position;
     int previous_position;
-    int played;
+    int release_bytes;
     int channel;
+    int played;
 
     voice = handle->voices[handle->num_channels - 1];
     previous_position = handle->play_position;
@@ -406,7 +407,9 @@ void axrna_update_play(AXRNAHandle* handle)
         axrna_update_pos = 0;
     }
     /* A DSP address outside the allocated ARAM buffer is unrecoverable. */
-    while (current_position < 0 || current_position > handle->buffer_size) {
+    if (current_position < 0 || current_position > handle->buffer_size) {
+        while (1) {
+        }
     }
     if (previous_position == -1) {
         if (current_position == 0) {
@@ -426,9 +429,11 @@ void axrna_update_play(AXRNAHandle* handle)
     }
     played = (played / 2048) * 2048;
     if (played > 0) {
+        /* Soft ceiling: release byte count/channel index register coloring. */
+        release_bytes = played * 2;
         for (channel = 0; channel < handle->num_channels; channel++) {
             handle->buffers[channel]->interface->get_chunk(
-                handle->buffers[channel], 1, played * 2, &chunk);
+                handle->buffers[channel], 1, release_bytes, &chunk);
             handle->buffers[channel]->interface->put_chunk(
                 handle->buffers[channel], 0, &chunk);
         }

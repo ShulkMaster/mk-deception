@@ -39,24 +39,7 @@ enum {
     kMallocTag = 0x494E4954  /* 'INIT' */
 };
 
-#define SCREEN_OBJECT_BYTES 0x90
 #define SCREEN_IDLE_EVENT 0x405
-
-/* Local ScreenClient vtbl slice -- CreateInstance @ +0x2c (see ScreenUtil.cpp). */
-class ScreenClientCreateVtbl {
-public:
-    virtual void PrintObjectDepth(ScreenRenderInfo* info, int a, int b) = 0;
-    virtual void _vtbl_dtor() = 0;
-    virtual void* Malloc(unsigned long size, int tag, char* name) = 0;
-    virtual void Free(void* p) = 0;
-    virtual ScreenResourceLibrary* CreateResourceLibrary(ScreenResourceLibrary* parent) = 0;
-    virtual void DestroyResourceLibrary(ScreenResourceLibrary* lib) = 0;
-    virtual ScreenMatrixStack* CreateMatrixStack() = 0;
-    virtual void DestroyMatrixStack(ScreenMatrixStack* stack) = 0;
-    virtual void* CreateElement(ScreenMgr* mgr, Screen* screen, ScreenObject* obj,
-                                void* data) = 0;
-    virtual ScreenObject* CreateInstance(ScreenMgr* mgr, int a, ScreenParams* params) = 0;
-};
 
 void PatchAttribue(SEBaseAttribute_t* attr, unsigned char* base,
                    SEStringTable_t* strings) {
@@ -579,21 +562,21 @@ ScreenObject* ScreenInstancer::CreateObject(ScreenMgr* mgr, Screen* screen,
     ScreenObject templateObj;
     ScreenObject* obj;
     SEObjectClassInfo* info;
-    ScreenClientCreateVtbl* client;
+    ScreenClient* client;
 
     info = seObj->classInfo;
     if (info == 0) {
-        obj = (ScreenObject*)ScreenUtil::Malloc(SCREEN_OBJECT_BYTES, kMallocTag,
+        obj = (ScreenObject*)ScreenUtil::Malloc(sizeof(ScreenObject), kMallocTag,
                                                 (char*)"SS-Objects");
-        memcpy(obj, &templateObj, SCREEN_OBJECT_BYTES);
+        memcpy(obj, &templateObj, sizeof(ScreenObject));
     } else {
-        client = (ScreenClientCreateVtbl*)ScreenUtil::GetScreenClient();
-            obj = client->CreateInstance(mgr, info->typeId,
-                                         (ScreenParams*)info->params);
+        client = ScreenUtil::GetScreenClient();
+        obj = client->CreateInstance(
+            mgr, info->typeId, (ScreenParams*)info->params);
         if (obj == 0) {
-            obj = (ScreenObject*)ScreenUtil::Malloc(SCREEN_OBJECT_BYTES, kMallocTag,
+            obj = (ScreenObject*)ScreenUtil::Malloc(sizeof(ScreenObject), kMallocTag,
                                                     (char*)"SS-Objects");
-            memcpy(obj, &templateObj, SCREEN_OBJECT_BYTES);
+            memcpy(obj, &templateObj, sizeof(ScreenObject));
             seObj->classInfo = 0;
         }
     }

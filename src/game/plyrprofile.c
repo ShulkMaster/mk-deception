@@ -1,12 +1,14 @@
 #include "game/plyrprofile.h"
 
 #include "game/attract.h"
+#include "game/controller.h"
 #include "game/game_info.h"
 #include "game/konquest_save.h"
 #include "game/memcard.h"
 #include "game/menu.h"
 #include "game/pselect.h"
 #include "platform/gcmcardmsg.h"
+#include "platform/io.h"
 #include "platform/main.h"
 #include "platform/main_jump.h"
 #include "runtime/cam.h"
@@ -36,12 +38,7 @@ void reset_format_or_recreate_flags(void);
 void check_format_or_recreate(void);
 void turn_camera_on(void);
 void turn_camera_off(void);
-void turn_controllers_on(void);
-void turn_controllers_off(void);
 void turn_all_ports_on(void);
-void disable_all_ports_but_me(int port);
-void ck_for_controller_removed(void);
-void switch_map_unload_player_profile(PlyrInfo* plyr);
 void reset_sg_status(StorageDevice* device, int slot);
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
                                            unsigned int region, void* regionBuf, int flag,

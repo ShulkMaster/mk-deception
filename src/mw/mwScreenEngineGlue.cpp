@@ -5143,7 +5143,7 @@ void Dispose__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     typedef void (*ClearContents)(void*);
 
     if (self->unk118 != 0) {
-        Free__10ScreenUtilFPv((void*)self->unk118);
+        Free__10ScreenUtilFPv(self->unk118);
         self->unk118 = 0;
     }
     if (self->unk120 != 0) {
@@ -5164,7 +5164,7 @@ void Dispose__16SpreadSheet_textFv(SpreadSheet_text* self) {
 
     extra = (void**)((char*)self + 0xA8);
     if (self->unk118 != 0) {
-        Free__10ScreenUtilFPv((void*)self->unk118);
+        Free__10ScreenUtilFPv(self->unk118);
         self->unk118 = 0;
     }
     if (*extra != 0) {
@@ -5219,12 +5219,12 @@ void AllocateCollection__16SpreadSheet_textFv(SpreadSheet_text* self) {
 void ClearContents__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     ScreenPoly* poly;
     ScreenPoly** cells;
-    void* live;
+    ScreenObj* live;
     int count;
     int i;
 
     count = self->sheet.rows * self->sheet.cols;
-    cells = (ScreenPoly**)self->unk118;
+    cells = self->unk118;
     if (cells == 0) {
         return;
     }
@@ -5236,13 +5236,12 @@ void ClearContents__17SpreadSheet_imageFv(SpreadSheet_image* self) {
             live = poly->screenObj;
             if (live == 0) {
                 live = 0;
-            } else if (*(unsigned int*)((char*)live + 4) !=
-                       (unsigned int)poly->screenObjInstance) {
+            } else if (live->instance != (unsigned int)poly->screenObjInstance) {
                 live = 0;
             }
             if (live != 0) {
-                *(int*)((char*)live + 0x10) = 0;
-                *(int*)(*(char**)((char*)live + 0x34) + 0xC8) = 0;
+                live->texture = 0;
+                live->pfx2d->texture = 0;
             }
         }
         i++;
@@ -5251,7 +5250,6 @@ void ClearContents__17SpreadSheet_imageFv(SpreadSheet_image* self) {
 
 void ClearContents__16SpreadSheet_textFv(SpreadSheet_text* self) {
     int i;
-    int off;
     int count;
     ScreenText* text;
     StringObj* live;
@@ -5262,9 +5260,8 @@ void ClearContents__16SpreadSheet_textFv(SpreadSheet_text* self) {
         return;
     }
     i = 0;
-    off = 0;
     while (i < count) {
-        text = *(ScreenText**)((char*)self->unk118 + off);
+        text = self->unk118[i];
         if (text != 0) {
             live = text->stringObj;
             if (live != 0) {
@@ -5284,7 +5281,6 @@ void ClearContents__16SpreadSheet_textFv(SpreadSheet_text* self) {
             }
         }
         i++;
-        off += 4;
     }
 }
 
@@ -5300,15 +5296,16 @@ void FinishSetup__17SpreadSheet_imageFP12ScreenParamsi(
 
     paramCount = GetCount__12ScreenParamsCFv(params);
     count = self->sheet.rows * self->sheet.cols;
-    self->unk118 = (int)Malloc__10ScreenUtilFUliPc(
-        (unsigned long)((paramCount - nodeIndex) << 2), kMallocTagInit,
+    self->unk118 = (ScreenPoly**)Malloc__10ScreenUtilFUliPc(
+        (unsigned long)(paramCount - nodeIndex) * sizeof(ScreenPoly*),
+        kMallocTagInit,
         (char*)(stringBase0 + 0x285));
     for (i = 0; i < count; i++, nodeIndex++) {
-        ((void**)self->unk118)[i] =
-            GetScreenNode__12ScreenParamsFUi(params, (unsigned int)nodeIndex);
+        self->unk118[i] = (ScreenPoly*)GetScreenNode__12ScreenParamsFUi(
+            params, (unsigned int)nodeIndex);
     }
     if (self->sheet.bindNodeB0 != 0) {
-        first = *(ScreenPoly**)self->unk118;
+        first = *self->unk118;
         linked = (ScreenPoly*)self->sheet.nodeB0;
         firstVert = &first->verts[vert_map__10ScreenPoly[0]];
         linkedVert = &linked->verts[vert_map__10ScreenPoly[0]];
@@ -5318,7 +5315,7 @@ void FinishSetup__17SpreadSheet_imageFP12ScreenParamsi(
         self->sheet.layout0[2] = kGvFloatZero;
     }
     if (self->sheet.bindNodeB4 != 0) {
-        first = *(ScreenPoly**)self->unk118;
+        first = *self->unk118;
         firstVert = &first->verts[vert_map__10ScreenPoly[0]];
         self->sheet.layout1[0] = firstVert->x - kGvFloatZero;
         self->sheet.layout1[1] = (480.0f - firstVert->y) - kGvFloatZero;
@@ -5338,8 +5335,9 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
 
     paramCount = GetCount__12ScreenParamsCFv(params);
     count = self->sheet.rows * self->sheet.cols;
-    self->unk118 = (int)Malloc__10ScreenUtilFUliPc(
-        (unsigned long)((paramCount - nodeIndex) << 2), kMallocTagInit,
+    self->unk118 = (ScreenText**)Malloc__10ScreenUtilFUliPc(
+        (unsigned long)(paramCount - nodeIndex) * sizeof(ScreenText*),
+        kMallocTagInit,
         (char*)(stringBase0 + 0x285));
     self->sheet.cellColors = (unsigned char*)Malloc__10ScreenUtilFUliPc(
         (unsigned long)(count << 2), kMallocTagInit,
@@ -5347,7 +5345,7 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
     for (i = 0; i < count; i++, nodeIndex++) {
         text = (ScreenText*)GetScreenNode__12ScreenParamsFUi(
             params, (unsigned int)nodeIndex);
-        ((ScreenText**)self->unk118)[i] = text;
+        self->unk118[i] = text;
         live = text->stringObj;
         if (live != 0) {
             if (live->instance != (unsigned int)text->stringObjInstance) {
@@ -5369,7 +5367,7 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
         }
     }
     if (self->sheet.bindNodeB0 != 0) {
-        text = *(ScreenText**)self->unk118;
+        text = *self->unk118;
         live = text->stringObj;
         if (live != 0 &&
             live->instance != (unsigned int)text->stringObjInstance) {
@@ -5387,7 +5385,7 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
         self->sheet.layout0[2] = kGvFloatZero - kGvFloatZero;
     }
     if (self->sheet.bindNodeB4 != 0) {
-        text = *(ScreenText**)self->unk118;
+        text = *self->unk118;
         live = text->stringObj;
         if (live != 0 &&
             live->instance != (unsigned int)text->stringObjInstance) {
@@ -5428,7 +5426,7 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     sourceCount = *(int*)((char*)self->unk11C + 0x14);
     if (self->sheet.unkEC < 1 || self->sheet.unkE8 < 1) {
         for (cell = 0; cell < sourceCount; cell++) {
-            poly = ((ScreenPoly**)self->unk118)[cell];
+            poly = self->unk118[cell];
             ((void (*)(void*, int))((void**)poly->vtbl)[7])(poly, 0);
         }
     }
@@ -5449,7 +5447,7 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
             cell = x + y * self->sheet.rows;
             source = x + self->sheet.scrollX +
                      self->sheet.unkE8 * (y + self->sheet.unkD4);
-            poly = ((ScreenPoly**)self->unk118)[cell];
+            poly = self->unk118[cell];
             if (y < visibleCols && x < visibleRows && source < sourceCount) {
                 vtbl = (void (**)(void))poly->vtbl;
                 ((void (*)(void*))vtbl[4])(poly);
@@ -5494,7 +5492,7 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
             self->sheet.unkDC == y + self->sheet.unkD4) {
             cell = self->sheet.scrollY + y * self->sheet.rows -
                    self->sheet.scrollX;
-            poly = ((ScreenPoly**)self->unk118)[cell];
+            poly = self->unk118[cell];
             vert = &poly->verts[vert_map__10ScreenPoly[0]];
             marker = (ScreenPoly*)self->sheet.nodeB4;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 1);
@@ -5538,7 +5536,7 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     sourceCount = self->sheet.unkEC * self->sheet.unkE8;
     if (self->sheet.unkEC < 1 || self->sheet.unkE8 < 1) {
         for (cell = 0; cell < sourceCount; cell++) {
-            text = ((ScreenText**)self->unk118)[cell];
+            text = self->unk118[cell];
             ((void (*)(void*, int))((void**)text->vtbl)[7])(text, 0);
         }
     }
@@ -5558,7 +5556,7 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
             cell = x + y * self->sheet.rows;
             source = x + self->sheet.scrollX +
                      self->sheet.unkE8 * (y + self->sheet.unkD4);
-            text = ((ScreenText**)self->unk118)[cell];
+            text = self->unk118[cell];
             if (y < visibleCols && x < visibleRows && source < sourceCount) {
                 vtbl = (void (**)(void))text->vtbl;
                 ((void (*)(void*))vtbl[4])(text);
@@ -5641,7 +5639,7 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
             self->sheet.unkDC == y + self->sheet.unkD4) {
             cell = self->sheet.scrollY + y * self->sheet.rows -
                    self->sheet.scrollX;
-            text = ((ScreenText**)self->unk118)[cell];
+            text = self->unk118[cell];
             live = text->stringObj;
             if (live != 0 &&
                 live->instance != (unsigned int)text->stringObjInstance) {
@@ -6784,13 +6782,13 @@ int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mg
     result = 1;
 
     switch (arg) {
-    case 0xF1000000:
+    case (int)0xF1000000u:
         if (params == 0 || self->textNode == 0 || self->indexTable == 0) {
             break;
         }
         ScrollText__8TextItemFii(self, GetInt__12ScreenParamsFUi(params, 0), 1);
         break;
-    case 0xF1000001:
+    case (int)0xF1000001u:
         if (params == 0 || self->textNode == 0 || self->indexTable == 0) {
             break;
         }
@@ -6798,7 +6796,7 @@ int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mg
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         ScrollText__8TextItemFii(self, p0, p1);
         break;
-    case 0xF1000002:
+    case (int)0xF1000002u:
         self->scrollPos = 0;
         if (self->textNode == 0 || self->indexTable == 0 || self->editBuf == 0) {
             break;
@@ -6806,18 +6804,18 @@ int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mg
         UpdateString__8TextItemFv(self);
         TextItemRefreshNode(self);
         break;
-    case 0xF1000003:
+    case (int)0xF1000003u:
         if (self->scrollPos != 0) {
             ProcessSubActions__12ScreenObjectFPC12ScreenActioni(self, actionIn, 0);
         }
         break;
-    case 0xF1000004:
+    case (int)0xF1000004u:
         pageLines = TextItemPageLines(self);
         if (self->scrollPos < self->scrollLimit - pageLines) {
             ProcessSubActions__12ScreenObjectFPC12ScreenActioni(self, actionIn, 0);
         }
         break;
-    case 0xF1000005:
+    case (int)0xF1000005u:
         if (self->textNode == 0 || self->indexTable == 0 || self->editBuf == 0) {
             break;
         }
@@ -8990,7 +8988,7 @@ void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
         nodeIndex = 6;
     }
     self->itemNodes = (ScreenNode**)Malloc__10ScreenUtilFUliPc(
-        (unsigned long)(self->itemCount << 2), kMallocTagInit,
+        (unsigned long)self->itemCount * sizeof(ScreenNode*), kMallocTagInit,
         (char*)(stringBase0 + 0x307));
     for (i = 0; i < self->itemCount; i++) {
         self->itemNodes[i] =

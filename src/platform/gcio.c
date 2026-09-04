@@ -3,16 +3,12 @@
 #include "dolphin/dvd.h"
 #include "dolphin/pad.h"
 #include "dolphin/si.h"
+#include "game/controller.h"
 #include "game/game_info.h"
 
 extern void handle_reset_switch(void);
 extern void dispatch_pad_sticks(int channel);
 extern void dispatch_right_sticks(int channel);
-extern void assign_player(int channel);
-extern void unassign_player(PlyrInfo* player);
-extern void controller_removed(int channel);
-extern int are_controllers_locked(void);
-extern int check_for_non_game_locked_controller_state(void);
 
 extern SwitchMapEntry default_switch_map[16];
 

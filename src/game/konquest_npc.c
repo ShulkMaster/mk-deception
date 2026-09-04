@@ -27,13 +27,6 @@
 #include "rw/rplight.h"
 #include "rw/rwengine.h"
 
-typedef struct KonquestWaypoint {
-    Vec position; /* +0x00 */
-    float angle; /* +0x0C */
-    unsigned int flags; /* +0x10 */
-    int script_function; /* +0x14 */
-} KonquestWaypoint;
-
 typedef struct KonquestPathData {
     MkHdr hdr;
     KonquestWaypoint* waypoints; /* +0x08 */
@@ -586,12 +579,12 @@ MkVtable5 vtbl_path_data_struct = {
     (MkVtblFn)vdestroy_path_data_struct,
 };
 
-KonquestTrigger* find_trigger_by_id(void);
+KonquestTrigger* find_trigger_by_id(unsigned int id);
 void execute_trigger(KonquestTrigger* trigger);
 void destroy_mkproc_nostack(MkProc* proc);
 void npc_play_dialog_and_anim_sequence(int dialog, int animation);
 void npc_wait_for_dialog(void);
-int konquest_set_dialog_text(
+MkProc* konquest_set_dialog_text(
     const char* text, const LipSyncKeyframe* keyframes);
 void npc_turn_and_face_angle(KonquestNpc* npc, float angle);
 void nav_get_unit_vector_to_area(int area_index, Vec* out, Vec* position);
@@ -611,7 +604,7 @@ void npc_travel_path(int path_id, int path_arg, int travel_mode);
 KonquestTileOrigin* get_nth_tile_struct(int index);
 int get_tile_from_position(const Vec* position);
 void npc_set_his_flags(KonquestNpcData* data, int flags, int enabled);
-void* get_door_path(int door_id);
+KonquestWaypoint* get_door_path(int door_id);
 RpGeometry* RpGeometryForAllMaterials(
     RpGeometry* geometry, KonquestMaterialCallback callback, void* data);
 int get_konquest_game_mode(void);
@@ -1838,8 +1831,8 @@ int npc_get_conversation_count(void) {
     return 0;
 }
 
-void npc_fire_trigger(void) {
-    KonquestTrigger* trigger = find_trigger_by_id();
+void npc_fire_trigger(unsigned int trigger_id) {
+    KonquestTrigger* trigger = find_trigger_by_id(trigger_id);
 
     if (g_active_npc != 0) {
         trigger->data->source_npc = g_active_npc;

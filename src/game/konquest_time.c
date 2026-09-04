@@ -149,7 +149,14 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/* Soft ceiling: exact size/operations; two inlined masks use different GPRs. */
+/*
+ * Soft ceiling: does_event_a_trump_event_b ~57.88% at the exact 236-byte
+ * retail size. Both specificity masks have the same field loads,
+ * booleanization, combination, unsigned compare, and returns; the low fuzzy
+ * score is a whole-function GPR/scheduling cascade. A bounded 12,650-variant
+ * permutation search improved scores only with artificial wrappers or dead
+ * branches, which were rejected.
+ */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
     int month_a;

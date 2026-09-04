@@ -23,7 +23,9 @@ typedef struct RwRasterModuleGlobals {
 } RwRasterModuleGlobals;
 
 extern void _rwResourcesPurge(void);
-static RwPluginRegistry rasterTKList = { 0x34, 0x34, 0, 0, 0, 0 };
+static RwPluginRegistry rasterTKList = {
+    sizeof(RwRaster), sizeof(RwRaster), 0, 0, 0, 0
+};
 static RwFreeList _rwRasterFreeList;
 static int _rwRasterFreeListBlockSize = 0x80;
 static int _rwRasterFreeListPreallocBlocks = 1;
