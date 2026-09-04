@@ -15,6 +15,7 @@
 #include "runtime/mk_mem.h"
 #include "runtime/section.h"
 #include "runtime/shadow.h"
+#include "runtime/sound.h"
 #include "runtime/sound_tracker.h"
 #include "runtime/light.h"
 #include "math/gxMath.h"
@@ -1285,23 +1286,23 @@ static int konquest_save_on_exit = 1;
 static const char* inv_item_default_string = "";
 static const char* inv_item_empty_string = "";
 
-KonquestTime* g_pui_events;
-int konquest_editor_mode_on;
-int konquest_data_loaded;
-static int in_exit_meditation;
-static int fix_camera_flip;
-static int trigger_update_countdown;
-static int g_fade_hud_in;
-static float sun_angle_change_per_tick;
-static float game_hours_per_tick;
-static float ticks_per_hour;
-static float ticks_per_game_day;
-static float original_game_speed;
-static MslSoundHandle meditate_stream;
-static MkPtr* nis_participants;
-void* konquest_prize_description_block;
-CoffinEntry* chest_data;
 KonquestPdata* konquest_pdata;
+CoffinEntry* chest_data;
+void* konquest_prize_description_block;
+static MkPtr* nis_participants;
+static MslSoundHandle meditate_stream;
+static float original_game_speed;
+static float ticks_per_game_day;
+static float ticks_per_hour;
+static float game_hours_per_tick;
+static float sun_angle_change_per_tick;
+static int g_fade_hud_in;
+static int trigger_update_countdown;
+static int fix_camera_flip;
+static int in_exit_meditation;
+int konquest_data_loaded;
+int konquest_editor_mode_on;
+KonquestTime* g_pui_events;
 
 extern float game_speed;
 extern int menu_player;
@@ -1332,14 +1333,11 @@ static float p_hero_portal_in(void);
 static float p_hero_use_portal(void);
 static float p_hero_teleport(void);
 static float p_show_fight_message(void);
-float snd_get_game_vol(void);
-void snd_set_game_vol(float volume);
 extern float game_volume;
 void run_interaction_camera_script(void* owner, void* script);
 void set_konq_profile_value(int category, int index, int value);
 int get_konq_profile_value(int category, int index);
 void snd_req_delay(int sound, int delay);
-int random_snd_req(int group);
 void random_snd_req_delay(int group, int delay);
 double pow(double base, double exponent);
 void set_game_speed(float speed);
@@ -1374,7 +1372,6 @@ static void generate_door_trigger(
     KonquestDoorObject* door, const Vec* position, float radius);
 void profile_region_change(void);
 int mslSoundIsValid(MslSoundHandle handle);
-void set_snd_vol(MslSoundHandle handle, int sound, float volume);
 MslSoundHandle snd_req_vol(int sound, float volume);
 void* get_script_function_by_name(ScriptSlot* owner, const char* name);
 void del_string_obj_by_id(int id);
@@ -1606,7 +1603,6 @@ void npc_signal_event(KonquestNpc* npc, int event_index);
 int npc_hit_by_punch(
     KonquestNpc* npc, float maximum_distance, float maximum_angle);
 void set_interior_cam_pos_and_ang(void);
-MslSoundHandle snd_req(int sound);
 void snd_stop(MslSoundHandle sound);
 MslSoundHandle pan_vol_snd_req(int sound, float pan, float volume);
 void* get_data_table(ScriptSlot* owner, unsigned int index);
@@ -2673,6 +2669,10 @@ static inline float konquest_inverse_length(float length_squared) {
     return inverse;
 }
 
+/* Retail guards embedded list-head addresses before traversing their values. */
+static inline int konquest_has_list(MkPtr** list) {
+    return list != 0;
+}
 
 /*
  * Near match: the tile/list search, portal geometry, all three inverse-length
@@ -2733,7 +2733,7 @@ static float p_hero_portal_in(void) {
 
         tile = (KonquestTileRecord*)((char*)konquest_pdata->tile_structs +
                                      tile_offset);
-        if (tile != 0 && tile->objects != 0) {
+        if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
                 KonquestObject* candidate;
@@ -3038,6 +3038,7 @@ void konquest_use_portal(
         konquest_pdata->game_mode_index--;
     }
 }
+
 /*
  * Near match: the stale-safe portal search, direction-mode geometry, camera
  * placement, animation/alpha sequence, effects, sounds, fades, and cleanup
@@ -3092,7 +3093,7 @@ static float p_hero_use_portal(void) {
 
         tile = (KonquestTileRecord*)((char*)konquest_pdata->tile_structs +
                                      tile_offset);
-        if (tile != 0 && tile->objects != 0) {
+        if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
                 KonquestObject* candidate;
@@ -3432,7 +3433,6 @@ static inline void run_konquest_teleport_script(const char* name) {
             konquest_pdata->script_owner, name));
     cmdscript_execute(konquest_pdata->script_owner);
 }
-
 
 /*
  * Near match: all three scripted effects, dissolve/reform alpha loops, camera
@@ -4665,7 +4665,7 @@ static inline KonquestPuiDelayView* find_pui_runtime_by_id(
     KonquestPuiDefinition* item) {
     KonquestPuiListNode* node;
 
-    if (konquest_pdata->pui_list != 0) {
+    if (konquest_has_list(&konquest_pdata->pui_list)) {
         node = (KonquestPuiListNode*)konquest_pdata->pui_list;
         while (node != 0) {
             KonquestPuiDelayView* pui;
@@ -6380,7 +6380,7 @@ static inline KonquestPuiDelayView* find_pui_runtime_by_numeric_id(
     unsigned int id) {
     MkPtr* link;
 
-    if (konquest_pdata->pui_list != 0) {
+    if (konquest_has_list(&konquest_pdata->pui_list)) {
         link = konquest_pdata->pui_list;
         while (link != 0) {
             KonquestPuiDelayView* pui;
@@ -7220,7 +7220,7 @@ static int konquest_pui_check_for_and_replace_old_chest(
     int replaced;
 
     replaced = 0;
-    if (konquest_pdata->pui_list != 0) {
+    if (konquest_has_list(&konquest_pdata->pui_list)) {
         link = konquest_pdata->pui_list;
         while (link != 0) {
             KonquestPuiDelayView* old_pui;
@@ -7785,7 +7785,7 @@ static inline KonquestTriggerStruct* find_trigger_by_id_inline(
     MkPtr* link;
     MkPtr* next;
 
-    if (konquest_pdata->triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -7804,7 +7804,7 @@ static inline KonquestTriggerStruct* find_trigger_by_id_inline(
             }
         }
     }
-    if (konquest_pdata->temporary_triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->temporary_triggers)) {
         link = konquest_pdata->temporary_triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -8503,7 +8503,7 @@ void nis_remove_non_participants(void) {
     MkPtr* next;
     MkPtr* link;
 
-    if (konquest_pdata->npcs != 0) {
+    if (konquest_has_list(&konquest_pdata->npcs)) {
         link = konquest_pdata->npcs;
         while (link != 0) {
             MkHdr* hdr;
@@ -8730,7 +8730,7 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
 
     *distance = 1000.0f;
     *facing_angle = 6.2831855f;
-    if (konquest_pdata->npcs != 0) {
+    if (konquest_has_list(&konquest_pdata->npcs)) {
         link = konquest_pdata->npcs;
         while (link != 0) {
             KonquestNpc* npc;
@@ -10471,7 +10471,7 @@ static float p_konquest_map_screen(void) {
         blink_cursor(cursor, 0x8245, 0x1E, 0xA);
     }
 
-    if (active_proc_list != 0) {
+    if (konquest_has_list(&active_proc_list)) {
         MkPtr* link;
 
         link = active_proc_list;
@@ -13619,7 +13619,7 @@ static void unhide_tile(KonquestTileRecord* tile) {
         set_true_clip_flag_on_sobj_and_children(tile->scene, 0);
     }
 
-    if (tile != 0 && tile->objects != 0) {
+    if (tile != 0 && konquest_has_list(&tile->objects)) {
         link = tile->objects;
         while (link != 0) {
             if (link->instance != link->hdr->instance) {
@@ -13739,7 +13739,7 @@ static void remove_collisions_from_tile_and_tile_objects(
     destroy_list(&tile->collisions);
     tile->collisions = 0;
 
-    if (tile != 0 && tile->objects != 0) {
+    if (tile != 0 && konquest_has_list(&tile->objects)) {
         link = tile->objects;
         while (link != 0) {
             if (link->instance != link->hdr->instance) {
@@ -13782,7 +13782,7 @@ static void generate_collisions_for_tile_and_tile_objects(
                     &tile->collisions, 0x80000000);
             }
         }
-        if (tile != 0 && tile->objects != 0) {
+        if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
                 KonquestUidObject* object;
@@ -13926,7 +13926,7 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
     MkPtr* link;
     MkPtr* next;
 
-    if (konquest_pdata->triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -13945,7 +13945,7 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
             }
         }
     }
-    if (konquest_pdata->temporary_triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->temporary_triggers)) {
         link = konquest_pdata->temporary_triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -14039,7 +14039,7 @@ static inline KonquestCollisionVolume* find_collision_volume_by_uid(int uid) {
         MkPtr* link;
 
         tile = &konquest_pdata->tile_structs[tile_index];
-        if (tile->objects != 0) {
+        if (konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
                 KonquestCollisionVolume* volume;
@@ -14067,7 +14067,7 @@ static inline KonquestCollisionVolume* find_collision_volume_by_uid(int uid) {
 
 
 /*
- * Soft ceiling: restore_collision_volume_on_object_with_uid ~94.4%. The
+ * Soft ceiling: restore_collision_volume_on_object_with_uid ~97.0%. The
  * stale-safe UID search, placement lookup, art publication, collision rebuild,
  * flag update, and four-call sequence agree with retail with no opcode-class
  * mismatch. The local body is one instruction shorter from GPR allocation and
@@ -14130,7 +14130,7 @@ void restore_collision_volume_on_object(void) {
 }
 
 /*
- * Soft ceiling: remove_collision_volume_on_object_with_uid ~93.0% -- code
+ * Soft ceiling: remove_collision_volume_on_object_with_uid ~96.3% -- code
  * size differs by one instruction; the search and removal operations match,
  * with the same nonvolatile-GPR rotation and loop-test placement.
  */
@@ -14184,7 +14184,7 @@ static inline KonquestObject* find_object_by_uid_inline(int uid) {
 
         tile = (KonquestTileRecord*)((char*)konquest_pdata->tile_structs +
                                      tile_offset);
-        if (tile != 0 && tile->objects != 0) {
+        if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
                 KonquestObject* object;
@@ -14215,7 +14215,7 @@ static inline KonquestChildObject* find_child_by_enumeration_inline(
     KonquestChildObject* child;
 
     child = 0;
-    if (object->list_4C != 0) {
+    if (konquest_has_list(&object->list_4C)) {
         MkPtr* link;
 
         link = object->list_4C;
@@ -14363,7 +14363,7 @@ static inline KonquestUidObject* find_tile_object_by_uid(int uid) {
         MkPtr* link;
 
         tile = &konquest_pdata->tile_structs[tile_index];
-        if (tile != 0 && tile->objects != 0) {
+        if (tile != 0 && konquest_has_list(&tile->objects)) {
             link = tile->objects;
             while (link != 0) {
                 KonquestUidObject* object;
@@ -14392,7 +14392,7 @@ static inline KonquestChildObject* find_object_child_by_enumeration(
     KonquestUidObject* object, int enumeration) {
     MkPtr* link;
 
-    if (object->render_records != 0) {
+    if (konquest_has_list(&object->render_records)) {
         link = object->render_records;
         while (link != 0) {
             KonquestChildObject* child;
@@ -14631,7 +14631,7 @@ static inline KonquestChildObject* find_trigger_door(
     KonquestTriggerObject* object, int enumeration) {
     MkPtr* link;
 
-    if (object->doors != 0) {
+    if (konquest_has_list(&object->doors)) {
         link = object->doors;
         while (link != 0) {
             KonquestChildObject* door;
@@ -14703,7 +14703,7 @@ static inline KonquestChildObject* find_door_partner_inline(
     partner_uid = konquest_pdata->region_table
                       ->enumerations[door->definition->enumeration_index]
                       .partner_uid;
-    if (konquest_pdata->door_objects != 0) {
+    if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
             KonquestChildObject* candidate;
@@ -15044,7 +15044,7 @@ KonquestChildObject* find_child_subobject_by_enumeration(
     KonquestObject* object, int enumeration) {
     MkPtr* link;
 
-    if (object->list_4C != 0) {
+    if (konquest_has_list(&object->list_4C)) {
         link = object->list_4C;
         while (link != 0) {
             KonquestChildObject* child;
@@ -15625,7 +15625,7 @@ static inline void remove_trigger_from_world(
 void delete_triggers_from_tile(int tile_index) {
     MkPtr* link;
 
-    if (konquest_pdata->triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -15808,7 +15808,7 @@ KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
     MkPtr* link;
     MkPtr* next;
 
-    if (konquest_pdata->triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -15827,7 +15827,7 @@ KonquestTriggerStruct* find_trigger_by_id(unsigned int id) {
             }
         }
     }
-    if (konquest_pdata->temporary_triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->temporary_triggers)) {
         link = konquest_pdata->temporary_triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -15901,7 +15901,7 @@ void konquest_setup_pui_particle(
 static inline unsigned int find_sobj_art_id_by_uid(int uid) {
     MkPtr* link;
 
-    if (konquest_pdata->sobj_infos != 0) {
+    if (konquest_has_list(&konquest_pdata->sobj_infos)) {
         link = konquest_pdata->sobj_infos;
         while (link != 0) {
             KonquestSobjInfo* info;
@@ -16022,7 +16022,7 @@ void add_object_to_tile(
 static inline KonquestSobjInfo* find_sobj_info_by_uid(int uid) {
     MkPtr* link;
 
-    if (konquest_pdata->sobj_infos != 0) {
+    if (konquest_has_list(&konquest_pdata->sobj_infos)) {
         link = konquest_pdata->sobj_infos;
         while (link != 0) {
             KonquestSobjInfo* info;
@@ -16198,7 +16198,7 @@ KonquestWaypoint* get_door_path(int door_id) {
 
     region = ((int)(door_id & 0xF0000000u)) >> 28;
     uid = door_id & 0x0FFFFFFF;
-    if (konquest_pdata->door_objects != 0) {
+    if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
             KonquestDoorObject* door;
@@ -16231,9 +16231,9 @@ KonquestWaypoint* get_door_path(int door_id) {
  * Near match: allocation and stale-list traversal, both atomic-center paths,
  * partner averaging, fixed-angle normalization, all four waypoint records and
  * scripts, shared partner publication, trigger placement, and final counters
- * agree with retail. The complete 15-call sequence is identical. The 48-byte
+ * agree with retail. The complete 15-call sequence is identical. The 52-byte
  * residue is a separate byte-offset induction variable, three inverted
- * equivalent latch branches, and register scheduling (1376 versus 1328 bytes).
+ * equivalent latch branches, and register scheduling (1376 versus 1324 bytes).
  */
 static void generate_door_paths(void) {
     KonquestWaypoint* waypoints;
@@ -16251,7 +16251,7 @@ static void generate_door_paths(void) {
 
     waypoints = (KonquestWaypoint*)get_mem(
         konquest_pdata->door_overflow_count * 0x60);
-    if (konquest_pdata->door_objects != 0) {
+    if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
             KonquestDoorObject* door;
@@ -16435,7 +16435,7 @@ static void generate_door_trigger(
                       .enumeration;
     trigger_id = door_uid | (enumeration << 28);
     trigger = 0;
-    if (konquest_pdata->triggers != 0) {
+    if (konquest_has_list(&konquest_pdata->triggers)) {
         link = konquest_pdata->triggers;
         while (link != 0) {
             trigger = (KonquestTriggerStruct*)link->hdr;
@@ -16562,7 +16562,7 @@ KonquestChildObject* find_door_partner_sobj(KonquestChildObject* door) {
     partner_uid = konquest_pdata->region_table
                       ->enumerations[door->definition->enumeration_index]
                       .partner_uid;
-    if (konquest_pdata->door_objects != 0) {
+    if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
             KonquestChildObject* candidate;
@@ -17049,7 +17049,7 @@ static RpAtomic* hide_an_atomic(RpAtomic* atomic, void* data) {
 static void hide_tile_objects(KonquestTileRecord* tile) {
     MkPtr* object_link;
 
-    if (tile != 0 && tile->objects != 0) {
+    if (tile != 0 && konquest_has_list(&tile->objects)) {
         object_link = tile->objects;
         while (object_link != 0) {
             KonquestUidObject* object;
@@ -17069,7 +17069,7 @@ static void hide_tile_objects(KonquestTileRecord* tile) {
                 object->attached_pfx_state != 0) {
                 fx_reset_emit(object->attached_pfx_state);
             }
-            if (object->render_records != 0) {
+            if (konquest_has_list(&object->render_records)) {
                 MkPtr* record_link;
 
                 record_link = object->render_records;
@@ -18123,7 +18123,7 @@ void enable_attached_sound_by_uid(int uid, int enabled) {
     KonquestAttachedSound* sound;
     MkPtr* link;
 
-    if (konquest_pdata->attached_sounds != 0) {
+    if (konquest_has_list(&konquest_pdata->attached_sounds)) {
         link = konquest_pdata->attached_sounds;
         while (link != 0) {
             sound = (KonquestAttachedSound*)link->hdr;
@@ -18352,7 +18352,7 @@ void hide_konquest_object_by_uid(int uid) {
                 object->attached_pfx_state != 0) {
                 fx_reset_emit(object->attached_pfx_state);
             }
-            if (object->render_records != 0) {
+            if (konquest_has_list(&object->render_records)) {
                 MkPtr* record_link;
 
                 record_link = object->render_records;
@@ -18443,7 +18443,8 @@ static void show_konquest_object(KonquestUidObject* object) {
     MkPtr* link;
 
     record_number = 0;
-    if (object->hidden == 0 && object->render_records != 0) {
+    if (object->hidden == 0 &&
+        konquest_has_list(&object->render_records)) {
         link = object->render_records;
         while (link != 0) {
             record = (KonquestRenderRecord*)link->hdr;
@@ -18837,7 +18838,7 @@ void trigger_update(int force) {
         konquest_pdata->hero_state != 8 &&
         konquest_pdata->hero_state != 9 &&
         konquest_pdata->hero_state != 10 &&
-        konquest_pdata->temporary_triggers != 0) {
+        konquest_has_list(&konquest_pdata->temporary_triggers)) {
         link = konquest_pdata->temporary_triggers;
         while (link != 0) {
             KonquestTriggerStruct* trigger;
@@ -18913,7 +18914,7 @@ void trigger_update(int force) {
         } else {
             hero = 0;
         }
-        if (hero != 0 && konquest_pdata->triggers != 0) {
+        if (hero != 0 && konquest_has_list(&konquest_pdata->triggers)) {
             link = konquest_pdata->triggers;
             while (link != 0) {
                 KonquestTriggerStruct* trigger;
@@ -19010,7 +19011,7 @@ static void check_and_act_on_trigger_timed_action(
 void pui_update(void) {
     MkPtr* link;
 
-    if (konquest_pdata->pui_list != 0) {
+    if (konquest_has_list(&konquest_pdata->pui_list)) {
         link = konquest_pdata->pui_list;
         while (link != 0) {
             KonquestPuiRuntime* pui;
