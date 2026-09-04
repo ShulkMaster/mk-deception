@@ -263,8 +263,20 @@ int pose_anim(AnimPdata* anim, int update_object);
 int set_anim_script_frame(
     float frame, AnimPdata* anim, AnimScript* script, unsigned int flags);
 AnimPdata* get_mkpdata_anim(void);
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
+
+static inline MkObj* transition_anim_object(AnimPdata* anim) {
+    MkObj* object = anim->obj;
+    if (object != 0) {
+        if (object->hdr.instance == anim->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 int transition_to_anim_script_frame(
     float transition_frames,
     float frame,
@@ -306,27 +318,7 @@ static inline int anim_create_proc_flags(void) {
     return flags;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static void _bone_make_parents_my_children(MkBone* bone);
-
 
 static inline float anim_last_frame(const AnimScript* script) {
     return (float)script->frame_count - 1.0f;
@@ -422,16 +414,12 @@ static inline void rebuild_anim_track_table(AnimPdata* anim) {
     }
     track = script->tracks;
     track_data = anim->track_data;
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
     while (track_count > 0) {
         *track_data = anim_script_data(script, track->data_offset);
         track_data++;
         track++;
         track_count--;
     }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
     anim->tag_frame =
         (AnimTagFrame*)anim_script_data(script, track->data_offset);
     anim->tag_frame = (AnimTagFrame*)anim_script_data(
@@ -2994,6 +2982,7 @@ static int _set_frameno(AnimPdata* anim) {
     return result;
 }
 
+/* TODO: [near miss] 98.84%; unchanged without pragmas; inspect residual source lowering. */
 int transition_to_anim_script_frame(
     float transition_frames,
     float frame,
@@ -3049,22 +3038,16 @@ int transition_to_anim_script_frame(
     }
     rebuild_anim_track_table(anim);
     if ((flags & 0x10) != 0) {
-        anim->frame =
+        float synchronized_frame =
             anim->old_frame /
             (float)(anim->old_script->frame_count - 1) *
             (float)(anim->script->frame_count - 1);
-        anim->previous_frame = anim->frame;
+        anim->frame = synchronized_frame;
+        anim->previous_frame = synchronized_frame;
     }
 
     if ((flags & 0x80) == 0) {
-        obj = anim->obj;
-        if (obj != 0) {
-            if (obj->hdr.instance != anim->obj_instance) {
-                obj = 0;
-            }
-        } else {
-            obj = 0;
-        }
+        obj = transition_anim_object(anim);
         if (obj != 0) {
             if ((flags & 0x200) != 0) {
                 obj->hide_flag_bits.bit0 = 1;
@@ -3155,14 +3138,7 @@ int transition_to_anim_script_frame(
     anim->step = 1.0f;
 
     speed = game_speed;
-    obj = anim->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != anim->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = transition_anim_object(anim);
     if (obj != 0 && obj->flags_0B_bits.force_anim_speed) {
         speed = 1.0f;
     }
@@ -3211,14 +3187,7 @@ int transition_to_anim_script_frame(
     }
     anim->step = saved_step;
     anim->frame = frame;
-    obj = anim->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != anim->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = transition_anim_object(anim);
     if (obj != 0 && obj->hide_flag_bits.pin_animation != 0) {
         float ground_restore_x;
         float ground_restore_y;
@@ -3238,8 +3207,6 @@ int transition_to_anim_script_frame(
     }
     return 1;
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void transition_to_anim_script(
     float transition_frames,
@@ -3250,8 +3217,7 @@ void transition_to_anim_script(
         transition_frames, 0.0f, anim, script, flags);
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
+/* TODO: [near miss] 95.62%; unchanged without pragmas; inspect residual source lowering. */
 int set_anim_script_frame(
     float frame,
     AnimPdata* anim,
@@ -3377,17 +3343,14 @@ int set_anim_script_frame(
     }
     return same_script;
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
-#pragma dont_inline on
+/* TODO: [matched] Objdiff 100% without dont_inline; TU remains NonMatching. */
 void set_anim_script(
     AnimPdata* anim,
     AnimScript* script,
     unsigned int flags) {
     set_anim_script_frame(0.0f, anim, script, flags);
 }
-#pragma dont_inline reset
 
 /* Soft ceiling: retail retains one redundant valid-instance join branch. */
 void toggle_obj_and_ani_flips(AnimPdata* anim) {
@@ -3701,8 +3664,7 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
+/* TODO: [breakthrough needed] 91.98%; unroll controls have no effect; inspect remaining loop diffs. */
 static void process_obj_bones(MkObj* obj, const int* tags) {
     RpHAnimHierarchy* found_hierarchy = 0;
     RpHAnimHierarchy* hierarchy;
@@ -3880,8 +3842,6 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
         }
     }
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void mkbone_remove(MkBone* bone) {
     destroy_list(&bone->list_80);

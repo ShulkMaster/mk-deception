@@ -532,7 +532,7 @@ void __GXInitGX(void) {
     GXSetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
     GXSetFieldMask(GX_ENABLE, GX_ENABLE);
     GXSetFieldMode(rmode->field_rendering,
-                   ((rmode->viHeight == 2 * rmode->xfbHeight) ? GX_ENABLE : GX_DISABLE));
+                   ((rmode->viHeight == 2 * rmode->xfbHeight) ? (GXBool)GX_ENABLE : (GXBool)GX_DISABLE));
 
     GXSetDispCopySrc(0, 0, rmode->fbWidth, rmode->efbHeight);
     GXSetDispCopyDst(rmode->fbWidth, rmode->efbHeight);

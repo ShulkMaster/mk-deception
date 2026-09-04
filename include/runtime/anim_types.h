@@ -122,7 +122,9 @@ typedef struct AnimPdata {
     unsigned int field_E8;
     char padEC[8];
     int rest_ticks;
-    char padF8[0x0C];
+    float landing_start;
+    float landing_end;
+    char pad100[4];
 } AnimPdata;
 
 typedef char AnimPdataSizeCheck[sizeof(AnimPdata) == 0x104 ? 1 : -1];

@@ -129,7 +129,7 @@ typedef struct KonquestEnumerationEntry {
 typedef struct KonquestRegionTable {
     void* region_asset;
     const char* interior_art_name; /* +0x04 */
-    void* map_table; /* +0x08 */
+    const char* map_art_name; /* +0x08 */
     char pad0C[0x0C];
     const char* supplemental_art_name; /* +0x18 */
     const char* effect_bank_name; /* +0x1C */
@@ -3052,8 +3052,8 @@ static float p_hero_use_portal(void) {
     KonquestRenderRecord* record;
     MkObj* hero;
     MkPtr* link;
-    Vec direction;
     Vec position;
+    Vec direction;
     float inverse_length;
     unsigned int effect;
     int tile_index;
@@ -3064,9 +3064,7 @@ static float p_hero_use_portal(void) {
 
     grounding = konquest_pdata->hero_grounding;
     if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
+        if (grounding->hdr.instance != konquest_pdata->grounding_instance) {
             grounding = 0;
         }
     } else {
@@ -3074,9 +3072,7 @@ static float p_hero_use_portal(void) {
     }
     hero = konquest_pdata->hero_object;
     if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
+        if (hero->hdr.instance != konquest_pdata->hero_instance) {
             hero = 0;
         }
     } else {
@@ -3616,7 +3612,6 @@ static inline void position_fight_message(ScreenObj* object, int y_offset) {
  * remaining differences are only pooled floating-constant relocation labels.
  * Retail's compact signed-halving and counted alpha loop require size mode.
  */
-#pragma optimize_for_size on
 static float p_show_fight_message(void) {
     KonquestFightMessagePdata* pdata;
     ScreenObj* message;
@@ -3690,7 +3685,6 @@ static float p_show_fight_message(void) {
     }
     return -1.0f;
 }
-#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: hero_start_fx_at_position ~83.8% -- typed owner/offset ABI,
@@ -4314,12 +4308,7 @@ void konquest_hide_damashi(void) {
     }
 }
 
-/*
- * Soft ceiling: konquest_start_damashi ~95.5%. Object setup, position and
- * ground stores, global latch, sounds, all four particle bindings, sleep, NPC
- * creation, and return agree. Residue is individual r30/r31 saves/restores
- * plus local string/float relocation labels; source is 456 versus 448 bytes.
- */
+/* Retail uses compact nonvolatile saves for this object setup. */
 MkObj* konquest_start_damashi(
     void* unused, float x, float y, float z) {
     MkObj* object;
@@ -5181,85 +5170,62 @@ static MkProc* konquest_display_award_tga(
     }
     return proc;
 }
+static inline ScreenObj* award_screen_object(KryptScreenObjLatch* latch) {
+    ScreenObj* object = latch->obj;
+    if (object != 0) {
+        if (object->instance == latch->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* award_description_object(KonquestStringLatch* latch) {
+    StringObj* object = latch->object;
+    if (object != 0) {
+        if (object->instance == latch->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline void set_award_display_alpha(
     KonquestAwardArtPdata* pdata, float alpha) {
     ScreenObj* screen;
     StringObj* description;
 
-    screen = pdata->art[0].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[0].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[0]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[1].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[1].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[1]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[2].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[2].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[2]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[3].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[3].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[3]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[4].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[4].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[4]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    screen = pdata->art[5].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[5].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = award_screen_object(&pdata->art[5]);
     if (screen != 0) {
         set_screen_obj_alpha(screen, alpha);
     }
-    description = pdata->description.object;
-    if (description != 0) {
-        if (description->instance != pdata->description.instance) {
-            description = 0;
-        }
-    } else {
-        description = 0;
-    }
+    description = award_description_object(&pdata->description);
     if (description != 0) {
         set_string_obj_alpha(description, alpha);
     }
@@ -5267,10 +5233,8 @@ static inline void set_award_display_alpha(
 
 
 /*
- * Near match: all three display modes, asset and string construction, seven
- * typed alpha latches, mode waits, completion signal, fade-out, and cleanup
- * calls agree. The 24-byte residue is equivalent latch/loop block placement,
- * FPR/GPR allocation, scheduling, and pooled relocation labels.
+ * Report-exact: typed alpha latches and the top-tested fade-in loop reproduce
+ * retail. Direct objdiff retains only equal-payload anonymous constant labels.
  */
 static float p_display_award_image(void) {
     KonquestAwardArtPdata* pdata;
@@ -5343,12 +5307,12 @@ static float p_display_award_image(void) {
     case 1:
         load_art_for_inventory_award(pdata);
         snd_req(0x159B);
-        do {
+        while (alpha < 1.0f) {
             alpha += 0.05f;
             set_award_display_alpha(pdata, alpha);
             _mkproc_sleep_ticks = 1.0f;
             ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
-        } while (alpha < 1.0f);
+        }
         break;
     case 2:
         load_art_for_inventory_award(pdata);
@@ -7712,11 +7676,7 @@ static inline int find_pui_inventory_index(void* pui) {
 }
 
 
-/*
- * Soft ceiling: kill_pui 96.33% (736 versus 720 bytes). Its seven remaining
- * differences are exclusively stmw/lmw versus individual nonvolatile saves
- * and restores; the dynamic guard, bit operations, and destruction are exact.
- */
+/* Retail uses the compact nonvolatile save/restore sequence here. */
 void kill_pui(KonquestPuiDefinition* item) {
     KonquestPuiDelayView* pui;
     unsigned int table_index;
@@ -7775,6 +7735,7 @@ void kill_pui(KonquestPuiDefinition* item) {
         }
     }
 }
+
 
 int is_pui_an_interior_item(const char* pui) {
     return *(const float*)(pui + 0x1c) >= 1000.0f;
@@ -8935,7 +8896,6 @@ static float p_konquest_dialog(void) {
     return -1.0f;
 }
 
-#pragma optimize_for_size on
 void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks) {
     KonquestDialogPdata* pdata;
     int length;
@@ -8964,7 +8924,6 @@ void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks) {
     pdata->print_ticks = ticks;
     pdata->active = 1;
 }
-#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: mode dispatch, NPC gate, lip-sync duration, double ceil,
@@ -10264,7 +10223,6 @@ void konquest_show_hud(void) {
  * Near match: code size and every instruction agree with retail; the only
  * remaining difference is the pooled "0" string's translation-unit offset.
  */
-#pragma optimize_for_size on
 #pragma dont_inline on
 static void konquest_restore_saved_state(void) {
     char* script_name;
@@ -10282,7 +10240,6 @@ static void konquest_restore_saved_state(void) {
     update_visible_tiles();
 }
 #pragma dont_inline reset
-#pragma optimize_for_size reset
 
 void konquest_transition_from_fight(void) {
     fade_to_black(8, 1);
@@ -10389,7 +10346,7 @@ static float p_konquest_map_screen(void) {
     load_ssf(konquest_region_data[konquest_pdata->region_index].fight_files);
     load_art_section_by_name(
         0x60027,
-        konquest_region_data[konquest_pdata->region_index].map_art_name);
+        konquest_pdata->region_table->map_art_name);
     load_ssf(konquest_common_file_table);
     add_art_section(0x60027, &sec_konquest_map_common);
     load_font(0xF);
@@ -10799,17 +10756,14 @@ int get_save_progress_flag(void) {
     return konquest_save_on_exit;
 }
 
-#pragma optimize_for_size on
 void set_save_progress_flag(int enabled) {
     konquest_save_on_exit = enabled != 0;
 }
-#pragma optimize_for_size reset
 
 void npc_hide_skip_message(void) {
     del_string_obj_by_id(0x900f);
 }
 
-#pragma optimize_for_size on
 void npc_show_skip_message(void) {
     char* text;
 
@@ -10817,7 +10771,6 @@ void npc_show_skip_message(void) {
     load_font(6);
     string_center_xy(0x900f, 6, text, screen_width / 2, 0x1a1, 0xb);
 }
-#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: p_konquest_switch_4 ~99.6% -- the complete 0x198-byte
@@ -11049,7 +11002,7 @@ float p_konquest_switch_R1(void) {
             g_game_info.pads[konquest_pdata->input_port].player) {
         return -1.0f;
     }
-    if (konquest_pdata->region_table->map_table == 0) {
+    if (konquest_pdata->region_table->map_art_name == 0) {
         return -1.0f;
     }
     proc = (MkProc*)_create_mkproc_generic_bigstack(
@@ -13489,7 +13442,6 @@ void update_tile_grid(void) {
  * residue is equivalent row/column arithmetic scheduling and GPR coloring.
  * Size optimization is required for retail's divw lowering.
  */
-#pragma optimize_for_size on
 static void hide_currently_visible_tiles(void) {
     int index;
 
@@ -13528,15 +13480,13 @@ static void hide_currently_visible_tiles(void) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: update_visible_tiles ~92.3% at the exact retail size. Bounds,
  * calls, access widths, and visibility updates match; residue is row/column
- * arithmetic scheduling and GPR coloring. Retail's divw sequence requires the
- * scoped size optimization instead of the TU's magic-division lowering.
+ * arithmetic scheduling and GPR coloring. Retail's divw sequence is reproduced
+ * by the TU-wide size-optimization setting in configure.py.
  */
-#pragma optimize_for_size on
 static inline KonquestTileRecord* get_tile_record_by_index(int index) {
     if (index <
         konquest_pdata->tile_width * konquest_pdata->tile_height + 1) {
@@ -13603,7 +13553,6 @@ static void update_visible_tiles(void) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: unhide_tile ~83.9% at the exact retail size. The complete body
@@ -13653,7 +13602,6 @@ static void hide_tile(KonquestTileRecord* tile) {
  * match; residue is 5x5 coordinate scheduling/GPR coloring and local float
  * relocation labels.
  */
-#pragma optimize_for_size on
 static void konquest_update_true_clipped_tiles(void) {
     int index;
 
@@ -13721,7 +13669,6 @@ static void konquest_update_true_clipped_tiles(void) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: remove_collisions_from_tile_and_tile_objects ~79.0%. The
@@ -13968,27 +13915,19 @@ static inline KonquestTriggerStruct* find_trigger_by_definition(
 }
 
 
-/*
- * Soft ceiling: trigger_set_time_for_enable ~89.6% -- lookup, timestamp copy,
- * timed action, and unit dispatch match retail. Residue is paired-copy loop
- * lowering (GPR decrement versus bdnz) and the resulting GPR allocation.
- */
 void trigger_set_time_for_enable(KonquestTriggerDefinition* definition,
                                  int unit, int amount, int action) {
-    KonquestTimePair* destination;
-    int pairs_remaining;
-    KonquestTimePair* source;
     KonquestTriggerStruct* trigger;
+    int timed_action;
 
     enable_trigger(definition, action == 0);
     trigger = find_trigger_by_definition(definition);
-    source = konquest_pdata->current_time.pairs;
-    destination = trigger->action_time.pairs;
-    pairs_remaining = 3;
-    do {
-        *destination++ = *source++;
-    } while (--pairs_remaining != 0);
-    trigger->timed_action = action != 0 ? 1 : 2;
+    trigger->action_time = konquest_pdata->current_time;
+    timed_action = 2;
+    if (action != 0) {
+        timed_action = 1;
+    }
+    trigger->timed_action = timed_action;
 
     switch (unit) {
     case 0:
@@ -14833,8 +14772,8 @@ static void p_konquest_open_door(void) {
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     KonquestObjectState* state_data;
-    Vec target_angles;
     Vec target_position;
+    Vec target_angles;
     Vec* angles;
     Vec* base_position;
     float position_x;
@@ -18332,12 +18271,22 @@ void unhide_konquest_object_by_uid(int uid) {
     }
 }
 
-/*
- * Near match at the exact retail size: the stale-safe UID search, visibility
- * gates, effect reset, palette compaction, object latch, and final hidden-state
- * stores all agree. Residue is local scan GPR coloring, equivalent latch CFG,
- * and matrix-address scheduling.
- */
+static inline MkSobj* konquest_bound_object(KonquestSobjBinding* binding) {
+    MkSobj* object = binding->object;
+
+    if (object != 0) {
+        if (object->hdr.instance == binding->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* Near match: palette-compaction register coloring and the equivalent
+ * last-element address calculation remain under TU size optimization. */
 void hide_konquest_object_by_uid(int uid) {
     KonquestUidObject* object;
 
@@ -18393,7 +18342,7 @@ void hide_konquest_object_by_uid(int uid) {
                                         last->matrix_index = index;
                                         set_mat(
                                             &palette->matrices[index],
-                                            &palette->matrices[last_index]);
+                                            &palette->matrices[palette->count - 1]);
                                         records[index] = last;
                                     }
                                 }
@@ -18406,17 +18355,7 @@ void hide_konquest_object_by_uid(int uid) {
                         } else {
                             MkSobj* render_object;
 
-                            render_object = binding->object;
-                            if (render_object != 0) {
-                                if (render_object->hdr.instance ==
-                                    binding->object_instance) {
-                                    /* Valid render-object latch. */
-                                } else {
-                                    render_object = 0;
-                                }
-                            } else {
-                                render_object = 0;
-                            }
+                            render_object = konquest_bound_object(binding);
                             if (render_object != 0) {
                                 hide_sobj_and_children(render_object);
                             }
@@ -19480,7 +19419,7 @@ float p_setup_konquest_map(void) {
                           1;
 
         while (objective_index >= 0) {
-            objective_row = &objective_table[objective_index];
+            objective_row = &konquest_pdata->objective.table[objective_index];
             if (objective_row->requirement_type == -1 ||
                 get_konq_profile_value(
                     objective_row->requirement_type,
@@ -19609,7 +19548,6 @@ float p_setup_konquest_map(void) {
  * remaining 98.15% residue is GPR coloring, one loop-zero materialization,
  * and pooled string/float relocation labels (888 versus 884 bytes).
  */
-#pragma optimize_for_size on
 static void load_and_init_konquest_map_specific_data(int region) {
     MkHdr* process_data;
     unsigned int shadow_art;
@@ -19742,7 +19680,6 @@ static void load_and_init_konquest_map_specific_data(int region) {
         }
     }
 }
-#pragma optimize_for_size reset
 /*
  * Soft ceiling: insert_collision_on_proper_tile_list ~98.5% -- center-to-tile
  * conversion, bounds CFG, lookup, and insertion match. Residue is an r4/r5
@@ -19862,7 +19799,6 @@ void konquest_state_init(void) {
  * callback, and jump-sleep agree. Residue is aggregate-copy scheduling,
  * register selection, and pooled constant relocation labels.
  */
-#pragma optimize_for_size on
 static float p_init_konquest_mode(void) {
     PlyrInfo* player;
     int index;
@@ -19935,7 +19871,6 @@ static float p_init_konquest_mode(void) {
         ->jump_sleep(p_setup_konquest_map, aproc, 0.0f);
     return 0.0f;
 }
-#pragma optimize_for_size reset
 
 int get_konquest_game_mode(void) {
     return konquest_current_game_mode();

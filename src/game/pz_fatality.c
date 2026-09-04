@@ -3538,11 +3538,13 @@ static inline void pz_chomper_start_motion(
 }
 
 static inline void pz_chomper_update_state(
-    int side, int fighting, int* motion_changed) {
+    unsigned int side, int fighting, int* motion_changed) {
+    if (g_pz_fighter_fatality_engine.controller
+            ->hazard_initialized[side] == 0) {
+        return;
+    }
     switch (g_pz_fighter_fatality_engine.controller
                 ->hazard_initialized[side]) {
-    case 0:
-        break;
     case 1:
         if (fighting != 0) {
             g_pz_fighter_fatality_engine.controller
@@ -3608,10 +3610,10 @@ static inline void pz_chomper_update_state(
 }
 
 /*
- * Near match (97.22%, retail 0x9D0/current 0x9CC). The complete controller is
+ * Near match (99.01% report, retail 0x9D0/current 0x9D4). The controller is
  * recovered, including hazard ownership, store order, side-specific sound
  * branches, unsigned iteration, and fighting/preround zeroing order. One
- * instruction plus register/stack-slot coloring remains.
+ * extra instruction plus register/stack-slot coloring remains.
  */
 static float p_chomper2_controller(void) {
     const int object_count = 1;

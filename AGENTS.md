@@ -32,6 +32,30 @@ repository. The supported target is the USA GameCube release, `GQNE5D`.
 - Preserve or explicitly account for the final retail SHA-1 check. A fuzzy
   percentage alone is not validation.
 
+## Post-attempt status policy
+
+After every matching attempt (including a reverted trial or no-edit stop),
+update one source comment immediately above the affected function:
+
+```c
+/* TODO: [near miss] 98.84%; equivalent latch CFG remains; stop at coloring. */
+```
+
+Required format: `TODO: [status] quick explanation`. Canonical statuses:
+
+- `borked`: algorithm, CFG, ABI, or layout is demonstrably wrong.
+- `breakthrough needed`: unresolved structural cause; name missing evidence.
+- `breakthrough`: structural cause fixed; name remaining mismatch/next check.
+- `near miss`: behavior/structure agree; localized codegen/relocation residue.
+- `matched`: measured exact result; distinguish report-exact from link-exact.
+- `blocked`: tool, input, or authorization prevents verification.
+
+Describe retained source, not the rejected candidate. Include current objdiff
+score when available and concrete residual/next action; use one or two lines.
+Replace previous status instead of appending history. For shared edits, update
+functions whose result/classification changes. Never infer `matched` from fuzzy
+improvement. Comments do not replace whole-TU checks, full build, or retail SHA-1.
+
 ## Initialize the repository
 
 Python is the only hard prerequisite for the bootstrap. Git and Ninja should be
@@ -89,7 +113,7 @@ For a localized mismatch, use the mechanical playbooks in this order:
 3. [Niche / fallback](docs/decomp/playbook-niche.md) — rare compiler quirks and
    explicit stop conditions. Use only when the first two books do not fit.
 
-Each row is an `If A -> then B` diagnostic. Apply it only when its preconditions
+Each rule is an `IF / REQUIRE / TRY` diagnostic. Apply it only when its preconditions
 match the assembly and call-site evidence. Try one mechanical edit, rebuild, and
 measure. Never stack speculative tricks merely because one improves fuzzy score.
 If only harmless register coloring remains, follow the niche book's soft-ceiling

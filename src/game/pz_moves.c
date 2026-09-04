@@ -1129,11 +1129,10 @@ float pz_fighter_perform_center_pos_single_close_move(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: pz_fighter_smart_flippy ~99.94% - pool label only. */
 float pz_fighter_smart_flippy(void) {
     float player1_distance;
-    float player2_distance;
     float player1_absolute;
+    float player2_distance;
     float player2_absolute;
     float distance;
 

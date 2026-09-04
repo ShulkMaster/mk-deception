@@ -1746,7 +1746,7 @@ int round_over(void) {
         }
 
         if (active_players == 2 &&
-            ((int)mode_of_play == 0 || (int)mode_of_play == 1)) {
+            ((int)mode_of_play == 1 || (int)mode_of_play == 0)) {
             if (!g_game_info.feature_flags.bits.high_bit) {
                 if (winner == 1) {
                     if (p1_profile_status == 1) {
@@ -2861,8 +2861,8 @@ float p_game_loop(void) {
             active_players++;
         }
         if (active_players == 2) {
-            g_game_info.plyr0.player_index = 0x2C;
             g_game_info.plyr1.player_index = 0x2C;
+            g_game_info.plyr0.player_index = 0x2C;
         }
 
         turn_controllers_off();
