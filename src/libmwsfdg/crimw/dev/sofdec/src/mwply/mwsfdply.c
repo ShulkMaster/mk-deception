@@ -89,17 +89,17 @@ extern int SFD_Standby(SfdHandle* handle);
 extern void mwPlyLinkStm(MwsPlayer* player, int link);
 extern void mwlSfdSleepDecSvr(MwsPlayer* player);
 
-#pragma force_active on
-static const char range_handle_invalid[0x34] =
+
+static const char range_handle_invalid[] =
     "E407021: mwPlyStartFnameRange: handle is invalid.";
-static const char range_filename_null[0x30] =
+static const char range_filename_null[] =
     "E407022: mwPlyStartFnameRange: fname is NULL.";
-static const char filename_too_long[0x20] =
+static const char filename_too_long[] =
     "E211121: filename is longer.";
-static const char filename_range_format[0x0C] = "%08x.%08x";
-static const char filename_range_failed[0x28] =
+static const char filename_range_format[] = "%08x.%08x";
+static const char filename_range_failed[] =
     "E211151: ADXF_GetFnameRangeEx() faild.";
-#pragma force_active reset
+
 
 void MWSFPLY_RecordFname(MwsPlayer* player, const char* filename)
 {
@@ -129,38 +129,36 @@ void MWSFPLY_SetFlowLimit(MwsPlayer* player)
     MWSFD_SetFlowLimit(player, adjusted_limit, flow_limit);
 }
 
-#pragma force_active on
-static const char start_afs_invalid[0x2C] =
+static const char start_afs_invalid[] =
     "E1122638: mwPlyStartAfs: handle is invalid.";
-static const char pause_handle_invalid[0x28] =
+static const char pause_handle_invalid[] =
     "E1122604 mwSfdPause; handle is invalid.";
-static const char pause_failed[0x24] =
+static const char pause_failed[] =
     "E2007 mwSfdPause; can't pause (%s)";
-static const char pause_on[0x04] = "ON";
-static const char pause_off[0x04] = "OFF";
-static const char stop_handle_invalid[0x28] =
+static const char pause_on[] = "ON";
+static const char pause_off[] = "OFF";
+static const char stop_handle_invalid[] =
     "E1122602 mwSfdStop: handle is invalid.";
-static const char stop_failed[0x20] =
+static const char stop_failed[] =
     "E2003 mwSfdStop:can't stop SFD";
-static const char start_sj_handle_invalid[0x2C] =
+static const char start_sj_handle_invalid[] =
     "E1122609 mwSfdStartSj: handle is invalid.";
-static const char reset_failed[0x2C] =
+static const char reset_failed[] =
     "E0203263: mw_sfd_start_ex: RESET failed.";
-static const char set_additional_info_failed[0x2C] =
+static const char set_additional_info_failed[] =
     "E201213 mw_sfd_start_ex: can't set AddInfSJ";
-static const char standby_failed[0x20] =
+static const char standby_failed[] =
     "E20010703F mwPlySfdStandby: ";
-static const char start_mem_handle_invalid[0x2C] =
+static const char start_mem_handle_invalid[] =
     "E1122610 mwSfdStartMem: handle is invalid.";
-static const char start_filename_handle_invalid[0x30] =
+static const char start_filename_handle_invalid[] =
     "E1122601: mwPlyStartFname: handle is invalid.";
-static const char start_filename_null[0x2C] =
+static const char start_filename_null[] =
     "E10915C: mwPlyStartFname: fname is NULL.";
-static const char pause_status_invalid[0x30] =
+static const char pause_status_invalid[] =
     "E10821A : Invalid value of SFD_GetPaStat : %d";
-static const char start_failed[0x1C] =
+static const char start_failed[] =
     "E20010703G mwPlySfdStart: ";
-#pragma force_active reset
 
 void mwSfdPause(MwsPlayer* player, int paused)
 {

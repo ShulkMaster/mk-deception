@@ -12,6 +12,9 @@ void SFX_CnvFrmY84C44(SFXHandle* handle, SFXFrameInfo* frame,
     case 3:
         SFX_CnvFrmYcc420plnToY84C44(handle, frame, y, c);
         break;
+    case 0:
+    case 1:
+    case 2:
     default:
         SFXLIB_Error(
             handle, (void*)frame,

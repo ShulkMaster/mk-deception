@@ -27,10 +27,10 @@ void SFX_SetTagInf(SfxTagInfo* info, void* data, int size) {
 
     tag = "SFXZ";
     effect = info->effect;
-    source.data = data;
-    source.len = size;
     info->tag_data = data;
     info->tag_size = size;
+    source.data = data;
+    source.len = size;
     if (SJ_SearchTag(&source, tag, "SFXINFE", &result) == 0) {
         SFXZ_SetTagInf(effect, 0, 0);
     } else {
