@@ -73,6 +73,7 @@ static void StrLwr(char* string) {
 
 
 
+/* Finds the first occurrence of a character in a terminated string. */
 static char* StrChr(const char* string, int findThis) {
     char* result = 0;
     char character;
@@ -91,6 +92,7 @@ static char* StrChr(const char* string, int findThis) {
 
 
 
+/* Finds the final occurrence of a character in a terminated string. */
 static char* StrRChr(const char* string, int findThis) {
     char* result = 0;
     char character;

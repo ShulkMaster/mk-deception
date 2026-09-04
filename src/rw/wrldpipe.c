@@ -33,7 +33,7 @@ int _rpCreatePlatformWorldSectorPipelines(void) {
         _rxGCSectorDefaultLightingCallback,
         (RxGCSectorRenderCallBack)_rxGCDefaultRenderCallback);
     if (pipeline != 0) {
-        RxPipelineGlobals()->platformWorldSectorPipeline = pipeline;
+        rxPipelineGlobalField(platformWorldSectorPipeline) = pipeline;
         RpWorldSetDefaultSectorPipeline(pipeline);
         return 1;
     }
@@ -42,10 +42,12 @@ int _rpCreatePlatformWorldSectorPipelines(void) {
 
 
 void _rpDestroyPlatformWorldSectorPipelines(void) {
+    /* TODO: Retail retains an unused success value in r31 after destruction;
+     * this semantic implementation intentionally omits that dead state. */
     RpWorldSetDefaultSectorPipeline(0);
-    if (RxPipelineGlobals()->platformWorldSectorPipeline != 0) {
-        _rxPipelineDestroy(RxPipelineGlobals()->platformWorldSectorPipeline);
-        RxPipelineGlobals()->platformWorldSectorPipeline = 0;
+    if (rxPipelineGlobalField(platformWorldSectorPipeline) != 0) {
+        _rxPipelineDestroy(rxPipelineGlobalField(platformWorldSectorPipeline));
+        rxPipelineGlobalField(platformWorldSectorPipeline) = 0;
     }
 }
 
@@ -55,7 +57,7 @@ int _rpCreatePlatformAtomicPipelines(void) {
         _rxGCAtomicDefaultReinstanceCallback,
         _rxGCAtomicDefaultLightingCallback, _rxGCDefaultRenderCallback);
     if (pipeline != 0) {
-        RxPipelineGlobals()->platformAtomicPipeline = pipeline;
+        rxPipelineGlobalField(platformAtomicPipeline) = pipeline;
         RpAtomicSetDefaultPipeline(pipeline);
         return 1;
     }
@@ -64,9 +66,11 @@ int _rpCreatePlatformAtomicPipelines(void) {
 
 
 void _rpDestroyPlatformAtomicPipelines(void) {
+    /* TODO: Retail retains an unused success value in r31 after destruction;
+     * this semantic implementation intentionally omits that dead state. */
     RpAtomicSetDefaultPipeline(0);
-    if (RxPipelineGlobals()->platformAtomicPipeline != 0) {
-        _rxPipelineDestroy(RxPipelineGlobals()->platformAtomicPipeline);
-        RxPipelineGlobals()->platformAtomicPipeline = 0;
+    if (rxPipelineGlobalField(platformAtomicPipeline) != 0) {
+        _rxPipelineDestroy(rxPipelineGlobalField(platformAtomicPipeline));
+        rxPipelineGlobalField(platformAtomicPipeline) = 0;
     }
 }

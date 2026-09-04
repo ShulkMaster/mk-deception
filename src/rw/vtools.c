@@ -1,5 +1,6 @@
 #include "rw/gamecube.h"
 
+/* Soft ceiling: retail retains an unused absent-position boolean normalization. */
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                             const RwGameCubeVertexBuffer* vertexBuffer,
                             const RwGameCubeVertexData* data,
@@ -25,8 +26,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                     _rwGCNVtxFmtInstPos3D(
                         vertexBuffer->arrays[streamIndex].data,
                         (const RwV3d *)data->source[attribute], type,
-                        data->counts[attribute],
-                        vertexBuffer->arrays[streamIndex].stride, remap, scale);
+                        scale, data->counts[attribute],
+                        vertexBuffer->arrays[streamIndex].stride, remap);
                     streamIndex++;
                 }
             }
@@ -98,8 +99,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;
@@ -113,8 +114,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;
@@ -126,8 +127,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;
@@ -139,8 +140,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;
@@ -152,8 +153,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;
@@ -165,8 +166,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;
@@ -178,8 +179,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;
@@ -191,8 +192,8 @@ void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                 _rwGCNVtxFmtInstTex(
                     vertexBuffer->arrays[streamIndex].data,
                     (const RwTexCoords *)data->source[attribute], type,
-                    data->counts[attribute],
-                    vertexBuffer->arrays[streamIndex].stride, scale);
+                    scale, data->counts[attribute],
+                    vertexBuffer->arrays[streamIndex].stride);
                 streamIndex++;
             }
             break;

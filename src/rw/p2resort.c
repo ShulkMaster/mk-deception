@@ -66,9 +66,10 @@ static void _repartition(unsigned char* first, unsigned char* last,
                     unsigned int remaining = entrySize;
 
                     while (remaining >= sizeof(unsigned int)) {
-                        unsigned int value = *(unsigned int*)rightWord;
-                        *(unsigned int*)rightWord = *(unsigned int*)leftWord;
-                        *(unsigned int*)leftWord = value;
+                        unsigned int leftValue = *(unsigned int*)leftWord;
+                        unsigned int rightValue = *(unsigned int*)rightWord;
+                        *(unsigned int*)rightWord = leftValue;
+                        *(unsigned int*)leftWord = rightValue;
                         leftWord += sizeof(unsigned int);
                         rightWord += sizeof(unsigned int);
                         remaining -= sizeof(unsigned int);
@@ -108,15 +109,16 @@ static void _insertionsort(unsigned char* base, unsigned int numEntries,
         unsigned char* previous = base;
 
         while (previous -= entrySize,
-               *(unsigned int*)(previous + keyOffset) > currentKey) {
+               currentKey < *(unsigned int*)(previous + keyOffset)) {
             unsigned char* leftWord = previous;
             unsigned char* rightWord = previous + entrySize;
             unsigned int remaining = entrySize;
 
             while (remaining >= sizeof(unsigned int)) {
-                unsigned int value = *(unsigned int*)rightWord;
-                *(unsigned int*)rightWord = *(unsigned int*)leftWord;
-                *(unsigned int*)leftWord = value;
+                unsigned int leftValue = *(unsigned int*)leftWord;
+                unsigned int rightValue = *(unsigned int*)rightWord;
+                *(unsigned int*)rightWord = leftValue;
+                *(unsigned int*)leftWord = rightValue;
                 leftWord += sizeof(unsigned int);
                 rightWord += sizeof(unsigned int);
                 remaining -= sizeof(unsigned int);
@@ -129,6 +131,8 @@ void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
                              unsigned int entrySize, unsigned int keyOffset,
                              unsigned int keyLowerBound,
                              unsigned int keyUpperBound) {
+    /* TODO: Retail keeps keyUpperBound in r17 and copies the final swap count
+     * through r18; MWCC uses r18 and omits that dead condition copy. */
     if (base == 0) {
         return;
     }
@@ -169,9 +173,10 @@ void _rx_rxRadixExchangeSort(unsigned char* base, unsigned int numEntries,
             unsigned int remaining = entrySize;
 
             while (remaining >= sizeof(unsigned int)) {
-                unsigned int value = *(unsigned int*)rightWord;
-                *(unsigned int*)rightWord = *(unsigned int*)leftWord;
-                *(unsigned int*)leftWord = value;
+                unsigned int leftValue = *(unsigned int*)leftWord;
+                unsigned int rightValue = *(unsigned int*)rightWord;
+                *(unsigned int*)rightWord = leftValue;
+                *(unsigned int*)leftWord = rightValue;
                 leftWord += sizeof(unsigned int);
                 rightWord += sizeof(unsigned int);
                 remaining -= sizeof(unsigned int);

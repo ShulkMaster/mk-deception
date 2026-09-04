@@ -9,8 +9,6 @@
 
 typedef struct NBTResourceEntry {
     RwResEntry entry;
-    unsigned short token;
-    unsigned short meshSerialNum;
     RwGameCubeVertexBuffer vertexBuffer;
 } NBTResourceEntry;
 
@@ -33,15 +31,17 @@ static unsigned char nbtPositionFraction;
 static unsigned char nbtNormalFraction;
 static unsigned char nbtTexCoordFraction;
 
-static float ReadScalar(const unsigned char* address, unsigned char type,
+static float rpReadNbtScalar(const unsigned char* address, unsigned char type,
                          unsigned char fraction);
-static void WriteScalar(unsigned char* address, float value, unsigned char type,
+static void rpWriteNbtScalar(unsigned char* address, float value, unsigned char type,
                         unsigned char fraction);
 
 static void CalcNBTSetup(const RpGameCubeVtxFmt* format,
                          unsigned char* positionSize, unsigned char* normalSize,
                          unsigned char* texCoordSize, unsigned int* savedGQR5)
 {
+    /* TODO: Retail also programs GQR5 for the paired-single CalcNBT kernel;
+     * this portable setup preserves its format and element-size semantics. */
     static const unsigned char elementSize[5] = {1, 1, 2, 2, 4};
     static const unsigned char normalFraction[5] = {0, 6, 0, 14, 0};
 
@@ -65,57 +65,75 @@ static void CalcNBTSetup(const RpGameCubeVtxFmt* format,
 
 static void CalcNBTRestore(unsigned int savedGQR5)
 {
+    /* TODO: Retail restores GQR5 for its paired-single CalcNBT kernel. The
+     * portable implementation does not modify or consume GQR state. */
     (void)savedGQR5;
 }
 
-static void SetNBTPointers(NBTCalcData* data, const unsigned char* positionBase,
-                           unsigned char* normalBase,
-                           const unsigned char* texCoordBase, unsigned int first,
-                           unsigned int second, unsigned int third);
+#define rpPrepareNbtSourcePointers(data, positionBase, normalBase, texCoordBase, first, \
+                         second, third)                                        \
+    do {                                                                       \
+        (data)->positions[0] = (positionBase) +                                \
+            (first) * ((data)->positionSize * 3);                              \
+        (data)->positions[1] = (positionBase) +                                \
+            (second) * ((data)->positionSize * 3);                             \
+        (data)->positions[2] = (positionBase) +                                \
+            (third) * ((data)->positionSize * 3);                              \
+        (data)->normal = (normalBase) +                                        \
+            (first) * ((data)->normalSize * 9);                                \
+        (data)->texCoords[0] = (texCoordBase) +                                \
+            (first) * ((data)->texCoordSize * 2);                              \
+        (data)->texCoords[1] = (texCoordBase) +                                \
+            (second) * ((data)->texCoordSize * 2);                             \
+        (data)->texCoords[2] = (texCoordBase) +                                \
+            (third) * ((data)->texCoordSize * 2);                              \
+    } while (0)
 
 static void TriStripNBTDataSetup8(NBTCalcData* data, const unsigned char* indices,
                                   unsigned int stride,
                                   const unsigned char* positionBase,
                                   unsigned char* normalBase,
                                   const unsigned char* texCoordBase,
-                                  unsigned int vertex)
+                                  int vertex)
 {
-    unsigned int first = indices[vertex * stride];
-    unsigned int second;
-    unsigned int third;
+    unsigned char first = indices[stride * vertex];
+    unsigned char second;
+    unsigned char third;
 
-    if (vertex == 0) {
-        second = indices[stride];
-        third = indices[2 * stride];
-    } else if (vertex == 1) {
-        second = indices[2 * stride];
-        third = indices[0];
+    if (vertex < 2) {
+        if (vertex == 0) {
+            second = indices[stride];
+            third = indices[2 * stride];
+        } else {
+            second = indices[2 * stride];
+            third = indices[0];
+        }
     } else {
-        second = indices[(vertex - 2) * stride];
-        third = indices[(vertex - 1) * stride];
+        second = indices[stride * (vertex - 2)];
+        third = indices[stride * (vertex - 1)];
         if (second == third) {
-            unsigned int next = indices[(vertex + 1) * stride];
+            unsigned char next = indices[stride * (vertex + 1)];
             if (first == next) {
                 vertex++;
-                second = indices[(vertex + 1) * stride];
+                second = indices[stride * (vertex + 1)];
                 if (first == second) {
                     vertex++;
-                    second = indices[(vertex + 1) * stride];
+                    second = indices[stride * (vertex + 1)];
                 }
-                third = indices[(vertex + 2) * stride];
+                third = indices[stride * (vertex + 2)];
             } else {
                 second = third;
                 third = next;
             }
         }
         if ((vertex & 1) != 0) {
-            unsigned int swap = second;
+            unsigned char swap = second;
             second = third;
             third = swap;
         }
     }
-    SetNBTPointers(data, positionBase, normalBase, texCoordBase,
-                   first, second, third);
+    rpPrepareNbtSourcePointers(data, positionBase, normalBase, texCoordBase,
+                     first, second, third);
 }
 
 static void TriStripNBTDataSetup16(NBTCalcData* data, const unsigned char* records,
@@ -123,45 +141,52 @@ static void TriStripNBTDataSetup16(NBTCalcData* data, const unsigned char* recor
                                    const unsigned char* positionBase,
                                    unsigned char* normalBase,
                                    const unsigned char* texCoordBase,
-                                   unsigned int vertex)
+                                   int vertex)
 {
-    unsigned int first = *(const unsigned short*)(records + vertex * stride);
-    unsigned int second;
-    unsigned int third;
+    unsigned short first =
+        *(const unsigned short*)(records + stride * vertex);
+    unsigned short second;
+    unsigned short third;
 
-    if (vertex == 0) {
-        second = *(const unsigned short*)(records + stride);
-        third = *(const unsigned short*)(records + 2 * stride);
-    } else if (vertex == 1) {
-        second = *(const unsigned short*)(records + 2 * stride);
-        third = *(const unsigned short*)records;
+    if (vertex < 2) {
+        if (vertex == 0) {
+            second = *(const unsigned short*)(records + stride);
+            third = *(const unsigned short*)(records + 2 * stride);
+        } else {
+            second = *(const unsigned short*)(records + 2 * stride);
+            third = *(const unsigned short*)records;
+        }
     } else {
-        second = *(const unsigned short*)(records + (vertex - 2) * stride);
-        third = *(const unsigned short*)(records + (vertex - 1) * stride);
+        second = *(const unsigned short*)(records + stride * (vertex - 2));
+        third = *(const unsigned short*)(records + stride * (vertex - 1));
         if (second == third) {
-            unsigned int next =
-                *(const unsigned short*)(records + (vertex + 1) * stride);
+            unsigned short next =
+                *(const unsigned short*)(records + stride * (vertex + 1));
             if (first == next) {
                 vertex++;
                 second =
-                    *(const unsigned short*)(records + (vertex + 1) * stride);
+                    *(const unsigned short*)(records + stride * (vertex + 1));
                 if (first == second) {
                     vertex++;
                     second =
-                        *(const unsigned short*)(records + (vertex + 1) * stride);
+                        *(const unsigned short*)(records +
+                                                 stride * (vertex + 1));
                 }
                 third =
-                    *(const unsigned short*)(records + (vertex + 2) * stride);
+                    *(const unsigned short*)(records + stride * (vertex + 2));
             } else {
-                second = third; third = next;
+                second = third;
+                third = next;
             }
         }
         if ((vertex & 1) != 0) {
-            unsigned int swap = second; second = third; third = swap;
+            unsigned short swap = second;
+            second = third;
+            third = swap;
         }
     }
-    SetNBTPointers(data, positionBase, normalBase, texCoordBase,
-                   first, second, third);
+    rpPrepareNbtSourcePointers(data, positionBase, normalBase, texCoordBase,
+                     first, second, third);
 }
 
 static void TriListNBTDataSetup8(NBTCalcData* data, const unsigned char* indices,
@@ -169,21 +194,23 @@ static void TriListNBTDataSetup8(NBTCalcData* data, const unsigned char* indices
                                  const unsigned char* positionBase,
                                  unsigned char* normalBase,
                                  const unsigned char* texCoordBase,
-                                 unsigned int vertex)
+                                 int vertex)
 {
-    unsigned int first = indices[vertex * stride];
-    unsigned int second;
-    unsigned int third;
-    switch (vertex % 3) {
-    case 0: second = indices[(vertex + 1) * stride];
-            third = indices[(vertex + 2) * stride]; break;
-    case 1: second = indices[(vertex + 1) * stride];
-            third = indices[(vertex - 1) * stride]; break;
-    default: second = indices[(vertex - 2) * stride];
-             third = indices[(vertex - 1) * stride]; break;
+    unsigned char first = indices[stride * vertex];
+    unsigned char second;
+    unsigned char third;
+    int verticesPerTriangle = 3;
+    switch (vertex % verticesPerTriangle) {
+    case 0: second = indices[stride * (vertex + 1)];
+            third = indices[stride * (vertex + 2)]; break;
+    case 1: second = indices[stride * (vertex + 1)];
+            third = indices[stride * (vertex - 1)]; break;
+    case 2: second = indices[stride * (vertex - 2)];
+            third = indices[stride * (vertex - 1)]; break;
+    default: return;
     }
-    SetNBTPointers(data, positionBase, normalBase, texCoordBase,
-                   first, second, third);
+    rpPrepareNbtSourcePointers(data, positionBase, normalBase, texCoordBase,
+                     first, second, third);
 }
 
 static void TriListNBTDataSetup16(NBTCalcData* data, const unsigned char* records,
@@ -191,168 +218,262 @@ static void TriListNBTDataSetup16(NBTCalcData* data, const unsigned char* record
                                   const unsigned char* positionBase,
                                   unsigned char* normalBase,
                                   const unsigned char* texCoordBase,
-                                  unsigned int vertex)
+                                  int vertex)
 {
-    unsigned int first = *(const unsigned short*)(records + vertex * stride);
-    unsigned int second;
-    unsigned int third;
-    switch (vertex % 3) {
+    unsigned short first =
+        *(const unsigned short*)(records + stride * vertex);
+    unsigned short second;
+    unsigned short third;
+    int verticesPerTriangle = 3;
+    switch (vertex % verticesPerTriangle) {
     case 0:
-        second = *(const unsigned short*)(records + (vertex + 1) * stride);
-        third = *(const unsigned short*)(records + (vertex + 2) * stride);
+        second = *(const unsigned short*)(records + stride * (vertex + 1));
+        third = *(const unsigned short*)(records + stride * (vertex + 2));
         break;
     case 1:
-        second = *(const unsigned short*)(records + (vertex + 1) * stride);
-        third = *(const unsigned short*)(records + (vertex - 1) * stride);
+        second = *(const unsigned short*)(records + stride * (vertex + 1));
+        third = *(const unsigned short*)(records + stride * (vertex - 1));
         break;
-    default:
-        second = *(const unsigned short*)(records + (vertex - 2) * stride);
-        third = *(const unsigned short*)(records + (vertex - 1) * stride);
+    case 2:
+        second = *(const unsigned short*)(records + stride * (vertex - 2));
+        third = *(const unsigned short*)(records + stride * (vertex - 1));
         break;
+    default: return;
     }
-    SetNBTPointers(data, positionBase, normalBase, texCoordBase,
-                   first, second, third);
+    rpPrepareNbtSourcePointers(data, positionBase, normalBase, texCoordBase,
+                     first, second, third);
 }
 
 void CalcNBT(NBTCalcData* data);
+
+#define rpWalkNbtCommands(setupFunction16, setupFunction8, tangentType,         \
+                             tangentValue, unsetTest16, unsetTest8)             \
+    do {                                                                       \
+        consumed = 0;                                                          \
+        while (consumed < displayList->size) {                                 \
+            primitive = *command;                                              \
+            command++;                                                         \
+            consumed++;                                                        \
+            count = *(const unsigned short*)command;                           \
+            command += 2;                                                      \
+            consumed += 2;                                                     \
+            if (vertexBuffer->arrays[0].descriptor == 3) {                     \
+                for (i = 0; i < count; i++) {                                 \
+                    unsigned short index = *(const unsigned short*)(           \
+                        command + recordStride * i);                           \
+                    tangentType tangent = (tangentValue);                      \
+                    if (unsetTest16) {                                         \
+                        setupFunction16(&data, command, recordStride,          \
+                            positionBase, normalBase, texCoordBase, i);        \
+                        CalcNBT(&data);                                        \
+                    }                                                          \
+                }                                                              \
+            } else {                                                           \
+                for (i = 0; i < count; i++) {                                 \
+                    unsigned char index = command[recordStride * i];           \
+                    tangentType tangent = (tangentValue);                      \
+                    if (unsetTest8) {                                          \
+                        setupFunction8(&data, command, recordStride,           \
+                            positionBase, normalBase, texCoordBase, i);        \
+                        CalcNBT(&data);                                        \
+                    }                                                          \
+                }                                                              \
+            }                                                                  \
+            command += recordStride * count;                                   \
+            consumed += recordStride * count;                                  \
+            primitive = *command;                                              \
+            if (primitive == 0)                                                \
+                break;                                                         \
+        }                                                                      \
+    } while (0)
 
 static void CalcMeshNBTs(RwGameCubeVertexBuffer* vertexBuffer,
                          const RwGameCubeDisplayList* displayList,
                          const RpGameCubeVtxFmt* format)
 {
-    unsigned char positionSize, normalSize, texCoordSize;
     unsigned int savedGQR5;
-    unsigned int recordStride = 0;
-    unsigned int arrayIndex;
-    const unsigned char* command = displayList->data;
-    const unsigned char* end = command + displayList->size;
+    unsigned int recordStride;
+    unsigned int i;
+    unsigned int consumed;
+    unsigned char primitive;
+    unsigned short count;
     const unsigned char* positionBase = vertexBuffer->arrays[0].data;
     unsigned char* normalBase = vertexBuffer->arrays[1].data;
-    const unsigned char* texCoordBase = 0;
-    int index16 = vertexBuffer->arrays[0].descriptor == 3;
+    const unsigned char* texCoordBase;
+    const unsigned char* command;
     NBTCalcData data;
 
-    for (arrayIndex = 0; arrayIndex < vertexBuffer->numArrays; arrayIndex++) {
-        const RwGameCubeVertexArray* array = &vertexBuffer->arrays[arrayIndex];
-        recordStride += array->descriptor == 3 ? 2 : 1;
-        if (array->attribute == 13)
-            texCoordBase = array->data;
+    for (i = 2; vertexBuffer->arrays[i].attribute != 13; i++) {
     }
-    CalcNBTSetup(format, &positionSize, &normalSize, &texCoordSize,
-                 &savedGQR5);
-    data.positionSize = positionSize;
-    data.normalSize = normalSize;
-    data.texCoordSize = texCoordSize;
+    texCoordBase = vertexBuffer->arrays[i].data;
 
-    while (command < end && *command != 0) {
-        unsigned char primitive = *command++;
-        unsigned int count = *(const unsigned short*)command;
-        const unsigned char* records;
-        unsigned int vertex;
-        command += 2;
-        records = command;
-        for (vertex = 0; vertex < count; vertex++) {
-            unsigned int index = index16
-                ? *(const unsigned short*)(records + vertex * recordStride)
-                : records[vertex * recordStride];
-            unsigned char* tangent = normalBase +
-                index * normalSize * 9 + normalSize * 3;
-            int unset;
-            if (normalSize == 1)
-                unset = *(unsigned char*)tangent == 0xFF;
-            else if (normalSize == 2)
-                unset = *(unsigned short*)tangent == 0xFFFF;
-            else
-                unset = *(float*)tangent == 3.4028235e38f;
-            if (unset) {
-                if (primitive == 0x98) {
-                    if (index16)
-                        TriStripNBTDataSetup16(&data, records, recordStride,
-                            positionBase, normalBase, texCoordBase, vertex);
-                    else
-                        TriStripNBTDataSetup8(&data, records, recordStride,
-                            positionBase, normalBase, texCoordBase, vertex);
-                } else {
-                    if (index16)
-                        TriListNBTDataSetup16(&data, records, recordStride,
-                            positionBase, normalBase, texCoordBase, vertex);
-                    else
-                        TriListNBTDataSetup8(&data, records, recordStride,
-                            positionBase, normalBase, texCoordBase, vertex);
-                }
-                CalcNBT(&data);
+    recordStride = 0;
+    for (i = 0; i < vertexBuffer->numArrays; i++) {
+        if (vertexBuffer->arrays[i].descriptor == 3)
+            recordStride += 2;
+        else
+            recordStride++;
+    }
+    CalcNBTSetup(format, &data.positionSize, &data.normalSize,
+                 &data.texCoordSize, &savedGQR5);
+    command = displayList->data;
+
+    if (*command == 0x98) {
+        if (format != 0) {
+            if (format->normalType == 1) {
+                rpWalkNbtCommands(TriStripNBTDataSetup16,
+                    TriStripNBTDataSetup8, unsigned char,
+                    normalBase[index * 9 + 3], tangent == 0xFF,
+                    tangent == 0xFF);
+            } else if (format->normalType == 3) {
+                rpWalkNbtCommands(TriStripNBTDataSetup16,
+                    TriStripNBTDataSetup8, unsigned short,
+                    *(unsigned short*)(normalBase + index * 18 + 6),
+                    tangent == 0xFFFF,
+                    (float)tangent == 3.4028235e38f);
+            } else {
+                rpWalkNbtCommands(TriStripNBTDataSetup16,
+                    TriStripNBTDataSetup8, float,
+                    *(float*)(normalBase + index * 36 + 12),
+                    tangent == 3.4028235e38f, tangent == 3.4028235e38f);
             }
+        } else {
+            rpWalkNbtCommands(TriStripNBTDataSetup16,
+                TriStripNBTDataSetup8, float,
+                *(float*)(normalBase + index * 36 + 12),
+                tangent == 3.4028235e38f, tangent == 3.4028235e38f);
         }
-        command += count * recordStride;
+    } else {
+        if (format != 0) {
+            if (format->normalType == 1) {
+                rpWalkNbtCommands(TriListNBTDataSetup16,
+                    TriListNBTDataSetup8, unsigned char,
+                    normalBase[index * 9 + 3], tangent == 0xFF,
+                    tangent == 0xFF);
+            } else if (format->normalType == 3) {
+                rpWalkNbtCommands(TriListNBTDataSetup16,
+                    TriListNBTDataSetup8, unsigned short,
+                    *(unsigned short*)(normalBase + index * 18 + 6),
+                    tangent == 0xFFFF,
+                    (float)tangent == 3.4028235e38f);
+            } else {
+                rpWalkNbtCommands(TriListNBTDataSetup16,
+                    TriListNBTDataSetup8, float,
+                    *(float*)(normalBase + index * 36 + 12),
+                    tangent == 3.4028235e38f, tangent == 3.4028235e38f);
+            }
+        } else {
+            rpWalkNbtCommands(TriListNBTDataSetup16,
+                TriListNBTDataSetup8, float,
+                *(float*)(normalBase + index * 36 + 12),
+                tangent == 3.4028235e38f, tangent == 3.4028235e38f);
+        }
     }
     CalcNBTRestore(savedGQR5);
 }
+
+#undef rpWalkNbtCommands
 
 void _rpGameCubeMTPipeDataCalcNBTs(
     RxGameCubeAtomicAllInOneInstanceData* instanceData,
     const RpGameCubeVtxFmt* format, int numVertices)
 {
+    /* TODO: This initializes uncomputed tangents, calculates NBT data for
+     * material effects that consume it, then flushes the updated normals.
+     * The remaining retail diff is only the local label assigned to the two
+     * identical max-float constant relocations. */
     RwGameCubeVertexBuffer* vertexBuffer =
         &((NBTResourceEntry*)instanceData->resourceEntry)->vertexBuffer;
-    RwGameCubeDisplayList* displayLists =
-        (RwGameCubeDisplayList*)&vertexBuffer->arrays[vertexBuffer->numArrays];
-    RpMesh* mesh = (RpMesh*)(instanceData->meshHeader + 1);
-    unsigned int meshIndex;
-    unsigned char* normalBase = vertexBuffer->arrays[1].data;
+    RwGameCubeDisplayList* displayList =
+        (RwGameCubeDisplayList*)((unsigned char*)(vertexBuffer + 1) +
+            (vertexBuffer->numArrays - 1) * sizeof(RwGameCubeVertexArray));
+    RpMeshHeader* meshHeader = instanceData->meshHeader;
+    RpMesh* mesh;
+    unsigned char* byteTangent;
+    unsigned short* shortTangent;
+    float* floatTangent;
+    float* defaultTangent;
+    int i;
 
-    if (format != 0 && format->normalType == 1) {
-        int i;
-        for (i = 0; i < numVertices; i++) normalBase[i * 9 + 3] = 0xFF;
-    } else if (format != 0 && format->normalType == 3) {
-        int i;
-        for (i = 0; i < numVertices; i++)
-            *(unsigned short*)(normalBase + i * 18 + 6) = 0xFFFF;
+    if (format != 0) {
+        if (format->normalType == 1) {
+            byteTangent = vertexBuffer->arrays[1].data;
+            byteTangent += 3;
+
+            for (i = 0; i < numVertices; i++) {
+                *byteTangent = 0xFF;
+                byteTangent += 9;
+            }
+        } else if (format->normalType == 3) {
+            shortTangent = vertexBuffer->arrays[1].data;
+            shortTangent = (unsigned short*)((unsigned char*)shortTangent + 6);
+
+            for (i = 0; i < numVertices; i++) {
+                *shortTangent = 0xFFFF;
+                shortTangent =
+                    (unsigned short*)((unsigned char*)shortTangent + 18);
+            }
+        } else {
+            floatTangent = vertexBuffer->arrays[1].data;
+            floatTangent = (float*)((unsigned char*)floatTangent + 12);
+
+            for (i = 0; i < numVertices; i++) {
+                *floatTangent = 3.4028235e38f;
+                floatTangent += 9;
+            }
+        }
     } else {
-        int i;
-        for (i = 0; i < numVertices; i++)
-            *(float*)(normalBase + i * 36 + 12) = 3.4028235e38f;
+        defaultTangent = vertexBuffer->arrays[1].data;
+        defaultTangent = (float*)((unsigned char*)defaultTangent + 12);
+
+        for (i = 0; i < numVertices; i++) {
+            *defaultTangent = 3.4028235e38f;
+            defaultTangent += 9;
+        }
     }
 
-    for (meshIndex = 0; meshIndex < (unsigned int)instanceData->meshHeader->numMeshes;
-         meshIndex++, mesh++) {
+    mesh = (RpMesh*)(meshHeader + 1);
+    for (i = 0; i < meshHeader->numMeshes; i++) {
         RpMultiTexture* multiTexture =
             RpMaterialGetMultiTexture(mesh->material, 6);
         if (multiTexture != 0 && multiTexture->effect != 0 &&
             multiTexture->effect->type == 6) {
             RpGameCubeMTEffectConfig* config =
                 RpGameCubeMTEffectGetConfig(multiTexture->effect);
-            unsigned int entryIndex;
+            int entryIndex;
             for (entryIndex = 0; entryIndex < config->count24; entryIndex++) {
                 RpGameCubeMTEntry24* entry =
                     &config->entries24[entryIndex];
                 if (entry->value[2] == 2 || entry->value[2] == 3 ||
                     (entry->value[1] >= 2 && entry->value[1] <= 9)) {
-                    CalcMeshNBTs(vertexBuffer, &displayLists[meshIndex],
-                                 format);
+                    CalcMeshNBTs(vertexBuffer, displayList, format);
                     break;
                 }
             }
         }
+        displayList++;
+        mesh++;
     }
-    DCFlushRange(normalBase, numVertices * vertexBuffer->arrays[1].stride);
+    DCFlushRange(vertexBuffer->arrays[1].data,
+                 numVertices * vertexBuffer->arrays[1].stride);
     GXInvalidateVtxCache();
 }
 
 int _rpGameCubeMTPipeDataQueryNBTs(
     const RxGameCubeAtomicAllInOneInstanceData* instanceData)
 {
+    const RpMeshHeader* meshHeader = instanceData->meshHeader;
+    const RpMesh* mesh = (const RpMesh*)(meshHeader + 1);
+    int i;
 
-
-    const RpMesh* mesh = (const RpMesh*)(instanceData->meshHeader + 1);
-    unsigned int i;
-    for (i = 0; i < (unsigned int)instanceData->meshHeader->numMeshes; i++, mesh++) {
+    for (i = 0; i < meshHeader->numMeshes; i++, mesh++) {
         RpMultiTexture* multiTexture =
             RpMaterialGetMultiTexture(mesh->material, 6);
         if (multiTexture != 0 && multiTexture->effect != 0 &&
             multiTexture->effect->type == 6) {
             RpGameCubeMTEffectConfig* config =
                 RpGameCubeMTEffectGetConfig(multiTexture->effect);
-            unsigned int entryIndex;
+            int entryIndex;
             for (entryIndex = 0; entryIndex < config->count24; entryIndex++) {
                 RpGameCubeMTEntry24* entry =
                     &config->entries24[entryIndex];
@@ -367,8 +488,9 @@ int _rpGameCubeMTPipeDataQueryNBTs(
 
 void CalcNBT(NBTCalcData* data)
 {
-
-
+    /* TODO: Retail implements this tangent-space calculation with paired-single
+     * quantized loads, stores, and arithmetic; retain this portable semantic
+     * implementation until those instructions have a supported C lowering. */
     RwV3d positions[3];
     RwTexCoords texCoords[3];
     RwV3d normal;
@@ -378,22 +500,22 @@ void CalcNBT(NBTCalcData* data)
     unsigned int i;
 
     for (i = 0; i < 3; i++) {
-        positions[i].x = ReadScalar(data->positions[i], nbtPositionType,
+        positions[i].x = rpReadNbtScalar(data->positions[i], nbtPositionType,
                                     nbtPositionFraction);
-        positions[i].y = ReadScalar(data->positions[i] + data->positionSize,
+        positions[i].y = rpReadNbtScalar(data->positions[i] + data->positionSize,
                                     nbtPositionType, nbtPositionFraction);
-        positions[i].z = ReadScalar(
+        positions[i].z = rpReadNbtScalar(
             data->positions[i] + data->positionSize * 2, nbtPositionType,
             nbtPositionFraction);
-        texCoords[i].u = ReadScalar(data->texCoords[i], nbtTexCoordType,
+        texCoords[i].u = rpReadNbtScalar(data->texCoords[i], nbtTexCoordType,
                                     nbtTexCoordFraction);
-        texCoords[i].v = ReadScalar(data->texCoords[i] + data->texCoordSize,
+        texCoords[i].v = rpReadNbtScalar(data->texCoords[i] + data->texCoordSize,
                                     nbtTexCoordType, nbtTexCoordFraction);
     }
-    normal.x = ReadScalar(data->normal, nbtNormalType, nbtNormalFraction);
-    normal.y = ReadScalar(data->normal + data->normalSize, nbtNormalType,
+    normal.x = rpReadNbtScalar(data->normal, nbtNormalType, nbtNormalFraction);
+    normal.y = rpReadNbtScalar(data->normal + data->normalSize, nbtNormalType,
                           nbtNormalFraction);
-    normal.z = ReadScalar(data->normal + data->normalSize * 2, nbtNormalType,
+    normal.z = rpReadNbtScalar(data->normal + data->normalSize * 2, nbtNormalType,
                           nbtNormalFraction);
 
     edge1.x = positions[1].x - positions[0].x;
@@ -417,31 +539,34 @@ void CalcNBT(NBTCalcData* data)
     length = _rwSqrt(tangent.x * tangent.x + tangent.y * tangent.y +
                      tangent.z * tangent.z);
     if (length > 0.0f) {
-        tangent.x /= length; tangent.y /= length; tangent.z /= length;
+        tangent.x /= length;
+        tangent.y /= length;
+        tangent.z /= length;
     }
     binormal.x = normal.y * tangent.z - normal.z * tangent.y;
     binormal.y = normal.z * tangent.x - normal.x * tangent.z;
     binormal.z = normal.x * tangent.y - normal.y * tangent.x;
     if (du1 * dv2 - dv1 * du2 < 0.0f) {
-        tangent.x = -tangent.x; tangent.y = -tangent.y;
+        tangent.x = -tangent.x;
+        tangent.y = -tangent.y;
         tangent.z = -tangent.z;
     }
 
     output = data->normal + data->normalSize * 3;
-    WriteScalar(output, tangent.x, nbtNormalType, nbtNormalFraction);
-    WriteScalar(output + data->normalSize, tangent.y, nbtNormalType,
+    rpWriteNbtScalar(output, tangent.x, nbtNormalType, nbtNormalFraction);
+    rpWriteNbtScalar(output + data->normalSize, tangent.y, nbtNormalType,
                 nbtNormalFraction);
-    WriteScalar(output + data->normalSize * 2, tangent.z, nbtNormalType,
+    rpWriteNbtScalar(output + data->normalSize * 2, tangent.z, nbtNormalType,
                 nbtNormalFraction);
     output += data->normalSize * 3;
-    WriteScalar(output, binormal.x, nbtNormalType, nbtNormalFraction);
-    WriteScalar(output + data->normalSize, binormal.y, nbtNormalType,
+    rpWriteNbtScalar(output, binormal.x, nbtNormalType, nbtNormalFraction);
+    rpWriteNbtScalar(output + data->normalSize, binormal.y, nbtNormalType,
                 nbtNormalFraction);
-    WriteScalar(output + data->normalSize * 2, binormal.z, nbtNormalType,
+    rpWriteNbtScalar(output + data->normalSize * 2, binormal.z, nbtNormalType,
                 nbtNormalFraction);
 }
 
-static float ReadScalar(const unsigned char* address, unsigned char type,
+static float rpReadNbtScalar(const unsigned char* address, unsigned char type,
                          unsigned char fraction)
 {
     float scale = (float)(1U << fraction);
@@ -455,7 +580,7 @@ static float ReadScalar(const unsigned char* address, unsigned char type,
     }
 }
 
-static void WriteScalar(unsigned char* address, float value, unsigned char type,
+static void rpWriteNbtScalar(unsigned char* address, float value, unsigned char type,
                         unsigned char fraction)
 {
     float scaled = value * (float)(1U << fraction);
@@ -467,18 +592,4 @@ static void WriteScalar(unsigned char* address, float value, unsigned char type,
     case 3: *(short*)address = (short)scaled; break;
     default: *(float*)address = value; break;
     }
-}
-
-static void SetNBTPointers(NBTCalcData* data, const unsigned char* positionBase,
-                           unsigned char* normalBase,
-                           const unsigned char* texCoordBase, unsigned int first,
-                           unsigned int second, unsigned int third)
-{
-    data->positions[0] = positionBase + first * data->positionSize * 3;
-    data->positions[1] = positionBase + second * data->positionSize * 3;
-    data->positions[2] = positionBase + third * data->positionSize * 3;
-    data->normal = normalBase + first * data->normalSize * 9;
-    data->texCoords[0] = texCoordBase + first * data->texCoordSize * 2;
-    data->texCoords[1] = texCoordBase + second * data->texCoordSize * 2;
-    data->texCoords[2] = texCoordBase + third * data->texCoordSize * 2;
 }

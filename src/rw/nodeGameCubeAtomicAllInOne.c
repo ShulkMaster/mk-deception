@@ -121,7 +121,7 @@ RpAtomic* _rxGCAtomicDefaultLightingCallback(
 
                     light->lightFrame = RwEngineInstance->lightFrame;
                     lightPosition =
-                        &RwFrameGetLTM(RpLightGetFrame(light))->pos;
+                        &RwFrameGetLTM(rpLightParentFrame(light))->pos;
                     sphere = RpAtomicGetWorldBoundingSphere(atomic);
                     delta.x = sphere->center.x - lightPosition->x;
                     delta.y = sphere->center.y - lightPosition->y;
@@ -170,9 +170,9 @@ static void _rxGCDefaultReinstance(
             void* destination = vertexBuffer->arrays[streamIndex].data;
             unsigned int size = _rwGCNVtxFmtInstPos3D(
                 destination, geometry->morphTarget->verts,
-                format->positionType, numVertices,
-                vertexBuffer->arrays[streamIndex].stride, 0,
-                (float)(1 << format->positionFraction));
+                format->positionType,
+                (float)(1 << format->positionFraction), numVertices,
+                vertexBuffer->arrays[streamIndex].stride, 0);
             DCFlushRange(destination, size);
         }
         streamIndex++;
@@ -224,9 +224,9 @@ static void _rxGCDefaultReinstance(
                 void* destination = vertexBuffer->arrays[streamIndex].data;
                 unsigned int size = _rwGCNVtxFmtInstTex(
                     destination, geometry->texCoords[i],
-                    format->texCoordType[i], numVertices,
-                    vertexBuffer->arrays[streamIndex].stride,
-                    (float)(1 << format->texCoordFraction[i]));
+                    format->texCoordType[i],
+                    (float)(1 << format->texCoordFraction[i]), numVertices,
+                    vertexBuffer->arrays[streamIndex].stride);
                 DCFlushRange(destination, size);
             }
             streamIndex++;

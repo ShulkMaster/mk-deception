@@ -14,7 +14,6 @@ typedef struct RwGameCubeVertexDataHeader {
 
 unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
 {
-
     RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
     unsigned int size;
@@ -43,6 +42,8 @@ unsigned int _rpSkinGeometryNativeSize(const RpGeometry* geometry)
     }
 
     size += _rpSkinSplitDataStreamGetSize(skin);
+    /* TODO: Retail emits an overwritten zero initialization and shared GPR
+     * save helpers; keep the semantic calculation without dead source. */
     return size;
 }
 
@@ -56,9 +57,6 @@ RwStream* _rpSkinGeometryNativeWrite(RwStream* stream,
 
 RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
 {
-
-
-
     unsigned int version;
     unsigned int chunkSize;
     int skinHeader;
@@ -95,8 +93,8 @@ RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
         return 0;
 
     skin->numBones = (unsigned char)skinHeader;
-    skin->numUsedBones = (unsigned char)((unsigned int)skinHeader >> 8);
-    skin->maxNumWeights = (unsigned char)((unsigned int)skinHeader >> 16);
+    skin->numUsedBones = ((unsigned int)skinHeader >> 8) & 0xff;
+    skin->maxNumWeights = ((unsigned int)skinHeader >> 16) & 0xff;
     numVertices = geometry->numVertices;
     chunkSize -= 8;
 
@@ -150,6 +148,9 @@ RwStream* _rpSkinGeometryNativeRead(RwStream* stream, RpGeometry* geometry)
     if (_rpSkinSplitDataStreamRead(stream, skin) == 0)
         return 0;
     RpSkinGeometrySetSkin(geometry, skin);
+    /* TODO: The retail routine uses shared GPR save/restore helpers; this
+     * equivalent reader currently differs only in frame/save lowering and
+     * the resulting branch displacements. */
     return stream;
 }
 

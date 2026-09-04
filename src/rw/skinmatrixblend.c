@@ -1,5 +1,10 @@
 #include "rw/rtquat.h"
 
+/* TODO: Retail hand-schedules this loop with paired-single loads, fused matrix
+ * products, and paired stores. This portable implementation preserves its
+ * intent: update only the listed bones with skinToBone * (hierarchy * transform)
+ * while retaining each destination matrix's flags. Recheck only if an honest
+ * compiler path capable of emitting the paired-single sequence is recovered. */
 void _rpSkinMatrixBlendUpdateASM(RwMatrix* destination,
                                  const RwMatrix* skinToBone,
                                  const RwMatrix* hierarchyMatrices,
