@@ -2,8 +2,8 @@
 
 typedef void (*RNAErrCallback)(void* object, const char* message);
 
-RNAErrCallback rnaerr_func;
-void* rnaerr_obj;
+RNAErrCallback rnaerr_func = 0;
+void* rnaerr_obj = 0;
 char rnaerr_msg[256];
 
 void RNAERR_CallErrFunc(const char* message) {
