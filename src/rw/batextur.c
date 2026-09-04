@@ -24,8 +24,12 @@ typedef struct RwTextureModuleGlobals {
     int (*mipmapNameCallback)(char*, char*, unsigned char, int);
 } RwTextureModuleGlobals;
 
-RwPluginRegistry textureTKList = { 0x58, 0x58, 0, 0, 0, 0 };
-static RwPluginRegistry texDictTKList = { 0x18, 0x18, 0, 0, 0, 0 };
+RwPluginRegistry textureTKList = {
+    sizeof(RwTexture), sizeof(RwTexture), 0, 0, 0, 0
+};
+static RwPluginRegistry texDictTKList = {
+    sizeof(RwTexDictionary), sizeof(RwTexDictionary), 0, 0, 0, 0
+};
 static RwFreeList _rwTextureFreeList;
 static RwFreeList _rwTexDictionaryFreeList;
 
@@ -678,7 +682,7 @@ static RwTexture* TextureDefaultFind(const char* name) {
     end = &((RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
                                       textureModule.globalsOffset))->dictionaries;
     while (link != end) {
-        dictionary = (RwTexDictionary*)((char*)link - 0x10);
+        dictionary = RW_CONTAINER_OF(link, RwTexDictionary, lInInstance);
         texture = RwTexDictionaryFindNamedTexture(dictionary, name);
         if (texture != 0) {
             return texture;
@@ -802,7 +806,7 @@ RwTexDictionary* RwTexDictionaryForAllTextures(
         RwTexture* texture;
 
         next = link->next;
-        texture = (RwTexture*)((char*)link - 8);
+        texture = RW_CONTAINER_OF(link, RwTexture, lInDictionary);
         if (callback(texture, data) == 0) {
             break;
         }
@@ -910,7 +914,7 @@ RwTexture* RwTexDictionaryFindNamedTexture(RwTexDictionary* dictionary,
     RwLLLink* end = &dictionary->textures;
 
     while (link != end) {
-        RwTexture* texture = (RwTexture*)((char*)link - 8);
+        RwTexture* texture = RW_CONTAINER_OF(link, RwTexture, lInDictionary);
         if (texture->name != 0 && StringCompare(texture->name, name)) {
             return texture;
         }
@@ -1026,7 +1030,7 @@ void* _rwTextureClose(void* instance, int offset, int size) {
         end = &globals->dictionaries;
         while (link != end) {
             RwTexDictionary* dictionary =
-                (RwTexDictionary*)((char*)link - 0x10);
+                RW_CONTAINER_OF(link, RwTexDictionary, lInInstance);
             RwLLLink* next = link->next;
             if (dictionary == dummyTexDict) {
                 RwTexDictionaryDestroy(dummyTexDict);

@@ -371,7 +371,7 @@ void update_string_obj(StringObj* obj, int font, const char* text) {
     }
 }
 
-double get_string_width_by_font_num(int font, const char* text) {
+float get_string_width_by_font_num(int font, const char* text) {
     int w;
 
     w = pfxfont_get_width(font_table[font].slot.metrics, text);

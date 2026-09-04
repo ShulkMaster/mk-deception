@@ -318,12 +318,12 @@ static float normalize_obj_angle(float angle) {
 
 /* NonMatching recovery for mk_obj.o (169 funcs, retail order). */
 
-void* obj_find_child_sobj_by_id(void* obj, unsigned int id, int depth) {
+MkSobj* obj_find_child_sobj_by_id(MkObj* obj, unsigned int id, int depth) {
     RwFrame* frame;
     RwFrame* next;
     MkSobj* result;
 
-    frame = ((MkObj*)obj)->frame->child;
+    frame = obj->frame->child;
     while (frame != 0) {
         next = frame->next;
         result = rwframe_find_child_sobj_by_id(frame, id, depth);

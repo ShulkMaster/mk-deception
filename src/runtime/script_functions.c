@@ -37,6 +37,7 @@ typedef struct FakeBoneMatcher FakeBoneMatcher;
 typedef struct MkFlippedBoneMap MkFlippedBoneMap;
 typedef struct MovesAttackInfo MovesAttackInfo;
 typedef struct PebbleData PebbleData;
+typedef struct PuiItem PuiItem;
 typedef struct ScriptAnimPdataView {
     char pad00[0x44];
     float step;
@@ -908,7 +909,7 @@ MkObj* ncs_bgnd_preload_named_model(
     const char* section_name, const char* model_name, int object_type,
     int transl, Vec* position, Vec* angles, Vec* scale);
 void attach_pfx_to_object_by_uid(
-    int object_uid, const char* effect_name, int bone, int flags);
+    int object_uid, const char* effect_name, const Vec* offset, int flags);
 void bgnd_create_named_npc_in_slot(
     int slot, const char* name, int object_id, int flags);
 void bgnd_launch_fx_at_active_sobj_pos_with_offset(
@@ -926,7 +927,6 @@ void mk_chess_launch_fx_at_active_piece_with_offset(
     const char* effect_name, float x, float y, float z);
 unsigned int pfxhandle_bgnd_spawn_at_position(
     const char* effect_name, float x, float y, float z);
-void pui_play_pfx(int object_id, int effect_id, const char* effect_name);
 void trial_setup_onscreen_display_items(
     int first_item, int item_count, const char* effect_name);
 MkObj* load_cloth_boned_model(
@@ -1098,7 +1098,7 @@ void konquest_nis_end(void);
 void konquest_nis_init(int value);
 void nis_wait_for_region_load(void);
 void wait_for_region_load(void);
-void nis_register_participant(int a, int b);
+void nis_register_participant(int type, void* npc_data);
 void nis_set_wait_override(int value);
 void nis_show_cancel_message(void);
 int nis_scene_done(void);
@@ -1402,7 +1402,7 @@ void resume_effect_at_plyr_num_bid(
 /* Typed declarations used by imported script wrappers. */
 int add_facial_damage(void *, float);
 int add_npc_list_to_world(int);
-int add_trigger_list_to_world(void);
+void add_trigger_list_to_world(void);
 int ani_1_frame(void);
 int ani_no_pos(void);
 int ani_through_end(void);
@@ -1473,7 +1473,7 @@ void bgnd_unhide_sobj_and_children(unsigned int);
 void bgnd_update_active_mksobj(void);
 int blast_effect_at_plyr(void);
 int bulvan_function(int);
-int change_monk_age(int);
+void change_monk_age(int);
 int check_for_combo_message(void);
 int clear_both_face_opponent_flags(void);
 int clear_cliff_data(void);
@@ -1494,8 +1494,8 @@ int disable_both_repel_flags(void);
 int disable_joy_temp(int);
 int disable_mileena_collisions(int);
 int disable_my_attacks(int);
-int display_konquest_title(void);
-int display_time_progression_images(int);
+void display_konquest_title(void);
+void display_time_progression_images(int);
 int dk_taunt_at_screen(void);
 void dont_fence_plyr_in(int);
 void drone_ai_increase_big_boss_stage(PlyrPdata* victim);
@@ -1513,7 +1513,8 @@ int face_bleed_me(int);
 int face_opponent_180(void);
 int face_opponent_now(void);
 int fade_fatality_screen(void);
-int fire_trigger(int);
+typedef struct KonquestTriggerDefinition KonquestTriggerDefinition;
+void fire_trigger(KonquestTriggerDefinition*);
 int flash_hit_at_bid(int);
 int force_ai_style(int);
 int forced_step_forward(void);
@@ -1521,14 +1522,12 @@ int freeze_player(void);
 int front_rollup_check(void);
 int get_projectile_script_last_pos(int);
 int get_projectile_script_velocity(int);
-int give_reward_to_player(int);
+void give_reward_to_player(KonquestPuiDefinition*);
 int gusher_destroy_list(void);
 int head_tracking_off(void);
 int hero_handle_conversation(void);
 int hero_stop_moving(void);
 int hero_turn_to_face_position(int);
-int hide_konquest_object_by_uid(int);
-int hide_objective_arrow_and_beam(void);
 int high_flash_check(void);
 int idle_hero_anim_proc(void);
 int idle_his_anim_proc(void);
@@ -1553,23 +1552,22 @@ int jab_stop_dragon_king_shake(void);
 void kabal_collision_control_victim(int);
 int kenshi_teleport_position(void);
 void kick_the_camera(void);
-int kill_dynamic_pui(int);
+void kill_dynamic_pui(void*);
 int kill_konquest_dialog_procs(void);
 int kill_lip_sync_procs(void);
-int kill_pui(int);
 int kobra_teleport_position(void);
 int konquest_camera_return_to_normal(void);
-int konquest_end_npc_interaction(void);
-int konquest_end_npc_nis(void);
+void konquest_end_npc_interaction(void);
+void konquest_end_npc_nis(void);
 int konquest_fade_hud(int);
-int konquest_hero_portal_in(void);
-int konquest_hide_damashi(void);
+void konquest_hero_portal_in(void);
+void konquest_hide_damashi(void);
 int konquest_hide_hud(int);
 int konquest_run_ending(void);
-int konquest_set_current_portal_uid(int);
+void konquest_set_current_portal_uid(int);
 int konquest_show_hud(void);
-int konquest_start_npc_interaction(void);
-int konquest_start_npc_nis(void);
+void konquest_start_npc_interaction(void);
+void konquest_start_npc_nis(void);
 int konquest_transition_to_fight(int);
 int load_tile_objects(int);
 int low_flash_check(void);
@@ -1619,7 +1617,7 @@ int mks_set_cb1_target_bone_cb2(void);
 void mks_set_flipped_bones(MkFlippedBoneMap* bone_map);
 void mks_start_goro_arms_fixup(void);
 int nis_clear_event_list(void);
-int nis_remove_non_participants(void);
+void nis_remove_non_participants(void);
 int noob_victory_entrance(void);
 int noobsmoke_sidekick_double_charge(void);
 int noobsmoke_sidekick_projectile(void);
@@ -1629,12 +1627,12 @@ int npc_ani_to_end(void);
 int npc_ani_to_frame_x(void *, float);
 int npc_blend_to_ani_string(int);
 void npc_face_current_waypoint_angle(void);
-int npc_fire_trigger(int);
+void npc_fire_trigger(unsigned int);
 int npc_hide_skip_message(void);
 int npc_ignore_events(int);
 int npc_open_door_at_waypoint(void);
 int npc_play_random_dialog_sequence(void);
-int npc_play_teleported_sound(void);
+void npc_play_teleported_sound(void);
 int npc_prepare_for_unconscious_state(void);
 int npc_punch_reaction_standard_setup(void);
 int npc_punch_reaction_standard_shutdown(void);
@@ -1667,8 +1665,6 @@ int npc_turn_and_face_player(int);
 int npc_wait_for_state_change(void);
 int npc_wait_for_wake_up(void);
 int obj_enable_grounding(int);
-int pickup_dynamic_pui(int);
-int pickup_pui(int);
 int play_background_music(int);
 int play_beam_advance_sound(int);
 int player_add_item_to_inventory(int);
@@ -1699,10 +1695,10 @@ int random_dk_foot(void);
 int random_voice_him(int);
 int register_baraka_cb_functions(void);
 void release_both_players(void);
-int remove_collision_volume_on_object(void);
+void remove_collision_volume_on_object(void);
 int remove_npc_list(int);
 int remove_widescreen_bars(void);
-int restore_collision_volume_on_object(void);
+void restore_collision_volume_on_object(void);
 int restore_hero_grounding(void);
 int resume_hero_state_process(void);
 int retract_spear_from_camera(int);
@@ -1710,30 +1706,28 @@ int scorpion_teleport_position(void);
 int set_active_projectile_2d_track(void);
 int set_active_projectile_3d_track(void);
 int set_active_projectile_continue_thru_hit(void);
-int set_age_progression(int);
+void set_age_progression(int);
 int set_ani_speed(void *, float);
 int set_ani_weight(void *, float);
 int set_attackers_attack_region(int);
 int set_block_requirement(int);
 int set_both_face_opponent_flags(void);
 int set_cliff_watcher_round(int);
-int set_current_time(int);
-int set_hero_position_relative_to_chest(void);
-int set_interaction_camera_script(int);
+void set_current_time(void*);
+void set_hero_position_relative_to_chest(void);
+void set_interaction_camera_script(void*);
 int set_konquest_region_number(int);
 int set_krypt_character_pos(int);
-int set_last_character_trained_with(int);
-int set_look_at_npc(int);
+void set_last_character_trained_with(int);
+void set_look_at_npc(int);
 int set_monk_age(int);
-int set_movement_npc(int);
+void set_movement_npc(int);
 int set_my_float_1(void *, float);
 int set_my_secondary_state(int);
-int set_reference_pui(int);
+void set_reference_pui(KonquestPuiDefinition*);
 int setup_for_flip_ani(void);
 int setup_interior_fighting_arena(void);
 int setup_vomit_slip_sound(void);
-int show_fight_message(int);
-int show_objective_arrow_and_beam(void);
 int show_player(int);
 int show_shujinko_unlock_screen(int);
 int slamdown_reaction_max_hit_rules(void);
@@ -1789,10 +1783,9 @@ void trial_setup_nis_scene(int);
 int trial_show_monk(int);
 int turn_into_energy_player(void);
 int turn_me_pi(void);
-int turn_to_face_exterior_door(void);
+void turn_to_face_exterior_door(void);
 int turn_to_face_interior_door(void);
 int unfreeze_player(void);
-int unhide_konquest_object_by_uid(int);
 int update_my_last_switch(void);
 int wait_for_slot_load(int);
 int wait_to_land(void);
@@ -1806,7 +1799,6 @@ void whoosh_fx(int);
 int add_days_to_time(int, int);
 int add_hours_to_time(int, int);
 int add_months_to_time(int, int);
-int add_object_to_tile(int, int, int, void *, float, float, float, float);
 int add_to_konq_profile_value(int, int);
 void add_widescreen_bars(float);
 int add_years_to_time(int, int);
@@ -1815,8 +1807,7 @@ int adjust_my_damage_multiplier(void *, float);
 int air_collision_pause(int, void *, float, float);
 int ani_loop_more_frames(void *, float);
 int ani_to_frame_x_aniproc(void *, float);
-int assign_obj_to_trigger(int, int);
-int attach_pfx_to_object(int, char*, int);
+void assign_obj_to_trigger(int, unsigned int);
 void bgnd_add_scripted_brains_to_npc(unsigned int, unsigned int);
 void bgnd_apply_active_sobj_pos_vel_drag(void *, float, float, float);
 void bgnd_apply_zoffset(unsigned int, void *, float);
@@ -1922,7 +1913,7 @@ int close_exterior_doors(int, int);
 int cloth_change_ground_plane_for(void *, float);
 int damage_player(int, void *, float);
 int delete_obstacle_from_background_by_id(int);
-int disable_konquest_object_zwrite_by_uid(int);
+void disable_konquest_object_zwrite_by_uid(int);
 int dk_voice_call(int, int);
 int drone_apply_damage(int, void *, float);
 int drone_change_to_style(int, int);
@@ -1937,8 +1928,7 @@ void drone_set_script(int, int);
 int drone_set_special_directions(int, int);
 int drone_set_switch_state(int, int);
 int drone_start_bleeding(int, void *, float);
-int enable_attached_sound_by_uid(int, int);
-int enable_trigger(int, int);
+void enable_attached_sound_by_uid(int, int);
 int face_ang_from_pos_to_him(int, int, int);
 int face_point(void *, float, float, float);
 int fade_from_black(int, int);
@@ -1948,7 +1938,7 @@ int fade_to_white(int, int);
 int fight_fx_im_hit_flash(int, int, int, int, void *, float);
 int flash_hit_at_bid_with_y(int, void *, float);
 int give_koin_award(int, int);
-int give_krypt_key_to_player(int, int);
+void give_krypt_key_to_player(KonquestPuiDefinition*, int);
 int hf_bgnd_set_in_setup_zone(int, int);
 int hf_bgnd_set_smasher_mode(int, int);
 int hide_player(int, int);
@@ -1961,10 +1951,10 @@ int jab_shake_dragon_king(void *, float, float);
 int jab_start_jade_boomerang_throw(int, int, void *, float);
 int konquest_fade_from_black(int, int);
 int konquest_fade_to_black(int, int);
-int konquest_open_door(int, int);
+void konquest_open_door(int, int);
 int konquest_run_camera_script(int, int);
-int konquest_teleport_hero_to_location(int);
-int konquest_transition_object_to_state(int, int, int);
+void konquest_teleport_hero_to_location(const Vec*);
+void konquest_transition_object_to_state(int, int, int);
 int land_chores(int, int, void *, float, float);
 int launch_me_up(void *, float, float);
 int load_script_as_reaction(int, int);
@@ -2080,8 +2070,9 @@ void obj_set_scale(MkObj*, void*);
 int obj_set_z_offsets(int, void *, float);
 void obj_sobj_cam_frustum_test_into_transparent(
     MkObj*, unsigned int, float, float);
-int open_chest_and_give_item_to_player(int, int);
-int open_chest_and_unlock_kontent(int, int);
+void open_chest_and_give_item_to_player(
+    KonquestPuiDefinition*, KonquestPuiDefinition*);
+void open_chest_and_unlock_kontent(KonquestPuiDefinition*, int);
 int pan_vol_pitch_snd_req(int, void *, float, float, float);
 int play_sound_2(int, int);
 int player_impale(int, int);
@@ -2091,10 +2082,10 @@ int plyr_set_vel_xz_y(void *, float, float);
 int plyr_start_script_in_plyr_pdata_proc(int, int, int);
 int plyr_start_script_in_proc(int, int);
 int plyr_weapon_grab(int, int);
-int pui_delay_spawn(int, void *, float);
-int pui_play_pfx_sequence(int, int, int);
-int pui_set_color(int, unsigned char, unsigned char, unsigned char, unsigned char);
-int pui_set_kill_time(int, int, int);
+void pui_delay_spawn(KonquestPuiDefinition*, float);
+void pui_set_color(
+    unsigned int, unsigned char, unsigned char, unsigned char, unsigned char);
+void pui_set_kill_time(KonquestPuiDefinition*, int, int);
 int pz_fighter_check_to_toggle_obj_and_ani_flips(int);
 int pz_fighter_force_reaction_in_ticks(int, int);
 int pz_fighter_register_move(int, int, int, int, int);
@@ -2102,8 +2093,8 @@ int random_hit_n_voice(int, int);
 int random_snd_req_delay(int, int);
 int rd_set_impact_vector(void *, float);
 int release_kamidogu(int, int);
-int remove_collision_volume_on_object_with_uid(int);
-int restore_collision_volume_on_object_with_uid(int);
+void remove_collision_volume_on_object_with_uid(int);
+void restore_collision_volume_on_object_with_uid(int);
 void resume_effect_at_obj_bid(MkObj*, int, unsigned int, int, int);
 int run_camera_script(int, int, int);
 int save_hero_position_and_angle_prior_to_fight(void *, float);
@@ -2115,18 +2106,18 @@ void set_background_obstacle_repel_flag(int, int);
 int set_hero_punched_ground_collisions(int);
 int set_his_damage_multiplier(void *, float);
 int set_konq_profile_value(int, int, int);
-int set_konquest_object_face_y_by_uid(int);
-int set_konquest_object_render_order_priority_by_uid(int, int);
+void set_konquest_object_face_y_by_uid(int);
+void set_konquest_object_render_order_priority_by_uid(int, int);
 int set_konquest_weather(int, int, int);
 int set_krypt_character_angle(void *, float);
 int set_krypt_character_anim_script(int, int, void *, float);
 int set_krypt_character_previous_root_angle(void *, float);
-int set_monk_position(void *, float, float, float, float);
+void set_monk_position(float, float, float, float);
 int set_my_damage_multiplier(void *, float);
-int set_pui_status(int, int);
+void set_pui_status(PuiItem*, int);
 int set_snd_vol(int, int, void *, float);
 int set_tile_grid_size(int, int);
-int set_tile_visibility(int, int);
+void set_tile_visibility(int, int);
 void shake_camera(int, void *, float);
 int share_my_attack_info(void *, float, float);
 int slow_ani_x(void *, float, float);
@@ -2143,22 +2134,19 @@ void spad_set_vector_y(int, void *, float);
 void spad_set_y_angle_plus_offset_from_xz_vector(int, void *, float, float,
                                                  float);
 int spad_sub_vectors(int, int, int);
-int spawn_pui(int, int, int);
-int start_character_separation_process(void *, float);
+void start_character_separation_process(float);
 int start_cliff_watcher(void *, float);
-int start_konquest_interior(int, int, int, int, int, int, int);
 int start_scorpion_teleport_scale(void *, float, float);
 void start_subzero_decoy(void*, float);
-int transition_hero_to_anim_script(int, int, void *, float, float);
 int transition_to_krypt_character_anim_script(int, int, int);
 int trial_add_success_condition(int, int, int);
 int trial_set_combo_requirement(int, void *, float);
 int trial_set_ending_functions(int, int);
-int trial_set_next_mission(int, int, int, int, int, int, int, int);
+void trial_set_next_mission(int, int, int, int, int, int, int, int);
 int trial_set_round_health_restoration(void *, float);
 void trial_start_countdown(int, float, float);
 void trial_state_collision_check(int, int);
-int trigger_set_time_for_enable(int, int, int, int);
+void trigger_set_time_for_enable(KonquestTriggerDefinition*, int, int, int);
 void uv_my_angle_y(void* direction, float angle_offset);
 void xfer_player_proc_to_script(MkObj*, int);
 
@@ -2214,7 +2202,6 @@ float get_ir_cam_pos_x(int);
 float get_ir_cam_pos_y(int);
 float get_ir_cam_pos_z(int);
 int get_kombat_difficulty(void);
-int get_konquest_tile_objects_obj(void);
 int get_krypt_anim_pdata(void);
 int get_krypt_character_obj(void);
 int get_krypt_current_column(void);
@@ -2224,14 +2211,14 @@ int get_mode_of_play(void);
 int get_monk_age(void);
 int get_my_particle_player_bank_num(void);
 int get_my_plyr_num(void);
-int get_pickup_object(void);
+MkObj* get_pickup_object(void);
 int get_previous_konquest_region_number(void);
 int get_projectile_his_plyr_num(void);
 int get_projectile_script_plyr_num(void);
 int get_projectile_script_plyr_pdata(void);
-int get_pui_status(int);
+int get_pui_status(PuiItem*);
 int get_taunts_performed(void);
-int get_tile_sobj_by_id(int);
+MkSobj* get_tile_sobj_by_id(int);
 int get_victory_flip_flags(void);
 float int_to_float(int);
 int is_big_boss(int);
@@ -2303,7 +2290,7 @@ int get_konq_profile_value(int, int);
 int is_character_unlocked_in_profile(int, int);
 int jab_attach_point_light_to_obj_bone(int, int, int);
 int jab_spawn_point_light_at_world_pos(int, int);
-int konquest_start_damashi(void *, float, float, float);
+MkObj* konquest_start_damashi(void*, float, float, float);
 int launch_fx_at_pos_with_obj(int, void *, float, float, float);
 int mk_chess_fetch_active_defined_teams_class(int);
 int mk_chess_fetch_bp_num_based_on_pchr_num(int);
@@ -2335,8 +2322,8 @@ AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
     MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
     float frame);
-int attach_sound_to_object_by_uid(int, int, int, int, float, float);
-int attach_wiff_to_konquest_object_by_uid(int, char*, void*, float);
+void attach_sound_to_object_by_uid(int, int, int, int, float, float);
+void attach_wiff_to_konquest_object_by_uid(int, char*, float);
 void bgnd_create_danger_zone(int, unsigned int, unsigned int,
                              float, unsigned int);
 void bgnd_launch_fx_at_plyr_bid(const char*, int);
@@ -2363,16 +2350,15 @@ void bgnd_set_sobj_uv_scroll_rate_values(
     float, float, float, float, unsigned int);
 int bgnd_start_sobj_uv_scroll_w_control(
     int, float, float, float, float, unsigned int, unsigned int);
-int display_konquest_text(int, int, float, float, float);
+int display_konquest_text(
+    unsigned int, unsigned int, float, float, float);
 typedef struct AnimScript AnimScript;
 void drone_blend_to_ani(AnimScript*, int, float);
 int force_away(int, int, float, float);
 int force_forward(int, int, float, float);
 int got_hit_fx(int, int, int, int, int, int, float);
-int hero_start_fx_at_position(int);
 void interaction_cam_set_target_info(int, float, float, float, float, float, float);
-int konquest_setup_pui_particle(int);
-int konquest_use_portal(int, int, int, float, float, float);
+void konquest_use_portal(int, const Vec*, int, float, float, float);
 int limb_sever_set_motion(int, int, int, int, int, int, int, int, float, float, float);
 int mk_chess_ani_until_reached_destination(int, float, float, float, float, float);
 int mk_chess_force_away(int, int, float, float);
@@ -2386,7 +2372,6 @@ int mks_set_sin_update_by_group(int, int, int, int, float, float, float, float, 
 int obj_grnd_bounce(int, int, int, void *, float, float, float);
 int obj_match_obj_pos(int, int, int, float);
 int parse_args(void*, ...);
-int npc_set_anim_proc(ScriptProcEntryFn);
 int plyr_spawn_his_anim_limb(
     int, int, int, void*, int, ScriptProcEntryFn, unsigned char*, float);
 int player_area_collision_check(int, int, float, float, float);
@@ -2417,7 +2402,6 @@ float p_animated_intro_done(void);
 
 /* Typed declarations used by imported script wrappers. */
 int credits_add_text(char*, int);
-int trial_add_required_sequence(char*);
 int trial_set_move_message(char*);
 
 /* Typed declarations used by imported script wrappers. */
@@ -2460,7 +2444,7 @@ void _npc_set_anim_proc(void) {
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x12,
                &function_index);
     npc_set_anim_proc(
-        (ScriptProcEntryFn)script_callable_function_table[function_index - 1]);
+        (MkProcEntryFn)script_callable_function_table[function_index - 1]);
 }
 
 void _animate_obj(void) {
@@ -4849,7 +4833,7 @@ void _wait_for_region_load(void) {
 
 void _nis_register_participant(void) {
     nis_register_participant(((ScriptRawArgs*)current_args)->slots[0].i,
-                             ((ScriptRawArgs*)current_args)->slots[1].i);
+                             ((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _nis_set_wait_override(void) {
@@ -10331,14 +10315,15 @@ void _set_pui_status(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_pui_status(args.raw->slots[0].i, args.raw->slots[1].i);
+    set_pui_status(args.raw->slots[0].pointer, args.raw->slots[1].i);
 }
 
 void _get_pui_status(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = get_pui_status(args.raw->slots[0].i);
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        get_pui_status(args.raw->slots[0].pointer);
 }
 
 void _hf_bgnd_set_in_setup_zone(void) {
@@ -10572,7 +10557,14 @@ void _start_konquest_interior(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    start_konquest_interior(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[5].i, args.raw->slots[6].i);
+    start_konquest_interior(
+        (KonquestInteriorRoom*)args.raw->slots[0].pointer,
+        (KonquestRoomObject*)args.raw->slots[1].pointer,
+        (const void**)args.raw->slots[2].pointer,
+        (int*)args.raw->slots[3].pointer,
+        (KonquestRoomObjectTexture*)args.raw->slots[4].pointer,
+        (KonquestRoomObjectTexture*)args.raw->slots[5].pointer,
+        args.raw->slots[6].i);
 }
 
 void _refresh_rate(void) {
@@ -10879,12 +10871,12 @@ void _trial_set_combo_requirement(void) {
     trial_set_combo_requirement(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
 }
 
+/* Soft ceiling: typed two-string wrapper ~93.44%; one extra return-value move. */
 void _trial_add_required_sequence(void) {
-    char* temp_r31_20382;
+    char* message_parameter = get_script_string_arg(2);
 
-    temp_r31_20382 = get_script_string_arg(2);
-    get_script_string_arg(1);
-    trial_add_required_sequence(temp_r31_20382);
+    trial_add_required_sequence(
+        get_script_string_arg(1), message_parameter);
 }
 
 void _trial_setup_onscreen_display_items(void) {
@@ -11087,9 +11079,13 @@ void _hero_turn_to_face_position(void) {
 
 void _attach_pfx_to_object(void) {
     ScriptArgsRef args;
+    const char* effect_name;
 
+    effect_name = get_script_string_arg(2);
     args.bytes = current_args;
-    attach_pfx_to_object(args.raw->slots[0].i, get_script_string_arg(2), args.raw->slots[2].i);
+    attach_pfx_to_object(
+        (MkObj*)args.raw->slots[0].pointer, effect_name,
+        (const Vec*)args.raw->slots[2].pointer);
 }
 
 void _npc_hide_skip_message(void) {
@@ -11140,14 +11136,17 @@ void _konquest_use_portal(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    konquest_use_portal(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[5].i, args.raw->slots[2].f, args.raw->slots[3].f, args.raw->slots[4].f);
+    konquest_use_portal(
+        args.raw->slots[0].i, args.raw->slots[1].pointer,
+        args.raw->slots[5].i, args.raw->slots[2].f, args.raw->slots[3].f,
+        args.raw->slots[4].f);
 }
 
 void _konquest_teleport_hero_to_location(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    konquest_teleport_hero_to_location(args.raw->slots[0].i);
+    konquest_teleport_hero_to_location(args.raw->slots[0].pointer);
 }
 
 void _show_fight_message(void) {
@@ -11263,11 +11262,9 @@ void _npc_start_fx_at_position(void) {
 }
 
 void _hero_start_fx_at_position(void) {
-    ScriptArgsRef args;
-
-    args.bytes = current_args;
-    get_script_string_arg(1);
-    hero_start_fx_at_position(args.raw->slots[1].i);
+    hero_start_fx_at_position(
+        get_script_string_arg(1),
+        (const Vec*)((ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 void _set_hero_position_relative_to_chest(void) {
@@ -11275,42 +11272,45 @@ void _set_hero_position_relative_to_chest(void) {
 }
 
 void _get_pickup_object(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i = get_pickup_object();
+    ((ScriptRawResult*)active_cmdscript)->value.pointer = get_pickup_object();
 }
 
 void _set_reference_pui(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_reference_pui(args.raw->slots[0].i);
+    set_reference_pui(args.raw->slots[0].pointer);
 }
 
 void _open_chest_and_give_item_to_player(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    open_chest_and_give_item_to_player(args.raw->slots[0].i, args.raw->slots[1].i);
+    open_chest_and_give_item_to_player(
+        args.raw->slots[0].pointer, args.raw->slots[1].pointer);
 }
 
 void _open_chest_and_unlock_kontent(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    open_chest_and_unlock_kontent(args.raw->slots[0].i, args.raw->slots[1].i);
+    open_chest_and_unlock_kontent(
+        args.raw->slots[0].pointer, args.raw->slots[1].i);
 }
 
 void _give_krypt_key_to_player(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    give_krypt_key_to_player(args.raw->slots[0].i, args.raw->slots[1].i);
+    give_krypt_key_to_player(
+        args.raw->slots[0].pointer, args.raw->slots[1].i);
 }
 
 void _give_reward_to_player(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    give_reward_to_player(args.raw->slots[0].i);
+    give_reward_to_player(args.raw->slots[0].pointer);
 }
 
 void _npc_play_two_player_one_shot_anims(void) {
@@ -11363,10 +11363,11 @@ void _npc_reset_my_timed_events(void) {
 
 void _konquest_setup_pui_particle(void) {
     ScriptArgsRef args;
+    char* owner;
 
+    owner = get_script_string_arg(1);
     args.bytes = current_args;
-    get_script_string_arg(1);
-    konquest_setup_pui_particle(args.raw->slots[1].i);
+    konquest_setup_pui_particle(owner, args.raw->slots[1].i);
 }
 
 void _npc_wait_for_wake_up(void) {
@@ -11481,7 +11482,10 @@ void _pui_play_pfx_sequence(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pui_play_pfx_sequence(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i);
+    pui_play_pfx_sequence(
+        (KonquestPuiDefinition*)args.raw->slots[0].i,
+        args.raw->slots[1].i,
+        (KonquestPuiPfxSequenceRow*)args.raw->slots[2].i);
 }
 
 void _pui_play_pfx(void) {
@@ -11489,7 +11493,8 @@ void _pui_play_pfx(void) {
 
     args.bytes = current_args;
     pui_play_pfx(
-        args.raw->slots[0].i, args.raw->slots[1].i,
+        (KonquestPuiDefinition*)args.raw->slots[0].i,
+        args.raw->slots[1].i,
         get_script_string_arg(3));
 }
 
@@ -11497,7 +11502,9 @@ void _pui_set_kill_time(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pui_set_kill_time(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i);
+    pui_set_kill_time(
+        args.raw->slots[0].pointer, args.raw->slots[1].i,
+        args.raw->slots[2].i);
 }
 
 void _pui_set_color(void) {
@@ -11511,7 +11518,7 @@ void _pui_delay_spawn(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pui_delay_spawn(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
+    pui_delay_spawn(args.raw->slots[0].pointer, args.raw->slots[1].f);
 }
 
 void _transition_to_region(void) {
@@ -11544,18 +11551,38 @@ void _konquest_start_damashi(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = konquest_start_damashi(current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        konquest_start_damashi(
+            current_args, args.raw->slots[0].f, args.raw->slots[1].f,
+            args.raw->slots[2].f);
 }
 
 void _konquest_camera_return_to_normal(void) {
     konquest_camera_return_to_normal();
 }
 
+/*
+ * Soft ceiling: 73.75% at exact retail size. The five argument loads, call,
+ * and result store are identical; only load scheduling and the base GPR differ.
+ */
 void _display_konquest_text(void) {
     ScriptArgsRef args;
+    float left_fraction;
+    float bottom_fraction;
+    float width_fraction;
+    unsigned int string_id;
+    unsigned int prompt_flags;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = display_konquest_text(args.raw->slots[3].i, args.raw->slots[4].i, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f);
+    left_fraction = args.raw->slots[0].f;
+    bottom_fraction = args.raw->slots[1].f;
+    width_fraction = args.raw->slots[2].f;
+    string_id = args.raw->slots[3].i;
+    prompt_flags = args.raw->slots[4].i;
+    ((ScriptRawResult*)active_cmdscript)->value.i =
+        display_konquest_text(
+            string_id, prompt_flags, left_fraction,
+            bottom_fraction, width_fraction);
 }
 
 void _hero_stop_moving(void) {
@@ -11606,7 +11633,7 @@ void _kill_dynamic_pui(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    kill_dynamic_pui(args.raw->slots[0].i);
+    kill_dynamic_pui((void*)args.raw->slots[0].i);
 }
 
 void _spawn_dynamic_pui_critical(void) {
@@ -11627,28 +11654,30 @@ void _kill_pui(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    kill_pui(args.raw->slots[0].i);
+    kill_pui((KonquestPuiDefinition*)args.raw->slots[0].i);
 }
 
 void _pickup_dynamic_pui(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pickup_dynamic_pui(args.raw->slots[0].i);
+    pickup_dynamic_pui((KonquestPuiDefinition*)args.raw->slots[0].i);
 }
 
 void _pickup_pui(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    pickup_pui(args.raw->slots[0].i);
+    pickup_pui((KonquestPuiDefinition*)args.raw->slots[0].i);
 }
 
 void _spawn_pui(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    spawn_pui(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i);
+    spawn_pui(
+        (KonquestPuiDefinition*)args.raw->slots[0].i,
+        args.raw->slots[1].i, args.raw->slots[2].i);
 }
 
 void _attach_pfx_to_object_by_uid(void) {
@@ -11660,7 +11689,8 @@ void _attach_pfx_to_object_by_uid(void) {
     effect_name = get_script_string_arg(2);
     current.bytes = current_args;
     attach_pfx_to_object_by_uid(
-        current.raw->slots[0].i, effect_name, saved.raw->slots[2].i,
+        current.raw->slots[0].i, effect_name,
+        (const Vec*)saved.raw->slots[2].pointer,
         saved.raw->slots[3].i);
 }
 
@@ -11829,7 +11859,9 @@ void _transition_hero_to_anim_script(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    transition_hero_to_anim_script(args.raw->slots[0].i, args.raw->slots[1].i, current_args, args.raw->slots[2].f, args.raw->slots[3].f);
+    transition_hero_to_anim_script(
+        args.raw->slots[0].i, args.raw->slots[1].i,
+        args.raw->slots[2].f, args.raw->slots[3].f);
 }
 
 void _close_exterior_doors(void) {
@@ -11957,7 +11989,7 @@ void _set_interaction_camera_script(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_interaction_camera_script(args.raw->slots[0].i);
+    set_interaction_camera_script((void*)args.raw->slots[0].i);
 }
 
 void _npc_play_conversation_part(void) {
@@ -11994,7 +12026,7 @@ void _start_character_separation_process(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    start_character_separation_process(current_args, args.raw->slots[0].f);
+    start_character_separation_process(args.raw->slots[0].f);
 }
 
 void _konquest_start_npc_interaction(void) {
@@ -12129,11 +12161,13 @@ void _get_tile_sobj_by_id(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    ((ScriptRawResult*)active_cmdscript)->value.i = get_tile_sobj_by_id(args.raw->slots[0].i);
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        get_tile_sobj_by_id(args.raw->slots[0].i);
 }
 
 void _get_konquest_tile_objects_obj(void) {
-    ((ScriptRawResult*)active_cmdscript)->value.i = get_konquest_tile_objects_obj();
+    ((ScriptRawResult*)active_cmdscript)->value.pointer =
+        get_konquest_tile_objects_obj();
 }
 
 void _get_current_time(void) {
@@ -12147,7 +12181,7 @@ void _set_current_time(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_current_time(args.raw->slots[0].i);
+    set_current_time((void*)args.raw->slots[0].i);
 }
 
 void _npc_restart_his_normal_behavior(void) {
@@ -12230,9 +12264,12 @@ void _konquest_transition_to_fight(void) {
 
 void _attach_wiff_to_konquest_object_by_uid(void) {
     ScriptArgsRef args;
+    char* name;
 
+    name = get_script_string_arg(2);
     args.bytes = current_args;
-    attach_wiff_to_konquest_object_by_uid(args.raw->slots[0].i, get_script_string_arg(2), current_args, args.raw->slots[2].f);
+    attach_wiff_to_konquest_object_by_uid(
+        args.raw->slots[0].i, name, args.raw->slots[2].f);
 }
 
 void _set_konquest_object_render_order_priority_by_uid(void) {
@@ -12353,14 +12390,15 @@ void _fire_trigger(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    fire_trigger(args.raw->slots[0].i);
+    fire_trigger((KonquestTriggerDefinition*)args.raw->slots[0].pointer);
 }
 
 void _set_monk_position(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    set_monk_position(current_args, args.raw->slots[0].f, args.raw->slots[1].f, args.raw->slots[2].f, args.raw->slots[3].f);
+    set_monk_position(args.raw->slots[0].f, args.raw->slots[1].f,
+                      args.raw->slots[2].f, args.raw->slots[3].f);
 }
 
 void _load_tile_objects(void) {
@@ -12374,14 +12412,17 @@ void _trigger_set_time_for_enable(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    trigger_set_time_for_enable(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, args.raw->slots[3].i);
+    trigger_set_time_for_enable(
+        (KonquestTriggerDefinition*)args.raw->slots[0].pointer,
+        args.raw->slots[1].i, args.raw->slots[2].i,
+        args.raw->slots[3].i);
 }
 
 void _enable_trigger(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    enable_trigger(args.raw->slots[0].i, args.raw->slots[1].i);
+    enable_trigger(args.raw->slots[0].pointer, args.raw->slots[1].i);
 }
 
 void _assign_obj_to_trigger(void) {
@@ -12395,7 +12436,11 @@ void _add_object_to_tile(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    add_object_to_tile(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].i, current_args, args.raw->slots[3].f, args.raw->slots[4].f, args.raw->slots[5].f, args.raw->slots[6].f);
+    add_object_to_tile(
+        args.raw->slots[0].i, args.raw->slots[1].i,
+        args.raw->slots[2].i, args.raw->slots[3].f,
+        args.raw->slots[4].f, args.raw->slots[5].f,
+        args.raw->slots[6].f);
 }
 
 void _set_tile_visibility(void) {
