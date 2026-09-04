@@ -5,7 +5,7 @@ Select by mismatch, not historical score. Schema: ID | IF | REQUIRE | TRY.
 
 ## Compiler / source lowering
 
-M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw. TU-wide scheduling discrepancy -> separate schedule test. Keep accepted flags fixed during refinement; no scattered optimization pragmas.
+M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw. Re-test legacy pragmas after flag changes: mk_anim's unroll/limit/dont_inline controls became redundant under existing TU settings; require local-to-local section and all-function equivalence before removal. TU-wide scheduling discrepancy -> separate schedule test. Keep accepted flags fixed during refinement; no scattered optimization pragmas.
 M02 | Control-word/publication order differs | Retail loads/stores + alias boundaries | Load control word before subfield writes; publish owner at observed point; reload counts after aliasing stores.
 M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name real shared factors. Never reassociate FP to improve fuzzy.
 M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise booleans only if both evaluations required; ternary/guarded assignment for observed join.
