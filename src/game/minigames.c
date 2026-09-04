@@ -2530,11 +2530,11 @@ static float p_pz_mode_play(void) {
     puzzle_ctrl->gameplay_ticks++;
     if (puzzle_ctrl->speedup_ticks++ > 600) {
         puzzle_ctrl->speedup_ticks = 0;
-        if (puzzle_ctrl->players[0]->match_delay > 5) {
-            puzzle_ctrl->players[0]->match_delay--;
+        if (puzzle_ctrl->players[0]->drop_interval > 5) {
+            puzzle_ctrl->players[0]->drop_interval--;
         }
-        if (puzzle_ctrl->players[1]->match_delay > 5) {
-            puzzle_ctrl->players[1]->match_delay--;
+        if (puzzle_ctrl->players[1]->drop_interval > 5) {
+            puzzle_ctrl->players[1]->drop_interval--;
         }
     }
 
@@ -2865,7 +2865,6 @@ static float pz_init_network_array(void) {
     return 0.0f;
 }
 
-/* Near match: pz_preinit_world 99.39%; frame scheduling differs only. */
 static void pz_preinit_world(int network_setup) {
     PuzzleArcadeBackground* backgrounds;
     unsigned int warmup;
@@ -2884,7 +2883,7 @@ static void pz_preinit_world(int network_setup) {
         return;
     }
 
-    if ((g_game_info.field_04 & 0x20) != 0 ||
+    if (((g_game_info.field_04 >> 5) & 1) != 0 ||
         g_game_info.bgnd_id >= 0x23) {
         __pz_start_msg.background = randu0(6);
     } else {
@@ -7730,15 +7729,14 @@ static int puzzle_fighter_match_left_right(PuzzleMatchContext* context) {
     return matched;
 }
 
-/* Near miss: exact size and operations; visual stores are rescheduled. */
 static int puzzle_fighter_match_above_below(PuzzleMatchContext* context) {
     PuzzleMatchContext next;
     PuzzleBoardCell* neighbor;
     int matched;
 
     matched = 0;
-    next.breaker_visual = context->breaker_visual;
     next.block_visual = context->block_visual;
+    next.breaker_visual = context->breaker_visual;
     next.player = context->player;
     next.base_type = context->base_type;
     next.matched_count = 0;

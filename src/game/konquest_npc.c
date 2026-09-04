@@ -164,7 +164,7 @@ typedef struct KonquestNpc {
             union {
                 unsigned char flags_1C;
                 struct {
-                    unsigned char flags_1C_pad_high : 1;
+                    unsigned char flags_1C_bit7 : 1;
                     unsigned char reaction_active : 1;
                     unsigned char flags_1C_bit5 : 1;
                     unsigned char model_visible : 1;
@@ -809,32 +809,33 @@ static inline float npc_fast_sqrt(float value) {
          (3.0f - (estimate.value * estimate.value) / value));
 }
 
+static inline KonquestNpc* npc_get_latched(
+    KonquestNpc* npc, const unsigned int* instance) {
+    if (npc != 0) {
+        if (npc->hdr.instance == *instance) {
+            return npc;
+        }
+        npc = 0;
+    } else {
+        npc = 0;
+    }
+    return npc;
+}
+
 static inline KonquestNpc* npc_find_by_data_inline(
     KonquestNpcData* data) {
     KonquestNpc* candidate;
     KonquestNpc* result;
     MkPtr* link;
 
-    candidate = konquest_pdata->monk_npc;
-    if (candidate != 0) {
-        if (candidate->hdr.instance != konquest_pdata->monk_npc_instance) {
-            candidate = 0;
-        }
-    } else {
-        candidate = 0;
-    }
+    candidate = npc_get_latched(konquest_pdata->monk_npc,
+                                &konquest_pdata->monk_npc_instance);
     if (candidate != 0 && candidate->data == data) {
         return candidate;
     }
 
-    candidate = konquest_pdata->hero_npc;
-    if (candidate != 0) {
-        if (candidate->hdr.instance != konquest_pdata->hero_npc_instance) {
-            candidate = 0;
-        }
-    } else {
-        candidate = 0;
-    }
+    candidate = npc_get_latched(konquest_pdata->hero_npc,
+                                &konquest_pdata->hero_npc_instance);
     if (candidate != 0 && candidate->data == data) {
         return candidate;
     }
@@ -1514,10 +1515,6 @@ void npc_start_fx_at_his_position(
     }
 }
 
-/*
- * Soft ceiling: 86.333336% - the shared lookup and active-animation checks
- * are exact; only latch branches and nonvolatile-register coloring differ.
- */
 MkObj* npc_get_obj(KonquestNpcData* data) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
     KonquestNpcAnimState* state;
@@ -1789,10 +1786,6 @@ void npc_glitch_to_ani(int animation_id, int flags) {
     }
 }
 
-/*
- * Soft ceiling: 97.58242% - lookup, animation selection, queued-state path,
- * and live-animation script update are exact; only latch/GPR emission differs.
- */
 void npc_glitch_him_to_ani(
     KonquestNpcData* data, int animation_id, int flags) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -2301,10 +2294,6 @@ void remove_npc_list(KonquestNpcData* list) {
     }
 }
 
-/*
- * Soft ceiling: 97.28395% - the shared lookup and flag update are exact;
- * only equivalent latch branches and register allocation differ.
- */
 void npc_set_his_flags(
     KonquestNpcData* data, int flags, int enabled) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -2318,10 +2307,6 @@ void npc_set_his_flags(
     }
 }
 
-/*
- * Soft ceiling: 85.333336% - the shared typed lookup algorithm is exact;
- * stale-latch branch polarity and nonvolatile-register allocation remain.
- */
 int npc_get_his_flag_state(KonquestNpcData* data, int flags) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
 
@@ -2381,10 +2366,6 @@ void npc_at_waypoint_set_flags(int flags, int enabled) {
 }
 #pragma dont_inline reset
 
-/*
- * Soft ceiling: 86.585365% - lookup and byte-width bit update are exact;
- * only stale-latch branch lowering and register allocation differ.
- */
 void npc_ignore_his_events(KonquestNpcData* data, int enabled) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
 
@@ -3125,10 +3106,6 @@ void npc_take_control_of_him(
     npc_set_state_for_npc(npc, 7);
 }
 
-/*
- * Soft ceiling: 86.77631% - shared lookup, state read, and 0/7 restart rule
- * are exact; stale-latch lowering and nonvolatile allocation remain.
- */
 void npc_restart_his_normal_behavior(KonquestNpcData* data) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
     int state = npc->state_58;
@@ -5484,10 +5461,6 @@ static void npc_set_state_for_npc(KonquestNpc* npc, int event_index) {
     }
 }
 
-/*
- * Soft ceiling: 88.65169% - shared lookup, visibility teardown, list removal,
- * and nonnegative count clamp are exact; latch branches and GPRs remain.
- */
 void remove_npc(KonquestNpcData* data) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
 
@@ -6247,7 +6220,7 @@ static void npc_dispatch_timed_events_for_all_npcs(void) {
                     npc->skip_visibility = 0;
                     if (npc->flags_1C_field_bit1 ||
                         npc->flags_1D_field_bit0) {
-                        npc->model_visible = 0;
+                        npc->ignore_events = 0;
                     }
                     npc->flags_1D_field_bit0 = 0;
                     npc->flags_1C_field_bit1 = 0;
@@ -6340,9 +6313,6 @@ static void npc_check_next_event(KonquestNpc* npc) {
 
 
 
-/* Near match: 88.28704% - exact state-transition algorithm and retail table;
- * pointer truth normalization and split GPR saves/restores add four emitted
- * instructions relative to retail. */
 void npc_force_state_for_npc(KonquestNpc* npc, int next_state) {
     CmdScript* script;
     KonquestAnimPdata* animation;
@@ -6376,10 +6346,10 @@ void npc_force_state_for_npc(KonquestNpc* npc, int next_state) {
         npc->animation->object->flags_word_08 = npc->saved_object_flags;
         npc->animation->object->gravity = npc->saved_gravity;
     }
-    if (((npc->flags_1C & 0x80) != 0 ||
-         (npc->flags_1C & 4) != 0) && npc->state_58 != 7) {
-        npc->flags_1C &= (unsigned char)~0x80;
-        npc->flags_1C &= (unsigned char)~4;
+    if ((npc->flags_1C_bit7 != 0 ||
+         npc->flags_1C_field_bit2 != 0) && npc->state_58 != 7) {
+        npc->flags_1C_bit7 = 0;
+        npc->flags_1C_field_bit2 = 0;
     }
     if (next_state != 0) {
         npc->state_change_pending = 1;
@@ -6398,9 +6368,6 @@ void npc_force_state_for_npc(KonquestNpc* npc, int next_state) {
     }
 }
 
-/* Near match: 86.43519% - exact state-transition algorithm and callback ABI;
- * pointer truth normalization and split GPR saves/restores account for the
- * remaining compiler-emission-only size difference. */
 void npc_xfer(
     KonquestNpc* npc, MkProcEntryFn entry, int next_state) {
     CmdScript* script;
@@ -6435,10 +6402,10 @@ void npc_xfer(
         npc->animation->object->flags_word_08 = npc->saved_object_flags;
         npc->animation->object->gravity = npc->saved_gravity;
     }
-    if (((npc->flags_1C & 0x80) != 0 ||
-         (npc->flags_1C & 4) != 0) && npc->state_58 != 7) {
-        npc->flags_1C &= (unsigned char)~0x80;
-        npc->flags_1C &= (unsigned char)~4;
+    if ((npc->flags_1C_bit7 != 0 ||
+         npc->flags_1C_field_bit2 != 0) && npc->state_58 != 7) {
+        npc->flags_1C_bit7 = 0;
+        npc->flags_1C_field_bit2 = 0;
     }
     if (next_state != 0) {
         npc->state_change_pending = 1;
@@ -7008,10 +6975,6 @@ void npc_assign_door_path(int door_id, int travel_mode) {
         g_active_npc, path, door_id, 4, 0x40000000, travel_mode);
 }
 
-/*
- * Soft ceiling: 97.65958% - lookup, table metadata recovery, and six-argument
- * path setup are exact; only latch branches and register coloring remain.
- */
 void npc_assign_path_to_him(
     KonquestNpcData* data, void* path, int flags, int travel_mode) {
     if (data != 0) {
@@ -7384,6 +7347,20 @@ void npc_make_invisible(KonquestNpc* npc) {
     }
 }
 
+static inline AniTextureControl* npc_get_lip_texture(
+    KonquestNpcAnimState* animation) {
+    AniTextureControl* texture = animation->lip_texture;
+    if (texture != 0) {
+        if ((unsigned int)texture->instance == animation->lip_texture_instance) {
+            return texture;
+        }
+        texture = 0;
+    } else {
+        texture = 0;
+    }
+    return texture;
+}
+
 static void npc_manager_release_npc_model(KonquestNpc* npc) {
     KonquestNpcData* data = npc->data;
     NpcManagerPdata* manager = npc_manager_pdata;
@@ -7404,19 +7381,7 @@ static void npc_manager_release_npc_model(KonquestNpc* npc) {
                     }
                     npc->animation->object = 0;
                 }
-                {
-                    KonquestNpcAnimState* animation = npc->animation;
-
-                    texture = animation->lip_texture;
-                    if (texture != 0) {
-                        if ((unsigned int)texture->instance !=
-                            animation->lip_texture_instance) {
-                            texture = 0;
-                        }
-                    } else {
-                        texture = 0;
-                    }
-                }
+                texture = npc_get_lip_texture(npc->animation);
                 if (texture != 0) {
                     MkHdr* texture_hdr = (MkHdr*)npc->animation->lip_texture;
 

@@ -4314,12 +4314,8 @@ void konquest_hide_damashi(void) {
     }
 }
 
-/*
- * Soft ceiling: konquest_start_damashi ~95.5%. Object setup, position and
- * ground stores, global latch, sounds, all four particle bindings, sleep, NPC
- * creation, and return agree. Residue is individual r30/r31 saves/restores
- * plus local string/float relocation labels; source is 456 versus 448 bytes.
- */
+/* Retail uses compact nonvolatile saves for this object setup. */
+#pragma optimize_for_size on
 MkObj* konquest_start_damashi(
     void* unused, float x, float y, float z) {
     MkObj* object;
@@ -4369,6 +4365,7 @@ MkObj* konquest_start_damashi(
     make_damashi_npc(object);
     return object;
 }
+#pragma optimize_for_size reset
 
 /*
  * Soft ceiling: display_konquest_text ~94.57%. Mode gating, hero process
@@ -7712,11 +7709,8 @@ static inline int find_pui_inventory_index(void* pui) {
 }
 
 
-/*
- * Soft ceiling: kill_pui 96.33% (736 versus 720 bytes). Its seven remaining
- * differences are exclusively stmw/lmw versus individual nonvolatile saves
- * and restores; the dynamic guard, bit operations, and destruction are exact.
- */
+/* Retail uses the compact nonvolatile save/restore sequence here. */
+#pragma optimize_for_size on
 void kill_pui(KonquestPuiDefinition* item) {
     KonquestPuiDelayView* pui;
     unsigned int table_index;
@@ -7775,6 +7769,8 @@ void kill_pui(KonquestPuiDefinition* item) {
         }
     }
 }
+
+#pragma optimize_for_size reset
 
 int is_pui_an_interior_item(const char* pui) {
     return *(const float*)(pui + 0x1c) >= 1000.0f;

@@ -1151,10 +1151,8 @@ void mks_start_fatality_iceball(int mode) {
     }
 }
 
-/*
- * Soft ceiling: exact retail size and call/field order; the remaining delta
- * is register selection around the three optional subobject setup blocks.
- */
+/* Retail uses compact nonvolatile saves for this projectile setup. */
+#pragma optimize_for_size on
 static void start_3d_projectile_iceball(MkProcEntryFn entry) {
     Vec bone_offset = {0.0f, 0.0f, 0.0f};
     MkObj* iceball;
@@ -1201,6 +1199,8 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry) {
         subobject->z_offset = -50.0f;
     }
 }
+
+#pragma optimize_for_size reset
 
 float subzero_freeze_victim(void) {
     FatalityProjectilePdata* data;

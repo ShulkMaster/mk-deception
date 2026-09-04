@@ -3948,6 +3948,20 @@ static float p_transform_into_player(void) {
     return 0.0f;
 }
 
+static inline MkProc* mission_player_animation_process(PlyrPdata* pdata) {
+    MkProc* process = pdata->anim_proc;
+
+    if (process != 0) {
+        if (process->instance == pdata->anim_proc_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
 static float p_finish_transform_player(void) {
     KonquestMissionState* state = get_mission_state();
     MkProc* animation_process;
@@ -3955,15 +3969,7 @@ static float p_finish_transform_player(void) {
     MkObj* monk;
 
     mission_state = state;
-    animation_process = state->fight->pdata->anim_proc;
-    if (animation_process != 0) {
-        if (animation_process->instance !=
-            state->fight->pdata->anim_proc_instance) {
-            animation_process = 0;
-        }
-    } else {
-        animation_process = 0;
-    }
+    animation_process = mission_player_animation_process(state->fight->pdata);
     animation = (AnimPdata*)pdata_of_proc(animation_process);
     monk = get_mission_monk();
 

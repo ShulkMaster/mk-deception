@@ -74,6 +74,14 @@ differs only in branch destinations and policy rejects the single-pass block,
 keep the natural form at a documented soft ceiling; do not stack dummy state or
 repeat cleanup side effects to recover the percentage.
 
+## Validated near-match refinements
+
+| If A → then B | Required evidence | Verified example |
+|---|---|---|
+| If the entire remaining mismatch is individual saves versus stmw/lmw, test function-scoped `#pragma optimize_for_size on` / `reset` while keeping the authentic object's existing `-use_lmw_stmw on` | Body, frame layout, and ABI already agree; rebuild all siblings; do not infer whole-object flags from one function | kill_pui, setTevPrm, j_exit_6, is_pX_airborn, konquest_start_damashi, start_3d_projectile_iceball |
+| If a conditional argument adds clrlwi despite a correct narrow callee ABI, give both conditional arms that proven narrow type | Values fit the type and all callers confirm the prototype; do not change the prototype to suppress masking | __GXInitGX's GXBool arms |
+| If a process callback ends with a retail f1 load that is absent from a void definition, recover the float return and update its declaration | Callback table, dispatch ABI, and retail epilogue agree; never invent an unused return solely for instruction count | jump_landing_j_exit returns 0.0f |
+
 ## Mid-tier stop rule
 
 After one plausible attempt per matching smell, return to ASM and reclassify the

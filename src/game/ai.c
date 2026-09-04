@@ -2172,22 +2172,23 @@ static inline int ai_watcher_can_act(void) {
 }
 
 static inline int ai_watcher_postround_check(DroneAI* drone) {
-    if (plyr_pdata->postround_value == 0.0f ||
-        drone->difficulty_index <= 3) {
+    if (plyr_pdata->postround_value == 0.0f) {
         return 0;
     }
 
-    switch (drone->movement_state) {
-    case 0:
-    case 2:
-    case 3:
-        if (((drone->reaction_scale <= 0.55f &&
-              drone->player_health < 0.65f) ||
-             drone->player_health < 0.25f) &&
-            randu0(100) < 30) {
-            drone->charge_cooldown_tick = exec_tick_ctr;
+    if (drone->difficulty_index > 3) {
+        switch (drone->movement_state) {
+        case 0:
+        case 2:
+        case 3:
+            if (((drone->reaction_scale <= 0.55f &&
+                  drone->player_health < 0.65f) ||
+                 drone->player_health < 0.25f) &&
+                randu0(100) < 30) {
+                drone->charge_cooldown_tick = exec_tick_ctr;
+            }
+            break;
         }
-        break;
     }
     return 0;
 }
@@ -2298,15 +2299,15 @@ static inline int ai_watcher_victim_avoidance(void) {
 
 static inline int ai_watcher_victim_frozen_check(void) {
     DroneAI* drone = ai_watcher_active_drone();
-    unsigned int state;
+    int state;
     int result;
 
     if (!ai_watcher_can_act()) {
         result = 0;
     } else {
-        state = (unsigned int)his_pdata->state;
-        if (state == 0xFFFFC600U || state == 0x202U ||
-            state == 0x421AU) {
+        state = his_pdata->state;
+        if (state == 0xC600 || state == 0x202 ||
+            state == 0x421A) {
             result = 1;
             drone->reaction_watcher = drone_ai_victim_frozen;
         } else {
@@ -2505,7 +2506,7 @@ float drone_ai_watcher(void) {
             drone->decision_ready = 0;
             return 1.0f;
         }
-        if ((g_game_info.flags & 0x20) == 0) {
+        if (((g_game_info.flags >> 5) & 1) == 0) {
             return 1.0f;
         }
 
@@ -4635,15 +4636,14 @@ int drone_ai_check_from_ground_attack_phase1(DroneAI* drone) {
     return 0;
 }
 
-/* Soft ceiling: current emission has one extra clrlwi and one extra GPR move;
- * the retail algorithm, calls, CFG, and field accesses otherwise match. */
+/* Soft ceiling: 99.8996%; only the x/z distance temporary FPRs differ. */
 int drone_ai_check_projectile_head_on(DroneAI* drone) {
     int duck_reaction_active;
+    unsigned int roll;
     int should_block;
-    unsigned short roll;
     float projectile_distance;
-    float delta_x;
     float delta_z;
+    float delta_x;
 
     duck_reaction_active = his_pdata->duck_reaction_active;
     if (duck_reaction_active == 0) {
@@ -10182,9 +10182,12 @@ void drone_walk_FB_true(
     duration = (float)ticks;
     init_ground_move_no_aniproc();
     rotate_towards_him(0.2f);
-    walk_voice_eligible =
-        plyr_pdata->character_id == 0x10 &&
-        plyr_pdata->plyr_info->flags_14_bits.alternate_costume == 0;
+    if (plyr_pdata->character_id == 0x10 &&
+        plyr_pdata->plyr_info->flags_14_bits.alternate_costume == 0) {
+        walk_voice_eligible = 1;
+    } else {
+        walk_voice_eligible = 0;
+    }
     if (walk_voice_eligible && randu0(100) < 15) {
         snd_req_delay(randu0(5) + 0x27B, randu0(20) + 1);
     }

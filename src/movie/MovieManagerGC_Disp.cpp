@@ -64,6 +64,8 @@ static const char allocation_error[] = "can't allocate tex buf.\n";
 #define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
 #define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
+/* Retail uses compact nonvolatile saves for this setup routine. */
+#pragma optimize_for_size on
 static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
     GXSetNumTexGens(2);
     GXSetTexCoordGen2(0, 1, 4, 0x3C, 0, 0x7D);
@@ -116,6 +118,8 @@ static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {
     GXSetNumChans(0);
     GXSetNumIndStages(0);
 }
+
+#pragma optimize_for_size reset
 
 static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     Mtx tex_mtx;

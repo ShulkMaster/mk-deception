@@ -204,12 +204,6 @@ typedef struct MovesSidekickActionView {
     ScriptSlot* cmo;
 } MovesSidekickActionView;
 
-typedef struct MovesAnimPdataView {
-    AnimPdata base;
-    float landing_start;
-    float landing_end;
-} MovesAnimPdataView;
-
 typedef struct MovesProcessLatchView {
     char pad00[0x5C];
     MkProc* anim_proc;
@@ -649,7 +643,7 @@ float go_into_twitch_death(void);
 float go_into_major_pain(void);
 void j_ass_rollup(void);
 void front_rollup(void);
-static void jump_landing_j_exit(void);
+static float jump_landing_j_exit(void);
 float dizzy(void);
 float r_chest2_stumble(void);
 static void do_my_fatality_remote(void);
@@ -4520,13 +4514,7 @@ float joy_dash_back(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: jump_away_opponent and this j_exit variant are 99.25742% and
- * 99.26605%. Remaining differences are float-pool relocation labels and r5
- * versus r3 allocation for the final animation-pdata load/store group.
- */
 static float jump_away_opponent_j_exit(void) {
-    MovesAnimPdataView* anim;
     MkHdr* object;
     Vec direction;
     float high_frame;
@@ -4557,10 +4545,9 @@ static float jump_away_opponent_j_exit(void) {
     ground_me(object);
     plyr_obj->gravity = 0.0f;
     plyr_obj->flags_08_bits.moving = 0;
-    anim = (MovesAnimPdataView*)plyr_anim_pdata;
-    high_frame = anim->base.high_frame;
-    anim->landing_start = high_frame - 10.0f;
-    anim->landing_end = plyr_anim_pdata->high_frame;
+    high_frame = plyr_anim_pdata->high_frame;
+    plyr_anim_pdata->landing_start = high_frame - 10.0f;
+    plyr_anim_pdata->landing_end = plyr_anim_pdata->high_frame;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)aniproc_land);
     moves_jump(j_exit_blend_stance);
     return 0.0f;
@@ -5133,7 +5120,6 @@ float switch_proc_pickup(void) {
 }
 
 float jump_away_opponent(void) {
-    MovesAnimPdataView* anim;
     MkHdr* object;
     Vec direction;
     float high_frame;
@@ -5164,10 +5150,9 @@ float jump_away_opponent(void) {
     ground_me(object);
     plyr_obj->gravity = 0.0f;
     plyr_obj->flags_08_bits.moving = 0;
-    anim = (MovesAnimPdataView*)plyr_anim_pdata;
-    high_frame = anim->base.high_frame;
-    anim->landing_start = high_frame - 10.0f;
-    anim->landing_end = plyr_anim_pdata->high_frame;
+    high_frame = plyr_anim_pdata->high_frame;
+    plyr_anim_pdata->landing_start = high_frame - 10.0f;
+    plyr_anim_pdata->landing_end = plyr_anim_pdata->high_frame;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)aniproc_land);
     return 0.0f;
 }
@@ -5400,7 +5385,6 @@ void big_boss_end_of_round(void) {
 }
 
 void jump_towards_opponent(void) {
-    MovesAnimPdataView* anim;
     MkHdr* object;
     float flight_ticks;
     float remaining_ticks;
@@ -5464,15 +5448,13 @@ void jump_towards_opponent(void) {
     ground_me(object);
     plyr_obj->gravity = 0.0f;
     plyr_obj->flags_08_bits.moving = 0;
-    anim = (MovesAnimPdataView*)plyr_anim_pdata;
-    high_frame = anim->base.high_frame;
-    anim->landing_start = high_frame - 10.0f;
-    anim->landing_end = anim->base.high_frame;
+    high_frame = plyr_anim_pdata->high_frame;
+    plyr_anim_pdata->landing_start = high_frame - 10.0f;
+    plyr_anim_pdata->landing_end = plyr_anim_pdata->high_frame;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)aniproc_land);
 }
 
 float jump_towards_opponent_bgnd_transition(void) {
-    MovesAnimPdataView* anim;
     MkHdr* object;
     float flight_ticks;
     float remaining_ticks;
@@ -5511,16 +5493,14 @@ float jump_towards_opponent_bgnd_transition(void) {
     ground_me(object);
     plyr_obj->gravity = 0.0f;
     plyr_obj->flags_08_bits.moving = 0;
-    anim = (MovesAnimPdataView*)plyr_anim_pdata;
-    high_frame = anim->base.high_frame;
-    anim->landing_start = high_frame - 10.0f;
-    anim->landing_end = anim->base.high_frame;
+    high_frame = plyr_anim_pdata->high_frame;
+    plyr_anim_pdata->landing_start = high_frame - 10.0f;
+    plyr_anim_pdata->landing_end = plyr_anim_pdata->high_frame;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)aniproc_land);
     return 0.0f;
 }
 
-static void jump_landing_j_exit(void) {
-    MovesAnimPdataView* anim;
+static float jump_landing_j_exit(void) {
     MkHdr* object;
     float high_frame;
 
@@ -5533,12 +5513,12 @@ static void jump_landing_j_exit(void) {
     ground_me(object);
     plyr_obj->gravity = 0.0f;
     plyr_obj->flags_08_bits.moving = 0;
-    anim = (MovesAnimPdataView*)plyr_anim_pdata;
-    high_frame = anim->base.high_frame;
-    anim->landing_start = high_frame - 10.0f;
-    anim->landing_end = anim->base.high_frame;
+    high_frame = plyr_anim_pdata->high_frame;
+    plyr_anim_pdata->landing_start = high_frame - 10.0f;
+    plyr_anim_pdata->landing_end = plyr_anim_pdata->high_frame;
     xfer_proc(plyr_anim_proc, (MkProcEntryFn)aniproc_land);
     moves_jump(j_exit);
+    return 0.0f;
 }
 
 void wall_dodge(void) {

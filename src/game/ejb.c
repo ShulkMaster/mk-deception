@@ -520,7 +520,7 @@ static inline int is_plyr_airborn_impl(MkObj* object, PlyrPdata* player) {
     if (state == 0x3202) {
         return 1;
     }
-    if ((unsigned int)state == 0xFFFFC602U) {
+    if (state == 0xC602) {
         return 1;
     }
     if (state == 0x6001) {
@@ -535,6 +535,8 @@ static inline int is_plyr_airborn_impl(MkObj* object, PlyrPdata* player) {
     return 0;
 }
 
+/* Retail uses compact nonvolatile saves for both player-selection arms. */
+#pragma optimize_for_size on
 int is_pX_airborn(int player_number) {
     if (player_number == 0) {
         return is_plyr_airborn_impl(
@@ -545,6 +547,8 @@ int is_pX_airborn(int player_number) {
         g_game_info.plyr1.slot.mirror_a,
         g_game_info.plyr1.slot.pdata);
 }
+
+#pragma optimize_for_size reset
 
 int am_i_airborn(void) {
     return is_plyr_airborn_impl(plyr_obj, plyr_pdata);
@@ -2319,6 +2323,8 @@ float j_exit_react(void) {
     return 0.0f;
 }
 
+/* Retail uses compact nonvolatile saves in this animation-exit path. */
+#pragma optimize_for_size on
 float j_exit_6(void) {
     MkHdr* object_hdr;
     float frames;
@@ -2423,6 +2429,8 @@ float j_exit_6(void) {
     ((EjbProcSleepVtable*)aproc->vtbl)->transfer(j_exit, 0.0f);
     return 0.0f;
 }
+
+#pragma optimize_for_size reset
 
 float j_blend_to_fstance_in_x(void) {
     float remaining_frames;
@@ -4698,7 +4706,7 @@ void scorpion_summon_collide(void) {
     delta_z = his_obj->pos.value.z - plyr_pdata->summon_position_z;
     distance_x = delta_x * delta_x;
     distance_z = delta_z * delta_z;
-    if ((his_pdata->state_flags.raw & 0x02) != 0x02) {
+    if ((((unsigned char)his_pdata->state_flags.raw >> 1) & 1U) != 1U) {
         if (local_collision_allowed_plyr_pdata() != 0 &&
             distance_x + distance_z < 0.25f) {
             trial_state_collision_check(1, his_pdata->plyr_num);

@@ -2810,8 +2810,8 @@ static int beetle_squashed(
         }
 
         if ((*squashing_player)->slot.fighter->active != 0) {
-            Vec bone_position_0;
             Vec offset_0 = {0.0f, 0.0f, 0.0f};
+            Vec bone_position_0;
 
             get_bone_world_pos(
                 (*squashing_player)->slot.mirror_a, 0, &bone_position_0);
@@ -3536,8 +3536,8 @@ static inline void bl_init_beetle(
     const Vec* position, float local_scale, int personality,
     int movement_state, int personality_ticks, float distance_limit_sq,
     int transition_ticks, int surface) {
-    Vec y_axis = {0.0f, 1.0f, 0.0f};
     Vec scale;
+    Vec y_axis = {0.0f, 1.0f, 0.0f};
     scale.x = scale.y = scale.z = local_scale;
     beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
     beetle->position.x = position->x;
@@ -3568,7 +3568,7 @@ static inline void bl_init_beetle(
                                  &beetle->position);
 }
 
-/* Exact-size 97.18% near match. All twelve ranges have retail-identical loop
+/* Exact-size near match. All twelve ranges have retail-identical loop
  * bounds, RNG call order, constants, field stores, matrix calls, post-target
  * overrides, and final count. The opcode multiset is identical; residue is
  * beetle/pebble register coloring and pooled constant relocation identity. */
@@ -3748,7 +3748,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
                        random_ticks, 1.5f, 0, 0);
         beetle->speed_scale = 0.5f + frand(0.25f);
     }
-    data->pebble_data->count = 28;
+    data->pebble_data->count = 10;
 }
 /*
  * Clean-C ceiling: 94.88%, retail/local 2468/2428 bytes. All initialization
@@ -6794,7 +6794,7 @@ void bgnd_create_named_npc_in_slot(
     object->flags_08_bits.gravity_enabled = 0;
     object->flags_08_bits.rotation_enabled = 0;
     object->flags_08_bits.airborne = 1;
-    object->flags_08_bits.airborne = 1;
+    object->flags_08_bits.angular_velocity_enabled = 1;
     if (bone_table == 0) {
         build_bones_tbl(object, nb_slave_bones);
         object->flipped_bone_map = &flipped_nb_slave_bones;
@@ -6818,7 +6818,7 @@ void bgnd_create_named_npc_in_slot(
         set_root_and_obj_movement_weights(0.0f, 1.0f, npc->animation);
         set_anim_script(
             npc->animation, (AniData*)bgnd_animation_table[animation_id], 0);
-        npc->animation->hand_transition_limit = 0.125f;
+        npc->animation->hand_transition = 0.125f;
         npc->command_process = _create_mkproc_generic_bigstack(
             0xC016, 0x1F, bgnd_npc_idle, sizeof(BgndNpcAniCommand),
             (MkHdr**)&command);
