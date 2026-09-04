@@ -408,7 +408,7 @@ int debug_int_1;
 float debug_z;
 float debug_y;
 float debug_x;
-void* plyr_force_pdata;
+EjbPlyrForcePdata* plyr_force_pdata;
 
 #define EJB_ADVANCE_TO_FRAME(animation, target_frame)                    \
     do {                                                                 \
@@ -536,7 +536,6 @@ static inline int is_plyr_airborn_impl(MkObj* object, PlyrPdata* player) {
 }
 
 /* Retail uses compact nonvolatile saves for both player-selection arms. */
-#pragma optimize_for_size on
 int is_pX_airborn(int player_number) {
     if (player_number == 0) {
         return is_plyr_airborn_impl(
@@ -548,7 +547,6 @@ int is_pX_airborn(int player_number) {
         g_game_info.plyr1.slot.pdata);
 }
 
-#pragma optimize_for_size reset
 
 int am_i_airborn(void) {
     return is_plyr_airborn_impl(plyr_obj, plyr_pdata);
@@ -2324,7 +2322,6 @@ float j_exit_react(void) {
 }
 
 /* Retail uses compact nonvolatile saves in this animation-exit path. */
-#pragma optimize_for_size on
 float j_exit_6(void) {
     MkHdr* object_hdr;
     float frames;
@@ -2430,7 +2427,6 @@ float j_exit_6(void) {
     return 0.0f;
 }
 
-#pragma optimize_for_size reset
 
 float j_blend_to_fstance_in_x(void) {
     float remaining_frames;
@@ -2730,19 +2726,92 @@ static inline EjbBoneMatcherView* prepare_two_player_animation(
     return matcher;
 }
 
+static inline MkProc* ejb_live_process(
+    MkProc* process, const unsigned int* instance) {
+    if (process != 0) {
+        if (process->instance == *instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
+static inline MkObj* ejb_live_object(
+    MkObj* object, const unsigned int* instance) {
+    if (object != 0) {
+        if (object->hdr.instance == *instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* Near match: remaining differences are register coloring and equivalent
+ * held-object latch control flow under the TU's size optimization. */
 float two_player_animation_match_attacker(
     AniData* animation, float attacker_step) {
-    int opponent_flip_mode;
+    PlyrPdata* opponent;
+    MkObj* tracked_object;
+    MkProc* process;
+    AnimPdata* opponent_anim;
 
-    if (plyr_obj->hide_flag_bits.bit6 != 0) {
-        opponent_flip_mode = 2;
-    } else {
-        opponent_flip_mode = 1;
+    process = ejb_live_process(plyr_pdata->player_proc,
+                               &plyr_pdata->player_proc_instance);
+    if (process != 0) {
+        xfer_proc(process, p_idle);
+        his_pdata->previous_state = his_pdata->state;
+        his_pdata->state = 0xC603;
     }
-    prepare_two_player_animation(0, opponent_flip_mode, 1);
-    plyr_anim_pdata->transition_step = 0.1f;
-    plyr_anim_pdata->transition_weight = 0.1f;
-    plyr_anim_pdata->transition_target = 1.0f;
+    opponent = plyr_pdata->his_plyr_pdata;
+    process = ejb_live_process(opponent->anim_proc, &opponent->anim_proc_instance);
+    if (process != 0) {
+        xfer_proc(process, p_anim_idle);
+    }
+    tracked_object = ejb_live_object(opponent->tracked_obj,
+                                    &opponent->tracked_obj_instance);
+    if (tracked_object != 0) {
+        process = ejb_live_process(opponent->transient_proc,
+                                   &opponent->transient_proc_instance);
+        if (process != 0 && process != aproc && process->instance != 0) {
+            process->vtbl->destroy(process);
+        }
+        tracked_object->pos_vel.x = 0.0f;
+        tracked_object->pos_vel.y = 0.0f;
+        tracked_object->pos_vel.z = 0.0f;
+        tracked_object->gravity = 0.0f;
+    }
+    if (plyr_obj->hide_flag_bits.bit6 != 0) {
+        plyr_grab_other_flip_states(0, 2);
+    } else {
+        plyr_grab_other_flip_states(0, 1);
+    }
+    plyr_obj->hide_flag_bits.still_move = 0;
+    opponent = plyr_pdata->his_plyr_pdata;
+    if (ejb_live_object(opponent->held_by_object_latch.obj,
+                        &opponent->held_by_object_latch.instance) == 0) {
+        opponent->held_by_object_latch.obj = plyr_obj;
+        plyr_pdata->his_plyr_pdata->held_by_object_latch.instance =
+            plyr_obj->hdr.instance;
+    }
+    opponent = plyr_pdata->his_plyr_pdata;
+    process = ejb_live_process(opponent->anim_proc, &opponent->anim_proc_instance);
+    if (process != 0) {
+        opponent_anim = (AnimPdata*)pdata_of_proc(process);
+        if (opponent_anim != 0) {
+            xfer_proc(process, (MkProcEntryFn)p_animate);
+            opponent_anim->hand_transition = 1.0f;
+            opponent_anim->hand_transition_step = -0.1f;
+        }
+    }
+    plyr_anim_pdata->hand_transition_step = 0.1f;
+    plyr_anim_pdata->hand_transition = 0.1f;
+    plyr_anim_pdata->hand_transition_limit = 1.0f;
     transition_to_anim_script(
         plyr_anim_pdata, animation, 3, 0.5f);
     ejb_sleep_ticks(1.0f);
@@ -3516,23 +3585,21 @@ void force_away(
 }
 
 float p_force_away(void) {
-    EjbPlyrForcePdata* force;
     int iteration;
 
-    force = (EjbPlyrForcePdata*)plyr_force_pdata;
-    _mkproc_sleep_ticks = (float)force->delay;
+    _mkproc_sleep_ticks = (float)plyr_force_pdata->delay;
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
-    if (force->iterations > 0 && force->iterations < 60) {
-        for (iteration = 0; iteration < force->iterations; iteration++) {
-            plyr_obj->pos_vel.x *= force->velocity_scale;
-            plyr_obj->pos_vel.z *= force->velocity_scale;
+    if (plyr_force_pdata->iterations > 0 && plyr_force_pdata->iterations < 60) {
+        for (iteration = 0; iteration < plyr_force_pdata->iterations; iteration++) {
+            plyr_obj->pos_vel.x *= plyr_force_pdata->velocity_scale;
+            plyr_obj->pos_vel.z *= plyr_force_pdata->velocity_scale;
             _mkproc_sleep_ticks = 1.0f;
             ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
         }
     }
     plyr_obj->pos_vel.x = 0.0f;
     plyr_obj->pos_vel.z = 0.0f;
-    return 0.0f;
+    return -1.0f;
 }
 
 void danger_zone_eligible_on(void) {
@@ -4018,26 +4085,29 @@ void glitch_to_stance(float blend_rate) {
 
 int blend_to_fstance(float blend_rate) {
     EjbFighterDefinitionExtended* fighter;
+    MkObj* object = plyr_obj;
     MkHdr* object_hdr;
     int crouching;
 
-    plyr_obj->hide_flag_bits.bit6 ^= 1;
+    object->hide_flag_bits.bit6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
-    plyr_match_weapon_flip_to_obj_flip(plyr_pdata, plyr_obj);
+    plyr_match_weapon_flip_to_obj_flip(plyr_pdata, object);
     crouching = 0;
     if (plyr_anim_pdata->last_exec_tick == (unsigned int)exec_tick_ctr) {
         _mkproc_sleep_ticks = 1.0f;
         ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
     }
-    fighter =
-        (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
     if (check_switch(plyr_pdata->switch_data, 0xE) != 0 &&
         (plyr_pdata->state & 0x100)) {
         crouching = 1;
+        fighter =
+            (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
         transition_to_anim_script(
             plyr_anim_pdata, fighter->crouching_animation,
             0x20, blend_rate);
     } else {
+        fighter =
+            (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
         transition_to_anim_script(
             plyr_anim_pdata, fighter->standing_animation,
             0x20, blend_rate);
@@ -4232,11 +4302,6 @@ void special_move_cam_him(
     swap_active_plyr_proc();
 }
 
-/*
- * Soft ceiling: exact retail size and behavior. MWCC lowers only the final
- * fatality-finished test as arithmetic boolean normalization instead of a
- * branch; the clean inverse-guard variant compiles identically.
- */
 int stay_down_check(void) {
     float life;
 
@@ -4259,19 +4324,18 @@ int stay_down_check(void) {
         if (f_fatality_finished != 0) {
             return 1;
         }
-        return 0;
-    }
-
-    if (aproc->pid == 0x1001) {
-        life = g_game_info.plyr0.field_0C;
     } else {
-        life = g_game_info.plyr1.field_0C;
-    }
-    if (life == 0.0f) {
-        plyr_obj->pos_vel.z = 0.0f;
-        plyr_obj->pos_vel.y = 0.0f;
-        plyr_obj->pos_vel.x = 0.0f;
-        return 1;
+        if (aproc->pid == 0x1001) {
+            life = g_game_info.plyr0.field_0C;
+        } else {
+            life = g_game_info.plyr1.field_0C;
+        }
+        if (life == 0.0f) {
+            plyr_obj->pos_vel.z = 0.0f;
+            plyr_obj->pos_vel.y = 0.0f;
+            plyr_obj->pos_vel.x = 0.0f;
+            return 1;
+        }
     }
     return 0;
 }

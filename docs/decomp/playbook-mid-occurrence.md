@@ -78,13 +78,35 @@ repeat cleanup side effects to recover the percentage.
 
 | If A → then B | Required evidence | Verified example |
 |---|---|---|
-| If the entire remaining mismatch is individual saves versus stmw/lmw, test function-scoped `#pragma optimize_for_size on` / `reset` while keeping the authentic object's existing `-use_lmw_stmw on` | Body, frame layout, and ABI already agree; rebuild all siblings; do not infer whole-object flags from one function | kill_pui, setTevPrm, j_exit_6, is_pX_airborn, konquest_start_damashi, start_3d_projectile_iceball |
+| If compact saves, divw, or short boolean conversions repeatedly improve under size mode, first test TU-wide `-O4,s` with existing `-use_lmw_stmw on` in configure.py and remove redundant optimize_for_size pragmas | Capture every function and section before/after; preserve existing exact matches and disclose nonmatching regressions; one function alone does not prove the TU flags | ejb, fatality, konquest, MovieManagerGC_Disp: 16 pragma pairs removed, 34 new report-exact functions, all 235 existing exact functions preserved; see [TU audit](tu-size-optimization-audit.md) |
 | If a conditional argument adds clrlwi despite a correct narrow callee ABI, give both conditional arms that proven narrow type | Values fit the type and all callers confirm the prototype; do not change the prototype to suppress masking | __GXInitGX's GXBool arms |
 | If a process callback ends with a retail f1 load that is absent from a void definition, recover the float return and update its declaration | Callback table, dispatch ABI, and retail epilogue agree; never invent an unused return solely for instruction count | jump_landing_j_exit returns 0.0f |
 
 ## Mid-tier stop rule
 
+### Follow-up after a TU-mode correction
+
+Restrict the next pass to measured regressions; keep the accepted TU flags fixed.
+The [six-function size-mode follow-up](six-size-mode-regressions.md) validated:
+
+- If retail reloads a process-global pointer after sleep or a call, recover the
+  typed global accesses instead of keeping a cached pointer across that boundary.
+- If a proven whole-record copy lowers into a paired CTR loop, try the aggregate
+  assignment before reproducing the compiler's loop by hand.
+- If two structured arms converge on the same zero return in retail, preserve
+  that shared epilogue; an early return can instead produce boolean arithmetic.
+- If a palette count is reloaded after an element write, preserve that memory
+  read rather than reusing an earlier last-index calculation.
+
+Check all siblings again, not just the selected six. These are evidence-gated
+source corrections, not reasons to restore function-scoped optimization flags.
+
 After one plausible attempt per matching smell, return to ASM and reclassify the
 cause. Do not stack optimizer flags or local reshuffles. A function-scoped pragma
-is acceptable only when it disables a demonstrated compiler transformation and
-the surrounding C remains the clearest expression of retail behavior.
+is not the default remedy for a TU-level compiler-mode mismatch. Test the build
+configuration first and inspect all siblings. Retain an exception only when
+specific retail evidence supports it and the whole-TU experiment cannot explain
+the emission; the surrounding C must remain the clearest expression of behavior.
+If a score changes dramatically after a small code-generation change, compare
+local-before against local-after as well as each against retail: diff alignment
+can magnify a short mismatch into a misleading deletion/insertion island.

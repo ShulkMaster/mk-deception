@@ -1152,7 +1152,6 @@ void mks_start_fatality_iceball(int mode) {
 }
 
 /* Retail uses compact nonvolatile saves for this projectile setup. */
-#pragma optimize_for_size on
 static void start_3d_projectile_iceball(MkProcEntryFn entry) {
     Vec bone_offset = {0.0f, 0.0f, 0.0f};
     MkObj* iceball;
@@ -1200,7 +1199,6 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry) {
     }
 }
 
-#pragma optimize_for_size reset
 
 float subzero_freeze_victim(void) {
     FatalityProjectilePdata* data;
