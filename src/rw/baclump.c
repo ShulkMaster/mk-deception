@@ -37,7 +37,7 @@ unsigned int lastSeenExtraData;
 unsigned int lastSeenRightsPluginId;
 static RwModuleInfo clumpModule;
 
-static RpClumpGlobals* ClumpGlobals(void)
+static RpClumpGlobals* rpClumpModuleData(void)
 {
     return (RpClumpGlobals*)((unsigned char*)RwEngineInstance +
                              clumpModule.globalsOffset);
@@ -100,7 +100,7 @@ RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic)
 {
     RxPipeline* pipeline = atomic->pipeline;
     if (pipeline == 0)
-        pipeline = RxPipelineGlobals()->currentAtomicPipeline;
+        pipeline = rxPipelinePlatformData()->currentAtomicPipeline;
     if (RxPipelineExecute(pipeline, atomic, 1) != 0)
         return atomic;
     return 0;
@@ -327,7 +327,7 @@ RpClump* RpClumpRender(RpClump* clump)
     link = clump->atomicList.next;
     end = &clump->atomicList;
     while (link != end) {
-        RpAtomic* atomic = RpAtomicFromClumpLink(link);
+        RpAtomic* atomic = rpAtomicFromClumpNode(link);
         if (atomic->object.flags & 4) {
             RwFrameGetLTM(atomic->object.parent);
             if (atomic->renderCallBack(atomic) == 0)
@@ -347,7 +347,7 @@ RpClump* RpClumpForAllAtomics(RpClump* clump, RpAtomicCallBack callback, void* d
     link = clump->atomicList.next;
     end = &clump->atomicList;
     while (link != end) {
-        RpAtomic* atomic = RpAtomicFromClumpLink(link);
+        RpAtomic* atomic = rpAtomicFromClumpNode(link);
         next = link->next;
         if (callback(atomic, data) == 0)
             return clump;
@@ -398,10 +398,10 @@ RpClump* RpClumpForAllLights(RpClump* clump, RpLightCallBack callback, void* dat
 RpAtomic* RpAtomicCreate(void)
 {
     RpAtomic* atomic = RwEngineInstance->fpFreeListAlloc(
-        ClumpGlobals()->atomicFreeList, 0x30014);
+        rpClumpModuleData()->atomicFreeList, 0x30014);
     if (atomic == 0)
         return 0;
-    rwObjectInitialize(atomic, 1, 0);
+    rwInitializeObjectHeader(atomic, 1, 0);
     atomic->sync = AtomicSync;
     atomic->repEntry = 0;
     atomic->object.flags = 5;
@@ -458,7 +458,7 @@ int RpAtomicDestroy(RpAtomic* atomic)
         RwResourcesFreeResEntry(atomic->repEntry);
     RpAtomicSetGeometry(atomic, 0, 0);
     _rwObjectHasFrameReleaseFrame(atomic);
-    RwEngineInstance->fpFreeListFree(ClumpGlobals()->atomicFreeList, atomic);
+    RwEngineInstance->fpFreeListFree(rpClumpModuleData()->atomicFreeList, atomic);
     return 1;
 }
 
@@ -475,10 +475,10 @@ void RpClumpSetCallBack(RpClump* clump, RpClumpCallBack callback)
 RpClump* RpClumpCreate(void)
 {
     RpClump* clump = RwEngineInstance->fpFreeListAlloc(
-        ClumpGlobals()->clumpFreeList, 0x30010);
+        rpClumpModuleData()->clumpFreeList, 0x30010);
     if (clump == 0)
         return 0;
-    rwObjectInitialize(clump, 2, 0);
+    rwInitializeObjectHeader(clump, 2, 0);
     clump->object.parent = 0;
     rwLinkListInitialize(&clump->atomicList);
     rwLinkListInitialize(&clump->lightList);
@@ -500,7 +500,7 @@ int RpClumpDestroy(RpClump* clump)
     frame = clump->object.parent;
     if (frame != 0)
         RwFrameDestroyHierarchy(frame);
-    RwEngineInstance->fpFreeListFree(ClumpGlobals()->clumpFreeList, clump);
+    RwEngineInstance->fpFreeListFree(rpClumpModuleData()->clumpFreeList, clump);
     return 1;
 }
 

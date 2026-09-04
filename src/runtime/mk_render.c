@@ -372,7 +372,7 @@ void render_mkobj(MkObj* object) {
             if (clump != 0) {
                 link = clump->atomicList.next;
                 while (link != &clump->atomicList) {
-                    RpAtomic* atomic = RpAtomicFromClumpLink(link);
+                    RpAtomic* atomic = rpAtomicFromClumpNode(link);
                     if ((atomic->object.flags & 4) != 0) {
                         MksobjPluginData* plugin = MK_ATOMIC_PLUGIN(atomic);
                         MkSobj* sobj = plugin->sobj;

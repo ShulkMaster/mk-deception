@@ -5906,7 +5906,7 @@ void CameraDestroy(RwCamera* camera) {
         if (world != 0) {
             RpWorldRemoveCamera(world, camera);
         }
-        frame = RwCameraGetFrame(camera);
+        frame = rwCameraParentFrame(camera);
         if (frame != 0) {
             _rwObjectHasFrameSetFrame(camera, 0);
             RwFrameDestroy(frame);
@@ -6387,7 +6387,7 @@ static void prewake_camera(void) {
     RwFrame* frame;
     float dot;
 
-    frame = RwCameraGetFrame(Camera);
+    frame = rwCameraParentFrame(Camera);
     cam_right_uv.x = frame->modelling.right.x;
     cam_right_uv.y = frame->modelling.right.y;
     cam_right_uv.z = frame->modelling.right.z;
@@ -6524,7 +6524,7 @@ int init_camera(void) {
         camera_obj->flags.bit20 = 1;
     }
     camera_obj =
-        (CameraObj*)get_mkobj_frame(0x1003, RwCameraGetFrame(Camera));
+        (CameraObj*)get_mkobj_frame(0x1003, rwCameraParentFrame(Camera));
     if (camera_obj != 0) {
         camera_item.node = camera_obj;
         camera_item.instance = camera_obj->hdr.instance;

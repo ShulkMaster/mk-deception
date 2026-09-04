@@ -11,12 +11,9 @@ extern RwPluginRegistry textureTKList;
 unsigned int RwTextureStreamGetSize(const RwTexture *texture) {
     int size = 0x10;
 
-    size += _rwStringStreamGetSize(texture->name);
-    size += 0xC;
-    size += _rwStringStreamGetSize(texture->mask);
-    size += 0xC;
-    size += _rwPluginRegistryGetSize(&textureTKList, texture);
-    size += 0xC;
+    size += _rwStringStreamGetSize(texture->name) + 0xC;
+    size += _rwStringStreamGetSize(texture->mask) + 0xC;
+    size += _rwPluginRegistryGetSize(&textureTKList, texture) + 0xC;
     return size;
 }
 

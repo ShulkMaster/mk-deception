@@ -92,9 +92,14 @@ _rwDolphinHeapAlloc();
 _rpNativeRead();
 ```
 
-Keep `Rw`, `Rp`, `Rt`, `_rw`, and `_rp` capitalization exactly. Use the matching
-RenderWare source or retail symbols for missing names. Do not translate these
-APIs into either generic snake_case or unprefixed CamelCase.
+Keep `Rw`, `Rp`, `Rt`, `_rw`, and `_rp` capitalization exactly. Use authenticated
+matching-version RenderWare source or retail symbols for missing names. Do not
+translate these APIs into either generic snake_case or unprefixed CamelCase.
+
+For a reconstruction-only helper with no retail symbol, retain the owning
+RenderWare prefix but use a descriptive lower-camel name, such as
+`rwCameraParentFrame` or `rpAtomicFromClumpNode`. This distinguishes local source
+structure from recovered public or private APIs.
 
 ### Midway middleware and bundled C libraries
 

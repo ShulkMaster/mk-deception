@@ -11,6 +11,7 @@ typedef struct PuzzleFighterEvent {
 void pz_fighter_event(PuzzleFighterEvent* event);
 void render_minigame_list(void);
 void cleanup_minigame_system(void);
+void load_puzzle_champion_screen(void);
 
 extern int __mini_game_display_ctrl;
 

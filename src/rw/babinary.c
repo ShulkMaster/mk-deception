@@ -179,6 +179,8 @@ void RwMemNative32(void* memory, unsigned int size) {
 
 
 
+/* Write real values in bounded, little-endian stream chunks. */
+/* TODO: The typed byte cursor gains one O0 parameter home versus retail. */
 RwStream* RwStreamWriteReal(RwStream* stream, const float* reals,
                             unsigned int numBytes) {
     unsigned char buffer[256];
@@ -199,6 +201,8 @@ RwStream* RwStreamWriteReal(RwStream* stream, const float* reals,
 
 
 
+/* Write 32-bit values in bounded, little-endian stream chunks. */
+/* TODO: The typed byte cursor gains one O0 parameter home versus retail. */
 RwStream* RwStreamWriteInt32(RwStream* stream, const void* integers,
                              unsigned int numBytes) {
     unsigned char buffer[256];
@@ -219,6 +223,8 @@ RwStream* RwStreamWriteInt32(RwStream* stream, const void* integers,
 
 
 
+/* Read real values and convert them from stream byte order in place. */
+/* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR stores. */
 RwStream* RwStreamReadReal(RwStream* stream, float* reals,
                            unsigned int numBytes) {
     if (RwStreamRead(stream, reals, numBytes) == 0) {
@@ -235,6 +241,8 @@ RwStream* RwStreamReadReal(RwStream* stream, float* reals,
 
 
 
+/* Read 32-bit values and convert them from stream byte order in place. */
+/* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR stores. */
 RwStream* RwStreamReadInt32(RwStream* stream, void* integers,
                             unsigned int numBytes) {
     if (RwStreamRead(stream, integers, numBytes) == 0) {

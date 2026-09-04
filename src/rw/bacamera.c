@@ -16,17 +16,21 @@ static int _rwCameraFreeListBlockSize = 4;
 static int _rwCameraFreeListPreallocBlocks = 1;
 static RwModuleInfo cameraModule;
 
-static void CameraSetClosestVertex(RwFrustumPlane* frustumPlane)
-{
-    frustumPlane->closestX =
-        (unsigned char)(((*(unsigned int*)&frustumPlane->plane.normal.x) >> 31) + 1);
-    frustumPlane->closestY =
-        (unsigned char)(((*(unsigned int*)&frustumPlane->plane.normal.y) >> 31) + 1);
-    frustumPlane->closestZ =
-        (unsigned char)(((*(unsigned int*)&frustumPlane->plane.normal.z) >> 31) + 1);
-}
+/* Selects the positive or negative support vertex from a normal's sign bit. */
+#define rwCameraNearestAxisValue(component)                                   \
+    ((unsigned char)(((*(const unsigned int*)&(component)) >> 31) + 1))
 
-static void CameraBuildSidePlane(RwFrustumPlane* frustumPlane,
+#define rwCameraStoreNearestCorner(frustumPlane)                              \
+    do {                                                                      \
+        (frustumPlane)->closestX =                                            \
+            rwCameraNearestAxisValue((frustumPlane)->plane.normal.x);         \
+        (frustumPlane)->closestY =                                            \
+            rwCameraNearestAxisValue((frustumPlane)->plane.normal.y);         \
+        (frustumPlane)->closestZ =                                            \
+            rwCameraNearestAxisValue((frustumPlane)->plane.normal.z);         \
+    } while (0)
+
+static void rwCameraBuildNormalizedSidePlane(RwFrustumPlane* frustumPlane,
                                  const RwV3d* point, const RwV3d* first,
                                  const RwV3d* origin, const RwV3d* second)
 {
@@ -55,7 +59,7 @@ static void CameraBuildSidePlane(RwFrustumPlane* frustumPlane,
     frustumPlane->plane.distance = point->x * frustumPlane->plane.normal.x +
                                    point->y * frustumPlane->plane.normal.y +
                                    point->z * frustumPlane->plane.normal.z;
-    CameraSetClosestVertex(frustumPlane);
+    rwCameraStoreNearestCorner(frustumPlane);
 }
 
 static void CameraUpdateZShiftScale(RwCamera* camera)
@@ -158,7 +162,7 @@ static void CameraBuildPerspClipPlanes(RwCamera* camera)
         corners[4].x * planes[0].plane.normal.x +
         corners[4].y * planes[0].plane.normal.y +
         corners[4].z * planes[0].plane.normal.z;
-    CameraSetClosestVertex(&planes[0]);
+    rwCameraStoreNearestCorner(&planes[0]);
     planes[1].plane.normal.x = -planes[0].plane.normal.x;
     planes[1].plane.normal.y = -planes[0].plane.normal.y;
     planes[1].plane.normal.z = -planes[0].plane.normal.z;
@@ -166,15 +170,15 @@ static void CameraBuildPerspClipPlanes(RwCamera* camera)
         corners[0].x * planes[1].plane.normal.x +
         corners[0].y * planes[1].plane.normal.y +
         corners[0].z * planes[1].plane.normal.z;
-    CameraSetClosestVertex(&planes[1]);
+    rwCameraStoreNearestCorner(&planes[1]);
 
-    CameraBuildSidePlane(&planes[2], &corners[1], &corners[1], &corners[5],
+    rwCameraBuildNormalizedSidePlane(&planes[2], &corners[1], &corners[1], &corners[5],
                          &corners[6]);
-    CameraBuildSidePlane(&planes[3], &corners[1], &corners[4], &corners[5],
+    rwCameraBuildNormalizedSidePlane(&planes[3], &corners[1], &corners[4], &corners[5],
                          &corners[1]);
-    CameraBuildSidePlane(&planes[4], &corners[3], &corners[3], &corners[7],
+    rwCameraBuildNormalizedSidePlane(&planes[4], &corners[3], &corners[3], &corners[7],
                          &corners[4]);
-    CameraBuildSidePlane(&planes[5], &corners[3], &corners[6], &corners[7],
+    rwCameraBuildNormalizedSidePlane(&planes[5], &corners[3], &corners[6], &corners[7],
                          &corners[3]);
 }
 
@@ -227,6 +231,7 @@ static RwCamera* CameraBuildPerspViewMatrix(RwCamera* camera)
     return camera;
 }
 
+/* Builds the orthographic camera's transformed corners and clipping planes. */
 static void CameraBuildParallelClipPlanes(RwCamera* camera)
 {
     const RwMatrix* ltm = &((RwFrame*)camera->object.object.parent)->ltm;
@@ -236,19 +241,22 @@ static void CameraBuildParallelClipPlanes(RwCamera* camera)
     float farX = (1.0f - camera->farPlane) * -camera->viewOffset.x;
     float nearY = (1.0f - camera->nearPlane) * camera->viewOffset.y;
     float farY = (1.0f - camera->farPlane) * camera->viewOffset.y;
+    RwV3d edgeA;
+    RwV3d edgeB;
+    float invLength;
 
-    corners[0].x = corners[2].x = camera->viewWindow.x + nearX;
-    corners[1].x = corners[3].x = -camera->viewWindow.x + nearX;
-    corners[4].x = corners[6].x = camera->viewWindow.x + farX;
-    corners[5].x = corners[7].x = -camera->viewWindow.x + farX;
-    corners[0].y = corners[1].y = camera->viewWindow.y + nearY;
-    corners[2].y = corners[3].y = -camera->viewWindow.y + nearY;
-    corners[4].y = corners[5].y = camera->viewWindow.y + farY;
-    corners[6].y = corners[7].y = -camera->viewWindow.y + farY;
     corners[0].z = corners[1].z = corners[2].z = corners[3].z =
         camera->nearPlane;
     corners[4].z = corners[5].z = corners[6].z = corners[7].z =
         camera->farPlane;
+    corners[0].x = corners[3].x = camera->viewWindow.x + nearX;
+    corners[1].x = corners[2].x = -camera->viewWindow.x + nearX;
+    corners[4].x = corners[7].x = camera->viewWindow.x + farX;
+    corners[5].x = corners[6].x = -camera->viewWindow.x + farX;
+    corners[0].y = corners[1].y = camera->viewWindow.y + nearY;
+    corners[2].y = corners[3].y = -camera->viewWindow.y + nearY;
+    corners[4].y = corners[5].y = camera->viewWindow.y + farY;
+    corners[6].y = corners[7].y = -camera->viewWindow.y + farY;
     RwV3dTransformPoints(corners, corners, 8, ltm);
 
     planes[0].plane.normal = ltm->at;
@@ -256,7 +264,7 @@ static void CameraBuildParallelClipPlanes(RwCamera* camera)
         corners[4].x * planes[0].plane.normal.x +
         corners[4].y * planes[0].plane.normal.y +
         corners[4].z * planes[0].plane.normal.z;
-    CameraSetClosestVertex(&planes[0]);
+    rwCameraStoreNearestCorner(&planes[0]);
     planes[1].plane.normal.x = -planes[0].plane.normal.x;
     planes[1].plane.normal.y = -planes[0].plane.normal.y;
     planes[1].plane.normal.z = -planes[0].plane.normal.z;
@@ -264,12 +272,55 @@ static void CameraBuildParallelClipPlanes(RwCamera* camera)
         corners[0].x * planes[1].plane.normal.x +
         corners[0].y * planes[1].plane.normal.y +
         corners[0].z * planes[1].plane.normal.z;
-    CameraSetClosestVertex(&planes[1]);
+    rwCameraStoreNearestCorner(&planes[1]);
 
-    CameraBuildSidePlane(&planes[2], &corners[1], &corners[1], &corners[5],
-                         &corners[6]);
-    CameraBuildSidePlane(&planes[3], &corners[1], &corners[4], &corners[5],
-                         &corners[1]);
+    edgeA.x = corners[1].x - corners[5].x;
+    edgeA.y = corners[1].y - corners[5].y;
+    edgeA.z = corners[1].z - corners[5].z;
+    edgeB.x = corners[6].x - corners[5].x;
+    edgeB.y = corners[6].y - corners[5].y;
+    edgeB.z = corners[6].z - corners[5].z;
+    planes[2].plane.normal.x = edgeA.y * edgeB.z - edgeA.z * edgeB.y;
+    planes[2].plane.normal.y = edgeA.z * edgeB.x - edgeA.x * edgeB.z;
+    planes[2].plane.normal.z = edgeA.x * edgeB.y - edgeA.y * edgeB.x;
+    invLength = _rwInvSqrt(planes[2].plane.normal.x *
+                               planes[2].plane.normal.x +
+                           planes[2].plane.normal.y *
+                               planes[2].plane.normal.y +
+                           planes[2].plane.normal.z *
+                               planes[2].plane.normal.z);
+    planes[2].plane.normal.x *= invLength;
+    planes[2].plane.normal.y *= invLength;
+    planes[2].plane.normal.z *= invLength;
+    planes[2].plane.distance =
+        corners[1].x * planes[2].plane.normal.x +
+        corners[1].y * planes[2].plane.normal.y +
+        corners[1].z * planes[2].plane.normal.z;
+    rwCameraStoreNearestCorner(&planes[2]);
+
+    edgeA.x = corners[4].x - corners[5].x;
+    edgeA.y = corners[4].y - corners[5].y;
+    edgeA.z = corners[4].z - corners[5].z;
+    edgeB.x = corners[1].x - corners[5].x;
+    edgeB.y = corners[1].y - corners[5].y;
+    edgeB.z = corners[1].z - corners[5].z;
+    planes[3].plane.normal.x = edgeA.y * edgeB.z - edgeA.z * edgeB.y;
+    planes[3].plane.normal.y = edgeA.z * edgeB.x - edgeA.x * edgeB.z;
+    planes[3].plane.normal.z = edgeA.x * edgeB.y - edgeA.y * edgeB.x;
+    invLength = _rwInvSqrt(planes[3].plane.normal.x *
+                               planes[3].plane.normal.x +
+                           planes[3].plane.normal.y *
+                               planes[3].plane.normal.y +
+                           planes[3].plane.normal.z *
+                               planes[3].plane.normal.z);
+    planes[3].plane.normal.x *= invLength;
+    planes[3].plane.normal.y *= invLength;
+    planes[3].plane.normal.z *= invLength;
+    planes[3].plane.distance =
+        corners[1].x * planes[3].plane.normal.x +
+        corners[1].y * planes[3].plane.normal.y +
+        corners[1].z * planes[3].plane.normal.z;
+    rwCameraStoreNearestCorner(&planes[3]);
     planes[4].plane.normal.x = -planes[2].plane.normal.x;
     planes[4].plane.normal.y = -planes[2].plane.normal.y;
     planes[4].plane.normal.z = -planes[2].plane.normal.z;
@@ -277,7 +328,7 @@ static void CameraBuildParallelClipPlanes(RwCamera* camera)
         corners[3].x * planes[4].plane.normal.x +
         corners[3].y * planes[4].plane.normal.y +
         corners[3].z * planes[4].plane.normal.z;
-    CameraSetClosestVertex(&planes[4]);
+    rwCameraStoreNearestCorner(&planes[4]);
     planes[5].plane.normal.x = -planes[3].plane.normal.x;
     planes[5].plane.normal.y = -planes[3].plane.normal.y;
     planes[5].plane.normal.z = -planes[3].plane.normal.z;
@@ -285,7 +336,7 @@ static void CameraBuildParallelClipPlanes(RwCamera* camera)
         corners[3].x * planes[5].plane.normal.x +
         corners[3].y * planes[5].plane.normal.y +
         corners[3].z * planes[5].plane.normal.z;
-    CameraSetClosestVertex(&planes[5]);
+    rwCameraStoreNearestCorner(&planes[5]);
 }
 
 static RwCamera* CameraBuildParallelViewMatrix(RwCamera* camera)
@@ -354,7 +405,7 @@ static RwObjectHasFrame* CameraSync(RwObjectHasFrame* object)
 
 static RwCamera* CameraEndUpdate(RwCamera* camera)
 {
-    RwCameraDeviceCall endUpdate = RWENGINESTANDARD(RwCameraDeviceCall, rwSTANDARDCAMERAENDUPDATE);
+    RwCameraDeviceCall endUpdate = rwEngineStandardCall(RwCameraDeviceCall, rwSTANDARDCAMERAENDUPDATE);
 
     if (endUpdate(0, camera, 0)) {
         RwEngineInstance->curCamera = 0;
@@ -369,7 +420,7 @@ static RwCamera* CameraBeginUpdate(RwCamera* camera)
 
     RwEngineInstance->curCamera = camera;
     _rwFrameSyncDirty();
-    beginUpdate = RWENGINESTANDARD(RwCameraDeviceCall, rwSTANDARDCAMERABEGINUPDATE);
+    beginUpdate = rwEngineStandardCall(RwCameraDeviceCall, rwSTANDARDCAMERABEGINUPDATE);
     if (beginUpdate(0, camera, 0)) {
         _rwPipeInitForCamera(camera);
         return camera;
@@ -472,7 +523,7 @@ int RwCameraFrustumTestSphere(const RwCamera* camera,
 
 RwCamera* RwCameraClear(RwCamera* camera, RwRGBA* color, int clearMode)
 {
-    RwCameraClearCall clear = RWENGINESTANDARD(RwCameraClearCall, rwSTANDARDCAMERACLEAR);
+    RwCameraClearCall clear = rwEngineStandardCall(RwCameraClearCall, rwSTANDARDCAMERACLEAR);
 
     if (clear(camera, color, clearMode)) {
         return camera;
@@ -491,6 +542,7 @@ RwCamera* RwCameraShowRaster(RwCamera* camera, void* device, unsigned int flags)
 RwCamera* RwCameraSetProjection(RwCamera* camera,
                                 int projection)
 {
+    /* Select a valid projection mode and refresh dependent camera state. */
     switch (projection) {
     case 1:
     case 2: {
@@ -520,6 +572,7 @@ RwCamera* RwCameraSetProjection(RwCamera* camera,
 RwCamera* RwCameraSetViewWindow(RwCamera* camera,
                                 const RwV2d* viewWindow)
 {
+    /* Update the projection window and invalidate the attached frame. */
     RwFrame* frame;
 
     camera->viewWindow = *viewWindow;

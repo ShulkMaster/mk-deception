@@ -17,6 +17,14 @@ typedef union SpecularMaterialFlags {
         unsigned char value;
         unsigned char field_0x01[3];
     } raw;
+    /* GQNE5D skin rendering reads these two signed one-bit fields. */
+    struct {
+        signed char hidden : 1;
+        signed char reserved_1_3 : 3;
+        signed char deferred : 1;
+        signed char reserved_5_7 : 3;
+        unsigned char field_0x01[3];
+    } skinRender;
 } SpecularMaterialFlags;
 
 typedef struct SpecularMaterialPluginData {

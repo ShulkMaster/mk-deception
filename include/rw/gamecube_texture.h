@@ -33,14 +33,15 @@ typedef char RwGameCubeRasterExtSizeCheck[
 
 int _rwDlTextureSetRaster(void* texture, void* raster, int unused);
 
-static inline RwGameCubeTextureExt* RwGameCubeTextureExtension(
+/* Repository-local views of the runtime plugin storage. */
+static inline RwGameCubeTextureExt* rwTexturePlatformData(
     RwTexture* texture)
 {
     return (RwGameCubeTextureExt*)((unsigned char*)texture +
                                    _RwGameCubeTextureExtOffset);
 }
 
-static inline RwGameCubeRasterExt* RwGameCubeRasterExtension(RwRaster* raster)
+static inline RwGameCubeRasterExt* rwRasterPlatformData(RwRaster* raster)
 {
     return (RwGameCubeRasterExt*)((unsigned char*)raster +
                                   _RwGameCubeRasterExtOffset);
