@@ -340,7 +340,7 @@ RpGeometry* RpGeometryCreate(int numVertices, int numTriangles,
 
     geometry->morphTarget = 0;
     geometry->numMorphTargets = 0;
-    rwObjectInitialize(geometry, 8, 0);
+    rwInitializeObjectHeader(geometry, 8, 0);
     geometry->repEntry = 0;
     geometry->lockedSinceLastInst = 0;
     geometry->refCount = 1;

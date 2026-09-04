@@ -31,6 +31,10 @@ void *_rwStreamModuleClose(void *instance, int offset, int size) {
   return instance;
 }
 
+/*
+ * Soft ceiling: retail homes file at stack +8 before tell(); the clean pointer
+ * parameter emits the same operations without that redundant store/reload.
+ */
 static RwStream *StreamFileInitialize(RwStream *stream, void *file) {
   if (RwEngineInstance->fileFuncs.tell(file) == -1)
     return 0;
@@ -41,6 +45,7 @@ static RwStream *StreamFileInitialize(RwStream *stream, void *file) {
 static RwStream *StreamFileNameInitialize(RwStream *stream,
                                           RwStreamAccessType access,
                                           const char *name) {
+  /* Soft ceiling: retail homes name at stack +0xC before loading it into r30. */
   RwStream *result = 0;
   void *file = 0;
   switch (access) {
@@ -75,6 +80,7 @@ static RwStream *StreamFileNameInitialize(RwStream *stream,
 static RwStream *StreamMemoryInitialize(RwStream *stream,
                                         RwStreamAccessType access,
                                         RwMemory *memory) {
+  /* Soft ceiling: retail homes memory at stack +0xC before loading it into r30. */
   RwStream *result = 0;
   switch (access) {
   case 1:

@@ -14,10 +14,10 @@ typedef struct RwIm3DVertex {
     union {
         unsigned int color;
         struct {
-            unsigned char red;
-            unsigned char green;
-            unsigned char blue;
-            unsigned char alpha;
+            char red;
+            char green;
+            char blue;
+            char alpha;
         } color_channels;
     };
     RwV2d texCoords;

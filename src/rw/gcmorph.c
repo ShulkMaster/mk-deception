@@ -11,6 +11,8 @@ static unsigned int interpGQR6;
 static void _rwDlV3dInterpPosGQRSetup(const RpGameCubeVtxFmt* format,
                                      int* elementSize)
 {
+    /* TODO: Retail programs GQR6; the portable interpolator records the same
+     * format information in interpGQR6 instead. */
     unsigned int value = 0;
 
     if (format != 0) {
@@ -30,6 +32,8 @@ static void _rwDlV3dInterpNormGQRSetup(const RpGameCubeVtxFmt* format,
                                       int* elementSize,
                                       int* extraSize)
 {
+    /* TODO: Retail programs GQR6; the portable interpolator records the same
+     * format information in interpGQR6 instead. */
     unsigned int value = 0;
     int extra;
 
@@ -54,7 +58,7 @@ static void _rwDlV3dInterpNormGQRSetup(const RpGameCubeVtxFmt* format,
     interpGQR6 = value;
 }
 
-static int ClampQuantized(float value, int minimum,
+static int rwClampQuantizedComponent(float value, int minimum,
                               int maximum)
 {
     if (value < (float)minimum)
@@ -70,10 +74,9 @@ static void _rwDlV3dInterp(void* destination, const RwV3d* source,
                            unsigned int destinationElementSize,
                            int extraSize)
 {
-
-
-
-
+    /* TODO: Retail vectorizes this interpolation with paired-single quantized
+     * loads/stores. Keep this scalar implementation as the semantic near miss
+     * until those instructions have a supported C lowering. */
     unsigned char* output = destination;
     unsigned int type = interpGQR6 & 7;
     unsigned int fraction = (interpGQR6 >> 8) & 0x3F;
@@ -92,19 +95,19 @@ static void _rwDlV3dInterp(void* destination, const RwV3d* source,
             switch (type) {
             case 4:
                 *(unsigned char*)output =
-                    ClampQuantized(value * scale, 0, 0xFF);
+                    rwClampQuantizedComponent(value * scale, 0, 0xFF);
                 break;
             case 6:
                 *(signed char*)output =
-                    ClampQuantized(value * scale, -0x80, 0x7F);
+                    rwClampQuantizedComponent(value * scale, -0x80, 0x7F);
                 break;
             case 5:
                 *(unsigned short*)output =
-                    ClampQuantized(value * scale, 0, 0xFFFF);
+                    rwClampQuantizedComponent(value * scale, 0, 0xFFFF);
                 break;
             case 7:
                 *(short*)output =
-                    ClampQuantized(value * scale, -0x8000, 0x7FFF);
+                    rwClampQuantizedComponent(value * scale, -0x8000, 0x7FFF);
                 break;
             default:
                 *(float*)output = value;

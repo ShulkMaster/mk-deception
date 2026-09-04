@@ -17,13 +17,15 @@ typedef struct RwVectorGlobals {
 
 static RwModuleInfo vectorModule;
 
+/* Releases the module's square-root lookup table, if it was created. */
 static void SqrtTableDestroy(void) {
-    RwVectorGlobals* globals = (RwVectorGlobals*)((unsigned char*)RwEngineInstance +
-                                                 vectorModule.globalsOffset);
-
-    if (globals->sqrtTable != 0) {
-        RwEngineInstance->fpFree(globals->sqrtTable);
-        globals->sqrtTable = 0;
+    if (((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                           vectorModule.globalsOffset))->sqrtTable != 0) {
+        RwEngineInstance->fpFree(
+            ((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                                vectorModule.globalsOffset))->sqrtTable);
+        ((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                            vectorModule.globalsOffset))->sqrtTable = 0;
     }
 }
 
@@ -63,13 +65,15 @@ static int SqrtTableCreate(void) {
     return 1;
 }
 
+/* Releases the module's inverse-square-root table, if it was created. */
 static void InvSqrtTableDestroy(void) {
-    RwVectorGlobals* globals = (RwVectorGlobals*)((unsigned char*)RwEngineInstance +
-                                                 vectorModule.globalsOffset);
-
-    if (globals->invSqrtTable != 0) {
-        RwEngineInstance->fpFree(globals->invSqrtTable);
-        globals->invSqrtTable = 0;
+    if (((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                           vectorModule.globalsOffset))->invSqrtTable != 0) {
+        RwEngineInstance->fpFree(
+            ((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                                vectorModule.globalsOffset))->invSqrtTable);
+        ((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                            vectorModule.globalsOffset))->invSqrtTable = 0;
     }
 }
 
@@ -109,13 +113,14 @@ static int InvSqrtTableCreate(void) {
     return 1;
 }
 
+/* Approximates square root through the module's precomputed bit table. */
 float _rwSqrt(float value) {
-    RwVectorGlobals* globals = (RwVectorGlobals*)((unsigned char*)RwEngineInstance +
-                                                 vectorModule.globalsOffset);
     RwRealBits result;
     result.value = value;
     if (result.bits != 0) {
-        unsigned int* table = globals->sqrtTable;
+        unsigned int* table =
+            ((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                                vectorModule.globalsOffset))->sqrtTable;
         result.bits += 0x800;
         result.bits = ((result.bits & 0x7F800000) >> 1) +
             table[(result.bits & 0x00FFFFFF) >> 12];
@@ -123,13 +128,14 @@ float _rwSqrt(float value) {
     return result.value;
 }
 
+/* Approximates inverse square root through its precomputed bit table. */
 float _rwInvSqrt(float value) {
-    RwVectorGlobals* globals = (RwVectorGlobals*)((unsigned char*)RwEngineInstance +
-                                                 vectorModule.globalsOffset);
     RwRealBits result;
     result.value = value;
     if (result.bits != 0) {
-        unsigned int* table = globals->invSqrtTable;
+        unsigned int* table =
+            ((RwVectorGlobals*)((unsigned char*)RwEngineInstance +
+                                vectorModule.globalsOffset))->invSqrtTable;
         result.bits += 0x800;
         result.bits = ((~result.bits & 0x7F800000) >> 1) +
             table[(result.bits & 0x00FFFFFF) >> 12];
@@ -146,6 +152,8 @@ float _rwInvSqrt(float value) {
 
 RwV3d* RwV3dTransformPoint(RwV3d* pointOut, const RwV3d* pointIn,
                            const RwMatrix* matrix) {
+    /* TODO: Retail uses a paired-single matrix kernel; this is its portable
+     * scalar semantic implementation. */
     float x = pointIn->x;
     float y = pointIn->y;
     float z = pointIn->z;
@@ -160,6 +168,8 @@ RwV3d* RwV3dTransformPoint(RwV3d* pointOut, const RwV3d* pointIn,
 
 RwV3d* RwV3dTransformPoints(RwV3d* pointsOut, const RwV3d* pointsIn,
                             int numPoints, const RwMatrix* matrix) {
+    /* TODO: Retail uses a paired-single batched matrix kernel; this is its
+     * portable scalar semantic implementation. */
     RwV3d* result = pointsOut;
     do {
         float x = pointsIn->x;
@@ -179,6 +189,8 @@ RwV3d* RwV3dTransformPoints(RwV3d* pointsOut, const RwV3d* pointsIn,
 
 RwV3d* RwV3dTransformVector(RwV3d* vectorOut, const RwV3d* vectorIn,
                             const RwMatrix* matrix) {
+    /* TODO: Retail uses a paired-single matrix kernel; this is its portable
+     * scalar semantic implementation. */
     float x = vectorIn->x;
     float y = vectorIn->y;
     float z = vectorIn->z;

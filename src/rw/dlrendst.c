@@ -23,10 +23,10 @@ static int _rwDlRenderStateFogDensity(float density);
 static int _rwDlRenderStateTextureAddress(int address);
 static int _rwDlRenderStateTextureAddressU(int address);
 static int _rwDlRenderStateTextureAddressV(int address);
-static int _rwDlRenderStateTextureFilter(unsigned char filter);
+static int _rwDlRenderStateTextureFilter(int filter);
 static int _rwDlRenderStateTextureRaster(RwRaster* raster);
-static int _rwDlRenderStateZWriteEnable(unsigned int enable);
-static int _rwDlRenderStateZTestEnable(unsigned int enable);
+static int _rwDlRenderStateZWriteEnable(int enable);
+static int _rwDlRenderStateZTestEnable(int enable);
 static int _rwDlRenderStateSrcBlend(int blend);
 static int _rwDlRenderStateDstBlend(int blend);
 static int _rwDlRenderStateCullMode(int cullMode);
@@ -91,10 +91,8 @@ void _rwDlRenderStateOpen(void)
 
     _rwDlTextureCacheInit();
     _RwDlTexture = RwTextureCreate(0);
-    _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFFFF00) | 2;
-    _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFF00FF) | 0x1100;
+    rwTextureWriteFilterMode(_RwDlTexture, 2);
+    rwTextureWriteAddressModes(_RwDlTexture, 1);
     _RwDlRasterWhite = RwRasterCreate(4, 4, 16, 0x204);
     pixels = RwRasterLock(_RwDlRasterWhite, 0, 9);
     memset(pixels, 0xFF, 0x20);
@@ -110,6 +108,7 @@ void _rwDlRenderStateClose(void)
     _RwDlTexture = 0;
 }
 
+/* Return the cached or active texture value for a RenderWare render state. */
 int _rwDlGetRenderState(int state, void* value)
 {
 
@@ -118,36 +117,41 @@ int _rwDlGetRenderState(int state, void* value)
 
 
     switch (state) {
-    case 1:
-        *(RwRaster**)value = _RwDlTexture->raster;
+    case 14:
+        *(int*)value = _RwDlStateCache.fogEnable;
         return 1;
+    case 16:
+        *(int*)value = _RwDlStateCache.fogType;
+        return 1;
+    case 15:
+        *(unsigned int*)value = _RwDlStateCache.fogColor;
+        return 1;
+    case 17:
+        return 0;
     case 2:
-        if (((_RwDlTexture->filter_flags >> 8) & 0xF) ==
-            ((_RwDlTexture->filter_flags >> 12) & 0xF)) {
-            *(int*)value = (_RwDlTexture->filter_flags >> 8) & 0xF;
+        if ((int)((_RwDlTexture->filter_flags & 0xF00U) >> 8) ==
+            (int)((_RwDlTexture->filter_flags & 0xF000U) >> 12)) {
+            *(int*)value = (_RwDlTexture->filter_flags & 0xF00U) >> 8;
             return 1;
         }
         return 0;
     case 3:
-        *(int*)value = (_RwDlTexture->filter_flags >> 8) & 0xF;
+        *(int*)value = (_RwDlTexture->filter_flags & 0xF00U) >> 8;
         return 1;
     case 4:
-        *(int*)value = (_RwDlTexture->filter_flags >> 12) & 0xF;
+        *(int*)value = (_RwDlTexture->filter_flags & 0xF000U) >> 12;
         return 1;
-    case 5:
-        *(int*)value = 1;
+    case 9:
+        *(int*)value = (unsigned char)_RwDlTexture->filter_flags;
         return 1;
-    case 6:
-        *(int*)value = _RwDlStateCache.zTestEnable;
-        return 1;
-    case 7:
-        *(int*)value = 2;
+    case 1:
+        *(RwRaster**)value = _RwDlTexture->raster;
         return 1;
     case 8:
         *(int*)value = _RwDlStateCache.zWriteEnable;
         return 1;
-    case 9:
-        *(int*)value = (unsigned char)_RwDlTexture->filter_flags;
+    case 6:
+        *(int*)value = _RwDlStateCache.zTestEnable;
         return 1;
     case 10:
         *(int*)value = _RwDlStateCache.srcBlend;
@@ -155,17 +159,14 @@ int _rwDlGetRenderState(int state, void* value)
     case 11:
         *(int*)value = _RwDlStateCache.dstBlend;
         return 1;
-    case 14:
-        *(int*)value = _RwDlStateCache.fogEnable;
+    case 7:
+        *(int*)value = 2;
         return 1;
-    case 15:
-        *(unsigned int*)value = _RwDlStateCache.fogColor;
-        return 1;
-    case 16:
-        *(int*)value = _RwDlStateCache.fogType;
-        return 1;
-    case 17:
+    case 13:
         return 0;
+    case 5:
+        *(int*)value = 1;
+        return 1;
     case 20:
         *(int*)value = _RwDlStateCache.cullMode;
         return 1;
@@ -185,7 +186,9 @@ int _rwDlGetRenderState(int state, void* value)
     }
 }
 
-int _rwDlRenderStateFogEnable(unsigned int enable)
+/* Enable or disable cached GameCube fog state. */
+/* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR saves. */
+int _rwDlRenderStateFogEnable(int enable)
 {
     if (enable != 0) {
         if (_RwDlStateCache.fogEnable == 0) {
@@ -213,11 +216,13 @@ int _rwDlRenderStateFogEnable(unsigned int enable)
 
 static int _rwDlRenderStateFogColor(unsigned int color)
 {
+    /* Update packed fog color and immediately synchronize GX fog state. */
+    /* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR saves. */
     if (color != _RwDlStateCache.fogColor) {
         RwCamera* camera = (RwCamera*)RwEngineInstance->curCamera;
         _RwDlStateCache.gxFogColor.a = (unsigned char)(color >> 24);
-        _RwDlStateCache.gxFogColor.r = (unsigned char)(color >> 16);
-        _RwDlStateCache.gxFogColor.g = (unsigned char)(color >> 8);
+        _RwDlStateCache.gxFogColor.r = (color >> 16) & 0xFF;
+        _RwDlStateCache.gxFogColor.g = (color >> 8) & 0xFF;
         _RwDlStateCache.gxFogColor.b = (unsigned char)color;
         GXSetFog(_RwDlFogConvTable[_RwDlStateCache.fogType],
                  camera->fogPlane, camera->farPlane, camera->nearPlane,
@@ -229,6 +234,8 @@ static int _rwDlRenderStateFogColor(unsigned int color)
 
 static int _rwDlRenderStateFogType(int type)
 {
+    /* Validate and apply the supported RenderWare fog mode to GX. */
+    /* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR saves. */
     if (type != _RwDlStateCache.fogType) {
         RwCamera* camera;
         if (type != 1)
@@ -247,44 +254,41 @@ static int _rwDlRenderStateFogDensity(float density)
     return 0;
 }
 
+/* Apply one addressing mode to both texture axes. */
 static int _rwDlRenderStateTextureAddress(int address)
 {
 
     if (address == 4)
         return 0;
-    _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFF00FF) |
-        ((address << 8) & 0xF00) | ((address << 12) & 0xF000);
+    rwTextureWriteAddressModes(_RwDlTexture, address);
     return 1;
 }
 
+/* Apply the texture addressing mode to the U axis. */
 static int _rwDlRenderStateTextureAddressU(int address)
 {
 
     if (address == 4)
         return 0;
-    _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFFF0FF) |
-        ((address << 8) & 0xF00);
+    rwTextureWriteAddressU(_RwDlTexture, address);
     return 1;
 }
 
+/* Apply the texture addressing mode to the V axis. */
 static int _rwDlRenderStateTextureAddressV(int address)
 {
 
     if (address == 4)
         return 0;
-    _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFF0FFF) |
-        ((address << 12) & 0xF000);
+    rwTextureWriteAddressV(_RwDlTexture, address);
     return 1;
 }
 
-static int _rwDlRenderStateTextureFilter(unsigned char filter)
+/* Update the active texture's minification/magnification filter mode. */
+static int _rwDlRenderStateTextureFilter(int filter)
 {
 
-    _RwDlTexture->filter_flags =
-        (_RwDlTexture->filter_flags & 0xFFFFFF00) | filter;
+    rwTextureWriteFilterMode(_RwDlTexture, filter);
     return 1;
 }
 
@@ -313,19 +317,27 @@ void _rwDlRenderStateSetZCompLoc(int beforeTexture)
     }
 }
 
+/* Flush the active raster and update whether depth compare precedes texturing. */
 void _rwDlTextureRasterFlush(void)
 {
     if (_RwDlTexture->raster != 0) {
         RwGameCubeRasterExt* rasterExt;
         int beforeTexture;
+
         _rwDlTextureSet(_RwDlTexture, 0);
-        rasterExt = RwGameCubeRasterExtension(_RwDlTexture->raster);
-        beforeTexture = (rasterExt->hasAlpha & 1) == 0;
+        rasterExt = (RwGameCubeRasterExt*)(
+            (unsigned char*)_RwDlTexture->raster +
+            _RwGameCubeRasterExtOffset);
+        if ((rasterExt->hasAlpha & 1) != 0)
+            beforeTexture = 0;
+        else
+            beforeTexture = 1;
         _rwDlRenderStateSetZCompLoc(beforeTexture);
     }
 }
 
-static int _rwDlRenderStateZWriteEnable(unsigned int enable)
+/* Apply cached depth-write state to GX when it changes. */
+static int _rwDlRenderStateZWriteEnable(int enable)
 {
     if (enable != 0) {
         if (_RwDlStateCache.zWriteEnable == 0) {
@@ -339,7 +351,8 @@ static int _rwDlRenderStateZWriteEnable(unsigned int enable)
     return 1;
 }
 
-static int _rwDlRenderStateZTestEnable(unsigned int enable)
+/* Apply cached depth-test state and its GX compare function. */
+static int _rwDlRenderStateZTestEnable(int enable)
 {
     if (enable != 0) {
         if (_RwDlStateCache.zTestEnable == 0) {
@@ -357,32 +370,69 @@ static int _rwDlRenderStateZTestEnable(unsigned int enable)
 
 void _rwDlSetRenderStateSrcDestBlend(int source, int destination)
 {
-    GXSetBlendMode(1, _RwDlBlendConvTable[source],
-                   _RwDlBlendConvTable[destination], 0);
+    int sourceBlend = _RwDlBlendConvTable[source];
+    int destinationBlend = _RwDlBlendConvTable[destination];
+
+    /* Convert RenderWare blend modes and apply both GX factors together. */
+    GXSetBlendMode(1, sourceBlend, destinationBlend, 0);
 }
 
 static int _rwDlRenderStateSrcBlend(int blend)
 {
+    /* Validate and translate a RenderWare source-blend mode for GX. */
+    /* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR saves. */
     if (blend != _RwDlStateCache.srcBlend) {
-        if (!((blend >= 1 && blend < 3) ||
-              (blend >= 5 && blend < 11))) {
+        int sourceBlend;
+        int destinationBlend;
+
+        switch (blend) {
+        case 1:
+        case 2:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+            sourceBlend = _RwDlBlendConvTable[blend];
+            destinationBlend = _RwDlBlendConvTable[_RwDlStateCache.dstBlend];
+            GXSetBlendMode(1, sourceBlend, destinationBlend, 0);
+            _RwDlStateCache.srcBlend = blend;
+            break;
+        case 11:
+        default:
             return 0;
         }
-        GXSetBlendMode(1, _RwDlBlendConvTable[blend],
-                       _RwDlBlendConvTable[_RwDlStateCache.dstBlend], 0);
-        _RwDlStateCache.srcBlend = blend;
     }
     return 1;
 }
 
 static int _rwDlRenderStateDstBlend(int blend)
 {
+    /* Validate and translate a RenderWare destination-blend mode for GX. */
+    /* TODO: Recover retail's validation block order; its GPR saves use helpers. */
     if (blend != _RwDlStateCache.dstBlend) {
-        if (blend < 1 || blend >= 9)
+        int sourceBlend;
+        int destinationBlend;
+
+        switch (blend) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            sourceBlend = _RwDlBlendConvTable[_RwDlStateCache.srcBlend];
+            destinationBlend = _RwDlBlendConvTable[blend];
+            GXSetBlendMode(1, sourceBlend, destinationBlend, 0);
+            _RwDlStateCache.dstBlend = blend;
+            break;
+        case 12:
+        default:
             return 0;
-        GXSetBlendMode(1, _RwDlBlendConvTable[_RwDlStateCache.srcBlend],
-                       _RwDlBlendConvTable[blend], 0);
-        _RwDlStateCache.dstBlend = blend;
+        }
     }
     return 1;
 }
@@ -434,6 +484,8 @@ static int rwDlRenderStateAlphaTestFunctionRef(int reference)
     return 1;
 }
 
+/* Dispatch a RenderWare render-state update to the GameCube state cache. */
+/* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR saves. */
 int _rwDlSetRenderState(int state, void* value)
 {
 
@@ -444,8 +496,17 @@ int _rwDlSetRenderState(int state, void* value)
     int result = 0;
 
     switch (state) {
-    case 1:
-        result = _rwDlRenderStateTextureRaster(value);
+    case 14:
+        result = _rwDlRenderStateFogEnable((int)value);
+        break;
+    case 15:
+        result = _rwDlRenderStateFogColor((unsigned int)value);
+        break;
+    case 16:
+        result = _rwDlRenderStateFogType((int)value);
+        break;
+    case 17:
+        result = _rwDlRenderStateFogDensity(*(float*)value);
         break;
     case 2:
         result = _rwDlRenderStateTextureAddress((int)value);
@@ -456,11 +517,23 @@ int _rwDlSetRenderState(int state, void* value)
     case 4:
         result = _rwDlRenderStateTextureAddressV((int)value);
         break;
-    case 5:
-        result = (int)value;
+    case 9:
+        result = _rwDlRenderStateTextureFilter((int)value);
+        break;
+    case 1:
+        result = _rwDlRenderStateTextureRaster(value);
+        break;
+    case 8:
+        result = _rwDlRenderStateZWriteEnable((int)value);
         break;
     case 6:
-        result = _rwDlRenderStateZTestEnable((unsigned int)value);
+        result = _rwDlRenderStateZTestEnable((int)value);
+        break;
+    case 10:
+        result = _rwDlRenderStateSrcBlend((int)value);
+        break;
+    case 11:
+        result = _rwDlRenderStateDstBlend((int)value);
         break;
     case 7:
     {
@@ -472,32 +545,11 @@ int _rwDlSetRenderState(int state, void* value)
         result = supported;
         break;
     }
-    case 8:
-        result = _rwDlRenderStateZWriteEnable((unsigned int)value);
-        break;
-    case 9:
-        result = _rwDlRenderStateTextureFilter((unsigned char)value);
-        break;
-    case 10:
-        result = _rwDlRenderStateSrcBlend((int)value);
-        break;
-    case 11:
-        result = _rwDlRenderStateDstBlend((int)value);
-        break;
     case 13:
         result = 0;
         break;
-    case 14:
-        result = _rwDlRenderStateFogEnable((unsigned int)value);
-        break;
-    case 15:
-        result = _rwDlRenderStateFogColor((unsigned int)value);
-        break;
-    case 16:
-        result = _rwDlRenderStateFogType((int)value);
-        break;
-    case 17:
-        result = _rwDlRenderStateFogDensity(*(float*)value);
+    case 5:
+        result = (int)value;
         break;
     case 20:
         result = _rwDlRenderStateCullMode((int)value);

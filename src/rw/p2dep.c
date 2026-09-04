@@ -96,6 +96,7 @@ static rxReqEntry *_ReqAddEntry(rxReq *req, RxClusterDefinition *clusterDef,
   return entry;
 }
 
+/* Removes an entry by replacing it with the requirement array's tail. */
 static void _ReqDeleteEntry(rxReq *req, rxReqEntry *entry) {
 
 
@@ -579,6 +580,7 @@ _WriteHeadNodeRqdsAndOpts2PipelineRequirements(RxPipeline *pipeline) {
       sizeof(*pipeline->inputRequirements), 0, 0, (unsigned int)-1);
 }
 
+/* Materializes each discovered definition into the pipeline cluster array. */
 static void _MyEnumPipelineClustersCallBack(RxClusterDefinition *clusterDef,
                                             unsigned int index, void *data) {
 

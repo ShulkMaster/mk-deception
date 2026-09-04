@@ -244,6 +244,7 @@ static void *ImageGetScratchMem(int size) {
       ->scratchMemory;
 }
 
+/* Applies the image module's gamma table while preserving source alpha. */
 void _rwImageGammaCorrectArrayOfRGBA(RwRGBA *out, const RwRGBA *in,
                                      int count) {
   const unsigned char *table = ((RwImageGlobals *)((unsigned char *)RwEngineInstance +

@@ -43,7 +43,7 @@ static int _rwTextureFreeListPreallocBlocks = 1;
 static int _rwTexDictionaryFreeListBlockSize = 5;
 static int _rwTexDictionaryFreeListPreallocBlocks = 1;
 
-static RwTextureModuleGlobals* TextureGlobals(void)
+static RwTextureModuleGlobals* rwTextureModuleData(void)
 {
     return (RwTextureModuleGlobals*)((unsigned char*)RwEngineInstance +
                                      textureModule.globalsOffset);
@@ -378,9 +378,9 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
     }
 
     rasterFlags = 4;
-    if (TextureGlobals()->mipmapping != 0) {
+    if (rwTextureModuleData()->mipmapping != 0) {
         rasterFlags |= 0x8000;
-        if (TextureGlobals()->autoMipmapping != 0) {
+        if (rwTextureModuleData()->autoMipmapping != 0) {
             rasterFlags |= 0x1000;
         }
     }
@@ -509,7 +509,7 @@ static RwTexture* TextureDefaultMipmapRead(const char* name,
 static RwTexture* TextureDefaultRead(const char* name, const char* maskName) {
     RwTexture* texture;
 
-    if (TextureGlobals()->mipmapping != 0) {
+    if (rwTextureModuleData()->mipmapping != 0) {
         texture = TextureDefaultMipmapRead(name, maskName);
     } else {
         texture = TextureDefaultNormalRead(name, maskName);
@@ -728,7 +728,7 @@ int RwTextureGetAutoMipmapping(void) {
 
 RwTexture* RwTextureSetRaster(RwTexture* texture, RwRaster* raster) {
     if (raster != 0) {
-        if (RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDTEXTURESETRASTER)(texture, raster, 0) != 0) {
+        if (rwEngineStandardCall(RwRasterDeviceCall, rwSTANDARDTEXTURESETRASTER)(texture, raster, 0) != 0) {
             return texture;
         }
         return 0;

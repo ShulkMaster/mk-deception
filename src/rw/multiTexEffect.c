@@ -22,7 +22,7 @@ typedef struct RpMTEffectGlobals {
 
 extern RwModuleInfo _rpMultiTextureModule;
 
-static RpMTEffectGlobals* MultiTextureEffectGlobals(void)
+static RpMTEffectGlobals* rpMultiTextureEffectModuleData(void)
 {
     return (RpMTEffectGlobals*)((unsigned char*)RwEngineInstance +
                                 _rpMultiTextureModule.globalsOffset);
@@ -131,8 +131,8 @@ RpMTEffect* _rpMTEffectInit(RpMTEffect* effect, int type)
     effect->refCount = 1;
     effect->dictLink.prev = 0;
     effect->dictLink.next = 0;
-    if (type && MultiTextureEffectGlobals()->currentDictionary)
-        RpMTEffectDictAddEffect(MultiTextureEffectGlobals()->currentDictionary, effect);
+    if (type && rpMultiTextureEffectModuleData()->currentDictionary)
+        RpMTEffectDictAddEffect(rpMultiTextureEffectModuleData()->currentDictionary, effect);
     return effect;
 }
 
@@ -301,12 +301,12 @@ RpMTEffect* RpMTEffectFind(const char* name)
     RpMTEffect* effect = 0;
     char* path;
     RwStream* stream;
-    if (MultiTextureEffectGlobals()->currentDictionary) {
+    if (rpMultiTextureEffectModuleData()->currentDictionary) {
         effect = RpMTEffectDictFindNamedEffect(
-            MultiTextureEffectGlobals()->currentDictionary, name);
+            rpMultiTextureEffectModuleData()->currentDictionary, name);
     } else {
-        RwLLLink* link = MultiTextureEffectGlobals()->dictionaries.link.next;
-        while (link != &MultiTextureEffectGlobals()->dictionaries.link) {
+        RwLLLink* link = rpMultiTextureEffectModuleData()->dictionaries.link.next;
+        while (link != &rpMultiTextureEffectModuleData()->dictionaries.link) {
             RpMTEffectDict* dictionary = (RpMTEffectDict*)(
                 (unsigned char*)link - 8);
 
@@ -320,8 +320,8 @@ RpMTEffect* RpMTEffectFind(const char* name)
         RpMTEffectAddRef(effect);
         return effect;
     }
-    path = MultiTextureEffectGlobals()->scratchName;
-    RwEngineInstance->stringFuncs.strcpy(path, MultiTextureEffectGlobals()->scratch);
+    path = rpMultiTextureEffectModuleData()->scratchName;
+    RwEngineInstance->stringFuncs.strcpy(path, rpMultiTextureEffectModuleData()->scratch);
     RwEngineInstance->stringFuncs.strncat(path, name, 0x1F);
     stream = RwStreamOpen(rwSTREAMFILENAME, rwSTREAMREAD, path);
     if (!stream)

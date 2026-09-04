@@ -206,9 +206,10 @@ int RwResourcesSetArenaSize(unsigned int size) {
     }
     return 1;
 }
-
-
-
+/*
+ * Soft ceiling: one entriesA sentinel address rematerialization uses r0
+ * instead of retail's r4; the list operations and stores are identical.
+ */
 int RwResourcesEmptyArena(void) {
     RwLLLink* link;
     RwLLLink* end;

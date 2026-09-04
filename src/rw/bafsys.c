@@ -12,6 +12,7 @@ static int rwfexist(const char* name) {
     int exists;
 
     file = RwEngineInstance->fileFuncs.open(name, "rb");
+    /* Preserve the open result after closing a successfully opened file. */
     exists = file != 0;
 
     if (file != 0) {

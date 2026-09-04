@@ -49,7 +49,8 @@ void _rxGCResEntryWaitDone(RwResEntry* entry)
 void* _rxGCDefaultRenderCallback(
     void* object, RxGameCubeAtomicAllInOneInstanceData* instanceData)
 {
-    void* result;
+    /* TODO: Recheck MWCC stack/GPR allocation and callback-global evaluation.
+     * Retail behavior, branch structure, access widths, and call order agree. */
     RwGameCubeVertexBuffer* vertexBuffer;
     RwGameCubeVertexArray* vertexArrays;
     RwGameCubeDisplayList* displayList;
@@ -59,7 +60,6 @@ void* _rxGCDefaultRenderCallback(
     RpGameCubeVtxFmt* vertexFormat;
     unsigned int numMeshes;
 
-    result = object;
     vertexBuffer =
         (RwGameCubeVertexBuffer*)(instanceData->resourceEntry + 1);
     vertexArrays = vertexBuffer->arrays;
@@ -182,7 +182,7 @@ void* _rxGCDefaultRenderCallback(
             mesh++;
         }
     }
-    return result;
+    return object;
 }
 
 RxPipelineNode* _rxGameCubeAllInOneSetInstanceCallBack(

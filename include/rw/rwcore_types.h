@@ -97,6 +97,31 @@ typedef struct RwTexture {
 
 typedef char RwTextureSizeCheck[sizeof(RwTexture) == 0x58 ? 1 : -1];
 
+#define rwTextureWriteFilterMode(texture, filterMode)                         \
+    (((texture)->filter_flags =                                               \
+          ((texture)->filter_flags & ~0xFFU) |                                \
+         ((unsigned int)(filterMode) & 0xFFU)),                              \
+     (texture))
+
+#define rwTextureWriteAddressModes(texture, addressMode)                      \
+    (((texture)->filter_flags =                                               \
+          ((texture)->filter_flags & ~0xFF00U) |                              \
+          ((((unsigned int)(addressMode) << 8) & 0xF00U) |                    \
+           (((unsigned int)(addressMode) << 12) & 0xF000U))),                 \
+     (texture))
+
+#define rwTextureWriteAddressU(texture, addressMode)                           \
+    (((texture)->filter_flags =                                               \
+          ((texture)->filter_flags & ~0xF00U) |                               \
+          (((unsigned int)(addressMode) << 8) & 0xF00U)),                     \
+     (texture))
+
+#define rwTextureWriteAddressV(texture, addressMode)                           \
+    (((texture)->filter_flags =                                               \
+          ((texture)->filter_flags & ~0xF000U) |                              \
+          (((unsigned int)(addressMode) << 12) & 0xF000U)),                   \
+     (texture))
+
 struct RwTexDictionary {
     RwObject object;
     RwLLLink textures;

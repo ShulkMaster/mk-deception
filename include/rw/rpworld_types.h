@@ -222,7 +222,7 @@ struct RpAtomic {
 };
 typedef char RpAtomicSizeCheck[sizeof(RpAtomic) == 0x70 ? 1 : -1];
 
-static inline RpAtomic* RpAtomicFromClumpLink(RwLLLink* link)
+static inline RpAtomic* rpAtomicFromClumpNode(RwLLLink* link)
 {
     return (RpAtomic*)((unsigned char*)link - 0x40);
 }

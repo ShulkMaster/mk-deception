@@ -2,8 +2,6 @@
 
 RxExecutionContext _rxExecCtxGlobal;
 
-/* Soft ceiling: _rxPacketDestroy ~94.17% -- null-compare instruction selection
- * and countdown-result register coloring; memory operations and CFG match. */
 void _rxPacketDestroy(RxPacket* packet) {
     RxPipeline* pipeline;
     unsigned int numClusters;
@@ -14,7 +12,7 @@ void _rxPacketDestroy(RxPacket* packet) {
     numClusters = packet->numClusters;
     cluster = packet->clusters;
     do {
-        if (cluster->clusterRef != 0) {
+        if (cluster->clusterRef != (RxPipelineCluster*)0) {
             if (cluster->data != 0 && (cluster->flags & 2) == 0) {
                 RxHeapFree(_rxHeapGlobal, cluster->data);
             }
@@ -24,7 +22,6 @@ void _rxPacketDestroy(RxPacket* packet) {
             cluster->numUsed = 0;
             cluster->clusterRef = 0;
         }
-        cluster++;
-    } while (--numClusters != 0);
+    } while (cluster++, --numClusters);
     packet->flags = 0;
 }

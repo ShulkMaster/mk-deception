@@ -57,12 +57,12 @@ int _rwPluginRegistryAddPlgnStrmRightsCB(
     }
     return -1;
 }
-
-
+/* Reads registered plugin chunks, then invokes every always-read callback. */
 const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
     const RwPluginRegistry* registry, RwStream* stream, void* object) {
-    unsigned int version;
     unsigned int length;
+    unsigned int version;
+    RwPluginRegEntry* entry;
 
     if (!RwStreamFindChunk(stream, 3, &length, &version)) {
         return 0;
@@ -71,7 +71,6 @@ const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
         while (length != 0) {
             unsigned int pluginID;
             unsigned int pluginDataLength;
-            RwPluginRegEntry* entry;
 
             if (_rwStreamReadChunkHeader(stream, &pluginID, &pluginDataLength,
                                          0, 0) == 0) {
@@ -94,15 +93,13 @@ const RwPluginRegistry* _rwPluginRegistryReadDataChunks(
             }
             length -= pluginDataLength + 12;
         }
-        {
-            RwPluginRegEntry* entry = registry->firstRegEntry;
-            while (entry != 0) {
-                if (entry->alwaysCB != 0 &&
-                    !entry->alwaysCB(object, entry->offset, entry->size)) {
-                    return 0;
-                }
-                entry = entry->nextRegEntry;
+        entry = registry->firstRegEntry;
+        while (entry != 0) {
+            if (entry->alwaysCB != 0 &&
+                !entry->alwaysCB(object, entry->offset, entry->size)) {
+                return 0;
             }
+            entry = entry->nextRegEntry;
         }
         return registry;
     } else {
@@ -133,18 +130,17 @@ const RwPluginRegistry* _rwPluginRegistryInvokeRights(
     return 0;
 }
 
+/* Totals the stream payload and chunk headers contributed by each plugin. */
 int _rwPluginRegistryGetSize(const RwPluginRegistry* registry,
                                  const void* object) {
-
-    const void* pluginObject = object;
     int size = 0;
     RwPluginRegEntry* entry = registry->firstRegEntry;
     while (entry != 0) {
         if (entry->getSizeCB != 0) {
-            int pluginSize = entry->getSizeCB(pluginObject, entry->offset,
+            int pluginSize = entry->getSizeCB(object, entry->offset,
                                                    entry->size);
             if (pluginSize > 0) {
-                size += pluginSize;
+                size = pluginSize + size;
                 size += 12;
             }
         }

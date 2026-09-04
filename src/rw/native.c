@@ -46,14 +46,8 @@ static void _rpNativeOffset2Pointer(GameCubeNativeMeshHeader* native,
 
 static int _rpNativeSize(const RwResEntry* entry, unsigned int numMeshes)
 {
-    int size = 0;
-    const GameCubeNativeMeshHeader* native =
-        (const GameCubeNativeMeshHeader*)(entry + 1);
-    const GameCubeNativeMesh* meshes =
-        &native->meshes[native->numMeshes - 1] + 1;
-
-    size = entry->size - 7;
-    return size;
+    /* Soft ceiling: retail computes an unused native-mesh end pointer. */
+    return entry->size - 7;
 }
 
 static void* _rpNativeRead(RwStream* stream, void* owner,

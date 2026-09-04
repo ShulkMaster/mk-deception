@@ -66,10 +66,10 @@ static void _rwGameCubeTextureSetLOD(RwTexture* texture, float lodBias,
                                      unsigned int textureMap)
 {
     RwGameCubeTextureExt* textureExt =
-        RwGameCubeTextureExtension(texture);
+        rwTexturePlatformData(texture);
     RwRaster* raster = texture->raster;
     RwGameCubeRasterExt* rasterExt =
-        RwGameCubeRasterExtension(raster->parent);
+        rwRasterPlatformData(raster->parent);
     int rasterFormat = (unsigned char)raster->format << 8;
     int minFilter;
     int magFilter;
@@ -146,8 +146,8 @@ void _rwDlTextureSet(RwTexture* texture, unsigned int textureMap)
     }
 
     raster = texture->raster;
-    rasterExt = RwGameCubeRasterExtension(raster->parent);
-    textureExt = RwGameCubeTextureExtension(texture);
+    rasterExt = rwRasterPlatformData(raster->parent);
+    textureExt = rwTexturePlatformData(texture);
     rasterExt->token = _RwDlTokenCurrent & 0xFFFF;
 
     if ((int)((((unsigned int)raster->format & 0xFF) << 8) & 0x6000) != 0) {

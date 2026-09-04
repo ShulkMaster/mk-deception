@@ -57,7 +57,7 @@ int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
         (((((RwTexture*)object)->filter_flags & 0xF000) >> 12 << 12) & 0xF000) |
         ((unsigned char)(((RwTexture*)object)->filter_flags & 0xFF) |
          ((((RwTexture*)object)->filter_flags & 0xF00) >> 8 << 8) & 0xF00);
-    textureExt = RwGameCubeTextureExtension((RwTexture*)object);
+    textureExt = rwTexturePlatformData((RwTexture*)object);
     if ((textureExt->flags & 0x01000000) != 0) {
         textureHeader.maxAnisotropy = 0;
         textureHeader.biasClamp = 1;
@@ -77,7 +77,7 @@ int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
     bytesRemaining -= sizeof(textureHeader);
 
     raster = ((RwTexture*)object)->raster;
-    rasterExt = RwGameCubeRasterExtension(raster->parent);
+    rasterExt = rwRasterPlatformData(raster->parent);
     rasterHeader.format =
         ((unsigned int)(unsigned char)raster->format << 8) | raster->type;
     rasterHeader.width = (unsigned short)raster->width;
@@ -153,7 +153,7 @@ int _rwDlNativeTextureRead(RwStream* stream, void* object, int unused)
     if (raster == 0) {
         return 0;
     }
-    rasterExt = RwGameCubeRasterExtension(raster);
+    rasterExt = rwRasterPlatformData(raster);
     rasterExt->format = rasterHeader.tileMode;
     rasterExt->paletteFormat = rasterHeader.paletteFormat;
     if (rasterHeader.hasAlpha != 0) {

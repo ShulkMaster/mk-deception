@@ -167,7 +167,7 @@ typedef char RwGlobalsSizeCheck[sizeof(RwGlobals) == 0x158 ? 1 : -1];
 
 extern RwGlobals* RwEngineInstance;
 
-#define RWENGINESTANDARD(type, standard) \
+#define rwEngineStandardCall(type, standard) \
     ((type)RwEngineInstance->stdFunc[(standard)])
 
 #endif

@@ -10,8 +10,8 @@ typedef struct RwObject {
     void* parent;
 } RwObject;
 
-static inline void rwObjectInitialize(void* object, int objectType,
-                                      int objectSubType)
+static inline void rwInitializeObjectHeader(void* object, int objectType,
+                                            int objectSubType)
 {
     RwObject* header = (RwObject*)object;
     header->type = (unsigned char)objectType;
