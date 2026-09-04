@@ -21,6 +21,7 @@ enum {
 extern int _rwDlFindMSB(int value);
 extern RwTexture *_RwDlTexture;
 extern GXRenderModeObj *_RwDlRenderMode;
+/* Reports the stored maximum LOD, or derives the raster's mip count. */
 int _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
                                   int unused);
 static unsigned int DlRasterGetMipLevelSize(RwRaster *raster, unsigned char level);
@@ -138,15 +139,14 @@ static unsigned char DlRasterFindNumMipLevels(RwRaster *raster) {
 
 int _rwDlRasterGetNumMipLevels(void *levelsOut, void *rasterIn,
                                   int unused) {
-  RwGameCubeRasterExt *extension;
-  RwRaster *raster = rasterIn;
-  int *levels = levelsOut;
-  extension = RwGameCubeRasterExtension(raster->parent);
+  RwGameCubeRasterExt *extension =
+      (RwGameCubeRasterExt *)((unsigned char *)((RwRaster *)rasterIn)->parent +
+                              _RwGameCubeRasterExtOffset);
 
   if (extension->maxLod != 0xFF)
-    *levels = extension->maxLod + 1;
+    *(int *)levelsOut = extension->maxLod + 1;
   else
-    *levels = DlRasterFindNumMipLevels(raster);
+    *(int *)levelsOut = DlRasterFindNumMipLevels((RwRaster *)rasterIn);
   return 1;
 }
 
@@ -306,7 +306,7 @@ int _rwDlRasterLock(void *pixelsOut, void *rasterIn, int flags) {
   RwRaster *raster = rasterIn;
   RwRaster *parent = raster->parent;
   unsigned char level = (unsigned char)((flags & 0xFF00) >> 8);
-  RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(parent);
+  RwGameCubeRasterExt *extension = rwRasterPlatformData(parent);
 
   switch (raster->type & 7) {
   case 0:
@@ -417,7 +417,7 @@ int _rwDlRasterLock(void *pixelsOut, void *rasterIn, int flags) {
 int _rwDlRasterUnlock(void *unused, void *rasterIn, int in) {
   RwRaster *raster = rasterIn;
   RwRaster *parent = raster->parent;
-  RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(parent);
+  RwGameCubeRasterExt *extension = rwRasterPlatformData(parent);
 
   switch (raster->type & 7) {
   case 0:
@@ -473,7 +473,7 @@ int _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, int flags) {
   case 0:
   case 4: {
     if (raster == raster->parent && raster->palette == 0) {
-      RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
+      RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
       if ((flags & 2) != 0)
         raster->privateFlags |= 8;
       if ((flags & 1) != 0)
@@ -500,7 +500,7 @@ int _rwDlRasterUnlockPalette(void *unused, void *rasterIn, int in) {
   case 0:
   case 4: {
     if (raster == raster->parent) {
-      RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
+      RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
       if ((raster->privateFlags & 0x10) != 0)
         DCFlushRange(extension->paletteData, (1U << raster->depth) * 2);
       raster->privateFlags &= ~0x18;
@@ -519,7 +519,7 @@ int _rwDlRasterUnlockPalette(void *unused, void *rasterIn, int in) {
 }
 
 static int DlGetRasterFormat(RwRaster *raster, int flags) {
-  RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster->parent);
+  RwGameCubeRasterExt *extension = rwRasterPlatformData(raster->parent);
   unsigned int format = flags & 0xFF00;
 
   raster->type = flags & 7;
@@ -742,7 +742,7 @@ static int DlGetRasterFormat(RwRaster *raster, int flags) {
 }
 
 int _rwDlTextureRasterCreate(RwRaster *raster, unsigned char levels) {
-  RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
+  RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
   unsigned int size;
   unsigned int paletteSize;
 
@@ -784,7 +784,7 @@ int _rwDlTextureRasterCreate(RwRaster *raster, unsigned char levels) {
 
 int _rwDlRasterCreate(void *unused, void *rasterIn, int flags) {
   RwRaster *raster = rasterIn;
-  RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
+  RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
 
   raster->stride = 0;
   extension->format = 0xFF;
@@ -842,7 +842,7 @@ int _rwDlRasterDestroy(void *unused, void *rasterIn, int in) {
     case 0:
     case 4:
     case 5: {
-      RwGameCubeRasterExt *extension = RwGameCubeRasterExtension(raster);
+      RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
       if (extension->token == _RwDlTokenCurrent) {
         GXSetDrawSync((unsigned int)_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;

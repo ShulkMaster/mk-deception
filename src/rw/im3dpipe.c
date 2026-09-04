@@ -2,6 +2,8 @@
 #include "rw/rxpipeline.h"
 
 int _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
+    /* TODO: Retail keeps an unused cleanup-success value in r29 and therefore
+     * uses _savegpr_28; this semantic body intentionally omits that dead state. */
     RxPipeline* pipeline;
     RxLockedPipe* lockedPipeline;
 
@@ -25,6 +27,8 @@ int _rwIm3DCreatePlatformTransformPipeline(RxPipeline** transformPipeline) {
 }
 
 void _rwIm3DDestroyPlatformTransformPipeline(RxPipeline** transformPipeline) {
+    /* TODO: Retail retains an unused success value in r30 after destruction;
+     * this semantic implementation intentionally omits that dead state. */
     RwIm3DSetTransformPipeline(0);
     if (*transformPipeline != 0) {
         _rxPipelineDestroy(*transformPipeline);
@@ -34,6 +38,8 @@ void _rwIm3DDestroyPlatformTransformPipeline(RxPipeline** transformPipeline) {
 
 void _rwIm3DDestroyPlatformRenderPipelines(
     RwIm3DRenderPipelines* renderPipelines) {
+    /* TODO: Retail retains an unused success value in r30 after destruction;
+     * this semantic implementation intentionally omits that dead state. */
     RwIm3DSetRenderPipeline(0, rwPRIMTYPETRILIST);
     RwIm3DSetRenderPipeline(0, rwPRIMTYPETRIFAN);
     RwIm3DSetRenderPipeline(0, rwPRIMTYPETRISTRIP);
@@ -52,6 +58,8 @@ void _rwIm3DDestroyPlatformRenderPipelines(
 
 int _rwIm3DCreatePlatformRenderPipelines(
     RwIm3DRenderPipelines* renderPipelines) {
+    /* TODO: Retail keeps an unused cleanup-success value in r28 and therefore
+     * uses _savegpr_28; this semantic body intentionally omits that dead state. */
     RxPipeline* pipeline;
     RxLockedPipe* lockedPipeline;
 

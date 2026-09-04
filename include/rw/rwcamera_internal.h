@@ -75,7 +75,7 @@ void* _rwCameraClose(void* instance, int offset, int size);
 }
 #endif
 
-static inline RwFrame* RwCameraGetFrame(const RwCamera* camera)
+static inline RwFrame* rwCameraParentFrame(const RwCamera* camera)
 {
     return (RwFrame*)camera->object.object.parent;
 }

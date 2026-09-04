@@ -193,7 +193,7 @@ static int LockPipelineExpandData(RxPipeline* destination,
     }
 
     outputsBase = (unsigned int*)((unsigned char*)destination->nodes +
-                              RxPipelineGlobals()->maxNodesPerPipe *
+                              rxPipelinePlatformData()->maxNodesPerPipe *
                                   sizeof(RxPipelineNode));
     for (index = (int)source->numNodes - 1; index >= 0; index--) {
         destination->nodes[index].outputs = outputsBase + index * 0x20;
@@ -205,7 +205,7 @@ static int LockPipelineExpandData(RxPipeline* destination,
     }
 
     topSortBase = (RxPipelineNodeTopSortData*)(
-        outputsBase + RxPipelineGlobals()->maxNodesPerPipe * 0x20);
+        outputsBase + rxPipelinePlatformData()->maxNodesPerPipe * 0x20);
     for (index = 0; (unsigned int)index < source->numNodes; index++) {
         topSortBase[index].numIns = 0;
         topSortBase[index].numInsVisited = 0;
@@ -283,7 +283,7 @@ static int _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
 
 
 
-    if (n >= RxPipelineGlobals()->maxNodesPerPipe) {
+    if (n >= rxPipelinePlatformData()->maxNodesPerPipe) {
         RwError error;
         error.pluginID = 1;
         error.errorCode = _rwerror(0x2A);
@@ -291,7 +291,7 @@ static int _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
         result = 0;
     }
     if (result) {
-        outputs = (unsigned int*)&pipeline->nodes[RxPipelineGlobals()->maxNodesPerPipe];
+        outputs = (unsigned int*)&pipeline->nodes[rxPipelinePlatformData()->maxNodesPerPipe];
         outputs += pipeline->numNodes * 0x20;
         node->outputs = outputs;
         node->numOutputs = n;
@@ -299,9 +299,9 @@ static int _NodeCreate(RxPipeline* pipeline, RxPipelineNode* node,
             *outputs = (unsigned int)-1;
             outputs++;
         }
-        outputs = (unsigned int*)&pipeline->nodes[RxPipelineGlobals()->maxNodesPerPipe];
+        outputs = (unsigned int*)&pipeline->nodes[rxPipelinePlatformData()->maxNodesPerPipe];
         topSortData = (RxPipelineNodeTopSortData*)&outputs[
-            RxPipelineGlobals()->maxNodesPerPipe * 0x20];
+            rxPipelinePlatformData()->maxNodesPerPipe * 0x20];
         topSortData += pipeline->numNodes;
         topSortData->numIns = 0;
         topSortData->numInsVisited = 0;
@@ -424,16 +424,13 @@ static void PipelineTopSort(PipelineTopSortState* data, unsigned int nodeIndex)
     }
 }
 
+/* Converts a node pointer back to its validated pipeline-array index. */
 static unsigned int PipelineNode2Index(RxPipeline* pipeline, RxPipelineNode* node)
 {
     unsigned int index;
 
-
-
-    {
-        int nodeSize = sizeof(*node);
-        index = ((unsigned char*)node - (unsigned char*)pipeline->nodes) / nodeSize;
-    }
+    index = ((unsigned char*)node - (unsigned char*)pipeline->nodes) /
+            sizeof(*node);
 
     if (&pipeline->nodes[index] == node &&
         index < pipeline->numNodes) {
@@ -534,11 +531,11 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
 
         numUniqueClusters = PipelineCalcNumUniqueClusters(pipeline);
         topSortBlockSize =
-            RxPipelineGlobals()->maxNodesPerPipe * sizeof(RxPipelineNodeTopSortData) +
-            (RxPipelineGlobals()->maxNodesPerPipe * sizeof(RxPipelineNode) +
-             RxPipelineGlobals()->maxNodesPerPipe * 0x80);
+            rxPipelinePlatformData()->maxNodesPerPipe * sizeof(RxPipelineNodeTopSortData) +
+            (rxPipelinePlatformData()->maxNodesPerPipe * sizeof(RxPipelineNode) +
+             rxPipelinePlatformData()->maxNodesPerPipe * 0x80);
         depChaseBlockSize =
-            RxPipelineGlobals()->maxNodesPerPipe * sizeof(RxPipelineNodeTopSortData);
+            rxPipelinePlatformData()->maxNodesPerPipe * sizeof(RxPipelineNodeTopSortData);
         depChaseBlockSize += CalcNodesOutputsCompactedMemSize(pipeline);
         depChaseBlockSize = pipeline->numNodes * 0x14 +
             (pipeline->numNodes * numUniqueClusters * 0x24 +
@@ -563,9 +560,9 @@ RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline)
             return 0;
         }
 
-        outputs = (unsigned int*)&pipeline->nodes[RxPipelineGlobals()->maxNodesPerPipe];
+        outputs = (unsigned int*)&pipeline->nodes[rxPipelinePlatformData()->maxNodesPerPipe];
         topSortData = (RxPipelineNodeTopSortData*)&outputs[
-            0x20 * RxPipelineGlobals()->maxNodesPerPipe];
+            0x20 * rxPipelinePlatformData()->maxNodesPerPipe];
         topSortData += pipeline->numNodes - 1;
         newTopSortData = (RxPipelineNodeTopSortData*)(
             (unsigned char*)pipeline->superBlock + unlockStartBlockSize);
@@ -692,10 +689,10 @@ RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
 
     if (!pipeline->locked) {
         unsigned int requiredSize =
-            RxPipelineGlobals()->maxNodesPerPipe *
+            rxPipelinePlatformData()->maxNodesPerPipe *
                 sizeof(RxPipelineNodeTopSortData) +
-            (RxPipelineGlobals()->maxNodesPerPipe * sizeof(RxPipelineNode) +
-             RxPipelineGlobals()->maxNodesPerPipe * 0x80);
+            (rxPipelinePlatformData()->maxNodesPerPipe * sizeof(RxPipelineNode) +
+             rxPipelinePlatformData()->maxNodesPerPipe * 0x80);
         unsigned int index;
         if (pipeline->nodes != 0) {
             if (requiredSize > pipeline->superBlockSize &&
@@ -812,7 +809,7 @@ RxLockedPipe* RxLockedPipeAddFragment(RxLockedPipe* pipeline,
         va_end(arguments);
         if (count != 0) {
             previous = 0;
-            if (pipeline->numNodes + count > RxPipelineGlobals()->maxNodesPerPipe) {
+            if (pipeline->numNodes + count > rxPipelinePlatformData()->maxNodesPerPipe) {
                 RwError error;
                 error.pluginID = 1;
                 error.errorCode = _rwerror(0x2A);

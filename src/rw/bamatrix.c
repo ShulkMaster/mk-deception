@@ -258,7 +258,7 @@ float _rwMatrixOrthogonalError(const RwMatrix *matrix) {
 }
 #pragma optimization_level 4
 
-#define MATRIX_VECTOR_DOT(left, right)                                      \
+#define rwMatrixVectorDot(left, right)                                      \
   ((left)->z * (right)->z +                                                 \
    ((left)->x * (right)->x + (left)->y * (right)->y))
 
@@ -269,10 +269,10 @@ float _rwMatrixNormalError(const RwMatrix *matrix) {
   const RwV3d *at = &matrix->at;
   RwV3d error;
   float totalError;
-  error.x = MATRIX_VECTOR_DOT(right, right) - 1.0f;
-  error.y = MATRIX_VECTOR_DOT(up, up) - 1.0f;
-  error.z = MATRIX_VECTOR_DOT(at, at) - 1.0f;
-  totalError = MATRIX_VECTOR_DOT(&error, &error);
+  error.x = rwMatrixVectorDot(right, right) - 1.0f;
+  error.y = rwMatrixVectorDot(up, up) - 1.0f;
+  error.z = rwMatrixVectorDot(at, at) - 1.0f;
+  totalError = rwMatrixVectorDot(&error, &error);
   return totalError;
 }
 #pragma optimization_level 4
@@ -294,8 +294,8 @@ float _rwMatrixIdentityError(const RwMatrix *matrix) {
        (up->z * up->z + (up->x * up->x + upY * upY)));
   return totalError;
 }
-#pragma optimization_level 4
 
+/* Releases the matrix free list and closes the matrix module instance. */
 void *_rwMatrixClose(void *instance, int offset, int size) {
   if (*(RwFreeList **)((unsigned char *)RwEngineInstance +
                        matrixModule.globalsOffset) != 0) {
@@ -307,6 +307,7 @@ void *_rwMatrixClose(void *instance, int offset, int size) {
   matrixModule.numInstances--;
   return instance;
 }
+#pragma optimization_level 4
 
 static int _rwMatrixFreeListBlockSize = 256,
                _rwMatrixFreeListPreallocBlocks = 1;
@@ -335,9 +336,9 @@ void *_rwMatrixOpen(void *instance, int offset, int size) {
 
 #pragma optimization_level 0
 int RwEngineSetMatrixTolerances(const RwMatrixTolerance *const tolerance) {
-  rwMatrixGlobals *globals = (rwMatrixGlobals *)((unsigned char *)RwEngineInstance +
-                                                 matrixModule.globalsOffset);
-  globals->tolerance = *tolerance;
+  RwMatrixTolerance *globalTolerance = (RwMatrixTolerance *)(
+      (unsigned char *)RwEngineInstance + matrixModule.globalsOffset + 0xC);
+  *globalTolerance = *tolerance;
   return 1;
 }
 #pragma optimization_level 4
@@ -375,6 +376,7 @@ RwMatrix *RwMatrixOptimize(RwMatrix *matrix,
   return matrix;
 }
 
+/* Clears cached matrix classifications after callers modify its elements. */
 void RwMatrixUpdate(RwMatrix *matrix) {
   matrix->flags &= ~(3 | 0x20000);
 }

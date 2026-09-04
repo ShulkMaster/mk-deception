@@ -61,13 +61,16 @@ static void LeafAddPixel(PalQuantLeaf* leaf, RwRGBA* color,
     leaf->ac.alpha += realColor.alpha;
 }
 
+/* Finalizes a leaf's variance and folds in its octree-cell origin. */
 static void LeafCalcStats(PalQuantLeaf* leaf, RwRGBA* origin)
 {
     RwRGBAReal realColor;
 
     leaf->variance -=
-        (leaf->ac.red * leaf->ac.red + leaf->ac.green * leaf->ac.green +
-         leaf->ac.blue * leaf->ac.blue + leaf->ac.alpha * leaf->ac.alpha) /
+        (leaf->ac.alpha * leaf->ac.alpha +
+         (leaf->ac.blue * leaf->ac.blue +
+          (leaf->ac.red * leaf->ac.red +
+           leaf->ac.green * leaf->ac.green))) /
         leaf->weight;
     if (leaf->variance < 0.0f) leaf->variance = 0.0f;
     realColor.red = (float)origin->red * (1.0f / 255.0f);
@@ -75,10 +78,14 @@ static void LeafCalcStats(PalQuantLeaf* leaf, RwRGBA* origin)
     realColor.blue = (float)origin->blue * (1.0f / 255.0f);
     realColor.alpha = (float)origin->alpha * (1.0f / 255.0f);
     ToMatchSpace(&realColor);
-    leaf->ac.red += realColor.red * leaf->weight;
-    leaf->ac.green += realColor.green * leaf->weight;
-    leaf->ac.blue += realColor.blue * leaf->weight;
-    leaf->ac.alpha += realColor.alpha * leaf->weight;
+    realColor.red *= leaf->weight;
+    realColor.green *= leaf->weight;
+    realColor.blue *= leaf->weight;
+    realColor.alpha *= leaf->weight;
+    leaf->ac.red += realColor.red;
+    leaf->ac.green += realColor.green;
+    leaf->ac.blue += realColor.blue;
+    leaf->ac.alpha += realColor.alpha;
 }
 
 static void StatsAdd(PalQuantLeaf* combined, PalQuantLeaf* first,
@@ -148,15 +155,16 @@ static void StatsSub(PalQuantLeaf* remainder,
     }
 }
 
+/* Converts a leaf's weighted mean back into a clamped palette color. */
 static void RepresentativeColor(RwRGBA* color, PalQuantLeaf* node)
 {
     RwRGBAReal realColor;
     int rgba[4];
 
-    realColor.red = node->ac.red / node->weight;
-    realColor.green = node->ac.green / node->weight;
-    realColor.blue = node->ac.blue / node->weight;
-    realColor.alpha = node->ac.alpha / node->weight;
+    realColor.red = node->ac.red * (1.0f / node->weight);
+    realColor.green = node->ac.green * (1.0f / node->weight);
+    realColor.blue = node->ac.blue * (1.0f / node->weight);
+    realColor.alpha = node->ac.alpha * (1.0f / node->weight);
     FromMatchSpace(&realColor);
     rgba[0] = (int)(realColor.red * 255.99f);
     rgba[1] = (int)(realColor.green * 255.99f);
@@ -204,6 +212,7 @@ static PalQuantNode* AllocateToLeaf(RwPalQuant* quantizer,
                           octants >> 4, depth - 1);
 }
 
+/* Accumulates every source pixel into the quantizer's matching octree leaf. */
 void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
                         float weight)
 {
@@ -227,8 +236,9 @@ void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
             width = image->width;
             while (width--) {
                 RwRGBA* color = &palette[*linePixels];
+                OctantMap octants = GetOctAdr(color);
                 PalQuantNode* leaf = AllocateToLeaf(
-                    quantizer, quantizer->root, GetOctAdr(color), QuantDepth);
+                    quantizer, quantizer->root, octants, QuantDepth);
                 LeafAddPixel(&leaf->leaf, color, weight);
                 linePixels++;
             }
@@ -240,8 +250,9 @@ void RwPalQuantAddImage(RwPalQuant* quantizer, RwImage* image,
             RwRGBA* color = (RwRGBA*)pixels;
             width = image->width;
             while (width--) {
+                OctantMap octants = GetOctAdr(color);
                 PalQuantNode* leaf = AllocateToLeaf(
-                    quantizer, quantizer->root, GetOctAdr(color), QuantDepth);
+                    quantizer, quantizer->root, octants, QuantDepth);
                 LeafAddPixel(&leaf->leaf, color, weight);
                 color++;
             }
@@ -451,6 +462,7 @@ static int nCut(PalQuantNode* root, PalQuantLeaf* whole,
     return 0;
 }
 
+/* Recursively aggregates leaf statistics through the quantizer octree. */
 static PalQuantLeaf* CalcNodeWeights(PalQuantNode* root,
                                            RwRGBA* origin,
                                            int depth)
@@ -466,11 +478,14 @@ static PalQuantLeaf* CalcNodeWeights(PalQuantNode* root,
                 PalQuantLeaf* subnode;
                 unsigned int shift = depth - 1 +
                                  (8 - QuantDepth);
-                unsigned int step = 1 << shift;
-                suborigin.red = origin->red + ((i & 8) != 0 ? step : 0);
-                suborigin.green = origin->green + ((i & 4) != 0 ? step : 0);
-                suborigin.blue = origin->blue + ((i & 2) != 0 ? step : 0);
-                suborigin.alpha = origin->alpha + ((i & 1) != 0 ? step : 0);
+                suborigin.red =
+                    origin->red + ((((unsigned int)i >> 3) & 1) << shift);
+                suborigin.green =
+                    origin->green + ((((unsigned int)i >> 2) & 1) << shift);
+                suborigin.blue =
+                    origin->blue + ((((unsigned int)i >> 1) & 1) << shift);
+                suborigin.alpha =
+                    origin->alpha + (((unsigned int)i & 1) << shift);
                 subnode = CalcNodeWeights(root->branch.dir[i], &suborigin,
                                           depth - 1);
                 if (subnode != 0) StatsAdd(leaf, leaf, subnode);

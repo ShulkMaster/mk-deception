@@ -13,29 +13,32 @@ typedef struct RxGameCubeAtomicAllInOneInstanceData
     RxGameCubeAtomicAllInOneInstanceData;
 typedef struct RxPipeline RxPipeline;
 
-typedef struct RwMatrixWeights {
-    float w0;
-    float w1;
-    float w2;
-    float w3;
+typedef union RwMatrixWeights {
+    struct {
+        float w0;
+        float w1;
+        float w2;
+        float w3;
+    };
+    float values[4];
 } RwMatrixWeights;
 
 typedef struct RpSkinBlendPositionData {
     unsigned char* destination;
-    unsigned char* source;
+    const unsigned char* source;
     unsigned int stride;
-    unsigned int numVertices;
+    int numVertices;
 } RpSkinBlendPositionData;
 
 typedef struct RpSkinBlendPositionNormalData {
     unsigned char* destinationPositions;
     unsigned char* destinationNormals;
-    unsigned char* sourcePositions;
-    unsigned char* sourceNormals;
+    const unsigned char* sourcePositions;
+    const unsigned char* sourceNormals;
     unsigned int positionStride;
     unsigned int normalStride;
     unsigned int nbtStride;
-    unsigned int numVertices;
+    int numVertices;
 } RpSkinBlendPositionNormalData;
 
 typedef struct SkinAtomicState {

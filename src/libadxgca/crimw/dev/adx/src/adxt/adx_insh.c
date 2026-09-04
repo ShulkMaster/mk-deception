@@ -14,15 +14,15 @@ extern void ADXSJE_Start(AdxSjeHandle* encoder);
 extern void ADXSJE_Stop(AdxSjeHandle* encoder);
 extern void ADXSJE_ExecServer(void);
 
-unsigned char adxt_dmybuf[0x40];
-unsigned char adxt_hdbuf[0x400];
+extern unsigned char adxt_dmybuf[0x40];
+extern unsigned char adxt_hdbuf[0x400];
 
 void ADXT_InsertHdrSfa(ADXTHandle* decoder, int channels,
                        int sample_rate, int sample_count)
 {
-    SJCK destination;
-    SJCK header;
     SJ* inputs[2];
+    SJCK header;
+    SJCK destination;
     SJ* header_stream;
     SJ* destination_stream;
     AdxSjeHandle* encoder;
@@ -61,3 +61,6 @@ void ADXT_InsertHdrSfa(ADXTHandle* decoder, int channels,
     inputs[0]->interface->destroy(inputs[0]);
     ADXSJE_Finish();
 }
+
+unsigned char adxt_hdbuf[0x400];
+unsigned char adxt_dmybuf[0x40];

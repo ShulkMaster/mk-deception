@@ -22,7 +22,8 @@ int _rpSkinPipelinesDestroy(void)
     RxPipeline** pipelines = _rpSkinGlobals.pipelines;
 
     if (pipelines[rpSKINTYPEGENERIC] != 0) {
-        _rxPipelineDestroy(pipelines[rpSKINTYPEGENERIC]);
+        /* Destroy the generic skin pipeline and clear its global slot. */
+        rxPipelineDestroyResult(pipelines[rpSKINTYPEGENERIC]);
         pipelines[rpSKINTYPEGENERIC] = 0;
     }
     return 1;
@@ -35,7 +36,9 @@ RpAtomic* _rpSkinPipelinesAttach(RpAtomic* atomic, RpSkinType)
     RxPipeline* pipeline;
 
     pipeline = _rpSkinGlobals.pipelines[rpSKINTYPEGENERIC];
-    atomic->pipeline = pipeline;
+    /* Attach the generic pipeline and mark the geometry skin as native. */
+    /* TODO: Retail uses _savegpr_29; clean O0 C emits equivalent GPR saves. */
+    atomic = rpAtomicAssignPipeline(atomic, pipeline);
     skin = RpSkinGeometryGetSkin(atomic->geometry);
     skin->platformData = 1;
     return atomic;

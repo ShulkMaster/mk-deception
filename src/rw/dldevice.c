@@ -556,7 +556,7 @@ int _rwDlCameraBeginUpdate(void* out, void* inOut, int in)
     raster = camera->frameBuffer;
     if ((raster->type & 5) != 0) {
         RwGameCubeRasterExt* extension =
-            RwGameCubeRasterExtension(raster->parent);
+            rwRasterPlatformData(raster->parent);
         if ((extension->hasAlpha & 1) != 0) {
             if (_RwDlCurPixelFormat != 1) {
                 GXSetPixelFmt(1, 0);
@@ -777,7 +777,7 @@ void RwGameCubeCameraTextureFlush(RwRaster* raster, int mipmap)
 {
     RwRaster* parent = raster->parent;
     RwGameCubeRasterExt* extension =
-        RwGameCubeRasterExtension(parent);
+        rwRasterPlatformData(parent);
     unsigned int offset;
 
     GXSetCopyFilter(0, 0, 0, 0);

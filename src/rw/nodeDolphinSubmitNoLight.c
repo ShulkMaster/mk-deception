@@ -21,6 +21,22 @@ static void GXColor4u8(unsigned char red, unsigned char green, unsigned char blu
                        unsigned char alpha);
 static void GXPosition3f32(float x, float y, float z);
 
+#define rwSubmitVertexColor(vertex)                                           \
+    do {                                                                       \
+        GXPosition3f32((vertex)->position.x, (vertex)->position.y,             \
+                       (vertex)->position.z);                                  \
+        GXColor4u8((vertex)->color_channels.red,                               \
+                   (vertex)->color_channels.green,                             \
+                   (vertex)->color_channels.blue,                              \
+                   (vertex)->color_channels.alpha);                            \
+    } while (0)
+
+#define rwSubmitTexturedVertex(vertex)                                        \
+    do {                                                                       \
+        rwSubmitVertexColor(vertex);                                          \
+        GXTexCoord2f32((vertex)->texCoords.x, (vertex)->texCoords.y);          \
+    } while (0)
+
 static int _rwDlImmInstanceNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
@@ -70,76 +86,189 @@ static void _rw3DRenderPrimitiveInit(const RwIm3DStash* stash)
 }
 
 
+/* Submit transformed immediate-mode vertices to GX, with optional texcoords. */
+/* TODO: Retail keeps the two triangle divisors in GPRs and materializes NULL;
+ * this O0 build spills the clean divisor locals and compares NULL immediately. */
 static int DlSubmitNode(
     RxPipelineNode* self, const RxPipelineNodeParam* params)
 {
     RwIm3DStash* stash = &_rwDlImmPool->stash;
     RwIm3DVertex* vertices = _rwDlImmPool->transformData.vertices;
-    const RwImVertexIndex* indices = stash->renderData.indices;
-    unsigned short count;
-    unsigned short verticesPerPrimitive;
-    int textured;
+    if (NULL != stash->renderData.indices) {
+        const RwImVertexIndex* indices = stash->renderData.indices;
 
-    _rw3DRenderPrimitiveInit(stash);
-    if (indices != 0) {
-        count = (unsigned short)stash->renderData.numIndices;
-    } else {
-        count = _rwDlImmPool->transformData.numVertices;
-    }
-    GXBegin(_rwDlPrimConvTbl[stash->renderData.primitiveType], 0, count);
+        _rw3DRenderPrimitiveInit(stash);
+        GXBegin(_rwDlPrimConvTbl[stash->renderData.primitiveType], 0,
+                (unsigned short)stash->renderData.numIndices);
 
-    switch (stash->renderData.primitiveType) {
-    case rwPRIMTYPELINELIST:
-        verticesPerPrimitive = 2;
-        break;
-    case rwPRIMTYPETRILIST:
-        verticesPerPrimitive = 3;
-        break;
-    case rwPRIMTYPEPOLYLINE:
-    case rwPRIMTYPETRISTRIP:
-    case rwPRIMTYPETRIFAN:
-        verticesPerPrimitive = 1;
-        break;
-    default: {
-        RwError error;
-        error.pluginID = 1;
-        error.errorCode = _rwerror(0x25);
-        RwErrorSet(&error);
-        verticesPerPrimitive = 0;
-        break;
-    }
-    }
-
-    textured = (stash->flags & 1) != 0;
-    if (verticesPerPrimitive != 0) {
-        unsigned short primitiveCount = count / verticesPerPrimitive;
-
-        while (primitiveCount-- != 0) {
-            unsigned short vertexCount = verticesPerPrimitive;
-
-            while (vertexCount-- != 0) {
-                RwIm3DVertex* vertex;
-
-                if (indices != 0) {
-                    vertex = &vertices[*indices++];
-                } else {
-                    vertex = vertices++;
+        switch (stash->renderData.primitiveType) {
+        case rwPRIMTYPEPOLYLINE:
+        case rwPRIMTYPETRISTRIP:
+        case rwPRIMTYPETRIFAN: {
+            unsigned short count = (unsigned short)stash->renderData.numIndices;
+            if ((stash->flags & 1) != 0) {
+                while (count-- != 0) {
+                    RwIm3DVertex* vertex = &vertices[*indices];
+                    rwSubmitTexturedVertex(vertex);
+                    indices++;
                 }
-                GXPosition3f32(vertex->position.x, vertex->position.y,
-                               vertex->position.z);
-                GXColor4u8(vertex->color_channels.red,
-                           vertex->color_channels.green,
-                           vertex->color_channels.blue,
-                           vertex->color_channels.alpha);
-                if (textured) {
-                    GXTexCoord2f32(vertex->texCoords.x, vertex->texCoords.y);
+            } else {
+                while (count-- != 0) {
+                    RwIm3DVertex* vertex = &vertices[*indices];
+                    rwSubmitVertexColor(vertex);
+                    indices++;
                 }
             }
+            break;
         }
+        case rwPRIMTYPETRILIST: {
+            unsigned int verticesPerTriangle = 3;
+            unsigned short primitiveCount =
+                (unsigned short)((unsigned int)stash->renderData.numIndices /
+                                 verticesPerTriangle);
+            if ((stash->flags & 1) != 0) {
+                while (primitiveCount-- != 0) {
+                    RwIm3DVertex* vertex = &vertices[*indices];
+                    rwSubmitTexturedVertex(vertex);
+                    indices++;
+                    vertex = &vertices[*indices];
+                    rwSubmitTexturedVertex(vertex);
+                    indices++;
+                    vertex = &vertices[*indices];
+                    rwSubmitTexturedVertex(vertex);
+                    indices++;
+                }
+            } else {
+                while (primitiveCount-- != 0) {
+                    RwIm3DVertex* vertex = &vertices[*indices];
+                    rwSubmitVertexColor(vertex);
+                    indices++;
+                    vertex = &vertices[*indices];
+                    rwSubmitVertexColor(vertex);
+                    indices++;
+                    vertex = &vertices[*indices];
+                    rwSubmitVertexColor(vertex);
+                    indices++;
+                }
+            }
+            break;
+        }
+        case rwPRIMTYPELINELIST: {
+            unsigned short primitiveCount =
+                (unsigned short)((unsigned int)stash->renderData.numIndices >> 1);
+            if ((stash->flags & 1) != 0) {
+                while (primitiveCount-- != 0) {
+                    RwIm3DVertex* vertex = &vertices[*indices];
+                    rwSubmitTexturedVertex(vertex);
+                    indices++;
+                    vertex = &vertices[*indices];
+                    rwSubmitTexturedVertex(vertex);
+                    indices++;
+                }
+            } else {
+                while (primitiveCount-- != 0) {
+                    RwIm3DVertex* vertex = &vertices[*indices];
+                    rwSubmitVertexColor(vertex);
+                    indices++;
+                    vertex = &vertices[*indices];
+                    rwSubmitVertexColor(vertex);
+                    indices++;
+                }
+            }
+            break;
+        }
+        default: {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x25);
+            RwErrorSet(&error);
+            break;
+        }
+        }
+        GXEnd();
+    } else {
+        _rw3DRenderPrimitiveInit(stash);
+        GXBegin(_rwDlPrimConvTbl[stash->renderData.primitiveType], 0,
+                _rwDlImmPool->transformData.numVertices);
+
+        switch (stash->renderData.primitiveType) {
+        case rwPRIMTYPEPOLYLINE:
+        case rwPRIMTYPETRISTRIP:
+        case rwPRIMTYPETRIFAN: {
+            unsigned short count = _rwDlImmPool->transformData.numVertices;
+            if ((stash->flags & 1) != 0) {
+                while (count-- != 0) {
+                    rwSubmitTexturedVertex(vertices);
+                    vertices++;
+                }
+            } else {
+                while (count-- != 0) {
+                    rwSubmitVertexColor(vertices);
+                    vertices++;
+                }
+            }
+            break;
+        }
+        case rwPRIMTYPETRILIST: {
+            int verticesPerTriangle = 3;
+            unsigned short primitiveCount =
+                _rwDlImmPool->transformData.numVertices / verticesPerTriangle;
+            if ((stash->flags & 1) != 0) {
+                while (primitiveCount-- != 0) {
+                    rwSubmitTexturedVertex(vertices);
+                    vertices++;
+                    rwSubmitTexturedVertex(vertices);
+                    vertices++;
+                    rwSubmitTexturedVertex(vertices);
+                    vertices++;
+                }
+            } else {
+                while (primitiveCount-- != 0) {
+                    rwSubmitVertexColor(vertices);
+                    vertices++;
+                    rwSubmitVertexColor(vertices);
+                    vertices++;
+                    rwSubmitVertexColor(vertices);
+                    vertices++;
+                }
+            }
+            break;
+        }
+        case rwPRIMTYPELINELIST: {
+            unsigned short primitiveCount =
+                _rwDlImmPool->transformData.numVertices >> 1;
+            if ((stash->flags & 1) != 0) {
+                while (primitiveCount-- != 0) {
+                    rwSubmitTexturedVertex(vertices);
+                    vertices++;
+                    rwSubmitTexturedVertex(vertices);
+                    vertices++;
+                }
+            } else {
+                while (primitiveCount-- != 0) {
+                    rwSubmitVertexColor(vertices);
+                    vertices++;
+                    rwSubmitVertexColor(vertices);
+                    vertices++;
+                }
+            }
+            break;
+        }
+        default: {
+            RwError error;
+            error.pluginID = 1;
+            error.errorCode = _rwerror(0x25);
+            RwErrorSet(&error);
+            break;
+        }
+        }
+        GXEnd();
     }
-    GXEnd();
     return 1;
 }
+
+#undef rwSubmitTexturedVertex
+#undef rwSubmitVertexColor
 
 static RxNodeDefinition nodeDlSubmitNoLightCSL = {
     "SubmitNoLight.csl",

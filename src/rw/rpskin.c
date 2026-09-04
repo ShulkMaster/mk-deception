@@ -12,11 +12,13 @@ static int _rpSkinFreeListPreallocBlocks = 1;
 
 extern RpGeometry* _rpSkinInitialize(RpGeometry* geometry);
 extern RpGeometry* _rpSkinDeinitialize(RpGeometry* geometry);
+/* Report whether the MatFX engine plugin has been registered. */
 static int MatfxPluginIsAttached(void)
 {
     return RwEngineGetPluginOffset(0x120) != -1;
 }
 
+/* Report whether the Toon engine plugin has been registered. */
 static int ToonPluginIsAttached(void)
 {
     return RwEngineGetPluginOffset(0x12E) != -1;
@@ -35,6 +37,8 @@ static RpAtomic* SkinAtomicAttachBestPipeForAttachedPlugins(
 
 static RpAtomic* SkinAtomicSetup(RpAtomic* atomic, RpSkinType type)
 {
+    /* Attach the best available skin pipeline for a skinned atomic. */
+    /* TODO: Retail stores the attach result in an unread stack temporary. */
     RpGeometry* geometry = atomic->geometry;
     RpSkin* skin;
 
@@ -194,6 +198,8 @@ static RpSkin* SkinCreate(unsigned int numVertices, unsigned int numBones,
 
 static void* SkinOpen(void* instance, int offset, int size)
 {
+    /* Initialize shared skin pipelines, allocation, and scratch storage. */
+    /* TODO: Retail stores the pipeline-create result in an unread temporary. */
     if (_rpSkinGlobals.numInstances == 0) {
         unsigned int pipelineTypes = rpSKINTYPEGENERIC;
         unsigned int scratchSize;
@@ -222,6 +228,8 @@ static void* SkinOpen(void* instance, int offset, int size)
 
 static void* SkinClose(void* instance, int offset, int size)
 {
+    /* Release shared skin resources after the final plugin instance closes. */
+    /* TODO: Retail stores the pipeline-destroy result in an unread temporary. */
     _rpSkinGlobals.numInstances--;
     if (_rpSkinGlobals.numInstances == 0) {
 
@@ -314,6 +322,8 @@ static int SkinAtomicAlways(void* object, int offset, int size)
 static int SkinAtomicRights(void* object, int offset, int size,
                                unsigned int extraData)
 {
+    /* Restore an atomic's serialized skin pipeline type. */
+    /* TODO: Retail retains SkinAtomicSetup's otherwise-unused return value. */
     RpAtomic* atomic = object;
     RpSkinType type = (RpSkinType)extraData;
 

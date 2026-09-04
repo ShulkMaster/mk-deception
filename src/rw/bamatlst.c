@@ -4,7 +4,7 @@
 #include "rw/rwstream.h"
 #include "rw/rwstream_internal.h"
 
-static RpMaterial* MaterialAddRef(RpMaterial* material)
+static RpMaterial* rpRetainMaterialReference(RpMaterial* material)
 {
     material->refCount++;
     return material;
@@ -92,7 +92,7 @@ int _rpMaterialListAppendMaterial(RpMaterialList *materialList,
     if (materialList->space > materialList->numMaterials) {
         materials = materialList->materials + materialList->numMaterials;
         *materials = material;
-        MaterialAddRef(material);
+        rpRetainMaterialReference(material);
         materialList->numMaterials++;
         return materialList->numMaterials - 1;
     }
@@ -119,7 +119,7 @@ int _rpMaterialListAppendMaterial(RpMaterialList *materialList,
     }
 
     materials[materialList->numMaterials] = material;
-    MaterialAddRef(material);
+    rpRetainMaterialReference(material);
     materialList->numMaterials++;
     return materialList->numMaterials - 1;
 }
@@ -206,7 +206,7 @@ RpMaterialList *_rpMaterialListStreamRead(RwStream *stream,
             } else {
                 material = _rpMaterialListGetMaterial(materialList,
                                                       materialIndices[index]);
-                MaterialAddRef(material);
+                rpRetainMaterialReference(material);
             }
 
             _rpMaterialListAppendMaterial(materialList, material);

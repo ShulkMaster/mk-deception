@@ -276,11 +276,11 @@ extern int _rxPipelineGlobalsOffset;
 extern RxExecutionContext _rxExecCtxGlobal;
 extern RxHeap* _rxHeapGlobal;
 
-#define RXPIPELINEGLOBAL(field)                                                \
+#define rxPipelineGlobalField(field)                                           \
     (((RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance +          \
                                    _rxPipelineGlobalsOffset))->field)
 
-static inline RxPipelinePlatformGlobals* RxPipelineGlobals(void)
+static inline RxPipelinePlatformGlobals* rxPipelinePlatformData(void)
 {
     return (RxPipelinePlatformGlobals*)((unsigned char*)RwEngineInstance +
                                         _rxPipelineGlobalsOffset);
@@ -291,6 +291,8 @@ int _rxPipelineOpen(void);
 int _rxPipelineClose(void);
 RxPipeline* RpWorldSetDefaultSectorPipeline(RxPipeline* pipeline);
 RxPipeline* RpAtomicSetDefaultPipeline(RxPipeline* pipeline);
+#define rpAtomicAssignPipeline(atomic, pipeline) \
+    (((atomic)->pipeline = (pipeline)), (atomic))
 int _rpWorldPipelineOpen(void);
 void _rpWorldPipelineClose(void);
 int _rpWorldPipeAttach(void);
@@ -299,6 +301,7 @@ RxPipeline* RxPipelineExecute(RxPipeline* pipeline, void* data,
 RxHeap* RxHeapGetGlobalHeap(void);
 RxPipeline* RxPipelineCreate(void);
 void _rxPipelineDestroy(RxPipeline* pipeline);
+#define rxPipelineDestroyResult(pipeline) (_rxPipelineDestroy(pipeline), 1)
 RxPipeline* RxLockedPipeUnlock(RxLockedPipe* pipeline);
 RxLockedPipe* RxPipelineLock(RxPipeline* pipeline);
 RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
@@ -318,7 +321,7 @@ void* StalacMiteAlloc(int size);
 unsigned int PipelineCalcNumUniqueClusters(RxPipeline* pipeline);
 void RxHeapFree(RxHeap* heap, void* block);
 int _rxHeapReset(RxHeap* heap);
-#define RxHeapReset(heap) ((!(heap)->dirty) ? 1 : _rxHeapReset(heap))
+#define rxHeapResetIfDirty(heap) ((!(heap)->dirty) ? 1 : _rxHeapReset(heap))
 void RxHeapDestroy(RxHeap* heap);
 RxHeap* RxHeapCreate(unsigned int size);
 RxRenderStateVector* RxRenderStateVectorSetDefaultRenderStateVector(

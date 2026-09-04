@@ -1,11 +1,11 @@
 #include "rw/rphanim.h"
 #include "rw/rwstream.h"
 
-#define HANIM_ACOS_NUMERATOR(z)                                             \
+#define rpHAnimAcosNumerator(z)                                             \
     ((z) * (0.16666667f + (z) * (-0.32556581f + (z) *                     \
         (0.20121253f + (z) * (-0.040055536f + (z) *                       \
         (0.000791535f + (z) * 0.00003479331f))))))
-#define HANIM_ACOS_DENOMINATOR(z)                                           \
+#define rpHAnimAcosDenominator(z)                                           \
     (1.0f + (z) * (-2.403395f + (z) * (2.0209458f + (z) *                 \
         (-0.688284f + (z) * 0.077038154f))))
 
@@ -18,21 +18,21 @@ typedef union HAnimIEEEFloatShape {
 typedef char HAnimIEEEFloatShapeSizeCheck[
     sizeof(HAnimIEEEFloatShape) == 0x04 ? 1 : -1];
 
-#define HANIM_GET_FLOAT_WORD(wordOut, realValue)                            \
+#define rpHAnimReadFloatWord(wordOut, realValue)                            \
     do {                                                                    \
         HAnimIEEEFloatShape shape;                                          \
         shape.value = (realValue);                                          \
         (wordOut) = shape.word;                                             \
     } while (0)
 
-#define HANIM_SET_FLOAT_WORD(realOut, wordValue)                            \
+#define rpHAnimWriteFloatWord(realOut, wordValue)                           \
     do {                                                                    \
         HAnimIEEEFloatShape shape;                                          \
         shape.word = (unsigned int)(wordValue);                             \
         (realOut) = shape.value;                                            \
     } while (0)
 
-#define HANIM_SIN(result, x)                                                \
+#define rpHAnimApproximateSine(result, x)                                   \
     do {                                                                    \
         const float z = (x) * (x);                                          \
         const float v = z * (x);                                            \
@@ -42,11 +42,11 @@ typedef char HAnimIEEEFloatShapeSizeCheck[
         (result) = (x) + v * (-0.16666667f + z * r);                        \
     } while (0)
 
-#define HANIM_ACOS(result, x)                                               \
+#define rpHAnimApproximateAcos(result, x)                                   \
     do {                                                                    \
         float z, p, q, r, w, s, c, df;                                      \
         int hx, ix;                                                         \
-        HANIM_GET_FLOAT_WORD(hx, (x));                                      \
+        rpHAnimReadFloatWord(hx, (x));                                      \
         ix = hx & 0x7fffffff;                                                \
         if (ix >= 0x3f800000) {                                              \
             if (hx > 0) {                                                   \
@@ -59,8 +59,8 @@ typedef char HAnimIEEEFloatShapeSizeCheck[
                 (result) = 1.5707964f;                                      \
             } else {                                                        \
                 z = (x) * (x);                                              \
-                p = HANIM_ACOS_NUMERATOR(z);                                \
-                q = HANIM_ACOS_DENOMINATOR(z);                              \
+                p = rpHAnimAcosNumerator(z);                                \
+                q = rpHAnimAcosDenominator(z);                              \
                 r = p / q;                                                  \
                 (result) = 1.5707963f -                                     \
                     ((x) - (7.5497894e-8f - (x) * r));                      \
@@ -68,8 +68,8 @@ typedef char HAnimIEEEFloatShapeSizeCheck[
         } else if (hx < 0) {                                                \
             z = 0.5f * (1.0f + (x));                                        \
             s = _rwSqrt(z);                                                 \
-            p = HANIM_ACOS_NUMERATOR(z);                                    \
-            q = HANIM_ACOS_DENOMINATOR(z);                                  \
+            p = rpHAnimAcosNumerator(z);                                    \
+            q = rpHAnimAcosDenominator(z);                                  \
             r = p / q;                                                      \
             w = r * s - 7.5497894e-8f;                                     \
             (result) = 3.1415925f - 2.0f * (s + w);                         \
@@ -78,11 +78,11 @@ typedef char HAnimIEEEFloatShapeSizeCheck[
             z = 0.5f * (1.0f - (x));                                        \
             s = _rwSqrt(z);                                                 \
             df = s;                                                         \
-            HANIM_GET_FLOAT_WORD(idf, df);                                  \
-            HANIM_SET_FLOAT_WORD(df, idf & 0xfffff000);                     \
+            rpHAnimReadFloatWord(idf, df);                                  \
+            rpHAnimWriteFloatWord(df, idf & 0xfffff000);                    \
             c = (z - df * df) / (s + df);                                   \
-            p = HANIM_ACOS_NUMERATOR(z);                                    \
-            q = HANIM_ACOS_DENOMINATOR(z);                                  \
+            p = rpHAnimAcosNumerator(z);                                    \
+            q = rpHAnimAcosDenominator(z);                                  \
             r = p / q;                                                      \
             w = r * s + c;                                                  \
             (result) = 2.0f * (df + w);                                     \
@@ -155,16 +155,16 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, float time,
     if (!nearlyOne) {
         float theta;
         float sine;
-        HANIM_ACOS(theta, cosTheta);
+        rpHAnimApproximateAcos(theta, cosTheta);
         {
             float reciprocal;
-            HANIM_SIN(sine, theta);
+            rpHAnimApproximateSine(sine, theta);
             reciprocal = 1.0f / sine;
             sine = beta * theta;
-            HANIM_SIN(beta, sine);
+            rpHAnimApproximateSine(beta, sine);
             beta *= reciprocal;
             sine = alpha * theta;
-            HANIM_SIN(alpha, sine);
+            rpHAnimApproximateSine(alpha, sine);
             alpha *= reciprocal;
         }
     }
@@ -202,16 +202,16 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, float alpha) {
     if (!nearlyOne) {
         float theta;
         float sine;
-        HANIM_ACOS(theta, cosTheta);
+        rpHAnimApproximateAcos(theta, cosTheta);
         {
             float reciprocal;
-            HANIM_SIN(sine, theta);
+            rpHAnimApproximateSine(sine, theta);
             reciprocal = 1.0f / sine;
             sine = beta * theta;
-            HANIM_SIN(beta, sine);
+            rpHAnimApproximateSine(beta, sine);
             beta *= reciprocal;
             sine = alpha * theta;
-            HANIM_SIN(alpha, sine);
+            rpHAnimApproximateSine(alpha, sine);
             alpha *= reciprocal;
         }
     }

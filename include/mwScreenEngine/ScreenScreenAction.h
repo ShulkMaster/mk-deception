@@ -46,7 +46,7 @@ public:
 class ScreenOpenScreenAction : public ScreenBaseScreenAction {
 public:
     ScreenOpenScreenAction();
-    virtual ~ScreenOpenScreenAction();
+    virtual ~ScreenOpenScreenAction() {}
 
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
@@ -54,7 +54,7 @@ public:
 class ScreenExitScreenAction : public ScreenBaseScreenAction {
 public:
     ScreenExitScreenAction();
-    virtual ~ScreenExitScreenAction();
+    virtual ~ScreenExitScreenAction() {}
 
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
@@ -64,7 +64,7 @@ public:
 class ScreenReplaceScreenAction : public ScreenBaseScreenAction {
 public:
     ScreenReplaceScreenAction();
-    virtual ~ScreenReplaceScreenAction();
+    virtual ~ScreenReplaceScreenAction() {}
 
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
@@ -74,7 +74,7 @@ public:
 class ScreenTransitionScreenAction : public ScreenBaseScreenAction {
 public:
     ScreenTransitionScreenAction();
-    virtual ~ScreenTransitionScreenAction();
+    virtual ~ScreenTransitionScreenAction() {}
 
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
@@ -85,7 +85,7 @@ public:
 class ScreenInsertScreenAction : public ScreenBaseScreenAction {
 public:
     ScreenInsertScreenAction();
-    virtual ~ScreenInsertScreenAction();
+    virtual ~ScreenInsertScreenAction() {}
 
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
@@ -97,7 +97,7 @@ public:
 class ScreenCloseScreenAction : public ScreenBaseScreenAction {
 public:
     ScreenCloseScreenAction();
-    virtual ~ScreenCloseScreenAction();
+    virtual ~ScreenCloseScreenAction() {}
 
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };

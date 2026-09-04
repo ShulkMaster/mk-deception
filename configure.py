@@ -234,6 +234,7 @@ asm_sequence_inputs = [
         "os.a/OSContext.s",
         "os.a/OSMemory.s",
         "os.a/OSReset.s",
+        "rpskin.a/skingcnasm.s",
     ]
 ]
 config.custom_build_rules = [
@@ -1318,7 +1319,7 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_insh.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_insh.c",
                 extra_cflags=["-O2,p", "-sdata", "0", "-use_lmw_stmw", "on"],
@@ -1446,7 +1447,7 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/axrna/rna_err.o",
                 source="libadxgca/crimw/dev/adx/src/axrna/rna_err.c",
                 extra_cflags=["-O2,p", "-sdata", "0"],
@@ -1487,6 +1488,9 @@ config.libs = [
                 "libadxgca.a//crimw/dev/adx/src/lsc/lsc_err.o",
                 source="libadxgca/crimw/dev/adx/src/lsc/lsc_err.c",
                 extra_cflags=["-O4,p", "-sdata", "0"],
+                # Link ceiling: normalized code and BSS are 100%, but the
+                # variadic function relocates through the local BSS anchor
+                # instead of the retail lsc_err_func symbol.
             ),
             Object(
                 Matching,
@@ -1635,9 +1639,10 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_inf.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_set.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_set.c",
+                extra_cflags=["-sdata2", "0", "-str", "reuse,readonly"],
             ),
             Object(
                 Matching,
@@ -1719,7 +1724,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdply.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdply.c",
                 extra_cflags=[
@@ -1949,7 +1954,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_cnv_to_Y84C44.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_cnv_to_Y84C44.c",
                 extra_cflags=[
@@ -2017,7 +2022,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_see.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_vom.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_vom.c",
             ),
@@ -2179,6 +2184,9 @@ config.libs = [
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileCommand.o",
                 source="mw/mwFileCommand.cpp",
                 extra_cflags=["-use_lmw_stmw on"],
+                # Link ceiling: normalized object is 100%, but importing it
+                # selects the weak mwFileQueryable vtable before the derived
+                # vtable (31 linked bytes differ).
             ),
             Object(
                 NonMatching,
@@ -2414,7 +2422,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/Screen.o",
                 source="mwScreenEngine/Screen.cpp",
                 # -inline off: keep GetRoot as bl in FireEvent (else inlined -> ~37%).
@@ -2474,12 +2482,10 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenScreenAction.o",
                 source="mwScreenEngine/ScreenScreenAction.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on"],
-                # Link ceiling: duplicate ScreenBaseScreenAction weak dtor/vtable
-                # changes 42 DOL bytes despite aggregate 100% objdiff.
             ),
             Object(
                 NonMatching,
@@ -3028,7 +3034,7 @@ config.libs = [
             Object(Matching, "rwcore.a/bacolor.obj", source="rw/bacolor.c"),
             Object(Matching, "rwcore.a/babinfrm.obj", source="rw/babinfrm.c",
                    extra_cflags=["-opt", "off", "-O0"]),
-            Object(NonMatching, "rwcore.a/babintex.obj", source="rw/babintex.c",
+            Object(Matching, "rwcore.a/babintex.obj", source="rw/babintex.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/bacamera.obj", source="rw/bacamera.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off",
@@ -3058,7 +3064,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/baim3d.obj", source="rw/baim3d.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
-            Object(NonMatching, "rwcore.a/p2altmdl.obj", source="rw/p2altmdl.c",
+            Object(Matching, "rwcore.a/p2altmdl.obj", source="rw/p2altmdl.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rwcore.a/p2renderstate.obj",
                    source="rw/p2renderstate.c",
@@ -3085,7 +3091,8 @@ config.libs = [
             Object(NonMatching, "rwcore.a/baimage.obj", source="rw/baimage.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/palquant.obj", source="rw/palquant.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+                   extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off",
+                                 "-fp_contract", "on"]),
             Object(Matching, "rwcore.a/baerr.obj", source="rw/baerr.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(Matching, "rwcore.a/rwgrp.obj", source="rw/rwgrp.c",
@@ -3117,12 +3124,12 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/baframe.obj", source="rw/baframe.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
-            Object(NonMatching, "rwcore.a/batkbin.obj", source="rw/batkbin.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+            Object(Matching, "rwcore.a/batkbin.obj", source="rw/batkbin.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/batkreg.obj", source="rw/batkreg.c",
-                   extra_cflags=["-opt", "off", "-O0"]),
+                   extra_cflags=["-O4,s", "-opt", "off", "-O0"]),
             Object(NonMatching, "rwcore.a/rwstring.obj", source="rw/rwstring.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+                   extra_cflags=["-O4,s", "-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/babinary.obj", source="rw/babinary.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rwcore.a/bamemory.obj", source="rw/bamemory.c",
@@ -3238,25 +3245,25 @@ config.libs = [
     RenderWareLib(
         "rpskin",
         [
-            Object(NonMatching, "rpskin.a/skingcng.obj", source="rw/skingcng.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+            Object(Matching, "rpskin.a/skingcng.obj", source="rw/skingcng.c",
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/instanceskin.obj",
                    source="rw/instanceskin.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/rpskin.obj", source="rw/rpskin.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rpskin.a/bsplit.obj", source="rw/bsplit.c",
                    extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(Matching, "rpskin.a/skinplatform.obj", source="rw/skinplatform.c",
                    extra_cflags=["-opt", "off", "-O0"]),
             Object(NonMatching, "rpskin.a/skinstream.obj", source="rw/skinstream.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/skinmatrixblend.obj", source="rw/skinmatrixblend.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
-            Object(NonMatching, "rpskin.a/skingcnasm.obj", source="rw/skingcnasm.c",
+            Object(Matching, "rpskin.a/skingcnasm.obj", source="rw/skingcnasm.c",
                    extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
             Object(NonMatching, "rpskin.a/skingcn.obj", source="rw/skingcn.c",
-                   extra_cflags=["-opt", "off", "-O0", "-inline", "off"]),
+                   extra_cflags=["-O4,s", "-opt", "off", "-inline", "off"]),
         ],
     ),
     RenderWareLib(

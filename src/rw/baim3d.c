@@ -148,11 +148,13 @@ int RwIm3DRenderIndexedPrimitive(RwPrimitiveType primitiveType,
 
 int RwIm3DRenderPrimitive(RwPrimitiveType primitiveType)
 {
-    RwIm3DVertex* vertices =
+    int transformed =
         ((RwIm3DGlobals*)((unsigned char*)RwEngineInstance +
                           _rwIm3DModule.globalsOffset))
-            ->transformData.vertices;
-    int transformed = vertices != 0;
+            ->transformData.vertices != 0;
+
+    /* Retail also spills the unused returned heap pointer to the stack. */
+    RxHeapGetGlobalHeap();
 
     if (transformed) {
         RwIm3DStash* data =

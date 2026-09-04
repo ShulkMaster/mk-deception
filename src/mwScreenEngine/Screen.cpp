@@ -63,9 +63,8 @@ ScreenAnimScene* Screen::GetAnimScene(int index) {
 
 void Screen::ShutoffAnimScenes() {
     ScreenData* data;
-    ScreenAnimSceneList* scenes;
     int count;
-    int offset;
+    ScreenAnimSceneList* scenes;
 
     data = m_data;
     if (data == 0) {
@@ -75,16 +74,9 @@ void Screen::ShutoffAnimScenes() {
     if (scenes == 0) {
         return;
     }
-    /*
-     * Soft ceiling: ShutoffAnimScenes 82.36% -- retail rotates the reverse loop.
-     * Putting i before scenes gives the retail register order but crashes MWCC 2.7.
-     */
     count = scenes->count;
-    offset = count * 0x18;
-    while (count != 0) {
-        count -= 1;
-        offset -= 0x18;
-        ScreenAnimSceneAtOffset(scenes, offset)->Reset();
+    while (count-- != 0) {
+        ScreenAnimSceneAt(scenes, count)->Reset();
     }
 }
 

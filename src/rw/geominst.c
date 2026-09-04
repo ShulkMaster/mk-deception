@@ -155,8 +155,8 @@ unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor *descriptor,
 
 
 unsigned int _rwGCNVtxFmtInstPos3D(void *destination, const RwV3d *source,
-                               int type, int count, unsigned int stride,
-                               const RwV3d *origin, float scale) {
+                               int type, float scale, int count,
+                               unsigned int stride, const RwV3d *origin) {
   float offsetX;
   float offsetY;
   float offsetZ;
@@ -625,8 +625,8 @@ unsigned int _rwGCNVtxFmtInstClr(void *destination, const RwRGBA *source,
 }
 
 unsigned int _rwGCNVtxFmtInstTex(void *destination, const RwTexCoords *source,
-                             int type, int count, unsigned int stride,
-                             float scale) {
+                             int type, float scale, int count,
+                             unsigned int stride) {
   unsigned int result = 0;
 
   switch (type) {

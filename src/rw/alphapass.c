@@ -295,7 +295,7 @@ void SetSingleTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alpha
         _rwDlTextureSet(alphaTexture, 1);
     }
     if (baseTexture != 0 && baseTexture->raster != 0) {
-        extension = RwGameCubeRasterExtension(baseTexture->raster);
+        extension = rwRasterPlatformData(baseTexture->raster);
         if ((extension->hasAlpha & 1) != 0 || alphaTexture != 0) {
             _rwDlRenderStateSetZCompLoc(0);
             return;
@@ -317,7 +317,7 @@ void SetFirstTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alphaT
         _rwDlTextureSet(alphaTexture, 1);
     }
     if (baseTexture != 0 && baseTexture->raster != 0) {
-        extension = RwGameCubeRasterExtension(baseTexture->raster);
+        extension = rwRasterPlatformData(baseTexture->raster);
         if ((extension->hasAlpha & 1) != 0 || alphaTexture != 0) {
             _rwDlRenderStateSetZCompLoc(0);
         }

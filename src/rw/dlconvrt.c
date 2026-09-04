@@ -544,7 +544,7 @@ static RwImage* _rwDolphinPalettizeImage(RwImage* image, int depth)
 static void _rwDlRasterPalletized4SetFromImage(RwRaster* raster,
                                                 RwImage* image)
 {
-    RwGameCubeRasterExt* extension = RwGameCubeRasterExtension(raster);
+    RwGameCubeRasterExt* extension = rwRasterPlatformData(raster);
     RwDlPixelConvertFn convert = _rwDlSelectConvertFn(raster);
     int x;
     int y;
@@ -588,7 +588,7 @@ static void _rwDlRasterPalletized4SetFromImage(RwRaster* raster,
 static void _rwDlRasterPalletized8SetFromImage(RwRaster* raster,
                                                 RwImage* image)
 {
-    RwGameCubeRasterExt* extension = RwGameCubeRasterExtension(raster);
+    RwGameCubeRasterExt* extension = rwRasterPlatformData(raster);
     RwDlPixelConvertFn convert = _rwDlSelectConvertFn(raster);
     int x;
     int y;

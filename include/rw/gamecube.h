@@ -155,7 +155,7 @@ void _rwDlTransformSetup(const RwMatrix* matrix, int normalize);
 void _rwDlRenderStateSetZCompLoc(int beforeTexture);
 int _rwDlGetRenderState(int state, void* value);
 int _rwDlSetRenderState(int state, void* value);
-int _rwDlRenderStateFogEnable(unsigned int enable);
+int _rwDlRenderStateFogEnable(int enable);
 void _rwDlSetRenderStateSrcDestBlend(int source, int destination);
 RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                                                  unsigned int lightMask,
@@ -194,9 +194,8 @@ void _rwGCNVertexDescSetNumIndexedAttr(
 unsigned int _rwGCNVertexBufferHeaderGetSize(
     const RwGameCubeVertexDescriptor* descriptor);
 unsigned int _rwGCNVtxFmtInstPos3D(void* destination, const RwV3d* source,
-                               int type, int count,
-                               unsigned int stride, const RwV3d* origin,
-                               float scale);
+                               int type, float scale, int count,
+                               unsigned int stride, const RwV3d* origin);
 unsigned int _rwGCNVtxFmtInstNrm(void* destination, const RwV3d* source,
                              int type, int count, unsigned int stride);
 unsigned int _rwGCNVtxFmtInstNrmCmp(void* destination, const char* source,
@@ -210,8 +209,8 @@ unsigned int _rwGCNVtxFmtInstNBTCmp(void* destination, const char* source,
 unsigned int _rwGCNVtxFmtInstClr(void* destination, const RwRGBA* source,
                              int type, int count, unsigned int stride);
 unsigned int _rwGCNVtxFmtInstTex(void* destination, const RwTexCoords* source,
-                             int type, int count, unsigned int stride,
-                             float scale);
+                             int type, float scale, int count,
+                             unsigned int stride);
 unsigned int _rwGCNVertexBufferGetSize(
     const RwGameCubeVertexDescriptor* descriptor,
     const unsigned int* vertexCounts);

@@ -278,7 +278,7 @@ static void _rwDlRasterCamera_ZClearRectInit(RwRaster* raster)
 
     if (raster->type == 5) {
         RwGameCubeRasterExt* extension =
-            RwGameCubeRasterExtension(raster->parent);
+            rwRasterPlatformData(raster->parent);
         if ((extension->hasAlpha & 1) != 0) {
             if (_RwDlPixelFormat != 1) {
                 GXSetPixelFmt(1, 0);

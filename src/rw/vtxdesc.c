@@ -174,7 +174,7 @@ void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
         descriptor->attributeCounts &= ~3U;
         descriptor->attributeCounts |= colorCount & 3U;
         break;
-#define SET_TEXCOORD_DESC(shift)                                            \
+#define rwSetTexCoordDescriptorBits(shift)                                 \
     do {                                                                    \
         descriptor->vcdHi &= ~(3U << (shift));                              \
         descriptor->vcdHi |= ((unsigned int)type << (shift)) &              \
@@ -190,30 +190,30 @@ void _rwGCNVertexDescSetElementDesc(RwGameCubeVertexDescriptor* descriptor,
         descriptor->attributeCounts |= (texCoordCount << 4) & 0xF0U;        \
     } while (0)
     case 13:
-        SET_TEXCOORD_DESC(0);
+        rwSetTexCoordDescriptorBits(0);
         break;
     case 14:
-        SET_TEXCOORD_DESC(2);
+        rwSetTexCoordDescriptorBits(2);
         break;
     case 15:
-        SET_TEXCOORD_DESC(4);
+        rwSetTexCoordDescriptorBits(4);
         break;
     case 16:
-        SET_TEXCOORD_DESC(6);
+        rwSetTexCoordDescriptorBits(6);
         break;
     case 17:
-        SET_TEXCOORD_DESC(8);
+        rwSetTexCoordDescriptorBits(8);
         break;
     case 18:
-        SET_TEXCOORD_DESC(10);
+        rwSetTexCoordDescriptorBits(10);
         break;
     case 19:
-        SET_TEXCOORD_DESC(12);
+        rwSetTexCoordDescriptorBits(12);
         break;
     case 20:
-        SET_TEXCOORD_DESC(14);
+        rwSetTexCoordDescriptorBits(14);
         break;
-#undef SET_TEXCOORD_DESC
+#undef rwSetTexCoordDescriptorBits
     }
 }
 

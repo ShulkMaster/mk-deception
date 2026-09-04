@@ -18,12 +18,13 @@ static int SFVOM_AddRead(SfdHandle* handle, int amount, int value)
         amount);
 }
 
-static int SFVOM_GetRead(SfdHandle* handle, void* output_pointer)
+static int SFVOM_GetRead(SfdHandle* handle, SfdFrameTime** output)
 {
-    SfdFrameTime** output = output_pointer;
+    unsigned int state;
     int result;
 
-    if (handle->playback_state != 3 && handle->playback_state != 4) {
+    state = handle->playback_state;
+    if (state - 3 > 1) {
         *output = 0;
         return 0;
     }
@@ -35,6 +36,7 @@ static int SFVOM_GetRead(SfdHandle* handle, void* output_pointer)
     }
     if (SFTIM_IsGetFrmTime(handle, *output) == 0) {
         *output = 0;
+        return 0;
     }
     return 0;
 }
@@ -123,6 +125,7 @@ static int SFVOM_Init(SfdHandle* handle)
 const SfdTransportInterface SFD_tr_vo_manu = {
     SFVOM_Init,     SFVOM_Finish,   SFVOM_ExecServer, SFVOM_Create,
     SFVOM_Destroy,  SFVOM_Standby,  SFVOM_Start,      SFVOM_Stop,
-    SFVOM_Pause,    SFVOM_GetWrite, SFVOM_AddWrite,   SFVOM_GetRead,
+    SFVOM_Pause,    SFVOM_GetWrite, SFVOM_AddWrite,
+    (SfdTransportBufferFn)SFVOM_GetRead,
     SFVOM_AddRead,  SFVOM_Seek,
 };

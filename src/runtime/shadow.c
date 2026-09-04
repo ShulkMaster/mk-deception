@@ -243,18 +243,18 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
         &object->frame->modelling);
     camera = ShadowCamera;
     dir_matrix = &ShadowDirectionMatrix;
-    frame_matrix = &RwCameraGetFrame(camera)->modelling;
+    frame_matrix = &rwCameraParentFrame(camera)->modelling;
     frame_matrix->right = dir_matrix->right;
     frame_matrix->up = dir_matrix->up;
     frame_matrix->at = dir_matrix->at;
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(RwCameraGetFrame(camera));
+    RwFrameUpdateObjects(rwCameraParentFrame(camera));
     RwCameraSetFarClipPlane(camera, kFarClipMul * shadow_scale);
     RwCameraSetNearClipPlane(camera, kNearClipMul * shadow_scale);
     view_window.x = shadow_scale;
     view_window.y = shadow_scale;
     RwCameraSetViewWindow(camera, &view_window);
-    frame_matrix = &RwCameraGetFrame(camera)->modelling;
+    frame_matrix = &rwCameraParentFrame(camera)->modelling;
     frame_matrix->pos.x = fighter->object.pos.value.x;
     frame_matrix->pos.y = fighter->object.pos.value.y;
     frame_matrix->pos.z = fighter->object.pos.value.z;
@@ -262,7 +262,7 @@ void UpdateShadow(MkObj* fighter_object, ShadowObject* shadow, MkObj* object) {
     frame_matrix->pos.y = frame_matrix->pos.y + frame_matrix->at.y * (kViewWindowBias * camera->farPlane);
     frame_matrix->pos.z = frame_matrix->pos.z + frame_matrix->at.z * (kViewWindowBias * camera->farPlane);
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(RwCameraGetFrame(camera));
+    RwFrameUpdateObjects(rwCameraParentFrame(camera));
     ShadowCameraUpdate_flag = 1;
     ShadowCameraUpdate(camera, object->clump, 1);
     lights = shadow->light_pair;
@@ -400,7 +400,7 @@ static inline void shadow_destroy_camera(RwCamera** camera_ptr) {
     if (camera == NULL) {
         return;
     }
-    frame = RwCameraGetFrame(camera);
+    frame = rwCameraParentFrame(camera);
     if (frame != NULL) {
         _rwObjectHasFrameSetFrame(camera, NULL);
         RwFrameDestroy(frame);
@@ -425,7 +425,7 @@ static inline RwCamera* shadow_create_camera(int resolution) {
     if (camera != NULL) {
         frame = RwFrameCreate();
         _rwObjectHasFrameSetFrame(camera, frame);
-        if (RwCameraGetFrame(camera) != NULL) {
+        if (rwCameraParentFrame(camera) != NULL) {
             raster = RwRasterCreate(resolution, resolution, 0, 1);
             if (raster != NULL) {
                 camera->zBuffer = raster;
@@ -433,7 +433,7 @@ static inline RwCamera* shadow_create_camera(int resolution) {
                 return camera;
             }
         }
-        frame = RwCameraGetFrame(camera);
+        frame = rwCameraParentFrame(camera);
         if (frame != NULL) {
             _rwObjectHasFrameSetFrame(camera, NULL);
             RwFrameDestroy(frame);
@@ -593,12 +593,12 @@ int init_shadow_system(void) {
         return 0;
     }
     dir_matrix = &ShadowDirectionMatrix;
-    frame_matrix = &RwCameraGetFrame(camera)->modelling;
+    frame_matrix = &rwCameraParentFrame(camera)->modelling;
     frame_matrix->right = dir_matrix->right;
     frame_matrix->up = dir_matrix->up;
     frame_matrix->at = dir_matrix->at;
     RwMatrixUpdate(frame_matrix);
-    RwFrameUpdateObjects(RwCameraGetFrame(camera));
+    RwFrameUpdateObjects(rwCameraParentFrame(camera));
     camera = shadow_create_camera(aa_resolution);
     ShadowIPCamera = camera;
     if (camera == NULL) {
@@ -699,7 +699,7 @@ void ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
     if (clear != 0) {
         RwCameraClear(camera, &clear_color_black, 3);
     }
-    RwFrameOrthoNormalize(RwCameraGetFrame(camera));
+    RwFrameOrthoNormalize(rwCameraParentFrame(camera));
     if (RwCameraBeginUpdate(camera) == 0) {
         return;
     }
@@ -716,7 +716,7 @@ void ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
     node = clump->atomicList.next;
     end = &clump->atomicList;
     while (node != end) {
-        atomic = RpAtomicFromClumpLink(node);
+        atomic = rpAtomicFromClumpNode(node);
         if (atomic->object.flags & 4) {
             geometry = atomic->geometry;
             saved_flags = geometry->flags;

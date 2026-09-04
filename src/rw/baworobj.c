@@ -10,7 +10,7 @@
 #include "rw/rwplcore.h"
 #include "rw/rwstream.h"
 
-static void WorldObjectSetError(int code)
+static void rpSetWorldObjectError(int code)
 {
     RwError error;
     error.pluginID = 2;
@@ -18,7 +18,7 @@ static void WorldObjectSetError(int code)
     RwErrorSet(&error);
 }
 
-static void WorldObjectSetErrorWithValue(int code, int value)
+static void rpSetWorldObjectErrorValue(int code, int value)
 {
     RwError error;
     error.pluginID = 2;
@@ -26,7 +26,7 @@ static void WorldObjectSetErrorWithValue(int code, int value)
     RwErrorSet(&error);
 }
 
-static float WorldObjectCoordinate(const RwV3d* vector, int axis)
+static float rpWorldVectorAxis(const RwV3d* vector, int axis)
 {
     return *(const float*)((const unsigned char*)&vector->x + axis);
 }
@@ -85,27 +85,12 @@ static int      clumpExtOffset = 0;
 static int      lightExtOffset = 0;
 static RwModuleInfo worldObjModule;
 
-static RpWorldCameraExt* WorldCameraExtension(const void* camera)
+static RpWorldCameraExt* rpWorldCameraPluginData(const void* camera)
 {
     return (RpWorldCameraExt*)((unsigned char*)camera + cameraExtOffset);
 }
 
-static RpWorldAtomicExt* WorldAtomicExtension(const void* atomic)
-{
-    return (RpWorldAtomicExt*)((unsigned char*)atomic + atomicExtOffset);
-}
-
-static RpWorldClumpExt* WorldClumpExtension(const void* clump)
-{
-    return (RpWorldClumpExt*)((unsigned char*)clump + clumpExtOffset);
-}
-
-static RpWorldLightExt* WorldLightExtension(const void* light)
-{
-    return (RpWorldLightExt*)((unsigned char*)light + lightExtOffset);
-}
-
-static rpWorldObjGlobals* WorldObjectGlobals(void)
+static rpWorldObjGlobals* rpWorldObjectModuleData(void)
 {
     return (rpWorldObjGlobals*)((unsigned char*)RwEngineInstance +
                                 worldObjModule.globalsOffset);
@@ -221,7 +206,7 @@ SectorsInFrustumAddSpace(RpWorldCameraExt * cameraExt, int nNum)
         cameraExt->space += nNum;
         return 1;
     }
-    WorldObjectSetErrorWithValue(0x80000013, memSize);
+    rpSetWorldObjectErrorValue(0x80000013, memSize);
     return 0;
 }
 
@@ -257,7 +242,7 @@ WorldCameraSync(RwObjectHasFrame * object)
     world = cameraExt->world;
     if (world != 0) {
         RwStandardFunc hintRenderFrontToBack =
-            RWENGINESTANDARD(RwStandardCall, rwSTANDARDHINTRENDERF2B);
+            rwEngineStandardCall(RwStandardCall, rwSTANDARDHINTRENDERF2B);
         WorldSyncCamera(world, (RwCamera *)object);
         hintRenderFrontToBack(0, 0,
                               world->renderOrder == rpWORLDRENDERFRONT2BACK);
@@ -396,7 +381,7 @@ WorldAttachAtomicSphere(RpWorld * world, RpAtomic * atomic)
 
     do {
         if (sector->type < 0) {
-            RpTie *tie = RwEngineInstance->fpFreeListAlloc(WorldObjectGlobals()->tieFreeList,
+            RpTie *tie = RwEngineInstance->fpFreeListAlloc(rpWorldObjectModuleData()->tieFreeList,
                                          0x00030000 |
                                              0x507);
             tie->worldSector = (RpWorldSector *)sector;
@@ -408,12 +393,12 @@ WorldAttachAtomicSphere(RpWorld * world, RpAtomic * atomic)
             sector = stack[stackDepth--];
         } else {
             RpPlaneSector *plane = (RpPlaneSector *)sector;
-            if (WorldObjectCoordinate(&lower, plane->type) < plane->leftValue) {
+            if (rpWorldVectorAxis(&lower, plane->type) < plane->leftValue) {
                 sector = plane->leftSubTree;
-                if (plane->rightValue < WorldObjectCoordinate(&upper, plane->type)) {
+                if (plane->rightValue < rpWorldVectorAxis(&upper, plane->type)) {
                     stack[++stackDepth] = plane->rightSubTree;
                 }
-            } else if (plane->rightValue < WorldObjectCoordinate(&upper, plane->type)) {
+            } else if (plane->rightValue < rpWorldVectorAxis(&upper, plane->type)) {
                 sector = plane->rightSubTree;
             } else {
                 sector = stack[stackDepth--];
@@ -541,15 +526,15 @@ WorldLightSync(RwObjectHasFrame * object)
     RwFrame *frame;
 
     if (lightExt->oldSync(object) == 0) {
-        WorldObjectSetError(0x80000016);
+        rpSetWorldObjectError(0x80000016);
         return object;
     }
-    if (RpLightGetType(light) < 0x80) {
+    if (rpLightObjectType(light) < 0x80) {
         return object;
     }
 
     world = lightExt->world;
-    frame = RpLightGetFrame(light);
+    frame = rpLightParentFrame(light);
     if (world != 0 && frame != 0) {
         RpSector *sector = world->rootSector;
         RpSector *stack[64];
@@ -569,7 +554,7 @@ WorldLightSync(RwObjectHasFrame * object)
         do {
             if (sector->type < 0) {
                 RpLightTie *tie = RwEngineInstance->fpFreeListAlloc(
-                    WorldObjectGlobals()->lightTieFreeList,
+                    rpWorldObjectModuleData()->lightTieFreeList,
                     0x00030000 | 0x507);
                     tie->worldSector = (RpWorldSector *)sector;
                     tie->light = light;
@@ -580,12 +565,12 @@ WorldLightSync(RwObjectHasFrame * object)
                 sector = stack[stackDepth--];
             } else {
                 RpPlaneSector *plane = (RpPlaneSector *)sector;
-                if (WorldObjectCoordinate(&lower, plane->type) < plane->leftValue) {
+                if (rpWorldVectorAxis(&lower, plane->type) < plane->leftValue) {
                     sector = plane->leftSubTree;
-                    if (plane->rightValue < WorldObjectCoordinate(&upper, plane->type)) {
+                    if (plane->rightValue < rpWorldVectorAxis(&upper, plane->type)) {
                         stack[++stackDepth] = plane->rightSubTree;
                     }
-                } else if (plane->rightValue < WorldObjectCoordinate(&upper, plane->type)) {
+                } else if (plane->rightValue < rpWorldVectorAxis(&upper, plane->type)) {
                     sector = plane->rightSubTree;
                 } else {
                     sector = stack[stackDepth--];
@@ -643,7 +628,7 @@ WorldDeInitLightExt(void *object,
 static RpWorld     *
 WorldSyncCamera(RpWorld * world, RwCamera * camera)
 {
-    RpWorldCameraExt *cameraExt = WorldCameraExtension(camera);
+    RpWorldCameraExt *cameraExt = rpWorldCameraPluginData(camera);
     RpSector *sector = cameraExt->world->rootSector;
     RpSector *stack[64];
     const RwFrustumPlane *planes = camera->frustumPlanes;
@@ -692,12 +677,12 @@ WorldSyncCamera(RpWorld * world, RwCamera * camera)
             RwSplitBits rightDistance;
 
             leftDistance.nReal =
-                WorldObjectCoordinate(&lower, plane->type) - plane->leftValue;
+                rpWorldVectorAxis(&lower, plane->type) - plane->leftValue;
             rightDistance.nReal =
-                plane->rightValue - WorldObjectCoordinate(&upper, plane->type);
+                plane->rightValue - rpWorldVectorAxis(&upper, plane->type);
             if (leftDistance.nInt < 0 && rightDistance.nInt < 0) {
                 int viewpointHigher =
-                    WorldObjectCoordinate(&viewpoint, plane->type) > plane->value;
+                    rpWorldVectorAxis(&viewpoint, plane->type) > plane->value;
                 if (backToFront == viewpointHigher) {
                     sector = plane->leftSubTree;
                     stack[++stackDepth] = plane->rightSubTree;

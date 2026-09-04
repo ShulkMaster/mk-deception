@@ -57,19 +57,19 @@ static MatFXStateCache FXStateCache;
 RxPipeline* _RpMatFXAtomicPipe;
 RpGameCubeVtxFmt* _rpGCMatFXVtxFmtNBT;
 
-static RpMatFXMaterialData* MatFXData(const RpMaterial* material)
+static RpMatFXMaterialData* rpMaterialMatFxData(const RpMaterial* material)
 {
     return *(RpMatFXMaterialData**)((unsigned char*)material +
                                     MatFXMaterialDataOffset);
 }
 
-static SpecularMaterialPluginData* SpecularData(const RpMaterial* material)
+static SpecularMaterialPluginData* rpMaterialSpecularData(const RpMaterial* material)
 {
     return (SpecularMaterialPluginData*)((unsigned char*)material +
                                          SpecularMaterialOffset);
 }
 
-static RpGameCubeVtxFmt* GeometryVertexFormat(const RpGeometry* geometry)
+static RpGameCubeVtxFmt* rpGeometryPlatformFormat(const RpGeometry* geometry)
 {
     return *(RpGameCubeVtxFmt**)((unsigned char*)geometry + _rpDlGeomVtxFmtOffset);
 }
@@ -182,7 +182,7 @@ void _rpDlMatFXStateCacheInit(void)
     FXStateCache.material = 0;
 }
 
-static void SetupMaterial(RpMaterial* material,
+static void rpSetupMatFxMaterial(RpMaterial* material,
                           RxGameCubeAtomicAllInOneInstanceData* data)
 {
     RwGameCubeVertexBuffer* vertexBuffer =
@@ -218,7 +218,7 @@ static void MeshRenderStandard(
         (unsigned char*)material + SpecularMaterialOffset);
     int useSpecularMap;
 
-    SetupMaterial(material, data);
+    rpSetupMatFxMaterial(material, data);
     if ((data->geometryFlags & 8) != 0 && data->hasAmbient &&
         (data->geometryFlags & 0x84) != 0)
         useSpecularMap = 1;
@@ -238,7 +238,7 @@ static void MeshRenderStandard(
         _rxGCTevAlphaMultiPassCleanup((RxGCTevAlphaPass*)data);
 }
 
-static void LoadUVMatrix(const RwMatrix* matrix, int id, Mtx texMatrix)
+static void rpLoadUvTransformMatrix(const RwMatrix* matrix, int id, Mtx texMatrix)
 {
     texMatrix[0][0] = matrix->right.x;
     texMatrix[0][1] = matrix->up.x;
@@ -257,13 +257,13 @@ static void MeshRenderUVAnim(
 {
     RpMaterial* material = mesh->material;
     RwTexture* texture = material->texture;
-    RpMatFXMaterialData* matFX = MatFXData(material);
+    RpMatFXMaterialData* matFX = rpMaterialMatFxData(material);
     RwTexture* alphaTexture;
-    SpecularMaterialPluginData* specular = SpecularData(material);
+    SpecularMaterialPluginData* specular = rpMaterialSpecularData(material);
     int useSpecularMap;
     float texMatrix[2][4];
 
-    SetupMaterial(material, data);
+    rpSetupMatFxMaterial(material, data);
     if ((data->geometryFlags & 8) != 0 && data->hasAmbient &&
         (data->geometryFlags & 0x84) != 0)
         useSpecularMap = 1;
@@ -273,7 +273,7 @@ static void MeshRenderUVAnim(
     SetFirstTextureAlphaPassWithAlphaComp(
         texture, alphaTexture, (RxGCTevAlphaPass*)data);
     if (matFX->slot[0].data.uv.baseTransform != 0) {
-        LoadUVMatrix(matFX->slot[0].data.uv.baseTransform, 0x1E,
+        rpLoadUvTransformMatrix(matFX->slot[0].data.uv.baseTransform, 0x1E,
                        texMatrix);
         GXSetTexCoordGen(0, 1, 4, 0x1E);
     }
@@ -392,13 +392,13 @@ void* _rpGCMatFXRenderCallback(
     RwMatrix* ltm = RwFrameGetLTM((RwFrame*)atomic->object.parent);
 
     resource->token = _RwDlTokenCurrent;
-    _rwDlVtxFmtSetup(GeometryVertexFormat(atomic->geometry),
+    _rwDlVtxFmtSetup(rpGeometryPlatformFormat(atomic->geometry),
                      (RpGameCubeVtxFmtSetupData*)data);
     _rwDlTransformSetup(ltm, (data->geometryFlags & 0x10) != 0);
     _rpDlMatFXStateCacheInit();
     SetupAtomicSpecularity(atomic);
     while (numMeshes-- != 0) {
-        SpecularMaterialPluginData* specular = SpecularData(mesh->material);
+        SpecularMaterialPluginData* specular = rpMaterialSpecularData(mesh->material);
         if ((specular->flags.raw.value & 2) == 0) {
             int restoreCull = 0;
             int oldCullMode;
@@ -441,7 +441,8 @@ int _rpMatFXPipelinesDestroy(void)
         _rpGCMatFXVtxFmtNBT = 0;
     }
     if (_RpMatFXAtomicPipe != 0) {
-        _rxPipelineDestroy(_RpMatFXAtomicPipe);
+        /* Destroy the MatFX atomic pipeline and clear its cached handle. */
+        rxPipelineDestroyResult(_RpMatFXAtomicPipe);
         _RpMatFXAtomicPipe = 0;
     }
     return 1;
@@ -578,7 +579,7 @@ static void ApplySpecularityToDualPass(
     (*tevStage)++;
 }
 
-static void FinishDualPass(RwGameCubeDisplayList* displayList,
+static void rpFinishMatFxDualPass(RwGameCubeDisplayList* displayList,
                            int tevStage, int texCoord,
                            unsigned int firstSwap, unsigned int secondSwap)
 {
@@ -619,7 +620,7 @@ static void MKMeshRenderDual(
         texMap = 1;
     _rwDlTextureSet(material->texture, 0);
     GXSetTevSwapModeTable(3, 0, 3, 2, 1);
-    SetupMaterial(material, data);
+    rpSetupMatFxMaterial(material, data);
     if ((data->geometryFlags & 8) != 0 && data->hasAmbient &&
         (data->geometryFlags & 0x84) != 0)
         tevStage++;
@@ -650,7 +651,7 @@ static void MKMeshRenderDual(
     MKChooseBlendMode(dual->srcBlendMode, dual->dstBlendMode, &tevStage);
     if (specular->shininess != 0.0f)
         ApplySpecularityToDualPass(material, &texCoord, &tevStage);
-    FinishDualPass(displayList, tevStage, texCoord, firstSwap, secondSwap);
+    rpFinishMatFxDualPass(displayList, tevStage, texCoord, firstSwap, secondSwap);
 }
 
 static void MKMeshRenderUVAnimDual(
@@ -677,12 +678,12 @@ static void MKMeshRenderUVAnimDual(
 
     _rwDlTextureSet(material->texture, 0);
     GXSetTevSwapModeTable(3, 0, 3, 2, 1);
-    SetupMaterial(material, data);
+    rpSetupMatFxMaterial(material, data);
     if ((data->geometryFlags & 8) != 0 && data->hasAmbient &&
         (data->geometryFlags & 0x84) != 0)
         tevStage++;
     if (uv->baseTransform != 0) {
-        LoadUVMatrix(uv->baseTransform, 0x1E, texMatrix);
+        rpLoadUvTransformMatrix(uv->baseTransform, 0x1E, texMatrix);
         GXSetTexCoordGen(0, 1, 4, 0x1E);
     }
     if (alpha != 0)
@@ -699,7 +700,7 @@ static void MKMeshRenderUVAnimDual(
     else
         dualSource = 4;
     if (uv->dualTransform != 0) {
-        LoadUVMatrix(uv->dualTransform, 0x21, texMatrix);
+        rpLoadUvTransformMatrix(uv->dualTransform, 0x21, texMatrix);
         GXSetTexCoordGen(1, 1, dualSource, 0x21);
     } else {
         GXSetTexCoordGen(1, 1, dualSource, 0x3C);
@@ -716,5 +717,5 @@ static void MKMeshRenderUVAnimDual(
     MKChooseBlendMode(dual->srcBlendMode, dual->dstBlendMode, &tevStage);
     if (specular->shininess != 0.0f)
         ApplySpecularityToDualPass(material, &texCoord, &tevStage);
-    FinishDualPass(displayList, tevStage, texCoord, firstSwap, secondSwap);
+    rpFinishMatFxDualPass(displayList, tevStage, texCoord, firstSwap, secondSwap);
 }

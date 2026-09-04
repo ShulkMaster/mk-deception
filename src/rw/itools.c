@@ -258,7 +258,7 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
               (float)(1 << ((descriptor->vatA >> 4) & 0x1F));
           _rwGCNVtxFmtInstPos3D(
               output, (const RwV3d *)indexData->attributes[attribute],
-              positionType, numIndices, stride, remap, positionScale);
+              positionType, positionScale, numIndices, stride, remap);
           offset += rwGCNPosGetSize(descriptor);
         }
       } else if (format != 0) {
@@ -335,7 +335,7 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
             (float)(1 << ((descriptor->vatA >> 25) & 0x1F));
         _rwGCNVtxFmtInstTex(
             output, (const RwTexCoords *)indexData->attributes[attribute],
-            textureType, numIndices, stride, textureScale);
+            textureType, textureScale, numIndices, stride);
         offset += rwGCNTexGetSize(descriptor, 0);
       } else if (format != 0) {
         _rwGCNInstanceIndices(indexData->attributes[9],
@@ -357,7 +357,7 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
             (float)((1 << (descriptor->vatB >> (shift + 4))) & 0x1F);
         _rwGCNVtxFmtInstTex(
             output, (const RwTexCoords *)indexData->attributes[attribute],
-            textureType, numIndices, stride, textureScale);
+            textureType, textureScale, numIndices, stride);
         offset += rwGCNTexGetSize(descriptor, (unsigned char)textureIndex);
       } else if (format != 0) {
         _rwGCNInstanceIndices(indexData->attributes[9],
@@ -374,7 +374,7 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
         textureScale = (float)((1 << descriptor->vatC) & 0x1F);
         _rwGCNVtxFmtInstTex(
             output, (const RwTexCoords *)indexData->attributes[attribute],
-            textureType, numIndices, stride, textureScale);
+            textureType, textureScale, numIndices, stride);
         offset += rwGCNTexGetSize(descriptor, 4);
       } else if (format != 0) {
         _rwGCNInstanceIndices(indexData->attributes[9],
@@ -396,7 +396,7 @@ void _rwGCNDisplayListFill(const RwGameCubeVertexDescriptor *descriptor,
             (float)((1 << (descriptor->vatC >> (shift + 9))) & 0x1F);
         _rwGCNVtxFmtInstTex(
             output, (const RwTexCoords *)indexData->attributes[attribute],
-            textureType, numIndices, stride, textureScale);
+            textureType, textureScale, numIndices, stride);
         offset += rwGCNTexGetSize(descriptor, (unsigned char)textureIndex);
       } else if (format != 0) {
         _rwGCNInstanceIndices(indexData->attributes[9],

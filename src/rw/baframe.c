@@ -78,7 +78,7 @@ int RwFrameDirty(const RwFrame* frame)
 
 void _rwFrameInit(RwFrame* frame)
 {
-    rwObjectInitialize(frame, 0, 0);
+    rwInitializeObjectHeader(frame, 0, 0);
     rwLinkListInitialize(&frame->objectList);
     frame->modelling.flags = 3;
     frame->modelling.right.x = frame->modelling.up.y =

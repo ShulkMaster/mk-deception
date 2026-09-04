@@ -27,12 +27,12 @@ typedef char RpLightInWorldOffsetCheck[
     RW_OFFSET_OF(RpLight, inWorld) == 0x34 ? 1 : -1];
 typedef char RpLightSizeCheck[sizeof(RpLight) == 0x40 ? 1 : -1];
 
-static inline int RpLightGetType(const RpLight* light)
+static inline int rpLightObjectType(const RpLight* light)
 {
     return light->object.object.subType;
 }
 
-static inline RwFrame* RpLightGetFrame(const RpLight* light)
+static inline RwFrame* rpLightParentFrame(const RpLight* light)
 {
     return (RwFrame*)light->object.object.parent;
 }

@@ -469,7 +469,7 @@ RpWorld *RpWorldCreate(RwBBox *box) {
         RwErrorSet(&error);
         return 0;
     }
-    rwObjectInitialize(world, 7, 0);
+    rwInitializeObjectHeader(world, 7, 0);
     _rpMaterialListInitialize(&world->matList);
     world->renderOrder = rpWORLDRENDERBACK2FRONT;
     world->flags = 0;

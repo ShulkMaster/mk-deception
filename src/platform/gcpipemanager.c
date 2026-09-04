@@ -338,7 +338,7 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, void* owner) {
     RwLLLink* sentinel = &clump->atomicList;
 
     while (link != sentinel) {
-        RpAtomic* atomic = RpAtomicFromClumpLink(link);
+        RpAtomic* atomic = rpAtomicFromClumpNode(link);
         RpGeometry* geometry = atomic->geometry;
         RwLLLink* next = link->next;
         MksobjPluginData* atomic_data = MK_ATOMIC_PLUGIN(atomic);
@@ -436,7 +436,7 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, void* owner) {
     case 0x305:
     case 0x306:
         if (!has_uv_scroll && atomic_effects == 0) {
-            atomic->pipeline = RxPipelineGlobals()->currentAtomicPipeline;
+            atomic->pipeline = rxPipelinePlatformData()->currentAtomicPipeline;
         }
         RpGameCubeGeometrySetVtxFmt(geometry, &gamecube_vtxfmt_generic);
         break;

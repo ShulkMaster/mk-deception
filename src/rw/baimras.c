@@ -6,7 +6,7 @@ enum {
 };
 
 RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster) {
-    if (RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDIMAGEGETRASTER)(image, raster, 0)) {
+    if (rwEngineStandardCall(RwRasterDeviceCall, rwSTANDARDIMAGEGETRASTER)(image, raster, 0)) {
         if ((raster->privateFlags & rwRASTERGAMMACORRECTED) != 0) {
             image->flags |= rwIMAGEGAMMACORRECTED;
         }
@@ -16,7 +16,7 @@ RwImage* RwImageSetFromRaster(RwImage* image, RwRaster* raster) {
 }
 
 RwRaster* RwRasterSetFromImage(RwRaster* raster, RwImage* image) {
-    if (RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDRASTERSETIMAGE)(raster, image, 0)) {
+    if (rwEngineStandardCall(RwRasterDeviceCall, rwSTANDARDRASTERSETIMAGE)(raster, image, 0)) {
         if ((image->flags & rwIMAGEGAMMACORRECTED) != 0) {
             raster->privateFlags |= rwRASTERGAMMACORRECTED;
         }
@@ -30,7 +30,7 @@ RwImage* RwImageFindRasterFormat(RwImage* image, int rasterType,
                                  int* depth, int* format) {
     RwRaster raster;
 
-    if (!RWENGINESTANDARD(RwRasterDeviceCall, rwSTANDARDIMAGEFINDRASTERFORMAT)(&raster, image,
+    if (!rwEngineStandardCall(RwRasterDeviceCall, rwSTANDARDIMAGEFINDRASTERFORMAT)(&raster, image,
                                                     rasterType)) {
         return 0;
     }

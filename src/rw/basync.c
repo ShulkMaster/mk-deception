@@ -5,6 +5,7 @@
 
 static void FrameSyncHierarchyRecurse(RwFrame* frame, unsigned int inheritedFlags) {
     while (frame != 0) {
+        /* Soft ceiling: retail swaps the registers used for flags and object. */
         unsigned int flags = inheritedFlags | frame->object.privateFlags;
 
         if ((int)(flags & 0x04) != 0) {
@@ -23,8 +24,8 @@ static void FrameSyncHierarchyRecurse(RwFrame* frame, unsigned int inheritedFlag
                 RwLLLink* link = frame->objectList.link.next;
                 RwLLLink* sentinel = &frame->objectList.link;
                 while (link != sentinel) {
-                    RwObjectHasFrame* object = (RwObjectHasFrame*)
-                        ((unsigned char*)link - 8);
+                    RwObjectHasFrame* object =
+                        RW_CONTAINER_OF(link, RwObjectHasFrame, lFrame);
                     object->sync(object);
                     link = link->next;
                 }

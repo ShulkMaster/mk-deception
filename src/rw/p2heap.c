@@ -232,7 +232,7 @@ RxHeap* RxHeapCreate(unsigned int size)
             heap->freeBlocksUsed = 0;
             heap->dirty = 1;
 
-            if (RxHeapReset(heap)) {
+            if (rxHeapResetIfDirty(heap)) {
                 return heap;
             }
             HeapSuperBlockDestroy(superBlock);

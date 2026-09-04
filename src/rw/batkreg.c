@@ -38,6 +38,7 @@ static void rwDestroyEntry(void* memory, void* data) {
 
 
 int _rwPluginRegistryClose(void) {
+    /* Releases every registry entry and its supporting allocation tables. */
     if (toolkitRegEntries != 0) {
         RwFreeListForAllUsed(toolkitRegEntries, rwDestroyEntry,
                              toolkitRegEntries);
@@ -47,8 +48,10 @@ int _rwPluginRegistryClose(void) {
             for (i = 0; i < numRegToolkits; i++) {
                 RwPluginRegEntry* entry =
                     toolkitNonFLRegList[i]->firstRegEntry;
-                RwPluginRegistry* parent =
-                    entry != 0 ? entry->parentRegistry : 0;
+                RwPluginRegistry* parent = 0;
+                if (entry != 0) {
+                    parent = entry->parentRegistry;
+                }
                 while (entry != 0) {
                     RwPluginRegEntry* next = entry->nextRegEntry;
                     RwEngineInstance->fpFreeListFree(0, entry);
@@ -194,6 +197,7 @@ int _rwPluginRegistryAddPlugin(
 
 const RwPluginRegistry* _rwPluginRegistryInitObject(
     const RwPluginRegistry* registry, void* object) {
+    /* Constructs each registered plugin extension in registration order. */
     RwPluginRegEntry* entry = registry->firstRegEntry;
     while (entry != 0) {
         if (entry->constructCB(object, entry->offset, entry->size) == 0) {
