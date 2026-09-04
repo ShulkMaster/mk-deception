@@ -84,6 +84,30 @@ typedef struct KonquestBackgroundBox {
     };
 } KonquestBackgroundBox;
 
+typedef struct KonquestRequiredAttack {
+    unsigned char type;
+    unsigned char value;
+    char pad02[2];
+    int flags;
+    struct KonquestRequiredAttack* next;
+} KonquestRequiredAttack;
+
+typedef struct KonquestRequiredSequence {
+    const char* message;
+    const char* message_parameter;
+    KonquestRequiredAttack* current;
+    KonquestRequiredAttack* first;
+} KonquestRequiredSequence;
+
+typedef struct KonquestRequiredSequenceList {
+    unsigned char sequence_count;
+    unsigned char current_sequence;
+    char pad02[2];
+    KonquestRequiredSequence entries[12];
+    KonquestRequiredAttack attacks[40];
+    int attack_count;
+} KonquestRequiredSequenceList;
+
 typedef struct KonquestMissionState {
     MkHdr hdr;
     union {
@@ -99,7 +123,7 @@ typedef struct KonquestMissionState {
             KonquestSuccessCondition success_conditions[35];
             char success_pad238[0x78];
         };
-        unsigned char trial_data[0x2A8];
+        KonquestRequiredSequenceList required_sequences;
     };
     int display_item_a;                /* +0x2B0 */
     const char* display_format;         /* +0x2B4 */
@@ -238,30 +262,6 @@ typedef struct KonquestRequiredMoveProgress {
     unsigned char required;
     unsigned char current;
 } KonquestRequiredMoveProgress;
-
-typedef struct KonquestRequiredSequence {
-    const char* message;
-    const char* message_parameter;
-    struct KonquestRequiredAttack* current;
-    struct KonquestRequiredAttack* first;
-} KonquestRequiredSequence;
-
-typedef struct KonquestRequiredAttack {
-    unsigned char type;
-    unsigned char value;
-    char pad02[2];
-    int flags;
-    struct KonquestRequiredAttack* next;
-} KonquestRequiredAttack;
-
-typedef struct KonquestRequiredSequenceList {
-    unsigned char sequence_count;
-    unsigned char current_sequence;
-    char pad02[2];
-    KonquestRequiredSequence entries[12];
-    KonquestRequiredAttack attacks[40];
-    int attack_count;
-} KonquestRequiredSequenceList;
 
 typedef struct KonquestTrialScriptAttrs {
     char pad00[0x3C];
@@ -403,9 +403,9 @@ int is_weapon_style(PlyrFighterDefinition* fighter);
 int is_timer_off(void);
 int is_pX_airborn(int player);
 extern int game_tick_ctr;
-MkHdr* konquest_set_dialog_text(
+MkProc* konquest_set_dialog_text(
     const char* text, const LipSyncKeyframe* lip_sync_keyframes);
-void calc_print_speed_for_nis_dialog(void* dialog, unsigned int ticks);
+void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks);
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval);
@@ -459,6 +459,12 @@ static float p_transform_into_player(void);
 static void set_prompt_items(KonquestTrialWindowPdata* unused);
 static void plot_and_show_window_frame(KonquestTrialWindowPdata* unused);
 static void text_window_fade_out(unsigned char ticks);
+/*
+ * Near match: mission-state validation, player/opponent filters, condition
+ * bounds, registration, and progress updates match retail. The four-byte
+ * delta is folded latch/limit join control flow; remaining differences are
+ * the typed condition pointer versus retail's base/index register pair.
+ */
 void trial_increment_state_value(
     int player, int state, int increment);
 static void increment_progress_count(unsigned char increment);
@@ -1653,17 +1659,24 @@ float p_show_text_window(void) {
     return -1.0f;
 }
 
+/*
+ * Near match at exact retail size: argument packing, save-data stores, fade,
+ * and game-logic jump agree. The remaining island is an equivalent rlwimi
+ * choice: retail shifts the new background root and inserts the preserved low
+ * half, while MWCC selects the old word and inserts the new high half.
+ */
 void trial_set_next_mission(
     int mission, int pair_a_low, int pair_a_high,
     int pair_b_low, int pair_b_high, int value_a, int value_b,
     int background_root) {
     unsigned int old_background = konquest_save_data.background_and_flags;
 
+    pair_b_low |= (unsigned int)pair_b_high << 16;
+
     konquest_save_data.next_mission = mission;
+    konquest_save_data.mission_pair_b = pair_b_low;
     konquest_save_data.mission_pair_a =
         (unsigned int)pair_a_low | ((unsigned int)pair_a_high << 16);
-    konquest_save_data.mission_pair_b =
-        (unsigned int)pair_b_low | ((unsigned int)pair_b_high << 16);
     konquest_save_data.next_value_a = value_a;
     konquest_save_data.next_value_b = value_b;
     konquest_save_data.background_and_flags =
@@ -1810,7 +1823,7 @@ void trial_do_dialog(
     int unused, int string_id,
     float unused_x, float unused_y, float unused_scale,
     unsigned int ticks, int wait) {
-    MkHdr* dialog;
+    MkProc* dialog;
     unsigned int instance;
     int scaled_ticks = (int)((float)ticks * inverse_game_speed);
 
@@ -1820,7 +1833,7 @@ void trial_do_dialog(
     if (dialog != 0) {
         instance = dialog->instance;
         if (wait != 0) {
-            while (get_dialog_latch(dialog, instance) != 0) {
+            while (get_dialog_latch(&dialog->hdr, instance) != 0) {
                 _mkproc_sleep_ticks = 1.0f;
                 ((KonquestMissionProcVtable*)aproc->vtbl)->sleep();
             }
@@ -2559,7 +2572,7 @@ void trial_register_combo(
         }
         if (player != fight->animation_side) {
             KonquestRequiredSequenceList* list =
-                (KonquestRequiredSequenceList*)&state->combo_hits;
+                &state->required_sequences;
             KonquestRequiredSequence* sequence =
                 &list->entries[list->current_sequence];
 
@@ -2578,7 +2591,7 @@ void trial_set_combo_requirement(int hits, float damage) {
 void trial_add_required_attack(
     unsigned char attack, unsigned char count, int flags) {
     KonquestRequiredSequenceList* list =
-        (KonquestRequiredSequenceList*)&mission_state->combo_hits;
+        &mission_state->required_sequences;
     KonquestRequiredSequence* sequence =
         &list->entries[list->current_sequence - 1];
     KonquestRequiredAttack* required_attack =
@@ -2602,16 +2615,22 @@ void trial_add_required_attack(
     }
 }
 
-void trial_add_required_sequence(const char* first, const char* second) {
+/*
+ * Soft ceiling: trial_add_required_sequence ~95.43% -- both string arguments,
+ * 16-byte entry selection, byte counters, and progress update match retail.
+ * Only the compiler's second defensive-null branch polarity differs.
+ */
+void trial_add_required_sequence(
+    const char* message, const char* message_parameter) {
     KonquestRequiredSequenceList* list =
-        (KonquestRequiredSequenceList*)&mission_state->combo_hits;
+        &mission_state->required_sequences;
     KonquestRequiredSequence* sequence =
         &list->entries[list->current_sequence];
 
     if (sequence != 0) {
         if (list != 0) {
-            sequence->message_parameter = second;
-            sequence->message = first;
+            sequence->message_parameter = message_parameter;
+            sequence->message = message;
             list->current_sequence++;
             list->sequence_count++;
             mission_state->progress_required++;
@@ -2645,8 +2664,8 @@ void trial_register_attack(
         if (player != state->fight->animation_side) {
             return;
         }
-        sequence_index = state->trial_data[1];
-        list = (KonquestRequiredSequenceList*)state->trial_data;
+        sequence_index = state->required_sequences.current_sequence;
+        list = &state->required_sequences;
         sequence = &list->entries[sequence_index];
         required_attack = sequence->current;
         if (sequence == 0 || required_attack == 0 || list == 0) {
@@ -2838,8 +2857,7 @@ void trial_state_collision_check(int collision_result, int player) {
                     }
                 } else if (mission_state->trial_type == 1) {
                     KonquestRequiredSequenceList* list =
-                        (KonquestRequiredSequenceList*)
-                            mission_state->trial_data;
+                        &mission_state->required_sequences;
                     KonquestRequiredSequence* sequence =
                         &list->entries[mission_state->condition_value];
 
@@ -2953,26 +2971,35 @@ void trial_increment_state_value(
     KonquestSuccessCondition* conditions;
 
     mission_state = state;
-    if (state != 0 && mode_of_play == 8) {
-        if (!g_game_info.flag_bits.lens_flare_enabled) {
-            return;
-        }
-        conditions = state->success_conditions;
-        if ((opponent_event != 0 ||
-             player == state->fight->animation_side) &&
-            (opponent_event != 1 ||
-             player != state->fight->animation_side) &&
-            state->trial_type == 0 &&
-            conditions[state_index].required_count > 0) {
-            if (conditions[state_index].current_count >=
-                conditions[state_index].required_count) {
-                return;
-            }
-            if (register_condition(&conditions[state_index].condition)) {
-                increment_progress_count(1);
-                conditions[state_index].current_count++;
-            }
-        }
+    if (state == 0 || mode_of_play != 8) {
+        return;
+    }
+    if (!g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if (opponent_event == 0 &&
+        player != state->fight->animation_side) {
+        return;
+    }
+    if (opponent_event == 1 &&
+        player == state->fight->animation_side) {
+        return;
+    }
+    if (state->trial_type != 0) {
+        return;
+    }
+
+    conditions = state->success_conditions;
+    if (conditions[state_index].required_count <= 0) {
+        return;
+    }
+    if (conditions[state_index].current_count >=
+        conditions[state_index].required_count) {
+        return;
+    }
+    if (register_condition(&conditions[state_index].condition)) {
+        increment_progress_count(1);
+        conditions[state_index].current_count++;
     }
 }
 
@@ -3272,15 +3299,13 @@ int trial_end_round(void) {
             }
         } else if (state->trial_type == 1) {
             for (i = 0; i < 12; i++) {
-                sequences = (KonquestRequiredSequenceList*)
-                    mission_state->trial_data;
+                sequences = &mission_state->required_sequences;
                 if (sequences->entries[i].first == 0) {
                     break;
                 }
                 sequences->entries[i].current = sequences->entries[i].first;
             }
-            sequences = (KonquestRequiredSequenceList*)
-                mission_state->trial_data;
+            sequences = &mission_state->required_sequences;
             sequences->current_sequence = 0;
         } else if (state->trial_type == 3) {
             state->combo_complete = 0;
@@ -3682,7 +3707,9 @@ void trial_round_init(void) {
     if (mission_state->display_flags & 4) {
         turn_controllers_on();
         mission_state->display_flags &= ~4;
-        memset(mission_state->trial_data, 0, sizeof(mission_state->trial_data));
+        memset(
+            &mission_state->required_sequences, 0,
+            sizeof(mission_state->required_sequences));
         mission_state->progress_count = 0;
         mission_state->progress_required = 0;
         mission_state->field_2E8 = 0;
@@ -3716,7 +3743,7 @@ void trial_round_init(void) {
     pop_game_state();
 
     if (mission_state->trial_type == 1) {
-        sequences = (KonquestRequiredSequenceList*)mission_state->trial_data;
+        sequences = &mission_state->required_sequences;
         for (i = 0; i < sequences->sequence_count; i++) {
             sequences->entries[i].current = sequences->entries[i].first;
         }
@@ -4164,6 +4191,11 @@ static void ps_konquest_trial_monk(void) {
     current_anim_pdata = 0;
 }
 
+/*
+ * Near match at retail size: mission/process generation validation and the
+ * animation-pdata publication match. Residue is one folded valid-latch join,
+ * r3/r4 coloring, and scheduling the aproc load before the final call.
+ */
 static void pw_konquest_trial_monk(void) {
     KonquestMissionState* state = get_mission_state();
     MkProc* process;

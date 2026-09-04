@@ -202,6 +202,7 @@ int load_binary_data(
 void display_prize_description(CoffinEntry* entries, int index, int last_index, int available,
                                unsigned int string_bank, int priority);
 void move_picture_to_camera(KryptScreenObjLatch* picture_latch);
+void remove_prize_description(void);
 MkObj* load_krypt_character(char* character_name);
 void set_pebble_positions_for_row(int row, int start_col, int count, const Vec* origin);
 void init_tombstone_letters(void* pfx);

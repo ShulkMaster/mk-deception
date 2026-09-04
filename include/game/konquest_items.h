@@ -12,6 +12,7 @@ typedef struct PuiItem {
     int desc_id;    /* +0x18 */
 } PuiItem;
 
+PuiItem* get_pui_item_at_inv_bit_index(int index);
 int get_last_character_trained_with(void);
 void set_last_character_trained_with(int character);
 const char* get_konq_profile_value_item_name(int index);

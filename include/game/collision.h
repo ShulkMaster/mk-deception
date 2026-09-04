@@ -94,6 +94,8 @@ void build_col_shape_vertical_cylinder(
 void build_col_shape_vertical_box(
     CollisionShape* shape, const Vec* center, float width, float height,
     float depth, float angle);
+CollisionObj* add_shape_to_global_collision_list(
+    const CollisionShape* shape, unsigned int flags);
 int is_point_inside_shape(const CollisionShape* shape, const Vec* point);
 int get_shape_center_for_collision_obstacle(
     CollisionObj* obstacle, Vec* center);

@@ -10,7 +10,8 @@ void trial_register_script_function(unsigned int function_index);
 void trial_register_attack(
     int player, unsigned char attack_type, unsigned char attack_value);
 void trial_clear_provision(void);
-void trial_increment_state_value(int player, int state, int value);
+void trial_increment_state_value(
+    int player, int state_index, int opponent_event);
 PlyrInfo* trial_get_drone_info(void);
 
 #endif

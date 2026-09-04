@@ -2,11 +2,10 @@
 
 #include "game/nbc.h"
 #include "runtime/asset.h"
+#include "runtime/string_bank.h"
 #include "runtime/utils.h"
 
-#define konquest_items_string_base stringBase0
-
-extern const char stringBase0[];
+#define konquest_items_string_base "\0" "0"
 
 typedef struct CommonProfileSave {
     char pad00[0x38]; /* +0x00 */
@@ -43,11 +42,13 @@ extern KonquestPdata* konquest_pdata;
 
 int is_mark_as_unlocked(void* profile, int category, int character);
 int get_num_puis(void);
-PuiItem* get_pui_item_at_inv_bit_index(int index);
 int get_pui_inventory_bit_index(PuiItem* item);
-const char* get_string_by_id(int id);
 int strcmp(const char* a, const char* b);
 
+/*
+ * Near match: selection, wrap, unlock checks, and return paths match retail.
+ * Residue is one folded join branch and one harmless compare-GPR rotation.
+ */
 int get_last_character_trained_with(void) {
     int count;
     int character;
@@ -87,8 +88,8 @@ const char* get_konq_profile_value_item_name(int index) {
     item = get_pui_item_at_inv_bit_index(index);
     if (item != 0) {
         string_id = item->name_id;
-        if ((unsigned int)(string_id + 1) != 0xFFFF) {
-            result = get_string_by_id(string_id | 0x30000);
+        if ((unsigned int)string_id + 0x10000U != 0xFFFFU) {
+            result = get_string_by_id((unsigned int)string_id | 0x30000U);
         }
     }
     return result;
@@ -106,8 +107,8 @@ const char* get_konq_profile_value_item_description(int index) {
     item = get_pui_item_at_inv_bit_index(index);
     if (item != 0) {
         string_id = item->desc_id;
-        if ((unsigned int)(string_id + 1) != 0xFFFF) {
-            result = get_string_by_id(string_id | 0x30000);
+        if ((unsigned int)string_id + 0x10000U != 0xFFFFU) {
+            result = get_string_by_id((unsigned int)string_id | 0x30000U);
         }
     }
     return result;
@@ -143,26 +144,24 @@ RwTexture* get_konq_profile_value_item_tga(int index) {
     return result;
 }
 
+/*
+ * Near match: bounds, inventory-bit lookup, item-type filter, loop, and return
+ * CFG agree. Retail moves get_u8_bit's result directly to r31; MWCC routes the
+ * same value through r0 first, leaving one extra move and a four-byte delta.
+ */
 int find_next_item_in_inventory(int index) {
     int owned;
-    PuiItem* item;
 
-    if (index < -1) {
-        return -1;
-    }
-    if (index >= get_num_puis()) {
+    if (index < -1 || index >= get_num_puis()) {
         return -1;
     }
     index++;
     while (index < get_num_puis()) {
-        if (index < 0) {
-            owned = 0;
-        } else if (index >= get_num_puis()) {
+        if (index < 0 || index >= get_num_puis()) {
             owned = 0;
         } else {
             owned = get_u8_bit(p1_profile_konquest->inventory_bits, get_num_puis(), index);
-            item = get_pui_item_at_inv_bit_index(index);
-            if (item->type != 1) {
+            if (get_pui_item_at_inv_bit_index(index)->type != 1) {
                 owned = 0;
             }
         }
@@ -174,22 +173,23 @@ int find_next_item_in_inventory(int index) {
     return -1;
 }
 
+/*
+ * Near match: the repeated ownership test and count loop agree with retail.
+ * The remaining four-byte delta is one extra result move; other differences
+ * are only the r29-r31 allocation rotation caused by that move.
+ */
 int get_number_items_in_inventory(void) {
     int count;
     int index;
     int owned;
-    PuiItem* item;
 
     count = 0;
     for (index = 0; index < get_num_puis(); index++) {
-        if (index < 0) {
-            owned = 0;
-        } else if (index >= get_num_puis()) {
+        if (index < 0 || index >= get_num_puis()) {
             owned = 0;
         } else {
             owned = get_u8_bit(p1_profile_konquest->inventory_bits, get_num_puis(), index);
-            item = get_pui_item_at_inv_bit_index(index);
-            if (item->type != 1) {
+            if (get_pui_item_at_inv_bit_index(index)->type != 1) {
                 owned = 0;
             }
         }
@@ -200,6 +200,11 @@ int get_number_items_in_inventory(void) {
     return count;
 }
 
+/*
+ * Near match: type filtering, profile read, addition, and setter ABI agree.
+ * MWCC folds two equivalent rejected-range branches that retail emits
+ * separately; there are no data, argument, or side-effect differences.
+ */
 void add_to_konq_profile_value(int type, int value) {
     int current;
 
@@ -219,13 +224,15 @@ void add_to_konq_profile_value(int type, int value) {
     set_konq_profile_value(type, 0, current + value);
 }
 
+/*
+ * Near match: all switch cases, bounds, access widths, and return values agree.
+ * The sole instruction residue is an extra r0 move of get_u8_bit's result;
+ * the remaining jump-table differences are relocations shifted by that move.
+ */
 int get_konq_profile_value(int type, int index) {
     int value;
 
     value = 0;
-    if ((unsigned int)type > 0xD) {
-        return 0;
-    }
     switch (type) {
     case 0:
         if (index < 0) {
@@ -281,15 +288,14 @@ int get_konq_profile_value(int type, int index) {
         if (index >= get_num_puis()) {
             break;
         }
-        if (index < 0) {
-            break;
-        }
-        if (index >= get_num_puis()) {
-            break;
-        }
-        value = get_u8_bit(p1_profile_konquest->inventory_bits, get_num_puis(), index);
-        if (get_pui_item_at_inv_bit_index(index)->type != 1) {
+        if (index < 0 || index >= get_num_puis()) {
             value = 0;
+        } else {
+            value = get_u8_bit(
+                p1_profile_konquest->inventory_bits, get_num_puis(), index);
+            if (get_pui_item_at_inv_bit_index(index)->type != 1) {
+                value = 0;
+            }
         }
         break;
     case 7:
@@ -324,9 +330,6 @@ int get_konq_profile_value(int type, int index) {
 }
 
 void set_konq_profile_value(int type, int index, int value) {
-    if ((unsigned int)type > 0xD) {
-        return;
-    }
     switch (type) {
     case 0:
         if (index < 0) {
@@ -338,7 +341,8 @@ void set_konq_profile_value(int type, int index, int value) {
         set_u8_bit(p1_profile_konquest->flags_300, 0x12C, index, value);
         return;
     case 1:
-        return;
+    default:
+        break;
     case 2:
         if (index < 0) {
             return;
@@ -469,6 +473,3 @@ int get_pui_status(PuiItem* item) {
     }
     return get_u8_bit(konquest_pdata->pui_status_bits, get_num_puis(), bit_index);
 }
-
-const char stringBase0[] = "\0""0\0";
-const int gap_04_803106A4_rodata = 0;

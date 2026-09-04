@@ -1,6 +1,8 @@
 #ifndef KONQUEST_SAVE_H
 #define KONQUEST_SAVE_H
 
+extern int f_writing_konquest_profile;
+
 void profile_region_change(void);
 int full_konquest_save_to_memcard(int region, int slot, int arg);
 void full_konquest_load_from_memcard(void);
