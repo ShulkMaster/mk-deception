@@ -47,7 +47,7 @@ The delimiter `" "` moved from `.sdata2+0` to `+0xE4`, shifting early floats and
 8-byte alignment gaps. A separate 35-byte string-pool deficit came from five
 missing retail strings. Require initializer order and literal ownership before
 adding data; do not substitute one padding gap, dummy constants, or stack pads
-for nonuniform TU layout differences. See [audit](konquest-relocation-audit.md).
+for nonuniform TU layout differences.
 
 M15 named-pool diagnostic: If data-value mode still flags a named C array
 against retail `@stringBase0`, compare the used string at its addend and the
@@ -56,7 +56,7 @@ placement yet remained flagged. `utils`' pool had the same 923-byte prefix plus
 one extra trailing NUL from explicit plus implicit termination; the used
 `WEAPREFL` bytes agreed. Record raw-byte evidence without relabeling the CLI
 result or inventing stack padding. A future pool fix must check actual literal
-termination and every TU consumer. See [the sample audit](latch-effectiveness-100.md).
+termination and every TU consumer.
 
 ## Accept / stop
 

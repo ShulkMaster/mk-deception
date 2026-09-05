@@ -88,7 +88,7 @@ H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nes
   all fifteen also passed data-value comparison. Reusing an accessor inside
   another inline helper can alter zero-register reuse, and loop consumers can
   rotate list-base/counter homes: recover the latch once, then retain the
-  coloring ceiling. See [the measured round](another-fifteen-functions.md).
+  coloring ceiling.
   In a size-ranked, 95%+ one-attempt sample, direct owner accessors improved
   76/80 functions; cached-pointer accessors improved 4/13, with no exact closes.
   Use the direct form when the pointer load and validation are adjacent. Keep
@@ -98,7 +98,7 @@ H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nes
   A callee's accessor can also change whether its caller inlines that callee:
   `npc_resolve_events` improved while `npc_invisible_update` fell from 90.77%
   to 44.88% after losing its explicit call. Restore the trial if any caller
-  regresses, including callers below 95%. See [100 trials](latch-effectiveness-100.md).
+  regresses, including callers below 95%.
 
 ## Known traps
 
