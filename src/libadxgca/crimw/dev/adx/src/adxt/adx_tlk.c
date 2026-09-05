@@ -314,6 +314,7 @@ void ADXT_SetTimeOfst(ADXTHandle* handle, s32 offset)
 }
 
 /* TODO: [near miss] 99.9885%; filename buffer excluded from pooled BSS; explicit array initialization put it in data and was restored. */
+/* TODO: [near miss] 99.9885%; timing-global BSS pool skips the file-ID buffer; explicit zero initialization did not fix placement. */
 s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
 {
     s32 discarded;

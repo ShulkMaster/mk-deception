@@ -1,3 +1,4 @@
+#include "cri/adxt_internal.h"
 #include "cri/svm.h"
 #include "runtime/cstring.h"
 
@@ -39,7 +40,7 @@ int adxt_svr_id = 0;
 int adxt_svr_main_id = 0;
 int adxt_svr_fs_id = 0;
 int adxt_vsync_cnt = 0;
-unsigned char adxt_obj[0xC00];
+ADXTHandle adxt_obj[16];
 static const char* cri_verstr_ptr;
 
 int adxt_vsync_svr_flag = 1;
@@ -78,6 +79,7 @@ void ADXT_Finish(void)
     }
 }
 
+/* TODO: [near miss] 99.97531%; canonical handle array recovered; version-pointer/BSS pooling order remains. */
 void ADXT_Init(void)
 {
     cri_verstr_ptr = adxt_build;
