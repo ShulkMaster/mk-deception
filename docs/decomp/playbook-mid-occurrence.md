@@ -144,3 +144,19 @@ the decoder. Sofdec's run/level tables 4, 2, and 1 are biased by -16, -32, and
 -32 bytes. Execute retail initialization and relocate the candidate object;
 check coefficient bits, bit-reader state, return fields, and buffer guards.
 The optional `tools/check_mpvabdec.py` reproduces this GQNE5D comparison.
+
+M13 sibling-macro diagnostic: IF related large decoders repeat the same VLC
+branches, REQUIRE comparison of the corresponding retail expansions, not only
+whole-function fuzzy scores. TRY shared guarded peek, rare-code extraction,
+and refill macros with real per-expansion locals. Keep generic block-level
+quantization distinct when retail lowers it differently from constant fast
+paths. Consume lookahead only after its full value is dead, and retain sign
+bits until their store. Validate DC prediction and AC decoding independently;
+the second Sofdec round checks luma/chroma DC boundaries and every recovered
+AC entry as well as the non-intra suite.
+
+Permuter import diagnostic: IF preparing the same symbol again, REQUIRE the
+scratch path actually printed by the importer: it can create `SYMBOL-2` rather
+than replace `SYMBOL`. TRY verifying the new base source and planned iteration
+count before running a finite macro search. A one-line `PERM_LINESWAP` can fold
+away and leave default randomization; do not report that as an exhausted search.

@@ -218,6 +218,21 @@ score concealed the error. Execute both signs, first/subsequent coefficients,
 and every bit alignment against retail; do not infer behavior from the score
 or from agreement with a port that inherited the same source.
 
+H07 inline-boundary diagnostic: IF a helper trial raises fuzzy score, REQUIRE
+whole-object call inspection before accepting it. MWCC can leave calls to a
+`static inline` helper in a large decoder despite the keyword. In the second
+Sofdec round, `mpvabdec_Peek` introduced non-retail calls and save/restore helpers.
+TRY the equivalent statement macro when retail repeats a call-free expansion;
+recheck all consumers rather than trusting the percentage or inline hint.
+
+H15 cursor-order diagnostic: IF a validated macro expansion has the right
+operations but persistent cursor/reservoir register roles differ, REQUIRE the
+real local lifetimes and unchanged initialization/effect order. TRY a finite
+scratch-only permutation of those declarations, then review one minimal result.
+Declaring Nintra's scan and stream cursors before its reservoir words improved
+94.015945% to 94.820045% with unchanged tested behavior. This does not authorize
+fake locals, forced registers, or indefinite source declaration cycling.
+
 ## Known traps
 
 - H15 measured check: `mslTick`99.3->100 by declaring processed before the
