@@ -626,10 +626,10 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
 }
 
 void pfx_run(PfxVm* pfx, float frame_time) {
-    PfxBehavior* behavior;
     PfxBehavior* next_behavior;
-    int total_particles;
     int index;
+    int total_particles;
+    PfxBehavior* behavior;
 
     pfx->elapsed_time += frame_time;
     if (pfx_frame_begin(pfx) != 0) {

@@ -3214,8 +3214,8 @@ static float p_follow_camera(void) {
 }
 int load_pix_section(
     int slot, const CoffinEntry* entries, int index, int enabled, int flags) {
-    int gallery_art;
     MkFileInfo* section;
+    int gallery_art;
 
     if (enabled == 0) {
         return 0;
@@ -3376,6 +3376,7 @@ float p_krypt_loop(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 99.41243%; 48 declaration-only scratch candidates did not close; retain source and inspect inline row-helper lowering. */
 float p_setup_krypt(void) {
     MkFileEntry* file;
     void* string_pool;

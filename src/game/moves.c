@@ -1963,19 +1963,15 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].switch_value;
 }
 
-/*
- * Soft ceiling: retail and source have the same 476-byte instruction stream.
- * Objdiff residue is limited to saved-GPR allocation and local float labels.
- */
 float switch_proc_advance_moveset(void) {
-    PlyrInfo* player;
     PlyrPdata* player_data;
-    MkProc* idle_proc;
-    MkProc* proc;
     MovesSidekickPdataRef pdata;
     int player_num;
-    int player_state;
     int fighter_state;
+    MkProc* proc;
+    int player_state;
+    MkProc* idle_proc;
+    PlyrInfo* player;
     float life;
 
     player = switch_pdata->player;

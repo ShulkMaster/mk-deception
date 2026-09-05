@@ -1687,9 +1687,11 @@ void trial_set_next_mission(
 }
 
 int trial_get_drone_difficulty(void) {
-    KonquestMissionState* state = get_mission_state();
-    int completed;
     int index;
+    KonquestMissionState* state;
+    int completed;
+
+    state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {

@@ -1,4 +1,5 @@
 #include "game/konquest_save.h"
+#include "game/storage_types.h"
 #include "game/konquest.h"
 #include "game/konquest_items.h"
 #include "math/gxVect.h"
@@ -169,7 +170,7 @@ extern int p1_profile_device;
 extern int p2_profile_device;
 extern int p1_profile_slot;
 extern int p2_profile_slot;
-extern char storage_status[];
+extern StorageDevice storage_status[STORAGE_MAX_DEVICES];
 int f_writing_konquest_profile;
 extern int f_writing_to_memcard;
 
@@ -265,16 +266,13 @@ static inline void copy_common_konquest_profile_data(
     profile->profile_serial = 1;
 }
 
-/*
- * Near match: CFG and call ABI agree; the 28-byte size residue is individual
- * nonvolatile saves/restores instead of stmw/lmw, plus r4/r5 coloring.
- */
+/* TODO: [near miss] 98.49593%; shared storage fields recovered; remaining register/CFG lowering requires evidence. */
 int full_konquest_save_to_memcard(int region, int profile_valid, int arg) {
     unsigned int bit;
     int result;
     int device;
     int card_slot;
-    char* status;
+    StorageDevice* status;
 
     copy_common_konquest_profile_data(p1_profile_konquest);
     p1_profile_konquest->profile_valid = profile_valid;
@@ -304,12 +302,12 @@ int full_konquest_save_to_memcard(int region, int profile_valid, int arg) {
             result = 0;
             f_writing_to_memcard = 0;
         } else {
-            status = &storage_status[device * 0x28F0];
+            status = &storage_status[device];
             result = save_konquest_region_to_memcard_w_error(
                 device, card_slot, arg, nbc_find_text(0x30, 1),
                 (unsigned char)konq_region_data_buffer.region_id,
-                &konq_region_data_buffer, 0, (unsigned int*)(status + 4),
-                (int*)(status + 8));
+                &konq_region_data_buffer, 0, &status->freeBlocks,
+                &status->freeBytes);
         }
     }
     if (result == 0) {
@@ -367,18 +365,14 @@ void full_konquest_load_from_memcard(void) {
     }
 }
 
-/*
- * Near match: CFG, calls, and access widths agree; the 16-byte size residue is
- * the compiler's nonvolatile-register assignment and stmw/lmw selection.
- */
 int load_krd_buffer_from_memcard(int player, int arg) {
-    KonquestProfileSave* profile;
+    StorageDevice* card_status;
     KonquestRegionBuffer* buffer;
-    int status;
     int device;
-    int slot;
-    char* card_status;
+    int status;
     unsigned char region;
+    KonquestProfileSave* profile;
+    int slot;
 
     buffer = &konq_region_data_buffer;
 
@@ -417,11 +411,11 @@ int load_krd_buffer_from_memcard(int player, int arg) {
             f_writing_to_memcard = 0;
             return 0;
         }
-        card_status = &storage_status[device * 0x28F0];
+        card_status = &storage_status[device];
         return load_konquest_region_from_memcard_w_error(
             device, slot, arg, profile->active_region, &konq_region_data_buffer,
-            card_status + 0xD, 0xB, (unsigned int*)(card_status + 4),
-            (int*)(card_status + 8));
+            card_status->name, STORAGE_NAME_LEN, &card_status->freeBlocks,
+            &card_status->freeBytes);
     }
     return 1;
 }

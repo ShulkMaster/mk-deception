@@ -1166,10 +1166,9 @@ static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
     return object;
 }
 
-/* TODO: [near miss] 99.318184%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_freeze_light(void) {
-    FreezeLightPdata* pdata;
     PlyrMirrorObjLatch* item;
+    FreezeLightPdata* pdata;
     MkObj* light;
 
     pdata = (FreezeLightPdata*)apdata;

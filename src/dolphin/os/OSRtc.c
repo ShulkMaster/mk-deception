@@ -45,30 +45,32 @@ static int WriteSram(void* buffer, unsigned long offset, unsigned long size)
     return !error;
 }
 
+static inline int ReadSram(void* buffer)
+{
+    unsigned long command;
+    int error;
+
+    DCInvalidateRange(buffer, SRAM_SIZE);
+    if (!EXILock(0, 1, 0)) return 0;
+    if (!EXISelect(0, 1, 3)) {
+        EXIUnlock(0);
+        return 0;
+    }
+    command = 0x20000100;
+    error = 0;
+    error |= !EXIImm(0, &command, 4, EXI_WRITE, 0);
+    error |= !EXISync(0);
+    error |= !EXIDma(0, buffer, SRAM_SIZE, EXI_READ, 0);
+    error |= !EXISync(0);
+    error |= !EXIDeselect(0);
+    EXIUnlock(0);
+    return !error;
+}
+
 void __OSInitSram(void)
 {
-    int error;
-    unsigned long command;
-
-    Scb.locked = 0;
-    Scb.interrupts_enabled = 0;
-    DCInvalidateRange(&Scb, SRAM_SIZE);
-    if (!EXILock(0, 1, 0)) {
-        Scb.synchronized = 0;
-    } else if (!EXISelect(0, 1, 3)) {
-        EXIUnlock(0);
-        Scb.synchronized = 0;
-    } else {
-        command = 0x20000100;
-        error = 0;
-        error |= !EXIImm(0, &command, 4, EXI_WRITE, 0);
-        error |= !EXISync(0);
-        error |= !EXIDma(0, &Scb, SRAM_SIZE, EXI_READ, 0);
-        error |= !EXISync(0);
-        error |= !EXIDeselect(0);
-        EXIUnlock(0);
-        Scb.synchronized = !error;
-    }
+    Scb.locked = Scb.interrupts_enabled = 0;
+    Scb.synchronized = ReadSram(Scb.sram);
     Scb.offset = SRAM_SIZE;
     OSSetGbsMode(OSGetGbsMode());
 }
@@ -95,9 +97,8 @@ static int UnlockSram(int commit, unsigned long offset)
     if (commit) {
         if (offset == 0) {
             OSSram* sram = (OSSram*)Scb.sram;
-            if ((sram->flags & 3) > 2) sram->flags &= ~3;
-            sram->checkSum = 0;
-            sram->checkSumInv = 0;
+            if ((sram->flags & 3U) > 2U) sram->flags &= ~3;
+            sram->checkSum = sram->checkSumInv = 0;
             for (word = (unsigned short*)&sram->counterBias;
                  word < (unsigned short*)&Scb.sram[0x14]; word++) {
                 sram->checkSum += *word;
@@ -107,8 +108,8 @@ static int UnlockSram(int commit, unsigned long offset)
         if (offset < Scb.offset) Scb.offset = offset;
         if (Scb.offset <= 0x14) {
             OSSramEx* extended = (OSSramEx*)(Scb.sram + sizeof(OSSram));
-            if ((extended->gbs & 0x7C00) == 0x5000 ||
-                (extended->gbs & 0xC0) == 0xC0)
+            if ((extended->gbs & 0x7C00U) == 0x5000U ||
+                (extended->gbs & 0xC0U) == 0xC0U)
                 extended->gbs = 0;
         }
         Scb.synchronized =
@@ -203,10 +204,11 @@ unsigned short OSGetGbsMode(void)
     return mode;
 }
 
+/* TODO: [near miss] 99.847824%; unsigned mode masks recovered; retail frame is eight bytes larger; no padding. */
 void OSSetGbsMode(unsigned short mode)
 {
     OSSramEx* sram;
-    if ((mode & 0x7C00) == 0x5000 || (mode & 0xC0) == 0xC0) mode = 0;
+    if ((mode & 0x7C00U) == 0x5000U || (mode & 0xC0U) == 0xC0U) mode = 0;
     sram = __OSLockSramEx();
     if (mode == sram->gbs) {
         __OSUnlockSramEx(0);

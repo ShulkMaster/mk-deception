@@ -15110,17 +15110,12 @@ void assign_obj_to_trigger(int object_uid, unsigned int trigger_id) {
     }
 }
 
-/*
- * Soft ceiling: the retail algorithm and ABI are reproduced. The remaining
- * difference is CodeWarrior's stmw/lmw choice versus individual nonvolatile
- * saves, with the corresponding harmless register allocation.
- */
 void konquest_setup_pui_particle(
     const char* effect_name, int shared_render_object) {
     unsigned int handle;
     MkPfx* effect;
-    MkObj* object;
     int emitter;
+    MkObj* object;
 
     handle = fx_by_owner(effect_name, 4);
     effect = find_pfx_by_handle(handle);

@@ -198,10 +198,6 @@ MslSoundHandle snd_req(int sound_id);
 float p_wall_monitor(void);
 int drone_ai_check_button_press(int button);
 void advance_cur_cmd_idx(void);
-/*
- * Soft ceiling: exact retail size and opcode stream. The only objdiff residue
- * is a consistent saved-GPR permutation across the circular-log state.
- */
 int check_button_and_pad(
     unsigned int button, unsigned int direction, int pad);
 void advance_my_current_switch(void);
@@ -4030,12 +4026,12 @@ int was_button_and_direction(int button, int direction) {
 
 int check_button_and_pad(
     unsigned int button, unsigned int direction, int pad) {
-    EjbSwitchLogEntry* switch_log;
-    int current_index;
-    int next_index;
-    int log_index;
-    int drone_state;
     int player_state;
+    EjbSwitchLogEntry* switch_log;
+    int log_index;
+    int current_index;
+    int drone_state;
+    int next_index;
 
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
         current_index = p1_current_log_index;

@@ -7141,17 +7141,17 @@ static void puzzle_fighter_display_chain_msg(PuzzlePlayerState* player) {
     pan_snd_req(chain_sound_burst_table[sound_index], player->sound_pan);
 }
 
-/* Near miss: exact size and operations; r30/r31 and reloc labels differ. */
 static void puzzle_fighter_display_floor_msg(PuzzlePlayerState* player,
                                              int fixed_message) {
-    PuzzleLocalizedImagePlacement* placement = 0;
+    MkProc* proc;
     PuzzleMessagePdata* pdata;
     ScreenObj* image;
-    MkProc* proc;
+    PuzzleLocalizedImagePlacement* placement;
     unsigned int image_id;
     int entry_index;
     int x;
 
+    placement = 0;
     proc = _create_mkproc_generic_nostack(
         0x6010, 0x1F, p_puzzle_fighter_chain_msg,
         sizeof(PuzzleMessagePdata), (MkHdr**)&pdata);

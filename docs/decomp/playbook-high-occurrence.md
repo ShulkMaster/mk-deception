@@ -51,6 +51,24 @@ not classify that as a pure declaration change. Check every caller when the
 declarations belong to an inline helper: `mwsfcre_FreeAll` closed `mwSfdDestroy`
 but lowered the nonexact `mwsfcre_MallocCompoWork` from 98.107346 to 97.768364.
 
+H15 scope check: when two independent loops reuse a counter, recover separate
+iteration locals before permuting unrelated declarations. In
+`inplaceGeometryStreamRead`, separating the texture-coordinate index from the
+morph-target index and declaring it after the texture byte count closed
+99.210526 -> 100; both loops retained their original bounds and accesses.
+For callback-driven lists, group the saved next iterator with the active
+iterator without moving its assignment across the callback (`mslUpdate`,
+99.5 -> 100). Scalar initializers may be split from declarations only when their
+execution order is preserved and no const, aggregate, scope or lifetime contract
+changes. Validate the complete object, including stack and data relocations.
+
+H07 return-join check: an expanded helper can leave a common result-publication
+block without a retail call. `__OSInitSram` closed 97.18987 -> 100 with a typed
+`ReadSram` inline helper whose lock/select failures return zero and whose normal
+path returns the EXI error result; the caller publishes that result once.
+Require the observed cleanup order and absence of an emitted helper call.
+Do not invent a helper solely to hide empty branches or manufacture liveness.
+
 H02/H04 measured follow-up: a tiny immediate difference can select the wrong
 state, not merely another register. `_rpSkinInstanceCallback` needs the existing
 platform field at +0x2C, not the split-mesh count at +0x34. The weapon watcher
@@ -190,6 +208,15 @@ neutral bit name when the bit's meaning is not established.
   For automated extraction, require C identifier syntax for pointer types:
   multiplication such as `0.0f * body` is not a declaration. Reject malformed
   generated source before treating it as a matching experiment.
+
+H04 packed-index diagnostic: IF a lookup index also carries a sign/flag bit,
+REQUIRE the retail extraction and every macro/helper use of that index. TRY
+preserving the flag in the caller and masking it only for the table address.
+In the Sofdec block decoders, `& 0x3FE` / `& 0xFFE` discarded coefficient signs
+before `index & 1`; the combined index needs `0x3FF` / `0xFFF`. A high fuzzy
+score concealed the error. Execute both signs, first/subsequent coefficients,
+and every bit alignment against retail; do not infer behavior from the score
+or from agreement with a port that inherited the same source.
 
 ## Known traps
 

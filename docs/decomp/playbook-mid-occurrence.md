@@ -108,3 +108,39 @@ justified quality correction and disclose delta. Recheck every shared consumer.
 No rule fits -> [niche](playbook-niche.md), not more flags/speculative locals.
 New learning -> amend one rule with precondition + action. No campaign narrative,
 duplicate row, occurrence rating, or unverified recommendation.
+
+M15 table-owned pool diagnostic: IF many consumers have the same missing string
+prefix, REQUIRE the retail table's extent, entries, relocations, and owning TU,
+then TRY recovering that real table before its consumers. `bgnd`'s missing
+35-entry `global_background_data` owned 489 prefix bytes; restoring it and the
+used `blsplat` / `glass_base_explosion_fx` literals recovered the complete
+1,134-byte pool and closed six functions (2,848 bytes), including data-value
+comparison. The two literals had incorrectly reused other effects, so this
+also corrected behavior. Do not add dummy strings or padding to shift offsets;
+compare the entire pool and recheck every consumer. Keep report-to-report and
+standalone-diff-to-standalone-diff baselines: their percentages can differ even
+for the same compiled object.
+
+
+M15 data-extent check: IF instruction comparison is exact but data-value scoring
+rejects identical-looking literal loads, REQUIRE retail symbol extents as well
+as bytes and alignment. TRY natural string bounds and separate real constants
+when source has bundled unrelated objects. `MWSFCRE_ResetSfdHn` closed after
+removing padded string bounds and separating a string/float aggregate; the
+compiler supplied alignment without fake fields. Recheck every shared consumer
+and distinguish instruction-only, data-value and linked exactness.
+
+M13 coefficient-local diagnostic: IF repeated quantization expansions differ
+mainly in intermediate lifetimes, REQUIRE the retail multiply chain and its
+per-coefficient uses. TRY a named quantizer-scaled level and local scope inside
+the coefficient macro. This brought `MPVABDEC_IntraBlock` from 90.24032% to
+98.813736%, while the non-intra consumer responded differently. Recheck every
+expansion and every TU sibling; do not retain function-wide temporary chains
+or dummy one-trip source loops solely for their score.
+
+M07 runtime-table diagnostic: IF a retail execution harness disagrees at VLC
+lookups, REQUIRE the initializer's actual pointer adjustments before blaming
+the decoder. Sofdec's run/level tables 4, 2, and 1 are biased by -16, -32, and
+-32 bytes. Execute retail initialization and relocate the candidate object;
+check coefficient bits, bit-reader state, return fields, and buffer guards.
+The optional `tools/check_mpvabdec.py` reproduces this GQNE5D comparison.
