@@ -2052,11 +2052,11 @@ UvScrollControl* find_uv_scroll_control_for_obj(MkObj* object) {
 }
 
 static float p_process_uvscrolling(void) {
-    MkPtr* node;
+    RpClump* clump;
     MkPtr* next;
     UvScrollControl* ctrl;
     MkObj* owner;
-    RpClump* clump;
+    MkPtr* node;
     if (MKPTR_LIST_AVAILABLE(&uv_scroll_control_list)) {
         node = uv_scroll_control_list;
         while (node != 0) {
@@ -2134,7 +2134,7 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     return 0;
 }
 
-/* TODO: [near miss] 99.78836%; float comparison operand order survives symmetric check; stop. */
+/* TODO: [near miss] 99.78836%; reversed FP equality operands survive source-order check; stop at lowering. */
 UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
                                       float v1, float u2, float v2) {
     UvScrollControl* ctrl;

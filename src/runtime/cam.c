@@ -4835,7 +4835,7 @@ float p_attract_camera(void) {
     }
 }
 
-/* TODO: [near miss] 99.708740%; register coloring; one-trial ceiling. */
+/* TODO: [near miss] 99.70874%; commutative multiply operands unchanged by scalar-first form; stop. */
 static void attract_glitch_move_gamecam(AttractCameraState* state) {
     CameraObj* camera;
     Vec direction;

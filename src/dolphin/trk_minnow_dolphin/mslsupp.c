@@ -88,8 +88,10 @@ int __write_file(file_handle handle, u8* buffer, size_t* count, IdleProc idle)
 {
     size_t transferred;
     u8 result;
+    BOOL connected;
 
-    if (!GetTRKConnected()) {
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
     transferred = *count;
@@ -106,8 +108,10 @@ int __read_file(file_handle handle, u8* buffer, size_t* count, IdleProc idle)
 {
     size_t transferred;
     u8 result;
+    BOOL connected;
 
-    if (!GetTRKConnected()) {
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
     transferred = *count;
@@ -140,8 +144,13 @@ int __TRK_write_console(file_handle handle, u8* buffer, size_t* count,
 {
     size_t transferred;
     u8 result;
+    BOOL connected;
 
-    if (!GetUseSerialIO() || !GetTRKConnected()) {
+    if (!GetUseSerialIO()) {
+        return 1;
+    }
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
     transferred = *count;
@@ -158,8 +167,13 @@ int __read_console(file_handle handle, u8* buffer, size_t* count, IdleProc idle)
 {
     size_t transferred;
     u8 result;
+    BOOL connected;
 
-    if (!GetUseSerialIO() || !GetTRKConnected()) {
+    if (!GetUseSerialIO()) {
+        return 1;
+    }
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
     transferred = *count;
