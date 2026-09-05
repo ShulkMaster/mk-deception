@@ -576,6 +576,7 @@ static void render_text_without_clear(char* text, int x, int y) {
 }
 #pragma dont_inline reset
 
+/* TODO: [near miss] 99.954025%; GXColor argument stack slots reversed; declaration/direct-copy trials unchanged. */
 static void render_image(void* unused) {
     GXColor black;
     GXColor amb;

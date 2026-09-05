@@ -58,8 +58,8 @@ unsigned int map_field_to_propertyflag(int description)
     int index;
 
     index = 0;
-    while ((int)properties[index].flag != 0) {
-        if (description == (int)properties[index].description) {
+    while (properties[index].flag != 0) {
+        if (description == properties[index].description) {
             return properties[index].flag;
         }
         index++;
@@ -72,8 +72,8 @@ unsigned int map_field_to_renderflag(int description)
     int index;
 
     index = 0;
-    while ((int)render_fields[index].flag != 0) {
-        if (description == (int)render_fields[index].description) {
+    while (render_fields[index].flag != 0) {
+        if (description == render_fields[index].description) {
             return render_fields[index].flag;
         }
         index++;
@@ -281,7 +281,7 @@ void fill_field_description(PfxFieldDescription* descriptions,
 
     property_offset = 0;
     property_index = 0;
-    while ((int)properties[property_index].flag != 0) {
+    while (properties[property_index].flag != 0) {
         if ((fields->particle_flags & properties[property_index].flag) != 0) {
             add_field_description(description,
                                   properties[property_index].description, 1,

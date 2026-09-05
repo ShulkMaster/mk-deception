@@ -52,7 +52,7 @@ int get_propfield_size(int type) {
 
     index = 0;
     while (properties[index].flag != 0) {
-        if (type == (int)properties[index].description) {
+        if (type == properties[index].description) {
             return get_size(properties[index].type);
         }
         index++;
@@ -65,7 +65,7 @@ static int get_renderfield_size(int type) {
 
     index = 0;
     while (render_fields[index].flag != 0) {
-        if (type == (int)render_fields[index].description) {
+        if (type == render_fields[index].description) {
             return get_size(render_fields[index].type);
         }
         index++;
@@ -83,7 +83,7 @@ int get_field_size(int type) {
     return size;
 }
 
-int pfx_field_get_type(unsigned int field) {
+int pfx_field_get_type(int field) {
     int index;
 
     index = 0;

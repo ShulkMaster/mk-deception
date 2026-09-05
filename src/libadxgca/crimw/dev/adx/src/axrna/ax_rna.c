@@ -246,7 +246,7 @@ void AXRNA_SetNumChan(AXRNAHandle* handle, int channels)
 
 void AXRNA_ExecServer(void)
 {
-    int i;
+    unsigned int i;
 
     for (i = 0; i < AXRNA_MAX_HANDLES; i++) {
         if (axrna_obj[i].used == 1) {

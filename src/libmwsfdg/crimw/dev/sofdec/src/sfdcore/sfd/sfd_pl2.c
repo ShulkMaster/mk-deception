@@ -71,7 +71,7 @@ int SFD_Standby(SfdHandle* handle)
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000143);
     }
-    handle->playback_state = 3;
+    handle->requested_state = 3;
     return 0;
 }
 

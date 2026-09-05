@@ -175,6 +175,7 @@ void DeleteCameraSnapShot(void) {
     }
 }
 
+/* TODO: [near miss] 99.87395%; cleanup frame register differs; 5040 declaration permutations found no exact candidate. */
 void TakeCameraSnapShot(void) {
     RwRaster* raster;
     RwRaster* z_raster;

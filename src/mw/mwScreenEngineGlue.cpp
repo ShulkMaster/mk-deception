@@ -1662,9 +1662,8 @@ static float p_repeat_button_input__Fv(void);
  * Map pad edge bits + stick dirs to ScreenMgr::FireEvent studio ids.
  * See SE_EVT_* / pad bit table in mwScreenEngineGlue.h.
  * D-Pad / C-stick edges spawn hold-repeat mkprocs (retail; port 2 skips).
- * Soft ceiling: fire_switches ~86.3% -- float i2f / NV color leftovers; stop.
  */
-/* TODO: [near miss] 99.16%; C destroy linkage fixed; input CFG/codegen residue remains. */
+/* TODO: [near miss] 99.49657%; retail predecrement load still folds to displaced loads; stop at localized lowering. */
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
     unsigned int bits;
     unsigned int* slotBits;

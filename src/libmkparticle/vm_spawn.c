@@ -23,7 +23,7 @@ void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
                            const PfxVec3* end, float minimum_length,
                            float length_range);
 int pfx_get_struct_size(PfxVm* pfx, unsigned int field);
-int pfx_field_get_type(unsigned int field);
+int pfx_field_get_type(int field);
 PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int emitter_index);
 void pfx_halt(const char* message);
 
@@ -251,6 +251,7 @@ void pfxvm_spawn_disc(PfxVmEmitter* emitter, unsigned int field,
     }
 }
 
+/* TODO: [breakthrough needed] 88.53333%; canonical signed field-query ABI restored; inspect remaining instruction allocation/lowering. */
 void pfxvm_spawn_roundrobin_mechanism(PfxVmEmitter* emitter,
                                       unsigned int field, int count)
 {
@@ -265,6 +266,7 @@ void pfxvm_spawn_roundrobin_mechanism(PfxVmEmitter* emitter,
     }
 }
 
+/* TODO: [breakthrough needed] 88.2%; canonical signed field-query ABI restored; inspect remaining instruction allocation/lowering. */
 void pfxvm_spawn_line_1i(PfxVmEmitter* emitter, unsigned int field,
                          int minimum, int maximum)
 {
