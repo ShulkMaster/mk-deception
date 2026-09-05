@@ -1,162 +1,72 @@
 # Matching rules: mid occurrence
 
-Prerequisite: [high protocol](playbook-high-occurrence.md); ABI/CFG/layout understood.
-Select by mismatch, not historical score. Schema: ID | IF | REQUIRE | TRY.
+Prerequisite: [high protocol](playbook-high-occurrence.md#protocol-all-three-books);
+ABI/CFG/layout understood. Schema: ID | IF mismatch | REQUIRE evidence | TRY.
+Select by mismatch, not historical score; keep attempt history in reports.
 
 ## Compiler / source lowering
 
-M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw. Re-test legacy pragmas after flag changes: mk_anim's unroll/limit/dont_inline controls became redundant under existing TU settings; require local-to-local section and all-function equivalence before removal. TU-wide scheduling discrepancy -> separate schedule test. Keep accepted flags fixed during refinement; no scattered optimization pragmas.
-M02 | Control-word/publication order differs | Retail loads/stores + alias boundaries | Load control word before subfield writes; publish owner at observed point; reload counts after aliasing stores.
-M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name real shared factors. Never reassociate FP to improve fuzzy. If an approximation has an extra interpolation-weight spill, check real weight updates before tuning registers: RpHAnimKeyFrameInterpolate reached100 with retail polynomial-before-sqrt order and direct beta/alpha updates, removing the extra sine temporary without changing expression grouping.
-M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise booleans only if both evaluations required; ternary/guarded assignment for observed join. For reversed pointer-equality operands with side-effect-free reads, try retail operand order once: RBT_RemoveNode 98.86652->99.03602 recovered eight cmplw operand pairs without changing size or CFG. Do not invert already-correct sibling comparisons or confuse symmetric equality with ordered comparisons.
-M05 | Integer-to-float scaffold | Proven signedness/precision | Natural cast; remove fake 0x4330 volatile machinery. Retain genuine bit reinterpretation via supported typed union.
-M06 | Leading stack byte updated, whole word passed | GC big-endian layout + callee flags + initialization | Byte-bitfield/word union. init_pwr_bars flip word is 0x20000000, not integer 0x20.
-M07 | Aggregate/packed address differs | Stride/extent/ownership/access width | Typed element/subobject pointer; trailing table at &items[count]; payload after complete header via header+1. Runtime plugin offsets remain localized low-level access.
-M08 | Failure edges bypass shared success test | Dominators + exactly-once cleanup; ordinary guards failed | Structured do/break cleanup region only when each break represents real cleanup edge. No dummy status, goto, forced one-trip for, duplicate effects. Otherwise stop.
-M09 | Repeated tests around stores | Observed tests + intervening effects | Separate guards; nullable-list inline predicate only for proven nullable contract, not direct &global != 0 residue.
+M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw; test scheduling separately. Recheck legacy pragmas for redundancy via local-to-local section/function equivalence. Keep accepted flags fixed; no scattered optimization pragmas.
+M02 | Control-word/publication order differs | Retail accesses + alias boundaries | Load control word before subfield writes; publish owners at the observed point; reload counts after aliasing stores.
+M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name genuine factors. Preserve polynomial-before-sqrt order and real weight updates; remove redundant temporaries only without reassociation.
+M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise boolean only when both evaluations are required; ternary/guarded assignment for observed join. Try reversed pure equality operands once; do not invert correct siblings or ordered comparisons.
+M05 | Integer-to-float scaffold | Proven signedness/precision | Natural cast; remove fake 0x4330 volatile machinery. Genuine bit reinterpretation can use a supported typed union.
+M06 | Leading stack byte updated, whole word passed | GC big-endian layout + callee flags + initialization | Byte-bitfield/word union: init_pwr_bars flip word is 0x20000000, not integer 0x20.
+M07 | Aggregate/packed address differs | Stride/extent/ownership/access width | Typed element/subobject pointer; trailing table at &items[count], payload after complete header via header+1. Keep runtime plugin offsets localized; distinguish byte offsets from C element indices.
+M08 | Failure edges bypass shared success test | Dominators + exactly-once cleanup; ordinary guards failed | Structured do/break region only for genuine cleanup edges, or a real allocation-result boolean. No dummy status, goto, forced one-trip for, or duplicated effects; otherwise stop.
+M09 | Repeated tests around stores | Observed tests + intervening effects | Separate guards; nullable-list inline predicate only for a proven contract, not direct &global != 0 residue.
 
 ## ABI / abstractions
 
-M10 | Unexpected masks/pairs/argument copies | All callers + callee storage/return ABI | Recover full-width vs byte ABI, typed conditional arms, aligned u64 pairs, by-value POD, or real POD return. Low r4 return may be low u64 half. Do not narrow accumulator from randu0 alone.
-M11 | Wrapper load order differs with correct registers | PPC independent GPR/FPR streams + callers | Recover float/integer parameter interleaving without changing register ABI. Static/member twin requires mangling/call evidence.
-M12 | Alias analysis changes load/store schedule | Actual mutability/ownership/callers | Restore supported const or remove unsupported const; const alone is not nonalias proof.
-M13 | Canonical macro/inline expansion missing | Definition + repeated retail expansion | Restore typed macro including genuine result/lvalue; shared header only for proven ownership. O0 unused parameter -> pragma unused, not wrong prototype.
-M14 | Varargs setup differs | EABI va_list + variadic callers | Exact MWCC va_list/builtin setup; crclr supports variadic call, not arbitrary prototype guessing.
-
-H14/M12 measured follow-up (2026-09-05): IF two real output locals have the
-correct stack addresses but reversed initialization stores, REQUIRE the retail
-store sequence and unchanged call arguments, then TRY separating declaration
-order from initialization order. In `run_camera_script`, keeping final-speed
-before initial-speed declarations, initializing initial-speed first, and then
-constructing the endpoint in its own scope reached 100%. Swapping initialized
-declarations instead reversed the argument slots; initializing after the
-endpoint shifted the stores. No extra local or padding was needed.
-
-M15 verification follow-up: inspect the use of each loaded constant, not only
-its value. `p_pz_shake_camera` uses 340.0f for amplitude and 3.0f for its loop
-sleeps; `p_watch_shadow` returns 1.0f. Both had report-exact instructions while
-referencing incorrect floats. `mwSfdDestroy` also needed an unsized diagnostic
-array: an explicit 24-byte bound included one byte absent from the 23-byte
-retail symbol. Compare payload bytes, symbol extent, and relocation addends.
-Do not count a report-exact function as data-value-exact while objdiff still
-reports a pooled-string mismatch, even when a separate byte comparison agrees.
+M10 | Unexpected masks/pairs/argument copies | All callers + callee storage/return ABI | Recover full-width/byte ABI, typed conditional arms, aligned u64 pairs, by-value POD, or actual POD return. Low r4 return can be low u64 half; randu0 alone does not prove accumulator width.
+M11 | Wrapper load order differs with correct registers | PPC independent GPR/FPR streams + callers | Recover float/integer parameter interleaving without changing register ABI. Static/member twins require mangling/call evidence.
+M12 | Alias analysis changes access schedule | Actual mutability/ownership/callers | Restore supported const or remove unsupported const; const alone does not establish nonaliasing.
+M13 | Canonical macro/inline expansion missing | Definition + repeated retail expansion | Typed macro with genuine result/lvalue and per-expansion locals. Shared header only for proven ownership; O0 unused parameter -> pragma unused, not wrong prototype.
+M14 | Varargs setup differs | EABI va_list + variadic callers | Exact MWCC va_list/builtin setup; crclr supports a variadic call, not arbitrary prototype guesses.
 
 ## Object / link layout
 
-M15 | String identity/placement differs | ELF sizes + bytes + relocations | Pooled literals for anonymous pools; named objects for real symbols; unsized arrays for terminators. TU string/readonly/SDA flags require sibling evidence. No synthetic padding strings.
-M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw target/local offsets, alignment, SDA relocations | Recover initialization/definition order. Tentatives may emit reverse/first-use; extern before users + definitions after separates declaration from placement. Distinguish explicit split gaps from real object alignment: g_DSB_Buffers requires32-byte alignment (.bss+0x7E0, not+0x7C8); restoring the attribute fixes layout and makes mslStreamFile_Initialize100. If trailing definitions lose pooling, test explicit zero initializers in proven symbol order before users: SFTST_Create reached100 while retaining all exact siblings and exact BSS data. Tentative declaration order alone did not control first-use placement. No fabricated aggregate/padding.
-M17 | Vtables/weak destructors differ, including link-only | ELF relocations, hierarchy, weak owner, sizes/order | Correct declarations/zero slots; inline-visible real destructors; verify reverse weak emission/COMDAT selection with linked SHA. A deleting call already includes a null guard: avoid wrapping ordinary delete in a second reconstructed guard. SoundBuffer's three FreeObject methods retain100 with plain delete this. Check newly emitted inline destructors against retail ordering, not just the old candidate.
+M15 | String/constant identity, placement, or extent differs | ELF sizes + actual bytes + relocation addends + use | Pooled literals for anonymous pools, named objects for real symbols, natural string bounds. Recover missing real tables/literals and initializer order; no padding strings or bundled unrelated constants.
+M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw offsets/alignment + SDA relocations | Recover definition/initialization order and actual alignment. Separate declarations from placement when needed; tentatives can follow reverse/first-use order. Try explicit zero initializers in proven symbol order. No fabricated aggregate/padding.
+M17 | Vtables/weak destructors differ, including link-only | ELF relocations + hierarchy + weak owner + sizes/order | Correct declarations/zero slots and inline-visible real destructors; verify weak emission/COMDAT selection with linked SHA. Do not duplicate a deleting call's null guard; check newly emitted destructors too.
 
-M07 diagnostic: When a nearly exact function still differs at a store offset,
-check the existing field declarations before tuning registers. In
-`setup_konquest_pui`, retail stores 60.0f at PUI +0x34 (`drop_timer`), while the
-old source wrote +0x38 (`lifetime`). Correcting the field changed 99.55111% to
-99.55556%; the tiny score delta concealed a behavioral error. Require the
-retail store and the independently established layout; do not rename an alias
-or move a member merely to match the immediate.
+## Focused diagnostics
 
-M07/H14 diagnostic: A retail `lhzx` consumes a byte offset. For the existing
-`unsigned short GXMathSqrtTable[]`, `(bits >> 10) & 0x3FFE` is therefore not
-a C element index; use `(bits >> 11) & 0x1FFF`. In `insert_obj_ctrl_section`,
-correcting that factor-of-two error gave only a small score improvement.
-Initializing the real float/word union before the positivity guard then
-recovered retail's stack-store order and reached 100%, including data-value
-and stack-operand checks. No extra stack object or padding was needed.
-
-M15/M16 diagnostic: If report-exact code differs only at anonymous relocations,
-compare actual target bytes and run `objdiff-cli diff` with
-`-c functionRelocDiffs=data_value`. The report defaults to ignoring function
-relocations, so report-100 alone does not validate the payload. Ten Konquest
-latch matches also reached data-value-100; every stack operand already agreed.
-Their floats and vector initializers had identical bytes at different offsets.
-The delimiter `" "` moved from `.sdata2+0` to `+0xE4`, shifting early floats and
-8-byte alignment gaps. A separate 35-byte string-pool deficit came from five
-missing retail strings. Require initializer order and literal ownership before
-adding data; do not substitute one padding gap, dummy constants, or stack pads
-for nonuniform TU layout differences.
-
-M15 diagnostic: A report-exact diagnostic call can still reference the wrong
-message. After the plugin-access fix, `_rwDlRasterCreate` was report-100 but
-data-value-99.90826: its reconstructed "Raster creation failed" differed from
-retail's "Failed to create surface for texture". Restore the used literal from
-the relocation's target bytes, then rerun data-value comparison; do not dismiss
-all anonymous relocation mismatches as label differences.
-
-M15 named-pool diagnostic: If data-value mode still flags a named C array
-against retail `@stringBase0`, compare the used string at its addend and the
-whole pool separately. `puzzle_strings` had identical 139-byte contents and
-placement yet remained flagged. `utils`' pool had the same 923-byte prefix plus
-one extra trailing NUL from explicit plus implicit termination; the used
-`WEAPREFL` bytes agreed. Record raw-byte evidence without relabeling the CLI
-result or inventing stack padding. A future pool fix must check actual literal
-termination and every TU consumer.
+- M07: Check canonical fields before coloring: PUI drop_timer is +0x34,
+  lifetime +0x38. Retail `lhzx` uses a byte offset: a u16 table indexed by
+  `(bits >> 10) & 0x3FFE` needs C element index `(bits >> 11) & 0x1FFF`.
+- H14/M12: Correct stack addresses can still have reversed initialization
+  stores. Separate declarations from assignments while preserving call slots;
+  scope the endpoint only when its actual lifetime permits (`run_camera_script`).
+- M08: After callback-containing allocation loops, index == count does not
+  prove success if callbacks mutate count. Keep the explicit result correcting
+  `mslInit`'s unsupported invariant despite a measured fuzzy decrease; stop at
+  the remaining flag-test residue rather than restoring the behavioral defect.
+- M15: Run `objdiff-cli diff` with `-c functionRelocDiffs=data_value` and inspect
+  each constant's use. Report-100 can conceal wrong floats or diagnostic text.
+  Compare symbol extent, alignment, addends, literal termination, and whole pools.
+  Identical used bytes do not make a CLI-reported named-pool mismatch exact;
+  disclose both raw-byte evidence and the actual comparison result.
+- M15: Missing prefixes shared by many consumers can indicate a missing real
+  owning table (`global_background_data`), not padding. Recover table entries
+  and used literals, then compare the complete pool and every consumer. Keep
+  report-to-report and standalone-to-standalone baselines; scores can differ.
+- M16: Distinguish split gaps from object alignment: g_DSB_Buffers needs 32-byte
+  alignment. If trailing definitions lose pooling, explicit zero initializers
+  before users can preserve symbol order; tentative order alone may not.
+- M13: For quantization, name the real quantizer-scaled level inside each macro
+  expansion; generic block-level and constant fast paths can lower differently.
+  For VLC siblings, compare corresponding guarded peek/extract/refill expansions,
+  not just whole-function fuzzy; preserve sign bits and lookahead until last use.
+- M07: Execute retail table initialization before comparing decoder lookups.
+  Sofdec run/level tables 4, 2, 1 are biased by -16, -32, -32 bytes. Relocate
+  the candidate object and compare coefficients, reader state, return fields,
+  and guards; DC prediction and AC decoding need independent coverage.
 
 ## Accept / stop
 
-M08 diagnostic: After a callback-containing allocation loop, an index-equals-count
-test is not proof of success if callbacks can change the count. Require retail
-failure edges that bypass the bounds test. A real allocation-result boolean
-preserves that distinction and shared cleanup: `mslInit` measured 99.24821% to
-99.009544% while removing the unsupported invariant. This is a correctness
-correction, not an exact-match trick. Direct inline cleanup on failure duplicated
-code (85.0883%); success inside the loop changed block order (91.357994% or
-97.434364%). Stop at the explicit result's localized flag test unless new source
-evidence explains the retail shared exit; do not remove the result for fuzzy score.
-
-One lever -> rebuild -> same diff. Failed hypothesis -> revert or retain only
-justified quality correction and disclose delta. Recheck every shared consumer.
-No rule fits -> [niche](playbook-niche.md), not more flags/speculative locals.
-New learning -> amend one rule with precondition + action. No campaign narrative,
+One lever -> rebuild -> same diff. Revert failed hypotheses, or retain an
+independently justified correctness/quality correction and disclose its measured
+delta. Recheck every shared consumer. No rule fits -> [niche](playbook-niche.md).
+Amend one existing rule with its precondition/action; no campaign narrative,
 duplicate row, occurrence rating, or unverified recommendation.
-
-M15 table-owned pool diagnostic: IF many consumers have the same missing string
-prefix, REQUIRE the retail table's extent, entries, relocations, and owning TU,
-then TRY recovering that real table before its consumers. `bgnd`'s missing
-35-entry `global_background_data` owned 489 prefix bytes; restoring it and the
-used `blsplat` / `glass_base_explosion_fx` literals recovered the complete
-1,134-byte pool and closed six functions (2,848 bytes), including data-value
-comparison. The two literals had incorrectly reused other effects, so this
-also corrected behavior. Do not add dummy strings or padding to shift offsets;
-compare the entire pool and recheck every consumer. Keep report-to-report and
-standalone-diff-to-standalone-diff baselines: their percentages can differ even
-for the same compiled object.
-
-
-M15 data-extent check: IF instruction comparison is exact but data-value scoring
-rejects identical-looking literal loads, REQUIRE retail symbol extents as well
-as bytes and alignment. TRY natural string bounds and separate real constants
-when source has bundled unrelated objects. `MWSFCRE_ResetSfdHn` closed after
-removing padded string bounds and separating a string/float aggregate; the
-compiler supplied alignment without fake fields. Recheck every shared consumer
-and distinguish instruction-only, data-value and linked exactness.
-
-M13 coefficient-local diagnostic: IF repeated quantization expansions differ
-mainly in intermediate lifetimes, REQUIRE the retail multiply chain and its
-per-coefficient uses. TRY a named quantizer-scaled level and local scope inside
-the coefficient macro. This brought `MPVABDEC_IntraBlock` from 90.24032% to
-98.813736%, while the non-intra consumer responded differently. Recheck every
-expansion and every TU sibling; do not retain function-wide temporary chains
-or dummy one-trip source loops solely for their score.
-
-M07 runtime-table diagnostic: IF a retail execution harness disagrees at VLC
-lookups, REQUIRE the initializer's actual pointer adjustments before blaming
-the decoder. Sofdec's run/level tables 4, 2, and 1 are biased by -16, -32, and
--32 bytes. Execute retail initialization and relocate the candidate object;
-check coefficient bits, bit-reader state, return fields, and buffer guards.
-The optional `tools/check_mpvabdec.py` reproduces this GQNE5D comparison.
-
-M13 sibling-macro diagnostic: IF related large decoders repeat the same VLC
-branches, REQUIRE comparison of the corresponding retail expansions, not only
-whole-function fuzzy scores. TRY shared guarded peek, rare-code extraction,
-and refill macros with real per-expansion locals. Keep generic block-level
-quantization distinct when retail lowers it differently from constant fast
-paths. Consume lookahead only after its full value is dead, and retain sign
-bits until their store. Validate DC prediction and AC decoding independently;
-the second Sofdec round checks luma/chroma DC boundaries and every recovered
-AC entry as well as the non-intra suite.
-
-Permuter import diagnostic: IF preparing the same symbol again, REQUIRE the
-scratch path actually printed by the importer: it can create `SYMBOL-2` rather
-than replace `SYMBOL`. TRY verifying the new base source and planned iteration
-count before running a finite macro search. A one-line `PERM_LINESWAP` can fold
-away and leave default randomization; do not report that as an exhausted search.

@@ -123,6 +123,11 @@ For a localized mismatch, use the mechanical playbooks in this order:
 3. [Niche / fallback](docs/decomp/playbook-niche.md) — rare compiler quirks and
    explicit stop conditions. Use only when the first two books do not fit.
 
+Keep these playbooks slim enough to read and use during a task. Amend the
+existing diagnostic instead of appending repeated examples; put attempt history,
+scores, and campaign evidence in linked reports. Preserve distinct preconditions,
+safety/stop rules, rule IDs, and useful links when summarizing.
+
 Each rule is an `IF / REQUIRE / TRY` diagnostic. Apply it only when its preconditions
 match the assembly and call-site evidence. Try one mechanical edit, rebuild, and
 measure. Never stack speculative tricks merely because one improves fuzzy score.
