@@ -1,4 +1,5 @@
 #include "msl/mslBank.h"
+#include "msl/mslPlayable.h"
 #include "dolphin/ax.h"
 #include "dolphin/os.h"
 #include "dolphin/cache.h"
@@ -44,107 +45,15 @@ struct mslStreamFileRequest;
 
 class SoundBuffer_Playable;
 
-class SoundBufferPlayableInterface {
-public:
-    virtual SoundBuffer_Playable* Destroy(short flags); /* +0x08 */
-    virtual void FreeObject(void);           /* +0x0C */
-    virtual void FreeResources(void);        /* +0x10 */
-    virtual void Slot14(void);
-    virtual void Slot18(void);
-    virtual void Slot1C(void);
-    virtual int GetStatus(unsigned long* status); /* +0x20 */
-    virtual int SetFrequency(unsigned long frequency); /* +0x24 */
-    virtual int SetRelativeFrequency(float frequency); /* +0x28 */
-    virtual int SetVolume(long volume);       /* +0x2C */
-    virtual int SetRelativeVolume(float volume); /* +0x30 */
-    virtual int SetPan(int pan);              /* +0x34 ABI call view */
-    virtual int SetSurroundPan(int pan);      /* +0x38 ABI call view */
-    virtual int SetRelativePan(float pan);    /* +0x3C */
-    virtual int Play(unsigned long flags);    /* +0x40 */
-    virtual int Stop(void);                   /* +0x44 */
-    virtual void Slot48(void);
-    virtual void Slot4C(void);
-    virtual void Slot50(void);
-    virtual void LostVoice(_AXVPB* voice);    /* +0x54 */
-    virtual void Slot58(void);
-    virtual void Slot5C(void);
-    virtual void StopIfDonePlaying(void);     /* +0x60 */
-};
-
 struct SoundBufferUpdateList {
     SoundBuffer_Playable* first;
     SoundBuffer_Playable* last;
 };
 
-class IRefCntRes {
-public:
-    virtual ~IRefCntRes() {}
-    virtual void FreeObject(void) = 0;
-    virtual void FreeResources(void) {}
-};
 
-class SoundBuffer : public IRefCntRes {
-public:
-    static void SB_MslTickCallback(void);
-    static void SB_AXUserCallback(void);
-    static SoundBuffer_Playable* CreatePlayableStreamBuffer(
-        _mslBank* bank, _GameCubeFileEntry* entry);
-    static SoundBuffer_Playable* CreatePlayableStaticBuffer(
-        _mslBank* bank, _GameCubeFileEntry* entry);
-    virtual ~SoundBuffer() {}
-    virtual void PrepForPlay(void);
-    virtual int IsReadyToPlay(void);
-    virtual int GetNumChannels(void);
-    virtual int GetStatus(unsigned long* status);
-    virtual int SetFrequency(unsigned long frequency);
-    virtual int SetRelativeFrequency(float frequency);
-    virtual int SetVolume(long volume);
-    virtual int SetRelativeVolume(float volume);
-    virtual int SetPan(unsigned char pan);
-    virtual int SetSurroundPan(unsigned char pan);
-    virtual int SetRelativePan(float pan);
-    virtual int Play(unsigned long flags);
-    virtual int Stop(void);
-    virtual int Pause(void);
-    virtual int UnPause(void);
-    virtual int SetCurrentPosition(unsigned long position);
-};
-
-class SoundBuffer_Data : public SoundBuffer {
-public:
-    virtual ~SoundBuffer_Data() { FreeResources(); }
-    virtual void FreeObject(void);
-    virtual void FreeResources(void);
-    virtual int GetNumChannels(void);
-};
-
-class SoundBuffer_Playable : public SoundBuffer_Data {
-public:
-    virtual ~SoundBuffer_Playable();
-    virtual void FreeObject(void);
-    virtual void FreeResources(void);
-    virtual int IsReadyToPlay(void);
-    virtual int GetStatus(unsigned long* status);
-    virtual int SetFrequency(unsigned long frequency);
-    virtual int SetRelativeFrequency(float frequency);
-    virtual int SetVolume(long volume);
-    virtual int SetRelativeVolume(float volume);
-    virtual int SetPan(unsigned char pan);
-    virtual int SetSurroundPan(unsigned char pan);
-    virtual int SetRelativePan(float pan);
-    virtual int Play(unsigned long flags);
-    virtual int Stop(void);
-    virtual int Pause(void);
-    virtual int UnPause(void);
-    virtual int SetCurrentPosition(unsigned long position);
-    virtual void LostVoice(_AXVPB* voice);
-    virtual void iUpdate_AXUser(void);
-    virtual void iUpdate_MslTick(void);
-    virtual void StopIfDonePlaying(void);
-    static void AcquireVoiceCallback(void* voice);
-    int iPlay(unsigned long flags, unsigned long acquire_priority,
-              unsigned long active_priority);
-};
+typedef char IRefCntResSize[sizeof(IRefCntRes) == 0x08 ? 1 : -1];
+typedef char SoundBufferDataSize[sizeof(SoundBuffer_Data) == 0x14 ? 1 : -1];
+typedef char SoundBufferPlayableSize[sizeof(SoundBuffer_Playable) == 0x38 ? 1 : -1];
 
 class SBPlayable_Stream : public SoundBuffer_Playable {
 public:
@@ -174,7 +83,45 @@ public:
     inline int iAX_GetVoiceBlock(
         _AXVPB* voice, int channel,
         unsigned long* raw_address);
+
+    unsigned char ready_to_play;  /* +0x38 */
+    unsigned char last_read_pending; /* +0x39 */
+    unsigned char voices_started; /* +0x3A */
+    unsigned char play_when_ready; /* +0x3B */
+    unsigned long play_flags;      /* +0x3C */
+    unsigned long cache_buffers[2]; /* +0x40 -- primary, secondary */
+    long cache_buffer_size;       /* +0x48 */
+    long cache_buffer1_size;      /* +0x4C */
+    _mwFile* stream_context;       /* +0x50 */
+    unsigned long primary_offset;  /* +0x54 */
+    unsigned long aligned_size;    /* +0x58 */
+    unsigned long segment_size;    /* +0x5C */
+    int segment_shift;             /* +0x60 */
+    unsigned long source_read_offset; /* +0x64 */
+    unsigned long source_bytes_remaining; /* +0x68 */
+    mslStreamFileRequest* pending_file_request; /* +0x6C */
+    unsigned long queued_read_offset; /* +0x70 */
+    unsigned long queued_read_size;   /* +0x74 */
+    unsigned long queued_block_count; /* +0x78 */
+    unsigned char partial_read;   /* +0x7C */
+    unsigned char at_zero_buffer; /* +0x7D */
+    unsigned char crossed_stream_end; /* +0x7E */
+    unsigned char end_of_stream;  /* +0x7F */
+    volatile long pending_arq_count; /* +0x80 */
+    long ring_block_count;            /* +0x84 */
+    long source_blocks_remaining;     /* +0x88; -1 sentinel */
+    long ring_write_block;            /* +0x8C */
+    long ring_play_block;
+    long pending_ax_block;         /* +0x94 */
+    long ax_end_block;             /* +0x98 */
+    long end_pass_count;           /* +0x9C */
+    long stream_end_block;         /* +0xA0 */
+    unsigned long initial_position;/* +0xA4 */
+    long ring_scan_stop_block;     /* +0xA8 */
+    unsigned char block_headers[2][0x10]; /* +0xAC -- first byte per ring block */
 };
+
+typedef char SBPlayableStreamSize[sizeof(SBPlayable_Stream) == 0xCC ? 1 : -1];
 
 typedef void (*SoundBufferMethod)(SoundBuffer_Playable*);
 typedef int (*SoundBufferIntMethod)(SoundBuffer_Playable*);
@@ -220,8 +167,7 @@ struct SoundBufferPlayableLayout {
     unsigned char pad26[2];
     unsigned long frequency;      /* +0x28 */
     long state;                   /* +0x2C -- playable state flags */
-    _AXVPB* primary_voice;         /* +0x30 */
-    _AXVPB* secondary_voice;       /* +0x34 */
+    _AXVPB* voices[2];             /* +0x30 -- primary, secondary */
 };
 
 typedef char SoundBufferPlayableLayoutSize[
@@ -234,8 +180,7 @@ struct SBPlayableStreamLayout {
     unsigned char voices_started; /* +0x3A */
     unsigned char play_when_ready; /* +0x3B */
     unsigned long play_flags;      /* +0x3C */
-    unsigned long cache_buffer0;   /* +0x40 */
-    unsigned long cache_buffer1;   /* +0x44 */
+    unsigned long cache_buffers[2]; /* +0x40 -- primary, secondary */
     long cache_buffer_size;       /* +0x48 */
     long cache_buffer1_size;      /* +0x4C */
     _mwFile* stream_context;       /* +0x50 */
@@ -270,21 +215,6 @@ struct SBPlayableStreamLayout {
 typedef char SBPlayableStreamLayoutSize[
     sizeof(SBPlayableStreamLayout) == 0xCC ? 1 : -1];
 
-static inline SoundBufferPlayableLayout* PlayableState(
-    SoundBuffer_Playable* playable) {
-    return (SoundBufferPlayableLayout*)playable;
-}
-
-static inline SoundBufferPlayableLayout* PlayableState(
-    SoundBuffer_Data* data) {
-    return (SoundBufferPlayableLayout*)data;
-}
-
-static inline SBPlayableStreamLayout* StreamState(
-    SBPlayable_Stream* stream) {
-    return (SBPlayableStreamLayout*)stream;
-}
-
 static const unsigned char SurroundPanTable[] = {
     0x40, 0x10, 0x10, 0x40, 0x08, 0x78,
     0x20, 0x7C, 0x40, 0x7C, 0x60, 0x7C,
@@ -302,34 +232,36 @@ extern unsigned char __vt__16SoundBuffer_Data[];
 extern unsigned char __vt__20SoundBuffer_Playable[];
 extern unsigned char __vt__17SBPlayable_Stream[];
 
+/* Matched: 100% report-exact; canonical tick dispatch preserves +0x5C. */
 void SoundBuffer::SB_MslTickCallback(void) {
     BOOL enabled = OSDisableInterrupts();
-    SoundBufferPlayableLayout* playable =
-        (SoundBufferPlayableLayout*)
-            ms_UpdateList__20SoundBuffer_Playable.first;
+    SoundBuffer_Playable* playable =
+        ms_UpdateList__20SoundBuffer_Playable.first;
 
     while (playable != 0) {
-        SoundBufferPlayableLayout* current = playable;
+        SoundBuffer_Playable* current = playable;
         playable = playable->next;
-        ((SoundBufferPlayableInterface*)current)->Slot5C();
+        current->iUpdate_MslTick();
     }
     OSRestoreInterrupts(enabled);
 }
 
+/* Matched: 100% report-exact; canonical AX dispatch preserves +0x58. */
 void SoundBuffer::SB_AXUserCallback(void) {
     BOOL enabled = OSDisableInterrupts();
-    SoundBufferPlayableLayout* playable =
-        (SoundBufferPlayableLayout*)
-            ms_UpdateList__20SoundBuffer_Playable.first;
+    SoundBuffer_Playable* playable =
+        ms_UpdateList__20SoundBuffer_Playable.first;
 
     while (playable != 0) {
-        SoundBufferPlayableLayout* current = playable;
+        SoundBuffer_Playable* current = playable;
         playable = playable->next;
-        ((SoundBufferPlayableInterface*)current)->Slot58();
+        current->iUpdate_AXUser();
     }
     OSRestoreInterrupts(enabled);
 }
 
+/* Matched: 100% report-exact; constructor lifetime remains open. Retail MAP
+ * separates base/weak/stream code contributions; simple partial linking does not. */
 SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
     _mslBank* bank, _GameCubeFileEntry* entry) {
     /* Exact: named TU-local class metadata owns the retail pool label. */
@@ -362,8 +294,8 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
         playable->volume = 0x7F;
         playable->frequency = 0;
         playable->state = 8;
-        playable->primary_voice = 0;
-        playable->secondary_voice = 0;
+        playable->voices[0] = 0;
+        playable->voices[1] = 0;
         playable->vtable =
             (SoundBufferPlayableVTable*)__vt__17SBPlayable_Stream;
         ((SBPlayable_Stream*)stream)->ResetValues();
@@ -408,13 +340,15 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
         sound = SPGetSoundEntry(entry->sound_table, 0);
         stream->initial_position =
             sound->end_address & (stream->segment_size * 2 - 1);
-        ((SoundBufferPlayableInterface*)stream)->Slot14();
+        ((SoundBuffer_Playable*)stream)->PrepForPlay();
     }
 
     OSRestoreInterrupts(enabled);
     return (SoundBuffer_Playable*)stream;
 }
 
+/* Matched: 100% report-exact; typed new still moves destructors/vtables.
+ * ARAM helper extraction changes register allocation; retain exact baseline. */
 SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
     _mslBank* bank, _GameCubeFileEntry* entry) {
     SoundBufferPlayableLayout* playable;
@@ -445,8 +379,8 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
         playable->volume = 0x7F;
         playable->frequency = 0;
         playable->state = 8;
-        playable->primary_voice = 0;
-        playable->secondary_voice = 0;
+        playable->voices[0] = 0;
+        playable->voices[1] = 0;
     }
 
     BOOL list_enabled = OSDisableInterrupts();
@@ -494,7 +428,7 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
                 primary_offset, secondary_offset, aram_size);
         } else {
             if (--playable->reference_count == 0) {
-                ((SoundBufferPlayableInterface*)playable)->FreeObject();
+                ((SoundBuffer_Playable*)playable)->FreeObject();
             }
             playable = 0;
         }
@@ -502,6 +436,60 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
 
     OSRestoreInterrupts(enabled);
     return (SoundBuffer_Playable*)playable;
+}
+
+/* Matched: 100% report-exact; canonical Stop dispatch. */
+void SoundBuffer_Playable::StopIfDonePlaying(void) {
+    SoundBuffer_Playable* self = this;
+
+    if ((self->state & 2) != 0) {
+        int done = 0;
+
+        if (self->voices[0] != 0 &&
+            (self->voices[0]->pb.state & 1) == 0) {
+            done = 1;
+        }
+        if (self->voices[1] != 0 &&
+            (self->voices[1]->pb.state & 1) == 0) {
+            done = 1;
+        }
+        if (done != 0) {
+            this->Stop();
+        }
+    }
+}
+
+/* Matched: 100% report-exact; canonical StopIfDonePlaying dispatch. */
+void SoundBuffer_Playable::iUpdate_MslTick(void) {
+    this->StopIfDonePlaying();
+}
+
+void SoundBuffer_Playable::iUpdate_AXUser(void) {
+}
+
+/* Matched: 100% report-exact; canonical Stop dispatch for both voices. */
+void SoundBuffer_Playable::LostVoice(_AXVPB* voice) {
+    SoundBuffer_Playable* self = this;
+    BOOL enabled = OSDisableInterrupts();
+
+    if (voice == self->voices[0]) {
+        self->voices[0] = 0;
+        this->Stop();
+    } else if (voice == self->voices[1]) {
+        self->voices[1] = 0;
+        this->Stop();
+    }
+
+    OSRestoreInterrupts(enabled);
+}
+
+/* Matched: 100% report-exact; canonical LostVoice dispatch. */
+void SoundBuffer_Playable::AcquireVoiceCallback(void* voice) {
+    AXVPB* callback_voice = (AXVPB*)voice;
+    SoundBuffer_Playable* owner =
+        (SoundBuffer_Playable*)callback_voice->user_context;
+
+    owner->LostVoice(callback_voice);
 }
 
 static inline void SetVoiceSource(
@@ -616,53 +604,44 @@ static inline void SetStreamVoiceSource(
     voice->sync = (sync | 0x1000) & 0xFFFE1FFF;
 }
 
-/*
- * Soft ceiling: iPlay ~91.26%; current size 0x430, retail size 0x450.
- * The AX voice, priority, mono/stereo source, mixer, loop, and state setup
- * are recovered. Hoisting both sound-entry declarations to the shared play
- * region restores retail's six-register save range. The eight-instruction
- * size residue is moves and inlined source-address scheduling, with one
- * shifted zero-materialization opcode; the remaining aligned operations are
- * register coloring. The paused
- * resume path intentionally returns -1 when neither voice exists.
- */
+/* TODO: [near miss] 91.26%; source-address halfword extraction, temporary
+ * lifetimes and GPR coloring remain; paused resume without voices returns -1. */
 int SoundBuffer_Playable::iPlay(
     unsigned long flags, unsigned long acquire_priority,
     unsigned long active_priority) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     int result = -1;
 
     if ((self->state & 4) != 0) {
         self->state = (self->state & 1) | 2;
-        if (self->primary_voice != 0) {
-            AXSetVoiceState(self->primary_voice, 1);
+        if (self->voices[0] != 0) {
+            AXSetVoiceState(self->voices[0], 1);
             result = 0;
         }
-        if (self->secondary_voice != 0) {
-            AXSetVoiceState(self->secondary_voice, 1);
+        if (self->voices[1] != 0) {
+            AXSetVoiceState(self->voices[1], 1);
             result = 0;
         }
     } else if ((self->state & 8) != 0) {
-        self->primary_voice = AXAcquireVoice(
+        self->voices[0] = AXAcquireVoice(
             acquire_priority, AcquireVoiceCallback, (unsigned long)this);
-        if (self->primary_voice == 0) {
+        if (self->voices[0] == 0) {
             return -1;
         }
         if (active_priority != acquire_priority) {
-            AXSetVoicePriority(self->primary_voice, active_priority);
+            AXSetVoicePriority(self->voices[0], active_priority);
         }
 
         if (self->file_entry->has_secondary != 0) {
-            self->secondary_voice = AXAcquireVoice(
+            self->voices[1] = AXAcquireVoice(
                 acquire_priority, AcquireVoiceCallback, (unsigned long)this);
-            if (self->secondary_voice == 0) {
-                AXFreeVoice(self->primary_voice);
-                self->primary_voice = 0;
+            if (self->voices[1] == 0) {
+                AXFreeVoice(self->voices[0]);
+                self->voices[0] = 0;
                 return -1;
             }
             if (active_priority != acquire_priority) {
-                AXSetVoicePriority(self->secondary_voice, active_priority);
+                AXSetVoicePriority(self->voices[1], active_priority);
             }
         }
 
@@ -677,7 +656,7 @@ int SoundBuffer_Playable::iPlay(
                 SPGetSoundEntry(self->file_entry->sound_table, 0);
         }
         SetVoiceSource(
-            self->primary_voice, primary_sound, self->frequency, loop);
+            self->voices[0], primary_sound, self->frequency, loop);
 
         if (self->file_entry->has_secondary != 0) {
             if (self->file_entry->secondary_sound_table != 0) {
@@ -685,21 +664,21 @@ int SoundBuffer_Playable::iPlay(
                     self->file_entry->secondary_sound_table, 0);
             }
             SetVoiceSource(
-                self->secondary_voice, secondary_sound,
+                self->voices[1], secondary_sound,
                 self->frequency, loop);
             MIXInitChannel(
-                self->primary_voice, 0, 0, -960, -960,
+                self->voices[0], 0, 0, -960, -960,
                 0, 0x7F, self->mix_fader);
             MIXInitChannel(
-                self->secondary_voice, 0, 0, -960, -960,
+                self->voices[1], 0, 0, -960, -960,
                 0x7F, 0x7F, self->mix_fader);
-            AXSetVoiceState(self->primary_voice, 1);
-            AXSetVoiceState(self->secondary_voice, 1);
+            AXSetVoiceState(self->voices[0], 1);
+            AXSetVoiceState(self->voices[1], 1);
         } else {
             MIXInitChannel(
-                self->primary_voice, 0, 0, -960, -960,
+                self->voices[0], 0, 0, -960, -960,
                 self->pan, self->volume, self->mix_fader);
-            AXSetVoiceState(self->primary_voice, 1);
+            AXSetVoiceState(self->voices[0], 1);
         }
 
         self->state = 2;
@@ -711,49 +690,46 @@ int SoundBuffer_Playable::iPlay(
     return result;
 }
 
+/* Matched: 100% report-exact; canonical Stop dispatch. */
 int SoundBuffer_Playable::SetCurrentPosition(
     unsigned long position) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
 
     if (position != 0) {
         _MSL_GCN_BREAK();
     }
     if (self->state != 8) {
-        ((SoundBufferPlayableInterface*)this)->Stop();
+        this->Stop();
         self->current_position = position;
     }
     return -1;
 }
 
+/* Matched: 100% report-exact; canonical Play dispatch. */
 int SoundBuffer_Playable::UnPause(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     int result = -1;
 
     if ((self->state & 4) != 0) {
-        result =
-            ((SoundBufferPlayableInterface*)this)
-                ->Play(self->state & 1);
+        result = this->Play(self->state & 1);
     }
     return result;
 }
 
+/* Matched: 100% report-exact; canonical StopIfDonePlaying dispatch. */
 int SoundBuffer_Playable::Pause(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     int result = -1;
 
-    ((SoundBufferPlayableInterface*)this)
-        ->StopIfDonePlaying();
+    this->StopIfDonePlaying();
     if ((self->state & 2) != 0) {
         BOOL enabled = OSDisableInterrupts();
-        if (self->primary_voice != 0) {
-            AXSetVoiceState(self->primary_voice, 0);
+        if (self->voices[0] != 0) {
+            AXSetVoiceState(self->voices[0], 0);
             result = 0;
         }
-        if (self->secondary_voice != 0) {
-            AXSetVoiceState(self->secondary_voice, 0);
+        if (self->voices[1] != 0) {
+            AXSetVoiceState(self->voices[1], 0);
             result = 0;
         }
         OSRestoreInterrupts(enabled);
@@ -763,24 +739,23 @@ int SoundBuffer_Playable::Pause(void) {
 }
 
 int SoundBuffer_Playable::Stop(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     int result = -1;
     BOOL enabled = OSDisableInterrupts();
 
-    if (self->primary_voice != 0) {
-        AXSetVoiceState(self->primary_voice, 0);
-        MIXReleaseChannel(self->primary_voice);
-        AXFreeVoice(self->primary_voice);
+    if (self->voices[0] != 0) {
+        AXSetVoiceState(self->voices[0], 0);
+        MIXReleaseChannel(self->voices[0]);
+        AXFreeVoice(self->voices[0]);
         result = 0;
-        self->primary_voice = (_AXVPB*)result;
+        self->voices[0] = (_AXVPB*)result;
     }
-    if (self->secondary_voice != 0) {
-        AXSetVoiceState(self->secondary_voice, 0);
-        MIXReleaseChannel(self->secondary_voice);
-        AXFreeVoice(self->secondary_voice);
+    if (self->voices[1] != 0) {
+        AXSetVoiceState(self->voices[1], 0);
+        MIXReleaseChannel(self->voices[1]);
+        AXFreeVoice(self->voices[1]);
         result = 0;
-        self->secondary_voice = (_AXVPB*)result;
+        self->voices[1] = (_AXVPB*)result;
     }
     OSRestoreInterrupts(enabled);
     self->state = 8;
@@ -794,6 +769,8 @@ int SoundBuffer_Playable::Play(unsigned long flags) {
     return result;
 }
 
+/* Matched: 100% report-exact; direct float-to-byte conversion preserves the
+ * retail arguments while using the canonical unsigned-char virtual methods. */
 int SoundBuffer_Playable::SetRelativePan(float pan) {
     float scaled = 2.0f * (pan - -2.0f);
     int index = (int)(float)floor(scaled);
@@ -815,85 +792,80 @@ int SoundBuffer_Playable::SetRelativePan(float pan) {
     inverse = 1.0f - fraction;
 
     int offset = index * 2;
-    int output_pan = (int)(
+    unsigned char output_pan = (unsigned char)(
         inverse * SurroundPanTable[offset] +
         fraction * SurroundPanTable[offset + 2]);
     int result = 0;
-    int output_surround = (int)(
+    unsigned char output_surround = (unsigned char)(
         inverse * SurroundPanTable[offset + 1] +
         fraction * SurroundPanTable[offset + 3]);
 
-    if (((SoundBufferPlayableInterface*)this)
-            ->SetPan(output_pan) == -1) {
+    if (this->SetPan(output_pan) == -1) {
         result = -1;
     }
-    if (((SoundBufferPlayableInterface*)this)
-            ->SetSurroundPan(output_surround) == -1) {
+    if (this->SetSurroundPan(output_surround) == -1) {
         result = -1;
-    }
-    return result;
-}
-
-int SoundBuffer_Playable::SetPan(unsigned char pan) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
-    int result = -1;
-
-    if (pan < 0x80) {
-        self->pan = pan;
-        if (self->state != 8 &&
-            self->file_entry->has_secondary == 0 &&
-            self->primary_voice != 0) {
-            MIXSetPan(self->primary_voice, self->pan);
-            result = 0;
-        }
     }
     return result;
 }
 
 int SoundBuffer_Playable::SetSurroundPan(unsigned char pan) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     int result = -1;
 
     if (pan < 0x80) {
         self->volume = pan;
         if (self->state != 8 &&
             self->file_entry->has_secondary == 0 &&
-            self->primary_voice != 0) {
-            MIXSetSPan(self->primary_voice, self->volume);
+            self->voices[0] != 0) {
+            MIXSetSPan(self->voices[0], self->volume);
             result = 0;
         }
     }
     return result;
 }
 
+int SoundBuffer_Playable::SetPan(unsigned char pan) {
+    SoundBuffer_Playable* self = this;
+    int result = -1;
+
+    if (pan < 0x80) {
+        self->pan = pan;
+        if (self->state != 8 &&
+            self->file_entry->has_secondary == 0 &&
+            self->voices[0] != 0) {
+            MIXSetPan(self->voices[0], self->pan);
+            result = 0;
+        }
+    }
+    return result;
+}
+
+/* Matched: 100% report-exact; canonical SetVolume dispatch. */
 int SoundBuffer_Playable::SetRelativeVolume(float volume) {
     long db_volume =
         mslWaveGetDbMapEntryRelative(volume);
 
-    return ((SoundBufferPlayableInterface*)this)
-        ->SetVolume(db_volume);
+    return this->SetVolume(db_volume);
 }
 
 int SoundBuffer_Playable::SetVolume(long volume) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     self->mix_fader = volume;
-    if (self->primary_voice != 0) {
-        MIXSetFader(self->primary_voice, volume);
+    if (self->voices[0] != 0) {
+        MIXSetFader(self->voices[0], volume);
     }
-    if (self->secondary_voice != 0) {
-        MIXSetFader(self->secondary_voice, volume);
+    if (self->voices[1] != 0) {
+        MIXSetFader(self->voices[1], volume);
     }
     return 0;
 }
 
+/* Matched: 100% report-exact; canonical SetFrequency dispatch. */
 int SoundBuffer_Playable::SetRelativeFrequency(float frequency) {
     /* Soft ceiling: ~99.89% -- only the partial-TU floating-constant
        relocation label differs from retail. */
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     unsigned long scaled_frequency = 0;
     SPSoundEntry* sound = 0;
 
@@ -905,13 +877,11 @@ int SoundBuffer_Playable::SetRelativeFrequency(float frequency) {
         scaled_frequency =
             (unsigned long)(sound->sample_rate * frequency);
     }
-    return ((SoundBufferPlayableInterface*)this)
-        ->SetFrequency(scaled_frequency);
+    return this->SetFrequency(scaled_frequency);
 }
 
 int SoundBuffer_Playable::SetFrequency(unsigned long frequency) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     BOOL enabled;
     _AXVPB* primary;
     unsigned short ratio_hi;
@@ -920,9 +890,9 @@ int SoundBuffer_Playable::SetFrequency(unsigned long frequency) {
 
     self->frequency = frequency;
     enabled = OSDisableInterrupts();
-    primary = self->primary_voice;
+    primary = self->voices[0];
     if (primary != 0 ||
-        self->secondary_voice != 0) {
+        self->voices[1] != 0) {
         unsigned long adjusted_frequency = frequency;
 
         if (adjusted_frequency < 63) {
@@ -939,8 +909,8 @@ int SoundBuffer_Playable::SetFrequency(unsigned long frequency) {
             primary->pb.src.ratioLo = ratio_lo;
             primary->sync = sync;
         }
-        if (self->secondary_voice != 0) {
-            _AXVPB* secondary = self->secondary_voice;
+        if (self->voices[1] != 0) {
+            _AXVPB* secondary = self->voices[1];
 
             sync = secondary->sync;
             secondary->pb.src.ratioHi = ratio_hi;
@@ -954,8 +924,7 @@ int SoundBuffer_Playable::SetFrequency(unsigned long frequency) {
 }
 
 int SoundBuffer_Playable::GetStatus(unsigned long* status) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     int result = -1;
     unsigned long result_status = 0;
 
@@ -985,34 +954,34 @@ int SoundBuffer_Playable::IsReadyToPlay(void) {
     return 1;
 }
 
+/* Matched: 100% report-exact; canonical Stop dispatch. */
 void SoundBuffer_Playable::FreeResources(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
-    ((SoundBufferPlayableInterface*)this)->Stop();
+    SoundBuffer_Playable* self = this;
+    this->Stop();
     if (self->aram_block != 0) {
         self->aram_block->Release();
         self->aram_block = 0;
     }
 }
 
+/* Matched: 100% report-exact; standard delete supplies the retail null guard
+ * and virtual deleting-destructor call after resource release. */
 void SoundBuffer_Playable::FreeObject(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     BOOL enabled;
 
-    ((SoundBufferPlayableInterface*)this)
-        ->FreeResources();
+    this->FreeResources();
     enabled = OSDisableInterrupts();
     if (self->previous != 0) {
         if ((self->previous->next = self->next) != 0) {
             self->next->previous = self->previous;
         } else {
             ms_UpdateList__20SoundBuffer_Playable.last =
-                (SoundBuffer_Playable*)self->previous;
+                self->previous;
         }
     } else {
         ms_UpdateList__20SoundBuffer_Playable.first =
-            (SoundBuffer_Playable*)self->next;
+            self->next;
         if (ms_UpdateList__20SoundBuffer_Playable.first != 0) {
             self->next->previous = 0;
         } else {
@@ -1020,89 +989,31 @@ void SoundBuffer_Playable::FreeObject(void) {
         }
     }
     OSRestoreInterrupts(enabled);
-    if (self != 0) {
-        ((SoundBufferPlayableInterface*)this)->Destroy(1);
-    }
+    delete this;
 }
 
 SoundBuffer_Playable::~SoundBuffer_Playable() {
     FreeResources();
 }
 
-void SoundBuffer_Playable::StopIfDonePlaying(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
-
-    if ((self->state & 2) != 0) {
-        int done = 0;
-
-        if (self->primary_voice != 0 &&
-            (self->primary_voice->pb.state & 1) == 0) {
-            done = 1;
-        }
-        if (self->secondary_voice != 0 &&
-            (self->secondary_voice->pb.state & 1) == 0) {
-            done = 1;
-        }
-        if (done != 0) {
-            ((SoundBufferPlayableInterface*)this)->Stop();
-        }
-    }
-}
-
-void SoundBuffer_Playable::iUpdate_MslTick(void) {
-    ((SoundBufferPlayableInterface*)this)
-        ->StopIfDonePlaying();
-}
-
-void SoundBuffer_Playable::iUpdate_AXUser(void) {
-}
-
-void SoundBuffer_Playable::LostVoice(_AXVPB* voice) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
-    BOOL enabled = OSDisableInterrupts();
-
-    if (voice == self->primary_voice) {
-        self->primary_voice = 0;
-        ((SoundBufferPlayableInterface*)this)->Stop();
-    } else if (voice == self->secondary_voice) {
-        self->secondary_voice = 0;
-        ((SoundBufferPlayableInterface*)this)->Stop();
-    }
-
-    OSRestoreInterrupts(enabled);
-}
-
-void SoundBuffer_Playable::AcquireVoiceCallback(void* voice) {
-    AXVPB* callback_voice = (AXVPB*)voice;
-    SoundBuffer_Playable* owner =
-        (SoundBuffer_Playable*)callback_voice->user_context;
-
-    ((SoundBufferPlayableInterface*)owner)->LostVoice(callback_voice);
-}
-
+/* Matched: 100% report-exact; access the data owner's canonical file entry. */
 int SoundBuffer_Data::GetNumChannels(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
-    return (self->file_entry->has_secondary != 0) + 1;
+    return (file_entry->has_secondary != 0) + 1;
 }
 
+/* Matched: 100% report-exact; release the data owner's canonical ARAM block. */
 void SoundBuffer_Data::FreeResources(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
-
-    if (self->aram_block != 0) {
-        self->aram_block->Release();
-        self->aram_block = 0;
+    if (aram_block != 0) {
+        aram_block->Release();
+        aram_block = 0;
     }
 }
 
+/* Matched: 100% report-exact; standard delete supplies the retail null guard
+ * and virtual deleting-destructor call after resource release. */
 void SoundBuffer_Data::FreeObject(void) {
-    ((SoundBufferPlayableInterface*)this)->FreeResources();
-    if (this != 0) {
-        ((SoundBufferPlayableInterface*)this)->Destroy(1);
-    }
+    this->FreeResources();
+    delete this;
 }
 
 int SoundBuffer::SetCurrentPosition(unsigned long position) {
@@ -1181,73 +1092,21 @@ int SoundBuffer::IsReadyToPlay(void) {
 void SoundBuffer::PrepForPlay(void) {
 }
 
-void SBPlayable_Stream::FreeResources(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
-
-    ((SoundBufferPlayableInterface*)this)->Stop();
-    ((SoundBufferPlayableInterface*)this)->Stop();
-    if (self->aram_block != 0) {
-        self->aram_block->Release();
-        self->aram_block = 0;
-    }
-}
-
-void SBPlayable_Stream::ResetValues(void) {
-    SBPlayableStreamLayout* self =
-        StreamState(this);
-
-    self->ready_to_play = 0;
-    self->last_read_pending = 0;
-    self->voices_started = 0;
-    self->play_when_ready = 0;
-    self->play_flags = 0;
-    self->cache_buffer0 = 0;
-    self->cache_buffer1 = 0;
-    self->cache_buffer_size = 0;
-    self->cache_buffer1_size = 0;
-    self->stream_context = 0;
-    self->aligned_size = 0;
-    self->primary_offset = 0;
-    self->segment_size = 0;
-    self->segment_shift = 0;
-    self->source_read_offset = 0;
-    self->source_bytes_remaining = 0;
-    self->pending_file_request = 0;
-    self->queued_read_offset = 0;
-    self->queued_read_size = 0;
-    self->queued_block_count = 0;
-    self->partial_read = 0;
-    self->at_zero_buffer = 0;
-    self->crossed_stream_end = 0;
-    self->end_of_stream = 0;
-    self->pending_arq_count = 0;
-    self->ring_block_count = 0;
-    self->source_blocks_remaining = 0;
-    self->ring_write_block = 0;
-    self->ring_play_block = 0;
-    self->pending_ax_block = -1;
-    self->ax_end_block = -1;
-    self->end_pass_count = 0;
-    self->stream_end_block = -1;
-    self->initial_position = 0;
-    self->ring_scan_stop_block = -1;
-}
-
 /*
  * Exact: retail file-buffer splitting, ARQ request ownership, mono/stereo
  * ring advancement, final-read callback selection, and cleanup.
  */
+/* Matched: 100% report-exact; canonical Stop dispatch on read failure. */
 void SBPlayable_Stream::StreamFileRead_CallBack(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data) {
-    SBPlayableStreamLayout* stream;
+    SBPlayable_Stream* stream;
     void (*callback)(unsigned long);
     void (*last_callback)(unsigned long);
     BOOL enabled;
 
     enabled = OSDisableInterrupts();
-    stream = (SBPlayableStreamLayout*)callback_data;
+    stream = (SBPlayable_Stream*)callback_data;
 
     if (error == 0) {
         if (final_chunk != 0) {
@@ -1273,7 +1132,7 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
 
             remaining = size;
             cursor = (unsigned char*)buffer;
-            if (stream->playable.file_entry->has_secondary != 0) {
+            if (stream->file_entry->has_secondary != 0) {
                 channel = segment & 1;
                 block = stream->ring_write_block + (segment >> 1);
             } else {
@@ -1290,7 +1149,7 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
                     _MSL_GCN_BREAK();
                     mslStreamFile_ReturnBuffer(buffer);
                     remaining = 0;
-                    ((SoundBufferPlayableInterface*)stream)->Stop();
+                    ((SoundBuffer_Playable*)stream)->Stop();
                 } else {
                     unsigned long destination;
 
@@ -1316,15 +1175,15 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
                         stream->block_headers[channel][block] = *cursor;
                     }
                     destination =
-                        (&stream->cache_buffer0)[channel] +
+                        stream->cache_buffers[channel] +
                         block * segment_size + in_segment;
                     DCFlushRange(cursor, segment_remaining);
                     ARQPostRequest(
-                        request, 0, 0, 1, (unsigned long)cursor,
+                        &request->request, 0, 0, 1, (unsigned long)cursor,
                         destination, segment_remaining, callback);
                     cursor += segment_remaining;
                     if (remaining != 0) {
-                        if (stream->playable.file_entry->has_secondary != 0) {
+                        if (stream->file_entry->has_secondary != 0) {
                             channel ^= 1;
                             if (channel == 0) {
                                 block++;
@@ -1349,31 +1208,11 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
     OSRestoreInterrupts(enabled);
 }
 
-void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_ReturnBuffer(
-    unsigned long request_address) {
-    mslARQRequest* request = (mslARQRequest*)request_address;
-    SBPlayableStreamLayout* stream =
-        (SBPlayableStreamLayout*)request->callback_data;
-
-    stream->pending_arq_count--;
-    i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(request_address);
-}
-
-void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete(
-    unsigned long request_address) {
-    mslARQRequest* request = (mslARQRequest*)request_address;
-    SBPlayableStreamLayout* stream =
-        (SBPlayableStreamLayout*)request->callback_data;
-
-    stream->pending_arq_count--;
-    i_ARQCALLBACK_ReturnArq(request_address);
-}
-
 void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_LastRead(
     unsigned long request_address) {
     mslARQRequest* request = (mslARQRequest*)request_address;
-    SBPlayableStreamLayout* stream =
-        (SBPlayableStreamLayout*)request->callback_data;
+    SBPlayable_Stream* stream =
+        (SBPlayable_Stream*)request->callback_data;
 
     stream->pending_arq_count--;
     i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(request_address);
@@ -1395,82 +1234,31 @@ void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_LastRead(
     }
 }
 
-int SBPlayable_Stream::IsReadyToPlay(void) {
-    SBPlayableStreamLayout* self =
-        StreamState(this);
+void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_ReturnBuffer(
+    unsigned long request_address) {
+    mslARQRequest* request = (mslARQRequest*)request_address;
+    SBPlayable_Stream* stream =
+        (SBPlayable_Stream*)request->callback_data;
 
-    return self->ready_to_play;
+    stream->pending_arq_count--;
+    i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(request_address);
 }
 
-int SBPlayable_Stream::Pause(void) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
-    SoundBufferPlayableLayout* self = &stream->playable;
-    BOOL voice_enabled;
-    int result;
-    BOOL enabled = OSDisableInterrupts();
-    result = -1;
+void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete(
+    unsigned long request_address) {
+    mslARQRequest* request = (mslARQRequest*)request_address;
+    SBPlayable_Stream* stream =
+        (SBPlayable_Stream*)request->callback_data;
 
-    ((SoundBufferPlayableInterface*)this)
-        ->StopIfDonePlaying();
-    if ((self->state & 2) != 0) {
-        voice_enabled = OSDisableInterrupts();
-
-        if (self->primary_voice != 0) {
-            AXSetVoiceState(self->primary_voice, 0);
-            result = 0;
-        }
-        if (self->secondary_voice != 0) {
-            AXSetVoiceState(self->secondary_voice, 0);
-            result = 0;
-        }
-        OSRestoreInterrupts(voice_enabled);
-        self->state = (self->state & 1) | 4;
-    }
-    stream->voices_started = 0;
-    stream->play_when_ready = 0;
-    OSRestoreInterrupts(enabled);
-    return result;
+    stream->pending_arq_count--;
+    i_ARQCALLBACK_ReturnArq(request_address);
 }
 
-int SBPlayable_Stream::Play(unsigned long flags) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
-    SoundBufferPlayableLayout* self = &stream->playable;
-    int result = -1;
-
-    if ((self->state & 2) == 0) {
-        BOOL enabled;
-
-        stream->play_flags = flags;
-        ((SoundBufferPlayableInterface*)this)->Slot14();
-        enabled = OSDisableInterrupts();
-        if ((flags & 1) != 0) {
-            self->state = 3;
-        } else {
-            self->state = 2;
-        }
-        stream->play_flags = flags;
-        if (stream->ready_to_play != 0) {
-            result = iPlayPrepped();
-        } else if (stream->last_read_pending != 0) {
-            stream->play_when_ready = 1;
-            result = 0;
-        }
-        OSRestoreInterrupts(enabled);
-    }
-    return result;
-}
-
-/*
- * Near miss: iPlayPrepped 97.15%, retail 0x804 versus current 0x818.
- * The five extra instructions are one eager secondary-entry zero and separate
- * voice/cache loop-induction updates; the other differences are GPR coloring.
- */
+/* TODO: [near miss] 97.974655%; narrower secondary lifetime regressed to
+ * 97.88499%; retain one-owner baseline; stop at extra zero and coloring. */
 int SBPlayable_Stream::iPlayPrepped(void) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
-    SoundBufferPlayableLayout* self = &stream->playable;
+    SBPlayable_Stream* stream =
+        this;
     int result = -1;
 
     if (stream->ready_to_play == 0 ||
@@ -1478,76 +1266,76 @@ int SBPlayable_Stream::iPlayPrepped(void) {
         return result;
     }
 
-    if (self->primary_voice == 0) {
+    if (stream->voices[0] == 0) {
         int use_stream_loop;
         int use_loop_address;
 
         stream->ring_play_block = 0;
         stream->at_zero_buffer = 0;
-        self->primary_voice = AXAcquireVoice(
+        stream->voices[0] = AXAcquireVoice(
             0x14, AcquireVoiceCallback, (unsigned long)this);
-        if (self->primary_voice == 0) {
+        if (stream->voices[0] == 0) {
             return result;
         }
-        AXSetVoicePriority(self->primary_voice, 0x19);
+        AXSetVoicePriority(stream->voices[0], 0x19);
 
         use_stream_loop = 1;
         use_loop_address = 1;
         if (stream->source_blocks_remaining == -1) {
             use_stream_loop = 0;
-            if ((self->state & 1) == 0) {
+            if ((stream->state & 1) == 0) {
                 use_loop_address = 0;
             }
         }
 
-        if (self->file_entry->has_secondary != 0) {
-            self->secondary_voice = AXAcquireVoice(
+        if (stream->file_entry->has_secondary != 0) {
+            stream->voices[1] = AXAcquireVoice(
                 0x14, AcquireVoiceCallback, (unsigned long)this);
-            if (self->secondary_voice == 0) {
-                AXFreeVoice(self->primary_voice);
-                self->primary_voice = 0;
+            if (stream->voices[1] == 0) {
+                AXFreeVoice(stream->voices[0]);
+                stream->voices[0] = 0;
                 return result;
             }
-            AXSetVoicePriority(self->secondary_voice, 0x19);
+            AXSetVoicePriority(stream->voices[1], 0x19);
             SPSoundEntry* primary_sound = 0;
             SPSoundEntry* secondary_sound = 0;
 
-            if (self->file_entry->sound_table != 0) {
+            if (stream->file_entry->sound_table != 0) {
                 primary_sound = SPGetSoundEntry(
-                    self->file_entry->sound_table, 0);
+                    stream->file_entry->sound_table, 0);
             }
             SetStreamVoiceSource(
-                self->primary_voice, primary_sound,
-                self->frequency, use_stream_loop,
+                stream->voices[0], primary_sound,
+                stream->frequency, use_stream_loop,
                 use_loop_address);
-            if (self->file_entry->secondary_sound_table != 0) {
+            if (stream->file_entry->secondary_sound_table != 0) {
                 secondary_sound = SPGetSoundEntry(
-                    self->file_entry->secondary_sound_table, 0);
+                    stream->file_entry->secondary_sound_table, 0);
             }
             SetStreamVoiceSource(
-                self->secondary_voice, secondary_sound,
-                self->frequency, use_stream_loop,
+                stream->voices[1], secondary_sound,
+                stream->frequency, use_stream_loop,
                 use_loop_address);
             MIXInitChannel(
-                self->primary_voice, 0, 0, -960, -960,
-                0, 0x7F, self->mix_fader);
+                stream->voices[0], 0, 0, -960, -960,
+                0, 0x7F, stream->mix_fader);
             MIXInitChannel(
-                self->secondary_voice, 0, 0, -960, -960,
-                0x7F, 0x7F, self->mix_fader);
+                stream->voices[1], 0, 0, -960, -960,
+                0x7F, 0x7F, stream->mix_fader);
         } else {
             SPSoundEntry* primary_sound = 0;
 
-            if (self->file_entry->sound_table != 0) {
+            if (stream->file_entry->sound_table != 0) {
                 primary_sound = SPGetSoundEntry(
-                    self->file_entry->sound_table, 0);
+                    stream->file_entry->sound_table, 0);
             }
             SetStreamVoiceSource(
-                self->primary_voice, primary_sound,
-                self->frequency, use_stream_loop,
+                stream->voices[0], primary_sound,
+                stream->frequency, use_stream_loop,
                 use_loop_address);
             MIXInitChannel(
-                self->primary_voice, 0, 0, -960, -960,
-                self->pan, self->volume, self->mix_fader);
+                stream->voices[0], 0, 0, -960, -960,
+                stream->pan, stream->volume, stream->mix_fader);
         }
 
         if (stream->source_blocks_remaining == -1) {
@@ -1570,9 +1358,9 @@ int SBPlayable_Stream::iPlayPrepped(void) {
             for (channel = 0;
                  channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
-                    (&self->primary_voice)[channel];
+                    stream->voices[channel];
                 unsigned long base =
-                    (&stream->cache_buffer0)[channel] << 1;
+                    stream->cache_buffers[channel] << 1;
                 unsigned long address;
                 unsigned long sync;
 
@@ -1620,9 +1408,9 @@ int SBPlayable_Stream::iPlayPrepped(void) {
             for (channel = 0;
                  channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
-                    (&self->primary_voice)[channel];
+                    stream->voices[channel];
                 unsigned long base =
-                    (&stream->cache_buffer0)[channel] << 1;
+                    stream->cache_buffers[channel] << 1;
                 unsigned long zero;
                 unsigned long address;
                 unsigned long sync;
@@ -1672,14 +1460,14 @@ int SBPlayable_Stream::iPlayPrepped(void) {
         }
     }
 
-    if (self->primary_voice != 0) {
+    if (stream->voices[0] != 0) {
         stream->voices_started = 1;
         stream->crossed_stream_end = 0;
         stream->end_of_stream = 0;
         if (stream->at_zero_buffer == 0) {
-            AXSetVoiceState(self->primary_voice, 1);
-            if (self->secondary_voice != 0) {
-                AXSetVoiceState(self->secondary_voice, 1);
+            AXSetVoiceState(stream->voices[0], 1);
+            if (stream->voices[1] != 0) {
+                AXSetVoiceState(stream->voices[1], 1);
             }
         }
         result = 0;
@@ -1687,65 +1475,11 @@ int SBPlayable_Stream::iPlayPrepped(void) {
     return result;
 }
 
-/*
- * Soft ceiling: Stop 97.00% -- the dual interrupt scopes, voice teardown,
- * cache release, request cancellation, state reset, and return contract are
- * retail-correct. Declaration/initializer reordering recovered retail size
- * but rotated the full NV map and regressed to 90.50%/92.94%; stop.
- */
-int SBPlayable_Stream::Stop(void) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
-    SoundBufferPlayableLayout* self = &stream->playable;
-    BOOL enabled = OSDisableInterrupts();
-    int result = -1;
-    BOOL voice_enabled = OSDisableInterrupts();
-
-    if (self->primary_voice != 0) {
-        AXSetVoiceState(self->primary_voice, 0);
-        MIXReleaseChannel(self->primary_voice);
-        AXFreeVoice(self->primary_voice);
-        result = 0;
-        self->primary_voice = 0;
-    }
-    if (self->secondary_voice != 0) {
-        AXSetVoiceState(self->secondary_voice, 0);
-        MIXReleaseChannel(self->secondary_voice);
-        AXFreeVoice(self->secondary_voice);
-        result = 0;
-        self->secondary_voice = 0;
-    }
-    OSRestoreInterrupts(voice_enabled);
-    self->state = 8;
-    stream->voices_started = 0;
-
-    voice_enabled = OSDisableInterrupts();
-    stream->ready_to_play = 0;
-    stream->last_read_pending = 0;
-    stream->play_when_ready = 0;
-    if (stream->cache_buffer0 != 0) {
-        mslStreamCache_ReleaseBuffer(stream->cache_buffer0);
-    }
-    if (stream->cache_buffer1 != 0) {
-        mslStreamCache_ReleaseBuffer(stream->cache_buffer1);
-    }
-    stream->cache_buffer0 = 0;
-    stream->cache_buffer1 = 0;
-    stream->cache_buffer_size = 0;
-    stream->cache_buffer1_size = 0;
-    if (stream->pending_file_request != 0) {
-        mslStreamFile_CancelRequest(stream->pending_file_request);
-        stream->pending_file_request = 0;
-    }
-    OSRestoreInterrupts(voice_enabled);
-    OSRestoreInterrupts(enabled);
-    return result;
-}
-
+/* Matched: 100% report-exact; canonical Stop dispatch at both end gates. */
 void SBPlayable_Stream::StopIfDonePlaying(void) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
-    SoundBufferPlayableLayout* self = &stream->playable;
+    SBPlayable_Stream* stream =
+        this;
+    SoundBuffer_Playable* self = stream;
 
     if ((self->state & 2) != 0) {
         if (stream->source_blocks_remaining == -1) {
@@ -1753,15 +1487,15 @@ void SBPlayable_Stream::StopIfDonePlaying(void) {
                 (self->state & 1) == 0) {
                 int done = 0;
 
-                if (self->primary_voice != 0 &&
-                    (self->primary_voice->pb.state & 1) == 0) {
+                if (self->voices[0] != 0 &&
+                    (self->voices[0]->pb.state & 1) == 0) {
                     done = 1;
-                } else if (self->secondary_voice != 0 &&
-                           (self->secondary_voice->pb.state & 1) == 0) {
+                } else if (self->voices[1] != 0 &&
+                           (self->voices[1]->pb.state & 1) == 0) {
                     done = 1;
                 }
                 if (done != 0) {
-                    ((SoundBufferPlayableInterface*)this)->Stop();
+                    this->Stop();
                 }
             }
         } else if (stream->end_of_stream != 0 &&
@@ -1772,20 +1506,17 @@ void SBPlayable_Stream::StopIfDonePlaying(void) {
                         stream->stream_end_block ||
                     stream->ring_play_block ==
                         stream->stream_end_block - 1)) {
-            ((SoundBufferPlayableInterface*)this)->Stop();
+            this->Stop();
         }
     }
 }
 
-/*
- * Exact: retail refill, wrap, final-chunk publication, and play-when-ready
- * scheduling. The read-size local is deliberately reused first as the
- * available-block ceiling.
- */
+/* Matched: 100% report-exact; queue priority is always 0x10 and its callee
+ * overwrites the dead comparison. Identical-arm source provenance remains open. */
 void SBPlayable_Stream::iUpdate_MslTick(void) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
-    SoundBufferPlayableLayout* self = &stream->playable;
+    SBPlayable_Stream* stream =
+        this;
+    SoundBuffer_Playable* self = stream;
 
     if (stream->ready_to_play != 0 ||
         stream->last_read_pending != 0) {
@@ -1800,8 +1531,7 @@ void SBPlayable_Stream::iUpdate_MslTick(void) {
             }
         }
 
-        ((SoundBufferPlayableInterface*)this)
-            ->StopIfDonePlaying();
+        this->StopIfDonePlaying();
 
         if ((stream->source_blocks_remaining > 0 ||
              stream->source_blocks_remaining == -1) &&
@@ -1891,8 +1621,8 @@ void SBPlayable_Stream::iUpdate_MslTick(void) {
  * separate raw and updated sync-word lifetimes for both voices.
  */
 void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
+    SBPlayable_Stream* stream =
+        this;
     int scan_stop = stream->ring_scan_stop_block;
     int end_block;
 
@@ -1921,10 +1651,10 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     }
     stream->pending_ax_block = -1;
 
-    _AXVPB* voice = stream->playable.primary_voice;
+    _AXVPB* voice = stream->voices[0];
     unsigned long sync;
     unsigned long end_sync;
-    unsigned long address = stream->cache_buffer0;
+    unsigned long address = stream->cache_buffers[0];
     end_sync = voice->sync;
     address = end_address + (address << 1);
 
@@ -1959,11 +1689,11 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
         voice->sync = sync;
     }
 
-    voice = stream->playable.secondary_voice;
+    voice = stream->voices[1];
     if (voice == 0) {
         return;
     }
-    address = stream->cache_buffer1;
+    address = stream->cache_buffers[1];
     end_sync = voice->sync;
     address = end_address + (address << 1);
     sync = end_sync | 0x8000;
@@ -2003,8 +1733,8 @@ inline int SBPlayable_Stream::iAX_GetVoiceBlock(
     _AXVPB* voice,
     int channel,
     unsigned long* raw_address) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
+    SBPlayable_Stream* stream =
+        this;
     unsigned long address =
         ((unsigned long)voice->pb.addr.currentAddressHi << 16) +
         voice->pb.addr.currentAddressLo;
@@ -2015,8 +1745,8 @@ inline int SBPlayable_Stream::iAX_GetVoiceBlock(
         block = -1;
     } else {
         address = ((long)address >> 1) -
-            (channel == 0 ? stream->cache_buffer0 :
-                            stream->cache_buffer1);
+            (channel == 0 ? stream->cache_buffers[0] :
+                            stream->cache_buffers[1]);
         block = (long)address >> stream->segment_shift;
         if (block < 0 || block >= stream->ring_block_count) {
             _MSL_GCN_BREAK();
@@ -2028,15 +1758,11 @@ inline int SBPlayable_Stream::iAX_GetVoiceBlock(
     return block;
 }
 
-/*
- * Soft ceiling: iUpdate_AXUser 92.90%, retail 0x5B4 versus current 0x5B0.
- * The ring transitions and both AX publication paths are structurally
- * recovered. The residual is broad GPR coloring plus one loop-address
- * high-half scheduling replacement; stop rather than force allocation.
- */
+/* TODO: [near miss] 92.93%; nested end-pass gate and restart ADPCM fields
+ * are corrected; remaining differences are GPRs and AX load/store scheduling. */
 void SBPlayable_Stream::iUpdate_AXUser(void) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
+    SBPlayable_Stream* stream =
+        this;
     int primary_block;
     int secondary_block;
     int channels;
@@ -2052,15 +1778,15 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
     }
 
     primary_block = iAX_GetVoiceBlock(
-        stream->playable.primary_voice, 0,
+        stream->voices[0], 0,
         &primary_raw_address);
 
-    if (stream->playable.file_entry->has_secondary != 0) {
+    if (stream->file_entry->has_secondary != 0) {
         unsigned long secondary_raw_address;
 
         channels = 2;
         secondary_block = iAX_GetVoiceBlock(
-            stream->playable.secondary_voice, 1,
+            stream->voices[1], 1,
             &secondary_raw_address);
     } else {
         channels = 1;
@@ -2071,9 +1797,10 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
 
     if (primary_block == -1) {
         if (stream->end_of_stream != 0 &&
-            stream->stream_end_block == stream->ax_end_block &&
-            stream->end_pass_count == 0) {
-            stream->end_pass_count = 1;
+            stream->stream_end_block == stream->ax_end_block) {
+            if (stream->end_pass_count == 0) {
+                stream->end_pass_count = 1;
+            }
         } else {
             stream->crossed_stream_end = 1;
             if (stream->ring_play_block ==
@@ -2113,14 +1840,14 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
 
                 {
                     _AXVPB* voice =
-                        stream->playable.primary_voice;
+                        stream->voices[0];
                     unsigned long address;
                     unsigned long sync;
 
                     sync = voice->sync;
                     address =
                         block_address +
-                        (stream->cache_buffer0 << 1);
+                        (stream->cache_buffers[0] << 1);
                     sync |= 0x10000;
                     voice->pb.addr.currentAddressLo = address;
                     voice->pb.addr.currentAddressHi = address >> 16;
@@ -2128,24 +1855,24 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                         voice->sync = sync;
                     }
                     sync = voice->sync;
-                    voice->pb.adpcmLoop.loop_pred_scale =
+                    voice->pb.adpcm.pred_scale =
                         stream->block_headers[0]
                             [stream->ring_play_block];
                     sync |= 0x20000;
-                    voice->pb.adpcmLoop.loop_yn1 = 0;
-                    voice->pb.adpcmLoop.loop_yn2 = 0;
+                    voice->pb.adpcm.yn1 = 0;
+                    voice->pb.adpcm.yn2 = 0;
                     voice->sync = sync;
                 }
 
-                if (stream->playable.secondary_voice != 0) {
+                if (stream->voices[1] != 0) {
                     _AXVPB* voice =
-                        stream->playable.secondary_voice;
+                        stream->voices[1];
                     unsigned long address;
                     unsigned long sync;
                     sync = voice->sync;
                     address =
                         block_address +
-                        (stream->cache_buffer1 << 1);
+                        (stream->cache_buffers[1] << 1);
                     sync |= 0x10000;
                     voice->pb.addr.currentAddressLo = address;
                     voice->pb.addr.currentAddressHi = address >> 16;
@@ -2153,21 +1880,21 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                         voice->sync = sync;
                     }
                     sync = voice->sync;
-                    voice->pb.adpcmLoop.loop_pred_scale =
+                    voice->pb.adpcm.pred_scale =
                         stream->block_headers[1]
                             [stream->ring_play_block];
                     sync |= 0x20000;
-                    voice->pb.adpcmLoop.loop_yn1 = 0;
-                    voice->pb.adpcmLoop.loop_yn2 = 0;
+                    voice->pb.adpcm.yn1 = 0;
+                    voice->pb.adpcm.yn2 = 0;
                     voice->sync = sync;
                 }
 
                 iAX_FindNewEndBlock(next_block);
                 AXSetVoiceState(
-                    stream->playable.primary_voice, 1);
-                if (stream->playable.secondary_voice != 0) {
+                    stream->voices[0], 1);
+                if (stream->voices[1] != 0) {
                     AXSetVoiceState(
-                        stream->playable.secondary_voice, 1);
+                        stream->voices[1], 1);
                 }
             }
         }
@@ -2203,7 +1930,7 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                  (stream->segment_shift + 1)) + 2;
             unsigned char block_header;
             _AXVPB* voice =
-                stream->playable.primary_voice;
+                stream->voices[0];
             unsigned long address;
             unsigned long sync;
             bool at_stream_end =
@@ -2212,7 +1939,7 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
 
             address =
                 block_address +
-                (stream->cache_buffer0 << 1);
+                (stream->cache_buffers[0] << 1);
             sync = voice->sync;
             sync |= 0x4000;
             block_header =
@@ -2247,7 +1974,7 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                 voice->sync = sync;
             }
 
-            voice = stream->playable.secondary_voice;
+            voice = stream->voices[1];
             if (voice != 0) {
                 at_stream_end =
                     stream->ax_end_block ==
@@ -2255,7 +1982,7 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
 
                 address =
                     block_address +
-                    (stream->cache_buffer1 << 1);
+                    (stream->cache_buffers[1] << 1);
                 sync = voice->sync;
                 sync |= 0x4000;
                 block_header =
@@ -2313,9 +2040,128 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
     }
 }
 
+/* Matched: 100% report-exact; canonical StopIfDonePlaying dispatch. */
+int SBPlayable_Stream::Pause(void) {
+    SBPlayable_Stream* stream =
+        this;
+    SoundBuffer_Playable* self = stream;
+    BOOL voice_enabled;
+    int result;
+    BOOL enabled = OSDisableInterrupts();
+    result = -1;
+
+    this->StopIfDonePlaying();
+    if ((self->state & 2) != 0) {
+        voice_enabled = OSDisableInterrupts();
+
+        if (self->voices[0] != 0) {
+            AXSetVoiceState(self->voices[0], 0);
+            result = 0;
+        }
+        if (self->voices[1] != 0) {
+            AXSetVoiceState(self->voices[1], 0);
+            result = 0;
+        }
+        OSRestoreInterrupts(voice_enabled);
+        self->state = (self->state & 1) | 4;
+    }
+    stream->voices_started = 0;
+    stream->play_when_ready = 0;
+    OSRestoreInterrupts(enabled);
+    return result;
+}
+
+/* TODO: [near miss] 97.00%; interrupt-state/result GPRs and two extra zero
+ * loads remain; voice/cache/request teardown and return behavior agree. */
+int SBPlayable_Stream::Stop(void) {
+    SBPlayable_Stream* stream =
+        this;
+    SoundBuffer_Playable* self = stream;
+    BOOL enabled = OSDisableInterrupts();
+    int result = -1;
+    BOOL voice_enabled = OSDisableInterrupts();
+
+    if (self->voices[0] != 0) {
+        AXSetVoiceState(self->voices[0], 0);
+        MIXReleaseChannel(self->voices[0]);
+        AXFreeVoice(self->voices[0]);
+        result = 0;
+        self->voices[0] = 0;
+    }
+    if (self->voices[1] != 0) {
+        AXSetVoiceState(self->voices[1], 0);
+        MIXReleaseChannel(self->voices[1]);
+        AXFreeVoice(self->voices[1]);
+        result = 0;
+        self->voices[1] = 0;
+    }
+    OSRestoreInterrupts(voice_enabled);
+    self->state = 8;
+    stream->voices_started = 0;
+
+    voice_enabled = OSDisableInterrupts();
+    stream->ready_to_play = 0;
+    stream->last_read_pending = 0;
+    stream->play_when_ready = 0;
+    if (stream->cache_buffers[0] != 0) {
+        mslStreamCache_ReleaseBuffer(stream->cache_buffers[0]);
+    }
+    if (stream->cache_buffers[1] != 0) {
+        mslStreamCache_ReleaseBuffer(stream->cache_buffers[1]);
+    }
+    stream->cache_buffers[0] = 0;
+    stream->cache_buffers[1] = 0;
+    stream->cache_buffer_size = 0;
+    stream->cache_buffer1_size = 0;
+    if (stream->pending_file_request != 0) {
+        mslStreamFile_CancelRequest(stream->pending_file_request);
+        stream->pending_file_request = 0;
+    }
+    OSRestoreInterrupts(voice_enabled);
+    OSRestoreInterrupts(enabled);
+    return result;
+}
+
+/* Matched: 100% report-exact; canonical PrepForPlay dispatch. */
+int SBPlayable_Stream::Play(unsigned long flags) {
+    SBPlayable_Stream* stream =
+        this;
+    SoundBuffer_Playable* self = stream;
+    int result = -1;
+
+    if ((self->state & 2) == 0) {
+        BOOL enabled;
+
+        stream->play_flags = flags;
+        this->PrepForPlay();
+        enabled = OSDisableInterrupts();
+        if ((flags & 1) != 0) {
+            self->state = 3;
+        } else {
+            self->state = 2;
+        }
+        stream->play_flags = flags;
+        if (stream->ready_to_play != 0) {
+            result = iPlayPrepped();
+        } else if (stream->last_read_pending != 0) {
+            stream->play_when_ready = 1;
+            result = 0;
+        }
+        OSRestoreInterrupts(enabled);
+    }
+    return result;
+}
+
+int SBPlayable_Stream::IsReadyToPlay(void) {
+    SBPlayable_Stream* self =
+        this;
+
+    return self->ready_to_play;
+}
+
 void SBPlayable_Stream::PrepForPlay(void) {
-    SBPlayableStreamLayout* stream =
-        StreamState(this);
+    SBPlayable_Stream* stream =
+        this;
 
     while (stream->pending_arq_count != 0) {
     }
@@ -2324,24 +2170,24 @@ void SBPlayable_Stream::PrepForPlay(void) {
     if (stream->ready_to_play == 0 &&
         stream->last_read_pending == 0) {
         do {
-        stream->cache_buffer0 =
+        stream->cache_buffers[0] =
             mslStreamCache_GetStreamBuffer();
-        if (stream->cache_buffer0 == 0) {
+        if (stream->cache_buffers[0] == 0) {
             BOOL cleanup_enabled = OSDisableInterrupts();
 
             stream->ready_to_play = 0;
             stream->last_read_pending = 0;
             stream->play_when_ready = 0;
-            if (stream->cache_buffer0 != 0) {
+            if (stream->cache_buffers[0] != 0) {
                 mslStreamCache_ReleaseBuffer(
-                    stream->cache_buffer0);
+                    stream->cache_buffers[0]);
             }
-            if (stream->cache_buffer1 != 0) {
+            if (stream->cache_buffers[1] != 0) {
                 mslStreamCache_ReleaseBuffer(
-                    stream->cache_buffer1);
+                    stream->cache_buffers[1]);
             }
-            stream->cache_buffer0 = 0;
-            stream->cache_buffer1 = 0;
+            stream->cache_buffers[0] = 0;
+            stream->cache_buffers[1] = 0;
             stream->cache_buffer_size = 0;
             stream->cache_buffer1_size = 0;
             if (stream->pending_file_request != 0) {
@@ -2354,28 +2200,28 @@ void SBPlayable_Stream::PrepForPlay(void) {
         } else {
             stream->cache_buffer_size =
                 mslStreamCache_GetSizeBuffer();
-            if (stream->playable.file_entry->has_secondary != 0) {
+            if (stream->file_entry->has_secondary != 0) {
                 stream->ring_block_count =
                     stream->cache_buffer_size / 0x2000;
-                stream->cache_buffer1 =
+                stream->cache_buffers[1] =
                     mslStreamCache_GetStreamBuffer();
-                if (stream->cache_buffer1 == 0) {
+                if (stream->cache_buffers[1] == 0) {
                     BOOL cleanup_enabled =
                         OSDisableInterrupts();
 
                     stream->ready_to_play = 0;
                     stream->last_read_pending = 0;
                     stream->play_when_ready = 0;
-                    if (stream->cache_buffer0 != 0) {
+                    if (stream->cache_buffers[0] != 0) {
                         mslStreamCache_ReleaseBuffer(
-                            stream->cache_buffer0);
+                            stream->cache_buffers[0]);
                     }
-                    if (stream->cache_buffer1 != 0) {
+                    if (stream->cache_buffers[1] != 0) {
                         mslStreamCache_ReleaseBuffer(
-                            stream->cache_buffer1);
+                            stream->cache_buffers[1]);
                     }
-                    stream->cache_buffer0 = 0;
-                    stream->cache_buffer1 = 0;
+                    stream->cache_buffers[0] = 0;
+                    stream->cache_buffers[1] = 0;
                     stream->cache_buffer_size = 0;
                     stream->cache_buffer1_size = 0;
                     if (stream->pending_file_request != 0) {
@@ -2395,7 +2241,7 @@ void SBPlayable_Stream::PrepForPlay(void) {
             }
 
             if (stream->cache_buffer_size >=
-                stream->playable.file_entry->aram_size) {
+                stream->file_entry->aram_size) {
                 stream->source_blocks_remaining = -1;
             } else {
                 stream->source_blocks_remaining =
@@ -2413,23 +2259,77 @@ void SBPlayable_Stream::PrepForPlay(void) {
     OSRestoreInterrupts(enabled);
 }
 
+/* Matched: 100% report-exact; both retail Stop calls use the owner type. */
+void SBPlayable_Stream::FreeResources(void) {
+    SoundBuffer_Playable* self = this;
+
+    this->Stop();
+    this->Stop();
+    if (self->aram_block != 0) {
+        self->aram_block->Release();
+        self->aram_block = 0;
+    }
+}
+
+void SBPlayable_Stream::ResetValues(void) {
+    SBPlayable_Stream* self =
+        this;
+
+    self->ready_to_play = 0;
+    self->last_read_pending = 0;
+    self->voices_started = 0;
+    self->play_when_ready = 0;
+    self->play_flags = 0;
+    self->cache_buffers[0] = 0;
+    self->cache_buffers[1] = 0;
+    self->cache_buffer_size = 0;
+    self->cache_buffer1_size = 0;
+    self->stream_context = 0;
+    self->aligned_size = 0;
+    self->primary_offset = 0;
+    self->segment_size = 0;
+    self->segment_shift = 0;
+    self->source_read_offset = 0;
+    self->source_bytes_remaining = 0;
+    self->pending_file_request = 0;
+    self->queued_read_offset = 0;
+    self->queued_read_size = 0;
+    self->queued_block_count = 0;
+    self->partial_read = 0;
+    self->at_zero_buffer = 0;
+    self->crossed_stream_end = 0;
+    self->end_of_stream = 0;
+    self->pending_arq_count = 0;
+    self->ring_block_count = 0;
+    self->source_blocks_remaining = 0;
+    self->ring_write_block = 0;
+    self->ring_play_block = 0;
+    self->pending_ax_block = -1;
+    self->ax_end_block = -1;
+    self->end_pass_count = 0;
+    self->stream_end_block = -1;
+    self->initial_position = 0;
+    self->ring_scan_stop_block = -1;
+}
+
+/* Matched: 100% report-exact; standard delete supplies the retail null guard
+ * and virtual deleting-destructor call after resource release. */
 void SBPlayable_Stream::FreeObject(void) {
-    SoundBufferPlayableLayout* self =
-        PlayableState(this);
+    SoundBuffer_Playable* self = this;
     BOOL enabled;
 
-    ((SoundBufferPlayableInterface*)this)->FreeResources();
+    this->FreeResources();
     enabled = OSDisableInterrupts();
     if (self->previous != 0) {
         if ((self->previous->next = self->next) != 0) {
             self->next->previous = self->previous;
         } else {
             ms_UpdateList__20SoundBuffer_Playable.last =
-                (SoundBuffer_Playable*)self->previous;
+                self->previous;
         }
     } else {
         ms_UpdateList__20SoundBuffer_Playable.first =
-            (SoundBuffer_Playable*)self->next;
+            self->next;
         if (ms_UpdateList__20SoundBuffer_Playable.first != 0) {
             self->next->previous = 0;
         } else {
@@ -2437,9 +2337,7 @@ void SBPlayable_Stream::FreeObject(void) {
         }
     }
     OSRestoreInterrupts(enabled);
-    if (self != 0) {
-        ((SoundBufferPlayableInterface*)this)->Destroy(1);
-    }
+    delete this;
 }
 
 SBPlayable_Stream::~SBPlayable_Stream() {

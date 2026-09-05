@@ -2,12 +2,12 @@
  * Dynamic stream-file reader. Retail owns five 0x4000-byte buffers, five
  * in-flight read records, and 32 generation-tagged pending requests.
  *
- * Current reconstruction: 93.28% .text. The interrupt return wrapper and all
- * data layouts are exact. Initialize differs only by a preceding-symbol branch
- * label; ReturnBuffer and ServiceNextRead have exact retail operations and
+ * The interrupt return wrapper and Initialize are report-exact. DMA-buffer
+ * alignment now agrees with retail; pointer-validation portability remains
+ * under review. ReturnBuffer and ServiceNextRead have retail operations and
  * narrow temporary/list-link scheduling residue. CancelRequest and QueueRequest
  * retain one short-circuit branch and allocator/string lifetime differences.
- * CancelRead (~89.76%) and FileReadCompletionCallback (~87.03%) retain exact
+ * CancelRead (~89.76%) and FileReadCompletionCallback (90.00%) retain retail
  * ownership, calls, and algorithms; their residue is list-reload scheduling
  * and register allocation, with no opcode mismatch.
  */
@@ -103,7 +103,9 @@ struct mslDSB_PendingQueue {
 
 mslDSB_PendingAsyncRead DSB_PAR_Pool[32];
 mslDSB_FileRead DSB_FILEREAD_Pool[5];
-u8 g_DSB_Buffers[5][0x4000];
+/* Retail DMA buffers require 32-byte alignment at .bss+0x7E0. Data pooling
+ * and common-symbol flags cannot express it without changing other layouts. */
+u8 g_DSB_Buffers[5][0x4000] __attribute__((aligned(32)));
 
 mslDSB_PendingAsyncRead* DSB_PAR_FreeList;
 mslDSB_PendingQueue DSB_PAR_Queue;
@@ -149,6 +151,7 @@ extern "C" void mslStreamFile_CancelRequest(void* handle) {
     }
 }
 
+/* Matched: 100% report-exact after restoring the retail DMA-buffer alignment. */
 extern "C" void mslStreamFile_Initialize(void) {
     int i;
     mslDSB_PendingAsyncRead* requests;
@@ -343,13 +346,8 @@ static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
     OSRestoreInterrupts(enabled);
 }
 
-/*
- * Near miss: 89.76%, exact retail/current size 0x318. The abort, unlink,
- * buffer return, queue removal, callback, and pool-release CFG agrees with
- * retail and m2c. Residue is the inlined list-update schedule/GPR coloring,
- * one tail-load placement, and one pooled-string relocation; no algorithmic
- * opcode mismatch remains.
- */
+/* TODO: [near miss] 89.76%; list reloads and address lifetimes remain
+ * (retail 0x318, current 0x320); portable address-delta trial scored 88.28%. */
 static void mslDSB_CancelRead(
     mslDSB_PendingAsyncRead* request, int invoke_callback) {
     if (request != 0) {
@@ -541,12 +539,8 @@ void mslDSB_ServiceNextRead(void) {
     }
 }
 
-/*
- * Near miss: 87.03%, exact retail/current size 0x2c4. The owner unlink,
- * callback/error contract, requeue decision, buffer return, and pool release
- * agree with retail and m2c. All residual rows are GPR arguments or
- * insertion/deletion scheduling; there are no opcode replacements.
- */
+/* TODO: [near miss] 90.00%; error callbacks always receive null as in retail;
+ * size is exact, with list-reload scheduling and GPR coloring remaining. */
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslDSB_FileRead* read = (mslDSB_FileRead*)callback_data;
@@ -592,9 +586,8 @@ static void mslDSB_FileReadCompletionCallback(
                 final = 1;
                 request->final_issued = 1;
                 offset = 0;
-                if (mslDSB_ReturnBuffer(buffer)) {
-                    buffer = 0;
-                }
+                mslDSB_ReturnBuffer(buffer);
+                buffer = 0;
             }
             callback(buffer, offset, size, error, final, data);
             if (error != 0) {

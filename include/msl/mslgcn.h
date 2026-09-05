@@ -13,8 +13,8 @@ void MSL_GCN_AXUserCallback(void);
 unsigned long mslMainRamUsed(void);
 void MSL_ClearVolatileFlag(unsigned long request_address);
 
-extern int g_bMSL_GCN_BREAK;
-extern unsigned long g_MSL_volatile_flag;
+extern volatile int g_bMSL_GCN_BREAK;
+extern volatile unsigned long g_MSL_volatile_flag;
 extern unsigned long mslGCN_AXCallback_Ticks;
 extern int debugger_mbo1;
 extern int debugger_at1;

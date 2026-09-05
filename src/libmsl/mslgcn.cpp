@@ -1,5 +1,6 @@
 #include "msl/mslBank.h"
 #include "msl/mslWave.h"
+#include "msl/mslPlayable.h"
 #include "msl/CriticalSection.h"
 #include "msl/ExtHeapMgr.h"
 #include "dolphin/os.h"
@@ -15,36 +16,8 @@
 #include "mw/mwMemHeap.h"
 #include "runtime/cstring.h"
 
-struct mslGCNPlayable;
 struct _mslBank;
 struct _GameCubeFileEntry;
-
-typedef int (*mslPlayablePlay)(
-    mslGCNPlayable* playable, int loop);
-/* Static Stop returns int while stream Stop returns void; callers discard it. */
-typedef void (*mslPlayableStop)(mslGCNPlayable* playable);
-typedef int (*mslPlayablePause)(mslGCNPlayable* playable);
-typedef void (*mslPlayableFreeObject)(mslGCNPlayable* playable);
-
-struct mslGCNPlayableVTable {
-    void* reserved00[3];          /* +0x00 */
-    mslPlayableFreeObject FreeObject; /* +0x0C */
-    void* reserved10[12];         /* +0x10 */
-    mslPlayablePlay Play;         /* +0x40 */
-    mslPlayableStop Stop;         /* +0x44 */
-    mslPlayablePause Pause;       /* +0x48 */
-    mslPlayablePause UnPause;     /* +0x4C */
-};
-
-struct mslGCNPlayable {
-    mslGCNPlayableVTable* vtable;
-    int reference_count;
-};
-
-static inline mslGCNPlayable* MslGCNPlayableFromWave(
-    mslRuntimeWave* wave) {
-    return (mslGCNPlayable*)wave->playable;
-}
 
 extern int SoundBufferCount;
 extern int SoundBufferCountStatic;
@@ -61,16 +34,6 @@ static void msl_SystemEnterMutex(void*);
 static void msl_SystemExitMutex(void*);
 extern MslCriticalSection g_MSL_GCN_ARAM_CriticalSection;
 
-class SoundBuffer {
-public:
-    static mslPlayable* CreatePlayableStaticBuffer(
-        _mslBank* bank, _GameCubeFileEntry* entry);
-    static mslPlayable* CreatePlayableStreamBuffer(
-        _mslBank* bank, _GameCubeFileEntry* entry);
-    static void SB_MslTickCallback(void);
-    static void SB_AXUserCallback(void);
-};
-
 ListPool g_listPoolSound;
 ListPool g_listPoolAdjust;
 unsigned char g_listMemSound[0x2BF20];
@@ -82,7 +45,8 @@ int SoundBufferCountStatic;
 unsigned long mslGCN_AXCallback_Ticks;
 ExternalHeap* g_MSL_GCN_ARAM_Heap;
 unsigned long g_MSL_GCN_ARAM_ZeroBase;
-unsigned long g_MSL_volatile_flag;
+/* Cleared asynchronously by the ARQ completion callback. */
+volatile unsigned long g_MSL_volatile_flag;
 unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
 unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
 int debugger_mbo1;
@@ -93,13 +57,16 @@ static mslInitParam s_initDefault = {
     sizeof(mslInitParam), 1, 10
 };
 
-int g_bMSL_GCN_BREAK = 1;
+/* The debugger releases the diagnostic spin by clearing this flag. */
+volatile int g_bMSL_GCN_BREAK = 1;
 MslCriticalSection g_MSL_GCN_ARAM_CriticalSection;
 mslTickCallback g_mslTickCB_Queue[20];
 int g_mslTickCB_Head;
 int g_mslTickCB_Tail;
 int g_mslTickCB_NumberItems;
 
+/* Matched: 100% report-exact; genuine debugger flag volatility
+ * preserves the retail load on every wait iteration. */
 void _MSL_GCN_BREAK(void) {
     mslDebugPrintf("MSL DID SOMETHING BAD!!!\n");
     while (g_bMSL_GCN_BREAK != 0) {
@@ -110,57 +77,60 @@ void _MSL_GCN_BREAK(void) {
     OSPanic("mslgcn.cpp", 0x66D, "UNSUPPORTED FUNCTION");
 }
 
+/* Matched: 100% report-exact; typed virtual UnPause dispatch and
+ * explicit error return reproduce the retail epilogue. */
 extern "C" int ContinueStream(
     _mslSystem* system, mslRuntimeWave* wave) {
-    mslGCNPlayable* playable =
-        MslGCNPlayableFromWave(wave);
+    mslPlayable* playable =
+        wave->playable;
     int result;
 
     if (playable == 0) {
         return -1;
     }
 
-    result = playable->vtable->UnPause(playable);
+    result = playable->UnPause();
     if (result < 0) {
         mslDebugPrintf(
             "ContinueStream failed DS->UnPause.  HR=%08x\n",
             result);
+        return result;
     }
     return result;
 }
 
+/* Matched: 100% report-exact; typed virtual Pause dispatch. */
 extern "C" int PauseStream(
     _mslSystem* system, mslRuntimeWave* wave) {
-    mslGCNPlayable* playable =
-        MslGCNPlayableFromWave(wave);
+    mslPlayable* playable =
+        wave->playable;
 
     if (playable == 0) {
         return -1;
     }
-    return playable->vtable->Pause(playable);
+    return playable->Pause();
 }
 
+/* Matched: 100% report-exact; typed virtual Stop, result discarded. */
 extern "C" void StopStream(
     _mslSystem* system, mslRuntimeWave* wave) {
-    mslGCNPlayable* playable =
-        MslGCNPlayableFromWave(wave);
+    mslPlayable* playable =
+        wave->playable;
 
     if (playable != 0) {
-        playable->vtable->Stop(playable);
+        playable->Stop();
     }
 }
 
-/* Soft ceiling: ~96.76% -- retail failure-region return is recovered;
- * remaining differences are virtual-table scratch allocation and the
- * partial-TU string pool.
- */
+/* Matched: 100% report-exact; typed virtual Play dispatch preserves
+ * loop flags and retail failure return. */
 extern "C" int PlayStream(
     _mslSystem* system, mslRuntimeSound* sound,
     mslRuntimeWave* wave, int allow_voice) {
     int result = -1;
     int loop;
-    mslGCNPlayable* playable =
-        MslGCNPlayableFromWave(wave);
+    mslPlayable* playable =
+        wave->playable;
 
     if (playable == 0) {
         return -1;
@@ -170,7 +140,7 @@ extern "C" int PlayStream(
         if ((wave->flags & 1) != 0) {
             loop = 1;
         }
-        result = playable->vtable->Play(playable, loop);
+        result = playable->Play(loop);
         if (result < 0) {
             mslDebugPrintf(
                 "PlayStream failed DS->Play.  HR=%08x\n",
@@ -181,16 +151,17 @@ extern "C" int PlayStream(
     return result;
 }
 
+/* Matched: 100% report-exact; reference release uses virtual FreeObject. */
 extern "C" void UnCopyStreamWave(
     _mslSystem* system, mslRuntimeWave* wave) {
     if (wave->playable != 0) {
-        mslGCNPlayable* playable;
+        mslPlayable* playable;
 
         SoundBufferCountStream--;
         SoundBufferCount--;
-        playable = MslGCNPlayableFromWave(wave);
+        playable = wave->playable;
         if (--playable->reference_count == 0) {
-            playable->vtable->FreeObject(playable);
+            playable->FreeObject();
         }
         wave->playable = 0;
     }
@@ -270,15 +241,16 @@ extern "C" mslRuntimeWave* LoadStreamWaveFile(
     return wave;
 }
 
+/* Matched: 100% report-exact; typed virtual UnPause dispatch. */
 extern "C" int ContinueStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
-    mslGCNPlayable* playable = MslGCNPlayableFromWave(wave);
+    mslPlayable* playable = wave->playable;
     int result;
 
     if (playable == 0) {
         return -1;
     }
-    result = playable->vtable->UnPause(playable);
+    result = playable->UnPause();
     if (result < 0) {
         mslDebugPrintf(
             "ContinueStatic failed DS->UnPause.  HR=%08x\n", result);
@@ -287,24 +259,25 @@ extern "C" int ContinueStatic(
     return 0;
 }
 
+/* Matched: 100% report-exact; typed virtual Pause, result discarded. */
 extern "C" int PauseStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
-    mslGCNPlayable* playable = MslGCNPlayableFromWave(wave);
+    mslPlayable* playable = wave->playable;
 
     if (playable != 0) {
-        playable->vtable->Pause(playable);
+        playable->Pause();
     }
     return 0;
 }
 
-/* Soft ceiling: ~99.33% -- virtual-table scratch GPR only. */
+/* Matched: 100% report-exact; typed virtual Stop, result discarded. */
 extern "C" int StopStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
-    mslGCNPlayable* playable =
-        MslGCNPlayableFromWave(wave);
+    mslPlayable* playable =
+        wave->playable;
 
     if (playable != 0) {
-        playable->vtable->Stop(playable);
+        playable->Stop();
     }
     return 0;
 }
@@ -313,13 +286,13 @@ extern "C" int StopStatic(
  * Dispatch a prepared resident wave to the GameCube static playable. A
  * caller may suppress platform playback while still allowing the higher
  * MSL state machine to complete; loop polarity comes directly from bit 0.
- * Soft ceiling: ~99.6% -- exact retail size/control flow and string order;
- * only the virtual-table scratch register differs.
  */
+/* Matched: 100% report-exact; typed virtual Play dispatch preserves
+ * loop flags, diagnostics, and failure returns. */
 extern "C" int PlayStatic(
     _mslSystem* system, mslRuntimeWave* wave, int allow_voice) {
-    mslGCNPlayable* playable =
-        MslGCNPlayableFromWave(wave);
+    mslPlayable* playable =
+        wave->playable;
     int result;
 
     if (playable == 0) {
@@ -327,7 +300,7 @@ extern "C" int PlayStatic(
     }
     if (allow_voice == 1) {
         if ((wave->flags & 1) != 0) {
-            result = playable->vtable->Play(playable, 1);
+            result = playable->Play(1);
             if (result < 0) {
                 mslDebugPrintf(
                     "PlayStatic failed DS->Play(LOOP).  HR=%08x\n",
@@ -335,7 +308,7 @@ extern "C" int PlayStatic(
                 return result;
             }
         } else {
-            result = playable->vtable->Play(playable, 0);
+            result = playable->Play(0);
             if (result < 0) {
                 mslDebugPrintf(
                     "PlayStatic failed DS->Play.  HR=%08x\n", result);
@@ -346,16 +319,17 @@ extern "C" int PlayStatic(
     return 0;
 }
 
+/* Matched: 100% report-exact; reference release uses virtual FreeObject. */
 extern "C" void UnCopyStaticWave(
     _mslSystem* system, mslRuntimeWave* wave) {
     if (wave->playable != 0) {
-        mslGCNPlayable* playable;
+        mslPlayable* playable;
 
         SoundBufferCountStatic--;
         SoundBufferCount--;
-        playable = MslGCNPlayableFromWave(wave);
+        playable = wave->playable;
         if (--playable->reference_count == 0) {
-            playable->vtable->FreeObject(playable);
+            playable->FreeObject();
         }
         wave->playable = 0;
     }
@@ -439,11 +413,12 @@ extern "C" mslRuntimeWave* LoadStaticWaveFile(
     return wave;
 }
 
-/* Soft ceiling: mslTick ~99.3% -- remaining callback-loop GPR coloring. */
+/* Matched: 100% report-exact; processed/count declaration order preserves
+ * the retail snapshot and loop-counter register lifetimes. */
 extern "C" int mslTick(void) {
     int head;
-    int item_count;
     int processed;
+    int item_count;
     unsigned long enabled;
 
     mwFileTick();
@@ -522,16 +497,14 @@ static inline void mslInitCleanup(_mslSystem* system) {
     _mwMemFree(system, 0, 0);
 }
 
+/* TODO: [near miss] 99.009544%; explicit queue result preserves retail failure
+ * even if callbacks change track_count; flag test and multiply coloring remain. */
 extern "C" _mslSystem* mslInit(
     mslInitParam* init, mslSysInitParam* system_init) {
     _mslSystem* system;
     unsigned long i;
     int mode;
     int sound_mode;
-
-    /* Soft ceiling: mslInit ~99.24% -- clean nested-loop failure handling
-     * retains one redundant post-loop count guard; the remaining arithmetic
-     * delta is commutative mullw operand order. */
 
     if (gMsi != 0) {
         mslDebugPrintf(
@@ -614,7 +587,7 @@ extern "C" _mslSystem* mslInit(
         system->sound_mode = sound_mode;
 
         if (g_MSL_GCN_ARAM_Heap == 0) {
-            unsigned char request[0x20];
+            ARQRequest request;
             unsigned char zero_storage[0x420];
             void* zero_buffer = (void*)(
                 ((unsigned long)zero_storage + 0x1F) & ~0x1FUL);
@@ -631,7 +604,7 @@ extern "C" _mslSystem* mslInit(
             g_MSL_volatile_flag = 1;
             memset(zero_storage, 0, 0x420);
             ARQPostRequest(
-                request, 0, 0, 1, (unsigned long)zero_buffer,
+                &request, 0, 0, 1, (unsigned long)zero_buffer,
                 g_MSL_GCN_ARAM_ZeroBase, 0x400,
                 MSL_ClearVolatileFlag);
 
@@ -678,16 +651,17 @@ extern "C" _mslSystem* mslInit(
         }
 
         system->track_count = init->track_count;
+        bool queues_ready = true;
         for (i = 0; i < system->track_count; i++) {
             system->tracks[i].queue = mslQueueNew(0x20);
             if (system->tracks[i].queue == 0) {
                 mslDebugPrintf(
                     "mslInit: Out of memory allocating track queues.\n");
+                queues_ready = false;
                 break;
             }
         }
-
-        if (i == system->track_count) {
+        if (queues_ready) {
             system->volume = 1.0f;
             system->pan = 0.0f;
             system->pitch = 1.0f;
@@ -714,15 +688,14 @@ extern "C" _mslSystem* mslInit(
     return 0;
 }
 
+/* Matched: 100% report-exact; ARQ completion clears the volatile wait flag. */
 extern "C" void MSL_ClearVolatileFlag(unsigned long request_address) {
     (void)request_address;
     g_MSL_volatile_flag = 0;
 }
 
-/*
- * Soft ceiling: mslTickCallBack_Queue ~99.91% -- the retail overflow path is
- * exact; only one diagnostic relocation argument differs.
- */
+/* Matched: 100% report-exact; overflow wait reloads the debugger flag;
+ * the previous diagnostic-relocation classification was incorrect. */
 extern "C" void mslTickCallBack_Queue(
     void (*callback)(void*), void* callback_data) {
     unsigned long enabled = OSDisableInterrupts();

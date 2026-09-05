@@ -205,21 +205,22 @@ typedef struct FighterAiTableContainer {
 } FighterAiTableContainer;
 
 typedef struct FighterSlot {
+    /* Three pointer slots at +0/+4/+8. Avoid anonymous structs nested inside
+     * an anonymous union: MWCC 2.7 C++ gives that wrapper size 1, shrinking
+     * PlyrInfo and moving g_game_info.plyr1 from retail +0x110 to +0x108. */
     union {
-        struct {
-            union {
-                FighterMirror* fighter;
-                struct PlyrPdata* pdata;
-            };                  /* +0x00 */
-            MkObj* mirror_a;    /* +0x04 */
-            MkObj* mirror_b;    /* +0x08 - loaded REFLECT object */
-        };
-        struct {
-            ShadowObject* shadow;          /* +0x00 */
-            MkObj* shadow_object;          /* +0x04 */
-            ShadowboxObject* shadow_ground; /* +0x08 */
-        };
-    };
+        FighterMirror* fighter;
+        struct PlyrPdata* pdata;
+        ShadowObject* shadow;
+    }; /* +0x00 */
+    union {
+        MkObj* mirror_a;
+        MkObj* shadow_object;
+    }; /* +0x04 */
+    union {
+        MkObj* mirror_b;
+        ShadowboxObject* shadow_ground;
+    }; /* +0x08 */
 } FighterSlot; /* 0x0C */
 
 typedef struct PlyrInfoFlags14 {

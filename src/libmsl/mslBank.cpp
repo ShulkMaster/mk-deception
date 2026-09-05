@@ -29,6 +29,8 @@ mslAsyncBank g_BP_Load_Async;
 int g_BP_Load_Async_InUse;
 
 /* Soft ceiling: ~98.44% -- one pooled-string address instruction remains. */
+/* TODO: [breakthrough needed] 98.44% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 extern "C" mslAssetWave* mslBankFileEntryFind(
     mslLoadedBank* bank, const char* name) {
     mslAssetWave* wave;
@@ -91,6 +93,8 @@ extern "C" mslBankWaveEntry* mslBankWavesFind(
  * Soft ceiling: ~98.47% -- exact retail size and control flow; remaining
  * differences are one scheduled instruction and pure GPR coloring.
  */
+/* TODO: [breakthrough needed] 98.47% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     if (bank == 0) {
         return 0;
@@ -161,13 +165,15 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
 /*
  * Convert the v11 bank body's ILP32 offsets into live pointers, publish each
  * sound definition's command list, then relocate command string references.
- * Near miss: ~86.93%. The operations, layouts, and relocation loops are
+ * The operations, layouts, and relocation loops are
  * recovered. The sole caller rejects banks whose flags do not mark sound names
  * as omitted, corroborating that the retail count-driven sound-name loop had
  * its MSL_SKIP_SOUND_NAMES body compiled out while MWCC retained its unrolled
  * trip-count shell. Preserve clean C rather than adding that empty loop; the
  * other residue is GPR coloring and scheduling.
  */
+/* TODO: [breakthrough needed] 86.93%; empty retail name loop is omitted;
+ * direct cursor trial scores76.22%; recover the command-slot abstraction. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     mslBankSoundDefinition* definition;
     mslBankSoundEntry* sound_entry;
@@ -256,6 +262,8 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
  * Soft ceiling: ~97.43% -- retail shared-string addressing adds one
  * instruction; the remaining differences are nested-loop GPR coloring.
  */
+/* TODO: [breakthrough needed] 97.43% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     _mslAsyncResponse* response;
     mslAsyncBank* async_bank = (mslAsyncBank*)callback_data;
@@ -325,6 +333,8 @@ static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
  * recovered; the remaining delta is partial-TU string pooling and one
  * callback/final-chunk nonvolatile-register lifetime.
  */
+/* TODO: [breakthrough needed] 93.55% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 void mslBankLoadResidentWaveChunkDone(
     void* buffer, unsigned long offset, int size, int error,
     int final_chunk, void* callback_data) {
@@ -355,7 +365,7 @@ void mslBankLoadResidentWaveChunkDone(
 
             DCFlushRange(buffer, size);
             ARQPostRequest(
-                request, 0, 0, 0, (unsigned long)buffer, destination, size,
+                &request->request, 0, 0, 0, (unsigned long)buffer, destination, size,
                 callback);
         }
     } else {
@@ -382,26 +392,25 @@ static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
  * references, assign resident ARAM addresses, then publish the bank when no
  * resident upload is pending.
  *
- * The successful path and the mslBankUse failure rollback are recovered.
- * Near miss: 92.60%, retail/current size 0x3d8/0x3cc. The entry count is
- * signed (retail uses cmpw in all three serialized-wave loops), the resident
- * ARAM offsets retain their assignment results, and rollback reloads the bank
- * system. The remaining two aligned opcode replacements are the reversed
- * initialization order of a zero index and wave pointer; the rest is GPR
- * coloring plus seven deletes/four inserts of reload scheduling.
+ * The entry count is signed in all three serialized-wave loops. Reload bank
+ * and asset ownership at the retail processing stages; sound-table setup
+ * only modifies its own entries, and file-command deletion is deferred while
+ * its completion callback is active.
  */
+/* TODO: [near miss] 97.60%; retail owner reloads and scoped state recovered;
+ * pointer/index scheduling, GPR homes and diagnostic-pool offsets remain. */
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* async_bank = (mslAsyncBank*)callback_data;
-    mslLoadedBank* bank = (mslLoadedBank*)async_bank->bank_data;
+    mslLoadedBank* bank;
     mslAssetInfo* asset_info;
     mslAssetWave* wave;
     char* next_name;
-    unsigned long resident_base = 0;
+    unsigned long resident_base;
     int i;
-    int use_failed = 0;
 
     mwFileFreeCommand(command);
+    bank = async_bank->bank_data;
     if (result.error != 0) {
         mslDebugPrintf(
             "mslBankLoadComplete: Unable to read wave headers, err %d\n",
@@ -436,7 +445,7 @@ static void mslBankReadAssetHeaderComplete(
         }
     }
 
-    wave = asset_info->waves;
+    wave = bank->asset_info->waves;
     for (i = 0; i < async_bank->entry_count; i++, wave++) {
         if (wave->has_secondary != 0 &&
             (wave->secondary_name.offset & 0xf0000000) !=
@@ -446,6 +455,8 @@ static void mslBankReadAssetHeaderComplete(
         }
     }
 
+    asset_info = bank->asset_info;
+    resident_base = 0;
     if (bank->resident_aram_block != 0) {
         resident_base = bank->resident_aram_block->base;
     }
@@ -496,7 +507,9 @@ static void mslBankReadAssetHeaderComplete(
     }
 
     if (async_bank->wave_size == 0) {
+        bank = async_bank->bank_data;
         _mslAsyncResponse* response = async_bank->response;
+        int use_failed = 0;
 
         if (mslBankUse(async_bank->system, bank) != 0) {
             if (bank != 0 && bank->system != 0) {
@@ -553,6 +566,8 @@ static void mslBankReadAssetHeaderComplete(
 /* Soft ceiling: mslBankReadWavesComplete ~99.71% -- four relocation-label
  * argument differences remain; operations and control flow are exact.
  */
+/* TODO: [near miss] 99.71%; pooled relocation addends remain; full-pool
+ * scratch is report-exact here but regresses the TU, so is not retained. */
 static void mslBankReadWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -599,6 +614,8 @@ static void mslBankReadWavesComplete(
  * Soft ceiling: ~99.62% -- the complete callback contract is recovered; only
  * eight pooled-string relocation arguments remain.
  */
+/* TODO: [near miss] 99.62%; pooled relocation addends remain; full-pool
+ * scratch is report-exact here but regresses the TU, so is not retained. */
 static void mslBankReadSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -658,6 +675,8 @@ static void mslBankReadSoundsComplete(
 /* Soft ceiling: mslBankOpenWavesComplete ~99.75% -- two diagnostic-string
  * relocation arguments remain.
  */
+/* TODO: [near miss] 99.75%; pooled relocation addends remain; full-pool
+ * scratch is report-exact here but regresses the TU, so is not retained. */
 void mslBankOpenWavesComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     mslAsyncBank* bank = (mslAsyncBank*)callback_data;
@@ -685,6 +704,8 @@ void mslBankOpenWavesComplete(
 /* Soft ceiling: mslBankOpenSoundsComplete ~99.67% -- six pooled-string
  * relocation arguments remain; operations and control flow are exact.
  */
+/* TODO: [near miss] 99.67%; pooled relocation addends remain; full-pool
+ * scratch is report-exact here but regresses the TU, so is not retained. */
 void mslBankOpenSoundsComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     char filename[0x100];
@@ -749,6 +770,8 @@ void mslBankOpenSoundsComplete(
 /* Soft ceiling: mslBankLoadAsyncInternal ~99.83% -- two pooled-string
  * relocation arguments remain.
  */
+/* TODO: [near miss] 99.83%; pooled relocation addends remain; full-pool
+ * scratch is report-exact here but regresses the TU, so is not retained. */
 void mslBankLoadAsyncInternal(
     _mslSystem* system, unsigned long flags, char* filename,
     _mslAsyncResponse* response) {
@@ -780,6 +803,8 @@ void mslBankLoadAsyncInternal(
 }
 
 /* Soft ceiling: ~99.94% -- one diagnostic relocation argument remains. */
+/* TODO: [near miss] 99.94%; pooled relocation addends remain; full-pool
+ * scratch is report-exact here but regresses the TU, so is not retained. */
 static void mslBankLoadAsyncFailed(
     mslAsyncBank* async_bank, _mslError_e error) {
     _mslAsyncResponse* response;
@@ -1007,6 +1032,8 @@ static inline void mslBankFinishPlayInline(
  * Remaining differences are pooled-string address instructions, GPR coloring,
  * and two scheduled instructions.
  */
+/* TODO: [breakthrough needed] 97.84% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
@@ -1068,6 +1095,8 @@ extern "C" unsigned long mslBankPlayVol(
  * operations are exact; pooled-string addressing, GPR coloring, and two
  * scheduled instructions remain.
  */
+/* TODO: [breakthrough needed] 97.88% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,
@@ -1131,6 +1160,8 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
  * Soft ceiling: ~98.14% -- one pooled-string address instruction and six
  * relocation/register arguments remain.
  */
+/* TODO: [breakthrough needed] 98.14% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
     int unloaded = 0;
     mslRuntimeSound* sound;
@@ -1168,6 +1199,8 @@ int mslBankSoundUnUse(mslBankSoundEntry* bank_sound) {
  * Soft ceiling: ~97.63% -- shared-pool offsets plus one source-equivalent
  * flags/base-sound load-order island remain.
  */
+/* TODO: [breakthrough needed] 97.63% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 _ListNode* mslBankSoundUse(
     mslBankSoundEntry* bank_sound, _mslSystem* system) {
     _ListNode* node = 0;
@@ -1211,6 +1244,8 @@ _ListNode* mslBankSoundUse(
  * Soft ceiling: mslBankUse ~99.94% -- typed inlined wave lookup and saved
  * register allocation are exact; one pooled diagnostic relocation remains.
  */
+/* TODO: [breakthrough needed] 99.94% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 extern "C" int mslBankUse(
     _mslSystem* system, mslLoadedBank* bank) {
     int i;
@@ -1271,6 +1306,8 @@ extern "C" int mslBankUse(
  * The runtime command owner and inlined bank reference release are recovered;
  * retain field reloads at their retail ownership sites.
  */
+/* TODO: [breakthrough needed] 98.13% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =
@@ -1313,6 +1350,8 @@ void callbackPlay(
 /* Soft ceiling: asyncLoadSound ~96.25% -- two pooled-string address
  * instructions and one relocation argument remain.
  */
+/* TODO: [breakthrough needed] 96.25% retained; complete-pool scratch
+ * regresses TU code; resolve pooled addressing without losing matches. */
 void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,

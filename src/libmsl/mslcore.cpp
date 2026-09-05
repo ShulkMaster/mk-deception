@@ -91,15 +91,8 @@ extern "C" void mslStopAll(_mslSystem* system) {
     system->sound_list_guard = 1;
 }
 
-/*
- * Near miss: command dispatch is recovered through the callback search and
- * loop-marker scan at exact retail size (~93.62%). The remaining opcode delta
- * is the source-equivalent marker-loop exit branch; other differences are GPR
- * allocation, instruction scheduling, and pooled-string addressing.
- */
 _ListNode* mslUpdateSound(
     _mslSystem* system, _ListNode* node, float now);
-/* Soft ceiling: mslUpdateAdjust ~99.28% -- float register scheduling; stop. */
 _ListNode* mslUpdateAdjust(
     _mslSystem* system, _ListNode* node, float now);
 struct _mslCmdItem;
@@ -160,7 +153,7 @@ static inline int FindPreviousMarker(
     return marker_index;
 }
 
-/* Soft ceiling: mslUpdate ~97.15% -- iterator GPR coloring; stop. */
+/* TODO: [near miss] 99.50%; iterator GPR allocation only; stop at coloring. */
 extern "C" int mslUpdate(_mslSystem* system) {
     float now = mslGetTime();
     _ListNode* node;
@@ -200,6 +193,8 @@ extern "C" int mslUpdate(_mslSystem* system) {
     return 0;
 }
 
+/* TODO: [near miss] 92.10%; equivalent callback/marker-loop lowering and GPR
+ * scheduling; 1276/1288 bytes, with switch relocations following block offsets. */
 _ListNode* mslUpdateSound(
     _mslSystem* system, _ListNode* node, float now) {
     _ListNode* next = node;
@@ -385,6 +380,7 @@ extern "C" void mslWaveUpdateVolPanPitch(
     updateWaveValues(system, sound, wave);
 }
 
+/* TODO: [near miss] 99.28%; identical interpolation and stores; FPR scheduling. */
 _ListNode* mslUpdateAdjust(
     _mslSystem* system, _ListNode* node, float now) {
     _ListNode* next = node;

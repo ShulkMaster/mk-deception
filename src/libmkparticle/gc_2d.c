@@ -5,6 +5,7 @@
 #include "platform/display_metrics.h"
 #include "rw/dltextur.h"
 #include "runtime/cstring.h"
+#include "rw/rwcore_types.h"
 
 /* WGPIPE at 0xCC008000 -- mixed short/word/float FIFO writes. */
 #define WGPIPE_U16 (*(volatile unsigned short*)GXFIFO_ADDR)
@@ -180,9 +181,10 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     }
 }
 
+/* TODO: [near miss] 88.55%; portable clear bounds; only addi/li scheduling differs. */
 void native2d_init_object(Pfx2dObj* obj) {
-    /* Retail: addi r3,r3,0x74 ; li r4,0 ; li r5,0x44 ; bl memset.
-     * Rebase obj first so addi lands before the li args. */
-    obj = (Pfx2dObj*)&obj->gpu[0];
-    memset(obj, 0, 0x44);
+    /* Retail clears +0x74..+0xB7: GPU vertices and the alpha texture pointer.
+     * Include any alignment gap before that pointer on other data models. */
+    unsigned char* gpu = (unsigned char*)obj + RW_OFFSET_OF(Pfx2dObj, gpu);
+    memset(gpu, 0, RW_OFFSET_OF(Pfx2dObj, padB8) - RW_OFFSET_OF(Pfx2dObj, gpu));
 }

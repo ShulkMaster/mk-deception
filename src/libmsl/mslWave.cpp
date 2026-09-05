@@ -1,31 +1,7 @@
 #include "msl/mslWave.h"
+#include "msl/mslPlayable.h"
 #include "mw/mwMem.h"
 #include "runtime/cmath.h"
-
-class mslPlayable {
-public:
-    virtual void Slot00(void);
-    virtual void FreeObject(void);     /* +0x0C */
-    virtual void Slot08(void);
-    virtual void Slot0C(void);
-    virtual void Slot10(void);
-    virtual int CanSetPan(void);       /* +0x1C */
-    virtual int GetStatus(unsigned long* status); /* +0x20 */
-    virtual void Slot1C(void);
-    virtual int SetPitch(float pitch); /* +0x28 */
-    virtual void Slot2C(void);
-    virtual int SetVolume(float volume); /* +0x30 */
-    virtual void Slot34(void);
-    virtual void Slot38(void);
-    virtual int SetPan(float pan);     /* +0x3C */
-    virtual void Slot3C(void);
-    virtual void Slot40(void);
-    virtual void Slot44(void);
-    virtual void Slot48(void);
-    virtual void Prepare(int state);   /* +0x50 */
-
-    int reference_count;               /* object +0x04 */
-};
 
 extern int SoundBufferCount;
 extern int SoundBufferCountStream;
@@ -39,6 +15,8 @@ int DBMap[101];
  * static voices first publish current volume/pan/pitch and prepare their
  * platform buffer.
  */
+/* Matched: 100% report-exact; static playback resets position through
+ * the retail +0x50 SetCurrentPosition slot, not PrepForPlay. */
 extern "C" int mslWavePlay(
     _mslSystem* system, mslRuntimeSound* sound,
     mslRuntimeWave* wave, int play_state) {
@@ -53,7 +31,7 @@ extern "C" int mslWavePlay(
     } else {
         mslWaveUpdateVolPanPitch(system, sound, wave, play_state);
         wave->play_state = play_state;
-        wave->playable->Prepare(0);
+        wave->playable->SetCurrentPosition(0);
         if (PlayStatic(
                 system, wave,
                 ((wave->sound->flags >> 3) & 1) ^ 1) != 0) {
@@ -199,36 +177,40 @@ extern "C" mslRuntimeWave* mslWaveLoad(
     return wave;
 }
 
+/* Matched: 100% report-exact; float ratio uses SetRelativeFrequency. */
 extern "C" int mslWaveSetPitch(
     mslRuntimeWave* wave, float pitch) {
     mslPlayable* playable = wave->playable;
 
-    playable->SetPitch(pitch);
+    playable->SetRelativeFrequency(pitch);
     return 0;
 }
 
+/* Matched: 100% report-exact; mono-channel gate and relative pan
+ * setter names/signatures follow the retail vtable. */
 extern "C" int mslWaveSetPan(
     mslRuntimeWave* wave, float pan) {
     mslPlayable* playable = wave->playable;
-    int can_set_pan;
+    int channel_count;
 
     if (playable != 0) {
-        can_set_pan = playable->CanSetPan();
+        channel_count = playable->GetNumChannels();
     } else {
-        can_set_pan = 1;
+        channel_count = 1;
     }
 
-    if (can_set_pan == 1) {
+    if (channel_count == 1) {
         if (pan < -2.0f) {
             pan = -2.0f;
         } else if (pan > 2.0f) {
             pan = 2.0f;
         }
-        wave->playable->SetPan(pan);
+        wave->playable->SetRelativePan(pan);
     }
     return 0;
 }
 
+/* Matched: 100% report-exact; normalized float uses SetRelativeVolume. */
 extern "C" int mslWaveSetVol(
     mslRuntimeWave* wave, _mslSystem* system, float volume) {
     mslPlayable* playable;
@@ -241,7 +223,7 @@ extern "C" int mslWaveSetVol(
     }
 
     playable = wave->playable;
-    playable->SetVolume(volume);
+    playable->SetRelativeVolume(volume);
     return 0;
 }
 

@@ -177,10 +177,8 @@ void UnInitCriticalSection(
     OSUnlockMutex(&s_CriticalSectionDebug_SystemMutex);
 }
 
-/*
- * Soft ceiling: InitCriticalCodeSection_DEBUG ~99.61% -- list publication and
- * all retail stores are complete; remaining difference is emit scheduling.
- */
+/* TODO: [near miss] 99.61%; all stores and list publication agree;
+ * only the epilogue's saved-register/LR load order differs (248 bytes). */
 int InitCriticalCodeSection_DEBUG(
     MslCriticalSection* section, const char* file, int line) {
     int i;
@@ -210,11 +208,8 @@ int InitCriticalCodeSection_DEBUG(
     return 1;
 }
 
-/*
- * Soft ceiling: AddRequestingCS_ByThread ~92.64% -- dependency insertion and
- * two-way interlock detection are complete; remaining differences are GPR
- * allocation and loop scheduling.
- */
+/* TODO: [near miss] 92.64%; dependency insertion and interlock CFG agree;
+ * GPR homes and one redundant requested-pointer copy differ (300/296 bytes). */
 static int AddRequestingCS_ByThread(
     MslCriticalSection* requested, void* thread) {
     MslCriticalSection* owned;
