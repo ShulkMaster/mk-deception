@@ -186,6 +186,7 @@ static int ReconditionVertexIndexData(RpGeometry* geometry,
     return 1;
 }
 
+/* TODO: [near miss] 99.66292%; component-count scope trial regressed register allocation and was restored; stop. */
 static const RwGameCubeVertexDescriptor* VtxDescInitOptimized(
     RpGeometry* geometry, const GeomCondMap* streams)
 {

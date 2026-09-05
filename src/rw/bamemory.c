@@ -161,6 +161,7 @@ int RwFreeListDestroy(RwFreeList* freeList)
 }
 
 
+/* TODO: [breakthrough needed] 90.30173%; retail expands intrusive-list insertion; helper and surviving assignment require macro evidence. */
 void* _rwFreeListAllocReal(RwFreeList* freeList, unsigned int hint)
 {
     unsigned char* result = 0;

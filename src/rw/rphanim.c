@@ -161,9 +161,13 @@ static RwStream* HAnimWrite(RwStream* stream, int binaryLength,
 static RwStream* HAnimRead(RwStream* stream, int binaryLength,
                            void* object, int offset, int size)
 {
+    RpHAnimNodeInfo* node;
+    int i;
+    RpHAnimHierarchy* hierarchy;
     HAnimFrameState* frameExtension =
         (HAnimFrameState*)((unsigned char*)object +
             RpHAnimAtomicGlobals.frameExtensionOffset);
+    void* matrixArrayUnaligned;
     int numNodes;
     int version;
     int flags;
@@ -174,10 +178,6 @@ static RwStream* HAnimRead(RwStream* stream, int binaryLength,
     if (!RwStreamReadInt32(stream, &frameExtension->nodeID, 4)) return 0;
     if (!RwStreamReadInt32(stream, &numNodes, 4)) return 0;
     if (numNodes > 0) {
-        RpHAnimHierarchy* hierarchy;
-        void* matrixArrayUnaligned;
-        RpHAnimNodeInfo* node;
-        int i;
         if (!RwStreamReadInt32(stream, &flags, 4)) return 0;
         if (!RwStreamReadInt32(stream, &maxInterpKeyFrameSize, 4)) return 0;
         hierarchy = RwEngineInstance->fpFreeListAlloc(

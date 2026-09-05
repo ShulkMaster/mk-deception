@@ -738,6 +738,7 @@ RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
 
 
 
+/* TODO: [near miss] 98.15069%; valid-node predicate materialization and GPR homes remain; no new structural hypothesis. */
 RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
                                          const char* name,
                                          RxPipelineNode* start,
