@@ -678,6 +678,19 @@ void* get_krypt_anim_pdata(void) {
     return krypt_pdata->anim_pdata;
 }
 
+static inline MkHdr* krypt_live_character(MkObjLatch* owner) {
+    MkHdr* object = owner->obj;
+    if (object != 0) {
+        if (object->instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void* get_krypt_character_obj(void) {
     MkObjLatch* pdata;
     MkHdr* obj;
@@ -687,14 +700,7 @@ void* get_krypt_character_obj(void) {
         return 0;
     }
 
-    obj = pdata->obj;
-    if (obj != 0) {
-        if (obj->instance != pdata->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = krypt_live_character(pdata);
     if (obj != 0) {
         return obj;
     }
@@ -730,14 +736,7 @@ void set_krypt_character_previous_root_angle(void* script_args, float angle) {
 
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
     if (pdata != 0) {
-        obj = (MkObj*)pdata->obj;
-        if (obj != 0) {
-            if (obj->hdr.instance != pdata->obj_instance) {
-                obj = 0;
-            }
-        } else {
-            obj = 0;
-        }
+        obj = (MkObj*)krypt_live_character(pdata);
         if (obj != 0) {
             obj->bone_angle_68 = angle;
             update_mkobj(obj);
@@ -750,14 +749,7 @@ void set_krypt_character_angle(void* script_args, float angle) {
 
     pdata = (MkObjLatch*)pdata_of_proc(aproc);
     if (pdata != 0) {
-        obj = (MkObj*)pdata->obj;
-        if (obj != 0) {
-            if (obj->hdr.instance != pdata->obj_instance) {
-                obj = 0;
-            }
-        } else {
-            obj = 0;
-        }
+        obj = (MkObj*)krypt_live_character(pdata);
         if (obj != 0) {
             obj->hide_flag_bits.pin_animation = 0;
             obj->ang.y = angle;

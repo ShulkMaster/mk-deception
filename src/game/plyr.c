@@ -568,19 +568,23 @@ void setup_vomit_slip_sound(void) {
     }
 }
 
+static inline MkProc* player_live_animation_proc(PlyrPdata* owner) {
+    MkProc* process = owner->anim_proc;
+    if (process != 0) {
+        if (process->instance == (int)owner->anim_proc_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
 int plyr_in_spin_react(PlyrPdata* pdata) {
-    MkProc* proc = pdata->anim_proc;
+    MkProc* proc = player_live_animation_proc(pdata);
     AnimPdata* animation;
 
-    if (proc != 0) {
-        if (proc->instance == (int)pdata->anim_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
     if (proc != 0) {
         animation = (AnimPdata*)pdata_of_proc(proc);
         if (animation != 0 &&
@@ -967,18 +971,23 @@ static inline void plyr_start_script_in_slot(
     }
 }
 
+static inline MkProc* player_live_blades_monitor(PlyrPdata* owner) {
+    MkProc* process = owner->baraka_blades_monitor;
+    if (process != 0) {
+        if (process->instance == (int)owner->baraka_blades_monitor_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
 void show_baraka_one_blade_only(PlyrPdata* pdata, int first_blade) {
-    MkProc* proc = pdata->baraka_blades_monitor;
+    MkProc* proc = player_live_blades_monitor(pdata);
     BarakaBladesPdata* blades;
 
-    if (proc != 0) {
-        if (proc->instance !=
-            (int)pdata->baraka_blades_monitor_instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
     if (proc != 0) {
         blades = (BarakaBladesPdata*)pdata_of_proc(proc);
         if (blades != 0) {

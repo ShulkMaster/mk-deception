@@ -1605,21 +1605,25 @@ void init_3d_move(void) {
     plyr_obj->flags_09_bits.face_opponent = 1;
 }
 
+static inline MkProc* player_live_transient(PlyrPdata* owner) {
+    MkProc* object = owner->transient_proc;
+    if (object != 0) {
+        if (object->instance == owner->transient_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void end_air_move(void) {
     MkObj* object;
     MkProc* process;
 
     object = plyr_obj;
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_transient(plyr_pdata);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -2035,6 +2039,7 @@ void animpdata_ani_to_frame_x(AnimPdata* anim, float frame) {
     EJB_ADVANCE_TO_FRAME(anim, target_frame);
 }
 
+/* TODO: [near miss] 97.75510%; extra animation-pointer move; stop at coloring without a field-alias workaround. */
 void ani_to_frame_x(float frame) {
     AnimPdata* anim;
     float target_frame;
@@ -3692,16 +3697,7 @@ void stop_me(void) {
     MkProc* process;
 
     object = plyr_obj;
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_transient(plyr_pdata);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }

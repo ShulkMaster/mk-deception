@@ -2676,21 +2676,26 @@ static void apply_anim_offset(
     }
 }
 
+static inline MkObj* animation_live_object(AnimPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void set_root_and_obj_movement_weights(
     float root_weight, float obj_weight, AnimPdata* anim) {
-    MkObj* obj = anim->obj;
+    MkObj* obj = animation_live_object(anim);
     RwMatrix* root_matrix;
     Vec world_delta;
     Vec local_delta;
     float weight_delta;
-
-    if (obj != 0) {
-        if (obj->hdr.instance != anim->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
 
     weight_delta = root_weight - anim->root_movement_weight;
     anim->root_movement_weight = root_weight;
@@ -3352,17 +3357,9 @@ void set_anim_script(
     set_anim_script_frame(0.0f, anim, script, flags);
 }
 
-/* Soft ceiling: retail retains one redundant valid-instance join branch. */
 void toggle_obj_and_ani_flips(AnimPdata* anim) {
-    MkObj* obj = anim->obj;
+    MkObj* obj = animation_live_object(anim);
 
-    if (obj != 0) {
-        if (obj->hdr.instance != anim->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
     obj->hide_flag_bits.bit6 = 1 - obj->hide_flag_bits.bit6;
     anim->flags ^= 8;
     anim->old_flags ^= 8;

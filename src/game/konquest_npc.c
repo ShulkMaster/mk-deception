@@ -4562,11 +4562,20 @@ void npc_set_pinanim_flag(int enabled) {
     }
 }
 
-/*
- * Near match: hero latch, world delta, atan argument order,
- * process creation, pdata size, angle, and object target are exact. Residue is
- * latch branch shape, zero-vector relocation, saves, and register allocation.
- */
+static inline MkObj* npc_live_monk(KonquestNpcPdata* owner) {
+    MkObj* object = owner->monk;
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.20%; latch helper changes register allocation; retain original form. */
 void hero_turn_to_face_position(const Vec* position) {
     MkObj* hero = konquest_pdata->monk;
     Vec direction = {0.0f, 0.0f, 0.0f};
@@ -4882,15 +4891,8 @@ void npc_shove_reaction_standard_setup(void) {
 int npc_punch_reaction_check_data(void) {
     KonquestReactionPdata* reaction =
         (KonquestReactionPdata*)pdata_of_proc(aproc);
-    MkObj* monk = konquest_pdata->monk;
+    MkObj* monk = npc_live_monk(konquest_pdata);
 
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (reaction == 0 || monk == 0) {
         return 0;
     }
@@ -4951,15 +4953,8 @@ void npc_run_punch_animation(
 void npc_snap_to_face_monk(void) {
     KonquestReactionPdata* reaction =
         (KonquestReactionPdata*)pdata_of_proc(aproc);
-    MkObj* monk = konquest_pdata->monk;
+    MkObj* monk = npc_live_monk(konquest_pdata);
 
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (monk != 0 && reaction != 0 && reaction->object != 0) {
         reaction->object->ang.y = gxMathArcTanYX(
             monk->pos.value.x - reaction->object->pos.value.x,
@@ -5873,23 +5868,13 @@ static void npc_punched_setup(KonquestNpc* npc) {
 static void npc_plyr_violent_setup(KonquestNpc* npc) {
 }
 
-/*
- * Soft ceiling: 96.447365% - equivalent pointer-validation latch branches
- * and GPR coloring differ.
- */
+/* TODO: [near miss] 98.42105%; latch CFG agrees; remaining owner/object register coloring. */
 static int plyr_leave_area_check(float distance) {
     KonquestNpcPdata* pdata = konquest_pdata;
     KonquestNpc* npc = g_active_npc;
-    MkObj* monk = pdata->monk;
+    MkObj* monk = npc_live_monk(pdata);
     int is_near;
 
-    if (monk != 0) {
-        if (monk->hdr.instance != pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (monk == 0) {
         is_near = 0;
     } else if (dist_xz_to_xz(
@@ -5901,23 +5886,13 @@ static int plyr_leave_area_check(float distance) {
     return is_near == 0;
 }
 
-/*
- * Near match: the body is exact; pointer-validation latch/GPR coloring and
- * redundant retail nonzero booleanization differ.
- */
+/* TODO: [near miss] 98.42105%; latch CFG agrees; remaining owner/object register coloring. */
 static int plyr_near_check(float distance) {
     KonquestNpcPdata* pdata = konquest_pdata;
     KonquestNpc* npc = g_active_npc;
-    MkObj* monk = pdata->monk;
+    MkObj* monk = npc_live_monk(pdata);
     int is_near;
 
-    if (monk != 0) {
-        if (monk->hdr.instance != pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (monk == 0) {
         is_near = 0;
     } else if (dist_xz_to_xz(

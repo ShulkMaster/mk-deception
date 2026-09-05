@@ -5542,10 +5542,20 @@ static void ft_fleshchunk_postsleep(void) {
     fleshchunk_obj = 0;
 }
 
-/*
- * Soft ceiling: ft_fleshchunk_prewake ~96.07% -
- * object-latch branch/register scheduling.
- */
+static inline PuzzleFighterRenderObject* fleshchunk_live_object(
+    PuzzleFleshchunkPdata* owner) {
+    PuzzleFighterRenderObject* object = owner->object;
+    if (object != 0) {
+        if (object->instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static void ft_fleshchunk_prewake(void) {
     PuzzleFighterRenderObject* object;
 
@@ -5554,16 +5564,7 @@ static void ft_fleshchunk_prewake(void) {
         mkproc_die();
     }
 
-    object = pdata_fleshchunk->object;
-    if (object != 0) {
-        if (object->instance == pdata_fleshchunk->object_instance) {
-            /* Keep the live object. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = fleshchunk_live_object(pdata_fleshchunk);
     fleshchunk_obj = object;
     if (object == 0) {
         mkproc_die();

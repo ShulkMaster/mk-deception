@@ -8296,7 +8296,7 @@ static inline int is_npc_scene_active(KonquestNpcRuntime* npc) {
 }
 
 
-/* TODO: [near miss] 99.171640%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [near miss] 99.99254%; instructions agree except the script-name pool offset; recover string ownership. */
 void nis_register_participant(int type, void* npc_data) {
     KonquestNisParticipant* participant;
 
@@ -8354,14 +8354,8 @@ void nis_register_participant(int type, void* npc_data) {
         if (konquest_pdata != 0) {
             hero = konquest_live_hero(konquest_pdata);
             if (hero != 0) {
-                npc = (KonquestNpcRuntime*)konquest_pdata->hero_grounding;
-                if (npc != 0) {
-                    if (npc->hdr.instance != konquest_pdata->grounding_instance) {
-                        npc = 0;
-                    }
-                } else {
-                    npc = 0;
-                }
+                npc = (KonquestNpcRuntime*)
+                    konquest_live_grounding(konquest_pdata);
                 if (npc != 0) {
                     npc->state_flag_bits.nis_participant = 1;
                     participant->npc = npc;
@@ -12818,22 +12812,27 @@ static float p_load_hero_art_section(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.750000%; branch/register lowering remains; stop at trial cap. */
+static inline CameraObj* konquest_live_camera(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void render_konquest_shadows(void) {
     KonquestPdata* pdata;
-    MkObj* camera;
+    CameraObj* camera;
     MkObj* candidate;
     MkObj* hero;
     int game_mode;
 
-    camera = (MkObj*)camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = konquest_live_camera(&camera_item);
     update_mkobj((MkHdr*)camera);
 
     pdata = konquest_pdata;

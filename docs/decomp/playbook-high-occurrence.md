@@ -83,6 +83,12 @@ H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nes
   `set_monk_position` and `is_leaving_area` sit under `dont_inline`: extraction
   emitted real calls, so their direct guards were restored. Do not infer that
   an accessor matching one consumer preserves every consumer’s register homes.
+  A subsequent round closed 15 more functions (2,764 bytes) in eight TUs,
+  including runtime animation/object, player, Krypt, and fleshchunk consumers;
+  all fifteen also passed data-value comparison. Reusing an accessor inside
+  another inline helper can alter zero-register reuse, and loop consumers can
+  rotate list-base/counter homes: recover the latch once, then retain the
+  coloring ceiling. See [the measured round](another-fifteen-functions.md).
 
 ## Known traps
 

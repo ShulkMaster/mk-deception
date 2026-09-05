@@ -1375,6 +1375,19 @@ void auto_calc_limbobj_bone_world_pos(MkObj* obj, int bone) {
     }
 }
 
+static inline MkObj* limb_live_object(LimbBonePdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static void limb_bone_calc_world_pos(MkHdr* data) {
     LimbBonePdata* pdata;
     MkObj* obj;
@@ -1384,14 +1397,7 @@ static void limb_bone_calc_world_pos(MkHdr* data) {
     int bone_index;
 
     pdata = (LimbBonePdata*)data;
-    obj = pdata->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != pdata->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = limb_live_object(pdata);
     if (obj != 0) {
         bone_index = pdata->bone;
         bone = obj->bones[bone_index];
@@ -3076,6 +3082,19 @@ void bind_rplight_to_obj(RpLight* light, MkObj* obj) {
     }
 }
 
+static inline MkObj* light_live_object(MkxRpLight* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void vdestroy_mkx_rplight(MkxRpLight* link) {
     MkObj* obj;
     RwFrame* frame;
@@ -3090,15 +3109,7 @@ void vdestroy_mkx_rplight(MkxRpLight* link) {
     }
     RpLightDestroy(link->light);
 
-    obj = link->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance == link->obj_instance) {
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = light_live_object(link);
     if (obj != 0 && obj->hdr.instance != 0) {
         ((void (*)(MkHdr*))obj->hdr.vtbl->destroy)(&obj->hdr);
     }
