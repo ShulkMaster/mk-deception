@@ -873,22 +873,25 @@ void liukang_in_fight_random_snd_check(void) {
     }
 }
 
-/* Soft ceiling: pointer/instance validation, call ABI, and operations match.
- * Retail retains one unconditional branch around the nulling block that MWCC
- * folds out of the equivalent structured condition below. */
+static inline MkProc* ai_live_player_process(PlyrPdata* player) {
+    MkProc* proc = player->player_proc;
+    if (proc != 0) {
+        if (proc->instance == player->player_proc_instance) {
+            return proc;
+        }
+        proc = 0;
+    } else {
+        proc = 0;
+    }
+    return proc;
+}
+
 void dk_taunt_at_screen(void) {
     PlyrPdata* player;
     MkProc* proc;
 
     player = plyr_pdata;
-    proc = player->player_proc;
-    if (proc != 0) {
-        if (proc->instance != player->player_proc_instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = ai_live_player_process(player);
     xfer_player_proc(proc, dk_screen_taunt);
 }
 

@@ -29,6 +29,26 @@ M15 | String identity/placement differs | ELF sizes + bytes + relocations | Pool
 M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw target/local offsets, alignment, SDA relocations | Recover initialization/definition order. Tentatives may emit reverse/first-use; extern before users + definitions after separates declaration from placement. Distinguish explicit split gaps from real object alignment: g_DSB_Buffers requires32-byte alignment (.bss+0x7E0, not+0x7C8); restoring the attribute fixes layout and makes mslStreamFile_Initialize100. No fabricated aggregate/padding.
 M17 | Vtables/weak destructors differ, including link-only | ELF relocations, hierarchy, weak owner, sizes/order | Correct declarations/zero slots; inline-visible real destructors; verify reverse weak emission/COMDAT selection with linked SHA. A deleting call already includes a null guard: avoid wrapping ordinary delete in a second reconstructed guard. SoundBuffer's three FreeObject methods retain100 with plain delete this. Check newly emitted inline destructors against retail ordering, not just the old candidate.
 
+M07 diagnostic: When a nearly exact function still differs at a store offset,
+check the existing field declarations before tuning registers. In
+`setup_konquest_pui`, retail stores 60.0f at PUI +0x34 (`drop_timer`), while the
+old source wrote +0x38 (`lifetime`). Correcting the field changed 99.55111% to
+99.55556%; the tiny score delta concealed a behavioral error. Require the
+retail store and the independently established layout; do not rename an alias
+or move a member merely to match the immediate.
+
+M15/M16 diagnostic: If report-exact code differs only at anonymous relocations,
+compare actual target bytes and run `objdiff-cli diff` with
+`-c functionRelocDiffs=data_value`. The report defaults to ignoring function
+relocations, so report-100 alone does not validate the payload. Ten Konquest
+latch matches also reached data-value-100; every stack operand already agreed.
+Their floats and vector initializers had identical bytes at different offsets.
+The delimiter `" "` moved from `.sdata2+0` to `+0xE4`, shifting early floats and
+8-byte alignment gaps. A separate 35-byte string-pool deficit came from five
+missing retail strings. Require initializer order and literal ownership before
+adding data; do not substitute one padding gap, dummy constants, or stack pads
+for nonuniform TU layout differences. See [audit](konquest-relocation-audit.md).
+
 ## Accept / stop
 
 M08 diagnostic: After a callback-containing allocation loop, an index-equals-count

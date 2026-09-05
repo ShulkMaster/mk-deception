@@ -8,7 +8,10 @@ Rule schema: ID | IF mismatch | REQUIRE evidence | TRY one change.
 Missing precondition -> skip. No applicable rule -> investigate or stop.
 
 Loop: baseline -> classify -> one rule -> rebuild -> same-symbol objdiff ->
-accept/revert -> update source TODO: [status] explanation per AGENTS.md.
+accept/revert -> update source TODO: [status] while below100 per AGENTS.md.
+Measured100 -> remove all associated matching-progress comments/TODOs; preserve
+code explanations and unrelated functional TODOs. Record exactness mode and
+verification in reports/metadata, never a replacement matched/100% comment.
 Respect task budget. Recheck every shared-helper/header consumer, including
 below-threshold and already-exact functions. Never stack speculative edits.
 No forced registers, fake volatile, dead sinks, empty arms, invented fields,
@@ -28,7 +31,7 @@ H04 | Bit extraction/RMW differs | Storage width + bit position | Existing bitfi
 H05 | Cached value vs retail reload | Reload after call/sleep/aliasing store, or polling externally updated state | Read authoritative owner again; do not extend stale local lifetime. For a proven debugger/interrupt completion flag, qualify declaration and definition volatile and verify every reader/writer; a branch skipping the poll load is behavioral, even above 99%. Never use volatility for coloring.
 H06 | Retail retains computed value/address | Shared uses with no reload | Name genuine typed local/element/owner; retain only for observed interval.
 H07 | Extra/missing helper call | Retail bl boundary + signature | Visible inline body for expansion; out-of-line body for real call. Repeated inline-off idiom -> authentic side-effect-safe typed macro.
-H08 | Pointer-instance latch diamond differs | Null-before-instance reads; no bl | Typed accessor returning pointer on success, null otherwise; pass owner if preloaded arguments hoist reads. No empty keep arm.
+H08 | Pointer-instance latch diamond differs | Null-before-instance reads; no bl | Typed accessor returning pointer on success, null otherwise; pass owner if preloaded arguments hoist reads. No empty keep arm. Check the caller’s active dont_inline region before extraction: it can emit a real accessor call despite an inline declaration. Preserve that region and retain a direct stale-instance guard there; do not change unrelated inlining to close a latch.
 H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition. Rotated top test -> explicit top guard/break. No dummy one-trip loop.
 H10 | Switch dispatch differs | Complete cases/default/fallthrough + text order | Recover switch/case order; preserve independent guards where retail repeats tests. No speculative labels.
 H11 | Return/cleanup join differs | Branch graph + effect ownership | Shared result/epilogue or explicit arm returns as observed. Shared zero return may avoid booleanization; cleanup exception -> M08.
@@ -71,6 +74,15 @@ H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nes
   copy on success. An explicit return in the diagnostic-error arm reproduced
   retail's success branch directly to the epilogue, reaching report-exact 100%.
   Require the same error side effects and return value on both source forms.
+
+- H08: Owner-typed accessors closed 30 report-exact functions across `konquest`,
+  `bgnd`, and `ai` (7,864 bytes). Return the validated pointer from the success
+  arm and null on stale/null paths; keep the owner-instance read behind the
+  pointer check. Empty valid arms and a negated stale check let MWCC fold the
+  retail join branch. Whole-object checks preserved all prior exact functions.
+  `set_monk_position` and `is_leaving_area` sit under `dont_inline`: extraction
+  emitted real calls, so their direct guards were restored. Do not infer that
+  an accessor matching one consumer preserves every consumer’s register homes.
 
 ## Known traps
 

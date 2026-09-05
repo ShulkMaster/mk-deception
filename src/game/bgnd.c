@@ -246,6 +246,46 @@ static void bl_process_general_movement(
     BlBeetleControl* beetle, const Vec* target, int heading_ticks,
     int surface, float distance_limit_sq, float heading_offset,
     float heading_divisor, float movement_scale_a, float movement_scale_b);
+
+static inline MkProc* bgnd_live_player_process(PlyrPdata* owner) {
+    MkProc* object = owner->own_player_proc;
+    if (object != 0) {
+        if (object->instance == owner->own_player_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* bgnd_live_light_object(MkxRpLight* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline UvScrollControl* bgnd_live_uv_control(BgndUvScrollControlItem* owner) {
+    UvScrollControl* object = owner->control;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline void set_subobject_transl(MkSobj* object) {
     RpAtomic* atomic;
     RpGeometry* geometry;
@@ -3568,10 +3608,7 @@ static inline void bl_init_beetle(
                                  &beetle->position);
 }
 
-/* Exact-size near match. All twelve ranges have retail-identical loop
- * bounds, RNG call order, constants, field stores, matrix calls, post-target
- * overrides, and final count. The opcode multiset is identical; residue is
- * beetle/pebble register coloring and pooled constant relocation identity. */
+/* TODO: [near miss] 97.956860%; beetle/pebble register coloring and pool identity; no-edit stop. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     BlBeetleControl* beetle;
@@ -11076,21 +11113,12 @@ float bgnd_process_collision_info(
     }
     return result;
 }
-/* Near match: exact 136-byte operations and ABI; only the successful process
- * instance-latch path uses the opposite equivalent conditional branch. */
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player) {
     CmdScript* script;
     MkProc* process;
 
-    process = player->own_player_proc;
-    if (process != 0) {
-        if (process->instance != player->own_player_proc_instance) {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = bgnd_live_player_process(player);
     script = get_cmdscript_for_proc(process);
     if (process != 0) {
         run_reaction_cleanup_function(player);
@@ -12104,21 +12132,12 @@ void bgnd_make_object_transl(unsigned int object_id) {
         set_subobject_transl(object);
     }
 }
-/* Near match: exact 128-byte operations and ABI; MWCC folds the successful
- * instance-latch path to the opposite conditional branch shape. */
 void mks_xfer_collision_info_plyr_to_bgnd_script(
     PlyrPdata* player, int script_function) {
     CmdScript* script;
     MkProc* process;
 
-    process = player->own_player_proc;
-    if (process != 0) {
-        if (process->instance != player->own_player_proc_instance) {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = bgnd_live_player_process(player);
     if (process != 0) {
         script = get_cmdscript_for_proc(process);
         if (script != 0) {
@@ -12473,10 +12492,6 @@ void bgnd_sobj_set_priority(unsigned int object_id, int priority) {
         }
     }
 }
-/*
- * Near match: 95.42%, retail/local 96/92 bytes. Retail retains one redundant
- * success-edge branch in the validated control latch; all accesses are exact.
- */
 void bgnd_set_sobj_uv_scroll_abs_values(
     float u1, float v1, float u2, float v2, unsigned int index) {
     UvScrollControl* control;
@@ -12484,14 +12499,7 @@ void bgnd_set_sobj_uv_scroll_abs_values(
 
     if (index < 8) {
         item = &bgnd_uv_scroll_control_item[index];
-        control = item->control;
-        if (control != 0) {
-            if (control->hdr.instance != item->instance) {
-                control = 0;
-            }
-        } else {
-            control = 0;
-        }
+        control = bgnd_live_uv_control(item);
         if (control != 0) {
             control->mtx1[12] = u1;
             control->mtx1[13] = v1;
@@ -12500,7 +12508,6 @@ void bgnd_set_sobj_uv_scroll_abs_values(
         }
     }
 }
-/* Same clean-C validated-latch branch ceiling as the absolute-value setter. */
 void bgnd_set_sobj_uv_scroll_rate_values(
     float u1, float v1, float u2, float v2, unsigned int index) {
     UvScrollControl* control;
@@ -12508,14 +12515,7 @@ void bgnd_set_sobj_uv_scroll_rate_values(
 
     if (index < 8) {
         item = &bgnd_uv_scroll_control_item[index];
-        control = item->control;
-        if (control != 0) {
-            if (control->hdr.instance != item->instance) {
-                control = 0;
-            }
-        } else {
-            control = 0;
-        }
+        control = bgnd_live_uv_control(item);
         if (control != 0) {
             control->rateU1 = u1;
             control->rateV1 = v1;
@@ -13378,24 +13378,12 @@ void destroy_background_extras(void) {
     g_launched_sobj_crossing_plane_pdata = 0;
     g_sobj_launch_monitor_pdata = 0;
 }
-/*
- * Near match: 95.77%, retail/local 104/100 bytes. Retail keeps a redundant
- * success-edge branch in the pointer/instance validation diamond; the typed
- * clean-C form falls through with otherwise identical accesses and calls.
- */
 static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
     MkxRpLight* light;
     MkObj* object;
 
     light = MKX_RPLIGHT_FROM_HDR(header);
-    object = light->obj;
-    if (object != 0) {
-        if (object->hdr.instance != light->obj_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = bgnd_live_light_object(light);
     if (object != 0) {
         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
     }
