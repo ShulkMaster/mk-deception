@@ -505,6 +505,7 @@ int _rwDlCameraClear(void* cameraObject, RwRGBA* color,
     return 1;
 }
 
+/* TODO: [breakthrough] 97.9476%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlCameraBeginUpdate(void* out, void* inOut, int in)
 {
     static float projVector[7] = {0.0f, 1.0f, 0.0f, 1.0f,
@@ -556,7 +557,7 @@ int _rwDlCameraBeginUpdate(void* out, void* inOut, int in)
     raster = camera->frameBuffer;
     if ((raster->type & 5) != 0) {
         RwGameCubeRasterExt* extension =
-            rwRasterPlatformData(raster->parent);
+            RW_RASTER_PLATFORM_DATA(raster->parent);
         if ((extension->hasAlpha & 1) != 0) {
             if (_RwDlCurPixelFormat != 1) {
                 GXSetPixelFmt(1, 0);
@@ -773,11 +774,12 @@ void _rwDlTransformSetup(const RwMatrix* matrix, int normalize)
     GXSetCurrentMtx(0);
 }
 
+/* TODO: [breakthrough] 94.02256%; retail plugin access expanded; inspect remaining object-specific lowering. */
 void RwGameCubeCameraTextureFlush(RwRaster* raster, int mipmap)
 {
     RwRaster* parent = raster->parent;
     RwGameCubeRasterExt* extension =
-        rwRasterPlatformData(parent);
+        RW_RASTER_PLATFORM_DATA(parent);
     unsigned int offset;
 
     GXSetCopyFilter(0, 0, 0, 0);

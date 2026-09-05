@@ -93,9 +93,9 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
     RwDlObjectRenderCallBack callback = 0;
     unsigned int materialSource;
     unsigned int ambientSource;
-    unsigned int enableColor;
+    GXBool enableColor;
+    GXBool enableAlpha;
     unsigned int alphaAmbientSource;
-    unsigned int enableAlpha;
     unsigned int colorMaterialSource;
     unsigned char numStages;
 
@@ -114,12 +114,12 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                 enableColor = 1;
                 ambientSource = 1;
                 if (useAmbient == 1) {
-                    enableAlpha = 1;
                     alphaAmbientSource = 1;
+                    enableAlpha = 1;
                 } else {
-                    enableAlpha = 0;
-                    GXSetChanAmbColor(2, OpaqueBlack);
                     alphaAmbientSource = 0;
+                    GXSetChanAmbColor(2, OpaqueBlack);
+                    enableAlpha = 0;
                 }
             } else {
                 if (flags & 0x40) {
@@ -129,7 +129,7 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                     callback = MatFunc2;
                 }
                 ambientSource = 0;
-                enableAlpha = 0;
+                alphaAmbientSource = 0;
                 materialSource = 1;
                 if (useAmbient == 1) {
                     colorMaterialSource = 1;
@@ -138,7 +138,7 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                     GXSetChanMatColor(2, OpaqueBlack);
                 }
                 enableColor = 0;
-                alphaAmbientSource = 0;
+                enableAlpha = 0;
             }
             numStages = 2;
             GXSetTevColorIn(0, 0xF, 0xA, 2, 4);
@@ -152,18 +152,18 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                     if (flags & 8) {
                         ambientSource = 1;
                         if (useAmbient == 1) {
-                            enableAlpha = 1;
                             alphaAmbientSource = 1;
+                            enableAlpha = 1;
                         } else {
-                            enableAlpha = 0;
-                            GXSetChanAmbColor(2, OpaqueBlack);
                             alphaAmbientSource = 0;
+                            GXSetChanAmbColor(2, OpaqueBlack);
+                            enableAlpha = 0;
                         }
                         callback = MatFunc5;
                     } else {
                         ambientSource = 0;
-                        enableAlpha = 0;
                         alphaAmbientSource = 0;
+                        enableAlpha = 0;
                         GXSetChanAmbColor(2, OpaqueBlack);
                         callback = MatFunc4;
                     }
@@ -175,16 +175,16 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                     if (flags & 8) {
                         ambientSource = 1;
                         if (useAmbient == 1) {
-                            enableAlpha = 1;
                             alphaAmbientSource = 1;
+                            enableAlpha = 1;
                         } else {
-                            enableAlpha = 0;
                             alphaAmbientSource = 0;
+                            enableAlpha = 0;
                         }
                     } else {
                         ambientSource = 0;
-                        enableAlpha = 0;
                         alphaAmbientSource = 0;
+                        enableAlpha = 0;
                         callback = MatFunc3;
                     }
                 }
@@ -195,18 +195,18 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                 if (flags & 8) {
                     ambientSource = 1;
                     if (useAmbient == 1) {
-                        enableAlpha = 1;
                         alphaAmbientSource = 1;
+                        enableAlpha = 1;
                     } else {
-                        enableAlpha = 0;
-                        GXSetChanAmbColor(2, OpaqueBlack);
                         alphaAmbientSource = 0;
+                        GXSetChanAmbColor(2, OpaqueBlack);
+                        enableAlpha = 0;
                     }
                     callback = MatFunc5;
                 } else {
                     ambientSource = 0;
-                    enableAlpha = 0;
                     alphaAmbientSource = 0;
+                    enableAlpha = 0;
                     GXSetChanAmbColor(2, OpaqueBlack);
                     callback = MatFunc4;
                 }
@@ -226,9 +226,9 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                     callback = MatFunc6;
                 }
                 enableColor = 0;
-                alphaAmbientSource = 0;
-                ambientSource = 0;
                 enableAlpha = 0;
+                ambientSource = 0;
+                alphaAmbientSource = 0;
             }
             numStages = 1;
             GXSetTevColorIn(0, 0xF, 0xA, 8, 0xF);
@@ -243,16 +243,16 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
             if (flags & 8) {
                 ambientSource = 1;
                 if (useAmbient == 1) {
-                    enableAlpha = 1;
                     alphaAmbientSource = 1;
+                    enableAlpha = 1;
                 } else {
-                    enableAlpha = 0;
                     alphaAmbientSource = 0;
+                    enableAlpha = 0;
                 }
             } else {
                 ambientSource = 0;
-                enableAlpha = 0;
                 alphaAmbientSource = 0;
+                enableAlpha = 0;
                 GXSetChanAmbColor(4, OpaqueBlack);
             }
         } else {
@@ -270,9 +270,9 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
                 GXSetChanMatColor(4, OpaqueBlack);
             }
             ambientSource = 0;
-            enableAlpha = 0;
-            enableColor = 0;
             alphaAmbientSource = 0;
+            enableColor = 0;
+            enableAlpha = 0;
         }
         numStages = 1;
         if (flags & 0x40) {
@@ -308,7 +308,7 @@ RwDlObjectRenderCallBack _rwDlObjectRenderSetup(unsigned int flags,
     GXSetNumChans(1);
     GXSetChanCtrl(0, enableColor, ambientSource, materialSource, lightMask, 2,
                   1);
-    GXSetChanCtrl(2, alphaAmbientSource, enableAlpha, colorMaterialSource, 0, 0,
+    GXSetChanCtrl(2, enableAlpha, alphaAmbientSource, colorMaterialSource, 0, 0,
                   2);
     GXSetChanCtrl(1, 0, 0, 0, 0, 0, 2);
     GXSetChanCtrl(3, 0, 0, 0, 0, 0, 2);

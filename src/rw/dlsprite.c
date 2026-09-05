@@ -278,7 +278,8 @@ static void _rwDlRasterCamera_ZClearRectInit(RwRaster* raster)
 
     if (raster->type == 5) {
         RwGameCubeRasterExt* extension =
-            rwRasterPlatformData(raster->parent);
+            (RwGameCubeRasterExt*)((unsigned char*)raster->parent +
+                                    _RwGameCubeRasterExtOffset);
         if ((extension->hasAlpha & 1) != 0) {
             if (_RwDlPixelFormat != 1) {
                 GXSetPixelFmt(1, 0);
@@ -325,34 +326,35 @@ static void _rwDlRasterCamera_ZClearRectInit(RwRaster* raster)
     GXSetCurrentMtx(0);
 }
 
+/* TODO: [near miss] 99.653465%; RGBA copy recovered; one declaration check left GPR coloring; stop. */
 void _rwDlRasterCamera_ZClearRect(RwRaster* raster, const RwRect* rectangle,
                                   const RwRGBA* color, int clearMode)
 {
 
-    GXColor material;
     int fogWasEnabled = 0;
+    union {
+        RwRGBA rw;
+        GXColor gx;
+    } material;
 
     if ((clearMode & 1) != 0) {
-        material.r = color->red;
-        material.g = color->green;
-        material.b = color->blue;
-        material.a = color->alpha;
+        material.rw = *color;
         if ((clearMode & 2) != 0)
             GXSetZMode(1, 7, 1);
         else
             GXSetZMode(1, 7, 0);
     } else if ((clearMode & 2) != 0) {
-        material.r = 0;
-        material.g = 0;
-        material.b = 0;
-        material.a = 0xFF;
+        material.gx.r = 0;
+        material.gx.g = 0;
+        material.gx.b = 0;
+        material.gx.a = 0xFF;
         GXSetZMode(1, 7, 1);
         GXSetColorUpdate(0);
     } else {
         return;
     }
 
-    GXSetChanMatColor(4, material);
+    GXSetChanMatColor(4, material.gx);
     GXSetBlendMode(1, 1, 0, 0);
     GXSetCullMode(0);
     _rwDlRenderStateSetZCompLoc(1);

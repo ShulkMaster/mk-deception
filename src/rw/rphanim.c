@@ -126,10 +126,12 @@ static void* HAnimCopy(void* dstObject, const void* srcObject,
 static RwStream* HAnimWrite(RwStream* stream, int binaryLength,
                             const void* object, int offset, int size)
 {
-    int version = 0x100;
-    int zero;
+    int i;
+    RpHAnimNodeInfo* node;
     const HAnimFrameState* frameExtension;
     RpHAnimHierarchy* hierarchy;
+    int version = 0x100;
+    int zero;
 
     if (!RwStreamWriteInt32(stream, &version, 4)) return 0;
     frameExtension = (const HAnimFrameState*)((const unsigned char*)object +
@@ -137,8 +139,6 @@ static RwStream* HAnimWrite(RwStream* stream, int binaryLength,
     if (!RwStreamWriteInt32(stream, &frameExtension->nodeID, 4)) return 0;
     hierarchy = frameExtension->hierarchy;
     if (hierarchy != 0 && !(hierarchy->flags & rpHANIMHIERARCHYSUBHIERARCHY)) {
-        RpHAnimNodeInfo* node;
-        int i;
         if (!RwStreamWriteInt32(stream, &hierarchy->numNodes, 4)) return 0;
         if (!RwStreamWriteInt32(stream, &hierarchy->flags, 4)) return 0;
         if (!RwStreamWriteInt32(stream, &hierarchy->currentAnim->maxInterpKeyFrameSize, 4)) return 0;

@@ -300,13 +300,14 @@ static void DlRasterUntile(unsigned char *linearData, const unsigned char *tiled
   }
 }
 
+/* TODO: [breakthrough] 93.087456%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlRasterLock(void *pixelsOut, void *rasterIn, int flags) {
   void **pixels = pixelsOut;
   unsigned char *tiled;
   RwRaster *raster = rasterIn;
   RwRaster *parent = raster->parent;
   unsigned char level = (unsigned char)((flags & 0xFF00) >> 8);
-  RwGameCubeRasterExt *extension = rwRasterPlatformData(parent);
+  RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(parent);
 
   switch (raster->type & 7) {
   case 0:
@@ -414,10 +415,11 @@ int _rwDlRasterLock(void *pixelsOut, void *rasterIn, int flags) {
   return 1;
 }
 
+/* TODO: [breakthrough] 90.79508%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlRasterUnlock(void *unused, void *rasterIn, int in) {
   RwRaster *raster = rasterIn;
   RwRaster *parent = raster->parent;
-  RwGameCubeRasterExt *extension = rwRasterPlatformData(parent);
+  RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(parent);
 
   switch (raster->type & 7) {
   case 0:
@@ -465,6 +467,7 @@ int _rwDlRasterUnlock(void *unused, void *rasterIn, int in) {
   return 1;
 }
 
+/* TODO: [breakthrough] 70.97143%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, int flags) {
   void **palette = paletteOut;
   RwRaster *raster = rasterIn;
@@ -473,7 +476,7 @@ int _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, int flags) {
   case 0:
   case 4: {
     if (raster == raster->parent && raster->palette == 0) {
-      RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
+      RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(raster);
       if ((flags & 2) != 0)
         raster->privateFlags |= 8;
       if ((flags & 1) != 0)
@@ -493,6 +496,7 @@ int _rwDlRasterLockPalette(void *paletteOut, void *rasterIn, int flags) {
   }
 }
 
+/* TODO: [breakthrough] 92.913795%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlRasterUnlockPalette(void *unused, void *rasterIn, int in) {
   RwRaster *raster = rasterIn;
 
@@ -500,7 +504,7 @@ int _rwDlRasterUnlockPalette(void *unused, void *rasterIn, int in) {
   case 0:
   case 4: {
     if (raster == raster->parent) {
-      RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
+      RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(raster);
       if ((raster->privateFlags & 0x10) != 0)
         DCFlushRange(extension->paletteData, (1U << raster->depth) * 2);
       raster->privateFlags &= ~0x18;
@@ -518,8 +522,9 @@ int _rwDlRasterUnlockPalette(void *unused, void *rasterIn, int in) {
   }
 }
 
+/* TODO: [breakthrough] 92.90692%; retail plugin access expanded; inspect remaining object-specific lowering. */
 static int DlGetRasterFormat(RwRaster *raster, int flags) {
-  RwGameCubeRasterExt *extension = rwRasterPlatformData(raster->parent);
+  RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(raster->parent);
   unsigned int format = flags & 0xFF00;
 
   raster->type = flags & 7;
@@ -741,8 +746,9 @@ static int DlGetRasterFormat(RwRaster *raster, int flags) {
   return 1;
 }
 
+/* TODO: [breakthrough] 91.26415%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlTextureRasterCreate(RwRaster *raster, unsigned char levels) {
-  RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
+  RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(raster);
   unsigned int size;
   unsigned int paletteSize;
 
@@ -784,7 +790,7 @@ int _rwDlTextureRasterCreate(RwRaster *raster, unsigned char levels) {
 
 int _rwDlRasterCreate(void *unused, void *rasterIn, int flags) {
   RwRaster *raster = rasterIn;
-  RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
+  RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(raster);
 
   raster->stride = 0;
   extension->format = 0xFF;
@@ -810,7 +816,7 @@ int _rwDlRasterCreate(void *unused, void *rasterIn, int flags) {
           !_rwDlTextureRasterCreate(raster, DlRasterFindNumMipLevels(raster))) {
         RwError error;
         error.pluginID = 1;
-        error.errorCode = _rwerror(2, "Raster creation failed");
+        error.errorCode = _rwerror(2, "Failed to create surface for texture");
         RwErrorSet(&error);
         return 0;
       }
@@ -834,6 +840,7 @@ int _rwDlRasterCreate(void *unused, void *rasterIn, int flags) {
   return 1;
 }
 
+/* TODO: [breakthrough] 91.96385%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlRasterDestroy(void *unused, void *rasterIn, int in) {
   RwRaster *raster = rasterIn;
 
@@ -842,7 +849,7 @@ int _rwDlRasterDestroy(void *unused, void *rasterIn, int in) {
     case 0:
     case 4:
     case 5: {
-      RwGameCubeRasterExt *extension = rwRasterPlatformData(raster);
+      RwGameCubeRasterExt *extension = RW_RASTER_PLATFORM_DATA(raster);
       if (extension->token == _RwDlTokenCurrent) {
         GXSetDrawSync((unsigned int)_RwDlTokenCurrent);
         _RwDlTokenCurrent = (_RwDlTokenCurrent + 1) % 57344;

@@ -400,6 +400,7 @@ static RwStream* SkinGeometryWrite(RwStream* stream, int binaryLength,
     return stream;
 }
 
+/* TODO: [near miss] 99.375%; retail retains unused geometry setter result; stop without a dead assignment. */
 static RwStream* SkinGeometryRead(RwStream* stream, int binaryLength,
                                   void* object, int offset, int size)
 {

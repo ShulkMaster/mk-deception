@@ -3,9 +3,9 @@
 #include "rw/rwtypehf.h"
 #include "rw/rwvector.h"
 
+/* TODO: [near miss] 99.583336%; flags/object GPR homes; scope check unchanged. */
 static void FrameSyncHierarchyRecurse(RwFrame* frame, unsigned int inheritedFlags) {
     while (frame != 0) {
-        /* Soft ceiling: retail swaps the registers used for flags and object. */
         unsigned int flags = inheritedFlags | frame->object.privateFlags;
 
         if ((int)(flags & 0x04) != 0) {

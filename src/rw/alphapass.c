@@ -282,6 +282,7 @@ void _rxGCTevAlphaMultiPassCleanup(RxGCTevAlphaPass* state) {
 }
 #pragma dont_inline reset
 
+/* TODO: [breakthrough needed] 86.40385%; retain accessor call; macro expansion regressed this consumer. */
 void SetSingleTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alphaTexture,
                                             RxGCTevAlphaPass* state) {
     RwTexture* baseTexture = texture;
@@ -304,6 +305,7 @@ void SetSingleTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alpha
     _rwDlRenderStateSetZCompLoc(1);
 }
 
+/* TODO: [near miss] 91.30769%; retain accessor call; macro expansion regressed this consumer. */
 void SetFirstTextureAlphaPassWithAlphaComp(RwTexture* texture, RwTexture* alphaTexture,
                                            RxGCTevAlphaPass* state) {
     RwTexture* baseTexture = texture;

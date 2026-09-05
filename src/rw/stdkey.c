@@ -67,9 +67,9 @@ typedef char HAnimIEEEFloatShapeSizeCheck[
             }                                                               \
         } else if (hx < 0) {                                                \
             z = 0.5f * (1.0f + (x));                                        \
-            s = _rwSqrt(z);                                                 \
             p = rpHAnimAcosNumerator(z);                                    \
             q = rpHAnimAcosDenominator(z);                                  \
+            s = _rwSqrt(z);                                                 \
             r = p / q;                                                      \
             w = r * s - 7.5497894e-8f;                                     \
             (result) = 3.1415925f - 2.0f * (s + w);                         \
@@ -154,17 +154,16 @@ void RpHAnimKeyFrameInterpolate(void *vout, void *va, void *vb, float time,
     nearlyOne = cosTheta >= 0.999f;
     if (!nearlyOne) {
         float theta;
-        float sine;
+        float reciprocal;
         rpHAnimApproximateAcos(theta, cosTheta);
         {
-            float reciprocal;
-            rpHAnimApproximateSine(sine, theta);
-            reciprocal = 1.0f / sine;
-            sine = beta * theta;
-            rpHAnimApproximateSine(beta, sine);
+            rpHAnimApproximateSine(reciprocal, theta);
+            reciprocal = 1.0f / reciprocal;
+            beta *= theta;
+            rpHAnimApproximateSine(beta, beta);
             beta *= reciprocal;
-            sine = alpha * theta;
-            rpHAnimApproximateSine(alpha, sine);
+            alpha *= theta;
+            rpHAnimApproximateSine(alpha, alpha);
             alpha *= reciprocal;
         }
     }
@@ -178,6 +177,7 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, float alpha) {
     RpHAnimKeyFrame *out = vout;
     RpHAnimKeyFrame *a = va;
     RpHAnimKeyFrame *b = vb;
+    float theta;
     float cosTheta = a->q.w * b->q.w +
                      (a->q.z * b->q.z +
                       (a->q.x * b->q.x + a->q.y * b->q.y));
@@ -200,18 +200,16 @@ void RpHAnimKeyFrameBlend(void *vout, void *va, void *vb, float alpha) {
     beta = 1.0f - alpha;
     nearlyOne = cosTheta >= 0.999f;
     if (!nearlyOne) {
-        float theta;
-        float sine;
+        float reciprocal;
         rpHAnimApproximateAcos(theta, cosTheta);
         {
-            float reciprocal;
-            rpHAnimApproximateSine(sine, theta);
-            reciprocal = 1.0f / sine;
-            sine = beta * theta;
-            rpHAnimApproximateSine(beta, sine);
+            rpHAnimApproximateSine(reciprocal, theta);
+            reciprocal = 1.0f / reciprocal;
+            beta *= theta;
+            rpHAnimApproximateSine(beta, beta);
             beta *= reciprocal;
-            sine = alpha * theta;
-            rpHAnimApproximateSine(alpha, sine);
+            alpha *= theta;
+            rpHAnimApproximateSine(alpha, alpha);
             alpha *= reciprocal;
         }
     }
