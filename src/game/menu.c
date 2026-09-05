@@ -810,8 +810,8 @@ void controller_setup_p1_state(int enabled) {
     }
 }
 
+/* TODO: [near miss] 98.554214%; retail base-plus-player walk agrees; NV register coloring remains. */
 float p_controller_config(void) {
-    /* Soft ceiling: ~98.6% -- NV register coloring and pool labels only. */
     ControllerConfigPdata* pdata;
     ControllerConfigPdata* live_pdata;
     MkProc* proc;

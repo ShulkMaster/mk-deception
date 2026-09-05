@@ -251,7 +251,6 @@ static inline void spawn_ppwls_timeout_proc(void) {
 #define PROFILE_SWITCHMAP_OFF 0x108
 #define PROFILE_KONQUEST_OFF 0x190
 #define KONQUEST_FIELD_68 0x68
-#define PROFILE_SWITCHMAP_STRIDE 0xC
 #define PROFILE_DEFAULT_UNLOCK_CAT7_LO 0x15804FB
 #define PROFILE_DEFAULT_UNLOCK_CAT5 0x3FF
 #define PROFILE_KONQUEST_FIELD_68 10
@@ -268,17 +267,15 @@ extern void* p2_profile_common;
 extern void* p1_profile_konquest;
 extern void* p2_profile_konquest;
 extern int mcard_msg_active;
-extern int default_switch_map[]; /* stride 0xC; copy word0 of each into profile +0x108 */
+extern SwitchMapEntry default_switch_map[];
 extern int p1_rumble_on;
 extern int p2_rumble_on;
 
 static inline void copy_profile_switch_defaults(PlayerProfile* profile) {
     int i;
-    const char* src;
 
-    src = (const char*)default_switch_map;
     for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        profile->switch_map[i] = *(const int*)(src + i * PROFILE_SWITCHMAP_STRIDE);
+        profile->switch_map[i] = (int)default_switch_map[i].mask;
     }
 }
 
@@ -2965,6 +2962,7 @@ int get_coffin_bit(const unsigned char* bits, unsigned int index) {
 }
 
 /* Retail global; same body used by init/unload/move_profile. */
+/* TODO: [near miss] 96.59574%; typed default masks preserve codegen; loop scheduling remains. */
 void set_profile_to_default(PlayerProfile* profile) {
     set_profile_to_default_impl(profile);
 }
