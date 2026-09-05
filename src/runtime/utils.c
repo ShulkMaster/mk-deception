@@ -2134,6 +2134,7 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     return 0;
 }
 
+/* TODO: [near miss] 99.78836%; float comparison operand order survives symmetric check; stop. */
 UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
                                       float v1, float u2, float v2) {
     UvScrollControl* ctrl;

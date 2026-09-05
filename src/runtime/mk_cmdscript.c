@@ -870,6 +870,7 @@ ScriptSlot* cmdscript_loadfile(int slot_index, MkFileInfo* file_info) {
     return body;
 }
 
+/* TODO: [breakthrough] 73.48148%; byte-count arithmetic corrected; slot layout and load CFG remain. */
 ScriptSlot* cmdscript_finish_load(int slot_index) {
     ScriptSlotEntry* entry;
     ScriptSlot* slot;
@@ -908,7 +909,7 @@ ScriptSlot* cmdscript_finish_load(int slot_index) {
             slot->table_schema_base = slot->string_base + slot->string_limit;
             slot->table_data =
                 (unsigned int*)(slot->table_schema_base + slot->pad50);
-            slot->bytecode = slot->table_data + slot->data_words;
+            slot->bytecode = (unsigned int*)((unsigned char*)slot->table_data + slot->data_words);
             slot->pad8c = (unsigned int)slot->bytecode + slot->hdr_word0;
 
             fixup_data_tables(slot);
