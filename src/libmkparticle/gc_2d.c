@@ -181,7 +181,8 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     }
 }
 
-/* TODO: [near miss] 88.55%; portable clear bounds; only addi/li scheduling differs. */
+/* TODO: [near miss] 88.545456%; typed GPU pointer emits identical argument
+ * scheduling; retain object-byte clear bounds and stop at the 44-byte ceiling. */
 void native2d_init_object(Pfx2dObj* obj) {
     /* Retail clears +0x74..+0xB7: GPU vertices and the alpha texture pointer.
      * Include any alignment gap before that pointer on other data models. */
