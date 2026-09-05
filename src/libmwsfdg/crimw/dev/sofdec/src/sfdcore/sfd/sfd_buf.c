@@ -90,7 +90,11 @@ int SFBUF_GetTermFlg(SfdHandle* handle, int buffer_index)
 
 void SFBUF_SetTermFlg(SfdHandle* handle, int buffer_index, int terminated)
 {
-    handle->buffers[buffer_index].terminated = terminated;
+    /* Inactive output index 8 aliases frame zero's height, as in the getter. */
+    unsigned char* object = (unsigned char*)handle;
+    unsigned char* first_flag = (unsigned char*)&handle->buffers[0].terminated;
+    *(int*)(object + (first_flag - object) +
+            buffer_index * sizeof(SfdBufferState)) = terminated;
 }
 
 /* Inactive output index 8 aliases frame zero's width, like the termination

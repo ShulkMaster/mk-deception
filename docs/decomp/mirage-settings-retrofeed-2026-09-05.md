@@ -78,3 +78,19 @@ reports are `/tmp/checkpoint-{mcardmsg,plyrprofile,menu,gcmcicon}.json`;
 Mirage retains compact evidence under `docs/evidence/settings-retail-2026-09-05.json`.
 Only the two portable corrections and their scoped status/evidence updates belong
 in this source commit; unrelated game, image and decoder experiments are excluded.
+
+## Inactive transport termination setter
+
+Broader native validation exposed `SFBUF_SetTermFlg(handle, 8, value)` indexing
+past the eight-buffer array. Retail `SFPLY_SetTermFlg` can pass the inactive
+transport index; m2c/ASM show the same stride-0x74 store at handle +0x1314 +
+index*0x74, aliasing frame-zero height. As with the already-validated getters
+and preparation setter, calculate the address within the containing handle
+representation. No write is skipped, clamped or redirected by host policy.
+
+Before/after whole-unit symbols are identical; the setter remains 100%.
+The native `sfd_buffer_termination` regression now tests normal and inactive
+setter accesses, matching frame-height alias and adjacent width preservation,
+with UBSan halt-on-error. It passes. No ABI, symbol ownership or build metadata
+changes; no S0/S1 residue introduced. Full build/SHA and diff-check validated
+before committing. Reports: `/tmp/checkpoint-sfd-{before,after}.json`.
