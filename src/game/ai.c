@@ -2617,9 +2617,7 @@ float drone_ai_watcher(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: exact size, instructions, calls, and typed accesses. The sole
- * diff is null-script branching to a later identical 0.0f return block rather
- * than the earlier invalid-script return block. */
+/* TODO: [near miss] 99.96403%; equivalent null-script return destination remains; guard trials reverted. */
 float drone_ai_ducker(void) {
     DroneAI* drone;
     AiFightstyleAttack* script;

@@ -48,6 +48,9 @@ Apply these refinements only with the parent rule's evidence:
   preserve full-width masks/enums and correct public prototypes. Typed sound
   virtual methods recovered the retail r12 dispatch; this does not establish a
   concrete class layout or destructor contract.
+- H03/H11: TRK connection checks use a local `BOOL` for the returned flag;
+  retain the API's declared return type. Separate serial-I/O and connection
+  early returns when retail has distinct exit blocks, preserving short circuiting.
 - H02: MWCC may place a vptr after members preceding the first virtual method.
   `IRefCntRes` needs virtual declarations before reference_count for +0/+4.
   Nested anonymous structs inside FighterSlot's union measured size 1; three
@@ -56,6 +59,15 @@ Apply these refinements only with the parent rule's evidence:
   +0xB8 (`MkProcEntryFn`), not destruction callback +0xB4. Small immediate
   differences can be behavioral. AnimPdata landing fields are +0xF8/+0xFC
   within 0x104 bytes, not an extension beyond the allocation.
+- H03/H12: A stored `Vec` component and its incoming FP argument need not have
+  identical precision. If retail rounds before publishing a second copy, read
+  the real stored component; do not bypass it or add a synthetic rounding sink.
+- H04: For mask-then-shift extraction, assign the complete expression to the
+  decoded value instead of reusing that local for the unshifted mask. Confirm
+  all uses: `_rwGCNDisplayListGetStride` retains the same operations this way.
+- H05: NPC command waits decrement through a saved NPC pointer, then check and
+  clamp through `g_active_npc`. Preserve that observed owner reload after the
+  store; audit every inlined consumer rather than introducing volatile.
 - H06/H14: Initialize a real output pointer at entry only when retail zeros
   that slot there. Keep an initial buffer word separate from its advanced word
   through the consume/refill join. Consume lookahead in place only after every
@@ -86,6 +98,9 @@ Apply these refinements only with the parent rule's evidence:
 
 - `addis x,v,H; cmplwi x,L` tests `(L - (H << 16)) mod 2^32`;
   H=0,L=0xC602 means positive 0xC602. Preserve proven signedness.
+- ELF `NOBITS` sections have zero-initialized storage, not file payload bytes.
+  Never read `sh_offset` as their initializer. Check this before changing a
+  constant to resolve a `data_value` mismatch.
 - Runtime owners are not interchangeable with similar static tables.
 - Automated extraction must recognize C identifiers: `0.0f * body` is not a
   pointer declaration. Reject malformed generated source before measuring it.
@@ -95,3 +110,19 @@ Apply these refinements only with the parent rule's evidence:
   Deception; portable corrections require retail and behavioral evidence.
 
 No structural discrepancy -> [mid](playbook-mid-occurrence.md).
+
+H07 measured inline-boundary closure (MPVABDEC_IntraBlockDc11): a localized
+permuter search reduced score330 ->0 by extracting the existing unsigned
+lookahead alignment into an inline value helper. REQUIRE the helper to compute
+the same real bit-window transformation, preserve unsigned shift semantics,
+and emit no call or extra function. The reviewed private static helper
+mpvabdec_AlignEscapeLookahead returns lookahead <<1; no dummy state or compiler
+flags were added. The real TU retained Intra100 and closed Dc1199.88997 ->100
+(4226 instructions), with all34296 runtime comparisons passing. This is an
+inline-boundary inference, not evidence of an original retail helper name;
+never adopt the permuter's generic inline_fn name or a false prototype.
+
+H07 scope caution after the Dc11 closure: reusing the same prefix-alignment
+helper in NintraBlock’s first-code decoder regressed95.530754 ->95.37472 and
+was reverted. An inlined first-coefficient store emitted identical code. Inline
+boundaries are context-dependent evidence, not a universal shift wrapper rule.

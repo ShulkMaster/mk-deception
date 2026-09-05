@@ -876,6 +876,7 @@ int check_for_winner(void) {
     return winner;
 }
 
+/* TODO: [near miss] 99.902435%; equivalent player-number boolean lowering remains; arithmetic trial reverted. */
 float do_join_in(void) {
     int game_state = get_game_state();
     JoinInPdata* join = (JoinInPdata*)apdata;
@@ -990,10 +991,10 @@ float p_flash_demo_fight_text(void) {
 }
 
 float p_do_damage_text(void) {
-    DamageTextPdata* pdata;
-    StringObj* string;
     int velocity;
     int ticks;
+    DamageTextPdata* pdata;
+    StringObj* string;
 
     pdata = (DamageTextPdata*)apdata;
     string = 0;

@@ -42,6 +42,16 @@ Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
 - IF importing again, REQUIRE the newly printed scratch path (possibly
   SYMBOL-2); verify its base source and iteration count. A one-line
   PERM_LINESWAP can fold away into randomization; do not claim exhaustive search.
+- IF the mismatch is inside an expanded private helper, REQUIRE confirmation
+  that the mutation region includes that helper body. Selecting the caller alone
+  leaves helper bodies outside ordinary randomization. TRY an isolated harness
+  that mutates the helper while retaining the caller body for emitted-code
+  scoring; verify the unchanged baseline score and that no helper call appears.
+  Selecting only the helper in settings can otherwise strip the caller body.
+- IF a candidate offsets both sides of a signed comparison, REQUIRE proof that
+  the offset cannot overflow across the complete input domain. Reject
+  `(signed_bits + 1) < 1` and `(signed_bits - 1) < -1` as replacements for
+  `signed_bits < 0` on arbitrary 32-bit lookahead, regardless of score.
 - IF scratch parsing changes `numNodes * sizeof(RwMatrix) + 15`, REQUIRE comparison
   with original source; TRY parentheses around the product in scratch without
   changing allocation math. IF inline-helper PERM_LINESWAP fails with "PERM macro

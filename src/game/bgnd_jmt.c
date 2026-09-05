@@ -527,18 +527,17 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     }
 }
 
-/* TODO: [near miss] 98.263160%; register coloring; one-trial ceiling. */
 void mks_shadow_scale(int group_id, int blend_ticks,
                       float start_scale, float end_scale) {
-    MkProc* proc;
     MkPtr** list;
+    BgndUpdateCommandBlock* previous;
+    MkProc* proc;
+    BgndUpdateData* update;
+    int slot_index;
+    BgndUpdateCommandBlock* command;
+    int previous_index;
     MkPtr* link;
     MkPtr* next;
-    BgndUpdateData* update;
-    BgndUpdateCommandBlock* command;
-    BgndUpdateCommandBlock* previous;
-    int slot_index;
-    int previous_index;
 
     proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
 
@@ -592,15 +591,14 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     }
 }
 
-/* TODO: [near miss] 97.960526%; register coloring; one-trial ceiling. */
 void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
-    MkProc* proc;
+    BgndUpdateData* update;
+    int slot_index;
     MkPtr** list;
+    BgndUpdateCommandBlock* command;
     MkPtr* link;
     MkPtr* next;
-    BgndUpdateData* update;
-    BgndUpdateCommandBlock* command;
-    int slot_index;
+    MkProc* proc;
 
     proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
 
@@ -644,19 +642,18 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     }
 }
 
-/* TODO: [near miss] 98.443400%; register coloring; one-trial ceiling. */
 void mks_gravity_update_by_group(int group_id, int blend_ticks,
                                  float velocity_x, float velocity_y,
                                  float velocity_z, float gravity) {
-    MkProc* proc;
     MkPtr** list;
+    BgndUpdateCommandBlock* previous;
+    MkProc* proc;
+    BgndUpdateData* update;
+    int slot_index;
+    BgndUpdateCommandBlock* command;
+    int previous_index;
     MkPtr* link;
     MkPtr* next;
-    BgndUpdateData* update;
-    BgndUpdateCommandBlock* command;
-    BgndUpdateCommandBlock* previous;
-    int slot_index;
-    int previous_index;
 
     proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
 
@@ -797,21 +794,20 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
 void mks_set_rotate_update_by_group(void) {
 }
 
-/* TODO: [near miss] 98.690475%; register coloring; one-trial ceiling. */
 void mks_set_sin_update_by_group(int group_id, int blend_ticks,
                                  int update_flags, int extra_flags,
                                  float start_value, float end_value,
                                  float start_speed, float speed_param,
                                  float sin_rate, float sin_phase) {
-    MkProc* proc;
     MkPtr** list;
+    BgndUpdateCommandBlock* previous;
+    MkProc* proc;
+    BgndUpdateData* update;
+    int slot_index;
+    BgndUpdateCommandBlock* command;
+    int previous_index;
     MkPtr* link;
     MkPtr* next;
-    BgndUpdateData* update;
-    BgndUpdateCommandBlock* command;
-    BgndUpdateCommandBlock* previous;
-    int slot_index;
-    int previous_index;
 
     proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
 

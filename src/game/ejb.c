@@ -464,8 +464,8 @@ static inline int blend_to_stance_inline(float blend_rate) {
 }
 
 int is_he_airborn(void) {
-    PlyrPdata* opponent;
     MkObj* opponent_object;
+    PlyrPdata* opponent;
     int state;
 
     opponent = plyr_pdata->his_plyr_pdata;
@@ -481,7 +481,7 @@ int is_he_airborn(void) {
     if (state == 0x3202) {
         return 1;
     }
-    if ((unsigned int)state == 0xFFFFC602U) {
+    if (state == 0xC602) {
         return 1;
     }
     if (state == 0x6001) {
@@ -2176,6 +2176,7 @@ int should_weapon_block(PlyrPdata* player) {
     return is_weapon_style(player->fighter_definition) == 1;
 }
 
+/* TODO: [near miss] 99.695656%; equivalent switch return-arm order remains; guard and case-order trials reverted. */
 int should_i_weapon_block(void) {
     PlyrPdata* player;
 
@@ -4810,15 +4811,10 @@ void scorpion_summon_read(void) {
     plyr_pdata->summon_position_z = his_obj->pos.value.z;
 }
 
-/*
- * Soft ceiling: complete retail collision state machine. Source's eight-byte
- * excess is separate r30/r31 saves/restores; body residue is their permutation
- * and local relocation labels.
- */
 static void tremor_collision_check(void) {
-    PlyrPdata* opponent;
-    MkObj* opponent_object;
     int collision_blocked;
+    MkObj* opponent_object;
+    PlyrPdata* opponent;
     int state;
 
     if (local_collision_allowed_plyr_pdata() != 0) {
@@ -4832,7 +4828,7 @@ static void tremor_collision_check(void) {
                 collision_blocked = 1;
             } else if (state == 0x3202) {
                 collision_blocked = 1;
-            } else if ((unsigned int)state == 0xFFFFC602U) {
+            } else if (state == 0xC602) {
                 collision_blocked = 1;
             } else if (state == 0x6001) {
                 collision_blocked = 1;
@@ -4860,21 +4856,20 @@ void zero_my_hit_count(void) {
     plyr_pdata->hit_count = 0;
 }
 
-/* TODO: [breakthrough] 94.5%; corrected positive state IDs from raw addis/cmplwi; redundant retail addis remains. */
 int disable_impale_check(void) {
-    unsigned int previous_state;
+    int previous_state;
 
     if (plyr_pdata->blocking_disabled_2 == 1) {
         return 1;
     }
     previous_state = plyr_pdata->previous_state;
-    if (previous_state == 0xC602U) {
+    if (previous_state == 0xC602) {
         return 1;
     }
-    if (previous_state == 0xC600U) {
+    if (previous_state == 0xC600) {
         return 1;
     }
-    return previous_state == 0x4206U;
+    return previous_state == 0x4206;
 }
 
 void set_my_float_1(float value) {

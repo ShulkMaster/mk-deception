@@ -1618,6 +1618,7 @@ void sh_start_grinder_crush_blood(const Vec* position) {
     }
 }
 
+/* TODO: [near miss] 97.21622%; typed position view did not change FP copy scheduling; retained original copy. */
 void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
     MkPfx* effect;
     MkObj* emitter_object;

@@ -1054,7 +1054,7 @@ typedef struct KonquestSoundBanks {
     int bank_1;
 } KonquestSoundBanks;
 
-/* Soft ceiling: get_indirect_bank ~98% - jump-table relocation labels. */
+/* TODO: [near miss] 98.52518%; redundant default assignment folds away; switch/type trials reverted. */
 int get_indirect_bank(unsigned int indirect_bank) {
     SoundFighter* fighter;
     KonquestSoundBanks* konquest;

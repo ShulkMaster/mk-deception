@@ -9138,11 +9138,10 @@ MkObj* bgnd_fx_get_binded_obj(unsigned int handle) {
     }
     return 0;
 }
-/* Soft ceiling 74.44%: exact body; nonvolatile register allocation differs. */
 void bgnd_launch_fx_at_plyr_bid(const char* name, int bone) {
+    unsigned int handle;
     MkObj* object;
     MkPfx* effect;
-    unsigned int handle;
 
     object = plyr_obj;
     handle = fx_by_owner(name, 4);
@@ -10588,13 +10587,12 @@ void bgnd_run_camera_script(int argument, int flags) {
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void) {
     return g_active_obstacle_event_data->player_pdata;
 }
-/* Exact-size 99.82% near miss; only pooled-zero relocation labeling differs. */
 void spad_set_y_angle_plus_offset_from_xz_vector(int index, void* script,
                                                  float x, float z,
                                                  float offset) {
-    Vec angles;
-    Vec direction;
     Vec* output;
+    Vec direction;
+    Vec angles;
 
     (void)script;
     direction.x = x;
@@ -12639,12 +12637,8 @@ static inline void bgnd_clear_uv_scroll_control(unsigned int index) {
     }
 }
 
-/*
- * Near match: 98.60%, exact 172-byte size. The shared clear helper reproduces
- * retail behavior; residue is loop induction/register allocation only.
- */
 void bgnd_init_all_uv_scroll_w_control(void) {
-    unsigned int index;
+    int index;
 
     for (index = 0; index < 8; index++) {
         bgnd_clear_uv_scroll_control(index);

@@ -2805,14 +2805,13 @@ void mks_spawn_blood_pool_at_bid(
     }
 }
 
-/* Soft ceiling: retail control flow is recovered; MWCC retains more saved registers here. */
 void start_blood_splat_watcher(void) {
     int type;
 
     for (type = 0; type < 11; type++) {
         if (((1 << type) & 7) != 0) {
-            unsigned int blood_effect;
-            unsigned int decal_effect;
+            int blood_effect;
+            int decal_effect;
 
             blood_effect = fx_by_owner(
                 mkpfx_ncs_blood_type_map_array[type],

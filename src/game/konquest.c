@@ -13112,11 +13112,6 @@ static void remove_collisions_from_tile_and_tile_objects(
     tile->collisions_active = 0;
 }
 
-/*
- * Soft ceiling: generate_collisions_for_tile_and_tile_objects ~91.2% -- all
- * executable body instructions match. Residue is the zero-vector relocation
- * label and individual r29-r31 saves/restores versus retail stmw/lmw.
- */
 static void generate_collisions_for_tile_and_tile_objects(
     KonquestTileRecord* tile) {
     Vec zero = {0.0f, 0.0f, 0.0f};
@@ -13155,7 +13150,7 @@ static void generate_collisions_for_tile_and_tile_objects(
                     if (record != 0 && object->collision_art_id != 0) {
                         generate_collision_objects(
                             0x60029, object->collision_art_id,
-                            &record->position, &record->angles,
+                            &record->base_position, &record->base_angles,
                             &object->collisions);
                         set_flag_for_all_collisions(
                             &object->collisions, 0x80000000);
