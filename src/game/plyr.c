@@ -1255,7 +1255,51 @@ int get_player_number(MkObj* object) {
     return -1;
 }
 
-/* Soft ceiling: 77.64% - visibility and owned-child filtering recovered. */
+
+static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
+    MkObj* object = owner->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* plyr_pdata_live_aux_weapon_latch_obj(PlyrPdata* owner) {
+    MkObj* object = owner->aux_weapon_latch.obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->aux_weapon_latch.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* plyr_pdata_live_mirror_obj_obj(PlyrPdata* owner) {
+    MkObj* object = owner->mirror_obj.obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->mirror_obj.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.418600%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void show_player(PlyrPdata* player) {
     MkObj* object;
     MkObj* fighter;
@@ -1264,16 +1308,8 @@ void show_player(PlyrPdata* player) {
     if (player == 0) {
         return;
     }
-    object = player->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == player->tracked_obj_instance) {
-            /* Keep the live object. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = plyr_pdata_live_tracked_obj(player);
+
     if (object != 0) {
         unhide_obj(object);
     }
@@ -1281,41 +1317,16 @@ void show_player(PlyrPdata* player) {
         plyr_weapon_show(player, 1, player->mirror_slots);
     }
 
-    fighter = player->tracked_obj;
+    fighter = plyr_pdata_live_tracked_obj(player);
+
     if (fighter != 0) {
-        if (fighter->hdr.instance == player->tracked_obj_instance) {
-            /* Keep the live object. */
-        } else {
-            fighter = 0;
-        }
-    } else {
-        fighter = 0;
-    }
-    if (fighter != 0) {
-        object = player->aux_weapon_latch.obj;
-        if (object != 0) {
-            if (object->hdr.instance ==
-                player->aux_weapon_latch.instance) {
-                /* Keep the live object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = plyr_pdata_live_aux_weapon_latch_obj(player);
+
         if (object != 0) {
             unhide_obj(object);
         }
-        object = player->mirror_obj.obj;
-        if (object != 0) {
-            if (object->hdr.instance == player->mirror_obj.instance) {
-                /* Keep the live object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = plyr_pdata_live_mirror_obj_obj(player);
+
         if (object != 0) {
             unhide_obj(object);
         }
@@ -1353,23 +1364,20 @@ void show_player(PlyrPdata* player) {
     }
 }
 
-/* Soft ceiling: 80.60% - hide propagation recovered with typed latches. */
+
+
+
+
+
+/* TODO: [near miss] 95.909090%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void hide_player(PlyrPdata* player, int hide_weapons) {
     MkObj* object;
     MkObj* fighter;
     MkPtr* link;
     int i;
 
-    object = player->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == player->tracked_obj_instance) {
-            /* Keep the live object. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = plyr_pdata_live_tracked_obj(player);
+
     if (object != 0) {
         hide_obj(object);
     }
@@ -1380,41 +1388,16 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
         }
     }
 
-    fighter = player->tracked_obj;
+    fighter = plyr_pdata_live_tracked_obj(player);
+
     if (fighter != 0) {
-        if (fighter->hdr.instance == player->tracked_obj_instance) {
-            /* Keep the live object. */
-        } else {
-            fighter = 0;
-        }
-    } else {
-        fighter = 0;
-    }
-    if (fighter != 0) {
-        object = player->aux_weapon_latch.obj;
-        if (object != 0) {
-            if (object->hdr.instance ==
-                player->aux_weapon_latch.instance) {
-                /* Keep the live object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = plyr_pdata_live_aux_weapon_latch_obj(player);
+
         if (object != 0) {
             hide_obj(object);
         }
-        object = player->mirror_obj.obj;
-        if (object != 0) {
-            if (object->hdr.instance == player->mirror_obj.instance) {
-                /* Keep the live object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = plyr_pdata_live_mirror_obj_obj(player);
+
         if (object != 0) {
             hide_obj(object);
         }
@@ -2905,6 +2888,12 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
     return 0.0f;
 }
 
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.788734%; FP ordering and register allocation remain; no further evidence-backed source change. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     MkObj* sidekick;
     PlyrInfo* player;
@@ -3685,6 +3674,50 @@ static inline void set_object_flip(
     }
 }
 
+static inline MkObj* plyr_pdata_live_held_opponent_latch_obj(PlyrPdata* owner) {
+    MkObj* object = owner->held_opponent_latch.obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->held_opponent_latch.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
+    MkProc* object = owner->hold_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->hold_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* plyr_pdata_live_his_plyr_pdata_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->his_plyr_pdata->anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->his_plyr_pdata->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 88.028570%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 MkHdr* plyr_grab_other_flip_states(
     int player_flip, int opponent_flip) {
     MkObj* opponent = plyr_pdata->his_obj;
@@ -3696,38 +3729,17 @@ MkHdr* plyr_grab_other_flip_states(
 
     set_object_flip(plyr_obj, plyr_anim_pdata, player_flip);
 
-    held = plyr_pdata->held_opponent_latch.obj;
-    if (held != 0) {
-        if (held->hdr.instance !=
-            plyr_pdata->held_opponent_latch.instance) {
-            held = 0;
-        }
-    } else {
-        held = 0;
-    }
-    hold_proc = plyr_pdata->hold_proc;
-    if (hold_proc != 0) {
-        if (hold_proc->instance !=
-            (int)plyr_pdata->hold_proc_instance) {
-            hold_proc = 0;
-        }
-    } else {
-        hold_proc = 0;
-    }
+    held = plyr_pdata_live_held_opponent_latch_obj(plyr_pdata);
+
+    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+
     if (held != 0 || hold_proc != 0) {
         return 0;
     }
 
     if (opponent_flip != 0) {
-        opponent_anim_proc = plyr_pdata->his_plyr_pdata->anim_proc;
-        if (opponent_anim_proc != 0) {
-            if (opponent_anim_proc->instance !=
-                (int)plyr_pdata->his_plyr_pdata->anim_proc_instance) {
-                opponent_anim_proc = 0;
-            }
-        } else {
-            opponent_anim_proc = 0;
-        }
+        opponent_anim_proc = plyr_pdata_live_his_plyr_pdata_anim_proc(plyr_pdata);
+
         if (opponent_anim_proc != 0) {
             opponent_animation =
                 (AnimPdata*)pdata_of_proc(opponent_anim_proc);

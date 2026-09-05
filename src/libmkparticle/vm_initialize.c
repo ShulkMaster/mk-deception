@@ -4,7 +4,7 @@
 
 float rnd_between(float minimum, float maximum);
 void rnd_bend_vector(PfxVec3* vector, float angle, float angle_spread);
-int pfx_get_struct_size(PfxVm* pfx, unsigned int field);
+int pfx_get_struct_size(PfxVm* pfx, int field);
 
 static void _pfxvm_init_reflect(unsigned char* data, int stride, int count)
 {

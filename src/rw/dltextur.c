@@ -32,15 +32,16 @@ static void* _rwDlTextureConst(void* object, int offset, int size)
     return object;
 }
 
-static void _rwDlTextureDest(RwTexture* texture)
+static void* _rwDlTextureDest(void* object, int offset, int size)
 {
     int index;
 
     for (index = 0; index < 8; index++) {
-        if (texture == _RwDlTextureCache[index]) {
+        if (object == _RwDlTextureCache[index]) {
             _RwDlTextureCache[index] = 0;
         }
     }
+    return object;
 }
 
 void _rwDlTextureCacheInit(void)
@@ -57,7 +58,7 @@ void _rwDlTexturePluginAttach(void)
     _RwGameCubeTextureExtOffset = RwTextureRegisterPlugin(
         sizeof(RwGameCubeTextureExt), 0x40C,
         _rwDlTextureConst,
-        (RwPluginObjectDestructor)_rwDlTextureDest, 0);
+        _rwDlTextureDest, 0);
 }
 
 static void _rwGameCubeTextureSetLOD(RwTexture* texture, float lodBias,
@@ -66,17 +67,17 @@ static void _rwGameCubeTextureSetLOD(RwTexture* texture, float lodBias,
                                      unsigned int textureMap)
 {
     RwGameCubeTextureExt* textureExt =
-        rwTexturePlatformData(texture);
+        RW_TEXTURE_PLATFORM_DATA(texture);
     RwRaster* raster = texture->raster;
     RwGameCubeRasterExt* rasterExt =
-        rwRasterPlatformData(raster->parent);
+        RW_RASTER_PLATFORM_DATA(raster->parent);
     int rasterFormat = (unsigned char)raster->format << 8;
     int minFilter;
     int magFilter;
 
     if ((rasterFormat & 0x6000) != 0) {
         unsigned int tlut;
-        int mipmap;
+        GXBool mipmap;
 
         if ((textureExt->flags & 0x02000000) != 0) {
             tlut = GXGetTexObjTlut(&textureExt->object);
@@ -105,7 +106,7 @@ static void _rwGameCubeTextureSetLOD(RwTexture* texture, float lodBias,
                 _RwDlFilterModeConvTable[(unsigned char)texture->filter_flags].magFilter;
         }
     } else {
-        int mipmap;
+        GXBool mipmap;
 
         if ((rasterFormat & 0x8000) != 0) {
             mipmap = 1;
@@ -146,8 +147,8 @@ void _rwDlTextureSet(RwTexture* texture, unsigned int textureMap)
     }
 
     raster = texture->raster;
-    rasterExt = rwRasterPlatformData(raster->parent);
-    textureExt = rwTexturePlatformData(texture);
+    rasterExt = RW_RASTER_PLATFORM_DATA(raster->parent);
+    textureExt = RW_TEXTURE_PLATFORM_DATA(texture);
     rasterExt->token = _RwDlTokenCurrent & 0xFFFF;
 
     if ((int)((((unsigned int)raster->format & 0xFF) << 8) & 0x6000) != 0) {

@@ -25,23 +25,21 @@ RpGameCubeVtxFmt gamecube_vtxfmt_skinned2;
 RpGameCubeVtxFmt gamecube_vtxfmt_generic;
 static int bInitVtxFmts;
 
+/* TODO: [near miss] 99.315216%; material call and GXBool ABI recovered; stop at local GPR coloring. */
 DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
                                        int use_matfx, int use_alpha) {
     DpMaterialCallback callback = 0;
-    unsigned int textured = flags & 0x84;
-    unsigned int vertex_alpha = flags & 8;
-    int color_enable;
-    int color_ambient;
-    int color_material;
-    int color_light;
-    int alpha_enable;
-    int alpha_ambient;
-    int alpha_material;
+    GXBool color_enable;
+    int alpha_material_source;
+    int color_material_source;
+    int color_ambient_source;
+    int alpha_ambient_source;
+    GXBool alpha_enable;
     unsigned char tev_stages;
     GXColor color;
 
-    if (textured != 0) {
-        if (vertex_alpha != 0 && use_matfx == 1) {
+    if ((flags & 0x84U) != 0) {
+        if ((flags & 8U) != 0 && use_matfx == 1) {
             if (light_mask != 0) {
                 if (flags & 0x40) {
                     callback = MatFunc1;
@@ -50,18 +48,19 @@ DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
                     GXSetTevColor(3, color);
                     callback = MatFunc2;
                 }
-                color_light = 0;
-                color_material = 0;
+                color_material_source = 0;
+                alpha_material_source = 0;
+                GXSetChanMatColor(4, OpaqueWhite);
                 color_enable = 1;
-                alpha_enable = 1;
+                color_ambient_source = 1;
                 if (use_alpha == 1) {
-                    alpha_ambient = 1;
-                    alpha_material = 1;
+                    alpha_ambient_source = 1;
+                    alpha_enable = 1;
                 } else {
-                    alpha_ambient = 0;
+                    alpha_ambient_source = 0;
                     color = OpaqueBlack;
                     GXSetChanAmbColor(2, color);
-                    alpha_material = 0;
+                    alpha_enable = 0;
                 }
             } else {
                 if (flags & 0x40) {
@@ -71,18 +70,18 @@ DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
                     GXSetTevColor(3, color);
                     callback = MatFunc2;
                 }
-                alpha_enable = 0;
-                alpha_ambient = 0;
-                color_light = 1;
+                color_ambient_source = 0;
+                alpha_ambient_source = 0;
+                color_material_source = 1;
                 if (use_alpha == 1) {
-                    color_material = 1;
+                    alpha_material_source = 1;
                 } else {
-                    color_material = 0;
+                    alpha_material_source = 0;
                     color = OpaqueBlack;
                     GXSetChanMatColor(2, color);
                 }
                 color_enable = 0;
-                alpha_material = 0;
+                alpha_enable = 0;
             }
             tev_stages = 2;
             GXSetTevKColorSel(0, 13);
@@ -92,96 +91,96 @@ DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
         } else {
             if (light_mask != 0) {
                 if (flags & 0x40) {
-                    color_light = 0;
-                    color_material = 0;
+                    color_material_source = 0;
+                    alpha_material_source = 0;
                     color_enable = 1;
-                    if (vertex_alpha != 0) {
-                        alpha_enable = 1;
+                    if ((flags & 8U) != 0) {
+                        color_ambient_source = 1;
                         if (use_alpha == 1) {
-                            alpha_ambient = 1;
-                            alpha_material = 1;
+                            alpha_ambient_source = 1;
+                            alpha_enable = 1;
                         } else {
-                            alpha_ambient = 0;
+                            alpha_ambient_source = 0;
                             color = OpaqueBlack;
                             GXSetChanAmbColor(2, color);
-                            alpha_material = 0;
+                            alpha_enable = 0;
                         }
                         callback = MatFunc5;
                     } else {
-                        alpha_enable = 0;
-                        alpha_ambient = 0;
+                        color_ambient_source = 0;
+                        alpha_ambient_source = 0;
                         color = OpaqueBlack;
-                        alpha_material = 0;
+                        alpha_enable = 0;
                         GXSetChanAmbColor(2, color);
                         callback = MatFunc4;
                     }
                 } else {
-                    color_light = 0;
-                    color_material = 0;
+                    color_material_source = 0;
+                    alpha_material_source = 0;
                     color = OpaqueWhite;
                     GXSetChanMatColor(4, color);
                     color_enable = 1;
-                    if (vertex_alpha != 0) {
-                        alpha_enable = 1;
+                    if ((flags & 8U) != 0) {
+                        color_ambient_source = 1;
                         if (use_alpha == 1) {
-                            alpha_ambient = 1;
-                            alpha_material = 1;
+                            alpha_ambient_source = 1;
+                            alpha_enable = 1;
                         } else {
-                            alpha_ambient = 0;
-                            alpha_material = 0;
+                            alpha_ambient_source = 0;
+                            alpha_enable = 0;
                         }
                     } else {
-                        alpha_enable = 0;
-                        alpha_ambient = 0;
+                        color_ambient_source = 0;
+                        alpha_ambient_source = 0;
                         callback = MatFunc3;
-                        alpha_material = 0;
+                        alpha_enable = 0;
                     }
                 }
             } else if (flags & 0x40) {
-                color_light = 0;
-                color_material = 0;
+                color_material_source = 0;
+                alpha_material_source = 0;
                 color_enable = 1;
-                if (vertex_alpha != 0) {
-                    alpha_enable = 1;
+                if ((flags & 8U) != 0) {
+                    color_ambient_source = 1;
                     if (use_alpha == 1) {
-                        alpha_ambient = 1;
-                        alpha_material = 1;
+                        alpha_ambient_source = 1;
+                        alpha_enable = 1;
                     } else {
-                        alpha_ambient = 0;
+                        alpha_ambient_source = 0;
                         color = OpaqueBlack;
                         GXSetChanAmbColor(2, color);
-                        alpha_material = 0;
+                        alpha_enable = 0;
                     }
                     callback = MatFunc5;
                 } else {
-                    alpha_enable = 0;
-                    alpha_ambient = 0;
+                    color_ambient_source = 0;
+                    alpha_ambient_source = 0;
                     color = OpaqueBlack;
-                    alpha_material = 0;
+                    alpha_enable = 0;
                     GXSetChanAmbColor(2, color);
                     callback = MatFunc4;
                 }
             } else {
-                if (vertex_alpha != 0) {
-                    color_light = 1;
+                if ((flags & 8U) != 0) {
+                    color_material_source = 1;
                     if (use_alpha == 1) {
-                        color_material = 1;
+                        alpha_material_source = 1;
                     } else {
-                        color_material = 0;
+                        alpha_material_source = 0;
                         color = OpaqueBlack;
                         GXSetChanMatColor(2, color);
                     }
                 } else {
-                    color_light = 0;
-                    color_material = 0;
+                    color_material_source = 0;
+                    alpha_material_source = 0;
                     color = OpaqueBlack;
                     GXSetChanMatColor(2, color);
                     callback = MatFunc6;
                 }
                 color_enable = 0;
-                alpha_material = 0;
                 alpha_enable = 0;
-                alpha_ambient = 0;
+                color_ambient_source = 0;
+                alpha_ambient_source = 0;
             }
             tev_stages = 1;
             GXSetTevColorIn(0, 15, 10, 8, 15);
@@ -189,47 +188,47 @@ DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
         }
     } else {
         if (light_mask != 0) {
-            color_light = 0;
-            color_material = 0;
+            color_material_source = 0;
+            alpha_material_source = 0;
             color = OpaqueWhite;
             GXSetChanMatColor(4, color);
             color_enable = 1;
-            if (flags & 8) {
-                alpha_enable = 1;
+            if (flags & 8U) {
+                color_ambient_source = 1;
                 if (use_alpha == 1) {
-                    alpha_ambient = 1;
-                    alpha_material = 1;
+                    alpha_ambient_source = 1;
+                    alpha_enable = 1;
                 } else {
-                    alpha_ambient = 0;
-                    alpha_material = 0;
+                    alpha_ambient_source = 0;
+                    alpha_enable = 0;
                 }
             } else {
-                alpha_enable = 0;
-                alpha_ambient = 0;
+                color_ambient_source = 0;
+                alpha_ambient_source = 0;
                 color = OpaqueBlack;
-                alpha_material = 0;
+                alpha_enable = 0;
                 GXSetChanAmbColor(4, color);
             }
         } else {
-            if (flags & 8) {
-                color_light = 1;
+            if (flags & 8U) {
+                color_material_source = 1;
                 if (use_alpha == 1) {
-                    color_material = 1;
+                    alpha_material_source = 1;
                 } else {
-                    color_material = 0;
+                    alpha_material_source = 0;
                     color = OpaqueBlack;
                     GXSetChanMatColor(2, color);
                 }
             } else {
-                color_light = 0;
-                color_material = 0;
+                color_material_source = 0;
+                alpha_material_source = 0;
                 color = OpaqueBlack;
                 GXSetChanMatColor(4, color);
             }
-            alpha_enable = 0;
-            alpha_ambient = 0;
+            color_ambient_source = 0;
+            alpha_ambient_source = 0;
             color_enable = 0;
-            alpha_material = 0;
+            alpha_enable = 0;
         }
         tev_stages = 1;
         if (flags & 0x40) {
@@ -257,7 +256,7 @@ DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
         GXSetTevOrder(1, 0, 0, 255);
         GXSetNumTexGens(1);
         GXSetTexCoordGen2(0, 1, 4, 60, 0, 125);
-    } else if (textured != 0) {
+    } else if ((flags & 0x84U) != 0) {
         GXSetTevOrder(0, 0, 0, 4);
         GXSetNumTexGens(1);
         GXSetTexCoordGen2(0, 1, 4, 60, 0, 125);
@@ -266,8 +265,8 @@ DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
         GXSetTevOrder(0, 255, 255, 4);
     }
     GXSetNumChans(1);
-    GXSetChanCtrl(0, color_enable, alpha_enable, color_light, light_mask, 2, 1);
-    GXSetChanCtrl(2, alpha_material, alpha_ambient, color_material, 0, 0, 2);
+    GXSetChanCtrl(0, color_enable, color_ambient_source, color_material_source, light_mask, 2, 1);
+    GXSetChanCtrl(2, alpha_enable, alpha_ambient_source, alpha_material_source, 0, 0, 2);
     GXSetChanCtrl(1, 0, 0, 0, 0, 0, 2);
     GXSetChanCtrl(3, 0, 0, 0, 0, 0, 2);
     return callback;

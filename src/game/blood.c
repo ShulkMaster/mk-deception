@@ -2041,7 +2041,7 @@ void reset_blood_decals(void) {
 
     index = 0;
     while (blood_decal_to_reset[index] != 0) {
-        unsigned int effect;
+        int effect;
 
         effect = fx_by_owner(blood_decal_to_reset[index], 1);
         if (effect != 0) {
@@ -2332,27 +2332,40 @@ void plyr_obj_load_bld_data(
         model, &model->paths[9], source_paths[9], &std_bp_parms);
 }
 
+static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
+    MkObj* object = owner->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [near miss] 98.918030%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void plyr_bleed_mouth(PlyrPdata* pdata) {
     MkObj* object;
+    char* blood_name;
     int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model_data != 0) {
-        object = pdata->tracked_obj;
+        object = plyr_pdata_live_tracked_obj(pdata);
+
         if (object != 0) {
-            if (object->hdr.instance == pdata->tracked_obj_instance) {
-                /* The instance latch is still live. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        if (object != 0) {
+            blood_name = blood_map[4];
             art_section = get_shared_art_section_for_plyr_pdata(pdata);
             blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_map[4], 1);
+                art_section, blood_name, 1);
             obj_spawn_bld(
                 object, 0, 2, frontL_bld_script2,
                 (BloodSpawnTarget*)pdata->left_blood_spawn_state,
@@ -2365,31 +2378,32 @@ void plyr_bleed_mouth(PlyrPdata* pdata) {
     }
 }
 
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 89.688350%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void plyr_bleed_large_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner) {
     BloodSpawnState* spawn_state;
     MkObj* object;
+    char* blood_name;
     int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model_data != 0) {
-        object = pdata->tracked_obj;
-        if (object != 0) {
-            if (object->hdr.instance == pdata->tracked_obj_instance) {
-                /* The object instance latch is still valid. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = plyr_pdata_live_tracked_obj(pdata);
+
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
             pdata->next_large_bleed_tick = exec_tick_ctr + 45;
+            blood_name = blood_map[4];
             art_section = get_shared_art_section_for_plyr_pdata(owner);
             blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_map[4], 1);
+                art_section, blood_name, 1);
             spawn_state = (BloodSpawnState*)pdata->large_blood_spawn_state;
 
             queue_blood_spawn(
@@ -2426,31 +2440,32 @@ void plyr_bleed_large_ext(
     }
 }
 
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 88.738840%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
     static int cycle_index;
     BloodSpawnState* spawn_state;
     MkObj* object;
+    char* blood_name;
     int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model_data != 0) {
-        object = pdata->tracked_obj;
-        if (object != 0) {
-            if (object->hdr.instance == pdata->tracked_obj_instance) {
-                /* The object instance latch is still valid. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = plyr_pdata_live_tracked_obj(pdata);
+
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
             pdata->next_large_bleed_tick = exec_tick_ctr + 45;
+            blood_name = blood_map[4];
             art_section = get_shared_art_section_for_plyr_pdata(pdata);
             blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_map[4], 1);
+                art_section, blood_name, 1);
             spawn_state = (BloodSpawnState*)pdata->large_blood_spawn_state;
 
             switch (cycle_index) {
@@ -2511,32 +2526,31 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone) {
     }
 }
 
+
+
+
+
+/* TODO: [breakthrough needed] 89.657080%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void plyr_bleed_small_cycle_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner) {
     static int cycle_index;
     BloodSpawnState* spawn_state;
     MkObj* object;
+    char* blood_name;
     int art_section;
     unsigned int blood_art_id;
 
     if (get_blood_level() >= blood_type_list[3] &&
         pdata->blood_model_data != 0) {
-        object = pdata->tracked_obj;
-        if (object != 0) {
-            if (object->hdr.instance == pdata->tracked_obj_instance) {
-                /* The object instance latch is still valid. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = plyr_pdata_live_tracked_obj(pdata);
+
         if (object != 0 && pdata->next_large_bleed_tick <
                 (unsigned int)exec_tick_ctr) {
             pdata->next_large_bleed_tick = exec_tick_ctr + 45;
+            blood_name = blood_map[4];
             art_section = get_shared_art_section_for_plyr_pdata(owner);
             blood_art_id = get_artid_of_named_item_in_slot(
-                art_section, blood_map[4], 1);
+                art_section, blood_name, 1);
             spawn_state = (BloodSpawnState*)pdata->large_blood_spawn_state;
 
             switch (cycle_index) {
@@ -2626,6 +2640,24 @@ static inline int blood_bone_is_compatible(int requested, int candidate) {
     }
 }
 
+static inline MkObj* bleed_pdata_live_object(BleedPdata* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 63.632183%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static float p_bleed(void) {
     BloodProcVtableRef vtbl;
     BloodSpawnTarget* target;
@@ -2657,16 +2689,8 @@ static float p_bleed(void) {
             }
 
             if (--pdata->timer <= 0) {
-                object = pdata->object;
-                if (object != 0) {
-                    if (object->hdr.instance == pdata->object_instance) {
-                        /* The object instance latch is still valid. */
-                    } else {
-                        object = 0;
-                    }
-                } else {
-                    object = 0;
-                }
+                object = bleed_pdata_live_object(pdata);
+
 
                 if (object != 0 && !object->hide_flag_bits.hidden) {
                     step = pdata->step;
@@ -2994,6 +3018,24 @@ static void do_pfx_bleed(MkHdr* hdr) {
 
 
 
+static inline MkProc* blood_proc_latch_live_proc(BloodProcLatch* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 70.151370%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 int obj_spawn_bld(
     MkObj* object, BloodVelocityState* previous, int batch_count,
     BloodSpawnStep* step, BloodSpawnTarget* path, int point_index,
@@ -3052,16 +3094,8 @@ int obj_spawn_bld(
     }
 
     if (pfx == 0) {
-        proc = bleed_pfx_proc_item.proc;
-        if (proc != 0) {
-            if (proc->instance == bleed_pfx_proc_item.instance) {
-                /* The process instance latch is still valid. */
-            } else {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = blood_proc_latch_live_proc(&bleed_pfx_proc_item);
+
         if (proc != 0 &&
             pfx_create_raw_userdata(
                 0, 0x34, definition->field_00, 0x102, 0,

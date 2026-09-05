@@ -193,7 +193,7 @@ static int LockPipelineExpandData(RxPipeline* destination,
     }
 
     outputsBase = (unsigned int*)((unsigned char*)destination->nodes +
-                              rxPipelinePlatformData()->maxNodesPerPipe *
+                              rxPipelineGlobalField(maxNodesPerPipe) *
                                   sizeof(RxPipelineNode));
     for (index = (int)source->numNodes - 1; index >= 0; index--) {
         destination->nodes[index].outputs = outputsBase + index * 0x20;
@@ -205,7 +205,7 @@ static int LockPipelineExpandData(RxPipeline* destination,
     }
 
     topSortBase = (RxPipelineNodeTopSortData*)(
-        outputsBase + rxPipelinePlatformData()->maxNodesPerPipe * 0x20);
+        outputsBase + rxPipelineGlobalField(maxNodesPerPipe) * 0x20);
     for (index = 0; (unsigned int)index < source->numNodes; index++) {
         topSortBase[index].numIns = 0;
         topSortBase[index].numInsVisited = 0;
@@ -738,6 +738,7 @@ RxLockedPipe* RxPipelineLock(RxPipeline* pipeline)
 
 
 
+/* TODO: [near miss] 98.15069%; valid-node predicate materialization and GPR homes remain; no new structural hypothesis. */
 RxPipelineNode* RxPipelineFindNodeByName(RxPipeline* pipeline,
                                          const char* name,
                                          RxPipelineNode* start,

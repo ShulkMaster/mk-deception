@@ -9,6 +9,7 @@
 #include "runtime/mk_mem.h"
 #include "runtime/cstring.h"
 
+/* TODO: [breakthrough needed] 85.790695%; signed table flags recovered; inspect remaining size/type traversal and lowering. */
 int pfx_estimate_render_size(PfxVm* vm)
 {
     int size;
@@ -42,6 +43,7 @@ int pfx_estimate_render_size(PfxVm* vm)
     return size;
 }
 
+/* TODO: [breakthrough needed] 84.125%; signed table flags recovered; inspect remaining size/type traversal and lowering. */
 int pfx_particle_estimate_size(unsigned int flags, PfxEstimate* estimate)
 {
     int count;
@@ -74,6 +76,7 @@ void pfx_particle_set_memory(PfxParticleMemory* particle,
     particle->user_data_size = estimate->particle_user_data_size;
 }
 
+/* TODO: [breakthrough needed] 61.439716%; signed table flags recovered; inspect remaining size/type traversal and lowering. */
 void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build)
 {

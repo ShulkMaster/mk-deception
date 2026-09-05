@@ -260,6 +260,24 @@ static int vdestroy_movelist(void* self) {
     mkhdr_memfree((MkHdr*)self);
 }
 
+static inline FighterStyleScreen* fighter_style_obj_live_screen(FighterStyleObj* owner) {
+    FighterStyleScreen* object = owner->screen;
+    if (object != 0) {
+        if (object->instance == owner->screen_inst) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 93.248924%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static void init_movelist(MovelistPdata* movelist_pdata) {
     GameInfoPlyr* screen_wrapper;
     FighterMirror* char_data;
@@ -338,14 +356,8 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
         Pfx2dObj* pfx2d;
 
         style_obj = char_data->style_objs[style_slot];
-        screen = style_obj->screen;
-        if (screen != 0) {
-            if (screen->instance != style_obj->screen_inst) {
-                screen = 0;
-            }
-        } else {
-            screen = 0;
-        }
+        screen = fighter_style_obj_live_screen(style_obj);
+
         if (screen != 0) {
             pfx2d = (Pfx2dObj*)screen->pfx2d;
             pfx_obj = (MovelistPfxObj*)load_2d_pfxobj_with_texture(0x9012, pfx2d->texture, 0, 5);

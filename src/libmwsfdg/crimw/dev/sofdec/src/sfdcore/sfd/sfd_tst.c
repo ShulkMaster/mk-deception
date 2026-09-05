@@ -40,13 +40,12 @@ typedef struct SFTST_Work {
     int field_0x1BC;
 } SFTST_Work;
 
-/* MWCC emits these zero-initialized definitions in reverse declaration order. */
+int sftst_debout_siz = 0;
+char* sftst_debout_buf = 0;
+char* sftst_debout_round = 0;
+char* sftst_debout_write = 0;
+SFTST_Work* sftst_last = 0;
 int gap_06_804AC8B4_bss;
-SFTST_Work* sftst_last;
-char* sftst_debout_write;
-char* sftst_debout_round;
-char* sftst_debout_buf;
-int sftst_debout_siz;
 
 extern int sfadxt_stat;
 
@@ -76,6 +75,7 @@ static inline long long current_output(const SFTST_Work* work,
            scale_value(sample->value - work->previous_sample, master);
 }
 
+/* TODO: [breakthrough needed] 85.32576%; global layout recovered; time-adjustment arithmetic/CFG still require retail recovery. */
 void SFTST_Calc(SFTST_Work* work, SFTST_Time* master,
                 const SFTST_Time* sample, SFTST_Time* output)
 {

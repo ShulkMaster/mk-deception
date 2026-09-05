@@ -621,6 +621,7 @@ void flash_hit_at_bid(int bone) {
         effect, position.x, position.y, position.z);
 }
 
+/* TODO: [near miss] 99.57447%; object/effect declaration check did not change register homes; stop. */
 void low_flash_check(void) {
     unsigned int effect;
     MkObj* object;
@@ -642,6 +643,7 @@ void low_flash_check(void) {
     }
 }
 
+/* TODO: [near miss] 99.57447%; object/effect declaration check did not change register homes; stop. */
 void medium_flash_check(void) {
     unsigned int effect;
     MkObj* object;
@@ -663,6 +665,7 @@ void medium_flash_check(void) {
     }
 }
 
+/* TODO: [near miss] 99.57447%; object/effect declaration check did not change register homes; stop. */
 void high_flash_check(void) {
     unsigned int effect;
     MkObj* object;
@@ -846,10 +849,52 @@ void fight_fx_blades_clash(PlyrPdata* player) {
     }
 }
 
-/*
- * Soft ceiling: reaction_xfer_him ~91.53% -- whole-function nonvolatile
- * register permutation (r14-r31 numbering); memory operations match.
- */
+
+static inline MkProc* reaction_transfer_pdata_live_opponent_proc(ReactionTransferPdata* owner) {
+    MkProc* object = owner->opponent_proc;
+    if (object != 0) {
+        if (object->hdr.instance == owner->opponent_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
+    MkProc* object = owner->hold_proc;
+    if (object != 0) {
+        if (object->hdr.instance == owner->hold_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [breakthrough needed] 91.792656%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
+static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
+    MkObj* object = owner->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.120950%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     ReactionTransferPdata* transfer;
     ReactionDamagePdata* boost_source;
@@ -897,14 +942,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     transfer = (ReactionTransferPdata*)apdata;
-    opponent_proc = transfer->opponent_proc;
-    if (opponent_proc != 0) {
-        opponent_proc = (opponent_proc->hdr.instance ==
-            transfer->opponent_proc_instance)
-            ? opponent_proc : 0;
-    } else {
-        opponent_proc = 0;
-    }
+    opponent_proc = reaction_transfer_pdata_live_opponent_proc(transfer);
+
     victim_obj = transfer->opponent_obj;
     victim = transfer->opponent_pdata;
     cmdscript = get_cmdscript_for_proc(opponent_proc);
@@ -987,12 +1026,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         saved_object = plyr_obj;
         saved_opponent_object = his_obj;
         his_pdata = saved_player->his_plyr_pdata;
-        cleanup_object = saved_player->tracked_obj;
-        if (cleanup_object != 0 &&
-            cleanup_object->hdr.instance !=
-                saved_player->tracked_obj_instance) {
-            cleanup_object = 0;
-        }
+        cleanup_object = plyr_pdata_live_tracked_obj(saved_player);
+
         plyr_obj = cleanup_object;
         cleanup_opponent_object = his_pdata->tracked_obj;
         if (cleanup_opponent_object != 0 &&
@@ -1028,14 +1063,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     original_previous_state = plyr_pdata->previous_state;
     dispatch.saved_state = plyr_pdata->state;
     plyr_obj->flags_09_bits.wall_restricted = 0;
-    hold_proc = plyr_pdata->hold_proc;
-    if (hold_proc != 0) {
-        if (hold_proc->hdr.instance != plyr_pdata->hold_proc_instance) {
-            hold_proc = 0;
-        }
-    } else {
-        hold_proc = 0;
-    }
+    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+
     if (hold_proc != 0) {
         release_other_player();
         if (plyr_pdata == g_game_info.plyr0.slot.pdata) {

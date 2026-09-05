@@ -168,12 +168,12 @@ static inline float bgnd_sqrt(float value) {
     } input, guess;
     float refined;
 
+    input.f = value;
     if (value <= 0.0f) {
         return 0.0f;
     }
-    input.f = value;
     guess.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 10) & 0x3FFE] << 8;
+        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
     guess.u |=
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     refined = guess.f * (3.0f - (guess.f * guess.f) / value);
@@ -441,7 +441,6 @@ void start_shadow_watcher(void) {
     }
 }
 
-/* Soft ceiling: p_watch_shadow ~98.96% -- float-pool labels only. */
 static float p_watch_shadow(void) {
     Vec angles;
     float height;
@@ -449,12 +448,12 @@ static float p_watch_shadow(void) {
 
     if (g_game_info.plyr0.slot.mirror_a == 0 ||
         g_game_info.plyr1.slot.mirror_a == 0) {
-        return 0.0f;
+        return 1.0f;
     }
 
-    angles.x = 0.0f;
-    angles.y = 0.0f;
     angles.z = 0.0f;
+    angles.y = 0.0f;
+    angles.x = 0.0f;
     height = 0.5f *
         (g_game_info.plyr0.slot.mirror_a->pos.value.z +
          g_game_info.plyr1.slot.mirror_a->pos.value.z);
@@ -468,7 +467,7 @@ static float p_watch_shadow(void) {
     angles.x =
         1.5707964f * blend + 0.7853982f * (1.0f - blend);
     UpdateShadowCameraLightSource(&angles.x);
-    return 0.0f;
+    return 1.0f;
 }
 
 
@@ -940,10 +939,22 @@ void bgnd_insert_obj_ctrl_section(int object_id, int section) {
     }
 }
 
-/*
- * Soft ceiling: 93.43% -- validated-process latch and equivalent inline
- * square-root lookup/temporary scheduling only.
- */
+
+static inline MkProc* rope_proc_latch_live_proc(RopeProcLatch* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
 static void insert_obj_ctrl_section(MkSobj* object, int section) {
     MkProc* proc;
     MkHdr* pdata;
@@ -956,16 +967,8 @@ static void insert_obj_ctrl_section(MkSobj* object, int section) {
         return;
     }
 
-    proc = sobj_ctrl_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_proc_latch_live_proc(&sobj_ctrl_proc_item);
+
     if (proc == 0) {
         return;
     }
@@ -1214,7 +1217,12 @@ static void update_func_sin(BgndUpdateData* update, int index) {
     update->slots[index].field_34 = value;
 }
 
-/* Soft ceiling: 94.51% -- validated-process latch and list-loop branch layout. */
+
+
+
+
+
+/* TODO: [near miss] 98.114750%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void bgnd_detach_rope(int model_index) {
     MkObj* model;
     MkProc* proc;
@@ -1225,16 +1233,8 @@ void bgnd_detach_rope(int model_index) {
         return;
     }
 
-    proc = rope_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == rope_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_proc_latch_live_proc(&rope_proc_item);
+
 
     if (proc == 0) {
         rope = 0;
@@ -1322,10 +1322,12 @@ void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) 
     }
 }
 
-/*
- * Soft ceiling: 93.55% -- defensive-guard, validation-latch, and loop keep-edge
- * branch layout only.
- */
+
+
+
+
+
+/* TODO: [near miss] 96.811590%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void bgnd_attach_rope_to_bgnd_obj(
     int rope_model_index, int target_model_index, int object_id) {
     MkObj* target_model;
@@ -1345,14 +1347,8 @@ void bgnd_attach_rope_to_bgnd_obj(
         return;
     }
 
-    proc = rope_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance != rope_proc_item.instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_proc_latch_live_proc(&rope_proc_item);
+
 
     if (proc == 0) {
         rope = 0;

@@ -98,7 +98,7 @@ void* create_default_specular_light(void);
 void* get_bgnd_specular_light(void);
 void* create_default_bgnd_specular_light(void);
 RpSkin* RpSkinGeometryGetSkin(RpGeometry* geometry);
-void SpecularCreatePipelines(void);
+int SpecularCreatePipelines(void);
 
 extern int SpecularMaterialOffset;
 extern int SpecularGeometryOffset;

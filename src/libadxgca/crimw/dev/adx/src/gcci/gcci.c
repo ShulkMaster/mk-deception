@@ -470,20 +470,21 @@ static inline void gcci_make_path(char* path, const char* filename)
 {
     char* current;
     unsigned long length;
+    unsigned long index;
 
     strcpy(path, gcg_ci_root_dir);
     strcat(path, filename);
     length = strlen(path);
     current = path;
-    while (length > 0) {
+    for (index = 0; index < length; index++) {
         if (*current == '\\') {
             *current = '/';
         }
         current++;
-        length--;
     }
 }
 
+/* TODO: [near miss] 95.77273%; path loop recovered; global layout and GPR/scheduling residue remain. */
 void* gcCiOpen(const char* filename, void* parameter, int mode)
 {
     char path[256];

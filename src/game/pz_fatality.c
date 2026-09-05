@@ -45,7 +45,9 @@ typedef struct PuzzleObjectFlags {
 
 typedef struct PuzzleObjectSecondaryFlags {
     unsigned char stopped : 1;
-    unsigned char pad_low : 7;
+    unsigned char pad_mid : 5;
+    unsigned char field_bit1 : 1;
+    unsigned char pad_bit0 : 1;
 } PuzzleObjectSecondaryFlags;
 
 typedef struct PuzzleSobjMaterialData {
@@ -1094,7 +1096,6 @@ static float pz_fighters_burn_fatality_prep(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: r_pz_fighter_summon_burn ~94.35% - MWCC emit details; stop. */
 static float r_pz_fighter_summon_burn(void) {
     int animation_flags = 3;
 
@@ -1113,14 +1114,14 @@ static float r_pz_fighter_summon_burn(void) {
     }
     set_my_state(0x4201);
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->secondary_flags &= (unsigned char)~2;
+    plyr_obj->secondary_flags_bits.field_bit1 = 0;
     blend_to_ani(
         pz_shared_ani.burn_attacker_start, animation_flags, 0.035f);
     set_ani_speed(0.5f);
     ani_to_frame_x(91.0f);
 
     animation_flags = 0;
-    plyr_obj->secondary_flags &= (unsigned char)~2;
+    plyr_obj->secondary_flags_bits.field_bit1 = 0;
     if (plyr_pdata->side == 1) {
         animation_flags |= 8;
     }
@@ -4675,16 +4676,12 @@ static float pz_fighters_grinder_fatality_in_progress(void) {
     return 0.0f;
 }
 
-/*
- * Near match: 99.64%, exact 0xE0 size. Explicitly preserving both u16 random
- * results and computing the delay before the second call restores retail's
- * instruction stream; only four register arguments differ.
- */
+/* Both random draws use 16-bit results; the delay is sampled first. */
 static float pz_fighters_grinder_fatality_preround(void) {
     PuzzleGrinderMeatController* meat_controller;
     unsigned short direction_random;
-    unsigned int delay;
     unsigned int direction;
+    unsigned int delay;
 
     g_pz_fighter_fatality_engine.controller->preround_active = 1;
     g_pz_fighter_fatality_engine.controller->loop_sound =

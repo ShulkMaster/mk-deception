@@ -577,10 +577,9 @@ extern "C" int mslSoundIsReady(_mslSound* sound) {
 }
 
 
-/* TODO: [near miss] 99.24%; retail order restored; same-size NV coloring remains. */
 extern "C" void mslSoundUnCopy(_ListNode* node) {
-    mslCmdItem* command;
     int i;
+    mslCmdItem* command;
     mslRuntimeSound* sound;
 
     sound = (mslRuntimeSound*)ListNodeData(0, node);

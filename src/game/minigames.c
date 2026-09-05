@@ -2433,14 +2433,12 @@ static float p_pz_mode_fill(void) {
     return 1.0f;
 }
 
-/* Near miss: exact retail size, instructions, control flow, and accesses.
- * Objdiff reports only register operands and shared constant relocations. */
 static float p_pz_mode_who_won(void) {
+    float x;
     int rounds_to_win;
+    PuzzleBlockOffset* offset;
     int row;
     int column;
-    PuzzleBlockOffset* offset;
-    float x;
 
     if (puzzle_mode_net != 0) {
         puzzle_mode_net = 3;
@@ -3739,15 +3737,14 @@ static int pzsm_ai_float(PuzzlePlayerState* player,
     return 0;
 }
 
-/* Near miss: exact size and operations; remaining differences are registers. */
 static int pzsm_ai_edge_clear(PuzzlePlayerState* player,
                               PuzzlePlayerState* opponent) {
     int columns[2] = {0, 7};
     PuzzleAiData data;
     int occupied = 0;
     int highest = 0;
-    int column_index;
     int row;
+    int column_index;
     int opponent_super;
 
     for (column_index = 0; column_index < 2; column_index++) {
@@ -3795,15 +3792,14 @@ static int pzsm_ai_edge_clear(PuzzlePlayerState* player,
     return 0;
 }
 
-/* Near miss: exact size and operations; remaining differences are registers. */
 static int pzsm_ai_drill(PuzzlePlayerState* player,
                          PuzzlePlayerState* opponent) {
     int columns[2] = {3, 4};
     PuzzleAiData data;
     int occupied = 0;
     int highest = 0;
-    int column_index;
     int row;
+    int column_index;
     int opponent_super;
 
     for (column_index = 0; column_index < 2; column_index++) {
@@ -5738,11 +5734,10 @@ static void pzsm_rain_dance_cleanup(void) {
     pzsm_raindance_data.splash_object = 0;
 }
 
-/* Near match: pzsm_lower_down 99.53%; exact size, register operands only. */
 static int pzsm_lower_down(PuzzlePlayerState* player,
                            PuzzlePlayerState* opponent) {
-    int removed = 0;
     int column;
+    int removed = 0;
 
     if (player->supermove_state == 0) {
         player->supermove_state = 19;
@@ -6685,6 +6680,7 @@ static int pzsm_arrange(PuzzlePlayerState* player,
 }
 
 /* Near miss: exact size and operations; remaining differences are registers. */
+/* TODO: [near miss] 99.484535%; cell/change-counter register homes; lifetime trial regressed and was restored. */
 static int pzsm_antibreakers(PuzzlePlayerState* player,
                              PuzzlePlayerState* opponent) {
     int changed;
@@ -7217,12 +7213,52 @@ static void puzzle_fighter_display_floor_msg(PuzzlePlayerState* player,
     pdata->acceleration = -1;
 }
 
-/* Constrained structural mismatch (92.56%, retail 0x298/current 0x278). The
- * valid callback path, ownership checks, animation, and cleanup agree. Retail
- * preserves three redundant match-side validation branches and dereferences
- * null pdata on the invalid path; portable C merges those branches and returns
- * before the invalid access. Typed validators regress, so this is not labeled
- * an emission-only near miss. */
+
+static inline StringObj* puzzle_message_pdata_live_text(PuzzleMessagePdata* owner) {
+    StringObj* object = owner->text;
+    if (object != 0) {
+        if (object->instance == owner->text_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* puzzle_message_pdata_live_secondary_image(PuzzleMessagePdata* owner) {
+    ScreenObj* object = owner->secondary_image;
+    if (object != 0) {
+        if (object->instance == owner->secondary_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* puzzle_message_pdata_live_primary_image(PuzzleMessagePdata* owner) {
+    ScreenObj* object = owner->primary_image;
+    if (object != 0) {
+        if (object->instance == owner->primary_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* Retail dereferences null pdata on the invalid callback path; this C returns before that access. */
+
+
+
+
+/* TODO: [breakthrough needed] 96.987950%; invalid-path null access differs; defined retail contract unresolved; no further evidence-backed source change. */
 static float p_puzzle_fighter_chain_msg(void) {
     PuzzleMessagePdata* pdata = (PuzzleMessagePdata*)apdata;
     StringObj* text;
@@ -7233,30 +7269,12 @@ static float p_puzzle_fighter_chain_msg(void) {
         return -1.0f;
     }
 
-    text = pdata->text;
-    if (text != 0) {
-        if (text->instance != pdata->text_instance) {
-            text = 0;
-        }
-    } else {
-        text = 0;
-    }
-    secondary = pdata->secondary_image;
-    if (secondary != 0) {
-        if (secondary->instance != pdata->secondary_instance) {
-            secondary = 0;
-        }
-    } else {
-        secondary = 0;
-    }
-    primary = pdata->primary_image;
-    if (primary != 0) {
-        if (primary->instance != pdata->primary_instance) {
-            primary = 0;
-        }
-    } else {
-        primary = 0;
-    }
+    text = puzzle_message_pdata_live_text(pdata);
+
+    secondary = puzzle_message_pdata_live_secondary_image(pdata);
+
+    primary = puzzle_message_pdata_live_primary_image(pdata);
+
 
     if ((primary != 0 || text != 0) && pdata->lifetime_ticks != 0 &&
         puzzle_ctrl != 0) {
@@ -8854,6 +8872,7 @@ void load_puzzle_champion_screen(void) {
 
 /* Near miss: exact retail size, operations, ownership, and control flow.
  * Objdiff reports only eleven register-operand differences. */
+/* TODO: [near miss] 99.796196%; declaration scratch reduced coloring but found no exact candidate; retained source unchanged. */
 static void minigame_puzzlefighter_destroy(void) {
     MkPtr* process_item;
     MkPtr* next_item;

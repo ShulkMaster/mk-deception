@@ -37,11 +37,8 @@ unsigned int lastSeenExtraData;
 unsigned int lastSeenRightsPluginId;
 static RwModuleInfo clumpModule;
 
-static RpClumpGlobals* rpClumpModuleData(void)
-{
-    return (RpClumpGlobals*)((unsigned char*)RwEngineInstance +
-                             clumpModule.globalsOffset);
-}
+#define RP_CLUMP_MODULE_DATA() \
+    ((RpClumpGlobals*)((unsigned char*)RwEngineInstance + clumpModule.globalsOffset))
 
 static void ClumpTidyDestroyClump(void* clump, void* data)
 {
@@ -317,6 +314,7 @@ int _rpClumpRegisterExtensions(void)
 }
 
 
+/* TODO: [near miss] 98.52941%; atomic/link GPR coloring remains after scope check. */
 RpClump* RpClumpRender(RpClump* clump)
 {
     RpClump* result;
@@ -327,7 +325,7 @@ RpClump* RpClumpRender(RpClump* clump)
     link = clump->atomicList.next;
     end = &clump->atomicList;
     while (link != end) {
-        RpAtomic* atomic = rpAtomicFromClumpNode(link);
+        RpAtomic* atomic = RW_CONTAINER_OF(link, RpAtomic, inClumpLink);
         if (atomic->object.flags & 4) {
             RwFrameGetLTM(atomic->object.parent);
             if (atomic->renderCallBack(atomic) == 0)
@@ -347,7 +345,7 @@ RpClump* RpClumpForAllAtomics(RpClump* clump, RpAtomicCallBack callback, void* d
     link = clump->atomicList.next;
     end = &clump->atomicList;
     while (link != end) {
-        RpAtomic* atomic = rpAtomicFromClumpNode(link);
+        RpAtomic* atomic = RW_CONTAINER_OF(link, RpAtomic, inClumpLink);
         next = link->next;
         if (callback(atomic, data) == 0)
             return clump;
@@ -395,10 +393,11 @@ RpClump* RpClumpForAllLights(RpClump* clump, RpLightCallBack callback, void* dat
 }
 
 
+/* TODO: [breakthrough needed] 55.635715%; module access recovered; initialization helpers still differ from retail. */
 RpAtomic* RpAtomicCreate(void)
 {
     RpAtomic* atomic = RwEngineInstance->fpFreeListAlloc(
-        rpClumpModuleData()->atomicFreeList, 0x30014);
+        RP_CLUMP_MODULE_DATA()->atomicFreeList, 0x30014);
     if (atomic == 0)
         return 0;
     rwInitializeObjectHeader(atomic, 1, 0);
@@ -458,7 +457,7 @@ int RpAtomicDestroy(RpAtomic* atomic)
         RwResourcesFreeResEntry(atomic->repEntry);
     RpAtomicSetGeometry(atomic, 0, 0);
     _rwObjectHasFrameReleaseFrame(atomic);
-    RwEngineInstance->fpFreeListFree(rpClumpModuleData()->atomicFreeList, atomic);
+    RwEngineInstance->fpFreeListFree(RP_CLUMP_MODULE_DATA()->atomicFreeList, atomic);
     return 1;
 }
 
@@ -472,10 +471,11 @@ void RpClumpSetCallBack(RpClump* clump, RpClumpCallBack callback)
 }
 
 
+/* TODO: [breakthrough needed] 44.511906%; module access recovered; initialization helpers still differ from retail. */
 RpClump* RpClumpCreate(void)
 {
     RpClump* clump = RwEngineInstance->fpFreeListAlloc(
-        rpClumpModuleData()->clumpFreeList, 0x30010);
+        RP_CLUMP_MODULE_DATA()->clumpFreeList, 0x30010);
     if (clump == 0)
         return 0;
     rwInitializeObjectHeader(clump, 2, 0);
@@ -500,7 +500,7 @@ int RpClumpDestroy(RpClump* clump)
     frame = clump->object.parent;
     if (frame != 0)
         RwFrameDestroyHierarchy(frame);
-    RwEngineInstance->fpFreeListFree(rpClumpModuleData()->clumpFreeList, clump);
+    RwEngineInstance->fpFreeListFree(RP_CLUMP_MODULE_DATA()->clumpFreeList, clump);
     return 1;
 }
 

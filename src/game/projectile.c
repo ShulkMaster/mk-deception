@@ -472,25 +472,37 @@ void set_active_projectile_sound(
     }
 }
 
+static inline MkObj* projectile_pdata_live_object(ProjectilePdata* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if ((unsigned int)object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [near miss] 97.701300%; FP ordering and register allocation remain; no further evidence-backed source change. */
 void set_active_projectile_velocity(const Vec* velocity) {
     MkObj* object;
     float inverse_length;
 
     if (proj_pdata != 0) {
-        object = proj_pdata->object;
+        object = projectile_pdata_live_object(proj_pdata);
+
         if (object != 0) {
-            if ((unsigned int)object->hdr.instance ==
-                proj_pdata->object_instance) {
-                /* The instance latch still identifies this object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        if (object != 0) {
-            object->flags_08 |= 0x20;
-            object->pos_vel = *velocity;
+            object->flags_08_bits.gravity_enabled = 1;
+            object->pos_vel.x = velocity->x;
+            object->pos_vel.y = velocity->y;
+            object->pos_vel.z = velocity->z;
             if (object->pos_vel.x == 0.0f &&
                 object->pos_vel.y == 0.0f) {
                 object->ang.y = plyr_obj->ang.y;
@@ -653,6 +665,31 @@ MkObj* set_active_projectile_tracking_light(LightDef* definition) {
     return 0;
 }
 
+static inline ProjectilePdata* projectile_follower_pdata_validate_projectile(ProjectilePdata* object, ProjectileFollowerPdata* owner) {
+    if (object != 0) {
+        if (object->hdr.instance == owner->projectile_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* projectile_pdata_live_tracking_light(ProjectilePdata* owner) {
+    MkObj* object = owner->tracking_light;
+    if (object != 0) {
+        if ((unsigned int)object->hdr.instance == owner->tracking_light_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_point_light_follower(void) {
     ProjectileFollowerPdata* follower =
         (ProjectileFollowerPdata*)apdata;
@@ -660,39 +697,13 @@ static float p_point_light_follower(void) {
     MkObj* object;
     MkObj* light;
 
+    projectile = projectile_follower_pdata_validate_projectile(projectile, follower);
     if (projectile != 0) {
-        if (projectile->hdr.instance == follower->projectile_instance) {
-            /* The instance latch still identifies this projectile. */
-        } else {
-            projectile = 0;
-        }
-    } else {
-        projectile = 0;
-    }
-    if (projectile != 0) {
-        object = projectile->object;
+        object = projectile_pdata_live_object(projectile);
+
         if (object != 0) {
-            if ((unsigned int)object->hdr.instance ==
-                projectile->object_instance) {
-                /* The instance latch still identifies this object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        if (object != 0) {
-            light = projectile->tracking_light;
-            if (light != 0) {
-                if ((unsigned int)light->hdr.instance ==
-                    projectile->tracking_light_instance) {
-                    /* The instance latch still identifies this light. */
-                } else {
-                    light = 0;
-                }
-            } else {
-                light = 0;
-            }
+            light = projectile_pdata_live_tracking_light(projectile);
+
             if (light != 0) {
                 light->pos.value.x = object->pos.value.x;
                 light->pos.value.y = object->pos.value.y;

@@ -1474,27 +1474,33 @@ void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen) {
     screen->y = output_y;
 }
 
+static inline ScreenObj* fade_box_item_live_node(FadeBoxItem* owner) {
+    ScreenObj* object = owner->node;
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 95.500000%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void remove_widescreen_bars(void) {
     ScreenObj* upper;
     ScreenObj* lower;
     WidescreenBarPdata* pdata = 0;
 
-    upper = upper_fade_box_item.node;
-    if (upper != 0) {
-        if (upper->instance != upper_fade_box_item.instance) {
-            upper = 0;
-        }
-    } else {
-        upper = 0;
-    }
-    lower = lower_fade_box_item.node;
-    if (lower != 0) {
-        if (lower->instance != lower_fade_box_item.instance) {
-            lower = 0;
-        }
-    } else {
-        lower = 0;
-    }
+    upper = fade_box_item_live_node(&upper_fade_box_item);
+
+    lower = fade_box_item_live_node(&lower_fade_box_item);
+
     if (find_mkproc_pid(0x8229) != 0) {
         destroy_mkprocs_pid(0x8229);
     }
@@ -1611,27 +1617,22 @@ static float p_move_widescreen_bars(void) {
     return kNegOne;
 }
 
+
+
+
+
+
+
+/* TODO: [near miss] 97.519684%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void add_widescreen_bars(float height) {
     ScreenObj* upper;
     ScreenObj* lower;
     WidescreenBarPdata* pdata = 0;
 
-    upper = upper_fade_box_item.node;
-    if (upper != 0) {
-        if (upper->instance != upper_fade_box_item.instance) {
-            upper = 0;
-        }
-    } else {
-        upper = 0;
-    }
-    lower = lower_fade_box_item.node;
-    if (lower != 0) {
-        if (lower->instance != lower_fade_box_item.instance) {
-            lower = 0;
-        }
-    } else {
-        lower = 0;
-    }
+    upper = fade_box_item_live_node(&upper_fade_box_item);
+
+    lower = fade_box_item_live_node(&lower_fade_box_item);
+
 
     if (find_mkproc_pid(0x8229) != 0) {
         destroy_mkprocs_pid(0x8229);
@@ -2971,7 +2972,51 @@ void interaction_cam_set_target_info(int duration, float angle_a,
     }
 }
 
-/* Soft ceiling: inline orbit stack placement, latch peepholes, and FPR coloring. */
+
+static inline CameraObj* camera_item_validate_node(CameraObj* object, CameraItem* owner) {
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* interaction_camera_data_live_hero(InteractionCameraData* owner) {
+    MkObj* object = owner->hero;
+    if (object != 0) {
+        if (object->hdr.instance == owner->hero_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* interaction_camera_data_live_target(InteractionCameraData* owner) {
+    MkObj* object = owner->target;
+    if (object != 0) {
+        if (object->hdr.instance == owner->target_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 83.329430%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_interaction_cam(void) {
     CameraObj* entry_camera;
     CameraObj* active_camera;
@@ -3003,13 +3048,7 @@ static float p_interaction_cam(void) {
     entry_camera = camera_item.node;
     g_ic_data.created_process = 0;
     snap_angles = g_ic_data.ticks == 1;
-    if (entry_camera != 0) {
-        if (entry_camera->hdr.instance != camera_item.instance) {
-            entry_camera = 0;
-        }
-    } else {
-        entry_camera = 0;
-    }
+    entry_camera = camera_item_validate_node(entry_camera, &camera_item);
 
     if (entry_camera == 0) {
         return kNegOne;
@@ -3048,24 +3087,11 @@ static float p_interaction_cam(void) {
             blend = kHalf * (kOne - gxMathCos(ease_phase));
 
             if (track_targets != 0) {
-                hero = g_ic_data.hero;
+                hero = interaction_camera_data_live_hero(&g_ic_data);
+
                 if (hero != 0) {
-                    if (hero->hdr.instance != g_ic_data.hero_instance) {
-                        hero = 0;
-                    }
-                } else {
-                    hero = 0;
-                }
-                if (hero != 0) {
-                    target = g_ic_data.target;
-                    if (target != 0) {
-                        if (target->hdr.instance !=
-                            g_ic_data.target_instance) {
-                            target = 0;
-                        }
-                    } else {
-                        target = 0;
-                    }
+                    target = interaction_camera_data_live_target(&g_ic_data);
+
                     if (target != 0) {
                         conversation_midpoint.x =
                             hero->pos.value.x - target->pos.value.x;
@@ -3081,26 +3107,13 @@ static float p_interaction_cam(void) {
                     }
                 }
 
-                hero = g_ic_data.hero;
-                if (hero != 0) {
-                    if (hero->hdr.instance != g_ic_data.hero_instance) {
-                        hero = 0;
-                    }
-                } else {
-                    hero = 0;
-                }
+                hero = interaction_camera_data_live_hero(&g_ic_data);
+
                 if (hero == 0) {
                     conversation_interaction_angle = kZero;
                 } else {
-                    target = g_ic_data.target;
-                    if (target != 0) {
-                        if (target->hdr.instance !=
-                            g_ic_data.target_instance) {
-                            target = 0;
-                        }
-                    } else {
-                        target = 0;
-                    }
+                    target = interaction_camera_data_live_target(&g_ic_data);
+
                     if (target == 0) {
                         conversation_interaction_angle = kZero;
                     } else if (hero == target) {
@@ -3155,12 +3168,12 @@ static float p_interaction_cam(void) {
             g_ic_data.ticks--;
         }
 
-        RESOLVE_CAMERA_OBJ(active_camera);
+        active_camera = camera_live_node(&camera_item);
         active_camera->pos.x = desired_camera_position.x;
         active_camera->pos.y = desired_camera_position.y;
         active_camera->pos.z = desired_camera_position.z;
         look_at_interaction_target(&look_target, snap_angles);
-        RESOLVE_CAMERA_OBJ(active_camera);
+        active_camera = camera_live_node(&camera_item);
         old_cam_ang_offset.x = cam_ang_offset.x;
         old_cam_ang_offset.y = cam_ang_offset.y;
         old_cam_ang_offset.z = cam_ang_offset.z;
@@ -3535,7 +3548,25 @@ void special_move_cam_setup(int ease_ticks, int total_ticks, int unused,
     }
 }
 
-/* Soft ceiling: validated-latch branches, offset-base folding, FPR coloring. */
+
+static inline MkObj* special_move_camera_data_live_target(SpecialMoveCameraData* owner) {
+    MkObj* object = owner->target;
+    if (object != 0) {
+        if (object->hdr.instance == owner->target_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 95.430140%; FP ordering and register allocation remain; no further evidence-backed source change. */
 static float p_special_move_cam(void) {
     MkObj* target;
     CameraObj* camera;
@@ -3567,20 +3598,14 @@ static float p_special_move_cam(void) {
     float phase_step;
     float blend;
 
-    target = smc_data.target;
-    if (target != 0) {
-        if (target->hdr.instance != smc_data.target_instance) {
-            target = 0;
-        }
-    } else {
-        target = 0;
-    }
+    target = special_move_camera_data_live_target(&smc_data);
+
     if (target == 0) {
         mkproc_jump_sleep(p_camera_proc);
         return kZero;
     }
 
-    RESOLVE_CAMERA_OBJ(camera);
+    camera = camera_live_node(&camera_item);
     if (camera == 0) {
         mkproc_jump_sleep(p_camera_proc);
         return kZero;
@@ -3645,17 +3670,17 @@ static float p_special_move_cam(void) {
             current_ang_z = delta_ang_z * blend + start_ang_z;
         }
 
-        RESOLVE_CAMERA_OBJ(camera);
+        camera = camera_live_node(&camera_item);
         camera->pos.x = current_pos_x;
         camera->pos.y = current_pos_y;
         camera->pos.z = current_pos_z;
 
-        RESOLVE_CAMERA_OBJ(camera);
+        camera = camera_live_node(&camera_item);
         camera->ang.x = current_ang_x;
         camera->ang.y = current_ang_y;
         camera->ang.z = current_ang_z;
 
-        RESOLVE_CAMERA_OBJ(camera);
+        camera = camera_live_node(&camera_item);
         old_cam_ang_offset.x = cam_ang_offset.x;
         old_cam_ang_offset.y = cam_ang_offset.y;
         old_cam_ang_offset.z = cam_ang_offset.z;
@@ -3798,7 +3823,6 @@ static inline MkProc* camera_monitor_validate_node(
     return object;
 }
 
-/* TODO: [near miss] 99.950000%; instruction lowering, stack layout; one-trial ceiling. */
 void run_camera_script(int script, int argument, int flags) {
     MkHdr* pdata_hdr;
     MkProc* monitor = camera_script_monitor_item.node;
@@ -3822,14 +3846,18 @@ void run_camera_script(int script, int argument, int flags) {
         set_process_as_scriptable(process);
         memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
         {
-            float initial_speed = kZero;
-            float final_speed = kZero;
-            Vec endpoint = {0.0f, 0.0f, 0.0f};
+            float final_speed;
+            float initial_speed;
+            initial_speed = kZero;
+            final_speed = kZero;
+            {
+                Vec endpoint = {0.0f, 0.0f, 0.0f};
 
-            move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
-                              kZero);
-            orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
-                                        1, kZero);
+                move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
+                                  kZero);
+                orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
+                                            1, kZero);
+            }
         }
         if (camera_info.proc != 0) {
             xfer_proc(camera_info.proc, p_scripted_camera);

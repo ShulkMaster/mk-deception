@@ -1073,12 +1073,12 @@ int adjust_p2_life(float amount) {
     int depleted = 0;
 
     if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-        (g_game_info.flags & 0x20) == 0) {
+        g_game_info.flag_bits.lens_flare_enabled == 0) {
         return g_game_info.plyr0.field_0C <= 0.0f;
     }
     if (amount == -1.0f) {
         g_game_info.plyr1.field_0C = 0.0f;
-    } else if ((g_game_info.field_04 & 0x20) == 0) {
+    } else if (g_game_info.feature_flags.bits.powerbars_locked == 0) {
         g_game_info.plyr1.field_0C += amount;
     }
     if (amount > 0.0f) {
@@ -1103,12 +1103,12 @@ int adjust_p1_life(float amount) {
     int depleted = 0;
 
     if ((mode_of_play == 10 || mode_of_play == 0 || mode_of_play == 1) &&
-        (g_game_info.flags & 0x20) == 0) {
+        g_game_info.flag_bits.lens_flare_enabled == 0) {
         return g_game_info.plyr0.field_0C <= 0.0f;
     }
     if (amount == -1.0f) {
         g_game_info.plyr0.field_0C = 0.0f;
-    } else if ((g_game_info.field_04 & 0x20) == 0) {
+    } else if (g_game_info.feature_flags.bits.powerbars_locked == 0) {
         g_game_info.plyr0.field_0C += amount;
     }
     if (amount > 0.0f) {
@@ -1204,10 +1204,25 @@ void update_plyr_medals(void) {
     update_plyr_medals_impl();
 }
 
-/*
- * Soft ceiling: 89.84% -- repeated latch diamonds and player-state register
- * allocation only; object destruction order and conditions match retail.
- */
+
+static inline MkProc* proc_latch_live_object(ProcLatch* owner) {
+    MkProc* object = owner->object;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.750000%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void destroy_pwr_bars(void) {
     MkProc* process;
     ScreenLatch* latch;
@@ -1221,16 +1236,8 @@ void destroy_pwr_bars(void) {
     int string_index;
     int i;
 
-    process = pwr_bar_proc_item.object;
-    if (process != 0) {
-        if ((unsigned int)process->instance == pwr_bar_proc_item.instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = proc_latch_live_object(&pwr_bar_proc_item);
+
     if (process != 0 && process->instance != 0) {
         ((PwrbarProcVtable*)process->vtbl)->destroy();
     }
@@ -1306,6 +1313,7 @@ int are_powerbars_retracted(void) {
     return f_powerbars_retracted;
 }
 
+/* TODO: [near miss] 99.82549%; 24 helper-declaration permutations found no exact form; retained GPR/zero-argument lowering. */
 void init_pwr_bars(void) {
     ScreenObj* object;
     ScreenObj* back;

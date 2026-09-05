@@ -32,16 +32,92 @@ H05 | Cached value vs retail reload | Reload after call/sleep/aliasing store, or
 H06 | Retail retains computed value/address | Shared uses with no reload | Name genuine typed local/element/owner; retain only for observed interval.
 H07 | Extra/missing helper call | Retail bl boundary + signature | Visible inline body for expansion; out-of-line body for real call. Repeated inline-off idiom -> authentic side-effect-safe typed macro.
 H08 | Pointer-instance latch diamond differs | Null-before-instance reads; no bl | Typed accessor returning pointer on success, null otherwise; pass owner if preloaded arguments hoist reads. No empty keep arm. Check the caller’s active dont_inline region before extraction: it can emit a real accessor call despite an inline declaration. Preserve that region and retain a direct stale-instance guard there; do not change unrelated inlining to close a latch.
-H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition. Rotated top test -> explicit top guard/break. No dummy one-trip loop.
+H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition. Rotated top test -> explicit top guard/break. No dummy one-trip loop. An unsigned index bounded by length can retain cmplwi/ble plus CTR where a decreasing length folds entry to beq: gcCiGetFileSize reached100 with for(index=0; index<length; index++). Require identical zero-length and traversal behavior; guarded do/decrement changed the back edge and was rejected.
 H10 | Switch dispatch differs | Complete cases/default/fallthrough + text order | Recover switch/case order; preserve independent guards where retail repeats tests. No speculative labels.
 H11 | Return/cleanup join differs | Branch graph + effect ownership | Shared result/epilogue or explicit arm returns as observed. Shared zero return may avoid booleanization; cleanup exception -> M08.
 H12 | POD copy loop differs | Real type/size/alignment/alias semantics | Aggregate assignment for word/CTR copy; components for lfs/stfs. No compiler scaffolding.
 H13 | Intrusive-list loads/stores differ | Link ownership + callback effects + no bl | Exact typed reciprocal-store order; advance iterator before mutating callback when observed; reload links as retail does.
 H14 | Stack slots differ | Genuine address-taken locals + offsets | Reorder adjacent declarations/whole aggregates or narrow lifetime. Distinguish compiler-created by-value copies. No padding locals.
-H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration check, then N stop. No register carousel.
+H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration check, then N stop. A bounded declaration-only scratch can identify that single source insight: HAnimWrite and p_pz_mode_who_won reached100 with unchanged assignments; moving theta before cosTheta closed RpHAnimKeyFrameBlend. Require real locals, stack-sensitive scoring, real-TU verification, and no invented lifetime uses. No register carousel.
 H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nest single-use result; retain original callback owner at untyped boundary if observed. No manufactured return contract.
 
+H15 measured follow-up (2026-09-05): declaration-only candidates closed
+`ADXSJD_Create`, `axrna_update_play`, `mslSoundUnCopy`, the two puzzle AI scans,
+`pzsm_lower_down`, and `pulsate_object`. `HAnimRead` additionally required its
+existing hierarchy locals at function scope; assignments and calls stayed in
+place. Search the relevant declarations in scratch before spending the single
+source check. Reordering initialized declarations can also reorder stores: do
+not classify that as a pure declaration change. Check every caller when the
+declarations belong to an inline helper: `mwsfcre_FreeAll` closed `mwSfdDestroy`
+but lowered the nonexact `mwsfcre_MallocCompoWork` from 98.107346 to 97.768364.
+
+H02/H04 measured follow-up: a tiny immediate difference can select the wrong
+state, not merely another register. `_rpSkinInstanceCallback` needs the existing
+platform field at +0x2C, not the split-mesh count at +0x34. The weapon watcher
+must snapshot and compare the process entry at +0xB8, with `MkProcEntryFn`,
+not the destruction callback at +0xB4. Confirm the producer as well as the
+consumer. Existing flag overlays closed the NPC angle setter, both life-bar
+adjusters, the object-position matcher, and the puzzle burn reaction. Keep a
+neutral bit name when the bit's meaning is not established.
+
 ## Measured examples
+
+- H01/H03: If a GX call uses `clrlwi` where retail copies a proven 0/1 local,
+  check the local against the existing `GXBool` parameter type. Under the
+  RenderWare objects' disabled optimization, full-width locals retained masks
+  even though every assignment was 0 or 1. `GXBool` enable flags closed
+  `_rwDlObjectRenderSetup` (2,344 bytes); mipmap flags closed
+  `_rwGameCubeTextureSetLOD` after its plugin access was recovered. Preserve
+  full-width masks and enums; do not change a public prototype to suppress a mask.
+- H07/M13: A `static inline` plugin accessor can emit a real call under
+  `-inline off`. Require the retail offset load/add and the established plugin
+  layout, then use a typed macro that evaluates the owner once. This closed
+  `_rwDlRasterCamera_ZClearRectInit`, `_rwDlRasterCreate`, and `_rwDlTextureSet`.
+  Keep the function form available: both alpha-pass consumers regressed under
+  a blanket replacement, so only confirmed consumers use the macros.
+  The complete `dltextur` object subsequently passed the linked retail SHA-1.
+
+- H01: If the last virtual-call mismatch preserves an extra argument register,
+  verify the real callee before calling it coloring. The local Konquest jump
+  prototype invented a context argument; runtime `jump_sleep_*` takes only
+  entry and ticks. Using the canonical process vtable closed `p_monk_getup`
+  from 99.895836% to 100%. Do not pass the observed scratch vtable register as
+  a fabricated argument. Its preceding byte flag updates also required the
+  existing `moving` and `bit6` fields, not integer OR expressions.
+- H05: If retail reloads an owner after a destructor/allocation/emitter call,
+  preserve that reload instead of a convenience snapshot. `super_charge_me`
+  reached 100% using the current player at each ownership access;
+  `kill_fstyle_signs_for_plyr` reached 99.44827% after rereading the player and
+  style slot after destruction, then 100% with one counter-declaration check.
+  `p_decoy_shrink` also requires rereading the effect handle after
+  `fx_pause_emit`. Confirm the callback boundary; do not add volatile.
+  After recovering the process validator, `give_krypt_key_to_player` had only
+  its notice pointer and instance in swapped registers. One adjacent declaration
+  reorder closed 99.70874% to 100%; stop if that single lifetime check fails.
+- H04/H12: Retail byte `rlwimi` plus scalar `lfs/stfs` copies can expose two
+  independent source-shape issues. Existing gravity bitfields and component
+  velocity assignments raised `set_active_projectile_velocity` from 90.06493%
+  to 97.7013%; remaining FP scheduling is not a reason to add padding.
+  The existing scale-active field alone closed `destroy_subzero_decoy`.
+
+- H06: If retail loads a string-table entry before a helper and keeps it for
+  the following lookup, require the same read interval in source. A named
+  `blood_map[4]` snapshot before the section lookup improved all four tested
+  blood callers, including `plyr_bleed_mouth`. Verify that the helper cannot
+  change the table before moving the read. A different constant address alone
+  does not justify padding: compare referenced bytes and load placement first.
+- H06/H12: If retail zeros a stack slot at entry that later receives process
+  data through an output argument, try initializing that real output pointer
+  at entry. This improved both monk and Damashi NPC creation. Do not invent
+  an unused slot or padding. Conversely, scalar vector initialization helped
+  objective-arrow and directional-light callbacks but regressed the tested
+  pebble and wall-effect functions; preserve aggregate copies when retail
+  actually performs them. Keep declarations before statements in C89 units.
+- H05: Published conversation state and NPC waypoint paths can change across
+  process sleeps, event dispatch, and allocation callbacks. If retail reloads
+  the owner field afterward, use that field rather than the original argument
+  or cached path. Confirm each reload boundary independently; do not replace
+  genuine snapshots throughout an entire module.
 
 - H06: If two member arrays share one retail induction pointer but MWCC emits
   two, check whether source accesses one through a base-class alias and the
@@ -99,6 +175,21 @@ H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nes
   `npc_resolve_events` improved while `npc_invisible_update` fell from 90.77%
   to 44.88% after losing its explicit call. Restore the trial if any caller
   regresses, including callers below 95%.
+  Lowering the selection floor to 50% and testing the next 100 largest eligible
+  functions (actual report range 58.66–94.86%, 101,792 bytes) retained 95
+  improvements: 87/90 direct-owner and 8/10 cached-pointer trials. Twenty
+  crossed 95%, but only `p_point_light_follower` closed exactly (228 bytes,
+  including data-value and stack-operand checks). This shape can improve a
+  large reconstruction without resolving its other differences; a higher
+  score alone does not establish equivalent behavior. In particular, retain
+  the documented invalid-path difference in `p_puzzle_fighter_chain_msg`.
+  Three target regressions and two collateral regressions were restored.
+  `exit_meditation` and `npc_play_dialog_and_anim_sequence` improved locally
+  while previously exact callers fell to zero; inspect all callers, not just
+  the extracted latch. Each target received one valid measured candidate.
+  For automated extraction, require C identifier syntax for pointer types:
+  multiplication such as `0.0f * body` is not a declaration. Reject malformed
+  generated source before treating it as a matching experiment.
 
 ## Known traps
 

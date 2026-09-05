@@ -7,7 +7,7 @@ Select by mismatch, not historical score. Schema: ID | IF | REQUIRE | TRY.
 
 M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw. Re-test legacy pragmas after flag changes: mk_anim's unroll/limit/dont_inline controls became redundant under existing TU settings; require local-to-local section and all-function equivalence before removal. TU-wide scheduling discrepancy -> separate schedule test. Keep accepted flags fixed during refinement; no scattered optimization pragmas.
 M02 | Control-word/publication order differs | Retail loads/stores + alias boundaries | Load control word before subfield writes; publish owner at observed point; reload counts after aliasing stores.
-M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name real shared factors. Never reassociate FP to improve fuzzy.
+M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name real shared factors. Never reassociate FP to improve fuzzy. If an approximation has an extra interpolation-weight spill, check real weight updates before tuning registers: RpHAnimKeyFrameInterpolate reached100 with retail polynomial-before-sqrt order and direct beta/alpha updates, removing the extra sine temporary without changing expression grouping.
 M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise booleans only if both evaluations required; ternary/guarded assignment for observed join. For reversed pointer-equality operands with side-effect-free reads, try retail operand order once: RBT_RemoveNode 98.86652->99.03602 recovered eight cmplw operand pairs without changing size or CFG. Do not invert already-correct sibling comparisons or confuse symmetric equality with ordered comparisons.
 M05 | Integer-to-float scaffold | Proven signedness/precision | Natural cast; remove fake 0x4330 volatile machinery. Retain genuine bit reinterpretation via supported typed union.
 M06 | Leading stack byte updated, whole word passed | GC big-endian layout + callee flags + initialization | Byte-bitfield/word union. init_pwr_bars flip word is 0x20000000, not integer 0x20.
@@ -23,10 +23,28 @@ M12 | Alias analysis changes load/store schedule | Actual mutability/ownership/c
 M13 | Canonical macro/inline expansion missing | Definition + repeated retail expansion | Restore typed macro including genuine result/lvalue; shared header only for proven ownership. O0 unused parameter -> pragma unused, not wrong prototype.
 M14 | Varargs setup differs | EABI va_list + variadic callers | Exact MWCC va_list/builtin setup; crclr supports variadic call, not arbitrary prototype guessing.
 
+H14/M12 measured follow-up (2026-09-05): IF two real output locals have the
+correct stack addresses but reversed initialization stores, REQUIRE the retail
+store sequence and unchanged call arguments, then TRY separating declaration
+order from initialization order. In `run_camera_script`, keeping final-speed
+before initial-speed declarations, initializing initial-speed first, and then
+constructing the endpoint in its own scope reached 100%. Swapping initialized
+declarations instead reversed the argument slots; initializing after the
+endpoint shifted the stores. No extra local or padding was needed.
+
+M15 verification follow-up: inspect the use of each loaded constant, not only
+its value. `p_pz_shake_camera` uses 340.0f for amplitude and 3.0f for its loop
+sleeps; `p_watch_shadow` returns 1.0f. Both had report-exact instructions while
+referencing incorrect floats. `mwSfdDestroy` also needed an unsized diagnostic
+array: an explicit 24-byte bound included one byte absent from the 23-byte
+retail symbol. Compare payload bytes, symbol extent, and relocation addends.
+Do not count a report-exact function as data-value-exact while objdiff still
+reports a pooled-string mismatch, even when a separate byte comparison agrees.
+
 ## Object / link layout
 
 M15 | String identity/placement differs | ELF sizes + bytes + relocations | Pooled literals for anonymous pools; named objects for real symbols; unsized arrays for terminators. TU string/readonly/SDA flags require sibling evidence. No synthetic padding strings.
-M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw target/local offsets, alignment, SDA relocations | Recover initialization/definition order. Tentatives may emit reverse/first-use; extern before users + definitions after separates declaration from placement. Distinguish explicit split gaps from real object alignment: g_DSB_Buffers requires32-byte alignment (.bss+0x7E0, not+0x7C8); restoring the attribute fixes layout and makes mslStreamFile_Initialize100. No fabricated aggregate/padding.
+M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw target/local offsets, alignment, SDA relocations | Recover initialization/definition order. Tentatives may emit reverse/first-use; extern before users + definitions after separates declaration from placement. Distinguish explicit split gaps from real object alignment: g_DSB_Buffers requires32-byte alignment (.bss+0x7E0, not+0x7C8); restoring the attribute fixes layout and makes mslStreamFile_Initialize100. If trailing definitions lose pooling, test explicit zero initializers in proven symbol order before users: SFTST_Create reached100 while retaining all exact siblings and exact BSS data. Tentative declaration order alone did not control first-use placement. No fabricated aggregate/padding.
 M17 | Vtables/weak destructors differ, including link-only | ELF relocations, hierarchy, weak owner, sizes/order | Correct declarations/zero slots; inline-visible real destructors; verify reverse weak emission/COMDAT selection with linked SHA. A deleting call already includes a null guard: avoid wrapping ordinary delete in a second reconstructed guard. SoundBuffer's three FreeObject methods retain100 with plain delete this. Check newly emitted inline destructors against retail ordering, not just the old candidate.
 
 M07 diagnostic: When a nearly exact function still differs at a store offset,
@@ -36,6 +54,14 @@ old source wrote +0x38 (`lifetime`). Correcting the field changed 99.55111% to
 99.55556%; the tiny score delta concealed a behavioral error. Require the
 retail store and the independently established layout; do not rename an alias
 or move a member merely to match the immediate.
+
+M07/H14 diagnostic: A retail `lhzx` consumes a byte offset. For the existing
+`unsigned short GXMathSqrtTable[]`, `(bits >> 10) & 0x3FFE` is therefore not
+a C element index; use `(bits >> 11) & 0x1FFF`. In `insert_obj_ctrl_section`,
+correcting that factor-of-two error gave only a small score improvement.
+Initializing the real float/word union before the positivity guard then
+recovered retail's stack-store order and reached 100%, including data-value
+and stack-operand checks. No extra stack object or padding was needed.
 
 M15/M16 diagnostic: If report-exact code differs only at anonymous relocations,
 compare actual target bytes and run `objdiff-cli diff` with
@@ -48,6 +74,13 @@ The delimiter `" "` moved from `.sdata2+0` to `+0xE4`, shifting early floats and
 missing retail strings. Require initializer order and literal ownership before
 adding data; do not substitute one padding gap, dummy constants, or stack pads
 for nonuniform TU layout differences.
+
+M15 diagnostic: A report-exact diagnostic call can still reference the wrong
+message. After the plugin-access fix, `_rwDlRasterCreate` was report-100 but
+data-value-99.90826: its reconstructed "Raster creation failed" differed from
+retail's "Failed to create surface for texture". Restore the used literal from
+the relocation's target bytes, then rerun data-value comparison; do not dismiss
+all anonymous relocation mismatches as label differences.
 
 M15 named-pool diagnostic: If data-value mode still flags a named C array
 against retail `@stringBase0`, compare the used string at its addend and the

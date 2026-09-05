@@ -214,6 +214,7 @@ int _rpSkinVertexBuffersUpdate(RpSkin* skin, RpAtomic* atomic,
     return 1;
 }
 
+/* TODO: [breakthrough] 94.124084%; platform mode field corrected; matrix initialization/call lifetimes remain. */
 void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
                               const RwMatrix* ltm,
                               RpHAnimHierarchy* hierarchy)
@@ -230,7 +231,7 @@ void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
     if ((hierarchy->flags & rpHANIMHIERARCHYNOMATRICES) != 0) {
         const RwMatrix* transform;
 
-        if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
+        if (skin->maxNumWeights > 1 || skin->platformData == 3) {
             inverseNoMatrices.flags = 0;
             RwMatrixInvert(&inverseNoMatrices, ltm);
             transform = &inverseNoMatrices;
@@ -248,7 +249,7 @@ void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
                              &temporaryNoMatrices, transform);
         }
     } else if ((hierarchy->flags & rpHANIMHIERARCHYLOCALSPACEMATRICES) != 0) {
-        if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
+        if (skin->maxNumWeights > 1 || skin->platformData == 3) {
             for (i = 0; i < skin->numUsedBones; i++) {
                 RwMatrixMultiply(
                     &destination[skin->usedBoneList[i]],
@@ -266,7 +267,7 @@ void _rpSkinMatrixBlendUpdate(RwMatrix* destination, RpSkin* skin,
     } else {
         const RwMatrix* transform;
 
-        if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
+        if (skin->maxNumWeights > 1 || skin->platformData == 3) {
             inverseDefault.flags = 0;
             RwMatrixInvert(&inverseDefault, ltm);
             transform = &inverseDefault;
@@ -403,7 +404,7 @@ void* _rpSkinInstanceCallback(void* object, RwResEntry** resourceEntry)
         owner = geometry;
         ownerRef = &geometry->repEntry;
     }
-    if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
+    if (skin->maxNumWeights > 1 || skin->platformData == 3) {
         if ((geometry->flags & 0x02000000) != 0) {
             if (_RwDlPreInstanceOptimize == 1)
                 *resourceEntry = _rwDlGeometrySkinInstanceOptimized(
@@ -430,6 +431,7 @@ void* _rpSkinInstanceCallback(void* object, RwResEntry** resourceEntry)
     return object;
 }
 
+/* TODO: [breakthrough] 96.97369%; platform mode field corrected; resource-owner reload and loop lowering remain. */
 void* _rpSkinAtomicReinstanceCallBack(void* object,
                                       RwResEntry** resourceEntry)
 {
@@ -439,7 +441,7 @@ void* _rpSkinAtomicReinstanceCallBack(void* object,
     RpSkin* skin = *(RpSkin**)((unsigned char*)geometry +
                                _rpSkinGlobals.geometryOffset);
 
-    if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
+    if (skin->maxNumWeights > 1 || skin->platformData == 3) {
         RwGameCubeVertexBuffer* vertexBuffer =
             (RwGameCubeVertexBuffer*)(*resourceEntry + 1);
         void** cachedPositions;
@@ -563,6 +565,7 @@ void _rpSkinLoadMatrixPalette(const RpSkin* skin, unsigned int meshIndex,
     }
 }
 
+/* TODO: [breakthrough] 83.16209%; platform mode field corrected; resource traversal, stack and callback lowering remain. */
 void* _rpSkinRenderCallback(
     void* object, RxGameCubeAtomicAllInOneInstanceData* instanceData)
 {
@@ -587,7 +590,7 @@ void* _rpSkinRenderCallback(
                                    _rpDlGeomVtxFmtOffset);
     _rwDlVtxFmtSetup(format, (RpGameCubeVtxFmtSetupData*)instanceData);
     skin = RpSkinGeometryGetSkin(geometry);
-    if (skin->maxNumWeights > 1 || skin->splitData.numMeshes == 3) {
+    if (skin->maxNumWeights > 1 || skin->platformData == 3) {
         int normals;
 
         if ((instanceData->geometryFlags & 0x10) != 0)

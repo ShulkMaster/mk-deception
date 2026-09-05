@@ -1711,31 +1711,43 @@ void init_ground_move_no_aniproc(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
 }
 
+static inline MkProc* plyr_pdata_live_transient_proc(PlyrPdata* owner) {
+    MkProc* object = owner->transient_proc;
+    if (object != 0) {
+        if (object->instance == owner->transient_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 96.987180%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void init_ground_move(void) {
     MkObj* object;
     MkProc* process;
+    float weight;
 
     plyr_obj->hide_flag_bits.still_move = 0;
     plyr_anim_pdata->weight_velocity = 0.0f;
     if ((int)mode_of_play == 6) {
-        plyr_anim_pdata->weight = 0.25f;
+        weight = 0.25f;
     } else {
-        plyr_anim_pdata->weight = 1.0f;
+        weight = 1.0f;
     }
+    plyr_anim_pdata->weight = weight;
     plyr_anim_pdata->step = 1.0f;
     plyr_pdata->collision_result = -1;
     plyr_pdata->collision_disabled = 0;
     object = plyr_obj;
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = plyr_pdata_live_transient_proc(plyr_pdata);
+
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -3787,6 +3799,13 @@ void myvel_his_angle_y_inout(
     plyr_obj->pos_vel.z = cosine * z_velocity;
 }
 
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 95.104000%; call/inlining boundary needs recovery (bl gxMathSin); no further evidence-backed source change. */
 void myvel_my_angle_y(
     float angle_offset, float x_velocity, float z_velocity) {
     MkProc* process;
@@ -3795,16 +3814,8 @@ void myvel_my_angle_y(
     float cosine;
     int flipped;
 
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = plyr_pdata_live_transient_proc(plyr_pdata);
+
     if (process != 0 && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -3824,15 +3835,13 @@ void myvel_my_angle_y(
         angle = plyr_obj->ang.y - angle_offset;
         angle = 0.000005992112f *
                 (float)((int)(166886.1f * angle) & 0xFFFFF);
-        sine = gxMathSin(angle);
-        cosine = gxMathCos(angle);
     } else {
         angle = plyr_obj->ang.y + angle_offset;
         angle = 0.000005992112f *
                 (float)((int)(166886.1f * angle) & 0xFFFFF);
-        sine = gxMathSin(angle);
-        cosine = gxMathCos(angle);
     }
+    sine = gxMathSin(angle);
+    cosine = gxMathCos(angle);
     plyr_obj->pos_vel.x = sine * x_velocity;
     plyr_obj->pos_vel.z = cosine * z_velocity;
 }
@@ -3904,27 +3913,35 @@ void uv_my_angle_y(Vec* direction, float angle_offset) {
     direction->z = gxMathCos(wrapped_angle);
 }
 
+static inline EjbScalePdata* ejb_supercharge_view_live_scale_pdata(EjbSuperchargeView* owner) {
+    EjbScalePdata* object = (EjbScalePdata*) owner->scale_pdata;
+    if (object != 0) {
+        if (object->instance == owner->scale_pdata_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+static inline EjbSuperchargeView* supercharge_player(void) {
+    return (EjbSuperchargeView*)plyr_pdata;
+}
+
 int super_charge_me(void) {
-    EjbSuperchargeView* player;
     EjbScalePdata* scale_pdata;
 
-    player = (EjbSuperchargeView*)plyr_pdata;
-    if (player->recharge_tick < (unsigned int)game_tick_ctr) {
-        player->recharge_tick = game_tick_ctr +
+    if (supercharge_player()->recharge_tick < (unsigned int)game_tick_ctr) {
+        supercharge_player()->recharge_tick = game_tick_ctr +
             (int)(660.0f * inverse_game_speed + 0.5f);
-        player->charge_scale = 1.3f;
-        player->active_until = game_tick_ctr +
+        supercharge_player()->charge_scale = 1.3f;
+        supercharge_player()->active_until = game_tick_ctr +
             (int)(60.0f * inverse_game_speed + 0.5f);
-        scale_pdata = (EjbScalePdata*)player->scale_pdata;
-        if (scale_pdata != 0) {
-            if (scale_pdata->instance == player->scale_pdata_instance) {
-                /* Keep the live scale process data. */
-            } else {
-                scale_pdata = 0;
-            }
-        } else {
-            scale_pdata = 0;
-        }
+        scale_pdata = ejb_supercharge_view_live_scale_pdata(supercharge_player());
+
         if (scale_pdata != 0) {
             scale_pdata->scale = plyr_obj->scale;
             scale_pdata->script = scale_script_chargeup;
@@ -3933,8 +3950,8 @@ int super_charge_me(void) {
         } else {
             scale_pdata = (EjbScalePdata*)start_scale_proc(
                 plyr_obj, scale_script_chargeup);
-            player->scale_pdata = (MkHdr*)scale_pdata;
-            player->scale_pdata_instance = scale_pdata->instance;
+            supercharge_player()->scale_pdata = (MkHdr*)scale_pdata;
+            supercharge_player()->scale_pdata_instance = scale_pdata->instance;
         }
         return 1;
     }
@@ -4561,8 +4578,8 @@ static void gut_tumble_air_check(void) {
 }
 
 static void subzero_propell_collision(void) {
-    int ticks;
     int collision_result;
+    int ticks;
 
     start_plyr_attack(0.0f);
     ticks = 0;
@@ -4847,6 +4864,7 @@ void zero_my_hit_count(void) {
     plyr_pdata->hit_count = 0;
 }
 
+/* TODO: [breakthrough] 94.5%; corrected positive state IDs from raw addis/cmplwi; redundant retail addis remains. */
 int disable_impale_check(void) {
     unsigned int previous_state;
 
@@ -4854,10 +4872,10 @@ int disable_impale_check(void) {
         return 1;
     }
     previous_state = plyr_pdata->previous_state;
-    if (previous_state == (unsigned int)-0x39FE) {
+    if (previous_state == 0xC602U) {
         return 1;
     }
-    if (previous_state == (unsigned int)-0x3A00) {
+    if (previous_state == 0xC600U) {
         return 1;
     }
     return previous_state == 0x4206U;

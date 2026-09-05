@@ -75,9 +75,17 @@ int SFBUF_RingGetDataSiz(SfdHandle* handle, int buffer_index)
     return 0;
 }
 
+/* Retail queries inactive transport index 8 as well as buffers 0..7.
+ * That address is frame zero's height, not a ninth SfdBufferState. Walk the
+ * containing handle representation so the access does not index past buffers.
+ */
 int SFBUF_GetTermFlg(SfdHandle* handle, int buffer_index)
 {
-    return handle->buffers[buffer_index].terminated;
+    const unsigned char* object = (const unsigned char*)handle;
+    const unsigned char* first_flag =
+        (const unsigned char*)&handle->buffers[0].terminated;
+    return *(const int*)(object + (first_flag - object) +
+                         buffer_index * sizeof(SfdBufferState));
 }
 
 void SFBUF_SetTermFlg(SfdHandle* handle, int buffer_index, int terminated)

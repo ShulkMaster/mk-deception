@@ -1,23 +1,9 @@
 /*
- * ScreenInstancer.o -- build / tear down Screen trees from SCREEN blobs.
- *
- * NonMatching readable lift. ASM remains linked on GC until Matching.
+ * ScreenInstancer.o -- build and tear down Screen trees from SCREEN blobs.
  *
  * Pipeline: LoadScreenSet -> LoadSetData(SSET) -> ProcessScreenData(SNGC) ->
  * CreateScreen -> CreateObject / CreateElements -> CreateElement.
- *
- * SeRef risk: CreateElements / PatchScreenObject still the likeliest source of
- * bad SeRef links if tag walks or child reloc drift -- prefer typed SE* walks
- * over inventing host-only tables. Soft reclaim OK; keep sha1 green.
- *
- * Soft ceilings (trust report.json):
- *   CreateElements ~74% -- OBJ lis/cmpw vs subis; stop.
- *   ProcessScreenData ~93% -- schedule; stop.
- *   PatchScreenObject ~75% -- tag-tree/reg color; stop.
- *   PatchText/Poly ~89% -- same size, branch/reg leftover; stop.
- *   PatchAttribue/List/Event 100%. PatchAnimEffects ~88.4% / PatchAnims ~95.1%;
- *   typed SERefTable relocation slots preserve the retail reloc order.
- *   CreateScreen 100%. PatchScreenAction 100%. DestroyScreen **100%**.
+ * Packed pointer slots contain file-relative offsets until the patch pass.
  */
 
 #include "mwScreenEngine/Screen.h"
@@ -69,6 +55,7 @@ void PatchAttribue(SEBaseAttribute_t* attr, unsigned char* base,
 }
 
 /* Retail: no list null guard; bare add reloc; count reloaded each iteration. */
+/* TODO: [near miss] 91.666664%; equivalent typed slot indexing lowers to indexed loads; stop at address lowering. */
 void PatchAttribueList(SEAttributes_t* list, unsigned char* base,
                        SEStringTable_t* strings) {
     unsigned int i;
@@ -76,19 +63,15 @@ void PatchAttribueList(SEAttributes_t* list, unsigned char* base,
 
     i = 0;
     while (i < list->count) {
-        slot = SEAttributePtrSlot(list, i);
+        slot = &list->attributes[i];
         if (*slot != 0) {
-            *slot = (SEBaseAttribute_t*)SeFileReloc(base, *slot);
+            *slot = (SEBaseAttribute_t*)(base + (unsigned int)*slot);
         }
         PatchAttribue(*slot, base, strings);
         i += 1;
     }
 }
 
-/*
- * Soft ceiling was wrong earlier -- these are global in retail; keep tight
- * slwi/add form (no SEStringSlot helper) for Matching progress.
- */
 void PatchTextObject(SEBaseElement_t* baseElem, unsigned char* /*base*/,
                      SEStringTable_t* strings) {
     SETextElement_t* elem = (SETextElement_t*)baseElem;
@@ -142,11 +125,12 @@ void PatchScreenEvent(SEEvent_t* event, unsigned char* base,
 
     i = 0;
     while (i < event->actionCount) {
-        PatchScreenAction(SEActionAt(event, i), base, strings);
+        PatchScreenAction(&event->actions[i], base, strings);
         i += 1;
     }
 }
 
+/* TODO: [near miss] 95.61539%; retail tag dispatch recovered; typed slot addressing and coloring remain. */
 void PatchScreenObject(SEObject_t* obj, unsigned char* base,
                        SEStringTable_t* strings) {
     unsigned int i;
@@ -157,31 +141,25 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
     SEObjectClassInfo* classInfo;
     SEEvent_t** eventSlot;
     ScreenChildEntry** childSlot;
-    int partTag;
-    int gropTag;
-    int objTag;
-    int textTag;
-    int polyTag;
-    int charTag;
 
     if (obj->events != 0) {
-        obj->events = (ScreenEventList*)SeFileReloc(base, obj->events);
+        obj->events = (ScreenEventList*)(base + (unsigned int)obj->events);
     }
     if (obj->transform != 0) {
-        obj->transform = (SETransform*)SeFileReloc(base, obj->transform);
+        obj->transform = (SETransform*)(base + (unsigned int)obj->transform);
     }
     if (obj->children != 0) {
-        obj->children = (ScreenChildList*)SeFileReloc(base, obj->children);
+        obj->children = (ScreenChildList*)(base + (unsigned int)obj->children);
     }
     if (obj->classInfo != 0) {
-        obj->classInfo = (SEObjectClassInfo*)SeFileReloc(base, obj->classInfo);
+        obj->classInfo = (SEObjectClassInfo*)(base + (unsigned int)obj->classInfo);
     }
 
     classInfo = SeClassInfoOf(obj);
     if (classInfo != 0) {
         if (classInfo->params != 0) {
             classInfo->params =
-                (SEAttributes_t*)SeFileReloc(base, classInfo->params);
+                (SEAttributes_t*)(base + (unsigned int)classInfo->params);
         }
         classInfo = SeClassInfoOf(obj);
         if (classInfo->params != 0) {
@@ -195,7 +173,7 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
         while (i < (unsigned int)events->count) {
             eventSlot = SEEventPtrSlot(events, i);
             if (*eventSlot != 0) {
-                *eventSlot = (SEEvent_t*)SeFileReloc(base, *eventSlot);
+                *eventSlot = (SEEvent_t*)(base + (unsigned int)*eventSlot);
             }
             PatchScreenEvent(*eventSlot, base, strings);
             i += 1;
@@ -205,40 +183,30 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
     children = SeChildrenOf(obj);
     if (children != 0) {
         i = 0;
-        partTag = (int)kScreenTagPART;
-        gropTag = (int)kScreenTagGROP;
-        objTag = (int)kScreenTagOBJ;
-        textTag = (int)kScreenTagTEXT;
-        polyTag = (int)kScreenTagPOLY;
-        charTag = (int)kScreenTagCHAR;
+
         while (i < (unsigned int)children->count) {
             childSlot = ScreenChildEntryPtrSlot(children, i);
             if (*childSlot != 0) {
                 *childSlot =
-                    (ScreenChildEntry*)SeFileReloc(base, *childSlot);
+                    (ScreenChildEntry*)(base + (unsigned int)*childSlot);
             }
             entry = *childSlot;
             if (entry != 0) {
                 tag = (int)entry->typeTag;
-                /* Retail binary tree on PART / GROP / OBJ / TEXT / POLY / CHAR. */
-                if (tag != partTag) {
-                    if (tag < partTag) {
-                        if (tag == gropTag) {
-                            PatchScreenObject((SEObject_t*)entry, base, strings);
-                        } else if (tag >= gropTag) {
-                            if (tag == objTag) {
-                                PatchScreenObject((SEObject_t*)entry, base, strings);
-                            }
-                        } else if (tag == charTag) {
-                            /* skip */
-                        }
-                    } else if (tag == textTag) {
-                        PatchTextObject((SEBaseElement_t*)entry, base, strings);
-                    } else if (tag < textTag) {
-                        if (tag == polyTag) {
-                            PatchPolyObject((SEBaseElement_t*)entry, base, strings);
-                        }
-                    }
+                switch (tag) {
+                case kScreenTagPART:
+                case kScreenTagCHAR:
+                    break;
+                case kScreenTagGROP:
+                case kScreenTagOBJ:
+                    PatchScreenObject((SEObject_t*)entry, base, strings);
+                    break;
+                case kScreenTagTEXT:
+                    PatchTextObject((SEBaseElement_t*)entry, base, strings);
+                    break;
+                case kScreenTagPOLY:
+                    PatchPolyObject((SEBaseElement_t*)entry, base, strings);
+                    break;
                 }
             }
             i += 1;
@@ -248,6 +216,7 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
 
 /* Retail reloc is bare fileOff+base (no SeFileReloc bl / null helper).
  * Slot loads use (base+off)->field via add+lwz, not lwzx(off+4). */
+/* TODO: [near miss] 81.796875%; nested relocation flow agrees; typed table addressing and register allocation remain. */
 void PatchAnimEffects(SEAnimEffects_t* effects, unsigned char* base) {
     int i;
     int j;
@@ -265,14 +234,14 @@ void PatchAnimEffects(SEAnimEffects_t* effects, unsigned char* base) {
         effectSlot = SEAnimEffectPtrSlot(effects, i);
         off = (unsigned int)*effectSlot;
         if (off != 0) {
-            *effectSlot = (SEAnimEffect_t*)SeFileReloc(base, *effectSlot);
+            *effectSlot = (SEAnimEffect_t*)(base + (unsigned int)*effectSlot);
         }
         effect = *effectSlot;
         if (effect != 0) {
             off = (unsigned int)effect->m_tracks;
             if (off != 0) {
                 effect->m_tracks =
-                    (SERefTable*)SeFileReloc(base, effect->m_tracks);
+                    (SERefTable*)(base + (unsigned int)effect->m_tracks);
             }
             /* Retail reloads effect then walks tracks with no null check. */
             effect = *effectSlot;
@@ -287,7 +256,7 @@ void PatchAnimEffects(SEAnimEffects_t* effects, unsigned char* base) {
                 off = (unsigned int)item->m_keys;
                 if (off != 0) {
                     item->m_keys =
-                        (SERefTable*)SeFileReloc(base, item->m_keys);
+                        (SERefTable*)(base + (unsigned int)item->m_keys);
                 }
                 keys = item->m_keys;
                 k = 0;
@@ -305,6 +274,7 @@ void PatchAnimEffects(SEAnimEffects_t* effects, unsigned char* base) {
     }
 }
 
+/* TODO: [near miss] 96.6%; equivalent slot addressing, flag branch and local coloring remain. */
 void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
     unsigned int i;
     unsigned int j;
@@ -322,12 +292,12 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
         off = (unsigned int)scene->m_elements;
         if (off != 0) {
             scene->m_elements =
-                (SEElements_t*)SeFileReloc(base, scene->m_elements);
+                (SEElements_t*)(base + (unsigned int)scene->m_elements);
         }
         off = (unsigned int)scene->m_data;
         if (off != 0) {
             scene->m_data =
-                (SEAnimSceneData_t*)SeFileReloc(base, scene->m_data);
+                (SEAnimSceneData_t*)(base + (unsigned int)scene->m_data);
         }
 
         /* Retail walks m_elements (SERefTable shape) with no null check after reloc. */
@@ -343,7 +313,7 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
 
         scene->m_flags = 0x20;
 
-        /* Retail: no data==0 guard. Soft ceiling: clrlwi./bgt vs andi./bne on bit0. */
+        /* The packed animation data is required after scene relocation. */
         data = scene->m_data;
         if ((data->flags & 1) == 0) {
             j = 0;
@@ -352,7 +322,7 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
                 off = (unsigned int)track->effects;
                 if (off != 0) {
                     track->effects =
-                        (SEAnimEffects_t*)SeFileReloc(base, track->effects);
+                        (SEAnimEffects_t*)(base + (unsigned int)track->effects);
                 }
                 PatchAnimEffects(track->effects, base);
                 j += 1;
@@ -365,13 +335,14 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
     }
 }
 
+/* TODO: [near miss] 91.034485%; equivalent relocation operands, slot addressing and entry scheduling remain. */
 void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
                        void* /*unused*/) {
     ScreenData* se;
     unsigned int base;
     unsigned int i;
     SEStringTable_t* strings;
-    unsigned int* stringSlot;
+    char** stringSlot;
     unsigned int strOff;
 
     if (data == 0) {
@@ -388,30 +359,29 @@ void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
     /* Reloc order matches retail: animScenes@+0x10, objects@+0x0C, strings@+0x14. */
     if (se->animScenes != 0) {
         se->animScenes =
-            (SEAnimBlock_t*)SeFileReloc((unsigned char*)data, se->animScenes);
+            (SEAnimBlock_t*)((unsigned char*)data + (unsigned int)se->animScenes);
     }
     if (se->objects != 0) {
         se->objects =
-            (ScreenObjectRoot*)SeFileReloc((unsigned char*)data, se->objects);
+            (ScreenObjectRoot*)((unsigned char*)data + (unsigned int)se->objects);
     }
     if (se->strings != 0) {
         se->strings =
-            (SEStringTable_t*)SeFileReloc((unsigned char*)data, se->strings);
+            (SEStringTable_t*)((unsigned char*)data + (unsigned int)se->strings);
     }
 
     if (SeAnimScenesOf(se) != 0) {
         PatchAnims(SeAnimScenesOf(se), (unsigned char*)base);
     }
 
-    /* Soft ceiling: ProcessScreenData -- string-loop reloads strings each iter. */
     if (SeStringsOf(se) != 0) {
         i = 0;
         while (i < SeStringsOf(se)->count) {
             strings = SeStringsOf(se);
-            stringSlot = SEStringSlot(strings, i);
-            strOff = *stringSlot;
+            stringSlot = &strings->strings[i];
+            strOff = (unsigned int)*stringSlot;
             if (strOff != 0) {
-                *stringSlot = strOff + base;
+                *stringSlot = (char*)(strOff + base);
             }
             i += 1;
         }
@@ -423,14 +393,11 @@ void ProcessScreenData(Screen* /*screen*/, void* data, unsigned int /*size*/,
 
 static void ProcessControls(SEObject_t* seObj) {
     ScreenObject* live;
-    ScreenChildList* children;
-    ScreenChildEntry* entry;
     int i;
     int n;
+    ScreenChildList* children;
+    ScreenChildEntry* entry;
     int tag;
-    int objTag;
-    int gropTag;
-    /* Soft ceiling: ProcessControls -- OBJ/GROP lis/cmpw vs subis fold; stop. */
     if (seObj->classInfo != 0 && seObj->classInfo->params != 0) {
         live = seObj->liveObject;
         ((ScreenControl*)live)->ProcessParams(
@@ -439,15 +406,17 @@ static void ProcessControls(SEObject_t* seObj) {
     }
 
     children = seObj->children;
-    objTag = (int)kScreenTagOBJ;
-    gropTag = (int)kScreenTagGROP;
+
     i = 0;
     n = children->count;
     while (i < n) {
         entry = ScreenChildEntryAt(children, i);
         tag = (int)entry->typeTag;
-        if (tag == objTag || (tag < objTag && tag == gropTag)) {
+        switch (tag) {
+        case kScreenTagOBJ:
+        case kScreenTagGROP:
             ProcessControls((SEObject_t*)entry);
+            break;
         }
         i += 1;
     }
@@ -474,32 +443,28 @@ int ScreenInstancer::CreateScreen(Screen* screen, SEScreen_t* seScreen) {
     return (unsigned char)(rootSe->liveObject != 0);
 }
 
-/* Soft ceiling: DestroyObject / CloseObject / ProcessControls --
- * retail-sized loops + vtbl Dispose(+0x10)/dtor(+0x08)/Close(+0x38)/
- * Update(+0x44)/ProcessParams(+0x40)/Init(+0x0C); MWCC C++ still oversized vs retail. Stop.
- * DestroyScreen Matching 100% (Dispose + delete after clear liveObject). */
 void ScreenInstancer::DestroyObject(ScreenObject* object) {
-    ScreenChildList* list;
-    ScreenChildEntry* entry;
-    ScreenObject* child;
     int i;
     int n;
+    ScreenChildEntry* entry;
+    ScreenChildList* list;
+    ScreenObject* child;
     int tag;
-    int objTag;
 
     list = object->m_ext->children;
     if (list == 0) {
         return;
     }
 
-    /* Retail: lis OBJ first; GROP only in bge-fail branch. */
-    objTag = (int)kScreenTagOBJ;
     n = list->count;
     for (i = 0; i < n; i++) {
         entry = ScreenChildEntryAt(list, i);
         tag = (int)entry->typeTag;
-        if (tag == objTag || (tag < objTag && tag == (int)kScreenTagGROP)) {
+        switch (tag) {
+        case kScreenTagOBJ:
+        case kScreenTagGROP:
             DestroyObject(entry->object);
+            break;
         }
         child = entry->object;
         child->Dispose();
@@ -521,28 +486,26 @@ void ScreenInstancer::DestroyScreen(Screen* screen) {
 }
 
 void ScreenInstancer::CloseObject(ScreenObject* object) {
-    ScreenChildList* list;
-    ScreenChildEntry* entry;
     int i;
     int n;
+    ScreenChildEntry* entry;
+    ScreenChildList* list;
     int tag;
-    int objTag;
-    int gropTag;
 
-    /* Soft ceiling ~79%: OBJ/GROP lis/cmpw vs subis; typed entry walk. */
     list = object->m_ext->children;
     if (list == 0) {
         return;
     }
 
-    gropTag = (int)kScreenTagGROP;
-    objTag = (int)kScreenTagOBJ;
     n = list->count;
     for (i = 0; i < n; i++) {
         entry = ScreenChildEntryAt(list, i);
         tag = (int)entry->typeTag;
-        if (tag == objTag || (tag < objTag && tag == gropTag)) {
+        switch (tag) {
+        case kScreenTagOBJ:
+        case kScreenTagGROP:
             CloseObject(entry->object);
+            break;
         }
         entry->object->Close();
     }
@@ -557,6 +520,7 @@ void ScreenInstancer::CloseScreen(Screen* screen) {
     }
 }
 
+/* TODO: [near miss] 96.35%; factory/lifetime flow agrees; parent walk and local coloring remain. */
 ScreenObject* ScreenInstancer::CreateObject(ScreenMgr* mgr, Screen* screen,
                                             ScreenObject* parent, SEObject_t* seObj) {
     ScreenObject templateObj;
@@ -605,33 +569,30 @@ ScreenObject* ScreenInstancer::CreateObject(ScreenMgr* mgr, Screen* screen,
     return obj;
 }
 
-/*
- * Soft ceiling: CreateElements -- OBJ/GROP lis+cmpw vs subis fold; stop.
- * Retail: tag==OBJ || (tag<OBJ && tag==GROP) -> CreateObject else CreateElement.
- */
 int ScreenInstancer::CreateElements(ScreenMgr* mgr, Screen* screen, ScreenObject* parent,
                                     SEElements_t* elements) {
-    int objTag;
     int i;
     int n;
     int tag;
     ScreenChildEntry* entry;
     ScreenObject* created;
 
-    /* Soft ceiling ~74%: OBJ lis/cmpw vs subis; typed entry walk. */
-    objTag = (int)kScreenTagOBJ;
     i = 0;
     n = elements->count;
     while (i < n) {
         entry = ScreenChildEntryAt(elements, i);
         tag = (int)entry->typeTag;
-        if (tag == objTag) {
+        switch (tag) {
+        case kScreenTagOBJ:
             created = CreateObject(mgr, screen, parent, (SEObject_t*)entry);
-        } else if (tag < objTag && tag == (int)kScreenTagGROP) {
+            break;
+        case kScreenTagGROP:
             created = CreateObject(mgr, screen, parent, (SEObject_t*)entry);
-        } else {
+            break;
+        default:
             created =
                 (ScreenObject*)ScreenUtil::CreateElement(mgr, screen, parent, entry);
+            break;
         }
         entry->object = created;
         if (created != 0 && (unsigned int)created->NeedIdleProcessing() != 0) {
@@ -642,7 +603,7 @@ int ScreenInstancer::CreateElements(ScreenMgr* mgr, Screen* screen, ScreenObject
     return 1;
 }
 
-/* Soft ceiling: LoadSetData ~87.4% -- needReloc clrlwi / name-table schedule; stop. */
+/* TODO: [near miss] 85.08871%; relocation-flag lowering and name-table scheduling remain. */
 int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int /*size*/,
                                  void* /*unused*/) {
     SEScreenSet_t* blob;

@@ -313,6 +313,7 @@ void ADXT_SetTimeOfst(ADXTHandle* handle, s32 offset)
     handle->time_offset = offset;
 }
 
+/* TODO: [near miss] 99.9885%; filename buffer excluded from pooled BSS; explicit array initialization put it in data and was restored. */
 s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
 {
     s32 discarded;

@@ -33,6 +33,13 @@ typedef char RwGameCubeRasterExtSizeCheck[
 
 int _rwDlTextureSetRaster(void* texture, void* raster, int unused);
 
+#define RW_TEXTURE_PLATFORM_DATA(texture) \
+    ((RwGameCubeTextureExt*)((unsigned char*)(texture) + \
+                            _RwGameCubeTextureExtOffset))
+#define RW_RASTER_PLATFORM_DATA(raster) \
+    ((RwGameCubeRasterExt*)((unsigned char*)(raster) + \
+                           _RwGameCubeRasterExtOffset))
+
 /* Repository-local views of the runtime plugin storage. */
 static inline RwGameCubeTextureExt* rwTexturePlatformData(
     RwTexture* texture)

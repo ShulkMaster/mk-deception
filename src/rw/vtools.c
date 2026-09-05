@@ -1,6 +1,6 @@
 #include "rw/gamecube.h"
 
-/* Soft ceiling: retail retains an unused absent-position boolean normalization. */
+/* TODO: [near miss] 99.35518%; retail computes an unused absent-position boolean; stop without a dead sink. */
 void _rwGCNVertexBufferFill(const RwGameCubeVertexDescriptor* format,
                             const RwGameCubeVertexBuffer* vertexBuffer,
                             const RwGameCubeVertexData* data,

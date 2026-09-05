@@ -55,7 +55,7 @@ static void check_update_code(PfxVm* pfx)
             &pfx_behavior(pfx, 0)->update_instructions[i];
 
         if (instruction->opcode == 10 &&
-            instruction->argument_0x18 == 0x302) {
+            (int)instruction->arguments.table.index_field.description == 0x302) {
             fixup_table_spawn(pfx, instruction->field.description);
             pfx->flags_0x60 |= 0x200;
         }

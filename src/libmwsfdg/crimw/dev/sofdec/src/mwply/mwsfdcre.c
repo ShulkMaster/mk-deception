@@ -257,7 +257,7 @@ static const char allocation_count_exceeded[0x24] = "E2053001 MWSFD_Malloc: cnt 
 static const char header_null[0x28] = "E204161: mwPlyGetHdrInf(): NULL pointer";
 static const char header_size_invalid[0x2C] = "E204162: mwPlyGetHdrInf(): bufsize error";
 static const char destroy_failed[0x20] = "E20010703E MWSFCRE_DestroySfd: ";
-static const char allocation_leak[0x18] = "E2053005: forgot free.";
+static const char allocation_leak[] = "E2053005: forgot free.";
 static const char composition_work_failed[0x24] = "E2053003: not enough work: sfx_wk";
 static const char additional_info_work_failed[0x28] = "E2053004: not enough work: ainfsj_buf";
 static const char invalid_buffer_format[0x24] = "E3012102: Buffer format is invalid.";
@@ -330,8 +330,8 @@ static inline void* mwsfcre_Alloc(MwsPlayer* player, int size)
 static inline void mwsfcre_FreeAll(MwsPlayer* player)
 {
     MwsLibraryWork* work;
-    void* memory;
     int index;
+    void* memory;
     for (index = 0; index < 32; index++) {
         int reverse_index = 31 - index;
         memory = player->allocations[reverse_index];
@@ -423,6 +423,7 @@ void mwSfdDestroy(MwsPlayer* player)
     }
 }
 
+/* TODO: [near miss] 97.768364%; shared free-loop declaration order changes register coloring; allocation behavior retained. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create =

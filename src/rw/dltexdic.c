@@ -35,6 +35,7 @@ int _rwDlNativeTextureGetSize(unsigned int* size, void* object, int unused)
 
 
 
+/* TODO: [breakthrough] 99.435486%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
 {
     unsigned int rasterSize;
@@ -57,7 +58,7 @@ int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
         (((((RwTexture*)object)->filter_flags & 0xF000) >> 12 << 12) & 0xF000) |
         ((unsigned char)(((RwTexture*)object)->filter_flags & 0xFF) |
          ((((RwTexture*)object)->filter_flags & 0xF00) >> 8 << 8) & 0xF00);
-    textureExt = rwTexturePlatformData((RwTexture*)object);
+    textureExt = RW_TEXTURE_PLATFORM_DATA((RwTexture*)object);
     if ((textureExt->flags & 0x01000000) != 0) {
         textureHeader.maxAnisotropy = 0;
         textureHeader.biasClamp = 1;
@@ -77,7 +78,7 @@ int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
     bytesRemaining -= sizeof(textureHeader);
 
     raster = ((RwTexture*)object)->raster;
-    rasterExt = rwRasterPlatformData(raster->parent);
+    rasterExt = RW_RASTER_PLATFORM_DATA(raster->parent);
     rasterHeader.format =
         ((unsigned int)(unsigned char)raster->format << 8) | raster->type;
     rasterHeader.width = (unsigned short)raster->width;
@@ -118,6 +119,7 @@ int _rwDlNativeTextureWrite(RwStream* stream, void* object, int unused)
 
 
 
+/* TODO: [breakthrough] 91.30198%; retail plugin access expanded; inspect remaining object-specific lowering. */
 int _rwDlNativeTextureRead(RwStream* stream, void* object, int unused)
 {
     unsigned int chunkLength;
@@ -153,7 +155,7 @@ int _rwDlNativeTextureRead(RwStream* stream, void* object, int unused)
     if (raster == 0) {
         return 0;
     }
-    rasterExt = rwRasterPlatformData(raster);
+    rasterExt = RW_RASTER_PLATFORM_DATA(raster);
     rasterExt->format = rasterHeader.tileMode;
     rasterExt->paletteFormat = rasterHeader.paletteFormat;
     if (rasterHeader.hasAlpha != 0) {

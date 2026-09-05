@@ -812,12 +812,12 @@ void drone_start_bleeding(int player, float rate) {
     if ((player == 0 && state->fight->animation_side == 0) ||
         (player == 1 && state->fight->animation_side == 1)) {
         direction.x = 1.0f;
+        mirror = g_game_info.plyr0.slot.mirror_a;
         fighter = (MkObj*)g_game_info.plyr0.slot.fighter;
-        mirror = (MkObj*)g_game_info.plyr0.slot.mirror_a;
     } else {
         direction.x = -1.0f;
+        mirror = g_game_info.plyr1.slot.mirror_a;
         fighter = (MkObj*)g_game_info.plyr1.slot.fighter;
-        mirror = (MkObj*)g_game_info.plyr1.slot.mirror_a;
     }
 
     start_gusher(
@@ -3372,6 +3372,24 @@ float end_of_trial_wrapup(int winner) {
     return 0.0f;
 }
 
+static inline MkProc* plyr_pdata_live_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->anim_proc;
+    if (object != 0) {
+        if (object->instance == owner->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 91.795580%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float failed_trial_drone_wrapup(void) {
     TrialWrapupData* wrapup =
         mission_state->drone->pdata->status_data->trial_wrapup_data;
@@ -3379,7 +3397,7 @@ static float failed_trial_drone_wrapup(void) {
     MkProc* animation_process;
     AnimPdata* animation_pdata;
     AnimScript* animation;
-    unsigned short choice;
+    int choice;
     int generic;
     int sound_id;
     LipSyncKeyframe* lip_sync;
@@ -3419,14 +3437,8 @@ static float failed_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = pdata->anim_proc;
-        if (animation_process != 0) {
-            if (animation_process->instance != pdata->anim_proc_instance) {
-                animation_process = 0;
-            }
-        } else {
-            animation_process = 0;
-        }
+        animation_process = plyr_pdata_live_anim_proc(pdata);
+
         if (animation_process != 0) {
             animation_pdata =
                 (AnimPdata*)pdata_of_proc(animation_process);
@@ -3471,14 +3483,8 @@ static float failed_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = pdata->anim_proc;
-        if (animation_process != 0) {
-            if (animation_process->instance != pdata->anim_proc_instance) {
-                animation_process = 0;
-            }
-        } else {
-            animation_process = 0;
-        }
+        animation_process = plyr_pdata_live_anim_proc(pdata);
+
         if (animation_process != 0) {
             animation_pdata =
                 (AnimPdata*)pdata_of_proc(animation_process);
@@ -3493,6 +3499,13 @@ static float failed_trial_drone_wrapup(void) {
     return 0.0f;
 }
 
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.544556%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float successful_trial_drone_wrapup(void) {
     TrialWrapupData* wrapup =
         mission_state->drone->pdata->status_data->trial_wrapup_data;
@@ -3545,14 +3558,8 @@ static float successful_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = pdata->anim_proc;
-        if (animation_process != 0) {
-            if (animation_process->instance != pdata->anim_proc_instance) {
-                animation_process = 0;
-            }
-        } else {
-            animation_process = 0;
-        }
+        animation_process = plyr_pdata_live_anim_proc(pdata);
+
         if (animation_process != 0) {
             animation_pdata =
                 (AnimPdata*)pdata_of_proc(animation_process);
@@ -3598,14 +3605,8 @@ static float successful_trial_drone_wrapup(void) {
     if (apdata != 0) {
         PlyrPdata* pdata = (PlyrPdata*)apdata;
 
-        animation_process = pdata->anim_proc;
-        if (animation_process != 0) {
-            if (animation_process->instance != pdata->anim_proc_instance) {
-                animation_process = 0;
-            }
-        } else {
-            animation_process = 0;
-        }
+        animation_process = plyr_pdata_live_anim_proc(pdata);
+
         if (animation_process != 0) {
             animation_pdata =
                 (AnimPdata*)pdata_of_proc(animation_process);
@@ -4055,6 +4056,48 @@ static float p_finish_transform_player(void) {
     return 0.0f;
 }
 
+static inline MkObj* plyr_pdata_validate_sidekick_obj(MkObj* object, PlyrPdata* owner) {
+    if (object != 0) {
+        if (object->hdr.instance == owner->sidekick_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* konquest_mission_state_validate_monk_process(MkProc* object, KonquestMissionState* owner) {
+    if (object != 0) {
+        if (object->instance == owner->monk_process_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_mission_state_live_monk(KonquestMissionState* owner) {
+    MkObj* object = owner->monk;
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 96.111115%; call/inlining boundary needs recovery (bl update_mkobj); no further evidence-backed source change. */
 static float p_finish_transform_monk(void) {
     Vec position = {4000.0f, 0.0f, 4000.0f};
     Vec angles = {0.0f, 0.0f, 0.0f};
@@ -4062,25 +4105,14 @@ static float p_finish_transform_monk(void) {
     PlyrPdata* fighter = state->fight->pdata;
     MkObj* player_object = state->fight->active_object;
     MkObj* sidekick = fighter->sidekick_obj;
-    MkProc* raw_monk_process = state->monk_process;
+    MkProc* raw_monk_process;
     MkProc* monk_process;
     AnimPdata* animation;
     MkObj* monk;
 
-    if (sidekick != 0) {
-        if (sidekick->hdr.instance != fighter->sidekick_instance) {
-            sidekick = 0;
-        }
-    } else {
-        sidekick = 0;
-    }
-    if (raw_monk_process != 0) {
-        if (raw_monk_process->instance != state->monk_process_instance) {
-            raw_monk_process = 0;
-        }
-    } else {
-        raw_monk_process = 0;
-    }
+    sidekick = plyr_pdata_validate_sidekick_obj(sidekick, fighter);
+    raw_monk_process = state->monk_process;
+    raw_monk_process = konquest_mission_state_validate_monk_process(raw_monk_process, state);
     monk_process = raw_monk_process;
     if (monk_process != 0) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
@@ -4095,14 +4127,8 @@ static float p_finish_transform_monk(void) {
     if (state == 0) {
         monk = 0;
     } else {
-        monk = state->monk;
-        if (monk != 0) {
-            if (monk->hdr.instance != state->monk_instance) {
-                monk = 0;
-            }
-        } else {
-            monk = 0;
-        }
+        monk = konquest_mission_state_live_monk(state);
+
     }
     xfer_proc(monk_process, p_anim_idle);
     set_anim_script_frame(
@@ -4152,6 +4178,24 @@ static void start_hero_transform_effect(MkObj* hero) {
     start_transform_particle_set("hero_transform_explode", hero);
 }
 
+static inline MkObj* anim_pdata_live_obj(AnimPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.671050%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void trial_load_monk(void) {
     KonquestMissionState* state = get_mission_state();
     KonquestRoundStartPositions* starts;
@@ -4188,14 +4232,8 @@ static void trial_load_monk(void) {
         mission_state->monk_process = monk_process;
         mission_state->monk_process_instance = monk_process->instance;
 
-        monk = animation->obj;
-        if (monk != 0) {
-            if (monk->hdr.instance != animation->obj_instance) {
-                monk = 0;
-            }
-        } else {
-            monk = 0;
-        }
+        monk = anim_pdata_live_obj(animation);
+
         if (monk != 0) {
             monk->light_flags = player_object->light_flags;
             monk->pos.value.x = position->x;

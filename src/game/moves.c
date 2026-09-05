@@ -39,7 +39,7 @@ typedef struct MovesWeaponWatchPdata {
     MkHdr hdr;
     MkProc* player_proc;
     unsigned int player_proc_instance;
-    MkProcCallbackFn monitor_token;
+    MkProcEntryFn monitor_token;
     int timeout;
 } MovesWeaponWatchPdata;
 
@@ -1055,12 +1055,7 @@ static inline int moves_is_weapon_style(MovesStyle* style) {
             weapon_data->secondary_weapon != 0);
 }
 
-/*
- * Soft ceiling: retail m2c confirms the complete style scan, monitor setup,
- * four weapon grabs, show/callback/trail restoration, and pdata initialization.
- * Retail repeats explicit latch normalization before each grab; MWCC folds the
- * clean typed helper calls. Residue is that expansion, GPR layout, and labels.
- */
+/* TODO: [breakthrough] 69.12613%; watcher snapshots the retail entry function at +0xB8; repeated latch expansion still differs. */
 void start_special_weapon_monitor(void) {
     MovesWeaponWatchPdata* pdata;
     PlyrMirrorSlots* default_slots;
@@ -1125,7 +1120,7 @@ void start_special_weapon_monitor(void) {
         }
         plyr_weapon_trail_show(slots);
 
-        pdata->monitor_token = aproc->destroy_cb;
+        pdata->monitor_token = aproc->entry;
         pdata->player_proc = aproc;
         pdata->player_proc_instance = aproc->instance;
         pdata->timeout = 60;
@@ -1151,7 +1146,6 @@ static inline MkProc* weapon_watch_live_player_proc(MovesWeaponWatchPdata* owner
     return object;
 }
 
-/* TODO: [near miss] 99.982140%; instruction lowering; one-trial ceiling. */
 static float p_watch_weapon(void) {
     MkProc* player_proc;
     MovesWeaponWatchPdata* pdata;
@@ -1168,7 +1162,7 @@ static float p_watch_weapon(void) {
     player_proc = weapon_watch_live_player_proc(pdata);
 
     if (player_proc != 0 &&
-        pdata->monitor_token != player_proc->destroy_cb) {
+        pdata->monitor_token != player_proc->entry) {
         moves_jump(p_hide_and_die);
         return 0.0f;
     }

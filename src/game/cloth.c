@@ -202,23 +202,19 @@ typedef struct ClothProcVtable {
     ClothJumpSleepFn jump_sleep;
 } ClothProcVtable;
 
-/*
- * Soft ceilings: find_cloth_bone_id_from_tag ~99.77%, cb1/cb2 selectors
- * ~99.72% -- only beq vs equivalent ble on an unsigned zero-count check.
- */
 static inline ClothBone* find_cloth_bone_by_tag(MkObj* obj, int bone_id) {
     ClothBone* bone;
-    unsigned int remaining;
+    unsigned int count;
+    unsigned int index;
 
     bone_id &= 0xFFF;
-    remaining = obj->cloth_bone_count;
+    count = obj->cloth_bone_count;
     bone = obj->cloth_bones;
-    while (remaining != 0) {
+    for (index = 0; index < count; index++) {
         if ((bone->bone->tag & 0xFFF) == bone_id) {
             return bone;
         }
         bone++;
-        remaining--;
     }
     return 0;
 }

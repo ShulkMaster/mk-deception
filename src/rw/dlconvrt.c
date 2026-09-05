@@ -541,10 +541,11 @@ static RwImage* _rwDolphinPalettizeImage(RwImage* image, int depth)
     return palettized;
 }
 
+/* TODO: [breakthrough] 93.4898%; retail plugin access expanded; inspect remaining object-specific lowering. */
 static void _rwDlRasterPalletized4SetFromImage(RwRaster* raster,
                                                 RwImage* image)
 {
-    RwGameCubeRasterExt* extension = rwRasterPlatformData(raster);
+    RwGameCubeRasterExt* extension = RW_RASTER_PLATFORM_DATA(raster);
     RwDlPixelConvertFn convert = _rwDlSelectConvertFn(raster);
     int x;
     int y;
@@ -585,10 +586,11 @@ static void _rwDlRasterPalletized4SetFromImage(RwRaster* raster,
     }
 }
 
+/* TODO: [breakthrough] 88.6%; retail plugin access expanded; inspect remaining object-specific lowering. */
 static void _rwDlRasterPalletized8SetFromImage(RwRaster* raster,
                                                 RwImage* image)
 {
-    RwGameCubeRasterExt* extension = rwRasterPlatformData(raster);
+    RwGameCubeRasterExt* extension = RW_RASTER_PLATFORM_DATA(raster);
     RwDlPixelConvertFn convert = _rwDlSelectConvertFn(raster);
     int x;
     int y;

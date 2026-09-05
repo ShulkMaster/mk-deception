@@ -34,7 +34,8 @@ static int WriteSram(void* buffer, unsigned long offset, unsigned long size)
         EXIUnlock(0);
         return 0;
     }
-    command = 0xA0000000 | 0x100 | (offset << 6);
+    offset <<= 6;
+    command = 0xA0000000 | (offset + 0x100);
     error = 0;
     error |= !EXIImm(0, &command, 4, EXI_WRITE, 0);
     error |= !EXISync(0);

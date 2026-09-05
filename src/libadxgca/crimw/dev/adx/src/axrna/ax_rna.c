@@ -171,7 +171,7 @@ void AXRNA_SetOutPan(AXRNAHandle* handle, int channel, int pan)
                 voice = handle->voices[channel];
                 if (voice != 0) {
                     MIXSetPan(
-                        voice, (unsigned char)axrna_pan_tbl[pan + 15]);
+                        voice, axrna_pan_tbl[pan + 15]);
                 }
                 GCRNA_UnlockCs();
             }
@@ -246,7 +246,7 @@ void AXRNA_SetNumChan(AXRNAHandle* handle, int channels)
 
 void AXRNA_ExecServer(void)
 {
-    int i;
+    unsigned int i;
 
     for (i = 0; i < AXRNA_MAX_HANDLES; i++) {
         if (axrna_obj[i].used == 1) {
@@ -390,8 +390,8 @@ void axrna_update_play(AXRNAHandle* handle)
     AXVPB* voice;
     int current_position;
     int previous_position;
-    int release_bytes;
     int channel;
+    int release_bytes;
     int played;
 
     voice = handle->voices[handle->num_channels - 1];
@@ -429,7 +429,6 @@ void axrna_update_play(AXRNAHandle* handle)
     }
     played = (played / 2048) * 2048;
     if (played > 0) {
-        /* Soft ceiling: release byte count/channel index register coloring. */
         release_bytes = played * 2;
         for (channel = 0; channel < handle->num_channels; channel++) {
             handle->buffers[channel]->interface->get_chunk(
