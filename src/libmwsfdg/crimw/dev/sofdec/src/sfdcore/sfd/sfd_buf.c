@@ -93,14 +93,23 @@ void SFBUF_SetTermFlg(SfdHandle* handle, int buffer_index, int terminated)
     handle->buffers[buffer_index].terminated = terminated;
 }
 
+/* Inactive output index 8 aliases frame zero's width, like the termination
+ * flag aliases its height. Both preparation accesses use the handle extent. */
 int SFBUF_GetPrepFlg(SfdHandle* handle, int buffer_index)
 {
-    return handle->buffers[buffer_index].prepared;
+    const unsigned char* object = (const unsigned char*)handle;
+    const unsigned char* first_flag =
+        (const unsigned char*)&handle->buffers[0].prepared;
+    return *(const int*)(object + (first_flag - object) +
+                         buffer_index * sizeof(SfdBufferState));
 }
 
 void SFBUF_SetPrepFlg(SfdHandle* handle, int buffer_index, int prepared)
 {
-    handle->buffers[buffer_index].prepared = prepared;
+    unsigned char* object = (unsigned char*)handle;
+    unsigned char* first_flag = (unsigned char*)&handle->buffers[0].prepared;
+    *(int*)(object + (first_flag - object) +
+            buffer_index * sizeof(SfdBufferState)) = prepared;
 }
 
 int SFBUF_VfrmAddRead(SfdHandle* handle, int buffer_index,
