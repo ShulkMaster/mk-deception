@@ -277,10 +277,13 @@ void* _rxGCAtomicDefaultReinstanceCallback(
 void* _rxGCAtomicDefaultInstanceCallback(
     void* object, RwResEntry** resourceEntry)
 {
-    RpAtomic* atomic = (RpAtomic*)object;
-    RpGeometry* geometry = atomic->geometry;
+    RpGeometry* geometry;
     void* owner;
+    RpAtomic* atomic;
     RwResEntry** ownerRef;
+
+    atomic = (RpAtomic*)object;
+    geometry = atomic->geometry;
 
     if (geometry->numMorphTargets != 1) {
         owner = atomic;

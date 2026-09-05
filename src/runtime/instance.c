@@ -384,14 +384,15 @@ static RpGeometry* inplaceGeometryStreamRead(RwStream* stream) {
             }
             if (geometry->numTexCoordSets > 0) {
                 unsigned int tex_coord_size = geometry->numVertices << 3;
+                int tex_coord_index;
 
-                morph_index = 0;
-                while (morph_index < geometry->numTexCoordSets) {
+                tex_coord_index = 0;
+                while (tex_coord_index < geometry->numTexCoordSets) {
                     inplace_pointer = stream->data.memory.start +
                                       stream->data.memory.position;
-                    geometry->texCoords[morph_index] = inplace_pointer;
+                    geometry->texCoords[tex_coord_index] = inplace_pointer;
                     RwStreamSkip(stream, tex_coord_size);
-                    morph_index++;
+                    tex_coord_index++;
                 }
             }
             if (geometry->numTriangles != 0) {

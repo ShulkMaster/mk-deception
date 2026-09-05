@@ -905,12 +905,12 @@ static inline ScreenObj* resolve_blink_object(
 }
 
 static float p_blink_cursor(void) {
-    BlinkCursorPdata* pdata;
-    ScreenObj* object;
-    ScreenObj* live;
-    unsigned int instance;
     int on_ticks;
+    ScreenObj* live;
+    BlinkCursorPdata* pdata;
+    unsigned int instance;
     int off_ticks;
+    ScreenObj* object;
 
     pdata = (BlinkCursorPdata*)apdata;
     if (pdata != 0) {

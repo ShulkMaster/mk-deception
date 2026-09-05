@@ -3192,8 +3192,8 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     }
 
     /* Retail rlwimi bit6 from (se->flags << 5). */
-    ((ScreenPolyFilterBits*)&poly->filterFlags)->linear =
-        ((se->flags << 5) & 0x40) != 0;
+    poly->filterFlags = ((se->flags << 5) & SCREEN_POLY_LINEAR) |
+                        (poly->filterFlags & ~SCREEN_POLY_LINEAR);
     poly->offsetX = 0.0f;
     poly->offsetY = 0.0f;
 
@@ -3588,7 +3588,7 @@ void SetScreenPolyTexture__FPvP9RwTexture(ScreenPoly* poly, RwTexture* tex) {
     poly->colorTex = tex;
     if (tex != 0) {
         view = (RwTextureFilterView*)tex;
-        if (((ScreenPolyFilterBits*)&poly->filterFlags)->linear) {
+        if (((poly->filterFlags >> 6) & 1)) {
             view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
         } else {
             view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x3300;
@@ -8473,7 +8473,7 @@ void Update__9ImageListFv(ImageList* self) {
         poly->colorTex = color;
         if (color != 0) {
             view = (RwTextureFilterView*)color;
-            if (((ScreenPolyFilterBits*)&poly->filterFlags)->linear) {
+            if (((poly->filterFlags >> 6) & 1)) {
                 view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
             } else {
                 view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x3300;
@@ -8500,7 +8500,7 @@ void Update__9ImageListFv(ImageList* self) {
         poly->alphaTex = alpha;
         if (alpha != 0) {
             view = (RwTextureFilterView*)alpha;
-            if (((ScreenPolyFilterBits*)&poly->filterFlags)->linear) {
+            if (((poly->filterFlags >> 6) & 1)) {
                 view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
             } else {
                 view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x3300;

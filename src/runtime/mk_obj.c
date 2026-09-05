@@ -3192,9 +3192,11 @@ int vdestroy_mkobj(void* obj) {
 }
 
 void destroy_mkobj(void* obj) {
-    MkObj* mkobj = (MkObj*)obj;
-    RpClump* clump;
     int i;
+    RpClump* clump;
+    MkObj* mkobj;
+
+    mkobj = (MkObj*)obj;
 
     mkobj->hdr.instance = 0;
     if (mkobj->hide_flag_bits.bit3 != 0) {
