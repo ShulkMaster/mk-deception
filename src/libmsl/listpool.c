@@ -113,7 +113,8 @@ static inline void insert_node(_ListNode** list, _ListNode* node) {
     }
 }
 
-/* Soft ceiling: ListInsertAtTail ~94.41% -- inline-helper emit differences. */
+/* TODO: [near miss] 94.41%; inlined unlink reloads, redundant null-result
+ * emissions and GPR scheduling; stop at the clean-C ceiling. */
 void ListInsertAtTail(_ListNode** list, _ListNode* node) {
     _ListNode* tail;
 
@@ -182,7 +183,7 @@ _ListNode* ListRemove(_ListNode** list) {
     return node;
 }
 
-/* Soft ceiling: ListInsert ~95.93% -- inline-helper emit differences. */
+/* TODO: [near miss] 95.93%; inlined unlink reloads and GPR scheduling only. */
 void ListInsert(_ListNode** list, _ListNode* node) {
     insert_node(list, node);
 }
@@ -238,7 +239,7 @@ void* ListNodeData(ListPool* pool, _ListNode* node) {
     return node->data;
 }
 
-/* Soft ceiling: ListNodeFree ~97.28% -- inline-helper scheduling. */
+/* TODO: [near miss] 97.28%; identical pool bookkeeping; unlink GPR scheduling. */
 void ListNodeFree(ListPool* pool, _ListNode* node) {
     if (pool == 0) {
         mslDebugPrintf(LIST_STRING(0x1DE));
@@ -263,7 +264,7 @@ void ListNodeFree(ListPool* pool, _ListNode* node) {
     }
 }
 
-/* Soft ceiling: ListNodeAlloc ~98.20% -- inline-helper scheduling. */
+/* TODO: [near miss] 98.20%; unlink reloads and redundant null-result emission. */
 _ListNode* ListNodeAlloc(ListPool* pool) {
     _ListNode* node;
     int allocated;
@@ -301,11 +302,8 @@ _ListNode* ListNodeAlloc(ListPool* pool) {
     return node;
 }
 
-/*
- * Soft ceiling: ListPoolAttach ~99.49% -- retail derives the zero loop index
- * from the already-zero previous-node register; the remaining instruction is
- * equivalent immediate-zero scheduling.
- */
+/* TODO: [near miss] 99.49%; retail copies an already-zero GPR for the index;
+ * current code materializes zero; stop at zero/scheduling emission. */
 int ListPoolAttach(
     ListPool* pool, void* memory, msl_u32 element_count,
     msl_u32 element_size) {

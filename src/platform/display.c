@@ -133,16 +133,22 @@ void end_first_pass_render(void) {
     destroy_fade_box();
 }
 
-void start_first_pass_render(void) {
-    MkObj* camera_object = camera_item.object;
-    if (camera_object != 0) {
-        if (camera_object->hdr.instance == camera_item.instance) {
-        } else {
-            camera_object = 0;
+static inline MkObj* display_camera_live_object(DisplayCameraItem* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
         }
+        object = 0;
     } else {
-        camera_object = 0;
+        object = 0;
     }
+    return object;
+}
+
+void start_first_pass_render(void) {
+    MkObj* camera_object = display_camera_live_object(&camera_item);
+
     if (camera_object != 0) {
         camera_object->pos.value.x = 0.0f;
         camera_object->pos.value.y = 0.0f;
@@ -457,6 +463,20 @@ void turn_display_off(void) {
     display_off = 1;
 }
 
+static inline MkObj* fighter_live_shadow_obj(FighterMirror* owner) {
+    MkObj* object = owner->shadow_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->shadow_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.709680%; register coloring; one-trial ceiling. */
 void Render(void) {
     MkProc* capture_proc;
     MkProc* halt_proc;
@@ -498,15 +518,8 @@ void Render(void) {
                 if (fighter != 0 && g_game_info.plyr0.slot.mirror_a != 0 &&
                     g_game_info.plyr0.slot.mirror_b != 0 &&
                     fighter->flag_obj != 0) {
-                    MkObj* shadow_obj = fighter->shadow_obj;
-                    if (shadow_obj != 0) {
-                        if (shadow_obj->hdr.instance !=
-                            fighter->shadow_obj_instance) {
-                            shadow_obj = 0;
-                        }
-                    } else {
-                        shadow_obj = 0;
-                    }
+                    MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+
                     if (shadow_obj == 0) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr0);
                     } else if (g_game_info.plyr0.slot.mirror_b->hdr.instance != 0 &&
@@ -525,15 +538,8 @@ void Render(void) {
                 if (fighter != 0 && g_game_info.plyr1.slot.mirror_a != 0 &&
                     g_game_info.plyr1.slot.mirror_b != 0 &&
                     fighter->flag_obj != 0) {
-                    MkObj* shadow_obj = fighter->shadow_obj;
-                    if (shadow_obj != 0) {
-                        if (shadow_obj->hdr.instance !=
-                            fighter->shadow_obj_instance) {
-                            shadow_obj = 0;
-                        }
-                    } else {
-                        shadow_obj = 0;
-                    }
+                    MkObj* shadow_obj = fighter_live_shadow_obj(fighter);
+
                     if (shadow_obj == 0) {
                         plyr_turn_off_mirrorguy(&g_game_info.plyr1);
                     } else if (g_game_info.plyr1.slot.mirror_b->hdr.instance != 0 &&
@@ -697,16 +703,11 @@ int set_render_state(int state, int value) {
     }
 }
 
+
+
 void update_camera_facing_matrix(void) {
-    MkObj* camera_object = camera_item.object;
-    if (camera_object != 0) {
-        if (camera_object->hdr.instance == camera_item.instance) {
-        } else {
-            camera_object = 0;
-        }
-    } else {
-        camera_object = 0;
-    }
+    MkObj* camera_object = display_camera_live_object(&camera_item);
+
     if (camera_object != 0) {
         Vec angles;
         angles.z = 0.0f;

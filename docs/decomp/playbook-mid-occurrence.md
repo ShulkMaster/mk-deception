@@ -8,7 +8,7 @@ Select by mismatch, not historical score. Schema: ID | IF | REQUIRE | TRY.
 M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw. Re-test legacy pragmas after flag changes: mk_anim's unroll/limit/dont_inline controls became redundant under existing TU settings; require local-to-local section and all-function equivalence before removal. TU-wide scheduling discrepancy -> separate schedule test. Keep accepted flags fixed during refinement; no scattered optimization pragmas.
 M02 | Control-word/publication order differs | Retail loads/stores + alias boundaries | Load control word before subfield writes; publish owner at observed point; reload counts after aliasing stores.
 M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name real shared factors. Never reassociate FP to improve fuzzy.
-M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise booleans only if both evaluations required; ternary/guarded assignment for observed join.
+M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise booleans only if both evaluations required; ternary/guarded assignment for observed join. For reversed pointer-equality operands with side-effect-free reads, try retail operand order once: RBT_RemoveNode 98.86652->99.03602 recovered eight cmplw operand pairs without changing size or CFG. Do not invert already-correct sibling comparisons or confuse symmetric equality with ordered comparisons.
 M05 | Integer-to-float scaffold | Proven signedness/precision | Natural cast; remove fake 0x4330 volatile machinery. Retain genuine bit reinterpretation via supported typed union.
 M06 | Leading stack byte updated, whole word passed | GC big-endian layout + callee flags + initialization | Byte-bitfield/word union. init_pwr_bars flip word is 0x20000000, not integer 0x20.
 M07 | Aggregate/packed address differs | Stride/extent/ownership/access width | Typed element/subobject pointer; trailing table at &items[count]; payload after complete header via header+1. Runtime plugin offsets remain localized low-level access.
@@ -26,10 +26,49 @@ M14 | Varargs setup differs | EABI va_list + variadic callers | Exact MWCC va_li
 ## Object / link layout
 
 M15 | String identity/placement differs | ELF sizes + bytes + relocations | Pooled literals for anonymous pools; named objects for real symbols; unsized arrays for terminators. TU string/readonly/SDA flags require sibling evidence. No synthetic padding strings.
-M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw target/local offsets, alignment, SDA relocations | Recover initialization/definition order. Tentatives may emit reverse/first-use; extern before users + definitions after separates declaration from placement. No fabricated aggregate/padding.
-M17 | Vtables/weak destructors differ, including link-only | ELF relocations, hierarchy, weak owner, sizes/order | Correct declarations/zero slots; inline-visible real destructors; verify reverse weak emission/COMDAT selection with linked SHA.
+M16 | Global/zero-fill order differs; SHA fails at report-100 | Raw target/local offsets, alignment, SDA relocations | Recover initialization/definition order. Tentatives may emit reverse/first-use; extern before users + definitions after separates declaration from placement. Distinguish explicit split gaps from real object alignment: g_DSB_Buffers requires32-byte alignment (.bss+0x7E0, not+0x7C8); restoring the attribute fixes layout and makes mslStreamFile_Initialize100. No fabricated aggregate/padding.
+M17 | Vtables/weak destructors differ, including link-only | ELF relocations, hierarchy, weak owner, sizes/order | Correct declarations/zero slots; inline-visible real destructors; verify reverse weak emission/COMDAT selection with linked SHA. A deleting call already includes a null guard: avoid wrapping ordinary delete in a second reconstructed guard. SoundBuffer's three FreeObject methods retain100 with plain delete this. Check newly emitted inline destructors against retail ordering, not just the old candidate.
+
+M07 diagnostic: When a nearly exact function still differs at a store offset,
+check the existing field declarations before tuning registers. In
+`setup_konquest_pui`, retail stores 60.0f at PUI +0x34 (`drop_timer`), while the
+old source wrote +0x38 (`lifetime`). Correcting the field changed 99.55111% to
+99.55556%; the tiny score delta concealed a behavioral error. Require the
+retail store and the independently established layout; do not rename an alias
+or move a member merely to match the immediate.
+
+M15/M16 diagnostic: If report-exact code differs only at anonymous relocations,
+compare actual target bytes and run `objdiff-cli diff` with
+`-c functionRelocDiffs=data_value`. The report defaults to ignoring function
+relocations, so report-100 alone does not validate the payload. Ten Konquest
+latch matches also reached data-value-100; every stack operand already agreed.
+Their floats and vector initializers had identical bytes at different offsets.
+The delimiter `" "` moved from `.sdata2+0` to `+0xE4`, shifting early floats and
+8-byte alignment gaps. A separate 35-byte string-pool deficit came from five
+missing retail strings. Require initializer order and literal ownership before
+adding data; do not substitute one padding gap, dummy constants, or stack pads
+for nonuniform TU layout differences.
+
+M15 named-pool diagnostic: If data-value mode still flags a named C array
+against retail `@stringBase0`, compare the used string at its addend and the
+whole pool separately. `puzzle_strings` had identical 139-byte contents and
+placement yet remained flagged. `utils`' pool had the same 923-byte prefix plus
+one extra trailing NUL from explicit plus implicit termination; the used
+`WEAPREFL` bytes agreed. Record raw-byte evidence without relabeling the CLI
+result or inventing stack padding. A future pool fix must check actual literal
+termination and every TU consumer.
 
 ## Accept / stop
+
+M08 diagnostic: After a callback-containing allocation loop, an index-equals-count
+test is not proof of success if callbacks can change the count. Require retail
+failure edges that bypass the bounds test. A real allocation-result boolean
+preserves that distinction and shared cleanup: `mslInit` measured 99.24821% to
+99.009544% while removing the unsupported invariant. This is a correctness
+correction, not an exact-match trick. Direct inline cleanup on failure duplicated
+code (85.0883%); success inside the loop changed block order (91.357994% or
+97.434364%). Stop at the explicit result's localized flag test unless new source
+evidence explains the retail shared exit; do not remove the result for fuzzy score.
 
 One lever -> rebuild -> same diff. Failed hypothesis -> revert or retain only
 justified quality correction and disclose delta. Recheck every shared consumer.

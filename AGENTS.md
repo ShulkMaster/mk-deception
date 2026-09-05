@@ -35,7 +35,8 @@ repository. The supported target is the USA GameCube release, `GQNE5D`.
 ## Post-attempt status policy
 
 After every matching attempt (including a reverted trial or no-edit stop),
-update one source comment immediately above the affected function:
+if the function remains below 100%, update one source comment immediately above
+the affected function:
 
 ```c
 /* TODO: [near miss] 98.84%; equivalent latch CFG remains; stop at coloring. */
@@ -47,14 +48,23 @@ Required format: `TODO: [status] quick explanation`. Canonical statuses:
 - `breakthrough needed`: unresolved structural cause; name missing evidence.
 - `breakthrough`: structural cause fixed; name remaining mismatch/next check.
 - `near miss`: behavior/structure agree; localized codegen/relocation residue.
-- `matched`: measured exact result; distinguish report-exact from link-exact.
 - `blocked`: tool, input, or authorization prevents verification.
 
 Describe retained source, not the rejected candidate. Include current objdiff
 score when available and concrete residual/next action; use one or two lines.
 Replace previous status instead of appending history. For shared edits, update
-functions whose result/classification changes. Never infer `matched` from fuzzy
-improvement. Comments do not replace whole-TU checks, full build, or retail SHA-1.
+functions whose result/classification changes. Never infer an exact match from
+fuzzy improvement. Comments do not replace whole-TU checks, full build, or retail
+SHA-1.
+
+Once a function reaches a measured 100%, remove all matching-progress TODOs and
+comments associated with it, including old percentages, near-match notes, soft
+ceilings, attempt history, and `TODO: [matched]` markers. Do not replace them with
+a new 100% comment. Preserve comments that explain behavior, algorithms, ABI,
+layout, or other code semantics; if a comment mixes explanation with progress
+tracking, remove only the tracking content. Unrelated functional TODOs remain.
+Keep verification evidence and the distinction between report-exact, data-value
+exact, and link-exact in reports and project metadata, not function comments.
 
 ## Initialize the repository
 

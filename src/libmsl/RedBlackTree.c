@@ -4,14 +4,14 @@
  * Retail red-black tree owner used by the MSL external heap.
  * RBT_InsertNode, key bounds, and next/previous are exact. Key find remains a
  * bounded loop-emission near miss at 91.18%.
- * Soft ceilings: RBT_RemoveNode 98.87% and _RBT_InsertFixup 98.62%; both are
+ * Soft ceilings: RBT_RemoveNode 99.04% and _RBT_InsertFixup 98.62%; both are
  * size-exact with only GPR-coloring differences in otherwise identical code.
  */
 
 #define RBT_REPLACE_PARENT(tree, old_node, new_node) \
     do { \
         if (((new_node)->parent = (old_node)->parent) != 0) { \
-            if ((old_node) == (old_node)->parent->left) { \
+            if ((old_node)->parent->left == (old_node)) { \
                 (old_node)->parent->left = (new_node); \
             } else { \
                 (old_node)->parent->right = (new_node); \
@@ -88,6 +88,8 @@ int RBTK_GetPrevNextToKey(
     return 1;
 }
 
+/* TODO: [near miss] 91.18%; equivalent search exits omit two retail branches
+ * and a zero assignment; decoded execution agrees in 30,206 cases per version. */
 RedBlackNode* RBTK_FindQuickNodeEqualToKey(
     RedBlackTree* tree, const void* key) {
     RedBlackNode* node = tree->root;
@@ -106,6 +108,8 @@ RedBlackNode* RBTK_FindQuickNodeEqualToKey(
     return node;
 }
 
+/* TODO: [near miss] 99.04%; equality operand order recovered; rotations and CFG agree;
+ * only GPR coloring remains at the exact retail size. */
 RedBlackNode* RBT_RemoveNode(
     RedBlackTree* tree, RedBlackNode* removed) {
     RedBlackNode* fixup;
@@ -185,7 +189,7 @@ RedBlackNode* RBT_RemoveNode(
                     removed->right = 0;
                     removed->left = 0;
                     if ((successor->parent = removed->parent) != 0) {
-                        if (removed == removed->parent->left) {
+                        if (removed->parent->left == removed) {
                             removed->parent->left = successor;
                         } else {
                             removed->parent->right = successor;
@@ -203,7 +207,7 @@ RedBlackNode* RBT_RemoveNode(
             } else {
                 child->black = 1;
                 if ((removed->left->parent = removed->parent) != 0) {
-                    if (removed == removed->parent->left) {
+                    if (removed->parent->left == removed) {
                         removed->parent->left = removed->left;
                     } else {
                         removed->parent->right = removed->left;
@@ -220,7 +224,7 @@ RedBlackNode* RBT_RemoveNode(
             if (child != 0) {
                 child->black = 1;
                 if ((removed->right->parent = removed->parent) != 0) {
-                    if (removed == removed->parent->left) {
+                    if (removed->parent->left == removed) {
                         removed->parent->left = removed->right;
                     } else {
                         removed->parent->right = removed->right;
@@ -236,7 +240,7 @@ RedBlackNode* RBT_RemoveNode(
                 return removed;
             }
             if (removed->black == 0) {
-                if (removed == removed->parent->left) {
+                if (removed->parent->left == removed) {
                     removed->parent->left = 0;
                 } else {
                     removed->parent->right = 0;
@@ -252,7 +256,7 @@ RedBlackNode* RBT_RemoveNode(
         RedBlackNode* parent = fixup->parent;
         RedBlackNode* sibling;
 
-        if (fixup == parent->left) {
+        if (parent->left == fixup) {
             sibling = parent->right;
             if (sibling->black == 0) {
                 sibling->black = 1;
@@ -320,7 +324,7 @@ RedBlackNode* RBT_RemoveNode(
     } while (fixup->black == 1 && fixup->parent != 0);
 
     fixup->black = 1;
-    if (removed == removed->parent->left) {
+    if (removed->parent->left == removed) {
         removed->parent->left = 0;
     } else {
         removed->parent->right = 0;
@@ -363,6 +367,8 @@ void RBT_InsertNode(RedBlackTree* tree, RedBlackNode* node) {
     }
 }
 
+/* TODO: [near miss] 98.62%; exact rotation/recoloring operations and size;
+ * only GPR coloring remains. */
 void _RBT_InsertFixup(
     RedBlackTree* tree, RedBlackNode* node) {
     node->black = 0;

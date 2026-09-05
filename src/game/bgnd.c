@@ -246,6 +246,46 @@ static void bl_process_general_movement(
     BlBeetleControl* beetle, const Vec* target, int heading_ticks,
     int surface, float distance_limit_sq, float heading_offset,
     float heading_divisor, float movement_scale_a, float movement_scale_b);
+
+static inline MkProc* bgnd_live_player_process(PlyrPdata* owner) {
+    MkProc* object = owner->own_player_proc;
+    if (object != 0) {
+        if (object->instance == owner->own_player_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* bgnd_live_light_object(MkxRpLight* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline UvScrollControl* bgnd_live_uv_control(BgndUvScrollControlItem* owner) {
+    UvScrollControl* object = owner->control;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline void set_subobject_transl(MkSobj* object) {
     RpAtomic* atomic;
     RpGeometry* geometry;
@@ -1614,10 +1654,48 @@ static void sh_update_blood_fall_pebbles(
 static inline void sh_normalize_blood_direction(Vec* direction);
 extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
-/* Clean-C near match: 95.00%, retail/local 272/260. Process data, call order,
- * latch offsets, argument registers, early exits, and return values agree.
- * MWCC removes one redundant success-to-merge branch from each of the three
- * structurally identical latch validations. */
+static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_1_hdr(
+    SlaughterhouseData* owner) {
+    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[1].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->blood_fall_pebbles[1].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_0_hdr(
+    SlaughterhouseData* owner) {
+    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[0].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->blood_fall_pebbles[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline PebbleData* slaughterhouse_live_blood_fall_pebbles_2_hdr(
+    SlaughterhouseData* owner) {
+    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[2].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->blood_fall_pebbles[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_sh_bottom_floor_blood_fall(void) {
     ShBloodFallProcessData* data;
     PebbleData* pebbles;
@@ -1630,45 +1708,18 @@ static float p_sh_bottom_floor_blood_fall(void) {
         return -1.0f;
     }
 
-    pebbles = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr;
-    if (pebbles != 0) {
-        if (pebbles->hdr.instance ==
-            g_slaughterhouse_pdata->blood_fall_pebbles[1].instance) {
-            /* The latched pebble collection is still live. */
-        } else {
-            pebbles = 0;
-        }
-    } else {
-        pebbles = 0;
-    }
+    pebbles = slaughterhouse_live_blood_fall_pebbles_1_hdr(g_slaughterhouse_pdata);
+
     sh_update_blood_fall_pebbles(
         pebbles, &data->active_splats, &data->origin, data->gravity);
 
-    pebbles = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr;
-    if (pebbles != 0) {
-        if (pebbles->hdr.instance ==
-            g_slaughterhouse_pdata->blood_fall_pebbles[0].instance) {
-            /* The latched pebble collection is still live. */
-        } else {
-            pebbles = 0;
-        }
-    } else {
-        pebbles = 0;
-    }
+    pebbles = slaughterhouse_live_blood_fall_pebbles_0_hdr(g_slaughterhouse_pdata);
+
     sh_update_blood_fall_pebbles(
         pebbles, &data->active_splats, &data->origin, data->gravity);
 
-    pebbles = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr;
-    if (pebbles != 0) {
-        if (pebbles->hdr.instance ==
-            g_slaughterhouse_pdata->blood_fall_pebbles[2].instance) {
-            /* The latched pebble collection is still live. */
-        } else {
-            pebbles = 0;
-        }
-    } else {
-        pebbles = 0;
-    }
+    pebbles = slaughterhouse_live_blood_fall_pebbles_2_hdr(g_slaughterhouse_pdata);
+
     sh_update_blood_fall_pebbles(
         pebbles, &data->active_splats, &data->origin, data->gravity);
     return 1.0f;
@@ -3568,10 +3619,7 @@ static inline void bl_init_beetle(
                                  &beetle->position);
 }
 
-/* Exact-size near match. All twelve ranges have retail-identical loop
- * bounds, RNG call order, constants, field stores, matrix calls, post-target
- * overrides, and final count. The opcode multiset is identical; residue is
- * beetle/pebble register coloring and pooled constant relocation identity. */
+/* TODO: [near miss] 97.956860%; beetle/pebble register coloring and pool identity; no-edit stop. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     BlBeetleControl* beetle;
@@ -5209,11 +5257,20 @@ extern int move_to_end_point(const Vec* endpoint, float* initial_speed,
                              float* final_speed, int reset, float time);
 extern void get_current_target(Vec* target);
 
-/* Retail/local: 0x3F8/0x3F4, raw 96.84%. The camera choreography,
- * process-data ownership, validated camera latch, target-object chains,
- * movement calls, loop bounds, and angle math agree with retail. Remaining
- * differences are register coloring, pooled-constant labels, the equivalent
- * latch branch direction, and MWCC coalescing retail's zero-constant fmr. */
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.472440%; relocation offsets, register coloring; one-trial ceiling. */
 static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     Vec cut_position = {4.996f, 2.0f, 27.5f};
     Vec fixed_position = {1.166f, -9.5f, 43.734f};
@@ -5250,16 +5307,8 @@ static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     aproc->vtbl->sleep();
     xfer_camera(p_idle_camera, 1);
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance == camera_item.instance) {
-            /* The camera latch is live. */
-        } else {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
+
 
     get_current_target(&look_target);
     current_target.x = look_target.x;
@@ -9911,9 +9960,8 @@ void bgnd_remove_wall_from_hider(unsigned int object_id) {
         }
     }
 }
-/* Clean-C near match: 96.91%, retail/local 964/944 bytes. Traversal,
- * stale-link removal, both duplicated activation edges, object/effect loops,
- * and thresholds agree; residue is loop induction and register allocation. */
+
+/* TODO: [near miss] 97.468880%; instruction lowering, branch lowering; one-trial ceiling. */
 static float p_hide_walls(void) {
     BgndWallHiderData* hider;
     BgndWallHiderRuntime* runtime;
@@ -9925,16 +9973,8 @@ static float p_hide_walls(void) {
     float hide_distance;
     unsigned int index;
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance == camera_item.instance) {
-            camera = camera;
-        } else {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
+
     if (camera == 0) {
         return -1.0f;
     }
@@ -11076,21 +11116,12 @@ float bgnd_process_collision_info(
     }
     return result;
 }
-/* Near match: exact 136-byte operations and ABI; only the successful process
- * instance-latch path uses the opposite equivalent conditional branch. */
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player) {
     CmdScript* script;
     MkProc* process;
 
-    process = player->own_player_proc;
-    if (process != 0) {
-        if (process->instance != player->own_player_proc_instance) {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = bgnd_live_player_process(player);
     script = get_cmdscript_for_proc(process);
     if (process != 0) {
         run_reaction_cleanup_function(player);
@@ -12104,21 +12135,12 @@ void bgnd_make_object_transl(unsigned int object_id) {
         set_subobject_transl(object);
     }
 }
-/* Near match: exact 128-byte operations and ABI; MWCC folds the successful
- * instance-latch path to the opposite conditional branch shape. */
 void mks_xfer_collision_info_plyr_to_bgnd_script(
     PlyrPdata* player, int script_function) {
     CmdScript* script;
     MkProc* process;
 
-    process = player->own_player_proc;
-    if (process != 0) {
-        if (process->instance != player->own_player_proc_instance) {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = bgnd_live_player_process(player);
     if (process != 0) {
         script = get_cmdscript_for_proc(process);
         if (script != 0) {
@@ -12127,8 +12149,34 @@ void mks_xfer_collision_info_plyr_to_bgnd_script(
         }
     }
 }
-/* Near match: exact 192-byte operations and ABI; the two instance-latch
- * validations differ only by equivalent beq/bne branch emission. */
+
+static inline MkProc* player_live_player_proc(PlyrPdata* owner) {
+    MkProc* object = owner->player_proc;
+    if (object != 0) {
+        if (object->instance == owner->player_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* player_live_own_player_proc(PlyrPdata* owner) {
+    MkProc* object = owner->own_player_proc;
+    if (object != 0) {
+        if (object->instance == owner->own_player_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.062500%; register coloring; one-trial ceiling. */
 void mks_xfer_collision_info_plyr_to_script(int script_function,
                                              int player) {
     CmdScript* script;
@@ -12138,25 +12186,13 @@ void mks_xfer_collision_info_plyr_to_script(int script_function,
 
     if (player == 1) {
         pdata = g_active_obstacle_event_data->player_pdata;
-        candidate = pdata->player_proc;
-        if (candidate != 0) {
-            if (candidate->instance != pdata->player_proc_instance) {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = player_live_player_proc(pdata);
+
         process = candidate;
     } else {
         pdata = g_active_obstacle_event_data->player_pdata;
-        candidate = pdata->own_player_proc;
-        if (candidate != 0) {
-            if (candidate->instance != pdata->own_player_proc_instance) {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = player_live_own_player_proc(pdata);
+
         process = candidate;
     }
     script = get_cmdscript_for_proc(process);
@@ -12473,10 +12509,6 @@ void bgnd_sobj_set_priority(unsigned int object_id, int priority) {
         }
     }
 }
-/*
- * Near match: 95.42%, retail/local 96/92 bytes. Retail retains one redundant
- * success-edge branch in the validated control latch; all accesses are exact.
- */
 void bgnd_set_sobj_uv_scroll_abs_values(
     float u1, float v1, float u2, float v2, unsigned int index) {
     UvScrollControl* control;
@@ -12484,14 +12516,7 @@ void bgnd_set_sobj_uv_scroll_abs_values(
 
     if (index < 8) {
         item = &bgnd_uv_scroll_control_item[index];
-        control = item->control;
-        if (control != 0) {
-            if (control->hdr.instance != item->instance) {
-                control = 0;
-            }
-        } else {
-            control = 0;
-        }
+        control = bgnd_live_uv_control(item);
         if (control != 0) {
             control->mtx1[12] = u1;
             control->mtx1[13] = v1;
@@ -12500,7 +12525,6 @@ void bgnd_set_sobj_uv_scroll_abs_values(
         }
     }
 }
-/* Same clean-C validated-latch branch ceiling as the absolute-value setter. */
 void bgnd_set_sobj_uv_scroll_rate_values(
     float u1, float v1, float u2, float v2, unsigned int index) {
     UvScrollControl* control;
@@ -12508,14 +12532,7 @@ void bgnd_set_sobj_uv_scroll_rate_values(
 
     if (index < 8) {
         item = &bgnd_uv_scroll_control_item[index];
-        control = item->control;
-        if (control != 0) {
-            if (control->hdr.instance != item->instance) {
-                control = 0;
-            }
-        } else {
-            control = 0;
-        }
+        control = bgnd_live_uv_control(item);
         if (control != 0) {
             control->rateU1 = u1;
             control->rateV1 = v1;
@@ -13378,24 +13395,12 @@ void destroy_background_extras(void) {
     g_launched_sobj_crossing_plane_pdata = 0;
     g_sobj_launch_monitor_pdata = 0;
 }
-/*
- * Near match: 95.77%, retail/local 104/100 bytes. Retail keeps a redundant
- * success-edge branch in the pointer/instance validation diamond; the typed
- * clean-C form falls through with otherwise identical accesses and calls.
- */
 static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
     MkxRpLight* light;
     MkObj* object;
 
     light = MKX_RPLIGHT_FROM_HDR(header);
-    object = light->obj;
-    if (object != 0) {
-        if (object->hdr.instance != light->obj_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = bgnd_live_light_object(light);
     if (object != 0) {
         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
     }

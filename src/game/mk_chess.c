@@ -2719,20 +2719,23 @@ int mk_chess_allow_cam_control(void) {
     return result;
 }
 
-/*
- * Soft ceiling: mk_chess_zoom_return_completed ~96.36% - validated-camera
- * latch branch shape and zero-float pool identity.
- */
-float mk_chess_zoom_return_completed(void) {
-    CameraObj* camera = camera_item.node;
-
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
         }
+        object = 0;
     } else {
-        camera = 0;
+        object = 0;
     }
+    return object;
+}
+
+float mk_chess_zoom_return_completed(void) {
+    CameraObj* camera = camera_live_node(&camera_item);
+
+
     if (camera != 0) {
         mk_chess_set_viewing_quadrant(camera);
     }
@@ -2743,22 +2746,15 @@ float mk_chess_zoom_return_completed(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: mk_chess_zoom_completed ~95.10% - validated-camera latch
- * coloring/branch shape and zero-float pool identity.
- */
+
+
+
 float mk_chess_zoom_completed(void) {
     ChessCameraInfo* camera_info =
         mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0;
-    CameraObj* camera = camera_item.node;
+    CameraObj* camera = camera_live_node(&camera_item);
 
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+
 
     camera_info->viewing_camera = camera_info->zoom_camera;
     camera_info->current_look_at.x = camera_info->desired_look_at.x;

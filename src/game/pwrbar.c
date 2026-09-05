@@ -208,13 +208,24 @@ static inline void owned_set_quad_alpha(
     }
 }
 
+static inline ScreenObj* pbar_live_screen(ScreenLatch* latch) {
+    ScreenObj* object = latch->object;
+    if (object != 0) {
+        if ((unsigned int)object->instance == latch->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static inline void set_latched_quad_alpha(ScreenLatch* latch) {
     ScreenObj* object = latch->object;
 
     if (object != 0) {
-        if ((unsigned int)object->instance == latch->instance) {
-            /* Keep the live object. */
-        } else {
+        if ((unsigned int)object->instance != latch->instance) {
             object = 0;
         }
     } else {
@@ -821,7 +832,7 @@ static float p_extend_powerbars(void) {
     return 1.0f;
 }
 
-/* Soft ceiling: 97.68% -- two redundant latch-branch emissions only. */
+/* TODO: [near miss] 97.73196%; two latch joins remain; accessor perturbs zero-register reuse; stop. */
 void extend_powerbars(void) {
     MkHdr* pdata;
     int allowed;
@@ -853,7 +864,7 @@ void extend_powerbars(void) {
     }
 }
 
-/* Soft ceiling: 97.38% -- two inlined latch branch emissions only. */
+/* TODO: [near miss] 99.41860%; latch CFG agrees; list-base and frame-counter register coloring; stop. */
 float p_move_pbars_off_screen(void) {
     ScreenLatch* latch;
     ScreenObj* screen;
@@ -867,16 +878,7 @@ float p_move_pbars_off_screen(void) {
         for (screen_index = 0;
              pbar_item_list[screen_index] != 0; screen_index++) {
             latch = pbar_item_list[screen_index];
-            screen = latch->object;
-            if (screen != 0) {
-                if ((unsigned int)screen->instance == latch->instance) {
-                    /* Keep the live object. */
-                } else {
-                    screen = 0;
-                }
-            } else {
-                screen = 0;
-            }
+            screen = pbar_live_screen(latch);
             if (screen != 0) {
                 screen->y += 6;
             }
@@ -890,16 +892,7 @@ float p_move_pbars_off_screen(void) {
         for (string_index = 0;
              pbar_string_item_list[string_index] != 0; string_index++) {
             latch = pbar_string_item_list[string_index];
-            string = (StringObj*)latch->object;
-            if (string != 0) {
-                if ((unsigned int)string->instance == latch->instance) {
-                    /* Keep the live object. */
-                } else {
-                    string = 0;
-                }
-            } else {
-                string = 0;
-            }
+            string = (StringObj*)pbar_live_screen(latch);
             if (string != 0) {
                 string->render_y += 6;
             }

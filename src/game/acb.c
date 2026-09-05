@@ -147,6 +147,20 @@ void movelist_change_move(int delta) {
     sprintf(screen_pdata->counter_buf, STR_MOVELIST_COUNTER_FMT, display_move, max_move);
 }
 
+static inline MovelistPfxObj* movelist_style_live_pfx_obj(MovelistStyleSlot* owner) {
+    MovelistPfxObj* object = owner->pfx_obj;
+    if (object != 0) {
+        if (object->instance == owner->pfx_inst) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.051730%; register coloring; one-trial ceiling. */
 void movelist_change_style(int delta) {
     MovelistPdata* screen_pdata;
     int zero;
@@ -177,14 +191,8 @@ void movelist_change_style(int delta) {
 
     style_index = screen_pdata->style_idx;
     style = movelist_style_slot(screen_pdata, style_index);
-    pfx_obj = style->pfx_obj;
-    if (pfx_obj != 0) {
-        if (pfx_obj->instance != style->pfx_inst) {
-            pfx_obj = 0;
-        }
-    } else {
-        pfx_obj = 0;
-    }
+    pfx_obj = movelist_style_live_pfx_obj(style);
+
     if (pfx_obj == 0) {
         return;
     }

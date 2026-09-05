@@ -1138,6 +1138,20 @@ void start_special_weapon_monitor(void) {
  * Near miss: p_watch_weapon is semantically complete. Remaining differences
  * are float-pool labels and MWCC's equivalent valid-latch branch layout.
  */
+static inline MkProc* weapon_watch_live_player_proc(MovesWeaponWatchPdata* owner) {
+    MkProc* object = owner->player_proc;
+    if (object != 0) {
+        if (object->instance == owner->player_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.982140%; instruction lowering; one-trial ceiling. */
 static float p_watch_weapon(void) {
     MkProc* player_proc;
     MovesWeaponWatchPdata* pdata;
@@ -1151,16 +1165,8 @@ static float p_watch_weapon(void) {
         moves_jump(p_hide_and_die);
         return 0.0f;
     }
-    player_proc = pdata->player_proc;
-    if (player_proc != 0) {
-        if (player_proc->instance == pdata->player_proc_instance) {
-            /* The player latch is still live. */
-        } else {
-            player_proc = 0;
-        }
-    } else {
-        player_proc = 0;
-    }
+    player_proc = weapon_watch_live_player_proc(pdata);
+
     if (player_proc != 0 &&
         pdata->monitor_token != player_proc->destroy_cb) {
         moves_jump(p_hide_and_die);
@@ -3497,13 +3503,20 @@ static float p_sidekick_exit_now(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: 95.32609%. Retail m2c confirms the typed latch, null-safe
- * object updates, normalized placement arithmetic, separate PID branches,
- * exit-process ownership, animation handoff, and return value. The 16-byte
- * residue is explicit latch null-normalization, inverse-sqrt branch polarity,
- * register/scheduling choices, and float relocations.
- */
+static inline MkObj* sidekick_state_live_sidekick_obj(MovesSidekickStateView* owner) {
+    MkObj* object = owner->sidekick_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->sidekick_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.228264%; register coloring, relocation offsets; one-trial ceiling. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     MovesSidekickStateView* state;
     MovesSidekickPdata* exit_data;
@@ -3521,10 +3534,8 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     float position_z;
 
     state = (MovesSidekickStateView*)plyr_pdata;
-    sidekick = state->sidekick_obj;
-    if (sidekick != 0 && sidekick->hdr.instance != state->sidekick_instance) {
-        sidekick = 0;
-    }
+    sidekick = sidekick_state_live_sidekick_obj(state);
+
 
     plyr_obj->flags_09_bits.bit6 = 1;
     plyr_obj->flags_09_bits.launched = 1;

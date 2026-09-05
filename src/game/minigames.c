@@ -1859,6 +1859,19 @@ float p_puzzle_fighter(void) {
     return 0.0f;
 }
 
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_puzzle_fighter_real_one(void) {
     CameraObj* camera;
     int pause_slot;
@@ -1881,14 +1894,8 @@ static float p_puzzle_fighter_real_one(void) {
     turn_camera_on();
     skip_camera_intro();
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
+
     camera->pos.x = puzzle_cam_start_pos.x;
     camera->pos.y = puzzle_cam_start_pos.y;
     camera->pos.z = puzzle_cam_start_pos.z;
@@ -6970,6 +6977,20 @@ int puzzle_fighter_plyr_winning_big_based_on_points(void) {
 
 /* Near miss: body and layout match; one saved-proc move, validation branch
  * polarity, and string relocation labels remain compiler-emission residue. */
+static inline StringObj* puzzle_message_live_text(PuzzleMessagePdata* owner) {
+    StringObj* object = owner->text;
+    if (object != 0) {
+        if (object->instance == owner->text_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.658540%; register coloring, instruction scheduling; one-trial ceiling. */
 static void puzzle_fighter_display_block_count_msg(
     PuzzlePlayerState* player) {
     PuzzleMessagePdata* pdata;
@@ -6981,14 +7002,8 @@ static void puzzle_fighter_display_block_count_msg(
         proc = player->block_count_message_proc;
         if (proc != 0) {
             pdata = (PuzzleMessagePdata*)pdata_of_proc(proc);
-            text = pdata->text;
-            if (text != 0) {
-                if (text->instance != pdata->text_instance) {
-                    text = 0;
-                }
-            } else {
-                text = 0;
-            }
+            text = puzzle_message_live_text(pdata);
+
             if (text != 0) {
                 destroy_string_obj(text);
             }

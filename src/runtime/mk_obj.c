@@ -1118,6 +1118,20 @@ static float p_goro_arms_fixup(void) {
     return 1.0f;
 }
 
+static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.830986%; relocation offsets, register coloring; one-trial ceiling. */
 void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     PlyrMirrorBoneMap* map;
     PlyrMirrorObjLatch* latch;
@@ -1162,14 +1176,8 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     }
 
     latch = &pdata->mirror_slots->weapon[0].mirror;
-    linked_obj = latch->obj;
-    if (linked_obj != 0) {
-        if (linked_obj->hdr.instance != latch->instance) {
-            linked_obj = 0;
-        }
-    } else {
-        linked_obj = 0;
-    }
+    linked_obj = mirror_latch_live_obj(latch);
+
     if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
@@ -1182,14 +1190,8 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     }
 
     latch = &pdata->mirror_slots->weapon[1].mirror;
-    linked_obj = latch->obj;
-    if (linked_obj != 0) {
-        if (linked_obj->hdr.instance != latch->instance) {
-            linked_obj = 0;
-        }
-    } else {
-        linked_obj = 0;
-    }
+    linked_obj = mirror_latch_live_obj(latch);
+
     if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
@@ -1202,14 +1204,8 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     }
 
     latch = &pdata->mirror_obj;
-    linked_obj = latch->obj;
-    if (linked_obj != 0) {
-        if (linked_obj->hdr.instance != latch->instance) {
-            linked_obj = 0;
-        }
-    } else {
-        linked_obj = 0;
-    }
+    linked_obj = mirror_latch_live_obj(latch);
+
     if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
@@ -1375,6 +1371,19 @@ void auto_calc_limbobj_bone_world_pos(MkObj* obj, int bone) {
     }
 }
 
+static inline MkObj* limb_live_object(LimbBonePdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static void limb_bone_calc_world_pos(MkHdr* data) {
     LimbBonePdata* pdata;
     MkObj* obj;
@@ -1384,14 +1393,7 @@ static void limb_bone_calc_world_pos(MkHdr* data) {
     int bone_index;
 
     pdata = (LimbBonePdata*)data;
-    obj = pdata->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != pdata->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = limb_live_object(pdata);
     if (obj != 0) {
         bone_index = pdata->bone;
         bone = obj->bones[bone_index];
@@ -2130,6 +2132,20 @@ MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
     return proc;
 }
 
+static inline MkObj* material_fade_live_obj(FadeMaterialPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.970300%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_fade_material(void) {
     MkObj* obj;
     FadeMaterialPdata* pdata;
@@ -2142,14 +2158,8 @@ static float p_fade_material(void) {
     if (aproc->pid != 0x5010 || pdata == 0) {
         mkproc_die();
     }
-    obj = pdata->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != pdata->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = material_fade_live_obj(pdata);
+
     if (obj == 0) {
         mkproc_die();
     }
@@ -3076,6 +3086,19 @@ void bind_rplight_to_obj(RpLight* light, MkObj* obj) {
     }
 }
 
+static inline MkObj* light_live_object(MkxRpLight* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void vdestroy_mkx_rplight(MkxRpLight* link) {
     MkObj* obj;
     RwFrame* frame;
@@ -3090,15 +3113,7 @@ void vdestroy_mkx_rplight(MkxRpLight* link) {
     }
     RpLightDestroy(link->light);
 
-    obj = link->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance == link->obj_instance) {
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = light_live_object(link);
     if (obj != 0 && obj->hdr.instance != 0) {
         ((void (*)(MkHdr*))obj->hdr.vtbl->destroy)(&obj->hdr);
     }
@@ -3411,6 +3426,20 @@ void* limb_sever_find_limbset(void* obj, int id) {
     return result;
 }
 
+static inline MkHdr* fighter_live_limb_update_proc(FighterMirror* owner) {
+    MkHdr* object = (MkHdr*) owner->limb_update_proc;
+    if (object != 0) {
+        if (object->instance == owner->limb_update_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.946106%; register coloring, instruction lowering; one-trial ceiling. */
 void limb_sever_reset_limbs(PlyrInfo* player) {
     FighterMirror* fighter;
     FighterObjectRef* ref;
@@ -3459,14 +3488,8 @@ void limb_sever_reset_limbs(PlyrInfo* player) {
         }
     }
 
-    hdr = (MkHdr*)fighter->limb_update_proc;
-    if (hdr != 0) {
-        if (hdr->instance != fighter->limb_update_proc_instance) {
-            hdr = 0;
-        }
-    } else {
-        hdr = 0;
-    }
+    hdr = fighter_live_limb_update_proc(fighter);
+
     if (hdr != 0 && hdr != (MkHdr*)aproc && hdr->instance != 0) {
         hdr->typed_vtbl->destroy(hdr);
     }

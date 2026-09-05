@@ -171,11 +171,8 @@ extern "C" void mslStreamCache_ReleaseBuffer(int address) {
     OSRestoreInterrupts(enabled);
 }
 
-/*
- * Soft ceiling: mslStreamCache_Initialize_A ~91.57% -- retail and this build
- * have identical calls, control flow, memory operations, and size; only the
- * six nonvolatile register homes and zero materialization differ.
- */
+/* TODO: [near miss] 91.565216%; same CFG/stores/184-byte size; zero sharing and GPR
+ * homes differ. Direct array local loses retail tail reload; stop at emission. */
 extern "C" void mslStreamCache_Initialize_A(int base_address) {
     if (s_StreamCache_pBuffers == 0) {
         int i = 0;

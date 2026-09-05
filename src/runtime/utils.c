@@ -735,6 +735,19 @@ void setup_fixed_block_heaps(void) {
     mwMemAllocateFixedBlockHeaps(&current_heap_block_counts.heaps);
 }
 
+static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void load_and_set_refl_on_weapon(void) {
     int art_section;
     unsigned int art_id;
@@ -756,42 +769,24 @@ void load_and_set_refl_on_weapon(void) {
     }
 
     latch = &plyr_pdata->mirror_slots->weapon[0].primary;
-    object = latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance != latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = mirror_latch_live_obj(latch);
+
     if (object != 0) {
         RpClumpForAllAtomics(
             object->clump, force_specular_texture_atomic_callback, texture);
     }
 
     latch = &plyr_pdata->mirror_slots->weapon[1].primary;
-    object = latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance != latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = mirror_latch_live_obj(latch);
+
     if (object != 0) {
         RpClumpForAllAtomics(
             object->clump, force_specular_texture_atomic_callback, texture);
     }
 
     latch = &plyr_pdata->aux_weapon_latch;
-    object = latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance != latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = mirror_latch_live_obj(latch);
+
     if (object != 0) {
         RpClumpForAllAtomics(
             object->clump, force_specular_texture_atomic_callback, texture);

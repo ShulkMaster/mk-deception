@@ -2,6 +2,7 @@
 #define MSL_BANK_H
 
 #include "dolphin/sp.h"
+#include "dolphin/ar.h"
 
 #include "mw/mwFile.h"
 #include "msl/mslBankLoadAsyncQueue.h"
@@ -18,7 +19,8 @@ struct mslCmdItem;
 struct mslWave;
 struct mslRuntimeWave;
 struct mslAssetWave;
-class mslPlayable;
+class SoundBuffer_Playable;
+typedef SoundBuffer_Playable mslPlayable;
 
 struct mslInitParam {
     unsigned long size;           /* +0x00 */
@@ -36,7 +38,7 @@ struct mslSysInitParam {
 }; /* 0x14 */
 
 struct mslARQRequest {
-    unsigned char request[0x20];  /* +0x00 -- Nintendo ARQRequest */
+    ARQRequest request;          /* +0x00 -- Nintendo DMA queue request */
     /* +0x20 is the free-list link before checkout and the DMA buffer after. */
     union {
         void* stream_buffer;

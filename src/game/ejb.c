@@ -661,6 +661,20 @@ int is_he_blocking_throw(void) {
     return blocking;
 }
 
+static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
+    MkObj* object = owner->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.626370%; register coloring, instruction lowering; one-trial ceiling. */
 int is_plyr_blocking(PlyrPdata* player) {
     MkObj* object;
     int state;
@@ -676,11 +690,8 @@ int is_plyr_blocking(PlyrPdata* player) {
         return ((unsigned int)state >> 11) & 1;
     }
 
-    object = player->tracked_obj;
-    if (object != 0 &&
-        object->hdr.instance != player->tracked_obj_instance) {
-        object = 0;
-    }
+    object = player_live_tracked_obj(player);
+
     if (object == 0) {
         return 0;
     }
@@ -1091,6 +1102,20 @@ float aniproc_land(void) {
     return 0.0f;
 }
 
+static inline MkProc* player_live_transient_proc_direct(PlyrPdata* owner) {
+    MkProc* object = owner->transient_proc;
+    if (object != 0) {
+        if (object->instance == owner->transient_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.044120%; register coloring, relocation offsets; one-trial ceiling. */
 void hit_START_chores(
     int first_sound, int second_sound,
     float shake_ticks, float shake_strength) {
@@ -1098,16 +1123,8 @@ void hit_START_chores(
     MkProc* process;
 
     object = plyr_obj;
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_transient_proc_direct(plyr_pdata);
+
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -1153,6 +1170,20 @@ static inline void check_for_combo_message_impl(void) {
     ((EjbPlyrPdataExtended*)plyr_pdata)->combo_hit_count = 0;
 }
 
+static inline MkProc* player_live_transient_proc(PlyrPdata* owner) {
+    MkProc* object = owner->transient_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->transient_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.534880%; register coloring, relocation offsets; one-trial ceiling. */
 void land_chores(
     int land_sound, int second_sound,
     float shake_ticks, float shake_strength) {
@@ -1162,17 +1193,8 @@ void land_chores(
     wall_eligible_off();
     plyr_obj->flags_09_bits.tightrope_restricted = 1;
     object = plyr_obj;
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance ==
-            (int)plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_transient_proc(plyr_pdata);
+
     if (process != 0 && process != aproc && process->instance != 0) {
         ((EjbProcSleepVtable*)process->vtbl)->destroy();
     }
@@ -1605,21 +1627,25 @@ void init_3d_move(void) {
     plyr_obj->flags_09_bits.face_opponent = 1;
 }
 
+static inline MkProc* player_live_transient(PlyrPdata* owner) {
+    MkProc* object = owner->transient_proc;
+    if (object != 0) {
+        if (object->instance == owner->transient_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void end_air_move(void) {
     MkObj* object;
     MkProc* process;
 
     object = plyr_obj;
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_transient(plyr_pdata);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -2035,6 +2061,7 @@ void animpdata_ani_to_frame_x(AnimPdata* anim, float frame) {
     EJB_ADVANCE_TO_FRAME(anim, target_frame);
 }
 
+/* TODO: [near miss] 97.75510%; extra animation-pointer move; stop at coloring without a field-alias workaround. */
 void ani_to_frame_x(float frame) {
     AnimPdata* anim;
     float target_frame;
@@ -2864,21 +2891,43 @@ void two_player_animation(
         animation, 1, 0, attacker_blend, 0.0f);
 }
 
+static inline MkProc* player_live_player_proc(PlyrPdata* owner) {
+    MkProc* object = owner->player_proc;
+    if (object != 0) {
+        if (object->instance == owner->player_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->anim_proc;
+    if (object != 0) {
+        if (object->instance == owner->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
 void idle_victim(void) {
     MkObj* tracked_object;
     PlyrPdata* opponent;
     MkProc* process;
 
-    process = plyr_pdata->player_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->player_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_player_proc(plyr_pdata);
+
     if (process != 0) {
         xfer_proc(process, p_idle);
         his_pdata->previous_state = his_pdata->state;
@@ -2886,41 +2935,17 @@ void idle_victim(void) {
     }
 
     opponent = plyr_pdata->his_plyr_pdata;
-    process = opponent->anim_proc;
-    if (process != 0) {
-        if (process->instance == opponent->anim_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_anim_proc(opponent);
+
     if (process != 0) {
         xfer_proc(process, p_anim_idle);
     }
 
-    tracked_object = opponent->tracked_obj;
+    tracked_object = player_live_tracked_obj(opponent);
+
     if (tracked_object != 0) {
-        if (tracked_object->hdr.instance == opponent->tracked_obj_instance) {
-            /* Keep the live object. */
-        } else {
-            tracked_object = 0;
-        }
-    } else {
-        tracked_object = 0;
-    }
-    if (tracked_object != 0) {
-        process = opponent->transient_proc;
-        if (process != 0) {
-            if (process->instance == opponent->transient_proc_instance) {
-                /* Keep the live process. */
-            } else {
-                process = 0;
-            }
-        } else {
-            process = 0;
-        }
+        process = player_live_transient_proc_direct(opponent);
+
         if (process != 0 && process != aproc && process->instance != 0) {
             process->vtbl->destroy(process);
         }
@@ -3692,16 +3717,7 @@ void stop_me(void) {
     MkProc* process;
 
     object = plyr_obj;
-    process = plyr_pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance == plyr_pdata->transient_proc_instance) {
-            /* Keep the live process. */
-        } else {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_transient(plyr_pdata);
     if (process != 0 && process != aproc && process->instance != 0) {
         process->vtbl->destroy(process);
     }
@@ -4646,6 +4662,7 @@ void temp_vomit(void) {
     ((EjbProcSleepVtable*)aproc->vtbl)->sleep();
 }
 
+/* TODO: [near miss] 98.095240%; register coloring, relocation offsets; one-trial ceiling. */
 void drift_downwards(void) {
     PlyrPdata* pdata;
     MkObj* object;
@@ -4653,14 +4670,8 @@ void drift_downwards(void) {
 
     pdata = plyr_pdata;
     object = plyr_obj;
-    process = pdata->transient_proc;
-    if (process != 0) {
-        if (process->instance != pdata->transient_proc_instance) {
-            process = 0;
-        }
-    } else {
-        process = 0;
-    }
+    process = player_live_transient_proc_direct(pdata);
+
 
     if (process != 0 && process != aproc && process->instance != 0) {
         ((EjbProcSleepVtable*)process->vtbl)->destroy();

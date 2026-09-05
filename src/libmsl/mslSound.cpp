@@ -4,6 +4,7 @@
 #include "msl/mslWave.h"
 #include "msl/mslgcn.h"
 #include "msl/mslSound_internal.h"
+#include "msl/mslPlayable.h"
 #include "mw/mwMemHeap.h"
 static void mslSoundDeactivate(_mslSound* sound, int immediate);
 
@@ -51,20 +52,93 @@ static const char stringBase0[] =
     /* +0x40D */ "mslSoundStop\0"
     "mslSoundIsPlaying";
 
-class mslPlayableView {
-public:
-    virtual void Slot00(void);
-    virtual void Slot04(void);
-    virtual void Slot08(void);
-    virtual void Slot0C(void);
-    virtual int IsReadyToPlay(void);
-};
+extern "C" int mslSoundIsValid(unsigned long handle) {
+    _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
-struct mslRuntimeAdjustView {
-    float first_time;
-    unsigned char pad04[0x0C];
-    float second_time;
-};
+    if (node == 0) {
+        return 0;
+    }
+
+    {
+        mslRuntimeSound* sound =
+            (mslRuntimeSound*)ListNodeData(0, node);
+
+        if (sound == 0 || sound->definition == 0 ||
+            sound->definition->command_count == 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static inline int mslSoundIsPlaying(mslRuntimeSound* sound) {
+    int is_playing;
+
+    if (sound == 0) {
+        mslDebugPrintf("mslSoundIsPlaying: NULL sound\n");
+        is_playing = 0;
+    } else if ((sound->flags & 0x8000) != 0) {
+        is_playing = 1;
+    } else {
+        is_playing = 0;
+    }
+    return is_playing;
+}
+
+/* TODO: [breakthrough needed] 97.22%; writable diagnostics violate retail
+ * placement; late pool definition still scores83.08% through base hoisting. */
+extern "C" void mslUpdateTracks(_mslSystem* system) {
+    unsigned long track_index;
+    int saved_guard;
+    int priority;
+
+    priority = 0;
+    track_index = 0;
+    saved_guard = system->sound_list_guard;
+    system->sound_list_guard = 0;
+    for (track_index = 0; track_index < system->track_count;
+         track_index++) {
+        mslRuntimeSound* sound =
+            (mslRuntimeSound*)system->tracks[track_index].sound;
+
+        if (sound != 0) {
+            if (mslSoundIsPlaying(sound) != 0) {
+                continue;
+            }
+            priority = sound->priority;
+            mslSoundDeactivate(
+                (_mslSound*)sound, sound->flags & 1);
+        }
+
+        {
+            mslBankSoundEntry* bank_sound =
+                mslQueueGet(system->tracks[track_index].queue);
+
+            if (bank_sound != 0) {
+                _ListNode* node =
+                    mslBankSoundUse(bank_sound, system);
+
+                if (node != 0) {
+                    mslRuntimeSound* next_sound =
+                        (mslRuntimeSound*)ListNodeData(0, node);
+
+                    next_sound->flags |= 1;
+                    next_sound->priority = priority;
+                    next_sound->track = track_index;
+                    asyncLoadSound(
+                        system, bank_sound->owner_bank,
+                        bank_sound, callbackPlay, node);
+                } else {
+                    mslDebugPrintf(
+                        "Track %d failed to play next in Q; "
+                        "skipping\n",
+                        track_index);
+                }
+            }
+        }
+    }
+    system->sound_list_guard = saved_guard;
+}
 
 extern "C" int mslSoundEnd(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
@@ -175,7 +249,8 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     }
 }
 
-/* Exact: verified @stringBase0 prefix restores the retail diagnostic offset. */
+/* Matched: 100% report-exact; canonical adjustment start/end fields
+ * preserve retail float accesses at +0x00/+0x10 and diagnostic relocation. */
 void _mslSoundUnPause(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     int is_playing;
@@ -205,12 +280,12 @@ void _mslSoundUnPause(_mslSound* sound) {
 
         adjustment = runtime_sound->adjustments;
         while (adjustment != 0) {
-            mslRuntimeAdjustView* adjust =
-                (mslRuntimeAdjustView*)ListNodeData(0, adjustment);
+            mslAdjustment* adjust =
+                (mslAdjustment*)ListNodeData(0, adjustment);
 
-            adjust->first_time +=
+            adjust->start_time +=
                 current_time - runtime_sound->update_time;
-            adjust->second_time +=
+            adjust->end_time +=
                 current_time - runtime_sound->update_time;
             ListNext(&adjustment);
         }
@@ -249,11 +324,8 @@ void _mslSoundPause(_mslSound* sound) {
     }
 }
 
-/*
- * Soft ceiling: mslSoundPlayNow ~96.59% -- exact retail size, operations, and
- * control flow; remaining differences are track-scan GPR coloring, result
- * scheduling, and two pooled-string address instructions.
- */
+/* TODO: [near miss] 98.02%; diagnostic pool addresses restored; track-scan
+ * GPR coloring and result/branch scheduling remain. */
 extern "C" int mslSoundPlayNow(_ListNode* node) {
     mslRuntimeSound* sound =
         (mslRuntimeSound*)ListNodeData(0, node);
@@ -272,7 +344,7 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
         }
 
         if (sound->track == -1) {
-            mslDebugPrintf("Can't find any free MSL tracks\n");
+            mslDebugPrintf(&stringBase0[0x167]);
             track_result = -1;
         } else {
             track_result = sound->track;
@@ -280,8 +352,7 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
     } else if (sound->system->track_count <=
                (unsigned long)sound->track) {
         mslDebugPrintf(
-            "sound->track larger than number of tracks in mslInit: "
-            "%d > %d\n",
+            &stringBase0[0x187],
             sound->track, sound->system->track_count);
         track_result = -1;
     } else {
@@ -354,10 +425,8 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
     return 1;
 }
 
-/*
- * Soft ceiling: mslSoundAttach ~96.57% -- typed retail ownership and
- * rollback; remaining differences are loop NV coloring and tail scheduling.
- */
+/* TODO: [near miss] 96.57%; retail allocation, copy, and rollback agree;
+ * postloop failure recheck adds 12 bytes and extends a GPR lifetime. */
 extern "C" int mslSoundAttach(
     mslRuntimeSound* sound, mslBankSoundEntry* bank_sound) {
     mslRuntimeSound* base_sound;
@@ -466,6 +535,8 @@ extern "C" int mslSoundAttach(
     return 1;
 }
 
+/* Matched: 100% report-exact; shared typed playable interface preserves
+ * the retail readiness dispatch at vtable +0x18. */
 extern "C" int mslSoundIsReady(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     mslBankSoundDefinition* definition;
@@ -489,8 +560,7 @@ extern "C" int mslSoundIsReady(_mslSound* sound) {
                 return 0;
             }
             if ((wave->flags & 2) != 0) {
-                mslPlayableView* playable =
-                    (mslPlayableView*)wave->playable;
+                mslPlayable* playable = wave->playable;
 
                 if (playable == 0) {
                     return 0;
@@ -506,23 +576,8 @@ extern "C" int mslSoundIsReady(_mslSound* sound) {
     return 1;
 }
 
-extern "C" void mslSoundUncommit(_mslSound* sound) {
-    mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
-    int i;
-    mslCmdItem* command = runtime_sound->definition->commands;
 
-    for (i = 0; i < runtime_sound->definition->command_count;
-         i++, command++) {
-        if (command->type == 1 && command->attached_wave != 0) {
-            command->attached_wave->flags &= ~0x40;
-        }
-    }
-}
-
-/*
- * Soft ceiling: mslSoundUnCopy ~99.24% -- exact retail size and operations;
- * remaining differences are pure NV register coloring.
- */
+/* TODO: [near miss] 99.24%; retail order restored; same-size NV coloring remains. */
 extern "C" void mslSoundUnCopy(_ListNode* node) {
     mslCmdItem* command;
     int i;
@@ -561,11 +616,22 @@ extern "C" void mslSoundUnCopy(_ListNode* node) {
     }
 }
 
-/*
- * Soft ceiling: mslSoundUnLoad ~97.04% -- retail ownership and reload order;
- * remaining differences are two string-pool relocations. Direct use of
- * either verified pool offset retains the base and regresses NV coloring.
- */
+extern "C" void mslSoundUncommit(_mslSound* sound) {
+    mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
+    int i;
+    mslCmdItem* command = runtime_sound->definition->commands;
+
+    for (i = 0; i < runtime_sound->definition->command_count;
+         i++, command++) {
+        if (command->type == 1 && command->attached_wave != 0) {
+            command->attached_wave->flags &= ~0x40;
+        }
+    }
+}
+
+
+/* TODO: [breakthrough needed] 97.04%; writable diagnostic violates retail
+ * placement; late pool definition still scores87.62% through base hoisting. */
 extern "C" int mslSoundUnLoad(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     mslCmdItem* command;
@@ -688,17 +754,31 @@ static inline void mslSoundInit(_ListNode* node, _mslSystem* system) {
 }
 
 /*
+ * Allocate and initialize a live sound node. Retail defaults are:
+ * track=-1 (from the zeroed pool/list state), unit volume/pitch scales,
+ * centered pan offsets, and no bank references or callback payload.
+ * Matched: 100% report-exact with the retail diagnostic pool and function order.
+ */
+extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
+    _ListNode* node = ListNodeAlloc(&g_listPoolSound);
+
+    if (node == 0) {
+        mslDebugPrintf(
+            &stringBase0[0x00],
+            0x708);
+    }
+    mslSoundInit(node, system);
+    return node;
+}
+
+
+/*
  * Resolve every wave command against the owning bank, lazily load its base
  * wave, create the per-command runtime copy, and unwind all prior copies on
  * any failure.
- * Soft ceiling: ~94.72%, retail/current size 0x48c/0x474. Reconstructing the
- * contiguous string-pool tail, preserving the rollback flag diamond, ordering
- * the large load-success region before failure cleanup, and aligning loop
- * declarations closed the structural mismatch. Remaining differences are
- * inlined rollback GPR coloring, two load-order islands, and four objdiff
- * replacements whose instructions are identical `addi` operations but whose
- * operands name substring symbols instead of retail `stringBase0` addends.
  */
+/* TODO: [breakthrough needed] 94.72%; writable rollback diagnostic violates
+ * retail placement; late pool scored86.80%; owner reloads also remain. */
 extern "C" int mslCmdsLoad(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundDefinition* definition, unsigned long flags) {
@@ -775,32 +855,13 @@ extern "C" int mslCmdsLoad(
     return 1;
 }
 
-/*
- * Allocate and initialize a live sound node. Retail defaults are:
- * track=-1 (from the zeroed pool/list state), unit volume/pitch scales,
- * centered pan offsets, and no bank references or callback payload.
- * Soft ceiling: ~99.76% -- the retail diagnostic-then-inline null recheck is
- * exact; remaining differences are partial-TU branch and literal relocations.
- */
-extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
-    _ListNode* node = ListNodeAlloc(&g_listPoolSound);
-
-    if (node == 0) {
-        mslDebugPrintf(
-            "Error!  Out of sound resources (MSL_MAX_SOUNDS=%d).\n",
-            0x708);
-    }
-    mslSoundInit(node, system);
-    return node;
-}
 
 /*
  * Publish a reusable bank sound only after every wave command has loaded and
  * received its private runtime copy. Retail embeds mslSoundNew here.
- * Soft ceiling: ~99.48% -- the embedded allocator and null recheck are exact;
- * remaining differences are partial-TU relocations and one member-load
- * scratch-register choice.
  */
+/* TODO: [near miss] 99.66%; pooled allocator diagnostic restored; definition
+ * load/store scratch registers remain. */
 extern "C" _mslSound* mslSoundLoad(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundDefinition* definition, unsigned long flags) {
@@ -823,97 +884,6 @@ extern "C" _mslSound* mslSoundLoad(
         }
     }
     return result;
-}
-
-extern "C" int mslSoundIsValid(unsigned long handle) {
-    _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
-
-    if (node == 0) {
-        return 0;
-    }
-
-    {
-        mslRuntimeSound* sound =
-            (mslRuntimeSound*)ListNodeData(0, node);
-
-        if (sound == 0 || sound->definition == 0 ||
-            sound->definition->command_count == 0) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-static inline int mslSoundIsPlaying(mslRuntimeSound* sound) {
-    int is_playing;
-
-    if (sound == 0) {
-        mslDebugPrintf("mslSoundIsPlaying: NULL sound\n");
-        is_playing = 0;
-    } else if ((sound->flags & 0x8000) != 0) {
-        is_playing = 1;
-    } else {
-        is_playing = 0;
-    }
-    return is_playing;
-}
-
-/*
- * Soft ceiling: mslUpdateTracks ~97.22% -- exact retail control flow and
- * register homes; both four-byte gaps are string-pool relocations. Direct
- * pool-offset expressions retain the base across the loop and regress code.
- */
-extern "C" void mslUpdateTracks(_mslSystem* system) {
-    unsigned long track_index;
-    int saved_guard;
-    int priority;
-
-    priority = 0;
-    track_index = 0;
-    saved_guard = system->sound_list_guard;
-    system->sound_list_guard = 0;
-    for (track_index = 0; track_index < system->track_count;
-         track_index++) {
-        mslRuntimeSound* sound =
-            (mslRuntimeSound*)system->tracks[track_index].sound;
-
-        if (sound != 0) {
-            if (mslSoundIsPlaying(sound) != 0) {
-                continue;
-            }
-            priority = sound->priority;
-            mslSoundDeactivate(
-                (_mslSound*)sound, sound->flags & 1);
-        }
-
-        {
-            mslBankSoundEntry* bank_sound =
-                mslQueueGet(system->tracks[track_index].queue);
-
-            if (bank_sound != 0) {
-                _ListNode* node =
-                    mslBankSoundUse(bank_sound, system);
-
-                if (node != 0) {
-                    mslRuntimeSound* next_sound =
-                        (mslRuntimeSound*)ListNodeData(0, node);
-
-                    next_sound->flags |= 1;
-                    next_sound->priority = priority;
-                    next_sound->track = track_index;
-                    asyncLoadSound(
-                        system, bank_sound->owner_bank,
-                        bank_sound, callbackPlay, node);
-                } else {
-                    mslDebugPrintf(
-                        "Track %d failed to play next in Q; "
-                        "skipping\n",
-                        track_index);
-                }
-            }
-        }
-    }
-    system->sound_list_guard = saved_guard;
 }
 
 extern "C" void mslSoundSetPan(unsigned long handle, float pan) {

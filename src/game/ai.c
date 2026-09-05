@@ -873,22 +873,25 @@ void liukang_in_fight_random_snd_check(void) {
     }
 }
 
-/* Soft ceiling: pointer/instance validation, call ABI, and operations match.
- * Retail retains one unconditional branch around the nulling block that MWCC
- * folds out of the equivalent structured condition below. */
+static inline MkProc* ai_live_player_process(PlyrPdata* player) {
+    MkProc* proc = player->player_proc;
+    if (proc != 0) {
+        if (proc->instance == player->player_proc_instance) {
+            return proc;
+        }
+        proc = 0;
+    } else {
+        proc = 0;
+    }
+    return proc;
+}
+
 void dk_taunt_at_screen(void) {
     PlyrPdata* player;
     MkProc* proc;
 
     player = plyr_pdata;
-    proc = player->player_proc;
-    if (proc != 0) {
-        if (proc->instance != player->player_proc_instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = ai_live_player_process(player);
     xfer_player_proc(proc, dk_screen_taunt);
 }
 
@@ -1035,9 +1038,33 @@ float big_boss_taunt_cam_cut(void) {
     return 0.0f;
 }
 
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
 
-/* Soft ceiling: exact size, frame, save/restore, calls, layout, and math.
- * Residue is confined to two validated-pointer selection diamonds. */
+static inline MkObj* taunt_camera_live_object(AiTauntCameraData* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.897060%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_lookat_cam(void) {
     CameraObj* camera;
     MkObj* target;
@@ -1055,27 +1082,15 @@ static float p_lookat_cam(void) {
     float sine;
     float cosine;
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
+
     if (camera == 0) {
         AI_TRANSFER(p_camera_proc);
         return 0.0f;
     }
 
-    target = at_cam_data.object;
-    if (target != 0) {
-        if (target->hdr.instance != at_cam_data.object_instance) {
-            target = 0;
-        }
-    } else {
-        target = 0;
-    }
+    target = taunt_camera_live_object(&at_cam_data);
+
     if (target == 0) {
         AI_TRANSFER(p_camera_proc);
         return 0.0f;
@@ -10147,8 +10162,6 @@ int handicap_get_current_difficulty(DroneAI* drone) {
 
 
 #pragma dont_inline off
-
-
 
 static inline void ai_big_boss_walk_footstep(void) {
     unsigned short sound;

@@ -2147,6 +2147,176 @@ void konquest_fade_from_black(int ticks, int event) {
 void konquest_fade_to_black(int ticks, int event) {
     konquest_fade_screen(ticks, 0, event, 1);
 }
+/* Resolve generation latches without reading the instance of a null object. */
+static inline KonquestGrounding* konquest_live_grounding(KonquestPdata* owner) {
+    KonquestGrounding* object = owner->hero_grounding;
+    if (object != 0) {
+        if (object->hdr.instance == owner->grounding_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_live_hero(KonquestPdata* owner) {
+    MkObj* object = owner->hero_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->hero_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* konquest_live_animation_process(AnimPdata* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_live_pui_object(KonquestPuiRuntime* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestChestOwner* konquest_live_pui_owner(KonquestPuiRuntime* owner) {
+    KonquestChestOwner* object = owner->owner;
+    if (object != 0) {
+        if (object->hdr.instance == owner->owner_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkHdr* konquest_live_source(MkObjLatch* owner) {
+    MkHdr* object = owner->obj;
+    if (object != 0) {
+        if (object->instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkHdr* konquest_live_tile_objects(KonquestPdata* owner) {
+    MkHdr* object = owner->tile_objects;
+    if (object != 0) {
+        if (object->instance == owner->tile_objects_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestTriggerStruct* konquest_live_trigger(KonquestTriggerScriptPdata* owner) {
+    KonquestTriggerStruct* object = owner->trigger;
+    if (object != 0) {
+        if (object->hdr.instance == owner->trigger_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkSobj* konquest_live_binding_object(KonquestSobjBinding* owner) {
+    MkSobj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_live_damashi(KonquestPdata* owner) {
+    MkObj* object = owner->damashi_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->damashi_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestCollisionOwner* konquest_live_collision_owner(KonquestRemoveCollisionPdata* owner) {
+    KonquestCollisionOwner* object = owner->owner;
+    if (object != 0) {
+        if (object->hdr.instance == owner->owner_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_live_animation_object(AnimPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* konquest_live_trigger_process(KonquestTriggerStruct* trigger) {
+    MkProc* proc = trigger->script_proc;
+    if (proc != 0) {
+        if (proc->instance == trigger->script_proc_instance) {
+            return proc;
+        }
+        proc = 0;
+    } else {
+        proc = 0;
+    }
+    return proc;
+}
+
 static inline ScreenObj* resolve_konquest_fade_object(
     KonquestFadePdata* pdata) {
     ScreenObj* object;
@@ -2674,13 +2844,7 @@ static inline int konquest_has_list(MkPtr** list) {
     return list != 0;
 }
 
-/*
- * Near match: the tile/list search, portal geometry, all three inverse-length
- * expansions, camera/effect sequence, alpha/priority changes, animation frame
- * conversion, sleeps, and return are complete. The remaining narrow residue
- * is register allocation, equivalent latch/float-branch layout, minor
- * scheduling, and pooled constant/string relocation labels.
- */
+/* TODO: [near miss] 96.585470%; branch/register lowering remains; stop at trial cap. */
 static float p_hero_portal_in(void) {
     KonquestPortalPdata* pdata;
     KonquestGrounding* grounding;
@@ -2703,26 +2867,8 @@ static float p_hero_portal_in(void) {
     pdata = (KonquestPortalPdata*)pdata_of_proc(aproc);
     portal_uid = pdata->uid;
 
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    grounding = konquest_live_grounding(konquest_pdata);
+    hero = konquest_live_hero(konquest_pdata);
 
     portal = 0;
     tile_index = 0;
@@ -3039,12 +3185,7 @@ void konquest_use_portal(
     }
 }
 
-/*
- * Near match: the stale-safe portal search, direction-mode geometry, camera
- * placement, animation/alpha sequence, effects, sounds, fades, and cleanup
- * agree with retail. The remaining 16-byte delta is stack/register allocation,
- * equivalent branch layout, scheduling, and pooled relocation labels.
- */
+/* TODO: [near miss] 95.827190%; branch/register lowering remains; stop at trial cap. */
 static float p_hero_use_portal(void) {
     KonquestPortalPdata* pdata;
     KonquestGrounding* grounding;
@@ -3062,22 +3203,8 @@ static float p_hero_use_portal(void) {
 
     pdata = (KonquestPortalPdata*)pdata_of_proc(aproc);
 
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance != konquest_pdata->grounding_instance) {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    grounding = konquest_live_grounding(konquest_pdata);
+    hero = konquest_live_hero(konquest_pdata);
 
     portal = 0;
     portal_uid = pdata->uid;
@@ -3686,27 +3813,13 @@ static float p_show_fight_message(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: hero_start_fx_at_position ~83.8% -- typed owner/offset ABI,
- * hero latch, position calculation, and effect calls match retail. Residue is
- * individual r29-r31 saves/restores versus stmw/lmw and one folded latch join.
- */
 void hero_start_fx_at_position(
     const char* effect_name, const Vec* offset) {
     MkObj* hero;
     unsigned int effect;
     Vec position = {0.0f, 0.0f, 0.0f};
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     effect = fx_by_owner(effect_name, 4);
     position.x = hero->pos.value.x + offset->x;
     position.y = hero->pos.value.y + offset->y;
@@ -4099,24 +4212,11 @@ static float p_weather(void) {
     return 1.0f;
 }
 
-/*
- * Near match: the validated hero latch and typed position/angle snapshot agree
- * with retail. The sole four-byte delta is an equivalent folded latch branch.
- */
 void save_hero_position_and_angle_prior_to_fight(float angle_offset) {
     KonquestSavedState* save;
     MkObj* hero;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     if (hero != 0) {
         save = &konquest_save_data;
         save->hero_position.x = hero->pos.value.x;
@@ -4205,26 +4305,27 @@ void set_konquest_region_number(int region) {
     game_settings.konquest_latch = 0;
 }
 
-/*
- * Soft ceiling: konquest_hide_damashi ~91.2%. All effect, sound, sleep,
- * instance-latch, destruction, and global-clear operations agree with retail.
- * Residue is r29/r30 coloring, folded latch joins, expanded saves/restores,
- * one handle compare form, and local string/float relocation labels; source
- * is 660 bytes versus retail's 656.
- */
+static inline KonquestNpc* konquest_live_hero_npc(KonquestPdata* owner) {
+    KonquestNpc* object = owner->hero_npc;
+    if (object != 0) {
+        if (object->fields.hdr.instance == owner->hero_npc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.591460%; register coloring, instruction scheduling; one-trial ceiling. */
 void konquest_hide_damashi(void) {
     KonquestNpc* npc;
     MkObj* object;
     unsigned int effect;
 
-    npc = konquest_pdata->hero_npc;
-    if (npc != 0) {
-        if (npc->fields.hdr.instance != konquest_pdata->hero_npc_instance) {
-            npc = 0;
-        }
-    } else {
-        npc = 0;
-    }
+    npc = konquest_live_hero_npc(konquest_pdata);
+
 
     effect = fx_by_owner("damashi_spawn", 4);
     if (effect != 0) {
@@ -4250,14 +4351,7 @@ void konquest_hide_damashi(void) {
     if (npc == 0) {
         return;
     }
-    object = konquest_pdata->damashi_object;
-    if (object != 0) {
-        if (object->hdr.instance != konquest_pdata->damashi_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_live_damashi(konquest_pdata);
     if (object == 0) {
         return;
     }
@@ -4290,14 +4384,7 @@ void konquest_hide_damashi(void) {
         konquest_pdata->hero_npc_instance = 0;
     }
 
-    object = konquest_pdata->damashi_object;
-    if (object != 0) {
-        if (object->hdr.instance != konquest_pdata->damashi_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_live_damashi(konquest_pdata);
     if (object != 0) {
         if (konquest_pdata->damashi_object->hdr.instance != 0) {
             konquest_pdata->damashi_object->hdr.typed_vtbl->destroy(
@@ -4359,12 +4446,6 @@ MkObj* konquest_start_damashi(
     return object;
 }
 
-/*
- * Soft ceiling: display_konquest_text ~94.57%. Mode gating, hero process
- * suspension/restoration, exact text-window initialization, input wait,
- * grounding restore, and return match retail. The 12-byte size residue is
- * individual r28-r31 saves/restores offset by three folded latch joins.
- */
 int display_konquest_text(
     unsigned int string_id, unsigned int prompt_flags,
     float left_fraction, float bottom_fraction, float width_fraction) {
@@ -4387,17 +4468,7 @@ int display_konquest_text(
             hero_stop_moving();
             animation = konquest_pdata->hero_anim;
             if (animation != 0) {
-                animation_proc = animation->proc;
-                if (animation_proc != 0) {
-                    if (animation_proc->instance ==
-                        animation->proc_instance) {
-                        /* Valid animation-process latch. */
-                    } else {
-                        animation_proc = 0;
-                    }
-                } else {
-                    animation_proc = 0;
-                }
+                animation_proc = konquest_live_animation_process(animation);
                 xfer_proc(animation_proc, p_animate);
             }
         }
@@ -4440,31 +4511,11 @@ int display_konquest_text(
         if (game_mode != 1) {
             animation = konquest_pdata->hero_anim;
             if (animation != 0) {
-                animation_proc = animation->proc;
-                if (animation_proc != 0) {
-                    if (animation_proc->instance ==
-                        animation->proc_instance) {
-                        /* Valid animation-process latch. */
-                    } else {
-                        animation_proc = 0;
-                    }
-                } else {
-                    animation_proc = 0;
-                }
+                animation_proc = konquest_live_animation_process(animation);
                 xfer_proc(animation_proc, p_control_konquest_monk);
             }
 
-            grounding = konquest_pdata->hero_grounding;
-            if (grounding != 0) {
-                if (grounding->hdr.instance ==
-                    konquest_pdata->grounding_instance) {
-                    /* Valid grounding latch. */
-                } else {
-                    grounding = 0;
-                }
-            } else {
-                grounding = 0;
-            }
+            grounding = konquest_live_grounding(konquest_pdata);
             if (grounding != 0) {
                 npc_xfer(grounding, p_npc_idle, 0);
             }
@@ -4614,28 +4665,13 @@ void give_reward_to_player(KonquestPuiDefinition* award) {
     }
 }
 
-/*
- * Soft ceiling: set_hero_position_relative_to_chest ~90.4% -- both object
- * latches, rotation, position construction, and the final call agree. The
- * residue is paired-save emission, one folded latch join, and local-constant
- * relocation labels.
- */
 void set_hero_position_relative_to_chest(void) {
     Vec offset = {0.0f, 0.0f, 1.0f};
     Vec position = {0.0f, 0.0f, 0.0f};
     MkObj* hero;
     MkObj* chest;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     chest = get_pickup_object();
     if (chest != 0 && hero != 0) {
         float hero_height;
@@ -4679,29 +4715,15 @@ static inline KonquestPuiDelayView* find_pui_runtime_by_id(
 }
 
 
-/*
- * Near match: the shared typed PUI lookup and the final render-object
- * generation latch reproduce retail behavior, including clearing the result
- * when list traversal exhausts. The residue is stmw/lmw versus individual
- * saves, one equivalent latch branch, and register allocation.
- */
 MkObj* get_pickup_object(void) {
     KonquestPuiDelayView* pui;
-    MkObj* object;
 
     pui = find_pui_runtime_by_id(konquest_pdata->reference_pui);
     if (pui == 0) {
         return 0;
     }
 
-    object = pui->render_object;
-    if (object != 0) {
-        if (object->hdr.instance != pui->render_object_instance) {
-            object = 0;
-        }
-        return object;
-    }
-    return 0;
+    return konquest_live_pui_object(pui);
 }
 
 void set_reference_pui(KonquestPuiDefinition* reference) {
@@ -5878,26 +5900,27 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
     owner->interaction->position = object->pos.value;
 }
 
-/*
- * Soft ceiling: update_konquest_pui 92.75% (976 versus 964 bytes). The timed
- * kill, five-state switch with separate state-1/state-2 bodies, child/effect
- * positioning, delayed reveal, alpha ramp, and priorities have the exact
- * retail call sequence. Residue is scheduling and register allocation.
- */
+static inline MkObj* pui_live_effect_clone_bind_hdr(KonquestPuiRuntime* owner) {
+    MkObj* object = (MkObj*) owner->effect_clone->bind_hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->effect_clone->bind_inst) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.124480%; register coloring, instruction scheduling; one-trial ceiling. */
 static void update_konquest_pui(KonquestPuiRuntime* runtime) {
     KonquestPuiRuntime* pui = runtime;
     MkObj* object;
     MkObj* effect_object;
     MkSobj* child;
 
-    object = pui->render_object;
-    if (object != 0) {
-        if (object->hdr.instance != pui->render_object_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_live_pui_object(pui);
     if (object == 0) {
         return;
     }
@@ -5916,14 +5939,7 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
         update_dropped_pui(pui);
         break;
     case 1:
-        object = pui->render_object;
-        if (object != 0) {
-            if (object->hdr.instance != pui->render_object_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = konquest_live_pui_object(pui);
         object->pos.value.x += object->pos_vel.x * game_speed;
         object->pos.value.y += object->pos_vel.y * game_speed;
         object->pos.value.z += object->pos_vel.z * game_speed;
@@ -5940,14 +5956,7 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
         object->pos_vel.x = 0.0f;
         break;
     case 2:
-        object = pui->render_object;
-        if (object != 0) {
-            if (object->hdr.instance != pui->render_object_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = konquest_live_pui_object(pui);
         object->pos.value.x += object->pos_vel.x * game_speed;
         object->pos.value.y += object->pos_vel.y * game_speed;
         object->pos.value.z += object->pos_vel.z * game_speed;
@@ -5973,15 +5982,8 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
         child->pos.y = -object->pos.value.y;
     }
     if (pui->effect_clone != 0) {
-        effect_object = (MkObj*)pui->effect_clone->bind_hdr;
-        if (effect_object != 0) {
-            if (effect_object->hdr.instance !=
-                pui->effect_clone->bind_inst) {
-                effect_object = 0;
-            }
-        } else {
-            effect_object = 0;
-        }
+        effect_object = pui_live_effect_clone_bind_hdr(pui);
+
         child = obj_find_sobj_by_id(object, 1);
         effect_object->pos.value.x = child->pos.x + object->pos.value.x;
         effect_object->pos.value.y = child->pos.y + object->pos.value.y;
@@ -6008,12 +6010,7 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
     }
 }
 
-/*
- * Near match: all five behavior modes, seven instance latches, typed object
- * flags, velocity initialization, and inverse-length math agree. MWCC folds
- * the valid-path join branch from each structured latch, accounting for the
- * complete 28-byte residue; other annotations are register/relocation labels.
- */
+/* TODO: [near miss] 99.555560%; drop timer +0x34 fixed; FP register residue remains. */
 static void setup_konquest_pui(KonquestPuiRuntime* pui) {
     KonquestChestOwner* owner;
     MkObj* object;
@@ -6028,32 +6025,14 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
 
     switch (pui->behavior) {
     case 0:
-        object = pui->object;
-        if (object != 0) {
-            if (object->hdr.instance == pui->object_instance) {
-                /* Valid object latch. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = konquest_live_pui_object(pui);
         if (object != 0) {
             object->flags_08_bits.airborne = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
         }
         return;
     case 1:
-        object = pui->object;
-        if (object != 0) {
-            if (object->hdr.instance == pui->object_instance) {
-                /* Valid object latch. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = konquest_live_pui_object(pui);
         if (object != 0) {
             object->flags_08_bits.airborne = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
@@ -6065,16 +6044,7 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
         }
         return;
     case 2:
-        object = pui->object;
-        if (object != 0) {
-            if (object->hdr.instance == pui->object_instance) {
-                /* Valid object latch. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = konquest_live_pui_object(pui);
         if (object != 0) {
             object->flags_08_bits.angular_velocity_enabled = 1;
             object->flags_08_bits.rotation_enabled = 1;
@@ -6088,36 +6058,9 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
         }
         return;
     case 3:
-        owner = pui->owner;
-        if (owner != 0) {
-            if (owner->hdr.instance == pui->owner_instance) {
-                /* Valid owner latch. */
-            } else {
-                owner = 0;
-            }
-        } else {
-            owner = 0;
-        }
-        object = pui->object;
-        if (object != 0) {
-            if (object->hdr.instance == pui->object_instance) {
-                /* Valid object latch. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        hero = konquest_pdata->hero_object;
-        if (hero != 0) {
-            if (hero->hdr.instance == konquest_pdata->hero_instance) {
-                /* Valid hero latch. */
-            } else {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        owner = konquest_live_pui_owner(pui);
+        object = konquest_live_pui_object(pui);
+        hero = konquest_live_hero(konquest_pdata);
         if (hero != 0 && object != 0 && owner != 0) {
             x = hero->field_24->at.x;
             z = hero->field_24->at.z;
@@ -6141,20 +6084,11 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
             object->flags_08_bits.airborne = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
             owner->interaction->closed = 0;
-            pui->lifetime = 60.0f;
+            pui->drop_timer = 60.0f;
         }
         return;
     case 4:
-        object = pui->object;
-        if (object != 0) {
-            if (object->hdr.instance == pui->object_instance) {
-                /* Valid object latch. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = konquest_live_pui_object(pui);
         if (object != 0) {
             object->flags_08_bits.angular_velocity_enabled = 1;
             object->flags_08_bits.rotation_enabled = 1;
@@ -6368,12 +6302,7 @@ static inline KonquestPuiDelayView* find_pui_runtime_by_numeric_id(
     return 0;
 }
 
-
-/*
- * Near match: stale-safe numeric lookup, render-object latch, byte color
- * stores, and material update agree. Retail retains one valid-latch join
- * branch that MWCC folds here; the other differences are register coloring.
- */
+/* TODO: [near miss] 99.032260%; register/operand residue remains; stop at trial cap. */
 void pui_set_color(
     unsigned int id, unsigned char red, unsigned char green,
     unsigned char blue, unsigned char alpha) {
@@ -6384,15 +6313,7 @@ void pui_set_color(
     object = find_pui_runtime_by_numeric_id(id);
 
     if (object != 0) {
-        render_object = object->render_object;
-        if (render_object != 0) {
-            if (render_object->hdr.instance !=
-                object->render_object_instance) {
-                render_object = 0;
-            }
-        } else {
-            render_object = 0;
-        }
+        render_object = konquest_live_pui_object(object);
         if (render_object != 0) {
             color.red = red;
             color.green = green;
@@ -6752,12 +6673,20 @@ void pui_delay_spawn(KonquestPuiDefinition* item, float delay) {
     }
 }
 
-/*
- * Near match: spawn_pui 94.51% (776 versus 768 bytes). Both item-type arms,
- * inventory/profile gates, trigger transfer, stale-safe object latch, inline
- * tile lookup, and all eight calls agree. Residue is two folded latch joins,
- * individual saves/restores instead of stmw/lmw, and GPR scheduling.
- */
+static inline KonquestTriggerStruct* pui_live_trigger_owner(KonquestPuiRuntime* owner) {
+    KonquestTriggerStruct* object = owner->trigger_owner;
+    if (object != 0) {
+        if (object->hdr.instance == owner->owner_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.453125%; register coloring, relocation offsets; one-trial ceiling. */
 void spawn_pui(
     KonquestPuiDefinition* item, int behavior, int position_mode) {
     KonquestPuiRuntime* pui;
@@ -6821,14 +6750,8 @@ void spawn_pui(
                     pui_restore_open_chests(item);
                 }
 
-                trigger = pui->trigger_owner;
-                if (trigger != 0) {
-                    if (trigger->hdr.instance != pui->owner_instance) {
-                        trigger = 0;
-                    }
-                } else {
-                    trigger = 0;
-                }
+                trigger = pui_live_trigger_owner(pui);
+
                 if (trigger != 0) {
                     trigger->owned_data->flags |= 2;
                 }
@@ -6843,14 +6766,7 @@ void spawn_pui(
 
         pui = create_new_konquest_pui(item, behavior, position_mode);
         if (pui != 0) {
-            object = pui->render_object;
-            if (object != 0) {
-                if (object->hdr.instance != pui->render_object_instance) {
-                    object = 0;
-                }
-            } else {
-                object = 0;
-            }
+            object = konquest_live_pui_object(pui);
             if (object != 0) {
                 KonquestTileRecord* tile;
                 int tile_index;
@@ -7306,12 +7222,6 @@ static int konquest_pui_check_for_and_replace_old_chest(
     return replaced;
 }
 
-/*
- * Soft ceiling: pui_set_chest_state ~87.3%. Lookup, stale-link cleanup, both
- * instance latches, calls, and process-data stores match. A three-GPR
- * carousel, two equivalent shorter latch joins, and expanded saves/restores
- * produce a net 16 bytes over retail.
- */
 static MkProc* pui_set_chest_state(
     KonquestPuiDefinition* item, int direction) {
     KonquestPuiDelayView* pui;
@@ -7325,14 +7235,7 @@ static MkProc* pui_set_chest_state(
         return 0;
     }
 
-    render_object = pui->render_object;
-    if (render_object != 0) {
-        if (render_object->hdr.instance != pui->render_object_instance) {
-            render_object = 0;
-        }
-    } else {
-        render_object = 0;
-    }
+    render_object = konquest_live_pui_object(pui);
     if (render_object == 0) {
         return 0;
     }
@@ -7347,14 +7250,7 @@ static MkProc* pui_set_chest_state(
     if (proc != 0) {
         KonquestChestOwner* owner;
 
-        owner = pui->owner;
-        if (owner != 0) {
-            if (owner->hdr.instance != pui->owner_instance) {
-                owner = 0;
-            }
-        } else {
-            owner = 0;
-        }
+        owner = konquest_live_pui_owner(pui);
         owner->interaction->closed = 0;
 
         pdata->owner = owner;
@@ -7365,12 +7261,6 @@ static MkProc* pui_set_chest_state(
     return proc;
 }
 
-/*
- * Soft ceiling: pui_restore_open_chests ~87.2% -- the PUI lookup, stale-link
- * cleanup, object-instance latch, subobject update, and access widths agree.
- * Residue is paired-save emission, one folded latch join, and the local float
- * constant's relocation label.
- */
 static void pui_restore_open_chests(KonquestPuiDefinition* item) {
     KonquestPuiDelayView* pui;
     MkObj* render_object;
@@ -7378,14 +7268,7 @@ static void pui_restore_open_chests(KonquestPuiDefinition* item) {
 
     pui = find_pui_runtime_by_id(item);
     if (pui != 0) {
-        render_object = pui->render_object;
-        if (render_object != 0) {
-            if (render_object->hdr.instance != pui->render_object_instance) {
-                render_object = 0;
-            }
-        } else {
-            render_object = 0;
-        }
+        render_object = konquest_live_pui_object(pui);
         if (render_object != 0) {
             chest = obj_find_sobj_by_id(render_object, 10);
             if (chest != 0) {
@@ -7396,6 +7279,7 @@ static void pui_restore_open_chests(KonquestPuiDefinition* item) {
     }
 }
 
+/* TODO: [near miss] 97.300000%; original latch retained; branch lowering, instruction lowering; one-trial ceiling. */
 static float p_close_konquest_chest(void) {
     KonquestChestPdata* pdata;
     KonquestChestOwner* owner;
@@ -7451,16 +7335,7 @@ int spawn_dynamic_pui_critical(KonquestPuiDefinition* item) {
     pid = aproc->pid;
     if (pid == 0x9019) {
         pdata = (MkObjLatch*)pdata_of_proc(aproc);
-        source = pdata->obj;
-        if (source != 0) {
-            if (source->instance == pdata->obj_instance) {
-                /* Valid process source latch. */
-            } else {
-                source = 0;
-            }
-        } else {
-            source = 0;
-        }
+        source = konquest_live_source(pdata);
         if (source == 0) {
             return 0;
         }
@@ -7488,16 +7363,7 @@ int spawn_dynamic_pui(KonquestPuiDefinition* item) {
     pid = aproc->pid;
     if (pid == 0x9019) {
         pdata = (MkObjLatch*)pdata_of_proc(aproc);
-        source = pdata->obj;
-        if (source != 0) {
-            if (source->instance == pdata->obj_instance) {
-                /* Valid process source latch. */
-            } else {
-                source = 0;
-            }
-        } else {
-            source = 0;
-        }
+        source = konquest_live_source(pdata);
         if (source == 0) {
             return 0;
         }
@@ -8067,17 +7933,7 @@ int get_num_puis(void) {
 void start_subobject_pulsing_effect(int pulse_type) {
     MkHdr* object;
 
-    object = konquest_pdata->tile_objects;
-    if (object != 0) {
-        if (object->instance ==
-            konquest_pdata->tile_objects_instance) {
-            /* Valid object latch. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_live_tile_objects(konquest_pdata);
     if (object != 0) {
         pulsate_object(object, pulse_type, 0x1E, 0xA, 6.0f, 6.0f);
     }
@@ -8121,17 +7977,7 @@ void suspend_hero_state_process(void) {
     MkProc* proc;
 
     if (konquest_pdata->hero_anim != 0) {
-        proc = konquest_pdata->hero_anim->proc;
-        if (proc != 0) {
-            if (proc->instance ==
-                konquest_pdata->hero_anim->proc_instance) {
-                /* Valid process latch. */
-            } else {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = konquest_live_animation_process(konquest_pdata->hero_anim);
         xfer_proc(proc, p_animate);
     }
 }
@@ -8141,17 +7987,7 @@ void idle_hero_anim_proc(void) {
     AnimPdata* pdata;
 
     if (konquest_pdata->hero_anim != 0) {
-        proc = konquest_pdata->hero_anim->proc;
-        if (proc != 0) {
-            if (proc->instance ==
-                konquest_pdata->hero_anim->proc_instance) {
-                /* Valid animation process latch. */
-            } else {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = konquest_live_animation_process(konquest_pdata->hero_anim);
         if (proc != 0) {
             xfer_proc(proc, p_anim_idle);
             pdata = (AnimPdata*)pdata_of_proc(proc);
@@ -8203,12 +8039,19 @@ void cleanup_konquest(void) {
     f_writing_konquest_profile = 0;
 }
 
-/*
- * Near match: p_head_tracking 93.98% (724 versus 712 bytes). Hero/camera
- * validation, state turns, angle wrapping and clamping, aligned head-matrix
- * transform, and all three calls agree. Residue is two equivalent latch joins,
- * individual versus combined GPR saves, and pooled-float relocation labels.
- */
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_head_tracking(void) {
     KonquestHeadTrackingPdata* pdata;
     CameraObj* camera;
@@ -8218,23 +8061,10 @@ static float p_head_tracking(void) {
     Vec position;
     float angle;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
+
 
     pdata = (KonquestHeadTrackingPdata*)pdata_of_proc(aproc);
     if (hero == 0) {
@@ -8339,11 +8169,6 @@ AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object) {
     return texture;
 }
 
-/*
- * Near match: the NIS stack wait, process transfers, hero-process latch, and
- * cleanup agree. Residue is one inlined array-address strength reduction, an
- * equivalent latch branch, and the local 1.0f relocation label.
- */
 void konquest_nis_end(void) {
     KonquestPdata* pdata;
     AnimPdata* animation;
@@ -8368,26 +8193,13 @@ void konquest_nis_end(void) {
     xfer_proc(konquest_pdata->collision_proc, p_collide_monk);
 
     animation = konquest_pdata->hero_anim;
-    proc = animation->proc;
-    if (proc != 0) {
-        if (proc->instance == animation->proc_instance) {
-            /* Valid animation-process latch. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = konquest_live_animation_process(animation);
     xfer_proc(proc, p_control_konquest_monk);
     destroy_mkprocs_pid(0x901C);
     nis_end_scene();
 }
 
-/*
- * Near match: all NIS setup, inlined helper behavior, and latch checks agree.
- * Retail retains one extra branch in each of the mode and two latch diamonds;
- * MWCC folds those joins here, producing the 12-byte size difference.
- */
+/* TODO: [near miss] 97.177420%; branch/register lowering remains; stop at trial cap. */
 void konquest_nis_init(int value) {
     KonquestGrounding* grounding;
 
@@ -8413,16 +8225,7 @@ void konquest_nis_init(int value) {
     konquest_pdata->npc_interaction_state = 0;
     nis_participants = 0;
 
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
+    grounding = konquest_live_grounding(konquest_pdata);
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
         grounding->flag_bits.suspended = 0;
@@ -8518,12 +8321,7 @@ static inline int is_npc_scene_active(KonquestNpcRuntime* npc) {
     return active;
 }
 
-
-/*
- * Near match: allocation, both participant paths, scene readiness wait, NPC
- * takeover, and resume-entry capture agree. The 12-byte delta is two folded
- * ownership joins plus equivalent pointer-truth normalization; saves differ.
- */
+/* TODO: [near miss] 99.99254%; instructions agree except the script-name pool offset; recover string ownership. */
 void nis_register_participant(int type, void* npc_data) {
     KonquestNisParticipant* participant;
 
@@ -8579,28 +8377,10 @@ void nis_register_participant(int type, void* npc_data) {
         KonquestNpcRuntime* npc;
 
         if (konquest_pdata != 0) {
-            hero = konquest_pdata->hero_object;
+            hero = konquest_live_hero(konquest_pdata);
             if (hero != 0) {
-                if (hero->hdr.instance == konquest_pdata->hero_instance) {
-                    /* Valid hero-object latch. */
-                } else {
-                    hero = 0;
-                }
-            } else {
-                hero = 0;
-            }
-            if (hero != 0) {
-                npc = (KonquestNpcRuntime*)konquest_pdata->hero_grounding;
-                if (npc != 0) {
-                    if (npc->hdr.instance ==
-                        konquest_pdata->grounding_instance) {
-                        /* Valid hero-NPC latch. */
-                    } else {
-                        npc = 0;
-                    }
-                } else {
-                    npc = 0;
-                }
+                npc = (KonquestNpcRuntime*)
+                    konquest_live_grounding(konquest_pdata);
                 if (npc != 0) {
                     npc->state_flag_bits.nis_participant = 1;
                     participant->npc = npc;
@@ -9194,13 +8974,6 @@ static inline int is_dialog_art_active(KonquestDialogArt* dialog_art) {
 }
 
 
-/*
- * Soft ceiling: konquest_start_npc_nis ~98.02% at the exact 696-byte retail
- * size. NPC/hero state setup, animation transition, HUD and ambient fades,
- * dialog-art wait, and movement latch all align. Residue is one equivalent
- * ownership-latch branch shape, boolean truth normalization, and local
- * floating-constant relocation labels.
- */
 void konquest_start_npc_nis(void) {
     MkObj* hero;
     MkProc* fade_proc;
@@ -9216,14 +8989,7 @@ void konquest_start_npc_nis(void) {
         konquest_pdata->flag_bits.bit4 = 0;
     }
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     if (hero != 0) {
         hero->pos_vel.z = 0.0f;
         hero->pos_vel.y = 0.0f;
@@ -9522,14 +9288,7 @@ void start_character_separation_process(float separation) {
     }
 }
 
-/*
- * Soft ceiling: konquest_start_npc_interaction ~94.96%. NPC/hero setup,
- * mode-stack handling, animation drain, HUD/ambient fades, dialog wait,
- * interaction pdata, movement latch, and conversation count match retail.
- * The eight-byte size residue is typed-array induction and equivalent
- * negative-index/predicate lowering; other differences are register/save
- * coloring and local floating-constant relocation labels.
- */
+/* TODO: [near miss] 99.617550%; branch/register lowering remains; stop at trial cap. */
 void konquest_start_npc_interaction(void) {
     KonquestSoundFadePdata* fade;
     KonquestInteractionPdata* interaction;
@@ -9542,16 +9301,7 @@ void konquest_start_npc_interaction(void) {
         g_active_npc->fields.flag_bits.flags_bit3 = 1;
     }
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     if (hero != 0) {
         hero->pos_vel.z = 0.0f;
         hero->pos_vel.y = 0.0f;
@@ -9583,16 +9333,7 @@ void konquest_start_npc_interaction(void) {
             npc_ani_1_frame();
         } while (konquest_game_mode_in_stack(1) != 0);
 
-        hero = konquest_pdata->hero_object;
-        if (hero != 0) {
-            if (hero->hdr.instance == konquest_pdata->hero_instance) {
-                /* Valid hero latch. */
-            } else {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        hero = konquest_live_hero(konquest_pdata);
         if (hero != 0) {
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
@@ -9683,14 +9424,21 @@ static inline float konquest_fast_sqrt(float value) {
          (3.0f - (estimate.value * estimate.value) / value));
 }
 
+static inline MkProc* interaction_live_npc_fields_turn_proc(
+    KonquestInteractionPdata* owner) {
+    MkProc* object = owner->npc->fields.turn_proc;
+    if (object != 0) {
+        if (object->instance == owner->npc->fields.turn_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
 
-/*
- * Soft ceiling: p_konquest_interaction ~94.84%. Separation/collision
- * response, hero and NPC facing, stale turn-process cleanup, object updates,
- * and completion return agree with retail. The 20-byte size residue is
- * individual nonvolatile restores instead of lmw; remaining differences are
- * GPR/FPR coloring, folded latch joins, and local constant relocations.
- */
+/* TODO: [near miss] 97.680490%; register coloring, stack layout; one-trial ceiling. */
 static float p_konquest_interaction(void) {
     MkObj* hero;
     KonquestInteractionPdata* pdata;
@@ -9708,16 +9456,7 @@ static float p_konquest_interaction(void) {
     int npc_facing;
 
     pdata = (KonquestInteractionPdata*)apdata;
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     hero_facing = 0;
     npc_facing = 0;
     movement.z = 0.0f;
@@ -9736,15 +9475,8 @@ static float p_konquest_interaction(void) {
     }
     if (validated_turn_proc != 0) {
         /* Revalidate the owner latch before destroying and clearing it. */
-        current_turn_proc = pdata->npc->fields.turn_proc;
-        if (current_turn_proc != 0) {
-            if (current_turn_proc->instance !=
-                pdata->npc->fields.turn_proc_instance) {
-                current_turn_proc = 0;
-            }
-        } else {
-            current_turn_proc = 0;
-        }
+        current_turn_proc = interaction_live_npc_fields_turn_proc(pdata);
+
         if (current_turn_proc != 0) {
             if (turn_proc->instance != 0) {
                 ((KonquestDestroyable*)turn_proc)->vtbl->destroy(
@@ -9883,12 +9615,32 @@ static float p_konquest_interaction(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: set_movement_npc ~92.90%. Target selection, both generation
- * latches, camera-target readiness, and focus object agree with retail. The
- * four-byte size residue is two folded empty latch joins offset by alternate
- * pointer-truth normalization.
- */
+static inline KonquestNpc* konquest_live_hero_grounding(KonquestPdata* owner) {
+    KonquestNpc* object = (KonquestNpc*) owner->hero_grounding;
+    if (object != 0) {
+        if (object->fields.hdr.instance == owner->grounding_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestNpc* konquest_live_movement_npc_object(KonquestPdata* owner) {
+    KonquestNpc* object = (KonquestNpc*) owner->movement_npc.object;
+    if (object != 0) {
+        if (object->fields.hdr.instance == owner->movement_npc.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void set_movement_npc(int target_type) {
     KonquestNpc* npc;
     KonquestNpc* candidate;
@@ -9900,32 +9652,13 @@ void set_movement_npc(int target_type) {
     case 1:
         break;
     case 2:
-        candidate = (KonquestNpc*)konquest_pdata->hero_grounding;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->grounding_instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_hero_grounding(konquest_pdata);
+
         npc = candidate;
         break;
     case 0:
-        candidate =
-            (KonquestNpc*)konquest_pdata->movement_npc.object;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->movement_npc.instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_movement_npc_object(konquest_pdata);
+
         npc = candidate;
         break;
     }
@@ -9944,12 +9677,11 @@ void set_movement_npc(int target_type) {
     }
 }
 
-/*
- * Soft ceiling: set_look_at_npc ~92.90%. Target selection, both generation
- * latches, camera-target readiness, and focus object agree with retail. The
- * four-byte size residue is two folded empty latch joins offset by alternate
- * pointer-truth normalization.
- */
+
+
+
+
+
 void set_look_at_npc(int target_type) {
     KonquestNpc* npc;
     KonquestNpc* candidate;
@@ -9961,32 +9693,13 @@ void set_look_at_npc(int target_type) {
     case 1:
         break;
     case 2:
-        candidate = (KonquestNpc*)konquest_pdata->hero_grounding;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->grounding_instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_hero_grounding(konquest_pdata);
+
         npc = candidate;
         break;
     case 0:
-        candidate =
-            (KonquestNpc*)konquest_pdata->movement_npc.object;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->movement_npc.instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_movement_npc_object(konquest_pdata);
+
         npc = candidate;
         break;
     }
@@ -10294,12 +10007,7 @@ static float p_transition_to_fight(void) {
     return -1.0f;
 }
 
-/*
- * Near match: mode/audio lifecycle, map transforms, rotated hero cursor,
- * objective/portal markers, six independent kamidogu branches, labels, input
- * wait, and cleanup agree. The 16-byte excess is equivalent mode/latch branch
- * emission; remaining annotations are register and pooled-string scheduling.
- */
+/* TODO: [near miss] 98.961205%; branch/register lowering remains; stop at trial cap. */
 static float p_konquest_map_screen(void) {
     KonquestPdata* pdata;
     MkObj* hero;
@@ -10315,14 +10023,7 @@ static float p_konquest_map_screen(void) {
     int index;
 
     pdata = konquest_pdata;
-    hero = pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(pdata);
     map_scale_x = 1.0f;
     map_scale_z = 1.0f;
 
@@ -10825,13 +10526,7 @@ float p_konquest_switch_4(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: p_konquest_switch_3 ~98.4% at the exact retail size. The
- * mode logic, NPC interaction, trigger scan, latch cleanup, state updates,
- * calls, and access widths match. Residue is one equivalent hero-latch branch,
- * one exhausted-list-cursor branch/register form, local floating-register
- * scheduling, and constant relocation labels.
- */
+/* TODO: [near miss] 98.456220%; branch/register lowering remains; stop at trial cap. */
 float p_konquest_switch_3(void) {
     KonquestSwitchState* input;
     KonquestPdata* pdata;
@@ -10888,14 +10583,7 @@ float p_konquest_switch_3(void) {
         }
 
         pdata = konquest_pdata;
-        hero = pdata->hero_object;
-        if (hero != 0) {
-            if (hero->hdr.instance != pdata->hero_instance) {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        hero = konquest_live_hero(pdata);
 
         if (hero == 0) {
             link = 0;
@@ -11188,13 +10876,7 @@ static int check_additional_trigger_fire_requirements(
     return result;
 }
 
-/*
- * Near match: handle_monk_input 96.69% (1188 versus 1184 bytes). The mode
- * gate, dead-zone remap, normalized camera-relative movement, turn step,
- * walk/run state transitions, animation rates, and both stop paths agree.
- * Residue is two folded latch joins, individual versus grouped GPR saves,
- * local FPR scheduling, and pooled floating-constant labels.
- */
+/* TODO: [near miss] 99.797295%; relocation offsets, register coloring; one-trial ceiling. */
 static void handle_monk_input(void) {
     MkObj* hero;
     CameraObj* camera;
@@ -11212,16 +10894,7 @@ static void handle_monk_input(void) {
     int run_pressed;
     int state;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
 
     mode_index = konquest_pdata->game_mode_index;
     if ((mode_index < 0 ? 0 : konquest_pdata->game_modes[mode_index]) != 0) {
@@ -11248,16 +10921,8 @@ static void handle_monk_input(void) {
         if (stick_length <= 1.0f) {
             magnitude = stick_length;
         }
-        camera = camera_item.node;
-        if (camera != 0) {
-            if (camera->hdr.instance == camera_item.instance) {
-                /* Valid camera latch. */
-            } else {
-                camera = 0;
-            }
-        } else {
-            camera = 0;
-        }
+        camera = camera_live_node(&camera_item);
+
 
         if (magnitude > 0.01f) {
             konquest_pdata->npc_interaction_state = 0;
@@ -11342,12 +11007,7 @@ static void handle_monk_input(void) {
     }
 }
 
-/*
- * Near match: the complete controller algorithm, repeated mode/state and
- * camera queries, stick out-parameter ABI, camera math, and state filter agree
- * with retail. The eight-byte residue is two folded join branches plus local
- * floating-constant relocation labels.
- */
+/* TODO: [near miss] 99.075630%; branch/register lowering remains; stop at trial cap. */
 void handle_controller_input(void) {
     MkObj* hero;
     CameraPdata* camera;
@@ -11357,16 +11017,7 @@ void handle_controller_input(void) {
     float vertical_input;
     float magnitude;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
 
     if (konquest_current_game_mode() != 0 &&
         konquest_current_game_mode() != 4) {
@@ -12021,12 +11672,6 @@ float p_adjust_directional_light(void) {
     return -1.0f;
 }
 
-/*
- * Near match: mode handling, hero latch, repel response, camera flag, cached
- * position, vertical ground probe, gravity, and all access widths agree with
- * retail. Residue is individual GPR saves/restores, one folded latch join,
- * and local floating-constant relocation labels.
- */
 static float p_collide_monk(void) {
     CameraPdata* camera;
     MkObj* hero;
@@ -12040,16 +11685,7 @@ static float p_collide_monk(void) {
         return 1.0f;
     }
     camera = get_pdata_of_camera();
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
 
     if (hero != 0) {
         if (old_hero_position.y == 500.0f) {
@@ -12094,13 +11730,7 @@ static float p_collide_monk(void) {
     return 1.0f;
 }
 
-/*
- * Near match at the exact retail size: unconscious timing, collision and
- * camera ownership, both game-speed ramps, animation loops, sound lifecycle,
- * flag transitions, and final control transfer agree. Residue is equivalent
- * latch/creation branch layout, individual versus grouped GPR saves, vtable
- * temporary coloring, and local floating-constant labels.
- */
+/* TODO: [near miss] 99.206640%; branch/register lowering remains; stop at trial cap. */
 static float p_monk_unconscious(void) {
     KonquestGameSpeedPdata* speed_pdata = 0;
     MkObj* hero;
@@ -12108,16 +11738,7 @@ static float p_monk_unconscious(void) {
     float duration;
     float elapsed;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     elapsed = 0.0f;
     duration = (float)konquest_pdata->hero_unconscious;
 
@@ -12134,16 +11755,7 @@ static float p_monk_unconscious(void) {
         konquest_pdata->script_owner,
         konquest_pdata->unconscious_camera_script, 1);
 
-    camera_focus = konquest_pdata->hero_object;
-    if (camera_focus != 0) {
-        if (camera_focus->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            camera_focus = 0;
-        }
-    } else {
-        camera_focus = 0;
-    }
+    camera_focus = konquest_live_hero(konquest_pdata);
     if (camera_focus != 0) {
         camera_set_lookat_focus(camera_focus);
         camera_set_movement_focus_obj(camera_focus);
@@ -12279,26 +11891,12 @@ static float p_monk_getup(void) {
     return 0.0f;
 }
 
-/*
- * Near match at the exact retail size: hero latch, mode-stack update,
- * animation and sound setup, ground-collision transition, both frame loops,
- * and terminal process transfer agree. Residue is one equivalent latch branch,
- * process-vtable temporary coloring, and local floating-constant labels.
- */
+/* TODO: [near miss] 99.875000%; register/operand residue remains; stop at trial cap. */
 static float p_monk_punch_react(void) {
     MkObj* hero;
     int mode_index;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
 
     mode_index = konquest_pdata->game_mode_index;
     if ((mode_index < 0 || konquest_current_game_mode() != 5) &&
@@ -12348,11 +11946,7 @@ static float p_monk_punch_react(void) {
     return 0.0f;
 }
 
-/*
- * Near match: retail operations, branches, access widths, and call ABI agree.
- * Remaining differences are the equivalent hero-latch branch, GPR save/restore
- * aggregation, a local float-load schedule, and pooled constant relocations.
- */
+/* TODO: [near miss] 98.925780%; branch/register lowering remains; stop at trial cap. */
 static float p_monk_punch(void) {
     MkObj* hero;
     KonquestNpc* npc;
@@ -12360,16 +11954,7 @@ static float p_monk_punch(void) {
     int can_hit_npc;
     Vec direction;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     direction = (Vec){0.0f, 0.0f, 0.0f};
     npc = 0;
     can_hit_npc = 0;
@@ -12596,13 +12181,7 @@ static float p_monitor_meditation_time(void) {
     return -1.0f;
 }
 
-/*
- * Near match: p_monk_meditate 94.63% (944 versus 932 bytes). Animation
- * completion, mode-stack entry, the speed and time-monitor processes, sound
- * lifecycle, state-10 teardown, and control transfer agree. Residue is two
- * folded latch joins, one equivalent mode-test branch, individual versus
- * grouped GPR saves, vtable coloring, and pooled floating-constant labels.
- */
+/* TODO: [near miss] 99.012880%; original latch retained; branch lowering, register coloring; one-trial ceiling. */
 static float p_monk_meditate(void) {
     MkHdr* monitor_pdata;
     KonquestGameSpeedPdata* speed_pdata;
@@ -12616,9 +12195,7 @@ static float p_monk_meditate(void) {
     hero = konquest_pdata->hero_object;
     initial_state = konquest_pdata->hero_state;
     if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
+        if (hero->hdr.instance != konquest_pdata->hero_instance) {
             hero = 0;
         }
     } else {
@@ -12655,17 +12232,7 @@ static float p_monk_meditate(void) {
                         ->game_modes[konquest_pdata->game_mode_index] = 4;
                 }
 
-                meditation_hero = konquest_pdata->hero_object;
-                if (meditation_hero != 0) {
-                    if (meditation_hero->hdr.instance ==
-                        konquest_pdata->hero_instance) {
-                        /* Valid hero latch. */
-                    } else {
-                        meditation_hero = 0;
-                    }
-                } else {
-                    meditation_hero = 0;
-                }
+                meditation_hero = konquest_live_hero(konquest_pdata);
                 speed_pdata = 0;
                 monitor_pdata = 0;
                 if (meditation_hero != 0) {
@@ -12899,6 +12466,7 @@ static float p_control_konquest_monk(void) {
 /* Retail change_monk_age calls this leaf out of line under the TU's -inline
  * auto mode; keep that observed call boundary scoped to this definition. */
 #pragma dont_inline on
+/* TODO: [near miss] 98.382355%; direct latch retained under dont_inline; join branch remains. */
 void set_monk_position(float x, float y, float z, float angle) {
     CameraPdata* camera;
     MkObj* hero;
@@ -12906,9 +12474,7 @@ void set_monk_position(float x, float y, float z, float angle) {
     camera = get_pdata_of_camera();
     hero = konquest_pdata->hero_object;
     if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
+        if (hero->hdr.instance != konquest_pdata->hero_instance) {
             hero = 0;
         }
     } else {
@@ -13252,42 +12818,32 @@ static float p_load_hero_art_section(void) {
     return -1.0f;
 }
 
-/*
- * Near match: camera/hero latches, mode handling, shadow flags, call ABI, and
- * camera-flip correction match. Only two folded latch joins and local float
- * relocation labels remain; local text is eight bytes smaller.
- */
+static inline CameraObj* konquest_live_camera(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void render_konquest_shadows(void) {
     KonquestPdata* pdata;
-    MkObj* camera;
+    CameraObj* camera;
     MkObj* candidate;
     MkObj* hero;
     int game_mode;
 
-    camera = (MkObj*)camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance == camera_item.instance) {
-            /* Valid camera object latch. */
-        } else {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = konquest_live_camera(&camera_item);
     update_mkobj((MkHdr*)camera);
 
     pdata = konquest_pdata;
     if (pdata != 0) {
-        candidate = pdata->hero_object;
-        if (candidate != 0) {
-            if (candidate->hdr.instance == pdata->hero_instance) {
-                /* Valid hero latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_hero(pdata);
         hero = candidate;
         if (pdata->game_mode_index < 0) {
             game_mode = 0;
@@ -13315,20 +12871,10 @@ void render_konquest_shadows(void) {
     }
 }
 
-/* Near match: only the valid-hero latch's equivalent folded branch remains. */
 void set_hero_punched_ground_collisions(int punched) {
     MkObj* hero;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     if (punched != 0) {
         hero->ground_colls = monk_laying_on_ground_colls;
     } else {
@@ -13364,11 +12910,20 @@ int get_tile_from_position(const Vec* position) {
     return column + row * konquest_pdata->tile_width;
 }
 
-/*
- * Near match: range checks, inlined tile lookup, grid arithmetic, label UI,
- * and visibility calls agree. Two latch joins are folded, with minor GPR
- * coloring and local constant/string relocation-label differences.
- */
+static inline StringObj* konquest_live_hud_labels_5_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[5].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[5].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.679245%; register coloring, relocation offsets; one-trial ceiling. */
 void update_tile_grid(void) {
     MkObj* hero;
     KonquestTileRecord* tile;
@@ -13376,16 +12931,7 @@ void update_tile_grid(void) {
     int tile_index;
     char text[0x18];
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
 
     tile_index = konquest_pdata->tile_load_state;
     if (tile_index <
@@ -13409,17 +12955,8 @@ void update_tile_grid(void) {
                 konquest_pdata->tile_load_state / konquest_pdata->tile_width +
                 1;
 
-            label = (StringObj*)konquest_pdata->hud_labels[5].object;
-            if (label != 0) {
-                if (label->instance ==
-                    konquest_pdata->hud_labels[5].instance) {
-                    /* Valid grid-label latch. */
-                } else {
-                    label = 0;
-                }
-            } else {
-                label = 0;
-            }
+            label = konquest_live_hud_labels_5_object(konquest_pdata);
+
             sprintf(text, "%c - %d", konquest_pdata->tile_column + 'A',
                     konquest_pdata->tile_row);
             if (label != 0) {
@@ -14030,11 +13567,6 @@ void restore_collision_volume_on_object_with_uid(int uid) {
     }
 }
 
-/*
- * Soft ceiling: restore_collision_volume_on_object ~97.6% -- retail retains
- * one unconditional ownership-latch join branch that MWCC folds from this
- * structured form; all calls, accesses, and remaining control flow match.
- */
 void restore_collision_volume_on_object(void) {
     KonquestRemoveCollisionPdata* pdata;
     KonquestCollisionOwner* owner;
@@ -14042,14 +13574,7 @@ void restore_collision_volume_on_object(void) {
     KonquestCollisionPlacement* placement;
 
     pdata = (KonquestRemoveCollisionPdata*)pdata_of_proc(aproc);
-    owner = pdata->owner;
-    if (owner != 0) {
-        if (owner->hdr.instance != pdata->owner_instance) {
-            owner = 0;
-        }
-    } else {
-        owner = 0;
-    }
+    owner = konquest_live_collision_owner(pdata);
 
     if (owner != 0) {
         volume = owner->collision_volume;
@@ -14083,24 +13608,13 @@ void remove_collision_volume_on_object_with_uid(int uid) {
     }
 }
 
-/*
- * Soft ceiling: remove_collision_volume_on_object ~97.6% -- the remaining
- * ownership-latch join is the same folded branch as the restore variant.
- */
 void remove_collision_volume_on_object(void) {
     KonquestRemoveCollisionPdata* pdata;
     KonquestCollisionOwner* owner;
     KonquestCollisionVolume* volume;
 
     pdata = (KonquestRemoveCollisionPdata*)pdata_of_proc(aproc);
-    owner = pdata->owner;
-    if (owner != 0) {
-        if (owner->hdr.instance != pdata->owner_instance) {
-            owner = 0;
-        }
-    } else {
-        owner = 0;
-    }
+    owner = konquest_live_collision_owner(pdata);
 
     if (owner != 0) {
         volume = owner->collision_volume;
@@ -14599,27 +14113,13 @@ static inline KonquestChildObject* find_trigger_door(
 }
 
 
-/*
- * Soft ceiling: konquest_open_door ~88.0% -- the trigger latch, stale-safe
- * door lookup, enumeration test, and call ABI agree. Residue is paired-save
- * emission, one folded latch join, and scheduling of the two argument moves.
- */
 void konquest_open_door(int enumeration, int remain_open) {
     KonquestTriggerScriptPdata* pdata;
     KonquestTriggerStruct* trigger;
     KonquestChildObject* door;
 
     pdata = (KonquestTriggerScriptPdata*)pdata_of_proc(aproc);
-    trigger = pdata->trigger;
-    if (trigger != 0) {
-        if (trigger->hdr.instance == pdata->trigger_instance) {
-            /* Valid trigger latch. */
-        } else {
-            trigger = 0;
-        }
-    } else {
-        trigger = 0;
-    }
+    trigger = konquest_live_trigger(pdata);
     if (trigger != 0 && trigger->object != 0) {
         door = find_trigger_door(trigger->object, enumeration);
         if (door != 0) {
@@ -14674,12 +14174,7 @@ static inline KonquestChildObject* find_door_partner_inline(
     return 0;
 }
 
-/*
- * Near match: konquest_open_door_sobj 87.98% (680 versus 664 bytes). Both
- * door-process lifecycles, partner enumeration/search, stale-link cleanup,
- * process flags, pdata initialization, and all seven calls agree. Residue is
- * two equivalent process-latch joins, GPR save aggregation, and scheduling.
- */
+/* TODO: [near miss] 95.433740%; original latch retained; register coloring, stack layout; one-trial ceiling. */
 void konquest_open_door_sobj(
     KonquestChildObject* door, int remain_open) {
     KonquestDoorPdata* pdata;
@@ -14769,6 +14264,7 @@ static void p_konquest_open_door(void) {
     object_transition_to_state(pdata->door, 0, 1);
 }
 
+/* TODO: [near miss] 95.814740%; branch/register lowering remains; stop at trial cap. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     KonquestObjectState* state_data;
@@ -14906,15 +14402,7 @@ static void object_transition_to_state(
         matrix = 0;
         if (record->matrix_index >= 0) {
             if (record->binding->palette == 0) {
-                object = record->binding->object;
-                if (object != 0) {
-                    if (object->hdr.instance !=
-                        record->binding->object_instance) {
-                        object = 0;
-                    }
-                } else {
-                    object = 0;
-                }
+                object = konquest_live_binding_object(record->binding);
                 if (object != 0) {
                     matrix = &object->frame->modelling;
                 }
@@ -14947,15 +14435,7 @@ static void object_transition_to_state(
         matrix = 0;
         if (record->matrix_index >= 0) {
             if (record->binding->palette == 0) {
-                object = record->binding->object;
-                if (object != 0) {
-                    if (object->hdr.instance !=
-                        record->binding->object_instance) {
-                        object = 0;
-                    }
-                } else {
-                    object = 0;
-                }
+                object = konquest_live_binding_object(record->binding);
                 if (object != 0) {
                     matrix = &object->frame->modelling;
                 }
@@ -15012,11 +14492,7 @@ KonquestChildObject* find_child_subobject_by_enumeration(
     return 0;
 }
 
-/*
- * Soft ceiling: is_leaving_area ~98.1% -- all range math, state transitions,
- * access widths, and returns match. Residue is one folded hero-latch branch
- * and the local zero-vector relocation label.
- */
+/* TODO: [near miss] 98.472220%; original latch retained; branch lowering; one-trial ceiling. */
 static int is_leaving_area(KonquestTriggerStruct* trigger) {
     MkObj* hero;
     int in_range;
@@ -15029,9 +14505,7 @@ static int is_leaving_area(KonquestTriggerStruct* trigger) {
         Vec distance = {0.0f, 0.0f, 0.0f};
 
         if (hero != 0) {
-            if (hero->hdr.instance == konquest_pdata->hero_instance) {
-                /* Valid hero latch. */
-            } else {
+            if (hero->hdr.instance != konquest_pdata->hero_instance) {
                 hero = 0;
             }
         } else {
@@ -15077,23 +14551,11 @@ static int is_button_pressed(KonquestTriggerStruct* button) {
     return 0;
 }
 
-/*
- * Soft ceiling: is_in_range ~97.4% -- the math and guards are exact; residue
- * is one folded ownership-latch join plus the local constant's relocation
- * label, whose three loaded words are identical.
- */
 static int is_in_range(KonquestTriggerStruct* trigger) {
     Vec distance = {0.0f, 0.0f, 0.0f};
     MkObj* hero;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     if (hero == 0) {
         return 0;
     }
@@ -15108,14 +14570,7 @@ static int is_in_range(KonquestTriggerStruct* trigger) {
            trigger->owned_data->radius * trigger->owned_data->radius;
 }
 
-/*
- * Soft ceiling: p_run_trigger_script ~89.4%. The trigger-instance latches,
- * type-specific script parameters, command execution, post-script recheck,
- * flag clear, and active-trigger cleanup agree with retail. Residue is the
- * pdata/clear-flag nonvolatile-register swap, two folded latch joins,
- * individual saves/restores instead of stmw/lmw, and the -1.0f relocation
- * label; those forms produce 368 bytes versus retail's 360.
- */
+/* TODO: [near miss] 99.777780%; register/operand residue remains; stop at trial cap. */
 static float p_run_trigger_script(void) {
     KonquestTriggerScriptPdata* pdata;
     int clear_active_trigger;
@@ -15123,14 +14578,7 @@ static float p_run_trigger_script(void) {
     KonquestTriggerDefinition* definition;
 
     pdata = (KonquestTriggerScriptPdata*)pdata_of_proc(aproc);
-    trigger = pdata->trigger;
-    if (trigger != 0) {
-        if (trigger->hdr.instance != pdata->trigger_instance) {
-            trigger = 0;
-        }
-    } else {
-        trigger = 0;
-    }
+    trigger = konquest_live_trigger(pdata);
     clear_active_trigger = 0;
     if (trigger == 0) {
         return -1.0f;
@@ -15157,14 +14605,7 @@ static float p_run_trigger_script(void) {
         }
     }
 
-    trigger = pdata->trigger;
-    if (trigger != 0) {
-        if (trigger->hdr.instance != pdata->trigger_instance) {
-            trigger = 0;
-        }
-    } else {
-        trigger = 0;
-    }
+    trigger = konquest_live_trigger(pdata);
     if (trigger != 0) {
         trigger->flag_bits.bit3 = 0;
     }
@@ -15182,29 +14623,14 @@ static float p_run_trigger_script(void) {
  * Residue is one folded process-latch join plus individual saves/restores;
  * the source is 512 bytes versus retail's 500.
  */
-/*
- * Soft ceiling: execute_trigger ~89.3%. Process ownership validation,
- * transfer/creation, typed pdata initialization, active-trigger tracking,
- * bitfield update, and type-1 state clear agree with retail. Residue is
- * nonvolatile-register coloring, one folded latch join, and individual
- * saves/restores; the source is 308 bytes versus retail's 304.
- */
+/* Execute or spawn the script after validating its owning process. */
 static inline void execute_trigger_inline(KonquestTriggerStruct* trigger) {
     MkProc* proc;
     KonquestTriggerScriptPdata* pdata;
 
     if (trigger->owned_data->type != 2 ||
         konquest_pdata->active_trigger == 0) {
-        proc = trigger->script_proc;
-        if (proc != 0) {
-            if (proc->instance == trigger->script_proc_instance) {
-                /* Valid script process latch. */
-            } else {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = konquest_live_trigger_process(trigger);
         if (proc != 0) {
             xfer_proc(proc, p_run_trigger_script);
         } else {
@@ -15242,6 +14668,7 @@ void fire_trigger(KonquestTriggerDefinition* definition) {
     }
 }
 
+/* TODO: [near miss] 96.842100%; branch/register lowering remains; stop at trial cap. */
 void execute_trigger(KonquestTriggerStruct* trigger) {
     execute_trigger_inline(trigger);
 }
@@ -15864,13 +15291,7 @@ static inline unsigned int find_sobj_art_id_by_uid(int uid) {
     return 0;
 }
 
-
-/*
- * Near match at retail size: tile ownership, allocation, stale metadata
- * cleanup, collision-art lookup, render-record creation, scene latch, and the
- * child-frame/atomic walk agree. Residue is GPR allocation and equivalent
- * latch/list scheduling.
- */
+/* TODO: [near miss] 98.020410%; branch/register lowering remains; stop at trial cap. */
 void add_object_to_tile(
     int tile_index, int render_uid, int object_uid, float x, float y, float z,
     float angle) {
@@ -15913,16 +15334,7 @@ void add_object_to_tile(
 
         binding = record->binding;
         owner = record->owner;
-        model = binding->object;
-        if (model != 0) {
-            if (model->hdr.instance == binding->object_instance) {
-                /* Valid scene-object latch. */
-            } else {
-                model = 0;
-            }
-        } else {
-            model = 0;
-        }
+        model = konquest_live_binding_object(binding);
         frame = model->frame->child;
         while (frame != 0) {
             RwLLLink* link;
@@ -16062,11 +15474,20 @@ void* get_nth_tile_struct(int index) {
     return 0;
 }
 
-/*
- * Soft ceiling: set_tile_visibility ~88.8% -- the latch, calls, fields,
- * arithmetic, and 0x174-byte CFG match. Residue is stmw/lmw versus individual
- * saves, row/width GPR coloring, and local constant/string relocation labels.
- */
+static inline MkObj* konquest_live_tile_model_object(KonquestPdata* owner) {
+    MkObj* object = (MkObj*) owner->tile_model.object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tile_model.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.505380%; register coloring, relocation offsets; one-trial ceiling. */
 void set_tile_visibility(int tile_index, int state) {
     KonquestTileRecord* tile;
     MkObj* tile_model;
@@ -16076,16 +15497,8 @@ void set_tile_visibility(int tile_index, int state) {
     float origin;
 
     tile = &konquest_pdata->tile_structs[tile_index];
-    tile_model = (MkObj*)konquest_pdata->tile_model.object;
-    if (tile_model != 0) {
-        if (tile_model->hdr.instance == konquest_pdata->tile_model.instance) {
-            /* Valid tile-model latch. */
-        } else {
-            tile_model = 0;
-        }
-    } else {
-        tile_model = 0;
-    }
+    tile_model = konquest_live_tile_model_object(konquest_pdata);
+
     if (tile_model == 0) {
         return;
     }
@@ -16850,13 +16263,7 @@ static int setup_pebble_system_for_tile_object(
     return 1;
 }
 
-/*
- * Near match: model loading, script setup, both independently validated
- * tile-object contexts, and both effect-bank phases agree. Retail retains two
- * valid-latch join branches and an unreachable branch pair after model setup
- * that this compiler folds; the remaining 16-byte delta is control-flow
- * emission only.
- */
+/* TODO: [near miss] 97.335490%; branch/register lowering remains; stop at trial cap. */
 void load_konquest_tiles(void) {
     MkObj* model;
     unsigned int setup_function;
@@ -16900,15 +16307,7 @@ void load_konquest_tiles(void) {
         MkHdr* tile_objects;
         KonquestSectionContext context;
 
-        tile_objects = konquest_pdata->tile_objects;
-        if (tile_objects != 0) {
-            if (tile_objects->instance !=
-                konquest_pdata->tile_objects_instance) {
-                tile_objects = 0;
-            }
-        } else {
-            tile_objects = 0;
-        }
+        tile_objects = konquest_live_tile_objects(konquest_pdata);
         context.slot = 0x60029;
         context.owner = tile_objects;
         context.flags = 0;
@@ -16925,15 +16324,7 @@ void load_konquest_tiles(void) {
         MkHdr* tile_objects;
         KonquestSectionContext context;
 
-        tile_objects = konquest_pdata->tile_objects;
-        if (tile_objects != 0) {
-            if (tile_objects->instance !=
-                konquest_pdata->tile_objects_instance) {
-                tile_objects = 0;
-            }
-        } else {
-            tile_objects = 0;
-        }
+        tile_objects = konquest_live_tile_objects(konquest_pdata);
         context.slot = 0x60030;
         context.owner = tile_objects;
         context.flags = 0;
@@ -17142,12 +16533,72 @@ void set_current_time(const KonquestTime* time) {
 }
 #pragma dont_inline reset
 
-/*
- * Soft ceiling: update_time_screen_objs 89.67% (808 versus 788 bytes). The
- * five HUD latches, day-art replacement, exact 12-call sequence, time/date
- * formatting, feature flag, and access widths agree. Residue is five folded
- * valid-latch joins, individual saves/restores, and GPR scheduling.
- */
+static inline StringObj* konquest_live_hud_labels_0_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[0].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* konquest_live_hud_labels_1_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[1].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[1].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* konquest_live_hud_labels_3_object(KonquestPdata* owner) {
+    ScreenObj* object = (ScreenObj*) owner->hud_labels[3].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[3].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* konquest_live_hud_extra_label_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_extra_label.object;
+    if (object != 0) {
+        if (object->instance == owner->hud_extra_label.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* konquest_live_hud_labels_2_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[2].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.923860%; instruction lowering, relocation offsets; one-trial ceiling. */
 static void update_time_screen_objs(int update_all) {
     StringObj* hour_object;
     StringObj* minute_object;
@@ -17160,51 +16611,16 @@ static void update_time_screen_objs(int update_all) {
     char hour[4];
     char date[16];
 
-    hour_object = (StringObj*)konquest_pdata->hud_labels[0].object;
-    if (hour_object != 0) {
-        if (hour_object->instance !=
-            konquest_pdata->hud_labels[0].instance) {
-            hour_object = 0;
-        }
-    } else {
-        hour_object = 0;
-    }
-    minute_object = (StringObj*)konquest_pdata->hud_labels[1].object;
-    if (minute_object != 0) {
-        if (minute_object->instance !=
-            konquest_pdata->hud_labels[1].instance) {
-            minute_object = 0;
-        }
-    } else {
-        minute_object = 0;
-    }
-    day_object = (ScreenObj*)konquest_pdata->hud_labels[3].object;
-    if (day_object != 0) {
-        if (day_object->instance !=
-            konquest_pdata->hud_labels[3].instance) {
-            day_object = 0;
-        }
-    } else {
-        day_object = 0;
-    }
-    date_object = (StringObj*)konquest_pdata->hud_extra_label.object;
-    if (date_object != 0) {
-        if (date_object->instance !=
-            konquest_pdata->hud_extra_label.instance) {
-            date_object = 0;
-        }
-    } else {
-        date_object = 0;
-    }
-    period_object = (StringObj*)konquest_pdata->hud_labels[2].object;
-    if (period_object != 0) {
-        if (period_object->instance !=
-            konquest_pdata->hud_labels[2].instance) {
-            period_object = 0;
-        }
-    } else {
-        period_object = 0;
-    }
+    hour_object = konquest_live_hud_labels_0_object(konquest_pdata);
+
+    minute_object = konquest_live_hud_labels_1_object(konquest_pdata);
+
+    day_object = konquest_live_hud_labels_3_object(konquest_pdata);
+
+    date_object = konquest_live_hud_extra_label_object(konquest_pdata);
+
+    period_object = konquest_live_hud_labels_2_object(konquest_pdata);
+
 
     if (update_all != 0 && day_object != 0) {
         if (day_object->instance != 0) {
@@ -17560,28 +16976,28 @@ static float p_adjust_objective_arrow_and_beam(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: set_objective_beam_scale ~91.8% -- beam/sky selection,
- * position transfer, scale calculation, and update calls match retail.
- * Residue is individual r29-r31 saves/restores instead of stmw/lmw, one
- * collapsed valid-state edge, and local constant relocation labels.
- */
+static inline MkObj* konquest_live_objective_beam_object(KonquestPdata* owner) {
+    MkObj* object = (MkObj*) owner->objective_beam.object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->objective_beam.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.000000%; branch lowering; one-trial ceiling. */
 static void set_objective_beam_scale(float distance) {
     KonquestObjectiveState* objective;
     MkObj* beam;
     MkSobj* scaled_object;
     float ratio;
 
-    beam = (MkObj*)konquest_pdata->objective_beam.object;
-    if (beam != 0) {
-        if (beam->hdr.instance == konquest_pdata->objective_beam.instance) {
-            /* Valid objective-beam latch. */
-        } else {
-            beam = 0;
-        }
-    } else {
-        beam = 0;
-    }
+    beam = konquest_live_objective_beam_object(konquest_pdata);
+
     {
         Vec base_scale = {1.0f, 1.0f, 1.0f};
 
@@ -17643,34 +17059,29 @@ static void set_objective_beam_scale(float distance) {
     }
 }
 
-/*
- * Soft ceiling: p_adjust_compass ~95.5%. Both validated handles, all four
- * vertex updates, trig calls, constants, and access widths match. Equivalent
- * compact latch joins make this four bytes smaller than retail; the remaining
- * loop residue is GPR/FPR coloring and local constant relocation labels.
- */
+static inline ScreenObj* konquest_live_hud_objects_0_object(KonquestPdata* owner) {
+    ScreenObj* object = (ScreenObj*) owner->hud_objects[0].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_objects[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_adjust_compass(void) {
     CameraObj* camera;
     ScreenObj* compass;
     int index;
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
 
-    compass = (ScreenObj*)konquest_pdata->hud_objects[0].object;
-    if (compass != 0) {
-        if (compass->instance != konquest_pdata->hud_objects[0].instance) {
-            compass = 0;
-        }
-    } else {
-        compass = 0;
-    }
+
+    compass = konquest_live_hud_objects_0_object(konquest_pdata);
+
 
     for (index = 0; index < 4; index++) {
         float angle;
@@ -18114,11 +17525,6 @@ void attach_sound_to_object_by_uid(
     }
 }
 
-/*
- * Soft ceiling: attach_wiff_to_konquest_object_by_uid ~97.8% -- the complete
- * scan, stale-link cleanup, render latch, and texture calls match. Residue is
- * loop-local GPR coloring and one folded latch-success branch.
- */
 void attach_wiff_to_konquest_object_by_uid(
     int uid, char* name, float frame_rate) {
     KonquestUidObject* object;
@@ -18132,16 +17538,7 @@ void attach_wiff_to_konquest_object_by_uid(
         record = (KonquestRenderRecord*)first_mkhdr(&object->render_records);
         if (record != 0) {
             binding = record->binding;
-            render_object = binding->object;
-            if (render_object != 0) {
-                if (render_object->hdr.instance == binding->object_instance) {
-                    /* Valid render-object latch. */
-                } else {
-                    render_object = 0;
-                }
-            } else {
-                render_object = 0;
-            }
+            render_object = konquest_live_binding_object(binding);
             if (render_object != 0) {
                 control = attach_named_wiff_to_first_material(
                     0x60029, name, (ImageMkSobj*)render_object);
@@ -18151,11 +17548,6 @@ void attach_wiff_to_konquest_object_by_uid(
     }
 }
 
-/*
- * Soft ceiling: set_konquest_object_render_order_priority_by_uid ~97.6% --
- * the complete scan, stale-link cleanup, render latch, and call match. The
- * residue is GPR coloring and one folded latch-success branch.
- */
 void set_konquest_object_render_order_priority_by_uid(
     int uid, int priority) {
     KonquestUidObject* object;
@@ -18168,16 +17560,7 @@ void set_konquest_object_render_order_priority_by_uid(
         record = (KonquestRenderRecord*)first_mkhdr(&object->render_records);
         if (record != 0) {
             binding = record->binding;
-            render_object = binding->object;
-            if (render_object != 0) {
-                if (render_object->hdr.instance == binding->object_instance) {
-                    /* Valid render-object latch. */
-                } else {
-                    render_object = 0;
-                }
-            } else {
-                render_object = 0;
-            }
+            render_object = konquest_live_binding_object(binding);
             if (render_object != 0) {
                 sobj_set_priority(render_object, priority);
             }
@@ -18185,11 +17568,7 @@ void set_konquest_object_render_order_priority_by_uid(
     }
 }
 
-/*
- * Soft ceiling: disable_konquest_object_zwrite_by_uid ~97.6% -- the complete
- * lookup, latch, and bitfield store match; only GPR coloring and one folded
- * latch-success branch remain.
- */
+/* TODO: [near miss] 99.225350%; register/operand residue remains; stop at trial cap. */
 void disable_konquest_object_zwrite_by_uid(int uid) {
     KonquestUidObject* object;
     KonquestRenderRecord* record;
@@ -18201,16 +17580,7 @@ void disable_konquest_object_zwrite_by_uid(int uid) {
         record = (KonquestRenderRecord*)first_mkhdr(&object->render_records);
         if (record != 0) {
             binding = record->binding;
-            render_object = binding->object;
-            if (render_object != 0) {
-                if (render_object->hdr.instance == binding->object_instance) {
-                    /* Valid render-object latch. */
-                } else {
-                    render_object = 0;
-                }
-            } else {
-                render_object = 0;
-            }
+            render_object = konquest_live_binding_object(binding);
             if (render_object != 0) {
                 render_object->flags09_bits.bit7 = 1;
             }
@@ -18218,11 +17588,7 @@ void disable_konquest_object_zwrite_by_uid(int uid) {
     }
 }
 
-/*
- * Soft ceiling: set_konquest_object_face_y_by_uid ~97.6% -- the complete
- * lookup, latch, and bitfield store match; only GPR coloring and one folded
- * latch-success branch remain.
- */
+/* TODO: [near miss] 99.225350%; register/operand residue remains; stop at trial cap. */
 void set_konquest_object_face_y_by_uid(int uid) {
     KonquestUidObject* object;
     KonquestRenderRecord* record;
@@ -18234,16 +17600,7 @@ void set_konquest_object_face_y_by_uid(int uid) {
         record = (KonquestRenderRecord*)first_mkhdr(&object->render_records);
         if (record != 0) {
             binding = record->binding;
-            render_object = binding->object;
-            if (render_object != 0) {
-                if (render_object->hdr.instance == binding->object_instance) {
-                    /* Valid render-object latch. */
-                } else {
-                    render_object = 0;
-                }
-            } else {
-                render_object = 0;
-            }
+            render_object = konquest_live_binding_object(binding);
             if (render_object != 0) {
                 render_object->flags09_bits.bit5 = 1;
             }
@@ -18370,12 +17727,6 @@ void hide_konquest_object_by_uid(int uid) {
     }
 }
 
-/*
- * Near match at the exact retail size: stale-link cleanup, attached-effect
- * restart, matrix-palette insertion and pose construction, render-object
- * latching, pose stores, and visibility updates agree instruction-for-
- * instruction. The sole residue is an equivalent valid-instance branch shape.
- */
 static void show_konquest_object(KonquestUidObject* object) {
     int record_number;
     KonquestRenderRecord* record;
@@ -18445,17 +17796,7 @@ static void show_konquest_object(KonquestUidObject* object) {
                 } else {
                     MkSobj* render_object;
 
-                    render_object = binding->object;
-                    if (render_object != 0) {
-                        if (render_object->hdr.instance ==
-                            binding->object_instance) {
-                            /* Valid render-object latch. */
-                        } else {
-                            render_object = 0;
-                        }
-                    } else {
-                        render_object = 0;
-                    }
+                    render_object = konquest_live_binding_object(binding);
                     if (render_object != 0 && binding->hidden != 0) {
                         render_object->pos.x = record->position.x;
                         render_object->pos.y = record->position.y;
@@ -18595,12 +17936,7 @@ void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
     mkhdr_memfree(&pui->hdr);
 }
 
-/*
- * Near match: p_konquest_loop 97.54% (1016 versus 1028 bytes). Time rollover,
- * the complete controller path, world updates, navigation, and shadow-strength
- * clamps agree. Residue is one hero-latch join, the equivalent state-filter
- * branch tree, and pooled-float relocation labels.
- */
+/* TODO: [near miss] 98.665370%; branch/register lowering remains; stop at trial cap. */
 float p_konquest_loop(void) {
     CameraPdata* camera;
     MkObj* hero;
@@ -18635,16 +17971,7 @@ float p_konquest_loop(void) {
     }
     update_time_screen_objs(update_all);
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     mode_index = konquest_pdata->game_mode_index;
     mode = mode_index < 0 ? 0 : konquest_pdata->game_modes[mode_index];
     if (mode == 0 ||
@@ -18696,16 +18023,7 @@ float p_konquest_loop(void) {
     trigger_update(0);
     pui_update();
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     if (hero != 0) {
         if (konquest_pdata->current_nav_area >= 0) {
             konquest_pdata->current_nav_area = nav_what_area_is_point_in(
@@ -18942,11 +18260,7 @@ static void check_and_act_on_trigger_timed_action(
 }
 #pragma dont_inline reset
 
-/*
- * Near match: stale-link removal, object latch, inventory clearing, virtual
- * destruction, and live update match. Residue is paired save/restore emission,
- * one folded latch join, and raw-versus-resolved PUI register coloring.
- */
+/* TODO: [near miss] 98.529410%; branch/register lowering remains; stop at trial cap. */
 void pui_update(void) {
     MkPtr* link;
 
@@ -18967,16 +18281,7 @@ void pui_update(void) {
                 if (pui != 0) {
                     KonquestChestOwner* owner;
 
-                    owner = pui->owner;
-                    if (owner != 0) {
-                        if (owner->hdr.instance == pui->owner_instance) {
-                            /* Valid PUI object latch. */
-                        } else {
-                            owner = 0;
-                        }
-                    } else {
-                        owner = 0;
-                    }
+                    owner = konquest_live_pui_owner(pui);
                     if (owner == 0) {
                         int inventory_index;
 
@@ -19133,14 +18438,7 @@ static void load_sky(void) {
     }
 }
 
-/*
- * Near match at the exact retail size: region/script loading, the fourteen
- * animation publications, hero/camera latches, common resources, objective
- * beam and weather setup, lighting/fog, saved-state restoration, objective
- * scan, controller gate, HUD label, triggers, ambience, and final transfer all
- * agree with retail. The 96.9% residue is five inverted-but-equivalent latch
- * branches, GPR/FPR allocation and scheduling, and pooled relocation labels.
- */
+/* TODO: [near miss] 99.522670%; register coloring, stack layout; one-trial ceiling. */
 float p_setup_konquest_map(void) {
     KonquestAmbientFadePdata* ambient_fade;
     KonquestHeadTrackingPdata* head_tracking;
@@ -19217,26 +18515,12 @@ float p_setup_konquest_map(void) {
         monk_state_data[12].animation = (AniData*)konquest_animations[11];
         monk_state_data[13].animation = (AniData*)konquest_animations[12];
 
-        hero = konquest_pdata->hero_object;
-        if (hero != 0) {
-            if (hero->hdr.instance != konquest_pdata->hero_instance) {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        hero = konquest_live_hero(konquest_pdata);
 
         if (hero == 0 && konquest_pdata->hero_anim == 0 &&
             (hero_proc = load_hero_model(konquest_animations[0])) != 0) {
             hero_anim = (AnimPdata*)pdata_of_proc(hero_proc);
-            hero = hero_anim->obj;
-            if (hero != 0) {
-                if (hero->hdr.instance != hero_anim->obj_instance) {
-                    hero = 0;
-                }
-            } else {
-                hero = 0;
-            }
+            hero = konquest_live_animation_object(hero_anim);
             if (hero != 0) {
                 konquest_pdata->hero_object = hero;
                 konquest_pdata->hero_instance = hero->hdr.instance;
@@ -19248,14 +18532,7 @@ float p_setup_konquest_map(void) {
 
         camera = get_pdata_of_camera();
         if (camera != 0) {
-            hero = konquest_pdata->hero_object;
-            if (hero != 0) {
-                if (hero->hdr.instance != konquest_pdata->hero_instance) {
-                    hero = 0;
-                }
-            } else {
-                hero = 0;
-            }
+            hero = konquest_live_hero(konquest_pdata);
             if (hero != 0) {
                 camera->movement_focus = hero;
             }
@@ -19389,14 +18666,7 @@ float p_setup_konquest_map(void) {
     }
 
     if (konquest_editor_mode_on == 0) {
-        hero = konquest_pdata->hero_object;
-        if (hero != 0) {
-            if (hero->hdr.instance != konquest_pdata->hero_instance) {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        hero = konquest_live_hero(konquest_pdata);
 
         if (hero != 0 && camera_obj != 0) {
             camera_obj->pos.x = hero->pos.value.x;
@@ -19487,15 +18757,8 @@ float p_setup_konquest_map(void) {
         konquest_pdata->tile_row =
             konquest_pdata->tile_load_state / konquest_pdata->tile_width + 1;
 
-        grid_label = (StringObj*)konquest_pdata->hud_labels[5].object;
-        if (grid_label != 0) {
-            if (grid_label->instance !=
-                konquest_pdata->hud_labels[5].instance) {
-                grid_label = 0;
-            }
-        } else {
-            grid_label = 0;
-        }
+        grid_label = konquest_live_hud_labels_5_object(konquest_pdata);
+
 
         sprintf(
             grid_text, "%c - %d", konquest_pdata->tile_column + 'A',

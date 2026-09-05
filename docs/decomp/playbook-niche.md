@@ -35,5 +35,9 @@ fake volatile, dead sinks, register declarations, or goto to cross a ceiling.
 Permuter only after algorithm/CFG/ABI/layout agree. Smoke-test a real near miss;
 use recovered TU command. PERM_* stays in scratch. Reject undefined behavior,
 wrong types, reordered effects, fake liveness even at zero score.
+A measured `ani_to_frame_x` zero-score candidate introduced an otherwise unused
+pointer to `anim->step` solely to eliminate an animation-pointer move. Reject
+that alias/lifetime workaround; ordinary helper forms still scored 110, so the
+clean source retained its ceiling. A zero score does not establish source intent.
 Mirage imports require platform-neutral behavior + GC retail/objdiff evidence.
 Apply task-specific attempt counting; exemptions never waive verification.

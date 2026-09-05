@@ -481,7 +481,19 @@ static inline int bgnd_list_is_valid(MkPtr** list) {
     return list != 0;
 }
 
-/* Soft ceiling: 97.76% -- validated-process latch branch layout only. */
+static inline MkProc* rope_latch_live_proc(RopeProcLatch* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void mks_removehide_by_group(int group_id, int remove_hide) {
     MkProc* proc;
     MkPtr** list;
@@ -489,16 +501,8 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     MkPtr* next;
     BgndUpdateData* update;
 
-    proc = sobj_ctrl_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+
     if (proc == 0) {
         return;
     }
@@ -524,7 +528,7 @@ void mks_removehide_by_group(int group_id, int remove_hide) {
     }
 }
 
-/* Soft ceiling: 97.11% -- validation-latch and list-loop GPR coloring only. */
+/* TODO: [near miss] 98.263160%; register coloring; one-trial ceiling. */
 void mks_shadow_scale(int group_id, int blend_ticks,
                       float start_scale, float end_scale) {
     MkProc* proc;
@@ -537,16 +541,8 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     int slot_index;
     int previous_index;
 
-    proc = sobj_ctrl_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+
     if (proc == 0) {
         return;
     }
@@ -597,7 +593,7 @@ void mks_shadow_scale(int group_id, int blend_ticks,
     }
 }
 
-/* Soft ceiling: 96.51% -- validation-latch and list-loop GPR coloring only. */
+/* TODO: [near miss] 97.960526%; register coloring; one-trial ceiling. */
 void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     MkProc* proc;
     MkPtr** list;
@@ -607,16 +603,8 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     BgndUpdateCommandBlock* command;
     int slot_index;
 
-    proc = sobj_ctrl_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+
     if (proc == 0) {
         return;
     }
@@ -657,7 +645,7 @@ void mks_blend_start_update_by_group(int group_id, int blend_ticks) {
     }
 }
 
-/* Soft ceiling: 97.41% -- validation-latch and list-loop GPR coloring only. */
+/* TODO: [near miss] 98.443400%; register coloring; one-trial ceiling. */
 void mks_gravity_update_by_group(int group_id, int blend_ticks,
                                  float velocity_x, float velocity_y,
                                  float velocity_z, float gravity) {
@@ -671,16 +659,8 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
     int slot_index;
     int previous_index;
 
-    proc = sobj_ctrl_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+
     if (proc == 0) {
         return;
     }
@@ -731,7 +711,7 @@ void mks_gravity_update_by_group(int group_id, int blend_ticks,
     }
 }
 
-/* Soft ceiling: 97.86% -- validated-process latch and GPR coloring only. */
+/* TODO: [near miss] 98.605446%; register coloring; one-trial ceiling. */
 void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                                   float speed, float speed_param,
                                   float random_range) {
@@ -751,16 +731,8 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
     int slot_index;
     int previous_index;
 
-    proc = sobj_ctrl_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+
     if (proc == 0) {
         return;
     }
@@ -826,7 +798,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
 void mks_set_rotate_update_by_group(void) {
 }
 
-/* Soft ceiling: 96.83% -- validation-latch and list-loop GPR coloring only. */
+/* TODO: [near miss] 98.690475%; register coloring; one-trial ceiling. */
 void mks_set_sin_update_by_group(int group_id, int blend_ticks,
                                  int update_flags, int extra_flags,
                                  float start_value, float end_value,
@@ -842,16 +814,8 @@ void mks_set_sin_update_by_group(int group_id, int blend_ticks,
     int slot_index;
     int previous_index;
 
-    proc = sobj_ctrl_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance == sobj_ctrl_proc_item.instance) {
-            /* Keep the validated process. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_latch_live_proc(&sobj_ctrl_proc_item);
+
     if (proc == 0) {
         return;
     }
@@ -1303,7 +1267,7 @@ void bgnd_detach_rope(int model_index) {
     }
 }
 
-/* Soft ceiling: 96.06% -- validated-process latch and list-loop branch layout. */
+/* TODO: [near miss] 98.647060%; branch lowering, relocation offsets; one-trial ceiling. */
 void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) {
     MkObj* model;
     MkProc* proc;
@@ -1314,14 +1278,8 @@ void bgnd_rope_adjust_length(int model_index, int preserve_shape, float length) 
         return;
     }
 
-    proc = rope_proc_item.proc;
-    if (proc != 0) {
-        if (proc->instance != rope_proc_item.instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = rope_latch_live_proc(&rope_proc_item);
+
 
     if (proc == 0) {
         rope = 0;

@@ -604,11 +604,7 @@ static float p_fish_attack_bloodsplat(void) {
     }
 }
 
-/*
- * Soft ceiling: 97.62%, exact retail size and recovered state machine.
- * Remaining differences are validated-latch branch lowering, register
- * allocation, and equivalent float scheduling.
- */
+/* TODO: [near miss] 99.123375%; original latch retained; register coloring, relocation offsets; one-trial ceiling. */
 float p_fish_attack(void) {
     FishAttackPdata* pdata;
     MkObj* fish;
@@ -960,11 +956,20 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     }
 }
 
-/*
- * Soft ceiling: 97.81%, exact retail size and recovered algorithm. Remaining
- * differences are validated-latch branch lowering and register allocation,
- * including one equivalent loop-offset initializer.
- */
+static inline MkProc* player_info_live_slot_fighter_anim_proc_direct(PlyrInfo* owner) {
+    MkProc* object = owner->slot.fighter->anim_proc;
+    if (object != 0) {
+        if (object->instance == owner->slot.fighter->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.653850%; register coloring, instruction lowering; one-trial ceiling. */
 static float p_player_body_explode(void) {
     PlyrInfo* player;
     PlayerBodyExplodePdata* pdata;
@@ -1001,16 +1006,8 @@ static float p_player_body_explode(void) {
     }
 
     limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
-    anim_proc = player->slot.fighter->anim_proc;
-    if (anim_proc != 0) {
-        if (anim_proc->instance == player->slot.fighter->anim_proc_instance) {
-            /* Keep the validated animation process. */
-        } else {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    anim_proc = player_info_live_slot_fighter_anim_proc_direct(player);
+
     xfer_proc(anim_proc, p_anim_idle);
 
     for (body_part = 0; body_part < 15; body_part++) {
@@ -1596,10 +1593,20 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: 91.40% -- validation-branch polarity, temporary allocation,
- * and packed-byte update forms only; the recovered sequence is complete.
- */
+static inline MkProc* player_info_live_slot_fighter_anim_proc(PlyrInfo* owner) {
+    MkProc* object = owner->slot.fighter->anim_proc;
+    if (object != 0) {
+        if (object->hdr.instance == owner->slot.fighter->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.704544%; register coloring, relocation offsets; one-trial ceiling. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
     PlyrInfo* player = &g_game_info.plyr1;
@@ -1644,17 +1651,8 @@ void skytemple_player_explode(
     }
 
     limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
-    anim_proc = player->slot.fighter->anim_proc;
-    if (anim_proc != 0) {
-        if (anim_proc->hdr.instance ==
-            player->slot.fighter->anim_proc_instance) {
-            /* Keep the validated animation process. */
-        } else {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    anim_proc = player_info_live_slot_fighter_anim_proc(player);
+
     xfer_proc(anim_proc, p_anim_idle);
 
     saved_facial_damage = player->slot.fighter->facial_damage;

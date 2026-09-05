@@ -123,6 +123,8 @@ unsigned long ExternalHeap_Alloc(
     return address;
 }
 
+/* TODO: [near miss] 96.78%; two candidate reloads and GPR coloring only;
+ * retail rollback sentinel is retained without dereferencing it. */
 unsigned long ExternalHeap_AlignAlloc(
     ExternalHeap* heap, unsigned long size, int alignment) {
     ExternalHeapBlock* candidate;

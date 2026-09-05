@@ -662,22 +662,28 @@ void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
 }
 
 /* Exact size; the remaining delta is register allocation in the two latches. */
+static inline MkProc* jab_ref_live_object(JabObjectRef* owner) {
+    MkProc* object = (MkProc*) owner->object;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.586205%; register coloring, instruction scheduling; one-trial ceiling. */
 void jab_release_jade_boomerang(JabObjectRef* proc_ref) {
     JadeBindPdata* pdata;
     MkObj* boomerang;
     MkProc* proc;
     JabProcVtableRef vtbl;
 
-    proc = (MkProc*)proc_ref->object;
-    if (proc != 0) {
-        if ((unsigned int)proc->instance == proc_ref->instance) {
-            /* The process reference is still live. */
-        } else {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = jab_ref_live_object(proc_ref);
+
     if (proc != 0) {
         pdata = (JadeBindPdata*)pdata_of_proc(proc);
         RESOLVE_JAB_OBJECT(

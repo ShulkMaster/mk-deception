@@ -2693,9 +2693,33 @@ void conversation_init(int mode) {
     konquest_pdata->conversation_event = 0;
 }
 
-/* Near match: 94.16309%, four bytes short of retail. Both animation-process
- * and monk-NPC handles are validated in retail order; the remaining difference
- * is one compiler-emission instruction plus register allocation. */
+static inline MkProc* animation_live_proc(AnimPdata* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestNpc* npc_live_monk_npc(KonquestNpcPdata* owner) {
+    KonquestNpc* object = owner->monk_npc;
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_npc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.154500%; register coloring, instruction scheduling; one-trial ceiling. */
 void npc_play_two_player_one_shot_anims(int npc_animation_id,
                                         int monk_animation_id) {
     int npc_finished = 0;
@@ -2734,24 +2758,10 @@ void npc_play_two_player_one_shot_anims(int npc_animation_id,
             }
 
             monk_animation = konquest_pdata->monk_animation;
-            monk_animation_proc = monk_animation->proc;
-            if (monk_animation_proc != 0) {
-                if (monk_animation_proc->instance !=
-                    monk_animation->proc_instance) {
-                    monk_animation_proc = 0;
-                }
-            } else {
-                monk_animation_proc = 0;
-            }
-            monk_npc = konquest_pdata->monk_npc;
-            if (monk_npc != 0) {
-                if (monk_npc->hdr.instance !=
-                    konquest_pdata->monk_npc_instance) {
-                    monk_npc = 0;
-                }
-            } else {
-                monk_npc = 0;
-            }
+            monk_animation_proc = animation_live_proc(monk_animation);
+
+            monk_npc = npc_live_monk_npc(konquest_pdata);
+
             xfer_proc(monk_animation_proc, (MkProcEntryFn)p_animate);
             monk_animation->step = 1.0f;
             transition_to_anim_script((KonquestAnimPdata*)monk_animation,
@@ -2820,10 +2830,7 @@ int is_this_the_monk_npc(KonquestNpc* npc) {
     return 0;
 }
 
-/*
- * Soft ceiling: 90.75572% - the typed body is exact; the proc-pointer boolean
- * lowering, split nonvolatile saves/restores, and 1.0f relocation differ.
- */
+/* TODO: [near miss] 99.083970%; original latch retained; register coloring, branch lowering; one-trial ceiling. */
 void npc_wait_for_dialog(void) {
     KonquestNpcAnimState* state = g_active_npc->animation;
     int has_active_animation;
@@ -3282,10 +3289,20 @@ float duration_of_lip_sync(const LipSyncKeyframe* keyframes) {
     return duration * (float)refresh_rate();
 }
 
-/*
- * Soft ceiling: 83.731346% - the typed body is exact; nonvolatile GPR
- * coloring, split saves/restores, and an equivalent latch branch differ.
- */
+static inline AniTextureControl* lip_sync_validate_texture(
+    AniTextureControl* object, KonquestLipSyncPdata* owner) {
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->texture_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.283585%; register coloring, instruction scheduling; one-trial ceiling. */
 void kill_lip_sync_procs(void) {
     MkPtr* link;
 
@@ -3309,16 +3326,7 @@ void kill_lip_sync_procs(void) {
                     AniTextureControl* texture = lip->texture;
                     unsigned int sound_handle = lip->sound_handle;
 
-                    if (texture != 0) {
-                        if ((unsigned int)texture->instance ==
-                            lip->texture_instance) {
-                            /* The latched texture is still live. */
-                        } else {
-                            texture = 0;
-                        }
-                    } else {
-                        texture = 0;
-                    }
+                    texture = lip_sync_validate_texture(texture, lip);
                     if (sound_handle != 0) {
                         snd_stop(sound_handle);
                     }
@@ -3338,10 +3346,20 @@ void kill_lip_sync_procs(void) {
     }
 }
 
-/*
- * Soft ceiling: 89.84127% - the typed body is exact; local GPR coloring,
- * split saves/restores, and an equivalent latch branch differ.
- */
+static inline AniTextureControl* lip_sync_live_texture(KonquestLipSyncPdata* owner) {
+    AniTextureControl* object = owner->texture;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->texture_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.492065%; register coloring, instruction lowering; one-trial ceiling. */
 void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     KonquestLipSyncPdata* lip;
 
@@ -3365,17 +3383,8 @@ void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
         target->texture_instance = texture_instance;
         lip->sound_handle = sound_id;
 
-        texture = lip->texture;
-        if (texture != 0) {
-            if ((unsigned int)texture->instance ==
-                lip->texture_instance) {
-                /* The latched texture is still live. */
-            } else {
-                texture = 0;
-            }
-        } else {
-            texture = 0;
-        }
+        texture = lip_sync_live_texture(lip);
+
         if (texture != 0) {
             lip->keyframes = keyframes;
         }
@@ -3383,12 +3392,7 @@ void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     }
 }
 
-/*
- * Soft ceiling: 95.992645% - sound lifecycle, 60 Hz keyframe dispatch,
- * animation/texture modes, stale texture latches, NPC cancellation flags, and
- * elapsed-time update match at retail size. Residue is latch branch polarity
- * and local constant relocation labeling.
- */
+/* TODO: [near miss] 99.117645%; instruction lowering; one-trial ceiling. */
 float p_do_lip_synch(void) {
     KonquestLipSyncPdata* lip =
         (KonquestLipSyncPdata*)pdata_of_proc(aproc);
@@ -3418,16 +3422,9 @@ float p_do_lip_synch(void) {
                         lip->animation, animation, 3, 0.15f);
                 }
             } else {
-                AniTextureControl* texture = lip->texture;
+                AniTextureControl* texture = lip_sync_live_texture(lip);
 
-                if (texture != 0) {
-                    if ((unsigned int)texture->instance !=
-                        lip->texture_instance) {
-                        texture = 0;
-                    }
-                } else {
-                    texture = 0;
-                }
+
                 if (texture != 0) {
                     set_ani_texture_frame(texture, frame);
                 }
@@ -3437,16 +3434,9 @@ float p_do_lip_synch(void) {
     }
     if (lip->mode == 1) {
         if (mslSoundIsValid(lip->sound_handle) == 0) {
-            AniTextureControl* texture = lip->texture;
+            AniTextureControl* texture = lip_sync_live_texture(lip);
 
-            if (texture != 0) {
-                if ((unsigned int)texture->instance !=
-                    lip->texture_instance) {
-                    texture = 0;
-                }
-            } else {
-                texture = 0;
-            }
+
             if (texture != 0) {
                 set_ani_texture_frame(texture, 0);
             }
@@ -3458,15 +3448,8 @@ float p_do_lip_synch(void) {
             AniTextureControl* texture;
 
             snd_stop(lip->sound_handle);
-            texture = lip->texture;
-            if (texture != 0) {
-                if ((unsigned int)texture->instance !=
-                    lip->texture_instance) {
-                    texture = 0;
-                }
-            } else {
-                texture = 0;
-            }
+            texture = lip_sync_live_texture(lip);
+
             if (texture != 0) {
                 set_ani_texture_frame(texture, 0);
             }
@@ -4562,11 +4545,20 @@ void npc_set_pinanim_flag(int enabled) {
     }
 }
 
-/*
- * Near match: hero latch, world delta, atan argument order,
- * process creation, pdata size, angle, and object target are exact. Residue is
- * latch branch shape, zero-vector relocation, saves, and register allocation.
- */
+static inline MkObj* npc_live_monk(KonquestNpcPdata* owner) {
+    MkObj* object = owner->monk;
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.196724%; original latch retained; branch lowering; one-trial ceiling. */
 void hero_turn_to_face_position(const Vec* position) {
     MkObj* hero = konquest_pdata->monk;
     Vec direction = {0.0f, 0.0f, 0.0f};
@@ -4690,11 +4682,7 @@ void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
     }
 }
 
-/*
- * Near match: 91.01755%, 20 bytes short of retail. Monk/process latches,
- * ownership-sensitive animation reloads, both turn-process setups, and the
- * wait loop match. Pointer truth lowering and nonvolatile allocation remain.
- */
+/* TODO: [near miss] 95.029240%; original latch retained; branch lowering, register coloring; one-trial ceiling. */
 void npc_turn_and_face_player(int turn_player) {
     MkObj* monk = konquest_pdata->monk;
     KonquestNpcAnimState* state;
@@ -4882,15 +4870,8 @@ void npc_shove_reaction_standard_setup(void) {
 int npc_punch_reaction_check_data(void) {
     KonquestReactionPdata* reaction =
         (KonquestReactionPdata*)pdata_of_proc(aproc);
-    MkObj* monk = konquest_pdata->monk;
+    MkObj* monk = npc_live_monk(konquest_pdata);
 
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (reaction == 0 || monk == 0) {
         return 0;
     }
@@ -4951,15 +4932,8 @@ void npc_run_punch_animation(
 void npc_snap_to_face_monk(void) {
     KonquestReactionPdata* reaction =
         (KonquestReactionPdata*)pdata_of_proc(aproc);
-    MkObj* monk = konquest_pdata->monk;
+    MkObj* monk = npc_live_monk(konquest_pdata);
 
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (monk != 0 && reaction != 0 && reaction->object != 0) {
         reaction->object->ang.y = gxMathArcTanYX(
             monk->pos.value.x - reaction->object->pos.value.x,
@@ -5128,13 +5102,7 @@ KonquestNpc* find_npc_by_data(KonquestNpcData* data) {
     return npc_find_by_data_inline(data);
 }
 
-/* Near match: 95.80357% at exact retail size. Monk/game-mode gating, active
- * animation validation, distance fade, priority, alpha, and event dispatch
- * match; only latch branches and register scheduling remain. */
-/* Near match: 92.6134% at exact retail size. Animation snapshot, repeated
- * object ownership loads, editor collision update, repulsion, monk gating,
- * ground trace, typed render flags, and position handoff match. Residue is
- * register allocation, scheduling, and one equivalent branch polarity. */
+/* TODO: [near miss] 95.628870%; register coloring, instruction lowering; one-trial ceiling. */
 static void npc_post_sleep(void) {
     KonquestNpcAnimState* animation = g_active_npc->animation;
     KonquestNpcData* data = g_active_npc->data;
@@ -5195,15 +5163,8 @@ static void npc_post_sleep(void) {
                 segment_end.y = -50.0f;
                 segment_start.y = 50.0f;
                 if (animation->object->oid != 0xFFFF9010) {
-                    monk = konquest_pdata->monk_npc;
-                    if (monk != 0) {
-                        if (monk->hdr.instance !=
-                            konquest_pdata->monk_npc_instance) {
-                            monk = 0;
-                        }
-                    } else {
-                        monk = 0;
-                    }
+                    monk = npc_live_monk_npc(konquest_pdata);
+
                     if (monk != g_active_npc ||
                         get_konquest_game_mode() != 8) {
                         if (collide_segment_against_global_collision_list_quads(
@@ -5333,6 +5294,7 @@ float p_npc_idle(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 98.928570%; instruction lowering; one-trial ceiling. */
 static void npc_pre_wake(void) {
     KonquestNpcProcessPdata* process =
         (KonquestNpcProcessPdata*)pdata_of_proc(aproc);
@@ -5340,15 +5302,9 @@ static void npc_pre_wake(void) {
 
     g_active_npc = npc;
     if (process->update_enabled != 0) {
-        KonquestNpc* monk = konquest_pdata->monk_npc;
+        KonquestNpc* monk = npc_live_monk_npc(konquest_pdata);
 
-        if (monk != 0) {
-            if (monk->hdr.instance != konquest_pdata->monk_npc_instance) {
-                monk = 0;
-            }
-        } else {
-            monk = 0;
-        }
+
         if (monk != npc ||
             (get_konquest_game_mode() != 8 &&
              get_konquest_game_mode() != 9)) {
@@ -5407,8 +5363,7 @@ static float p_npc_load_model(void) {
     return -1.0f;
 }
 
-/* Near match: 89.20513% - exact mode gates, transition latch, event scan, and
- * typed callback dispatch; pointer-latch branches and GPR coloring remain. */
+/* TODO: [near miss] 95.641030%; original latch retained; accessor changes caller inlining; one-trial ceiling. */
 static void npc_resolve_events(KonquestNpc* npc) {
     KonquestNpc* monk;
     int mode;
@@ -5755,12 +5710,7 @@ void add_npc_list_to_world(int* npc_ids) {
     }
 }
 
-
-
-/* Near match: 90.81739%, exact retail size. Validated monk and animation
- * ownership, collision-mode and distance gates, vector initialization order,
- * vector-to-angle conversion, normalized angular subtraction, and absolute
- * threshold. Residue is pointer-latch lowering and register allocation. */
+/* TODO: [near miss] 97.217390%; original latch retained; branch lowering, instruction scheduling; one-trial ceiling. */
 int npc_hit_by_punch(
     KonquestNpc* npc, float maximum_distance, float maximum_angle) {
     MkObj* monk = konquest_pdata->monk;
@@ -5873,23 +5823,13 @@ static void npc_punched_setup(KonquestNpc* npc) {
 static void npc_plyr_violent_setup(KonquestNpc* npc) {
 }
 
-/*
- * Soft ceiling: 96.447365% - equivalent pointer-validation latch branches
- * and GPR coloring differ.
- */
+/* TODO: [near miss] 98.42105%; latch CFG agrees; remaining owner/object register coloring. */
 static int plyr_leave_area_check(float distance) {
     KonquestNpcPdata* pdata = konquest_pdata;
     KonquestNpc* npc = g_active_npc;
-    MkObj* monk = pdata->monk;
+    MkObj* monk = npc_live_monk(pdata);
     int is_near;
 
-    if (monk != 0) {
-        if (monk->hdr.instance != pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (monk == 0) {
         is_near = 0;
     } else if (dist_xz_to_xz(
@@ -5901,23 +5841,13 @@ static int plyr_leave_area_check(float distance) {
     return is_near == 0;
 }
 
-/*
- * Near match: the body is exact; pointer-validation latch/GPR coloring and
- * redundant retail nonzero booleanization differ.
- */
+/* TODO: [near miss] 98.42105%; latch CFG agrees; remaining owner/object register coloring. */
 static int plyr_near_check(float distance) {
     KonquestNpcPdata* pdata = konquest_pdata;
     KonquestNpc* npc = g_active_npc;
-    MkObj* monk = pdata->monk;
+    MkObj* monk = npc_live_monk(pdata);
     int is_near;
 
-    if (monk != 0) {
-        if (monk->hdr.instance != pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
     if (monk == 0) {
         is_near = 0;
     } else if (dist_xz_to_xz(
