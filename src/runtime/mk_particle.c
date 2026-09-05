@@ -143,6 +143,24 @@ static inline PfxVm* pfx_vm(MkPfx* pfx) {
 /* Retail function order                                                     */
 /* ======================================================================== */
 
+static inline MkHdr* pfx_slot_live_hdr(PfxSlot* owner) {
+    MkHdr* object = owner->hdr;
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.301370%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void mkpfx_get_origin(MkPfx* pfx, float origin[3]) {
     int slot;
     PfxSlot* slot_base;
@@ -156,46 +174,40 @@ void mkpfx_get_origin(MkPfx* pfx, float origin[3]) {
     slot = pfx->active_slot;
     slot_base = pfx->slot_table;
     mat = pfx->transforms[slot].matrix.elements;
-    bound = slot_base->hdr;
+    bound = pfx_slot_live_hdr(slot_base);
+
+
     if (bound != 0) {
-        if (bound->instance != slot_base->instance) {
-            bound = 0;
+
+        vtbl = bound->vtbl;
+        if (vtbl == &vtbl_mkobj) {
+            mkobj = MKPFX_MKOBJ_FROM_HDR(bound);
+        } else {
+            mkobj = 0;
+        }
+        if (bound != 0) {
+            sobj = MKPFX_VTBL_GET_SOBJ(vtbl, bound);
+        } else {
+            sobj = 0;
+        }
+        if (mkobj != 0) {
+            ltm = (float*)RwFrameGetLTM(mkobj->frame);
+            origin[0] = ltm[0xC];
+            origin[1] = ltm[0xD];
+            origin[2] = ltm[0xE];
+            return;
+        }
+        if (sobj != 0) {
+            ltm = (float*)RwFrameGetLTM(sobj->frame);
+            origin[0] = ltm[0xC];
+            origin[1] = ltm[0xD];
+            origin[2] = ltm[0xE];
         }
     } else {
-        bound = 0;
-    }
-
-    if (bound == 0) {
         origin[0] = mat[0xC];
         origin[1] = mat[0xD];
         origin[2] = mat[0xE];
-        return;
-    }
-
-    vtbl = bound->vtbl;
-    if (vtbl == &vtbl_mkobj) {
-        mkobj = MKPFX_MKOBJ_FROM_HDR(bound);
-    } else {
-        mkobj = 0;
-    }
-    if (bound != 0) {
-        sobj = MKPFX_VTBL_GET_SOBJ(vtbl, bound);
-    } else {
-        sobj = 0;
-    }
-    if (mkobj != 0) {
-        ltm = (float*)RwFrameGetLTM(mkobj->frame);
-        origin[0] = ltm[0xC];
-        origin[1] = ltm[0xD];
-        origin[2] = ltm[0xE];
-        return;
-    }
-    if (sobj != 0) {
-        ltm = (float*)RwFrameGetLTM(sobj->frame);
-        origin[0] = ltm[0xC];
-        origin[1] = ltm[0xD];
-        origin[2] = ltm[0xE];
-    }
+        }
 }
 
 void mkpfx_camera_end(void) {

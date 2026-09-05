@@ -780,6 +780,37 @@ void set_krypt_character_pos(const Vec* position) {
         }
     }
 }
+static inline MkHdr* krypt_character_anim_proc_pdata_live_obj(KryptCharacterAnimProcPdata* owner) {
+    MkHdr* object = owner->obj;
+    if (object != 0) {
+        if (object->instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 96.812500%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static float p_run_character_animation(void) {
     KryptCharacterAnimProcPdata* pdata;
     MkHdr* obj;
@@ -793,24 +824,12 @@ static float p_run_character_animation(void) {
     cmdscript_setup_execution(g_game_info.cmdscript, pdata->script_index);
     cmdscript_execute(g_game_info.cmdscript);
 
-    obj = pdata->obj;
-    if (obj != 0) {
-        if (obj->instance != pdata->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = krypt_character_anim_proc_pdata_live_obj(pdata);
+
     if (obj != 0) {
         animation = krypt_pdata->anim_pdata;
-        animation_proc = animation->proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance != animation->proc_instance) {
-                animation_proc = 0;
-            }
-        } else {
-            animation_proc = 0;
-        }
+        animation_proc = anim_pdata_live_proc(animation);
+
         if (animation_proc != 0) {
             if (animation->proc->instance != 0) {
                 animation->proc->hdr.typed_vtbl->destroy((MkHdr*)animation->proc);
@@ -1505,6 +1524,129 @@ void force_wallet_to_open_position(void) {
     krypt_pdata->wallet_open_ticks = 0x78;
     krypt_pdata->wallet_open = 1;
 }
+static inline ScreenObj* krypt_pdata_live_wallet_back_obj(KryptPdata* owner) {
+    ScreenObj* object = owner->wallet_back.obj;
+    if (object != 0) {
+        if (object->instance == owner->wallet_back.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* krypt_pdata_live_wallet_front_obj(KryptPdata* owner) {
+    ScreenObj* object = owner->wallet_front.obj;
+    if (object != 0) {
+        if (object->instance == owner->wallet_front.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* krypt_pdata_live_open_button_obj(KryptPdata* owner) {
+    ScreenObj* object = owner->open_button.obj;
+    if (object != 0) {
+        if (object->instance == owner->open_button.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* krypt_pdata_live_exit_button_obj(KryptPdata* owner) {
+    ScreenObj* object = owner->exit_button.obj;
+    if (object != 0) {
+        if (object->instance == owner->exit_button.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* krypt_pdata_live_hud_label_l_obj(KryptPdata* owner) {
+    StringObj* object = owner->hud_label_l.obj;
+    if (object != 0) {
+        if (object->instance == owner->hud_label_l.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* krypt_pdata_live_hud_string_20011_obj(KryptPdata* owner) {
+    StringObj* object = owner->hud_string_20011.obj;
+    if (object != 0) {
+        if (object->instance == owner->hud_string_20011.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* krypt_pdata_live_hud_label_r_obj(KryptPdata* owner) {
+    StringObj* object = owner->hud_label_r.obj;
+    if (object != 0) {
+        if (object->instance == owner->hud_label_r.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* krypt_pdata_live_use_key_string_obj(KryptPdata* owner) {
+    StringObj* object = owner->use_key_string.obj;
+    if (object != 0) {
+        if (object->instance == owner->use_key_string.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.279790%; latch accessor improved codegen; localized residue remains; one-trial ceiling. */
+static inline StringObj* krypt_wallet_text(const KryptStringObjLatch* latch) {
+    StringObj* object = latch->obj;
+    if (object != 0) {
+        if (object->instance == latch->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 97.321240%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void heads_up_display_visible(int visible) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
@@ -1517,70 +1659,22 @@ void heads_up_display_visible(int visible) {
     StringObj* wallet_text;
     int i;
 
-    wallet_back = krypt_pdata->wallet_back.obj;
-    if (wallet_back != 0) {
-        if (wallet_back->instance != krypt_pdata->wallet_back.obj_instance) {
-            wallet_back = 0;
-        }
-    } else {
-        wallet_back = 0;
-    }
-    wallet_front = krypt_pdata->wallet_front.obj;
-    if (wallet_front != 0) {
-        if (wallet_front->instance != krypt_pdata->wallet_front.obj_instance) {
-            wallet_front = 0;
-        }
-    } else {
-        wallet_front = 0;
-    }
-    icon_a = krypt_pdata->open_button.obj;
-    if (icon_a != 0) {
-        if (icon_a->instance != krypt_pdata->open_button.obj_instance) {
-            icon_a = 0;
-        }
-    } else {
-        icon_a = 0;
-    }
-    icon_b = krypt_pdata->exit_button.obj;
-    if (icon_b != 0) {
-        if (icon_b->instance != krypt_pdata->exit_button.obj_instance) {
-            icon_b = 0;
-        }
-    } else {
-        icon_b = 0;
-    }
-    label_a = krypt_pdata->hud_label_l.obj;
-    if (label_a != 0) {
-        if (label_a->instance != krypt_pdata->hud_label_l.obj_instance) {
-            label_a = 0;
-        }
-    } else {
-        label_a = 0;
-    }
-    value_a = krypt_pdata->hud_string_20011.obj;
-    if (value_a != 0) {
-        if (value_a->instance != krypt_pdata->hud_string_20011.obj_instance) {
-            value_a = 0;
-        }
-    } else {
-        value_a = 0;
-    }
-    label_b = krypt_pdata->hud_label_r.obj;
-    if (label_b != 0) {
-        if (label_b->instance != krypt_pdata->hud_label_r.obj_instance) {
-            label_b = 0;
-        }
-    } else {
-        label_b = 0;
-    }
-    value_b = krypt_pdata->use_key_string.obj;
-    if (value_b != 0) {
-        if (value_b->instance != krypt_pdata->use_key_string.obj_instance) {
-            value_b = 0;
-        }
-    } else {
-        value_b = 0;
-    }
+    wallet_back = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+
+    wallet_front = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+
+    icon_a = krypt_pdata_live_open_button_obj(krypt_pdata);
+
+    icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
+
+    label_a = krypt_pdata_live_hud_label_l_obj(krypt_pdata);
+
+    value_a = krypt_pdata_live_hud_string_20011_obj(krypt_pdata);
+
+    label_b = krypt_pdata_live_hud_label_r_obj(krypt_pdata);
+
+    value_b = krypt_pdata_live_use_key_string_obj(krypt_pdata);
+
 
     if (wallet_back != 0) {
         if (visible) unhide_screen_obj(wallet_back); else hide_screen_obj(wallet_back);
@@ -1613,14 +1707,7 @@ void heads_up_display_visible(int visible) {
         }
     }
     for (i = 0; i < 6; i++) {
-        wallet_text = krypt_pdata->wallet_text[i].obj;
-        if (wallet_text != 0) {
-            if (wallet_text->instance != krypt_pdata->wallet_text[i].obj_instance) {
-                wallet_text = 0;
-            }
-        } else {
-            wallet_text = 0;
-        }
+        wallet_text = krypt_wallet_text(&krypt_pdata->wallet_text[i]);
         if (wallet_text != 0) {
             if (visible) unhide_string_obj(wallet_text); else hide_string_obj(wallet_text);
         }
@@ -2273,6 +2360,21 @@ static inline void handle_held_krypt_direction(
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.998990%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float handle_controller_input(void) {
     static int right_button_down;
     static int left_button_down;
@@ -2400,24 +2502,10 @@ static float handle_controller_input(void) {
                         mkproc_jump_sleep(p_move_camera_and_open_coffin);
                         return 0.0f;
                     }
-                    open_button = krypt_pdata->open_button.obj;
-                    if (open_button != 0) {
-                        if (open_button->instance !=
-                            krypt_pdata->open_button.obj_instance) {
-                            open_button = 0;
-                        }
-                    } else {
-                        open_button = 0;
-                    }
-                    exit_button = krypt_pdata->exit_button.obj;
-                    if (exit_button != 0) {
-                        if (exit_button->instance !=
-                            krypt_pdata->exit_button.obj_instance) {
-                            exit_button = 0;
-                        }
-                    } else {
-                        exit_button = 0;
-                    }
+                    open_button = krypt_pdata_live_open_button_obj(krypt_pdata);
+
+                    exit_button = krypt_pdata_live_exit_button_obj(krypt_pdata);
+
                     if (krypt_pdata->award_applied == 0) {
                         index = krypt_pdata->current_column +
                                 krypt_pdata->current_row * 20;
@@ -2467,22 +2555,10 @@ static float handle_controller_input(void) {
             krypt_pdata->wallet_open = 1;
             snd_req(0x3B8);
         }
-        open_button = krypt_pdata->wallet_back.obj;
-        if (open_button != 0) {
-            if (open_button->instance != krypt_pdata->wallet_back.obj_instance) {
-                open_button = 0;
-            }
-        } else {
-            open_button = 0;
-        }
-        exit_button = krypt_pdata->wallet_front.obj;
-        if (exit_button != 0) {
-            if (exit_button->instance != krypt_pdata->wallet_front.obj_instance) {
-                exit_button = 0;
-            }
-        } else {
-            exit_button = 0;
-        }
+        open_button = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+
+        exit_button = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+
         if (open_button != 0 && exit_button != 0) {
             if (open_button->y + 6 < 0) {
                 open_button->y += 6;
@@ -2493,14 +2569,7 @@ static float handle_controller_input(void) {
             }
         }
         for (index = 0; index < 6; index++) {
-            text = krypt_pdata->wallet_text[index].obj;
-            if (text != 0) {
-                if (text->instance != krypt_pdata->wallet_text[index].obj_instance) {
-                    text = 0;
-                }
-            } else {
-                text = 0;
-            }
+            text = krypt_wallet_text(&krypt_pdata->wallet_text[index]);
             if (text != 0) {
                 if (text->y < 34) {
                     text->y += 6;
@@ -2515,22 +2584,10 @@ static float handle_controller_input(void) {
             krypt_pdata->wallet_open = 0;
             snd_req(0x3B9);
         }
-        open_button = krypt_pdata->wallet_back.obj;
-        if (open_button != 0) {
-            if (open_button->instance != krypt_pdata->wallet_back.obj_instance) {
-                open_button = 0;
-            }
-        } else {
-            open_button = 0;
-        }
-        exit_button = krypt_pdata->wallet_front.obj;
-        if (exit_button != 0) {
-            if (exit_button->instance != krypt_pdata->wallet_front.obj_instance) {
-                exit_button = 0;
-            }
-        } else {
-            exit_button = 0;
-        }
+        open_button = krypt_pdata_live_wallet_back_obj(krypt_pdata);
+
+        exit_button = krypt_pdata_live_wallet_front_obj(krypt_pdata);
+
         if (open_button != 0 && exit_button != 0) {
             if (open_button->y - 6 > -100) {
                 open_button->y -= 6;
@@ -2541,14 +2598,7 @@ static float handle_controller_input(void) {
             }
         }
         for (index = 0; index < 6; index++) {
-            text = krypt_pdata->wallet_text[index].obj;
-            if (text != 0) {
-                if (text->instance != krypt_pdata->wallet_text[index].obj_instance) {
-                    text = 0;
-                }
-            } else {
-                text = 0;
-            }
+            text = krypt_wallet_text(&krypt_pdata->wallet_text[index]);
             if (text != 0) {
                 if (text->y > -66) {
                     text->y -= 6;
@@ -3259,6 +3309,11 @@ static void init_konquest_keys(void) {
     }
 }
 #pragma dont_inline reset
+
+
+
+
+/* TODO: [breakthrough needed] 94.525770%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static void update_use_key_string(void) {
     StringObj* use_key_text;
     CoffinEntry* entry;
@@ -3268,14 +3323,8 @@ static void update_use_key_string(void) {
     int key_bit;
     int index;
 
-    use_key_text = krypt_pdata->use_key_string.obj;
-    if (use_key_text != 0) {
-        if (use_key_text->instance != krypt_pdata->use_key_string.obj_instance) {
-            use_key_text = 0;
-        }
-    } else {
-        use_key_text = 0;
-    }
+    use_key_text = krypt_pdata_live_use_key_string_obj(krypt_pdata);
+
 
     for (index = 1; index < 400; index++) {
         entry = &coffin_data[index];

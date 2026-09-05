@@ -43,6 +43,48 @@ H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nes
 
 ## Measured examples
 
+- H01: If the last virtual-call mismatch preserves an extra argument register,
+  verify the real callee before calling it coloring. The local Konquest jump
+  prototype invented a context argument; runtime `jump_sleep_*` takes only
+  entry and ticks. Using the canonical process vtable closed `p_monk_getup`
+  from 99.895836% to 100%. Do not pass the observed scratch vtable register as
+  a fabricated argument. Its preceding byte flag updates also required the
+  existing `moving` and `bit6` fields, not integer OR expressions.
+- H05: If retail reloads an owner after a destructor/allocation/emitter call,
+  preserve that reload instead of a convenience snapshot. `super_charge_me`
+  reached 100% using the current player at each ownership access;
+  `kill_fstyle_signs_for_plyr` reached 99.44827% after rereading the player and
+  style slot after destruction, then 100% with one counter-declaration check.
+  `p_decoy_shrink` also requires rereading the effect handle after
+  `fx_pause_emit`. Confirm the callback boundary; do not add volatile.
+  After recovering the process validator, `give_krypt_key_to_player` had only
+  its notice pointer and instance in swapped registers. One adjacent declaration
+  reorder closed 99.70874% to 100%; stop if that single lifetime check fails.
+- H04/H12: Retail byte `rlwimi` plus scalar `lfs/stfs` copies can expose two
+  independent source-shape issues. Existing gravity bitfields and component
+  velocity assignments raised `set_active_projectile_velocity` from 90.06493%
+  to 97.7013%; remaining FP scheduling is not a reason to add padding.
+  The existing scale-active field alone closed `destroy_subzero_decoy`.
+
+- H06: If retail loads a string-table entry before a helper and keeps it for
+  the following lookup, require the same read interval in source. A named
+  `blood_map[4]` snapshot before the section lookup improved all four tested
+  blood callers, including `plyr_bleed_mouth`. Verify that the helper cannot
+  change the table before moving the read. A different constant address alone
+  does not justify padding: compare referenced bytes and load placement first.
+- H06/H12: If retail zeros a stack slot at entry that later receives process
+  data through an output argument, try initializing that real output pointer
+  at entry. This improved both monk and Damashi NPC creation. Do not invent
+  an unused slot or padding. Conversely, scalar vector initialization helped
+  objective-arrow and directional-light callbacks but regressed the tested
+  pebble and wall-effect functions; preserve aggregate copies when retail
+  actually performs them. Keep declarations before statements in C89 units.
+- H05: Published conversation state and NPC waypoint paths can change across
+  process sleeps, event dispatch, and allocation callbacks. If retail reloads
+  the owner field afterward, use that field rather than the original argument
+  or cached path. Confirm each reload boundary independently; do not replace
+  genuine snapshots throughout an entire module.
+
 - H06: If two member arrays share one retail induction pointer but MWCC emits
   two, check whether source accesses one through a base-class alias and the
   other through the derived owner. Require proven same-object identity and
@@ -99,6 +141,21 @@ H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nes
   `npc_resolve_events` improved while `npc_invisible_update` fell from 90.77%
   to 44.88% after losing its explicit call. Restore the trial if any caller
   regresses, including callers below 95%.
+  Lowering the selection floor to 50% and testing the next 100 largest eligible
+  functions (actual report range 58.66–94.86%, 101,792 bytes) retained 95
+  improvements: 87/90 direct-owner and 8/10 cached-pointer trials. Twenty
+  crossed 95%, but only `p_point_light_follower` closed exactly (228 bytes,
+  including data-value and stack-operand checks). This shape can improve a
+  large reconstruction without resolving its other differences; a higher
+  score alone does not establish equivalent behavior. In particular, retain
+  the documented invalid-path difference in `p_puzzle_fighter_chain_msg`.
+  Three target regressions and two collateral regressions were restored.
+  `exit_meditation` and `npc_play_dialog_and_anim_sequence` improved locally
+  while previously exact callers fell to zero; inspect all callers, not just
+  the extracted latch. Each target received one valid measured candidate.
+  For automated extraction, require C identifier syntax for pointer types:
+  multiplication such as `0.0f * body` is not a declaration. Reject malformed
+  generated source before treating it as a matching experiment.
 
 ## Known traps
 

@@ -1943,50 +1943,64 @@ static void sh_update_blood_fall_pebbles(
     }
 }
 
-/* Clean-C near match: 91.50%, retail/local 2236/2184. All three collection
- * loops agree in latch order, bounds, RNG order, vector normalization and
- * rotation, scale ranges, control stores, and matrix updates. Residue is six
- * redundant success-to-merge branches plus repeated constant/pool-base loads
- * that this compiler invocation hoists across the open-coded loops. */
+
+static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_1_hdr(SlaughterhouseData* owner) {
+    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[1].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->blood_fall_pebbles[1].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_0_hdr(SlaughterhouseData* owner) {
+    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[0].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->blood_fall_pebbles[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline PebbleData* slaughterhouse_data_live_blood_fall_pebbles_2_hdr(SlaughterhouseData* owner) {
+    PebbleData* object = (PebbleData*) owner->blood_fall_pebbles[2].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->blood_fall_pebbles[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.896240%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static void sh_init_bottom_floor_blood_fall_pebbles(
     ShBloodFallProcessData* data) {
     PebbleData* large;
     PebbleData* small;
     PebbleData* largest;
 
-    large = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr;
-    if (large != 0) {
-        if (large->hdr.instance ==
-            g_slaughterhouse_pdata->blood_fall_pebbles[1].instance) {
-            /* The latched pebble collection is still live. */
-        } else {
-            large = 0;
-        }
-    } else {
-        large = 0;
-    }
-    small = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr;
-    if (small != 0) {
-        if (small->hdr.instance ==
-            g_slaughterhouse_pdata->blood_fall_pebbles[0].instance) {
-            /* The latched pebble collection is still live. */
-        } else {
-            small = 0;
-        }
-    } else {
-        small = 0;
-    }
-    largest = (PebbleData*)g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr;
-    if (largest != 0) {
-        if (largest->hdr.instance ==
-            g_slaughterhouse_pdata->blood_fall_pebbles[2].instance) {
-            /* The latched pebble collection is still live. */
-        } else {
-            largest = 0;
-        }
-    } else {
-        largest = 0;
-    }
+    large = slaughterhouse_data_live_blood_fall_pebbles_1_hdr(g_slaughterhouse_pdata);
+
+    small = slaughterhouse_data_live_blood_fall_pebbles_0_hdr(g_slaughterhouse_pdata);
+
+    largest = slaughterhouse_data_live_blood_fall_pebbles_2_hdr(g_slaughterhouse_pdata);
+
 
     if (large != 0) {
         ShBloodPebbleControl* controls;
@@ -2233,9 +2247,77 @@ void sh_lower_level_pebble_hide(void) {
         }
     }
 }
-/* Clean-C near match: 88.98%, retail/local 952/900. The five model latches,
- * load IDs/heaps, object setup, three sobj selections, pebble counts, and
- * destination latches agree. Residue is validated-latch merge branching. */
+
+static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_0_hdr(SlaughterhouseData* owner) {
+    MkObj* object = (MkObj*) owner->lower_level_pebbles[0].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->lower_level_pebbles[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_1_hdr(SlaughterhouseData* owner) {
+    MkObj* object = (MkObj*) owner->lower_level_pebbles[1].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->lower_level_pebbles[1].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_2_hdr(SlaughterhouseData* owner) {
+    MkObj* object = (MkObj*) owner->lower_level_pebbles[2].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->lower_level_pebbles[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_3_hdr(SlaughterhouseData* owner) {
+    MkObj* object = (MkObj*) owner->lower_level_pebbles[3].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->lower_level_pebbles[3].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_4_hdr(SlaughterhouseData* owner) {
+    MkObj* object = (MkObj*) owner->lower_level_pebbles[4].hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->lower_level_pebbles[4].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.974790%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void sh_load_objs(void) {
     SlaughterhouseData* data;
     MkObj* object;
@@ -2247,21 +2329,15 @@ static void sh_load_objs(void) {
         return;
     }
 
-    object = (MkObj*)data->lower_level_pebbles[0].hdr;
-    if (object != 0) {
-        if (object->hdr.instance != data->lower_level_pebbles[0].instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = slaughterhouse_data_live_lower_level_pebbles_0_hdr(data);
+
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F000C, 0xA01D);
         if (object != 0) {
             data->lower_level_pebbles[0].hdr = &object->hdr;
             data->lower_level_pebbles[0].instance = object->hdr.instance;
             object->light_flags = 4;
-            object->flags_08 |= 0x40;
+            object->flags_08_bits.airborne = 1;
             obj_create_sobjs(object);
             insert_fgnd_mkobj(object);
             hide_obj(object);
@@ -2276,21 +2352,15 @@ static void sh_load_objs(void) {
     }
 
     data = g_slaughterhouse_pdata;
-    object = (MkObj*)data->lower_level_pebbles[1].hdr;
-    if (object != 0) {
-        if (object->hdr.instance != data->lower_level_pebbles[1].instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = slaughterhouse_data_live_lower_level_pebbles_1_hdr(data);
+
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F000A, 0xA01D);
         if (object != 0) {
             data->lower_level_pebbles[1].hdr = &object->hdr;
             data->lower_level_pebbles[1].instance = object->hdr.instance;
             object->light_flags = 4;
-            object->flags_08 |= 0x40;
+            object->flags_08_bits.airborne = 1;
             obj_create_sobjs(object);
             insert_fgnd_mkobj(object);
             hide_obj(object);
@@ -2305,21 +2375,15 @@ static void sh_load_objs(void) {
     }
 
     data = g_slaughterhouse_pdata;
-    object = (MkObj*)data->lower_level_pebbles[2].hdr;
-    if (object != 0) {
-        if (object->hdr.instance != data->lower_level_pebbles[2].instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = slaughterhouse_data_live_lower_level_pebbles_2_hdr(data);
+
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F0009, 0xA01D);
         if (object != 0) {
             data->lower_level_pebbles[2].hdr = &object->hdr;
             data->lower_level_pebbles[2].instance = object->hdr.instance;
             object->light_flags = 4;
-            object->flags_08 |= 0x40;
+            object->flags_08_bits.airborne = 1;
             obj_create_sobjs(object);
             insert_fgnd_mkobj(object);
             hide_obj(object);
@@ -2333,42 +2397,28 @@ static void sh_load_objs(void) {
         }
     }
 
-    object = (MkObj*)g_slaughterhouse_pdata->lower_level_pebbles[3].hdr;
-    if (object != 0) {
-        if (object->hdr.instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[3].instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = slaughterhouse_data_live_lower_level_pebbles_3_hdr(g_slaughterhouse_pdata);
+
     if (object == 0) {
         object = load_model_from_slot(0x2001E, 0x013F000B, 0xA01E);
         g_slaughterhouse_pdata->lower_level_pebbles[3].hdr = &object->hdr;
         g_slaughterhouse_pdata->lower_level_pebbles[3].instance =
             object->hdr.instance;
         object->light_flags = 4;
-        object->flags_08 |= 0x40;
+        object->flags_08_bits.airborne = 1;
         insert_fgnd_mkobj(object);
         hide_obj(object);
     }
 
-    object = (MkObj*)g_slaughterhouse_pdata->lower_level_pebbles[4].hdr;
-    if (object != 0) {
-        if (object->hdr.instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[4].instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = slaughterhouse_data_live_lower_level_pebbles_4_hdr(g_slaughterhouse_pdata);
+
     if (object == 0) {
         object = load_model_from_slot(0x10005, 0x20006, 0xA01F);
         g_slaughterhouse_pdata->lower_level_pebbles[4].hdr = &object->hdr;
         g_slaughterhouse_pdata->lower_level_pebbles[4].instance =
             object->hdr.instance;
         object->light_flags = 4;
-        object->flags_08 |= 0x40;
+        object->flags_08_bits.airborne = 1;
         insert_fgnd_mkobj(object);
         hide_obj(object);
     }
@@ -5176,11 +5226,26 @@ static float victim_fall_down_a_level(void) {
     }
 }
 
-/* Retail/local: 0x4A4/0x490, raw 92.87%. All calls, effect names and positions,
- * wall flags/scales, camera-latch validation, sleeps, and camera-directed
- * velocity math agree. Residue is nonvolatile-register coloring, pooled-label
- * identity, the equivalent latch branch, and MWCC eliminating retail's fully
- * initialized local camera-vector stores before that vector is overwritten. */
+
+static inline CameraObj* camera_item_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 93.461280%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_beetle_lair_front_wall_breaking(void) {
     Vec camera_velocity = {0.0f, 0.0f, -0.05f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
@@ -5191,16 +5256,8 @@ static float p_beetle_lair_front_wall_breaking(void) {
     MkObj* player_object;
     MkSobj* wall;
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance == camera_item.instance) {
-            /* The camera latch is live. */
-        } else {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_item_live_node(&camera_item);
+
 
     _mkproc_sleep_ticks = 3.0f;
     data = (BlWallBreakCameraData*)apdata;
@@ -5497,6 +5554,37 @@ static inline void bl_column_normalize_vector(Vec* vector) {
  * table indexing, access widths, motion math, and effect order agree. The
  * residue is CSE/scheduling across the two inlined length helpers, register
  * coloring in the repeated launch blocks, and one equivalent latch branch. */
+static inline MkObj* bl_column_break_data_live_player_tracked_obj(BlColumnBreakData* owner) {
+    MkObj* object = owner->player->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->player->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* bl_column_break_data_live_player_his_plyr_pdata_tracked_obj(BlColumnBreakData* owner) {
+    MkObj* object = owner->player->his_plyr_pdata->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->player->his_plyr_pdata->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.058360%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_beetle_lair_column_breaking(void) {
     Vec axis = {0.0f, 1.0f, 0.0f};
     BlColumnBreakData* data;
@@ -5525,30 +5613,13 @@ static float p_beetle_lair_column_breaking(void) {
     _mkproc_sleep_ticks = 3.0f;
     aproc->vtbl->sleep();
 
-    target = data->player->tracked_obj;
-    if (target != 0) {
-        if (target->hdr.instance == data->player->tracked_obj_instance) {
-            /* The tracked-object latch is live. */
-        } else {
-            target = 0;
-        }
-    } else {
-        target = 0;
-    }
+    target = bl_column_break_data_live_player_tracked_obj(data);
+
     if (target == 0) {
         return -1.0f;
     }
-    reference = data->player->his_plyr_pdata->tracked_obj;
-    if (reference != 0) {
-        if (reference->hdr.instance ==
-            data->player->his_plyr_pdata->tracked_obj_instance) {
-            /* The opponent's tracked-object latch is live. */
-        } else {
-            reference = 0;
-        }
-    } else {
-        reference = 0;
-    }
+    reference = bl_column_break_data_live_player_his_plyr_pdata_tracked_obj(data);
+
     if (reference == 0) {
         return -1.0f;
     }
@@ -10844,13 +10915,28 @@ void bgnd_xfer_attacker(int script_function) {
     script->unk28 = script_function;
     xfer_player_proc(process, bgnd_call_script_function);
 }
-/* Clean-C near match: 90.95%, retail/local 2800/2712. All 61 dispatch slots,
- * return/store operations, player-state mutations, camera setup ABI, vector
- * math, reaction transfer, and event/player ownership paths agree. Residue is
- * shared typed subexpression folding, validation merges, and switch scheduling. */
+
+static inline CameraObj* camera_item_validate_node(CameraObj* object, CameraItem* owner) {
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 93.727140%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,
     float value4, float value5, float value6, float value7, float value8) {
+    Vec up = {0.0f, 1.0f, 0.0f};
     float result = 0.0f;
 
     switch (operation) {
@@ -10879,7 +10965,6 @@ float bgnd_process_collision_info(
         break;
 
     case 3: {
-        Vec up = {0.0f, 1.0f, 0.0f};
         Vec* output = &g_bgnd_scratch_pad_vectors[(unsigned int)value3];
         MkSobj* object = obj_find_sobj_by_id(
             g_game_info.bgnd_obj, (unsigned int)value2);
@@ -10981,13 +11066,7 @@ float bgnd_process_collision_info(
         Vec target;
         Vec direction;
 
-        if (camera != 0) {
-            if (camera->hdr.instance != camera_item.instance) {
-                camera = 0;
-            }
-        } else {
-            camera = 0;
-        }
+        camera = camera_item_validate_node(camera, &camera_item);
         get_current_target(&target);
         direction.x = target.x - camera->pos.x;
         direction.y = target.y;
@@ -13202,11 +13281,38 @@ float p_track_cam_ang_y_light(void) {
     }
     return -1.0f;
 }
-/*
- * Near match: retail/local 476/448 bytes. The remaining differences are two
- * redundant success-edge branches in instance-validation diamonds and CSE of
- * the final global_movesets animation-palette address into r31.
- */
+
+static inline MkObj* global_moveset_live_primary_weapon(GlobalMoveset* owner) {
+    MkObj* object = owner->primary_weapon;
+    if (object != 0) {
+        if (object->hdr.instance == owner->primary_weapon_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* global_moveset_live_secondary_weapon(GlobalMoveset* owner) {
+    MkObj* object = owner->secondary_weapon;
+    if (object != 0) {
+        if (object->hdr.instance == owner->secondary_weapon_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.655464%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void load_bgnd_style(int player, const char* script_name, void* script_args) {
     GlobalMoveset* moveset;
     MkFileInfo* animation_section;
@@ -13225,15 +13331,8 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
                     moveset->definition->animation_header;
             }
             if (moveset->definition->primary_weapon != 0) {
-                weapon = moveset->primary_weapon;
-                if (weapon != 0) {
-                    if (weapon->hdr.instance !=
-                        moveset->primary_weapon_instance) {
-                        weapon = 0;
-                    }
-                } else {
-                    weapon = 0;
-                }
+                weapon = global_moveset_live_primary_weapon(moveset);
+
                 if (weapon != 0) {
                     return;
                 }
@@ -13248,15 +13347,8 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
                 }
             }
             if (moveset->definition->secondary_weapon != 0) {
-                weapon = moveset->secondary_weapon;
-                if (weapon != 0) {
-                    if (weapon->hdr.instance !=
-                        moveset->secondary_weapon_instance) {
-                        weapon = 0;
-                    }
-                } else {
-                    weapon = 0;
-                }
+                weapon = global_moveset_live_secondary_weapon(moveset);
+
                 if (weapon != 0) {
                     return;
                 }

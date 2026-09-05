@@ -1270,20 +1270,30 @@ void cleanup_npc_manager(void) {
     g_active_npc = 0;
 }
 
-/* Near match: 87.696075%, 16 bytes over retail. Validated hero-NPC reuse,
- * construction, Damashi data/position state, visibility flags, scriptable
- * process, and animation-process ownership are exact; residue is latch/GPR
- * lowering and nonvolatile save form. */
-void make_damashi_npc(MkObj* object) {
-    KonquestNpc* npc = konquest_pdata->hero_npc;
 
-    if (npc != 0) {
-        if (npc->hdr.instance != konquest_pdata->hero_npc_instance) {
-            npc = 0;
+static inline KonquestNpc* konquest_npc_pdata_live_hero_npc(KonquestNpcPdata* owner) {
+    KonquestNpc* object = owner->hero_npc;
+    if (object != 0) {
+        if (object->hdr.instance == owner->hero_npc_instance) {
+            return object;
         }
+        object = 0;
     } else {
-        npc = 0;
+        object = 0;
     }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 96.014710%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+void make_damashi_npc(MkObj* object) {
+    KonquestNpcAnimState* animation = 0;
+    KonquestNpc* npc = konquest_npc_pdata_live_hero_npc(konquest_pdata);
+
+
     if (npc == 0) {
         npc = (KonquestNpc*)get_mkhdr(
             &vtbl_konquest_npc_struct, sizeof(*npc));
@@ -1343,7 +1353,6 @@ void make_damashi_npc(MkObj* object) {
     }
 
     if (npc->animation == 0) {
-        KonquestNpcAnimState* animation = 0;
         MkProc* proc = _create_mkproc_generic_bigstack(
             0xA002, 8, p_npc_idle, sizeof(*animation),
             (MkHdr**)&animation);
@@ -1537,9 +1546,24 @@ MkObj* npc_get_obj(KonquestNpcData* data) {
     return 0;
 }
 
-/* Near match: 90.41441% - effect/process setup, three latched objects, bone
- * placement, normalized randomized velocities, and emitter ownership match.
- * Remaining differences are loop cursor/register allocation and save form. */
+
+static inline MkObj* konquest_npc_pdata_validate_monk(MkObj* object, KonquestNpcPdata* owner) {
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.495500%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void npc_start_blood_fall(void) {
     BloodFallPdata* pdata;
     MkProc* proc;
@@ -1579,13 +1603,7 @@ void npc_start_blood_fall(void) {
         float length_squared;
         float inverse_length;
 
-        if (monk != 0) {
-            if (monk->hdr.instance != konquest_pdata->monk_instance) {
-                monk = 0;
-            }
-        } else {
-            monk = 0;
-        }
+        monk = konquest_npc_pdata_validate_monk(monk, konquest_pdata);
         if (monk == 0) {
             return;
         }
@@ -1858,11 +1876,25 @@ KonquestNpcData* get_active_npc_data(void) {
     return data;
 }
 
-/*
- * Soft ceiling: 93.088234% - the retail-sized algorithm is exact; five-GPR
- * coloring, the texture-instance latch branch, and animation-load scheduling
- * differ.
- */
+
+static inline AniTextureControl* konquest_lip_sync_pdata_live_texture(KonquestLipSyncPdata* owner) {
+    AniTextureControl* object = owner->texture;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->texture_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.931370%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void npc_play_random_dialog_sequence(void) {
     KonquestRandomDialogSequence* sequences =
         konquest_pdata->random_dialog_sequences;
@@ -1901,15 +1933,8 @@ void npc_play_random_dialog_sequence(void) {
                 target->texture = texture;
                 target->texture_instance = texture_instance;
                 lip->sound_handle = sound_id;
-                texture = lip->texture;
-                if (texture != 0) {
-                    if ((unsigned int)texture->instance !=
-                        lip->texture_instance) {
-                        texture = 0;
-                    }
-                } else {
-                    texture = 0;
-                }
+                texture = konquest_lip_sync_pdata_live_texture(lip);
+
                 if (texture != 0) {
                     lip->keyframes = keyframes;
                 }
@@ -1939,9 +1964,12 @@ void npc_set_random_dialog_and_anim_sequence(int dialog, int animation) {
     }
 }
 
-/* Near match: 90.31868% at exact retail size. Dialog lookup, lip-sync process
- * ownership, validated animated texture, text selection, and wait ordering
- * match; residue is compact-mode register allocation and latch scheduling. */
+
+
+
+
+
+/* TODO: [breakthrough needed] 90.318680%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void npc_play_dialog_and_anim_sequence(int dialog_id, int animation_id) {
     int sound_id;
     LipSyncKeyframe* keyframes;
@@ -2078,21 +2106,56 @@ void npc_attack(int attack_arg_a, int attack_arg_b) {
     }
 }
 
-/* Near match: 83.37344%, 12 bytes short of retail. NPC construction, monk and
- * animation-process latches, hero data ownership, position/runtime snapshot,
- * face texture, and process setup are complete; residue is latch lowering,
- * GPR allocation, and split save/restore emission. */
+
+static inline KonquestNpc* konquest_npc_pdata_validate_monk_npc(KonquestNpc* object, KonquestNpcPdata* owner) {
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_npc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_npc_pdata_live_monk(KonquestNpcPdata* owner) {
+    MkObj* object = owner->monk;
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 91.435684%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 KonquestNpc* konquest_make_monk_an_npc(void) {
+    KonquestNpcAnimState* animation = 0;
     KonquestNpc* npc = konquest_pdata->monk_npc;
     MkObj* monk;
 
-    if (npc != 0) {
-        if (npc->hdr.instance != konquest_pdata->monk_npc_instance) {
-            npc = 0;
-        }
-    } else {
-        npc = 0;
-    }
+    npc = konquest_npc_pdata_validate_monk_npc(npc, konquest_pdata);
     if (npc != 0) {
         return npc;
     }
@@ -2133,14 +2196,8 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
     }
     npc->name = "hero_npc";
 
-    monk = konquest_pdata->monk;
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
+    monk = konquest_npc_pdata_live_monk(konquest_pdata);
+
     if (monk == 0) {
         return 0;
     }
@@ -2167,7 +2224,6 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
     npc->saved_gravity = monk->gravity;
 
     if (npc->animation == 0) {
-        KonquestNpcAnimState* animation = 0;
         MkProc* proc = _create_mkproc_generic_bigstack(
             0xA002, 8, p_npc_idle, sizeof(*animation),
             (MkHdr**)&animation);
@@ -2194,15 +2250,8 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
             animation->editor_object = 0;
             animation->dialog_anim = 0;
             monk_animation = konquest_pdata->monk_animation;
-            animation_proc = monk_animation->proc;
-            if (animation_proc != 0) {
-                if (animation_proc->instance !=
-                    monk_animation->proc_instance) {
-                    animation_proc = 0;
-                }
-            } else {
-                animation_proc = 0;
-            }
+            animation_proc = anim_pdata_live_proc(monk_animation);
+
             animation->proc = animation_proc;
         }
     }
@@ -2607,8 +2656,25 @@ void hero_handle_conversation(void) {
     }
 }
 
-/* Soft ceiling: 90.40084% - exact retail size, camera/control-flow sequence,
- * animation transfers, and event ordering; save and GPR scheduling remain. */
+
+static inline KonquestNpc* konquest_npc_pdata_live_monk_npc(KonquestNpcPdata* owner) {
+    KonquestNpc* object = owner->monk_npc;
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_npc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 95.856540%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void npc_play_conversation_part(
     int dialog_id, int animation_id, int conversation_mode) {
     KonquestNpcPdata* pdata = konquest_pdata;
@@ -2621,22 +2687,15 @@ void npc_play_conversation_part(
         ((KonquestNpcProcSleepVtable*)aproc->vtbl)->sleep();
         nis_signal_event(konquest_pdata->conversation_event);
 
-        if (conversation_mode != 2) {
-            if (konquest_pdata->conversation_mode_b != conversation_mode) {
+        if (pdata->conversation_mode_a != 2) {
+            if (konquest_pdata->conversation_mode_b != pdata->conversation_mode_a) {
                 KonquestNpc* monk;
                 KonquestAnimPdata* animation;
 
-                npc_switch_camera_focus_inline(conversation_mode);
-                konquest_pdata->conversation_mode_b = conversation_mode;
-                monk = konquest_pdata->monk_npc;
-                if (monk != 0) {
-                    if (monk->hdr.instance !=
-                        konquest_pdata->monk_npc_instance) {
-                        monk = 0;
-                    }
-                } else {
-                    monk = 0;
-                }
+                npc_switch_camera_focus_inline(pdata->conversation_mode_a);
+                konquest_pdata->conversation_mode_b = pdata->conversation_mode_a;
+                monk = konquest_npc_pdata_live_monk_npc(konquest_pdata);
+
                 xfer_proc(
                     monk->animation->proc, (MkProcEntryFn)p_animate);
                 animation = (KonquestAnimPdata*)pdata_of_proc(
@@ -4431,15 +4490,16 @@ static float p_turn_and_face(void) {
     return -1.0f;
 }
 
-/* Near match: 71.927925%, 16 bytes short of retail. Path/turn-process latches,
- * active-animation gate, duplicated next-waypoint selection, angle calculation,
- * process pdata initialization, and wait loop match. Residue is inlined-helper
- * register allocation, pointer truth lowering, and save scheduling. */
+
+
+
+
+
+/* TODO: [breakthrough needed] 80.432434%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void npc_turn_and_face_next_waypoint(void) {
-    KonquestPathData* path = g_active_npc->path;
     MkProc* turn_proc = g_active_npc->turn_proc;
 
-    if (path == 0) {
+    if (g_active_npc->path == 0) {
         return;
     }
     if (turn_proc != 0) {
@@ -4462,11 +4522,11 @@ void npc_turn_and_face_next_waypoint(void) {
         if (turn_immediately != 0) {
             float angle;
 
-            if (path->waypoints == 0) {
+            if (g_active_npc->path->waypoints == 0) {
                 angle = 0.0f;
             } else {
                 KonquestWaypoint* waypoint =
-                    &path->waypoints[npc_next_waypoint(g_active_npc)];
+                    &g_active_npc->path->waypoints[npc_next_waypoint(g_active_npc)];
                 KonquestNpcData* data = g_active_npc->data;
 
                 angle = gxMathArcTanYX(
@@ -4486,11 +4546,11 @@ void npc_turn_and_face_next_waypoint(void) {
             if (proc != 0) {
                 float angle;
 
-                if (path->waypoints == 0) {
+                if (g_active_npc->path->waypoints == 0) {
                     angle = 0.0f;
                 } else {
                     KonquestWaypoint* waypoint =
-                        &path->waypoints[npc_next_waypoint(g_active_npc)];
+                        &g_active_npc->path->waypoints[npc_next_waypoint(g_active_npc)];
                     KonquestNpcData* data = g_active_npc->data;
 
                     angle = gxMathArcTanYX(
@@ -4615,23 +4675,29 @@ static float p_hero_turn_and_face(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: 87.396225% - typed latch joins, active-animation boolean
- * lowering, pdata reload scheduling, and the 1.0f relocation differ.
- */
-void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
-    MkProc* turn_proc = npc->turn_proc;
 
-    if (turn_proc != 0) {
-        if ((unsigned int)turn_proc->instance ==
-            npc->turn_proc_instance) {
-            /* The latched process is still live. */
-        } else {
-            turn_proc = 0;
+static inline MkProc* konquest_npc_live_turn_proc(KonquestNpc* owner) {
+    MkProc* object = owner->turn_proc;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->turn_proc_instance) {
+            return object;
         }
+        object = 0;
     } else {
-        turn_proc = 0;
+        object = 0;
     }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.056600%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
+    MkProc* turn_proc = konquest_npc_live_turn_proc(npc);
+
+
     if (turn_proc == 0) {
         KonquestNpcAnimState* state = npc->animation;
         int has_active_animation;
@@ -4663,7 +4729,7 @@ void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
             if (turn_proc != 0) {
                 pdata->angle = angle;
                 pdata->saved_pin_animation =
-                    state->object->hide_flag_bits.pin_animation;
+                    npc->animation->object->hide_flag_bits.pin_animation;
                 pdata->target_kind = 0xA002;
                 pdata->target.npc = npc;
                 pdata->use_angle = 1;
@@ -4772,31 +4838,26 @@ void npc_turn_and_face_player(int turn_player) {
     }
 }
 
-/*
- * Soft ceiling: 89.70886% - process object, hero latch, world delta, angle
- * conversion, normalized quadrant math, signed conversion, and return match at
- * retail size. Residue is latch branches, zero-vector relocations, and GPRs.
- */
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.835440%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 int npc_get_collision_direction_in_script(void) {
     KonquestObjectScriptPdata* pdata =
         (KonquestObjectScriptPdata*)pdata_of_proc(aproc);
     MkObj* hero = konquest_pdata->monk;
     int direction;
 
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->monk_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_npc_pdata_validate_monk(hero, konquest_pdata);
     direction = 0;
     if (hero != 0 && pdata != 0) {
         MkObj* object = pdata->object;
 
         if (object != 0) {
-            Vec delta = {0.0f, 0.0f, 0.0f};
             Vec angles = {0.0f, 0.0f, 0.0f};
+            Vec delta = {0.0f, 0.0f, 0.0f};
 
             if (hero != 0 && object != 0) {
                 delta.x = hero->pos.value.x - object->pos.value.x;
@@ -6518,11 +6579,14 @@ void npc_shadow_set_alpha(int alpha) {
     npc_shadows.alpha = shadow_alpha;
 }
 
-/* Near match: 90.695656%, 12 bytes over retail. All 15-slot visibility,
- * signed flag semantics, grounded-height packed color, three atomic reloads,
- * projection staging, corrected packed sqrt lookup, float position copies,
- * distance scaling, reveal, and bone projection match. Residue is GPR/FPR
- * allocation and instruction scheduling. */
+
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 91.528984%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void npc_shadow_update(void) {
     KonquestCameraPositionView* camera =
         ((KonquestCameraView*)Camera)->position;
@@ -6543,16 +6607,9 @@ void npc_shadow_update(void) {
 
         shadow->hide_flag_bits.hidden = 1;
         if (npc != 0) {
-            KonquestNpc* monk = konquest_pdata->monk_npc;
+            KonquestNpc* monk = konquest_npc_pdata_live_monk_npc(konquest_pdata);
 
-            if (monk != 0) {
-                if (monk->hdr.instance !=
-                    konquest_pdata->monk_npc_instance) {
-                    monk = 0;
-                }
-            } else {
-                monk = 0;
-            }
+
             if (npc->data != monk->data) {
                 int active = npc_event_has_active_animation(npc);
                 int skip_shadow;
@@ -7628,9 +7685,25 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     }
 }
 
-/* Near match: 83.02809%, four bytes over retail. Cache selection,
- * texture-instance validation, recreation, and object setup match; residue is
- * branch polarity, loop lowering, and GPR coloring. */
+
+static inline AniTextureControl* npc_manager_model_slot_live_lip_texture(NpcManagerModelSlot* owner) {
+    AniTextureControl* object = owner->lip_texture;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->lip_texture_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 93.213486%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     NpcManagerPdata* manager = npc_manager_pdata;
 
@@ -7652,15 +7725,8 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
                 slot->age = 0.0f;
                 if (npc->animation != 0) {
                     npc->animation->object = slot->object;
-                    lip_texture = slot->lip_texture;
-                    if (lip_texture != 0) {
-                        if ((unsigned int)lip_texture->instance !=
-                            slot->lip_texture_instance) {
-                            lip_texture = 0;
-                        }
-                    } else {
-                        lip_texture = 0;
-                    }
+                    lip_texture = npc_manager_model_slot_live_lip_texture(slot);
+
                     if (lip_texture == 0) {
                         if (npc->art_id == 0) {
                             unsigned int mouth_art_id =

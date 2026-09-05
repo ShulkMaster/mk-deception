@@ -752,10 +752,25 @@ void plyr_weapon_grab(PlyrPdata* player, MkObj* item) {
                        &attach->rotation, &attach->scale, 1);
 }
 
-/*
- * Soft ceiling: plyr_obj_item_grab ~93.19% - attachment behavior and memory
- * operations match; remaining differences are latch-branch and GPR coloring.
- */
+
+static inline WeaponBoneMatcherState* plyr_mirror_obj_latch_live_obj(PlyrMirrorObjLatch* owner) {
+    WeaponBoneMatcherState* object = (WeaponBoneMatcherState*) owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.497330%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static int plyr_obj_item_grab(PlyrPdata* player,
                        PlyrMirrorObjLatch* item_latch,
                        PlyrMirrorObjLatch* secondary_latch, MkObj* item,
@@ -806,16 +821,8 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     }
 
     if (secondary_latch != 0) {
-        matcher = (WeaponBoneMatcherState*)secondary_latch->obj;
-        if (matcher != 0) {
-            if (matcher->hdr.instance == secondary_latch->instance) {
-                /* Keep the validated matcher. */
-            } else {
-                matcher = 0;
-            }
-        } else {
-            matcher = 0;
-        }
+        matcher = plyr_mirror_obj_latch_live_obj(secondary_latch);
+
     }
     if (matcher == 0) {
         matcher = start_bone_matcher(
@@ -859,6 +866,37 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     return 0;
 }
 
+static inline MkObj* weapon_bone_matcher_state_live_child_latch_obj(WeaponBoneMatcherState* owner) {
+    MkObj* object = owner->child_latch.obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->child_latch.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [breakthrough needed] 87.398380%; latch improved; remaining instruction alignment needs retail review; one-trial ceiling. */
+static inline MkObj* weapon_latch_object(const PlyrMirrorObjLatch* latch) {
+    MkObj* object = latch->obj;
+    if (object != 0) {
+        if (object->hdr.instance == latch->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+/* TODO: [breakthrough needed] 90.691055%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static MkObj* plyr_obj_item_release(PlyrPdata* player,
                              PlyrMirrorObjLatch* item_latch,
                              PlyrMirrorObjLatch* secondary_latch) {
@@ -868,13 +906,12 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
     MkPtr* link_ptr;
     MkPtr* next;
 
-    RESOLVE_WEAPON_LATCH(
-        player_object, &player->tracked_obj_latch);
+    player_object = weapon_latch_object(&player->tracked_obj_latch);
     if (player_object == 0) {
         return 0;
     }
 
-    RESOLVE_WEAPON_LATCH(item, item_latch);
+    item = weapon_latch_object(item_latch);
     if (item != 0) {
         MkHdr* object_to_destroy;
 
@@ -884,7 +921,7 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
         if (secondary_latch != 0) {
             MkObj* secondary_object;
 
-            RESOLVE_WEAPON_LATCH(secondary_object, secondary_latch);
+            secondary_object = weapon_latch_object(secondary_latch);
             object_to_destroy = (MkHdr*)secondary_object;
         } else {
             object_to_destroy = 0;
@@ -900,17 +937,8 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
                     continue;
                 }
                 link = (WeaponBoneMatcherState*)link_ptr->hdr;
-                linked_item = link->child_latch.obj;
-                if (linked_item != 0) {
-                    if (linked_item->hdr.instance ==
-                        link->child_latch.instance) {
-                        /* Keep the validated linked item. */
-                    } else {
-                        linked_item = 0;
-                    }
-                } else {
-                    linked_item = 0;
-                }
+                linked_item = weapon_bone_matcher_state_live_child_latch_obj(link);
+
                 if (linked_item == item) {
                     object_to_destroy = &link->hdr;
                     break;

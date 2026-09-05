@@ -37,6 +37,14 @@ old source wrote +0x38 (`lifetime`). Correcting the field changed 99.55111% to
 retail store and the independently established layout; do not rename an alias
 or move a member merely to match the immediate.
 
+M07/H14 diagnostic: A retail `lhzx` consumes a byte offset. For the existing
+`unsigned short GXMathSqrtTable[]`, `(bits >> 10) & 0x3FFE` is therefore not
+a C element index; use `(bits >> 11) & 0x1FFF`. In `insert_obj_ctrl_section`,
+correcting that factor-of-two error gave only a small score improvement.
+Initializing the real float/word union before the positivity guard then
+recovered retail's stack-store order and reached 100%, including data-value
+and stack-operand checks. No extra stack object or padding was needed.
+
 M15/M16 diagnostic: If report-exact code differs only at anonymous relocations,
 compare actual target bytes and run `objdiff-cli diff` with
 `-c functionRelocDiffs=data_value`. The report defaults to ignoring function

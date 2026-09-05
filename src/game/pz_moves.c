@@ -2815,16 +2815,39 @@ static float p_force_reaction(void) {
     return -1.0f;
 }
 
-/*
- * Near match: 93.61%, retail 0x2C0/current 0x2AC. The table layout, separately
- * validated opponent/hold process handles, cleanup/movement flags and all five
- * dispatch cases agree with m2c. Preserving the reaction opponent across hold
- * cleanup recovers retail behavior and its final-dispatch lifetime. An explicit
- * switch recovered retail semantics but regressed to 84.60%; this structured
- * chain retains the best clean emission. Remaining differences are case-island
- * layout, register allocation and table labels. Separating the dispatch and
- * movement table-pointer lifetimes compiled identically and was removed.
- */
+
+static inline PuzzleProcess* puzzle_reaction_transfer_data_live_opponent_proc(PuzzleReactionTransferData* owner) {
+    PuzzleProcess* object = owner->opponent_proc;
+    if (object != 0) {
+        if (object->instance == owner->opponent_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline PuzzleProcess* plyr_pdata_live_hold_proc(PlyrPdata* owner) {
+    PuzzleProcess* object = (PuzzleProcess*) owner->hold_proc;
+    if (object != 0) {
+        if (object->instance == owner->hold_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* Preserve the reaction opponent across hold cleanup for the final dispatch. */
+
+
+
+
+/* TODO: [breakthrough needed] 94.857956%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void pz_fighter_reaction_xfer_him(int reaction) {
     const PuzzleReactionTransferEntry* transfer;
     PuzzleReactionTransferData* reaction_data = apdata;
@@ -2841,15 +2864,8 @@ void pz_fighter_reaction_xfer_him(int reaction) {
     transfer_offset = reaction * sizeof(PuzzleReactionTransferEntry);
     transfer = reaction_transfer_at_offset(transfer_offset);
     dispatch = *(const PuzzleReactionDispatch*)transfer;
-    opponent_proc = reaction_data->opponent_proc;
-    if (opponent_proc != 0) {
-        if (opponent_proc->instance !=
-            reaction_data->opponent_proc_instance) {
-            opponent_proc = 0;
-        }
-    } else {
-        opponent_proc = 0;
-    }
+    opponent_proc = puzzle_reaction_transfer_data_live_opponent_proc(reaction_data);
+
     his_obj = reaction_data->opponent_obj;
     his_pdata = reaction_data->opponent_pdata;
     script = (PuzzleCmdScript*)get_cmdscript_for_proc(opponent_proc);
@@ -2861,14 +2877,8 @@ void pz_fighter_reaction_xfer_him(int reaction) {
         plyr_pdata->scream_sound_handle = 0;
     }
 
-    hold_proc = (PuzzleProcess*)plyr_pdata->hold_proc;
-    if (hold_proc != 0) {
-        if (hold_proc->instance != plyr_pdata->hold_proc_instance) {
-            hold_proc = 0;
-        }
-    } else {
-        hold_proc = 0;
-    }
+    hold_proc = plyr_pdata_live_hold_proc(plyr_pdata);
+
     if (hold_proc != 0) {
         release_other_player();
         if (plyr_pdata == (PlyrPdata*)g_game_info.plyr0.slot.fighter) {

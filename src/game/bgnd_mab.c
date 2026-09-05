@@ -498,39 +498,37 @@ int get_offset_of_closest_fence_section(
     return closest;
 }
 
-/*
- * Soft ceiling: 91.37%, exact retail size and operations. Remaining
- * differences are latch-candidate/final-object GPR coloring and equivalent
- * validation branch direction; retain the typed bitfield and clean C.
- */
+
+static inline MkObj* mk_obj_ref_live_object(MkObjRef* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 97.289474%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
     MkObj* object;
 
     if (player->controller_slot == 0) {
-        MkObj* latched_object = debug_p1_axis_item.object;
+        MkObj* latched_object = mk_obj_ref_live_object(&debug_p1_axis_item);
 
-        if (latched_object != 0) {
-            if (latched_object->hdr.instance == debug_p1_axis_item.instance) {
-                /* Keep the validated object. */
-            } else {
-                latched_object = 0;
-            }
-        } else {
-            latched_object = 0;
-        }
+
         object = latched_object;
     } else {
-        MkObj* latched_object = debug_p2_axis_item.object;
+        MkObj* latched_object = mk_obj_ref_live_object(&debug_p2_axis_item);
 
-        if (latched_object != 0) {
-            if (latched_object->hdr.instance == debug_p2_axis_item.instance) {
-                /* Keep the validated object. */
-            } else {
-                latched_object = 0;
-            }
-        } else {
-            latched_object = 0;
-        }
+
         object = latched_object;
     }
 
@@ -1369,11 +1367,26 @@ void p_statue_xpd_callback(MkSobj* object) {
     }
 }
 
-/*
- * Soft ceiling: 88.87%, exact retail size and recovered limb monitor. The
- * remaining differences are reflection scheduling, loop register coloring,
- * and a portable fabs call where retail folds a floating absolute opcode.
- */
+
+static inline MkObj* fighter_object_ref_live_object(FighterObjectRef* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 89.932590%; call/inlining boundary needs recovery (bl fabs); no further evidence-backed source change. */
 static float p_xpd_obj_monitor(void) {
     Vec ground_normal = {0.0f, 1.0f, 0.0f};
     int frame;
@@ -1392,16 +1405,8 @@ static float p_xpd_obj_monitor(void) {
             MkObj* object;
 
             severed = &pdata->player->slot.fighter->severed_limbs[limb];
-            object = severed->object;
-            if (object != 0) {
-                if (object->hdr.instance == severed->instance) {
-                    /* Keep the validated limb. */
-                } else {
-                    object = 0;
-                }
-            } else {
-                object = 0;
-            }
+            object = fighter_object_ref_live_object(severed);
+
             if (object != 0) {
                 float ground_y;
 

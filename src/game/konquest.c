@@ -2585,12 +2585,77 @@ static inline int konquest_current_game_mode(void) {
 }
 
 
-/*
- * Near match: the mode-stack guards, HUD/hero/camera transitions, portal-row
- * process lifecycle, latch wait, and complete restoration path agree with
- * retail. Residue is equivalent latch/loop branch layout, nonvolatile-register
- * allocation, save/restore selection, and pooled relocation labels.
- */
+
+static inline ScreenObj* konquest_pdata_live_hud_objects_2_object(KonquestPdata* owner) {
+    ScreenObj* object = (ScreenObj*) owner->hud_objects[2].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_objects[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_pdata_live_objective_beam_object(KonquestPdata* owner) {
+    MkObj* object = (MkObj*) owner->objective_beam.object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->objective_beam.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_pdata_live_hero_object(KonquestPdata* owner) {
+    MkObj* object = owner->hero_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->hero_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* anim_pdata_live_proc(AnimPdata* owner) {
+    MkProc* object = owner->proc;
+    if (object != 0) {
+        if (object->instance == owner->proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestGrounding* konquest_pdata_live_hero_grounding(KonquestPdata* owner) {
+    KonquestGrounding* object = owner->hero_grounding;
+    if (object != 0) {
+        if (object->hdr.instance == owner->grounding_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.059620%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void konquest_hero_portal_in(void) {
     ScreenObj* arrow;
     MkObj* beam;
@@ -2608,216 +2673,151 @@ void konquest_hero_portal_in(void) {
     unsigned int index;
     int mode;
 
-    if (konquest_current_game_mode() != 0 ||
+    if (!(konquest_current_game_mode() != 0 ||
         konquest_game_mode_in_stack(9) != 0 ||
-        konquest_pdata->current_portal_uid == 0) {
-        return;
-    }
-
-    p1_profile_konquest->fields.portal_entry_pending = 0;
-    if (konquest_pdata->game_mode_index < 0) {
-        mode = 0;
-    } else {
-        mode = konquest_pdata->game_modes[konquest_pdata->game_mode_index];
-    }
-    if (mode != 9 && konquest_pdata->game_mode_index < 3) {
-        konquest_pdata->game_mode_index++;
-        konquest_pdata->game_modes[konquest_pdata->game_mode_index] = 9;
-    }
-
-    konquest_hide_hud(0);
-    arrow = (ScreenObj*)konquest_pdata->hud_objects[2].object;
-    if (arrow != 0) {
-        if (arrow->instance == konquest_pdata->hud_objects[2].instance) {
-            /* Valid HUD-arrow latch. */
+        konquest_pdata->current_portal_uid == 0)) {
+        p1_profile_konquest->fields.portal_entry_pending = 0;
+        if (konquest_pdata->game_mode_index < 0) {
+            mode = 0;
         } else {
-            arrow = 0;
+            mode = konquest_pdata->game_modes[konquest_pdata->game_mode_index];
         }
-    } else {
-        arrow = 0;
-    }
-    beam = (MkObj*)konquest_pdata->objective_beam.object;
-    if (beam != 0) {
-        if (beam->hdr.instance == konquest_pdata->objective_beam.instance) {
-            /* Valid objective-beam latch. */
-        } else {
-            beam = 0;
+        if (mode != 9 && konquest_pdata->game_mode_index < 3) {
+            konquest_pdata->game_mode_index++;
+            konquest_pdata->game_modes[konquest_pdata->game_mode_index] = 9;
         }
-    } else {
-        beam = 0;
-    }
-    if (arrow != 0 && beam != 0) {
-        MkSobj* sky_object;
 
-        hide_screen_obj(arrow);
-        hide_obj(beam);
-        if (g_game_info.sky != 0) {
-            sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
-            if (sky_object != 0) {
-                hide_sobj(sky_object);
+        konquest_hide_hud(0);
+        arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+
+        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+
+        if (arrow != 0 && beam != 0) {
+            MkSobj* sky_object;
+
+            hide_screen_obj(arrow);
+            hide_obj(beam);
+            if (g_game_info.sky != 0) {
+                sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
+                if (sky_object != 0) {
+                    hide_sobj(sky_object);
+                }
+            }
+            konquest_pdata->objective_visible = 0;
+        }
+
+        turn_controllers_off();
+        hero = konquest_pdata_live_hero_object(konquest_pdata);
+
+        if (hero != 0) {
+            hero->pos_vel.z = 0.0f;
+            hero->pos_vel.y = 0.0f;
+            hero->pos_vel.x = 0.0f;
+            hero->flags_09_bits.bit6 = 1;
+            konquest_pdata->hero_state = 0;
+            hero->hide_flag_bits.still_move = 1;
+            konquest_pdata->hero_anim->weight = 1.0f;
+        }
+        transition_to_anim_script(
+            konquest_pdata->hero_anim,
+            monk_state_data[konquest_pdata->hero_state].animation,
+            monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
+        animation = konquest_pdata->hero_anim;
+        if (animation != 0) {
+            animation_proc = anim_pdata_live_proc(animation);
+
+            xfer_proc(animation_proc, p_animate);
+        }
+        xfer_proc(get_camera_proc(), p_hold_camera_in_place);
+        turn_camera_on();
+
+        portal_proc = 0;
+        portal_instance = 0;
+        proc = (MkProc*)_create_mkproc_generic_bigstack(
+            0xA028, 0x1F, p_hero_portal_in, sizeof(*portal_pdata),
+            (void**)&portal_pdata);
+        if (proc != 0 && portal_pdata != 0) {
+            rows = (KonquestPortalRow*)get_data_table_by_name("region_portals");
+            row_count = get_row_count_for_table_by_pointer(
+                konquest_pdata->script_owner, rows);
+            row = 0;
+            for (index = 0; index < row_count; index++) {
+                KonquestPortalRow* candidate;
+
+                candidate = &rows[index];
+                if (candidate->uid == konquest_pdata->current_portal_uid) {
+                    row = candidate;
+                    break;
+                }
+            }
+            if (row != 0) {
+                portal_instance = proc->instance;
+                portal_proc = proc;
+                zero_pdata_payload(sizeof(*portal_pdata), portal_pdata);
+                portal_pdata->uid = row->uid;
+                portal_pdata->target_offset.x = row->target_offset.x;
+                portal_pdata->target_offset.y = row->target_offset.y;
+                portal_pdata->target_offset.z = row->target_offset.z;
+                portal_pdata->camera_y_offset = row->camera_y_offset;
+                portal_pdata->hero_distance = row->hero_distance;
+                portal_pdata->camera_distance = row->camera_distance;
+                portal_pdata->field_24 = row->field_1C;
+            } else if (proc->instance != 0) {
+                proc->hdr.typed_vtbl->destroy(&proc->hdr);
             }
         }
-        konquest_pdata->objective_visible = 0;
-    }
 
-    turn_controllers_off();
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
-    if (hero != 0) {
-        hero->pos_vel.z = 0.0f;
-        hero->pos_vel.y = 0.0f;
-        hero->pos_vel.x = 0.0f;
-        hero->flags_09_bits.bit6 = 1;
-        konquest_pdata->hero_state = 0;
-        hero->hide_flag_bits.still_move = 1;
-        konquest_pdata->hero_anim->weight = 1.0f;
-    }
-    transition_to_anim_script(
-        konquest_pdata->hero_anim,
-        monk_state_data[konquest_pdata->hero_state].animation,
-        monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
-    animation = konquest_pdata->hero_anim;
-    if (animation != 0) {
-        animation_proc = animation->proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance == animation->proc_instance) {
-                /* Valid animation-process latch. */
-            } else {
-                animation_proc = 0;
-            }
-        } else {
-            animation_proc = 0;
-        }
-        xfer_proc(animation_proc, p_animate);
-    }
-    xfer_proc(get_camera_proc(), p_hold_camera_in_place);
-    turn_camera_on();
-
-    portal_proc = 0;
-    portal_instance = 0;
-    proc = (MkProc*)_create_mkproc_generic_bigstack(
-        0xA028, 0x1F, p_hero_portal_in, sizeof(*portal_pdata),
-        (void**)&portal_pdata);
-    if (proc != 0 && portal_pdata != 0) {
-        rows = (KonquestPortalRow*)get_data_table_by_name("region_portals");
-        row_count = get_row_count_for_table_by_pointer(
-            konquest_pdata->script_owner, rows);
-        row = 0;
-        for (index = 0; index < row_count; index++) {
-            KonquestPortalRow* candidate;
-
-            candidate = &rows[index];
-            if (candidate->uid == konquest_pdata->current_portal_uid) {
-                row = candidate;
-                break;
-            }
-        }
-        if (row != 0) {
-            portal_instance = proc->instance;
-            portal_proc = proc;
-            zero_pdata_payload(sizeof(*portal_pdata), portal_pdata);
-            portal_pdata->uid = row->uid;
-            portal_pdata->target_offset.x = row->target_offset.x;
-            portal_pdata->target_offset.y = row->target_offset.y;
-            portal_pdata->target_offset.z = row->target_offset.z;
-            portal_pdata->camera_y_offset = row->camera_y_offset;
-            portal_pdata->hero_distance = row->hero_distance;
-            portal_pdata->camera_distance = row->camera_distance;
-            portal_pdata->field_24 = row->field_1C;
-        } else if (proc->instance != 0) {
-            proc->hdr.typed_vtbl->destroy(&proc->hdr);
-        }
-    }
-
-    for (;;) {
-        proc = portal_proc;
-        if (proc != 0) {
-            if (proc->instance == portal_instance) {
-                /* Valid portal-process latch. */
+        for (;;) {
+            proc = portal_proc;
+            if (proc != 0) {
+                if (proc->instance == portal_instance) {
+                    /* Valid portal-process latch. */
+                } else {
+                    proc = 0;
+                }
             } else {
                 proc = 0;
             }
-        } else {
-            proc = 0;
-        }
-        if (proc == 0) {
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
-    }
-
-    arrow = (ScreenObj*)konquest_pdata->hud_objects[2].object;
-    if (arrow != 0) {
-        if (arrow->instance == konquest_pdata->hud_objects[2].instance) {
-            /* Valid HUD-arrow latch. */
-        } else {
-            arrow = 0;
-        }
-    } else {
-        arrow = 0;
-    }
-    beam = (MkObj*)konquest_pdata->objective_beam.object;
-    if (beam != 0) {
-        if (beam->hdr.instance == konquest_pdata->objective_beam.instance) {
-            /* Valid objective-beam latch. */
-        } else {
-            beam = 0;
-        }
-    } else {
-        beam = 0;
-    }
-    if (arrow != 0 && beam != 0 &&
-        p1_profile_konquest->fields.objective_index <
-            (int)get_row_count_for_table_by_pointer(
-                konquest_pdata->script_owner,
-                konquest_pdata->objective_table)) {
-        if (konquest_pdata->hud_visible != 0) {
-            unhide_screen_obj(arrow);
-        }
-        unhide_obj(beam);
-        konquest_pdata->objective_visible = 1;
-    }
-
-    animation = konquest_pdata->hero_anim;
-    if (animation != 0) {
-        animation_proc = animation->proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance == animation->proc_instance) {
-                /* Valid animation-process latch. */
-            } else {
-                animation_proc = 0;
+            if (proc == 0) {
+                break;
             }
-        } else {
-            animation_proc = 0;
+            _mkproc_sleep_ticks = 1.0f;
+            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
         }
-        xfer_proc(animation_proc, p_control_konquest_monk);
-    }
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
+
+        arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+
+        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+
+        if (arrow != 0 && beam != 0 &&
+            p1_profile_konquest->fields.objective_index <
+                (int)get_row_count_for_table_by_pointer(
+                    konquest_pdata->script_owner,
+                    konquest_pdata->objective_table)) {
+            if (konquest_pdata->hud_visible != 0) {
+                unhide_screen_obj(arrow);
+            }
+            unhide_obj(beam);
+            konquest_pdata->objective_visible = 1;
         }
-    } else {
-        grounding = 0;
+
+        animation = konquest_pdata->hero_anim;
+        if (animation != 0) {
+            animation_proc = anim_pdata_live_proc(animation);
+
+            xfer_proc(animation_proc, p_control_konquest_monk);
+        }
+        grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+
+        if (grounding != 0) {
+            npc_xfer(grounding, p_npc_idle, 0);
+        }
+        xfer_proc(get_camera_proc(), p_konquest_camera_proc);
+        if (konquest_pdata->game_mode_index != 0) {
+            konquest_pdata->game_mode_index--;
+        }
     }
-    if (grounding != 0) {
-        npc_xfer(grounding, p_npc_idle, 0);
-    }
-    xfer_proc(get_camera_proc(), p_konquest_camera_proc);
-    if (konquest_pdata->game_mode_index != 0) {
-        konquest_pdata->game_mode_index--;
-    }
+    return;
 }
 static inline float konquest_inverse_length(float length_squared) {
     KonquestFloatBits estimate;
@@ -3028,12 +3028,12 @@ static float p_hero_portal_in(void) {
     return -1.0f;
 }
 
-/*
- * Near match: the mode guards, HUD fade and visibility changes, hero/camera
- * handoff, typed portal payload, validated process wait, profile update, and
- * mode pop all agree with retail. The remaining 24-byte delta is confined to
- * equivalent inline mode/latch branch layout, GPR allocation, and scheduling.
- */
+
+
+
+
+
+/* TODO: [breakthrough needed] 86.618324%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void konquest_use_portal(
     int uid, const Vec* target_offset, int direction_mode,
     float camera_y_offset, float hero_distance, float camera_distance) {
@@ -3048,141 +3048,108 @@ void konquest_use_portal(
     unsigned int portal_instance;
     int mode;
 
-    if (konquest_current_game_mode() != 0 ||
-        konquest_game_mode_in_stack(9) != 0) {
-        return;
-    }
-
-    if (konquest_pdata->game_mode_index < 0) {
-        mode = 0;
-    } else {
-        mode = konquest_pdata->game_modes[konquest_pdata->game_mode_index];
-    }
-    if (mode != 9 && konquest_pdata->game_mode_index < 3) {
-        konquest_pdata->game_mode_index++;
-        konquest_pdata->game_modes[konquest_pdata->game_mode_index] = 9;
-    }
-
-    destroy_mkprocs_pid(0xA023);
-    _create_mkproc_generic_tinystack(
-        0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
-    g_fade_hud_in = 0;
-
-    arrow = (ScreenObj*)konquest_pdata->hud_objects[2].object;
-    if (arrow != 0) {
-        if (arrow->instance == konquest_pdata->hud_objects[2].instance) {
-            /* Valid HUD-arrow latch. */
+    if (!(konquest_current_game_mode() != 0 ||
+        konquest_game_mode_in_stack(9) != 0)) {
+        if (konquest_pdata->game_mode_index < 0) {
+            mode = 0;
         } else {
-            arrow = 0;
+            mode = konquest_pdata->game_modes[konquest_pdata->game_mode_index];
         }
-    } else {
-        arrow = 0;
-    }
-    beam = (MkObj*)konquest_pdata->objective_beam.object;
-    if (beam != 0) {
-        if (beam->hdr.instance == konquest_pdata->objective_beam.instance) {
-            /* Valid objective-beam latch. */
-        } else {
-            beam = 0;
+        if (mode != 9 && konquest_pdata->game_mode_index < 3) {
+            konquest_pdata->game_mode_index++;
+            konquest_pdata->game_modes[konquest_pdata->game_mode_index] = 9;
         }
-    } else {
-        beam = 0;
-    }
-    if (arrow != 0 && beam != 0) {
-        MkSobj* sky_object;
 
-        hide_screen_obj(arrow);
-        hide_obj(beam);
-        if (g_game_info.sky != 0) {
-            sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
-            if (sky_object != 0) {
-                hide_sobj(sky_object);
+        destroy_mkprocs_pid(0xA023);
+        _create_mkproc_generic_tinystack(
+            0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
+        g_fade_hud_in = 0;
+
+        arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+
+        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+
+        if (arrow != 0 && beam != 0) {
+            MkSobj* sky_object;
+
+            hide_screen_obj(arrow);
+            hide_obj(beam);
+            if (g_game_info.sky != 0) {
+                sky_object = obj_find_sobj_by_id(g_game_info.sky, 1);
+                if (sky_object != 0) {
+                    hide_sobj(sky_object);
+                }
             }
+            konquest_pdata->objective_visible = 0;
         }
-        konquest_pdata->objective_visible = 0;
-    }
 
-    turn_controllers_off();
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
+        turn_controllers_off();
+        hero = konquest_pdata_live_hero_object(konquest_pdata);
+
+        if (hero != 0) {
+            hero->pos_vel.z = 0.0f;
+            hero->pos_vel.y = 0.0f;
+            hero->pos_vel.x = 0.0f;
+            hero->flags_09_bits.bit6 = 1;
+            konquest_pdata->hero_state = 0;
+            hero->hide_flag_bits.still_move = 1;
+            konquest_pdata->hero_anim->weight = 1.0f;
         }
-    } else {
-        hero = 0;
-    }
-    if (hero != 0) {
-        hero->pos_vel.z = 0.0f;
-        hero->pos_vel.y = 0.0f;
-        hero->pos_vel.x = 0.0f;
-        hero->flags_09_bits.bit6 = 1;
-        konquest_pdata->hero_state = 0;
-        hero->hide_flag_bits.still_move = 1;
-        konquest_pdata->hero_anim->weight = 1.0f;
-    }
-    transition_to_anim_script(
-        konquest_pdata->hero_anim,
-        monk_state_data[konquest_pdata->hero_state].animation,
-        monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
-    animation = konquest_pdata->hero_anim;
-    if (animation != 0) {
-        animation_proc = animation->proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance == animation->proc_instance) {
-                /* Valid animation-process latch. */
-            } else {
-                animation_proc = 0;
-            }
-        } else {
-            animation_proc = 0;
+        transition_to_anim_script(
+            konquest_pdata->hero_anim,
+            monk_state_data[konquest_pdata->hero_state].animation,
+            monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
+        animation = konquest_pdata->hero_anim;
+        if (animation != 0) {
+            animation_proc = anim_pdata_live_proc(animation);
+
+            xfer_proc(animation_proc, p_animate);
         }
-        xfer_proc(animation_proc, p_animate);
-    }
-    xfer_proc(get_camera_proc(), p_hold_camera_in_place);
+        xfer_proc(get_camera_proc(), p_hold_camera_in_place);
 
-    portal_proc = 0;
-    portal_instance = 0;
-    proc = (MkProc*)_create_mkproc_generic_bigstack(
-        0xA028, 0x1F, p_hero_use_portal, sizeof(*portal_pdata),
-        (void**)&portal_pdata);
-    if (proc != 0) {
-        portal_instance = proc->instance;
-        portal_proc = proc;
-        zero_pdata_payload(sizeof(*portal_pdata), portal_pdata);
-        portal_pdata->uid = uid;
-        portal_pdata->target_offset.x = target_offset->x;
-        portal_pdata->target_offset.y = target_offset->y;
-        portal_pdata->target_offset.z = target_offset->z;
-        portal_pdata->camera_y_offset = camera_y_offset;
-        portal_pdata->hero_distance = hero_distance;
-        portal_pdata->camera_distance = camera_distance;
-        portal_pdata->field_24 = direction_mode;
-    }
-
-    for (;;) {
-        proc = portal_proc;
+        portal_proc = 0;
+        portal_instance = 0;
+        proc = (MkProc*)_create_mkproc_generic_bigstack(
+            0xA028, 0x1F, p_hero_use_portal, sizeof(*portal_pdata),
+            (void**)&portal_pdata);
         if (proc != 0) {
-            if (proc->instance == portal_instance) {
-                /* Valid portal-process latch. */
+            portal_instance = proc->instance;
+            portal_proc = proc;
+            zero_pdata_payload(sizeof(*portal_pdata), portal_pdata);
+            portal_pdata->uid = uid;
+            portal_pdata->target_offset.x = target_offset->x;
+            portal_pdata->target_offset.y = target_offset->y;
+            portal_pdata->target_offset.z = target_offset->z;
+            portal_pdata->camera_y_offset = camera_y_offset;
+            portal_pdata->hero_distance = hero_distance;
+            portal_pdata->camera_distance = camera_distance;
+            portal_pdata->field_24 = direction_mode;
+        }
+
+        for (;;) {
+            proc = portal_proc;
+            if (proc != 0) {
+                if (proc->instance == portal_instance) {
+                    /* Valid portal-process latch. */
+                } else {
+                    proc = 0;
+                }
             } else {
                 proc = 0;
             }
-        } else {
-            proc = 0;
+            if (proc == 0) {
+                break;
+            }
+            _mkproc_sleep_ticks = 1.0f;
+            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
         }
-        if (proc == 0) {
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
-    }
 
-    p1_profile_konquest->fields.portal_entry_pending = 1;
-    if (konquest_pdata->game_mode_index != 0) {
-        konquest_pdata->game_mode_index--;
+        p1_profile_konquest->fields.portal_entry_pending = 1;
+        if (konquest_pdata->game_mode_index != 0) {
+            konquest_pdata->game_mode_index--;
+        }
     }
+    return;
 }
 
 /* TODO: [near miss] 95.827190%; branch/register lowering remains; stop at trial cap. */
@@ -3407,12 +3374,12 @@ void npc_play_teleported_sound(void) {
     pan_vol_snd_req(0x147E, get_pan_value(&position), volume);
 }
 
-/*
- * Near match: the mode lifecycle, HUD fade, hero/animation latches, typed
- * teleport payload, scriptable process wait, controller restoration, and mode
- * pop agree with retail. The remaining eight-byte delta is GPR allocation and
- * equivalent inline latch/mode-stack branch scheduling.
- */
+
+
+
+
+
+/* TODO: [breakthrough needed] 87.547325%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void konquest_teleport_hero_to_location(const Vec* target) {
     MkObj* hero;
     AnimPdata* animation;
@@ -3424,130 +3391,97 @@ void konquest_teleport_hero_to_location(const Vec* target) {
     unsigned int teleport_instance;
     int mode;
 
-    if (konquest_pdata->region_index != 4 ||
+    if (!(konquest_pdata->region_index != 4 ||
         konquest_current_game_mode() != 0 ||
-        konquest_game_mode_in_stack(8) != 0) {
-        return;
-    }
-
-    mode = konquest_current_game_mode();
-    if (mode != 8 && konquest_pdata->game_mode_index < 3) {
-        konquest_pdata->game_mode_index++;
-        konquest_pdata->game_modes[konquest_pdata->game_mode_index] = 8;
-    }
-
-    destroy_mkprocs_pid(0xA023);
-    _create_mkproc_generic_tinystack(
-        0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
-    g_fade_hud_in = 0;
-    turn_controllers_off();
-
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
+        konquest_game_mode_in_stack(8) != 0)) {
+        mode = konquest_current_game_mode();
+        if (mode != 8 && konquest_pdata->game_mode_index < 3) {
+            konquest_pdata->game_mode_index++;
+            konquest_pdata->game_modes[konquest_pdata->game_mode_index] = 8;
         }
-    } else {
-        hero = 0;
-    }
-    if (hero != 0) {
-        hero->pos_vel.z = 0.0f;
-        hero->pos_vel.y = 0.0f;
-        hero->pos_vel.x = 0.0f;
-        hero->flags_09_bits.bit6 = 1;
-        konquest_pdata->hero_state = 0;
-        hero->hide_flag_bits.still_move = 1;
-        konquest_pdata->hero_anim->weight = 1.0f;
-    }
-    transition_to_anim_script(
-        konquest_pdata->hero_anim,
-        monk_state_data[konquest_pdata->hero_state].animation,
-        monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
-    animation = konquest_pdata->hero_anim;
-    if (animation != 0) {
-        animation_proc = animation->proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance == animation->proc_instance) {
-                /* Valid animation-process latch. */
-            } else {
-                animation_proc = 0;
-            }
-        } else {
-            animation_proc = 0;
+
+        destroy_mkprocs_pid(0xA023);
+        _create_mkproc_generic_tinystack(
+            0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
+        g_fade_hud_in = 0;
+        turn_controllers_off();
+
+        hero = konquest_pdata_live_hero_object(konquest_pdata);
+
+        if (hero != 0) {
+            hero->pos_vel.z = 0.0f;
+            hero->pos_vel.y = 0.0f;
+            hero->pos_vel.x = 0.0f;
+            hero->flags_09_bits.bit6 = 1;
+            konquest_pdata->hero_state = 0;
+            hero->hide_flag_bits.still_move = 1;
+            konquest_pdata->hero_anim->weight = 1.0f;
         }
-        xfer_proc(animation_proc, p_animate);
-    }
+        transition_to_anim_script(
+            konquest_pdata->hero_anim,
+            monk_state_data[konquest_pdata->hero_state].animation,
+            monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
+        animation = konquest_pdata->hero_anim;
+        if (animation != 0) {
+            animation_proc = anim_pdata_live_proc(animation);
 
-    teleport_proc = 0;
-    teleport_instance = 0;
-    proc = (MkProc*)_create_mkproc_generic_tinystack(
-        0xA028, 0x1F, p_hero_teleport, sizeof(*teleport_pdata),
-        (void**)&teleport_pdata);
-    if (proc != 0) {
-        teleport_instance = proc->instance;
-        teleport_proc = proc;
-        set_process_as_scriptable(proc);
-        zero_pdata_payload(sizeof(*teleport_pdata), teleport_pdata);
-        teleport_pdata->target.x = target->x;
-        teleport_pdata->target.y = target->y;
-        teleport_pdata->target.z = target->z;
-    }
+            xfer_proc(animation_proc, p_animate);
+        }
 
-    for (;;) {
-        proc = teleport_proc;
+        teleport_proc = 0;
+        teleport_instance = 0;
+        proc = (MkProc*)_create_mkproc_generic_tinystack(
+            0xA028, 0x1F, p_hero_teleport, sizeof(*teleport_pdata),
+            (void**)&teleport_pdata);
         if (proc != 0) {
-            if (proc->instance == teleport_instance) {
-                /* Valid teleport-process latch. */
+            teleport_instance = proc->instance;
+            teleport_proc = proc;
+            set_process_as_scriptable(proc);
+            zero_pdata_payload(sizeof(*teleport_pdata), teleport_pdata);
+            teleport_pdata->target.x = target->x;
+            teleport_pdata->target.y = target->y;
+            teleport_pdata->target.z = target->z;
+        }
+
+        for (;;) {
+            proc = teleport_proc;
+            if (proc != 0) {
+                if (proc->instance == teleport_instance) {
+                    /* Valid teleport-process latch. */
+                } else {
+                    proc = 0;
+                }
             } else {
                 proc = 0;
             }
-        } else {
-            proc = 0;
-        }
-        if (proc == 0) {
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
-    }
-
-    animation = konquest_pdata->hero_anim;
-    if (animation != 0) {
-        animation_proc = animation->proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance == animation->proc_instance) {
-                /* Valid animation-process latch. */
-            } else {
-                animation_proc = 0;
+            if (proc == 0) {
+                break;
             }
-        } else {
-            animation_proc = 0;
+            _mkproc_sleep_ticks = 1.0f;
+            ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
         }
-        xfer_proc(animation_proc, p_control_konquest_monk);
-    }
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
+
+        animation = konquest_pdata->hero_anim;
+        if (animation != 0) {
+            animation_proc = anim_pdata_live_proc(animation);
+
+            xfer_proc(animation_proc, p_control_konquest_monk);
         }
-    } else {
-        grounding = 0;
+        grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+
+        if (grounding != 0) {
+            npc_xfer(grounding, p_npc_idle, 0);
+        }
+        turn_controllers_on();
+        destroy_mkprocs_pid(0xA023);
+        _create_mkproc_generic_tinystack(
+            0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
+        g_fade_hud_in = 1;
+        if (konquest_pdata->game_mode_index != 0) {
+            konquest_pdata->game_mode_index--;
+        }
     }
-    if (grounding != 0) {
-        npc_xfer(grounding, p_npc_idle, 0);
-    }
-    turn_controllers_on();
-    destroy_mkprocs_pid(0xA023);
-    _create_mkproc_generic_tinystack(
-        0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
-    g_fade_hud_in = 1;
-    if (konquest_pdata->game_mode_index != 0) {
-        konquest_pdata->game_mode_index--;
-    }
+    return;
 }
 static inline void run_konquest_teleport_script(const char* name) {
     cmdscript_setup_execution(
@@ -3557,12 +3491,12 @@ static inline void run_konquest_teleport_script(const char* name) {
     cmdscript_execute(konquest_pdata->script_owner);
 }
 
-/*
- * Near match: all three scripted effects, dissolve/reform alpha loops, camera
- * turn, cosine travel interpolation, grounding state, final animation reverse,
- * and return agree with retail. Residue is floating-register allocation and
- * save-frame size, equivalent latch/loop scheduling, and pooled relocations.
- */
+
+
+
+
+
+/* TODO: [breakthrough needed] 89.011870%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_hero_teleport(void) {
     KonquestTeleportPdata* pdata;
     KonquestGrounding* grounding;
@@ -3570,26 +3504,10 @@ static float p_hero_teleport(void) {
     AnimScript* script;
 
     pdata = (KonquestTeleportPdata*)pdata_of_proc(aproc);
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
 
     run_konquest_teleport_script("hero_do_teleport_start_effect");
     script = (AnimScript*)konquest_animations[31];
@@ -4582,9 +4500,10 @@ void* get_konquest_region_table(void) {
 static inline MkProc* konquest_resolve_proc(
     MkProc* proc, unsigned int instance) {
     if (proc != 0) {
-        if (proc->instance != instance) {
-            proc = 0;
+        if (proc->instance == instance) {
+            return proc;
         }
+        proc = 0;
     } else {
         proc = 0;
     }
@@ -4592,27 +4511,31 @@ static inline MkProc* konquest_resolve_proc(
 }
 
 
-/*
- * Near match: hero suspension/restoration, award-process lifetime, and the
- * grounding latch agree with retail. The eight-byte residue is equivalent
- * latch-join layout, nonvolatile-register coloring, and save/restore choice.
- */
+
+static inline MkProc* konquest_pdata_live_hero_anim_proc(KonquestPdata* owner) {
+    MkProc* object = owner->hero_anim->proc;
+    if (object != 0) {
+        if (object->instance == owner->hero_anim->proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
 void give_krypt_key_to_player(KonquestPuiDefinition* award, int arg) {
     MkProc* proc;
-    MkProc* notice;
     unsigned int notice_instance;
+    MkProc* notice;
     KonquestGrounding* grounding;
 
     if (konquest_pdata->hero_anim != 0) {
-        proc = konquest_pdata->hero_anim->proc;
-        if (proc != 0) {
-            if (proc->instance !=
-                konquest_pdata->hero_anim->proc_instance) {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = konquest_pdata_live_hero_anim_proc(konquest_pdata);
+
         xfer_proc(proc, p_animate);
     }
 
@@ -4628,27 +4551,13 @@ void give_krypt_key_to_player(KonquestPuiDefinition* award, int arg) {
     }
 
     if (konquest_pdata->hero_anim != 0) {
-        proc = konquest_pdata->hero_anim->proc;
-        if (proc != 0) {
-            if (proc->instance !=
-                konquest_pdata->hero_anim->proc_instance) {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = konquest_pdata_live_hero_anim_proc(konquest_pdata);
+
         xfer_proc(proc, p_control_konquest_monk);
     }
 
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance !=
-            konquest_pdata->grounding_instance) {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
+    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
     }
@@ -4735,12 +4644,17 @@ void set_reference_pui(KonquestPuiDefinition* reference) {
  * camera wait, inventory/profile update, award wait, and restoration all
  * agree. Residue is equivalent latch/loop block placement and GPR coloring.
  */
+
+
+
+
+/* TODO: [breakthrough needed] 87.460815%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void open_chest_and_unlock_kontent(
     KonquestPuiDefinition* item, int award_arg) {
     MkProc* chest_proc;
     unsigned int chest_proc_instance;
-    MkProc* notice;
     unsigned int notice_instance;
+    MkProc* notice;
     KonquestAwardArtPdata* notice_pdata;
     AnimPdata* animation;
     MkProc* proc;
@@ -4776,14 +4690,8 @@ void open_chest_and_unlock_kontent(
     hero_stop_moving();
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = animation->proc;
-        if (proc != 0) {
-            if (proc->instance != animation->proc_instance) {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = anim_pdata_live_proc(animation);
+
         xfer_proc(proc, p_animate);
     }
 
@@ -4879,24 +4787,12 @@ void open_chest_and_unlock_kontent(
 
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = animation->proc;
-        if (proc != 0) {
-            if (proc->instance != animation->proc_instance) {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = anim_pdata_live_proc(animation);
+
         xfer_proc(proc, p_control_konquest_monk);
     }
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance != konquest_pdata->grounding_instance) {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
+    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
     }
@@ -4907,6 +4803,11 @@ void open_chest_and_unlock_kontent(
  * mode, process/camera waits, typed inventory award, and restoration. Residue
  * is the same equivalent latch/loop block placement and GPR coloring.
  */
+
+
+
+
+/* TODO: [breakthrough needed] 87.398120%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void open_chest_and_give_item_to_player(
     KonquestPuiDefinition* chest_item,
     KonquestPuiDefinition* reward_item) {
@@ -4949,14 +4850,8 @@ void open_chest_and_give_item_to_player(
     hero_stop_moving();
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = animation->proc;
-        if (proc != 0) {
-            if (proc->instance != animation->proc_instance) {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = anim_pdata_live_proc(animation);
+
         xfer_proc(proc, p_animate);
     }
 
@@ -5058,24 +4953,12 @@ void open_chest_and_give_item_to_player(
 
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        proc = animation->proc;
-        if (proc != 0) {
-            if (proc->instance != animation->proc_instance) {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = anim_pdata_live_proc(animation);
+
         xfer_proc(proc, p_control_konquest_monk);
     }
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance != konquest_pdata->grounding_instance) {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
+    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
     }
@@ -5398,23 +5281,109 @@ void stop_chest_camera_script(void) {
     }
 }
 
-/*
- * Near match: all six ScreenObj latches and the StringObj latch are destroyed
- * in retail's nonascending order with concrete vtable types. The 28-byte
- * residue is repeated pointer-reload elimination and GPR/block scheduling.
- */
+
+static inline ScreenObj* konquest_award_art_pdata_live_art_0_obj(KonquestAwardArtPdata* owner) {
+    ScreenObj* object = owner->art[0].obj;
+    if (object != 0) {
+        if (object->instance == owner->art[0].obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* konquest_award_art_pdata_live_art_1_obj(KonquestAwardArtPdata* owner) {
+    ScreenObj* object = owner->art[1].obj;
+    if (object != 0) {
+        if (object->instance == owner->art[1].obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* konquest_award_art_pdata_live_art_3_obj(KonquestAwardArtPdata* owner) {
+    ScreenObj* object = owner->art[3].obj;
+    if (object != 0) {
+        if (object->instance == owner->art[3].obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* konquest_award_art_pdata_live_art_2_obj(KonquestAwardArtPdata* owner) {
+    ScreenObj* object = owner->art[2].obj;
+    if (object != 0) {
+        if (object->instance == owner->art[2].obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* konquest_award_art_pdata_live_art_4_obj(KonquestAwardArtPdata* owner) {
+    ScreenObj* object = owner->art[4].obj;
+    if (object != 0) {
+        if (object->instance == owner->art[4].obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* konquest_award_art_pdata_live_art_5_obj(KonquestAwardArtPdata* owner) {
+    ScreenObj* object = owner->art[5].obj;
+    if (object != 0) {
+        if (object->instance == owner->art[5].obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* konquest_award_art_pdata_live_description_object(KonquestAwardArtPdata* owner) {
+    StringObj* object = owner->description.object;
+    if (object != 0) {
+        if (object->instance == owner->description.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 90.376400%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void destroy_award_art(KonquestAwardArtPdata* pdata) {
     ScreenObj* screen;
     StringObj* string;
 
-    screen = pdata->art[0].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[0].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = konquest_award_art_pdata_live_art_0_obj(pdata);
+
     if (screen != 0) {
         if (pdata->art[0].obj->instance != 0) {
             pdata->art[0].obj->typed_vtbl->destroy(pdata->art[0].obj);
@@ -5423,14 +5392,8 @@ static void destroy_award_art(KonquestAwardArtPdata* pdata) {
         pdata->art[0].obj_instance = 0;
     }
 
-    screen = pdata->art[1].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[1].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = konquest_award_art_pdata_live_art_1_obj(pdata);
+
     if (screen != 0) {
         if (pdata->art[1].obj->instance != 0) {
             pdata->art[1].obj->typed_vtbl->destroy(pdata->art[1].obj);
@@ -5439,14 +5402,8 @@ static void destroy_award_art(KonquestAwardArtPdata* pdata) {
         pdata->art[1].obj_instance = 0;
     }
 
-    screen = pdata->art[3].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[3].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = konquest_award_art_pdata_live_art_3_obj(pdata);
+
     if (screen != 0) {
         if (pdata->art[3].obj->instance != 0) {
             pdata->art[3].obj->typed_vtbl->destroy(pdata->art[3].obj);
@@ -5455,14 +5412,8 @@ static void destroy_award_art(KonquestAwardArtPdata* pdata) {
         pdata->art[3].obj_instance = 0;
     }
 
-    screen = pdata->art[2].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[2].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = konquest_award_art_pdata_live_art_2_obj(pdata);
+
     if (screen != 0) {
         if (pdata->art[2].obj->instance != 0) {
             pdata->art[2].obj->typed_vtbl->destroy(pdata->art[2].obj);
@@ -5471,14 +5422,8 @@ static void destroy_award_art(KonquestAwardArtPdata* pdata) {
         pdata->art[2].obj_instance = 0;
     }
 
-    screen = pdata->art[4].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[4].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = konquest_award_art_pdata_live_art_4_obj(pdata);
+
     if (screen != 0) {
         if (pdata->art[4].obj->instance != 0) {
             pdata->art[4].obj->typed_vtbl->destroy(pdata->art[4].obj);
@@ -5487,14 +5432,8 @@ static void destroy_award_art(KonquestAwardArtPdata* pdata) {
         pdata->art[4].obj_instance = 0;
     }
 
-    screen = pdata->art[5].obj;
-    if (screen != 0) {
-        if (screen->instance != pdata->art[5].obj_instance) {
-            screen = 0;
-        }
-    } else {
-        screen = 0;
-    }
+    screen = konquest_award_art_pdata_live_art_5_obj(pdata);
+
     if (screen != 0) {
         if (pdata->art[5].obj->instance != 0) {
             pdata->art[5].obj->typed_vtbl->destroy(pdata->art[5].obj);
@@ -5503,14 +5442,8 @@ static void destroy_award_art(KonquestAwardArtPdata* pdata) {
         pdata->art[5].obj_instance = 0;
     }
 
-    string = pdata->description.object;
-    if (string != 0) {
-        if (string->instance != pdata->description.instance) {
-            string = 0;
-        }
-    } else {
-        string = 0;
-    }
+    string = konquest_award_art_pdata_live_description_object(pdata);
+
     if (string != 0) {
         if (pdata->description.object->instance != 0) {
             pdata->description.object->typed_vtbl->destroy(
@@ -5804,12 +5737,38 @@ int player_has_item(void* item) {
     return 0;
 }
 
-/*
- * Soft ceiling: update_dropped_pui 80.51% (772 versus 780 bytes). Both object
- * latches, drop timer, collision integration, bounce damping, settle flags,
- * and owner-position update agree with m2c and retail's sole caller. Residue
- * is arithmetic scheduling and register allocation.
- */
+
+static inline KonquestChestOwner* konquest_pui_delay_view_live_owner(KonquestPuiDelayView* owner) {
+    KonquestChestOwner* object = owner->owner;
+    if (object != 0) {
+        if (object->hdr.instance == owner->owner_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* konquest_pui_delay_view_live_render_object(KonquestPuiDelayView* owner) {
+    MkObj* object = owner->render_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->render_object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 88.446150%; FP ordering and register allocation remain; no further evidence-backed source change. */
 static void update_dropped_pui(KonquestPuiDelayView* pui) {
     KonquestChestOwner* owner;
     MkObj* object;
@@ -5817,14 +5776,8 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
     Vec target;
     Vec hit;
 
-    owner = pui->owner;
-    if (owner != 0) {
-        if (owner->hdr.instance != pui->owner_instance) {
-            owner = 0;
-        }
-    } else {
-        owner = 0;
-    }
+    owner = konquest_pui_delay_view_live_owner(pui);
+
     if (owner == 0) {
         if (pui->hdr.instance != 0) {
             pui->hdr.typed_vtbl->destroy(&pui->hdr);
@@ -5832,14 +5785,8 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
         return;
     }
 
-    object = pui->render_object;
-    if (object != 0) {
-        if (object->hdr.instance != pui->render_object_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_pui_delay_view_live_render_object(pui);
+
     if (object == 0) {
         if (pui->hdr.instance != 0) {
             pui->hdr.typed_vtbl->destroy(&pui->hdr);
@@ -5864,7 +5811,9 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
         object->pos_vel.x *= -1.05f;
         object->pos_vel.z *= -1.05f;
     } else {
-        object->pos.value = target;
+        object->pos.value.x = target.x;
+        object->pos.value.y = target.y;
+        object->pos.value.z = target.z;
     }
     if (object->pos_vel.y < 0.0f && object->pos.value.y < 0.0f) {
         object->pos.value.y = 0.0f;
@@ -5874,15 +5823,8 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
         object->pos_vel.y *= -1.0f;
         pui->bounce_count++;
         if (pui->bounce_count >= 2) {
-            settled_object = pui->render_object;
-            if (settled_object != 0) {
-                if (settled_object->hdr.instance !=
-                    pui->render_object_instance) {
-                    settled_object = 0;
-                }
-            } else {
-                settled_object = 0;
-            }
+            settled_object = konquest_pui_delay_view_live_render_object(pui);
+
             if (settled_object != 0) {
                 settled_object->flags_08_bits.airborne = 1;
                 settled_object->flags_08_bits.angular_velocity_enabled = 1;
@@ -6380,12 +6322,38 @@ static float p_show_koin_award_text(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: pui_play_pfx_sequence 89.60% (876 versus 908 bytes). All
- * nine calls, mode behavior, stale-safe latches, frustum test, process data,
- * and child-position calculation agree; residue is GPR allocation, branch
- * layout, and save/restore scheduling.
- */
+
+static inline MkObj* konquest_pui_runtime_live_render_object(KonquestPuiRuntime* owner) {
+    MkObj* object = owner->render_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->render_object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestChestOwner* konquest_pui_runtime_live_owner(KonquestPuiRuntime* owner) {
+    KonquestChestOwner* object = owner->owner;
+    if (object != 0) {
+        if (object->hdr.instance == owner->owner_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.867840%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void pui_play_pfx_sequence(
     KonquestPuiDefinition* item, int mode,
     KonquestPuiPfxSequenceRow* sequence) {
@@ -6407,22 +6375,10 @@ void pui_play_pfx_sequence(
         pui->effect_sequence = sequence;
         return;
     case 4:
-        object = pui->render_object;
-        if (object != 0) {
-            if (object->hdr.instance != pui->render_object_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        owner = pui->owner;
-        if (owner != 0) {
-            if (owner->hdr.instance != pui->owner_instance) {
-                owner = 0;
-            }
-        } else {
-            owner = 0;
-        }
+        object = konquest_pui_runtime_live_render_object(pui);
+
+        owner = konquest_pui_runtime_live_owner(pui);
+
         if (object != 0 && owner != 0) {
             sphere.center.x = object->pos.value.x;
             sphere.center.y = object->pos.value.y;
@@ -6445,22 +6401,10 @@ void pui_play_pfx_sequence(
         }
         break;
     case 5:
-        object = pui->render_object;
-        if (object != 0) {
-            if (object->hdr.instance != pui->render_object_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        owner = pui->owner;
-        if (owner != 0) {
-            if (owner->hdr.instance != pui->owner_instance) {
-                owner = 0;
-            }
-        } else {
-            owner = 0;
-        }
+        object = konquest_pui_runtime_live_render_object(pui);
+
+        owner = konquest_pui_runtime_live_owner(pui);
+
         if (object != 0 && owner != 0) {
             sphere.center.x = object->pos.value.x;
             sphere.center.y = object->pos.value.y;
@@ -6484,12 +6428,16 @@ void pui_play_pfx_sequence(
     }
 }
 
-/*
- * Soft ceiling: pui_play_pfx 90.13% (904 versus 920 bytes). All twenty calls,
- * six modes, stale-safe latches, frustum gating, emitter placement, and PUI
- * effect state agree; residue is register allocation and instruction/branch
- * scheduling.
- */
+
+
+
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.517395%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void pui_play_pfx(
     KonquestPuiDefinition* item, int mode, const char* effect_name) {
     KonquestPuiRuntime* pui;
@@ -6517,22 +6465,10 @@ void pui_play_pfx(
         pui->attached_effect = handle;
         return;
     case 4:
-        object = pui->render_object;
-        if (object != 0) {
-            if (object->hdr.instance != pui->render_object_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        owner = pui->owner;
-        if (owner != 0) {
-            if (owner->hdr.instance != pui->owner_instance) {
-                owner = 0;
-            }
-        } else {
-            owner = 0;
-        }
+        object = konquest_pui_runtime_live_render_object(pui);
+
+        owner = konquest_pui_runtime_live_owner(pui);
+
         if (object != 0 && owner != 0) {
             sphere.center.x = object->pos.value.x;
             sphere.center.y = object->pos.value.y;
@@ -6560,22 +6496,10 @@ void pui_play_pfx(
         }
         break;
     case 5:
-        object = pui->render_object;
-        if (object != 0) {
-            if (object->hdr.instance != pui->render_object_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        owner = pui->owner;
-        if (owner != 0) {
-            if (owner->hdr.instance != pui->owner_instance) {
-                owner = 0;
-            }
-        } else {
-            owner = 0;
-        }
+        object = konquest_pui_runtime_live_render_object(pui);
+
+        owner = konquest_pui_runtime_live_owner(pui);
+
         if (object != 0 && owner != 0) {
             sphere.center.x = object->pos.value.x;
             sphere.center.y = object->pos.value.y;
@@ -7088,12 +7012,25 @@ static KonquestPuiRuntime* create_new_konquest_pui(
     return pui;
 }
 
-/*
- * Soft ceiling: konquest_pui_check_for_and_replace_old_chest 94.71% (672
- * versus 696 bytes). The stale-list cleanup, radius test, trigger transfer,
- * inventory/chest restoration, update, and destruction call sequence agree;
- * residue is latch/register scheduling and save/restore emission.
- */
+
+static inline KonquestTriggerStruct* konquest_pui_delay_view_live_trigger_owner(KonquestPuiDelayView* owner) {
+    KonquestTriggerStruct* object = owner->trigger_owner;
+    if (object != 0) {
+        if (object->hdr.instance == owner->owner_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 98.045975%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static int konquest_pui_check_for_and_replace_old_chest(
     KonquestPuiDelayView* new_pui) {
     MkPtr* link;
@@ -7137,33 +7074,12 @@ static int konquest_pui_check_for_and_replace_old_chest(
                         MkObj* render_object;
                         int inventory_index;
 
-                        old_trigger = old_pui->trigger_owner;
-                        if (old_trigger != 0) {
-                            if (old_trigger->hdr.instance !=
-                                old_pui->owner_instance) {
-                                old_trigger = 0;
-                            }
-                        } else {
-                            old_trigger = 0;
-                        }
-                        new_trigger = new_pui->trigger_owner;
-                        if (new_trigger != 0) {
-                            if (new_trigger->hdr.instance !=
-                                new_pui->owner_instance) {
-                                new_trigger = 0;
-                            }
-                        } else {
-                            new_trigger = 0;
-                        }
-                        render_object = new_pui->render_object;
-                        if (render_object != 0) {
-                            if (render_object->hdr.instance !=
-                                new_pui->render_object_instance) {
-                                render_object = 0;
-                            }
-                        } else {
-                            render_object = 0;
-                        }
+                        old_trigger = konquest_pui_delay_view_live_trigger_owner(old_pui);
+
+                        new_trigger = konquest_pui_delay_view_live_trigger_owner(new_pui);
+
+                        render_object = konquest_pui_delay_view_live_render_object(new_pui);
+
                         if (old_trigger->flag_bits.bit2 != 0) {
                             new_pui->alpha = 0xFF;
                             if (new_trigger != 0 &&
@@ -8451,6 +8367,11 @@ void nis_end_scene(void) {
     discard_list(&nis_participants);
 }
 
+
+
+
+
+/* TODO: [breakthrough needed] 93.650690%; FP ordering and register allocation remain; no further evidence-backed source change. */
 static KonquestNpc* konquest_check_possible_interact_with_npc(
     float* distance, float* facing_angle) {
     MkObj* hero;
@@ -8458,16 +8379,8 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
     MkPtr* link;
 
     selected = 0;
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero-object latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
 
     *distance = 1000.0f;
     *facing_angle = 6.2831855f;
@@ -8812,12 +8725,51 @@ static MkProc* create_dialog_proc(KonquestDialogArt* dialog_art,
     return 0;
 }
 
-/*
- * Soft ceiling: vdestroy_dialog_pdata ~88.95% -- dialog flag clearing, all
- * three generation-checked string destructions, latch clearing, and pdata
- * release agree with retail. Residue is equivalent latch-join layout and
- * temporary-register selection around the repeated ownership checks.
- */
+
+static inline MkHdr* konquest_dialog_pdata_live_lines_0_object(KonquestDialogPdata* owner) {
+    MkHdr* object = (MkHdr*) owner->lines[0].object;
+    if (object != 0) {
+        if (object->instance == owner->lines[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkHdr* konquest_dialog_pdata_live_lines_1_object(KonquestDialogPdata* owner) {
+    MkHdr* object = (MkHdr*) owner->lines[1].object;
+    if (object != 0) {
+        if (object->instance == owner->lines[1].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkHdr* konquest_dialog_pdata_live_lines_2_object(KonquestDialogPdata* owner) {
+    MkHdr* object = (MkHdr*) owner->lines[2].object;
+    if (object != 0) {
+        if (object->instance == owner->lines[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 92.385414%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
     MkHdr* object;
 
@@ -8825,16 +8777,8 @@ static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
         pdata->dialog_art->owner->flag_bits.dialog_active = 0;
     }
 
-    object = (MkHdr*)pdata->lines[0].object;
-    if (object != 0) {
-        if (object->instance == pdata->lines[0].instance) {
-            /* Valid ownership latch. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_dialog_pdata_live_lines_0_object(pdata);
+
     if (object != 0) {
         if (pdata->lines[0].object->instance != 0) {
             ((KonquestDestroyable*)pdata->lines[0].object)->vtbl->destroy(
@@ -8844,16 +8788,8 @@ static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
         pdata->lines[0].instance = 0;
     }
 
-    object = (MkHdr*)pdata->lines[1].object;
-    if (object != 0) {
-        if (object->instance == pdata->lines[1].instance) {
-            /* Valid ownership latch. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_dialog_pdata_live_lines_1_object(pdata);
+
     if (object != 0) {
         if (pdata->lines[1].object->instance != 0) {
             ((KonquestDestroyable*)pdata->lines[1].object)->vtbl->destroy(
@@ -8863,16 +8799,8 @@ static void vdestroy_dialog_pdata(KonquestDialogPdata* pdata) {
         pdata->lines[1].instance = 0;
     }
 
-    object = (MkHdr*)pdata->lines[2].object;
-    if (object != 0) {
-        if (object->instance == pdata->lines[2].instance) {
-            /* Valid ownership latch. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_dialog_pdata_live_lines_2_object(pdata);
+
     if (object != 0) {
         if (pdata->lines[2].object->instance != 0) {
             ((KonquestDestroyable*)pdata->lines[2].object)->vtbl->destroy(
@@ -11583,17 +11511,31 @@ static void update_sun_moon_position(float angle) {
     }
 }
 
-/*
- * Soft ceiling: p_adjust_directional_light 81.65% (840 versus 856 bytes).
- * The table interpolation, shadow strength/alpha, sun/moon update, angle
- * correction, camera-light calls, and sleep loop have the exact retail call
- * sequence. Residue is FPR/GPR allocation and arithmetic scheduling.
- */
+
+static inline MkSobj* konquest_light_adjust_pdata_live_object(KonquestLightAdjustPdata* owner) {
+    MkSobj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 85.322430%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 float p_adjust_directional_light(void) {
     KonquestDirectionalLightRow* light_table;
     KonquestLightAdjustPdata* pdata;
     MkSobj* object;
-    Vec angles = {0.0f, 0.0f, 0.0f};
+    Vec angles;
     int last_row;
     int current_index;
     int previous_index;
@@ -11601,6 +11543,9 @@ float p_adjust_directional_light(void) {
     float elapsed_hours;
     float strength_step;
 
+    angles.x = 0.0f;
+    angles.y = 0.0f;
+    angles.z = 0.0f;
     light_table = (KonquestDirectionalLightRow*)
         konquest_pdata->region_table->directional_light_table;
     last_row = get_row_count_for_table_by_pointer(
@@ -11609,14 +11554,8 @@ float p_adjust_directional_light(void) {
     if (pdata == 0) {
         return -1.0f;
     }
-    object = pdata->object;
-    if (object != 0) {
-        if (object->hdr.instance != pdata->object_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_light_adjust_pdata_live_object(pdata);
+
     if (object == 0) {
         return -1.0f;
     }
@@ -11852,17 +11791,13 @@ void set_camera_to_look_at_hero(void) {
     }
 }
 
+
+
 static float p_monk_getup(void) {
     MkObj* hero;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
 
     transition_to_anim_script(
         konquest_pdata->hero_anim,
@@ -11873,7 +11808,7 @@ static float p_monk_getup(void) {
 
     while (konquest_pdata->hero_anim->frame <
            konquest_pdata->hero_anim->high_frame) {
-        hero->flags_08 |= 1;
+        hero->flags_08_bits.moving = 1;
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
@@ -11881,13 +11816,12 @@ static float p_monk_getup(void) {
     }
 
     hero->ground_colls = monk_ground_colls;
-    hero->flags_09 |= 0x40;
+    hero->flags_09_bits.bit6 = 1;
     konquest_pdata->hero_state = 0;
     if (konquest_pdata->game_mode_index != 0) {
         konquest_pdata->game_mode_index--;
     }
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_control_konquest_monk, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
     return 0.0f;
 }
 
@@ -12065,6 +11999,11 @@ static float p_monk_punch(void) {
     return 0.0f;
 }
 
+
+
+
+
+/* TODO: [near miss] 97.368420%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void exit_meditation(void) {
     MkObj* hero;
     KonquestGameSpeedPdata* pdata;
@@ -12097,10 +12036,11 @@ static void exit_meditation(void) {
             pdata != 0) {
             if (refresh_rate() == 60) {
                 pdata->multiplier = 0.5f;
+                pdata->target_scale = 1.0f;
             } else {
                 pdata->multiplier = 0.5186722f;
+                pdata->target_scale = 1.0f;
             }
-            pdata->target_scale = 1.0f;
         }
         while (find_mkproc_pid(0x8233) != 0) {
             _mkproc_sleep_ticks = 1.0f;
@@ -12288,13 +12228,24 @@ static float p_monk_meditate(void) {
     return 0.0f;
 }
 
-/*
- * Near match: p_monk_move 90.11% (1028 versus 1020 bytes). The typed event
- * frame/bone tables, footstep sounds and dust effect, animation completion,
- * state transitions, and control transfer agree. Residue is two folded latch
- * joins, equivalent loop-entry scheduling of the state-table base, individual
- * versus grouped GPR saves, register coloring, and pooled constants.
- */
+
+static inline MkObj* konquest_pdata_validate_hero_object(MkObj* object, KonquestPdata* owner) {
+    if (object != 0) {
+        if (object->hdr.instance == owner->hero_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.223526%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_monk_move(void) {
     MkObj* hero;
     MkObj* effect_hero;
@@ -12310,15 +12261,7 @@ static float p_monk_move(void) {
 
     hero = konquest_pdata->hero_object;
     initial_state = konquest_pdata->hero_state;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_validate_hero_object(hero, konquest_pdata);
     if (hero == 0) {
         return -1.0f;
     }
@@ -12354,17 +12297,8 @@ static float p_monk_move(void) {
                     random_snd_req(0x85);
                     if (get_game_state() == 0x13 &&
                         konquest_pdata->region_table->effect_bank_name != 0) {
-                        effect_hero = konquest_pdata->hero_object;
-                        if (effect_hero != 0) {
-                            if (effect_hero->hdr.instance ==
-                                konquest_pdata->hero_instance) {
-                                /* Valid hero latch. */
-                            } else {
-                                effect_hero = 0;
-                            }
-                        } else {
-                            effect_hero = 0;
-                        }
+                        effect_hero = konquest_pdata_live_hero_object(konquest_pdata);
+
                         {
                             bone_offset = (Vec){0.0f, 0.0f, 0.0f};
 
@@ -12426,8 +12360,7 @@ static float p_monk_move(void) {
         ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
     }
 
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_control_konquest_monk, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
     return 0.0f;
 }
 
@@ -12507,11 +12440,38 @@ int get_monk_age(void) {
     return p1_profile_konquest->fields.hero_age;
 }
 
-/*
- * Near match: the complete hero/process teardown, reload, face-texture latch,
- * position restore, and camera handoff agree. Residue is equivalent latch
- * block layout, nonvolatile-register coloring, and individual saves/restores.
- */
+
+static inline MkObj* anim_pdata_live_obj(AnimPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline AniTextureControl* konquest_grounding_live_camera_target_face_texture(KonquestGrounding* owner) {
+    AniTextureControl* object = owner->camera_target->face_texture;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->camera_target->face_texture_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 97.417725%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void change_monk_age(int age) {
     MkObj* hero;
     AnimPdata* animation;
@@ -12531,32 +12491,16 @@ void change_monk_age(int age) {
 
     if (age >= 0 && age <= 4) {
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
     x = hero->pos.value.x;
     y = hero->pos.value.y;
     z = hero->pos.value.z;
     angle = hero->ang.y;
     p1_profile_konquest->fields.hero_age = (unsigned char)age;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
     if (hero != 0) {
         if (konquest_pdata->hero_object->hdr.instance != 0) {
             konquest_pdata->hero_object->hdr.typed_vtbl->destroy(
@@ -12568,16 +12512,8 @@ void change_monk_age(int age) {
 
     animation = konquest_pdata->hero_anim;
     if (animation != 0) {
-        animation_proc = animation->proc;
-        if (animation_proc != 0) {
-            if (animation_proc->instance == animation->proc_instance) {
-                /* Valid animation-process latch. */
-            } else {
-                animation_proc = 0;
-            }
-        } else {
-            animation_proc = 0;
-        }
+        animation_proc = anim_pdata_live_proc(animation);
+
         if (animation_proc != 0) {
             if (animation->proc->instance != 0) {
                 animation->proc->hdr.typed_vtbl->destroy(&animation->proc->hdr);
@@ -12595,29 +12531,13 @@ void change_monk_age(int age) {
     TearDownShadow((ShadowObject*)&pdata_monk);
     xfer_camera(p_idle, 1);
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
     if (hero == 0 && konquest_pdata->hero_anim == 0 &&
         (hero_proc = load_hero_model(konquest_animations[0])) != 0) {
         animation = (AnimPdata*)pdata_of_proc(hero_proc);
-        hero = animation->obj;
-        if (hero != 0) {
-            if (hero->hdr.instance == animation->obj_instance) {
-                /* Valid animation-object latch. */
-            } else {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        hero = anim_pdata_live_obj(animation);
+
         if (hero != 0) {
             konquest_pdata->hero_object = hero;
             konquest_pdata->hero_instance = hero->hdr.instance;
@@ -12627,56 +12547,23 @@ void change_monk_age(int age) {
         (hero->hide_flag_bits).still_move = 1;
     }
 
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
+    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
+
     if (grounding == 0 || grounding->camera_target == 0) {
         return;
     }
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance == konquest_pdata->hero_instance) {
-            /* Valid hero latch. */
-        } else {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
     grounding->camera_target->focus_object = hero;
 
     animation = konquest_pdata->hero_anim;
-    animation_proc = animation->proc;
-    if (animation_proc != 0) {
-        if (animation_proc->instance == animation->proc_instance) {
-            /* Valid animation-process latch. */
-        } else {
-            animation_proc = 0;
-        }
-    } else {
-        animation_proc = 0;
-    }
+    animation_proc = anim_pdata_live_proc(animation);
+
     grounding->camera_target->animation_proc = animation_proc;
 
-    face_texture = grounding->camera_target->face_texture;
-    if (face_texture != 0) {
-        if ((unsigned int)face_texture->instance ==
-            grounding->camera_target->face_texture_instance) {
-            /* Valid face-texture latch. */
-        } else {
-            face_texture = 0;
-        }
-    } else {
-        face_texture = 0;
-    }
+    face_texture = konquest_grounding_live_camera_target_face_texture(grounding);
+
     if (face_texture != 0) {
         if ((unsigned int)grounding->camera_target->face_texture->instance !=
             0) {
@@ -12713,16 +12600,8 @@ void change_monk_age(int age) {
     set_monk_position(x, y, z, angle);
     camera = get_pdata_of_camera();
     if (camera != 0) {
-        hero = konquest_pdata->hero_object;
-        if (hero != 0) {
-            if (hero->hdr.instance == konquest_pdata->hero_instance) {
-                /* Valid hero latch. */
-            } else {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        hero = konquest_pdata_live_hero_object(konquest_pdata);
+
         if (hero != 0) {
             camera->movement_focus = hero;
         }
@@ -13314,37 +13193,46 @@ void play_beam_advance_sound(int delay) {
     snd_req_delay(0x158e, delay);
 }
 
-/*
- * Near match: both generation latches, objective-table bound, HUD gate,
- * visibility calls, and state publication match retail. The four-byte size
- * delta is scalar saves versus stmw/lmw and folded latch-join branches.
- */
+
+static inline MkHdr* konquestpdata_live_hud_objects_2_object_mkhdr(KonquestPdata* owner) {
+    MkHdr* object = owner->hud_objects[2].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_objects[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkHdr* konquestpdata_live_objective_beam_object_mkhdr(KonquestPdata* owner) {
+    MkHdr* object = owner->objective_beam.object;
+    if (object != 0) {
+        if (object->instance == owner->objective_beam.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [near miss] 98.000000%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void show_objective_arrow_and_beam(void) {
     MkHdr* arrow;
     MkHdr* beam;
 
-    arrow = konquest_pdata->hud_objects[2].object;
-    if (arrow != 0) {
-        if (arrow->instance ==
-            konquest_pdata->hud_objects[2].instance) {
-            /* Valid screen-object latch. */
-        } else {
-            arrow = 0;
-        }
-    } else {
-        arrow = 0;
-    }
-    beam = konquest_pdata->objective_beam.object;
-    if (beam != 0) {
-        if (beam->instance ==
-            konquest_pdata->objective_beam.instance) {
-            /* Valid beam latch. */
-        } else {
-            beam = 0;
-        }
-    } else {
-        beam = 0;
-    }
+    arrow = konquestpdata_live_hud_objects_2_object_mkhdr(konquest_pdata);
+
+    beam = konquestpdata_live_objective_beam_object_mkhdr(konquest_pdata);
+
     if (arrow != 0) {
         if (beam == 0) {
             return;
@@ -13711,11 +13599,38 @@ void konquest_set_object_to_state(int uid, int enumeration, int state) {
     object_set_state(child, state);
 }
 
-/*
- * Near match: state lookup, latch destruction, rotated position, composed
- * angles, and matrix publication agree. The remaining eight-byte size delta
- * is two folded latch branches; other differences are register coloring.
- */
+
+static inline MkHdr* konquest_child_object_live_state_object(KonquestChildObject* owner) {
+    MkHdr* object = owner->state_object;
+    if (object != 0) {
+        if (object->instance == owner->state_object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkSobj* konquest_child_object_live_binding_object(KonquestChildObject* owner) {
+    MkSobj* object = owner->binding->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->binding->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 90.196970%; FP ordering and register allocation remain; no further evidence-backed source change. */
 static void object_set_state(KonquestChildObject* record, int state) {
     KonquestObjectState* state_data;
     MkHdr* state_object;
@@ -13729,16 +13644,8 @@ static void object_set_state(KonquestChildObject* record, int state) {
         return;
     }
 
-    state_object = record->state_object;
-    if (state_object != 0) {
-        if (state_object->instance == record->state_object_instance) {
-            /* Valid state-object latch. */
-        } else {
-            state_object = 0;
-        }
-    } else {
-        state_object = 0;
-    }
+    state_object = konquest_child_object_live_state_object(record);
+
     if (state_object != 0) {
         if (record->state_object->instance != 0) {
             record->state_object->typed_vtbl->destroy(record->state_object);
@@ -13779,17 +13686,8 @@ static void object_set_state(KonquestChildObject* record, int state) {
     matrix = 0;
     if (record->matrix_index >= 0) {
         if (record->binding->palette == 0) {
-            object = record->binding->object;
-            if (object != 0) {
-                if (object->hdr.instance ==
-                    record->binding->object_instance) {
-                    /* Valid bound-object latch. */
-                } else {
-                    object = 0;
-                }
-            } else {
-                object = 0;
-            }
+            object = konquest_child_object_live_binding_object(record);
+
             if (object != 0) {
                 matrix = &object->frame->modelling;
             }
@@ -13964,14 +13862,14 @@ static inline float door_path_distance_squared(
 }
 
 
-/*
- * Near match: both stale-safe object searches, door-side selection, the two
- * projected point-to-segment distance evaluations, animation choice, retained
- * delta.y direction normalization, angular stepping, stop condition, and all
- * nine calls agree with retail. The 68-byte residue is repeated projection
- * loads/sqrt-path emission, two inverted equivalent latch branches, register
- * allocation, and scheduling (1580 versus 1512 bytes).
- */
+
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 82.222786%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 void turn_to_face_exterior_door(void) {
     KonquestObject* building;
     KonquestChildObject* door;
@@ -14002,14 +13900,8 @@ void turn_to_face_exterior_door(void) {
         return;
     }
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_pdata_live_hero_object(konquest_pdata);
+
 
     delta.x = hero->pos.value.x - path[0].position.x;
     delta.y = hero->pos.value.y - path[0].position.y;
@@ -14770,12 +14662,14 @@ static inline void play_pui_effect_sequence_now(
 }
 
 
-/*
- * Near match: both effect paths, three independent frustum spheres, clone and
- * emitter ownership, delayed visibility, material alpha, aligned collision
- * cylinder, and foreground insertion agree. The 36-byte deficit is limited
- * to equivalent latch/early-return branch folding and register scheduling.
- */
+
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 91.445430%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void handle_trigger_preprocess(KonquestTriggerStruct* trigger) {
     KonquestPuiRuntime* pui;
     MkObj* object;
@@ -14794,14 +14688,8 @@ static void handle_trigger_preprocess(KonquestTriggerStruct* trigger) {
         return;
     }
 
-    object = pui->render_object;
-    if (object != 0) {
-        if (object->hdr.instance != pui->render_object_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = konquest_pui_runtime_live_render_object(pui);
+
     attachment = obj_find_sobj_by_id(object, 1);
     child = obj_find_sobj_by_id(object, 2);
     if (child != 0) {
@@ -16370,12 +16258,25 @@ static RpAtomic* hide_an_atomic(RpAtomic* atomic, void* data) {
     return atomic;
 }
 
-/*
- * Soft ceiling: hide_tile_objects ~92.2%. Stale-list cleanup, attached-effect
- * reset, matrix-palette compaction, object hiding, and final state stores
- * match. Residue is nonvolatile-GPR coloring, palette-address scheduling, and
- * one folded object latch; source is 472 bytes versus retail's 488.
- */
+
+static inline MkSobj* konquest_sobj_binding_live_object(KonquestSobjBinding* owner) {
+    MkSobj* object = owner->object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.180330%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void hide_tile_objects(KonquestTileRecord* tile) {
     MkPtr* object_link;
 
@@ -16453,15 +16354,8 @@ static void hide_tile_objects(KonquestTileRecord* tile) {
                         } else {
                             MkSobj* render_object;
 
-                            render_object = binding->object;
-                            if (render_object != 0) {
-                                if (render_object->hdr.instance !=
-                                    binding->object_instance) {
-                                    render_object = 0;
-                                }
-                            } else {
-                                render_object = 0;
-                            }
+                            render_object = konquest_sobj_binding_live_object(binding);
+
                             if (render_object != 0) {
                                 hide_sobj_and_children(render_object);
                             }
@@ -16675,13 +16569,32 @@ static void update_time_screen_objs(int update_all) {
     }
 }
 
-/*
- * Near match: objective-row advancement, all target modes, stale-safe trigger
- * and NPC resolution, duplicated beam publication paths, distance scaling,
- * and arrow geometry agree. The 12-byte size excess is limited to the two
- * deliberate vector-component initializations required for defined portable
- * C and equivalent branch emission; other residue is coloring and scheduling.
- */
+
+
+
+static inline CameraObj* camera_item_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 90.035970%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_adjust_objective_arrow_and_beam(void) {
     KonquestPdata* pdata;
     KonquestObjectiveRow* table;
@@ -16689,8 +16602,8 @@ static float p_adjust_objective_arrow_and_beam(void) {
     MkObj* hero;
     CameraObj* camera;
     ScreenObj* arrow;
-    Vec forward = {0.0f, 0.0f, 1.0f};
-    Vec target_position = {0.0f, 0.0f, 0.0f};
+    Vec forward;
+    Vec target_position;
     Vec display_position;
     Vec tracked_position;
     Vec direction;
@@ -16704,31 +16617,19 @@ static float p_adjust_objective_arrow_and_beam(void) {
     float relative_angle;
     int index;
 
+    forward.x = 0.0f;
+    forward.y = 0.0f;
+    forward.z = 1.0f;
+    target_position.x = 0.0f;
+    target_position.y = 0.0f;
+    target_position.z = 0.0f;
     pdata = konquest_pdata;
-    hero = pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
-    arrow = (ScreenObj*)pdata->hud_objects[2].object;
-    if (arrow != 0) {
-        if (arrow->instance != pdata->hud_objects[2].instance) {
-            arrow = 0;
-        }
-    } else {
-        arrow = 0;
-    }
+    hero = konquest_pdata_live_hero_object(pdata);
+
+    camera = camera_item_live_node(&camera_item);
+
+    arrow = konquest_pdata_live_hud_objects_2_object(pdata);
+
     if (hero == 0) {
         return 1.0f;
     }
@@ -16750,26 +16651,10 @@ static float p_adjust_objective_arrow_and_beam(void) {
                 ScreenObj* hidden_arrow;
                 MkObj* hidden_beam;
 
-                hidden_arrow =
-                    (ScreenObj*)konquest_pdata->hud_objects[2].object;
-                if (hidden_arrow != 0) {
-                    if (hidden_arrow->instance !=
-                        konquest_pdata->hud_objects[2].instance) {
-                        hidden_arrow = 0;
-                    }
-                } else {
-                    hidden_arrow = 0;
-                }
-                hidden_beam =
-                    (MkObj*)konquest_pdata->objective_beam.object;
-                if (hidden_beam != 0) {
-                    if (hidden_beam->hdr.instance !=
-                        konquest_pdata->objective_beam.instance) {
-                        hidden_beam = 0;
-                    }
-                } else {
-                    hidden_beam = 0;
-                }
+                hidden_arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+
+                hidden_beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+
                 if (hidden_arrow != 0 && hidden_beam != 0) {
                     MkSobj* sky_object;
 
@@ -16857,25 +16742,10 @@ static float p_adjust_objective_arrow_and_beam(void) {
             ScreenObj* current_arrow;
             MkObj* beam;
 
-            current_arrow =
-                (ScreenObj*)konquest_pdata->hud_objects[2].object;
-            if (current_arrow != 0) {
-                if (current_arrow->instance !=
-                    konquest_pdata->hud_objects[2].instance) {
-                    current_arrow = 0;
-                }
-            } else {
-                current_arrow = 0;
-            }
-            beam = (MkObj*)konquest_pdata->objective_beam.object;
-            if (beam != 0) {
-                if (beam->hdr.instance !=
-                    konquest_pdata->objective_beam.instance) {
-                    beam = 0;
-                }
-            } else {
-                beam = 0;
-            }
+            current_arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+
+            beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+
             if (current_arrow != 0 && beam != 0 &&
                 get_game_state() != 0x14) {
                 if (konquest_pdata->hud_visible != 0) {
@@ -16905,25 +16775,10 @@ static float p_adjust_objective_arrow_and_beam(void) {
             return -1.0f;
         }
         tracked_position = npc->fields.data->position;
-        current_arrow =
-            (ScreenObj*)konquest_pdata->hud_objects[2].object;
-        if (current_arrow != 0) {
-            if (current_arrow->instance !=
-                konquest_pdata->hud_objects[2].instance) {
-                current_arrow = 0;
-            }
-        } else {
-            current_arrow = 0;
-        }
-        beam = (MkObj*)konquest_pdata->objective_beam.object;
-        if (beam != 0) {
-            if (beam->hdr.instance !=
-                konquest_pdata->objective_beam.instance) {
-                beam = 0;
-            }
-        } else {
-            beam = 0;
-        }
+        current_arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+
+        beam = konquest_pdata_live_objective_beam_object(konquest_pdata);
+
         if (current_arrow != 0 && beam != 0 &&
             get_game_state() != 0x14) {
             if (konquest_pdata->hud_visible != 0) {
@@ -17859,12 +17714,12 @@ void stop_konquest_ambient_sounds(void) {
     destroy_mkprocs_pid(0x8226);
 }
 
-/*
- * Soft ceiling: vdestroy_konquest_pui ~89.4% at the exact 436-byte size.
- * Effect cleanup, three owned-object destructions, both instance latches,
- * pointer clears, and final header free match retail. Residue is two folded
- * latch joins, their temporary GPR coloring, and expanded saves/restores.
- */
+
+
+
+
+
+/* TODO: [near miss] 95.596330%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
     KonquestChestOwner* owner;
     MkObj* render_object;
@@ -17899,14 +17754,8 @@ void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
         }
     }
 
-    owner = pui->owner;
-    if (owner != 0) {
-        if (owner->hdr.instance != pui->owner_instance) {
-            owner = 0;
-        }
-    } else {
-        owner = 0;
-    }
+    owner = konquest_pui_runtime_live_owner(pui);
+
     if (owner != 0) {
         if (pui->owner->hdr.instance != 0) {
             pui->owner->hdr.typed_vtbl->destroy(&pui->owner->hdr);
@@ -17915,14 +17764,8 @@ void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
         pui->owner_instance = 0;
     }
 
-    render_object = pui->render_object;
-    if (render_object != 0) {
-        if (render_object->hdr.instance != pui->render_object_instance) {
-            render_object = 0;
-        }
-    } else {
-        render_object = 0;
-    }
+    render_object = konquest_pui_runtime_live_render_object(pui);
+
     if (render_object != 0) {
         if (pui->render_object->hdr.instance != 0) {
             pui->render_object->hdr.typed_vtbl->destroy(
@@ -18055,7 +17898,7 @@ float p_konquest_loop(void) {
 }
 static inline int trigger_requirements_pass(
     KonquestTriggerStruct* trigger) {
-    unsigned int requirements;
+    int requirements;
     int index;
 
     if (trigger == 0) {
@@ -18080,13 +17923,25 @@ static inline int trigger_requirements_pass(
 }
 
 
-/*
- * Near match: timed actions, predicate dispatch, process ownership, trigger
- * entry/exit, interior-PUI gating, effect/collision teardown, and both stale
- * list walks agree. The 56-byte deficit is equivalent inline-helper and latch
- * branch folding plus nonvolatile-register scheduling; the timed-action callee
- * remains an exact 100% match.
- */
+
+static inline MkProc* konquest_trigger_struct_live_script_proc(KonquestTriggerStruct* owner) {
+    MkProc* object = owner->script_proc;
+    if (object != 0) {
+        if (object->instance == owner->script_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+/* TODO: [breakthrough needed] 93.968666%; FP ordering and register allocation remain; no further evidence-backed source change. */
 void trigger_update(int force) {
     MkPtr* link;
 
@@ -18121,14 +17976,8 @@ void trigger_update(int force) {
                 MkProc* proc;
                 KonquestTriggerScriptPdata* pdata;
 
-                proc = trigger->script_proc;
-                if (proc != 0) {
-                    if (proc->instance != trigger->script_proc_instance) {
-                        proc = 0;
-                    }
-                } else {
-                    proc = 0;
-                }
+                proc = konquest_trigger_struct_live_script_proc(trigger);
+
                 if (proc != 0) {
                     xfer_proc(proc, p_run_trigger_script);
                 } else {
@@ -18163,14 +18012,8 @@ void trigger_update(int force) {
         MkObj* hero;
 
         trigger_update_countdown = 120;
-        hero = konquest_pdata->hero_object;
-        if (hero != 0) {
-            if (hero->hdr.instance != konquest_pdata->hero_instance) {
-                hero = 0;
-            }
-        } else {
-            hero = 0;
-        }
+        hero = konquest_pdata_live_hero_object(konquest_pdata);
+
         if (hero != 0 && konquest_has_list(&konquest_pdata->triggers)) {
             link = konquest_pdata->triggers;
             while (link != 0) {

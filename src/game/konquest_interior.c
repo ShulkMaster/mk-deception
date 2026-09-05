@@ -616,13 +616,14 @@ float get_ir_cam_pos_x(int include_offset) {
     return position;
 }
 
-/*
- * Soft ceiling: place_interior_room_objects ~94.3% -- register-class residue:
- * the room_sobj_list cursor initializer lands in r0 with an extra mr, the
- * sunk name=0 stays at source position, and NV homes permute; the structure,
- * calls, and branch shapes match retail. The unguarded tail flag store on the
- * latched (possibly null) object is retail behavior; stop.
- */
+
+/* The unguarded tail flag store on the latched, possibly null object follows retail behavior. */
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.327160%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static void place_interior_room_objects(KonquestRoomObject* rec) {
     MkObj* interior_object = konq_interior_save_data.interior_object;
 

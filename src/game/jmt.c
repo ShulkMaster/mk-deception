@@ -786,6 +786,20 @@ void start_subzero_decoy(void* script_args, float duration) {
     drone_ai_set_avoidance_area(&plyr_obj->pos.value, duration);
 }
 
+static inline MkObj* jmt_decoy_pdata_live_decoy_object(JmtDecoyPdata* owner) {
+    MkObj* object = owner->decoy_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->decoy_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
 void destroy_subzero_decoy(void) {
     MkProc* proc;
     JmtDecoyPdata* pdata;
@@ -807,16 +821,8 @@ void destroy_subzero_decoy(void) {
     if (pdata == 0) {
         return;
     }
-    object = pdata->decoy_object;
-    if (object != 0) {
-        if (object->hdr.instance == pdata->decoy_instance) {
-            /* Keep the validated decoy object. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = jmt_decoy_pdata_live_decoy_object(pdata);
+
     if (object == 0) {
         if (proc->instance != 0) {
             ((MkHdr*)proc)->typed_vtbl->destroy((MkHdr*)proc);
@@ -824,7 +830,7 @@ void destroy_subzero_decoy(void) {
         return;
     }
 
-    object->flags_08 |= 2;
+    object->flags_08_bits.scale_active = 1;
     object->scale.x = 1.0f;
     object->scale.y = 1.0f;
     object->scale.z = 1.0f;
@@ -832,9 +838,16 @@ void destroy_subzero_decoy(void) {
     xfer_proc(proc, p_decoy_shrink);
 }
 
+
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 94.446330%; branch/load placement and register allocation remain; no further evidence-backed source change. */
 static float p_create_decoy(void) {
     JmtDecoyPdata* pdata;
-    JmtProcVtable* proc_vtbl;
     MkObj* decoy;
     MkObj* source;
     MkBone* source_bone;
@@ -844,16 +857,8 @@ static float p_create_decoy(void) {
     int source_index;
 
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
-    decoy = pdata->decoy_object;
-    if (decoy != 0) {
-        if (decoy->hdr.instance == pdata->decoy_instance) {
-            /* Keep the validated decoy object. */
-        } else {
-            decoy = 0;
-        }
-    } else {
-        decoy = 0;
-    }
+    decoy = jmt_decoy_pdata_live_decoy_object(pdata);
+
     if (decoy == 0) {
         return -1.0f;
     }
@@ -928,15 +933,20 @@ static float p_create_decoy(void) {
         pfxhandle_spawn_at_bid_next(effect, decoy, 5);
 
     unhide_obj(decoy);
-    proc_vtbl = (JmtProcVtable*)aproc->vtbl;
-    proc_vtbl->jump_sleep(p_decoy, 0.0f);
+    aproc->vtbl->jump_sleep(p_decoy, 0.0f);
     return 0.0f;
 }
 
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 91.757065%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_decoy(void) {
     Vec angles = subzero_decoy_angles;
     JmtDecoyPdata* pdata;
-    JmtProcVtable* proc_vtbl;
     MkObj* decoy;
     PlyrInfo* player;
     Vec center;
@@ -945,16 +955,8 @@ static float p_decoy(void) {
 
     player = 0;
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
-    decoy = pdata->decoy_object;
-    if (decoy != 0) {
-        if (decoy->hdr.instance == pdata->decoy_instance) {
-            /* Keep the validated decoy object. */
-        } else {
-            decoy = 0;
-        }
-    } else {
-        decoy = 0;
-    }
+    decoy = jmt_decoy_pdata_live_decoy_object(pdata);
+
     if (decoy == 0 || pdata->source_object == 0) {
         return -1.0f;
     }
@@ -967,13 +969,12 @@ static float p_decoy(void) {
     pdata->lifetime -= game_speed;
     if (pdata->lifetime < 0.0f || g_game_info.flag_bits.field_bit0) {
         trial_state_collision_check(0, player->controller_slot);
-        decoy->flags_08 |= 2;
+        decoy->flags_08_bits.scale_active = 1;
         decoy->scale.x = 1.0f;
         decoy->scale.y = 1.0f;
         decoy->scale.z = 1.0f;
         pdata->lifetime = 15.0f;
-        proc_vtbl = (JmtProcVtable*)aproc->vtbl;
-        proc_vtbl->jump_sleep(p_decoy_shrink, 0.0f);
+        aproc->vtbl->jump_sleep(p_decoy_shrink, 0.0f);
         return 0.0f;
     }
 
@@ -1015,33 +1016,29 @@ static float p_decoy(void) {
     return 1.0f;
 }
 
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 87.415840%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_decoy_shrink(void) {
     JmtDecoyPdata* pdata;
-    JmtProcVtable* proc_vtbl;
     MkObj* decoy;
-    unsigned int effect;
     int index;
 
     pdata = (JmtDecoyPdata*)pdata_of_proc(aproc);
     for (index = 0; index < 9; index++) {
-        effect = pdata->effect_handles[index];
-        if (effect != 0) {
-            fx_pause_emit(effect);
-            fx_reset_emit(effect);
+        if (pdata->effect_handles[index] != 0) {
+            fx_pause_emit(pdata->effect_handles[index]);
+            fx_reset_emit(pdata->effect_handles[index]);
         }
     }
 
     while (pdata->lifetime > 0.0f) {
-        decoy = pdata->decoy_object;
-        if (decoy != 0) {
-            if (decoy->hdr.instance == pdata->decoy_instance) {
-                /* Keep the validated decoy object. */
-            } else {
-                decoy = 0;
-            }
-        } else {
-            decoy = 0;
-        }
+        decoy = jmt_decoy_pdata_live_decoy_object(pdata);
+
         if (decoy == 0 || pdata->source_object == 0) {
             return -1.0f;
         }
@@ -1049,8 +1046,7 @@ static float p_decoy_shrink(void) {
         obj_for_all_atomics_set_material_alpha(
             decoy, (unsigned int)(200.0f * (pdata->lifetime / 15.0f)));
         _mkproc_sleep_ticks = 1.0f;
-        proc_vtbl = (JmtProcVtable*)aproc->vtbl;
-        proc_vtbl->sleep(proc_vtbl);
+        aproc->vtbl->sleep();
     }
 
     if (pdata->source_object == g_game_info.plyr0.slot.mirror_a) {
@@ -1120,30 +1116,39 @@ void start_bow(int bone, float duration) {
     }
 }
 
+static inline MkObj* jmt_bow_pdata_live_bow(JmtBowPdata* owner) {
+    MkObj* object = owner->bow;
+    if (object != 0) {
+        if (object->hdr.instance == owner->bow_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+
+
+
+
+
+/* TODO: [breakthrough needed] 91.184210%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_bow_ctrl(void) {
     JmtBowPdata* pdata;
-    JmtProcVtable* proc_vtbl;
     MkObj* bow;
     Vec position;
 
     pdata = (JmtBowPdata*)pdata_of_proc(aproc);
-    bow = pdata->bow;
-    if (bow != 0) {
-        if (bow->hdr.instance == pdata->bow_instance) {
-            /* Keep the validated bow object. */
-        } else {
-            bow = 0;
-        }
-    } else {
-        bow = 0;
-    }
+    bow = jmt_bow_pdata_live_bow(pdata);
+
     if (bow == 0 || pdata->owner == 0) {
         return -1.0f;
     }
     pdata->duration -= game_speed;
     if (pdata->duration < 0.0f) {
-        proc_vtbl = (JmtProcVtable*)aproc->vtbl;
-        proc_vtbl->jump_sleep(p_bow_retract, 0.0f);
+        aproc->vtbl->jump_sleep(p_bow_retract, 0.0f);
         return 0.0f;
     }
     get_bone_world_pos(pdata->owner, pdata->bone, &position);
@@ -1161,22 +1166,19 @@ static float p_bow_ctrl(void) {
     return 1.0f;
 }
 
+
+
+
+
+/* TODO: [breakthrough needed] 88.644066%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
 static float p_bow_retract(void) {
     JmtBowPdata* pdata;
     MkObj* bow;
     Vec position;
 
     pdata = (JmtBowPdata*)pdata_of_proc(aproc);
-    bow = pdata->bow;
-    if (bow != 0) {
-        if (bow->hdr.instance == pdata->bow_instance) {
-            /* Keep the validated bow object. */
-        } else {
-            bow = 0;
-        }
-    } else {
-        bow = 0;
-    }
+    bow = jmt_bow_pdata_live_bow(pdata);
+
     if (bow == 0 || pdata->owner == 0) {
         return -1.0f;
     }
