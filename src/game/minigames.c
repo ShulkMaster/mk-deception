@@ -2433,14 +2433,12 @@ static float p_pz_mode_fill(void) {
     return 1.0f;
 }
 
-/* Near miss: exact retail size, instructions, control flow, and accesses.
- * Objdiff reports only register operands and shared constant relocations. */
 static float p_pz_mode_who_won(void) {
+    float x;
     int rounds_to_win;
+    PuzzleBlockOffset* offset;
     int row;
     int column;
-    PuzzleBlockOffset* offset;
-    float x;
 
     if (puzzle_mode_net != 0) {
         puzzle_mode_net = 3;

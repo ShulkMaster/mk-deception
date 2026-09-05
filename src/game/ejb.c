@@ -4864,6 +4864,7 @@ void zero_my_hit_count(void) {
     plyr_pdata->hit_count = 0;
 }
 
+/* TODO: [breakthrough] 94.5%; corrected positive state IDs from raw addis/cmplwi; redundant retail addis remains. */
 int disable_impale_check(void) {
     unsigned int previous_state;
 
@@ -4871,10 +4872,10 @@ int disable_impale_check(void) {
         return 1;
     }
     previous_state = plyr_pdata->previous_state;
-    if (previous_state == (unsigned int)-0x39FE) {
+    if (previous_state == 0xC602U) {
         return 1;
     }
-    if (previous_state == (unsigned int)-0x3A00) {
+    if (previous_state == 0xC600U) {
         return 1;
     }
     return previous_state == 0x4206U;

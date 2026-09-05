@@ -391,7 +391,7 @@ typedef struct BgndPebbleControl {
     int bounce_flags;      /* +0x54 */
     unsigned int end_behavior; /* +0x58 */
     unsigned int state; /* +0x5C - render/motion state */
-    unsigned int bounce_ticks; /* +0x60 */
+    int bounce_ticks;          /* +0x60 */
     unsigned int launch_ticks; /* +0x64 */
     float gravity;             /* +0x68 */
     unsigned int bounce_param; /* +0x6C - command-script function index */
@@ -3669,7 +3669,7 @@ static inline void bl_init_beetle(
                                  &beetle->position);
 }
 
-/* TODO: [near miss] 97.956860%; beetle/pebble register coloring and pool identity; no-edit stop. */
+/* TODO: [near miss] 97.956860%; repeated beetle/pebble GPR coloring and pool identity; retain ceiling. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     BlBeetleControl* beetle;
@@ -8042,7 +8042,6 @@ void bgnd_pebble_set_current_pebble(int player, int index) {
 void bgnd_pebble_change_current_end_behavior(int end_behavior) {
     g_current_pebble->end_behavior = end_behavior;
 }
-/* Exact-size near miss: 98.60%; only pooled-float relocation labeling remains. */
 void bgnd_pebble_change_current_behavior_to_bounce(
     unsigned int ticks, int bounce_param, float velocity_x, float velocity_y,
     float velocity_z, float angular_x, float angular_y, float angular_z) {
@@ -8075,7 +8074,6 @@ void bgnd_pebble_change_current_behavior_to_bounce(
     g_current_pebble->bounce_param = bounce_param;
     g_current_pebble->end_behavior = 4;
 }
-/* Exact-size near miss: 98.54%; only pooled-float relocation labeling remains. */
 void bgnd_pebble_change_current_behavior(
     unsigned int ticks, int behavior_param, float velocity_x, float velocity_y,
     float velocity_z, float angular_x, float angular_y, float angular_z) {
@@ -11329,10 +11327,9 @@ void bgnd_apply_active_sobj_pos_vel_drag(void* script, float x, float y,
     g_active_sobj->pos_vel.y *= y;
     g_active_sobj->pos_vel.z *= z;
 }
-/* Exact operations/size; remaining 1.43% is constant relocation labeling. */
 void bgnd_set_active_sobj_pos_vel(void* script, float x, float y, float z) {
     (void)script;
-    g_active_sobj->flags_08_bits.angular_velocity_enabled = 1;
+    g_active_sobj->flags_08_bits.bit5 = 1;
     if (x != 555999.6f) {
         g_active_sobj->pos_vel.x = x;
     }

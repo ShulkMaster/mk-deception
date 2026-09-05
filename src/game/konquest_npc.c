@@ -3451,7 +3451,6 @@ void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     }
 }
 
-/* TODO: [near miss] 99.117645%; instruction lowering; one-trial ceiling. */
 float p_do_lip_synch(void) {
     KonquestLipSyncPdata* lip =
         (KonquestLipSyncPdata*)pdata_of_proc(aproc);
@@ -3501,8 +3500,8 @@ float p_do_lip_synch(void) {
             }
             return -1.0f;
         }
-        if ((((lip->npc->flags_1C & 4) == 0) &&
-             ((lip->npc->flags_1C & 0x80) != 0)) ||
+        if (((lip->npc->flags_1C_field_bit2 == 0) &&
+             (lip->npc->flags_1C_bit7 != 0)) ||
             lip->stop_requested != 0) {
             AniTextureControl* texture;
 

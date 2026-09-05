@@ -691,11 +691,6 @@ typedef struct KonquestProcSleepVtable {
     int (*sleep)(void); /* +0x18 */
 } KonquestProcSleepVtable;
 
-typedef struct KonquestProcJumpVtable {
-    char pad00[0x24];
-    int (*jump_sleep)(MkProcEntryFn entry, void* context, float ticks);
-} KonquestProcJumpVtable;
-
 typedef struct KonquestDestroyable KonquestDestroyable;
 typedef int (*KonquestDestroyFn)(KonquestDestroyable* object);
 
@@ -11669,7 +11664,7 @@ static float p_collide_monk(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.206640%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [breakthrough] 99.243546%; canonical jump ABI recovered; remaining CFG/register residue. */
 static float p_monk_unconscious(void) {
     KonquestGameSpeedPdata* speed_pdata = 0;
     MkObj* hero;
@@ -11768,8 +11763,7 @@ static float p_monk_unconscious(void) {
     konquest_pdata->hero_state = 0;
     camera_exit_script();
     camera_set_glitch_flag();
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_control_konquest_monk, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
     return 0.0f;
 }
 
@@ -11825,7 +11819,6 @@ static float p_monk_getup(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.875000%; register/operand residue remains; stop at trial cap. */
 static float p_monk_punch_react(void) {
     MkObj* hero;
     int mode_index;
@@ -11870,17 +11863,15 @@ static float p_monk_punch_react(void) {
 
     if (konquest_pdata->hero_unconscious != 0) {
         konquest_pdata->hero_state = 13;
-        ((KonquestProcJumpVtable*)aproc->vtbl)
-            ->jump_sleep(p_monk_unconscious, aproc, 0.0f);
+        aproc->vtbl->jump_sleep(p_monk_unconscious, 0.0f);
         return 0.0f;
     }
     konquest_pdata->hero_state = 12;
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_monk_getup, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_monk_getup, 0.0f);
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.925780%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [breakthrough] 98.96484%; canonical jump ABI recovered; remaining CFG/register residue. */
 static float p_monk_punch(void) {
     MkObj* hero;
     KonquestNpc* npc;
@@ -11994,8 +11985,7 @@ static float p_monk_punch(void) {
     hero->pos_vel.y = 0.0f;
     hero->pos_vel.x = 0.0f;
     konquest_pdata->hero_state = 0;
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_control_konquest_monk, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
     return 0.0f;
 }
 
@@ -12121,7 +12111,7 @@ static float p_monitor_meditation_time(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.012880%; original latch retained; branch lowering, register coloring; one-trial ceiling. */
+/* TODO: [breakthrough] 99.05579%; canonical jump ABI recovered; remaining CFG/register residue. */
 static float p_monk_meditate(void) {
     MkHdr* monitor_pdata;
     KonquestGameSpeedPdata* speed_pdata;
@@ -12223,8 +12213,7 @@ static float p_monk_meditate(void) {
         ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
     }
 
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_control_konquest_monk, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
     return 0.0f;
 }
 
@@ -12370,6 +12359,7 @@ static float p_monk_move(void) {
  * delta is one folded hero-latch join; remaining differences are scheduling
  * of the vtable and control-proc loads plus register coloring.
  */
+/* TODO: [breakthrough] 96.666664%; canonical jump ABI recovered; remaining CFG/register residue. */
 static float p_control_konquest_monk(void) {
     MkObj* hero;
     MonkStateData* state;
@@ -12391,8 +12381,7 @@ static float p_control_konquest_monk(void) {
     }
 
     state = &monk_state_data[konquest_pdata->hero_state];
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(state->control_proc, state, 0.0f);
+    aproc->vtbl->jump_sleep(state->control_proc, 0.0f);
     return 0.0f;
 }
 
@@ -17271,12 +17260,6 @@ void attach_pfx_to_object(
     }
 }
 
-/*
- * Soft ceiling: attach_pfx_to_object_by_uid ~99.1%. The stale-safe UID
- * search, render-position offset, persistent attachment record, effect calls,
- * access widths, and exact 428-byte size match retail. Residue is only a
- * consistent rotation of the four argument and tile-loop nonvolatile GPRs.
- */
 void attach_pfx_to_object_by_uid(
     int uid, const char* effect_name, const Vec* offset, int keep_attached) {
     KonquestUidObject* object;
@@ -17291,9 +17274,9 @@ void attach_pfx_to_object_by_uid(
             float y;
             float z;
 
-            x = record->position.x + offset->x;
-            y = record->position.y + offset->y;
-            z = record->position.z + offset->z;
+            x = record->base_position.x + offset->x;
+            y = record->base_position.y + offset->y;
+            z = record->base_position.z + offset->z;
             if (keep_attached != 0) {
                 if (strlen(effect_name) <= 31) {
                     strcpy(object->attached_pfx_name, effect_name);
@@ -18281,7 +18264,7 @@ static void load_sky(void) {
     }
 }
 
-/* TODO: [near miss] 99.522670%; register coloring, stack layout; one-trial ceiling. */
+/* TODO: [breakthrough] 99.54933%; canonical jump ABI recovered; remaining CFG/register residue. */
 float p_setup_konquest_map(void) {
     KonquestAmbientFadePdata* ambient_fade;
     KonquestHeadTrackingPdata* head_tracking;
@@ -18587,8 +18570,7 @@ float p_setup_konquest_map(void) {
         konquest_pdata->flag_bits.region_loaded = 1;
         cmdscript_setup_execution(konquest_pdata->script_owner, 0x162);
         cmdscript_execute(konquest_pdata->script_owner);
-        ((KonquestProcJumpVtable*)aproc->vtbl)
-            ->jump_sleep(p_idle, aproc, 0.0f);
+        aproc->vtbl->jump_sleep(p_idle, 0.0f);
         return 0.0f;
     }
 
@@ -18643,8 +18625,7 @@ float p_setup_konquest_map(void) {
 
     turn_controllers_on();
     konquest_pdata->flag_bits.region_loaded = 1;
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_konquest_loop, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_konquest_loop, 0.0f);
     return 0.0f;
 }
 
@@ -18905,6 +18886,7 @@ void konquest_state_init(void) {
  * callback, and jump-sleep agree. Residue is aggregate-copy scheduling,
  * register selection, and pooled constant relocation labels.
  */
+/* TODO: [breakthrough] 88.61176%; canonical jump ABI recovered; remaining CFG/register residue. */
 static float p_init_konquest_mode(void) {
     PlyrInfo* player;
     int index;
@@ -18973,8 +18955,7 @@ static float p_init_konquest_mode(void) {
         konquest_pdata->pui_inventory_bits[index] = 0;
     }
     set_global_collision_callback(npc_collision_callback);
-    ((KonquestProcJumpVtable*)aproc->vtbl)
-        ->jump_sleep(p_setup_konquest_map, aproc, 0.0f);
+    aproc->vtbl->jump_sleep(p_setup_konquest_map, 0.0f);
     return 0.0f;
 }
 

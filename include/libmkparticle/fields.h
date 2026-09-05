@@ -6,8 +6,8 @@
 typedef struct PfxVm PfxVm;
 
 typedef struct PfxFieldDefinition {
-    unsigned int description;
-    unsigned int flag;
+    int description;
+    int flag;
     int type;
 } PfxFieldDefinition;
 

@@ -348,6 +348,7 @@ int ADX_ScanInfoCode(signed char* buffer, int buffer_len, short* data_len)
     }
 }
 
+/* TODO: [near miss] 99.867546%; rounding operand/FPR ordering; bounded declaration scratch found no exact candidate. */
 void ADX_GetCoefficient(int cutoff, int sample_rate, short* coefficient0,
                         short* coefficient1)
 {

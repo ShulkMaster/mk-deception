@@ -4651,7 +4651,7 @@ int drone_ai_check_from_ground_attack_phase1(DroneAI* drone) {
     return 0;
 }
 
-/* Soft ceiling: 99.8996%; only the x/z distance temporary FPRs differ. */
+/* TODO: [near miss] 99.8996%; x/z distance FPR coloring survives declaration check; stop. */
 int drone_ai_check_projectile_head_on(DroneAI* drone) {
     int duck_reaction_active;
     unsigned int roll;
@@ -4732,8 +4732,7 @@ static inline void ai_close_dont_touch_attack(DroneAI* drone) {
     his_pdata->secondary_state = 0x10B;
 }
 
-/* Soft ceiling: four-byte condition-code lowering residue (extrwi./mfcr in
- * retail versus cror currently); algorithm, calls, and typed accesses match. */
+/* TODO: [breakthrough] 99.38623%; clearance direction fixed; retail boolean materialization remains. */
 int drone_ai_check_dont_touch_attack_phase1(DroneAI* drone) {
     float clearance;
 
@@ -4749,7 +4748,7 @@ int drone_ai_check_dont_touch_attack_phase1(DroneAI* drone) {
 
     if (drone->opponent_distance < 5.9457946f) {
         clearance = ai_backward_clearance();
-        if (clearance >= 2.1336f || randu0(100) < 5) {
+        if (!(clearance > 2.1336f) || randu0(100) < 5) {
             ai_close_dont_touch_attack(drone);
             return 1;
         }

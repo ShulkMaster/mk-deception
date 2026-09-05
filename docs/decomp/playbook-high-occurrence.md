@@ -32,16 +32,31 @@ H05 | Cached value vs retail reload | Reload after call/sleep/aliasing store, or
 H06 | Retail retains computed value/address | Shared uses with no reload | Name genuine typed local/element/owner; retain only for observed interval.
 H07 | Extra/missing helper call | Retail bl boundary + signature | Visible inline body for expansion; out-of-line body for real call. Repeated inline-off idiom -> authentic side-effect-safe typed macro.
 H08 | Pointer-instance latch diamond differs | Null-before-instance reads; no bl | Typed accessor returning pointer on success, null otherwise; pass owner if preloaded arguments hoist reads. No empty keep arm. Check the caller’s active dont_inline region before extraction: it can emit a real accessor call despite an inline declaration. Preserve that region and retain a direct stale-instance guard there; do not change unrelated inlining to close a latch.
-H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition. Rotated top test -> explicit top guard/break. No dummy one-trip loop.
+H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition. Rotated top test -> explicit top guard/break. No dummy one-trip loop. An unsigned index bounded by length can retain cmplwi/ble plus CTR where a decreasing length folds entry to beq: gcCiGetFileSize reached100 with for(index=0; index<length; index++). Require identical zero-length and traversal behavior; guarded do/decrement changed the back edge and was rejected.
 H10 | Switch dispatch differs | Complete cases/default/fallthrough + text order | Recover switch/case order; preserve independent guards where retail repeats tests. No speculative labels.
 H11 | Return/cleanup join differs | Branch graph + effect ownership | Shared result/epilogue or explicit arm returns as observed. Shared zero return may avoid booleanization; cleanup exception -> M08.
 H12 | POD copy loop differs | Real type/size/alignment/alias semantics | Aggregate assignment for word/CTR copy; components for lfs/stfs. No compiler scaffolding.
 H13 | Intrusive-list loads/stores differ | Link ownership + callback effects + no bl | Exact typed reciprocal-store order; advance iterator before mutating callback when observed; reload links as retail does.
 H14 | Stack slots differ | Genuine address-taken locals + offsets | Reorder adjacent declarations/whole aggregates or narrow lifetime. Distinguish compiler-created by-value copies. No padding locals.
-H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration check, then N stop. No register carousel.
+H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration check, then N stop. A bounded declaration-only scratch can identify that single source insight: HAnimWrite and p_pz_mode_who_won reached100 with unchanged assignments; moving theta before cosTheta closed RpHAnimKeyFrameBlend. Require real locals, stack-sensitive scoring, real-TU verification, and no invented lifetime uses. No register carousel.
 H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nest single-use result; retain original callback owner at untyped boundary if observed. No manufactured return contract.
 
 ## Measured examples
+
+- H01/H03: If a GX call uses `clrlwi` where retail copies a proven 0/1 local,
+  check the local against the existing `GXBool` parameter type. Under the
+  RenderWare objects' disabled optimization, full-width locals retained masks
+  even though every assignment was 0 or 1. `GXBool` enable flags closed
+  `_rwDlObjectRenderSetup` (2,344 bytes); mipmap flags closed
+  `_rwGameCubeTextureSetLOD` after its plugin access was recovered. Preserve
+  full-width masks and enums; do not change a public prototype to suppress a mask.
+- H07/M13: A `static inline` plugin accessor can emit a real call under
+  `-inline off`. Require the retail offset load/add and the established plugin
+  layout, then use a typed macro that evaluates the owner once. This closed
+  `_rwDlRasterCamera_ZClearRectInit`, `_rwDlRasterCreate`, and `_rwDlTextureSet`.
+  Keep the function form available: both alpha-pass consumers regressed under
+  a blanket replacement, so only confirmed consumers use the macros.
+  The complete `dltextur` object subsequently passed the linked retail SHA-1.
 
 - H01: If the last virtual-call mismatch preserves an extra argument register,
   verify the real callee before calling it coloring. The local Konquest jump

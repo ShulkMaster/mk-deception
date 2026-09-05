@@ -35,6 +35,11 @@ fake volatile, dead sinks, register declarations, or goto to cross a ceiling.
 Permuter only after algorithm/CFG/ABI/layout agree. Smoke-test a real near miss;
 use recovered TU command. PERM_* stays in scratch. Reject undefined behavior,
 wrong types, reordered effects, fake liveness even at zero score.
+If objdiff identifies stack operands, run the smoke test and search with
+`--stack-diffs`. Upstream defaults to ignoring stack offsets: `run_camera_script`
+scored zero despite two reversed zero stores at stack +0x08/+0x0C; enabling
+stack differences correctly scored 8. Confirm that the scorer sees the actual
+residual before searching or interpreting zero as a candidate worth applying.
 A measured `ani_to_frame_x` zero-score candidate introduced an otherwise unused
 pointer to `anim->step` solely to eliminate an animation-pointer move. Reject
 that alias/lifetime workaround; ordinary helper forms still scored 110, so the
