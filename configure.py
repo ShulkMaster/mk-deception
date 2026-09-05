@@ -1848,7 +1848,7 @@ config.libs = [
                 extra_cflags=["-inline noauto", "-use_lmw_stmw", "on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpvabdec.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpvabdec.c",
                 extra_cflags=["-sdata 0", "-sdata2 0"],

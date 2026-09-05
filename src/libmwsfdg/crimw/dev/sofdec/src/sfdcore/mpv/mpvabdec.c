@@ -168,15 +168,15 @@ typedef struct MPVABDECBlock {
         block->level = packed;                                              \
     } while (0)
 
-/* The lookahead is dead after this decoder and is consumed into the sign. */
+/* Cache metadata before publishing run; index arguments must have no side effects.
+ * The lookahead is dead after this decoder and is consumed into the sign. */
 #define MPV_DECODE_LONG(index_, bits_)                                      \
     do {                                                                    \
-        u32 entry32;                                                        \
-        entry32 = ctx->run_level_8[(index_)];                               \
-        block->run = (s32)(u8)entry32;                                      \
+        u32 packed_code = ctx->run_level_8[(index_)];                       \
+        block->run = (s32)(u8)ctx->run_level_8[(index_)];                   \
         if (block->run != 0x40) {                                           \
-            block->code_length = entry32 >> 16;                             \
-            block->level = (s32)(s8)(entry32 >> 8);                         \
+            block->code_length = packed_code >> 16;                         \
+            block->level = (s32)(s8)(packed_code >> 8);                     \
             (bits_) >>= 33 - block->code_length;                            \
             (bits_) &= 1;                                                   \
             block->sign = (s32)(bits_);                                     \
@@ -222,8 +222,14 @@ typedef struct MPVABDECBlock {
         block->sign = (s32)((bits_) & 1);                                   \
     } while (0)
 
+/* Align raw AC lookahead to the escape decoder's bit window. */
+static inline u32 mpvabdec_AlignEscapeLookahead(u32 lookahead)
+{
+    return lookahead << 1;
+}
+
 /* Keep the first-code helper expanded into the large, call-free decoder. */
-#pragma inline_max_size(10000)
+#pragma inline_max_size(100000)
 #pragma inline_max_total_size(100000)
 static inline void mpvabdec_DecodeFirst(MPVABDECContext* ctx,
                                       MPVABDECBlock* block, u32 initial_buffer,
@@ -302,81 +308,17 @@ static inline u32 mpvabdec_AdvanceFirst(u32 initial_buffer, u32 consumed_bits,
     return bit_buffer;
 }
 
-/* TODO: [near miss] 95.69248%; signs verified; shared decoder lowering and bit-reader allocation remain. */
-s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
+/* Store the first decoded coefficient, decode the rest, and publish reader state. */
+static inline s32 mpvabdec_DecodeNonIntraAC(MPVABDECContext* ctx,
+                                         MPVABDECBlock* block,
+                                         u32 bit_buffer, u32 next_buffer,
+                                         s32 bit_count, const u32* stream)
 {
     const s8* scan;
-    const u32* stream;
-    u32 bit_buffer;
-    u32 next_buffer;
-    s32 bit_count;
-    int first_scan;
     s32 scan_result;
-
-    MPVABDECCoefficients* coefficients = block->coefficients;
-
-    /* Clear the fixed 8x8 coefficient block with paired stores. */
-    coefficients->pairs[0] = 0.0;
-    coefficients->pairs[1] = 0.0;
-    coefficients->pairs[2] = 0.0;
-    coefficients->pairs[3] = 0.0;
-    coefficients->pairs[4] = 0.0;
-    coefficients->pairs[5] = 0.0;
-    coefficients->pairs[6] = 0.0;
-    coefficients->pairs[7] = 0.0;
-    coefficients->pairs[8] = 0.0;
-    coefficients->pairs[9] = 0.0;
-    coefficients->pairs[10] = 0.0;
-    coefficients->pairs[11] = 0.0;
-    coefficients->pairs[12] = 0.0;
-    coefficients->pairs[13] = 0.0;
-    coefficients->pairs[14] = 0.0;
-    coefficients->pairs[15] = 0.0;
-    coefficients->pairs[16] = 0.0;
-    coefficients->pairs[17] = 0.0;
-    coefficients->pairs[18] = 0.0;
-    coefficients->pairs[19] = 0.0;
-    coefficients->pairs[20] = 0.0;
-    coefficients->pairs[21] = 0.0;
-    coefficients->pairs[22] = 0.0;
-    coefficients->pairs[23] = 0.0;
-    coefficients->pairs[24] = 0.0;
-    coefficients->pairs[25] = 0.0;
-    coefficients->pairs[26] = 0.0;
-    coefficients->pairs[27] = 0.0;
-    coefficients->pairs[28] = 0.0;
-    coefficients->pairs[29] = 0.0;
-    coefficients->pairs[30] = 0.0;
-    coefficients->pairs[31] = 0.0;
-
-    {
-        u32 initial_buffer;
-
-        bit_count = ctx->bit_count;
-        initial_buffer = ctx->bit_buffer;
-        next_buffer = ctx->next_buffer;
-        stream = ctx->stream;
-
-        mpvabdec_DecodeFirst(ctx, block, initial_buffer, next_buffer, bit_count);
-        bit_buffer = mpvabdec_AdvanceFirst(initial_buffer, block->code_length,
-                                          &bit_count, &next_buffer, &stream);
-    }
     scan = ctx->scan + block->run;
-    first_scan = block->first_scan = (s32)*scan;
-    block->current_scan = first_scan;
-    {
-        s32 level_factor = block->level * 2 + 1;
-        s32 quantized;
-        quantized = (((s32)block->quant_matrix[block->current_scan] *
-                      (level_factor * block->quantizer_scale)) >> 4) - 1;
-        quantized |= 1;
-        if (block->sign) {
-            quantized = -quantized;
-        }
-        scan_result = block->current_scan;
-        block->coefficients->values[block->current_scan] =
-            (f32)quantized * ctx->coefficient_scale[scan_result];
-    }
+    block->current_scan = block->first_scan = (s32)*scan;
+    MPV_STORE_DECODED(0);
 
     do {
         u32 peek;
@@ -661,8 +603,10 @@ s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
         case 0x05:
         case 0x06:
         case 0x07:
-            peek <<= 1;
-            MPV_DECODE_ESCAPE(peek);
+            {
+                u32 escape_bits = mpvabdec_AlignEscapeLookahead(peek);
+                MPV_DECODE_ESCAPE(escape_bits);
+            }
             scan += block->run + 1;
             block->current_scan = (s32)*scan;
             MPV_STORE_DECODED(0);
@@ -852,6 +796,71 @@ s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
     }
     block->current_scan = scan_result;
     return block->current_scan;
+}
+
+/* Decode and publish a non-intra block after its coefficient storage is cleared. */
+static inline s32 mpvabdec_DecodeNonIntra(MPVABDECContext* ctx, MPVABDECBlock* block)
+{
+    u32 initial_buffer;
+    const u32* stream;
+    u32 bit_buffer;
+    u32 next_buffer;
+    s32 bit_count;
+
+    {
+        bit_count = ctx->bit_count;
+        initial_buffer = ctx->bit_buffer;
+        next_buffer = ctx->next_buffer;
+        stream = ctx->stream;
+
+        mpvabdec_DecodeFirst(ctx, block, initial_buffer, next_buffer, bit_count);
+        bit_buffer = mpvabdec_AdvanceFirst(initial_buffer, block->code_length,
+                                          &bit_count, &next_buffer, &stream);
+    }
+
+    return mpvabdec_DecodeNonIntraAC(ctx, block, bit_buffer, next_buffer,
+                                     bit_count, stream);
+}
+
+s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
+{
+    MPVABDECCoefficients* coefficients = block->coefficients;
+
+    /* Clear the fixed 8x8 coefficient block with paired stores. */
+    coefficients->pairs[0] = 0.0;
+    coefficients->pairs[1] = 0.0;
+    coefficients->pairs[2] = 0.0;
+    coefficients->pairs[3] = 0.0;
+    coefficients->pairs[4] = 0.0;
+    coefficients->pairs[5] = 0.0;
+    coefficients->pairs[6] = 0.0;
+    coefficients->pairs[7] = 0.0;
+    coefficients->pairs[8] = 0.0;
+    coefficients->pairs[9] = 0.0;
+    coefficients->pairs[10] = 0.0;
+    coefficients->pairs[11] = 0.0;
+    coefficients->pairs[12] = 0.0;
+    coefficients->pairs[13] = 0.0;
+    coefficients->pairs[14] = 0.0;
+    coefficients->pairs[15] = 0.0;
+    coefficients->pairs[16] = 0.0;
+    coefficients->pairs[17] = 0.0;
+    coefficients->pairs[18] = 0.0;
+    coefficients->pairs[19] = 0.0;
+    coefficients->pairs[20] = 0.0;
+    coefficients->pairs[21] = 0.0;
+    coefficients->pairs[22] = 0.0;
+    coefficients->pairs[23] = 0.0;
+    coefficients->pairs[24] = 0.0;
+    coefficients->pairs[25] = 0.0;
+    coefficients->pairs[26] = 0.0;
+    coefficients->pairs[27] = 0.0;
+    coefficients->pairs[28] = 0.0;
+    coefficients->pairs[29] = 0.0;
+    coefficients->pairs[30] = 0.0;
+    coefficients->pairs[31] = 0.0;
+
+    return mpvabdec_DecodeNonIntra(ctx, block);
 }
 
 #pragma inline_max_size reset
@@ -1376,12 +1385,6 @@ s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
     }
     block->current_scan = result;
     return block->current_scan;
-}
-
-/* Align raw AC lookahead to the escape decoder's bit window. */
-static inline u32 mpvabdec_AlignEscapeLookahead(u32 lookahead)
-{
-    return lookahead << 1;
 }
 
 s32 MPVABDEC_IntraBlockDc11(MPVABDECContext* ctx, MPVABDECBlock* block)

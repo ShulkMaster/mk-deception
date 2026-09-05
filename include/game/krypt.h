@@ -115,7 +115,7 @@ typedef struct TombstonePfx {
  * Only fields touched by setup / tombstone / getters are named.
  */
 typedef struct KryptPdata {
-    unsigned char hdr[0x08]; /* +0x00 */
+    MkHdr hdr;              /* +0x00 */
     int player_port;         /* +0x08 */
     PebbleData* pebble_wall_a;   /* +0x0C - sobj id 0x15, 5 pebbles */
     PebbleData* pebble_wall_b;   /* +0x10 - sobj id 0x16 */

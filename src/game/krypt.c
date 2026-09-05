@@ -3489,9 +3489,11 @@ float p_setup_krypt(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.85507%; typed payload keeps retail output unchanged;
+ * existing instruction/relocation residue remains. */
 float p_init_krypt_mode(void) {
     RwResourcesSetArenaSize(0x100000);
-    zero_pdata_payload(0x150, (MkHdr*)krypt_pdata);
+    zero_pdata_payload(sizeof(KryptPdata), (MkHdr*)krypt_pdata);
     if (menu_player == 0) {
         krypt_pdata->player_port = g_game_info.plyr0.pad_index;
         set_player_state(&g_game_info.plyr0, 2);
@@ -3514,12 +3516,14 @@ float p_init_krypt_mode(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.61539%; sizeof payload keeps retail output unchanged;
+ * existing instruction/relocation residue remains. */
 float p_krypt_mode(void) {
     MkProc* proc;
 
     set_section_memory_scheme(7);
     proc = _create_mkproc_generic_bigstack(
-        0x2001, 0x23, p_init_krypt_mode, 0x150,
+        0x2001, 0x23, p_init_krypt_mode, sizeof(KryptPdata),
         (MkHdr**)&krypt_pdata);
     if (proc != 0) {
         set_process_as_scriptable(proc);

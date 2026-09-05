@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+int RwFrameDirty(const RwFrame* frame);
 RwMatrix* RwFrameGetLTM(RwFrame* frame);
 RwFrame* RwFrameCreate(void);
 int RwFrameDestroy(RwFrame* frame);

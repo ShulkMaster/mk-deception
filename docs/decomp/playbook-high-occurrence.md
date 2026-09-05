@@ -70,8 +70,13 @@ Apply these refinements only with the parent rule's evidence:
   store; audit every inlined consumer rather than introducing volatile.
 - H06/H14: Initialize a real output pointer at entry only when retail zeros
   that slot there. Keep an initial buffer word separate from its advanced word
-  through the consume/refill join. Consume lookahead in place only after every
+  through the consume/refill join. Put real snapshots in their owning scope,
+  keeping their loads at the observed point; declaration order is not initialization
+  order. Consume lookahead in place only after every
   decoding use; preserve shifts even when omitting one raises fuzzy.
+  If conversion-constant addressing differs with identical arithmetic, retain
+  a genuinely used scan index through its scale lookup; do not invent a constant
+  pool pointer or dead use. Recheck the first path separately from later macros.
 - H06/H14: In coefficient decoding, form the sign threshold after unsigned
   amplitude extraction; assemble the extended level before increasing code
   length. A real `extended_base = packed * 2` retained through the bitwise
@@ -82,6 +87,14 @@ Apply these refinements only with the parent rule's evidence:
   can test both inline_max_size and inline_max_total_size; either alone may
   fail. Scope/reset any justified limits and check siblings. This establishes
   expansion, not the retail pragma values; respect fixed-TU-setting tasks.
+  If reader roles diverge across real decoder phases, test a typed inline
+  phase boundary with only genuine inputs/outputs. Include cursor setup when
+  that phase owns its lifetime, preserving read/store order; recheck consumers
+  and remove earlier lifetime specializations that the new scope makes redundant.
+  If one cursor transfer remains between otherwise matching phases, test an
+  outer decode owner spanning initialization through final publication, leaving
+  independent storage clearing outside it. Verify nested phases separately:
+  flattening them can undo allocation gains. Do not add identity wrappers.
 - H08: Direct-owner accessors suit adjacent load/validation; cached forms suit
   real intervening effects. Extracting a latch can change a caller's inlining,
   even reducing a previously exact caller to zero. Check all callers, not only
@@ -111,18 +124,14 @@ Apply these refinements only with the parent rule's evidence:
 
 No structural discrepancy -> [mid](playbook-mid-occurrence.md).
 
-H07 measured inline-boundary closure (MPVABDEC_IntraBlockDc11): a localized
-permuter search reduced score330 ->0 by extracting the existing unsigned
-lookahead alignment into an inline value helper. REQUIRE the helper to compute
-the same real bit-window transformation, preserve unsigned shift semantics,
-and emit no call or extra function. The reviewed private static helper
-mpvabdec_AlignEscapeLookahead returns lookahead <<1; no dummy state or compiler
-flags were added. The real TU retained Intra100 and closed Dc1199.88997 ->100
-(4226 instructions), with all34296 runtime comparisons passing. This is an
-inline-boundary inference, not evidence of an original retail helper name;
-never adopt the permuter's generic inline_fn name or a false prototype.
-
-H07 scope caution after the Dc11 closure: reusing the same prefix-alignment
-helper in NintraBlock’s first-code decoder regressed95.530754 ->95.37472 and
-was reverted. An inlined first-coefficient store emitted identical code. Inline
-boundaries are context-dependent evidence, not a universal shift wrapper rule.
+H07 — unsigned lookahead phase boundary:
+IF a localized escape-window shift has matching operations but different
+scheduling, REQUIRE the same real unsigned bit-window transformation and a
+call-free emitted body. TRY a typed inline value helper for that transformation,
+then inspect the complete consumer and every sibling. This closed Dc11 and
+removed Nintra AC's escape-scheduling island, but regressed Nintra's first-code
+phase: the boundary is context-dependent, not a universal shift-wrapper rule.
+Do not add identity helpers, dummy state, false prototypes or generic permuter
+names. These results infer a source boundary, not an original retail helper name.
+Keep measurements and rejected contexts in the
+[MPVABDEC goal report](mpvabdec-goal-2026-09-05.md).

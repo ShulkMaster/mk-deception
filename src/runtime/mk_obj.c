@@ -4134,12 +4134,14 @@ MkObj* get_mkobj(int type, RpClump* clump) {
     return obj;
 }
 
+/* TODO: [near miss] 99.85577%; sizeof owner preserves retail allocation;
+ * existing instruction/relocation residue remains. */
 MkObj* get_mkobj_frame(int type, RwFrame* frame) {
     MkObj* obj;
     RwMatrix* matrix;
 
     obj = (MkObj*)_mwMemMalloc(
-        mkobj_heap, 0x100, 4, 0, 0, 0);
+        mkobj_heap, sizeof(MkObj), 4, 0, 0, 0);
     if (obj != 0) {
         obj->hdr.vtbl = &vtbl_mkobj;
         mk_set_instance(&obj->hdr.instance);

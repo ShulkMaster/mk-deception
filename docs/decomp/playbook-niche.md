@@ -48,14 +48,30 @@ Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
   that mutates the helper while retaining the caller body for emitted-code
   scoring; verify the unchanged baseline score and that no helper call appears.
   Selecting only the helper in settings can otherwise strip the caller body.
+  Inspect the complete candidate even with PERM_RANDOMIZE regions: some passes
+  can add control constructs outside the requested region.
 - IF a candidate offsets both sides of a signed comparison, REQUIRE proof that
   the offset cannot overflow across the complete input domain. Reject
   `(signed_bits + 1) < 1` and `(signed_bits - 1) < -1` as replacements for
   `signed_bits < 0` on arbitrary 32-bit lookahead, regardless of score.
+  If invalid truncations or promotions dominate, freeze established type/cast
+  passes in the scratch configuration and retain all baseline improvements for
+  review; a lower best-only score can otherwise hide acceptable candidates.
+  Still inspect newly introduced temporaries: expression extraction can invent
+  wider types even with type-randomization disabled. Reject dummy control blocks.
 - IF scratch parsing changes `numNodes * sizeof(RwMatrix) + 15`, REQUIRE comparison
   with original source; TRY parentheses around the product in scratch without
   changing allocation math. IF inline-helper PERM_LINESWAP fails with "PERM macro
   in AST", TRY finite text-level PERM_GENERAL alternatives. Verify the real TU.
+
+- IF a CSE candidate repeats a table expression, REQUIRE both values to feed real
+  decoded outputs, a nonvolatile lookup, side-effect-free indices, and no
+  intervening store or call. TRY the shared field-extraction form only after
+  verifying retail load count/order, every macro consumer, runtime behavior and
+  the linked SHA-1. Used field expressions are distinct from dead sinks or fake
+  liveness; reject dummy blocks, volatile coercion and unused reads. Record the
+  source form as a hypothesis, not proof of original C spelling. See the
+  [MPVABDEC closure](mpvabdec-goal-2026-09-05.md).
 
 Mirage imports require platform-neutral behavior and GC retail/objdiff evidence.
 Keep new lessons in the relevant diagnostic; link detailed searches from reports.
