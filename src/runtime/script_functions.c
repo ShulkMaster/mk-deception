@@ -2813,6 +2813,7 @@ void _my_attack_hit(void) {
     script.integer->value = 0;
 }
 
+/* TODO: [near miss] 94.88372%; pointer/integer address grouping did not change decrement scheduling; retained original form. */
 void _hit_branch(void) {
     unsigned int function_index;
 

@@ -2045,12 +2045,12 @@ void mkobj_bones_dest_mat_no_update(MkObj* obj) {
     }
 }
 
-void mkobj_zero_bone_rots(void* obj) {
-    MkObj* mkobj;
-    MkBone* bone;
+void mkobj_zero_bone_rots(MkObj* obj) {
     unsigned int i;
+    MkBone* bone;
+    MkObj* mkobj;
 
-    mkobj = (MkObj*)obj;
+    mkobj = obj;
     for (i = 0; i < mkobj->bone_count; i++) {
         bone = mkobj->bones[i];
         if (bone != 0) {

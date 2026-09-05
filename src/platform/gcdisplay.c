@@ -576,11 +576,9 @@ static void render_text_without_clear(char* text, int x, int y) {
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 99.954025%; GXColor argument stack slots reversed; declaration/direct-copy trials unchanged. */
+/* TODO: [near miss] 99.954025%; redundant color locals removed; compiler-created by-value copy slots remain reversed. */
 static void render_image(void* unused) {
     GXColor black;
-    GXColor amb;
-    GXColor mat;
     int w;
     int h;
 
@@ -593,10 +591,8 @@ static void render_image(void* unused) {
 
     GXSetNumChans(1);
     GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    mat = black;
-    GXSetChanMatColor(0, mat);
-    amb = black;
-    GXSetChanAmbColor(0, amb);
+    GXSetChanMatColor(0, black);
+    GXSetChanAmbColor(0, black);
     GXSetNumTexGens(0);
     GXSetNumTevStages(1);
     GXSetTevOrder(0, 0xFF, 0xFF, 4);

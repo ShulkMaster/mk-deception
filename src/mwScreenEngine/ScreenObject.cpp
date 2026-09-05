@@ -15,11 +15,16 @@
 #define SCREEN_ACTION_MATCH 0x424
 #define SCREEN_ACTION_ELSE 0x429
 
-/* Identity basis rows for UpdateTransform (retail @230/@231/@232 contiguous). */
-static const float s_identityAxes[12] = {
-    1.0f, 0.0f, 0.0f, 0.0f, /* X @230 */
-    0.0f, 1.0f, 0.0f, 0.0f, /* Y @231 */
-    0.0f, 0.0f, 1.0f, 0.0f, /* Z @232 */
+/* Retail stores each constant rotation axis as four floats. */
+struct ScreenRotationAxis {
+    Screen3DVector vector;
+    float w;
+};
+
+static const ScreenRotationAxis s_identityAxes[3] = {
+    { { 1.0f, 0.0f, 0.0f }, 0.0f },
+    { { 0.0f, 1.0f, 0.0f }, 0.0f },
+    { { 0.0f, 0.0f, 1.0f }, 0.0f },
 };
 
 /* Macros (not static fns): with -inline off, static helpers become out-of-line
@@ -34,10 +39,9 @@ static const float s_identityAxes[12] = {
         }                                                                                      \
     } while (0)
 
+/* TODO: [near miss] 94.78723%; constant and event-loop GPR coloring remains; counted loops agree. */
 ScreenObject::ScreenObject() {
     int i;
-    int negOne;
-    unsigned int objTag;
 
     /* Retail store order: m_ext, m_parent, m_matrixStack, m_screen, m_flags. */
     m_ext = 0;
@@ -45,21 +49,18 @@ ScreenObject::ScreenObject() {
     m_matrixStack = 0;
     m_screen = 0;
     m_flags = 7;
-    /* Soft ceiling: focus/lastEvent loops -- mtctr/bdnz vs subic./bne; stop. */
     for (i = 0; i < 4; i++) {
         m_focus[i] = 0;
     }
-    objTag = kScreenTagOBJ;
-    typeTag = objTag;
-    m_objTag = objTag;
-    negOne = -1;
+    typeTag = kScreenTagOBJ;
+    m_objTag = kScreenTagOBJ;
     /* Retail stfs order: +0x18, +0x14, +0x10. */
     m_extraTrans[2] = 0.0f;
     m_extraTrans[1] = 0.0f;
     m_extraTrans[0] = 0.0f;
     for (i = 0; i < 10; i++) {
         m_lastEvents[i].control = 0;
-        m_lastEvents[i].lastEvent = negOne;
+        m_lastEvents[i].lastEvent = -1;
     }
 }
 
@@ -85,18 +86,16 @@ void ScreenObject::Render(ScreenRenderInfo* info) {
     SEObjectExt* ext;
     SETransform* xform;
     ScreenRenderInfo local;
-    ScreenRenderInfo* pass;
     ScreenChildList* list;
     ScreenObject* child;
-    unsigned int i;
     unsigned int count;
+    unsigned int i;
 
     ext = m_ext;
     if ((ext->flags & 1) == 0) {
         return;
     }
 
-    pass = info;
     xform = ext->transform;
     if (xform != 0) {
         local.colorScale[0] = info->colorScale[0] * xform->colorScale[0];
@@ -109,15 +108,15 @@ void ScreenObject::Render(ScreenRenderInfo* info) {
         local.colorTranslation[3] = info->colorTranslation[3] + xform->colorTranslation[3];
         local.flags = info->flags | m_flags;
         local.matrixStack = m_matrixStack;
-        pass = &local;
+        info = &local;
     }
 
-    list = ext->children;
+    list = m_ext->children;
     count = (unsigned int)list->count;
     i = 0;
     while (i < count) {
         child = SeEntryObject(ScreenChildEntryAt(list, i));
-        child->Render(pass);
+        child->Render(info);
         i += 1;
     }
     m_flags = 0;
@@ -127,27 +126,24 @@ void ScreenObject::SetMatrixStack(ScreenMatrixStack* stack) {
     SEObjectExt* ext;
     ScreenChildList* list;
     ScreenObject* child;
-    ScreenMatrixStack* pass;
-    unsigned int i;
     unsigned int count;
+    unsigned int i;
 
-    /* Keep `this` and stack in NVs across the child walk (retail stmw r27). */
-    pass = stack;
     ext = m_ext;
     if (ext->transform != 0) {
         if (stack != 0) {
             /* +0x18 AddChild: parent stack adopts this object's frame. */
             stack->AddChild(m_matrixStack);
         }
-        pass = m_matrixStack;
+        stack = m_matrixStack;
     }
 
-    list = ext->children;
+    list = m_ext->children;
     count = (unsigned int)list->count;
     i = 0;
     while (i < count) {
         child = SeEntryObject(ScreenChildEntryAt(list, i));
-        child->SetMatrixStack(pass);
+        child->SetMatrixStack(stack);
         i += 1;
     }
 }
@@ -189,47 +185,17 @@ void ScreenObject::SetColorTranslation(SEVec4_t* color) {
     m_flags |= 1;
 }
 
+/* TODO: [near miss] 99.64602%; anonymous axis relocation labels differ; data-value match is exact. */
 void ScreenObject::UpdateTransform() {
     SETransform* xform;
     SETransform* xformScales;
     Screen3DVector* pivot;
     Screen3DVector negPivot;
-    /*
-     * Retail spill: X @sp+0x28, Y @sp+0x18, Z @sp+0x08.
-     * MWCC allocates first-declared local at highest address.
-     */
-    float axisX[4];
-    float axisY[4];
-    float axisZ[4];
-    const float* src;
-    const unsigned int* words;
-    unsigned int* dx;
-    unsigned int* dy;
-    unsigned int* dz;
-
-    /*
-     * Q23: keep xform + pivot(=+0x24) live across Rotate; second reload for
-     * scale loads (retail r29/r28 + r30) to stmw r28. Opcodes byte-match retail;
-     * objdiff may still show ~99.65% from @230/@231/@232 vs one array label.
-     */
-    src = s_identityAxes;
+    const ScreenRotationAxis* axes = s_identityAxes;
     if (m_ext->transform != 0) {
-        words = reinterpret_cast<const unsigned int*>(src);
-        dx = reinterpret_cast<unsigned int*>(axisX);
-        dy = reinterpret_cast<unsigned int*>(axisY);
-        dz = reinterpret_cast<unsigned int*>(axisZ);
-        dx[0] = words[0];
-        dx[1] = words[1];
-        dx[2] = words[2];
-        dx[3] = words[3];
-        dy[0] = words[4];
-        dy[1] = words[5];
-        dy[2] = words[6];
-        dy[3] = words[7];
-        dz[0] = words[8];
-        dz[1] = words[9];
-        dz[2] = words[10];
-        dz[3] = words[11];
+        ScreenRotationAxis axisX = axes[0];
+        ScreenRotationAxis axisY = axes[1];
+        ScreenRotationAxis axisZ = axes[2];
 
         m_matrixStack->SetIdentity();
         xform = m_ext->transform;
@@ -240,9 +206,9 @@ void ScreenObject::UpdateTransform() {
         m_matrixStack->Translate(&negPivot);
         m_matrixStack->Scale(&xform->rotationVector);
         xformScales = m_ext->transform;
-        m_matrixStack->Rotate(reinterpret_cast<Screen3DVector*>(axisX), xformScales->scale[0]);
-        m_matrixStack->Rotate(reinterpret_cast<Screen3DVector*>(axisY), xformScales->scale[1]);
-        m_matrixStack->Rotate(reinterpret_cast<Screen3DVector*>(axisZ), xformScales->scale[2]);
+        m_matrixStack->Rotate(&axisX.vector, xformScales->scale[0]);
+        m_matrixStack->Rotate(&axisY.vector, xformScales->scale[1]);
+        m_matrixStack->Rotate(&axisZ.vector, xformScales->scale[2]);
         m_matrixStack->Translate(pivot);
         m_matrixStack->Translate(&xform->translationVector);
         m_matrixStack->Translate(&m_extraTranslation);
@@ -297,6 +263,7 @@ void ScreenObject::SetFocus(ScreenMgr* mgr, ScreenObject* obj, int index, int fi
     }
 }
 
+/* TODO: [near miss] 98.666664%; zero/index initialization ordering remains; reverse walk agrees. */
 void ScreenObject::ClearActiveObjects() {
     int i;
 
@@ -309,6 +276,7 @@ void ScreenObject::SetParent(ScreenObject* parent) {
     m_parent = parent;
 }
 
+/* TODO: [near miss] 96.40367%; action-result copy and GPR coloring remain; stop at equivalent action traversal. */
 void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
                                      int match) {
     ScreenActionStack* stack;
@@ -379,8 +347,8 @@ void ScreenObject::ProcessSubActions(const ScreenAction* action, int match) {
     ProcessSubActions(mgr, action, match);
 }
 
+/* TODO: [near miss] 99.666664%; action-stack and event-argument GPR homes remain swapped. */
 void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
-    int eventArg;
     unsigned int numEvents;
     unsigned int numActions;
     ScreenActionStack* stack;
@@ -391,9 +359,7 @@ void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     unsigned int j;
     ScreenParams* params;
 
-    /* Soft ceiling ~99.7%: stack/eventArg NV swap only; stop. */
     stack = &mgr->m_actionStack;
-    eventArg = arg;
     numEvents = GetNumEvents();
     for (i = 0; i < numEvents; i++) {
         event = GetEvent((unsigned int)i);
@@ -407,7 +373,7 @@ void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
             params = event->GetParams(j);
             created = ScreenActionStack::CreateAction((unsigned int)actionType);
             created->Init(event, (int)j, this, actionType, params,
-                          (unsigned int)eventArg);
+                          (unsigned int)arg);
             stack->PushAction(created);
         }
     }
@@ -450,12 +416,12 @@ void ScreenObject::FireEvent(ScreenMgr* mgr, int event, int arg, unsigned int fl
     ProcessEvent(mgr, event, arg);
 }
 
+/* TODO: [near miss] 99.49275%; entry/tag scratch GPR coloring remains; finite event switch agrees. */
 void ScreenObject::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     ScreenChildList* list;
     ScreenChildEntry* entry;
-    ScreenObject* child;
-    unsigned int i;
     unsigned int count;
+    unsigned int i;
     unsigned int tag;
 
     list = m_ext->children;
@@ -468,11 +434,19 @@ void ScreenObject::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     while (i < count) {
         entry = ScreenChildEntryAt(list, i);
         tag = entry->typeTag;
-        child = SeEntryObject(entry);
         if (tag == kScreenTagOBJ || tag == kScreenTagGROP) {
-            child->BroadcastEvent(mgr, event, arg);
-        } else if ((event >= 0x3e8 && event < 0x3ec) || (event >= 0x407 && event < 0x409)) {
-            child->ProcessEngineEvent(mgr, event);
+            SeEntryObject(entry)->BroadcastEvent(mgr, event, arg);
+        } else {
+            switch (event) {
+            case 0x3e8:
+            case 0x3e9:
+            case 0x3ea:
+            case 0x3eb:
+            case 0x407:
+            case 0x408:
+                SeEntryObject(entry)->ProcessEngineEvent(mgr, event);
+                break;
+            }
         }
         i += 1;
     }
@@ -481,6 +455,7 @@ void ScreenObject::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     ProcessEvent(mgr, event, arg);
 }
 
+/* TODO: [near miss] 99.803925%; this/reverse-index GPR coloring remains; stop at equivalent traversal. */
 ScreenObject* ScreenObject::FindNextFocusObject(int eventId) {
     unsigned int numEvents;
     unsigned int i;
@@ -489,7 +464,6 @@ ScreenObject* ScreenObject::FindNextFocusObject(int eventId) {
     int actionType;
     ScreenParams* params;
 
-    /* Soft ceiling ~98.8%: this and reverse-index NV homes are swapped; stop. */
     numEvents = (unsigned int)GetNumEvents();
     for (i = 0; i < numEvents; i++) {
         event = GetEvent(i);
@@ -517,7 +491,6 @@ int ScreenObject::HandleAction(ScreenMgr* /*mgr*/, const ScreenAction* /*action*
 int ScreenObject::GetLastEvent(ScreenAnimControl* ctrl) {
     int i;
 
-    /* Soft ceiling: mtctr/bdnz vs indexed for; typed m_lastEvents. Soft OK. */
     for (i = 0; i < 10; i++) {
         if (m_lastEvents[i].control == ctrl) {
             return m_lastEvents[i].lastEvent;

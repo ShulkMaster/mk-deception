@@ -3823,7 +3823,6 @@ static inline MkProc* camera_monitor_validate_node(
     return object;
 }
 
-/* TODO: [near miss] 99.98333%; correct speed slots; two reversed zero stores remain. */
 void run_camera_script(int script, int argument, int flags) {
     MkHdr* pdata_hdr;
     MkProc* monitor = camera_script_monitor_item.node;
@@ -3847,14 +3846,18 @@ void run_camera_script(int script, int argument, int flags) {
         set_process_as_scriptable(process);
         memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
         {
-            float final_speed = kZero;
-            float initial_speed = kZero;
-            Vec endpoint = {0.0f, 0.0f, 0.0f};
+            float final_speed;
+            float initial_speed;
+            initial_speed = kZero;
+            final_speed = kZero;
+            {
+                Vec endpoint = {0.0f, 0.0f, 0.0f};
 
-            move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
-                              kZero);
-            orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
-                                        1, kZero);
+                move_to_end_point(&endpoint, &initial_speed, &final_speed, 1,
+                                  kZero);
+                orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1,
+                                            1, kZero);
+            }
         }
         if (camera_info.proc != 0) {
             xfer_proc(camera_info.proc, p_scripted_camera);
