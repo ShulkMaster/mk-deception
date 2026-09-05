@@ -4578,8 +4578,8 @@ static void gut_tumble_air_check(void) {
 }
 
 static void subzero_propell_collision(void) {
-    int ticks;
     int collision_result;
+    int ticks;
 
     start_plyr_attack(0.0f);
     ticks = 0;

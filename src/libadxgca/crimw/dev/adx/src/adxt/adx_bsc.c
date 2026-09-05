@@ -577,7 +577,7 @@ void ADXB_SetDefPrm(AdxBasicDecoderExt* decoder)
     base->total_samples = 0x7FFFFFFF;
     base->block_length = 127;
     base->samples_per_block = 1024;
-    base->format_type = base->codec_type;
+    base->format_type = base->field_9A;
     base->decode.channel_count = base->channel_count;
     base->decode.block_size = base->block_length;
     base->decode.samples_per_block = base->samples_per_block;

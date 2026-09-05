@@ -1012,14 +1012,10 @@ void skytemple_arrange_fence_pebbles_around_pos(int player, unsigned int count,
         pebbles[index].velocity.z = frand(0.02f);
     }
 }
-/*
- * Near match: size-identical 260-byte stream. Only the pebble-array base and
- * loop-index nonvolatile registers are interchanged.
- */
 void skytemple_set_fence_pebble_vel(
     int player, unsigned int count, float x, float y, float z) {
-    BgndPebbleControl* pebbles;
     unsigned int index;
+    BgndPebbleControl* pebbles;
 
     pebbles = g_pebbles[player]->pebbles;
     for (index = 0; index < count; index++) {
@@ -7278,6 +7274,7 @@ void start_sobj_launch_monitor(void) {
  * Residue is entry-address induction, nonvolatile register coloring, frame
  * shape, and pooled return-value relocation labels.
  */
+/* TODO: [near miss] 99.67742%; index declaration trial moved residue into script registers and was restored; stop. */
 static float p_bgnd_launch_sobj_monitor(void) {
     BgndSobjLaunchMonitor* monitor;
     BgndSobjLaunchEntry* entry;
@@ -10758,7 +10755,6 @@ void spad_set_vector(int index, unsigned int source) {
         break;
     }
 }
-/* Exact-size 99.34% near miss; only pooled constants/relocation labels differ. */
 float spad_xz_length_vector(int index) {
     union {
         float f;
@@ -10775,7 +10771,7 @@ float spad_xz_length_vector(int index) {
     }
 
     estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 10) & 0x3FFE] << 8;
+        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
     estimate.u |=
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     return 0.5f *
@@ -11622,6 +11618,7 @@ void bgnd_anim_camera_setup(void) {
  * differences are the pooled 255.0f relocation label and r28/r29 allocation
  * for data across three otherwise identical instructions.
  */
+/* TODO: [near miss] 99.81481%; 5040 declaration permutations found no exact pointer-register allocation; retained source unchanged. */
 void bgnd_fade_object(int object_id, void* script, float fade_step) {
     BgndFadeObjectData* data;
     MkProc* process;
@@ -11692,20 +11689,19 @@ static float p_bgnd_fade_object(void) {
     return 1.0f;
 }
 /*
- * Near match: exact 440-byte stream. Residue is the pooled 255.0f label and
- * alpha register coloring (retail r30, local r27). The public owner is a
- * validated MkHdr latch; retail accesses its enclosing MkObj layout here.
+ * The public owner is a validated MkHdr latch; retail accesses its enclosing
+ * MkObj layout here.
  */
 void pulsate_object(
     MkHdr* owner, int sobj_id, int max_hold_ticks, int min_hold_ticks,
     float fade_in_step, float fade_out_step) {
-    BgndPulsateData* data;
-    MkProc* process;
-    MkObj* owner_object;
-    MkSobj* object;
-    RpAtomic* atomic;
-    RpGeometry* geometry;
     unsigned int alpha;
+    BgndPulsateData* data;
+    MkSobj* object;
+    MkObj* owner_object;
+    RpGeometry* geometry;
+    RpAtomic* atomic;
+    MkProc* process;
 
     data = 0;
     owner_object = (MkObj*)owner;

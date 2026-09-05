@@ -441,7 +441,6 @@ void start_shadow_watcher(void) {
     }
 }
 
-/* Soft ceiling: p_watch_shadow ~98.96% -- float-pool labels only. */
 static float p_watch_shadow(void) {
     Vec angles;
     float height;
@@ -449,12 +448,12 @@ static float p_watch_shadow(void) {
 
     if (g_game_info.plyr0.slot.mirror_a == 0 ||
         g_game_info.plyr1.slot.mirror_a == 0) {
-        return 0.0f;
+        return 1.0f;
     }
 
-    angles.x = 0.0f;
-    angles.y = 0.0f;
     angles.z = 0.0f;
+    angles.y = 0.0f;
+    angles.x = 0.0f;
     height = 0.5f *
         (g_game_info.plyr0.slot.mirror_a->pos.value.z +
          g_game_info.plyr1.slot.mirror_a->pos.value.z);
@@ -468,7 +467,7 @@ static float p_watch_shadow(void) {
     angles.x =
         1.5707964f * blend + 0.7853982f * (1.0f - blend);
     UpdateShadowCameraLightSource(&angles.x);
-    return 0.0f;
+    return 1.0f;
 }
 
 

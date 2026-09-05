@@ -3181,11 +3181,6 @@ void npc_restart_his_normal_behavior(KonquestNpcData* data) {
     }
 }
 
-/*
- * Soft ceiling: 86.447914% - lookup, persistent angle, active-animation
- * predicate, byte flag access, and object angle store are exact; latch and
- * register allocation differ.
- */
 void npc_set_his_ang_y(KonquestNpcData* data, float angle) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
     KonquestNpcAnimState* state;
@@ -3201,7 +3196,7 @@ void npc_set_his_ang_y(KonquestNpcData* data, float angle) {
         has_active_animation = state->proc != 0;
     }
     if (has_active_animation != 0) {
-        state->object->hide_flags &= ~2;
+        state->object->hide_flag_bits.pin_animation = 0;
         npc->animation->object->ang.y = angle;
     }
 }
@@ -3228,11 +3223,7 @@ void npc_set_my_ang_y(float angle) {
     }
 }
 
-/*
- * Soft ceiling: 89.45385% - lookup, position stores, tile update, animation
- * predicate, access width, and object position transfer are exact; remaining
- * differences are latch branches and FPR/GPR allocation.
- */
+/* TODO: [near miss] 99.19231%; pin-animation bitfield recovered; explicit float cast did not restore x-store rounding. */
 void npc_set_his_world_pos(
     KonquestNpcData* data, float x, float y, float z) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -3256,7 +3247,7 @@ void npc_set_his_world_pos(
         has_active_animation = state->proc != 0;
     }
     if (has_active_animation != 0) {
-        state->object->hide_flags &= ~2;
+        state->object->hide_flag_bits.pin_animation = 0;
         npc->animation->object->pos.value.x = position.x;
         npc->animation->object->pos.value.y = position.y;
         npc->animation->object->pos.value.z = position.z;

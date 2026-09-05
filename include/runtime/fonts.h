@@ -94,6 +94,10 @@ typedef struct FontStringRow {
     const char* langs[6]; /* +0x00 -- EN/ES/DE/IT/FR/... */
 } FontStringRow; /* 0x18 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern FontTableEntry font_table[18];
 extern FontStringRow string_table[];
 extern int string_tbl_size;
@@ -132,5 +136,9 @@ void unhide_string_obj(StringObj* obj);
 void hide_string_obj(StringObj* obj);
 
 void rewrite_button_string(const char* keys, char* text, int swap, int* map);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

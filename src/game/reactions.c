@@ -621,6 +621,7 @@ void flash_hit_at_bid(int bone) {
         effect, position.x, position.y, position.z);
 }
 
+/* TODO: [near miss] 99.57447%; object/effect declaration check did not change register homes; stop. */
 void low_flash_check(void) {
     unsigned int effect;
     MkObj* object;
@@ -642,6 +643,7 @@ void low_flash_check(void) {
     }
 }
 
+/* TODO: [near miss] 99.57447%; object/effect declaration check did not change register homes; stop. */
 void medium_flash_check(void) {
     unsigned int effect;
     MkObj* object;
@@ -663,6 +665,7 @@ void medium_flash_check(void) {
     }
 }
 
+/* TODO: [near miss] 99.57447%; object/effect declaration check did not change register homes; stop. */
 void high_flash_check(void) {
     unsigned int effect;
     MkObj* object;

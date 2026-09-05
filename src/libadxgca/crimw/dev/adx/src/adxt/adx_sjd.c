@@ -670,12 +670,12 @@ void ADXSJD_Destroy(AdxSjdHandle* handle)
 
 AdxSjdHandle* ADXSJD_Create(SJ* input, s32 channel_count, SJ** output)
 {
-    AdxSjdHandle* handle;
-    SJ* first_output;
     u8* pcm_buffer;
     s32 pcm_size;
-    s32 pcm_extra;
     s32 index;
+    SJ* first_output;
+    s32 pcm_extra;
+    AdxSjdHandle* handle;
 
     first_output = output[0];
     for (index = 0; index < ADXSJD_MAX_HANDLES; index++) {

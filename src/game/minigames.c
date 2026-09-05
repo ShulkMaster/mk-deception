@@ -3737,15 +3737,14 @@ static int pzsm_ai_float(PuzzlePlayerState* player,
     return 0;
 }
 
-/* Near miss: exact size and operations; remaining differences are registers. */
 static int pzsm_ai_edge_clear(PuzzlePlayerState* player,
                               PuzzlePlayerState* opponent) {
     int columns[2] = {0, 7};
     PuzzleAiData data;
     int occupied = 0;
     int highest = 0;
-    int column_index;
     int row;
+    int column_index;
     int opponent_super;
 
     for (column_index = 0; column_index < 2; column_index++) {
@@ -3793,15 +3792,14 @@ static int pzsm_ai_edge_clear(PuzzlePlayerState* player,
     return 0;
 }
 
-/* Near miss: exact size and operations; remaining differences are registers. */
 static int pzsm_ai_drill(PuzzlePlayerState* player,
                          PuzzlePlayerState* opponent) {
     int columns[2] = {3, 4};
     PuzzleAiData data;
     int occupied = 0;
     int highest = 0;
-    int column_index;
     int row;
+    int column_index;
     int opponent_super;
 
     for (column_index = 0; column_index < 2; column_index++) {
@@ -5736,11 +5734,10 @@ static void pzsm_rain_dance_cleanup(void) {
     pzsm_raindance_data.splash_object = 0;
 }
 
-/* Near match: pzsm_lower_down 99.53%; exact size, register operands only. */
 static int pzsm_lower_down(PuzzlePlayerState* player,
                            PuzzlePlayerState* opponent) {
-    int removed = 0;
     int column;
+    int removed = 0;
 
     if (player->supermove_state == 0) {
         player->supermove_state = 19;
@@ -6683,6 +6680,7 @@ static int pzsm_arrange(PuzzlePlayerState* player,
 }
 
 /* Near miss: exact size and operations; remaining differences are registers. */
+/* TODO: [near miss] 99.484535%; cell/change-counter register homes; lifetime trial regressed and was restored. */
 static int pzsm_antibreakers(PuzzlePlayerState* player,
                              PuzzlePlayerState* opponent) {
     int changed;
@@ -8874,6 +8872,7 @@ void load_puzzle_champion_screen(void) {
 
 /* Near miss: exact retail size, operations, ownership, and control flow.
  * Objdiff reports only eleven register-operand differences. */
+/* TODO: [near miss] 99.796196%; declaration scratch reduced coloring but found no exact candidate; retained source unchanged. */
 static void minigame_puzzlefighter_destroy(void) {
     MkPtr* process_item;
     MkPtr* next_item;

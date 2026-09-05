@@ -3125,7 +3125,7 @@ void obj_match_obj_pos(
             destination->pos.value.y = source->pos.value.y;
             destination->pos.value.z = source->pos.value.z;
         }
-        destination->flags_08 |= 0x40;
+        destination->flags_08_bits.airborne = 1;
         data->blend = blend;
     }
 }

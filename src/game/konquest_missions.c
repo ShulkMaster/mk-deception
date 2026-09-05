@@ -812,12 +812,12 @@ void drone_start_bleeding(int player, float rate) {
     if ((player == 0 && state->fight->animation_side == 0) ||
         (player == 1 && state->fight->animation_side == 1)) {
         direction.x = 1.0f;
+        mirror = g_game_info.plyr0.slot.mirror_a;
         fighter = (MkObj*)g_game_info.plyr0.slot.fighter;
-        mirror = (MkObj*)g_game_info.plyr0.slot.mirror_a;
     } else {
         direction.x = -1.0f;
+        mirror = g_game_info.plyr1.slot.mirror_a;
         fighter = (MkObj*)g_game_info.plyr1.slot.fighter;
-        mirror = (MkObj*)g_game_info.plyr1.slot.mirror_a;
     }
 
     start_gusher(

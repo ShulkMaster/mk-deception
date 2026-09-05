@@ -2723,6 +2723,7 @@ float drone_ai_mass_attack(void) {
 
     if (drone->big_boss_stage != 0) {
         if (randu0(100) < 90 &&
+/* TODO: [near miss] 99.47059%; command owner/move-list GPR and expression lowering unchanged; stop. */
             drone_ai_check_for_aggressive_throw(drone) == 1) {
             return 0.0f;
         }
@@ -4977,6 +4978,7 @@ static inline int ai_find_reversal_style(void) {
     return -1;
 }
 
+/* TODO: [near miss] 98.889626%; shared success-return lowering and value materialization remain; no new structural hypothesis. */
 int drone_ai_check_for_normal_blocking(DroneAI* drone) {
     PlyrMoveBlendData* move_data;
     unsigned int reversal_likelihood;
@@ -6922,8 +6924,7 @@ static inline int ai_find_taunt_style(void) {
     return -1;
 }
 
-/* Soft ceiling: exact size, CFG, helper expansion, calls, and field accesses.
- * Residue is a whole-lifetime r30/r31 swap between drone and style. */
+/* TODO: [near miss] 99.40594%; drone/style register homes unchanged by declaration check; stop. */
 float drone_ai_perform_taunt(void) {
     DroneAI* drone;
     int style;

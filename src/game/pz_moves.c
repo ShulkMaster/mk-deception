@@ -1495,13 +1495,12 @@ void pz_fighter_shake_camera(int duration, float strength) {
     }
 }
 
-/* Near match: 99.45% - floating-pool relocation labels only. */
 static float p_pz_shake_camera(void) {
+    int i;
     PuzzleCameraShakePdata* pdata = apdata;
     int first;
     int second;
     int offset;
-    int i;
 
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
@@ -1510,10 +1509,10 @@ static float p_pz_shake_camera(void) {
     for (i = 0; i < pdata->duration; i++) {
         offset = (int)(340.0f * pdata->strength);
         minigame_set_bgnd_y_value(first + offset, second + offset);
-        _mkproc_sleep_ticks = 1.0f;
+        _mkproc_sleep_ticks = 3.0f;
         aproc->vtbl->sleep();
         minigame_set_bgnd_y_value(first, second);
-        _mkproc_sleep_ticks = 1.0f;
+        _mkproc_sleep_ticks = 3.0f;
         aproc->vtbl->sleep();
     }
 

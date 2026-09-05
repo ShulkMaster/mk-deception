@@ -2041,7 +2041,7 @@ void reset_blood_decals(void) {
 
     index = 0;
     while (blood_decal_to_reset[index] != 0) {
-        unsigned int effect;
+        int effect;
 
         effect = fx_by_owner(blood_decal_to_reset[index], 1);
         if (effect != 0) {

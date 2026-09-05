@@ -337,7 +337,7 @@ void SetupAtomicSpecularity(RpAtomic* atomic) {
     GXLoadTexMtxImm(texture_matrix, 0x39, 1);
 }
 
-/* Soft ceiling: 97.16% -- pipeline-result boolean scheduling remains. */
+/* TODO: [near miss] 97.16216%; integer-result trials moved publication scheduling and were restored; byte result lowering remains. */
 int SpecularCreatePipelines(void) {
     unsigned char created;
 
