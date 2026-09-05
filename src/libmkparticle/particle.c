@@ -35,7 +35,6 @@ typedef struct PfxDiagnosticStrings {
     char invalid_struct_field[37];
     char warning_format[16];
     char halt_format[13];
-    char section_padding[6]; /* Retail .data tail alignment. */
 } PfxDiagnosticStrings;
 
 static PfxDiagnosticStrings diagnostic_strings = {
@@ -355,7 +354,7 @@ void pfxvm_require_field(PfxVm* pfx, unsigned int field) {
     }
 }
 
-int pfx_get_struct_size(PfxVm* pfx, unsigned int field) {
+int pfx_get_struct_size(PfxVm* pfx, int field) {
     switch (field & 0xF00) {
     case 0x100:
         return pfx->transforms[0].particle_field_stride;
@@ -775,4 +774,4 @@ int pfx_verify(PfxVerifyView* pfx) {
     }
     return 1;
 }
-int pfx_get_struct_size(PfxVm* pfx, unsigned int field);
+int pfx_get_struct_size(PfxVm* pfx, int field);

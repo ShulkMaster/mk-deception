@@ -1,99 +1,5 @@
-/*
- * mwScreenEngineGlue.o - Midway C APIs for screen load / tick / render / nav.
- *
- * NonMatching: B18d 2D-menu callables lifted; rest of ~61KB Glue stays ASM.
- * Lifted set:
- *   broadcast / fire / process_events / wait / preload / load_screen
- *   screen_engine_render / p_screen_engine_tick / init_screen_engine
- *   p_handle_screen_engine_controller / screen_engine_fire_switches
- *   p_repeat_button_input / p_repeat_analog_stick_input / set_target_game_mode
- *   pause / get_screen_pdata / screen_share_pdata / vdestroy_screen_engine
- *   mkScreenEngineClient::LoadScreenSet / ReadStringData / CreatePoly /
- *   CreateElement (POLY+TEXT) / CreateInstance / ScreenPoly::Render /
- *   ScreenText Render/ProcessEngineEvent/SetComponent/Close/ChangeCase /
- *   KeyPad::ChangeCase / _ChangeCase (SEElements walk) /
- *   GetStartArray (wrap line starts)
- *   CreateMatrixStack + frame ops
- *   SCtl ProcessParams: KeyEntry / KeyPad / TextItem / WifImage / ImageList /
- *   TextList / SpreadSheet
- *   KeyPad SetKey / HandleAction / HandleEvent / RefreshOption / Init / Dispose
- *   KeyEntry HandleAction / Init / Dispose
- *   TextItem UpdateString / ScrollText / HandleAction / HandleEvent /
- *   RefreshOption / Init / Dispose
- *   WifImage HandleEvent / Close / Dispose / Init
- *   TextList Init / ClearStrings / RefreshCollection / RefreshOption /
- *   Update / ScrollInc / ScrollDec / Move / HandleEvent / HandleAction
- *   ImageList::Update / RefreshCollection / RefreshOption /
- *   Increment / Decrement / Scroll* / HandleEvent / HandleAction
- *   SpreadSheet Init / RefreshCollection / RefreshOption(Fi/Fv) / Scroll*
- *   SpreadSheet HandleEvent / HandleAction
- *   PreRender / PostRender (empty)
- *   mkGameVariables GetInt / SetInt / GetString / string collections /
- *   int arrays / texture free / destructor plus tiny stubs
- *   no-op Get/Set row/col/string/Dispose/Init/IsValidOption
- *   retail leaf batch: menu/profile getters, current screen name, free_string,
- *   popup setters/state, ScreenClient/ScreenNode weak defaults, client
- *   malloc/free/resource library/unload wrappers, ImageList Init, and
- *   mkScreenEngineClient HandleEvent / CreateAction and six online-action
- *   Update methods
- *   SpreadSheet image/text ClearContents / AllocateCollection / Dispose /
- *   FinishSetup / Update
- *   wager coin-count formatting and all remaining retail destructors
- *
- * Soft ceilings (measured 2026-07-23 B18d Glue gap fill; -sdata 0 TU):
- * wait_for_screen_close ~59.5% (aproc/sleep ha/l + stmw frame).
- * preload ~99.2%; load_screen ~95.8%; broadcast/fire ~81-83%.
- * fire_switches ~86.3% (float i2f / NV); tick/check_allow ~92%.
- * CreatePoly ~79.4% (string-pool / vert schedule).
- * ScreenPoly::Render ~78.6% (stwux/psq + FPR).
- * CreateElement ~80.3% (font-cache/filter).
- * screen_engine_render ~79.0% (pause/state ha/l).
- * p_handle ~81%; p_repeat_button ~65.4% / p_repeat_analog ~63.4%.
- * ReadStringData ~84.4% (@914 mtctr / line-copy); LoadScreenSet ~92%.
- * set_target_game_mode ~99.7%; CreateInstance ~82%.
- * GetFloat__15mkGameVariablesFi ~97.5% (SDA reloc label; bytes match).
- * GetTextureCollection__15mkGameVariables... ~97.66% (typed per-case stack pairs).
- * GetStringCollection__15mkGameVariables... ~99.46% (stringBase reloc).
- * GetStringMatrixCollection__15mkGameVariables... ~54.9% (cmp tree).
- * GetString__15mkGameVariablesFi ~53.4% (cmp tree).
- * TextList ProcessParams ~90.3% (GV malloc / sprintf schedule); stop.
- * TextList ClearStrings ~95.8%; RefreshCollection(i) ~84.3%; stop.
- * TextList Update ~61.5% (linked-poly pos / retail stfs rA=0); RefreshOption ~68.2%; stop.
- * TextList ScrollInc/Dec ~99.4% (vtbl load r5 vs r12); stop.
- * TextList Move ~59%; HandleEvent ~85%; HandleAction ~59%; stop.
- * GetStartArray ~72.5% (wrap i2f / dual-pass schedule); stop.
- * SpreadSheet ProcessParams ~98.4% (FinishSetup / init schedule); stop.
- * SpreadSheet RefreshCollection ~85.3% (reg / vtbl schedule); stop.
- * SpreadSheet RefreshOption(Fi) ~91.8%; ScrollRight/Left/Up ~91-93%; ScrollDown ~87.4%; stop.
- * SpreadSheet Init / RefreshOption() 100%.
- * SpreadSheet HandleEvent ~65.4% (event cascade vs ifs); HandleAction ~17.8%
- *   (binary cmp tree vs switch + helpers); stop -- readable NonMatching.
- * SetComponent ScreenText/Poly ~0% -- retail jump-table (@7928/@7538) vs switch; algo OK; stop.
- * _ChangeCase ~68.4% -- nested helpers vs retail 3-level unroll; KeyPad ChangeCase 100%; stop.
- * ImageList Update ~72.6% / RefreshCollection ~69.8% (tex bind schedule); stop.
- * ImageList RefreshOption ~90.6%; Inc ~90.6%; Dec ~84.4%; Scroll* ~99.3%; stop.
- * ImageList HandleEvent ~62%; HandleAction ~35% (cmp tree); stop.
- * KeyPad SetKey ~65% (lang table stack copy); HandleAction ~89%;
- *   HandleEvent ~89%; RefreshOption ~49% (copy loop schedule); stop.
- * TextItem HandleAction ~27% (signed cmp tree vs switch); UpdateString ~45%;
- *   RefreshOption ~87%; ScrollText ~87%; HandleEvent ~87%; stop.
- * WifImage HandleEvent ~93.5%; Close ~58% / Dispose ~63% (ATC release);
- *   KeyEntry HandleAction ~70%; Init/Dispose for KeyPad TextItem KeyEntry WifImage 100%.
- * Full mkScreenEngineClient::HandleAction game-action dispatcher.
- * HandleEvent__20mkScreenEngineClient: report-exact 0x1E0, 100%; finite
- *   retail-ordered switch plus corrected player layout and C call linkage.
- * CreateAction__20mkScreenEngineClient: all seven action subclasses lifted,
- *   ~38.6%; sparse switch form also reproducibly exits with code 159.
- * ScreenActionCheckOnline::Update ~90.4% -- bitfield `extrwi.` source form
- *   reproducibly exits with code 159; five other online Updates are 100%.
- * SpreadSheet image Update ~73.0%, text Update ~75.9%; full retail windowing,
- *   content refresh, marker placement, color/texture sync, and events lifted.
- * SpreadSheet image/text FinishSetup ~78.9%/~66.5%; ClearContents
- *   ~70.6%/~81.2%. Remaining differences are loop/register scheduling.
- * wager_load_koin_count_string_array ~78.8%; retail-unrolled O4 form exits
- *   GC/2.7 with code 159, so this function alone uses optimization level 3.
- * All retail callable symbols are present; remaining missing object symbols
- *   are compiler-emitted vtables or retail-owned data definitions.
+/* Game-specific ScreenEngine controls, resource ownership, menu actions,
+ * and particle/font composition. Retail source: mwScreenEngineGlue.cpp.
  */
 
 /* These game/process functions are emitted by C translation units. Establish
@@ -119,6 +25,8 @@ void unload_p2_player_profile(void);
 #include "mwScreenEngine/ScreenPoly.h"
 #include "mwScreenEngine/ScreenSCtl.h"
 #include "mwScreenEngine/ScreenText.h"
+#include "mwScreenEngine/ScreenMatrixStack.h"
+#include "mwScreenEngine/ScreenResourceLibrary.h"
 #include "mwScreenEngine/TextureCollection.h"
 #include "platform/gcutils.h"
 #include "platform/gcio.h"
@@ -753,13 +661,9 @@ int Update__18ScreenActionRandomFP9ScreenMgrR17ScreenActionStacki(
 }
 
 void DestroyResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
-    ScreenEngineClient* self, void* library) {
-    typedef void (*DeletingDtor)(void*, int);
-
+    ScreenEngineClient* self, ScreenResourceLibrary* library) {
     (void)self;
-    if (library != 0) {
-        (*(DeletingDtor**)library)[2](library, 1);
-    }
+    delete library;
 }
 
 void* CreateResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
@@ -3907,65 +3811,32 @@ ScreenParticle* __dt__14ScreenParticleFv(ScreenParticle* self, short del) {
 extern void* __vt__10ScreenText;
 extern void* __vt__25mkScreenEngineMatrixStack;
 
-static StringObj* ScreenTextLiveObj(ScreenText* text) {
-    StringObj* obj;
-
-    /* Retail diamond: keep on instance==, else zero (beq/bne/b shape). */
-    obj = text->stringObj;
-    if (obj != 0) {
-        if (obj->instance == (unsigned int)text->stringObjInstance) {
-            /* keep */
+static inline StringObj* ScreenTextLiveObj(ScreenText* text) {
+    if (text->stringObj != 0) {
+        if (text->stringObj->instance == (unsigned int)text->stringObjInstance) {
+            return text->stringObj;
         } else {
-            obj = 0;
+            return 0;
         }
     } else {
-        obj = 0;
+        return 0;
     }
-    return obj;
 }
 
 unsigned int IsVisible__10ScreenTextFv(ScreenText* text) {
-    StringObj* obj;
-
-    /* Inline latch (retail has no helper bl). Soft ~94% empty-keep if still short. */
-    obj = text->stringObj;
-    if (obj != 0) {
-        if (obj->instance == (unsigned int)text->stringObjInstance) {
-            /* keep */
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    StringObj* obj = ScreenTextLiveObj(text);
     if (obj == 0) {
         return 0;
     }
-    /* Retail: lbz flags@+0x0C; extrwi bit24 (MSB) -- StringObjVisBits.hidden. */
-    return ((StringObjVisBits*)&obj->flags)->hidden;
+    return obj->visibility.hidden;
 }
 
 void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
-    StringObj* obj;
-
-    obj = text->stringObj;
-    if (obj != 0) {
-        if (obj->instance == (unsigned int)text->stringObjInstance) {
-            /* keep */
-        } else {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    StringObj* obj = ScreenTextLiveObj(text);
     if (obj == 0) {
         return;
     }
-    /*
-     * Soft ~93.9% -- empty-keep diamond leftover.
-     * Q3 try: manual cntlzw+mask ~83.9% -- keep StringObjVisBits setter.
-     */
-    ((StringObjVisBits*)&obj->flags)->hidden = (visible == 0);
+    obj->visibility.hidden = (visible == 0);
 }
 
 /*
@@ -3973,6 +3844,7 @@ void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
  * Retail accepts 0x407 and 0x409 only (0x408 early-outs in the cmp cascade).
  * Soft ceiling: ProcessEngineEvent ~98.5% -- live-obj branch / NV leftovers; stop.
  */
+/* TODO: [near miss] 99.9333%; instructions/data agree; 480.0f pool relocation differs. */
 void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* /*mgr*/,
                                                    int event) {
     SEText* se;
@@ -3992,14 +3864,7 @@ void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* /*mgr
         return;
     }
 
-    live = text->stringObj;
-    if (live != 0) {
-        if ((unsigned int)live->instance != (unsigned int)text->stringObjInstance) {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
+    live = ScreenTextLiveObj(text);
     if (live != 0) {
         return;
     }
@@ -4247,14 +4112,13 @@ void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
         string_obj_set_valign(obj, text->font, (int)values[0] & 0xff);
         break;
     case 0x14:
-        ((StringObjVisBits*)&obj->flags)->hidden = (values[0] == 0.0f);
+        obj->visibility.hidden = (values[0] == 0.0f);
         break;
     default:
         break;
     }
 }
 
-/* Soft ceiling: GetStringLen ~96% - live-object latch branch scheduling; stop. */
 int GetStringLen__10ScreenTextFv(ScreenText* text) {
     StringObj* obj;
     const char* str;
@@ -4359,6 +4223,7 @@ enum {
 
 #define SeEntryAt(list, i) (*(SEObjectC**)((char*)(list) + 4 + (i) * 4))
 
+/* TODO: [near miss] 97.3684%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void ChangeCase__10ScreenTextFi(ScreenText* text, int toUpper);
 
 static int SeTagIsGroup(unsigned int tag) {
@@ -4371,6 +4236,7 @@ static int SeTagIsGroup(unsigned int tag) {
  * GetStringLen + ChangeCase__10ScreenTextFi.
  * Soft ceiling: ~68.4% -- nested helpers vs retail 3-level unroll; stop.
  */
+/* TODO: [breakthrough] 69.8423%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 static void _ChangeCase__FP12SEElements_tUi(SEElementsC* list, unsigned int toUpper) {
     int i;
     int j;
@@ -4517,11 +4383,11 @@ void Close__10ScreenTextFv(ScreenText* text) {
  * ScreenText::Render -- pfxfont present leaf for mode-select labels.
  * Soft ceiling: Render ~93.3% -- extrwi/reg color leftovers; stop.
  */
+/* TODO: [near miss] 93.7371%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
     float* ltm;
     StringObj* obj;
-    StringObj* live;
     unsigned char r;
     unsigned char g;
     unsigned char b;
@@ -4532,23 +4398,12 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     stack = (ScreenMatrixStackC*)info->matrixStack;
     ltm = (float*)RwFrameGetLTM(stack->frame);
 
-    obj = text->stringObj;
-    live = obj;
-    if (obj != 0) {
-        if ((unsigned int)obj->instance == (unsigned int)text->stringObjInstance) {
-            live = obj;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
-    obj = live;
+    obj = ScreenTextLiveObj(text);
     if (obj == 0) {
         return;
     }
     /* flags bit7 hidden -- MSB bitfield -> retail extrwi. */
-    if (((StringObjVisBits*)&obj->flags)->hidden != 0) {
+    if (obj->visibility.hidden != 0) {
         return;
     }
 
@@ -4597,6 +4452,7 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
  * Soft ceiling: CreateElement ~84.7% -- TEXT font-cache and PTCL/CHAR
  * register/SDA scheduling remain; stop.
  */
+/* TODO: [breakthrough] 84.9835%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void* CreateElement__20mkScreenEngineClientFP9ScreenMgrP6ScreenP12ScreenObjectPv(
     ScreenEngineClient* client, void* /*mgr*/, void* screen, void* /*parent*/, void* data) {
     unsigned int tag;
@@ -4830,14 +4686,8 @@ void SetRootTransformation__20mkScreenEngineClientFP17ScreenMatrixStack(void* /*
 }
 
 void DestroyMatrixStack__20mkScreenEngineClientFP17ScreenMatrixStack(void* /*client*/,
-                                                                    mkScreenEngineMatrixStack* stack) {
-    /*
-     * Soft ceiling: DestroyMatrixStack ~86.3% -- MWCC preloads vtbl from r4
-     * (lwz r5,0(r4) / lwz r12,8(r5)) vs retail mr;li;lwz;lwz from r3; stop.
-     */
-    if (stack != 0) {
-        stack->vtbl->dtor(stack, 1);
-    }
+                                                                    ScreenMatrixStack* stack) {
+    delete stack;
 }
 
 void* CreateMatrixStack__20mkScreenEngineClientFv(void* /*client*/) {
@@ -5260,6 +5110,7 @@ void ClearContents__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     }
 }
 
+/* TODO: [breakthrough] 82.5088%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void ClearContents__16SpreadSheet_textFv(SpreadSheet_text* self) {
     int i;
     int count;
@@ -5527,6 +5378,7 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, screen_manager, 0x53500002, 0, 0);
 }
 
+/* TODO: [breakthrough] 75.8683%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     int x;
     int y;
@@ -6627,6 +6479,7 @@ static void TextItemRefreshNode(TextItem* self) {
  * TextItem::UpdateString -- push gvString or scrolled editBuf into live pfx.
  * Soft ceiling: live-obj diamond / color schedule; stop.
  */
+/* TODO: [breakthrough] 45.8406%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void UpdateString__8TextItemFv(TextItem* self) {
     ScreenText* text;
     StringObj* live;
@@ -6678,6 +6531,7 @@ void UpdateString__8TextItemFv(TextItem* self) {
 /*
  * TextItem::ScrollText -- dir==0 subtract amount; else add + clamp to page.
  */
+/* TODO: [near miss] 88.5%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void ScrollText__8TextItemFii(TextItem* self, int dir, int amount) {
     int pageLines;
 
@@ -6709,6 +6563,7 @@ void Dispose__8TextItemFv(TextItem* self) {
  * TextItem::RefreshOption -- GetString, GetStartArray, clamp scroll, copy buf.
  * Soft ceiling: page-lines / scroll clamp schedule; stop.
  */
+/* TODO: [near miss] 89.8728%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void RefreshOption__8TextItemFv(TextItem* self) {
     int pageLines;
     int prevLimit;
@@ -6774,6 +6629,7 @@ void RefreshOption__8TextItemFv(TextItem* self) {
  * TextItem::HandleAction -- scroll / reset / end / compare / show-hide 0x7db.
  * Soft ceiling: retail signed cmp tree vs switch; stop.
  */
+/* TODO: [breakthrough] 27.3451%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 int HandleAction__8TextItemFP9ScreenMgrPC12ScreenAction(TextItem* self, void* mgr,
                                                         const void* actionIn) {
     const ScreenActionView* action;
@@ -7726,6 +7582,7 @@ void Init__8TextListFv(TextList* self) {
  */
 #pragma dont_inline on
 /* TODO: [near miss] 96.10%; native pointer indexing retained; color/latch schedule remains. */
+/* TODO: [near miss] 96.2%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
 void ClearStrings__8TextListFv(TextList* self) {
     int i;
     ScreenText* text;
@@ -8022,6 +7879,7 @@ void RefreshOption__8TextListFv(TextList* self) {
  * Soft ceiling: linked-poly pos (retail stfs via rA=0 / absolute 0).
  */
 /* TODO: [breakthrough needed] 63.84%; typed row indexing; linked-poly lowering remains. */
+/* TODO: [breakthrough] 63.8576%; font linkage/lifetime corrected; recover remaining control flow and calls. */
 void Update__8TextListFv(TextList* self) {
     int atEnd;
     int found;

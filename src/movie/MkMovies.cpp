@@ -29,11 +29,11 @@ static MkMovieTexPlayer _mmp_data[2] = {0};
 
 /* Retail packs screen_poly / saved_texture pairs from offset 0x30 (stride 4). */
 static inline void* mmp_screen_poly_at(MkMovieTexPlayer* player, int screen_offset) {
-    return *(void**)((char*)player + screen_offset + 0x30);
+    return *(void**)((char*)&player->screen_poly + screen_offset);
 }
 
 static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int screen_offset) {
-    return *(RwTexture**)((char*)player + screen_offset + 0x34);
+    return *(RwTexture**)((char*)&player->saved_texture + screen_offset);
 }
 
 void mkMovieTexPlayerIdleUpdate(void) {
@@ -61,6 +61,8 @@ void mkMovieTexPlayerIdleUpdate(void) {
     }
 }
 
+/* TODO: [breakthrough] 86.02%; structure-derived reset offsets retain retail layout;
+ * remaining loop/save scheduling needs caller and lifetime analysis. */
 void movie_player_reset(void) {
     int playerIndex;
     int byteOffset;
@@ -84,7 +86,7 @@ void movie_player_reset(void) {
                     screenCount = 1;
                 }
                 for (screenIndex = 0, screenOffset = 0; screenIndex < screenCount;
-                     screenIndex++, screenOffset += 4) {
+                     screenIndex++, screenOffset += sizeof(void*)) {
                     screenPoly = mmp_screen_poly_at(player, screenOffset);
                     savedTex = mmp_saved_texture_at(player, screenOffset);
                     tex = GetScreenPolyTexture__FPv(screenPoly);
@@ -93,11 +95,11 @@ void movie_player_reset(void) {
                     }
                 }
                 MovieDeleteTexture(player->texture);
-                memset(player, 0, 0x38);
+                memset(player, 0, sizeof(*player));
             }
         }
         playerIndex++;
-        byteOffset += 0x38;
+        byteOffset += sizeof(MkMovieTexPlayer);
     } while (playerIndex < 2);
     MovieShutdownSystem();
 }
@@ -113,6 +115,8 @@ void mkMovieTexStop(int index) {
     }
 }
 
+/* TODO: [breakthrough] 75.00%; typed binding offsets preserve native ownership;
+ * remaining path/loop register scheduling needs retail CFG analysis. */
 void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int unused3, int use_mfs) {
     MkMovieTexPlayer* player;
     RwTexture* tex;
@@ -147,7 +151,7 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
                     }
                 }
                 screenIndex++;
-                screenOffset += 4;
+                screenOffset += sizeof(void*);
             } while (screenIndex < screenCount);
             setMovieHeap(movie_heap);
             playable = player;

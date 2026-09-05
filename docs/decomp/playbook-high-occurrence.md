@@ -41,6 +41,25 @@ H14 | Stack slots differ | Genuine address-taken locals + offsets | Reorder adja
 H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration check, then N stop. A bounded declaration-only scratch can identify that single source insight: HAnimWrite and p_pz_mode_who_won reached100 with unchanged assignments; moving theta before cosTheta closed RpHAnimKeyFrameBlend. Require real locals, stack-sensitive scoring, real-TU verification, and no invented lifetime uses. No register carousel.
 H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nest single-use result; retain original callback owner at untyped boundary if observed. No manufactured return contract.
 
+H15 measured follow-up (2026-09-05): declaration-only candidates closed
+`ADXSJD_Create`, `axrna_update_play`, `mslSoundUnCopy`, the two puzzle AI scans,
+`pzsm_lower_down`, and `pulsate_object`. `HAnimRead` additionally required its
+existing hierarchy locals at function scope; assignments and calls stayed in
+place. Search the relevant declarations in scratch before spending the single
+source check. Reordering initialized declarations can also reorder stores: do
+not classify that as a pure declaration change. Check every caller when the
+declarations belong to an inline helper: `mwsfcre_FreeAll` closed `mwSfdDestroy`
+but lowered the nonexact `mwsfcre_MallocCompoWork` from 98.107346 to 97.768364.
+
+H02/H04 measured follow-up: a tiny immediate difference can select the wrong
+state, not merely another register. `_rpSkinInstanceCallback` needs the existing
+platform field at +0x2C, not the split-mesh count at +0x34. The weapon watcher
+must snapshot and compare the process entry at +0xB8, with `MkProcEntryFn`,
+not the destruction callback at +0xB4. Confirm the producer as well as the
+consumer. Existing flag overlays closed the NPC angle setter, both life-bar
+adjusters, the object-position matcher, and the puzzle burn reaction. Keep a
+neutral bit name when the bit's meaning is not established.
+
 ## Measured examples
 
 - H01/H03: If a GX call uses `clrlwi` where retail copies a proven 0/1 local,

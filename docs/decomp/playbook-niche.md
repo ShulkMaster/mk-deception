@@ -46,3 +46,12 @@ that alias/lifetime workaround; ordinary helper forms still scored 110, so the
 clean source retained its ceiling. A zero score does not establish source intent.
 Mirage imports require platform-neutral behavior + GC retail/objdiff evidence.
 Apply task-specific attempt counting; exemptions never waive verification.
+
+Scratch parsing follow-up (2026-09-05): IF a valid imported expression such as
+`numNodes * sizeof(RwMatrix) + 15` becomes `sizeof((RwMatrix)(+15))`, REQUIRE a
+comparison with the original source, then TRY explicit parentheses around the
+product in scratch. `HAnimRead` compiled and scored correctly after that repair.
+Do not change the allocation formula or substitute padding to placate the parser.
+`PERM_LINESWAP` inside an inline helper can fail with "PERM macro in AST";
+finite text-level `PERM_GENERAL` declaration alternatives can test that helper.
+Keep all macros in scratch and validate the resulting real TU independently.

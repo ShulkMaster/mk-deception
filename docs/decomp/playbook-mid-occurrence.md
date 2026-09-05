@@ -23,6 +23,24 @@ M12 | Alias analysis changes load/store schedule | Actual mutability/ownership/c
 M13 | Canonical macro/inline expansion missing | Definition + repeated retail expansion | Restore typed macro including genuine result/lvalue; shared header only for proven ownership. O0 unused parameter -> pragma unused, not wrong prototype.
 M14 | Varargs setup differs | EABI va_list + variadic callers | Exact MWCC va_list/builtin setup; crclr supports variadic call, not arbitrary prototype guessing.
 
+H14/M12 measured follow-up (2026-09-05): IF two real output locals have the
+correct stack addresses but reversed initialization stores, REQUIRE the retail
+store sequence and unchanged call arguments, then TRY separating declaration
+order from initialization order. In `run_camera_script`, keeping final-speed
+before initial-speed declarations, initializing initial-speed first, and then
+constructing the endpoint in its own scope reached 100%. Swapping initialized
+declarations instead reversed the argument slots; initializing after the
+endpoint shifted the stores. No extra local or padding was needed.
+
+M15 verification follow-up: inspect the use of each loaded constant, not only
+its value. `p_pz_shake_camera` uses 340.0f for amplitude and 3.0f for its loop
+sleeps; `p_watch_shadow` returns 1.0f. Both had report-exact instructions while
+referencing incorrect floats. `mwSfdDestroy` also needed an unsized diagnostic
+array: an explicit 24-byte bound included one byte absent from the 23-byte
+retail symbol. Compare payload bytes, symbol extent, and relocation addends.
+Do not count a report-exact function as data-value-exact while objdiff still
+reports a pooled-string mismatch, even when a separate byte comparison agrees.
+
 ## Object / link layout
 
 M15 | String identity/placement differs | ELF sizes + bytes + relocations | Pooled literals for anonymous pools; named objects for real symbols; unsized arrays for terminators. TU string/readonly/SDA flags require sibling evidence. No synthetic padding strings.
