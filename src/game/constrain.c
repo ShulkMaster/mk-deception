@@ -381,25 +381,26 @@ void initialize_bgnd_collisions(BgndDataTable* background) {
     }
 }
 
-/*
- * Soft ceiling: dist_behind_me ~96.84% -- validated-latch branch shape and
- * local float-pool relocation labels remain.
- */
+static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
+    MkObj* object = owner->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 float dist_behind_me(void) {
     MkObj* object;
     Vec direction;
     float distance;
 
-    object = plyr_pdata->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance != plyr_pdata->tracked_obj_instance) {
-            object = 0;
-        } else {
-            /* Keep the validated tracked object. */
-        }
-    } else {
-        object = 0;
-    }
+    object = player_live_tracked_obj(plyr_pdata);
+
     if (object == 0) {
         return 0.0f;
     }
@@ -580,6 +581,19 @@ void set_constrain_last_pos(int player, const Vec* position) {
     }
 }
 
+static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
+    MkObj* object = owner->sidekick_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->sidekick_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_constrain_players(void) {
     MkObj* sidekick;
     PlyrPdata* pdata;
@@ -602,11 +616,8 @@ static float p_constrain_players(void) {
     if (CONSTRAIN_P1_OBJECT != 0) {
         pdata = g_game_info.plyr0.slot.pdata;
         if (pdata->sidekick_available != 0) {
-            sidekick = pdata->sidekick_obj;
-            if (sidekick != 0 &&
-                sidekick->hdr.instance != pdata->sidekick_instance) {
-                sidekick = 0;
-            }
+            sidekick = player_live_sidekick_obj(pdata);
+
             if (sidekick->flags_09_bits.launched) {
                 ground_me(sidekick);
             }
@@ -616,11 +627,8 @@ static float p_constrain_players(void) {
     if (CONSTRAIN_P2_OBJECT != 0) {
         pdata = g_game_info.plyr1.slot.pdata;
         if (pdata->sidekick_available != 0) {
-            sidekick = pdata->sidekick_obj;
-            if (sidekick != 0 &&
-                sidekick->hdr.instance != pdata->sidekick_instance) {
-                sidekick = 0;
-            }
+            sidekick = player_live_sidekick_obj(pdata);
+
             if (sidekick->flags_09_bits.launched) {
                 ground_me(sidekick);
             }

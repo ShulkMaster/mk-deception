@@ -778,11 +778,34 @@ void interior_exit_button_script(void) {
     }
 }
 
-/*
- * Soft ceiling: p_konq_interior_exit_point ~98.2% -- one uncoalesced mr in
- * the hero latch (the same latch coalesces on non-pdata bases) and downstream
- * NV shifts in the npc loop; structure and calls match retail; stop.
- */
+static inline MkObj* interior_live_hero_object(KonquestInteriorPdata* owner) {
+    MkObj* object = owner->hero_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->hero_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* interior_saved_live_interior_object(
+    KonquestInteriorSaveData* owner) {
+    MkObj* object = owner->interior_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->interior_object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.403435%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_konq_interior_exit_point(void) {
     MkObj* hero;
     MkObj* interior_object;
@@ -795,25 +818,11 @@ static float p_konq_interior_exit_point(void) {
     KonquestChildObject* door;
     KonquestChildObject* partner;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        hero = (hero->hdr.instance == konquest_pdata->hero_instance)
-                   ? hero
-                   : 0;
-    } else {
-        hero = 0;
-    }
+    hero = interior_live_hero_object(konquest_pdata);
+
     camera = get_pdata_of_camera();
-    interior_object = konq_interior_save_data.interior_object;
-    if (interior_object != 0) {
-        interior_object =
-            (interior_object->hdr.instance ==
-             konq_interior_save_data.interior_object_instance)
-                ? interior_object
-                : 0;
-    } else {
-        interior_object = 0;
-    }
+    interior_object = interior_saved_live_interior_object(&konq_interior_save_data);
+
 
     turn_controllers_off();
     suspend_hero_grounding();
@@ -938,11 +947,7 @@ static float p_konq_interior_loop(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: set_interior_cam_pos_and_ang ~99.8% -- rodata template-pool
- * addends and one unthreaded guard branch; everything else is byte-exact;
- * stop.
- */
+/* TODO: [near miss] 99.831320%; original latch retained; relocation offsets, branch lowering; one-trial ceiling. */
 void set_interior_cam_pos_and_ang(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
     Vec angle = {0.0f, 0.0f, 0.0f};
@@ -981,24 +986,25 @@ void set_interior_cam_pos_and_ang(void) {
         update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
 }
 
-/*
- * Soft ceiling: p_konq_interior_entry_point ~99.1% -- hero-latch mr, one
- * extra NV, and rodata literal-pool addends (see the pool note above
- * room_sobj_list); all 100+ operations, calls, and branches match retail.
- * The camera block is an inline source duplicate of
- * set_interior_cam_pos_and_ang (retail has no bl and the callee is far above
- * the auto-inline threshold); stop.
- */
-static float p_konq_interior_entry_point(void) {
-    MkObj* hero = konquest_pdata->hero_object;
-
-    if (hero != 0) {
-        hero = (hero->hdr.instance == konquest_pdata->hero_instance)
-                   ? hero
-                   : 0;
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
     } else {
-        hero = 0;
+        object = 0;
     }
+    return object;
+}
+
+/* The camera block expands set_interior_cam_pos_and_ang inline; retail has no call. */
+/* TODO: [near miss] 99.441500%; relocation offsets, register coloring; one-trial ceiling. */
+static float p_konq_interior_entry_point(void) {
+    MkObj* hero = interior_live_hero_object(konquest_pdata);
+
+
 
     {
     Vec monk_position = {0.0f, 0.0f, 0.0f};
@@ -1034,16 +1040,8 @@ static float p_konq_interior_entry_point(void) {
 
     if (konquest_pdata->region_table->interior_art_name != 0) {
         wait_for_slot_load(0xA002F);
-        interior_object = konq_interior_save_data.interior_object;
-        if (interior_object != 0) {
-            interior_object =
-                (interior_object->hdr.instance ==
-                 konq_interior_save_data.interior_object_instance)
-                    ? interior_object
-                    : 0;
-        } else {
-            interior_object = 0;
-        }
+        interior_object = interior_saved_live_interior_object(&konq_interior_save_data);
+
         if (interior_object == 0) {
             model = load_named_model_from_slot(
                 0xA002F, "BACKGROUND", 0x301E, 0);
@@ -1113,13 +1111,9 @@ static float p_konq_interior_entry_point(void) {
         Vec camera_angle_base = {0.0f, 0.0f, 0.0f};
         Vec camera_angle = {0.0f, 0.0f, 0.0f};
         Vec camera_position = {0.0f, 0.0f, 0.0f};
-        CameraObj* camera = camera_item.node;
+        CameraObj* camera = camera_live_node(&camera_item);
 
-        if (camera != 0) {
-            camera = (camera->hdr.instance == camera_item.instance) ? camera : 0;
-        } else {
-            camera = 0;
-        }
+
 
         if (camera != 0) {
             camera_position.x =
@@ -1157,16 +1151,8 @@ static float p_konq_interior_entry_point(void) {
         konq_interior_save_data.current_interior->light_defs,
         &bgnd_light_list);
 
-    interior_object = konq_interior_save_data.interior_object;
-    if (interior_object != 0) {
-        interior_object =
-            (interior_object->hdr.instance ==
-             konq_interior_save_data.interior_object_instance)
-                ? interior_object
-                : 0;
-    } else {
-        interior_object = 0;
-    }
+    interior_object = interior_saved_live_interior_object(&konq_interior_save_data);
+
     if (interior_object != 0) {
         insert_fgnd_mkobj(interior_object);
         update_mkobj(

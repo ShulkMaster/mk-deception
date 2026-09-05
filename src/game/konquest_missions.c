@@ -3634,6 +3634,33 @@ static float successful_trial_player_wrapup(void) {
     return 0.0f;
 }
 
+static inline MkObj* mission_live_monk(KonquestMissionState* owner) {
+    MkObj* object = owner->monk;
+    if (object != 0) {
+        if (object->hdr.instance == owner->monk_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* mission_live_script_process(KonquestMissionState* owner) {
+    MkProc* object = owner->script_process;
+    if (object != 0) {
+        if (object->instance == owner->script_process_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.473850%; instruction scheduling, register coloring; one-trial ceiling. */
 void trial_round_init(void) {
     KonquestMissionState* state = get_mission_state();
     KonquestRequiredSequenceList* sequences;
@@ -3669,10 +3696,8 @@ void trial_round_init(void) {
     state = get_mission_state();
     mission_state = state;
     if (state != 0) {
-        monk = state->monk;
-        if (monk != 0 && monk->hdr.instance != state->monk_instance) {
-            monk = 0;
-        }
+        monk = mission_live_monk(state);
+
     } else {
         monk = 0;
     }
@@ -3681,11 +3706,8 @@ void trial_round_init(void) {
     mission_state = state;
     if (state != 0) {
         if (monk != 0) {
-            script_process = state->script_process;
-            if (script_process != 0 &&
-                script_process->instance != state->script_process_instance) {
-                script_process = 0;
-            }
+            script_process = mission_live_script_process(state);
+
             if (script_process != 0) {
                 if (state->transform_complete == 0) {
                     xfer_proc(script_process, p_transform_into_player);
@@ -3879,15 +3901,25 @@ void trial_setup_fight(void) {
         (unsigned short)konquest_save_data.background_and_flags;
 }
 
+static inline MkProc* mission_validate_script_process(
+    MkProc* object, KonquestMissionState* owner) {
+    if (object != 0) {
+        if (object->instance == owner->script_process_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.650480%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_transform_into_monk(void) {
     MkProc* script_process = mission_state->script_process;
     AnimPdata* animation = plyr_anim_pdata;
 
-    if (script_process != 0 &&
-        script_process->instance !=
-            mission_state->script_process_instance) {
-        script_process = 0;
-    }
+    script_process = mission_validate_script_process(script_process, mission_state);
     if (plyr_anim_proc != 0 && animation != 0) {
         xfer_proc(plyr_anim_proc, p_anim_idle);
         animation->step = -1.0f;
@@ -3916,16 +3948,26 @@ static float p_transform_into_monk(void) {
     return 0.0f;
 }
 
+static inline MkProc* mission_validate_monk_process(
+    MkProc* object, KonquestMissionState* owner) {
+    if (object != 0) {
+        if (object->instance == owner->monk_process_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.544304%; register coloring, instruction scheduling; one-trial ceiling. */
 static float p_transform_into_player(void) {
     MkProc* monk_process = mission_state->monk_process;
     AnimPdata* animation;
     MkProc* player_process;
 
-    if (monk_process != 0 &&
-        monk_process->instance !=
-            mission_state->monk_process_instance) {
-        monk_process = 0;
-    }
+    monk_process = mission_validate_monk_process(monk_process, mission_state);
     if (monk_process != 0) {
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         animation->step = 0.8f;

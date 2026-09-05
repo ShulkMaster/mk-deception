@@ -89,8 +89,7 @@ static RpAtomic* pebble_render_nothing_callback(RpAtomic* atomic) {
     return 0;
 }
 
-/* Soft ceiling: pebble_render_callback ~98.28% -- the remaining differences are
- * a folded validation edge, aggregate stack placement, and register scheduling. */
+/* TODO: [near miss] 98.283844%; original latch retained; stack layout, register coloring; one-trial ceiling. */
 static RpAtomic* pebble_render_callback(RpAtomic* atomic) {
     int visible_count;
     int i;

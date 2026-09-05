@@ -1051,6 +1051,19 @@ void load_player_fstyle_signs(PlyrPdata* player) {
     player_fstyle_sign[player_index] = 0;
 }
 
+static inline ScreenObj* moveset_live_style_sign(GlobalMoveset* owner) {
+    ScreenObj* object = owner->style_sign;
+    if (object != 0) {
+        if ((unsigned int)object->instance == owner->style_sign_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void kill_all_fstyle_signs(void) {
     int player;
     GlobalMoveset* moveset;
@@ -1061,15 +1074,8 @@ void kill_all_fstyle_signs(void) {
     for (player = 0; player < 2; player++) {
         moveset = &global_movesets[player + 6];
         if (moveset != 0) {
-            sign = moveset->style_sign;
-            if (sign != 0) {
-                if ((unsigned int)sign->instance !=
-                    moveset->style_sign_instance) {
-                    sign = 0;
-                }
-            } else {
-                sign = 0;
-            }
+            sign = moveset_live_style_sign(moveset);
+
             if (sign != 0) {
                 if ((unsigned int)sign->instance != 0) {
                     sign->typed_vtbl->destroy(sign);
@@ -1212,6 +1218,20 @@ RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha) {
     return atomic;
 }
 
+static inline MkObj* mirror_latch_live_obj(PlyrMirrorObjLatch* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.318184%; register coloring, relocation offsets; one-trial ceiling. */
 static float p_freeze_light(void) {
     FreezeLightPdata* pdata;
     PlyrMirrorObjLatch* item;
@@ -1219,14 +1239,8 @@ static float p_freeze_light(void) {
 
     pdata = (FreezeLightPdata*)apdata;
     item = pdata->light;
-    light = item->obj;
-    if (light != 0) {
-        if (light->hdr.instance != item->instance) {
-            light = 0;
-        }
-    } else {
-        light = 0;
-    }
+    light = mirror_latch_live_obj(item);
+
 
     if (pdata->player->state_flags.bits.frozen == 0) {
         if (light != 0 && light->hdr.instance != 0) {
@@ -1370,6 +1384,7 @@ void freeze_player(void) {
     apply_special_fx_to_player(texture);
 }
 
+/* TODO: [near miss] 97.919260%; register coloring, relocation offsets; one-trial ceiling. */
 static void apply_special_fx_to_player(void* texture) {
     FreezeLightPdata* proc_data;
     PlyrMirrorObjLatch* light_latch;
@@ -1408,14 +1423,8 @@ static void apply_special_fx_to_player(void* texture) {
     plyr_pdata->state_flags.bits.frozen = 1;
 
     object_latch = &plyr_pdata->mirror_slots->weapon[0].primary;
-    object = object_latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance != object_latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = mirror_latch_live_obj(object_latch);
+
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;
         RpClumpForAllAtomics(
@@ -1423,14 +1432,8 @@ static void apply_special_fx_to_player(void* texture) {
     }
 
     object_latch = &plyr_pdata->mirror_slots->weapon[1].primary;
-    object = object_latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance != object_latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = mirror_latch_live_obj(object_latch);
+
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;
         RpClumpForAllAtomics(
@@ -1438,14 +1441,8 @@ static void apply_special_fx_to_player(void* texture) {
     }
 
     object_latch = &plyr_pdata->aux_weapon_latch;
-    object = object_latch->obj;
-    if (object != 0) {
-        if (object->hdr.instance != object_latch->instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = mirror_latch_live_obj(object_latch);
+
     if (object != 0) {
         object->flags_0B_bits.special_texture = 1;
         RpClumpForAllAtomics(

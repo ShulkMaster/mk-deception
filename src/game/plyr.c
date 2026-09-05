@@ -743,6 +743,58 @@ void set_player_state(PlyrInfo* player, int state) {
     player->player_state = state;
 }
 
+static inline MkObj* moveset_live_primary_weapon(GlobalMoveset* owner) {
+    MkObj* object = owner->primary_weapon;
+    if (object != 0) {
+        if (object->hdr.instance == owner->primary_weapon_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* moveset_live_secondary_weapon(GlobalMoveset* owner) {
+    MkObj* object = owner->secondary_weapon;
+    if (object != 0) {
+        if (object->hdr.instance == owner->secondary_weapon_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* player_live_tracked_obj(PlyrPdata* owner) {
+    MkObj* object = owner->tracked_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tracked_obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* moveset_live_reflection_weapon(GlobalMoveset* owner) {
+    MkObj* object = owner->reflection_weapon;
+    if (object != 0) {
+        if (object->hdr.instance == owner->reflection_weapon_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
     GlobalMoveset* moveset;
     MkObj* primary;
@@ -752,27 +804,10 @@ void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
         return;
     }
     moveset = &global_movesets[moveset_index + 6];
-    primary = moveset->primary_weapon;
-    if (primary != 0) {
-        if (primary->hdr.instance == moveset->primary_weapon_instance) {
-            /* Keep the live weapon. */
-        } else {
-            primary = 0;
-        }
-    } else {
-        primary = 0;
-    }
-    secondary = moveset->secondary_weapon;
-    if (secondary != 0) {
-        if (secondary->hdr.instance ==
-            moveset->secondary_weapon_instance) {
-            /* Keep the live weapon. */
-        } else {
-            secondary = 0;
-        }
-    } else {
-        secondary = 0;
-    }
+    primary = moveset_live_primary_weapon(moveset);
+
+    secondary = moveset_live_secondary_weapon(moveset);
+
     if (primary != 0 || secondary != 0) {
         plyr_weapon_release(pdata);
         plyr_weapon2_release(pdata);
@@ -795,30 +830,12 @@ void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
         plyr_weapon_grab(pdata, primary);
         plyr_weapon_show(
             pdata, 1, (PlyrMirrorSlots*)&moveset->primary_weapon);
-        player_object = plyr_pdata->tracked_obj;
-        if (player_object != 0) {
-            if (player_object->hdr.instance ==
-                plyr_pdata->tracked_obj_instance) {
-                /* Keep the live player object. */
-            } else {
-                player_object = 0;
-            }
-        } else {
-            player_object = 0;
-        }
-        if (player_object != 0) {
-            MkObj* reflection = moveset->reflection_weapon;
+        player_object = player_live_tracked_obj(plyr_pdata);
 
-            if (reflection != 0) {
-                if (reflection->hdr.instance ==
-                    moveset->reflection_weapon_instance) {
-                    /* Keep the live reflection. */
-                } else {
-                    reflection = 0;
-                }
-            } else {
-                reflection = 0;
-            }
+        if (player_object != 0) {
+            MkObj* reflection = moveset_live_reflection_weapon(moveset);
+
+
             if (reflection == 0) {
                 reflection = load_bgnd_weapon_reflection(
                     (WeaponDefinition*)primary->field_5C);
@@ -1104,6 +1121,20 @@ void start_baraka_jaw_monitor(void) {
     }
 }
 
+static inline AnimPdata* baraka_jaw_live_animation(BarakaJawPdata* owner) {
+    AnimPdata* object = owner->animation;
+    if (object != 0) {
+        if (object->hdr.instance == owner->animation_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.769230%; relocation offsets, instruction scheduling; one-trial ceiling. */
 static float p_baraka_jaw_controller(void) {
     BarakaJawPdata* pdata = (BarakaJawPdata*)apdata;
     MKMATRIX matrix __attribute__((aligned(16)));
@@ -1158,14 +1189,8 @@ static float p_baraka_jaw_controller(void) {
         }
     }
 
-    animation = pdata->animation;
-    if (animation != 0) {
-        if (animation->hdr.instance != pdata->animation_instance) {
-            animation = 0;
-        }
-    } else {
-        animation = 0;
-    }
+    animation = baraka_jaw_live_animation(pdata);
+
     if (animation != 0) {
         animation->flags |= 0x4000;
         animation->old_flags |= 0x4000;
@@ -1804,6 +1829,59 @@ static inline void initialize_player_shadow(
     }
 }
 
+static inline MkProc* player_live_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->anim_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* player_live_left_hand_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->left_hand_anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->left_hand_anim_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkProc* player_live_right_hand_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->right_hand_anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->right_hand_anim_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* player_live_sidekick_obj(PlyrPdata* owner) {
+    MkObj* object = owner->sidekick_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->sidekick_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.929780%; register coloring, relocation offsets; one-trial ceiling. */
 float p_plyr_start(void) {
     FighterRuntimeData* runtime;
     MkObj* shadow = 0;
@@ -1895,23 +1973,11 @@ float p_plyr_start(void) {
     }
 
     plyr_pdata = (PlyrPdata*)apdata;
-    sidekick = plyr_pdata->tracked_obj;
-    if (sidekick != 0) {
-        if (sidekick->hdr.instance != plyr_pdata->tracked_obj_instance) {
-            sidekick = 0;
-        }
-    } else {
-        sidekick = 0;
-    }
+    sidekick = player_live_tracked_obj(plyr_pdata);
+
     plyr_obj = sidekick;
-    proc = plyr_pdata->anim_proc;
-    if (proc != 0) {
-        if (proc->instance != (int)plyr_pdata->anim_proc_instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = player_live_anim_proc(plyr_pdata);
+
     plyr_anim_proc = proc;
     if (proc != 0) {
         plyr_anim_pdata = (AnimPdata*)pdata_of_proc(proc);
@@ -1921,23 +1987,11 @@ float p_plyr_start(void) {
         }
         g_perform_validation = 0;
     }
-    proc = plyr_pdata->left_hand_anim_proc;
-    if (proc != 0) {
-        if (proc->instance != (int)plyr_pdata->left_hand_anim_instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = player_live_left_hand_anim_proc(plyr_pdata);
+
     plyr_lefthand_anim_proc = proc;
-    proc = plyr_pdata->right_hand_anim_proc;
-    if (proc != 0) {
-        if (proc->instance != (int)plyr_pdata->right_hand_anim_instance) {
-            proc = 0;
-        }
-    } else {
-        proc = 0;
-    }
+    proc = player_live_right_hand_anim_proc(plyr_pdata);
+
     plyr_righthand_anim_proc = proc;
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
@@ -1954,14 +2008,8 @@ float p_plyr_start(void) {
     }
     saved_object = plyr_obj;
     if (plyr_pdata->sidekick_available != 0) {
-        sidekick = plyr_pdata->sidekick_obj;
-        if (sidekick != 0) {
-            if (sidekick->hdr.instance != plyr_pdata->sidekick_instance) {
-                sidekick = 0;
-            }
-        } else {
-            sidekick = 0;
-        }
+        sidekick = player_live_sidekick_obj(plyr_pdata);
+
         plyr_obj = sidekick;
         runtime = plyr_pdata->runtime_data;
         if (plyr_pdata->plyr_info->flags_14_bits.alternate_costume) {
@@ -2030,6 +2078,7 @@ void plyr_turn_off_mirrorguy(PlyrInfo* player) {
     }
 }
 
+/* TODO: [near miss] 99.566475%; register coloring, relocation offsets; one-trial ceiling. */
 void delete_player(int player_index) {
     PlyrInfo* player;
     PlyrPdata* pdata;
@@ -2050,14 +2099,8 @@ void delete_player(int player_index) {
     }
     pdata = player->slot.pdata;
     if (pdata != 0) {
-        object = pdata->tracked_obj;
-        if (object != 0) {
-            if (object->hdr.instance != pdata->tracked_obj_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = player_live_tracked_obj(pdata);
+
         if (object != 0) {
             if (object == player->slot.mirror_a) {
                 if (object->hdr.instance != 0) {
@@ -2086,14 +2129,8 @@ void delete_player(int player_index) {
         }
 
         pdata = player->slot.pdata;
-        object = pdata->sidekick_obj;
-        if (object != 0) {
-            if (object->hdr.instance != pdata->sidekick_instance) {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = player_live_sidekick_obj(pdata);
+
         if (object != 0) {
             if (object->hdr.instance != 0) {
                 ((void (*)(MkHdr*))object->hdr.vtbl->destroy)((MkHdr*)object);
@@ -2164,6 +2201,7 @@ void delete_player(int player_index) {
         }                                                               \
     } while (0)
 
+/* TODO: [near miss] 97.117836%; register coloring, relocation offsets; one-trial ceiling. */
 static void setup_plyr_anims(PlyrPdata* pdata) {
     AnimPdata* animation;
     MkObj* object;
@@ -2172,14 +2210,8 @@ static void setup_plyr_anims(PlyrPdata* pdata) {
     int mode;
     int load_signs;
 
-    object = pdata->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance != pdata->tracked_obj_instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
+    object = player_live_tracked_obj(pdata);
+
     if (object == 0) {
         return;
     }
@@ -2767,6 +2799,7 @@ static inline float plyr_inverse_sqrt(float squared) {
            -(correction * (product * correction) - 12.0f);
 }
 
+/* TODO: [near miss] 97.211540%; original latch retained; register coloring, relocation offsets; one-trial ceiling. */
 float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     MkObj* sidekick = pdata->sidekick_obj;
     MkObj* player;
@@ -2849,6 +2882,7 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 96.857140%; original latch retained; branch lowering; one-trial ceiling. */
 float active_sidekick_swap_change_style(PlyrPdata* pdata) {
     MkProc* process = pdata->own_player_proc;
     CmdScript* script;
@@ -3054,6 +3088,20 @@ static inline void plyr_sleep(float ticks) {
     ((PlyrProcVtable*)aproc->vtbl)->sleep();
 }
 
+static inline MkProc* player_live_sidekick_anim_proc(PlyrPdata* owner) {
+    MkProc* object = owner->sidekick_anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->sidekick_anim_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.379810%; instruction lowering, register coloring; one-trial ceiling. */
 float sidekick_cool_vanish(PlyrPdata* pdata) {
     MkObj* sidekick;
     MkProc* anim_proc;
@@ -3061,23 +3109,11 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
     SidekickActionView* actions = (SidekickActionView*)pdata;
     int function;
 
-    anim_proc = pdata->sidekick_anim_proc;
-    if (anim_proc != 0) {
-        if (anim_proc->instance != (int)pdata->sidekick_anim_instance) {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    anim_proc = player_live_sidekick_anim_proc(pdata);
+
     animation = (AnimPdata*)pdata_of_proc(anim_proc);
-    sidekick = pdata->sidekick_obj;
-    if (sidekick != 0) {
-        if (sidekick->hdr.instance != pdata->sidekick_instance) {
-            sidekick = 0;
-        }
-    } else {
-        sidekick = 0;
-    }
+    sidekick = player_live_sidekick_obj(pdata);
+
     if (sidekick == 0) {
         return 0.0f;
     }
@@ -3126,30 +3162,45 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
     return 0.0f;
 }
 
+static inline MkProc* sidekick_proc_live_player_sidekick_anim_proc(
+    PlyrSidekickProcPdata* owner) {
+    MkProc* object = owner->player->sidekick_anim_proc;
+    if (object != 0) {
+        if (object->instance == (int)owner->player->sidekick_anim_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* sidekick_proc_live_player_sidekick_obj(
+    PlyrSidekickProcPdata* owner) {
+    MkObj* object = owner->player->sidekick_obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->player->sidekick_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_plyr_sidekick(void) {
     PlyrSidekickProcPdata* pdata = (PlyrSidekickProcPdata*)apdata;
     MkProc* anim_proc;
     AnimPdata* animation;
     MkObj* sidekick;
 
-    anim_proc = pdata->player->sidekick_anim_proc;
-    if (anim_proc != 0) {
-        if (anim_proc->instance !=
-            (int)pdata->player->sidekick_anim_instance) {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    anim_proc = sidekick_proc_live_player_sidekick_anim_proc(pdata);
+
     animation = (AnimPdata*)pdata_of_proc(anim_proc);
-    sidekick = pdata->player->sidekick_obj;
-    if (sidekick != 0) {
-        if (sidekick->hdr.instance != pdata->player->sidekick_instance) {
-            sidekick = 0;
-        }
-    } else {
-        sidekick = 0;
-    }
+    sidekick = sidekick_proc_live_player_sidekick_obj(pdata);
+
     if (sidekick == 0) {
         return -1.0f;
     }

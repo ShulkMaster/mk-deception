@@ -309,7 +309,6 @@ static inline void* anim_script_data(const void* script, unsigned int offset) {
     return (unsigned char*)script + offset;
 }
 
-
 static inline int anim_create_proc_flags(void) {
     int flags;
 
@@ -3222,7 +3221,20 @@ void transition_to_anim_script(
         transition_frames, 0.0f, anim, script, flags);
 }
 
-/* TODO: [near miss] 95.62%; unchanged without pragmas; inspect residual source lowering. */
+static inline MkObj* animation_live_obj(AnimPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 96.486275%; register coloring, stack layout; one-trial ceiling. */
 int set_anim_script_frame(
     float frame,
     AnimPdata* anim,
@@ -3271,14 +3283,8 @@ int set_anim_script_frame(
     }
 
     if ((flags & 0x80) == 0) {
-        obj = anim->obj;
-        if (obj != 0) {
-            if (obj->hdr.instance != anim->obj_instance) {
-                obj = 0;
-            }
-        } else {
-            obj = 0;
-        }
+        obj = animation_live_obj(anim);
+
         if (obj != 0) {
             if ((flags & 0x200) != 0) {
                 obj->hide_flag_bits.bit0 = 1;
@@ -3322,14 +3328,8 @@ int set_anim_script_frame(
         }
     }
 
-    obj = anim->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != anim->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = animation_live_obj(anim);
+
     if (obj != 0 && obj->hide_flag_bits.pin_animation != 0) {
         float ground_restore_x;
         float ground_restore_y;

@@ -4305,20 +4305,27 @@ void set_konquest_region_number(int region) {
     game_settings.konquest_latch = 0;
 }
 
-/* TODO: [near miss] 96.920730%; branch/register lowering remains; stop at trial cap. */
+static inline KonquestNpc* konquest_live_hero_npc(KonquestPdata* owner) {
+    KonquestNpc* object = owner->hero_npc;
+    if (object != 0) {
+        if (object->fields.hdr.instance == owner->hero_npc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.591460%; register coloring, instruction scheduling; one-trial ceiling. */
 void konquest_hide_damashi(void) {
     KonquestNpc* npc;
     MkObj* object;
     unsigned int effect;
 
-    npc = konquest_pdata->hero_npc;
-    if (npc != 0) {
-        if (npc->fields.hdr.instance != konquest_pdata->hero_npc_instance) {
-            npc = 0;
-        }
-    } else {
-        npc = 0;
-    }
+    npc = konquest_live_hero_npc(konquest_pdata);
+
 
     effect = fx_by_owner("damashi_spawn", 4);
     if (effect != 0) {
@@ -5893,7 +5900,20 @@ static void update_dropped_pui(KonquestPuiDelayView* pui) {
     owner->interaction->position = object->pos.value;
 }
 
-/* TODO: [near miss] 96.921165%; branch/register lowering remains; stop at trial cap. */
+static inline MkObj* pui_live_effect_clone_bind_hdr(KonquestPuiRuntime* owner) {
+    MkObj* object = (MkObj*) owner->effect_clone->bind_hdr;
+    if (object != 0) {
+        if (object->hdr.instance == owner->effect_clone->bind_inst) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 98.124480%; register coloring, instruction scheduling; one-trial ceiling. */
 static void update_konquest_pui(KonquestPuiRuntime* runtime) {
     KonquestPuiRuntime* pui = runtime;
     MkObj* object;
@@ -5962,15 +5982,8 @@ static void update_konquest_pui(KonquestPuiRuntime* runtime) {
         child->pos.y = -object->pos.value.y;
     }
     if (pui->effect_clone != 0) {
-        effect_object = (MkObj*)pui->effect_clone->bind_hdr;
-        if (effect_object != 0) {
-            if (effect_object->hdr.instance !=
-                pui->effect_clone->bind_inst) {
-                effect_object = 0;
-            }
-        } else {
-            effect_object = 0;
-        }
+        effect_object = pui_live_effect_clone_bind_hdr(pui);
+
         child = obj_find_sobj_by_id(object, 1);
         effect_object->pos.value.x = child->pos.x + object->pos.value.x;
         effect_object->pos.value.y = child->pos.y + object->pos.value.y;
@@ -6288,7 +6301,6 @@ static inline KonquestPuiDelayView* find_pui_runtime_by_numeric_id(
     }
     return 0;
 }
-
 
 /* TODO: [near miss] 99.032260%; register/operand residue remains; stop at trial cap. */
 void pui_set_color(
@@ -6661,7 +6673,20 @@ void pui_delay_spawn(KonquestPuiDefinition* item, float delay) {
     }
 }
 
-/* TODO: [near miss] 98.880210%; branch/register lowering remains; stop at trial cap. */
+static inline KonquestTriggerStruct* pui_live_trigger_owner(KonquestPuiRuntime* owner) {
+    KonquestTriggerStruct* object = owner->trigger_owner;
+    if (object != 0) {
+        if (object->hdr.instance == owner->owner_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.453125%; register coloring, relocation offsets; one-trial ceiling. */
 void spawn_pui(
     KonquestPuiDefinition* item, int behavior, int position_mode) {
     KonquestPuiRuntime* pui;
@@ -6725,14 +6750,8 @@ void spawn_pui(
                     pui_restore_open_chests(item);
                 }
 
-                trigger = pui->trigger_owner;
-                if (trigger != 0) {
-                    if (trigger->hdr.instance != pui->owner_instance) {
-                        trigger = 0;
-                    }
-                } else {
-                    trigger = 0;
-                }
+                trigger = pui_live_trigger_owner(pui);
+
                 if (trigger != 0) {
                     trigger->owned_data->flags |= 2;
                 }
@@ -7260,6 +7279,7 @@ static void pui_restore_open_chests(KonquestPuiDefinition* item) {
     }
 }
 
+/* TODO: [near miss] 97.300000%; original latch retained; branch lowering, instruction lowering; one-trial ceiling. */
 static float p_close_konquest_chest(void) {
     KonquestChestPdata* pdata;
     KonquestChestOwner* owner;
@@ -8019,7 +8039,19 @@ void cleanup_konquest(void) {
     f_writing_konquest_profile = 0;
 }
 
-/* TODO: [near miss] 98.735954%; branch/register lowering remains; stop at trial cap. */
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_head_tracking(void) {
     KonquestHeadTrackingPdata* pdata;
     CameraObj* camera;
@@ -8031,14 +8063,8 @@ static float p_head_tracking(void) {
 
     hero = konquest_live_hero(konquest_pdata);
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
+
 
     pdata = (KonquestHeadTrackingPdata*)pdata_of_proc(aproc);
     if (hero == 0) {
@@ -8294,7 +8320,6 @@ static inline int is_npc_scene_active(KonquestNpcRuntime* npc) {
     }
     return active;
 }
-
 
 /* TODO: [near miss] 99.99254%; instructions agree except the script-name pool offset; recover string ownership. */
 void nis_register_participant(int type, void* npc_data) {
@@ -9399,8 +9424,21 @@ static inline float konquest_fast_sqrt(float value) {
          (3.0f - (estimate.value * estimate.value) / value));
 }
 
+static inline MkProc* interaction_live_npc_fields_turn_proc(
+    KonquestInteractionPdata* owner) {
+    MkProc* object = owner->npc->fields.turn_proc;
+    if (object != 0) {
+        if (object->instance == owner->npc->fields.turn_proc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
 
-/* TODO: [near miss] 97.436584%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [near miss] 97.680490%; register coloring, stack layout; one-trial ceiling. */
 static float p_konquest_interaction(void) {
     MkObj* hero;
     KonquestInteractionPdata* pdata;
@@ -9437,15 +9475,8 @@ static float p_konquest_interaction(void) {
     }
     if (validated_turn_proc != 0) {
         /* Revalidate the owner latch before destroying and clearing it. */
-        current_turn_proc = pdata->npc->fields.turn_proc;
-        if (current_turn_proc != 0) {
-            if (current_turn_proc->instance !=
-                pdata->npc->fields.turn_proc_instance) {
-                current_turn_proc = 0;
-            }
-        } else {
-            current_turn_proc = 0;
-        }
+        current_turn_proc = interaction_live_npc_fields_turn_proc(pdata);
+
         if (current_turn_proc != 0) {
             if (turn_proc->instance != 0) {
                 ((KonquestDestroyable*)turn_proc)->vtbl->destroy(
@@ -9584,12 +9615,32 @@ static float p_konquest_interaction(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: set_movement_npc ~92.90%. Target selection, both generation
- * latches, camera-target readiness, and focus object agree with retail. The
- * four-byte size residue is two folded empty latch joins offset by alternate
- * pointer-truth normalization.
- */
+static inline KonquestNpc* konquest_live_hero_grounding(KonquestPdata* owner) {
+    KonquestNpc* object = (KonquestNpc*) owner->hero_grounding;
+    if (object != 0) {
+        if (object->fields.hdr.instance == owner->grounding_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline KonquestNpc* konquest_live_movement_npc_object(KonquestPdata* owner) {
+    KonquestNpc* object = (KonquestNpc*) owner->movement_npc.object;
+    if (object != 0) {
+        if (object->fields.hdr.instance == owner->movement_npc.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void set_movement_npc(int target_type) {
     KonquestNpc* npc;
     KonquestNpc* candidate;
@@ -9601,32 +9652,13 @@ void set_movement_npc(int target_type) {
     case 1:
         break;
     case 2:
-        candidate = (KonquestNpc*)konquest_pdata->hero_grounding;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->grounding_instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_hero_grounding(konquest_pdata);
+
         npc = candidate;
         break;
     case 0:
-        candidate =
-            (KonquestNpc*)konquest_pdata->movement_npc.object;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->movement_npc.instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_movement_npc_object(konquest_pdata);
+
         npc = candidate;
         break;
     }
@@ -9645,12 +9677,11 @@ void set_movement_npc(int target_type) {
     }
 }
 
-/*
- * Soft ceiling: set_look_at_npc ~92.90%. Target selection, both generation
- * latches, camera-target readiness, and focus object agree with retail. The
- * four-byte size residue is two folded empty latch joins offset by alternate
- * pointer-truth normalization.
- */
+
+
+
+
+
 void set_look_at_npc(int target_type) {
     KonquestNpc* npc;
     KonquestNpc* candidate;
@@ -9662,32 +9693,13 @@ void set_look_at_npc(int target_type) {
     case 1:
         break;
     case 2:
-        candidate = (KonquestNpc*)konquest_pdata->hero_grounding;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->grounding_instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_hero_grounding(konquest_pdata);
+
         npc = candidate;
         break;
     case 0:
-        candidate =
-            (KonquestNpc*)konquest_pdata->movement_npc.object;
-        if (candidate != 0) {
-            if (candidate->fields.hdr.instance ==
-                konquest_pdata->movement_npc.instance) {
-                /* Valid NPC latch. */
-            } else {
-                candidate = 0;
-            }
-        } else {
-            candidate = 0;
-        }
+        candidate = konquest_live_movement_npc_object(konquest_pdata);
+
         npc = candidate;
         break;
     }
@@ -10864,7 +10876,7 @@ static int check_additional_trigger_fire_requirements(
     return result;
 }
 
-/* TODO: [near miss] 99.037160%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [near miss] 99.797295%; relocation offsets, register coloring; one-trial ceiling. */
 static void handle_monk_input(void) {
     MkObj* hero;
     CameraObj* camera;
@@ -10909,14 +10921,8 @@ static void handle_monk_input(void) {
         if (stick_length <= 1.0f) {
             magnitude = stick_length;
         }
-        camera = camera_item.node;
-        if (camera != 0) {
-            if (camera->hdr.instance != camera_item.instance) {
-                camera = 0;
-            }
-        } else {
-            camera = 0;
-        }
+        camera = camera_live_node(&camera_item);
+
 
         if (magnitude > 0.01f) {
             konquest_pdata->npc_interaction_state = 0;
@@ -12175,7 +12181,7 @@ static float p_monitor_meditation_time(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.012880%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [near miss] 99.012880%; original latch retained; branch lowering, register coloring; one-trial ceiling. */
 static float p_monk_meditate(void) {
     MkHdr* monitor_pdata;
     KonquestGameSpeedPdata* speed_pdata;
@@ -12904,7 +12910,20 @@ int get_tile_from_position(const Vec* position) {
     return column + row * konquest_pdata->tile_width;
 }
 
-/* TODO: [near miss] 98.987420%; branch/register lowering remains; stop at trial cap. */
+static inline StringObj* konquest_live_hud_labels_5_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[5].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[5].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.679245%; register coloring, relocation offsets; one-trial ceiling. */
 void update_tile_grid(void) {
     MkObj* hero;
     KonquestTileRecord* tile;
@@ -12936,14 +12955,8 @@ void update_tile_grid(void) {
                 konquest_pdata->tile_load_state / konquest_pdata->tile_width +
                 1;
 
-            label = (StringObj*)konquest_pdata->hud_labels[5].object;
-            if (label != 0) {
-                if (label->instance != konquest_pdata->hud_labels[5].instance) {
-                    label = 0;
-                }
-            } else {
-                label = 0;
-            }
+            label = konquest_live_hud_labels_5_object(konquest_pdata);
+
             sprintf(text, "%c - %d", konquest_pdata->tile_column + 'A',
                     konquest_pdata->tile_row);
             if (label != 0) {
@@ -14161,12 +14174,7 @@ static inline KonquestChildObject* find_door_partner_inline(
     return 0;
 }
 
-/*
- * Near match: konquest_open_door_sobj 87.98% (680 versus 664 bytes). Both
- * door-process lifecycles, partner enumeration/search, stale-link cleanup,
- * process flags, pdata initialization, and all seven calls agree. Residue is
- * two equivalent process-latch joins, GPR save aggregation, and scheduling.
- */
+/* TODO: [near miss] 95.433740%; original latch retained; register coloring, stack layout; one-trial ceiling. */
 void konquest_open_door_sobj(
     KonquestChildObject* door, int remain_open) {
     KonquestDoorPdata* pdata;
@@ -14484,7 +14492,7 @@ KonquestChildObject* find_child_subobject_by_enumeration(
     return 0;
 }
 
-/* TODO: [near miss] 98.472220%; direct latch retained under dont_inline; join branch remains. */
+/* TODO: [near miss] 98.472220%; original latch retained; branch lowering; one-trial ceiling. */
 static int is_leaving_area(KonquestTriggerStruct* trigger) {
     MkObj* hero;
     int in_range;
@@ -15283,7 +15291,6 @@ static inline unsigned int find_sobj_art_id_by_uid(int uid) {
     return 0;
 }
 
-
 /* TODO: [near miss] 98.020410%; branch/register lowering remains; stop at trial cap. */
 void add_object_to_tile(
     int tile_index, int render_uid, int object_uid, float x, float y, float z,
@@ -15467,11 +15474,20 @@ void* get_nth_tile_struct(int index) {
     return 0;
 }
 
-/*
- * Soft ceiling: set_tile_visibility ~88.8% -- the latch, calls, fields,
- * arithmetic, and 0x174-byte CFG match. Residue is stmw/lmw versus individual
- * saves, row/width GPR coloring, and local constant/string relocation labels.
- */
+static inline MkObj* konquest_live_tile_model_object(KonquestPdata* owner) {
+    MkObj* object = (MkObj*) owner->tile_model.object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->tile_model.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.505380%; register coloring, relocation offsets; one-trial ceiling. */
 void set_tile_visibility(int tile_index, int state) {
     KonquestTileRecord* tile;
     MkObj* tile_model;
@@ -15481,16 +15497,8 @@ void set_tile_visibility(int tile_index, int state) {
     float origin;
 
     tile = &konquest_pdata->tile_structs[tile_index];
-    tile_model = (MkObj*)konquest_pdata->tile_model.object;
-    if (tile_model != 0) {
-        if (tile_model->hdr.instance == konquest_pdata->tile_model.instance) {
-            /* Valid tile-model latch. */
-        } else {
-            tile_model = 0;
-        }
-    } else {
-        tile_model = 0;
-    }
+    tile_model = konquest_live_tile_model_object(konquest_pdata);
+
     if (tile_model == 0) {
         return;
     }
@@ -16525,12 +16533,72 @@ void set_current_time(const KonquestTime* time) {
 }
 #pragma dont_inline reset
 
-/*
- * Soft ceiling: update_time_screen_objs 89.67% (808 versus 788 bytes). The
- * five HUD latches, day-art replacement, exact 12-call sequence, time/date
- * formatting, feature flag, and access widths agree. Residue is five folded
- * valid-latch joins, individual saves/restores, and GPR scheduling.
- */
+static inline StringObj* konquest_live_hud_labels_0_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[0].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* konquest_live_hud_labels_1_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[1].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[1].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* konquest_live_hud_labels_3_object(KonquestPdata* owner) {
+    ScreenObj* object = (ScreenObj*) owner->hud_labels[3].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[3].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* konquest_live_hud_extra_label_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_extra_label.object;
+    if (object != 0) {
+        if (object->instance == owner->hud_extra_label.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline StringObj* konquest_live_hud_labels_2_object(KonquestPdata* owner) {
+    StringObj* object = (StringObj*) owner->hud_labels[2].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_labels[2].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.923860%; instruction lowering, relocation offsets; one-trial ceiling. */
 static void update_time_screen_objs(int update_all) {
     StringObj* hour_object;
     StringObj* minute_object;
@@ -16543,51 +16611,16 @@ static void update_time_screen_objs(int update_all) {
     char hour[4];
     char date[16];
 
-    hour_object = (StringObj*)konquest_pdata->hud_labels[0].object;
-    if (hour_object != 0) {
-        if (hour_object->instance !=
-            konquest_pdata->hud_labels[0].instance) {
-            hour_object = 0;
-        }
-    } else {
-        hour_object = 0;
-    }
-    minute_object = (StringObj*)konquest_pdata->hud_labels[1].object;
-    if (minute_object != 0) {
-        if (minute_object->instance !=
-            konquest_pdata->hud_labels[1].instance) {
-            minute_object = 0;
-        }
-    } else {
-        minute_object = 0;
-    }
-    day_object = (ScreenObj*)konquest_pdata->hud_labels[3].object;
-    if (day_object != 0) {
-        if (day_object->instance !=
-            konquest_pdata->hud_labels[3].instance) {
-            day_object = 0;
-        }
-    } else {
-        day_object = 0;
-    }
-    date_object = (StringObj*)konquest_pdata->hud_extra_label.object;
-    if (date_object != 0) {
-        if (date_object->instance !=
-            konquest_pdata->hud_extra_label.instance) {
-            date_object = 0;
-        }
-    } else {
-        date_object = 0;
-    }
-    period_object = (StringObj*)konquest_pdata->hud_labels[2].object;
-    if (period_object != 0) {
-        if (period_object->instance !=
-            konquest_pdata->hud_labels[2].instance) {
-            period_object = 0;
-        }
-    } else {
-        period_object = 0;
-    }
+    hour_object = konquest_live_hud_labels_0_object(konquest_pdata);
+
+    minute_object = konquest_live_hud_labels_1_object(konquest_pdata);
+
+    day_object = konquest_live_hud_labels_3_object(konquest_pdata);
+
+    date_object = konquest_live_hud_extra_label_object(konquest_pdata);
+
+    period_object = konquest_live_hud_labels_2_object(konquest_pdata);
+
 
     if (update_all != 0 && day_object != 0) {
         if (day_object->instance != 0) {
@@ -16943,28 +16976,28 @@ static float p_adjust_objective_arrow_and_beam(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: set_objective_beam_scale ~91.8% -- beam/sky selection,
- * position transfer, scale calculation, and update calls match retail.
- * Residue is individual r29-r31 saves/restores instead of stmw/lmw, one
- * collapsed valid-state edge, and local constant relocation labels.
- */
+static inline MkObj* konquest_live_objective_beam_object(KonquestPdata* owner) {
+    MkObj* object = (MkObj*) owner->objective_beam.object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->objective_beam.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.000000%; branch lowering; one-trial ceiling. */
 static void set_objective_beam_scale(float distance) {
     KonquestObjectiveState* objective;
     MkObj* beam;
     MkSobj* scaled_object;
     float ratio;
 
-    beam = (MkObj*)konquest_pdata->objective_beam.object;
-    if (beam != 0) {
-        if (beam->hdr.instance == konquest_pdata->objective_beam.instance) {
-            /* Valid objective-beam latch. */
-        } else {
-            beam = 0;
-        }
-    } else {
-        beam = 0;
-    }
+    beam = konquest_live_objective_beam_object(konquest_pdata);
+
     {
         Vec base_scale = {1.0f, 1.0f, 1.0f};
 
@@ -17026,34 +17059,29 @@ static void set_objective_beam_scale(float distance) {
     }
 }
 
-/*
- * Soft ceiling: p_adjust_compass ~95.5%. Both validated handles, all four
- * vertex updates, trig calls, constants, and access widths match. Equivalent
- * compact latch joins make this four bytes smaller than retail; the remaining
- * loop residue is GPR/FPR coloring and local constant relocation labels.
- */
+static inline ScreenObj* konquest_live_hud_objects_0_object(KonquestPdata* owner) {
+    ScreenObj* object = (ScreenObj*) owner->hud_objects[0].object;
+    if (object != 0) {
+        if (object->instance == owner->hud_objects[0].instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_adjust_compass(void) {
     CameraObj* camera;
     ScreenObj* compass;
     int index;
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
 
-    compass = (ScreenObj*)konquest_pdata->hud_objects[0].object;
-    if (compass != 0) {
-        if (compass->instance != konquest_pdata->hud_objects[0].instance) {
-            compass = 0;
-        }
-    } else {
-        compass = 0;
-    }
+
+    compass = konquest_live_hud_objects_0_object(konquest_pdata);
+
 
     for (index = 0; index < 4; index++) {
         float angle;
@@ -18410,7 +18438,7 @@ static void load_sky(void) {
     }
 }
 
-/* TODO: [near miss] 99.376000%; branch/register lowering remains; stop at trial cap. */
+/* TODO: [near miss] 99.522670%; register coloring, stack layout; one-trial ceiling. */
 float p_setup_konquest_map(void) {
     KonquestAmbientFadePdata* ambient_fade;
     KonquestHeadTrackingPdata* head_tracking;
@@ -18729,15 +18757,8 @@ float p_setup_konquest_map(void) {
         konquest_pdata->tile_row =
             konquest_pdata->tile_load_state / konquest_pdata->tile_width + 1;
 
-        grid_label = (StringObj*)konquest_pdata->hud_labels[5].object;
-        if (grid_label != 0) {
-            if (grid_label->instance !=
-                konquest_pdata->hud_labels[5].instance) {
-                grid_label = 0;
-            }
-        } else {
-            grid_label = 0;
-        }
+        grid_label = konquest_live_hud_labels_5_object(konquest_pdata);
+
 
         sprintf(
             grid_text, "%c - %d", konquest_pdata->tile_column + 'A',

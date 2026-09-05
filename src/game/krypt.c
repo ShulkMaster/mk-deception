@@ -883,6 +883,20 @@ static inline MkObj* load_krypt_character_impl(char* character_name) {
 MkObj* load_krypt_character(char* character_name) {
     return load_krypt_character_impl(character_name);
 }
+static inline MkObj* animation_live_obj(AnimPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.105260%; branch lowering, instruction scheduling; one-trial ceiling. */
 static float p_krypt_animate(void) {
     AnimPdata* animation;
     MkObj* object;
@@ -900,14 +914,8 @@ static float p_krypt_animate(void) {
                 frame_delta = -frame_delta;
             }
             if (frame_delta < animation->step) {
-                object = animation->obj;
-                if (object != 0) {
-                    if (object->hdr.instance != animation->obj_instance) {
-                        object = 0;
-                    }
-                } else {
-                    object = 0;
-                }
+                object = animation_live_obj(animation);
+
                 volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
                 if (volume != 0.0f) {
                     pan_vol_pitch_random_snd_req(
@@ -925,14 +933,8 @@ static float p_krypt_animate(void) {
                 frame_delta = -frame_delta;
             }
             if (frame_delta < animation->step) {
-                object = animation->obj;
-                if (object != 0) {
-                    if (object->hdr.instance != animation->obj_instance) {
-                        object = 0;
-                    }
-                } else {
-                    object = 0;
-                }
+                object = animation_live_obj(animation);
+
                 volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
                 if (volume != 0.0f) {
                     pan_vol_pitch_random_snd_req(
@@ -1424,6 +1426,33 @@ static void set_koin_positions_and_colors(void* pfx) {
     }
 }
 
+static inline ScreenObj* krypt_live_wallet_back_obj(KryptPdata* owner) {
+    ScreenObj* object = owner->wallet_back.obj;
+    if (object != 0) {
+        if (object->instance == owner->wallet_back.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline ScreenObj* krypt_live_wallet_front_obj(KryptPdata* owner) {
+    ScreenObj* object = owner->wallet_front.obj;
+    if (object != 0) {
+        if (object->instance == owner->wallet_front.obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.801650%; register coloring, stack layout; one-trial ceiling. */
 void force_wallet_to_open_position(void) {
     ScreenObj* wallet_back;
     ScreenObj* wallet_front;
@@ -1431,22 +1460,10 @@ void force_wallet_to_open_position(void) {
     char value[12];
     int i;
 
-    wallet_back = krypt_pdata->wallet_back.obj;
-    if (wallet_back != 0) {
-        if (wallet_back->instance != krypt_pdata->wallet_back.obj_instance) {
-            wallet_back = 0;
-        }
-    } else {
-        wallet_back = 0;
-    }
-    wallet_front = krypt_pdata->wallet_front.obj;
-    if (wallet_front != 0) {
-        if (wallet_front->instance != krypt_pdata->wallet_front.obj_instance) {
-            wallet_front = 0;
-        }
-    } else {
-        wallet_front = 0;
-    }
+    wallet_back = krypt_live_wallet_back_obj(krypt_pdata);
+
+    wallet_front = krypt_live_wallet_front_obj(krypt_pdata);
+
     if (wallet_back != 0 && wallet_front != 0) {
         wallet_back->y = 0;
         wallet_front->y = 0;
@@ -3077,33 +3094,47 @@ float p_fog_follow_camera(void) {
     }
     return 1.0f;
 }
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkObj* krypt_camera_live_obj(KryptCameraFollowPdata* owner) {
+    MkObj* object = owner->obj;
+    if (object != 0) {
+        if (object->hdr.instance == owner->obj_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 static float p_follow_camera(void) {
     CameraObj* camera;
     KryptCameraFollowPdata* pdata;
     MkObj* obj;
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
-    } else {
-        camera = 0;
-    }
+    camera = camera_live_node(&camera_item);
+
 
     pdata = (KryptCameraFollowPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
 
-    obj = pdata->obj;
-    if (obj != 0) {
-        if (obj->hdr.instance != pdata->obj_instance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = krypt_camera_live_obj(pdata);
+
     if (obj == 0) {
         return -1.0f;
     }

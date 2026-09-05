@@ -506,22 +506,26 @@ void set_active_projectile_velocity(const Vec* velocity) {
     }
 }
 
+static inline MkObj* projectile_live_object(ProjectilePdata* owner) {
+    MkObj* object = owner->object;
+    if (object != 0) {
+        if ((unsigned int)object->hdr.instance == owner->object_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void set_active_add_ang_y(float angle) {
     MkObj* object;
     int fixed;
 
     if (proj_pdata != 0) {
-        object = proj_pdata->object;
-        if (object != 0) {
-            if ((unsigned int)object->hdr.instance ==
-                proj_pdata->object_instance) {
-                /* The instance latch still identifies this object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = projectile_live_object(proj_pdata);
+
         if (object != 0) {
             object->ang.y += angle;
             fixed = (int)(166886.1f * object->ang.y) & 0xFFFFF;
@@ -595,17 +599,8 @@ void set_active_projectile_impale_info(
     MkObj* object;
 
     if (proj_pdata != 0) {
-        object = proj_pdata->object;
-        if (object != 0) {
-            if ((unsigned int)object->hdr.instance ==
-                proj_pdata->object_instance) {
-                /* The instance latch still identifies this object. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
+        object = projectile_live_object(proj_pdata);
+
         if (object != 0) {
             build_bones_tbl(object, bone_tags);
             proj_pdata->impale_info = info;

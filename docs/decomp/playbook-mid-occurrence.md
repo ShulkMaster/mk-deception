@@ -49,6 +49,15 @@ missing retail strings. Require initializer order and literal ownership before
 adding data; do not substitute one padding gap, dummy constants, or stack pads
 for nonuniform TU layout differences. See [audit](konquest-relocation-audit.md).
 
+M15 named-pool diagnostic: If data-value mode still flags a named C array
+against retail `@stringBase0`, compare the used string at its addend and the
+whole pool separately. `puzzle_strings` had identical 139-byte contents and
+placement yet remained flagged. `utils`' pool had the same 923-byte prefix plus
+one extra trailing NUL from explicit plus implicit termination; the used
+`WEAPREFL` bytes agreed. Record raw-byte evidence without relabeling the CLI
+result or inventing stack padding. A future pool fix must check actual literal
+termination and every TU consumer. See [the sample audit](latch-effectiveness-100.md).
+
 ## Accept / stop
 
 M08 diagnostic: After a callback-containing allocation loop, an index-equals-count

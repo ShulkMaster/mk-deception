@@ -1298,6 +1298,20 @@ float p_mk_chess_cam_chase_cursor(void) {
     return kOne;
 }
 
+static inline CameraObj* camera_live_node(CameraItem* owner) {
+    CameraObj* object = owner->node;
+    if (object != 0) {
+        if (object->hdr.instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 97.053910%; relocation offsets, stack layout; one-trial ceiling. */
 float p_mk_chess_cam_control(void) {
     Vec origin = {0.0f, 0.0f, 0.0f};
     Vec rotated_position;
@@ -1333,7 +1347,7 @@ float p_mk_chess_cam_control(void) {
                     camera_obj->pos.x = rotated_position.x;
                     camera_obj->pos.y = rotated_position.y;
                     camera_obj->pos.z = rotated_position.z;
-                    RESOLVE_CAMERA_OBJ(camera);
+                    camera = camera_live_node(&camera_item);
                     direction.x = origin.x - camera->pos.x;
                     direction.y = origin.y - camera->pos.y;
                     direction.z = origin.z - camera->pos.z;
@@ -1378,7 +1392,7 @@ float p_mk_chess_cam_control(void) {
                         camera_obj->pos.y = rotated_position.y;
                         camera_obj->pos.z = rotated_position.z;
                     }
-                    RESOLVE_CAMERA_OBJ(camera);
+                    camera = camera_live_node(&camera_item);
                     direction.x = origin.x - camera->pos.x;
                     direction.y = origin.y - camera->pos.y;
                     direction.z = origin.z - camera->pos.z;
@@ -1398,7 +1412,7 @@ float p_mk_chess_cam_control(void) {
             }
         }
 
-        RESOLVE_CAMERA_OBJ(camera);
+        camera = camera_live_node(&camera_item);
         old_cam_ang_offset.x = cam_ang_offset.x;
         old_cam_ang_offset.y = cam_ang_offset.y;
         old_cam_ang_offset.z = cam_ang_offset.z;
@@ -1413,7 +1427,7 @@ float p_mk_chess_cam_control(void) {
         camera->ang.z += cam_ang_offset.z;
         _mkproc_sleep_ticks = kOne;
         mkproc_sleep();
-        RESOLVE_CAMERA_OBJ(camera);
+        camera = camera_live_node(&camera_item);
         camera->pos.x -= old_cam_pos_offset.x;
         camera->pos.y -= old_cam_pos_offset.y;
         camera->pos.z -= old_cam_pos_offset.z;
@@ -1501,7 +1515,20 @@ void remove_widescreen_bars(void) {
     }
 }
 
-/* Soft ceiling: exact size; latch diamonds and Pfx2d load/FPR scheduling only. */
+static inline ScreenObj* fade_box_live_node(FadeBoxItem* owner) {
+    ScreenObj* object = owner->node;
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.340000%; relocation offsets, register coloring; one-trial ceiling. */
 static float p_move_widescreen_bars(void) {
     ScreenObj* upper;
     ScreenObj* lower;
@@ -1511,22 +1538,10 @@ static float p_move_widescreen_bars(void) {
 
     pdata = (WidescreenBarPdata*)pdata_of_proc(aproc);
     left_edge = (float)-(screen_width - 0x280) * kHalf;
-    upper = upper_fade_box_item.node;
-    if (upper != 0) {
-        if (upper->instance != upper_fade_box_item.instance) {
-            upper = 0;
-        }
-    } else {
-        upper = 0;
-    }
-    lower = lower_fade_box_item.node;
-    if (lower != 0) {
-        if (lower->instance != lower_fade_box_item.instance) {
-            lower = 0;
-        }
-    } else {
-        lower = 0;
-    }
+    upper = fade_box_live_node(&upper_fade_box_item);
+
+    lower = fade_box_live_node(&lower_fade_box_item);
+
     if (upper == 0 || lower == 0) {
         return kNegOne;
     }
@@ -2884,7 +2899,34 @@ static float p_run_interaction_camera(void) {
     return kNegOne;
 }
 
-/* Soft ceiling: two validated-latch branch peepholes and register coloring. */
+static inline MkObj* konquest_camera_live_hero_object(KonquestCameraPdataView* owner) {
+    MkObj* object = owner->hero_object;
+    if (object != 0) {
+        if (object->hdr.instance == owner->hero_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline InteractionNpc* konquest_camera_live_movement_npc(
+    KonquestCameraPdataView* owner) {
+    InteractionNpc* object = owner->movement_npc;
+    if (object != 0) {
+        if (object->hdr.instance == owner->movement_npc_instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.566666%; relocation offsets, stack layout; one-trial ceiling. */
 void interaction_cam_set_target_info(int duration, float angle_a,
                                      float field_14, float field_18,
                                      float angle_b, float field_20,
@@ -2895,23 +2937,10 @@ void interaction_cam_set_target_info(int duration, float angle_a,
     float normalized_angle_a;
     float normalized_angle_b;
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
-    movement_npc = konquest_pdata->movement_npc;
-    if (movement_npc != 0) {
-        if (movement_npc->hdr.instance !=
-            konquest_pdata->movement_npc_instance) {
-            movement_npc = 0;
-        }
-    } else {
-        movement_npc = 0;
-    }
+    hero = konquest_camera_live_hero_object(konquest_pdata);
+
+    movement_npc = konquest_camera_live_movement_npc(konquest_pdata);
+
 
     while (g_ic_data.ticks != 0) {
         _mkproc_sleep_ticks = kOne;
@@ -3674,7 +3703,7 @@ float get_volume_from_distance(const Vec* position, float far_distance,
     float volume = kZero;
     float distance;
 
-    RESOLVE_CAMERA_OBJ(camera);
+    camera = camera_live_node(&camera_item);
     if (camera == 0) {
         return kNegOne;
     }
@@ -3756,20 +3785,26 @@ void camera_exit_script(void) {
     destroy_mkprocs_pid(0x9006);
 }
 
+static inline MkProc* camera_monitor_validate_node(
+    MkProc* object, CameraScriptMonitorItem* owner) {
+    if (object != 0) {
+        if (object->instance == owner->instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+/* TODO: [near miss] 99.950000%; instruction lowering, stack layout; one-trial ceiling. */
 void run_camera_script(int script, int argument, int flags) {
     MkHdr* pdata_hdr;
     MkProc* monitor = camera_script_monitor_item.node;
     MkProc* process;
 
-    if (monitor != 0) {
-        if (monitor->instance != camera_script_monitor_item.instance) {
-            monitor = 0;
-        } else {
-            /* keep the validated monitor */
-        }
-    } else {
-        monitor = 0;
-    }
+    monitor = camera_monitor_validate_node(monitor, &camera_script_monitor_item);
     if (monitor != 0 && monitor->instance != 0) {
         monitor->vtbl->destroy(monitor);
     }
@@ -4721,6 +4756,7 @@ void init_scripted_camera(void) {
     }
 }
 
+/* TODO: [near miss] 97.537040%; instruction lowering, instruction scheduling; one-trial ceiling. */
 float p_attract_camera(void) {
     AttractCameraState state;
     AttractCameraSetup* callbacks = 0;
@@ -4728,7 +4764,7 @@ float p_attract_camera(void) {
     int next_mode;
     CameraObj* camera;
 
-    RESOLVE_CAMERA_OBJ(camera);
+    camera = camera_live_node(&camera_item);
     state.camera = camera;
     state.countdown = 0;
     state.mode = -1;
@@ -4771,7 +4807,7 @@ float p_attract_camera(void) {
     }
 }
 
-/* Soft ceiling: typed-object reload/CSE and validated-latch scheduling only. */
+/* TODO: [near miss] 99.708740%; register coloring; one-trial ceiling. */
 static void attract_glitch_move_gamecam(AttractCameraState* state) {
     CameraObj* camera;
     Vec direction;
@@ -4779,7 +4815,7 @@ static void attract_glitch_move_gamecam(AttractCameraState* state) {
     get_play_camera_position(&state->current_position);
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
-        RESOLVE_CAMERA_OBJ(camera);
+        camera = camera_live_node(&camera_item);
         if (g_game_info.plyr0.slot.mirror_a != 0 &&
             g_game_info.plyr1.slot.mirror_a != 0) {
             state->target_position.x =
@@ -6255,9 +6291,18 @@ float p_hold_camera_in_place(void) {
 }
 
 void remove_camera_offsets(void) {
-    remove_camera_offsets_impl();
+    CameraObj* camera;
+
+    camera = camera_live_node(&camera_item);
+    camera->pos.x -= old_cam_pos_offset.x;
+    camera->pos.y -= old_cam_pos_offset.y;
+    camera->pos.z -= old_cam_pos_offset.z;
+    camera->ang.x -= old_cam_ang_offset.x;
+    camera->ang.y -= old_cam_ang_offset.y;
+    camera->ang.z -= old_cam_ang_offset.z;
 }
 
+/* TODO: [near miss] 97.962960%; original latch retained; branch lowering; one-trial ceiling. */
 void add_camera_offsets(void) {
     add_camera_offsets_impl();
 }
