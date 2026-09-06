@@ -2454,8 +2454,8 @@ FatalityEffectHandle pfxhandle_bgnd_spawn_at_sobj_id(
     const char* name, unsigned int sobj_id) {
     FatalityEffectHandle effect_handle;
     FatalityEffectHandle emitter;
-    MkPfx* effect;
     MkSobj* sobj;
+    MkPfx* effect;
 
     effect_handle = fx_by_owner(name, 4);
     if (effect_handle == 0) {

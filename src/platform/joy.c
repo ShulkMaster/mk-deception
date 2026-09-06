@@ -330,7 +330,7 @@ float p_joy_entry(void) {
     int saved_state = plyr_pdata->state;
     float field_80 = plyr_anim_pdata->field_80;
     float field_AC = plyr_anim_pdata->transition_step;
-    int waited = 0;
+    int waited;
 
     init_ground_move();
     back_to_normal();
@@ -339,6 +339,7 @@ float p_joy_entry(void) {
     plyr_anim_pdata->field_80 = field_80;
     plyr_anim_pdata->transition_step = field_AC;
     rotate_towards_him(0.2f);
+    waited = 0;
     while (plyr_pdata->action_lock_a > game_tick_ctr) {
         waited++;
         if (waited > 60) {
@@ -370,6 +371,7 @@ float p_joy_entry(void) {
     }
     if (check_switch(plyr_pdata->switch_data, 0xC) != 0 ||
         check_switch(plyr_pdata->switch_data, 0xE) != 0) {
+        /* The PID-specific state write precedes the unconditional publication. */
         if (aproc->pid == 0x1001) {
             plyr_pdata->special_move_disabled = 1;
         }

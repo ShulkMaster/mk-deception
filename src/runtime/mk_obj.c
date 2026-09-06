@@ -2569,6 +2569,8 @@ void obj_create_sobjs(MkObj* obj) {
     }
 }
 
+/* TODO: [breakthrough] 95.88571%; retail flags-word initialization restored;
+ * remaining callback register/alias-load ordering needs inspection. */
 static RpAtomic* atomic_create_sobj_callback(
     RpAtomic* atomic, void* dataArg) {
     struct SobjCreateData* data;
@@ -2609,7 +2611,7 @@ static RpAtomic* atomic_create_sobj_callback(
                 new_sobj->priority = 0x10;
             }
             new_sobj->frame = frame;
-            new_sobj->flags_08 = 0;
+            new_sobj->flags_word_08 = 0;
             new_sobj->flags_08_bits.bit7 = 1;
             new_sobj->flags_08_bits.bit0 = 1;
             new_sobj->render_flags = 0;
@@ -3192,9 +3194,11 @@ int vdestroy_mkobj(void* obj) {
 }
 
 void destroy_mkobj(void* obj) {
-    MkObj* mkobj = (MkObj*)obj;
-    RpClump* clump;
     int i;
+    RpClump* clump;
+    MkObj* mkobj;
+
+    mkobj = (MkObj*)obj;
 
     mkobj->hdr.instance = 0;
     if (mkobj->hide_flag_bits.bit3 != 0) {
@@ -4132,12 +4136,14 @@ MkObj* get_mkobj(int type, RpClump* clump) {
     return obj;
 }
 
+/* TODO: [near miss] 99.85577%; sizeof owner preserves retail allocation;
+ * existing instruction/relocation residue remains. */
 MkObj* get_mkobj_frame(int type, RwFrame* frame) {
     MkObj* obj;
     RwMatrix* matrix;
 
     obj = (MkObj*)_mwMemMalloc(
-        mkobj_heap, 0x100, 4, 0, 0, 0);
+        mkobj_heap, sizeof(MkObj), 4, 0, 0, 0);
     if (obj != 0) {
         obj->hdr.vtbl = &vtbl_mkobj;
         mk_set_instance(&obj->hdr.instance);

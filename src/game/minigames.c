@@ -7141,17 +7141,17 @@ static void puzzle_fighter_display_chain_msg(PuzzlePlayerState* player) {
     pan_snd_req(chain_sound_burst_table[sound_index], player->sound_pan);
 }
 
-/* Near miss: exact size and operations; r30/r31 and reloc labels differ. */
 static void puzzle_fighter_display_floor_msg(PuzzlePlayerState* player,
                                              int fixed_message) {
-    PuzzleLocalizedImagePlacement* placement = 0;
+    MkProc* proc;
     PuzzleMessagePdata* pdata;
     ScreenObj* image;
-    MkProc* proc;
+    PuzzleLocalizedImagePlacement* placement;
     unsigned int image_id;
     int entry_index;
     int x;
 
+    placement = 0;
     proc = _create_mkproc_generic_nostack(
         0x6010, 0x1F, p_puzzle_fighter_chain_msg,
         sizeof(PuzzleMessagePdata), (MkHdr**)&pdata);
@@ -8205,9 +8205,9 @@ static int init_pz_pfx_2d(void) {
     puzzle_ctrl->puzzle_particle_capacity =
         &((PfxVm*)puzzle_ctrl->puzzle_pfx)->particle_capacity;
     puzzle_ctrl->particle_position_stride =
-        pfx_get_struct_size(puzzle_ctrl->puzzle_pfx, 0x100);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->puzzle_pfx, 0x100);
     puzzle_ctrl->particle_timer_stride =
-        pfx_get_struct_size(puzzle_ctrl->puzzle_pfx, 0x301);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->puzzle_pfx, 0x301);
 
     if (ice_count == 0) {
         return 1;
@@ -8236,9 +8236,9 @@ static int init_pz_pfx_2d(void) {
     puzzle_ctrl->ice_particle_capacity =
         &((PfxVm*)puzzle_ctrl->ice_pfx)->particle_capacity;
     puzzle_ctrl->ice_position_stride =
-        pfx_get_struct_size(puzzle_ctrl->ice_pfx, 0x100);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->ice_pfx, 0x100);
     puzzle_ctrl->ice_timer_stride =
-        pfx_get_struct_size(puzzle_ctrl->ice_pfx, 0x301);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->ice_pfx, 0x301);
     return 1;
 }
 

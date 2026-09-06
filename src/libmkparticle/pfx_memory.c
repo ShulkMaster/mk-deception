@@ -2,6 +2,7 @@
 #include "libmkparticle/behavior.h"
 #include "libmkparticle/config.h"
 #include "libmkparticle/fields.h"
+#include "libmkparticle/emitter.h"
 #include "libmkparticle/metrics.h"
 #include "libmkparticle/particle.h"
 #include "libmkparticle/shader.h"
@@ -76,7 +77,8 @@ void pfx_particle_set_memory(PfxParticleMemory* particle,
     particle->user_data_size = estimate->particle_user_data_size;
 }
 
-/* TODO: [breakthrough needed] 61.439716%; signed table flags recovered; inspect remaining size/type traversal and lowering. */
+/* TODO: [breakthrough needed] 61.333332%; native-sized regions preserve retail
+ * output; remaining size/type traversal and lowering need evidence. */
 void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build)
 {
@@ -103,7 +105,7 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
             pfx_shader_estimate_size(pfx->flags_0x1D4);
     }
     if (pfx->field_0x22C != 0) {
-        estimate->parametric_memory_size = pfx->particle_capacity * 0x28 + 0x358;
+        estimate->parametric_memory_size = pfx->particle_capacity * sizeof(PfxParametricParticle) + sizeof(PfxParametricState);
     } else {
         estimate->parametric_memory_size = 0;
     }
@@ -114,7 +116,7 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
     }
     if (estimate->field_count != 0) {
         estimate->field_descriptions_size =
-            (estimate->field_count + 1) * 0xC;
+            (estimate->field_count + 1) * sizeof(PfxFieldDescription);
     }
 
     if ((build->flags & 0x80000000U) != 0) {
@@ -132,16 +134,16 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
     estimate->metrics_memory_size =
         pfxmetrics_estimate_size(build->metrics_frame_count);
     estimate->metrics_frame_count = build->metrics_frame_count;
-    estimate->runtime_buffers_size = 0x40;
+    estimate->runtime_buffers_size = 2 * sizeof(PfxRuntimeBuffer);
     if (build->name != 0) {
         estimate->name_size = strlen(build->name) + 1;
     }
     if (build->behavior_count != 0) {
-        estimate->behavior_memory_size = build->behavior_count * 0x38C;
+        estimate->behavior_memory_size = build->behavior_count * (sizeof(PfxBehavior) + sizeof(PfxBehavior*));
         estimate->behavior_count = build->behavior_count;
     }
     if (build->emitter_count != 0) {
-        estimate->emitter_memory_size = build->emitter_count * 0x2EC;
+        estimate->emitter_memory_size = build->emitter_count * sizeof(PfxVmEmitter);
         estimate->emitter_count = build->emitter_count;
     }
 
@@ -157,20 +159,12 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                      estimate->runtime_buffers_size + 0x10;
 }
 
-typedef struct PfxParametricMemory {
-    char pad00[0x348];
-    int particle_capacity;
-    char pad34C[8];
-    float field_0x354;
-} PfxParametricMemory;
-
-typedef char PfxParametricMemorySizeCheck[
-    (sizeof(PfxParametricMemory) == 0x358) ? 1 : -1];
-
+/* TODO: [breakthrough needed] 81.99367%; typed regions preserve retail output;
+ * remaining cursor/state reconstruction needs evidence. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;
-    PfxParametricMemory* parametric;
+    PfxParametricState* parametric;
     PfxFieldSet fields;
     int index;
 
@@ -182,8 +176,8 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         cursor += estimate->particle_user_data_size * pfx->particle_capacity;
     }
 
-    if (((unsigned int)cursor & 0xF) != 0) {
-        cursor = (unsigned char*)(((unsigned int)cursor + 0x10) & ~0xFU);
+    if (((unsigned long)cursor & 0xF) != 0) {
+        cursor = (unsigned char*)(((unsigned long)cursor + 0x10) & ~0xFUL);
     }
     for (index = 0; index < 3; index++) {
         pfx->transforms[index].particle_field_stride =
@@ -192,9 +186,9 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 
     if (pfx->field_0x22C != 0) {
         pfx->name_obj = cursor;
-        parametric = (PfxParametricMemory*)pfx->name_obj;
+        parametric = (PfxParametricState*)pfx->name_obj;
         parametric->particle_capacity = pfx->particle_capacity;
-        parametric->field_0x354 = -10000.0f;
+        parametric->minimum_y = -10000.0f;
         cursor += estimate->parametric_memory_size;
     } else {
         pfx->name_obj = 0;
@@ -210,7 +204,7 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 
     if (estimate->emitter_user_data_size != 0) {
-        ((PfxVmEmitter*)pfx_get_emitter((PfxEmitterTableView*)pfx, 0))->user_data =
+        pfx_get_emitter(pfx, 0)->user_data =
             cursor;
     }
     cursor += estimate->emitter_user_data_size;
@@ -219,8 +213,8 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         unsigned char* aligned;
 
         aligned = cursor;
-        if (((unsigned int)cursor & 0xF) != 0) {
-            aligned += 0x10 - ((unsigned int)cursor & 0xF);
+        if (((unsigned long)cursor & 0xF) != 0) {
+            aligned += 0x10 - ((unsigned long)cursor & 0xF);
         }
         pfx->emitter_user_data = aligned;
         cursor += estimate->emitter_user_data_block_size;
@@ -232,14 +226,14 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         cursor += estimate->behavior_count * sizeof(void*);
         for (index = 0; index < estimate->behavior_count; index++) {
             pfx->behaviors[index] = cursor;
-            cursor += 0x388;
+            cursor += sizeof(PfxBehavior);
         }
     }
 
     if (estimate->field_descriptions_size != 0) {
         pfx->field_count = estimate->field_count;
         pfx->field_descriptions = cursor;
-        cursor += (estimate->field_count + 1) * 0xC;
+        cursor += (estimate->field_count + 1) * sizeof(PfxFieldDescription);
         fields.render_flags = pfx->flags_0x1D4;
         fields.particle_flags = pfx->flags_0x60;
         fill_field_description(pfx->field_descriptions, &fields,
@@ -250,10 +244,10 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
                                       estimate->metrics_frame_count);
     cursor += estimate->metrics_memory_size;
     if (estimate->runtime_buffers_size != 0) {
-        memset(cursor, 0, 0x20);
+        memset(cursor, 0, sizeof(PfxRuntimeBuffer));
         pfx->runtime_buffer_a = cursor;
-        pfx->runtime_buffer_b = cursor + 0x20;
-        cursor += 0x40;
+        pfx->runtime_buffer_b = cursor + sizeof(PfxRuntimeBuffer);
+        cursor += 2 * sizeof(PfxRuntimeBuffer);
     } else {
         pfx->runtime_buffer_a = 0;
         pfx->runtime_buffer_b = 0;
@@ -289,27 +283,24 @@ void pfx_copy_behavior_list(void* vm, int count, const void* behaviors)
     }
 }
 
-/*
- * Soft ceiling: 93.67647%. A 1,102-iteration authentic-compiler permuter run
- * reached zero only by adding a fake increment/decrement lifetime around the
- * alignment mask; that match-forcing candidate is intentionally rejected.
- */
+/* TODO: [near miss] 93.67647%; pointer-sized header preserves retail output;
+ * alignment-mask lifetime coloring remains; stop without forced lifetimes. */
 void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
 {
     unsigned char* allocation;
-    unsigned int align_mask;
+    unsigned long align_mask;
     unsigned char* aligned;
 
-    if (align < 4) {
-        align = 4;
+    if (align < (int)sizeof(void*)) {
+        align = sizeof(void*);
     }
 
     allocation = (unsigned char*)get_mem(size + align);
     if (allocation != 0) {
-        align_mask = (unsigned int)-align;
+        align_mask = (unsigned long)-(long)align;
         aligned = allocation + align;
         aligned = (unsigned char*)
-            (align_mask & (unsigned int)(aligned + 3));
+            (align_mask & (unsigned long)(aligned + sizeof(void*) - 1));
         *(void**)allocation = vm->effect_allocations;
         vm->effect_allocations = allocation;
         if (aligned != allocation + sizeof(void*)) {

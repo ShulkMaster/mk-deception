@@ -13,7 +13,7 @@ typedef int BOOL;
 #define ASSERTLINE(line, condition) ((void)0)
 #define OFFSET(value, alignment) ((u32)(value) & ((alignment) - 1))
 #ifdef __MWERKS__
-#define __EXIRegs ((volatile u32*)0xCC006800)
+volatile u32 __EXIRegs[] : 0xCC006800;
 #else
 static volatile u32 HostEXIRegs[15];
 static volatile s32 HostProbeTimes[2];
@@ -119,6 +119,7 @@ static inline void CompleteTransfer(s32 chan) {
     }
 }
 
+/* TODO: [breakthrough needed] 43.95%; transfer setup/frame differs; recover immediate-buffer packing and owner lifetimes */
 int EXIImm(s32 chan, void* buf, s32 len, u32 type, EXICallback callback) {
     EXIControl* exi;
     BOOL enabled;
@@ -177,6 +178,7 @@ int EXIImmEx(s32 chan, void* buf, s32 len, u32 mode) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 67.66%; DMA setup differs; inspect argument snapshots and channel-register addressing */
 int EXIDma(s32 chan, void* buf, s32 len, u32 type, EXICallback callback) {
     EXIControl* exi;
     BOOL enabled;
@@ -210,6 +212,7 @@ int EXIDma(s32 chan, void* buf, s32 len, u32 type, EXICallback callback) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 62.97%; poll/completion expansion differs; recover transfer helper ownership and exit joins */
 int EXISync(s32 chan) {
     EXIControl* exi;
     int rc;
@@ -290,6 +293,7 @@ inline void EXIProbeReset() {
     __EXIProbe(1);
 }
 
+/* TODO: [breakthrough needed] 52.06%; probe frame and timestamp path differ; inspect low-RAM polling and elapsed-time lowering */
 static int __EXIProbe(s32 chan) {
     EXIControl* exi;
     BOOL enabled;
@@ -467,6 +471,7 @@ inline int EXISelectSD(s32 chan, u32 dev, u32 freq) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 69.19%; device/frequency setup differs; inspect channel owner across probe and interrupt calls */
 int EXISelect(s32 chan, u32 dev, u32 freq) {
     EXIControl* exi;
     u32 cpr;
@@ -506,6 +511,7 @@ int EXISelect(s32 chan, u32 dev, u32 freq) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 80.51%; channel-owner saves differ; inspect deselect/probe lifetime and final return joins */
 int EXIDeselect(s32 chan) {
     EXIControl* exi;
     u32 cpr;
@@ -547,6 +553,7 @@ int EXIDeselect(s32 chan) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 37.20%; interrupt acknowledgement/callback setup differs; recover owner and expansion boundaries */
 static void EXIIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
     s32 chan;
     EXIControl* exi;
@@ -570,6 +577,7 @@ static void EXIIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
     }
 }
 
+/* TODO: [breakthrough needed] 54.90%; completion/callback frame differs; inspect transfer expansion and context lifetime */
 static void TCIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
     s32 chan;
     EXIControl* exi;
@@ -622,6 +630,7 @@ static void EXTIntrruptHandler(__OSInterrupt interrupt, OSContext* context) {
     }
 }
 
+/* TODO: [breakthrough needed] 74.20%; initialization polling/setup differs; inspect register-bank and probe-reset expansions */
 void EXIInit() {
     u32 id;
 

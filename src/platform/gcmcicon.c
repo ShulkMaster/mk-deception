@@ -24,6 +24,7 @@ void unload_memorycard_write_buffer(void) {
     }
 }
 
+/* TODO: [near miss] 97.77778%; overlap-capable retail memcpy; remaining instruction/relocation differences. */
 int create_memorycard_write_buffer(const void* data, unsigned int size) {
     if (gc_seek_position == 0) {
         if (mc_icon_file_size == 0) {

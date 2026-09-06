@@ -83,7 +83,10 @@ typedef union PfxSpawnArguments {
         PfxVec3 extent;
     } box;
     struct {
-        struct PfxSpawnTable* table;
+        union {
+            struct PfxSpawnTable* table;
+            int table_index;
+        };
         unsigned int field;
         unsigned int source_field;
     } table;
@@ -104,6 +107,12 @@ typedef union PfxSpawnArguments {
         int option;
     } shape;
     struct {
+        PfxVec3 origin;
+        float minimum_radius;
+        float maximum_radius;
+        int quadratic_radius;
+    } sphere;
+    struct {
         PfxVec3 offset;
         float minimum_length;
         float length_range;
@@ -118,7 +127,9 @@ typedef union PfxSpawnArguments {
 typedef struct PfxEmitterInstruction {
     int opcode;
     int field_description;
-    char pad08[0x2C];
+    int storage_type;                  /* +0x08 - compiled field storage */
+    int field_offset;                  /* +0x0C - compiled byte offset */
+    char pad10[0x24];
     union {
         PfxSpawnArguments spawn;
         union {
@@ -261,7 +272,7 @@ struct PfxVm {
     PfxVec3 field_0x1FC;
     float field_0x208;
     void* tables[2];                   /* +0x20C */
-    char pad214[4];
+    void (*transform_callback)(void); /* +0x214 -- MkPfx transform callback */
     PfxSpawnCallback spawn_callback;   /* +0x218 */
     char* name;                        /* +0x21C */
     char pad220[4];

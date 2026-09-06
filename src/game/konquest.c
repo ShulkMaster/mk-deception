@@ -556,8 +556,9 @@ typedef struct KonquestPdata {
     int interior_active;         /* +0x2C */
     MkPtr* triggers;             /* +0x30 */
     MkPtr* temporary_triggers;   /* +0x34 */
-    char pad38[8];
-    MkPtr* npcs;                /* +0x40 */
+    char pad38[4];
+    MkPtr* npc_list;            /* +0x3C */
+    MkPtr* visible_npc_list;    /* +0x40 */
     char pad44[4];
     int hud_visible;             /* +0x48 */
     KonquestObjectLatch hud_objects[7]; /* +0x4C .. +0x83 */
@@ -8169,17 +8170,12 @@ static float p_konquest_nis_housekeeping(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: nis_remove_non_participants ~86.6% -- the body and GPRs are
- * exact; residue is paired saves versus stmw/lmw and equivalent pointer
- * truth normalization (neg/or/srwi versus subic/subfe).
- */
 void nis_remove_non_participants(void) {
     MkPtr* next;
     MkPtr* link;
 
-    if (konquest_has_list(&konquest_pdata->npcs)) {
-        link = konquest_pdata->npcs;
+    if (konquest_has_list(&konquest_pdata->npc_list)) {
+        link = konquest_pdata->npc_list;
         while (link != 0) {
             MkHdr* hdr;
             KonquestNpc* npc;
@@ -8379,8 +8375,8 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
 
     *distance = 1000.0f;
     *facing_angle = 6.2831855f;
-    if (konquest_has_list(&konquest_pdata->npcs)) {
-        link = konquest_pdata->npcs;
+    if (konquest_has_list(&konquest_pdata->visible_npc_list)) {
+        link = konquest_pdata->visible_npc_list;
         while (link != 0) {
             KonquestNpc* npc;
 
@@ -13112,11 +13108,6 @@ static void remove_collisions_from_tile_and_tile_objects(
     tile->collisions_active = 0;
 }
 
-/*
- * Soft ceiling: generate_collisions_for_tile_and_tile_objects ~91.2% -- all
- * executable body instructions match. Residue is the zero-vector relocation
- * label and individual r29-r31 saves/restores versus retail stmw/lmw.
- */
 static void generate_collisions_for_tile_and_tile_objects(
     KonquestTileRecord* tile) {
     Vec zero = {0.0f, 0.0f, 0.0f};
@@ -13155,7 +13146,7 @@ static void generate_collisions_for_tile_and_tile_objects(
                     if (record != 0 && object->collision_art_id != 0) {
                         generate_collision_objects(
                             0x60029, object->collision_art_id,
-                            &record->position, &record->angles,
+                            &record->base_position, &record->base_angles,
                             &object->collisions);
                         set_flag_for_all_collisions(
                             &object->collisions, 0x80000000);
@@ -15110,17 +15101,12 @@ void assign_obj_to_trigger(int object_uid, unsigned int trigger_id) {
     }
 }
 
-/*
- * Soft ceiling: the retail algorithm and ABI are reproduced. The remaining
- * difference is CodeWarrior's stmw/lmw choice versus individual nonvolatile
- * saves, with the corresponding harmless register allocation.
- */
 void konquest_setup_pui_particle(
     const char* effect_name, int shared_render_object) {
     unsigned int handle;
     MkPfx* effect;
-    MkObj* object;
     int emitter;
+    MkObj* object;
 
     handle = fx_by_owner(effect_name, 4);
     effect = find_pfx_by_handle(handle);

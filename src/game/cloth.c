@@ -531,6 +531,7 @@ void mks_cc1_insert_cb1(void) {
     volume->bone_settings[volume->bone_count] = 0;
 }
 
+/* TODO: [near miss] 97.55%; whole flags-word initialization corrected; constant/address preparation scheduling remains */
 void mks_ccp1_eq_insert_cloth_coll_plane(
     int bone_index, float distance,
     float normal_x, float normal_y, float normal_z) {
@@ -544,7 +545,7 @@ void mks_ccp1_eq_insert_cloth_coll_plane(
         plane->reference_bone = object->bones[bone_index];
         plane->reference_bone->flags_54_bits.calculation_locked = 1;
         plane->bone_count = 0;
-        plane->flags_6C = 0;
+        plane->flags_storage = 0;
         plane->distance = distance;
         plane->normal.x = normal_x;
         plane->normal.y = normal_y;

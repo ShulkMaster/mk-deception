@@ -2523,7 +2523,7 @@ ChessCameraInfo* mk_chess_fetch_camera_info(void) {
     return 0;
 }
 
-/* Soft ceiling: mk_chess_allow_setting_of_viewing_quadrant ~91.43% - bit extract emit. */
+/* TODO: [near miss] 91.43%; equivalent byte shift retains srawi; mask and unsigned promotion do not close it. */
 int mk_chess_allow_setting_of_viewing_quadrant(void) {
     return (g_game_info.field_04 >> 7) == 0;
 }

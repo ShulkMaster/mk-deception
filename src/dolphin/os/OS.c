@@ -13,8 +13,8 @@ extern void* memcpy(void*, const void*, unsigned long);
 extern void EnableMetroTRKInterrupts(void);
 extern unsigned long __DVDLongFileNameFlag;
 extern unsigned long __PADSpec;
-extern unsigned short __OSDeviceCode;
-extern volatile unsigned long __DIRegs[];
+unsigned short __OSDeviceCode : 0x800030E6;
+volatile unsigned long __DIRegs[] : 0xCC006000;
 extern unsigned char __ArenaLo[], __ArenaHi[];
 extern char _stack_addr[];
 
@@ -179,6 +179,7 @@ OSExceptionHandler __OSGetExceptionHandler(__OSException exception)
     return OSExceptionTable[exception];
 }
 
+/* TODO: [breakthrough needed] 77.13%; boot-device and DI owners corrected; initialization call/stack and constant ownership remain */
 void OSInit(void)
 {
     unsigned long console_type;

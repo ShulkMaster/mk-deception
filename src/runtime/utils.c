@@ -905,12 +905,12 @@ static inline ScreenObj* resolve_blink_object(
 }
 
 static float p_blink_cursor(void) {
-    BlinkCursorPdata* pdata;
-    ScreenObj* object;
-    ScreenObj* live;
-    unsigned int instance;
     int on_ticks;
+    ScreenObj* live;
+    BlinkCursorPdata* pdata;
+    unsigned int instance;
     int off_ticks;
+    ScreenObj* object;
 
     pdata = (BlinkCursorPdata*)apdata;
     if (pdata != 0) {
@@ -1897,8 +1897,8 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
 
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix) {
-    RwMatrix* base;
     RwMatrix* dual;
+    RwMatrix* base;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, dual, matrix);
     return material;
@@ -1906,8 +1906,8 @@ static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
 
 static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
                                                  void* matrix) {
-    RwMatrix* base;
     RwMatrix* dual;
+    RwMatrix* base;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, matrix, base);
     return material;
@@ -2052,11 +2052,11 @@ UvScrollControl* find_uv_scroll_control_for_obj(MkObj* object) {
 }
 
 static float p_process_uvscrolling(void) {
-    MkPtr* node;
+    RpClump* clump;
     MkPtr* next;
     UvScrollControl* ctrl;
     MkObj* owner;
-    RpClump* clump;
+    MkPtr* node;
     if (MKPTR_LIST_AVAILABLE(&uv_scroll_control_list)) {
         node = uv_scroll_control_list;
         while (node != 0) {
@@ -2134,7 +2134,7 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     return 0;
 }
 
-/* TODO: [near miss] 99.78836%; float comparison operand order survives symmetric check; stop. */
+/* TODO: [near miss] 99.78836%; reversed FP equality operands survive source-order check; stop at lowering. */
 UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
                                       float v1, float u2, float v2) {
     UvScrollControl* ctrl;

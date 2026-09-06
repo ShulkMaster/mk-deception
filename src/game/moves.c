@@ -692,11 +692,7 @@ static inline float moves_inverse_sqrt(float value) {
            (12.0f - product * correction * correction);
 }
 
-/*
- * Soft ceiling: 96.28866%. Retail emits an explicit null-normalization block
- * after the equivalent object/instance validity test; clean C folds it away.
- * All other objdiff records are TU-local constant relocation labels.
- */
+/* TODO: [near miss] 96.85%; equivalent object/instance null-normalization block is folded away. */
 static float p_blast(void) {
     static RwRGBA initial_color = {0x64, 0xFF, 0x64, 0xFF};
     MovesBlastPdata* data;
@@ -745,10 +741,6 @@ static float p_blast(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: 99.797295%. The instruction stream and ownership match;
- * objdiff only reports three TU-local float relocation labels.
- */
 void blast_effect_at_plyr(void) {
     MovesBlastPdata* data;
     MkObj* blast;
@@ -855,11 +847,7 @@ void switch_plyr_positions(void) {
     g_game_info.plyr1.slot.mirror_a->pos.value.y = player1_y;
 }
 
-/*
- * Soft ceiling: 96.51961%. Retail emits an explicit null-normalization block
- * after the equivalent object/instance validity test; clean C folds that
- * block away. All other objdiff records are TU-local float relocation labels.
- */
+/* TODO: [near miss] 97.05%; equivalent object/instance null-normalization block is folded away. */
 static float p_scorpion_scale(void) {
     MovesScalePdata* data;
     MkObj* object;
@@ -1055,7 +1043,7 @@ static inline int moves_is_weapon_style(MovesStyle* style) {
             weapon_data->secondary_weapon != 0);
 }
 
-/* TODO: [breakthrough] 69.12613%; watcher snapshots the retail entry function at +0xB8; repeated latch expansion still differs. */
+/* TODO: [breakthrough needed] 71.19%; typed process-latch expansion and output-local ownership remain. */
 void start_special_weapon_monitor(void) {
     MovesWeaponWatchPdata* pdata;
     PlyrMirrorSlots* default_slots;
@@ -1169,13 +1157,8 @@ static float p_watch_weapon(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: retail m2c confirms the complete player/process latch,
- * weapon-style restoration, four weapon grabs, show, and duplicated callback
- * policy. Clean typed latch resolution is folded across each check/call pair;
- * retail repeats explicit null/instance normalization. The remaining delta is
- * that compiler control-flow expansion, saved-GPR allocation, and float labels.
- */
+/* Restore weapon style, grab and show all four weapons, preserving the callback policy. */
+/* TODO: [breakthrough needed] 82.72%; repeated process-latch normalization and callback scheduling remain. */
 static float p_hide_and_die(void) {
     MovesWeaponWatchPdata* pdata;
     PlyrMirrorSlots* slots;
@@ -1244,10 +1227,6 @@ static float p_hide_and_die(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: the three local fatality dispatchers are opcode-identical to
- * retail; objdiff only distinguishes their TU-local zero-float pool labels.
- */
 float do_my_suicide(void) {
     if (f_fatality_available != 0 ||
         g_game_info.feature_flags.bits.high_bit != 0) {
@@ -1285,6 +1264,7 @@ float do_my_fatality(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 95.61%; nullable pickup-list expansion remains. */
 void drop_active_weapon_to_original_position(PlyrPdata* player) {
     MovesGameInfoView* game;
     MovesPickup* pickup;
@@ -1419,12 +1399,7 @@ static inline int moves_find_nearby_pickup(
     return 0;
 }
 
-/*
- * Soft ceiling: 92.58064%. Retail's nullable pickup-list-handle traversal,
- * ordered absolute-value comparison, typed callback ABI, and exact behavior
- * are restored. The 16-byte source excess is separate GPR saves/restores in
- * place of retail stmw/lmw; all other records are float-pool relocations.
- */
+/* Pickup lookup accepts a nullable list handle and uses an ordered absolute-value comparison. */
 static float x_pickup(void) {
     MkObj* object;
     MovesPickup* nearby_pickup;
@@ -1449,12 +1424,8 @@ static float x_pickup(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: both retail nine-way grab-animation switches and all preview,
- * pickup, moveset, transform, and script paths are recovered. The remaining
- * 56-byte deficit is GPR/base rematerialization and call scheduling around the
- * switches and typed pickup-list lookup, plus local relocation labels.
- */
+/* Select the grab animation before applying pickup, transform and script effects. */
+/* TODO: [breakthrough needed] 85.92%; pickup/animation-switch lifetimes and call scheduling remain. */
 static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
     MovesGameInfoView* game;
     unsigned int grab_type;
@@ -1626,10 +1597,6 @@ static void do_pickup(MovesPickup* pickup, Vec* offset, int take) {
     }
 }
 
-/*
- * Soft ceiling: p_block's executable body is opcode-identical to retail.
- * MWCC selects scalar r30/r31 saves here instead of retail's stmw/lmw pair.
- */
 float p_block(void) {
     PlyrInfo* player;
     int player_number;
@@ -1676,10 +1643,6 @@ float p_block(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: switch_proc_attack_5/2/1 are opcode-identical to retail;
- * objdiff only distinguishes their TU-local zero/-one float-pool labels.
- */
 float switch_proc_attack_5(void) {
     PlyrInfo* player;
     int state;
@@ -1711,10 +1674,6 @@ float switch_proc_attack_5(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: switch_proc_attack_4/3 are 99.82456%. Their instruction
- * streams match; objdiff only distinguishes two TU-local float-pool labels.
- */
 float switch_proc_attack_4(void) {
     PlyrInfo* player;
     int state;
@@ -1963,19 +1922,15 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].switch_value;
 }
 
-/*
- * Soft ceiling: retail and source have the same 476-byte instruction stream.
- * Objdiff residue is limited to saved-GPR allocation and local float labels.
- */
 float switch_proc_advance_moveset(void) {
-    PlyrInfo* player;
     PlyrPdata* player_data;
-    MkProc* idle_proc;
-    MkProc* proc;
     MovesSidekickPdataRef pdata;
     int player_num;
-    int player_state;
     int fighter_state;
+    MkProc* proc;
+    int player_state;
+    MkProc* idle_proc;
+    PlyrInfo* player;
     float life;
 
     player = switch_pdata->player;
@@ -2153,11 +2108,8 @@ static inline void moves_dispatch_attack(MovesActionRef* action) {
     }
 }
 
-/*
- * Soft ceiling: retail's two branch-local tagged dispatches are restored.
- * Remaining differences are a 12-byte save/control-flow residue, GPR
- * allocation in the inlined helpers, switch scheduling, and float labels.
- */
+/* The two tagged dispatches belong to their respective attack branches. */
+/* TODO: [breakthrough needed] 82.82%; tagged dispatch expansion, log ownership and frame layout remain. */
 float x_attack_5(void) {
     MovesSwitchLogEntry* entry;
     unsigned int throw_script;
@@ -2203,6 +2155,7 @@ float x_attack_5(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 78.89%; tagged dispatch expansion and frame layout remain. */
 static float x_attack_5_remote(void) {
     unsigned int throw_script;
 
@@ -2223,11 +2176,8 @@ static float x_attack_5_remote(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: retail character-switch order and direct sequence scans are
- * restored with one typed jump-table base. The remaining 28-byte deficit is
- * save/GPR allocation, inlined helper scheduling, and relocation labels.
- */
+/* Scan the character-specific action sequence through the typed jump-table base. */
+/* TODO: [breakthrough needed] 88.30%; switch-log ownership and inline dispatch scheduling remain. */
 float x_attack_4(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
@@ -2360,15 +2310,8 @@ float x_attack_4(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: x_attack_3, x_attack_2, and x_attack_1 retain the retail
- * jump-table base and spell out the retail physical case order, guards, and
- * direct sequence scans. Their remaining objdiff records are saved-register
- * selection, GPR allocation, instruction scheduling around the shared log and
- * inlined attack-dispatch paths, branch labeling, and local relocations. The
- * bodies differ from retail by 4, 8, and 0 bytes respectively; duplicating
- * semantically redundant loads or forcing registers is intentionally avoided.
- */
+/* Keep the guarded character dispatches and their direct action-sequence scans. */
+/* TODO: [breakthrough needed] 90.36%; switch-log ownership and inline dispatch scheduling remain. */
 float x_attack_3(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
@@ -2504,6 +2447,7 @@ float x_attack_3(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 90.24%; switch-log ownership and inline dispatch scheduling remain. */
 float x_attack_2(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
@@ -2637,6 +2581,7 @@ float x_attack_2(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 90.44%; switch-log ownership and inline dispatch scheduling remain. */
 float x_attack_1(void) {
     MovesAttackActionTable* actions;
     MovesSwitchLogEntry* entry;
@@ -2911,6 +2856,7 @@ static float jump_towards_opponent_j_exit(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 86.38%; process-latch branch/load expansion remains. */
 void advance_active_moveset(PlyrPdata* player) {
     PlyrMirrorSlots* slots;
     MkObj* sidekick;
@@ -3453,13 +3399,8 @@ static float p_sidekick_watchdog_launcher(void) {
     return -1.0f;
 }
 
-/*
- * Soft ceiling: 72.51667% at exact retail size. Retail m2c confirms both
- * object/process latch checks, animation transition, exit speed, visibility,
- * sleep, vanish, and the corrected -1.0f return. Remaining differences are
- * explicit null-normalization folded from typed latch checks, GPR allocation,
- * separate saves versus stmw/lmw, scheduling, and float relocations.
- */
+/* Resolve both object/process latches before the animation, visibility and vanish transitions. */
+/* TODO: [breakthrough needed] 83.68%; object/process latch normalization and owner scheduling remain. */
 static float p_sidekick_exit_now(void) {
     MovesSidekickPdata* pdata;
     MovesSidekickStateView* player;
@@ -4454,11 +4395,6 @@ void glitch_to_stance_j_exit(void) {
     moves_jump(j_exit);
 }
 
-/*
- * Soft ceiling: drahmin_dash_back is 98.870964% and joy_dash_back is
- * 99.333336%. Their instruction streams match; only TU-local float-pool
- * relocation labels differ.
- */
 static float drahmin_dash_back(void) {
     snd_req(0xD71);
     blend_to_ani(((MovesDashAnimationView*)plyr_pdata)->dash_back, 0xB, 0.1f);
@@ -4573,12 +4509,7 @@ static inline int moves_dead_movement(void) {
     return 0;
 }
 
-/*
- * Soft ceiling: walk_right/left are 94.814156%, walk_forward is 93.32478%,
- * and walk_backward is 94.29703%. Remaining differences are float-pool
- * relocation labels, saved-register selection, and the branch/join emitted
- * when MWCC inlines the clean moves_dead_movement helper.
- */
+/* TODO: [near miss] 98.14%; equivalent dead-movement helper branch/zero join remains. */
 static float walk_right(void) {
     int pad_position;
 
@@ -4607,6 +4538,7 @@ static float walk_right(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 98.14%; equivalent dead-movement helper branch/zero join remains. */
 static float walk_left(void) {
     int pad_position;
 
@@ -4635,6 +4567,7 @@ static float walk_left(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 98.17%; equivalent dead-movement helper branch/zero join remains. */
 static float walk_forward(void) {
     int pad_position;
     int tracking_disabled;
@@ -4666,6 +4599,7 @@ static float walk_forward(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 97.92%; equivalent dead-movement helper branch/zero join remains. */
 static float walk_backward(void) {
     int pad_position;
 
@@ -4688,11 +4622,6 @@ static float walk_backward(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: step_backward/forward are 99.48718% and step_right/left are
- * 99.541985%. Their instruction streams match; only TU-local float-pool
- * relocation labels differ.
- */
 float step_backward(void) {
     int pad_position;
 
@@ -4930,11 +4859,6 @@ float dizzy(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: 98.85621% at exact retail size. All opcodes match after
- * restoring the four physical switch orders and direct case-local scans; the
- * remaining 35 records are jump-table/base relocation labels only.
- */
 static void check_for_suicide(void) {
     unsigned int* sequences = &jump_table[0].value;
 
@@ -5070,6 +4994,7 @@ static inline int moves_has_nearby_pickup(MkObj* object, MkPtr** pickup_list) {
     return 0;
 }
 
+/* TODO: [breakthrough needed] 99.41%; distance-factor scheduling and pickup owner reloads remain. */
 float switch_proc_pickup(void) {
     PlyrInfo* player;
     PlyrPdata* player_data;
@@ -5198,13 +5123,8 @@ void fall_dead(void) {
     moves_jump(j_stay_down_dead);
 }
 
-/*
- * Soft ceiling: 90.37392%, four bytes short of retail. Retail m2c confirms
- * both terminal sleep paths, corrected pre-victory state wait, opponent wait,
- * boss/normal script dispatch, and float return ABI. Remaining records are
- * latch null-normalization, save form, register allocation, decrement/branch
- * scheduling, bitfield-store scheduling, and float relocations.
- */
+/* Wait for the pre-victory state and opponent before selecting boss or normal scripts. */
+/* TODO: [breakthrough needed] 92.67%; latch normalization, flag stores and wait-loop scheduling remain. */
 float victory(void) {
     MovesFighterDefinitionView* fighter;
     MovesProcessLatchView* opponent_latch;
@@ -5302,6 +5222,7 @@ float victory(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 86.21%; wait-branch expansion and frame layout remain. */
 void big_boss_end_of_round(void) {
     MovesBossAnimationView* animations;
     int ticks;
@@ -5526,6 +5447,7 @@ static float jump_landing_j_exit(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 89.25%; Boolean state lifetime and dodge-branch scheduling remain. */
 void wall_dodge(void) {
     int direction;
     int script_direction;
@@ -6068,12 +5990,7 @@ static float j_flying_punch(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: retail m2c and both call-site/callee ABIs confirm the complete
- * spear lifecycle and the one-argument start_scorpion_spear call. Remaining
- * differences are repeated process-latch normalization, counter/argument
- * scheduling, saved-GPR layout, irregular-switch lowering, and float labels.
- */
+/* TODO: [breakthrough needed] 80.85%; compact-save mode recovered; remaining branch/address and register lowering need local diagnosis. */
 float throw_spear(void) {
     MovesSpearAttackView* attacks;
     MkProc* spear_proc;
@@ -6165,7 +6082,6 @@ float throw_spear(void) {
     return 0.0f;
 }
 
-/* Soft ceiling: 99.48529%; all seven records are float-pool relocations. */
 static float tug_in_spear(void) {
     if (plyr_pdata->character_id == 0x19 ||
         plyr_pdata->character_id == 0x1A) {
@@ -6227,7 +6143,6 @@ void kill_spear(void) {
     }
 }
 
-/* Soft ceiling: 99.393936%; all four records are float-pool relocations. */
 static float weapon_block(void) {
     set_my_state(0xA00);
     blend_to_ani(
@@ -6456,6 +6371,7 @@ float x_block(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 90.08%; timer/local ownership and loop frame layout remain. */
 void j_duck_block_loop(void) {
     MovesBlockStateView* block;
     MovesBlockStateView* opponent_block;
@@ -6696,12 +6612,7 @@ void idle_his_anim_proc(void) {
     }
 }
 
-/*
- * Soft ceiling: retail m2c and the sole script call site confirm the complete
- * three-argument ABI, field order, trial-counter split, attack/collision calls,
- * and phase transitions. Retail is 12 bytes larger; remaining records are
- * saved-register selection, GPR allocation/scheduling, and relocations.
- */
+/* TODO: [breakthrough needed] 71.41%; call/phase lowering and argument-local ownership remain. */
 void attack_opponent_with(
     int attack, MovesAttackInfo* info, int reaction) {
     MovesAttackStateView* attack_state;

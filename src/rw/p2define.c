@@ -425,6 +425,7 @@ static void PipelineTopSort(PipelineTopSortState* data, unsigned int nodeIndex)
 }
 
 /* Converts a node pointer back to its validated pipeline-array index. */
+/* TODO: [near miss] 83.75%; retail signed divw remains; typed subtraction still uses reciprocal lowering, stop. */
 static unsigned int PipelineNode2Index(RxPipeline* pipeline, RxPipelineNode* node)
 {
     unsigned int index;

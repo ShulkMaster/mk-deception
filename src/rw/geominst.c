@@ -154,6 +154,7 @@ unsigned int rwGCNTexGetSize(const RwGameCubeVertexDescriptor *descriptor,
 
 
 
+/* TODO: [near miss] 98.5124%; copy/advance order recovered; output-pointer and parameter coloring remain. */
 unsigned int _rwGCNVtxFmtInstPos3D(void *destination, const RwV3d *source,
                                int type, float scale, int count,
                                unsigned int stride, const RwV3d *origin) {
@@ -244,7 +245,8 @@ unsigned int _rwGCNVtxFmtInstPos3D(void *destination, const RwV3d *source,
       stride = sizeof(RwV3d);
     output = destination;
     for (index = 0; index < count; index++) {
-      *output = *source++;
+      *output = *source;
+      source++;
       output = (RwV3d *)((unsigned char *)output + stride);
     }
     result = count * sizeof(RwV3d);

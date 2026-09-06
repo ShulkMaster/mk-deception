@@ -80,7 +80,7 @@ void pfxmetrics_flush(PfxMetrics* metrics) {
 
 int pfxmetrics_estimate_size(int frame_count) {
     if (frame_count != 0) {
-        return frame_count * sizeof(PfxMetricsCounters) + 0x110;
+        return frame_count * sizeof(PfxMetricsCounters) + sizeof(PfxMetrics);
     }
     return 0;
 }

@@ -130,6 +130,7 @@ void SVM_Finish(void)
     }
 }
 
+/* TODO: [near miss] 99.72%; BSS owner offsets differ; explicit-zero layout trial regresses merged addressing. */
 void SVM_Init(void)
 {
     if (svm_init_level == 0) {
@@ -285,6 +286,7 @@ void SVM_Unlock(void)
     svm_unlock_internal();
 }
 
+/* TODO: [near miss] 99.92%; BSS owner offsets differ; explicit-zero layout trial regresses merged addressing. */
 void SVM_Lock(void)
 {
     svm_lock_internal();

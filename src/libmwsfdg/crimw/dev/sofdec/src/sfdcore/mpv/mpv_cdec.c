@@ -5,15 +5,50 @@ typedef union MPVCDECCoefficients {
     f64 pairs[32];
 } MPVCDECCoefficients;
 
+/* The six contiguous input blocks occupy 384 floats or 192 paired stores. */
+typedef union MPVCDECIntraCoefficients {
+    f32 values[6][64];
+    f64 pairs[192];
+} MPVCDECIntraCoefficients;
+
 extern void DCT_FsriTransCbp(DctFsriParams* params);
 extern void DCT_FsriTrans6Blk(DctFsriParams* params);
 
-static inline void MPVCDEC_ClearCoefficients(MPVCDECCoefficients* coefficients)
+/* Clear one block and advance within the six-block paired-store view. */
+static inline void MPVCDEC_ClearCoefficients(f64** cursor)
 {
-    s32 index;
-    for (index = 0; index < 32; index++) {
-        coefficients->pairs[index] = 0.0;
-    }
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
+    *(*cursor)++ = 0.0;
 }
 
 s32 MPVCDEC_NintraBlocks(MPVContext* context)
@@ -48,15 +83,17 @@ s32 MPVCDEC_IntraBlocks(MPVContext* context)
 {
     MPVCodingBlock* block;
     DctFsriParams* params;
-    s32 index;
-    MPVCDECCoefficients* coefficients =
-        (MPVCDECCoefficients*)&context->transform.coefficients[3];
-    MPVCDEC_ClearCoefficients(&coefficients[0]);
-    MPVCDEC_ClearCoefficients(&coefficients[1]);
-    MPVCDEC_ClearCoefficients(&coefficients[2]);
-    MPVCDEC_ClearCoefficients(&coefficients[3]);
-    MPVCDEC_ClearCoefficients(&coefficients[4]);
-    MPVCDEC_ClearCoefficients(&coefficients[5]);
+    {
+        MPVCDECIntraCoefficients* coefficients =
+            (MPVCDECIntraCoefficients*)&context->transform.coefficients[3];
+        f64* cursor = coefficients->pairs;
+        MPVCDEC_ClearCoefficients(&cursor);
+        MPVCDEC_ClearCoefficients(&cursor);
+        MPVCDEC_ClearCoefficients(&cursor);
+        MPVCDEC_ClearCoefficients(&cursor);
+        MPVCDEC_ClearCoefficients(&cursor);
+        MPVCDEC_ClearCoefficients(&cursor);
+    }
     block = &context->coding.block;
     params = &context->dct_state.params;
     block->quantizer_scale = context->quantizer_scale;
@@ -64,17 +101,20 @@ s32 MPVCDEC_IntraBlocks(MPVContext* context)
     context->coding.non_intra_mode = 0;
     block->dc_size_lut = context->y_dc_size;
     block->dc_predictor = &context->dc_predictor_y;
-    for (index = 0; index < 4; index++) {
-        block->coefficients = &coefficients[index];
-        params->block_nonzero[index] =
-            context->decode_intra_block(context, block);
-    }
+    block->coefficients = context->transform.coefficients[3];
+    params->block_nonzero[0] = context->decode_intra_block(context, block);
+    block->coefficients = context->transform.coefficients[4];
+    params->block_nonzero[1] = context->decode_intra_block(context, block);
+    block->coefficients = context->transform.coefficients[5];
+    params->block_nonzero[2] = context->decode_intra_block(context, block);
+    block->coefficients = context->transform.coefficients[6];
+    params->block_nonzero[3] = context->decode_intra_block(context, block);
     block->dc_size_lut = context->chroma_dc_size;
     block->dc_predictor = &context->dc_predictor_cb;
-    block->coefficients = &coefficients[4];
+    block->coefficients = context->transform.coefficients[7];
     params->block_nonzero[4] = context->decode_intra_block(context, block);
     block->dc_predictor = &context->dc_predictor_cr;
-    block->coefficients = &coefficients[5];
+    block->coefficients = context->transform.coefficients[8];
     params->block_nonzero[5] = context->decode_intra_block(context, block);
     DCT_FsriTrans6Blk(params);
     return 0;

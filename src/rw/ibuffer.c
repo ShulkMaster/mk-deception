@@ -1,8 +1,6 @@
 #include "rw/gamecube.h"
 #include "runtime/cstring.h"
 
-/* Soft ceiling: only the destination register for each mask-before-shift
- * sequence differs from retail. */
 unsigned int _rwGCNDisplayListGetStride(
     const RwGameCubeVertexDescriptor* format)
 {
@@ -27,8 +25,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 9:
-            type = format->vcdLo & (3U << 9);
-            type >>= 9;
+            type = (format->vcdLo & (3U << 9)) >> 9;
             if (type == 1) {
                 stride += rwGCNPosGetSize(format);
             } else if (type == 2) {
@@ -41,8 +38,7 @@ unsigned int _rwGCNDisplayListGetStride(
             unsigned int vectors;
 
             vectors = (format->vatA >> 9) & 1;
-            type = format->vcdLo & (3U << 11);
-            type >>= 11;
+            type = (format->vcdLo & (3U << 11)) >> 11;
             if (vectors == 1) {
                 vectors = format->vatA >> 31;
                 if (vectors == 0) {
@@ -89,8 +85,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 14:
-            type = format->vcdHi & (3U << 2);
-            type >>= 2;
+            type = (format->vcdHi & (3U << 2)) >> 2;
             if (type == 1) {
                 stride += rwGCNTexGetSize(format, 1);
             } else if (type == 2) {
@@ -100,8 +95,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 15:
-            type = format->vcdHi & (3U << 4);
-            type >>= 4;
+            type = (format->vcdHi & (3U << 4)) >> 4;
             if (type == 1) {
                 stride += rwGCNTexGetSize(format, 2);
             } else if (type == 2) {
@@ -111,8 +105,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 16:
-            type = format->vcdHi & (3U << 6);
-            type >>= 6;
+            type = (format->vcdHi & (3U << 6)) >> 6;
             if (type == 1) {
                 stride += rwGCNTexGetSize(format, 3);
             } else if (type == 2) {
@@ -122,8 +115,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 17:
-            type = format->vcdHi & (3U << 8);
-            type >>= 8;
+            type = (format->vcdHi & (3U << 8)) >> 8;
             if (type == 1) {
                 stride += rwGCNTexGetSize(format, 4);
             } else if (type == 2) {
@@ -133,8 +125,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 18:
-            type = format->vcdHi & (3U << 10);
-            type >>= 10;
+            type = (format->vcdHi & (3U << 10)) >> 10;
             if (type == 1) {
                 stride += rwGCNTexGetSize(format, 5);
             } else if (type == 2) {
@@ -144,8 +135,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 19:
-            type = format->vcdHi & (3U << 12);
-            type >>= 12;
+            type = (format->vcdHi & (3U << 12)) >> 12;
             if (type == 1) {
                 stride += rwGCNTexGetSize(format, 6);
             } else if (type == 2) {
@@ -155,8 +145,7 @@ unsigned int _rwGCNDisplayListGetStride(
             }
             break;
         case 20:
-            type = format->vcdHi & (3U << 14);
-            type >>= 14;
+            type = (format->vcdHi & (3U << 14)) >> 14;
             if (type == 1) {
                 stride += rwGCNTexGetSize(format, 7);
             } else if (type == 2) {

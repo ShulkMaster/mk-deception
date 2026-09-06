@@ -101,6 +101,7 @@ static inline int mwMemAllocStatSize(_mwMemHeap* heap, void* block) {
 
 /* The allocation traversal, child exclusion, restart semantics, and reset
  * dispatch match retail. Remaining differences are GPRs and switch lowering. */
+/* TODO: [breakthrough needed] 92.34%; strategy-switch lowering and diagnostic-pool addressing remain. */
 static void privWipeHeap(_mwMemHeap* heap) {
     MwMemUsedHeader* usedHdr;
     _mwMemHeap* firstChild;
@@ -155,8 +156,7 @@ static void privWipeHeap(_mwMemHeap* heap) {
 
 /* Retail virtual-heap destruction retains this scan as a call boundary. */
 #pragma dont_inline on
-/* Soft ceiling: the body is exact; MWCC emits individual r28-r31 saves and
- * restores instead of retail's stmw/lmw pair. */
+/* TODO: [breakthrough needed] 99.64%; diagnostic string-pool relocation remains; verify pool extent. */
 static void privWipeVirtual(_mwMemHeap* virtualHeap) {
     _mwMemHeap* heap;
     MwMemUsedHeader* usedHdr;
@@ -186,8 +186,8 @@ static void privWipeVirtual(_mwMemHeap* virtualHeap) {
 
 /* Retail wiping keeps the leaf walkers as calls inside this traversal. */
 #pragma dont_inline on
-/* Soft ceiling: root-restart traversal, child/sibling descent, and wipe calls
- * agree; residue is loop rotation/branch layout and stmw/lmw selection. */
+/* Restart at the root after wiping, then descend through children and siblings. */
+/* TODO: [near miss] 94.64%; equivalent root-restart traversal branch layout remains. */
 static void privWipeHeapHierarchy(_mwMemHeap* heap) {
     _mwMemHeap* cursor;
     _mwMemHeap* child;
@@ -228,8 +228,8 @@ static void privWipeHeapHierarchy(_mwMemHeap* heap) {
 }
 #pragma dont_inline reset
 
-/* Soft ceiling: hierarchy and global-list unlink operations, store order, magic,
- * and final free call match; only localized predecessor-load scheduling remains. */
+/* Unlink the heap from its hierarchy and global list before releasing its storage. */
+/* TODO: [near miss] 96.02%; predecessor-load scheduling remains after the same unlink stores. */
 static void privFreeHeap(_mwMemHeap* heap) {
     _mwMemHeap* parent;
     _mwMemHeap* hier_next;
@@ -297,8 +297,8 @@ static void privFreeVirtual(_mwMemHeap* heap) {
 
 /* Retail destruction calls this hierarchy walker out-of-line. */
 #pragma dont_inline on
-/* Soft ceiling: root-restart destruction and descent are exact; only equivalent
- * branch layout and stmw/lmw selection remain. */
+/* Restart at the root after destruction before descending again. */
+/* TODO: [near miss] 95.11%; equivalent root-restart destruction branch layout remains. */
 static void privFreeHeapHierarchy(_mwMemHeap* heap) {
     _mwMemHeap* cursor;
 
@@ -375,8 +375,7 @@ static void privAddHeapToHeapList(_mwMemHeap* heap, _mwMemHeap* parent) {
     }
 }
 
-/* Soft ceiling: heap layout and index allocation agree; residue is index-base
- * rematerialization, temporary GPR coloring, switch lowering, and stmw/lmw. */
+/* TODO: [breakthrough needed] 84.82%; index-base lifetime, initialization schedule and strategy dispatch remain. */
 static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
                               _mwMemHeap** outHeap, const char* name) {
     _mwMemHeap* heap;
@@ -435,8 +434,7 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     return 1;
 }
 
-/* Soft ceiling: every strategy case body is exact; MWCC chooses a different
- * irregular comparison tree and selector GPR for the strategy switch. */
+/* TODO: [near miss] 92.25%; equivalent strategy comparison tree and selector allocation remain. */
 void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
     MwMemUsedHeader* freeNode;
     u32 maxSize;
@@ -492,8 +490,7 @@ void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
 }
 
 #pragma opt_common_subs off
-/* Soft ceiling: case bodies and diagnostic rematerialization match; only the
- * switch selector GPR and one equivalent branch polarity differ. */
+/* TODO: [near miss] 98.77%; strategy selector coloring and equivalent branch polarity remain. */
 void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
                                 MwMemMallocRequest* request) {
     void* result;
@@ -528,9 +525,8 @@ void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
 }
 #pragma opt_common_subs reset
 
-/* Soft ceiling: ownership traversal, size accounting, free dispatch, field
- * widths, and all calls are exact.  Residue is a whole-function r30/r31 swap,
- * equivalent irregular switch trees, and scalar saves versus stmw/lmw. */
+/* Find the owning heap and update size accounting around the strategy-specific free. */
+/* TODO: [near miss] 89.93%; owner/result coloring and equivalent strategy dispatch remain. */
 static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     _mwMemHeap* cursor;
     _mwMemHeap* heap;
@@ -594,8 +590,8 @@ static void _mwMemFreeVirtual(void* ptr, const char* file, u32 line) {
     priv_mwMem_CritSecExit();
 }
 
-/* Soft ceiling: callback ABI, request clearing, allocation/overflow paths, and
- * statistics are exact; residue is stmw/lmw selection and irregular switch trees. */
+/* Clear the allocation request and preserve callback, overflow and statistics ordering. */
+/* TODO: [near miss] 92.43%; equivalent irregular strategy comparison trees remain. */
 static void* _mwMemMallocVirtual(MwMemMallocRequest* request) {
     static u32 StrategyAllocationActive;
     void* result;
@@ -684,9 +680,8 @@ void _mwMemFree(void* ptr, const char* file, u32 line) {
     _mwMemFreeVirtual(ptr, file, line);
 }
 
-/* Soft ceiling: size recovery, parent-state suppression, allocation, heap layout,
- * 256-slot index scan, and initialization agree with retail; residue is register
- * allocation, stmw/lmw selection, and irregular strategy-switch lowering. */
+/* Recover the size and parent state before allocation and the 256-slot index scan. */
+/* TODO: [breakthrough needed] 84.49%; allocation lifetimes, strategy dispatch and saved-local layout remain. */
 _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* defaults,
                               const char* function, u32 line) {
     _mwMemHeap* parent;
@@ -785,8 +780,8 @@ _mwMemHeap* _mwMemHeapCreate(MwMemHeapCreateParams* create, MwMemHeapParams* def
     return heap;
 }
 
-/* Soft ceiling: caller-derived request layout, null/reallocate/free paths, copy
- * bounds, diagnostics, and statistics agree; residue is GPR and switch scheduling. */
+/* Preserve the request layout and copy bounds across null, reallocate and free paths. */
+/* TODO: [breakthrough needed] 97.30%; request stack stores and owner/copy scheduling remain. */
 void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
                     const char* file, const char* function, u32 line) {
     MwMemMallocRequest request;
@@ -886,8 +881,8 @@ void* _mwMemRealloc(void* ptr, _mwMemHeap* heap, u32 size, u32 flags,
     return newBlock;
 }
 
-/* Soft ceiling: calloc alignment, memset, OOM CFG, and stores match; total/result
- * and line/zero retain opposite GPR coloring. */
+/* Align the total allocation size before clearing it and publishing request results. */
+/* TODO: [near miss] 98.57%; total/result and line/zero coloring remain; stop at allocation. */
 void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags,
                    const char* file, const char* function, u32 line) {
     MwMemMallocRequest request;
@@ -938,8 +933,7 @@ void* _mwMemCalloc(_mwMemHeap* heap, u32 nmemb, u32 size, u32 flags,
     return result;
 }
 
-/* Soft ceiling: request/OOM layout, store order, calls, and CFG match; the line
- * argument and zero value occupy r8/r9 in the opposite order. */
+/* TODO: [near miss] 98.65%; line argument and zero value use opposite registers. */
 void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, const char* file,
                    const char* function, u32 line) {
     MwMemMallocRequest request;
@@ -976,8 +970,7 @@ void* _mwMemMalloc(_mwMemHeap* heap, u32 size, u32 flags, const char* file,
     return result;
 }
 
-/* Soft ceiling: all field loads/stores and registers match; only the first two
- * independent loads are scheduled in the opposite order. */
+/* TODO: [near miss] 99.67%; first two independent field loads are scheduled in reverse order. */
 int mwMemHeapGetInfo(_mwMemHeap* heap, MwMemHeapInfo* info) {
     const char* name = heap->name;
     u8* heap_start = heap->heapStart;
@@ -1039,8 +1032,7 @@ int mwMemSystemGetDefaultParams(MwMemSystemParams* params) {
 }
 
 #pragma inline_depth(2)
-/* Soft ceiling: the two-word parameter copy is identical; source-order and POD
- * copy variants leave only r0/r5 destination coloring. */
+/* TODO: [near miss] 99.68%; two-word parameter-copy destination coloring remains. */
 int mwMemSystemSetParams(MwMemSystemParams* params) {
     MwMemSystemParams defaults;
 
@@ -1069,8 +1061,7 @@ int mwMemHeapGetDefaultParams(MwMemHeapParams* params) {
     return 1;
 }
 
-/* Soft ceiling: all field loads/stores and registers match; only the first two
- * independent loads are scheduled in the opposite order. */
+/* TODO: [near miss] 99.25%; first two independent field loads are scheduled in reverse order. */
 int mwMemHeapGetParams(_mwMemHeap* heap, MwMemHeapParams* params) {
     MwMemStrategyCallback strategy_callback;
     u32 field_0x68;
@@ -1122,8 +1113,7 @@ _mwMemHeap* mwMemSystemGetHeap(u32 which) {
     return *SystemHeapTable[which];
 }
 
-/* Soft ceiling: switch cases, stores, and returns match; MWCC chooses a
- * different signed comparison tree for the three selectors. */
+/* TODO: [near miss] 82.17%; equivalent signed comparison tree for the three selectors remains. */
 int mwMemSystemSetHeap(int which, _mwMemHeap* heap) {
     switch (which) {
     case 0:
@@ -1207,8 +1197,6 @@ static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap
 
 /* Retail system creation calls this helper rather than cloning its probe path. */
 #pragma dont_inline on
-/* Soft ceiling: the entire body is exact; MWCC emits individual r29-r31
- * saves/restores instead of retail's stmw/lmw pair. */
 static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char* name) {
     u8* buffer;
     u32 arenaSize;
@@ -1233,10 +1221,7 @@ static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char*
 }
 #pragma dont_inline reset
 
-/* Soft ceiling: body and calls are exact; remaining differences are stmw/lmw
- * versus individual saves and compiler-local heapName relocation numbering. */
 int mwMemSystemCreateSystemHeap(void* buffer, u32 size, MwMemSystemParams* params) {
-    /* Retail differs only in stmw/lmw selection and the local heap-name label. */
     static const char* const heapName = &stringBase0[10];
     _mwMemHeap* heap;
     int result;

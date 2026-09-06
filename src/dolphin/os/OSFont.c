@@ -18,7 +18,7 @@ typedef int BOOL;
 #define VI_DEBUG_PAL 4
 #define VI_DTV_STAT 55
 
-extern volatile unsigned short __VIRegs[];
+#define __VIRegs ((volatile u16*)0xCC002000)
 
 typedef char* (*ParseStringCallback)(u16, char*, OSFontHeader**, int*);
 
@@ -481,6 +481,7 @@ static void ExpandFontSheet(OSFontHeader* font, u8* src, u8* dst) {
     DCStoreRange(dst, font->sheetFullSize);
 }
 
+/* TODO: [near miss] 94.05%; fixed VI hardware owner; remaining inlined font selection/register allocation differs */
 int OSInitFont(OSFontHeader* fontData) {
     u16 encode;
     u32 size;
@@ -547,6 +548,7 @@ int OSInitFont(OSFontHeader* fontData) {
     return 1;
 }
 
+/* TODO: [breakthrough needed] 76.53%; fixed VI hardware owner; remaining inlined font selection/register allocation differs */
 char* OSGetFontTexture(const char* string, void** image, s32* x, s32* y, s32* width) {
     OSFontHeader* font;
     u16 encode;

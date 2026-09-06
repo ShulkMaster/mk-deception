@@ -12,7 +12,7 @@ typedef void (*VIPositionCallback)(s16 x, s16 y);
 #define ASSERTLINE(line, condition) ((void)0)
 #define ASSERTMSGLINE(line, condition, message) ((void)0)
 #define ASSERTMSGLINEV(line, condition, ...) ((void)0)
-#define __VIRegs ((volatile u16*)0xCC002000)
+volatile u16 __VIRegs[] : 0xCC002000;
 #define VI_VERT_COUNT 22
 #define VI_HORIZ_COUNT 23
 

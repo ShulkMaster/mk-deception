@@ -968,6 +968,8 @@ static float p_krypt_animate(void) {
     }
     return 1.0f;
 }
+/* TODO: [breakthrough] 95.758064%; character ownership uses the recovered
+ * secondary cleanup list; remaining CFG/register differences need local audit. */
 static float p_monitor_krypt_characters(void) {
     KryptCharacterMonitorPdata* pdata;
     KryptCharacterAnimProcPdata* animation_pdata;
@@ -996,15 +998,17 @@ static float p_monitor_krypt_characters(void) {
         if (object != 0) {
             animation_pdata = 0;
             proc = _create_mkproc_generic_bigstack(
-                0x8240, 0x1F, p_run_character_animation, 0x14,
+                0x8240, 0x1F, p_run_character_animation,
+                sizeof(KryptCharacterAnimProcPdata),
                 (MkHdr**)&animation_pdata);
             if (proc != 0 && animation_pdata != 0) {
-                zero_pdata_payload(0x14, &animation_pdata->hdr);
+                zero_pdata_payload(sizeof(KryptCharacterAnimProcPdata),
+                                   &animation_pdata->hdr);
                 animation_pdata->obj = &object->hdr;
                 animation_pdata->obj_instance = object->hdr.instance;
                 animation_pdata->script_index = script_index;
                 set_process_as_scriptable(proc);
-                mk_insert(&object->hdr, &proc->pdata_list);
+                mk_insert(&object->hdr, &proc->pdata_list_b);
             }
         }
         _mkproc_sleep_ticks = 1.0f;
@@ -3214,8 +3218,8 @@ static float p_follow_camera(void) {
 }
 int load_pix_section(
     int slot, const CoffinEntry* entries, int index, int enabled, int flags) {
-    int gallery_art;
     MkFileInfo* section;
+    int gallery_art;
 
     if (enabled == 0) {
         return 0;
@@ -3376,6 +3380,7 @@ float p_krypt_loop(void) {
     return 1.0f;
 }
 
+/* TODO: [near miss] 99.41243%; 48 declaration-only scratch candidates did not close; retain source and inspect inline row-helper lowering. */
 float p_setup_krypt(void) {
     MkFileEntry* file;
     void* string_pool;
@@ -3488,9 +3493,11 @@ float p_setup_krypt(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.85507%; typed payload keeps retail output unchanged;
+ * existing instruction/relocation residue remains. */
 float p_init_krypt_mode(void) {
     RwResourcesSetArenaSize(0x100000);
-    zero_pdata_payload(0x150, (MkHdr*)krypt_pdata);
+    zero_pdata_payload(sizeof(KryptPdata), (MkHdr*)krypt_pdata);
     if (menu_player == 0) {
         krypt_pdata->player_port = g_game_info.plyr0.pad_index;
         set_player_state(&g_game_info.plyr0, 2);
@@ -3513,12 +3520,14 @@ float p_init_krypt_mode(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 99.61539%; sizeof payload keeps retail output unchanged;
+ * existing instruction/relocation residue remains. */
 float p_krypt_mode(void) {
     MkProc* proc;
 
     set_section_memory_scheme(7);
     proc = _create_mkproc_generic_bigstack(
-        0x2001, 0x23, p_init_krypt_mode, 0x150,
+        0x2001, 0x23, p_init_krypt_mode, sizeof(KryptPdata),
         (MkHdr**)&krypt_pdata);
     if (proc != 0) {
         set_process_as_scriptable(proc);

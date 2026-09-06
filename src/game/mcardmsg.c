@@ -22,12 +22,6 @@ static const char stringBase0[] =
 #define POPUP_TYPE_DEFAULT 2
 #define POPUP_TYPE_COUNT 0xD
 
-typedef struct MkProcMessageFlags {
-    unsigned char pad0 : 4;
-    unsigned char sleeping : 1;
-    unsigned char pad1 : 3;
-} MkProcMessageFlags;
-
 const int gap_04_8031382C_rodata = 0;
 
 int memcard_online_save_port = -1;
@@ -191,7 +185,7 @@ void recover_from_message(void) {
     proc = aproc;
     f_writing_to_memcard = clear;
     if (proc != 0) {
-        ((MkProcMessageFlags*)&proc->flags)->sleeping = clear;
+        proc->flags_bits.skip_if_paused = clear;
     }
     pause_procs(clear);
     if (is_this_a_hault_message() != 0) {
@@ -213,7 +207,7 @@ void prepare_for_haulting_message(void) {
     mcard_hault_msg_active = enable;
     if (proc != 0) {
         state = 0;
-        ((MkProcMessageFlags*)&proc->flags)->sleeping = state;
+        proc->flags_bits.skip_if_paused = state;
     }
     pause_procs(1);
     state = get_game_state();
@@ -231,6 +225,6 @@ void prepare_for_sleeping_message(void) {
     clear_hault = 0;
     proc = aproc;
     mcard_hault_msg_active = clear_hault;
-    ((MkProcMessageFlags*)&proc->flags)->sleeping = pause;
+    proc->flags_bits.skip_if_paused = pause;
     pause_procs(pause);
 }

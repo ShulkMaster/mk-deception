@@ -222,16 +222,25 @@ static void mpvvlc_InitIntRunLevel(void) {
     mpvvlc_fill_u32(output, 32, 0x00040101);
 }
 
-static void mpvvlc2_InitDcSizC(void) {
-    unsigned char* output = mpvvlt2_c_dcsiz;
+/* Packed byte emission shares storage with the unsigned decoder table view. */
+static inline void mpvvlc_EmitDc(signed char** output, long count, signed char value)
+{
+    int i;
+    for (i = 0; i < count; i++) {
+        *(*output)++ = value;
+    }
+}
 
-    mpvvlc_fill_u8(output, 256, 0x02); output += 256;
-    mpvvlc_fill_u8(output, 256, 0x12); output += 256;
-    mpvvlc_fill_u8(output, 256, 0x22); output += 256;
-    mpvvlc_fill_u8(output, 128, 0x33); output += 128;
-    mpvvlc_fill_u8(output, 64, 0x44); output += 64;
-    mpvvlc_fill_u8(output, 32, 0x55); output += 32;
-    mpvvlc_fill_u8(output, 16, 0x66); output += 16;
+static void mpvvlc2_InitDcSizC(void) {
+    signed char* output = (signed char*)mpvvlt2_c_dcsiz;
+
+    mpvvlc_EmitDc(&output, 256, 0x02);
+    mpvvlc_EmitDc(&output, 256, 0x12);
+    mpvvlc_EmitDc(&output, 256, 0x22);
+    mpvvlc_EmitDc(&output, 128, 0x33);
+    mpvvlc_EmitDc(&output, 64, 0x44);
+    mpvvlc_EmitDc(&output, 32, 0x55);
+    mpvvlc_EmitDc(&output, 16, 0x66);
     output[0] = 0x77; output[1] = 0x77;
     output[2] = 0x77; output[3] = 0x77;
     output[4] = 0x77; output[5] = 0x77;
@@ -244,16 +253,16 @@ static void mpvvlc2_InitDcSizC(void) {
 }
 
 static void mpvvlc2_InitDcSizY(void) {
-    unsigned char* output = mpvvlt2_y_dcsiz;
+    signed char* output = (signed char*)mpvvlt2_y_dcsiz;
 
-    mpvvlc_fill_u8(output, 256, 0x12); output += 256;
-    mpvvlc_fill_u8(output, 256, 0x22); output += 256;
-    mpvvlc_fill_u8(output, 128, 0x03); output += 128;
-    mpvvlc_fill_u8(output, 128, 0x33); output += 128;
-    mpvvlc_fill_u8(output, 128, 0x43); output += 128;
-    mpvvlc_fill_u8(output, 64, 0x54); output += 64;
-    mpvvlc_fill_u8(output, 32, 0x65); output += 32;
-    mpvvlc_fill_u8(output, 16, 0x76); output += 16;
+    mpvvlc_EmitDc(&output, 256, 0x12);
+    mpvvlc_EmitDc(&output, 256, 0x22);
+    mpvvlc_EmitDc(&output, 128, 0x03);
+    mpvvlc_EmitDc(&output, 128, 0x33);
+    mpvvlc_EmitDc(&output, 128, 0x43);
+    mpvvlc_EmitDc(&output, 64, 0x54);
+    mpvvlc_EmitDc(&output, 32, 0x65);
+    mpvvlc_EmitDc(&output, 16, 0x76);
     output[0] = 0x87; output[1] = 0x87;
     output[2] = 0x87; output[3] = 0x87;
     output[4] = 0x87; output[5] = 0x87;
@@ -300,37 +309,47 @@ static void mpvvlc_InitDcSizY(void) {
     *output = 0x87;
 }
 
+static inline void mpvvlc_EmitCbp(signed short** output,
+                                   long count, signed short value)
+{
+    int i;
+    for (i = 0; i < count; i++) {
+        *(*output)++ = value;
+    }
+}
+
 static signed short* mpvvlc_InitCbpSub2(signed short* output)
 {
-    mpvvlc_fill_s16(output, 4, 0xA207); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x9207); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x8A07); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x8607); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x6107); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x5107); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x4907); output += 4;
-    mpvvlc_fill_s16(output, 4, 0x4507); output += 4;
-    mpvvlc_fill_s16(output, 8, 0xFF06); output += 8;
-    mpvvlc_fill_s16(output, 8, 0xC306); output += 8;
-    mpvvlc_fill_s16(output, 8, 0x2406); output += 8;
-    mpvvlc_fill_s16(output, 8, 0x1806); output += 8;
-    mpvvlc_fill_s16(output, 16, 0xBE05); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x8205); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x7D05); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x4105); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x3805); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x3405); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x2C05); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x1C05); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x2805); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x1405); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x3005); output += 16;
-    mpvvlc_fill_s16(output, 16, 0x0C05); output += 16;
-    mpvvlc_fill_s16(output, 32, 0x2004); output += 32;
-    mpvvlc_fill_s16(output, 32, 0x1004); output += 32;
-    mpvvlc_fill_s16(output, 32, 0x0804); output += 32;
-    mpvvlc_fill_s16(output, 32, 0x0404); output += 32;
-    mpvvlc_fill_s16(output, 64, 0x3C03); output += 64;
+    int i;
+    for (i = 0; i < 4; i++) *output++ = 0xA207;
+    for (i = 0; i < 4; i++) *output++ = 0x9207;
+    for (i = 0; i < 4; i++) *output++ = 0x8A07;
+    for (i = 0; i < 4; i++) *output++ = 0x8607;
+    for (i = 0; i < 4; i++) *output++ = 0x6107;
+    for (i = 0; i < 4; i++) *output++ = 0x5107;
+    for (i = 0; i < 4; i++) *output++ = 0x4907;
+    for (i = 0; i < 4; i++) *output++ = 0x4507;
+    for (i = 0; i < 8; i++) *output++ = 0xFF06;
+    for (i = 0; i < 8; i++) *output++ = 0xC306;
+    for (i = 0; i < 8; i++) *output++ = 0x2406;
+    for (i = 0; i < 8; i++) *output++ = 0x1806;
+    mpvvlc_EmitCbp(&output, 16, 0xBE05);
+    mpvvlc_EmitCbp(&output, 16, 0x8205);
+    mpvvlc_EmitCbp(&output, 16, 0x7D05);
+    mpvvlc_EmitCbp(&output, 16, 0x4105);
+    mpvvlc_EmitCbp(&output, 16, 0x3805);
+    mpvvlc_EmitCbp(&output, 16, 0x3405);
+    mpvvlc_EmitCbp(&output, 16, 0x2C05);
+    mpvvlc_EmitCbp(&output, 16, 0x1C05);
+    mpvvlc_EmitCbp(&output, 16, 0x2805);
+    mpvvlc_EmitCbp(&output, 16, 0x1405);
+    mpvvlc_EmitCbp(&output, 16, 0x3005);
+    mpvvlc_EmitCbp(&output, 16, 0x0C05);
+    mpvvlc_EmitCbp(&output, 32, 0x2004);
+    mpvvlc_EmitCbp(&output, 32, 0x1004);
+    mpvvlc_EmitCbp(&output, 32, 0x0804);
+    mpvvlc_EmitCbp(&output, 32, 0x0404);
+    mpvvlc_EmitCbp(&output, 64, 0x3C03);
     return output;
 }
 

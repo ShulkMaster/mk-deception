@@ -57,13 +57,15 @@ void SFSET_SetCond(SfdHandle* handle, int condition,
     }
 }
 
+/* TODO: [near miss] 98.22%; typed handle-slot cursor recovered; remaining default-condition owner and register allocation differ */
 int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value)
 {
     int i;
 
     if (handle == 0) {
-        for (i = 0; i < 8; i++) {
-            SfdHandle* current = SFLIB_libwork.handles[i];
+        SfdHandle** slot = SFLIB_libwork.handles;
+        for (i = 0; i < 8; i++, slot++) {
+            SfdHandle* current = *slot;
             if (current != 0) {
                 SFSET_SetCond(current, condition, value);
             }

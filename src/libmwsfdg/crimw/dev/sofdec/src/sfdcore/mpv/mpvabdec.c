@@ -39,206 +39,291 @@ typedef struct MPVABDECBlock {
     const u8* dc_size_lut;
 } MPVABDECBlock;
 
-#define MPV_PEEK_BITS() \
-    ((bit_count == 0) ? bit_buffer : \
-                        (bit_buffer | (next_buffer >> (32 - bit_count))))
-
-#define MPV_FINISH_BITS(number_)                                          \
-    do {                                                                  \
-        if (bit_count >= 32) {                                            \
-            bit_count -= 32;                                              \
-            bit_buffer = next_buffer << bit_count;                        \
-            next_buffer = *stream++;                                      \
-        } else {                                                          \
-            bit_buffer <<= (number_);                                     \
-        }                                                                 \
+#define MPV_PEEK_BITS(output_)                                              \
+    do {                                                                    \
+        (output_) = bit_buffer;                                             \
+        if (bit_count != 0) {                                               \
+            (output_) |= next_buffer >> (32 - bit_count);                   \
+        }                                                                   \
     } while (0)
 
-#define MPV_CONSUME_BITS(number_)                                         \
-    do {                                                                  \
-        u32 consumed_bits = (u32)(number_);                               \
-        bit_count += consumed_bits;                                       \
-        MPV_FINISH_BITS(consumed_bits);                                   \
+#define MPV_FINISH_FROM(input_, number_)                                    \
+    do {                                                                    \
+        if (bit_count >= 32) {                                              \
+            bit_count -= 32;                                                \
+            bit_buffer = next_buffer << bit_count;                          \
+            next_buffer = *stream++;                                        \
+        } else {                                                            \
+            bit_buffer = (input_) << (number_);                             \
+        }                                                                   \
     } while (0)
 
-#define MPV_STORE_AT(offset_, level_, negative_, intra_)                  \
-    do {                                                                  \
-        block->current_scan = (s32)scan[(offset_)];                       \
-        level_factor = ((s32)(level_) * 2) + ((intra_) ? 0 : 1);         \
-        quantized =                                                       \
-            (((s32)block->quant_matrix[block->current_scan] *             \
-              (level_factor * block->quantizer_scale)) >> 4) - 1;        \
-        quantized |= 1;                                                   \
-        if (negative_) {                                                  \
-            quantized = -quantized;                                       \
-        }                                                                 \
-        block->coefficients->values[block->current_scan] =                \
-            (f32)quantized *                                              \
-            ctx->coefficient_scale[block->current_scan];                  \
+#define MPV_FINISH_BITS(number_) MPV_FINISH_FROM(bit_buffer, number_)
+
+#define MPV_CONSUME_BITS(number_)                                           \
+    do {                                                                    \
+        u32 consumed_bits = (u32)(number_);                                 \
+        bit_count += consumed_bits;                                         \
+        MPV_FINISH_BITS(consumed_bits);                                     \
     } while (0)
 
-#define MPV_DIRECT1_CONT(offset_, level_, negative_, bits_, intra_)       \
-    do {                                                                  \
-        bit_count += (bits_);                                             \
-        MPV_STORE_AT(offset_, level_, negative_, intra_);                 \
-        scan += (offset_);                                                \
-        MPV_FINISH_BITS(bits_);                                           \
+#define MPV_STORE_CURRENT(level_, negative_, intra_)                        \
+    do {                                                                    \
+        s32 scaled_level;                                                   \
+        s32 quantized;                                                      \
+        scaled_level = (((s32)(level_) * 2) + ((intra_) ? 0 : 1)) *         \
+                       block->quantizer_scale;                              \
+        quantized =                                                         \
+            ((scaled_level *                                                \
+              (s32)block->quant_matrix[block->current_scan]) >> 4) - 1;     \
+        quantized |= 1;                                                     \
+        if (negative_) {                                                    \
+            quantized = -quantized;                                         \
+        }                                                                   \
+        block->coefficients->values[block->current_scan] =                  \
+            (f32)quantized *                                                \
+            ctx->coefficient_scale[block->current_scan];                    \
     } while (0)
 
-#define MPV_DIRECT2_CONT(offset1_, level1_, negative1_,                   \
-                         offset2_, level2_, negative2_, bits_, intra_)    \
-    do {                                                                  \
-        bit_count += (bits_);                                             \
-        MPV_STORE_AT(offset1_, level1_, negative1_, intra_);              \
-        MPV_STORE_AT(offset2_, level2_, negative2_, intra_);              \
-        scan += (offset2_);                                               \
-        MPV_FINISH_BITS(bits_);                                           \
+/* General table entries carry their level and sign in the coding block. */
+#define MPV_STORE_DECODED(intra_)                                           \
+    do {                                                                    \
+        s32 level_factor = (block->level * 2) + ((intra_) ? 0 : 1);        \
+        s32 quantized;                                                      \
+        quantized =                                                         \
+            (((s32)block->quant_matrix[block->current_scan] *               \
+              (level_factor *                  \
+               block->quantizer_scale)) >> 4) - 1;                          \
+        quantized |= 1;                                                     \
+        if (block->sign) {                                                  \
+            quantized = -quantized;                                         \
+        }                                                                   \
+        block->coefficients->values[block->current_scan] =                  \
+            (f32)quantized * ctx->coefficient_scale[block->current_scan];   \
     } while (0)
 
-#define MPV_DIRECT1_TERM(offset_, level_, negative_, bits_, intra_)       \
-    do {                                                                  \
-        bit_count += (bits_);                                             \
-        MPV_STORE_AT(offset_, level_, negative_, intra_);                 \
-        MPV_FINISH_BITS(bits_);                                           \
+#define MPV_STORE_AT(offset_, level_, negative_, intra_)                    \
+    do {                                                                    \
+        block->current_scan = (s32)scan[(offset_)];                         \
+        MPV_STORE_CURRENT(level_, negative_, intra_);                       \
     } while (0)
 
-#define MPV_DIRECT2_TERM(offset1_, level1_, negative1_,                   \
-                         offset2_, level2_, negative2_, bits_, intra_)    \
-    do {                                                                  \
-        bit_count += (bits_);                                             \
-        MPV_STORE_AT(offset1_, level1_, negative1_, intra_);              \
-        MPV_STORE_AT(offset2_, level2_, negative2_, intra_);              \
-        MPV_FINISH_BITS(bits_);                                           \
+#define MPV_DIRECT1_CONT(offset_, level_, negative_, bits_, intra_)         \
+    do {                                                                    \
+        block->current_scan = (s32)scan[(offset_)];                         \
+        bit_count += (bits_);                                               \
+        MPV_STORE_CURRENT(level_, negative_, intra_);                       \
+        scan += (offset_);                                                  \
+        MPV_FINISH_BITS(bits_);                                             \
     } while (0)
 
-#define MPV_DECODE_ESCAPE()                                               \
-    do {                                                                  \
-        packed = (u16)(doubled >> 11);                                    \
-        packed >>= 2;                                                     \
-        signed_level = (s8)packed;                                        \
-        block->run = (s32)(s8)(packed >> 8);                              \
-        block->code_length = 20;                                          \
-        if ((signed_level & 0x7F) == 0) {                                 \
-            block->code_length += 8;                                      \
-            signed_level =                                                \
-                (signed_level * 2) | (u8)(doubled >> 5);                  \
-        }                                                                 \
-        if (signed_level < 0) {                                           \
-            block->level = -signed_level;                                 \
-            block->sign = 1;                                              \
-        } else {                                                          \
-            block->level = signed_level;                                  \
-            block->sign = 0;                                              \
-        }                                                                 \
+#define MPV_DIRECT2_CONT(offset1_, level1_, negative1_,                     \
+                         offset2_, level2_, negative2_, bits_, intra_)      \
+    do {                                                                    \
+        block->current_scan = (s32)scan[(offset1_)];                        \
+        bit_count += (bits_);                                               \
+        MPV_STORE_CURRENT(level1_, negative1_, intra_);                     \
+        MPV_STORE_AT(offset2_, level2_, negative2_, intra_);                \
+        scan += (offset2_);                                                 \
+        MPV_FINISH_BITS(bits_);                                             \
     } while (0)
 
-#define MPV_DECODE_LONG(index_)                                           \
-    do {                                                                  \
-        entry32 = ctx->run_level_8[(index_)];                             \
-        block->run = (s32)(u8)entry32;                                    \
-        if (block->run != 0x40) {                                         \
-            block->code_length = entry32 >> 16;                           \
-            block->level = (s32)(s8)(entry32 >> 8);                       \
-            block->sign =                                                 \
-                (s32)((doubled >> (33 - block->code_length)) & 1);        \
-        } else {                                                          \
-            MPV_DECODE_ESCAPE();                                          \
-        }                                                                 \
+#define MPV_DIRECT1_TERM(offset_, level_, negative_, bits_, intra_)         \
+    do {                                                                    \
+        block->current_scan = (s32)scan[(offset_)];                         \
+        bit_count += (bits_);                                               \
+        MPV_STORE_CURRENT(level_, negative_, intra_);                       \
+        MPV_FINISH_BITS(bits_);                                             \
     } while (0)
 
-#define MPV_DECODE_SHORT(table_, index_, length_)                         \
-    do {                                                                  \
-        entry16 = (table_)[((index_) & ~1U) >> 1];                        \
-        block->run = (s32)(u8)entry16;                                    \
-        block->level = (s32)(s8)((u16)entry16 >> 8);                      \
-        block->sign = (s32)((index_) & 1);                                \
-        block->code_length = (length_);                                   \
+#define MPV_DIRECT2_TERM(offset1_, level1_, negative1_,                     \
+                         offset2_, level2_, negative2_, bits_, intra_)      \
+    do {                                                                    \
+        block->current_scan = (s32)scan[(offset1_)];                        \
+        bit_count += (bits_);                                               \
+        MPV_STORE_CURRENT(level1_, negative1_, intra_);                     \
+        MPV_STORE_AT(offset2_, level2_, negative2_, intra_);                \
+        MPV_FINISH_BITS(bits_);                                             \
     } while (0)
 
-s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
+#define MPV_DECODE_ESCAPE(bits_)                                            \
+    do {                                                                    \
+        s32 packed;                                                         \
+        packed = (u16)((bits_) >> 11);                                      \
+        packed >>= 2;                                                       \
+        block->run = (s32)(s8)((u32)packed >> 8);                           \
+        packed = (s8)packed;                                                \
+        block->code_length = 20;                                            \
+        if ((packed & 0x7F) == 0) {                                         \
+            s32 extended_base = packed * 2;                                \
+            packed = extended_base | (u8)((bits_) >> 5);                    \
+            block->code_length += 8;                                        \
+        }                                                                   \
+        if (packed < 0) {                                                   \
+            packed = -packed;                                               \
+            block->sign = 1;                                                \
+        } else {                                                            \
+            block->sign = 0;                                                \
+        }                                                                   \
+        block->level = packed;                                              \
+    } while (0)
+
+/* Cache metadata before publishing run; index arguments must have no side effects.
+ * The lookahead is dead after this decoder and is consumed into the sign. */
+#define MPV_DECODE_LONG(index_, bits_)                                      \
+    do {                                                                    \
+        u32 packed_code = ctx->run_level_8[(index_)];                       \
+        block->run = (s32)(u8)ctx->run_level_8[(index_)];                   \
+        if (block->run != 0x40) {                                           \
+            block->code_length = packed_code >> 16;                         \
+            block->level = (s32)(s8)(packed_code >> 8);                     \
+            (bits_) >>= 33 - block->code_length;                            \
+            (bits_) &= 1;                                                   \
+            block->sign = (s32)(bits_);                                     \
+        } else {                                                            \
+            MPV_DECODE_ESCAPE(bits_);                                       \
+        }                                                                   \
+    } while (0)
+
+/* The low index bit carries the coefficient sign, not a table-address bit. */
+#define MPV_DECODE_SHORT(table_, index_, length_)                           \
+    do {                                                                    \
+        s32 short_entry;                                                    \
+        block->code_length = (length_);                                     \
+        short_entry = (table_)[((index_) & ~1U) >> 1];                      \
+        block->run = (s32)(u8)short_entry;                                  \
+        block->level = (s32)(s8)((u32)short_entry >> 8);                    \
+        block->sign = (s32)((index_) & 1);                                  \
+    } while (0)
+
+/* Rare-code decoding consumes its lookahead word into the signed table index. */
+#define MPV_DECODE_RARE(bits_, has_14_bit_)                                 \
+    do {                                                                    \
+        s32 short_entry;                                                    \
+        if ((has_14_bit_) && ((bits_) >> 24) != 0) {                        \
+            (bits_) = (bits_) >> 19;                                        \
+            block->code_length = 14;                                        \
+            short_entry = ctx->run_level_1[((bits_) & ~1U) >> 1];           \
+        } else if ((s32)((bits_) << 8) < 0) {                               \
+            (bits_) = ((bits_) >> 18) & 0x1F;                               \
+            block->code_length = 15;                                        \
+            short_entry = ctx->run_level_0a[((bits_) & ~1U) >> 1];          \
+        } else if ((s32)((bits_) << 9) < 0) {                               \
+            (bits_) = ((bits_) >> 17) & 0x1F;                               \
+            block->code_length = 16;                                        \
+            short_entry = ctx->run_level_0b[((bits_) & ~1U) >> 1];          \
+        } else {                                                            \
+            (bits_) = ((bits_) >> 16) & 0x1F;                               \
+            block->code_length = 17;                                        \
+            short_entry = ctx->run_level_0c[((bits_) & ~1U) >> 1];          \
+        }                                                                   \
+        block->run = (s32)(u8)short_entry;                                  \
+        block->level = (s32)(s8)((u32)short_entry >> 8);                    \
+        block->sign = (s32)((bits_) & 1);                                   \
+    } while (0)
+
+/* Align raw AC lookahead to the escape decoder's bit window. */
+static inline u32 mpvabdec_AlignEscapeLookahead(u32 lookahead)
+{
+    return lookahead << 1;
+}
+
+/* Keep the first-code helper expanded into the large, call-free decoder. */
+#pragma inline_max_size(100000)
+#pragma inline_max_total_size(100000)
+static inline void mpvabdec_DecodeFirst(MPVABDECContext* ctx,
+                                      MPVABDECBlock* block, u32 initial_buffer,
+                                      u32 next_buffer, s32 bit_count)
+{
+    u32 initial_peek = initial_buffer;
+    u32 prefix;
+    s32 short_entry;
+
+    if (bit_count != 0) {
+        initial_peek |= next_buffer >> (32 - bit_count);
+    }
+    if ((s32)initial_peek < 0) {
+        block->sign = (s32)((initial_peek >> 30) & 1);
+        block->level = 1;
+        block->run = 0;
+        block->code_length = 2;
+        return;
+    }
+    initial_peek <<= 1;
+    prefix = initial_peek >> 24;
+    switch ((s32)prefix) {
+    default:
+        MPV_DECODE_LONG(prefix >> 1, initial_peek);
+        return;
+    case 4: case 5: case 6: case 7:
+        initial_peek >>= 22;
+        block->code_length = 11;
+        short_entry = ctx->run_level_4[(initial_peek & ~1U) >> 1];
+        break;
+    case 2: case 3:
+        initial_peek >>= 20;
+        block->code_length = 13;
+        short_entry = ctx->run_level_2[(initial_peek & ~1U) >> 1];
+        break;
+    case 1:
+        initial_peek >>= 19;
+        block->code_length = 14;
+        short_entry = ctx->run_level_1[(initial_peek & ~1U) >> 1];
+        break;
+    case 0:
+        if ((s32)(initial_peek << 8) < 0) {
+            initial_peek = (initial_peek >> 18) & 0x1F;
+            block->code_length = 15;
+            short_entry = ctx->run_level_0a[(initial_peek & ~1U) >> 1];
+        } else if ((s32)(initial_peek << 9) < 0) {
+            initial_peek = (initial_peek >> 17) & 0x1F;
+            block->code_length = 16;
+            short_entry = ctx->run_level_0b[(initial_peek & ~1U) >> 1];
+        } else {
+            initial_peek = (initial_peek >> 16) & 0x1F;
+            block->code_length = 17;
+            short_entry = ctx->run_level_0c[(initial_peek & ~1U) >> 1];
+        }
+        break;
+    }
+    block->run = (s32)(u8)short_entry;
+    block->level = (s32)(s8)((u32)short_entry >> 8);
+    block->sign = (s32)(initial_peek & 1);
+}
+
+/* Advance the reader after decoding the first coefficient. */
+static inline u32 mpvabdec_AdvanceFirst(u32 initial_buffer, u32 consumed_bits,
+                                      s32* bit_count, u32* next_buffer,
+                                      const u32** stream)
 {
     u32 bit_buffer;
-    u32 next_buffer;
-    s32 bit_count;
-    const u32* stream;
-    const s8* scan;
-    const s16* short_table;
-    u32 peek;
-    u32 doubled;
-    u32 index;
-    u32 entry32;
-    s16 entry16;
-    u32 packed;
-    s32 signed_level;
-    s32 level_factor;
-    s32 quantized;
-    s32 result;
-
-    s32 clear_index;
-    u32 prefix;
-    MPVABDECCoefficients* coefficients = block->coefficients;
-
-    for (clear_index = 0; clear_index < 32; clear_index++) {
-        coefficients->pairs[clear_index] = 0.0;
-    }
-
-    bit_buffer = ctx->bit_buffer;
-    next_buffer = ctx->next_buffer;
-    bit_count = ctx->bit_count;
-    stream = ctx->stream;
-
-    peek = MPV_PEEK_BITS();
-    if ((s32)peek < 0) {
-        block->run = 0;
-        block->level = 1;
-        block->sign = (s32)((peek >> 30) & 1);
-        block->code_length = 2;
+    *bit_count += consumed_bits;
+    if (*bit_count >= 32) {
+        *bit_count -= 32;
+        bit_buffer = *next_buffer << *bit_count;
+        *next_buffer = *(*stream)++;
     } else {
-        doubled = peek << 1;
-        prefix = doubled >> 24;
-        if (prefix >= 8) {
-            MPV_DECODE_LONG(prefix >> 1);
-        } else {
-            if (prefix >= 4) {
-                short_table = ctx->run_level_4;
-                index = doubled >> 22;
-                block->code_length = 11;
-            } else if (prefix >= 2) {
-                short_table = ctx->run_level_2;
-                index = doubled >> 20;
-                block->code_length = 13;
-            } else if (prefix == 1) {
-                short_table = ctx->run_level_1;
-                index = doubled >> 19;
-                block->code_length = 14;
-            } else if ((doubled & 0x00800000) != 0) {
-                short_table = ctx->run_level_0a;
-                index = (doubled >> 18) & 0x1F;
-                block->code_length = 15;
-            } else if ((doubled & 0x00400000) != 0) {
-                short_table = ctx->run_level_0b;
-                index = (doubled >> 17) & 0x1F;
-                block->code_length = 16;
-            } else {
-                short_table = ctx->run_level_0c;
-                index = (doubled >> 16) & 0x1F;
-                block->code_length = 17;
-            }
-            entry16 = short_table[(index & ~1U) >> 1];
-            block->run = (s32)(u8)entry16;
-            block->level = (s32)(s8)((u16)entry16 >> 8);
-            block->sign = (s32)(index & 1);
-        }
+        bit_buffer = initial_buffer << consumed_bits;
     }
+    return bit_buffer;
+}
 
-    MPV_CONSUME_BITS(block->code_length);
+/* Store the first decoded coefficient, decode the rest, and publish reader state. */
+static inline s32 mpvabdec_DecodeNonIntraAC(MPVABDECContext* ctx,
+                                         MPVABDECBlock* block,
+                                         u32 bit_buffer, u32 next_buffer,
+                                         s32 bit_count, const u32* stream)
+{
+    const s8* scan;
+    s32 scan_result;
     scan = ctx->scan + block->run;
-    block->first_scan = (s32)*scan;
-    block->current_scan = block->first_scan;
-    MPV_STORE_AT(0, block->level, block->sign, 0);
+    block->current_scan = block->first_scan = (s32)*scan;
+    MPV_STORE_DECODED(0);
 
     do {
-        peek = MPV_PEEK_BITS();
+        u32 peek;
+        u32 index;
+        MPV_PEEK_BITS(peek);
         switch (peek >> 24) {
         case 0xFC:
         case 0xFD:
@@ -450,12 +535,13 @@ s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
         case 0x25:
         case 0x26:
         case 0x27:
-            doubled = peek << 1;
-            index = ((doubled >> 23) & 0x1FC) >> 2;
-            MPV_DECODE_LONG(index);
+            peek <<= 1;
+            index = peek >> 25;
+            MPV_DECODE_LONG(index, peek);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 0);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(0);
             continue;
         case 0x1E:
         case 0x1F:
@@ -517,53 +603,39 @@ s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
         case 0x05:
         case 0x06:
         case 0x07:
-            doubled = peek << 1;
-            MPV_DECODE_ESCAPE();
+            {
+                u32 escape_bits = mpvabdec_AlignEscapeLookahead(peek);
+                MPV_DECODE_ESCAPE(escape_bits);
+            }
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 0);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(0);
             MPV_CONSUME_BITS(block->code_length);
             continue;
         case 0x02:
         case 0x03:
-            index = (peek >> 21) & 0x3FE;
+            index = (peek >> 21) & 0x3FF;
             MPV_DECODE_SHORT(ctx->run_level_4, index, 11);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 0);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(0);
             continue;
         case 0x01:
-            index = (peek >> 19) & 0xFFE;
+            index = (peek >> 19) & 0xFFF;
             MPV_DECODE_SHORT(ctx->run_level_2, index, 13);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 0);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(0);
             continue;
         case 0x00:
-            doubled = peek << 1;
-            if ((doubled >> 24) != 0) {
-                short_table = ctx->run_level_1;
-                index = doubled >> 19;
-                block->code_length = 14;
-            } else if ((doubled & 0x00800000) != 0) {
-                short_table = ctx->run_level_0a;
-                index = (doubled >> 18) & 0x1F;
-                block->code_length = 15;
-            } else if ((doubled & 0x00400000) != 0) {
-                short_table = ctx->run_level_0b;
-                index = (doubled >> 17) & 0x1F;
-                block->code_length = 16;
-            } else {
-                short_table = ctx->run_level_0c;
-                index = (doubled >> 16) & 0x1F;
-                block->code_length = 17;
-            }
-            entry16 = short_table[(index & ~1U) >> 1];
-            block->run = (s32)(u8)entry16;
-            block->level = (s32)(s8)((u16)entry16 >> 8);
-            block->sign = (s32)(index & 1);
+            peek <<= 1;
+            MPV_DECODE_RARE(peek, 1);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 0);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(0);
             continue;
         case 0xFE:
             MPV_DIRECT2_TERM(1, 1, 1, 2, 1, 1, 8, 0);
@@ -718,13 +790,81 @@ s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
     ctx->bit_count = bit_count;
     ctx->stream = stream;
 
-    result = block->current_scan;
-    if (result != block->first_scan) {
-        result = -result;
+    scan_result = block->current_scan;
+    if (scan_result != block->first_scan) {
+        scan_result = -scan_result;
     }
-    block->current_scan = result;
-    return result;
+    block->current_scan = scan_result;
+    return block->current_scan;
 }
+
+/* Decode and publish a non-intra block after its coefficient storage is cleared. */
+static inline s32 mpvabdec_DecodeNonIntra(MPVABDECContext* ctx, MPVABDECBlock* block)
+{
+    u32 initial_buffer;
+    const u32* stream;
+    u32 bit_buffer;
+    u32 next_buffer;
+    s32 bit_count;
+
+    {
+        bit_count = ctx->bit_count;
+        initial_buffer = ctx->bit_buffer;
+        next_buffer = ctx->next_buffer;
+        stream = ctx->stream;
+
+        mpvabdec_DecodeFirst(ctx, block, initial_buffer, next_buffer, bit_count);
+        bit_buffer = mpvabdec_AdvanceFirst(initial_buffer, block->code_length,
+                                          &bit_count, &next_buffer, &stream);
+    }
+
+    return mpvabdec_DecodeNonIntraAC(ctx, block, bit_buffer, next_buffer,
+                                     bit_count, stream);
+}
+
+s32 MPVABDEC_NintraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
+{
+    MPVABDECCoefficients* coefficients = block->coefficients;
+
+    /* Clear the fixed 8x8 coefficient block with paired stores. */
+    coefficients->pairs[0] = 0.0;
+    coefficients->pairs[1] = 0.0;
+    coefficients->pairs[2] = 0.0;
+    coefficients->pairs[3] = 0.0;
+    coefficients->pairs[4] = 0.0;
+    coefficients->pairs[5] = 0.0;
+    coefficients->pairs[6] = 0.0;
+    coefficients->pairs[7] = 0.0;
+    coefficients->pairs[8] = 0.0;
+    coefficients->pairs[9] = 0.0;
+    coefficients->pairs[10] = 0.0;
+    coefficients->pairs[11] = 0.0;
+    coefficients->pairs[12] = 0.0;
+    coefficients->pairs[13] = 0.0;
+    coefficients->pairs[14] = 0.0;
+    coefficients->pairs[15] = 0.0;
+    coefficients->pairs[16] = 0.0;
+    coefficients->pairs[17] = 0.0;
+    coefficients->pairs[18] = 0.0;
+    coefficients->pairs[19] = 0.0;
+    coefficients->pairs[20] = 0.0;
+    coefficients->pairs[21] = 0.0;
+    coefficients->pairs[22] = 0.0;
+    coefficients->pairs[23] = 0.0;
+    coefficients->pairs[24] = 0.0;
+    coefficients->pairs[25] = 0.0;
+    coefficients->pairs[26] = 0.0;
+    coefficients->pairs[27] = 0.0;
+    coefficients->pairs[28] = 0.0;
+    coefficients->pairs[29] = 0.0;
+    coefficients->pairs[30] = 0.0;
+    coefficients->pairs[31] = 0.0;
+
+    return mpvabdec_DecodeNonIntra(ctx, block);
+}
+
+#pragma inline_max_size reset
+#pragma inline_max_total_size reset
 
 s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
 {
@@ -733,24 +873,12 @@ s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
     s32 bit_count = ctx->bit_count;
     const u32* stream = ctx->stream;
     const s8* scan;
-    const s16* short_table;
-    u32 peek;
-    u32 doubled;
-    u32 index;
-    u32 entry32;
-    s16 entry16;
-    u32 packed;
-    s32 signed_level;
-    s32 level_factor;
-    s32 quantized;
     s32 result;
 
     u32 peek16;
     u32 dc_code;
-    s32 dc_value;
     u32 dc_length;
-    u32 sign_bit;
-    s16 sign_mask;
+    s32 dc_value;
 
     peek16 = bit_buffer >> 16;
     if (bit_count > 16) {
@@ -760,27 +888,31 @@ s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
     dc_value = (s32)(dc_code >> 4);
     dc_length = dc_code & 0xF;
     if (dc_value != 0) {
-        sign_bit = 1U << (dc_value - 1);
-        sign_mask = ctx->dc_sign_masks[dc_length];
+        u32 sign_bit;
+
+        peek16 &= ctx->dc_sign_masks[dc_length];
         dc_length += dc_value;
-        dc_value =
-            (s32)((peek16 & sign_mask) >> (16 - dc_length));
-        if ((dc_value & sign_bit) == 0) {
-            dc_value += 1 - (s32)(sign_bit * 2);
+        peek16 >>= 16 - dc_length;
+        sign_bit = 1U << (dc_value - 1);
+        if ((peek16 & sign_bit) == 0) {
+            peek16 += 1 - (s32)(sign_bit * 2);
         }
-        dc_value *= 8;
+        dc_value = (s32)peek16 * 8;
     }
     MPV_CONSUME_BITS(dc_length);
-    *block->dc_predictor += dc_value;
-    block->coefficients->values[0] =
-        0.125f * (f32)*block->dc_predictor;
+    dc_value += *block->dc_predictor;
+    *block->dc_predictor = dc_value;
+    block->coefficients->values[0] = 0.125f * (f32)dc_value;
     block->first_scan = 0;
     block->current_scan = 0;
     scan = ctx->scan;
 
     if (ctx->decode_mode != 4) {
         do {
-            peek = MPV_PEEK_BITS();
+            u32 peek;
+            u32 index;
+
+            MPV_PEEK_BITS(peek);
             switch (peek >> 24) {
             case 0xFC:
             case 0xFD:
@@ -992,12 +1124,13 @@ s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
             case 0x25:
             case 0x26:
             case 0x27:
-                doubled = peek << 1;
-                index = ((doubled >> 23) & 0x1FC) >> 2;
-                MPV_DECODE_LONG(index);
+                peek <<= 1;
+                index = peek >> 25;
+                MPV_DECODE_LONG(index, peek);
                 MPV_CONSUME_BITS(block->code_length);
                 scan += block->run + 1;
-                MPV_STORE_AT(0, block->level, block->sign, 1);
+                block->current_scan = (s32)*scan;
+                MPV_STORE_DECODED(1);
                 continue;
             case 0x1E:
             case 0x1F:
@@ -1059,53 +1192,37 @@ s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
             case 0x05:
             case 0x06:
             case 0x07:
-                doubled = peek << 1;
-                MPV_DECODE_ESCAPE();
+                peek <<= 1;
+                MPV_DECODE_ESCAPE(peek);
                 scan += block->run + 1;
-                MPV_STORE_AT(0, block->level, block->sign, 1);
+                block->current_scan = (s32)*scan;
+                MPV_STORE_DECODED(1);
                 MPV_CONSUME_BITS(block->code_length);
                 continue;
             case 0x02:
             case 0x03:
-                index = (peek >> 21) & 0x3FE;
+                index = (peek >> 21) & 0x3FF;
                 MPV_DECODE_SHORT(ctx->run_level_4, index, 11);
                 MPV_CONSUME_BITS(block->code_length);
                 scan += block->run + 1;
-                MPV_STORE_AT(0, block->level, block->sign, 1);
+                block->current_scan = (s32)*scan;
+                MPV_STORE_DECODED(1);
                 continue;
             case 0x01:
-                index = (peek >> 19) & 0xFFE;
+                index = (peek >> 19) & 0xFFF;
                 MPV_DECODE_SHORT(ctx->run_level_2, index, 13);
                 MPV_CONSUME_BITS(block->code_length);
                 scan += block->run + 1;
-                MPV_STORE_AT(0, block->level, block->sign, 1);
+                block->current_scan = (s32)*scan;
+                MPV_STORE_DECODED(1);
                 continue;
         case 0x00:
-            doubled = peek << 1;
-            if ((doubled >> 24) != 0) {
-                short_table = ctx->run_level_1;
-                index = doubled >> 19;
-                block->code_length = 14;
-            } else if ((doubled & 0x00800000) != 0) {
-                short_table = ctx->run_level_0a;
-                index = (doubled >> 18) & 0x1F;
-                block->code_length = 15;
-            } else if ((doubled & 0x00400000) != 0) {
-                short_table = ctx->run_level_0b;
-                index = (doubled >> 17) & 0x1F;
-                block->code_length = 16;
-            } else {
-                short_table = ctx->run_level_0c;
-                index = (doubled >> 16) & 0x1F;
-                block->code_length = 17;
-            }
-            entry16 = short_table[(index & ~1U) >> 1];
-            block->run = (s32)(u8)entry16;
-            block->level = (s32)(s8)((u16)entry16 >> 8);
-            block->sign = (s32)(index & 1);
+            peek <<= 1;
+            MPV_DECODE_RARE(peek, 1);
             MPV_CONSUME_BITS(block->code_length);
                 scan += block->run + 1;
-                MPV_STORE_AT(0, block->level, block->sign, 1);
+                block->current_scan = (s32)*scan;
+                MPV_STORE_DECODED(1);
                 continue;
             case 0xFE:
                 MPV_DIRECT2_TERM(1, 1, 1, 2, 1, 1, 8, 1);
@@ -1267,55 +1384,51 @@ s32 MPVABDEC_IntraBlock(MPVABDECContext* ctx, MPVABDECBlock* block)
         result = -result;
     }
     block->current_scan = result;
-    return result;
+    return block->current_scan;
 }
 
 s32 MPVABDEC_IntraBlockDc11(MPVABDECContext* ctx, MPVABDECBlock* block)
 {
-    u32 bit_buffer = ctx->bit_buffer;
+    u32 initial_buffer = ctx->bit_buffer;
+    u32 bit_buffer;
     u32 next_buffer = ctx->next_buffer;
     s32 bit_count = ctx->bit_count;
     const u32* stream = ctx->stream;
     const s8* scan;
-    const s16* short_table;
     u32 peek;
-    u32 doubled;
     u32 index;
-    u32 entry32;
-    s16 entry16;
-    u32 packed;
-    s32 signed_level;
-    s32 level_factor;
-    s32 quantized;
     s32 result;
 
     u32 dc_code;
-    s32 dc_value;
     u32 dc_length;
-    u32 shifted;
+    s32 dc_value;
 
-    peek = MPV_PEEK_BITS();
+    peek = initial_buffer;
+    if (bit_count != 0) {
+        peek |= next_buffer >> (32 - bit_count);
+    }
     dc_code = block->dc_size_lut[peek >> 22];
     dc_value = (s32)(dc_code >> 4);
     dc_length = dc_code & 0xF;
     if (dc_value != 0) {
-        shifted = (peek << dc_length);
+        peek <<= dc_length;
         dc_length += dc_value;
-        shifted = (u32)(((s32)shifted >> 1) ^ (s32)0x80000000);
+        peek = (u32)(((s32)peek >> 1) ^ (s32)0x80000000);
         dc_value =
-            ((s32)shifted >> (31 - dc_value)) -
-            ((s32)shifted >> 31);
+            ((s32)peek >> (31 - dc_value)) +
+            (s32)(peek >> 31);
     }
-    MPV_CONSUME_BITS(dc_length);
-    *block->dc_predictor += dc_value;
-    block->coefficients->values[0] =
-        0.125f * (f32)*block->dc_predictor;
+    bit_count += dc_length;
+    MPV_FINISH_FROM(initial_buffer, dc_length);
+    dc_value += *block->dc_predictor;
+    *block->dc_predictor = dc_value;
+    block->coefficients->values[0] = 0.125f * (f32)dc_value;
     block->first_scan = 0;
     block->current_scan = 0;
     scan = ctx->scan;
 
     do {
-        peek = MPV_PEEK_BITS();
+        MPV_PEEK_BITS(peek);
         switch (peek >> 24) {
         case 0xFC:
         case 0xFD:
@@ -1527,12 +1640,13 @@ s32 MPVABDEC_IntraBlockDc11(MPVABDECContext* ctx, MPVABDECBlock* block)
         case 0x25:
         case 0x26:
         case 0x27:
-            doubled = peek << 1;
-            index = ((doubled >> 23) & 0x1FC) >> 2;
-            MPV_DECODE_LONG(index);
+            peek <<= 1;
+            index = peek >> 25;
+            MPV_DECODE_LONG(index, peek);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 1);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(1);
             continue;
         case 0x1E:
         case 0x1F:
@@ -1594,53 +1708,39 @@ s32 MPVABDEC_IntraBlockDc11(MPVABDECContext* ctx, MPVABDECBlock* block)
         case 0x05:
         case 0x06:
         case 0x07:
-            doubled = peek << 1;
-            MPV_DECODE_ESCAPE();
+            {
+                u32 escape_bits = mpvabdec_AlignEscapeLookahead(peek);
+                MPV_DECODE_ESCAPE(escape_bits);
+            }
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 1);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(1);
             MPV_CONSUME_BITS(block->code_length);
             continue;
         case 0x02:
         case 0x03:
-            index = (peek >> 21) & 0x3FE;
+            index = (peek >> 21) & 0x3FF;
             MPV_DECODE_SHORT(ctx->run_level_4, index, 11);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 1);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(1);
             continue;
         case 0x01:
-            index = (peek >> 19) & 0xFFE;
+            index = (peek >> 19) & 0xFFF;
             MPV_DECODE_SHORT(ctx->run_level_2, index, 13);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 1);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(1);
             continue;
         case 0x00:
-            doubled = peek << 1;
-            if ((doubled >> 24) != 0) {
-                short_table = ctx->run_level_1;
-                index = doubled >> 19;
-                block->code_length = 14;
-            } else if ((doubled & 0x00800000) != 0) {
-                short_table = ctx->run_level_0a;
-                index = (doubled >> 18) & 0x1F;
-                block->code_length = 15;
-            } else if ((doubled & 0x00400000) != 0) {
-                short_table = ctx->run_level_0b;
-                index = (doubled >> 17) & 0x1F;
-                block->code_length = 16;
-            } else {
-                short_table = ctx->run_level_0c;
-                index = (doubled >> 16) & 0x1F;
-                block->code_length = 17;
-            }
-            entry16 = short_table[(index & ~1U) >> 1];
-            block->run = (s32)(u8)entry16;
-            block->level = (s32)(s8)((u16)entry16 >> 8);
-            block->sign = (s32)(index & 1);
+            peek <<= 1;
+            MPV_DECODE_RARE(peek, 1);
             MPV_CONSUME_BITS(block->code_length);
             scan += block->run + 1;
-            MPV_STORE_AT(0, block->level, block->sign, 1);
+            block->current_scan = (s32)*scan;
+            MPV_STORE_DECODED(1);
             continue;
         case 0xFE:
             MPV_DIRECT2_TERM(1, 1, 1, 2, 1, 1, 8, 1);
@@ -1800,5 +1900,5 @@ s32 MPVABDEC_IntraBlockDc11(MPVABDECContext* ctx, MPVABDECBlock* block)
         result = -result;
     }
     block->current_scan = result;
-    return result;
+    return block->current_scan;
 }

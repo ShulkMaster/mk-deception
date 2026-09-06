@@ -453,6 +453,7 @@ int gcCiSeek(void* object, int offset, int origin)
     return handle->sector_position;
 }
 
+/* TODO: [near miss] 95.74%; close-path scheduling remains; size-mode trial regresses exact file-size sibling. */
 void gcCiClose(void* object)
 {
     GcCiObject* handle = (GcCiObject*)object;

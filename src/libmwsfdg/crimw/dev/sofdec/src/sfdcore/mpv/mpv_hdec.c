@@ -599,6 +599,16 @@ static int mpvhdec_DecGscSj(MPVContext* context, SJ* stream)
     return 0;
 }
 
+static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
+{
+    if (bit_offset != 0) {
+        bits <<= bit_offset;
+    }
+    return bits;
+}
+
+/* TODO: [near miss] 96.038250%; reader register allocation remains;
+ * two matching passes exhausted. */
 static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -618,20 +628,25 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
 
     aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    bits = aligned[1];
-    if (bit_offset != 0) {
-        bits <<= bit_offset;
-    }
+    bits = mpvhdec_AlignSequenceWindow(aligned[1], bit_offset);
     next_bits = aligned[2];
     words = aligned + 3;
 
     MPVHDEC_READ_BITS(context->condition_state.decoder.picture.width, 12);
     MPVHDEC_READ_BITS(context->condition_state.decoder.picture.height, 12);
     MPVHDEC_READ_BITS(context->field_2A4, 4);
-    MPVHDEC_READ_BITS(
-        context->condition_state.decoder.picture.frame_rate_code, 4);
+    MPVHDEC_READ_BITS(value, 4);
+    context->condition_state.decoder.picture.frame_rate_code = value;
     MPVHDEC_READ_BITS(context->bit_rate, 18);
-    MPVHDEC_READ_FLAG(value);
+    /* Consume the marker bit; its value is not used by retail. */
+    bit_offset++;
+    if (bit_offset >= 32) {
+        bit_offset -= 32;
+        bits = next_bits << bit_offset;
+        next_bits = *words++;
+    } else {
+        bits <<= 1;
+    }
     MPVHDEC_READ_BITS(context->vbv_buffer_units, 10);
     MPVHDEC_READ_FLAG(context->field_2B0);
 
@@ -670,7 +685,7 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     context->condition_state.decoder.picture.field_59 = context->field_2A4;
     context->condition_state.decoder.picture.field_5A = context->field_2B0;
 
-    consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+    consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &remainder);

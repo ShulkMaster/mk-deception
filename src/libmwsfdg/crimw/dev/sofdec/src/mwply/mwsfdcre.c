@@ -140,10 +140,6 @@ typedef struct MwsLibraryWork {
 
 typedef struct MwsReferenceBuffers { void* buffers[2]; } MwsReferenceBuffers;
 
-typedef struct MwsCreatePictureLiterals {
-    char short_message[0x3C];
-    float rounding_half;
-} MwsCreatePictureLiterals;
 
 typedef struct MwsCreateBss {
     int buffer_count;
@@ -265,10 +261,10 @@ static const char create_parameter_null[0x2C] = "E1122612 mwPlyCreateSofdec : cp
 static const char player_limit_exceeded[0x50] = "E4061801 mwPlyCreateSofdec: Number of MWPLY handles exceeds its maximum number.";
 static const char allocator_missing[0x3C] = "E2053006 mwPlyCreateSofdec: Didn't set malloc/free func.";
 static const char create_sfd_failed[0x24] = "E2012 mwPlyCreate:can't create SFD";
-static const char picture_user_internal_error[0x38] = "E02120501: Internal Error: mwsfcre_AttachPicUsrBuf().";
-static const MwsCreatePictureLiterals create_picture_literals = {
-    "E02120502: mwsfcre_AttachPicUsrBuf(): usrdatbuf is short.", 0.5f
-};
+static const char picture_user_internal_error[] = "E02120501: Internal Error: mwsfcre_AttachPicUsrBuf().";
+static const char create_picture_short_message[] =
+    "E02120502: mwsfcre_AttachPicUsrBuf(): usrdatbuf is short.";
+static const float create_picture_rounding_half = 0.5f;
 static const char input_sj_failed[0x24] = "E2013 mwPlyCreate:can't create SJ";
 static const char memory_sj_failed[0x24] = "E2020 mwPlyCreate:can't create SJ";
 static const char create_sfx_failed[0x1C] = "E201185: can't create SfxHn";
@@ -457,6 +453,8 @@ static int mwsfcre_MallocRfb(MwsPlayer*, const MwsCreateParams*,
                              MwsReferenceBuffers*);
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer*, const MwsCreateParams*);
 
+/* TODO: [near miss] 93.959206%; real string and float objects separated; remaining codegen/relocation differences. */
+/* TODO: [breakthrough needed] 93.96%; creation ownership/allocation lowering differs; compact-save flag regresses exact sibling. */
 MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
 {
     MwsLibraryWork* work;
@@ -556,7 +554,7 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
         mwSfdDestroy(player);
         return 0;
     }
-    mwsfcre_AttachPictureUser(player, create_picture_literals.short_message);
+    mwsfcre_AttachPictureUser(player, create_picture_short_message);
 
     decoder_count = params->decoder_count;
     if (decoder_count <= 0) decoder_count = 1;
@@ -575,7 +573,7 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
     SFD_SetCond(sfd, 1, 1);
     SFD_SetCond(sfd, 0, 0);
     SFD_SetCond(sfd, 0x17, 4);
-    rounded_value = create_picture_literals.rounding_half +
+    rounded_value = create_picture_rounding_half +
         (float)(work->maximum_width * work->decoder_count * 1000);
     condition_value = (int)rounded_value;
     if ((float)condition_value > rounded_value) condition_value--;
@@ -657,9 +655,9 @@ MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
 }
 
 #pragma force_active on
-static const char reset_stop_failed[0x34] =
+static const char reset_stop_failed[] =
     "E0203261: MWSFCRE_ResetSfdHn: SFD_Stop() failed.";
-static const char reset_error_callback_failed[0x38] =
+static const char reset_error_callback_failed[] =
     "E0203262: MWSFCRE_ResetSfdHn: SFD_SetErrFn() failed.";
 static const char reset_picture_user_short[0x38] =
     "E02120503: mwPlyAttachPicUsrBuf(): bufsize is short.";
@@ -679,11 +677,13 @@ static const char calculate_work_parameter_null[0x34] =
 
 int MWSFCRE_ResetSfdHn(MwsPlayer* player)
 {
-    SfdHandle* sfd = player->sfd;
     MwsPictureUserConfig* config;
-    void* buffer;
     int frame_count;
     int element_size;
+    void* buffer;
+    SfdHandle* sfd;
+
+    sfd = player->sfd;
     if (SFD_Stop(sfd) != 0) {
         MWSFSVM_Error(reset_stop_failed);
         return -1;
@@ -702,7 +702,7 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
         element_size = config->element_size;
         buffer = config->buffer;
         if (config->buffer_size < (frame_count + 3) * element_size) {
-            MWSFSVM_Error(create_picture_literals.short_message);
+            MWSFSVM_Error(create_picture_short_message);
         } else if (MWSFD_GetUsePicUsr() == 1) {
             SFD_SetPicUsrBuf(player->sfd, buffer, frame_count + 3,
                              element_size);

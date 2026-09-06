@@ -177,7 +177,8 @@ typedef struct KonquestNpc {
             union {
                 unsigned char flags_1D;
                 struct {
-                    unsigned char flags_1D_pad_high : 3;
+                    unsigned char flags_1D_pad_high : 2;
+                    unsigned char flags_1D_bit5 : 1;
                     unsigned char skip_visibility : 1;
                     unsigned char flags_1D_pad_mid : 1;
                     unsigned char reaction_mode : 1;
@@ -415,7 +416,7 @@ typedef struct KonquestCameraView {
 typedef struct KonquestNpcProcessPdata {
     MkHdr hdr;
     char pad08[4];
-    int update_enabled; /* +0x0C */
+    unsigned int update_enabled; /* +0x0C */
     char pad10[0x14];
     KonquestNpc* npc; /* +0x24 */
 } KonquestNpcProcessPdata;
@@ -1104,8 +1105,8 @@ static inline void npc_suspend_animation_wait(void) {
         return;
     }
     npc->wait_ticks -= 1.0f;
-    if (npc->wait_ticks <= 0.0f) {
-        npc->wait_ticks = 0.0f;
+    if (g_active_npc->wait_ticks <= 0.0f) {
+        g_active_npc->wait_ticks = 0.0f;
         return;
     }
     script = (KonquestCmdScriptView*)active_cmdscript;
@@ -1227,35 +1228,37 @@ void npc_sleep_until_model_loaded(void) {
     KonquestNpc* npc;
 
     npc = g_active_npc;
-    if (npc == 0 || aproc->pid != 0xA014) {
-        return;
-    }
-
-    npc->wait_ticks = 2.0f;
-    npc = g_active_npc;
     if (npc == 0) {
         return;
     }
 
-    npc->wait_ticks -= 1.0f;
-    if (npc->wait_ticks <= 0.0f) {
-        npc->wait_ticks = 0.0f;
-        return;
-    }
+    if (aproc->pid == 0xA014) {
+        npc->wait_ticks = 2.0f;
+        npc = g_active_npc;
+        if (npc == 0) {
+            return;
+        }
 
-    script = (KonquestCmdScriptView*)active_cmdscript;
-    script->state = 2;
-    saved_script = active_cmdscript;
-    npc = g_active_npc;
-    cmdscript_step_backward();
-    memcpy(
-        npc->saved_script_state,
-        ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
-        sizeof(npc->saved_script_state));
-    npc->saved_script_position =
-        ((KonquestCmdScriptView*)active_cmdscript)->position;
-    npc->saved_script_stack_depth = get_script_stack_depth();
-    active_cmdscript = saved_script;
+        npc->wait_ticks -= 1.0f;
+        if (g_active_npc->wait_ticks <= 0.0f) {
+            g_active_npc->wait_ticks = 0.0f;
+            return;
+        }
+
+        script = (KonquestCmdScriptView*)active_cmdscript;
+        script->state = 2;
+        saved_script = active_cmdscript;
+        npc = g_active_npc;
+        cmdscript_step_backward();
+        memcpy(
+            npc->saved_script_state,
+            ((KonquestCmdScriptView*)active_cmdscript)->execution_state,
+            sizeof(npc->saved_script_state));
+        npc->saved_script_position =
+            ((KonquestCmdScriptView*)active_cmdscript)->position;
+        npc->saved_script_stack_depth = get_script_stack_depth();
+        active_cmdscript = saved_script;
+    }
 }
 
 void cleanup_npc_manager(void) {
@@ -1381,10 +1384,6 @@ void make_damashi_npc(MkObj* object) {
     }
 }
 
-/*
- * Soft ceiling: 92.552635% - both cmdscript suspension and process-sleep paths
- * are exact; fixed-copy scheduling, save form, and float relocations remain.
- */
 void npc_wait_for_wake_up(void) {
     if (aproc->pid == 0xA014) {
         if (is_time_a_greater_than_time_b(
@@ -1400,8 +1399,8 @@ void npc_wait_for_wake_up(void) {
                 return;
             }
             npc->wait_ticks -= 1.0f;
-            if (npc->wait_ticks <= 0.0f) {
-                npc->wait_ticks = 0.0f;
+            if (g_active_npc->wait_ticks <= 0.0f) {
+                g_active_npc->wait_ticks = 0.0f;
                 return;
             }
             script = (KonquestCmdScriptView*)active_cmdscript;
@@ -3223,7 +3222,6 @@ void npc_set_my_ang_y(float angle) {
     }
 }
 
-/* TODO: [near miss] 99.19231%; pin-animation bitfield recovered; explicit float cast did not restore x-store rounding. */
 void npc_set_his_world_pos(
     KonquestNpcData* data, float x, float y, float z) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -3234,7 +3232,7 @@ void npc_set_his_world_pos(
     position.x = x;
     position.y = y;
     position.z = z;
-    npc->data->position.x = x;
+    npc->data->position.x = position.x;
     npc->data->position.y = position.y;
     npc->data->position.z = position.z;
     npc->tile_index = get_tile_from_position(&position);
@@ -3594,11 +3592,7 @@ static void npc_update_current_direction(
         (float)(((int)(166886.1f * target_angle)) & 0xFFFFF);
 }
 
-/* Near match: 83.915565% at exact retail size. Live global-NPC ownership,
- * inlined command-script suspension, target refresh after sleeps, navigation,
- * animation selection, waypoint scripts, facing, and final object state match.
- * Residue is register allocation, scheduling islands, and equivalent branch
- * polarity around the range and navigation latches. */
+/* TODO: [near miss] 84.468544%; navigation/branch scheduling remains after shared wait reload. */
 void npc_travel_path(
     int destination_type, int destination, int travel_mode) {
     if (g_active_npc == 0) {
@@ -3933,11 +3927,7 @@ void npc_set_snap_to_ground(int enabled) {
     }
 }
 
-/*
- * Soft ceiling: 91.52252% - queued inverse-speed timing, suspension, and live
- * game-speed sleep loop match at retail size. Remaining differences are FPR
- * allocation, inline scheduling, save form, and relocation labeling.
- */
+/* TODO: [near miss] 97.52252%; queued wait reload recovered; FP and inline scheduling remain. */
 void npc_sleep(float ticks) {
     float remaining = ticks;
 
@@ -3958,11 +3948,7 @@ void npc_sleep(float ticks) {
     }
 }
 
-/*
- * Soft ceiling: 84.478264% - queued and live animation paths, duration math,
- * and the shared cmdscript suspension sequence match at retail size. Remaining
- * differences are inline scheduling, save form, and register allocation.
- */
+/* TODO: [near miss] 92.41739%; queued wait reload recovered; animation-path scheduling remains. */
 void npc_ani_to_end(void) {
     if (aproc->pid == 0xA014) {
         if (g_active_npc->wait_ticks > 0.0f) {
@@ -3995,11 +3981,6 @@ void npc_ani_to_end(void) {
     }
 }
 
-/*
- * Soft ceiling: 89.74026% - command-script suspension and direct animation
- * advance/pose paths are exact; predicate lowering, copy scheduling, save form,
- * and float relocations remain.
- */
 void npc_ani_1_frame(void) {
     if (aproc->pid == 0xA014) {
         KonquestCmdScriptView* script;
@@ -4012,8 +3993,8 @@ void npc_ani_1_frame(void) {
             return;
         }
         npc->wait_ticks -= 1.0f;
-        if (npc->wait_ticks <= 0.0f) {
-            npc->wait_ticks = 0.0f;
+        if (g_active_npc->wait_ticks <= 0.0f) {
+            g_active_npc->wait_ticks = 0.0f;
             return;
         }
         script = (KonquestCmdScriptView*)active_cmdscript;
@@ -4049,11 +4030,7 @@ void npc_ani_1_frame(void) {
     }
 }
 
-/*
- * Soft ceiling: 86.638885% - queued blend-duration math, shared suspension,
- * and live high-frame delegation match at retail size. Remaining differences
- * are inline scheduling, save form, registers, and float relocations.
- */
+/* TODO: [near miss] 92.87037%; queued wait reload recovered; blend-path scheduling remains. */
 void npc_ani_to_blend_frame(float blend_frames) {
     if (aproc->pid == 0xA014) {
         if (g_active_npc->wait_ticks > 0.0f) {
@@ -4112,11 +4089,7 @@ void npc_suspend_cmdscript(void) {
     active_cmdscript = saved_script;
 }
 
-/*
- * Soft ceiling: 94.540985% - queued duration math, cmdscript suspension, live
- * frame loop, game-speed lookahead, and sleep dispatch match at retail size.
- * Remaining differences are register allocation and float relocations.
- */
+/* Queued frame waits suspend the command script; live waits advance and sleep. */
 void npc_ani_to_frame_x(float frame) {
     if (aproc->pid == 0xA014) {
         if (g_active_npc->wait_ticks > 0.0f) {
@@ -4144,11 +4117,7 @@ void npc_ani_to_frame_x(float frame) {
     }
 }
 
-/*
- * Soft ceiling: 94.42277% - queued tick setup, suspension, live animation
- * loop, game-speed decrement, and sleep dispatch match at retail size. The
- * residue is FPR allocation, save form, and float relocation labeling.
- */
+/* Queued tick waits suspend the command script; live waits decrement by game speed. */
 void npc_ani_for_x_ticks(int ticks) {
     if (aproc->pid == 0xA014) {
         if (g_active_npc->wait_ticks > 0.0f) {
@@ -4169,12 +4138,7 @@ void npc_ani_for_x_ticks(int ticks) {
     }
 }
 
-/*
- * Soft ceiling: 91.3932% - table count, queued last-animation timing, live
- * per-entry transitions, ten-frame overlap, animation advancement, and sleep
- * behavior are exact. Remaining code-size delta comes from repeated typed
- * active-animation predicate and inline/register scheduling.
- */
+/* TODO: [near miss] 93.48058%; queued wait reload recovered; transition-loop scheduling remains. */
 void npc_blend_to_ani_string(int* animation_ids) {
     unsigned int count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, animation_ids);
@@ -4371,11 +4335,7 @@ void npc_blend_to_ani(
     }
 }
 
-/*
- * Soft ceiling: 90.46032% - queued long-wait suspension and the live infinite
- * sleep/advance loop match at retail size. Residue is inline scheduling, save
- * form, and float relocation labeling.
- */
+/* TODO: [near miss] 99.52381%; queued wait reload recovered; localized save/register residue remains. */
 void npc_wait_for_state_change(void) {
     if (aproc->pid == 0xA014) {
         g_active_npc->wait_ticks = 1001.0f;
@@ -5093,11 +5053,7 @@ static void npc_notify_nearby_npcs_that_player_hit_someone(
 
 
 
-/*
- * Soft ceiling: 88.24272% - queued idle setup, long suspension, live script
- * transition, step reset, and perpetual advance/sleep loop match at retail
- * size. Residue is inline scheduling, save form, registers, and relocations.
- */
+/* TODO: [near miss] 93.83495%; queued wait reload recovered; idle-loop scheduling remains. */
 void npc_stand_still(void) {
     if (aproc->pid == 0xA014) {
         g_active_npc->queued_animation =
@@ -5345,7 +5301,6 @@ float p_npc_idle(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.928570%; instruction lowering; one-trial ceiling. */
 static void npc_pre_wake(void) {
     KonquestNpcProcessPdata* process =
         (KonquestNpcProcessPdata*)pdata_of_proc(aproc);
@@ -5371,7 +5326,7 @@ static void npc_pre_wake(void) {
             }
             if (active != 0) {
                 if (npc->camera_distance_squared > 1600.0f &&
-                    (npc->flags_1D & 0x20) == 0) {
+                    npc->flags_1D_bit5 == 0) {
                     float alpha;
 
                     obj_set_all_sobjs_priority(state->object, 0x13);
@@ -6548,17 +6503,14 @@ static RpAtomic* shadow_render_callback(RpAtomic* atomic) {
     return result;
 }
 
-/* Near match: 98.333336% at exact retail size. Compact lowering reproduces the
- * 15-object traversal, material lookup, packed color construction, and cached
- * alpha store; only two loop-register assignments differ. */
 void npc_shadow_set_alpha(int alpha) {
-    int shadow_alpha = 255 - alpha;
     int index;
+    int shadow_alpha = 255 - alpha;
 
     for (index = 0; index < 15; index++) {
         RpMaterial* material =
             obj_find_material_by_id(npc_shadows.objects[index], 0);
-        RwRGBA color = {0xFF, 0xFF, 0xFF, 0xFF};
+        RwRGBA color = {0, 0, 0, 0};
 
         color.red = (unsigned char)shadow_alpha;
         color.blue = (unsigned char)shadow_alpha;
@@ -7404,6 +7356,7 @@ void npc_make_visible(KonquestNpc* npc) {
     int index;
 
     if ((npc->flags_1C & 0x10) != 0 ||
+/* TODO: [near miss] 91.73427%; bit-5 visibility access recovered; remaining visibility CFG/register residue. */
         is_it_safe_to_make_this_npc_visible(npc) == 0) {
         return;
     }
@@ -7517,7 +7470,7 @@ static int is_it_safe_to_make_this_npc_visible(KonquestNpc* npc) {
     int index;
 
     if (get_konquest_game_mode() == 3 &&
-        (npc->flags_1D & 0x20) == 0) {
+        npc->flags_1D_bit5 == 0) {
         return 0;
     }
     if (npc->data->events[7].script_function == 1 &&

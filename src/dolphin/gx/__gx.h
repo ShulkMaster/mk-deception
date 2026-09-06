@@ -86,10 +86,24 @@ typedef int BOOL;
 #define TRUE 1
 #endif
 
-#define GX_WRITE_U8(value) (*(volatile u8*)GXFIFO_ADDR = (u8)(value))
-#define GX_WRITE_U16(value) (*(volatile u16*)GXFIFO_ADDR = (u16)(value))
-#define GX_WRITE_U32(value) (*(volatile u32*)GXFIFO_ADDR = (u32)(value))
-#define GX_WRITE_F32(value) (*(volatile f32*)GXFIFO_ADDR = (f32)(value))
+/* The write-gather port accepts overlapping command, data, and float writes. */
+typedef union GXWriteGatherPipe {
+    u8 byte;
+    u16 halfword;
+    u32 word;
+    f32 real;
+} GXWriteGatherPipe;
+
+#ifdef __MWERKS__
+volatile GXWriteGatherPipe GXWGFifo : GXFIFO_ADDR;
+#else
+#define GXWGFifo (*(volatile GXWriteGatherPipe*)GXFIFO_ADDR)
+#endif
+
+#define GX_WRITE_U8(value) (GXWGFifo.byte = (u8)(value))
+#define GX_WRITE_U16(value) (GXWGFifo.halfword = (u16)(value))
+#define GX_WRITE_U32(value) (GXWGFifo.word = (u32)(value))
+#define GX_WRITE_F32(value) (GXWGFifo.real = (f32)(value))
 
 #define GX_WRITE_RAS_REG(value) \
     do { \

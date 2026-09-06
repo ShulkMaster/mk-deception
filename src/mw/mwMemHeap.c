@@ -284,6 +284,7 @@ static inline _mwMemHeap* createOptionalNormalHeap(MwMemHeapCreateParams* create
 }
 
 #pragma optimize_for_size on
+/* TODO: [near miss] 99.15%; initializer register/constant addressing remains; size-mode trial has no effect. */
 static void mwMemHeapInit(void) {
     _mwMemHeap* system_heap = mwMemSystemGetHeap(0);
     MwMemHeapCreateParams create;

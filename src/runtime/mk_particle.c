@@ -716,7 +716,7 @@ PfxClone* pfx_create_clone(MkPfx* pfx) {
     PfxClone* clone;
     float zero;
 
-    clone = (PfxClone*)get_mkhdr(&vtbl_pfx_clone, 0x2C);
+    clone = (PfxClone*)get_mkhdr(&vtbl_pfx_clone, sizeof(PfxClone));
     if (clone != 0) {
         zero = kZero;
         clone->parent = pfx;
@@ -746,6 +746,8 @@ void* pfx_create_raw_userdata(int extra_size, int userdata_size, int field_90,
                                        out_pfx);
 }
 
+/* TODO: [breakthrough needed] 88.652176%; typed allocation extents preserve
+ * retail output; remaining source/layout reconstruction needs evidence. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {
@@ -756,7 +758,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     unsigned int proc_nostack_slot;
     unsigned int field_pair[2];
     PfxEstimate est_buf;
-    unsigned char emitter_buf[0x2EC];
+    unsigned char emitter_buf[sizeof(PfxEmitter)];
     int ready;
     int pad_raw;
     int pad_align;
@@ -773,7 +775,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     float zero;
 
     created_proc = 0;
-    pfx = (MkPfx*)get_mkhdr(&vtbl_pfx, extra_size + 0x2C0);
+    pfx = (MkPfx*)get_mkhdr(&vtbl_pfx, extra_size + sizeof(MkPfx));
     if (pfx == 0) {
         return 0;
     }
@@ -815,7 +817,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     pfx->field_2BC = 0;
     pfx->scale = kDefaultPfxScale;
 
-    memset(emitter_buf, 0, 0x2EC);
+    memset(emitter_buf, 0, sizeof(emitter_buf));
     if (init_cb != 0) {
         pfx->emitter_scratch = (PfxEmitter*)emitter_buf;
         pfx->slot_count = 1;
@@ -833,7 +835,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
         ready = 0;
     } else {
         pfx_estimate_size(vm, &est_buf, build);
-        pad_raw = build->emitter_count * 0xC;
+        pad_raw = build->emitter_count * sizeof(PfxSlot);
         pad_align = (pad_raw + 0xF) & ~0xF;
         pad_extra = pad_align - pad_raw;
         est_size = est_buf.size;
@@ -844,7 +846,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
         } else {
             pfx->mem = mem;
             memset(mem, 0, alloc_size);
-            aligned = (void*)(((unsigned int)mem + 0xF) & ~0xFU);
+            aligned = (void*)(((unsigned long)mem + 0xFUL) & ~0xFUL);
             if (build->emitter_count != 0) {
                 pfx->slot_table = (PfxSlot*)aligned;
                 aligned = (char*)aligned + pad_raw + pad_extra;
@@ -882,7 +884,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     if (pfx->slot_count != 0 && init_cb != 0) {
         ltm_src = (PfxEmitter*)pfx->emitter_scratch;
         old_ltm_415 = ltm_src->transform;
-        memcpy(ltm_src, emitter_buf, 0x2EC);
+        memcpy(ltm_src, emitter_buf, sizeof(emitter_buf));
         ltm_src->transform = old_ltm_415;
     }
 

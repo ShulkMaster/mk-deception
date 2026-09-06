@@ -4,204 +4,182 @@
 
 Authority: AGENTS.md > retail ASM/callers/ELF/layout > decompiler/foreign port.
 Route: structural error -> H; localized residue -> M; rare/stop -> N.
-Rule schema: ID | IF mismatch | REQUIRE evidence | TRY one change.
-Missing precondition -> skip. No applicable rule -> investigate or stop.
+Schema: ID | IF mismatch | REQUIRE evidence | TRY one change. Missing evidence ->
+skip; no applicable rule -> investigate or stop. These are diagnostics, not recipes.
 
 Loop: baseline -> classify -> one rule -> rebuild -> same-symbol objdiff ->
-accept/revert -> update source TODO: [status] while below100 per AGENTS.md.
-Measured100 -> remove all associated matching-progress comments/TODOs; preserve
-code explanations and unrelated functional TODOs. Record exactness mode and
-verification in reports/metadata, never a replacement matched/100% comment.
-Respect task budget. Recheck every shared-helper/header consumer, including
-below-threshold and already-exact functions. Never stack speculative edits.
+accept/revert. Update the source `TODO: [status]` below 100 per AGENTS.md; remove
+matching-progress comments at measured 100, retaining semantic explanations.
+Recheck every shared consumer, including below-threshold and already-exact ones.
+Preserve math, stores, call order, widths, and lazy null checks. Inspect offsets
+and immediates even above 99%; large score swings can be diff-alignment artifacts.
 No forced registers, fake volatile, dead sinks, empty arms, invented fields,
 wrong ABI, undefined returns, goto, or assembly workaround. Real MMIO stays volatile.
-Preserve observed math, stores, call order, widths, and lazy null checks.
-Inspect immediates/offsets even above 99%; scores do not prove behavior.
-Large score swing -> compare local-before/local-after for diff-alignment artifacts.
-Finish: quality pass + full ninja + SHA-1 + report + diff-check + status.
-Report-exact != whole-TU/link-exact; verify constant payloads and disclose fallback.
+Finish: quality pass, full Ninja, SHA-1, progress, diff-check, status. Distinguish
+report-exact, data-value-exact, and link-exact; disclose nonmatching fallbacks.
+
+Keep these books slim: amend one applicable rule with new evidence, and put
+scores, attempts, and campaign history in the
+[consolidated knowledge record](matching-knowledge.md). Do not append a diary.
+
+## Evidence-gated priority
+
+The [measured ranking](matching-knowledge.md#measured-rule-ranking) puts H02 owner
+and layout recovery first, followed by H11 joins and an applicable M01 TU-mode
+check. Only after those structural checks, consider H15's one honest lifetime
+insight. ABI, width and effect-order evidence always overrides this search order.
+Check shared consumers before spending repeated attempts on an isolated leaf;
+consumer counts from one header correction are not independent trial successes.
 
 ## Rules (structural first)
 
-H01 | Wrong argument/return registers | All callers + callee ABI | Correct declarations, definitions, callbacks, calls together; typed T*/T** over opaque pointers. No invented unused return.
-H02 | Wrong offset/width | Multiple accesses + allocation size | Recover canonical fields/arrays inside proven layout; remove false extensions; preserve unknown gaps. MWCC may place the vptr after members declared before the first virtual method: IRefCntRes requires virtual declarations before reference_count to retain vptr+0/count+4. Verify all virtual-call sites and destructor stores after class-member recovery.
-H03 | Signed compare/narrowing differs | Loads, callers, arithmetic range | Correct signedness/storage width; keep promoted accumulators full-width. m2c u16 result does not prove u16 accumulator. Proven byte-range FP interpolation passed to a byte method may require direct float-to-byte conversion, not float-to-int-to-byte: SetRelativePan retained100 with the correct virtual prototype and no extra mask. Require representable input range; do not generalize to modulo integer narrowing.
-H04 | Bit extraction/RMW differs | Storage width + bit position | Existing bitfield or proven mask; unsigned-byte promotion before shift. Unknown semantics -> neutral bit name.
-H05 | Cached value vs retail reload | Reload after call/sleep/aliasing store, or polling externally updated state | Read authoritative owner again; do not extend stale local lifetime. For a proven debugger/interrupt completion flag, qualify declaration and definition volatile and verify every reader/writer; a branch skipping the poll load is behavioral, even above 99%. Never use volatility for coloring.
-H06 | Retail retains computed value/address | Shared uses with no reload | Name genuine typed local/element/owner; retain only for observed interval.
-H07 | Extra/missing helper call | Retail bl boundary + signature | Visible inline body for expansion; out-of-line body for real call. Repeated inline-off idiom -> authentic side-effect-safe typed macro.
-H08 | Pointer-instance latch diamond differs | Null-before-instance reads; no bl | Typed accessor returning pointer on success, null otherwise; pass owner if preloaded arguments hoist reads. No empty keep arm. Check the caller’s active dont_inline region before extraction: it can emit a real accessor call despite an inline declaration. Preserve that region and retain a direct stale-instance guard there; do not change unrelated inlining to close a latch.
-H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition. Rotated top test -> explicit top guard/break. No dummy one-trip loop. An unsigned index bounded by length can retain cmplwi/ble plus CTR where a decreasing length folds entry to beq: gcCiGetFileSize reached100 with for(index=0; index<length; index++). Require identical zero-length and traversal behavior; guarded do/decrement changed the back edge and was rejected.
-H10 | Switch dispatch differs | Complete cases/default/fallthrough + text order | Recover switch/case order; preserve independent guards where retail repeats tests. No speculative labels.
-H11 | Return/cleanup join differs | Branch graph + effect ownership | Shared result/epilogue or explicit arm returns as observed. Shared zero return may avoid booleanization; cleanup exception -> M08.
+H01 | Wrong argument/return registers | All callers + callee ABI | Correct declarations, definitions, callbacks, and calls together; use canonical typed pointers/virtual methods. No invented argument or unused return.
+H02 | Wrong offset/width | Multiple accesses + allocation/compiler layout | Recover canonical fields/arrays within proven extents; preserve unknown gaps and verify producers as well as consumers.
+H03 | Signed compare/narrowing differs | Loads, callers, arithmetic range | Correct storage/ABI width; keep promoted accumulators full-width. Proven byte-range FP input may need direct float-to-byte conversion, not an intermediate int; never generalize to modulo narrowing.
+H04 | Bit extraction/RMW differs | Storage width + bit position + every use | Existing bitfield or proven mask; unsigned-byte promotion before shift. Use a neutral name when semantics are unknown. Preserve packed sign/flag bits until their last consumer; mask only the table address.
+H05 | Cached value vs retail reload | Call/sleep/aliasing store or external poll boundary | Reread the authoritative owner at each observed boundary. Only proven interrupt/debugger completion flags justify volatile on declaration and definition; check every reader/writer.
+H06 | Retail retains computed value/address | Shared uses + unchanged ownership interval | Name a genuine typed local/element/owner. Use one proven derived owner for inherited arrays; retain distinct original/advanced buffer snapshots while both remain live.
+H07 | Extra/missing helper call | Retail call boundary + signature + active inline settings | Visible inline body for expansion; out-of-line body for a real call. Repeated call-free expansion under inline-off may need a side-effect-safe typed macro. Inspect emitted calls and every consumer.
+H08 | Pointer-instance latch diamond differs | Null-before-instance reads + no call | Typed accessor returning the validated pointer or null; pass the owner if argument evaluation hoists reads. Preserve required snapshots and active dont_inline regions; no empty valid arm.
+H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition; rotated top test may need a top guard/break. An unsigned ascending index can retain cmplwi/ble plus CTR where decrementing length cannot. No dummy one-trip loop.
+H10 | Switch dispatch differs | Full finite case/default/fallthrough set + text order | Recover case order or a proven shared decoding family/tail; preserve repeated independent guards and field-publication order. No speculative labels.
+H11 | Return/cleanup join differs | Actual branch destinations + effect ownership | Shared result/epilogue or explicit arm returns as observed. Verify whether a branch lands on a final store or past it; source addresses alone do not identify the target. Cleanup exception -> M08.
 H12 | POD copy loop differs | Real type/size/alignment/alias semantics | Aggregate assignment for word/CTR copy; components for lfs/stfs. No compiler scaffolding.
-H13 | Intrusive-list loads/stores differ | Link ownership + callback effects + no bl | Exact typed reciprocal-store order; advance iterator before mutating callback when observed; reload links as retail does.
-H14 | Stack slots differ | Genuine address-taken locals + offsets | Reorder adjacent declarations/whole aggregates or narrow lifetime. Distinguish compiler-created by-value copies. No padding locals.
-H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration check, then N stop. A bounded declaration-only scratch can identify that single source insight: HAnimWrite and p_pz_mode_who_won reached100 with unchanged assignments; moving theta before cosTheta closed RpHAnimKeyFrameBlend. Require real locals, stack-sensitive scoring, real-TU verification, and no invented lifetime uses. No register carousel.
-H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nest single-use result; retain original callback owner at untyped boundary if observed. No manufactured return contract.
-
-H15 measured follow-up (2026-09-05): declaration-only candidates closed
-`ADXSJD_Create`, `axrna_update_play`, `mslSoundUnCopy`, the two puzzle AI scans,
-`pzsm_lower_down`, and `pulsate_object`. `HAnimRead` additionally required its
-existing hierarchy locals at function scope; assignments and calls stayed in
-place. Search the relevant declarations in scratch before spending the single
-source check. Reordering initialized declarations can also reorder stores: do
-not classify that as a pure declaration change. Check every caller when the
-declarations belong to an inline helper: `mwsfcre_FreeAll` closed `mwSfdDestroy`
-but lowered the nonexact `mwsfcre_MallocCompoWork` from 98.107346 to 97.768364.
-
-H02/H04 measured follow-up: a tiny immediate difference can select the wrong
-state, not merely another register. `_rpSkinInstanceCallback` needs the existing
-platform field at +0x2C, not the split-mesh count at +0x34. The weapon watcher
-must snapshot and compare the process entry at +0xB8, with `MkProcEntryFn`,
-not the destruction callback at +0xB4. Confirm the producer as well as the
-consumer. Existing flag overlays closed the NPC angle setter, both life-bar
-adjusters, the object-position matcher, and the puzzle burn reaction. Keep a
-neutral bit name when the bit's meaning is not established.
+H13 | Intrusive-list accesses differ | Link ownership + callback effects + no call | Exact typed reciprocal-store order; save next before mutating callback when observed, and reload links as retail does.
+H14 | Stack slots/store order differ | Real address-taken locals + offsets + lifetimes | Reorder declarations/whole aggregates or narrow scope; separate declaration order from initialization order only while preserving execution and C89 constraints. Distinguish compiler-created by-value copies; no padding locals.
+H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration insight, then niche stop. A finite scratch-only search may identify it; use stack-sensitive scoring and verify the real TU. No register carousel or invented uses.
+H16 | Producer/consumer move differs | Real returned object + consumer ABI | Nest a single-use result; retain the original callback owner at an untyped boundary when observed. No manufactured return contract.
 
 ## Measured examples
 
-- H01/H03: If a GX call uses `clrlwi` where retail copies a proven 0/1 local,
-  check the local against the existing `GXBool` parameter type. Under the
-  RenderWare objects' disabled optimization, full-width locals retained masks
-  even though every assignment was 0 or 1. `GXBool` enable flags closed
-  `_rwDlObjectRenderSetup` (2,344 bytes); mipmap flags closed
-  `_rwGameCubeTextureSetLOD` after its plugin access was recovered. Preserve
-  full-width masks and enums; do not change a public prototype to suppress a mask.
-- H07/M13: A `static inline` plugin accessor can emit a real call under
-  `-inline off`. Require the retail offset load/add and the established plugin
-  layout, then use a typed macro that evaluates the owner once. This closed
-  `_rwDlRasterCamera_ZClearRectInit`, `_rwDlRasterCreate`, and `_rwDlTextureSet`.
-  Keep the function form available: both alpha-pass consumers regressed under
-  a blanket replacement, so only confirmed consumers use the macros.
-  The complete `dltextur` object subsequently passed the linked retail SHA-1.
+Apply these refinements only with the parent rule's evidence:
 
-- H01: If the last virtual-call mismatch preserves an extra argument register,
-  verify the real callee before calling it coloring. The local Konquest jump
-  prototype invented a context argument; runtime `jump_sleep_*` takes only
-  entry and ticks. Using the canonical process vtable closed `p_monk_getup`
-  from 99.895836% to 100%. Do not pass the observed scratch vtable register as
-  a fabricated argument. Its preceding byte flag updates also required the
-  existing `moving` and `bit6` fields, not integer OR expressions.
-- H05: If retail reloads an owner after a destructor/allocation/emitter call,
-  preserve that reload instead of a convenience snapshot. `super_charge_me`
-  reached 100% using the current player at each ownership access;
-  `kill_fstyle_signs_for_plyr` reached 99.44827% after rereading the player and
-  style slot after destruction, then 100% with one counter-declaration check.
-  `p_decoy_shrink` also requires rereading the effect handle after
-  `fx_pause_emit`. Confirm the callback boundary; do not add volatile.
-  After recovering the process validator, `give_krypt_key_to_player` had only
-  its notice pointer and instance in swapped registers. One adjacent declaration
-  reorder closed 99.70874% to 100%; stop if that single lifetime check fails.
-- H04/H12: Retail byte `rlwimi` plus scalar `lfs/stfs` copies can expose two
-  independent source-shape issues. Existing gravity bitfields and component
-  velocity assignments raised `set_active_projectile_velocity` from 90.06493%
-  to 97.7013%; remaining FP scheduling is not a reason to add padding.
-  The existing scale-active field alone closed `destroy_subzero_decoy`.
-
-- H06: If retail loads a string-table entry before a helper and keeps it for
-  the following lookup, require the same read interval in source. A named
-  `blood_map[4]` snapshot before the section lookup improved all four tested
-  blood callers, including `plyr_bleed_mouth`. Verify that the helper cannot
-  change the table before moving the read. A different constant address alone
-  does not justify padding: compare referenced bytes and load placement first.
-- H06/H12: If retail zeros a stack slot at entry that later receives process
-  data through an output argument, try initializing that real output pointer
-  at entry. This improved both monk and Damashi NPC creation. Do not invent
-  an unused slot or padding. Conversely, scalar vector initialization helped
-  objective-arrow and directional-light callbacks but regressed the tested
-  pebble and wall-effect functions; preserve aggregate copies when retail
-  actually performs them. Keep declarations before statements in C89 units.
-- H05: Published conversation state and NPC waypoint paths can change across
-  process sleeps, event dispatch, and allocation callbacks. If retail reloads
-  the owner field afterward, use that field rather than the original argument
-  or cached path. Confirm each reload boundary independently; do not replace
-  genuine snapshots throughout an entire module.
-
-- H06: If two member arrays share one retail induction pointer but MWCC emits
-  two, check whether source accesses one through a base-class alias and the
-  other through the derived owner. Require proven same-object identity and
-  inherited-member layout; use the derived owner for both. In
-  `SBPlayable_Stream::iPlayPrepped`, removing the redundant base alias raised
-  97.15205% to 97.974655% and reduced 2072 bytes to 2056 (retail 2052), without
-  changing memory accesses or virtual calls. Remaining zero/coloring residue
-  is a soft ceiling; do not invent a combined array or byte-stride object walk.
-  Moving the secondary-entry initialization past primary setup did not remove
-  the extra instruction after this fix: 97.88499%, still 2056 bytes. Do not
-  assume narrowing that pointer lifetime closes the zero-initialization residue.
-
-- H02/H10: Mirage menu navigation exposed an irregular-switch default that
-  incorrectly selected P2. Recovering the finite event set and retail case order
-  raised `mkScreenEngineClient::HandleEvent` from 39.13% to 99.825%. Inspect the
-  final immediates: P2 still used +0x108 instead of +0x110. A MWCC C++ layout
-  probe showed nested anonymous structs inside `FighterSlot`'s anonymous union
-  had size 1. Three anonymous pointer unions preserve the proven aliases and
-  restore size 0x0C / `PlyrInfo` 0x6C. Correct C callee linkage then reached 100%.
-  Require measured compiler layout and retail offsets before flattening a union.
-
-- H01: `mslgcn.cpp`'s ten stream/static playback wrappers used manual vtable
-  calls. Retail tables, method symbols, and callers established typed virtual
-  methods. Ordinary virtual dispatch reproduced the retail `r12` call sequence:
-  nine wrappers became report-exact, and `ContinueStream` improved from
-  99.44444% to 99.81481%. Do not generalize a consumer interface view into an
-  unverified concrete class layout or destructor contract.
-- H11: `ContinueStream`'s remaining branch executed a redundant return-register
-  copy on success. An explicit return in the diagnostic-error arm reproduced
-  retail's success branch directly to the epilogue, reaching report-exact 100%.
-  Require the same error side effects and return value on both source forms.
-
-- H08: Owner-typed accessors closed 30 report-exact functions across `konquest`,
-  `bgnd`, and `ai` (7,864 bytes). Return the validated pointer from the success
-  arm and null on stale/null paths; keep the owner-instance read behind the
-  pointer check. Empty valid arms and a negated stale check let MWCC fold the
-  retail join branch. Whole-object checks preserved all prior exact functions.
-  `set_monk_position` and `is_leaving_area` sit under `dont_inline`: extraction
-  emitted real calls, so their direct guards were restored. Do not infer that
-  an accessor matching one consumer preserves every consumer’s register homes.
-  A subsequent round closed 15 more functions (2,764 bytes) in eight TUs,
-  including runtime animation/object, player, Krypt, and fleshchunk consumers;
-  all fifteen also passed data-value comparison. Reusing an accessor inside
-  another inline helper can alter zero-register reuse, and loop consumers can
-  rotate list-base/counter homes: recover the latch once, then retain the
-  coloring ceiling.
-  In a size-ranked, 95%+ one-attempt sample, direct owner accessors improved
-  76/80 functions; cached-pointer accessors improved 4/13, with no exact closes.
-  Use the direct form when the pointer load and validation are adjacent. Keep
-  the cached form when intervening effects require the original snapshot;
-  do not move reads for the score. Macro-consumer replacements improved 5/7.
-  These selected-sample rates are not estimates for arbitrary game functions.
-  A callee's accessor can also change whether its caller inlines that callee:
-  `npc_resolve_events` improved while `npc_invisible_update` fell from 90.77%
-  to 44.88% after losing its explicit call. Restore the trial if any caller
-  regresses, including callers below 95%.
-  Lowering the selection floor to 50% and testing the next 100 largest eligible
-  functions (actual report range 58.66–94.86%, 101,792 bytes) retained 95
-  improvements: 87/90 direct-owner and 8/10 cached-pointer trials. Twenty
-  crossed 95%, but only `p_point_light_follower` closed exactly (228 bytes,
-  including data-value and stack-operand checks). This shape can improve a
-  large reconstruction without resolving its other differences; a higher
-  score alone does not establish equivalent behavior. In particular, retain
-  the documented invalid-path difference in `p_puzzle_fighter_chain_msg`.
-  Three target regressions and two collateral regressions were restored.
-  `exit_meditation` and `npc_play_dialog_and_anim_sequence` improved locally
-  while previously exact callers fell to zero; inspect all callers, not just
-  the extracted latch. Each target received one valid measured candidate.
-  For automated extraction, require C identifier syntax for pointer types:
-  multiplication such as `0.0f * body` is not a declaration. Reject malformed
-  generated source before treating it as a matching experiment.
+- H01/H03: `GXBool` locals can remove redundant masks under disabled optimization;
+  preserve full-width masks/enums and correct public prototypes. Typed sound
+  virtual methods recovered the retail r12 dispatch; this does not establish a
+  concrete class layout or destructor contract.
+- H03/H11: TRK connection checks use a local `BOOL` for the returned flag;
+  retain the API's declared return type. Separate serial-I/O and connection
+  early returns when retail has distinct exit blocks, preserving short circuiting.
+- H02: MWCC may place a vptr after members preceding the first virtual method.
+  `IRefCntRes` needs virtual declarations before reference_count for +0/+4.
+  Nested anonymous structs inside FighterSlot's union measured size 1; three
+  pointer unions restore 0x0C / PlyrInfo 0x6C. Probe layout and recheck all callers.
+- H02/H04: Skin platform data is +0x2C, not mesh count +0x34; process entry is
+  +0xB8 (`MkProcEntryFn`), not destruction callback +0xB4. Small immediate
+  differences can be behavioral. AnimPdata landing fields are +0xF8/+0xFC
+  within 0x104 bytes, not an extension beyond the allocation.
+- H02: Opcode variants sharing an instruction union can have different trailing
+  fields. Sphere spawning has two radii before its quadratic option; the generic
+  four-argument shape places that option later. Recover a typed variant and
+  verify both the instruction producer and dispatcher consumer.
+- H04: Check the complete index mask against allocation extent. VM dirty-page
+  access needs a 13-bit page index for its 8,192-entry LUT; a bare shift retained
+  unsupported address bits even at a high fuzzy score. Check each sibling
+  independently rather than imposing that mask on all address APIs.
+- H02/H05: Distinguish a fixed hardware or low-memory owner from an unresolved
+  external symbol. Confirm the address and qualifiers against matching sibling
+  definitions and callers: VI registers are volatile MMIO at 0xCC002000, while
+  the PAD/OS reset byte uses the canonical unqualified absolute RAM declaration.
+  Do not infer volatility from a numeric address or remove real MMIO volatility.
+  Preserve the proven owner kind: DVD DI/PI and SI banks require canonical
+  absolute volatile array declarations. Replacing them with pointer macros changed
+  addressing/scheduling and regressed consumers; equal addresses alone do not
+  establish the same compiler-visible owner. Once confirmed, inspect every
+  sibling regardless of its initial score: SI transfer routines below 80%
+  closed with the same declaration correction. Large scheduling differences
+  can follow one wrong owner declaration; they need not imply a wrong algorithm.
+- H02/H06: Repeated state-owner reloads around FIFO writes can originate in the
+  port declaration. GX's byte, halfword, word and float writes share one absolute
+  volatile union at 0xCC008000. Separate arbitrary-pointer casts obscured that
+  owner; local snapshot trials failed, while recovering the port closed a family
+  of consumers. Verify overlapping offsets, widths, single evaluation and command
+  order, then audit every header consumer. Do not generalize a FIFO union to
+  unrelated memory or retain extra snapshots after the declaration fix.
+- H03/H12: A stored `Vec` component and its incoming FP argument need not have
+  identical precision. If retail rounds before publishing a second copy, read
+  the real stored component; do not bypass it or add a synthetic rounding sink.
+- H04: For mask-then-shift extraction, assign the complete expression to the
+  decoded value instead of reusing that local for the unshifted mask. Confirm
+  all uses: `_rwGCNDisplayListGetStride` retains the same operations this way.
+- H05: NPC command waits decrement through a saved NPC pointer, then check and
+  clamp through `g_active_npc`. Preserve that observed owner reload after the
+  store; audit every inlined consumer rather than introducing volatile.
+- H06/H14: Initialize a real output pointer at entry only when retail zeros
+  that slot there. Keep an initial buffer word separate from its advanced word
+  through the consume/refill join. Put real snapshots in their owning scope,
+  keeping their loads at the observed point; declaration order is not initialization
+  order. Consume lookahead in place only after every
+  decoding use; preserve shifts even when omitting one raises fuzzy.
+  If conversion-constant addressing differs with identical arithmetic, retain
+  a genuinely used scan index through its scale lookup; do not invent a constant
+  pool pointer or dead use. Recheck the first path separately from later macros.
+- H06/H14: In coefficient decoding, form the sign threshold after unsigned
+  amplitude extraction; assemble the extended level before increasing code
+  length. A real `extended_base = packed * 2` retained through the bitwise
+  combine expresses the stage boundary without dead uses or register forcing.
+- H07/H11: An expanded helper can retain a shared publication block with no
+  call (`ReadSram`); preserve failure cleanup and do not hide empty branches.
+- H07: For a proven call-free helper rejected by MWCC, an isolated diagnostic
+  can test both inline_max_size and inline_max_total_size; either alone may
+  fail. Scope/reset any justified limits and check siblings. This establishes
+  expansion, not the retail pragma values; respect fixed-TU-setting tasks.
+  If reader roles diverge across real decoder phases, test a typed inline
+  phase boundary with only genuine inputs/outputs. Include cursor setup when
+  that phase owns its lifetime, preserving read/store order; recheck consumers
+  and remove earlier lifetime specializations that the new scope makes redundant.
+  If one cursor transfer remains between otherwise matching phases, test an
+  outer decode owner spanning initialization through final publication, leaving
+  independent storage clearing outside it. Verify nested phases separately:
+  flattening them can undo allocation gains. Do not add identity wrappers.
+  For repeated fill/clear expansions whose retail cursor advances between runs,
+  test a typed pointer-to-pointer helper that performs those real stores and
+  advances the caller's cursor. Returning an end pointer or advancing outside
+  the helper can fold away retail updates. Preserve the full array extent:
+  six coefficient blocks need one six-block paired-store view, not indexing
+  past a single block. Check short local fills separately from long helper fills.
+  See [the nine-candidate follow-up](matching-knowledge.md#mutable-cursor-ownership-generalizes-to-fills).
+- H08: Direct-owner accessors suit adjacent load/validation; cached forms suit
+  real intervening effects. Extracting a latch can change a caller's inlining,
+  even reducing a previously exact caller to zero. Check all callers, not only
+  the target; retain documented invalid-path differences as unresolved behavior.
+- H10: Verify finite bounds before accepting a decompiler default arm. SPSD
+  header values 2/3 enter codec selection, while values at least 4 bypass it
+  and still reach common output normalization. m2c labeled the bounded arm
+  as default; the retail comparison and branch target resolve the discrepancy.
+- H14/H15: Separate independent loop counters; group active/saved-next iterators
+  without moving assignments across callbacks. Split scalar declarations from
+  initialization only without const, aggregate, scope, or lifetime changes.
+  Initialized declaration reordering can reorder stores and is not coloring.
+- H04: Sofdec combined VLC indices need 0x3FF / 0xFFF before sign extraction;
+  0x3FE / 0xFFE loses signs. Exercise both signs, first/subsequent coefficients,
+  and all bit alignments against retail, not a port inheriting the same bug.
 
 ## Known traps
 
-- H15 measured check: `mslTick`99.3->100 by declaring processed before the
-  snapshot item_count. Only five r28/r29 operands differed; the adjacent scalar
-  declarations, not assignments, changed. Callback order, counter initialization,
-  signed comparison and interrupt boundaries stayed intact. Try once only when
-  this pure-local coloring precondition holds; do not cycle declarations.
-
-- addis x,v,H; cmplwi x,L tests (L - (H << 16)) mod 2^32. H=0,L=0xC602 is positive 0xC602; preserve proven source signedness.
-- AnimPdata landing fields: +0xF8/+0xFC inside 0x104 bytes, not an extension at +0x104/+0x108.
-- Runtime owner fields are not interchangeable with similar static tables.
-- Mirage/m2c/permuter output is a hypothesis; GC evidence governs acceptance. Host-only branches stay out of src.
+- `addis x,v,H; cmplwi x,L` tests `(L - (H << 16)) mod 2^32`;
+  H=0,L=0xC602 means positive 0xC602. Preserve proven signedness.
+- ELF `NOBITS` sections have zero-initialized storage, not file payload bytes.
+  Never read `sh_offset` as their initializer. Check this before changing a
+  constant to resolve a `data_value` mismatch.
+- Runtime owners are not interchangeable with similar static tables.
+- Automated extraction must recognize C identifiers: `0.0f * body` is not a
+  pointer declaration. Reject malformed generated source before measuring it.
+- Exhausted declaration searches are not new evidence; do not repeat them
+  without a changed lifetime/CFG hypothesis.
+- Mirage/m2c/permuter output remains a hypothesis. Keep host branches out of
+  Deception; portable corrections require retail and behavioral evidence.
 
 No structural discrepancy -> [mid](playbook-mid-occurrence.md).
+
+H07 — unsigned lookahead phase boundary:
+IF a localized escape-window shift has matching operations but different
+scheduling, REQUIRE the same real unsigned bit-window transformation and a
+call-free emitted body. TRY a typed inline value helper for that transformation,
+then inspect the complete consumer and every sibling. This closed Dc11 and
+removed Nintra AC's escape-scheduling island, but regressed Nintra's first-code
+phase: the boundary is context-dependent, not a universal shift-wrapper rule.
+Do not add identity helpers, dummy state, false prototypes or generic permuter
+names. These results infer a source boundary, not an original retail helper name.
+Keep measurements and rejected contexts in the
+[MPVABDEC goal report](matching-knowledge.md#decoder-reconstruction-transferable-findings).

@@ -245,11 +245,16 @@ RwFreeList* _rwFreeListFreeReal(RwFreeList* freeList, void* entry)
         unsigned char* rawBase = ((RwFreeBlock*)link)->heap + heapSize;
         if ((unsigned char*)entry >= rawBase &&
             (unsigned char*)entry <= rawBase + freeList->entriesPerBlock * freeList->entrySize) {
-            unsigned int index = ((unsigned char*)entry - rawBase) /
-                             (unsigned int)freeList->entrySize;
-            unsigned int byteIndex = index >> 3;
-            unsigned char mask = (unsigned char)(0x80 >> (index - byteIndex * 8));
-            unsigned char* heap = ((RwFreeBlock*)link)->heap;
+            unsigned int index;
+            unsigned char* heap;
+            unsigned char mask;
+            unsigned int byteIndex;
+
+            index = ((unsigned char*)entry - rawBase) /
+                    (unsigned int)freeList->entrySize;
+            byteIndex = index >> 3;
+            mask = (unsigned char)(0x80 >> (index - byteIndex * 8));
+            heap = ((RwFreeBlock*)link)->heap;
             heap[byteIndex] &= (unsigned char)~mask;
             if ((freeList->flags & 2) &&
                 FreeListBlockIsEmpty(heap, heapSize)) {

@@ -62,7 +62,7 @@ int SFD_SetSpeed(SfdHandle* handle, int speed)
 
 int SFPL2_Standby(SfdHandle* handle)
 {
-    handle->playback_state = 3;
+    handle->requested_state = 3;
     return 0;
 }
 

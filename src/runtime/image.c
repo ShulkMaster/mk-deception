@@ -628,19 +628,16 @@ ScreenObj* load_wiff_screen_pfxobj(int a, int b, int oid, AniTextureControl** ou
 }
 
 ScreenObj* insert_2d_obj(ScreenObj* obj) {
-    /* Soft ceiling: insert_2d_obj (~99.29%) -- pri/ptr r29/r31 NV unreproducible; stop.
-     * Tried: pri-before-ptr decl (-0.5%), unsigned cmplw (-1%), null-first diamond (-18%),
-     * invert blt branch (-2.5%). Keep if/else RTTI ladder + signed cmp. */
-    MkPtr* ptr;
-    MkPtr* next;
-    ScreenObj* cur;
+    ScreenObj* as_engine;
     ScreenObj* as_screen;
     ImageStringObjView* as_string;
-    ScreenObj* as_engine;
-    MkVtable5* vtbl;
     int pri;
-    int cur_pri;
+    MkVtable5* vtbl;
+    ScreenObj* cur;
     MkPtr* insert;
+    int cur_pri;
+    MkPtr* next;
+    MkPtr* ptr;
 
     vtbl = obj->vtbl;
     if (vtbl == &vtbl_mkpdata_screen_obj) {

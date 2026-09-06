@@ -215,7 +215,7 @@ static inline BOOL __less_dec(const decimal* x, const decimal* y)
 	return x->exp < y->exp;
 }
 
-/* TODO: [breakthrough] 99.06439%; null-first scan recovered; shared rounding exit remains. */
+/* TODO: [breakthrough] 99.06439%; null-first scan retained; terminal-in-loop scan regressed; shared rounding exit remains. */
 f64 __dec2num(const decimal* d)
 {
 	if (d->sig.length <= 0) {
@@ -626,7 +626,7 @@ static BOOL __equals_dec(const decimal* x, const decimal* y)
 	return FALSE;
 }
 
-/* TODO: [breakthrough] 96.86711%; null-first scan recovered; repeated post-loop test remains. */
+/* TODO: [breakthrough] 96.86711%; null-first scan retained; terminal-in-loop scan regressed; post-loop test remains. */
 static void __two_exp(decimal* result, s32 exp)
 {
 	switch (exp) {

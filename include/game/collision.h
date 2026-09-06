@@ -102,6 +102,9 @@ int get_shape_center_for_collision_obstacle(
 int collide_segment_against_global_collision_list(
     const Vec* start, const Vec* end, Vec* hit_point,
     unsigned int ignored_flags);
+int repel_point_against_global_collision_list_toward_target(
+    const Vec* target, const Vec* start, Vec* result_point,
+    unsigned int ignored_flags);
 void update_collision_obj_pos(CollisionObj* object, const Vec* position);
 void collision_obj_set_shape(
     CollisionObj* object, const CollisionShape* shape);

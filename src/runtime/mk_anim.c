@@ -394,13 +394,14 @@ static inline void rebuild_anim_track_table(AnimPdata* anim) {
     void** track_data;
 
     if (anim->track_capacity < track_count) {
-        void** table = (void**)get_mem(track_count * 8);
+        /* Current and previous scripts each own one pointer per channel. */
+        void** table = (void**)get_mem(2 * track_count * sizeof(*anim->track_data));
 
         if (anim->track_capacity != 0) {
             memcpy(
                 table + track_count,
                 anim->track_data,
-                anim->track_capacity * 4);
+                anim->track_capacity * sizeof(*anim->track_data));
             free_mem(anim->track_data);
         }
         anim->track_data = table;
@@ -409,7 +410,7 @@ static inline void rebuild_anim_track_table(AnimPdata* anim) {
         memcpy(
             anim->track_data + anim->track_capacity,
             anim->track_data,
-            anim->track_capacity * 4);
+            anim->track_capacity * sizeof(*anim->track_data));
     }
     track = script->tracks;
     track_data = anim->track_data;

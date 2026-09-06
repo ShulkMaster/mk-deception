@@ -1,7 +1,10 @@
 #include "game/collision.h"
 #include "game/constrain.h"
+#include "game/ejb.h"
 #include "game/game_info.h"
 
+#include "runtime/cstring.h"
+#include "runtime/utils.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"

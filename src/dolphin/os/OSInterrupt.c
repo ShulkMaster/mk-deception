@@ -15,11 +15,11 @@
 #define INTERRUPT_HANDLER_STORAGE ((__OSInterruptHandler*)0x80003040)
 #define GLOBAL_MASK (*(volatile OSInterruptMask*)0x800000C4)
 #define LOCAL_MASK (*(volatile OSInterruptMask*)0x800000C8)
-#define MEM_REGS ((volatile unsigned short*)0xCC004000)
-#define DSP_REGS ((volatile unsigned short*)0xCC005000)
-#define AI_REGS ((volatile unsigned long*)0xCC006C00)
-#define EXI_REGS ((volatile unsigned long*)0xCC006800)
-#define PI_REGS ((volatile unsigned long*)0xCC003000)
+volatile unsigned short MEM_REGS[] : 0xCC004000;
+volatile unsigned short DSP_REGS[] : 0xCC005000;
+volatile unsigned long AI_REGS[] : 0xCC006C00;
+volatile unsigned long EXI_REGS[] : 0xCC006800;
+volatile unsigned long PI_REGS[] : 0xCC003000;
 #else
 static __OSInterruptHandler HostInterruptHandlerTable[32];
 static volatile OSInterruptMask HostGlobalMask;
@@ -91,6 +91,7 @@ __OSInterruptHandler __OSGetInterruptHandler(__OSInterrupt interrupt)
     return InterruptHandlerTable[interrupt];
 }
 
+/* TODO: [breakthrough needed] 86.21%; absolute MMIO owners recovered; mask/dispatch scheduling and loop CFG remain */
 void __OSInterruptInit(void)
 {
     InterruptHandlerTable = INTERRUPT_HANDLER_STORAGE;
@@ -102,6 +103,7 @@ void __OSInterruptInit(void)
     __OSSetExceptionHandler(4, ExternalInterruptHandler);
 }
 
+/* TODO: [breakthrough needed] 74.69%; absolute MMIO owners recovered; mask/dispatch scheduling and loop CFG remain */
 static OSInterruptMask SetInterruptMask(OSInterruptMask mask,
                                         OSInterruptMask current)
 {
@@ -220,6 +222,7 @@ OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask global)
     return previous;
 }
 
+/* TODO: [breakthrough needed] 70.92%; absolute MMIO owners recovered; mask/dispatch scheduling and loop CFG remain */
 void __OSDispatchInterrupt(__OSException exception, OSContext* context)
 {
     unsigned long interrupt_status;

@@ -7,6 +7,7 @@ typedef struct Vec Vec;
 
 int am_i_blocking(void);
 int am_i_flipped_or_turned(void);
+int am_i_flipped(void);
 void back_to_normal(void);
 void blend_to_ani(AniData* animation, int transition, float blend_rate);
 int blend_to_stance(float blend_rate);

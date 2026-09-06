@@ -1687,9 +1687,11 @@ void trial_set_next_mission(
 }
 
 int trial_get_drone_difficulty(void) {
-    KonquestMissionState* state = get_mission_state();
-    int completed;
     int index;
+    KonquestMissionState* state;
+    int completed;
+
+    state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
@@ -1823,8 +1825,8 @@ void trial_do_dialog(
     int unused, int string_id,
     float unused_x, float unused_y, float unused_scale,
     unsigned int ticks, int wait) {
-    MkProc* dialog;
     unsigned int instance;
+    MkProc* dialog;
     int scaled_ticks = (int)((float)ticks * inverse_game_speed);
 
     dialog = konquest_set_dialog_text(

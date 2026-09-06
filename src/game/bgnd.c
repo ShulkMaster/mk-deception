@@ -38,6 +38,79 @@
 
 #pragma use_lmw_stmw on
 
+extern MkFileEntry beetlelair_file_table[];
+extern MkFileEntry courtyard_file_table[];
+extern MkFileEntry darkprison_file_table[];
+extern MkFileEntry deadpool_file_table[];
+extern MkFileEntry dka_file_table[];
+extern MkFileEntry dragonmountain_file_table[];
+extern MkFileEntry fallingcliff_file_table[];
+extern MkFileEntry fortress_file_table[];
+extern MkFileEntry hellsfoundry_file_table[];
+extern MkFileEntry kangtomb_file_table[];
+extern MkFileEntry kuatanpalace_file_table[];
+extern MkFileEntry livingforest_file_table[];
+extern MkFileEntry lostwarriors_file_table[];
+extern MkFileEntry lower_mines_file_table[];
+extern MkFileEntry netherbelly_file_table[];
+extern MkFileEntry nexus_arena_file_table[];
+extern MkFileEntry portal_file_table[];
+extern MkFileEntry reddragon_file_table[];
+extern MkFileEntry skytemple_file_table[];
+extern MkFileEntry slaughterhouse_file_table[];
+extern MkFileEntry thepit_file_table[];
+extern MkFileEntry yinyang_file_table[];
+extern MkFileEntry ladder_file_table[];
+extern MkFileEntry pz_ladder_file_table[];
+extern MkFileEntry krypt_file_table[];
+extern MkFileEntry kq_er1_fight_file_table[];
+extern MkFileEntry kq_er2_fight_file_table[];
+extern MkFileEntry kq_nr1_fight_file_table[];
+extern MkFileEntry kq_cr1_fight_file_table[];
+extern MkFileEntry kq_ow1_fight_file_table[];
+extern MkFileEntry kq_or1_fight_file_table[];
+extern MkFileEntry kq_ed1_fight_file_table[];
+extern MkFileEntry kq_nx1_fight_file_table[];
+extern MkFileEntry kq_nexus_nis_file_table[];
+
+GlobalBackgroundEntry global_background_data[] = {
+    {beetlelair_file_table, "beetlelair.mko", 0x00000012, 0x00000001},
+    {courtyard_file_table, "courtyard.mko", 0x0000001C, 0x00000009},
+    {darkprison_file_table, "darkprison.mko", 0x00000024, 0x00000001},
+    {deadpool_file_table, "deadpool.mko", 0x00000020, 0x00000009},
+    {dka_file_table, "dka.mko", 0x00000026, 0x00000001},
+    {dragonmountain_file_table, "dragonmountain.mko", 0x0000001A, 0x00000001},
+    {fallingcliff_file_table, "fallingcliff.mko", 0x0000001B, 0x00000001},
+    {fortress_file_table, "fortress.mko", 0x00000022, 0x00000001},
+    {hellsfoundry_file_table, "hellsfoundry.mko", 0x00000019, 0x00000001},
+    {kangtomb_file_table, "kangtomb.mko", 0x00000013, 0x00000001},
+    {kuatanpalace_file_table, "kuatanpalace.mko", 0x00000023, 0x00000001},
+    {livingforest_file_table, "livingforest.mko", 0x00000027, 0x00000009},
+    {lostwarriors_file_table, "lostwarriors.mko", 0x00000016, 0x00000001},
+    {lower_mines_file_table, "lower_mines.mko", 0x00000021, 0x00000001},
+    {netherbelly_file_table, "netherbelly.mko", 0x00000017, 0x00000001},
+    {nexus_arena_file_table, "nexus_arena.mko", 0x00000028, 0x00000001},
+    {portal_file_table, "portal.mko", 0x0000001D, 0x00000009},
+    {reddragon_file_table, "reddragon.mko", 0x00000015, 0x00000001},
+    {skytemple_file_table, "skytemple.mko", 0x00000018, 0x00000001},
+    {slaughterhouse_file_table, "slaughterhouse.mko", 0x00000014, 0x00000001},
+    {thepit_file_table, "thepit.mko", 0x0000001E, 0x00000009},
+    {yinyang_file_table, "yinyang.mko", 0x0000001F, 0x00000001},
+    {ladder_file_table, "ladder.mko", 0x00000000, 0x00000020},
+    {pz_ladder_file_table, "pz_ladder.mko", 0x00000000, 0x00000020},
+    {krypt_file_table, "krypt.mko", 0x00000000, 0x00000010},
+    {kq_er1_fight_file_table, "earth_1.mko", 0x00000000, 0x00000004},
+    {kq_er1_fight_file_table, "earth_1.mko", 0x00000000, 0x00000004},
+    {kq_er2_fight_file_table, "earth_2.mko", 0x00000000, 0x00000004},
+    {kq_nr1_fight_file_table, "netherrealm_1.mko", 0x00000000, 0x00000004},
+    {kq_cr1_fight_file_table, "chaosrealm_1.mko", 0x00000000, 0x00000004},
+    {kq_ow1_fight_file_table, "outworld_1.mko", 0x00000000, 0x00000004},
+    {kq_or1_fight_file_table, "orderrealm_1.mko", 0x00000000, 0x00000004},
+    {kq_ed1_fight_file_table, "edenia_1.mko", 0x00000000, 0x00000004},
+    {kq_nx1_fight_file_table, "nexus_1.mko", 0x00000000, 0x00000004},
+    {kq_nexus_nis_file_table, "nexus_nis.mko", 0x00000000, 0x00000000},
+};
+
 typedef struct SlaughterhouseData {
     MkHdr hdr;
     MkHdrLatch lower_level_pebbles[5]; /* +0x08 */
@@ -566,7 +639,6 @@ extern float fog_density;
 extern float fog_distance;
 extern float fog_color_real[4];
 extern int fog_type;
-extern GlobalBackgroundEntry global_background_data[];
 extern char bgnd_animations[0x84];
 typedef struct BgndReactionInfo {
     PlyrInfo* player_info;
@@ -720,7 +792,7 @@ void set_background_color(int r, int g, int b, int a);
 void turn_fog_on(void);
 void turn_fog_off(void);
 void initialize_bgnd_collisions(void* data);
-void load_effect_bank(int bank);
+int load_effect_bank(char* name);
 void mk_chess_init_bgnd_for_fight_mode(void);
 
 void bgnd_level_fatality_end(void) {
@@ -908,10 +980,11 @@ float script_fabs(float value) {
     }
     return -value;
 }
+/* TODO: [near miss] 96.36%; playback-rate field corrected; animation reload around the active guard differs */
 AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
     MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
-    float frame) {
+    float playback_rate) {
     AnimPdata* animation;
 
     animation = 0;
@@ -924,7 +997,7 @@ AnimPdata* animate_obj(
         object->flipped_bone_map = flipped_bones;
         object->ground_colls = ground_collisions;
         set_anim_script(animation, (AniData*)script, 0x21);
-        animation->frame = frame;
+        animation->step = playback_rate;
         if (active != 0) {
             set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
         }
@@ -994,14 +1067,10 @@ void scripted_camera_script_exit(void) {
     destroy_mkprocs_pid(0x9006);
     mkproc_die();
 }
-/*
- * Near match: size-identical 180-byte stream. Only the pebble-array base and
- * loop-index nonvolatile registers are interchanged.
- */
 void skytemple_arrange_fence_pebbles_around_pos(int player, unsigned int count,
                                                 Vec* position) {
-    BgndPebbleControl* pebbles;
     unsigned int index;
+    BgndPebbleControl* pebbles;
 
     pebbles = g_pebbles[player]->pebbles;
     for (index = 0; index < count; index++) {
@@ -1071,10 +1140,7 @@ static inline void sh_normalize_blood_xz(Vec* vector) {
     vector->z *= inverse_length;
 }
 
-/* Clean-C near match: 80.85%, retail/local 1904/1752. Both model updates, the
- * complete three-state small-fragment loop, camera-directed large fragment,
- * timers, splat calls, and matrix updates agree. Residue is latch merge/CSE
- * and equivalent stack-vector scheduling in the repeated impact paths. */
+/* TODO: [breakthrough needed] 81.088234%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_sh_fatality_body_parts(void) {
     ShFatalityBodyPartsProcessData* data;
     PebbleData* pebble_data;
@@ -1720,6 +1786,7 @@ static float p_sh_bottom_floor_blood_fall(void) {
         pebbles, &data->active_splats, &data->origin, data->gravity);
     return 1.0f;
 }
+/* TODO: [breakthrough needed] 82.16077%; correct splat and structured sign guards; normalization/loop lowering remains. */
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, const Vec* origin,
     float gravity) {
@@ -1753,9 +1820,7 @@ static void sh_update_blood_fall_pebbles(
                     control->velocity.y = 0.0f;
                     control->velocity.z = control->position.z - origin->z;
                     sh_normalize_blood_direction(&control->velocity);
-                    if (control->velocity.z >= 0.0f) {
-                        /* Preserve the magnitude before directing it inward. */
-                    } else {
+                    if (!(control->velocity.z >= 0.0f)) {
                         control->velocity.z = -control->velocity.z;
                     }
                     control->velocity.z = -control->velocity.z;
@@ -1782,9 +1847,7 @@ static void sh_update_blood_fall_pebbles(
                     direction.z *= 0.795f;
                     angle = sfrand(3.1415927f);
                     rotate_xz(&rotated_direction, &direction, angle);
-                    if (angle >= 0.0f) {
-                        /* Use the positive rotation magnitude. */
-                    } else {
+                    if (!(angle >= 0.0f)) {
                         angle = -angle;
                     }
                     distance = angle / 3.1415927f + frand(1.5f);
@@ -1821,9 +1884,7 @@ static void sh_update_blood_fall_pebbles(
                     direction.z *= 0.795f;
                     angle = sfrand(3.1415927f);
                     rotate_xz(&rotated_direction, &direction, angle);
-                    if (angle >= 0.0f) {
-                        /* Use the positive rotation magnitude. */
-                    } else {
+                    if (!(angle >= 0.0f)) {
                         angle = -angle;
                     }
                     distance = angle / 3.1415927f + frand(1.5f);
@@ -1925,7 +1986,7 @@ static void sh_update_blood_fall_pebbles(
                     control->velocity.y *= -0.4f;
                     splat_position = control->position;
                     splat_position.y = g_game_info.field_34;
-                    spawn_bld_splat("sh_bloodsplat", 0, &splat_position);
+                    spawn_bld_splat("blsplat", 0, &splat_position);
                 }
             } else {
                 control->velocity.y += -0.008f;
@@ -2679,13 +2740,7 @@ static unsigned int next_beetle_exec_tick_counter;
 
 extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
-/*
- * Near match 95.34%, retail/local 1380/1376 bytes. All dispatcher targets,
- * movement/transform calls, bounce state, and loop strides agree. The four-byte
- * gap is retail's string-base addi for "beetlesplat"; the imported TU emits a
- * direct pooled-string relocation. Other residue is register allocation and
- * pool-label identity.
- */
+/* TODO: [near miss] 96.03188%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_bl_beetle_brains(void) {
     BlBeetlePdata* pdata;
     PebbleData* pebble_data;
@@ -4148,11 +4203,7 @@ void bgnd_reg_col_cb_for_beetle_lair(void) {
     set_background_obstacle_repel_flag(0x41, 0);
     set_background_obstacle_repel_flag(0x42, 0);
 }
-/* Clean-C near match: 83.66%, retail/local 2516/2496. Every switch edge,
- * call, state mutation, access width, vector calculation, and return agrees.
- * The 20-byte residue is stack-slot allocation and temporary scheduling; its
- * early insertions amplify objdiff alignment across this otherwise recovered
- * 2.5 KiB callback. */
+/* TODO: [breakthrough needed] 84.786964%; correct effect and halfword indices; stack/normalization lowering remains. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     BlColumnBreakData* column_data;
     BgndScriptProcData* script_data;
@@ -4224,7 +4275,7 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
                     length = 0.0f;
                 } else {
                     estimate1.u = (unsigned int)GXMathSqrtTable[
-                        (input1.u >> 10) & 0x3FFE] << 8;
+                        (input1.u >> 11) & 0x1FFF] << 8;
                     estimate1.u |=
                         (((input1.u & 0x7F800000U) + 0x3F800000U) >> 1) &
                         0x7F800000U;
@@ -4237,7 +4288,7 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
                     player_length = 0.0f;
                 } else {
                     estimate2.u = (unsigned int)GXMathSqrtTable[
-                        (input2.u >> 10) & 0x3FFE] << 8;
+                        (input2.u >> 11) & 0x1FFF] << 8;
                     estimate2.u |=
                         (((input2.u & 0x7F800000U) + 0x3F800000U) >> 1) &
                         0x7F800000U;
@@ -4329,7 +4380,7 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
             smoke_position.x = 0.35f * event->impact_vector->x;
             smoke_position.y = 0.0f;
             smoke_position.z = 0.35f * event->impact_vector->z;
-            handle = fx_by_owner("smoke_wall", 4);
+            handle = fx_by_owner("glass_base_explosion_fx", 4);
             if (handle != 0) {
                 fx_reset(handle);
                 effect = pfx_from_handle(handle);
@@ -4346,11 +4397,11 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
                         g_latest_obj_pfx->pos.value.y = 0.2f;
                         g_latest_obj_pfx->pos.value.z = 1.9f;
                         update_mkobj(g_latest_obj_pfx);
-                        resume_effect("smoke_wall");
+                        resume_effect("glass_base_explosion_fx");
                     }
                 }
             }
-            handle = fx_by_owner("smoke_wall", 4);
+            handle = fx_by_owner("glass_base_explosion_fx", 4);
             fx_set_param_v3(
                 handle, 0x201, smoke_position.x,
                 smoke_position.y, smoke_position.z);
@@ -4683,10 +4734,7 @@ static inline void bl_front_wall_effect_at(
     }
 }
 
-/* Clean-C near match: 82.15%, retail/local 2472/2384. Calls, launch
- * parameters, ownership, access widths, and control flow agree. The 88-byte
- * residue is escaped-Vec stack-slot selection and redundant aggregate
- * initialization/copy traffic across this 2.4 KiB controller. */
+/* TODO: [breakthrough needed] 83.16828%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_beetle_lair_wall_breaking_controller(void) {
     Vec camera_start = {2.166f, -9.5f, 42.734f};
     Vec camera_end = {0.4512f, -0.5f, 18.8713f};
@@ -4998,9 +5046,7 @@ extern void init_ground_move_no_aniproc(void);
 extern void ani_to_blend_frame(float frame);
 extern float p_blend_to_stance_in_10(void);
 
-/* Exact-size 98.17% near match. Player placement and animation, both attached
- * debris objects, bone/ground positioning, effects, and final animation handoff
- * agree. Residue is FPR/GPR coloring and pooled relocation identity. */
+/* TODO: [near miss] 98.58086%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float winner_watching_him_fall(void) {
     Vec bone_position;
     AniData* animation;
@@ -5086,10 +5132,8 @@ static float winner_watching_him_fall(void) {
     return 0.0f;
 }
 
-/* Exact-size 99.49% near match. Fall, impact, debris, damage, death/recovery
- * branches, animation transitions, and controller handoff agree. The repeated
- * preload-table accesses are intentional; residue is pooled relocation identity
- * and small register/scheduling differences in the two inlined effects. */
+/* The repeated preload-table accesses are intentional. */
+/* TODO: [near miss] 99.91841%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float victim_fall_down_a_level(void) {
     Vec face_target = {0.0f, 0.0f, 0.0f};
     Vec target_position = {0.4512f, -0.5f, 18.8713f};
@@ -5241,7 +5285,7 @@ static inline CameraObj* camera_item_live_node(CameraItem* owner) {
 
 
 
-/* TODO: [breakthrough needed] 93.461280%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [near miss] 93.48485%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_beetle_lair_front_wall_breaking(void) {
     Vec camera_velocity = {0.0f, 0.0f, -0.05f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
@@ -5580,7 +5624,7 @@ static inline MkObj* bl_column_break_data_live_player_his_plyr_pdata_tracked_obj
 
 
 
-/* TODO: [breakthrough needed] 92.058360%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [near miss] 92.06764%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_beetle_lair_column_breaking(void) {
     Vec axis = {0.0f, 1.0f, 0.0f};
     BlColumnBreakData* data;
@@ -5803,8 +5847,7 @@ static float p_beetle_lair_column_breaking(void) {
     return -1.0f;
 }
 
-/* Exact-size 99.50% near match. Remaining differences are the x/y FPR pair in
- * the first effect, r30/r31 coloring in the second, and local pool labels. */
+/* TODO: [near miss] 99.78808%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_launch_final_column_piece(void) {
     BlFinalColumnPieceData* data;
     MkPfx* effect;
@@ -5928,8 +5971,7 @@ static inline void bl_launch_column_dust(const char* name, MkSobj* piece) {
     }
 }
 
-/* Exact-size 98.81% near match. The launch algorithm and three dust branches
- * agree; residue is dust-helper FPR/GPR coloring plus local pool labels. */
+/* TODO: [near miss] 99.24632%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_launch_column_piece(void) {
     int ticks;
     BlFinalColumnPieceData* data;
@@ -6000,8 +6042,6 @@ static float p_launch_column_piece(void) {
     }
     return -1.0f;
 }
-/* Exact-size 99.64% near match. The instruction stream agrees with retail;
- * objdiff residue is limited to TU-local constant and string-pool labels. */
 static float p_bl_flip_column_piece(void) {
     Vec rotation_axis = {0.0f, 1.0f, 0.0f};
     BlColumnPieceData* data;
@@ -6851,10 +6891,6 @@ static float bgnd_npc_play_ani(void);
 float bgnd_npc_idle(void);
 float p_animate(void);
 
-/*
- * Near match: 99.37%, retail/local 772/772 bytes. The remaining differences
- * are pooled-string and local floating-constant relocation labels.
- */
 void bgnd_create_named_npc_in_slot(
     unsigned int npc_id, const char* model_name, unsigned int animation_id,
     unsigned int bone_table) {
@@ -7269,18 +7305,12 @@ void start_sobj_launch_monitor(void) {
     g_active_launched_sobj_pdata = 0;
     g_sobj_launch_monitor_pdata = monitor;
 }
-/*
- * Exact monitor algorithm and calls; 95.78%, retail/local 372/368 bytes.
- * Residue is entry-address induction, nonvolatile register coloring, frame
- * shape, and pooled return-value relocation labels.
- */
-/* TODO: [near miss] 99.67742%; index declaration trial moved residue into script registers and was restored; stop. */
 static float p_bgnd_launch_sobj_monitor(void) {
     BgndSobjLaunchMonitor* monitor;
     BgndSobjLaunchEntry* entry;
-    CmdScript* previous_script;
-    CmdScript* script;
     unsigned int i;
+    CmdScript* script;
+    CmdScript* previous_script;
 
     monitor = (BgndSobjLaunchMonitor*)apdata;
     if (g_game_info.bgnd_obj == 0) {
@@ -7464,11 +7494,7 @@ void start_chunk_launch_monitor(void) {
     }
     g_chunk_launch_monitor_pdata = monitor;
 }
-/*
- * Exact monitor branches, effects, sounds, and motion; 86.76%, retail/local
- * 460/464 bytes. Residue is typed-entry induction, register coloring,
- * scheduling, and pooled constant/string relocation labels.
- */
+/* TODO: [near miss] 99.86957%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 static float p_bgnd_launch_chunk_monitor(void) {
     BgndChunkLaunchMonitor* monitor;
     BgndChunkLaunchEntry* entry;
@@ -8494,14 +8520,13 @@ static float p_pebble_manual_monitor(void) {
     }
     return 1.0f;
 }
-/* Soft ceiling 98.60%: typed array induction and register coloring. */
 static float p_pebble_burst_monitor(void) {
+    BgndPebbleControl* pebble;
     BgndPebbleMonitor* monitor;
     BgndPebbleCollection* collection;
-    BgndPebbleControl* pebbles;
-    BgndPebbleControl* pebble;
-    unsigned int i;
     unsigned int end_state;
+    BgndPebbleControl* pebbles;
+    unsigned int i;
     int any_active;
 
     monitor = (BgndPebbleMonitor*)pdata_of_proc(aproc);
@@ -8972,7 +8997,7 @@ static float p_crack_placer(void) {
     return 1.0f;
 }
 void bgnd_kill_fx(const char* name) {
-    unsigned int effect;
+    int effect;
 
     effect = fx_by_owner(name, 4);
     if (effect != 0) {
@@ -9114,11 +9139,10 @@ MkObj* bgnd_fx_get_binded_obj(unsigned int handle) {
     }
     return 0;
 }
-/* Soft ceiling 74.44%: exact body; nonvolatile register allocation differs. */
 void bgnd_launch_fx_at_plyr_bid(const char* name, int bone) {
+    unsigned int handle;
     MkObj* object;
     MkPfx* effect;
-    unsigned int handle;
 
     object = plyr_obj;
     handle = fx_by_owner(name, 4);
@@ -9279,12 +9303,6 @@ void bgnd_enable_obj_pos_and_ang_setting(
     object->scale.x = object->scale.y = object->scale.z = 1.0f;
     update_mkobj(object);
 }
-/*
- * Soft ceiling 90.13%: the retail body uses stmw/lmw and addresses the error
- * format as a suffix of @stringBase0. The recovered body emits individual
- * saves/restores and a standalone pooled-string relocation; behavior and CFG
- * otherwise agree instruction-for-instruction.
- */
 MkObj* bgnd_preload_named_model(const char* model_name, unsigned int model_index) {
     char message[180];
     int art_slot;
@@ -9760,7 +9778,7 @@ void bgnd_swap_level(int level) {
         if (g_game_info.misc->enter_script != 0) {
             cmdscript_setup_execution(
                 g_game_info.cmdscript,
-                (unsigned int)g_game_info.misc->enter_script);
+                g_game_info.misc->enter_script);
             cmdscript_execute(g_game_info.cmdscript);
         }
 
@@ -9775,7 +9793,7 @@ void bgnd_swap_level(int level) {
         if (g_game_info.misc->script != 0) {
             cmdscript_setup_execution(
                 g_game_info.cmdscript,
-                (unsigned int)g_game_info.misc->script);
+                g_game_info.misc->script);
             cmdscript_execute(g_game_info.cmdscript);
         }
         if (hider != 0) {
@@ -10570,13 +10588,12 @@ void bgnd_run_camera_script(int argument, int flags) {
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void) {
     return g_active_obstacle_event_data->player_pdata;
 }
-/* Exact-size 99.82% near miss; only pooled-zero relocation labeling differs. */
 void spad_set_y_angle_plus_offset_from_xz_vector(int index, void* script,
                                                  float x, float z,
                                                  float offset) {
-    Vec angles;
-    Vec direction;
     Vec* output;
+    Vec direction;
+    Vec angles;
 
     (void)script;
     direction.x = x;
@@ -11570,19 +11587,20 @@ void bgnd_setup_rx_handler(int handler) {
     g_current_reaction_info.handler_enabled = 1;
     g_current_reaction_info.handler = handler;
 }
+/* TODO: [breakthrough needed] 81.875%; MKO function index typed; command lifetime codegen still differs. */
 void bgnd_anim_camera_ended(void) {
     CmdScript* script;
     CmdScript* prev;
     GameInfo* info;
-    void* script_ptr;
+    unsigned int script_index;
 
     script = alloc_cmdscript();
     prev = active_cmdscript;
     info = &g_game_info;
     active_cmdscript = script;
-    script_ptr = info->section != 0 ? info->section->cam_ended_script : 0;
-    if (script_ptr != 0) {
-        cmdscript_setup_execution(info->cmdscript, (unsigned int)script_ptr);
+    script_index = info->section != 0 ? info->section->cam_ended_script : 0;
+    if (script_index != 0) {
+        cmdscript_setup_execution(info->cmdscript, script_index);
         cmdscript_execute(info->cmdscript);
     }
     active_cmdscript = prev;
@@ -11591,20 +11609,21 @@ void bgnd_anim_camera_ended(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 88.23529%; MKO function index typed; command lifetime codegen still differs. */
 void bgnd_anim_camera_setup(void) {
     CmdScript* script;
     CmdScript* prev;
     GameInfo* info;
-    void* script_ptr;
+    unsigned int script_index;
 
     script = alloc_cmdscript();
     prev = active_cmdscript;
     active_cmdscript = script;
     cam_set_intro_cam_pause_ticks(0.0f);
     info = &g_game_info;
-    script_ptr = info->section != 0 ? info->section->cam_setup_script : 0;
-    if (script_ptr != 0) {
-        cmdscript_setup_execution(info->cmdscript, (unsigned int)script_ptr);
+    script_index = info->section != 0 ? info->section->cam_setup_script : 0;
+    if (script_index != 0) {
+        cmdscript_setup_execution(info->cmdscript, script_index);
         cmdscript_execute(info->cmdscript);
     }
     active_cmdscript = prev;
@@ -12297,10 +12316,7 @@ static float bgnd_call_script_function(void) {
     call_player_script_function(g_game_info.cmdscript);
     return 0.0f;
 }
-/* Clean-C near match: 95.88%, retail/local 204/196 bytes. Retail addresses the
- * diagnostic through @stringBase0 plus an offset and retains a redundant final
- * compare of the append result; calls, arguments, branches, and data accesses
- * otherwise match exactly. */
+/* TODO: [near miss] 98.039215%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 void bgnd_append_texture_to_material(int sobj_id, int material_id,
                                      char* texture_name, int texture_slot) {
     char message[180];
@@ -12325,8 +12341,6 @@ void bgnd_append_texture_to_material(int sobj_id, int material_id,
         }
     }
 }
-/* Exact behavior; 98.0%, retail/local 220/216 bytes. The sole difference is
- * retail's @stringBase0-plus-offset form for the diagnostic string. */
 void bgnd_append_texture_to_material_tbl(
     const BgndAppendTextureEntry* entries) {
     char message[180];
@@ -12361,8 +12375,6 @@ void bgnd_append_texture_to_material_tbl(
         index++;
     }
 }
-/* Exact behavior and 180-byte size; residue is string-pool relocation shape:
- * retail addresses both diagnostics through @stringBase0 plus offsets. */
 void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
     char sobj_error[80];
     char material_error[80];
@@ -12386,8 +12398,7 @@ void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
                 sobj_id, material_id);
     }
 }
-/* Exact 208-byte behavior; residue is r27/r29 coloring for frame/material and
- * the same @stringBase0 relocation shape as bgnd_swap_textures. */
+/* TODO: [near miss] 95.19231%; retail string pool recovered; remaining CFG/register differences need local evidence. */
 void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries,
                             unsigned int frame) {
     char material_error[80];
@@ -12433,10 +12444,6 @@ void bgnd_rotate_sobj(unsigned int object_id, void* script, float x, float y,
         object->ang_vel.z = z;
     }
 }
-/*
- * Near match: exact 476-byte instruction stream. Remaining differences are
- * jump-table and stringBase offsets caused by still-missing earlier TU data.
- */
 void bgnd_replace_tex_with_wiff_and_ani(
     int object_id, const char* wiff_name, float frame_rate,
     int first_frame, int texture_type) {
@@ -12633,12 +12640,8 @@ static inline void bgnd_clear_uv_scroll_control(unsigned int index) {
     }
 }
 
-/*
- * Near match: 98.60%, exact 172-byte size. The shared clear helper reproduces
- * retail behavior; residue is loop induction/register allocation only.
- */
 void bgnd_init_all_uv_scroll_w_control(void) {
-    unsigned int index;
+    int index;
 
     for (index = 0; index < 8; index++) {
         bgnd_clear_uv_scroll_control(index);
@@ -13490,15 +13493,10 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
     }
 }
-/* Clean-C near match: 87.16%, retail/local 1412/1388. The complete ordered
- * 36-call sequence, mode gates, table ownership, art/anims/lights, camera/fog,
- * collisions, effect-bank loop, scripts, and final state agree. The 24-byte
- * residue is redundant pointer normalization and register/scheduling emission
- * spread across this 1.4 KiB loader. */
+/* TODO: [breakthrough] 88.00283%; background owners and MKO script/bank types recovered;
+ * remaining CFG/register differences need local evidence. */
 int load_background(int bgnd_id) {
     char* anims;
-    char* gbd;
-    int entry_off;
     BgndDataTable* data_table;
     BgndMisc* misc;
     MkObj* bgnd_obj;
@@ -13508,9 +13506,8 @@ int load_background(int bgnd_id) {
     int i;
     int n;
     int zero;
-    char* react;
-    char* col;
-    int* effect_list;
+    char** effect_list;
+    char* effect_name;
     int effect_off;
     float inv255;
     float* fog_col;
@@ -13525,13 +13522,10 @@ int load_background(int bgnd_id) {
 
     RwImageSetGamma(1.0f);
 
-    /* Array indexing coax: retail uses lwzx with bgnd_id<<4. */
-    gbd = (char*)global_background_data;
-    entry_off = bgnd_id * 4; /* word index into 16-byte records */
     entry = &global_background_data[bgnd_id];
-    load_ssf((MkFileEntry*)((void**)gbd)[entry_off]);
+    load_ssf((MkFileEntry*)entry->ssf_entry);
 
-    slot = cmdscript_loadfile_by_name(0xB, (char*)((void**)gbd)[entry_off + 1]);
+    slot = cmdscript_loadfile_by_name(0xB, entry->script_name);
     g_game_info.cmdscript = slot;
 
     data_table = (BgndDataTable*)get_data_table(slot, slot->table_count);
@@ -13545,14 +13539,12 @@ int load_background(int bgnd_id) {
     g_game_info.field_64 = (MkPtr*)zero;
     g_game_info.displayed_items = (MkPtr*)zero;
     g_game_info.npc_list = (MkPtr*)zero;
-    react = anims + 0xF0;
-    col = anims + 0x588;
-    *(int*)(react + 0x14) = zero;
+    g_current_reaction_info.handler_enabled = zero;
     i = 0;
     n = 8;
     do {
-        *(int*)(col + i) = zero;
-        i += 4;
+        g_bgnd_collision_to_script_if[i] = 0;
+        i++;
     } while (--n);
     g_active_obstacle_event_data = 0;
     g_active_bgnd_col_item = 0;
@@ -13705,25 +13697,25 @@ int load_background(int bgnd_id) {
 
     effect_list = g_game_info.section->effect_banks;
     if (effect_list != 0) {
-        for (effect_off = 0; (i = effect_list[effect_off]) != 0; effect_off++) {
-            load_effect_bank(i);
+        for (effect_off = 0; (effect_name = effect_list[effect_off]) != 0; effect_off++) {
+            load_effect_bank(effect_name);
         }
     }
 
     g_game_info.cmdscript->load_ctx = 0;
 
     data_table = g_game_info.section;
-    if ((unsigned int)data_table->load_script != 0) {
+    if (data_table->load_script != 0) {
         slot = g_game_info.cmdscript;
-        cmdscript_setup_execution(slot, (unsigned int)data_table->load_script);
+        cmdscript_setup_execution(slot, data_table->load_script);
         cmdscript_execute(slot);
     }
 
     g_game_info.wall_hider = 0;
     misc = g_game_info.misc;
-    if ((unsigned int)misc->script != 0) {
+    if (misc->script != 0) {
         slot = g_game_info.cmdscript;
-        cmdscript_setup_execution(slot, (unsigned int)misc->script);
+        cmdscript_setup_execution(slot, misc->script);
         cmdscript_execute(slot);
     }
 

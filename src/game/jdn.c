@@ -48,7 +48,6 @@ extern unsigned int reseed_rnd_tbl;
 MkPfx* create_pfx(int, int, float (*)(void), JdnGlassPfx**,
                   const unsigned int*, const char*);
 void* pfx_get_field(PfxVm*, int, int);
-void pfxvm_require_field(PfxVm*, int);
 float frand(float);
 float sfrand(float);
 unsigned int randu0(unsigned int);

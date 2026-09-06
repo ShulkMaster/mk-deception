@@ -16,7 +16,7 @@ typedef int BOOL;
 #define offsetof(type, member) ((u32)&((type*)0)->member)
 #define ASSERTLINE(line, condition) ((void)0)
 #define ASSERTMSGLINE(line, condition, message) ((void)0)
-extern volatile u8 __gUnknown800030E3;
+u8 __gUnknown800030E3 : 0x800030E3;
 volatile u16 __OSWirelessPadFixMode : 0x800030E0;
 
 #if DEBUG

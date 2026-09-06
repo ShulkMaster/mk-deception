@@ -153,7 +153,6 @@ static inline int FindPreviousMarker(
     return marker_index;
 }
 
-/* TODO: [near miss] 99.50%; iterator GPR allocation only; stop at coloring. */
 extern "C" int mslUpdate(_mslSystem* system) {
     float now = mslGetTime();
     _ListNode* node;
@@ -172,13 +171,16 @@ extern "C" int mslUpdate(_mslSystem* system) {
         mslRuntimeSound* sound =
             (mslRuntimeSound*)ListNodeData(0, node);
         if (sound->update_time == 0.0f) {
-            _ListNode* adjustment = sound->adjustments;
+            _ListNode* adjustment;
+            mslRuntimeWave* next;
             mslRuntimeWave* wave;
+
+            adjustment = sound->adjustments;
             while (adjustment != 0)
                 adjustment = mslUpdateAdjust(system, adjustment, now);
             wave = sound->waves;
             while (wave != 0) {
-                mslRuntimeWave* next = wave->next;
+                next = wave->next;
                 mslWaveUpdateStatus(wave);
                 if (wave->flags & 8)
                     updateWaveValues(system, sound, wave);

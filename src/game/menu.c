@@ -2,6 +2,7 @@
 
 #include "game/attract.h"
 #include "game/game_info.h"
+#include "game/konquest_save.h"
 #include "game/plyrprofile.h"
 #include "game/pselect.h"
 #include "game/settings.h"
@@ -26,8 +27,7 @@
  * Soft ceilings (this pass):
  *   p_main_menu (~92.7%) -- profile-pointer/string-pool scheduling; stop.
  *   get_pause_menu_name (100%) -- explicit switch + TU string-pool offsets.
- *   cconfig_assign_button (~96.5%) / controller_setup_save_to_profile
- *     (~98.5%) -- NV register coloring only; stop.
+ *   cconfig_assign_button (~96.5%) -- NV register coloring only; stop.
  *   get_pause_menu_ssh (~99.7%) -- jump-table relocation label only; stop.
  *   p_version_code (~87%) -- algorithm exact; branch scheduling soft.
  *   p_pause_menu (~96%), p_pause_menu_switch (~97.4%),
@@ -171,7 +171,6 @@ int get_num_controllers(void);
 void turn_controllers_on(void);
 void turn_controllers_off(void);
 void clear_region_buffer(void);
-void load_krd_buffer_from_memcard(int a, int b);
 void fire_screen_studio_event(int event, int flag);
 void adjust_display_offset(int x, int y, int reset);
 void set_gc_display_props(int brightness);
@@ -618,15 +617,14 @@ void set_menu_mode(int mode) {
 
 #pragma optimize_for_size on
 void controller_setup_save_to_profile(int player, int save) {
-    /* Soft ceiling: ~98.5% -- pointer locals occupy rotated NV registers. */
-    PlayerProfile* profile;
-    int* rumble_on;
-    SwitchMapEntry* temp_map;
-    int* use_temp_map;
-    int* temp_rumble;
     MkProc* proc;
-    ControllerConfigPdata* pdata;
+    int* rumble_on;
+    int* temp_rumble;
+    int* use_temp_map;
+    SwitchMapEntry* temp_map;
+    PlayerProfile* profile;
     int i;
+    ControllerConfigPdata* pdata;
 
     if (player == 0) {
         profile = p1_profile;
@@ -812,8 +810,8 @@ void controller_setup_p1_state(int enabled) {
     }
 }
 
+/* TODO: [near miss] 98.554214%; retail base-plus-player walk agrees; NV register coloring remains. */
 float p_controller_config(void) {
-    /* Soft ceiling: ~98.6% -- NV register coloring and pool labels only. */
     ControllerConfigPdata* pdata;
     ControllerConfigPdata* live_pdata;
     MkProc* proc;

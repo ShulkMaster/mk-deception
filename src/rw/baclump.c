@@ -97,7 +97,7 @@ RpAtomic* AtomicDefaultRenderCallBack(RpAtomic* atomic)
 {
     RxPipeline* pipeline = atomic->pipeline;
     if (pipeline == 0)
-        pipeline = rxPipelinePlatformData()->currentAtomicPipeline;
+        pipeline = rxPipelineGlobalField(currentAtomicPipeline);
     if (RxPipelineExecute(pipeline, atomic, 1) != 0)
         return atomic;
     return 0;

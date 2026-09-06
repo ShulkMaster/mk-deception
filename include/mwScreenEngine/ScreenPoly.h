@@ -57,6 +57,11 @@ typedef struct ScreenPolyVert {
     unsigned char rgba[4]; /* +0x10 */
 } ScreenPolyVert; /* 0x14 */
 
+/* These are byte masks, independent of compiler bitfield allocation order. */
+enum {
+    SCREEN_POLY_LINEAR = 0x40
+};
+
 typedef struct ScreenPolyFilterBits {
     unsigned char hidden : 1; /* bit7 */
     unsigned char linear : 1; /* bit6 */

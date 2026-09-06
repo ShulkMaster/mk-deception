@@ -26,7 +26,7 @@ extern int vprintf(const char* format, __va_list arguments);
 #define DSP_REGS ((volatile unsigned short*)0xCC005000)
 #define DI_REGS ((volatile unsigned long*)0xCC006000)
 
-extern OSThreadQueue __OSActiveThreadQueue;
+#define __OSActiveThreadQueue (*(OSThreadQueue*)0x800000DC)
 extern volatile unsigned long __OSLastInterruptSrr0;
 extern volatile signed short __OSLastInterrupt;
 extern volatile OSTime __OSLastInterruptTime;

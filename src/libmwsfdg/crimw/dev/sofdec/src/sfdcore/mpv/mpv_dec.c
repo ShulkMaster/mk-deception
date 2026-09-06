@@ -17,68 +17,58 @@ extern int MPV_GoNextDelimSj(SJ* stream);
 static int mpvdec_MotionSub(MPVBitReader* reader, MPVMotionInfo* motion,
                             s32* output, s32* predictor);
 
-static inline void mpvdec_InitReader(MPVBitReader* reader,
-                                     const u8* data, int extra_offset)
+static inline void mpvdec_InitMacroblockReader(const u8* data, int extra_offset,
+                                        const u32** words, u32* bits,
+                                        u32* next_bits, int* bit_offset)
 {
     const u32* aligned = (const u32*)((unsigned long)data & ~3UL);
-    int byte_offset = (data - (const u8*)aligned) * 8;
-
-    reader->next_bits = aligned[1];
-    reader->words = aligned + 2;
-    reader->bits = aligned[0] << byte_offset;
-    reader->bit_offset = byte_offset + extra_offset;
-    if (reader->bit_offset >= 32) {
-        reader->bit_offset -= 32;
-        reader->bits = reader->next_bits << reader->bit_offset;
-        reader->next_bits = *reader->words++;
+    *bit_offset = (data - (const u8*)aligned) * 8;
+    *bits = aligned[0] << *bit_offset;
+    *next_bits = aligned[1];
+    *words = aligned + 2;
+    *bit_offset += extra_offset;
+    if (*bit_offset >= 32) {
+        *bit_offset -= 32;
+        *bits = *next_bits << *bit_offset;
+        *next_bits = *(*words)++;
     } else {
-        reader->bits <<= extra_offset;
+        *bits <<= extra_offset;
     }
 }
 
-static inline u32 mpvdec_PeekBits(const MPVBitReader* reader, int count)
-{
-    u32 value = reader->bits >> (32 - count);
-
-    if (reader->bit_offset > 32 - count) {
-        value |= reader->next_bits >>
-                 (64 - count - reader->bit_offset);
-    }
-    return value;
-}
-
-static inline void mpvdec_FlushBits(MPVBitReader* reader, int count)
-{
-    reader->bit_offset += count;
-    if (reader->bit_offset >= 32) {
-        reader->bit_offset -= 32;
-        reader->bits = reader->next_bits << reader->bit_offset;
-        reader->next_bits = *reader->words++;
-    } else {
-        reader->bits <<= count;
-    }
-}
-
-static inline u32 mpvdec_DecodeMbAddressI(MPVContext* context,
-                                          MPVBitReader* reader)
+static inline u32 mpvdec_ReadIntraAddress(MPVContext* context,
+                                         const u32** words, u32* bits,
+                                         u32* next_bits, int* bit_offset)
 {
     int old_index = context->macroblock_index;
-
+    u32 peek;
+    u32 delta;
     for (;;) {
-        u32 peek = mpvdec_PeekBits(reader, 20);
         int descriptor;
-        u8 encoded_increment;
+        int code_length;
         int increment;
-        u32 delta;
 
+        peek = *bits >> 20;
+        if (*bit_offset > 20) {
+            peek |= *next_bits >> (52 - *bit_offset);
+        }
         if ((peek >> 8) == 0) {
             descriptor = mpvvlc_mbai_i_0[peek];
         } else {
             descriptor = mpvvlc_mbai_i_1[peek >> 6];
         }
-        mpvdec_FlushBits(reader, descriptor & 0xF);
-        encoded_increment = descriptor >> 2;
-        increment = encoded_increment >> 2;
+
+        code_length = descriptor & 0xF;
+        *bit_offset += code_length;
+        if (*bit_offset >= 32) {
+            *bit_offset -= 32;
+            *bits = *next_bits << *bit_offset;
+            *next_bits = *(*words)++;
+        } else {
+            *bits <<= code_length;
+        }
+
+        increment = ((u32)descriptor >> 4) & 0x3F;
         if (increment == 34) {
             continue;
         }
@@ -87,32 +77,38 @@ static inline u32 mpvdec_DecodeMbAddressI(MPVContext* context,
             continue;
         }
         if (increment == 36) {
-            return (u32)-2;
+            delta = (u32)-2;
+        } else {
+            context->macroblock_index += increment;
+            context->field_344 = (u32)descriptor >> 10;
+            if (context->macroblock_index >
+                context->last_macroblock_index) {
+                delta = (u32)-2;
+            } else {
+                delta = context->macroblock_index - old_index;
+                context->macroblock_column += delta;
+                while (context->macroblock_column >=
+                       context->condition_state.decoder.picture.
+                           macroblocks_per_row) {
+                    context->macroblock_column -=
+                        context->condition_state.decoder.picture.
+                            macroblocks_per_row;
+                    context->macroblock_row++;
+                }
+            }
         }
-
-        context->macroblock_index += increment;
-        context->field_344 = (u32)descriptor >> 10;
-        if (context->macroblock_index > context->last_macroblock_index) {
-            return (u32)-2;
-        }
-
-        delta = context->macroblock_index - old_index;
-        context->macroblock_column += delta;
-        while (context->macroblock_column >=
-               context->condition_state.decoder.picture.macroblocks_per_row) {
-            context->macroblock_column -=
-                context->condition_state.decoder.picture.macroblocks_per_row;
-            context->macroblock_row++;
-        }
-        return delta;
+        break;
     }
+
+    return delta;
 }
 
+/* TODO: [near miss] 96.290985%; reader register allocation and scheduling remain;
+ * two matching passes exhausted. */
 void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* aligned;
     const u32* words;
     u32 bits;
     u32 next_bits;
@@ -120,29 +116,15 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
     u32 delta;
     u32 marker;
     int bit_offset;
-    int byte_offset;
     int residual_offset;
     int consumed;
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-    byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    next_bits = aligned[1];
-    words = aligned + 2;
-    bits = aligned[0] << byte_offset;
-    bit_offset = byte_offset + context->field_1310;
-    if (bit_offset >= 32) {
-        bit_offset -= 32;
-        bits = next_bits << bit_offset;
-        next_bits = *words++;
-    } else {
-        bits <<= context->field_1310;
-    }
+    mpvdec_InitMacroblockReader(context->header_chunk.data, context->field_1310,
+                              &words, &bits, &next_bits, &bit_offset);
 
     for (;;) {
-        int old_index;
-
         peek = bits >> 9;
         if (bit_offset > 9) {
             peek |= next_bits >> (41 - bit_offset);
@@ -151,65 +133,8 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
             break;
         }
 
-        old_index = context->macroblock_index;
-        for (;;) {
-            int descriptor;
-            int code_length;
-            u8 encoded_increment;
-            int increment;
-
-            peek = bits >> 20;
-            if (bit_offset > 20) {
-                peek |= next_bits >> (52 - bit_offset);
-            }
-            if ((peek >> 8) == 0) {
-                descriptor = mpvvlc_mbai_i_0[peek];
-            } else {
-                descriptor = mpvvlc_mbai_i_1[peek >> 6];
-            }
-
-            code_length = descriptor & 0xF;
-            bit_offset += code_length;
-            if (bit_offset >= 32) {
-                bit_offset -= 32;
-                bits = next_bits << bit_offset;
-                next_bits = *words++;
-            } else {
-                bits <<= code_length;
-            }
-
-            encoded_increment = descriptor >> 2;
-            increment = encoded_increment >> 2;
-            if (increment == 34) {
-                continue;
-            }
-            if (increment == 35) {
-                context->macroblock_index += 33;
-                continue;
-            }
-            if (increment == 36) {
-                delta = (u32)-2;
-            } else {
-                context->macroblock_index += increment;
-                context->field_344 = (u32)descriptor >> 10;
-                if (context->macroblock_index >
-                    context->last_macroblock_index) {
-                    delta = (u32)-2;
-                } else {
-                    delta = context->macroblock_index - old_index;
-                    context->macroblock_column += delta;
-                    while (context->macroblock_column >=
-                           context->condition_state.decoder.picture.
-                               macroblocks_per_row) {
-                        context->macroblock_column -=
-                            context->condition_state.decoder.picture.
-                                macroblocks_per_row;
-                        context->macroblock_row++;
-                    }
-                }
-            }
-            break;
-        }
+        delta = mpvdec_ReadIntraAddress(context, &words, &bits,
+                                        &next_bits, &bit_offset);
 
         if (delta == (u32)-2) {
             break;
@@ -256,25 +181,12 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
             stream->interface->unget_chunk(stream, 1, &refill_remainder);
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
-            aligned =
-                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-            byte_offset =
-                (context->header_chunk.data - (const u8*)aligned) * 8;
-            next_bits = aligned[1];
-            words = aligned + 2;
-            bits = aligned[0] << byte_offset;
-            bit_offset = byte_offset + residual_offset;
-            if (bit_offset >= 32) {
-                bit_offset -= 32;
-                bits = next_bits << bit_offset;
-                next_bits = *words++;
-            } else {
-                bits <<= residual_offset;
-            }
+            mpvdec_InitMacroblockReader(context->header_chunk.data, residual_offset,
+                                      &words, &bits, &next_bits, &bit_offset);
         }
     }
 
-    consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+    consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &final_remainder);
@@ -283,11 +195,12 @@ void MPVDEC_DecDpicMb(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
+/* TODO: [near miss] 97.957390%; reader register allocation and scheduling remain;
+ * two matching passes exhausted. */
 void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* aligned;
     const u32* words;
     u32 bits;
     u32 next_bits;
@@ -295,26 +208,14 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
     u32 delta;
     u32 quantizer;
     int bit_offset;
-    int byte_offset;
     int residual_offset;
     int consumed;
     int first_macroblock = 1;
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-    byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    bits = aligned[0] << byte_offset;
-    next_bits = aligned[1];
-    words = aligned + 2;
-    bit_offset = byte_offset + context->field_1310;
-    if (bit_offset >= 32) {
-        bit_offset -= 32;
-        bits = next_bits << bit_offset;
-        next_bits = *words++;
-    } else {
-        bits <<= context->field_1310;
-    }
+    mpvdec_InitMacroblockReader(context->header_chunk.data, context->field_1310,
+                              &words, &bits, &next_bits, &bit_offset);
 
     for (;;) {
         int old_index;
@@ -423,8 +324,8 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
             if (bit_offset >= 27) {
                 bit_offset -= 27;
                 if (bit_offset != 0) {
-                    quantizer =
-                        (bits | (next_bits >> (5 - bit_offset))) >> 27;
+                    bits |= next_bits >> (5 - bit_offset);
+                    quantizer = bits >> 27;
                     bits = next_bits << bit_offset;
                 } else {
                     quantizer = bits >> 27;
@@ -563,26 +464,13 @@ void MPVDEC_DecBpicMb(MPVContext* context, SJ* stream)
             stream->interface->unget_chunk(stream, 1, &refill_remainder);
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
-            aligned =
-                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-            byte_offset =
-                (context->header_chunk.data - (const u8*)aligned) * 8;
-            bits = aligned[0] << byte_offset;
-            next_bits = aligned[1];
-            words = aligned + 2;
-            bit_offset = byte_offset + residual_offset;
-            if (bit_offset >= 32) {
-                bit_offset -= 32;
-                bits = next_bits << bit_offset;
-                next_bits = *words++;
-            } else {
-                bits <<= residual_offset;
-            }
+            mpvdec_InitMacroblockReader(context->header_chunk.data, residual_offset,
+                                      &words, &bits, &next_bits, &bit_offset);
         }
         first_macroblock = 0;
     }
 
-    consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+    consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &final_remainder);
@@ -692,11 +580,12 @@ void MPVDEC_ResetMv(MPVMotionInfo* motion)
     motion->vertical = 0;
 }
 
+/* TODO: [near miss] 97.868630%; reader register allocation and scheduling remain;
+ * two matching passes exhausted. */
 void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* aligned;
     const u32* words;
     u32 bits;
     u32 next_bits;
@@ -704,26 +593,14 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
     u32 delta;
     u32 quantizer;
     int bit_offset;
-    int byte_offset;
     int residual_offset;
     int consumed;
     int first_macroblock = 1;
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-    byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    bits = aligned[0] << byte_offset;
-    next_bits = aligned[1];
-    words = aligned + 2;
-    bit_offset = byte_offset + context->field_1310;
-    if (bit_offset >= 32) {
-        bit_offset -= 32;
-        bits = next_bits << bit_offset;
-        next_bits = *words++;
-    } else {
-        bits <<= context->field_1310;
-    }
+    mpvdec_InitMacroblockReader(context->header_chunk.data, context->field_1310,
+                              &words, &bits, &next_bits, &bit_offset);
 
     for (;;) {
         int old_index;
@@ -831,8 +708,8 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
             if (bit_offset >= 27) {
                 bit_offset -= 27;
                 if (bit_offset != 0) {
-                    quantizer =
-                        (bits | (next_bits >> (5 - bit_offset))) >> 27;
+                    bits |= next_bits >> (5 - bit_offset);
+                    quantizer = bits >> 27;
                     bits = next_bits << bit_offset;
                 } else {
                     quantizer = bits >> 27;
@@ -934,26 +811,13 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
             stream->interface->unget_chunk(stream, 1, &refill_remainder);
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
-            aligned =
-                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-            byte_offset =
-                (context->header_chunk.data - (const u8*)aligned) * 8;
-            bits = aligned[0] << byte_offset;
-            next_bits = aligned[1];
-            words = aligned + 2;
-            bit_offset = byte_offset + residual_offset;
-            if (bit_offset >= 32) {
-                bit_offset -= 32;
-                bits = next_bits << bit_offset;
-                next_bits = *words++;
-            } else {
-                bits <<= residual_offset;
-            }
+            mpvdec_InitMacroblockReader(context->header_chunk.data, residual_offset,
+                                      &words, &bits, &next_bits, &bit_offset);
         }
         first_macroblock = 0;
     }
 
-    consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+    consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &final_remainder);
@@ -962,11 +826,12 @@ void MPVDEC_DecPpicMb(MPVContext* context, SJ* stream)
     MPV_GoNextDelimSj(stream);
 }
 
+/* TODO: [near miss] 96.318900%; reader register allocation and scheduling remain;
+ * two matching passes exhausted. */
 void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
 {
     SJCK refill_remainder;
     SJCK final_remainder;
-    const u32* aligned;
     const u32* words;
     u32 bits;
     u32 next_bits;
@@ -974,25 +839,13 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
     u32 delta;
     u32 quantizer;
     int bit_offset;
-    int byte_offset;
     int residual_offset;
     int consumed;
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-    byte_offset = (context->header_chunk.data - (const u8*)aligned) * 8;
-    next_bits = aligned[1];
-    words = aligned + 2;
-    bits = aligned[0] << byte_offset;
-    bit_offset = byte_offset + context->field_1310;
-    if (bit_offset >= 32) {
-        bit_offset -= 32;
-        bits = next_bits << bit_offset;
-        next_bits = *words++;
-    } else {
-        bits <<= context->field_1310;
-    }
+    mpvdec_InitMacroblockReader(context->header_chunk.data, context->field_1310,
+                              &words, &bits, &next_bits, &bit_offset);
 
     for (;;) {
         int old_index;
@@ -1009,7 +862,6 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
         for (;;) {
             int descriptor;
             int code_length;
-            u8 encoded_increment;
             int increment;
 
             peek = bits >> 20;
@@ -1032,8 +884,7 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
                 bits <<= code_length;
             }
 
-            encoded_increment = descriptor >> 2;
-            increment = encoded_increment >> 2;
+            increment = ((u32)descriptor >> 4) & 0x3F;
             if (increment == 34) {
                 continue;
             }
@@ -1073,8 +924,8 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
             if (bit_offset >= 27) {
                 bit_offset -= 27;
                 if (bit_offset != 0) {
-                    quantizer =
-                        (bits | (next_bits >> (5 - bit_offset))) >> 27;
+                    bits |= next_bits >> (5 - bit_offset);
+                    quantizer = bits >> 27;
                     bits = next_bits << bit_offset;
                 } else {
                     quantizer = bits >> 27;
@@ -1117,25 +968,12 @@ void MPVDEC_DecIpicMb(MPVContext* context, SJ* stream)
             stream->interface->unget_chunk(stream, 1, &refill_remainder);
             stream->interface->get_chunk(
                 stream, 1, 0x7FFFFFFF, &context->header_chunk);
-            aligned =
-                (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
-            byte_offset =
-                (context->header_chunk.data - (const u8*)aligned) * 8;
-            next_bits = aligned[1];
-            words = aligned + 2;
-            bits = aligned[0] << byte_offset;
-            bit_offset = byte_offset + residual_offset;
-            if (bit_offset >= 32) {
-                bit_offset -= 32;
-                bits = next_bits << bit_offset;
-                next_bits = *words++;
-            } else {
-                bits <<= residual_offset;
-            }
+            mpvdec_InitMacroblockReader(context->header_chunk.data, residual_offset,
+                                      &words, &bits, &next_bits, &bit_offset);
         }
     }
 
-    consumed = ((const u8*)words + ((bit_offset + 7) >> 3) - 8) -
+    consumed = ((const u8*)(words - 2) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &final_remainder);
