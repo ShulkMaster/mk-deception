@@ -350,28 +350,27 @@ MkObj* jab_attach_point_light_to_obj_bone(
     MkProc* proc;
 
     light = load_light(definition, &point_light_list, 0);
-    if (light == 0) {
-        return 0;
-    }
-
-    proc = _create_mkproc_generic_tinystack(
-        POINT_LIGHT_TRACKER_PID, 0x1F, p_jab_point_light_tracker,
-        sizeof(JabPointLightPdata), (MkHdr**)&pdata);
-    if (proc == 0) {
-        if (light->hdr.instance != 0U) {
-            ((void (*)(MkHdr*))light->hdr.vtbl->destroy)(&light->hdr);
+    if (light != 0) {
+        proc = _create_mkproc_generic_tinystack(
+            POINT_LIGHT_TRACKER_PID, 0x1F, p_jab_point_light_tracker,
+            sizeof(JabPointLightPdata), (MkHdr**)&pdata);
+        if (proc == 0) {
+            if (light->hdr.instance != 0U) {
+                ((void (*)(MkHdr*))light->hdr.vtbl->destroy)(&light->hdr);
+            }
+            return 0;
         }
-        return 0;
-    }
 
-    zero_pdata_payload(sizeof(JabPointLightPdata), &pdata->hdr);
-    pdata->light = light;
-    pdata->light_instance = light->hdr.instance;
-    pdata->tracked_object = object;
-    pdata->tracked_object_instance = object->hdr.instance;
-    pdata->bone = bone;
-    mk_insert(&light->hdr, &proc->pdata_list);
-    return light;
+        zero_pdata_payload(sizeof(JabPointLightPdata), &pdata->hdr);
+        pdata->light = light;
+        pdata->light_instance = light->hdr.instance;
+        pdata->tracked_object = object;
+        pdata->tracked_object_instance = object->hdr.instance;
+        pdata->bone = bone;
+        mk_insert(&light->hdr, &proc->pdata_list_b);
+        return light;
+    }
+    return 0;
 }
 
 float p_jab_point_light_tracker(void) {

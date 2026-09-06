@@ -905,38 +905,33 @@ int am_i_flipped(void) {
 
 static inline int getup_should_stay_down(void) {
     float life;
-    int stay_down;
 
     if (g_game_info.pause_flag_bits.fatality_window) {
         life = aproc->pid == 0x1001
             ? g_game_info.plyr0.field_0C
             : g_game_info.plyr1.field_0C;
         if (life != 0.0f) {
-            stay_down = 0;
+            return 0;
         } else if ((int)mode_of_play == 0xA &&
                    mk_chess_should_i_fall_down() == 1) {
-            stay_down = 1;
+            return 1;
         } else if (plyr_pdata->state == 0x4203) {
-            stay_down = 1;
+            return 1;
         } else if (f_fatality_finished != 0) {
-            stay_down = 1;
-        } else {
-            stay_down = 0;
+            return 1;
         }
     } else {
         life = aproc->pid == 0x1001
             ? g_game_info.plyr0.field_0C
             : g_game_info.plyr1.field_0C;
         if (life == 0.0f) {
-            stay_down = 1;
             plyr_obj->pos_vel.z = 0.0f;
             plyr_obj->pos_vel.y = 0.0f;
             plyr_obj->pos_vel.x = 0.0f;
-        } else {
-            stay_down = 0;
+            return 1;
         }
     }
-    return stay_down;
+    return 0;
 }
 
 static inline void getup_common(
@@ -993,27 +988,32 @@ float j_getup_front_4(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 89.94%; animation selection and sleep/transfer expansion remain. */
 float j_getup_sit_12(void) {
     getup_common(shared_ani.sit_getup_12, 0, 6, 0, 0);
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 89.94%; animation selection and sleep/transfer expansion remain. */
 float j_getup_sit_6(void) {
     getup_common(shared_ani.sit_getup_6, 0, 5, 0, 0);
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 90.04%; animation selection and sleep/transfer expansion remain. */
 float j_getup_front_6(void) {
     getup_common(shared_ani.front_getup_6, 0, 8, 1, 0);
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 89.94%; animation selection and sleep/transfer expansion remain. */
 float j_getup_front_10(void) {
     getup_common(
         shared_ani.front_getup_10_alt, 0, 9, 0, 0);
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 90.04%; animation selection and sleep/transfer expansion remain. */
 float j_getup_front_12(void) {
     getup_common(shared_ani.front_getup_12, 0, 4, 1, 0);
     return 0.0f;
@@ -1043,11 +1043,13 @@ float j_getup_back_3(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 90.04%; animation selection and sleep/transfer expansion remain. */
 float j_getup_back_12(void) {
     getup_common(shared_ani.back_getup_12, 0, 2, 1, 0);
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 90.04%; animation selection and sleep/transfer expansion remain. */
 float j_getup_back_6(void) {
     getup_common(shared_ani.back_getup_6, 0, 1, 1, 0);
     return 0.0f;
@@ -4370,13 +4372,8 @@ int stay_down_check(void) {
     return 0;
 }
 
-/*
- * Soft ceiling: retail m2c and callers confirm the full two-phase death wait,
- * boss animation loop, reaction transfers, and final stance/drone dispatch.
- * Clean structured C is 12 bytes larger: MWCC keeps one additional saved GPR
- * and emits the shared stay-down result with an extra li/branch pair. The
- * remaining body differences are register allocation and float relocations.
- */
+/* Preserve the two-phase death wait, boss animation loop and final stance/drone dispatch. */
+/* TODO: [breakthrough needed] 90.78%; death-wait local ownership, frame layout and transfer scheduling remain. */
 float j_stay_down_dead(void) {
     float life;
     float frames;
@@ -5058,12 +5055,12 @@ float front_rollup_check(void) {
         return 0.0f;
     }
     if (plyr_pdata->drone_request != 0) {
-        unsigned short choice;
+        int choice;
 
         if (drone_ai_should_roll(0) == 0) {
             return 0.0f;
         }
-        choice = randu0(3);
+        choice = (unsigned short)randu0(3);
         if (choice == 0) {
             return transfer_roll(front_rollup);
         }
@@ -5112,12 +5109,12 @@ float back_rollup_check_reverse(void) {
         return 0.0f;
     }
     if (plyr_pdata->drone_request != 0) {
-        unsigned short choice;
+        int choice;
 
         if (drone_ai_should_roll(0) == 0) {
             return 0.0f;
         }
-        choice = randu0(3);
+        choice = (unsigned short)randu0(3);
         if (choice == 0) {
             face_opponent_for_reverse_roll();
             return transfer_roll(j_ass_rollup);
@@ -5168,12 +5165,12 @@ float back_rollup_check(void) {
         return 0.0f;
     }
     if (plyr_pdata->drone_request != 0) {
-        unsigned short choice;
+        int choice;
 
         if (drone_ai_should_roll(0) == 0) {
             return 0.0f;
         }
-        choice = randu0(3);
+        choice = (unsigned short)randu0(3);
         if (choice == 0) {
             return transfer_roll(j_ass_rollup);
         }

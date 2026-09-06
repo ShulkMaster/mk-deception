@@ -33,7 +33,7 @@ typedef struct PfxScriptEnvironment {
     int active;
     int field04;
     MkPfx* source_effect; /* +0x08 */
-    struct PfxScriptEffect* effect; /* +0x0C */
+    struct PfxScriptVm* effect; /* +0x0C -- callback VM, not MkPfx owner */
     PfxVmEmitter* emitter; /* +0x10 */
     int* remaining_effects; /* +0x14 */
     PfxSpawnTableSlot* spawn_tables; /* +0x18 */
@@ -128,6 +128,38 @@ typedef union PfxParametricFlags {
     unsigned char raw;
     PfxParametricFlagBits bits;
 } PfxParametricFlags;
+
+/* Script initialization callbacks receive the embedded particle VM. */
+typedef struct PfxScriptVm {
+    char pad00[0x40];
+    PfxRenderFlags render_flags; /* VM +0x40 */
+    char pad41[0x10F];
+    PfxScriptEffectFlags flags;
+    PfxOrientationFlags orientation_flags; /* +0x151 */
+    char pad152[2];
+    float light_direction_components[3]; /* +0x154 */
+    PfxColor light_color; /* +0x160 */
+    Vec light_position; /* +0x164 */
+    float z_bias; /* +0x170 */
+    RwTexture* texture; /* +0x174 */
+    char pad178[0x0A];
+    short texture_animation_enabled; /* +0x182 */
+    char pad184[0x10];
+    float decal_plane[6]; /* +0x194 */
+    float aspect_x; /* +0x1AC */
+    float aspect_y; /* +0x1B0 */
+    PfxColor vertex_color; /* +0x1B4 */
+    float particle_size; /* +0x1B8 */
+    float bounding_radius; /* +0x1BC */
+    char pad1C0[0x14];
+    unsigned int runtime_flags; /* +0x1D4 */
+    char pad1D8[0x44];
+    const char* metrics_name; /* +0x21C */
+    char pad220[4];
+    PfxMetrics* load_metrics; /* +0x224 */
+    float kill_plane; /* +0x228 */
+    int initialization_mode; /* +0x22C */
+} PfxScriptVm;
 
 typedef struct PfxScriptEffect {
     MkHdr hdr; /* +0x00 */
@@ -239,6 +271,7 @@ typedef struct PfxStepTextureDescription {
     char* name;
     int frame_count;
     float horizontal_scale;
+    float animation_speed; /* +0x0C */
 } PfxStepTextureDescription;
 
 typedef struct PfxStepEffectDescription {
@@ -249,7 +282,7 @@ typedef struct PfxStepEffectDescription {
     unsigned int* behavior_scripts;
     float emitter_lifetime;
     int field18;
-    int allocation_count;
+    float allocation_count;
     int blend_mode;
     float effect_value;
 } PfxStepEffectDescription;
@@ -344,15 +377,16 @@ char* strcpy(char* destination, const char* source);
 /* Soft ceiling: 74.91% - exact owned-effect search, four-instruction residue. */
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner);
-/* Retail builder ABI: script, effect handle/table, then update mode. */
+/* Retail builder ABI: script, effect description, then emitter count. */
 static void build_step_effect(
-    ScriptSlot* script, unsigned int effect, int update);
+    ScriptSlot* script, const PfxStepEffectDescription* description, int emitter_count);
 static void build_parametric_effect_from_table(
     ScriptSlot* script, unsigned int effect, int update);
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context);
 static void resolve_pfx_handle(
     unsigned int handle, PfxResolvedHandle* resolved);
-static void initialize_effect(PfxScriptEffect* effect);
+static void initialize_effect(PfxScriptVm* effect);
+void texture_animation(int vertical_frames, float horizontal_scale, float speed);
 void fx_reset_emit(unsigned int effect);
 static inline void bank_destroy(MkHdr* bank);
 PfxScriptEffect* find_pfx_by_name(const char* name);
@@ -766,7 +800,7 @@ void create_y_mirror_effect(int field_28) {
 
 void set_vertex_color(const PfxVertexColorArgs* color) {
     PfxScriptEnvironment* environment = 0;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
 
     if (pfxscript_environment.active != 0) {
         environment = &pfxscript_environment;
@@ -782,7 +816,7 @@ void set_vertex_color(const PfxVertexColorArgs* color) {
 /* Soft ceiling: 53.66% - fixed three-vector copy unrolls; size and algorithm exact. */
 void set_light(const PfxLightArgs* light) {
     PfxScriptEnvironment* environment = 0;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
     int component;
 
     if (pfxscript_environment.active != 0) {
@@ -805,7 +839,7 @@ void set_light(const PfxLightArgs* light) {
 
 void z_bias(float bias) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
 
     environment = 0;
     if (pfxscript_environment.active != 0) {
@@ -819,7 +853,7 @@ void z_bias(float bias) {
 
 void face_y(void) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
 
     environment = 0;
     if (pfxscript_environment.active != 0) {
@@ -833,7 +867,7 @@ void face_y(void) {
 
 void particle_size(float size) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
 
     environment = 0;
     if (pfxscript_environment.active != 0) {
@@ -848,7 +882,7 @@ void particle_size(float size) {
 
 void set_decal_plane(const float* plane) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
     int index;
 
     environment = active_pfx_environment();
@@ -865,7 +899,7 @@ void set_decal_plane(const float* plane) {
 
 void set_aspect_ratio(float x, float y) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
 
     environment = 0;
     if (pfxscript_environment.active != 0) {
@@ -880,7 +914,7 @@ void set_aspect_ratio(float x, float y) {
 
 void set_bounding_radius(float radius) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
 
     environment = 0;
     if (pfxscript_environment.active != 0) {
@@ -1076,8 +1110,8 @@ void update_assign(int destination, int source) {
     }
 }
 
-void update_texanim_hold(int texture_field, int age_field, int frame_count,
-                         int frame_offset, float frame_time) {
+void update_texanim_hold(int texture_field, int age_field, float frame_time,
+                         int frame_count, int frame_offset) {
     PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->behavior != 0) {
@@ -1087,8 +1121,8 @@ void update_texanim_hold(int texture_field, int age_field, int frame_count,
     }
 }
 
-void update_texanim(int texture_field, int age_field, int frame_count,
-                    int frame_offset, float frame_time) {
+void update_texanim(int texture_field, int age_field, float frame_time,
+                    int frame_count, int frame_offset) {
     PfxScriptEnvironment* environment = active_pfx_environment();
 
     if (environment->behavior != 0) {
@@ -1279,43 +1313,49 @@ void create_parametric_fx(unsigned int* effect, unsigned int id) {
     }
 }
 
-void create_multiemit_step_fx(unsigned int* effect, unsigned int id) {
-    unsigned int saved;
+/* TODO: [breakthrough needed] 77%; retail emitter-count argument restored;
+ * remaining wrapper instruction/relocation differences need local evidence. */
+void create_multiemit_step_fx(PfxStepEffectDescription* effect,
+                              char* name, int emitter_count) {
+    char* saved;
 
-    if (effect != 0 && id != 0) {
-        saved = *effect;
-        *effect = id;
-        build_step_effect(active_cmdscript->mko, (unsigned int)effect, 0);
-        *effect = saved;
+    if (effect != 0 && name != 0) {
+        saved = effect->effect_name;
+        effect->effect_name = name;
+        build_step_effect(active_cmdscript->mko, effect, emitter_count);
+        effect->effect_name = saved;
     }
 }
 
-void create_step_fx(unsigned int* effect, unsigned int id) {
-    unsigned int saved;
+void create_step_fx(PfxStepEffectDescription* effect, char* name) {
+    char* saved;
 
-    if (effect != 0 && id != 0) {
-        saved = *effect;
-        *effect = id;
-        build_step_effect(active_cmdscript->mko, (unsigned int)effect, 1);
-        *effect = saved;
+    if (effect != 0 && name != 0) {
+        saved = effect->effect_name;
+        effect->effect_name = name;
+        build_step_effect(active_cmdscript->mko, effect, 1);
+        effect->effect_name = saved;
     }
 }
 
-void create_step_effect(unsigned int effect) {
-    if (effect != 0U) {
+void create_step_effect(const PfxStepEffectDescription* effect) {
+    if (effect != 0) {
         build_step_effect(active_cmdscript->mko, effect, 1);
     }
 }
 
+/* TODO: [breakthrough needed] 53.225174%; step table scalar types and owner/VM
+ * bases corrected; remaining control-flow/register reconstruction needs evidence. */
 static void build_step_effect(
-    ScriptSlot* script, unsigned int effect_table, int update) {
-    const PfxStepEffectDescription* description;
+    ScriptSlot* script, const PfxStepEffectDescription* description,
+    int emitter_count) {
     PfxScriptEnvironment* environment;
     PfxSpawnTableSlot table_slots[2];
     PfxBuildInfo build;
     PfxVmEmitter emitter_template;
     PfxScriptEffect* effect;
     PfxVm* runtime;
+    PfxScriptVm* script_runtime;
     PfxVmEmitter* emitter;
     PfxVmEmitter* first_emitter;
     PfxBehavior* behavior;
@@ -1331,7 +1371,6 @@ static void build_step_effect(
     int emitter_index;
     void* transform;
 
-    description = (const PfxStepEffectDescription*)effect_table;
     environment = active_pfx_environment();
     if (environment->remaining_effects == 0 ||
         *environment->remaining_effects == 0) {
@@ -1347,7 +1386,7 @@ static void build_step_effect(
     if (build.name == 0) {
         build.name = description->effect_name;
     }
-    build.emitter_count = update;
+    build.emitter_count = emitter_count;
     if (description->emitter->origin.x != 0.0f ||
         description->emitter->origin.y != 0.0f ||
         description->emitter->origin.z != 0.0f) {
@@ -1554,28 +1593,18 @@ static void build_step_effect(
         emitter->transform = transform;
     }
 
-    effect->vertex_color.r = 0xFF;
-    effect->vertex_color.g = 0xFF;
-    effect->vertex_color.b = 0xFF;
-    effect->vertex_color.a = 0xFF;
-    effect->flags.bits.vertex_color_enabled = 1;
+    script_runtime = (PfxScriptVm*)runtime;
+    script_runtime->vertex_color.r = 0xFF;
+    script_runtime->vertex_color.g = 0xFF;
+    script_runtime->vertex_color.b = 0xFF;
+    script_runtime->vertex_color.a = 0xFF;
+    script_runtime->flags.bits.vertex_color_enabled = 1;
     pfx_render_set_blendmode(
         (struct PfxRenderView*)runtime, description->blend_mode);
-    if (description->texture->frame_count > 1 &&
-        effect->texture != 0) {
-        RwRaster* texture = effect->texture->raster;
-        float width = (float)texture->width;
-        float scale = description->texture->horizontal_scale;
-
-        if (effect->initialization_mode != 0) {
-            effect->runtime_flags |= 0x100;
-        }
-        pfx_texture_animate(
-            (PfxVm*)effect, 0.0f, (int)width, (int)(scale * width),
-            (int)((float)texture->height /
-                  (scale * (float)description->texture->frame_count)),
-            description->texture->frame_count);
-        effect->texture_animation_enabled = 1;
+    if (description->texture->frame_count > 1) {
+        texture_animation(description->texture->frame_count,
+                          description->texture->horizontal_scale,
+                          description->texture->animation_speed);
     }
 
     if (pfx_verify((struct PfxVerifyView*)runtime) != 0) {
@@ -1814,7 +1843,7 @@ void fx_resume_emit(unsigned int handle) {
 
 void kill_at_plane(float plane) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
 
     environment = 0;
     if (pfxscript_environment.active != 0) {
@@ -1855,7 +1884,8 @@ void set_cycle_length(float length, float position) {
     }
 }
 
-/* Soft ceiling: 76.23% - exact table-slot setup, one-instruction residue. */
+/* TODO: [breakthrough needed] 76.225%; retail registry-index argument restored;
+ * remaining table-slot control-flow/register reconstruction needs evidence. */
 void spawn_random_size(const float* table) {
     PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
@@ -1896,7 +1926,7 @@ void spawn_random_size(const float* table) {
     environment = active_pfx_environment();
     pfxvm_spawn_set_field_from_table(
         emitter, environment->field04 != 0 ? 0x402 : 0x102,
-        copied_table);
+        slot_index);
 }
 
 void set_growth_coefficient(float coefficient) {
@@ -1937,7 +1967,7 @@ void set_drag_coefficient(float coefficient) {
 
 void set_rotation(float angle, float variance) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
     PfxVmEmitter* emitter;
 
     environment = active_pfx_environment();
@@ -1957,7 +1987,7 @@ void texture_animation_with_vsize(
     int vertical_frames, float horizontal_scale, float vertical_scale,
     float speed) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
     RwRaster* texture;
     float width;
 
@@ -1984,7 +2014,7 @@ void texture_animation_with_vsize(
 /* Soft ceiling: texture_animation -- typed texture metadata/layout. */
 void texture_animation(int vertical_frames, float horizontal_scale, float speed) {
     PfxScriptEnvironment* environment;
-    PfxScriptEffect* effect;
+    PfxScriptVm* effect;
     RwRaster* texture;
     float width;
 
@@ -2421,11 +2451,9 @@ static inline void pfx_cleanup_load_script(PfxLoadScriptLatch* latch) {
     }
 }
 
-/*
- * Soft ceiling: retail expands the typed command/script cleanup latch at each
- * exit. The residual is register allocation and branch sharing after inlining;
- * bank-handle validation and retail failure-path ownership are recovered.
- */
+/* TODO: [breakthrough needed] 59.128365%; retail bank-latch handle validation
+ * restored; remaining cleanup expansion and control-flow/register differences
+ * need local evidence. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     PfxLoadScriptLatch load;
     CmdScript* command;
@@ -2434,7 +2462,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     PfxBankLoadRow* rows;
     PfxBank* bank;
     PfxBank* raw_bank;
-    PfxScriptEffect* built_effect;
+    PfxScriptVm* built_effect;
     MkObj* parent;
     unsigned int row_count;
     unsigned int row_index;
@@ -2446,7 +2474,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     int language;
     unsigned int owner;
     unsigned int allocation_size;
-    PfxResolvedHandle resolved;
+    PfxBankLatch* bank_latch;
 
     memset(&load, 0, sizeof(load));
     command = alloc_cmdscript();
@@ -2574,8 +2602,23 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
         }
     }
 
-    resolve_pfx_handle(bank_handle, &resolved);
-    current_effect_bank = resolved.bank;
+    /* Bank handles carry a latch instance, not an effect index/type. */
+    bank_index = bank_handle & 0xF;
+    bank = 0;
+    if (bank_index >= 1 && bank_index <= 15) {
+        bank_latch = &banks[bank_index - 1];
+        raw_bank = bank_latch->bank;
+        if (raw_bank != 0 &&
+            raw_bank->hdr.instance == bank_latch->bank_instance) {
+            bank = raw_bank;
+        }
+        if (bank != 0 &&
+            (bank_latch->bank_instance & 0xFFFFFFF0) !=
+                (bank_handle & 0xFFFFFFF0)) {
+            bank = 0;
+        }
+    }
+    current_effect_bank = bank;
     if (current_effect_bank == 0) {
         pfx_cleanup_load_script(&load);
         return;
@@ -2909,7 +2952,7 @@ PfxScriptEffect* find_pfx_by_name(const char* name) {
 #pragma dont_inline reset
 
 /* Soft ceiling: initialize_effect -- typed environment/effect/emitter setup. */
-static void initialize_effect(PfxScriptEffect* effect) {
+static void initialize_effect(PfxScriptVm* effect) {
     PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
     ScriptSlot* script;

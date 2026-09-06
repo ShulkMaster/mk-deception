@@ -1086,7 +1086,7 @@ void init_plyr_severed_limb_list(PlyrInfo* player) {
 }
 
 void yinyang_set_bad_fish_hide_flag(
-    YinyangFishPair* fish, unsigned char hide, int count) {
+    YinyangFishPair* fish, int hide, int count) {
     int index;
 
     for (index = 0; index < count; index++) {
@@ -1104,7 +1104,7 @@ void yinyang_set_bad_fish_hide_flag(
 }
 
 void yinyang_set_good_fish_hide_flag(
-    YinyangFishPair* fish, unsigned char hide, int count) {
+    YinyangFishPair* fish, int hide, int count) {
     int index;
 
     for (index = 0; index < count; index++) {

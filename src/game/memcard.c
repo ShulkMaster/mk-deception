@@ -155,18 +155,20 @@ void reset_format_or_recreate_flags(void) {
     }
 }
 
+/* TODO: [near miss] 89.00%; device bounds agree; early-return branch layout remains. */
 void format_or_recreate_right_device(void) {
     int device;
 
     device = wls_device_cursor + 1;
-    if (device < 0 || device > 1) {
+    if (device < 0 || device >= 2) {
         return;
     }
     format_request_flag[device] = 1;
 }
 
+/* TODO: [near miss] 89.00%; device bounds agree; early-return branch layout remains. */
 void format_or_recreate_left_device(void) {
-    if (wls_device_cursor < 0 || wls_device_cursor > 1) {
+    if (wls_device_cursor < 0 || wls_device_cursor >= 2) {
         return;
     }
     format_request_flag[wls_device_cursor] = 1;

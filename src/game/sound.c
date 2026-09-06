@@ -1,4 +1,5 @@
 #include "runtime/sound_tracker.h"
+#include "runtime/sound_data.h"
 
 #include "game/game_info.h"
 #include "math/mk_math.h"
@@ -7,23 +8,6 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
-
-typedef struct SoundEntry {
-    int bank_index;
-    int bank;
-    int sound;
-    int field_0c;
-    float base_volume;
-    unsigned char subgroup;
-    char pad15[3];
-    int field_18;
-} SoundEntry;
-
-typedef struct SoundSubgroupVolume {
-    float volume;
-    unsigned char setting_index;
-    char pad05[3];
-} SoundSubgroupVolume;
 
 typedef struct SoundRequest {
     int sound_id;
@@ -36,13 +20,6 @@ typedef struct SoundCallTable {
     int* sounds;
     int count;
 } SoundCallTable;
-
-typedef struct RandomSoundRequest {
-    int* sounds;
-    int count;
-    unsigned char previous;
-    char pad09[3];
-} RandomSoundRequest;
 
 typedef struct SoundBankData {
     mslLoadedBank* handle; /* +0x00 */
@@ -103,14 +80,12 @@ typedef struct CameraSoundObj {
     CameraSoundFrame* frame;
 } CameraSoundObj;
 
-extern SoundEntry mk_sound_table[];
 MslInitParam g_initDefault = {12, 1, 3};
 MslSystemInit g_sysinitDefault = {20, 0, 64, 0, 0};
 extern SoundBankData sbank_data[];
 extern LoadedSoundBank loaded_sbank_data[];
 extern SoundBankLoadMode bank_load_table[];
 int last_sound_list_issued;
-extern SoundSubgroupVolume subgroup_volume[];
 extern float game_settings[];
 extern int mode_of_play;
 extern int mk_plyr_sound_table[];
@@ -121,7 +96,6 @@ extern SoundCallTable foot_call_table[];
 extern SoundCallTable voice_call_table[];
 extern SoundCallTable hit_call_table[];
 extern SoundCallTable pf_hit_call_table[];
-extern RandomSoundRequest random_sound_request[];
 
 #include "src/game/sound_call_tables.inc"
 #include "src/game/sound_bank_data.inc"

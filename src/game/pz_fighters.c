@@ -629,6 +629,7 @@ static inline void pz_fighter_begin_super_move(void) {
  * differences are stack/GPR allocation, typed queue/reaction-slot induction,
  * equivalent structured joins, and local relocation labels.
  */
+/* TODO: [near miss] 94.43%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 void pz_fighter_event(PuzzleFighterEvent* event) {
     PuzzleFightersEngine* engine;
     unsigned int block_count;
@@ -1063,6 +1064,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
  * removes the synthetic flag; the remaining engine-base rematerialization and
  * twelve-byte control-flow deficit remain structural.
  */
+/* TODO: [breakthrough needed] 88.16%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static void pz_fighter_fight_request(
     unsigned int player, unsigned int block_count, int chain_count,
     unsigned int event_type) {
@@ -1236,6 +1238,7 @@ static void pz_fighter_fight_request(
  * while and named byte-offset variants were respectively emission-neutral and
  * slightly worse, so the typed array walk is retained.
  */
+/* TODO: [near miss] 99.39%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static void pz_fighter_buffer_new_move(
     unsigned int event_type, unsigned int player, unsigned int move,
     unsigned int priority) {
@@ -1439,6 +1442,7 @@ void pz_fighter_classify_move_8012260C(
  * pending-move scan/switch register scheduling. Keeping the initial state2 live
  * regresses to 90.94%/0x498 and was rejected.
  */
+/* TODO: [near miss] 96.80%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static float p_puzzle_fighter_master(void) {
     int state1;
     int state2;
@@ -1614,6 +1618,7 @@ static float p_puzzle_fighter_master(void) {
  * paths recovered. Remaining differences are equivalent nested-branch targets,
  * individual versus multi-register saves, GPR/FPR allocation, and labels.
  */
+/* TODO: [near miss] 98.65%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static int pz_fighter_check_for_player_to_center_position_control(void) {
     float player1_distance;
     float player2_distance;
@@ -1952,6 +1957,7 @@ static int pz_fighters_idle_process(void) {
  * and localized register/FPR scheduling; calls, branches, state transitions,
  * and accesses agree.
  */
+/* TODO: [near miss] 98.29%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static int pz_fighters_inside_super_move_scenerio(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
@@ -2296,6 +2302,7 @@ static float p_objects_moving(void) {
  * equivalent base-plus-offset versus advancing-pointer constraint induction
  * and register/FPR coloring.
  */
+/* TODO: [near miss] 97.44%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static void check_fighter_constraints(void) {
     unsigned int player;
 
@@ -2541,6 +2548,7 @@ static void pz_fighter_process_immediate_request(void) {
  * retail-ordered dispatch. Remaining differences are queue-loop GPR/address
  * scheduling, saves, and labels.
  */
+/* TODO: [near miss] 99.07%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static float pz_fighters_handle_next_pending_move(void) {
     PuzzleFighterMove* move;
 
@@ -2609,6 +2617,7 @@ static float pz_fighters_handle_next_pending_move(void) {
  * dequeue and normalized dispatch. Remaining differences are queue-loop
  * GPR/address scheduling and labels.
  */
+/* TODO: [near miss] 99.00%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static float pz_fighters_handle_next_pending_move_simplified(void) {
     PuzzleFighterMove* move;
 
@@ -2747,6 +2756,7 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
  * Soft ceiling: complete four-way round-end animation policy; remaining
  * differences are saved-GPR selection, middle-branch lifetimes, and labels.
  */
+/* TODO: [near miss] 97.63%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static void pz_fighter_perform_end_of_round_anims(
     unsigned int winner_player, unsigned int loser_player) {
     unsigned int selection;
@@ -2799,6 +2809,7 @@ static void pz_fighter_perform_end_of_round_anims(
  * (86.20%). The remaining five instruction-pair differences are equivalent
  * indexed-versus-byte-offset loop induction and register scheduling.
  */
+/* TODO: [near miss] 99.94%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 static void pz_fighter_first_block_has_been_placed(unsigned int player) {
     PuzzleProcess* process;
     PlyrPdata* fighter;
@@ -2850,6 +2861,7 @@ static void pz_fighter_first_block_has_been_placed(unsigned int player) {
  * Soft ceiling: complete dual-transfer policy; remaining differences are
  * GPR/FPR allocation, multi-register saves, and local float labels.
  */
+/* TODO: [near miss] 99.80%; equivalent distance FPR allocation remains; stop after declaration trial. */
 static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move) {
     MkObj* fighter;
     PlyrPdata* pdata;
@@ -3085,6 +3097,7 @@ static float pz_fighter_handle_special_move(PuzzleFighterMove* move) {
  * allocation; remaining differences are FPR scheduling, individual versus
  * multi-register saves, and local float labels.
  */
+/* TODO: [near miss] 99.70%; equivalent distance FPR allocation remains; stop after declaration trial. */
 static float pz_fighter_handle_move(PuzzleFighterMove* move) {
     PlyrPdata* pdata;
     unsigned int script_move;
@@ -3215,6 +3228,7 @@ void pz_fighter_startup_attack(
  * saves/restores instead of retail stmw/lmw; remaining differences are
  * argument-load scheduling around the calls.
  */
+/* TODO: [near miss] 91.84%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
 void pz_fighter_attack(
     AniScript* animation, PuzzleAttackParameters* attack, int reaction) {
     float frame4 = attack->field_18;
@@ -3624,6 +3638,7 @@ static void pz_fighter_calculate_start_pos(void) {
         fighters->arena_axis.z * post2_scale;
 }
 
+/* TODO: [near miss] 98.24%; initial player selection compare differs; unsigned-local trial changes later signed comparisons. */
 float pz_fighter_fetch_distance_to_center_pos(void) {
     int player = plyr_pdata->plyr_num;
     MkObj* fighter = puzzle_fighter_object((unsigned int)player);
@@ -3676,7 +3691,7 @@ float p_plyr_pz_fighter_start(void) {
     face_opponent_now();
     if (plyr_pdata->plyr_num == 1 &&
         plyr_obj->hide_flag_bits.bit6 == 1) {
-        plyr_obj->hide_flag_bits.bit6 ^= 1;
+        plyr_obj->hide_flag_bits.bit6 = 1 - plyr_obj->hide_flag_bits.bit6;
     }
     glitch_to_stance(1.0f);
     _mkproc_sleep_ticks = 1.0f;

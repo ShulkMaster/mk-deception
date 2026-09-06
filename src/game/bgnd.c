@@ -980,10 +980,11 @@ float script_fabs(float value) {
     }
     return -value;
 }
+/* TODO: [near miss] 96.36%; playback-rate field corrected; animation reload around the active guard differs */
 AnimPdata* animate_obj(
     MkObj* object, AnimScript* script, const int* bone_tags,
     MkFlippedBoneMap* flipped_bones, void* ground_collisions, int active,
-    float frame) {
+    float playback_rate) {
     AnimPdata* animation;
 
     animation = 0;
@@ -996,7 +997,7 @@ AnimPdata* animate_obj(
         object->flipped_bone_map = flipped_bones;
         object->ground_colls = ground_collisions;
         set_anim_script(animation, (AniData*)script, 0x21);
-        animation->frame = frame;
+        animation->step = playback_rate;
         if (active != 0) {
             set_root_and_obj_movement_weights(0.0f, 1.0f, animation);
         }
@@ -8996,7 +8997,7 @@ static float p_crack_placer(void) {
     return 1.0f;
 }
 void bgnd_kill_fx(const char* name) {
-    unsigned int effect;
+    int effect;
 
     effect = fx_by_owner(name, 4);
     if (effect != 0) {

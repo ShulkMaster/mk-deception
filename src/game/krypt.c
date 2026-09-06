@@ -968,6 +968,8 @@ static float p_krypt_animate(void) {
     }
     return 1.0f;
 }
+/* TODO: [breakthrough] 95.758064%; character ownership uses the recovered
+ * secondary cleanup list; remaining CFG/register differences need local audit. */
 static float p_monitor_krypt_characters(void) {
     KryptCharacterMonitorPdata* pdata;
     KryptCharacterAnimProcPdata* animation_pdata;
@@ -996,15 +998,17 @@ static float p_monitor_krypt_characters(void) {
         if (object != 0) {
             animation_pdata = 0;
             proc = _create_mkproc_generic_bigstack(
-                0x8240, 0x1F, p_run_character_animation, 0x14,
+                0x8240, 0x1F, p_run_character_animation,
+                sizeof(KryptCharacterAnimProcPdata),
                 (MkHdr**)&animation_pdata);
             if (proc != 0 && animation_pdata != 0) {
-                zero_pdata_payload(0x14, &animation_pdata->hdr);
+                zero_pdata_payload(sizeof(KryptCharacterAnimProcPdata),
+                                   &animation_pdata->hdr);
                 animation_pdata->obj = &object->hdr;
                 animation_pdata->obj_instance = object->hdr.instance;
                 animation_pdata->script_index = script_index;
                 set_process_as_scriptable(proc);
-                mk_insert(&object->hdr, &proc->pdata_list);
+                mk_insert(&object->hdr, &proc->pdata_list_b);
             }
         }
         _mkproc_sleep_ticks = 1.0f;

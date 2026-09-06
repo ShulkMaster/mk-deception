@@ -556,8 +556,9 @@ typedef struct KonquestPdata {
     int interior_active;         /* +0x2C */
     MkPtr* triggers;             /* +0x30 */
     MkPtr* temporary_triggers;   /* +0x34 */
-    char pad38[8];
-    MkPtr* npcs;                /* +0x40 */
+    char pad38[4];
+    MkPtr* npc_list;            /* +0x3C */
+    MkPtr* visible_npc_list;    /* +0x40 */
     char pad44[4];
     int hud_visible;             /* +0x48 */
     KonquestObjectLatch hud_objects[7]; /* +0x4C .. +0x83 */
@@ -8169,17 +8170,12 @@ static float p_konquest_nis_housekeeping(void) {
     return 1.0f;
 }
 
-/*
- * Soft ceiling: nis_remove_non_participants ~86.6% -- the body and GPRs are
- * exact; residue is paired saves versus stmw/lmw and equivalent pointer
- * truth normalization (neg/or/srwi versus subic/subfe).
- */
 void nis_remove_non_participants(void) {
     MkPtr* next;
     MkPtr* link;
 
-    if (konquest_has_list(&konquest_pdata->npcs)) {
-        link = konquest_pdata->npcs;
+    if (konquest_has_list(&konquest_pdata->npc_list)) {
+        link = konquest_pdata->npc_list;
         while (link != 0) {
             MkHdr* hdr;
             KonquestNpc* npc;
@@ -8379,8 +8375,8 @@ static KonquestNpc* konquest_check_possible_interact_with_npc(
 
     *distance = 1000.0f;
     *facing_angle = 6.2831855f;
-    if (konquest_has_list(&konquest_pdata->npcs)) {
-        link = konquest_pdata->npcs;
+    if (konquest_has_list(&konquest_pdata->visible_npc_list)) {
+        link = konquest_pdata->visible_npc_list;
         while (link != 0) {
             KonquestNpc* npc;
 

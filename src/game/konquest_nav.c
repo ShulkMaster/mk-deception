@@ -234,11 +234,8 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     }
 }
 
-/*
- * Soft ceiling: nav_which_area_is_next ~86.94% -- breadth-first traversal,
- * predecessor writes, target detection, and backtracking match retail. Residue
- * is counted-clear lowering, save grouping, and queue/portal register coloring.
- */
+/* Clear predecessor state before breadth-first traversal and backtracking. */
+/* TODO: [breakthrough needed] 89.67%; counted-clear lowering and queue/portal lifetimes remain. */
 int nav_which_area_is_next(int fromArea, int toArea) {
     int areaCount;
     int i;
@@ -302,11 +299,6 @@ static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
                                     float* farthestDistance,
                                     Vec* position);
 
-/*
- * Soft ceiling: nav_get_unit_vector_to_closest_area ~92.91% -- packed-area
- * traversal, distance selection, blend, normalization, and stores match retail.
- * Remaining differences are save grouping and local GPR/FPR scheduling.
- */
 void nav_get_unit_vector_to_closest_area(Vec* out, Vec* pos) {
     KonquestNavData* nav;
     NavArea* area;
@@ -324,8 +316,8 @@ void nav_get_unit_vector_to_closest_area(Vec* out, Vec* pos) {
     float blend;
     float lengthSquared;
     float inverseLength;
-    int areaIndex;
     int count;
+    int areaIndex;
 
     selectedNearZ = 0.0f;
     nav = konquest_pdata->navData;
@@ -470,11 +462,8 @@ static NavArea* unit_vector_to_area(NavArea* area, Vec* nearestNormal,
     return (NavArea*)boundary;
 }
 
-/*
- * Soft ceiling: nav_what_area_is_point_in ~88.21% -- hint validation,
- * containment, adjacent search, and tile fallback match retail. Residue comes
- * from counted-clear and byte-indexed tile-scan lowering and register scheduling.
- */
+/* Try the hint and adjacent areas before falling back to the tile search. */
+/* TODO: [breakthrough needed] 90.41%; counted-clear and byte-indexed tile-scan lowering remain. */
 int nav_what_area_is_point_in(Vec* pos, int hintArea) {
     KonquestNavData* nav;
     NavArea* area;
@@ -537,12 +526,8 @@ void konquest_nav_init(void) {
     }
 }
 
-/*
- * Soft ceiling: setup_per_tile_navigations ~86.18% -- polygon intersections,
- * tile rejection, containment, edge crossing, and all bounded insertion paths
- * match retail. Residue is stack-offset versus pointer induction, constant-loop
- * ctr selection, and cascading register allocation in the geometry loops.
- */
+/* Build bounded tile navigation lists from polygon containment and edge intersections. */
+/* TODO: [breakthrough needed] 87.59%; geometry-loop induction and counted-loop scheduling remain. */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;
     Vec intersections[15];

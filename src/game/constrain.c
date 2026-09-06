@@ -121,7 +121,7 @@ static inline float constrain_sqrt(float value) {
 
     input.f = value;
     guess.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 10) & 0x3FFE] << 8;
+        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
     guess.u |=
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     refined = guess.f * (3.0f - (guess.f * guess.f) / value);
@@ -414,6 +414,8 @@ float dist_behind_me(void) {
     return distance;
 }
 
+/* TODO: [breakthrough] 88.73786%; sqrt halfword indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 static float dist_from_plyr_pos_to_arena_edge(
     const Vec* position, const Vec* direction) {
     float length;
@@ -449,6 +451,8 @@ static float dist_from_plyr_pos_to_arena_edge(
     return distance;
 }
 
+/* TODO: [breakthrough] 86.19403%; sqrt halfword indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 float xz_ray_circle_intersection_dist(
     const Vec* ray_origin, const Vec* ray_direction, float radius) {
     float length;

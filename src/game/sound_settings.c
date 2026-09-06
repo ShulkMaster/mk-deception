@@ -1,8 +1,4 @@
-typedef struct SoundSubgroupVolume {
-    float volume;
-    unsigned char setting_index;
-    unsigned char pad05[3];
-} SoundSubgroupVolume;
+#include "runtime/sound_data.h"
 
 SoundSubgroupVolume subgroup_volume[12] = {
     {0.75f, 0, {0, 0, 0}}, {0.75f, 0, {0, 0, 0}}, {0.85f, 0, {0, 0, 0}},
