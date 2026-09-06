@@ -8,12 +8,6 @@
 void* memmove(void* destination, const void* source, unsigned long size);
 void set_vm_field(PfxVmField* field, unsigned int description);
 
-typedef struct PfxBehaviorStreamBuffer {
-    unsigned char* stream_100;
-    char pad04[4];
-    unsigned char* stream_300;
-} PfxBehaviorStreamBuffer;
-
 int pfx_num_behaviors(PfxVm* pfx)
 {
     return pfx->behavior_count;
@@ -153,6 +147,7 @@ PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
     return instruction;
 }
 
+/* TODO: [near miss] 98.99%; current-frame owner and guard corrected; remaining mr-dot versus explicit unsigned null compare; stop */
 void pfx_behaviors_frame_begin(PfxVm* pfx)
 {
     int index;
@@ -160,45 +155,43 @@ void pfx_behaviors_frame_begin(PfxVm* pfx)
     int stream_300_stride;
     int particle_offset;
 
-    if (pfx == 0 || pfx->behavior_list == 0) {
-        return;
-    }
-
-    if (pfx->behavior_list[0]->stream_100_stride == 0) {
-        stream_100_stride = pfx_get_struct_size(pfx, 0x100);
-        stream_300_stride = pfx_get_struct_size(pfx, 0x300);
-        for (index = 0; index < pfx->behavior_count; index++) {
-            pfx->behavior_list[index]->stream_100_stride = stream_100_stride;
-            pfx->behavior_list[index]->current_stream_100_stride =
-                stream_100_stride;
-            pfx->behavior_list[index]->stream_300_stride = stream_300_stride;
-            pfx->behavior_list[index]->current_stream_300_stride =
-                stream_300_stride;
+    if (pfx != 0 && pfx->behavior_list != 0) {
+        if (pfx->behavior_list[0]->stream_100_stride == 0) {
+            stream_100_stride = pfx_get_struct_size(pfx, 0x100);
+            stream_300_stride = pfx_get_struct_size(pfx, 0x300);
+            for (index = 0; index < pfx->behavior_count; index++) {
+                pfx->behavior_list[index]->stream_100_stride = stream_100_stride;
+                pfx->behavior_list[index]->current_stream_100_stride =
+                    stream_100_stride;
+                pfx->behavior_list[index]->stream_300_stride = stream_300_stride;
+                pfx->behavior_list[index]->current_stream_300_stride =
+                    stream_300_stride;
+            }
         }
-    }
 
-    for (index = 0; index < pfx->behavior_count; index++) {
-        pfx->behavior_list[index]->previous_stream_100 =
-            pfx->behavior_list[index]->stream_100;
-        pfx->behavior_list[index]->previous_stream_300 =
-            pfx->behavior_list[index]->stream_300;
-    }
+        for (index = 0; index < pfx->behavior_count; index++) {
+            pfx->behavior_list[index]->previous_stream_100 =
+                pfx->behavior_list[index]->stream_100;
+            pfx->behavior_list[index]->previous_stream_300 =
+                pfx->behavior_list[index]->stream_300;
+        }
 
-    pfx->behavior_list[0]->stream_300 =
-        ((PfxBehaviorStreamBuffer*)pfx->runtime_buffer_a)->stream_300;
-    pfx->behavior_list[0]->stream_100 =
-        ((PfxBehaviorStreamBuffer*)pfx->runtime_buffer_a)->stream_100;
-    particle_offset = pfx->behavior_list[0]->particle_count;
-    for (index = 1; index < pfx->behavior_count; index++) {
-        pfx->behavior_list[index]->stream_300 =
-            pfx->behavior_list[0]->stream_300 +
-            particle_offset *
-                pfx->behavior_list[0]->current_stream_300_stride;
-        pfx->behavior_list[index]->stream_100 =
-            pfx->behavior_list[0]->stream_100 +
-            particle_offset *
-                pfx->behavior_list[0]->current_stream_100_stride;
-        particle_offset += pfx->behavior_list[index]->particle_count;
+        pfx->behavior_list[0]->stream_300 =
+            pfx->typed_runtime_buffer_b->render_data;
+        pfx->behavior_list[0]->stream_100 =
+            pfx->typed_runtime_buffer_b->particle_data;
+        particle_offset = pfx->behavior_list[0]->particle_count;
+        for (index = 1; index < pfx->behavior_count; index++) {
+            pfx->behavior_list[index]->stream_300 =
+                pfx->behavior_list[0]->stream_300 +
+                particle_offset *
+                    pfx->behavior_list[0]->current_stream_300_stride;
+            pfx->behavior_list[index]->stream_100 =
+                pfx->behavior_list[0]->stream_100 +
+                particle_offset *
+                    pfx->behavior_list[0]->current_stream_100_stride;
+            particle_offset += pfx->behavior_list[index]->particle_count;
+        }
     }
 }
 

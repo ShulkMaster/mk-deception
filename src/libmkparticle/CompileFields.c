@@ -2,62 +2,59 @@
 #include "libmkparticle/fields.h"
 #include "libmkparticle/particle.h"
 
-void _pfx_emitter_compile(PfxEmitterCompileView* emitter,
+/* TODO: [near miss] 98.41096%; canonical instruction base adds one address
+ * adjustment versus retail prefix-relative accesses; retain typed pointer storage. */
+void _pfx_emitter_compile(PfxVmEmitter* emitter,
                           PfxTableRegistry* registry) {
-    int offset;
-    PfxCompileField* compile_field;
+    PfxEmitterInstruction* instruction;
     int i;
 
-    if (emitter->field_count == 0) {
+    if (emitter->instruction_count == 0) {
         return;
     }
 
     i = 0;
-    offset = 0;
-    while (i < emitter->field_count) {
+    while (i < emitter->instruction_count) {
         unsigned int storage;
 
-        /* Retail records advance by 0x54 even though later operations access
-         * table metadata beyond that stride; keep the packed byte walk. */
         if (has_field_description(
                 registry,
-                (compile_field = (PfxCompileField*)((char*)emitter + offset))->description) == 0) {
+                (instruction = &emitter->instructions[i])->field_description) == 0) {
             return;
         }
 
-        storage = compile_field->description & 0xF00;
+        storage = instruction->field_description & 0xF00;
         switch (storage) {
         case 0x100:
-            compile_field->storage_type = 0;
+            instruction->storage_type = 0;
             break;
         case 0x300:
-            compile_field->storage_type = 1;
+            instruction->storage_type = 1;
             break;
         case 0x400:
-            compile_field->storage_type = 2;
+            instruction->storage_type = 2;
             break;
         }
 
-        compile_field->field_offset =
-            get_field_offset(registry, compile_field->description);
-        switch (compile_field->operation) {
+        instruction->field_offset =
+            get_field_offset(registry, instruction->field_description);
+        switch (instruction->opcode) {
         case 5:
         case 6:
         case 7: {
-            PfxFieldTableHeader* table;
+            PfxSpawnTable* table;
 
-            table = (PfxFieldTableHeader*)
-                registry->tables[compile_field->table_index];
-            if (table->field_type !=
-                pfx_field_get_type(compile_field->field)) {
+            table = (PfxSpawnTable*)
+                registry->tables[instruction->spawn.table.table_index];
+            if (table->type !=
+                pfx_field_get_type(instruction->spawn.table.field)) {
                 return;
             }
-            compile_field->table_index = (int)table;
+            instruction->spawn.table.table = table;
             break;
         }
         }
         i++;
-        offset += 0x54;
     }
-    emitter->flag1C_40 = 1;
+    emitter->flags.bits.emission_enabled = 1;
 }

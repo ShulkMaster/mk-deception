@@ -8,6 +8,7 @@ PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);
 void _pfxvm_execute_spawn(PfxVm* pfx, int emitter_index);
 
 /* Soft ceiling: 99.80% -- one equivalent zero-comparison operand order. */
+/* TODO: [near miss] 99.80%; equivalent equality operand order remains; stop after pure operand trial. */
 int pfx_emitter_exhausted(PfxVmEmitter* emitter)
 {
     int final_cycle;

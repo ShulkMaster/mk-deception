@@ -14,8 +14,13 @@ typedef struct ClothCollisionPlane {
     unsigned int bone_count; /* +0x08 */
     ClothBone* bones[12];    /* +0x0C */
     char pad3C[0x30];
-    unsigned char flags_6C;
-    char pad6D[3];
+    union {
+        unsigned int flags_storage; /* +0x6C; constructor clears the whole word */
+        struct {
+            unsigned char flags_6C;
+            char pad6D[3];
+        };
+    };
     float weights[4];       /* +0x70 */
     union {
         MkBone* reference_bone; /* +0x80 */

@@ -81,12 +81,12 @@ void __VMMappingErrorAlert(u32 virtual_address)
 
 void __VMSetARAMPageAsDirty(u32 virtual_address)
 {
-    g_baseVMtoARAM[virtual_address >> 12] |= 0x80000000;
+    g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] |= 0x80000000;
 }
 
 BOOL __VMIsARAMPageDirty(u32 virtual_address)
 {
-    return g_baseVMtoARAM[virtual_address >> 12] >> 31;
+    return g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] >> 31;
 }
 
 void __VMAllocVirtualToARAMLUT(void)

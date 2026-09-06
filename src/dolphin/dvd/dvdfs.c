@@ -232,6 +232,7 @@ static void cbForReadAsync(long result, DVDCommandBlock* block)
     if (file_info->callback) file_info->callback(result, file_info);
 }
 
+/* TODO: [near miss] 99.86%; queue SDA restored; callback-address temporary uses r3 instead of r4; stop at coloring */
 long DVDReadPrio(DVDFileInfo* file_info, void* address, long length,
                  long offset, long priority)
 {

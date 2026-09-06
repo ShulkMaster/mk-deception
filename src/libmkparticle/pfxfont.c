@@ -190,6 +190,7 @@ static int find_drawable_boundary(const char* text, int* pos, PfxFontInstance* i
 #pragma dont_inline reset
 
 /* TODO: [near miss] 99.9654%; centering multiply operand order survives commutative check; stop. */
+/* TODO: [near miss] 99.97%; centering multiply operand order remains; stop after equivalent-expression trials. */
 void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text, float wrap_w,
                         int halign) {
     float pen_x;

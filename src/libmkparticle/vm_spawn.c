@@ -197,12 +197,12 @@ static PfxEmitterInstruction* add_emitter_insn(PfxVmEmitter* emitter,
 
 void pfxvm_spawn_set_field_from_table(PfxVmEmitter* emitter,
                                       unsigned int field,
-                                      PfxSpawnTable* table)
+                                      int table_index)
 {
     PfxEmitterInstruction* instruction = add_emitter_insn(emitter, 5, field);
 
     if (instruction != 0) {
-        instruction->spawn.table.table = table;
+        instruction->spawn.table.table_index = table_index;
         instruction->spawn.table.field = field;
     }
 }
@@ -311,12 +311,12 @@ void pfxvm_spawn_sphere(PfxVmEmitter* emitter, unsigned int field,
 {
     PfxEmitterInstruction* instruction = add_emitter_insn(emitter, 10, field);
     if (instruction != 0) {
-        instruction->spawn.shape.axis.x = x;
-        instruction->spawn.shape.axis.y = y;
-        instruction->spawn.shape.axis.z = z;
-        instruction->spawn.shape.argument0 = minimum_radius;
-        instruction->spawn.shape.argument1 = maximum_radius;
-        instruction->spawn.shape.option = quadratic_radius;
+        instruction->spawn.sphere.origin.x = x;
+        instruction->spawn.sphere.origin.y = y;
+        instruction->spawn.sphere.origin.z = z;
+        instruction->spawn.sphere.minimum_radius = minimum_radius;
+        instruction->spawn.sphere.maximum_radius = maximum_radius;
+        instruction->spawn.sphere.quadratic_radius = quadratic_radius;
     }
 }
 
@@ -372,6 +372,7 @@ void pfxvm_spawn_uv(PfxVmEmitter* emitter, unsigned int field, float u, float v)
     }
 }
 
+/* TODO: [breakthrough needed] 86.62%; sphere option layout corrected; remaining dispatch and field-copy structure differ. */
 void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
 {
     PfxEmitterInstruction* instruction;
@@ -484,10 +485,10 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
                 break;
             case 10:
                 rnd_sphere((PfxVec3*)destination,
-                           &instruction->spawn.shape.axis,
-                           instruction->spawn.shape.option,
-                           instruction->spawn.shape.argument0,
-                           instruction->spawn.shape.argument1);
+                           &instruction->spawn.sphere.origin,
+                           instruction->spawn.sphere.quadratic_radius,
+                           instruction->spawn.sphere.minimum_radius,
+                           instruction->spawn.sphere.maximum_radius);
                 break;
             case 11:
                 rnd_point_in_sphere_section(

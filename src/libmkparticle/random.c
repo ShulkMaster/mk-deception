@@ -51,7 +51,7 @@ static inline float rnd_sqrt_table(float value) {
     }
     estimate.f = value;
     bits = estimate.u;
-    estimate.u = (unsigned int)GXMathSqrtTable[(bits >> 10) & 0x3FFE] << 8;
+    estimate.u = (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
     estimate.u |= (((bits & 0x7F800000U) + 0x3F800000U) >> 1) &
         0x7F800000U;
     return 0.5f * estimate.f *
@@ -141,6 +141,8 @@ void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
     output->z *= radius;
 }
 
+/* TODO: [breakthrough] 44.565216%; sqrt halfword indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
                                  float radius, float radius_spread,
                                  float angle, float angle_spread) {
@@ -187,6 +189,8 @@ void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
     output->z *= length;
 }
 
+/* TODO: [breakthrough] 57.986576%; sqrt halfword indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 void rnd_bend_vector(PfxVec3* vector, float angle, float angle_spread) {
     PfxVec3 random_vector;
     PfxVec3 perpendicular;

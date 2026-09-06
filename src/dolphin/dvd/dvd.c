@@ -15,7 +15,7 @@ typedef int BOOL;
 #define DVD_ASSERTMSGLINE(line, condition, message) \
     do { if (!(condition)) OSPanic(__FILE__, line, message); } while (0)
 #define OFFSET(value, alignment) ((u32)(value) & ((alignment) - 1))
-#define __DIRegs ((volatile u32*)0xCC006000)
+volatile u32 __DIRegs[] : 0xCC006000;
 
 // externs
 

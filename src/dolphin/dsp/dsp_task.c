@@ -1,6 +1,6 @@
 #include "dolphin/dsp.h"
 
-#define DSP_REGS ((volatile unsigned short*)0xCC005000)
+volatile unsigned short DSP_REGS[] : 0xCC005000;
 
 DSPTaskInfo* __DSP_curr_task;
 DSPTaskInfo* __DSP_first_task;
@@ -12,6 +12,7 @@ int __DSP_rude_task_pending;
 void __DSP_exec_task(DSPTaskInfo* current, DSPTaskInfo* next);
 void __DSP_remove_task(DSPTaskInfo* task);
 
+/* TODO: [near miss] 99.98%; DSP bank recovered; frame is eight bytes short after callback context, extent evidence needed */
 void __DSPHandler(__OSInterrupt interrupt, OSContext* context)
 {
     OSContext callback_context;

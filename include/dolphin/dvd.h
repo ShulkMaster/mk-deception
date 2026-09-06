@@ -1,6 +1,8 @@
 #ifndef DOLPHIN_DVD_H
 #define DOLPHIN_DVD_H
 
+#include "platform/os_types.h"
+
 struct OSContext;
 struct OSAlarm;
 
@@ -168,7 +170,7 @@ long DVDReadPrio(DVDFileInfo* file_info, void* address, long length,
 long DVDGetTransferredSize(DVDFileInfo* file_info);
 void DVDReset(void);
 void __fstLoad(void);
-extern struct OSThreadQueue __DVDThreadQueue;
+extern OSThreadQueue __DVDThreadQueue;
 
 #ifdef __cplusplus
 }

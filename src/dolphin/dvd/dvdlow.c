@@ -1,8 +1,8 @@
 #include "dolphin/dvd.h"
 #include "dolphin/os.h"
 
-extern volatile unsigned long __DIRegs[];
-extern volatile unsigned long __PIRegs[];
+volatile unsigned long __DIRegs[] : 0xCC006000;
+volatile unsigned long __PIRegs[] : 0xCC003000;
 
 static int FirstRead = 1;
 static volatile int StopAtNextInt;
@@ -68,6 +68,7 @@ static inline int ProcessNextCommand(void)
     return 0;
 }
 
+/* TODO: [breakthrough needed] 90.59%; buffer-copy ordering, flag tests and timer-clock ownership remain. */
 void __DVDInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {
     DVDLowCallback callback;
@@ -160,6 +161,7 @@ static inline void SetTimeoutAlarm(OSTime timeout)
     OSSetAlarm(&AlarmForTimeout, timeout, AlarmHandlerForTimeout);
 }
 
+/* TODO: [breakthrough needed] 66.72%; command/read phase ownership and timeout expansion remain. */
 static void Read(void* address, unsigned long length, unsigned long offset,
                  DVDLowCallback callback)
 {
@@ -234,6 +236,7 @@ static inline void WaitBeforeRead(void* address, unsigned long length,
     OSSetAlarm(&AlarmForWA, wait, AlarmHandler);
 }
 
+/* TODO: [breakthrough needed] 53.88%; workaround/read phase lifetimes and cache/wait dispatch remain. */
 int DVDLowRead(void* address, unsigned long length, unsigned long offset,
                DVDLowCallback callback)
 {
@@ -274,62 +277,96 @@ int DVDLowRead(void* address, unsigned long length, unsigned long offset,
 
 int DVDLowSeek(unsigned long offset, DVDLowCallback callback)
 {
-    Callback = callback; StopAtNextInt = 0;
-    __DIRegs[2] = 0xAB000000; __DIRegs[3] = offset / 4; __DIRegs[7] = 1;
-    SetTimeoutAlarm(OSSecondsToTicks(10)); return 1;
+    Callback = callback;
+    StopAtNextInt = 0;
+    __DIRegs[2] = 0xAB000000;
+    __DIRegs[3] = offset / 4;
+    __DIRegs[7] = 1;
+    SetTimeoutAlarm(OSSecondsToTicks(10));
+    return 1;
 }
 
 int DVDLowWaitCoverClose(DVDLowCallback callback)
 {
-    Callback = callback; WaitingCoverClose = 1; StopAtNextInt = 0;
-    __DIRegs[1] = 2; return 1;
+    Callback = callback;
+    WaitingCoverClose = 1;
+    StopAtNextInt = 0;
+    __DIRegs[1] = 2;
+    return 1;
 }
 
 int DVDLowReadDiskID(DVDDiskID* id, DVDLowCallback callback)
 {
-    Callback = callback; StopAtNextInt = 0;
-    __DIRegs[2] = 0xA8000040; __DIRegs[3] = 0;
-    __DIRegs[4] = sizeof(DVDDiskID); __DIRegs[5] = (unsigned long)id;
-    __DIRegs[6] = sizeof(DVDDiskID); __DIRegs[7] = 3;
-    SetTimeoutAlarm(OSSecondsToTicks(10)); return 1;
+    Callback = callback;
+    StopAtNextInt = 0;
+    __DIRegs[2] = 0xA8000040;
+    __DIRegs[3] = 0;
+    __DIRegs[4] = sizeof(DVDDiskID);
+    __DIRegs[5] = (unsigned long)id;
+    __DIRegs[6] = sizeof(DVDDiskID);
+    __DIRegs[7] = 3;
+    SetTimeoutAlarm(OSSecondsToTicks(10));
+    return 1;
 }
 
 static inline int IssueImmediate(unsigned long command, DVDLowCallback callback)
 {
-    Callback = callback; StopAtNextInt = 0;
-    __DIRegs[2] = command; __DIRegs[7] = 1;
-    SetTimeoutAlarm(OSSecondsToTicks(10)); return 1;
+    Callback = callback;
+    StopAtNextInt = 0;
+    __DIRegs[2] = command;
+    __DIRegs[7] = 1;
+    SetTimeoutAlarm(OSSecondsToTicks(10));
+    return 1;
 }
 
 int DVDLowStopMotor(DVDLowCallback callback)
-{ return IssueImmediate(0xE3000000, callback); }
+{
+    return IssueImmediate(0xE3000000, callback);
+}
+
 int DVDLowRequestError(DVDLowCallback callback)
-{ return IssueImmediate(0xE0000000, callback); }
+{
+    return IssueImmediate(0xE0000000, callback);
+}
 
 int DVDLowInquiry(DVDDriveInfo* info, DVDLowCallback callback)
 {
-    Callback = callback; StopAtNextInt = 0;
-    __DIRegs[2] = 0x12000000; __DIRegs[4] = sizeof(DVDDriveInfo);
-    __DIRegs[5] = (unsigned long)info; __DIRegs[6] = sizeof(DVDDriveInfo);
-    __DIRegs[7] = 3; SetTimeoutAlarm(OSSecondsToTicks(10)); return 1;
+    Callback = callback;
+    StopAtNextInt = 0;
+    __DIRegs[2] = 0x12000000;
+    __DIRegs[4] = sizeof(DVDDriveInfo);
+    __DIRegs[5] = (unsigned long)info;
+    __DIRegs[6] = sizeof(DVDDriveInfo);
+    __DIRegs[7] = 3;
+    SetTimeoutAlarm(OSSecondsToTicks(10));
+    return 1;
 }
 
 int DVDLowAudioStream(unsigned long subcommand, unsigned long length,
                       unsigned long offset, DVDLowCallback callback)
 {
-    Callback = callback; StopAtNextInt = 0;
-    __DIRegs[2] = 0xE1000000 | subcommand; __DIRegs[3] = offset >> 2;
-    __DIRegs[4] = length; __DIRegs[7] = 1;
-    SetTimeoutAlarm(OSSecondsToTicks(10)); return 1;
+    Callback = callback;
+    StopAtNextInt = 0;
+    __DIRegs[2] = 0xE1000000 | subcommand;
+    __DIRegs[3] = offset >> 2;
+    __DIRegs[4] = length;
+    __DIRegs[7] = 1;
+    SetTimeoutAlarm(OSSecondsToTicks(10));
+    return 1;
 }
 
 int DVDLowRequestAudioStatus(unsigned long subcommand, DVDLowCallback callback)
-{ return IssueImmediate(0xE2000000 | subcommand, callback); }
+{
+    return IssueImmediate(0xE2000000 | subcommand, callback);
+}
 
 int DVDLowAudioBufferConfig(int enable, unsigned long size,
                             DVDLowCallback callback)
-{ return IssueImmediate(0xE4000000 | (enable ? 0x10000 : 0) | size, callback); }
+{
+    return IssueImmediate(0xE4000000 | (enable ? 0x10000 : 0) | size, callback);
+}
 
+/* TODO: [breakthrough needed] 70.17%; timer-clock ownership and reset-loop saved locals remain. */
 void DVDLowReset(void)
 {
     unsigned long reg;
@@ -344,7 +381,12 @@ void DVDLowReset(void)
     LastResetEnd = __OSGetSystemTime();
 }
 
-int DVDLowBreak(void) { StopAtNextInt = 1; Breaking = 1; return 1; }
+int DVDLowBreak(void)
+{
+    StopAtNextInt = 1;
+    Breaking = 1;
+    return 1;
+}
 
 DVDLowCallback DVDLowClearCallback(void)
 {
@@ -365,4 +407,6 @@ void __DVDLowSetWAType(unsigned long type, signed long seek_location)
 }
 
 int __DVDLowTestAlarm(const OSAlarm* alarm)
-{ return alarm == &AlarmForBreak || alarm == &AlarmForTimeout; }
+{
+    return alarm == &AlarmForBreak || alarm == &AlarmForTimeout;
+}
