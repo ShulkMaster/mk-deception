@@ -129,4 +129,6 @@ int pfx_verify(PfxVerifyView* pfx);
 int pfx_field_get_type(int field);
 int pfx_get_struct_size(PfxVm* pfx, int field);
 
+void pfxvm_require_field(PfxVm* pfx, unsigned int field);
+
 #endif

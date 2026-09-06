@@ -9,7 +9,7 @@ void pfx_spawn_box(PfxVec3* output, float x, float y, float z,
                    float width, float height, float depth);
 void pfxvm_spawn_set_field_from_table(PfxVmEmitter* emitter,
                                       unsigned int field,
-                                      PfxSpawnTable* table);
+                                      int table_index);
 void pfxvm_spawn_box(PfxVmEmitter* emitter, unsigned int field,
                      float x, float y, float z,
                      float width, float height, float depth);

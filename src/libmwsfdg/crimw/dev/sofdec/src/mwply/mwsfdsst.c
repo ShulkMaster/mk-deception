@@ -57,6 +57,7 @@ static inline int mwsst_IsValid(const MwsStHandle* handle)
     return 1;
 }
 
+/* TODO: [near miss] 93.83%; manager addressing and destroy guard scheduling remain. */
 void MWSST_Destroy(MwsStHandle* handle)
 {
     MwsStHandle* sound;
@@ -72,9 +73,11 @@ void MWSST_Destroy(MwsStHandle* handle)
     }
 
     MWSFSVM_GotoIdleBorder();
-    if (mwsst_IsValid(sound) == 1 && mwsstmng.interface != 0 &&
-        mwsstmng.interface->stop != 0) {
-        mwsstmng.interface->stop(sound->backend);
+    if (mwsst_IsValid(sound) == 1) {
+        void* backend = sound->backend;
+        if (mwsstmng.interface != 0 && mwsstmng.interface->stop != 0) {
+            mwsstmng.interface->stop(backend);
+        }
     }
     handle->active = 0;
     if (sound != 0 && mwsstmng.interface != 0 &&
@@ -92,6 +95,7 @@ void MWSST_Destroy(MwsStHandle* handle)
     }
 }
 
+/* TODO: [near miss] 98.34%; initial backend snapshot is reloaded during validation. */
 void MWSST_Reset(MwsStPlayerPrefix* wrapper)
 {
     MwsStHandle* sound = &wrapper->sound;
@@ -103,9 +107,11 @@ void MWSST_Reset(MwsStPlayerPrefix* wrapper)
     if (mwsst_IsValid(sound) != 1) {
         return;
     }
-    if (backend != 0 && mwsst_IsValid(backend) == 1 &&
-        mwsstmng.interface != 0 && mwsstmng.interface->stop != 0) {
-        mwsstmng.interface->stop(backend->backend);
+    if (backend != 0 && mwsst_IsValid(backend) == 1) {
+        void* playback = backend->backend;
+        if (mwsstmng.interface != 0 && mwsstmng.interface->stop != 0) {
+            mwsstmng.interface->stop(playback);
+        }
     }
     stream->interface->reset(stream);
     SFD_SetElementOutSj(player, element_id + 0xC0, stream, 0, 0);
@@ -114,57 +120,70 @@ void MWSST_Reset(MwsStPlayerPrefix* wrapper)
 int MWSST_GetOutVol(MwsStHandle* handle)
 {
     int volume = 0;
+    void* backend;
 
     if (mwsst_IsValid(handle) != 1) {
         return 0;
     }
+    backend = handle->backend;
     if (mwsstmng.interface != 0 && mwsstmng.interface->get_volume != 0) {
-        volume = mwsstmng.interface->get_volume(handle->backend);
+        volume = mwsstmng.interface->get_volume(backend);
     }
     return volume;
 }
 
 void MWSST_SetOutVol(MwsStHandle* handle, int volume)
 {
-    if (mwsst_IsValid(handle) == 1 && mwsstmng.interface != 0 &&
-        mwsstmng.interface->set_volume != 0) {
-        mwsstmng.interface->set_volume(handle->backend, volume);
+    if (mwsst_IsValid(handle) == 1) {
+        void* backend = handle->backend;
+        if (mwsstmng.interface != 0 && mwsstmng.interface->set_volume != 0) {
+            mwsstmng.interface->set_volume(backend, volume);
+        }
     }
 }
 
 void MWSST_Pause(MwsStHandle* handle, int paused)
 {
-    if (mwsst_IsValid(handle) == 1 && mwsstmng.interface != 0 &&
-        mwsstmng.interface->pause != 0) {
-        mwsstmng.interface->pause(handle->backend, paused);
+    if (mwsst_IsValid(handle) == 1) {
+        void* backend = handle->backend;
+        if (mwsstmng.interface != 0 && mwsstmng.interface->pause != 0) {
+            mwsstmng.interface->pause(backend, paused);
+        }
     }
 }
 
 int MWSST_GetStat(MwsStHandle* handle)
 {
     int status = 0;
+    void* backend;
 
     if (mwsst_IsValid(handle) != 1) {
         return 0;
     }
+    backend = handle->backend;
     if (mwsstmng.interface != 0 && mwsstmng.interface->get_status != 0) {
-        status = mwsstmng.interface->get_status(handle->backend);
+        status = mwsstmng.interface->get_status(backend);
     }
     return status;
 }
 
 void MWSST_Stop(MwsStHandle* handle)
 {
-    if (mwsst_IsValid(handle) == 1 && mwsstmng.interface != 0 &&
-        mwsstmng.interface->stop != 0) {
-        mwsstmng.interface->stop(handle->backend);
+    if (mwsst_IsValid(handle) == 1) {
+        void* backend = handle->backend;
+        if (mwsstmng.interface != 0 && mwsstmng.interface->stop != 0) {
+            mwsstmng.interface->stop(backend);
+        }
     }
 }
 
 void MWSST_StartSj(MwsStHandle* handle)
 {
-    if (mwsst_IsValid(handle) == 1 && mwsstmng.interface != 0 &&
-        mwsstmng.interface->start_sj != 0) {
-        mwsstmng.interface->start_sj(handle->backend, handle->stream);
+    if (mwsst_IsValid(handle) == 1) {
+        void* backend = handle->backend;
+        SJ* stream = handle->stream;
+        if (mwsstmng.interface != 0 && mwsstmng.interface->start_sj != 0) {
+            mwsstmng.interface->start_sj(backend, stream);
+        }
     }
 }

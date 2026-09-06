@@ -5,6 +5,12 @@ ABI/CFG/layout understood. Schema: ID | IF mismatch | REQUIRE evidence | TRY.
 Select by mismatch, not historical score; keep attempt history in the
 [consolidated knowledge record](matching-knowledge.md).
 
+Measured priority within applicable mid-level diagnoses: M01 for a repeated TU
+compiler-mode signature, then M16 for proven storage/SDA evidence. M03/M04 spelling
+trials yielded no new closures in this sample; try only a concrete new hypothesis
+and retain the stop rule. This is a selected sample, not a universal success rate;
+see the [full ranking](matching-knowledge.md#measured-rule-ranking).
+
 ## Compiler / source lowering
 
 M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw; test scheduling separately. Recheck legacy pragmas for redundancy via local-to-local section/function equivalence. Keep accepted flags fixed; no scattered optimization pragmas.
@@ -33,6 +39,16 @@ M17 | Vtables/weak destructors differ, including link-only | ELF relocations + h
 
 ## Focused diagnostics
 
+- M16: Before changing a small object's storage, check whether its first extern
+  declaration sees the complete canonical type. The eight-byte DVD thread queue
+  needed its real type header before that declaration for MWCC's small-data
+  addressing. Correct the shared declaration and rebuild every header consumer;
+  do not fabricate a smaller type or force a section.
+- H07/M13: An `inline` helper can still emit a call under the actual TU settings.
+  If a canonical typed field-access macro already expresses the same proven
+  owner, use it locally before changing global inline settings. The RenderWare
+  default atomic callback required direct pipeline-global lookup; audit the
+  macro's evaluation count and resulting load offsets.
 - M07: Check canonical fields before coloring: PUI drop_timer is +0x34,
   lifetime +0x38. Retail `lhzx` uses a byte offset: a u16 table indexed by
   `(bits >> 10) & 0x3FFE` needs C element index `(bits >> 11) & 0x1FFF`.

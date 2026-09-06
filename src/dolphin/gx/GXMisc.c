@@ -4,6 +4,9 @@
 
 #include "__gx.h"
 
+#undef __PIRegs
+volatile u32 __PIRegs[] : 0xCC003000;
+
 #ifndef NULL
 #define NULL ((void*)0)
 #endif

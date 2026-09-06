@@ -454,6 +454,7 @@ static int mwsfcre_MallocRfb(MwsPlayer*, const MwsCreateParams*,
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer*, const MwsCreateParams*);
 
 /* TODO: [near miss] 93.959206%; real string and float objects separated; remaining codegen/relocation differences. */
+/* TODO: [breakthrough needed] 93.96%; creation ownership/allocation lowering differs; compact-save flag regresses exact sibling. */
 MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams* params)
 {
     MwsLibraryWork* work;

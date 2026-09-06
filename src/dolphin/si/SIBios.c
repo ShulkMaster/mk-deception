@@ -11,7 +11,7 @@ typedef int BOOL;
 #define NULL 0
 #define ASSERTLINE(line, condition) ((void)0)
 #define ASSERTMSGLINE(line, condition, message) ((void)0)
-#define __SIRegs ((volatile u32*)0xCC006400)
+volatile u32 __SIRegs[] : 0xCC006400;
 
 #define ROUND(n, a) (((u32)(n) + (a)-1) & ~((a)-1))
 

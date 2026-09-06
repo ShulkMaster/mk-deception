@@ -18,7 +18,7 @@ typedef struct OSRebootParams {
 static OSResetFunctionQueue ResetFunctionQueue;
 static unsigned long bootThisDol;
 
-extern OSThreadQueue __OSActiveThreadQueue;
+#define __OSActiveThreadQueue (*(OSThreadQueue*)0x800000DC)
 extern OSRebootParams __OSRebootParams;
 
 volatile unsigned short __VIRegs[] : 0xCC002000;
@@ -88,8 +88,11 @@ static void KillThreads(void)
 
     for (thread = __OSActiveThreadQueue.head; thread != 0; thread = next) {
         next = thread->linkActive.next;
-        if (thread->state == 1 || thread->state == 4) {
+        switch (thread->state) {
+        case 1:
+        case 4:
             OSCancelThread(thread);
+            break;
         }
     }
 }

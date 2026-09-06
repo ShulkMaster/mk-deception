@@ -24,6 +24,10 @@ After the applicable honest source check, stop for:
 Unknown calls/offsets/CFG are not coloring: classify borked or breakthrough needed
 and name missing evidence. Assembly-required targets are skipped; AGENTS.md
 requires explicit per-function permission for the rare sequence path.
+Reopen a ceiling only for new evidence. The GX FIFO's proven absolute union
+owner justified returning to H02 after failed snapshot trials; another spelling
+of the same lifetime did not. See the measured ranking in the
+[knowledge record](matching-knowledge.md#measured-rule-ranking).
 Record source `TODO: [near miss]` with score, residual, and stop reason; disclose
 nonmatching fallback in SHA results. Never omit returns or invent lifetimes,
 types, empty arms, fake volatile, dead sinks, register declarations, or goto.

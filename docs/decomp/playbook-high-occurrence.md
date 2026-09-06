@@ -22,6 +22,15 @@ Keep these books slim: amend one applicable rule with new evidence, and put
 scores, attempts, and campaign history in the
 [consolidated knowledge record](matching-knowledge.md). Do not append a diary.
 
+## Evidence-gated priority
+
+The [measured ranking](matching-knowledge.md#measured-rule-ranking) puts H02 owner
+and layout recovery first, followed by H11 joins and an applicable M01 TU-mode
+check. Only after those structural checks, consider H15's one honest lifetime
+insight. ABI, width and effect-order evidence always overrides this search order.
+Check shared consumers before spending repeated attempts on an isolated leaf;
+consumer counts from one header correction are not independent trial successes.
+
 ## Rules (structural first)
 
 H01 | Wrong argument/return registers | All callers + callee ABI | Correct declarations, definitions, callbacks, and calls together; use canonical typed pointers/virtual methods. No invented argument or unused return.
@@ -68,6 +77,25 @@ Apply these refinements only with the parent rule's evidence:
   access needs a 13-bit page index for its 8,192-entry LUT; a bare shift retained
   unsupported address bits even at a high fuzzy score. Check each sibling
   independently rather than imposing that mask on all address APIs.
+- H02/H05: Distinguish a fixed hardware or low-memory owner from an unresolved
+  external symbol. Confirm the address and qualifiers against matching sibling
+  definitions and callers: VI registers are volatile MMIO at 0xCC002000, while
+  the PAD/OS reset byte uses the canonical unqualified absolute RAM declaration.
+  Do not infer volatility from a numeric address or remove real MMIO volatility.
+  Preserve the proven owner kind: DVD DI/PI and SI banks require canonical
+  absolute volatile array declarations. Replacing them with pointer macros changed
+  addressing/scheduling and regressed consumers; equal addresses alone do not
+  establish the same compiler-visible owner. Once confirmed, inspect every
+  sibling regardless of its initial score: SI transfer routines below 80%
+  closed with the same declaration correction. Large scheduling differences
+  can follow one wrong owner declaration; they need not imply a wrong algorithm.
+- H02/H06: Repeated state-owner reloads around FIFO writes can originate in the
+  port declaration. GX's byte, halfword, word and float writes share one absolute
+  volatile union at 0xCC008000. Separate arbitrary-pointer casts obscured that
+  owner; local snapshot trials failed, while recovering the port closed a family
+  of consumers. Verify overlapping offsets, widths, single evaluation and command
+  order, then audit every header consumer. Do not generalize a FIFO union to
+  unrelated memory or retain extra snapshots after the declaration fix.
 - H03/H12: A stored `Vec` component and its incoming FP argument need not have
   identical precision. If retail rounds before publishing a second copy, read
   the real stored component; do not bypass it or add a synthetic rounding sink.
@@ -115,6 +143,10 @@ Apply these refinements only with the parent rule's evidence:
   real intervening effects. Extracting a latch can change a caller's inlining,
   even reducing a previously exact caller to zero. Check all callers, not only
   the target; retain documented invalid-path differences as unresolved behavior.
+- H10: Verify finite bounds before accepting a decompiler default arm. SPSD
+  header values 2/3 enter codec selection, while values at least 4 bypass it
+  and still reach common output normalization. m2c labeled the bounded arm
+  as default; the retail comparison and branch target resolve the discrepancy.
 - H14/H15: Separate independent loop counters; group active/saved-next iterators
   without moving assignments across callbacks. Split scalar declarations from
   initialization only without const, aggregate, scope, or lifetime changes.
