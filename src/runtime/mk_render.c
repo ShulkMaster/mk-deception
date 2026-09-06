@@ -292,6 +292,7 @@ static void BTreeInsert(TranslSortNode* node) {
     BTREE_ROOT->flags.bits.red = 0;
 }
 
+/* TODO: [near miss] 99.01%; returned state value uses a different temporary register. */
 void render_mkatomic(RpAtomic* atomic) {
     MkSobj* sobj;
     unsigned char saved_flags = 0;
@@ -355,6 +356,7 @@ void render_mkatomic(RpAtomic* atomic) {
     }
 }
 
+/* TODO: [breakthrough needed] 97.58%; object/subobject iterator ownership and render-loop allocation remain. */
 void render_mkobj(MkObj* object) {
     TranslNodeFlags flags_pair[2];
     int clump_index;

@@ -1897,8 +1897,8 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
 
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix) {
-    RwMatrix* base;
     RwMatrix* dual;
+    RwMatrix* base;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, dual, matrix);
     return material;
@@ -1906,8 +1906,8 @@ static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
 
 static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
                                                  void* matrix) {
-    RwMatrix* base;
     RwMatrix* dual;
+    RwMatrix* base;
     RpMatFXMaterialGetUVTransformMatrices(material, &dual, &base);
     RpMatFXMaterialSetUVTransformMatrices(material, matrix, base);
     return material;

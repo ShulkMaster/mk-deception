@@ -2365,6 +2365,8 @@ void initialize_background_danger_zones(void) {
     memset(background_danger_zones, 0, sizeof(background_danger_zones));
 }
 
+/* TODO: [breakthrough] 89.47419%; sqrt halfword indexing corrected;
+ * remaining camera CFG/FP differences need localized retail audit. */
 float p_krypt_camera_loop(void) {
     union {
         float f;
@@ -2436,7 +2438,7 @@ float p_krypt_camera_loop(void) {
             value_bits.f = dist_sq;
             bits = value_bits.u;
             guess_bits.u =
-                (unsigned int)GXMathSqrtTable[(bits >> 10) & 0x3FFE] << 8;
+                (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
             guess_bits.u |=
                 (((bits & 0x7F800000U) + 0x3F800000U) >> 1) &
                 0x7F800000U;
@@ -4774,13 +4776,18 @@ void camera_reset_pos_done_flag(void) {
 void init_scripted_camera(void) {
     memset(&scripted_camera_data, 0, sizeof(scripted_camera_data));
     {
-        float initial_speed = kZero;
-        float final_speed = kZero;
-        Vec endpoint = { 0.0f, 0.0f, 0.0f };
+        float final_speed;
+        float initial_speed;
 
-        move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, kZero);
-        orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1,
-                                    kZero);
+        initial_speed = kZero;
+        final_speed = kZero;
+        {
+            Vec endpoint = { 0.0f, 0.0f, 0.0f };
+
+            move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, kZero);
+            orbit_position_to_end_point(0, 0, &initial_speed, &final_speed, 1, 1,
+                                        kZero);
+        }
     }
 }
 

@@ -65,28 +65,28 @@ void _copy_constant_to_register(void);
 void _copy_register_to_instruction(void);
 
 static ScriptBuiltinFn builtin_script_function_table[22] = {
-    _set_bit_field,
-    _get_bit_field,
-    _copy_stream_to_address,
-    _call_script_function,
-    _load_table_address,
-    _unconditional_branch,
-    _conditional_branch,
-    _compare_float_float,
-    _compare_uint_uint,
-    _compare_int_int,
-    _combine_float_float,
-    _combine_uint_uint,
-    _combine_int_int,
-    _copy_register_to_address,
-    _copy_column_address_to_register,
-    _copy_column_to_register,
-    _copy_constant_to_variable,
-    _copy_register_to_variable,
-    _copy_variable_to_register,
-    _copy_register_to_register,
-    _copy_constant_to_register,
     _copy_register_to_instruction,
+    _copy_constant_to_register,
+    _copy_register_to_register,
+    _copy_variable_to_register,
+    _copy_register_to_variable,
+    _copy_constant_to_variable,
+    _copy_column_to_register,
+    _copy_column_address_to_register,
+    _copy_register_to_address,
+    _combine_int_int,
+    _combine_uint_uint,
+    _combine_float_float,
+    _compare_int_int,
+    _compare_uint_uint,
+    _compare_float_float,
+    _conditional_branch,
+    _unconditional_branch,
+    _load_table_address,
+    _call_script_function,
+    _copy_stream_to_address,
+    _get_bit_field,
+    _set_bit_field,
 };
 
 /* Retail .bss -- 20 x 0xA8 entries */
@@ -226,14 +226,17 @@ static inline void execute_cmdscript(ScriptSlot* slot) {
 
 /* ---- 0x8001394C ---- */
 
+/* TODO: [breakthrough needed] 70.527275%; typed pdata allocation is neutral;
+ * remaining process-call/CFG differences need retail reconstruction audit. */
 void one_shot_script_func(void* a, unsigned int b, int wait) {
     MkProc* proc;
     OneShotScriptPdata* pdata;
     int instance;
     float one;
 
-    proc = cmdscript_create_tinystack(0x9028, 0x1f, (MkProcEntryFn)p_run_one_shot_script, 0x10,
-                                      (MkHdr**)&pdata);
+    proc = cmdscript_create_tinystack(
+        0x9028, 0x1f, (MkProcEntryFn)p_run_one_shot_script,
+        sizeof(OneShotScriptPdata), (MkHdr**)&pdata);
     if (proc != 0) {
         set_process_as_scriptable(proc);
         pdata->script = (ScriptSlot*)a;

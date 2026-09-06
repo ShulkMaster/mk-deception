@@ -80,7 +80,8 @@ static float mk_sqrt_table(float x) {
     }
     pun.f = x;
     bits = pun.u;
-    mantissa_exp = (unsigned int)GXMathSqrtTable[(bits >> 10) & 0x3FFE] << 8;
+    /* Retail lhzx uses a byte offset; this array index counts halfwords. */
+    mantissa_exp = (unsigned int)GXMathSqrtTable[(bits >> 11) & 0x1FFF] << 8;
     mantissa_exp |= (((bits & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     pun.u = mantissa_exp;
     guess = pun.f;
@@ -119,6 +120,8 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 
 /* Retail infinite-cylinder/ray solver. */
+/* TODO: [breakthrough] 23.35776%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float ax = cylAxis->x;
@@ -215,6 +218,8 @@ float dist2_xz_to_xz(const Vec* a, const Vec* b) {
     return dx * dx + dz * dz;
 }
 
+/* TODO: [breakthrough] 28.162163%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 float dist_xz_to_xz(const Vec* a, const Vec* b) {
     return mk_sqrt_table(dist2_xz_to_xz(a, b));
 }
@@ -240,6 +245,8 @@ void normalize_xz(Vec* v) {
     v->z *= inv;
 }
 
+/* TODO: [breakthrough] 33.588234%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 float length_xz(const Vec* v) {
     return mk_sqrt_table(v->x * v->x + v->z * v->z);
 }
@@ -295,6 +302,8 @@ float dist2_v3_to_v3(const Vec* a, const Vec* b) {
     return dx * dx + dy * dy + dz * dz;
 }
 
+/* TODO: [breakthrough] 15.658537%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 float dist_v3_to_v3(const Vec* a, const Vec* b) {
     return mk_sqrt_table(dist2_v3_to_v3(a, b));
 }
@@ -316,6 +325,8 @@ void uv_from_angles_xy(Vec* out, float angX, float angY) {
     out->z = cx * gxMathCos(angY);
 }
 
+/* TODO: [breakthrough] 55.615383%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
     float len;
     float inv;
@@ -352,6 +363,8 @@ void v3_blend3(Vec* out, const Vec* weights, const Vec* a, const Vec* b, const V
 }
 
 /* Returns the pre-normalization length, as required by retail callers. */
+/* TODO: [breakthrough] 71.92453%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 float normalize_v3_length(Vec* v) {
     float len = mk_sqrt_table(v->x * v->x + v->y * v->y + v->z * v->z);
     float inv = kZero;
@@ -378,6 +391,8 @@ void zero_v3(Vec* v) {
     v->x = kZero;
 }
 
+/* TODO: [breakthrough] 28.162163%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 float length_v3(const Vec* v) {
     return mk_sqrt_table(v->x * v->x + v->y * v->y + v->z * v->z);
 }
@@ -441,6 +456,8 @@ float norm_angle(float ang) {
     return ((int)(ang * kAngToFixed) & 0xFFFFF) * kFixedToAng;
 }
 
+/* TODO: [breakthrough] 61.36%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 void v3_to_xz_ang(Vec* ang, const Vec* v) {
     float len;
     ang->z = gxMathArcTanYX(v->y, v->x);
@@ -449,6 +466,8 @@ void v3_to_xz_ang(Vec* ang, const Vec* v) {
     ang->x = gxMathArcTanYX(v->z, len);
 }
 
+/* TODO: [breakthrough] 64.87931%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
@@ -457,6 +476,8 @@ void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
     ang->x = -(float)atan2((double)v->y, (double)len);
 }
 
+/* TODO: [breakthrough] 64.26923%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 void v3_to_xy_ang(Vec* ang, const Vec* v) {
     float len;
     ang->z = kZero;
@@ -617,6 +638,8 @@ void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     out->w = -(az * bz - -(ay * by - (aw * bw - ax * bx)));
 }
 
+/* TODO: [breakthrough] 70.271355%; sqrt table indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     float dot = v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
     float ax;

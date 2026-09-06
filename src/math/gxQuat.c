@@ -61,6 +61,8 @@ void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     }
 }
 
+/* TODO: [breakthrough] 77.82653%; sqrt halfword indexing corrected;
+ * remaining source-shape/FP differences need localized retail audit. */
 void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     union {
         float f;
@@ -136,7 +138,7 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     wScale = kZero;
     if (kZero < halfAngle) {
         pun.f = halfAngle;
-        pun.u = (unsigned int)GXMathSqrtTable[(pun.u >> 10) & 0x3FFE] << 8 |
+        pun.u = (unsigned int)GXMathSqrtTable[(pun.u >> 11) & 0x1FFF] << 8 |
                 ((((pun.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U);
         sqrtGuess = pun.f;
         wScale = kHalf * sqrtGuess * (kNewtonIter3 - (sqrtGuess * sqrtGuess) / halfAngle);
@@ -149,7 +151,7 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
     wValue = kZero;
     if (kZero < wSqrtArg) {
         pun.f = wSqrtArg;
-        pun.u = (unsigned int)GXMathSqrtTable[(pun.u >> 10) & 0x3FFE] << 8 |
+        pun.u = (unsigned int)GXMathSqrtTable[(pun.u >> 11) & 0x1FFF] << 8 |
                 ((((pun.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U);
         sqrtGuess = pun.f;
         wValue = kHalf * sqrtGuess * (kNewtonIter3 - (sqrtGuess * sqrtGuess) / wSqrtArg);

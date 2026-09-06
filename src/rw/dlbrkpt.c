@@ -36,7 +36,7 @@ static int i_FindGxBreakPt(void* address);
 static void MWY_GCN_RW_GxDrawDoneCallback_General(void);
 static void MWY_GCN_RW_GxBreakPtCallback_General(void);
 static RwGxBreakPtEntry* i_MWY_GCN_RW_AppendGxBreakPtQueue(
-    void* address, unsigned char active, RwGxDrawDoneUserCallback callback,
+    void* address, int active, RwGxDrawDoneUserCallback callback,
     void* data);
 static void MWY_GCN_RW_AppendGxBreakPtQueue(void* address, int active,
                                            RwGxDrawDoneUserCallback callback,
@@ -204,7 +204,7 @@ static void MWY_GCN_RW_GxBreakPtCallback_General(void)
 }
 
 static RwGxBreakPtEntry* i_MWY_GCN_RW_AppendGxBreakPtQueue(
-    void* address, unsigned char active, RwGxDrawDoneUserCallback callback,
+    void* address, int active, RwGxDrawDoneUserCallback callback,
     void* data)
 {
     RwGxBreakPtEntry* entry = 0;
