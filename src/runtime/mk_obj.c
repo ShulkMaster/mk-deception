@@ -2569,6 +2569,8 @@ void obj_create_sobjs(MkObj* obj) {
     }
 }
 
+/* TODO: [breakthrough] 95.88571%; retail flags-word initialization restored;
+ * remaining callback register/alias-load ordering needs inspection. */
 static RpAtomic* atomic_create_sobj_callback(
     RpAtomic* atomic, void* dataArg) {
     struct SobjCreateData* data;
@@ -2609,7 +2611,7 @@ static RpAtomic* atomic_create_sobj_callback(
                 new_sobj->priority = 0x10;
             }
             new_sobj->frame = frame;
-            new_sobj->flags_08 = 0;
+            new_sobj->flags_word_08 = 0;
             new_sobj->flags_08_bits.bit7 = 1;
             new_sobj->flags_08_bits.bit0 = 1;
             new_sobj->render_flags = 0;
