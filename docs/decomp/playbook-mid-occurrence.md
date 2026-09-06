@@ -2,7 +2,8 @@
 
 Prerequisite: [high protocol](playbook-high-occurrence.md#protocol-all-three-books);
 ABI/CFG/layout understood. Schema: ID | IF mismatch | REQUIRE evidence | TRY.
-Select by mismatch, not historical score; keep attempt history in reports.
+Select by mismatch, not historical score; keep attempt history in the
+[consolidated knowledge record](matching-knowledge.md).
 
 ## Compiler / source lowering
 
@@ -54,6 +55,9 @@ M17 | Vtables/weak destructors differ, including link-only | ELF relocations + h
 - M16: Distinguish split gaps from object alignment: g_DSB_Buffers needs 32-byte
   alignment. If trailing definitions lose pooling, explicit zero initializers
   before users can preserve symbol order; tentative order alone may not.
+  Verify the emitted section: MWCC can place an explicitly zero-initialized
+  aggregate in .data, disrupting merged BSS addressing (SVM). Scalar results
+  do not justify applying the same initializer form to every aggregate.
 - M13: For quantization, name the real quantizer-scaled level inside each macro
   expansion; generic block-level and constant fast paths can lower differently.
   A discarded marker can use the general consume/refill path rather than a

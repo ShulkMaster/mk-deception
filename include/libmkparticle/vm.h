@@ -104,6 +104,12 @@ typedef union PfxSpawnArguments {
         int option;
     } shape;
     struct {
+        PfxVec3 origin;
+        float minimum_radius;
+        float maximum_radius;
+        int quadratic_radius;
+    } sphere;
+    struct {
         PfxVec3 offset;
         float minimum_length;
         float length_range;

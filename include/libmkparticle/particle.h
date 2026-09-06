@@ -127,5 +127,6 @@ void pfx_reset_renderstate(void);
 void pfx_render_set_blendmode(PfxRenderView* pfx, int mode);
 int pfx_verify(PfxVerifyView* pfx);
 int pfx_field_get_type(int field);
+int pfx_get_struct_size(PfxVm* pfx, int field);
 
 #endif

@@ -324,6 +324,7 @@ void player_area_collision_ticks(
     check_to_register_miss();
 }
 
+/* TODO: [breakthrough needed] 92.77%; animation/position load ownership and exit-branch scheduling remain. */
 void flying_collision(
     int region, int reaction, int strength, void* script_args,
     float radius, float height, float reaction_rate,
@@ -447,6 +448,7 @@ static float kabal_collide_victim_falldown(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 83.16%; sleep-loop scheduling and saved-local allocation remain. */
 static float kabal_collide_victim(void) {
     JmtProcVtable* proc_vtbl;
     JmtKabalAnimations* animations;
@@ -485,6 +487,7 @@ static float kabal_collide_victim(void) {
 void jmt_debug_script(int command, int value, const void* args, float scalar) {
 }
 
+/* TODO: [breakthrough needed] 89.84%; process-creation output ownership and initialization schedule remain. */
 void start_kabal_smoke(void* script_args, float duration) {
     JmtKabalSmokePdata* pdata;
     MkProc* proc;
@@ -538,6 +541,7 @@ void start_kabal_smoke(void* script_args, float duration) {
     drone_ai_set_avoidance_area(&plyr_obj->pos.value, duration);
 }
 
+/* TODO: [breakthrough needed] 98.97%; string-pool addressing and loop latch expansion remain. */
 static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
     MkObj* object;
     unsigned int effect;
@@ -625,6 +629,7 @@ static void start_kabal_smoke_pfx(JmtKabalSmokePdata* pdata) {
     }
 }
 
+/* TODO: [near miss] 99.05%; equivalent null comparison lowering remains; stop at local codegen. */
 void destroy_kabal_smoke(void) {
     JmtKabalSmokePdata* pdata;
     MkProc* proc;
@@ -660,6 +665,7 @@ void destroy_kabal_smoke(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 97.17%; vector copy and active-process reload ordering remain. */
 static float p_kabal_smoke(void) {
     Vec angles = kabal_smoke_angles;
     Vec center;
@@ -701,6 +707,7 @@ static float p_kabal_smoke(void) {
     return 1.0f;
 }
 
+/* TODO: [breakthrough needed] 96.25%; string addressing and creation-output load scheduling remain. */
 void start_subzero_decoy(void* script_args, float duration) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
@@ -845,7 +852,7 @@ void destroy_subzero_decoy(void) {
 
 
 
-/* TODO: [breakthrough needed] 94.446330%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [breakthrough needed] 94.29%; owner/iterator allocation and branch/load placement remain. */
 static float p_create_decoy(void) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
@@ -943,7 +950,7 @@ static float p_create_decoy(void) {
 
 
 
-/* TODO: [breakthrough needed] 91.757065%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [breakthrough needed] 96.31%; vector initialization and return-join lowering remain. */
 static float p_decoy(void) {
     Vec angles = subzero_decoy_angles;
     JmtDecoyPdata* pdata;
@@ -1022,7 +1029,7 @@ static float p_decoy(void) {
 
 
 
-/* TODO: [breakthrough needed] 87.415840%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [near miss] 97.33%; equivalent null/return join lowering remains. */
 static float p_decoy_shrink(void) {
     JmtDecoyPdata* pdata;
     MkObj* decoy;
@@ -1057,6 +1064,7 @@ static float p_decoy_shrink(void) {
     return -1.0f;
 }
 
+/* TODO: [breakthrough needed] 95.87%; flag publication and string-pool addressing remain. */
 void start_bow(int bone, float duration) {
     JmtBowPdata* pdata;
     MkObj* bow;
@@ -1134,7 +1142,7 @@ static inline MkObj* jmt_bow_pdata_live_bow(JmtBowPdata* owner) {
 
 
 
-/* TODO: [breakthrough needed] 91.184210%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [near miss] 97.24%; equivalent return-join branch lowering remains. */
 static float p_bow_ctrl(void) {
     JmtBowPdata* pdata;
     MkObj* bow;
@@ -1170,7 +1178,7 @@ static float p_bow_ctrl(void) {
 
 
 
-/* TODO: [breakthrough needed] 88.644066%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [near miss] 96.44%; equivalent return-join branch lowering remains. */
 static float p_bow_retract(void) {
     JmtBowPdata* pdata;
     MkObj* bow;
@@ -1280,6 +1288,7 @@ float mks_get_victim_to_tr_dot(int player) {
     return result;
 }
 
+/* TODO: [near miss] 99.96%; position aggregate stack offsets differ; inspect real local scope. */
 void resume_effect_at_plyr_num_bid(
     int player_num, int bone, unsigned int handle, int bind_mode,
     int requires_blood) {
@@ -1473,6 +1482,7 @@ void mks_bgnd_cam_offset_away(
     }
 }
 
+/* TODO: [breakthrough needed] 93.44%; zero-value ownership across flag publication remains. */
 void mks_bgnd_pfx_bind_to_sobj(
     const char* effect_name, unsigned int sobj_id) {
     MkSobj* sobj;
@@ -1503,6 +1513,7 @@ void mks_npc_build_bones_tbl(int model_index, const int* bone_tags) {
     }
 }
 
+/* TODO: [near miss] 99.05%; saved script-owner coloring remains; stop at allocation. */
 void check_bgnd_effect(void) {
     CmdScript* script;
     CmdScript* saved_script;

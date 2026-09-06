@@ -8205,9 +8205,9 @@ static int init_pz_pfx_2d(void) {
     puzzle_ctrl->puzzle_particle_capacity =
         &((PfxVm*)puzzle_ctrl->puzzle_pfx)->particle_capacity;
     puzzle_ctrl->particle_position_stride =
-        pfx_get_struct_size(puzzle_ctrl->puzzle_pfx, 0x100);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->puzzle_pfx, 0x100);
     puzzle_ctrl->particle_timer_stride =
-        pfx_get_struct_size(puzzle_ctrl->puzzle_pfx, 0x301);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->puzzle_pfx, 0x301);
 
     if (ice_count == 0) {
         return 1;
@@ -8236,9 +8236,9 @@ static int init_pz_pfx_2d(void) {
     puzzle_ctrl->ice_particle_capacity =
         &((PfxVm*)puzzle_ctrl->ice_pfx)->particle_capacity;
     puzzle_ctrl->ice_position_stride =
-        pfx_get_struct_size(puzzle_ctrl->ice_pfx, 0x100);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->ice_pfx, 0x100);
     puzzle_ctrl->ice_timer_stride =
-        pfx_get_struct_size(puzzle_ctrl->ice_pfx, 0x301);
+        pfx_get_struct_size((PfxVm*)puzzle_ctrl->ice_pfx, 0x301);
     return 1;
 }
 

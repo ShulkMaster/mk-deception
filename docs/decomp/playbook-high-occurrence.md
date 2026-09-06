@@ -19,7 +19,8 @@ Finish: quality pass, full Ninja, SHA-1, progress, diff-check, status. Distingui
 report-exact, data-value-exact, and link-exact; disclose nonmatching fallbacks.
 
 Keep these books slim: amend one applicable rule with new evidence, and put
-scores, attempts, and campaign history in linked reports. Do not append a diary.
+scores, attempts, and campaign history in the
+[consolidated knowledge record](matching-knowledge.md). Do not append a diary.
 
 ## Rules (structural first)
 
@@ -59,6 +60,14 @@ Apply these refinements only with the parent rule's evidence:
   +0xB8 (`MkProcEntryFn`), not destruction callback +0xB4. Small immediate
   differences can be behavioral. AnimPdata landing fields are +0xF8/+0xFC
   within 0x104 bytes, not an extension beyond the allocation.
+- H02: Opcode variants sharing an instruction union can have different trailing
+  fields. Sphere spawning has two radii before its quadratic option; the generic
+  four-argument shape places that option later. Recover a typed variant and
+  verify both the instruction producer and dispatcher consumer.
+- H04: Check the complete index mask against allocation extent. VM dirty-page
+  access needs a 13-bit page index for its 8,192-entry LUT; a bare shift retained
+  unsupported address bits even at a high fuzzy score. Check each sibling
+  independently rather than imposing that mask on all address APIs.
 - H03/H12: A stored `Vec` component and its incoming FP argument need not have
   identical precision. If retail rounds before publishing a second copy, read
   the real stored component; do not bypass it or add a synthetic rounding sink.
@@ -101,7 +110,7 @@ Apply these refinements only with the parent rule's evidence:
   the helper can fold away retail updates. Preserve the full array extent:
   six coefficient blocks need one six-block paired-store view, not indexing
   past a single block. Check short local fills separately from long helper fills.
-  See [the nine-candidate follow-up](mpv-followup-2026-09-05.md).
+  See [the nine-candidate follow-up](matching-knowledge.md#mutable-cursor-ownership-generalizes-to-fills).
 - H08: Direct-owner accessors suit adjacent load/validation; cached forms suit
   real intervening effects. Extracting a latch can change a caller's inlining,
   even reducing a previously exact caller to zero. Check all callers, not only
@@ -141,4 +150,4 @@ phase: the boundary is context-dependent, not a universal shift-wrapper rule.
 Do not add identity helpers, dummy state, false prototypes or generic permuter
 names. These results infer a source boundary, not an original retail helper name.
 Keep measurements and rejected contexts in the
-[MPVABDEC goal report](mpvabdec-goal-2026-09-05.md).
+[MPVABDEC goal report](matching-knowledge.md#decoder-reconstruction-transferable-findings).

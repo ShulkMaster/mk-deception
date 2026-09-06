@@ -71,7 +71,8 @@ Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
   the linked SHA-1. Used field expressions are distinct from dead sinks or fake
   liveness; reject dummy blocks, volatile coercion and unused reads. Record the
   source form as a hypothesis, not proof of original C spelling. See the
-  [MPVABDEC closure](mpvabdec-goal-2026-09-05.md).
+  [MPVABDEC closure](matching-knowledge.md#decoder-reconstruction-transferable-findings).
 
 Mirage imports require platform-neutral behavior and GC retail/objdiff evidence.
-Keep new lessons in the relevant diagnostic; link detailed searches from reports.
+Keep new lessons in the relevant diagnostic; record measured searches in the
+[consolidated knowledge record](matching-knowledge.md).

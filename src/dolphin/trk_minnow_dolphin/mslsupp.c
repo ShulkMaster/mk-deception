@@ -19,16 +19,20 @@ enum {
 int __position_file(file_handle handle, file_position* position, int mode,
                     IdleProc idle)
 {
-    u8 position_mode = 0;
+    int position_mode = 0;
     u8 result;
+    BOOL connected;
 
-    if (!GetTRKConnected()) {
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
-    switch (mode) {
-    case 0: position_mode = 0; break;
-    case 1: position_mode = 1; break;
-    case 2: position_mode = 2; break;
+    if (mode == 0) {
+        position_mode = 0;
+    } else if (mode == 1) {
+        position_mode = 1;
+    } else if (mode == 2) {
+        position_mode = 2;
     }
     result = TRKPositionFile(TRK_POSITION_FILE, handle, position, position_mode);
     switch (result) {
@@ -41,8 +45,10 @@ int __position_file(file_handle handle, file_position* position, int mode,
 int __close_file(file_handle handle)
 {
     u8 result;
+    BOOL connected;
 
-    if (!GetTRKConnected()) {
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
     result = TRKCloseFile(TRK_CLOSE_FILE, handle);
@@ -53,27 +59,37 @@ int __close_file(file_handle handle)
     }
 }
 
+/* TODO: [near miss] 98.95%; final redundant byte mask is omitted; stop with correct byte protocol. */
 int __open_file(const char* name, FileMode* mode, FILE* file)
 {
-    u8 trk_mode = 0;
+    u8 trk_mode;
+    int open_mode;
+    int io_mode;
+    unsigned int binary;
+    BOOL connected;
     u8 result;
 
-    if (!GetTRKConnected()) {
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
-    switch (mode->open_mode) {
+    open_mode = mode->open_mode;
+    io_mode = mode->io_mode;
+    binary = mode->binary_io;
+    trk_mode = 0;
+    switch (open_mode) {
     case 0: trk_mode |= 1; break;
-    case 1: trk_mode |= 4; break;
     case 2: trk_mode |= 2; break;
+    case 1: trk_mode |= 4; break;
     }
-    switch (mode->io_mode) {
+    switch (io_mode) {
     case 1: trk_mode |= 1; break;
     case 2: trk_mode |= 2; break;
-    case 3: trk_mode |= 0x12; break;
     case 6: trk_mode |= 4; break;
+    case 3: trk_mode |= 0x12; break;
     case 7: trk_mode |= 7; break;
     }
-    if (mode->binary_io == 1) {
+    if (binary == 1) {
         trk_mode |= 8;
     }
     result = TRKOpenFile(TRK_OPEN_FILE, name, trk_mode, &file->handle);
@@ -127,8 +143,10 @@ int __read_file(file_handle handle, u8* buffer, size_t* count, IdleProc idle)
 int __close_console(file_handle handle)
 {
     u8 result;
+    BOOL connected;
 
-    if (!GetTRKConnected()) {
+    connected = GetTRKConnected();
+    if (!connected) {
         return 1;
     }
     result = TRKCloseFile(TRK_CLOSE_FILE, handle);
