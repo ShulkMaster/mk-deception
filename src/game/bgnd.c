@@ -792,7 +792,7 @@ void set_background_color(int r, int g, int b, int a);
 void turn_fog_on(void);
 void turn_fog_off(void);
 void initialize_bgnd_collisions(void* data);
-void load_effect_bank(int bank);
+int load_effect_bank(char* name);
 void mk_chess_init_bgnd_for_fight_mode(void);
 
 void bgnd_level_fatality_end(void) {
@@ -9777,7 +9777,7 @@ void bgnd_swap_level(int level) {
         if (g_game_info.misc->enter_script != 0) {
             cmdscript_setup_execution(
                 g_game_info.cmdscript,
-                (unsigned int)g_game_info.misc->enter_script);
+                g_game_info.misc->enter_script);
             cmdscript_execute(g_game_info.cmdscript);
         }
 
@@ -9792,7 +9792,7 @@ void bgnd_swap_level(int level) {
         if (g_game_info.misc->script != 0) {
             cmdscript_setup_execution(
                 g_game_info.cmdscript,
-                (unsigned int)g_game_info.misc->script);
+                g_game_info.misc->script);
             cmdscript_execute(g_game_info.cmdscript);
         }
         if (hider != 0) {
@@ -11586,19 +11586,20 @@ void bgnd_setup_rx_handler(int handler) {
     g_current_reaction_info.handler_enabled = 1;
     g_current_reaction_info.handler = handler;
 }
+/* TODO: [breakthrough needed] 81.875%; MKO function index typed; command lifetime codegen still differs. */
 void bgnd_anim_camera_ended(void) {
     CmdScript* script;
     CmdScript* prev;
     GameInfo* info;
-    void* script_ptr;
+    unsigned int script_index;
 
     script = alloc_cmdscript();
     prev = active_cmdscript;
     info = &g_game_info;
     active_cmdscript = script;
-    script_ptr = info->section != 0 ? info->section->cam_ended_script : 0;
-    if (script_ptr != 0) {
-        cmdscript_setup_execution(info->cmdscript, (unsigned int)script_ptr);
+    script_index = info->section != 0 ? info->section->cam_ended_script : 0;
+    if (script_index != 0) {
+        cmdscript_setup_execution(info->cmdscript, script_index);
         cmdscript_execute(info->cmdscript);
     }
     active_cmdscript = prev;
@@ -11607,20 +11608,21 @@ void bgnd_anim_camera_ended(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 88.23529%; MKO function index typed; command lifetime codegen still differs. */
 void bgnd_anim_camera_setup(void) {
     CmdScript* script;
     CmdScript* prev;
     GameInfo* info;
-    void* script_ptr;
+    unsigned int script_index;
 
     script = alloc_cmdscript();
     prev = active_cmdscript;
     active_cmdscript = script;
     cam_set_intro_cam_pause_ticks(0.0f);
     info = &g_game_info;
-    script_ptr = info->section != 0 ? info->section->cam_setup_script : 0;
-    if (script_ptr != 0) {
-        cmdscript_setup_execution(info->cmdscript, (unsigned int)script_ptr);
+    script_index = info->section != 0 ? info->section->cam_setup_script : 0;
+    if (script_index != 0) {
+        cmdscript_setup_execution(info->cmdscript, script_index);
         cmdscript_execute(info->cmdscript);
     }
     active_cmdscript = prev;
@@ -13490,11 +13492,10 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
         mk_insert(&object->hdr, &g_game_info.bgnd_obj->child_list);
     }
 }
-/* TODO: [breakthrough needed] 87.699715%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+/* TODO: [breakthrough] 88.00283%; background owners and MKO script/bank types recovered;
+ * remaining CFG/register differences need local evidence. */
 int load_background(int bgnd_id) {
     char* anims;
-    char* gbd;
-    int entry_off;
     BgndDataTable* data_table;
     BgndMisc* misc;
     MkObj* bgnd_obj;
@@ -13504,9 +13505,8 @@ int load_background(int bgnd_id) {
     int i;
     int n;
     int zero;
-    char* react;
-    char* col;
-    int* effect_list;
+    char** effect_list;
+    char* effect_name;
     int effect_off;
     float inv255;
     float* fog_col;
@@ -13521,13 +13521,10 @@ int load_background(int bgnd_id) {
 
     RwImageSetGamma(1.0f);
 
-    /* Array indexing coax: retail uses lwzx with bgnd_id<<4. */
-    gbd = (char*)global_background_data;
-    entry_off = bgnd_id * 4; /* word index into 16-byte records */
     entry = &global_background_data[bgnd_id];
-    load_ssf((MkFileEntry*)((void**)gbd)[entry_off]);
+    load_ssf((MkFileEntry*)entry->ssf_entry);
 
-    slot = cmdscript_loadfile_by_name(0xB, (char*)((void**)gbd)[entry_off + 1]);
+    slot = cmdscript_loadfile_by_name(0xB, entry->script_name);
     g_game_info.cmdscript = slot;
 
     data_table = (BgndDataTable*)get_data_table(slot, slot->table_count);
@@ -13541,14 +13538,12 @@ int load_background(int bgnd_id) {
     g_game_info.field_64 = (MkPtr*)zero;
     g_game_info.displayed_items = (MkPtr*)zero;
     g_game_info.npc_list = (MkPtr*)zero;
-    react = anims + 0xF0;
-    col = anims + 0x588;
-    *(int*)(react + 0x14) = zero;
+    g_current_reaction_info.handler_enabled = zero;
     i = 0;
     n = 8;
     do {
-        *(int*)(col + i) = zero;
-        i += 4;
+        g_bgnd_collision_to_script_if[i] = 0;
+        i++;
     } while (--n);
     g_active_obstacle_event_data = 0;
     g_active_bgnd_col_item = 0;
@@ -13701,25 +13696,25 @@ int load_background(int bgnd_id) {
 
     effect_list = g_game_info.section->effect_banks;
     if (effect_list != 0) {
-        for (effect_off = 0; (i = effect_list[effect_off]) != 0; effect_off++) {
-            load_effect_bank(i);
+        for (effect_off = 0; (effect_name = effect_list[effect_off]) != 0; effect_off++) {
+            load_effect_bank(effect_name);
         }
     }
 
     g_game_info.cmdscript->load_ctx = 0;
 
     data_table = g_game_info.section;
-    if ((unsigned int)data_table->load_script != 0) {
+    if (data_table->load_script != 0) {
         slot = g_game_info.cmdscript;
-        cmdscript_setup_execution(slot, (unsigned int)data_table->load_script);
+        cmdscript_setup_execution(slot, data_table->load_script);
         cmdscript_execute(slot);
     }
 
     g_game_info.wall_hider = 0;
     misc = g_game_info.misc;
-    if ((unsigned int)misc->script != 0) {
+    if (misc->script != 0) {
         slot = g_game_info.cmdscript;
-        cmdscript_setup_execution(slot, (unsigned int)misc->script);
+        cmdscript_setup_execution(slot, misc->script);
         cmdscript_execute(slot);
     }
 
