@@ -56,6 +56,9 @@ M17 | Vtables/weak destructors differ, including link-only | ELF relocations + h
   before users can preserve symbol order; tentative order alone may not.
 - M13: For quantization, name the real quantizer-scaled level inside each macro
   expansion; generic block-level and constant fast paths can lower differently.
+  A discarded marker can use the general consume/refill path rather than a
+  flag-reading macro; follow the actual branch and shift sequence. Decode a
+  field into a real local when retail publishes it once at the common join.
   For VLC siblings, compare corresponding guarded peek/extract/refill expansions,
   not just whole-function fuzzy; preserve sign bits and lookahead until last use.
 - M07: Execute retail table initialization before comparing decoder lookups.

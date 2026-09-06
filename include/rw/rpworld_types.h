@@ -224,7 +224,7 @@ typedef char RpAtomicSizeCheck[sizeof(RpAtomic) == 0x70 ? 1 : -1];
 
 static inline RpAtomic* rpAtomicFromClumpNode(RwLLLink* link)
 {
-    return (RpAtomic*)((unsigned char*)link - 0x40);
+    return RW_CONTAINER_OF(link, RpAtomic, inClumpLink);
 }
 
 
@@ -392,6 +392,14 @@ RpWorld* RpWorldForAllWorldSectors(RpWorld*, RpWorldSectorCallBack, void*);
 RpWorld* RpWorldForAllLights(RpWorld*, RpLightCallBack, void*);
 int RpWorldRegisterPlugin(int, unsigned int, RwPluginObjectConstructor,
                               RwPluginObjectDestructor, RwPluginObjectCopy);
+int RpWorldSectorRegisterPlugin(
+    int size, unsigned int pluginID,
+    RwPluginObjectConstructor constructCB,
+    RwPluginObjectDestructor destructCB, RwPluginObjectCopy copyCB);
+int RpWorldSectorRegisterPluginStream(
+    unsigned int pluginID, RwPluginDataChunkReadCallBack readCB,
+    RwPluginDataChunkWriteCallBack writeCB,
+    RwPluginDataChunkGetSizeCallBack getSizeCB);
 int RpWorldPluginAttach(void);
 
 #endif

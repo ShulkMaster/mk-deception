@@ -12,7 +12,7 @@ typedef struct LightDef LightDef;
 
 typedef struct BgndMisc {
     float ground_plane; /* +0x00 */
-    void* enter_script; /* +0x04 */
+    unsigned int enter_script; /* +0x04 */
     char pad08[4];
     Vec player0_start; /* +0x0C */
     char pad18[0x0C];
@@ -24,7 +24,7 @@ typedef struct BgndMisc {
     LightDef** lights_plyr; /* +0x50 */
     float shadow_strength; /* +0x54 */
     float shadow_cam_light[3]; /* +0x58 */
-    void* script; /* +0x64 */
+    unsigned int script; /* +0x64 - MKO function index */
     float mirror_plane_offset; /* +0x68 */
 } BgndMisc;
 typedef char BgndMiscSizeCheck[(sizeof(BgndMisc) == 0x6C) ? 1 : -1];
@@ -61,7 +61,7 @@ typedef struct BgndDataTable {
     int end_music_id;                   /* +0x58 */
     void (*start_music_callback)(void); /* +0x5C */
     void (*end_music_callback)(void);   /* +0x60 */
-    void* load_script;                  /* +0x64 - post-load cmdscript */
+    unsigned int load_script;                  /* +0x64 - post-load cmdscript */
     char pad68[8];
     unsigned int flags70; /* +0x70 - bit0 shadow cam light */
     BgndObstacleData* obstacle_data; /* +0x74 - arena constrain/collision definitions */
@@ -69,11 +69,11 @@ typedef struct BgndDataTable {
     unsigned int flags88; /* +0x88 - bit0 early-out / locked */
     char* sky_name;       /* +0x8C */
     float far_clip;       /* +0x90 - display far plane */
-    char pad94[4];
+    const char* field_94; /* +0x94 - MKO string reference */
     void* anims;              /* +0x98 */
-    int* effect_banks;        /* +0x9C - 0-terminated bank ids */
-    void* cam_setup_script;   /* +0xA0 */
-    void* cam_ended_script;   /* +0xA4 */
+    char** effect_banks;      /* +0x9C - null-terminated bank names */
+    unsigned int cam_setup_script;   /* +0xA0 */
+    unsigned int cam_ended_script;   /* +0xA4 */
     BgndMisc* misc;           /* +0xA8 */
 } BgndDataTable;
 

@@ -95,6 +95,13 @@ Apply these refinements only with the parent rule's evidence:
   outer decode owner spanning initialization through final publication, leaving
   independent storage clearing outside it. Verify nested phases separately:
   flattening them can undo allocation gains. Do not add identity wrappers.
+  For repeated fill/clear expansions whose retail cursor advances between runs,
+  test a typed pointer-to-pointer helper that performs those real stores and
+  advances the caller's cursor. Returning an end pointer or advancing outside
+  the helper can fold away retail updates. Preserve the full array extent:
+  six coefficient blocks need one six-block paired-store view, not indexing
+  past a single block. Check short local fills separately from long helper fills.
+  See [the nine-candidate follow-up](mpv-followup-2026-09-05.md).
 - H08: Direct-owner accessors suit adjacent load/validation; cached forms suit
   real intervening effects. Extracting a latch can change a caller's inlining,
   even reducing a previously exact caller to zero. Check all callers, not only
