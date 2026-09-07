@@ -34,6 +34,10 @@ If a permuter target calls a helper that retail expands, wrapper-only mutation
 may miss the relevant locals. Expand that helper in the scratch and verify its
 base score before searching. Preserve effects and strip scaffolding before a
 real-TU trial ([AI selector check](ai-matching-campaign.md#round-129-expanded-catch-selector-search)).
+Expansion and declaration order can interact: the AI table builders match only
+with both, while either alone regresses. Verify the combination in every wrapper;
+do not infer that a candidate transfers unchanged back into an inline helper
+([table-builder check](ai-matching-campaign.md#round-131-table-builders-exact)).
 
 ## Evidence-gated priority
 

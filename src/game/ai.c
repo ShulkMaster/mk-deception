@@ -984,7 +984,7 @@ static inline MkObj* taunt_camera_live_object(AiTauntCameraData* owner) {
     return object;
 }
 
-/* TODO: [near miss] 98.89706%; owner coloring remains; explicit shared camera-data owner regresses; retain typed snapshots and stop at coloring. */
+/* TODO: [near miss] 98.89706%; owner coloring remains; expanded-validation search only worsens score or introduces uninitialized reads; stop at coloring. */
 static float p_lookat_cam(void) {
     CameraObj* camera;
     MkObj* target;
@@ -1145,7 +1145,7 @@ float give_some_distance(void) {
 }
 
 
-/* TODO: [near miss] 98.36066%; empty-case dispatch branch remains; action-first case order emits identically; need original dispatch evidence. */
+/* TODO: [near miss] 98.36066%; empty-case dispatch branch remains; explicit known higher no-action types regress; need original dispatch evidence. */
 float go_into_twitch_death(void) {
     init_ground_move_no_aniproc();
     switch (plyr_pdata->death_type) {
@@ -3006,7 +3006,7 @@ int drone_ai_opponent_inair_watcher(void) {
     return 0;
 }
 
-/* TODO: [near miss] 99.70149%; canonical category-0/12 tables preserve score; close-move owner GPR coloring remains; stop at coloring. */
+/* TODO: [near miss] 99.70149%; close-move owner GPR coloring remains; canonical-table permuter search found no improvement; stop at coloring. */
 int drone_ai_enemy_inair_attack(DroneAI* drone) {
     AiFightstyleAttack* script;
 
@@ -7626,7 +7626,7 @@ float drone_entry(void) {
 
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.45206%; table-base GPR coloring remains; combined CSE/propagation control unchanged; stop at coloring. */
+/* TODO: [near miss] 99.45206%; table-base GPR coloring remains; strict typed-local search found no improvement; stop at coloring. */
 static float drone_loop(void) {
     DroneAI* drone;
     unsigned int ticks;
@@ -8269,7 +8269,7 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-/* TODO: [near miss] 97.14646%; character-search preheader remains; explicit character snapshot emits identically; original loop unresolved. */
+/* TODO: [near miss] 97.14646%; character-search preheader remains; expanded-lookup permutation does not improve retained helper; original loop unresolved. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
