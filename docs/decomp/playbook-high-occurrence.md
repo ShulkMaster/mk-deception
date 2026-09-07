@@ -13,6 +13,8 @@ matching-progress comments at measured 100, retaining semantic explanations.
 Recheck every shared consumer, including below-threshold and already-exact ones.
 Preserve math, stores, call order, widths, and lazy null checks. Inspect offsets
 and immediates even above 99%; large score swings can be diff-alignment artifacts.
+Compare referenced values before calling a mismatch pool-only: different float
+returns can receive the same ordinary score. Run data-value mode as well.
 No forced registers, fake volatile, dead sinks, empty arms, invented fields,
 wrong ABI, undefined returns, goto, or assembly workaround. Real MMIO stays volatile.
 Finish: quality pass, full Ninja, SHA-1, progress, diff-check, status. Distinguish
@@ -33,18 +35,18 @@ consumer counts from one header correction are not independent trial successes.
 
 ## Rules (structural first)
 
-H01 | Wrong argument/return registers | All callers + callee ABI | Correct declarations, definitions, callbacks, and calls together; use canonical typed pointers/virtual methods. No invented argument or unused return.
-H02 | Wrong offset/width | Multiple accesses + allocation/compiler layout | Recover canonical fields/arrays within proven extents; preserve unknown gaps and verify producers as well as consumers.
-H03 | Signed compare/narrowing differs | Loads, callers, arithmetic range | Correct storage/ABI width; keep promoted accumulators full-width. Proven byte-range FP input may need direct float-to-byte conversion, not an intermediate int; never generalize to modulo narrowing.
-H04 | Bit extraction/RMW differs | Storage width + bit position + every use | Existing bitfield or proven mask; unsigned-byte promotion before shift. Use a neutral name when semantics are unknown. Preserve packed sign/flag bits until their last consumer; mask only the table address.
-H05 | Cached value vs retail reload | Call/sleep/aliasing store or external poll boundary | Reread the authoritative owner at each observed boundary. Only proven interrupt/debugger completion flags justify volatile on declaration and definition; check every reader/writer.
+H01 | Wrong argument/return registers | All callers + callee ABI | Correct declarations, definitions, callbacks, and calls together; use canonical typed pointers/virtual methods. For variadic library calls, use the canonical prototype and inspect the ABI marker as well as argument registers. A live scratch register at bl is not an argument if the callee overwrites it before use or never consumes it; trace coordinate/address scratch through the callee before extending a prototype. Conversely, trace registers consumed before overwrite back through the caller: an argument computed before a branch can be omitted by m2c together with its apparently dead computation. Trace event payload members through dispatch to the final consumer before naming an integer-looking word as an ID; it may carry a live object pointer. For pointer outputs, check whether the callee reads the incoming value before writing it and trace caller initialization on every path. If retail behavior depends on uninitialized stack contents, record that evidence; neither a zero initializer nor a C indeterminate read establishes faithful, defined recovery ([chess checkpoint 58](mk-chess-body-recovery.md)). No invented argument or unused return. A void wrapper can accidentally leave the callee result in r3 and still match; when a real caller consumes that result, recover the typed return and explicit return statement, then remeasure. Process callbacks may require a float continuation/completion result even when no C caller reads it.
+H02 | Wrong offset/width | Multiple accesses + allocation/compiler layout | Recover canonical fields/arrays within proven extents; preserve unknown gaps and verify producers as well as consumers. Derive array origin separately from stride: a fixed offset used in every iteration may include a global header, not a prefix in each record. For list builders, bound every write within a full iteration before choosing capacity: a loop-entry count limit may be exceeded by multiple appends in that iteration.
+H03 | Signed compare/narrowing differs | Loads, callers, arithmetic range | Correct storage/ABI width; keep promoted accumulators full-width. If assembly narrows before a range check, preserve modulo behavior rather than inferring saturation; test values around the wrap boundary and omit provably unreachable clamp code. Proven byte-range FP input may need direct float-to-byte conversion, not an intermediate int; never generalize to modulo narrowing. For FP comparisons, decode the complete condition-register predicate, including cror and the consuming branch: m2c equality output may represent <= or >=. Check ordered/unordered behavior before choosing the C operator.
+H04 | Bit extraction/RMW differs | Storage width + bit position + every use | Existing bitfield or proven mask; unsigned-byte promotion before shift. Distinguish a byte load from a word load followed by narrowing: on big-endian PPC, lwz plus clrlwi 24 selects the low numeric byte, not the byte at the word address. Use a neutral name when semantics are unknown. Preserve packed sign/flag bits until their last consumer; mask only the table address.
+H05 | Cached value vs retail reload | Call/sleep/aliasing store or external poll boundary | Reread the authoritative owner at each observed boundary. Preserve observed component-store order (including z/y/x); a cached object can suppress necessary owner reloads even without a call. Only proven interrupt/debugger completion flags justify volatile on declaration and definition; check every reader/writer.
 H06 | Retail retains computed value/address | Shared uses + unchanged ownership interval | Name a genuine typed local/element/owner. Use one proven derived owner for inherited arrays; retain distinct original/advanced buffer snapshots while both remain live.
-H07 | Extra/missing helper call | Retail call boundary + signature + active inline settings | Visible inline body for expansion; out-of-line body for a real call. Repeated call-free expansion under inline-off may need a side-effect-safe typed macro. Inspect emitted calls and every consumer.
+H07 | Extra/missing helper call | Retail call boundary + signature + active inline settings | Visible inline body for expansion; out-of-line body for a real call. Repeated call-free expansion under inline-off may need a side-effect-safe typed macro. Inspect emitted calls and every consumer. A dont_inline region can also suppress helper expansion inside its function; check both boundaries, and restore evidenced caller-before-callee order before forcing policy. Before moving a body, ensure canonical callee declarations precede its new location (including indirect shared callers); reject implicit-int/variadic fallbacks. Check its callers and callees: fixing one edge can expose a different helper for auto-inlining; preserve the evidenced dependency order and remeasure the whole unit. With nested helpers, moving only the intermediate definition may leave the outer caller eligible to inline through it; inspect the final caller and place it before the callee definition when retail requires that call.
 H08 | Pointer-instance latch diamond differs | Null-before-instance reads + no call | Typed accessor returning the validated pointer or null; pass the owner if argument evaluation hoists reads. Preserve required snapshots and active dont_inline regions; no empty valid arm.
 H09 | Loop entry/latch differs | Zero-iteration behavior + test/update order | Recover while/do/for or assignment-in-condition; rotated top test may need a top guard/break. An unsigned ascending index can retain cmplwi/ble plus CTR where decrementing length cannot. No dummy one-trip loop.
-H10 | Switch dispatch differs | Full finite case/default/fallthrough set + text order | Recover case order or a proven shared decoding family/tail; preserve repeated independent guards and field-publication order. No speculative labels.
-H11 | Return/cleanup join differs | Actual branch destinations + effect ownership | Shared result/epilogue or explicit arm returns as observed. Verify whether a branch lands on a final store or past it; source addresses alone do not identify the target. Cleanup exception -> M08.
-H12 | POD copy loop differs | Real type/size/alignment/alias semantics | Aggregate assignment for word/CTR copy; components for lfs/stfs. No compiler scaffolding.
+H10 | Switch dispatch differs | Full finite case/default/fallthrough set + text order | Enumerate values routed by comparison ranges: m2c can omit labels sharing another arm even when the result scores above 99%. Recover case order or a proven shared decoding family/tail; preserve repeated independent guards and field-publication order. Repeated per-arm address formation can require retaining the real index, not hoisting an element pointer before dispatch. No speculative labels.
+H11 | Return/cleanup join differs | Actual branch destinations + effect ownership | Shared result/epilogue or explicit arm returns as observed. Verify whether a branch lands on a final store or past it; source addresses alone do not identify the target. For temporary board/state simulation, preserve per-trial restoration and the final derived-state rebuild even when the candidate loop runs zero times. Cleanup exception -> M08.
+H12 | POD copy loop differs | Real type/size/alignment/alias semantics | Aggregate assignment for word/CTR copy; components for lfs/stfs. For event buffers, derive storage extent from the consumer copy as well as producer stores: four initialized coordinate bytes do not establish a four-byte object when dispatch copies sixteen. Check the retail frame and trailing-byte consumers; larger storage fixes an overread but does not prove the unwritten bytes are unobservable. No invented initialization or compiler scaffolding.
 H13 | Intrusive-list accesses differ | Link ownership + callback effects + no call | Exact typed reciprocal-store order; save next before mutating callback when observed, and reload links as retail does.
 H14 | Stack slots/store order differ | Real address-taken locals + offsets + lifetimes | Reorder declarations/whole aggregates or narrow scope; separate declaration order from initialization order only while preserving execution and C89 constraints. Distinguish compiler-created by-value copies; no padding locals.
 H15 | Coloring only | Same operations/CFG/memory accesses | At most one honest lifetime/declaration insight, then niche stop. A finite scratch-only search may identify it; use stack-sensitive scoring and verify the real TU. No register carousel or invented uses.
@@ -111,6 +113,11 @@ Apply these refinements only with the parent rule's evidence:
   keeping their loads at the observed point; declaration order is not initialization
   order. Consume lookahead in place only after every
   decoding use; preserve shifts even when omitting one raises fuzzy.
+  A floating-point bit-estimate sequence can also separate a real position
+  snapshot from its later publication. In chess cell blending, retaining the
+  initial X value removed an extra object reload while preserving the retail
+  Z-owner reload after the X store. Keep only snapshots with actual later uses;
+  see the [body-recovery evidence](mk-chess-body-recovery.md).
   If conversion-constant addressing differs with identical arithmetic, retain
   a genuinely used scan index through its scale lookup; do not invent a constant
   pool pointer or dead use. Recheck the first path separately from later macros.
@@ -120,6 +127,11 @@ Apply these refinements only with the parent rule's evidence:
   combine expresses the stage boundary without dead uses or register forcing.
 - H07/H11: An expanded helper can retain a shared publication block with no
   call (`ReadSram`); preserve failure cleanup and do not hide empty branches.
+  If retail copies a local dispatch table before several checks and then joins
+  an outer publication block, test one typed selection/validation helper with
+  explicit returns. Preserve each check's nonzero versus exactly-one semantics;
+  verify the table entries and actual stack copy, not just branch similarity
+  ([chess evidence](mk-chess-body-recovery.md)).
 - H07: For a proven call-free helper rejected by MWCC, an isolated diagnostic
   can test both inline_max_size and inline_max_total_size; either alone may
   fail. Scope/reset any justified limits and check siblings. This establishes
@@ -163,6 +175,12 @@ Apply these refinements only with the parent rule's evidence:
   Never read `sh_offset` as their initializer. Check this before changing a
   constant to resolve a `data_value` mismatch.
 - Runtime owners are not interchangeable with similar static tables.
+- Identical cursor stride does not establish identical ownership: follow each
+  pointer load before applying its offset. The mk_chess drone's +0x108 owner
+  differs from its embedded mode cursors. Its rescue helper also remained
+  behaviorally wrong at 99.97%: +0x4C was used instead of +0x50. Check immediates
+  before calling any residual a relocation or coloring ceiling; see the
+  [five-attempt audit](mk-chess-five-passes.md).
 - Automated extraction must recognize C identifiers: `0.0f * body` is not a
   pointer declaration. Reject malformed generated source before measuring it.
 - Exhausted declaration searches are not new evidence; do not repeat them

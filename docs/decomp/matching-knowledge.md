@@ -6,7 +6,13 @@ It replaces temporary campaign diaries and intermediate evidence dumps. Follow
 [high](playbook-high-occurrence.md), [mid](playbook-mid-occurrence.md), and
 [niche](playbook-niche.md) books. Rule IDs remain stable for measurement.
 
-Latest completed run: **113 new matches / 28,980 bytes from 77 source trials**.
+Latest broad campaign: **113 new matches / 28,980 bytes from 77 source trials**.
+The [mk_chess per-function campaign](mk-chess-per-function.md) supersedes the
+initial five-total interpretation: the user specified at most five attempts
+**per function**. It adds 25 ordinary/data-value exact functions (3,616 retail
+bytes) relative to the original baseline, including the initial six closures.
+All 339 symbols have an explicit disposition; 169 still have recovery-only m2c
+output. These are separate from the broad campaign denominator.
 Start with the [measured rule ranking](#measured-rule-ranking) and
 [reusable findings](#findings-to-reuse); the historical decoder/runtime evidence
 below explains the techniques that led into this campaign.

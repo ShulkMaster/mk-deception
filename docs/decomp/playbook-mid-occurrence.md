@@ -14,8 +14,8 @@ see the [full ranking](matching-knowledge.md#measured-rule-ranking).
 ## Compiler / source lowering
 
 M01 | Repeated compact saves/divw/boolean lowering across TU | Sibling evidence + all-function/section baselines | Test object-wide -O4,s with existing -use_lmw_stmw; test scheduling separately. Recheck legacy pragmas for redundancy via local-to-local section/function equivalence. Keep accepted flags fixed; no scattered optimization pragmas.
-M02 | Control-word/publication order differs | Retail accesses + alias boundaries | Load control word before subfield writes; publish owners at the observed point; reload counts after aliasing stores.
-M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name genuine factors. Preserve polynomial-before-sqrt order and real weight updates; remove redundant temporaries only without reassociation.
+M02 | Control-word/publication order differs | Retail accesses + alias boundaries | Load control word before subfield writes; publish owners at the observed point; reload counts after aliasing stores. In bounded candidate loops, check whether each trial is published before validation calls and whether the final budget check overrides an accepted trial; preserve both orders and compare call-time state ([chess setup evidence](mk-chess-body-recovery.md)).
+M03 | FP operands/schedule differ | Same math/grouping/rounding contract | Swap only proven commutative operands or name genuine factors. Preserve polynomial-before-sqrt order and real weight updates; remove redundant temporaries only without reassociation. For a retail rounded product followed by addition, try an explicit float conversion of that product and verify emitted instructions plus output bits; camera offsets can differ by ULPs despite identical formulas. For mixed fused/separate operations, verify emitted instructions after narrow function-scoped fp_contract control; lexical toggles inside a function may have no effect. Use an explicit fused operation only where retail proves it, and reset compiler mode afterward. Verify threshold constant width from lfs/lfd and pool bytes; promoting a float to compare against a double literal can differ at the nearest float boundary. Do not trust a decompiler cast annotation over the load width. Check whether negation occurs in FP before conversion or on the converted integer; preserve the observed order. A higher fuzzy score does not justify changed rounding.
 M04 | Compare boundary/boolean diamond differs | Equivalent bounds + operand purity | Equivalent threshold spelling; bitwise boolean only when both evaluations are required; ternary/guarded assignment for observed join. Try reversed pure equality operands once; do not invert correct siblings or ordered comparisons.
 M05 | Integer-to-float scaffold | Proven signedness/precision | Natural cast; remove fake 0x4330 volatile machinery. Genuine bit reinterpretation can use a supported typed union.
 M06 | Leading stack byte updated, whole word passed | GC big-endian layout + callee flags + initialization | Byte-bitfield/word union: init_pwr_bars flip word is 0x20000000, not integer 0x20.
@@ -39,11 +39,24 @@ M17 | Vtables/weak destructors differ, including link-only | ELF relocations + h
 
 ## Focused diagnostics
 
+- M01: When compact saves and indexed-loop lowering recur together, test the
+  object-wide compact profile (`-O4,s`, `-use_lmw_stmw on`) before changing loop
+  source. Attribute a combined trial to that profile, not either flag alone.
+  Inspect every function, retain prior exact matches, and disclose incomplete
+  siblings that regress. The [mk_chess audit](mk-chess-five-passes.md) closed
+  four functions this way after correcting the restore caller's false argument.
+- M06/M07: If packed storage is read with lbz, lhz and lwz at the same base,
+  require confirmed alignment, extent and endian contract before adding a typed
+  byte/halfword/word union. Preserve each consumer's original width and masks;
+  byte assembly helpers can obscure native-width retail loads. Validate layout
+  with MWCC and exercise packed-field combinations against retail execution.
 - M16: Before changing a small object's storage, check whether its first extern
   declaration sees the complete canonical type. The eight-byte DVD thread queue
   needed its real type header before that declaration for MWCC's small-data
   addressing. Correct the shared declaration and rebuild every header consumer;
-  do not fabricate a smaller type or force a section.
+  do not fabricate a smaller type or force a section. Conversely, declaring a
+  real multi-record collision table as a single pointer falsely selected SDA
+  addressing in mk_chess; recover its proven record type and extent.
 - H07/M13: An `inline` helper can still emit a call under the actual TU settings.
   If a canonical typed field-access macro already expresses the same proven
   owner, use it locally before changing global inline settings. The RenderWare
@@ -64,6 +77,13 @@ M17 | Vtables/weak destructors differ, including link-only | ELF relocations + h
   Compare symbol extent, alignment, addends, literal termination, and whole pools.
   Identical used bytes do not make a CLI-reported named-pool mismatch exact;
   disclose both raw-byte evidence and the actual comparison result.
+- M15: IF a generated text pool initializes plain `char` with integers above
+  127, REQUIRE the exact retail bytes and terminators; TRY adjacent string
+  literals with fixed-width octal escapes for encoded bytes. Preserve embedded
+  NULs and the final implicit terminator. Keep a separately evidenced split gap
+  outside the string object's extent; compare every byte, table relocation and
+  linked SHA. NBC retained 100% with signed- and unsigned-char host checks; see
+  [the quality report](nbc-quality-pass.md).
 - M15: Missing prefixes shared by many consumers can indicate a missing real
   owning table (`global_background_data`), not padding. Recover table entries
   and used literals, then compare the complete pool and every consumer. Keep

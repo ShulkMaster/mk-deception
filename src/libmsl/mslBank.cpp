@@ -608,8 +608,8 @@ static void mslBankReadWavesComplete(
 }
 
 /*
- * Sound-bank read completion: close the .msg handle, launch the 0x1c-byte
- * asset-header read from .mbg, publish the waves handle into the loaded bank,
+ * Sound-bank read completion: close the .mbg handle, launch the 0x1c-byte
+ * asset-header read from .msg, publish the waves handle into the loaded bank,
  * then validate and relocate the v11 bank body.
  * Soft ceiling: ~99.62% -- the complete callback contract is recovered; only
  * eight pooled-string relocation arguments remain.

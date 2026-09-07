@@ -11,7 +11,6 @@
  * ownership, calls, and algorithms; their residue is list-reload scheduling
  * and register allocation, with no opcode mismatch.
  */
-#include "msl/mslBank.h"
 #include "msl/mslStreamFile.h"
 #include "msl/mslStreamFile_internal.h"
 #include "dolphin/os.h"
@@ -19,6 +18,7 @@
 #include "msl/mslsupport.h"
 
 
+typedef unsigned int u32;
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int mslDSB_RequestHandleValue;
@@ -151,7 +151,6 @@ extern "C" void mslStreamFile_CancelRequest(void* handle) {
     }
 }
 
-/* Matched: 100% report-exact after restoring the retail DMA-buffer alignment. */
 extern "C" void mslStreamFile_Initialize(void) {
     int i;
     mslDSB_PendingAsyncRead* requests;
@@ -543,6 +542,8 @@ void mslDSB_ServiceNextRead(void) {
  * size is exact, with list-reload scheduling and GPR coloring remaining. */
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
+    /* Retail ignores the file result argument; only the owning request's
+     * error latch selects the error callback path. */
     mslDSB_FileRead* read = (mslDSB_FileRead*)callback_data;
 
     if (read->command != command) {

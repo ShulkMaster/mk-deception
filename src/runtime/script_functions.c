@@ -1581,14 +1581,15 @@ int mk_chess_air_move(void);
 int mk_chess_ani_1_frame(void);
 int mk_chess_ani_idle(void);
 int mk_chess_ani_to_end(void);
-int mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void);
+void mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void);
 int mk_chess_blend_to_normal_stance(void);
 int mk_chess_deactivate_my_properties(void);
 int mk_chess_dont_constrain_piece(void);
 void mk_chess_load_chess_table(void*);
-int mk_chess_make_spellcaster(int);
+struct ChessSpellDefinition;
+void mk_chess_make_spellcaster(const struct ChessSpellDefinition*);
 int mk_chess_piece_die(void);
-int mk_chess_piece_event_from_script(int);
+void mk_chess_piece_event_from_script(int);
 int mk_chess_piece_is_idle(void);
 int mk_chess_piece_match_y_ang_to_anim(void);
 int mk_chess_piece_set_state(int);
@@ -1962,15 +1963,15 @@ int mk_chess_add_movement_skill(int, int, int, int);
 int mk_chess_ani_loop_more_frames(void *, float);
 int mk_chess_ani_to_blend_frame(void *, float);
 int mk_chess_ani_to_frame_x(void *, float);
-int mk_chess_blend_into_cell_orgin_in_x_frames(void *, float);
+void mk_chess_blend_into_cell_orgin_in_x_frames(float);
 int mk_chess_blend_to_ani(int, int, void *, float, float);
 int mk_chess_blend_to_ani_frame(int, int, void *, float, float, float);
 int mk_chess_blend_to_desired_cell_position_setting(void *, float);
-int mk_chess_blend_to_my_cell_pos(void *, float);
+void mk_chess_blend_to_my_cell_pos(float);
 int mk_chess_define_class_initial_power(void *, float);
 int mk_chess_glitch_to_ani_frame(int, int, void *, float, float);
 int mk_chess_init_piece(int, int);
-int mk_chess_launch_special_fx(int, int, int);
+void mk_chess_launch_special_fx(unsigned int, unsigned int, unsigned int);
 int mk_chess_launch_up(void *, float, float);
 int mk_chess_queue_up_piece_event(int, int);
 int mk_chess_set_ani_speed(void *, float);
@@ -1979,13 +1980,13 @@ int mk_chess_set_normal_stance_script(int);
 int mk_chess_set_obj_move_weight(void *, float);
 int mk_chess_set_piece_event_script(int, int);
 int mk_chess_set_piece_info(int, void *, float);
-int mk_chess_set_piece_type_as(int, int);
-int mk_chess_shifter_switch(int, int, void *, float, float);
-int mk_chess_snap_into_cell_orgin_over_x_frames(void *, float);
+void mk_chess_set_piece_type_as(int, int);
+void mk_chess_shifter_switch(int, int, float, float);
+void mk_chess_snap_into_cell_orgin_over_x_frames(float);
 int mk_chess_spell_move_target_from_temp_area_to(int);
 int mk_chess_spell_move_target_to_target(int, int);
 int mk_chess_spell_move_target_to_temp_area(int);
-int mk_chess_spell_set_target_health(int, void *, float);
+void mk_chess_spell_set_target_health(unsigned int target, float health);
 int mk_chess_spell_show_target_portrait(int);
 int mk_chess_spell_target_add_access_restrictions(int, int, int, int);
 int mks_away_vel_update_by_group(int, int, void *, float, float, float);
@@ -2361,10 +2362,10 @@ void interaction_cam_set_target_info(int, float, float, float, float, float, flo
 void konquest_use_portal(int, const Vec*, int, float, float, float);
 int limb_sever_set_motion(int, int, int, int, int, int, int, int, float, float, float);
 int mk_chess_ani_until_reached_destination(int, float, float, float, float, float);
-int mk_chess_force_away(int, int, float, float);
+void mk_chess_force_away(int, int, float, float);
 int mk_chess_launch_n_land_ani_with_xz(int, int, int, float, float, float, float, float, float, float, float);
 int mk_chess_place_special_cell_at(int, int, int, int, float, float, float, float);
-int mk_chess_put_active_piece_at_cell(int, float, float);
+void mk_chess_put_active_piece_at_cell(int, float, float);
 int mk_chess_rotate_towards_cell(int, void *, float, float, float, float);
 int mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, int, int, int, void *, float, float, float, float);
 int mks_set_rotate_update_by_group(int, int, int, float, float, float);
@@ -7494,14 +7495,14 @@ void _mk_chess_shifter_switch(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_shifter_switch(args.raw->slots[0].i, args.raw->slots[1].i, current_args, args.raw->slots[2].f, args.raw->slots[3].f);
+    mk_chess_shifter_switch(args.raw->slots[0].i, args.raw->slots[1].i, args.raw->slots[2].f, args.raw->slots[3].f);
 }
 
 void _mk_chess_blend_to_my_cell_pos(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_blend_to_my_cell_pos(current_args, args.raw->slots[0].f);
+    mk_chess_blend_to_my_cell_pos(args.raw->slots[0].f);
 }
 
 void _mk_chess_snap_to_my_cell_now(void) {
@@ -7624,7 +7625,7 @@ void _mk_chess_spell_set_target_health(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_spell_set_target_health(args.raw->slots[0].i, current_args, args.raw->slots[1].f);
+    mk_chess_spell_set_target_health(args.raw->slots[0].i, args.raw->slots[1].f);
 }
 
 void _mk_chess_spell_get_target_max_health(void) {
@@ -7649,7 +7650,7 @@ void _mk_chess_make_spellcaster(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_make_spellcaster(args.raw->slots[0].i);
+    mk_chess_make_spellcaster(args.raw->slots[0].pointer);
 }
 
 void _mk_chess_set_piece_event_script(void) {
@@ -7841,7 +7842,7 @@ void _mk_chess_snap_into_cell_orgin_over_x_frames(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_snap_into_cell_orgin_over_x_frames(current_args, args.raw->slots[0].f);
+    mk_chess_snap_into_cell_orgin_over_x_frames(args.raw->slots[0].f);
 }
 
 void _mk_chess_check_snap_into_stance(void) {
@@ -7906,7 +7907,7 @@ void _mk_chess_blend_into_cell_orgin_in_x_frames(void) {
     ScriptArgsRef args;
 
     args.bytes = current_args;
-    mk_chess_blend_into_cell_orgin_in_x_frames(current_args, args.raw->slots[0].f);
+    mk_chess_blend_into_cell_orgin_in_x_frames(args.raw->slots[0].f);
 }
 
 void _mk_chess_ani_loop_more_frames(void) {

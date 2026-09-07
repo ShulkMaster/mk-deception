@@ -613,6 +613,7 @@ int SFTIM_IsStagnant(SfdHandle* handle)
     return 0;
 }
 
+/* TODO: [near miss] 98.51%; time-source fallback call setup differs; stop at codegen. */
 void SFTIM_VbIn(void)
 {
     int i;
@@ -643,8 +644,9 @@ void SFTIM_VbIn(void)
             update_video_clock = 1;
         }
         if (update_video_clock != 0) {
+            /* The retail clock wraps at 32 bits; signed samples retain -1 sentinels. */
             handle->timer_state.video_clock_sample +=
-                handle->timer_state.speed;
+                (unsigned int)handle->timer_state.speed;
         }
 
         if (handle->timer_state.field_02CC == -1) {
@@ -655,7 +657,8 @@ void SFTIM_VbIn(void)
             update_frame_clock = 1;
         }
         if (update_frame_clock != 0) {
-            handle->timer_state.field_02CC += handle->timer_state.speed;
+            handle->timer_state.field_02CC +=
+                (unsigned int)handle->timer_state.speed;
         }
 
         if (SFSET_GetCond(handle, 0x47) == 1) {
