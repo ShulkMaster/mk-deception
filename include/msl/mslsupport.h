@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+void mslTickCallBack_Queue(
+    void (*callback)(void*), void* callback_data);
 void mslDebugPrintf(const char* format, ...);
 void mslFileNameNoExt(const char* filename, char* output);
 unsigned int mslIntLog2(unsigned int value);

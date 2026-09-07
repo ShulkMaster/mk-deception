@@ -11,6 +11,10 @@ N04 | Factory cases return distinct owners | Allocation/failure semantics + case
 N05 | Reverse iteration/update differs | Direction/stride/zero-count semantics | Typed reverse-index walk or authentic vendor pre-decrement idiom; avoid manual byte offsets.
 N06 | Peephole/CSE/scheduler residue | Tested TU hypothesis + historical local-exception evidence | Investigate exact option in scratch; no per-function exceptions during fixed-TU-setting work or flags masking wrong source.
 
+N07 | Runtime scratch faults after object growth | Section extents, relocated instruction bytes and nonoverlapping mapped ranges | Size/alignment-aware section placement or checked slot bounds; repair the loader before changing source. Never skip a faulting instruction to claim equivalence. See [chess checkpoint 40](mk-chess-body-recovery.md).
+
+N08 | m2c exposes a possibly unwritten local consumed by retail | Instruction-level write/read paths, ABI frame offsets, and caller/state reachability | Vary only the incoming stack word in a retail runtime scratch and inspect the downstream argument/result. Distinguish demonstrated stack dependence from proof of reachable gameplay. Recover a missing initializer only with evidence; otherwise record the unresolved path, not a zero initializer or undefined C. See [chess checkpoint 128](mk-chess-body-recovery.md).
+
 ## Hard stops
 
 After the applicable honest source check, stop for:
@@ -18,7 +22,9 @@ After the applicable honest source check, stop for:
 - GPR/FPR coloring, parameter nonvolatile homes, or permutations rotating residue.
 - li-zero vs copying an already-zero register; commutative scratch encodings.
 - Frameless PLATFORM mtlr/blrl emission.
-- Anonymous relocation labels with verified identical payloads/targets.
+- Anonymous relocation labels with verified identical payloads/targets. Ordinary
+  score equality is insufficient: mk_chess board callbacks scored identically
+  for wrong 0.0f and correct -1.0f returns. Verify bytes/data-value comparison.
 - Equivalent branch/address lowering without new source evidence.
 
 Unknown calls/offsets/CFG are not coloring: classify borked or breakthrough needed

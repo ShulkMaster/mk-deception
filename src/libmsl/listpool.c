@@ -188,6 +188,8 @@ void ListInsert(_ListNode** list, _ListNode* node) {
     insert_node(list, node);
 }
 
+/* On the retail 32-bit big-endian ABI, index is the high handle halfword
+ * and generation is the low halfword. These handles are numeric pool IDs. */
 typedef union ListNodeId {
     msl_u32 value;
     struct {

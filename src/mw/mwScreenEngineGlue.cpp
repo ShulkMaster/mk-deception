@@ -291,8 +291,8 @@ extern int multi_profile_cursor_p2;
 void fade_to_black(int ticks, int freeze);
 char* GetName__6ScreenFv(void* screen);
 
-/* Retail Glue sdata (set_default_button_repeat_time / set_button_repeat_time). */
-int button_repeat_time;
+/* Retail .sdata starts hold-repeat delays at 15 ticks before any setter. */
+static int button_repeat_time = 15;
 
 /* Sleep 1.0f; full-TU retail labels this @4240 after a leading -1.0f in .sdata2. */
 static const float kSleepNegOne = -1.0f;
@@ -1567,7 +1567,7 @@ static float p_repeat_button_input__Fv(void);
  * See SE_EVT_* / pad bit table in mwScreenEngineGlue.h.
  * D-Pad / C-stick edges spawn hold-repeat mkprocs (retail; port 2 skips).
  */
-/* TODO: [near miss] 99.49657%; retail predecrement load still folds to displaced loads; stop at localized lowering. */
+/* TODO: [near miss] 99.23024%; retail predecrement load still folds to displaced loads; stop at localized lowering. */
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
     unsigned int bits;
     unsigned int* slotBits;
@@ -1689,9 +1689,8 @@ void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) 
 
 /*
  * C-stick hold-repeat: re-sample sticks; FireEvent while bit still held.
- * Soft ceiling: ~63% -- -sdata 0 float/SDA + oris vs ori bit set; stop.
  */
-/* TODO: [near miss] 90.98%; C destroy linkage fixed; repeat scheduling remains. */
+/* TODO: [near miss] 91.016%; repeat delay initialization restored; repeat scheduling remains. */
 static float p_repeat_analog_stick_input__Fv(void) {
     RepeatButtonPdata* pdata;
     GcPadSlot* slot;
@@ -1765,10 +1764,7 @@ static float p_repeat_analog_stick_input__Fv(void) {
     return (float)button_repeat_time;
 }
 
-/*
- * Soft ceiling: p_repeat_button_input ~65% -- -sdata 0 float/SDA leftovers; stop.
- */
-/* TODO: [breakthrough needed] 87.87%; C destroy linkage fixed; repeat scheduling remains. */
+/* TODO: [breakthrough needed] 87.943665%; repeat delay initialization restored; repeat scheduling remains. */
 static float p_repeat_button_input__Fv(void) {
     RepeatButtonPdata* pdata;
     GcPadSlot* slot;
@@ -2259,11 +2255,9 @@ void get_soundtrack_title_list(const char*** titles_out, unsigned int* count_out
 void get_storage_device_name_list(char** out);
 void get_profile_stats(char** outs);
 
+/* TODO: [breakthrough needed] 99.46%; recover separately named matrix data
+ * before defining ui_sound_table, currently used as its relocation base. */
 int mkGameVariables::GetStringMatrixCollection(int id, char*** out, int& rows) {
-    /*
-     * Soft ceiling: ~99.59% -- instructions match; the typed contiguous matrix
-     * view gives equivalent base+offset addresses with different reloc identities.
-     */
     GVStringMatrixIsland* matrices = (GVStringMatrixIsland*)ui_sound_table;
     unsigned int count = 0;
 

@@ -8,12 +8,10 @@
  */
 
 #include "dolphin/os.h"
+#include "dolphin/types.h"
 #include "msl/mslgcn.h"
 #include "msl/mslStreamCache.h"
 #include "runtime/cstring.h"
-
-typedef unsigned char u8;
-typedef unsigned long u32;
 
 struct StreamCacheBuffer {
     StreamCacheBuffer* next;
@@ -65,7 +63,7 @@ extern "C" int mslStreamCache_GetNumBuffers(void) {
     return s_StreamCache_NumBuffers;
 }
 
-extern "C" u32 mslStreamCache_GetStreamBuffer(void) {
+extern "C" unsigned long mslStreamCache_GetStreamBuffer(void) {
     u32 result = 0;
     unsigned long enabled = OSDisableInterrupts();
     StreamCacheBuffer* first = SCB_List_Free.first;

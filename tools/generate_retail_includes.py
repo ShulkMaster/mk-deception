@@ -219,8 +219,17 @@ def emit_nbc(elf: Elf32) -> dict[str, str]:
     pool = elf.symbol("@stringBase0")
     if pool.size != 0x1A64 or pool.section_index != elf.section(".rodata").index:
         raise ValueError("nbc.o: unexpected @stringBase0 layout")
-    pool_text = "/* Generated from retail nbc.o @stringBase0. */\n" + byte_initializer(
-        elf.symbol_data("@stringBase0")
+    pool_data = elf.symbol_data("@stringBase0")
+    if not pool_data.endswith(b"\0"):
+        raise ValueError("nbc.o: unterminated string pool")
+    # Adjacent string literals retain the retail encoding without out-of-range
+    # integer initializers for implementations where plain char is signed.
+    strings = pool_data[:-1].split(b"\0")
+    pool_text = "/* Generated from retail nbc.o @stringBase0. */\n"
+    pool_text += "\n".join(
+        "    " + (c_string(value)[:-1] + r'\0"' if i + 1 < len(strings)
+                 else c_string(value))
+        for i, value in enumerate(strings)
     ) + "\n"
 
     table = elf.symbol("nbc_general_text")

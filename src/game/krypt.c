@@ -915,7 +915,8 @@ static inline MkObj* animation_live_obj(AnimPdata* owner) {
     return object;
 }
 
-/* TODO: [near miss] 97.105260%; branch lowering, instruction scheduling; one-trial ceiling. */
+/* TODO: [near miss] 99.375%; anonymous constant relocations and two
+ * equivalent equality-compare operand orders remain; stop at local lowering. */
 static float p_krypt_animate(void) {
     AnimPdata* animation;
     MkObj* object;
@@ -929,9 +930,9 @@ static float p_krypt_animate(void) {
         if (animation->high_frame == 76.0f) {
             frame_delta = animation->frame -
                           (float)footstep_frames[0][krypt_pdata->footstep_frame_index];
-            if (frame_delta < 0.0f) {
-                frame_delta = -frame_delta;
-            }
+            /* Retail negates unordered deltas too (fcmpo/cror at 0x80169094
+             * and 0x80169190); a negative-only test changes that behavior. */
+            frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
             if (frame_delta < animation->step) {
                 object = animation_live_obj(animation);
 
@@ -948,9 +949,7 @@ static float p_krypt_animate(void) {
         } else if (animation->high_frame == 43.0f) {
             frame_delta = animation->frame -
                           (float)footstep_frames[1][krypt_pdata->footstep_frame_index];
-            if (frame_delta < 0.0f) {
-                frame_delta = -frame_delta;
-            }
+            frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
             if (frame_delta < animation->step) {
                 object = animation_live_obj(animation);
 
@@ -2193,9 +2192,11 @@ static float p_move_camera_and_open_coffin(void) {
     mkproc_jump_sleep(p_krypt_loop);
     return 0.0f;
 }
+/* TODO: [near miss] 99.7%; only anonymous float-constant relocations remain;
+ * retail accumulator width and update-before-sleep order are restored. */
 static float p_fade_fog(void) {
     KryptFogFadePdata* pdata;
-    int alpha;
+    unsigned int alpha;
     int step;
 
     pdata = (KryptFogFadePdata*)pdata_of_proc(aproc);
@@ -2211,11 +2212,13 @@ static float p_fade_fog(void) {
             alpha = 0;
         }
 
-        while ((unsigned int)alpha <= 0xFF) {
+        /* Retail adds before yielding (0x8016C138) and tests unsigned range.
+         * Preserve wraparound and the zero-step nonterminating fade. */
+        while (alpha <= 0xFF) {
             obj_set_sobj_alpha(g_game_info.bgnd_obj, 0x46, alpha);
             _mkproc_sleep_ticks = 1.0f;
-            mkproc_sleep();
             alpha += step;
+            mkproc_sleep();
         }
     }
 

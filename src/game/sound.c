@@ -65,7 +65,8 @@ typedef struct MslInitParam {
 typedef struct MslSystemInit {
     int size;
     int field_04;
-    int field_08;
+    unsigned short first_voice;
+    unsigned short voice_count;
     unsigned int aram_base;
     unsigned int aram_size;
 } MslSystemInit;
@@ -81,7 +82,7 @@ typedef struct CameraSoundObj {
 } CameraSoundObj;
 
 MslInitParam g_initDefault = {12, 1, 3};
-MslSystemInit g_sysinitDefault = {20, 0, 64, 0, 0};
+MslSystemInit g_sysinitDefault = {20, 0, 0, 64, 0, 0};
 extern SoundBankData sbank_data[];
 extern LoadedSoundBank loaded_sbank_data[];
 extern SoundBankLoadMode bank_load_table[];
@@ -141,7 +142,7 @@ float mslGetVol(_mslSystem* system);
 void mslSetVol(_mslSystem* system, float volume);
 void mslStopAll(_mslSystem* system);
 _mslSystem* mslInit(MslInitParam* init, MslSystemInit* system_init);
-void mslSetWavePath(_mslSystem* system, const char* path);
+int mslSetWavePath(_mslSystem* system, const char* path);
 char* strcat(char* dest, const char* src);
 void mslBankLoadAsync(void* system, int flags, char* name, void* callback);
 void check_and_load_sound_bank_async(int bank, int slot);
@@ -1978,7 +1979,7 @@ MslSoundHandle random_hit(int group) {
 
 #pragma optimization_level 4
 
-/* Soft ceiling: init_sounds ~99.97% - pooled-string relocation label only. */
+/* TODO: [near miss] 99.81%; pooled-string relocation label differs; stop at verified facade types. */
 int init_sounds(void) {
     current_sound_shuffle_state = 0;
     current_konq_sound_shuffle_state = 0;

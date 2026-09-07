@@ -1,4 +1,3 @@
-#include "msl/mslBank.h"
 #include "msl/ExtHeapMgr.h"
 #include "dolphin/os.h"
 #include "runtime/cstring.h"

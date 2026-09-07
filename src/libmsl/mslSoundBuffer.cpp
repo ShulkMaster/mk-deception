@@ -748,14 +748,14 @@ int SoundBuffer_Playable::Stop(void) {
         MIXReleaseChannel(self->voices[0]);
         AXFreeVoice(self->voices[0]);
         result = 0;
-        self->voices[0] = (_AXVPB*)result;
+        self->voices[0] = 0;
     }
     if (self->voices[1] != 0) {
         AXSetVoiceState(self->voices[1], 0);
         MIXReleaseChannel(self->voices[1]);
         AXFreeVoice(self->voices[1]);
         result = 0;
-        self->voices[1] = (_AXVPB*)result;
+        self->voices[1] = 0;
     }
     OSRestoreInterrupts(enabled);
     self->state = 8;

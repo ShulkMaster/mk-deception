@@ -1,4 +1,5 @@
 #include "game/nbc.h"
+#include "platform/io.h"
 
 typedef struct TextTableInfo {
     const char** strings;
@@ -6,19 +7,18 @@ typedef struct TextTableInfo {
 } TextTableInfo;
 
 extern const char* gc_mc_msg_text[];
+int get_language(void);
 
 /*
  * Retail @stringBase0 + nbc_general_text + text_table_info live in this TU.
  * Empty fallback is stringBase0 + 0x1A62 (a single space).
  */
-/* 0x1A64 pool + 4-byte retail .rodata gap */
-static const char stringBase0[0x1A68] = {
+static const char stringBase0[] =
 #include "game/nbc_stringBase0.inc"
-    0,
-    0,
-    0,
-    0,
-};
+;
+
+/* Separate four-byte zero gap following the retail 0x1A64-byte pool. */
+const unsigned int gap_04_80313324_rodata = 0;
 
 #define nbc_empty_string (&stringBase0[0x1A62])
 
@@ -27,13 +27,9 @@ const char* nbc_general_text[] = {
 };
 
 TextTableInfo text_table_info[] = {
-    {(const char**)gc_mc_msg_text, 0x91},
+    {gc_mc_msg_text, 0x91},
     {nbc_general_text, 0x4E},
 };
-
-int get_language(void);
-void eat_switch_edge(int player, int edge);
-int check_switch_edge(int player, int edge);
 
 void set_u8_bit(unsigned char* bits, int num_bits, int bit, int value) {
     unsigned int idx;
