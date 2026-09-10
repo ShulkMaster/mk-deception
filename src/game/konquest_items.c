@@ -45,20 +45,16 @@ int get_num_puis(void);
 int get_pui_inventory_bit_index(PuiItem* item);
 int strcmp(const char* a, const char* b);
 
-/*
- * Near match: selection, wrap, unlock checks, and return paths match retail.
- * Residue is one folded join branch and one harmless compare-GPR rotation.
- */
 int get_last_character_trained_with(void) {
     int count;
     int character;
-    unsigned int target;
+    int target;
 
     if (get_konq_profile_value(0, 0) != 0) {
         count = 0;
         character = -1;
         target = randu0(0x2C) & 0xFFFF;
-        do {
+        while (count < target) {
             character++;
             if (character >= 0x2C) {
                 character = 0;
@@ -66,7 +62,7 @@ int get_last_character_trained_with(void) {
             if (is_mark_as_unlocked(p1_profile, 1, character) != 0) {
                 count++;
             }
-        } while (count < target);
+        }
         return character & ~(character >> 31);
     }
     return p1_profile_konquest->last_character_trained_with;
@@ -144,11 +140,19 @@ RwTexture* get_konq_profile_value_item_tga(int index) {
     return result;
 }
 
-/*
- * Near match: bounds, inventory-bit lookup, item-type filter, loop, and return
- * CFG agree. Retail moves get_u8_bit's result directly to r31; MWCC routes the
- * same value through r0 first, leaving one extra move and a four-byte delta.
- */
+static inline int inventory_item_owned(int index) {
+    int owned;
+
+    if (index < 0 || index >= get_num_puis()) {
+        return 0;
+    }
+    owned = get_u8_bit(p1_profile_konquest->inventory_bits, get_num_puis(), index);
+    if (get_pui_item_at_inv_bit_index(index)->type != 1) {
+        return 0;
+    }
+    return owned;
+}
+
 int find_next_item_in_inventory(int index) {
     int owned;
 
@@ -157,14 +161,7 @@ int find_next_item_in_inventory(int index) {
     }
     index++;
     while (index < get_num_puis()) {
-        if (index < 0 || index >= get_num_puis()) {
-            owned = 0;
-        } else {
-            owned = get_u8_bit(p1_profile_konquest->inventory_bits, get_num_puis(), index);
-            if (get_pui_item_at_inv_bit_index(index)->type != 1) {
-                owned = 0;
-            }
-        }
+        owned = inventory_item_owned(index);
         if (owned != 0) {
             return index;
         }
@@ -173,11 +170,6 @@ int find_next_item_in_inventory(int index) {
     return -1;
 }
 
-/*
- * Near match: the repeated ownership test and count loop agree with retail.
- * The remaining four-byte delta is one extra result move; other differences
- * are only the r29-r31 allocation rotation caused by that move.
- */
 int get_number_items_in_inventory(void) {
     int count;
     int index;
@@ -185,14 +177,7 @@ int get_number_items_in_inventory(void) {
 
     count = 0;
     for (index = 0; index < get_num_puis(); index++) {
-        if (index < 0 || index >= get_num_puis()) {
-            owned = 0;
-        } else {
-            owned = get_u8_bit(p1_profile_konquest->inventory_bits, get_num_puis(), index);
-            if (get_pui_item_at_inv_bit_index(index)->type != 1) {
-                owned = 0;
-            }
-        }
+        owned = inventory_item_owned(index);
         if (owned != 0) {
             count++;
         }
@@ -200,11 +185,8 @@ int get_number_items_in_inventory(void) {
     return count;
 }
 
-/*
- * Near match: type filtering, profile read, addition, and setter ABI agree.
- * MWCC folds two equivalent rejected-range branches that retail emits
- * separately; there are no data, argument, or side-effect differences.
- */
+/* TODO: [near miss] 91.85185%; equivalent category exits remain folded;
+ * flat and nested switch controls differ; retain guards pending dispatch evidence. */
 void add_to_konq_profile_value(int type, int value) {
     int current;
 
@@ -224,11 +206,6 @@ void add_to_konq_profile_value(int type, int value) {
     set_konq_profile_value(type, 0, current + value);
 }
 
-/*
- * Near match: all switch cases, bounds, access widths, and return values agree.
- * The sole instruction residue is an extra r0 move of get_u8_bit's result;
- * the remaining jump-table differences are relocations shifted by that move.
- */
 int get_konq_profile_value(int type, int index) {
     int value;
 
@@ -288,15 +265,7 @@ int get_konq_profile_value(int type, int index) {
         if (index >= get_num_puis()) {
             break;
         }
-        if (index < 0 || index >= get_num_puis()) {
-            value = 0;
-        } else {
-            value = get_u8_bit(
-                p1_profile_konquest->inventory_bits, get_num_puis(), index);
-            if (get_pui_item_at_inv_bit_index(index)->type != 1) {
-                value = 0;
-            }
-        }
+        value = inventory_item_owned(index);
         break;
     case 7:
         value = p1_profile_common->kills;

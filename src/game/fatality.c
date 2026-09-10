@@ -49,7 +49,6 @@ extern void unimpale_victim(PlyrPdata* victim);
 extern void reload_fan(PlyrPdata* player);
 extern void run_reaction_cleanup_function(PlyrPdata* player);
 extern void stop_tunes(void);
-extern int is_a_to_the_right_of_b(void* a, void* b);
 
 static unsigned int fatality_anim_script;
 int fatality_anim_slot;

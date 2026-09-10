@@ -864,17 +864,10 @@ static inline KonquestNpc* npc_find_by_data_inline(
     return result;
 }
 
-static inline KonquestNpc* npc_find_by_table_index_inline(int table_index) {
-    KonquestNpc* npc = konquest_pdata->monk_npc;
+static inline KonquestNpc* npc_find_by_table_index_inline(unsigned int table_index) {
+    KonquestNpc* npc = npc_get_latched(
+        konquest_pdata->monk_npc, &konquest_pdata->monk_npc_instance);
     MkPtr* link;
-
-    if (npc != 0) {
-        if (npc->hdr.instance != konquest_pdata->monk_npc_instance) {
-            npc = 0;
-        }
-    } else {
-        npc = 0;
-    }
     if (npc != 0 && npc->data_table_index == table_index) {
         return npc;
     }
@@ -1464,6 +1457,8 @@ void npc_set_my_conversation_counter(int count) {
     }
 }
 
+/* TODO: [breakthrough needed] 98.6875%; retail error path reads failed lookup
+ * owner, not data; resolve null-read behavior and variadic call lowering. */
 void npc_set_his_conversation_counter(
     KonquestNpcData* data, int count) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -1820,7 +1815,8 @@ void npc_glitch_him_to_ani(
     }
 }
 
-/* Soft ceiling: 94.117645% - retail retains a redundant repeated null branch. */
+/* TODO: [near miss] 94.117645%; repeated animation-null branch remains;
+ * require evidence for a shared animation-operation boundary before refining. */
 void npc_set_anim_proc(MkProcEntryFn entry) {
     if (g_active_npc != 0 && g_active_npc->animation != 0) {
         xfer_proc(g_active_npc->animation->proc, entry);
@@ -2867,20 +2863,9 @@ void npc_play_two_player_one_shot_anims(int npc_animation_id,
     }
 }
 
-/*
- * Soft ceiling: 93.888885% - the typed pointer comparison and return CFG are
- * exact; retail retains one redundant branch in the stale-instance latch.
- */
 int is_this_the_monk_npc(KonquestNpc* npc) {
-    KonquestNpc* monk = konquest_pdata->monk_npc;
-
-    if (monk != 0) {
-        if (monk->hdr.instance != konquest_pdata->monk_npc_instance) {
-            monk = 0;
-        }
-    } else {
-        monk = 0;
-    }
+    KonquestNpc* monk = npc_get_latched(
+        konquest_pdata->monk_npc, &konquest_pdata->monk_npc_instance);
 
     if (npc_is_same(monk, npc)) {
         return 1;
@@ -3124,17 +3109,14 @@ void vdestroy_konquest_npc_struct(KonquestNpc* npc) {
     mkhdr_memfree(&npc->hdr);
 }
 
-/*
- * Soft ceiling: 83.098595% - ID validation, table-index decode, stale-list
- * cleanup, state check, and event dispatch match at retail size. Remaining
- * differences are latch branch polarity, save form, and register allocation.
- */
+/* TODO: [breakthrough] 95.53521%; latch and unsigned index compares recovered;
+ * resolve missing-NPC state-read contract before list/register refinement. */
 int npc_collision_callback(unsigned int* collision_id) {
     unsigned int id = *collision_id;
 
     if (id != 0 && (id & 0x80000000) == 0 &&
         konquest_pdata->collision_mode == 2) {
-        int table_index = id - 0x10001;
+        unsigned int table_index = id - 0x10001;
         KonquestNpc* npc = npc_find_by_table_index_inline(table_index);
 
         if (npc->state_58 != 5) {

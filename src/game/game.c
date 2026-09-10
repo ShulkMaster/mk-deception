@@ -2168,28 +2168,27 @@ static LoadingScreenEntry* get_loading_table(void) {
         } else {
             region = ((KonquestLoadingSaveView*)konquest_save_data)->region;
         }
-        break;
+
+        switch (region) {
+        default:
+            return (LoadingScreenEntry*)(tables + 0x73C);
+        case 2:
+            return (LoadingScreenEntry*)(tables + 0x778);
+        case 3:
+            return (LoadingScreenEntry*)(tables + 0x88C);
+        case 4:
+            return (LoadingScreenEntry*)(tables + 0x808);
+        case 5:
+            return (LoadingScreenEntry*)(tables + 0x844);
+        case 6:
+            return (LoadingScreenEntry*)(tables + 0x7CC);
+        case 7:
+            return (LoadingScreenEntry*)(tables + 0x8C8);
+        case 8:
+            return (LoadingScreenEntry*)(tables + 0x79C);
+        }
     default:
         return (LoadingScreenEntry*)(tables + 0x52C);
-    }
-
-    switch (region) {
-    case 2:
-        return (LoadingScreenEntry*)(tables + 0x778);
-    case 3:
-        return (LoadingScreenEntry*)(tables + 0x88C);
-    case 4:
-        return (LoadingScreenEntry*)(tables + 0x808);
-    case 5:
-        return (LoadingScreenEntry*)(tables + 0x844);
-    case 6:
-        return (LoadingScreenEntry*)(tables + 0x7CC);
-    case 7:
-        return (LoadingScreenEntry*)(tables + 0x8C8);
-    case 8:
-        return (LoadingScreenEntry*)(tables + 0x79C);
-    default:
-        return (LoadingScreenEntry*)(tables + 0x73C);
     }
 }
 
@@ -2457,15 +2456,16 @@ int ck_fatality_available(void) {
         if (fatality->primary_script == 0) {
             return 0;
         }
-        if ((int)mode_of_play == 8) {
-            return 0;
-        }
-        if (g_game_info.flag_bits.level_fatality_done) {
-            return 0;
-        }
-        return get_blood_level() != 0;
+    } else {
+        return 0;
     }
-    return 0;
+    if ((int)mode_of_play == 8) {
+        return 0;
+    }
+    if (g_game_info.flag_bits.level_fatality_done) {
+        return 0;
+    }
+    return get_blood_level() != 0;
 }
 
 static float p_say_finish_him(void) {
@@ -2538,6 +2538,8 @@ static float p_say_finish_him(void) {
     return -1.0f;
 }
 
+/* TODO: [breakthrough] 93.771126%; inlined availability guard boundary fixed;
+ * paired-single save frame confirmed; defer remaining caller recovery. */
 static void ck_do_fatality(void) {
     PlyrInfo* victim;
     PlyrInfo* victor;
@@ -3095,6 +3097,8 @@ float p_gamelogic(void) {
     return 0.0f;
 }
 
+/* TODO: [near miss] 95%; initializer is register-only r3/r4 coloring;
+ * retain the existing prefix view and stop without new ownership evidence. */
 void init_game_info_struct(void) {
     GameInfoInitPrefix* prefix;
 

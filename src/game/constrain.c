@@ -173,6 +173,8 @@ static inline int player_ignores_obstacles(const PlyrPdata* player) {
 #define CONSTRAIN_P1_PDATA (g_game_info.plyr0.slot.pdata)
 #define CONSTRAIN_P2_PDATA (g_game_info.plyr1.slot.pdata)
 
+/* TODO: [near miss] 99.166664%; stale-link and flag registers differ;
+ * successor helper was neutral; stop at coloring. */
 void set_background_obstacle_disable_flag(
     int obstacle_id, int disabled) {
     MkPtr* link;
@@ -263,18 +265,11 @@ int get_obstacle_type_from_id(unsigned int obstacle_id) {
     return 8;
 }
 
-/*
- * Soft ceiling: add_shape_to_background_obstacle_list ~94.52% - typed table
- * selection is exact semantically; the remaining island is loop NV
- * allocation plus the default type value being held across the scan.
- */
 ArenaObstacle* add_shape_to_background_obstacle_list(
     const CollisionShape* shape,
     unsigned int obstacle_id) {
     ArenaObstacle* obstacle;
     CollisionObj* collision;
-    int type;
-    int index;
 
     obstacle = (ArenaObstacle*)get_mkhdr(
         &vtbl_obstacle, sizeof(ArenaObstacle));
@@ -294,15 +289,7 @@ ArenaObstacle* add_shape_to_background_obstacle_list(
 
     mk_insert(&obstacle->hdr, &constrain_info.obstacles);
     obstacle->obstacle_id = obstacle_id;
-    type = 8;
-    for (index = 0; index < 8; index++) {
-        if (obstacle_info_table[index].first_id <= obstacle_id &&
-            obstacle_info_table[index].last_id >= obstacle_id) {
-            type = obstacle_info_table[index].type;
-            break;
-        }
-    }
-    obstacle->type = type;
+    obstacle->type = get_obstacle_type_from_id(obstacle_id);
 
     collision = get_collision_obj();
     if (collision != 0) {
@@ -313,7 +300,7 @@ ArenaObstacle* add_shape_to_background_obstacle_list(
             ((ConstrainObstacleVtable*)obstacle->hdr.vtbl)
                 ->destroy(obstacle);
         }
-        obstacle = 0;
+        return 0;
     }
     return obstacle;
 }
@@ -516,6 +503,8 @@ void uv_to_opponent(Vec* direction) {
     }
 }
 
+/* TODO: [breakthrough needed] 80.25%; repeated retail clears differ;
+ * establish real BSS owners before changing initialization alias boundaries. */
 void start_constrain_proc(void) {
     ConstrainBssLayout* bss;
     ConstrainState* state;
@@ -572,6 +561,8 @@ static inline void copy_constrain_position(Vec* destination,
     destination->z = source->z;
 }
 
+/* TODO: [near miss] 81.942856%; coordinate load/store scheduling differs;
+ * scheduling-off shifts residue; retain source pending alias-boundary evidence. */
 void set_constrain_last_pos(int player, const Vec* position) {
     if (find_mkproc_pid(0x1003) != 0) {
         tightrope_set = 0;

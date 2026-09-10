@@ -198,10 +198,13 @@ typedef struct PlyrStatusData {
     }; /* +0x84 */
     char pad88[0x2C];
     struct TrialWrapupData* trial_wrapup_data; /* +0xB4 */
-    char padB8[0x7C];
+    char padB8[0x74];
+    unsigned int getup_script_12C; /* +0x12C - death-type 1 get-up script */
+    unsigned int getup_script_130; /* +0x130 - death-type 4 get-up script */
     unsigned int reaction_cleanup; /* +0x134 - cleanup script function */
     char pad138[4];
     unsigned int throw_script; /* +0x13C */
+    unsigned int pain_voice; /* +0x140 */
 } PlyrStatusData;
 
 typedef struct PlyrWeaponStyle {

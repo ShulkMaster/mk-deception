@@ -66,20 +66,19 @@ void reset_default_gameplay_settings(void) {
     game_settings.fatalities = 1;
 }
 
-/* Soft ceiling: reset_default_audio_settings ~61.58% -- typed copy is exact;
- * residual is byte-index lfsx/stfsx scheduling versus MWCC clrrwi emission. */
+#pragma opt_strength_reduction off
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 void reset_default_audio_settings(void) {
-    int offset;
+    int channel;
 
-    for (offset = 0; offset < 24; offset += 4) {
-        game_settings.volume[offset >> 2] =
-            default_game_settings.volume[offset >> 2];
+    for (channel = 0; channel < 6; channel++) {
+        game_settings.volume[channel] = default_game_settings.volume[channel];
     }
 }
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
+#pragma opt_strength_reduction reset
 
 /* Soft ceiling: set_game_option ~98.30% -- brightness base/value coloring; stop. */
 void set_game_option(int option_id, int value) {

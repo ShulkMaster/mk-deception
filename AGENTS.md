@@ -66,6 +66,27 @@ tracking, remove only the tracking content. Unrelated functional TODOs remain.
 Keep verification evidence and the distinction between report-exact, data-value
 exact, and link-exact in reports and project metadata, not function comments.
 
+## Local agent workspace
+
+Use the Git-ignored `.agent-work/` directory for local agent artifacts:
+
+- `issues/<task>/`: issue notes, investigation logs, and reproduction details.
+- `patches/<task>/`: proposed `.patch` or `.diff` files and application notes.
+- `decomp/<campaign>/`: matching reports, audits, scores, and evidence indexes.
+
+Create these directories on demand. Use descriptive lowercase task names with
+hyphens; include the base commit, affected symbols/files, commands, and validation
+results in each task's notes. Keep patch files inert until deliberately applied.
+Do not put credentials, retail images, or tool checkouts here.
+
+Continue using `.scratches/` for compiler experiments, m2c/permuter workspaces,
+and generated comparison/build output. Reports may reference those local paths.
+Keep reusable conventions and diagnostic playbooks in tracked `docs/decomp/`;
+keep actual fixes in `src/`, `include/`, or the relevant project files. Ignored
+artifacts are local-only: tracked documentation must explain its reusable finding
+without requiring an ignored report. Promote supporting evidence deliberately
+when it must be available to other contributors.
+
 ## Initialize the repository
 
 Python is the only hard prerequisite for the bootstrap. Git and Ninja should be
@@ -148,8 +169,22 @@ Useful variants:
 ```sh
 python3 tools/m2c_decompile.py --c++ SYMBOL build/GQNE5D/asm/UNIT.s
 python3 tools/m2c_decompile.py --stack-structs SYMBOL build/GQNE5D/asm/UNIT.s
-python3 tools/m2c_decompile.py --context build/GQNE5D/src/UNIT.ctx SYMBOL build/GQNE5D/asm/UNIT.s
 ```
+
+For typed recovery, first build and preprocess a scratch context. Generated
+`.ctx` files can still contain directives; m2c requires preprocessed C:
+
+```sh
+ninja build/GQNE5D/src/UNIT.ctx
+mkdir -p .scratches/m2c
+cpp -P -DBUILD_VERSION=0 -DVERSION_GQNE5D -DNDEBUG=1 build/GQNE5D/src/UNIT.ctx > .scratches/m2c/UNIT.ctx.c
+python3 tools/m2c_decompile.py --context .scratches/m2c/UNIT.ctx.c SYMBOL build/GQNE5D/asm/UNIT.s
+```
+
+These defines match the current GQNE5D build; use the actual unit's defines
+and include paths if its configuration differs. Host preprocessing prepares
+parser input, not runtime evidence. Check inferred union members against retail
+offsets and never hand-edit generated contexts.
 
 Use m2c to recover control flow, operations, and an initial type hypothesis.
 Replace generated temporaries, unknown types, casts, and gotos with supported

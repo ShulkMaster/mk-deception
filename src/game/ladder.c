@@ -53,12 +53,6 @@ typedef struct LadderObjVtable {
     void (*destroy)(MkObj* object);
 } LadderObjVtable;
 
-typedef struct LadderPauseFlags {
-    unsigned char pad_7_6 : 2;
-    unsigned char ladder_complete : 1;
-    unsigned char pad_4_0 : 5;
-} LadderPauseFlags;
-
 typedef struct LadderStringRef {
     StringObj* object;
     unsigned int instance;
@@ -164,10 +158,8 @@ const char* get_rnd_chess_koin_type(void) {
     return coin;
 }
 
-/*
- * Soft ceiling: get_chess_leader_won_coin_award ~49.33% -- retail preserves
- * float-to-int conversions of constant awards; keep the readable algorithm.
- */
+/* TODO: [breakthrough needed] 49.333332%; retail retains float constant
+ * conversions; constant-folding control is neutral; need source-boundary evidence. */
 int get_chess_leader_won_coin_award(void) {
     int difficulty;
     int award;
@@ -221,11 +213,8 @@ int get_ladder_position(void) {
     return curr_ladder_pos;
 }
 
-/*
- * Soft ceiling: advance_ladder_position ~97.16% -- retail keeps the ladder
- * index in r31 and rematerializes its scaled offset after the call; MWCC keeps
- * the scaled offset in r31 instead. The algorithm and memory accesses agree.
- */
+/* TODO: [near miss] 97.15909%; compiler retains byte offset across background
+ * query instead of retail index; strength-reduction control is neutral. */
 int advance_ladder_position(void) {
     int ladder_size;
     int mode;
@@ -249,7 +238,7 @@ int advance_ladder_position(void) {
 
     next_position = ++curr_ladder_pos;
     if (next_position == ladder_size) {
-        ((LadderPauseFlags*)&g_game_info.pause_flags)->ladder_complete = 1;
+        g_game_info.pause_flag_bits.ladder_complete = 1;
         curr_ladder_pos = 0;
         curr_ladder_char = -1;
         g_game_info.field_20C = 0;

@@ -361,6 +361,8 @@ void get_gallery_page_number_string(char* out) {
             (kontent_pdata->item_count - 1) / 12 + 1);
 }
 
+/* TODO: [near miss] 98.809525%; table and selection owner registers differ;
+ * direct-table trial regresses; retain snapshot and stop at coloring. */
 char* get_long_coffin_description(void) {
     int coffin;
     CoffinEntry* entries;
@@ -383,11 +385,11 @@ char* get_coffin_blurb(void) {
 
     selection = kontent_pdata->current_selection;
     coffin = kontent_pdata->items[selection];
-    entries = coffin_data;
     if (selection < kontent_pdata->item_count) {
         if (kontent_pdata->category == 2) {
             return (char*)global_player_data[coffin].name;
         }
+        entries = coffin_data;
         if (gallery_data_loaded == 0) {
             return 0;
         }
@@ -1142,6 +1144,8 @@ static inline void init_tombstone_common(void* pfx_arg, int particle_count, floa
     pfx->anim_frame = 0;
 }
 
+/* TODO: [near miss] 96.47059%; RGBA argument address scheduling and constant
+ * relocations remain; require source-boundary evidence before changing helper. */
 void init_tombstone_letters(void* pfx) {
     init_tombstone_common(pfx, 0x48, 0.3f, (void*)0x012a0005, 0x100, 0x20, 0x20, 0x40);
 }

@@ -726,16 +726,14 @@ int save_konq_memory_to_krd_buffer(int region) {
     return 1;
 }
 
-/* Retail-sized; remaining mismatch is r4/r5 coloring in the monk latch. */
+/* TODO: [near miss] 98.375%; r4/r5 owner coloring in the monk latch remains;
+ * retain typed snapshot and stop without new lifetime evidence. */
 void save_konq_common_data_to_buffer(void) {
     copy_common_konquest_profile_data(p1_profile_konquest);
 }
 
-/*
- * Soft ceiling: validate_region_buffer ~98.1% at the exact retail size under
- * this TU's retail-supported -O4,s mode. Predicate, booleanization, CFG, and
- * access widths agree; only local GPR coloring remains.
- */
+/* TODO: [near miss] 98.07692%; predicate, widths and CFG agree at retail size;
+ * local GPR coloring remains under the TU's supported -O4,s mode. */
 int validate_region_buffer(int region) {
     KonquestProfileSave* profile;
     KonquestRegionBuffer* buffer;
