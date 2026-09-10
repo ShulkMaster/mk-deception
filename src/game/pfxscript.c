@@ -1930,38 +1930,14 @@ void spawn_random_size(const float* table) {
 }
 
 void set_growth_coefficient(float coefficient) {
-    PfxScriptEnvironment* environment;
-    int active;
-
-    environment = 0;
-    active = pfxscript_environment.active;
-    if (active != 0) {
-        environment = &pfxscript_environment;
-    }
-    if (environment->effect != 0) {
-        environment = 0;
-        if (active != 0) {
-            environment = &pfxscript_environment;
-        }
-        environment->growth_coefficient = coefficient;
+    if (active_pfx_environment()->effect != 0) {
+        active_pfx_environment()->growth_coefficient = coefficient;
     }
 }
 
 void set_drag_coefficient(float coefficient) {
-    PfxScriptEnvironment* environment;
-    int active;
-
-    environment = 0;
-    active = pfxscript_environment.active;
-    if (active != 0) {
-        environment = &pfxscript_environment;
-    }
-    if (environment->effect != 0) {
-        environment = 0;
-        if (active != 0) {
-            environment = &pfxscript_environment;
-        }
-        environment->drag_coefficient = coefficient;
+    if (active_pfx_environment()->effect != 0) {
+        active_pfx_environment()->drag_coefficient = coefficient;
     }
 }
 
@@ -2087,6 +2063,8 @@ void emit_cylindrical(
     }
 }
 
+/* TODO: [near miss] 98.478264%; commutative FP operands and constant relocation
+ * remain; reversed source operands are neutral; stop at coloring. */
 void emit_cartesian(
     int field, float x, float y, float z,
     float width, float height, float depth) {
@@ -2210,10 +2188,12 @@ void emit_spherical(int field, float radius) {
     }
 }
 
+/* TODO: [near miss] 98.793106%; retail emitter guard restored;
+ * FP register/commutative operand residue remains; stop at coloring. */
 void emit_cuboid(int field, float x, float y, float z) {
     PfxScriptEnvironment* environment = active_pfx_environment();
 
-    if (environment != 0 && environment->emitter != 0) {
+    if (environment->emitter != 0) {
         pfxvm_spawn_box(
             environment->emitter, field,
             -x * 0.5f, -y * 0.5f, -z * 0.5f, x, y, z);
@@ -2261,6 +2241,8 @@ void emit_uv(int field, float u, float v) {
     }
 }
 
+/* TODO: [near miss] 99.375%; commutative FP operands and constant relocation
+ * remain; reversed source operands are neutral; stop at coloring. */
 void emit_in_range(int unused, float center, float width) {
     PfxScriptEnvironment* environment = 0;
     float half_width;

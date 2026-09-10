@@ -83,20 +83,24 @@ f32 p_puzzle_switch_down(void);
 f32 p_puzzle_switch_up(void);
 f32 p_puzzle_switch_lt_stick(void);
 f32 p_swap_levels(void);
-f32 switch_proc_up(void);
-f32 switch_proc_down(void);
+static f32 switch_proc_up(void);
+static f32 switch_proc_down(void);
 f32 switch_proc_left(void);
 f32 switch_proc_right(void);
 int check_switch(int port, int switch_index);
 int is_this_move_disabled_exec(int move_id);
 f32 which_way_is_towards(void);
 
-s32 dash_back_check(f32 direction);
+static s32 dash_back_check(f32 direction);
 
-static int switch_input_blocked(void) {
-    return !is_plyr_controller_enabled(switch_pdata->player) ||
-           is_controller_removed() ||
-           g_game_info.switch_input_flags.eat_switches;
+static inline int switch_input_eaten(void) {
+    if (is_controller_removed()) {
+        return 1;
+    }
+    if (g_game_info.switch_input_flags.eat_switches) {
+        return 1;
+    }
+    return 0;
 }
 
 static f32 dispatch_switch(MkProcEntryFn entry) {
@@ -105,98 +109,122 @@ static f32 dispatch_switch(MkProcEntryFn entry) {
 }
 
 f32 pad_rt_stick_btn_proc(void) {
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        return -1.0f;
+    }
     return -1.0f;
 }
 
 f32 pad_lt_stick_btn_proc(void) {
-    if (switch_input_blocked()) {
-        return -1.0f;
-    }
-    if (get_game_state() == 2 && switch_pdata->player->pad_index == 0) {
-        return dispatch_switch(p_swap_levels);
-    }
-    if (get_game_state() == 0x12) {
-        return dispatch_switch(p_puzzle_switch_lt_stick);
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        switch (get_game_state()) {
+        case 7: break;
+        case 0x12: return dispatch_switch(p_puzzle_switch_lt_stick);
+        case 2:
+            if (switch_pdata->player->pad_index == 0) {
+                return dispatch_switch(p_swap_levels);
+            }
+            break;
+        }
     }
     return -1.0f;
 }
 
 f32 pad_select_proc(void) {
-    if (!switch_input_blocked()) {
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
         get_game_state();
     }
     return -1.0f;
 }
 
 f32 pad_r2_proc(void) {
-    if (switch_input_blocked()) {
-        return -1.0f;
-    }
-    if (get_game_state() == 7) {
-        return dispatch_switch(p_block);
-    }
-    if (get_game_state() == 0x12) {
-        return dispatch_switch(p_puzzle_switch_drop);
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        switch (get_game_state()) {
+        case 7: return dispatch_switch(p_block);
+        case 0x12: return dispatch_switch(p_puzzle_switch_drop);
+        }
     }
     return -1.0f;
 }
 
 f32 pad_r1_proc(void) {
-    if (switch_input_blocked()) {
-        return -1.0f;
-    }
-    switch (get_game_state()) {
-    case 7: return dispatch_switch(switch_proc_attack_5);
-    case 0x13: return dispatch_switch(p_konquest_switch_R1);
-    case 0x17: return dispatch_switch(p_board_switch_r2);
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        switch (get_game_state()) {
+        case 7: return dispatch_switch(switch_proc_attack_5);
+        case 0x17: return dispatch_switch(p_board_switch_r2);
+        case 0x13: return dispatch_switch(p_konquest_switch_R1);
+        }
     }
     return -1.0f;
 }
 
 f32 pad_l2_proc(void) {
-    if (!switch_input_blocked() && get_game_state() == 7) {
-        return dispatch_switch(switch_proc_pickup);
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        switch (get_game_state()) {
+        case 7: return dispatch_switch(switch_proc_pickup);
+        case 2: break;
+        }
     }
     return -1.0f;
 }
 
 f32 pad_l1_proc(void) {
-    if (switch_input_blocked()) {
-        return -1.0f;
-    }
-    if (get_game_state() == 7) {
-        return dispatch_switch(switch_proc_advance_moveset);
-    }
-    if (get_game_state() == 0x17) {
-        return dispatch_switch(p_board_switch_l1);
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        switch (get_game_state()) {
+        case 7: return dispatch_switch(switch_proc_advance_moveset);
+        case 0x17: return dispatch_switch(p_board_switch_l1);
+        }
     }
     return -1.0f;
 }
 
 f32 pad_rup_proc(void) {
-    if (switch_input_blocked()) {
-        return -1.0f;
-    }
-    switch (get_game_state()) {
-    case 7: return dispatch_switch(switch_proc_attack_2);
-    case 0x12: return dispatch_switch(p_puzzle_switch_2);
-    case 0x13:
-    case 0x14: return dispatch_switch(p_konquest_inventory_switch);
-    case 0x17: return dispatch_switch(p_board_switch_2);
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        switch (get_game_state()) {
+        case 7: return dispatch_switch(switch_proc_attack_2);
+        case 0x12: return dispatch_switch(p_puzzle_switch_2);
+        case 0x17: return dispatch_switch(p_board_switch_2);
+        case 0x13:
+        case 0x14: return dispatch_switch(p_konquest_inventory_switch);
+        }
     }
     return -1.0f;
 }
 
 static f32 dispatch_direction(
     MkProcEntryFn fight_entry, MkProcEntryFn puzzle_entry) {
-    if (switch_input_blocked()) {
-        return -1.0f;
-    }
-    if (get_game_state() == 7) {
-        return dispatch_switch(fight_entry);
-    }
-    if (get_game_state() == 0x12) {
-        return dispatch_switch(puzzle_entry);
+    if (is_plyr_controller_enabled(switch_pdata->player)) {
+        if (switch_input_eaten()) {
+            return -1.0f;
+        }
+        switch (get_game_state()) {
+        case 7: return dispatch_switch(fight_entry);
+        case 0x12: return dispatch_switch(puzzle_entry);
+        }
     }
     return -1.0f;
 }
@@ -395,6 +423,8 @@ f32 pad_rdn_proc(void) {
     return -1.0f;
 }
 
+/* TODO: [near miss] 87.77778%; retail retains bit-result Boolean normalization;
+ * helper reuse regresses; stop pending original abstraction evidence. */
 int ck_eat_online_switches(void) {
     if (is_controller_removed()) {
         return 1;
@@ -413,63 +443,84 @@ f32 switch_proc_left(void) {
     return -1.0f;
 }
 
-static int angle_jump_held(PlyrInfo* player) {
-    PlyrPdata* pdata;
+static int angle_jump_held(void) {
+    PlyrInfo* player = switch_pdata->player;
+    int state;
 
-    if (player == 0 || player->slot.pdata == 0) {
+    if (player == 0) {
         return 0;
     }
-    pdata = player->slot.pdata;
-    if (pdata->state == 0x900 || pdata->state == 0x901 ||
-        (pdata->state & 0x4200) != 0 ||
-        !check_switch(player->pad_index, 0xC)) {
+    state = player->slot.pdata->state;
+    if (state == 0x900) {
         return 0;
     }
-    return check_switch(player->pad_index, 0xD) ||
-           check_switch(player->pad_index, 0xF);
-}
-
-f32 switch_proc_down(void) {
-    PlyrInfo* player = switch_pdata->player;
-    PlyrPdata* pdata;
-
-    if (player == 0 || player->slot.pdata == 0) {
-        return 0.0f;
+    if (state == 0x901) {
+        return 0;
     }
-    pdata = player->slot.pdata;
-    if (pdata->state != 0x900 && pdata->state != 0x901) {
-        if ((pdata->state & 0x4200) == 0 &&
-            check_switch(player->pad_index, 0xE)) {
-            if (check_switch(player->pad_index, 0xD) ||
-                check_switch(player->pad_index, 0xF)) {
-                xfer_proc((MkProc*)player->idle_proc, joy_duck_loop);
-            }
-        }
-        pdata->last_back_dash_tick = 0;
-    }
-    return 0.0f;
-}
-
-f32 switch_proc_up(void) {
-    PlyrInfo* player = switch_pdata->player;
-    int scans = 3;
-
-    while (angle_jump_held(player) && scans-- != 0) {
-        _mkproc_sleep_ticks = 1.0f;
-        ((SwitchProcVtable*)aproc->vtbl)->sleep(aproc);
-    }
-    if (angle_jump_held(player)) {
+    if ((state & 0x4200) == 0 && check_switch(player->pad_index, 0xC)) {
         if (check_switch(player->pad_index, 0xD)) {
-            xfer_proc((MkProc*)player->idle_proc, x_angle_jump_right);
+            return 1;
         }
         if (check_switch(player->pad_index, 0xF)) {
-            xfer_proc((MkProc*)player->idle_proc, x_angle_jump_left);
+            return 1;
         }
     }
-    return 0.0f;
+    return 0;
 }
 
-s32 dash_back_check(f32 direction) {
+static f32 switch_proc_down(void) {
+    PlyrInfo* player = switch_pdata->player;
+    int state;
+
+    if (player != 0) {
+        state = player->slot.pdata->state;
+        if (state != 0x900 && state != 0x901) {
+            if ((state & 0x4200) == 0) {
+                if (check_switch(player->pad_index, 0xE) &&
+                    check_switch(player->pad_index, 0xD)) {
+                    xfer_proc((MkProc*)player->idle_proc, joy_duck_loop);
+                }
+                if (check_switch(player->pad_index, 0xE) &&
+                    check_switch(player->pad_index, 0xF)) {
+                    xfer_proc((MkProc*)player->idle_proc, joy_duck_loop);
+                }
+            }
+            player->slot.pdata->last_back_dash_tick = 0;
+        }
+    }
+    return -1.0f;
+}
+
+/* TODO: [breakthrough] 93.98387%; retail loop entry, countdown and state exits restored;
+ * saved-register layout remains; defer platform-specific frame tuning. */
+static f32 switch_proc_up(void) {
+    int scans = 3;
+    PlyrInfo* player = switch_pdata->player;
+
+    for (;;) {
+        if (!angle_jump_held()) {
+            break;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        if (--scans == 0) {
+            if (angle_jump_held()) {
+                if (check_switch(player->pad_index, 0xD)) {
+                    xfer_proc((MkProc*)player->idle_proc, x_angle_jump_right);
+                }
+                if (check_switch(player->pad_index, 0xF)) {
+                    xfer_proc((MkProc*)player->idle_proc, x_angle_jump_left);
+                }
+            }
+            break;
+        }
+    }
+    return -1.0f;
+}
+
+/* TODO: [breakthrough] 87.03571%; shared input loop and state exits restored;
+ * remaining dash-body and frame differences need retail evidence. */
+static s32 dash_back_check(f32 direction) {
     PlyrInfo* player = switch_pdata->player;
     PlyrPdata* pdata;
 

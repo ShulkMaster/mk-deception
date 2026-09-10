@@ -398,7 +398,6 @@ void blend_to_stance(float blend);
 static float p_run_special_move(void);
 static float call_mission_script(void);
 void move_player(MkObj* object, const Vec* position, Vec* angle);
-int is_a_to_the_right_of_b(MkObj* a, MkObj* b);
 int is_weapon_style(PlyrFighterDefinition* fighter);
 int is_timer_off(void);
 int is_pX_airborn(int player);

@@ -246,6 +246,7 @@ void camera_setup_radial_sweep(void* script_args, float travel_time,
                                float radial_distance, float center_x,
                                float center_y, float start_angle);
 void find_best_conversation_camera_position(void);
+int is_a_to_the_right_of_b(MkObj* a, MkObj* b);
 
 extern CameraInfo camera_info;
 extern CameraItem camera_item;

@@ -16,6 +16,7 @@
 #include "math/gxMath.h"
 #include "math/mk_math.h"
 #include "platform/main.h"
+#include "platform/joy.h"
 #include "platform/io.h"
 #include "runtime/image.h"
 
@@ -488,8 +489,12 @@ int get_player_number(MkObj* player);
 MkProc* get_player_proc(MkObj* player);
 float xz_distance_between_players(void);
 static int drone_ai_im_dizzy(void);
-int drone_ai_check_for_berserker_movement();
+int drone_ai_check_for_berserker_movement(DroneAI* drone);
 int drone_ai_fetch_next_AIState(DroneAI* drone);
+int drone_ai_check_for_knockdown_movement(DroneAI* drone);
+static int drone_ai_change_attack_to_low(DroneAI* drone);
+static int drone_ai_should_be_attacking(
+    DroneAI* drone, int* attack_state, int force);
 int handicap_get_current_difficulty(DroneAI* drone);
 int is_he_airborn(void);
 int is_he_duck_blocking(void);
@@ -984,7 +989,7 @@ static inline MkObj* taunt_camera_live_object(AiTauntCameraData* owner) {
     return object;
 }
 
-/* TODO: [near miss] 98.89706%; owner coloring remains; expanded-validation search only worsens score or introduces uninitialized reads; stop at coloring. */
+/* TODO: [near miss] 98.89706%; pointer coloring remains; caller camera initializer is neutral; retain validated owner paths. */
 static float p_lookat_cam(void) {
     CameraObj* camera;
     MkObj* target;
@@ -1145,14 +1150,14 @@ float give_some_distance(void) {
 }
 
 
-/* TODO: [near miss] 98.36066%; empty-case dispatch branch remains; explicit known higher no-action types regress; need original dispatch evidence. */
+/* TODO: [near miss] 98.36066%; recognized death types share the exit;
+ * one retail dispatch branch remains. */
 float go_into_twitch_death(void) {
     init_ground_move_no_aniproc();
     switch (plyr_pdata->death_type) {
     case 0:
     case 1:
     case 2:
-        break;
     case 3:
         break;
     case 4:
@@ -1175,7 +1180,7 @@ float go_into_twitch_death(void) {
 }
 
 
-/* TODO: [near miss] 98.870056%; two dispatch branches remain missing; dead-code control unchanged; need original dispatch evidence. */
+/* TODO: [breakthrough needed] 98.870056%; two retail dispatch branches need source evidence; a direct default-arm transfer regresses; retain common exit. */
 float go_into_major_pain(void) {
     back_to_normal();
     plyr_obj->flags_09_bits.head_tracking = 0;
@@ -1248,6 +1253,7 @@ float go_into_major_pain(void) {
     AI_TRANSFER(j_stay_down_dead);
     return 0.0f;
 }
+
 
 float getup_from_ground(void) {
     DroneAI* drone;
@@ -3006,7 +3012,6 @@ int drone_ai_opponent_inair_watcher(void) {
     return 0;
 }
 
-/* TODO: [near miss] 99.70149%; close-move owner GPR coloring remains; canonical-table permuter search found no improvement; stop at coloring. */
 int drone_ai_enemy_inair_attack(DroneAI* drone) {
     AiFightstyleAttack* script;
 
@@ -3018,20 +3023,20 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
     if (drone->opponent_distance > 5.9457946f) {
         if (plyr_pdata->ai_tables->tables[12].usable_row_count > 0) {
             DroneAI* active;
-            FighterAiTableContainer* selection_moves;
+            FighterAiTable* selection_tables;
 
             active = get_player_number(plyr_obj) == 0
                          ? &g_DroneAI1 : &g_DroneAI2;
-            selection_moves = plyr_pdata->ai_tables;
-            if (selection_moves->tables[12].usable_row_count == 0) {
+            selection_tables = plyr_pdata->ai_tables->tables;
+            if (selection_tables[12].usable_row_count == 0) {
                 script = 0;
             } else {
                 unsigned short row_index;
                 FighterAiMoveRow* row;
 
                 row_index = randu0(
-                    (unsigned short)selection_moves->tables[12].usable_row_count);
-                row = selection_moves->tables[12].rows;
+                    (unsigned short)selection_tables[12].usable_row_count);
+                row = selection_tables[12].rows;
                 row += row_index;
                 active->ai_command = row->commands;
                 active->ai_command_arg = 0;
@@ -3053,20 +3058,20 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
             }
         } else {
             DroneAI* active;
-            FighterAiTableContainer* selection_moves;
+            FighterAiTable* selection_tables;
 
             active = get_player_number(plyr_obj) == 0
                          ? &g_DroneAI1 : &g_DroneAI2;
-            selection_moves = plyr_pdata->ai_tables;
-            if (selection_moves->tables[12].usable_row_count == 0) {
+            selection_tables = plyr_pdata->ai_tables->tables;
+            if (selection_tables[12].usable_row_count == 0) {
                 script = 0;
             } else {
                 unsigned short row_index;
                 FighterAiMoveRow* row;
 
                 row_index = randu0(
-                    (unsigned short)selection_moves->tables[12].usable_row_count);
-                row = selection_moves->tables[12].rows;
+                    (unsigned short)selection_tables[12].usable_row_count);
+                row = selection_tables[12].rows;
                 row += row_index;
                 active->ai_command = row->commands;
                 active->ai_command_arg = 0;
@@ -3092,20 +3097,20 @@ int drone_ai_enemy_inair_attack(DroneAI* drone) {
             }
         } else {
             DroneAI* active;
-            FighterAiTableContainer* selection_moves;
+            FighterAiTable* selection_tables;
 
             active = get_player_number(plyr_obj) == 0
                          ? &g_DroneAI1 : &g_DroneAI2;
-            selection_moves = plyr_pdata->ai_tables;
-            if (selection_moves->tables[0].usable_row_count == 0) {
+            selection_tables = plyr_pdata->ai_tables->tables;
+            if (selection_tables[0].usable_row_count == 0) {
                 script = 0;
             } else {
                 unsigned short row_index;
                 FighterAiMoveRow* row;
 
                 row_index = randu0(
-                    (unsigned short)selection_moves->tables[0].usable_row_count);
-                row = selection_moves->tables[0].rows;
+                    (unsigned short)selection_tables[0].usable_row_count);
+                row = selection_tables[0].rows;
                 row += row_index;
                 active->ai_command = row->commands;
                 active->ai_command_arg = 0;
@@ -3264,10 +3269,9 @@ int drone_ai_check_for_extreme_throw(DroneAI* drone) {
     return 0;
 }
 
-/* TODO: [near miss] 99.64706%; canonical category-11 table preserves score; command-owner/table GPR coloring remains; stop at coloring. */
 int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
     DroneAI* command_drone;
-    FighterAiTableContainer* moves;
+    FighterAiTable* tables;
     unsigned int min_hold_ticks;
     int throw_count;
     AiFightstyleAttack* script;
@@ -3328,8 +3332,8 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
         if (script == 0) {
             command_drone = get_player_number(plyr_obj) == 0
                                 ? &g_DroneAI1 : &g_DroneAI2;
-            moves = plyr_pdata->ai_tables;
-            throw_count = moves->tables[11].usable_row_count;
+            tables = plyr_pdata->ai_tables->tables;
+            throw_count = tables[11].usable_row_count;
             if (throw_count == 0) {
                 script = 0;
             } else {
@@ -3337,7 +3341,7 @@ int drone_ai_check_for_aggressive_throw(DroneAI* drone) {
                 FighterAiMoveRow* row;
 
                 row_index = randu0((unsigned short)throw_count);
-                row = moves->tables[11].rows;
+                row = tables[11].rows;
                 row += row_index;
                 command_drone->ai_command = row->commands;
                 command_drone->ai_command_arg = 0;
@@ -3603,14 +3607,35 @@ int drone_ai_check_for_aggressive_movement(DroneAI* drone) {
     return 0;
 }
 
-/* TODO: [near miss] 99.1129%; iterator/FPR coloring remains; explicit list-head address emits identically; traversal abstraction unresolved. */
-static int drone_ai_check_obstacles(DroneAI* request) {
-    AiFloatBits input;
+static inline MkPtr* ai_discard_stale_obstacle_item(MkPtr* item) {
+    MkPtr* next = item->next;
+
+    item->hdr = 0;
+    destroy_mkptr(item);
+    return next;
+}
+
+static inline float ai_obstacle_inverse_length(float squared) {
     AiFloatBits estimate;
+    AiFloatBits input;
+    float estimate_product;
+    float correction;
+
+    if (squared <= 0.0f) {
+        return 0.0f;
+    }
+    input.f = squared;
+    estimate.u = 0x5F375A00U - (input.u >> 1);
+    estimate_product = estimate.f * (squared * estimate.f);
+    correction = 3.0f - estimate_product;
+    return 0.0625f * estimate.f * correction *
+           -(correction * (estimate_product * correction) - 12.0f);
+}
+
+static int drone_ai_check_obstacles(DroneAI* request) {
+    ArenaObstacle* obstacle;
     MkPtr* obstacle_item;
     MkPtr* shape_item;
-    MkPtr* next;
-    ArenaObstacle* obstacle;
     CollisionObj* shape;
     DroneAI* drone;
     MkProc* player_proc;
@@ -3621,8 +3646,6 @@ static int drone_ai_check_obstacles(DroneAI* request) {
     float squared_distance;
     float normalization_squared;
     float inverse_length;
-    float estimate_product;
-    float correction;
 
     /* Retail guards the list-head address; obstacles is at offset zero. */
     if (&constrain_info.obstacles != 0) {
@@ -3630,10 +3653,7 @@ static int drone_ai_check_obstacles(DroneAI* request) {
         while (obstacle_item != 0) {
             obstacle = (ArenaObstacle*)obstacle_item->hdr;
             if (obstacle_item->instance != obstacle->hdr.instance) {
-                next = obstacle_item->next;
-                obstacle_item->hdr = 0;
-                destroy_mkptr(obstacle_item);
-                obstacle_item = next;
+                obstacle_item = ai_discard_stale_obstacle_item(obstacle_item);
                 continue;
             }
             if (!obstacle->flags.bits.disabled && &obstacle->shapes != 0) {
@@ -3641,10 +3661,7 @@ static int drone_ai_check_obstacles(DroneAI* request) {
                 while (shape_item != 0) {
                     shape = (CollisionObj*)shape_item->hdr;
                     if (shape_item->instance != shape->hdr.instance) {
-                        next = shape_item->next;
-                        shape_item->hdr = 0;
-                        destroy_mkptr(shape_item);
-                        shape_item = next;
+                        shape_item = ai_discard_stale_obstacle_item(shape_item);
                         continue;
                     }
                     delta_z = 0.0f;
@@ -3652,8 +3669,8 @@ static int drone_ai_check_obstacles(DroneAI* request) {
                     delta_x = 0.0f;
                     if (get_shape_center_for_collision_obstacle(
                             shape, &center) != 0) {
-                        delta_z = center.z - plyr_obj->pos.value.z;
                         delta_x = center.x - plyr_obj->pos.value.x;
+                        delta_z = center.z - plyr_obj->pos.value.z;
                         squared_distance =
                             delta_x * delta_x + delta_z * delta_z;
                     }
@@ -3661,21 +3678,7 @@ static int drone_ai_check_obstacles(DroneAI* request) {
                         uv_to_opponent(&to_opponent);
                         normalization_squared =
                             delta_x * delta_x + delta_z * delta_z;
-                        if (normalization_squared <= 0.0f) {
-                            inverse_length = 0.0f;
-                        } else {
-                            input.f = normalization_squared;
-                            estimate.u = 0x5F375A00U - (input.u >> 1);
-                            estimate_product =
-                                estimate.f *
-                                (normalization_squared * estimate.f);
-                            correction = 3.0f - estimate_product;
-                            inverse_length =
-                                0.0625f * estimate.f * correction *
-                                -(correction *
-                                      (estimate_product * correction) -
-                                  12.0f);
-                        }
+                        inverse_length = ai_obstacle_inverse_length(normalization_squared);
                         delta_z *= inverse_length;
                         delta_x *= inverse_length;
                         if (to_opponent.x * delta_x +
@@ -4563,7 +4566,6 @@ int drone_ai_check_from_ground_attack_phase1(DroneAI* drone) {
     return 0;
 }
 
-/* TODO: [near miss] 99.67872%; adjusted-roll copy and x/z FPR coloring remain; conditional adjustment emits identically; stop at coloring. */
 int drone_ai_check_projectile_head_on(DroneAI* drone) {
     int duck_reaction_active;
     unsigned int roll;
@@ -4578,7 +4580,8 @@ int drone_ai_check_projectile_head_on(DroneAI* drone) {
         projectile_distance = 10000.0f;
     } else {
         delta_z = plyr_obj->pos.value.z - his_pdata->saved_position_z;
-        delta_x = plyr_obj->pos.value.x - his_pdata->saved_position_x;
+        delta_x = plyr_obj->pos.value.x;
+        delta_x -= his_pdata->saved_position_x;
         projectile_distance = delta_x * delta_x + delta_z * delta_z;
     }
 
@@ -4589,9 +4592,9 @@ int drone_ai_check_projectile_head_on(DroneAI* drone) {
         if (!ai_should_block_super_move(drone)) {
             return 0;
         }
+        roll = random_roll;
         ai_update_block_retry(drone);
         drone->attack_pending = 1;
-        roll = random_roll;
         if (drone->movement_state == 3) {
             roll += 10;
         }
@@ -4695,7 +4698,7 @@ static inline int ai_count_charge_moves(void) {
 
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.66038%; style-count loads/adds/compares agree; owner/sum GPR coloring remains after direct-count controls; stop at coloring. */
+/* TODO: [near miss] 99.66038%; style-count owner/sum coloring remains; definition-owner local regresses; retain direct guarded access. */
 int drone_ai_check_dont_touch_attack_phase2(DroneAI* drone) {
     unsigned short roll;
     int taunt_count;
@@ -4875,7 +4878,7 @@ static inline int ai_find_reversal_style(void) {
 }
 
 
-/* TODO: [near miss] 99.85372%; reversal-count result move remains; enclosing reversal switch regresses; stop at coloring. */
+/* TODO: [near miss] 99.85372%; reversal-count result move remains; focused integer-Boolean search found no improvement. */
 int drone_ai_check_for_normal_blocking(DroneAI* drone) {
     PlyrMoveBlendData* move_data;
     unsigned int reversal_likelihood;
@@ -5179,16 +5182,16 @@ int drone_ai_beating_the_snot_out_of_him_watcher(void) {
 }
 
 static inline AiFightstyleAttack* ai_pick_status_special_move_for(DroneAI* active) {
-    FighterAiTableContainer* moves;
+    FighterAiTable* tables;
     unsigned short row_index;
     FighterAiMoveRow* row;
 
-    moves = plyr_pdata->ai_tables;
-    if (moves->tables[2].usable_row_count == 0) {
+    tables = plyr_pdata->ai_tables->tables;
+    if (tables[2].usable_row_count == 0) {
         return 0;
     }
-    row_index = (unsigned short)randu0((unsigned short)moves->tables[2].usable_row_count);
-    row = moves->tables[2].rows;
+    row_index = (unsigned short)randu0((unsigned short)tables[2].usable_row_count);
+    row = tables[2].rows;
     row += row_index;
     active->ai_command = row->commands;
     active->ai_command_arg = 0;
@@ -5216,9 +5219,8 @@ static inline int ai_fighter_move_count(PlyrFighterDefinition* fighter, int cate
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.72477%; owner GPR coloring remains; direct initial knockdown/distant-count accumulation regresses. */
 int drone_ai_attacker_defenseless(DroneAI* drone) {
-    AiFightstyleAttack* category_move;
+    PlyrFighterDefinition* combo_fighter;
     AiFightstyleAttack* script;
     unsigned int category;
     unsigned short roll;
@@ -5227,6 +5229,7 @@ int drone_ai_attacker_defenseless(DroneAI* drone) {
     int distant_count;
     int special_count;
     int close_count;
+    AiFightstyleAttack* category_move;
 
     knockdown_count = ai_fighter_move_count(plyr_pdata->fighter_definition, 9);
     distant_count = ai_fighter_move_count(plyr_pdata->fighter_definition, 10);
@@ -5297,7 +5300,6 @@ int drone_ai_attacker_defenseless(DroneAI* drone) {
         if (drone->difficulty_index >= 4 && (unsigned short)randu0(100) < 40 &&
             drone->opponent_distance < 4.378056f &&
             his_pdata->state != 0x4203) {
-            PlyrFighterDefinition* combo_fighter;
             AiFightstyleAttack* combo_script;
 
             combo_fighter = plyr_pdata->fighter_definition;
@@ -5536,7 +5538,7 @@ static inline unsigned int ai_fighter_table_row_count(
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.39469%; GPR coloring remains; explicit unsigned combo-count conversions unchanged; stop at coloring. */
+/* TODO: [near miss] 99.46932%; argument/indexed-table GPR residue remains; focused integer-Boolean search found no improvement. */
 int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
     PlyrMoveBlendData* move_data;
     AiFightstyleAttack* script;
@@ -5594,9 +5596,9 @@ int drone_ai_check_attack(DroneAI* drone, int force, int immediate) {
         return 1;
     }
     if (attack_state == 1) {
-        PlyrFighterDefinition* fighter;
         unsigned int state1_fightstyle_count;
         unsigned int state1_special_count;
+        PlyrFighterDefinition* fighter;
 
         fighter = plyr_pdata->fighter_definition;
         move_data = fighter->move_blend_data;
@@ -6024,16 +6026,18 @@ static int drone_ai_victim_throw_attempt(void) {
 /* Retail reloads coordinates across the expanded square roots while retaining
  * both object pointers. Scope CSE suppression to this calculation. */
 #pragma opt_common_subs off
-/* TODO: [near miss] 98.580246%; object/FP register coloring remains; combined propagation/CSE control unchanged; stop at coloring. */
+/* TODO: [near miss] 99.44444%; object/square-root GPR coloring remains; combined estimate expression regresses; retain staged OR. */
 static int drone_ai_victim_avoid(void) {
     DroneAI* drone;
-    MkObj* opponent;
     MkObj* player;
+    MkObj* opponent;
     float target_x;
     float target_z;
     float enemy_x;
     float enemy_z;
+    float target_squared_distance;
     float target_distance;
+    float enemy_squared_distance;
     float enemy_distance;
     float inverse_distance;
     float unit_x;
@@ -6053,15 +6057,15 @@ static int drone_ai_victim_avoid(void) {
             drone->avoidance_position[0] - player->pos.value.x;
         target_z =
             drone->avoidance_position[2] - player->pos.value.z;
-        target_distance =
-            ai_sqrt_table(target_x * target_x + target_z * target_z);
+        target_squared_distance = target_x * target_x + target_z * target_z;
+        target_distance = ai_sqrt_table(target_squared_distance);
         if (target_distance == 0.0f) {
             return 0;
         }
         enemy_x = opponent->pos.value.x - player->pos.value.x;
         enemy_z = opponent->pos.value.z - player->pos.value.z;
-        enemy_distance =
-            ai_sqrt_table(enemy_x * enemy_x + enemy_z * enemy_z);
+        enemy_squared_distance = enemy_x * enemy_x + enemy_z * enemy_z;
+        enemy_distance = ai_sqrt_table(enemy_squared_distance);
         inverse_distance = enemy_distance > 0.0f
                                ? 1.0f / enemy_distance
                                : enemy_distance;
@@ -6215,12 +6219,11 @@ static int drone_ai_im_dizzy(void) {
     return 1;
 }
 
-/* TODO: [near miss] 99.263565%; command-owner/result GPR swap remains; constrained permuter only improved by invalid transfer/store reordering. */
 static int drone_ai_victim_dizzy_3(void) {
     DroneAI* drone;
     PlyrPdata* player_data;
     DroneAI* command_drone;
-    FighterAiTableContainer* moves;
+    FighterAiTable* tables;
     AiFightstyleAttack* category_script;
     AiFightstyleAttack* script;
     AiFightstyleAttack* selected_script;
@@ -6241,13 +6244,13 @@ static int drone_ai_victim_dizzy_3(void) {
         return 0;
     }
     player_data = plyr_pdata;
-    moves = player_data->ai_tables;
-    ranged_count = moves->tables[1].usable_row_count;
+    tables = player_data->ai_tables->tables;
+    ranged_count = tables[1].usable_row_count;
     if (roll < 40 && ranged_count > 0) {
         command_drone = get_player_number(plyr_obj) == 0
                             ? &g_DroneAI1 : &g_DroneAI2;
-        moves = plyr_pdata->ai_tables;
-        ranged_count = moves->tables[1].usable_row_count;
+        tables = plyr_pdata->ai_tables->tables;
+        ranged_count = tables[1].usable_row_count;
         if (ranged_count == 0) {
             selected_script = 0;
         } else {
@@ -6255,7 +6258,7 @@ static int drone_ai_victim_dizzy_3(void) {
             FighterAiMoveRow* row;
 
             row_index = randu0((unsigned short)ranged_count);
-            row = moves->tables[1].rows;
+            row = tables[1].rows;
             row += row_index;
             command_drone->ai_command = row->commands;
             command_drone->ai_command_arg = 0;
@@ -6369,7 +6372,6 @@ int drone_ai_victim_speared(void) {
     return 1;
 }
 
-/* TODO: [near miss] 99.96429%; always_true address temporary remains; in-place direction inversion regresses; stop at coloring. */
 float drone_ai_perform_script_attack(void) {
     DroneAI* drone;
     AiFightstyleAttack* attack;
@@ -6440,7 +6442,7 @@ float drone_ai_perform_script_attack(void) {
             } else if (his_pdata->strafe_direction == 4 ||
                        input_direction == 4) {
                 drone_step_LR_true(
-                    always_true, 5, opponent_is_right == 0);
+                    always_true, 5, !opponent_is_right);
             }
         }
     }
@@ -6479,7 +6481,7 @@ float drone_ai_perform_script_attack(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.86842%; FPR coloring remains; shared vector displacement regresses. */
+/* TODO: [near miss] 99.86842%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
 float jump_away_opponent_with_j_exit(void) {
     DroneAI* drone;
     float right_clearance;
@@ -6834,7 +6836,7 @@ static float jump_away_opponent_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.796745%; FPR coloring remains; shared vector displacement regresses. */
+/* TODO: [near miss] 99.796745%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
 static float side_step_to_center_long_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6851,7 +6853,7 @@ static float side_step_to_center_long_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.796745%; FPR coloring remains; shared vector displacement regresses. */
+/* TODO: [near miss] 99.796745%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
 static float side_step_to_center_attack_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6868,7 +6870,7 @@ static float side_step_to_center_attack_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.796745%; FPR coloring remains; shared vector displacement regresses. */
+/* TODO: [near miss] 99.796745%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
 float side_step_to_center_with_jexit(void) {
     float right_clearance;
     float left_clearance;
@@ -6924,16 +6926,15 @@ static float step_forward_with_jexit(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.27419%; typed owner-parameter selector preserves command-first improvement; remaining owner coloring is a soft ceiling. */
 static float catch_opponent(void) {
     DroneAI* active_drone;
     DroneAI* command_drone;
     AiFightstyleAttack* script;
 
-    command_drone = get_player_number(plyr_obj) == 0
-                        ? &g_DroneAI1 : &g_DroneAI2;
     active_drone = get_player_number(plyr_obj) == 0
                        ? &g_DroneAI1 : &g_DroneAI2;
+    command_drone = get_player_number(plyr_obj) == 0
+                        ? &g_DroneAI1 : &g_DroneAI2;
     script = ai_pick_status_special_move_for(command_drone);
     if (script != 0) {
         active_drone->script_attack = script;
@@ -7021,7 +7022,7 @@ static float drone_ai_attack_obstacle_now(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.85238%; FPR coloring remains; shared vector displacement regresses. */
+/* TODO: [near miss] 99.85238%; clearance FPR coloring remains; missing-player early return regresses; retain shared output path. */
 static float drone_ai_dodge_3d_with_counter(void) {
     DroneAI* drone;
     Vec to_opponent;
@@ -7316,7 +7317,6 @@ static void drone_ai_check_next_AIState(DroneAI* drone) {
     drone->movement_state = drone_ai_fetch_next_AIState(drone);
 }
 
-/* TODO: [near miss] 99.38145%; owner GPR coloring remains; strict permuter found no better candidate; stop at coloring. */
 static float drone_ai_perform_range_attack(void) {
     DroneAI* drone;
     AiFightstyleAttack* script;
@@ -7327,19 +7327,19 @@ static float drone_ai_perform_range_attack(void) {
         script = ai_pick_status_special_move();
     } else {
         DroneAI* ranged_drone;
-        FighterAiTableContainer* ranged_moves;
+        FighterAiTable* ranged_tables;
 
         ranged_drone = get_player_number(plyr_obj) == 0
                             ? &g_DroneAI1 : &g_DroneAI2;
-        ranged_moves = plyr_pdata->ai_tables;
-        if (ranged_moves->tables[1].usable_row_count == 0) {
+        ranged_tables = plyr_pdata->ai_tables->tables;
+        if (ranged_tables[1].usable_row_count == 0) {
             script = 0;
         } else {
             unsigned short row_index;
             FighterAiMoveRow* row;
 
-            row_index = randu0((unsigned short)ranged_moves->tables[1].usable_row_count);
-            row = ranged_moves->tables[1].rows;
+            row_index = randu0((unsigned short)ranged_tables[1].usable_row_count);
+            row = ranged_tables[1].rows;
             row += row_index;
             ranged_drone->ai_command = row->commands;
             ranged_drone->ai_command_arg = 0;
@@ -7626,7 +7626,7 @@ float drone_entry(void) {
 
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.45206%; table-base GPR coloring remains; strict typed-local search found no improvement; stop at coloring. */
+/* TODO: [near miss] 99.45206%; table-base GPR swap remains; GC 2.0/2.5/2.6/2.7 emit identical AI text; retain retail load order. */
 static float drone_loop(void) {
     DroneAI* drone;
     unsigned int ticks;
@@ -8240,6 +8240,7 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
 
     difficulty_group = 0;
     character_state_index = 0;
+
     if (drone->match_stage == 0) {
         return g_likelihoodOfChangingStateE3FingEasyLevel[state];
     } else if (drone->difficulty_index == 0) {
@@ -8269,7 +8270,7 @@ static inline int ai_state_weight(DroneAI* drone, int state) {
     }
 }
 
-/* TODO: [near miss] 97.14646%; character-search preheader remains; expanded-lookup permutation does not improve retained helper; original loop unresolved. */
+/* TODO: [breakthrough needed] 97.14646%; displaced character-search preheader remains; constant-true do-loop is neutral; retain both search returns. */
 int drone_ai_fetch_next_AIState(DroneAI* drone) {
     GameInfo* game;
     unsigned int total;
@@ -10148,7 +10149,7 @@ void drone_ai_clear_avoidance_area_duration(int player) {
 }
 #pragma opt_propagation reset
 
-/* TODO: [near miss] 97.98508%; category-preservation move/GPR residue remain; zero-score permutation uses redundant aliases; need source lifetime evidence. */
+/* TODO: [near miss] 97.98508%; category-preservation move/GPR residue remains; fightstyle-fallback helper regresses; retain inline body. */
 static AiFightstyleAttack* drone_ai_choose_move_from_category(
     int category, unsigned int likelihood, int* is_script) {
     DroneAI* drone;

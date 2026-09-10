@@ -11,6 +11,13 @@ N04 | Factory cases return distinct owners | Allocation/failure semantics + case
 N05 | Reverse iteration/update differs | Direction/stride/zero-count semantics | Typed reverse-index walk or authentic vendor pre-decrement idiom; avoid manual byte offsets.
 N06 | Peephole/CSE/scheduler residue | Tested TU hypothesis + historical local-exception evidence | Investigate exact option in scratch; no per-function exceptions during fixed-TU-setting work or flags masking wrong source.
 
+For a compiler-revision hypothesis, preserve the recovered command and use
+separate scratch outputs, including a pinned-revision control. Compare actual
+text bytes and all function/data results; equal fuzzy scores alone are not
+identity. Byte-identical output rules out those revisions for that source and
+command, not for every TU or source form. Retain the pinned compiler and its
+metadata evidence ([AI revision control](../../.agent-work/decomp/ai-matching/README.md#round-208-isolated-compiler-revision-control)).
+
 N07 | Runtime scratch faults after object growth | Section extents, relocated instruction bytes and nonoverlapping mapped ranges | Size/alignment-aware section placement or checked slot bounds; repair the loader before changing source. Never skip a faulting instruction to claim equivalence. See [chess checkpoint 40](mk-chess-body-recovery.md).
 
 N08 | m2c exposes a possibly unwritten local consumed by retail | Instruction-level write/read paths, ABI frame offsets, and caller/state reachability | Vary only the incoming stack word in a retail runtime scratch and inspect the downstream argument/result. Distinguish demonstrated stack dependence from proof of reachable gameplay. Recover a missing initializer only with evidence; otherwise record the unresolved path, not a zero initializer or undefined C. See [chess checkpoint 128](mk-chess-body-recovery.md).
@@ -44,6 +51,27 @@ Permuter requires established algorithm/CFG/ABI/layout and the real TU command.
 Keep PERM_* in scratch; task-specific attempt limits never waive verification.
 Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
 
+- IF a known integer `x == 0` / `!x` value rewrite lies outside branch conditions,
+  REQUIRE a verified type and mutation-region boundary; TRY the opt-in
+  [integer Boolean patch](../../.agent-work/patches/decomp-permuter/decomp-permuter-integer-boolean-values.patch)
+  after the existing same-block-declarations patch. Set
+  `MKD_PERM_INTEGER_BOOLEAN_VALUES=1`, enable `perm_condition`, and disable other
+  passes for a focused control. This mode visits expression values, including
+  call arguments; upstream `perm_condition` visits only branch/loop conditions.
+  It preserves one operand evaluation and the `int` Boolean result, rejects
+  pointer/float operands, and does not turn `x != 0` into raw `x`. Review the
+  emitted candidate and verify it in the real TU. Unset the environment variable
+  to retain upstream behavior; see [AI calibration](../../.agent-work/decomp/ai-matching/README.md#round-216-integer-boolean-value-permuter-coverage).
+
+- IF expression extraction raises a missing-function KeyError, REQUIRE the
+  canonical callee definition and retail caller ABI; TRY making its real
+  declaration visible in source, then reimport the scratch. An implicit-int
+  call may compile but be absent from the permuter type map. Check declaration
+  order too: finding a later definition does not establish visibility at the
+  call. Prefer the existing canonical header and complete forward prototypes.
+  Reproduce the
+  old inference failure, verify the new result type and unchanged base score,
+  and check every shared-header consumer ([AI direction predicate](../../.agent-work/decomp/ai-matching/README.md#round-149-canonical-direction-predicate-declaration)).
 - IF stack operands differ, REQUIRE that the scorer sees them; TRY
   `--stack-diffs` for smoke test and search. Default scoring ignored reversed
   +0x08/+0x0C stores in run_camera_script and falsely scored zero.
@@ -68,7 +96,23 @@ Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
   passes in the scratch configuration and retain all baseline improvements for
   review; a lower best-only score can otherwise hide acceptable candidates.
   Still inspect newly introduced temporaries: expression extraction can invent
-  wider types even with type-randomization disabled. Reject dummy control blocks.
+  wider types even with type-randomization disabled. If a widened integer is
+  immediately narrowed at every consumer, require independent width evidence:
+  MWCC can discard the upper half yet change allocation enough to score zero.
+  The missing upper-half instructions do not justify the widened source type
+  ([AI category audit](../../.agent-work/decomp/ai-matching/README.md#round-138-reject-unsupported-widened-category-temporary)).
+  Declaration-only search is not scope-preserving: the local upstream
+  `perm_reorder_decls` can move declarations between blocks and does not model
+  scope. For a pure ordering diagnosis, restrict candidates to uninitialized
+  declarations within the same block; otherwise inspect scope and initializer
+  effects separately. Compilation failures do not exhaust valid orderings
+  ([dispatcher control](../../.agent-work/decomp/ai-matching/README.md#round-188-declaration-only-search-limit)).
+  The optional [local patch](../../.agent-work/patches/decomp-permuter/decomp-permuter-same-block-declarations.patch)
+  enables this constraint with `MKD_PERM_SAME_BLOCK_DECLS=1`; leave only
+  `perm_reorder_decls` enabled for the controlled search. Apply/check it in the
+  external checkout before use. It filters explicit initializers, not VLA/type
+  side effects; review those separately. See [validated use](../../.agent-work/decomp/ai-matching/README.md#round-189-same-block-declaration-search).
+  Reject dummy control blocks.
 - IF scratch parsing changes `numNodes * sizeof(RwMatrix) + 15`, REQUIRE comparison
   with original source; TRY parentheses around the product in scratch without
   changing allocation math. IF inline-helper PERM_LINESWAP fails with "PERM macro

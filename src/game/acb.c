@@ -3,6 +3,7 @@
 #include "game/game_info.h"
 #include "game/movelist.h"
 #include "libmkparticle/pfx2d.h"
+#include "runtime/cam.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_vtbl.h"
@@ -43,7 +44,6 @@ extern unsigned char p1_profile_switch_map[];
 
 void* get_screen_pdata(void);
 void destroy_mkprocs_pid(int proc_id);
-int is_a_to_the_right_of_b(void* a, void* b);
 void set_game_switch_map(void* map);
 void set_default_switch_map(void* map);
 void screen_share_pdata(void* pdata);

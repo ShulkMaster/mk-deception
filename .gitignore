@@ -4,6 +4,9 @@
 .scratches
 .agents
 
+# Local agent notes, proposed patches, and decompilation evidence
+/.agent-work/
+
 # Caches
 __pycache__
 .mypy_cache

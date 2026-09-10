@@ -3,6 +3,7 @@
 #include "game/bgnd_types.h"
 #include "game/game_info.h"
 #include "game/menu.h"
+#include "game/profile_unlock.h"
 #include "mw/mwScreenEngineGlue.h"
 #include "platform/main.h"
 #include "platform/main_jump.h"
@@ -55,17 +56,6 @@ typedef struct MkVtableMkprocLocal {
     int (*local_stack)(void);
     float (*jump_sleep)(MkProcEntryFn entry);
 } MkVtableMkprocLocal;
-
-/* Unlock masks in gp_data (retail offsets). */
-typedef struct GpCharBits {
-    unsigned int char_hi; /* +0x00 */
-    unsigned int char_lo; /* +0x04 */
-    unsigned int alt_hi;  /* +0x08 */
-    unsigned int alt_lo;  /* +0x0C */
-    char pad10[0x20];
-    unsigned int pz_hi; /* +0x30 */
-    unsigned int pz_lo; /* +0x34 */
-} GpCharBits;
 
 /* Roster cell -- stride 0x28 in pselect_char_tbl / pselect_pz_char_tbl. */
 typedef struct PselectCharEntry {
@@ -181,10 +171,9 @@ extern MkProc* aproc;
 extern float _mkproc_sleep_ticks;
 extern int menu_player;
 extern int target_game_mode;
-extern GpCharBits gp_data;
-extern unsigned int default_char_bits[2];
-extern unsigned int default_alt_char_bits[2];
-extern unsigned int default_pz_char_bits[2];
+extern ProfileUnlockBits64 default_char_bits;
+extern ProfileUnlockBits64 default_alt_char_bits;
+extern ProfileUnlockBits64 default_pz_char_bits;
 extern CameraObj* camera_obj;
 extern LightDef* pselect_light_list[3];
 extern PselectCharEntry pselect_char_tbl[];
@@ -408,29 +397,44 @@ void pselect_update_profile_settings(void) {
 int pselect_background_select_available(void) {
     int players;
 
-    if ((g_game_info.field_04 & 0x80) != 0) {
-        return (g_game_info.field_04 & 0x40) != 0;
+    if (g_game_info.feature_flags.bits.high_bit) {
+        return g_game_info.feature_flags.bits.pad_6 != 0;
     }
 
     if ((int)mode_of_play == 6) {
-        players = g_game_info.plyr0.player_state != 0;
+        players = 0;
+        if (g_game_info.plyr0.player_state != 0) {
+            players = 1;
+        }
         if (g_game_info.plyr1.player_state != 0) {
             players += 1;
         }
-        return players == 2;
+        if (players == 2) {
+            return 1;
+        }
+    } else if ((int)mode_of_play != 0) {
+        return 1;
     }
-
-    return (int)mode_of_play != 0;
+    return 0;
 }
 
 int pselect_is_random(int player) {
     int pos;
+    int character;
 
     pos = p2_selbox_pos;
     if (player == 0) {
         pos = p1_selbox_pos;
     }
-    return pselect_char_at(pos)->char_id == 0x20;
+    if (pselect_mode == 2) {
+        character = pselect_pz_char_tbl[pos].char_id;
+    } else {
+        character = pselect_char_tbl[pos].char_id;
+    }
+    if (character == 0x20) {
+        return 1;
+    }
+    return 0;
 }
 
 void pselect_random_select(int player) {
@@ -978,33 +982,41 @@ float p_enter_profile_code(void) {
     return sleep_ticks_neg_one;
 }
 
-/*
- * Soft ceiling: is_char_locked ~61% -- retail unsigned-range
- * subfc/subfe + __shl2i/cntlzw; MWCC emits cmplwi / different shift. Stop.
- * Locked when character bit is clear in (gp_data | defaults).
- */
+static inline int pselect_character_id_valid(int char_id) {
+    int valid = 0;
+
+    if ((unsigned long long)char_id < 0x2CULL) {
+        valid = 1;
+    }
+    return valid;
+}
+
+/* Locked when the character bit is clear in (gp_data | defaults). */
+/* TODO: [breakthrough] 97.910446%; canonical 64-bit masks and load ownership recovered;
+ * validity-result branch and register coloring remain. */
 int is_char_locked(int char_id, int alt_bit) {
     unsigned long long mask;
     unsigned long long bit;
-    unsigned int mask_hi;
-    unsigned int mask_lo;
 
-    if ((unsigned int)char_id >= 0x2Cu) {
+    if (!pselect_character_id_valid(char_id)) {
         return 1;
     }
 
-    if ((int)mode_of_play == 6) {
-        mask_hi = gp_data.pz_hi | default_pz_char_bits[0];
-        mask_lo = gp_data.pz_lo | default_pz_char_bits[1];
-    } else if (alt_bit != 0) {
-        mask_hi = gp_data.alt_hi | default_alt_char_bits[0];
-        mask_lo = gp_data.alt_lo | default_alt_char_bits[1];
-    } else {
-        mask_hi = gp_data.char_hi | default_char_bits[0];
-        mask_lo = gp_data.char_lo | default_char_bits[1];
+    switch ((int)mode_of_play) {
+    case 6:
+        mask = gp_data.pz_chars.value;
+        mask |= default_pz_char_bits.value;
+        break;
+    default:
+        if (alt_bit != 0) {
+            mask = gp_data.cat2.value;
+            mask |= default_alt_char_bits.value;
+        } else {
+            mask = gp_data.cat1.value;
+            mask |= default_char_bits.value;
+        }
     }
 
-    mask = ((unsigned long long)mask_hi << 32) | (unsigned long long)mask_lo;
     bit = 1ULL << (unsigned int)char_id;
     return (mask & bit) == 0ull;
 }
@@ -1027,27 +1039,29 @@ void pselect_bgnd_select_done(void) {
  *   0x1FE9 weapon / 0x1FE8 level-transition / 0x1FE7 deathtrap
  *   0x1F94 arena index
  * Retail seeds table base from wager_koin_order (+0x18 / +0x120 / +0x15c).
- * Soft ceiling ~68-71% -- mode-switch / rlwinm vs & / ctr loop. Soft OK.
  */
+/* TODO: [near miss] 98.42857%; mode switch and table owner recovered;
+ * bound/selection register coloring remains; stop without new lifetime evidence. */
 int pselect_bgnd_has_weapon(void) {
     PselectBgndEntry* tbl;
     int max;
     int pos;
 
     tbl = (PselectBgndEntry*)wager_koin_order;
-    if (pselect_mode == 1) {
-        tbl += 24;
-        max = 5;
-    } else if (pselect_mode < 1) {
-        if (pselect_mode < 0) {
-            return 0;
-        }
+    switch (pselect_mode) {
+    case 0:
         tbl += 2;
         max = 0x16;
-    } else if (pselect_mode < 3) {
+        break;
+    case 1:
+        tbl += 24;
+        max = 5;
+        break;
+    case 2:
         tbl += 29;
         max = 6;
-    } else {
+        break;
+    default:
         return 0;
     }
 
@@ -1058,25 +1072,28 @@ int pselect_bgnd_has_weapon(void) {
     return tbl[pos].flags & 4;
 }
 
+/* TODO: [near miss] 98.42857%; mode switch and table owner recovered;
+ * bound/selection register coloring remains; stop without new lifetime evidence. */
 int pselect_bgnd_has_level_transition(void) {
     PselectBgndEntry* tbl;
     int max;
     int pos;
 
     tbl = (PselectBgndEntry*)wager_koin_order;
-    if (pselect_mode == 1) {
-        tbl += 24;
-        max = 5;
-    } else if (pselect_mode < 1) {
-        if (pselect_mode < 0) {
-            return 0;
-        }
+    switch (pselect_mode) {
+    case 0:
         tbl += 2;
         max = 0x16;
-    } else if (pselect_mode < 3) {
+        break;
+    case 1:
+        tbl += 24;
+        max = 5;
+        break;
+    case 2:
         tbl += 29;
         max = 6;
-    } else {
+        break;
+    default:
         return 0;
     }
 
@@ -1087,25 +1104,28 @@ int pselect_bgnd_has_level_transition(void) {
     return tbl[pos].flags & 2;
 }
 
+/* TODO: [near miss] 98.42857%; mode switch and table owner recovered;
+ * bound/selection register coloring remains; stop without new lifetime evidence. */
 int pselect_bgnd_has_deathtrap(void) {
     PselectBgndEntry* tbl;
     int max;
     int pos;
 
     tbl = (PselectBgndEntry*)wager_koin_order;
-    if (pselect_mode == 1) {
-        tbl += 24;
-        max = 5;
-    } else if (pselect_mode < 1) {
-        if (pselect_mode < 0) {
-            return 0;
-        }
+    switch (pselect_mode) {
+    case 0:
         tbl += 2;
         max = 0x16;
-    } else if (pselect_mode < 3) {
+        break;
+    case 1:
+        tbl += 24;
+        max = 5;
+        break;
+    case 2:
         tbl += 29;
         max = 6;
-    } else {
+        break;
+    default:
         return 0;
     }
 
@@ -1122,19 +1142,20 @@ int pselect_get_arena_index(void) {
     int i;
 
     tbl = (PselectBgndEntry*)wager_koin_order;
-    if (pselect_mode == 1) {
-        tbl += 24;
-        count = 5;
-    } else if (pselect_mode < 1) {
-        if (pselect_mode < 0) {
-            return 0;
-        }
+    switch (pselect_mode) {
+    case 0:
         tbl += 2;
         count = 0x16;
-    } else if (pselect_mode < 3) {
+        break;
+    case 1:
+        tbl += 24;
+        count = 5;
+        break;
+    case 2:
         tbl += 29;
         count = 6;
-    } else {
+        break;
+    default:
         return 0;
     }
 
@@ -1217,16 +1238,16 @@ void pselect_init_arena_select(void) {
 }
 
 int get_num_selectable_bgnds(void) {
-    if (pselect_mode == 0) {
+    switch (pselect_mode) {
+    case 0:
         return 0x16;
-    }
-    if (pselect_mode == 1) {
+    case 1:
         return 5;
-    }
-    if (pselect_mode == 2) {
+    case 2:
         return 6;
+    default:
+        return 0;
     }
-    return 0;
 }
 
 void get_pz_special_move_list(PselectTexOut* out, int use_difficulty) {
@@ -1327,19 +1348,14 @@ void get_pselect_body_textures(PselectTexOut* out) {
 }
 
 int get_num_pselect_body_textures(void) {
-    int mop;
-
-    mop = (int)mode_of_play;
-    if (mop == 9) {
+    switch ((int)mode_of_play) {
+    case 6:
+        return 0xC;
+    case 9:
         return 0x1B;
-    }
-    if (mop >= 9) {
+    default:
         return 0x1D;
     }
-    if (mop == 6) {
-        return 0xC;
-    }
-    return 0x1D;
 }
 
 /*
@@ -1422,7 +1438,8 @@ void get_bg_pselect_team_textures(PselectTexOut* out, int team) {
     teamv->focus = bg_team_focus_of(pdata, team, focus_char);
 }
 
-/* Soft ceiling: get_pselect_head_textures -- locked vs unlocked name pick. */
+/* TODO: [breakthrough] 67.944%; canonical lock-mask types/load ownership improve;
+ * retain consumer logic pending validity-branch and local CFG evidence. */
 void get_pselect_head_textures(PselectTexOut* out) {
     PselectCharEntry* tbl;
     int n;
@@ -1486,32 +1503,30 @@ char* pselect_get_difficulty_level(int player) {
     return pselect_char_tbl[pos].difficulty;
 }
 
-/* Soft ceiling: pselect_get_arena_name -- mode-switch / gbd index schedule. */
+/* TODO: [breakthrough] 82.666664%; mode/return CFG recovered; table address
+ * lowering remains; separate pointer-advance trial is neutral. */
 char* pselect_get_arena_name(void) {
-    char* base;
+    PselectBgndEntry* base;
     int bgnd_id;
-    int pos;
 
-    base = (char*)wager_koin_order;
+    base = (PselectBgndEntry*)wager_koin_order;
     bgnd_id = 0x23;
-    if (pselect_mode == 1) {
-        pos = background_selbox_pos;
-        bgnd_id = *(int*)(base + 0x120 + pos * 0xC);
-    } else if (pselect_mode < 1) {
-        if (pselect_mode >= 0) {
-            pos = background_selbox_pos;
-            bgnd_id = *(int*)(base + 0x18 + pos * 0xC);
-        }
-    } else if (pselect_mode < 3) {
-        pos = background_selbox_pos;
-        bgnd_id = *(int*)(base + 0x15c + pos * 0xC);
+    switch (pselect_mode) {
+    case 0:
+        bgnd_id = (base + 2)[background_selbox_pos].bgnd_id;
+        break;
+    case 1:
+        bgnd_id = (base + 24)[background_selbox_pos].bgnd_id;
+        break;
+    case 2:
+        bgnd_id = (base + 29)[background_selbox_pos].bgnd_id;
+        break;
     }
-
-    if (bgnd_id == 0x23) {
-        return 0;
+    if (bgnd_id != 0x23) {
+        return get_string_by_id(
+            (unsigned int)global_background_data[bgnd_id].field8 | 0x10000u);
     }
-    return get_string_by_id(
-        (unsigned int)global_background_data[bgnd_id].field8 | 0x10000u);
+    return 0;
 }
 
 char* pselect_get_player_name(int player) {
@@ -1703,11 +1718,9 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/*
- * Soft ceiling: pselect_player_selected -- sets PlyrInfo.player_index;
- * alt costume / name-sound / model-async kept for retail confirm (no fight
- * jump). Soft OK.
- */
+/* Publishes player selection, alternate costume, name sound and model load. */
+/* TODO: [breakthrough] 62.110497%; canonical lock-mask types/load ownership improve;
+ * retain consumer logic pending validity-branch and local CFG evidence. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1910,20 +1923,13 @@ static float p_name_sound_die(void) {
  * Wave D: ScreenEngine body-panel index via mkGameVariables::GetInt
  * (ids 0x1FFB / 0x1FFC). Alternate costume (field_14 bit7) maps to the
  * extra slots get_pselect_body_textures fills at n / n+1 (0x1B / 0x1C).
- *
- * Soft ceiling: pselect_get_body_texture_index ~90% -- alt path uses
- * cntlzw/subfic for (player==0) vs retail subic/subfe (same leftover
- * family as is_pselect_mode). Soft OK. Tail matched via p2 load then
- * player!=0 early return.
  */
 int pselect_get_body_texture_index(int player) {
-    PselectPlyrFlags* flags;
     int pos;
 
     if (pselect_mode == 0) {
-        flags = (PselectPlyrFlags*)&(&g_game_info.plyr0)[player].field_14;
-        if (flags->alt != 0) {
-            return 0x1c - (player == 0);
+        if ((&g_game_info.plyr0)[player].flags_14_bits.alternate_costume != 0) {
+            return player == 0 ? 0x1b : 0x1c;
         }
     }
     pos = p2_selbox_pos;
@@ -1944,10 +1950,8 @@ int pselect_get_selbox_pos(int player) {
     return 0;
 }
 
-/*
- * Soft ceiling: pselect_update_selbox_pos -- grid wrap / skip locked;
- * retail inlines is_char_locked (__shl2i). Soft OK.
- */
+/* TODO: [breakthrough] 86.78632%; canonical lock-mask types/load ownership improve;
+ * retain consumer logic pending validity-branch and local CFG evidence. */
 void pselect_update_selbox_pos(int player, int new_pos) {
     int* pos_p;
     int cols;
@@ -2049,6 +2053,8 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     fire_screen_studio_event(0x1FA4, player);
 }
 
+/* TODO: [breakthrough] 82.73256%; canonical lock-mask types/load ownership improve;
+ * retain consumer logic pending validity-branch and local CFG evidence. */
 void check_reset_player_selection(int player, int start_pos) {
     PlyrInfo* plyr;
     int pos;
@@ -2071,26 +2077,29 @@ void check_reset_player_selection(int player, int start_pos) {
 
 /*
  * Wave D GetInt: 0x1F7A / 0x1771 stage; 0x1F78 / 0x1F79 offender class.
- * Soft ceiling ~62% -- null cmplwi / team*0x24 schedule. Soft OK.
  */
+/* TODO: [near miss] 93.05556%; typed guard recovered; byte-stride view folds
+ * field offset into indexed load; verify canonical team array before refining. */
 int bg_pselect_get_stage(int team) {
-    unsigned char* pdata;
+    BgPselectPdata* pdata;
 
-    pdata = (unsigned char*)get_screen_pdata();
-    if (pdata == 0) {
-        return 0;
+    pdata = (BgPselectPdata*)get_screen_pdata();
+    if (pdata != 0) {
+        return bg_team_view(pdata, team)->count;
     }
-    return *(int*)(pdata + team * 0x24 + 8);
+    return 0;
 }
 
+/* TODO: [near miss] 93.05556%; typed guard recovered; byte-stride view folds
+ * field offset into indexed load; verify canonical team array before refining. */
 int bg_pselect_get_offender_class(int team) {
-    unsigned char* pdata;
+    BgPselectPdata* pdata;
 
-    pdata = (unsigned char*)get_screen_pdata();
-    if (pdata == 0) {
-        return -1;
+    pdata = (BgPselectPdata*)get_screen_pdata();
+    if (pdata != 0) {
+        return bg_team_view(pdata, team)->focus;
     }
-    return *(int*)(pdata + team * 0x24 + 0x28);
+    return -1;
 }
 
 void bg_pselect_set_character(int team) {
@@ -2662,11 +2671,9 @@ static void pselect_init(void) {
     init_current_ladder_char();
 }
 
-/*
- * Walk from default start slots to first unlocked cell.
- * Soft ceiling: init_startup_selboxes -- retail inlines is_char_locked
- * (__shl2i); Soft OK.
- */
+/* Walk from default start slots to first unlocked cell. */
+/* TODO: [breakthrough] 85.85549%; canonical lock-mask types/load ownership improve;
+ * retain consumer logic pending validity-branch and local CFG evidence. */
 static void init_startup_selboxes(void) {
     int max_col;
     int pos;

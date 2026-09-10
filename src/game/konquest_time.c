@@ -15,22 +15,18 @@ typedef struct KonquestTimedEvent {
     int path_id;                     /* +0x24 */
 } KonquestTimedEvent;
 
-/* Soft ceiling: exact size and operations; specificity-mask load/GPR schedule. */
-int is_valid_event_time(const KonquestTime* time) {
-    int month;
-    int day_of_week;
-    int day_of_month;
-    int has_year;
-    unsigned int specified;
+static inline unsigned int event_time_specificity(const KonquestTime* time) {
+    int has_year = time->year != -1;
 
-    month = time->month;
-    day_of_week = time->day_of_week;
-    day_of_month = time->day_of_month;
-    has_year = time->year != -1;
-    specified = has_year |
-                (month == -1 ? 0 : 2) |
-                (day_of_week == -1 ? 0 : 4) |
-                (day_of_month == -1 ? 0 : 8);
+    return has_year | (time->month == -1 ? 0 : 2) |
+           (time->day_of_week == -1 ? 0 : 4) |
+           (time->day_of_month == -1 ? 0 : 8);
+}
+
+/* TODO: [near miss] 90.382355%; canonical specificity helper preserves operations;
+ * mask load/register schedule remains; stop at coloring. */
+int is_valid_event_time(const KonquestTime* time) {
+    unsigned int specified = event_time_specificity(time);
 
     if (specified == 0xF) {
         return 0;
@@ -63,14 +59,6 @@ KonquestTimedEvent* npc_which_event_is_more_recent(
         return event_a;
     }
     return event_b;
-}
-
-static inline unsigned int event_time_specificity(const KonquestTime* time) {
-    int has_year = time->year != -1;
-
-    return has_year | (time->month == -1 ? 0 : 2) |
-           (time->day_of_week == -1 ? 0 : 4) |
-           (time->day_of_month == -1 ? 0 : 8);
 }
 
 /* Soft ceiling: exact CFG/size; specificity-mask GPR allocation and schedule. */
@@ -205,7 +193,6 @@ int is_time_a_equal_to_time_b(
     return time_a->minute == time_b->minute;
 }
 
-/* Soft ceiling: equivalent final-minute GPR load ordering remains. */
 int is_time_a_greater_than_time_b(
     const KonquestTime* time_a, const KonquestTime* time_b) {
     if (time_a->year > time_b->year) {
@@ -232,7 +219,7 @@ int is_time_a_greater_than_time_b(
     if (time_a->hour < time_b->hour) {
         return 0;
     }
-    return time_b->minute < time_a->minute;
+    return time_a->minute > time_b->minute;
 }
 
 static inline void advance_days(KonquestTime* time, int days) {

@@ -758,8 +758,11 @@ static inline MkObj* bgnd_get_live_tracked_obj(PlyrPdata* player) {
         if (object->hdr.instance == player->tracked_obj_instance) {
             return object;
         }
+        object = 0;
+    } else {
+        object = 0;
     }
-    return 0;
+    return object;
 }
 
 BgndPebbleCollection* g_pebbles[20] = {
@@ -924,17 +927,13 @@ int get_next_bgnd(void) {
         }
     }
 }
-/*
- * Exact material selection and stores; 82.98%, retail/local 160/164 bytes.
- * Retail lowers the all-material loop through CTR while local MWCC retains an
- * index comparison.
- */
 void bgnd_force_specularity_off_for_material(
     unsigned int object_id, unsigned int material_id) {
     MkSobj* object;
     RpMaterial* material;
     RpGeometry* geometry;
     unsigned int i;
+    unsigned int count;
 
     object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
     if (object != 0) {
@@ -945,7 +944,8 @@ void bgnd_force_specularity_off_for_material(
             }
         } else {
             geometry = object->atomic->geometry;
-            for (i = 0; i < geometry->matList.numMaterials; i++) {
+            count = geometry->matList.numMaterials;
+            for (i = 0; i < count; i++) {
                 geometry->matList.materials[i]->surface.specular = 0.0f;
             }
         }
@@ -2231,80 +2231,6 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
         }
     }
 }
-/*
- * Clean-C near miss: exact three-latch validation/unhide algorithm; retail
- * retains three redundant success/merge branches (216 versus 180 bytes).
- */
-void sh_lower_level_pebble_unhide(void) {
-    MkHdr* object;
-
-    if (g_slaughterhouse_pdata != 0) {
-        object = g_slaughterhouse_pdata->lower_level_pebbles[0].hdr;
-        if (object != 0 && object->instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[0].instance) {
-            object = 0;
-        }
-        if (object != 0) {
-            unhide_obj(object);
-        }
-
-        object = g_slaughterhouse_pdata->lower_level_pebbles[1].hdr;
-        if (object != 0 && object->instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[1].instance) {
-            object = 0;
-        }
-        if (object != 0) {
-            unhide_obj(object);
-        }
-
-        object = g_slaughterhouse_pdata->lower_level_pebbles[2].hdr;
-        if (object != 0 && object->instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[2].instance) {
-            object = 0;
-        }
-        if (object != 0) {
-            unhide_obj(object);
-        }
-    }
-}
-
-/*
- * Clean-C near miss: exact three-latch validation/hide algorithm; retail
- * retains three redundant success/merge branches (216 versus 180 bytes).
- */
-void sh_lower_level_pebble_hide(void) {
-    MkHdr* object;
-
-    if (g_slaughterhouse_pdata != 0) {
-        object = g_slaughterhouse_pdata->lower_level_pebbles[0].hdr;
-        if (object != 0 && object->instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[0].instance) {
-            object = 0;
-        }
-        if (object != 0) {
-            hide_obj(object);
-        }
-
-        object = g_slaughterhouse_pdata->lower_level_pebbles[1].hdr;
-        if (object != 0 && object->instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[1].instance) {
-            object = 0;
-        }
-        if (object != 0) {
-            hide_obj(object);
-        }
-
-        object = g_slaughterhouse_pdata->lower_level_pebbles[2].hdr;
-        if (object != 0 && object->instance !=
-                g_slaughterhouse_pdata->lower_level_pebbles[2].instance) {
-            object = 0;
-        }
-        if (object != 0) {
-            hide_obj(object);
-        }
-    }
-}
-
 static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_0_hdr(SlaughterhouseData* owner) {
     MkObj* object = (MkObj*) owner->lower_level_pebbles[0].hdr;
     if (object != 0) {
@@ -2342,6 +2268,54 @@ static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_2_hdr(Slaughte
         object = 0;
     }
     return object;
+}
+
+void sh_lower_level_pebble_unhide(void) {
+    MkObj* object;
+
+    if (g_slaughterhouse_pdata != 0) {
+        object = slaughterhouse_data_live_lower_level_pebbles_0_hdr(
+            g_slaughterhouse_pdata);
+        if (object != 0) {
+            unhide_obj(object);
+        }
+
+        object = slaughterhouse_data_live_lower_level_pebbles_1_hdr(
+            g_slaughterhouse_pdata);
+        if (object != 0) {
+            unhide_obj(object);
+        }
+
+        object = slaughterhouse_data_live_lower_level_pebbles_2_hdr(
+            g_slaughterhouse_pdata);
+        if (object != 0) {
+            unhide_obj(object);
+        }
+    }
+}
+
+void sh_lower_level_pebble_hide(void) {
+    MkObj* object;
+
+    if (g_slaughterhouse_pdata != 0) {
+        object = slaughterhouse_data_live_lower_level_pebbles_0_hdr(
+            g_slaughterhouse_pdata);
+        if (object != 0) {
+            hide_obj(object);
+        }
+
+        object = slaughterhouse_data_live_lower_level_pebbles_1_hdr(
+            g_slaughterhouse_pdata);
+        if (object != 0) {
+            hide_obj(object);
+        }
+
+        object = slaughterhouse_data_live_lower_level_pebbles_2_hdr(
+            g_slaughterhouse_pdata);
+        if (object != 0) {
+            hide_obj(object);
+        }
+    }
 }
 
 static inline MkObj* slaughterhouse_data_live_lower_level_pebbles_3_hdr(SlaughterhouseData* owner) {
@@ -4203,7 +4177,8 @@ void bgnd_reg_col_cb_for_beetle_lair(void) {
     set_background_obstacle_repel_flag(0x41, 0);
     set_background_obstacle_repel_flag(0x42, 0);
 }
-/* TODO: [breakthrough needed] 84.786964%; correct effect and halfword indices; stack/normalization lowering remains. */
+/* TODO: [breakthrough] 84.392685%; tracked-object latch exits restored;
+ * stack and normalization lowering remain. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     BlColumnBreakData* column_data;
     BgndScriptProcData* script_data;
@@ -4639,6 +4614,8 @@ float r_beetle_lair_transition(void) {
     ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
+/* TODO: [near miss] 98.013336%; target snapshot and result joins restored;
+ * zero-length guard and union stack slots differ. */
 static int beetle_lair_react_to_wall_danger_zone_cb(BlDangerEvent* event) {
     union {
         float f;
@@ -4655,14 +4632,15 @@ static int beetle_lair_react_to_wall_danger_zone_cb(BlDangerEvent* event) {
     float x;
     float y;
     float z;
-    int result;
+    float target_z;
 
     inverse_length = 0.0f;
     target = event->target->object;
     source = event->source->object_ref->object;
     y = target->pos.value.y - source->pos.value.y;
     x = target->pos.value.x - source->pos.value.x;
-    z = target->pos.value.z - source->pos.value.z;
+    target_z = target->pos.value.z;
+    z = target_z - source->pos.value.z;
     squared = z * z + (x * x + y * y);
     if (!(squared <= 0.0f)) {
         input.f = squared;
@@ -4676,18 +4654,14 @@ static int beetle_lair_react_to_wall_danger_zone_cb(BlDangerEvent* event) {
     y *= inverse_length;
     z *= inverse_length;
     dot = wall_normal.x * x + wall_normal.y * y + wall_normal.z * z;
-    if (target->pos.value.z < 10.0f) {
+    if (target_z < 10.0f) {
         if (dot > 0.7f) {
-            result = 1;
-        } else {
-            result = 0;
+            return 1;
         }
     } else if (dot > 0.3f) {
-        result = 1;
-    } else {
-        result = 0;
+        return 1;
     }
-    return result;
+    return 0;
 }
 static float p_beetle_lair_watch_remaining_fall_scene(void);
 static float winner_watching_him_fall(void);
@@ -6394,7 +6368,8 @@ void bgnd_set_danger_zone_center_position(float x, float y, float z) {
     set_background_obstacle_repel_flag(zone->obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
 }
-/* Soft ceiling 89.78%: exact behavior; retail selects lwzu field induction. */
+/* TODO: [near miss] 89.78261%; retail retains field address with lwzu;
+ * obstacle-slot and dual-owner trials regress; retain original zone owner. */
 void bgnd_delete_danger_zone(unsigned int zone_index) {
     BgndDangerZone* zone;
 
@@ -6407,18 +6382,22 @@ void bgnd_delete_danger_zone(unsigned int zone_index) {
         }
     }
 }
+/* TODO: [near miss] 99.793816%; search snapshot and final indexed calls agree;
+ * enable-path ID/next registers differ; stop at coloring. */
 void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
     BgndCollisionItem* item;
     BgndDangerZone* zone;
     MkPtr** list;
     MkPtr* link;
     MkPtr* next;
+    unsigned int obstacle_id;
 
     if (zone_index < 24) {
         zone = &bgnd_danger_zones[zone_index];
         if (zone->obstacle != 0) {
             if (enabled != 0) {
                 if (zone->collision_script_function != 0) {
+                    obstacle_id = zone->obstacle_id;
                     list = &g_bgnd_collision_to_script_if[7];
                     if (list != 0) {
                         link = *list;
@@ -6429,7 +6408,7 @@ void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
                                 link->hdr = 0;
                                 destroy_mkptr(link);
                                 link = next;
-                            } else if (item->collision_id == zone->obstacle_id) {
+                            } else if (item->collision_id == obstacle_id) {
                                 item->flags.bits.disabled = 0;
                                 break;
                             } else {
@@ -6438,9 +6417,11 @@ void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
                         }
                     }
                 }
-                set_background_obstacle_disable_flag(zone->obstacle_id, 0);
+                set_background_obstacle_disable_flag(
+                    bgnd_danger_zones[zone_index].obstacle_id, 0);
             } else {
                 if (zone->collision_script_function != 0) {
+                    obstacle_id = zone->obstacle_id;
                     list = &g_bgnd_collision_to_script_if[7];
                     if (list != 0) {
                         link = *list;
@@ -6451,7 +6432,7 @@ void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
                                 link->hdr = 0;
                                 destroy_mkptr(link);
                                 link = next;
-                            } else if (item->collision_id == zone->obstacle_id) {
+                            } else if (item->collision_id == obstacle_id) {
                                 item->flags.bits.disabled = 1;
                                 break;
                             } else {
@@ -6460,7 +6441,8 @@ void bgnd_enable_danger_zone(unsigned int zone_index, int enabled) {
                         }
                     }
                 }
-                set_background_obstacle_disable_flag(zone->obstacle_id, 1);
+                set_background_obstacle_disable_flag(
+                    bgnd_danger_zones[zone_index].obstacle_id, 1);
             }
         }
     }
@@ -6725,21 +6707,21 @@ void bgnd_npc_set_ani_speed(unsigned int npc_id, float speed) {
     }
 }
 
-/*
- * Near match: 95.70%. The typed compound guard emits a shorter equivalent
- * branch sequence than retail; lookup, bounds, widths, and return are exact.
- */
 int bgnd_npc_get_aux_int_data(unsigned int npc_id, unsigned int index) {
     BgndNpc* npc;
 
     npc = bgnd_find_npc(npc_id);
-    if (npc == 0 || npc->aux_data == 0 || index >= 2) {
+    if (npc == 0 || npc->aux_data == 0) {
+        return 0;
+    }
+    if (index >= 2) {
         return 0;
     }
     return npc->aux_data->values[index];
 }
 
-/* Near match: 97.71%; only equivalent null/bounds branch lowering differs. */
+/* TODO: [near miss] 97.708336%; auxiliary-data null exit is merged;
+ * recover the distinct failure boundary before further trials. */
 void bgnd_npc_set_aux_int_data(
     unsigned int npc_id, unsigned int index, int value) {
     BgndNpc* npc;
@@ -6883,9 +6865,31 @@ void bgnd_npc_set_pos(
     npc->object->pos.value.z = z;
     update_mkobj(npc->object);
 }
-/* Near match: 94.31%, exact lookup; only return register coloring differs. */
 BgndNpc* bgnd_fetch_npc(unsigned int npc_id) {
-    return bgnd_find_npc(npc_id);
+    MkPtr** list;
+    MkPtr* node;
+    MkPtr* next;
+    BgndNpc* npc;
+
+    list = &g_game_info.npc_list;
+    if (list != 0) {
+        node = *list;
+        while (node != 0) {
+            npc = (BgndNpc*)node->hdr;
+            if (node->instance != npc->hdr.instance) {
+                next = node->next;
+                node->hdr = 0;
+                destroy_mkptr(node);
+                node = next;
+            } else {
+                if (npc->id == npc_id) {
+                    return npc;
+                }
+                node = node->next;
+            }
+        }
+    }
+    return 0;
 }
 static float bgnd_npc_play_ani(void);
 float bgnd_npc_idle(void);
@@ -7214,24 +7218,15 @@ void bgnd_launch_sobj(
         g_active_launched_sobj_pdata->kill_enabled = 0;
     }
 }
-/*
- * Exact 25-entry traversal and state updates; 57.23%, retail/local 104/108.
- * Retail retains a byte-offset induction variable while typed C retains an
- * entry pointer; the remaining register and addressing differences are
- * non-algorithmic.
- */
 void bgnd_kill_all_launched_sobjs(void) {
-    BgndSobjLaunchEntry* entry;
     unsigned int i;
 
-    entry = g_sobj_launch_monitor_pdata->entries;
     i = 0;
     do {
-        if (entry->active == 1) {
-            hide_sobj(entry->object);
-            entry->active = 0;
+        if (g_sobj_launch_monitor_pdata->entries[i].active == 1) {
+            hide_sobj(g_sobj_launch_monitor_pdata->entries[i].object);
+            g_sobj_launch_monitor_pdata->entries[i].active = 0;
         }
-        entry++;
         i++;
     } while (i < 25);
 }
@@ -7276,14 +7271,10 @@ void bgnd_set_kill_plane_for_launched_sobj(int test_type) {
         break;
     }
 }
-/*
- * Exact creation, initialization, and ownership; 81.79%, retail/local
- * 168/160 bytes. Retail selects an offset-based CTR clear loop while clean
- * typed C selects an entry-pointer countdown.
- */
+/* TODO: [near miss] 99.52381%; indexed owner reloads restored;
+ * final global-store registers differ; stop at coloring. */
 void start_sobj_launch_monitor(void) {
     BgndSobjLaunchMonitor* monitor;
-    BgndSobjLaunchEntry* entry;
     MkProc* process;
     unsigned int i;
 
@@ -7292,12 +7283,9 @@ void start_sobj_launch_monitor(void) {
         0xC019, 0x1F, p_bgnd_launch_sobj_monitor,
         sizeof(BgndSobjLaunchMonitor), (MkHdr**)&monitor);
     if (process != 0 && monitor != 0) {
-        entry = monitor->entries;
-        i = 25;
-        do {
-            entry->active = 0;
-            entry++;
-        } while (--i != 0);
+        for (i = 0; i < 25; i++) {
+            monitor->entries[i].active = 0;
+        }
         if (g_game_info.bgnd_obj != 0) {
             mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         }
@@ -7466,14 +7454,8 @@ float bgnd_launch_chunk(
     }
     return 0.0f;
 }
-/*
- * Exact creation, initialization, and ownership; 81.38%, retail/local
- * 160/152 bytes. Retail selects an offset-based CTR clear loop while clean
- * typed C selects an entry-pointer countdown.
- */
 void start_chunk_launch_monitor(void) {
     BgndChunkLaunchMonitor* monitor;
-    BgndChunkLaunchEntry* entry;
     MkProc* process;
     unsigned int i;
 
@@ -7482,12 +7464,9 @@ void start_chunk_launch_monitor(void) {
         0xC018, 0x1F, p_bgnd_launch_chunk_monitor,
         sizeof(BgndChunkLaunchMonitor), (MkHdr**)&monitor);
     if (process != 0 && monitor != 0) {
-        entry = monitor->entries;
-        i = 25;
-        do {
-            entry->active = 0;
-            entry++;
-        } while (--i != 0);
+        for (i = 0; i < 25; i++) {
+            monitor->entries[i].active = 0;
+        }
         if (g_game_info.bgnd_obj != 0) {
             mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         }
@@ -7552,20 +7531,24 @@ static float p_bgnd_launch_chunk_monitor(void) {
     }
     return 1.0f;
 }
-/* Clean near miss: 91.54%; retail retains one redundant success-edge branch. */
-MkHdr* get_sobj_pebble_obj(MkSobj* object) {
+static inline MkHdr* sobj_get_bound_header(MkSobj* object) {
     MkHdr* bound;
 
     bound = object->bound_hdr;
     if (bound != 0) {
-        if (bound->instance != object->bound_instance) {
-            bound = 0;
+        if (bound->instance == object->bound_instance) {
+            return bound;
         }
+        bound = 0;
     } else {
         bound = 0;
     }
     return bound;
 }
+MkHdr* get_sobj_pebble_obj(MkSobj* object) {
+    return sobj_get_bound_header(object);
+}
+
 void* get_general_pebble_data(PebbleData* pebble_data) {
     return pebble_data->user_data;
 }
@@ -7694,7 +7677,8 @@ void pebble_set_vel(int player, int index, Vec* velocity) {
     pebble->velocity.y = velocity->y;
     pebble->velocity.z = velocity->z;
 }
-/* Near match: exact 60-byte instruction stream; global relocations differ. */
+/* TODO: [near miss] 86.666664%; first position load uses displacement instead
+ * of retail lfsx; prior exact-stream claim was incorrect; inspect address lifetime. */
 void pebble_get_pos(int player, int index, Vec* position) {
     BgndPebbleControl* pebbles;
     BgndPebbleControl* pebble;
@@ -7740,13 +7724,10 @@ void bgnd_pebble_burst_at_chunk_pos(int player, int first, int end) {
     position.z = object->pos.z;
     bgnd_pebble_burst_at(player, &position, first, end);
 }
-/*
- * Soft ceiling: 69.79%, retail/local 112/104 bytes. The typed do-loop emits
- * the same bounded stores with a compare loop; retail selects CTR iteration.
- */
 void bgnd_pebble_burst_set_end_state(int player, unsigned int first,
                                      unsigned int end, int state) {
     BgndPebbleCollection* collection;
+    BgndPebbleControl* pebbles;
     unsigned int index;
 
     if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
@@ -7756,11 +7737,10 @@ void bgnd_pebble_burst_set_end_state(int player, unsigned int first,
 
     collection = g_pebbles[player];
     if (collection != 0) {
-        index = first;
-        do {
-            collection->pebbles[index].end_behavior = state;
-            index++;
-        } while (index < end);
+        pebbles = collection->pebbles;
+        for (index = first; index < end; index++) {
+            pebbles[index].end_behavior = state;
+        }
     }
 }
 /*
@@ -8334,30 +8314,39 @@ void bgnd_create_pebbles(
     }
     bgnd_create_pebbles_with_sobj(object, player, mode, count);
 }
-/*
- * Clean-C ceiling: 73.83%, retail/local 212/184 bytes. Retail retains explicit
- * null-normalization branches that MWCC folds from the typed selection logic.
- */
-void bgnd_set_material_color(int model_index, unsigned int object_id,
-                             int red, int green, int blue, int alpha) {
-    MkObj* model;
+static inline MkSobj* bgnd_lookup_sobj(int model_index, unsigned int object_id) {
     MkSobj* object;
-    RwRGBA color;
 
-    if (model_index == (int)0xDDDDEEEE) {
+    switch (model_index) {
+    case (int)0xDDDDEEEE:
         object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
-    } else {
-        model = g_bgnd_preloaded_models[model_index];
-        unhide_obj(model);
-        if (model == 0) {
-            object = 0;
+        if (object == 0) {
+            return 0;
+        }
+        break;
+    default:
+        unhide_obj(g_bgnd_preloaded_models[model_index]);
+        if (g_bgnd_preloaded_models[model_index] == 0) {
+            return 0;
         } else {
-            object = obj_find_sobj_by_id(model, object_id);
+            object = obj_find_sobj_by_id(
+                g_bgnd_preloaded_models[model_index], object_id);
             if (object == 0) {
-                object = obj_first_sobj(model);
+                object = obj_first_sobj(g_bgnd_preloaded_models[model_index]);
+                if (object == 0) {
+                    return 0;
+                }
             }
         }
     }
+    return object;
+}
+void bgnd_set_material_color(int model_index, unsigned int object_id,
+                             int red, int green, int blue, int alpha) {
+    MkSobj* object;
+    RwRGBA color;
+
+    object = bgnd_lookup_sobj(model_index, object_id);
     color.red = red;
     color.green = green;
     color.blue = blue;
@@ -8365,30 +8354,8 @@ void bgnd_set_material_color(int model_index, unsigned int object_id,
     set_atomic_material_color(object->atomic, &color);
 }
 
-/*
- * Clean-C ceiling: 50.02%, retail/local 168/148 bytes. The low fuzzy score is
- * alignment fallout from folded null-normalization branches; calls and CFG
- * outcomes match the immediately preceding retail selection pattern.
- */
 MkSobj* bgnd_fetch_sobj(int model_index, unsigned int object_id) {
-    MkObj* model;
-    MkSobj* object;
-
-    if (model_index == (int)0xDDDDEEEE) {
-        object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
-    } else {
-        model = g_bgnd_preloaded_models[model_index];
-        unhide_obj(model);
-        if (model == 0) {
-            object = 0;
-        } else {
-            object = obj_find_sobj_by_id(model, object_id);
-            if (object == 0) {
-                object = obj_first_sobj(model);
-            }
-        }
-    }
-    return object;
+    return bgnd_lookup_sobj(model_index, object_id);
 }
 MkObj* bgnd_fetch_obj(int model_id) {
     return g_bgnd_preloaded_models[model_id];
@@ -8396,10 +8363,8 @@ MkObj* bgnd_fetch_obj(int model_id) {
 void bgnd_unhide_pebbles(int player) {
     unhide_sobj(g_pebbles_pdata[player]->sobj);
 }
-/*
- * Soft ceiling: 85.02%, retail/local 172/168 bytes. Typed matrix/pebble indexing
- * differs from retail byte-offset induction; all loop stores and calls agree.
- */
+/* TODO: [breakthrough needed] 86.69768%; pebble snapshot and matrix-owner
+ * reload differ; defer paired-single save frame. */
 void bgnd_hide_pebbles(int player) {
     BgndPebbleCollection* collection;
     BgndPebbleControl* pebble;
@@ -9406,17 +9371,14 @@ void bgnd_unhide_preload_obj(int model_index) {
         unhide_obj(object);
     }
 }
-/* Soft ceiling 75.67%: exact behavior; retail selects a CTR clear loop. */
 void bgnd_init_timers(int create_monitor) {
     MkProc* process;
     int timer;
 
-    timer = 0;
-    do {
+    for (timer = 0; timer < 3; timer++) {
         g_game_info.bgnd_timer_ticks[timer] = 0;
         g_game_info.bgnd_timer_limits[timer] = 0;
-        timer++;
-    } while (timer != 3);
+    }
     if (create_monitor == 1) {
         process = _create_mkproc_generic_tinystack(
             0xC010, 0x1F, p_bgnd_timer_monitor, 0, 0);
@@ -9482,20 +9444,22 @@ static inline void bgnd_apply_collision_info(BgndObstacleEventData* event) {
         opponent_object = bgnd_get_live_tracked_obj(opponent);
         if (opponent_object != 0) {
             g_game_info.collision_player_info = player->plyr_info;
-            g_game_info.active_player = opponent->plyr_info;
+            player = event->player_pdata;
+            g_game_info.active_player = player->his_plyr_pdata->plyr_info;
             g_game_info.impact_vector.x = event->impact_vector->x;
             g_game_info.impact_vector.y = event->impact_vector->y;
             g_game_info.impact_vector.z = event->impact_vector->z;
             g_game_info.player_objects[0] = opponent_object;
             g_game_info.player_objects[1] = player_object;
-            g_game_info.collision_player_pdata = player;
             g_game_info.collision_player_side = event->flag_bits.player_side;
+            g_game_info.collision_player_pdata = player;
             g_game_info.collision_event_id = event->event_id;
         }
     }
 }
 
-/* Soft ceiling 82.32%: exact dataflow; latch-branch shape and coloring differ. */
+/* TODO: [near miss] 98.679245%; reload, latches and publication order agree;
+ * player/global base registers differ; stop at coloring. */
 void bgnd_collison_if_set_info(void) {
     bgnd_apply_collision_info(g_active_obstacle_event_data);
 }
@@ -11403,40 +11367,15 @@ void bgnd_active_sobj_no_ztest(void) {
 void bgnd_active_sobj_no_zwrite(void) {
     g_active_sobj->flags09_bits.bit7 = 1;
 }
-/*
- * Clean-C ceiling: 58.18%, retail/local 176/164 bytes. As in bgnd_fetch_sobj,
- * MWCC folds retail's explicit null-normalization branches from typed C.
- */
+/* TODO: [near miss] 97.72727%; canonical lookup expands exactly;
+ * unused retail null comparison before publication remains. */
 void bgnd_set_active_sobj_in_obj(int model_index, unsigned int object_id) {
-    MkSobj* object;
-
-    if (model_index != (int)0xDDDDEEEE) {
-        unhide_obj(g_bgnd_preloaded_models[model_index]);
-        if (g_bgnd_preloaded_models[model_index] == 0) {
-            object = 0;
-        } else {
-            object = obj_find_sobj_by_id(
-                g_bgnd_preloaded_models[model_index], object_id);
-            if (object == 0) {
-                object = obj_first_sobj(
-                    g_bgnd_preloaded_models[model_index]);
-                if (object == 0) {
-                    object = 0;
-                }
-            }
-        }
-    } else {
-        object = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
-        if (object == 0) {
-            object = 0;
-        }
-    }
-    g_active_sobj = object;
+    g_active_sobj = bgnd_fetch_sobj(model_index, object_id);
 }
 int bgnd_is_active_sobj_hidden(void) {
     return is_sobj_hidden(g_active_sobj);
 }
-/* Soft ceiling: 92.86%, 52/56 bytes -- one unused retail null comparison. */
+/* TODO: [near miss] 92.85714%; unused retail null comparison before publication; stop. */
 void bgnd_set_active_sobj(int object_id) {
     g_active_sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, object_id);
 }
@@ -11515,11 +11454,9 @@ void bgnd_rx_notify(
         }
     }
 }
-/*
- * Clean-C ceiling: 90.09%. Retail expands two validated-latch success edges and
- * reads the otherwise uninitialized event flags byte. Keep the local event
- * initialized instead of reproducing undefined behavior.
- */
+/* Retail reads an otherwise uninitialized event flags byte; keep it initialized. */
+/* TODO: [breakthrough needed] 92.41964%; latch joins restored;
+ * event-flags initialization contract remains unresolved. */
 void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     PlyrPdata* player;
 
@@ -11587,7 +11524,6 @@ void bgnd_setup_rx_handler(int handler) {
     g_current_reaction_info.handler_enabled = 1;
     g_current_reaction_info.handler = handler;
 }
-/* TODO: [breakthrough needed] 81.875%; MKO function index typed; command lifetime codegen still differs. */
 void bgnd_anim_camera_ended(void) {
     CmdScript* script;
     CmdScript* prev;
@@ -11598,18 +11534,17 @@ void bgnd_anim_camera_ended(void) {
     prev = active_cmdscript;
     info = &g_game_info;
     active_cmdscript = script;
-    script_index = info->section != 0 ? info->section->cam_ended_script : 0;
+    script_index = info->section->cam_ended_script;
     if (script_index != 0) {
         cmdscript_setup_execution(info->cmdscript, script_index);
         cmdscript_execute(info->cmdscript);
     }
     active_cmdscript = prev;
     if (script->instance != 0) {
-        ((int (*)(CmdScript*))script->vtbl->destroy)(script);
+        ((MkHdr*)script)->typed_vtbl->destroy((MkHdr*)script);
     }
 }
 
-/* TODO: [breakthrough needed] 88.23529%; MKO function index typed; command lifetime codegen still differs. */
 void bgnd_anim_camera_setup(void) {
     CmdScript* script;
     CmdScript* prev;
@@ -11621,14 +11556,14 @@ void bgnd_anim_camera_setup(void) {
     active_cmdscript = script;
     cam_set_intro_cam_pause_ticks(0.0f);
     info = &g_game_info;
-    script_index = info->section != 0 ? info->section->cam_setup_script : 0;
+    script_index = info->section->cam_setup_script;
     if (script_index != 0) {
         cmdscript_setup_execution(info->cmdscript, script_index);
         cmdscript_execute(info->cmdscript);
     }
     active_cmdscript = prev;
     if (script->instance != 0) {
-        ((int (*)(CmdScript*))script->vtbl->destroy)(script);
+        ((MkHdr*)script)->typed_vtbl->destroy((MkHdr*)script);
     }
 }
 
@@ -12876,8 +12811,8 @@ void bgnd_hide_sobj(unsigned int object_id) {
         }
     }
 }
-/* Near match: 97.72%, exact algorithm and size; two loop locals are colored
- * into the opposite nonvolatile registers. */
+/* TODO: [near miss] 97.72414%; loop pointer/ID register allocation
+ * and initial address scheduling differ; stop at coloring. */
 void bgnd_hide_sobj_list(unsigned int* object_ids) {
     unsigned int* next_id;
     unsigned int object_id;
@@ -13369,8 +13304,8 @@ void load_bgnd_style(int player, const char* script_name, void* script_args) {
         }
     }
 }
-/* Near match: exact 168-byte teardown; only the first loop's zero-offset
- * register initialization differs (li versus move-from-zero). */
+/* TODO: [near miss] 95.2381%; first loop initializes offset with li rather
+ * than moving the existing zero; stop at the zero-materialization ceiling. */
 void ncs_bgnd_nuke_collision_to_script_interface(void) {
     unsigned int index;
 
