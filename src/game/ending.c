@@ -44,6 +44,11 @@ typedef struct EndingScriptPdata {
     ScriptSlot* script;
 } EndingScriptPdata;
 
+typedef union EndingScriptPdataOut {
+    MkHdr* hdr;
+    EndingScriptPdata* script;
+} EndingScriptPdataOut;
+
 typedef union EndingObjectRef {
     MkHdr* hdr;
     StringObj* string;
@@ -79,11 +84,6 @@ typedef struct EndingScrollPdata {
     float step;        /* +0x08 */
     float accumulator; /* +0x0C */
 } EndingScrollPdata;
-
-typedef struct EndingProcSleepVtable {
-    void* reserved[6];
-    int (*sleep)(void);
-} EndingProcSleepVtable;
 
 typedef struct EndingScreenObjItem {
     ScreenObj* object;
@@ -127,7 +127,7 @@ static void count_scrolling_text_strings(MkHdr* object);
 static float p_scrolling_text(void);
 
 /*
- * Soft ceiling: ending_show_text ~70.42% - the typed 0x560-byte text-window
+ * TODO: [breakthrough] ending_show_text 73.166664% - the typed 0x560-byte text-window
  * pdata contract is complete; remaining differences are allocation/FP shape.
  */
 void ending_show_text(int string_id, int duration) {
@@ -165,7 +165,7 @@ void ending_show_text(int string_id, int duration) {
 }
 
 /*
- * Soft ceiling: ~77.96% - the credits lifecycle is recovered; residual
+ * TODO: [breakthrough] 79.21528% - the credits lifecycle is recovered; residual
  * differences are repeated state stores and process-pdata allocation shape.
  */
 float p_credits_screen(void) {
@@ -230,13 +230,13 @@ float p_credits_screen(void) {
             count_scrolling_text_strings, &screen_obj_list);
         if (scrolling_text_string_count != 0) {
             _mkproc_sleep_ticks = 1.0f;
-            ((EndingProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
         }
     } while (scrolling_text_string_count != 0);
 
     fade_to_black(8, 1);
     _mkproc_sleep_ticks = 60.0f;
-    ((EndingProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     destroy_mkprocs_pid(0x902D);
     fade_to_black(8, 1);
     gamelogic_jump(6, p_main_menu);
@@ -273,7 +273,7 @@ void credits_add_text(const char* center_text, const char* right_text, int monoc
     }
 
     _mkproc_sleep_ticks = 58.0f;
-    ((EndingProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
 }
 
 static void count_scrolling_text_strings(MkHdr* object) {
@@ -339,7 +339,7 @@ static float p_ending_script_in_proc(void) {
 }
 
 /*
- * Soft ceiling: ~82.51% - champion presentation is recovered; the duplicated
+ * TODO: [breakthrough] 90.490326%; compact profile improves presentation; the duplicated
  * retail good/bad selection is retained because both routes name the same two
  * champion panes in this build.
  */
@@ -433,7 +433,7 @@ float p_champion_screen(void) {
                 ticks = 0x320;
             }
             _mkproc_sleep_ticks = 1.0f;
-            ((EndingProcSleepVtable*)aproc->vtbl)->sleep();
+            aproc->vtbl->sleep();
             ticks++;
         }
         turn_controllers_off();
@@ -542,7 +542,7 @@ static void fade_ending_screen_images(int image, int ticks) {
         }
 
         _mkproc_sleep_ticks = 1.0f;
-        ((EndingProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
 
         image_1a = ENDING_SCREEN_ITEM_OBJECT(&ending_image_1a_item);
         image_1b = ENDING_SCREEN_ITEM_OBJECT(&ending_image_1b_item);
@@ -601,20 +601,29 @@ float p_character_ending_sequence(void) {
     return -1.0f;
 }
 
+static inline int find_ending_index(int fighter) {
+    int index;
+
+    for (index = 0; index < 26; index++) {
+        if (fighter == ending_data_table[index].fighter) {
+            return index;
+        }
+    }
+    return -1;
+}
+
 /*
  * Runs the selected fighter's scripted ending. All table fields are named so
  * the six ending panes and script/audio assets remain independent of pointer
  * width assumptions in the control flow.
- * Soft ceiling: ~77.51% - the algorithm is recovered; table-index and NV
- * allocation remain compiler-shape work.
+ * TODO: [near miss] 98.84146%; string-pool bases and switch normalization remain;
+ * inline predicate control was neutral.
  */
 void run_ending(int fighter) {
-    EndingScriptPdata* script_pdata;
-    EndingDataEntry* ending;
     ScreenObj* image;
     ScriptSlot* script;
     MkProc* ending_proc;
-    MkHdr* pdata_hdr;
+    EndingScriptPdataOut pdata;
     int script_function;
     int screen_x;
     int index;
@@ -645,23 +654,17 @@ void run_ending(int fighter) {
     load_ssf(&endings_file_table);
     load_font(8);
 
-    ending = 0;
-    for (index = 0; index < 26; index++) {
-        if (ending_data_table[index].fighter == fighter) {
-            ending = &ending_data_table[index];
-            break;
-        }
-    }
-    if (ending == 0) {
+    index = find_ending_index(fighter);
+    if (index < 0) {
         return;
     }
 
-    load_art_section(0x2001E, ending->art_section);
+    load_art_section(0x2001E, ending_data_table[index].art_section);
     setup_sound_banks(10);
     _mkproc_sleep_ticks = 30.0f;
-    ((EndingProcSleepVtable*)aproc->vtbl)->sleep();
+    aproc->vtbl->sleep();
     wait_for_sound_banks_to_load();
-    ending_speech = snd_req(ending->speech_id);
+    ending_speech = snd_req(ending_data_table[index].speech_id);
 
     if (is_widescreen_mode()) {
         screen_x = (screen_width - 0x280) / 2 - 0x40;
@@ -674,38 +677,38 @@ void run_ending(int fighter) {
         image = load_named_2d_pfxobj_xy(                              \
             0x2001E, (oid), (texture), 0, (x_pos), 0x2A, 0x1E);      \
         if (image != 0) {                                             \
-            image->flags |= 0x10;                                     \
+            image->flag_bits.hidden = 1;                                     \
             (item).object = image;                                    \
             (item).instance = image->instance;                         \
         }                                                             \
     } while (0)
 
     LOAD_ENDING_IMAGE(
-        ending_image_1a_item, 0x4002, ending->image_1a, screen_x);
+        ending_image_1a_item, 0x4002, ending_data_table[index].image_1a, screen_x);
     LOAD_ENDING_IMAGE(
         ending_image_1b_item,
         0x4003,
-        ending->image_1b,
+        ending_data_table[index].image_1b,
         screen_x + 0x200);
     LOAD_ENDING_IMAGE(
-        ending_image_2a_item, 0x4004, ending->image_2a, screen_x);
+        ending_image_2a_item, 0x4004, ending_data_table[index].image_2a, screen_x);
     LOAD_ENDING_IMAGE(
         ending_image_2b_item,
         0x4005,
-        ending->image_2b,
+        ending_data_table[index].image_2b,
         screen_x + 0x200);
-    if (ending->image_3a != 0) {
+    if (ending_data_table[index].image_3a != 0) {
         LOAD_ENDING_IMAGE(
             ending_image_3a_item,
             0x4004,
-            ending->image_3a,
+            ending_data_table[index].image_3a,
             screen_x);
     }
-    if (ending->image_3b != 0) {
+    if (ending_data_table[index].image_3b != 0) {
         LOAD_ENDING_IMAGE(
             ending_image_3b_item,
             0x4005,
-            ending->image_3b,
+            ending_data_table[index].image_3b,
             screen_x + 0x200);
     }
 
@@ -713,18 +716,17 @@ void run_ending(int fighter) {
 
     script = cmdscript_loadfile_by_name(0x10, "endings.mko");
     script_function =
-        get_script_function_by_name(script, ending->script_function);
-    pdata_hdr = 0;
+        get_script_function_by_name(script, ending_data_table[index].script_function);
+    pdata.hdr = 0;
     ending_proc = _create_mkproc_generic_bigstack(
         0x20A0,
         0x1F,
         p_ending_script_in_proc,
         sizeof(EndingScriptPdata),
-        &pdata_hdr);
-    if (ending_proc != 0 && pdata_hdr != 0) {
-        script_pdata = (EndingScriptPdata*)pdata_hdr;
-        script_pdata->func_index = script_function;
-        script_pdata->script = script;
+        &pdata.hdr);
+    if (ending_proc != 0 && pdata.script != 0) {
+        pdata.script->func_index = script_function;
+        pdata.script->script = script;
         set_process_as_scriptable(ending_proc);
     }
 
@@ -736,7 +738,7 @@ void run_ending(int fighter) {
         } else {
             port = g_game_info.plyr1.pad_index;
         }
-        if (check_switch_edge(port, 6) == 1) {
+        if (check_switch_edge(port, 6) != 0) {
             turn_controllers_off();
             fade_to_black(8, 1);
             if ((int)mode_of_play == 5) {
@@ -749,7 +751,7 @@ void run_ending(int fighter) {
             gamelogic_jump(10, p_credits_screen);
         }
         _mkproc_sleep_ticks = 1.0f;
-        ((EndingProcSleepVtable*)aproc->vtbl)->sleep();
+        aproc->vtbl->sleep();
     }
 
     fade_to_black(8, 1);
@@ -764,12 +766,10 @@ void run_ending(int fighter) {
 }
 
 const char* get_ending_thumbnail_name(int fighter) {
-    int index;
+    int index = find_ending_index(fighter);
 
-    for (index = 0; index < 26; index++) {
-        if (ending_data_table[index].fighter == fighter) {
-            return ending_data_table[index].thumbnail;
-        }
+    if (index == -1) {
+        return 0;
     }
-    return 0;
+    return ending_data_table[index].thumbnail;
 }

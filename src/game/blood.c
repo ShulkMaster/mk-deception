@@ -1339,7 +1339,6 @@ extern float game_speed;
 extern int exec_tick_ctr;
 extern BloodDecalArrayView mkpfx_ncs_decal_array;
 
-unsigned int fx_by_owner(const char* name, int owner);
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, const Vec* position,
     const MKMATRIX* orientation,
@@ -2206,6 +2205,7 @@ void bleed_startup(void) {
     }
 }
 
+/* TODO: [near miss] 95.15625%; loop base/index coloring and generated constant name remain. */
 void bleed_init(void) {
     int index;
 

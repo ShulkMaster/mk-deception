@@ -333,6 +333,19 @@ static inline MkProc* bgnd_live_player_process(PlyrPdata* owner) {
     return object;
 }
 
+static inline MkProc* bgnd_live_transient_process(PlyrPdata* owner) {
+    MkProc* process = owner->transient_proc;
+    if (process != 0) {
+        if (process->instance == owner->transient_proc_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
 static inline MkObj* bgnd_live_light_object(MkxRpLight* owner) {
     MkObj* object = owner->obj;
     if (object != 0) {
@@ -12333,7 +12346,7 @@ void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
                 sobj_id, material_id);
     }
 }
-/* TODO: [near miss] 95.19231%; retail string pool recovered; remaining CFG/register differences need local evidence. */
+/* TODO: [near miss] 95.19231%; frame/material register coloring; iteration-local scope is neutral. */
 void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries,
                             unsigned int frame) {
     char material_error[80];
@@ -12342,11 +12355,10 @@ void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries,
     MkSobj* object;
     unsigned int index;
     unsigned int sobj_id;
-    int material_id;
 
     index = 0;
     while ((sobj_id = entries[index].sobj_id) != 0) {
-        material_id = entries[index].material_id;
+        int material_id = entries[index].material_id;
         object = obj_find_sobj_by_id(g_game_info.bgnd_obj, sobj_id);
         if (object == 0) {
             sprintf(sobj_error,
@@ -12661,20 +12673,14 @@ void bgnd_force_ground_to(void* script, float height) {
     (void)script;
     g_game_info.field_34 = height;
 }
-/*
- * Exact validated-process and movement test; 80.36%, retail/local 112/96.
- * This compiler folds retail's explicit null-normalization branches.
- */
 int bgnd_launch_plyr_up_and_forward_running(void) {
-    PlyrPdata* pdata;
     MkProc* process;
+    int moving;
 
-    pdata = g_game_info.collision_player_pdata->his_plyr_pdata;
-    process = pdata->transient_proc;
-    if (process != 0 && process->instance != pdata->transient_proc_instance) {
-        process = 0;
-    }
-    if (process != 0 || g_game_info.player_objects[0]->flags_08_bits.moving) {
+    process = bgnd_live_transient_process(
+        g_game_info.collision_player_pdata->his_plyr_pdata);
+    moving = g_game_info.player_objects[0]->flags_08_bits.moving;
+    if (process != 0 || moving) {
         return 1;
     }
     return 0;

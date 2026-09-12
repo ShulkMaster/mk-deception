@@ -335,7 +335,7 @@ int repel_cylinder_against_global_collision_list(
     CollisionShape* cylinder, Vec* movement);
 extern ConstrainInfo constrain_info;
 extern int local_obstacle_callback(ArenaObstacle* obstacle);
-void reset_player_collision(PlayerCollisionData* collision);
+void reset_player_collision(PlyrInfo* player);
 static void render_players_joints(void);
 static void render_player_joints(PlayerCollisionData* collision);
 static float p_collision_update(void);
@@ -3149,6 +3149,8 @@ int collide_cylinder_vs_plyr(
     return collide_shape_vs_plyr(player, &shape);
 }
 
+/* TODO: [near miss] 67.10345%; frame alignment and scalar-copy scheduling
+ * differ; retain plain C without alignment attributes per project preference. */
 int collide_sphere_vs_plyr(
     PlyrInfo* player,
     const Vec* center,
@@ -4337,13 +4339,9 @@ void term_player_collision(PlyrInfo* player) {
     }
 }
 
-/*
- * Retail over-aligns several automatic collision temporaries to 16 bytes.
- * Portable C cannot request that stack alignment, and the project policy
- * excludes compiler alignment attributes. Objdiff therefore retains honest
- * stack-frame/addressing residue in the affected functions.
- */
-void reset_player_collision(PlayerCollisionData* collision) {
+/* TODO: [breakthrough needed] 71.39053%; player-info contract corrected neutrally;
+ * collision scratch layout/frame differences remain; defer paired-single code. */
+void reset_player_collision(PlyrInfo* player) {
     int definition_count;
     PlayerCollisionNodeStorage* storage;
     PlayerCollisionRegionBuild* region;
@@ -4353,7 +4351,7 @@ void reset_player_collision(PlayerCollisionData* collision) {
     int bone_index;
     int index;
 
-    storage = (PlayerCollisionNodeStorage*)collision->nodes;
+    storage = (PlayerCollisionNodeStorage*)player->collision_data;
     if (storage == 0) {
         return;
     }
@@ -4378,23 +4376,23 @@ void reset_player_collision(PlayerCollisionData* collision) {
     center.x = 0.0f;
     center.y = 0.0f;
     center.z = 0.0f;
-    storage->object = collision->object;
-    if (collision->object == 0) {
+    storage->object = player->slot.mirror_a;
+    if (player->slot.mirror_a == 0) {
         return;
     }
 
-    if (collision->player != 0) {
-        if (collision->player->character_id == 0x1E) {
+    if (player->slot.pdata != 0) {
+        if (player->slot.pdata->character_id == 0x1E) {
             definition_count = 28;
         } else {
             definition_count = 22;
         }
     }
-    joint_scale = is_big_boss(collision->player) ? 1.3f : 1.0f;
+    joint_scale = is_big_boss(player->slot.pdata) ? 1.3f : 1.0f;
     for (index = 0; index < definition_count; index++) {
         const CollisionNodeDef* definition = &col_def_list[index];
         bone_index = definition->node_id & 0xFFF;
-        collision->object->bones[
+        player->slot.mirror_a->bones[
             bone_index]->flags_54_bits.calculation_locked = 1;
 
         if (definition->joint_radius != 0.0f) {
@@ -4403,7 +4401,7 @@ void reset_player_collision(PlayerCollisionData* collision) {
             sphere.sphere_radius = joint_scale * definition->joint_radius;
             region = (PlayerCollisionRegionBuild*)((char*)storage +
                 storage->joint_count * 0x130);
-            region->bone = collision->object->bones[bone_index];
+            region->bone = player->slot.mirror_a->bones[bone_index];
             region->current_shape = sphere;
             region->previous_shape = sphere;
             storage->joint_count++;
@@ -4414,7 +4412,7 @@ void reset_player_collision(PlayerCollisionData* collision) {
             sphere.sphere_radius = definition->active_radius;
             region = (PlayerCollisionRegionBuild*)((char*)storage + 0x8B00 +
                 storage->active_count * 0x130);
-            region->bone = collision->object->bones[bone_index];
+            region->bone = player->slot.mirror_a->bones[bone_index];
             region->current_shape = sphere;
             region->previous_shape = sphere;
             storage->active_count++;
@@ -4423,9 +4421,9 @@ void reset_player_collision(PlayerCollisionData* collision) {
 }
 
 void init_player_collision(PlyrInfo* player) {
-    player->collision_data->nodes = get_mem(0x9410);
-    if (player->collision_data->nodes != 0) {
-        reset_player_collision(player->collision_data);
+    player->collision_data = get_mem(0x9410);
+    if (player->collision_data != 0) {
+        reset_player_collision(player);
     }
 }
 

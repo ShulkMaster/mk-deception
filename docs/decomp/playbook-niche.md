@@ -30,8 +30,10 @@ After the applicable honest source check, stop for:
 - li-zero vs copying an already-zero register; commutative scratch encodings.
 - Frameless PLATFORM mtlr/blrl emission.
 - Anonymous relocation labels with verified identical payloads/targets. Ordinary
-  score equality is insufficient: mk_chess board callbacks scored identically
-  for wrong 0.0f and correct -1.0f returns. Verify bytes/data-value comparison.
+  score equality is insufficient: mk_chess board callbacks and Krypt gallery
+  setup kept equal ordinary scores with incorrect return constants. Audit
+  same-register literal loads using bytes/data-value comparison before calling
+  a residual coloring.
 - Equivalent branch/address lowering without new source evidence.
 
 Unknown calls/offsets/CFG are not coloring: classify borked or breakthrough needed
@@ -51,6 +53,14 @@ Permuter requires established algorithm/CFG/ABI/layout and the real TU command.
 Keep PERM_* in scratch; task-specific attempt limits never waive verification.
 Reject UB, wrong types, reordered effects, and fake liveness even at zero score.
 
+- IF an imported candidate behaves differently in the real TU, REQUIRE an
+  unchanged-baseline control; TRY compiling the candidate body inside a frozen
+  full TU with the recovered command. Restrict objdump to the selected symbol
+  (`--disassemble=SYMBOL`), since the scorer otherwise includes unrelated
+  functions. Confirm the baseline against the normal object with objdiff before
+  searching. Review candidate semantics and remeasure in the repository even
+  when the harness preserves compiler context: permuter and objdiff scores are
+  different metrics.
 - IF a known integer `x == 0` / `!x` value rewrite lies outside branch conditions,
   REQUIRE a verified type and mutation-region boundary; TRY the opt-in
   [integer Boolean patch](../../.agent-work/patches/decomp-permuter/decomp-permuter-integer-boolean-values.patch)

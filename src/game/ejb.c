@@ -100,12 +100,6 @@ typedef struct EjbFighterDefinitionExtended {
     AniData* crouching_animation; /* +0xC4 */
 } EjbFighterDefinitionExtended;
 
-typedef struct EjbPlyrScaleView {
-    char pad000[0x10C];
-    MkHdr* scale_pdata;
-    unsigned int scale_pdata_instance;
-} EjbPlyrScaleView;
-
 typedef struct EjbSuperchargeView {
     char pad000[0x10C];
     MkHdr* scale_pdata;
@@ -249,7 +243,7 @@ float back_to_crouch(void);
 static inline void exit_reaction_common(void);
 void myvel_my_angle_y(float angle_offset, float velocity, float vertical);
 float p_force_away(void);
-void pw_plyr_force(void);
+static void pw_plyr_force(void);
 void ps_plyr_force(void);
 float two_player_animation_blend(
     AniData* animation, int attacker_mode, int victim_mode,
@@ -303,7 +297,7 @@ void auto_ani_on(void);
 static void disable_both_repel_flags(void);
 static void taunt_raise_my_life_bar(void);
 static void gut_tumble_air_check(void);
-static void impale_him(void);
+void impale_him(void);
 void fan_lift_prep(void);
 static void wait_for_backland(void);
 static void start_impale_bleeding(void);
@@ -834,7 +828,7 @@ int is_he_flipped(void) {
     if (plyr_anim_pdata->flags & 8) {
         flipped ^= 1;
     }
-    flipped = flipped == 1;
+    flipped = flipped != 0;
     swap_active_plyr_proc();
     return flipped;
 }
@@ -1659,31 +1653,27 @@ void end_air_move(void) {
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
 }
 
-/*
- * Honest soft ceiling for the air-move callers: retail preserves and writes
- * the animation step back to itself before the flag updates. That unobservable
- * load/store and its scheduling account for their exact 20-byte source gap.
- */
 static inline void init_move_impl(void) {
-    EjbAnimPdataExtended* animation;
     float weight;
 
-    animation = (EjbAnimPdataExtended*)plyr_anim_pdata;
     plyr_obj->hide_flag_bits.still_move = 0;
-    animation->weight_velocity = 0.0f;
+    plyr_anim_pdata->weight_velocity = 0.0f;
     if ((int)mode_of_play == 6) {
         weight = 0.25f;
     } else {
         weight = 1.0f;
     }
-    animation->weight = weight;
+    plyr_anim_pdata->weight = weight;
     plyr_anim_pdata->step = 1.0f;
     plyr_pdata->collision_result = -1;
     plyr_pdata->collision_disabled = 0;
 }
 
 void init_air_move_no_aniproc(void) {
+    float step = plyr_anim_pdata->step;
+
     init_move_impl();
+    plyr_anim_pdata->step = step;
     plyr_obj->flags_09_bits.launched = 0;
     plyr_obj->flags_08_bits.moving = 1;
     plyr_obj->flags_09_bits.bit6 = 0;
@@ -1692,7 +1682,10 @@ void init_air_move_no_aniproc(void) {
 }
 
 void init_air_move(void) {
+    float step = plyr_anim_pdata->step;
+
     init_move_impl();
+    plyr_anim_pdata->step = step;
     plyr_obj->flags_09_bits.launched = 0;
     plyr_obj->flags_08_bits.moving = 1;
     plyr_obj->flags_09_bits.bit6 = 0;
@@ -2175,7 +2168,7 @@ int should_weapon_block(PlyrPdata* player) {
     if (is_big_boss(player) != 0) {
         return 1;
     }
-    return is_weapon_style(player->fighter_definition) == 1;
+    return is_weapon_style(player->fighter_definition) != 0;
 }
 
 /* TODO: [near miss] 99.695656%; equivalent switch return-arm order remains; guard and case-order trials reverted. */
@@ -3421,7 +3414,7 @@ void air_collision_pause(
     plyr_obj->gravity = gravity;
 }
 
-int collision_2(int attack_region) {
+int collision_2(int attack_region, float radius, float extension) {
     int collision_result;
 
     plyr_pdata->attack_region = attack_region;
@@ -3429,7 +3422,7 @@ int collision_2(int attack_region) {
         return 0;
     }
 
-    set_plyr_attack_region(attack_region, 0.0f, 0.0f);
+    set_plyr_attack_region(attack_region, radius, extension);
     collision_result = collide_plyr_vs_plyr();
     if (collision_result == 1) {
         trial_state_collision_check(
@@ -3690,37 +3683,27 @@ void ps_plyr_force(void) {
     plyr_obj = 0;
 }
 
-void pw_plyr_force(void) {
-    EjbPlyrForcePdata* force;
-    MkObj* object;
-    PlyrPdata* player;
-
-    force = (EjbPlyrForcePdata*)apdata;
-    plyr_force_pdata = force;
-
-    object = force->object;
-    if (object != 0) {
-        if (object->hdr.instance == force->object_instance) {
-            /* Keep the live object. */
-        } else {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
-    plyr_obj = object;
-
-    player = force->player;
+static inline PlyrPdata* force_live_player(EjbPlyrForcePdata* force) {
+    PlyrPdata* player = force->player;
     if (player != 0) {
         if (player->instance == force->player_instance) {
-            /* Keep the live player. */
-        } else {
-            player = 0;
+            return player;
         }
+        player = 0;
     } else {
         player = 0;
     }
-    plyr_pdata = player;
+    return player;
+}
+
+/* TODO: [near miss] 96.666664%; validation agrees; stop at owner/result coloring. */
+static void pw_plyr_force(void) {
+    EjbPlyrForcePdata* force;
+
+    force = (EjbPlyrForcePdata*)apdata;
+    plyr_force_pdata = force;
+    plyr_obj = ejb_live_object(force->object, &force->object_instance);
+    plyr_pdata = force_live_player(force);
 }
 
 void stop_me(void) {
@@ -4180,9 +4163,11 @@ void disable_my_attacks(int ticks) {
 }
 
 void setup_for_flip_ani(void) {
-    plyr_obj->hide_flag_bits.bit6 ^= 1;
+    MkObj* object = plyr_obj;
+
+    object->hide_flag_bits.bit6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
-    plyr_match_weapon_flip_to_obj_flip(plyr_pdata, plyr_obj);
+    plyr_match_weapon_flip_to_obj_flip(plyr_pdata, object);
 }
 
 float p_chamber_to_stance_2(void) {
@@ -4642,7 +4627,7 @@ static void wait_for_backland(void) {
     init_ground_move();
 }
 
-static void impale_him(void) {
+void impale_him(void) {
     EjbFighterDefinitionExtended* fighter;
     MkObj* source;
     MkObj* target;
@@ -4653,16 +4638,10 @@ static void impale_him(void) {
 
     fighter =
         (EjbFighterDefinitionExtended*)plyr_pdata->fighter_definition;
-    source = fighter->impale_source;
-    if (source != 0 &&
-        source->hdr.instance != fighter->impale_source_instance) {
-        source = 0;
-    }
-    target = fighter->impale_target;
-    if (target != 0 &&
-        target->hdr.instance != fighter->impale_target_instance) {
-        target = 0;
-    }
+    source = ejb_live_object(fighter->impale_source,
+        &fighter->impale_source_instance);
+    target = ejb_live_object(fighter->impale_target,
+        &fighter->impale_target_instance);
     player_impale(source, target);
 }
 
@@ -4962,23 +4941,17 @@ void match_my_ypos_with_his(void) {
 }
 
 float slamdown_reaction_max_hit_rules(void) {
-    EjbPlyrPdataExtended* player;
-
-    player = (EjbPlyrPdataExtended*)plyr_pdata;
-    if (player->reaction_hit_count >= 2) {
-        ((EjbProcSleepVtable*)aproc->vtbl)
-            ->transfer(r_jump_slambounce_final_hit, 0.0f);
+    if (plyr_pdata->reaction_hit_count >= 2) {
+        aproc->vtbl->jump_sleep(r_jump_slambounce_final_hit, 0.0f);
+        return 0.0f;
     }
     return 0.0f;
 }
 
 float popup_reaction_max_hit_rules(void) {
-    EjbPlyrPdataExtended* player;
-
-    player = (EjbPlyrPdataExtended*)plyr_pdata;
-    if (player->reaction_hit_count >= 2) {
-        ((EjbProcSleepVtable*)aproc->vtbl)
-            ->transfer(r_jump_chin3_final_hit, 0.0f);
+    if (plyr_pdata->reaction_hit_count >= 2) {
+        aproc->vtbl->jump_sleep(r_jump_chin3_final_hit, 0.0f);
+        return 0.0f;
     }
     return 0.0f;
 }
@@ -5697,15 +5670,9 @@ static void start_impale_bleeding(void) {
 }
 
 void scale_me_normal(void) {
-    EjbPlyrScaleView* player;
     EjbScalePdata* scale_pdata;
 
-    player = (EjbPlyrScaleView*)plyr_pdata;
-    scale_pdata = (EjbScalePdata*)player->scale_pdata;
-    if (scale_pdata != 0 &&
-        scale_pdata->instance != player->scale_pdata_instance) {
-        scale_pdata = 0;
-    }
+    scale_pdata = ejb_supercharge_view_live_scale_pdata(supercharge_player());
     if (scale_pdata == 0) {
         return;
     }
