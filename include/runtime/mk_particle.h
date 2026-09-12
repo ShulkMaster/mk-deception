@@ -104,7 +104,9 @@ struct MkPfx {
     int field_A0;                 /* +0xA0 */
     char padA4[0x0C];
     PfxTransform transforms[3];   /* +0xB0 -- indexed; stride 0x48 */
-    char pad188[0x3A];
+    char pad188[0x1C];
+    Vec camera_follow_position;   /* +0x1A4 -- Krypt camera-follow XYZ */
+    char pad1B0[0x12];
     unsigned short emitter_enabled; /* +0x1C2 */
     char pad1C4[0x3C];
     int slot_count;               /* +0x200 */

@@ -138,8 +138,9 @@ typedef struct FatalityAnimationView {
 } FatalityAnimationView;
 
 typedef struct FatalityObjectLatch {
-    int active;
-    char pad04[0x10];
+    char pad00[8];
+    int active; /* +0x08 */
+    char pad0C[8];
     MkHdr* object;
     unsigned int object_instance;
 } FatalityObjectLatch;
@@ -543,7 +544,7 @@ FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     const Vec* rotation, int mode, float blend);
 static float p_fake_bone_matcher_proc(void);
 float p_obj_grnd_bounce(void);
-float p_obj_pos_matcher(void);
+static float p_obj_pos_matcher(void);
 float p_obj_scalar_proc(void);
 float p_bodyslam_bodysplat(void);
 static float p_raiden_lightning_scrolling(void);
@@ -600,7 +601,7 @@ void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
 float sqrtf(float value);
 static float p_subzero_ice_chunk(void);
 static float p_subzero_iceblock_alpha(void);
-float p_sz2_iceblock_scalar(void);
+static float p_sz2_iceblock_scalar(void);
 float sz_kill_myself(void);
 float subzero_rx_freeze(void);
 void material_set_zbias(RpMaterial* material, float bias);
@@ -1116,7 +1117,20 @@ MkObj* subzero_start_iceblock(void) {
     return iceblock;
 }
 
-float p_sz2_iceblock_scalar(void) {
+static inline MkObj* fatality_live_object(
+    MkObj* object, const unsigned int* instance) {
+    if (object != 0) {
+        if (object->hdr.instance == *instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static float p_sz2_iceblock_scalar(void) {
     FatalityScalePdata* data;
     MkObj* object;
 
@@ -1124,11 +1138,7 @@ float p_sz2_iceblock_scalar(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = data->object;
-    if (object != 0 &&
-        object->hdr.instance != data->object_instance) {
-        object = 0;
-    }
+    object = fatality_live_object(data->object, &data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -1269,13 +1279,10 @@ static float p_3d_distance_handler(void) {
 }
 
 float subzero_his_tinkle_snd(void) {
-    FatalityProcVtableRef vtable;
-
     _mkproc_sleep_ticks = 60.0f;
-    vtable.base = aproc->vtbl;
-    vtable.fatality->sleep();
+    aproc->vtbl->sleep();
     snd_req(0x353);
-    vtable.fatality->jump_sleep(player_sleep_forever, 0.0f);
+    aproc->vtbl->jump_sleep(player_sleep_forever, 0.0f);
     return 0.0f;
 }
 
@@ -1289,19 +1296,23 @@ float subzero_rx_freeze(void) {
     return 0.0f;
 }
 
-void sindel_sonic_sounds(FatalityObjectLatch* sound, int finished) {
-    MkHdr* object;
+static inline MkHdr* fatality_live_sound_object(FatalityObjectLatch* sound) {
+    MkHdr* object = sound->object;
 
-    object = sound->object;
     if (object != 0) {
         if (object->instance == sound->object_instance) {
-            /* The instance latch still identifies this object. */
-        } else {
-            object = 0;
+            return object;
         }
+        object = 0;
     } else {
         object = 0;
     }
+    return object;
+}
+
+void sindel_sonic_sounds(FatalityObjectLatch* sound, int finished) {
+    MkHdr* object = fatality_live_sound_object(sound);
+
     if (object != 0 && finished == 0) {
         sound->active = 1;
     }
@@ -2035,6 +2046,7 @@ void ft_mileena_start_veil_ripoff(void) {
     }
 }
 
+/* TODO: [borked] 84.85714%; test creation return, not output pointer; paired-single saves deferred. */
 void fat_goro_fold_arms(
     PlyrPdata* player, MkObj* object,
     int transition, float speed) {
@@ -2255,15 +2267,13 @@ FatalityState* get_fatality_state_ptr(void) {
     return &fatality_state;
 }
 
-void call_fatality_script_function(void) {
-    ScriptSlot* script;
-
-    script = fatality_state.player->cmo;
-    cmdscript_setup_execution(script, active_cmdscript->unk28);
-    cmdscript_execute(script);
-    ((FatalityProcVtable*)aproc->vtbl)
-        ->jump_sleep(player_sleep_forever, 0.0f);
+float call_fatality_script_function(void) {
+    cmdscript_setup_execution(fatality_state.player->cmo, active_cmdscript->unk28);
+    cmdscript_execute(fatality_state.player->cmo);
+    aproc->vtbl->jump_sleep(player_sleep_forever, 0.0f);
+    return 0.0f;
 }
+
 
 float p_bodyslam_bodysplat(void) {
     FatalityBodySplatPdata* data;
@@ -2274,11 +2284,7 @@ float p_bodyslam_bodysplat(void) {
     if (data == 0) {
         return -1.0f;
     }
-    object = data->object;
-    if (object != 0 &&
-        object->hdr.instance != data->object_instance) {
-        object = 0;
-    }
+    object = fatality_live_object(data->object, &data->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -2288,7 +2294,7 @@ float p_bodyslam_bodysplat(void) {
         return -1.0f;
     }
     object->scale.x = next;
-    object->scale.z = next;
+    object->scale.z = data->current_scale;
     return 1.0f;
 }
 
@@ -2858,22 +2864,25 @@ static float p_fake_bone_matcher_proc(void) {
     return 1.0f;
 }
 
-MkHdr* get_fake_bone_matcher_proc(MkObjLatch* matcher) {
-    MkHdr* proc;
-    MkHdr* result = 0;
+static inline MkProc* fatality_live_matcher_process(FatalityFakeBoneMatcher* matcher) {
+    MkProc* process = matcher->process;
+
+    if (process != 0) {
+        if (process->instance == matcher->process_instance) {
+            return process;
+        }
+        process = 0;
+    } else {
+        process = 0;
+    }
+    return process;
+}
+
+MkProc* get_fake_bone_matcher_proc(FatalityFakeBoneMatcher* matcher) {
+    MkProc* result = 0;
 
     if (matcher != 0) {
-        proc = matcher->obj;
-        if (proc != 0) {
-            if (proc->instance == matcher->obj_instance) {
-                /* The instance latch still identifies this process. */
-            } else {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
-        result = proc;
+        result = fatality_live_matcher_process(matcher);
     }
     return result;
 }
@@ -3129,7 +3138,8 @@ void obj_match_obj_pos(
     }
 }
 
-float p_obj_pos_matcher(void) {
+/* TODO: [near miss] 95.95588%; return/validation/displacement fixed; stop at FP scheduling/coloring. */
+static float p_obj_pos_matcher(void) {
     FatalityObjectMatcherPdata* data;
     MkObj* source;
     MkObj* destination;
@@ -3137,28 +3147,34 @@ float p_obj_pos_matcher(void) {
 
     data = (FatalityObjectMatcherPdata*)apdata;
     if (data == 0) {
-        return 0.0f;
+        return -1.0f;
     }
-    source = data->source;
-    if (source == 0 ||
-        source->hdr.instance != data->source_instance) {
-        return 0.0f;
+    source = fatality_live_object(data->source, &data->source_instance);
+    if (source == 0) {
+        return -1.0f;
     }
-    destination = data->destination;
-    if (destination == 0 ||
-        destination->hdr.instance != data->destination_instance) {
-        return 0.0f;
+    destination = fatality_live_object(data->destination,
+        &data->destination_instance);
+    if (destination == 0) {
+        return -1.0f;
     }
     blend = data->blend;
     if (blend == 1.0f) {
-        destination->pos.value = source->pos.value;
+        destination->pos.value.x = source->pos.value.x;
+        destination->pos.value.y = source->pos.value.y;
+        destination->pos.value.z = source->pos.value.z;
     } else {
-        destination->pos.value.x +=
+        Vec displacement;
+
+        displacement.x =
             (source->pos.value.x - destination->pos.value.x) * blend;
-        destination->pos.value.y +=
+        displacement.y =
             (source->pos.value.y - destination->pos.value.y) * blend;
-        destination->pos.value.z +=
+        displacement.z =
             (source->pos.value.z - destination->pos.value.z) * blend;
+        destination->pos.value.x += displacement.x;
+        destination->pos.value.y += displacement.y;
+        destination->pos.value.z += displacement.z;
     }
     return 1.0f;
 }
@@ -3206,31 +3222,23 @@ void bone_matcher_set_ang_pos(
     }
 }
 
+/* TODO: [near miss] 92.14286%; validation/flag agree; stop at register homes and return moves. */
 MkObj* weapon_bm_ignore(int weapon, int ignored) {
     PlyrMirrorObjLatch* latch;
     MkObj* object;
 
     if (weapon == 0) {
         latch = &plyr_pdata->mirror_slots->weapon[0].secondary;
-        object = latch->obj;
-        if (object != 0 && object->hdr.instance != latch->instance) {
-            object = 0;
-        }
+        object = fatality_live_object(latch->obj, &latch->instance);
         if (object != 0) {
-            object->flags_08 =
-                (object->flags_08 & ~0x80) |
-                ((ignored << 7) & 0x80);
+            object->flags_08_bits.bit7 = ignored;
             return object;
         }
     }
     latch = &plyr_pdata->mirror_slots->weapon[1].secondary;
-    object = latch->obj;
-    if (object != 0 && object->hdr.instance != latch->instance) {
-        object = 0;
-    }
+    object = fatality_live_object(latch->obj, &latch->instance);
     if (object != 0) {
-        object->flags_08 =
-            (object->flags_08 & ~0x80) | ((ignored << 7) & 0x80);
+        object->flags_08_bits.bit7 = ignored;
     }
     return object;
 }
@@ -3290,38 +3298,28 @@ FatalityWeaponAttachment* regrab_weapon(
     return attachment;
 }
 
+/* TODO: [near miss] 98.552635%; reflection guards and hide bit agree; stop at primary owner/object coloring. */
 void weapon_reflection_show_hide(
     PlyrPdata* player, int secondary, int hidden) {
     FatalityWeaponReflectionSet* reflections;
     MkObj* object;
-    unsigned int instance;
 
     if (secondary == 0) {
         reflections = (FatalityWeaponReflectionSet*)
             player->fighter_definition;
-        object = reflections->primary;
-        instance = reflections->primary_instance;
-        if (object != 0 && object->hdr.instance != instance) {
-            object = 0;
-        }
+        object = fatality_live_object(reflections->primary,
+            &reflections->primary_instance);
         if (object != 0) {
-            object->hide_flags =
-                (object->hide_flags & ~0x20) |
-                ((hidden << 5) & 0x20);
+            object->hide_flag_bits.hidden = hidden;
             return;
         }
     }
     reflections = (FatalityWeaponReflectionSet*)
         player->fighter_definition;
-    object = reflections->secondary;
-    instance = reflections->secondary_instance;
-    if (object != 0 && object->hdr.instance != instance) {
-        object = 0;
-    }
+    object = fatality_live_object(reflections->secondary,
+        &reflections->secondary_instance);
     if (object != 0) {
-        object->hide_flags =
-            (object->hide_flags & ~0x20) |
-            ((hidden << 5) & 0x20);
+        object->hide_flag_bits.hidden = hidden;
     }
 }
 
@@ -3410,31 +3408,32 @@ MkObj* clone_my_weapon(
     return weapon;
 }
 
+/* TODO: [near miss] 98.25%; source/reflection and style register colors remain. */
 void clone_weapon_to_secondary(
     WeaponDefinition* definition, FatalityWeaponSource* source) {
     PlyrWeaponStyle* style;
     PlyrMirrorObjLatch* weapon_latch;
     PlyrMirrorObjLatch* reflection_latch;
     MkObj* weapon;
-    MkObj* reflection;
 
     style = source->owner->weapon_styles[2];
     weapon_latch = &style->mirror_slots.weapon[1].primary;
     reflection_latch = &style->mirror_slots.weapon[1].mirror;
     weapon = load_weapon(definition, source->player_object);
-    if (weapon == 0) {
-        return;
-    }
-    weapon_latch->obj = weapon;
-    weapon_latch->instance = weapon->hdr.instance;
-    mk_insert(&weapon->hdr, &style->object_list);
-    reflection = load_weapon_reflection(definition, source->player_object);
-    if (reflection != 0) {
-        reflection_latch->obj = reflection;
-        reflection_latch->instance = reflection->hdr.instance;
-        mk_insert(&reflection->hdr, &style->object_list);
-        obj_create_sobjs(reflection);
-        sobj_set_priority(obj_first_sobj(reflection), 6);
+    if (weapon != 0) {
+        MkObj* reflection;
+
+        weapon_latch->obj = weapon;
+        weapon_latch->instance = weapon->hdr.instance;
+        mk_insert(&weapon->hdr, &style->script->pdata_list);
+        reflection = load_weapon_reflection(definition, source->player_object);
+        if (reflection != 0) {
+            reflection_latch->obj = reflection;
+            reflection_latch->instance = reflection->hdr.instance;
+            mk_insert(&reflection->hdr, &style->script->pdata_list);
+            obj_create_sobjs(reflection);
+            sobj_set_priority(obj_first_sobj(reflection), 6);
+        }
     }
 }
 
@@ -3589,16 +3588,16 @@ int fatality_check_distance(unsigned int action) {
 void fatality_release_other_player(void) {
     release_other_player();
     fatality_state.animation->movement_scale = 1.0f;
-    his_obj->flags_09 &= ~0x80;
-    his_obj->flags_09 &= ~0x10;
-    his_obj->flags_09 &= ~0x02;
-    his_obj->flags_09 &= ~0x20;
-    his_obj->flags_09 &= ~0x08;
-    plyr_obj->flags_09 &= ~0x80;
-    plyr_obj->flags_09 &= ~0x10;
-    plyr_obj->flags_09 &= ~0x02;
-    plyr_obj->flags_09 &= ~0x20;
-    plyr_obj->flags_09 &= ~0x08;
+    his_obj->flags_09_bits.launched = 0;
+    his_obj->flags_09_bits.bit4 = 0;
+    his_obj->flags_09_bits.head_tracking = 0;
+    his_obj->flags_09_bits.tightrope_restricted = 0;
+    his_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags_09_bits.bit4 = 0;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags_09_bits.face_opponent = 0;
 }
 
 void set_victim_v3_units_away(float x, float z) {
@@ -3724,7 +3723,7 @@ void run_fatality_sequence(
         victim_cmdscript->unk28 = victim_script;
         xfer_player_proc(
             fatality_state.victim_proc,
-            (MkProcEntryFn)call_fatality_script_function);
+            call_fatality_script_function);
         if (fatality_state.player_info == &g_game_info.plyr0) {
             FATALITY_SLEEP(1.0f);
         }

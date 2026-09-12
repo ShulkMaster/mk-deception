@@ -231,9 +231,15 @@ struct PfxVm {
             unsigned char flags151_low : 7;
         };
     };
-    char pad152[0x2E];
+    char pad152[2];
+    /* setup_lights passes these as GXInitLightAttn distance coefficients. */
+    float light_attenuation_k0;                    /* +0x154 */
+    float light_attenuation_k1;                    /* +0x158 */
+    float light_attenuation_k2;                    /* +0x15C */
+    PfxColor light_color;                 /* +0x160 */
+    char pad164[0x1C];
     short texture_frame_count;         /* +0x180 */
-    char pad182[2];
+    short texture_mode;         /* +0x182 */
     float texture_frame_time;          /* +0x184 */
     float texture_u_step;              /* +0x188 */
     float texture_v_step;              /* +0x18C */

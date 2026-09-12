@@ -88,7 +88,8 @@ ScreenObj* insert_2d_obj(ScreenObj* obj);
 void fade_from_black(int frames, int flag);
 void pfx_2d_obj_set_alpha_by_id(int oid, int alpha);
 void delete_screen_obj_oid(int oid);
-MkProc* get_fake_bone_matcher_proc(void* arg);
+struct FatalityFakeBoneMatcher;
+MkProc* get_fake_bone_matcher_proc(struct FatalityFakeBoneMatcher* matcher);
 void mkscripts_destroy_fk_bonematcher(void* bonematcher);
 void set_mat(void* mat, void* src);
 void mat_to_quat(void* quat, void* mat);
@@ -335,13 +336,13 @@ void nis_show_cancel_message(void) {
     }
 }
 
+#pragma optimize_for_size on
 static float p_init_skip_nis(void) {
     const char* text;
-    PfxFontSlot* font;
     StringObj* str_obj;
 
     text = get_string_by_id(0x10001);
-    font = load_font(6);
+    load_font(6);
     str_obj = string_center_xy(0x900F, 6, text, screen_width / 2, 0x1A1, 0xB);
     if (str_obj != 0) {
         mk_insert((MkHdr*)str_obj, &aproc->pdata_list_b);
@@ -349,6 +350,8 @@ static float p_init_skip_nis(void) {
     ((MkVtableMkprocLocal*)aproc->vtbl)->jump_sleep(p_check_skip_nis, flt_361);
     return flt_361;
 }
+
+#pragma optimize_for_size reset
 
 static float p_check_skip_nis(void) {
     MkProc* parent_proc;
@@ -358,19 +361,19 @@ static float p_check_skip_nis(void) {
     if (parent_proc == 0) {
         return flt_350;
     }
-    if (check_switch_edge(g_game_info.plyr0.pad_index, 6) == 0 &&
-        check_switch_edge(g_game_info.plyr1.pad_index, 6) == 0) {
-        return flt_349;
-    }
-    pdata = (NisPdata*)pdata_of_proc(parent_proc);
-    if (pdata != 0) {
-        if (pdata->cancel_func != 0) {
-            xfer_proc(parent_proc, p_run_nis_cancel_function);
+    if (check_switch_edge(g_game_info.plyr0.pad_index, 6) != 0 ||
+        check_switch_edge(g_game_info.plyr1.pad_index, 6) != 0) {
+        pdata = (NisPdata*)pdata_of_proc(parent_proc);
+        if (pdata != 0) {
+            if (pdata->cancel_func != 0) {
+                xfer_proc(parent_proc, p_run_nis_cancel_function);
+            }
         }
+        eat_switch_edge(0, 6);
+        eat_switch_edge(1, 6);
+        return flt_350;
     }
-    eat_switch_edge(0, 6);
-    eat_switch_edge(1, 6);
-    return flt_350;
+    return flt_349;
 }
 
 static float p_run_nis_cancel_function(void) {
@@ -399,6 +402,7 @@ void nis_end(void) {
     destroy_mkprocs_pid(0x900C);
 }
 
+/* TODO: [near miss] 94%; operations and accesses agree; bit-local removal neutral, stop at coloring. */
 void nis_signal_event(int event) {
     unsigned int word_index = (unsigned int)event >> 5;
     unsigned int bit = (unsigned int)event & 0x1F;
@@ -439,27 +443,32 @@ void nis_wait_for_event(int event, int timeout) {
     }
 }
 
+#pragma optimize_for_size on
+#pragma use_lmw_stmw on
 void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cancel_func) {
     MkProc* proc;
-    NisPdata* pdata;
-    MkHdr* pdata_ptr;
+    union {
+        MkHdr* hdr;
+        NisPdata* scene;
+    } pdata;
 
     memset(nis_event_list, 0, 0x10);
     nis_wait_override = 0;
     push_game_state(0x16);
-    pdata_ptr = 0;
-    proc = _create_mkproc_generic_bigstack(0x900C, 0x1F, p_run_nis_scene, 0x14, &pdata_ptr);
+    proc = _create_mkproc_generic_bigstack(0x900C, 0x1F, p_run_nis_scene, 0x14, &pdata.hdr);
     if (proc == 0) {
         return;
     }
-    pdata = (NisPdata*)pdata_ptr;
-    zero_pdata_payload(0x14, (MkHdr*)pdata);
-    pdata->scene_func = scene_func;
-    pdata->cancel_func = cancel_func;
-    pdata->cmdscript = cmdscript;
+    zero_pdata_payload(0x14, pdata.hdr);
+    pdata.scene->scene_func = scene_func;
+    pdata.scene->cancel_func = cancel_func;
+    pdata.scene->cmdscript = cmdscript;
     nis_wait_override = 0;
     set_process_as_scriptable(proc);
 }
+
+#pragma optimize_for_size reset
+#pragma use_lmw_stmw reset
 
 static float p_run_nis_scene(void) {
     NisPdata* pdata;

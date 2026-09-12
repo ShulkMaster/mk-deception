@@ -1262,10 +1262,6 @@ PuzzleAiLayoutColumn ai_layout_column_scheme[4][4] = {
 static Vec puzzle_cam_start_pos = {0.0f, 1.9f, 2.85f};
 static Vec puzzle_cam_start_ang = {0.1f, 3.1415927f, 0.0f};
 
-/* Recovery in progress: a default player-zero pointer with nested player-one
- * overrides best recovers retail's shared selection island. The seven inlined
- * callbacks remain two instructions larger; their action and return tails
- * match retail. */
 static inline PuzzlePlayerState*
 puzzle_switch_select_player(PlyrPdata* fighter_pdata) {
     PuzzlePlayerState* player;
@@ -2922,10 +2918,14 @@ float p_puzzle_switch_drop(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 91.854164%; shared selector CFG differs;
+ * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_4(void) {
     return puzzle_switch_set_command(4);
 }
 
+/* TODO: [breakthrough needed] 91.854164%; shared selector CFG differs;
+ * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_3(void) {
     return puzzle_switch_set_command(5);
 }
@@ -2934,6 +2934,8 @@ float p_puzzle_switch_2(void) {
     return 0.0f;
 }
 
+/* TODO: [breakthrough needed] 92.43137%; shared selector CFG differs;
+ * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_1(void) {
     PuzzleSwitchState* switch_state;
     PuzzlePlayerState* player;
@@ -2958,18 +2960,26 @@ float p_puzzle_switch_1(void) {
     return puzzle_switch_sleep;
 }
 
+/* TODO: [breakthrough needed] 91.854164%; shared selector CFG differs;
+ * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_down(void) {
     return puzzle_switch_set_command(3);
 }
 
+/* TODO: [breakthrough needed] 91.854164%; shared selector CFG differs;
+ * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_up(void) {
     return puzzle_switch_set_command(9);
 }
 
+/* TODO: [breakthrough needed] 91.854164%; shared selector CFG differs;
+ * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_right(void) {
     return puzzle_switch_set_command(2);
 }
 
+/* TODO: [breakthrough needed] 91.854164%; shared selector CFG differs;
+ * merged-condition, nested-helper and branch-result trials regressed. */
 float p_puzzle_switch_left(void) {
     return puzzle_switch_set_command(1);
 }
@@ -4108,14 +4118,11 @@ static int pz_ai_decide_move(PuzzlePlayerState* player) {
     return player->input_command;
 }
 
-/* Near miss: exact size, comparisons, scans, and common return. The default
- * result block is emitted on the opposite side of the shared five-cell scan. */
+/* TODO: [breakthrough needed] 91.229164%; shared five-cell scan/default-block placement unresolved. */
 static int pz_ai_check_no_pause(PuzzlePlayerState* player) {
     PuzzleBoardCell* row;
-    PuzzleBoardCell* cell;
     int band;
     int result;
-    int cell_offset;
     int i;
 
     band = player->ai_no_pause_band;
@@ -4132,11 +4139,8 @@ static int pz_ai_check_no_pause(PuzzlePlayerState* player) {
 
         if (band < 4) {
             if (band <= 2) {
-                cell_offset = 2 * sizeof(*cell);
-                for (i = 0; i < 3;
-                     i++, cell_offset += sizeof(*cell)) {
-                    cell = (PuzzleBoardCell*)((char*)row + cell_offset);
-                    if (cell->type != 0) {
+                for (i = 2; i < 5; i++) {
+                    if (row[i].type != 0) {
                         result = 0;
                         break;
                     }
@@ -4153,10 +4157,8 @@ static int pz_ai_check_no_pause(PuzzlePlayerState* player) {
             break;
         }
 
-        cell_offset = sizeof(*cell);
-        for (i = 0; i < 5; i++, cell_offset += sizeof(*cell)) {
-            cell = (PuzzleBoardCell*)((char*)row + cell_offset);
-            if (cell->type != 0) {
+        for (i = 1; i < 6; i++) {
+            if (row[i].type != 0) {
                 result = 0;
                 break;
             }

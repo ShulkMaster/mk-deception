@@ -291,7 +291,7 @@ void swap_active_plyr_proc();
 void become_plyr1_proc();
 void become_plyr2_proc();
 void snd_stop();
-void scale_me_normal();
+void scale_me_normal(void);
 void release_other_player();
 void xfer_player_proc();
 void xfer_player_proc_to_script();
@@ -894,7 +894,8 @@ static inline MkObj* plyr_pdata_live_tracked_obj(PlyrPdata* owner) {
 
 
 
-/* TODO: [breakthrough needed] 92.120950%; stack layout and instruction ordering need recovery; no further evidence-backed source change. */
+/* TODO: [breakthrough] 92.28834%; scale-reset call ABI fixed;
+ * remaining stack layout and instruction ordering need recovery. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     ReactionTransferPdata* transfer;
     ReactionDamagePdata* boost_source;
@@ -1053,7 +1054,7 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
     plyr_pdata->duck_reaction_active = 0;
     plyr_pdata->his_plyr_pdata->duck_reaction_active = 0;
-    scale_me_normal(plyr_pdata->his_plyr_pdata);
+    scale_me_normal();
     fighter = (ReactionFighterDefinitionDispatchView*)
         plyr_pdata->fighter_definition;
     if (fighter->weapon_rest_animation != 0) {

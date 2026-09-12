@@ -8,6 +8,7 @@
 #include "runtime/mk_struct.h"
 #include "runtime/sound_tracker.h"
 #include "libmkparticle/color.h"
+#include "mwScreenEngine/TextureCollection.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,76 +40,25 @@ typedef struct KryptStringObjLatch {
     unsigned int obj_instance;
 } KryptStringObjLatch; /* 0x08 */
 
-/* Profile common blob: coffin open bitset @ +0xB0 (get_coffin_bit). */
+/* Common-profile view starts at PlayerProfile.name (+0x08), as published by
+ * profile initialization. Thus totals +0x38 and earned +0x50 alias full-profile
+ * koins +0x40 and lifetime_koins +0x58. Coffin bits are at common +0xB0.
+ * This view preserves Krypt's unsigned wallet operations. */
 typedef struct ProfileCommon {
     char pad00[0x38];
     unsigned int koin_totals[6]; /* +0x38 */
     unsigned int koin_earned[6]; /* +0x50 */
     unsigned int koin_spent[6]; /* +0x68 */
     char pad80[0x30];
-    unsigned char coffin_bits[1]; /* opaque bitset; address passed to get_coffin_bit */
+    unsigned char coffin_bits[0x4B]; /* +0xB0: profile bit helpers accept 600 bits. */
 } ProfileCommon;
 
 typedef struct KryptProfileKonquest {
     unsigned char pad00[0x291];
-    unsigned char key_bits[1]; /* +0x291 */
+    unsigned char key_bits[]; /* +0x291: extent comes from the Konquest item table. */
 } KryptProfileKonquest;
 
-typedef struct TombstonePfxFlags150 {
-    unsigned char bit7 : 1;
-    unsigned char bit6 : 1;
-    unsigned char bit5 : 1;
-    unsigned char bit4 : 1;
-    unsigned char bit3 : 1;
-    unsigned char pad : 3;
-} TombstonePfxFlags150;
-
-typedef struct KryptPfxFlags {
-    unsigned char bit7 : 1;
-    unsigned char bit6 : 1;
-    unsigned char bit5 : 1;
-    unsigned char visible : 1;
-    unsigned char pad : 4;
-} KryptPfxFlags;
-
-/*
- * Tombstone particle VM (MkPfx.matrix / +0x40 region used as pfx base).
- * Offsets relative to the pointer passed to init_tombstone_* / set_*_positions.
- */
-typedef struct TombstonePfx {
-    MkHdr hdr;
-    union {
-        unsigned char flags;
-        KryptPfxFlags flag_bits;
-    };
-    char pad09[3];
-    char pad0C[0x44];
-    int capacity; /* +0x50 */
-    int count;    /* +0x54 */
-    char pad58[0xF8];
-    union {
-        unsigned char flags_150; /* +0x150 */
-        TombstonePfxFlags150 flags_150_bits;
-    };
-    char pad151[3];
-    float uv_scale; /* +0x154 */
-    float uv_0;     /* +0x158 */
-    float uv_rate;  /* +0x15C */
-    PfxColor rgba_160; /* +0x160 */
-    char pad164[0x1E];
-    short anim_frame; /* +0x182 */
-    char pad184[0x10];
-    float mat_a; /* +0x194 */
-    float mat_b; /* +0x198 */
-    float mat_c; /* +0x19C */
-    float mat_d; /* +0x1A0 */
-    float mat_e; /* +0x1A4 */
-    float mat_f; /* +0x1A8 */
-    float mat_g; /* +0x1AC */
-    char pad1B0[4];
-    PfxColor rgba_1B4; /* +0x1B4 */
-    float scale;      /* +0x1B8 */
-} TombstonePfx;
+struct MkPfx;
 
 /*
  * Main krypt mode payload (size 0x150; zeroed in p_init_krypt_mode).
@@ -150,9 +100,9 @@ typedef struct KryptPdata {
     KryptStringObjLatch hud_string_20011; /* +0xDC */
     KryptStringObjLatch use_key_string; /* +0xE4 */
     int tombstone_hud_ticks; /* +0xEC - countdown; update_* refresh while >0 */
-    TombstonePfx* pfx_koins;   /* +0xF0 */
-    TombstonePfx* pfx_letters; /* +0xF4 */
-    TombstonePfx* pfx_numbers; /* +0xF8 */
+    struct MkPfx* pfx_koins;   /* +0xF0 */
+    struct MkPfx* pfx_letters; /* +0xF4 */
+    struct MkPfx* pfx_numbers; /* +0xF8 */
     int award_applied; /* +0xFC */
     AnimPdata* anim_pdata; /* +0x100 - get_krypt_anim_pdata */
     MkProc* anim_proc; /* +0x104 */
@@ -184,10 +134,10 @@ void kill_kontent_bio_text(void);
 void get_gallery_page_number_string(char* out);
 char* get_long_coffin_description(void);
 char* get_coffin_blurb(void);
-void create_fullscreen_gallery_image_list(int* out, int count);
+void create_fullscreen_gallery_image_list(GVTexturePair out, int count);
 void start_loading_kontent_image(void);
 void kontent_set_current_selection(int selection);
-void create_gallery_image_list(int* out, int count);
+void create_gallery_image_list(GVTexturePair out, int count);
 int get_number_kontent_items(void);
 float p_kontent_setup(void);
 float p_kontent(void);
@@ -204,7 +154,7 @@ void display_prize_description(CoffinEntry* entries, int index, int last_index, 
 void move_picture_to_camera(KryptScreenObjLatch* picture_latch);
 void remove_prize_description(void);
 MkObj* load_krypt_character(char* character_name);
-void set_pebble_positions_for_row(int row, int start_col, int count, const Vec* origin);
+void set_pebble_positions_for_row(int row, int start_col, int count, Vec* origin);
 void init_tombstone_letters(void* pfx);
 void init_tombstone_numbers(void* pfx);
 void init_tombstone_koins(void* pfx);
@@ -222,7 +172,7 @@ void set_krypt_character_anim_script(
     int animation_id, int flags, void* script_args, float step);
 void set_krypt_character_previous_root_angle(void* script_args, float angle);
 void set_krypt_character_angle(void* script_args, float angle);
-void set_krypt_character_pos(const Vec* position);
+void set_krypt_character_pos(Vec* position);
 
 /* Sbss globals */
 extern int krypt_data_loaded;

@@ -1991,7 +1991,7 @@ void mkGameVariables::FreeTextureCollection(int /*id*/, GMTextureInfo_t* info) {
     info->data = 0;
 }
 
-void create_inventory_image_list(GVTexturePair out, unsigned int count);
+void create_inventory_image_list(GVTexturePair out, int count);
 int get_number_items_in_inventory(void);
 int get_num_pselect_body_textures(void);
 void get_pselect_body_textures(GVTexturePair out);
@@ -2005,7 +2005,7 @@ void get_pz_special_move_list(GVTexturePair out, int player);
 void create_left_mc_icon_list(McIconListArg* out);
 void create_right_mc_icon_list(McIconListArg* out);
 int get_number_kontent_items(void);
-void create_gallery_image_list(GVTexturePair out, unsigned int count);
+void create_gallery_image_list(GVTexturePair out, int count);
 void create_fullscreen_gallery_image_list(GVTexturePair out, int count);
 int ppl_get_multi_profile_count(int player);
 void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count);

@@ -1528,7 +1528,7 @@ static KonquestPuiRuntime* create_new_konquest_pui(
     KonquestPuiDefinition* item, int behavior, int position_mode);
 static int konquest_pui_check_for_and_replace_old_chest(
     KonquestPuiDelayView* new_pui);
-static void p_spawn_dynamic_pui(void);
+static float p_spawn_dynamic_pui(void);
 void kill_dynamic_pui(KonquestPuiDefinition* item);
 static float p_konquest_nis_housekeeping(void);
 void nis_end_scene(void);
@@ -1647,7 +1647,7 @@ MkObj* get_pickup_object(void);
 void set_monk_position(float x, float y, float z, float angle);
 MkProc* load_hero_model(int animation_script);
 void konquest_open_door_sobj(KonquestChildObject* door, int remain_open);
-static void p_konquest_open_door(void);
+static float p_konquest_open_door(void);
 static void remove_collisions_from_tile_and_tile_objects(
     KonquestTileRecord* tile);
 static void generate_collisions_for_tile_and_tile_objects(
@@ -2320,10 +2320,9 @@ static inline ScreenObj* resolve_konquest_fade_object(
     object = pdata->object;
     if (object != 0) {
         if (object->instance == pdata->object_instance) {
-            /* Valid screen-object latch. */
-        } else {
-            object = 0;
+            return object;
         }
+        object = 0;
     } else {
         object = 0;
     }
@@ -2331,12 +2330,7 @@ static inline ScreenObj* resolve_konquest_fade_object(
 }
 
 
-/*
- * Near matches: fade setup and both per-tick paths reproduce the retail
- * object latch, alpha clamp, and sound-volume behavior. Remaining differences
- * are non-algorithmic save/restore selection, equivalent latch branch layout,
- * minor instruction scheduling, and pooled constant/string relocation labels.
- */
+/* TODO: [near miss] 99.23267%; valid latch restored; fade-in subtraction scheduling and string relocations remain. */
 static void konquest_fade_screen(
     int ticks, int white, int fade_sound, int to_black) {
     KonquestFadePdata* pdata;
@@ -2429,7 +2423,8 @@ static void konquest_fade_screen(
         if (object != 0) {
             pfx_2d_obj_set_alpha(object, fade->alpha);
             if (fade->fade_sound != 0) {
-                volume = snd_get_game_vol() + volume_step;
+                volume = snd_get_game_vol();
+                volume += volume_step;
                 if (volume < game_volume) {
                     snd_set_game_vol(volume);
                 } else {
@@ -2440,12 +2435,80 @@ static void konquest_fade_screen(
     }
 }
 
-static float p_konquest_fade_screen(void) {
-    KonquestFadePdata* pdata;
+static inline int advance_konquest_fade_to_black(KonquestFadePdata* pdata) {
     ScreenObj* object;
     float volume_step;
     float volume;
     int alpha;
+
+    volume_step = 1.0f / (255.0f / (float)pdata->ticks);
+    alpha = pdata->alpha + (unsigned char)pdata->ticks;
+    if (alpha > 0xFF) {
+        pdata->alpha = 0xFF;
+    } else {
+        pdata->alpha = alpha;
+    }
+
+    object = resolve_konquest_fade_object(pdata);
+    if (object != 0) {
+        pfx_2d_obj_set_alpha(object, pdata->alpha);
+        if (pdata->fade_sound != 0) {
+            volume = snd_get_game_vol() - volume_step;
+            if (volume > 0.0f) {
+                snd_set_game_vol(volume);
+            } else {
+                snd_set_game_vol(0.0f);
+            }
+        }
+        if (pdata->alpha == 0xFF) {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        return 1;
+    }
+}
+
+static inline int advance_konquest_fade_from_black(KonquestFadePdata* pdata) {
+    ScreenObj* object;
+    float volume_step;
+    float volume;
+    int alpha;
+
+    volume_step = 1.0f / (255.0f / (float)pdata->ticks);
+    alpha = pdata->alpha - (unsigned char)pdata->ticks;
+    if (alpha < 0) {
+        pdata->alpha = 0;
+    } else {
+        pdata->alpha = alpha;
+    }
+
+    object = resolve_konquest_fade_object(pdata);
+    if (object != 0) {
+        pfx_2d_obj_set_alpha(object, pdata->alpha);
+        if (pdata->fade_sound != 0) {
+            volume = snd_get_game_vol();
+            volume += volume_step;
+            if (volume < game_volume) {
+                snd_set_game_vol(volume);
+            } else {
+                snd_set_game_vol(game_volume);
+            }
+        }
+        if (pdata->alpha == 0) {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        return 1;
+    }
+}
+
+static float p_konquest_fade_screen(void) {
+    KonquestFadePdata* pdata;
+    ScreenObj* object;
     int complete;
 
     if (!g_game_info.feature_flags.bits.high_bit &&
@@ -2464,61 +2527,9 @@ static float p_konquest_fade_screen(void) {
     }
 
     if (pdata->to_black != 0) {
-        volume_step = 1.0f / (255.0f / (float)pdata->ticks);
-        alpha = pdata->alpha + (unsigned char)pdata->ticks;
-        if (alpha > 0xFF) {
-            pdata->alpha = 0xFF;
-        } else {
-            pdata->alpha = alpha;
-        }
-
-        object = resolve_konquest_fade_object(pdata);
-        if (object != 0) {
-            pfx_2d_obj_set_alpha(object, pdata->alpha);
-            if (pdata->fade_sound != 0) {
-                volume = snd_get_game_vol() - volume_step;
-                if (volume > 0.0f) {
-                    snd_set_game_vol(volume);
-                } else {
-                    snd_set_game_vol(0.0f);
-                }
-            }
-            if (pdata->alpha == 0xFF) {
-                complete = 1;
-            } else {
-                complete = 0;
-            }
-        } else {
-            complete = 1;
-        }
+        complete = advance_konquest_fade_to_black(pdata);
     } else {
-        volume_step = 1.0f / (255.0f / (float)pdata->ticks);
-        alpha = pdata->alpha - (unsigned char)pdata->ticks;
-        if (alpha < 0) {
-            pdata->alpha = 0;
-        } else {
-            pdata->alpha = alpha;
-        }
-
-        object = resolve_konquest_fade_object(pdata);
-        if (object != 0) {
-            pfx_2d_obj_set_alpha(object, pdata->alpha);
-            if (pdata->fade_sound != 0) {
-                volume = snd_get_game_vol() + volume_step;
-                if (volume < game_volume) {
-                    snd_set_game_vol(volume);
-                } else {
-                    snd_set_game_vol(game_volume);
-                }
-            }
-            if (pdata->alpha == 0) {
-                complete = 1;
-            } else {
-                complete = 0;
-            }
-        } else {
-            complete = 1;
-        }
+        complete = advance_konquest_fade_from_black(pdata);
 
         if (complete != 0) {
             object = resolve_konquest_fade_object(pdata);
@@ -3748,20 +3759,26 @@ static void vdestroy_konquest_sobj_info(MkHdr* object) {
     mkhdr_memfree(object);
 }
 
-static void vdestroy_konquest_sobj(KonquestSobj* object) {
-    KonquestDestroyable* owned_object;
+static inline KonquestDestroyable* konquest_sobj_live_owned_object(
+    KonquestSobj* owner) {
+    KonquestDestroyable* object = owner->owned_object;
 
-    owned_object = object->owned_object;
-    if (owned_object != 0) {
-        if (owned_object->instance ==
-            object->owned_object_instance) {
-            /* Valid ownership latch. */
-        } else {
-            owned_object = 0;
+    if (object != 0) {
+        if (object->instance == owner->owned_object_instance) {
+            return object;
         }
+        object = 0;
     } else {
-        owned_object = 0;
+        object = 0;
     }
+    return object;
+}
+
+/* TODO: [near miss] 93.68421%; valid latch restored; owned-object reload and registers remain. */
+static void vdestroy_konquest_sobj(KonquestSobj* object) {
+    KonquestDestroyable* owned_object =
+        konquest_sobj_live_owned_object(object);
+
     if (owned_object != 0) {
         if (object->owned_object->instance != 0) {
             object->owned_object->vtbl->destroy(object->owned_object);
@@ -3792,21 +3809,21 @@ static void vdestroy_konquest_obj(KonquestObject* object) {
 }
 
 void create_inventory_image_list(
-    KonquestInventoryImageList* list, int count) {
-    int item;
+    KonquestInventoryImageList list, int count) {
     int index;
+    int item;
 
     item = -1;
     for (index = 0; index < count; index++) {
         item = find_next_item_in_inventory(item);
         if (item != -1) {
-            list->images[index] =
+            list.images[index] =
                 get_konq_profile_value_item_tga(item);
-            list->alpha_images[index] =
+            list.alpha_images[index] =
                 get_konq_profile_value_item_tga_alpha(item);
         } else {
-            list->images[index] = 0;
-            list->alpha_images[index] = 0;
+            list.images[index] = 0;
+            list.alpha_images[index] = 0;
         }
     }
 }
@@ -4146,45 +4163,19 @@ void konquest_run_camera_script(void* script, int flags) {
     }
 }
 
-/*
- * Near match: the grounding latch and typed suspension-bit update agree with
- * retail. The sole four-byte delta is an equivalent folded latch branch.
- */
 void restore_hero_grounding(void) {
-    KonquestGrounding* grounding;
+    KonquestGrounding* grounding =
+        konquest_pdata_live_hero_grounding(konquest_pdata);
 
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
     if (grounding != 0) {
         grounding->flag_bits.suspended = 0;
     }
 }
 
-/*
- * Near match: the grounding latch and typed suspension-bit update agree with
- * retail. The sole four-byte delta is an equivalent folded latch branch.
- */
 void suspend_hero_grounding(void) {
-    KonquestGrounding* grounding;
+    KonquestGrounding* grounding =
+        konquest_pdata_live_hero_grounding(konquest_pdata);
 
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance == konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
     if (grounding != 0) {
         grounding->flag_bits.suspended = 1;
     }
@@ -5263,13 +5254,12 @@ static float p_display_award_image(void) {
     return -1.0f;
 }
 
-/* Soft ceiling: stop_chest_camera_script ~93.85% -- call/register scheduling; stop. */
 void stop_chest_camera_script(void) {
     CameraPdata* camera_pdata;
 
     camera_pdata = get_pdata_of_camera();
     if (camera_pdata != 0 && find_mkproc_pid(0x9006) != 0) {
-        camera_pdata->flags |= 0x40;
+        camera_pdata->flags_bits.konquest_mode = 1;
         if (get_game_state() == 0x14) {
             set_interior_cam_pos_and_ang();
         }
@@ -7363,7 +7353,7 @@ int should_this_pui_be_saved(const struct KonquestPuiRuntime* pui) {
     return 0;
 }
 
-static void p_spawn_dynamic_pui(void) {
+static float p_spawn_dynamic_pui(void) {
     KonquestDynamicPuiPdata* pdata;
 
     pdata = (KonquestDynamicPuiPdata*)pdata_of_proc(aproc);
@@ -7373,6 +7363,7 @@ static void p_spawn_dynamic_pui(void) {
         konquest_pdata->script_owner,
         pdata->item->spawn_script_index);
     cmdscript_execute(konquest_pdata->script_owner);
+    return -1.0f;
 }
 
 void kill_dynamic_pui(KonquestPuiDefinition* item) {
@@ -7856,30 +7847,10 @@ void resume_hero_state_process(void) {
     KonquestGrounding* grounding;
 
     if (konquest_pdata->hero_anim != 0) {
-        proc = konquest_pdata->hero_anim->proc;
-        if (proc != 0) {
-            if (proc->instance ==
-                konquest_pdata->hero_anim->proc_instance) {
-                /* Valid process latch. */
-            } else {
-                proc = 0;
-            }
-        } else {
-            proc = 0;
-        }
+        proc = konquest_live_animation_process(konquest_pdata->hero_anim);
         xfer_proc(proc, p_control_konquest_monk);
     }
-    grounding = konquest_pdata->hero_grounding;
-    if (grounding != 0) {
-        if (grounding->hdr.instance ==
-            konquest_pdata->grounding_instance) {
-            /* Valid grounding latch. */
-        } else {
-            grounding = 0;
-        }
-    } else {
-        grounding = 0;
-    }
+    grounding = konquest_pdata_live_hero_grounding(konquest_pdata);
     if (grounding != 0) {
         npc_xfer(grounding, p_npc_idle, 0);
     }
@@ -8482,16 +8453,16 @@ static inline StringObj* resolve_dialog_string(
     object = latch->object;
     if (object != 0) {
         if (object->instance == latch->instance) {
-            /* Valid string-object latch. */
-        } else {
-            object = 0;
+            return object;
         }
+        object = 0;
     } else {
         object = 0;
     }
     return object;
 }
 
+/* TODO: [near miss] 97.95042%; validated string joins restored; line-pointer allocation and string-pool references remain. */
 static float p_konquest_dialog(void) {
     KonquestDialogPdata* pdata;
     char* token;
@@ -9637,9 +9608,8 @@ void set_look_at_npc(int target_type) {
     }
 }
 
-/* Soft ceiling: set_interaction_camera_script ~96% -- global load coloring. */
 void set_interaction_camera_script(void* script) {
-    if ((g_active_npc->raw[0x1D] & 0x40) == 0) {
+    if (g_active_npc->fields.state_flag_bits.bit6 == 0) {
         run_interaction_camera_script(konquest_pdata->script_owner, script);
     }
 }
@@ -11763,18 +11733,9 @@ static float p_monk_unconscious(void) {
     return 0.0f;
 }
 
-/*
- * Near match: hero generation validation and both camera-focus calls match.
- * MWCC folds the retail latch's two empty join branches and duplicate null
- * assignment, making this readable form 12 bytes shorter.
- */
 void set_camera_to_look_at_hero(void) {
-    MkObj* hero;
+    MkObj* hero = konquest_live_hero(konquest_pdata);
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0 && hero->hdr.instance != konquest_pdata->hero_instance) {
-        hero = 0;
-    }
     if (hero != 0) {
         camera_set_lookat_focus(hero);
         camera_set_movement_focus_obj(hero);
@@ -12349,13 +12310,7 @@ static float p_monk_move(void) {
     return 0.0f;
 }
 
-/*
- * Near match: pdata/hero validation, state selection, jump-sleep entry,
- * state-context argument, and float returns now match retail. The four-byte
- * delta is one folded hero-latch join; remaining differences are scheduling
- * of the vtable and control-proc loads plus register coloring.
- */
-/* TODO: [breakthrough] 96.666664%; canonical jump ABI recovered; remaining CFG/register residue. */
+/* TODO: [near miss] 98.809525%; validated hero joins restored; state-table address registers remain. */
 static float p_control_konquest_monk(void) {
     MkObj* hero;
     MonkStateData* state;
@@ -12364,14 +12319,7 @@ static float p_control_konquest_monk(void) {
         return -1.0f;
     }
 
-    hero = konquest_pdata->hero_object;
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->hero_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = konquest_live_hero(konquest_pdata);
     if (hero == 0) {
         return -1.0f;
     }
@@ -13230,38 +13178,19 @@ void show_objective_arrow_and_beam(void) {
     }
 }
 
+/* TODO: [near miss] 97.73585%; validated latches agree; beam failure branch remains. */
 void hide_objective_arrow_and_beam(void) {
-    MkHdr* arrow;
+    ScreenObj* arrow;
     MkHdr* beam;
     MkSobj* sky_object;
 
-    arrow = konquest_pdata->hud_objects[2].object;
-    if (arrow != 0) {
-        if (arrow->instance ==
-            konquest_pdata->hud_objects[2].instance) {
-            /* Valid screen-object latch. */
-        } else {
-            arrow = 0;
-        }
-    } else {
-        arrow = 0;
-    }
-    beam = konquest_pdata->objective_beam.object;
-    if (beam != 0) {
-        if (beam->instance ==
-            konquest_pdata->objective_beam.instance) {
-            /* Valid beam latch. */
-        } else {
-            beam = 0;
-        }
-    } else {
-        beam = 0;
-    }
+    arrow = konquest_pdata_live_hud_objects_2_object(konquest_pdata);
+    beam = konquestpdata_live_objective_beam_object_mkhdr(konquest_pdata);
     if (arrow != 0) {
         if (beam == 0) {
             return;
         }
-        hide_screen_obj((ScreenObj*)arrow);
+        hide_screen_obj(arrow);
         hide_obj(beam);
         if (g_game_info.sky != 0) {
             sky_object =
@@ -14066,10 +13995,10 @@ void konquest_open_door_sobj(
         pdata = (KonquestDoorPdata*)pdata_of_proc(proc);
         pdata->open_ticks = 0x1E0;
         pdata->play_sound = 0;
-        xfer_proc(proc, (MkProcEntryFn)p_konquest_open_door);
+        xfer_proc(proc, p_konquest_open_door);
     } else {
         proc = _create_mkproc_generic_tinystack(
-            0xA018, 0x1F, (MkProcEntryFn)p_konquest_open_door,
+            0xA018, 0x1F, p_konquest_open_door,
             sizeof(*pdata), (void**)&pdata);
         if (proc != 0) {
             door->state_object = &proc->hdr;
@@ -14105,10 +14034,10 @@ void konquest_open_door_sobj(
         pdata = (KonquestDoorPdata*)pdata_of_proc(proc);
         pdata->open_ticks = 0x1E0;
         pdata->play_sound = 0;
-        xfer_proc(proc, (MkProcEntryFn)p_konquest_open_door);
+        xfer_proc(proc, p_konquest_open_door);
     } else {
         proc = _create_mkproc_generic_tinystack(
-            0xA018, 0x1F, (MkProcEntryFn)p_konquest_open_door,
+            0xA018, 0x1F, p_konquest_open_door,
             sizeof(*pdata), (void**)&pdata);
         if (proc != 0) {
             partner->state_object = &proc->hdr;
@@ -14122,18 +14051,19 @@ void konquest_open_door_sobj(
     }
 }
 
-static void p_konquest_open_door(void) {
+static float p_konquest_open_door(void) {
     KonquestDoorPdata* pdata;
 
     pdata = (KonquestDoorPdata*)pdata_of_proc(aproc);
     object_transition_to_state(
         pdata->door, 1, pdata->play_sound);
     if (pdata->remain_open != 0) {
-        return;
+        return -1.0f;
     }
     _mkproc_sleep_ticks = (float)pdata->open_ticks;
     ((KonquestProcSleepVtable*)aproc->vtbl)->sleep();
     object_transition_to_state(pdata->door, 0, 1);
+    return -1.0f;
 }
 
 /* TODO: [near miss] 95.814740%; branch/register lowering remains; stop at trial cap. */
@@ -18141,23 +18071,23 @@ int get_konquest_pui_inventory_bit_index(const int* pui) {
     return -1;
 }
 
-/*
- * Soft ceiling: get_konquest_pui_object_pos ~94.5% -- only the common
- * ownership-latch join branch is folded; all three float accesses are exact.
- */
-void get_konquest_pui_object_pos(Vec* position, const MkSobj* sobj) {
-    MkObj* object;
+static inline MkObj* konquest_pui_live_bound_object(const MkSobj* owner) {
+    MkObj* object = (MkObj*)owner->bound_hdr;
 
-    object = (MkObj*)sobj->bound_hdr;
     if (object != 0) {
-        if (object->hdr.instance == sobj->bound_instance) {
-            /* Valid object latch. */
-        } else {
-            object = 0;
+        if (object->hdr.instance == owner->bound_instance) {
+            return object;
         }
+        object = 0;
     } else {
         object = 0;
     }
+    return object;
+}
+
+void get_konquest_pui_object_pos(Vec* position, const MkSobj* sobj) {
+    MkObj* object = konquest_pui_live_bound_object(sobj);
+
     if (position != 0) {
         position->x = object->pos.value.x;
         position->y = object->pos.value.y;
@@ -18837,29 +18767,14 @@ MkSobj* get_tile_sobj_by_id(int id) {
     return obj_find_sobj_by_id(model, id);
 }
 
-/*
- * Near match: the typed ownership latch and return value agree with retail.
- * MWCC folds the two null returns and keeps the object in r3; retail keeps it
- * in r5 and joins the two inner failure blocks before moving it to r3.
- */
-void* get_konquest_tile_objects_obj(void) {
+MkHdr* get_konquest_tile_objects_obj(void) {
     KonquestPdata* pdata = konquest_pdata;
     MkHdr* object = 0;
 
     if (pdata != 0) {
-        object = pdata->tile_objects;
-        if (object != 0) {
-            if (object->instance == pdata->tile_objects_instance) {
-                /* Valid tile-object latch. */
-            } else {
-                object = 0;
-            }
-        } else {
-            object = 0;
-        }
-        return object;
+        object = konquest_live_tile_objects(pdata);
     }
-    return 0;
+    return object;
 }
 
 void konquest_state_init(void) {

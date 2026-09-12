@@ -80,11 +80,11 @@ int pselect_bgnd_has_level_transition(void);
 int pselect_bgnd_has_deathtrap(void);
 int pselect_get_arena_index(void);
 
-void get_background_select_textures(PselectTexOut* out);
+void get_background_select_textures(PselectTexOut out);
 void get_pselect_body_textures(PselectTexOut* out);
 int get_num_pselect_body_textures(void);
 void get_bg_pselect_team_textures(PselectTexOut* out, int team);
-void get_pselect_head_textures(PselectTexOut* out);
+void get_pselect_head_textures(PselectTexOut out);
 
 char* pselect_get_style_name(int player, int style_idx);
 char* pselect_get_difficulty_level(int player);
