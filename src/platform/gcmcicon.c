@@ -24,7 +24,7 @@ void unload_memorycard_write_buffer(void) {
     }
 }
 
-/* TODO: [near miss] 97.77778%; overlap-capable retail memcpy; remaining instruction/relocation differences. */
+/* TODO: [near miss] 95.888885%; retail copy extent restored; compiler folds initial size publication. */
 int create_memorycard_write_buffer(const void* data, unsigned int size) {
     if (gc_seek_position == 0) {
         if (mc_icon_file_size == 0) {
@@ -46,8 +46,7 @@ int create_memorycard_write_buffer(const void* data, unsigned int size) {
         memcpy(mc_icon_file_size + mc_data_buffer, data, size);
     } else {
         mc_data_buffer_size = size;
-        size = (size + 0x1fff) & ~0x1fff;
-        mc_data_buffer_size = size;
+        mc_data_buffer_size = (mc_data_buffer_size + 0x1fff) & ~0x1fff;
         mc_data_buffer = _mwMemMalloc(wave_heap, mc_data_buffer_size, 5, 0, 0, 0);
         if (mc_data_buffer == 0) {
             return 0;

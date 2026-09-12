@@ -1153,7 +1153,7 @@ config.libs = [
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "ladder.o", source="game/ladder.c",
                    extra_cflags=["-O4,s"]),
-            Object(NonMatching, "ending.o", source="game/ending.c"),
+            Object(NonMatching, "ending.o", source="game/ending.c", extra_cflags=["-O4,s"]),
             # -RTTI on: retail's __vt__15mkGameVariables word 0 points at a real
             # __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off).
             Object(NonMatching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
