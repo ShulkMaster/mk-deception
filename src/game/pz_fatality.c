@@ -174,9 +174,14 @@ struct PuzzleFighterRenderObject {
         };
     };
     char padAC[4];
-    float external_force_x; /* +0xB0 */
-    float external_force_y; /* +0xB4 */
-    float external_force_z; /* +0xB8 */
+    union {
+        Vec external_force; /* +0xB0 */
+        struct {
+            float external_force_x;
+            float external_force_y;
+            float external_force_z;
+        };
+    };
     char padBC[0x18];
     float facing_angle; /* +0xD4 */
     char padD8[8];
@@ -362,10 +367,15 @@ struct PuzzleParticleEffect {
 };
 
 typedef struct PuzzleFatalityDefinition {
-    int flags;
     float (*load_and_place)(void);
     int threshold;
-} PuzzleFatalityDefinition;
+    unsigned int field_0x08;
+} PuzzleFatalityDefinition; /* 0x0C */
+
+typedef struct PuzzleFatalityDefinitions {
+    unsigned int field_0x00; /* Retail header is 3; its use is unresolved. */
+    PuzzleFatalityDefinition entries[15];
+} PuzzleFatalityDefinitions; /* 0xB8 */
 
 typedef struct PuzzleAmbientLightDefinition {
     int type;
@@ -706,14 +716,16 @@ PuzzleAmbientLightDefinition skinned_obj_ambient_light_def = {
 
 int pz_snake_bones[9] = {1, 2, 3, 4, 5, 6, 7, 8, 0};
 
-PuzzleFatalityDefinition g_fatalityTable[15] = {
-    {3, pz_fighter_load_and_place_initial_grinders, 20},
-    {0, pz_fighter_load_and_place_initial_chompers, 40},
-    {0, pz_fighter_load_and_place_initial_chompers2, 60},
-    {0, pz_fighter_load_and_place_initial_objects_falling, 80},
-    {0, pz_fighter_load_and_place_initial_lightning, 90},
-    {0, pz_fighter_load_and_place_initial_snake, 95},
-    {0, pz_fighter_load_and_place_initial_burn, 100},
+PuzzleFatalityDefinitions g_fatalityTable = {
+    3, {
+        {pz_fighter_load_and_place_initial_grinders, 20, 0},
+        {pz_fighter_load_and_place_initial_chompers, 40, 0},
+        {pz_fighter_load_and_place_initial_chompers2, 60, 0},
+        {pz_fighter_load_and_place_initial_objects_falling, 80, 0},
+        {pz_fighter_load_and_place_initial_lightning, 90, 0},
+        {pz_fighter_load_and_place_initial_snake, 95, 0},
+        {pz_fighter_load_and_place_initial_burn, 100, 0},
+    }
 };
 
 /*
@@ -721,8 +733,7 @@ PuzzleFatalityDefinition g_fatalityTable[15] = {
  * branch; clean C emits one inverse branch to the same zero result. Callers
  * pass the engine and mode even though retail reads the canonical global.
  */
-int pz_fighter_check_fatality_random_event(
-    PuzzleFightersEngine* caller_engine, int force) {
+int pz_fighter_check_fatality_random_event(void) {
     PuzzleFightersEngine* engine = &g_pz_fighters_engine;
     PuzzleFatalityRandomEvent* event = &engine->random_event;
 
@@ -819,7 +830,7 @@ void pz_fighters_fatality_in_progress(void) {
 void pz_fighter_load_place_fatality_elements(int fatality) {
     g_pz_fighter_fatality_engine.primary_object = 0;
     g_pz_fighter_fatality_engine.secondary_object = 0;
-    g_fatalityTable[fatality].load_and_place();
+    g_fatalityTable.entries[fatality].load_and_place();
 }
 
 void pz_fighters_fatality_round_over(void) {
@@ -2643,14 +2654,12 @@ static float pz_fighter_objects_falling_victim_crushed(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: exact-size eye launch; residue is aggregate/float relocation
- * labeling, global-base allocation, and one equivalent bit-test opcode.
- */
+/* TODO: [near miss] 99.09%; eye offsets, scales and bit extraction match;
+ * aggregate-base register allocation remains. */
 static void pz_fighter_fatality_launch_eyes(void) {
     Vec launch_offset = {0.0f, 0.1f, 0.02f};
-    Vec left_offset = {-0.05f, 0.0f, 0.05f};
-    Vec right_offset = {0.05f, 0.0f, 0.05f};
+    Vec left_offset = {-0.05f, 0.0f, 0.1f};
+    Vec right_offset = {0.05f, 0.0f, 0.1f};
     PuzzleFighterRenderObject* left_eye;
     PuzzleFighterRenderObject* right_eye;
     PuzzleFighterPhysics* fighter;
@@ -2669,7 +2678,7 @@ static void pz_fighter_fatality_launch_eyes(void) {
         fighter = (PuzzleFighterPhysics*)g_game_info.player2_physics;
     }
 
-    if ((fighter->flags_0A & 0x40) != 0) {
+    if (((fighter->flags_0A >> 6) & 1) != 0) {
         angle_offset = 1.5707964f;
     } else {
         angle_offset = -1.5707964f;
@@ -2703,14 +2712,14 @@ static void pz_fighter_fatality_launch_eyes(void) {
     left_eye->flags_bits.gravity_enabled = 1;
     get_camera_position(&camera_position);
     v3_sub_v3(
-        &camera_direction, &camera_position, (Vec*)&left_eye->x);
+        &camera_direction, &camera_position, &left_eye->position);
     scale_v3(
-        (Vec*)&left_eye->external_force_x, &camera_direction, 0.02f);
+        &left_eye->external_force, &camera_direction, 0.02f);
     left_eye->external_force_y -= 0.0008f;
 
     right_eye->flags_bits.gravity_enabled = 1;
     scale_v3(
-        (Vec*)&right_eye->external_force_x, &camera_direction, 0.02f);
+        &right_eye->external_force, &camera_direction, 0.03f);
     right_eye->external_force_y += 0.0013f;
 
     _mkproc_sleep_ticks = 2.0f;
@@ -2988,13 +2997,13 @@ static void pz_fighter_set_objects_falling_obj(
     }
 }
 
-/*
- * Soft ceiling: the fixed-bound loop and all controller/hazard stores match;
- * residue is phase-zero register reuse and strength-reduced index scheduling.
- */
+#pragma opt_propagation off
+/* TODO: [breakthrough] 95.63%; indexed clear order recovered; phase-zero reuse
+ * and array-base register remain. */
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     int i;
+    float (*motion)[2];
 
     i = 0;
     g_pz_fighter_fatality_engine.active_effect = 0;
@@ -3008,9 +3017,11 @@ static void pz_fighter_chomper2_entering_fatality(
     for (; i < 2; i++) {
         g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
             0.0f;
-        g_pz_fighter_fatality_engine.controller->hazard_motion[i][0] = 0.0f;
+        motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
+        motion[i][0] = 0.0f;
     }
 }
+#pragma opt_propagation reset
 
 static float pz_fighter_chomper2_unload(void) {
     g_pz_fighter_fatality_engine.controller->unload_requested = 1;
@@ -3018,15 +3029,12 @@ static float pz_fighter_chomper2_unload(void) {
     return 0.0f;
 }
 
-/*
- * Soft ceiling: retail and source perform the same state/phase stores and
- * two hazard/motion-row clears. The fixed-bound loop restores mtctr/bdnz;
- * MWCC still reuses the phase-zero register and schedules the two strength-
- * reduced index updates differently. Two typed index variants did not improve
- * emission and were removed.
- */
+#pragma opt_propagation off
+/* TODO: [breakthrough] 93.13%; indexed clear order recovered; phase-zero reuse
+ * and array-base register remain. */
 static float pz_fighter_chomper2_round_over(void) {
     int i;
+    float (*motion)[2];
 
     i = 0;
     g_pz_fighter_fatality_engine.controller->state = 1;
@@ -3034,10 +3042,12 @@ static float pz_fighter_chomper2_round_over(void) {
     for (; i < 2; i++) {
         g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
             0.0f;
-        g_pz_fighter_fatality_engine.controller->hazard_motion[i][0] = 0.0f;
+        motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
+        motion[i][0] = 0.0f;
     }
     return 0.0f;
 }
+#pragma opt_propagation reset
 
 /*
  * Soft ceiling: the complete retail loader/state setup is present; residue is
@@ -3418,15 +3428,12 @@ static float pz_fighters_chomper2_fatality_prep(void) {
   return 0.0f;
 }
 
-/*
- * Soft ceiling: the 88-byte source and retail bodies contain the same phase
- * store, two-iteration loop, hazard-object motion store, and controller-row
- * store. MWCC schedules the two induction increments earlier and forms the
- * indexed controller address in the opposite order; the zero constant also
- * carries a different TU-local relocation label.
- */
+#pragma opt_propagation off
+/* TODO: [breakthrough] 99.32%; typed motion-array owner restores loop ordering;
+ * only array-base register and indexed-store operand order remain. */
 static float pz_fighter_chomper2_actively_fighting(int active) {
     int group;
+    float (*motion)[2];
 
     g_pz_fighter_fatality_engine.controller->phase = active;
     if (active == 0) {
@@ -3434,12 +3441,13 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
             g_pz_fighter_fatality_engine.hazard_groups[group]
                 .objects[0]
                 ->motion = 0.0f;
-            g_pz_fighter_fatality_engine.controller
-                ->hazard_motion[group][0] = 0.0f;
+            motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
+            motion[group][0] = 0.0f;
         }
     }
     return 0.0f;
 }
+#pragma opt_propagation reset
 
 /*
  * Soft ceiling: 96.15151% in the full-TU report. The automatic Vec restores
@@ -3923,14 +3931,8 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
     return 0.0f;
 }
 
-/*
- * Near match: 92.50%, retail 0x830/current 0x808. Automatic branch-local
- * vectors, direct fatality-piece loads, preserved pre-process globals, typed
- * flag assignments and the retail material null guard recover 292 bytes and
- * the complete m2c algorithm. Case 4 now preserves retail's player-object call
- * before indexed hazard lookup. The remaining 40 bytes are repeated hazard-base
- * formation, register allocation and equivalent switch-tail scheduling.
- */
+/* TODO: [breakthrough] 92.99%; flesh-path velocity now matches retail;
+ * controller address formation and switch-tail scheduling remain. */
 static float pz_fighters_chomper_fatality_in_progress(void) {
     static int mode_timer;
     static int launch_sounds = 1;
@@ -4145,7 +4147,7 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
             g_pz_fighters_engine.fatality_piece->external_force_y = 0.0f;
             if (g_pz_fighters_engine.fatality_motion == 1.0f &&
                 flesh_path_timer <= 0.0f) {
-                Vec flesh_velocity = {0.0f, 0.1f, 0.0f};
+                Vec flesh_velocity = {0.0f, 0.05f, 0.0f};
                 Vec flesh_terminal_velocity = {0.05f, 0.05f, -0.05f};
                 ft_create_flesh_path(
                     g_pz_fighters_engine.fatality_piece,

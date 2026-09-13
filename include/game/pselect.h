@@ -48,6 +48,8 @@
  *      include/mw/mwScreenEngineGlue.h.
  */
 
+#include "game/pselect_textures.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,12 +59,6 @@ typedef struct PlyrInfo PlyrInfo;
 
 /* Section / ScreenEngine slot for pselect art + screens. */
 #define PSELECT_SEC_SLOT 0x17006A
-
-/* Out-params for head/body/bgnd TGA loaders (color + alpha arrays). */
-typedef struct PselectTexOut {
-    RwTexture** color; /* +0x00 */
-    RwTexture** alpha; /* +0x04 */
-} PselectTexOut;
 
 /* pselect_mode: 0=normal, 1=bg/chess, 2=puzzle. */
 extern int pselect_mode;
@@ -80,11 +76,7 @@ int pselect_bgnd_has_level_transition(void);
 int pselect_bgnd_has_deathtrap(void);
 int pselect_get_arena_index(void);
 
-void get_background_select_textures(PselectTexOut out);
-void get_pselect_body_textures(PselectTexOut* out);
 int get_num_pselect_body_textures(void);
-void get_bg_pselect_team_textures(PselectTexOut* out, int team);
-void get_pselect_head_textures(PselectTexOut out);
 
 char* pselect_get_style_name(int player, int style_idx);
 char* pselect_get_difficulty_level(int player);

@@ -1219,13 +1219,13 @@ void snd_req_delay(int sound_id, int delay) {
     }
 }
 
-/* Soft ceiling: p_snd_req_delay ~99.8% - zero-float pool label only. */
+/* Retail @1597 is -1.0f: finish this delayed request after one dispatch. */
 float p_snd_req_delay(void) {
     SoundRequest request;
     int sound_id;
 
     if (aproc->pid != 0x3006) {
-        return 0.0f;
+        return -1.0f;
     }
     if (apdata != 0) {
         sound_id = ((DelayedSoundPdata*)apdata)->sound_id;
@@ -1245,7 +1245,7 @@ float p_snd_req_delay(void) {
             }
         }
     }
-    return 0.0f;
+    return -1.0f;
 }
 
 void snd_stop_all(void) {

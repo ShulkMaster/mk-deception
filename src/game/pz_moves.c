@@ -100,7 +100,8 @@ typedef struct PuzzleReactionTransferData {
 typedef struct PuzzleReactionTransferEntry {
     int call_type;
     PuzzleMoveEntry entry;
-    char pad08[8];
+    unsigned int field_0x08; /* Retail table contains 0, 3, or 5; use unresolved. */
+    unsigned int field_0x0C;
     unsigned int movement_flags;
 } PuzzleReactionTransferEntry;
 
@@ -551,63 +552,63 @@ float r_pz_fighter_grinding(void);
 float r_pz_fighter_rx_get_to_point(void);
 
 static const PuzzleReactionTransferEntry tbl_xfer_addresses[] = {
-    { 4, (PuzzleMoveEntry)0x39, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3A, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3C, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3F, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3E, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_block_hi, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_block_lo, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x44, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x45, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x46, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x48, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x49, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x4A, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x4C, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x4D, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x4E, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x4B, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x50, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x51, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x52, { 0, 0 }, 0x12 },
-    { 4, (PuzzleMoveEntry)0x4F, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_grinding, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x54, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x55, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x58, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x57, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_feet3_swept_out, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x59, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x5A, { 0, 0 }, 0x12 },
-    { 4, (PuzzleMoveEntry)0x47, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_dizzyfall3_with_holdface, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x43, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x56, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_almost_in_grinder, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_spear_hit, { 0, 0 }, 0x12 },
-    { 1, r_pz_fighter_spear_tug, { 0, 0 }, 0x12 },
-    { 4, (PuzzleMoveEntry)0x53, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3B, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x42, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0xB, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x9, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0xA, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0xC, { 0, 0 }, 0x2 },
-    { 4, (PuzzleMoveEntry)0x41, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x40, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x38, { 0, 0 }, 0x1 },
-    { 4, (PuzzleMoveEntry)0x3D, { 0, 0 }, 0x1 },
-    { 1, r_pz_ermac_slam, { 0, 0 }, 0x32 },
-    { 3, (PuzzleMoveEntry)0x12, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0x11, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0x18, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0xE, { 0, 0 }, 0x42 },
-    { 3, (PuzzleMoveEntry)0x14, { 0, 0 }, 0x12 },
-    { 3, (PuzzleMoveEntry)0x19, { 0, 0 }, 0x12 },
-    { 1, pz_fighter_r_null, { 0, 0 }, 0x1 },
-    { 3, (PuzzleMoveEntry)0x15, { 0, 0 }, 0x1 },
-    { 1, r_pz_fighter_rx_get_to_point, { 0, 0 }, 0x1 },
+    { 4, (PuzzleMoveEntry)0x39, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3A, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3C, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3F, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3E, 0, 0, 0x1 },
+    { 1, r_pz_fighter_block_hi, 0, 0, 0x1 },
+    { 1, r_pz_fighter_block_lo, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x44, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x45, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x46, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x48, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x49, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x4A, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x4C, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x4D, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x4E, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x4B, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x50, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x51, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x52, 0, 0, 0x12 },
+    { 4, (PuzzleMoveEntry)0x4F, 0, 0, 0x1 },
+    { 1, r_pz_fighter_grinding, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x54, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x55, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x58, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x57, 0, 0, 0x1 },
+    { 1, r_pz_fighter_feet3_swept_out, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x59, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x5A, 0, 0, 0x12 },
+    { 4, (PuzzleMoveEntry)0x47, 0, 0, 0x1 },
+    { 1, r_pz_fighter_dizzyfall3_with_holdface, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x43, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x56, 0, 0, 0x1 },
+    { 1, r_pz_fighter_almost_in_grinder, 0, 0, 0x1 },
+    { 1, r_pz_fighter_spear_hit, 0, 0, 0x12 },
+    { 1, r_pz_fighter_spear_tug, 0, 0, 0x12 },
+    { 4, (PuzzleMoveEntry)0x53, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3B, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x42, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0xB, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x9, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0xA, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0xC, 0, 0, 0x2 },
+    { 4, (PuzzleMoveEntry)0x41, 3, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x40, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x38, 0, 0, 0x1 },
+    { 4, (PuzzleMoveEntry)0x3D, 0, 0, 0x1 },
+    { 1, r_pz_ermac_slam, 0, 0, 0x32 },
+    { 3, (PuzzleMoveEntry)0x12, 3, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0x11, 0, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0x18, 0, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0xE, 5, 0, 0x42 },
+    { 3, (PuzzleMoveEntry)0x14, 5, 0, 0x12 },
+    { 3, (PuzzleMoveEntry)0x19, 0, 0, 0x12 },
+    { 1, pz_fighter_r_null, 0, 0, 0x1 },
+    { 3, (PuzzleMoveEntry)0x15, 3, 0, 0x1 },
+    { 1, r_pz_fighter_rx_get_to_point, 3, 0, 0x1 },
 };
 
 static inline const PuzzleReactionTransferEntry* reaction_transfer_at_offset(
@@ -2104,13 +2105,8 @@ static float pz_fighter_workthecrowd(void) {
     return 0.0f;
 }
 
-/*
- * Near-match looped-celebration family: retail 0x114/current 0x110 and
- * 92.72% each. m2c confirms identical animation, loop, gravity and transfer
- * operations; the four-byte residue is the final bitfield-value lifetime and
- * equivalent epilogue scheduling. A separate loop-only flags snapshot was
- * semantically valid but MWCC coalesced it completely, so it was removed.
- */
+/* TODO: [near miss] 92.87%; loop flag copy coalesces and saves one fewer GPR;
+ * typed repeat-helper trial retains the discrepancy; stop at coloring. */
 static float pz_fighter_beg(void) {
     int flags = 3;
     unsigned int loop;
@@ -3388,7 +3384,7 @@ void pz_fighter_allow_continuation(void) {
     g_pz_fighters_engine.flag_bits.continuation_allowed = 1;
 }
 
-/* Soft ceiling: pz_fighter_clear_out_external_forces ~97.50% - pool label only. */
+/* TODO: [near miss] 97.50%; zero uses f0 instead of retail f1; stop at FPR coloring. */
 void pz_fighter_clear_out_external_forces(void) {
     plyr_obj->external_force_x = 0.0f;
     plyr_obj->external_force_z = 0.0f;

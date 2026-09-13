@@ -413,8 +413,7 @@ float pz_fighter_perform_scripted_move(void);
 int pz_fighter_should_handle_special_move(
     unsigned int player, unsigned int move);
 void pz_fighter_disallow_continuation(void);
-int pz_fighter_check_fatality_random_event(
-    PuzzleFightersEngine* engine, int force);
+int pz_fighter_check_fatality_random_event(void);
 float pz_fighters_react_to_bomb_explosion(void);
 float pz_fighter_big_time_happy(void);
 float pz_fighter_whatever2(void);
@@ -1886,11 +1885,8 @@ static int pz_fighter_individual_plyr_do_something(
     return result;
 }
 
-/* Soft ceiling: 97.97%; idle-spacing logic agrees, with GPR/FPR scheduling residue. */
-/*
- * Soft ceiling: complete positioning/random-event state machine; remaining
- * differences are GPR/FPR allocation, final-call scheduling, and float labels.
- */
+/* TODO: [near miss] 98.73%; random-event ABI recovered; duplicate zero and
+ * second-player distance FPR allocation remain. */
 static int pz_fighters_idle_process(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
@@ -1910,14 +1906,14 @@ static int pz_fighters_idle_process(void) {
         dx = player1->pos.value.x - fighters->player1_idle_x;
         player1_distance = dx * dx + dz * dz;
         if (dx > 0.0f) {
-            player1_distance *= -1.0f;
+            player1_distance = -1.0f * player1_distance;
         }
         player2 = (MkObj*)g_game_info.plyr1.slot.mirror_a;
         dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
         dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
         player2_distance = dx * dx + dz * dz;
         if (dx < 0.0f) {
-            player2_distance *= -1.0f;
+            player2_distance = -1.0f * player2_distance;
         }
         if (player1_distance < -0.1f || player1_distance > 0.1f) {
             g_pz_fighters_engine.fighter_state[0] = 1;
@@ -1933,14 +1929,14 @@ static int pz_fighters_idle_process(void) {
                 pz_fighter_move_into_desired_position);
             moved = 1;
         }
-        if (moved != 0) {
+        if (moved == 1) {
             fighters->positioning_active = 1;
             return 1;
         }
     }
     fighters->positioning_active = 0;
     g_pz_fighters_engine.fighters_positioned = 1;
-    if (pz_fighter_check_fatality_random_event(fighters, 0) == 1) {
+    if (pz_fighter_check_fatality_random_event() == 1) {
         return 1;
     }
     return 1;
@@ -1957,7 +1953,8 @@ static int pz_fighters_idle_process(void) {
  * and localized register/FPR scheduling; calls, branches, state transitions,
  * and accesses agree.
  */
-/* TODO: [near miss] 98.29%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 98.85%; random-event ABI recovered; remaining state and
+ * register lowering need local diagnosis. */
 static int pz_fighters_inside_super_move_scenerio(void) {
     PuzzleFightersEngine* fighters;
     MkObj* player1;
@@ -2012,7 +2009,7 @@ static int pz_fighters_inside_super_move_scenerio(void) {
 
     fighters->positioning_active = 0;
     g_pz_fighters_engine.fighters_positioned = 1;
-    if (pz_fighter_check_fatality_random_event(&g_pz_fighters_engine, 0) == 1) {
+    if (pz_fighter_check_fatality_random_event() == 1) {
         return 1;
     }
     fighters = &g_pz_fighters_engine;
@@ -2215,16 +2212,8 @@ void pz_fighter_anim_object_to(
     }
 }
 
-/*
- * Emission-only near miss: 89.23%, retail 0x370/current 0x358. m2c confirms
- * the complete lifetime, bounce, gravity, arrival, and cleanup state machine.
- * After recovering retail's pre-decrement countdown, opcode multisets differ
- * only by six retail pointer reloads; calls, branches, arithmetic, conversions,
- * stores, and the integer-coordinate callback ABI agree.
- */
 static float p_objects_moving(void) {
     PuzzleObjectMotion* motion;
-    ScreenObj* object;
 
     motion = (PuzzleObjectMotion*)apdata;
     if (motion->complete == 1) {
@@ -2237,30 +2226,29 @@ static float p_objects_moving(void) {
         return -1.0f;
     }
 
-    object = motion->object;
     if (motion->target_ticks > 0) {
         motion->velocity_x =
-            (motion->target.x - (float)object->x) /
+            (motion->target.x - (float)motion->object->x) /
             (float)motion->target_ticks;
         motion->velocity_y =
-            (motion->target.y - (float)object->y) /
+            (motion->target.y - (float)motion->object->y) /
             (float)motion->target_ticks;
     }
-    object->x += (int)motion->velocity_x;
-    object->y += (int)motion->velocity_y;
+    motion->object->x += (int)motion->velocity_x;
+    motion->object->y += (int)motion->velocity_y;
     motion->target_ticks--;
 
     if (motion->bounce_enabled == 1) {
         if (motion->rise_ticks > 0) {
             motion->rise_ticks--;
-            object->y++;
+            motion->object->y++;
         } else if (motion->rise_ticks == 0) {
             motion->fall_ticks = 8;
             motion->rise_ticks = -1;
         }
         if (motion->fall_ticks > 0) {
             motion->fall_ticks--;
-            object->y--;
+            motion->object->y--;
         } else if (motion->fall_ticks == 0) {
             motion->rise_ticks = 10;
             motion->fall_ticks = -1;
@@ -2277,16 +2265,16 @@ static float p_objects_moving(void) {
     }
 
     if (motion->arrived == 0 &&
-        (((float)object->x >= motion->target.x &&
+        (((float)motion->object->x >= motion->target.x &&
           motion->velocity_x > 0.0f) ||
-         ((float)object->x <= motion->target.x &&
+         ((float)motion->object->x <= motion->target.x &&
           motion->velocity_x < 0.0f) ||
-         ((float)object->y >= motion->target.y &&
+         ((float)motion->object->y >= motion->target.y &&
           motion->velocity_y > 0.0f) ||
-        ((float)object->y <= motion->target.y &&
+        ((float)motion->object->y <= motion->target.y &&
           motion->velocity_y < 0.0f))) {
         if (motion->arrival != 0) {
-            motion->arrival(object->x, object->y);
+            motion->arrival(motion->object->x, motion->object->y);
         }
         motion->lifetime = 30;
         motion->arrived = 1;
@@ -2802,14 +2790,8 @@ static void pz_fighter_perform_end_of_round_anims(
     }
 }
 
-/*
- * Emission-only near miss: the 0xB8 table is correctly modeled as a count
- * header followed by fifteen 0xC rows, and this function has retail's exact
- * 0x14C size, player selection, state writes, reaction ABI, and table accesses
- * (86.20%). The remaining five instruction-pair differences are equivalent
- * indexed-versus-byte-offset loop induction and register scheduling.
- */
-/* TODO: [near miss] 99.94%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 99.94%; active_flags store uses equivalent r3/r5 owner bases;
+ * table stride, selection and stores agree; stop at address-register coloring. */
 static void pz_fighter_first_block_has_been_placed(unsigned int player) {
     PuzzleProcess* process;
     PlyrPdata* fighter;
@@ -3221,14 +3203,8 @@ void pz_fighter_startup_attack(
     unsigned int reaction_mode, float frame1, float frame2, float frame3,
     float frame4, float desired_distance);
 
-/*
- * Emission-only near miss: 85.97%, retail 0x1CC/current 0x1DC. The 0x3C
- * descriptor layout, CFG, calls, argument ABI, access widths, and functional
- * opcode counts are exact. The 16-byte excess is solely three individual GPR
- * saves/restores instead of retail stmw/lmw; remaining differences are
- * argument-load scheduling around the calls.
- */
-/* TODO: [near miss] 91.84%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 91.84%; frame argument-load scheduling remains;
+ * explicit local frame inputs are neutral. */
 void pz_fighter_attack(
     AniScript* animation, PuzzleAttackParameters* attack, int reaction) {
     float frame4 = attack->field_18;
