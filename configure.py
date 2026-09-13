@@ -193,6 +193,8 @@ gcdisplay_asset_outputs = [
 ]
 retail_include_dir = Path("build") / config.version / "include"
 retail_include_outputs = [
+    retail_include_dir / "platform" / "gcmcardmsg_stringBase0.inc",
+    retail_include_dir / "platform" / "gcmcardmsg_text.inc",
     retail_include_dir / "game" / "nbc_general_text.inc",
     retail_include_dir / "game" / "nbc_stringBase0.inc",
     retail_include_dir / "game" / "pselect_stringBase0.inc",
@@ -212,6 +214,7 @@ retail_include_inputs = [
         "ai.o",
         "fonts.o",
         "gxMath.o",
+        "gcmcardmsg.o",
         "moves.o",
         "nbc.o",
         "pselect.o",
@@ -2683,6 +2686,8 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_render.o",
                 source="libmkparticle/gc_render.c",
+                # Retail calls helper boundaries and separates multiply/add operations.
+                extra_cflags=["-O4,s", "-inline off", "-schedule off", "-fp_contract off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,

@@ -237,7 +237,11 @@ struct PfxVm {
     float light_attenuation_k1;                    /* +0x158 */
     float light_attenuation_k2;                    /* +0x15C */
     PfxColor light_color;                 /* +0x160 */
-    char pad164[0x1C];
+    PfxVec3 light_position;            /* +0x164 */
+    char pad170[4];
+    struct RwTexture* render_texture;  /* +0x174 */
+    struct RwTexture* alpha_texture;   /* +0x178 */
+    int render_blend_mode;             /* +0x17C */
     short texture_frame_count;         /* +0x180 */
     short texture_mode;         /* +0x182 */
     float texture_frame_time;          /* +0x184 */

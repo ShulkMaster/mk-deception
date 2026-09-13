@@ -2,6 +2,7 @@
 
 #include "game/game_info.h"
 #include "libmkparticle/metrics.h"
+#include "libmkparticle/gc_render.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_render.h"
 #include "rw/rwcamera_internal.h"
@@ -50,7 +51,6 @@ void pfx_behaviors_frame_end(void* vm);
 void* pfx_get_emitter(void* vm, int index);
 void pfx_set_texture(void* pfx, void* texture);
 void pfx_set_renderstate(void* vm);
-void particle_render(void* vm);
 void pfx_reset_renderstate(void* vm);
 /* Retail usec timers return elapsed u64 in r3:r4. */
 unsigned long long stop_usec_timer(int id);

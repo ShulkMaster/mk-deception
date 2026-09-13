@@ -1025,7 +1025,6 @@ void z_bias(float value);
 void particle_size(float value);
 void face_y(void);
 void set_decal_plane(int plane);
-void create_step_fx(int a, char* b);
 void bind_to_bone(int bone);
 void create_step_effect(int effect);
 void parametric_update(int value);
@@ -4383,7 +4382,7 @@ void _create_multiemit_step_fx(void) {
 }
 
 void _create_step_fx(void) {
-    create_step_fx(((ScriptRawArgs*)current_args)->slots[0].i, get_script_string_arg(2));
+    create_step_fx((struct PfxStepEffectDescription*)((ScriptRawArgs*)current_args)->slots[0].i, get_script_string_arg(2));
 }
 
 void _bind_to_bone(void) {

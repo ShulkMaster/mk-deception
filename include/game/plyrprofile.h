@@ -4,6 +4,7 @@
 #include "mwScreenEngine/TextureCollection.h"
 
 #include "game/profile_unlock.h"
+#include "game/profile_code.h"
 #include "runtime/mk_proc.h"
 
 typedef struct StorageProfileSlot StorageProfileSlot;
@@ -70,14 +71,6 @@ typedef struct PlayerProfile {
     unsigned char pad5BC[0x5C0 - 0x5BC];
 } PlayerProfile; /* 0x5C0 */
 
-/*
- * Multi-profile list mkproc pdata: UI code/PIN at +0x14 (not PlayerProfile.pin @ +0x13).
- * Used by ppl_get_multi_profile_* walks.
- */
-typedef struct PplListPdata {
-    unsigned char pad00[0x14]; /* +0x00 */
-    unsigned char code[6]; /* +0x14 */
-} PplListPdata;
 
 #define PPWLS_PROC_PID 0x3008
 #define PPWLS_PROC_PRIO 0x23

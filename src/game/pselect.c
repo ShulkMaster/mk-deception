@@ -4,6 +4,7 @@
 #include "game/game_info.h"
 #include "game/menu.h"
 #include "game/profile_unlock.h"
+#include "game/profile_code.h"
 #include "mw/mwScreenEngineGlue.h"
 #include "platform/main.h"
 #include "platform/main_jump.h"
@@ -97,15 +98,6 @@ typedef struct WagerRepeatPdata {
     int ticks; /* +0x08 */
 } WagerRepeatPdata; /* 0x0C */
 
-typedef struct ProfileCodePdata {
-    MkHdr hdr;             /* +0x00 */
-    int player;            /* +0x08 */
-    int port;              /* +0x0C */
-    int count;             /* +0x10 */
-    unsigned char code[6]; /* +0x14 */
-    char pad1A[2];
-    int old_player_state; /* +0x1C */
-} ProfileCodePdata; /* 0x20 */
 
 typedef struct ProfileCodeKey {
     int switch_index;    /* +0x00 */
@@ -918,7 +910,7 @@ void pselect_start_code_entry(int player, int port) {
 
     destroy_mkprocs_pid(player + 0x9026);
     proc = _create_mkproc_generic_bigstack(player + 0x9026, 0x1F,
-                                           p_enter_profile_code, 0x20,
+                                           p_enter_profile_code, sizeof(ProfileCodePdata),
                                            &pdata.hdr);
     eat_switch_edge(port, 2);
     eat_switch_edge(port, 6);
@@ -927,7 +919,7 @@ void pselect_start_code_entry(int player, int port) {
     }
 
     push_game_state(0x1B);
-    zero_pdata_payload(0x20, pdata.hdr);
+    zero_pdata_payload(sizeof(ProfileCodePdata), pdata.hdr);
     plyr = g_game_info.pads[port].player;
     pdata.code->old_player_state = plyr->player_state;
     set_player_state(g_game_info.pads[port].player, 1);
@@ -936,6 +928,7 @@ void pselect_start_code_entry(int player, int port) {
     profile_code_state[player] = 0;
 }
 
+/* TODO: [breakthrough needed] 80.643936%; shared pdata preserves layout; remaining entry CFG/codegen needs comparison. */
 float p_enter_profile_code(void) {
     ProfileCodePdata* pdata;
     int player;

@@ -2,6 +2,7 @@
 #define MKD_GAME_PFXSCRIPT_H
 
 struct PfxStepEffectDescription;
+void create_step_fx(struct PfxStepEffectDescription* effect, char* name);
 void create_multiemit_step_fx(struct PfxStepEffectDescription* effect,
                               char* name, int emitter_count);
 
