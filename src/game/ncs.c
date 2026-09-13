@@ -9,6 +9,7 @@
 #include "runtime/mk_proc.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/asset.h"
+unsigned int randu0(unsigned int max);
 #include "runtime/section.h"
 #include "runtime/cam.h"
 #include "game/game_info.h"
@@ -37,9 +38,9 @@ MkObj* obj_sever_limb(
 
 typedef struct NcsProcVtable {
     void* reserved[6];
-    void (*sleep)(struct NcsProcVtable* vtbl);
+    void (*sleep)(void);
     void* reserved_after_sleep[2];
-    int (*jump_sleep)(MkProcEntryFn entry, float ticks);
+    MkProcJumpSleepFn jump_sleep;
 } NcsProcVtable;
 
 extern int f_fatality_was_done;
@@ -84,18 +85,6 @@ typedef struct NcsLimbAttachPdata {
     int expire_tick;        /* +0x48 */
 } NcsLimbAttachPdata; /* 0x4C */
 
-typedef struct NcsLimbMotion {
-    char pad00[0x14];
-    unsigned int severed_mask; /* +0x14 */
-    int field_18;
-    char pad1C[0x84];
-    unsigned int ground_mask;  /* +0xA0 */
-    float ground_height[15];   /* +0xA4 */
-    int ground_value[15];      /* +0xE0 */
-    float field_11C;
-    char pad120[0x18];
-    float field_138;
-} NcsLimbMotion;
 
 typedef struct NcsLimbUpdatePdata {
     MkHdr hdr;
@@ -204,18 +193,7 @@ typedef union NcsFloatBits {
     unsigned int u;
 } NcsFloatBits;
 
-typedef struct NcsSpearObjectView {
-    char pad00[0x5C];
-    void* data_table;
-    int active;
-} NcsSpearObjectView;
 
-typedef struct NcsSpearAimObject {
-    char pad00[0xA0];
-    Vec pos;
-    char padAC[0x28];
-    float facing_angle;
-} NcsSpearAimObject;
 
 typedef struct NcsSnapshotRaster {
     char pad00[0x28];
@@ -246,10 +224,6 @@ typedef struct NcsPlayerObjectRef {
     MkObj* object;
 } NcsPlayerObjectRef;
 
-typedef struct PfxPlayerBankOwner {
-    void* reserved;
-    int player_index; /* +0x04 */
-} PfxPlayerBankOwner;
 
 typedef struct NcsKonquestCharacterPdata {
     MkHdr hdr;
@@ -557,7 +531,7 @@ NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
     PlyrInfo* player, int limb, int proc_id);
 MkObj* limb_sever_set_motion(
     MkObj* owner, int limb, const Vec* velocity,
-    NcsLimbMotion* motion, int enable_ground,
+    NcsLimbUpdatePdata* motion, int enable_ground,
     int ground_value, int field_18, int include_children,
     float gravity, float ground_offset, float field_11C);
 void limb_sever_explode_apart(PlyrInfo* player);
@@ -656,17 +630,17 @@ static float p_mkpfx_fadingrun(void) {
 }
 
 MkProc* start_scorpion_spear(int field_34) {
-    NcsSpearAimObject* player;
-    NcsSpearAimObject* opponent;
+    MkObj* player;
+    MkObj* opponent;
     Vec velocity;
     float facing_x;
     float facing_z;
 
-    player = (NcsSpearAimObject*)plyr_obj;
-    opponent = (NcsSpearAimObject*)his_obj;
-    facing_x = gxMathSin(player->facing_angle);
-    facing_z = gxMathCos(player->facing_angle);
-    xz_unit_vector(&velocity, &player->pos, &opponent->pos);
+    player = (MkObj*)plyr_obj;
+    opponent = (MkObj*)his_obj;
+    facing_x = gxMathSin(player->ang.y);
+    facing_z = gxMathCos(player->ang.y);
+    xz_unit_vector(&velocity, &player->pos.value, &opponent->pos.value);
     if (facing_x * velocity.x + facing_z * velocity.z < 0.0f) {
         velocity.x = facing_x;
         velocity.y = 0.0f;
@@ -680,7 +654,7 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
     CameraObj* camera;
     MkObj* weapon;
     MkObj* target;
-    NcsSpearObjectView* weapon_view;
+    MkObj* weapon_view;
     SpearProcPdata* pdata;
     MkProc* proc;
     float inverse_ticks;
@@ -702,18 +676,18 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
         return 0;
     }
 
-    weapon_view = (NcsSpearObjectView*)weapon;
-    if (weapon_view->active == 0) {
-        weapon_view->active = 1;
+    weapon_view = (MkObj*)weapon;
+    if (weapon_view->field_60 == 0) {
+        weapon_view->field_60 = 1;
         if (player->character_id == 0) {
-            weapon_view->data_table = get_data_table(player->cmo, 0x19);
+            weapon_view->field_5C = get_data_table(player->cmo, 0x19);
         }
         if (player->character_id == 0x1C) {
-            weapon_view->data_table = get_data_table(player->cmo, 0x16);
+            weapon_view->field_5C = get_data_table(player->cmo, 0x16);
         }
         if (player->character_id == 0x19 ||
             player->character_id == 0x1A) {
-            weapon_view->data_table = get_data_table(player->cmo, 3);
+            weapon_view->field_5C = get_data_table(player->cmo, 3);
         }
         plyr_aux_weapon_grab(player, weapon);
     }
@@ -760,7 +734,7 @@ MkProc* fire_sc_spear(
     PlyrPdata* player, const Vec* velocity, int field_34,
     int flag_40, MkHdr* bound_object, int flag_20) {
     MkObj* weapon;
-    NcsSpearObjectView* weapon_view;
+    MkObj* weapon_view;
     SpearProcPdata* pdata;
     MkProc* proc;
 
@@ -773,18 +747,18 @@ MkProc* fire_sc_spear(
         return 0;
     }
 
-    weapon_view = (NcsSpearObjectView*)weapon;
-    if (weapon_view->active == 0) {
-        weapon_view->active = 1;
+    weapon_view = (MkObj*)weapon;
+    if (weapon_view->field_60 == 0) {
+        weapon_view->field_60 = 1;
         if (player->character_id == 0) {
-            weapon_view->data_table = get_data_table(player->cmo, 0x19);
+            weapon_view->field_5C = get_data_table(player->cmo, 0x19);
         }
         if (player->character_id == 0x1C) {
-            weapon_view->data_table = get_data_table(player->cmo, 0x16);
+            weapon_view->field_5C = get_data_table(player->cmo, 0x16);
         }
         if (player->character_id == 0x19 ||
             player->character_id == 0x1A) {
-            weapon_view->data_table = get_data_table(player->cmo, 3);
+            weapon_view->field_5C = get_data_table(player->cmo, 3);
         }
         plyr_aux_weapon_grab(player, weapon);
     }
@@ -1047,7 +1021,8 @@ static float p_sc_spear2(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 84.560974%; original validation retained; consumer structure needs separate recovery. */
+/* TODO: [breakthrough] 84.743904%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static float p_sc_spear2_victory(void) {
     CameraObj* camera;
     NcsSpearEffect* effect;
@@ -1072,7 +1047,7 @@ static float p_sc_spear2_victory(void) {
     root = 0.0f;
     if (squared > 0.0f) {
         bits.u =
-            ((unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8) |
+            ((unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8) |
             ((((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000);
         root = 0.5f * (bits.f * (3.0f - (bits.f * bits.f) / squared));
     }
@@ -1293,6 +1268,8 @@ static float p_sc_spear4(void) {
     return 1.0f;
 }
 
+/* TODO: [breakthrough] 83.46073%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static float p_sc_spear4_victory(void) {
     MkObj* target_object;
     Vec target;
@@ -1326,7 +1303,7 @@ static float p_sc_spear4_victory(void) {
     if (squared > 0.0f) {
         bits.f = squared;
         bits.u =
-            ((unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8) |
+            ((unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8) |
             ((((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000);
         distance = 0.5f *
             (bits.f * (3.0f - (bits.f * bits.f) / squared));
@@ -1345,7 +1322,7 @@ static float p_sc_spear4_victory(void) {
     if (speed_squared > 0.0f) {
         bits.f = speed_squared;
         bits.u =
-            ((unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8) |
+            ((unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8) |
             ((((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000);
         speed = 0.5f *
             (bits.f * (3.0f - (bits.f * bits.f) / speed_squared));
@@ -1382,6 +1359,8 @@ static float p_sc_spear4_victory(void) {
     return 1.0f;
 }
 
+/* TODO: [breakthrough] 88.34375%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static float p_sc_spear4_getup(void) {
     MkObj* target_object;
     Vec target;
@@ -1418,7 +1397,7 @@ static float p_sc_spear4_getup(void) {
     if (speed_squared > 0.0f) {
         bits.f = speed_squared;
         bits.u =
-            ((unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8) |
+            ((unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8) |
             ((((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000);
         speed = 0.5f *
             (bits.f * (3.0f - (bits.f * bits.f) / speed_squared));
@@ -1458,7 +1437,7 @@ static float p_sc_spear4_getup(void) {
 /* TODO: [breakthrough needed] 74.734695%; original validation retained; consumer structure needs separate recovery. */
 float p_sc_spear_kill(void) {
     NcsSpearEffect* effect;
-    NcsSpearObjectView* weapon;
+    MkObj* weapon;
     PlyrPdata* owner;
 
     effect = ncs_get_spear_effect();
@@ -1475,18 +1454,18 @@ float p_sc_spear_kill(void) {
     }
 
     sc_spear_obj->flags_08_bits.gravity_enabled = 0;
-    weapon = (NcsSpearObjectView*)sc_spear_obj;
-    weapon->active = 0;
+    weapon = (MkObj*)sc_spear_obj;
+    weapon->field_60 = 0;
     owner = pdata_sc_spear->owner;
     if (owner->character_id == 0) {
-        weapon->data_table = get_data_table(owner->cmo, 0x18);
+        weapon->field_5C = get_data_table(owner->cmo, 0x18);
     }
     if (owner->character_id == 0x1C) {
-        weapon->data_table = get_data_table(owner->cmo, 0x15);
+        weapon->field_5C = get_data_table(owner->cmo, 0x15);
     }
     if (owner->character_id == 0x19 ||
         owner->character_id == 0x1A) {
-        weapon->data_table = get_data_table(owner->cmo, 2);
+        weapon->field_5C = get_data_table(owner->cmo, 2);
     }
     plyr_aux_weapon_grab(owner, sc_spear_obj);
     owner->duck_reaction_active = 0;
@@ -3054,7 +3033,7 @@ void limb_sever_bone_attach(
 
 static inline MkObj* limb_sever_set_motion_inline(
     MkObj* owner, int limb, const Vec* velocity,
-    NcsLimbMotion* motion, int enable_ground,
+    NcsLimbUpdatePdata* motion, int enable_ground,
     int ground_value, int field_18, int include_children,
     float gravity, float ground_offset, float field_11C) {
     FighterMirror* fighter;
@@ -3097,9 +3076,9 @@ static inline MkObj* limb_sever_set_motion_inline(
         motion->ground_mask |= 1 << limb;
         motion->ground_height[limb] = g_game_info.field_34 + ground_offset;
         motion->ground_value[limb] = ground_value;
-        motion->field_138 = 1.0f;
+        motion->slide_end_coefficient = 1.0f;
     }
-    motion->field_11C = field_11C;
+    motion->vertical_bounce_scale = field_11C;
     motion->field_18 = field_18;
     update_mkobj(severed);
     return severed;
@@ -3166,7 +3145,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 4, &world_velocity, (NcsLimbMotion*)update,
+        owner, 4, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 4, 0);
@@ -3174,7 +3153,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.x = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 5, &world_velocity, (NcsLimbMotion*)update,
+        owner, 5, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 5, 0);
@@ -3183,7 +3162,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 6, &world_velocity, (NcsLimbMotion*)update,
+        owner, 6, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 6, 0);
@@ -3193,7 +3172,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.01f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 1, &world_velocity, (NcsLimbMotion*)update,
+        owner, 1, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 1, 0);
@@ -3203,7 +3182,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = -0.03f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 2, &world_velocity, (NcsLimbMotion*)update,
+        owner, 2, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 2, 0);
@@ -3212,7 +3191,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     severed = limb_sever_set_motion_inline(
-        owner, 3, &world_velocity, (NcsLimbMotion*)update,
+        owner, 3, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 2, 0);
@@ -3222,7 +3201,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 10, &world_velocity, (NcsLimbMotion*)update,
+        owner, 10, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 10, 0);
 
@@ -3230,7 +3209,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.y = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 11, &world_velocity, (NcsLimbMotion*)update,
+        owner, 11, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 11, 0);
 
@@ -3239,7 +3218,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.02f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 12, &world_velocity, (NcsLimbMotion*)update,
+        owner, 12, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 12, 0);
 
@@ -3248,7 +3227,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = -0.04f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 7, &world_velocity, (NcsLimbMotion*)update,
+        owner, 7, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 7, 0);
 
@@ -3257,7 +3236,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 8, &world_velocity, (NcsLimbMotion*)update,
+        owner, 8, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 8, 0);
 
@@ -3266,7 +3245,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.05f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
     limb_sever_set_motion_inline(
-        owner, 9, &world_velocity, (NcsLimbMotion*)update,
+        owner, 9, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 0xD2, 1, -0.006f, 0.01f, 0.3f);
     limb_sever_show_z_meat_chunks(owner, 9, 0);
 
@@ -3275,7 +3254,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     local_velocity.z = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, mkobj_get_matrix(owner));
     severed = limb_sever_set_motion_inline(
-        owner, 0, &world_velocity, (NcsLimbMotion*)update,
+        owner, 0, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 2, 0xD2, 1, -0.006f, 0.1f, 0.0001f);
     zero_v3(&angular_velocity);
     angular_velocity.z = 0.085f;
@@ -3301,7 +3280,7 @@ void limb_sever_explode_apart(PlyrInfo* player) {
     obj_set_pos_vel(owner, &world_velocity);
 
     severed = limb_sever_set_motion_inline(
-        owner, 13, &world_velocity, (NcsLimbMotion*)update,
+        owner, 13, &world_velocity, (NcsLimbUpdatePdata*)update,
         1, 3, 1000, 1, -0.006f, 0.01f, 0.3f);
     zero_v3(&angular_velocity);
     angular_velocity.z = 0.1f;
@@ -3493,7 +3472,7 @@ MkProc* plyr_spawn_his_anim_limb(
 
 MkObj* limb_sever_set_motion(
     MkObj* owner, int limb, const Vec* velocity,
-    NcsLimbMotion* motion, int enable_ground,
+    NcsLimbUpdatePdata* motion, int enable_ground,
     int ground_value, int field_18, int include_children,
     float gravity, float ground_offset, float field_11C) {
     return limb_sever_set_motion_inline(
@@ -3746,7 +3725,7 @@ void animpdata_ani_to_frame_x_with_flag_check(
         pose_anim(animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         proc_vtbl = (NcsProcVtable*)aproc->vtbl;
-        proc_vtbl->sleep(proc_vtbl);
+        proc_vtbl->sleep();
         if (animation->step * game_speed + animation->frame >
             target_frame) {
             break;
@@ -3804,8 +3783,8 @@ MslSoundHandle play_his_random_voice(int sound) {
     return handle;
 }
 
-int pfx_plyr_bankowner(const PfxPlayerBankOwner* player) {
-    return 1 << player->player_index;
+int pfx_plyr_bankowner(const PlyrInfo* player) {
+    return 1 << player->controller_slot;
 }
 
 /*

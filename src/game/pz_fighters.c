@@ -1,3 +1,6 @@
+#include "runtime/anim_pdata.h"
+#include "runtime/mk_vtbl.h"
+#include "game/pz_fighters.h"
 #include "game/game_info.h"
 #include "game/minigames.h"
 #include "game/pz_fatality.h"
@@ -17,38 +20,8 @@ typedef struct AniScript AniScript;
 typedef struct PuzzlePresentState PuzzlePresentState;
 typedef struct PuzzleProjectile PuzzleProjectile;
 
-typedef struct PuzzleProcessVtable {
-    char pad00[0x18];
-    int (*sleep)(void); /* +0x18 */
-    char pad1C[8];
-    PuzzleProcessTransfer transfer; /* +0x24 */
-} PuzzleProcessVtable;
+typedef MkProc PuzzleProcess;
 
-typedef struct PuzzleProcess {
-    PuzzleProcessVtable* vtbl;
-} PuzzleProcess;
-
-typedef struct PuzzleFighterMove {
-    unsigned int event_type; /* +0x00 */
-    float block_count; /* +0x04 */
-    float chain_count; /* +0x08 */
-    char pad0C[4];
-    unsigned int mode; /* +0x10 */
-    unsigned int script_move; /* +0x14 */
-    unsigned int player; /* +0x18 */
-    int distance_class; /* +0x1C */
-    unsigned int active_flags; /* +0x20 */
-    unsigned int has_followup; /* +0x24 */
-    union {
-        unsigned int policy_word; /* +0x28 */
-        struct {
-            unsigned char policy_flags; /* +0x28 */
-            unsigned char runtime_flags; /* +0x29 */
-            unsigned char policy_pad[2];
-        };
-    };
-    char pad2C[8];
-} PuzzleFighterMove; /* 0x34 */
 
 typedef struct FirstMoveMadeRow {
     PuzzleFighterEntry reaction;
@@ -61,47 +34,16 @@ typedef struct FirstMoveMadeTable {
     FirstMoveMadeRow rows[15];
 } FirstMoveMadeTable; /* 0xB8 */
 
-typedef struct PuzzleAnimPdata {
-    char pad00[0x38];
-    float frame; /* +0x38 */
-} PuzzleAnimPdata;
+typedef AnimPdata PuzzleAnimPdata;
 
-typedef struct PuzzleFighterStartFlags {
-    signed char enabled : 1; /* bit7 */
-    unsigned char player0_started : 1; /* bit6 */
-    unsigned char player1_started : 1; /* bit5 */
-    signed char player0_scored : 1; /* bit4 */
-    signed char player1_scored : 1; /* bit3 */
-    unsigned char unused : 3;
-} PuzzleFighterStartFlags;
 
-typedef struct PuzzleFighterStartFlagGroups {
-    unsigned char enabled_pad : 1; /* bit7 */
-    signed char players_started : 2; /* bits6-5 */
-    signed char players_scored : 2; /* bits4-3 */
-    signed char unused : 3;
-} PuzzleFighterStartFlagGroups;
 
 typedef union PuzzleFloatBits {
     float value;
     unsigned int bits;
 } PuzzleFloatBits;
 
-typedef struct PuzzleAttackPolicyFlags {
-    unsigned char bit7 : 1;
-    unsigned char bit6 : 1;
-    unsigned char bit5 : 1;
-    unsigned char bit4 : 1;
-    unsigned char distance_reaction : 1; /* bit3 */
-    unsigned char bit2 : 1;
-    unsigned char bit1 : 1;
-    unsigned char bit0 : 1;
-} PuzzleAttackPolicyFlags;
 
-typedef struct PuzzleAttackRuntimeFlags {
-    unsigned char enabled : 1; /* bit7 */
-    unsigned char low_bits : 7;
-} PuzzleAttackRuntimeFlags;
 
 static inline float pz_fast_sqrt(float squared) {
     PuzzleFloatBits input;
@@ -122,94 +64,6 @@ static inline float pz_fast_sqrt(float squared) {
             (3.0f - (estimate.value * estimate.value) / squared));
 }
 
-typedef struct PuzzleFightersEngine {
-    float balance; /* +0x00 */
-    Vec arena_axis; /* +0x04 */
-    Vec constraint_axis; /* +0x10 */
-    float center_x; /* +0x1C */
-    float center_y; /* +0x20 */
-    float center_z; /* +0x24 */
-    float player1_idle_x; /* +0x28 */
-    float player1_idle_y; /* +0x2C */
-    float player1_idle_z; /* +0x30 */
-    float player2_idle_x; /* +0x34 */
-    float player2_idle_y; /* +0x38 */
-    float player2_idle_z; /* +0x3C */
-    Vec fighter_posts[2]; /* +0x40 - home/grinder posts */
-    int round_running; /* +0x58 */
-    int super_move_active; /* +0x5C */
-    int random_fatality_active; /* +0x60 */
-    union {
-        PuzzleFighterMove fighter_move; /* +0x64 */
-        struct {
-            char pad_move64[0x20];
-            unsigned int distance_flags; /* +0x84 */
-            unsigned int attack_has_followup; /* +0x88 */
-            union {
-                unsigned int attack_policy_word; /* +0x8C */
-                struct {
-                    union {
-                        unsigned char attack_policy_flags;
-                        PuzzleAttackPolicyFlags attack_policy_bits;
-                    }; /* +0x8C */
-                    union {
-                        unsigned char attack_runtime_flags;
-                        PuzzleAttackRuntimeFlags attack_runtime_bits;
-                    }; /* +0x8D */
-                    unsigned char attack_policy_pad[2];
-                };
-            };
-            unsigned int continuation_move; /* +0x90 */
-            unsigned int continuation_priority; /* +0x94 */
-        };
-    };
-    unsigned int pending_move_count; /* +0x98 */
-    PuzzleFighterMove pending_moves[2]; /* +0x9C */
-    int fighters_positioned; /* +0x104 */
-    PuzzleProcess* master_proc; /* +0x108 */
-    int positioning_active; /* +0x10C */
-    int fighter_state[2]; /* +0x110 */
-    int force_repel; /* +0x118 */
-    int fatality_abort; /* +0x11C */
-    int fatality_active; /* +0x120 */
-    int fatality_ready; /* +0x124 */
-    int fatality_victim; /* +0x128 */
-    int fatality_attacker; /* +0x12C */
-    MkObj* fatality_objects[8]; /* +0x130 */
-    MkObj* present_object; /* +0x150 */
-    MkObj* projectile_objects[2]; /* +0x154 */
-    int fatality_index; /* +0x15C */
-    unsigned int random_event_cooldown; /* +0x160 */
-    int breakout; /* +0x164 */
-    int y_constraint_enabled[2]; /* +0x168 */
-    float y_constraint[2]; /* +0x170 */
-    unsigned int fatality_timer; /* +0x178 */
-    float fatality_motion; /* +0x17C */
-    ScreenObj* screen_objects[2]; /* +0x180 */
-    AniTextureControl* texture_controls[2]; /* +0x188 */
-    unsigned int balance_update_timer; /* +0x190 */
-    float pending_balance; /* +0x194 */
-    union {
-        unsigned char start_flags;
-        PuzzleFighterStartFlags start_flag_bits;
-        PuzzleFighterStartFlagGroups start_flag_groups;
-    }; /* +0x198 */
-    char pad199[3];
-    unsigned int immediate_request_player; /* +0x19C */
-    unsigned int immediate_request_type; /* +0x1A0 */
-    int immediate_request_timer; /* +0x1A4 */
-    int immediate_request_active; /* +0x1A8 */
-    unsigned int event_block_count; /* +0x1AC */
-    char pad1B0[4];
-    int field_1B4;
-    int balance_out_of_range; /* +0x1B8 */
-    PuzzlePresentState* present; /* +0x1BC */
-    int reaction_slots[6]; /* +0x1C0 */
-    int field_1D8;
-    int super_move_request_pending; /* +0x1DC */
-    int constraint_timer; /* +0x1E0 */
-    int reactions_disabled; /* +0x1E4 */
-} PuzzleFightersEngine;
 
 typedef struct PuzzleEffectBankContext {
     int slot;
@@ -352,8 +206,6 @@ static inline PuzzleProcess* pz_fighter_player_proc(unsigned int player) {
     }
     return g_game_info.plyr1.idle_proc;
 }
-void advance_anim(void);
-void pose_anim(PuzzleAnimPdata* animation, int update_object);
 void attack_to_frame_x(
     AniScript* animation, int field0C, int field10, int field14,
     float frame1, float frame2, float frame3, float frame4);
@@ -2283,14 +2135,7 @@ static float p_objects_moving(void) {
     return 1.0f;
 }
 
-/*
- * Emission-only near miss: m2c confirms the constraint loop and full XYZ
- * crossover swap. Local unsigned player selection recovers retail's cmplwi
- * selector (90.92%, retail 0x158/current 0x154). Remaining differences are
- * equivalent base-plus-offset versus advancing-pointer constraint induction
- * and register/FPR coloring.
- */
-/* TODO: [near miss] 97.44%; compact-save mode recovered; branch/address and register lowering still need local diagnosis. */
+/* TODO: [near miss] 97.62%; constraint operations and CFG agree; stop at GPR/FPR coloring. */
 static void check_fighter_constraints(void) {
     unsigned int player;
 
@@ -2310,12 +2155,12 @@ static void check_fighter_constraints(void) {
                 (g_pz_fighters_engine.fighter_posts[0].z - fighter->pos.value.z);
 
         if (distance > 0.01) {
+            float scaled_distance = distance / 5.0f;
             float move_x;
             float move_z;
 
-            distance /= 5.0f;
-            move_x = g_pz_fighters_engine.constraint_axis.x * distance;
-            move_z = g_pz_fighters_engine.constraint_axis.z * distance;
+            move_x = g_pz_fighters_engine.constraint_axis.x * scaled_distance;
+            move_z = g_pz_fighters_engine.constraint_axis.z * scaled_distance;
             fighter->pos.value.x = fighter->pos.value.x + move_x;
             fighter->pos.value.z = fighter->pos.value.z + move_z;
         } else if (distance < 0.002) {
@@ -3222,7 +3067,7 @@ void pz_fighter_attack(
                 pz_fighter_walk_until_fight_distance, 120, 1);
         }
         if (g_pz_fighters_engine.breakout == 1) {
-            aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+            aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
         }
     }
 
@@ -3255,8 +3100,10 @@ void pz_fighter_dont_fudge_desired_distance(void) {
 }
 
 /*
- * Soft ceiling: exact 468-byte frame/reaction loop; remaining differences are
- * saved-register allocation, one boolean-store schedule, and float labels.
+ * Soft ceiling: 97.649574%, exact 468-byte frame/reaction loop; remaining
+ * differences are saved-register allocation, one boolean-store schedule, and
+ * float labels. Retail 0x801274E8 leaves plyr_anim_pdata in r3 for the
+ * advance_anim call at 0x8012745C; the animation argument is required.
  */
 float pz_fighter_ani_attack(
     int reaction, unsigned int reaction_mode, float end_frame,
@@ -3265,7 +3112,7 @@ float pz_fighter_ani_attack(
     int reaction_started = 0;
 
     while (plyr_anim_pdata->frame <= end_frame && frame_clamped == 0) {
-        advance_anim();
+        advance_anim(plyr_anim_pdata);
         pose_anim(plyr_anim_pdata, 1);
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
@@ -3399,7 +3246,7 @@ static float pz_fighter_move_into_desired_position(void) {
         pz_fighter_walk_FB_true(
             pz_fighter_walk_until_danger_or_in_wrong_direction, 120, 1);
     }
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -3421,7 +3268,7 @@ void pz_fighter_move_into_fighting_position(void) {
 static float pz_fighter_move_into_fighting_position_now(void) {
     pz_fighter_walk_FB_true(
         pz_fighter_walk_until_fight_distance, 120, 1);
-    aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
     return 0.0f;
 }
 
@@ -3614,13 +3461,21 @@ static void pz_fighter_calculate_start_pos(void) {
         fighters->arena_axis.z * post2_scale;
 }
 
-/* TODO: [near miss] 98.24%; initial player selection compare differs; unsigned-local trial changes later signed comparisons. */
 float pz_fighter_fetch_distance_to_center_pos(void) {
     int player = plyr_pdata->plyr_num;
-    MkObj* fighter = puzzle_fighter_object((unsigned int)player);
-    float dx = g_pz_fighters_engine.center_x - fighter->pos.value.x;
-    float dz = g_pz_fighters_engine.center_z - fighter->pos.value.z;
-    float distance = dx * dx + dz * dz;
+    MkObj* fighter;
+    float dx;
+    float dz;
+    float distance;
+
+    if ((unsigned int)player == 0) {
+        fighter = (MkObj*)g_game_info.plyr0.slot.mirror_a;
+    } else {
+        fighter = (MkObj*)g_game_info.plyr1.slot.mirror_a;
+    }
+    dx = g_pz_fighters_engine.center_x - fighter->pos.value.x;
+    dz = g_pz_fighters_engine.center_z - fighter->pos.value.z;
+    distance = dx * dx + dz * dz;
 
     if ((player == 0) &&
         (g_pz_fighters_engine.center_x < fighter->pos.value.x)) {
@@ -3672,7 +3527,7 @@ float p_plyr_pz_fighter_start(void) {
     glitch_to_stance(1.0f);
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
-    aproc->vtbl->transfer(p_plyr_pz_fighter_entry, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
@@ -3682,7 +3537,7 @@ float p_plyr_pz_fighter_entry(void) {
 
     if (plyr_pdata->fatality_shove_active == 1) {
         plyr_pdata->fatality_shove_active = 0;
-        aproc->vtbl->transfer(pz_fighter_dizzy, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_dizzy, 0.0f);
         return 0.0f;
     }
 
@@ -3712,7 +3567,7 @@ float p_plyr_pz_fighter_entry(void) {
     }
     plyr_obj->flags_09_bits.launched = 1;
     g_pz_fighters_engine.y_constraint_enabled[player] = 0;
-    aproc->vtbl->transfer(p_plyr_pz_fighter_loop, 0.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_loop, 0.0f);
     return 0.0f;
 }
 
@@ -3747,7 +3602,7 @@ int pz_fighter_is_winning_big(unsigned int player) {
 
 float pz_fighter_check_breakout(void) {
     if (g_pz_fighters_engine.breakout == 1) {
-        aproc->vtbl->transfer(pz_fighter_exit, 0.0f);
+        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
         return 0.0f;
     }
     return 0.0f;

@@ -244,7 +244,7 @@ static inline float projectile_fast_sqrt(float squared) {
     }
     bits.f = squared;
     bits.u =
-        ((unsigned int)GXMathSqrtTable[(bits.u >> 10) & 0x3FFE] << 8) |
+        ((unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8) |
         ((((bits.u & 0x7F800000) + 0x3F800000) >> 1) & 0x7F800000);
     return 0.5f * (bits.f * (3.0f - (bits.f * bits.f) / squared));
 }
@@ -415,6 +415,8 @@ void set_active_projectile_p_handler(MkProcEntryFn handler) {
     projectile_set_process_handler(handler);
 }
 
+/* TODO: [breakthrough] 86.60439%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 void set_active_projectile_velocity_to_hit_gnd(float ticks) {
     MkObj* object;
     float speed;
@@ -915,6 +917,8 @@ static void pw_projectile(void) {
     proj_pdata = (ProjectilePdata*)pdata_of_proc(aproc);
 }
 
+/* TODO: [breakthrough] 86.94936%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 void retarget_projectile(ProjectilePdata* pdata) {
     ProjectilePdata* source;
     MkObj* object;
@@ -964,6 +968,8 @@ void retarget_projectile(ProjectilePdata* pdata) {
     pdata->max_ticks = 300.0f;
 }
 
+/* TODO: [breakthrough] 87.67961%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static void projectile_set_velocity_angy_tol(
     MkObj* object, float speed, float tolerance) {
     float cone_cos;
@@ -1088,6 +1094,8 @@ static void projectile_impale(ProjectilePdata* pdata, MkObj* victim) {
     victim->flags_08 &= (unsigned char)~0x20;
 }
 
+/* TODO: [breakthrough] 65.5321%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static float p_projectile_handler(void) {
     ProjectilePdata* projectile = proj_pdata;
     PlyrPdata* owner;

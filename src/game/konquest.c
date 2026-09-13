@@ -1,4 +1,5 @@
 #include "runtime/mk_struct.h"
+#include "runtime/plyr_pdata.h"
 #include "runtime/asset.h"
 #include "runtime/image.h"
 #include "runtime/fonts.h"
@@ -1268,11 +1269,7 @@ extern MkVtable5 vtbl_konquest_pui;
 static MkVtable5 vtbl_konquest_sobj_struct;
 static MkVtable5 vtbl_konquest_obj;
 extern KonquestDayOfWeek days_of_week[7];
-typedef struct KonquestShadowData {
-    char pad000[0x470];
-    MkObj* ground_object; /* +0x470 */
-    char pad474[0x2D8];
-} KonquestShadowData;
+typedef PlyrPdata KonquestShadowData;
 static KonquestShadowData pdata_monk;
 int konq_nis_anims[0x14];
 KonquestSavedState konquest_save_data;
@@ -1380,7 +1377,7 @@ void hide_atomic(void* atomic);
 MkProc* _create_mkproc_generic_tinystack(
     int pid, int priority, void* entry, int pdata_size, void** pdata);
 MkProc* _create_mkproc_generic_bigstack(
-    int pid, int priority, void* entry, int pdata_size, void** pdata);
+    int pid, int priority, MkProcEntryFn entry, int pdata_size, MkHdr** pdata);
 MkProc* _create_mkproc_generic_nostack(
     int pid, int priority, void* entry, int pdata_size, void** pdata);
 void zero_pdata_payload(int size, void* pdata);
@@ -2742,7 +2739,7 @@ void konquest_hero_portal_in(void) {
         portal_instance = 0;
         proc = (MkProc*)_create_mkproc_generic_bigstack(
             0xA028, 0x1F, p_hero_portal_in, sizeof(*portal_pdata),
-            (void**)&portal_pdata);
+            (MkHdr**)&portal_pdata);
         if (proc != 0 && portal_pdata != 0) {
             rows = (KonquestPortalRow*)get_data_table_by_name("region_portals");
             row_count = get_row_count_for_table_by_pointer(
@@ -3118,7 +3115,7 @@ void konquest_use_portal(
         portal_instance = 0;
         proc = (MkProc*)_create_mkproc_generic_bigstack(
             0xA028, 0x1F, p_hero_use_portal, sizeof(*portal_pdata),
-            (void**)&portal_pdata);
+            (MkHdr**)&portal_pdata);
         if (proc != 0) {
             portal_instance = proc->instance;
             portal_proc = proc;
@@ -4383,7 +4380,7 @@ int display_konquest_text(
 
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
-            sizeof(*window), (void**)&window) == 0) {
+            sizeof(*window), (MkHdr**)&window) == 0) {
         return 0;
     }
     zero_pdata_payload(sizeof(*window), window);
@@ -4457,7 +4454,7 @@ void konquest_start_nis_anims_load(
 
     if (_create_mkproc_generic_bigstack(
             0x901B, 0x1F, p_konquest_load_nis_anims, sizeof(*pdata),
-            (void**)&pdata) != 0) {
+            (MkHdr**)&pdata) != 0) {
         pdata->slot = 0xA002F;
         pdata->animation_name = animation_name;
         pdata->art_name = art_name;
@@ -5031,7 +5028,7 @@ static MkProc* konquest_display_award_tga(
     }
     proc = (MkProc*)_create_mkproc_generic_bigstack(
         0x8239, 0x1F, p_display_award_image, sizeof(*pdata),
-        (void**)&pdata);
+        (MkHdr**)&pdata);
     if (proc != 0 && pdata != 0) {
         pdata->mode = display_mode;
         if (display_mode == 0) {
@@ -9067,7 +9064,7 @@ void display_time_progression_images(int progression) {
     left_fraction = entry->left_fraction;
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
-            sizeof(*first_window), (void**)&first_window) != 0) {
+            sizeof(*first_window), (MkHdr**)&first_window) != 0) {
         zero_pdata_payload(sizeof(*first_window), first_window);
         first_window->left =
             (int)((float)screen_width * left_fraction);
@@ -9102,7 +9099,7 @@ void display_time_progression_images(int progression) {
         left_fraction = entry->left_fraction;
         if (_create_mkproc_generic_bigstack(
                 0x9002, aproc->priority + 1, p_show_text_window,
-                sizeof(*second_window), (void**)&second_window) != 0) {
+                sizeof(*second_window), (MkHdr**)&second_window) != 0) {
             zero_pdata_payload(sizeof(*second_window), second_window);
             second_window->left =
                 (int)((float)screen_width * left_fraction);
@@ -12404,7 +12401,7 @@ static inline AniTextureControl* konquest_grounding_live_camera_target_face_text
 
 
 
-/* TODO: [near miss] 97.417725%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [near miss] 97.4019%; branch/load placement and register allocation remain. */
 void change_monk_age(int age) {
     MkObj* hero;
     AnimPdata* animation;
@@ -12544,11 +12541,8 @@ void change_monk_age(int age) {
     }
 }
 
-/*
- * Near match: all calls, flags, object setup, animation setup, and shadow
- * initialization agree. Residue is individual r29-r31 saves/restores versus
- * stmw/lmw and local constant/string relocation labels.
- */
+/* TODO: [near miss] 99.70503%; individual register saves versus stmw/lmw
+ * and local constant/string relocation labels remain. */
 MkProc* load_hero_model(int animation_script) {
     int slot;
     unsigned char hero_age;
@@ -12643,6 +12637,8 @@ static inline CameraObj* konquest_live_camera(CameraItem* owner) {
     return object;
 }
 
+/* TODO: [near miss] 99.829544%; canonical shadow owner preserves codegen;
+ * local float relocation remains. */
 void render_konquest_shadows(void) {
     KonquestPdata* pdata;
     CameraObj* camera;
@@ -12671,13 +12667,13 @@ void render_konquest_shadows(void) {
 
     if (hero != 0) {
         if (hero->hide_flag_bits.hidden || ShadowStrength == 0.0f) {
-            pdata_monk.ground_object->hide_flag_bits.hidden = 1;
+            pdata_monk.shadowbox->hide_flag_bits.hidden = 1;
             return;
         }
-        pdata_monk.ground_object->hide_flag_bits.hidden = 0;
+        pdata_monk.shadowbox->hide_flag_bits.hidden = 0;
         UpdateShadow(hero, (ShadowObject*)&pdata_monk, hero);
         if (fix_camera_flip == 1) {
-            pdata_monk.ground_object->ang.y -= 3.1415927f;
+            pdata_monk.shadowbox->ang.y -= 3.1415927f;
             fix_camera_flip = 0;
         }
     }
@@ -14438,7 +14434,7 @@ static inline void execute_trigger_inline(KonquestTriggerStruct* trigger) {
         } else {
             proc = _create_mkproc_generic_bigstack(
                 0x9019, 0x18, p_run_trigger_script, sizeof(*pdata),
-                (void**)&pdata);
+                (MkHdr**)&pdata);
             if (proc != 0) {
                 set_process_as_scriptable(proc);
                 trigger->script_proc = proc;
@@ -17882,7 +17878,7 @@ void trigger_update(int force) {
                 } else {
                     proc = _create_mkproc_generic_bigstack(
                         0x9019, 0x18, p_run_trigger_script,
-                        sizeof(*pdata), (void**)&pdata);
+                        sizeof(*pdata), (MkHdr**)&pdata);
                     if (proc != 0) {
                         set_process_as_scriptable(proc);
                         trigger->script_proc = proc;
@@ -18907,7 +18903,7 @@ float p_konquest_mode(void) {
 
     if (_create_mkproc_generic_bigstack(
             0x2001, 0x23, p_init_konquest_mode, 0x454,
-            (void**)&konquest_pdata) != 0) {
+            (MkHdr**)&konquest_pdata) != 0) {
         return -1.0f;
     }
     gamelogic_jump(0, p_atm_loop);

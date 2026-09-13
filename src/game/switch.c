@@ -2,23 +2,14 @@
 #include "game/controller.h"
 #include "game/game_info.h"
 #include "runtime/mk_proc.h"
+#include "runtime/mk_vtbl.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/mk_obj.h"
 
 typedef int s32;
 typedef float f32;
 
-typedef struct SwitchPdata {
-    MkHdr hdr;
-    PlyrInfo* player;
-} SwitchPdata;
 
-typedef struct SwitchProcVtable {
-    int (*reserved[6])(void);
-    void (*sleep)(MkProc* proc);
-    int (*stack_ops[2])(void);
-    f32 (*jump_sleep)(f32 ticks, MkProcEntryFn entry);
-} SwitchProcVtable;
 
 typedef struct JoinPdata {
     MkHdr hdr;
@@ -104,7 +95,7 @@ static inline int switch_input_eaten(void) {
 }
 
 static f32 dispatch_switch(MkProcEntryFn entry) {
-    ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, entry);
+    aproc->vtbl->jump_sleep(entry, 0.0f);
     return 0.0f;
 }
 
@@ -259,14 +250,14 @@ f32 pad_start_proc(void) {
         case 7:
         case 0x12:
         case 0x17:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_pause_menu_switch);
+            aproc->vtbl->jump_sleep(p_pause_menu_switch, 0.0f);
             return 0.0f;
         case 0x13:
         case 0x14:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_switch_proc_start);
+            aproc->vtbl->jump_sleep(p_switch_proc_start, 0.0f);
             return 0.0f;
         case 3:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_atm_start_button);
+            aproc->vtbl->jump_sleep(p_atm_start_button, 0.0f);
             return 0.0f;
         }
     } else {
@@ -288,14 +279,13 @@ f32 pad_start_proc(void) {
                 }
                 break;
             case 3:
-                ((SwitchProcVtable*)aproc->vtbl)
-                    ->jump_sleep(0.0f, p_atm_start_button);
+                aproc->vtbl->jump_sleep(p_atm_start_button, 0.0f);
                 return 0.0f;
             }
         } else if (get_game_state() == 7 && are_controllers_locked() &&
                    ((SwitchGameFlags*)&g_game_info.flags)->bit5 == 0 &&
                    ((SwitchGameFlags*)&g_game_info.flags)->bit6 != 0) {
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_pause_menu_switch);
+            aproc->vtbl->jump_sleep(p_pause_menu_switch, 0.0f);
             return 0.0f;
         }
     }
@@ -319,19 +309,19 @@ f32 pad_rrt_proc(void) {
 
         switch (get_game_state()) {
         case 7:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, switch_proc_attack_4);
+            aproc->vtbl->jump_sleep(switch_proc_attack_4, 0.0f);
             return 0.0f;
         case 0x12:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_puzzle_switch_4);
+            aproc->vtbl->jump_sleep(p_puzzle_switch_4, 0.0f);
             return 0.0f;
         case 0x13:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_konquest_switch_4);
+            aproc->vtbl->jump_sleep(p_konquest_switch_4, 0.0f);
             return 0.0f;
         case 0x14:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_konquest_switch_4);
+            aproc->vtbl->jump_sleep(p_konquest_switch_4, 0.0f);
             return 0.0f;
         case 0x17:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_board_switch_4);
+            aproc->vtbl->jump_sleep(p_board_switch_4, 0.0f);
             return 0.0f;
         }
     }
@@ -355,19 +345,19 @@ f32 pad_rlt_proc(void) {
 
         switch (get_game_state()) {
         case 7:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, switch_proc_attack_1);
+            aproc->vtbl->jump_sleep(switch_proc_attack_1, 0.0f);
             return 0.0f;
         case 0x12:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_puzzle_switch_1);
+            aproc->vtbl->jump_sleep(p_puzzle_switch_1, 0.0f);
             return 0.0f;
         case 0x13:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_konquest_switch_1);
+            aproc->vtbl->jump_sleep(p_konquest_switch_1, 0.0f);
             return 0.0f;
         case 0x14:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_konquest_switch_1);
+            aproc->vtbl->jump_sleep(p_konquest_switch_1, 0.0f);
             return 0.0f;
         case 0x17:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_board_switch_1);
+            aproc->vtbl->jump_sleep(p_board_switch_1, 0.0f);
             return 0.0f;
         }
     }
@@ -391,32 +381,32 @@ f32 pad_rdn_proc(void) {
 
         switch (get_game_state()) {
         case 7:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, switch_proc_attack_3);
+            aproc->vtbl->jump_sleep(switch_proc_attack_3, 0.0f);
             return 0.0f;
         case 0x12:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_puzzle_switch_3);
+            aproc->vtbl->jump_sleep(p_puzzle_switch_3, 0.0f);
             return 0.0f;
         case 0x13:
         case 0x16:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_konquest_switch_3);
+            aproc->vtbl->jump_sleep(p_konquest_switch_3, 0.0f);
             return 0.0f;
         case 0x14:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_konquest_switch_3);
+            aproc->vtbl->jump_sleep(p_konquest_switch_3, 0.0f);
             return 0.0f;
         case 0x17:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_board_switch_3);
+            aproc->vtbl->jump_sleep(p_board_switch_3, 0.0f);
             return 0.0f;
         case 0x18:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_board_switch_over_3);
+            aproc->vtbl->jump_sleep(p_board_switch_over_3, 0.0f);
             return 0.0f;
         case 3:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_atm_start_button);
+            aproc->vtbl->jump_sleep(p_atm_start_button, 0.0f);
             return 0.0f;
         }
     } else {
         switch (get_game_state()) {
         case 3:
-            ((SwitchProcVtable*)aproc->vtbl)->jump_sleep(0.0f, p_atm_start_button);
+            aproc->vtbl->jump_sleep(p_atm_start_button, 0.0f);
             return 0.0f;
         }
     }

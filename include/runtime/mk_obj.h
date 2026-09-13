@@ -7,6 +7,7 @@
 #include "math/gxQuat.h"
 #include "runtime/limb.h"
 #include "runtime/mk_struct.h"
+#include "game/weapon_types.h"
 
 typedef struct  {
     unsigned char collision_disabled : 1; /* bit7 */
@@ -274,13 +275,7 @@ typedef struct MkObjHideFlags {
     unsigned char bit0 : 1;
 } MkObjHideFlags;
 
-typedef struct MkObjItemAttachData {
-    char pad00[8];
-    int bone_index; /* +0x08 */
-    Vec position;   /* +0x0C */
-    Vec rotation;   /* +0x18 */
-    Vec scale;      /* +0x24 */
-} MkObjItemAttachData; /* 0x30 */
+
 
 /*
  * MkObj (partial) -- fields used by mk_obj + particle binds.
@@ -425,7 +420,7 @@ typedef char MkSobjSizeCheck[sizeof(MkSobj) == 0x84 ? 1 : -1];
 typedef char MksobjPluginDataSizeCheck[
     sizeof(MksobjPluginData) == 0x10 ? 1 : -1];
 typedef char MkObjItemAttachDataSizeCheck[
-    sizeof(MkObjItemAttachData) == 0x30 ? 1 : -1];
+    sizeof(MkObjItemAttachData) == 0x70 ? 1 : -1];
 typedef char MkObjSizeCheck[sizeof(MkObj) == 0x100 ? 1 : -1];
 #endif
 

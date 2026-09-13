@@ -300,8 +300,7 @@ static inline void set_profile_to_default_impl(PlayerProfile* profile) {
     konquest = profile->konquest;
     memset(konquest, 0, PROFILE_KONQUEST_SIZE);
     *(int*)(konquest + KONQUEST_FIELD_68) = PROFILE_KONQUEST_FIELD_68;
-    profile->unlock_cat7.words[1] = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
-    profile->unlock_cat7.words[0] = 0;
+    profile->unlock_cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
     profile->unlock_cat6 = PROFILE_DEFAULT_UNLOCK_CAT5;
 }
 
@@ -1544,11 +1543,11 @@ char* get_heros_name(int which) {
     return p1_profile.name;
 }
 
-/* TODO: [near miss] 99.82456%; retail category jump table corrected; register allocation residue. */
+/* TODO: [near miss] 93.50292%; canonical 64-bit category 7/8 read preserves retail behavior; register allocation differs. */
 int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     unsigned long long unlocked;
-    unsigned int* words;
+    ProfileUnlockBits64* bits;
 
     unlocked = 0;
     if (profile != &p1_profile && profile != &p2_profile) {
@@ -1604,9 +1603,9 @@ int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
         if (character < 0 || character >= 44) {
             return 0;
         }
-        words = category == 7 ? profile->unlock_cat7.words : profile->unlock_cat8.words;
+        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
         mask = 1ULL << character;
-        unlocked = (((unsigned long long)words[0] << 32) | words[1]) & mask;
+        unlocked = bits->value & mask;
         break;
     case 9:
         if (character < 0 || character >= 44) {
@@ -1629,20 +1628,14 @@ int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
 }
 
 static inline void mark_bitset_locked(
-    unsigned int words[2], unsigned long long mask) {
-    unsigned int low;
-    unsigned int high;
-
-    low = words[1];
-    high = words[0];
-    words[1] = low & (unsigned int)mask;
-    words[0] = high & (unsigned int)(mask >> 32);
+    ProfileUnlockBits64* bits, unsigned long long mask) {
+    bits->value &= mask;
 }
 
 /* TODO: [near miss] 98.92857%; retail category jump table corrected; equivalent codegen residue. */
 void mark_as_locked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
-    unsigned int* words;
+    ProfileUnlockBits64* bits;
 
     if (profile != &p1_profile && profile != &p2_profile) {
         return;
@@ -1651,12 +1644,12 @@ void mark_as_locked(PlayerProfile* profile, int category, int character) {
     case 1:
         if (character < 0 || character >= 44) return;
         mask = ~(1ULL << character);
-        mark_bitset_locked(profile->unlock_cat1.words, mask);
+        mark_bitset_locked(&profile->unlock_cat1, mask);
         return;
     case 2:
         if (character < 0 || character >= 44) return;
         mask = ~(1ULL << character);
-        mark_bitset_locked(profile->unlock_cat2.words, mask);
+        mark_bitset_locked(&profile->unlock_cat2, mask);
         return;
     case 3:
         if (character < 0 || character >= 35) return;
@@ -1666,7 +1659,7 @@ void mark_as_locked(PlayerProfile* profile, int category, int character) {
     case 6:
         if (character < 0 || character >= 44) return;
         mask = ~(1ULL << character);
-        mark_bitset_locked(profile->unlock_cat4.words, mask);
+        mark_bitset_locked(&profile->unlock_cat4, mask);
         return;
     case 4:
         if (character < 0 || character >= 11) return;
@@ -1681,14 +1674,14 @@ void mark_as_locked(PlayerProfile* profile, int category, int character) {
     case 7:
     case 8:
         if (character < 0 || character >= 44) return;
-        words = category == 7 ? profile->unlock_cat7.words : profile->unlock_cat8.words;
+        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
         mask = ~(1ULL << character);
-        mark_bitset_locked(words, mask);
+        mark_bitset_locked(bits, mask);
         return;
     case 9:
         if (character < 0 || character >= 44) return;
         mask = ~(1ULL << character);
-        mark_bitset_locked(profile->unlock_cat9.words, mask);
+        mark_bitset_locked(&profile->unlock_cat9, mask);
         return;
     case 10:
         if (character < 0 || character >= 35) return;
@@ -1701,20 +1694,14 @@ void mark_as_locked(PlayerProfile* profile, int category, int character) {
 }
 
 static inline void mark_bitset_unlocked(
-    unsigned int words[2], unsigned long long mask) {
-    unsigned int low;
-    unsigned int high;
-
-    low = words[1];
-    high = words[0];
-    words[1] = low | (unsigned int)mask;
-    words[0] = high | (unsigned int)(mask >> 32);
+    ProfileUnlockBits64* bits, unsigned long long mask) {
+    bits->value |= mask;
 }
 
 /* Consumers: nis, krypt handle_controller_input, projectile. */
 void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
-    unsigned int* words;
+    ProfileUnlockBits64* bits;
 
     if (profile != &p1_profile && profile != &p2_profile) {
         return;
@@ -1723,12 +1710,12 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     case 1:
         if (character < 0 || character >= 44) return;
         mask = 1ULL << character;
-        mark_bitset_unlocked(profile->unlock_cat1.words, mask);
+        mark_bitset_unlocked(&profile->unlock_cat1, mask);
         return;
     case 2:
         if (character < 0 || character >= 44) return;
         mask = 1ULL << character;
-        mark_bitset_unlocked(profile->unlock_cat2.words, mask);
+        mark_bitset_unlocked(&profile->unlock_cat2, mask);
         return;
     case 3:
         if (character < 0 || character >= 35) return;
@@ -1737,7 +1724,7 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     case 6:
         if (character < 0 || character >= 44) return;
         mask = 1ULL << character;
-        mark_bitset_unlocked(profile->unlock_cat4.words, mask);
+        mark_bitset_unlocked(&profile->unlock_cat4, mask);
         return;
     case 4:
         if (character < 0 || character >= 11) return;
@@ -1750,14 +1737,14 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     case 7:
     case 8:
         if (character < 0 || character >= 44) return;
-        words = category == 7 ? profile->unlock_cat7.words : profile->unlock_cat8.words;
+        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
         mask = 1ULL << character;
-        mark_bitset_unlocked(words, mask);
+        mark_bitset_unlocked(bits, mask);
         return;
     case 9:
         if (character < 0 || character >= 44) return;
         mask = 1ULL << character;
-        mark_bitset_unlocked(profile->unlock_cat9.words, mask);
+        mark_bitset_unlocked(&profile->unlock_cat9, mask);
         return;
     case 10:
         if (character < 0 || character >= 35) return;

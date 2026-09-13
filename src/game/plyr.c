@@ -1,3 +1,4 @@
+#include "runtime/bone_matcher.h"
 #include "game/game_info.h"
 #include "game/ai.h"
 #include "game/bgnd.h"
@@ -46,19 +47,6 @@ typedef struct LoadPlyrModelPdata {
     int char_id;
     LoadPlyrFlags flags;
 } LoadPlyrModelPdata;
-
-typedef struct PlyrModelDataTable {
-    char pad00[4];
-    const char* primary_art;
-    char pad08[0x20];
-    const char* alternate_art;
-    char pad2C[0x20];
-    const char* primary_costume_art;
-    char pad50[4];
-    const char* alternate_costume_art;
-    char pad58[4];
-    const char* shared_art;
-} PlyrModelDataTable;
 
 unsigned char shared_ani[0x480];
 static PlyrPdata _mkpdata_plyrs[PLYR_PDATA_POOL_COUNT];
@@ -127,9 +115,6 @@ extern float p_plyr_start(void);
 extern void plyr_aux_weapon_grab(PlyrPdata* pdata, MkObj* weapon);
 extern int is_char_locked(int character, int alternate);
 extern void resolve_alternate_palettes(PlyrInfo* player);
-extern MkHdr* start_bone_matcher(
-    MkObj* source, int source_bone, MkObj* target, int target_bone,
-    float weight);
 extern void select_fighter_voice_in_bank(int player, int alternate_voice);
 extern int is_local_plyr(void);
 extern void advance_active_moveset(PlyrPdata* pdata);
@@ -139,7 +124,7 @@ extern MkFileInfo cmo_script_reactions;
 extern int build_bones_tbl(MkObj* object, const int* tags);
 extern void limb_sever_hide_z_meat_chunks_all(MkObj* object);
 extern void plyr_obj_load_bld_data(
-    FighterMirror* pdata, void* blood_data, MkObj* object,
+    FighterMirror* pdata, BloodModelData* blood_data, MkObj* object,
     const char* path_name);
 extern int load_effect_bank(char* name);
 extern void start_constrain_proc(void);
@@ -1507,11 +1492,13 @@ int load_plyr_model_async(int player, int char_id, int* flags) {
     return 1;
 }
 
+/* TODO: [near miss] 97.23301%; canonical table ownership preserves the
+ * existing instruction differences; full TU objdiff is unchanged. */
 static float p_load_plyr_model_async(void) {
     LoadPlyrModelPdata* pdata = (LoadPlyrModelPdata*)apdata;
     MkFileEntry* model_files;
     ScriptSlot* script;
-    PlyrModelDataTable* data;
+    FighterRuntimeData* data;
     const char* art_section;
     const char* model_script;
     LoadPlyrFlags flags;
@@ -1546,29 +1533,29 @@ static float p_load_plyr_model_async(void) {
     if (script->table_count == 0) {
         return -1.0f;
     }
-    data = (PlyrModelDataTable*)get_data_table(
+    data = (FighterRuntimeData*)get_data_table(
         script, script->table_count);
     if (alternate != 0) {
         if (flags.bits.alternate_costume) {
-            art_section = data->alternate_costume_art;
+            art_section = data->alternate_palette_art_section;
         } else {
-            art_section = data->alternate_art;
+            art_section = data->alternate_art_section;
         }
     } else if (flags.bits.alternate_costume) {
-        art_section = data->primary_costume_art;
+        art_section = data->palette_art_section;
     } else {
-        art_section = data->primary_art;
+        art_section = data->primary_art_section;
     }
     load_ssf(model_files);
     if (player == 0) {
         load_art_section_by_name_async(0x3000A, art_section);
-        if (data->shared_art != 0) {
-            load_art_section_by_name_async(0x3000B, data->shared_art);
+        if (data->shared_art_section != 0) {
+            load_art_section_by_name_async(0x3000B, data->shared_art_section);
         }
     } else if (player == 1) {
         load_art_section_by_name_async(0x4000A, art_section);
-        if (data->shared_art != 0) {
-            load_art_section_by_name_async(0x4000B, data->shared_art);
+        if (data->shared_art_section != 0) {
+            load_art_section_by_name_async(0x4000B, data->shared_art_section);
         }
     }
     return -1.0f;
@@ -2237,7 +2224,7 @@ static void load_player_anim_files(PlyrPdata* pdata) {
         section = find_section_by_name(
             pdata->runtime_data->chess_animation_section);
         add_anim_section_async(
-            slot, section, &style->animation_data, 0, 0);
+            slot, section, (void*)style->animation_data, 0, 0);
     } else {
         for (index = 0; index < 3; index++) {
             PlyrWeaponStyle* style = pdata->weapon_styles[index];
@@ -2249,7 +2236,7 @@ static void load_player_anim_files(PlyrPdata* pdata) {
                     style->definition->animation_header;
                 if (section != 0) {
                     add_anim_section_async(
-                        slot, section, &style->animation_data, 1, 0);
+                        slot, section, (void*)style->animation_data, 1, 0);
                 }
             }
         }
@@ -2489,7 +2476,7 @@ void create_player(int player_index, PlyrInfo* player) {
                             ->alternate_bone_tags);
         plyr_obj_load_bld_data(
             (FighterMirror*)player->slot.pdata,
-            player->slot.pdata->large_blood_spawn_state,
+            &player->slot.pdata->blood_model,
             player->slot.mirror_a, "ALT_BLOODPATH");
     } else {
         build_bones_tbl(player->slot.mirror_a,
@@ -2497,7 +2484,7 @@ void create_player(int player_index, PlyrInfo* player) {
                             ->primary_bone_tags);
         plyr_obj_load_bld_data(
             (FighterMirror*)player->slot.pdata,
-            player->slot.pdata->large_blood_spawn_state,
+            &player->slot.pdata->blood_model,
             player->slot.mirror_a, "BLOODPATH");
     }
     if ((int)mode_of_play == 6) {
@@ -3317,6 +3304,8 @@ void vdestroy_mkpdata_plyr(PlyrPdata* pdata) {
         }                                                             \
     } while (0)
 
+/* TODO: [breakthrough] 86.22841%; +0x48C is blood_model.surface.records;
+ * existing latch validation/register residue remains. */
 void destroy_mkpdata_plyr(PlyrPdata* pdata) {
     DESTROY_PLYR_REF(pdata->tracked_obj, pdata->tracked_obj_instance);
     DESTROY_PLYR_REF(
@@ -3342,15 +3331,17 @@ void destroy_mkpdata_plyr(PlyrPdata* pdata) {
         pdata->goro_hand_anim[3].proc, pdata->goro_hand_anim[3].instance);
 
     destroy_list(&pdata->active_weapon_links);
-    if (pdata->blood_model_data != 0) {
-        free_mem(pdata->blood_model_data);
-        pdata->blood_model_data = 0;
+    if (pdata->blood_model.surface.records != 0) {
+        free_mem(pdata->blood_model.surface.records);
+        pdata->blood_model.surface.records = 0;
     }
     pdata->vtbl = free_mkpdata_plyrs;
     pdata->instance = 0;
     free_mkpdata_plyrs = pdata;
 }
 
+/* TODO: [near miss] 99.96377%; canonical footprint latch preserves stores;
+ * existing instruction/register residue remains. */
 PlyrPdata* get_mkpdata_plyr(void) {
     PlyrPdata* pdata = free_mkpdata_plyrs;
     int index;
@@ -3420,12 +3411,12 @@ PlyrPdata* get_mkpdata_plyr(void) {
         pdata->aux_player_proc_instance = 0;
         pdata->reserved_108[1] = 0;
         pdata->reserved_108[2] = 0;
-        pdata->reserved_11C[0] = 0;
-        pdata->reserved_11C[1] = 0;
-        pdata->reserved_11C[2] = 0;
-        pdata->reserved_11C[3] = 0;
-        pdata->reserved_11C[4] = 0;
-        pdata->reserved_11C[5] = 0;
+        pdata->foot_print_proc = 0;
+        pdata->foot_print_proc_instance = 0;
+        pdata->reserved_124[0] = 0;
+        pdata->reserved_124[1] = 0;
+        pdata->reserved_124[2] = 0;
+        pdata->reserved_124[3] = 0;
         pdata->active_weapon_links = 0;
         pdata->reserved_138[0] = 0;
         pdata->reserved_138[1] = 0;
@@ -3444,7 +3435,7 @@ PlyrPdata* get_mkpdata_plyr(void) {
         pdata->baraka_moveset_callback = 0;
         pdata->player_slot = -1;
         pdata->fighter_definition = 0;
-        pdata->blood_model_data = 0;
+        pdata->blood_model.surface.records = 0;
         pdata->facial_texture.atc = 0;
         pdata->facial_texture.instance = 0;
         pdata->facial_damage = 0.0f;
@@ -3612,16 +3603,7 @@ int check_release_other_player(void) {
     return 0;
 }
 
-typedef struct GrabBoneMatcher {
-    MkHdr hdr;
-    unsigned int flags;
-    float weight;
-    char pad10[0x0C];
-    Vec source_offset;
-    char pad28[0x14];
-    Vec target_offset;
-    char pad48[4];
-} GrabBoneMatcher;
+typedef BoneMatcherState GrabBoneMatcher;
 
 static inline void set_object_flip(
     MkObj* object, AnimPdata* animation, int flip_state) {
@@ -3646,7 +3628,8 @@ static inline void set_object_flip(
 
 
 
-/* TODO: [breakthrough needed] 88.028570%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+/* TODO: [breakthrough] 91.97143%; canonical matcher fields and flags restored;
+ * branch/load placement and register allocation remain. */
 MkHdr* plyr_grab_other_flip_states(
     int player_flip, int opponent_flip) {
     MkObj* opponent = plyr_pdata->his_obj;
@@ -3688,19 +3671,19 @@ MkHdr* plyr_grab_other_flip_states(
     plyr_pdata->held_opponent_latch.instance =
         opponent->hdr.instance;
     matcher = (GrabBoneMatcher*)start_bone_matcher(
-        plyr_obj, plyr_obj->fallback_bone_index,
-        opponent, opponent->fallback_bone_index, 5.0f);
+        5.0f, plyr_obj, plyr_obj->fallback_bone_index,
+        opponent, opponent->fallback_bone_index);
     if (matcher != 0) {
-        matcher->source_offset.z = 0.0f;
-        matcher->source_offset.y = 0.0f;
-        matcher->source_offset.x = 0.0f;
-        matcher->target_offset.z = 0.0f;
-        matcher->target_offset.y = 0.0f;
-        matcher->target_offset.x = 0.0f;
-        matcher->flags |= 0x10000000;
-        matcher->flags |= 0x04000000;
-        matcher->flags |= 0x02000000;
-        matcher->weight = 0.75f;
+        matcher->parent_offset.z = 0.0f;
+        matcher->parent_offset.y = 0.0f;
+        matcher->parent_offset.x = 0.0f;
+        matcher->child_offset.z = 0.0f;
+        matcher->child_offset.y = 0.0f;
+        matcher->child_offset.x = 0.0f;
+        matcher->flags_08.bits.preserve_bone_matrix = 1;
+        matcher->flags_08.bits.flip_parent_angle_y = 1;
+        matcher->flags_08.bits.release_parent_weight = 1;
+        matcher->child_weight = 0.75f;
         plyr_pdata->hold_proc = (MkProc*)matcher;
         plyr_pdata->hold_proc_instance = matcher->hdr.instance;
     }

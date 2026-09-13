@@ -3546,10 +3546,8 @@ int fat_bgnd_char_setup_radius_check(
     return 1;
 }
 
-/*
- * Soft ceiling: exact retail size, sqrt estimate, and strict range checks;
- * remaining differences are register allocation and FP scheduling.
- */
+/* TODO: [near miss] 69.71429%; sqrt table indexing and strict ranges agree;
+ * remaining register allocation and FP scheduling need separate recovery. */
 int fatality_check_distance(unsigned int action) {
     union {
         float value;
@@ -3566,7 +3564,7 @@ int fatality_check_distance(unsigned int action) {
         estimate.value = squared_distance;
         estimate.bits =
             ((unsigned int)GXMathSqrtTable[
-                 (estimate.bits >> 10) & 0x3FFE] << 8) |
+                 (estimate.bits >> 11) & 0x1FFF] << 8) |
             ((((estimate.bits & 0x7F800000) + 0x3F800000) >> 1) &
              0x7F800000);
         distance = 0.5f *

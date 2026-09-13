@@ -10,7 +10,7 @@ typedef struct MkObj MkObj;
 typedef struct Vec Vec;
 typedef struct PlayerCollisionData PlayerCollisionData;
 typedef struct ScriptSlot ScriptSlot;
-typedef struct FighterAiTableContainer FighterAiTableContainer;
+typedef struct FighterRuntimeData FighterAiTableContainer;
 typedef struct FighterRuntimeData FighterRuntimeData;
 typedef struct MkProc MkProc;
 typedef struct MkPtr MkPtr;
@@ -136,57 +136,6 @@ typedef struct FighterMirror {
     int limb_material_bank; /* +0x73C - nonzero selects material ids +0x400 */
 } FighterMirror;
 
-struct FighterRuntimeData {
-    char pad00[4];
-    const char* primary_art_section;
-    const char* primary_face_texture;
-    const char* animation_section; /* +0x0C */
-    const int* primary_bone_tags;
-    void* primary_mirror_bone_map; /* +0x14 */
-    void* primary_ground_collision; /* +0x18 */
-    float primary_mirror_offset; /* +0x1C */
-    unsigned int primary_start_script; /* +0x20 */
-    char pad24[4];
-    const char* alternate_art_section;
-    const char* alternate_face_texture;
-    const char* alternate_animation_section; /* +0x30 */
-    const int* alternate_bone_tags;
-    void* alternate_mirror_bone_map; /* +0x38 */
-    void* alternate_ground_collision; /* +0x3C */
-    float alternate_mirror_offset; /* +0x40 */
-    unsigned int alternate_start_script; /* +0x44 */
-    char pad48[4];
-    const char* palette_art_section;
-    const char* palette_face_texture;
-    const char* alternate_palette_art_section;
-    const char* alternate_palette_face_texture;
-    const char* shared_art_section;
-    char pad60[0x0C];
-    int win_sound_id; /* +0x6C */
-    char pad70[0x10];
-    char* const* style_scripts; /* +0x80 */
-    char pad84[0x14];
-    const char* chess_animation_section; /* +0x98 */
-    char pad9C[4];
-    const char* const* effect_banks;
-    const char* const* alternate_effect_banks;
-    int puzzle_supermove_index; /* +0xA8 */
-    Vec* half_sever_velocities; /* +0xAC */
-};
-
-/* global_player_data[] stride 0x10 (movelist_get_character_name). */
-typedef struct GlobalPlayerEntry {
-    char* name; /* +0x00 */
-    MkFileEntry* model_files; /* +0x04 */
-    MkFileEntry* alternate_model_files; /* +0x08 */
-    const char* model_script; /* +0x0C */
-} GlobalPlayerEntry; /* 0x10 */
-
-typedef struct MoveTableContainer {
-    char pad00[0xB8];
-    void* move_table; /* +0xB8 - rows stride 0x14 */
-} MoveTableContainer;
-
 typedef struct FighterAiMoveRow {
     union {
         int move_id;
@@ -199,10 +148,77 @@ typedef struct FighterAiTable {
     FighterAiMoveRow* rows;
 } FighterAiTable; /* 0x08 */
 
-typedef struct FighterAiTableContainer {
-    char pad00[0xBC];
-    FighterAiTable tables[14];
-} FighterAiTableContainer;
+/* Shared fighter MKO root: rendering, status, movelist, and AI views. */
+struct FighterRuntimeData {
+    unsigned int flags; /* +0x00 */
+    const char* primary_art_section;
+    const char* primary_face_texture;
+    const char* animation_section; /* +0x0C */
+    const int* primary_bone_tags;
+    void* primary_mirror_bone_map; /* +0x14 */
+    void* primary_ground_collision; /* +0x18 */
+    float primary_mirror_offset; /* +0x1C */
+    unsigned int primary_start_script; /* +0x20 */
+    unsigned int primary_script_24; /* +0x24 */
+    const char* alternate_art_section;
+    const char* alternate_face_texture;
+    const char* alternate_animation_section; /* +0x30 */
+    const int* alternate_bone_tags;
+    void* alternate_mirror_bone_map; /* +0x38 */
+    void* alternate_ground_collision; /* +0x3C */
+    float alternate_mirror_offset; /* +0x40 */
+    unsigned int alternate_start_script; /* +0x44 */
+    unsigned int alternate_script_48; /* +0x48 */
+    const char* palette_art_section;
+    const char* palette_face_texture;
+    const char* alternate_palette_art_section;
+    const char* alternate_palette_face_texture;
+    const char* shared_art_section;
+    unsigned int fields_60[3]; /* +0x60 */
+    int win_sound_id; /* +0x6C */
+    unsigned int fields_70[4]; /* +0x70 */
+    char* const* style_scripts; /* +0x80 */
+    union {
+        struct FatalityDefinition* fatality_definition;
+        struct FatalityDefinition* fatality_limits;
+    }; /* +0x84 */
+    float fields_88[4]; /* +0x88 */
+    const char* chess_animation_section; /* +0x98 */
+    void* table_9C; /* +0x9C - MKO schema tag 0x85 */
+    const char* const* effect_banks;
+    const char* const* alternate_effect_banks;
+    int puzzle_supermove_index; /* +0xA8 */
+    Vec* half_sever_velocities; /* +0xAC */
+    void* table_B0; /* +0xB0 - MKO schema tag 0x85 */
+    struct TrialWrapupData* trial_wrapup_data; /* +0xB4 */
+    void* move_table; /* +0xB8 - MovelistRow table */
+    FighterAiTable tables[14]; /* +0xBC - count/row-pointer pairs */
+    unsigned int getup_script_12C; /* +0x12C */
+    unsigned int getup_script_130; /* +0x130 */
+    unsigned int reaction_cleanup; /* +0x134 */
+    unsigned int script_138; /* +0x138 */
+    unsigned int throw_script; /* +0x13C */
+    unsigned int pain_voice; /* +0x140 */
+};
+
+typedef char FighterAiMoveRowSizeCheck[sizeof(FighterAiMoveRow) == 0x40 ? 1 : -1];
+typedef char FighterAiTableSizeCheck[sizeof(FighterAiTable) == 0x08 ? 1 : -1];
+typedef char FighterRuntimeDataSizeCheck[sizeof(FighterRuntimeData) == 0x144 ? 1 : -1];
+
+
+/* global_player_data[] stride 0x10 (movelist_get_character_name). */
+typedef struct GlobalPlayerEntry {
+    char* name; /* +0x00 */
+    MkFileEntry* model_files; /* +0x04 */
+    MkFileEntry* alternate_model_files; /* +0x08 */
+    const char* model_script; /* +0x0C */
+} GlobalPlayerEntry; /* 0x10 */
+
+typedef FighterRuntimeData MoveTableContainer;
+
+
+
+
 
 typedef struct FighterSlot {
     /* Three pointer slots at +0/+4/+8. Avoid anonymous structs nested inside

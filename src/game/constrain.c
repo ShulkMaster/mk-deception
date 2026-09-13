@@ -20,12 +20,6 @@ typedef struct ConstrainState {
     int separated;
 } ConstrainState;
 
-typedef struct ConstrainBssLayout {
-    ConstrainState state; /* +0x00 */
-    Vec perpendicular;    /* +0x24 */
-    Vec axis;             /* +0x30 */
-} ConstrainBssLayout;
-
 typedef struct ObstacleInfo {
     int type;
     unsigned int first_id;
@@ -503,17 +497,15 @@ void uv_to_opponent(Vec* direction) {
     }
 }
 
-/* TODO: [breakthrough needed] 80.25%; repeated retail clears differ;
- * establish real BSS owners before changing initialization alias boundaries. */
+/* TODO: [breakthrough needed] 73.26786%; global-address formation and repeated retail clears differ;
+ * independently named BSS owners retain their retail initialization order. */
 void start_constrain_proc(void) {
-    ConstrainBssLayout* bss;
     ConstrainState* state;
     Vec* perpendicular;
     Vec* axis;
     int flags;
     int proc_flags;
 
-    bss = (ConstrainBssLayout*)&constrain_state;
     flags = 0;
     if (find_mkproc_pid(0x1003) == 0) {
         proc_flags = flags;
@@ -521,9 +513,9 @@ void start_constrain_proc(void) {
             0x1A, get_mkproc_nostack(&proc_flags), 0x1003,
             p_constrain_players, 0);
 
-        state = &bss->state;
-        perpendicular = &bss->perpendicular;
-        axis = &bss->axis;
+        state = &constrain_state;
+        perpendicular = &tightrope_perp_uv;
+        axis = &tightrope_uv;
 
         perpendicular->z = 0.0f;
         perpendicular->y = 0.0f;

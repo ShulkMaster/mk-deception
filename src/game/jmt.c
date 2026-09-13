@@ -227,7 +227,7 @@ static inline float jmt_fast_sqrt(float squared) {
     }
     input.f = squared;
     estimate.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 10) & 0x3FFE] << 8;
+        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
     estimate.u |=
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     refined = estimate.f *
@@ -1418,6 +1418,8 @@ void mks_plyr_stop(int player) {
     }
 }
 
+/* TODO: [breakthrough] 80.96591%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 void mks_set_plyr_to_center_ang_offset(
     int player, void* script_args, float angle_offset) {
     MkObj* object;
@@ -1454,6 +1456,8 @@ void mks_set_plyr_to_center_ang_offset(
     }
 }
 
+/* TODO: [breakthrough] 69.565216%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 void mks_bgnd_cam_offset_away(
     void* script_args, float distance, float height) {
     MkObj* victim;

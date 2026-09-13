@@ -40,49 +40,12 @@ typedef struct CdfCollisionPrimitive {
 
 typedef RwIm3DVertex CollisionIm3DVertex;
 
-typedef struct PlayerCollisionAnimView {
-    char pad00[0x1BC];
-    MkObj* object;
-    unsigned int object_instance;
-} PlayerCollisionAnimView;
-
-typedef struct PlayerCollisionRepelView {
-    char pad00[0x230];
-    int obstacle_contact;
-} PlayerCollisionRepelView;
-
 typedef struct CollisionRepelInfo {
     int moving_shape;
     Vec* first_movement;
     Vec* second_movement;
     int preserve_first_contact;
 } CollisionRepelInfo;
-
-typedef struct PlayerCollisionRegion {
-    CollisionShape shape;
-    char pad90[0x10];
-    Vec anchor;
-    char padAC[0x84];
-} PlayerCollisionRegion; /* 0x130 */
-
-typedef union PlayerCollisionRuntimeView {
-    struct {
-        char pad_regions[0x140];
-        PlayerCollisionRegion regions[1];
-    } region_view;
-    struct {
-        char pad_recorded_shapes[0x7760];
-        CollisionShape recorded_shapes[1];
-    } recorded_view;
-    struct {
-        char pad_state[0x93F0];
-        unsigned int region_count;
-        char pad93F4[8];
-        int recorded_index;
-        char pad9400[4];
-        int reset_recorded;
-    } state_view;
-} PlayerCollisionRuntimeView;
 
 typedef struct CollisionNodeDef {
     int node_id;
@@ -91,36 +54,6 @@ typedef struct CollisionNodeDef {
     float attack_radius_scale;
     float joint_radius;
 } CollisionNodeDef; /* 0x14 */
-
-typedef struct PlayerCollisionNodeStorage {
-    MkObj* object; /* +0x0000 */
-    char pad0004[0x0C];
-    CollisionShape body_shape; /* +0x0010 */
-    char pad00A0[0x9350];
-    unsigned int joint_count;   /* +0x93F0 */
-    unsigned int field_93F4;
-    unsigned int field_93F8;
-    unsigned int recorded_count; /* +0x93FC */
-    unsigned int active_count;    /* +0x9400 */
-    unsigned int render_recorded; /* +0x9404 */
-    float active_scale;           /* +0x9408 */
-    float attack_radius;          /* +0x940C */
-} PlayerCollisionNodeStorage;
-
-typedef struct PlayerCollisionRegionBuild {
-    char pad00[0xA0];
-    MkBone* bone;
-    char padA4[0x0C];
-    CollisionShape current_shape;
-    CollisionShape previous_shape;
-} PlayerCollisionRegionBuild;
-
-typedef struct PlayerAttackCollisionNode {
-    MkBone* bone;
-    char pad04[0x0C];
-    CollisionShape local_shape;
-    CollisionShape world_shape;
-} PlayerAttackCollisionNode; /* 0x130 */
 
 typedef struct WeaponCollisionDef {
     float radius;
@@ -131,7 +64,7 @@ typedef struct ObstacleCallbackData {
     unsigned int obstacle_id;
     int obstacle_type;
     Vec* movement;
-    PlayerCollisionData* collision_data;
+    PlyrPdata* player;
     unsigned char flags;
     char pad19[3];
 } ObstacleCallbackData;
@@ -494,9 +427,9 @@ static inline int collision_point_inside_shape(
 /* Runtime-owned scalar; array form preserves its ordinary-data addressing. */
 
 static inline void insert_player_attack_node_unshifted(
-    PlayerCollisionNodeStorage* storage,
-    const PlayerAttackCollisionNode* source) {
-    PlayerAttackCollisionNode* destination;
+    PlayerCollisionData* storage,
+    const PlayerCollisionNode* source) {
+    PlayerCollisionNode* destination;
     CollisionShape* recorded;
     unsigned int index;
 
@@ -513,20 +446,19 @@ static inline void insert_player_attack_node_unshifted(
         return;
     }
 
-    destination = (PlayerAttackCollisionNode*)((unsigned char*)storage +
-                                               0x21E0 + index * 0x130);
+    destination = &storage->attacks[index];
     *destination = *source;
     storage->field_93F4++;
     if ((g_game_info.pause_flags & 1) != 0 &&
         g_game_info.switch_input_flags.field_bit5 == 0) {
-        recorded = (CollisionShape*)((unsigned char*)storage + 0x7760);
+        recorded = storage->recorded_shapes;
         recorded[storage->recorded_count] = destination->world_shape;
         storage->recorded_count++;
     }
 }
 
 static inline void transform_player_attack_node(
-    PlayerAttackCollisionNode* node) {
+    PlayerCollisionNode* node) {
     CollisionShape* source;
     CollisionShape* destination;
     MKMATRIX* matrix;
@@ -585,10 +517,10 @@ static inline void transform_player_attack_node(
     }
 }
 
-static inline PlayerAttackCollisionNode* insert_player_attack_node(
-    PlayerCollisionNodeStorage* storage,
-    const PlayerAttackCollisionNode* source, const Vec* movement) {
-    PlayerAttackCollisionNode* destination;
+static inline PlayerCollisionNode* insert_player_attack_node(
+    PlayerCollisionData* storage,
+    const PlayerCollisionNode* source, const Vec* movement) {
+    PlayerCollisionNode* destination;
     CollisionShape* recorded;
     unsigned int index;
 
@@ -605,8 +537,7 @@ static inline PlayerAttackCollisionNode* insert_player_attack_node(
         return 0;
     }
 
-    destination = (PlayerAttackCollisionNode*)((unsigned char*)storage +
-                                               0x21E0 + index * 0x130);
+    destination = &storage->attacks[index];
     *destination = *source;
     v3_add_v3(
         &destination->world_shape.sphere_center,
@@ -615,7 +546,7 @@ static inline PlayerAttackCollisionNode* insert_player_attack_node(
 
     if ((g_game_info.pause_flags & 1) != 0 &&
         g_game_info.switch_input_flags.field_bit5 == 0) {
-        recorded = (CollisionShape*)((unsigned char*)storage + 0x7760);
+        recorded = storage->recorded_shapes;
         recorded[storage->recorded_count] = destination->world_shape;
         storage->recorded_count++;
     }
@@ -650,14 +581,14 @@ static inline void update_all_collision_flags(
 }
 
 static inline void update_collision_region_node(
-    PlayerCollisionRegionBuild* node) {
+    PlayerCollisionNode* node) {
     CollisionShape* source;
     CollisionShape* destination;
     MKMATRIX* matrix;
     float translation;
 
-    source = &node->current_shape;
-    destination = &node->previous_shape;
+    source = &node->local_shape;
+    destination = &node->world_shape;
     matrix = (MKMATRIX*)node->bone;
     switch (source->type & 7) {
     case 1:
@@ -1031,6 +962,7 @@ void generate_obstacles(int handle, char* name, MkPtr** obstacle_list) {
     }
 }
 
+/* TODO: [breakthrough needed] 56.52%; canonical collision owners change address formation and copies. */
 void repel_against_obstacle_list(
     PlyrInfo* player, const Vec* previous_position, const Vec* movement,
     Vec* position, ConstrainInfo* info) {
@@ -1038,7 +970,7 @@ void repel_against_obstacle_list(
         float value;
         unsigned int bits;
     } length_bits, guess_bits;
-    PlayerCollisionAnimView* collision_data;
+    PlyrPdata* collision_data;
     CollisionShape shape;
     MkObj* object;
     Vec original_position;
@@ -1093,10 +1025,10 @@ void repel_against_obstacle_list(
         }
     }
 
-    collision_data = (PlayerCollisionAnimView*)player->collision_data;
-    object = collision_data->object;
+    collision_data = player->slot.pdata;
+    object = collision_data->held_by_object_latch.obj;
     if (object != 0 && object->hdr.instance !=
-            collision_data->object_instance) {
+            collision_data->held_by_object_latch.instance) {
         object = 0;
     }
     if (object != 0) {
@@ -1106,10 +1038,11 @@ void repel_against_obstacle_list(
     }
 }
 
+/* TODO: [breakthrough needed] 64.32627%; canonical collision owners change address formation and copies. */
 int repel_shape_against_obstacle_list(
     PlyrInfo* player, CollisionShape* shape, Vec* movement, Vec* position,
     ConstrainInfo* info, Vec* test_position, int step_index) {
-    PlayerCollisionRepelView* collision_data;
+    PlyrPdata* collision_data;
     ObstacleCallbackData callback_data;
     ArenaObstacle* obstacle;
     CollisionObjRef collision;
@@ -1193,7 +1126,7 @@ int repel_shape_against_obstacle_list(
                             callback_data.obstacle_id = obstacle->obstacle_id;
                             callback_data.movement = movement;
                             movement->y = 0.0f;
-                            callback_data.collision_data = player->collision_data;
+                            callback_data.player = player->slot.pdata;
                             if ((obstacle->flags.value & 8) == 0) {
                                 if (((int (*)(ObstacleCallbackData*))
                                          constrain_info.callback)(
@@ -1209,9 +1142,8 @@ int repel_shape_against_obstacle_list(
                             }
                         }
                         if ((obstacle->flags.value & 0x80) == 0) {
-                            collision_data = (PlayerCollisionRepelView*)
-                                player->collision_data;
-                            collision_data->obstacle_contact = 1;
+                            collision_data = player->slot.pdata;
+                            collision_data->f_constrained = 1;
                             if (collision_count < 20) {
                                 pushes[collision_count].x =
                                     test_position->x - original.x;
@@ -2910,6 +2842,8 @@ static void render_col_shape_as_box(
     }
 }
 
+/* TODO: [breakthrough] 60.850815%; sqrt byte-offset indexing corrected;
+ * audit the remaining consumer CFG/ABI differences separately. */
 static void render_col_shape_as_cylinder(
     const CollisionShape* shape, const unsigned int* color) {
     CollisionIm3DVertex wire_vertices[8];
@@ -2961,7 +2895,7 @@ static void render_col_shape_as_cylinder(
     if (length_bits.value > 0.0f) {
         guess_bits.bits =
             (unsigned int)GXMathSqrtTable[
-                (length_bits.bits >> 10) & 0x3FFE] << 8;
+                (length_bits.bits >> 11) & 0x1FFF] << 8;
         guess_bits.bits |=
             (((length_bits.bits & 0x7F800000U) + 0x3F800000U) >> 1) &
             0x7F800000U;
@@ -3062,13 +2996,14 @@ static void render_col_shape_as_cylinder(
     }
 }
 
+/* TODO: [breakthrough needed] 66.35294%; canonical collision owners change address formation and copies. */
 float repel_check_plyrs(void) {
     PlayerCollisionData* first_data;
     PlayerCollisionData* second_data;
-    PlayerCollisionNodeStorage* first_storage;
-    PlayerCollisionNodeStorage* second_storage;
-    PlayerCollisionRegion* first_regions;
-    PlayerCollisionRegion* second_regions;
+    PlayerCollisionData* first_storage;
+    PlayerCollisionData* second_storage;
+    PlayerCollisionNode* first_regions;
+    PlayerCollisionNode* second_regions;
     CollisionShape first_shape;
     CollisionShape second_shape;
     Vec difference;
@@ -3087,8 +3022,8 @@ float repel_check_plyrs(void) {
     if (first_data == 0 || second_data == 0) {
         return 0.0f;
     }
-    first_storage = (PlayerCollisionNodeStorage*)first_data;
-    second_storage = (PlayerCollisionNodeStorage*)second_data;
+    first_storage = first_data;
+    second_storage = second_data;
     if (second_storage->joint_count == 0) {
         return best;
     }
@@ -3098,17 +3033,17 @@ float repel_check_plyrs(void) {
     first_scale = first_storage->active_scale;
     second_scale = second_storage->active_scale;
     first_regions =
-        (PlayerCollisionRegion*)((char*)first_data + 0x8C40);
+        first_data->active_nodes;
     second_regions =
-        (PlayerCollisionRegion*)((char*)second_data + 0x8C40);
+        second_data->active_nodes;
 
     for (first_index = 0; first_index < first_count; first_index++) {
-        first_shape = first_regions[first_index].shape;
+        first_shape = first_regions[first_index].world_shape;
         first_shape.sphere_radius *= first_scale;
         for (second_index = 0;
              second_index < second_count;
              second_index++) {
-            second_shape = second_regions[second_index].shape;
+            second_shape = second_regions[second_index].world_shape;
             second_shape.sphere_radius *= second_scale;
             if (test_collision(&first_shape, &second_shape) == 1) {
                 v3_sub_v3(
@@ -3169,33 +3104,32 @@ int collide_sphere_vs_plyr(
     return collide_shape_vs_plyr(player, &shape);
 }
 
+/* TODO: [near miss] 99.09091%; canonical collision owners change address formation and copies. */
 int collide_shape_vs_plyr(
     PlyrInfo* player, const CollisionShape* shape) {
     PlayerCollisionData* collision;
-    PlayerCollisionRuntimeView* view;
     unsigned int region_index;
 
     collision = player->collision_data;
-    view = (PlayerCollisionRuntimeView*)collision;
     if ((g_game_info.pause_flags & 1) != 0 &&
         g_game_info.switch_input_flags.field_bit5 == 0) {
-        if (view->state_view.reset_recorded != 0) {
-            view->state_view.recorded_index = 0;
-            view->state_view.reset_recorded = 0;
+        if (collision->render_recorded != 0) {
+            collision->recorded_count = 0;
+            collision->render_recorded = 0;
         }
-        view->recorded_view.recorded_shapes[
-            view->state_view.recorded_index] = *shape;
-        view->state_view.recorded_index++;
-        view->state_view.reset_recorded = 0;
+        collision->recorded_shapes[
+            collision->recorded_count] = *shape;
+        collision->recorded_count++;
+        collision->render_recorded = 0;
     }
 
-    if (view->state_view.region_count != 0U) {
+    if (collision->joint_count != 0U) {
         for (region_index = 0;
-             region_index < view->state_view.region_count;
+             region_index < collision->joint_count;
              region_index++) {
             if (test_collision(
                     shape,
-                    &view->region_view.regions[region_index].shape) == 1) {
+                    &collision->joints[region_index].world_shape) == 1) {
                 return 1;
             }
         }
@@ -3203,14 +3137,15 @@ int collide_shape_vs_plyr(
     return 0;
 }
 
+/* TODO: [breakthrough needed] 75.15455%; canonical collision owners change address formation and copies. */
 int collide_plyr_vs_plyr(void) {
     PlyrInfo* player;
     PlayerCollisionData* collision;
     PlayerCollisionData* opponent;
-    PlayerCollisionRegion* attacks;
-    PlayerCollisionRegion* opponent_regions;
-    PlayerCollisionRegion* source_regions;
-    PlayerCollisionRegion* saved_regions;
+    PlayerCollisionNode* attacks;
+    PlayerCollisionNode* opponent_regions;
+    PlayerCollisionNode* source_regions;
+    PlayerCollisionNode* saved_regions;
     unsigned int attack_count;
     unsigned int opponent_count;
     unsigned int saved_count;
@@ -3233,38 +3168,36 @@ int collide_plyr_vs_plyr(void) {
     }
 
     opponent_count =
-        ((PlayerCollisionNodeStorage*)opponent)->joint_count;
+        (opponent)->joint_count;
     attack_count =
-        ((PlayerCollisionNodeStorage*)collision)->field_93F4;
-    attacks = (PlayerCollisionRegion*)((char*)collision + 0x2280);
+        (collision)->field_93F4;
+    attacks = collision->attacks;
     opponent_regions =
-        (PlayerCollisionRegion*)((char*)opponent + 0x140);
+        opponent->joints;
     if (opponent_count != 0) {
         for (attack_index = 0;
              attack_index < attack_count;
              attack_index++) {
             test_collision_vs_obstacles(
-                player, &attacks[attack_index].shape);
+                player, &attacks[attack_index].world_shape);
             if (local_collision_allowed(plyr_pdata) != 0) {
                 for (opponent_index = 0;
                      opponent_index < opponent_count;
                      opponent_index++) {
                     if (test_collision(
-                            &attacks[attack_index].shape,
-                            &opponent_regions[opponent_index].shape) == 1) {
+                            &attacks[attack_index].world_shape,
+                            &opponent_regions[opponent_index].world_shape) == 1) {
                         saved_count =
-                            ((PlayerCollisionNodeStorage*)collision)->field_93F8;
-                        source_regions = (PlayerCollisionRegion*)(
-                            (char*)collision + 0x21E0);
-                        saved_regions = (PlayerCollisionRegion*)(
-                            (char*)collision + 0x4CA0);
+                            (collision)->field_93F8;
+                        source_regions = collision->attacks;
+                        saved_regions = collision->saved_attacks;
                         for (saved_index = 0;
                              saved_index < saved_count;
                              saved_index++) {
                             saved_regions[saved_index] =
                                 source_regions[saved_index];
                         }
-                        ((PlayerCollisionNodeStorage*)collision)->field_93F4 = 0;
+                        (collision)->field_93F4 = 0;
                         return 1;
                     }
                 }
@@ -3272,18 +3205,19 @@ int collide_plyr_vs_plyr(void) {
         }
     }
 
-    saved_count = ((PlayerCollisionNodeStorage*)collision)->field_93F8;
+    saved_count = (collision)->field_93F8;
     source_regions =
-        (PlayerCollisionRegion*)((char*)collision + 0x21E0);
+        collision->attacks;
     saved_regions =
-        (PlayerCollisionRegion*)((char*)collision + 0x4CA0);
+        collision->saved_attacks;
     for (saved_index = 0; saved_index < saved_count; saved_index++) {
         saved_regions[saved_index] = source_regions[saved_index];
     }
-    ((PlayerCollisionNodeStorage*)collision)->field_93F4 = 0;
+    ((PlayerCollisionData*)collision)->field_93F4 = 0;
     return 0;
 }
 
+/* TODO: [breakthrough needed] 83.1619%; canonical collision owners change address formation and copies. */
 static int test_collision_vs_obstacles(
     PlyrInfo* player, const CollisionShape* shape) {
     CollisionObjRef collision_object;
@@ -3324,12 +3258,11 @@ static int test_collision_vs_obstacles(
                         local_obstacle_callback(obstacle) != 0) {
                         xz_unit_vector_to_shape(
                             &direction, &collision_object.object->shape,
-                            (const Vec*)((const char*)player->slot.mirror_a +
-                                         0xA0));
+                            &player->slot.mirror_a->pos.value);
                         callback_data.obstacle_id = obstacle->obstacle_id;
                         callback_data.obstacle_type = obstacle->type;
                         callback_data.movement = &direction;
-                        callback_data.collision_data = player->collision_data;
+                        callback_data.player = player->slot.pdata;
                         callback_data.flags = 0;
                         if (((int (*)(ObstacleCallbackData*))
                                  constrain_info.callback)(
@@ -3682,10 +3615,10 @@ void render_collision_regions(void) {
     render_flags = ((unsigned char*)&g_game_info)[2];
     if ((render_flags & 0x10) != 0) {
         if (g_game_info.plyr0.collision_data != 0) {
-            *(int*)((char*)g_game_info.plyr0.collision_data + 0x9404) = 1;
+            g_game_info.plyr0.collision_data->render_recorded = 1;
         }
         if (g_game_info.plyr1.collision_data != 0) {
-            *(int*)((char*)g_game_info.plyr1.collision_data + 0x9404) = 1;
+            g_game_info.plyr1.collision_data->render_recorded = 1;
         }
         apply_to_mklist(
             (MkListApplyFn)render_bgnd_danger_zone_obstacle,
@@ -3800,11 +3733,12 @@ static void render_players_joints(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 66.41372%; canonical collision owners change address formation and copies. */
 static void render_player_joints(PlayerCollisionData* collision) {
     CollisionIm3DVertex vertices[4][16];
-    PlayerCollisionNodeStorage* storage;
-    PlayerCollisionRegion* joint_regions;
-    PlayerCollisionRegion* active_regions;
+    PlayerCollisionData* storage;
+    PlayerCollisionNode* joint_regions;
+    PlayerCollisionNode* active_regions;
     CollisionShape* recorded_shapes;
     CollisionShape shape;
     unsigned int joint_count;
@@ -3852,22 +3786,22 @@ static void render_player_joints(PlayerCollisionData* collision) {
         } \
     } while (0)
 
-    if ((char*)collision + 0xA0 != 0) {
-        storage = (PlayerCollisionNodeStorage*)collision;
+    if (collision->joints != 0) {
+        storage = (PlayerCollisionData*)collision;
         joint_count = storage->joint_count;
         joint_regions =
-            (PlayerCollisionRegion*)((char*)collision + 0x140);
+            collision->joints;
         for (index = 0; index < joint_count; index++) {
             RENDER_PLAYER_SHAPE(
-                &joint_regions[index].shape, &rgba_yellow, vertices[0]);
+                &joint_regions[index].world_shape, &rgba_yellow, vertices[0]);
         }
 
         active_count = storage->active_count;
         active_regions =
-            (PlayerCollisionRegion*)((char*)collision + 0x8C40);
+            collision->active_nodes;
         scale = storage->active_scale;
         for (index = 0; index < active_count; index++) {
-            shape = active_regions[index].shape;
+            shape = active_regions[index].world_shape;
             shape.sphere_radius *= scale;
             RENDER_PLAYER_SHAPE(&shape, &rgba_blue, vertices[1]);
         }
@@ -3876,7 +3810,7 @@ static void render_player_joints(PlayerCollisionData* collision) {
         if (recorded_count != 0) {
             storage->render_recorded = 1;
             recorded_shapes =
-                (CollisionShape*)((char*)collision + 0x7760);
+                collision->recorded_shapes;
             for (index = 0; index < recorded_count; index++) {
                 RENDER_PLAYER_SHAPE(
                     &recorded_shapes[index], &rgba_red, vertices[2]);
@@ -3884,7 +3818,7 @@ static void render_player_joints(PlayerCollisionData* collision) {
         }
     }
     RENDER_PLAYER_SHAPE(
-        (const CollisionShape*)((const char*)collision + 0x10),
+        &collision->body_shape,
         &rgba_green, vertices[3]);
 #undef RENDER_PLAYER_SHAPE
 }
@@ -4056,12 +3990,13 @@ static void render_konquest_collision_obj(MkHdr* hdr) {
 DEFINE_COLLISION_OBJECT_RENDERER(render_collision_obj, rgba_blue)
 #undef DEFINE_COLLISION_OBJECT_RENDERER
 
+/* TODO: [breakthrough needed] 72.81%; canonical collision owners change address formation and copies. */
 void set_plyr_attack_region(
     int use_body, float radius, float extension) {
     PlayerCollisionData* collision;
-    PlayerCollisionNodeStorage* storage;
-    PlayerAttackCollisionNode* attacks;
-    PlayerAttackCollisionNode* saved;
+    PlayerCollisionData* storage;
+    PlayerCollisionNode* attacks;
+    PlayerCollisionNode* saved;
     PlyrMirrorSlots* mirror_slots;
     MkObj* weapon_0;
     MkObj* weapon_1;
@@ -4072,7 +4007,7 @@ void set_plyr_attack_region(
     int recording;
 
     collision = plyr_pdata->plyr_info->collision_data;
-    storage = (PlayerCollisionNodeStorage*)collision;
+    storage = (PlayerCollisionData*)collision;
     recording = (g_game_info.pause_flags & 1) != 0 &&
         (((unsigned char*)&g_game_info)[2] & 0x20) == 0;
     if (recording) {
@@ -4108,8 +4043,8 @@ void set_plyr_attack_region(
         }
     }
 
-    attacks = (PlayerAttackCollisionNode*)((char*)collision + 0x21E0);
-    saved = (PlayerAttackCollisionNode*)((char*)collision + 0x4CA0);
+    attacks = collision->attacks;
+    saved = collision->saved_attacks;
     attack_count = storage->field_93F4;
     saved_count = storage->field_93F8;
     if (saved_count == 0) {
@@ -4125,7 +4060,7 @@ void set_plyr_attack_region(
             &saved[index].world_shape.sphere_center);
         if (length_v3(&difference) >
             2.0f * attacks[index].world_shape.sphere_radius) {
-            PlayerAttackCollisionNode interpolated = saved[index];
+            PlayerCollisionNode interpolated = saved[index];
             v3_x_v_add_v3(
                 &interpolated.world_shape.sphere_center,
                 &difference, 0.5f);
@@ -4135,11 +4070,12 @@ void set_plyr_attack_region(
     }
 }
 
+/* TODO: [breakthrough needed] 72.3878%; canonical collision owners change address formation and copies. */
 static void add_plyr_body_attack_nodes(
     int region_id, float radius, float extension) {
-    PlayerCollisionNodeStorage* storage;
-    PlayerAttackCollisionNode node;
-    PlayerAttackCollisionNode* inserted[16];
+    PlayerCollisionData* storage;
+    PlayerCollisionNode node;
+    PlayerCollisionNode* inserted[16];
     const CollisionNodeDef* definition;
     const int* entries;
     PlyrInfo* player;
@@ -4156,7 +4092,7 @@ static void add_plyr_body_attack_nodes(
 
     entries = attack_region_list[region_id];
     player = plyr_pdata->plyr_info;
-    storage = (PlayerCollisionNodeStorage*)player->collision_data;
+    storage = (PlayerCollisionData*)player->collision_data;
     object = storage->object;
     movement.x = gxMathSin(object->ang.y) * storage->attack_radius;
     movement.y = 0.0f;
@@ -4213,8 +4149,8 @@ static void add_plyr_body_attack_nodes(
         }
 
         if (entries[1] <= 0 && extension != 0.0f && inserted_count > 1) {
-            PlayerAttackCollisionNode* previous;
-            PlayerAttackCollisionNode* current;
+            PlayerCollisionNode* previous;
+            PlayerCollisionNode* current;
 
             previous = inserted[inserted_count - 2];
             current = inserted[inserted_count - 1];
@@ -4245,12 +4181,13 @@ static void add_plyr_body_attack_nodes(
     }
 }
 
+/* TODO: [breakthrough needed] 73.89091%; canonical collision owners change address formation and copies. */
 static void generate_weapon_collision_nodes(
     PlayerCollisionData* collision_data, MkObj* weapon, float radius) {
-    PlayerCollisionNodeStorage* storage;
-    PlayerAttackCollisionNode node;
-    PlayerAttackCollisionNode* first;
-    PlayerAttackCollisionNode* second;
+    PlayerCollisionData* storage;
+    PlayerCollisionNode node;
+    PlayerCollisionNode* first;
+    PlayerCollisionNode* second;
     WeaponCollisionDef definition;
     MkBone* bone;
     Vec movement;
@@ -4259,7 +4196,7 @@ static void generate_weapon_collision_nodes(
     unsigned int last_pair_index;
     unsigned int index;
 
-    storage = (PlayerCollisionNodeStorage*)collision_data;
+    storage = (PlayerCollisionData*)collision_data;
     first_index = storage->field_93F4;
     update_bone_hierarchy(
         weapon != 0 ? as_mkhdr(&weapon->hdr) : 0);
@@ -4298,11 +4235,8 @@ static void generate_weapon_collision_nodes(
     index = first_index;
     last_pair_index = storage->field_93F4 - 2;
     while (index <= last_pair_index) {
-        first = (PlayerAttackCollisionNode*)((unsigned char*)storage +
-                                            0x21E0 + index * 0x130);
-        second = (PlayerAttackCollisionNode*)((unsigned char*)storage +
-                                             0x21E0 +
-                                             (index + 1) * 0x130);
+        first = &storage->attacks[index];
+        second = &storage->attacks[index + 1];
         v3_sub_v3(
             &difference, &first->world_shape.sphere_center,
             &second->world_shape.sphere_center);
@@ -4339,19 +4273,19 @@ void term_player_collision(PlyrInfo* player) {
     }
 }
 
-/* TODO: [breakthrough needed] 71.39053%; player-info contract corrected neutrally;
+/* TODO: [breakthrough needed] 70.40237%; player-info contract corrected neutrally;
  * collision scratch layout/frame differences remain; defer paired-single code. */
 void reset_player_collision(PlyrInfo* player) {
     int definition_count;
-    PlayerCollisionNodeStorage* storage;
-    PlayerCollisionRegionBuild* region;
+    PlayerCollisionData* storage;
+    PlayerCollisionNode* region;
     CollisionShape sphere;
     Vec center;
     float joint_scale;
     int bone_index;
     int index;
 
-    storage = (PlayerCollisionNodeStorage*)player->collision_data;
+    storage = (PlayerCollisionData*)player->collision_data;
     if (storage == 0) {
         return;
     }
@@ -4399,29 +4333,27 @@ void reset_player_collision(PlyrInfo* player) {
             sphere.type = 1;
             sphere.sphere_center = center;
             sphere.sphere_radius = joint_scale * definition->joint_radius;
-            region = (PlayerCollisionRegionBuild*)((char*)storage +
-                storage->joint_count * 0x130);
+            region = &storage->joints[storage->joint_count];
             region->bone = player->slot.mirror_a->bones[bone_index];
-            region->current_shape = sphere;
-            region->previous_shape = sphere;
+            region->local_shape = sphere;
+            region->world_shape = sphere;
             storage->joint_count++;
         }
         if (definition->active_radius != 0.0f) {
             sphere.type = 1;
             sphere.sphere_center = center;
             sphere.sphere_radius = definition->active_radius;
-            region = (PlayerCollisionRegionBuild*)((char*)storage + 0x8B00 +
-                storage->active_count * 0x130);
+            region = &storage->active_nodes[storage->active_count];
             region->bone = player->slot.mirror_a->bones[bone_index];
-            region->current_shape = sphere;
-            region->previous_shape = sphere;
+            region->local_shape = sphere;
+            region->world_shape = sphere;
             storage->active_count++;
         }
     }
 }
 
 void init_player_collision(PlyrInfo* player) {
-    player->collision_data = get_mem(0x9410);
+    player->collision_data = get_mem(sizeof(*player->collision_data));
     if (player->collision_data != 0) {
         reset_player_collision(player);
     }
@@ -4457,21 +4389,20 @@ static void update_players_collision_nodes(void) {
     }
 }
 
+/* TODO: [breakthrough needed] 72.31035%; canonical collision owners change address formation and copies. */
 static void update_player_collision_nodes(PlayerCollisionData* collision) {
-    PlayerCollisionNodeStorage* storage;
-    PlayerCollisionRegionBuild* node;
+    PlayerCollisionData* storage;
+    PlayerCollisionNode* node;
     unsigned int index;
 
-    storage = (PlayerCollisionNodeStorage*)collision;
+    storage = (PlayerCollisionData*)collision;
     if (storage->joint_count != 0U) {
         for (index = 0; index < storage->joint_count; index++) {
-            node = (PlayerCollisionRegionBuild*)((unsigned char*)storage +
-                                                 index * 0x130);
+            node = &storage->joints[index];
             update_collision_region_node(node);
         }
         for (index = 0; index < storage->active_count; index++) {
-            node = (PlayerCollisionRegionBuild*)((unsigned char*)storage +
-                                                 0x8B00 + index * 0x130);
+            node = &storage->active_nodes[index];
             update_collision_region_node(node);
         }
     }

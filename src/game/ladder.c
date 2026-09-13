@@ -1,4 +1,14 @@
 #include "game/ladder.h"
+#include "game/plyr.h"
+#include "game/cloth.h"
+#include "platform/io.h"
+#include "platform/main_jump.h"
+#include "runtime/cam.h"
+#include "runtime/section.h"
+#include "runtime/sound.h"
+#include "runtime/mk_fileinfo.h"
+#include "runtime/mk_proc.h"
+void* memcpy(void* destination, const void* source, unsigned long size);
 
 #include "game/bgnd.h"
 #include "game/game_info.h"
@@ -43,6 +53,9 @@ typedef struct LadderBgndAnimations {
     AnimScript* pieces_one_three_five;
     AnimScript* defeated_piece;
     AnimScript* piece_two;
+    AniData* other_paths[25];
+    AniData* intro_camera; /* +0x78 */
+    AniData* travel_camera; /* +0x7C */
 } LadderBgndAnimations;
 
 typedef struct LadderObjVtable {
@@ -63,14 +76,30 @@ typedef struct LadderStringRef {
  * Keeping that relationship typed lets MWCC use the shared data base without
  * scattering byte-offset arithmetic through the ladder screen code.
  */
+typedef struct LadderHudEntry {
+    int background_id;
+    char* texture_name;
+    int x;
+    int y;
+} LadderHudEntry;
+
+typedef struct LadderCharacterTexture {
+    int character_id;
+    char* texture_name;
+} LadderCharacterTexture;
+
 typedef struct LadderDataRegion {
     LadderCoinType coin_offsets[6]; /* +0x00 */
     const char* ladder_koins[4];    /* +0x30 */
     int koin_awards[9];             /* +0x40 */
     int puzzle_koin_awards[7];      /* +0x64 */
     int chess_koin_awards[7];       /* +0x80 */
-    LadderEntry ladder_hud[35];     /* +0x9C */
-    char pad2CC[0xB14];
+    LadderHudEntry ladder_hud[35];     /* +0x9C */
+    LadderHudEntry puzzle_hud[6]; /* +0x2CC */
+    LadderCharacterTexture puzzle_characters[12]; /* +0x32C */
+    char pad38C[0x974];
+    float camera_frames[8][2]; /* +0xD00 */
+    LadderPlacement player_positions[8]; /* +0xD40 */
     LadderPlacement defeated_positions[8]; /* +0xDE0 */
     LadderPlacement small_positions[8];    /* +0xE80 */
     LadderModelEntry models[25];           /* +0xF20 */
@@ -343,7 +372,7 @@ static void build_ladder_hud_data(void) {
     if (text != 0) {
         int y;
 
-        y = ladder_data->ladder_hud[background_id].locked_character_id;
+        y = ladder_data->ladder_hud[background_id].y;
         if ((int)mode_of_play == 6) {
             y += 60;
         }
@@ -351,7 +380,7 @@ static void build_ladder_hud_data(void) {
             0x209A,
             9,
             text,
-            ladder_data->ladder_hud[background_id].character_id,
+            ladder_data->ladder_hud[background_id].x,
             y,
             0x1D);
         if (arena_name != 0) {
@@ -619,4 +648,315 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
         }
         animation->step = 1.0f;
     }
+}
+
+extern MkFileEntry gameart_file_table[];
+extern MkFileInfo sec_fightingart;
+extern unsigned char char_piece_ground_colls[];
+extern const char* pz_ladder_koins[2];
+extern unsigned short n_pz_ladder_koins;
+extern PlyrPdata* his_pdata;
+extern MkObj* plyr_obj;
+extern MkObj* his_obj;
+float p_puzzle_fighter(void);
+float p_gamelogic(void);
+float p_animate(void);
+float p_animated_intro_done(void);
+int move_to_end_point(const Vec* endpoint, float* initial_speed,
+                     float* final_speed, int mode, float rate);
+void tag_team_activate_player(MkObj* object, int player);
+MkProc* create_mkproc_headtracking(int pid, MkObj* object, PlyrPdata* pdata);
+void ground_me(MkObj* object);
+
+typedef struct LadderProcessVtable {
+    MkVtblFn functions[4];
+    int (*destroy)(MkProc* proc);
+    int (*dispatch)(void);
+    int (*sleep)(void);
+} LadderProcessVtable;
+
+static inline void ladder_sleep(float ticks) {
+    _mkproc_sleep_ticks = ticks;
+    ((LadderProcessVtable*)aproc->vtbl)->sleep();
+}
+/* Recovered p_ladder_select (0x8008E6F4, retail size0xDD8).
+ * Both ladder presentations retain their
+ * authored camera, opponent-selection, award and game-state transitions. */
+/* TODO: [breakthrough needed] 82.87133%; canonical script fields improve
+ * matching; remaining reconstruction differences require localized recovery. */
+float p_ladder_select(void) {
+    PlyrInfo* opponent;
+    PlyrInfo* player;
+    MkProc* tracking;
+    CameraPdata* camera;
+    CameraPdata* saved_camera;
+    LadderDataRegion* data;
+    int i;
+    int j;
+    int character;
+    int flags;
+    int frames;
+    int resume_frames;
+    int alpha;
+    int award;
+    int difficulty;
+    int coin_type;
+    float saved_speed;
+    float initial_speed;
+    float final_speed;
+    CamVec3 position;
+    CamVec3 angle = {0.0326f, 3.1415927f, 0.0f};
+    StringObj* arena_name;
+    const char* coin;
+
+    data = LADDER_DATA_REGION;
+    tracking = 0;
+    set_section_memory_scheme((int)mode_of_play == 6 ? 0 : 11);
+    push_game_state(5);
+    turn_controllers_off();
+    if (g_game_info.plyr0.player_state == 0) {
+        opponent = &g_game_info.plyr0;
+        opponent->field_04 = 0;
+        player = &g_game_info.plyr1;
+    } else if (g_game_info.plyr1.player_state == 0) {
+        opponent = &g_game_info.plyr1;
+        opponent->field_04 = 1;
+        player = &g_game_info.plyr0;
+    } else {
+        opponent = &g_game_info.plyr1;
+        opponent->player_state = 0;
+        opponent->field_04 = 1;
+        player = &g_game_info.plyr0;
+    }
+    load_ssf(gameart_file_table);
+    load_art_section(0x10005, &sec_fightingart);
+    load_font(0);
+    load_font(1);
+    load_font(3);
+    load_font(9);
+    setup_sound_banks(11);
+    wait_for_sound_banks_to_load();
+    set_process_as_scriptable(aproc);
+    load_background((int)mode_of_play == 6 ? 23 : 22);
+    if ((int)mode_of_play == 6) {
+        for (i = 0; i < 6; i++) {
+            for (j = 0; j < 6; j++) {
+                if (current_ladder_tbl[i].background_id ==
+                    data->puzzle_hud[j].background_id) break;
+            }
+            if (j >= 6) j = 0;
+            bgnd_append_texture_to_material(8-i, 28-i,
+                data->puzzle_hud[j].texture_name, 0);
+            bgnd_swap_textures(8-i, 28-i, 1);
+            character = current_ladder_tbl[i].character_id;
+            if (is_char_locked(character, character == 21))
+                character = current_ladder_tbl[i].locked_character_id;
+            for (j = 0; j < 12; j++) {
+                if (character == data->puzzle_characters[j].character_id) break;
+            }
+            if (j >= 12) j = 0;
+            bgnd_append_texture_to_material(18-i, 38-i,
+                data->puzzle_characters[j].texture_name, 0);
+            bgnd_swap_textures(18-i, 38-i, 1);
+        }
+    } else {
+        for (i = 0; i < 8; i++) {
+            int background = current_ladder_tbl[i].background_id;
+            if (is_bgnd_locked(background))
+                background = current_ladder_tbl[i].locked_background_id;
+            bgnd_append_texture_to_material(18-i, 8-i,
+                data->ladder_hud[background].texture_name, 0);
+            bgnd_swap_textures(18-i, 8-i, 1);
+            if (i != curr_ladder_pos && i != 7) {
+                place_plyr_on_ladder(i, 0);
+                if (i == 6) place_plyr_on_ladder(i, 1);
+            } else if (i == 6 && i == curr_ladder_pos) {
+                place_plyr_on_ladder(i, 1);
+            }
+        }
+    }
+    character = current_ladder_tbl[curr_ladder_pos].character_id;
+    if (is_char_locked(character, 0))
+        character = current_ladder_tbl[curr_ladder_pos].locked_character_id;
+    opponent->player_index = character;
+    if (curr_ladder_pos > 0 && curr_ladder_char != -1)
+        player->player_index = curr_ladder_char;
+    opponent->field_14 = 0;
+    resolve_alternate_palettes(player);
+    flags = opponent->field_14;
+    load_plyr_model_async(opponent->field_04, opponent->player_index, &flags);
+    g_game_info.bgnd_id = ladder_get_current_bgnd();
+    build_ladder_hud_data();
+    set_intro_camera_path((void*)1);
+    bgnd_anim_camera_setup();
+    if (curr_ladder_pos == 0) {
+        if ((int)mode_of_play == 6) snd_req(0x1AA1);
+        camera = get_pdata_of_camera();
+        camera->speed = 1.5f * game_speed;
+        camera_init_animation(bgnd_animations.intro_camera, p_animated_intro_done);
+        if ((int)mode_of_play != 6) camera->speed = 0.5f * game_speed;
+        camera_run_animation(0);
+    } else {
+        snd_req((int)mode_of_play == 6 ? 0x1AA2 : 0x1AA0);
+        if ((int)mode_of_play == 6) {
+            position.x = 0.0f;
+            position.y = 3.571f * (float)(curr_ladder_pos-1) + -26.283203f;
+            position.z = 7.376953f;
+            go_to_camera_cut_with_angle(&position, &angle);
+        } else {
+            camera_init_animation(bgnd_animations.travel_camera, p_animated_intro_done);
+            camera_run_animation_start_end(data->camera_frames[curr_ladder_pos][0],
+                data->camera_frames[curr_ladder_pos][1], 0, 1);
+        }
+    }
+    get_pdata_of_camera()->speed = 1e-10f;
+    turn_camera_on();
+    fade_from_black(20, 0);
+    camera = get_pdata_of_camera();
+    camera->speed = 1.5f * game_speed;
+    if (curr_ladder_pos == 0 && (int)mode_of_play != 6) {
+        frames = (int)(72.0f * inverse_game_speed);
+        ladder_sleep((float)frames);
+        snd_req(0x1A9F);
+        if (camera != 0) {
+            frames = (int)(22.0f * inverse_game_speed);
+            for (i = 0; i < frames; i++) {
+                camera->speed *= 0.9f;
+                ladder_sleep(1.0f);
+            }
+            camera->speed *= 1e-7f;
+        }
+        saved_camera = get_pdata_of_camera();
+        saved_speed = saved_camera->speed;
+        saved_camera->speed = saved_speed * 1e-9f;
+        create_player(opponent->field_04, opponent);
+        saved_camera->speed = saved_speed;
+        resume_frames = game_speed == 1.2f ? frames + 6 : frames;
+        for (i = 0; i < resume_frames; i++) {
+            camera->speed += 2.0f / (float)frames;
+            ladder_sleep(1.0f);
+        }
+    } else if ((int)mode_of_play == 6) {
+        initial_speed = 0.0f;
+        final_speed = 0.0f;
+        position.x = 0.0f;
+        position.y = 3.572f * (float)curr_ladder_pos + -26.283203f;
+        position.z = 7.376953f;
+        while (!move_to_end_point((const Vec*)&position, &initial_speed,
+                                 &final_speed, 0, 2.0f)) ladder_sleep(1.0f);
+    }
+    if ((int)mode_of_play == 0) {
+        MkObj* object;
+        MkProc* animation_proc;
+        AnimPdata* animation;
+        PlyrPdata* pdata;
+        unsigned int script;
+        LadderPlacement* placement;
+        if (curr_ladder_pos > 0) {
+            saved_camera = get_pdata_of_camera();
+            saved_speed = saved_camera->speed;
+            saved_camera->speed = saved_speed * 1e-9f;
+            create_player(opponent->field_04, opponent);
+            saved_camera->speed = saved_speed;
+        }
+        if (opponent->player_index == 27)
+            tag_team_activate_player(opponent->slot.mirror_a, randu0(1));
+        object = opponent->slot.mirror_a;
+        if (object != 0) {
+            placement = &data->player_positions[curr_ladder_pos];
+            object->pos.value = placement->position;
+            object->ang.y = placement->angle_y;
+            object->hide_flag_bits.bit6 = placement->mirrored;
+            object->flags_09_bits.launched = 1;
+            object->flags_09_bits.bit6 = 1;
+            object->ground_colls = char_piece_ground_colls;
+            g_game_info.field_34 = placement->position.y - 10.0f;
+            object->ground_colls_y = placement->position.y;
+            cloth_change_ground_plane_for(g_game_info.field_34);
+            ground_me(object);
+            pdata = opponent->slot.pdata;
+            animation_proc = pdata->anim_proc;
+            if (animation_proc == 0 || animation_proc->hdr.instance != pdata->anim_proc_instance)
+                animation_proc = 0;
+            animation = (AnimPdata*)pdata_of_proc(animation_proc);
+            set_anim_script(animation, pdata->fighter_definition->duck_exit_animation, 0x20);
+            animation->script = (AnimScript*)pdata->fighter_definition->duck_exit_animation;
+            if (opponent->player_index != 12)
+                tracking = create_mkproc_headtracking(0x6006, object, pdata);
+            if (opponent->flags_14_bits.alternate_costume)
+                script = pdata->runtime_data->alternate_script_48;
+            else
+                script = pdata->runtime_data->primary_script_24;
+            if (script != 0) {
+                CmdScript* previous_script = active_cmdscript;
+                PlyrPdata* previous_player = plyr_pdata;
+                PlyrPdata* previous_opponent = his_pdata;
+                MkObj* previous_object = plyr_obj;
+                MkObj* previous_other_object = his_obj;
+                plyr_pdata = pdata;
+                his_pdata = 0;
+                plyr_obj = object;
+                his_obj = 0;
+                active_cmdscript = &global_script_interpreter;
+                cmdscript_setup_execution(pdata->cmo, script);
+                cmdscript_execute(pdata->cmo);
+                active_cmdscript = previous_script;
+                plyr_pdata = previous_player;
+                his_pdata = previous_opponent;
+                plyr_obj = previous_object;
+                his_obj = previous_other_object;
+            }
+            xfer_proc(animation_proc, p_animate);
+        }
+    }
+    camera_wait_for_animation_completion();
+    bgnd_anim_camera_ended();
+    set_intro_camera_path(0);
+    arena_name = 0;
+    alpha = 0;
+    while (alpha < 255) {
+        arena_name = bgnd_name_item.object;
+        if (arena_name == 0 || arena_name->instance != bgnd_name_item.instance)
+            arena_name = 0;
+        /* Retail advances alpha only while its string remains valid. */
+        if (arena_name != 0) {
+            set_string_obj_alpha(arena_name, (float)(unsigned char)alpha);
+            alpha += (signed char)(8.0f * game_speed);
+            ladder_sleep(1.0f);
+        }
+    }
+    set_string_obj_alpha(arena_name, 255.0f);
+    if ((int)mode_of_play == 6) {
+        if ((g_game_info.plyr0.player_state == 2 && p1_profile_status == 1) ||
+            (g_game_info.plyr1.player_state == 2 && p2_profile_status == 1)) {
+            award = 0;
+            if (curr_ladder_pos >= 0 && curr_ladder_pos <= 6) {
+                award = data->puzzle_koin_awards[curr_ladder_pos] * 5;
+                difficulty = game_settings.rounds_to_win;
+                if (difficulty == 0) award = (int)(0.5f * (float)award);
+                else if (difficulty == 1) award = (int)(0.75f * (float)award);
+                else if (difficulty == 3) award = (int)(1.1f * (float)award);
+                else if (difficulty == 4) award = (int)(1.25f * (float)award);
+            }
+            g_game_info.pselect.field_1e8 = award;
+            coin = pz_ladder_koins[randu0(n_pz_ladder_koins) & 0xFFFF];
+            coin_type = 0;
+            for (i = 0; i < 6; i++) {
+                if (strcmp(coin_offset_tbl[i].name, coin) == 0) {
+                    coin_type = coin_offset_tbl[i].type;
+                    break;
+                }
+            }
+            g_game_info.pselect.field_1e4 = coin_type;
+            show_koin_award(0, award, coin_type, 0x23);
+            ladder_sleep(30.0f);
+        }
+        ladder_sleep(90.0f);
+    } else ladder_sleep(90.0f * inverse_game_speed);
+    fade_to_black(10, 1);
+    if (tracking != 0 && tracking->hdr.instance != 0)
+        ((LadderProcessVtable*)tracking->hdr.vtbl)->destroy(tracking);
+    if ((int)mode_of_play == 6) gamelogic_jump(3, p_puzzle_fighter);
+    gamelogic_jump(2, p_gamelogic);
+    return -1.0f;
 }

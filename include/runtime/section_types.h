@@ -146,13 +146,7 @@ typedef struct SectionSlotDef {
     int group_buffer_size;
 } SectionSlotDef;
 
-/*
- * Minimal player blob for get_shared_art_section_for_player.
- * type 0x1001 -> art 0x3000B; 0x1002 -> 0x4000B.
- */
-typedef struct SharedArtPlayer {
-    char pad00[0x10];
-    int type; /* +0x10 */
-} SharedArtPlayer;
+/* Shared-art selection reads the owning object's oid. */
+typedef struct MkObj SharedArtPlayer;
 
 #endif

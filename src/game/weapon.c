@@ -1,3 +1,4 @@
+#include "runtime/bone_matcher.h"
 #include "game/game_info.h"
 #include "game/blood.h"
 #include "game/weapon.h"
@@ -18,55 +19,7 @@ typedef struct ImpaleSecondaryObject {
     float strength; /* +0x48 */
 } ImpaleSecondaryObject;
 
-typedef struct WeaponBoneMatcherFlags08 {
-    unsigned char inactive : 1;
-    unsigned char copy_bone_matrix : 1;
-    unsigned char copy_clone_matrix : 1;
-    unsigned char preserve_bone_matrix : 1;
-    unsigned char copy_parent_angles : 1;
-    unsigned char flip_parent_angle_y : 1;
-    unsigned char release_parent_weight : 1;
-    unsigned char blend_child_transform : 1;
-} WeaponBoneMatcherFlags08;
-
-typedef struct WeaponBoneMatcherFlags09 {
-    unsigned char use_unmirrored_parent : 1;
-    unsigned char copy_child_flip : 1;
-    unsigned char snap_child_transform : 1;
-    unsigned char pad : 5;
-} WeaponBoneMatcherFlags09;
-
-typedef struct WeaponBoneMatcherState {
-    MkHdr hdr;
-    union {
-        unsigned char flags_08;
-        WeaponBoneMatcherFlags08 flags_08_bits;
-    };
-    union {
-        unsigned char flags_09;
-        WeaponBoneMatcherFlags09 flags_09_bits;
-    };
-    char pad0A[2];
-    float child_weight;
-    MkObj* parent_obj;
-    unsigned int parent_instance;
-    int parent_bone;
-    Vec parent_offset;
-    union {
-        struct {
-            MkObj* child_obj;
-            unsigned int child_instance;
-        };
-        PlyrMirrorObjLatch child_latch;
-    }; /* +0x28 */
-    char pad30[0x0C];
-    Vec child_offset; /* +0x3C */
-    char pad48[0x98];
-    Vec parent_translation; /* +0xE0 */
-    char padEC[0x10];
-    Vec mirrored_parent_translation; /* +0xFC */
-    char pad108[8];
-} WeaponBoneMatcherState; /* 0x110 */
+typedef BoneMatcherState WeaponBoneMatcherState;
 
 typedef struct WeaponCollisionDef {
     float radius;
@@ -130,9 +83,6 @@ MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,
                       unsigned int material_id, int frames);
 void advance_my_moveset(void);
 void update_bone_hierarchy(MkHdr* object);
-WeaponBoneMatcherState* start_bone_matcher(
-    float blend_ticks, MkObj* parent, int parent_bone, MkObj* child,
-    int child_bone);
 void mkobj_bones_dest_mat_no_update(MkObj* object);
 static Vec trail_p_to_c_uv = {1.0f, 0.0f, 0.0f};
 
@@ -152,14 +102,14 @@ int goro_gauntlets_trail_bones[2] = {0x2001, 0};
  */
 WeaponDefinition goro_gauntlets_weapon_desc_lr = {
     "WEAPON", goro_gauntlets_weapon_bones,
-    0x54, {-0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, -1.5707964f, 0, 0,
+    0x54, {-0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {-1.5707964f, 0.0f, 0.0f},
     "WEAPON_TR", goro_gauntlets_trail_bones, 3,
     goro_gauntlets_trail_anchors, goro_gauntlets_trail_tails, 0,
     0, {0.15f, 0.0f, 0.0f}, 0.4f, 0x4d, {0.0f, -0.2f, 0.5f}, 0,
 };
 WeaponDefinition goro_gauntlets_weapon_desc_ll = {
     "WEAPON", goro_gauntlets_weapon_bones,
-    0x47, {0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, 1.5707964f, 0, 0,
+    0x47, {0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.5707964f, 0.0f, 0.0f},
     "WEAPON_TR", goro_gauntlets_trail_bones, 3,
     goro_gauntlets_trail_anchors, goro_gauntlets_trail_tails, 0,
     0, {0.15f, 0.0f, 0.0f}, 0.4f, 0x4d, {0.0f, -0.2f, 0.5f}, 0,
@@ -339,8 +289,8 @@ void unimpale_victim(PlyrPdata* victim) {
             plyr_obj_item_grab(
                 attacker, &slots->weapon[0].primary,
                 &slots->weapon[0].secondary, item,
-                attach->bone_index, &attach->position,
-                &attach->rotation, &attach->scale, 1);
+                attach->attachment_bone, &attach->attachment_position,
+                &attach->attachment_rotation, &attach->attachment_scale, 1);
         }
     }
 
@@ -358,8 +308,8 @@ void unimpale_victim(PlyrPdata* victim) {
                 plyr_obj_item_grab(
                     attacker, &slots->weapon[1].primary,
                     &slots->weapon[1].secondary, item,
-                    attach->bone_index, &attach->position,
-                    &attach->rotation, &attach->scale, 1);
+                    attach->attachment_bone, &attach->attachment_position,
+                    &attach->attachment_rotation, &attach->attachment_scale, 1);
             }
         }
     }
@@ -605,8 +555,8 @@ void plyr_aux_weapon_grab(PlyrPdata* player, MkObj* item) {
 
     attach = item->item_attach_data;
     plyr_obj_item_grab(player, &player->aux_weapon_latch, 0, item,
-                       attach->bone_index, &attach->position,
-                       &attach->rotation, &attach->scale, 0);
+                       attach->attachment_bone, &attach->attachment_position,
+                       &attach->attachment_rotation, &attach->attachment_scale, 0);
 }
 
 MkObj* plyr_weapon2_release(PlyrPdata* player) {
@@ -649,8 +599,8 @@ void plyr_weapon4_grab(PlyrPdata* player, MkObj* item) {
         item_arg = item;
         plyr_obj_item_grab(player, &slots->weapon[3].primary,
                            &slots->weapon[3].secondary, item_arg,
-                           attach->bone_index, &attach->position,
-                           &attach->rotation, &attach->scale, 1);
+                           attach->attachment_bone, &attach->attachment_position,
+                           &attach->attachment_rotation, &attach->attachment_scale, 1);
     }
 }
 
@@ -672,8 +622,8 @@ void plyr_weapon3_grab(PlyrPdata* player, MkObj* item) {
         item_arg = item;
         plyr_obj_item_grab(player, &slots->weapon[2].primary,
                            &slots->weapon[2].secondary, item_arg,
-                           attach->bone_index, &attach->position,
-                           &attach->rotation, &attach->scale, 1);
+                           attach->attachment_bone, &attach->attachment_position,
+                           &attach->attachment_rotation, &attach->attachment_scale, 1);
     }
 }
 
@@ -695,8 +645,8 @@ void plyr_weapon2_grab(PlyrPdata* player, MkObj* item) {
         item_arg = item;
         plyr_obj_item_grab(player, &slots->weapon[1].primary,
                            &slots->weapon[1].secondary, item_arg,
-                           attach->bone_index, &attach->position,
-                           &attach->rotation, &attach->scale, 1);
+                           attach->attachment_bone, &attach->attachment_position,
+                           &attach->attachment_rotation, &attach->attachment_scale, 1);
     }
 }
 
@@ -710,8 +660,8 @@ void plyr_weapon_grab(PlyrPdata* player, MkObj* item) {
     slot = &player->mirror_slots->weapon[0];
     attach = item->item_attach_data;
     plyr_obj_item_grab(player, &slot->primary, &slot->secondary, item,
-                       attach->bone_index, &attach->position,
-                       &attach->rotation, &attach->scale, 1);
+                       attach->attachment_bone, &attach->attachment_position,
+                       &attach->attachment_rotation, &attach->attachment_scale, 1);
 }
 
 
@@ -806,13 +756,13 @@ static int plyr_obj_item_grab(PlyrPdata* player,
         matcher->mirrored_parent_translation.z = scale->z;
         matcher->mirrored_parent_translation.x *= -1.0f;
         if (insert_at_head) {
-            matcher->flags_08_bits.inactive = 0;
-            matcher->flags_08_bits.preserve_bone_matrix = 1;
-            matcher->flags_08_bits.copy_parent_angles = 1;
-            matcher->flags_08_bits.blend_child_transform = 1;
-            matcher->flags_09_bits.copy_child_flip = 1;
+            matcher->flags_08.bits.inactive = 0;
+            matcher->flags_08.bits.preserve_bone_matrix = 1;
+            matcher->flags_08.bits.copy_parent_angles = 1;
+            matcher->flags_08.bits.blend_child_transform = 1;
+            matcher->flags_09.bits.copy_child_flip = 1;
         } else {
-            matcher->flags_08_bits.copy_bone_matrix = 1;
+            matcher->flags_08.bits.copy_bone_matrix = 1;
         }
 
         if (secondary_latch != 0) {
@@ -829,9 +779,9 @@ static int plyr_obj_item_grab(PlyrPdata* player,
 }
 
 static inline MkObj* weapon_bone_matcher_state_live_child_latch_obj(WeaponBoneMatcherState* owner) {
-    MkObj* object = owner->child_latch.obj;
+    MkObj* object = owner->child_obj;
     if (object != 0) {
-        if (object->hdr.instance == owner->child_latch.instance) {
+        if (object->hdr.instance == owner->child_instance) {
             return object;
         }
         object = 0;
