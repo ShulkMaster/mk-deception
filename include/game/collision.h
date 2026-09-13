@@ -75,17 +75,38 @@ typedef struct CollisionObj {
     CollisionShape shape; /* +0x10 */
 } CollisionObj; /* 0xA0 */
 
+/* Runtime-owned node: local and transformed shapes share one bone owner. */
+typedef struct PlayerCollisionNode {
+    struct MkBone* bone; /* +0x00 */
+    unsigned int reserved04[3];
+    CollisionShape local_shape; /* +0x10 */
+    CollisionShape world_shape; /* +0xA0 */
+} PlayerCollisionNode; /* 0x130 */
+
 struct PlayerCollisionData {
-    char pad00[0x18];
-    void* nodes; /* +0x18 */
-    char pad1C[0x3C];
-    struct PlyrPdata* player; /* +0x58 */
-    struct MkObj* object;     /* +0x5C */
-    char pad60[0x9398];
-    int attack_region_index; /* +0x93F8 */
-    char pad93FC[0x10];
+    struct MkObj* object; /* +0x0000 */
+    unsigned int reserved04[3];
+    CollisionShape body_shape; /* +0x0010 */
+    PlayerCollisionNode joints[28]; /* +0x00A0 */
+    PlayerCollisionNode attacks[36]; /* +0x21E0 */
+    PlayerCollisionNode saved_attacks[36]; /* +0x4CA0 */
+    CollisionShape recorded_shapes[36]; /* +0x7760 */
+    PlayerCollisionNode active_nodes[7]; /* +0x8BA0 */
+    unsigned int joint_count; /* +0x93F0 */
+    unsigned int field_93F4; /* current attack count */
+    union {
+        unsigned int field_93F8; /* saved attack count */
+        int attack_region_index;
+    };
+    unsigned int recorded_count; /* +0x93FC */
+    unsigned int active_count; /* +0x9400 */
+    unsigned int render_recorded; /* +0x9404 */
+    float active_scale; /* +0x9408 */
     float attack_radius; /* +0x940C */
 };
+
+typedef char PlayerCollisionNodeSizeCheck[sizeof(PlayerCollisionNode) == 0x130 ? 1 : -1];
+typedef char PlayerCollisionDataSizeCheck[sizeof(PlayerCollisionData) == 0x9410 ? 1 : -1];
 
 typedef void (*GlobalCollisionCallback)(const unsigned int* obstacle_id);
 

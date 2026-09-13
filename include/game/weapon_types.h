@@ -26,9 +26,7 @@ struct WeaponDefinition {
     int attachment_bone;
     Vec attachment_position;
     Vec attachment_rotation;
-    float attachment_angle;
-    int field_28;
-    int field_2c;
+    Vec attachment_scale; /* +0x24 - vector passed to the bone matcher */
     const char* secondary_model_name; /* +0x30 */
     const int* trail_bone_tags; /* +0x34 */
     int trail_map_count; /* +0x38 */
@@ -42,5 +40,8 @@ struct WeaponDefinition {
     Vec field_60;
     WeaponImpaleData* impale_data; /* +0x6C */
 };
+
+typedef WeaponDefinition MkObjItemAttachData;
+typedef char WeaponDefinitionSizeCheck[sizeof(WeaponDefinition) == 0x70 ? 1 : -1];
 
 #endif

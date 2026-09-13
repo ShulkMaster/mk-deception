@@ -20,14 +20,6 @@
 #include "platform/io.h"
 #include "runtime/image.h"
 
-typedef struct AiFightstyleAttack {
-    int opcode;
-    union {
-        int argument;
-        float (*entry)(void);
-    };
-} AiFightstyleAttack;
-
 typedef struct DroneAI {
     int movement_state; /* +0x00 */
     unsigned int match_mode; /* +0x04 */
@@ -208,11 +200,6 @@ typedef struct AiSharedAnimations {
 typedef struct AiWeaponStyleView {
     int style_id;
 } AiWeaponStyleView;
-
-typedef struct AiFightstyleAttackTable {
-    PlyrMoveBlendData move_data;
-    AiFightstyleAttack attacks[25]; /* +0xF0 */
-} AiFightstyleAttackTable;
 
 typedef struct AiFightStyleRestrictionTable AiFightStyleRestrictionTable;
 

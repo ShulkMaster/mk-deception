@@ -177,6 +177,12 @@ Apply these refinements only with the parent rule's evidence:
   type. Puzzle rain initialization exposed this at pfx_get_emitter. Replace
   duplicate partial emitter/transform layouts with existing shared types when
   offsets agree, then compare every consumer affected by the new declaration.
+- H03: A cast at a helper call is converted again to the helper parameter type.
+  If only one selector must be unsigned while later comparisons stay signed,
+  REQUIRE evidence at both boundaries; TRY the explicit local selector rather
+  than changing the shared helper or whole local's type. Puzzle center-distance
+  lookup closes this way: unsigned cast passed to an int helper was ineffective,
+  while unsigned typing of the whole local changed later signed comparisons.
 - H03: IF equality against a positive constant above signed-16 range differs
   by `addis ..., 0` before `cmplwi`, REQUIRE the variable's signed uses and
   constant type; TRY removing an unsupported unsigned cast. Puzzle counter-drop

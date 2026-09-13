@@ -2,7 +2,7 @@
 #define GAME_AI_H
 
 typedef struct PlyrPdata PlyrPdata;
-typedef struct PlyrWeaponStyle PlyrWeaponStyle;
+typedef struct GlobalMoveset PlyrWeaponStyle;
 
 void drone_ai_finished_request(void);
 float drone_start(void);

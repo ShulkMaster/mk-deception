@@ -145,18 +145,6 @@ typedef struct ClothWindPdata {
     int ticks; /* +0x24 */
 } ClothWindPdata;
 
-struct ClothInitEntry {
-    int bone_tag;
-    float stiffness;
-    float segment_length;
-    float force;
-    float field_10;
-    float damping;
-    float initial_x;
-    float initial_z;
-    float table_scale;
-    int field_24;
-};
 
 /*
  * Soft ceiling: MWCC inlines this approximation at all three callers but
@@ -174,23 +162,15 @@ static float cloth_sqrt(float value) {
         return 0.0f;
     }
     input.f = value;
+    /* Retail lhzx uses a byte offset; this array index counts halfwords. */
     guess.u =
-        (unsigned int)GXMathSqrtTable[(input.u >> 10) & 0x3FFE] << 8;
+        (unsigned int)GXMathSqrtTable[(input.u >> 11) & 0x1FFF] << 8;
     guess.u |=
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) &
         0x7F800000U;
     refined = guess.f * (3.0f - (guess.f * guess.f) / value);
     return 0.5f * refined;
 }
-
-typedef struct ClothBoneScaleLink {
-    char pad00[0x3C];
-    float magnitude;
-    char pad40[0x50];
-    Vec scaled_axis;
-    char pad9C[4];
-    Vec normalized_axis;
-} ClothBoneScaleLink;
 
 typedef float (*ClothJumpSleepFn)(
     MkProcEntryFn entry,
@@ -583,10 +563,12 @@ void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius) {
     mks_cc1 = volume;
 }
 
+/* TODO: [near miss] 99.92958%; canonical cloth owner retains retail accesses;
+ * localized instruction/register residue remains. */
 void mks_cb1_set_scale(
     int include_children, float scale_x, float scale_y, float scale_z) {
     MkBone* bone;
-    ClothBoneScaleLink* link;
+    ClothBone* link;
     float inverse_length;
 
     if (mks_cb1 != 0) {
@@ -596,19 +578,19 @@ void mks_cb1_set_scale(
             bone->scale.x = scale_x;
             bone->scale.y = scale_y;
             bone->scale.z = scale_z;
-            link = (ClothBoneScaleLink*)bone->cloth_link;
+            link = bone->cloth_link;
             if (link != 0) {
-                link->scaled_axis.x *= scale_x;
-                link->scaled_axis.y *= scale_y;
-                link->scaled_axis.z *= scale_z;
-                link->magnitude = length_v3(&link->scaled_axis);
-                inverse_length = 1.0f / link->magnitude;
-                link->normalized_axis.x =
-                    link->scaled_axis.x * inverse_length;
-                link->normalized_axis.y =
-                    link->scaled_axis.y * inverse_length;
-                link->normalized_axis.z =
-                    link->scaled_axis.z * inverse_length;
+                link->local_cloth_position.x *= scale_x;
+                link->local_cloth_position.y *= scale_y;
+                link->local_cloth_position.z *= scale_z;
+                link->rest_length = length_v3(&link->local_cloth_position);
+                inverse_length = 1.0f / link->rest_length;
+                link->target_vector.x =
+                    link->local_cloth_position.x * inverse_length;
+                link->target_vector.y =
+                    link->local_cloth_position.y * inverse_length;
+                link->target_vector.z =
+                    link->local_cloth_position.z * inverse_length;
             }
             if (include_children != 0) {
                 bone = bone->tree_child;
@@ -747,9 +729,8 @@ void mks_mat_id_set_zbias(int material_id, float zbias) {
     }
 }
 
-void mks_cloth_bones_init_by_tbl(int table_id, int flags) {
-    cloth_bones_init_by_tbl(
-        plyr_obj, (ClothInitEntry*)table_id, flags);
+void mks_cloth_bones_init_by_tbl(ClothInitEntry* table, int flags) {
+    cloth_bones_init_by_tbl(plyr_obj, table, flags);
 }
 
 /* Soft ceiling: mks_bgnd_start_wind ~90.20% -- emit coloring/reloads only. */
@@ -920,6 +901,8 @@ static void mkobj_update_cloth(MkHdr* header) {
     }
 }
 
+/* TODO: [breakthrough] 85.56198%; sqrt halfword indexing restored;
+ * vector stack alignment and register allocation remain. */
 static void do_cloth_force(ClothForcePdata* force) {
     ClothBone* first;
     ClothBone* second;
@@ -1680,6 +1663,8 @@ static void set_cloth_pos(ClothBone* bone) {
     }
 }
 
+/* TODO: [breakthrough] 90.89697%; sqrt halfword indexing restored;
+ * vector stack alignment and register allocation remain. */
 static void calc_cloth_stretch(ClothBone* bone) {
     MkBone* render_bone;
     MkBone* parent_bone;
@@ -2006,6 +1991,8 @@ void start_cloth_bones(MkObj* obj) {
     }
 }
 
+/* TODO: [breakthrough] 82.78302%; scalar row and sqrt indexing agree;
+ * loop/register layout remains. */
 void cloth_bones_init_by_tbl(
     MkObj* object, ClothInitEntry* table, int count) {
     ClothBone* cloth_bone;

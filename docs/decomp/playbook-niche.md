@@ -34,6 +34,13 @@ After the applicable honest source check, stop for:
   setup kept equal ordinary scores with incorrect return constants. Audit
   same-register literal loads using bytes/data-value comparison before calling
   a residual coloring.
+  If identical instructions still appear as replacements, inspect inferred
+  `R_PPC_NONE` annotations separately from actual linker relocations. Require
+  matching opcodes/immediates and verified data bytes plus relocation targets;
+  then record the metadata residual without rewriting source or generated
+  objects. Puzzle's preround fatality dispatcher has this residual on the
+  table-copy `subi r4,r3,4`, despite identical dispatch entries. This does not
+  establish report-exact or link-exact status.
 - Equivalent branch/address lowering without new source evidence.
 
 Unknown calls/offsets/CFG are not coloring: classify borked or breakthrough needed
